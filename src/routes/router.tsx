@@ -1,10 +1,12 @@
-import { createBrowserRouter } from 'react-router-dom'
+import { createBrowserRouter, Navigate } from 'react-router-dom'
+import { ProtectedRoute } from '@/features/auth/ProtectedRoute'
 import { DashboardPage } from '@/pages/DashboardPage'
 import { WeddingsPage } from '@/pages/WeddingsPage'
 import { WeddingDetailPage } from '@/pages/WeddingDetailPage'
 import { NewWeddingPage } from '@/pages/NewWeddingPage'
 import { CalendarPage } from '@/pages/CalendarPage'
 import { FormPage } from '@/pages/FormPage'
+import { LoginPage } from '@/pages/LoginPage'
 import { PlaceholderPage } from '@/pages/PlaceholderPage'
 /** @deprecated Use Form Engine (`/forms/:token`) instead. Kept for Sprint 04 demos. */
 import { PortalLayout } from '@/features/portal/PortalLayout'
@@ -22,24 +24,8 @@ import {
 
 export const router = createBrowserRouter([
   {
-    path: '/',
-    element: <DashboardPage />,
-  },
-  {
-    path: '/sluby',
-    element: <WeddingsPage />,
-  },
-  {
-    path: '/sluby/nowy',
-    element: <NewWeddingPage />,
-  },
-  {
-    path: '/sluby/:id',
-    element: <WeddingDetailPage />,
-  },
-  {
-    path: '/kalendarz',
-    element: <CalendarPage />,
+    path: '/login',
+    element: <LoginPage />,
   },
   {
     path: '/forms/:token',
@@ -47,7 +33,7 @@ export const router = createBrowserRouter([
   },
   /**
    * @deprecated Couple Portal v1 — replaced by Form Engine (`/forms/:token`).
-   * Do not extend; migrate remaining features into Form Templates.
+   * Public like forms — not behind studio auth.
    */
   {
     path: '/portal/:token',
@@ -63,43 +49,72 @@ export const router = createBrowserRouter([
     ],
   },
   {
-    path: '/zadania',
-    element: (
-      <PlaceholderPage
-        title="Zadania"
-        description="Lista zadań"
-        icon={<IconTasks width={32} height={32} />}
-      />
-    ),
-  },
-  {
-    path: '/sprzet',
-    element: (
-      <PlaceholderPage
-        title="Sprzęt"
-        description="Zarządzanie sprzętem"
-        icon={<IconEquipment width={32} height={32} />}
-      />
-    ),
-  },
-  {
-    path: '/finanse',
-    element: (
-      <PlaceholderPage
-        title="Finanse"
-        description="Przegląd finansów"
-        icon={<IconFinances width={32} height={32} />}
-      />
-    ),
-  },
-  {
-    path: '/ustawienia',
-    element: (
-      <PlaceholderPage
-        title="Ustawienia"
-        description="Ustawienia aplikacji"
-        icon={<IconSettings width={32} height={32} />}
-      />
-    ),
+    element: <ProtectedRoute />,
+    children: [
+      {
+        path: '/',
+        element: <Navigate to="/dashboard" replace />,
+      },
+      {
+        path: '/dashboard',
+        element: <DashboardPage />,
+      },
+      {
+        path: '/sluby',
+        element: <WeddingsPage />,
+      },
+      {
+        path: '/sluby/nowy',
+        element: <NewWeddingPage />,
+      },
+      {
+        path: '/sluby/:id',
+        element: <WeddingDetailPage />,
+      },
+      {
+        path: '/kalendarz',
+        element: <CalendarPage />,
+      },
+      {
+        path: '/zadania',
+        element: (
+          <PlaceholderPage
+            title="Zadania"
+            description="Lista zadań"
+            icon={<IconTasks width={32} height={32} />}
+          />
+        ),
+      },
+      {
+        path: '/sprzet',
+        element: (
+          <PlaceholderPage
+            title="Sprzęt"
+            description="Zarządzanie sprzętem"
+            icon={<IconEquipment width={32} height={32} />}
+          />
+        ),
+      },
+      {
+        path: '/finanse',
+        element: (
+          <PlaceholderPage
+            title="Finanse"
+            description="Przegląd finansów"
+            icon={<IconFinances width={32} height={32} />}
+          />
+        ),
+      },
+      {
+        path: '/ustawienia',
+        element: (
+          <PlaceholderPage
+            title="Ustawienia"
+            description="Ustawienia aplikacji"
+            icon={<IconSettings width={32} height={32} />}
+          />
+        ),
+      },
+    ],
   },
 ])

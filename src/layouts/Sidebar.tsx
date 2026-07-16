@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom'
+import { NavLink, useNavigate } from 'react-router-dom'
 import {
   IconCalendar,
   IconDashboard,
@@ -8,10 +8,11 @@ import {
   IconTasks,
   IconWeddings,
 } from '@/components/icons'
+import { useAuth } from '@/features/auth/AuthProvider'
 import styles from './Sidebar.module.css'
 
 const navItems = [
-  { to: '/', label: 'Dashboard', icon: IconDashboard, end: true },
+  { to: '/dashboard', label: 'Dashboard', icon: IconDashboard, end: true },
   { to: '/sluby', label: 'Śluby', icon: IconWeddings },
   { to: '/kalendarz', label: 'Kalendarz', icon: IconCalendar },
   { to: '/zadania', label: 'Zadania', icon: IconTasks },
@@ -21,6 +22,18 @@ const navItems = [
 ]
 
 export function Sidebar() {
+  const { user, logout } = useAuth()
+  const navigate = useNavigate()
+
+  const displayName = user?.name ?? 'Marcin'
+  const displayRole = user?.role ?? 'Administrator'
+  const avatarLetter = user?.initials ?? displayName.charAt(0).toUpperCase()
+
+  function handleLogout() {
+    logout()
+    navigate('/login', { replace: true })
+  }
+
   return (
     <aside className={styles.sidebar}>
       <div className={styles.logo}>
@@ -45,12 +58,21 @@ export function Sidebar() {
       </nav>
 
       <div className={styles.footer}>
-        <div className={styles.user}>
-          <div className={styles.userAvatar}>K</div>
-          <div>
-            <p className={styles.userName}>Karolina</p>
-            <p className={styles.userRole}>Fotografka</p>
+        <div className={styles.userMenu}>
+          <div className={styles.user}>
+            <div className={styles.userAvatar}>{avatarLetter}</div>
+            <div>
+              <p className={styles.userName}>{displayName}</p>
+              <p className={styles.userRole}>{displayRole}</p>
+            </div>
           </div>
+          <button
+            type="button"
+            className={styles.logout}
+            onClick={handleLogout}
+          >
+            Wyloguj
+          </button>
         </div>
       </div>
     </aside>
