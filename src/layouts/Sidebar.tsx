@@ -1,11 +1,10 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   IconCalendar,
+  IconClipboard,
   IconDashboard,
-  IconEquipment,
-  IconFinances,
+  IconInbox,
   IconSettings,
-  IconTasks,
   IconWeddings,
 } from '@/components/icons'
 import { useAuth } from '@/features/auth/AuthProvider'
@@ -15,9 +14,8 @@ const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: IconDashboard, end: true },
   { to: '/sluby', label: 'Śluby', icon: IconWeddings },
   { to: '/kalendarz', label: 'Kalendarz', icon: IconCalendar },
-  { to: '/zadania', label: 'Zadania', icon: IconTasks },
-  { to: '/sprzet', label: 'Sprzęt', icon: IconEquipment },
-  { to: '/finanse', label: 'Finanse', icon: IconFinances },
+  { to: '/ankiety', label: 'Ankiety', icon: IconClipboard },
+  { to: '/oczekujace', label: 'Oczekujące', icon: IconInbox },
   { to: '/ustawienia', label: 'Ustawienia', icon: IconSettings },
 ]
 

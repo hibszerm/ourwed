@@ -3,7 +3,7 @@ import { useAuth } from '@/features/auth/AuthProvider'
 
 /**
  * Guards studio routes. Unauthenticated users are sent to /login.
- * Couple Forms (/forms/...) stay outside this layout and remain public.
+ * Public Form Engine (`/form/:token`) stays outside this layout.
  */
 export function ProtectedRoute() {
   const { isAuthenticated } = useAuth()

@@ -65,3 +65,9 @@
 .valueRemaining {
   color: var(--color-accent);
 }
+
+.emptyHint {
+  margin-top: var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--color-text-tertiary);
+}

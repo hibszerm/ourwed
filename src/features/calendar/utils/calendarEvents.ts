@@ -8,6 +8,7 @@ import {
   getWorkflowStatus,
   type WorkflowStageColor,
 } from '@/lib/workflow/workflowEngine'
+import type { CalendarEvent } from '@/lib/api/calendarEventService'
 import type { Wedding, WorkflowStage } from '@/types/wedding'
 import { parseDateKey, toDateKey } from './calendarDates'
 
@@ -38,6 +39,13 @@ export function getCeremonyTime(wedding: Wedding): string | undefined {
   return ceremony?.time
 }
 
+function extractTimeLabel(iso: string, allDay: boolean): string | undefined {
+  if (allDay) return undefined
+  const match = iso.match(/T(\d{2}):(\d{2})/)
+  if (!match) return undefined
+  return `${match[1]}:${match[2]}`
+}
+
 export function toCalendarEvent(wedding: Wedding): CalendarWeddingEvent {
   const status = getWorkflowStatus(wedding)
   const ceremonyTime = getCeremonyTime(wedding)
@@ -60,6 +68,46 @@ export function toCalendarEvent(wedding: Wedding): CalendarWeddingEvent {
   }
 }
 
+/** Build UI calendar events from `public.calendar_events` + weddings map. */
+export function buildCalendarEventsFromRows(
+  events: CalendarEvent[],
+  weddings: Wedding[],
+): CalendarWeddingEvent[] {
+  const byId = new Map(weddings.map((w) => [w.id, w]))
+
+  return events
+    .map((event) => {
+      const wedding = byId.get(event.weddingId)
+      if (!wedding) return null
+
+      const status = getWorkflowStatus(wedding)
+      const dateKey = toDateKey(parseDateKey(event.startDate.slice(0, 10)))
+      const ceremonyTime =
+        extractTimeLabel(event.startDate, event.allDay) ?? getCeremonyTime(wedding)
+
+      return {
+        id: event.id,
+        wedding,
+        dateKey,
+        coupleLabel: coupleName(wedding.couple.partner1, wedding.couple.partner2),
+        ceremonyLocation:
+          event.location || wedding.ceremonyLocation || '—',
+        receptionLocation: wedding.receptionLocation ?? '—',
+        ceremonyTime,
+        timeLabel: ceremonyTime ?? UNKNOWN_TIME_LABEL,
+        stage: status.stage,
+        stageLabel: status.stageLabel,
+        statusMessage: status.message,
+        colors: getWorkflowStageColor(status.stage),
+        packageName: wedding.packageName,
+        packageColor: event.color || wedding.accentColor,
+      } satisfies CalendarWeddingEvent
+    })
+    .filter((e): e is CalendarWeddingEvent => e != null)
+    .sort((a, b) => a.dateKey.localeCompare(b.dateKey))
+}
+
+/** @deprecated Prefer buildCalendarEventsFromRows — calendar_events is source of truth. */
 export function buildCalendarEvents(weddings: Wedding[]): CalendarWeddingEvent[] {
   return weddings
     .map(toCalendarEvent)

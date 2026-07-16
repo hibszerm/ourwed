@@ -100,7 +100,7 @@ export function CalendarDrawer({ event, onClose }: CalendarDrawerProps) {
         </div>
 
         <footer className={styles.footer}>
-          <Link to={`/sluby/${event.id}`} className={styles.link}>
+          <Link to={`/sluby/${event.wedding.id}`} className={styles.link}>
             <Button type="button" variant="primary">
               Otwórz zlecenie
             </Button>

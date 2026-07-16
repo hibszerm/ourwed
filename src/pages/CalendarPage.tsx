@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { AppLayout } from '@/layouts/AppLayout'
 import { Button } from '@/components/ui/Button'
+import { EmptyState } from '@/components/ui/EmptyState'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { useWeddings } from '@/features/weddings/hooks/useWeddings'
 import { CalendarSummary } from '@/features/calendar/components/CalendarSummary'
@@ -15,18 +17,42 @@ import { CalendarDrawer } from '@/features/calendar/components/CalendarDrawer'
 import { CalendarMonthWeddings } from '@/features/calendar/components/CalendarMonthWeddings'
 import { addDays, addMonths, startOfMonth, startOfWeek } from '@/features/calendar/utils/calendarDates'
 import {
-  buildCalendarEvents,
+  buildCalendarEventsFromRows,
   type CalendarWeddingEvent,
 } from '@/features/calendar/utils/calendarEvents'
+import { calendarEventService } from '@/lib/api/calendarEventService'
 import styles from './CalendarPage.module.css'
 
 export function CalendarPage() {
-  const { data: weddings = [], isLoading } = useWeddings()
+  const {
+    data: weddings = [],
+    isLoading: weddingsLoading,
+    isError: weddingsError,
+    error: weddingsErr,
+    refetch: refetchWeddings,
+  } = useWeddings()
+  const {
+    data: calendarRows = [],
+    isLoading: eventsLoading,
+    isError: eventsError,
+    error: eventsErr,
+    refetch: refetchEvents,
+  } = useQuery({
+    queryKey: ['calendar-events', weddings.map((w) => w.id).join(',')],
+    queryFn: () => calendarEventService.syncWeddingDayEvents(weddings),
+    enabled: weddings.length > 0,
+  })
   const [view, setView] = useState<CalendarViewMode>('month')
   const [anchor, setAnchor] = useState(() => startOfMonth(new Date()))
   const [selected, setSelected] = useState<CalendarWeddingEvent | null>(null)
 
-  const events = useMemo(() => buildCalendarEvents(weddings), [weddings])
+  const events = useMemo(
+    () => buildCalendarEventsFromRows(calendarRows, weddings),
+    [calendarRows, weddings],
+  )
+
+  const isLoading = weddingsLoading || (weddings.length > 0 && eventsLoading)
+  const isError = weddingsError || eventsError
 
   function handleToday() {
     const today = new Date()
@@ -65,6 +91,29 @@ export function CalendarPage() {
       {isLoading ? (
         <PageContainer width="wide">
           <p className={styles.loading}>Ładowanie kalendarza...</p>
+        </PageContainer>
+      ) : isError ? (
+        <PageContainer width="wide">
+          <EmptyState
+            title="Nie udało się załadować kalendarza"
+            description={
+              (weddingsErr instanceof Error
+                ? weddingsErr.message
+                : null) ||
+              (eventsErr instanceof Error ? eventsErr.message : null) ||
+              'Spróbuj ponownie.'
+            }
+          />
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => {
+              void refetchWeddings()
+              void refetchEvents()
+            }}
+          >
+            Spróbuj ponownie
+          </Button>
         </PageContainer>
       ) : (
         <PageContainer width="wide">

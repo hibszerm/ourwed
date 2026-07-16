@@ -109,5 +109,7 @@ export const authService = {
 
   logout(): void {
     localStorage.removeItem(STORAGE_KEY)
+    // Lazy import avoids circular dependency with studioUser → authService.
+    void import('@/lib/api/studioUser').then((m) => m.clearStudioUserCache())
   },
 }

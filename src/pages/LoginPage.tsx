@@ -40,6 +40,8 @@ export function LoginPage() {
         return
       }
       setError(result.error)
+    } catch {
+      setError('Nie udało się zalogować. Spróbuj ponownie.')
     } finally {
       setBusy(false)
     }

@@ -72,7 +72,7 @@ export interface FormSettings {
 }
 
 /**
- * A concrete form instance reachable via /forms/:token.
+ * A concrete form instance reachable via /form/:token.
  * weddingId set → Scenario A (update wedding).
  * weddingId null → Scenario B (create Pending Wedding).
  */

@@ -5,22 +5,13 @@ import { WeddingsPage } from '@/pages/WeddingsPage'
 import { WeddingDetailPage } from '@/pages/WeddingDetailPage'
 import { NewWeddingPage } from '@/pages/NewWeddingPage'
 import { CalendarPage } from '@/pages/CalendarPage'
-import { FormPage } from '@/pages/FormPage'
+import { QuestionnairesPage } from '@/pages/QuestionnairesPage'
+import { QuestionnaireDetailPage } from '@/pages/QuestionnaireDetailPage'
+import { PendingWeddingsPage } from '@/pages/PendingWeddingsPage'
+import { PublicFormTokenPage } from '@/pages/PublicFormTokenPage'
 import { LoginPage } from '@/pages/LoginPage'
 import { PlaceholderPage } from '@/pages/PlaceholderPage'
-/** @deprecated Use Form Engine (`/forms/:token`) instead. Kept for Sprint 04 demos. */
-import { PortalLayout } from '@/features/portal/PortalLayout'
-import { PortalWelcomePage } from '@/features/portal/PortalWelcomePage'
-import { PortalContractDataPage } from '@/features/portal/PortalContractDataPage'
-import { PortalStatusPage } from '@/features/portal/PortalStatusPage'
-import { PortalSuccessPage } from '@/features/portal/PortalSuccessPage'
-import { PortalComingSoonPage } from '@/features/portal/PortalComingSoonPage'
-import {
-  IconEquipment,
-  IconFinances,
-  IconSettings,
-  IconTasks,
-} from '@/components/icons'
+import { IconSettings } from '@/components/icons'
 
 export const router = createBrowserRouter([
   {
@@ -28,25 +19,8 @@ export const router = createBrowserRouter([
     element: <LoginPage />,
   },
   {
-    path: '/forms/:token',
-    element: <FormPage />,
-  },
-  /**
-   * @deprecated Couple Portal v1 — replaced by Form Engine (`/forms/:token`).
-   * Public like forms — not behind studio auth.
-   */
-  {
-    path: '/portal/:token',
-    element: <PortalLayout />,
-    children: [
-      { index: true, element: <PortalWelcomePage /> },
-      { path: 'dane', element: <PortalContractDataPage /> },
-      { path: 'status', element: <PortalStatusPage /> },
-      { path: 'sukces', element: <PortalSuccessPage /> },
-      { path: 'ankieta', element: <PortalComingSoonPage title="Ankieta ślubna" /> },
-      { path: 'umowa', element: <PortalComingSoonPage title="Umowa" /> },
-      { path: 'kontakt', element: <PortalComingSoonPage title="Kontakt" /> },
-    ],
+    path: '/form/:token',
+    element: <PublicFormTokenPage />,
   },
   {
     element: <ProtectedRoute />,
@@ -76,34 +50,16 @@ export const router = createBrowserRouter([
         element: <CalendarPage />,
       },
       {
-        path: '/zadania',
-        element: (
-          <PlaceholderPage
-            title="Zadania"
-            description="Lista zadań"
-            icon={<IconTasks width={32} height={32} />}
-          />
-        ),
+        path: '/ankiety',
+        element: <QuestionnairesPage />,
       },
       {
-        path: '/sprzet',
-        element: (
-          <PlaceholderPage
-            title="Sprzęt"
-            description="Zarządzanie sprzętem"
-            icon={<IconEquipment width={32} height={32} />}
-          />
-        ),
+        path: '/ankiety/:id',
+        element: <QuestionnaireDetailPage />,
       },
       {
-        path: '/finanse',
-        element: (
-          <PlaceholderPage
-            title="Finanse"
-            description="Przegląd finansów"
-            icon={<IconFinances width={32} height={32} />}
-          />
-        ),
+        path: '/oczekujace',
+        element: <PendingWeddingsPage />,
       },
       {
         path: '/ustawienia',

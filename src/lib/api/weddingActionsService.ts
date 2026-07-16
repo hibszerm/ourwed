@@ -1,19 +1,18 @@
-import { formService } from '@/lib/api/formService'
+import { contractService } from '@/lib/api/contractService'
+import { createFormInstance, getActiveFormByCategory } from '@/lib/api/forms'
+import { noteService } from '@/lib/api/noteService'
+import { notificationService } from '@/lib/api/notificationService'
+import { paymentService } from '@/lib/api/paymentService'
+import { timelineEventService } from '@/lib/api/timelineEventService'
 import { weddingService } from '@/lib/api/weddingService'
 import { getDepositPaid } from '@/lib/utils/finance'
 import { coupleName } from '@/lib/utils/dates'
-import {
-  createTimelineEntry,
-  prependTimelineEntry,
-} from '@/lib/utils/timeline'
 import { getNextStage } from '@/lib/workflow/workflowEngine'
-import { addNotification } from '@/mocks/notifications'
+import type { FormCategory } from '@/types/formEngine'
 import type {
-  Payment,
   PaymentMethod,
   PaymentType,
   Wedding,
-  WeddingNote,
 } from '@/types/wedding'
 
 export type QuestionnaireKind = 'contractData' | 'weddingQuestionnaire'
@@ -21,21 +20,21 @@ export type QuestionnaireKind = 'contractData' | 'weddingQuestionnaire'
 const QUESTIONNAIRE_CONFIG: Record<
   QuestionnaireKind,
   {
-    templateId: string
+    formCategory: FormCategory
     timelineTitle: string
     notificationTitle: string
     notificationMessage: (couple: string) => string
   }
 > = {
   contractData: {
-    templateId: 'tpl-contract',
-    timelineTitle: 'Wysłano ankietę do umowy.',
-    notificationTitle: 'Ankieta do umowy wysłana',
+    formCategory: 'contract',
+    timelineTitle: 'Wysłano: Dane do umowy.',
+    notificationTitle: 'Dane do umowy — wysłano',
     notificationMessage: (couple) =>
-      `Formularz danych do umowy został wysłany do pary ${couple}.`,
+      `Formularz „Dane do umowy” został wysłany do pary ${couple}.`,
   },
   weddingQuestionnaire: {
-    templateId: 'tpl-wedding-q',
+    formCategory: 'pre_wedding',
     timelineTitle: 'Wysłano ankietę przedślubną.',
     notificationTitle: 'Ankieta przedślubna wysłana',
     notificationMessage: (couple) =>
@@ -46,8 +45,6 @@ const QUESTIONNAIRE_CONFIG: Record<
 export interface SendQuestionnaireInput {
   weddingId: string
   kind: QuestionnaireKind
-  recipientEmail: string
-  message?: string
 }
 
 export interface AddPaymentInput {
@@ -81,12 +78,12 @@ const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
 }
 
 /**
- * Studio actions for Wedding Detail — mock implementations ready for Supabase.
+ * Studio actions for Wedding Detail — persist via dedicated domain services.
  */
 export const weddingActionsService = {
   async sendQuestionnaire(
     input: SendQuestionnaireInput,
-  ): Promise<{ wedding: Wedding; formToken: string }> {
+  ): Promise<{ wedding: Wedding; formToken: string; formUrl: string }> {
     const wedding = await requireWedding(input.weddingId)
     const config = QUESTIONNAIRE_CONFIG[input.kind]
     const qKey = input.kind
@@ -95,15 +92,23 @@ export const weddingActionsService = {
       throw new Error('Ankieta została już wysłana.')
     }
 
-    const form = await formService.createForWedding(
-      wedding.id,
-      config.templateId,
-    )
+    const form = await getActiveFormByCategory(config.formCategory)
+    if (!form) {
+      throw new Error(
+        input.kind === 'contractData'
+          ? 'Brak aktywnego formularza ankiety do umowy.'
+          : 'Brak aktywnego formularza ankiety przedślubnej.',
+      )
+    }
+
+    const instance = await createFormInstance(form.id, wedding.id)
+    const formToken = instance.token
+    const formUrl = `${window.location.origin}/form/${formToken}`
 
     const today = new Date().toISOString().slice(0, 10)
     const couple = coupleName(wedding.couple.partner1, wedding.couple.partner2)
 
-    const next: Wedding = {
+    await weddingService.update({
       ...wedding,
       questionnaires: {
         ...wedding.questionnaires,
@@ -112,33 +117,29 @@ export const weddingActionsService = {
           sentAt: today,
         },
       },
-      timeline: prependTimelineEntry(
-        wedding.timeline,
-        createTimelineEntry({
-          title: config.timelineTitle,
-          type: 'questionnaire_sent',
-          description: `Wysłano na ${input.recipientEmail}${
-            input.message?.trim() ? ` — ${input.message.trim().slice(0, 80)}` : ''
-          }`,
-        }),
-      ),
-    }
-
-    const updated = await weddingService.update(next)
-
-    addNotification({
-      id: `notif-${Date.now()}`,
-      title: config.notificationTitle,
-      message: config.notificationMessage(couple),
-      createdAt: today,
-      read: false,
-      type: 'success',
     })
 
-    // Mock: form token is available for future email / copy-link UX
-    void form.token
+    await timelineEventService.create({
+      weddingId: wedding.id,
+      type: 'questionnaire_sent',
+      title: config.timelineTitle,
+      description: 'Wygenerowano link do ankiety.',
+      date: today,
+    })
 
-    return { wedding: updated, formToken: form.token }
+    await notificationService.create({
+      title: config.notificationTitle,
+      message: config.notificationMessage(couple),
+      type: 'success',
+      entityType: 'wedding',
+      entityId: wedding.id,
+    })
+
+    const updated = await weddingService.getById(wedding.id)
+    if (!updated) {
+      throw new Error('Nie znaleziono ślubu po wysłaniu ankiety.')
+    }
+    return { wedding: updated, formToken, formUrl }
   },
 
   async addPayment(input: AddPaymentInput): Promise<Wedding> {
@@ -148,22 +149,20 @@ export const weddingActionsService = {
     const label =
       input.label ??
       (type === 'deposit' ? 'Zadatek' : 'Wpłata')
+    const paymentDate = input.date || today
 
-    const payment: Payment = {
-      id: `p-${wedding.id}-${Date.now()}`,
-      label,
-      amount: input.amount,
+    await paymentService.create({
+      weddingId: wedding.id,
       type,
-      paid: true,
-      paidAt: input.date || today,
+      amount: input.amount,
+      paymentDate,
       method: input.method,
       note: input.note?.trim() || undefined,
-    }
+    })
+
+    const payments = await paymentService.listByWeddingId(wedding.id)
 
     let workflowStage = wedding.workflowStage
-    const payments = [...wedding.payments, payment]
-
-    // Advance from deposit → preparation when a deposit is recorded
     if (wedding.workflowStage === 'deposit' && getDepositPaid(payments) > 0) {
       const advanced = getNextStage('deposit')
       if (advanced) workflowStage = advanced
@@ -172,65 +171,62 @@ export const weddingActionsService = {
     const methodLabel = PAYMENT_METHOD_LABELS[input.method]
     const couple = coupleName(wedding.couple.partner1, wedding.couple.partner2)
 
-    const next: Wedding = {
-      ...wedding,
-      payments,
-      workflowStage,
-      timeline: prependTimelineEntry(
-        wedding.timeline,
-        createTimelineEntry({
-          title: 'Dodano wpłatę.',
-          type: 'payment_received',
-          description: `${label}: ${input.amount} zł · ${methodLabel}`,
-          date: input.date || today,
-        }),
-      ),
-    }
-
-    const updated = await weddingService.update(next)
-
-    if (type === 'deposit') {
-      addNotification({
-        id: `notif-${Date.now()}`,
-        title: 'Zadatek otrzymany',
-        message: `Zarejestrowano zadatek dla pary ${couple}.`,
-        createdAt: today,
-        read: false,
-        type: 'success',
+    if (workflowStage !== wedding.workflowStage) {
+      await weddingService.update({
+        ...wedding,
+        workflowStage,
       })
     }
 
+    await timelineEventService.create({
+      weddingId: wedding.id,
+      type: 'payment_received',
+      title: 'Dodano wpłatę.',
+      description: `${label}: ${input.amount} zł · ${methodLabel}`,
+      date: paymentDate,
+    })
+
+    if (type === 'deposit') {
+      await notificationService.create({
+        title: 'Zadatek otrzymany',
+        message: `Zarejestrowano zadatek dla pary ${couple}.`,
+        type: 'success',
+        entityType: 'wedding',
+        entityId: wedding.id,
+      })
+    }
+
+    const updated = await weddingService.getById(wedding.id)
+    if (!updated) {
+      throw new Error('Nie znaleziono ślubu po zapisaniu wpłaty.')
+    }
     return updated
   },
 
   async addNote(input: AddNoteInput): Promise<Wedding> {
     const wedding = await requireWedding(input.weddingId)
-    const today = new Date().toISOString().slice(0, 10)
     const content = input.content.trim()
     if (!content) throw new Error('Notatka nie może być pusta.')
 
-    const note: WeddingNote = {
-      id: `n-${wedding.id}-${Date.now()}`,
+    await noteService.create({
+      weddingId: wedding.id,
       content,
-      createdAt: today,
       author: input.author ?? 'Karolina',
       pinned: input.pinned ?? false,
-    }
+    })
 
-    const next: Wedding = {
-      ...wedding,
-      notes: [note, ...wedding.notes],
-      timeline: prependTimelineEntry(
-        wedding.timeline,
-        createTimelineEntry({
-          title: 'Dodano notatkę.',
-          type: 'note_added',
-          description: content.slice(0, 100),
-        }),
-      ),
-    }
+    await timelineEventService.create({
+      weddingId: wedding.id,
+      type: 'note_added',
+      title: 'Dodano notatkę.',
+      description: content.slice(0, 100),
+    })
 
-    return weddingService.update(next)
+    const updated = await weddingService.getById(wedding.id)
+    if (!updated) {
+      throw new Error('Nie znaleziono ślubu po zapisaniu notatki.')
+    }
+    return updated
   },
 
   async generateContract(weddingId: string): Promise<GenerateContractResult> {
@@ -239,38 +235,41 @@ export const weddingActionsService = {
     const today = new Date().toISOString().slice(0, 10)
     const couple = coupleName(wedding.couple.partner1, wedding.couple.partner2)
 
-    const next: Wedding = {
-      ...wedding,
-      contract: {
-        ...wedding.contract,
-        status: 'generated',
-        generatedAt: today,
-      },
-      workflowStage:
-        wedding.workflowStage === 'reservation' ? 'contract' : wedding.workflowStage,
-      timeline: prependTimelineEntry(
-        wedding.timeline,
-        createTimelineEntry({
-          title: 'Wygenerowano umowę.',
-          type: 'contract_generated',
-          description:
-            missingFields.length > 0
-              ? `Wygenerowano z brakującymi polami: ${missingFields.join(', ')}`
-              : undefined,
-        }),
-      ),
+    await contractService.updateStatus(wedding.id, 'generated')
+
+    const workflowStage =
+      wedding.workflowStage === 'reservation' ? 'contract' : wedding.workflowStage
+
+    if (workflowStage !== wedding.workflowStage) {
+      await weddingService.update({
+        ...wedding,
+        workflowStage,
+      })
     }
 
-    const updated = await weddingService.update(next)
+    await timelineEventService.create({
+      weddingId: wedding.id,
+      type: 'contract_generated',
+      title: 'Wygenerowano umowę.',
+      description:
+        missingFields.length > 0
+          ? `Wygenerowano z brakującymi polami: ${missingFields.join(', ')}`
+          : undefined,
+      date: today,
+    })
 
-    addNotification({
-      id: `notif-${Date.now()}`,
+    await notificationService.create({
       title: 'Umowa wygenerowana',
       message: `Umowa dla pary ${couple} jest gotowa do wysłania.`,
-      createdAt: today,
-      read: false,
       type: 'info',
+      entityType: 'wedding',
+      entityId: wedding.id,
     })
+
+    const updated = await weddingService.getById(wedding.id)
+    if (!updated) {
+      throw new Error('Nie znaleziono ślubu po wygenerowaniu umowy.')
+    }
 
     return { wedding: updated, missingFields }
   },

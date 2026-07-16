@@ -1,12 +1,11 @@
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/Button'
-import { Input, Textarea } from '@/components/ui/Input'
+import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
 import {
   weddingActionsService,
   type QuestionnaireKind,
 } from '@/lib/api/weddingActionsService'
-import { formService } from '@/lib/api/formService'
 import { useInvalidateWedding } from '@/features/weddings/hooks/useInvalidateWedding'
 import type { Wedding } from '@/types/wedding'
 import formStyles from './actionForm.module.css'
@@ -18,15 +17,6 @@ interface SendQuestionnaireModalProps {
   kind: QuestionnaireKind
 }
 
-function defaultEmail(wedding: Wedding): string {
-  return (
-    wedding.couple.email ||
-    wedding.couple.partner1Email ||
-    wedding.couple.partner2Email ||
-    ''
-  )
-}
-
 export function SendQuestionnaireModal({
   open,
   onClose,
@@ -34,62 +24,65 @@ export function SendQuestionnaireModal({
   kind,
 }: SendQuestionnaireModalProps) {
   const invalidate = useInvalidateWedding()
-  const [email, setEmail] = useState('')
-  const [message, setMessage] = useState('')
+  const [questionnaireUrl, setQuestionnaireUrl] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
 
   const isContract = kind === 'contractData'
-  const title = isContract ? 'Wyślij ankietę do umowy' : 'Wyślij ankietę przedślubną'
-  const description = isContract
-    ? 'Para otrzyma link do formularza z danymi potrzebnymi do przygotowania umowy.'
-    : 'Para otrzyma link do ankiety z detalami dotyczącymi dnia ślubu.'
+  const title = isContract ? 'Link: Dane do umowy' : 'Link do ankiety przedślubnej'
+  const description =
+    'Skopiuj link i wyślij go parze przez Messengera, WhatsApp lub e-mail.'
 
   useEffect(() => {
     if (!open) return
 
-    setEmail(defaultEmail(wedding))
-    setError(null)
-    setBusy(false)
-
     let cancelled = false
-    formService.getSettings().then((settings) => {
-      if (cancelled) return
-      setMessage(
-        isContract
-          ? settings.contractQuestionnaireMessage ?? settings.welcomeDescription
-          : settings.weddingQuestionnaireMessage ?? settings.welcomeDescription,
-      )
-    })
+    setQuestionnaireUrl('')
+    setError(null)
+    setCopied(false)
+    setBusy(true)
+
+    void (async () => {
+      try {
+        const { formUrl } = await weddingActionsService.sendQuestionnaire({
+          weddingId: wedding.id,
+          kind,
+        })
+        if (cancelled) return
+
+        setQuestionnaireUrl(formUrl)
+        await invalidate(wedding.id)
+      } catch (err) {
+        if (cancelled) return
+        setError(
+          err instanceof Error ? err.message : 'Nie udało się wygenerować linku.',
+        )
+      } finally {
+        if (!cancelled) setBusy(false)
+      }
+    })()
 
     return () => {
       cancelled = true
     }
-  }, [open, wedding, isContract])
+    // Omit `invalidate` from deps so success refresh does not create another token.
+  }, [open, wedding.id, kind])
 
-  async function handleSubmit(event: React.FormEvent) {
-    event.preventDefault()
-    if (!email.trim()) {
-      setError('Podaj adres e-mail odbiorcy.')
-      return
-    }
-
-    setBusy(true)
-    setError(null)
+  async function handleCopy() {
+    if (!questionnaireUrl) return
     try {
-      await weddingActionsService.sendQuestionnaire({
-        weddingId: wedding.id,
-        kind,
-        recipientEmail: email.trim(),
-        message: message.trim() || undefined,
-      })
-      await invalidate(wedding.id)
-      onClose()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Nie udało się wysłać ankiety.')
-    } finally {
-      setBusy(false)
+      await navigator.clipboard.writeText(questionnaireUrl)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 2000)
+    } catch {
+      setError('Nie udało się skopiować linku.')
     }
+  }
+
+  function handleOpen() {
+    if (!questionnaireUrl) return
+    window.open(questionnaireUrl, '_blank', 'noopener,noreferrer')
   }
 
   return (
@@ -99,40 +92,39 @@ export function SendQuestionnaireModal({
       title={title}
       description={description}
       busy={busy}
+      cancelLabel="Zamknij"
       primaryAction={
-        <Button
-          type="submit"
-          form="send-questionnaire-form"
-          variant="primary"
-          disabled={busy}
-        >
-          {busy ? 'Wysyłanie…' : 'Wyślij'}
-        </Button>
+        <>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={handleOpen}
+            disabled={busy || !questionnaireUrl}
+          >
+            Otwórz formularz
+          </Button>
+          <Button
+            type="button"
+            variant="primary"
+            onClick={() => {
+              void handleCopy()
+            }}
+            disabled={busy || !questionnaireUrl}
+          >
+            {copied ? 'Skopiowano' : 'Kopiuj link'}
+          </Button>
+        </>
       }
     >
-      <form
-        id="send-questionnaire-form"
-        className={formStyles.form}
-        onSubmit={handleSubmit}
-      >
+      <div className={formStyles.form}>
         <Input
-          id="questionnaire-email"
-          label="Adres e-mail odbiorcy"
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-          autoComplete="email"
-          disabled={busy}
-        />
-        <Textarea
-          id="questionnaire-message"
-          label="Wiadomość (opcjonalnie)"
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          rows={4}
-          disabled={busy}
-          hint="Treść pochodzi z ustawień fotografa — możesz ją dostosować."
+          id="questionnaire-url"
+          label="Link do ankiety"
+          type="text"
+          value={busy ? 'Generowanie linku…' : questionnaireUrl}
+          readOnly
+          disabled={busy || !questionnaireUrl}
+          onFocus={(event) => event.currentTarget.select()}
         />
         {error && (
           <p
@@ -142,7 +134,7 @@ export function SendQuestionnaireModal({
             {error}
           </p>
         )}
-      </form>
+      </div>
     </Modal>
   )
 }

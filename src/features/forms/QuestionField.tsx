@@ -6,9 +6,17 @@ interface QuestionFieldProps {
   value: AnswerValue
   error?: string
   onChange: (value: AnswerValue) => void
+  /** When true, inputs are disabled (CRM answer preview). */
+  readOnly?: boolean
 }
 
-export function QuestionField({ question, value, error, onChange }: QuestionFieldProps) {
+export function QuestionField({
+  question,
+  value,
+  error,
+  onChange,
+  readOnly = false,
+}: QuestionFieldProps) {
   if (question.type === 'section_title') {
     return (
       <div className={styles.section}>
@@ -45,6 +53,8 @@ export function QuestionField({ question, value, error, onChange }: QuestionFiel
           rows={4}
           placeholder={question.placeholder}
           value={stringValue}
+          disabled={readOnly}
+          readOnly={readOnly}
           onChange={(e) => onChange(e.target.value)}
         />
       )}
@@ -68,6 +78,8 @@ export function QuestionField({ question, value, error, onChange }: QuestionFiel
           }
           placeholder={question.placeholder}
           value={stringValue}
+          disabled={readOnly}
+          readOnly={readOnly}
           onChange={(e) => onChange(e.target.value)}
         />
       )}
@@ -77,6 +89,7 @@ export function QuestionField({ question, value, error, onChange }: QuestionFiel
           id={id}
           className={styles.input}
           value={stringValue}
+          disabled={readOnly}
           onChange={(e) => onChange(e.target.value)}
         >
           <option value="">Wybierz…</option>
@@ -96,6 +109,7 @@ export function QuestionField({ question, value, error, onChange }: QuestionFiel
                 type="radio"
                 name={question.id}
                 checked={stringValue === opt.value}
+                disabled={readOnly}
                 onChange={() => onChange(opt.value)}
               />
               <span>{opt.label}</span>
@@ -110,6 +124,7 @@ export function QuestionField({ question, value, error, onChange }: QuestionFiel
             id={id}
             type="checkbox"
             checked={boolValue}
+            disabled={readOnly}
             onChange={(e) => onChange(e.target.checked)}
           />
           <span>{question.placeholder || question.label}</span>
@@ -125,6 +140,7 @@ export function QuestionField({ question, value, error, onChange }: QuestionFiel
                 <input
                   type="checkbox"
                   checked={checked}
+                  disabled={readOnly}
                   onChange={() => {
                     if (checked) {
                       onChange(arrayValue.filter((v) => v !== opt.value))

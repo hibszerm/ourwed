@@ -68,6 +68,9 @@ export function WeddingDetailFinances({
           </span>
         </div>
       </div>
+      {payments.length === 0 ? (
+        <p className={styles.emptyHint}>Brak zarejestrowanych wpłat.</p>
+      ) : null}
     </Card>
   )
 }

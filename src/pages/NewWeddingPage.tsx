@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/Button'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { IconArrowLeft, IconChevronRight } from '@/components/icons'
 import { useCreateWedding } from '@/features/weddings/hooks/useCreateWedding'
-import { mockPackages } from '@/mocks/packages'
+import { studioPackages } from '@/lib/catalog/packages'
 import { coupleName, formatDate } from '@/lib/utils/dates'
 import { formatCurrency } from '@/lib/utils/currency'
 import { WORKFLOW_STAGE_LABELS } from '@/lib/utils/workflow'
@@ -86,8 +86,8 @@ export function NewWeddingPage() {
       date: /^\d{4}-\d{2}-\d{2}$/.test(prefillDate) ? prefillDate : '',
       ceremonyLocation: '',
       receptionLocation: '',
-      packageName: mockPackages[0]?.name ?? '',
-      price: mockPackages[0]?.price ?? 0,
+      packageName: studioPackages[0]?.name ?? '',
+      price: studioPackages[0]?.price ?? 0,
       depositPaid: false,
       depositAmount: undefined,
       depositPaymentDate: '',
@@ -103,7 +103,7 @@ export function NewWeddingPage() {
   useEffect(() => {
     // One-time auto-fill: never overwrite the user price again.
     if (priceAutoFilledOnce) return
-    const pkg = mockPackages.find((p) => p.name === selectedPackage)
+    const pkg = studioPackages.find((p) => p.name === selectedPackage)
     if (!pkg) return
 
     const priceIsDirty = Boolean(dirtyFields.price)
@@ -142,11 +142,17 @@ export function NewWeddingPage() {
 
   const handleCreate = handleSubmit(async (data) => {
     if (step !== STEPS.length - 1) return
-    setIsSuccess(true)
-    const wedding = await createWedding.mutateAsync(data)
-    window.setTimeout(() => {
-      navigate(`/sluby/${wedding.id}`)
-    }, 950)
+    try {
+      const wedding = await createWedding.mutateAsync(data)
+      setIsSuccess(true)
+      window.setTimeout(() => {
+        navigate(`/sluby/${wedding.id}`)
+      }, 950)
+    } catch (err) {
+      window.alert(
+        err instanceof Error ? err.message : 'Nie udało się utworzyć ślubu.',
+      )
+    }
   })
 
   const isLastStep = step === STEPS.length - 1
@@ -258,7 +264,7 @@ export function NewWeddingPage() {
                   <label className={styles.field}>
                     <span className={styles.label}>Pakiet</span>
                     <select className={styles.input} {...register('packageName')}>
-                      {mockPackages.map((pkg) => (
+                      {studioPackages.map((pkg) => (
                         <option key={pkg.id} value={pkg.name}>
                           {pkg.name}
                         </option>

@@ -1,28 +1,43 @@
+import { Link } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/Button'
 import { Card, CardHeader } from '@/components/ui/Card'
-import { pendingWeddingService } from '@/lib/api/pendingWeddingService'
+import { questionnaireService } from '@/lib/api/questionnaireService'
 import { formatShortDate } from '@/lib/utils/dates'
 import styles from './PendingWeddingsCard.module.css'
 
 export function PendingWeddingsCard() {
   const queryClient = useQueryClient()
   const { data: pending = [], isLoading } = useQuery({
-    queryKey: ['pending-weddings'],
-    queryFn: () => pendingWeddingService.getPending(),
+    queryKey: ['pending-questionnaires'],
+    queryFn: () => questionnaireService.listPending(),
   })
 
   async function handleAccept(id: string) {
-    await pendingWeddingService.accept(id)
-    await queryClient.invalidateQueries({ queryKey: ['pending-weddings'] })
-    await queryClient.invalidateQueries({ queryKey: ['weddings'] })
-    await queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+    try {
+      await questionnaireService.approve(id)
+      await queryClient.invalidateQueries({ queryKey: ['pending-questionnaires'] })
+      await queryClient.invalidateQueries({ queryKey: ['questionnaires'] })
+      await queryClient.invalidateQueries({ queryKey: ['weddings'] })
+      await queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+    } catch (err) {
+      window.alert(
+        err instanceof Error ? err.message : 'Nie udało się zaakceptować zgłoszenia.',
+      )
+    }
   }
 
   async function handleReject(id: string) {
-    await pendingWeddingService.reject(id)
-    await queryClient.invalidateQueries({ queryKey: ['pending-weddings'] })
-    await queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+    try {
+      await questionnaireService.reject(id)
+      await queryClient.invalidateQueries({ queryKey: ['pending-questionnaires'] })
+      await queryClient.invalidateQueries({ queryKey: ['questionnaires'] })
+      await queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+    } catch (err) {
+      window.alert(
+        err instanceof Error ? err.message : 'Nie udało się odrzucić zgłoszenia.',
+      )
+    }
   }
 
   return (
@@ -34,6 +49,13 @@ export function PendingWeddingsCard() {
             ? `${pending.length} oczekuje na zatwierdzenie`
             : 'Brak nowych zgłoszeń'
         }
+        action={
+          <Link to="/oczekujace">
+            <Button type="button" variant="ghost" size="sm">
+              Wszystkie
+            </Button>
+          </Link>
+        }
       />
 
       {isLoading && <p className={styles.empty}>Ładowanie…</p>}
@@ -44,17 +66,24 @@ export function PendingWeddingsCard() {
 
       {!isLoading && pending.length > 0 && (
         <ul className={styles.list}>
-          {pending.map((item) => (
-            <li key={item.id} className={styles.item}>
+          {pending.slice(0, 4).map((item) => (
+            <li key={item.instance.id} className={styles.item}>
               <div className={styles.main}>
                 <p className={styles.couple}>{item.coupleLabel}</p>
                 <p className={styles.meta}>
-                  <span>{formatShortDate(item.weddingDate)}</span>
+                  <span>
+                    {item.weddingDate
+                      ? formatShortDate(item.weddingDate)
+                      : 'Data do ustalenia'}
+                  </span>
                   <span className={styles.dot}>·</span>
-                  <span>{item.packageName}</span>
+                  <span>{item.packageName || item.formName}</span>
                 </p>
                 <p className={styles.submitted}>
-                  Wysłano {formatShortDate(item.submittedAt.slice(0, 10))}
+                  Wysłano{' '}
+                  {item.instance.submittedAt
+                    ? formatShortDate(item.instance.submittedAt.slice(0, 10))
+                    : '—'}
                 </p>
                 <span className={styles.badge}>Oczekuje na zatwierdzenie</span>
               </div>
@@ -63,7 +92,7 @@ export function PendingWeddingsCard() {
                   type="button"
                   variant="primary"
                   size="sm"
-                  onClick={() => handleAccept(item.id)}
+                  onClick={() => void handleAccept(item.instance.id)}
                 >
                   Akceptuj
                 </Button>
@@ -71,7 +100,7 @@ export function PendingWeddingsCard() {
                   type="button"
                   variant="ghost"
                   size="sm"
-                  onClick={() => handleReject(item.id)}
+                  onClick={() => void handleReject(item.instance.id)}
                 >
                   Odrzuć
                 </Button>

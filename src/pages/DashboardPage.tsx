@@ -1,5 +1,6 @@
 import { AppLayout } from '@/layouts/AppLayout'
 import { PageContainer } from '@/components/ui/PageContainer'
+import { EmptyState } from '@/components/ui/EmptyState'
 import { useDashboard } from '@/features/dashboard/hooks/useDashboard'
 import { useWeddings } from '@/features/weddings/hooks/useWeddings'
 import { DashboardHero } from '@/features/dashboard/components/DashboardHero'
@@ -10,16 +11,46 @@ import { PendingWeddingsCard } from '@/features/dashboard/components/PendingWedd
 import styles from './DashboardPage.module.css'
 
 export function DashboardPage() {
-  const { data, isLoading } = useDashboard()
-  const { data: weddings, isLoading: weddingsLoading } = useWeddings()
+  const {
+    data,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useDashboard()
+  const {
+    data: weddings,
+    isLoading: weddingsLoading,
+    isError: weddingsError,
+  } = useWeddings()
 
-  if (isLoading || weddingsLoading || !data) {
+  if (isLoading || weddingsLoading) {
     return (
       <AppLayout>
         <PageContainer>
           <div className={styles.loading}>
             <div className={styles.loadingPulse} />
           </div>
+        </PageContainer>
+      </AppLayout>
+    )
+  }
+
+  if (isError || weddingsError || !data) {
+    return (
+      <AppLayout>
+        <PageContainer>
+          <EmptyState
+            title="Nie udało się załadować pulpitu"
+            description={
+              error instanceof Error
+                ? error.message
+                : 'Odśwież stronę lub spróbuj ponownie później.'
+            }
+          />
+          <button type="button" onClick={() => void refetch()}>
+            Spróbuj ponownie
+          </button>
         </PageContainer>
       </AppLayout>
     )

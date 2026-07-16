@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { AppLayout } from '@/layouts/AppLayout'
 import { Button } from '@/components/ui/Button'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { IconArrowLeft } from '@/components/icons'
-import { getTasks } from '@/mocks/tasks'
 import { useWedding } from '@/features/weddings/hooks/useWedding'
 import {
   WeddingDetailHero,
@@ -28,6 +28,7 @@ import { AddNoteModal } from '@/features/weddings/actions/AddNoteModal'
 import { GenerateContractModal } from '@/features/weddings/actions/GenerateContractModal'
 import { isWeddingQuestionnaireComplete } from '@/lib/utils/questionnaires'
 import { isSectionVisible } from '@/lib/utils/workflow'
+import { taskService } from '@/lib/api/taskService'
 import type { QuestionnaireKind } from '@/lib/api/weddingActionsService'
 import styles from './WeddingDetailPage.module.css'
 
@@ -40,7 +41,12 @@ type ModalState =
 
 export function WeddingDetailPage() {
   const { id } = useParams<{ id: string }>()
-  const { data: wedding, isLoading } = useWedding(id ?? '')
+  const { data: wedding, isLoading, isError, error, refetch } = useWedding(id ?? '')
+  const { data: weddingTasks = [] } = useQuery({
+    queryKey: ['tasks', id],
+    queryFn: () => taskService.listByWeddingId(id!),
+    enabled: Boolean(id),
+  })
   const [modal, setModal] = useState<ModalState>(null)
 
   if (isLoading) {
@@ -48,6 +54,23 @@ export function WeddingDetailPage() {
       <AppLayout>
         <PageContainer>
           <div className={styles.loading}>Ładowanie szczegółów ślubu...</div>
+        </PageContainer>
+      </AppLayout>
+    )
+  }
+
+  if (isError) {
+    return (
+      <AppLayout title="Błąd">
+        <PageContainer>
+          <p className={styles.notFound}>
+            {error instanceof Error
+              ? error.message
+              : 'Nie udało się załadować ślubu.'}
+          </p>
+          <Button type="button" variant="secondary" onClick={() => void refetch()}>
+            Spróbuj ponownie
+          </Button>
         </PageContainer>
       </AppLayout>
     )
@@ -67,7 +90,6 @@ export function WeddingDetailPage() {
   }
 
   const stage = wedding.workflowStage
-  const weddingTasks = getTasks().filter((t) => t.weddingId === wedding.id)
 
   const showSchedule = isWeddingQuestionnaireComplete(wedding.questionnaires)
   const showEquipment = isSectionVisible(stage, 'equipment')
