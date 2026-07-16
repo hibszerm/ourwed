@@ -1,0 +1,39 @@
+.warning {
+  padding: var(--space-4);
+  background: var(--color-warning-bg);
+  border-radius: var(--radius-md);
+}
+
+.warningTitle {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-warning-text);
+}
+
+.warningBody {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-sm);
+  color: var(--color-warning-text);
+  line-height: 1.45;
+}
+
+.warningList {
+  margin: var(--space-2) 0 0;
+  padding-left: var(--space-5);
+  font-size: var(--text-sm);
+  color: var(--color-warning-text);
+  line-height: 1.5;
+}
+
+.ok {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
+
+.error {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-error);
+}

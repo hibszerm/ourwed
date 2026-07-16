@@ -1,0 +1,59 @@
+.card {
+  background: var(--color-surface);
+  border: var(--card-border);
+  border-radius: var(--card-radius);
+  box-shadow: var(--card-shadow);
+  transition:
+    box-shadow var(--transition-base),
+    transform var(--transition-base),
+    border-color var(--transition-fast),
+    background var(--transition-fast);
+}
+
+.elevated {
+  border-radius: var(--card-radius-elevated);
+}
+
+.hover:hover {
+  box-shadow: var(--card-shadow-hover);
+  transform: translateY(-2px);
+}
+
+.sm {
+  padding: var(--card-padding-sm);
+}
+
+.md {
+  padding: var(--card-padding-md);
+}
+
+.lg {
+  padding: var(--card-padding-lg);
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--card-header-gap);
+  margin-bottom: var(--space-5);
+}
+
+.title {
+  font-size: var(--type-card-title-size);
+  font-weight: var(--type-card-title-weight);
+  color: var(--color-text-secondary);
+  letter-spacing: 0.01em;
+  line-height: var(--leading-snug);
+}
+
+.subtitle {
+  font-size: var(--type-helper-size);
+  color: var(--color-text-tertiary);
+  margin-top: var(--space-1);
+  line-height: var(--leading-normal);
+}
+
+.action {
+  flex-shrink: 0;
+}

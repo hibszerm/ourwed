@@ -1,0 +1,97 @@
+.link {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+
+.card {
+  height: 100%;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.info {
+  flex: 1;
+  min-width: 0;
+}
+
+.name {
+  font-size: var(--text-lg);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--color-text-primary);
+}
+
+.package {
+  font-size: var(--text-xs);
+  color: var(--color-text-tertiary);
+  margin-top: 2px;
+}
+
+.details {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.detail {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
+
+.icon {
+  color: var(--color-text-tertiary);
+  flex-shrink: 0;
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+
+.progress {
+  flex: 1;
+  min-width: 0;
+}
+
+.progressLabel {
+  font-size: var(--text-xs);
+  color: var(--color-text-tertiary);
+  display: block;
+  margin-bottom: var(--space-2);
+}
+
+.dateBlock {
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.date {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  display: block;
+}
+
+.countdown {
+  font-size: var(--text-xs);
+  color: var(--color-accent);
+  font-weight: 500;
+}
+
+.chevron {
+  color: var(--color-text-tertiary);
+  flex-shrink: 0;
+}

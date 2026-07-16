@@ -1,0 +1,39 @@
+.layout {
+  display: flex;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--color-bg);
+}
+
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--color-bg);
+}
+
+.content {
+  flex: 1;
+  padding: var(--shell-header-gap) var(--shell-padding-x) var(--shell-padding-y);
+  overflow-y: auto;
+  animation: contentEnter var(--transition-slow) both;
+}
+
+@keyframes contentEnter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 768px) {
+  .layout {
+    flex-direction: column;
+  }
+}

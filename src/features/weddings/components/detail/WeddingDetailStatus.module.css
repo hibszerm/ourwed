@@ -1,0 +1,32 @@
+.body {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  margin-top: 9px;
+  border-radius: var(--radius-full);
+  background: var(--color-accent);
+  box-shadow: 0 0 0 4px var(--color-accent-subtle);
+  flex-shrink: 0;
+}
+
+.stage {
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: var(--space-1);
+}
+
+.message {
+  font-size: var(--text-xl);
+  font-weight: 600;
+  letter-spacing: var(--tracking-snug);
+  color: var(--color-text-primary);
+  line-height: 1.35;
+}

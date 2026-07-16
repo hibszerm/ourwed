@@ -1,0 +1,174 @@
+/**
+ * OurWed Design Tokens — Design Sprint 01
+ * Premium calm visual language: warm background, floating white cards,
+ * near-invisible borders, soft shadows, generous 8px spacing rhythm.
+ * Purple is an accent only — never a large surface.
+ */
+
+:root {
+  /* ── Surfaces ─────────────────────────────────────── */
+  /* Warm paper background; white cards float above it. */
+  --color-bg: #faf9f6;
+  --color-bg-subtle: #f2f1ec;
+  --color-bg-sunken: #eeece6;
+  --color-bg-elevated: #ffffff;
+  --color-surface: #ffffff;
+  --color-surface-hover: #fbfbf9;
+  /* Borders are almost invisible — hierarchy comes from spacing + shadow. */
+  --color-border: rgba(20, 20, 16, 0.05);
+  --color-border-strong: rgba(20, 20, 16, 0.09);
+  --color-overlay: rgba(28, 27, 24, 0.28);
+
+  /* ── Text (warm neutrals) ─────────────────────────── */
+  --color-text-primary: #1c1b19;
+  --color-text-secondary: #6a685f;
+  --color-text-tertiary: #a5a299;
+
+  /* ── Accent — used sparingly ──────────────────────── */
+  --color-accent: #7c5cbf;
+  --color-accent-hover: #6b4dad;
+  --color-accent-light: #b8a0e0;
+  --color-accent-subtle: #f2eefb;
+  --color-accent-subtle-hover: #eae3f6;
+
+  /* ── Semantic (muted / calm) ──────────────────────── */
+  --color-warning: #c98a2b;
+  --color-warning-bg: #f6f0e4;
+  --color-warning-text: #93671f;
+  --color-success-bg: #ecf3ec;
+  --color-success-text: #487a56;
+  --color-info-bg: #eef1f7;
+  --color-info-text: #566585;
+  --color-error: #a85a52;
+  --color-error-bg: #f6ecea;
+
+  /* ── Spacing scale (8px rhythm, 4px half-steps) ───── */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 28px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* ── Shell layout ─────────────────────────────────── */
+  --sidebar-width: 224px;
+  --sidebar-width-collapsed: 72px;
+  --shell-padding-x: var(--space-10);
+  --shell-padding-y: var(--space-8);
+  --shell-header-gap: var(--space-8);
+  --page-grid-gap: var(--space-6);
+  --section-gap: var(--space-8);
+
+  /* ── Content widths ───────────────────────────────── */
+  --content-max: 1120px;
+  --content-max-wide: 1240px;
+  --content-max-narrow: 580px;
+  --content-max-form: 760px;
+  --content-sidebar-col: 340px;
+
+  /* ── Typography ───────────────────────────────────── */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    sans-serif;
+  --text-2xs: 0.6875rem;
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.375rem;
+  --text-2xl: 1.75rem;
+  --text-3xl: 2.25rem;
+  --text-4xl: 2.75rem;
+  --text-5xl: 3.5rem;
+  --text-6xl: 4.5rem;
+  --text-hero: 5.25rem;
+
+  --leading-tight: 1.15;
+  --leading-snug: 1.3;
+  --leading-normal: 1.55;
+  --leading-relaxed: 1.7;
+
+  --tracking-tight: -0.035em;
+  --tracking-snug: -0.02em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.04em;
+
+  /* Semantic type roles — bigger, calmer hierarchy */
+  --type-page-title-size: var(--text-3xl);
+  --type-page-title-weight: 680;
+  --type-section-title-size: var(--text-xl);
+  --type-section-title-weight: 600;
+  --type-card-title-size: var(--text-sm);
+  --type-card-title-weight: 600;
+  --type-body-size: var(--text-sm);
+  --type-helper-size: var(--text-xs);
+  --type-label-size: var(--text-xs);
+  --type-stat-size: var(--text-2xl);
+
+  /* ── Radius (softer) ──────────────────────────────── */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-2xl: 26px;
+  --radius-full: 9999px;
+
+  /* ── Shadows (soft, diffuse — floating cards) ─────── */
+  --shadow-xs: 0 1px 2px rgba(20, 20, 16, 0.03);
+  --shadow-sm: 0 1px 2px rgba(20, 20, 16, 0.03), 0 6px 16px rgba(20, 20, 16, 0.035);
+  --shadow-md: 0 2px 6px rgba(20, 20, 16, 0.04), 0 14px 34px rgba(20, 20, 16, 0.06);
+  --shadow-lg: 0 8px 20px rgba(20, 20, 16, 0.05), 0 28px 60px rgba(20, 20, 16, 0.09);
+  --shadow-drawer: -18px 0 48px rgba(20, 20, 16, 0.1);
+
+  /* ── Cards ────────────────────────────────────────── */
+  --card-radius: var(--radius-lg);
+  --card-radius-elevated: var(--radius-xl);
+  --card-border: 1px solid var(--color-border);
+  --card-shadow: var(--shadow-sm);
+  --card-shadow-hover: var(--shadow-md);
+  --card-padding-sm: var(--space-5);
+  --card-padding-md: var(--space-6);
+  --card-padding-lg: var(--space-8);
+  --card-header-gap: var(--space-4);
+
+  /* ── Controls (buttons / inputs) ──────────────────── */
+  --control-height-sm: 34px;
+  --control-height-md: 42px;
+  --control-radius: var(--radius-md);
+  --control-padding-x-sm: var(--space-3);
+  --control-padding-x-md: var(--space-5);
+  --focus-ring: 0 0 0 3px var(--color-accent-subtle);
+  --focus-ring-strong: 0 0 0 3px rgba(124, 92, 191, 0.24);
+
+  /* ── Motion ───────────────────────────────────────── */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-fast: 150ms var(--ease-in-out);
+  --transition-base: 220ms var(--ease-out);
+  --transition-slow: 340ms var(--ease-out);
+
+  /* ── Breakpoints (reference) ──────────────────────── */
+  --bp-sm: 600px;
+  --bp-md: 768px;
+  --bp-lg: 900px;
+  --bp-xl: 1200px;
+}
+
+@media (max-width: 900px) {
+  :root {
+    --shell-padding-x: var(--space-6);
+    --shell-padding-y: var(--space-6);
+    --sidebar-width: 224px;
+  }
+}
+
+@media (max-width: 768px) {
+  :root {
+    --shell-padding-x: var(--space-5);
+    --shell-padding-y: var(--space-5);
+  }
+}

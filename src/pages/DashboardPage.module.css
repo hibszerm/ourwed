@@ -1,0 +1,57 @@
+.dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
+}
+
+/* Greeting sits close to its hero; the rest breathes below. */
+.dashboard > *:first-child {
+  margin-bottom: calc(var(--space-6) - var(--space-10));
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr);
+  gap: var(--space-8);
+  align-items: start;
+}
+
+.primary,
+.secondary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 280px;
+}
+
+.loadingPulse {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-full);
+  background: var(--color-bg-subtle);
+  animation: pulse 1.2s var(--ease-in-out) infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: scale(0.95);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (max-width: 900px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,0 +1,44 @@
+.sections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.sectionTitle {
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.name {
+  margin-top: var(--space-1);
+  font-size: var(--text-base);
+  font-weight: 600;
+  letter-spacing: var(--tracking-snug);
+  color: var(--color-text-primary);
+}
+
+.contact {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.icon {
+  color: var(--color-text-tertiary);
+  flex-shrink: 0;
+}
+
+.value {
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}

@@ -1,0 +1,41 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-6);
+  align-items: start;
+}
+
+.notes {
+  min-width: 0;
+}
+
+.conditional {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-6);
+  align-items: start;
+}
+
+.conditionalItem {
+  min-width: 0;
+}
+
+.loading,
+.notFound {
+  color: var(--color-text-tertiary);
+  font-size: var(--type-body-size);
+  margin-bottom: var(--space-4);
+}
+
+@media (max-width: 900px) {
+  .row,
+  .conditional {
+    grid-template-columns: 1fr;
+  }
+}

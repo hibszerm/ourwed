@@ -1,0 +1,86 @@
+.header {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  margin-bottom: var(--space-6);
+}
+
+.banner {
+  height: 6px;
+}
+
+.content {
+  padding: var(--space-6);
+}
+
+.top {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-5);
+  margin-bottom: var(--space-6);
+}
+
+.info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.name {
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--color-text-primary);
+}
+
+.package {
+  font-size: var(--text-sm);
+  color: var(--color-text-tertiary);
+}
+
+.countdown {
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.countdownLabel {
+  font-size: var(--text-xs);
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: var(--space-2);
+}
+
+.meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--space-4);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--color-border);
+}
+
+.metaItem {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--color-text-primary);
+}
+
+.metaItem svg,
+.dateIcon {
+  color: var(--color-text-tertiary);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.metaLabel {
+  display: block;
+  font-size: var(--text-xs);
+  color: var(--color-text-tertiary);
+  margin-bottom: 2px;
+}

@@ -1,0 +1,14 @@
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--content-sidebar-col), 1fr));
+  gap: var(--page-grid-gap);
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  color: var(--color-text-tertiary);
+  font-size: var(--type-body-size);
+}

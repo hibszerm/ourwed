@@ -1,0 +1,30 @@
+.hero {
+  animation: heroEnter var(--transition-slow) both;
+}
+
+.greeting {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--color-text-tertiary);
+  letter-spacing: 0.01em;
+}
+
+.name {
+  margin-top: var(--space-1);
+  font-size: var(--text-3xl);
+  font-weight: 680;
+  letter-spacing: var(--tracking-tight);
+  color: var(--color-text-primary);
+  line-height: 1.05;
+}
+
+@keyframes heroEnter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

@@ -1,0 +1,111 @@
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  height: 100%;
+}
+
+.label {
+  font-size: var(--type-label-size);
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  letter-spacing: -0.01em;
+}
+
+.label:empty {
+  display: none;
+}
+
+.hint {
+  font-size: var(--type-helper-size);
+  color: var(--color-text-tertiary);
+  margin: var(--space-1) 0 0;
+  line-height: var(--leading-normal);
+  max-width: 36em;
+}
+
+.input,
+.textarea {
+  font-family: inherit;
+  font-size: var(--text-sm);
+  color: var(--color-text-primary);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--control-radius);
+  padding: 0 var(--control-padding-x-md);
+  min-height: var(--control-height-md);
+  outline: none;
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
+  width: 100%;
+}
+
+.textarea {
+  resize: vertical;
+  min-height: 120px;
+  line-height: var(--leading-relaxed);
+  padding: var(--space-3) var(--control-padding-x-md);
+}
+
+.input:hover,
+.textarea:hover {
+  border-color: var(--color-border-strong);
+}
+
+.input:focus,
+.textarea:focus {
+  border-color: var(--color-accent);
+  box-shadow: var(--focus-ring);
+}
+
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.option input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-accent);
+}
+
+.error {
+  font-size: var(--type-helper-size);
+  color: var(--color-error);
+}
+
+.section {
+  display: none;
+}
+
+.sectionTitle {
+  font-size: var(--type-section-title-size);
+  font-weight: var(--type-section-title-weight);
+  letter-spacing: var(--tracking-snug);
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+.sectionDesc {
+  margin: var(--space-2) 0 0;
+  font-size: var(--type-helper-size);
+  color: var(--color-text-tertiary);
+}
+
+.paragraph {
+  font-size: var(--text-base);
+  color: var(--color-text-secondary);
+  line-height: var(--leading-relaxed);
+  margin: 0;
+}

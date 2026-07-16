@@ -1,0 +1,33 @@
+.welcome {
+  padding: var(--space-8) 0 var(--space-6);
+}
+
+.title {
+  font-size: clamp(2.25rem, 6vw, 3.25rem);
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1.1;
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-5);
+}
+
+.subtitle {
+  font-size: clamp(1.125rem, 2.5vw, 1.375rem);
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+  max-width: 36em;
+  margin-bottom: var(--space-6);
+}
+
+.paragraph {
+  font-size: var(--text-base);
+  color: var(--color-text-tertiary);
+  line-height: 1.65;
+  max-width: 34em;
+}
+
+.loading {
+  color: var(--color-text-tertiary);
+  padding: var(--space-8) 0;
+}

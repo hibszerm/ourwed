@@ -1,0 +1,163 @@
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  padding: var(--space-5);
+  box-shadow: var(--shadow-sm);
+  animation: cardEnter 0.45s cubic-bezier(0.22, 1, 0.36, 1) 0.14s both;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.title {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  letter-spacing: -0.01em;
+}
+
+.badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: white;
+  background: var(--color-warning);
+  min-width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  font-variant-numeric: tabular-nums;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.item {
+  animation: itemEnter 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.link {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  text-decoration: none;
+  color: inherit;
+  transition: background var(--transition-fast);
+}
+
+.link:hover {
+  background: var(--color-bg-subtle);
+}
+
+.icon {
+  font-size: 1rem;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg-subtle);
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+
+.content {
+  flex: 1;
+  min-width: 0;
+}
+
+.label {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  letter-spacing: -0.01em;
+}
+
+.couple {
+  font-size: var(--text-xs);
+  color: var(--color-text-tertiary);
+  margin-top: 1px;
+}
+
+.urgent {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-warning-text);
+  background: var(--color-warning-bg);
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+  flex-shrink: 0;
+}
+
+.chevron {
+  color: var(--color-text-tertiary);
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.link:hover .chevron {
+  opacity: 1;
+}
+
+.clear {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-5) var(--space-4);
+  text-align: center;
+}
+
+.clearIcon {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-success-bg);
+  color: var(--color-success-text);
+  border-radius: var(--radius-full);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.clear p {
+  font-size: var(--text-sm);
+  color: var(--color-text-tertiary);
+}
+
+@keyframes cardEnter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes itemEnter {
+  from {
+    opacity: 0;
+    transform: translateX(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
