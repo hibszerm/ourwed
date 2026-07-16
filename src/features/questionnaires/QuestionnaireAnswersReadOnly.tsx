@@ -1,5 +1,10 @@
-import { CONTRACT_QUESTIONNAIRE_TEMPLATE } from '@/lib/forms/contractQuestionnaireTemplate'
+import { useQuery } from '@tanstack/react-query'
+import {
+  buildContractQuestionnaireTemplate,
+  CONTRACT_QUESTIONNAIRE_TEMPLATE,
+} from '@/lib/forms/contractQuestionnaireTemplate'
 import { formEngine } from '@/lib/forms/formEngine'
+import { packageService } from '@/lib/api/packageService'
 import { QuestionField } from '@/features/forms/QuestionField'
 import {
   groupQuestionsIntoSections,
@@ -19,7 +24,18 @@ interface QuestionnaireAnswersReadOnlyProps {
 export function QuestionnaireAnswersReadOnly({
   answerJson,
 }: QuestionnaireAnswersReadOnlyProps) {
-  const template = CONTRACT_QUESTIONNAIRE_TEMPLATE
+  const { data: packages = [] } = useQuery({
+    queryKey: ['studio-packages'],
+    queryFn: () => packageService.list(),
+  })
+
+  const template =
+    packages.length > 0
+      ? buildContractQuestionnaireTemplate(
+          packages.map((p) => ({ id: p.id, name: p.name })),
+        )
+      : CONTRACT_QUESTIONNAIRE_TEMPLATE
+
   const values = (answerJson.values ?? {}) as Record<string, AnswerValue>
   const fullSections = groupQuestionsIntoSections(template.questions)
 

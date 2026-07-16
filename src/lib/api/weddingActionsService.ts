@@ -8,6 +8,7 @@ import { weddingService } from '@/lib/api/weddingService'
 import { getDepositPaid } from '@/lib/utils/finance'
 import { coupleName } from '@/lib/utils/dates'
 import { getNextStage } from '@/lib/workflow/workflowEngine'
+import { getCurrentStudioUser } from '@/lib/api/studioUser'
 import type { FormCategory } from '@/types/formEngine'
 import type {
   PaymentMethod,
@@ -208,10 +209,12 @@ export const weddingActionsService = {
     const content = input.content.trim()
     if (!content) throw new Error('Notatka nie może być pusta.')
 
+    const author = input.author ?? (await getCurrentStudioUser()).displayName
+
     await noteService.create({
       weddingId: wedding.id,
       content,
-      author: input.author ?? 'Karolina',
+      author,
       pinned: input.pinned ?? false,
     })
 

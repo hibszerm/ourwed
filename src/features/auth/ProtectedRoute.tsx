@@ -3,6 +3,7 @@ import { useAuth } from '@/features/auth/AuthProvider'
 
 /**
  * Guards studio routes. Unauthenticated users are sent to /login.
+ * Auth decision comes from authService via AuthProvider (same session CRM uses).
  * Public Form Engine (`/form/:token`) stays outside this layout.
  */
 export function ProtectedRoute() {

@@ -4,6 +4,7 @@ import { galleryService, type Gallery } from '@/lib/api/galleryService'
 import { noteService } from '@/lib/api/noteService'
 import { paymentService } from '@/lib/api/paymentService'
 import { timelineEventService } from '@/lib/api/timelineEventService'
+import { weddingPlaceService } from '@/lib/api/weddingPlaceService'
 import { mergeFormAnswersIntoWedding } from '@/lib/forms/mergeFormAnswersIntoWedding'
 import type { Wedding, WeddingContract } from '@/types/wedding'
 
@@ -35,6 +36,31 @@ async function hydrateWeddingFromContractForm(
   return mergeFormAnswersIntoWedding(wedding, latest.answerJson, {
     submittedAt: latest.submittedAt,
   })
+}
+
+/**
+ * Operational locations from wedding_places override free-text when present.
+ * Keeps legacy form/venue text as fallback for display.
+ */
+async function hydrateWeddingPlaces(wedding: Wedding): Promise<Wedding> {
+  try {
+    const places = await weddingPlaceService.listByWeddingId(wedding.id)
+    if (places.length === 0) return wedding
+
+    const byRole = new Map(places.map((p) => [p.role, p]))
+    return {
+      ...wedding,
+      preparationLocation:
+        byRole.get('preparation')?.formattedAddress ||
+        wedding.preparationLocation,
+      ceremonyLocation:
+        byRole.get('ceremony')?.formattedAddress || wedding.ceremonyLocation,
+      receptionLocation:
+        byRole.get('reception')?.formattedAddress || wedding.receptionLocation,
+    }
+  } catch {
+    return wedding
+  }
 }
 
 function assembleWedding(
@@ -69,9 +95,10 @@ export async function finalizeWeddingView(wedding: Wedding): Promise<Wedding> {
     galleryService.getByWeddingId(wedding.id),
   ])
 
-  return hydrateWeddingFromContractForm(
+  const withForm = await hydrateWeddingFromContractForm(
     assembleWedding(wedding, payments, notes, timeline, contract, gallery),
   )
+  return hydrateWeddingPlaces(withForm)
 }
 
 /**
@@ -107,7 +134,8 @@ export async function finalizeWeddingViews(
         contractsMap.get(wedding.id) ?? null,
         galleriesMap.get(wedding.id) ?? null,
       )
-      return hydrateWeddingFromContractForm(assembled)
+      const withForm = await hydrateWeddingFromContractForm(assembled)
+      return hydrateWeddingPlaces(withForm)
     }),
   )
 }

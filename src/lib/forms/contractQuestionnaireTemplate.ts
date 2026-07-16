@@ -1,16 +1,18 @@
 import type { FormSettings, FormTemplate } from '@/types/form'
-import { studioPackages } from '@/lib/catalog/packages'
-
-const packageOptions = studioPackages.map((p) => ({
-  value: p.id,
-  label: p.name,
-}))
 
 /**
- * Contract questionnaire UI template.
- * Question ids / fieldKeys are the single source for answer → wedding mapping.
+ * Build contract questionnaire UI template with package options
+ * from the Studio Catalog (active packages only).
  */
-export const CONTRACT_QUESTIONNAIRE_TEMPLATE: FormTemplate = {
+export function buildContractQuestionnaireTemplate(
+  packages: { id: string; name: string }[],
+): FormTemplate {
+  const packageOptions = packages.map((p) => ({
+    value: p.id,
+    label: p.name,
+  }))
+
+  return {
   id: 'tpl-contract',
   type: 'contract_questionnaire',
   title: 'Dane do umowy',
@@ -173,6 +175,11 @@ export const CONTRACT_QUESTIONNAIRE_TEMPLATE: FormTemplate = {
     },
   ],
 }
+}
+
+/** Base template without packages — prefer buildContractQuestionnaireTemplate. */
+export const CONTRACT_QUESTIONNAIRE_TEMPLATE =
+  buildContractQuestionnaireTemplate([])
 
 /** Build question-id → fieldKey map from a template (single source of truth). */
 export function buildQuestionIdToFieldKey(

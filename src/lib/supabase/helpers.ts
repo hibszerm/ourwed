@@ -40,3 +40,14 @@ export function isLikelyUuid(value: string): boolean {
     value,
   )
 }
+
+/**
+ * Only real Studio Catalog package UUIDs may hit `packages.id` / `weddings.package_id`.
+ * Rejects legacy mock ids (`p1`, `p2`, …) and empty strings.
+ */
+export function asCatalogPackageId(
+  value: string | null | undefined,
+): string | null {
+  if (!value || !isLikelyUuid(value)) return null
+  return value
+}

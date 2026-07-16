@@ -1,0 +1,259 @@
+.card {
+  min-width: 0;
+}
+
+.content {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.muted {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-tertiary);
+}
+
+.meta {
+  margin: 0;
+  font-size: var(--text-2xs);
+  color: var(--color-text-secondary);
+}
+
+.empty {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.flow {
+  display: grid;
+}
+
+.flowItem {
+  display: grid;
+}
+
+.stopCard {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.stopIndex {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  margin-top: 1px;
+  border-radius: 999px;
+  background: #2f3b46;
+  color: #fff;
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.stopBody {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.stopTitle {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.stopAddress {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  line-height: 1.4;
+}
+
+.leg {
+  display: grid;
+  justify-items: center;
+  gap: 0.15rem;
+  padding: var(--space-2) 0;
+}
+
+.legArrow {
+  font-size: 1.1rem;
+  line-height: 1;
+  color: var(--color-text-tertiary);
+}
+
+.legMeta,
+.legMetaError {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: color-mix(in srgb, var(--color-text) 3%, transparent);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.legMetaError {
+  border-color: color-mix(in srgb, var(--color-danger, #b42318) 30%, var(--color-border));
+  color: var(--color-danger, #b42318);
+  font-weight: 500;
+}
+
+.legDot {
+  color: var(--color-text-tertiary);
+}
+
+.summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+
+.summaryStat {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.summaryLabel {
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-tertiary);
+}
+
+.summaryValue {
+  font-size: var(--text-xl);
+  font-weight: 700;
+  letter-spacing: var(--tracking-snug, -0.02em);
+  color: var(--color-text-primary);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.actionPrimary {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  padding: 0.55rem 0.9rem;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.actionPrimary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-text) 4%, var(--color-surface));
+}
+
+.actionPrimary:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.actionSecondary {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  text-underline-offset: 2px;
+}
+
+.actionSecondary:hover {
+  color: var(--color-text-primary);
+}
+
+.actionDisabled {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text-tertiary);
+  opacity: 0.7;
+}
+
+.skeleton {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.skelFlow {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.skelSummary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+}
+
+.skelBlock {
+  border-radius: var(--radius-md);
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--color-text) 6%, transparent) 0%,
+    color-mix(in srgb, var(--color-text) 10%, transparent) 50%,
+    color-mix(in srgb, var(--color-text) 6%, transparent) 100%
+  );
+  background-size: 200% 100%;
+  animation: travelShimmer 1.2s ease-in-out infinite;
+}
+
+.skelMap {
+  height: 240px;
+}
+
+.skelCard {
+  height: 56px;
+}
+
+.skelLeg {
+  height: 28px;
+  width: 36%;
+  margin: 0 auto;
+}
+
+.skelStat {
+  height: 48px;
+}
+
+@keyframes travelShimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .summary {
+    grid-template-columns: 1fr;
+  }
+
+  .skelMap {
+    height: 200px;
+  }
+}

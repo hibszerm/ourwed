@@ -8,7 +8,8 @@ import { Button } from '@/components/ui/Button'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { IconArrowLeft, IconChevronRight } from '@/components/icons'
 import { useCreateWedding } from '@/features/weddings/hooks/useCreateWedding'
-import { studioPackages } from '@/lib/catalog/packages'
+import { useQuery } from '@tanstack/react-query'
+import { packageService } from '@/lib/api/packageService'
 import { coupleName, formatDate } from '@/lib/utils/dates'
 import { formatCurrency } from '@/lib/utils/currency'
 import { WORKFLOW_STAGE_LABELS } from '@/lib/utils/workflow'
@@ -25,8 +26,12 @@ const schema = z.object({
   partner1: z.string().min(1, 'Podaj imię pierwszej osoby'),
   partner2: z.string().min(1, 'Podaj imię drugiej osoby'),
   date: z.string().min(1, 'Wybierz datę ślubu'),
+  packageId: z.string().min(1, 'Wybierz pakiet'),
   packageName: z.string().min(1, 'Wybierz pakiet'),
-  price: z.number({ error: 'Podaj cenę' }).min(1, 'Podaj cenę'),
+  price: z.number({ error: 'Podaj cenę' }).min(0, 'Podaj cenę'),
+  depositAmountCatalog: z.number().optional(),
+  currency: z.string().optional(),
+  accentColor: z.string().optional(),
   depositPaid: z.boolean(),
   depositAmount: z.number().optional(),
   depositPaymentDate: z.string().optional(),
@@ -56,7 +61,7 @@ type FormValues = z.infer<typeof schema>
 
 const stepFields: (keyof FormValues)[][] = [
   ['partner1', 'partner2', 'date'],
-  ['packageName', 'price', 'depositPaid', 'depositAmount', 'depositPaymentDate'],
+  ['packageId', 'packageName', 'price', 'depositPaid', 'depositAmount', 'depositPaymentDate'],
   ['ceremonyLocation', 'receptionLocation'],
   ['notes'],
 ]
@@ -66,6 +71,10 @@ export function NewWeddingPage() {
   const [searchParams] = useSearchParams()
   const prefillDate = searchParams.get('date') ?? ''
   const createWedding = useCreateWedding()
+  const { data: packages = [], isLoading: packagesLoading } = useQuery({
+    queryKey: ['studio-packages', 'active'],
+    queryFn: () => packageService.list({ activeOnly: true }),
+  })
   const [step, setStep] = useState(0)
   const [direction, setDirection] = useState<'forward' | 'back'>('forward')
   const [isSuccess, setIsSuccess] = useState(false)
@@ -86,8 +95,12 @@ export function NewWeddingPage() {
       date: /^\d{4}-\d{2}-\d{2}$/.test(prefillDate) ? prefillDate : '',
       ceremonyLocation: '',
       receptionLocation: '',
-      packageName: studioPackages[0]?.name ?? '',
-      price: studioPackages[0]?.price ?? 0,
+      packageId: '',
+      packageName: '',
+      price: 0,
+      depositAmountCatalog: undefined,
+      currency: 'PLN',
+      accentColor: undefined,
       depositPaid: false,
       depositAmount: undefined,
       depositPaymentDate: '',
@@ -96,28 +109,46 @@ export function NewWeddingPage() {
   })
 
   const values = watch()
-  const selectedPackage = watch('packageName')
+  const selectedPackageId = watch('packageId')
   const depositPaid = watch('depositPaid')
   const depositAmount = watch('depositAmount')
 
   useEffect(() => {
-    // One-time auto-fill: never overwrite the user price again.
-    if (priceAutoFilledOnce) return
-    const pkg = studioPackages.find((p) => p.name === selectedPackage)
+    const pkg = packages.find((p) => p.id === selectedPackageId)
     if (!pkg) return
 
+    setValue('packageName', pkg.name, { shouldDirty: false })
+    setValue('depositAmountCatalog', pkg.depositAmount, { shouldDirty: false })
+    setValue('currency', pkg.currency, { shouldDirty: false })
+    setValue('accentColor', pkg.color ?? undefined, { shouldDirty: false })
+
     const priceIsDirty = Boolean(dirtyFields.price)
-    if (!priceIsDirty) {
+    if (!priceIsDirty || !priceAutoFilledOnce) {
       setValue('price', pkg.price, { shouldDirty: false })
     }
-
+    if (!depositPaid) {
+      setValue('depositAmount', pkg.depositAmount, { shouldDirty: false })
+    }
     setPriceAutoFilledOnce(true)
-  }, [selectedPackage, dirtyFields.price, priceAutoFilledOnce, setValue])
+  }, [
+    selectedPackageId,
+    packages,
+    dirtyFields.price,
+    priceAutoFilledOnce,
+    setValue,
+    depositPaid,
+  ])
 
   useEffect(() => {
     if (depositPaid) {
       if (!depositAmount || depositAmount <= 0) {
-        setValue('depositAmount', Math.round((values.price || 0) * 0.3))
+        const fromCatalog = values.depositAmountCatalog
+        setValue(
+          'depositAmount',
+          fromCatalog && fromCatalog > 0
+            ? fromCatalog
+            : Math.round((values.price || 0) * 0.3),
+        )
       }
       if (!values.depositPaymentDate) {
         setValue('depositPaymentDate', new Date().toISOString().slice(0, 10))
@@ -126,7 +157,14 @@ export function NewWeddingPage() {
       setValue('depositAmount', undefined)
       setValue('depositPaymentDate', '')
     }
-  }, [depositAmount, depositPaid, setValue, values.depositPaymentDate, values.price])
+  }, [
+    depositAmount,
+    depositPaid,
+    setValue,
+    values.depositPaymentDate,
+    values.depositAmountCatalog,
+    values.price,
+  ])
 
   async function goNext() {
     const valid = await trigger(stepFields[step])
@@ -143,7 +181,22 @@ export function NewWeddingPage() {
   const handleCreate = handleSubmit(async (data) => {
     if (step !== STEPS.length - 1) return
     try {
-      const wedding = await createWedding.mutateAsync(data)
+      const wedding = await createWedding.mutateAsync({
+        partner1: data.partner1,
+        partner2: data.partner2,
+        date: data.date,
+        packageId: data.packageId,
+        packageName: data.packageName,
+        price: data.price,
+        depositPaid: data.depositPaid,
+        depositAmount: data.depositAmount ?? data.depositAmountCatalog,
+        depositPaymentDate: data.depositPaymentDate,
+        currency: data.currency,
+        accentColor: data.accentColor,
+        ceremonyLocation: data.ceremonyLocation,
+        receptionLocation: data.receptionLocation,
+        notes: data.notes,
+      })
       setIsSuccess(true)
       window.setTimeout(() => {
         navigate(`/sluby/${wedding.id}`)
@@ -263,15 +316,18 @@ export function NewWeddingPage() {
                 <div className={styles.fields}>
                   <label className={styles.field}>
                     <span className={styles.label}>Pakiet</span>
-                    <select className={styles.input} {...register('packageName')}>
-                      {studioPackages.map((pkg) => (
-                        <option key={pkg.id} value={pkg.name}>
+                    <select className={styles.input} {...register('packageId')} disabled={packagesLoading}>
+                      <option value="">
+                        {packagesLoading ? 'Ładowanie pakietów…' : 'Wybierz pakiet'}
+                      </option>
+                      {packages.map((pkg) => (
+                        <option key={pkg.id} value={pkg.id}>
                           {pkg.name}
                         </option>
                       ))}
                     </select>
-                    {errors.packageName && (
-                      <span className={styles.error}>{errors.packageName.message}</span>
+                    {errors.packageId && (
+                      <span className={styles.error}>{errors.packageId.message}</span>
                     )}
                   </label>
 

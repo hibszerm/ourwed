@@ -8,7 +8,9 @@ import {
   IconWeddings,
 } from '@/components/icons'
 import { useAuth } from '@/features/auth/AuthProvider'
+import { useCurrentStudioUser } from '@/features/auth/useCurrentStudioUser'
 import styles from './Sidebar.module.css'
+import catalogStyles from '@/features/studio/StudioCatalog.module.css'
 
 const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: IconDashboard, end: true },
@@ -16,16 +18,25 @@ const navItems = [
   { to: '/kalendarz', label: 'Kalendarz', icon: IconCalendar },
   { to: '/ankiety', label: 'Ankiety', icon: IconClipboard },
   { to: '/oczekujace', label: 'Oczekujące', icon: IconInbox },
-  { to: '/ustawienia', label: 'Ustawienia', icon: IconSettings },
+]
+
+const studioItems = [
+  { to: '/studio/pakiety', label: 'Pakiety' },
+  { to: '/studio/uslugi', label: 'Usługi dodatkowe' },
+  { to: '/studio/podroz', label: 'Ustawienia podróży' },
 ]
 
 export function Sidebar() {
-  const { user, logout } = useAuth()
+  const { logout, user } = useAuth()
   const navigate = useNavigate()
 
-  const displayName = user?.name ?? 'Marcin'
-  const displayRole = user?.role ?? 'Administrator'
-  const avatarLetter = user?.initials ?? displayName.charAt(0).toUpperCase()
+  const { data: studioUser } = useCurrentStudioUser()
+
+  const displayName = studioUser?.displayName ?? ''
+  const displayRole = user?.role ?? ''
+  const avatarLetter = displayName
+    ? displayName.charAt(0).toUpperCase()
+    : '—'
 
   function handleLogout() {
     logout()
@@ -53,6 +64,32 @@ export function Sidebar() {
             <span>{label}</span>
           </NavLink>
         ))}
+
+        <div className={catalogStyles.navGroup}>
+          <p className={catalogStyles.navGroupLabel}>Studio</p>
+          {studioItems.map(({ to, label }) => (
+            <NavLink
+              key={to}
+              to={to}
+              className={({ isActive }) =>
+                `${styles.navItem} ${isActive ? styles.active : ''}`
+              }
+            >
+              <IconSettings className={styles.navIcon} />
+              <span>{label}</span>
+            </NavLink>
+          ))}
+        </div>
+
+        <NavLink
+          to="/ustawienia"
+          className={({ isActive }) =>
+            `${styles.navItem} ${isActive ? styles.active : ''}`
+          }
+        >
+          <IconSettings className={styles.navIcon} />
+          <span>Ustawienia</span>
+        </NavLink>
       </nav>
 
       <div className={styles.footer}>

@@ -8,6 +8,9 @@ import { CalendarPage } from '@/pages/CalendarPage'
 import { QuestionnairesPage } from '@/pages/QuestionnairesPage'
 import { QuestionnaireDetailPage } from '@/pages/QuestionnaireDetailPage'
 import { PendingWeddingsPage } from '@/pages/PendingWeddingsPage'
+import { PackagesPage } from '@/pages/PackagesPage'
+import { ExtraServicesPage } from '@/pages/ExtraServicesPage'
+import { TravelSettingsPage } from '@/pages/TravelSettingsPage'
 import { PublicFormTokenPage } from '@/pages/PublicFormTokenPage'
 import { LoginPage } from '@/pages/LoginPage'
 import { PlaceholderPage } from '@/pages/PlaceholderPage'
@@ -60,6 +63,18 @@ export const router = createBrowserRouter([
       {
         path: '/oczekujace',
         element: <PendingWeddingsPage />,
+      },
+      {
+        path: '/studio/pakiety',
+        element: <PackagesPage />,
+      },
+      {
+        path: '/studio/uslugi',
+        element: <ExtraServicesPage />,
+      },
+      {
+        path: '/studio/podroz',
+        element: <TravelSettingsPage />,
       },
       {
         path: '/ustawienia',

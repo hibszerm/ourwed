@@ -478,6 +478,212 @@ create index notifications_entity_idx
   on public.notifications (entity_type, entity_id);
 
 -- =============================================================================
+-- 15. packages — Studio Catalog
+-- =============================================================================
+
+create table public.packages (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  slug text not null unique,
+  description text,
+  price numeric(12, 2) not null check (price >= 0),
+  deposit_amount numeric(12, 2) not null default 0 check (deposit_amount >= 0),
+  currency text not null default 'PLN',
+  color text,
+  is_active boolean not null default true,
+  sort_order integer not null default 0,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+create index packages_active_sort_idx on public.packages (is_active, sort_order);
+
+create trigger packages_set_updated_at
+  before update on public.packages
+  for each row
+  execute function public.set_updated_at();
+
+-- =============================================================================
+-- 16. package_items
+-- =============================================================================
+
+create table public.package_items (
+  id uuid primary key default gen_random_uuid(),
+  package_id uuid not null references public.packages (id) on delete cascade,
+  title text not null,
+  description text,
+  sort_order integer not null default 0,
+  created_at timestamptz not null default timezone('utc', now())
+);
+
+create index package_items_package_sort_idx on public.package_items (package_id, sort_order);
+
+-- =============================================================================
+-- 17. extra_services
+-- =============================================================================
+
+create table public.extra_services (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  slug text not null unique,
+  description text,
+  price numeric(12, 2) not null check (price >= 0),
+  currency text not null default 'PLN',
+  is_active boolean not null default true,
+  sort_order integer not null default 0,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+create index extra_services_active_sort_idx on public.extra_services (is_active, sort_order);
+
+create trigger extra_services_set_updated_at
+  before update on public.extra_services
+  for each row
+  execute function public.set_updated_at();
+
+-- =============================================================================
+-- 18. wedding_extra_services
+-- =============================================================================
+
+create table public.wedding_extra_services (
+  id uuid primary key default gen_random_uuid(),
+  wedding_id uuid not null references public.weddings (id) on delete cascade,
+  extra_service_id uuid not null references public.extra_services (id) on delete restrict,
+  price_snapshot numeric(12, 2) not null check (price_snapshot >= 0),
+  quantity integer not null default 1 check (quantity >= 1),
+  created_at timestamptz not null default timezone('utc', now())
+);
+
+create index wedding_extra_services_wedding_id_idx on public.wedding_extra_services (wedding_id);
+create index wedding_extra_services_extra_service_id_idx on public.wedding_extra_services (extra_service_id);
+
+-- Link weddings to catalog (snapshots remain on weddings.* scalar columns).
+alter table public.weddings
+  add column if not exists package_id uuid references public.packages (id) on delete set null;
+
+alter table public.weddings
+  add column if not exists accent_color text;
+
+create index if not exists weddings_package_id_idx on public.weddings (package_id);
+
+-- =============================================================================
+-- 19. studio_travel_settings — default travel origin
+-- =============================================================================
+
+create table public.studio_travel_settings (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.users (id) on delete cascade,
+  studio_name text,
+  street text,
+  building_number text,
+  postal_code text,
+  city text,
+  country text not null default 'Polska',
+  formatted_address text,
+  latitude numeric(10, 7),
+  longitude numeric(10, 7),
+  place_id text,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now()),
+  constraint studio_travel_settings_user_id_unique unique (user_id)
+);
+
+create index studio_travel_settings_user_id_idx on public.studio_travel_settings (user_id);
+
+create trigger studio_travel_settings_set_updated_at
+  before update on public.studio_travel_settings
+  for each row
+  execute function public.set_updated_at();
+
+-- =============================================================================
+-- 20. wedding_places — Google Place refs per wedding
+-- =============================================================================
+
+create table public.wedding_places (
+  id uuid primary key default gen_random_uuid(),
+  wedding_id uuid not null references public.weddings (id) on delete cascade,
+  role text not null
+    check (role in (
+      'preparation',
+      'ceremony',
+      'reception',
+      'hotel',
+      'airport',
+      'other'
+    )),
+  label text,
+  place_id text,
+  formatted_address text not null,
+  latitude numeric(10, 7),
+  longitude numeric(10, 7),
+  sort_order integer not null default 0,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+create unique index wedding_places_wedding_core_role_uidx
+  on public.wedding_places (wedding_id, role)
+  where role in ('preparation', 'ceremony', 'reception');
+
+create index wedding_places_wedding_id_idx on public.wedding_places (wedding_id);
+create index wedding_places_wedding_sort_idx on public.wedding_places (wedding_id, sort_order);
+
+create trigger wedding_places_set_updated_at
+  before update on public.wedding_places
+  for each row
+  execute function public.set_updated_at();
+
+-- =============================================================================
+-- 21. travel_segments — cached routing legs
+-- =============================================================================
+
+create table public.travel_segments (
+  id uuid primary key default gen_random_uuid(),
+  wedding_id uuid not null references public.weddings (id) on delete cascade,
+  sequence integer not null default 0,
+  origin_kind text not null
+    check (origin_kind in ('studio', 'wedding_place')),
+  origin_wedding_place_id uuid references public.wedding_places (id) on delete cascade,
+  destination_kind text not null
+    check (destination_kind in ('studio', 'wedding_place')),
+  destination_wedding_place_id uuid references public.wedding_places (id) on delete cascade,
+  endpoints_hash text not null,
+  distance_meters integer,
+  distance_text text,
+  duration_seconds integer,
+  duration_text text,
+  travel_mode text not null default 'DRIVE',
+  provider text not null default 'geoapify',
+  status text not null default 'ok'
+    check (status in ('ok', 'error', 'stale')),
+  error_message text,
+  calculated_at timestamptz,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now()),
+  constraint travel_segments_origin_check check (
+    (origin_kind = 'studio' and origin_wedding_place_id is null)
+    or (origin_kind = 'wedding_place' and origin_wedding_place_id is not null)
+  ),
+  constraint travel_segments_destination_check check (
+    (destination_kind = 'studio' and destination_wedding_place_id is null)
+    or (destination_kind = 'wedding_place' and destination_wedding_place_id is not null)
+  )
+);
+
+create unique index travel_segments_wedding_sequence_uidx
+  on public.travel_segments (wedding_id, sequence);
+
+create index travel_segments_wedding_id_idx on public.travel_segments (wedding_id);
+create index travel_segments_endpoints_hash_idx
+  on public.travel_segments (wedding_id, endpoints_hash);
+
+create trigger travel_segments_set_updated_at
+  before update on public.travel_segments
+  for each row
+  execute function public.set_updated_at();
+
+-- =============================================================================
 -- Row Level Security
 -- =============================================================================
 -- Temporary development policies: allow all roles full access.
@@ -498,6 +704,13 @@ alter table public.contracts enable row level security;
 alter table public.calendar_events enable row level security;
 alter table public.galleries enable row level security;
 alter table public.notifications enable row level security;
+alter table public.packages enable row level security;
+alter table public.package_items enable row level security;
+alter table public.extra_services enable row level security;
+alter table public.wedding_extra_services enable row level security;
+alter table public.studio_travel_settings enable row level security;
+alter table public.wedding_places enable row level security;
+alter table public.travel_segments enable row level security;
 
 create policy "dev_allow_all_users"
   on public.users for all
@@ -553,4 +766,32 @@ create policy "dev_allow_all_galleries"
 
 create policy "dev_allow_all_notifications"
   on public.notifications for all
+  using (true) with check (true);
+
+create policy "dev_allow_all_packages"
+  on public.packages for all
+  using (true) with check (true);
+
+create policy "dev_allow_all_package_items"
+  on public.package_items for all
+  using (true) with check (true);
+
+create policy "dev_allow_all_extra_services"
+  on public.extra_services for all
+  using (true) with check (true);
+
+create policy "dev_allow_all_wedding_extra_services"
+  on public.wedding_extra_services for all
+  using (true) with check (true);
+
+create policy "dev_allow_all_studio_travel_settings"
+  on public.studio_travel_settings for all
+  using (true) with check (true);
+
+create policy "dev_allow_all_wedding_places"
+  on public.wedding_places for all
+  using (true) with check (true);
+
+create policy "dev_allow_all_travel_segments"
+  on public.travel_segments for all
   using (true) with check (true);

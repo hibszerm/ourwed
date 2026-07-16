@@ -542,11 +542,15 @@ export async function getLatestSubmittedFormAnswers(
   return result?.answerJson ?? null
 }
 
-/** Same as getLatestSubmittedFormAnswers, plus submission timestamp. */
+/** Same as getLatestSubmittedFormAnswers, plus submission timestamp and instance id. */
 export async function getLatestSubmittedFormAnswerRecord(
   weddingId: string,
   category: FormCategory,
-): Promise<{ answerJson: FormAnswerJson; submittedAt: string | null } | null> {
+): Promise<{
+  answerJson: FormAnswerJson
+  submittedAt: string | null
+  instanceId: string
+} | null> {
   const { data: formRows, error: formsError } = await supabase
     .from('forms')
     .select('id')
@@ -588,5 +592,19 @@ export async function getLatestSubmittedFormAnswerRecord(
   return {
     answerJson,
     submittedAt: (instance as { submitted_at: string | null }).submitted_at,
+    instanceId: instance.id,
   }
+}
+
+/** Update answer_json for an existing form_answers row (studio edit session). */
+export async function updateFormAnswerJson(
+  instanceId: string,
+  answerJson: FormAnswerJson,
+): Promise<void> {
+  const { error } = await supabase
+    .from('form_answers')
+    .update({ answer_json: answerJson })
+    .eq('instance_id', instanceId)
+
+  throwOnError(error)
 }

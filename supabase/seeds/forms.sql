@@ -59,13 +59,9 @@ values (
         "label": "Pakiet",
         "required": true,
         "fieldKey": "packageId",
-        "options": [
-          { "value": "p1", "label": "Premium Full Day" },
-          { "value": "p2", "label": "Film Documentary" },
-          { "value": "p3", "label": "Photo + Film Signature" },
-          { "value": "p4", "label": "Classic Film" },
-          { "value": "p5", "label": "Photo Premium" }
-        ]
+-- Seed stores empty package options. Public Form Engine injects active
+-- Studio Catalog packages at render time via packageService.list().
+        "options": []
       },
       {
         "id": "q-section-p1",

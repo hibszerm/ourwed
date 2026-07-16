@@ -1,4 +1,5 @@
-import { studioPackages } from '@/lib/catalog/packages'
+import { packageService } from '@/lib/api/packageService'
+import { asCatalogPackageId } from '@/lib/supabase/helpers'
 import { CONTRACT_QUESTION_ID_TO_FIELD_KEY } from '@/lib/forms/contractQuestionnaireTemplate'
 import type { FormAnswerJson } from '@/types/formEngine'
 import type { Couple, Wedding } from '@/types/wedding'
@@ -74,12 +75,14 @@ function preferForm(formValue: string, weddingValue: string | undefined): string
 
 /**
  * Merge contract questionnaire answers into a Wedding view model.
+ * Package pricing is resolved from Studio Catalog (live) only when hydrating
+ * newly submitted answers — persisted wedding snapshots remain authoritative.
  */
-export function mergeFormAnswersIntoWedding(
+export async function mergeFormAnswersIntoWedding(
   wedding: Wedding,
   answerJson: FormAnswerJson,
   meta?: { submittedAt?: string | null },
-): Wedding {
+): Promise<Wedding> {
   const fields = extractAnswerFields(answerJson)
   if (Object.keys(fields).length === 0) {
     return wedding
@@ -101,23 +104,38 @@ export function mergeFormAnswersIntoWedding(
   const brideEmail = fieldString(fields, 'partner1.email')
   const groomPhone = fieldString(fields, 'partner2.phone')
   const groomEmail = fieldString(fields, 'partner2.email')
+  const brideAddress = fieldString(fields, 'partner1.address')
+  const bridePostal = fieldString(fields, 'partner1.postalCode')
   const city = fieldString(fields, 'partner1.city')
   const weddingDate = fieldString(fields, 'weddingDate')
   const ceremonyLocation = fieldString(fields, 'ceremonyLocation')
   const receptionLocation = fieldString(fields, 'receptionLocation')
   const preparationLocation = fieldString(fields, 'preparationLocation')
-  const packageId = fieldString(fields, 'packageId')
+  const packageId = asCatalogPackageId(fieldString(fields, 'packageId'))
 
-  const pkg = studioPackages.find((p) => p.id === packageId)
+  const pkg = packageId ? await packageService.get(packageId) : null
 
   const couple: Couple = {
     ...wedding.couple,
     partner1: preferForm(brideName, wedding.couple.partner1),
     partner2: preferForm(groomName, wedding.couple.partner2),
+    partner1FirstName:
+      preferForm(brideFirst, wedding.couple.partner1FirstName) || undefined,
+    partner1LastName:
+      preferForm(brideLast, wedding.couple.partner1LastName) || undefined,
+    partner2FirstName:
+      preferForm(groomFirst, wedding.couple.partner2FirstName) || undefined,
+    partner2LastName:
+      preferForm(groomLast, wedding.couple.partner2LastName) || undefined,
     partner1Phone: preferForm(bridePhone, wedding.couple.partner1Phone) || undefined,
     partner2Phone: preferForm(groomPhone, wedding.couple.partner2Phone) || undefined,
     partner1Email: preferForm(brideEmail, wedding.couple.partner1Email) || undefined,
     partner2Email: preferForm(groomEmail, wedding.couple.partner2Email) || undefined,
+    partner1Address:
+      preferForm(brideAddress, wedding.couple.partner1Address) || undefined,
+    partner1PostalCode:
+      preferForm(bridePostal, wedding.couple.partner1PostalCode) || undefined,
+    partner1City: preferForm(city, wedding.couple.partner1City) || undefined,
     email: preferForm(brideEmail, wedding.couple.email),
     phone: preferForm(bridePhone, wedding.couple.phone),
     city: preferForm(city, wedding.couple.city),
@@ -141,21 +159,24 @@ export function mergeFormAnswersIntoWedding(
         }
 
   const nextPackageName = preferForm(pkg?.name ?? '', wedding.packageName)
-  const nextPrice =
-    !isBlank(packageId) && pkg ? pkg.price : wedding.price
+  const nextPrice = pkg ? pkg.price : wedding.price
 
   return {
     ...wedding,
     couple,
     date: preferForm(weddingDate, wedding.date),
+    packageId: pkg?.id ?? asCatalogPackageId(wedding.packageId) ?? null,
     packageName: nextPackageName,
     price: nextPrice,
+    depositAmount: pkg?.depositAmount ?? wedding.depositAmount,
+    currency: pkg?.currency ?? wedding.currency,
     accentColor: pkg?.color ?? wedding.accentColor,
     ceremonyLocation:
-      preferForm(ceremonyLocation || preparationLocation, wedding.ceremonyLocation) ||
-      undefined,
+      preferForm(ceremonyLocation, wedding.ceremonyLocation) || undefined,
     receptionLocation:
       preferForm(receptionLocation, wedding.receptionLocation) || undefined,
+    preparationLocation:
+      preferForm(preparationLocation, wedding.preparationLocation) || undefined,
     notes: wedding.notes,
     questionnaires,
   }

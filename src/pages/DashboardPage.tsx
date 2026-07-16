@@ -9,6 +9,7 @@ import { TodoTodayCard } from '@/features/dashboard/components/TodoTodayCard'
 import { NotificationsCard } from '@/features/dashboard/components/NotificationsCard'
 import { PendingWeddingsCard } from '@/features/dashboard/components/PendingWeddingsCard'
 import styles from './DashboardPage.module.css'
+import { useCurrentStudioUser } from '@/features/auth/useCurrentStudioUser'
 
 export function DashboardPage() {
   const {
@@ -23,6 +24,7 @@ export function DashboardPage() {
     isLoading: weddingsLoading,
     isError: weddingsError,
   } = useWeddings()
+  const { data: studioUser } = useCurrentStudioUser()
 
   if (isLoading || weddingsLoading) {
     return (
@@ -60,7 +62,10 @@ export function DashboardPage() {
     <AppLayout>
       <PageContainer>
         <div className={styles.dashboard}>
-          <DashboardHero userName="Karolina" nextWedding={data.nextWedding} />
+          <DashboardHero
+            userName={studioUser?.displayName ?? '—'}
+            nextWedding={data.nextWedding}
+          />
 
           <NextWeddingCard wedding={data.nextWedding} />
 

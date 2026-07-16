@@ -14,10 +14,12 @@ import {
 } from '@/lib/api/forms'
 import { formEngine } from '@/lib/forms/formEngine'
 import {
+  buildContractQuestionnaireTemplate,
   CONTRACT_QUESTIONNAIRE_TEMPLATE,
   DEFAULT_FORM_SETTINGS,
 } from '@/lib/forms/contractQuestionnaireTemplate'
-import type { AnswerValue, FormSettings } from '@/types/form'
+import { packageService } from '@/lib/api/packageService'
+import type { AnswerValue, FormSettings, FormTemplate } from '@/types/form'
 import type { FormInstance } from '@/types/formEngine'
 import styles from './FormPublicPage.module.css'
 
@@ -25,12 +27,17 @@ type GateState =
   | { kind: 'loading' }
   | { kind: 'not_found' }
   | { kind: 'expired' }
-  | { kind: 'submitted'; settings: FormSettings }
-  | { kind: 'ready'; instance: FormInstance; settings: FormSettings }
+  | { kind: 'submitted'; settings: FormSettings; template: FormTemplate }
+  | {
+      kind: 'ready'
+      instance: FormInstance
+      settings: FormSettings
+      template: FormTemplate
+    }
 
-function emptyAnswers(): Record<string, AnswerValue> {
+function emptyAnswers(template: FormTemplate): Record<string, AnswerValue> {
   const initial: Record<string, AnswerValue> = {}
-  for (const q of formEngine.getInputQuestions(CONTRACT_QUESTIONNAIRE_TEMPLATE)) {
+  for (const q of formEngine.getInputQuestions(template)) {
     if (q.type === 'checkbox') initial[q.id] = false
     else if (q.type === 'multiselect') initial[q.id] = []
     else initial[q.id] = ''
@@ -80,7 +87,11 @@ export function ProductionContractFormPage() {
         }
 
         if (instance.status === 'submitted' || instance.status === 'approved') {
-          setGate({ kind: 'submitted', settings })
+          setGate({
+            kind: 'submitted',
+            settings,
+            template: CONTRACT_QUESTIONNAIRE_TEMPLATE,
+          })
           return
         }
 
@@ -96,8 +107,14 @@ export function ProductionContractFormPage() {
           return
         }
 
-        setValues(emptyAnswers())
-        setGate({ kind: 'ready', instance, settings })
+        const packages = await packageService.list({ activeOnly: true })
+        if (cancelled) return
+        const template = buildContractQuestionnaireTemplate(
+          packages.map((p) => ({ id: p.id, name: p.name })),
+        )
+
+        setValues(emptyAnswers(template))
+        setGate({ kind: 'ready', instance, settings, template })
       } catch {
         if (!cancelled) setGate({ kind: 'not_found' })
       }
@@ -149,12 +166,16 @@ export function ProductionContractFormPage() {
       gate.kind === 'submitted' || gate.kind === 'ready'
         ? gate.settings
         : undefined
+    const template =
+      gate.kind === 'submitted' || gate.kind === 'ready'
+        ? gate.template
+        : CONTRACT_QUESTIONNAIRE_TEMPLATE
 
     if (settings) {
       return (
         <FormSuccessView
           settings={settings}
-          template={CONTRACT_QUESTIONNAIRE_TEMPLATE}
+          template={template}
         />
       )
     }
@@ -164,8 +185,7 @@ export function ProductionContractFormPage() {
     return null
   }
 
-  const { instance, settings } = gate
-  const template = CONTRACT_QUESTIONNAIRE_TEMPLATE
+  const { instance, settings, template } = gate
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -193,7 +213,7 @@ export function ProductionContractFormPage() {
       if (/wygas/i.test(message) || /expired/i.test(message)) {
         setGate({ kind: 'expired' })
       } else if (/już wysłan/i.test(message) || /already/i.test(message)) {
-        setGate({ kind: 'submitted', settings })
+        setGate({ kind: 'submitted', settings, template })
       } else {
         setErrors({ _form: message })
       }

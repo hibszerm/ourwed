@@ -17,7 +17,8 @@ import { noteService } from '@/lib/api/noteService'
 import { notificationService } from '@/lib/api/notificationService'
 import { timelineEventService } from '@/lib/api/timelineEventService'
 import { weddingService } from '@/lib/api/weddingService'
-import { studioPackages } from '@/lib/catalog/packages'
+import { packageService } from '@/lib/api/packageService'
+import { asCatalogPackageId } from '@/lib/supabase/helpers'
 import { extractAnswerFields } from '@/lib/forms/mergeFormAnswersIntoWedding'
 import type {
   FormAnswerJson,
@@ -103,7 +104,7 @@ function publicFormUrl(token: string): string {
   return `${window.location.origin}/form/${token}`
 }
 
-function summarizeAnswers(answerJson: FormAnswerJson | null) {
+async function summarizeAnswers(answerJson: FormAnswerJson | null) {
   const fields = answerJson ? extractAnswerFields(answerJson) : {}
   const bride = fullName(
     fieldString(fields, 'partner1.firstName'),
@@ -113,8 +114,8 @@ function summarizeAnswers(answerJson: FormAnswerJson | null) {
     fieldString(fields, 'partner2.firstName'),
     fieldString(fields, 'partner2.lastName'),
   )
-  const packageId = fieldString(fields, 'packageId')
-  const pkg = studioPackages.find((p) => p.id === packageId)
+  const packageId = asCatalogPackageId(fieldString(fields, 'packageId'))
+  const pkg = packageId ? await packageService.get(packageId) : null
   const phone = fieldString(fields, 'partner1.phone')
   const partner2Phone = fieldString(fields, 'partner2.phone')
 
@@ -125,8 +126,12 @@ function summarizeAnswers(answerJson: FormAnswerJson | null) {
     coupleLabel:
       bride && groom ? `${bride} i ${groom}` : bride || groom || 'Para',
     weddingDate: fieldString(fields, 'weddingDate'),
+    packageId: pkg?.id ?? null,
     packageName: pkg?.name ?? '',
     packagePrice: pkg?.price ?? 0,
+    depositAmount: pkg?.depositAmount ?? 0,
+    currency: pkg?.currency ?? 'PLN',
+    accentColor: pkg?.color ?? undefined,
     ceremonyLocation: fieldString(fields, 'ceremonyLocation'),
     receptionLocation: fieldString(fields, 'receptionLocation'),
     preparationLocation: fieldString(fields, 'preparationLocation'),
@@ -139,7 +144,7 @@ function summarizeAnswers(answerJson: FormAnswerJson | null) {
 }
 
 function searchFromSummary(
-  summary: ReturnType<typeof summarizeAnswers>,
+  summary: Awaited<ReturnType<typeof summarizeAnswers>>,
 ): QuestionnaireSearchFields {
   return {
     bride: summary.bride,
@@ -294,32 +299,34 @@ export const questionnaireService = {
       }
     }
 
-    return instances.map((instance) => {
-      const form = byId.get(instance.formId) ?? null
-      const answers = answersMap.get(instance.id)
-      let search: QuestionnaireSearchFields = {
-        bride: '',
-        groom: '',
-        email: '',
-        phone: '',
-        weddingDate: '',
-      }
+    return Promise.all(
+      instances.map(async (instance) => {
+        const form = byId.get(instance.formId) ?? null
+        const answers = answersMap.get(instance.id)
+        let search: QuestionnaireSearchFields = {
+          bride: '',
+          groom: '',
+          email: '',
+          phone: '',
+          weddingDate: '',
+        }
 
-      if (answers?.answerJson) {
-        search = searchFromSummary(summarizeAnswers(answers.answerJson))
-      } else if (instance.weddingId) {
-        const wedding = weddingMap.get(instance.weddingId)
-        if (wedding) search = searchFromWedding(wedding)
-      }
+        if (answers?.answerJson) {
+          search = searchFromSummary(await summarizeAnswers(answers.answerJson))
+        } else if (instance.weddingId) {
+          const wedding = weddingMap.get(instance.weddingId)
+          if (wedding) search = searchFromWedding(wedding)
+        }
 
-      return {
-        instance,
-        form,
-        formName: questionnaireTypeLabel(form),
-        formUrl: publicFormUrl(instance.token),
-        search,
-      }
-    })
+        return {
+          instance,
+          form,
+          formName: questionnaireTypeLabel(form),
+          formUrl: publicFormUrl(instance.token),
+          search,
+        }
+      }),
+    )
   },
 
   async getById(id: string): Promise<QuestionnaireListItem | null> {
@@ -335,7 +342,7 @@ export const questionnaireService = {
       weddingDate: '',
     }
     if (answers?.answerJson) {
-      search = searchFromSummary(summarizeAnswers(answers.answerJson))
+      search = searchFromSummary(await summarizeAnswers(answers.answerJson))
     } else if (instance.weddingId) {
       try {
         const wedding = await weddingService.getById(instance.weddingId)
@@ -480,7 +487,7 @@ export const questionnaireService = {
     for (const instance of instances) {
       const form = await getForm(instance.formId)
       const answers = await getFormAnswersByInstanceId(instance.id)
-      const summary = summarizeAnswers(answers?.answerJson ?? null)
+      const summary = await summarizeAnswers(answers?.answerJson ?? null)
       items.push({
         instance,
         form,
@@ -509,7 +516,7 @@ export const questionnaireService = {
     const answers = await getFormAnswersByInstanceId(instanceId)
     if (!answers) throw new Error('Brak odpowiedzi w ankiecie.')
 
-    const summary = summarizeAnswers(answers.answerJson)
+    const summary = await summarizeAnswers(answers.answerJson)
     if (!summary.bride || !summary.groom) {
       throw new Error('Ankieta nie zawiera imion pary.')
     }
@@ -518,8 +525,12 @@ export const questionnaireService = {
       partner1: summary.bride,
       partner2: summary.groom,
       date: summary.weddingDate,
+      packageId: summary.packageId,
       packageName: summary.packageName || 'Pakiet',
       price: summary.packagePrice || 0,
+      depositAmount: summary.depositAmount || undefined,
+      currency: summary.currency,
+      accentColor: summary.accentColor,
       depositPaid: false,
       ceremonyLocation: summary.ceremonyLocation || undefined,
       receptionLocation: summary.receptionLocation || undefined,

@@ -12,7 +12,7 @@ type QuestionnaireKey = keyof WeddingQuestionnaires
 
 interface WeddingDetailQuestionnairesProps {
   questionnaires: WeddingQuestionnaires
-  onSend: (kind: QuestionnaireKey) => void
+  onSend?: (kind: QuestionnaireKey) => void
 }
 
 const ITEMS: { key: QuestionnaireKey; label: string }[] = [
@@ -27,7 +27,7 @@ function QuestionnaireRow({
 }: {
   label: string
   item: QuestionnaireItem
-  onSend: () => void
+  onSend?: () => void
 }) {
   const statusDate = getQuestionnaireStatusDate(item)
 
@@ -42,11 +42,11 @@ function QuestionnaireRow({
           )}
         </div>
       </div>
-      {item.status === 'not_sent' && (
+      {item.status === 'not_sent' && onSend ? (
         <Button type="button" variant="primary" size="sm" onClick={onSend}>
           Wyślij
         </Button>
-      )}
+      ) : null}
     </li>
   )
 }
@@ -64,7 +64,7 @@ export function WeddingDetailQuestionnaires({
             key={key}
             label={label}
             item={questionnaires[key]}
-            onSend={() => onSend(key)}
+            onSend={onSend ? () => onSend(key) : undefined}
           />
         ))}
       </ul>

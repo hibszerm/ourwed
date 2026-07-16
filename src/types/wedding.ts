@@ -8,18 +8,41 @@ export type WorkflowStage =
   | 'post_production'
   | 'completed'
 
+export type WeddingStatus = 'active' | 'archived' | 'cancelled'
+
 export interface Couple {
   partner1: string
   partner2: string
+  partner1FirstName?: string
+  partner1LastName?: string
+  partner2FirstName?: string
+  partner2LastName?: string
   partner1Phone?: string
   partner1Email?: string
+  partner1Address?: string
+  partner1PostalCode?: string
+  partner1City?: string
   partner2Phone?: string
   partner2Email?: string
+  partner2Address?: string
+  partner2PostalCode?: string
+  partner2City?: string
   email: string
   phone: string
   venue: string
   city: string
 }
+
+export interface WeddingContact {
+  id: string
+  weddingId: string
+  name: string
+  role?: string
+  phone?: string
+  email?: string
+  createdAt: string
+}
+
 
 export interface ChecklistItem {
   id: string
@@ -160,11 +183,22 @@ export interface Wedding {
   id: string
   couple: Couple
   date: string
+  /** Ceremony start time — HH:MM (from weddings.ceremony_time). */
+  ceremonyTime?: string
+  status: WeddingStatus
   workflowStage: WorkflowStage
+  /** Snapshot — historical package name at selection time. */
   packageName: string
+  /** Optional FK to Studio Catalog package (for contents). */
+  packageId?: string | null
+  /** Snapshot — contract total (package + extras at selection). */
   price: number
+  /** Snapshot — expected deposit. */
+  depositAmount?: number
+  currency?: string
   ceremonyLocation?: string
   receptionLocation?: string
+  preparationLocation?: string
   checklist: ChecklistItem[]
   schedule: ScheduleEvent[]
   payments: Payment[]
@@ -174,6 +208,7 @@ export interface Wedding {
   notes: WeddingNote[]
   deliverables: WeddingDeliverable[]
   timeline: WeddingTimelineEntry[]
+  /** Snapshot of package color for calendar/UI. */
   accentColor: string
   createdAt: string
 }
@@ -184,11 +219,14 @@ export interface CreateWeddingInput {
   date: string
   ceremonyLocation?: string
   receptionLocation?: string
+  packageId?: string | null
   packageName: string
   price: number
   depositPaid: boolean
   depositAmount?: number
   depositPaymentDate?: string
+  currency?: string
+  accentColor?: string
   notes?: string
 }
 

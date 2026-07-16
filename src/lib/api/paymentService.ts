@@ -51,6 +51,8 @@ export function mapPaymentRowToModel(row: PaymentRow): Payment {
     type,
     paid: Boolean(paymentDate),
     paidAt: paymentDate,
+    // No due_date column — unpaid payments have null payment_date.
+    dueDate: undefined,
     method: isPaymentMethod(row.method) ? row.method : undefined,
     note: row.note ?? undefined,
   }
@@ -60,15 +62,37 @@ export interface CreatePaymentInput {
   weddingId: string
   type: PaymentType
   amount: number
-  paymentDate: string
-  method: PaymentMethod
+  paymentDate?: string | null
+  dueDate?: string | null
+  method?: PaymentMethod | null
   note?: string
+  paid?: boolean
+}
+
+export interface UpdatePaymentInput {
+  type?: PaymentType
+  amount?: number
+  paymentDate?: string | null
+  dueDate?: string | null
+  method?: PaymentMethod | null
+  note?: string | null
+  paid?: boolean
 }
 
 function emptyPaymentMap(ids: string[]): Map<string, Payment[]> {
   const map = new Map<string, Payment[]>()
   for (const id of ids) map.set(id, [])
   return map
+}
+
+function resolvePaymentDate(
+  paid: boolean | undefined,
+  paymentDate: string | null | undefined,
+): string | null {
+  if (paid === false) return null
+  if (paymentDate) return paymentDate.slice(0, 10)
+  if (paid === true) return new Date().toISOString().slice(0, 10)
+  return paymentDate === null ? null : paymentDate?.slice(0, 10) ?? null
 }
 
 export const paymentService = {
@@ -99,14 +123,17 @@ export const paymentService = {
   },
 
   async create(input: CreatePaymentInput): Promise<Payment> {
+    const paid = input.paid ?? Boolean(input.paymentDate)
+    const paymentDate = resolvePaymentDate(paid, input.paymentDate)
+
     const { data, error } = await supabase
       .from('payments')
       .insert({
         wedding_id: input.weddingId,
         type: input.type,
         amount: input.amount,
-        payment_date: input.paymentDate,
-        method: input.method,
+        payment_date: paymentDate,
+        method: input.method ?? null,
         note: input.note?.trim() || null,
       })
       .select('*')
@@ -119,5 +146,36 @@ export const paymentService = {
     }
 
     return mapPaymentRowToModel(data as PaymentRow)
+  },
+
+  async update(id: string, input: UpdatePaymentInput): Promise<Payment> {
+    const patch: Record<string, unknown> = {}
+    if (input.type !== undefined) patch.type = input.type
+    if (input.amount !== undefined) patch.amount = input.amount
+    if (input.method !== undefined) patch.method = input.method
+    if (input.note !== undefined) patch.note = input.note?.trim() || null
+    if (input.paid !== undefined || input.paymentDate !== undefined) {
+      patch.payment_date = resolvePaymentDate(input.paid, input.paymentDate)
+    }
+
+    const { data, error } = await supabase
+      .from('payments')
+      .update(patch)
+      .eq('id', id)
+      .select('*')
+      .single()
+
+    throwOnError(error)
+
+    if (!data) {
+      throw new Error('Nie udało się zaktualizować wpłaty.')
+    }
+
+    return mapPaymentRowToModel(data as PaymentRow)
+  },
+
+  async delete(id: string): Promise<void> {
+    const { error } = await supabase.from('payments').delete().eq('id', id)
+    throwOnError(error)
   },
 }
