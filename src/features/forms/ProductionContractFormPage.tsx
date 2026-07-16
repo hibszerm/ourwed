@@ -84,11 +84,7 @@ export function ProductionContractFormPage() {
           return
         }
 
-        if (
-          instance.status === 'rejected' ||
-          instance.status === 'archived' ||
-          instance.status === 'revoked'
-        ) {
+        if (instance.status === 'rejected' || instance.status === 'archived') {
           setGate({ kind: 'not_found' })
           return
         }

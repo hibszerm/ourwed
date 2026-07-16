@@ -379,11 +379,7 @@ export async function getFormInstanceByToken(
     return instance
   }
 
-  if (
-    isExpired(instance) &&
-    instance.status !== 'submitted' &&
-    instance.status !== 'approved'
-  ) {
+  if (isExpired(instance) && instance.status !== 'submitted') {
     if (instance.status !== 'expired') {
       const { data: expiredRow, error: expireError } = await supabase
         .from('form_instances')
