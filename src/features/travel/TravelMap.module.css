@@ -27,8 +27,9 @@
   font-variant-numeric: tabular-nums;
 }
 
-@media (max-width: 640px) {
+@media (max-width: 767px) {
   .map {
-    height: 200px;
+    height: min(52vw, 220px);
+    min-height: 180px;
   }
 }

@@ -138,11 +138,18 @@
   /* ── Controls (buttons / inputs) ──────────────────── */
   --control-height-sm: 34px;
   --control-height-md: 42px;
+  --touch-target: 44px;
   --control-radius: var(--radius-md);
   --control-padding-x-sm: var(--space-3);
   --control-padding-x-md: var(--space-5);
   --focus-ring: 0 0 0 3px var(--color-accent-subtle);
   --focus-ring-strong: 0 0 0 3px rgba(124, 92, 191, 0.24);
+
+  /* ── Safe areas (Capacitor / notched devices) ─────── */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
 
   /* ── Motion ───────────────────────────────────────── */
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
@@ -152,23 +159,36 @@
   --transition-slow: 340ms var(--ease-out);
 
   /* ── Breakpoints (reference) ──────────────────────── */
+  /* Mobile ≤767 | Tablet 768–1023 | Desktop ≥1024 */
+  --bp-mobile: 767px;
+  --bp-tablet: 768px;
+  --bp-desktop: 1024px;
   --bp-sm: 600px;
   --bp-md: 768px;
   --bp-lg: 900px;
   --bp-xl: 1200px;
 }
 
-@media (max-width: 900px) {
+/* Tablet */
+@media (max-width: 1023px) {
   :root {
     --shell-padding-x: var(--space-6);
     --shell-padding-y: var(--space-6);
-    --sidebar-width: 224px;
+    --shell-header-gap: var(--space-6);
   }
 }
 
-@media (max-width: 768px) {
+/* Mobile */
+@media (max-width: 767px) {
   :root {
-    --shell-padding-x: var(--space-5);
-    --shell-padding-y: var(--space-5);
+    --shell-padding-x: var(--space-4);
+    --shell-padding-y: var(--space-4);
+    --shell-header-gap: var(--space-5);
+    --page-grid-gap: var(--space-4);
+    --section-gap: var(--space-6);
+    --control-height-md: var(--touch-target);
+    --type-page-title-size: var(--text-2xl);
+    --card-padding-md: var(--space-5);
+    --card-padding-lg: var(--space-6);
   }
 }

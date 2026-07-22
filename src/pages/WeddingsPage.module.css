@@ -1,7 +1,8 @@
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(var(--content-sidebar-col), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
   gap: var(--page-grid-gap);
+  min-width: 0;
 }
 
 .loading {
@@ -11,4 +12,11 @@
   min-height: 200px;
   color: var(--color-text-tertiary);
   font-size: var(--type-body-size);
+}
+
+@media (max-width: 767px) {
+  .grid {
+    grid-template-columns: 1fr;
+    gap: var(--space-4);
+  }
 }

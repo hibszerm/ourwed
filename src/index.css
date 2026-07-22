@@ -13,6 +13,7 @@ html {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+  overflow-x: clip;
 }
 
 body {
@@ -21,11 +22,15 @@ body {
   line-height: var(--leading-normal);
   color: var(--color-text-primary);
   background: var(--color-bg);
+  overflow-x: clip;
+  min-height: 100vh;
+  min-height: 100dvh;
 }
 
 #root {
   min-height: 100vh;
   min-height: 100dvh;
+  overflow-x: clip;
 }
 
 a {

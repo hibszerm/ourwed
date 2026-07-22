@@ -2,6 +2,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-10);
+  min-width: 0;
 }
 
 /* Greeting sits close to its hero; the rest breathes below. */
@@ -21,6 +22,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-6);
+  min-width: 0;
 }
 
 .loading {
@@ -50,8 +52,35 @@
   }
 }
 
-@media (max-width: 900px) {
+/* Tablet: two equal columns */
+@media (max-width: 1023px) and (min-width: 768px) {
+  .dashboard {
+    gap: var(--space-8);
+  }
+
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-6);
+  }
+}
+
+/* Mobile: single column */
+@media (max-width: 767px) {
+  .dashboard {
+    gap: var(--space-6);
+  }
+
+  .dashboard > *:first-child {
+    margin-bottom: 0;
+  }
+
   .grid {
     grid-template-columns: 1fr;
+    gap: var(--space-4);
+  }
+
+  .primary,
+  .secondary {
+    gap: var(--space-4);
   }
 }

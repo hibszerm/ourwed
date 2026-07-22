@@ -160,3 +160,22 @@ export function IconBell(props: IconProps) {
     </svg>
   )
 }
+
+export function IconMenu(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <path d="M4 7h16" />
+      <path d="M4 12h16" />
+      <path d="M4 17h16" />
+    </svg>
+  )
+}
+
+export function IconClose(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <path d="M18 6 6 18" />
+      <path d="m6 6 12 12" />
+    </svg>
+  )
+}

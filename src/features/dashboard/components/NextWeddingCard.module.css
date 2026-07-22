@@ -185,11 +185,11 @@
   }
 }
 
-@media (max-width: 760px) {
+@media (max-width: 767px) {
   .card {
     grid-template-columns: 1fr;
-    gap: var(--space-8);
-    padding: var(--space-8);
+    gap: var(--space-6);
+    padding: var(--space-6);
   }
 
   .countdown {
@@ -200,9 +200,10 @@
 
   .coupleName {
     font-size: var(--text-3xl);
+    overflow-wrap: anywhere;
   }
 
   .days {
-    font-size: var(--text-6xl);
+    font-size: clamp(2.75rem, 14vw, var(--text-6xl));
   }
 }

@@ -44,6 +44,13 @@
   resize: vertical;
 }
 
+@media (max-width: 767px) {
+  .md,
+  .sm {
+    min-height: var(--touch-target);
+  }
+}
+
 .control:hover:not(:disabled) {
   border-color: var(--color-border-strong);
 }

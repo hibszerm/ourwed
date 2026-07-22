@@ -5,6 +5,8 @@
   box-shadow: var(--shadow-sm);
   overflow-x: auto;
   overflow-y: visible;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
 }
 
 .track {

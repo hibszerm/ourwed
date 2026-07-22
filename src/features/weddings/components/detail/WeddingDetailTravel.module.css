@@ -283,12 +283,20 @@
   }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 767px) {
   .summary {
     grid-template-columns: 1fr;
   }
 
   .skelMap {
     height: 200px;
+  }
+
+  .verifyWarn,
+  .verifyWarnBtn,
+  .verifyOk {
+    flex-wrap: wrap;
+    min-height: var(--touch-target);
+    align-items: center;
   }
 }

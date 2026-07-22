@@ -1,7 +1,9 @@
+import { useEffect, useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   IconCalendar,
   IconClipboard,
+  IconClose,
   IconDashboard,
   IconInbox,
   IconSettings,
@@ -26,9 +28,24 @@ const studioItems = [
   { to: '/studio/podroz', label: 'Ustawienia podróży' },
 ]
 
-export function Sidebar() {
+interface SidebarProps {
+  open?: boolean
+  onClose?: () => void
+  onNavigate?: () => void
+}
+
+export function Sidebar({ open = false, onClose, onNavigate }: SidebarProps) {
   const { logout, user } = useAuth()
   const navigate = useNavigate()
+  const [isMobile, setIsMobile] = useState(false)
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)')
+    const sync = () => setIsMobile(mq.matches)
+    sync()
+    mq.addEventListener('change', sync)
+    return () => mq.removeEventListener('change', sync)
+  }, [])
 
   const { data: studioUser } = useCurrentStudioUser()
 
@@ -39,23 +56,42 @@ export function Sidebar() {
     : '—'
 
   async function handleLogout() {
+    onNavigate?.()
     await logout()
     navigate('/login', { replace: true })
   }
 
+  const drawerClosed = isMobile && !open
+
   return (
-    <aside className={styles.sidebar}>
-      <div className={styles.logo}>
-        <span className={styles.logoMark}>OW</span>
-        <span className={styles.logoText}>OurWed</span>
+    <aside
+      className={styles.sidebar}
+      data-open={open ? 'true' : 'false'}
+      aria-hidden={drawerClosed}
+      inert={drawerClosed ? true : undefined}
+    >
+      <div className={styles.logoRow}>
+        <div className={styles.logo}>
+          <span className={styles.logoMark}>OW</span>
+          <span className={styles.logoText}>OurWed</span>
+        </div>
+        <button
+          type="button"
+          className={styles.closeButton}
+          aria-label="Zamknij nawigację"
+          onClick={onClose}
+        >
+          <IconClose />
+        </button>
       </div>
 
-      <nav className={styles.nav}>
+      <nav className={styles.nav} aria-label="Nawigacja główna">
         {navItems.map(({ to, label, icon: Icon, end }) => (
           <NavLink
             key={to}
             to={to}
             end={end}
+            onClick={onNavigate}
             className={({ isActive }) =>
               `${styles.navItem} ${isActive ? styles.active : ''}`
             }
@@ -71,6 +107,7 @@ export function Sidebar() {
             <NavLink
               key={to}
               to={to}
+              onClick={onNavigate}
               className={({ isActive }) =>
                 `${styles.navItem} ${isActive ? styles.active : ''}`
               }
@@ -83,6 +120,7 @@ export function Sidebar() {
 
         <NavLink
           to="/ustawienia"
+          onClick={onNavigate}
           className={({ isActive }) =>
             `${styles.navItem} ${isActive ? styles.active : ''}`
           }
@@ -96,7 +134,7 @@ export function Sidebar() {
         <div className={styles.userMenu}>
           <div className={styles.user}>
             <div className={styles.userAvatar}>{avatarLetter}</div>
-            <div>
+            <div className={styles.userText}>
               <p className={styles.userName}>{displayName}</p>
               <p className={styles.userRole}>{displayRole}</p>
             </div>
@@ -104,7 +142,7 @@ export function Sidebar() {
           <button
             type="button"
             className={styles.logout}
-            onClick={handleLogout}
+            onClick={() => void handleLogout()}
           >
             Wyloguj
           </button>
