@@ -11,6 +11,7 @@ import { Navigate } from 'react-router-dom'
 import { AuthLoadingScreen } from '@/features/auth/components/AuthLoadingScreen'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { IconClose, IconMenu } from '@/components/icons'
+import { Drawer } from '@/components/ui/Drawer'
 import { AppTour } from '@/features/landing/AppTour'
 import {
   LandingAuthDialog,
@@ -262,20 +263,6 @@ export function LandingPage() {
     }
   }, [])
 
-  useEffect(() => {
-    if (!menuOpen) return
-    const previous = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    function onKey(event: KeyboardEvent) {
-      if (event.key === 'Escape') setMenuOpen(false)
-    }
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.body.style.overflow = previous
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [menuOpen])
-
   function openAuth(view: AuthDialogView) {
     setMenuOpen(false)
     setAuthView(view)
@@ -357,33 +344,37 @@ export function LandingPage() {
         </div>
       </header>
 
-      {menuOpen ? (
-        <div className={styles.mobileMenu} id={menuId}>
+      <Drawer
+        open={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        title="Menu"
+        aria-label="Menu mobilne"
+      >
+        <nav className={styles.drawerNav} id={menuId}>
+          <a href="#features" onClick={() => setMenuOpen(false)}>
+            Funkcje
+          </a>
+          <a href="#why" onClick={() => setMenuOpen(false)}>
+            Dlaczego OurWed
+          </a>
+          <a href="#pricing" onClick={() => setMenuOpen(false)}>
+            Cennik
+          </a>
+          <a href="#faq" onClick={() => setMenuOpen(false)}>
+            FAQ
+          </a>
+          <button type="button" onClick={() => openAuth('login')}>
+            Zaloguj się
+          </button>
           <button
             type="button"
-            className={styles.mobileMenuBackdrop}
-            aria-label="Zamknij menu"
-            onClick={() => setMenuOpen(false)}
-          />
-          <nav className={styles.mobileMenuPanel} aria-label="Menu mobilne">
-            <a href="#features" onClick={() => setMenuOpen(false)}>
-              Funkcje
-            </a>
-            <a href="#why" onClick={() => setMenuOpen(false)}>
-              Dlaczego OurWed
-            </a>
-            <a href="#pricing" onClick={() => setMenuOpen(false)}>
-              Cennik
-            </a>
-            <a href="#faq" onClick={() => setMenuOpen(false)}>
-              FAQ
-            </a>
-            <button type="button" onClick={() => openAuth('login')}>
-              Zaloguj się
-            </button>
-          </nav>
-        </div>
-      ) : null}
+            className={styles.drawerCta}
+            onClick={() => openAuth('register')}
+          >
+            Rozpocznij za darmo
+          </button>
+        </nav>
+      </Drawer>
 
       <main>
         <section className={styles.hero}>

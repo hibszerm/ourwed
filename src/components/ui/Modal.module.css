@@ -1,37 +1,31 @@
 .root {
   position: fixed;
   inset: 0;
-  z-index: 60;
+  z-index: 9990;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: var(--space-6);
+  pointer-events: none;
 }
 
-.backdrop {
-  position: absolute;
-  inset: 0;
-  border: none;
-  background: var(--color-overlay);
-  cursor: pointer;
-  animation: fadeIn var(--transition-base) both;
-}
-
-.backdrop:disabled {
-  cursor: default;
+.root > * {
+  pointer-events: auto;
 }
 
 .panel {
   position: relative;
-  z-index: 1;
+  z-index: 10000;
   width: 100%;
   max-height: min(90vh, 720px);
   display: flex;
   flex-direction: column;
   background: var(--color-surface);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-2xl);
   box-shadow: var(--shadow-lg);
-  animation: panelIn var(--transition-slow) both;
+  outline: none;
+  animation: panelIn 220ms var(--ease-out, ease) both;
 }
 
 .md {
@@ -42,11 +36,29 @@
   max-width: 560px;
 }
 
+.auth {
+  max-width: 520px;
+}
+
+.handle {
+  display: none;
+}
+
 .header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
   padding: var(--space-8) var(--space-8) var(--space-4);
 }
 
+.headerText {
+  min-width: 0;
+  flex: 1;
+}
+
 .title {
+  margin: 0;
   font-size: var(--text-2xl);
   font-weight: 680;
   letter-spacing: var(--tracking-tight);
@@ -61,12 +73,35 @@
   line-height: 1.55;
 }
 
+.close {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 10px;
+  background: var(--color-bg);
+  color: var(--color-text-secondary);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.close:hover:not(:disabled) {
+  color: var(--color-text-primary);
+}
+
+.close:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .body {
   padding: 0 var(--space-8) var(--space-6);
   overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
+  min-height: 0;
 }
 
 .footer {
@@ -83,19 +118,10 @@
   gap: var(--space-2);
 }
 
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
 @keyframes panelIn {
   from {
     opacity: 0;
-    transform: translateY(8px) scale(0.98);
+    transform: translateY(8px) scale(0.97);
   }
   to {
     opacity: 1;
@@ -105,28 +131,65 @@
 
 @media (max-width: 767px) {
   .root {
-    padding: max(var(--space-3), var(--safe-top))
-      max(var(--space-3), var(--safe-right))
-      max(var(--space-3), var(--safe-bottom))
-      max(var(--space-3), var(--safe-left));
+    padding: 0;
     align-items: flex-end;
   }
 
+  .centerMobile {
+    align-items: center;
+    padding: max(var(--space-4), var(--safe-top))
+      max(var(--space-4), var(--safe-right))
+      max(var(--space-4), var(--safe-bottom))
+      max(var(--space-4), var(--safe-left));
+  }
+
   .panel {
-    max-width: 95vw;
-    max-height: min(90vh, 90dvh);
-    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    max-width: 100%;
+    max-height: min(92vh, 92dvh);
+    border-radius: 20px 20px 0 0;
+    animation: sheetIn 220ms var(--ease-out, ease) both;
+  }
+
+  .centerMobile .panel {
+    border-radius: var(--radius-2xl);
+    max-width: min(520px, 100%);
+    animation: panelIn 220ms var(--ease-out, ease) both;
   }
 
   .md,
-  .lg {
-    max-width: 95vw;
+  .lg,
+  .auth {
+    max-width: 100%;
+  }
+
+  .centerMobile .md,
+  .centerMobile .lg,
+  .centerMobile .auth {
+    max-width: min(520px, 100%);
+  }
+
+  .handle {
+    display: block;
+    width: 40px;
+    height: 4px;
+    border-radius: 999px;
+    background: var(--color-border-strong);
+    margin: 10px auto 0;
+    flex-shrink: 0;
+  }
+
+  .centerMobile .handle {
+    display: none;
   }
 
   .header,
   .body {
     padding-left: var(--space-5);
     padding-right: var(--space-5);
+  }
+
+  .header {
+    padding-top: var(--space-4);
   }
 
   .footer {
@@ -147,5 +210,22 @@
   .primary > :global(*) {
     flex: 1 1 auto;
     min-height: var(--touch-target);
+  }
+}
+
+@keyframes sheetIn {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel {
+    animation: none;
   }
 }

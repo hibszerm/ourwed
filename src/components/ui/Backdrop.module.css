@@ -1,0 +1,38 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9990;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  animation: backdropIn 180ms var(--ease-out, ease) both;
+}
+
+.backdrop:disabled {
+  cursor: default;
+}
+
+@keyframes backdropIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .backdrop {
+    background: rgba(12, 12, 14, 0.55);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .backdrop {
+    animation: none;
+  }
+}
