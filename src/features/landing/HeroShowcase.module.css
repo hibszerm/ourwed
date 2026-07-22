@@ -1,0 +1,453 @@
+.stage {
+  position: relative;
+  width: 100%;
+  min-height: 440px;
+  min-width: 0;
+  isolation: isolate;
+  perspective: 900px;
+}
+
+.glow {
+  position: absolute;
+  inset: 8% 10% 18% 12%;
+  border-radius: 40%;
+  background:
+    radial-gradient(
+      circle at 30% 30%,
+      color-mix(in srgb, var(--color-accent) 22%, transparent),
+      transparent 62%
+    ),
+    radial-gradient(
+      circle at 78% 70%,
+      color-mix(in srgb, var(--color-accent-light) 28%, transparent),
+      transparent 58%
+    );
+  filter: blur(18px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.glowSecondary {
+  position: absolute;
+  right: 4%;
+  top: 12%;
+  width: 42%;
+  height: 48%;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, #fff 70%, transparent),
+    transparent 70%
+  );
+  filter: blur(24px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.card {
+  position: absolute;
+  z-index: 1;
+  min-width: 0;
+  padding: 18px 20px;
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--color-surface) 78%, transparent);
+  border: 1px solid color-mix(in srgb, #fff 65%, var(--color-border-strong));
+  box-shadow:
+    0 1px 0 color-mix(in srgb, #fff 80%, transparent) inset,
+    0 18px 40px rgba(28, 27, 24, 0.08),
+    0 4px 12px rgba(28, 27, 24, 0.04);
+  backdrop-filter: blur(18px) saturate(1.2);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+  animation: floatIn 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.cardWedding {
+  top: 6%;
+  left: 4%;
+  width: min(280px, 58%);
+  z-index: 3;
+  animation-delay: 40ms;
+  animation-name: floatIn, driftA;
+  animation-duration: 700ms, 9s;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1), ease-in-out;
+  animation-iteration-count: 1, infinite;
+  animation-fill-mode: both, none;
+  animation-delay: 40ms, 700ms;
+}
+
+.cardTravel {
+  top: 2%;
+  right: 2%;
+  width: min(240px, 48%);
+  z-index: 2;
+  animation-delay: 120ms;
+  animation-name: floatIn, driftB;
+  animation-duration: 700ms, 11s;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1), ease-in-out;
+  animation-iteration-count: 1, infinite;
+  animation-fill-mode: both, none;
+  animation-delay: 120ms, 800ms;
+}
+
+.cardTasks {
+  bottom: 10%;
+  left: 8%;
+  width: min(230px, 48%);
+  z-index: 4;
+  animation-delay: 180ms;
+  animation-name: floatIn, driftC;
+  animation-duration: 700ms, 10s;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1), ease-in-out;
+  animation-iteration-count: 1, infinite;
+  animation-fill-mode: both, none;
+  animation-delay: 180ms, 900ms;
+}
+
+.cardForms {
+  bottom: 28%;
+  right: 28%;
+  width: min(200px, 42%);
+  z-index: 3;
+  animation-delay: 240ms;
+  animation-name: floatIn, driftA;
+  animation-duration: 700ms, 12s;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1), ease-in-out;
+  animation-iteration-count: 1, infinite;
+  animation-fill-mode: both, none;
+  animation-delay: 240ms, 1000ms;
+}
+
+.cardPay {
+  bottom: 4%;
+  right: 4%;
+  width: min(210px, 44%);
+  z-index: 5;
+  animation-delay: 300ms;
+  animation-name: floatIn, driftB;
+  animation-duration: 700ms, 8.5s;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1), ease-in-out;
+  animation-iteration-count: 1, infinite;
+  animation-fill-mode: both, none;
+  animation-delay: 300ms, 1100ms;
+}
+
+.cardTop {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  background: var(--color-accent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.cardMeta {
+  min-width: 0;
+}
+
+.cardEyebrow {
+  margin: 0 0 4px;
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-tertiary);
+}
+
+.cardTitle {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--color-text-primary);
+  line-height: 1.2;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.cardDate {
+  margin: 0 0 14px;
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
+
+.workflow {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.workflowLabel,
+.workflowStage {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+}
+
+.workflowStage {
+  color: var(--color-text-secondary);
+  font-weight: 500;
+}
+
+.barTrack {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--color-bg-subtle);
+  overflow: hidden;
+}
+
+.barFill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    var(--color-accent),
+    color-mix(in srgb, var(--color-accent) 70%, #fff)
+  );
+}
+
+.route {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.route li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.route strong {
+  display: block;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--color-text-primary);
+  line-height: 1.3;
+}
+
+.route span:not(.stopIndex) {
+  display: block;
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  margin-top: 1px;
+}
+
+.stopIndex {
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  background: var(--color-text-primary);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  margin-top: 1px;
+}
+
+.leg {
+  padding-left: 4px;
+  color: var(--color-text-tertiary);
+  font-size: 11px;
+  gap: 8px !important;
+  align-items: center !important;
+}
+
+.leg em {
+  font-style: normal;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+}
+
+.taskList,
+.checkList {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.taskList li,
+.checkList li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  line-height: 1.3;
+}
+
+.checkbox {
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+  border: 1.5px solid var(--color-border-strong);
+  background: color-mix(in srgb, var(--color-surface) 70%, transparent);
+  flex-shrink: 0;
+}
+
+.checkMark {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  background: var(--color-success-bg);
+  color: var(--color-success-text);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.payRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.payRow strong {
+  color: var(--color-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.paid {
+  color: var(--color-success-text) !important;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+@keyframes floatIn {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes driftA {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  50% {
+    translate: 0 -7px;
+  }
+}
+
+@keyframes driftB {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  50% {
+    translate: 0 6px;
+  }
+}
+
+@keyframes driftC {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  50% {
+    translate: 0 -5px;
+  }
+}
+
+@media (max-width: 900px) {
+  .stage {
+    min-height: 380px;
+    max-width: 520px;
+    margin: 0 auto;
+  }
+
+  .cardWedding {
+    width: min(250px, 62%);
+  }
+
+  .cardTravel {
+    width: min(210px, 50%);
+  }
+
+  .cardForms {
+    right: 22%;
+    bottom: 30%;
+  }
+}
+
+@media (max-width: 560px) {
+  .stage {
+    min-height: 420px;
+  }
+
+  .card {
+    padding: 14px 16px;
+    border-radius: 16px;
+  }
+
+  .cardWedding {
+    top: 0;
+    left: 0;
+    width: min(220px, 70%);
+  }
+
+  .cardTravel {
+    top: 4%;
+    right: 0;
+    width: min(180px, 54%);
+  }
+
+  .cardTasks {
+    bottom: 18%;
+    left: 0;
+    width: min(200px, 64%);
+  }
+
+  .cardForms {
+    display: none;
+  }
+
+  .cardPay {
+    bottom: 0;
+    right: 0;
+    width: min(180px, 56%);
+  }
+
+  .cardTitle {
+    font-size: 1rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card {
+    animation: floatIn 500ms ease both !important;
+    transition: none;
+  }
+}

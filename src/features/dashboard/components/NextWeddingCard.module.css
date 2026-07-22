@@ -1,5 +1,6 @@
 .card {
   position: relative;
+  container-type: inline-size;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
@@ -10,6 +11,8 @@
   padding: var(--space-12) var(--space-12);
   box-shadow: var(--shadow-md);
   animation: cardEnter var(--transition-slow) 0.08s both;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .body {
@@ -39,11 +42,14 @@
 
 .coupleName {
   margin-top: var(--space-4);
-  font-size: var(--text-4xl);
+  font-size: clamp(1.75rem, 4vw, var(--text-4xl));
   font-weight: 700;
   letter-spacing: var(--tracking-tight);
   color: var(--color-text-primary);
-  line-height: 1.05;
+  line-height: 1.15;
+  overflow-wrap: normal;
+  word-break: normal;
+  hyphens: none;
 }
 
 .meta {
@@ -222,10 +228,35 @@ button.cta {
 
   .coupleName {
     font-size: var(--text-3xl);
-    overflow-wrap: anywhere;
+    overflow-wrap: normal;
+    word-break: normal;
+    hyphens: none;
   }
 
   .days {
     font-size: clamp(2.75rem, 14vw, var(--text-6xl));
+  }
+}
+
+/* Narrow product-preview frames (landing demo) — stack like mobile. */
+@container (max-width: 540px) {
+  .card {
+    grid-template-columns: 1fr;
+    gap: var(--space-5);
+    padding: var(--space-6);
+  }
+
+  .countdown {
+    order: -1;
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .coupleName {
+    font-size: clamp(1.5rem, 6vw, 2rem);
+  }
+
+  .days {
+    font-size: clamp(2.25rem, 12vw, 3.5rem);
   }
 }

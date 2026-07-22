@@ -95,9 +95,9 @@ export function TravelMap({ stops }: TravelMapProps) {
           'line-join': 'round',
         },
         paint: {
-          'line-color': '#2f3b46',
-          'line-width': 3.5,
-          'line-opacity': 0.85,
+          'line-color': '#3d4f5c',
+          'line-width': 4,
+          'line-opacity': 0.9,
         },
       })
 
@@ -107,7 +107,7 @@ export function TravelMap({ stops }: TravelMapProps) {
         const el = document.createElement('div')
         el.className = styles.marker
         el.textContent = String(index + 1)
-        el.setAttribute('aria-label', `Stop ${index + 1}`)
+        el.setAttribute('aria-label', `Przystanek ${index + 1}`)
         markersRef.current.push(
           new maplibregl.Marker({ element: el })
             .setLngLat([p.longitude, p.latitude])
@@ -122,7 +122,7 @@ export function TravelMap({ stops }: TravelMapProps) {
         ])
         map.setZoom(12)
       } else {
-        map.fitBounds(bounds, { padding: 48, maxZoom: 12, duration: 0 })
+        map.fitBounds(bounds, { padding: 56, maxZoom: 11, duration: 0 })
       }
     })
 

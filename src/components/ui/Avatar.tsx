@@ -7,8 +7,20 @@ interface AvatarProps {
 }
 
 function getInitials(name: string): string {
+  const coupleParts = name.split(/\s*&\s*/)
+  if (coupleParts.length >= 2) {
+    const left = coupleParts[0]?.trim().split(/\s+/)[0] ?? ''
+    const right = coupleParts[1]?.trim().split(/\s+/)[0] ?? ''
+    // Prefer partner first-name initials (Anna & Michał → AM).
+    // Fall back to classic first+last of the left side when needed.
+    if (left && right) {
+      return `${left[0] ?? ''}${right[0] ?? ''}`.toUpperCase()
+    }
+  }
+
   return name
-    .split(/[&\s]+/)
+    .split(/\s+/)
+    .filter(Boolean)
     .map((part) => part[0])
     .join('')
     .slice(0, 2)

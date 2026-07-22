@@ -1,28 +1,41 @@
-import { useEffect, useRef, useState, type RefObject } from 'react'
+import { useMemo, useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Card, CardHeader } from '@/components/ui/Card'
 import { IconArrowLeft } from '@/components/icons'
 import { CalendarMonthView } from '@/features/calendar/components/CalendarMonthView'
+import { CalendarSummary } from '@/features/calendar/components/CalendarSummary'
+import {
+  CalendarToolbar,
+  type CalendarViewMode,
+} from '@/features/calendar/components/CalendarToolbar'
+import {
+  addMonths,
+  startOfMonth,
+} from '@/features/calendar/utils/calendarDates'
 import { buildCalendarEvents } from '@/features/calendar/utils/calendarEvents'
-import { DashboardHero } from '@/features/dashboard/components/DashboardHero'
 import { NextWeddingCard } from '@/features/dashboard/components/NextWeddingCard'
 import { NotificationsCard } from '@/features/dashboard/components/NotificationsCard'
 import { TodoTodayCard } from '@/features/dashboard/components/TodoTodayCard'
 import {
-  DEMO_USER_NAME,
+  DEMO_WEDDING_ID,
   demoMaskedMeta,
   demoNotifications,
   demoQuestionnaireAnswers,
+  demoQuestionnaireCards,
   demoTasks,
   demoTravelPlan,
   demoWedding,
   demoWeddingTasks,
   demoWeddings,
+  getDemoSeasonFinance,
 } from '@/features/landing/demoData'
+import { formatCurrency } from '@/lib/utils/currency'
+import { formatShortDate } from '@/lib/utils/dates'
 import { WeddingCard } from '@/features/weddings/components/WeddingCard'
 import { NotesSection } from '@/features/weddings/components/NotesSection'
 import { ScheduleSection } from '@/features/weddings/components/ScheduleSection'
 import { EquipmentSection } from '@/features/weddings/components/EquipmentSection'
+import { DeliverablesSection } from '@/features/weddings/components/DeliverablesSection'
 import { WeddingDetailContact } from '@/features/weddings/components/detail/WeddingDetailContact'
 import { WeddingDetailCurrentStage } from '@/features/weddings/components/detail/WeddingDetailCurrentStage'
 import { WeddingDetailFinances } from '@/features/weddings/components/detail/WeddingDetailFinances'
@@ -34,9 +47,6 @@ import { WeddingDetailTasks } from '@/features/weddings/components/detail/Weddin
 import { WeddingDetailTimeline } from '@/features/weddings/components/detail/WeddingDetailTimeline'
 import { WeddingDetailTravel } from '@/features/weddings/components/detail/WeddingDetailTravel'
 import { WeddingDetailWorkflow } from '@/features/weddings/components/detail/WeddingDetailWorkflow'
-import dashboardStyles from '@/pages/DashboardPage.module.css'
-import weddingDetailStyles from '@/pages/WeddingDetailPage.module.css'
-import weddingsStyles from '@/pages/WeddingsPage.module.css'
 import shellStyles from './AppTour.module.css'
 import styles from './LandingDemo.module.css'
 
@@ -52,101 +62,38 @@ export type DemoNavId =
 const NAV_ITEMS: { id: DemoNavId; label: string; path: string }[] = [
   { id: 'dashboard', label: 'Dashboard', path: 'dashboard' },
   { id: 'weddings', label: 'Śluby', path: 'sluby' },
-  { id: 'travel', label: 'Travel', path: 'sluby/demo#travel' },
-  { id: 'finance', label: 'Finanse', path: 'sluby/demo#finance' },
+  { id: 'travel', label: 'Podróże', path: 'sluby/demo#travel' },
   { id: 'questionnaires', label: 'Ankiety', path: 'ankiety' },
+  { id: 'finance', label: 'Finanse', path: 'finanse' },
   { id: 'calendar', label: 'Kalendarz', path: 'kalendarz' },
 ]
 
-type WeddingFocus = 'overview' | 'travel' | 'finance' | 'schedule' | 'questionnaires'
-
 interface LandingDemoProps {
-  /** Compact hero chrome (shorter content area). */
   compact?: boolean
   className?: string
 }
 
 /**
- * Interactive product demo on the landing page — real app components + local demo data.
+ * Product showcase demo — curated layouts, real components, local data.
+ * Not a scaled-down full app; each tab has room to breathe.
  */
 export function LandingDemo({ compact = false, className = '' }: LandingDemoProps) {
   const [nav, setNav] = useState<DemoNavId>('dashboard')
-  const [weddingFocus, setWeddingFocus] = useState<WeddingFocus>('overview')
   const [fadeKey, setFadeKey] = useState(0)
+  const [questionnaireOpen, setQuestionnaireOpen] = useState(false)
 
-  const travelRef = useRef<HTMLDivElement | null>(null)
-  const financeRef = useRef<HTMLDivElement | null>(null)
-  const scheduleRef = useRef<HTMLDivElement | null>(null)
-  const questionnairesRef = useRef<HTMLDivElement | null>(null)
-  const contentRef = useRef<HTMLDivElement | null>(null)
-
-  const calendarEvents = buildCalendarEvents(demoWeddings)
-  const calendarAnchor = new Date(2026, 7, 1) // August 2026
-
-  function go(next: DemoNavId, focus: WeddingFocus = 'overview') {
+  function go(next: DemoNavId) {
     setNav(next)
-    setWeddingFocus(focus)
     setFadeKey((k) => k + 1)
+    if (next !== 'questionnaires') setQuestionnaireOpen(false)
   }
 
-  function openWedding(focus: WeddingFocus = 'overview') {
-    go('wedding', focus)
+  function openWedding() {
+    go('wedding')
   }
 
-  useEffect(() => {
-    if (nav !== 'wedding' && nav !== 'travel' && nav !== 'finance') return
-
-    const target =
-      weddingFocus === 'travel' || nav === 'travel'
-        ? travelRef.current
-        : weddingFocus === 'finance' || nav === 'finance'
-          ? financeRef.current
-          : weddingFocus === 'schedule'
-            ? scheduleRef.current
-            : weddingFocus === 'questionnaires'
-              ? questionnairesRef.current
-              : null
-
-    if (!target) return
-    const t = window.setTimeout(() => {
-      target.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    }, 80)
-    return () => window.clearTimeout(t)
-  }, [nav, weddingFocus, fadeKey])
-
-  const activeNav: DemoNavId =
-    nav === 'wedding'
-      ? weddingFocus === 'travel'
-        ? 'travel'
-        : weddingFocus === 'finance'
-          ? 'finance'
-          : 'weddings'
-      : nav === 'travel' || nav === 'finance'
-        ? nav
-        : nav
-
-  const path =
-    NAV_ITEMS.find((item) => item.id === activeNav)?.path ??
-    (nav === 'wedding' ? 'sluby/demo' : 'dashboard')
-
-  const showWedding =
-    nav === 'wedding' || nav === 'travel' || nav === 'finance'
-
-  function handleNavClick(id: DemoNavId) {
-    if (id === 'travel') {
-      openWedding('travel')
-      return
-    }
-    if (id === 'finance') {
-      openWedding('finance')
-      return
-    }
-    if (id === 'weddings') {
-      go('weddings')
-      return
-    }
-    go(id)
-  }
+  const path = NAV_ITEMS.find((item) => item.id === nav)?.path ?? 'dashboard'
+  const activeNav = nav === 'wedding' ? 'weddings' : nav
 
   return (
     <div
@@ -165,14 +112,14 @@ export function LandingDemo({ compact = false, className = '' }: LandingDemoProp
               role="tab"
               aria-selected={activeNav === item.id}
               className={`${shellStyles.navItem} ${activeNav === item.id ? shellStyles.navItemActive : ''}`}
-              onClick={() => handleNavClick(item.id)}
+              onClick={() => go(item.id)}
             >
               {item.label}
             </button>
           ))}
         </nav>
         <p className={shellStyles.navHint}>
-          Interaktywne demo — te same komponenty co w aplikacji, dane lokalne.
+          Interaktywne demo — te same komponenty co w aplikacji.
         </p>
       </aside>
 
@@ -183,47 +130,29 @@ export function LandingDemo({ compact = false, className = '' }: LandingDemoProp
           <span />
           <div className={shellStyles.url}>app.ourwed.pl/{path}</div>
         </div>
-        <div
-          className={`${shellStyles.contentSlot} ${styles.contentSlot}`}
-          ref={contentRef}
-        >
-          <div key={fadeKey} className={shellStyles.content} role="tabpanel">
+        <div className={`${shellStyles.contentSlot} ${styles.contentSlot}`}>
+          <div key={fadeKey} className={`${shellStyles.content} ${styles.screen}`} role="tabpanel">
             {nav === 'dashboard' ? (
-              <DemoDashboard onOpenWedding={() => openWedding()} />
+              <DemoDashboard onOpenWedding={openWedding} />
             ) : null}
-
             {nav === 'weddings' ? (
-              <DemoWeddingsList onOpen={() => openWedding()} />
+              <DemoWeddingsList onOpen={openWedding} />
             ) : null}
-
-            {showWedding ? (
-              <DemoWeddingDetail
-                focus={weddingFocus}
-                travelRef={travelRef}
-                financeRef={financeRef}
-                scheduleRef={scheduleRef}
-                questionnairesRef={questionnairesRef}
-                onBack={() => go('weddings')}
-              />
+            {nav === 'wedding' ? (
+              <DemoWeddingDetail onBack={() => go('weddings')} />
             ) : null}
-
+            {nav === 'travel' ? <DemoTravel /> : null}
+            {nav === 'finance' ? <DemoSeasonFinanceView /> : null}
             {nav === 'calendar' ? (
-              <div className={styles.calendarWrap}>
-                <header className={styles.pageHeader}>
-                  <h2 className={styles.pageTitle}>Kalendarz</h2>
-                  <p className={styles.pageSub}>Sierpień 2026</p>
-                </header>
-                <CalendarMonthView
-                  anchor={calendarAnchor}
-                  events={calendarEvents}
-                  allowCreateOnEmpty={false}
-                  onSelectEvent={() => openWedding()}
-                />
-              </div>
+              <DemoCalendar onOpenWedding={openWedding} />
             ) : null}
-
             {nav === 'questionnaires' ? (
-              <DemoQuestionnaires onOpenWedding={() => openWedding('questionnaires')} />
+              <DemoQuestionnaires
+                open={questionnaireOpen}
+                onOpen={() => setQuestionnaireOpen(true)}
+                onBack={() => setQuestionnaireOpen(false)}
+                onOpenWedding={openWedding}
+              />
             ) : null}
           </div>
         </div>
@@ -237,7 +166,7 @@ export function LandingDemo({ compact = false, className = '' }: LandingDemoProp
             role="tab"
             aria-selected={activeNav === item.id}
             className={`${shellStyles.mobileTab} ${activeNav === item.id ? shellStyles.mobileTabActive : ''}`}
-            onClick={() => handleNavClick(item.id)}
+            onClick={() => go(item.id)}
           >
             {item.label}
           </button>
@@ -247,22 +176,20 @@ export function LandingDemo({ compact = false, className = '' }: LandingDemoProp
   )
 }
 
+/** Showcase: only the three hero widgets — never the full dashboard. */
 function DemoDashboard({ onOpenWedding }: { onOpenWedding: () => void }) {
   return (
-    <div className={dashboardStyles.dashboard}>
-      <DashboardHero userName={DEMO_USER_NAME} nextWedding={demoWedding} />
+    <div className={styles.dashboardShowcase}>
       <NextWeddingCard wedding={demoWedding} onOpen={onOpenWedding} />
-      <div className={dashboardStyles.grid}>
-        <div className={dashboardStyles.primary}>
-          <TodoTodayCard
-            tasks={demoTasks}
-            weddings={demoWeddings}
-            onOpenWedding={() => onOpenWedding()}
-          />
-        </div>
-        <div className={dashboardStyles.secondary}>
-          <NotificationsCard notifications={demoNotifications} />
-        </div>
+      <div className={styles.dashboardSplit}>
+        <TodoTodayCard
+          tasks={demoTasks.slice(0, 3)}
+          weddings={demoWeddings}
+          onOpenWedding={(id) => {
+            if (id === DEMO_WEDDING_ID) onOpenWedding()
+          }}
+        />
+        <NotificationsCard notifications={demoNotifications.slice(0, 3)} />
       </div>
     </div>
   )
@@ -270,39 +197,29 @@ function DemoDashboard({ onOpenWedding }: { onOpenWedding: () => void }) {
 
 function DemoWeddingsList({ onOpen }: { onOpen: () => void }) {
   return (
-    <div>
+    <div className={styles.weddingsShowcase}>
       <header className={styles.pageHeader}>
         <h2 className={styles.pageTitle}>Śluby</h2>
-        <p className={styles.pageSub}>1 aktywna para</p>
+        <p className={styles.pageSub}>{demoWeddings.length} aktywnych par</p>
       </header>
-      <div className={weddingsStyles.grid}>
-        {demoWeddings.map((wedding) => (
-          <WeddingCard key={wedding.id} wedding={wedding} onOpen={() => onOpen()} />
+      <div className={styles.weddingList}>
+        {demoWeddings.map((wedding, index) => (
+          <WeddingCard
+            key={wedding.id}
+            wedding={wedding}
+            shortNames
+            onOpen={index === 0 ? () => onOpen() : undefined}
+            disabled={index > 0}
+          />
         ))}
       </div>
     </div>
   )
 }
 
-function DemoWeddingDetail({
-  focus,
-  travelRef,
-  financeRef,
-  scheduleRef,
-  questionnairesRef,
-  onBack,
-}: {
-  focus: WeddingFocus
-  travelRef: RefObject<HTMLDivElement | null>
-  financeRef: RefObject<HTMLDivElement | null>
-  scheduleRef: RefObject<HTMLDivElement | null>
-  questionnairesRef: RefObject<HTMLDivElement | null>
-  onBack: () => void
-}) {
-  void focus
-
+function DemoWeddingDetail({ onBack }: { onBack: () => void }) {
   return (
-    <div className={weddingDetailStyles.page}>
+    <div className={styles.detailShowcase}>
       <div className={styles.backRow}>
         <Button type="button" variant="ghost" size="sm" onClick={onBack}>
           <IconArrowLeft />
@@ -318,9 +235,7 @@ function DemoWeddingDetail({
       />
 
       <WeddingDetailStatus wedding={demoWedding} />
-
       <WeddingDetailWorkflow currentStage={demoWedding.workflowStage} />
-
       <WeddingDetailCurrentStage wedding={demoWedding} />
 
       <Card padding="md">
@@ -331,21 +246,21 @@ function DemoWeddingDetail({
             <dd>{demoMaskedMeta.contractNumber}</dd>
           </div>
           <div>
-            <dt>PESEL Panny Młodej</dt>
-            <dd>{demoMaskedMeta.peselBride}</dd>
+            <dt>E-mail</dt>
+            <dd>••••••••@gmail.com</dd>
           </div>
           <div>
-            <dt>PESEL Pana Młodego</dt>
-            <dd>{demoMaskedMeta.peselGroom}</dd>
+            <dt>Telefon</dt>
+            <dd>••• ••• •••</dd>
           </div>
           <div>
-            <dt>Przygotowania Pana Młodego</dt>
-            <dd>{demoMaskedMeta.groomPrep}</dd>
+            <dt>Adres</dt>
+            <dd className={styles.blurred}>ul. ********</dd>
           </div>
         </dl>
       </Card>
 
-      <div className={weddingDetailStyles.row} ref={financeRef}>
+      <div className={styles.detailStack}>
         <WeddingDetailFinances
           wedding={demoWedding}
           contractPrice={demoWedding.price}
@@ -355,78 +270,234 @@ function DemoWeddingDetail({
         <WeddingDetailContact couple={demoWedding.couple} contacts={[]} />
       </div>
 
-      <div ref={travelRef}>
-        <WeddingDetailTravel
-          weddingId={demoWedding.id}
-          plan={demoTravelPlan}
-          readOnly
-        />
-      </div>
+      <WeddingDetailTravel
+        weddingId={demoWedding.id}
+        plan={demoTravelPlan}
+        readOnly
+        hideMap
+      />
 
-      <div className={weddingDetailStyles.row} ref={questionnairesRef}>
+      <div className={styles.detailStack}>
         <WeddingDetailQuestionnaires questionnaires={demoWedding.questionnaires} />
         <WeddingDetailTasks tasks={demoWeddingTasks} />
       </div>
 
-      <Card padding="md">
-        <CardHeader
-          title="Odpowiedzi z ankiety ślubnej"
-          subtitle="Ukończona · realistyczne odpowiedzi pary"
-        />
-        <dl className={styles.answers}>
-          {Object.entries(demoQuestionnaireAnswers).map(([question, answer]) => (
-            <div key={question} className={styles.answerRow}>
-              <dt>{question}</dt>
-              <dd>{answer}</dd>
-            </div>
-          ))}
-        </dl>
-      </Card>
-
-      <div className={weddingDetailStyles.conditional} ref={scheduleRef}>
-        <div className={weddingDetailStyles.conditionalItem}>
-          <ScheduleSection events={demoWedding.schedule} />
-        </div>
-        <div className={weddingDetailStyles.conditionalItem}>
-          <EquipmentSection items={demoWedding.checklist} />
-        </div>
-      </div>
-
+      <ScheduleSection events={demoWedding.schedule} />
+      <EquipmentSection items={demoWedding.checklist} />
+      <DeliverablesSection deliverables={demoWedding.deliverables} />
       <WeddingDetailTimeline entries={demoWedding.timeline} />
-
       <NotesSection notes={demoWedding.notes} />
     </div>
   )
 }
 
-function DemoQuestionnaires({
-  onOpenWedding,
-}: {
-  onOpenWedding: () => void
-}) {
+function DemoTravel() {
   return (
-    <div className={styles.questionnairesPage}>
+    <div className={styles.travelShowcase}>
       <header className={styles.pageHeader}>
-        <h2 className={styles.pageTitle}>Ankiety</h2>
-        <p className={styles.pageSub}>Statusy przy ślubie Anna & Michał</p>
+        <h2 className={styles.pageTitle}>Podróże</h2>
+        <p className={styles.pageSub}>Anna & Michał · trasa dnia ślubu</p>
       </header>
-      <WeddingDetailQuestionnaires questionnaires={demoWedding.questionnaires} />
+      <WeddingDetailTravel
+        weddingId={demoWedding.id}
+        plan={demoTravelPlan}
+        readOnly
+        hideMap
+      />
+    </div>
+  )
+}
+
+function DemoSeasonFinanceView() {
+  const finance = getDemoSeasonFinance()
+  const maxMonth = Math.max(...finance.monthly.map((m) => m.revenue), 1)
+
+  return (
+    <div className={styles.financeShowcase}>
+      <header className={styles.pageHeader}>
+        <h2 className={styles.pageTitle}>Finanse</h2>
+        <p className={styles.pageSub}>Przegląd sezonu 2026</p>
+      </header>
+
+      <div className={styles.statsRow}>
+        <div className={styles.statCard}>
+          <span className={styles.statLabel}>Przychód</span>
+          <span className={styles.statValue}>{formatCurrency(finance.seasonRevenue)}</span>
+        </div>
+        <div className={styles.statCard}>
+          <span className={styles.statLabel}>Koszty</span>
+          <span className={styles.statValue}>{formatCurrency(finance.expensesTotal)}</span>
+        </div>
+        <div className={styles.statCard}>
+          <span className={styles.statLabel}>Zysk</span>
+          <span className={styles.statValue}>{formatCurrency(finance.profit)}</span>
+        </div>
+        <div className={styles.statCard}>
+          <span className={styles.statLabel}>Do zapłaty</span>
+          <span className={styles.statValue}>{formatCurrency(finance.remainingTotal)}</span>
+        </div>
+      </div>
+
       <Card padding="md">
-        <CardHeader title="Ankieta ślubna" subtitle="Ukończona 20 cze 2026" />
-        <dl className={styles.answers}>
-          {Object.entries(demoQuestionnaireAnswers).map(([question, answer]) => (
-            <div key={question} className={styles.answerRow}>
-              <dt>{question}</dt>
-              <dd>{answer}</dd>
+        <CardHeader title="Przychód miesięczny" subtitle="Wartość umów wg miesiąca ślubu" />
+        <div className={styles.chart}>
+          {finance.monthly.map((month) => (
+            <div key={month.key} className={styles.chartCol}>
+              <div className={styles.chartBarTrack}>
+                <div
+                  className={styles.chartBar}
+                  style={{
+                    height: `${Math.max(8, (month.revenue / maxMonth) * 100)}%`,
+                  }}
+                />
+              </div>
+              <span className={styles.chartLabel}>{month.label}</span>
             </div>
           ))}
-        </dl>
-        <div className={styles.openRow}>
-          <Button type="button" variant="primary" onClick={onOpenWedding}>
-            Otwórz ślub
-          </Button>
         </div>
       </Card>
+
+      <Card padding="md">
+        <CardHeader title="Nadchodzące płatności" />
+        <ul className={styles.paymentList}>
+          {finance.upcoming.slice(0, 4).map((row) => (
+            <li key={row.id} className={styles.paymentItem}>
+              <div className={styles.paymentText}>
+                <p className={styles.paymentCouple}>{row.coupleLabel}</p>
+                <p className={styles.paymentMeta}>
+                  {row.label}
+                  {row.dueDate ? ` · ${formatShortDate(row.dueDate)}` : ''}
+                </p>
+              </div>
+              <span className={styles.paymentAmount}>{formatCurrency(row.amount)}</span>
+            </li>
+          ))}
+        </ul>
+      </Card>
+    </div>
+  )
+}
+
+function DemoCalendar({ onOpenWedding }: { onOpenWedding: () => void }) {
+  const [anchor, setAnchor] = useState(() => startOfMonth(new Date(2026, 7, 1)))
+  const events = useMemo(() => buildCalendarEvents(demoWeddings), [])
+  const view: CalendarViewMode = 'month'
+
+  return (
+    <div className={styles.calendarShowcase}>
+      <CalendarSummary weddings={demoWeddings} anchor={anchor} />
+      <CalendarToolbar
+        view={view}
+        anchor={anchor}
+        onViewChange={() => undefined}
+        onToday={() => setAnchor(startOfMonth(new Date(2026, 7, 1)))}
+        onPrev={() => setAnchor((c) => addMonths(c, -1))}
+        onNext={() => setAnchor((c) => addMonths(c, 1))}
+      />
+      <CalendarMonthView
+        anchor={anchor}
+        events={events}
+        allowCreateOnEmpty={false}
+        onSelectEvent={(event) => {
+          if (event.wedding.id === DEMO_WEDDING_ID) onOpenWedding()
+        }}
+      />
+    </div>
+  )
+}
+
+function DemoQuestionnaires({
+  open,
+  onOpen,
+  onBack,
+  onOpenWedding,
+}: {
+  open: boolean
+  onOpen: () => void
+  onBack: () => void
+  onOpenWedding: () => void
+}) {
+  if (open) {
+    return (
+      <div className={styles.questionnairesShowcase}>
+        <div className={styles.backRow}>
+          <Button type="button" variant="ghost" size="sm" onClick={onBack}>
+            <IconArrowLeft />
+            Wróć do listy
+          </Button>
+        </div>
+        <Card padding="md">
+          <CardHeader
+            title="Ankieta do umowy"
+            subtitle="Anna & Michał · Ukończona"
+          />
+          <dl className={styles.answers}>
+            {Object.entries(demoQuestionnaireAnswers).map(([question, answer]) => (
+              <div key={question} className={styles.answerRow}>
+                <dt>{question}</dt>
+                <dd>{answer}</dd>
+              </div>
+            ))}
+          </dl>
+          <div className={styles.openRow}>
+            <Button type="button" variant="primary" onClick={onOpenWedding}>
+              Otwórz ślub
+            </Button>
+          </div>
+        </Card>
+      </div>
+    )
+  }
+
+  return (
+    <div className={styles.questionnairesShowcase}>
+      <header className={styles.pageHeader}>
+        <h2 className={styles.pageTitle}>Ankiety</h2>
+        <p className={styles.pageSub}>{demoQuestionnaireCards.length} ankiet</p>
+      </header>
+      <div className={styles.questionnaireGrid}>
+        {demoQuestionnaireCards.map((item) => {
+          const card = (
+            <Card
+              padding="md"
+              hover={item.clickable}
+              className={styles.questionnaireCard}
+            >
+              <div className={styles.questionnaireTop}>
+                <h3 className={styles.questionnaireTitle}>{item.title}</h3>
+                <span
+                  className={`${styles.questionnaireStatus} ${styles[`tone_${item.tone}`]}`}
+                >
+                  {item.status}
+                </span>
+              </div>
+              <p className={styles.questionnaireCouple}>{item.couple}</p>
+              {item.clickable ? (
+                <span className={styles.questionnaireCta}>Zobacz odpowiedzi</span>
+              ) : null}
+            </Card>
+          )
+
+          if (!item.clickable) {
+            return (
+              <div key={item.id} className={styles.questionnaireItemDisabled}>
+                {card}
+              </div>
+            )
+          }
+
+          return (
+            <button
+              key={item.id}
+              type="button"
+              className={styles.questionnaireItem}
+              onClick={onOpen}
+            >
+              {card}
+            </button>
+          )
+        })}
+      </div>
     </div>
   )
 }

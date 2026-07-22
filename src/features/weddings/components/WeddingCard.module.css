@@ -25,7 +25,10 @@
   font-weight: 700;
   letter-spacing: -0.02em;
   color: var(--color-text-primary);
-  overflow-wrap: anywhere;
+  line-height: 1.25;
+  overflow-wrap: normal;
+  word-break: normal;
+  hyphens: none;
 }
 
 .package {
@@ -47,6 +50,14 @@
   gap: var(--space-2);
   font-size: var(--text-sm);
   color: var(--color-text-secondary);
+  min-width: 0;
+}
+
+.detailText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .icon {
@@ -115,6 +126,12 @@
   color: #fff;
   font-size: var(--text-sm);
   font-weight: 600;
+}
+
+.disabled {
+  opacity: 0.55;
+  filter: grayscale(0.15);
+  pointer-events: none;
 }
 
 button.link {

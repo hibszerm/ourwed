@@ -21,7 +21,12 @@ export function NextWeddingCard({ wedding, onOpen }: NextWeddingCardProps) {
     )
   }
 
-  const name = coupleName(wedding.couple.partner1, wedding.couple.partner2)
+  const name = coupleName(
+    wedding.couple.partner1FirstName?.trim() ||
+      wedding.couple.partner1.split(/\s+/)[0],
+    wedding.couple.partner2FirstName?.trim() ||
+      wedding.couple.partner2.split(/\s+/)[0],
+  )
   const days = getDaysUntil(wedding.date)
   const location =
     wedding.ceremonyLocation ??

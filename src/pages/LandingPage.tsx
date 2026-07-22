@@ -13,11 +13,11 @@ import { useAuth } from '@/features/auth/AuthProvider'
 import { IconClose, IconMenu } from '@/components/icons'
 import { Drawer } from '@/components/ui/Drawer'
 import { AppTour } from '@/features/landing/AppTour'
+import { HeroShowcase } from '@/features/landing/HeroShowcase'
 import {
   LandingAuthDialog,
   type AuthDialogView,
 } from '@/features/landing/LandingAuthDialog'
-import { HeroProductPreview } from '@/features/landing/ProductPreview'
 import { WorkflowTimeline } from '@/features/landing/WorkflowTimeline'
 import { clearLogoutRedirectToLanding } from '@/lib/auth/logoutRedirect'
 import styles from './LandingPage.module.css'
@@ -159,10 +159,9 @@ function FeatureVisual({ kind }: { kind: (typeof FEATURES)[number]['visual'] }) 
       <div className={styles.featureMock} aria-hidden>
         <div className={styles.mockTravelFlow}>
           {[
-            ['1', 'Studio', 'ul. Mokotowska 12'],
-            ['2', 'Przygotowania', 'Hotel Bristol, Warszawa'],
-            ['3', 'Ceremonia', 'Kościół św. Anny, Warszawa'],
-            ['4', 'Przyjęcie', 'Pałac Mała Wieś'],
+            ['1', 'Przygotowania', 'Villa Love'],
+            ['2', 'Ceremonia', 'Kościół św. Anny'],
+            ['3', 'Przyjęcie', 'Pałac Mała Wieś'],
           ].map(([i, title, addr], idx) => (
             <div key={title}>
               <div className={styles.mockStop}>
@@ -172,8 +171,10 @@ function FeatureVisual({ kind }: { kind: (typeof FEATURES)[number]['visual'] }) 
                   <span>{addr}</span>
                 </div>
               </div>
-              {idx < 3 ? (
-                <div className={styles.mockLeg}>↓ 5–52 min · 0,9–48 km</div>
+              {idx < 2 ? (
+                <div className={styles.mockLeg}>
+                  ↓ {idx === 0 ? '18 min' : '11 min'}
+                </div>
               ) : null}
             </div>
           ))}
@@ -410,7 +411,7 @@ export function LandingPage() {
               </div>
             </div>
             <div className={styles.heroVisual}>
-              <HeroProductPreview />
+              <HeroShowcase />
             </div>
           </div>
         </section>

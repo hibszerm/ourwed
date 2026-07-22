@@ -12,6 +12,10 @@ import styles from './CalendarMonthWeddings.module.css'
 interface CalendarMonthWeddingsProps {
   weddings: Wedding[]
   anchor: Date
+  /** When set, open CTA uses callback instead of router Link (landing demo). */
+  onOpenWedding?: (wedding: Wedding) => void
+  /** Hide empty-state create button (landing demo). */
+  hideCreate?: boolean
 }
 
 function countdownLabel(date: string): string | null {
@@ -22,7 +26,13 @@ function countdownLabel(date: string): string | null {
   return `Za ${days} dni`
 }
 
-function MonthWeddingCard({ wedding }: { wedding: Wedding }) {
+function MonthWeddingCard({
+  wedding,
+  onOpenWedding,
+}: {
+  wedding: Wedding
+  onOpenWedding?: (wedding: Wedding) => void
+}) {
   const status = getWorkflowStatus(wedding)
   const name = coupleName(wedding.couple.partner1, wedding.couple.partner2)
   const countdown = countdownLabel(wedding.date)
@@ -61,17 +71,33 @@ function MonthWeddingCard({ wedding }: { wedding: Wedding }) {
       </dl>
 
       <footer className={styles.footer}>
-        <Link to={`/sluby/${wedding.id}`}>
-          <Button type="button" variant="secondary" size="sm">
+        {onOpenWedding ? (
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={() => onOpenWedding(wedding)}
+          >
             Otwórz zlecenie
           </Button>
-        </Link>
+        ) : (
+          <Link to={`/sluby/${wedding.id}`}>
+            <Button type="button" variant="secondary" size="sm">
+              Otwórz zlecenie
+            </Button>
+          </Link>
+        )}
       </footer>
     </article>
   )
 }
 
-export function CalendarMonthWeddings({ weddings, anchor }: CalendarMonthWeddingsProps) {
+export function CalendarMonthWeddings({
+  weddings,
+  anchor,
+  onOpenWedding,
+  hideCreate = false,
+}: CalendarMonthWeddingsProps) {
   const monthAnchor = startOfMonth(anchor)
   const monthWeddings = getWeddingsInMonth(weddings, monthAnchor)
   const monthLabel = formatMonthTitle(monthAnchor)
@@ -87,16 +113,22 @@ export function CalendarMonthWeddings({ weddings, anchor }: CalendarMonthWedding
       {monthWeddings.length === 0 ? (
         <div className={styles.empty}>
           <p className={styles.emptyText}>Brak ślubów w tym miesiącu.</p>
-          <Link to={`/sluby/nowy?date=${emptyDateKey}`}>
-            <Button type="button" variant="secondary" size="sm">
-              + Dodaj zlecenie
-            </Button>
-          </Link>
+          {!hideCreate ? (
+            <Link to={`/sluby/nowy?date=${emptyDateKey}`}>
+              <Button type="button" variant="secondary" size="sm">
+                + Dodaj zlecenie
+              </Button>
+            </Link>
+          ) : null}
         </div>
       ) : (
         <div className={styles.grid}>
           {monthWeddings.map((wedding) => (
-            <MonthWeddingCard key={wedding.id} wedding={wedding} />
+            <MonthWeddingCard
+              key={wedding.id}
+              wedding={wedding}
+              onOpenWedding={onOpenWedding}
+            />
           ))}
         </div>
       )}

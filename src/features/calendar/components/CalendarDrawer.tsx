@@ -9,6 +9,8 @@ import styles from './CalendarDrawer.module.css'
 interface CalendarDrawerProps {
   event: CalendarWeddingEvent | null
   onClose: () => void
+  /** When set, primary CTA does not navigate via router (landing demo). */
+  onOpen?: (event: CalendarWeddingEvent) => void
 }
 
 function countdownLabel(date: string): string {
@@ -19,7 +21,7 @@ function countdownLabel(date: string): string {
   return `Za ${days} dni`
 }
 
-export function CalendarDrawer({ event, onClose }: CalendarDrawerProps) {
+export function CalendarDrawer({ event, onClose, onOpen }: CalendarDrawerProps) {
   if (!event) return null
 
   const nextAction = getNextRecommendedAction(event.wedding)
@@ -100,11 +102,21 @@ export function CalendarDrawer({ event, onClose }: CalendarDrawerProps) {
         </div>
 
         <footer className={styles.footer}>
-          <Link to={`/sluby/${event.wedding.id}`} className={styles.link}>
-            <Button type="button" variant="primary">
-              Otwórz zlecenie
-            </Button>
-          </Link>
+          {onOpen ? (
+            <button
+              type="button"
+              className={styles.link}
+              onClick={() => onOpen(event)}
+            >
+              <span className={styles.ctaPrimary}>Otwórz zlecenie</span>
+            </button>
+          ) : (
+            <Link to={`/sluby/${event.wedding.id}`} className={styles.link}>
+              <Button type="button" variant="primary">
+                Otwórz zlecenie
+              </Button>
+            </Link>
+          )}
           <Button type="button" variant="secondary">
             Dodaj notatkę
           </Button>

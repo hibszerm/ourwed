@@ -13,10 +13,32 @@ interface WeddingCardProps {
   wedding: Wedding
   /** When set, card does not navigate via router — used by landing demo. */
   onOpen?: (wedding: Wedding) => void
+  /** Visible but non-interactive (landing demo secondary weddings). */
+  disabled?: boolean
+  /** Prefer first-name couple label (Anna & Michał) when available. */
+  shortNames?: boolean
 }
 
-export function WeddingCard({ wedding, onOpen }: WeddingCardProps) {
-  const name = coupleName(wedding.couple.partner1, wedding.couple.partner2)
+function displayCoupleName(wedding: Wedding, shortNames: boolean): string {
+  if (shortNames) {
+    const a =
+      wedding.couple.partner1FirstName?.trim() ||
+      wedding.couple.partner1.split(/\s+/)[0]
+    const b =
+      wedding.couple.partner2FirstName?.trim() ||
+      wedding.couple.partner2.split(/\s+/)[0]
+    return coupleName(a, b)
+  }
+  return coupleName(wedding.couple.partner1, wedding.couple.partner2)
+}
+
+export function WeddingCard({
+  wedding,
+  onOpen,
+  disabled = false,
+  shortNames = false,
+}: WeddingCardProps) {
+  const name = displayCoupleName(wedding, shortNames)
   const days = getDaysUntil(wedding.date)
   const progress = getWorkflowProgress(wedding.workflowStage)
   const location =
@@ -25,9 +47,10 @@ export function WeddingCard({ wedding, onOpen }: WeddingCardProps) {
     `${wedding.couple.venue}, ${wedding.couple.city}`
 
   const body = (
-    <Card hover className={styles.card}>
+    <Card hover={!disabled} className={`${styles.card} ${disabled ? styles.disabled : ''}`.trim()}>
       <div className={styles.header}>
-        <Avatar name={name} color={wedding.accentColor} size="lg" />
+        {/* Initials from bride full name (AK, JW, …) — matches product cards. */}
+        <Avatar name={wedding.couple.partner1} color={wedding.accentColor} size="lg" />
         <div className={styles.info}>
           <h3 className={styles.name}>{name}</h3>
           <p className={styles.package}>{wedding.packageName}</p>
@@ -38,7 +61,7 @@ export function WeddingCard({ wedding, onOpen }: WeddingCardProps) {
       {location && (
         <div className={styles.detail}>
           <IconMapPin className={styles.icon} />
-          <span>{location}</span>
+          <span className={styles.detailText}>{location}</span>
         </div>
       )}
 
@@ -59,16 +82,20 @@ export function WeddingCard({ wedding, onOpen }: WeddingCardProps) {
             {days > 0 ? `za ${days} dni` : days === 0 ? 'dziś' : 'minął'}
           </span>
         </div>
-        {!onOpen ? <IconChevronRight className={styles.chevron} /> : null}
+        {!onOpen && !disabled ? <IconChevronRight className={styles.chevron} /> : null}
       </div>
 
-      {onOpen ? (
+      {onOpen && !disabled ? (
         <div className={styles.openAction}>
           <span className={styles.openLabel}>Otwórz ślub</span>
         </div>
       ) : null}
     </Card>
   )
+
+  if (disabled) {
+    return <div className={styles.link}>{body}</div>
+  }
 
   if (onOpen) {
     return (

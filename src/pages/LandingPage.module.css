@@ -350,6 +350,27 @@
 
 .heroVisual {
   min-width: 0;
+  position: relative;
+}
+
+.heroVisual::before {
+  content: '';
+  position: absolute;
+  inset: -8% -4% -6% -6%;
+  border-radius: 48% 42% 38% 52%;
+  background:
+    radial-gradient(
+      circle at 40% 35%,
+      color-mix(in srgb, var(--color-accent-subtle) 90%, transparent),
+      transparent 58%
+    );
+  pointer-events: none;
+  z-index: 0;
+}
+
+.heroVisual > * {
+  position: relative;
+  z-index: 1;
 }
 
 /* ── Sections ───────────────────────────────────────── */

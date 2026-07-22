@@ -149,7 +149,9 @@
 
   .title {
     font-size: var(--text-3xl);
-    overflow-wrap: anywhere;
+    overflow-wrap: normal;
+    word-break: normal;
+    hyphens: none;
   }
 
   .locations {

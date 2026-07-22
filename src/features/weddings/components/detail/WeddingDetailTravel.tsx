@@ -20,6 +20,8 @@ interface WeddingDetailTravelProps {
   plan?: TravelPlan
   /** Hide mutate actions — still show route visualization. */
   readOnly?: boolean
+  /** Hide map — useful for compact landing showcase. */
+  hideMap?: boolean
 }
 
 function TravelSkeleton() {
@@ -142,6 +144,7 @@ export function WeddingDetailTravel({
   onRequestVerifyLocations,
   plan: planProp,
   readOnly = false,
+  hideMap = false,
 }: WeddingDetailTravelProps) {
   const queryClient = useQueryClient()
   const userId = useStudioAuthId()
@@ -225,7 +228,7 @@ export function WeddingDetailTravel({
             </div>
           ) : (
             <>
-              <TravelMap stops={flow.stops} />
+              {!hideMap ? <TravelMap stops={flow.stops} /> : null}
 
               <div className={styles.flow}>
                 {flow.stops.map((stop, index) => (
