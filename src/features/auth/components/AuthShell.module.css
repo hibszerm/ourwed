@@ -1,4 +1,5 @@
 .page {
+  position: relative;
   min-height: 100vh;
   min-height: 100dvh;
   display: flex;
@@ -6,16 +7,31 @@
   justify-content: center;
   padding: var(--space-6);
   background: var(--color-bg);
+  overflow-x: clip;
+}
+
+.page::before {
+  content: '';
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 55% 45% at 70% 18%, rgba(124, 92, 191, 0.08), transparent 55%),
+    radial-gradient(ellipse 40% 35% at 15% 80%, rgba(124, 92, 191, 0.04), transparent 50%);
 }
 
 .card {
+  position: relative;
+  z-index: 1;
   width: 100%;
   max-width: 420px;
   background: var(--color-surface);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-2xl);
   box-shadow: var(--shadow-md);
   padding: var(--space-10) var(--space-8) var(--space-8);
   animation: enter var(--transition-slow) both;
+  box-sizing: border-box;
 }
 
 .wide {

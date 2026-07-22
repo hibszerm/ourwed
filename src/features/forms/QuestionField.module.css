@@ -3,6 +3,10 @@
   flex-direction: column;
   gap: var(--space-2);
   height: 100%;
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .label {
@@ -39,6 +43,33 @@
     border-color var(--transition-fast),
     box-shadow var(--transition-fast);
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+/* Native date controls can force intrinsic min-width past the card on iOS/Android. */
+.input[type='date'],
+.input[type='datetime-local'],
+.input[type='time'],
+.input[type='month'] {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.input[type='date']::-webkit-date-and-time-value {
+  text-align: left;
+}
+
+select.input {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .textarea {
@@ -46,6 +77,8 @@
   min-height: 120px;
   line-height: var(--leading-relaxed);
   padding: var(--space-3) var(--control-padding-x-md);
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .input:hover,

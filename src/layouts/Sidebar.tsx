@@ -58,7 +58,7 @@ export function Sidebar({ open = false, onClose, onNavigate }: SidebarProps) {
   async function handleLogout() {
     onNavigate?.()
     await logout()
-    navigate('/login', { replace: true })
+    navigate('/', { replace: true })
   }
 
   const drawerClosed = isMobile && !open

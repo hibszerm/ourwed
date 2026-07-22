@@ -6,47 +6,86 @@ import {
   type RefObject,
 } from 'react'
 import { Link, Navigate } from 'react-router-dom'
-import { Button } from '@/components/ui/Button'
-import { Card } from '@/components/ui/Card'
 import { AuthLoadingScreen } from '@/features/auth/components/AuthLoadingScreen'
 import { useAuth } from '@/features/auth/AuthProvider'
+import { ProductPreview } from '@/features/landing/ProductPreview'
 import styles from './LandingPage.module.css'
 
 const FEATURES = [
   {
-    title: 'Kalendarz',
-    body: 'Pełny harmonogram wszystkich ślubów.',
+    id: 'travel',
+    title: 'Inteligentne planowanie tras',
+    body: 'Układaj przystanki dnia ślubu, licz dystanse i czasy dojazdu — bez skakania między mapami a notatkami.',
+    benefit: 'Mniej stresu w dniu ślubu',
+    visual: 'travel',
   },
   {
-    title: 'Podróże',
-    body: 'Automatyczne planowanie tras między lokalizacjami.',
+    id: 'questionnaires',
+    title: 'Automatyczne ankiety dla par',
+    body: 'Wysyłaj umowy i szczegóły eventowe online. Para uzupełnia dane, Ty masz je od razu w karcie ślubu.',
+    benefit: 'Zero ciągłego dopytywania',
+    visual: 'forms',
   },
   {
-    title: 'Ankiety',
-    body: 'Para młoda uzupełnia wszystkie informacje online.',
+    id: 'timeline',
+    title: 'Harmonogram dnia ślubu',
+    body: 'Ceremonia, przygotowania, dojazd i przyjęcie w jednym widoku — z kontekstem lokalizacji i zadań.',
+    benefit: 'Pełna kontrola nad przebiegiem',
+    visual: 'timeline',
   },
   {
-    title: 'Klienci',
-    body: 'Umowy, płatności i status współpracy zawsze pod kontrolą.',
+    id: 'payments',
+    title: 'Płatności i zaliczki',
+    body: 'Śledź wartość umowy, zaliczki i pozostałe kwoty przy każdym ślubie. Status finansów zawsze aktualny.',
+    benefit: 'Przejrzyste rozliczenia',
+    visual: 'finance',
+  },
+  {
+    id: 'checklist',
+    title: 'Checklista sprzętu',
+    body: 'Pakiety, dodatki i checklisty powiązane ze ślubem — nic nie zostaje w chaotycznych notatkach.',
+    benefit: 'Gotowość przed wyjazdem',
+    visual: 'checklist',
+  },
+  {
+    id: 'workflow',
+    title: 'Workflow całego ślubu',
+    body: 'Od zapytania do gotowej galerii — każdy etap ma swoje miejsce, status i kolejne kroki.',
+    benefit: 'Żaden ślub nie ginie w procesie',
+    visual: 'workflow',
   },
 ] as const
 
-const BENEFITS = [
+const WORKFLOW = [
+  'Zapytanie',
+  'Umowa',
+  'Zaliczka',
+  'Przygotowania',
+  'Ślub',
+  'Selekcja',
+  'Gotowa galeria',
+] as const
+
+const WHY = [
   {
-    title: 'Oszczędzaj czas',
-    body: 'Mniej administracji. Więcej fotografowania.',
+    title: 'Mniej administracji',
+    body: 'Automatyzujesz zbieranie danych, przypomnienia i statusy — zamiast ręcznie ogarniać wszystko w mailach.',
   },
   {
-    title: 'Pełna organizacja',
-    body: 'Wszystkie informacje zawsze pod ręką.',
+    title: 'Lepsza organizacja',
+    body: 'Kalendarz, podróże, ankiety i finanse żyją w jednej aplikacji, nie w pięciu zakładkach.',
   },
   {
-    title: 'Większa kontrola',
-    body: 'Finanse, terminy i zadania bez chaosu.',
+    title: 'Automatyczne przypomnienia',
+    body: 'Widzisz, co czeka: ankiety, płatności, zadania przed ślubem — zanim coś wypadnie z głowy.',
   },
   {
-    title: 'Pracuj wszędzie',
-    body: 'Komputer w biurze. Telefon podczas ślubu.',
+    title: 'Jedno miejsce na wszystko',
+    body: 'Kontakt, umowa, lokalizacje i notatki są przy ślubie. Nie szukasz ich w czacie ani w dysku.',
+  },
+  {
+    title: 'Nie zgubisz żadnego ślubu',
+    body: 'Pełny lifecycle współpracy — od pierwszego zapytania do oddania galerii — zawsze pod kontrolą.',
   },
 ] as const
 
@@ -69,7 +108,7 @@ function useReveal<T extends HTMLElement>(): RefObject<T | null> {
         el.classList.add(styles.revealed)
         observer.unobserve(el)
       },
-      { threshold: 0.18, rootMargin: '0px 0px -8% 0px' },
+      { threshold: 0.14, rootMargin: '0px 0px -6% 0px' },
     )
 
     observer.observe(el)
@@ -90,71 +129,6 @@ function Logo({ className = '' }: { className?: string }) {
   )
 }
 
-function ProductMockup() {
-  return (
-    <div className={styles.mockupStage} aria-hidden>
-      <div className={styles.desktopFrame}>
-        <div className={styles.windowChrome}>
-          <span />
-          <span />
-          <span />
-        </div>
-        <div className={styles.desktopBody}>
-          <aside className={styles.mockSidebar}>
-            <div className={styles.mockBrand} />
-            <div className={styles.mockNavItem} />
-            <div className={styles.mockNavItem} />
-            <div className={styles.mockNavItem} />
-            <div className={styles.mockNavItem} />
-          </aside>
-          <div className={styles.mockMain}>
-            <div className={styles.mockHeroLine} />
-            <div className={styles.mockHeroSub} />
-            <div className={styles.mockGrid}>
-              <div className={styles.mockCard}>
-                <div className={styles.mockCardTitle} />
-                <div className={styles.mockBar} />
-                <div className={styles.mockBarShort} />
-              </div>
-              <div className={styles.mockCard}>
-                <div className={styles.mockCardTitle} />
-                <div className={styles.mockListRow} />
-                <div className={styles.mockListRow} />
-                <div className={styles.mockListRow} />
-              </div>
-            </div>
-            <div className={styles.mockWideCard}>
-              <div className={styles.mockCardTitle} />
-              <div className={styles.mockTimeline}>
-                <span />
-                <span />
-                <span />
-                <span />
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className={styles.mobileFrame}>
-        <div className={styles.mobileNotch} />
-        <div className={styles.mobileBody}>
-          <div className={styles.mockHeroLine} />
-          <div className={styles.mockCard}>
-            <div className={styles.mockCardTitle} />
-            <div className={styles.mockBar} />
-            <div className={styles.mockBarShort} />
-          </div>
-          <div className={styles.mockCard}>
-            <div className={styles.mockListRow} />
-            <div className={styles.mockListRow} />
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 function RevealGroup({
   children,
   className = '',
@@ -164,19 +138,133 @@ function RevealGroup({
 }) {
   const ref = useReveal<HTMLDivElement>()
   return (
-    <div
-      ref={ref}
-      className={`${className} ${styles.revealGroup}`.trim()}
-    >
+    <div ref={ref} className={`${className} ${styles.revealGroup}`.trim()}>
       {children}
+    </div>
+  )
+}
+
+function FeatureVisual({ kind }: { kind: (typeof FEATURES)[number]['visual'] }) {
+  if (kind === 'travel') {
+    return (
+      <div className={styles.featureMock} aria-hidden>
+        <div className={styles.mockMap}>
+          <span className={styles.mockPin} style={{ left: '22%', top: '40%' }}>
+            1
+          </span>
+          <span className={styles.mockPin} style={{ left: '52%', top: '28%' }}>
+            2
+          </span>
+          <span className={styles.mockPin} style={{ left: '74%', top: '62%' }}>
+            3
+          </span>
+          <div className={styles.mockRoute} />
+        </div>
+        <div className={styles.mockLines}>
+          <strong>Ceremonia → Przyjęcie</strong>
+          <span>12 min · 7 km</span>
+        </div>
+      </div>
+    )
+  }
+
+  if (kind === 'forms') {
+    return (
+      <div className={styles.featureMock} aria-hidden>
+        <div className={styles.mockFormCard}>
+          <em>Umowa · krok 2/4</em>
+          <strong>Dane pary młodej</strong>
+          <div className={styles.mockField}>
+            <span>Imię pani młodej</span>
+            <b>Anna</b>
+          </div>
+          <div className={styles.mockField}>
+            <span>Data ślubu</span>
+            <b>15.08.2026</b>
+          </div>
+          <div className={styles.mockProgress}>
+            <i style={{ width: '68%' }} />
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (kind === 'timeline') {
+    return (
+      <div className={styles.featureMock} aria-hidden>
+        <div className={styles.mockTimelineList}>
+          {[
+            ['09:30', 'Przygotowania'],
+            ['13:00', 'Ceremonia'],
+            ['15:30', 'Sesja plenerowa'],
+            ['17:00', 'Przyjęcie'],
+          ].map(([time, label]) => (
+            <div key={time} className={styles.mockTimelineRow}>
+              <span>{time}</span>
+              <strong>{label}</strong>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  if (kind === 'finance') {
+    return (
+      <div className={styles.featureMock} aria-hidden>
+        <div className={styles.mockFinance}>
+          <span>Wartość umowy</span>
+          <strong>9 500 zł</strong>
+          <div className={styles.mockFinanceRow}>
+            <em>Zaliczka</em>
+            <b>3 000 zł</b>
+          </div>
+          <div className={styles.mockFinanceRow}>
+            <em>Pozostało</em>
+            <b>6 500 zł</b>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (kind === 'checklist') {
+    return (
+      <div className={styles.featureMock} aria-hidden>
+        <div className={styles.mockCheckList}>
+          {['2× body', 'Obiektyw 35mm', 'Lampy zewnętrzne', 'Karty zapasowe'].map(
+            (item, i) => (
+              <label key={item} className={styles.mockCheckItem}>
+                <span data-done={i < 3 ? 'true' : 'false'} />
+                {item}
+              </label>
+            ),
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className={styles.featureMock} aria-hidden>
+      <div className={styles.mockFlowMini}>
+        {['Zapytanie', 'Umowa', 'Ślub', 'Galeria'].map((step, i) => (
+          <div key={step} className={styles.mockFlowStep}>
+            <b>{i + 1}</b>
+            <span>{step}</span>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
 
 export function LandingPage() {
   const { isAuthenticated, isLoading } = useAuth()
-  const showcaseVisualRef = useReveal<HTMLDivElement>()
-  const showcaseCopyRef = useReveal<HTMLDivElement>()
+  const previewRef = useReveal<HTMLDivElement>()
+  const workflowRef = useReveal<HTMLDivElement>()
+  const whyRef = useReveal<HTMLElement>()
   const ctaRef = useReveal<HTMLDivElement>()
   const featuresTitleRef = useReveal<HTMLElement>()
 
@@ -196,6 +284,8 @@ export function LandingPage() {
 
   return (
     <div className={styles.page}>
+      <div className={styles.ambient} aria-hidden />
+
       <header className={styles.nav}>
         <div className={styles.navInner}>
           <Logo />
@@ -203,13 +293,13 @@ export function LandingPage() {
             <a href="#features" className={styles.navTextLink}>
               Funkcje
             </a>
+            <a href="#workflow" className={styles.navTextLink}>
+              Workflow
+            </a>
             <span className={styles.navMuted} title="Wkrótce">
               Cennik
               <em>Wkrótce</em>
             </span>
-            <a href="#about" className={styles.navTextLink}>
-              O aplikacji
-            </a>
             <Link to="/login" className={`${styles.navLogin} ${styles.navTextLink}`}>
               Zaloguj się
             </Link>
@@ -224,27 +314,29 @@ export function LandingPage() {
         <section className={styles.hero}>
           <div className={styles.heroInner}>
             <div className={styles.heroCopy}>
+              <p className={`${styles.heroEyebrow} ${styles.heroAnimEyebrow}`}>
+                CRM dla fotografów ślubnych
+              </p>
               <h1 className={`${styles.heroTitle} ${styles.heroAnimTitle}`}>
                 Prowadź całą firmę ślubną
                 <br />
                 w jednym miejscu.
               </h1>
               <p className={`${styles.heroSub} ${styles.heroAnimSub}`}>
-                Od pierwszego zapytania aż do oddania materiału.
-                <br />
-                Umowy, ankiety, harmonogram, podróże i płatności zawsze pod ręką.
+                OurWed łączy zapytania, umowy, ankiety, kalendarz, trasy i płatności —
+                od pierwszego kontaktu aż do gotowej galerii.
               </p>
               <div className={`${styles.heroActions} ${styles.heroAnimActions}`}>
                 <Link to="/register" className={styles.primaryLink}>
                   Rozpocznij za darmo
                 </Link>
-                <Button type="button" variant="secondary" disabled>
-                  Prezentacja wkrótce
-                </Button>
+                <a href="#preview" className={styles.secondaryLink}>
+                  Zobacz produkt
+                </a>
               </div>
               <ul className={`${styles.heroChecks} ${styles.heroAnimChecks}`}>
                 <li>
-                  <span aria-hidden>✓</span> Kalendarz
+                  <span aria-hidden>✓</span> Kalendarz i workflow
                 </li>
                 <li>
                   <span aria-hidden>✓</span> Inteligentne trasy
@@ -255,7 +347,25 @@ export function LandingPage() {
               </ul>
             </div>
             <div className={`${styles.heroVisual} ${styles.heroAnimVisual}`}>
-              <ProductMockup />
+              <ProductPreview autoRotate />
+            </div>
+          </div>
+        </section>
+
+        <section id="preview" className={styles.previewSection}>
+          <div className={styles.sectionInner}>
+            <header className={styles.sectionIntro}>
+              <h2 className={styles.sectionTitle}>Produkt, nie obietnice.</h2>
+              <p className={styles.sectionSubtitle}>
+                Przełącz widoki i zobacz, jak wygląda realna praca w OurWed —
+                dashboard, śluby, podróże, ankiety, finanse i kalendarz.
+              </p>
+            </header>
+            <div
+              ref={previewRef}
+              className={`${styles.previewStage} ${styles.revealFade}`}
+            >
+              <ProductPreview />
             </div>
           </div>
         </section>
@@ -267,103 +377,103 @@ export function LandingPage() {
               className={`${styles.sectionIntro} ${styles.revealFade}`}
             >
               <h2 className={styles.sectionTitle}>
-                Wszystko, czego potrzebujesz.
+                Wszystko, czego potrzebuje studio ślubne.
               </h2>
               <p className={styles.sectionSubtitle}>
-                Każdy etap współpracy z parą w jednym miejscu.
+                Każdy etap współpracy z parą — w przejrzystym, spokojnym interfejsie.
               </p>
             </header>
-            <RevealGroup className={styles.featureGrid}>
+
+            <div className={styles.featureStack}>
               {FEATURES.map((feature, index) => (
-                <Card
-                  key={feature.title}
-                  padding="lg"
-                  elevation="elevated"
-                  className={`${styles.featureCard} ${styles.revealCard}`}
-                  style={
-                    {
-                      '--reveal-delay': `${index * 120}ms`,
-                    } as CSSProperties
-                  }
+                <RevealGroup
+                  key={feature.id}
+                  className={`${styles.featureRow} ${
+                    index % 2 === 1 ? styles.featureRowReverse : ''
+                  }`}
                 >
-                  <h3 className={styles.cardTitle}>{feature.title}</h3>
-                  <p className={styles.cardBody}>{feature.body}</p>
-                </Card>
-              ))}
-            </RevealGroup>
-          </div>
-        </section>
-
-        <section id="about" className={styles.showcase}>
-          <div className={styles.showcaseInner}>
-            <div
-              ref={showcaseVisualRef}
-              className={`${styles.showcaseVisual} ${styles.revealFromLeft}`}
-            >
-              <div className={styles.showcaseFrame}>
-                <div className={styles.windowChrome}>
-                  <span />
-                  <span />
-                  <span />
-                </div>
-                <div className={styles.showcaseBody}>
-                  <div className={styles.mockHeroLine} />
-                  <div className={styles.mockHeroSub} />
-                  <div className={styles.mockGrid}>
-                    <div className={styles.mockCard}>
-                      <div className={styles.mockCardTitle} />
-                      <div className={styles.mockBar} />
-                      <div className={styles.mockBarShort} />
-                      <div className={styles.mockBar} />
-                    </div>
-                    <div className={styles.mockCard}>
-                      <div className={styles.mockCardTitle} />
-                      <div className={styles.mockListRow} />
-                      <div className={styles.mockListRow} />
-                      <div className={styles.mockListRow} />
-                      <div className={styles.mockListRow} />
-                    </div>
+                  <div
+                    className={`${styles.featureCopy} ${styles.revealCard}`}
+                    style={{ '--reveal-delay': '60ms' } as CSSProperties}
+                  >
+                    <h3 className={styles.featureTitle}>{feature.title}</h3>
+                    <p className={styles.featureBody}>{feature.body}</p>
+                    <p className={styles.featureBenefit}>{feature.benefit}</p>
                   </div>
-                </div>
-              </div>
-            </div>
-            <div
-              ref={showcaseCopyRef}
-              className={`${styles.showcaseCopy} ${styles.revealFromRight}`}
-            >
-              <h2 className={styles.showcaseTitle}>
-                Jedna aplikacja.
-                <br />
-                Każdy ślub.
-              </h2>
-              <p className={styles.showcaseText}>
-                Wszystkie dane połączone w jednym miejscu.
-              </p>
-              <a href="#features" className={styles.secondaryLink}>
-                Dowiedz się więcej
-              </a>
+                  <div
+                    className={`${styles.featureVisual} ${styles.revealCard}`}
+                    style={{ '--reveal-delay': '140ms' } as CSSProperties}
+                  >
+                    <FeatureVisual kind={feature.visual} />
+                  </div>
+                </RevealGroup>
+              ))}
             </div>
           </div>
         </section>
 
-        <section className={styles.section}>
+        <section id="workflow" className={styles.workflowSection}>
           <div className={styles.sectionInner}>
-            <RevealGroup className={styles.benefitGrid}>
-              {BENEFITS.map((benefit, index) => (
-                <Card
-                  key={benefit.title}
-                  padding="lg"
-                  className={`${styles.benefitCard} ${styles.revealCard}`}
+            <header className={styles.sectionIntro}>
+              <h2 className={styles.sectionTitle}>Cały lifecycle ślubu.</h2>
+              <p className={styles.sectionSubtitle}>
+                OurWed prowadzi Cię przez każdy etap — od zapytania do gotowej galerii.
+              </p>
+            </header>
+            <div
+              ref={workflowRef}
+              className={`${styles.workflowTrack} ${styles.revealGroup}`}
+            >
+              {WORKFLOW.map((step, index) => (
+                <div
+                  key={step}
+                  className={`${styles.workflowStep} ${styles.revealCard}`}
                   style={
                     {
-                      '--reveal-delay': `${index * 120}ms`,
+                      '--reveal-delay': `${index * 80}ms`,
                     } as CSSProperties
                   }
                 >
-                  <div className={styles.benefitMark} aria-hidden />
-                  <h3 className={styles.cardTitle}>{benefit.title}</h3>
-                  <p className={styles.cardBody}>{benefit.body}</p>
-                </Card>
+                  <span className={styles.workflowIndex}>{index + 1}</span>
+                  <strong>{step}</strong>
+                  {index < WORKFLOW.length - 1 ? (
+                    <span className={styles.workflowArrow} aria-hidden>
+                      →
+                    </span>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section id="why" className={styles.section}>
+          <div className={styles.sectionInner}>
+            <header
+              ref={whyRef}
+              className={`${styles.sectionIntro} ${styles.revealFade}`}
+            >
+              <h2 className={styles.sectionTitle}>
+                Dlaczego fotografowie wybierają OurWed?
+              </h2>
+              <p className={styles.sectionSubtitle}>
+                Mniej chaosu operacyjnego. Więcej czasu na fotografię.
+              </p>
+            </header>
+            <RevealGroup className={styles.whyGrid}>
+              {WHY.map((item, index) => (
+                <article
+                  key={item.title}
+                  className={`${styles.whyCard} ${styles.revealCard}`}
+                  style={
+                    {
+                      '--reveal-delay': `${index * 90}ms`,
+                    } as CSSProperties
+                  }
+                >
+                  <h3 className={styles.cardTitle}>{item.title}</h3>
+                  <p className={styles.cardBody}>{item.body}</p>
+                </article>
               ))}
             </RevealGroup>
           </div>
@@ -371,26 +481,57 @@ export function LandingPage() {
 
         <section className={styles.cta}>
           <div ref={ctaRef} className={`${styles.ctaInner} ${styles.revealCta}`}>
+            <p className={styles.ctaEyebrow}>Gotowy na spokojniejszy sezon?</p>
             <h2 className={styles.ctaTitle}>
-              Gotowy uporządkować swoją pracę?
+              Zacznij prowadzić studio ślubne jak premium SaaS.
             </h2>
-            <Link to="/register" className={styles.primaryLink}>
-              Rozpocznij za darmo
-            </Link>
+            <p className={styles.ctaSub}>
+              Załóż konto w kilka minut. Bez karty. Bez długiej konfiguracji.
+            </p>
+            <div className={styles.ctaActions}>
+              <Link to="/register" className={styles.primaryLink}>
+                Rozpocznij za darmo
+              </Link>
+              <Link to="/login" className={styles.secondaryLink}>
+                Mam już konto
+              </Link>
+            </div>
           </div>
         </section>
       </main>
 
       <footer className={styles.footer}>
         <div className={styles.footerInner}>
-          <Logo />
+          <div className={styles.footerBrand}>
+            <Logo />
+            <p>
+              CRM dla fotografów ślubnych — od zapytania do gotowej galerii.
+            </p>
+          </div>
           <nav className={styles.footerNav} aria-label="Stopka">
             <a href="#features">Funkcje</a>
-            <a href="#about">O aplikacji</a>
-            <Link to="/login">Zaloguj się</Link>
+            <span className={styles.footerSoon}>
+              Cennik <em>wkrótce</em>
+            </span>
+            <a href="#privacy">Polityka prywatności</a>
+            <a href="#terms">Regulamin</a>
+            <a href="mailto:kontakt@ourwed.pl">Kontakt</a>
           </nav>
           <p className={styles.copyright}>
             © {new Date().getFullYear()} OurWed. Wszelkie prawa zastrzeżone.
+          </p>
+        </div>
+        <div id="privacy" className={styles.legalNote}>
+          <p>
+            Polityka prywatności — dokument w przygotowaniu. Do czasu publikacji
+            dane przetwarzamy wyłącznie w celu świadczenia usługi OurWed.
+          </p>
+        </div>
+        <div id="terms" className={styles.legalNote}>
+          <p>
+            Regulamin — dokument w przygotowaniu. Korzystanie z OurWed oznacza
+            akceptację warunków, które opublikujemy przed uruchomieniem płatnego
+            cennika.
           </p>
         </div>
       </footer>
