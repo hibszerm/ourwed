@@ -4,6 +4,7 @@ import { galleryService } from '@/lib/api/galleryService'
 import { noteService } from '@/lib/api/noteService'
 import { paymentService } from '@/lib/api/paymentService'
 import { resolveStudioUserId } from '@/lib/api/studioUser'
+import { getWeddingDemoInFlightMap } from '@/lib/api/tenantModuleCaches'
 import { timelineEventService } from '@/lib/api/timelineEventService'
 import {
   finalizeWeddingView,
@@ -70,25 +71,30 @@ async function ensureDemoWedding(userId: string): Promise<WeddingRow> {
   return data as WeddingRow
 }
 
-let ensureDemoInFlight: Promise<WeddingRow[]> | null = null
+let ensureDemoInFlightByUser = getWeddingDemoInFlightMap() as Map<
+  string,
+  Promise<WeddingRow[]>
+>
 
 async function loadWeddingsOrSeedDemo(userId: string): Promise<WeddingRow[]> {
   const existing = await fetchWeddingsForUser(userId)
   if (existing.length > 0) return existing
 
-  if (!ensureDemoInFlight) {
-    ensureDemoInFlight = (async () => {
-      const again = await fetchWeddingsForUser(userId)
-      if (again.length > 0) return again
-      const demo = await ensureDemoWedding(userId)
-      await seedNewWeddingSideEffects(mapWeddingRowToModel(demo))
-      return fetchWeddingsForUser(userId)
-    })().finally(() => {
-      ensureDemoInFlight = null
-    })
-  }
+  const inflight = ensureDemoInFlightByUser.get(userId)
+  if (inflight) return inflight
 
-  return ensureDemoInFlight
+  const next = (async () => {
+    const again = await fetchWeddingsForUser(userId)
+    if (again.length > 0) return again
+    const demo = await ensureDemoWedding(userId)
+    await seedNewWeddingSideEffects(mapWeddingRowToModel(demo))
+    return fetchWeddingsForUser(userId)
+  })().finally(() => {
+    ensureDemoInFlightByUser.delete(userId)
+  })
+
+  ensureDemoInFlightByUser.set(userId, next)
+  return next
 }
 
 async function seedNewWeddingSideEffects(wedding: Wedding): Promise<void> {

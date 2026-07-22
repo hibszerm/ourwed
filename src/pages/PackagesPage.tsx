@@ -4,6 +4,7 @@ import { AppLayout } from '@/layouts/AppLayout'
 import { Button } from '@/components/ui/Button'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { PageContainer } from '@/components/ui/PageContainer'
+import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
 import { packageItemService } from '@/lib/api/packageItemService'
 import { packageService } from '@/lib/api/packageService'
 import { formatCurrency } from '@/lib/utils/currency'
@@ -12,9 +13,11 @@ import styles from '@/features/studio/StudioCatalog.module.css'
 
 export function PackagesPage() {
   const queryClient = useQueryClient()
+  const userId = useStudioAuthId()
   const { data: packages = [], isLoading, isError, error, refetch } = useQuery({
-    queryKey: ['studio-packages'],
+    queryKey: ['studio-packages', userId],
     queryFn: () => packageService.list(),
+    enabled: Boolean(userId),
   })
 
   const [editing, setEditing] = useState<StudioPackage | null>(null)

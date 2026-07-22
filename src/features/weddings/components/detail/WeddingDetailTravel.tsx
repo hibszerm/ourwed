@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Card, CardHeader } from '@/components/ui/Card'
+import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
 import { TravelMap } from '@/features/travel/TravelMap'
 import { countPlacesNeedingVerification } from '@/features/travel/locationVerification'
 import {
@@ -137,9 +138,10 @@ export function WeddingDetailTravel({
   onRequestVerifyLocations,
 }: WeddingDetailTravelProps) {
   const queryClient = useQueryClient()
+  const userId = useStudioAuthId()
 
   const { data: plan, isLoading, isFetching } = useQuery({
-    queryKey: ['travel-plan', weddingId],
+    queryKey: ['travel-plan', userId, weddingId],
     queryFn: async () => {
       try {
         return await travelService.getPlan(weddingId)
@@ -154,6 +156,7 @@ export function WeddingDetailTravel({
         }
       }
     },
+    enabled: Boolean(userId && weddingId),
     retry: false,
   })
 
@@ -161,8 +164,8 @@ export function WeddingDetailTravel({
     mutationFn: () =>
       travelService.recalculate(weddingId, { forceRefresh: true }),
     onSuccess: async (next) => {
-      queryClient.setQueryData(['travel-plan', weddingId], next)
-      await queryClient.invalidateQueries({ queryKey: ['travel-plan', weddingId] })
+      queryClient.setQueryData(['travel-plan', userId, weddingId], next)
+      await queryClient.invalidateQueries({ queryKey: ['travel-plan'] })
     },
   })
 

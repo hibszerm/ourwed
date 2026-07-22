@@ -5,6 +5,7 @@ import { AppLayout } from '@/layouts/AppLayout'
 import { Button } from '@/components/ui/Button'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { PageContainer } from '@/components/ui/PageContainer'
+import { useAuth } from '@/features/auth/AuthProvider'
 import { useWeddings } from '@/features/weddings/hooks/useWeddings'
 import { CalendarSummary } from '@/features/calendar/components/CalendarSummary'
 import {
@@ -24,6 +25,7 @@ import { calendarEventService } from '@/lib/api/calendarEventService'
 import styles from './CalendarPage.module.css'
 
 export function CalendarPage() {
+  const { user } = useAuth()
   const {
     data: weddings = [],
     isLoading: weddingsLoading,
@@ -38,9 +40,9 @@ export function CalendarPage() {
     error: eventsErr,
     refetch: refetchEvents,
   } = useQuery({
-    queryKey: ['calendar-events', weddings.map((w) => w.id).join(',')],
+    queryKey: ['calendar', user?.id, weddings.map((w) => w.id).join(',')],
     queryFn: () => calendarEventService.syncWeddingDayEvents(weddings),
-    enabled: weddings.length > 0,
+    enabled: Boolean(user?.id) && weddings.length > 0,
   })
   const [view, setView] = useState<CalendarViewMode>('month')
   const [anchor, setAnchor] = useState(() => startOfMonth(new Date()))

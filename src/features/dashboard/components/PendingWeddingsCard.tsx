@@ -3,16 +3,19 @@ import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/Button'
 import { Card, CardHeader } from '@/components/ui/Card'
+import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
 import { questionnaireService } from '@/lib/api/questionnaireService'
 import { formatShortDate } from '@/lib/utils/dates'
 import styles from './PendingWeddingsCard.module.css'
 
 export function PendingWeddingsCard() {
   const queryClient = useQueryClient()
+  const userId = useStudioAuthId()
   const [busyId, setBusyId] = useState<string | null>(null)
   const { data: pending = [], isLoading } = useQuery({
-    queryKey: ['pending-questionnaires'],
+    queryKey: ['pending-questionnaires', userId],
     queryFn: () => questionnaireService.listPending(),
+    enabled: Boolean(userId),
   })
 
   async function handleAccept(id: string) {

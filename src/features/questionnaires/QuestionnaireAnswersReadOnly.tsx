@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
 import {
   buildContractQuestionnaireTemplate,
   CONTRACT_QUESTIONNAIRE_TEMPLATE,
@@ -24,9 +25,11 @@ interface QuestionnaireAnswersReadOnlyProps {
 export function QuestionnaireAnswersReadOnly({
   answerJson,
 }: QuestionnaireAnswersReadOnlyProps) {
+  const userId = useStudioAuthId()
   const { data: packages = [] } = useQuery({
-    queryKey: ['studio-packages'],
+    queryKey: ['studio-packages', userId],
     queryFn: () => packageService.list(),
+    enabled: Boolean(userId),
   })
 
   const template =

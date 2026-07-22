@@ -4,9 +4,11 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react'
+import type { Session } from '@supabase/supabase-js'
 import { authService } from '@/features/auth/services/authService'
 import type {
   AuthResult,
@@ -15,7 +17,7 @@ import type {
   RegisterInput,
   RegisterResultData,
 } from '@/features/auth/types'
-import { clearStudioUserCache } from '@/lib/api/studioUser'
+import { resetTenantClientState } from '@/lib/auth/resetTenantClientState'
 
 interface AuthContextValue {
   user: AuthUser | null
@@ -38,44 +40,133 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
+function sessionAuthUserId(session: Session | null): string | null {
+  if (!authService.isSessionAuthenticated(session) || !session?.user) return null
+  return session.user.id
+}
+
+/**
+ * Apply auth identity transitions.
+ * Clears tenant caches only when auth.uid() actually changes.
+ * TOKEN_REFRESHED with the same uid keeps the React Query cache intact.
+ */
+function applyAuthIdentityChange(
+  previousUserId: string | null,
+  nextUserId: string | null,
+): string | null {
+  if (previousUserId === nextUserId) return previousUserId
+  resetTenantClientState()
+  return nextUserId
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isPasswordRecovery, setIsPasswordRecovery] = useState(false)
+  const lastAuthUserIdRef = useRef<string | null>(null)
 
   useEffect(() => {
     let mounted = true
 
-    void authService.getSession().then((session) => {
-      if (!mounted) return
-      if (authService.isSessionAuthenticated(session) && session?.user) {
-        setUser(authService.toAuthUser(session.user))
-      } else {
-        setUser(null)
-      }
-      setIsLoading(false)
-    })
-
     const unsubscribe = authService.onAuthStateChange((event, session) => {
-      if (event === 'PASSWORD_RECOVERY') {
-        setIsPasswordRecovery(true)
-      }
+      if (!mounted) return
 
-      if (event === 'SIGNED_OUT') {
-        clearStudioUserCache()
-        setUser(null)
-        setIsPasswordRecovery(false)
-        return
-      }
+      const nextUserId = sessionAuthUserId(session)
 
-      if (authService.isSessionAuthenticated(session) && session?.user) {
-        setUser(authService.toAuthUser(session.user))
-        clearStudioUserCache()
-      } else if (event === 'PASSWORD_RECOVERY' && session?.user) {
-        // Recovery session is temporary — not full app auth.
-        setUser(null)
-      } else if (!session) {
-        setUser(null)
+      switch (event) {
+        case 'INITIAL_SESSION': {
+          lastAuthUserIdRef.current = applyAuthIdentityChange(
+            lastAuthUserIdRef.current,
+            nextUserId,
+          )
+          if (nextUserId && session?.user) {
+            setUser(authService.toAuthUser(session.user))
+            setIsPasswordRecovery(false)
+          } else {
+            setUser(null)
+          }
+          setIsLoading(false)
+          break
+        }
+
+        case 'SIGNED_IN': {
+          lastAuthUserIdRef.current = applyAuthIdentityChange(
+            lastAuthUserIdRef.current,
+            nextUserId,
+          )
+          if (nextUserId && session?.user) {
+            setUser(authService.toAuthUser(session.user))
+            setIsPasswordRecovery(false)
+          } else {
+            setUser(null)
+          }
+          setIsLoading(false)
+          break
+        }
+
+        case 'SIGNED_OUT': {
+          lastAuthUserIdRef.current = applyAuthIdentityChange(
+            lastAuthUserIdRef.current,
+            null,
+          )
+          setUser(null)
+          setIsPasswordRecovery(false)
+          setIsLoading(false)
+          break
+        }
+
+        case 'TOKEN_REFRESHED': {
+          // Same uid → keep tenant cache. Identity change (rare) → reset.
+          lastAuthUserIdRef.current = applyAuthIdentityChange(
+            lastAuthUserIdRef.current,
+            nextUserId,
+          )
+          if (nextUserId && session?.user) {
+            setUser(authService.toAuthUser(session.user))
+          } else {
+            setUser(null)
+          }
+          break
+        }
+
+        case 'USER_UPDATED': {
+          lastAuthUserIdRef.current = applyAuthIdentityChange(
+            lastAuthUserIdRef.current,
+            nextUserId,
+          )
+          if (nextUserId && session?.user) {
+            setUser(authService.toAuthUser(session.user))
+          } else {
+            setUser(null)
+          }
+          break
+        }
+
+        case 'PASSWORD_RECOVERY': {
+          setIsPasswordRecovery(true)
+          // Recovery session is not full studio auth — do not expose CRM user.
+          lastAuthUserIdRef.current = applyAuthIdentityChange(
+            lastAuthUserIdRef.current,
+            null,
+          )
+          setUser(null)
+          setIsLoading(false)
+          break
+        }
+
+        default: {
+          // Future Supabase events: still enforce identity isolation.
+          lastAuthUserIdRef.current = applyAuthIdentityChange(
+            lastAuthUserIdRef.current,
+            nextUserId,
+          )
+          if (nextUserId && session?.user) {
+            setUser(authService.toAuthUser(session.user))
+          } else if (!session) {
+            setUser(null)
+          }
+          break
+        }
       }
     })
 
@@ -93,8 +184,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     ) => {
       const result = await authService.login(email, password, options)
       if (result.success) {
+        // onAuthStateChange(SIGNED_IN) also runs; identity compare is idempotent.
+        lastAuthUserIdRef.current = applyAuthIdentityChange(
+          lastAuthUserIdRef.current,
+          result.user.id,
+        )
         setUser(result.user)
         setIsPasswordRecovery(false)
+        setIsLoading(false)
       }
       return result
     },
@@ -123,6 +220,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     await authService.logout()
+    // SIGNED_OUT handler also clears; keep explicit for immediate UI reset.
+    lastAuthUserIdRef.current = applyAuthIdentityChange(
+      lastAuthUserIdRef.current,
+      null,
+    )
     setUser(null)
     setIsPasswordRecovery(false)
   }, [])

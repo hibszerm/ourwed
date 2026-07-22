@@ -4,6 +4,7 @@ import { AppLayout } from '@/layouts/AppLayout'
 import { Button } from '@/components/ui/Button'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { PageContainer } from '@/components/ui/PageContainer'
+import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
 import { extraServiceService } from '@/lib/api/extraServiceService'
 import { formatCurrency } from '@/lib/utils/currency'
 import type { ExtraService } from '@/types/package'
@@ -11,9 +12,11 @@ import styles from '@/features/studio/StudioCatalog.module.css'
 
 export function ExtraServicesPage() {
   const queryClient = useQueryClient()
+  const userId = useStudioAuthId()
   const { data: services = [], isLoading, isError, error, refetch } = useQuery({
-    queryKey: ['studio-extra-services'],
+    queryKey: ['studio-extra-services', userId],
     queryFn: () => extraServiceService.list(),
+    enabled: Boolean(userId),
   })
 
   const [editing, setEditing] = useState<ExtraService | null>(null)

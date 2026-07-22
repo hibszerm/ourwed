@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
+import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
 import { LocationSearchField } from '@/features/travel/LocationSearchField'
 import {
   locationVerificationStatus,
@@ -73,11 +74,13 @@ export function WeddingDetailHero({
   onChangeWedding,
 }: WeddingDetailHeroProps) {
   const queryClient = useQueryClient()
+  const userId = useStudioAuthId()
   const weddingId = wedding.id
 
   const { data: places = [], isLoading: placesLoading } = useQuery({
-    queryKey: ['wedding-places', weddingId],
+    queryKey: ['wedding-places', userId, weddingId],
     queryFn: () => weddingPlaceService.listByWeddingId(weddingId),
+    enabled: Boolean(userId && weddingId),
   })
 
   const byRole = new Map(places.map((p) => [p.role, p]))
@@ -101,14 +104,14 @@ export function WeddingDetailHero({
     },
     onSuccess: async () => {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['wedding-places', weddingId] }),
-        queryClient.invalidateQueries({ queryKey: ['weddings', weddingId] }),
+        queryClient.invalidateQueries({ queryKey: ['wedding-places'] }),
+        queryClient.invalidateQueries({ queryKey: ['weddings'] }),
         queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
       ])
       try {
         await travelService.recalculate(weddingId)
         await queryClient.invalidateQueries({
-          queryKey: ['travel-plan', weddingId],
+          queryKey: ['travel-plan'],
         })
       } catch {
         // Place save already succeeded; travel cache is best-effort.

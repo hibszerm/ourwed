@@ -8,6 +8,7 @@ import { Card, CardHeader } from '@/components/ui/Card'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { IconArrowLeft } from '@/components/icons'
+import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
 import { QuestionnaireAnswersReadOnly } from '@/features/questionnaires/QuestionnaireAnswersReadOnly'
 import {
   QUESTIONNAIRE_STATUS_LABELS,
@@ -33,18 +34,19 @@ export function QuestionnaireDetailPage() {
   const { id = '' } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const userId = useStudioAuthId()
   const [approving, setApproving] = useState(false)
 
   const { data, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ['questionnaires', id],
+    queryKey: ['questionnaires', userId, id],
     queryFn: () => questionnaireService.getById(id),
-    enabled: Boolean(id),
+    enabled: Boolean(userId && id),
   })
 
   const { data: answers } = useQuery({
-    queryKey: ['questionnaires', id, 'answers'],
+    queryKey: ['questionnaires', userId, id, 'answers'],
     queryFn: () => questionnaireService.getAnswers(id),
-    enabled: Boolean(id) && Boolean(data),
+    enabled: Boolean(userId && id) && Boolean(data),
   })
 
   if (isLoading) {

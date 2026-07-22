@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Button } from '@/components/ui/Button'
 import { Card, CardHeader } from '@/components/ui/Card'
 import { Input, Select } from '@/components/ui/Input'
+import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
 import { extraServiceService } from '@/lib/api/extraServiceService'
 import { packageService } from '@/lib/api/packageService'
 import { weddingExtraServiceService } from '@/lib/api/weddingExtraServiceService'
@@ -31,28 +32,32 @@ export function WeddingDetailPackage({
   onChangeExtras,
   onChangePackageBasePrice,
 }: WeddingDetailPackageProps) {
+  const userId = useStudioAuthId()
+
   const { data: pkg } = useQuery({
-    queryKey: ['studio-package', wedding.packageId],
+    queryKey: ['studio-package', userId, wedding.packageId],
     queryFn: () => packageService.get(wedding.packageId!),
-    enabled: Boolean(wedding.packageId && isLikelyUuid(wedding.packageId)),
+    enabled: Boolean(
+      userId && wedding.packageId && isLikelyUuid(wedding.packageId),
+    ),
   })
 
   const { data: remoteExtras = [], isLoading: extrasLoading } = useQuery({
-    queryKey: ['wedding-extras', wedding.id],
+    queryKey: ['wedding-extras', userId, wedding.id],
     queryFn: () => weddingExtraServiceService.listByWeddingId(wedding.id),
-    enabled: !editing,
+    enabled: Boolean(userId) && !editing,
   })
 
   const { data: catalogPackages = [] } = useQuery({
-    queryKey: ['studio-packages', 'active'],
+    queryKey: ['studio-packages', userId, 'active'],
     queryFn: () => packageService.list({ activeOnly: true }),
-    enabled: editing,
+    enabled: Boolean(userId) && editing,
   })
 
   const { data: catalogExtras = [] } = useQuery({
-    queryKey: ['studio-extra-services', 'active'],
+    queryKey: ['studio-extra-services', userId, 'active'],
     queryFn: () => extraServiceService.list({ activeOnly: true }),
-    enabled: editing,
+    enabled: Boolean(userId) && editing,
   })
 
   const extras = editing ? (extrasProp ?? []) : remoteExtras

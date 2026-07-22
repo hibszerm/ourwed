@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { AppLayout } from '@/layouts/AppLayout'
 import { Button } from '@/components/ui/Button'
 import { Card, CardHeader } from '@/components/ui/Card'
@@ -7,6 +7,7 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { Input } from '@/components/ui/Input'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { useToast } from '@/components/ui/Toast'
+import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
 import { PlacePicker } from '@/features/travel/PlacePicker'
 import { studioTravelSettingsService } from '@/lib/api/studioTravelSettingsService'
 import { TravelProviderError } from '@/services/travelProvider'
@@ -62,16 +63,24 @@ function toFormState(data: StudioTravelSettings | null | undefined): FormState {
 export function TravelSettingsPage() {
   const queryClient = useQueryClient()
   const { showToast } = useToast()
+  const userId = useStudioAuthId()
   const { data, dataUpdatedAt, isLoading, isError, error } = useQuery({
-    queryKey: ['studio-travel-settings'],
+    queryKey: ['studio-travel-settings', userId],
     queryFn: () => studioTravelSettingsService.get(),
+    enabled: Boolean(userId),
   })
 
   const [form, setForm] = useState<FormState>(emptyForm)
   const [syncedAt, setSyncedAt] = useState(0)
   const [saveError, setSaveError] = useState<string | null>(null)
 
-  // Re-hydrate from server when query data changes (initial load / after save).
+  useEffect(() => {
+    setForm(emptyForm)
+    setSyncedAt(0)
+    setSaveError(null)
+  }, [userId])
+
+  // Re-hydrate from server when query data / studio identity changes.
   if (dataUpdatedAt !== syncedAt) {
     setSyncedAt(dataUpdatedAt)
     setForm(toFormState(data))

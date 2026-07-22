@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { useToast } from '@/components/ui/Toast'
 import { IconArrowLeft } from '@/components/icons'
+import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
 import { useWedding } from '@/features/weddings/hooks/useWedding'
 import {
   WeddingDetailHero,
@@ -58,24 +59,25 @@ export function WeddingDetailPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { showToast } = useToast()
+  const userId = useStudioAuthId()
   const { data: wedding, isLoading, isError, error, refetch } = useWedding(id ?? '')
 
   const { data: weddingTasks = [] } = useQuery({
-    queryKey: ['tasks', id],
+    queryKey: ['tasks', userId, id],
     queryFn: () => taskService.listByWeddingId(id!),
-    enabled: Boolean(id),
+    enabled: Boolean(userId && id),
   })
 
   const { data: contacts = [] } = useQuery({
-    queryKey: ['contacts', id],
+    queryKey: ['contacts', userId, id],
     queryFn: () => contactService.listByWeddingId(id!),
-    enabled: Boolean(id),
+    enabled: Boolean(userId && id),
   })
 
   const { data: extras = [] } = useQuery({
-    queryKey: ['wedding-extras', id],
+    queryKey: ['wedding-extras', userId, id],
     queryFn: () => weddingExtraServiceService.listByWeddingId(id!),
-    enabled: Boolean(id),
+    enabled: Boolean(userId && id),
   })
 
   const [modal, setModal] = useState<ModalState>(null)
@@ -84,6 +86,16 @@ export function WeddingDetailPage() {
   const [baseline, setBaseline] = useState<WeddingEditSnapshot | null>(null)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+
+  // Drop in-progress edit UI when the studio or wedding identity changes.
+  useEffect(() => {
+    setModal(null)
+    setEditing(false)
+    setDraft(null)
+    setBaseline(null)
+    setSaving(false)
+    setSaveError(null)
+  }, [userId, id])
 
   const snapshot = useMemo<WeddingEditSnapshot | null>(() => {
     if (!wedding) return null
@@ -197,11 +209,10 @@ export function WeddingDetailPage() {
       setDraft(null)
       setBaseline(null)
       await queryClient.invalidateQueries({ queryKey: ['weddings'] })
-      await queryClient.invalidateQueries({ queryKey: ['weddings', id] })
-      await queryClient.invalidateQueries({ queryKey: ['tasks', id] })
-      await queryClient.invalidateQueries({ queryKey: ['contacts', id] })
-      await queryClient.invalidateQueries({ queryKey: ['wedding-extras', id] })
-      await queryClient.invalidateQueries({ queryKey: ['travel-plan', id] })
+      await queryClient.invalidateQueries({ queryKey: ['tasks'] })
+      await queryClient.invalidateQueries({ queryKey: ['contacts'] })
+      await queryClient.invalidateQueries({ queryKey: ['wedding-extras'] })
+      await queryClient.invalidateQueries({ queryKey: ['travel-plan'] })
       await queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       showToast('Zmiany zostały zapisane.', 'success')
     } catch (err) {
@@ -409,9 +420,6 @@ export function WeddingDetailPage() {
               onArchive={async () => {
                 await weddingService.archive(wedding.id)
                 await queryClient.invalidateQueries({ queryKey: ['weddings'] })
-                await queryClient.invalidateQueries({
-                  queryKey: ['weddings', wedding.id],
-                })
                 showToast('Ślub został zarchiwizowany.', 'success')
               }}
               onDelete={async () => {

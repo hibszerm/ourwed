@@ -9,6 +9,7 @@ import { PageContainer } from '@/components/ui/PageContainer'
 import { IconArrowLeft, IconChevronRight } from '@/components/icons'
 import { useCreateWedding } from '@/features/weddings/hooks/useCreateWedding'
 import { useQuery } from '@tanstack/react-query'
+import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
 import { packageService } from '@/lib/api/packageService'
 import { coupleName, formatDate } from '@/lib/utils/dates'
 import { formatCurrency } from '@/lib/utils/currency'
@@ -71,9 +72,11 @@ export function NewWeddingPage() {
   const [searchParams] = useSearchParams()
   const prefillDate = searchParams.get('date') ?? ''
   const createWedding = useCreateWedding()
+  const userId = useStudioAuthId()
   const { data: packages = [], isLoading: packagesLoading } = useQuery({
-    queryKey: ['studio-packages', 'active'],
+    queryKey: ['studio-packages', userId, 'active'],
     queryFn: () => packageService.list({ activeOnly: true }),
+    enabled: Boolean(userId),
   })
   const [step, setStep] = useState(0)
   const [direction, setDirection] = useState<'forward' | 'back'>('forward')

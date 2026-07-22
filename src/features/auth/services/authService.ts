@@ -3,10 +3,11 @@
  * No React imports. Safe to reuse from a future React Native client.
  */
 
-import type { Session, User } from '@supabase/supabase-js'
+import type { AuthChangeEvent, Session, User } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { mapAuthError } from '@/features/auth/services/authErrors'
 import { clearStudioUserCache } from '@/lib/api/studioUser'
+import { resetTenantClientState } from '@/lib/auth/resetTenantClientState'
 import type {
   AuthResult,
   AuthUser,
@@ -103,7 +104,7 @@ export const authService = {
   toAuthUser,
 
   onAuthStateChange(
-    callback: (event: string, session: Session | null) => void,
+    callback: (event: AuthChangeEvent, session: Session | null) => void,
   ): () => void {
     const { data } = supabase.auth.onAuthStateChange((event, session) => {
       callback(event, session)
@@ -146,6 +147,7 @@ export const authService = {
       }
 
       clearStudioUserCache()
+      // Full tenant reset happens in AuthProvider when SIGNED_IN sees a new uid.
       return { success: true, user: toAuthUser(data.user) }
     } catch (err) {
       return {
@@ -252,7 +254,9 @@ export const authService = {
   },
 
   async logout(): Promise<void> {
-    clearStudioUserCache()
+    // AuthProvider also resets on SIGNED_OUT; clear immediately so no in-flight
+    // studio resolution can resolve against the previous uid.
+    resetTenantClientState()
     await supabase.auth.signOut()
   },
 }

@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { PageContainer } from '@/components/ui/PageContainer'
+import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
 import { GenerateQuestionnaireModal } from '@/features/questionnaires/GenerateQuestionnaireModal'
 import {
   matchesQuestionnaireSearch,
@@ -34,14 +35,16 @@ function formatDateTime(value: string | null): string {
 export function QuestionnairesPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const userId = useStudioAuthId()
   const [generateOpen, setGenerateOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] =
     useState<QuestionnaireStatusFilter>('all')
 
   const { data = [], isLoading, isError, error, refetch } = useQuery({
-    queryKey: ['questionnaires'],
+    queryKey: ['questionnaires', userId],
     queryFn: () => questionnaireService.list(),
+    enabled: Boolean(userId),
   })
 
   const filtered = useMemo(() => {
