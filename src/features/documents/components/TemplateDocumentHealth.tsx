@@ -3,9 +3,7 @@ import {
   CheckCircle2,
   Circle,
   FileCheck,
-  Link2,
-  Settings2,
-  ShieldCheck,
+  Sparkles,
   Upload,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
@@ -35,53 +33,44 @@ export function TemplateDocumentHealth({
   mappingCompleted,
   configurationCompleted,
 }: TemplateDocumentHealthProps) {
+  const analyzed = mappingCompleted || configurationCompleted
+  const questionnaireReady = configurationCompleted
   const productionReady =
-    status === 'ready' && mappingCompleted && configurationCompleted
+    status === 'ready' && hasFile && (analyzed || questionnaireReady)
 
   const steps: LifecycleStep[] = [
     {
       id: 'uploaded',
       done: hasFile,
-      title: 'Szablon przesłany',
-      description: 'Dokument DOCX trafił do biblioteki studia.',
+      title: 'Przesłany',
+      description: 'Kontrakt DOCX lub PDF jest w bibliotece.',
       Icon: Upload,
     },
     {
-      id: 'stored',
-      done: hasFile,
-      title: 'Zapisany bezpiecznie',
-      description: 'Plik jest w prywatnym magazynie OurWed.',
-      Icon: ShieldCheck,
+      id: 'analyzed',
+      done: analyzed,
+      title: 'Przeanalizowany przez AI',
+      description: 'OurWed wykrył informacje potrzebne w umowie.',
+      Icon: Sparkles,
     },
     {
-      id: 'version',
-      done: hasVersion,
-      title: 'Aktywna wersja',
-      description: 'Wybrana wersja będzie używana przy generowaniu.',
+      id: 'questionnaire',
+      done: questionnaireReady,
+      title: 'Ankieta utworzona',
+      description: 'Typ ankiety dostępny przy generowaniu linków.',
       Icon: FileCheck,
     },
     {
-      id: 'mapping',
-      done: mappingCompleted,
-      title: 'Mapowanie ukończone',
-      description: 'Pola i sekcje powiązane z danymi ślubu.',
-      Icon: Link2,
-    },
-    {
-      id: 'configuration',
-      done: configurationCompleted,
-      title: 'Konfiguracja ukończona',
-      description: 'Pakiet, klauzule i warunki są ustawione.',
-      Icon: Settings2,
-    },
-    {
-      id: 'production',
-      done: productionReady,
-      title: 'Gotowy do produkcji',
-      description: 'Szablon może tworzyć umowy do podpisu.',
+      id: 'ready',
+      done: productionReady || (hasFile && questionnaireReady),
+      title: 'Gotowy do generowania umów',
+      description: 'Kontrakt + ankieta — bez zmiany formatowania pliku.',
       Icon: BadgeCheck,
     },
   ]
+
+  // Keep hasVersion in the model for callers; version is implied by upload.
+  void hasVersion
 
   return (
     <section className={styles.healthCard} aria-labelledby="doc-health-title">

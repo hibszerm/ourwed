@@ -4,8 +4,10 @@
  */
 
 import type { DocumentComponentKind } from '@/types/documents'
+import type { AiDocumentAnalysisResult } from '@/features/documents/ai'
 import type { DocumentStructure } from './preview/documentNodes'
 import type { PlannedBlock } from './composition/defaultComponentBlocks'
+import type { QuestionnaireDraft } from '@/features/documents/questionnaire'
 
 /** Wizard progress (orthogonal to template.status draft | ready | archived). */
 export type TemplateConfigStatus =
@@ -17,18 +19,21 @@ export type TemplateConfigStatus =
 export type MappingWizardStepId =
   | 'upload'
   | 'analysis'
+  | 'questionnaire'
+  | 'save'
+  /** @deprecated Kept for draft compatibility — use questionnaire / advanced. */
+  | 'review'
   | 'mapping'
   | 'components'
   | 'clauses'
   | 'preview'
-  | 'save'
 
 export type DetectedFieldStatus =
   | 'connected'
   | 'needs_configuration'
   | 'ignored'
 
-export type DetectedFieldOrigin = 'placeholder' | 'heuristic' | 'manual'
+export type DetectedFieldOrigin = 'placeholder' | 'heuristic' | 'manual' | 'ai'
 
 /**
  * A dynamic area found in the source contract.
@@ -48,10 +53,15 @@ export interface DetectedField {
   /** placeholder | heuristic | manual (guided). */
   origin?: DetectedFieldOrigin
   confidence?: 'high' | 'medium' | 'low'
+  /** 0–1 numeric confidence from AI. */
+  confidenceScore?: number
   suggestionReason?: string
+  /** Short human reason for the suggestion. */
+  reason?: string
+  paragraphIndex?: number | null
 }
 
-/** Guided block mapping (optional helper — free placement is primary). */
+/** Guided block mapping (deprecated in active flow — AI review is primary). */
 export interface ManualDocumentMapping {
   id: string
   /** Stable block id: `block-${index}`. */
@@ -73,7 +83,7 @@ export interface SelectedDocumentBlock {
 }
 
 /**
- * Free-placed dynamic field on the document canvas (overlay only).
+ * Free-placed dynamic field (deprecated Phase 4 — not used in Mapping Review).
  * Coordinates are percentages of the preview content box (0–100).
  */
 export interface ManualDocumentPlacement {
@@ -102,6 +112,8 @@ export interface DocumentAnalysisResult {
   suggestedComponents: DocumentComponentKind[]
   suggestedClauses: { key: string; title: string; body: string }[]
   analyzedAt: string
+  /** Phase 4 AI analyzer payload (source of truth for Mapping Review). */
+  aiAnalysis?: AiDocumentAnalysisResult | null
 }
 
 export interface MappingWizardDraft {
@@ -126,6 +138,8 @@ export interface MappingWizardDraft {
   manualMappings: ManualDocumentMapping[]
   /** Free-placed dynamic fields on the document canvas (primary). */
   manualPlacements: ManualDocumentPlacement[]
+  /** AI-generated questionnaire draft (couple questions only). */
+  questionnaireDraft: QuestionnaireDraft | null
   dirty: boolean
 }
 
@@ -134,11 +148,8 @@ export const MAPPING_WIZARD_STEPS: {
   label: string
   unlocked: boolean
 }[] = [
-  { id: 'upload', label: 'Dokument', unlocked: true },
+  { id: 'upload', label: 'Przesyłanie', unlocked: true },
   { id: 'analysis', label: 'Analiza', unlocked: true },
-  { id: 'mapping', label: 'Mapowanie', unlocked: true },
-  { id: 'components', label: 'Sekcje', unlocked: true },
-  { id: 'clauses', label: 'Klauzule', unlocked: true },
-  { id: 'preview', label: 'Podgląd', unlocked: false },
-  { id: 'save', label: 'Zapis', unlocked: false },
+  { id: 'questionnaire', label: 'Ankieta', unlocked: true },
+  { id: 'save', label: 'Biblioteka', unlocked: true },
 ]

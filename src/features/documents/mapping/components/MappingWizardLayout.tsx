@@ -5,9 +5,8 @@ import { useMappingWizard } from '../state/useMappingWizard'
 import { MappingWizardStepper } from './MappingWizardStepper'
 import { UploadStep } from './steps/UploadStep'
 import { AnalysisStep } from './steps/AnalysisStep'
-import { MappingStep } from './steps/MappingStep'
-import { ComponentsStep } from './steps/ComponentsStep'
-import { ClausesStep } from './steps/ClausesStep'
+import { QuestionnaireStep } from './steps/QuestionnaireStep'
+import { SaveStep } from './steps/SaveStep'
 import styles from '../MappingWizard.module.css'
 
 export function MappingWizardLayout({
@@ -40,11 +39,11 @@ export function MappingWizardLayout({
           </Link>
         </div>
         <div className={styles.headerTitles}>
-          <p className={styles.eyebrow}>Konfiguracja szablonu</p>
+          <p className={styles.eyebrow}>Import kontraktu</p>
           <h1 className={styles.title}>{templateName}</h1>
           <p className={styles.subtitle}>
-            Pracujesz na swoim kontrakcie — OurWed wykrywa dynamiczne obszary
-            i pomaga je podłączyć do danych ślubu.
+            Prześlij umowę — AI zrozumie, czego wymaga, i przygotuje ankietę
+            dla pary.
           </p>
         </div>
         <MappingWizardStepper current={state.step} onSelect={setStep} />
@@ -55,16 +54,15 @@ export function MappingWizardLayout({
           <UploadStep onUploadFile={onUploadFile} />
         )}
         {state.step === 'analysis' && <AnalysisStep />}
-        {state.step === 'mapping' && <MappingStep />}
-        {state.step === 'components' && <ComponentsStep />}
-        {state.step === 'clauses' && <ClausesStep />}
+        {state.step === 'questionnaire' && <QuestionnaireStep />}
+        {state.step === 'save' && <SaveStep templateId={templateId} />}
       </main>
 
       <footer className={styles.footer}>
         <Button
           type="button"
           variant="ghost"
-          disabled={!canGoBack}
+          disabled={!canGoBack || state.step === 'save'}
           onClick={goBack}
         >
           Wstecz
@@ -76,7 +74,7 @@ export function MappingWizardLayout({
             disabled={!canGoNext}
             onClick={goNext}
           >
-            Przejdź do analizy
+            Analizuj dokument
           </Button>
         )}
         {state.step === 'analysis' && (
@@ -86,32 +84,17 @@ export function MappingWizardLayout({
             disabled={!canGoNext}
             onClick={goNext}
           >
-            Przejdź do mapowania
+            Przejdź do ankiety
           </Button>
         )}
-        {state.step === 'mapping' && (
+        {state.step === 'questionnaire' && (
           <Button
             type="button"
             variant="primary"
             disabled={!canGoNext}
             onClick={goNext}
           >
-            Przejdź do sekcji
-          </Button>
-        )}
-        {state.step === 'components' && (
-          <Button
-            type="button"
-            variant="primary"
-            disabled={!canGoNext}
-            onClick={goNext}
-          >
-            Przejdź do klauzul
-          </Button>
-        )}
-        {state.step === 'clauses' && (
-          <Button type="button" variant="primary" disabled title="Kolejny etap">
-            Podgląd — wkrótce
+            Przejdź do utworzenia typu
           </Button>
         )}
       </footer>

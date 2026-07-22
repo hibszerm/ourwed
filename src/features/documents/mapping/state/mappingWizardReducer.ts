@@ -16,12 +16,16 @@ import type {
   TemplateConfigStatus,
 } from '../types'
 import { MAPPING_WIZARD_STEPS } from '../types'
+import { generateQuestionnaireDraft } from '@/features/documents/questionnaire'
+import type { DraftQuestion, QuestionnaireDraft } from '@/features/documents/questionnaire'
 
 export interface MappingWizardState {
   step: MappingWizardStepId
   draft: MappingWizardDraft
   sourceBytes: ArrayBuffer | null
   selectedBlock: SelectedDocumentBlock | null
+  /** Bidirectional highlight between preview and field list. */
+  selectedFieldId: string | null
   /** Free-placement mode: click canvas to drop a field. */
   placementMode: boolean
   /** Click position waiting for variable assignment. */
@@ -51,7 +55,11 @@ export type MappingWizardAction =
     }
   | { type: 'upload_error'; message: string }
   | { type: 'analysis_start' }
-  | { type: 'analysis_success'; result: DocumentAnalysisResult }
+  | {
+      type: 'analysis_success'
+      result: DocumentAnalysisResult
+      templateName?: string | null
+    }
   | { type: 'analysis_error'; message: string }
   | { type: 'set_fields'; fields: DetectedField[] }
   | {
@@ -61,6 +69,7 @@ export type MappingWizardAction =
     }
   | { type: 'ignore_field'; fieldId: string }
   | { type: 'accept_suggestion'; fieldId: string }
+  | { type: 'select_field'; fieldId: string | null }
   | { type: 'select_document_block'; block: SelectedDocumentBlock }
   | { type: 'clear_document_selection' }
   | {
@@ -87,6 +96,15 @@ export type MappingWizardAction =
   | { type: 'move_component'; kind: DocumentComponentKind; direction: 'up' | 'down' }
   | { type: 'toggle_clause_id'; clauseId: string; enabled: boolean }
   | { type: 'toggle_suggested_clause'; key: string; enabled: boolean }
+  | { type: 'set_questionnaire_draft'; draft: QuestionnaireDraft | null }
+  | {
+      type: 'update_draft_question'
+      questionId: string
+      patch: Partial<DraftQuestion>
+    }
+  | { type: 'toggle_draft_question'; questionId: string; enabled: boolean }
+  | { type: 'set_questionnaire_name'; name: string }
+  | { type: 'questionnaire_saved'; formId: string }
   | { type: 'mark_clean' }
 
 function emptyDraft(
@@ -110,6 +128,7 @@ function emptyDraft(
     enabledSuggestedClauseKeys: [],
     manualMappings: [],
     manualPlacements: [],
+    questionnaireDraft: null,
     dirty: false,
   }
 }
@@ -131,6 +150,7 @@ export function createInitialWizardState(input: {
     ),
     sourceBytes: null,
     selectedBlock: null,
+    selectedFieldId: null,
     placementMode: false,
     pendingPlacement: null,
     analysisStatus: 'idle',
@@ -197,6 +217,39 @@ function updateField(
   return fields.map((f) => (f.id === fieldId ? { ...f, ...patch } : f))
 }
 
+/** Keep draft.fields and analysis.aiAnalysis in sync after review actions. */
+function withAiReviewPatch(
+  draft: MappingWizardDraft,
+  fieldId: string,
+  fieldPatch: Partial<DetectedField>,
+  aiStatus: 'suggested' | 'confirmed' | 'rejected',
+  registryKey?: string | null,
+): MappingWizardDraft {
+  const fields = updateField(draft.fields, fieldId, fieldPatch)
+  const prevAi = draft.analysis?.aiAnalysis
+  const aiAnalysis = prevAi
+    ? {
+        ...prevAi,
+        fields: prevAi.fields.map((f) =>
+          f.id === fieldId
+            ? {
+                ...f,
+                status: aiStatus,
+                registryKey:
+                  registryKey !== undefined ? registryKey : f.registryKey,
+              }
+            : f,
+        ),
+      }
+    : (prevAi ?? null)
+
+  const analysis = draft.analysis
+    ? { ...draft.analysis, fields, aiAnalysis }
+    : null
+
+  return withRebuiltBlocks(draft, { fields, analysis })
+}
+
 function mergeOrder(
   preferred: DocumentComponentKind[],
 ): DocumentComponentKind[] {
@@ -258,6 +311,7 @@ export function mappingWizardReducer(
         draft,
         sourceBytes: action.sourceBytes,
         selectedBlock: null,
+        selectedFieldId: null,
         placementMode: false,
         pendingPlacement: null,
         uploadStatus: 'success',
@@ -286,6 +340,12 @@ export function mappingWizardReducer(
       const enabled = action.result.suggestedComponents.filter((k) =>
         DEFAULT_COMPONENT_ORDER.includes(k),
       )
+      const questionnaireDraft = generateQuestionnaireDraft({
+        fields: action.result.fields,
+        ai: action.result.aiAnalysis,
+        sourceText: action.result.sourceText,
+        templateName: action.templateName ?? state.draft.sourceFileName,
+      })
       const draft = withRebuiltBlocks(state.draft, {
         analysis: action.result,
         fields: action.result.fields,
@@ -295,6 +355,7 @@ export function mappingWizardReducer(
           (c) => c.key,
         ),
         enabledClauseIds: [],
+        questionnaireDraft,
       })
       return {
         ...state,
@@ -319,44 +380,61 @@ export function mappingWizardReducer(
 
     case 'map_field': {
       const mappedKey = action.mappedKey
-      const fields = updateField(state.draft.fields, action.fieldId, {
-        mappedKey,
-        suggestedKey:
-          mappedKey ??
-          state.draft.fields.find((f) => f.id === action.fieldId)
-            ?.suggestedKey ??
-          null,
-        status: mappedKey ? 'connected' : 'needs_configuration',
-      })
       return {
         ...state,
-        draft: withRebuiltBlocks(state.draft, { fields }),
+        draft: withAiReviewPatch(
+          state.draft,
+          action.fieldId,
+          {
+            mappedKey,
+            suggestedKey:
+              mappedKey ??
+              state.draft.fields.find((f) => f.id === action.fieldId)
+                ?.suggestedKey ??
+              null,
+            status: mappedKey ? 'connected' : 'needs_configuration',
+          },
+          mappedKey ? 'confirmed' : 'suggested',
+          mappedKey,
+        ),
       }
     }
 
     case 'ignore_field': {
-      const fields = updateField(state.draft.fields, action.fieldId, {
-        status: 'ignored',
-        mappedKey: null,
-      })
       return {
         ...state,
-        draft: withRebuiltBlocks(state.draft, { fields }),
+        draft: withAiReviewPatch(
+          state.draft,
+          action.fieldId,
+          { status: 'ignored', mappedKey: null },
+          'rejected',
+        ),
       }
     }
 
     case 'accept_suggestion': {
       const current = state.draft.fields.find((f) => f.id === action.fieldId)
       if (!current?.suggestedKey) return state
-      const fields = updateField(state.draft.fields, action.fieldId, {
-        mappedKey: current.suggestedKey,
-        status: 'connected',
-      })
       return {
         ...state,
-        draft: withRebuiltBlocks(state.draft, { fields }),
+        draft: withAiReviewPatch(
+          state.draft,
+          action.fieldId,
+          {
+            mappedKey: current.suggestedKey,
+            status: 'connected',
+          },
+          'confirmed',
+          current.suggestedKey,
+        ),
       }
     }
+
+    case 'select_field':
+      return {
+        ...state,
+        selectedFieldId: action.fieldId,
+      }
 
     case 'select_document_block':
       return {
@@ -562,6 +640,84 @@ export function mappingWizardReducer(
           ...state.draft,
           enabledSuggestedClauseKeys: enabled,
           dirty: true,
+        },
+      }
+    }
+
+    case 'set_questionnaire_draft':
+      return {
+        ...state,
+        draft: {
+          ...state.draft,
+          questionnaireDraft: action.draft,
+          dirty: true,
+        },
+      }
+
+    case 'update_draft_question': {
+      const qDraft = state.draft.questionnaireDraft
+      if (!qDraft) return state
+      return {
+        ...state,
+        draft: {
+          ...state.draft,
+          dirty: true,
+          questionnaireDraft: {
+            ...qDraft,
+            questions: qDraft.questions.map((q) =>
+              q.id === action.questionId ? { ...q, ...action.patch } : q,
+            ),
+          },
+        },
+      }
+    }
+
+    case 'toggle_draft_question': {
+      const qDraft = state.draft.questionnaireDraft
+      if (!qDraft) return state
+      return {
+        ...state,
+        draft: {
+          ...state.draft,
+          dirty: true,
+          questionnaireDraft: {
+            ...qDraft,
+            questions: qDraft.questions.map((q) =>
+              q.id === action.questionId
+                ? { ...q, enabled: action.enabled }
+                : q,
+            ),
+          },
+        },
+      }
+    }
+
+    case 'set_questionnaire_name': {
+      const qDraft = state.draft.questionnaireDraft
+      if (!qDraft) return state
+      return {
+        ...state,
+        draft: {
+          ...state.draft,
+          dirty: true,
+          questionnaireDraft: { ...qDraft, name: action.name },
+        },
+      }
+    }
+
+    case 'questionnaire_saved': {
+      const qDraft = state.draft.questionnaireDraft
+      if (!qDraft) return state
+      return {
+        ...state,
+        draft: {
+          ...state.draft,
+          questionnaireDraft: {
+            ...qDraft,
+            savedFormId: action.formId,
+            savedInstanceId: null,
+            savedFormUrl: null,
+          },
         },
       }
     }

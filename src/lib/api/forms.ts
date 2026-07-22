@@ -127,6 +127,43 @@ export async function getForms(): Promise<FormDefinition[]> {
   return ((data ?? []) as FormRow[]).map(mapForm)
 }
 
+/**
+ * Active questionnaire templates for "Generuj ankietę":
+ * studio-owned first, then global templates (user_id null).
+ */
+export async function listActiveFormTemplates(
+  category: FormCategory = 'contract',
+): Promise<FormDefinition[]> {
+  const userId = await requireStudioUserId()
+
+  const owned = await supabase
+    .from('forms')
+    .select('*')
+    .eq('category', category)
+    .eq('is_active', true)
+    .eq('user_id', userId)
+    .order('name', { ascending: true })
+  throwOnError(owned.error)
+
+  const global = await supabase
+    .from('forms')
+    .select('*')
+    .eq('category', category)
+    .eq('is_active', true)
+    .is('user_id', null)
+    .order('name', { ascending: true })
+  throwOnError(global.error)
+
+  const ownedRows = ((owned.data ?? []) as FormRow[]).map(mapForm)
+  const globalRows = ((global.data ?? []) as FormRow[]).map(mapForm)
+  const ownedSlugs = new Set(ownedRows.map((f) => f.slug))
+
+  return [
+    ...ownedRows,
+    ...globalRows.filter((f) => !ownedSlugs.has(f.slug)),
+  ]
+}
+
 export async function getForm(id: string): Promise<FormDefinition | null> {
   const userId = await requireStudioUserId()
   const { data, error } = await supabase
@@ -154,7 +191,7 @@ export async function getActiveFormByCategory(
     .eq('category', category)
     .eq('is_active', true)
     .eq('user_id', userId)
-    .order('version', { ascending: false })
+    .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle()
   throwOnError(owned.error)
@@ -172,6 +209,49 @@ export async function getActiveFormByCategory(
   throwOnError(template.error)
   if (!template.data) return null
   return mapForm(template.data as FormRow)
+}
+
+export interface CreateFormDefinitionInput {
+  name: string
+  slug: string
+  description?: string | null
+  category: FormCategory
+  schema: FormSchema
+  version?: number
+  isActive?: boolean
+}
+
+/**
+ * Create a studio-owned form definition (questionnaire template).
+ * Instances can be issued unlimited times via createFormInstance / generate.
+ */
+export async function createFormDefinition(
+  input: CreateFormDefinitionInput,
+): Promise<FormDefinition> {
+  const userId = await requireStudioUserId()
+  const slug = input.slug.trim().slice(0, 120) || 'questionnaire'
+  const version = input.version ?? 1
+
+  const { data, error } = await supabase
+    .from('forms')
+    .insert({
+      name: input.name.trim(),
+      slug,
+      description: input.description?.trim() || null,
+      category: input.category,
+      schema: input.schema,
+      version,
+      is_active: input.isActive ?? true,
+      user_id: userId,
+    })
+    .select('*')
+    .single()
+
+  throwOnError(error)
+  if (!data) {
+    throw new Error('Nie udało się utworzyć formularza.')
+  }
+  return mapForm(data as FormRow)
 }
 
 /**

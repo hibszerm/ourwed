@@ -4,64 +4,100 @@ import type { DetectedField } from '../types'
 import { VariablePicker } from './VariablePicker'
 import styles from '../MappingWizard.module.css'
 
+function confidenceLabel(field: DetectedField): string {
+  if (typeof field.confidenceScore === 'number') {
+    return `${Math.round(field.confidenceScore * 100)}%`
+  }
+  if (field.suggestionReason) {
+    const m = field.suggestionReason.match(/(\d+)\s*%/)
+    if (m) return `${m[1]}%`
+  }
+  if (field.confidence === 'high') return 'wysoka'
+  if (field.confidence === 'medium') return 'średnia'
+  if (field.confidence === 'low') return 'niska'
+  return '—'
+}
+
 export function FieldMappingRow({
   field,
+  selected,
+  onSelect,
   onMap,
   onAccept,
   onIgnore,
 }: {
   field: DetectedField
+  selected?: boolean
+  onSelect?: () => void
   onMap: (mappedKey: string | null) => void
   onAccept?: () => void
   onIgnore: () => void
 }) {
   const sourceKey = field.mappedKey ?? field.suggestedKey
   const def = sourceKey ? getVariableDef(sourceKey) : undefined
-  const isHeuristicPending =
-    field.origin === 'heuristic' && field.status === 'needs_configuration'
+  const conf = confidenceLabel(field)
+  const pending = field.status === 'needs_configuration'
 
-  if (isHeuristicPending) {
-    return (
-      <div className={`${styles.mappingRow} ${styles.suggestionCard}`}>
-        <div className={styles.mappingRowHead}>
-          <div>
-            <p className={styles.suggestionEyebrow}>Propozycja</p>
-            <p className={styles.detectedLabel}>{field.label}</p>
-          </div>
-          <span className={styles.statusPillWarning}>
-            {field.confidence === 'high'
-              ? 'Wysoka pewność'
-              : field.confidence === 'low'
-                ? 'Niska pewność'
-                : 'Średnia pewność'}
-          </span>
+  return (
+    <div
+      className={`${styles.mappingRow} ${styles.suggestionCard} ${selected ? styles.fieldCardSelected : ''}`}
+      role="button"
+      tabIndex={0}
+      onClick={onSelect}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onSelect?.()
+        }
+      }}
+    >
+      <div className={styles.mappingRowHead}>
+        <div>
+          <p className={styles.suggestionEyebrow}>Element kontraktu</p>
+          <p className={styles.detectedLabel}>{field.label}</p>
         </div>
+        <span
+          className={
+            field.status === 'connected'
+              ? styles.statusPillSuccess
+              : field.status === 'ignored'
+                ? styles.statusPillNeutral
+                : styles.statusPillWarning
+          }
+        >
+          {conf}
+        </span>
+      </div>
 
-        <dl className={styles.suggestionMeta}>
+      <dl className={styles.suggestionMeta}>
+        <div>
+          <dt>Wykryta wartość</dt>
+          <dd className={styles.suggestionFound}>
+            {field.rawToken?.trim() ? field.rawToken : '—'}
+          </dd>
+        </div>
+        <div>
+          <dt>Pole OurWed</dt>
+          <dd className={styles.detectedSource}>
+            {sourceKey ?? '—'}
+            {def ? ` · ${def.labelPl}` : ''}
+          </dd>
+        </div>
+        {(field.reason || field.suggestionReason) && (
           <div>
-            <dt>Znaleziony tekst</dt>
-            <dd className={styles.suggestionFound}>{field.rawToken}</dd>
+            <dt>Powód</dt>
+            <dd>{field.reason ?? field.suggestionReason}</dd>
           </div>
-          <div>
-            <dt>Sugerowane źródło</dt>
-            <dd className={styles.detectedSource}>
-              {field.suggestedKey}
-              {def ? ` · ${def.labelPl}` : ''}
-            </dd>
-          </div>
-          {field.suggestionReason && (
-            <div>
-              <dt>Powód</dt>
-              <dd>{field.suggestionReason}</dd>
-            </div>
-          )}
-        </dl>
+        )}
+      </dl>
 
+      {pending && (
         <div className={styles.suggestionActions}>
           <Button
             type="button"
             variant="primary"
             size="sm"
+            disabled={!field.suggestedKey || !onAccept}
             onClick={(e) => {
               e.stopPropagation()
               onAccept?.()
@@ -81,50 +117,20 @@ export function FieldMappingRow({
             Ignoruj
           </Button>
         </div>
-
-        <label className={styles.mappingFieldLabel}>
-          Lub wybierz inne źródło
-          <VariablePicker
-            value={field.mappedKey}
-            onChange={(key) => {
-              onMap(key)
-            }}
-          />
-        </label>
-      </div>
-    )
-  }
-
-  return (
-    <div className={styles.mappingRow}>
-      <div className={styles.mappingRowHead}>
-        <div>
-          <p className={styles.detectedLabel}>{field.label}</p>
-          {field.rawToken && (
-            <p className={styles.mappingToken}>{field.rawToken}</p>
-          )}
-        </div>
-        {field.status === 'connected' ? (
-          <span className={styles.statusPillSuccess}>Połączono</span>
-        ) : field.status === 'ignored' ? (
-          <span className={styles.statusPillNeutral}>Pominięto</span>
-        ) : (
-          <span className={styles.statusPillWarning}>Do konfiguracji</span>
-        )}
-      </div>
-
-      <label className={styles.mappingFieldLabel}>
-        Źródło w OurWed
-        <VariablePicker value={field.mappedKey} onChange={onMap} />
-      </label>
-
-      {def && field.status === 'connected' && (
-        <p className={styles.detectedSource}>
-          {def.section} · {def.key}
-        </p>
       )}
 
-      {field.status !== 'ignored' && (
+      <label
+        className={styles.mappingFieldLabel}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {pending ? 'Zmień pole' : 'Pole OurWed'}
+        <VariablePicker
+          value={field.mappedKey ?? field.suggestedKey}
+          onChange={(key) => onMap(key)}
+        />
+      </label>
+
+      {field.status === 'connected' && (
         <button
           type="button"
           className={styles.ignoreLink}
@@ -133,8 +139,22 @@ export function FieldMappingRow({
             onIgnore()
           }}
         >
-          Pomiń ten obszar
+          Ignoruj
         </button>
+      )}
+
+      {field.status === 'ignored' && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={(e) => {
+            e.stopPropagation()
+            if (field.suggestedKey) onMap(field.suggestedKey)
+          }}
+        >
+          Przywróć
+        </Button>
       )}
     </div>
   )

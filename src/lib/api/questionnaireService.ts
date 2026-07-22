@@ -45,8 +45,19 @@ export const CONTRACT_QUESTIONNAIRE_UI_LABEL = 'Dane do umowy'
 export function questionnaireTypeLabel(
   form: FormDefinition | null | undefined,
 ): string {
-  if (form?.category === 'contract') return CONTRACT_QUESTIONNAIRE_UI_LABEL
-  return form?.name?.trim() || 'Ankieta'
+  const name = form?.name?.trim()
+  if (form?.category === 'contract') {
+    // Seeded template keeps the CRM label; custom / AI forms show their name.
+    if (
+      name &&
+      name !== 'Contract Questionnaire' &&
+      !/^contract questionnaire$/i.test(name)
+    ) {
+      return name
+    }
+    return CONTRACT_QUESTIONNAIRE_UI_LABEL
+  }
+  return name || 'Ankieta'
 }
 
 export interface QuestionnaireSearchFields {
@@ -510,8 +521,12 @@ export const questionnaireService = {
   async generate(input: {
     type: QuestionnaireType
     expiration: QuestionnaireExpiration
+    /** When set, issue from this form instead of the active contract form. */
+    formId?: string
   }): Promise<{ instance: FormInstance; formUrl: string; formName: string }> {
-    const form = await getActiveFormByCategory('contract')
+    const form = input.formId
+      ? await getForm(input.formId)
+      : await getActiveFormByCategory('contract')
     if (!form) {
       throw new Error('Brak aktywnego formularza „Dane do umowy”.')
     }

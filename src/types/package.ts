@@ -23,6 +23,8 @@ export interface StudioPackage {
   color: string | null
   isActive: boolean
   sortOrder: number
+  /** Optional linked questionnaire form (AI import / package default). */
+  questionnaireFormId: string | null
   createdAt: string
   updatedAt: string
   items: PackageItem[]

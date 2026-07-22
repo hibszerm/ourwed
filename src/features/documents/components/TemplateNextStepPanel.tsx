@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { Check, FileText } from 'lucide-react'
+import { Check, FileText, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import type { DocumentTemplateSummary } from '@/types/documents'
 import styles from '../DocumentsTemplates.module.css'
@@ -7,29 +7,6 @@ import styles from '../DocumentsTemplates.module.css'
 function configurationPath(templateId: string) {
   return `/ustawienia/dokumenty/szablony/${templateId}/konfiguracja`
 }
-
-const ROADMAP = [
-  {
-    step: 1,
-    title: 'Wykryj pola',
-    description: 'Połącz dane ślubu z treścią dokumentu.',
-  },
-  {
-    step: 2,
-    title: 'Skonfiguruj elementy pakietu',
-    description: 'Pokaż tylko to, co zawiera umowa.',
-  },
-  {
-    step: 3,
-    title: 'Skonfiguruj klauzule opcjonalne',
-    description: 'Włącz warunki zależne od usług.',
-  },
-  {
-    step: 4,
-    title: 'Generuj umowy',
-    description: 'Twórz gotowe dokumenty do podpisu.',
-  },
-]
 
 function OnboardingPanel({ templateId }: { templateId: string }) {
   const navigate = useNavigate()
@@ -40,40 +17,50 @@ function OnboardingPanel({ templateId }: { templateId: string }) {
       aria-labelledby="next-step-title"
     >
       <div className={styles.nextStepIconWrap} aria-hidden>
-        <FileText size={36} strokeWidth={1.4} />
+        <Sparkles size={36} strokeWidth={1.4} />
       </div>
       <h2 id="next-step-title" className={styles.nextStepTitle}>
-        Następny krok
+        Analiza AI
       </h2>
       <p className={styles.nextStepBody}>
-        Plik DOCX jest już w bibliotece. Aby generować umowy automatycznie,
-        trzeba najpierw skonfigurować szablon.
+        Prześlij kontrakt — OurWed wykryje informacje do zebrania od pary i
+        utworzy typ ankiety. Bez mapowania i bez technicznych ustawień.
       </p>
 
       <ol className={styles.roadmap}>
-        {ROADMAP.map((item) => (
-          <li key={item.step} className={styles.roadmapItem}>
-            <span className={styles.roadmapNum}>{item.step}</span>
-            <div>
-              <p className={styles.roadmapTitle}>{item.title}</p>
-              <p className={styles.roadmapDesc}>{item.description}</p>
-            </div>
-          </li>
-        ))}
+        <li className={styles.roadmapItem}>
+          <span className={styles.roadmapNum}>1</span>
+          <div>
+            <p className={styles.roadmapTitle}>Prześlij kontrakt</p>
+            <p className={styles.roadmapDesc}>DOCX lub PDF</p>
+          </div>
+        </li>
+        <li className={styles.roadmapItem}>
+          <span className={styles.roadmapNum}>2</span>
+          <div>
+            <p className={styles.roadmapTitle}>AI analizuje</p>
+            <p className={styles.roadmapDesc}>
+              Wykrywa informacje potrzebne w umowie
+            </p>
+          </div>
+        </li>
+        <li className={styles.roadmapItem}>
+          <span className={styles.roadmapNum}>3</span>
+          <div>
+            <p className={styles.roadmapTitle}>Wybierz, o co pytać</p>
+            <p className={styles.roadmapDesc}>Prosta lista checkboxów</p>
+          </div>
+        </li>
+        <li className={styles.roadmapItem}>
+          <span className={styles.roadmapNum}>4</span>
+          <div>
+            <p className={styles.roadmapTitle}>Utwórz ankietę</p>
+            <p className={styles.roadmapDesc}>
+              Nowy typ w bibliotece ankiet
+            </p>
+          </div>
+        </li>
       </ol>
-
-      <div className={styles.nextStepBenefits}>
-        <p className={styles.nextStepBenefitsTitle}>
-          Po konfiguracji ten szablon automatycznie:
-        </p>
-        <ul className={styles.nextStepBenefitsList}>
-          <li>uzupełni dane pary i ślubu</li>
-          <li>wstawi elementy pakietu</li>
-          <li>przeliczy płatności</li>
-          <li>doda opcjonalne klauzule</li>
-          <li>wygeneruje umowę gotową do podpisu</li>
-        </ul>
-      </div>
 
       <div className={styles.nextStepCta}>
         <Button
@@ -81,7 +68,7 @@ function OnboardingPanel({ templateId }: { templateId: string }) {
           variant="primary"
           onClick={() => navigate(configurationPath(templateId))}
         >
-          Rozpocznij konfigurację
+          Prześlij kontrakt / uruchom AI
         </Button>
       </div>
     </section>
@@ -94,20 +81,6 @@ function ConfiguredSummary({
   template: DocumentTemplateSummary
 }) {
   const navigate = useNavigate()
-  const stats = [
-    {
-      label: `${template.variableCount} zmapowanych zmiennych`,
-      count: template.variableCount,
-    },
-    {
-      label: `${template.componentCount} komponentów pakietu`,
-      count: template.componentCount,
-    },
-    {
-      label: `${template.blockCount} opcjonalnych klauzul / bloków`,
-      count: template.blockCount,
-    },
-  ]
 
   return (
     <section
@@ -117,10 +90,10 @@ function ConfiguredSummary({
       <div className={styles.configuredHeader}>
         <div>
           <h2 id="configured-title" className={styles.configuredTitle}>
-            Szablon skonfigurowany
+            Ankieta powiązana
           </h2>
           <p className={styles.configuredSubtitle}>
-            Mapowanie i struktura są gotowe do dalszej pracy.
+            Typ ankiety jest gotowy do generowania linków w module Ankiety.
           </p>
         </div>
         <Button
@@ -129,22 +102,28 @@ function ConfiguredSummary({
           size="sm"
           onClick={() => navigate(configurationPath(template.id))}
         >
-          Edytuj konfigurację
+          Analizuj ponownie
         </Button>
       </div>
       <ul className={styles.configuredStats}>
-        {stats.map((stat) => (
-          <li key={stat.label} className={styles.configuredStat}>
-            <Check
-              size={16}
-              strokeWidth={2}
-              className={styles.configuredCheck}
-              aria-hidden
-            />
-            <span>{stat.label}</span>
-          </li>
-        ))}
+        <li className={styles.configuredStat}>
+          <Check size={16} strokeWidth={2} className={styles.configuredCheck} aria-hidden />
+          <span>Plik kontraktu zapisany</span>
+        </li>
+        <li className={styles.configuredStat}>
+          <FileText size={16} strokeWidth={2} className={styles.configuredCheck} aria-hidden />
+          <span>Gotowy do generowania umów</span>
+        </li>
       </ul>
+      <div className={styles.nextStepCta}>
+        <Button
+          type="button"
+          variant="primary"
+          onClick={() => navigate('/ankiety')}
+        >
+          Przejdź do ankiet
+        </Button>
+      </div>
     </section>
   )
 }
@@ -162,7 +141,7 @@ export function TemplateNextStepPanel({
   return <OnboardingPanel templateId={template.id} />
 }
 
-/** Reserved layout anchors — Mapping Wizard lives on its own route. */
+/** @deprecated Reserved layout anchor — unused in simplified flow. */
 export function TemplateMappingSlots() {
   return (
     <div

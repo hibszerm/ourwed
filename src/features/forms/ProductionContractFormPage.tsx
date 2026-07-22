@@ -13,10 +13,10 @@ import {
 } from '@/lib/api/forms'
 import { formEngine } from '@/lib/forms/formEngine'
 import {
-  buildContractQuestionnaireTemplate,
   CONTRACT_QUESTIONNAIRE_TEMPLATE,
   DEFAULT_FORM_SETTINGS,
 } from '@/lib/forms/contractQuestionnaireTemplate'
+import { resolvePublicFormTemplate } from '@/lib/forms/resolvePublicFormTemplate'
 import type { AnswerValue, FormSettings, FormTemplate } from '@/types/form'
 import type { FormInstance } from '@/types/formEngine'
 import styles from './FormPublicPage.module.css'
@@ -90,7 +90,10 @@ export function ProductionContractFormPage() {
           setGate({
             kind: 'submitted',
             settings,
-            template: CONTRACT_QUESTIONNAIRE_TEMPLATE,
+            template: resolvePublicFormTemplate(
+              publicForm.form.schema,
+              publicForm.packages,
+            ),
           })
           return
         }
@@ -100,8 +103,9 @@ export function ProductionContractFormPage() {
           return
         }
 
-        const template = buildContractQuestionnaireTemplate(
-          publicForm.packages.map((p) => ({ id: p.id, name: p.name })),
+        const template = resolvePublicFormTemplate(
+          publicForm.form.schema,
+          publicForm.packages,
         )
 
         setValues(emptyAnswers(template))

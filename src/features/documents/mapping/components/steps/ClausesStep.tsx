@@ -3,7 +3,7 @@ import { useDocumentClauses } from '../../hooks/useDocumentClauses'
 import { useMappingWizard } from '../../state/useMappingWizard'
 import styles from '../../MappingWizard.module.css'
 
-export function ClausesStep() {
+export function ClausesStep({ embedded = false }: { embedded?: boolean }) {
   const { state, toggleClauseId, toggleSuggestedClause } = useMappingWizard()
   const { draft } = state
   const { data: library = [], isLoading } = useDocumentClauses()
@@ -22,16 +22,21 @@ export function ClausesStep() {
   ).length
 
   return (
-    <section className={styles.stepPanel} aria-labelledby="clauses-step-title">
-      <div className={styles.stepIntro}>
-        <h2 id="clauses-step-title" className={styles.stepTitle}>
-          Klauzule prawne
-        </h2>
-        <p className={styles.stepBody}>
-          Dołącz gotowe klauzule do tej wersji umowy. Biblioteka studia jest
-          wspólna — tu tylko wybierasz, co wchodzi w ten kontrakt.
-        </p>
-      </div>
+    <section
+      className={embedded ? styles.embeddedPanel : styles.stepPanel}
+      aria-labelledby="clauses-step-title"
+    >
+      {!embedded && (
+        <div className={styles.stepIntro}>
+          <h2 id="clauses-step-title" className={styles.stepTitle}>
+            Klauzule prawne
+          </h2>
+          <p className={styles.stepBody}>
+            Dołącz gotowe klauzule do tej wersji umowy. Biblioteka studia jest
+            wspólna — tu tylko wybierasz, co wchodzi w ten kontrakt.
+          </p>
+        </div>
+      )}
 
       <p className={styles.compositionMeta}>
         Wybrane:{' '}
@@ -65,7 +70,7 @@ export function ClausesStep() {
                       {clause.body?.trim()
                         ? clause.body.slice(0, 140) +
                           (clause.body.length > 140 ? '…' : '')
-                        : `Klucz: ${clause.key}`}
+                        : 'Zapis z biblioteki studia'}
                     </span>
                   </span>
                 </label>
@@ -124,8 +129,7 @@ export function ClausesStep() {
       )}
 
       <p className={styles.helperText}>
-        Wybrane klauzule zostaną powiązane z wersją szablonu przy zapisie
-        konfiguracji (przez bloki optional_clause / enabledClauseIds).
+        Wybrane zapisy dołączysz do tej umowy przy zapisie szablonu.
       </p>
     </section>
   )

@@ -1,6 +1,7 @@
 /**
- * Free-placement canvas + document preview.
- * Placements are overlay markers; DOCX content is never mutated.
+ * Document preview pane.
+ * Placement overlays remain supported for legacy draft state but are not
+ * exposed in the Phase 4 Mapping Review UI.
  */
 
 import type { ReactNode, MouseEvent as ReactMouseEvent } from 'react'

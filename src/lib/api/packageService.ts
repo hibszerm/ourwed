@@ -19,6 +19,7 @@ interface PackageRow {
   color: string | null
   is_active: boolean
   sort_order: number
+  questionnaire_form_id?: string | null
   created_at: string
   updated_at: string
 }
@@ -35,6 +36,7 @@ function mapPackage(row: PackageRow, items: PackageItem[] = []): StudioPackage {
     color: row.color,
     isActive: row.is_active,
     sortOrder: row.sort_order,
+    questionnaireFormId: row.questionnaire_form_id ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     items,
@@ -61,6 +63,7 @@ export interface UpdatePackageInput {
   currency?: string
   color?: string | null
   isActive?: boolean
+  questionnaireFormId?: string | null
 }
 
 async function uniqueSlug(base: string, excludeId?: string): Promise<string> {
@@ -169,6 +172,9 @@ export const packageService = {
     if (input.currency !== undefined) patch.currency = input.currency
     if (input.color !== undefined) patch.color = input.color
     if (input.isActive !== undefined) patch.is_active = input.isActive
+    if (input.questionnaireFormId !== undefined) {
+      patch.questionnaire_form_id = input.questionnaireFormId
+    }
     if (input.slug !== undefined || input.name !== undefined) {
       patch.slug = await uniqueSlug(
         input.slug?.trim() || input.name || 'pakiet',
@@ -230,5 +236,15 @@ export const packageService = {
         .eq('id', orderedIds[i])
       throwOnError(error)
     }
+  },
+
+  /** Associate a questionnaire form with a catalog package. */
+  async linkQuestionnaireForm(
+    packageId: string,
+    formId: string | null,
+  ): Promise<StudioPackage> {
+    return packageService.update(packageId, {
+      questionnaireFormId: formId,
+    })
   },
 }

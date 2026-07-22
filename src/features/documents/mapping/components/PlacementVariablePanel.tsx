@@ -6,6 +6,10 @@ import { Button } from '@/components/ui/Button'
 import styles from '../MappingWizard.module.css'
 
 /**
+ * @deprecated Phase 4 — free placement removed from active Mapping Review flow.
+ * Kept for reference; do not wire into MappingStep.
+ */
+/**
  * Variable assignment after a free-placement click on the document canvas.
  */
 export function PlacementVariablePanel({

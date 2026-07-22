@@ -8,12 +8,17 @@ import {
 } from 'react'
 import type { DocumentComponentKind } from '@/types/documents'
 import { documentStorage } from '@/lib/api/documents/storage'
-import { activeDocumentAnalyzer } from '../analysis'
-import { activeDocumentStructureExtractor } from '../extraction'
 import {
-  suggestDocumentFields,
-  suggestionsToDetectedFields,
-} from '../suggestions'
+  activeAiDocumentAnalyzer,
+  aiAnalysisToDetectedFields,
+  getDocumentAiErrorMessage,
+} from '@/features/documents/ai'
+import {
+  generateQuestionnaireDraft,
+  type DraftQuestion,
+} from '@/features/documents/questionnaire'
+import { packageService } from '@/lib/api/packageService'
+import { activeDocumentStructureExtractor } from '../extraction'
 import {
   createInitialWizardState,
   isStepAvailable,
@@ -25,6 +30,7 @@ import type {
   PendingFieldPlacement,
   SelectedDocumentBlock,
 } from '../types'
+import { DEFAULT_COMPONENT_ORDER } from '../composition/defaultComponentBlocks'
 
 interface MappingWizardContextValue {
   state: MappingWizardState
@@ -43,10 +49,12 @@ interface MappingWizardContextValue {
   mapField: (fieldId: string, mappedKey: string | null) => void
   ignoreField: (fieldId: string) => void
   acceptSuggestion: (fieldId: string) => void
+  selectField: (fieldId: string | null) => void
   selectDocumentBlock: (block: SelectedDocumentBlock) => void
   clearDocumentSelection: () => void
   createMapping: (variableKey: string) => void
   removeMapping: (mappingId: string) => void
+  markClean: () => void
   startFieldPlacement: () => void
   stopFieldPlacement: () => void
   placeFieldPending: (pending: PendingFieldPlacement) => void
@@ -61,6 +69,14 @@ interface MappingWizardContextValue {
   ) => void
   toggleClauseId: (clauseId: string, enabled: boolean) => void
   toggleSuggestedClause: (key: string, enabled: boolean) => void
+  updateDraftQuestion: (
+    questionId: string,
+    patch: Partial<DraftQuestion>,
+  ) => void
+  toggleDraftQuestion: (questionId: string, enabled: boolean) => void
+  setQuestionnaireName: (name: string) => void
+  regenerateQuestionnaire: () => Promise<void>
+  markQuestionnaireSaved: (formId: string) => void
   canGoNext: boolean
   canGoBack: boolean
 }
@@ -72,9 +88,8 @@ const MappingWizardContext = createContext<MappingWizardContextValue | null>(
 const UNLOCKED_ORDER: MappingWizardStepId[] = [
   'upload',
   'analysis',
-  'mapping',
-  'components',
-  'clauses',
+  'questionnaire',
+  'save',
 ]
 
 export function MappingWizardProvider({
@@ -82,12 +97,14 @@ export function MappingWizardProvider({
   templateVersionId,
   sourceFileName,
   sourceDocxPath,
+  templateName,
   children,
 }: {
   templateId: string
   templateVersionId: string | null
   sourceFileName: string | null
   sourceDocxPath: string | null
+  templateName?: string | null
   children: ReactNode
 }) {
   const [state, dispatch] = useReducer(
@@ -135,45 +152,63 @@ export function MappingWizardProvider({
         bytes = await documentStorage.download(path)
       }
 
-      const structure = await activeDocumentStructureExtractor.extract(bytes)
-      const result = await activeDocumentAnalyzer.analyze({
-        sourceText: structure.plainText,
-        templateId: state.draft.templateId,
-        templateVersionId: state.draft.templateVersionId,
-        sourceFileName: state.draft.sourceFileName,
+      const structure =
+        await activeDocumentStructureExtractor.extractForFile(
+          bytes,
+          state.draft.sourceFileName,
+        )
+      const aiAnalysis = await activeAiDocumentAnalyzer.analyze({
+        text: structure.plainText,
+        structure,
       })
 
-      const placeholders = result.fields
-      const occupied = placeholders
-        .filter((f) => f.offsets)
-        .map((f) => f.offsets!)
-      const heuristic = suggestionsToDetectedFields(
-        suggestDocumentFields({
-          plainText: structure.plainText,
-          structure,
-          occupiedRanges: occupied,
-        }),
-      )
+      const fields = aiAnalysisToDetectedFields(aiAnalysis, structure)
+      const suggestedClauses = aiAnalysis.clauses.map((c) => ({
+        key: c.type,
+        title: c.title ?? c.type,
+        body: '',
+      }))
 
       dispatch({
         type: 'analysis_success',
+        templateName: templateName ?? state.draft.sourceFileName,
         result: {
-          ...result,
+          analyzerVersion: aiAnalysis.analyzerVersion,
           sourceText: structure.plainText,
           structure,
-          fields: [...placeholders, ...heuristic],
+          fields,
+          suggestedComponents: [...DEFAULT_COMPONENT_ORDER],
+          suggestedClauses,
+          analyzedAt: aiAnalysis.analyzedAt,
+          aiAnalysis,
         },
       })
+
+      // Enrich draft with live studio packages (package Select, never free-text).
+      try {
+        const packages = await packageService.list({ activeOnly: true })
+        const packageOptions = packages.map((p) => ({
+          value: p.id,
+          label: p.name,
+        }))
+        const questionnaireDraft = generateQuestionnaireDraft({
+          fields,
+          ai: aiAnalysis,
+          sourceText: structure.plainText,
+          templateName: templateName ?? state.draft.sourceFileName,
+          packageOptions,
+        })
+        dispatch({ type: 'set_questionnaire_draft', draft: questionnaireDraft })
+      } catch {
+        // Keep draft from analysis_success without package options.
+      }
     } catch (err) {
       dispatch({
         type: 'analysis_error',
-        message:
-          err instanceof Error
-            ? err.message
-            : 'Nie udało się przeanalizować dokumentu.',
+        message: getDocumentAiErrorMessage(err),
       })
     }
-  }, [state.draft, state.sourceBytes])
+  }, [state.draft, state.sourceBytes, templateName])
 
   const notifyUploadStart = useCallback(() => {
     dispatch({ type: 'upload_start' })
@@ -208,6 +243,10 @@ export function MappingWizardProvider({
 
   const acceptSuggestion = useCallback((fieldId: string) => {
     dispatch({ type: 'accept_suggestion', fieldId })
+  }, [])
+
+  const selectField = useCallback((fieldId: string | null) => {
+    dispatch({ type: 'select_field', fieldId })
   }, [])
 
   const selectDocumentBlock = useCallback((block: SelectedDocumentBlock) => {
@@ -282,6 +321,49 @@ export function MappingWizardProvider({
     [],
   )
 
+  const updateDraftQuestion = useCallback(
+    (questionId: string, patch: Partial<DraftQuestion>) => {
+      dispatch({ type: 'update_draft_question', questionId, patch })
+    },
+    [],
+  )
+
+  const toggleDraftQuestion = useCallback(
+    (questionId: string, enabled: boolean) => {
+      dispatch({ type: 'toggle_draft_question', questionId, enabled })
+    },
+    [],
+  )
+
+  const setQuestionnaireName = useCallback((name: string) => {
+    dispatch({ type: 'set_questionnaire_name', name })
+  }, [])
+
+  const regenerateQuestionnaire = useCallback(async () => {
+    let packageOptions: { value: string; label: string }[] = []
+    try {
+      const packages = await packageService.list({ activeOnly: true })
+      packageOptions = packages.map((p) => ({
+        value: p.id,
+        label: p.name,
+      }))
+    } catch {
+      packageOptions = []
+    }
+    const next = generateQuestionnaireDraft({
+      fields: state.draft.fields,
+      ai: state.draft.analysis?.aiAnalysis,
+      sourceText: state.draft.analysis?.sourceText,
+      templateName: templateName ?? state.draft.sourceFileName,
+      packageOptions,
+    })
+    dispatch({ type: 'set_questionnaire_draft', draft: next })
+  }, [state.draft, templateName])
+
+  const markQuestionnaireSaved = useCallback((formId: string) => {
+    dispatch({ type: 'questionnaire_saved', formId })
+  }, [])
+
   const canGoBack = UNLOCKED_ORDER.indexOf(state.step) > 0
   const canGoNext =
     state.step === 'upload'
@@ -289,11 +371,13 @@ export function MappingWizardProvider({
         state.uploadStatus !== 'uploading'
       : state.step === 'analysis'
         ? state.analysisStatus === 'success'
-        : state.step === 'mapping' ||
-            state.step === 'components' ||
-            state.step === 'clauses'
-          ? true
+        : state.step === 'questionnaire'
+          ? Boolean(state.draft.questionnaireDraft)
           : false
+
+  const markClean = useCallback(() => {
+    dispatch({ type: 'mark_clean' })
+  }, [])
 
   const value = useMemo(
     () => ({
@@ -308,10 +392,12 @@ export function MappingWizardProvider({
       mapField,
       ignoreField,
       acceptSuggestion,
+      selectField,
       selectDocumentBlock,
       clearDocumentSelection,
       createMapping,
       removeMapping,
+      markClean,
       startFieldPlacement,
       stopFieldPlacement,
       placeFieldPending,
@@ -323,6 +409,11 @@ export function MappingWizardProvider({
       moveComponent,
       toggleClauseId,
       toggleSuggestedClause,
+      updateDraftQuestion,
+      toggleDraftQuestion,
+      setQuestionnaireName,
+      regenerateQuestionnaire,
+      markQuestionnaireSaved,
       canGoNext,
       canGoBack,
     }),
@@ -338,10 +429,12 @@ export function MappingWizardProvider({
       mapField,
       ignoreField,
       acceptSuggestion,
+      selectField,
       selectDocumentBlock,
       clearDocumentSelection,
       createMapping,
       removeMapping,
+      markClean,
       startFieldPlacement,
       stopFieldPlacement,
       placeFieldPending,
@@ -353,6 +446,11 @@ export function MappingWizardProvider({
       moveComponent,
       toggleClauseId,
       toggleSuggestedClause,
+      updateDraftQuestion,
+      toggleDraftQuestion,
+      setQuestionnaireName,
+      regenerateQuestionnaire,
+      markQuestionnaireSaved,
       canGoNext,
       canGoBack,
     ],
@@ -365,10 +463,12 @@ export function MappingWizardProvider({
   )
 }
 
-export function useMappingWizard() {
+export function useMappingWizard(): MappingWizardContextValue {
   const ctx = useContext(MappingWizardContext)
   if (!ctx) {
-    throw new Error('useMappingWizard must be used within MappingWizardProvider')
+    throw new Error(
+      'useMappingWizard must be used within MappingWizardProvider',
+    )
   }
   return ctx
 }

@@ -49,11 +49,11 @@ export function UploadStep({
     <section className={styles.stepPanel} aria-labelledby="upload-step-title">
       <div className={styles.stepIntro}>
         <h2 id="upload-step-title" className={styles.stepTitle}>
-          Dokument źródłowy
+          Prześlij kontrakt
         </h2>
         <p className={styles.stepBody}>
-          To jest Twój kontrakt. OurWed użyje go jako podstawy konfiguracji —
-          bez zmiany treści prawnej, dopóki nie zapiszesz mapowania.
+          Wrzuć swoją umowę — AI zrozumie, jakich informacji potrzebuje
+          szablon. Obsługujemy DOCX, DOC i PDF.
         </p>
       </div>
 
@@ -64,20 +64,20 @@ export function UploadStep({
         <div className={styles.docCardBody}>
           {hasFile ? (
             <>
-              <p className={styles.docCardLabel}>Aktualny plik</p>
+              <p className={styles.docCardLabel}>Twój dokument</p>
               <p className={styles.docCardName}>
-                {draft.sourceFileName ?? 'Dokument DOCX'}
+                {draft.sourceFileName ?? 'Dokument'}
               </p>
               <p className={styles.docCardMeta}>
-                Format DOCX · wersja szablonu gotowa do analizy
+                Gotowy do analizy AI
               </p>
             </>
           ) : (
             <>
               <p className={styles.docCardLabel}>Brak pliku</p>
-              <p className={styles.docCardName}>Prześlij kontrakt DOCX</p>
+              <p className={styles.docCardName}>DOCX, DOC lub PDF</p>
               <p className={styles.docCardMeta}>
-                Plik stanie się źródłem tej konfiguracji.
+                To Twój kontrakt — treść pozostaje bez zmian.
               </p>
             </>
           )}
@@ -114,18 +114,12 @@ export function UploadStep({
               ? 'Zastąp dokument'
               : 'Prześlij dokument'}
         </Button>
-        {hasFile && (
-          <p className={styles.helperText}>
-            Nowa wersja zastąpi analizę — uruchomisz ją ponownie w następnym
-            kroku.
-          </p>
-        )}
       </div>
 
       <input
         ref={fileRef}
         type="file"
-        accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        accept=".docx,.doc,.pdf,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         hidden
         onChange={(e) => {
           const file = e.target.files?.[0]

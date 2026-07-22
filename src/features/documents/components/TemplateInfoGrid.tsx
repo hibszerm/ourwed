@@ -37,7 +37,7 @@ function readinessState(
   if (template.sourceFileName || template.currentVersionNumber) {
     return {
       label: 'Oczekuje na konfigurację',
-      helper: 'Następny krok: mapowanie pól',
+      helper: 'Następny krok: analiza AI',
       tone: 'waiting',
     }
   }

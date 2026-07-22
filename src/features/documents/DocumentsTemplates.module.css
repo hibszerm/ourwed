@@ -9,6 +9,44 @@
   gap: var(--space-8, 2rem);
 }
 
+.simpleIntro {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  border-radius: var(--radius-lg);
+  border: 1px solid color-mix(in srgb, var(--color-border) 70%, transparent);
+  background:
+    linear-gradient(
+      165deg,
+      color-mix(in srgb, var(--color-surface) 92%, #c4b5a0 8%),
+      var(--color-surface)
+    );
+}
+
+.simpleIntroTitle {
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  color: var(--color-text-primary);
+}
+
+.simpleIntroBody {
+  margin: 0;
+  max-width: 36rem;
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  color: var(--color-text-secondary);
+}
+
+.simpleIntroFormats {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--color-text-tertiary);
+}
+
 .toolbar {
   display: flex;
   flex-wrap: wrap;

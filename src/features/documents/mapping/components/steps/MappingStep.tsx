@@ -1,28 +1,18 @@
 import { useMemo } from 'react'
-import { Crosshair, Plus } from 'lucide-react'
-import { Button } from '@/components/ui/Button'
-import { getVariableDef } from '@/features/documents/registry/variableRegistry'
+import { CheckCircle2 } from 'lucide-react'
 import { buildPreviewOverlays } from '../../mapping/previewOverlays'
 import { DocumentPreviewPane } from '../../preview/DocumentPreviewPane'
-import { PlacementVariablePanel } from '../PlacementVariablePanel'
 import { FieldMappingRow } from '../FieldMappingRow'
 import { useMappingWizard } from '../../state/useMappingWizard'
 import styles from '../../MappingWizard.module.css'
 
+/**
+ * Mapping Review — user reviews AI proposals (Accept / Change / Ignore).
+ * Free placement and heuristic suggestion UI are no longer in the active flow.
+ */
 export function MappingStep() {
-  const {
-    state,
-    mapField,
-    ignoreField,
-    acceptSuggestion,
-    startFieldPlacement,
-    stopFieldPlacement,
-    placeFieldPending,
-    cancelPendingPlacement,
-    placeField,
-    removeFieldPlacement,
-  } = useMappingWizard()
-  const { draft, placementMode, pendingPlacement } = state
+  const { state, mapField, ignoreField, acceptSuggestion } = useMappingWizard()
+  const { draft } = state
   const analysis = draft.analysis
 
   const overlays = useMemo(
@@ -44,73 +34,55 @@ export function MappingStep() {
     )
   }
 
-  const visibleFields = draft.fields.filter((f) => f.status !== 'ignored')
-  const placeholders = visibleFields.filter(
-    (f) => f.origin !== 'heuristic' && f.origin !== 'manual',
-  )
-  const suggestions = visibleFields.filter((f) => f.origin === 'heuristic')
-  const pendingSuggestions = suggestions.filter(
+  const aiFields = analysis.aiAnalysis?.fields
+  const total = draft.fields.length
+  const confirmed = draft.fields.filter((f) => f.status === 'connected').length
+  const rejected = draft.fields.filter((f) => f.status === 'ignored').length
+  const pending = draft.fields.filter(
+    (f) => f.status === 'needs_configuration',
+  ).length
+  const documentType = analysis.aiAnalysis?.documentType
+
+  const pendingFields = draft.fields.filter(
     (f) => f.status === 'needs_configuration',
   )
-  const placedCount = draft.manualPlacements.length
-  const connected =
-    draft.fields.filter((f) => f.status === 'connected').length + placedCount
+  const confirmedFields = draft.fields.filter((f) => f.status === 'connected')
+  const ignoredFields = draft.fields.filter((f) => f.status === 'ignored')
 
   return (
     <section className={styles.stepPanel} aria-labelledby="mapping-step-title">
       <div className={styles.stepIntro}>
-        <div className={styles.mappingIntroRow}>
-          <div>
-            <h2 id="mapping-step-title" className={styles.stepTitle}>
-              Pola dynamiczne
-            </h2>
-            <p className={styles.stepBody}>
-              Kliknij w dokumencie tam, gdzie mają pojawić się dane OurWed —
-              nawet na pustym miejscu. Dokument nie jest edytowany; pola to
-              warstwa konfiguracji.
-            </p>
-          </div>
-          {!placementMode ? (
-            <Button
-              type="button"
-              variant="primary"
-              onClick={startFieldPlacement}
-            >
-              <Plus size={15} style={{ marginRight: 6 }} aria-hidden />
-              Dodaj pole dynamiczne
-            </Button>
-          ) : (
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={stopFieldPlacement}
-            >
-              <Crosshair size={15} style={{ marginRight: 6 }} aria-hidden />
-              Zakończ dodawanie
-            </Button>
-          )}
-        </div>
+        <h2 id="mapping-step-title" className={styles.stepTitle}>
+          Przegląd mapowania
+        </h2>
+        <p className={styles.stepBody}>
+          OurWed zaproponował pola dynamiczne na podstawie Twojego kontraktu.
+          Zaakceptuj propozycje, zmień źródło albo pomiń — bez ręcznego
+          mapowania wszystkiego od zera.
+        </p>
       </div>
 
       <div className={styles.analysisSummary}>
         <span className={styles.statusPillSuccess}>
-          {connected} połączonych
+          <CheckCircle2 size={14} aria-hidden />
+          Analiza ukończona
         </span>
-        {placedCount > 0 && (
-          <span className={styles.statusPillNeutral}>
-            {placedCount} umieszczonych
-          </span>
-        )}
-        {pendingSuggestions.length > 0 && (
-          <span className={styles.statusPillWarning}>
-            {pendingSuggestions.length} propozycji
-          </span>
-        )}
-        {placementMode && (
-          <span className={styles.placementModeBadge}>
-            Kliknij w dokumencie, aby umieścić pole
-          </span>
-        )}
+        <p className={styles.analysisSummaryText}>
+          Znaleziono <strong>{total}</strong> elementów dynamicznych
+          {documentType ? (
+            <>
+              {' '}
+              · typ: <strong>{documentType}</strong>
+            </>
+          ) : null}
+          {aiFields ? (
+            <>
+              {' '}
+              · {confirmed} zaakceptowanych · {pending} do przeglądu ·{' '}
+              {rejected} pominiętych
+            </>
+          ) : null}
+        </p>
       </div>
 
       <div className={styles.analysisSplit}>
@@ -118,117 +90,24 @@ export function MappingStep() {
           sourceText={analysis.sourceText}
           structure={analysis.structure}
           overlays={overlays}
-          placements={draft.manualPlacements}
           fileName={draft.sourceFileName}
-          placementMode={placementMode}
-          pendingPlacement={pendingPlacement}
-          onCanvasPlace={placeFieldPending}
-          onRemovePlacement={removeFieldPlacement}
-          hint={
-            placementMode
-              ? 'Kliknij dowolne miejsce — także pusty obszar — aby dodać pole'
-              : 'Włącz „Dodaj pole dynamiczne”, aby umieszczać dane w kontrakcie'
-          }
+          hint="Podgląd Twojego DOCX — propozycje AI po prawej"
         />
 
         <aside className={styles.detectedListPane}>
           <header className={styles.paneHeader}>
-            <h3 className={styles.paneTitle}>
-              {pendingPlacement
-                ? 'Wybierz dane'
-                : placementMode
-                  ? 'Umieszczanie'
-                  : 'Konfiguracja'}
-            </h3>
+            <h3 className={styles.paneTitle}>Propozycje AI</h3>
+            <p className={styles.paneMeta}>
+              Element kontraktu → pole OurWed · pewność
+            </p>
           </header>
 
           <div className={styles.mappingGroups}>
-            {pendingPlacement ? (
-              <PlacementVariablePanel
-                onAssign={placeField}
-                onCancel={cancelPendingPlacement}
-              />
-            ) : placementMode ? (
-              <div className={styles.guidedIdle}>
-                <p className={styles.guidedIdleTitle}>Tryb aktywny</p>
-                <p className={styles.guidedIdleBody}>
-                  Kliknij w podglądzie dokumentu. Po kliknięciu wybierzesz, jakie
-                  dane mają się tam pojawiać.
-                </p>
-              </div>
-            ) : (
-              <div className={styles.guidedIdle}>
-                <p className={styles.guidedIdleTitle}>Pusty szablon?</p>
-                <p className={styles.guidedIdleBody}>
-                  Nie potrzebujesz znaczników ani kropek. Użyj „Dodaj pole
-                  dynamiczne” i wskaż miejsca w umowie.
-                </p>
-              </div>
-            )}
-
-            {placedCount > 0 && (
+            {pendingFields.length > 0 && (
               <section>
-                <h4 className={styles.mappingGroupTitle}>
-                  Umieszczone pola
-                </h4>
+                <h4 className={styles.mappingGroupTitle}>Do przeglądu</h4>
                 <ul className={styles.detectedList}>
-                  {draft.manualPlacements.map((p) => {
-                    const def = getVariableDef(p.variableKey)
-                    return (
-                      <li key={p.id} className={styles.mappingRowWrap}>
-                        <div className={styles.mappingRow}>
-                          <div className={styles.mappingRowHead}>
-                            <div>
-                              <p className={styles.detectedLabel}>
-                                {def?.labelPl ?? p.variableKey}
-                              </p>
-                              <p className={styles.mappingToken}>
-                                {p.variableKey} · {Math.round(p.position.x)}%,{' '}
-                                {Math.round(p.position.y)}%
-                              </p>
-                            </div>
-                            <button
-                              type="button"
-                              className={styles.ignoreLink}
-                              onClick={() => removeFieldPlacement(p.id)}
-                            >
-                              Usuń
-                            </button>
-                          </div>
-                        </div>
-                      </li>
-                    )
-                  })}
-                </ul>
-              </section>
-            )}
-
-            {placeholders.length > 0 && (
-              <section>
-                <h4 className={styles.mappingGroupTitle}>
-                  Znaczniki w dokumencie
-                </h4>
-                <ul className={styles.detectedList}>
-                  {placeholders.map((field) => (
-                    <li key={field.id} className={styles.mappingRowWrap}>
-                      <FieldMappingRow
-                        field={field}
-                        onMap={(key) => mapField(field.id, key)}
-                        onIgnore={() => ignoreField(field.id)}
-                      />
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            )}
-
-            {suggestions.length > 0 && (
-              <section>
-                <h4 className={styles.mappingGroupTitle}>
-                  Propozycje z treści
-                </h4>
-                <ul className={styles.detectedList}>
-                  {suggestions.map((field) => (
+                  {pendingFields.map((field) => (
                     <li key={field.id} className={styles.mappingRowWrap}>
                       <FieldMappingRow
                         field={field}
@@ -240,6 +119,47 @@ export function MappingStep() {
                   ))}
                 </ul>
               </section>
+            )}
+
+            {confirmedFields.length > 0 && (
+              <section>
+                <h4 className={styles.mappingGroupTitle}>Zaakceptowane</h4>
+                <ul className={styles.detectedList}>
+                  {confirmedFields.map((field) => (
+                    <li key={field.id} className={styles.mappingRowWrap}>
+                      <FieldMappingRow
+                        field={field}
+                        onMap={(key) => mapField(field.id, key)}
+                        onIgnore={() => ignoreField(field.id)}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            {ignoredFields.length > 0 && (
+              <section>
+                <h4 className={styles.mappingGroupTitle}>Pominięte</h4>
+                <ul className={styles.detectedList}>
+                  {ignoredFields.map((field) => (
+                    <li key={field.id} className={styles.mappingRowWrap}>
+                      <FieldMappingRow
+                        field={field}
+                        onMap={(key) => mapField(field.id, key)}
+                        onIgnore={() => ignoreField(field.id)}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            {total === 0 && (
+              <p className={styles.emptyFieldsHint}>
+                Analizator nie zaproponował pól. Możesz wrócić i uruchomić
+                analizę ponownie.
+              </p>
             )}
           </div>
         </aside>

@@ -10,7 +10,7 @@ export function MappingWizardStepper({
   onSelect: (step: MappingWizardStepId) => void
 }) {
   return (
-    <nav className={styles.stepper} aria-label="Kroki konfiguracji szablonu">
+    <nav className={styles.stepper} aria-label="Import kontraktu">
       <ol className={styles.stepperList}>
         {MAPPING_WIZARD_STEPS.map((step, index) => {
           const available = isStepAvailable(step.id)

@@ -24,8 +24,12 @@ import type {
 
 function assertDocx(file: File) {
   const name = file.name.toLowerCase()
-  if (!name.endsWith('.docx')) {
-    throw new Error('Dodaj plik w formacie DOCX.')
+  if (
+    !name.endsWith('.docx') &&
+    !name.endsWith('.doc') &&
+    !name.endsWith('.pdf')
+  ) {
+    throw new Error('Dodaj plik w formacie DOCX, DOC lub PDF.')
   }
 }
 
@@ -369,7 +373,7 @@ export const documentTemplateService: DocumentTemplateService = {
 
     try {
       const path = documentStorage.paths.templateSource(userId, created.id, 1)
-      await documentStorage.upload(path, input.file)
+      await documentStorage.upload(path, input.file, input.file.type || undefined)
       await createVersion({
         templateId: created.id,
         sourceDocxPath: path,
@@ -396,7 +400,7 @@ export const documentTemplateService: DocumentTemplateService = {
     const existing = await listVersions(templateId)
     const next = (existing[0]?.versionNumber ?? 0) + 1
     const path = documentStorage.paths.templateSource(userId, templateId, next)
-    await documentStorage.upload(path, file)
+    await documentStorage.upload(path, file, file.type || undefined)
 
     return createVersion({
       templateId,

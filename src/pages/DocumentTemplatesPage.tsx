@@ -95,13 +95,13 @@ export function DocumentTemplatesPage() {
     })
     showToast('Szablon został przesłany.', 'success')
     setUploadOpen(false)
-    navigate(`/ustawienia/dokumenty/szablony/${created.id}`)
+    navigate(`/ustawienia/dokumenty/szablony/${created.id}/konfiguracja`)
   }
 
   return (
     <AppLayout
       title="Szablony dokumentów"
-      subtitle="Biblioteka umów i dokumentów prawnych"
+      subtitle="Prześlij kontrakt — AI przygotuje ankietę"
       action={
         <Button
           type="button"
@@ -109,7 +109,7 @@ export function DocumentTemplatesPage() {
           onClick={() => setUploadOpen(true)}
         >
           <Upload size={16} style={{ marginRight: 6 }} aria-hidden />
-          Dodaj szablon
+          Prześlij kontrakt
         </Button>
       }
     >
@@ -123,6 +123,28 @@ export function DocumentTemplatesPage() {
             <span>Szablony</span>
           </nav>
 
+          <section className={styles.simpleIntro} aria-labelledby="templates-intro">
+            <h2 id="templates-intro" className={styles.simpleIntroTitle}>
+              Szablony dokumentów
+            </h2>
+            <p className={styles.simpleIntroBody}>
+              Prześlij własne szablony umów. OurWed przeanalizuje je za pomocą
+              AI, wykryje informacje dynamiczne i automatycznie utworzy ankietę,
+              którą później wyślesz do par.
+            </p>
+            <p className={styles.simpleIntroFormats}>
+              Obsługiwane formaty: <strong>DOCX</strong>, <strong>PDF</strong>
+            </p>
+            <Button
+              type="button"
+              variant="primary"
+              onClick={() => setUploadOpen(true)}
+            >
+              <Upload size={16} style={{ marginRight: 6 }} aria-hidden />
+              Prześlij kontrakt
+            </Button>
+          </section>
+
           {isLoading ? (
             <p className={styles.fileHint}>Ładowanie biblioteki…</p>
           ) : isError ? (
@@ -133,15 +155,15 @@ export function DocumentTemplatesPage() {
           ) : templates.length === 0 ? (
             <EmptyState
               icon={<FileText size={36} strokeWidth={1.5} />}
-              title="Brak szablonów dokumentów"
-              description="Dodaj pierwszą umowę DOCX, aby zbudować bibliotekę dokumentów studia."
+              title="Brak szablonów"
+              description="Prześlij pierwszą umowę — AI zajmie się resztą."
               action={
                 <Button
                   type="button"
                   variant="primary"
                   onClick={() => setUploadOpen(true)}
                 >
-                  Dodaj szablon
+                  Prześlij kontrakt
                 </Button>
               }
             />

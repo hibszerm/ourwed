@@ -28,7 +28,7 @@ export function VariablePicker({
           <optgroup key={section.id} label={section.label}>
             {vars.map((v) => (
               <option key={v.key} value={v.key}>
-                {v.labelPl} ({v.key})
+                {v.labelPl} — {v.key}
               </option>
             ))}
           </optgroup>

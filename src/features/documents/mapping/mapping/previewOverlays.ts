@@ -26,8 +26,12 @@ function overlaps(
 }
 
 function labelForKey(key: string | null, fallback: string): string {
-  if (!key) return fallback
-  return getVariableDef(key)?.labelPl ?? key
+  if (key) {
+    const fromRegistry = getVariableDef(key)?.labelPl
+    if (fromRegistry) return fromRegistry
+  }
+  if (fallback?.trim() && !fallback.includes('.')) return fallback.trim()
+  return 'Informacja'
 }
 
 /**
@@ -50,7 +54,7 @@ export function buildPreviewOverlays(input: {
     overlays.push(overlay)
   }
 
-  // 1. Placeholders (explicit tokens)
+  // 1. AI / placeholder fields with offsets
   for (const field of input.fields) {
     if (field.origin === 'heuristic' || field.origin === 'manual') continue
     if (field.status === 'ignored' || !field.offsets) continue
@@ -63,7 +67,7 @@ export function buildPreviewOverlays(input: {
       label: labelForKey(key, field.label),
       variableKey: key,
       mode: connected ? 'chip' : 'soft',
-      kind: 'placeholder',
+      kind: field.origin === 'ai' ? 'suggestion' : 'placeholder',
       active: input.activeFieldId === field.id,
     })
   }

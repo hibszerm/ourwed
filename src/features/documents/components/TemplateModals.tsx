@@ -54,7 +54,7 @@ export function UploadTemplateModal({
       return
     }
     if (!file) {
-      setLocalError('Wybierz plik DOCX.')
+      setLocalError('Wybierz plik DOCX lub PDF.')
       return
     }
     await onSubmit({
@@ -70,8 +70,8 @@ export function UploadTemplateModal({
   return (
     <Modal
       open={open}
-      title="Nowy szablon"
-      description="Dodaj dokument DOCX do biblioteki. Mapowanie i generowanie umów pojawią się w kolejnym kroku."
+      title="Prześlij kontrakt"
+      description="OurWed przeanalizuje dokument AI i przygotuje typ ankiety. Obsługujemy DOCX i PDF."
       onClose={() => {
         if (busy) return
         reset()
@@ -86,7 +86,7 @@ export function UploadTemplateModal({
           disabled={busy}
           onClick={() => void handleSubmit()}
         >
-          {busy ? 'Przesyłanie…' : 'Prześlij szablon'}
+          {busy ? 'Przesyłanie…' : 'Prześlij kontrakt'}
         </Button>
       }
     >
@@ -127,11 +127,11 @@ export function UploadTemplateModal({
         </select>
       </label>
       <label className={styles.field}>
-        Plik DOCX
+        Plik DOCX lub PDF
         <input
           ref={fileRef}
           type="file"
-          accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+          accept=".docx,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
           disabled={busy}
           onChange={(e) => setFile(e.target.files?.[0] ?? null)}
         />

@@ -5,7 +5,7 @@ import {
 import { useMappingWizard } from '../../state/useMappingWizard'
 import styles from '../../MappingWizard.module.css'
 
-export function ComponentsStep() {
+export function ComponentsStep({ embedded = false }: { embedded?: boolean }) {
   const { state, toggleComponent, moveComponent } = useMappingWizard()
   const { draft } = state
 
@@ -13,18 +13,20 @@ export function ComponentsStep() {
 
   return (
     <section
-      className={styles.stepPanel}
+      className={embedded ? styles.embeddedPanel : styles.stepPanel}
       aria-labelledby="components-step-title"
     >
-      <div className={styles.stepIntro}>
-        <h2 id="components-step-title" className={styles.stepTitle}>
-          Sekcje umowy
-        </h2>
-        <p className={styles.stepBody}>
-          Wybierz części kontraktu, które mają być inteligentne — uzupełniane
-          danymi ślubu i pakietu. Kolejność odzwierciedla układ dokumentu.
-        </p>
-      </div>
+      {!embedded && (
+        <div className={styles.stepIntro}>
+          <h2 id="components-step-title" className={styles.stepTitle}>
+            Sekcje umowy
+          </h2>
+          <p className={styles.stepBody}>
+            Wybierz części kontraktu, które mają być inteligentne — uzupełniane
+            danymi ślubu i pakietu. Kolejność odzwierciedla układ dokumentu.
+          </p>
+        </div>
+      )}
 
       <p className={styles.compositionMeta}>
         Aktywne sekcje: <strong>{enabledCount}</strong>
@@ -36,7 +38,7 @@ export function ComponentsStep() {
           if (!meta) return null
           const enabled = draft.enabledComponentKinds.includes(kind)
           const blocks = draft.componentBlocks[kind] ?? []
-          const variableCount = blocks.reduce(
+          const infoCount = blocks.reduce(
             (n, b) => n + (b.payload.variableKeys?.length ?? 0),
             0,
           )
@@ -68,9 +70,9 @@ export function ComponentsStep() {
               <div className={styles.compositionAside}>
                 {enabled && (
                   <span className={styles.compositionBadge}>
-                    {blocks.length}{' '}
-                    {blocks.length === 1 ? 'blok' : 'bloki'}
-                    {variableCount > 0 ? ` · ${variableCount} pól` : ''}
+                    {infoCount > 0
+                      ? `${infoCount} ${infoCount === 1 ? 'informacja' : 'informacji'}`
+                      : 'W umowie'}
                   </span>
                 )}
                 <div className={styles.compositionOrderBtns}>
@@ -100,8 +102,8 @@ export function ComponentsStep() {
       </ol>
 
       <p className={styles.helperText}>
-        Włączenie sekcji przygotowuje bloki dokumentu z powiązanymi polami
-        rejestru. Zapis do szablonu nastąpi w ostatnim kroku.
+        Włączone sekcje wejdą do kontraktu i będą uzupełniane danymi ślubu.
+        Zapis nastąpi w ostatnim kroku.
       </p>
     </section>
   )

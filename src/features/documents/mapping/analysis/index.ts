@@ -1,8 +1,8 @@
-import type { DocumentAnalyzer } from './documentAnalyzer'
-import { mockDocumentAnalyzer } from './mockDocumentAnalyzer'
+/**
+ * @deprecated Phase 4 — placeholder regex analyzer replaced by AI layer.
+ * Active analysis: `@/features/documents/ai` (`activeAiDocumentAnalyzer`).
+ */
 
 export type { DocumentAnalyzer } from './documentAnalyzer'
 export { mockDocumentAnalyzer } from './mockDocumentAnalyzer'
-
-/** Active analyzer for Phase 2. Swap for a real DOCX/AI implementation later. */
-export const activeDocumentAnalyzer: DocumentAnalyzer = mockDocumentAnalyzer
+export { mockDocumentAnalyzer as activeDocumentAnalyzer } from './mockDocumentAnalyzer'

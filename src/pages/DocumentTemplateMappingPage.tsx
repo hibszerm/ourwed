@@ -8,8 +8,7 @@ import {
   useDocumentTemplate,
   useDocumentTemplateMutations,
 } from '@/features/documents/hooks/useDocumentTemplates'
-import { MappingWizardProvider } from '@/features/documents/mapping/state/MappingWizardProvider'
-import { MappingWizardLayout } from '@/features/documents/mapping/components/MappingWizardLayout'
+import { SimpleContractImportFlow } from '@/features/documents/import/SimpleContractImportFlow'
 import styles from '@/features/documents/DocumentsTemplates.module.css'
 
 export function DocumentTemplateMappingPage() {
@@ -21,7 +20,7 @@ export function DocumentTemplateMappingPage() {
 
   if (isLoading) {
     return (
-      <AppLayout title="Konfiguracja szablonu">
+      <AppLayout title="Szablony dokumentów">
         <PageContainer width="wide">
           <p className={styles.fileHint}>Ładowanie…</p>
         </PageContainer>
@@ -31,7 +30,7 @@ export function DocumentTemplateMappingPage() {
 
   if (isError || !template) {
     return (
-      <AppLayout title="Konfiguracja szablonu">
+      <AppLayout title="Szablony dokumentów">
         <PageContainer width="wide">
           <EmptyState
             title="Nie znaleziono szablonu"
@@ -52,34 +51,29 @@ export function DocumentTemplateMappingPage() {
   }
 
   return (
-    <AppLayout title="Konfiguracja szablonu">
+    <AppLayout title="Szablony dokumentów">
       <PageContainer width="wide">
-        <MappingWizardProvider
+        <SimpleContractImportFlow
           key={template.id}
           templateId={template.id}
-          templateVersionId={template.currentVersionId}
+          templateName={template.name}
           sourceFileName={template.sourceFileName}
           sourceDocxPath={template.sourceDocxPath}
-        >
-          <MappingWizardLayout
-            templateId={template.id}
-            templateName={template.name}
-            onUploadFile={async (file) => {
-              const sourceBytes = await file.arrayBuffer()
-              const version = await mutations.uploadVersion.mutateAsync({
-                id: template.id,
-                file,
-              })
-              showToast('Dokument zapisany jako nowa wersja.', 'success')
-              return {
-                templateVersionId: version.id,
-                sourceFileName: version.sourceFileName ?? file.name,
-                sourceDocxPath: version.sourceDocxPath,
-                sourceBytes,
-              }
-            }}
-          />
-        </MappingWizardProvider>
+          onUploadFile={async (file) => {
+            const sourceBytes = await file.arrayBuffer()
+            const version = await mutations.uploadVersion.mutateAsync({
+              id: template.id,
+              file,
+            })
+            showToast('Kontrakt zapisany.', 'success')
+            return {
+              templateVersionId: version.id,
+              sourceFileName: version.sourceFileName ?? file.name,
+              sourceDocxPath: version.sourceDocxPath,
+              sourceBytes,
+            }
+          }}
+        />
       </PageContainer>
     </AppLayout>
   )
