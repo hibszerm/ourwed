@@ -1,16 +1,16 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import styles from './ProductPreview.module.css'
 
 const TABS = [
   { id: 'dashboard', label: 'Dashboard' },
   { id: 'weddings', label: 'Śluby' },
-  { id: 'travel', label: 'Podróże' },
   { id: 'questionnaires', label: 'Ankiety' },
+  { id: 'travel', label: 'Podróże' },
   { id: 'finance', label: 'Finanse' },
   { id: 'calendar', label: 'Kalendarz' },
 ] as const
 
-type TabId = (typeof TABS)[number]['id']
+export type PreviewTabId = (typeof TABS)[number]['id']
 
 function PreviewDashboard() {
   return (
@@ -24,9 +24,9 @@ function PreviewDashboard() {
           <span className={styles.statMeta}>Kowalska & Nowak</span>
         </div>
         <div className={styles.statCard}>
-          <span className={styles.statLabel}>Przychód · sierpień</span>
-          <strong className={styles.statValue}>24,5k</strong>
-          <span className={styles.statMeta}>3 umowy</span>
+          <span className={styles.statLabel}>Dziś</span>
+          <strong className={styles.statValue}>3</strong>
+          <span className={styles.statMeta}>zadania do zrobienia</span>
         </div>
       </div>
       <div className={styles.listCard}>
@@ -64,24 +64,9 @@ function PreviewWeddings() {
       </div>
       <div className={styles.weddingGrid}>
         {[
-          {
-            names: 'Anna & Michał',
-            date: '15 sie 2026',
-            stage: 'Umowa',
-            progress: 35,
-          },
-          {
-            names: 'Kasia & Piotr',
-            date: '22 sie 2026',
-            stage: 'Zaliczka',
-            progress: 55,
-          },
-          {
-            names: 'Ola & Tomek',
-            date: '5 wrz 2026',
-            stage: 'Przygotowania',
-            progress: 72,
-          },
+          { names: 'Anna & Michał', date: '15 sie 2026', stage: 'Umowa', progress: 35 },
+          { names: 'Kasia & Piotr', date: '22 sie 2026', stage: 'Zaliczka', progress: 55 },
+          { names: 'Ola & Tomek', date: '5 wrz 2026', stage: 'Przygotowania', progress: 72 },
         ].map((w) => (
           <div key={w.names} className={styles.weddingCard}>
             <div className={styles.weddingCardTop}>
@@ -178,7 +163,7 @@ function PreviewFinance() {
     <div className={styles.screen}>
       <h3 className={styles.screenTitle}>Finanse</h3>
       <div className={styles.financeHero}>
-        <span>Pakiet Premium</span>
+        <span>Pakiet Premium · wartość umowy</span>
         <strong>9 500 zł</strong>
       </div>
       <div className={styles.financeRows}>
@@ -188,7 +173,7 @@ function PreviewFinance() {
         </div>
         <div>
           <span>Druga rata</span>
-          <strong>3 250 zł</strong>
+          <strong>3 250 zł · zaplanowana</strong>
         </div>
         <div>
           <span>Pozostało</span>
@@ -231,21 +216,21 @@ function PreviewCalendar() {
         })}
       </div>
       <div className={styles.listCard}>
-        <div className={styles.listHead}>Zadania w tym tygodniu</div>
+        <div className={styles.listHead}>Nadchodzące</div>
         <div className={styles.listRow}>
           <span>15 sie — Kowalska & Nowak</span>
           <em>Ślub</em>
         </div>
         <div className={styles.listRow}>
-          <span>18 sie — Selekcja zdjęć</span>
-          <em>Zadanie</em>
+          <span>22 sie — Zielińscy</span>
+          <em>Ślub</em>
         </div>
       </div>
     </div>
   )
 }
 
-function PreviewBody({ tab }: { tab: TabId }) {
+function PreviewBody({ tab }: { tab: PreviewTabId }) {
   switch (tab) {
     case 'dashboard':
       return <PreviewDashboard />
@@ -262,47 +247,53 @@ function PreviewBody({ tab }: { tab: TabId }) {
   }
 }
 
-interface ProductPreviewProps {
-  className?: string
-  /** Auto-rotate tabs in hero */
-  autoRotate?: boolean
-  /** Compact hero sizing */
-  compact?: boolean
+/** Static hero illustration — dashboard only, no tabs / autoplay. */
+export function HeroProductFrame({ className = '' }: { className?: string }) {
+  return (
+    <div className={`${styles.root} ${styles.heroFrame} ${className}`.trim()}>
+      <div className={styles.device}>
+        <div className={styles.chrome} aria-hidden>
+          <span />
+          <span />
+          <span />
+          <div className={styles.chromeUrl}>app.ourwed.pl/dashboard</div>
+        </div>
+        <div className={styles.deviceBody}>
+          <aside className={styles.sidebar} aria-hidden>
+            <div className={styles.sideBrand}>OW</div>
+            {TABS.map((tab, i) => (
+              <div
+                key={tab.id}
+                className={`${styles.sideItem} ${i === 0 ? styles.sideActive : ''}`}
+              />
+            ))}
+          </aside>
+          <div className={styles.previewPane}>
+            <PreviewDashboard />
+          </div>
+        </div>
+      </div>
+    </div>
+  )
 }
 
-export function ProductPreview({
-  className = '',
-  autoRotate = false,
-  compact = false,
-}: ProductPreviewProps) {
-  const [active, setActive] = useState<TabId>('dashboard')
+interface ProductPreviewProps {
+  className?: string
+}
+
+/** Interactive product tour — click tabs only, no auto-rotate. */
+export function ProductPreview({ className = '' }: ProductPreviewProps) {
+  const [active, setActive] = useState<PreviewTabId>('dashboard')
   const [fadeKey, setFadeKey] = useState(0)
 
-  useEffect(() => {
-    if (!autoRotate) return
-    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    if (reduced) return
-
-    const id = window.setInterval(() => {
-      setActive((prev) => {
-        const idx = TABS.findIndex((t) => t.id === prev)
-        return TABS[(idx + 1) % TABS.length]!.id
-      })
-      setFadeKey((k) => k + 1)
-    }, 4200)
-
-    return () => window.clearInterval(id)
-  }, [autoRotate])
-
-  function selectTab(id: TabId) {
+  function selectTab(id: PreviewTabId) {
+    if (id === active) return
     setActive(id)
     setFadeKey((k) => k + 1)
   }
 
   return (
-    <div
-      className={`${styles.root} ${compact ? styles.compact : ''} ${className}`.trim()}
-    >
+    <div className={`${styles.root} ${styles.tourRoot} ${className}`.trim()}>
       <div className={styles.tabs} role="tablist" aria-label="Podgląd aplikacji">
         {TABS.map((tab) => (
           <button
@@ -318,12 +309,14 @@ export function ProductPreview({
         ))}
       </div>
 
-      <div className={styles.stage}>
+      {/* Desktop: browser mockup */}
+      <div className={styles.deviceDesktop}>
         <div className={styles.device}>
           <div className={styles.chrome} aria-hidden>
             <span />
             <span />
             <span />
+            <div className={styles.chromeUrl}>app.ourwed.pl</div>
           </div>
           <div className={styles.deviceBody}>
             <aside className={styles.sidebar} aria-hidden>
@@ -340,10 +333,13 @@ export function ProductPreview({
             </div>
           </div>
         </div>
+      </div>
 
-        <div className={styles.phone} aria-hidden>
-          <div className={styles.phoneNotch} />
-          <div key={`p-${fadeKey}`} className={styles.phoneBody}>
+      {/* Mobile: phone-proportion card — never overlaps desktop */}
+      <div className={styles.deviceMobile} aria-hidden={false}>
+        <div className={styles.phoneCard}>
+          <div className={styles.phoneNotch} aria-hidden />
+          <div key={`m-${fadeKey}`} className={styles.phonePane} role="tabpanel">
             <PreviewBody tab={active} />
           </div>
         </div>

@@ -8,8 +8,11 @@ import {
 import { Link, Navigate } from 'react-router-dom'
 import { AuthLoadingScreen } from '@/features/auth/components/AuthLoadingScreen'
 import { useAuth } from '@/features/auth/AuthProvider'
-import { ProductPreview } from '@/features/landing/ProductPreview'
-import { WorkflowShowcase } from '@/features/landing/WorkflowShowcase'
+import {
+  HeroProductFrame,
+  ProductPreview,
+} from '@/features/landing/ProductPreview'
+import { WorkflowTimeline } from '@/features/landing/WorkflowTimeline'
 import { clearLogoutRedirectToLanding } from '@/lib/auth/logoutRedirect'
 import styles from './LandingPage.module.css'
 
@@ -17,69 +20,51 @@ const FEATURES = [
   {
     id: 'travel',
     title: 'Inteligentne planowanie tras',
-    body: 'Układaj przystanki dnia ślubu, licz dystanse i czasy dojazdu — bez skakania między mapami a notatkami.',
+    body: 'Przystanki dnia ślubu, dystanse i czasy dojazdu — bez skakania między mapą a notatkami.',
     benefit: 'Mniej stresu w dniu ślubu',
-    visual: 'travel',
+    visual: 'travel' as const,
   },
   {
     id: 'questionnaires',
-    title: 'Automatyczne ankiety dla par',
-    body: 'Wysyłaj umowy i szczegóły eventowe online. Para uzupełnia dane, Ty masz je od razu w karcie ślubu.',
+    title: 'Ankiety dla par',
+    body: 'Umowy i szczegóły eventowe online. Para uzupełnia dane, Ty masz je w karcie ślubu.',
     benefit: 'Zero ciągłego dopytywania',
-    visual: 'forms',
-  },
-  {
-    id: 'timeline',
-    title: 'Harmonogram dnia ślubu',
-    body: 'Ceremonia, przygotowania, dojazd i przyjęcie w jednym widoku — z kontekstem lokalizacji i zadań.',
-    benefit: 'Pełna kontrola nad przebiegiem',
-    visual: 'timeline',
+    visual: 'forms' as const,
   },
   {
     id: 'payments',
     title: 'Płatności i zaliczki',
-    body: 'Śledź wartość umowy, zaliczki i pozostałe kwoty przy każdym ślubie. Status finansów zawsze aktualny.',
+    body: 'Wartość umowy, zaliczki i pozostałe kwoty przy każdym ślubie — zawsze aktualne.',
     benefit: 'Przejrzyste rozliczenia',
-    visual: 'finance',
+    visual: 'finance' as const,
   },
   {
-    id: 'checklist',
-    title: 'Checklista sprzętu',
-    body: 'Pakiety, dodatki i checklisty powiązane ze ślubem — nic nie zostaje w chaotycznych notatkach.',
-    benefit: 'Gotowość przed wyjazdem',
-    visual: 'checklist',
+    id: 'schedule',
+    title: 'Harmonogram i kalendarz',
+    body: 'Śluby, zadania i terminy w jednym widoku — nic nie wypada z grafiku.',
+    benefit: 'Pełna kontrola nad sezonem',
+    visual: 'timeline' as const,
   },
-  {
-    id: 'workflow',
-    title: 'Workflow całego ślubu',
-    body: 'Od zapytania do gotowej galerii — każdy etap ma swoje miejsce, status i kolejne kroki.',
-    benefit: 'Żaden ślub nie ginie w procesie',
-    visual: 'workflow',
-  },
-] as const
+]
 
 const WHY = [
   {
     title: 'Mniej administracji',
-    body: 'Automatyzujesz zbieranie danych, przypomnienia i statusy — zamiast ręcznie ogarniać wszystko w mailach.',
+    body: 'Automatyzujesz zbieranie danych i statusy zamiast ogarniać wszystko w mailach.',
   },
   {
     title: 'Lepsza organizacja',
-    body: 'Kalendarz, podróże, ankiety i finanse żyją w jednej aplikacji, nie w pięciu zakładkach.',
-  },
-  {
-    title: 'Automatyczne przypomnienia',
-    body: 'Widzisz, co czeka: ankiety, płatności, zadania przed ślubem — zanim coś wypadnie z głowy.',
+    body: 'Kalendarz, podróże, ankiety i finanse w jednej aplikacji.',
   },
   {
     title: 'Jedno miejsce na wszystko',
-    body: 'Kontakt, umowa, lokalizacje i notatki są przy ślubie. Nie szukasz ich w czacie ani w dysku.',
+    body: 'Kontakt, umowa, lokalizacje i notatki są przy ślubie.',
   },
   {
     title: 'Nie zgubisz żadnego ślubu',
-    body: 'Pełny lifecycle współpracy — od pierwszego zapytania do oddania galerii — zawsze pod kontrolą.',
+    body: 'Od zapytania do oddania materiału — pełny lifecycle pod kontrolą.',
   },
-] as const
+]
 
 function useReveal<T extends HTMLElement>(): RefObject<T | null> {
   const ref = useRef<T | null>(null)
@@ -110,9 +95,9 @@ function useReveal<T extends HTMLElement>(): RefObject<T | null> {
   return ref
 }
 
-function Logo({ className = '' }: { className?: string }) {
+function Logo() {
   return (
-    <Link to="/" className={`${styles.logo} ${className}`.trim()}>
+    <Link to="/" className={styles.logo}>
       <span className={styles.logoMark} aria-hidden>
         OW
       </span>
@@ -182,26 +167,6 @@ function FeatureVisual({ kind }: { kind: (typeof FEATURES)[number]['visual'] }) 
     )
   }
 
-  if (kind === 'timeline') {
-    return (
-      <div className={styles.featureMock} aria-hidden>
-        <div className={styles.mockTimelineList}>
-          {[
-            ['09:30', 'Przygotowania'],
-            ['13:00', 'Ceremonia'],
-            ['15:30', 'Sesja plenerowa'],
-            ['17:00', 'Przyjęcie'],
-          ].map(([time, label]) => (
-            <div key={time} className={styles.mockTimelineRow}>
-              <span>{time}</span>
-              <strong>{label}</strong>
-            </div>
-          ))}
-        </div>
-      </div>
-    )
-  }
-
   if (kind === 'finance') {
     return (
       <div className={styles.featureMock} aria-hidden>
@@ -221,30 +186,18 @@ function FeatureVisual({ kind }: { kind: (typeof FEATURES)[number]['visual'] }) 
     )
   }
 
-  if (kind === 'checklist') {
-    return (
-      <div className={styles.featureMock} aria-hidden>
-        <div className={styles.mockCheckList}>
-          {['2× body', 'Obiektyw 35mm', 'Lampy zewnętrzne', 'Karty zapasowe'].map(
-            (item, i) => (
-              <label key={item} className={styles.mockCheckItem}>
-                <span data-done={i < 3 ? 'true' : 'false'} />
-                {item}
-              </label>
-            ),
-          )}
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className={styles.featureMock} aria-hidden>
-      <div className={styles.mockFlowMini}>
-        {['Zapytanie', 'Umowa', 'Ślub', 'Galeria'].map((step, i) => (
-          <div key={step} className={styles.mockFlowStep}>
-            <b>{i + 1}</b>
-            <span>{step}</span>
+      <div className={styles.mockTimelineList}>
+        {[
+          ['09:30', 'Przygotowania'],
+          ['13:00', 'Ceremonia'],
+          ['15:30', 'Sesja plenerowa'],
+          ['17:00', 'Przyjęcie'],
+        ].map(([time, label]) => (
+          <div key={time} className={styles.mockTimelineRow}>
+            <span>{time}</span>
+            <strong>{label}</strong>
           </div>
         ))}
       </div>
@@ -254,12 +207,12 @@ function FeatureVisual({ kind }: { kind: (typeof FEATURES)[number]['visual'] }) 
 
 export function LandingPage() {
   const { isAuthenticated, isLoading } = useAuth()
-  const previewIntroRef = useReveal<HTMLElement>()
+  const tourIntroRef = useReveal<HTMLElement>()
+  const featuresIntroRef = useReveal<HTMLElement>()
   const workflowIntroRef = useReveal<HTMLElement>()
   const workflowBodyRef = useReveal<HTMLDivElement>()
   const whyRef = useReveal<HTMLElement>()
   const ctaRef = useReveal<HTMLDivElement>()
-  const featuresTitleRef = useReveal<HTMLElement>()
 
   useEffect(() => {
     clearLogoutRedirectToLanding()
@@ -287,6 +240,9 @@ export function LandingPage() {
         <div className={styles.navInner}>
           <Logo />
           <nav className={styles.navLinks} aria-label="Nawigacja główna">
+            <a href="#tour" className={styles.navTextLink}>
+              Produkt
+            </a>
             <a href="#features" className={styles.navTextLink}>
               Funkcje
             </a>
@@ -311,73 +267,61 @@ export function LandingPage() {
         <section className={styles.hero}>
           <div className={styles.heroInner}>
             <div className={styles.heroCopy}>
-              <p className={`${styles.heroEyebrow} ${styles.heroAnimEyebrow}`}>
-                CRM dla fotografów ślubnych
-              </p>
-              <h1 className={`${styles.heroTitle} ${styles.heroAnimTitle}`}>
+              <p className={styles.heroEyebrow}>CRM dla fotografów ślubnych</p>
+              <h1 className={styles.heroTitle}>
                 Prowadź całą firmę ślubną
                 <br />
                 w jednym miejscu.
               </h1>
-              <p className={`${styles.heroSub} ${styles.heroAnimSub}`}>
+              <p className={styles.heroSub}>
                 OurWed łączy zapytania, umowy, ankiety, kalendarz, trasy i płatności —
-                od pierwszego kontaktu aż do gotowej galerii.
+                od pierwszego kontaktu aż do oddania materiału.
               </p>
-              <div className={`${styles.heroActions} ${styles.heroAnimActions}`}>
+              <div className={styles.heroActions}>
                 <Link to="/register" className={styles.primaryLink}>
                   Rozpocznij za darmo
                 </Link>
-                <a href="#preview" className={styles.secondaryLink}>
+                <a href="#tour" className={styles.secondaryLink}>
                   Zobacz produkt
                 </a>
               </div>
-              <ul className={`${styles.heroChecks} ${styles.heroAnimChecks}`}>
-                <li>
-                  <span aria-hidden>✓</span> Kalendarz i workflow
-                </li>
-                <li>
-                  <span aria-hidden>✓</span> Inteligentne trasy
-                </li>
-                <li>
-                  <span aria-hidden>✓</span> Ankiety dla par
-                </li>
-              </ul>
             </div>
-            <div className={`${styles.heroVisual} ${styles.heroAnimVisual}`}>
-              <ProductPreview autoRotate compact />
+            <div className={styles.heroVisual}>
+              <HeroProductFrame />
             </div>
           </div>
         </section>
 
-        <section id="preview" className={styles.previewSection}>
+        <section id="tour" className={styles.tourSection}>
           <div className={styles.sectionInner}>
             <header
-              ref={previewIntroRef}
+              ref={tourIntroRef}
               className={`${styles.sectionIntro} ${styles.revealFade}`}
             >
-              <h2 className={styles.sectionTitle}>Produkt, nie obietnice.</h2>
+              <p className={styles.sectionEyebrow}>Interaktywny podgląd</p>
+              <h2 className={styles.sectionTitle}>Poznaj OurWed od środka.</h2>
               <p className={styles.sectionSubtitle}>
-                Przełącz widoki i zobacz, jak wygląda realna praca w OurWed —
-                dashboard, śluby, podróże, ankiety, finanse i kalendarz.
+                Kliknij zakładkę i zobacz, jak wygląda realna praca w aplikacji —
+                bez rejestracji.
               </p>
             </header>
-            <div className={styles.previewStage}>
-              <ProductPreview />
-            </div>
+            <ProductPreview />
           </div>
         </section>
 
         <section id="features" className={styles.section}>
           <div className={styles.sectionInner}>
             <header
-              ref={featuresTitleRef}
+              ref={featuresIntroRef}
               className={`${styles.sectionIntro} ${styles.revealFade}`}
             >
+              <p className={styles.sectionEyebrow}>Możliwości</p>
               <h2 className={styles.sectionTitle}>
-                Wszystko, czego potrzebuje studio ślubne.
+                Narzędzia, których używasz w sezonie.
               </h2>
               <p className={styles.sectionSubtitle}>
-                Każdy etap współpracy z parą — w przejrzystym, spokojnym interfejsie.
+                Każda funkcja odpowiada temu, co już jest w OurWed — bez obietnic
+                na przyszłość.
               </p>
             </header>
 
@@ -391,7 +335,7 @@ export function LandingPage() {
                 >
                   <div
                     className={`${styles.featureCopy} ${styles.revealCard}`}
-                    style={{ '--reveal-delay': '60ms' } as CSSProperties}
+                    style={{ '--reveal-delay': '40ms' } as CSSProperties}
                   >
                     <h3 className={styles.featureTitle}>{feature.title}</h3>
                     <p className={styles.featureBody}>{feature.body}</p>
@@ -399,7 +343,7 @@ export function LandingPage() {
                   </div>
                   <div
                     className={`${styles.featureVisualWrap} ${styles.revealCard}`}
-                    style={{ '--reveal-delay': '140ms' } as CSSProperties}
+                    style={{ '--reveal-delay': '120ms' } as CSSProperties}
                   >
                     <FeatureVisual kind={feature.visual} />
                   </div>
@@ -415,17 +359,17 @@ export function LandingPage() {
               ref={workflowIntroRef}
               className={`${styles.sectionIntro} ${styles.revealFade}`}
             >
-              <h2 className={styles.sectionTitle}>Cały lifecycle ślubu.</h2>
+              <p className={styles.sectionEyebrow}>Lifecycle</p>
+              <h2 className={styles.sectionTitle}>Workflow całego ślubu.</h2>
               <p className={styles.sectionSubtitle}>
-                Kliknij etap, aby zobaczyć, jak OurWed prowadzi Cię od zapytania
-                do zakończenia.
+                Od zapytania do zakończenia — każdy etap ma swoje miejsce w OurWed.
               </p>
             </header>
             <div
               ref={workflowBodyRef}
               className={`${styles.workflowBody} ${styles.revealFade}`}
             >
-              <WorkflowShowcase />
+              <WorkflowTimeline />
             </div>
           </div>
         </section>
@@ -436,12 +380,10 @@ export function LandingPage() {
               ref={whyRef}
               className={`${styles.sectionIntro} ${styles.revealFade}`}
             >
+              <p className={styles.sectionEyebrow}>Dlaczego OurWed</p>
               <h2 className={styles.sectionTitle}>
-                Dlaczego fotografowie wybierają OurWed?
+                Mniej chaosu. Więcej fotografii.
               </h2>
-              <p className={styles.sectionSubtitle}>
-                Mniej chaosu operacyjnego. Więcej czasu na fotografię.
-              </p>
             </header>
             <RevealGroup className={styles.whyGrid}>
               {WHY.map((item, index) => (
@@ -450,7 +392,7 @@ export function LandingPage() {
                   className={`${styles.whyCard} ${styles.revealCard}`}
                   style={
                     {
-                      '--reveal-delay': `${index * 90}ms`,
+                      '--reveal-delay': `${index * 80}ms`,
                     } as CSSProperties
                   }
                 >
@@ -466,7 +408,7 @@ export function LandingPage() {
           <div ref={ctaRef} className={`${styles.ctaInner} ${styles.revealCta}`}>
             <p className={styles.ctaEyebrow}>Gotowy na spokojniejszy sezon?</p>
             <h2 className={styles.ctaTitle}>
-              Zacznij prowadzić studio ślubne jak premium SaaS.
+              Zacznij prowadzić studio w OurWed.
             </h2>
             <p className={styles.ctaSub}>
               Załóż konto w kilka minut. Bez karty. Bez długiej konfiguracji.
@@ -487,11 +429,10 @@ export function LandingPage() {
         <div className={styles.footerInner}>
           <div className={styles.footerBrand}>
             <Logo />
-            <p>
-              CRM dla fotografów ślubnych — od zapytania do gotowej galerii.
-            </p>
+            <p>CRM dla fotografów ślubnych — od zapytania do oddania materiału.</p>
           </div>
           <nav className={styles.footerNav} aria-label="Stopka">
+            <a href="#tour">Produkt</a>
             <a href="#features">Funkcje</a>
             <span className={styles.footerSoon}>
               Cennik <em>wkrótce</em>
