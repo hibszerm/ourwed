@@ -103,12 +103,14 @@ export function DocumentTemplateDetailPage() {
     )
   }
 
-  const status = getContractUiStatus(template)
-  const format = fileFormatLabel(template.sourceFileName)
+  // Const after guard — closures keep a definite DocumentTemplateSummary.
+  const doc = template
+  const status = getContractUiStatus(doc)
+  const format = fileFormatLabel(doc.sourceFileName)
 
   async function handleDelete() {
     try {
-      await mutations.remove.mutateAsync(template!.id)
+      await mutations.remove.mutateAsync(doc.id)
       showToast('Umowa została usunięta.', 'success')
       setDeleteOpen(false)
       navigate('/ustawienia/dokumenty/szablony')
@@ -122,9 +124,9 @@ export function DocumentTemplateDetailPage() {
 
   async function handleReplace(file: File) {
     try {
-      await mutations.uploadVersion.mutateAsync({ id: template!.id, file })
+      await mutations.uploadVersion.mutateAsync({ id: doc.id, file })
       showToast('Dokument został zamieniony.', 'success')
-      navigate(`/ustawienia/dokumenty/szablony/${template!.id}/konfiguracja`)
+      navigate(`/ustawienia/dokumenty/szablony/${doc.id}/konfiguracja`)
     } catch (err) {
       showToast(
         err instanceof Error ? err.message : 'Nie udało się zamienić dokumentu.',
@@ -134,12 +136,12 @@ export function DocumentTemplateDetailPage() {
   }
 
   async function viewOriginal() {
-    if (!template.sourceDocxPath) {
+    if (!doc.sourceDocxPath) {
       showToast('Brak dostępnego pliku.', 'error')
       return
     }
     try {
-      const url = await documentStorage.signedUrl(template.sourceDocxPath)
+      const url = await documentStorage.signedUrl(doc.sourceDocxPath)
       window.open(url, '_blank', 'noopener,noreferrer')
     } catch (err) {
       showToast(
@@ -165,13 +167,13 @@ export function DocumentTemplateDetailPage() {
           <header className={styles.detailHeroClean}>
             <div className={styles.detailHeroText}>
               <div className={styles.detailTitleRow}>
-                <h1 className={styles.detailTitleClean}>{template.name}</h1>
+                <h1 className={styles.detailTitleClean}>{doc.name}</h1>
                 <ContractStatusBadge status={status} />
               </div>
               <p className={styles.detailSubtle}>
                 {format}
                 <span aria-hidden>·</span>
-                Aktualizacja {formatContractDate(template.updatedAt)}
+                Aktualizacja {formatContractDate(doc.updatedAt)}
               </p>
             </div>
 
@@ -181,7 +183,7 @@ export function DocumentTemplateDetailPage() {
                 variant="primary"
                 onClick={() =>
                   navigate(
-                    `/ustawienia/dokumenty/szablony/${template.id}/konfiguracja`,
+                    `/ustawienia/dokumenty/szablony/${doc.id}/konfiguracja`,
                   )
                 }
               >
@@ -218,7 +220,7 @@ export function DocumentTemplateDetailPage() {
                     >
                       Zmień nazwę
                     </button>
-                    {template.sourceDocxPath ? (
+                    {doc.sourceDocxPath ? (
                       <button
                         type="button"
                         role="menuitem"
@@ -276,7 +278,7 @@ export function DocumentTemplateDetailPage() {
       />
 
       <RenameTemplateModal
-        key={`${template.id}-${template.updatedAt}`}
+        key={`${doc.id}-${doc.updatedAt}`}
         open={renameOpen}
         busy={mutations.rename.isPending}
         error={
@@ -284,12 +286,12 @@ export function DocumentTemplateDetailPage() {
             ? mutations.rename.error.message
             : null
         }
-        initialName={template.name}
-        initialDescription={template.description}
+        initialName={doc.name}
+        initialDescription={doc.description}
         onClose={() => setRenameOpen(false)}
         onSubmit={async ({ name, description }) => {
           await mutations.rename.mutateAsync({
-            id: template.id,
+            id: doc.id,
             name,
             description: description || null,
           })
@@ -300,7 +302,7 @@ export function DocumentTemplateDetailPage() {
 
       <DeleteContractModal
         open={deleteOpen}
-        contractName={template.name}
+        contractName={doc.name}
         busy={mutations.remove.isPending}
         onClose={() => {
           if (!mutations.remove.isPending) setDeleteOpen(false)
