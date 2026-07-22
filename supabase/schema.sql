@@ -729,3 +729,22 @@ alter table public.wedding_extra_services enable row level security;
 alter table public.studio_travel_settings enable row level security;
 alter table public.wedding_places enable row level security;
 alter table public.travel_segments enable row level security;
+
+-- =============================================================================
+-- Documents engine (Phase 0 foundation)
+-- =============================================================================
+-- Authoritative DDL, RLS, storage, and Variable Registry seed:
+--   supabase/migrations/20260722200000_documents_engine_foundation.sql
+--
+-- Tables:
+--   document_templates, document_template_versions,
+--   document_components, document_component_versions,
+--   document_template_component_links,
+--   document_blocks, document_block_conditions,
+--   document_clause_defs, document_variable_registry,
+--   wedding_document_drafts, wedding_documents
+-- Storage bucket: document-files
+-- Prototype retired: template_mappings, generated_documents (old document_templates)
+-- Phase 1 extras: document_templates.is_default, document_template_versions.source_file_name
+--   (see 20260722210000_document_templates_phase1.sql)
+-- =============================================================================

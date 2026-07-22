@@ -11,6 +11,11 @@ import { PendingWeddingsPage } from '@/pages/PendingWeddingsPage'
 import { PackagesPage } from '@/pages/PackagesPage'
 import { ExtraServicesPage } from '@/pages/ExtraServicesPage'
 import { TravelSettingsPage } from '@/pages/TravelSettingsPage'
+import { SettingsPage } from '@/pages/SettingsPage'
+import { DocumentsHubPage } from '@/pages/DocumentsHubPage'
+import { DocumentTemplatesPage } from '@/pages/DocumentTemplatesPage'
+import { DocumentTemplateDetailPage } from '@/pages/DocumentTemplateDetailPage'
+import { DocumentTemplateMappingPage } from '@/pages/DocumentTemplateMappingPage'
 import { PublicFormTokenPage } from '@/pages/PublicFormTokenPage'
 import { LandingPage } from '@/pages/LandingPage'
 import { LoginPage } from '@/pages/LoginPage'
@@ -18,8 +23,6 @@ import { RegisterPage } from '@/pages/RegisterPage'
 import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage'
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage'
 import { CheckEmailPage } from '@/pages/CheckEmailPage'
-import { PlaceholderPage } from '@/pages/PlaceholderPage'
-import { IconSettings } from '@/components/icons'
 
 export const router = createBrowserRouter([
   {
@@ -99,13 +102,23 @@ export const router = createBrowserRouter([
       },
       {
         path: '/ustawienia',
-        element: (
-          <PlaceholderPage
-            title="Ustawienia"
-            description="Ustawienia aplikacji"
-            icon={<IconSettings width={32} height={32} />}
-          />
-        ),
+        element: <SettingsPage />,
+      },
+      {
+        path: '/ustawienia/dokumenty',
+        element: <DocumentsHubPage />,
+      },
+      {
+        path: '/ustawienia/dokumenty/szablony',
+        element: <DocumentTemplatesPage />,
+      },
+      {
+        path: '/ustawienia/dokumenty/szablony/:id',
+        element: <DocumentTemplateDetailPage />,
+      },
+      {
+        path: '/ustawienia/dokumenty/szablony/:id/konfiguracja',
+        element: <DocumentTemplateMappingPage />,
       },
     ],
   },

@@ -26,6 +26,7 @@ const studioItems = [
   { to: '/studio/pakiety', label: 'Pakiety' },
   { to: '/studio/uslugi', label: 'Usługi dodatkowe' },
   { to: '/studio/podroz', label: 'Ustawienia podróży' },
+  { to: '/ustawienia/dokumenty/szablony', label: 'Szablony dokumentów' },
 ]
 
 interface SidebarProps {
