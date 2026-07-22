@@ -6,6 +6,7 @@
  */
 
 import { createFormDefinition } from '@/lib/api/forms'
+import { documentTemplateService } from '@/lib/api/documents'
 import { packageService } from '@/lib/api/packageService'
 import type { FormDefinition } from '@/types/formEngine'
 import type { QuestionOption } from '@/types/form'
@@ -72,6 +73,7 @@ export interface SaveQuestionnaireResult {
  */
 export async function saveQuestionnaireDraft(
   draft: QuestionnaireDraft,
+  options?: { documentTemplateId?: string },
 ): Promise<SaveQuestionnaireResult> {
   const packageOptions = await loadPackageOptions()
   const questions = withPackageOptions(draft.questions, packageOptions)
@@ -101,6 +103,7 @@ export async function saveQuestionnaireDraft(
       sourceCounts: normalized.counts,
       generatedAt: normalized.generatedAt,
       usesContractCatalogue: true,
+      sourceDocumentTemplateId: options?.documentTemplateId ?? null,
     },
   }
 
@@ -126,6 +129,14 @@ export async function saveQuestionnaireDraft(
     } catch {
       // Migration may be pending — template is still created.
     }
+  }
+
+  if (options?.documentTemplateId) {
+    await documentTemplateService.update(options.documentTemplateId, {
+      questionnaireFormId: form.id,
+      aiAnalyzedAt: new Date().toISOString(),
+      status: 'ready',
+    })
   }
 
   const savedDraft: QuestionnaireDraft = {

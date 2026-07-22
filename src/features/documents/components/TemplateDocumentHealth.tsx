@@ -22,21 +22,21 @@ interface TemplateDocumentHealthProps {
   status: DocumentTemplateStatus
   hasFile: boolean
   hasVersion: boolean
-  mappingCompleted: boolean
-  configurationCompleted: boolean
+  /** AI analysis finished (persisted). */
+  aiAnalyzed: boolean
+  /** Questionnaire template linked to this contract. */
+  questionnaireCreated: boolean
 }
 
 export function TemplateDocumentHealth({
   status,
   hasFile,
   hasVersion,
-  mappingCompleted,
-  configurationCompleted,
+  aiAnalyzed,
+  questionnaireCreated,
 }: TemplateDocumentHealthProps) {
-  const analyzed = mappingCompleted || configurationCompleted
-  const questionnaireReady = configurationCompleted
   const productionReady =
-    status === 'ready' && hasFile && (analyzed || questionnaireReady)
+    status === 'ready' || (hasFile && questionnaireCreated)
 
   const steps: LifecycleStep[] = [
     {
@@ -48,26 +48,28 @@ export function TemplateDocumentHealth({
     },
     {
       id: 'analyzed',
-      done: analyzed,
+      done: aiAnalyzed || questionnaireCreated,
       title: 'Przeanalizowany przez AI',
       description: 'OurWed wykrył informacje potrzebne w umowie.',
       Icon: Sparkles,
     },
     {
       id: 'questionnaire',
-      done: questionnaireReady,
+      done: questionnaireCreated,
       title: 'Ankieta utworzona',
       description: 'Typ ankiety dostępny przy generowaniu linków.',
       Icon: FileCheck,
     },
     {
       id: 'ready',
-      done: productionReady || (hasFile && questionnaireReady),
+      done: productionReady,
       title: 'Gotowy do generowania umów',
       description: 'Kontrakt + ankieta — bez zmiany formatowania pliku.',
       Icon: BadgeCheck,
     },
   ]
+
+  const currentIndex = steps.findIndex((step) => !step.done)
 
   // Keep hasVersion in the model for callers; version is implied by upload.
   void hasVersion
@@ -78,15 +80,27 @@ export function TemplateDocumentHealth({
         Cykl życia dokumentu
       </h2>
       <ul className={styles.lifecycleList}>
-        {steps.map((step) => {
+        {steps.map((step, index) => {
           const Icon = step.Icon
+          const isCurrent = !step.done && index === currentIndex
+          const stateClass = step.done
+            ? styles.lifecycleItemDone
+            : isCurrent
+              ? styles.lifecycleItemCurrent
+              : styles.lifecycleItemPending
+          const iconClass = step.done
+            ? styles.lifecycleIconDone
+            : isCurrent
+              ? styles.lifecycleIconCurrent
+              : styles.lifecycleIconPending
+
           return (
             <li
               key={step.id}
-              className={`${styles.lifecycleItem} ${step.done ? styles.lifecycleItemDone : styles.lifecycleItemPending}`}
+              className={`${styles.lifecycleItem} ${stateClass}`}
             >
               <span
-                className={`${styles.lifecycleIcon} ${step.done ? styles.lifecycleIconDone : styles.lifecycleIconPending}`}
+                className={`${styles.lifecycleIcon} ${iconClass}`}
                 aria-hidden
               >
                 {step.done ? (

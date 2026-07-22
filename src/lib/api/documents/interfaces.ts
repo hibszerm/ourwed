@@ -45,6 +45,8 @@ export interface UpdateTemplateInput {
   status?: DocumentTemplateStatus
   currentVersionId?: string | null
   isDefault?: boolean
+  aiAnalyzedAt?: string | null
+  questionnaireFormId?: string | null
 }
 
 export interface CreateTemplateVersionInput {

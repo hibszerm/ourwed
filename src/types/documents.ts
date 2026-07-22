@@ -136,6 +136,10 @@ export interface DocumentTemplate {
   status: DocumentTemplateStatus
   isDefault: boolean
   currentVersionId: string | null
+  /** When AI analysis completed (simple import flow). */
+  aiAnalyzedAt: string | null
+  /** Questionnaire FormDefinition created from this contract. */
+  questionnaireFormId: string | null
   createdAt: string
   updatedAt: string
 }

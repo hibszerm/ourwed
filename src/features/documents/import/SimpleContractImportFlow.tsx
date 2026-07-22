@@ -4,8 +4,10 @@ import { useQueryClient } from '@tanstack/react-query'
 import { CheckCircle2, FileText, LoaderCircle, Upload } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { useToast } from '@/components/ui/Toast'
+import { documentTemplateService } from '@/lib/api/documents'
 import { documentStorage } from '@/lib/api/documents/storage'
 import { packageService } from '@/lib/api/packageService'
+import { documentTemplateKeys } from '@/features/documents/hooks/useDocumentTemplates'
 import {
   activeAiDocumentAnalyzer,
   aiAnalysisToDetectedFields,
@@ -108,6 +110,16 @@ export function SimpleContractImportFlow({
         packageOptions,
       })
       setDraft(next)
+      try {
+        await documentTemplateService.update(templateId, {
+          aiAnalyzedAt: new Date().toISOString(),
+        })
+        await queryClient.invalidateQueries({
+          queryKey: documentTemplateKeys.all,
+        })
+      } catch {
+        // Lifecycle flag is best-effort; analysis UI can continue.
+      }
       setPhase('checklist')
     } catch (err) {
       setError(getDocumentAiErrorMessage(err))
@@ -153,9 +165,12 @@ export function SimpleContractImportFlow({
     setSaving(true)
     setError(null)
     try {
-      await saveQuestionnaireDraft(draft)
+      await saveQuestionnaireDraft(draft, { documentTemplateId: templateId })
       await queryClient.invalidateQueries({ queryKey: ['questionnaire-templates'] })
       await queryClient.invalidateQueries({ queryKey: ['form-definitions'] })
+      await queryClient.invalidateQueries({
+        queryKey: documentTemplateKeys.all,
+      })
       showToast('Typ ankiety został utworzony.', 'success')
       setPhase('success')
     } catch (err) {

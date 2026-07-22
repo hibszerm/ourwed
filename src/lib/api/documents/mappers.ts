@@ -46,6 +46,8 @@ export interface TemplateRow {
   status: DocumentTemplateStatus
   is_default: boolean
   current_version_id: string | null
+  ai_analyzed_at?: string | null
+  questionnaire_form_id?: string | null
   created_at: string
   updated_at: string
 }
@@ -185,6 +187,8 @@ export function mapTemplate(row: TemplateRow): DocumentTemplate {
     status: row.status,
     isDefault: Boolean(row.is_default),
     currentVersionId: row.current_version_id,
+    aiAnalyzedAt: row.ai_analyzed_at ?? null,
+    questionnaireFormId: row.questionnaire_form_id ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }

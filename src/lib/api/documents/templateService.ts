@@ -187,6 +187,10 @@ async function updateTemplate(
     patch.current_version_id = input.currentVersionId
   }
   if (input.isDefault !== undefined) patch.is_default = input.isDefault
+  if (input.aiAnalyzedAt !== undefined) patch.ai_analyzed_at = input.aiAnalyzedAt
+  if (input.questionnaireFormId !== undefined) {
+    patch.questionnaire_form_id = input.questionnaireFormId
+  }
 
   const { data, error } = await supabase
     .from('document_templates')
@@ -257,6 +261,28 @@ async function removeTemplate(id: string): Promise<void> {
   const template = await getTemplate(id)
   if (!template) return
 
+  const formIds = new Set<string>()
+  if (template.questionnaireFormId) {
+    formIds.add(template.questionnaireFormId)
+  }
+
+  // Also find AI forms that reference this template in schema meta.
+  const { data: forms, error: formsError } = await supabase
+    .from('forms')
+    .select('id, schema')
+    .eq('user_id', userId)
+  throwOnError(formsError)
+  for (const row of (forms ?? []) as { id: string; schema: unknown }[]) {
+    const meta = (row.schema as { meta?: Record<string, unknown> } | null)?.meta
+    if (meta?.sourceDocumentTemplateId === id) {
+      formIds.add(row.id)
+    }
+  }
+
+  for (const formId of formIds) {
+    await unlinkAndDeleteQuestionnaireForm(formId, userId)
+  }
+
   const versions = await listVersions(id)
   for (const version of versions) {
     if (version.sourceDocxPath) {
@@ -274,6 +300,45 @@ async function removeTemplate(id: string): Promise<void> {
     .eq('id', id)
     .eq('user_id', userId)
   throwOnError(error)
+}
+
+async function unlinkAndDeleteQuestionnaireForm(
+  formId: string,
+  userId: string,
+): Promise<void> {
+  await supabase
+    .from('packages')
+    .update({ questionnaire_form_id: null })
+    .eq('user_id', userId)
+    .eq('questionnaire_form_id', formId)
+
+  const { data: instances, error: instancesError } = await supabase
+    .from('form_instances')
+    .select('id')
+    .eq('form_id', formId)
+  throwOnError(instancesError)
+
+  const instanceIds = ((instances ?? []) as { id: string }[]).map((i) => i.id)
+  if (instanceIds.length > 0) {
+    const { error: answersError } = await supabase
+      .from('form_answers')
+      .delete()
+      .in('instance_id', instanceIds)
+    throwOnError(answersError)
+
+    const { error: deleteInstancesError } = await supabase
+      .from('form_instances')
+      .delete()
+      .in('id', instanceIds)
+    throwOnError(deleteInstancesError)
+  }
+
+  const { error: deleteFormError } = await supabase
+    .from('forms')
+    .delete()
+    .eq('id', formId)
+    .eq('user_id', userId)
+  throwOnError(deleteFormError)
 }
 
 async function getVersion(

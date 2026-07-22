@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { FileText, Upload } from 'lucide-react'
+import { FileText, MoreHorizontal, Upload } from 'lucide-react'
 import { AppLayout } from '@/layouts/AppLayout'
 import { Button } from '@/components/ui/Button'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -10,6 +10,7 @@ import {
   useDocumentTemplateMutations,
   useDocumentTemplates,
 } from '@/features/documents/hooks/useDocumentTemplates'
+import { DeleteContractModal } from '@/features/documents/components/DeleteContractModal'
 import {
   TemplateDefaultBadge,
   TemplateStatusBadge,
@@ -53,17 +54,74 @@ function sortTemplates(
   }
 }
 
+function ContractOverflowMenu({
+  onDelete,
+}: {
+  onDelete: () => void
+}) {
+  const [open, setOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const menuId = useId()
+
+  useEffect(() => {
+    if (!open) return
+    function onDoc(e: MouseEvent) {
+      if (!menuRef.current?.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [open])
+
+  return (
+    <div className={styles.overflowMenu} ref={menuRef}>
+      <button
+        type="button"
+        className={styles.cardMenuBtn}
+        aria-expanded={open}
+        aria-controls={menuId}
+        aria-haspopup="menu"
+        onClick={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          setOpen((v) => !v)
+        }}
+      >
+        <MoreHorizontal size={18} aria-label="Więcej działań" />
+      </button>
+      {open ? (
+        <div id={menuId} className={styles.overflowPanel} role="menu">
+          <button
+            type="button"
+            role="menuitem"
+            className={`${styles.overflowItem} ${styles.overflowItemDanger}`}
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              setOpen(false)
+              onDelete()
+            }}
+          >
+            Usuń kontrakt
+          </button>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 export function DocumentTemplatesPage() {
   const navigate = useNavigate()
   const { showToast } = useToast()
   const { data: templates = [], isLoading, isError } = useDocumentTemplates()
-  const { upload } = useDocumentTemplateMutations()
+  const { upload, remove } = useDocumentTemplateMutations()
 
   const [uploadOpen, setUploadOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('all')
   const [status, setStatus] = useState('all')
   const [sort, setSort] = useState<TemplateSortKey>('updated')
+  const [deleteTarget, setDeleteTarget] =
+    useState<DocumentTemplateSummary | null>(null)
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -98,52 +156,51 @@ export function DocumentTemplatesPage() {
     navigate(`/ustawienia/dokumenty/szablony/${created.id}/konfiguracja`)
   }
 
+  async function handleDelete() {
+    if (!deleteTarget) return
+    try {
+      await remove.mutateAsync(deleteTarget.id)
+      showToast('Kontrakt usunięty.', 'success')
+      setDeleteTarget(null)
+    } catch (err) {
+      showToast(
+        err instanceof Error ? err.message : 'Nie udało się usunąć.',
+        'error',
+      )
+    }
+  }
+
   return (
     <AppLayout
       title="Szablony dokumentów"
       subtitle="Prześlij kontrakt — AI przygotuje ankietę"
       action={
-        <Button
-          type="button"
-          variant="primary"
-          onClick={() => setUploadOpen(true)}
-        >
-          <Upload size={16} style={{ marginRight: 6 }} aria-hidden />
-          Prześlij kontrakt
-        </Button>
+        templates.length > 0 ? (
+          <Button
+            type="button"
+            variant="primary"
+            onClick={() => setUploadOpen(true)}
+          >
+            <Upload size={16} style={{ marginRight: 6 }} aria-hidden />
+            Prześlij kontrakt
+          </Button>
+        ) : undefined
       }
     >
       <PageContainer width="wide">
         <div className={styles.page}>
-          <nav className={styles.breadcrumb} aria-label="Okruszki">
-            <Link to="/ustawienia">Ustawienia</Link>
-            <span className={styles.sep}>/</span>
-            <Link to="/ustawienia/dokumenty">Dokumenty</Link>
-            <span className={styles.sep}>/</span>
-            <span>Szablony</span>
-          </nav>
-
-          <section className={styles.simpleIntro} aria-labelledby="templates-intro">
-            <h2 id="templates-intro" className={styles.simpleIntroTitle}>
-              Szablony dokumentów
-            </h2>
-            <p className={styles.simpleIntroBody}>
-              Prześlij własne szablony umów. OurWed przeanalizuje je za pomocą
-              AI, wykryje informacje dynamiczne i automatycznie utworzy ankietę,
-              którą później wyślesz do par.
-            </p>
-            <p className={styles.simpleIntroFormats}>
-              Obsługiwane formaty: <strong>DOCX</strong>, <strong>PDF</strong>
-            </p>
-            <Button
-              type="button"
-              variant="primary"
-              onClick={() => setUploadOpen(true)}
-            >
-              <Upload size={16} style={{ marginRight: 6 }} aria-hidden />
-              Prześlij kontrakt
-            </Button>
-          </section>
+          {templates.length > 0 ? (
+            <section className={styles.simpleIntro} aria-label="Opis">
+              <p className={styles.simpleIntroBody}>
+                Prześlij własne szablony umów. OurWed przeanalizuje je za pomocą
+                AI, wykryje informacje dynamiczne i automatycznie utworzy ankietę,
+                którą później wyślesz do par.
+              </p>
+              <p className={styles.simpleIntroFormats}>
+                Obsługiwane formaty: <strong>DOCX</strong>, <strong>PDF</strong>
+              </p>
+            </section>
+          ) : null}
 
           {isLoading ? (
             <p className={styles.fileHint}>Ładowanie biblioteki…</p>
@@ -155,14 +212,15 @@ export function DocumentTemplatesPage() {
           ) : templates.length === 0 ? (
             <EmptyState
               icon={<FileText size={36} strokeWidth={1.5} />}
-              title="Brak szablonów"
-              description="Prześlij pierwszą umowę — AI zajmie się resztą."
+              title="Brak kontraktów"
+              description="Prześlij pierwszy kontrakt — OurWed automatycznie przygotuje wszystko potrzebne do generowania umów."
               action={
                 <Button
                   type="button"
                   variant="primary"
                   onClick={() => setUploadOpen(true)}
                 >
+                  <Upload size={16} style={{ marginRight: 6 }} aria-hidden />
                   Prześlij kontrakt
                 </Button>
               }
@@ -196,6 +254,7 @@ export function DocumentTemplatesPage() {
                           <th>Wersja</th>
                           <th>Status</th>
                           <th>Aktualizacja</th>
+                          <th className={styles.tableActions} aria-label="Akcje" />
                         </tr>
                       </thead>
                       <tbody>
@@ -239,6 +298,14 @@ export function DocumentTemplatesPage() {
                                 <TemplateStatusBadge status={t.status} />
                               </td>
                               <td>{formatTemplateDate(t.updatedAt)}</td>
+                              <td
+                                className={styles.tableActions}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <ContractOverflowMenu
+                                  onDelete={() => setDeleteTarget(t)}
+                                />
+                              </td>
                             </tr>
                           )
                         })}
@@ -251,33 +318,39 @@ export function DocumentTemplatesPage() {
                       const cat = getCategoryMeta(t.docType)
                       const Icon = cat.icon
                       return (
-                        <Link
-                          key={t.id}
-                          to={`/ustawienia/dokumenty/szablony/${t.id}`}
-                          className={styles.card}
-                        >
-                          <div className={styles.cardTop}>
-                            <span className={styles.iconWrap}>
-                              <Icon size={22} strokeWidth={1.75} />
-                            </span>
-                            <div className={styles.cardBody}>
-                              <div className={styles.cardTitleRow}>
-                                <h2 className={styles.cardTitle}>{t.name}</h2>
-                                <TemplateStatusBadge status={t.status} />
-                                {t.isDefault && <TemplateDefaultBadge />}
-                              </div>
-                              <p className={styles.meta}>
-                                <span>{cat.label}</span>
-                                <span>
-                                  {t.currentVersionNumber
-                                    ? `Wersja v${t.currentVersionNumber}`
-                                    : 'Bez wersji'}
-                                </span>
-                                <span>{formatTemplateDate(t.updatedAt)}</span>
-                              </p>
-                            </div>
+                        <div key={t.id} className={styles.cardShell}>
+                          <div className={styles.cardMenuWrap}>
+                            <ContractOverflowMenu
+                              onDelete={() => setDeleteTarget(t)}
+                            />
                           </div>
-                        </Link>
+                          <Link
+                            to={`/ustawienia/dokumenty/szablony/${t.id}`}
+                            className={styles.card}
+                          >
+                            <div className={styles.cardTop}>
+                              <span className={styles.iconWrap}>
+                                <Icon size={22} strokeWidth={1.75} />
+                              </span>
+                              <div className={styles.cardBody}>
+                                <div className={styles.cardTitleRow}>
+                                  <h2 className={styles.cardTitle}>{t.name}</h2>
+                                  <TemplateStatusBadge status={t.status} />
+                                  {t.isDefault && <TemplateDefaultBadge />}
+                                </div>
+                                <p className={styles.meta}>
+                                  <span>{cat.label}</span>
+                                  <span>
+                                    {t.currentVersionNumber
+                                      ? `Wersja v${t.currentVersionNumber}`
+                                      : 'Bez wersji'}
+                                  </span>
+                                  <span>{formatTemplateDate(t.updatedAt)}</span>
+                                </p>
+                              </div>
+                            </div>
+                          </Link>
+                        </div>
                       )
                     })}
                   </div>
@@ -296,6 +369,16 @@ export function DocumentTemplatesPage() {
         }
         onClose={() => setUploadOpen(false)}
         onSubmit={handleUpload}
+      />
+
+      <DeleteContractModal
+        open={Boolean(deleteTarget)}
+        contractName={deleteTarget?.name ?? ''}
+        busy={remove.isPending}
+        onClose={() => {
+          if (!remove.isPending) setDeleteTarget(null)
+        }}
+        onConfirm={() => void handleDelete()}
       />
     </AppLayout>
   )

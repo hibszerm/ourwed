@@ -105,7 +105,11 @@ export function useDocumentTemplateMutations(templateId?: string) {
 
   const remove = useMutation({
     mutationFn: (id: string) => documentTemplateService.remove(id),
-    onSuccess: invalidate,
+    onSuccess: async () => {
+      await invalidate()
+      await queryClient.invalidateQueries({ queryKey: ['questionnaire-templates'] })
+      await queryClient.invalidateQueries({ queryKey: ['form-definitions'] })
+    },
   })
 
   const setDefault = useMutation({

@@ -121,6 +121,7 @@ export function Sidebar({ open = false, onClose, onNavigate }: SidebarProps) {
 
         <NavLink
           to="/ustawienia"
+          end
           onClick={onNavigate}
           className={({ isActive }) =>
             `${styles.navItem} ${isActive ? styles.active : ''}`

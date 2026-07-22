@@ -514,8 +514,12 @@
   opacity: 1;
 }
 
+.lifecycleItemCurrent {
+  opacity: 1;
+}
+
 .lifecycleItemPending {
-  opacity: 0.78;
+  opacity: 0.72;
 }
 
 .lifecycleIcon {
@@ -525,6 +529,10 @@
 
 .lifecycleIconDone {
   color: var(--color-success-text, #067647);
+}
+
+.lifecycleIconCurrent {
+  color: var(--color-primary, #2563eb);
 }
 
 .lifecycleIconPending {
@@ -556,6 +564,73 @@
   font-size: var(--text-xs);
   color: var(--color-text-tertiary);
   line-height: 1.45;
+}
+
+.deleteModalBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.deleteModalLead {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+}
+
+.deleteModalList {
+  margin: 0;
+  padding-left: 1.25rem;
+  font-size: var(--text-sm);
+  color: var(--color-text-primary);
+  line-height: 1.55;
+}
+
+.deleteModalWarn {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.deleteConfirmBtn {
+  background: #b42318 !important;
+  border-color: #b42318 !important;
+}
+
+.cardShell {
+  position: relative;
+}
+
+.cardMenuWrap {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  z-index: 2;
+}
+
+.cardMenuBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid color-mix(in srgb, var(--color-border) 80%, transparent);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.cardMenuBtn:hover {
+  color: var(--color-text-primary);
+  background: var(--color-bg-subtle, var(--color-bg));
+}
+
+.tableActions {
+  width: 48px;
+  text-align: right;
 }
 
 .detailMain {
