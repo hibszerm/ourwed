@@ -34,7 +34,12 @@ function PasswordHints({ password }: { password: string }) {
   )
 }
 
-export function RegisterForm() {
+export function RegisterForm({
+  onRegistered,
+}: {
+  /** Called with email after successful signup (skips navigation when set). */
+  onRegistered?: (email: string) => void
+} = {}) {
   const { register: registerAccount } = useAuth()
   const navigate = useNavigate()
   const [formError, setFormError] = useState<string | null>(null)
@@ -71,6 +76,11 @@ export function RegisterForm() {
 
     if (!result.success) {
       setFormError(result.error)
+      return
+    }
+
+    if (onRegistered) {
+      onRegistered(result.data.email)
       return
     }
 

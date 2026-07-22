@@ -1,15 +1,11 @@
+import { useState } from 'react'
 import styles from './WorkflowTimeline.module.css'
 
 const STAGES = [
   {
     id: 'inquiry',
     label: 'Zapytanie',
-    body: 'Nowe leady trafiają do skrzynki oczekujących.',
-  },
-  {
-    id: 'offer',
-    label: 'Oferta',
-    body: 'Pakiet i warunki dopasowane do pary.',
+    body: 'Lead trafia do skrzynki oczekujących.',
   },
   {
     id: 'contract',
@@ -24,42 +20,61 @@ const STAGES = [
   {
     id: 'survey',
     label: 'Ankieta',
-    body: 'Szczegóły dnia, lokalizacje i preferencje.',
+    body: 'Szczegóły dnia i preferencje pary.',
   },
   {
-    id: 'wedding',
-    label: 'Ślub',
-    body: 'Trasa, harmonogram i checklista w jednym miejscu.',
+    id: 'plan',
+    label: 'Plan dnia',
+    body: 'Harmonogram, trasa i checklista.',
   },
   {
-    id: 'delivery',
-    label: 'Oddanie materiału',
-    body: 'Selekcja i galeria powiązane ze ślubem.',
+    id: 'day',
+    label: 'Realizacja',
+    body: 'Ślub pod kontrolą — wszystko pod ręką.',
+  },
+  {
+    id: 'gallery',
+    label: 'Galeria',
+    body: 'Selekcja i oddanie materiału.',
   },
   {
     id: 'done',
-    label: 'Zakończone',
-    body: 'Pełny lifecycle zamknięty i zarchiwizowany.',
+    label: 'Gotowe',
+    body: 'Ślub zamknięty i zarchiwizowany.',
   },
 ] as const
 
 export function WorkflowTimeline() {
+  const [active, setActive] = useState(0)
+
   return (
     <ol className={styles.track}>
       {STAGES.map((stage, index) => (
-        <li key={stage.id} className={styles.stage}>
-          <div className={styles.node}>
-            <span className={styles.icon} aria-hidden>
-              {index + 1}
-            </span>
-            {index < STAGES.length - 1 ? (
-              <span className={styles.connector} aria-hidden />
-            ) : null}
-          </div>
-          <div className={styles.copy}>
-            <strong>{stage.label}</strong>
-            <p>{stage.body}</p>
-          </div>
+        <li
+          key={stage.id}
+          className={`${styles.stage} ${active === index ? styles.stageActive : ''}`}
+          onMouseEnter={() => setActive(index)}
+          onFocus={() => setActive(index)}
+        >
+          <button
+            type="button"
+            className={styles.stageButton}
+            onClick={() => setActive(index)}
+            aria-current={active === index ? 'step' : undefined}
+          >
+            <div className={styles.node}>
+              <span className={styles.icon} aria-hidden>
+                {index + 1}
+              </span>
+              {index < STAGES.length - 1 ? (
+                <span className={styles.connector} aria-hidden />
+              ) : null}
+            </div>
+            <div className={styles.copy}>
+              <strong>{stage.label}</strong>
+              <p>{stage.body}</p>
+            </div>
+          </button>
         </li>
       ))}
     </ol>

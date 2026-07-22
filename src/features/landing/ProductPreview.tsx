@@ -1,18 +1,18 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import styles from './ProductPreview.module.css'
 
-const TABS = [
+export const PREVIEW_TABS = [
   { id: 'dashboard', label: 'Dashboard' },
   { id: 'weddings', label: 'Śluby' },
-  { id: 'questionnaires', label: 'Ankiety' },
   { id: 'travel', label: 'Podróże' },
+  { id: 'questionnaires', label: 'Ankiety' },
   { id: 'finance', label: 'Finanse' },
   { id: 'calendar', label: 'Kalendarz' },
 ] as const
 
-export type PreviewTabId = (typeof TABS)[number]['id']
+export type PreviewTabId = (typeof PREVIEW_TABS)[number]['id']
 
-function PreviewDashboard() {
+export function PreviewDashboard() {
   return (
     <div className={styles.screen}>
       <p className={styles.greeting}>Dzień dobry</p>
@@ -230,7 +230,7 @@ function PreviewCalendar() {
   )
 }
 
-function PreviewBody({ tab }: { tab: PreviewTabId }) {
+export function PreviewBody({ tab }: { tab: PreviewTabId }) {
   switch (tab) {
     case 'dashboard':
       return <PreviewDashboard />
@@ -247,42 +247,87 @@ function PreviewBody({ tab }: { tab: PreviewTabId }) {
   }
 }
 
-/** Static hero illustration — dashboard only, no tabs / autoplay. */
-export function HeroProductFrame({ className = '' }: { className?: string }) {
+function PreviewFrame({
+  tab,
+  fadeKey,
+  url,
+}: {
+  tab: PreviewTabId
+  fadeKey: number
+  url: string
+}) {
   return (
-    <div className={`${styles.root} ${styles.heroFrame} ${className}`.trim()}>
-      <div className={styles.device}>
-        <div className={styles.chrome} aria-hidden>
-          <span />
-          <span />
-          <span />
-          <div className={styles.chromeUrl}>app.ourwed.pl/dashboard</div>
-        </div>
-        <div className={styles.deviceBody}>
-          <aside className={styles.sidebar} aria-hidden>
-            <div className={styles.sideBrand}>OW</div>
-            {TABS.map((tab, i) => (
-              <div
-                key={tab.id}
-                className={`${styles.sideItem} ${i === 0 ? styles.sideActive : ''}`}
-              />
-            ))}
-          </aside>
-          <div className={styles.previewPane}>
-            <PreviewDashboard />
+    <>
+      <div className={styles.deviceDesktop}>
+        <div className={styles.device}>
+          <div className={styles.chrome} aria-hidden>
+            <span />
+            <span />
+            <span />
+            <div className={styles.chromeUrl}>{url}</div>
+          </div>
+          <div className={styles.deviceBody}>
+            <aside className={styles.sidebar} aria-hidden>
+              <div className={styles.sideBrand}>OW</div>
+              {PREVIEW_TABS.map((item) => (
+                <div
+                  key={item.id}
+                  className={`${styles.sideItem} ${item.id === tab ? styles.sideActive : ''}`}
+                />
+              ))}
+            </aside>
+            <div className={styles.previewSlot}>
+              <div key={fadeKey} className={styles.previewPane} role="tabpanel">
+                <PreviewBody tab={tab} />
+              </div>
+            </div>
           </div>
         </div>
       </div>
+
+      <div className={styles.deviceMobile}>
+        <div className={styles.phoneCard}>
+          <div className={styles.phoneNotch} aria-hidden />
+          <div className={styles.previewSlot}>
+            <div key={`m-${fadeKey}`} className={styles.phonePane} role="tabpanel">
+              <PreviewBody tab={tab} />
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
+  )
+}
+
+function TabList({
+  active,
+  onSelect,
+  label,
+}: {
+  active: PreviewTabId
+  onSelect: (id: PreviewTabId) => void
+  label: string
+}) {
+  return (
+    <div className={styles.tabs} role="tablist" aria-label={label}>
+      {PREVIEW_TABS.map((tab) => (
+        <button
+          key={tab.id}
+          type="button"
+          role="tab"
+          aria-selected={active === tab.id}
+          className={`${styles.tab} ${active === tab.id ? styles.tabActive : ''}`}
+          onClick={() => onSelect(tab.id)}
+        >
+          {tab.label}
+        </button>
+      ))}
     </div>
   )
 }
 
-interface ProductPreviewProps {
-  className?: string
-}
-
-/** Interactive product tour — click tabs only, no auto-rotate. */
-export function ProductPreview({ className = '' }: ProductPreviewProps) {
+/** Hero interactive preview — tabs + one device frame, no autoplay. */
+export function HeroProductPreview({ className = '' }: { className?: string }) {
   const [active, setActive] = useState<PreviewTabId>('dashboard')
   const [fadeKey, setFadeKey] = useState(0)
 
@@ -293,57 +338,29 @@ export function ProductPreview({ className = '' }: ProductPreviewProps) {
   }
 
   return (
-    <div className={`${styles.root} ${styles.tourRoot} ${className}`.trim()}>
-      <div className={styles.tabs} role="tablist" aria-label="Podgląd aplikacji">
-        {TABS.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            role="tab"
-            aria-selected={active === tab.id}
-            className={`${styles.tab} ${active === tab.id ? styles.tabActive : ''}`}
-            onClick={() => selectTab(tab.id)}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Desktop: browser mockup */}
-      <div className={styles.deviceDesktop}>
-        <div className={styles.device}>
-          <div className={styles.chrome} aria-hidden>
-            <span />
-            <span />
-            <span />
-            <div className={styles.chromeUrl}>app.ourwed.pl</div>
-          </div>
-          <div className={styles.deviceBody}>
-            <aside className={styles.sidebar} aria-hidden>
-              <div className={styles.sideBrand}>OW</div>
-              {TABS.map((tab) => (
-                <div
-                  key={tab.id}
-                  className={`${styles.sideItem} ${active === tab.id ? styles.sideActive : ''}`}
-                />
-              ))}
-            </aside>
-            <div key={fadeKey} className={styles.previewPane} role="tabpanel">
-              <PreviewBody tab={active} />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Mobile: phone-proportion card — never overlaps desktop */}
-      <div className={styles.deviceMobile} aria-hidden={false}>
-        <div className={styles.phoneCard}>
-          <div className={styles.phoneNotch} aria-hidden />
-          <div key={`m-${fadeKey}`} className={styles.phonePane} role="tabpanel">
-            <PreviewBody tab={active} />
-          </div>
-        </div>
-      </div>
+    <div className={`${styles.root} ${styles.heroRoot} ${className}`.trim()}>
+      <TabList active={active} onSelect={selectTab} label="Ekrany aplikacji" />
+      <PreviewFrame tab={active} fadeKey={fadeKey} url={`app.ourwed.pl/${active}`} />
     </div>
   )
+}
+
+/** @deprecated use HeroProductPreview */
+export function HeroProductFrame(props: { className?: string }) {
+  return <HeroProductPreview {...props} />
+}
+
+/** @deprecated use AppTour for the explore section */
+export function ProductPreview({ className = '' }: { className?: string }) {
+  return <HeroProductPreview className={className} />
+}
+
+export function PreviewShell({
+  children,
+  className = '',
+}: {
+  children: ReactNode
+  className?: string
+}) {
+  return <div className={`${styles.root} ${className}`.trim()}>{children}</div>
 }

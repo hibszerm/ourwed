@@ -11,7 +11,14 @@ import {
 } from '@/features/auth/services/authSchemas'
 import styles from './AuthForms.module.css'
 
-export function LoginForm() {
+interface LoginFormProps {
+  /** When set, called after successful login instead of navigating. */
+  onSuccess?: () => void
+  /** When set, used instead of linking to /forgot-password. */
+  onForgotPassword?: () => void
+}
+
+export function LoginForm({ onSuccess, onForgotPassword }: LoginFormProps = {}) {
   const { login } = useAuth()
   const navigate = useNavigate()
   const [formError, setFormError] = useState<string | null>(null)
@@ -36,6 +43,10 @@ export function LoginForm() {
     })
     if (!result.success) {
       setFormError(result.error)
+      return
+    }
+    if (onSuccess) {
+      onSuccess()
       return
     }
     navigate('/dashboard', { replace: true })
@@ -67,9 +78,19 @@ export function LoginForm() {
           <input type="checkbox" disabled={isSubmitting} {...register('rememberMe')} />
           Zapamiętaj mnie
         </label>
-        <Link to="/forgot-password" className={styles.link}>
-          Nie pamiętam hasła
-        </Link>
+        {onForgotPassword ? (
+          <button
+            type="button"
+            className={styles.linkButton}
+            onClick={onForgotPassword}
+          >
+            Nie pamiętam hasła
+          </button>
+        ) : (
+          <Link to="/forgot-password" className={styles.link}>
+            Nie pamiętam hasła
+          </Link>
+        )}
       </div>
 
       {formError ? (

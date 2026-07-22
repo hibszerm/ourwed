@@ -1,17 +1,22 @@
 import {
   useEffect,
+  useId,
   useRef,
+  useState,
   type CSSProperties,
   type ReactNode,
   type RefObject,
 } from 'react'
-import { Link, Navigate } from 'react-router-dom'
+import { Navigate } from 'react-router-dom'
 import { AuthLoadingScreen } from '@/features/auth/components/AuthLoadingScreen'
 import { useAuth } from '@/features/auth/AuthProvider'
+import { IconClose, IconMenu } from '@/components/icons'
+import { AppTour } from '@/features/landing/AppTour'
 import {
-  HeroProductFrame,
-  ProductPreview,
-} from '@/features/landing/ProductPreview'
+  LandingAuthDialog,
+  type AuthDialogView,
+} from '@/features/landing/LandingAuthDialog'
+import { HeroProductPreview } from '@/features/landing/ProductPreview'
 import { WorkflowTimeline } from '@/features/landing/WorkflowTimeline'
 import { clearLogoutRedirectToLanding } from '@/lib/auth/logoutRedirect'
 import styles from './LandingPage.module.css'
@@ -66,6 +71,22 @@ const WHY = [
   },
 ]
 
+const FAQ = [
+  {
+    q: 'Czy OurWed działa na telefonie?',
+    a: 'Tak. Studio i publiczne ankiety są zaprojektowane pod desktop i mobile.',
+  },
+  {
+    q: 'Czy pary muszą zakładać konto?',
+    a: 'Nie. Wypełniają ankiety przez bezpieczny link — bez rejestracji.',
+  },
+  {
+    q: 'Ile kosztuje OurWed?',
+    a: 'Cennik pojawi się wkrótce. Możesz już teraz założyć konto i zacząć pracę.',
+  },
+]
+
+/** Scroll polish only — content is visible immediately (no blank flash). */
 function useReveal<T extends HTMLElement>(): RefObject<T | null> {
   const ref = useRef<T | null>(null)
 
@@ -79,13 +100,19 @@ function useReveal<T extends HTMLElement>(): RefObject<T | null> {
       return
     }
 
+    const rect = el.getBoundingClientRect()
+    if (rect.top < window.innerHeight * 0.92) {
+      el.classList.add(styles.revealed)
+      return
+    }
+
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (!entry?.isIntersecting) return
         el.classList.add(styles.revealed)
         observer.unobserve(el)
       },
-      { threshold: 0.12, rootMargin: '0px 0px -4% 0px' },
+      { threshold: 0.08, rootMargin: '0px 0px -2% 0px' },
     )
 
     observer.observe(el)
@@ -95,14 +122,18 @@ function useReveal<T extends HTMLElement>(): RefObject<T | null> {
   return ref
 }
 
-function Logo() {
+function Logo({ onClick }: { onClick?: () => void }) {
   return (
-    <Link to="/" className={styles.logo}>
+    <a href="#" className={styles.logo} onClick={(e) => {
+      e.preventDefault()
+      onClick?.()
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    }}>
       <span className={styles.logoMark} aria-hidden>
         OW
       </span>
       <span className={styles.logoText}>OurWed</span>
-    </Link>
+    </a>
   )
 }
 
@@ -207,12 +238,16 @@ function FeatureVisual({ kind }: { kind: (typeof FEATURES)[number]['visual'] }) 
 
 export function LandingPage() {
   const { isAuthenticated, isLoading } = useAuth()
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [authOpen, setAuthOpen] = useState(false)
+  const [authView, setAuthView] = useState<AuthDialogView>('login')
+  const [authEmail, setAuthEmail] = useState('')
+  const menuId = useId()
+
   const tourIntroRef = useReveal<HTMLElement>()
   const featuresIntroRef = useReveal<HTMLElement>()
-  const workflowIntroRef = useReveal<HTMLElement>()
-  const workflowBodyRef = useReveal<HTMLDivElement>()
   const whyRef = useReveal<HTMLElement>()
-  const ctaRef = useReveal<HTMLDivElement>()
+  const faqRef = useReveal<HTMLElement>()
 
   useEffect(() => {
     clearLogoutRedirectToLanding()
@@ -227,6 +262,32 @@ export function LandingPage() {
     }
   }, [])
 
+  useEffect(() => {
+    if (!menuOpen) return
+    const previous = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    function onKey(event: KeyboardEvent) {
+      if (event.key === 'Escape') setMenuOpen(false)
+    }
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.body.style.overflow = previous
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [menuOpen])
+
+  function openAuth(view: AuthDialogView) {
+    setMenuOpen(false)
+    setAuthView(view)
+    setAuthEmail('')
+    setAuthOpen(true)
+  }
+
+  function changeAuthView(view: AuthDialogView, email?: string) {
+    setAuthView(view)
+    if (email) setAuthEmail(email)
+  }
+
   if (isLoading) return <AuthLoadingScreen />
   if (isAuthenticated) {
     return <Navigate to="/dashboard" replace />
@@ -238,7 +299,8 @@ export function LandingPage() {
 
       <header className={styles.nav}>
         <div className={styles.navInner}>
-          <Logo />
+          <Logo onClick={() => setMenuOpen(false)} />
+
           <nav className={styles.navLinks} aria-label="Nawigacja główna">
             <a href="#tour" className={styles.navTextLink}>
               Produkt
@@ -246,22 +308,82 @@ export function LandingPage() {
             <a href="#features" className={styles.navTextLink}>
               Funkcje
             </a>
-            <a href="#workflow" className={styles.navTextLink}>
-              Workflow
+            <a href="#why" className={styles.navTextLink}>
+              Dlaczego OurWed
             </a>
             <span className={styles.navMuted} title="Wkrótce">
               Cennik
               <em>Wkrótce</em>
             </span>
-            <Link to="/login" className={`${styles.navLogin} ${styles.navTextLink}`}>
+            <button
+              type="button"
+              className={`${styles.navLogin} ${styles.navTextLink}`}
+              onClick={() => openAuth('login')}
+            >
               Zaloguj się
-            </Link>
-            <Link to="/register" className={styles.navCta}>
+            </button>
+            <button
+              type="button"
+              className={styles.navCta}
+              onClick={() => openAuth('register')}
+            >
               Rozpocznij za darmo
-            </Link>
+            </button>
           </nav>
+
+          <div className={styles.navMobileActions}>
+            <button
+              type="button"
+              className={styles.navCtaMobile}
+              onClick={() => openAuth('register')}
+            >
+              Rozpocznij
+            </button>
+            <button
+              type="button"
+              className={styles.menuToggle}
+              aria-label={menuOpen ? 'Zamknij menu' : 'Otwórz menu'}
+              aria-expanded={menuOpen}
+              aria-controls={menuId}
+              onClick={() => setMenuOpen((v) => !v)}
+            >
+              {menuOpen ? (
+                <IconClose width={20} height={20} />
+              ) : (
+                <IconMenu width={20} height={20} />
+              )}
+            </button>
+          </div>
         </div>
       </header>
+
+      {menuOpen ? (
+        <div className={styles.mobileMenu} id={menuId}>
+          <button
+            type="button"
+            className={styles.mobileMenuBackdrop}
+            aria-label="Zamknij menu"
+            onClick={() => setMenuOpen(false)}
+          />
+          <nav className={styles.mobileMenuPanel} aria-label="Menu mobilne">
+            <a href="#features" onClick={() => setMenuOpen(false)}>
+              Funkcje
+            </a>
+            <a href="#why" onClick={() => setMenuOpen(false)}>
+              Dlaczego OurWed
+            </a>
+            <a href="#pricing" onClick={() => setMenuOpen(false)}>
+              Cennik
+            </a>
+            <a href="#faq" onClick={() => setMenuOpen(false)}>
+              FAQ
+            </a>
+            <button type="button" onClick={() => openAuth('login')}>
+              Zaloguj się
+            </button>
+          </nav>
+        </div>
+      ) : null}
 
       <main>
         <section className={styles.hero}>
@@ -278,16 +400,20 @@ export function LandingPage() {
                 od pierwszego kontaktu aż do oddania materiału.
               </p>
               <div className={styles.heroActions}>
-                <Link to="/register" className={styles.primaryLink}>
+                <button
+                  type="button"
+                  className={styles.primaryLink}
+                  onClick={() => openAuth('register')}
+                >
                   Rozpocznij za darmo
-                </Link>
+                </button>
                 <a href="#tour" className={styles.secondaryLink}>
-                  Zobacz produkt
+                  Poznaj aplikację
                 </a>
               </div>
             </div>
             <div className={styles.heroVisual}>
-              <HeroProductFrame />
+              <HeroProductPreview />
             </div>
           </div>
         </section>
@@ -296,16 +422,16 @@ export function LandingPage() {
           <div className={styles.sectionInner}>
             <header
               ref={tourIntroRef}
-              className={`${styles.sectionIntro} ${styles.revealFade}`}
+              className={`${styles.sectionIntro} ${styles.revealEnhance}`}
             >
-              <p className={styles.sectionEyebrow}>Interaktywny podgląd</p>
-              <h2 className={styles.sectionTitle}>Poznaj OurWed od środka.</h2>
+              <p className={styles.sectionEyebrow}>Demo</p>
+              <h2 className={styles.sectionTitle}>Poznaj aplikację</h2>
               <p className={styles.sectionSubtitle}>
-                Kliknij zakładkę i zobacz, jak wygląda realna praca w aplikacji —
-                bez rejestracji.
+                Przejdź po sekcjach jak w prawdziwym OurWed — kliknij pozycję w menu
+                i zobacz ekran po prawej.
               </p>
             </header>
-            <ProductPreview />
+            <AppTour />
           </div>
         </section>
 
@@ -313,15 +439,14 @@ export function LandingPage() {
           <div className={styles.sectionInner}>
             <header
               ref={featuresIntroRef}
-              className={`${styles.sectionIntro} ${styles.revealFade}`}
+              className={`${styles.sectionIntro} ${styles.revealEnhance}`}
             >
               <p className={styles.sectionEyebrow}>Możliwości</p>
               <h2 className={styles.sectionTitle}>
                 Narzędzia, których używasz w sezonie.
               </h2>
               <p className={styles.sectionSubtitle}>
-                Każda funkcja odpowiada temu, co już jest w OurWed — bez obietnic
-                na przyszłość.
+                Każda funkcja odpowiada temu, co już jest w OurWed.
               </p>
             </header>
 
@@ -343,7 +468,7 @@ export function LandingPage() {
                   </div>
                   <div
                     className={`${styles.featureVisualWrap} ${styles.revealCard}`}
-                    style={{ '--reveal-delay': '120ms' } as CSSProperties}
+                    style={{ '--reveal-delay': '100ms' } as CSSProperties}
                   >
                     <FeatureVisual kind={feature.visual} />
                   </div>
@@ -355,20 +480,14 @@ export function LandingPage() {
 
         <section id="workflow" className={styles.workflowSection}>
           <div className={styles.sectionInner}>
-            <header
-              ref={workflowIntroRef}
-              className={`${styles.sectionIntro} ${styles.revealFade}`}
-            >
+            <header className={styles.sectionIntro}>
               <p className={styles.sectionEyebrow}>Lifecycle</p>
               <h2 className={styles.sectionTitle}>Workflow całego ślubu.</h2>
               <p className={styles.sectionSubtitle}>
-                Od zapytania do zakończenia — każdy etap ma swoje miejsce w OurWed.
+                Od zapytania do gotowego materiału — każdy etap w jednym miejscu.
               </p>
             </header>
-            <div
-              ref={workflowBodyRef}
-              className={`${styles.workflowBody} ${styles.revealFade}`}
-            >
+            <div className={styles.workflowBody}>
               <WorkflowTimeline />
             </div>
           </div>
@@ -378,7 +497,7 @@ export function LandingPage() {
           <div className={styles.sectionInner}>
             <header
               ref={whyRef}
-              className={`${styles.sectionIntro} ${styles.revealFade}`}
+              className={`${styles.sectionIntro} ${styles.revealEnhance}`}
             >
               <p className={styles.sectionEyebrow}>Dlaczego OurWed</p>
               <h2 className={styles.sectionTitle}>
@@ -392,7 +511,7 @@ export function LandingPage() {
                   className={`${styles.whyCard} ${styles.revealCard}`}
                   style={
                     {
-                      '--reveal-delay': `${index * 80}ms`,
+                      '--reveal-delay': `${index * 70}ms`,
                     } as CSSProperties
                   }
                 >
@@ -404,8 +523,39 @@ export function LandingPage() {
           </div>
         </section>
 
+        <section id="faq" className={styles.section}>
+          <div className={styles.sectionInnerNarrow}>
+            <header
+              ref={faqRef}
+              className={`${styles.sectionIntro} ${styles.revealEnhance}`}
+            >
+              <p className={styles.sectionEyebrow}>FAQ</p>
+              <h2 className={styles.sectionTitle}>Najczęstsze pytania</h2>
+            </header>
+            <div className={styles.faqList}>
+              {FAQ.map((item) => (
+                <details key={item.q} className={styles.faqItem}>
+                  <summary>{item.q}</summary>
+                  <p>{item.a}</p>
+                </details>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section id="pricing" className={styles.pricingNote}>
+          <div className={styles.sectionInnerNarrow}>
+            <p className={styles.sectionEyebrow}>Cennik</p>
+            <h2 className={styles.sectionTitle}>Wkrótce</h2>
+            <p className={styles.sectionSubtitle}>
+              Pracujemy nad prostym, przejrzystym cennikiem. Już teraz możesz założyć
+              konto i korzystać z OurWed.
+            </p>
+          </div>
+        </section>
+
         <section className={styles.cta}>
-          <div ref={ctaRef} className={`${styles.ctaInner} ${styles.revealCta}`}>
+          <div className={styles.ctaInner}>
             <p className={styles.ctaEyebrow}>Gotowy na spokojniejszy sezon?</p>
             <h2 className={styles.ctaTitle}>
               Zacznij prowadzić studio w OurWed.
@@ -414,12 +564,20 @@ export function LandingPage() {
               Załóż konto w kilka minut. Bez karty. Bez długiej konfiguracji.
             </p>
             <div className={styles.ctaActions}>
-              <Link to="/register" className={styles.primaryLink}>
+              <button
+                type="button"
+                className={styles.primaryLink}
+                onClick={() => openAuth('register')}
+              >
                 Rozpocznij za darmo
-              </Link>
-              <Link to="/login" className={styles.secondaryLink}>
+              </button>
+              <button
+                type="button"
+                className={styles.secondaryLink}
+                onClick={() => openAuth('login')}
+              >
                 Mam już konto
-              </Link>
+              </button>
             </div>
           </div>
         </section>
@@ -434,9 +592,7 @@ export function LandingPage() {
           <nav className={styles.footerNav} aria-label="Stopka">
             <a href="#tour">Produkt</a>
             <a href="#features">Funkcje</a>
-            <span className={styles.footerSoon}>
-              Cennik <em>wkrótce</em>
-            </span>
+            <a href="#pricing">Cennik</a>
             <a href="#privacy">Polityka prywatności</a>
             <a href="#terms">Regulamin</a>
             <a href="mailto:kontakt@ourwed.pl">Kontakt</a>
@@ -459,6 +615,14 @@ export function LandingPage() {
           </p>
         </div>
       </footer>
+
+      <LandingAuthDialog
+        open={authOpen}
+        view={authView}
+        emailHint={authEmail}
+        onClose={() => setAuthOpen(false)}
+        onChangeView={changeAuthView}
+      />
     </div>
   )
 }
