@@ -1,4 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom'
+import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AppLayout } from '@/layouts/AppLayout'
 import { Button } from '@/components/ui/Button'
@@ -12,12 +13,15 @@ import styles from '@/features/questionnaires/Questionnaires.module.css'
 export function PendingWeddingsPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const [busyId, setBusyId] = useState<string | null>(null)
   const { data = [], isLoading, isError, error, refetch } = useQuery({
     queryKey: ['pending-questionnaires'],
     queryFn: () => questionnaireService.listPending(),
   })
 
   async function handleApprove(id: string) {
+    if (busyId) return
+    setBusyId(id)
     try {
       const { wedding } = await questionnaireService.approve(id)
       await queryClient.invalidateQueries({ queryKey: ['pending-questionnaires'] })
@@ -27,10 +31,14 @@ export function PendingWeddingsPage() {
       navigate(`/sluby/${wedding.id}`)
     } catch (err) {
       window.alert(err instanceof Error ? err.message : 'Nie udało się zatwierdzić.')
+    } finally {
+      setBusyId(null)
     }
   }
 
   async function handleReject(id: string) {
+    if (busyId) return
+    setBusyId(id)
     try {
       await questionnaireService.reject(id)
       await queryClient.invalidateQueries({ queryKey: ['pending-questionnaires'] })
@@ -38,6 +46,8 @@ export function PendingWeddingsPage() {
       await queryClient.invalidateQueries({ queryKey: ['dashboard'] })
     } catch (err) {
       window.alert(err instanceof Error ? err.message : 'Nie udało się odrzucić.')
+    } finally {
+      setBusyId(null)
     }
   }
 
@@ -78,14 +88,16 @@ export function PendingWeddingsPage() {
                         type="button"
                         variant="primary"
                         size="sm"
+                        disabled={busyId === item.instance.id}
                         onClick={() => void handleApprove(item.instance.id)}
                       >
-                        Akceptuj
+                        {busyId === item.instance.id ? 'Zapisywanie…' : 'Akceptuj'}
                       </Button>
                       <Button
                         type="button"
                         variant="ghost"
                         size="sm"
+                        disabled={busyId === item.instance.id}
                         onClick={() => void handleReject(item.instance.id)}
                       >
                         Odrzuć

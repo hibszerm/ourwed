@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Card, CardHeader } from '@/components/ui/Card'
 import { TravelMap } from '@/features/travel/TravelMap'
+import { countPlacesNeedingVerification } from '@/features/travel/locationVerification'
 import {
   buildTravelFlow,
   openFullRouteUrl,
@@ -13,6 +14,7 @@ import styles from './WeddingDetailTravel.module.css'
 
 interface WeddingDetailTravelProps {
   weddingId: string
+  onRequestVerifyLocations?: () => void
 }
 
 function TravelSkeleton() {
@@ -83,11 +85,57 @@ function LegConnector({ segment }: { segment: TravelSegment | null }) {
   )
 }
 
+function VerificationStatus({
+  needsCount,
+  hasCorePlaces,
+  onRequestVerifyLocations,
+}: {
+  needsCount: number
+  hasCorePlaces: boolean
+  onRequestVerifyLocations?: () => void
+}) {
+  if (!hasCorePlaces) return null
+
+  if (needsCount <= 0) {
+    return (
+      <p className={styles.verifyOk}>
+        <span aria-hidden>✓</span> All locations verified
+      </p>
+    )
+  }
+
+  const label =
+    needsCount === 1
+      ? '1 location requires verification'
+      : `${needsCount} locations require verification`
+
+  if (onRequestVerifyLocations) {
+    return (
+      <button
+        type="button"
+        className={styles.verifyWarnBtn}
+        onClick={onRequestVerifyLocations}
+      >
+        <span aria-hidden>⚠</span> {label}
+      </button>
+    )
+  }
+
+  return (
+    <p className={styles.verifyWarn}>
+      <span aria-hidden>⚠</span> {label}
+    </p>
+  )
+}
+
 /**
- * Wedding Detail Travel planner card.
- * Studio → Preparations → Ceremony → Reception (skips missing stops).
+ * Wedding Detail Travel planner card — read-only visualization.
+ * Uses verified coordinates only; unresolved locations are skipped in routing.
  */
-export function WeddingDetailTravel({ weddingId }: WeddingDetailTravelProps) {
+export function WeddingDetailTravel({
+  weddingId,
+  onRequestVerifyLocations,
+}: WeddingDetailTravelProps) {
   const queryClient = useQueryClient()
 
   const { data: plan, isLoading, isFetching } = useQuery({
@@ -119,6 +167,8 @@ export function WeddingDetailTravel({ weddingId }: WeddingDetailTravelProps) {
   })
 
   const flow = plan ? buildTravelFlow(plan) : null
+  const needsCount = plan ? countPlacesNeedingVerification(plan.places) : 0
+  const hasCorePlaces = (plan?.places.length ?? 0) > 0
   const okSegments =
     plan?.segments.filter(
       (s) => s.status === 'ok' && s.distanceMeters != null,
@@ -133,70 +183,80 @@ export function WeddingDetailTravel({ weddingId }: WeddingDetailTravelProps) {
 
       {isLoading ? (
         <TravelSkeleton />
-      ) : !flow || !flow.hasAnyLocation ? (
-        <div className={styles.empty}>
-          <p className={styles.muted}>
-            No locations yet. Set studio origin and wedding places to build the
-            travel timeline.
-          </p>
-          <p className={styles.meta}>
-            Studio → Travel settings · set locations in the hero above
-          </p>
-        </div>
       ) : (
         <div className={styles.content}>
-          <TravelMap stops={flow.stops} />
+          <VerificationStatus
+            needsCount={needsCount}
+            hasCorePlaces={hasCorePlaces}
+            onRequestVerifyLocations={onRequestVerifyLocations}
+          />
 
-          <div className={styles.flow}>
-            {flow.stops.map((stop, index) => (
-              <div key={stop.key} className={styles.flowItem}>
-                <StopCard stop={stop} />
-                {index < flow.stops.length - 1 ? (
-                  <LegConnector segment={flow.legs[index] ?? null} />
-                ) : null}
+          {!flow || !flow.hasAnyLocation ? (
+            <div className={styles.empty}>
+              <p className={styles.muted}>
+                No verified locations yet. Confirm addresses in the hero to build
+                the travel timeline.
+              </p>
+              <p className={styles.meta}>
+                Studio → Travel settings · verify locations in the hero above
+              </p>
+            </div>
+          ) : (
+            <>
+              <TravelMap stops={flow.stops} />
+
+              <div className={styles.flow}>
+                {flow.stops.map((stop, index) => (
+                  <div key={stop.key} className={styles.flowItem}>
+                    <StopCard stop={stop} />
+                    {index < flow.stops.length - 1 ? (
+                      <LegConnector segment={flow.legs[index] ?? null} />
+                    ) : null}
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
 
-          <div className={styles.summary}>
-            <div className={styles.summaryStat}>
-              <span className={styles.summaryLabel}>Total distance</span>
-              <span className={styles.summaryValue}>
-                {okSegments.length > 0 ? totals.distanceText : '—'}
-              </span>
-            </div>
-            <div className={styles.summaryStat}>
-              <span className={styles.summaryLabel}>Estimated driving</span>
-              <span className={styles.summaryValue}>
-                {okSegments.length > 0 ? totals.durationText : '—'}
-              </span>
-            </div>
-          </div>
+              <div className={styles.summary}>
+                <div className={styles.summaryStat}>
+                  <span className={styles.summaryLabel}>Total distance</span>
+                  <span className={styles.summaryValue}>
+                    {okSegments.length > 0 ? totals.distanceText : '—'}
+                  </span>
+                </div>
+                <div className={styles.summaryStat}>
+                  <span className={styles.summaryLabel}>Estimated driving</span>
+                  <span className={styles.summaryValue}>
+                    {okSegments.length > 0 ? totals.durationText : '—'}
+                  </span>
+                </div>
+              </div>
 
-          <div className={styles.actions}>
-            <button
-              type="button"
-              className={styles.actionPrimary}
-              disabled={busy}
-              onClick={() => void recalculateMutation.mutateAsync()}
-            >
-              {recalculateMutation.isPending
-                ? 'Recalculating…'
-                : 'Recalculate route'}
-            </button>
-            {directionsUrl ? (
-              <a
-                className={styles.actionSecondary}
-                href={directionsUrl}
-                target="_blank"
-                rel="noreferrer"
-              >
-                Open full route
-              </a>
-            ) : (
-              <span className={styles.actionDisabled}>Open full route</span>
-            )}
-          </div>
+              <div className={styles.actions}>
+                <button
+                  type="button"
+                  className={styles.actionPrimary}
+                  disabled={busy}
+                  onClick={() => void recalculateMutation.mutateAsync()}
+                >
+                  {recalculateMutation.isPending
+                    ? 'Recalculating…'
+                    : 'Recalculate route'}
+                </button>
+                {directionsUrl ? (
+                  <a
+                    className={styles.actionSecondary}
+                    href={directionsUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Open full route
+                  </a>
+                ) : (
+                  <span className={styles.actionDisabled}>Open full route</span>
+                )}
+              </div>
+            </>
+          )}
         </div>
       )}
     </Card>

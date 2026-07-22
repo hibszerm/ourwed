@@ -1,3 +1,4 @@
+import { listOwnedWeddingIds } from '@/lib/api/ownership'
 import { supabase } from '@/lib/supabase'
 import { throwOnError } from '@/lib/supabase/helpers'
 import type { Wedding } from '@/types/wedding'
@@ -97,9 +98,13 @@ function weddingDayStartIso(date: string): string {
  */
 export const calendarEventService = {
   async listAll(): Promise<CalendarEvent[]> {
+    const weddingIds = await listOwnedWeddingIds()
+    if (weddingIds.length === 0) return []
+
     const { data, error } = await supabase
       .from('calendar_events')
       .select('*')
+      .in('wedding_id', weddingIds)
       .order('start_date', { ascending: true })
 
     throwOnError(error)

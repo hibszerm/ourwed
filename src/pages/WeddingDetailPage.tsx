@@ -160,6 +160,15 @@ export function WeddingDetailPage() {
     setEditing(true)
   }
 
+  function beginEditLocations() {
+    beginEdit()
+    window.requestAnimationFrame(() => {
+      document
+        .getElementById('wedding-locations')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  }
+
   function cancelEdit() {
     setEditing(false)
     setDraft(null)
@@ -336,7 +345,10 @@ export function WeddingDetailPage() {
             />
           </div>
 
-          <WeddingDetailTravel weddingId={view.id} />
+          <WeddingDetailTravel
+            weddingId={view.id}
+            onRequestVerifyLocations={beginEditLocations}
+          />
 
           <div className={styles.row}>
             <WeddingDetailQuestionnaires

@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate } from 'react-router-dom'
+import { createBrowserRouter } from 'react-router-dom'
 import { ProtectedRoute } from '@/features/auth/ProtectedRoute'
 import { DashboardPage } from '@/pages/DashboardPage'
 import { WeddingsPage } from '@/pages/WeddingsPage'
@@ -12,14 +12,39 @@ import { PackagesPage } from '@/pages/PackagesPage'
 import { ExtraServicesPage } from '@/pages/ExtraServicesPage'
 import { TravelSettingsPage } from '@/pages/TravelSettingsPage'
 import { PublicFormTokenPage } from '@/pages/PublicFormTokenPage'
+import { LandingPage } from '@/pages/LandingPage'
 import { LoginPage } from '@/pages/LoginPage'
+import { RegisterPage } from '@/pages/RegisterPage'
+import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage'
+import { ResetPasswordPage } from '@/pages/ResetPasswordPage'
+import { CheckEmailPage } from '@/pages/CheckEmailPage'
 import { PlaceholderPage } from '@/pages/PlaceholderPage'
 import { IconSettings } from '@/components/icons'
 
 export const router = createBrowserRouter([
   {
+    path: '/',
+    element: <LandingPage />,
+  },
+  {
     path: '/login',
     element: <LoginPage />,
+  },
+  {
+    path: '/register',
+    element: <RegisterPage />,
+  },
+  {
+    path: '/check-email',
+    element: <CheckEmailPage />,
+  },
+  {
+    path: '/forgot-password',
+    element: <ForgotPasswordPage />,
+  },
+  {
+    path: '/reset-password',
+    element: <ResetPasswordPage />,
   },
   {
     path: '/form/:token',
@@ -28,10 +53,6 @@ export const router = createBrowserRouter([
   {
     element: <ProtectedRoute />,
     children: [
-      {
-        path: '/',
-        element: <Navigate to="/dashboard" replace />,
-      },
       {
         path: '/dashboard',
         element: <DashboardPage />,

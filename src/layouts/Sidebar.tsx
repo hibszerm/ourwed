@@ -38,8 +38,8 @@ export function Sidebar() {
     ? displayName.charAt(0).toUpperCase()
     : '—'
 
-  function handleLogout() {
-    logout()
+  async function handleLogout() {
+    await logout()
     navigate('/login', { replace: true })
   }
 

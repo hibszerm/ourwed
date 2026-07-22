@@ -1,6 +1,7 @@
 import { calendarEventService } from '@/lib/api/calendarEventService'
 import { notificationService } from '@/lib/api/notificationService'
 import { taskService } from '@/lib/api/taskService'
+import { weddingPlaceService } from '@/lib/api/weddingPlaceService'
 import { weddingService } from '@/lib/api/weddingService'
 import { getNearestUpcomingWedding } from '@/lib/utils/weddingMetrics'
 import type { Deadline, Notification, Task, Wedding } from '@/types/wedding'
@@ -14,17 +15,50 @@ export interface DashboardData {
 
 export const dashboardService = {
   async getDashboardData(): Promise<DashboardData> {
-    const [weddings, todayTasks, notifications, allTasks, calendarEvents] =
-      await Promise.all([
-        weddingService.getAll(),
-        taskService.listDueOn(new Date().toISOString().slice(0, 10)),
-        notificationService.list(),
-        taskService.listAll(),
-        calendarEventService.listAll(),
-      ])
+    const [
+      weddings,
+      todayTasks,
+      notifications,
+      allTasks,
+      calendarEvents,
+      placesNeedingVerification,
+    ] = await Promise.all([
+      weddingService.getAll(),
+      taskService.listDueOn(new Date().toISOString().slice(0, 10)),
+      notificationService.list(),
+      taskService.listAll(),
+      calendarEventService.listAll(),
+      weddingPlaceService.listNeedingVerification(),
+    ])
 
     const today = new Date().toISOString().slice(0, 10)
     const nextWedding = getNearestUpcomingWedding(weddings)
+
+    const unverifiedByWedding = new Map<string, number>()
+    for (const place of placesNeedingVerification) {
+      unverifiedByWedding.set(
+        place.weddingId,
+        (unverifiedByWedding.get(place.weddingId) ?? 0) + 1,
+      )
+    }
+
+    const activeWeddingIds = new Set(
+      weddings.filter((w) => w.status === 'active').map((w) => w.id),
+    )
+
+    const locationVerifyTasks: Task[] = [...unverifiedByWedding.entries()]
+      .filter(([weddingId]) => activeWeddingIds.has(weddingId))
+      .map(([weddingId, count]) => ({
+        id: `verify-locations-${weddingId}`,
+        weddingId,
+        title:
+          count === 1
+            ? 'Verify wedding locations'
+            : `Verify wedding locations (${count})`,
+        dueDate: today,
+        completed: false,
+        priority: 'high' as const,
+      }))
 
     const upcomingDeadlines: Deadline[] = [
       ...allTasks
@@ -57,7 +91,7 @@ export const dashboardService = {
 
     return {
       nextWedding,
-      todayTasks,
+      todayTasks: [...locationVerifyTasks, ...todayTasks],
       notifications,
       upcomingDeadlines,
     }

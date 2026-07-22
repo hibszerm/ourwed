@@ -1,5 +1,7 @@
 import {
   archiveFormInstance,
+  attachWeddingToApprovedInstance,
+  claimSubmittedLeadInstance,
   createFormInstance,
   deleteFormInstance,
   getActiveFormByCategory,
@@ -9,17 +11,20 @@ import {
   listFormAnswersByInstanceIds,
   listFormInstances,
   listPendingLeadInstances,
-  markFormInstanceApproved,
+  releaseClaimedLeadInstance,
   rejectFormInstance,
   revokeFormInstance,
 } from '@/lib/api/forms'
 import { noteService } from '@/lib/api/noteService'
 import { notificationService } from '@/lib/api/notificationService'
 import { timelineEventService } from '@/lib/api/timelineEventService'
+import { travelService } from '@/lib/api/travelService'
+import { weddingPlaceService } from '@/lib/api/weddingPlaceService'
 import { weddingService } from '@/lib/api/weddingService'
 import { packageService } from '@/lib/api/packageService'
 import { asCatalogPackageId } from '@/lib/supabase/helpers'
 import { extractAnswerFields } from '@/lib/forms/mergeFormAnswersIntoWedding'
+import { shortLocationDisplay } from '@/features/travel/shortLocationDisplay'
 import type {
   FormAnswerJson,
   FormAnswerRecord,
@@ -27,6 +32,7 @@ import type {
   FormInstance,
   FormInstanceStatus,
 } from '@/types/formEngine'
+import type { WeddingPlaceRole } from '@/types/travel'
 import type { Wedding } from '@/types/wedding'
 
 export type QuestionnaireExpiration = '7d' | '14d' | '30d' | 'never'
@@ -173,6 +179,72 @@ function searchFromWedding(wedding: Wedding): QuestionnaireSearchFields {
         .filter(Boolean)
         .join(' ') || '',
     weddingDate: wedding.date,
+  }
+}
+
+/**
+ * Geocode questionnaire address texts into wedding_places (same path as Hero).
+ * Reliable Geoapify hits get coordinates; unreliable / failed geocodes still
+ * store the couple's original text without place_id or coordinates
+ * (needs verification). Never aborts approval.
+ */
+async function syncQuestionnaireLocationsToPlaces(
+  weddingId: string,
+  locations: {
+    preparation?: string
+    ceremony?: string
+    reception?: string
+  },
+): Promise<void> {
+  const pairs: Array<{ role: WeddingPlaceRole; text: string }> = [
+    { role: 'preparation', text: locations.preparation?.trim() || '' },
+    { role: 'ceremony', text: locations.ceremony?.trim() || '' },
+    { role: 'reception', text: locations.reception?.trim() || '' },
+  ]
+
+  for (const { role, text } of pairs) {
+    if (!text) continue
+    const label = shortLocationDisplay({ formattedAddress: text })
+    try {
+      await weddingPlaceService.upsert({
+        weddingId,
+        role,
+        addressText: text,
+        place: {
+          placeId: null,
+          formattedAddress: text,
+          latitude: null,
+          longitude: null,
+          label,
+        },
+        resolve: true,
+      })
+    } catch (err) {
+      console.warn(
+        `[questionnaire.approve] geocode failed for ${role}, storing text for verification:`,
+        err instanceof Error ? err.message : err,
+      )
+      try {
+        await weddingPlaceService.upsert({
+          weddingId,
+          role,
+          addressText: text,
+          place: {
+            placeId: null,
+            formattedAddress: text,
+            latitude: null,
+            longitude: null,
+            label,
+          },
+          resolve: false,
+        })
+      } catch (storeErr) {
+        console.warn(
+          `[questionnaire.approve] could not store ${role} text:`,
+          storeErr instanceof Error ? storeErr.message : storeErr,
+        )
+      }
+    }
   }
 }
 
@@ -509,6 +581,13 @@ export const questionnaireService = {
   async approve(instanceId: string): Promise<{ wedding: Wedding; instance: FormInstance }> {
     const instance = await getFormInstanceById(instanceId)
     if (!instance) throw new Error('Nie znaleziono ankiety.')
+
+    // Idempotent: already approved (e.g. double-click after first succeeded).
+    if (instance.status === 'approved' && instance.weddingId) {
+      const existing = await weddingService.getById(instance.weddingId)
+      if (existing) return { wedding: existing, instance }
+    }
+
     if (instance.status !== 'submitted' || instance.weddingId) {
       throw new Error('Tę ankietę nie można zatwierdzić.')
     }
@@ -521,74 +600,109 @@ export const questionnaireService = {
       throw new Error('Ankieta nie zawiera imion pary.')
     }
 
-    const wedding = await weddingService.create({
-      partner1: summary.bride,
-      partner2: summary.groom,
-      date: summary.weddingDate,
-      packageId: summary.packageId,
-      packageName: summary.packageName || 'Pakiet',
-      price: summary.packagePrice || 0,
-      depositAmount: summary.depositAmount || undefined,
-      currency: summary.currency,
-      accentColor: summary.accentColor,
-      depositPaid: false,
-      ceremonyLocation: summary.ceremonyLocation || undefined,
-      receptionLocation: summary.receptionLocation || undefined,
-      notes: summary.additionalNotes || undefined,
-    })
+    // Claim before creating a wedding so a concurrent approve cannot create orphans.
+    await claimSubmittedLeadInstance(instanceId)
 
-    await weddingService.update({
-      ...wedding,
-      couple: {
-        ...wedding.couple,
+    let wedding: Wedding
+    try {
+      wedding = await weddingService.create({
         partner1: summary.bride,
         partner2: summary.groom,
-        partner1Phone: summary.phone || undefined,
-        partner2Phone: summary.partner2Phone || undefined,
-        partner1Email: summary.email || undefined,
-        phone: summary.phone,
-        email: summary.email,
-        city: summary.city,
-        venue: summary.receptionLocation || summary.ceremonyLocation,
-      },
-      questionnaires: {
-        ...wedding.questionnaires,
-        contractData: {
-          status: 'completed',
-          sentAt: instance.createdAt.slice(0, 10),
-          completedAt: instance.submittedAt?.slice(0, 10),
-        },
-      },
-    })
-
-    if (summary.additionalNotes) {
-      await noteService.create({
-        weddingId: wedding.id,
-        content: summary.additionalNotes,
-        author: 'Para',
+        date: summary.weddingDate,
+        packageId: summary.packageId,
+        packageName: summary.packageName || 'Pakiet',
+        price: summary.packagePrice || 0,
+        depositAmount: summary.depositAmount || undefined,
+        currency: summary.currency,
+        accentColor: summary.accentColor,
+        depositPaid: false,
+        ceremonyLocation: summary.ceremonyLocation || undefined,
+        receptionLocation: summary.receptionLocation || undefined,
+        notes: summary.additionalNotes || undefined,
       })
+
+      await weddingService.update({
+        ...wedding,
+        couple: {
+          ...wedding.couple,
+          partner1: summary.bride,
+          partner2: summary.groom,
+          partner1Phone: summary.phone || undefined,
+          partner2Phone: summary.partner2Phone || undefined,
+          partner1Email: summary.email || undefined,
+          phone: summary.phone,
+          email: summary.email,
+          city: summary.city,
+          venue: summary.receptionLocation || summary.ceremonyLocation,
+        },
+        preparationLocation: summary.preparationLocation || undefined,
+        ceremonyLocation: summary.ceremonyLocation || undefined,
+        receptionLocation: summary.receptionLocation || undefined,
+        questionnaires: {
+          ...wedding.questionnaires,
+          contractData: {
+            status: 'completed',
+            sentAt: instance.createdAt.slice(0, 10),
+            completedAt: instance.submittedAt?.slice(0, 10),
+          },
+        },
+      })
+
+      if (summary.additionalNotes) {
+        await noteService.create({
+          weddingId: wedding.id,
+          content: summary.additionalNotes,
+          author: 'Para',
+        })
+      }
+
+      await timelineEventService.create({
+        weddingId: wedding.id,
+        type: 'questionnaire_completed',
+        title: `Zaakceptowano: ${CONTRACT_QUESTIONNAIRE_UI_LABEL}.`,
+        description: 'Oczekujące zgłoszenie → ślub utworzony z ankiety.',
+        systemGenerated: true,
+      })
+
+      // Normalize locations → wedding_places (Hero / Travel source of truth).
+      await syncQuestionnaireLocationsToPlaces(wedding.id, {
+        preparation: summary.preparationLocation,
+        ceremony: summary.ceremonyLocation,
+        reception: summary.receptionLocation,
+      })
+
+      try {
+        await travelService.recalculate(wedding.id)
+      } catch (err) {
+        console.warn(
+          '[questionnaire.approve] travel recalculate failed:',
+          err instanceof Error ? err.message : err,
+        )
+      }
+
+      const approved = await attachWeddingToApprovedInstance(
+        instanceId,
+        wedding.id,
+      )
+
+      await notificationService.create({
+        title: 'Nowe zlecenie z ankiety',
+        message: `${summary.coupleLabel} — dodano do CRM.`,
+        type: 'success',
+        entityType: 'wedding',
+        entityId: wedding.id,
+        link: `/sluby/${wedding.id}`,
+      })
+
+      const refreshed = await weddingService.getById(wedding.id)
+      return { wedding: refreshed ?? wedding, instance: approved }
+    } catch (err) {
+      try {
+        await releaseClaimedLeadInstance(instanceId)
+      } catch {
+        // Best-effort rollback of the claim.
+      }
+      throw err
     }
-
-    await timelineEventService.create({
-      weddingId: wedding.id,
-      type: 'questionnaire_completed',
-      title: `Zaakceptowano: ${CONTRACT_QUESTIONNAIRE_UI_LABEL}.`,
-      description: 'Oczekujące zgłoszenie → ślub utworzony z ankiety.',
-      systemGenerated: true,
-    })
-
-    const approved = await markFormInstanceApproved(instanceId, wedding.id)
-
-    await notificationService.create({
-      title: 'Nowe zlecenie z ankiety',
-      message: `${summary.coupleLabel} — dodano do CRM.`,
-      type: 'success',
-      entityType: 'wedding',
-      entityId: wedding.id,
-      link: `/sluby/${wedding.id}`,
-    })
-
-    const refreshed = await weddingService.getById(wedding.id)
-    return { wedding: refreshed ?? wedding, instance: approved }
   },
 }

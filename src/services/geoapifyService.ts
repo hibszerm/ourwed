@@ -6,11 +6,17 @@
  * ({ type, features }) — never { results }.
  */
 
+import {
+  evaluateGeoapifyReliability,
+  type GeoapifyRankSignals,
+} from '@/services/geoapifyReliability'
+
 const GEOAPIFY_BASE = 'https://api.geoapify.com'
 
 export type GeoapifyErrorCode =
   | 'config'
   | 'not_found'
+  | 'unreliable'
   | 'network'
   | 'invalid_key'
   | 'unauthorized'
@@ -36,6 +42,10 @@ export interface GeoapifyPlaceResult {
   lon: number
   addressLine1?: string
   addressLine2?: string
+  /** Geoapify `result_type` (amenity, building, street, city, …). */
+  resultType?: string
+  /** Geoapify `rank` reliability signals. */
+  rank?: GeoapifyRankSignals
 }
 
 export interface GeoapifyRouteResult {
@@ -46,10 +56,13 @@ export interface GeoapifyRouteResult {
 interface GeoapifyFeatureProperties {
   place_id?: string | number
   formatted?: string
+  name?: string
   lat?: number
   lon?: number
   address_line1?: string
   address_line2?: string
+  result_type?: string
+  rank?: GeoapifyRankSignals
   distance?: number
   time?: number
 }
@@ -118,6 +131,8 @@ function mapFeature(feature: GeoapifyFeature): GeoapifyPlaceResult | null {
     lon,
     addressLine1: props.address_line1,
     addressLine2: props.address_line2,
+    resultType: props.result_type,
+    rank: props.rank,
   }
 }
 
@@ -196,7 +211,11 @@ export const geoapifyService = {
       .filter((r): r is GeoapifyPlaceResult => r != null)
   },
 
-  /** Forward geocode a full address string. */
+  /**
+   * Forward geocode a full address string for automatic resolution.
+   * Rejects hits that fail the Geoapify reliability gate (no invented pins).
+   * Photographer autocomplete (`searchPlaces`) does not use this gate.
+   */
   async geocode(address: string): Promise<GeoapifyPlaceResult> {
     const text = address.trim()
     if (!text) {
@@ -219,6 +238,7 @@ export const geoapifyService = {
       )
     }
 
+    const raw = features[0]?.properties
     const hit = mapFeature(features[0])
     if (!hit) {
       throw new GeoapifyError(
@@ -226,6 +246,18 @@ export const geoapifyService = {
         'invalid_response',
       )
     }
+
+    const decision = evaluateGeoapifyReliability({
+      resultType: raw?.result_type ?? hit.resultType,
+      rank: raw?.rank ?? hit.rank,
+    })
+    if (!decision.reliable) {
+      throw new GeoapifyError(
+        'Lokalizacja wymaga weryfikacji (niepewny wynik geokodowania).',
+        'unreliable',
+      )
+    }
+
     return hit
   },
 

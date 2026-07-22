@@ -1,3 +1,4 @@
+import { listOwnedWeddingIds } from '@/lib/api/ownership'
 import { supabase } from '@/lib/supabase'
 import { throwOnError, toDateString } from '@/lib/supabase/helpers'
 import type { Task } from '@/types/wedding'
@@ -71,9 +72,13 @@ export const taskService = {
   },
 
   async listAll(): Promise<Task[]> {
+    const weddingIds = await listOwnedWeddingIds()
+    if (weddingIds.length === 0) return []
+
     const { data, error } = await supabase
       .from('tasks')
       .select('*')
+      .in('wedding_id', weddingIds)
       .order('due_date', { ascending: true, nullsFirst: false })
 
     throwOnError(error)
@@ -82,10 +87,14 @@ export const taskService = {
   },
 
   async listDueOn(date: string): Promise<Task[]> {
+    const weddingIds = await listOwnedWeddingIds()
+    if (weddingIds.length === 0) return []
+
     const day = date.slice(0, 10)
     const { data, error } = await supabase
       .from('tasks')
       .select('*')
+      .in('wedding_id', weddingIds)
       .eq('due_date', day)
       .neq('status', 'cancelled')
       .order('created_at', { ascending: true })

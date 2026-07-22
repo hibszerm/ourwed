@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import { nowIso, throwOnError, toNumber, asCatalogPackageId } from '@/lib/supabase/helpers'
+import { requireStudioUserId } from '@/lib/api/ownership'
 import {
   slugify,
   type PackageItem,
@@ -63,10 +64,16 @@ export interface UpdatePackageInput {
 }
 
 async function uniqueSlug(base: string, excludeId?: string): Promise<string> {
+  const userId = await requireStudioUserId()
   let candidate = slugify(base)
   let n = 0
   for (;;) {
-    let query = supabase.from('packages').select('id').eq('slug', candidate).maybeSingle()
+    let query = supabase
+      .from('packages')
+      .select('id')
+      .eq('slug', candidate)
+      .eq('user_id', userId)
+      .maybeSingle()
     const { data, error } = await query
     throwOnError(error)
     if (!data || (excludeId && data.id === excludeId)) return candidate
@@ -77,9 +84,11 @@ async function uniqueSlug(base: string, excludeId?: string): Promise<string> {
 
 export const packageService = {
   async list(options?: { activeOnly?: boolean }): Promise<StudioPackage[]> {
+    const userId = await requireStudioUserId()
     let query = supabase
       .from('packages')
       .select('*')
+      .eq('user_id', userId)
       .order('sort_order', { ascending: true })
       .order('created_at', { ascending: true })
 
@@ -114,9 +123,11 @@ export const packageService = {
   },
 
   async create(input: CreatePackageInput): Promise<StudioPackage> {
+    const userId = await requireStudioUserId()
     const { data: maxRow } = await supabase
       .from('packages')
       .select('sort_order')
+      .eq('user_id', userId)
       .order('sort_order', { ascending: false })
       .limit(1)
       .maybeSingle()
@@ -136,6 +147,7 @@ export const packageService = {
         color: input.color ?? null,
         is_active: input.isActive ?? true,
         sort_order: sortOrder,
+        user_id: userId,
       })
       .select('*')
       .single()

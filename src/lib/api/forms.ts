@@ -1,5 +1,6 @@
 import { noteService } from '@/lib/api/noteService'
 import { notificationService } from '@/lib/api/notificationService'
+import { requireStudioUserId } from '@/lib/api/ownership'
 import { timelineEventService } from '@/lib/api/timelineEventService'
 import { supabase } from '@/lib/supabase'
 import { nowIso, throwOnError } from '@/lib/supabase/helpers'
@@ -34,12 +35,14 @@ interface FormRow {
   version: number
   is_active: boolean
   created_at: string
+  user_id?: string | null
 }
 
 interface FormInstanceRow {
   id: string
   form_id: string
   wedding_id: string | null
+  user_id?: string | null
   token: string
   status: string
   expires_at: string | null
@@ -112,9 +115,11 @@ export interface CreateFormInstanceOptions {
  * Tables: forms, form_instances, form_answers.
  */
 export async function getForms(): Promise<FormDefinition[]> {
+  const userId = await requireStudioUserId()
   const { data, error } = await supabase
     .from('forms')
     .select('*')
+    .eq('user_id', userId)
     .order('name', { ascending: true })
 
   throwOnError(error)
@@ -123,10 +128,12 @@ export async function getForms(): Promise<FormDefinition[]> {
 }
 
 export async function getForm(id: string): Promise<FormDefinition | null> {
+  const userId = await requireStudioUserId()
   const { data, error } = await supabase
     .from('forms')
     .select('*')
     .eq('id', id)
+    .or(`user_id.eq.${userId},user_id.is.null`)
     .maybeSingle()
 
   throwOnError(error)
@@ -135,23 +142,36 @@ export async function getForm(id: string): Promise<FormDefinition | null> {
   return mapForm(data as FormRow)
 }
 
-/** Active form definition for a category (highest version wins). */
+/** Active form definition for a category (prefer studio-owned, then template). */
 export async function getActiveFormByCategory(
   category: FormCategory,
 ): Promise<FormDefinition | null> {
-  const { data, error } = await supabase
+  const userId = await requireStudioUserId()
+
+  const owned = await supabase
     .from('forms')
     .select('*')
     .eq('category', category)
     .eq('is_active', true)
+    .eq('user_id', userId)
     .order('version', { ascending: false })
     .limit(1)
     .maybeSingle()
+  throwOnError(owned.error)
+  if (owned.data) return mapForm(owned.data as FormRow)
 
-  throwOnError(error)
-
-  if (!data) return null
-  return mapForm(data as FormRow)
+  const template = await supabase
+    .from('forms')
+    .select('*')
+    .eq('category', category)
+    .eq('is_active', true)
+    .is('user_id', null)
+    .order('version', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  throwOnError(template.error)
+  if (!template.data) return null
+  return mapForm(template.data as FormRow)
 }
 
 /**
@@ -175,12 +195,14 @@ export async function createFormInstance(
   const token = generateSecureToken()
   const resolvedWeddingId =
     options?.weddingId !== undefined ? options.weddingId : (weddingId ?? null)
+  const userId = await requireStudioUserId()
 
   const { data, error } = await supabase
     .from('form_instances')
     .insert({
       form_id: formId,
       wedding_id: resolvedWeddingId,
+      user_id: userId,
       token,
       status: 'pending',
       expires_at: options?.expiresAt ?? null,
@@ -215,9 +237,11 @@ export async function getFormInstanceById(
 
 /** List all instances newest-first (CRM Questionnaires module). */
 export async function listFormInstances(): Promise<FormInstance[]> {
+  const userId = await requireStudioUserId()
   const { data, error } = await supabase
     .from('form_instances')
     .select('*')
+    .eq('user_id', userId)
     .order('created_at', { ascending: false })
 
   throwOnError(error)
@@ -226,9 +250,11 @@ export async function listFormInstances(): Promise<FormInstance[]> {
 
 /** Submitted lead questionnaires awaiting approval (no wedding yet). */
 export async function listPendingLeadInstances(): Promise<FormInstance[]> {
+  const userId = await requireStudioUserId()
   const { data, error } = await supabase
     .from('form_instances')
     .select('*')
+    .eq('user_id', userId)
     .eq('status', 'submitted')
     .is('wedding_id', null)
     .order('submitted_at', { ascending: false })
@@ -341,9 +367,13 @@ export async function markFormInstanceApproved(
     })
     .eq('id', id)
     .eq('status', 'submitted')
+    .is('wedding_id', null)
     .select('*')
     .single()
 
+  if (error?.code === 'PGRST116') {
+    throw new Error('Nie można zatwierdzić tej ankiety.')
+  }
   throwOnError(error)
   if (!data) {
     throw new Error('Nie można zatwierdzić tej ankiety.')
@@ -352,75 +382,156 @@ export async function markFormInstanceApproved(
 }
 
 /**
- * Resolve a public token.
+ * Atomically claim a submitted lead before creating a wedding.
+ * Prevents double-approve races that create orphan weddings.
+ * Sets status=approved with wedding_id still null; caller attaches wedding_id next.
+ */
+export async function claimSubmittedLeadInstance(
+  id: string,
+): Promise<FormInstance> {
+  const { data, error } = await supabase
+    .from('form_instances')
+    .update({
+      status: 'approved',
+      approved_at: nowIso(),
+    })
+    .eq('id', id)
+    .eq('status', 'submitted')
+    .is('wedding_id', null)
+    .select('*')
+    .single()
+
+  if (error?.code === 'PGRST116') {
+    throw new Error('Nie można zatwierdzić tej ankiety.')
+  }
+  throwOnError(error)
+  if (!data) {
+    throw new Error('Nie można zatwierdzić tej ankiety.')
+  }
+  return mapInstance(data as FormInstanceRow)
+}
+
+/** Attach the newly created wedding to an already-claimed lead instance. */
+export async function attachWeddingToApprovedInstance(
+  id: string,
+  weddingId: string,
+): Promise<FormInstance> {
+  const { data, error } = await supabase
+    .from('form_instances')
+    .update({ wedding_id: weddingId })
+    .eq('id', id)
+    .eq('status', 'approved')
+    .is('wedding_id', null)
+    .select('*')
+    .single()
+
+  if (error?.code === 'PGRST116') {
+    throw new Error('Nie można zatwierdzić tej ankiety.')
+  }
+  throwOnError(error)
+  if (!data) {
+    throw new Error('Nie można zatwierdzić tej ankiety.')
+  }
+  return mapInstance(data as FormInstanceRow)
+}
+
+/** Roll back a claim if wedding creation fails after claimSubmittedLeadInstance. */
+export async function releaseClaimedLeadInstance(id: string): Promise<void> {
+  const { error } = await supabase
+    .from('form_instances')
+    .update({
+      status: 'submitted',
+      approved_at: null,
+    })
+    .eq('id', id)
+    .eq('status', 'approved')
+    .is('wedding_id', null)
+
+  throwOnError(error)
+}
+
+/**
+ * Resolve a public token via SECURITY DEFINER RPC (works for anon clients).
  * First successful open moves `pending` → `opened` and sets `opened_at`.
  */
 export async function getFormInstanceByToken(
   token: string,
 ): Promise<FormInstance | null> {
-  const { data, error } = await supabase
-    .from('form_instances')
-    .select('*')
-    .eq('token', token)
-    .maybeSingle()
-
+  const { data, error } = await supabase.rpc('public_get_form_by_token', {
+    p_token: token,
+  })
   throwOnError(error)
+  if (!data || typeof data !== 'object') return null
 
-  if (!data) return null
+  const payload = data as { instance?: FormInstanceRow; form?: FormRow }
+  if (!payload.instance) return null
+  return mapInstance(payload.instance)
+}
 
-  let instance = mapInstance(data as FormInstanceRow)
+/** Public token payload including form definition (for /form/:token page). */
+export async function getPublicFormByToken(token: string): Promise<{
+  instance: FormInstance
+  form: FormDefinition
+  packages: Array<{ id: string; name: string }>
+} | null> {
+  const { data, error } = await supabase.rpc('public_get_form_by_token', {
+    p_token: token,
+  })
+  throwOnError(error)
+  if (!data || typeof data !== 'object') return null
 
-  if (
-    instance.status === 'revoked' ||
-    instance.status === 'approved' ||
-    instance.status === 'rejected' ||
-    instance.status === 'archived'
-  ) {
-    return instance
+  const payload = data as {
+    instance?: FormInstanceRow
+    form?: FormRow
+    packages?: Array<{ id: string; name: string }>
   }
+  if (!payload.instance || !payload.form) return null
+  return {
+    instance: mapInstance(payload.instance),
+    form: mapForm(payload.form),
+    packages: Array.isArray(payload.packages) ? payload.packages : [],
+  }
+}
 
-  if (isExpired(instance) && instance.status !== 'submitted') {
-    if (instance.status !== 'expired') {
-      const { data: expiredRow, error: expireError } = await supabase
-        .from('form_instances')
-        .update({ status: 'expired' })
-        .eq('id', instance.id)
-        .select('*')
-        .single()
+/**
+ * Persist answers for a public token (anon-safe RPC).
+ */
+export async function submitFormByToken(
+  token: string,
+  answerJson: FormAnswerJson,
+): Promise<FormAnswerRecord> {
+  const { data, error } = await supabase.rpc('public_submit_form_by_token', {
+    p_token: token,
+    p_answer_json: answerJson,
+  })
 
-      throwOnError(expireError)
-      if (expiredRow) {
-        instance = mapInstance(expiredRow as FormInstanceRow)
-      }
+  if (error) {
+    const message = error.message || ''
+    if (message.includes('ALREADY_SUBMITTED')) {
+      throw new Error('Formularz został już wysłany.')
     }
-    return instance
-  }
-
-  if (instance.status === 'pending') {
-    const openedAt = nowIso()
-    const { data: openedRow, error: openError } = await supabase
-      .from('form_instances')
-      .update({
-        status: 'opened',
-        opened_at: openedAt,
-      })
-      .eq('id', instance.id)
-      .eq('status', 'pending')
-      .select('*')
-      .maybeSingle()
-
-    throwOnError(openError)
-
-    if (openedRow) {
-      instance = mapInstance(openedRow as FormInstanceRow)
+    if (message.includes('LINK_REVOKED')) {
+      throw new Error('Link do formularza został unieważniony.')
     }
+    if (message.includes('LINK_EXPIRED')) {
+      throw new Error('Link do formularza wygasł.')
+    }
+    if (message.includes('INVALID_TOKEN')) {
+      throw new Error('Link do formularza jest nieprawidłowy.')
+    }
+    throwOnError(error)
   }
 
-  return instance
+  const payload = data as { answer?: FormAnswerRow } | null
+  if (!payload?.answer) {
+    throw new Error('Nie udało się zapisać odpowiedzi.')
+  }
+  return mapAnswer(payload.answer)
 }
 
 /**
  * Persist one JSON answers document and mark the instance submitted.
+ * Studio-authenticated path (RLS). Prefer submitFormByToken for public links.
  */
 export async function submitForm(
   instanceId: string,
@@ -448,6 +559,14 @@ export async function submitForm(
   }
   if (instance.status === 'expired' || isExpired(instance)) {
     throw new Error('Link do formularza wygasł.')
+  }
+
+  // Public / unauthenticated clients must use the token RPC.
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+  if (!session) {
+    throw new Error('Link do formularza jest nieprawidłowy.')
   }
 
   const submittedAt = nowIso()
@@ -513,7 +632,6 @@ export async function submitForm(
       })
     }
   } else {
-    // Lead questionnaire → Pending Wedding queue (submitted + null wedding_id).
     try {
       await notificationService.create({
         title: 'Nowa ankieta złożona',
@@ -524,7 +642,7 @@ export async function submitForm(
         link: `/ankiety/${instanceId}`,
       })
     } catch {
-      // Studio user may be missing in public form context — non-fatal.
+      // non-fatal
     }
   }
 

@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import { nowIso, throwOnError, toNumber } from '@/lib/supabase/helpers'
+import { listOwnedWeddingIds } from '@/lib/api/ownership'
 import { travelProvider } from '@/services/travelProvider'
 import type { GeoPlace, WeddingPlace, WeddingPlaceRole } from '@/types/travel'
 
@@ -136,14 +137,19 @@ export const weddingPlaceService = {
     }
 
     const existing = await this.getByRole(input.weddingId, input.role)
+    // When `place` is provided, its fields win — including explicit nulls
+    // (unresolved / needs verification). Do not fall back to stale coords.
     const patch = {
       wedding_id: input.weddingId,
       role: input.role,
-      label: place?.label?.trim() || existing?.label || null,
-      place_id: place?.placeId ?? existing?.placeId ?? null,
+      label:
+        place != null
+          ? place.label?.trim() || existing?.label || null
+          : existing?.label || null,
+      place_id: place != null ? place.placeId : (existing?.placeId ?? null),
       formatted_address: formatted,
-      latitude: place?.latitude ?? existing?.latitude ?? null,
-      longitude: place?.longitude ?? existing?.longitude ?? null,
+      latitude: place != null ? place.latitude : (existing?.latitude ?? null),
+      longitude: place != null ? place.longitude : (existing?.longitude ?? null),
       sort_order: ROLE_SORT[input.role] ?? 100,
       updated_at: nowIso(),
     }
@@ -235,4 +241,30 @@ export const weddingPlaceService = {
   },
 
   hasCoordinates,
+
+  /**
+   * Core places that have address text but no coordinates (need photographer verification).
+   */
+  async listNeedingVerification(): Promise<WeddingPlace[]> {
+    const weddingIds = await listOwnedWeddingIds()
+    if (weddingIds.length === 0) return []
+
+    const { data, error } = await supabase
+      .from('wedding_places')
+      .select('*')
+      .in('wedding_id', weddingIds)
+      .in('role', CORE_ROLES)
+      .order('wedding_id', { ascending: true })
+    throwOnError(error)
+    return ((data ?? []) as WeddingPlaceRow[])
+      .map(mapRow)
+      .filter(
+        (p) =>
+          Boolean(p.formattedAddress.trim()) &&
+          (p.latitude == null ||
+            p.longitude == null ||
+            !Number.isFinite(p.latitude) ||
+            !Number.isFinite(p.longitude)),
+      )
+  },
 }

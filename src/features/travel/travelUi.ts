@@ -1,4 +1,5 @@
 import type { TravelPlan, TravelSegment } from '@/types/travel'
+import { isPlaceVerified } from '@/features/travel/locationVerification'
 
 export interface TravelStop {
   key: string
@@ -11,7 +12,7 @@ export interface TravelStop {
   role?: string
 }
 
-/** Present stops in route order (missing locations skipped). */
+/** Present stops in route order (missing / unverified locations skipped). */
 export interface TravelFlowStop extends TravelStop {
   isSet: true
   markerIndex: number
@@ -31,7 +32,7 @@ const ROLE_TITLES: Record<string, string> = {
 }
 
 /**
- * Build UI flow from plan — only present stops, consecutive legs.
+ * Build UI flow from plan — only verified stops (with coordinates), consecutive legs.
  * Matches travelService skip-ahead routing.
  */
 export function buildTravelFlow(plan: TravelPlan): TravelFlow {
@@ -39,7 +40,14 @@ export function buildTravelFlow(plan: TravelPlan): TravelFlow {
   const stops: TravelFlowStop[] = []
 
   const studio = plan.studio
-  if (studio && (studio.formattedAddress || studio.studioName)) {
+  if (
+    studio &&
+    (studio.formattedAddress || studio.studioName) &&
+    studio.latitude != null &&
+    studio.longitude != null &&
+    Number.isFinite(studio.latitude) &&
+    Number.isFinite(studio.longitude)
+  ) {
     stops.push({
       key: 'studio',
       title: 'Studio',
@@ -55,7 +63,7 @@ export function buildTravelFlow(plan: TravelPlan): TravelFlow {
 
   for (const role of ['preparation', 'ceremony', 'reception'] as const) {
     const place = byRole.get(role)
-    if (!place) continue
+    if (!place || !isPlaceVerified(place)) continue
     stops.push({
       key: place.id,
       title: ROLE_TITLES[role] ?? role,

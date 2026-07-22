@@ -7,6 +7,41 @@
   gap: var(--space-5);
 }
 
+.verifyOk {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: color-mix(in srgb, var(--color-text-secondary) 75%, #2f6f4e);
+}
+
+.verifyWarn,
+.verifyWarnBtn {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: color-mix(in srgb, var(--color-text-secondary) 55%, #b7791f);
+  text-align: left;
+}
+
+.verifyWarnBtn {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
+.verifyWarnBtn:hover {
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
 .muted {
   margin: 0;
   font-size: var(--text-sm);

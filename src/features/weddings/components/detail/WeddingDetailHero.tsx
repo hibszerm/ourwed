@@ -2,6 +2,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { LocationSearchField } from '@/features/travel/LocationSearchField'
+import {
+  locationVerificationStatus,
+} from '@/features/travel/locationVerification'
 import { shortLocationDisplay } from '@/features/travel/shortLocationDisplay'
 import { coupleName, formatDate, getCountdownParts } from '@/lib/utils/dates'
 import { travelService } from '@/lib/api/travelService'
@@ -100,6 +103,7 @@ export function WeddingDetailHero({
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['wedding-places', weddingId] }),
         queryClient.invalidateQueries({ queryKey: ['weddings', weddingId] }),
+        queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
       ])
       try {
         await travelService.recalculate(weddingId)
@@ -130,7 +134,7 @@ export function WeddingDetailHero({
   const showDeposit = !weddingActionsService.hasDepositPayment(wedding)
 
   return (
-    <section className={styles.hero}>
+    <section className={styles.hero} id="wedding-hero">
       <div className={editStyles.toolbar}>
         <h1 className={styles.title}>{name}</h1>
         {wedding.status === 'archived' ? (
@@ -171,7 +175,7 @@ export function WeddingDetailHero({
         </div>
       )}
 
-      <div className={styles.locations}>
+      <div className={styles.locations} id="wedding-locations">
         {placesLoading ? (
           <p className={styles.locationsMuted}>Ładowanie lokalizacji…</p>
         ) : editing ? (
@@ -197,10 +201,30 @@ export function WeddingDetailHero({
           LOCATION_FIELDS.map(({ role, label }) => {
             const saved = byRole.get(role) ?? null
             const text = placeDisplayText(saved)
+            const status = locationVerificationStatus(saved)
             return (
               <div key={role} className={styles.packageRow}>
                 <span className={styles.label}>{label}</span>
-                <span className={styles.value}>{text || '—'}</span>
+                {status === 'empty' ? (
+                  <span className={styles.value}>—</span>
+                ) : status === 'verified' ? (
+                  <span className={styles.valueVerified}>
+                    <span className={styles.verifyMark} aria-hidden>
+                      ✓
+                    </span>
+                    {text}
+                  </span>
+                ) : (
+                  <div className={styles.valueNeedsVerify}>
+                    <span className={styles.valueNeedsVerifyLine}>
+                      <span className={styles.warnMark} aria-hidden>
+                        ⚠
+                      </span>
+                      {text}
+                    </span>
+                    <span className={styles.verifyHint}>Requires verification</span>
+                  </div>
+                )}
               </div>
             )
           })

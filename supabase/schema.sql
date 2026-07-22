@@ -63,7 +63,23 @@ comment on column public.users.id is
   'Future auth: set equal to auth.users.id so auth.uid() matches this row.';
 
 comment on column public.users.email is
-  'Future auth: keep in sync with auth.users.email.';
+  'Keep in sync with auth.users.email (signup trigger).';
+
+-- =============================================================================
+-- 1b. profiles — auth-linked account details
+-- =============================================================================
+
+create table if not exists public.profiles (
+  id uuid primary key references auth.users (id) on delete cascade,
+  first_name text not null default '',
+  last_name text not null default '',
+  profession text not null default '',
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+comment on table public.profiles is
+  'Studio profile linked 1:1 to auth.users.id. See migration auth_profiles.sql.';
 
 -- =============================================================================
 -- 2. weddings — one wedding = one project
@@ -686,8 +702,10 @@ create trigger travel_segments_set_updated_at
 -- =============================================================================
 -- Row Level Security
 -- =============================================================================
--- Temporary development policies: allow all roles full access.
--- Replace with auth.uid()-scoped policies before production.
+-- Multi-tenant policies live in:
+--   supabase/migrations/20260722150000_multi_tenant_rls.sql
+-- Every business table is scoped to auth.uid() (directly or via wedding ownership).
+-- Public form links use SECURITY DEFINER RPCs (token), never open table policies.
 -- =============================================================================
 
 alter table public.users enable row level security;
@@ -711,87 +729,3 @@ alter table public.wedding_extra_services enable row level security;
 alter table public.studio_travel_settings enable row level security;
 alter table public.wedding_places enable row level security;
 alter table public.travel_segments enable row level security;
-
-create policy "dev_allow_all_users"
-  on public.users for all
-  using (true) with check (true);
-
-create policy "dev_allow_all_weddings"
-  on public.weddings for all
-  using (true) with check (true);
-
-create policy "dev_allow_all_contacts"
-  on public.contacts for all
-  using (true) with check (true);
-
-create policy "dev_allow_all_payments"
-  on public.payments for all
-  using (true) with check (true);
-
-create policy "dev_allow_all_notes"
-  on public.notes for all
-  using (true) with check (true);
-
-create policy "dev_allow_all_timeline_events"
-  on public.timeline_events for all
-  using (true) with check (true);
-
-create policy "dev_allow_all_tasks"
-  on public.tasks for all
-  using (true) with check (true);
-
-create policy "dev_allow_all_forms"
-  on public.forms for all
-  using (true) with check (true);
-
-create policy "dev_allow_all_form_instances"
-  on public.form_instances for all
-  using (true) with check (true);
-
-create policy "dev_allow_all_form_answers"
-  on public.form_answers for all
-  using (true) with check (true);
-
-create policy "dev_allow_all_contracts"
-  on public.contracts for all
-  using (true) with check (true);
-
-create policy "dev_allow_all_calendar_events"
-  on public.calendar_events for all
-  using (true) with check (true);
-
-create policy "dev_allow_all_galleries"
-  on public.galleries for all
-  using (true) with check (true);
-
-create policy "dev_allow_all_notifications"
-  on public.notifications for all
-  using (true) with check (true);
-
-create policy "dev_allow_all_packages"
-  on public.packages for all
-  using (true) with check (true);
-
-create policy "dev_allow_all_package_items"
-  on public.package_items for all
-  using (true) with check (true);
-
-create policy "dev_allow_all_extra_services"
-  on public.extra_services for all
-  using (true) with check (true);
-
-create policy "dev_allow_all_wedding_extra_services"
-  on public.wedding_extra_services for all
-  using (true) with check (true);
-
-create policy "dev_allow_all_studio_travel_settings"
-  on public.studio_travel_settings for all
-  using (true) with check (true);
-
-create policy "dev_allow_all_wedding_places"
-  on public.wedding_places for all
-  using (true) with check (true);
-
-create policy "dev_allow_all_travel_segments"
-  on public.travel_segments for all
-  using (true) with check (true);

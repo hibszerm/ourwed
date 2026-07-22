@@ -1,4 +1,5 @@
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AppLayout } from '@/layouts/AppLayout'
 import { Badge } from '@/components/ui/Badge'
@@ -32,6 +33,7 @@ export function QuestionnaireDetailPage() {
   const { id = '' } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const [approving, setApproving] = useState(false)
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['questionnaires', id],
@@ -85,6 +87,8 @@ export function QuestionnaireDetailPage() {
   }
 
   async function handleApprove() {
+    if (approving) return
+    setApproving(true)
     try {
       const { wedding } = await questionnaireService.approve(instance.id)
       await queryClient.invalidateQueries({ queryKey: ['questionnaires'] })
@@ -92,6 +96,8 @@ export function QuestionnaireDetailPage() {
       navigate(`/sluby/${wedding.id}`)
     } catch (err) {
       window.alert(err instanceof Error ? err.message : 'Nie udało się zatwierdzić.')
+    } finally {
+      setApproving(false)
     }
   }
 
@@ -125,8 +131,14 @@ export function QuestionnaireDetailPage() {
             </>
           )}
           {instance.status === 'submitted' && !instance.weddingId && (
-            <Button type="button" variant="primary" size="sm" onClick={() => void handleApprove()}>
-              Utwórz ślub
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              disabled={approving}
+              onClick={() => void handleApprove()}
+            >
+              {approving ? 'Zapisywanie…' : 'Utwórz ślub'}
             </Button>
           )}
           {instance.status === 'approved' && instance.weddingId && (

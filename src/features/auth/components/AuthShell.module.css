@@ -18,11 +18,17 @@
   animation: enter var(--transition-slow) both;
 }
 
+.wide {
+  max-width: 480px;
+}
+
 .brand {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: var(--space-3);
   margin-bottom: var(--space-8);
+  text-decoration: none;
+  color: inherit;
 }
 
 .logoMark {
@@ -56,6 +62,7 @@
   letter-spacing: var(--tracking-tight);
   color: var(--color-text-primary);
   line-height: 1.1;
+  text-wrap: balance;
 }
 
 .subtitle {
@@ -65,22 +72,22 @@
   line-height: 1.55;
 }
 
-.form {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
-
-.error {
-  margin: 0;
+.footer {
+  margin-top: var(--space-6);
   font-size: var(--text-sm);
-  color: var(--color-error);
-  line-height: 1.4;
+  color: var(--color-text-secondary);
+  text-align: center;
+  line-height: 1.5;
 }
 
-.submit {
-  width: 100%;
-  margin-top: var(--space-2);
+.footer a {
+  color: var(--color-text-primary);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.footer a:hover {
+  color: var(--color-accent);
 }
 
 @keyframes enter {
@@ -101,5 +108,11 @@
 
   .title {
     font-size: var(--text-2xl);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card {
+    animation: none;
   }
 }

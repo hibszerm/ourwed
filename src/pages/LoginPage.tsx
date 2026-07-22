@@ -1,103 +1,36 @@
-import { useState, type FormEvent } from 'react'
-import { Navigate, useNavigate } from 'react-router-dom'
-import { Button } from '@/components/ui/Button'
-import { Input } from '@/components/ui/Input'
+import { Link, Navigate, useLocation } from 'react-router-dom'
+import { AuthShell } from '@/features/auth/components/AuthShell'
+import { AuthLoadingScreen } from '@/features/auth/components/AuthLoadingScreen'
+import { LoginForm } from '@/features/auth/components/LoginForm'
 import { useAuth } from '@/features/auth/AuthProvider'
-import styles from './LoginPage.module.css'
+import styles from '@/features/auth/components/AuthForms.module.css'
 
-/**
- * Login UI only. Credential validation lives exclusively in authService.
- */
 export function LoginPage() {
-  const { isAuthenticated, login } = useAuth()
-  const navigate = useNavigate()
-  const [error, setError] = useState<string | null>(null)
-  const [busy, setBusy] = useState(false)
+  const { isAuthenticated, isLoading } = useAuth()
+  const location = useLocation()
+  const passwordReset = Boolean(
+    (location.state as { passwordReset?: boolean } | null)?.passwordReset,
+  )
 
-  if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />
-  }
-
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    setError(null)
-
-    // Read from the DOM so browser autofill is included (React state can lag).
-    const formData = new FormData(event.currentTarget)
-    const email = String(formData.get('email') ?? '')
-    const password = String(formData.get('password') ?? '')
-
-    if (!email.trim() || !password) {
-      setError('Podaj e-mail i hasło.')
-      return
-    }
-
-    setBusy(true)
-    try {
-      const result = await login(email, password)
-      if (result.success) {
-        navigate('/dashboard', { replace: true })
-        return
-      }
-      setError(result.error)
-    } catch {
-      setError('Nie udało się zalogować. Spróbuj ponownie.')
-    } finally {
-      setBusy(false)
-    }
-  }
+  if (isLoading) return <AuthLoadingScreen />
+  if (isAuthenticated) return <Navigate to="/dashboard" replace />
 
   return (
-    <div className={styles.page}>
-      <div className={styles.card}>
-        <div className={styles.brand}>
-          <span className={styles.logoMark}>OW</span>
-          <span className={styles.logoText}>OurWed</span>
-        </div>
-
-        <header className={styles.header}>
-          <h1 className={styles.title}>Zaloguj się</h1>
-          <p className={styles.subtitle}>
-            Wejdź do studia, aby zarządzać ślubami, ankietami i finansami.
-          </p>
-        </header>
-
-        <form className={styles.form} onSubmit={handleSubmit} noValidate>
-          <Input
-            id="login-email"
-            name="email"
-            label="E-mail"
-            type="email"
-            autoComplete="email"
-            disabled={busy}
-            required
-          />
-          <Input
-            id="login-password"
-            name="password"
-            label="Hasło"
-            type="password"
-            autoComplete="current-password"
-            disabled={busy}
-            required
-          />
-
-          {error && (
-            <p className={styles.error} role="alert">
-              {error}
-            </p>
-          )}
-
-          <Button
-            type="submit"
-            variant="primary"
-            className={styles.submit}
-            disabled={busy}
-          >
-            {busy ? 'Logowanie…' : 'Zaloguj się'}
-          </Button>
-        </form>
-      </div>
-    </div>
+    <AuthShell
+      title="Zaloguj się"
+      subtitle="Wejdź do studia, aby zarządzać ślubami, ankietami i finansami."
+      footer={
+        <>
+          Nie masz konta? <Link to="/register">Utwórz konto</Link>
+        </>
+      }
+    >
+      {passwordReset ? (
+        <p className={styles.formSuccess} role="status">
+          Hasło zostało zmienione. Możesz się zalogować.
+        </p>
+      ) : null}
+      <LoginForm />
+    </AuthShell>
   )
 }

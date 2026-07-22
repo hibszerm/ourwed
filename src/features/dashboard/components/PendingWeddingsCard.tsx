@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/Button'
 import { Card, CardHeader } from '@/components/ui/Card'
@@ -8,12 +9,15 @@ import styles from './PendingWeddingsCard.module.css'
 
 export function PendingWeddingsCard() {
   const queryClient = useQueryClient()
+  const [busyId, setBusyId] = useState<string | null>(null)
   const { data: pending = [], isLoading } = useQuery({
     queryKey: ['pending-questionnaires'],
     queryFn: () => questionnaireService.listPending(),
   })
 
   async function handleAccept(id: string) {
+    if (busyId) return
+    setBusyId(id)
     try {
       await questionnaireService.approve(id)
       await queryClient.invalidateQueries({ queryKey: ['pending-questionnaires'] })
@@ -24,10 +28,14 @@ export function PendingWeddingsCard() {
       window.alert(
         err instanceof Error ? err.message : 'Nie udało się zaakceptować zgłoszenia.',
       )
+    } finally {
+      setBusyId(null)
     }
   }
 
   async function handleReject(id: string) {
+    if (busyId) return
+    setBusyId(id)
     try {
       await questionnaireService.reject(id)
       await queryClient.invalidateQueries({ queryKey: ['pending-questionnaires'] })
@@ -37,6 +45,8 @@ export function PendingWeddingsCard() {
       window.alert(
         err instanceof Error ? err.message : 'Nie udało się odrzucić zgłoszenia.',
       )
+    } finally {
+      setBusyId(null)
     }
   }
 
@@ -92,14 +102,16 @@ export function PendingWeddingsCard() {
                   type="button"
                   variant="primary"
                   size="sm"
+                  disabled={busyId === item.instance.id}
                   onClick={() => void handleAccept(item.instance.id)}
                 >
-                  Akceptuj
+                  {busyId === item.instance.id ? 'Zapisywanie…' : 'Akceptuj'}
                 </Button>
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
+                  disabled={busyId === item.instance.id}
                   onClick={() => void handleReject(item.instance.id)}
                 >
                   Odrzuć

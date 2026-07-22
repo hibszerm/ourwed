@@ -11,4 +11,16 @@ if (typeof supabaseAnonKey !== 'string' || !supabaseAnonKey) {
   throw new Error('Missing VITE_SUPABASE_ANON_KEY')
 }
 
-export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKey)
+/**
+ * Shared Supabase client (web).
+ * Session persistence uses localStorage by default — required for refresh tokens.
+ * "Remember me" is handled at the UX layer; mobile can inject its own storage later.
+ */
+export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+    flowType: 'pkce',
+  },
+})

@@ -8,9 +8,8 @@ import {
   isFullWidthQuestion,
 } from '@/features/forms/formSections'
 import {
-  getForm,
-  getFormInstanceByToken,
-  submitForm,
+  getPublicFormByToken,
+  submitFormByToken,
 } from '@/lib/api/forms'
 import { formEngine } from '@/lib/forms/formEngine'
 import {
@@ -18,7 +17,6 @@ import {
   CONTRACT_QUESTIONNAIRE_TEMPLATE,
   DEFAULT_FORM_SETTINGS,
 } from '@/lib/forms/contractQuestionnaireTemplate'
-import { packageService } from '@/lib/api/packageService'
 import type { AnswerValue, FormSettings, FormTemplate } from '@/types/form'
 import type { FormInstance } from '@/types/formEngine'
 import styles from './FormPublicPage.module.css'
@@ -71,15 +69,17 @@ export function ProductionContractFormPage() {
       }
 
       try {
-        const instance = await getFormInstanceByToken(token)
+        const publicForm = await getPublicFormByToken(token)
         const settings = DEFAULT_FORM_SETTINGS
 
         if (cancelled) return
 
-        if (!instance || instance.status === 'revoked') {
+        if (!publicForm || publicForm.instance.status === 'revoked') {
           setGate({ kind: 'not_found' })
           return
         }
+
+        const { instance } = publicForm
 
         if (instance.status === 'expired') {
           setGate({ kind: 'expired' })
@@ -100,17 +100,8 @@ export function ProductionContractFormPage() {
           return
         }
 
-        const definition = await getForm(instance.formId)
-        if (cancelled) return
-        if (!definition) {
-          setGate({ kind: 'not_found' })
-          return
-        }
-
-        const packages = await packageService.list({ activeOnly: true })
-        if (cancelled) return
         const template = buildContractQuestionnaireTemplate(
-          packages.map((p) => ({ id: p.id, name: p.name })),
+          publicForm.packages.map((p) => ({ id: p.id, name: p.name })),
         )
 
         setValues(emptyAnswers(template))
@@ -185,7 +176,7 @@ export function ProductionContractFormPage() {
     return null
   }
 
-  const { instance, settings, template } = gate
+  const { settings, template } = gate
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -205,7 +196,7 @@ export function ProductionContractFormPage() {
         fields: formEngine.answersToFieldMap(template, answers),
       }
 
-      await submitForm(instance.id, answerJson)
+      await submitFormByToken(token, answerJson)
       setSuccess(true)
     } catch (err) {
       const message =
