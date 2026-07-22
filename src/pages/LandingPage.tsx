@@ -25,29 +25,29 @@ import styles from './LandingPage.module.css'
 const FEATURES = [
   {
     id: 'travel',
-    title: 'Inteligentne planowanie tras',
-    body: 'Przystanki dnia ślubu, dystanse i czasy dojazdu — bez skakania między mapą a notatkami.',
-    benefit: 'Mniej stresu w dniu ślubu',
+    title: 'Planowanie trasy dnia ślubu',
+    body: 'Studio → przygotowania → ceremonia → przyjęcie. Dystanse i czasy dojazdu przy każdym odcinku.',
+    benefit: 'Travel w karcie ślubu',
     visual: 'travel' as const,
   },
   {
     id: 'questionnaires',
     title: 'Ankiety dla par',
-    body: 'Umowy i szczegóły eventowe online. Para uzupełnia dane, Ty masz je w karcie ślubu.',
-    benefit: 'Zero ciągłego dopytywania',
+    body: 'Umowy i ankiety przedślubne wysyłane linkiem. Statusy widoczne w module Ankiety.',
+    benefit: 'Bez konta dla pary',
     visual: 'forms' as const,
   },
   {
     id: 'payments',
-    title: 'Płatności i zaliczki',
-    body: 'Wartość umowy, zaliczki i pozostałe kwoty przy każdym ślubie — zawsze aktualne.',
+    title: 'Finanse ślubu',
+    body: 'Wartość umowy, zadatek, wpłaty i pozostała kwota — w karcie każdego zlecenia.',
     benefit: 'Przejrzyste rozliczenia',
     visual: 'finance' as const,
   },
   {
     id: 'schedule',
-    title: 'Harmonogram i kalendarz',
-    body: 'Śluby, zadania i terminy w jednym widoku — nic nie wypada z grafiku.',
+    title: 'Kalendarz i workflow',
+    body: 'Śluby na kalendarzu miesięcznym i etapy workflow od rezerwacji do oddania materiału.',
     benefit: 'Pełna kontrola nad sezonem',
     visual: 'timeline' as const,
   },
@@ -56,19 +56,19 @@ const FEATURES = [
 const WHY = [
   {
     title: 'Mniej administracji',
-    body: 'Automatyzujesz zbieranie danych i statusy zamiast ogarniać wszystko w mailach.',
+    body: 'Ankiety, płatności i statusy workflow w jednym miejscu zamiast w mailach.',
   },
   {
     title: 'Lepsza organizacja',
-    body: 'Kalendarz, podróże, ankiety i finanse w jednej aplikacji.',
+    body: 'Dashboard, śluby, kalendarz i ankiety — tak jak w aplikacji po zalogowaniu.',
   },
   {
     title: 'Jedno miejsce na wszystko',
-    body: 'Kontakt, umowa, lokalizacje i notatki są przy ślubie.',
+    body: 'Kontakt, umowa, trasa i finanse są przy ślubie.',
   },
   {
-    title: 'Nie zgubisz żadnego ślubu',
-    body: 'Od zapytania do oddania materiału — pełny lifecycle pod kontrolą.',
+    title: 'Workflow od A do Z',
+    body: 'Od rezerwacji przez zadatek i ślub aż do oddania materiału.',
   },
 ]
 
@@ -82,8 +82,8 @@ const FAQ = [
     a: 'Nie. Wypełniają ankiety przez bezpieczny link — bez rejestracji.',
   },
   {
-    q: 'Ile kosztuje OurWed?',
-    a: 'Cennik pojawi się wkrótce. Możesz już teraz założyć konto i zacząć pracę.',
+    q: 'Dla kogo jest OurWed?',
+    a: 'Dla branży ślubnej — studio prowadzi zlecenia od rezerwacji do oddania materiału.',
   },
 ]
 
@@ -157,21 +157,25 @@ function FeatureVisual({ kind }: { kind: (typeof FEATURES)[number]['visual'] }) 
   if (kind === 'travel') {
     return (
       <div className={styles.featureMock} aria-hidden>
-        <div className={styles.mockMap}>
-          <span className={styles.mockPin} style={{ left: '22%', top: '40%' }}>
-            1
-          </span>
-          <span className={styles.mockPin} style={{ left: '52%', top: '28%' }}>
-            2
-          </span>
-          <span className={styles.mockPin} style={{ left: '74%', top: '62%' }}>
-            3
-          </span>
-          <div className={styles.mockRoute} />
-        </div>
-        <div className={styles.mockLines}>
-          <strong>Ceremonia → Przyjęcie</strong>
-          <span>12 min · 7 km</span>
+        <div className={styles.mockTravelFlow}>
+          {[
+            ['1', 'Studio', 'ul. Mokotowska 12'],
+            ['2', 'Ceremony', 'Kościół św. Anny'],
+            ['3', 'Reception', 'Pałac w Wilanowie'],
+          ].map(([i, title, addr], idx) => (
+            <div key={title}>
+              <div className={styles.mockStop}>
+                <b>{i}</b>
+                <div>
+                  <strong>{title}</strong>
+                  <span>{addr}</span>
+                </div>
+              </div>
+              {idx < 2 ? (
+                <div className={styles.mockLeg}>↓ 12–28 min · 7–18 km</div>
+              ) : null}
+            </div>
+          ))}
         </div>
       </div>
     )
@@ -181,18 +185,15 @@ function FeatureVisual({ kind }: { kind: (typeof FEATURES)[number]['visual'] }) 
     return (
       <div className={styles.featureMock} aria-hidden>
         <div className={styles.mockFormCard}>
-          <em>Umowa · krok 2/4</em>
-          <strong>Dane pary młodej</strong>
+          <em>Ankiety</em>
+          <strong>Umowa · Wysłana</strong>
           <div className={styles.mockField}>
-            <span>Imię pani młodej</span>
-            <b>Anna</b>
+            <span>Para</span>
+            <b>Anna · Michał</b>
           </div>
           <div className={styles.mockField}>
-            <span>Data ślubu</span>
-            <b>15.08.2026</b>
-          </div>
-          <div className={styles.mockProgress}>
-            <i style={{ width: '68%' }} />
+            <span>Status</span>
+            <b>Wysłana</b>
           </div>
         </div>
       </div>
@@ -206,12 +207,16 @@ function FeatureVisual({ kind }: { kind: (typeof FEATURES)[number]['visual'] }) 
           <span>Wartość umowy</span>
           <strong>9 500 zł</strong>
           <div className={styles.mockFinanceRow}>
-            <em>Zaliczka</em>
+            <em>Wpłacono</em>
             <b>3 000 zł</b>
           </div>
           <div className={styles.mockFinanceRow}>
             <em>Pozostało</em>
             <b>6 500 zł</b>
+          </div>
+          <div className={styles.mockFinanceRow}>
+            <em>Zadatek</em>
+            <b>wpłacono</b>
           </div>
         </div>
       </div>
@@ -222,14 +227,14 @@ function FeatureVisual({ kind }: { kind: (typeof FEATURES)[number]['visual'] }) 
     <div className={styles.featureMock} aria-hidden>
       <div className={styles.mockTimelineList}>
         {[
-          ['09:30', 'Przygotowania'],
-          ['13:00', 'Ceremonia'],
-          ['15:30', 'Sesja plenerowa'],
-          ['17:00', 'Przyjęcie'],
-        ].map(([time, label]) => (
-          <div key={time} className={styles.mockTimelineRow}>
-            <span>{time}</span>
-            <strong>{label}</strong>
+          ['Rezerwacja', 'Nowe zlecenie'],
+          ['Zadatek', 'Czekamy na wpłatę'],
+          ['Ślub', 'Realizacja'],
+          ['Oddane', 'Materiały przekazane'],
+        ].map(([label, desc]) => (
+          <div key={label} className={styles.mockTimelineRow}>
+            <span>{label}</span>
+            <strong>{desc}</strong>
           </div>
         ))}
       </div>
@@ -380,15 +385,15 @@ export function LandingPage() {
         <section className={styles.hero}>
           <div className={styles.heroInner}>
             <div className={styles.heroCopy}>
-              <p className={styles.heroEyebrow}>CRM dla fotografów ślubnych</p>
+              <p className={styles.heroEyebrow}>CRM dla branży ślubnej</p>
               <h1 className={styles.heroTitle}>
                 Prowadź całą firmę ślubną
                 <br />
                 w jednym miejscu.
               </h1>
               <p className={styles.heroSub}>
-                OurWed łączy zapytania, umowy, ankiety, kalendarz, trasy i płatności —
-                od pierwszego kontaktu aż do oddania materiału.
+                OurWed łączy rezerwacje, umowy, ankiety, kalendarz, trasę dnia ślubu i finanse —
+                od pierwszego zlecenia aż do oddania materiału.
               </p>
               <div className={styles.heroActions}>
                 <button
@@ -475,7 +480,7 @@ export function LandingPage() {
               <p className={styles.sectionEyebrow}>Lifecycle</p>
               <h2 className={styles.sectionTitle}>Workflow całego ślubu.</h2>
               <p className={styles.sectionSubtitle}>
-                Od zapytania do gotowego materiału — każdy etap w jednym miejscu.
+                Etapy dokładnie jak w OurWed — od rezerwacji do oddania materiału.
               </p>
             </header>
             <div className={styles.workflowBody}>
@@ -492,7 +497,7 @@ export function LandingPage() {
             >
               <p className={styles.sectionEyebrow}>Dlaczego OurWed</p>
               <h2 className={styles.sectionTitle}>
-                Mniej chaosu. Więcej fotografii.
+                Mniej chaosu. Więcej realizacji.
               </h2>
             </header>
             <RevealGroup className={styles.whyGrid}>
@@ -578,7 +583,7 @@ export function LandingPage() {
         <div className={styles.footerInner}>
           <div className={styles.footerBrand}>
             <Logo />
-            <p>CRM dla fotografów ślubnych — od zapytania do oddania materiału.</p>
+            <p>CRM dla branży ślubnej — od rezerwacji do oddania materiału.</p>
           </div>
           <nav className={styles.footerNav} aria-label="Stopka">
             <a href="#tour">Produkt</a>

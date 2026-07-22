@@ -490,6 +490,49 @@
   overflow: hidden;
 }
 
+.mockTravelFlow {
+  display: grid;
+  gap: 6px;
+}
+
+.mockStop {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+}
+
+.mockStop b {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: #2f3b46;
+  color: #fff;
+  font-size: 10px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.mockStop strong {
+  display: block;
+  font-size: var(--text-sm);
+}
+
+.mockStop span {
+  font-size: var(--text-xs);
+  color: var(--color-text-tertiary);
+}
+
+.mockLeg {
+  margin: 0 0 0 28px;
+  font-size: var(--text-2xs);
+  color: var(--color-text-tertiary);
+}
+
 .mockRoute {
   position: absolute;
   inset: 38% 16% auto 16%;

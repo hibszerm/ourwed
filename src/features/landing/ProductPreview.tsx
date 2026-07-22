@@ -1,54 +1,121 @@
-import { useState, type ReactNode } from 'react'
+import { useState } from 'react'
+import { Avatar } from '@/components/ui/Avatar'
+import { WorkflowBadge } from '@/components/ui/Badge'
+import { ProgressBar } from '@/components/ui/ProgressBar'
+import {
+  WORKFLOW_STAGE_DESCRIPTIONS,
+  WORKFLOW_STAGE_LABELS,
+  getWorkflowProgress,
+} from '@/lib/utils/workflow'
+import type { WorkflowStage } from '@/types/wedding'
 import styles from './ProductPreview.module.css'
 
+/** Tabs mirror real product surfaces (sidebar + wedding detail modules). */
 export const PREVIEW_TABS = [
   { id: 'dashboard', label: 'Dashboard' },
   { id: 'weddings', label: 'Śluby' },
-  { id: 'travel', label: 'Podróże' },
   { id: 'questionnaires', label: 'Ankiety' },
+  { id: 'travel', label: 'Travel' },
   { id: 'finance', label: 'Finanse' },
   { id: 'calendar', label: 'Kalendarz' },
 ] as const
 
 export type PreviewTabId = (typeof PREVIEW_TABS)[number]['id']
 
+const DEMO_WEDDINGS: {
+  names: string
+  packageName: string
+  date: string
+  location: string
+  stage: WorkflowStage
+  accent: string
+  days: number
+}[] = [
+  {
+    names: 'Anna & Michał',
+    packageName: 'Pakiet Premium',
+    date: '15 sie 2026',
+    location: 'Pałac w Wilanowie, Warszawa',
+    stage: 'contract',
+    accent: '#7c5cbf',
+    days: 24,
+  },
+  {
+    names: 'Kasia & Piotr',
+    packageName: 'Pakiet Standard',
+    date: '22 sie 2026',
+    location: 'Dwór Sanna, Lublin',
+    stage: 'deposit',
+    accent: '#5c8cbf',
+    days: 31,
+  },
+  {
+    names: 'Ola & Tomek',
+    packageName: 'Pakiet Mini',
+    date: '5 wrz 2026',
+    location: 'Hotel Narvil, Serock',
+    stage: 'pre_wedding_questionnaire',
+    accent: '#bf8c5c',
+    days: 45,
+  },
+]
+
 export function PreviewDashboard() {
   return (
     <div className={styles.screen}>
       <p className={styles.greeting}>Dzień dobry</p>
       <h3 className={styles.screenTitle}>Anna</h3>
-      <div className={styles.statRow}>
-        <div className={styles.statCard}>
-          <span className={styles.statLabel}>Następny ślub</span>
-          <strong className={styles.statValue}>12 dni</strong>
-          <span className={styles.statMeta}>Kowalska & Nowak</span>
+
+      <div className={styles.nextWedding}>
+        <div className={styles.nextBody}>
+          <div className={styles.nextEyebrow}>
+            <span className={styles.nextDot} style={{ background: '#7c5cbf' }} />
+            Najbliższy ślub
+          </div>
+          <strong className={styles.nextNames}>Anna & Michał</strong>
+          <p className={styles.nextMeta}>
+            15 sierpnia 2026 · Pakiet Premium
+          </p>
+          <p className={styles.nextLoc}>Pałac w Wilanowie, Warszawa</p>
+          <div className={styles.nextStatus}>
+            <WorkflowBadge stage="contract" />
+            <span>{WORKFLOW_STAGE_DESCRIPTIONS.contract}</span>
+          </div>
+          <span className={styles.nextCta}>Otwórz ślub</span>
         </div>
-        <div className={styles.statCard}>
-          <span className={styles.statLabel}>Dziś</span>
-          <strong className={styles.statValue}>3</strong>
-          <span className={styles.statMeta}>zadania do zrobienia</span>
+        <div className={styles.nextCountdown}>
+          <span className={styles.nextDays}>24</span>
+          <span className={styles.nextUnit}>dni do ślubu</span>
         </div>
       </div>
-      <div className={styles.listCard}>
-        <div className={styles.listHead}>Dzisiejsze zadania</div>
-        <div className={styles.listRow}>
-          <span>Wysłać ankietę — Wiśniewscy</span>
-          <em>Do 18:00</em>
+
+      <div className={styles.twoCol}>
+        <div className={styles.listCard}>
+          <div className={styles.listHead}>Dzisiaj</div>
+          <div className={styles.taskRow}>
+            <div>
+              <strong>Wiśniewscy</strong>
+              <span>Wysłać ankietę umowy</span>
+            </div>
+            <em>Pilne</em>
+          </div>
+          <div className={styles.taskRow}>
+            <div>
+              <strong>Zielińscy</strong>
+              <span>Potwierdzić zadatek</span>
+            </div>
+          </div>
         </div>
-        <div className={styles.listRow}>
-          <span>Potwierdzić zaliczkę — Zielińscy</span>
-          <em>Pilne</em>
-        </div>
-      </div>
-      <div className={styles.listCard}>
-        <div className={styles.listHead}>Powiadomienia</div>
-        <div className={styles.listRow}>
-          <span>Nowa odpowiedź w ankiecie umowy</span>
-          <em>2 min</em>
-        </div>
-        <div className={styles.listRow}>
-          <span>Przypomnienie: sesja plenerowa</span>
-          <em>Dziś</em>
+        <div className={styles.listCard}>
+          <div className={styles.listHead}>Powiadomienia</div>
+          <div className={styles.listRow}>
+            <span>Nowa odpowiedź w ankiecie</span>
+            <em>2 min</em>
+          </div>
+          <div className={styles.listRow}>
+            <span>Umowa gotowa do wysłania</span>
+            <em>Dziś</em>
+          </div>
         </div>
       </div>
     </div>
@@ -59,23 +126,37 @@ function PreviewWeddings() {
   return (
     <div className={styles.screen}>
       <div className={styles.screenHeader}>
-        <h3 className={styles.screenTitle}>Śluby</h3>
-        <span className={styles.pill}>8 aktywnych</span>
+        <div>
+          <h3 className={styles.screenTitle}>Śluby</h3>
+          <p className={styles.screenSub}>8 aktywnych par</p>
+        </div>
+        <span className={styles.fakeBtn}>Nowy ślub</span>
       </div>
       <div className={styles.weddingGrid}>
-        {[
-          { names: 'Anna & Michał', date: '15 sie 2026', stage: 'Umowa', progress: 35 },
-          { names: 'Kasia & Piotr', date: '22 sie 2026', stage: 'Zaliczka', progress: 55 },
-          { names: 'Ola & Tomek', date: '5 wrz 2026', stage: 'Przygotowania', progress: 72 },
-        ].map((w) => (
+        {DEMO_WEDDINGS.map((w) => (
           <div key={w.names} className={styles.weddingCard}>
-            <div className={styles.weddingCardTop}>
-              <strong>{w.names}</strong>
-              <em>{w.stage}</em>
+            <div className={styles.weddingHeader}>
+              <Avatar name={w.names} color={w.accent} size="md" />
+              <div className={styles.weddingInfo}>
+                <strong>{w.names}</strong>
+                <span>{w.packageName}</span>
+              </div>
+              <WorkflowBadge stage={w.stage} />
             </div>
-            <span>{w.date}</span>
-            <div className={styles.progressTrack}>
-              <i style={{ width: `${w.progress}%` }} />
+            <p className={styles.weddingLoc}>{w.location}</p>
+            <div className={styles.weddingFooter}>
+              <div className={styles.weddingProgress}>
+                <span>Workflow</span>
+                <ProgressBar
+                  value={getWorkflowProgress(w.stage)}
+                  max={100}
+                  showLabel={false}
+                />
+              </div>
+              <div className={styles.weddingDate}>
+                <strong>{w.date}</strong>
+                <span>za {w.days} dni</span>
+              </div>
             </div>
           </div>
         ))}
@@ -85,44 +166,93 @@ function PreviewWeddings() {
 }
 
 function PreviewTravel() {
+  const stops = [
+    {
+      i: 1,
+      title: 'Studio',
+      address: 'ul. Mokotowska 12, Warszawa',
+    },
+    {
+      i: 2,
+      title: 'Preparations',
+      address: 'ul. Kwiatowa 8, Konstancin',
+    },
+    {
+      i: 3,
+      title: 'Ceremony',
+      address: 'Kościół św. Anny, Warszawa',
+    },
+    {
+      i: 4,
+      title: 'Reception',
+      address: 'Pałac w Wilanowie',
+    },
+  ]
+  const legs = [
+    { duration: '28 min', distance: '18 km' },
+    { duration: '22 min', distance: '14 km' },
+    { duration: '12 min', distance: '7 km' },
+  ]
+
   return (
     <div className={styles.screen}>
-      <h3 className={styles.screenTitle}>Plan podróży</h3>
+      <div className={styles.screenHeader}>
+        <div>
+          <h3 className={styles.screenTitle}>Travel</h3>
+          <p className={styles.screenSub}>
+            Studio → Preparations → Ceremony → Reception
+          </p>
+        </div>
+      </div>
+
       <div className={styles.mapBlock}>
         <div className={styles.mapRoute} />
-        <span className={styles.mapPin} style={{ left: '18%', top: '42%' }}>
-          1
-        </span>
-        <span className={styles.mapPin} style={{ left: '48%', top: '28%' }}>
-          2
-        </span>
-        <span className={styles.mapPin} style={{ left: '72%', top: '58%' }}>
-          3
-        </span>
+        {stops.map((s, idx) => (
+          <span
+            key={s.i}
+            className={styles.mapPin}
+            style={{
+              left: `${18 + idx * 20}%`,
+              top: `${32 + (idx % 2) * 22}%`,
+            }}
+          >
+            {s.i}
+          </span>
+        ))}
       </div>
-      <div className={styles.flowList}>
-        <div className={styles.flowStop}>
-          <b>1</b>
-          <div>
-            <strong>Przygotowania</strong>
-            <span>ul. Kwiatowa 12</span>
+
+      <div className={styles.travelFlow}>
+        {stops.map((stop, idx) => (
+          <div key={stop.i} className={styles.travelFlowItem}>
+            <div className={styles.stopCard}>
+              <span className={styles.stopIndex}>{stop.i}</span>
+              <div>
+                <strong>{stop.title}</strong>
+                <span>{stop.address}</span>
+              </div>
+            </div>
+            {legs[idx] ? (
+              <div className={styles.leg}>
+                <span className={styles.legArrow}>↓</span>
+                <span className={styles.legMeta}>
+                  {legs[idx].duration}
+                  <em>•</em>
+                  {legs[idx].distance}
+                </span>
+              </div>
+            ) : null}
           </div>
+        ))}
+      </div>
+
+      <div className={styles.travelSummary}>
+        <div>
+          <span>Total distance</span>
+          <strong>39 km</strong>
         </div>
-        <div className={styles.flowLeg}>24 min · 18 km</div>
-        <div className={styles.flowStop}>
-          <b>2</b>
-          <div>
-            <strong>Ceremonia</strong>
-            <span>Kościół św. Anny</span>
-          </div>
-        </div>
-        <div className={styles.flowLeg}>12 min · 7 km</div>
-        <div className={styles.flowStop}>
-          <b>3</b>
-          <div>
-            <strong>Przyjęcie</strong>
-            <span>Pałac w Wilanowie</span>
-          </div>
+        <div>
+          <span>Estimated driving</span>
+          <strong>1 h 2 min</strong>
         </div>
       </div>
     </div>
@@ -130,27 +260,49 @@ function PreviewTravel() {
 }
 
 function PreviewQuestionnaires() {
+  const rows = [
+    {
+      status: 'Wysłana',
+      type: 'Umowa',
+      couple: 'Anna · Michał',
+      created: '12 lip',
+    },
+    {
+      status: 'Otwarta',
+      type: 'Ankieta przedślubna',
+      couple: 'Kasia · Piotr',
+      created: '18 lip',
+    },
+    {
+      status: 'Oczekuje',
+      type: 'Umowa',
+      couple: 'Lead / przed ślubem',
+      created: '20 lip',
+    },
+  ]
+
   return (
     <div className={styles.screen}>
       <div className={styles.screenHeader}>
-        <h3 className={styles.screenTitle}>Ankiety</h3>
-        <span className={styles.pill}>5 otwartych</span>
+        <div>
+          <h3 className={styles.screenTitle}>Ankiety</h3>
+          <p className={styles.screenSub}>Status wysyłki i odpowiedzi</p>
+        </div>
+        <span className={styles.fakeBtn}>Wygeneruj ankietę</span>
       </div>
-      <div className={styles.surveyList}>
-        {[
-          { title: 'Wiśniewscy — umowa', status: 'Wysłana', pct: 40 },
-          { title: 'Zielińscy — szczegóły', status: 'W trakcie', pct: 68 },
-          { title: 'Nowakowie — timeline', status: 'Ukończona', pct: 100 },
-        ].map((item) => (
-          <div key={item.title} className={styles.surveyCard}>
-            <div className={styles.surveyTop}>
-              <strong>{item.title}</strong>
-              <em>{item.status}</em>
-            </div>
-            <div className={styles.progressTrack}>
-              <i style={{ width: `${item.pct}%` }} />
-            </div>
-            <span className={styles.surveyMeta}>{item.pct}% ukończenia</span>
+      <div className={styles.table}>
+        <div className={styles.tableHead}>
+          <span>Status</span>
+          <span>Typ</span>
+          <span>Para</span>
+          <span>Utworzono</span>
+        </div>
+        {rows.map((row) => (
+          <div key={row.couple + row.type} className={styles.tableRow}>
+            <span className={styles.statusPill}>{row.status}</span>
+            <strong>{row.type}</strong>
+            <span>{row.couple}</span>
+            <span>{row.created}</span>
           </div>
         ))}
       </div>
@@ -163,25 +315,27 @@ function PreviewFinance() {
     <div className={styles.screen}>
       <h3 className={styles.screenTitle}>Finanse</h3>
       <div className={styles.financeHero}>
-        <span>Pakiet Premium · wartość umowy</span>
+        <span>Wartość umowy</span>
         <strong>9 500 zł</strong>
       </div>
-      <div className={styles.financeRows}>
+      <div className={styles.financeSplit}>
         <div>
-          <span>Zaliczka</span>
-          <strong className={styles.ok}>3 000 zł · opłacona</strong>
-        </div>
-        <div>
-          <span>Druga rata</span>
-          <strong>3 250 zł · zaplanowana</strong>
+          <span>Wpłacono</span>
+          <strong className={styles.ok}>3 000 zł</strong>
         </div>
         <div>
           <span>Pozostało</span>
           <strong>6 500 zł</strong>
         </div>
+      </div>
+      <div className={styles.financeRows}>
         <div>
-          <span>Termin płatności</span>
-          <strong>1 sie 2026</strong>
+          <span>Zadatek</span>
+          <strong className={styles.ok}>3 000 zł · wpłacono</strong>
+        </div>
+        <div>
+          <span>Płatność końcowa</span>
+          <strong>6 500 zł · nieopłacona</strong>
         </div>
       </div>
     </div>
@@ -192,9 +346,23 @@ function PreviewCalendar() {
   const days = ['Pn', 'Wt', 'Śr', 'Cz', 'Pt', 'So', 'Nd']
   return (
     <div className={styles.screen}>
+      <div className={styles.calSummary}>
+        <div>
+          <span>Najbliższy ślub</span>
+          <strong>15 sie</strong>
+        </div>
+        <div>
+          <span>Śluby</span>
+          <strong>3</strong>
+        </div>
+        <div>
+          <span>Wartość zleceń</span>
+          <strong>24,5k</strong>
+        </div>
+      </div>
       <div className={styles.screenHeader}>
         <h3 className={styles.screenTitle}>Sierpień 2026</h3>
-        <span className={styles.pill}>3 śluby</span>
+        <span className={styles.pill}>Miesiąc</span>
       </div>
       <div className={styles.calGrid}>
         {days.map((d) => (
@@ -216,15 +384,14 @@ function PreviewCalendar() {
         })}
       </div>
       <div className={styles.listCard}>
-        <div className={styles.listHead}>Nadchodzące</div>
-        <div className={styles.listRow}>
-          <span>15 sie — Kowalska & Nowak</span>
-          <em>Ślub</em>
-        </div>
-        <div className={styles.listRow}>
-          <span>22 sie — Zielińscy</span>
-          <em>Ślub</em>
-        </div>
+        <div className={styles.listHead}>Śluby w tym miesiącu</div>
+        {DEMO_WEDDINGS.map((w) => (
+          <div key={w.names} className={styles.calWeddingRow}>
+            <span>{w.date}</span>
+            <strong>{w.names}</strong>
+            <WorkflowBadge stage={w.stage} />
+          </div>
+        ))}
       </div>
     </div>
   )
@@ -289,7 +456,11 @@ function PreviewFrame({
         <div className={styles.phoneCard}>
           <div className={styles.phoneNotch} aria-hidden />
           <div className={styles.previewSlot}>
-            <div key={`m-${fadeKey}`} className={styles.phonePane} role="tabpanel">
+            <div
+              key={`m-${fadeKey}`}
+              className={styles.phonePane}
+              role="tabpanel"
+            >
               <PreviewBody tab={tab} />
             </div>
           </div>
@@ -326,7 +497,6 @@ function TabList({
   )
 }
 
-/** Hero interactive preview — tabs + one device frame, no autoplay. */
 export function HeroProductPreview({ className = '' }: { className?: string }) {
   const [active, setActive] = useState<PreviewTabId>('dashboard')
   const [fadeKey, setFadeKey] = useState(0)
@@ -337,30 +507,36 @@ export function HeroProductPreview({ className = '' }: { className?: string }) {
     setFadeKey((k) => k + 1)
   }
 
+  const path =
+    active === 'travel' || active === 'finance'
+      ? `sluby/demo#${active}`
+      : active === 'weddings'
+        ? 'sluby'
+        : active === 'questionnaires'
+          ? 'ankiety'
+          : active === 'calendar'
+            ? 'kalendarz'
+            : 'dashboard'
+
   return (
     <div className={`${styles.root} ${styles.heroRoot} ${className}`.trim()}>
       <TabList active={active} onSelect={selectTab} label="Ekrany aplikacji" />
-      <PreviewFrame tab={active} fadeKey={fadeKey} url={`app.ourwed.pl/${active}`} />
+      <PreviewFrame
+        tab={active}
+        fadeKey={fadeKey}
+        url={`app.ourwed.pl/${path}`}
+      />
     </div>
   )
 }
 
-/** @deprecated use HeroProductPreview */
 export function HeroProductFrame(props: { className?: string }) {
   return <HeroProductPreview {...props} />
 }
 
-/** @deprecated use AppTour for the explore section */
 export function ProductPreview({ className = '' }: { className?: string }) {
   return <HeroProductPreview className={className} />
 }
 
-export function PreviewShell({
-  children,
-  className = '',
-}: {
-  children: ReactNode
-  className?: string
-}) {
-  return <div className={`${styles.root} ${className}`.trim()}>{children}</div>
-}
+/** Expose stage labels for other landing sections. */
+export { WORKFLOW_STAGE_LABELS }

@@ -6,14 +6,8 @@ import {
 } from '@/features/landing/ProductPreview'
 import styles from './AppTour.module.css'
 
-const TOUR_NAV = [
-  { id: 'dashboard' as const, label: 'Dashboard' },
-  { id: 'weddings' as const, label: 'Śluby' },
-  { id: 'questionnaires' as const, label: 'Ankiety' },
-  { id: 'travel' as const, label: 'Podróże' },
-  { id: 'finance' as const, label: 'Finanse' },
-  { id: 'calendar' as const, label: 'Kalendarz' },
-]
+/** Same surfaces as the interactive hero — order matches product navigation. */
+const TOUR_NAV = PREVIEW_TABS
 
 export function AppTour() {
   const [active, setActive] = useState<PreviewTabId>('dashboard')
@@ -24,6 +18,17 @@ export function AppTour() {
     setActive(id)
     setFadeKey((k) => k + 1)
   }
+
+  const path =
+    active === 'travel' || active === 'finance'
+      ? `sluby/demo`
+      : active === 'weddings'
+        ? 'sluby'
+        : active === 'questionnaires'
+          ? 'ankiety'
+          : active === 'calendar'
+            ? 'kalendarz'
+            : 'dashboard'
 
   return (
     <div className={styles.root}>
@@ -46,6 +51,9 @@ export function AppTour() {
             </button>
           ))}
         </nav>
+        <p className={styles.navHint}>
+          Travel i Finanse to moduły karty ślubu — tak jak w aplikacji.
+        </p>
       </aside>
 
       <div className={styles.stage}>
@@ -53,9 +61,7 @@ export function AppTour() {
           <span />
           <span />
           <span />
-          <div className={styles.url}>
-            app.ourwed.pl/{PREVIEW_TABS.find((t) => t.id === active)?.id}
-          </div>
+          <div className={styles.url}>app.ourwed.pl/{path}</div>
         </div>
         <div className={styles.contentSlot}>
           <div key={fadeKey} className={styles.content} role="tabpanel">
@@ -64,7 +70,6 @@ export function AppTour() {
         </div>
       </div>
 
-      {/* Mobile: horizontal chips instead of sidebar */}
       <div className={styles.mobileTabs} role="tablist" aria-label="Sekcje aplikacji">
         {TOUR_NAV.map((item) => (
           <button
