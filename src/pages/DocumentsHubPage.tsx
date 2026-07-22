@@ -6,31 +6,36 @@ import styles from '@/features/documents/DocumentsTemplates.module.css'
 
 export function DocumentsHubPage() {
   return (
-    <AppLayout
-      title="Dokumenty"
-      subtitle="Ustawienia · Dokumenty"
-    >
+    <AppLayout>
       <PageContainer width="wide">
-        <div className={styles.page}>
-          <nav className={styles.breadcrumb} aria-label="Okruszki">
-            <Link to="/ustawienia">Ustawienia</Link>
-            <span className={styles.sep}>/</span>
-            <span>Dokumenty</span>
-          </nav>
+        <div className={styles.studioPage}>
+          <header className={styles.studioHero}>
+            <h1 className={styles.studioTitle}>Dokumenty</h1>
+            <p className={styles.studioSubtitle}>
+              Zarządzaj umowami, które Twoje studio wykorzystuje we współpracy z
+              parami.
+            </p>
+          </header>
 
-          <div className={styles.hubGrid}>
+          <div className={styles.contractGrid}>
             <Link
               to="/ustawienia/dokumenty/szablony"
-              className={styles.hubCard}
+              className={styles.contractCard}
             >
-              <span className={styles.iconWrap}>
-                <Files size={22} strokeWidth={1.75} />
-              </span>
-              <h2 className={styles.hubCardTitle}>Szablony</h2>
-              <p className={styles.hubCardDesc}>
-                Biblioteka umów i dokumentów prawnych Twojego studia — wersje,
-                statusy i domyślne szablony w jednym miejscu.
-              </p>
+              <div className={styles.contractCardLink}>
+                <div className={styles.contractCardHeader}>
+                  <span className={styles.iconWrap} aria-hidden>
+                    <Files size={22} strokeWidth={1.75} />
+                  </span>
+                  <h2 className={styles.contractCardTitle}>
+                    Szablony dokumentów
+                  </h2>
+                </div>
+                <p className={styles.contractCardFormat}>Umowy</p>
+                <p className={styles.studioSubtitle} style={{ margin: 0 }}>
+                  Prześlij raz. OurWed automatycznie przygotuje ankiety.
+                </p>
+              </div>
             </Link>
           </div>
         </div>

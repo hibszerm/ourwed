@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { CheckCircle2, FileText, LoaderCircle, Upload } from 'lucide-react'
+import { CheckCircle2, LoaderCircle } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { useToast } from '@/components/ui/Toast'
 import { documentTemplateService } from '@/lib/api/documents'
@@ -22,7 +22,7 @@ import {
 } from '@/features/documents/questionnaire'
 import styles from './SimpleContractImport.module.css'
 
-type Phase = 'upload' | 'analyzing' | 'checklist' | 'success'
+type Phase = 'idle' | 'uploading' | 'analyzing' | 'preparing' | 'done' | 'error'
 
 export function SimpleContractImportFlow({
   templateId,
@@ -46,36 +46,37 @@ export function SimpleContractImportFlow({
   const queryClient = useQueryClient()
   const { showToast } = useToast()
   const fileRef = useRef<HTMLInputElement>(null)
+  const runStarted = useRef(false)
 
   const [phase, setPhase] = useState<Phase>(
-    sourceFileName || sourceDocxPath ? 'analyzing' : 'upload',
+    sourceFileName || sourceDocxPath ? 'analyzing' : 'idle',
   )
   const [fileName, setFileName] = useState(sourceFileName)
   const [docPath, setDocPath] = useState(sourceDocxPath)
   const [sourceBytes, setSourceBytes] = useState<ArrayBuffer | null>(null)
   const [draft, setDraft] = useState<QuestionnaireDraft | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [saving, setSaving] = useState(false)
-  const [uploading, setUploading] = useState(false)
-  const analysisStarted = useRef(false)
 
   useEffect(() => {
-    if (phase !== 'analyzing') return
-    if (analysisStarted.current) return
-    analysisStarted.current = true
-    void runAnalysis()
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once when entering analyzing
+    if (phase !== 'analyzing' && phase !== 'preparing') return
+    if (runStarted.current) return
+    if (phase === 'analyzing') {
+      runStarted.current = true
+      void runPipeline()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- start once when analyzing
   }, [phase])
 
-  async function runAnalysis() {
+  async function runPipeline() {
     setError(null)
-    setPhase('analyzing')
     try {
+      setPhase('analyzing')
+
       let bytes = sourceBytes
       if (!bytes) {
         const path = docPath
         if (!path) {
-          throw new Error('Brak pliku. Prześlij kontrakt, aby kontynuować.')
+          throw new Error('Brak pliku. Prześlij umowę, aby kontynuować.')
         }
         bytes = await documentStorage.download(path)
         setSourceBytes(bytes)
@@ -110,271 +111,168 @@ export function SimpleContractImportFlow({
         packageOptions,
       })
       setDraft(next)
+
       try {
         await documentTemplateService.update(templateId, {
           aiAnalyzedAt: new Date().toISOString(),
         })
-        await queryClient.invalidateQueries({
-          queryKey: documentTemplateKeys.all,
-        })
       } catch {
-        // Lifecycle flag is best-effort; analysis UI can continue.
+        // best-effort lifecycle flag
       }
-      setPhase('checklist')
-    } catch (err) {
-      setError(getDocumentAiErrorMessage(err))
-      setPhase('upload')
-      analysisStarted.current = false
-    }
-  }
 
-  async function handleFile(file: File) {
-    setUploading(true)
-    setError(null)
-    try {
-      const result = await onUploadFile(file)
-      setFileName(result.sourceFileName)
-      setDocPath(result.sourceDocxPath)
-      setSourceBytes(result.sourceBytes)
-      analysisStarted.current = false
-      setPhase('analyzing')
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : 'Nie udało się przesłać pliku.',
-      )
-    } finally {
-      setUploading(false)
-      if (fileRef.current) fileRef.current.value = ''
-    }
-  }
-
-  function toggleAsk(questionId: string, ask: boolean) {
-    setDraft((prev) => {
-      if (!prev) return prev
-      return {
-        ...prev,
-        questions: prev.questions.map((q) =>
-          q.id === questionId ? { ...q, enabled: ask } : q,
-        ),
-      }
-    })
-  }
-
-  async function handleCreate() {
-    if (!draft) return
-    setSaving(true)
-    setError(null)
-    try {
-      await saveQuestionnaireDraft(draft, { documentTemplateId: templateId })
+      setPhase('preparing')
+      await saveQuestionnaireDraft(next, { documentTemplateId: templateId })
       await queryClient.invalidateQueries({ queryKey: ['questionnaire-templates'] })
       await queryClient.invalidateQueries({ queryKey: ['form-definitions'] })
       await queryClient.invalidateQueries({
         queryKey: documentTemplateKeys.all,
       })
-      showToast('Typ ankiety został utworzony.', 'success')
-      setPhase('success')
+      await queryClient.invalidateQueries({
+        queryKey: ['studio-packages', 'for-contracts'],
+      })
+
+      setPhase('done')
+      showToast('Gotowe.', 'success')
     } catch (err) {
       setError(
         err instanceof QuestionnaireValidationError
           ? err.message
-          : err instanceof Error
-            ? err.message
-            : 'Nie udało się utworzyć typu ankiety.',
+          : getDocumentAiErrorMessage(err) ||
+            (err instanceof Error ? err.message : 'Coś poszło nie tak.'),
       )
-    } finally {
-      setSaving(false)
+      setPhase('error')
+      runStarted.current = false
     }
   }
 
-  const askCount = draft?.questions.filter((q) => q.enabled).length ?? 0
-  const totalAskable = draft?.questions.length ?? 0
+  async function handleFile(file: File) {
+    setError(null)
+    setPhase('uploading')
+    try {
+      const result = await onUploadFile(file)
+      setFileName(result.sourceFileName)
+      setDocPath(result.sourceDocxPath)
+      setSourceBytes(result.sourceBytes)
+      runStarted.current = false
+      setPhase('analyzing')
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'Nie udało się przesłać pliku.',
+      )
+      setPhase('error')
+      if (fileRef.current) fileRef.current.value = ''
+    }
+  }
+
+  const statusCopy: Record<Phase, { title: string; body: string }> = {
+    idle: {
+      title: 'Prześlij umowę',
+      body: 'PDF lub DOCX. OurWed przygotuje resztę.',
+    },
+    uploading: {
+      title: 'Przesyłanie…',
+      body: 'Zapisujemy Twoją umowę.',
+    },
+    analyzing: {
+      title: 'Analizowanie umowy…',
+      body: fileName ?? 'Poznajemy Twój dokument.',
+    },
+    preparing: {
+      title: 'Przygotowywanie ankiety…',
+      body: 'Jeszcze chwila.',
+    },
+    done: {
+      title: 'Gotowe.',
+      body: draft?.name
+        ? `„${draft.name}” jest gotowa do użycia.`
+        : 'Twoja umowa jest gotowa.',
+    },
+    error: {
+      title: 'Wymaga uwagi',
+      body: error ?? 'Coś poszło nie tak.',
+    },
+  }
+
+  const copy = statusCopy[phase]
+  const busy =
+    phase === 'uploading' || phase === 'analyzing' || phase === 'preparing'
 
   return (
-    <div className={styles.flow}>
-      <header className={styles.header}>
-        <Link
-          to={`/ustawienia/dokumenty/szablony/${templateId}`}
-          className={styles.back}
-        >
-          ← Wróć do szablonu
-        </Link>
-        <p className={styles.eyebrow}>Szablony dokumentów</p>
-        <h1 className={styles.title}>{templateName}</h1>
-      </header>
+    <div className={styles.magic}>
+      <div className={styles.magicCard} aria-live="polite">
+        {busy ? (
+          <LoaderCircle size={32} className={styles.spin} aria-hidden />
+        ) : phase === 'done' ? (
+          <CheckCircle2
+            size={36}
+            strokeWidth={1.5}
+            className={styles.doneIcon}
+            aria-hidden
+          />
+        ) : null}
 
-      {phase === 'upload' && (
-        <section className={styles.panel}>
-          <div className={styles.uploadHero}>
-            <FileText size={36} strokeWidth={1.4} aria-hidden />
-            <h2 className={styles.panelTitle}>Prześlij kontrakt</h2>
-            <p className={styles.panelBody}>
-              OurWed przeanalizuje dokument, wykryje informacje do zebrania od
-              pary i przygotuje typ ankiety. Formaty: DOCX i PDF.
-            </p>
-            {fileName && (
-              <p className={styles.fileName}>Obecny plik: {fileName}</p>
-            )}
-            {error && <p className={styles.error}>{error}</p>}
-            <div className={styles.actions}>
-              <Button
-                type="button"
-                variant="primary"
-                disabled={uploading}
-                onClick={() => fileRef.current?.click()}
-              >
-                <Upload size={16} style={{ marginRight: 6 }} aria-hidden />
-                {uploading ? 'Przesyłanie…' : 'Prześlij kontrakt'}
-              </Button>
-              {fileName && (
-                <Button
-                  type="button"
-                  variant="secondary"
-                  disabled={uploading}
-                  onClick={() => {
-                    analysisStarted.current = false
-                    setPhase('analyzing')
-                  }}
-                >
-                  Analizuj ponownie
-                </Button>
-              )}
-            </div>
-          </div>
-        </section>
-      )}
+        <h1 className={styles.magicTitle}>{copy.title}</h1>
+        <p className={styles.magicBody}>{copy.body}</p>
 
-      {phase === 'analyzing' && (
-        <section className={styles.panel} aria-live="polite">
-          <div className={styles.analyzing}>
-            <LoaderCircle size={28} className={styles.spin} aria-hidden />
-            <h2 className={styles.panelTitle}>Analizujemy Twój dokument…</h2>
-            <p className={styles.panelBody}>
-              {fileName
-                ? `Plik: ${fileName}`
-                : 'AI wykrywa informacje potrzebne do umowy.'}
-            </p>
-          </div>
-        </section>
-      )}
-
-      {phase === 'checklist' && draft && (
-        <section className={styles.panel}>
-          <div className={styles.resultHero}>
-            <CheckCircle2 size={28} strokeWidth={1.5} aria-hidden />
-            <h2 className={styles.panelTitle}>
-              Kontrakt przeanalizowany pomyślnie
-            </h2>
-            <p className={styles.panelBody}>
-              Znaleźliśmy{' '}
-              <strong>{totalAskable}</strong>{' '}
-              {totalAskable === 1
-                ? 'informację'
-                : totalAskable < 5
-                  ? 'informacje'
-                  : 'informacji'}
-              , które możesz zbierać od klientów przed wygenerowaniem tej umowy.
-              {draft.suggestedPackageLabel
-                ? ` Sugerowany pakiet: ${draft.suggestedPackageLabel}.`
-                : ''}
-            </p>
-          </div>
-
-          <label className={styles.nameField}>
-            Nazwa typu ankiety
-            <input
-              value={draft.name}
-              onChange={(e) =>
-                setDraft((prev) =>
-                  prev ? { ...prev, name: e.target.value } : prev,
-                )
-              }
-            />
-          </label>
-
-          <h3 className={styles.listTitle}>
-            O co pytać klientów?
-          </h3>
-          <p className={styles.listHint}>
-            Zaznacz informacje, które para ma podać w ankiecie. Finanse i dane
-            studia domyślnie pomijamy.
-          </p>
-
-          <ul className={styles.checkList}>
-            {[...draft.questions]
-              .sort((a, b) => a.order - b.order)
-              .map((q) => (
-                <li key={q.id} className={styles.checkItem}>
-                  <label className={styles.checkLabel}>
-                    <input
-                      type="checkbox"
-                      checked={q.enabled}
-                      onChange={(e) => toggleAsk(q.id, e.target.checked)}
-                    />
-                    <span className={styles.checkTitle}>{q.title}</span>
-                  </label>
-                  <span className={styles.checkAsk}>
-                    {q.enabled ? 'Pytaj klientów' : 'Nie pytaj'}
-                  </span>
-                </li>
-              ))}
-          </ul>
-
-          {error && <p className={styles.error}>{error}</p>}
-
-          <div className={styles.actions}>
+        {phase === 'done' ? (
+          <div className={styles.magicActions}>
             <Button
               type="button"
               variant="primary"
-              disabled={saving || askCount === 0 || !draft.name.trim()}
-              onClick={() => void handleCreate()}
-            >
-              {saving ? 'Tworzenie…' : 'Utwórz ankietę'}
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              disabled={saving}
-              onClick={() => {
-                analysisStarted.current = false
-                setPhase('analyzing')
-              }}
-            >
-              Analizuj ponownie
-            </Button>
-          </div>
-        </section>
-      )}
-
-      {phase === 'success' && (
-        <section className={styles.panel}>
-          <div className={styles.resultHero}>
-            <CheckCircle2 size={28} strokeWidth={1.5} aria-hidden />
-            <h2 className={styles.panelTitle}>Typ ankiety został utworzony</h2>
-            <p className={styles.panelBody}>
-              „{draft?.name}” jest dostępny przy „Generuj ankietę” w module
-              Ankiety — obok „Dane do umowy” i innych typów.
-            </p>
-          </div>
-          <div className={styles.actions}>
-            <Button
-              type="button"
-              variant="primary"
-              onClick={() => navigate('/ankiety')}
-            >
-              Przejdź do ankiet
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
               onClick={() =>
                 navigate(`/ustawienia/dokumenty/szablony/${templateId}`)
               }
             >
-              Wróć do szablonu
+              Zobacz umowę
             </Button>
           </div>
-        </section>
-      )}
+        ) : null}
+
+        {phase === 'error' ? (
+          <div className={styles.magicActions}>
+            <Button
+              type="button"
+              variant="primary"
+              onClick={() => fileRef.current?.click()}
+            >
+              Prześlij ponownie
+            </Button>
+            {(fileName || docPath) && (
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  runStarted.current = false
+                  setPhase('analyzing')
+                }}
+              >
+                Spróbuj ponownie
+              </Button>
+            )}
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() =>
+                navigate(`/ustawienia/dokumenty/szablony/${templateId}`)
+              }
+            >
+              Wróć
+            </Button>
+          </div>
+        ) : null}
+
+        {phase === 'idle' ? (
+          <div className={styles.magicActions}>
+            <Button
+              type="button"
+              variant="primary"
+              onClick={() => fileRef.current?.click()}
+            >
+              Prześlij umowę
+            </Button>
+          </div>
+        ) : null}
+      </div>
 
       <input
         ref={fileRef}

@@ -1,10 +1,7 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
-import {
-  TEMPLATE_CATEGORIES,
-  type TemplateSortKey,
-} from '@/features/documents/templateMeta'
+import { nameFromFileName } from '@/features/documents/contractUi'
 import type { DocumentDocType } from '@/types/documents'
 import styles from '../DocumentsTemplates.module.css'
 
@@ -12,6 +9,8 @@ interface UploadTemplateModalProps {
   open: boolean
   busy?: boolean
   error?: string | null
+  initialFile?: File | null
+  initialName?: string
   onClose: () => void
   onSubmit: (input: {
     name: string
@@ -26,22 +25,25 @@ export function UploadTemplateModal({
   open,
   busy,
   error,
+  initialFile = null,
+  initialName = '',
   onClose,
   onSubmit,
 }: UploadTemplateModalProps) {
   const fileRef = useRef<HTMLInputElement>(null)
-  const [name, setName] = useState('')
-  const [description, setDescription] = useState('')
-  const [docType, setDocType] = useState<DocumentDocType>('contract')
-  const [setAsDefault, setSetAsDefault] = useState(false)
-  const [file, setFile] = useState<File | null>(null)
+  const [name, setName] = useState(initialName)
+  const [file, setFile] = useState<File | null>(initialFile)
   const [localError, setLocalError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!open) return
+    setName(initialName)
+    setFile(initialFile)
+    setLocalError(null)
+  }, [open, initialFile, initialName])
 
   function reset() {
     setName('')
-    setDescription('')
-    setDocType('contract')
-    setSetAsDefault(false)
     setFile(null)
     setLocalError(null)
     if (fileRef.current) fileRef.current.value = ''
@@ -50,19 +52,19 @@ export function UploadTemplateModal({
   async function handleSubmit() {
     setLocalError(null)
     if (!name.trim()) {
-      setLocalError('Podaj nazwę szablonu.')
+      setLocalError('Podaj nazwę umowy.')
       return
     }
     if (!file) {
-      setLocalError('Wybierz plik DOCX lub PDF.')
+      setLocalError('Wybierz plik PDF lub DOCX.')
       return
     }
     await onSubmit({
       name: name.trim(),
-      description: description.trim(),
-      docType,
+      description: '',
+      docType: 'contract',
       file,
-      setAsDefault,
+      setAsDefault: false,
     })
     reset()
   }
@@ -70,15 +72,14 @@ export function UploadTemplateModal({
   return (
     <Modal
       open={open}
-      title="Prześlij kontrakt"
-      description="OurWed przeanalizuje dokument AI i przygotuje typ ankiety. Obsługujemy DOCX i PDF."
+      title="Prześlij umowę"
+      description="PDF lub DOCX. OurWed przygotuje resztę."
       onClose={() => {
         if (busy) return
         reset()
         onClose()
       }}
       busy={busy}
-      size="lg"
       primaryAction={
         <Button
           type="button"
@@ -86,7 +87,7 @@ export function UploadTemplateModal({
           disabled={busy}
           onClick={() => void handleSubmit()}
         >
-          {busy ? 'Przesyłanie…' : 'Prześlij kontrakt'}
+          {busy ? 'Przesyłanie…' : 'Prześlij'}
         </Button>
       }
     >
@@ -98,55 +99,30 @@ export function UploadTemplateModal({
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="np. Umowa ślubna"
+          placeholder="np. Umowa fotograficzna"
           disabled={busy}
         />
       </label>
       <label className={styles.field}>
-        Opis
-        <textarea
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          rows={3}
-          placeholder="Opcjonalny opis dla studia"
-          disabled={busy}
-        />
-      </label>
-      <label className={styles.field}>
-        Kategoria
-        <select
-          value={docType}
-          onChange={(e) => setDocType(e.target.value as DocumentDocType)}
-          disabled={busy}
-        >
-          {TEMPLATE_CATEGORIES.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.label}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className={styles.field}>
-        Plik DOCX lub PDF
+        Plik
         <input
           ref={fileRef}
           type="file"
           accept=".docx,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
           disabled={busy}
-          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+          onChange={(e) => {
+            const next = e.target.files?.[0] ?? null
+            setFile(next)
+            if (next && !name.trim()) {
+              setName(nameFromFileName(next.name))
+            }
+          }}
         />
-        <p className={styles.fileHint}>
-          Plik zostanie bezpiecznie zapisany. Konfiguracja treści — później.
-        </p>
-      </label>
-      <label className={styles.field} style={{ flexDirection: 'row', alignItems: 'center' }}>
-        <input
-          type="checkbox"
-          checked={setAsDefault}
-          onChange={(e) => setSetAsDefault(e.target.checked)}
-          disabled={busy}
-        />
-        Ustaw jako domyślny w tej kategorii
+        {file ? (
+          <p className={styles.fileHint}>{file.name}</p>
+        ) : (
+          <p className={styles.fileHint}>PDF lub DOCX</p>
+        )}
       </label>
     </Modal>
   )
@@ -173,6 +149,12 @@ export function RenameTemplateModal({
 }: RenameTemplateModalProps) {
   const [name, setName] = useState(initialName)
   const [description, setDescription] = useState(initialDescription ?? '')
+
+  useEffect(() => {
+    if (!open) return
+    setName(initialName)
+    setDescription(initialDescription ?? '')
+  }, [open, initialName, initialDescription])
 
   return (
     <Modal
@@ -202,83 +184,6 @@ export function RenameTemplateModal({
           disabled={busy}
         />
       </label>
-      <label className={styles.field}>
-        Opis
-        <textarea
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          rows={3}
-          disabled={busy}
-        />
-      </label>
     </Modal>
-  )
-}
-
-export function TemplateFiltersBar({
-  search,
-  category,
-  status,
-  sort,
-  onSearchChange,
-  onCategoryChange,
-  onStatusChange,
-  onSortChange,
-}: {
-  search: string
-  category: string
-  status: string
-  sort: TemplateSortKey
-  onSearchChange: (v: string) => void
-  onCategoryChange: (v: string) => void
-  onStatusChange: (v: string) => void
-  onSortChange: (v: TemplateSortKey) => void
-}) {
-  return (
-    <div className={styles.toolbar}>
-      <input
-        className={styles.search}
-        type="search"
-        placeholder="Szukaj szablonów…"
-        value={search}
-        onChange={(e) => onSearchChange(e.target.value)}
-        aria-label="Szukaj szablonów"
-      />
-      <select
-        className={styles.filter}
-        value={category}
-        onChange={(e) => onCategoryChange(e.target.value)}
-        aria-label="Filtr kategorii"
-      >
-        <option value="all">Wszystkie kategorie</option>
-        {TEMPLATE_CATEGORIES.map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.label}
-          </option>
-        ))}
-      </select>
-      <select
-        className={styles.filter}
-        value={status}
-        onChange={(e) => onStatusChange(e.target.value)}
-        aria-label="Filtr statusu"
-      >
-        <option value="all">Wszystkie statusy</option>
-        <option value="draft">Szkic</option>
-        <option value="ready">Gotowy</option>
-        <option value="archived">Zarchiwizowany</option>
-      </select>
-      <select
-        className={styles.sort}
-        value={sort}
-        onChange={(e) => onSortChange(e.target.value as TemplateSortKey)}
-        aria-label="Sortowanie"
-      >
-        <option value="updated">Ostatnio aktualizowane</option>
-        <option value="newest">Najnowsze</option>
-        <option value="oldest">Najstarsze</option>
-        <option value="alpha">Alfabetycznie</option>
-      </select>
-    </div>
   )
 }

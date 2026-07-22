@@ -1,28 +1,27 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import { ArrowLeft, MoreHorizontal } from 'lucide-react'
 import { AppLayout } from '@/layouts/AppLayout'
 import { Button } from '@/components/ui/Button'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { useToast } from '@/components/ui/Toast'
+import { documentStorage } from '@/lib/api/documents/storage'
+import { getForm } from '@/lib/api/forms'
+import { packageService } from '@/lib/api/packageService'
 import {
   useDocumentTemplate,
   useDocumentTemplateMutations,
-  useDocumentTemplateVersions,
 } from '@/features/documents/hooks/useDocumentTemplates'
+import { ContractStatusBadge } from '@/features/documents/components/ContractStatusBadge'
 import { DeleteContractModal } from '@/features/documents/components/DeleteContractModal'
-import { TemplateDetailHero } from '@/features/documents/components/TemplateDetailHero'
-import { TemplateInfoGrid } from '@/features/documents/components/TemplateInfoGrid'
-import { TemplateDocumentHealth } from '@/features/documents/components/TemplateDocumentHealth'
-import {
-  TemplateMappingSlots,
-  TemplateNextStepPanel,
-} from '@/features/documents/components/TemplateNextStepPanel'
-import { TemplateVersionTimeline } from '@/features/documents/components/TemplateVersionTimeline'
-import { TemplateDetailsDrawer } from '@/features/documents/components/TemplateDetailsDrawer'
 import { RenameTemplateModal } from '@/features/documents/components/TemplateModals'
-import type { DocumentTemplateVersion } from '@/types/documents'
+import {
+  fileFormatLabel,
+  formatContractDate,
+  getContractUiStatus,
+} from '@/features/documents/contractUi'
 import styles from '@/features/documents/DocumentsTemplates.module.css'
 
 export function DocumentTemplateDetailPage() {
@@ -30,22 +29,53 @@ export function DocumentTemplateDetailPage() {
   const navigate = useNavigate()
   const { showToast } = useToast()
   const fileRef = useRef<HTMLInputElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
 
   const { data: template, isLoading, isError } = useDocumentTemplate(id)
-  const { data: versions = [] } = useDocumentTemplateVersions(id)
   const mutations = useDocumentTemplateMutations(id)
 
   const [renameOpen, setRenameOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
-  const [detailsOpen, setDetailsOpen] = useState(false)
-  const [focusVersion, setFocusVersion] =
-    useState<DocumentTemplateVersion | null>(null)
+  const [menuOpen, setMenuOpen] = useState(false)
+
+  useEffect(() => {
+    if (!menuOpen) return
+    function onDoc(e: MouseEvent) {
+      if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [menuOpen])
+
+  const formId = template?.questionnaireFormId ?? null
+
+  const { data: questionnaireName = null } = useQuery({
+    queryKey: ['contract-form-name', formId],
+    queryFn: async () => {
+      if (!formId) return null
+      const form = await getForm(formId)
+      return form?.name ?? null
+    },
+    enabled: Boolean(formId),
+  })
+
+  const { data: packageNames = [] } = useQuery({
+    queryKey: ['contract-packages', formId],
+    queryFn: async () => {
+      if (!formId) return [] as string[]
+      const packages = await packageService.list({ activeOnly: false })
+      return packages
+        .filter((p) => p.questionnaireFormId === formId)
+        .map((p) => p.name)
+    },
+    enabled: Boolean(formId),
+  })
 
   if (isLoading) {
     return (
-      <AppLayout title="Szablon">
+      <AppLayout title="Umowa">
         <PageContainer width="wide">
-          <p className={styles.fileHint}>Ładowanie…</p>
+          <p className={styles.quietHint}>Ładowanie…</p>
         </PageContainer>
       </AppLayout>
     )
@@ -53,18 +83,18 @@ export function DocumentTemplateDetailPage() {
 
   if (isError || !template) {
     return (
-      <AppLayout title="Szablon">
+      <AppLayout title="Umowa">
         <PageContainer width="wide">
           <EmptyState
-            title="Nie znaleziono szablonu"
-            description="Szablon mógł zostać usunięty lub nie masz do niego dostępu."
+            title="Nie znaleziono umowy"
+            description="Umowa mogła zostać usunięta."
             action={
               <Button
                 type="button"
                 variant="secondary"
                 onClick={() => navigate('/ustawienia/dokumenty/szablony')}
               >
-                Wróć do biblioteki
+                Wróć do szablonów
               </Button>
             }
           />
@@ -73,37 +103,13 @@ export function DocumentTemplateDetailPage() {
     )
   }
 
-  const hasFile = Boolean(template.sourceFileName || template.sourceDocxPath)
-  const mappingLegacy =
-    template.componentCount > 0 ||
-    template.blockCount > 0 ||
-    template.variableCount > 0
-  const aiAnalyzed = Boolean(template.aiAnalyzedAt) || mappingLegacy
-  const questionnaireCreated =
-    Boolean(template.questionnaireFormId) || mappingLegacy
-  const configurationCompleted = questionnaireCreated
-  const canMarkReady =
-    configurationCompleted &&
-    template.status !== 'ready' &&
-    template.status !== 'archived'
-
-  function openUpload() {
-    fileRef.current?.click()
-  }
-
-  async function onUploadVersion(file: File) {
-    await mutations.uploadVersion.mutateAsync({
-      id: template!.id,
-      file,
-    })
-    showToast('Dodano nową wersję dokumentu.', 'success')
-    if (fileRef.current) fileRef.current.value = ''
-  }
+  const status = getContractUiStatus(template)
+  const format = fileFormatLabel(template.sourceFileName)
 
   async function handleDelete() {
     try {
       await mutations.remove.mutateAsync(template!.id)
-      showToast('Kontrakt usunięty.', 'success')
+      showToast('Umowa została usunięta.', 'success')
       setDeleteOpen(false)
       navigate('/ustawienia/dokumenty/szablony')
     } catch (err) {
@@ -114,139 +120,159 @@ export function DocumentTemplateDetailPage() {
     }
   }
 
+  async function handleReplace(file: File) {
+    try {
+      await mutations.uploadVersion.mutateAsync({ id: template!.id, file })
+      showToast('Dokument został zamieniony.', 'success')
+      navigate(`/ustawienia/dokumenty/szablony/${template!.id}/konfiguracja`)
+    } catch (err) {
+      showToast(
+        err instanceof Error ? err.message : 'Nie udało się zamienić dokumentu.',
+        'error',
+      )
+    }
+  }
+
+  async function viewOriginal() {
+    if (!template.sourceDocxPath) {
+      showToast('Brak dostępnego pliku.', 'error')
+      return
+    }
+    try {
+      const url = await documentStorage.signedUrl(template.sourceDocxPath)
+      window.open(url, '_blank', 'noopener,noreferrer')
+    } catch (err) {
+      showToast(
+        err instanceof Error ? err.message : 'Nie udało się otworzyć dokumentu.',
+        'error',
+      )
+    }
+  }
+
   return (
-    <AppLayout
-      title={template.name}
-      subtitle="Biblioteka dokumentów"
-      action={
-        <Button
-          type="button"
-          variant="ghost"
-          onClick={() => navigate('/ustawienia/dokumenty/szablony')}
-        >
-          <ArrowLeft size={16} style={{ marginRight: 6 }} aria-hidden />
-          Biblioteka
-        </Button>
-      }
-    >
+    <AppLayout>
       <PageContainer width="wide">
-        <div className={styles.page}>
-          <TemplateDetailHero
-            template={template}
-            uploadPending={mutations.uploadVersion.isPending}
-            onUploadVersion={openUpload}
-            onRename={() => setRenameOpen(true)}
-            onDuplicate={() =>
-              void mutations.duplicate.mutateAsync(template.id).then((copy) => {
-                showToast('Utworzono kopię szablonu.', 'success')
-                navigate(`/ustawienia/dokumenty/szablony/${copy.id}`)
-              })
-            }
-            onArchiveOrRestore={() => {
-              if (template.status === 'archived') {
-                void mutations.restore.mutateAsync(template.id).then(() =>
-                  showToast('Przywrócono szablon.', 'success'),
-                )
-              } else {
-                void mutations.archive.mutateAsync(template.id).then(() =>
-                  showToast('Szablon zarchiwizowany.', 'success'),
-                )
-              }
-            }}
-            onDelete={() => setDeleteOpen(true)}
-            onMarkReady={
-              canMarkReady
-                ? () =>
-                    void mutations.rename
-                      .mutateAsync({ id: template.id, status: 'ready' })
-                      .then(() =>
-                        showToast('Szablon oznaczony jako gotowy.', 'success'),
-                      )
-                : undefined
-            }
-            onSetDefault={
-              !template.isDefault && template.status !== 'archived'
-                ? () =>
-                    void mutations.setDefault.mutateAsync(template.id).then(() =>
-                      showToast('Ustawiono jako domyślny w kategorii.', 'success'),
-                    )
-                : undefined
-            }
-            onOpenDetails={() => {
-              setFocusVersion(null)
-              setDetailsOpen(true)
-            }}
-          />
+        <div className={styles.studioPage}>
+          <button
+            type="button"
+            className={styles.backLink}
+            onClick={() => navigate('/ustawienia/dokumenty/szablony')}
+          >
+            <ArrowLeft size={16} aria-hidden />
+            Szablony dokumentów
+          </button>
 
-          <TemplateInfoGrid
-            template={template}
-            configured={configurationCompleted}
-          />
+          <header className={styles.detailHeroClean}>
+            <div className={styles.detailHeroText}>
+              <div className={styles.detailTitleRow}>
+                <h1 className={styles.detailTitleClean}>{template.name}</h1>
+                <ContractStatusBadge status={status} />
+              </div>
+              <p className={styles.detailSubtle}>
+                {format}
+                <span aria-hidden>·</span>
+                Aktualizacja {formatContractDate(template.updatedAt)}
+              </p>
+            </div>
 
-          <div className={styles.detailMain}>
-            <TemplateDocumentHealth
-              status={template.status}
-              hasFile={hasFile}
-              hasVersion={Boolean(template.currentVersionNumber)}
-              aiAnalyzed={aiAnalyzed}
-              questionnaireCreated={questionnaireCreated}
-            />
+            <div className={styles.detailHeroActions} ref={menuRef}>
+              <Button
+                type="button"
+                variant="primary"
+                onClick={() =>
+                  navigate(
+                    `/ustawienia/dokumenty/szablony/${template.id}/konfiguracja`,
+                  )
+                }
+              >
+                Wygeneruj ankietę ponownie
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={mutations.uploadVersion.isPending}
+                onClick={() => fileRef.current?.click()}
+              >
+                Zamień dokument
+              </Button>
+              <div className={styles.overflowMenu}>
+                <button
+                  type="button"
+                  className={styles.cardMenuBtn}
+                  aria-expanded={menuOpen}
+                  aria-haspopup="menu"
+                  onClick={() => setMenuOpen((v) => !v)}
+                >
+                  <MoreHorizontal size={18} aria-label="Więcej działań" />
+                </button>
+                {menuOpen ? (
+                  <div className={styles.overflowPanel} role="menu">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className={styles.overflowItem}
+                      onClick={() => {
+                        setMenuOpen(false)
+                        setRenameOpen(true)
+                      }}
+                    >
+                      Zmień nazwę
+                    </button>
+                    {template.sourceDocxPath ? (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className={styles.overflowItem}
+                        onClick={() => {
+                          setMenuOpen(false)
+                          void viewOriginal()
+                        }}
+                      >
+                        Otwórz oryginalny dokument
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className={`${styles.overflowItem} ${styles.overflowItemDanger}`}
+                      onClick={() => {
+                        setMenuOpen(false)
+                        setDeleteOpen(true)
+                      }}
+                    >
+                      Usuń dokument
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </header>
 
-            <TemplateNextStepPanel
-              configured={configurationCompleted}
-              template={template}
-            />
-
-            <TemplateMappingSlots />
-          </div>
-
-          <TemplateVersionTimeline
-            versions={versions}
-            currentVersionId={template.currentVersionId}
-            uploadPending={mutations.uploadVersion.isPending}
-            onUploadVersion={openUpload}
-            onViewDetails={(version) => {
-              setFocusVersion(version)
-              setDetailsOpen(true)
-            }}
-            onDuplicate={(versionId) =>
-              void mutations.duplicateVersion.mutateAsync(versionId).then(() =>
-                showToast('Utworzono kopię wersji.', 'success'),
-              )
-            }
-            onRestore={(versionId) =>
-              void mutations.setCurrentVersion
-                .mutateAsync({
-                  templateId: template.id,
-                  versionId,
-                })
-                .then(() =>
-                  showToast('Przywrócono wybraną wersję jako bieżącą.', 'success'),
-                )
-            }
-          />
+          <section className={styles.detailFacts}>
+            <div className={styles.factBlock}>
+              <h2 className={styles.factLabel}>Powiązane pakiety</h2>
+              <p className={styles.factValue}>
+                {packageNames.length > 0 ? packageNames.join(', ') : '—'}
+              </p>
+            </div>
+            <div className={styles.factBlock}>
+              <h2 className={styles.factLabel}>Powiązana ankieta</h2>
+              <p className={styles.factValue}>{questionnaireName ?? '—'}</p>
+            </div>
+          </section>
         </div>
       </PageContainer>
 
       <input
         ref={fileRef}
         type="file"
-        accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        accept=".docx,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         hidden
         onChange={(e) => {
           const file = e.target.files?.[0]
-          if (file) void onUploadVersion(file)
+          if (file) void handleReplace(file)
+          if (fileRef.current) fileRef.current.value = ''
         }}
-      />
-
-      <TemplateDetailsDrawer
-        open={detailsOpen}
-        onClose={() => {
-          setDetailsOpen(false)
-          setFocusVersion(null)
-        }}
-        template={template}
-        focusVersion={focusVersion}
       />
 
       <RenameTemplateModal
@@ -267,7 +293,7 @@ export function DocumentTemplateDetailPage() {
             name,
             description: description || null,
           })
-          showToast('Zapisano zmiany.', 'success')
+          showToast('Zapisano.', 'success')
           setRenameOpen(false)
         }}
       />

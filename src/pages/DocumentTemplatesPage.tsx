@@ -1,141 +1,76 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { FileText, MoreHorizontal, Upload } from 'lucide-react'
+import { useMemo, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
+import { Upload } from 'lucide-react'
 import { AppLayout } from '@/layouts/AppLayout'
 import { Button } from '@/components/ui/Button'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { useToast } from '@/components/ui/Toast'
+import { getForm } from '@/lib/api/forms'
+import { packageService } from '@/lib/api/packageService'
 import {
   useDocumentTemplateMutations,
   useDocumentTemplates,
 } from '@/features/documents/hooks/useDocumentTemplates'
+import { ContractCard } from '@/features/documents/components/ContractCard'
 import { DeleteContractModal } from '@/features/documents/components/DeleteContractModal'
-import {
-  TemplateDefaultBadge,
-  TemplateStatusBadge,
-} from '@/features/documents/components/TemplateStatusBadge'
-import {
-  TemplateFiltersBar,
-  UploadTemplateModal,
-} from '@/features/documents/components/TemplateModals'
-import {
-  formatTemplateDate,
-  getCategoryMeta,
-  type TemplateSortKey,
-} from '@/features/documents/templateMeta'
+import { UploadTemplateModal } from '@/features/documents/components/TemplateModals'
+import { nameFromFileName } from '@/features/documents/contractUi'
 import type { DocumentTemplateSummary } from '@/types/documents'
 import styles from '@/features/documents/DocumentsTemplates.module.css'
-
-function sortTemplates(
-  items: DocumentTemplateSummary[],
-  sort: TemplateSortKey,
-): DocumentTemplateSummary[] {
-  const next = [...items]
-  switch (sort) {
-    case 'newest':
-      return next.sort(
-        (a, b) =>
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-      )
-    case 'oldest':
-      return next.sort(
-        (a, b) =>
-          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-      )
-    case 'alpha':
-      return next.sort((a, b) => a.name.localeCompare(b.name, 'pl'))
-    case 'updated':
-    default:
-      return next.sort(
-        (a, b) =>
-          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
-      )
-  }
-}
-
-function ContractOverflowMenu({
-  onDelete,
-}: {
-  onDelete: () => void
-}) {
-  const [open, setOpen] = useState(false)
-  const menuRef = useRef<HTMLDivElement>(null)
-  const menuId = useId()
-
-  useEffect(() => {
-    if (!open) return
-    function onDoc(e: MouseEvent) {
-      if (!menuRef.current?.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', onDoc)
-    return () => document.removeEventListener('mousedown', onDoc)
-  }, [open])
-
-  return (
-    <div className={styles.overflowMenu} ref={menuRef}>
-      <button
-        type="button"
-        className={styles.cardMenuBtn}
-        aria-expanded={open}
-        aria-controls={menuId}
-        aria-haspopup="menu"
-        onClick={(e) => {
-          e.preventDefault()
-          e.stopPropagation()
-          setOpen((v) => !v)
-        }}
-      >
-        <MoreHorizontal size={18} aria-label="Więcej działań" />
-      </button>
-      {open ? (
-        <div id={menuId} className={styles.overflowPanel} role="menu">
-          <button
-            type="button"
-            role="menuitem"
-            className={`${styles.overflowItem} ${styles.overflowItemDanger}`}
-            onClick={(e) => {
-              e.preventDefault()
-              e.stopPropagation()
-              setOpen(false)
-              onDelete()
-            }}
-          >
-            Usuń kontrakt
-          </button>
-        </div>
-      ) : null}
-    </div>
-  )
-}
 
 export function DocumentTemplatesPage() {
   const navigate = useNavigate()
   const { showToast } = useToast()
+  const fileRef = useRef<HTMLInputElement>(null)
   const { data: templates = [], isLoading, isError } = useDocumentTemplates()
   const { upload, remove } = useDocumentTemplateMutations()
 
   const [uploadOpen, setUploadOpen] = useState(false)
-  const [search, setSearch] = useState('')
-  const [category, setCategory] = useState('all')
-  const [status, setStatus] = useState('all')
-  const [sort, setSort] = useState<TemplateSortKey>('updated')
+  const [pendingFile, setPendingFile] = useState<File | null>(null)
   const [deleteTarget, setDeleteTarget] =
     useState<DocumentTemplateSummary | null>(null)
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    const list = templates.filter((t) => {
-      if (category !== 'all' && t.docType !== category) return false
-      if (status !== 'all' && t.status !== status) return false
-      if (!q) return true
-      return (
-        t.name.toLowerCase().includes(q) ||
-        (t.description ?? '').toLowerCase().includes(q)
+  const formIds = useMemo(
+    () =>
+      [
+        ...new Set(
+          templates
+            .map((t) => t.questionnaireFormId)
+            .filter((id): id is string => Boolean(id)),
+        ),
+      ],
+    [templates],
+  )
+
+  const { data: packages = [] } = useQuery({
+    queryKey: ['studio-packages', 'for-contracts'],
+    queryFn: () => packageService.list({ activeOnly: false }),
+  })
+
+  const { data: formNames = {} } = useQuery({
+    queryKey: ['contract-questionnaire-names', formIds],
+    queryFn: async () => {
+      const entries = await Promise.all(
+        formIds.map(async (id) => {
+          const form = await getForm(id)
+          return [id, form?.name ?? null] as const
+        }),
       )
-    })
-    return sortTemplates(list, sort)
-  }, [templates, search, category, status, sort])
+      return Object.fromEntries(entries) as Record<string, string | null>
+    },
+    enabled: formIds.length > 0,
+  })
+
+  function openUploadPicker() {
+    fileRef.current?.click()
+  }
+
+  function onFilePicked(file: File) {
+    setPendingFile(file)
+    setUploadOpen(true)
+  }
 
   async function handleUpload(input: {
     name: string
@@ -151,8 +86,9 @@ export function DocumentTemplatesPage() {
       file: input.file,
       setAsDefault: input.setAsDefault,
     })
-    showToast('Szablon został przesłany.', 'success')
+    showToast('Umowa została przesłana.', 'success')
     setUploadOpen(false)
+    setPendingFile(null)
     navigate(`/ustawienia/dokumenty/szablony/${created.id}/konfiguracja`)
   }
 
@@ -160,7 +96,7 @@ export function DocumentTemplatesPage() {
     if (!deleteTarget) return
     try {
       await remove.mutateAsync(deleteTarget.id)
-      showToast('Kontrakt usunięty.', 'success')
+      showToast('Umowa została usunięta.', 'success')
       setDeleteTarget(null)
     } catch (err) {
       showToast(
@@ -170,204 +106,108 @@ export function DocumentTemplatesPage() {
     }
   }
 
+  const sorted = useMemo(
+    () =>
+      [...templates].sort(
+        (a, b) =>
+          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+      ),
+    [templates],
+  )
+
   return (
-    <AppLayout
-      title="Szablony dokumentów"
-      subtitle="Prześlij kontrakt — AI przygotuje ankietę"
-      action={
-        templates.length > 0 ? (
-          <Button
-            type="button"
-            variant="primary"
-            onClick={() => setUploadOpen(true)}
-          >
-            <Upload size={16} style={{ marginRight: 6 }} aria-hidden />
-            Prześlij kontrakt
-          </Button>
-        ) : undefined
-      }
-    >
+    <AppLayout>
       <PageContainer width="wide">
-        <div className={styles.page}>
-          {templates.length > 0 ? (
-            <section className={styles.simpleIntro} aria-label="Opis">
-              <p className={styles.simpleIntroBody}>
-                Prześlij własne szablony umów. OurWed przeanalizuje je za pomocą
-                AI, wykryje informacje dynamiczne i automatycznie utworzy ankietę,
-                którą później wyślesz do par.
-              </p>
-              <p className={styles.simpleIntroFormats}>
-                Obsługiwane formaty: <strong>DOCX</strong>, <strong>PDF</strong>
-              </p>
-            </section>
-          ) : null}
+        <div className={styles.studioPage}>
+          <header className={styles.studioHero}>
+            <h1 className={styles.studioTitle}>Szablony dokumentów</h1>
+            <p className={styles.studioSubtitle}>
+              Prześlij swoją umowę tylko raz. OurWed automatycznie przygotuje
+              wszystko, co potrzebne do generowania umów oraz zbierania danych
+              od par.
+            </p>
+            <Button
+              type="button"
+              variant="primary"
+              className={styles.studioCta}
+              onClick={openUploadPicker}
+            >
+              <Upload size={16} style={{ marginRight: 8 }} aria-hidden />
+              Prześlij umowę
+            </Button>
+          </header>
 
           {isLoading ? (
-            <p className={styles.fileHint}>Ładowanie biblioteki…</p>
+            <p className={styles.quietHint}>Ładowanie…</p>
           ) : isError ? (
             <EmptyState
-              title="Nie udało się załadować biblioteki"
+              title="Nie udało się wczytać umów"
               description="Sprawdź połączenie i spróbuj ponownie."
             />
-          ) : templates.length === 0 ? (
+          ) : sorted.length === 0 ? (
             <EmptyState
-              icon={<FileText size={36} strokeWidth={1.5} />}
-              title="Brak kontraktów"
-              description="Prześlij pierwszy kontrakt — OurWed automatycznie przygotuje wszystko potrzebne do generowania umów."
+              title="Brak umów"
+              description="Prześlij pierwszą umowę — OurWed automatycznie przygotuje wszystko, czego potrzebujesz."
               action={
                 <Button
                   type="button"
                   variant="primary"
-                  onClick={() => setUploadOpen(true)}
+                  onClick={openUploadPicker}
                 >
-                  <Upload size={16} style={{ marginRight: 6 }} aria-hidden />
-                  Prześlij kontrakt
+                  Prześlij umowę
                 </Button>
               }
             />
           ) : (
-            <>
-              <TemplateFiltersBar
-                search={search}
-                category={category}
-                status={status}
-                sort={sort}
-                onSearchChange={setSearch}
-                onCategoryChange={setCategory}
-                onStatusChange={setStatus}
-                onSortChange={setSort}
-              />
-
-              {filtered.length === 0 ? (
-                <EmptyState
-                  title="Nic nie pasuje do filtrów"
-                  description="Zmień kategorię, status lub wyszukiwanie."
-                />
-              ) : (
-                <>
-                  <div className={styles.tableWrap}>
-                    <table className={styles.table}>
-                      <thead>
-                        <tr>
-                          <th>Szablon</th>
-                          <th>Kategoria</th>
-                          <th>Wersja</th>
-                          <th>Status</th>
-                          <th>Aktualizacja</th>
-                          <th className={styles.tableActions} aria-label="Akcje" />
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filtered.map((t) => {
-                          const cat = getCategoryMeta(t.docType)
-                          const Icon = cat.icon
-                          return (
-                            <tr
-                              key={t.id}
-                              className={styles.tableRow}
-                              onClick={() =>
-                                navigate(
-                                  `/ustawienia/dokumenty/szablony/${t.id}`,
-                                )
-                              }
-                            >
-                              <td>
-                                <div className={styles.nameCell}>
-                                  <span className={styles.iconWrapSm}>
-                                    <Icon size={18} strokeWidth={1.75} />
-                                  </span>
-                                  <div>
-                                    <p className={styles.nameCellTitle}>
-                                      {t.name}
-                                    </p>
-                                    {t.isDefault && (
-                                      <div style={{ marginTop: 4 }}>
-                                        <TemplateDefaultBadge />
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              </td>
-                              <td>{cat.label}</td>
-                              <td>
-                                {t.currentVersionNumber
-                                  ? `v${t.currentVersionNumber}`
-                                  : '—'}
-                              </td>
-                              <td>
-                                <TemplateStatusBadge status={t.status} />
-                              </td>
-                              <td>{formatTemplateDate(t.updatedAt)}</td>
-                              <td
-                                className={styles.tableActions}
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <ContractOverflowMenu
-                                  onDelete={() => setDeleteTarget(t)}
-                                />
-                              </td>
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  <div className={styles.cards}>
-                    {filtered.map((t) => {
-                      const cat = getCategoryMeta(t.docType)
-                      const Icon = cat.icon
-                      return (
-                        <div key={t.id} className={styles.cardShell}>
-                          <div className={styles.cardMenuWrap}>
-                            <ContractOverflowMenu
-                              onDelete={() => setDeleteTarget(t)}
-                            />
-                          </div>
-                          <Link
-                            to={`/ustawienia/dokumenty/szablony/${t.id}`}
-                            className={styles.card}
-                          >
-                            <div className={styles.cardTop}>
-                              <span className={styles.iconWrap}>
-                                <Icon size={22} strokeWidth={1.75} />
-                              </span>
-                              <div className={styles.cardBody}>
-                                <div className={styles.cardTitleRow}>
-                                  <h2 className={styles.cardTitle}>{t.name}</h2>
-                                  <TemplateStatusBadge status={t.status} />
-                                  {t.isDefault && <TemplateDefaultBadge />}
-                                </div>
-                                <p className={styles.meta}>
-                                  <span>{cat.label}</span>
-                                  <span>
-                                    {t.currentVersionNumber
-                                      ? `Wersja v${t.currentVersionNumber}`
-                                      : 'Bez wersji'}
-                                  </span>
-                                  <span>{formatTemplateDate(t.updatedAt)}</span>
-                                </p>
-                              </div>
-                            </div>
-                          </Link>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </>
-              )}
-            </>
+            <div className={styles.contractGrid}>
+              {sorted.map((t) => {
+                const formId = t.questionnaireFormId
+                const questionnaireName = formId
+                  ? (formNames[formId] ?? null)
+                  : null
+                const packageNames = formId
+                  ? packages
+                      .filter((p) => p.questionnaireFormId === formId)
+                      .map((p) => p.name)
+                  : []
+                return (
+                  <ContractCard
+                    key={t.id}
+                    template={t}
+                    questionnaireName={questionnaireName}
+                    packageNames={packageNames}
+                    onDelete={() => setDeleteTarget(t)}
+                  />
+                )
+              })}
+            </div>
           )}
         </div>
       </PageContainer>
 
+      <input
+        ref={fileRef}
+        type="file"
+        accept=".docx,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        hidden
+        onChange={(e) => {
+          const file = e.target.files?.[0]
+          if (file) onFilePicked(file)
+          if (fileRef.current) fileRef.current.value = ''
+        }}
+      />
+
       <UploadTemplateModal
         open={uploadOpen}
         busy={upload.isPending}
-        error={
-          upload.error instanceof Error ? upload.error.message : null
-        }
-        onClose={() => setUploadOpen(false)}
+        error={upload.error instanceof Error ? upload.error.message : null}
+        initialFile={pendingFile}
+        initialName={pendingFile ? nameFromFileName(pendingFile.name) : ''}
+        onClose={() => {
+          if (upload.isPending) return
+          setUploadOpen(false)
+          setPendingFile(null)
+        }}
         onSubmit={handleUpload}
       />
 

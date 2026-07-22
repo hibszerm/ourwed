@@ -3,7 +3,6 @@ import { AppLayout } from '@/layouts/AppLayout'
 import { Button } from '@/components/ui/Button'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { PageContainer } from '@/components/ui/PageContainer'
-import { useToast } from '@/components/ui/Toast'
 import {
   useDocumentTemplate,
   useDocumentTemplateMutations,
@@ -14,7 +13,6 @@ import styles from '@/features/documents/DocumentsTemplates.module.css'
 export function DocumentTemplateMappingPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { showToast } = useToast()
   const { data: template, isLoading, isError } = useDocumentTemplate(id)
   const mutations = useDocumentTemplateMutations(id)
 
@@ -22,7 +20,7 @@ export function DocumentTemplateMappingPage() {
     return (
       <AppLayout title="Szablony dokumentów">
         <PageContainer width="wide">
-          <p className={styles.fileHint}>Ładowanie…</p>
+          <p className={styles.quietHint}>Ładowanie…</p>
         </PageContainer>
       </AppLayout>
     )
@@ -33,15 +31,15 @@ export function DocumentTemplateMappingPage() {
       <AppLayout title="Szablony dokumentów">
         <PageContainer width="wide">
           <EmptyState
-            title="Nie znaleziono szablonu"
-            description="Szablon mógł zostać usunięty lub nie masz do niego dostępu."
+            title="Nie znaleziono umowy"
+            description="Umowa mogła zostać usunięta."
             action={
               <Button
                 type="button"
                 variant="secondary"
                 onClick={() => navigate('/ustawienia/dokumenty/szablony')}
               >
-                Wróć do biblioteki
+                Wróć
               </Button>
             }
           />
@@ -51,7 +49,7 @@ export function DocumentTemplateMappingPage() {
   }
 
   return (
-    <AppLayout title="Szablony dokumentów">
+    <AppLayout>
       <PageContainer width="wide">
         <SimpleContractImportFlow
           key={template.id}
@@ -65,7 +63,6 @@ export function DocumentTemplateMappingPage() {
               id: template.id,
               file,
             })
-            showToast('Kontrakt zapisany.', 'success')
             return {
               templateVersionId: version.id,
               sourceFileName: version.sourceFileName ?? file.name,

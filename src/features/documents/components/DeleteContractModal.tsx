@@ -20,7 +20,7 @@ export function DeleteContractModal({
   return (
     <Modal
       open={open}
-      title="Usuń kontrakt"
+      title="Usuń umowę"
       description={`Usunąć „${contractName}”?`}
       onClose={onClose}
       busy={busy}
@@ -39,14 +39,9 @@ export function DeleteContractModal({
     >
       <div className={styles.deleteModalBody}>
         <p className={styles.deleteModalLead}>
-          Usunięcie tego kontraktu usunie również:
+          Usunięcie tej umowy usunie również przygotowaną ankietę i powiązane
+          dane.
         </p>
-        <ul className={styles.deleteModalList}>
-          <li>analizę AI</li>
-          <li>wygenerowany typ ankiety</li>
-          <li>mapowania</li>
-          <li>dane AI w pamięci podręcznej</li>
-        </ul>
         <p className={styles.deleteModalWarn}>Tej operacji nie można cofnąć.</p>
       </div>
     </Modal>
