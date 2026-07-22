@@ -17,6 +17,7 @@ import type {
   RegisterInput,
   RegisterResultData,
 } from '@/features/auth/types'
+import { markLogoutRedirectToLanding } from '@/lib/auth/logoutRedirect'
 import { resetTenantClientState } from '@/lib/auth/resetTenantClientState'
 
 interface AuthContextValue {
@@ -219,6 +220,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const logout = useCallback(async () => {
+    // Ensure ProtectedRoute sends users to `/` instead of racing to `/login`.
+    markLogoutRedirectToLanding()
     await authService.logout()
     // SIGNED_OUT handler also clears; keep explicit for immediate UI reset.
     lastAuthUserIdRef.current = applyAuthIdentityChange(

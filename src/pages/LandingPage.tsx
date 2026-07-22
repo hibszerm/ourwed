@@ -9,6 +9,8 @@ import { Link, Navigate } from 'react-router-dom'
 import { AuthLoadingScreen } from '@/features/auth/components/AuthLoadingScreen'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { ProductPreview } from '@/features/landing/ProductPreview'
+import { WorkflowShowcase } from '@/features/landing/WorkflowShowcase'
+import { clearLogoutRedirectToLanding } from '@/lib/auth/logoutRedirect'
 import styles from './LandingPage.module.css'
 
 const FEATURES = [
@@ -56,16 +58,6 @@ const FEATURES = [
   },
 ] as const
 
-const WORKFLOW = [
-  'Zapytanie',
-  'Umowa',
-  'Zaliczka',
-  'Przygotowania',
-  'Ślub',
-  'Selekcja',
-  'Gotowa galeria',
-] as const
-
 const WHY = [
   {
     title: 'Mniej administracji',
@@ -108,7 +100,7 @@ function useReveal<T extends HTMLElement>(): RefObject<T | null> {
         el.classList.add(styles.revealed)
         observer.unobserve(el)
       },
-      { threshold: 0.14, rootMargin: '0px 0px -6% 0px' },
+      { threshold: 0.12, rootMargin: '0px 0px -4% 0px' },
     )
 
     observer.observe(el)
@@ -262,11 +254,16 @@ function FeatureVisual({ kind }: { kind: (typeof FEATURES)[number]['visual'] }) 
 
 export function LandingPage() {
   const { isAuthenticated, isLoading } = useAuth()
-  const previewRef = useReveal<HTMLDivElement>()
-  const workflowRef = useReveal<HTMLDivElement>()
+  const previewIntroRef = useReveal<HTMLElement>()
+  const workflowIntroRef = useReveal<HTMLElement>()
+  const workflowBodyRef = useReveal<HTMLDivElement>()
   const whyRef = useReveal<HTMLElement>()
   const ctaRef = useReveal<HTMLDivElement>()
   const featuresTitleRef = useReveal<HTMLElement>()
+
+  useEffect(() => {
+    clearLogoutRedirectToLanding()
+  }, [])
 
   useEffect(() => {
     const root = document.documentElement
@@ -347,24 +344,24 @@ export function LandingPage() {
               </ul>
             </div>
             <div className={`${styles.heroVisual} ${styles.heroAnimVisual}`}>
-              <ProductPreview autoRotate />
+              <ProductPreview autoRotate compact />
             </div>
           </div>
         </section>
 
         <section id="preview" className={styles.previewSection}>
           <div className={styles.sectionInner}>
-            <header className={styles.sectionIntro}>
+            <header
+              ref={previewIntroRef}
+              className={`${styles.sectionIntro} ${styles.revealFade}`}
+            >
               <h2 className={styles.sectionTitle}>Produkt, nie obietnice.</h2>
               <p className={styles.sectionSubtitle}>
                 Przełącz widoki i zobacz, jak wygląda realna praca w OurWed —
                 dashboard, śluby, podróże, ankiety, finanse i kalendarz.
               </p>
             </header>
-            <div
-              ref={previewRef}
-              className={`${styles.previewStage} ${styles.revealFade}`}
-            >
+            <div className={styles.previewStage}>
               <ProductPreview />
             </div>
           </div>
@@ -401,7 +398,7 @@ export function LandingPage() {
                     <p className={styles.featureBenefit}>{feature.benefit}</p>
                   </div>
                   <div
-                    className={`${styles.featureVisual} ${styles.revealCard}`}
+                    className={`${styles.featureVisualWrap} ${styles.revealCard}`}
                     style={{ '--reveal-delay': '140ms' } as CSSProperties}
                   >
                     <FeatureVisual kind={feature.visual} />
@@ -414,35 +411,21 @@ export function LandingPage() {
 
         <section id="workflow" className={styles.workflowSection}>
           <div className={styles.sectionInner}>
-            <header className={styles.sectionIntro}>
+            <header
+              ref={workflowIntroRef}
+              className={`${styles.sectionIntro} ${styles.revealFade}`}
+            >
               <h2 className={styles.sectionTitle}>Cały lifecycle ślubu.</h2>
               <p className={styles.sectionSubtitle}>
-                OurWed prowadzi Cię przez każdy etap — od zapytania do gotowej galerii.
+                Kliknij etap, aby zobaczyć, jak OurWed prowadzi Cię od zapytania
+                do zakończenia.
               </p>
             </header>
             <div
-              ref={workflowRef}
-              className={`${styles.workflowTrack} ${styles.revealGroup}`}
+              ref={workflowBodyRef}
+              className={`${styles.workflowBody} ${styles.revealFade}`}
             >
-              {WORKFLOW.map((step, index) => (
-                <div
-                  key={step}
-                  className={`${styles.workflowStep} ${styles.revealCard}`}
-                  style={
-                    {
-                      '--reveal-delay': `${index * 80}ms`,
-                    } as CSSProperties
-                  }
-                >
-                  <span className={styles.workflowIndex}>{index + 1}</span>
-                  <strong>{step}</strong>
-                  {index < WORKFLOW.length - 1 ? (
-                    <span className={styles.workflowArrow} aria-hidden>
-                      →
-                    </span>
-                  ) : null}
-                </div>
-              ))}
+              <WorkflowShowcase />
             </div>
           </div>
         </section>

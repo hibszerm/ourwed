@@ -24,20 +24,31 @@ function PreviewDashboard() {
           <span className={styles.statMeta}>Kowalska & Nowak</span>
         </div>
         <div className={styles.statCard}>
-          <span className={styles.statLabel}>Dziś</span>
-          <strong className={styles.statValue}>3</strong>
-          <span className={styles.statMeta}>zadania do zrobienia</span>
+          <span className={styles.statLabel}>Przychód · sierpień</span>
+          <strong className={styles.statValue}>24,5k</strong>
+          <span className={styles.statMeta}>3 umowy</span>
         </div>
       </div>
       <div className={styles.listCard}>
-        <div className={styles.listHead}>Oczekujące ankiety</div>
+        <div className={styles.listHead}>Dzisiejsze zadania</div>
         <div className={styles.listRow}>
-          <span>Wiśniewscy — umowa</span>
-          <em>Nowa</em>
+          <span>Wysłać ankietę — Wiśniewscy</span>
+          <em>Do 18:00</em>
         </div>
         <div className={styles.listRow}>
-          <span>Zielińscy — szczegóły</span>
-          <em>Wysłana</em>
+          <span>Potwierdzić zaliczkę — Zielińscy</span>
+          <em>Pilne</em>
+        </div>
+      </div>
+      <div className={styles.listCard}>
+        <div className={styles.listHead}>Powiadomienia</div>
+        <div className={styles.listRow}>
+          <span>Nowa odpowiedź w ankiecie umowy</span>
+          <em>2 min</em>
+        </div>
+        <div className={styles.listRow}>
+          <span>Przypomnienie: sesja plenerowa</span>
+          <em>Dziś</em>
         </div>
       </div>
     </div>
@@ -53,14 +64,34 @@ function PreviewWeddings() {
       </div>
       <div className={styles.weddingGrid}>
         {[
-          { names: 'Anna & Michał', date: '15 sie 2026', stage: 'Umowa' },
-          { names: 'Kasia & Piotr', date: '22 sie 2026', stage: 'Zaliczka' },
-          { names: 'Ola & Tomek', date: '5 wrz 2026', stage: 'Przygotowania' },
+          {
+            names: 'Anna & Michał',
+            date: '15 sie 2026',
+            stage: 'Umowa',
+            progress: 35,
+          },
+          {
+            names: 'Kasia & Piotr',
+            date: '22 sie 2026',
+            stage: 'Zaliczka',
+            progress: 55,
+          },
+          {
+            names: 'Ola & Tomek',
+            date: '5 wrz 2026',
+            stage: 'Przygotowania',
+            progress: 72,
+          },
         ].map((w) => (
           <div key={w.names} className={styles.weddingCard}>
-            <strong>{w.names}</strong>
+            <div className={styles.weddingCardTop}>
+              <strong>{w.names}</strong>
+              <em>{w.stage}</em>
+            </div>
             <span>{w.date}</span>
-            <em>{w.stage}</em>
+            <div className={styles.progressTrack}>
+              <i style={{ width: `${w.progress}%` }} />
+            </div>
           </div>
         ))}
       </div>
@@ -116,26 +147,27 @@ function PreviewTravel() {
 function PreviewQuestionnaires() {
   return (
     <div className={styles.screen}>
-      <h3 className={styles.screenTitle}>Ankiety</h3>
-      <div className={styles.formCard}>
-        <span className={styles.formEyebrow}>Umowa</span>
-        <strong>Dane pary młodej</strong>
-        <div className={styles.fakeField}>
-          <em>Imię pani młodej</em>
-          <span>Anna</span>
-        </div>
-        <div className={styles.fakeField}>
-          <em>Imię pana młodego</em>
-          <span>Michał</span>
-        </div>
-        <div className={styles.fakeField}>
-          <em>Data ślubu</em>
-          <span>15.08.2026</span>
-        </div>
-        <div className={styles.formProgress}>
-          <i style={{ width: '68%' }} />
-        </div>
-        <span className={styles.formMeta}>Krok 2 z 4 · zapisano</span>
+      <div className={styles.screenHeader}>
+        <h3 className={styles.screenTitle}>Ankiety</h3>
+        <span className={styles.pill}>5 otwartych</span>
+      </div>
+      <div className={styles.surveyList}>
+        {[
+          { title: 'Wiśniewscy — umowa', status: 'Wysłana', pct: 40 },
+          { title: 'Zielińscy — szczegóły', status: 'W trakcie', pct: 68 },
+          { title: 'Nowakowie — timeline', status: 'Ukończona', pct: 100 },
+        ].map((item) => (
+          <div key={item.title} className={styles.surveyCard}>
+            <div className={styles.surveyTop}>
+              <strong>{item.title}</strong>
+              <em>{item.status}</em>
+            </div>
+            <div className={styles.progressTrack}>
+              <i style={{ width: `${item.pct}%` }} />
+            </div>
+            <span className={styles.surveyMeta}>{item.pct}% ukończenia</span>
+          </div>
+        ))}
       </div>
     </div>
   )
@@ -146,13 +178,17 @@ function PreviewFinance() {
     <div className={styles.screen}>
       <h3 className={styles.screenTitle}>Finanse</h3>
       <div className={styles.financeHero}>
-        <span>Wartość umowy</span>
+        <span>Pakiet Premium</span>
         <strong>9 500 zł</strong>
       </div>
       <div className={styles.financeRows}>
         <div>
           <span>Zaliczka</span>
           <strong className={styles.ok}>3 000 zł · opłacona</strong>
+        </div>
+        <div>
+          <span>Druga rata</span>
+          <strong>3 250 zł</strong>
         </div>
         <div>
           <span>Pozostało</span>
@@ -194,6 +230,17 @@ function PreviewCalendar() {
           )
         })}
       </div>
+      <div className={styles.listCard}>
+        <div className={styles.listHead}>Zadania w tym tygodniu</div>
+        <div className={styles.listRow}>
+          <span>15 sie — Kowalska & Nowak</span>
+          <em>Ślub</em>
+        </div>
+        <div className={styles.listRow}>
+          <span>18 sie — Selekcja zdjęć</span>
+          <em>Zadanie</em>
+        </div>
+      </div>
     </div>
   )
 }
@@ -219,11 +266,14 @@ interface ProductPreviewProps {
   className?: string
   /** Auto-rotate tabs in hero */
   autoRotate?: boolean
+  /** Compact hero sizing */
+  compact?: boolean
 }
 
 export function ProductPreview({
   className = '',
   autoRotate = false,
+  compact = false,
 }: ProductPreviewProps) {
   const [active, setActive] = useState<TabId>('dashboard')
   const [fadeKey, setFadeKey] = useState(0)
@@ -236,8 +286,7 @@ export function ProductPreview({
     const id = window.setInterval(() => {
       setActive((prev) => {
         const idx = TABS.findIndex((t) => t.id === prev)
-        const next = TABS[(idx + 1) % TABS.length]!
-        return next.id
+        return TABS[(idx + 1) % TABS.length]!.id
       })
       setFadeKey((k) => k + 1)
     }, 4200)
@@ -251,7 +300,9 @@ export function ProductPreview({
   }
 
   return (
-    <div className={`${styles.root} ${className}`.trim()}>
+    <div
+      className={`${styles.root} ${compact ? styles.compact : ''} ${className}`.trim()}
+    >
       <div className={styles.tabs} role="tablist" aria-label="Podgląd aplikacji">
         {TABS.map((tab) => (
           <button
@@ -267,36 +318,34 @@ export function ProductPreview({
         ))}
       </div>
 
-      <div className={styles.device}>
-        <div className={styles.chrome} aria-hidden>
-          <span />
-          <span />
-          <span />
-        </div>
-        <div className={styles.deviceBody}>
-          <aside className={styles.sidebar} aria-hidden>
-            <div className={styles.sideBrand}>OW</div>
-            {TABS.map((tab) => (
-              <div
-                key={tab.id}
-                className={`${styles.sideItem} ${active === tab.id ? styles.sideActive : ''}`}
-              />
-            ))}
-          </aside>
-          <div
-            key={fadeKey}
-            className={styles.previewPane}
-            role="tabpanel"
-          >
-            <PreviewBody tab={active} />
+      <div className={styles.stage}>
+        <div className={styles.device}>
+          <div className={styles.chrome} aria-hidden>
+            <span />
+            <span />
+            <span />
+          </div>
+          <div className={styles.deviceBody}>
+            <aside className={styles.sidebar} aria-hidden>
+              <div className={styles.sideBrand}>OW</div>
+              {TABS.map((tab) => (
+                <div
+                  key={tab.id}
+                  className={`${styles.sideItem} ${active === tab.id ? styles.sideActive : ''}`}
+                />
+              ))}
+            </aside>
+            <div key={fadeKey} className={styles.previewPane} role="tabpanel">
+              <PreviewBody tab={active} />
+            </div>
           </div>
         </div>
-      </div>
 
-      <div className={styles.phone} aria-hidden>
-        <div className={styles.phoneNotch} />
-        <div key={`p-${fadeKey}`} className={styles.phoneBody}>
-          <PreviewBody tab={active} />
+        <div className={styles.phone} aria-hidden>
+          <div className={styles.phoneNotch} />
+          <div key={`p-${fadeKey}`} className={styles.phoneBody}>
+            <PreviewBody tab={active} />
+          </div>
         </div>
       </div>
     </div>
