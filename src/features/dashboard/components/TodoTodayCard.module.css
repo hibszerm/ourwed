@@ -110,6 +110,14 @@
   text-decoration: none;
   align-self: stretch;
   justify-content: center;
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
 }
 
 .couple {

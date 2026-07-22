@@ -26,9 +26,9 @@ export interface TravelFlow {
 }
 
 const ROLE_TITLES: Record<string, string> = {
-  preparation: 'Preparations',
-  ceremony: 'Ceremony',
-  reception: 'Reception',
+  preparation: 'Przygotowania',
+  ceremony: 'Ceremonia',
+  reception: 'Przyjęcie',
 }
 
 /**

@@ -8,9 +8,11 @@ import styles from './NextWeddingCard.module.css'
 
 interface NextWeddingCardProps {
   wedding: Wedding | null
+  /** When set, CTA does not navigate via router — used by landing demo. */
+  onOpen?: () => void
 }
 
-export function NextWeddingCard({ wedding }: NextWeddingCardProps) {
+export function NextWeddingCard({ wedding, onOpen }: NextWeddingCardProps) {
   if (!wedding) {
     return (
       <section className={styles.card}>
@@ -60,9 +62,15 @@ export function NextWeddingCard({ wedding }: NextWeddingCardProps) {
           {nextAction && <p className={styles.nextAction}>{nextAction.label}</p>}
         </div>
 
-        <Link to={`/sluby/${wedding.id}`} className={styles.cta}>
-          <Button variant="primary">Otwórz ślub</Button>
-        </Link>
+        {onOpen ? (
+          <button type="button" className={styles.cta} onClick={onOpen}>
+            <span className={styles.ctaLabel}>Otwórz ślub</span>
+          </button>
+        ) : (
+          <Link to={`/sluby/${wedding.id}`} className={styles.cta}>
+            <Button variant="primary">Otwórz ślub</Button>
+          </Link>
+        )}
       </div>
 
       <div className={styles.countdown}>

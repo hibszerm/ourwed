@@ -28,6 +28,10 @@ interface WeddingDetailHeroProps {
   onAction: (action: WeddingHeroAction) => void
   editing?: boolean
   onChangeWedding?: (patch: Partial<Wedding>) => void
+  /** When provided, skip API fetch (e.g. landing demo). */
+  places?: WeddingPlace[]
+  /** Hide action buttons — still show locations / package. */
+  readOnly?: boolean
 }
 
 const LOCATION_FIELDS: Array<{ role: WeddingPlaceRole; label: string }> = [
@@ -72,17 +76,21 @@ export function WeddingDetailHero({
   onAction,
   editing = false,
   onChangeWedding,
+  places: placesProp,
+  readOnly = false,
 }: WeddingDetailHeroProps) {
   const queryClient = useQueryClient()
   const userId = useStudioAuthId()
   const weddingId = wedding.id
+  const useLocalPlaces = placesProp != null
 
-  const { data: places = [], isLoading: placesLoading } = useQuery({
+  const { data: fetchedPlaces = [], isLoading: placesLoading } = useQuery({
     queryKey: ['wedding-places', userId, weddingId],
     queryFn: () => weddingPlaceService.listByWeddingId(weddingId),
-    enabled: Boolean(userId && weddingId),
+    enabled: Boolean(!useLocalPlaces && userId && weddingId),
   })
 
+  const places = placesProp ?? fetchedPlaces
   const byRole = new Map(places.map((p) => [p.role, p]))
 
   const saveMutation = useMutation({
@@ -179,9 +187,9 @@ export function WeddingDetailHero({
       )}
 
       <div className={styles.locations} id="wedding-locations">
-        {placesLoading ? (
+        {!useLocalPlaces && placesLoading ? (
           <p className={styles.locationsMuted}>Ładowanie lokalizacji…</p>
-        ) : editing ? (
+        ) : editing && !readOnly ? (
           LOCATION_FIELDS.map(({ role, label }) => {
             const saved = byRole.get(role) ?? null
             return (
@@ -193,7 +201,7 @@ export function WeddingDetailHero({
                 compactDisplay
                 showSavedHint={false}
                 disabled={saveMutation.isPending}
-                placeholder="Start typing an address..."
+                placeholder="Zacznij wpisywać adres…"
                 onSelectPlace={async (place) => {
                   await saveMutation.mutateAsync({ role, place })
                 }}
@@ -225,7 +233,7 @@ export function WeddingDetailHero({
                       </span>
                       {text}
                     </span>
-                    <span className={styles.verifyHint}>Requires verification</span>
+                    <span className={styles.verifyHint}>Wymaga weryfikacji</span>
                   </div>
                 )}
               </div>
@@ -238,7 +246,7 @@ export function WeddingDetailHero({
         </div>
       </div>
 
-      {!editing ? (
+      {!editing && !readOnly ? (
         <div className={styles.actions}>
           <Button
             type="button"

@@ -17,14 +17,22 @@ interface CalendarMonthViewProps {
   anchor: Date
   events: CalendarWeddingEvent[]
   onSelectEvent: (event: CalendarWeddingEvent) => void
+  /** When false, empty days do not navigate to new-wedding (landing demo). */
+  allowCreateOnEmpty?: boolean
 }
 
-export function CalendarMonthView({ anchor, events, onSelectEvent }: CalendarMonthViewProps) {
+export function CalendarMonthView({
+  anchor,
+  events,
+  onSelectEvent,
+  allowCreateOnEmpty = true,
+}: CalendarMonthViewProps) {
   const navigate = useNavigate()
   const days = getMonthGrid(anchor)
   const today = new Date()
 
   function openNewWedding(dateKey: string) {
+    if (!allowCreateOnEmpty) return
     navigate(`/sluby/nowy?date=${dateKey}`)
   }
 
@@ -52,16 +60,20 @@ export function CalendarMonthView({ anchor, events, onSelectEvent }: CalendarMon
               key={key}
               className={`${styles.cell} ${outside ? styles.outside : ''} ${isToday ? styles.today : ''} ${isEmpty ? styles.emptyCell : ''}`}
               onClick={() => {
-                if (isEmpty) openNewWedding(key)
+                if (isEmpty && allowCreateOnEmpty) openNewWedding(key)
               }}
               onKeyDown={(e) => {
-                if (isEmpty && (e.key === 'Enter' || e.key === ' ')) {
+                if (
+                  isEmpty &&
+                  allowCreateOnEmpty &&
+                  (e.key === 'Enter' || e.key === ' ')
+                ) {
                   e.preventDefault()
                   openNewWedding(key)
                 }
               }}
-              role={isEmpty ? 'button' : undefined}
-              tabIndex={isEmpty ? 0 : undefined}
+              role={isEmpty && allowCreateOnEmpty ? 'button' : undefined}
+              tabIndex={isEmpty && allowCreateOnEmpty ? 0 : undefined}
             >
               <div className={styles.dayHeader}>
                 <span className={styles.dayNumber}>{day.getDate()}</span>

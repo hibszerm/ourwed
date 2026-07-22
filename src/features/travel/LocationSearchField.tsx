@@ -57,7 +57,7 @@ export function LocationSearchField({
   value = '',
   place = null,
   disabled = false,
-  placeholder = 'Start typing an address...',
+  placeholder = 'Zacznij wpisywać adres…',
   compactDisplay = false,
   showSavedHint = true,
   onChangeText,
@@ -116,7 +116,7 @@ export function LocationSearchField({
           setSuggestions([])
           setOpen(false)
           setActiveIndex(-1)
-          setError('Unable to find address.')
+          setError('Nie znaleziono adresu.')
         } finally {
           if (requestId === requestIdRef.current) setSearching(false)
         }
@@ -142,7 +142,7 @@ export function LocationSearchField({
           ? err.message
           : err instanceof Error
             ? err.message
-            : 'Unable to find address.',
+            : 'Nie znaleziono adresu.',
       )
     } finally {
       setSaving(false)

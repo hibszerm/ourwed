@@ -160,8 +160,9 @@ function FeatureVisual({ kind }: { kind: (typeof FEATURES)[number]['visual'] }) 
         <div className={styles.mockTravelFlow}>
           {[
             ['1', 'Studio', 'ul. Mokotowska 12'],
-            ['2', 'Ceremony', 'Kościół św. Anny'],
-            ['3', 'Reception', 'Pałac w Wilanowie'],
+            ['2', 'Przygotowania', 'Hotel Bristol, Warszawa'],
+            ['3', 'Ceremonia', 'Kościół św. Anny, Warszawa'],
+            ['4', 'Przyjęcie', 'Pałac Mała Wieś'],
           ].map(([i, title, addr], idx) => (
             <div key={title}>
               <div className={styles.mockStop}>
@@ -171,8 +172,8 @@ function FeatureVisual({ kind }: { kind: (typeof FEATURES)[number]['visual'] }) 
                   <span>{addr}</span>
                 </div>
               </div>
-              {idx < 2 ? (
-                <div className={styles.mockLeg}>↓ 12–28 min · 7–18 km</div>
+              {idx < 3 ? (
+                <div className={styles.mockLeg}>↓ 5–52 min · 0,9–48 km</div>
               ) : null}
             </div>
           ))}

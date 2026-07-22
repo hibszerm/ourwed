@@ -10,12 +10,16 @@ import {
   type TravelFlowStop,
 } from '@/features/travel/travelUi'
 import { travelService } from '@/lib/api/travelService'
-import type { TravelSegment } from '@/types/travel'
+import type { TravelPlan, TravelSegment } from '@/types/travel'
 import styles from './WeddingDetailTravel.module.css'
 
 interface WeddingDetailTravelProps {
   weddingId: string
   onRequestVerifyLocations?: () => void
+  /** When provided, skip API fetch (e.g. landing demo). */
+  plan?: TravelPlan
+  /** Hide mutate actions — still show route visualization. */
+  readOnly?: boolean
 }
 
 function TravelSkeleton() {
@@ -73,7 +77,7 @@ function LegConnector({ segment }: { segment: TravelSegment | null }) {
             <span>{segment.distanceText}</span>
           </>
         ) : failed ? (
-          <span>Unable to calculate this route.</span>
+          <span>Nie udało się wyliczyć tej trasy.</span>
         ) : (
           <>
             <span>—</span>
@@ -100,15 +104,15 @@ function VerificationStatus({
   if (needsCount <= 0) {
     return (
       <p className={styles.verifyOk}>
-        <span aria-hidden>✓</span> All locations verified
+        <span aria-hidden>✓</span> Wszystkie lokalizacje zweryfikowane
       </p>
     )
   }
 
   const label =
     needsCount === 1
-      ? '1 location requires verification'
-      : `${needsCount} locations require verification`
+      ? '1 lokalizacja wymaga weryfikacji'
+      : `${needsCount} lokalizacje wymagają weryfikacji`
 
   if (onRequestVerifyLocations) {
     return (
@@ -136,11 +140,14 @@ function VerificationStatus({
 export function WeddingDetailTravel({
   weddingId,
   onRequestVerifyLocations,
+  plan: planProp,
+  readOnly = false,
 }: WeddingDetailTravelProps) {
   const queryClient = useQueryClient()
   const userId = useStudioAuthId()
+  const useLocalPlan = planProp != null
 
-  const { data: plan, isLoading, isFetching } = useQuery({
+  const { data: fetchedPlan, isLoading, isFetching } = useQuery({
     queryKey: ['travel-plan', userId, weddingId],
     queryFn: async () => {
       try {
@@ -152,13 +159,15 @@ export function WeddingDetailTravel({
           places: [],
           segments: [],
           hasError: true,
-          errorMessage: 'Unable to calculate this route.',
+          errorMessage: 'Nie udało się wyliczyć tej trasy.',
         }
       }
     },
-    enabled: Boolean(userId && weddingId),
+    enabled: Boolean(!useLocalPlan && userId && weddingId),
     retry: false,
   })
+
+  const plan = planProp ?? fetchedPlan
 
   const recalculateMutation = useMutation({
     mutationFn: () =>
@@ -179,29 +188,39 @@ export function WeddingDetailTravel({
   const totals = sumTravelTotals(okSegments)
   const directionsUrl = flow ? openFullRouteUrl(flow.stops) : null
   const busy = isFetching || recalculateMutation.isPending
+  const showLoading = !useLocalPlan && isLoading
 
   return (
     <Card padding="md" className={styles.card}>
-      <CardHeader title="Travel" subtitle="Studio → Preparations → Ceremony → Reception" />
+      <CardHeader
+        title="Travel"
+        subtitle="Studio → Przygotowania → Ceremonia → Przyjęcie"
+      />
 
-      {isLoading ? (
+      {showLoading ? (
         <TravelSkeleton />
       ) : (
         <div className={styles.content}>
-          <VerificationStatus
-            needsCount={needsCount}
-            hasCorePlaces={hasCorePlaces}
-            onRequestVerifyLocations={onRequestVerifyLocations}
-          />
+          {!readOnly ? (
+            <VerificationStatus
+              needsCount={needsCount}
+              hasCorePlaces={hasCorePlaces}
+              onRequestVerifyLocations={onRequestVerifyLocations}
+            />
+          ) : needsCount <= 0 && hasCorePlaces ? (
+            <p className={styles.verifyOk}>
+              <span aria-hidden>✓</span> Wszystkie lokalizacje zweryfikowane
+            </p>
+          ) : null}
 
           {!flow || !flow.hasAnyLocation ? (
             <div className={styles.empty}>
               <p className={styles.muted}>
-                No verified locations yet. Confirm addresses in the hero to build
-                the travel timeline.
+                Brak zweryfikowanych lokalizacji. Potwierdź adresy w nagłówku
+                karty ślubu, aby zbudować trasę.
               </p>
               <p className={styles.meta}>
-                Studio → Travel settings · verify locations in the hero above
+                Studio → Ustawienia Travel · weryfikacja lokalizacji w nagłówku
               </p>
             </div>
           ) : (
@@ -221,43 +240,47 @@ export function WeddingDetailTravel({
 
               <div className={styles.summary}>
                 <div className={styles.summaryStat}>
-                  <span className={styles.summaryLabel}>Total distance</span>
+                  <span className={styles.summaryLabel}>Łączny dystans</span>
                   <span className={styles.summaryValue}>
                     {okSegments.length > 0 ? totals.distanceText : '—'}
                   </span>
                 </div>
                 <div className={styles.summaryStat}>
-                  <span className={styles.summaryLabel}>Estimated driving</span>
+                  <span className={styles.summaryLabel}>Szacowany czas jazdy</span>
                   <span className={styles.summaryValue}>
                     {okSegments.length > 0 ? totals.durationText : '—'}
                   </span>
                 </div>
               </div>
 
-              <div className={styles.actions}>
-                <button
-                  type="button"
-                  className={styles.actionPrimary}
-                  disabled={busy}
-                  onClick={() => void recalculateMutation.mutateAsync()}
-                >
-                  {recalculateMutation.isPending
-                    ? 'Recalculating…'
-                    : 'Recalculate route'}
-                </button>
-                {directionsUrl ? (
-                  <a
-                    className={styles.actionSecondary}
-                    href={directionsUrl}
-                    target="_blank"
-                    rel="noreferrer"
+              {!readOnly ? (
+                <div className={styles.actions}>
+                  <button
+                    type="button"
+                    className={styles.actionPrimary}
+                    disabled={busy}
+                    onClick={() => void recalculateMutation.mutateAsync()}
                   >
-                    Open full route
-                  </a>
-                ) : (
-                  <span className={styles.actionDisabled}>Open full route</span>
-                )}
-              </div>
+                    {recalculateMutation.isPending
+                      ? 'Przeliczanie…'
+                      : 'Przelicz trasę'}
+                  </button>
+                  {directionsUrl ? (
+                    <a
+                      className={styles.actionSecondary}
+                      href={directionsUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Otwórz pełną trasę
+                    </a>
+                  ) : (
+                    <span className={styles.actionDisabled}>
+                      Otwórz pełną trasę
+                    </span>
+                  )}
+                </div>
+              ) : null}
             </>
           )}
         </div>

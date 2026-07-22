@@ -443,7 +443,7 @@ export const travelService = {
             weddingId,
             leg,
             travelMode,
-            'Unable to calculate this route.',
+            'Nie udało się wyliczyć tej trasy.',
           ),
         )
       }

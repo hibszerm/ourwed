@@ -144,7 +144,7 @@ export function TravelMap({ stops }: TravelMapProps) {
         ref={containerRef}
         className={styles.map}
         role="img"
-        aria-label="Travel map"
+        aria-label="Mapa trasy"
       />
     </div>
   )

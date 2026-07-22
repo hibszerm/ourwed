@@ -8,9 +8,15 @@ import styles from './TodoTodayCard.module.css'
 interface TodoTodayCardProps {
   tasks: Task[]
   weddings: Wedding[]
+  /** When set, task rows open via callback instead of router Link. */
+  onOpenWedding?: (weddingId: string) => void
 }
 
-export function TodoTodayCard({ tasks, weddings }: TodoTodayCardProps) {
+export function TodoTodayCard({
+  tasks,
+  weddings,
+  onOpenWedding,
+}: TodoTodayCardProps) {
   const [dismissed, setDismissed] = useState<Set<string>>(new Set())
   const [dismissing, setDismissing] = useState<Set<string>>(new Set())
 
@@ -54,6 +60,18 @@ export function TodoTodayCard({ tasks, weddings }: TodoTodayCardProps) {
               ? coupleName(wedding.couple.partner1, wedding.couple.partner2)
               : null
 
+            const bodyClass = styles.body
+            const bodyLabel = couple ? `Otwórz ślub: ${couple}` : task.title
+            const bodyContent = (
+              <>
+                {couple && <span className={styles.couple}>{couple}</span>}
+                <span className={styles.taskTitle}>{task.title}</span>
+                {wedding && (
+                  <span className={styles.date}>{formatShortDate(wedding.date)}</span>
+                )}
+              </>
+            )
+
             return (
               <li
                 key={task.id}
@@ -69,19 +87,24 @@ export function TodoTodayCard({ tasks, weddings }: TodoTodayCardProps) {
                   <IconCheck className={styles.checkIcon} width={14} height={14} />
                 </button>
 
-                <Link
-                  to={wedding ? `/sluby/${wedding.id}` : '#'}
-                  className={styles.body}
-                  aria-label={
-                    couple ? `Otwórz ślub: ${couple}` : task.title
-                  }
-                >
-                  {couple && <span className={styles.couple}>{couple}</span>}
-                  <span className={styles.taskTitle}>{task.title}</span>
-                  {wedding && (
-                    <span className={styles.date}>{formatShortDate(wedding.date)}</span>
-                  )}
-                </Link>
+                {onOpenWedding && wedding ? (
+                  <button
+                    type="button"
+                    className={bodyClass}
+                    aria-label={bodyLabel}
+                    onClick={() => onOpenWedding(wedding.id)}
+                  >
+                    {bodyContent}
+                  </button>
+                ) : (
+                  <Link
+                    to={wedding ? `/sluby/${wedding.id}` : '#'}
+                    className={bodyClass}
+                    aria-label={bodyLabel}
+                  >
+                    {bodyContent}
+                  </Link>
+                )}
 
                 {task.priority === 'high' && (
                   <span className={styles.priority}>Pilne</span>
