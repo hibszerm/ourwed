@@ -22,9 +22,9 @@ export function LivingHero() {
         </div>
         <div className={styles.rows}>
           {[
-            ['Anna & Michał', '22.08', 'Premium'],
+            ['Anna & Michał', '22.08', 'Foto+Film'],
             ['Julia & Tomasz', '12.09', 'Standard'],
-            ['Natalia & Piotr', '03.10', 'Signature'],
+            ['Natalia & Piotr', '03.10', 'Mini'],
           ].map(([name, date, pkg], i) => (
             <motion.div
               key={name}

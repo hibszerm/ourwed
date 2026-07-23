@@ -172,20 +172,34 @@ export function QuestionnaireVignette() {
 export function PackageVignette() {
   const packages = [
     {
+      name: 'Mini',
+      price: '4 500 zł',
+      items: [
+        'Reportaż fotograficzny',
+        'Pokrycie do 22:00',
+        'Galeria online',
+      ],
+    },
+    {
       name: 'Standard',
-      price: '6 500 zł',
-      items: ['Konsultacja', 'Dzień wydarzenia', 'Finalna dostawa'],
+      price: '6 200 zł',
+      items: [
+        'Wszystko z Mini',
+        'Pokrycie do 01:00',
+        'Drugi fotograf',
+        'Sesja narzeczeńska',
+      ],
     },
     {
-      name: 'Premium',
-      price: formatCurrency(demoWedding.price),
-      items: ['Pełna obsługa', 'Koordynacja', 'Priorytetowa dostawa'],
+      name: 'Foto + Film',
+      price: '9 800 zł',
+      items: [
+        'Wszystko ze Standard',
+        'Highlight film',
+        'Film ślubny',
+        'Drone',
+      ],
       featured: true,
-    },
-    {
-      name: 'Signature',
-      price: '12 000 zł',
-      items: ['Rozszerzony zakres', 'Dodatkowy zespół', 'Ekspresowa dostawa'],
     },
   ]
 
