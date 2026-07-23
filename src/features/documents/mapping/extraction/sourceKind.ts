@@ -1,5 +1,24 @@
 import type { DocumentExtractInput } from './documentTextExtractor'
 
+/** Independent copy — safe when a consumer may transfer/detach the buffer. */
+export function cloneArrayBuffer(buffer: ArrayBuffer): ArrayBuffer {
+  return buffer.slice(0)
+}
+
+/** True when the ArrayBuffer can no longer be read (e.g. transferred to a worker). */
+export function isArrayBufferDetached(buffer: ArrayBuffer): boolean {
+  const withFlag = buffer as ArrayBuffer & { detached?: boolean }
+  if (typeof withFlag.detached === 'boolean') return withFlag.detached
+  try {
+    // Accessing a detached buffer via TypedArray throws in modern engines.
+    // eslint-disable-next-line no-new
+    new Uint8Array(buffer)
+    return false
+  } catch {
+    return true
+  }
+}
+
 export async function toArrayBuffer(
   input: DocumentExtractInput,
 ): Promise<ArrayBuffer> {

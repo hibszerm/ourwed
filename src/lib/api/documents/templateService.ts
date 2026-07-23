@@ -89,12 +89,29 @@ async function toSummary(
 ): Promise<DocumentTemplateSummary> {
   const current = versions.find((v) => v.id === template.currentVersionId) ?? null
   const stats = await countStatsForVersion(template.currentVersionId)
+  const metaSlots =
+    (template.meta.coupleVariables?.length ?? 0) +
+    (template.meta.studioVariables?.length ?? 0) +
+    (template.meta.packageVariables?.length ?? 0)
+  const slotMapCount = Array.isArray(current?.slotMap?.slots)
+    ? (current!.slotMap.slots as unknown[]).length
+    : 0
+
+  const { count: usageCount, error: usageError } = await supabase
+    .from('wedding_documents')
+    .select('id', { count: 'exact', head: true })
+    .eq('template_id', template.id)
+  if (usageError) {
+    // Non-fatal — list still works without usage stats
+  }
+
   return {
     ...template,
     currentVersionNumber: current?.versionNumber ?? null,
     componentCount: stats.componentCount,
     blockCount: stats.blockCount,
-    variableCount: stats.variableCount,
+    variableCount: Math.max(stats.variableCount, metaSlots, slotMapCount),
+    usageCount: usageCount ?? 0,
     sourceFileName: current?.sourceFileName ?? null,
     sourceDocxPath: current?.sourceDocxPath ?? null,
   }
@@ -468,13 +485,21 @@ export const documentTemplateService: DocumentTemplateService = {
     const path = documentStorage.paths.templateSource(userId, templateId, next)
     await documentStorage.upload(path, file, file.type || undefined)
 
-    return createVersion({
+    const version = await createVersion({
       templateId,
       sourceDocxPath: path,
       sourceFileName: file.name,
       notes: options?.notes ?? null,
       setAsCurrent: options?.setAsCurrent !== false,
     })
+
+    // Source replaced — require a fresh AI analysis before generate.
+    await updateTemplate(templateId, {
+      status: 'draft',
+      aiAnalyzedAt: null,
+    })
+
+    return version
   },
 
   listVersions,

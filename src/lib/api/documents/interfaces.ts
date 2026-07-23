@@ -237,6 +237,7 @@ export interface DocumentExportService {
 
 export interface DocumentStoragePaths {
   templateSource(userId: string, templateId: string, versionNumber: number): string
+  templateFillable(userId: string, templateId: string, versionNumber: number): string
   draftAsset(userId: string, weddingId: string, draftId: string, fileName: string): string
   exportFile(
     userId: string,

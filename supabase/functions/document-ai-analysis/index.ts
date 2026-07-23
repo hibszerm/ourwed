@@ -2,6 +2,11 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 import { DOCUMENT_AI_EDGE_CONFIG } from './config.ts'
 import { buildDocumentAnalysisPrompt } from './DocumentAnalysisPrompt.ts'
 import {
+  buildBusinessUnderstandingPrompt,
+  BUSINESS_UNDERSTANDING_PROMPT_VERSION,
+  BUSINESS_UNDERSTANDING_USER_MESSAGE,
+} from './BusinessUnderstandingPrompt.ts'
+import {
   callOpenAiResponsesJson,
   ProviderError,
 } from './openaiClient.ts'
@@ -14,6 +19,7 @@ import {
   validateAndNormalizeAnalysis,
   type EdgeErrorCode,
 } from './validate.ts'
+import { validateBusinessUnderstanding } from './validateBusinessUnderstanding.ts'
 
 const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -148,7 +154,16 @@ Deno.serve(async (req) => {
         ? body.contentHash.trim()
         : null
 
-    if (contentHash) {
+    /** `production` (default) | `business_understanding` (diagnostic Pass 1). */
+    const mode =
+      body.mode === 'business_understanding'
+        ? 'business_understanding'
+        : 'production'
+    /** When true, production responses include raw vs validated stage snapshots. */
+    const diagnostic = body.diagnostic === true
+
+    // Never serve cached payloads for diagnostic / understanding passes.
+    if (contentHash && mode === 'production' && !diagnostic) {
       const cacheKey = `${DOCUMENT_AI_EDGE_CONFIG.schemaVersion}:${contentHash}`
       const hit = memoryCache.get(cacheKey)
       if (hit) {
@@ -179,11 +194,16 @@ Deno.serve(async (req) => {
         : DOCUMENT_AI_EDGE_CONFIG.promptVersion
 
     const promptStarted = performance.now()
-    const prompt = buildDocumentAnalysisPrompt({
-      schemaVersion,
-      promptVersion,
-    })
+    const prompt =
+      mode === 'business_understanding'
+        ? buildBusinessUnderstandingPrompt()
+        : buildDocumentAnalysisPrompt({
+            schemaVersion,
+            promptVersion,
+          })
     timer.logStepDuration('Prompt creation', promptStarted, {
+      mode,
+      diagnostic,
       promptLength: prompt.length,
       estimatedPromptTokens: estimateTokenCount(prompt.length),
       documentTextLength: text.length,
@@ -199,7 +219,20 @@ Deno.serve(async (req) => {
       model: DOCUMENT_AI_EDGE_CONFIG.model,
     }
 
-    async function analyzeOnce(): Promise<Record<string, unknown>> {
+    type ProductionAnalyzeResult = {
+      analysis: Record<string, unknown>
+      stages?: {
+        rawParsed: unknown
+        afterValidation: {
+          coupleVariables: string[]
+          studioVariables: string[]
+          packageVariables: string[]
+          possibleVariables: string[]
+        }
+      }
+    }
+
+    async function analyzeProductionOnce(): Promise<ProductionAnalyzeResult> {
       const documentText = text.length === 0 ? '(empty document)' : text
       const openaiResult = await callOpenAiResponsesJson({
         prompt,
@@ -250,7 +283,7 @@ Deno.serve(async (req) => {
             possibleCount: validated.possibleVariables.length,
           },
         )
-        return {
+        const analysis: Record<string, unknown> = {
           ...validated,
           analyzerId: DOCUMENT_AI_EDGE_CONFIG.analyzerId,
           analyzerVersion: DOCUMENT_AI_EDGE_CONFIG.analyzerVersion,
@@ -258,6 +291,20 @@ Deno.serve(async (req) => {
           sourceTextLength: text.length,
           contentHash: contentHash ?? undefined,
           fromCache: false,
+        }
+        return {
+          analysis,
+          stages: diagnostic
+            ? {
+                rawParsed: parsed,
+                afterValidation: {
+                  coupleVariables: [...validated.coupleVariables],
+                  studioVariables: [...validated.studioVariables],
+                  packageVariables: [...validated.packageVariables],
+                  possibleVariables: [...validated.possibleVariables],
+                },
+              }
+            : undefined,
         }
       } catch {
         timer.logStepDuration(
@@ -272,9 +319,95 @@ Deno.serve(async (req) => {
       }
     }
 
+    async function analyzeBusinessOnce(): Promise<Record<string, unknown>> {
+      const documentText = text.length === 0 ? '(empty document)' : text
+      const openaiResult = await callOpenAiResponsesJson({
+        prompt,
+        documentText,
+        timer,
+        userMessagePrefix: BUSINESS_UNDERSTANDING_USER_MESSAGE,
+        maxOutputTokens: 3500,
+      })
+
+      if ('debugEmpty' in openaiResult && openaiResult.debugEmpty) {
+        const err = new Error('openai_debug_empty') as Error & {
+          code: 'openai_debug_empty'
+          debug: unknown
+        }
+        err.code = 'openai_debug_empty'
+        err.debug = openaiResult.responseJson
+        throw err
+      }
+
+      const providerText = openaiResult.text
+      const parseStarted = performance.now()
+      let parsed: unknown
+      try {
+        parsed = parseAnalysisJsonText(providerText)
+        timer.logStepDuration('JSON parsing (business)', parseStarted, {
+          responseLength: providerText.length,
+        })
+      } catch {
+        timer.logStepDuration('JSON parsing (business failed)', parseStarted)
+        const err = new Error('invalid_json') as Error & { code: EdgeErrorCode }
+        err.code = 'invalid_json'
+        throw err
+      }
+
+      try {
+        const understanding = validateBusinessUnderstanding(parsed, {
+          promptVersion: BUSINESS_UNDERSTANDING_PROMPT_VERSION,
+          model: DOCUMENT_AI_EDGE_CONFIG.model,
+        })
+        return {
+          ...understanding,
+          analyzedAt: new Date().toISOString(),
+          sourceTextLength: text.length,
+          contentHash: contentHash ?? undefined,
+          mode: 'business_understanding',
+        }
+      } catch {
+        const err = new Error('validation_failed') as Error & {
+          code: EdgeErrorCode
+        }
+        err.code = 'validation_failed'
+        throw err
+      }
+    }
+
     let analysis: Record<string, unknown>
+    let stages: ProductionAnalyzeResult['stages']
+
+    async function runWithRetry<T>(fn: () => Promise<T>): Promise<T> {
+      try {
+        return await fn()
+      } catch (first) {
+        if (
+          first &&
+          typeof first === 'object' &&
+          (first as { code?: string }).code === 'openai_debug_empty'
+        ) {
+          throw first
+        }
+        if (first instanceof ProviderError) throw first
+        const code = (first as { code?: EdgeErrorCode }).code
+        if (code === 'invalid_json' || code === 'validation_failed') {
+          timer.log('Retry analyzeOnce', { reason: code, mode })
+          return await fn()
+        }
+        throw first
+      }
+    }
+
     try {
-      analysis = await analyzeOnce()
+      if (mode === 'business_understanding') {
+        analysis = await runWithRetry(analyzeBusinessOnce)
+        stages = undefined
+      } else {
+        const result = await runWithRetry(analyzeProductionOnce)
+        analysis = result.analysis
+        stages = result.stages
+      }
     } catch (first) {
       if (
         first &&
@@ -299,56 +432,16 @@ Deno.serve(async (req) => {
         return providerErrorResponse(first)
       }
 
-      const code = (first as { code?: EdgeErrorCode }).code
-      if (code === 'invalid_json' || code === 'validation_failed') {
-        timer.log('Retry analyzeOnce', { reason: code })
-        try {
-          analysis = await analyzeOnce()
-        } catch (second) {
-          if (
-            second &&
-            typeof second === 'object' &&
-            (second as { code?: string }).code === 'openai_debug_empty'
-          ) {
-            timer.log('Response returned', {
-              ok: false,
-              code: 'openai_debug_empty',
-            })
-            return jsonResponse({
-              ok: false,
-              debug: (second as { debug: unknown }).debug,
-            })
-          }
-          if (second instanceof ProviderError) {
-            timer.log('Response returned', {
-              ok: false,
-              code: second.payload.code,
-            })
-            return providerErrorResponse(second)
-          }
-          const code2 =
-            (second as { code?: EdgeErrorCode }).code ?? 'unknown'
-          timer.log('Response returned', { ok: false, code: code2 })
-          return errorResponse(
-            code2,
-            'Analysis failed after retry',
-            statusForCode(code2),
-          )
-        }
-      } else {
-        timer.log('Response returned', {
-          ok: false,
-          code: code ?? 'provider_unavailable',
-        })
-        return errorResponse(
-          code ?? 'provider_unavailable',
-          'Analysis request failed',
-          statusForCode(code ?? 'provider_unavailable'),
-        )
-      }
+      const code = (first as { code?: EdgeErrorCode }).code ?? 'unknown'
+      timer.log('Response returned', { ok: false, code })
+      return errorResponse(
+        code,
+        'Analysis failed after retry',
+        statusForCode(code),
+      )
     }
 
-    if (contentHash) {
+    if (contentHash && mode === 'production' && !diagnostic) {
       memoryCache.set(`${DOCUMENT_AI_EDGE_CONFIG.schemaVersion}:${contentHash}`, {
         analysis,
         storedAt: Date.now(),
@@ -358,6 +451,8 @@ Deno.serve(async (req) => {
     timer.log('Response returned', {
       ok: true,
       fromCache: false,
+      mode,
+      diagnostic,
       coupleCount: Array.isArray(analysis.coupleVariables)
         ? analysis.coupleVariables.length
         : undefined,
@@ -370,8 +465,26 @@ Deno.serve(async (req) => {
       possibleCount: Array.isArray(analysis.possibleVariables)
         ? analysis.possibleVariables.length
         : undefined,
+      changingCount: Array.isArray(analysis.changingInformation)
+        ? analysis.changingInformation.length
+        : undefined,
     })
-    return jsonResponse({ ok: true, fromCache: false, analysis })
+
+    if (mode === 'business_understanding') {
+      return jsonResponse({
+        ok: true,
+        fromCache: false,
+        mode: 'business_understanding',
+        understanding: analysis,
+      })
+    }
+
+    return jsonResponse({
+      ok: true,
+      fromCache: false,
+      analysis,
+      ...(stages ? { diagnostic: { stages } } : {}),
+    })
   } catch (e) {
     if (e instanceof ProviderError) {
       timer.log('Response returned', {

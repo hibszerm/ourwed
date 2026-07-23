@@ -41,6 +41,8 @@ function mapSystemQuestionType(type?: SystemQuestionType): QuestionType {
       return 'location'
     case 'textarea':
       return 'textarea'
+    case 'checkbox':
+      return 'checkbox'
     default:
       return 'text'
   }

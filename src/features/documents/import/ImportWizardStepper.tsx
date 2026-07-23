@@ -1,7 +1,7 @@
-import { Check, FileUp, Settings2, Sparkles } from 'lucide-react'
+import { Check, FileUp, Sparkles } from 'lucide-react'
 import styles from './ImportWizardStepper.module.css'
 
-export type WizardStepId = 'upload' | 'analysis' | 'configure' | 'done'
+export type WizardStepId = 'upload' | 'analysis' | 'done'
 
 export const WIZARD_STEPS: Array<{
   id: WizardStepId
@@ -11,20 +11,13 @@ export const WIZARD_STEPS: Array<{
 }> = [
   { id: 'upload', label: 'Dodawanie dokumentu', shortLabel: 'Dokument', Icon: FileUp },
   { id: 'analysis', label: 'Analiza AI', shortLabel: 'Analiza', Icon: Sparkles },
-  {
-    id: 'configure',
-    label: 'Konfiguracja danych',
-    shortLabel: 'Konfiguracja',
-    Icon: Settings2,
-  },
   { id: 'done', label: 'Gotowe', shortLabel: 'Gotowe', Icon: Check },
 ]
 
 const STEP_INDEX: Record<WizardStepId, number> = {
   upload: 0,
   analysis: 1,
-  configure: 2,
-  done: 3,
+  done: 2,
 }
 
 export function ImportWizardStepper({
@@ -35,7 +28,7 @@ export function ImportWizardStepper({
   const currentIndex = STEP_INDEX[current]
 
   return (
-    <nav className={styles.stepper} aria-label="Postęp tworzenia umowy">
+    <nav className={styles.stepper} aria-label="Postęp tworzenia szablonu umowy">
       <ol className={styles.list}>
         {WIZARD_STEPS.map((step, index) => {
           const status =

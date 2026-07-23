@@ -12,8 +12,8 @@ export function DocumentsHubPage() {
           <header className={styles.studioHero}>
             <h1 className={styles.studioTitle}>Dokumenty</h1>
             <p className={styles.studioSubtitle}>
-              Zarządzaj umowami, które Twoja firma wykorzystuje we współpracy z
-              klientami.
+              Szablony umów Twojego studia. Prześlij kontrakt raz — OurWed
+              odtwarza go na każdym ślubie.
             </p>
           </header>
 
@@ -27,13 +27,12 @@ export function DocumentsHubPage() {
                   <span className={styles.iconWrap} aria-hidden>
                     <Files size={22} strokeWidth={1.75} />
                   </span>
-                  <h2 className={styles.contractCardTitle}>
-                    Szablony dokumentów
-                  </h2>
+                  <h2 className={styles.contractCardTitle}>Szablony umów</h2>
                 </div>
-                <p className={styles.contractCardFormat}>Umowy</p>
+                <p className={styles.contractCardFormat}>Contract Templates</p>
                 <p className={styles.studioSubtitle} style={{ margin: 0 }}>
-                  Prześlij raz. OurWed automatycznie przygotuje ankiety.
+                  Upload → AI wykrywa zmienne → Generuj umowę na ślubie. Bez
+                  budowania ankiet przez AI.
                 </p>
               </div>
             </Link>

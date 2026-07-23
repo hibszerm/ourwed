@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, MoreHorizontal } from 'lucide-react'
 import { AppLayout } from '@/layouts/AppLayout'
 import { Button } from '@/components/ui/Button'
@@ -8,8 +7,6 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { useToast } from '@/components/ui/Toast'
 import { documentStorage } from '@/lib/api/documents/storage'
-import { getForm } from '@/lib/api/forms'
-import { packageService } from '@/lib/api/packageService'
 import {
   useDocumentTemplate,
   useDocumentTemplateMutations,
@@ -47,37 +44,9 @@ export function DocumentTemplateDetailPage() {
     return () => document.removeEventListener('mousedown', onDoc)
   }, [menuOpen])
 
-  const formId = template?.questionnaireFormId ?? null
-
-  const { data: questionnaireName = null } = useQuery({
-    queryKey: ['contract-form-name', formId],
-    queryFn: async () => {
-      if (!formId) return null
-      const form = await getForm(formId)
-      return form?.name ?? null
-    },
-    enabled: Boolean(formId),
-  })
-
-  const {
-    data: packageNames,
-    isPending: packageNamesPending,
-    isSuccess: packageNamesSuccess,
-  } = useQuery({
-    queryKey: ['contract-packages', formId],
-    queryFn: async () => {
-      if (!formId) return [] as string[]
-      const packages = await packageService.list({ activeOnly: false })
-      return packages
-        .filter((p) => p.questionnaireFormId === formId)
-        .map((p) => p.name)
-    },
-    enabled: Boolean(formId),
-  })
-
   if (isLoading) {
     return (
-      <AppLayout title="Umowa">
+      <AppLayout title="Szablon umowy">
         <PageContainer width="wide">
           <p className={styles.quietHint}>Ładowanie…</p>
         </PageContainer>
@@ -87,11 +56,11 @@ export function DocumentTemplateDetailPage() {
 
   if (isError || !template) {
     return (
-      <AppLayout title="Umowa">
+      <AppLayout title="Szablon umowy">
         <PageContainer width="wide">
           <EmptyState
-            title="Nie znaleziono umowy"
-            description="Umowa mogła zostać usunięta."
+            title="Nie znaleziono szablonu"
+            description="Szablon mógł zostać usunięty."
             action={
               <Button
                 type="button"
@@ -107,7 +76,6 @@ export function DocumentTemplateDetailPage() {
     )
   }
 
-  // Const after guard — closures keep a definite DocumentTemplateSummary.
   const doc = template
   const status = getContractUiStatus(doc)
   const format = fileFormatLabel(doc.sourceFileName)
@@ -115,7 +83,7 @@ export function DocumentTemplateDetailPage() {
   async function handleDelete() {
     try {
       await mutations.remove.mutateAsync(doc.id)
-      showToast('Umowa została usunięta.', 'success')
+      showToast('Szablon został usunięty.', 'success')
       setDeleteOpen(false)
       navigate('/ustawienia/dokumenty/szablony')
     } catch (err) {
@@ -129,11 +97,24 @@ export function DocumentTemplateDetailPage() {
   async function handleReplace(file: File) {
     try {
       await mutations.uploadVersion.mutateAsync({ id: doc.id, file })
-      showToast('Dokument został zamieniony.', 'success')
-      navigate(`/ustawienia/dokumenty/szablony/${doc.id}/konfiguracja`)
+      showToast('Dokument zamieniony. Uruchamiamy analizę…', 'success')
+      navigate(`/ustawienia/dokumenty/szablony/${doc.id}/analiza`)
     } catch (err) {
       showToast(
         err instanceof Error ? err.message : 'Nie udało się zamienić dokumentu.',
+        'error',
+      )
+    }
+  }
+
+  async function handleDuplicate() {
+    try {
+      const copy = await mutations.duplicate.mutateAsync(doc.id)
+      showToast('Szablon zduplikowany.', 'success')
+      navigate(`/ustawienia/dokumenty/szablony/${copy.id}`)
+    } catch (err) {
+      showToast(
+        err instanceof Error ? err.message : 'Nie udało się zduplikować.',
         'error',
       )
     }
@@ -165,7 +146,7 @@ export function DocumentTemplateDetailPage() {
             onClick={() => navigate('/ustawienia/dokumenty/szablony')}
           >
             <ArrowLeft size={16} aria-hidden />
-            Szablony dokumentów
+            Szablony umów
           </button>
 
           <header className={styles.detailHeroClean}>
@@ -182,24 +163,24 @@ export function DocumentTemplateDetailPage() {
             </div>
 
             <div className={styles.detailHeroActions} ref={menuRef}>
-              <Button
-                type="button"
-                variant="primary"
-                onClick={() =>
-                  navigate(
-                    `/ustawienia/dokumenty/szablony/${doc.id}/konfiguracja`,
-                  )
-                }
-              >
-                Wygeneruj ankietę ponownie
-              </Button>
+              {status === 'needs_analysis' ? (
+                <Button
+                  type="button"
+                  variant="primary"
+                  onClick={() =>
+                    navigate(`/ustawienia/dokumenty/szablony/${doc.id}/analiza`)
+                  }
+                >
+                  Uruchom analizę
+                </Button>
+              ) : null}
               <Button
                 type="button"
                 variant="secondary"
                 disabled={mutations.uploadVersion.isPending}
                 onClick={() => fileRef.current?.click()}
               >
-                Zamień dokument
+                Zamień źródłowy DOCX
               </Button>
               <div className={styles.overflowMenu}>
                 <button
@@ -224,6 +205,17 @@ export function DocumentTemplateDetailPage() {
                     >
                       Zmień nazwę
                     </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className={styles.overflowItem}
+                      onClick={() => {
+                        setMenuOpen(false)
+                        void handleDuplicate()
+                      }}
+                    >
+                      Duplikuj
+                    </button>
                     {doc.sourceDocxPath ? (
                       <button
                         type="button"
@@ -246,7 +238,7 @@ export function DocumentTemplateDetailPage() {
                         setDeleteOpen(true)
                       }}
                     >
-                      Usuń dokument
+                      Usuń
                     </button>
                   </div>
                 ) : null}
@@ -256,19 +248,27 @@ export function DocumentTemplateDetailPage() {
 
           <section className={styles.detailFacts}>
             <div className={styles.factBlock}>
-              <h2 className={styles.factLabel}>Powiązane pakiety</h2>
-              <p className={styles.factValue}>
-                {packageNamesPending
-                  ? 'Ładowanie…'
-                  : packageNamesSuccess && packageNames && packageNames.length > 0
-                    ? packageNames.join(', ')
-                    : '—'}
-              </p>
+              <h2 className={styles.factLabel}>Wykryte zmienne</h2>
+              <p className={styles.factValue}>{doc.variableCount}</p>
             </div>
             <div className={styles.factBlock}>
-              <h2 className={styles.factLabel}>Powiązana ankieta</h2>
-              <p className={styles.factValue}>{questionnaireName ?? '—'}</p>
+              <h2 className={styles.factLabel}>Wygenerowano</h2>
+              <p className={styles.factValue}>{doc.usageCount}</p>
             </div>
+            <div className={styles.factBlock}>
+              <h2 className={styles.factLabel}>Wersja analizy</h2>
+              <p className={styles.factValue}>
+                {doc.currentVersionNumber != null
+                  ? `v${doc.currentVersionNumber}`
+                  : '—'}
+              </p>
+            </div>
+            {doc.description ? (
+              <div className={styles.factBlock}>
+                <h2 className={styles.factLabel}>Opis</h2>
+                <p className={styles.factValue}>{doc.description}</p>
+              </div>
+            ) : null}
           </section>
         </div>
       </PageContainer>

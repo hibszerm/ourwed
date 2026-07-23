@@ -182,10 +182,17 @@ function parseProviderMessage(body: unknown): string | null {
  * Call OpenAI Responses API and return raw JSON text.
  * Never logs the API key.
  */
+const DEFAULT_PRODUCTION_USER =
+  'Reverse-engineer this wedding-business contract. Reconstruct the full client workflow (inquiry → package → information collection → contract → wedding → delivery). Decide what must change for another wedding, who provides each piece (couple / company / package), and only then map to canonical IDs. Infer clearly required information even when not explicitly filled.\n\nDOCUMENT:\n'
+
 export async function callOpenAiResponsesJson(input: {
   prompt: string
   documentText: string
   timer?: RequestTimer
+  /** Override user message prefix (document text is appended). */
+  userMessagePrefix?: string
+  /** Override max output tokens (default 1200 for production extraction). */
+  maxOutputTokens?: number
 }): Promise<OpenAiCallOutcome> {
   const model = DOCUMENT_AI_EDGE_CONFIG.model
   const apiKey = resolveApiKey()
@@ -202,6 +209,9 @@ export async function callOpenAiResponsesJson(input: {
     })
   }
 
+  const userPrefix = input.userMessagePrefix ?? DEFAULT_PRODUCTION_USER
+  const maxOutputTokens = input.maxOutputTokens ?? 1200
+
   const requestBody = {
     model,
     input: [
@@ -211,7 +221,7 @@ export async function callOpenAiResponsesJson(input: {
       },
       {
         role: 'user',
-        content: `Reverse-engineer this wedding-business contract. Reconstruct the full client workflow (inquiry → package → information collection → contract → wedding → delivery). Decide what must change for another wedding, who provides each piece (couple / company / package), and only then map to canonical IDs. Infer clearly required information even when not explicitly filled.\n\nDOCUMENT:\n${input.documentText}`,
+        content: `${userPrefix}${input.documentText}`,
       },
     ],
     text: {
@@ -219,8 +229,7 @@ export async function callOpenAiResponsesJson(input: {
         type: 'json_object',
       },
     },
-    /** Enough room for thorough couple + package ID recall. */
-    max_output_tokens: 1200,
+    max_output_tokens: maxOutputTokens,
   }
 
   const promptLen = input.prompt.length

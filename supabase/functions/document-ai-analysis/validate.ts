@@ -57,6 +57,11 @@ const ALLOWED_COUPLE = new Set([
   'package',
   'additional_notes',
   'notes',
+  'wedding_planner_name',
+  'wedding_planner_phone',
+  'wedding_planner_email',
+  'food_for_crew',
+  'marketing_consent',
 ])
 
 const ALLOWED_STUDIO = new Set([
@@ -128,6 +133,13 @@ const ALLOWED_PACKAGE = new Set([
   'wedding_session',
   'number_of_revisions',
   'assistants',
+  'drone_included',
+  'drone',
+  'film_duration',
+  'film_delivery_method',
+  'film_delivery_format',
+  'postproduction_duration',
+  'post_production_duration',
 ])
 
 const ALLOWED_PRESENCE = new Set([...ALLOWED_COUPLE, ...ALLOWED_STUDIO])
@@ -165,6 +177,43 @@ function asIdList(value: unknown, allowed: Set<string>): string[] {
     out.push(id)
   }
   return out
+}
+
+function mergeUnique(base: string[], extra: string[]): string[] {
+  const seen = new Set(base)
+  const out = [...base]
+  for (const id of extra) {
+    if (!id || seen.has(id)) continue
+    seen.add(id)
+    out.push(id)
+  }
+  return out
+}
+
+/**
+ * When the model puts a known allow-list ID in possibleVariables,
+ * promote it to the correct bucket instead of discarding it.
+ */
+function rescueKnownIdsFromPossibles(value: unknown): {
+  couple: string[]
+  studio: string[]
+  package: string[]
+} {
+  const couple: string[] = []
+  const studio: string[] = []
+  const pkg: string[] = []
+  if (!Array.isArray(value)) return { couple, studio, package: pkg }
+  const seen = new Set<string>()
+  for (const item of value) {
+    if (typeof item !== 'string') continue
+    const id = normalizeId(item)
+    if (!id || seen.has(id)) continue
+    seen.add(id)
+    if (ALLOWED_PACKAGE.has(id)) pkg.push(id)
+    else if (ALLOWED_COUPLE.has(id)) couple.push(id)
+    else if (ALLOWED_STUDIO.has(id)) studio.push(id)
+  }
+  return { couple, studio, package: pkg }
 }
 
 /** Allow-listed IDs + freeform snake_case suggestions for unknown changing fields. */
@@ -246,6 +295,14 @@ export function validateAndNormalizeAnalysis(
   let packageVariables = asPackageIdList(
     obj.packageVariables ?? obj.templateDefaults ?? obj.defaults,
   )
+
+  // Rescue known allow-list IDs mis-bucketed into possibleVariables.
+  // Dropping them was a first-loss failure: the model already found the concept.
+  const rescued = rescueKnownIdsFromPossibles(obj.possibleVariables)
+  coupleVariables = mergeUnique(coupleVariables, rescued.couple)
+  studioVariables = mergeUnique(studioVariables, rescued.studio)
+  packageVariables = mergeUnique(packageVariables, rescued.package)
+
   let possibleVariables = asPossibleIdList(obj.possibleVariables)
 
   if (

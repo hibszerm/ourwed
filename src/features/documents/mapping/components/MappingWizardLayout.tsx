@@ -9,6 +9,10 @@ import { QuestionnaireStep } from './steps/QuestionnaireStep'
 import { SaveStep } from './steps/SaveStep'
 import styles from '../MappingWizard.module.css'
 
+/**
+ * @deprecated Mapping Wizard — superseded by template-first SimpleContractImportFlow.
+ * Do not mount in routes. Kept for reference / extraction utilities only.
+ */
 export function MappingWizardLayout({
   templateId,
   templateName,

@@ -45,8 +45,10 @@ export const packageVariableProvider: VariableProvider = {
       included_services: ['includedServices'],
       photographers_count: ['photographersCount'],
       videographers_count: ['videographersCount'],
-      working_hours: ['workingHours'],
-      overtime_price: ['overtimePrice'],
+      working_hours: ['workingHours', 'coverageEndTime'],
+      coverage_end_time: ['coverageEndTime', 'workingHours'],
+      overtime_price: ['overtimePrice', 'overtimeRate'],
+      overtime_rate: ['overtimeRate', 'overtimePrice'],
       mileage_limit: ['mileageLimit'],
       mileage_price: ['mileagePrice'],
       accommodation: ['accommodation'],
@@ -58,6 +60,15 @@ export const packageVariableProvider: VariableProvider = {
       wedding_session: ['weddingSession'],
       number_of_revisions: ['revisions'],
       assistants: ['assistants'],
+      drone_included: ['droneIncluded', 'drone'],
+      film_duration: ['filmDuration', 'videoDuration'],
+      film_delivery_method: ['filmDeliveryMethod', 'videoDeliveryMethod'],
+      film_delivery_format: ['filmDeliveryFormat', 'videoDeliveryFormat'],
+      postproduction_duration: [
+        'postproductionDuration',
+        'postProductionDuration',
+        'editingDuration',
+      ],
     }
 
     for (const def of SystemVariableRegistry.listByProvider('package')) {

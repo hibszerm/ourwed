@@ -16,11 +16,11 @@ function resolveExtractionModel(): string {
 
 export const DOCUMENT_AI_EDGE_CONFIG = {
   model: resolveExtractionModel(),
-  /** v3.2 = reverse-engineer wedding business workflow; IDs only at the end. */
-  promptVersion: '3.2.0',
-  schemaVersion: '3.2.0',
+  /** v3.2.3 = pendrive emits film_delivery_format + usb_included. */
+  promptVersion: '3.2.3',
+  schemaVersion: '3.2.3',
   analyzerId: 'document-ai',
-  analyzerVersion: '3.2.0',
+  analyzerVersion: '3.2.3',
   maxTextChars: 120_000,
   providerTimeoutMs: 45_000,
 } as const

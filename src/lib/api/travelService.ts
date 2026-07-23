@@ -301,7 +301,18 @@ async function listCachedSegments(weddingId: string): Promise<TravelSegment[]> {
     .select('*')
     .eq('wedding_id', weddingId)
     .order('sequence', { ascending: true })
-  throwOnError(error)
+  if (error) {
+    console.error('[travel_segments] list failed', {
+      weddingId,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      code: error.code,
+    })
+    // Optional cache — never treat a 400 as "no segments" silently without logging.
+    // Return empty so travel UI / unrelated flows can continue.
+    return []
+  }
   return ((data ?? []) as TravelSegmentRow[]).map(mapSegment)
 }
 
@@ -312,30 +323,41 @@ async function syncSegments(
   weddingId: string,
   rows: SegmentWrite[],
 ): Promise<TravelSegment[]> {
-  const keepSequences = rows.map((r) => r.sequence)
-
-  if (keepSequences.length === 0) {
-    const { error } = await supabase
-      .from('travel_segments')
-      .delete()
-      .eq('wedding_id', weddingId)
-    throwOnError(error)
-    return []
-  }
-
+  // Safer than `.not('sequence', 'in', ...)` which can 400 on PostgREST filter syntax.
   const { error: delError } = await supabase
     .from('travel_segments')
     .delete()
     .eq('wedding_id', weddingId)
-    .not('sequence', 'in', `(${keepSequences.join(',')})`)
-  throwOnError(delError)
+  if (delError) {
+    console.error('[travel_segments] delete failed', {
+      weddingId,
+      message: delError.message,
+      details: delError.details,
+      hint: delError.hint,
+      code: delError.code,
+    })
+    throwOnError(delError)
+  }
+
+  if (rows.length === 0) return []
 
   const { data, error } = await supabase
     .from('travel_segments')
     .upsert(rows, { onConflict: 'wedding_id,sequence' })
     .select('*')
     .order('sequence', { ascending: true })
-  throwOnError(error)
+  if (error) {
+    console.error('[travel_segments] upsert failed', {
+      weddingId,
+      rowCount: rows.length,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      code: error.code,
+      sample: rows[0],
+    })
+    throwOnError(error)
+  }
   return ((data ?? []) as TravelSegmentRow[]).map(mapSegment)
 }
 

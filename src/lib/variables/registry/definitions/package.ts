@@ -3,6 +3,8 @@ import type { SystemVariableDef } from '@/lib/variables/registry/types'
 type PkgInput = {
   id: string
   label: string
+  labelEn?: string
+  description?: string
   legacyKey: string
   type?: SystemVariableDef['type']
   aliases?: string[]
@@ -15,6 +17,8 @@ function pkg(input: PkgInput): SystemVariableDef {
   return {
     id: input.id,
     label: input.label,
+    labelEn: input.labelEn,
+    description: input.description,
     category: 'package',
     source: 'package',
     type: input.type ?? 'string',
@@ -34,6 +38,7 @@ function pkg(input: PkgInput): SystemVariableDef {
         : 'string',
     sortOrder: input.sortOrder,
     questionType: input.questionnaireAvailable ? 'select' : undefined,
+    aiAvailable: true,
   }
 }
 
@@ -129,7 +134,15 @@ export const PACKAGE_VARIABLES: SystemVariableDef[] = [
     label: 'Godziny pracy',
     legacyKey: 'package.workingHours',
     type: 'number',
+    aliases: ['coverage_hours'],
     sortOrder: 392,
+  }),
+  pkg({
+    id: 'coverage_end_time',
+    label: 'Koniec reportażu (godzina)',
+    legacyKey: 'package.coverageEndTime',
+    type: 'string',
+    sortOrder: 392.5,
   }),
   pkg({
     id: 'overtime_price',
@@ -137,6 +150,13 @@ export const PACKAGE_VARIABLES: SystemVariableDef[] = [
     legacyKey: 'package.overtimePrice',
     type: 'money',
     sortOrder: 393,
+  }),
+  pkg({
+    id: 'overtime_rate',
+    label: 'Stawka nadgodzin',
+    legacyKey: 'package.overtimeRate',
+    type: 'money',
+    sortOrder: 393.5,
   }),
   pkg({
     id: 'mileage_limit',
@@ -214,5 +234,57 @@ export const PACKAGE_VARIABLES: SystemVariableDef[] = [
     legacyKey: 'package.assistants',
     type: 'number',
     sortOrder: 404,
+  }),
+
+  // —— Recurring film / production slots (promoted from possibleVariables) ——
+  pkg({
+    id: 'drone_included',
+    label: 'Dron w pakiecie',
+    labelEn: 'Drone included',
+    legacyKey: 'package.droneIncluded',
+    type: 'boolean',
+    aliases: ['drone', 'drone_operator', 'includes_drone'],
+    sortOrder: 410,
+  }),
+  pkg({
+    id: 'film_duration',
+    label: 'Długość filmu',
+    labelEn: 'Film duration',
+    legacyKey: 'package.filmDuration',
+    type: 'string',
+    aliases: ['video_duration', 'film_length', 'movie_duration'],
+    sortOrder: 411,
+  }),
+  pkg({
+    id: 'film_delivery_method',
+    label: 'Sposób dostarczenia filmu',
+    labelEn: 'Film delivery method',
+    legacyKey: 'package.filmDeliveryMethod',
+    type: 'string',
+    aliases: ['video_delivery_method', 'delivery_method_film'],
+    sortOrder: 412,
+  }),
+  pkg({
+    id: 'film_delivery_format',
+    label: 'Format dostarczenia filmu',
+    labelEn: 'Film delivery format',
+    legacyKey: 'package.filmDeliveryFormat',
+    type: 'string',
+    aliases: ['video_delivery_format', 'delivery_format'],
+    sortOrder: 413,
+  }),
+  pkg({
+    id: 'postproduction_duration',
+    label: 'Czas postprodukcji',
+    labelEn: 'Post-production duration',
+    legacyKey: 'package.postproductionDuration',
+    type: 'string',
+    aliases: [
+      'post_production_duration',
+      'postproduction_time',
+      'editing_duration',
+      'editing_time',
+    ],
+    sortOrder: 414,
   }),
 ]

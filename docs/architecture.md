@@ -69,6 +69,8 @@ Mock credentials (temporary):
 | `/studio/uslugi` | `ExtraServicesPage` | Studio Catalog — additional services CRUD |
 | `/ustawienia` | `PlaceholderPage` | Settings placeholder |
 
+**Contract reproduction** (official workflow): see [`docs/contract-workflow.md`](./contract-workflow.md).
+
 Layout: each protected page uses `AppLayout` + `Sidebar`.
 
 ### Layering

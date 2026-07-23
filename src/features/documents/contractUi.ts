@@ -1,10 +1,10 @@
 import type { DocumentTemplateSummary } from '@/types/documents'
 
 export type ContractUiStatus =
-  | 'analyzing'
   | 'ready'
-  | 'questionnaire_created'
-  | 'needs_attention'
+  | 'needs_analysis'
+  | 'analyzing'
+  | 'incomplete'
 
 export function fileFormatLabel(fileName: string | null | undefined): string {
   if (!fileName) return 'Dokument'
@@ -31,19 +31,28 @@ export function nameFromFileName(fileName: string): string {
   return fileName.replace(/\.[^.]+$/, '').trim() || 'Umowa'
 }
 
-/** Derive a simple user-facing status from persisted template fields. */
+/** User-facing template status for Contract Templates. */
 export function getContractUiStatus(
   template: DocumentTemplateSummary,
 ): ContractUiStatus {
-  if (template.status === 'archived') return 'needs_attention'
-  if (template.questionnaireFormId) {
-    return template.status === 'ready' ? 'ready' : 'questionnaire_created'
+  if (template.status === 'incomplete') return 'incomplete'
+  if (
+    template.meta?.slotBindingsReady === false &&
+    (template.meta?.unresolvedSlotKeys?.length ?? 0) > 0
+  ) {
+    return 'incomplete'
   }
-  if (template.aiAnalyzedAt) return 'needs_attention'
-  if (template.sourceFileName || template.sourceDocxPath) {
-    return 'needs_attention'
+  if (template.status === 'ready' && template.variableCount > 0) {
+    return 'ready'
   }
-  return 'needs_attention'
+  if (template.status === 'draft' && !template.aiAnalyzedAt) {
+    return 'needs_analysis'
+  }
+  if (template.aiAnalyzedAt && template.variableCount === 0) {
+    return 'needs_analysis'
+  }
+  if (template.status === 'ready') return 'ready'
+  return 'needs_analysis'
 }
 
 export function contractStatusLabel(status: ContractUiStatus): string {
@@ -52,9 +61,9 @@ export function contractStatusLabel(status: ContractUiStatus): string {
       return 'Analizowanie…'
     case 'ready':
       return 'Gotowe'
-    case 'questionnaire_created':
-      return 'Ankieta utworzona'
-    case 'needs_attention':
-      return 'Wymaga uwagi'
+    case 'incomplete':
+      return 'Niekompletny'
+    case 'needs_analysis':
+      return 'Wymaga analizy'
   }
 }

@@ -12,27 +12,17 @@ export const ANALYSIS_STAGES = [
   },
   {
     id: 'variables',
-    label: 'Rozpoznawanie zmiennych…',
+    label: 'Wykrywanie wartości dynamicznych…',
     kind: 'active' as const,
   },
   {
-    id: 'couple',
-    label: 'Wyszukiwanie danych Pary Młodej…',
+    id: 'positions',
+    label: 'Mapowanie pozycji zmiennych…',
     kind: 'active' as const,
   },
   {
-    id: 'studio',
-    label: 'Rozpoznawanie danych Studia…',
-    kind: 'active' as const,
-  },
-  {
-    id: 'package',
-    label: 'Analiza danych Pakietu…',
-    kind: 'active' as const,
-  },
-  {
-    id: 'config',
-    label: 'Przygotowywanie konfiguracji…',
+    id: 'template',
+    label: 'Przygotowywanie szablonu…',
     kind: 'active' as const,
   },
   { id: 'ready', label: 'Gotowe', kind: 'complete' as const },

@@ -1,7 +1,12 @@
 /**
- * Mapping Wizard feature barrel (Phase 2+).
- * Isolated from frozen Template Management UI.
- * Intelligence layer: `@/features/documents/ai` (activeAiDocumentAnalyzer).
+ * @deprecated LEGACY — Mapping Wizard is not part of the product workflow.
+ *
+ * Official contract path (reproduction system):
+ * Upload DOCX → AI detects variables → saveTemplateSlots → Generate Contract modal
+ * (template picker → completeness → DOCX fill → editor → PDF/DOCX).
+ *
+ * Extraction helpers below are still used by SimpleContractImportFlow.
+ * MappingWizardLayout / Provider must not be mounted in routes.
  */
 
 export type {
@@ -25,5 +30,7 @@ export {
   docStructureExtractor,
 } from './extraction'
 export type { DocumentStructure, DocumentBlock, DocumentInline } from './preview/documentNodes'
+/** @deprecated Do not mount in product routes. */
 export { MappingWizardProvider, useMappingWizard } from './state/useMappingWizard'
+/** @deprecated Do not mount in product routes. */
 export { MappingWizardLayout } from './components/MappingWizardLayout'

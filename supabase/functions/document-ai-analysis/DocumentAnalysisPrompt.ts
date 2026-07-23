@@ -1,9 +1,8 @@
 /**
- * Contract analysis — Edge runtime.
- * Reverse-engineer the wedding business, then map IDs last.
- * KEEP IN SYNC with src/features/documents/ai/DocumentAnalysisPrompt.ts
- *
- * Output JSON shape is FIXED. Do not invent new top-level keys.
+ * Contract analysis — Edge / client.
+ * Template-first: identify dynamic slots to regenerate THIS contract.
+ * Does NOT generate questionnaires. Questionnaires are a separate module.
+ * KEEP IN SYNC with supabase/functions/document-ai-analysis/DocumentAnalysisPrompt.ts
  */
 
 const COUPLE = [
@@ -27,6 +26,11 @@ const COUPLE = [
   'preparation_location',
   'package',
   'additional_notes',
+  'wedding_planner_name',
+  'wedding_planner_phone',
+  'wedding_planner_email',
+  'food_for_crew',
+  'marketing_consent',
 ].join(',')
 
 const COMPANY = [
@@ -77,6 +81,11 @@ const PACKAGE = [
   'wedding_session',
   'number_of_revisions',
   'assistants',
+  'drone_included',
+  'film_duration',
+  'film_delivery_method',
+  'film_delivery_format',
+  'postproduction_duration',
 ].join(',')
 
 export function buildDocumentAnalysisPrompt(_input?: {
@@ -129,9 +138,12 @@ Couple | Company | Package | Wedding | CRM | Travel | System
 6) PHONE CALL TEST
 If this information disappeared, would you call the couple?
 YES → coupleVariables / questionnaire candidate
-  (phones, emails, addresses, date, prep/ceremony/reception, timeline, guest-related needs, accommodation for the couple, family session, special requests, notes)
+  (phones, emails, addresses, date, prep/ceremony/reception, timeline, guest-related needs,
+   accommodation for the couple, family session, special requests, notes,
+   marketing/publication/social consent)
 NO → Company / Package / CRM
-  (VAT, bank, company address, logo, signature, deposit, package price, delivery deadline, photographer/filmmaker counts, working hours)
+  (VAT, bank, company address, logo, signature, deposit, package price, delivery deadline,
+   photographer/filmmaker counts, working hours, film duration, delivery format)
 
 7) SEMANTIC EQUIVALENCE
 Same meaning → same ID, regardless of wording:
@@ -141,6 +153,10 @@ Reception / wedding venue / celebration / party / banquet / hall → reception_l
 Ceremony / church / civil office / ślub → ceremony_location
 Preparation / getting ready / morning prep / hotel / bride's house / start location → preparation_location
 Offer / package / pakiet / scope choice → package
+Pendrive / USB / electronic delivery / nośnik → emit BOTH film_delivery_format AND usb_included (when a physical USB/pendrive is named). Always prefer packageVariables for these.
+Film length / teledysk / reportaż duration → film_duration
+Publication / portfolio / social consent → marketing_consent
+Total fee / wynagrodzenie / cena pakietu / brutto amount for the job → package_price
 
 8) IMPLICIT VARIABLES
 Infer required info even when not explicitly filled:
@@ -151,18 +167,26 @@ Return clearly necessary concepts. Prefer recall over silence.
 
 9) DEPENDENCIES
 "If Premium package is selected…" → Package controls other commercial values.
-Recognize dependency. Do NOT extract literal package values from the text.
+Recognize dependency. Still emit the packageVariables IDs that appear (package_price, deposit_amount, delivery_time, film_duration, …).
+Never return the literal amounts/dates/counts — IDs only.
 
 10) PACKAGE
-Deposit, working hours, coverage, albums, drone, second photographer/filmmaker, delivery deadline, travel, extras → packageVariables IDs only.
+Whenever the contract mentions commercial/package slots, emit their IDs in packageVariables:
+package_name, package_price (wynagrodzenie / cena pakietu / total fee), deposit_amount,
+remaining_payment, payment_deadline, delivery_time, working_hours, overtime_price,
+videographers_count / photographers_count, drone_included, film_duration,
+film_delivery_format / film_delivery_method / usb_included, travel_fee, postproduction_duration.
 NEVER return literals ("2000 PLN", "180 days", "2 photographers").
+NEVER park known package IDs in possibleVariables — put them in packageVariables.
 
 11) COMPANY
 Name, owner, VAT/NIP/REGON, address, phone, website, bank, logo, signature → studioVariables.
 Never put company identity in coupleVariables.
 
-12) LEGAL TEXT
-Ignore GDPR/RODO, copyright, force majeure, liability, cancellation, court jurisdiction — not variables.
+12) LEGAL TEXT vs MARKETING CONSENT
+Ignore GDPR/RODO processing clauses, copyright, force majeure, liability, cancellation, court jurisdiction — not variables.
+BUT: publication / portfolio / social-media consent ("wyraża zgodę na publikowanie" / "nie wyraża zgody na publikowanie") IS a changing couple field → marketing_consent.
+Do not confuse RODO processing consent with marketing_consent.
 
 13) TIMELINE CHECK
 Classify findings: Before wedding | Wedding day | After wedding | Payments | Delivery | Legal

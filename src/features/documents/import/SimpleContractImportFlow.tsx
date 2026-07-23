@@ -10,16 +10,16 @@ import { documentTemplateKeys } from '@/features/documents/hooks/useDocumentTemp
 import { fileFormatLabel, nameFromFileName } from '@/features/documents/contractUi'
 import {
   activeAiDocumentAnalyzer,
-  aiAnalysisToDetectedFields,
   getDocumentAiErrorMessage,
 } from '@/features/documents/ai'
 import { activeDocumentStructureExtractor } from '@/features/documents/mapping/extraction'
+import { isArrayBufferDetached } from '@/features/documents/mapping/extraction/sourceKind'
 import {
-  generateQuestionnaireDraft,
-  saveQuestionnaireDraft,
-  QuestionnaireValidationError,
-  type QuestionnaireDraft,
-} from '@/features/documents/questionnaire'
+  buildSlotsFromAnalysis,
+  emptySlotMap,
+  saveTemplateSlots,
+  type TemplateSlotMap,
+} from '@/features/documents/template'
 import { AiAnalysisExperience } from './AiAnalysisExperience'
 import {
   clearAttachedImport,
@@ -29,7 +29,6 @@ import {
   type AttachedImportMeta,
   type PendingNewImport,
 } from './attachedImportCache'
-import { ContractReviewScreen } from './ContractReviewScreen'
 import {
   ImportWizardStepper,
   type WizardStepId,
@@ -42,7 +41,6 @@ type Phase =
   | 'preparing'
   | 'uploading'
   | 'analyzing'
-  | 'review'
   | 'saving'
   | 'done'
   | 'error'
@@ -58,10 +56,8 @@ function wizardStepForPhase(phase: Phase): WizardStepId {
     case 'error':
       return 'upload'
     case 'analyzing':
-      return 'analysis'
-    case 'review':
     case 'saving':
-      return 'configure'
+      return 'analysis'
     case 'done':
       return 'done'
   }
@@ -156,18 +152,22 @@ export function SimpleContractImportFlow(props: ExistingProps | CreateProps) {
   )
   const [nameDraft, setNameDraft] = useState(initialName)
   const [startingAnalysis, setStartingAnalysis] = useState(false)
-  const [draft, setDraft] = useState<QuestionnaireDraft | null>(null)
+  const [slotMap, setSlotMap] = useState<TemplateSlotMap>(() => emptySlotMap())
+  const [templateVersionId, setTemplateVersionId] = useState<string | null>(null)
+  const [versionNumber, setVersionNumber] = useState(1)
   const [error, setError] = useState<string | null>(null)
   const [pipelineDone, setPipelineDone] = useState(false)
   const [analysisKey, setAnalysisKey] = useState(0)
   const [contentKey, setContentKey] = useState(0)
 
-  const draftRef = useRef<QuestionnaireDraft | null>(null)
-  draftRef.current = draft
+  const slotMapRef = useRef<TemplateSlotMap>(slotMap)
+  slotMapRef.current = slotMap
   const nameRef = useRef(nameDraft)
   nameRef.current = nameDraft
   const templateIdRef = useRef(activeTemplateId)
   templateIdRef.current = activeTemplateId
+  const sourceBytesRef = useRef(sourceBytes)
+  sourceBytesRef.current = sourceBytes
 
   // Create path: upload in the background while showing preparing UI.
   useEffect(() => {
@@ -241,7 +241,7 @@ export function SimpleContractImportFlow(props: ExistingProps | CreateProps) {
     try {
       setPhase('analyzing')
 
-      let bytes = sourceBytes
+      let bytes = sourceBytesRef.current
       if (!bytes) {
         const path = docPath
         if (!path) {
@@ -255,21 +255,42 @@ export function SimpleContractImportFlow(props: ExistingProps | CreateProps) {
         bytes,
         fileName,
       )
+
       const aiAnalysis = await activeAiDocumentAnalyzer.analyze({
         text: structure.plainText,
         structure,
       })
-      const fields = aiAnalysisToDetectedFields(aiAnalysis, structure)
 
-      const next = generateQuestionnaireDraft({
-        fields,
+      const { detectSourceKind } = await import(
+        '@/features/documents/mapping/extraction/sourceKind'
+      )
+      const { extractDocxParagraphsIncludingEmpty } = await import(
+        '@/features/documents/template/extractDocxParagraphs'
+      )
+      const kind = detectSourceKind(fileName, bytes)
+      const paragraphs =
+        kind === 'docx'
+          ? await extractDocxParagraphsIncludingEmpty(bytes)
+          : structure.plainText
+              .split(/\n/)
+              .map((text, index) => ({ index, text }))
+
+      const nextSlots = buildSlotsFromAnalysis({
         ai: aiAnalysis,
-        sourceText: structure.plainText,
-        templateName: nameRef.current.trim() || initialName,
+        plainText: structure.plainText,
+        paragraphs,
       })
-      next.linkedPackageId = null
+      nextSlots.documentTitle = nameRef.current.trim() || initialName
+      setSlotMap(nextSlots)
 
-      setDraft(next)
+      const versions = await documentTemplateService.listVersions(templateId)
+      const template = await documentTemplateService.get(templateId)
+      const current =
+        versions.find((v) => v.id === template?.currentVersionId) ?? versions[0]
+      if (current) {
+        setTemplateVersionId(current.id)
+        setVersionNumber(current.versionNumber)
+      }
 
       try {
         await documentTemplateService.update(templateId, {
@@ -292,6 +313,78 @@ export function SimpleContractImportFlow(props: ExistingProps | CreateProps) {
       setPipelineDone(false)
       runStarted.current = false
     }
+  }
+
+  async function finishAfterAnalysis() {
+    try {
+      setError(null)
+      await persistTemplate(slotMapRef.current)
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'Nie udało się zapisać szablonu.',
+      )
+      setPhase('error')
+      runStarted.current = false
+    }
+  }
+
+  async function persistTemplate(slots: TemplateSlotMap) {
+    const templateId = templateIdRef.current
+    if (!templateId) {
+      throw new Error('Brak szablonu do zapisania.')
+    }
+
+    let versionId = templateVersionId
+    let versionNo = versionNumber
+    if (!versionId) {
+      const versions = await documentTemplateService.listVersions(templateId)
+      const template = await documentTemplateService.get(templateId)
+      const current =
+        versions.find((v) => v.id === template?.currentVersionId) ?? versions[0]
+      if (!current) throw new Error('Brak wersji szablonu do zapisania.')
+      versionId = current.id
+      versionNo = current.versionNumber
+      setTemplateVersionId(versionId)
+      setVersionNumber(versionNo)
+    }
+
+    let bytes = sourceBytesRef.current
+    if (!bytes || isArrayBufferDetached(bytes)) {
+      const path = docPath
+      if (!path) throw new Error('Brak pliku źródłowego.')
+      bytes = await documentStorage.download(path)
+      setSourceBytes(bytes)
+    }
+
+    setPhase('saving')
+    const result = await saveTemplateSlots({
+      templateId,
+      templateVersionId: versionId,
+      versionNumber: versionNo,
+      sourceBytes: bytes,
+      slotMap: slots,
+      documentTitle: nameRef.current.trim() || initialName,
+    })
+    if (nameRef.current.trim()) {
+      await documentTemplateService.update(templateId, {
+        name: nameRef.current.trim(),
+      })
+    }
+    await queryClient.invalidateQueries({
+      queryKey: documentTemplateKeys.all,
+    })
+    setSlotMap(result.slotMap)
+    setPhase('done')
+    showToast(
+      result.status === 'ready'
+        ? result.insertedCount > 0
+          ? `Szablon gotowy (${result.insertedCount} zmiennych).`
+          : 'Szablon gotowy do generacji.'
+        : `Szablon zapisany jako niekompletny — brakuje powiązań: ${
+            result.unresolvedKeys.slice(0, 5).join(', ') || 'wymagane pola'
+          }.`,
+      result.status === 'ready' ? 'success' : 'error',
+    )
   }
 
   async function handleStartAnalysis() {
@@ -318,33 +411,6 @@ export function SimpleContractImportFlow(props: ExistingProps | CreateProps) {
       )
     } finally {
       setStartingAnalysis(false)
-    }
-  }
-
-  async function handleSave() {
-    if (!draft || !activeTemplateId) return
-    setError(null)
-    setPhase('saving')
-    try {
-      await saveQuestionnaireDraft(draft, {
-        documentTemplateId: activeTemplateId,
-      })
-      await queryClient.invalidateQueries({ queryKey: ['questionnaire-templates'] })
-      await queryClient.invalidateQueries({ queryKey: ['form-definitions'] })
-      await queryClient.invalidateQueries({
-        queryKey: documentTemplateKeys.all,
-      })
-      setPhase('done')
-      showToast('Ankieta została zapisana.', 'success')
-    } catch (err) {
-      setError(
-        err instanceof QuestionnaireValidationError
-          ? err.message
-          : err instanceof Error
-            ? err.message
-            : 'Nie udało się zapisać ankiety.',
-      )
-      setPhase('review')
     }
   }
 
@@ -401,7 +467,7 @@ export function SimpleContractImportFlow(props: ExistingProps | CreateProps) {
       {phase === 'preparing' ? (
         <div className={styles.ready} aria-live="polite" key={contentKey}>
           <div className={styles.readyInner}>
-            <p className={styles.stepCaption}>Krok 1 z 4</p>
+            <p className={styles.stepCaption}>Krok 1 z 3</p>
             <h1 className={styles.heroTitle}>Dodawanie dokumentu</h1>
             <p className={styles.heroBody}>
               Plik jest już wybrany. Przygotowujemy go do analizy AI.
@@ -437,7 +503,7 @@ export function SimpleContractImportFlow(props: ExistingProps | CreateProps) {
       {phase === 'ready' && fileAttached && !isCreate ? (
         <div className={styles.ready} aria-live="polite">
           <div className={styles.readyInner}>
-            <p className={styles.stepCaption}>Krok 1 z 4</p>
+            <p className={styles.stepCaption}>Krok 1 z 3</p>
             <h1 className={styles.heroTitle}>Sprawdź plik przed analizą</h1>
             <p className={styles.heroBody}>
               Plik jest już dołączony. Nadaj nazwę szablonowi i uruchom analizę
@@ -491,43 +557,23 @@ export function SimpleContractImportFlow(props: ExistingProps | CreateProps) {
         </div>
       ) : null}
 
-      {phase === 'review' && draft && activeTemplateId ? (
-        <div className={styles.stageEnter}>
-          <ContractReviewScreen
-            templateName={nameDraft.trim() || initialName}
-            draft={draft}
-            saving={false}
-            error={error}
-            onChange={setDraft}
-            onCancel={goBack}
-            onSave={() => void handleSave()}
-          />
-        </div>
-      ) : null}
-
-      {phase === 'saving' && draft ? (
-        <div className={styles.stageEnter}>
-          <ContractReviewScreen
-            templateName={nameDraft.trim() || initialName}
-            draft={draft}
-            saving
-            error={error}
-            onChange={setDraft}
-            onCancel={() => undefined}
-            onSave={() => undefined}
-          />
+      {phase === 'saving' ? (
+        <div className={styles.analysisWrap}>
+          <p className={styles.stepCaption}>Krok 2 z 3</p>
+          <p className={styles.heroBody}>Zapisujemy szablon umowy…</p>
+          <LoaderCircle size={22} className={styles.spin} aria-hidden />
         </div>
       ) : null}
 
       {phase === 'analyzing' ? (
         <div className={styles.analysisWrap} key={`analysis-${contentKey}`}>
-          <p className={styles.stepCaption}>Krok 2 z 4</p>
+          <p className={styles.stepCaption}>Krok 2 z 3</p>
           <AiAnalysisExperience
             key={analysisKey}
             fileName={fileName}
             pipelineDone={pipelineDone}
             onReveal={() => {
-              if (draftRef.current) setPhase('review')
+              void finishAfterAnalysis()
             }}
           />
         </div>
@@ -572,9 +618,7 @@ export function SimpleContractImportFlow(props: ExistingProps | CreateProps) {
                 : phase === 'uploading'
                   ? 'Zapisujemy dokument.'
                   : phase === 'done'
-                    ? draft?.name
-                      ? `„${draft.name}” jest dostępna w Ankietach.`
-                      : 'Twoja umowa jest gotowa.'
+                    ? 'Szablon jest gotowy. Na ślubie wybierzesz go w Generuj umowę. Ankiety budujesz osobno w module Ankiety.'
                     : (error ?? 'Coś poszło nie tak.')}
             </p>
 
@@ -589,14 +633,14 @@ export function SimpleContractImportFlow(props: ExistingProps | CreateProps) {
                     )
                   }
                 >
-                  Zobacz umowę
+                  Zobacz szablon
                 </Button>
                 <Button
                   type="button"
                   variant="secondary"
-                  onClick={() => navigate('/ankiety')}
+                  onClick={() => navigate('/ustawienia/dokumenty/szablony')}
                 >
-                  Przejdź do ankiet
+                  Wróć do listy
                 </Button>
               </div>
             ) : null}

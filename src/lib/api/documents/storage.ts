@@ -15,6 +15,9 @@ export const documentStorage: DocumentStorageService = {
     templateSource(userId, templateId, versionNumber) {
       return `${userId}/templates/${templateId}/v${versionNumber}/source.docx`
     },
+    templateFillable(userId, templateId, versionNumber) {
+      return `${userId}/templates/${templateId}/v${versionNumber}/template.docx`
+    },
     draftAsset(userId, weddingId, draftId, fileName) {
       return `${userId}/weddings/${weddingId}/drafts/${draftId}/${safeName(fileName)}`
     },

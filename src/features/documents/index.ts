@@ -1,6 +1,8 @@
 /**
- * Documents feature — foundation + Template Management (Phase 1)
- * + Mapping Wizard entry (Phase 2, feature-isolated under mapping/).
+ * Documents feature — Contract Templates (reproduction system).
+ * Official workflow: docs/contract-workflow.md
+ *
+ * Mapping Wizard under ./mapping is deprecated and must not be routed.
  */
 
 export {
@@ -27,6 +29,16 @@ export {
   getCategoryMeta,
   getStatusLabel,
 } from './templateMeta'
+
+export {
+  buildSlotsFromAnalysis,
+  saveTemplateSlots,
+  transformContract,
+  fillTemplateDocx,
+  parseSlotMap,
+  buildContractCompletenessReport,
+  saveGeneratedContract,
+} from './template'
 
 export {
   useDocumentTemplates,

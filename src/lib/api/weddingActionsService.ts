@@ -69,6 +69,10 @@ export interface AddNoteInput {
 export interface GenerateContractResult {
   wedding: Wedding
   missingFields: string[]
+  /** Present when a ready template was filled to DOCX. */
+  documentDownloadUrl?: string
+  draftId?: string
+  exportId?: string | null
 }
 
 const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
@@ -232,9 +236,16 @@ export const weddingActionsService = {
     return updated
   },
 
-  async generateContract(weddingId: string): Promise<GenerateContractResult> {
+  /**
+   * Mark wedding contract as generated after the modal saves DOCX/PDF.
+   * Document bytes are persisted by saveGeneratedContract — this only updates CRM state.
+   */
+  async markContractGenerated(
+    weddingId: string,
+    options?: { missingFields?: string[]; hadDocument?: boolean },
+  ): Promise<GenerateContractResult> {
     const wedding = await requireWedding(weddingId)
-    const missingFields = getMissingContractFields(wedding)
+    const missingFields = options?.missingFields ?? []
     const today = new Date().toISOString().slice(0, 10)
     const couple = coupleName(wedding.couple.partner1, wedding.couple.partner2)
 
@@ -256,14 +267,18 @@ export const weddingActionsService = {
       title: 'Wygenerowano umowę.',
       description:
         missingFields.length > 0
-          ? `Wygenerowano z brakującymi polami: ${missingFields.join(', ')}`
-          : undefined,
+          ? `Wygenerowano z pominiętymi / pustymi polami: ${missingFields.join(', ')}`
+          : options?.hadDocument
+            ? 'Umowa DOCX odtworzona z szablonu (bez AI).'
+            : undefined,
       date: today,
     })
 
     await notificationService.create({
       title: 'Umowa wygenerowana',
-      message: `Umowa dla pary ${couple} jest gotowa do wysłania.`,
+      message: options?.hadDocument
+        ? `Umowa dla pary ${couple} jest gotowa (DOCX / PDF).`
+        : `Umowa dla pary ${couple} jest gotowa do wysłania.`,
       type: 'info',
       entityType: 'wedding',
       entityId: wedding.id,
@@ -274,7 +289,18 @@ export const weddingActionsService = {
       throw new Error('Nie znaleziono ślubu po wygenerowaniu umowy.')
     }
 
-    return { wedding: updated, missingFields }
+    return {
+      wedding: updated,
+      missingFields,
+    }
+  },
+
+  /**
+   * @deprecated Prefer GenerateContractModal (template picker → completeness → editor).
+   * Kept for any legacy callers that only need status flip.
+   */
+  async generateContract(weddingId: string): Promise<GenerateContractResult> {
+    return this.markContractGenerated(weddingId, { hadDocument: false })
   },
 
   /** Suggested deposit amount (30% of contract price). */
@@ -291,25 +317,4 @@ async function requireWedding(id: string): Promise<Wedding> {
   const wedding = await weddingService.getById(id)
   if (!wedding) throw new Error('Nie znaleziono ślubu.')
   return wedding
-}
-
-function getMissingContractFields(wedding: Wedding): string[] {
-  const missing: string[] = []
-  const { couple, questionnaires } = wedding
-
-  if (questionnaires.contractData.status !== 'completed') {
-    missing.push('ankieta do umowy nieukończona')
-  }
-  if (!couple.partner1?.trim()) missing.push('imię panny młodej')
-  if (!couple.partner2?.trim()) missing.push('imię pana młodego')
-  if (!couple.email?.trim() && !couple.partner1Email?.trim()) {
-    missing.push('adres e-mail')
-  }
-  if (!couple.phone?.trim() && !couple.partner1Phone?.trim()) {
-    missing.push('telefon')
-  }
-  if (!wedding.ceremonyLocation?.trim()) missing.push('miejsce ceremonii')
-  if (!wedding.receptionLocation?.trim()) missing.push('miejsce przyjęcia')
-
-  return missing
 }

@@ -18,8 +18,10 @@ export {
 } from './unifiedDocumentExtractor'
 export {
   assertSupportedSourceFile,
+  cloneArrayBuffer,
   contentTypeForKind,
   detectSourceKind,
+  isArrayBufferDetached,
   toArrayBuffer,
 } from './sourceKind'
 export type { SourceDocumentKind } from './sourceKind'

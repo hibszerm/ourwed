@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom'
 import { MoreHorizontal } from 'lucide-react'
 import { ContractStatusBadge } from '@/features/documents/components/ContractStatusBadge'
 import {
-  fileFormatLabel,
   formatContractDate,
   getContractUiStatus,
 } from '@/features/documents/contractUi'
@@ -12,20 +11,23 @@ import styles from '../DocumentsTemplates.module.css'
 
 export function ContractCard({
   template,
-  questionnaireName,
-  packageNames,
+  onRename,
+  onDuplicate,
+  onReplace,
+  onReanalyze,
   onDelete,
 }: {
   template: DocumentTemplateSummary
-  questionnaireName: string | null
-  packageNames: string[]
+  onRename: () => void
+  onDuplicate: () => void
+  onReplace: () => void
+  onReanalyze?: () => void
   onDelete: () => void
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const menuId = useId()
   const status = getContractUiStatus(template)
-  const format = fileFormatLabel(template.sourceFileName)
 
   useEffect(() => {
     if (!menuOpen) return
@@ -54,13 +56,59 @@ export function ContractCard({
             <button
               type="button"
               role="menuitem"
+              className={styles.overflowItem}
+              onClick={() => {
+                setMenuOpen(false)
+                onRename()
+              }}
+            >
+              Zmień nazwę
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className={styles.overflowItem}
+              onClick={() => {
+                setMenuOpen(false)
+                onDuplicate()
+              }}
+            >
+              Duplikuj
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className={styles.overflowItem}
+              onClick={() => {
+                setMenuOpen(false)
+                onReplace()
+              }}
+            >
+              Zamień źródłowy DOCX
+            </button>
+            {onReanalyze ? (
+              <button
+                type="button"
+                role="menuitem"
+                className={styles.overflowItem}
+                onClick={() => {
+                  setMenuOpen(false)
+                  onReanalyze()
+                }}
+              >
+                Ponownie przeanalizuj szablon
+              </button>
+            ) : null}
+            <button
+              type="button"
+              role="menuitem"
               className={`${styles.overflowItem} ${styles.overflowItemDanger}`}
               onClick={() => {
                 setMenuOpen(false)
                 onDelete()
               }}
             >
-              Usuń umowę
+              Usuń
             </button>
           </div>
         ) : null}
@@ -75,22 +123,18 @@ export function ContractCard({
           <ContractStatusBadge status={status} />
         </div>
 
-        <p className={styles.contractCardFormat}>{format}</p>
-
         <dl className={styles.contractMeta}>
           <div>
             <dt>Ostatnia aktualizacja</dt>
             <dd>{formatContractDate(template.updatedAt)}</dd>
           </div>
           <div>
-            <dt>Powiązana ankieta</dt>
-            <dd>{questionnaireName ?? '—'}</dd>
+            <dt>Wykryte zmienne</dt>
+            <dd>{template.variableCount}</dd>
           </div>
           <div>
-            <dt>Powiązane pakiety</dt>
-            <dd>
-              {packageNames.length > 0 ? packageNames.join(', ') : '—'}
-            </dd>
+            <dt>Wygenerowano</dt>
+            <dd>{template.usageCount}</dd>
           </div>
         </dl>
       </Link>

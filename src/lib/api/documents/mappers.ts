@@ -60,6 +60,8 @@ export interface TemplateVersionRow {
   version_number: number
   source_docx_path: string | null
   source_file_name: string | null
+  template_docx_path?: string | null
+  slot_map?: Record<string, unknown> | null
   definition_checksum: string | null
   locale: string
   notes: string | null
@@ -185,6 +187,15 @@ function mapTemplateMeta(raw: unknown): DocumentTemplateMeta {
   const obj = raw as Record<string, unknown>
   return {
     version: 1,
+    slotBindingsReady:
+      typeof obj.slotBindingsReady === 'boolean'
+        ? obj.slotBindingsReady
+        : undefined,
+    unresolvedSlotKeys: Array.isArray(obj.unresolvedSlotKeys)
+      ? obj.unresolvedSlotKeys.filter(
+          (k): k is string => typeof k === 'string' && Boolean(k.trim()),
+        )
+      : undefined,
     coupleVariables: Array.isArray(obj.coupleVariables)
       ? (obj.coupleVariables as DocumentTemplateMeta['coupleVariables'])
       : undefined,
@@ -226,6 +237,11 @@ export function mapTemplateVersion(row: TemplateVersionRow): DocumentTemplateVer
     versionNumber: row.version_number,
     sourceDocxPath: row.source_docx_path,
     sourceFileName: row.source_file_name ?? null,
+    templateDocxPath: row.template_docx_path ?? null,
+    slotMap:
+      row.slot_map && typeof row.slot_map === 'object'
+        ? row.slot_map
+        : { version: 1, slots: [], unmappedDynamics: [] },
     definitionChecksum: row.definition_checksum,
     locale: row.locale,
     notes: row.notes,

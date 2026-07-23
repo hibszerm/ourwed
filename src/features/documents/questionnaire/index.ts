@@ -1,3 +1,15 @@
+/**
+ * @deprecated LEGACY — AI no longer owns questionnaires.
+ *
+ * Template-first architecture (2026-07):
+ * - AI import builds reusable contract templates (slot_map + templated DOCX).
+ * - Users create questionnaires manually under /ankiety.
+ * - Contract generation is deterministic via VariableResolver + DOCX fill.
+ *
+ * These exports remain for any residual Mapping Wizard / migration paths.
+ * Do not wire them into SimpleContractImportFlow.
+ */
+
 export type {
   ClassifiedVariable,
   ContractValueSource,
@@ -15,6 +27,7 @@ export {
 } from './types'
 export { applyAskClientDefaults, shouldAskClientsByDefault } from './askDefaults'
 export { classifyDetectedFields, countBySource } from './classifyVariables'
+/** @deprecated Use template slot builder — do not call from import flow. */
 export { generateQuestionnaireDraft } from './generateQuestionnaireDraft'
 export {
   buildPackageVariablesFromAi,
@@ -22,6 +35,7 @@ export {
   buildTemplateDefaultsFromAi,
   createEmptyTemplateDefault,
 } from './buildPackageVariables'
+/** @deprecated Import flow must not create FormDefinitions. */
 export {
   saveQuestionnaireDraft,
   QuestionnaireValidationError,

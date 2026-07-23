@@ -14,7 +14,12 @@ export const documentTemplateKeys = {
     [...documentTemplateKeys.all, 'detail', userId, id] as const,
   versions: (userId: string | null, id: string) =>
     [...documentTemplateKeys.all, 'versions', userId, id] as const,
+  availableForWedding: (userId: string | null, weddingId: string) =>
+    [...documentTemplateKeys.all, 'available-for-wedding', userId, weddingId] as const,
 }
+
+/** Alias — keep Generate Contract / Documents on one key factory. */
+export const contractTemplateKeys = documentTemplateKeys
 
 export function useDocumentTemplates() {
   const userId = useStudioAuthId() ?? null

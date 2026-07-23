@@ -125,6 +125,31 @@ const LABEL_ALIASES: Record<string, string> = {
   'numer umowy': 'additional.contractNumber',
   city: 'additional.city',
   miasto: 'additional.city',
+
+  // Promoted recurring business concepts
+  'wedding planner name': 'wedding.plannerName',
+  'wedding planner': 'wedding.plannerName',
+  'planner name': 'wedding.plannerName',
+  'wedding planner phone': 'wedding.plannerPhone',
+  'planner phone': 'wedding.plannerPhone',
+  'wedding planner email': 'wedding.plannerEmail',
+  'planner email': 'wedding.plannerEmail',
+  'food for crew': 'wedding.foodForCrew',
+  'crew food': 'wedding.foodForCrew',
+  'meals for crew': 'wedding.foodForCrew',
+  'wyzywienie ekipy': 'wedding.foodForCrew',
+  'marketing consent': 'couple.marketingConsent',
+  'photo marketing consent': 'couple.marketingConsent',
+  'zgoda marketingowa': 'couple.marketingConsent',
+  'drone included': 'package.droneIncluded',
+  drone: 'package.droneIncluded',
+  'film duration': 'package.filmDuration',
+  'video duration': 'package.filmDuration',
+  'film delivery method': 'package.filmDeliveryMethod',
+  'film delivery format': 'package.filmDeliveryFormat',
+  'post production duration': 'package.postproductionDuration',
+  'postproduction duration': 'package.postproductionDuration',
+  'editing duration': 'package.postproductionDuration',
 }
 
 function sectionLabel(sectionId: DocumentVariableSection): string {

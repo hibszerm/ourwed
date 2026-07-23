@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate } from 'react-router-dom'
+import { createBrowserRouter, Navigate, useParams } from 'react-router-dom'
 import { ProtectedRoute } from '@/features/auth/ProtectedRoute'
 import { DashboardPage } from '@/pages/DashboardPage'
 import { WeddingsPage } from '@/pages/WeddingsPage'
@@ -27,6 +27,26 @@ import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage'
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage'
 import { CheckEmailPage } from '@/pages/CheckEmailPage'
 
+const devRoutes = import.meta.env.DEV
+  ? [
+      {
+        path: '/dev/contract-analysis-eval',
+        lazy: async () => {
+          const mod = await import(
+            '@/features/documents/ai/evaluation/ContractAnalysisEvalPage'
+          )
+          return { Component: mod.ContractAnalysisEvalPage }
+        },
+      },
+    ]
+  : []
+
+function RedirectTemplateAnaliza() {
+  const { id } = useParams<{ id: string }>()
+  return (
+    <Navigate to={`/ustawienia/dokumenty/szablony/${id}/analiza`} replace />
+  )
+}
 export const router = createBrowserRouter([
   { path: '/', element: <LandingPage /> },
   { path: '/login', element: <LoginPage /> },
@@ -85,9 +105,14 @@ export const router = createBrowserRouter([
         element: <DocumentTemplateDetailPage />,
       },
       {
-        path: '/ustawienia/dokumenty/szablony/:id/konfiguracja',
+        path: '/ustawienia/dokumenty/szablony/:id/analiza',
         element: <DocumentTemplateMappingPage />,
       },
+      {
+        path: '/ustawienia/dokumenty/szablony/:id/konfiguracja',
+        element: <RedirectTemplateAnaliza />,
+      },
+      ...devRoutes,
     ],
   },
 ])

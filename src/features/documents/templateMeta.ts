@@ -30,6 +30,7 @@ export const TEMPLATE_STATUSES: {
 }[] = [
   { id: 'draft', label: 'Szkic' },
   { id: 'ready', label: 'Gotowy' },
+  { id: 'incomplete', label: 'Niekompletny' },
   { id: 'archived', label: 'Zarchiwizowany' },
 ]
 

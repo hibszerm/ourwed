@@ -40,11 +40,15 @@ export type SystemQuestionType =
   | 'date'
   | 'select'
   | 'location'
+  | 'checkbox'
 
 export interface SystemVariableDef {
   /** Canonical ID — AI and Resolve() use this. */
   id: string
+  /** Primary UI label (Polish). */
   label: string
+  /** English label for AI / docs (optional). */
+  labelEn?: string
   description?: string
   category: SystemVariableCategory
   /** Owning data domain / provider. */

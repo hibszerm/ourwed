@@ -175,6 +175,7 @@ function createRegistry(seed: SystemVariableDef[]) {
       key: def.legacyKey,
       section,
       labelPl: def.label,
+      labelEn: def.labelEn,
       valueType: mapValueType(def),
       dataSource:
         def.documentDataSource ??

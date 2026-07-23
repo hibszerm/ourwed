@@ -7,7 +7,11 @@
 // Lifecycle / status enums
 // ---------------------------------------------------------------------------
 
-export type DocumentTemplateStatus = 'draft' | 'ready' | 'archived'
+export type DocumentTemplateStatus =
+  | 'draft'
+  | 'ready'
+  | 'incomplete'
+  | 'archived'
 
 /** Template category (stored as doc_type). UI: Contract / Annex / GDPR / Protocol / Other */
 export type DocumentDocType =
@@ -86,6 +90,8 @@ export interface DocumentVariableDef {
   key: string
   section: DocumentVariableSection
   labelPl: string
+  /** Optional English label (registry labelEn). */
+  labelEn?: string
   valueType: DocumentVariableValueType
   dataSource: DocumentVariableDataSource
   description?: string
@@ -130,12 +136,17 @@ export interface DocumentDraftMoney {
 
 export interface DocumentTemplateMeta {
   version: 1
+  /** True when every enabled variable has a physical binding. */
+  slotBindingsReady?: boolean
+  /** Registry keys still missing physical slots after analysis. */
+  unresolvedSlotKeys?: string[]
   /** Couple-facing slots confirmed at review (questionnaire). */
   coupleVariables?: Array<{
     id: string
     registryKey: string | null
     label: string
     enabled: boolean
+    physicallyBound?: boolean
   }>
   /** Studio settings slots used by this contract (never questionnaire). */
   studioVariables?: Array<{
@@ -143,6 +154,7 @@ export interface DocumentTemplateMeta {
     registryKey: string | null
     label: string
     enabled: boolean
+    physicallyBound?: boolean
   }>
   /**
    * Package slots referenced by the contract (presence only).
@@ -153,6 +165,7 @@ export interface DocumentTemplateMeta {
     registryKey: string
     label: string
     enabled: boolean
+    physicallyBound?: boolean
   }>
   /**
    * @deprecated Never store business values on the template.
@@ -197,6 +210,10 @@ export interface DocumentTemplateVersion {
   versionNumber: number
   sourceDocxPath: string | null
   sourceFileName: string | null
+  /** Fillable DOCX with {{registry_id}} placeholders (template-first). */
+  templateDocxPath: string | null
+  /** Confirmed variable slots (parsed via parseSlotMap). */
+  slotMap: Record<string, unknown>
   definitionChecksum: string | null
   locale: string
   notes: string | null
@@ -210,6 +227,8 @@ export interface DocumentTemplateSummary extends DocumentTemplate {
   componentCount: number
   blockCount: number
   variableCount: number
+  /** How many times this template was used to generate a wedding document. */
+  usageCount: number
   sourceFileName: string | null
   sourceDocxPath: string | null
 }

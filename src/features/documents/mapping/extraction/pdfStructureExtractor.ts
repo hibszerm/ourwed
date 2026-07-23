@@ -6,7 +6,7 @@ import type {
   DocumentBlock,
   DocumentStructure,
 } from '../preview/documentNodes'
-import { toArrayBuffer } from './sourceKind'
+import { cloneArrayBuffer, toArrayBuffer } from './sourceKind'
 
 pdfjs.GlobalWorkerOptions.workerSrc = pdfWorker
 
@@ -20,7 +20,13 @@ export const pdfStructureExtractor: DocumentStructureExtractor = {
 
   async extract(input: DocumentExtractInput): Promise<DocumentStructure> {
     const bytes = await toArrayBuffer(input)
-    const loadingTask = pdfjs.getDocument({ data: new Uint8Array(bytes) })
+    // pdf.js transfers data.buffer to its worker (GetDocRequest transfer list),
+    // which detaches that ArrayBuffer. Always pass a copy so callers can reuse
+    // the original bytes for save / upload afterward.
+    const forWorker = cloneArrayBuffer(bytes)
+    const loadingTask = pdfjs.getDocument({
+      data: new Uint8Array(forWorker),
+    })
     const pdf = await loadingTask.promise
 
     const blocks: DocumentBlock[] = []

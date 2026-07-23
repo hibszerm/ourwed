@@ -18,7 +18,7 @@ export function DocumentTemplateMappingPage() {
 
   if (isLoading) {
     return (
-      <AppLayout title="Szablony dokumentów">
+      <AppLayout title="Analiza szablonu">
         <PageContainer width="wide">
           <p className={styles.quietHint}>Ładowanie…</p>
         </PageContainer>
@@ -28,11 +28,11 @@ export function DocumentTemplateMappingPage() {
 
   if (isError || !template) {
     return (
-      <AppLayout title="Szablony dokumentów">
+      <AppLayout title="Analiza szablonu">
         <PageContainer width="wide">
           <EmptyState
-            title="Nie znaleziono umowy"
-            description="Umowa mogła zostać usunięta."
+            title="Nie znaleziono szablonu"
+            description="Szablon mógł zostać usunięty."
             action={
               <Button
                 type="button"
