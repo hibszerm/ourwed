@@ -48,6 +48,17 @@ export const aiDocumentAnalysisResultSchema = z.object({
   analyzerId: z.string().default(DOCUMENT_AI_CONFIG.analyzerId),
   analyzerVersion: z.string().default(DOCUMENT_AI_CONFIG.analyzerVersion),
   documentType: z.string(),
+  packageSuggestion: z.string().nullable().optional(),
+  packageVariables: z.array(z.string()).optional().default([]),
+  defaults: z
+    .array(
+      z.object({
+        id: z.string().min(1),
+        value: z.string(),
+      }),
+    )
+    .optional()
+    .default([]),
   overallConfidence: z.number().min(0).max(1).default(0.5),
   fields: z.array(detectedDocumentFieldSchema),
   sections: z.array(detectedDocumentSectionSchema),
@@ -64,7 +75,7 @@ export type AiDocumentAnalysisResultParsed = z.infer<
 >
 
 /** Looser parse for Edge payloads before registry filtering. */
-export const geminiRawAnalysisSchema = z.object({
+export const rawAnalysisSchema = z.object({
   schemaVersion: z.string().optional(),
   model: z.string().optional(),
   promptVersion: z.string().optional(),

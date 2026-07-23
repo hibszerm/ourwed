@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Upload } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { AppLayout } from '@/layouts/AppLayout'
 import { Button } from '@/components/ui/Button'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -15,8 +15,7 @@ import {
 } from '@/features/documents/hooks/useDocumentTemplates'
 import { ContractCard } from '@/features/documents/components/ContractCard'
 import { DeleteContractModal } from '@/features/documents/components/DeleteContractModal'
-import { UploadTemplateModal } from '@/features/documents/components/TemplateModals'
-import { nameFromFileName } from '@/features/documents/contractUi'
+import { setPendingNewImport } from '@/features/documents/import/attachedImportCache'
 import type { DocumentTemplateSummary } from '@/types/documents'
 import styles from '@/features/documents/DocumentsTemplates.module.css'
 
@@ -25,10 +24,8 @@ export function DocumentTemplatesPage() {
   const { showToast } = useToast()
   const fileRef = useRef<HTMLInputElement>(null)
   const { data: templates = [], isLoading, isError } = useDocumentTemplates()
-  const { upload, remove } = useDocumentTemplateMutations()
+  const { remove } = useDocumentTemplateMutations()
 
-  const [uploadOpen, setUploadOpen] = useState(false)
-  const [pendingFile, setPendingFile] = useState<File | null>(null)
   const [deleteTarget, setDeleteTarget] =
     useState<DocumentTemplateSummary | null>(null)
 
@@ -44,7 +41,10 @@ export function DocumentTemplatesPage() {
     [templates],
   )
 
-  const { data: packages = [] } = useQuery({
+  const {
+    data: packages,
+    isSuccess: packagesSuccess,
+  } = useQuery({
     queryKey: ['studio-packages', 'for-contracts'],
     queryFn: () => packageService.list({ activeOnly: false }),
   })
@@ -63,33 +63,17 @@ export function DocumentTemplatesPage() {
     enabled: formIds.length > 0,
   })
 
+  const packageCatalog =
+    packagesSuccess && packages ? packages : undefined
+
   function openUploadPicker() {
     fileRef.current?.click()
   }
 
-  function onFilePicked(file: File) {
-    setPendingFile(file)
-    setUploadOpen(true)
-  }
-
-  async function handleUpload(input: {
-    name: string
-    description: string
-    docType: DocumentTemplateSummary['docType']
-    file: File
-    setAsDefault: boolean
-  }) {
-    const created = await upload.mutateAsync({
-      name: input.name,
-      description: input.description || null,
-      docType: input.docType,
-      file: input.file,
-      setAsDefault: input.setAsDefault,
-    })
-    showToast('Umowa została przesłana.', 'success')
-    setUploadOpen(false)
-    setPendingFile(null)
-    navigate(`/ustawienia/dokumenty/szablony/${created.id}/konfiguracja`)
+  async function onFilePicked(file: File) {
+    setPendingNewImport(file)
+    navigate('/ustawienia/dokumenty/szablony/nowy')
+    if (fileRef.current) fileRef.current.value = ''
   }
 
   async function handleDelete() {
@@ -122,9 +106,8 @@ export function DocumentTemplatesPage() {
           <header className={styles.studioHero}>
             <h1 className={styles.studioTitle}>Szablony dokumentów</h1>
             <p className={styles.studioSubtitle}>
-              Prześlij swoją umowę tylko raz. OurWed automatycznie przygotuje
-              wszystko, co potrzebne do generowania umów oraz zbierania danych
-              od par.
+              Wybierz umowę raz — OurWed od razu otworzy kreator i przygotuje
+              resztę.
             </p>
             <Button
               type="button"
@@ -132,8 +115,8 @@ export function DocumentTemplatesPage() {
               className={styles.studioCta}
               onClick={openUploadPicker}
             >
-              <Upload size={16} style={{ marginRight: 8 }} aria-hidden />
-              Prześlij umowę
+              <Plus size={16} style={{ marginRight: 8 }} aria-hidden />
+              Nowy szablon
             </Button>
           </header>
 
@@ -146,15 +129,15 @@ export function DocumentTemplatesPage() {
             />
           ) : sorted.length === 0 ? (
             <EmptyState
-              title="Brak umów"
-              description="Prześlij pierwszą umowę — OurWed automatycznie przygotuje wszystko, czego potrzebujesz."
+              title="Brak szablonów"
+              description="Wybierz plik PDF lub DOCX — od razu przejdziesz do kreatora."
               action={
                 <Button
                   type="button"
                   variant="primary"
                   onClick={openUploadPicker}
                 >
-                  Prześlij umowę
+                  Nowy szablon
                 </Button>
               }
             />
@@ -165,11 +148,12 @@ export function DocumentTemplatesPage() {
                 const questionnaireName = formId
                   ? (formNames[formId] ?? null)
                   : null
-                const packageNames = formId
-                  ? packages
-                      .filter((p) => p.questionnaireFormId === formId)
-                      .map((p) => p.name)
-                  : []
+                const packageNames =
+                  formId && packageCatalog
+                    ? packageCatalog
+                        .filter((p) => p.questionnaireFormId === formId)
+                        .map((p) => p.name)
+                    : []
                 return (
                   <ContractCard
                     key={t.id}
@@ -192,23 +176,8 @@ export function DocumentTemplatesPage() {
         hidden
         onChange={(e) => {
           const file = e.target.files?.[0]
-          if (file) onFilePicked(file)
-          if (fileRef.current) fileRef.current.value = ''
+          if (file) void onFilePicked(file)
         }}
-      />
-
-      <UploadTemplateModal
-        open={uploadOpen}
-        busy={upload.isPending}
-        error={upload.error instanceof Error ? upload.error.message : null}
-        initialFile={pendingFile}
-        initialName={pendingFile ? nameFromFileName(pendingFile.name) : ''}
-        onClose={() => {
-          if (upload.isPending) return
-          setUploadOpen(false)
-          setPendingFile(null)
-        }}
-        onSubmit={handleUpload}
       />
 
       <DeleteContractModal

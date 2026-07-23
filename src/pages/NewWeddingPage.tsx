@@ -73,11 +73,18 @@ export function NewWeddingPage() {
   const prefillDate = searchParams.get('date') ?? ''
   const createWedding = useCreateWedding()
   const userId = useStudioAuthId()
-  const { data: packages = [], isLoading: packagesLoading } = useQuery({
+  const {
+    data: packages,
+    isPending: packagesPending,
+    isSuccess: packagesSuccess,
+    isError: packagesError,
+  } = useQuery({
     queryKey: ['studio-packages', userId, 'active'],
     queryFn: () => packageService.list({ activeOnly: true }),
     enabled: Boolean(userId),
   })
+  const packagesLoading = packagesPending || !packagesSuccess
+  const packageList = packagesSuccess && packages ? packages : undefined
   const [step, setStep] = useState(0)
   const [direction, setDirection] = useState<'forward' | 'back'>('forward')
   const [isSuccess, setIsSuccess] = useState(false)
@@ -117,7 +124,8 @@ export function NewWeddingPage() {
   const depositAmount = watch('depositAmount')
 
   useEffect(() => {
-    const pkg = packages.find((p) => p.id === selectedPackageId)
+    if (!packageList) return
+    const pkg = packageList.find((p) => p.id === selectedPackageId)
     if (!pkg) return
 
     setValue('packageName', pkg.name, { shouldDirty: false })
@@ -135,7 +143,7 @@ export function NewWeddingPage() {
     setPriceAutoFilledOnce(true)
   }, [
     selectedPackageId,
-    packages,
+    packageList,
     dirtyFields.price,
     priceAutoFilledOnce,
     setValue,
@@ -319,11 +327,19 @@ export function NewWeddingPage() {
                 <div className={styles.fields}>
                   <label className={styles.field}>
                     <span className={styles.label}>Pakiet</span>
-                    <select className={styles.input} {...register('packageId')} disabled={packagesLoading}>
+                    <select
+                      className={styles.input}
+                      {...register('packageId')}
+                      disabled={packagesLoading || packagesError}
+                    >
                       <option value="">
-                        {packagesLoading ? 'Ładowanie pakietów…' : 'Wybierz pakiet'}
+                        {packagesLoading
+                          ? 'Ładowanie pakietów…'
+                          : packagesError
+                            ? 'Nie udało się załadować pakietów'
+                            : 'Wybierz pakiet'}
                       </option>
-                      {packages.map((pkg) => (
+                      {packageList?.map((pkg) => (
                         <option key={pkg.id} value={pkg.id}>
                           {pkg.name}
                         </option>

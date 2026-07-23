@@ -59,7 +59,11 @@ export function DocumentTemplateDetailPage() {
     enabled: Boolean(formId),
   })
 
-  const { data: packageNames = [] } = useQuery({
+  const {
+    data: packageNames,
+    isPending: packageNamesPending,
+    isSuccess: packageNamesSuccess,
+  } = useQuery({
     queryKey: ['contract-packages', formId],
     queryFn: async () => {
       if (!formId) return [] as string[]
@@ -254,7 +258,11 @@ export function DocumentTemplateDetailPage() {
             <div className={styles.factBlock}>
               <h2 className={styles.factLabel}>Powiązane pakiety</h2>
               <p className={styles.factValue}>
-                {packageNames.length > 0 ? packageNames.join(', ') : '—'}
+                {packageNamesPending
+                  ? 'Ładowanie…'
+                  : packageNamesSuccess && packageNames && packageNames.length > 0
+                    ? packageNames.join(', ')
+                    : '—'}
               </p>
             </div>
             <div className={styles.factBlock}>

@@ -1,10 +1,15 @@
 /**
  * Classifies detected contract fields into value sources.
- * Driven by Variable Registry + package / config heuristics.
+ * Package business slots are never questionnaire fields.
  */
 
+import {
+  isCoupleFacingRegistryKey,
+  isPackageFacingRegistryKey,
+  isStudioFacingRegistryKey,
+  registryPolishLabel,
+} from '@/features/documents/ai/canonicalVariableIds'
 import { getVariableDef } from '@/features/documents/registry/variableRegistry'
-import type { DocumentVariableDataSource } from '@/types/documents'
 import type { DetectedField } from '@/features/documents/mapping/types'
 import type {
   ClassifiedVariable,
@@ -13,69 +18,6 @@ import type {
 } from './types'
 import { looksLikePackageMention } from './packageDetection'
 
-function sourceFromRegistryDataSource(
-  dataSource: DocumentVariableDataSource,
-  registryKey: string,
-): ContractValueSource {
-  if (registryKey === 'package.name' || dataSource === 'package_snapshot') {
-    return 'ourwed_configuration'
-  }
-  switch (dataSource) {
-    case 'wedding':
-      return 'couple'
-    case 'studio':
-      return 'studio'
-    case 'draft':
-      return 'studio'
-    case 'payments':
-    case 'computed':
-      return 'system'
-    default:
-      return 'system'
-  }
-}
-
-function sourceFromLabelHeuristics(text: string): ContractValueSource | null {
-  const t = text.toLowerCase()
-
-  if (looksLikePackageMention(t)) {
-    return 'ourwed_configuration'
-  }
-
-  if (
-    /usług|addon|add-on|album|fotograf|wideograf|videograf|opcj|dodatk/.test(t) &&
-    /wybran|konfigur|pakiet|ofert/.test(t)
-  ) {
-    return 'ourwed_configuration'
-  }
-
-  if (
-    /bank|konto|nip|studio|cena|zadatek|zaliczk|pozostał|termin dostaw|copyright|prawa autorsk|godzin/.test(
-      t,
-    )
-  ) {
-    return 'studio'
-  }
-
-  if (/numer umowy|contract number|wygenerowan|systemow|id umowy/.test(t)) {
-    return 'system'
-  }
-
-  if (
-    /panna|pan młody|bride|groom|ślub|data|ceremon|przyjęc|przygotow|adres|telefon|email|e-mail|imię|nazwisko|uwag|notatk|zgoda|consent|rodo/.test(
-      t,
-    )
-  ) {
-    return 'couple'
-  }
-
-  return null
-}
-
-/**
- * Classify every non-ignored detected field.
- * Uses mappedKey → suggestedKey → label heuristics.
- */
 export function classifyDetectedFields(
   fields: DetectedField[],
 ): ClassifiedVariable[] {
@@ -85,26 +27,29 @@ export function classifyDetectedFields(
     if (field.status === 'ignored') continue
 
     const registryKey = field.mappedKey ?? field.suggestedKey
-    const def = registryKey ? getVariableDef(registryKey) : undefined
-    const labelBlob = `${field.label} ${field.rawToken ?? ''}`
+    if (!registryKey) continue
+
+    // Package business slots handled via packageVariables array
+    if (isPackageFacingRegistryKey(registryKey)) continue
+
+    const def = getVariableDef(registryKey)
+    if (!def) continue
 
     let source: ContractValueSource
-    if (def && registryKey) {
-      source = sourceFromRegistryDataSource(def.dataSource, registryKey)
-    } else {
-      const heuristic = sourceFromLabelHeuristics(labelBlob)
-      source = heuristic ?? 'couple'
-    }
-
-    // Package wording always wins over generic couple.
-    if (looksLikePackageMention(labelBlob)) {
+    if (registryKey === 'package.name' || looksLikePackageMention(field.label)) {
       source = 'ourwed_configuration'
+    } else if (isCoupleFacingRegistryKey(registryKey)) {
+      source = 'couple'
+    } else if (isStudioFacingRegistryKey(registryKey)) {
+      source = 'studio'
+    } else {
+      source = 'system'
     }
 
     out.push({
       fieldId: field.id,
       registryKey,
-      label: field.label?.trim() || def?.labelPl || 'Informacja',
+      label: registryPolishLabel(registryKey),
       source,
       confidence:
         typeof field.confidenceScore === 'number'
@@ -122,15 +67,19 @@ export function classifyDetectedFields(
 
 export function countBySource(
   classification: ClassifiedVariable[],
+  packageVariableCount = 0,
 ): QuestionnaireDraftCounts {
   const counts: QuestionnaireDraftCounts = {
     couple: 0,
     studio: 0,
     system: 0,
     ourwedConfiguration: 0,
+    packageVariables: packageVariableCount,
+    templateDefaults: 0,
   }
   for (const item of classification) {
     if (item.source === 'ourwed_configuration') counts.ourwedConfiguration += 1
+    else if (item.source === 'package') counts.packageVariables += 1
     else counts[item.source] += 1
   }
   return counts

@@ -84,22 +84,39 @@ export function QuestionField({
         />
       )}
 
-      {question.type === 'select' && (
-        <select
-          id={id}
-          className={styles.input}
-          value={stringValue}
-          disabled={readOnly}
-          onChange={(e) => onChange(e.target.value)}
-        >
-          <option value="">Wybierz…</option>
-          {(question.options ?? []).map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
-      )}
+      {question.type === 'select' &&
+        (() => {
+          if (
+            import.meta.env.DEV &&
+            (question.id === 'q-package' ||
+              question.id === 'q-q-package' ||
+              question.fieldKey === 'packageId')
+          ) {
+            console.info('[QuestionField] package select before render', {
+              id: question.id,
+              fieldKey: question.fieldKey,
+              type: question.type,
+              optionsLength: question.options?.length ?? 0,
+              optionLabels: (question.options ?? []).map((o) => o.label),
+            })
+          }
+          return (
+            <select
+              id={id}
+              className={styles.input}
+              value={stringValue}
+              disabled={readOnly}
+              onChange={(e) => onChange(e.target.value)}
+            >
+              <option value="">Wybierz…</option>
+              {(question.options ?? []).map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          )
+        })()}
 
       {question.type === 'radio' && (
         <div className={styles.options} role="radiogroup" aria-labelledby={id}>

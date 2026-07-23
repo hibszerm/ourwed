@@ -16,6 +16,7 @@ import type {
   DocumentLockStatus,
   DocumentTemplate,
   DocumentTemplateComponentLink,
+  DocumentTemplateMeta,
   DocumentTemplateStatus,
   DocumentTemplateVersion,
   DocumentVariableDataSource,
@@ -48,6 +49,7 @@ export interface TemplateRow {
   current_version_id: string | null
   ai_analyzed_at?: string | null
   questionnaire_form_id?: string | null
+  meta?: Record<string, unknown> | null
   created_at: string
   updated_at: string
 }
@@ -176,6 +178,28 @@ export interface ExportRow {
 // Mappers
 // ---------------------------------------------------------------------------
 
+function mapTemplateMeta(raw: unknown): DocumentTemplateMeta {
+  if (!raw || typeof raw !== 'object') {
+    return { version: 1 }
+  }
+  const obj = raw as Record<string, unknown>
+  return {
+    version: 1,
+    coupleVariables: Array.isArray(obj.coupleVariables)
+      ? (obj.coupleVariables as DocumentTemplateMeta['coupleVariables'])
+      : undefined,
+    studioVariables: Array.isArray(obj.studioVariables)
+      ? (obj.studioVariables as DocumentTemplateMeta['studioVariables'])
+      : undefined,
+    packageVariables: Array.isArray(obj.packageVariables)
+      ? (obj.packageVariables as DocumentTemplateMeta['packageVariables'])
+      : undefined,
+    defaults: Array.isArray(obj.defaults)
+      ? (obj.defaults as DocumentTemplateMeta['defaults'])
+      : undefined,
+  }
+}
+
 export function mapTemplate(row: TemplateRow): DocumentTemplate {
   return {
     id: row.id,
@@ -189,6 +213,7 @@ export function mapTemplate(row: TemplateRow): DocumentTemplate {
     currentVersionId: row.current_version_id,
     aiAnalyzedAt: row.ai_analyzed_at ?? null,
     questionnaireFormId: row.questionnaire_form_id ?? null,
+    meta: mapTemplateMeta(row.meta),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }

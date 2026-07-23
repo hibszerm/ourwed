@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { CheckCircle2, LoaderCircle } from 'lucide-react'
+import { Check, CheckCircle2, FileUp, LoaderCircle } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { useToast } from '@/components/ui/Toast'
 import { documentTemplateService } from '@/lib/api/documents'
 import { documentStorage } from '@/lib/api/documents/storage'
-import { packageService } from '@/lib/api/packageService'
 import { documentTemplateKeys } from '@/features/documents/hooks/useDocumentTemplates'
+import { fileFormatLabel, nameFromFileName } from '@/features/documents/contractUi'
 import {
   activeAiDocumentAnalyzer,
   aiAnalysisToDetectedFields,
@@ -16,21 +16,79 @@ import {
 import { activeDocumentStructureExtractor } from '@/features/documents/mapping/extraction'
 import {
   generateQuestionnaireDraft,
+  prepareReviewDraft,
   saveQuestionnaireDraft,
   QuestionnaireValidationError,
   type QuestionnaireDraft,
 } from '@/features/documents/questionnaire'
+import { AiAnalysisExperience } from './AiAnalysisExperience'
+import {
+  clearAttachedImport,
+  formatFileSize,
+  peekAttachedImportBytes,
+  peekAttachedImportMeta,
+  type AttachedImportMeta,
+  type PendingNewImport,
+} from './attachedImportCache'
+import { ContractReviewScreen } from './ContractReviewScreen'
+import {
+  ImportWizardStepper,
+  type WizardStepId,
+} from './ImportWizardStepper'
 import styles from './SimpleContractImport.module.css'
 
-type Phase = 'idle' | 'uploading' | 'analyzing' | 'preparing' | 'done' | 'error'
+type Phase =
+  | 'idle'
+  | 'ready'
+  | 'preparing'
+  | 'uploading'
+  | 'analyzing'
+  | 'review'
+  | 'saving'
+  | 'done'
+  | 'error'
 
-export function SimpleContractImportFlow({
-  templateId,
-  templateName,
-  sourceFileName,
-  sourceDocxPath,
-  onUploadFile,
-}: {
+const MIN_PREPARE_MS = 850
+
+function wizardStepForPhase(phase: Phase): WizardStepId {
+  switch (phase) {
+    case 'idle':
+    case 'ready':
+    case 'preparing':
+    case 'uploading':
+    case 'error':
+      return 'upload'
+    case 'analyzing':
+      return 'analysis'
+    case 'review':
+    case 'saving':
+      return 'configure'
+    case 'done':
+      return 'done'
+  }
+}
+
+function hasAttachedSource(
+  sourceFileName: string | null,
+  sourceDocxPath: string | null,
+): boolean {
+  return Boolean(sourceFileName || sourceDocxPath)
+}
+
+function sleep(ms: number) {
+  return new Promise<void>((resolve) => {
+    window.setTimeout(resolve, ms)
+  })
+}
+
+type CreateResult = {
+  templateId: string
+  sourceFileName: string
+  sourceDocxPath: string | null
+}
+
+type ExistingProps = {
+  mode?: 'existing'
   templateId: string
   templateName: string
   sourceFileName: string | null
@@ -41,34 +99,146 @@ export function SimpleContractImportFlow({
     sourceDocxPath: string | null
     sourceBytes: ArrayBuffer
   }>
-}) {
+  onRenameTemplate?: (name: string) => Promise<void>
+  pendingAttachment?: undefined
+  onCreateTemplate?: undefined
+}
+
+type CreateProps = {
+  mode: 'create'
+  pendingAttachment: PendingNewImport
+  templateName: string
+  onCreateTemplate: (input: {
+    name: string
+    file: File
+  }) => Promise<CreateResult>
+  templateId?: undefined
+  sourceFileName?: undefined
+  sourceDocxPath?: undefined
+  onUploadFile?: undefined
+  onRenameTemplate?: undefined
+}
+
+export function SimpleContractImportFlow(props: ExistingProps | CreateProps) {
+  const isCreate = props.mode === 'create'
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { showToast } = useToast()
   const fileRef = useRef<HTMLInputElement>(null)
   const runStarted = useRef(false)
+  const prepareStarted = useRef(false)
 
-  const [phase, setPhase] = useState<Phase>(
-    sourceFileName || sourceDocxPath ? 'analyzing' : 'idle',
+  const initialName = props.templateName
+  const initialFileName = isCreate
+    ? props.pendingAttachment.meta.fileName
+    : props.sourceFileName
+  const initialDocPath = isCreate ? null : props.sourceDocxPath
+  const initiallyAttached = isCreate
+    ? true
+    : hasAttachedSource(props.sourceFileName, props.sourceDocxPath)
+  const cachedMeta = isCreate
+    ? props.pendingAttachment.meta
+    : peekAttachedImportMeta(props.templateId)
+
+  const [activeTemplateId, setActiveTemplateId] = useState<string | null>(
+    isCreate ? null : props.templateId,
   )
-  const [fileName, setFileName] = useState(sourceFileName)
-  const [docPath, setDocPath] = useState(sourceDocxPath)
-  const [sourceBytes, setSourceBytes] = useState<ArrayBuffer | null>(null)
+  const [phase, setPhase] = useState<Phase>(
+    isCreate ? 'preparing' : initiallyAttached ? 'ready' : 'idle',
+  )
+  const [fileName, setFileName] = useState<string | null>(initialFileName)
+  const [docPath, setDocPath] = useState<string | null>(initialDocPath)
+  const [sourceBytes, setSourceBytes] = useState<ArrayBuffer | null>(() => {
+    if (isCreate) return props.pendingAttachment.bytes
+    return peekAttachedImportBytes(props.templateId)
+  })
+  const [attachedMeta, setAttachedMeta] = useState<AttachedImportMeta | null>(
+    cachedMeta,
+  )
+  const [nameDraft, setNameDraft] = useState(initialName)
+  const [startingAnalysis, setStartingAnalysis] = useState(false)
   const [draft, setDraft] = useState<QuestionnaireDraft | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [pipelineDone, setPipelineDone] = useState(false)
+  const [analysisKey, setAnalysisKey] = useState(0)
+  const [contentKey, setContentKey] = useState(0)
+
+  const draftRef = useRef<QuestionnaireDraft | null>(null)
+  draftRef.current = draft
+  const nameRef = useRef(nameDraft)
+  nameRef.current = nameDraft
+  const templateIdRef = useRef(activeTemplateId)
+  templateIdRef.current = activeTemplateId
+
+  // Create path: upload in the background while showing preparing UI.
+  useEffect(() => {
+    if (!isCreate || phase !== 'preparing') return
+    if (prepareStarted.current) return
+    prepareStarted.current = true
+
+    void (async () => {
+      const startedAt = Date.now()
+      setError(null)
+      try {
+        const attachment = props.pendingAttachment
+        const name =
+          nameRef.current.trim() || nameFromFileName(attachment.file.name)
+        const bytes =
+          attachment.bytes ?? (await attachment.file.arrayBuffer())
+        const created = await props.onCreateTemplate({
+          name,
+          file: attachment.file,
+        })
+        setActiveTemplateId(created.templateId)
+        setFileName(created.sourceFileName)
+        setDocPath(created.sourceDocxPath)
+        setSourceBytes(bytes)
+        setAttachedMeta(attachment.meta)
+        setNameDraft(name)
+
+        const elapsed = Date.now() - startedAt
+        if (elapsed < MIN_PREPARE_MS) {
+          await sleep(MIN_PREPARE_MS - elapsed)
+        }
+
+        runStarted.current = false
+        setPipelineDone(false)
+        setAnalysisKey((k) => k + 1)
+        setContentKey((k) => k + 1)
+        setPhase('analyzing')
+      } catch (err) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : 'Nie udało się przygotować dokumentu.',
+        )
+        setPhase('error')
+        prepareStarted.current = false
+      }
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once for create prepare
+  }, [isCreate, phase])
 
   useEffect(() => {
-    if (phase !== 'analyzing' && phase !== 'preparing') return
+    if (phase !== 'analyzing') return
     if (runStarted.current) return
-    if (phase === 'analyzing') {
-      runStarted.current = true
-      void runPipeline()
-    }
+    runStarted.current = true
+    if (activeTemplateId) clearAttachedImport(activeTemplateId)
+    void runPipeline()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- start once when analyzing
   }, [phase])
 
   async function runPipeline() {
     setError(null)
+    setPipelineDone(false)
+    const templateId = templateIdRef.current
+    if (!templateId) {
+      setError('Brak szablonu. Spróbuj ponownie.')
+      setPhase('error')
+      runStarted.current = false
+      return
+    }
+
     try {
       setPhase('analyzing')
 
@@ -92,69 +262,115 @@ export function SimpleContractImportFlow({
       })
       const fields = aiAnalysisToDetectedFields(aiAnalysis, structure)
 
-      let packageOptions: { value: string; label: string }[] = []
-      try {
-        const packages = await packageService.list({ activeOnly: true })
-        packageOptions = packages.map((p) => ({
-          value: p.id,
-          label: p.name,
-        }))
-      } catch {
-        packageOptions = []
-      }
+      const next = prepareReviewDraft(
+        generateQuestionnaireDraft({
+          fields,
+          ai: aiAnalysis,
+          sourceText: structure.plainText,
+          templateName: nameRef.current.trim() || initialName,
+        }),
+      )
+      next.linkedPackageId = null
 
-      const next = generateQuestionnaireDraft({
-        fields,
-        ai: aiAnalysis,
-        sourceText: structure.plainText,
-        templateName,
-        packageOptions,
-      })
       setDraft(next)
 
       try {
         await documentTemplateService.update(templateId, {
           aiAnalyzedAt: new Date().toISOString(),
         })
+        await queryClient.invalidateQueries({
+          queryKey: documentTemplateKeys.all,
+        })
       } catch {
         // best-effort lifecycle flag
       }
 
-      setPhase('preparing')
-      await saveQuestionnaireDraft(next, { documentTemplateId: templateId })
+      setPipelineDone(true)
+    } catch (err) {
+      setError(
+        getDocumentAiErrorMessage(err) ||
+          (err instanceof Error ? err.message : 'Coś poszło nie tak.'),
+      )
+      setPhase('error')
+      setPipelineDone(false)
+      runStarted.current = false
+    }
+  }
+
+  async function handleStartAnalysis() {
+    if (isCreate) return
+    const nextName = nameDraft.trim()
+    if (!nextName) {
+      setError('Podaj nazwę szablonu.')
+      return
+    }
+    setError(null)
+    setStartingAnalysis(true)
+    try {
+      if (props.onRenameTemplate && nextName !== props.templateName) {
+        await props.onRenameTemplate(nextName)
+      }
+      runStarted.current = false
+      setPipelineDone(false)
+      setAnalysisKey((k) => k + 1)
+      setContentKey((k) => k + 1)
+      setPhase('analyzing')
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'Nie udało się zapisać nazwy.',
+      )
+    } finally {
+      setStartingAnalysis(false)
+    }
+  }
+
+  async function handleSave() {
+    if (!draft || !activeTemplateId) return
+    setError(null)
+    setPhase('saving')
+    try {
+      await saveQuestionnaireDraft(draft, {
+        documentTemplateId: activeTemplateId,
+      })
       await queryClient.invalidateQueries({ queryKey: ['questionnaire-templates'] })
       await queryClient.invalidateQueries({ queryKey: ['form-definitions'] })
       await queryClient.invalidateQueries({
         queryKey: documentTemplateKeys.all,
       })
-      await queryClient.invalidateQueries({
-        queryKey: ['studio-packages', 'for-contracts'],
-      })
-
       setPhase('done')
-      showToast('Gotowe.', 'success')
+      showToast('Ankieta została zapisana.', 'success')
     } catch (err) {
       setError(
         err instanceof QuestionnaireValidationError
           ? err.message
-          : getDocumentAiErrorMessage(err) ||
-            (err instanceof Error ? err.message : 'Coś poszło nie tak.'),
+          : err instanceof Error
+            ? err.message
+            : 'Nie udało się zapisać ankiety.',
       )
-      setPhase('error')
-      runStarted.current = false
+      setPhase('review')
     }
   }
 
   async function handleFile(file: File) {
+    if (isCreate || !props.onUploadFile) return
     setError(null)
     setPhase('uploading')
+    setPipelineDone(false)
     try {
-      const result = await onUploadFile(file)
+      const result = await props.onUploadFile(file)
       setFileName(result.sourceFileName)
       setDocPath(result.sourceDocxPath)
       setSourceBytes(result.sourceBytes)
+      setAttachedMeta({
+        fileName: file.name,
+        fileSize: file.size,
+        mimeType: file.type || '',
+      })
+      if (!nameDraft.trim()) {
+        setNameDraft(nameFromFileName(file.name) || initialName)
+      }
       runStarted.current = false
-      setPhase('analyzing')
+      setPhase('ready')
     } catch (err) {
       setError(
         err instanceof Error ? err.message : 'Nie udało się przesłać pliku.',
@@ -164,126 +380,299 @@ export function SimpleContractImportFlow({
     }
   }
 
-  const statusCopy: Record<Phase, { title: string; body: string }> = {
-    idle: {
-      title: 'Prześlij umowę',
-      body: 'PDF lub DOCX. OurWed przygotuje resztę.',
-    },
-    uploading: {
-      title: 'Przesyłanie…',
-      body: 'Zapisujemy Twoją umowę.',
-    },
-    analyzing: {
-      title: 'Analizowanie umowy…',
-      body: fileName ?? 'Poznajemy Twój dokument.',
-    },
-    preparing: {
-      title: 'Przygotowywanie ankiety…',
-      body: 'Jeszcze chwila.',
-    },
-    done: {
-      title: 'Gotowe.',
-      body: draft?.name
-        ? `„${draft.name}” jest gotowa do użycia.`
-        : 'Twoja umowa jest gotowa.',
-    },
-    error: {
-      title: 'Wymaga uwagi',
-      body: error ?? 'Coś poszło nie tak.',
-    },
+  function goBack() {
+    if (activeTemplateId) {
+      navigate(`/ustawienia/dokumenty/szablony/${activeTemplateId}`)
+      return
+    }
+    navigate('/ustawienia/dokumenty/szablony')
   }
 
-  const copy = statusCopy[phase]
-  const busy =
-    phase === 'uploading' || phase === 'analyzing' || phase === 'preparing'
+  const wizardStep = wizardStepForPhase(phase)
+  const fileAttached =
+    isCreate || hasAttachedSource(fileName, docPath) || Boolean(attachedMeta)
+  const displayFileName =
+    attachedMeta?.fileName ?? fileName ?? 'Dokument'
+  const displayType = fileFormatLabel(displayFileName)
+  const displaySize =
+    attachedMeta != null ? formatFileSize(attachedMeta.fileSize) : null
 
   return (
-    <div className={styles.magic}>
-      <div className={styles.magicCard} aria-live="polite">
-        {busy ? (
-          <LoaderCircle size={32} className={styles.spin} aria-hidden />
-        ) : phase === 'done' ? (
-          <CheckCircle2
-            size={36}
-            strokeWidth={1.5}
-            className={styles.doneIcon}
-            aria-hidden
-          />
-        ) : null}
+    <div className={styles.flow}>
+      <ImportWizardStepper current={wizardStep} />
 
-        <h1 className={styles.magicTitle}>{copy.title}</h1>
-        <p className={styles.magicBody}>{copy.body}</p>
+      {phase === 'preparing' ? (
+        <div className={styles.ready} aria-live="polite" key={contentKey}>
+          <div className={styles.readyInner}>
+            <p className={styles.stepCaption}>Krok 1 z 4</p>
+            <h1 className={styles.heroTitle}>Dodawanie dokumentu</h1>
+            <p className={styles.heroBody}>
+              Plik jest już wybrany. Przygotowujemy go do analizy AI.
+            </p>
 
-        {phase === 'done' ? (
-          <div className={styles.magicActions}>
-            <Button
-              type="button"
-              variant="primary"
-              onClick={() =>
-                navigate(`/ustawienia/dokumenty/szablony/${templateId}`)
-              }
+            <div className={styles.fileCard}>
+              <div className={styles.fileCheck} aria-hidden>
+                <Check size={16} strokeWidth={2.25} />
+              </div>
+              <div className={styles.fileMeta}>
+                <p className={styles.fileName}>{displayFileName}</p>
+                <p className={styles.fileDetails}>
+                  {displayType}
+                  {displaySize ? ` · ${displaySize}` : null}
+                </p>
+              </div>
+            </div>
+
+            <p className={styles.prepareStatus}>
+              Przygotowujemy dokument do analizy…
+            </p>
+            <div
+              className={styles.indeterminateTrack}
+              role="progressbar"
+              aria-valuetext="Przygotowywanie dokumentu"
             >
-              Zobacz umowę
-            </Button>
+              <div className={styles.indeterminateFill} />
+            </div>
           </div>
-        ) : null}
+        </div>
+      ) : null}
 
-        {phase === 'error' ? (
-          <div className={styles.magicActions}>
-            <Button
-              type="button"
-              variant="primary"
-              onClick={() => fileRef.current?.click()}
-            >
-              Prześlij ponownie
-            </Button>
-            {(fileName || docPath) && (
+      {phase === 'ready' && fileAttached && !isCreate ? (
+        <div className={styles.ready} aria-live="polite">
+          <div className={styles.readyInner}>
+            <p className={styles.stepCaption}>Krok 1 z 4</p>
+            <h1 className={styles.heroTitle}>Sprawdź plik przed analizą</h1>
+            <p className={styles.heroBody}>
+              Plik jest już dołączony. Nadaj nazwę szablonowi i uruchom analizę
+              AI.
+            </p>
+
+            <div className={styles.fileCard}>
+              <div className={styles.fileCheck} aria-hidden>
+                <Check size={16} strokeWidth={2.25} />
+              </div>
+              <div className={styles.fileMeta}>
+                <p className={styles.fileName}>{displayFileName}</p>
+                <p className={styles.fileDetails}>
+                  {displayType}
+                  {displaySize ? ` · ${displaySize}` : null}
+                </p>
+              </div>
+            </div>
+
+            <label className={styles.nameField}>
+              Nazwa szablonu
+              <input
+                value={nameDraft}
+                onChange={(e) => setNameDraft(e.target.value)}
+                placeholder="np. Umowa fotograficzna"
+                disabled={startingAnalysis}
+              />
+            </label>
+
+            {error ? <p className={styles.error}>{error}</p> : null}
+
+            <div className={styles.actions}>
               <Button
                 type="button"
-                variant="secondary"
-                onClick={() => {
-                  runStarted.current = false
-                  setPhase('analyzing')
-                }}
+                variant="primary"
+                disabled={startingAnalysis || !nameDraft.trim()}
+                onClick={() => void handleStartAnalysis()}
               >
-                Spróbuj ponownie
+                {startingAnalysis ? 'Przygotowywanie…' : 'Analizuj dokument'}
               </Button>
-            )}
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() =>
-                navigate(`/ustawienia/dokumenty/szablony/${templateId}`)
-              }
-            >
-              Wróć
-            </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={startingAnalysis}
+                onClick={goBack}
+              >
+                Anuluj
+              </Button>
+            </div>
           </div>
-        ) : null}
+        </div>
+      ) : null}
 
-        {phase === 'idle' ? (
-          <div className={styles.magicActions}>
-            <Button
-              type="button"
-              variant="primary"
-              onClick={() => fileRef.current?.click()}
-            >
-              Prześlij umowę
-            </Button>
+      {phase === 'review' && draft && activeTemplateId ? (
+        <div className={styles.stageEnter}>
+          <ContractReviewScreen
+            templateName={nameDraft.trim() || initialName}
+            draft={draft}
+            saving={false}
+            error={error}
+            onChange={setDraft}
+            onCancel={goBack}
+            onSave={() => void handleSave()}
+          />
+        </div>
+      ) : null}
+
+      {phase === 'saving' && draft ? (
+        <div className={styles.stageEnter}>
+          <ContractReviewScreen
+            templateName={nameDraft.trim() || initialName}
+            draft={draft}
+            saving
+            error={error}
+            onChange={setDraft}
+            onCancel={() => undefined}
+            onSave={() => undefined}
+          />
+        </div>
+      ) : null}
+
+      {phase === 'analyzing' ? (
+        <div className={styles.analysisWrap} key={`analysis-${contentKey}`}>
+          <p className={styles.stepCaption}>Krok 2 z 4</p>
+          <AiAnalysisExperience
+            key={analysisKey}
+            fileName={fileName}
+            pipelineDone={pipelineDone}
+            onReveal={() => {
+              if (draftRef.current) setPhase('review')
+            }}
+          />
+        </div>
+      ) : null}
+
+      {phase === 'idle' ||
+      phase === 'uploading' ||
+      phase === 'done' ||
+      phase === 'error' ? (
+        <div className={styles.hero} aria-live="polite">
+          <div className={styles.heroInner}>
+            {phase === 'uploading' ? (
+              <LoaderCircle size={22} className={styles.spin} aria-hidden />
+            ) : phase === 'done' ? (
+              <CheckCircle2
+                size={28}
+                strokeWidth={1.5}
+                className={styles.doneIcon}
+                aria-hidden
+              />
+            ) : phase === 'idle' ? (
+              <FileUp
+                size={22}
+                strokeWidth={1.75}
+                className={styles.uploadIcon}
+                aria-hidden
+              />
+            ) : null}
+
+            <h1 className={styles.heroTitle}>
+              {phase === 'idle'
+                ? 'Dołącz dokument'
+                : phase === 'uploading'
+                  ? 'Przesyłanie…'
+                  : phase === 'done'
+                    ? 'Gotowe'
+                    : 'Wymaga uwagi'}
+            </h1>
+            <p className={styles.heroBody}>
+              {phase === 'idle'
+                ? 'PDF lub DOCX. Po wyborze pliku od razu przejdziesz do kreatora.'
+                : phase === 'uploading'
+                  ? 'Zapisujemy dokument.'
+                  : phase === 'done'
+                    ? draft?.name
+                      ? `„${draft.name}” jest dostępna w Ankietach.`
+                      : 'Twoja umowa jest gotowa.'
+                    : (error ?? 'Coś poszło nie tak.')}
+            </p>
+
+            {phase === 'done' && activeTemplateId ? (
+              <div className={styles.actions}>
+                <Button
+                  type="button"
+                  variant="primary"
+                  onClick={() =>
+                    navigate(
+                      `/ustawienia/dokumenty/szablony/${activeTemplateId}`,
+                    )
+                  }
+                >
+                  Zobacz umowę
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => navigate('/ankiety')}
+                >
+                  Przejdź do ankiet
+                </Button>
+              </div>
+            ) : null}
+
+            {phase === 'error' ? (
+              <div className={styles.actions}>
+                {isCreate ? (
+                  <Button
+                    type="button"
+                    variant="primary"
+                    onClick={() => {
+                      prepareStarted.current = false
+                      setPhase('preparing')
+                    }}
+                  >
+                    Spróbuj ponownie
+                  </Button>
+                ) : fileAttached ? (
+                  <Button
+                    type="button"
+                    variant="primary"
+                    onClick={() => {
+                      runStarted.current = false
+                      setPipelineDone(false)
+                      setAnalysisKey((k) => k + 1)
+                      setPhase('analyzing')
+                    }}
+                  >
+                    Spróbuj ponownie
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="primary"
+                    onClick={() => fileRef.current?.click()}
+                  >
+                    Wybierz plik
+                  </Button>
+                )}
+                <Button type="button" variant="ghost" onClick={goBack}>
+                  Wróć
+                </Button>
+              </div>
+            ) : null}
+
+            {phase === 'idle' && !isCreate ? (
+              <div className={styles.actions}>
+                <Button
+                  type="button"
+                  variant="primary"
+                  onClick={() => fileRef.current?.click()}
+                >
+                  Wybierz plik
+                </Button>
+              </div>
+            ) : null}
           </div>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
 
-      <input
-        ref={fileRef}
-        type="file"
-        accept=".docx,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        hidden
-        onChange={(e) => {
-          const file = e.target.files?.[0]
-          if (file) void handleFile(file)
-        }}
-      />
+      {!isCreate && !fileAttached ? (
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".docx,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+          hidden
+          onChange={(e) => {
+            const file = e.target.files?.[0]
+            if (file) void handleFile(file)
+            if (fileRef.current) fileRef.current.value = ''
+          }}
+        />
+      ) : null}
     </div>
   )
 }

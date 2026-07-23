@@ -340,7 +340,7 @@ export function MappingWizardProvider({
   }, [])
 
   const regenerateQuestionnaire = useCallback(async () => {
-    let packageOptions: { value: string; label: string }[] = []
+    let packageOptions: { value: string; label: string }[] | undefined
     try {
       const packages = await packageService.list({ activeOnly: true })
       packageOptions = packages.map((p) => ({
@@ -348,7 +348,8 @@ export function MappingWizardProvider({
         label: p.name,
       }))
     } catch {
-      packageOptions = []
+      // Draft never bakes options; QuestionnaireStep injects live packages after isSuccess.
+      packageOptions = undefined
     }
     const next = generateQuestionnaireDraft({
       fields: state.draft.fields,

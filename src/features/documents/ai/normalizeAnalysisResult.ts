@@ -1,17 +1,24 @@
+/**
+ * Normalize + harden Edge JSON into AiDocumentAnalysisResult.
+ *
+ * Supports:
+ * - v2 semantic extraction `{ contractName, packageSuggestion, variables, possibleVariables }`
+ * - legacy rich field payloads (still accepted for cache / older responses)
+ */
+
 import { isKnownVariableKey } from '@/features/documents/registry/variableRegistry'
 import { aiDocumentAnalysisResultSchema } from './analysisSchema'
 import { DOCUMENT_AI_CONFIG } from './config'
+import {
+  expandSemanticExtraction,
+  isSemanticExtractionPayload,
+} from './expandSemanticExtraction'
 import type {
   AiDocumentAnalysisResult,
   DetectedDocumentClause,
   DetectedDocumentField,
   DetectedDocumentSection,
 } from './types'
-
-/**
- * Normalize + harden Gemini/Edge JSON into AiDocumentAnalysisResult.
- * Drops unknown registry keys; never invents business variables.
- */
 
 function clamp01(n: unknown, fallback = 0.5): number {
   if (typeof n !== 'number' || Number.isNaN(n)) return fallback
@@ -87,6 +94,11 @@ export function normalizeAnalysisPayload(
     fromCache?: boolean
   },
 ): AiDocumentAnalysisResult {
+  if (isSemanticExtractionPayload(raw)) {
+    const expanded = expandSemanticExtraction(raw, meta)
+    return aiDocumentAnalysisResultSchema.parse(expanded)
+  }
+
   const obj =
     raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
   const warnings: string[] = Array.isArray(obj.warnings)
@@ -164,6 +176,13 @@ export function normalizeAnalysisPayload(
       typeof obj.documentType === 'string' && obj.documentType.trim()
         ? obj.documentType.trim()
         : 'contract',
+    packageSuggestion:
+      typeof obj.packageSuggestion === 'string'
+        ? obj.packageSuggestion
+        : obj.packageSuggestion === null
+          ? null
+          : undefined,
+    defaults: [],
     overallConfidence: clamp01(obj.overallConfidence, 0.5),
     fields,
     sections,

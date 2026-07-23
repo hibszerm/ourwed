@@ -1,48 +1,125 @@
 /**
- * Lightweight validation of Gemini JSON (Edge).
- * Frontend re-validates against Variable Registry.
+ * Compact semantic extraction validation (Edge).
+ * Package slots are presence-only IDs — never numeric values from the contract.
  */
 
 export type EdgeErrorCode =
   | 'unauthorized'
   | 'bad_request'
-  | 'timeout'
+  | 'provider_timeout'
+  | 'provider_rate_limit'
+  | 'provider_unavailable'
   | 'invalid_json'
   | 'validation_failed'
-  | 'gemini_unavailable'
-  | 'rate_limit'
   | 'empty_response'
   | 'unknown'
 
-export interface ValidatedAnalysis {
+export interface ValidatedSemanticExtraction {
+  contractName: string
+  packageSuggestion: string | null
+  coupleVariables: string[]
+  studioVariables: string[]
+  packageVariables: string[]
+  possibleVariables: string[]
   schemaVersion: string
-  model: string
   promptVersion: string
-  documentType: string
-  overallConfidence: number
-  fields: Array<{
-    id: string
-    label: string
-    registryKey: string | null
-    value: string | null
-    confidence: number
-    paragraphIndex: number | null
-    status: 'suggested'
-  }>
-  sections: Array<{ title: string; order: number }>
-  clauses: Array<{
-    id: string
-    type: string
-    title?: string
-    confidence: number
-  }>
-  warnings: string[]
+  model: string
 }
 
-function clamp01(n: unknown, fallback = 0.5): number {
-  if (typeof n !== 'number' || Number.isNaN(n)) return fallback
-  return Math.min(1, Math.max(0, n))
-}
+const PACKAGE_SUGGESTIONS = new Set([
+  'Photography',
+  'Video',
+  'Photography + Video',
+])
+
+const ALLOWED_COUPLE = new Set([
+  'bride_first_name',
+  'bride_last_name',
+  'bride_phone',
+  'bride_email',
+  'bride_address',
+  'bride_pesel',
+  'pesel',
+  'groom_first_name',
+  'groom_last_name',
+  'groom_phone',
+  'groom_email',
+  'groom_address',
+  'groom_pesel',
+  'wedding_date',
+  'ceremony_time',
+  'couple_names',
+  'schedule',
+  'wedding_schedule',
+  'ceremony_location',
+  'reception_location',
+  'preparation_location',
+  'package',
+  'additional_notes',
+  'notes',
+])
+
+const ALLOWED_STUDIO = new Set([
+  'company_name',
+  'studio_name',
+  'company_owner',
+  'owner',
+  'company_tax_id',
+  'company_nip',
+  'company_address',
+  'studio_address',
+  'company_email',
+  'studio_email',
+  'company_phone',
+  'studio_phone',
+  'company_website',
+  'studio_website',
+  'company_bank_account',
+  'bank_account',
+  'company_regon',
+  'company_vat',
+  'vat',
+  'photographer_name',
+  'studio_logo',
+  'company_logo',
+  'studio_signature',
+  'signature',
+])
+
+const ALLOWED_PACKAGE = new Set([
+  'package_name',
+  'package_price',
+  'price',
+  'contract_price',
+  'deposit_amount',
+  'deposit',
+  'deposit_type',
+  'deposit_percent',
+  'remaining_payment',
+  'payment_deadline',
+  'payment_due_days',
+  'payment_installments',
+  'delivery_time',
+  'delivery_days',
+  'included_services',
+  'photographers_count',
+  'videographers_count',
+  'working_hours',
+  'overtime_price',
+  'mileage_limit',
+  'mileage_price',
+  'accommodation',
+  'travel_fee',
+  'album_included',
+  'usb_included',
+  'online_gallery',
+  'engagement_session',
+  'wedding_session',
+  'number_of_revisions',
+  'assistants',
+])
+
+const ALLOWED_PRESENCE = new Set([...ALLOWED_COUPLE, ...ALLOWED_STUDIO])
 
 function stripCodeFences(text: string): string {
   const trimmed = text.trim()
@@ -50,138 +127,135 @@ function stripCodeFences(text: string): string {
   return fenced ? fenced[1]!.trim() : trimmed
 }
 
-export function parseGeminiJsonText(text: string): unknown {
+export function parseAnalysisJsonText(text: string): unknown {
   const cleaned = stripCodeFences(text)
   if (!cleaned) throw new Error('empty')
   return JSON.parse(cleaned)
 }
 
+function normalizeId(raw: string): string {
+  return raw
+    .trim()
+    .toLowerCase()
+    .replace(/[\s.]+/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_|_$/g, '')
+}
+
+function asIdList(value: unknown, allowed: Set<string>): string[] {
+  if (!Array.isArray(value)) return []
+  const out: string[] = []
+  const seen = new Set<string>()
+  for (const item of value) {
+    if (typeof item !== 'string') continue
+    const id = normalizeId(item)
+    if (!id || !allowed.has(id) || seen.has(id)) continue
+    seen.add(id)
+    out.push(id)
+  }
+  return out
+}
+
+/** Accept string[] or legacy [{id,value}] — keep IDs only, drop values. */
+function asPackageIdList(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  const out: string[] = []
+  const seen = new Set<string>()
+  for (const item of value) {
+    let raw = ''
+    if (typeof item === 'string') raw = item
+    else if (item && typeof item === 'object') {
+      const row = item as Record<string, unknown>
+      if (typeof row.id === 'string') raw = row.id
+      else if (typeof row.key === 'string') raw = row.key
+    }
+    const id = normalizeId(raw)
+    if (!id || !ALLOWED_PACKAGE.has(id) || seen.has(id)) continue
+    seen.add(id)
+    out.push(id)
+  }
+  return out
+}
+
+function normalizePackageSuggestion(value: unknown): string | null {
+  if (value == null) return null
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  if (!trimmed || trimmed.toLowerCase() === 'null') return null
+  if (PACKAGE_SUGGESTIONS.has(trimmed)) return trimmed
+  const lower = trimmed.toLowerCase()
+  if (/photo.*video|foto.*video|photography\s*\+\s*video/.test(lower)) {
+    return 'Photography + Video'
+  }
+  if (/video|wideo|film/.test(lower) && !/photo|foto/.test(lower)) {
+    return 'Video'
+  }
+  if (/photo|foto|fotograf/.test(lower)) {
+    return 'Photography'
+  }
+  return null
+}
+
 export function validateAndNormalizeAnalysis(
   raw: unknown,
-  allowedKeys: Set<string>,
+  _allowedKeys: Set<string>,
   meta: {
     schemaVersion: string
     promptVersion: string
     model: string
   },
-): ValidatedAnalysis {
+): ValidatedSemanticExtraction {
   if (!raw || typeof raw !== 'object') {
     throw new Error('not_object')
   }
   const obj = raw as Record<string, unknown>
-  const warnings: string[] = Array.isArray(obj.warnings)
-    ? obj.warnings.filter((w): w is string => typeof w === 'string')
-    : []
 
-  const fieldsRaw = Array.isArray(obj.fields) ? obj.fields : null
-  if (!fieldsRaw) throw new Error('missing_fields')
+  let coupleVariables = asIdList(obj.coupleVariables, ALLOWED_COUPLE)
+  let studioVariables = asIdList(obj.studioVariables, ALLOWED_STUDIO)
+  let packageVariables = asPackageIdList(
+    obj.packageVariables ?? obj.templateDefaults ?? obj.defaults,
+  )
+  let possibleVariables = asIdList(obj.possibleVariables, ALLOWED_PRESENCE)
 
-  const fields = fieldsRaw.map((item, index) => {
-    if (!item || typeof item !== 'object') throw new Error('bad_field')
-    const row = item as Record<string, unknown>
-    let registryKey: string | null =
-      typeof row.registryKey === 'string' ? row.registryKey.trim() : null
-    if (registryKey === '') registryKey = null
-    if (registryKey && !allowedKeys.has(registryKey)) {
-      warnings.push(`Dropped unknown registryKey: ${registryKey}`)
-      registryKey = null
-    }
+  if (
+    coupleVariables.length === 0 &&
+    studioVariables.length === 0 &&
+    Array.isArray(obj.variables)
+  ) {
+    const legacy = asIdList(obj.variables, ALLOWED_PRESENCE)
+    coupleVariables = legacy.filter((id) => ALLOWED_COUPLE.has(id))
+    studioVariables = legacy.filter((id) => ALLOWED_STUDIO.has(id))
+  }
 
-    const id =
-      typeof row.id === 'string' && row.id.trim()
-        ? row.id.trim()
-        : `ai-field-${index + 1}`
-    const label =
-      typeof row.label === 'string' && row.label.trim()
-        ? row.label.trim()
-        : 'Dynamic field'
+  const confirmed = new Set([...coupleVariables, ...studioVariables])
+  possibleVariables = possibleVariables.filter((id) => !confirmed.has(id))
 
-    const value =
-      typeof row.value === 'string'
-        ? row.value
-        : row.value === null
-          ? null
-          : null
+  // Package IDs must not appear in couple/studio lists
+  coupleVariables = coupleVariables.filter((id) => !ALLOWED_PACKAGE.has(id))
+  studioVariables = studioVariables.filter((id) => !ALLOWED_PACKAGE.has(id))
+  possibleVariables = possibleVariables.filter((id) => !ALLOWED_PACKAGE.has(id))
 
-    const paragraphIndex =
-      typeof row.paragraphIndex === 'number' && row.paragraphIndex >= 0
-        ? Math.floor(row.paragraphIndex)
-        : null
+  if (
+    coupleVariables.length === 0 &&
+    studioVariables.length === 0 &&
+    possibleVariables.length === 0 &&
+    packageVariables.length === 0
+  ) {
+    throw new Error('missing_variables')
+  }
 
-    return {
-      id,
-      label,
-      registryKey,
-      value,
-      confidence: clamp01(row.confidence, 0.7),
-      paragraphIndex,
-      status: 'suggested' as const,
-    }
-  })
-
-  const sections = Array.isArray(obj.sections)
-    ? obj.sections
-        .map((s, i) => {
-          if (!s || typeof s !== 'object') return null
-          const row = s as Record<string, unknown>
-          if (typeof row.title !== 'string' || !row.title.trim()) return null
-          return {
-            title: row.title.trim(),
-            order:
-              typeof row.order === 'number' && row.order >= 0
-                ? Math.floor(row.order)
-                : i,
-          }
-        })
-        .filter((s): s is { title: string; order: number } => s != null)
-    : []
-
-  const clauses = Array.isArray(obj.clauses)
-    ? obj.clauses
-        .map((c, i) => {
-          if (!c || typeof c !== 'object') return null
-          const row = c as Record<string, unknown>
-          if (typeof row.type !== 'string' || !row.type.trim()) return null
-          return {
-            id:
-              typeof row.id === 'string' && row.id.trim()
-                ? row.id.trim()
-                : `ai-clause-${i + 1}`,
-            type: row.type.trim(),
-            title: typeof row.title === 'string' ? row.title : undefined,
-            confidence: clamp01(row.confidence, 0.7),
-          }
-        })
-        .filter(
-          (
-            c,
-          ): c is {
-            id: string
-            type: string
-            title?: string
-            confidence: number
-          } => c != null,
-        )
-    : []
+  const contractName =
+    typeof obj.contractName === 'string' ? obj.contractName.trim() : ''
 
   return {
-    schemaVersion:
-      typeof obj.schemaVersion === 'string'
-        ? obj.schemaVersion
-        : meta.schemaVersion,
-    model: typeof obj.model === 'string' ? obj.model : meta.model,
-    promptVersion:
-      typeof obj.promptVersion === 'string'
-        ? obj.promptVersion
-        : meta.promptVersion,
-    documentType:
-      typeof obj.documentType === 'string' && obj.documentType.trim()
-        ? obj.documentType.trim()
-        : 'contract',
-    overallConfidence: clamp01(obj.overallConfidence, 0.5),
-    fields,
-    sections,
-    clauses,
-    warnings,
+    contractName,
+    packageSuggestion: normalizePackageSuggestion(obj.packageSuggestion),
+    coupleVariables,
+    studioVariables,
+    packageVariables,
+    possibleVariables,
+    schemaVersion: meta.schemaVersion,
+    promptVersion: meta.promptVersion,
+    model: meta.model,
   }
 }

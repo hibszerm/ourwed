@@ -1,15 +1,15 @@
 # document-ai-analysis
 
-Supabase Edge Function: wedding contract → structured JSON via Gemini.
+Supabase Edge Function: wedding contract → structured JSON via OpenAI.
 
 ## Architecture
 
 ```
-React (geminiDocumentAnalyzer)
+React (edgeDocumentAnalyzer / activeAiDocumentAnalyzer)
   → supabase.functions.invoke('document-ai-analysis')
-  → Gemini API (server-side only)
+  → OpenAI Responses API (server-side only)
   → validated JSON
-  → Mapping Review UI
+  → Mapping Review / Simple Import UI
 ```
 
 ## Secrets
@@ -17,9 +17,9 @@ React (geminiDocumentAnalyzer)
 Set in Supabase project secrets (never in Vite / React):
 
 ```bash
-supabase secrets set GEMINI_API_KEY=your_key_here
-# optional override:
-# supabase secrets set GEMINI_MODEL=gemini-2.5-flash
+supabase secrets set OPENAI_API_KEY=your_key_here
+# optional override (default: gpt-5-mini):
+# supabase secrets set OPENAI_MODEL=gpt-5-mini
 ```
 
 ## Deploy
@@ -44,3 +44,5 @@ supabase functions deploy document-ai-analysis
 
 Success: `{ "ok": true, "analysis": { ... }, "fromCache": false }`  
 Error: `{ "ok": false, "error": { "code": "...", "message": "..." } }`
+
+Provider-neutral error codes: `unauthorized`, `bad_request`, `provider_unavailable`, `provider_timeout`, `provider_rate_limit`, `invalid_json`, `validation_failed`, `empty_response`, `unknown`.

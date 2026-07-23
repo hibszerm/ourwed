@@ -14,6 +14,7 @@ import { TravelSettingsPage } from '@/pages/TravelSettingsPage'
 import { SettingsPage } from '@/pages/SettingsPage'
 import { DocumentsHubPage } from '@/pages/DocumentsHubPage'
 import { DocumentTemplatesPage } from '@/pages/DocumentTemplatesPage'
+import { DocumentTemplateNewPage } from '@/pages/DocumentTemplateNewPage'
 import { DocumentTemplateDetailPage } from '@/pages/DocumentTemplateDetailPage'
 import { DocumentTemplateMappingPage } from '@/pages/DocumentTemplateMappingPage'
 import { PublicFormTokenPage } from '@/pages/PublicFormTokenPage'
@@ -111,6 +112,10 @@ export const router = createBrowserRouter([
       {
         path: '/ustawienia/dokumenty/szablony',
         element: <DocumentTemplatesPage />,
+      },
+      {
+        path: '/ustawienia/dokumenty/szablony/nowy',
+        element: <DocumentTemplateNewPage />,
       },
       {
         path: '/ustawienia/dokumenty/szablony/:id',

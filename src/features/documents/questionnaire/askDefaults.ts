@@ -1,28 +1,49 @@
 /**
- * Defaults: ask clients only for couple / package info.
- * Studio finances and sensitive IDs stay off unless the user opts in.
+ * Defaults: ask clients only for couple / package selection.
+ * Payments and studio settings are never questionnaire fields.
  */
 
+import {
+  isCoupleFacingRegistryKey,
+  isPackageFacingRegistryKey,
+  isStudioFacingRegistryKey,
+} from '@/features/documents/ai/canonicalVariableIds'
 import type { DraftQuestion } from './types'
-
-const DO_NOT_ASK_RE =
-  /pesel|dowód|tożsamo|nip|regon|\bfirma\b|company|tax|numer dowodu|id number|cena|price|zadatek|deposit|pozostał|remaining|bank|konto|iban|termin płat|copyright|prawa autorsk|godzin pracy|nip studia/i
 
 export function shouldAskClientsByDefault(question: DraftQuestion): boolean {
   if (question.source === 'studio' || question.source === 'system') return false
+  if (question.source === 'package') return false
+  if (question.registryKey && isStudioFacingRegistryKey(question.registryKey)) {
+    return false
+  }
+  if (question.registryKey && isPackageFacingRegistryKey(question.registryKey)) {
+    return false
+  }
   if (question.source === 'ourwed_configuration') return true
-
-  const blob = `${question.title} ${question.contractLabel} ${question.fieldKey ?? ''}`
-  if (DO_NOT_ASK_RE.test(blob)) return false
-
+  if (question.registryKey && isCoupleFacingRegistryKey(question.registryKey)) {
+    return true
+  }
   return question.source === 'couple'
 }
 
 export function applyAskClientDefaults(
   questions: DraftQuestion[],
 ): DraftQuestion[] {
-  return questions.map((q) => ({
-    ...q,
-    enabled: shouldAskClientsByDefault(q),
-  }))
+  return questions.map((q) => {
+    if (q.registryKey && isPackageFacingRegistryKey(q.registryKey)) {
+      // Should not appear as questions — filtered by classify — safety net
+      return { ...q, source: 'package', enabled: false }
+    }
+    if (q.registryKey && isStudioFacingRegistryKey(q.registryKey)) {
+      return {
+        ...q,
+        source: q.source === 'system' ? 'system' : 'studio',
+        enabled: true,
+      }
+    }
+    return {
+      ...q,
+      enabled: shouldAskClientsByDefault(q),
+    }
+  })
 }

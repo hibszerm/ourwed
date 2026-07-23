@@ -11,6 +11,7 @@ export type ContractValueSource =
   | 'studio'
   | 'system'
   | 'ourwed_configuration'
+  | 'package'
 
 export type SuggestedPackageKind =
   | 'photo'
@@ -49,11 +50,34 @@ export interface DraftQuestion {
   options?: QuestionOption[]
 }
 
+/**
+ * Package slot detected in the contract — presence only.
+ * Values always come from Studio → Packages at generation time.
+ */
+export interface PackageVariablePresence {
+  id: string
+  registryKey: string
+  label: string
+  enabled: boolean
+  confidence: number
+}
+
+/** @deprecated Use PackageVariablePresence */
+export type TemplateDefaultValue = PackageVariablePresence & {
+  value?: string
+  valueType?: string
+  placeholder?: string
+  unit?: string
+}
+
 export interface QuestionnaireDraftCounts {
   couple: number
   studio: number
   system: number
   ourwedConfiguration: number
+  packageVariables: number
+  /** @deprecated */
+  templateDefaults: number
 }
 
 export interface QuestionnaireDraft {
@@ -66,12 +90,15 @@ export interface QuestionnaireDraft {
   classification: ClassifiedVariable[]
   counts: QuestionnaireDraftCounts
   questions: DraftQuestion[]
+  /** Section 3 — package slots (values from Studio Packages). */
+  packageVariables: PackageVariablePresence[]
+  /**
+   * @deprecated Always empty — kept so older draft code paths don't crash.
+   */
+  templateDefaults: TemplateDefaultValue[]
   generatedAt: string
-  /** Set after successful template persist (FormDefinition id). */
   savedFormId: string | null
-  /** @deprecated Instances are not created by AI save — always null. */
   savedInstanceId: string | null
-  /** @deprecated Instances are not created by AI save — always null. */
   savedFormUrl: string | null
 }
 
@@ -83,6 +110,7 @@ export const CONTRACT_VALUE_SOURCE_LABELS: Record<
   studio: 'Studio',
   system: 'System',
   ourwed_configuration: 'Konfiguracja OurWed',
+  package: 'Pakiet',
 }
 
 export const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {

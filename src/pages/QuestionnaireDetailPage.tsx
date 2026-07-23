@@ -77,7 +77,7 @@ export function QuestionnaireDetailPage() {
     )
   }
 
-  const { instance, formName, formUrl } = data
+  const { instance, formName, formUrl, form } = data
   const timeline = questionnaireService.buildTimeline(instance)
   const showAnswers =
     instance.status === 'submitted' ||
@@ -223,7 +223,10 @@ export function QuestionnaireDetailPage() {
 
         {showAnswers && answers?.answerJson ? (
           <div className={styles.answersShell}>
-            <QuestionnaireAnswersReadOnly answerJson={answers.answerJson} />
+            <QuestionnaireAnswersReadOnly
+              answerJson={answers.answerJson}
+              formSchema={form?.schema ?? null}
+            />
           </div>
         ) : null}
       </PageContainer>

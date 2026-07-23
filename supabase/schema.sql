@@ -747,4 +747,6 @@ alter table public.travel_segments enable row level security;
 -- Prototype retired: template_mappings, generated_documents (old document_templates)
 -- Phase 1 extras: document_templates.is_default, document_template_versions.source_file_name
 --   (see 20260722210000_document_templates_phase1.sql)
+-- AI lifecycle: document_templates.ai_analyzed_at, questionnaire_form_id
+-- AI review: document_templates.meta jsonb (couple/studio/package variable plan)
 -- =============================================================================

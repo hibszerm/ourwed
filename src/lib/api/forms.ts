@@ -563,13 +563,43 @@ export async function getPublicFormByToken(token: string): Promise<{
   const payload = data as {
     instance?: FormInstanceRow
     form?: FormRow
-    packages?: Array<{ id: string; name: string }>
+    packages?: unknown
   }
   if (!payload.instance || !payload.form) return null
+
+  const rawPackages = payload.packages
+  const packages: Array<{ id: string; name: string }> = []
+  let list: unknown = rawPackages
+  if (typeof rawPackages === 'string') {
+    try {
+      list = JSON.parse(rawPackages) as unknown
+    } catch {
+      list = null
+    }
+  }
+  if (Array.isArray(list)) {
+    for (const item of list) {
+      if (!item || typeof item !== 'object') continue
+      const row = item as Record<string, unknown>
+      const id = String(row.id ?? row.value ?? '').trim()
+      const name = String(row.name ?? row.label ?? '').trim()
+      if (id && name) packages.push({ id, name })
+    }
+  }
+
+  if (import.meta.env.DEV) {
+    console.info('[getPublicFormByToken] packages', {
+      packagesLength: packages.length,
+      packageIds: packages.map((p) => p.id),
+      packageNames: packages.map((p) => p.name),
+      rawType: Array.isArray(rawPackages) ? 'array' : typeof rawPackages,
+    })
+  }
+
   return {
     instance: mapInstance(payload.instance),
     form: mapForm(payload.form),
-    packages: Array.isArray(payload.packages) ? payload.packages : [],
+    packages,
   }
 }
 

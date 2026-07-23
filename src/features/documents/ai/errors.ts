@@ -7,16 +7,24 @@ import type { DocumentAiErrorCode, DocumentAiErrorPayload } from './types'
 const FRIENDLY: Record<DocumentAiErrorCode, string> = {
   unauthorized: 'Musisz być zalogowany, aby uruchomić analizę dokumentu.',
   bad_request: 'Nieprawidłowe dane do analizy. Sprawdź plik i spróbuj ponownie.',
-  timeout: 'Analiza trwa zbyt długo. Spróbuj ponownie za chwilę.',
+  provider_timeout: 'Analiza trwa zbyt długo. Spróbuj ponownie za chwilę.',
+  provider_rate_limit:
+    'Zbyt wiele żądań analizy. Poczekaj chwilę i spróbuj ponownie.',
+  provider_unavailable:
+    'Usługa analizy dokumentów jest chwilowo niedostępna. Spróbuj później.',
   invalid_json:
     'Nie udało się zinterpretować odpowiedzi AI. Spróbuj ponownie.',
   validation_failed:
     'Odpowiedź AI nie spełnia wymaganego formatu. Spróbuj ponownie.',
-  gemini_unavailable:
-    'Usługa analizy dokumentów jest chwilowo niedostępna. Spróbuj później.',
-  rate_limit: 'Zbyt wiele żądań analizy. Poczekaj chwilę i spróbuj ponownie.',
   empty_response: 'Analizator nie zwrócił wyniku. Spróbuj ponownie.',
   unknown: 'Nie udało się przeanalizować dokumentu. Spróbuj ponownie.',
+}
+
+/** Map legacy / alternate codes from older Edge deployments. */
+const CODE_ALIASES: Record<string, DocumentAiErrorCode> = {
+  timeout: 'provider_timeout',
+  rate_limit: 'provider_rate_limit',
+  gemini_unavailable: 'provider_unavailable',
 }
 
 export class DocumentAiAnalysisError extends Error {
@@ -41,19 +49,20 @@ export function documentAiErrorFromPayload(
   if (!payload?.code) {
     return new DocumentAiAnalysisError('unknown')
   }
-  const code = (
-    Object.prototype.hasOwnProperty.call(FRIENDLY, payload.code)
-      ? payload.code
-      : 'unknown'
-  ) as DocumentAiErrorCode
-  return new DocumentAiAnalysisError(code, FRIENDLY[code])
+  const raw = payload.code
+  const normalized =
+    CODE_ALIASES[raw] ??
+    (Object.prototype.hasOwnProperty.call(FRIENDLY, raw)
+      ? (raw as DocumentAiErrorCode)
+      : 'unknown')
+  return new DocumentAiAnalysisError(normalized, FRIENDLY[normalized])
 }
 
 export function mapHttpStatusToErrorCode(status: number): DocumentAiErrorCode {
   if (status === 401 || status === 403) return 'unauthorized'
   if (status === 400) return 'bad_request'
-  if (status === 408 || status === 504) return 'timeout'
-  if (status === 429) return 'rate_limit'
-  if (status >= 500) return 'gemini_unavailable'
+  if (status === 408 || status === 504) return 'provider_timeout'
+  if (status === 429) return 'provider_rate_limit'
+  if (status >= 500) return 'provider_unavailable'
   return 'unknown'
 }

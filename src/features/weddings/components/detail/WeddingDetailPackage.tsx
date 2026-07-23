@@ -48,7 +48,11 @@ export function WeddingDetailPackage({
     enabled: Boolean(userId) && !editing,
   })
 
-  const { data: catalogPackages = [] } = useQuery({
+  const {
+    data: catalogPackages,
+    isPending: catalogPackagesPending,
+    isSuccess: catalogPackagesSuccess,
+  } = useQuery({
     queryKey: ['studio-packages', userId, 'active'],
     queryFn: () => packageService.list({ activeOnly: true }),
     enabled: Boolean(userId) && editing,
@@ -64,9 +68,12 @@ export function WeddingDetailPackage({
   const availableExtras = catalogExtras.filter(
     (s) => !extras.some((e) => e.extraServiceId === s.id),
   )
+  const packageChoices =
+    catalogPackagesSuccess && catalogPackages ? catalogPackages : undefined
 
   function applyPackage(packageId: string) {
-    const selected = catalogPackages.find((p) => p.id === packageId)
+    if (!packageChoices) return
+    const selected = packageChoices.find((p) => p.id === packageId)
     if (!selected || !onChangeWedding) return
     onChangePackageBasePrice?.(selected.price)
     const extrasTotal = extras.reduce(
@@ -147,9 +154,14 @@ export function WeddingDetailPackage({
             label="Pakiet"
             value={wedding.packageId ?? ''}
             onChange={(e) => applyPackage(e.target.value)}
+            disabled={catalogPackagesPending || !packageChoices}
           >
-            <option value="">Wybierz pakiet…</option>
-            {catalogPackages.map((p) => (
+            <option value="">
+              {catalogPackagesPending
+                ? 'Ładowanie pakietów…'
+                : 'Wybierz pakiet…'}
+            </option>
+            {packageChoices?.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name} — {formatCurrency(p.price)}
               </option>

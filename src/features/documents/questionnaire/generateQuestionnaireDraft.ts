@@ -1,12 +1,12 @@
 /**
  * Builds a QuestionnaireDraft from classified contract detections.
- * Independent of UI — call after analysis (or when regenerating).
  */
 
 import type { DetectedField } from '@/features/documents/mapping/types'
 import type { AiDocumentAnalysisResult } from '@/features/documents/ai'
 import type { QuestionOption } from '@/types/form'
 import { classifyDetectedFields, countBySource } from './classifyVariables'
+import { buildPackageVariablesFromAi } from './buildPackageVariables'
 import {
   ensurePackageSelectQuestion,
   generateQuestionsFromClassification,
@@ -24,11 +24,11 @@ export function generateQuestionnaireDraft(input: {
   sourceText?: string | null
   templateName?: string | null
   linkedPackageId?: string | null
-  /** Active studio packages — required for package Select (never free-text). */
   packageOptions?: QuestionOption[]
 }): QuestionnaireDraft {
   const packageOptions = input.packageOptions ?? []
   let classification = classifyDetectedFields(input.fields)
+  const packageVariables = buildPackageVariablesFromAi(input.ai)
 
   const pkg = detectSuggestedPackage({
     ai: input.ai,
@@ -42,7 +42,11 @@ export function generateQuestionnaireDraft(input: {
       c.registryKey === 'package.name',
   )
 
-  if (pkg.mentioned && !hasPackageClassified) {
+  // If AI found any package business slots, ensure package selection exists.
+  const needsPackageSelect =
+    pkg.mentioned || hasPackageClassified || packageVariables.length > 0
+
+  if (needsPackageSelect && !hasPackageClassified) {
     const synthetic: ClassifiedVariable = {
       fieldId: 'synthetic-package',
       registryKey: 'package.name',
@@ -59,18 +63,14 @@ export function generateQuestionnaireDraft(input: {
     packageOptions,
   )
 
-  if (pkg.mentioned || hasPackageClassified) {
+  if (needsPackageSelect) {
     questions = ensurePackageSelectQuestion(questions, packageOptions)
   }
 
   questions = applyAskClientDefaults(questions)
 
-  // Re-count after synthetic package injection.
-  const counts = countBySource(classification)
-  if (
-    (pkg.mentioned || hasPackageClassified) &&
-    counts.ourwedConfiguration === 0
-  ) {
+  const counts = countBySource(classification, packageVariables.length)
+  if (needsPackageSelect && counts.ourwedConfiguration === 0) {
     counts.ourwedConfiguration = 1
   }
 
@@ -84,6 +84,8 @@ export function generateQuestionnaireDraft(input: {
     classification,
     counts,
     questions,
+    packageVariables,
+    templateDefaults: [],
     generatedAt: new Date().toISOString(),
     savedFormId: null,
     savedInstanceId: null,

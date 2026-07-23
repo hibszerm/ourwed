@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useParams } from 'react-router-dom'
 import { Button } from '@/components/ui/Button'
 import { QuestionField } from '@/features/forms/QuestionField'
@@ -12,25 +12,22 @@ import {
   submitFormByToken,
 } from '@/lib/api/forms'
 import { formEngine } from '@/lib/forms/formEngine'
-import {
-  CONTRACT_QUESTIONNAIRE_TEMPLATE,
-  DEFAULT_FORM_SETTINGS,
-} from '@/lib/forms/contractQuestionnaireTemplate'
+import { DEFAULT_FORM_SETTINGS } from '@/lib/forms/contractQuestionnaireTemplate'
 import { resolvePublicFormTemplate } from '@/lib/forms/resolvePublicFormTemplate'
-import type { AnswerValue, FormSettings, FormTemplate } from '@/types/form'
-import type { FormInstance } from '@/types/formEngine'
+import type { AnswerValue, FormTemplate } from '@/types/form'
+import type { FormInstance, FormSchema } from '@/types/formEngine'
 import styles from './FormPublicPage.module.css'
 
-type GateState =
-  | { kind: 'loading' }
-  | { kind: 'not_found' }
-  | { kind: 'expired' }
-  | { kind: 'submitted'; settings: FormSettings; template: FormTemplate }
+type LoadState =
+  | { status: 'loading' }
+  | { status: 'not_found' }
+  | { status: 'expired' }
   | {
-      kind: 'ready'
+      status: 'ready'
       instance: FormInstance
-      settings: FormSettings
-      template: FormTemplate
+      schema: FormSchema | null
+      /** Live Studio packages from the public RPC — template depends on this. */
+      packages: Array<{ id: string; name: string }>
     }
 
 function emptyAnswers(template: FormTemplate): Record<string, AnswerValue> {
@@ -43,85 +40,133 @@ function emptyAnswers(template: FormTemplate): Record<string, AnswerValue> {
   return initial
 }
 
+function packageFingerprint(
+  packages: Array<{ id: string; name: string }>,
+): string {
+  return packages.map((p) => `${p.id}:${p.name}`).join('|')
+}
+
 /**
  * Production public questionnaire at /form/:token.
- * Reuses the finished Contract Questionnaire UI from forms/demo — no redesign.
+ *
+ * Packages and schema live in load-state. The resolved template is derived with
+ * useMemo whenever `packages` changes — never frozen from the first paint.
+ *
+ * Deliberately NOT using React Query: auth bootstrap calls queryClient.clear(),
+ * which cancelled/cleared in-flight public-form fetches on first visit and left
+ * an empty Pakiet select until a full browser refresh.
  */
 export function ProductionContractFormPage() {
   const { token = '' } = useParams<{ token: string }>()
-  const [gate, setGate] = useState<GateState>({ kind: 'loading' })
+  const [load, setLoad] = useState<LoadState>({ status: 'loading' })
   const [values, setValues] = useState<Record<string, AnswerValue>>({})
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
+  const renderCountRef = useRef(0)
+  const seededForPackagesRef = useRef<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
 
-    async function load() {
-      setGate({ kind: 'loading' })
+    async function loadForm() {
+      setLoad({ status: 'loading' })
       setSuccess(false)
       setErrors({})
+      setValues({})
+      seededForPackagesRef.current = null
 
       if (!token.trim()) {
-        if (!cancelled) setGate({ kind: 'not_found' })
+        if (!cancelled) setLoad({ status: 'not_found' })
         return
       }
 
       try {
         const publicForm = await getPublicFormByToken(token)
-        const settings = DEFAULT_FORM_SETTINGS
-
         if (cancelled) return
 
         if (!publicForm || publicForm.instance.status === 'revoked') {
-          setGate({ kind: 'not_found' })
+          setLoad({ status: 'not_found' })
           return
         }
 
-        const { instance } = publicForm
-
-        if (instance.status === 'expired') {
-          setGate({ kind: 'expired' })
+        if (publicForm.instance.status === 'expired') {
+          setLoad({ status: 'expired' })
           return
         }
 
-        if (instance.status === 'submitted' || instance.status === 'approved') {
-          setGate({
-            kind: 'submitted',
-            settings,
-            template: resolvePublicFormTemplate(
-              publicForm.form.schema,
-              publicForm.packages,
-            ),
+        if (
+          publicForm.instance.status === 'rejected' ||
+          publicForm.instance.status === 'archived'
+        ) {
+          setLoad({ status: 'not_found' })
+          return
+        }
+
+        if (import.meta.env.DEV) {
+          console.info('[ProductionContractFormPage] fetch settled', {
+            packagesLength: publicForm.packages.length,
+            packageIds: publicForm.packages.map((p) => p.id),
+            packageNames: publicForm.packages.map((p) => p.name),
           })
-          return
         }
 
-        if (instance.status === 'rejected' || instance.status === 'archived') {
-          setGate({ kind: 'not_found' })
-          return
-        }
-
-        const template = resolvePublicFormTemplate(
-          publicForm.form.schema,
-          publicForm.packages,
-        )
-
-        setValues(emptyAnswers(template))
-        setGate({ kind: 'ready', instance, settings, template })
+        setLoad({
+          status: 'ready',
+          instance: publicForm.instance,
+          schema: publicForm.form.schema,
+          packages: publicForm.packages,
+        })
       } catch {
-        if (!cancelled) setGate({ kind: 'not_found' })
+        if (!cancelled) setLoad({ status: 'not_found' })
       }
     }
 
-    void load()
+    void loadForm()
     return () => {
       cancelled = true
     }
   }, [token])
 
-  if (gate.kind === 'loading') {
+  const packages = load.status === 'ready' ? load.packages : undefined
+  const schema = load.status === 'ready' ? load.schema : null
+  const packagesKey =
+    packages !== undefined ? packageFingerprint(packages) : 'loading'
+
+  // Recompute whenever packages (or schema) change — never cache first empty paint.
+  const resolvedTemplate = useMemo(() => {
+    if (packages === undefined) return null
+    return resolvePublicFormTemplate(schema, packages)
+  }, [schema, packages, packagesKey])
+
+  renderCountRef.current += 1
+  if (import.meta.env.DEV) {
+    const pkg = resolvedTemplate?.questions.find(
+      (q) => q.id === 'q-package' || q.fieldKey === 'packageId',
+    )
+    console.info('[ProductionContractFormPage] render', {
+      render: renderCountRef.current,
+      loadStatus: load.status,
+      packagesIsLoading: load.status === 'loading',
+      packagesIsSuccess: load.status === 'ready',
+      packagesLength: packages?.length ?? null,
+      resolvedTemplateIdentity:
+        resolvedTemplate == null
+          ? null
+          : `tpl@${packagesKey || 'nopkg'}`,
+      packageOptionsLength: pkg?.options?.length ?? null,
+    })
+  }
+
+  // Seed / re-seed answers when the package list identity changes (e.g. 0 → N).
+  useEffect(() => {
+    if (!resolvedTemplate || packages === undefined) return
+    if (seededForPackagesRef.current === packagesKey) return
+    setValues(emptyAnswers(resolvedTemplate))
+    seededForPackagesRef.current = packagesKey
+  }, [resolvedTemplate, packages, packagesKey])
+
+  if (load.status === 'loading' || !resolvedTemplate) {
     return (
       <div className={styles.shell}>
         <p className={styles.muted}>Ładowanie formularza…</p>
@@ -129,7 +174,7 @@ export function ProductionContractFormPage() {
     )
   }
 
-  if (gate.kind === 'not_found') {
+  if (load.status === 'not_found') {
     return (
       <div className={styles.shell}>
         <header className={styles.header}>
@@ -143,7 +188,7 @@ export function ProductionContractFormPage() {
     )
   }
 
-  if (gate.kind === 'expired') {
+  if (load.status === 'expired') {
     return (
       <div className={styles.shell}>
         <header className={styles.header}>
@@ -156,31 +201,17 @@ export function ProductionContractFormPage() {
     )
   }
 
-  if (gate.kind === 'submitted' || success) {
-    const settings =
-      gate.kind === 'submitted' || gate.kind === 'ready'
-        ? gate.settings
-        : undefined
-    const template =
-      gate.kind === 'submitted' || gate.kind === 'ready'
-        ? gate.template
-        : CONTRACT_QUESTIONNAIRE_TEMPLATE
+  const { instance } = load
+  const settings = DEFAULT_FORM_SETTINGS
+  const template = resolvedTemplate
 
-    if (settings) {
-      return (
-        <FormSuccessView
-          settings={settings}
-          template={template}
-        />
-      )
-    }
+  if (
+    success ||
+    instance.status === 'submitted' ||
+    instance.status === 'approved'
+  ) {
+    return <FormSuccessView settings={settings} template={template} />
   }
-
-  if (gate.kind !== 'ready') {
-    return null
-  }
-
-  const { settings, template } = gate
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -205,13 +236,7 @@ export function ProductionContractFormPage() {
     } catch (err) {
       const message =
         err instanceof Error ? err.message : 'Nie udało się wysłać formularza.'
-      if (/wygas/i.test(message) || /expired/i.test(message)) {
-        setGate({ kind: 'expired' })
-      } else if (/już wysłan/i.test(message) || /already/i.test(message)) {
-        setGate({ kind: 'submitted', settings, template })
-      } else {
-        setErrors({ _form: message })
-      }
+      setErrors({ _form: message })
     } finally {
       setSubmitting(false)
     }
@@ -255,7 +280,12 @@ export function ProductionContractFormPage() {
               >
                 {section.questions.map((question) => (
                   <div
-                    key={question.id}
+                    key={
+                      question.fieldKey === 'packageId' ||
+                      question.id === 'q-package'
+                        ? `${question.id}-opts-${question.options?.length ?? 0}-${packagesKey}`
+                        : question.id
+                    }
                     className={
                       isFullWidthQuestion(question)
                         ? styles.fullWidth
@@ -264,9 +294,7 @@ export function ProductionContractFormPage() {
                   >
                     <QuestionField
                       question={
-                        isNotes
-                          ? { ...question, label: '' }
-                          : question
+                        isNotes ? { ...question, label: '' } : question
                       }
                       value={values[question.id] ?? ''}
                       error={errors[question.id]}

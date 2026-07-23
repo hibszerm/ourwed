@@ -191,6 +191,7 @@ async function updateTemplate(
   if (input.questionnaireFormId !== undefined) {
     patch.questionnaire_form_id = input.questionnaireFormId
   }
+  if (input.meta !== undefined) patch.meta = input.meta
 
   const { data, error } = await supabase
     .from('document_templates')

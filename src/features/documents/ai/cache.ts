@@ -1,7 +1,7 @@
 import type { AiDocumentAnalysisResult } from './types'
 
 /**
- * Analysis cache — avoid duplicate Gemini calls for the same document text.
+ * Analysis cache — avoid duplicate AI calls for the same document text.
  * In-memory now; swap implementation for Supabase persistence later.
  */
 

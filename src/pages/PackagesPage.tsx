@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { AppLayout } from '@/layouts/AppLayout'
 import { Button } from '@/components/ui/Button'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -14,18 +14,22 @@ import styles from '@/features/studio/StudioCatalog.module.css'
 export function PackagesPage() {
   const queryClient = useQueryClient()
   const userId = useStudioAuthId()
-  const { data: packages = [], isLoading, isError, error, refetch } = useQuery({
-    queryKey: ['studio-packages', userId],
-    queryFn: () => packageService.list(),
-    enabled: Boolean(userId),
-  })
+  const { data: packages, isLoading, isError, error, refetch, isSuccess } =
+    useQuery({
+      queryKey: ['studio-packages', userId],
+      queryFn: () => packageService.list(),
+      enabled: Boolean(userId),
+    })
 
   const [editing, setEditing] = useState<StudioPackage | null>(null)
   const [creating, setCreating] = useState(false)
   const [dragId, setDragId] = useState<string | null>(null)
 
-  const invalidate = () =>
-    queryClient.invalidateQueries({ queryKey: ['studio-packages'] })
+  const invalidate = () => {
+    void queryClient.invalidateQueries({ queryKey: ['studio-packages'] })
+    // Public /form/:token also rebuilds package options from a React Query cache.
+    void queryClient.invalidateQueries({ queryKey: ['public-form'] })
+  }
 
   const createMutation = useMutation({
     mutationFn: packageService.create,
@@ -49,10 +53,10 @@ export function PackagesPage() {
     },
   })
 
-  const ordered = useMemo(
-    () => [...packages].sort((a, b) => a.sortOrder - b.sortOrder),
-    [packages],
-  )
+  const ordered =
+    isSuccess && packages
+      ? [...packages].sort((a, b) => a.sortOrder - b.sortOrder)
+      : undefined
 
   async function handleReorder(fromId: string, toId: string) {
     if (fromId === toId) return
@@ -78,13 +82,13 @@ export function PackagesPage() {
       }
     >
       <PageContainer width="wide">
-        {isLoading ? (
-          <p className={styles.muted}>Ładowanie pakietów…</p>
-        ) : isError ? (
+        {isError ? (
           <EmptyState
             title="Nie udało się załadować pakietów"
             description={error instanceof Error ? error.message : 'Spróbuj ponownie.'}
           />
+        ) : isLoading || !isSuccess || ordered === undefined ? (
+          <p className={styles.muted}>Ładowanie pakietów…</p>
         ) : ordered.length === 0 && !creating ? (
           <EmptyState
             title="Brak pakietów"

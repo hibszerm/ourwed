@@ -134,6 +134,36 @@ export function cloneContractQuestion(
 }
 
 /**
+ * Sole Package selector definition for the whole app.
+ * Clones built-in "Dane do umowy" q-package (id / type / fieldKey).
+ *
+ * Pass packages ONLY at render/inject time (resolvePublicFormTemplate).
+ * Persist and drafts must use [] — never bake Studio package lists into schema.
+ */
+export function getPackageSelectQuestion(
+  packages: { id: string; name: string }[] = [],
+): Question {
+  const cloned = cloneContractQuestion(
+    CONTRACT_QUESTION_IDS.PACKAGE_SELECTOR,
+    packages,
+  )
+  if (cloned) {
+    return {
+      ...cloned,
+      options: packages.map((p) => ({ value: p.id, label: p.name })),
+    }
+  }
+  return {
+    id: CONTRACT_QUESTION_IDS.PACKAGE_SELECTOR,
+    type: 'select',
+    label: 'Pakiet',
+    required: true,
+    fieldKey: 'packageId',
+    options: packages.map((p) => ({ value: p.id, label: p.name })),
+  }
+}
+
+/**
  * Assemble a FormTemplate that is a subset of "Dane do umowy".
  * Question objects are clones of the built-in definitions (same ids / types / fieldKeys).
  * Package select options come from Studio Packages via buildContractQuestionnaireTemplate.

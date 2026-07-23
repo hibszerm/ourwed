@@ -1,10 +1,9 @@
 /**
- * Production Gemini analyzer — calls Supabase Edge Function only.
- * Never talks to Google from the browser; never sees the API key.
+ * Production document analyzer — calls Supabase Edge Function only.
+ * Never talks to the AI provider from the browser; never sees the API key.
  */
 
 import { FunctionsHttpError } from '@supabase/supabase-js'
-import { DOCUMENT_VARIABLES } from '@/features/documents/registry/variableRegistry'
 import { supabase } from '@/lib/supabase'
 import type { DocumentAnalyzer } from './analyzer'
 import { activeDocumentAnalysisCache } from './cache'
@@ -21,7 +20,6 @@ import type {
   DocumentAiErrorPayload,
 } from './types'
 
-/** TEMP diagnostic logging — remove after Phase 5 failure diagnosis. */
 const AI_DEBUG = '[document-ai]'
 
 function aiLog(...args: unknown[]) {
@@ -78,7 +76,7 @@ async function readHttpErrorBody(
   }
 }
 
-export const geminiDocumentAnalyzer: DocumentAnalyzer = {
+export const edgeDocumentAnalyzer: DocumentAnalyzer = {
   id: DOCUMENT_AI_CONFIG.analyzerId,
   version: DOCUMENT_AI_CONFIG.analyzerVersion,
 
@@ -90,17 +88,19 @@ export const geminiDocumentAnalyzer: DocumentAnalyzer = {
         : fullText
 
     const contentHash = await hashDocumentText(text)
+    const cacheKey = `${DOCUMENT_AI_CONFIG.schemaVersion}:${contentHash}`
     aiLog('analyze start', {
       analyzer: this.id,
       edgeFunction: DOCUMENT_AI_CONFIG.edgeFunctionName,
       textLength: text.length,
       contentHash,
+      cacheKey,
       useMockEnv: import.meta.env.VITE_DOCUMENT_AI_USE_MOCK === 'true',
     })
 
-    const cached = await activeDocumentAnalysisCache.get(contentHash)
+    const cached = await activeDocumentAnalysisCache.get(cacheKey)
     if (cached) {
-      aiLog('cache hit — skipping Edge Function', { contentHash })
+      aiLog('cache hit — skipping Edge Function', { cacheKey })
       return {
         ...cached,
         sourceTextLength: text.length,
@@ -109,7 +109,6 @@ export const geminiDocumentAnalyzer: DocumentAnalyzer = {
       }
     }
 
-    const registryKeys = DOCUMENT_VARIABLES.map((v) => v.key)
     const controller = new AbortController()
     const timer = setTimeout(
       () => controller.abort(),
@@ -127,7 +126,6 @@ export const geminiDocumentAnalyzer: DocumentAnalyzer = {
           body: {
             text,
             contentHash,
-            registryKeys,
             schemaVersion: DOCUMENT_AI_CONFIG.schemaVersion,
             promptVersion: DOCUMENT_AI_CONFIG.promptVersion,
             structure: input.structure
@@ -165,7 +163,7 @@ export const geminiDocumentAnalyzer: DocumentAnalyzer = {
         (err instanceof DOMException && err.name === 'AbortError') ||
         (err instanceof Error && /abort/i.test(err.message))
       ) {
-        throw new DocumentAiAnalysisError('timeout')
+        throw new DocumentAiAnalysisError('provider_timeout')
       }
       throw err
     } finally {
@@ -195,7 +193,7 @@ export const geminiDocumentAnalyzer: DocumentAnalyzer = {
         code,
         note:
           status === 404
-            ? 'Function not deployed (NOT_FOUND) — never reached Gemini'
+            ? 'Function not deployed (NOT_FOUND) — never reached AI provider'
             : undefined,
       })
       throw new DocumentAiAnalysisError(code)
@@ -226,7 +224,7 @@ export const geminiDocumentAnalyzer: DocumentAnalyzer = {
       throw new DocumentAiAnalysisError('validation_failed')
     }
 
-    await activeDocumentAnalysisCache.set(contentHash, normalized)
+    await activeDocumentAnalysisCache.set(cacheKey, normalized)
     return normalized
   },
 }

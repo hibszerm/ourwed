@@ -1,7 +1,7 @@
 /**
  * AI Document Analyzer layer.
- * Production: Gemini via Supabase Edge Function (`geminiDocumentAnalyzer`).
- * Offline/dev: `mockGeminiAnalyzer`.
+ * Production: Supabase Edge Function (`edgeDocumentAnalyzer`).
+ * Offline/dev: `mockDocumentAiAnalyzer`.
  */
 
 export type {
@@ -17,13 +17,30 @@ export type {
 export type { DocumentAnalyzer } from './analyzer'
 export { DOCUMENT_AI_CONFIG } from './config'
 export {
-  GEMINI_DOCUMENT_ANALYSIS_MODEL,
-  GEMINI_DOCUMENT_ANALYSIS_PROMPT_VERSION,
-  buildGeminiDocumentAnalysisPrompt,
-} from './GeminiDocumentAnalysisPrompt'
+  DOCUMENT_ANALYSIS_MODEL,
+  DOCUMENT_ANALYSIS_PROMPT_VERSION,
+  buildDocumentAnalysisPrompt,
+} from './DocumentAnalysisPrompt'
 export { aiDocumentAnalysisResultSchema } from './analysisSchema'
-export { mockGeminiAnalyzer } from './mockGeminiAnalyzer'
-export { geminiDocumentAnalyzer } from './geminiDocumentAnalyzer'
+export {
+  expandSemanticExtraction,
+  isSemanticExtractionPayload,
+} from './expandSemanticExtraction'
+export {
+  CANONICAL_VARIABLE_IDS,
+  CANONICAL_DEFAULT_IDS,
+  resolveToRegistryKey,
+  resolvePackageVariableId,
+  resolveTemplateDefaultId,
+  registryPolishLabel,
+  isCoupleFacingRegistryKey,
+  isStudioFacingRegistryKey,
+  isPackageFacingRegistryKey,
+  isTemplateDefaultRegistryKey,
+} from './canonicalVariableIds'
+export { matchLabelToRegistryKey } from './matchVariableLabel'
+export { mockDocumentAiAnalyzer } from './mockDocumentAiAnalyzer'
+export { edgeDocumentAnalyzer } from './edgeDocumentAnalyzer'
 export {
   aiAnalysisToDetectedFields,
   aiFieldToDetectedField,
@@ -40,17 +57,17 @@ export {
 export type { DocumentAnalysisCache } from './cache'
 
 import type { DocumentAnalyzer } from './analyzer'
-import { geminiDocumentAnalyzer } from './geminiDocumentAnalyzer'
-import { mockGeminiAnalyzer } from './mockGeminiAnalyzer'
+import { edgeDocumentAnalyzer } from './edgeDocumentAnalyzer'
+import { mockDocumentAiAnalyzer } from './mockDocumentAiAnalyzer'
 
 /**
- * Active analyzer for Mapping Wizard.
- * UI must not know whether this is mock or Gemini.
+ * Active analyzer for document import / Mapping Wizard.
+ * UI must not know which AI provider runs behind the Edge Function.
  *
  * Override for local UI work without Edge Function:
  * `VITE_DOCUMENT_AI_USE_MOCK=true`
  */
 export const activeAiDocumentAnalyzer: DocumentAnalyzer =
   import.meta.env.VITE_DOCUMENT_AI_USE_MOCK === 'true'
-    ? mockGeminiAnalyzer
-    : geminiDocumentAnalyzer
+    ? mockDocumentAiAnalyzer
+    : edgeDocumentAnalyzer

@@ -2,11 +2,14 @@
  * Reuses exact "Dane do umowy" question definitions (same id / type / fieldKey).
  */
 
-import { getVariableDef } from '@/features/documents/registry/variableRegistry'
-import { informationTitle } from '@/features/documents/mapping/information/informationModel'
+import { registryPolishLabel } from '@/features/documents/ai/canonicalVariableIds'
 import type { DetectedField } from '@/features/documents/mapping/types'
 import type { QuestionOption } from '@/types/form'
-import { getContractQuestionById } from '@/lib/forms/contractQuestionCatalog'
+import {
+  CONTRACT_QUESTION_IDS,
+  getContractQuestionById,
+  getPackageSelectQuestion,
+} from '@/lib/forms/contractQuestionCatalog'
 import type { ClassifiedVariable, DraftQuestion } from './types'
 import { isQuestionnaireSource } from './types'
 import {
@@ -20,27 +23,16 @@ import {
 function enrichTitle(
   catalog: CatalogQuestion | null,
   classified: ClassifiedVariable,
-  field: DetectedField | undefined,
+  _field: DetectedField | undefined,
 ): string {
-  if (catalog) {
-    if (
-      catalog.fieldKey.startsWith('partner1.') ||
-      catalog.fieldKey.startsWith('partner2.')
-    ) {
-      const role = catalog.fieldKey.startsWith('partner1.')
-        ? 'Panna młoda'
-        : 'Pan młody'
-      if (catalog.label.length < 12) {
-        return `${role} — ${catalog.label}`
-      }
-    }
-    return catalog.label
+  if (classified.registryKey) {
+    return registryPolishLabel(classified.registryKey)
   }
-  if (field) return informationTitle(field)
-  const def = classified.registryKey
-    ? getVariableDef(classified.registryKey)
-    : undefined
-  return classified.label || def?.labelPl || 'Pytanie'
+  if (catalog?.fieldKey === 'packageId') {
+    return registryPolishLabel('package.name')
+  }
+  if (catalog?.label) return catalog.label
+  return 'Informacja'
 }
 
 function pushQuestion(
@@ -55,6 +47,38 @@ function pushQuestion(
   }
   usedIds.add(question.id)
   questions.push(question)
+}
+
+function packageOptionsToCatalog(
+  _packageOptions: QuestionOption[],
+): { id: string; name: string }[] {
+  // Never bake Studio package lists into the draft — options stay empty.
+  return []
+}
+
+/** Draft wrapper around the single built-in Package selector (no options). */
+function packageDraftQuestion(
+  packageOptions: QuestionOption[],
+  order: number,
+  contractLabel?: string,
+): DraftQuestion {
+  const pkg = getPackageSelectQuestion(packageOptionsToCatalog(packageOptions))
+  return {
+    id: pkg.id,
+    enabled: true,
+    title: pkg.label,
+    description: pkg.description ?? '',
+    placeholder: pkg.placeholder ?? '',
+    required: pkg.required ?? true,
+    type: 'select',
+    fieldKey: 'packageId',
+    contractLabel: contractLabel ?? pkg.label,
+    registryKey: 'package.name',
+    source: 'ourwed_configuration',
+    reused: true,
+    order,
+    options: [],
+  }
 }
 
 /**
@@ -104,6 +128,15 @@ export function generateQuestionsFromClassification(
       if (!catalog) continue
 
       const isPackage = catalog.fieldKey === 'packageId'
+      if (isPackage) {
+        pushQuestion(
+          questions,
+          usedIds,
+          packageDraftQuestion(packageOptions, order++, item.label),
+        )
+        continue
+      }
+
       pushQuestion(questions, usedIds, {
         // Exact built-in id — never invent q-q-package etc.
         id: catalog.id,
@@ -116,10 +149,9 @@ export function generateQuestionsFromClassification(
         fieldKey: catalog.fieldKey,
         contractLabel: item.label,
         registryKey: item.registryKey,
-        source: isPackage ? 'ourwed_configuration' : item.source,
+        source: item.source,
         reused: true,
         order: order++,
-        options: isPackage ? packageOptions : undefined,
       })
       continue
     }
@@ -131,25 +163,11 @@ export function generateQuestionsFromClassification(
       item.source === 'ourwed_configuration' ||
       /pakiet|package|ofert/.test(`${item.label} ${title}`.toLowerCase())
     ) {
-      const pkg = getContractQuestionById('q-package')
-      if (pkg?.fieldKey) {
-        pushQuestion(questions, usedIds, {
-          id: 'q-package',
-          enabled: true,
-          title: pkg.label,
-          description: pkg.description ?? '',
-          placeholder: '',
-          required: pkg.required ?? true,
-          type: 'select',
-          fieldKey: 'packageId',
-          contractLabel: item.label,
-          registryKey: 'package.name',
-          source: 'ourwed_configuration',
-          reused: true,
-          order: order++,
-          options: packageOptions,
-        })
-      }
+      pushQuestion(
+        questions,
+        usedIds,
+        packageDraftQuestion(packageOptions, order++, item.label),
+      )
       continue
     }
 
@@ -178,45 +196,23 @@ export function ensurePackageSelectQuestion(
   questions: DraftQuestion[],
   packageOptions: QuestionOption[],
 ): DraftQuestion[] {
-  const pkgDef = getContractQuestionById('q-package')
-  if (!pkgDef?.fieldKey) return questions
+  const packageId = CONTRACT_QUESTION_IDS.PACKAGE_SELECTOR
+  const hasPackage = questions.some(
+    (q) => q.id === packageId || q.fieldKey === 'packageId',
+  )
 
-  if (questions.some((q) => q.id === 'q-package' || q.fieldKey === 'packageId')) {
+  if (hasPackage) {
     return questions.map((q) =>
-      q.id === 'q-package' || q.fieldKey === 'packageId'
+      q.id === packageId || q.fieldKey === 'packageId'
         ? {
-            ...q,
-            id: 'q-package',
-            type: 'select' as const,
-            fieldKey: 'packageId',
-            title: pkgDef.label,
-            required: pkgDef.required ?? true,
-            source: 'ourwed_configuration' as const,
-            reused: true,
-            options: packageOptions.length > 0 ? packageOptions : q.options,
-            description: pkgDef.description ?? '',
+            ...packageDraftQuestion(packageOptions, q.order, q.contractLabel),
+            enabled: q.enabled,
           }
         : q,
     )
   }
 
-  const packageQuestion: DraftQuestion = {
-    id: 'q-package',
-    enabled: true,
-    title: pkgDef.label,
-    description: pkgDef.description ?? '',
-    placeholder: '',
-    required: pkgDef.required ?? true,
-    type: 'select',
-    fieldKey: 'packageId',
-    contractLabel: 'Pakiet',
-    registryKey: 'package.name',
-    source: 'ourwed_configuration',
-    reused: true,
-    order: 1,
-    options: packageOptions,
-  }
-
+  const packageQuestion = packageDraftQuestion(packageOptions, 1)
   const reordered = questions.map((q) => ({
     ...q,
     order: q.order >= 1 ? q.order + 1 : q.order,

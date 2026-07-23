@@ -42,7 +42,19 @@ export interface AiDocumentAnalysisResult {
   promptVersion: string
   analyzerId: string
   analyzerVersion: string
+  /** Human contract title from AI (e.g. "Wedding Photography"). */
   documentType: string
+  /** AI package kind hint — mapped by OurWed, never CRM package id. */
+  packageSuggestion?: string | null
+  /**
+   * Package slots detected in the contract (canonical ids, presence only).
+   * Values always come from Studio Packages — never from contract text.
+   */
+  packageVariables?: string[]
+  /**
+   * @deprecated Always empty — business values are not stored on templates.
+   */
+  defaults?: Array<{ id: string; value: string }>
   overallConfidence: number
   fields: DetectedDocumentField[]
   sections: DetectedDocumentSection[]
@@ -60,11 +72,11 @@ export interface AiDocumentAnalysisResult {
 export type DocumentAiErrorCode =
   | 'unauthorized'
   | 'bad_request'
-  | 'timeout'
+  | 'provider_timeout'
+  | 'provider_rate_limit'
+  | 'provider_unavailable'
   | 'invalid_json'
   | 'validation_failed'
-  | 'gemini_unavailable'
-  | 'rate_limit'
   | 'empty_response'
   | 'unknown'
 

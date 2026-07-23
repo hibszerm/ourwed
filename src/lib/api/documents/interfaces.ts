@@ -20,6 +20,7 @@ import type {
   DocumentExportFormat,
   DocumentTemplate,
   DocumentTemplateComponentLink,
+  DocumentTemplateMeta,
   DocumentTemplateStatus,
   DocumentTemplateSummary,
   DocumentTemplateVersion,
@@ -47,6 +48,7 @@ export interface UpdateTemplateInput {
   isDefault?: boolean
   aiAnalyzedAt?: string | null
   questionnaireFormId?: string | null
+  meta?: DocumentTemplateMeta
 }
 
 export interface CreateTemplateVersionInput {

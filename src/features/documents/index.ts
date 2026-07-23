@@ -9,6 +9,7 @@ export {
   getVariableDef,
   variablesForSection,
   isKnownVariableKey,
+  registryDisplayLabel,
 } from './registry/variableRegistry'
 
 export {

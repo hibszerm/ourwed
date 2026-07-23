@@ -60,6 +60,7 @@ export type DocumentVariableSection =
   | 'locations'
   | 'studio'
   | 'additional'
+  | 'template'
 
 export type DocumentVariableValueType =
   | 'string'
@@ -126,6 +127,46 @@ export interface DocumentDraftMoney {
 // Template / component / block models
 // ---------------------------------------------------------------------------
 
+export interface DocumentTemplateMeta {
+  version: 1
+  /** Couple-facing slots confirmed at review (questionnaire). */
+  coupleVariables?: Array<{
+    id: string
+    registryKey: string | null
+    label: string
+    enabled: boolean
+  }>
+  /** Studio settings slots used by this contract (never questionnaire). */
+  studioVariables?: Array<{
+    id: string
+    registryKey: string | null
+    label: string
+    enabled: boolean
+  }>
+  /**
+   * Package slots referenced by the contract (presence only).
+   * Values always come from Studio → Packages at generation time.
+   */
+  packageVariables?: Array<{
+    id: string
+    registryKey: string
+    label: string
+    enabled: boolean
+  }>
+  /**
+   * @deprecated Never store business values on the template.
+   * Kept empty for backward compatibility with older rows.
+   */
+  defaults?: Array<{
+    id: string
+    registryKey: string
+    label: string
+    value: string
+    enabled: boolean
+    valueType?: string
+  }>
+}
+
 export interface DocumentTemplate {
   id: string
   userId: string
@@ -140,6 +181,11 @@ export interface DocumentTemplate {
   aiAnalyzedAt: string | null
   /** Questionnaire FormDefinition created from this contract. */
   questionnaireFormId: string | null
+  /**
+   * Review output: couple / studio / package slots (no business values).
+   * Generation merges: couple + studio settings + selected package + template.
+   */
+  meta: DocumentTemplateMeta
   createdAt: string
   updatedAt: string
 }

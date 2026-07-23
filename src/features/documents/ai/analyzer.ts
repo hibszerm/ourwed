@@ -3,7 +3,7 @@ import type { AiDocumentAnalysisResult } from './types'
 
 /**
  * Pluggable AI document analyzer.
- * UI never knows whether the implementation is mock, Gemini, or another provider.
+ * UI never knows whether the implementation is mock or which AI provider is used.
  */
 export interface DocumentAnalyzer {
   readonly id: string

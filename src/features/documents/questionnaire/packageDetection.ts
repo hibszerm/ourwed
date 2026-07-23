@@ -12,6 +12,27 @@ export function looksLikePackageMention(text: string): boolean {
   return PACKAGE_MENTION_RE.test(text)
 }
 
+function kindFromPackageSuggestion(
+  suggestion: string | null | undefined,
+): { kind: SuggestedPackageKind; label: string } | null {
+  if (!suggestion) return null
+  const s = suggestion.trim().toLowerCase()
+  if (
+    s === 'photography + video' ||
+    s === 'photo + video' ||
+    s === 'foto + video'
+  ) {
+    return { kind: 'photo_video', label: 'Foto + Video' }
+  }
+  if (s === 'video' || s === 'wideo') {
+    return { kind: 'video', label: 'Video' }
+  }
+  if (s === 'photography' || s === 'photo' || s === 'foto') {
+    return { kind: 'photo', label: 'Foto' }
+  }
+  return null
+}
+
 export function detectSuggestedPackage(input: {
   ai?: AiDocumentAnalysisResult | null
   sourceText?: string | null
@@ -21,6 +42,11 @@ export function detectSuggestedPackage(input: {
   label: string | null
   mentioned: boolean
 } {
+  const fromAi = kindFromPackageSuggestion(input.ai?.packageSuggestion)
+  if (fromAi) {
+    return { ...fromAi, mentioned: true }
+  }
+
   const haystack = [
     input.ai?.documentType,
     input.templateName,

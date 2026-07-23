@@ -1,12 +1,16 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 import { DOCUMENT_AI_EDGE_CONFIG } from './config.ts'
-import { buildGeminiDocumentAnalysisPrompt } from './GeminiDocumentAnalysisPrompt.ts'
+import { buildDocumentAnalysisPrompt } from './DocumentAnalysisPrompt.ts'
 import {
-  callGeminiGenerateJson,
-  GeminiProviderError,
-} from './geminiClient.ts'
+  callOpenAiResponsesJson,
+  ProviderError,
+} from './openaiClient.ts'
 import {
-  parseGeminiJsonText,
+  createRequestTimer,
+  estimateTokenCount,
+} from './timing.ts'
+import {
+  parseAnalysisJsonText,
   validateAndNormalizeAnalysis,
   type EdgeErrorCode,
 } from './validate.ts'
@@ -33,36 +37,43 @@ function errorResponse(
   return jsonResponse({ ok: false, error: { code, message } }, status)
 }
 
-/** Preserve original Google error details for diagnostics. */
-function geminiErrorResponse(err: GeminiProviderError): Response {
+function providerErrorResponse(err: ProviderError): Response {
   const p = err.payload
   const httpStatus =
     p.httpStatus != null && p.httpStatus >= 400 && p.httpStatus < 600
       ? p.httpStatus
-      : p.internalCode === 'timeout'
+      : p.code === 'provider_timeout'
         ? 504
-        : p.internalCode === 'gemini_rate_limit'
+        : p.code === 'provider_rate_limit'
           ? 429
-          : 502
+          : p.code === 'unauthorized'
+            ? 401
+            : p.code === 'bad_request'
+              ? 400
+              : 502
 
-  return jsonResponse(
-    {
-      ok: false,
-      error: {
-        provider: p.provider,
-        httpStatus: p.httpStatus,
-        googleCode: p.googleCode,
-        googleMessage: p.googleMessage,
-        internalCode: p.internalCode,
-        model: p.model,
-        requestUrl: p.requestUrl,
-        // Temporary debug: include Google body + exact request when present
-        googleBody: p.googleBody ?? null,
-        debugRequest: p.debugRequest ?? null,
-      },
-    },
-    httpStatus,
-  )
+  return errorResponse(p.code, p.message, httpStatus)
+}
+
+function statusForCode(code: EdgeErrorCode): number {
+  switch (code) {
+    case 'unauthorized':
+      return 401
+    case 'bad_request':
+      return 400
+    case 'provider_rate_limit':
+      return 429
+    case 'provider_timeout':
+      return 504
+    case 'invalid_json':
+    case 'validation_failed':
+      return 422
+    case 'empty_response':
+    case 'provider_unavailable':
+      return 502
+    default:
+      return 502
+  }
 }
 
 const memoryCache = new Map<
@@ -79,6 +90,9 @@ Deno.serve(async (req) => {
     return errorResponse('bad_request', 'Method not allowed', 405)
   }
 
+  const timer = createRequestTimer()
+  timer.log('Request received', { method: req.method })
+
   try {
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
@@ -89,12 +103,13 @@ Deno.serve(async (req) => {
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')
     if (!supabaseUrl || !supabaseAnonKey) {
       return errorResponse(
-        'gemini_unavailable',
+        'provider_unavailable',
         'Server misconfigured',
         500,
       )
     }
 
+    const authStarted = performance.now()
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } },
     })
@@ -102,13 +117,16 @@ Deno.serve(async (req) => {
       data: { user },
       error: authError,
     } = await supabase.auth.getUser()
+    timer.logStepDuration('Auth getUser', authStarted)
     if (authError || !user) {
       return errorResponse('unauthorized', 'Unauthorized', 401)
     }
 
     let body: Record<string, unknown>
     try {
+      const parseBodyStarted = performance.now()
       body = (await req.json()) as Record<string, unknown>
+      timer.logStepDuration('Parse request body', parseBodyStarted)
     } catch {
       return errorResponse('bad_request', 'Invalid JSON body', 400)
     }
@@ -119,16 +137,11 @@ Deno.serve(async (req) => {
         ? rawText.slice(0, DOCUMENT_AI_EDGE_CONFIG.maxTextChars)
         : rawText
 
-    const registryKeys = Array.isArray(body.registryKeys)
-      ? body.registryKeys.filter((k): k is string => typeof k === 'string')
-      : []
-    if (registryKeys.length === 0) {
-      return errorResponse(
-        'bad_request',
-        'registryKeys required',
-        400,
-      )
-    }
+    timer.log('Request validation', {
+      documentTextLength: text.length,
+      estimatedDocumentTokens: estimateTokenCount(text.length),
+      truncated: rawText.length > text.length,
+    })
 
     const contentHash =
       typeof body.contentHash === 'string' && body.contentHash.trim()
@@ -136,8 +149,10 @@ Deno.serve(async (req) => {
         : null
 
     if (contentHash) {
-      const hit = memoryCache.get(contentHash)
+      const cacheKey = `${DOCUMENT_AI_EDGE_CONFIG.schemaVersion}:${contentHash}`
+      const hit = memoryCache.get(cacheKey)
       if (hit) {
+        timer.log('Response returned', { fromCache: true })
         return jsonResponse({
           ok: true,
           fromCache: true,
@@ -163,13 +178,21 @@ Deno.serve(async (req) => {
         ? body.promptVersion
         : DOCUMENT_AI_EDGE_CONFIG.promptVersion
 
-    const prompt = buildGeminiDocumentAnalysisPrompt({
-      registryKeys,
+    const promptStarted = performance.now()
+    const prompt = buildDocumentAnalysisPrompt({
       schemaVersion,
       promptVersion,
     })
+    timer.logStepDuration('Prompt creation', promptStarted, {
+      promptLength: prompt.length,
+      estimatedPromptTokens: estimateTokenCount(prompt.length),
+      documentTextLength: text.length,
+      estimatedDocumentTokens: estimateTokenCount(text.length),
+      estimatedTotalInputTokens: estimateTokenCount(
+        prompt.length + text.length,
+      ),
+    })
 
-    const allowed = new Set(registryKeys)
     const meta = {
       schemaVersion,
       promptVersion,
@@ -177,20 +200,56 @@ Deno.serve(async (req) => {
     }
 
     async function analyzeOnce(): Promise<Record<string, unknown>> {
-      const { text: geminiText } = await callGeminiGenerateJson({
+      const documentText = text.length === 0 ? '(empty document)' : text
+      const openaiResult = await callOpenAiResponsesJson({
         prompt,
-        documentText: text.length === 0 ? '(empty document)' : text,
+        documentText,
+        timer,
       })
+
+      // Temporary debug path: expose exact OpenAI payload (no empty_response).
+      if ('debugEmpty' in openaiResult && openaiResult.debugEmpty) {
+        const err = new Error('openai_debug_empty') as Error & {
+          code: 'openai_debug_empty'
+          debug: unknown
+        }
+        err.code = 'openai_debug_empty'
+        err.debug = openaiResult.responseJson
+        throw err
+      }
+
+      const providerText = openaiResult.text
+
+      const parseStarted = performance.now()
       let parsed: unknown
       try {
-        parsed = parseGeminiJsonText(geminiText)
+        parsed = parseAnalysisJsonText(providerText)
+        timer.logStepDuration('JSON parsing', parseStarted, {
+          responseLength: providerText.length,
+          estimatedResponseTokens: estimateTokenCount(providerText.length),
+        })
       } catch {
+        timer.logStepDuration('JSON parsing (failed)', parseStarted, {
+          responseLength: providerText.length,
+        })
         const err = new Error('invalid_json') as Error & { code: EdgeErrorCode }
         err.code = 'invalid_json'
         throw err
       }
+
+      const validateStarted = performance.now()
       try {
-        const validated = validateAndNormalizeAnalysis(parsed, allowed, meta)
+        const validated = validateAndNormalizeAnalysis(parsed, new Set(), meta)
+        timer.logStepDuration(
+          'Schema validation / normalizeAnalysisPayload',
+          validateStarted,
+          {
+            coupleCount: validated.coupleVariables.length,
+            studioCount: validated.studioVariables.length,
+            packageCount: validated.packageVariables.length,
+            possibleCount: validated.possibleVariables.length,
+          },
+        )
         return {
           ...validated,
           analyzerId: DOCUMENT_AI_EDGE_CONFIG.analyzerId,
@@ -201,6 +260,10 @@ Deno.serve(async (req) => {
           fromCache: false,
         }
       } catch {
+        timer.logStepDuration(
+          'Schema validation / normalizeAnalysisPayload (failed)',
+          validateStarted,
+        )
         const err = new Error('validation_failed') as Error & {
           code: EdgeErrorCode
         }
@@ -213,65 +276,112 @@ Deno.serve(async (req) => {
     try {
       analysis = await analyzeOnce()
     } catch (first) {
-      if (first instanceof GeminiProviderError) {
-        return geminiErrorResponse(first)
+      if (
+        first &&
+        typeof first === 'object' &&
+        (first as { code?: string }).code === 'openai_debug_empty'
+      ) {
+        timer.log('Response returned', {
+          ok: false,
+          code: 'openai_debug_empty',
+        })
+        return jsonResponse({
+          ok: false,
+          debug: (first as { debug: unknown }).debug,
+        })
+      }
+
+      if (first instanceof ProviderError) {
+        timer.log('Response returned', {
+          ok: false,
+          code: first.payload.code,
+        })
+        return providerErrorResponse(first)
       }
 
       const code = (first as { code?: EdgeErrorCode }).code
-      // Retry once for parse/validation failures only
       if (code === 'invalid_json' || code === 'validation_failed') {
+        timer.log('Retry analyzeOnce', { reason: code })
         try {
           analysis = await analyzeOnce()
         } catch (second) {
-          if (second instanceof GeminiProviderError) {
-            return geminiErrorResponse(second)
+          if (
+            second &&
+            typeof second === 'object' &&
+            (second as { code?: string }).code === 'openai_debug_empty'
+          ) {
+            timer.log('Response returned', {
+              ok: false,
+              code: 'openai_debug_empty',
+            })
+            return jsonResponse({
+              ok: false,
+              debug: (second as { debug: unknown }).debug,
+            })
+          }
+          if (second instanceof ProviderError) {
+            timer.log('Response returned', {
+              ok: false,
+              code: second.payload.code,
+            })
+            return providerErrorResponse(second)
           }
           const code2 =
             (second as { code?: EdgeErrorCode }).code ?? 'unknown'
-          const status =
-            code2 === 'rate_limit'
-              ? 429
-              : code2 === 'timeout'
-                ? 504
-                : code2 === 'invalid_json' || code2 === 'validation_failed'
-                  ? 422
-                  : 502
+          timer.log('Response returned', { ok: false, code: code2 })
           return errorResponse(
             code2,
             'Analysis failed after retry',
-            status,
+            statusForCode(code2),
           )
         }
       } else {
-        const status =
-          code === 'rate_limit'
-            ? 429
-            : code === 'timeout'
-              ? 504
-              : code === 'empty_response'
-                ? 502
-                : 502
+        timer.log('Response returned', {
+          ok: false,
+          code: code ?? 'provider_unavailable',
+        })
         return errorResponse(
-          code ?? 'gemini_unavailable',
-          'Gemini request failed',
-          status,
+          code ?? 'provider_unavailable',
+          'Analysis request failed',
+          statusForCode(code ?? 'provider_unavailable'),
         )
       }
     }
 
     if (contentHash) {
-      memoryCache.set(contentHash, {
+      memoryCache.set(`${DOCUMENT_AI_EDGE_CONFIG.schemaVersion}:${contentHash}`, {
         analysis,
         storedAt: Date.now(),
       })
     }
 
+    timer.log('Response returned', {
+      ok: true,
+      fromCache: false,
+      coupleCount: Array.isArray(analysis.coupleVariables)
+        ? analysis.coupleVariables.length
+        : undefined,
+      studioCount: Array.isArray(analysis.studioVariables)
+        ? analysis.studioVariables.length
+        : undefined,
+      packageCount: Array.isArray(analysis.packageVariables)
+        ? analysis.packageVariables.length
+        : undefined,
+      possibleCount: Array.isArray(analysis.possibleVariables)
+        ? analysis.possibleVariables.length
+        : undefined,
+    })
     return jsonResponse({ ok: true, fromCache: false, analysis })
   } catch (e) {
-    if (e instanceof GeminiProviderError) {
-      return geminiErrorResponse(e)
+    if (e instanceof ProviderError) {
+      timer.log('Response returned', {
+        ok: false,
+        code: e.payload.code,
+      })
+      return providerErrorResponse(e)
     }
-    console.error('document-ai-analysis error', e)
+    console.error('[document-ai] unexpected error', e)
+    timer.log('Response returned', { ok: false, code: 'unknown' })
     return errorResponse('unknown', 'Unexpected server error', 500)
   }
 })

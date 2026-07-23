@@ -9,6 +9,8 @@ import { queryClient } from '@/lib/queryClient'
  * - Clears query + mutation caches
  * - Resets module-level studio / in-flight promise caches
  *
+ * Public /form/:token does NOT use React Query (immune to this reset).
+ *
  * Safe to call repeatedly. Must NOT run on TOKEN_REFRESHED when uid is unchanged.
  */
 export function resetTenantClientState(): void {

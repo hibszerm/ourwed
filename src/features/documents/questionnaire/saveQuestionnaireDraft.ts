@@ -1,119 +1,174 @@
 /**
  * Persist QuestionnaireDraft as a reusable Form Engine template (definition only).
  *
- * Flow: Draft → validate → mapper → createFormDefinition
- * Does NOT create form_instances, submissions, or dashboard entries.
+ * Review draft → Questionnaire Builder → FormDefinition
+ * Never rebuilds fields from the original AI response.
+ * Document templates are never bound to a Studio Package.
  */
 
 import { createFormDefinition } from '@/lib/api/forms'
 import { documentTemplateService } from '@/lib/api/documents'
 import { packageService } from '@/lib/api/packageService'
+import type { DocumentTemplateMeta } from '@/types/documents'
 import type { FormDefinition } from '@/types/formEngine'
-import type { QuestionOption } from '@/types/form'
 import { slugify } from '@/types/package'
-import { mapDraftToFormTemplate } from './questionnaireMapper'
+import {
+  buildQuestionnaireFromReviewDraft,
+  selectEnabledQuestionnaireQuestions,
+} from './buildQuestionnaireFromReviewDraft'
 import {
   QuestionnaireValidationError,
   validateQuestionnaireDraft,
 } from './validateQuestionnaireDraft'
-import type { DraftQuestion, QuestionnaireDraft } from './types'
-
-async function resolveLinkedPackageId(
-  draft: QuestionnaireDraft,
-): Promise<string | null> {
-  if (draft.linkedPackageId) return draft.linkedPackageId
-  if (!draft.suggestedPackageLabel) return null
-
-  try {
-    const packages = await packageService.list({ activeOnly: true })
-    const label = draft.suggestedPackageLabel.toLowerCase()
-    const match = packages.find((p) => {
-      const name = p.name.toLowerCase()
-      if (draft.suggestedPackageKind === 'photo_video') {
-        return /foto|photo/.test(name) && /video|wideo/.test(name)
-      }
-      if (draft.suggestedPackageKind === 'photo') {
-        return /foto|photo/.test(name) && !/video|wideo/.test(name)
-      }
-      if (draft.suggestedPackageKind === 'video') {
-        return /video|wideo|film/.test(name) && !/foto|photo/.test(name)
-      }
-      return name.includes(label)
-    })
-    return match?.id ?? null
-  } catch {
-    return null
-  }
-}
-
-async function loadPackageOptions(): Promise<QuestionOption[]> {
-  const packages = await packageService.list({ activeOnly: true })
-  return packages.map((p) => ({ value: p.id, label: p.name }))
-}
-
-function withPackageOptions(
-  questions: DraftQuestion[],
-  options: QuestionOption[],
-): DraftQuestion[] {
-  return questions.map((q) =>
-    q.fieldKey === 'packageId'
-      ? { ...q, type: 'select', options, source: 'ourwed_configuration' }
-      : q,
-  )
-}
+import type { QuestionnaireDraft } from './types'
+import {
+  isCoupleFacingRegistryKey,
+  isStudioFacingRegistryKey,
+} from '@/features/documents/ai/canonicalVariableIds'
 
 export interface SaveQuestionnaireResult {
   form: FormDefinition
   draft: QuestionnaireDraft
 }
 
+function isPackageQuestion(q: {
+  id: string
+  fieldKey: string | null
+  registryKey: string | null
+}): boolean {
+  return (
+    q.fieldKey === 'packageId' ||
+    q.id === 'q-package' ||
+    q.registryKey === 'package.name'
+  )
+}
+
+function isStudioQuestion(q: {
+  source: string
+  registryKey: string | null
+}): boolean {
+  if (q.registryKey && isCoupleFacingRegistryKey(q.registryKey)) return false
+  if (q.source === 'studio' || q.source === 'system') return true
+  if (q.registryKey) return isStudioFacingRegistryKey(q.registryKey)
+  return false
+}
+
 /**
- * Saves the AI draft as a questionnaire template (FormDefinition).
+ * Saves the review draft as a questionnaire template (FormDefinition).
  * Available later via "Generuj ankietę" — no instance is created here.
  */
 export async function saveQuestionnaireDraft(
   draft: QuestionnaireDraft,
   options?: { documentTemplateId?: string },
 ): Promise<SaveQuestionnaireResult> {
-  const packageOptions = await loadPackageOptions()
-  const questions = withPackageOptions(draft.questions, packageOptions)
-  const normalized: QuestionnaireDraft = { ...draft, questions }
+  // Strip any cached package options; force package rows onto q-package.
+  const sanitizedQuestions = draft.questions.map((q) => {
+    if (!isPackageQuestion(q)) return q
+    return {
+      ...q,
+      id: 'q-package',
+      type: 'select' as const,
+      fieldKey: 'packageId',
+      registryKey: 'package.name',
+      source: 'ourwed_configuration' as const,
+      options: [],
+    }
+  })
+  const sanitized: QuestionnaireDraft = {
+    ...draft,
+    linkedPackageId: null,
+    questions: sanitizedQuestions,
+  }
 
-  validateQuestionnaireDraft(normalized, packageOptions)
-
-  const enabled = questions.filter((q) => q.enabled)
-  const template = mapDraftToFormTemplate(
-    normalized,
-    enabled,
-    packageOptions.map((o) => ({ id: o.value, name: o.label })),
+  const forQuestionnaire = selectEnabledQuestionnaireQuestions(
+    sanitized.questions,
   )
-  const linkedPackageId = await resolveLinkedPackageId(normalized)
+  if (forQuestionnaire.length === 0) {
+    throw new QuestionnaireValidationError(
+      'Włącz co najmniej jedno pytanie dla pary, aby zapisać ankietę.',
+    )
+  }
 
+  // Live check only — never bake package options into the template.
+  const studioPackages = await packageService.list({ activeOnly: true })
+  validateQuestionnaireDraft(sanitized, studioPackages.map((p) => ({
+    value: p.id,
+    label: p.name,
+  })))
+
+  const template = buildQuestionnaireFromReviewDraft(sanitized)
+
+  const informationPlan = sanitized.questions.map((q) => ({
+    id: q.id,
+    title: q.title,
+    registryKey: q.registryKey,
+    fieldKey: q.fieldKey,
+    source:
+      q.source === 'studio' || q.source === 'system'
+        ? 'studio'
+        : q.source === 'package'
+          ? 'package'
+          : 'couple',
+    enabled: q.enabled,
+  }))
+
+  const coupleVariables = forQuestionnaire.map((q) => ({
+    id: q.id,
+    registryKey: q.registryKey,
+    label: q.title,
+    enabled: true,
+  }))
+
+  // Studio / package sections are read-only presence — all detected rows count.
+  const studioVariables = sanitized.questions
+    .filter(isStudioQuestion)
+    .map((q) => ({
+      id: q.id,
+      registryKey: q.registryKey,
+      label: q.title,
+      enabled: true,
+    }))
+
+  const packageVariables = (sanitized.packageVariables ?? []).map((d) => ({
+    id: d.id,
+    registryKey: d.registryKey,
+    label: d.label,
+    enabled: true,
+  }))
+
+  const templateMeta: DocumentTemplateMeta = {
+    version: 1,
+    coupleVariables,
+    studioVariables,
+    packageVariables,
+    defaults: [],
+  }
+
+  // Persist definition only — package options always empty (live inject on open).
   const schema = {
     ...template,
-    questions: template.questions.map((q) =>
-      q.id === 'q-package' || q.fieldKey === 'packageId'
-        ? { ...q, options: [] } // always injected at runtime from Studio Packages
-        : q,
-    ),
     meta: {
-      suggestedPackageKind: normalized.suggestedPackageKind,
-      suggestedPackageLabel: normalized.suggestedPackageLabel,
-      linkedPackageId,
-      sourceCounts: normalized.counts,
-      generatedAt: normalized.generatedAt,
+      suggestedPackageKind: sanitized.suggestedPackageKind,
+      suggestedPackageLabel: sanitized.suggestedPackageLabel,
+      linkedPackageId: null,
+      sourceCounts: sanitized.counts,
+      generatedAt: sanitized.generatedAt,
       usesContractCatalogue: true,
       sourceDocumentTemplateId: options?.documentTemplateId ?? null,
+      informationPlan,
+      packageVariables,
+      builtFromReviewDraft: true,
+      oneToOneFromReviewDraft: true,
     },
   }
 
   const form = await createFormDefinition({
-    name: normalized.name.trim(),
-    slug: `contract-${slugify(normalized.suggestedPackageLabel ?? 'questionnaire')}-${Date.now().toString(36)}`,
+    name: sanitized.name.trim(),
+    slug: `contract-${slugify(sanitized.suggestedPackageLabel ?? 'questionnaire')}-${Date.now().toString(36)}`,
     description: [
-      normalized.description,
-      normalized.suggestedPackageLabel
-        ? `Sugerowany pakiet: ${normalized.suggestedPackageLabel}.`
+      sanitized.description,
+      sanitized.suggestedPackageLabel
+        ? `Wykryty rodzaj pakietu: ${sanitized.suggestedPackageLabel}.`
         : null,
     ]
       .filter(Boolean)
@@ -123,25 +178,18 @@ export async function saveQuestionnaireDraft(
     isActive: true,
   })
 
-  if (linkedPackageId) {
-    try {
-      await packageService.linkQuestionnaireForm(linkedPackageId, form.id)
-    } catch {
-      // Migration may be pending — template is still created.
-    }
-  }
-
   if (options?.documentTemplateId) {
     await documentTemplateService.update(options.documentTemplateId, {
       questionnaireFormId: form.id,
       aiAnalyzedAt: new Date().toISOString(),
       status: 'ready',
+      meta: templateMeta,
     })
   }
 
   const savedDraft: QuestionnaireDraft = {
-    ...normalized,
-    linkedPackageId,
+    ...sanitized,
+    linkedPackageId: null,
     savedFormId: form.id,
     savedInstanceId: null,
     savedFormUrl: null,

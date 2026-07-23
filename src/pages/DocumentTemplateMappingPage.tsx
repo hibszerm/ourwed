@@ -57,6 +57,9 @@ export function DocumentTemplateMappingPage() {
           templateName={template.name}
           sourceFileName={template.sourceFileName}
           sourceDocxPath={template.sourceDocxPath}
+          onRenameTemplate={async (name) => {
+            await mutations.rename.mutateAsync({ id: template.id, name })
+          }}
           onUploadFile={async (file) => {
             const sourceBytes = await file.arrayBuffer()
             const version = await mutations.uploadVersion.mutateAsync({
