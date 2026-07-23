@@ -103,7 +103,7 @@ export function TravelSettingsPage() {
       await queryClient.invalidateQueries({ queryKey: ['studio-travel-settings'] })
       await queryClient.invalidateQueries({ queryKey: ['travel-plan'] })
       setSaveError(null)
-      showToast('Ustawienia podróży zostały zapisane.', 'success')
+      showToast('Zapisano rozliczanie dojazdu.', 'success')
     },
     onError: (err) => {
       setSaveError(
@@ -118,8 +118,8 @@ export function TravelSettingsPage() {
 
   return (
     <AppLayout
-      title="Ustawienia podróży"
-      subtitle="Lokalizacja studia — domyślny punkt startowy tras"
+      title="Rozliczanie dojazdu"
+      subtitle="Punkt startowy i zasady rozliczania dojazdów w projektach"
       action={
         <Button
           type="button"
@@ -144,12 +144,12 @@ export function TravelSettingsPage() {
         ) : (
           <Card>
             <CardHeader
-              title="Lokalizacja studia"
-              subtitle="Używana jako początek trasy: Studio → przygotowania → ceremonia → przyjęcie"
+              title="Punkt startowy"
+              subtitle="Adres firmy używany jako początek trasy: baza → przygotowania → ceremonia → przyjęcie"
             />
             <div className={catalogStyles.stack}>
               <Input
-                label="Nazwa studia (opcjonalnie)"
+                label="Nazwa lokalizacji (opcjonalnie)"
                 value={form.studioName}
                 onChange={(e) =>
                   setForm((f) => ({ ...f, studioName: e.target.value }))

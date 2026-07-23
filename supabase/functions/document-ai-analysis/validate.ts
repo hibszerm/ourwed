@@ -76,14 +76,25 @@ const ALLOWED_STUDIO = new Set([
   'studio_website',
   'company_bank_account',
   'bank_account',
+  'company_iban',
+  'iban',
+  'company_swift',
+  'swift',
   'company_regon',
   'company_vat',
   'vat',
+  'company_instagram',
+  'instagram',
+  'company_facebook',
+  'facebook',
   'photographer_name',
   'studio_logo',
   'company_logo',
   'studio_signature',
+  'company_signature',
   'signature',
+  'company_stamp',
+  'stamp',
 ])
 
 const ALLOWED_PACKAGE = new Set([
@@ -156,6 +167,26 @@ function asIdList(value: unknown, allowed: Set<string>): string[] {
   return out
 }
 
+/** Allow-listed IDs + freeform snake_case suggestions for unknown changing fields. */
+function asPossibleIdList(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  const out: string[] = []
+  const seen = new Set<string>()
+  for (const item of value) {
+    if (typeof item !== 'string') continue
+    const id = normalizeId(item)
+    if (!id || seen.has(id)) continue
+    const allowListed = ALLOWED_PRESENCE.has(id) || ALLOWED_PACKAGE.has(id)
+    const freeform = /^[a-z][a-z0-9_]{2,64}$/.test(id)
+    if (!allowListed && !freeform) continue
+    // Package IDs belong in packageVariables, not possibles
+    if (ALLOWED_PACKAGE.has(id)) continue
+    seen.add(id)
+    out.push(id)
+  }
+  return out
+}
+
 /** Accept string[] or legacy [{id,value}] — keep IDs only, drop values. */
 function asPackageIdList(value: unknown): string[] {
   if (!Array.isArray(value)) return []
@@ -215,7 +246,7 @@ export function validateAndNormalizeAnalysis(
   let packageVariables = asPackageIdList(
     obj.packageVariables ?? obj.templateDefaults ?? obj.defaults,
   )
-  let possibleVariables = asIdList(obj.possibleVariables, ALLOWED_PRESENCE)
+  let possibleVariables = asPossibleIdList(obj.possibleVariables)
 
   if (
     coupleVariables.length === 0 &&

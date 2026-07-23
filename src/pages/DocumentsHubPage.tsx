@@ -12,8 +12,8 @@ export function DocumentsHubPage() {
           <header className={styles.studioHero}>
             <h1 className={styles.studioTitle}>Dokumenty</h1>
             <p className={styles.studioSubtitle}>
-              Zarządzaj umowami, które Twoje studio wykorzystuje we współpracy z
-              parami.
+              Zarządzaj umowami, które Twoja firma wykorzystuje we współpracy z
+              klientami.
             </p>
           </header>
 

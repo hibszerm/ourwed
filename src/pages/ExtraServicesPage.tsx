@@ -66,7 +66,7 @@ export function ExtraServicesPage() {
   return (
     <AppLayout
       title="Usługi dodatkowe"
-      subtitle="Katalog Studio — dodatki do pakietów"
+      subtitle="Katalog oferty — dodatki do pakietów"
       action={
         <Button type="button" variant="primary" onClick={() => setCreating(true)}>
           Nowa usługa

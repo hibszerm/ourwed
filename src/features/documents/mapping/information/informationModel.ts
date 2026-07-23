@@ -32,7 +32,7 @@ export const INFO_UX_GROUPS: { id: InfoUxGroupId; label: string }[] = [
   { id: 'wedding', label: 'Ślub' },
   { id: 'people', label: 'Osoby' },
   { id: 'financial', label: 'Finanse' },
-  { id: 'studio', label: 'Studio' },
+  { id: 'studio', label: 'Firma' },
   { id: 'legal', label: 'Zapisy prawne' },
   { id: 'other', label: 'Inne' },
 ]
@@ -40,7 +40,7 @@ export const INFO_UX_GROUPS: { id: InfoUxGroupId; label: string }[] = [
 export const INFO_DATA_SOURCE_LABELS: Record<InfoDataSourceKind, string> = {
   questionnaire: 'Ankieta pary',
   crm: 'CRM',
-  studio: 'Ustawienia studia',
+  studio: 'Dane firmy',
   system: 'System',
   manual: 'Ręcznie',
   unconnected: 'Niepołączone',

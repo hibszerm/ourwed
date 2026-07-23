@@ -254,6 +254,146 @@ export async function createFormDefinition(
   return mapForm(data as FormRow)
 }
 
+export interface UpdateFormDefinitionInput {
+  name?: string
+  description?: string | null
+  isActive?: boolean
+  schema?: FormSchema
+  category?: FormCategory
+}
+
+/** Update studio-owned questionnaire template metadata / schema. */
+export async function updateFormDefinition(
+  id: string,
+  input: UpdateFormDefinitionInput,
+): Promise<FormDefinition> {
+  const userId = await requireStudioUserId()
+  const patch: Record<string, unknown> = {}
+  if (input.name !== undefined) patch.name = input.name.trim()
+  if (input.description !== undefined) {
+    patch.description = input.description?.trim() || null
+  }
+  if (input.isActive !== undefined) patch.is_active = input.isActive
+  if (input.schema !== undefined) patch.schema = input.schema
+  if (input.category !== undefined) patch.category = input.category
+
+  const { data, error } = await supabase
+    .from('forms')
+    .update(patch)
+    .eq('id', id)
+    .eq('user_id', userId)
+    .select('*')
+    .single()
+
+  throwOnError(error)
+  if (!data) throw new Error('Nie udało się zaktualizować szablonu.')
+  return mapForm(data as FormRow)
+}
+
+/** Soft-archive: template stays for history; answers are untouched. */
+export async function archiveFormDefinition(id: string): Promise<FormDefinition> {
+  return updateFormDefinition(id, { isActive: false })
+}
+
+export async function restoreFormDefinition(id: string): Promise<FormDefinition> {
+  return updateFormDefinition(id, { isActive: true })
+}
+
+/** Duplicate a studio-owned template as a new active form. */
+export async function duplicateFormDefinition(id: string): Promise<FormDefinition> {
+  const userId = await requireStudioUserId()
+  const source = await getForm(id)
+  if (!source) throw new Error('Szablon nie istnieje.')
+  if (source.id !== id) throw new Error('Szablon nie istnieje.')
+
+  const { data: owned, error: ownedError } = await supabase
+    .from('forms')
+    .select('id')
+    .eq('id', id)
+    .eq('user_id', userId)
+    .maybeSingle()
+  throwOnError(ownedError)
+  if (!owned) {
+    throw new Error('Można duplikować tylko własne szablony.')
+  }
+
+  const baseSlug = `${source.slug}-kopia`.slice(0, 100)
+  const stamp = Date.now().toString(36)
+  return createFormDefinition({
+    name: `${source.name} (kopia)`,
+    slug: `${baseSlug}-${stamp}`,
+    description: source.description,
+    category: source.category,
+    schema: source.schema,
+    version: 1,
+    isActive: true,
+  })
+}
+
+async function countFormInstances(formId: string): Promise<number> {
+  const { count, error } = await supabase
+    .from('form_instances')
+    .select('id', { count: 'exact', head: true })
+    .eq('form_id', formId)
+  throwOnError(error)
+  return count ?? 0
+}
+
+/**
+ * Hard-delete a studio-owned template.
+ * Never deletes form_instances or form_answers — blocked if any instances exist.
+ */
+export async function deleteFormDefinition(id: string): Promise<void> {
+  const userId = await requireStudioUserId()
+
+  const { data: owned, error: ownedError } = await supabase
+    .from('forms')
+    .select('id')
+    .eq('id', id)
+    .eq('user_id', userId)
+    .maybeSingle()
+  throwOnError(ownedError)
+  if (!owned) throw new Error('Szablon nie istnieje lub nie należy do firmy.')
+
+  const instanceCount = await countFormInstances(id)
+  if (instanceCount > 0) {
+    throw new Error(
+      'Ten szablon ma powiązane ankiety. Zarchiwizuj go zamiast usuwać — odpowiedzi klientów pozostaną bezpieczne.',
+    )
+  }
+
+  await supabase
+    .from('packages')
+    .update({ questionnaire_form_id: null })
+    .eq('user_id', userId)
+    .eq('questionnaire_form_id', id)
+
+  await supabase
+    .from('document_templates')
+    .update({ questionnaire_form_id: null })
+    .eq('user_id', userId)
+    .eq('questionnaire_form_id', id)
+
+  const { error } = await supabase
+    .from('forms')
+    .delete()
+    .eq('id', id)
+    .eq('user_id', userId)
+  throwOnError(error)
+}
+
+export async function bulkArchiveFormDefinitions(ids: string[]): Promise<void> {
+  for (const id of ids) {
+    await archiveFormDefinition(id)
+  }
+}
+
+export async function bulkDeleteFormDefinitions(ids: string[]): Promise<void> {
+  for (const id of ids) {
+    await deleteFormDefinition(id)
+  }
+}
+
 /**
  * Issue a new public form link.
  * Always generates a fresh token — never reuses an old one.

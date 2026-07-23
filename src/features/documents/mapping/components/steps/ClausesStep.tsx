@@ -32,7 +32,7 @@ export function ClausesStep({ embedded = false }: { embedded?: boolean }) {
             Klauzule prawne
           </h2>
           <p className={styles.stepBody}>
-            Dołącz gotowe klauzule do tej wersji umowy. Biblioteka studia jest
+            Dołącz gotowe klauzule do tej wersji umowy. Biblioteka firmy jest
             wspólna — tu tylko wybierasz, co wchodzi w ten kontrakt.
           </p>
         </div>
@@ -70,7 +70,7 @@ export function ClausesStep({ embedded = false }: { embedded?: boolean }) {
                       {clause.body?.trim()
                         ? clause.body.slice(0, 140) +
                           (clause.body.length > 140 ? '…' : '')
-                        : 'Zapis z biblioteki studia'}
+                        : 'Zapis z biblioteki firmy'}
                     </span>
                   </span>
                 </label>

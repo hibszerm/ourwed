@@ -1,6 +1,10 @@
 /**
  * Expand an AI draft for the business review screen.
  * Titles always come from the Variable Registry (Polish).
+ *
+ * Principle: the review draft is the complete AI understanding.
+ * Every discovered couple/studio variable appears enabled.
+ * The user reviews (disable / reorder / rename) — they do not build.
  */
 
 import {
@@ -49,16 +53,17 @@ export function polishQuestionTitle(question: DraftQuestion): string {
   return question.title?.trim() || 'Informacja'
 }
 
-function studioQuestionFromClassification(
+function questionFromClassification(
   item: ClassifiedVariable,
   order: number,
+  source: DraftQuestion['source'],
 ): DraftQuestion {
   const catalog = item.registryKey
     ? findCatalogByRegistryKey(item.registryKey)
     : null
   const title = item.registryKey
     ? registryPolishLabel(item.registryKey)
-    : 'Informacja'
+    : item.label?.trim() || 'Informacja'
 
   if (catalog) {
     return {
@@ -72,7 +77,7 @@ function studioQuestionFromClassification(
       fieldKey: catalog.fieldKey,
       contractLabel: title,
       registryKey: item.registryKey,
-      source: 'studio',
+      source,
       reused: true,
       order,
     }
@@ -90,7 +95,7 @@ function studioQuestionFromClassification(
     fieldKey: null,
     contractLabel: title,
     registryKey: item.registryKey,
-    source: item.source === 'system' ? 'studio' : item.source,
+    source,
     reused: Boolean(def),
     order,
   }
@@ -104,6 +109,7 @@ function enforceSource(question: DraftQuestion): DraftQuestion {
       source: 'ourwed_configuration',
       title: polishQuestionTitle(question),
       contractLabel: polishQuestionTitle(question),
+      enabled: true,
     }
   }
   if (key && isStudioFacingRegistryKey(key)) {
@@ -121,10 +127,16 @@ function enforceSource(question: DraftQuestion): DraftQuestion {
       source: 'couple',
       title: polishQuestionTitle(question),
       contractLabel: polishQuestionTitle(question),
-      enabled: shouldAskClientsByDefault({
-        ...question,
-        source: 'couple',
-      }),
+      // AI-discovered couple fields stay enabled — review is not a builder.
+      enabled: true,
+    }
+  }
+  if (shouldAskClientsByDefault(question)) {
+    return {
+      ...question,
+      title: polishQuestionTitle(question),
+      contractLabel: polishQuestionTitle(question),
+      enabled: true,
     }
   }
   return {
@@ -134,7 +146,10 @@ function enforceSource(question: DraftQuestion): DraftQuestion {
   }
 }
 
-/** Merge studio detections into questions so the review list is complete. */
+/**
+ * Ensure every AI classification with a registry key is present and enabled
+ * in the review draft (couple + studio + package select).
+ */
 export function prepareReviewDraft(draft: QuestionnaireDraft): QuestionnaireDraft {
   const usedRegistry = new Set(
     draft.questions
@@ -152,16 +167,32 @@ export function prepareReviewDraft(draft: QuestionnaireDraft): QuestionnaireDraf
   const extras: DraftQuestion[] = []
 
   for (const item of draft.classification) {
-    if (isQuestionnaireSource(item.source)) continue
-    if (item.source !== 'studio' && item.source !== 'system') continue
     if (!item.registryKey) continue
 
+    const isCoupleOrPackageSelect =
+      isQuestionnaireSource(item.source) ||
+      (item.registryKey && isCoupleFacingRegistryKey(item.registryKey))
+    const isStudio =
+      item.source === 'studio' ||
+      item.source === 'system' ||
+      (item.registryKey && isStudioFacingRegistryKey(item.registryKey))
+
+    if (!isCoupleOrPackageSelect && !isStudio) continue
     if (usedRegistry.has(item.registryKey)) continue
+
     const catalog = findCatalogByRegistryKey(item.registryKey)
     if (catalog?.fieldKey && usedFieldKeys.has(catalog.fieldKey)) continue
     if (catalog && usedIds.has(String(catalog.id))) continue
 
-    const q = studioQuestionFromClassification(item, order++)
+    const source: DraftQuestion['source'] = isStudio
+      ? item.source === 'system'
+        ? 'studio'
+        : 'studio'
+      : item.source === 'ourwed_configuration'
+        ? 'ourwed_configuration'
+        : 'couple'
+
+    const q = questionFromClassification(item, order++, source)
     if (usedIds.has(q.id)) continue
     usedIds.add(q.id)
     usedRegistry.add(item.registryKey)
@@ -170,22 +201,16 @@ export function prepareReviewDraft(draft: QuestionnaireDraft): QuestionnaireDraf
   }
 
   const questions = [...draft.questions, ...extras]
-    .map((q) => {
-      const next = enforceSource(q)
-      const conf = confidenceForQuestion(draft, next)
-      if (isSuggestedConfidence(conf)) {
-        return { ...next, enabled: false }
-      }
-      return next
-    })
+    .map((q) => enforceSource(q))
     .sort((a, b) => a.order - b.order)
 
   return {
     ...draft,
     questions,
+    // Package presence rows stay enabled when AI detected them.
     packageVariables: (draft.packageVariables ?? []).map((d) => ({
       ...d,
-      enabled: isSuggestedConfidence(d.confidence) ? false : d.enabled,
+      enabled: true,
     })),
     templateDefaults: [],
   }

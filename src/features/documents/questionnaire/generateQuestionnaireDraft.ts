@@ -16,6 +16,7 @@ import {
   defaultQuestionnaireName,
   detectSuggestedPackage,
 } from './packageDetection'
+import { prepareReviewDraft } from './prepareReviewDraft'
 import type { ClassifiedVariable, QuestionnaireDraft } from './types'
 
 export function generateQuestionnaireDraft(input: {
@@ -74,7 +75,8 @@ export function generateQuestionnaireDraft(input: {
     counts.ourwedConfiguration = 1
   }
 
-  return {
+  // Finalize: every AI-discovered variable is present and enabled in the review draft.
+  return prepareReviewDraft({
     name: defaultQuestionnaireName(pkg.label),
     description:
       'Ankieta wygenerowana automatycznie z kontraktu. Para uzupełnia tylko informacje, których umowa wymaga od nich.',
@@ -90,5 +92,5 @@ export function generateQuestionnaireDraft(input: {
     savedFormId: null,
     savedInstanceId: null,
     savedFormUrl: null,
-  }
+  })
 }

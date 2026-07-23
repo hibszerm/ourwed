@@ -211,7 +211,7 @@ export async function callOpenAiResponsesJson(input: {
       },
       {
         role: 'user',
-        content: `DOCUMENT:\n${input.documentText}`,
+        content: `Reverse-engineer this wedding-business contract. Reconstruct the full client workflow (inquiry → package → information collection → contract → wedding → delivery). Decide what must change for another wedding, who provides each piece (couple / company / package), and only then map to canonical IDs. Infer clearly required information even when not explicitly filled.\n\nDOCUMENT:\n${input.documentText}`,
       },
     ],
     text: {
@@ -219,8 +219,8 @@ export async function callOpenAiResponsesJson(input: {
         type: 'json_object',
       },
     },
-    /** Keep completion tiny — IDs + primitive values only. */
-    max_output_tokens: 600,
+    /** Enough room for thorough couple + package ID recall. */
+    max_output_tokens: 1200,
   }
 
   const promptLen = input.prompt.length

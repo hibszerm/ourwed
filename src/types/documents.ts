@@ -68,6 +68,7 @@ export type DocumentVariableValueType =
   | 'date'
   | 'boolean'
   | 'money'
+  | 'money'
 
 export type DocumentVariableDataSource =
   | 'wedding'

@@ -52,12 +52,18 @@ export function aiFieldToDetectedField(
   const def = key ? getVariableDef(key) : undefined
   const sample =
     field.value ?? field.extractedValue ?? field.location?.text ?? null
+
+  // AI already mapped to a registry key → treat as discovered for draft generation.
+  // Unmapped suggestions stay needs_configuration (edge / custom Add flow).
   const status =
-    field.status === 'confirmed'
-      ? 'connected'
-      : field.status === 'rejected'
-        ? 'ignored'
-        : 'needs_configuration'
+    field.status === 'rejected'
+      ? 'ignored'
+      : key
+        ? 'connected'
+        : field.status === 'confirmed'
+          ? 'connected'
+          : 'needs_configuration'
+
   const pct = Math.round(field.confidence * 100)
 
   return {
@@ -65,7 +71,7 @@ export function aiFieldToDetectedField(
     label: field.label || def?.labelPl || key || 'Pole',
     rawToken: sample,
     suggestedKey: key,
-    mappedKey: field.status === 'confirmed' ? key : null,
+    mappedKey: key,
     status,
     origin: 'ai',
     confidence: confidenceBand(field.confidence),

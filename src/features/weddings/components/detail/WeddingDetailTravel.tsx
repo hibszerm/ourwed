@@ -197,7 +197,7 @@ export function WeddingDetailTravel({
     <Card padding="md" className={styles.card}>
       <CardHeader
         title="Travel"
-        subtitle="Studio → Przygotowania → Ceremonia → Przyjęcie"
+        subtitle="Firma → Przygotowania → Ceremonia → Przyjęcie"
       />
 
       {showLoading ? (
@@ -223,7 +223,7 @@ export function WeddingDetailTravel({
                 karty ślubu, aby zbudować trasę.
               </p>
               <p className={styles.meta}>
-                Studio → Ustawienia Travel · weryfikacja lokalizacji w nagłówku
+                Firma → Rozliczanie dojazdu · weryfikacja lokalizacji w nagłówku
               </p>
             </div>
           ) : (

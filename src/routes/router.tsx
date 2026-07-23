@@ -1,4 +1,4 @@
-import { createBrowserRouter } from 'react-router-dom'
+import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { ProtectedRoute } from '@/features/auth/ProtectedRoute'
 import { DashboardPage } from '@/pages/DashboardPage'
 import { WeddingsPage } from '@/pages/WeddingsPage'
@@ -7,11 +7,13 @@ import { NewWeddingPage } from '@/pages/NewWeddingPage'
 import { CalendarPage } from '@/pages/CalendarPage'
 import { QuestionnairesPage } from '@/pages/QuestionnairesPage'
 import { QuestionnaireDetailPage } from '@/pages/QuestionnaireDetailPage'
+import { QuestionnaireTemplatesPage } from '@/pages/QuestionnaireTemplatesPage'
 import { PendingWeddingsPage } from '@/pages/PendingWeddingsPage'
 import { PackagesPage } from '@/pages/PackagesPage'
 import { ExtraServicesPage } from '@/pages/ExtraServicesPage'
 import { TravelSettingsPage } from '@/pages/TravelSettingsPage'
 import { SettingsPage } from '@/pages/SettingsPage'
+import { CompanyDetailsPage } from '@/pages/CompanyDetailsPage'
 import { DocumentsHubPage } from '@/pages/DocumentsHubPage'
 import { DocumentTemplatesPage } from '@/pages/DocumentTemplatesPage'
 import { DocumentTemplateNewPage } from '@/pages/DocumentTemplateNewPage'
@@ -26,89 +28,50 @@ import { ResetPasswordPage } from '@/pages/ResetPasswordPage'
 import { CheckEmailPage } from '@/pages/CheckEmailPage'
 
 export const router = createBrowserRouter([
-  {
-    path: '/',
-    element: <LandingPage />,
-  },
-  {
-    path: '/login',
-    element: <LoginPage />,
-  },
-  {
-    path: '/register',
-    element: <RegisterPage />,
-  },
-  {
-    path: '/check-email',
-    element: <CheckEmailPage />,
-  },
-  {
-    path: '/forgot-password',
-    element: <ForgotPasswordPage />,
-  },
-  {
-    path: '/reset-password',
-    element: <ResetPasswordPage />,
-  },
-  {
-    path: '/form/:token',
-    element: <PublicFormTokenPage />,
-  },
+  { path: '/', element: <LandingPage /> },
+  { path: '/login', element: <LoginPage /> },
+  { path: '/register', element: <RegisterPage /> },
+  { path: '/check-email', element: <CheckEmailPage /> },
+  { path: '/forgot-password', element: <ForgotPasswordPage /> },
+  { path: '/reset-password', element: <ResetPasswordPage /> },
+  { path: '/form/:token', element: <PublicFormTokenPage /> },
   {
     element: <ProtectedRoute />,
     children: [
+      { path: '/dashboard', element: <DashboardPage /> },
+      { path: '/sluby', element: <WeddingsPage /> },
+      { path: '/sluby/nowy', element: <NewWeddingPage /> },
+      { path: '/sluby/:id', element: <WeddingDetailPage /> },
+      { path: '/kalendarz', element: <CalendarPage /> },
+      { path: '/ankiety', element: <QuestionnairesPage /> },
       {
-        path: '/dashboard',
-        element: <DashboardPage />,
+        path: '/ankiety/szablony',
+        element: <QuestionnaireTemplatesPage />,
       },
       {
-        path: '/sluby',
-        element: <WeddingsPage />,
+        path: '/ustawienia/szablony-ankiet',
+        element: <Navigate to="/ankiety/szablony" replace />,
       },
+      { path: '/ankiety/:id', element: <QuestionnaireDetailPage /> },
+      { path: '/oczekujace', element: <PendingWeddingsPage /> },
       {
-        path: '/sluby/nowy',
-        element: <NewWeddingPage />,
+        path: '/dokumenty',
+        element: <Navigate to="/ustawienia/dokumenty/szablony" replace />,
       },
-      {
-        path: '/sluby/:id',
-        element: <WeddingDetailPage />,
-      },
-      {
-        path: '/kalendarz',
-        element: <CalendarPage />,
-      },
-      {
-        path: '/ankiety',
-        element: <QuestionnairesPage />,
-      },
-      {
-        path: '/ankiety/:id',
-        element: <QuestionnaireDetailPage />,
-      },
-      {
-        path: '/oczekujace',
-        element: <PendingWeddingsPage />,
-      },
-      {
-        path: '/studio/pakiety',
-        element: <PackagesPage />,
-      },
-      {
-        path: '/studio/uslugi',
-        element: <ExtraServicesPage />,
-      },
+      { path: '/studio/pakiety', element: <PackagesPage /> },
+      { path: '/studio/uslugi', element: <ExtraServicesPage /> },
       {
         path: '/studio/podroz',
-        element: <TravelSettingsPage />,
+        element: <Navigate to="/ustawienia/podroz" replace />,
       },
+      { path: '/ustawienia', element: <SettingsPage /> },
+      { path: '/ustawienia/firma', element: <CompanyDetailsPage /> },
       {
-        path: '/ustawienia',
-        element: <SettingsPage />,
+        path: '/ustawienia/studio',
+        element: <Navigate to="/ustawienia/firma" replace />,
       },
-      {
-        path: '/ustawienia/dokumenty',
-        element: <DocumentsHubPage />,
-      },
+      { path: '/ustawienia/podroz', element: <TravelSettingsPage /> },
+      { path: '/ustawienia/dokumenty', element: <DocumentsHubPage /> },
       {
         path: '/ustawienia/dokumenty/szablony',
         element: <DocumentTemplatesPage />,

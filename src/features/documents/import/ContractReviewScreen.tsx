@@ -229,7 +229,7 @@ export function ContractReviewScreen({
         <p className={styles.eyebrow}>Konfiguracja danych</p>
         <h1 className={styles.title}>Sprawdź przygotowaną ankietę</h1>
         <p className={styles.subtitle}>
-          Włącz pytania dla pary. Dane ze studia i z pakietu wypełnią się
+          Włącz pytania dla pary. Dane z firmy i z pakietu wypełnią się
           automatycznie — para ich nie uzupełnia.
         </p>
       </header>
@@ -258,8 +258,8 @@ export function ContractReviewScreen({
           </div>
         </dl>
         <p className={styles.fieldHint}>
-          To tylko wskazówka z treści umowy. Konkretny pakiet ze Studio → Pakiety
-          para wybierze w ankiecie.
+          To tylko wskazówka z treści umowy. Konkretny pakiet (Firma → Pakiety)
+          klient wybierze w ankiecie.
         </p>
       </section>
 

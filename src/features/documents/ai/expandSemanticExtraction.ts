@@ -96,6 +96,28 @@ function fieldFromCanonicalId(
   }
 }
 
+/** Keep unknown changing concepts as unmapped suggestions (do not drop). */
+function fieldFromUnknownPossible(
+  rawId: string,
+  index: number,
+): DetectedDocumentField {
+  const cleaned = rawId.trim().replace(/_+/g, ' ')
+  const label =
+    cleaned.length > 0
+      ? cleaned.charAt(0).toUpperCase() + cleaned.slice(1)
+      : 'Sugerowane pole'
+
+  return {
+    id: `ai-possible-${index + 1}`,
+    label,
+    registryKey: null,
+    value: null,
+    confidence: 0.45,
+    paragraphIndex: null,
+    status: 'suggested',
+  }
+}
+
 /**
  * Presence-only package IDs from AI (string[]) or legacy templateDefaults
  * (id only — values discarded).
@@ -175,13 +197,19 @@ export function expandSemanticExtraction(
     if (field) fields.push(field)
   })
   possible.forEach((id, i) => {
+    // Registry-mapped possibles are real discoveries — high enough to stay enabled in review.
     const field = fieldFromCanonicalId(
       id,
       confirmed.length + i,
-      0.55,
+      0.88,
       usedRegistry,
     )
-    if (field) fields.push(field)
+    if (field) {
+      fields.push(field)
+      return
+    }
+    // Unknown changing info — preserve for review (registryKey null).
+    fields.push(fieldFromUnknownPossible(id, confirmed.length + i))
   })
 
   const contractName =

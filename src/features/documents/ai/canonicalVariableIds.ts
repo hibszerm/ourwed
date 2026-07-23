@@ -1,6 +1,6 @@
 /**
  * Canonical variable IDs for AI semantic extraction.
- * Package business slots are presence-only — values come from Studio Packages.
+ * Labels live in SystemVariableRegistry — AI returns IDs only.
  */
 
 import {
@@ -13,70 +13,17 @@ import {
   isKnownVariableKey,
   registryDisplayLabel,
 } from '@/features/documents/registry/variableRegistry'
+import { SystemVariableRegistry } from '@/lib/variables/registry'
 
-/** Couple + studio presence IDs → registry key. */
-export const CANONICAL_ID_TO_REGISTRY_KEY: Record<string, string> = {
-  bride_first_name: 'bride.firstName',
-  bride_last_name: 'bride.lastName',
-  bride_phone: 'bride.phone',
-  bride_email: 'bride.email',
-  bride_address: 'bride.address',
-  bride_pesel: 'bride.pesel',
-  pesel: 'bride.pesel',
-
-  groom_first_name: 'groom.firstName',
-  groom_last_name: 'groom.lastName',
-  groom_phone: 'groom.phone',
-  groom_email: 'groom.email',
-  groom_address: 'groom.address',
-  groom_pesel: 'groom.pesel',
-
-  wedding_date: 'wedding.date',
-  ceremony_time: 'wedding.ceremonyTime',
-  couple_names: 'wedding.coupleNames',
-  schedule: 'wedding.schedule',
-  wedding_schedule: 'wedding.schedule',
-
-  ceremony_location: 'location.ceremony',
-  reception_location: 'location.reception',
-  preparation_location: 'location.preparation',
-
-  /** Couple chooses package in questionnaire — not a stored price. */
-  package: 'package.name',
-
-  company_name: 'studio.name',
-  studio_name: 'studio.name',
-  company_owner: 'studio.owner',
-  owner: 'studio.owner',
-  company_tax_id: 'studio.nip',
-  company_nip: 'studio.nip',
-  company_address: 'studio.address',
-  studio_address: 'studio.address',
-  company_email: 'studio.email',
-  studio_email: 'studio.email',
-  company_phone: 'studio.phone',
-  studio_phone: 'studio.phone',
-  company_website: 'studio.website',
-  studio_website: 'studio.website',
-  company_bank_account: 'studio.bankAccount',
-  bank_account: 'studio.bankAccount',
-  company_regon: 'studio.regon',
-  company_vat: 'studio.vat',
-  vat: 'studio.vat',
-  photographer_name: 'studio.photographerName',
-  studio_logo: 'studio.logo',
-  company_logo: 'studio.logo',
-  studio_signature: 'studio.signature',
-  signature: 'studio.signature',
-
-  contract_number: 'additional.contractNumber',
-  contract_city: 'additional.city',
-  additional_notes: 'additional.notes',
-  notes: 'additional.notes',
-}
+/** Couple + company presence IDs → legacy dotted registry key. */
+export const CANONICAL_ID_TO_REGISTRY_KEY: Record<string, string> =
+  SystemVariableRegistry.canonicalToLegacyMap()
 
 export const CANONICAL_VARIABLE_IDS: string[] = [
-  ...new Set(Object.keys(CANONICAL_ID_TO_REGISTRY_KEY)),
+  ...new Set([
+    ...Object.keys(CANONICAL_ID_TO_REGISTRY_KEY),
+    ...SystemVariableRegistry.listForAi().map((v) => v.id),
+  ]),
 ].sort()
 
 /** @deprecated Use PACKAGE_VARIABLE_IDS — kept for import compat. */
@@ -117,6 +64,14 @@ export function resolveToRegistryKey(raw: string): string | null {
     return fromCanonical
   }
 
+  const system = SystemVariableRegistry.get(trimmed)
+  if (system?.legacyKey && !isPackageFacingRegistryKey(system.legacyKey)) {
+    if (system.category === 'package' && system.id !== 'package_name') {
+      return null
+    }
+    return system.legacyKey
+  }
+
   const dotted = trimmed.replace(/_/g, '.')
   if (isKnownVariableKey(dotted)) {
     if (isPackageFacingRegistryKey(dotted)) return null
@@ -146,6 +101,18 @@ export function registryPolishLabel(registryKey: string): string {
 
 export function isCoupleFacingRegistryKey(registryKey: string): boolean {
   if (registryKey === 'package.name') return true
+  const system = SystemVariableRegistry.get(registryKey)
+  if (system) {
+    if (system.id === 'package_name') return true
+    if (
+      system.category === 'company' ||
+      system.category === 'package' ||
+      system.category === 'crm'
+    ) {
+      return false
+    }
+    return system.questionnaireAvailable
+  }
   const def = getVariableDef(registryKey)
   if (!def) return false
   if (def.section === 'studio' || def.section === 'template') return false
@@ -159,15 +126,21 @@ export function isCoupleFacingRegistryKey(registryKey: string): boolean {
 
 export function isStudioFacingRegistryKey(registryKey: string): boolean {
   if (registryKey === 'package.name') return false
+  const system = SystemVariableRegistry.get(registryKey)
+  if (system) return system.category === 'company' || system.source === 'company'
   const def = getVariableDef(registryKey)
   if (!def) return false
   return def.section === 'studio' || def.dataSource === 'studio'
 }
 
-/** Business rules from Studio Packages — never questionnaire, never template values. */
+/** Business rules from company packages — never questionnaire, never template values. */
 export function isPackageFacingRegistryKey(registryKey: string): boolean {
   if (registryKey === 'package.name') return false
-  if (getPackageVariableDef(registryKey)) return true
+  if (getPackageVariableDef(registryKey)) {
+    const system = SystemVariableRegistry.get(registryKey)
+    if (system?.id === 'package_name') return false
+    return true
+  }
   const def = getVariableDef(registryKey)
   if (!def) return false
   return (

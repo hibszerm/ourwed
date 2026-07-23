@@ -85,7 +85,7 @@ export function ReviewStep() {
         </div>
         <p className={styles.stepBody}>
           Potwierdź, czego kontrakt wymaga. Każdą informację możesz połączyć z
-          ankietą, CRM lub ustawieniami studia — albo zostawić niepołączoną.
+          ankietą, CRM lub ustawieniami firmy — albo zostawić niepołączoną.
         </p>
       </div>
 

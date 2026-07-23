@@ -1,12 +1,23 @@
 import { supabase } from '@/lib/supabase'
 import { throwOnError } from '@/lib/supabase/helpers'
 import { assertWeddingOwned } from '@/lib/api/ownership'
+import { VariableResolver } from '@/lib/variables'
 import type {
   CreateDraftInput,
   DocumentDraftService,
   UpdateDraftInput,
 } from '@/lib/api/documents/interfaces'
 import { mapDraft, type DraftRow } from '@/lib/api/documents/mappers'
+
+async function resolveDraftFieldValues(input: {
+  base?: Record<string, string>
+  packageSnapshot?: unknown
+}) {
+  return VariableResolver.resolve({
+    base: input.base,
+    packageSnapshot: input.packageSnapshot,
+  })
+}
 
 export const documentDraftService: DocumentDraftService = {
   async listForWedding(weddingId) {
@@ -30,11 +41,19 @@ export const documentDraftService: DocumentDraftService = {
     if (!data) return null
     const draft = mapDraft(data as DraftRow)
     await assertWeddingOwned(draft.weddingId)
+    draft.fieldValues = await resolveDraftFieldValues({
+      base: draft.fieldValues,
+      packageSnapshot: draft.packageSnapshot,
+    })
     return draft
   },
 
   async create(input: CreateDraftInput) {
     await assertWeddingOwned(input.weddingId)
+    const fieldValues = await resolveDraftFieldValues({
+      base: input.fieldValues ?? {},
+      packageSnapshot: input.packageSnapshot,
+    })
     const { data, error } = await supabase
       .from('wedding_document_drafts')
       .insert({
@@ -42,7 +61,7 @@ export const documentDraftService: DocumentDraftService = {
         template_id: input.templateId,
         template_version_id: input.templateVersionId,
         title: input.title.trim(),
-        field_values: input.fieldValues ?? {},
+        field_values: fieldValues,
         package_snapshot: input.packageSnapshot,
         enabled_clause_ids: input.enabledClauseIds ?? [],
         money: input.money,
@@ -61,7 +80,15 @@ export const documentDraftService: DocumentDraftService = {
 
     const patch: Record<string, unknown> = {}
     if (input.title !== undefined) patch.title = input.title.trim()
-    if (input.fieldValues !== undefined) patch.field_values = input.fieldValues
+    if (input.fieldValues !== undefined || input.packageSnapshot !== undefined) {
+      patch.field_values = await resolveDraftFieldValues({
+        base: input.fieldValues ?? existing.fieldValues,
+        packageSnapshot:
+          input.packageSnapshot !== undefined
+            ? input.packageSnapshot
+            : existing.packageSnapshot,
+      })
+    }
     if (input.packageSnapshot !== undefined) {
       patch.package_snapshot = input.packageSnapshot
     }
@@ -79,7 +106,12 @@ export const documentDraftService: DocumentDraftService = {
       .select('*')
       .single()
     throwOnError(error)
-    return mapDraft(data as DraftRow)
+    const draft = mapDraft(data as DraftRow)
+    draft.fieldValues = await resolveDraftFieldValues({
+      base: draft.fieldValues,
+      packageSnapshot: draft.packageSnapshot,
+    })
+    return draft
   },
 
   async remove(id) {

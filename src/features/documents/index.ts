@@ -12,6 +12,8 @@ export {
   registryDisplayLabel,
 } from './registry/variableRegistry'
 
+export { SystemVariableRegistry } from '@/lib/variables/registry'
+
 export {
   DOCUMENT_COMPONENT_KINDS,
   getComponentKindMeta,

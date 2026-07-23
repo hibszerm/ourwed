@@ -60,7 +60,7 @@ export function AiReport({
             <span>
               Ta umowa wymaga:{' '}
               <strong>{counts.couple}</strong> odpowiedzi od pary,{' '}
-              <strong>{counts.studio}</strong> ze studia,{' '}
+              <strong>{counts.studio}</strong> z firmy,{' '}
               <strong>{counts.system}</strong> systemowych,{' '}
               <strong>{counts.ourwedConfiguration}</strong> z konfiguracji
               OurWed

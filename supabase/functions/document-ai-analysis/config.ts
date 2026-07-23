@@ -16,11 +16,11 @@ function resolveExtractionModel(): string {
 
 export const DOCUMENT_AI_EDGE_CONFIG = {
   model: resolveExtractionModel(),
-  /** v2.4 = package-aware presence IDs (no contract default values). */
-  promptVersion: '2.4.0',
-  schemaVersion: '2.4.0',
+  /** v3.2 = reverse-engineer wedding business workflow; IDs only at the end. */
+  promptVersion: '3.2.0',
+  schemaVersion: '3.2.0',
   analyzerId: 'document-ai',
-  analyzerVersion: '2.4.0',
+  analyzerVersion: '3.2.0',
   maxTextChars: 120_000,
   providerTimeoutMs: 45_000,
 } as const

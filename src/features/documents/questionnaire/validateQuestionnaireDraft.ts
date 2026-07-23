@@ -65,12 +65,12 @@ export function validateQuestionnaireDraft(
       }
       if (q.options && q.options.length > 0) {
         throw new QuestionnaireValidationError(
-          'Pole Pakiet nie może zawierać zapisanych opcji — pakiety ładują się na żywo ze Studio.',
+          'Pole Pakiet nie może zawierać zapisanych opcji — pakiety ładują się na żywo z katalogu firmy.',
         )
       }
       if (studioPackages.length === 0) {
         throw new QuestionnaireValidationError(
-          'Pytanie „Pakiet” wymaga pakietów w ustawieniach studia. Dodaj pakiet lub wyłącz to pytanie.',
+          'Pytanie „Pakiet” wymaga pakietów w katalogu firmy. Dodaj pakiet lub wyłącz to pytanie.',
         )
       }
     }

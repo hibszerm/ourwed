@@ -3,6 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import {
   IconCalendar,
   IconClipboard,
+  IconDocuments,
   IconClose,
   IconDashboard,
   IconInbox,
@@ -18,15 +19,18 @@ const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: IconDashboard, end: true },
   { to: '/sluby', label: 'Śluby', icon: IconWeddings },
   { to: '/kalendarz', label: 'Kalendarz', icon: IconCalendar },
-  { to: '/ankiety', label: 'Ankiety', icon: IconClipboard },
+  { to: '/dokumenty', label: 'Dokumenty', icon: IconDocuments },
   { to: '/oczekujace', label: 'Oczekujące', icon: IconInbox },
 ]
 
-const studioItems = [
+const questionnaireItems = [
+  { to: '/ankiety', label: 'Ankiety', end: true },
+  { to: '/ankiety/szablony', label: 'Szablony ankiet', end: false },
+]
+
+const companyItems = [
   { to: '/studio/pakiety', label: 'Pakiety' },
   { to: '/studio/uslugi', label: 'Usługi dodatkowe' },
-  { to: '/studio/podroz', label: 'Ustawienia podróży' },
-  { to: '/ustawienia/dokumenty/szablony', label: 'Szablony dokumentów' },
 ]
 
 interface SidebarProps {
@@ -103,8 +107,26 @@ export function Sidebar({ open = false, onClose, onNavigate }: SidebarProps) {
         ))}
 
         <div className={catalogStyles.navGroup}>
-          <p className={catalogStyles.navGroupLabel}>Studio</p>
-          {studioItems.map(({ to, label }) => (
+          <p className={styles.studioGroupLabel}>Ankiety</p>
+          {questionnaireItems.map(({ to, label, end }) => (
+            <NavLink
+              key={to}
+              to={to}
+              end={end}
+              onClick={onNavigate}
+              className={({ isActive }) =>
+                `${styles.navItem} ${isActive ? styles.active : ''}`
+              }
+            >
+              <IconClipboard className={styles.navIcon} />
+              <span>{label}</span>
+            </NavLink>
+          ))}
+        </div>
+
+        <div className={catalogStyles.navGroup}>
+          <p className={styles.studioGroupLabel}>Firma</p>
+          {companyItems.map(({ to, label }) => (
             <NavLink
               key={to}
               to={to}

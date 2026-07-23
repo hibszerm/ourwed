@@ -8,6 +8,7 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
 import { GenerateQuestionnaireModal } from '@/features/questionnaires/GenerateQuestionnaireModal'
+import { QuestionnaireModuleNav } from '@/features/questionnaires/QuestionnaireModuleNav'
 import {
   matchesQuestionnaireSearch,
   QUESTIONNAIRE_STATUS_FILTERS,
@@ -100,6 +101,7 @@ export function QuestionnairesPage() {
       }
     >
       <PageContainer width="full">
+        <QuestionnaireModuleNav />
         {!isLoading && !isError && data.length > 0 ? (
           <div className={styles.toolbar}>
             <input

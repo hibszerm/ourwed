@@ -40,7 +40,7 @@ export function NotesSection({
         id: `temp-${crypto.randomUUID()}`,
         content: '',
         createdAt: new Date().toISOString(),
-        author: 'Studio',
+        author: 'Firma',
         pinned: false,
       },
     ])

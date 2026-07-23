@@ -14,7 +14,7 @@ export function RegisterPage() {
     <AuthShell
       wide
       title="Utwórz konto"
-      subtitle="Załóż konto studia i prowadź całą firmę ślubną w jednym miejscu."
+      subtitle="Załóż konto firmy i prowadź całą branżę ślubną w jednym miejscu."
       footer={
         <>
           Masz już konto? <Link to="/login">Zaloguj się</Link>

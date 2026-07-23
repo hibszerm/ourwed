@@ -50,8 +50,8 @@ export function buildTravelFlow(plan: TravelPlan): TravelFlow {
   ) {
     stops.push({
       key: 'studio',
-      title: 'Studio',
-      address: studio.formattedAddress || studio.studioName || 'Studio',
+      title: 'Firma',
+      address: studio.formattedAddress || studio.studioName || 'Firma',
       placeId: studio.placeId,
       latitude: studio.latitude,
       longitude: studio.longitude,

@@ -16,7 +16,6 @@ import {
 import { activeDocumentStructureExtractor } from '@/features/documents/mapping/extraction'
 import {
   generateQuestionnaireDraft,
-  prepareReviewDraft,
   saveQuestionnaireDraft,
   QuestionnaireValidationError,
   type QuestionnaireDraft,
@@ -262,14 +261,12 @@ export function SimpleContractImportFlow(props: ExistingProps | CreateProps) {
       })
       const fields = aiAnalysisToDetectedFields(aiAnalysis, structure)
 
-      const next = prepareReviewDraft(
-        generateQuestionnaireDraft({
-          fields,
-          ai: aiAnalysis,
-          sourceText: structure.plainText,
-          templateName: nameRef.current.trim() || initialName,
-        }),
-      )
+      const next = generateQuestionnaireDraft({
+        fields,
+        ai: aiAnalysis,
+        sourceText: structure.plainText,
+        templateName: nameRef.current.trim() || initialName,
+      })
       next.linkedPackageId = null
 
       setDraft(next)

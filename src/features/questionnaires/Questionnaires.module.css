@@ -5,6 +5,47 @@
   margin-bottom: var(--space-4);
 }
 
+.moduleNav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: var(--space-5);
+  padding: 4px;
+  border-radius: var(--radius-md);
+  background: var(--color-bg-subtle);
+  width: fit-content;
+  max-width: 100%;
+}
+
+.moduleNavLink {
+  appearance: none;
+  border: none;
+  background: transparent;
+  text-decoration: none;
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 550;
+  color: var(--color-text-secondary);
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.moduleNavLink:hover {
+  color: var(--color-text-primary);
+}
+
+.moduleNavLinkActive {
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  box-shadow: var(--shadow-xs);
+}
+
 .searchInput {
   width: 100%;
   max-width: min(420px, 100%);

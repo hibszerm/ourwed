@@ -86,7 +86,7 @@ function QuestionPreviewRow({
             <>
               <p className={styles.helperText}>
                 Podgląd dla pary — ten sam selektor i te same pakiety co w
-                ankiecie publicznej (Studio → Pakiety):
+                ankiecie publicznej (Firma → Pakiety):
               </p>
               <QuestionField
                 question={{
@@ -151,7 +151,7 @@ function QuestionPreviewRow({
               <p className={styles.helperText}>
                 Podgląd dla pary: <strong>{typeLabel}</strong>
                 {question.type === 'select' && options.length
-                  ? ` · ${options.length} opcji z konfiguracji studia`
+                  ? ` · ${options.length} opcji z katalogu firmy`
                   : ''}
               </p>
             </>
@@ -237,7 +237,7 @@ export function QuestionnaireStep() {
   if (packagesPending || (!packagesSuccess && !packagesError)) {
     return (
       <section className={styles.stepPanel}>
-        <p className={styles.helperText}>Ładowanie pakietów ze Studio…</p>
+        <p className={styles.helperText}>Ładowanie pakietów z katalogu firmy…</p>
       </section>
     )
   }
@@ -246,7 +246,7 @@ export function QuestionnaireStep() {
     return (
       <section className={styles.stepPanel}>
         <p className={styles.helperText}>
-          Nie udało się załadować pakietów ze Studio → Pakiety.
+          Nie udało się załadować pakietów (Firma → Pakiety).
         </p>
         <Button
           type="button"
@@ -286,7 +286,7 @@ export function QuestionnaireStep() {
         <p>
           Ta umowa wymaga:{' '}
           <strong>{draft.counts.couple}</strong> odpowiedzi od pary,{' '}
-          <strong>{draft.counts.studio}</strong> wartości ze studia,{' '}
+          <strong>{draft.counts.studio}</strong> wartości z firmy,{' '}
           <strong>{draft.counts.system}</strong> wartości systemowych,{' '}
           <strong>{draft.counts.ourwedConfiguration}</strong> z konfiguracji
           OurWed.
@@ -298,7 +298,7 @@ export function QuestionnaireStep() {
             : ''}
           .
           {livePackageOptions.length > 0
-            ? ` Pakiet: ${livePackageOptions.length} aktywnych ze Studio → Pakiety.`
+            ? ` Pakiet: ${livePackageOptions.length} aktywnych (Firma → Pakiety).`
             : ''}
         </p>
       </div>

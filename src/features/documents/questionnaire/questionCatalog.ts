@@ -1,6 +1,6 @@
 /**
  * AI matching layer over the built-in "Dane do umowy" catalogue.
- * Never invents package / date / email / name / address definitions.
+ * Labels / question types for system variables come from SystemVariableRegistry.
  */
 
 import type { QuestionType } from '@/types/form'
@@ -13,6 +13,8 @@ import {
   resolveContractQuestionId,
   type ContractQuestionId,
 } from '@/lib/forms/contractQuestionCatalog'
+import { SystemVariableRegistry } from '@/lib/variables/registry'
+import type { SystemQuestionType } from '@/lib/variables/registry'
 
 export interface CatalogQuestion {
   id: ContractQuestionId | string
@@ -23,6 +25,40 @@ export interface CatalogQuestion {
   placeholder?: string
   fieldKey: string
   registryKeys: string[]
+}
+
+function mapSystemQuestionType(type?: SystemQuestionType): QuestionType {
+  switch (type) {
+    case 'email':
+      return 'email'
+    case 'phone':
+      return 'phone'
+    case 'date':
+      return 'date'
+    case 'select':
+      return 'select'
+    case 'location':
+      return 'location'
+    case 'textarea':
+      return 'textarea'
+    default:
+      return 'text'
+  }
+}
+
+/** Registry-backed questionnaire metadata — no duplicated label maps. */
+export function questionnaireMetaFromRegistry(registryKey: string): {
+  label: string
+  type: QuestionType
+  description?: string
+} | null {
+  const def = SystemVariableRegistry.get(registryKey)
+  if (!def?.questionnaireAvailable) return null
+  return {
+    label: def.label,
+    type: mapSystemQuestionType(def.questionType),
+    description: def.description,
+  }
 }
 
 /** @deprecated Prefer REGISTRY_KEY_TO_CONTRACT_QUESTION_ID — kept for callers. */
@@ -133,6 +169,10 @@ export function inferQuestionType(
   registryKey: string | null,
   label: string,
 ): QuestionType {
+  if (registryKey) {
+    const fromRegistry = questionnaireMetaFromRegistry(registryKey)
+    if (fromRegistry) return fromRegistry.type
+  }
   const matched = matchContractQuestionId({ registryKey, label })
   if (matched) {
     const q = getContractQuestionById(matched)

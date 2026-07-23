@@ -25,7 +25,7 @@ export const WIZARD_COMPONENT_CATALOG: {
   {
     kind: 'header',
     title: 'Nagłówek umowy',
-    description: 'Nazwa studia, tytuł i numer dokumentu.',
+    description: 'Nazwa firmy, tytuł i numer dokumentu.',
   },
   {
     kind: 'parties',
@@ -182,7 +182,7 @@ export function buildDefaultBlocksForKind(
           sortOrder: 0,
           payload: {
             parties: [
-              { role: 'studio', label: 'Studio' },
+              { role: 'studio', label: 'Firma' },
               { role: 'bride', label: 'Panna młoda', nameVariableKey: 'bride.firstName' },
               { role: 'groom', label: 'Pan młody', nameVariableKey: 'groom.firstName' },
             ],

@@ -18,7 +18,7 @@ export function LoginPage() {
   return (
     <AuthShell
       title="Zaloguj się"
-      subtitle="Wejdź do studia, aby zarządzać ślubami, ankietami i finansami."
+      subtitle="Wejdź do konta, aby zarządzać projektami, ankietami i finansami."
       footer={
         <>
           Nie masz konta? <Link to="/register">Utwórz konto</Link>

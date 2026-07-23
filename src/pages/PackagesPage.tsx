@@ -73,7 +73,7 @@ export function PackagesPage() {
   return (
     <AppLayout
       title="Pakiety"
-      subtitle="Katalog Studio — źródło cen i zawartości pakietów"
+      subtitle="Katalog oferty — źródło cen i zawartości pakietów"
       action={
         <Button type="button" variant="primary" onClick={() => setCreating(true)}>
           Nowy pakiet

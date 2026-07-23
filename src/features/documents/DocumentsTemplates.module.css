@@ -1393,6 +1393,62 @@
   line-height: 1.5;
 }
 
+.settingsSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin-bottom: var(--space-10);
+}
+
+.settingsSectionTitle {
+  margin: 0;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-tertiary);
+}
+
+.hubCardSoon {
+  margin: 0;
+  font-size: var(--text-xs);
+  font-weight: 550;
+  color: var(--color-text-tertiary);
+}
+
+.hubCard[aria-disabled] {
+  opacity: 0.72;
+  pointer-events: none;
+}
+
+.settingsSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin-bottom: var(--space-10);
+}
+
+.settingsSectionTitle {
+  margin: 0;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-tertiary);
+}
+
+.hubCardSoon {
+  margin: 0;
+  font-size: var(--text-xs);
+  font-weight: 550;
+  color: var(--color-text-tertiary);
+}
+
+.hubCard[aria-disabled] {
+  opacity: 0.72;
+  pointer-events: none;
+}
+
 .drawerRows {
   display: flex;
   flex-direction: column;
