@@ -53,10 +53,9 @@ export function PackagesPage() {
     },
   })
 
-  const ordered =
-    isSuccess && packages
-      ? [...packages].sort((a, b) => a.sortOrder - b.sortOrder)
-      : undefined
+  const ordered = [...(packages ?? [])].sort(
+    (a, b) => a.sortOrder - b.sortOrder,
+  )
 
   async function handleReorder(fromId: string, toId: string) {
     if (fromId === toId) return
@@ -87,7 +86,7 @@ export function PackagesPage() {
             title="Nie udało się załadować pakietów"
             description={error instanceof Error ? error.message : 'Spróbuj ponownie.'}
           />
-        ) : isLoading || !isSuccess || ordered === undefined ? (
+        ) : isLoading || !isSuccess ? (
           <p className={styles.muted}>Ładowanie pakietów…</p>
         ) : ordered.length === 0 && !creating ? (
           <EmptyState

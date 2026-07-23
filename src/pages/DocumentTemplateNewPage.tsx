@@ -31,7 +31,7 @@ export function DocumentTemplateNewPage() {
   if (!pending) {
     return (
       <AppLayout>
-        <PageContainer width="wide" />
+        <PageContainer width="wide">{null}</PageContainer>
       </AppLayout>
     )
   }
