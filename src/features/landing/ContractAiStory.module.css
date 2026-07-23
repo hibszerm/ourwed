@@ -1,6 +1,6 @@
 .pinSection {
   position: relative;
-  height: 320vh;
+  height: 640vh;
   background: var(--color-bg);
 }
 
@@ -414,6 +414,18 @@
   border-bottom: none;
 }
 
+.qLabel {
+  flex: 1;
+  min-width: 0;
+}
+
+.qAnswer {
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--color-text-primary);
+}
+
 .checkbox {
   width: 22px;
   height: 22px;
@@ -437,6 +449,11 @@
   background: var(--color-text-primary);
   color: #fff;
   border-radius: 6px;
+}
+
+.checkboxEmpty {
+  width: 100%;
+  height: 100%;
 }
 
 /* ── CRM ─────────────────────────────────────────────── */
@@ -680,33 +697,290 @@
   transform: scale(0.985);
 }
 
-/* ── Mobile ──────────────────────────────────────────── */
+/* ── Mobile: dedicated scroll story ──────────────────── */
 
-.mobileStack {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
+.mobilePin {
+  position: relative;
+  height: 620vh;
+  background: var(--color-bg);
 }
 
-.mobileBeat {
+.mobileSticky {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  overflow: hidden;
+}
+
+.mobileStickyInner {
+  width: 100%;
+  max-width: 440px;
+  margin: 0 auto;
+  padding: calc(12px + var(--safe-top)) 20px calc(16px + var(--safe-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  flex: 1;
+  box-sizing: border-box;
+}
+
+.mobilePin .intro {
+  flex-shrink: 0;
+  max-width: none;
+}
+
+.mobilePin .title {
+  font-size: clamp(1.55rem, 6.5vw, 1.85rem);
+  margin-bottom: 6px;
+}
+
+.mobilePin .subtitle {
+  font-size: 0.92rem;
+  line-height: 1.45;
+  max-width: 28em;
+  margin-inline: auto;
+}
+
+.mobileStage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
   width: 100%;
 }
 
+.mobileLayer {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  will-change: transform, opacity;
+}
+
 .mobileCard {
+  width: 100%;
   background: var(--color-surface);
   border: 1px solid var(--color-border-strong);
-  border-radius: 18px;
-  box-shadow: var(--shadow-md);
-  padding: var(--space-5);
+  border-radius: 20px;
+  box-shadow: var(--shadow-lg);
+  padding: 22px 20px;
 }
 
 .mobileCard .primaryBtn {
   width: 100%;
-  margin-top: var(--space-4);
+  margin-top: 18px;
+  min-height: 48px;
 }
 
-.mobileCard .flowGrid {
-  margin-top: var(--space-3);
+.mobileCardTitle {
+  margin: 0 0 14px;
+  font-size: 1.25rem;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+  color: var(--color-text-primary);
+}
+
+.mobileCard .kicker {
+  margin-bottom: 6px;
+}
+
+.docLinesCompact {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+  padding: 14px;
+  border-radius: 12px;
+  background: var(--color-bg-subtle);
+}
+
+.docLinesCompact i {
+  display: block;
+  height: 7px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--color-text-primary) 8%, transparent);
+}
+
+.mobileChipGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.mobileQList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.mobileQList li {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 14px;
+  font-weight: 550;
+  letter-spacing: -0.015em;
+  color: var(--color-text-primary);
+}
+
+.mobileQList li:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.mobileQCopy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.mobileQCopy em {
+  font-style: normal;
+  font-size: 13px;
+  color: var(--color-text-tertiary);
+  font-weight: 500;
+}
+
+.mobileQCopy strong {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--color-text-primary);
+}
+
+.mobileCrmStats {
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 14px;
+  border-top: 1px solid var(--color-border);
+}
+
+.mobileCrmStats span {
+  display: block;
+  font-size: 10px;
+  font-weight: 550;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-text-tertiary);
+  margin-bottom: 2px;
+}
+
+.mobileCrmStats strong {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.mobileGenHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.mobileGenHead .mobileCardTitle {
+  margin-bottom: 0;
+}
+
+.mobileFillStatic {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.mobileFillStatic:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.mobileFillStatic code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+}
+
+.mobileFillStatic strong {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--color-text-primary);
+}
+
+.mobileFinale {
+  text-align: center;
+  padding: 24px 12px;
+}
+
+.mobileFinale p {
+  margin: 0;
+  font-size: clamp(1.65rem, 7vw, 2rem);
+  font-weight: 650;
+  letter-spacing: -0.04em;
+  line-height: 1.15;
+  color: var(--color-text-primary);
+}
+
+.mobileDots {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 7px;
+  flex-shrink: 0;
+  padding-top: 4px;
+}
+
+.mobileDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--color-border-strong);
+  transition:
+    background 180ms ease-out,
+    transform 180ms ease-out,
+    width 180ms ease-out;
+}
+
+.mobileDot[data-done='true'] {
+  background: color-mix(in srgb, var(--color-text-primary) 35%, transparent);
+}
+
+.mobileDot[data-active='true'] {
+  width: 18px;
+  background: var(--color-text-primary);
+}
+
+.mobileReduced {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.mobileSection {
+  padding: var(--space-16) 0 var(--space-12);
+  background: var(--color-bg);
+}
+
+.innerMobile {
+  width: 100%;
+  max-width: 440px;
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
 }
 
 .mobileSection .title {
@@ -725,9 +999,14 @@
 
 @media (prefers-reduced-motion: reduce) {
   .spin,
-  .railDot {
+  .railDot,
+  .mobileDot {
     animation: none;
     transition: none;
+  }
+
+  .mobileLayer {
+    will-change: auto;
   }
 }
 
