@@ -73,7 +73,7 @@ export function studioPackageToLegacyPackage(pkg: StudioPackage): Package {
     id: pkg.id,
     name: pkg.name,
     price: pkg.price,
-    color: pkg.color ?? '#7c5cbf',
+    color: pkg.color ?? '#0a0a0a',
     depositAmount: pkg.depositAmount,
     currency: pkg.currency,
     deliverables: pkg.items.map((item) => ({

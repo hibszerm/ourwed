@@ -60,7 +60,7 @@ export function JourneyChapter({
   )
 }
 
-/** Inquiry → accept into CRM */
+/** Inquiry → accept into workflow */
 export function InquiryVignette() {
   const reduce = useReducedMotion()
   return (
@@ -70,17 +70,17 @@ export function InquiryVignette() {
         animate={reduce ? undefined : { y: [0, -4, 0] }}
         transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
       >
-        <p className={styles.panelKicker}>Nowe zgłoszenie</p>
+        <p className={styles.panelKicker}>Nowe zapytanie</p>
         <h3 className={styles.panelTitle}>Julia &amp; Tomasz</h3>
-        <p className={styles.panelMeta}>Ślub · 12.09.2027 · Kraków</p>
+        <p className={styles.panelMeta}>12.09.2027 · Kraków</p>
         <dl className={styles.metaList}>
           <div>
             <dt>Pakiet</dt>
-            <dd>Foto + Film</dd>
+            <dd>Premium</dd>
           </div>
           <div>
             <dt>Źródło</dt>
-            <dd>Ankieta umowna</dd>
+            <dd>Formularz</dd>
           </div>
         </dl>
         <div className={styles.actionRow}>
@@ -103,11 +103,11 @@ export function InquiryVignette() {
         viewport={{ once: true, amount: 0.6 }}
         transition={{ delay: 0.15, duration: 0.4 }}
       >
-        <p className={styles.panelKicker}>W CRM</p>
+        <p className={styles.panelKicker}>W workflow</p>
         <h3 className={styles.panelTitle}>Julia &amp; Tomasz</h3>
         <p className={styles.panelMeta}>Rezerwacja · 12.09.2027</p>
         <div className={styles.pillRow}>
-          <span className={styles.pill}>Workflow</span>
+          <span className={styles.pill}>Projekt</span>
           <span className={styles.pillOk}>Aktywny</span>
         </div>
       </motion.article>
@@ -139,16 +139,16 @@ export function QuestionnaireVignette() {
     ['Imię panny młodej', 'Anna'],
     ['Imię pana młodego', 'Michał'],
     ['Data ślubu', '22.08.2026'],
-    ['Pakiet', demoWedding.packageName],
+    ['Pakiet', 'Premium'],
     ['Ceremonia', demoWedding.ceremonyLocation ?? '—'],
   ] as const
 
   return (
     <div className={styles.formPanel}>
       <div className={styles.formHead}>
-        <p className={styles.panelKicker}>Ankieta publiczna</p>
+        <p className={styles.panelKicker}>Formularz klienta</p>
         <h3 className={styles.panelTitle}>Dane do umowy</h3>
-        <p className={styles.panelMeta}>Para wypełnia linkiem — bez konta</p>
+        <p className={styles.panelMeta}>Klient wypełnia linkiem — bez konta</p>
       </div>
       <ul className={styles.answerList}>
         {answers.map(([q, a], i) => (
@@ -171,14 +171,22 @@ export function QuestionnaireVignette() {
 
 export function PackageVignette() {
   const packages = [
-    { name: 'Foto', price: '6 500 zł', items: ['8 h reportażu', 'Galeria online', 'Pendrive'] },
+    {
+      name: 'Standard',
+      price: '6 500 zł',
+      items: ['Konsultacja', 'Dzień wydarzenia', 'Finalna dostawa'],
+    },
     {
       name: 'Premium',
       price: formatCurrency(demoWedding.price),
-      items: ['Foto + film', 'Highlight', 'Drone'],
+      items: ['Pełna obsługa', 'Koordynacja', 'Priorytetowa dostawa'],
       featured: true,
     },
-    { name: 'Film', price: '7 200 zł', items: ['Teledysk', 'Full film', 'Same day edit'] },
+    {
+      name: 'Signature',
+      price: '12 000 zł',
+      items: ['Rozszerzony zakres', 'Dodatkowy zespół', 'Ekspresowa dostawa'],
+    },
   ]
 
   return (
@@ -245,7 +253,7 @@ export function TimelineVignette() {
 export function OpsVignette() {
   const gear = demoWedding.checklist.slice(0, 5)
   const stops = [
-    { label: 'Studio', detail: 'Start' },
+    { label: 'Start', detail: 'Baza' },
     { label: 'Przygotowania', detail: demoWedding.preparationLocation ?? '—' },
     { label: 'Ceremonia', detail: demoWedding.ceremonyLocation ?? '—' },
     { label: 'Przyjęcie', detail: demoWedding.receptionLocation ?? '—' },
@@ -254,7 +262,7 @@ export function OpsVignette() {
   return (
     <div className={styles.opsGrid}>
       <div className={styles.panel}>
-        <p className={styles.panelKicker}>Sprzęt</p>
+        <p className={styles.panelKicker}>Checklist</p>
         <ul className={styles.checkList}>
           {gear.map((item, i) => (
             <motion.li
@@ -271,7 +279,7 @@ export function OpsVignette() {
         </ul>
       </div>
       <div className={styles.panel}>
-        <p className={styles.panelKicker}>Trasa</p>
+        <p className={styles.panelKicker}>Lokalizacje</p>
         <ol className={styles.route}>
           {stops.map((s, i) => (
             <li key={s.label}>
@@ -296,10 +304,10 @@ export function PaymentsVignette() {
   return (
     <div className={styles.payGrid}>
       <div className={styles.panel}>
-        <p className={styles.panelKicker}>Sezon</p>
+        <p className={styles.panelKicker}>Przychód</p>
         <p className={styles.bigStat}>{formatCurrency(season.seasonRevenue)}</p>
         <p className={styles.panelMeta}>
-          Przychód · wpłacono {formatCurrency(season.paidTotal)}
+          Sezon · wpłacono {formatCurrency(season.paidTotal)}
         </p>
         <div className={styles.bars}>
           {season.monthly.map((m) => (
@@ -316,7 +324,7 @@ export function PaymentsVignette() {
         </div>
       </div>
       <div className={styles.panel}>
-        <p className={styles.panelKicker}>Ślub · płatności</p>
+        <p className={styles.panelKicker}>Projekt · płatności</p>
         <ul className={styles.payList}>
           {pays.map((p) => (
             <li key={p.id}>
@@ -359,7 +367,7 @@ export function TasksVignette() {
         </ul>
       </div>
       <div className={styles.panel}>
-        <p className={styles.panelKicker}>Oddanie</p>
+        <p className={styles.panelKicker}>Dostawa</p>
         <ul className={styles.deliverList}>
           {deliverables.map((d) => (
             <li key={d.id}>
@@ -378,7 +386,7 @@ export function DocumentsVignette() {
     { token: '{{ bride_first_name }}', value: 'Natalia' },
     { token: '{{ groom_first_name }}', value: 'Tomasz' },
     { token: '{{ ceremony_place }}', value: 'Pałac na Wodzie' },
-    { token: '{{ package }}', value: 'Foto + Film' },
+    { token: '{{ package }}', value: 'Premium' },
   ]
 
   return (
@@ -386,7 +394,7 @@ export function DocumentsVignette() {
       <div className={styles.docGenHead}>
         <div>
           <p className={styles.panelKicker}>Generowanie</p>
-          <h3 className={styles.panelTitle}>Ten sam szablon · nowa para</h3>
+          <h3 className={styles.panelTitle}>Ten sam szablon · nowy klient</h3>
         </div>
         <span className={styles.docGenTag}>Natalia &amp; Tomasz</span>
       </div>

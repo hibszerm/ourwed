@@ -6,7 +6,7 @@ import {
 import { createDefaultQuestionnaires } from '@/lib/utils/questionnaires'
 import type { Wedding, WeddingStatus, WorkflowStage } from '@/types/wedding'
 
-export const DEFAULT_WEDDING_ACCENT = '#7c5cbf'
+export const DEFAULT_WEDDING_ACCENT = '#0a0a0a'
 export const DEFAULT_WEDDING_CURRENCY = 'PLN'
 
 /**

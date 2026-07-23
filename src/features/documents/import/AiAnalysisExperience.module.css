@@ -32,7 +32,7 @@
 }
 
 .iconDone {
-  color: #067647;
+  color: var(--color-success-text);
 }
 
 .iconSpin {
@@ -120,7 +120,7 @@
 }
 
 .stage[data-state='done'] .stageMark {
-  color: #067647;
+  color: var(--color-success-text);
 }
 
 .stageDot {

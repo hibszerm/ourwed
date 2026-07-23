@@ -276,7 +276,7 @@
 
 .statusPillSuccess {
   background: var(--color-success-bg, #ecfdf3);
-  color: var(--color-success-text, #067647);
+  color: var(--color-success-text, var(--color-success-text));
 }
 
 .statusPillWarning {
@@ -396,8 +396,8 @@
   border-radius: 999px;
   font-size: var(--text-xs);
   font-weight: 600;
-  background: color-mix(in srgb, var(--color-accent, #5b6cff) 14%, transparent);
-  color: color-mix(in srgb, var(--color-accent, #5b6cff) 75%, #1a1a1a);
+  background: color-mix(in srgb, var(--color-accent, #0a0a0a) 14%, transparent);
+  color: color-mix(in srgb, var(--color-accent, #0a0a0a) 75%, #1a1a1a);
   white-space: nowrap;
 }
 
@@ -477,8 +477,8 @@
   pointer-events: none;
   padding: 4px 10px;
   border-radius: 999px;
-  border: 1px dashed color-mix(in srgb, var(--color-accent, #5b6cff) 50%, transparent);
-  background: color-mix(in srgb, var(--color-accent, #5b6cff) 10%, var(--color-surface));
+  border: 1px dashed color-mix(in srgb, var(--color-accent, #0a0a0a) 50%, transparent);
+  background: color-mix(in srgb, var(--color-accent, #0a0a0a) 10%, var(--color-surface));
   font-size: 0.75rem;
   font-weight: 600;
   color: var(--color-text-secondary);
@@ -533,7 +533,7 @@
 }
 
 .docSurfaceGuided .docBlockSelectable:hover {
-  background: color-mix(in srgb, var(--color-accent, #5b6cff) 6%, transparent);
+  background: color-mix(in srgb, var(--color-accent, #0a0a0a) 6%, transparent);
 }
 
 .docBlockBlankish {
@@ -543,8 +543,8 @@
 }
 
 .docBlockSelected {
-  background: color-mix(in srgb, var(--color-accent, #5b6cff) 10%, transparent) !important;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-accent, #5b6cff) 35%, transparent);
+  background: color-mix(in srgb, var(--color-accent, #0a0a0a) 10%, transparent) !important;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-accent, #0a0a0a) 35%, transparent);
 }
 
 .mappingChip {
@@ -565,12 +565,12 @@
 
 .mappingChip_placeholder {
   background: color-mix(in srgb, #059669 16%, transparent);
-  color: #047857;
+  color: var(--color-success-text);
 }
 
 .mappingChip_manual {
-  background: color-mix(in srgb, var(--color-accent, #5b6cff) 16%, transparent);
-  color: color-mix(in srgb, var(--color-accent, #5b6cff) 70%, #1a1a1a);
+  background: color-mix(in srgb, var(--color-accent, #0a0a0a) 16%, transparent);
+  color: color-mix(in srgb, var(--color-accent, #0a0a0a) 70%, #1a1a1a);
 }
 
 .mappingChip_suggestion {
@@ -579,7 +579,7 @@
 }
 
 .mappingChipActive {
-  outline: 2px solid color-mix(in srgb, var(--color-accent, #5b6cff) 50%, transparent);
+  outline: 2px solid color-mix(in srgb, var(--color-accent, #0a0a0a) 50%, transparent);
   outline-offset: 1px;
 }
 
@@ -663,7 +663,7 @@
 }
 
 .docHighlightActive {
-  outline: 2px solid color-mix(in srgb, var(--color-accent, #5b6cff) 55%, transparent);
+  outline: 2px solid color-mix(in srgb, var(--color-accent, #0a0a0a) 55%, transparent);
   outline-offset: 1px;
 }
 
@@ -796,8 +796,8 @@
 }
 
 .mappingRowActive .mappingRow {
-  outline: 1px solid color-mix(in srgb, var(--color-accent, #5b6cff) 35%, var(--color-border));
-  background: color-mix(in srgb, var(--color-accent, #5b6cff) 5%, var(--color-surface));
+  outline: 1px solid color-mix(in srgb, var(--color-accent, #0a0a0a) 35%, var(--color-border));
+  background: color-mix(in srgb, var(--color-accent, #0a0a0a) 5%, var(--color-surface));
 }
 
 .mappingRowHead {
@@ -880,8 +880,8 @@
 }
 
 .compositionItemOn {
-  border-color: color-mix(in srgb, var(--color-accent, #5b6cff) 28%, var(--color-border));
-  background: color-mix(in srgb, var(--color-accent, #5b6cff) 4%, var(--color-surface));
+  border-color: color-mix(in srgb, var(--color-accent, #0a0a0a) 28%, var(--color-border));
+  background: color-mix(in srgb, var(--color-accent, #0a0a0a) 4%, var(--color-surface));
 }
 
 .compositionMain {
@@ -1005,8 +1005,8 @@
   gap: var(--space-3);
   padding: var(--space-3);
   border-radius: var(--radius-md);
-  border: 1px solid color-mix(in srgb, var(--color-accent, #5b6cff) 22%, var(--color-border));
-  background: color-mix(in srgb, var(--color-accent, #5b6cff) 4%, var(--color-surface));
+  border: 1px solid color-mix(in srgb, var(--color-accent, #0a0a0a) 22%, var(--color-border));
+  background: color-mix(in srgb, var(--color-accent, #0a0a0a) 4%, var(--color-surface));
 }
 
 .guidedPanelHeader {
@@ -1079,8 +1079,8 @@
 }
 
 .guidedVariableBtnActive {
-  border-color: color-mix(in srgb, var(--color-accent, #5b6cff) 40%, var(--color-border));
-  background: color-mix(in srgb, var(--color-accent, #5b6cff) 8%, var(--color-surface));
+  border-color: color-mix(in srgb, var(--color-accent, #0a0a0a) 40%, var(--color-border));
+  background: color-mix(in srgb, var(--color-accent, #0a0a0a) 8%, var(--color-surface));
 }
 
 .guidedVariableLabel {
@@ -1114,7 +1114,7 @@
   background:
     linear-gradient(
       165deg,
-      color-mix(in srgb, var(--color-surface) 92%, #c4b5a0 8%),
+      color-mix(in srgb, var(--color-surface) 92%, #e5e5e5 8%),
       var(--color-surface)
     );
   padding: var(--space-5);
@@ -1476,7 +1476,7 @@
   padding: var(--space-4);
   border-radius: var(--radius-lg);
   border: 1px solid color-mix(in srgb, var(--color-border) 70%, transparent);
-  background: color-mix(in srgb, var(--color-surface) 90%, #c4b5a0 10%);
+  background: color-mix(in srgb, var(--color-surface) 90%, #e5e5e5 10%);
   font-size: var(--text-sm);
   line-height: 1.5;
   color: var(--color-text-secondary);

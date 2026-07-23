@@ -30,7 +30,7 @@
 }
 
 .switch button:hover {
-  color: var(--color-accent);
+  opacity: 0.65;
 }
 
 .message {

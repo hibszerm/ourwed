@@ -3,10 +3,11 @@
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-md);
-  background: var(--color-accent-subtle);
-  color: var(--color-accent);
+  background: var(--color-bg-subtle);
+  color: var(--color-text-primary);
   font-weight: 600;
   flex-shrink: 0;
+  border: 1px solid var(--color-border);
 }
 
 .sm {
@@ -29,4 +30,5 @@
 
 .custom {
   color: white;
+  border-color: transparent;
 }

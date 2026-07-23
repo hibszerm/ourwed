@@ -58,15 +58,15 @@
 }
 
 .item[data-status='current'] .indicator {
-  border-color: color-mix(in srgb, var(--color-primary, #2563eb) 55%, transparent);
-  color: var(--color-primary, #2563eb);
+  border-color: color-mix(in srgb, var(--color-primary, #0a0a0a) 55%, transparent);
+  color: var(--color-primary, #0a0a0a);
   transform: scale(1.04);
 }
 
 .item[data-status='done'] .indicator {
   border-color: transparent;
-  background: color-mix(in srgb, #067647 12%, transparent);
-  color: #067647;
+  background: color-mix(in srgb, var(--color-success-text) 12%, transparent);
+  color: var(--color-success-text);
 }
 
 .icon {
@@ -98,7 +98,7 @@
 }
 
 .item[data-status='done'] .connector {
-  background: color-mix(in srgb, #067647 35%, transparent);
+  background: color-mix(in srgb, var(--color-success-text) 35%, transparent);
 }
 
 @media (max-width: 720px) {

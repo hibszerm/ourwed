@@ -243,7 +243,7 @@ function AnalysisLayer({ progress }: { progress: MotionValue<number> }) {
               />
             )}
           </div>
-          <h3 className={styles.stageTitle}>Analizujemy umowę</h3>
+          <h3 className={styles.stageTitle}>Analizujemy dokument</h3>
           <p className={styles.stageSub}>
             OurWed czyta strukturę dokumentu i przygotowuje konfigurację.
           </p>
@@ -329,7 +329,7 @@ function VariablesLayer({ progress }: { progress: MotionValue<number> }) {
         </motion.div>
         <div className={styles.flowBoard}>
           <p className={styles.kicker}>Rozpoznane pola</p>
-          <h3 className={styles.stageTitle}>Umowa zrozumiana</h3>
+          <h3 className={styles.stageTitle}>Dokument zrozumiany</h3>
           <div className={styles.flowGrid}>
             {VARIABLES.map((item, i) => (
               <FlowChip key={item.id} item={item} index={i} local={local} />
@@ -351,9 +351,9 @@ function FinaleLayer({ progress }: { progress: MotionValue<number> }) {
     <Layer opacity={opacity} y={y} scale={scale}>
       <div className={styles.finale}>
         <p className={styles.finaleLine}>
-          Umowa zrozumiana.
+          Dokument zrozumiany.
           <br />
-          Dalej — ankieta, CRM i reszta procesu.
+          Dalej — formularze, projekty i reszta procesu.
         </p>
       </div>
     </Layer>
@@ -420,9 +420,9 @@ function MobileStory() {
 
       <MobileBeat delay={0.03}>
         <div className={styles.mobileCard}>
-          <h3 className={styles.stageTitle}>Analizujemy umowę</h3>
+          <h3 className={styles.stageTitle}>Analizujemy dokument</h3>
           <p className={styles.stageSub}>
-            OurWed czyta strukturę dokumentu i rozpoznaje zmienne.
+            OurWed czyta strukturę dokumentu i rozpoznaje pola.
           </p>
           <ul className={analysisUi.stages}>
             {ANALYSIS_STAGES.slice(0, 4).map((label, i) => (
@@ -448,7 +448,7 @@ function MobileStory() {
       <MobileBeat delay={0.03}>
         <div className={styles.mobileCard}>
           <p className={styles.kicker}>Rozpoznane pola</p>
-          <h3 className={styles.stageTitle}>Umowa zrozumiana</h3>
+          <h3 className={styles.stageTitle}>Dokument zrozumiany</h3>
           <div className={styles.flowGrid}>
             {VARIABLES.slice(0, 6).map((item) => (
               <div key={item.id} className={styles.flowChip}>
@@ -463,9 +463,9 @@ function MobileStory() {
       <MobileBeat delay={0.05}>
         <div className={styles.finale}>
           <p className={styles.finaleLine}>
-            Umowa zrozumiana.
+            Dokument zrozumiany.
             <br />
-            Dalej — ankieta, CRM i reszta procesu.
+            Dalej — formularze, projekty i reszta procesu.
           </p>
         </div>
       </MobileBeat>
@@ -484,11 +484,10 @@ export function ContractAiStory() {
 
   const intro = (
     <header className={styles.intro}>
-      <p className={styles.eyebrow}>03 · AI</p>
+      <p className={styles.eyebrow}>03 · Dokumenty</p>
       <h2 className={styles.title}>Umowa, którą system rozumie</h2>
       <p className={styles.subtitle}>
-        Prześlij kontrakt raz. OurWed rozpoznaje strukturę i zmienne — bez
-        ręcznego mapowania pól.
+        Prześlij dokument raz. OurWed rozpoznaje strukturę i pola.
       </p>
     </header>
   )
@@ -509,7 +508,7 @@ export function ContractAiStory() {
       id="ai-story"
       ref={containerRef}
       className={styles.pinSection}
-      aria-label="Analiza umowy AI"
+      aria-label="Analiza dokumentu"
     >
       <div className={styles.sticky}>
         <div className={styles.innerDesktop}>

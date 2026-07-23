@@ -13,7 +13,8 @@
     color var(--transition-fast),
     box-shadow var(--transition-fast),
     border-color var(--transition-fast),
-    transform var(--transition-fast);
+    transform var(--transition-fast),
+    opacity var(--transition-fast);
 }
 
 .button:active:not(:disabled) {
@@ -52,24 +53,29 @@
 
 .primary {
   background: var(--color-accent);
-  color: white;
-  box-shadow: 0 1px 2px rgba(124, 92, 191, 0.24), 0 4px 12px rgba(124, 92, 191, 0.18);
+  color: #fff;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.12),
+    0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
 .primary:hover:not(:disabled) {
   background: var(--color-accent-hover);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.14),
+    0 6px 16px rgba(0, 0, 0, 0.1);
 }
 
 .secondary {
   background: var(--color-surface);
   color: var(--color-text-primary);
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-border-strong);
   box-shadow: var(--shadow-xs);
 }
 
 .secondary:hover:not(:disabled) {
   background: var(--color-surface-hover);
-  border-color: var(--color-border-strong);
+  border-color: color-mix(in srgb, var(--color-text-primary) 18%, transparent);
 }
 
 .ghost {
@@ -80,4 +86,16 @@
 .ghost:hover:not(:disabled) {
   background: var(--color-bg-subtle);
   color: var(--color-text-primary);
+}
+
+.danger {
+  background: var(--color-error);
+  color: #fff;
+  box-shadow:
+    0 1px 2px rgba(180, 35, 24, 0.2),
+    0 4px 12px rgba(180, 35, 24, 0.12);
+}
+
+.danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-error) 88%, #000);
 }

@@ -74,7 +74,7 @@
 }
 
 .link:hover {
-  color: var(--color-accent);
+  opacity: 0.65;
 }
 
 .linkButton {
@@ -90,7 +90,7 @@
 }
 
 .linkButton:hover {
-  color: var(--color-accent);
+  opacity: 0.65;
 }
 
 .hintList {

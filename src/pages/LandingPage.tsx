@@ -143,15 +143,15 @@ export function LandingPage() {
       <main>
         <section className={styles.hero}>
           <div className={styles.heroInner}>
-            <p className={styles.eyebrow}>Platforma dla studia ślubnego</p>
+            <p className={styles.eyebrow}>Dla branży ślubnej</p>
             <h1 className={styles.heroTitle}>
               Od pierwszego zapytania
               <br />
-              do oddania galerii.
+              do zakończenia projektu.
             </h1>
             <p className={styles.heroSub}>
-              OurWed prowadzi cały proces studia — zgłoszenia, śluby, umowy,
-              ankiety, płatności i zadania — w jednym spokojnym workflow.
+              OurWed prowadzi cały workflow firmy z branży ślubnej — od
+              pierwszego kontaktu z klientem aż do zakończenia realizacji.
             </p>
             <div className={styles.heroActions}>
               <button
@@ -162,32 +162,30 @@ export function LandingPage() {
                 Wypróbuj OurWed
               </button>
               <a href="#journey" className={styles.secondary}>
-                Zobacz przebieg sezonu
+                Zobacz jak działa
               </a>
             </div>
             <LivingHero />
           </div>
         </section>
 
-        <p className={styles.bridge}>
-          Przewiń — każdy rozdział odsłania kolejną część OurWed.
-        </p>
+        <p className={styles.bridge}>Każdy rozdział to kolejny etap.</p>
 
         <div id="journey">
           <JourneyChapter
             id="inquiry"
-            eyebrow="01 · Zgłoszenie"
-            title="Nowe zapytanie staje się ślubem"
-            subtitle="Przyjmij lead jednym kliknięciem. Para od razu ląduje w CRM z datą, pakietem i workflow."
+            eyebrow="01 · Zapytanie"
+            title="Zapytanie staje się projektem"
+            subtitle="Przyjmij klienta. Od razu pojawia się w Twoim workflow."
           >
             <InquiryVignette />
           </JourneyChapter>
 
           <JourneyChapter
             id="weddings"
-            eyebrow="02 · CRM"
-            title="Sezon w jednym widoku"
-            subtitle="Karty ślubów, statusy i terminy — bez tabel w Excelu i wątków w mailu."
+            eyebrow="02 · Projekty"
+            title="Wszystkie rezerwacje w jednym miejscu"
+            subtitle="Statusy, terminy i klienci — bez arkuszy i rozproszonych wiadomości."
             tone="emphasis"
           >
             <WeddingsVignette />
@@ -199,9 +197,9 @@ export function LandingPage() {
 
           <JourneyChapter
             id="questionnaires"
-            eyebrow="04 · Ankiety"
-            title="Para uzupełnia dane sama"
-            subtitle="Publiczny link zamiast mailowego ping-ponga. Odpowiedzi wracają prosto do karty ślubu."
+            eyebrow="04 · Formularze"
+            title="Klienci uzupełniają dane sami"
+            subtitle="Jeden link. Odpowiedzi wracają prosto do projektu."
           >
             <QuestionnaireVignette />
           </JourneyChapter>
@@ -209,8 +207,8 @@ export function LandingPage() {
           <JourneyChapter
             id="packages"
             eyebrow="05 · Oferta"
-            title="Pakiety studia, nie luźne cenniki"
-            subtitle="Zdefiniuj ofertę raz. Każdy ślub dziedziczy zakres, cenę i elementy do oddania."
+            title="Pakiety, które skalują się z biznesem"
+            subtitle="Zdefiniuj ofertę raz. Każdy projekt dziedziczy zakres i cenę."
             tone="emphasis"
           >
             <PackageVignette />
@@ -219,17 +217,17 @@ export function LandingPage() {
           <JourneyChapter
             id="timeline"
             eyebrow="06 · Harmonogram"
-            title="Dzień ślubu na osi czasu"
-            subtitle="Przygotowania, ceremonia, sesja, wesele — minuta po minucie, zawsze pod ręką."
+            title="Dzień wydarzenia na osi czasu"
+            subtitle="Kluczowe momenty — zawsze pod ręką."
           >
             <TimelineVignette />
           </JourneyChapter>
 
           <JourneyChapter
             id="ops"
-            eyebrow="07 · Operacje"
-            title="Sprzęt i trasa przed wyjazdem"
-            subtitle="Checklist sprzętu i kolejność lokalizacji — żeby w dniu ślubu nic nie umknęło."
+            eyebrow="07 · Przygotowanie"
+            title="Gotowość przed dniem ślubu"
+            subtitle="Checklisty i lokalizacje — nic nie umyka."
             tone="emphasis"
           >
             <OpsVignette />
@@ -238,8 +236,8 @@ export function LandingPage() {
           <JourneyChapter
             id="payments"
             eyebrow="08 · Finanse"
-            title="Zaliczki, raty i sezon"
-            subtitle="Wiesz, kto ile wpłacił — i jak wygląda przychód całego sezonu."
+            title="Płatności pod kontrolą"
+            subtitle="Zaliczki, raty i przychód — w jednym widoku."
           >
             <PaymentsVignette />
           </JourneyChapter>
@@ -247,8 +245,8 @@ export function LandingPage() {
           <JourneyChapter
             id="tasks"
             eyebrow="09 · Realizacja"
-            title="Zadania aż do oddania"
-            subtitle="Teaser, galeria, przypomnienia — checklista, która zamyka każdy ślub."
+            title="Aż do finalnej dostawy"
+            subtitle="Zadania i kamienie milowe, które zamykają każdy projekt."
             tone="emphasis"
           >
             <TasksVignette />
@@ -258,7 +256,7 @@ export function LandingPage() {
             id="documents"
             eyebrow="10 · Dokumenty"
             title="Kolejna umowa bez przepisywania"
-            subtitle="Ten sam szablon, nowe dane pary. Generujesz dokument — nie piszesz go od zera."
+            subtitle="Ten sam szablon. Nowe dane klienta."
           >
             <DocumentsVignette />
           </JourneyChapter>
@@ -269,10 +267,10 @@ export function LandingPage() {
             <h2 className={styles.finaleTitle}>
               Jedna platforma
               <br />
-              na cały workflow studia.
+              na cały workflow firmy ślubnej.
             </h2>
             <p className={styles.finaleSub}>
-              Załóż konto i prowadź sezon w OurWed — od zapytania do oddania.
+              Od pierwszego zapytania do zakończenia projektu.
             </p>
             <button
               type="button"
@@ -288,7 +286,7 @@ export function LandingPage() {
       <footer className={styles.footer}>
         <div className={styles.footerInner}>
           <span className={styles.logoText}>OurWed</span>
-          <p>Platforma dla studia ślubnego.</p>
+          <p>Platforma dla branży ślubnej.</p>
           <div className={styles.footerLinks}>
             <a href="mailto:kontakt@ourwed.pl">Kontakt</a>
             <a href="#privacy">Prywatność</a>

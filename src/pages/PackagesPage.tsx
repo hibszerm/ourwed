@@ -236,7 +236,7 @@ function PackageForm({
   const [price, setPrice] = useState(String(initial?.price ?? ''))
   const [deposit, setDeposit] = useState(String(initial?.depositAmount ?? ''))
   const [currency, setCurrency] = useState(initial?.currency ?? 'PLN')
-  const [color, setColor] = useState(initial?.color ?? '#7c5cbf')
+  const [color, setColor] = useState(initial?.color ?? '#0a0a0a')
   const [isActive, setIsActive] = useState(initial?.isActive ?? true)
   const [error, setError] = useState<string | null>(null)
 
@@ -320,7 +320,7 @@ function PackageForm({
           <span>Kolor</span>
           <input
             type="color"
-            value={color || '#7c5cbf'}
+            value={color || '#0a0a0a'}
             onChange={(e) => setColor(e.target.value)}
             disabled={busy}
           />

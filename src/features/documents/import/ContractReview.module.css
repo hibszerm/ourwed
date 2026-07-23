@@ -91,7 +91,7 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  color: #047857;
+  color: var(--color-success-text);
 }
 
 .field {
@@ -120,7 +120,7 @@
 
 .field input:focus,
 .field select:focus {
-  outline: 2px solid color-mix(in srgb, var(--color-primary, #2563eb) 35%, transparent);
+  outline: 2px solid color-mix(in srgb, var(--color-primary, #0a0a0a) 35%, transparent);
   outline-offset: 1px;
 }
 
@@ -210,7 +210,7 @@
   height: 20px;
   margin-top: 2px;
   flex-shrink: 0;
-  accent-color: var(--color-primary, #2563eb);
+  accent-color: var(--color-primary, #0a0a0a);
   transition: transform 140ms ease-out;
 }
 
@@ -230,7 +230,7 @@
 .readOnlyMark {
   flex-shrink: 0;
   margin-top: 2px;
-  color: #047857;
+  color: var(--color-success-text);
 }
 
 .rowMain {

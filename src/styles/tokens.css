@@ -1,46 +1,55 @@
 /**
- * OurWed Design Tokens — Design Sprint 01
- * Premium calm visual language: warm background, floating white cards,
- * near-invisible borders, soft shadows, generous 8px spacing rhythm.
- * Purple is an accent only — never a large surface.
+ * OurWed Design Tokens — Monochrome Premium
+ * Black / white / neutral grays. Black is the primary accent.
+ * Color is reserved for status (success, warning, error) — never brand surfaces.
  */
 
 :root {
   /* ── Surfaces ─────────────────────────────────────── */
-  /* Warm paper background; white cards float above it. */
-  --color-bg: #faf9f6;
-  --color-bg-subtle: #f2f1ec;
-  --color-bg-sunken: #eeece6;
+  --color-bg: #f7f7f7;
+  --color-bg-subtle: #efefef;
+  --color-bg-sunken: #e8e8e8;
   --color-bg-elevated: #ffffff;
   --color-surface: #ffffff;
-  --color-surface-hover: #fbfbf9;
-  /* Borders are almost invisible — hierarchy comes from spacing + shadow. */
-  --color-border: rgba(20, 20, 16, 0.05);
-  --color-border-strong: rgba(20, 20, 16, 0.09);
-  --color-overlay: rgba(28, 27, 24, 0.28);
+  --color-surface-hover: #fafafa;
+  --color-border: rgba(0, 0, 0, 0.06);
+  --color-border-strong: rgba(0, 0, 0, 0.1);
+  --color-overlay: rgba(0, 0, 0, 0.32);
 
-  /* ── Text (warm neutrals) ─────────────────────────── */
-  --color-text-primary: #1c1b19;
-  --color-text-secondary: #6a685f;
-  --color-text-tertiary: #a5a299;
+  /* ── Text ─────────────────────────────────────────── */
+  --color-text-primary: #0a0a0a;
+  --color-text-secondary: #5c5c5c;
+  --color-text-tertiary: #8f8f8f;
 
-  /* ── Accent — used sparingly ──────────────────────── */
-  --color-accent: #7c5cbf;
-  --color-accent-hover: #6b4dad;
-  --color-accent-light: #b8a0e0;
-  --color-accent-subtle: #f2eefb;
-  --color-accent-subtle-hover: #eae3f6;
+  /* ── Accent — black (primary brand action) ─────────── */
+  --color-accent: #0a0a0a;
+  --color-accent-hover: #262626;
+  --color-accent-light: #737373;
+  --color-accent-subtle: #f0f0f0;
+  --color-accent-subtle-hover: #e6e6e6;
+  /* Alias used by some document/import styles */
+  --color-primary: var(--color-accent);
 
-  /* ── Semantic (muted / calm) ──────────────────────── */
-  --color-warning: #c98a2b;
-  --color-warning-bg: #f6f0e4;
-  --color-warning-text: #93671f;
-  --color-success-bg: #ecf3ec;
-  --color-success-text: #487a56;
-  --color-info-bg: #eef1f7;
-  --color-info-text: #566585;
-  --color-error: #a85a52;
-  --color-error-bg: #f6ecea;
+  /* ── Shell (dark navigation) ──────────────────────── */
+  --color-sidebar-bg: #0a0a0a;
+  --color-sidebar-text: rgba(255, 255, 255, 0.55);
+  --color-sidebar-text-active: #ffffff;
+  --color-sidebar-hover: rgba(255, 255, 255, 0.06);
+  --color-sidebar-active: rgba(255, 255, 255, 0.1);
+  --color-sidebar-border: rgba(255, 255, 255, 0.08);
+  --color-sidebar-muted: rgba(255, 255, 255, 0.35);
+
+  /* ── Semantic (status only) ───────────────────────── */
+  --color-warning: #b45309;
+  --color-warning-bg: #fef3c7;
+  --color-warning-text: #92400e;
+  --color-success-bg: #ecfdf3;
+  --color-success-text: #067647;
+  --color-info-bg: #f4f4f5;
+  --color-info-text: #3f3f46;
+  --color-error: #b42318;
+  --color-error-bg: #fef3f2;
+  --color-danger: #b42318;
 
   /* ── Spacing scale (8px rhythm, 4px half-steps) ───── */
   --space-1: 4px;
@@ -72,8 +81,8 @@
   --content-sidebar-col: 340px;
 
   /* ── Typography ───────────────────────────────────── */
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
-    sans-serif;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --text-2xs: 0.6875rem;
   --text-xs: 0.75rem;
   --text-sm: 0.875rem;
@@ -97,9 +106,8 @@
   --tracking-normal: 0;
   --tracking-wide: 0.04em;
 
-  /* Semantic type roles — bigger, calmer hierarchy */
   --type-page-title-size: var(--text-3xl);
-  --type-page-title-weight: 680;
+  --type-page-title-weight: 650;
   --type-section-title-size: var(--text-xl);
   --type-section-title-weight: 600;
   --type-card-title-size: var(--text-sm);
@@ -109,7 +117,7 @@
   --type-label-size: var(--text-xs);
   --type-stat-size: var(--text-2xl);
 
-  /* ── Radius (softer) ──────────────────────────────── */
+  /* ── Radius ───────────────────────────────────────── */
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
@@ -117,12 +125,12 @@
   --radius-2xl: 26px;
   --radius-full: 9999px;
 
-  /* ── Shadows (soft, diffuse — floating cards) ─────── */
-  --shadow-xs: 0 1px 2px rgba(20, 20, 16, 0.03);
-  --shadow-sm: 0 1px 2px rgba(20, 20, 16, 0.03), 0 6px 16px rgba(20, 20, 16, 0.035);
-  --shadow-md: 0 2px 6px rgba(20, 20, 16, 0.04), 0 14px 34px rgba(20, 20, 16, 0.06);
-  --shadow-lg: 0 8px 20px rgba(20, 20, 16, 0.05), 0 28px 60px rgba(20, 20, 16, 0.09);
-  --shadow-drawer: -18px 0 48px rgba(20, 20, 16, 0.1);
+  /* ── Shadows (neutral, soft) ──────────────────────── */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04), 0 6px 16px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 2px 6px rgba(0, 0, 0, 0.04), 0 14px 34px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 8px 20px rgba(0, 0, 0, 0.05), 0 28px 60px rgba(0, 0, 0, 0.08);
+  --shadow-drawer: -18px 0 48px rgba(0, 0, 0, 0.18);
 
   /* ── Cards ────────────────────────────────────────── */
   --card-radius: var(--radius-lg);
@@ -142,10 +150,10 @@
   --control-radius: var(--radius-md);
   --control-padding-x-sm: var(--space-3);
   --control-padding-x-md: var(--space-5);
-  --focus-ring: 0 0 0 3px var(--color-accent-subtle);
-  --focus-ring-strong: 0 0 0 3px rgba(124, 92, 191, 0.24);
+  --focus-ring: 0 0 0 3px rgba(10, 10, 10, 0.08);
+  --focus-ring-strong: 0 0 0 3px rgba(10, 10, 10, 0.16);
 
-  /* ── Safe areas (Capacitor / notched devices) ─────── */
+  /* ── Safe areas ───────────────────────────────────── */
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -159,7 +167,6 @@
   --transition-slow: 340ms var(--ease-out);
 
   /* ── Breakpoints (reference) ──────────────────────── */
-  /* Mobile ≤767 | Tablet 768–1023 | Desktop ≥1024 */
   --bp-mobile: 767px;
   --bp-tablet: 768px;
   --bp-desktop: 1024px;
@@ -169,7 +176,6 @@
   --bp-xl: 1200px;
 }
 
-/* Tablet */
 @media (max-width: 1023px) {
   :root {
     --shell-padding-x: var(--space-6);
@@ -178,7 +184,6 @@
   }
 }
 
-/* Mobile */
 @media (max-width: 767px) {
   :root {
     --shell-padding-x: var(--space-4);

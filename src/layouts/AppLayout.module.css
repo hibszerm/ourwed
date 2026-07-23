@@ -23,8 +23,8 @@
   display: flex;
   align-items: flex-start;
   gap: var(--space-3);
-  padding: var(--shell-padding-y) var(--shell-padding-x) 0;
-  padding-top: calc(var(--shell-padding-y) + var(--safe-top));
+  padding: calc(var(--shell-padding-y) + 4px) var(--shell-padding-x) 0;
+  padding-top: calc(var(--shell-padding-y) + var(--safe-top) + 4px);
   flex-shrink: 0;
 }
 

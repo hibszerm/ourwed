@@ -98,8 +98,8 @@
   align-items: center;
   justify-content: center;
   border-radius: 999px;
-  background: color-mix(in srgb, #067647 12%, transparent);
-  color: #067647;
+  background: color-mix(in srgb, var(--color-success-text) 12%, transparent);
+  color: var(--color-success-text);
 }
 
 .fileMeta {
@@ -151,7 +151,7 @@
 }
 
 .nameField input:focus {
-  outline: 2px solid color-mix(in srgb, var(--color-primary, #2563eb) 35%, transparent);
+  outline: 2px solid color-mix(in srgb, var(--color-primary, #0a0a0a) 35%, transparent);
   outline-offset: 1px;
 }
 
@@ -199,7 +199,7 @@
 }
 
 .doneIcon {
-  color: #067647;
+  color: var(--color-success-text);
 }
 
 @keyframes indeterminate {

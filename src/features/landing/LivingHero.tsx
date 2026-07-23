@@ -3,7 +3,7 @@ import { Check } from 'lucide-react'
 import styles from './LivingHero.module.css'
 
 /**
- * Hero vignette — a quiet glimpse of the full studio workflow
+ * Hero vignette — a quiet glimpse of the full wedding-business workflow
  * before the visitor scrolls into journey chapters.
  */
 export function LivingHero() {
@@ -17,14 +17,14 @@ export function LivingHero() {
         transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
       >
         <div className={styles.boardHead}>
-          <p>Sezon 2026</p>
+          <p>Projekty</p>
           <span>12 aktywnych</span>
         </div>
         <div className={styles.rows}>
           {[
             ['Anna & Michał', '22.08', 'Premium'],
-            ['Julia & Tomasz', '12.09', 'Foto+Film'],
-            ['Natalia & Piotr', '03.10', 'Film'],
+            ['Julia & Tomasz', '12.09', 'Standard'],
+            ['Natalia & Piotr', '03.10', 'Signature'],
           ].map(([name, date, pkg], i) => (
             <motion.div
               key={name}
@@ -68,9 +68,9 @@ export function LivingHero() {
           times: [0, 0.25, 0.7, 1],
         }}
       >
-        <p className={styles.chipEyebrow}>Nowe zgłoszenie</p>
+        <p className={styles.chipEyebrow}>Nowe zapytanie</p>
         <strong>Ola &amp; Kamil</strong>
-        <span>Akceptuj → CRM</span>
+        <span>Akceptuj → projekt</span>
       </motion.div>
 
       <motion.div
@@ -90,7 +90,7 @@ export function LivingHero() {
           times: [0, 0.4, 0.55, 0.85, 1],
         }}
       >
-        <p className={styles.chipEyebrow}>Ślub</p>
+        <p className={styles.chipEyebrow}>Projekt</p>
         <strong>Anna &amp; Michał</strong>
         <span>22.08.2026 · Premium</span>
         <div className={styles.badges}>
