@@ -1,6 +1,7 @@
 import { createBrowserRouter, Navigate, useParams } from 'react-router-dom'
 import { ProtectedRoute } from '@/features/auth/ProtectedRoute'
 import { DashboardPage } from '@/pages/DashboardPage'
+import { DashboardV2Page } from '@/pages/DashboardV2Page'
 import { WeddingsPage } from '@/pages/WeddingsPage'
 import { WeddingDetailPage } from '@/pages/WeddingDetailPage'
 import { NewWeddingPage } from '@/pages/NewWeddingPage'
@@ -59,6 +60,7 @@ export const router = createBrowserRouter([
     element: <ProtectedRoute />,
     children: [
       { path: '/dashboard', element: <DashboardPage /> },
+      { path: '/dashboard-v2', element: <DashboardV2Page /> },
       { path: '/sluby', element: <WeddingsPage /> },
       { path: '/sluby/nowy', element: <NewWeddingPage /> },
       { path: '/sluby/:id', element: <WeddingDetailPage /> },

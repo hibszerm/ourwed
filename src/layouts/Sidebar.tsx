@@ -17,6 +17,12 @@ import catalogStyles from '@/features/studio/StudioCatalog.module.css'
 
 const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: IconDashboard, end: true },
+  {
+    to: '/dashboard-v2',
+    label: 'Dashboard V2 (Beta)',
+    icon: IconDashboard,
+    end: true,
+  },
   { to: '/sluby', label: 'Śluby', icon: IconWeddings },
   { to: '/kalendarz', label: 'Kalendarz', icon: IconCalendar },
   { to: '/dokumenty', label: 'Dokumenty', icon: IconDocuments },
