@@ -88,6 +88,16 @@
   color: var(--color-text-tertiary);
 }
 
+.cardHelper {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--color-text-secondary);
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 400;
+}
+
 .cardBodyGrid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -95,6 +105,7 @@
   min-width: 0;
   width: 100%;
   max-width: 100%;
+  margin-top: var(--space-4);
 }
 
 @media (min-width: 560px) {
@@ -110,6 +121,17 @@
   min-width: 0;
   width: 100%;
   max-width: 100%;
+}
+
+/** Lokalizacje: always one column on every breakpoint. */
+.cardBodyStack {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-5);
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  margin-top: var(--space-4);
 }
 
 .fullWidth {

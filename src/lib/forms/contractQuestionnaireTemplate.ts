@@ -50,7 +50,8 @@ export function buildContractQuestionnaireTemplate(
           !(
             b.type === 'text' &&
             (b.role === 'greeting' || b.role === 'footer')
-          ),
+          ) &&
+          !(b.type === 'heading' && b.level === 1),
       ),
       packages,
       additionalServices,
@@ -128,12 +129,12 @@ export function buildContractQuestionnaireTemplate(
       {
         id: 'q-section-extras',
         type: 'section_title',
-        label: 'Usługi dodatkowe',
+        label: 'Dodatki',
       },
       {
         id: 'q-extras',
         type: 'multiselect',
-        label: 'Usługi dodatkowe',
+        label: 'Dodatki',
         required: false,
         fieldKey: 'selectedAdditionalServiceIds',
         options: extraOptions,

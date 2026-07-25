@@ -11,11 +11,60 @@ import {
 import {
   newBlockId,
   type ContractQuestionnaireBlock,
+  type LocationRole,
   type QuestionnaireCustomFieldBlock,
+  type QuestionnaireLocationBlock,
   type SystemFieldKey,
 } from '@/types/questionnaireBlocks'
 
-export const CONTRACT_QUESTIONNAIRE_BLOCKS_VERSION = 4
+export const CONTRACT_QUESTIONNAIRE_BLOCKS_VERSION = 6
+
+export const WEDDING_LOCATIONS_GROUP_HEADING_ID = 'sys_heading_wedding_locations'
+export const WEDDING_LOCATIONS_GROUP_TITLE = 'Lokalizacje'
+export const WEDDING_LOCATIONS_GROUP_HELPER =
+  'Uzupełnijcie adresy przygotowań, ceremonii i przyjęcia.'
+
+const LOCATION_DEFAULTS: Array<{
+  id: string
+  /** @deprecated Per-role headings removed — group uses one shared heading. */
+  headingId: string
+  role: LocationRole
+  label: string
+  required: boolean
+}> = [
+  {
+    id: 'sys_loc_bride_prep',
+    headingId: 'sys_heading_bride_prep',
+    role: 'bride_preparation',
+    label: 'Przygotowania Panny Młodej',
+    required: false,
+  },
+  {
+    id: 'sys_loc_groom_prep',
+    headingId: 'sys_heading_groom_prep',
+    role: 'groom_preparation',
+    label: 'Przygotowania Pana Młodego',
+    required: false,
+  },
+  {
+    id: 'sys_loc_ceremony',
+    headingId: 'sys_heading_ceremony',
+    role: 'ceremony',
+    label: 'Miejsce ceremonii',
+    required: true,
+  },
+  {
+    id: 'sys_loc_reception',
+    headingId: 'sys_heading_reception',
+    role: 'reception',
+    label: 'Miejsce przyjęcia weselnego',
+    required: true,
+  },
+]
+
+const OBSOLETE_PER_ROLE_LOCATION_HEADING_IDS = new Set(
+  LOCATION_DEFAULTS.map((d) => d.headingId),
+)
 
 function blk(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -27,8 +76,8 @@ function blk(
 
 /**
  * Exact public questionnaire order:
- * 1 Data ślubu · 2 Pakiet · 3 Usługi · 4 Panna · 5 Pan ·
- * 6 Adres do umowy · 7 E-mail · 8 Uwagi
+ * 1 Data ślubu · 2 Pakiet · 3 Dodatki · 4 Panna · 5 Pan ·
+ * 6 Adres do umowy · 7 Lokalizacje · 8 E-mail · 9 Uwagi
  */
 export function buildDefaultQuestionnaireBlocks(
   legacy?: Partial<ContractQuestionnaireConfig> | null,
@@ -41,7 +90,6 @@ export function buildDefaultQuestionnaireBlocks(
     legacy?.footerText ??
     defaultContractQuestionnaireConfig().footerText ??
     ''
-  const title = legacy?.questionnaireTitle?.trim() || 'Dane do umowy'
   const showPackages = legacy?.showPackages !== false
   const showExtras = legacy?.showAdditionalServices !== false
   const packagesRequired = legacy?.packagesRequired !== false
@@ -49,18 +97,6 @@ export function buildDefaultQuestionnaireBlocks(
   const blocks: ContractQuestionnaireBlock[] = []
   let order = 0
 
-  blocks.push(
-    blk(
-      {
-        id: 'sys_heading_title',
-        type: 'heading',
-        enabled: true,
-        text: title,
-        level: 1,
-      },
-      order++,
-    ),
-  )
   if (greeting.trim()) {
     blocks.push(
       blk(
@@ -126,7 +162,7 @@ export function buildDefaultQuestionnaireBlocks(
           id: 'sys_extras',
           type: 'additional_services',
           enabled: true,
-          label: 'Usługi dodatkowe',
+          label: 'Dodatki',
           helperText: 'Opcjonalnie — wybierzcie usługi, które Was interesują.',
           required: false,
         },
@@ -227,6 +263,36 @@ export function buildDefaultQuestionnaireBlocks(
       order++,
     ),
   )
+
+  // One visual group card: shared heading + four canonical location fields.
+  blocks.push(
+    blk(
+      {
+        id: WEDDING_LOCATIONS_GROUP_HEADING_ID,
+        type: 'heading',
+        enabled: true,
+        text: WEDDING_LOCATIONS_GROUP_TITLE,
+        description: WEDDING_LOCATIONS_GROUP_HELPER,
+        level: 2,
+      },
+      order++,
+    ),
+  )
+  for (const loc of LOCATION_DEFAULTS) {
+    blocks.push(
+      blk(
+        {
+          id: loc.id,
+          type: 'location',
+          enabled: true,
+          locationRole: loc.role,
+          label: loc.label,
+          required: loc.required,
+        },
+        order++,
+      ),
+    )
+  }
 
   blocks.push(
     blk(
@@ -452,13 +518,16 @@ export function ensureQuestionnaireBlocks(
     .map((b, i) => ({ ...b, order: typeof b.order === 'number' ? b.order : i }))
     .filter(
       (b) =>
+        !(b.type === 'system_field' && OBSOLETE_SYSTEM_KEYS.has(b.systemKey)) &&
+        // Orphan page-title heading — title comes from questionnaireTitle / page chrome.
         !(
-          b.type === 'system_field' && OBSOLETE_SYSTEM_KEYS.has(b.systemKey)
+          b.type === 'heading' &&
+          (b.level === 1 || b.id === 'sys_heading_title')
         ) &&
+        // Legacy per-role location headings → one shared group card.
         !(
-          b.type === 'location' &&
-          // Locations are no longer part of the contract questionnaire product.
-          true
+          b.type === 'heading' &&
+          OBSOLETE_PER_ROLE_LOCATION_HEADING_IDS.has(b.id)
         ),
     )
     .map((b) => {
@@ -469,6 +538,12 @@ export function ensureQuestionnaireBlocks(
           inputType: 'address' as const,
         }
       }
+      if (b.type === 'additional_services') {
+        return {
+          ...b,
+          label: b.label === 'Usługi dodatkowe' ? 'Dodatki' : b.label,
+        }
+      }
       return b
     })
     .sort((a, b) => a.order - b.order)
@@ -477,8 +552,140 @@ export function ensureQuestionnaireBlocks(
   return {
     ...config,
     version: Math.max(config.version, CONTRACT_QUESTIONNAIRE_BLOCKS_VERSION),
-    blocks,
+    blocks: ensureCanonicalLocationBlocks(blocks),
   }
+}
+
+/**
+ * Ensure one shared "Lokalizacje" heading + four location fields.
+ * Does not mutate completed historical form snapshots — studio config only.
+ */
+function ensureCanonicalLocationBlocks(
+  blocks: ContractQuestionnaireBlock[],
+): ContractQuestionnaireBlock[] {
+  let next = blocks.filter(
+    (b) =>
+      !(
+        b.type === 'heading' && OBSOLETE_PER_ROLE_LOCATION_HEADING_IDS.has(b.id)
+      ),
+  )
+
+  const present = new Set(
+    next
+      .filter((b): b is QuestionnaireLocationBlock => b.type === 'location')
+      .map((b) => b.locationRole),
+  )
+  const missing = LOCATION_DEFAULTS.filter((d) => !present.has(d.role))
+
+  const isLocationsGroupHeading = (b: ContractQuestionnaireBlock) =>
+    b.type === 'heading' &&
+    (b.id === WEDDING_LOCATIONS_GROUP_HEADING_ID ||
+      b.text === WEDDING_LOCATIONS_GROUP_TITLE ||
+      b.text === 'Miejsca dnia ślubu')
+
+  const hasGroupHeading = next.some(isLocationsGroupHeading)
+
+  if (missing.length === 0 && hasGroupHeading) {
+    return next.map((b, i) => {
+      if (isLocationsGroupHeading(b) && b.type === 'heading') {
+        return {
+          ...b,
+          id: WEDDING_LOCATIONS_GROUP_HEADING_ID,
+          text: WEDDING_LOCATIONS_GROUP_TITLE,
+          description: b.description ?? WEDDING_LOCATIONS_GROUP_HELPER,
+          order: i,
+        }
+      }
+      return { ...b, order: i }
+    })
+  }
+
+  // Pull existing location fields out, then reinsert as one contiguous group.
+  const locationFields = next.filter(
+    (b): b is QuestionnaireLocationBlock => b.type === 'location',
+  )
+  next = next.filter((b) => b.type !== 'location')
+
+  for (const loc of missing) {
+    locationFields.push({
+      id: loc.id,
+      type: 'location',
+      order: 0,
+      enabled: true,
+      locationRole: loc.role,
+      label: loc.label,
+      required: loc.required,
+    })
+  }
+
+  // Stable role order
+  const roleOrder = LOCATION_DEFAULTS.map((d) => d.role)
+  locationFields.sort(
+    (a, b) =>
+      roleOrder.indexOf(a.locationRole) - roleOrder.indexOf(b.locationRole),
+  )
+
+  const groupHeading = blk(
+    {
+      id: WEDDING_LOCATIONS_GROUP_HEADING_ID,
+      type: 'heading',
+      enabled: true,
+      text: WEDDING_LOCATIONS_GROUP_TITLE,
+      description: WEDDING_LOCATIONS_GROUP_HELPER,
+      level: 2,
+    },
+    0,
+  )
+
+  // Prefer after contract address, before email/notes.
+  const emailIdx = next.findIndex(
+    (b) =>
+      (b.type === 'heading' && b.id === 'sys_heading_email') ||
+      (b.type === 'system_field' && b.systemKey === 'partner1.email'),
+  )
+  const notesIdx = next.findIndex(
+    (b) =>
+      (b.type === 'heading' && b.id === 'sys_heading_notes') ||
+      (b.type === 'system_field' && b.systemKey === 'additionalNotes'),
+  )
+  const addressIdx = next.findIndex(
+    (b) => b.type === 'system_field' && b.systemKey === 'partner1.address',
+  )
+
+  let insertAt: number
+  if (emailIdx >= 0) insertAt = emailIdx
+  else if (notesIdx >= 0) insertAt = notesIdx
+  else if (addressIdx >= 0) insertAt = addressIdx + 1
+  else insertAt = next.length
+
+  // Drop any prior group heading (incl. legacy title) before reinserting.
+  next = next.filter((b) => !isLocationsGroupHeading(b))
+  // Recompute insertAt after filter
+  const emailIdx2 = next.findIndex(
+    (b) =>
+      (b.type === 'heading' && b.id === 'sys_heading_email') ||
+      (b.type === 'system_field' && b.systemKey === 'partner1.email'),
+  )
+  const notesIdx2 = next.findIndex(
+    (b) =>
+      (b.type === 'heading' && b.id === 'sys_heading_notes') ||
+      (b.type === 'system_field' && b.systemKey === 'additionalNotes'),
+  )
+  const addressIdx2 = next.findIndex(
+    (b) => b.type === 'system_field' && b.systemKey === 'partner1.address',
+  )
+  if (emailIdx2 >= 0) insertAt = emailIdx2
+  else if (notesIdx2 >= 0) insertAt = notesIdx2
+  else if (addressIdx2 >= 0) insertAt = addressIdx2 + 1
+  else insertAt = next.length
+
+  const assembled = [
+    ...next.slice(0, insertAt),
+    groupHeading,
+    ...locationFields,
+    ...next.slice(insertAt),
+  ]
+  return assembled.map((b, i) => ({ ...b, order: i }))
 }
 
 export function syncLegacyFieldsFromBlocks(
@@ -542,11 +749,15 @@ export function canAddExtrasBlock(blocks: ContractQuestionnaireBlock[]): boolean
 }
 
 export function canAddLocationRole(
-  _blocks: ContractQuestionnaireBlock[],
-  _role: string,
+  blocks: ContractQuestionnaireBlock[],
+  role: string,
 ): boolean {
-  // Wedding locations are out of contract-questionnaire product scope.
-  return false
+  return !blocks.some(
+    (b) =>
+      b.type === 'location' &&
+      b.enabled &&
+      b.locationRole === (role as LocationRole),
+  )
 }
 
 export function canAddSystemKey(
@@ -625,13 +836,38 @@ export function createBlockOfType(
         type: 'additional_services',
         order,
         enabled: true,
-        label: 'Usługi dodatkowe',
+        label: 'Dodatki',
         required: false,
       }
     case 'location':
-      return null
+      return {
+        id,
+        type: 'location',
+        order,
+        enabled: true,
+        locationRole: 'ceremony',
+        label: 'Miejsce ceremonii',
+        required: true,
+      }
     default:
       return null
+  }
+}
+
+export function createLocationBlock(
+  role: LocationRole,
+  order: number,
+): QuestionnaireLocationBlock {
+  const preset =
+    LOCATION_DEFAULTS.find((d) => d.role === role) ?? LOCATION_DEFAULTS[2]
+  return {
+    id: preset.id,
+    type: 'location',
+    order,
+    enabled: true,
+    locationRole: role,
+    label: preset.label,
+    required: preset.required,
   }
 }
 
@@ -772,10 +1008,11 @@ export function moveBlockToIndex(
 export const CONTRACT_QUESTIONNAIRE_SECTION_ORDER = [
   'Data ślubu',
   'Pakiet',
-  'Usługi dodatkowe',
+  'Dodatki',
   'Dane Panny Młodej',
   'Dane Pana Młodego',
   'Adres do umowy',
+  'Lokalizacje',
   'Adres e-mail do kontaktu',
   'Uwagi',
 ] as const

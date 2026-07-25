@@ -10,6 +10,7 @@ import { QuestionField } from '@/features/forms/QuestionField'
 import {
   groupQuestionsIntoSections,
   isFullWidthQuestion,
+  isLocationsSection,
 } from '@/features/forms/formSections'
 import { normalizeContractQuestionnaireConfig } from '@/lib/forms/contractQuestionnaireSnapshot'
 import type { AnswerValue, FormTemplate } from '@/types/form'
@@ -160,17 +161,23 @@ export function QuestionnaireAnswersReadOnly({
           const isNotes =
             section.questions.length === 1 &&
             section.questions[0]?.type === 'textarea'
+          const isLocations = isLocationsSection(section)
 
           return (
             <section key={section.id} className={publicStyles.card}>
               {section.title ? (
                 <h3 className={publicStyles.cardTitle}>{section.title}</h3>
               ) : null}
+              {section.description ? (
+                <p className={publicStyles.cardHelper}>{section.description}</p>
+              ) : null}
               <div
                 className={
                   isNotes
                     ? publicStyles.cardBodySingle
-                    : publicStyles.cardBodyGrid
+                    : isLocations
+                      ? publicStyles.cardBodyStack
+                      : publicStyles.cardBodyGrid
                 }
               >
                 {section.questions

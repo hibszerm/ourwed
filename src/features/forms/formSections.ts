@@ -4,6 +4,7 @@ import type { Question } from '@/types/form'
 export interface FormQuestionSection {
   id: string
   title: string
+  description?: string
   questions: Question[]
 }
 
@@ -18,6 +19,7 @@ export function groupQuestionsIntoSections(
       current = {
         id: question.id,
         title: question.label,
+        description: question.description,
         questions: [],
       }
       sections.push(current)
@@ -36,23 +38,34 @@ export function groupQuestionsIntoSections(
     current.questions.push(question)
   }
 
-  return sections
+  // Structural-only headings (no child fields) must not become empty cards.
+  return sections.filter((section) => section.questions.length > 0)
+}
+
+/** True when the section is the shared Lokalizacje venue card. */
+export function isLocationsSection(section: {
+  id?: string
+  title?: string
+}): boolean {
+  return (
+    section.id === 'sys_heading_wedding_locations' ||
+    section.title === 'Lokalizacje' ||
+    section.title === 'Miejsca dnia ślubu'
+  )
 }
 
 /** Fields that should span the full card width in a 2-col grid. */
 export function isFullWidthQuestion(question: Question): boolean {
+  // Venue locations render in cardBodyStack (always 1-col). Contract address
+  // and other .address identity fields stay full-width in mixed grids.
+  if (question.type === 'location') {
+    return true
+  }
   return (
     question.type === 'textarea' ||
-    question.type === 'location' ||
     question.type === 'email' ||
     question.type === 'multiselect' ||
-    question.fieldKey?.endsWith('.address') === true ||
     question.id === 'q-notes' ||
-    question.id === 'q-prep' ||
-    question.id === 'q-bride-prep' ||
-    question.id === 'q-groom-prep' ||
-    question.id === 'q-ceremony' ||
-    question.id === 'q-reception' ||
     question.id === 'q-package' ||
     question.id === 'q-extras'
   )

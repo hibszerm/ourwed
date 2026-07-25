@@ -10,6 +10,10 @@ import {
   normalizePackageOptions,
   parseOptionsSnapshot,
 } from '@/lib/forms/contractQuestionnaireSnapshot'
+import { syncWeddingExtrasFromQuestionnaireAnswer } from '@/lib/forms/syncWeddingExtrasFromQuestionnaire'
+import { recomputeContractValueAfterExtrasSync } from '@/lib/forms/weddingExtraPricing'
+import { weddingExtraServiceService } from '@/lib/api/weddingExtraServiceService'
+import { weddingService } from '@/lib/api/weddingService'
 import type {
   FormAnswerJson,
   FormAnswerRecord,
@@ -911,6 +915,36 @@ export async function submitForm(
         content: additionalNotes,
         author: 'Para',
       })
+    }
+
+    // Sync extras, then recompute contract value = package base + extras (idempotent).
+    const wedding = await weddingService.getById(weddingId)
+    if (wedding) {
+      const extrasBefore = await weddingExtraServiceService.listByWeddingId(
+        weddingId,
+      )
+      await syncWeddingExtrasFromQuestionnaireAnswer(
+        weddingId,
+        answerJson,
+        instance.optionsSnapshot,
+      )
+      const extrasAfter = await weddingExtraServiceService.listByWeddingId(
+        weddingId,
+      )
+      const nextPrice = recomputeContractValueAfterExtrasSync({
+        currentWeddingPrice: wedding.price,
+        extrasBeforeSync: extrasBefore,
+        extrasAfterSync: extrasAfter,
+      })
+      if (nextPrice !== wedding.price) {
+        await weddingService.update({ ...wedding, price: nextPrice })
+      }
+    } else {
+      await syncWeddingExtrasFromQuestionnaireAnswer(
+        weddingId,
+        answerJson,
+        instance.optionsSnapshot,
+      )
     }
   } else {
     try {

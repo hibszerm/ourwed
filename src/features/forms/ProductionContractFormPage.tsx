@@ -6,6 +6,7 @@ import { FormSuccessView } from '@/features/forms/FormSuccessView'
 import {
   groupQuestionsIntoSections,
   isFullWidthQuestion,
+  isLocationsSection,
 } from '@/features/forms/formSections'
 import {
   getPublicFormByToken,
@@ -365,19 +366,29 @@ export function ProductionContractFormPage() {
 
       <form className={styles.form} onSubmit={handleSubmit} noValidate>
         {sections.map((section) => {
+          if (section.questions.length === 0) return null
+
           const isNotes =
             section.questions.length === 1 &&
             section.questions[0]?.type === 'textarea'
+          const isLocations = isLocationsSection(section)
 
           return (
             <section key={section.id} className={styles.card}>
               {section.title ? (
                 <h2 className={styles.cardTitle}>{section.title}</h2>
               ) : null}
+              {section.description ? (
+                <p className={styles.cardHelper}>{section.description}</p>
+              ) : null}
 
               <div
                 className={
-                  isNotes ? styles.cardBodySingle : styles.cardBodyGrid
+                  isNotes
+                    ? styles.cardBodySingle
+                    : isLocations
+                      ? styles.cardBodyStack
+                      : styles.cardBodyGrid
                 }
               >
                 {section.questions.map((question) => (
@@ -395,9 +406,7 @@ export function ProductionContractFormPage() {
                     }
                   >
                     <QuestionField
-                      question={
-                        isNotes ? { ...question, label: '' } : question
-                      }
+                      question={isNotes ? { ...question, label: '' } : question}
                       value={values[question.id] ?? ''}
                       error={errors[question.id]}
                       onChange={(value) => updateValue(question.id, value)}

@@ -247,11 +247,11 @@ run('builder: prevent duplicate extras block', () => {
   assert(!canAddExtrasBlock(blocks), 'cannot add second extras')
 })
 
-run('builder: location roles disabled in contract questionnaire product', () => {
+run('builder: location roles unique — one per role', () => {
   const blocks = buildDefaultQuestionnaireBlocks(null)
-  assert(!canAddLocationRole(blocks, 'ceremony'), 'cannot add ceremony')
-  assert(!canAddLocationRole([], 'ceremony'), 'locations out of product scope')
-  assert(!blocks.some((b) => b.type === 'location'), 'no default locations')
+  assert(!canAddLocationRole(blocks, 'ceremony'), 'ceremony already present')
+  assert(blocks.filter((b) => b.type === 'location').length === 4, '4 defaults')
+  assert(canAddLocationRole([], 'ceremony'), 'can add when empty')
 })
 
 run('builder: system address field uses address inputType', () => {

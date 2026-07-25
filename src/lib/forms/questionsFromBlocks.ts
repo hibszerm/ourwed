@@ -38,6 +38,10 @@ export function questionsFromBlocks(
   for (const block of sorted) {
     switch (block.type) {
       case 'heading':
+        // Page title (level 1) is structural — used for template.title only.
+        // Emitting it as section_title creates an empty "Dane do umowy" card.
+        if (block.level === 1) break
+        if (!block.text.trim()) break
         questions.push({
           id: block.id,
           type: 'section_title',

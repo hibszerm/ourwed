@@ -24,6 +24,9 @@ import { weddingService } from '@/lib/api/weddingService'
 import { packageService } from '@/lib/api/packageService'
 import { asCatalogPackageId } from '@/lib/supabase/helpers'
 import { extractAnswerFields } from '@/lib/forms/mergeFormAnswersIntoWedding'
+import { syncWeddingExtrasFromQuestionnaireAnswer } from '@/lib/forms/syncWeddingExtrasFromQuestionnaire'
+import { recomputeContractValueAfterExtrasSync } from '@/lib/forms/weddingExtraPricing'
+import { weddingExtraServiceService } from '@/lib/api/weddingExtraServiceService'
 import {
   formatLocationAnswer,
   normalizeSelectedPackageIds,
@@ -685,6 +688,31 @@ export const questionnaireService = {
           weddingId: wedding.id,
           content: summary.additionalNotes,
           author: 'Para',
+        })
+      }
+
+      // Persist selected extras, then set contract value = package + extras (idempotent).
+      const extrasBefore = await weddingExtraServiceService.listByWeddingId(
+        wedding.id,
+      )
+      await syncWeddingExtrasFromQuestionnaireAnswer(
+        wedding.id,
+        answers.answerJson,
+        instance.optionsSnapshot,
+      )
+      const extrasAfter = await weddingExtraServiceService.listByWeddingId(
+        wedding.id,
+      )
+      const nextPrice = recomputeContractValueAfterExtrasSync({
+        currentWeddingPrice: wedding.price,
+        extrasBeforeSync: extrasBefore,
+        extrasAfterSync: extrasAfter,
+        explicitPackagePrice: summary.packagePrice || 0,
+      })
+      if (nextPrice !== wedding.price) {
+        wedding = await weddingService.update({
+          ...wedding,
+          price: nextPrice,
         })
       }
 

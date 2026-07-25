@@ -22,6 +22,7 @@ import { formEngine } from '@/lib/forms/formEngine'
 import {
   groupQuestionsIntoSections,
   isFullWidthQuestion,
+  isLocationsSection,
 } from '@/features/forms/formSections'
 import type { ContractQuestionnaireConfig } from '@/types/contractQuestionnaire'
 import type {
@@ -72,11 +73,31 @@ const ADD_GROUPS: {
     title: 'Dane ślubu',
     items: [
       { kind: 'block', type: 'packages', label: 'Pakiety' },
-      { kind: 'block', type: 'additional_services', label: 'Usługi dodatkowe' },
+      { kind: 'block', type: 'additional_services', label: 'Dodatki' },
       {
         kind: 'system',
         systemKey: 'partner1.address',
         label: 'Adres do umowy',
+      },
+      {
+        kind: 'location',
+        role: 'bride_preparation',
+        label: 'Przygotowania Panny Młodej',
+      },
+      {
+        kind: 'location',
+        role: 'groom_preparation',
+        label: 'Przygotowania Pana Młodego',
+      },
+      {
+        kind: 'location',
+        role: 'ceremony',
+        label: 'Miejsce ceremonii',
+      },
+      {
+        kind: 'location',
+        role: 'reception',
+        label: 'Miejsce przyjęcia weselnego',
       },
     ],
   },
@@ -960,7 +981,16 @@ function QuestionnairePreview({
             {section.title ? (
               <h3 className={publicStyles.cardTitle}>{section.title}</h3>
             ) : null}
-            <div className={publicStyles.cardBodyGrid}>
+            {section.description ? (
+              <p className={publicStyles.cardHelper}>{section.description}</p>
+            ) : null}
+            <div
+              className={
+                isLocationsSection(section)
+                  ? publicStyles.cardBodyStack
+                  : publicStyles.cardBodyGrid
+              }
+            >
               {section.questions
                 .filter((q) => !formEngine.isDisplayQuestion(q))
                 .map((question) => (

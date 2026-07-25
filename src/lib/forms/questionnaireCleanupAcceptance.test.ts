@@ -134,6 +134,10 @@ run('order: default blocks follow product section sequence', () => {
         q.fieldKey === 'selectedAdditionalServiceIds' ||
         q.fieldKey === 'partner1.address' ||
         q.fieldKey === 'partner1.email' ||
+        q.fieldKey === 'bridePreparationLocation' ||
+        q.fieldKey === 'groomPreparationLocation' ||
+        q.fieldKey === 'ceremonyLocation' ||
+        q.fieldKey === 'receptionLocation' ||
         q.fieldKey === 'additionalNotes',
     )
     .map((q) => q.label)
@@ -146,10 +150,11 @@ run('order: default blocks follow product section sequence', () => {
 
   const dateI = idx('Data ślubu')
   const pkgI = idx('Pakiet')
-  const exI = idx('Usługi dodatkowe')
+  const exI = idx('Dodatki')
   const brideI = labels.findIndex((l) => l === 'Dane Panny Młodej')
   const groomI = labels.findIndex((l) => l === 'Dane Pana Młodego')
   const addrI = idx('Adres do umowy')
+  const locI = idx('Lokalizacje')
   const emailI = idx('Adres e-mail do kontaktu')
   const notesI = idx('Uwagi')
 
@@ -158,9 +163,10 @@ run('order: default blocks follow product section sequence', () => {
   assert(exI < brideI, 'extras before bride')
   assert(brideI < groomI, 'bride before groom')
   assert(groomI < addrI, 'groom before address')
-  assert(addrI < emailI, 'address before email')
+  assert(addrI < locI, 'address before locations')
+  assert(locI < emailI, 'locations before email')
   assert(emailI < notesI, 'email before notes')
-  assertEq(CONTRACT_QUESTIONNAIRE_SECTION_ORDER.length, 8, '8 sections')
+  assertEq(CONTRACT_QUESTIONNAIRE_SECTION_ORDER.length, 9, '9 sections')
 
   const addressFields = tpl.questions.filter(
     (q) => q.fieldKey === 'partner1.address' || q.fieldKey === 'partner2.address',
@@ -176,9 +182,17 @@ run('order: default blocks follow product section sequence', () => {
     !tpl.questions.some((q) => q.fieldKey === 'partner1.postalCode'),
     'no postal',
   )
-  assert(
-    !blocks.some((b) => b.type === 'location'),
-    'no venue location blocks in default',
+  assertEq(
+    blocks.filter((b) => b.type === 'location').length,
+    4,
+    'four venue location blocks in default',
+  )
+  assertEq(
+    blocks.filter(
+      (b) => b.type === 'heading' && b.id === 'sys_heading_bride_prep',
+    ).length,
+    0,
+    'no per-role location headings',
   )
 })
 
