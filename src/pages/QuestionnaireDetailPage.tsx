@@ -78,7 +78,6 @@ export function QuestionnaireDetailPage() {
   }
 
   const { instance, formName, formUrl, form } = data
-  const timeline = questionnaireService.buildTimeline(instance)
   const showAnswers =
     instance.status === 'submitted' ||
     instance.status === 'approved' ||
@@ -177,20 +176,8 @@ export function QuestionnaireDetailPage() {
                 <dd>{formatDateTime(instance.createdAt)}</dd>
               </div>
               <div>
-                <dt>Otwarto</dt>
-                <dd>{formatDateTime(instance.openedAt)}</dd>
-              </div>
-              <div>
                 <dt>Wysłano</dt>
                 <dd>{formatDateTime(instance.submittedAt)}</dd>
-              </div>
-              <div>
-                <dt>Ważność linku</dt>
-                <dd>
-                  {instance.expiresAt
-                    ? formatDateTime(instance.expiresAt)
-                    : 'Bezterminowo'}
-                </dd>
               </div>
               <div>
                 <dt>Ślub</dt>
@@ -203,21 +190,6 @@ export function QuestionnaireDetailPage() {
                 </dd>
               </div>
             </dl>
-          </Card>
-
-          <Card>
-            <CardHeader title="Historia" subtitle="Chronologiczny dziennik aktywności" />
-            <ol className={styles.timeline}>
-              {timeline.map((event) => (
-                <li key={event.id} className={styles.timelineItem}>
-                  <p className={styles.timelineTitle}>{event.title}</p>
-                  <time className={styles.timelineAt}>{formatDateTime(event.at)}</time>
-                  {event.description ? (
-                    <p className={styles.timelineDesc}>{event.description}</p>
-                  ) : null}
-                </li>
-              ))}
-            </ol>
           </Card>
         </div>
 

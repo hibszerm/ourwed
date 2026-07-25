@@ -1,3 +1,25 @@
+.pageHeaderRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-5);
+}
+
+.pageTitle {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.pageLead {
+  margin: 0.35rem 0 0;
+  color: var(--color-text-secondary);
+  max-width: 40rem;
+}
+
 .toolbar {
   display: flex;
   flex-direction: column;

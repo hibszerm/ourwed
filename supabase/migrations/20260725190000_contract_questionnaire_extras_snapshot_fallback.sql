@@ -1,6 +1,16 @@
--- Mirror package snapshot behavior for additional services:
--- only trust a non-empty snapshot array; otherwise fall back to live catalog.
--- Also ensure expires_at = null means "no expiration" (already true in prior RPCs).
+-- Fix extras snapshot fallback for public_get_form_by_token.
+--
+-- IMPORTANT: form definitions live in public.forms (never public.form_definitions).
+-- This migration failed on first apply because it referenced the nonexistent
+-- form_definitions relation. It was not successfully applied — safe to correct
+-- in place (supersedes the broken draft of the same filename).
+--
+-- Behavior (aligned with 20260725180000 + extras non-empty gate):
+-- - Prefer non-empty options_snapshot.packageOptions, else live packages by owner
+-- - Prefer non-empty options_snapshot.additionalServiceOptions, else live extras
+-- - Owner = coalesce(form_instances.user_id, forms.user_id)
+-- - expires_at IS NULL = indefinite
+-- - Preserve pending→opened, auto-expire status update, and JSON payload keys
 
 create or replace function public.public_get_form_by_token(p_token text)
 returns jsonb
@@ -10,46 +20,53 @@ set search_path = public
 as $$
 declare
   inst public.form_instances%rowtype;
-  form_row public.form_definitions%rowtype;
+  form_row public.forms%rowtype;
   packages_json jsonb := '[]'::jsonb;
   extras_json jsonb := '[]'::jsonb;
-  snapshot jsonb;
   owner_id uuid;
+  snapshot jsonb;
   result jsonb;
 begin
-  if p_token is null or length(trim(p_token)) = 0 then
-    raise exception 'invalid_token' using errcode = 'P0001';
+  if p_token is null or length(trim(p_token)) < 8 then
+    return null;
   end if;
 
-  select *
-  into inst
+  select * into inst
   from public.form_instances
-  where token = p_token
+  where token = trim(p_token)
   limit 1;
 
   if not found then
-    raise exception 'not_found' using errcode = 'P0001';
+    return null;
   end if;
 
-  if inst.status = 'revoked' then
-    raise exception 'revoked' using errcode = 'P0001';
-  end if;
-
-  -- null expires_at = indefinite (contract questionnaires)
+  -- Auto-expire when expires_at is set; null = indefinite (contract questionnaires)
   if inst.expires_at is not null
      and inst.expires_at <= timezone('utc', now())
-  then
-    raise exception 'expired' using errcode = 'P0001';
+     and inst.status not in ('submitted', 'approved', 'expired') then
+    update public.form_instances
+    set status = 'expired'
+    where id = inst.id
+      and status not in ('submitted', 'approved', 'expired')
+    returning * into inst;
   end if;
 
-  select *
-  into form_row
-  from public.form_definitions
-  where id = inst.form_id
-  limit 1;
+  -- First open
+  if inst.status = 'pending' then
+    update public.form_instances
+    set status = 'opened',
+        opened_at = timezone('utc', now())
+    where id = inst.id
+      and status = 'pending'
+    returning * into inst;
+  end if;
+
+  select * into form_row
+  from public.forms
+  where id = inst.form_id;
 
   if not found then
-    raise exception 'form_missing' using errcode = 'P0001';
+    return null;
   end if;
 
   snapshot := inst.options_snapshot;

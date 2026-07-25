@@ -5,7 +5,7 @@ import {
   useState,
   type KeyboardEvent,
 } from 'react'
-import { FloatingPortal } from '@/components/ui/FloatingPortal'
+import { ResponsiveFieldOverlay } from '@/components/ui/ResponsiveFieldOverlay'
 import {
   defaultAddressAutocompleteProvider,
   type AddressAutocompleteProvider,
@@ -36,8 +36,8 @@ function isNormalized(value: AddressFieldValue): value is NormalizedAddress {
 }
 
 /**
- * Address autocomplete with portalled suggestion menu.
- * Parent overflow:hidden (questionnaire cards) cannot clip the menu.
+ * Address autocomplete with responsive overlay:
+ * desktop anchored popover, mobile keyboard-aware bottom sheet.
  */
 export function AddressField({
   id,
@@ -49,6 +49,7 @@ export function AddressField({
 }: AddressFieldProps) {
   const listId = useId()
   const inputRef = useRef<HTMLInputElement>(null)
+  const portalRef = useRef<HTMLElement | null>(null)
   const [query, setQuery] = useState(toDisplay(value))
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([])
   const [loading, setLoading] = useState(false)
@@ -73,8 +74,7 @@ export function AddressField({
       const target = e.target as Node | null
       if (!target) return
       if (inputRef.current?.contains(target)) return
-      const portal = document.querySelector('[data-floating-portal="true"]')
-      if (portal?.contains(target)) return
+      if (portalRef.current?.contains(target)) return
       setOpen(false)
       setHighlight(-1)
     }
@@ -200,14 +200,33 @@ export function AddressField({
       />
       {loading ? <span className={styles.status}>Szukam…</span> : null}
 
-      <FloatingPortal open={showMenu} anchorRef={inputRef}>
+      <ResponsiveFieldOverlay
+        open={showMenu}
+        anchorRef={inputRef}
+        sheetTitle="Wybierz adres"
+        onClose={() => {
+          setOpen(false)
+          setHighlight(-1)
+        }}
+        maxMenuHeight={280}
+        sheetFraction={0.45}
+      >
         {(placement) => (
           <ul
+            ref={(node) => {
+              portalRef.current = node
+            }}
             id={listId}
-            className={styles.listPortal}
+            className={[
+              styles.listPortal,
+              placement.mode === 'sheet' ? styles.listSheet : '',
+            ]
+              .filter(Boolean)
+              .join(' ')}
             role="listbox"
-            style={{ maxHeight: placement.maxHeight }}
+            style={{ maxHeight: placement.maxHeight - (placement.mode === 'sheet' ? 52 : 0) }}
             data-testid="address-suggestion-menu"
+            data-overlay-mode={placement.mode}
           >
             {loading && suggestions.length === 0 ? (
               <li className={styles.emptyRow} role="presentation">
@@ -230,6 +249,7 @@ export function AddressField({
                   type="button"
                   className={[
                     styles.option,
+                    placement.mode === 'sheet' ? styles.optionCompact : '',
                     highlight === index ? styles.optionActive : '',
                   ]
                     .filter(Boolean)
@@ -238,7 +258,6 @@ export function AddressField({
                   onMouseEnter={() => setHighlight(index)}
                   onClick={() => void pickSuggestion(s)}
                 >
-                  <span className={styles.pin} aria-hidden />
                   <span className={styles.optionText}>
                     <span className={styles.optionLabel}>{s.label}</span>
                     {s.secondaryLabel ? (
@@ -252,7 +271,7 @@ export function AddressField({
             ))}
           </ul>
         )}
-      </FloatingPortal>
+      </ResponsiveFieldOverlay>
     </div>
   )
 }

@@ -76,25 +76,8 @@ const ADD_GROUPS: {
       {
         kind: 'system',
         systemKey: 'partner1.address',
-        label: 'Adres do umowy Panny Młodej',
+        label: 'Adres do umowy',
       },
-      {
-        kind: 'system',
-        systemKey: 'partner2.address',
-        label: 'Adres do umowy Pana Młodego',
-      },
-      {
-        kind: 'location',
-        role: 'bride_preparation',
-        label: 'Przygotowania Panny Młodej',
-      },
-      {
-        kind: 'location',
-        role: 'groom_preparation',
-        label: 'Przygotowania Pana Młodego',
-      },
-      { kind: 'location', role: 'ceremony', label: 'Ceremonia' },
-      { kind: 'location', role: 'reception', label: 'Wesele / przyjęcie' },
     ],
   },
 ]
@@ -332,12 +315,9 @@ export function ContractQuestionnaireBuilder({
   return (
     <div className={styles.editor} data-testid="questionnaire-builder">
       <header className={styles.topBar}>
-        <div className={styles.topBarText}>
-          <h1 className={styles.pageTitle}>Ankieta do umowy</h1>
-          <p className={styles.pageSubtitle}>
-            Skonfiguruj pytania i wygląd ankiety wysyłanej parom.
-          </p>
-        </div>
+        <p className={styles.configNote}>
+          Zmiany dotyczą nowo wysyłanych ankiet.
+        </p>
         <div className={styles.topBarActions}>
           <span
             className={styles.saveState}

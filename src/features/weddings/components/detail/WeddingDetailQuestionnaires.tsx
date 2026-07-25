@@ -8,16 +8,13 @@ import {
 import type { QuestionnaireItem, WeddingQuestionnaires } from '@/types/wedding'
 import styles from './WeddingDetailQuestionnaires.module.css'
 
-type QuestionnaireKey = keyof WeddingQuestionnaires
-
 interface WeddingDetailQuestionnairesProps {
   questionnaires: WeddingQuestionnaires
-  onSend?: (kind: QuestionnaireKey) => void
+  onSend?: (kind: 'contractData') => void
 }
 
-const ITEMS: { key: QuestionnaireKey; label: string }[] = [
+const ITEMS: { key: 'contractData'; label: string }[] = [
   { key: 'contractData', label: 'Dane do umowy' },
-  { key: 'weddingQuestionnaire', label: 'Ankieta ślubna' },
 ]
 
 function QuestionnaireRow({

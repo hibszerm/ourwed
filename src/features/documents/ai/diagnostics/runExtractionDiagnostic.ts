@@ -17,8 +17,6 @@ import { normalizeAnalysisPayload } from '@/features/documents/ai/normalizeAnaly
 import { aiAnalysisToDetectedFields } from '@/features/documents/ai/bridgeToWizard'
 import { hashDocumentText } from '@/features/documents/ai/hash'
 import type { DocumentStructure } from '@/features/documents/mapping/preview/documentNodes'
-import { generateQuestionnaireDraft } from '@/features/documents/questionnaire'
-import { classifyDetectedFields } from '@/features/documents/questionnaire/classifyVariables'
 import { compareExtractionDiagnostic } from './compareExtractionDiagnostic'
 import { parseBusinessUnderstanding } from './parseBusinessUnderstanding'
 import type {
@@ -27,7 +25,6 @@ import type {
   ProductionIdArrays,
 } from './types'
 import type { DocumentAiErrorPayload } from '@/features/documents/ai/types'
-import type { QuestionnaireDraft } from '@/features/documents/questionnaire'
 
 /** Enable with VITE_DOCUMENT_AI_DIAGNOSTIC=true in development only. */
 export function isExtractionDiagnosticEnabled(): boolean {
@@ -120,7 +117,8 @@ export async function runExtractionDiagnostic(input: {
   templateName?: string | null
 }): Promise<{
   report: ExtractionDiagnosticReport
-  draft: QuestionnaireDraft
+  /** @deprecated Questionnaire draft generation removed. */
+  draft: null
 }> {
   const fullText = input.text ?? ''
   const text =
@@ -187,14 +185,6 @@ export async function runExtractionDiagnostic(input: {
     fromCache: false,
   })
   const fields = aiAnalysisToDetectedFields(aiAnalysis, input.structure)
-  const classification = classifyDetectedFields(fields)
-
-  const draft = generateQuestionnaireDraft({
-    fields,
-    ai: aiAnalysis,
-    sourceText: text,
-    templateName: input.templateName,
-  })
 
   const afterExpand = {
     registryKeys: aiAnalysis.fields
@@ -207,27 +197,18 @@ export async function runExtractionDiagnostic(input: {
       .filter(Boolean),
   }
 
+  // Classification / questionnaire-draft stages removed with documents/questionnaire.
   const afterClassification = {
-    registryKeys: classification
-      .map((c) => c.registryKey)
+    registryKeys: fields
+      .map((f) => f.mappedKey ?? f.suggestedKey)
       .filter((k): k is string => Boolean(k)),
-    labels: classification.map((c) => c.label),
+    labels: fields.map((f) => f.label),
   }
 
   const afterReview = {
-    registryKeys: draft.questions
-      .map((q) => q.registryKey)
-      .filter((k): k is string => Boolean(k)),
-    labels: draft.questions.map((q) => q.title || q.contractLabel),
-    enabledLabels: draft.questions
-      .filter((q) => q.enabled)
-      .map((q) => q.title || q.contractLabel),
-  }
-
-  // Include package presence rows in review labels for comparison.
-  for (const pv of draft.packageVariables ?? []) {
-    afterReview.labels.push(pv.label)
-    if (pv.enabled) afterReview.enabledLabels.push(pv.label)
+    registryKeys: [] as string[],
+    labels: [] as string[],
+    enabledLabels: [] as string[],
   }
 
   const stages: DiagnosticPipelineStages = {
@@ -255,5 +236,5 @@ export async function runExtractionDiagnostic(input: {
     summary: compared.summary,
   }
 
-  return { report, draft }
+  return { report, draft: null }
 }

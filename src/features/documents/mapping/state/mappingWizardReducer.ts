@@ -16,8 +16,6 @@ import type {
   TemplateConfigStatus,
 } from '../types'
 import { MAPPING_WIZARD_STEPS } from '../types'
-import { generateQuestionnaireDraft } from '@/features/documents/questionnaire'
-import type { DraftQuestion, QuestionnaireDraft } from '@/features/documents/questionnaire'
 
 export interface MappingWizardState {
   step: MappingWizardStepId
@@ -96,15 +94,6 @@ export type MappingWizardAction =
   | { type: 'move_component'; kind: DocumentComponentKind; direction: 'up' | 'down' }
   | { type: 'toggle_clause_id'; clauseId: string; enabled: boolean }
   | { type: 'toggle_suggested_clause'; key: string; enabled: boolean }
-  | { type: 'set_questionnaire_draft'; draft: QuestionnaireDraft | null }
-  | {
-      type: 'update_draft_question'
-      questionId: string
-      patch: Partial<DraftQuestion>
-    }
-  | { type: 'toggle_draft_question'; questionId: string; enabled: boolean }
-  | { type: 'set_questionnaire_name'; name: string }
-  | { type: 'questionnaire_saved'; formId: string }
   | { type: 'mark_clean' }
 
 function emptyDraft(
@@ -340,12 +329,6 @@ export function mappingWizardReducer(
       const enabled = action.result.suggestedComponents.filter((k) =>
         DEFAULT_COMPONENT_ORDER.includes(k),
       )
-      const questionnaireDraft = generateQuestionnaireDraft({
-        fields: action.result.fields,
-        ai: action.result.aiAnalysis,
-        sourceText: action.result.sourceText,
-        templateName: action.templateName ?? state.draft.sourceFileName,
-      })
       const draft = withRebuiltBlocks(state.draft, {
         analysis: action.result,
         fields: action.result.fields,
@@ -355,7 +338,7 @@ export function mappingWizardReducer(
           (c) => c.key,
         ),
         enabledClauseIds: [],
-        questionnaireDraft,
+        questionnaireDraft: null,
       })
       return {
         ...state,
@@ -640,84 +623,6 @@ export function mappingWizardReducer(
           ...state.draft,
           enabledSuggestedClauseKeys: enabled,
           dirty: true,
-        },
-      }
-    }
-
-    case 'set_questionnaire_draft':
-      return {
-        ...state,
-        draft: {
-          ...state.draft,
-          questionnaireDraft: action.draft,
-          dirty: true,
-        },
-      }
-
-    case 'update_draft_question': {
-      const qDraft = state.draft.questionnaireDraft
-      if (!qDraft) return state
-      return {
-        ...state,
-        draft: {
-          ...state.draft,
-          dirty: true,
-          questionnaireDraft: {
-            ...qDraft,
-            questions: qDraft.questions.map((q) =>
-              q.id === action.questionId ? { ...q, ...action.patch } : q,
-            ),
-          },
-        },
-      }
-    }
-
-    case 'toggle_draft_question': {
-      const qDraft = state.draft.questionnaireDraft
-      if (!qDraft) return state
-      return {
-        ...state,
-        draft: {
-          ...state.draft,
-          dirty: true,
-          questionnaireDraft: {
-            ...qDraft,
-            questions: qDraft.questions.map((q) =>
-              q.id === action.questionId
-                ? { ...q, enabled: action.enabled }
-                : q,
-            ),
-          },
-        },
-      }
-    }
-
-    case 'set_questionnaire_name': {
-      const qDraft = state.draft.questionnaireDraft
-      if (!qDraft) return state
-      return {
-        ...state,
-        draft: {
-          ...state.draft,
-          dirty: true,
-          questionnaireDraft: { ...qDraft, name: action.name },
-        },
-      }
-    }
-
-    case 'questionnaire_saved': {
-      const qDraft = state.draft.questionnaireDraft
-      if (!qDraft) return state
-      return {
-        ...state,
-        draft: {
-          ...state.draft,
-          questionnaireDraft: {
-            ...qDraft,
-            savedFormId: action.formId,
-            savedInstanceId: null,
-            savedFormUrl: null,
-          },
         },
       }
     }

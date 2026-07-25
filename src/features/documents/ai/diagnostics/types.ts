@@ -63,12 +63,15 @@ export interface DiagnosticPipelineStages {
     labels: string[]
     unmappedLabels: string[]
   }
-  /** After classifyDetectedFields. */
+  /** After wizard field bridge (mapped/suggested keys). */
   afterClassification: {
     registryKeys: string[]
     labels: string[]
   }
-  /** After generateQuestionnaireDraft / prepareReviewDraft. */
+  /**
+   * Formerly after generateQuestionnaireDraft / prepareReviewDraft.
+   * Questionnaire draft generation removed — stage kept empty for report shape.
+   */
   afterReview: {
     registryKeys: string[]
     labels: string[]

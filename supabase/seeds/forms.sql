@@ -122,25 +122,11 @@ values (
       },
       {
         "id": "q-p1-address",
-        "type": "text",
-        "label": "Ulica i numer domu",
+        "type": "location",
+        "label": "Adres do umowy",
         "required": true,
-        "fieldKey": "partner1.address"
-      },
-      {
-        "id": "q-p1-postal",
-        "type": "text",
-        "label": "Kod pocztowy",
-        "required": true,
-        "fieldKey": "partner1.postalCode",
-        "placeholder": "00-000"
-      },
-      {
-        "id": "q-p1-city",
-        "type": "text",
-        "label": "Miasto",
-        "required": true,
-        "fieldKey": "partner1.city"
+        "fieldKey": "partner1.address",
+        "placeholder": "Wpisz adres…"
       },
       {
         "id": "q-section-email",
@@ -150,47 +136,22 @@ values (
       {
         "id": "q-p1-email",
         "type": "email",
-        "label": "Email",
+        "label": "Adres e-mail do kontaktu",
         "required": true,
         "fieldKey": "partner1.email",
         "description": "Na ten adres wyślemy umowę oraz wszystkie informacje dotyczące współpracy."
       },
       {
-        "id": "q-section-locations",
-        "type": "section_title",
-        "label": "Miejsca"
-      },
-      {
-        "id": "q-prep",
-        "type": "location",
-        "label": "Przygotowania",
-        "fieldKey": "preparationLocation"
-      },
-      {
-        "id": "q-ceremony",
-        "type": "location",
-        "label": "Ceremonia",
-        "required": true,
-        "fieldKey": "ceremonyLocation"
-      },
-      {
-        "id": "q-reception",
-        "type": "location",
-        "label": "Przyjęcie weselne",
-        "required": true,
-        "fieldKey": "receptionLocation"
-      },
-      {
         "id": "q-section-notes",
         "type": "section_title",
-        "label": "Czy jest coś, o czym powinniśmy wiedzieć?"
+        "label": "Uwagi"
       },
       {
         "id": "q-notes",
         "type": "textarea",
-        "label": "Czy jest coś, o czym powinniśmy wiedzieć?",
+        "label": "Uwagi",
         "fieldKey": "additionalNotes",
-        "placeholder": "Opcjonalne uwagi…"
+        "placeholder": "Dodatkowe informacje, które chcecie nam przekazać"
       }
     ]
   }

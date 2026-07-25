@@ -12,14 +12,37 @@
 }
 
 .popover {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-md);
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
   padding: var(--space-3);
   overflow: auto;
   width: 100%;
   box-sizing: border-box;
+}
+
+.popoverSheet {
+  padding: 0.65rem 0.85rem 1rem;
+}
+
+.sheetActions {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: var(--space-3);
+}
+
+.todayBtn,
+.cancelBtn {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  font: inherit;
+  font-size: var(--text-sm);
+  padding: 0.4rem 0.7rem;
+  cursor: pointer;
+  color: var(--color-text-primary);
 }
 
 .toolbar {

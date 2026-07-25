@@ -7,7 +7,7 @@
 
 .topBar {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: var(--space-4);
   flex-wrap: wrap;
@@ -15,21 +15,9 @@
   border-bottom: 1px solid var(--color-border);
 }
 
-.topBarText {
-  min-width: 0;
-}
-
-.pageTitle {
+.configNote {
   margin: 0;
-  font-size: 1.5rem;
-  font-weight: 650;
-  letter-spacing: -0.02em;
-  color: var(--color-text);
-}
-
-.pageSubtitle {
-  margin: 0.25rem 0 0;
-  color: var(--color-text-secondary);
+  color: var(--color-text-tertiary);
   font-size: var(--type-helper-size);
 }
 

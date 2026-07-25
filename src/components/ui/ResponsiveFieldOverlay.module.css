@@ -1,0 +1,63 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  border: none;
+  padding: 0;
+  margin: 0;
+  background: rgba(15, 15, 15, 0.35);
+  cursor: pointer;
+}
+
+.anchored {
+  overflow: hidden;
+  border-radius: var(--radius-md, 10px);
+  border: 1px solid var(--color-border, #e4e4e7);
+  background: var(--color-surface, #fff);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
+  display: flex;
+  flex-direction: column;
+}
+
+.sheet {
+  overflow: hidden;
+  border-radius: 16px 16px 0 0;
+  border: 1px solid var(--color-border, #e4e4e7);
+  background: var(--color-surface, #fff);
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.16);
+  display: flex;
+  flex-direction: column;
+}
+
+.sheetHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem 0.5rem;
+  border-bottom: 1px solid var(--color-border, #e4e4e7);
+  flex-shrink: 0;
+}
+
+.sheetTitle {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 650;
+  color: var(--color-text, #18181b);
+}
+
+.sheetClose {
+  border: none;
+  background: transparent;
+  color: var(--color-text-secondary, #52525b);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 0.25rem 0.35rem;
+}
+
+.body {
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  flex: 1;
+  min-height: 0;
+}

@@ -6,10 +6,8 @@ import { WeddingsPage } from '@/pages/WeddingsPage'
 import { WeddingDetailPage } from '@/pages/WeddingDetailPage'
 import { NewWeddingPage } from '@/pages/NewWeddingPage'
 import { CalendarPage } from '@/pages/CalendarPage'
-import { QuestionnairesPage } from '@/pages/QuestionnairesPage'
-import { QuestionnaireDetailPage } from '@/pages/QuestionnaireDetailPage'
-import { QuestionnaireTemplatesPage } from '@/pages/QuestionnaireTemplatesPage'
 import { ContractQuestionnaireEditorPage } from '@/pages/ContractQuestionnaireEditorPage'
+import { QuestionnaireDetailPage } from '@/pages/QuestionnaireDetailPage'
 import { PendingWeddingsPage } from '@/pages/PendingWeddingsPage'
 import { PackagesPage } from '@/pages/PackagesPage'
 import { ExtraServicesPage } from '@/pages/ExtraServicesPage'
@@ -61,18 +59,21 @@ export const router = createBrowserRouter([
       { path: '/sluby/nowy', element: <NewWeddingPage /> },
       { path: '/sluby/:id', element: <WeddingDetailPage /> },
       { path: '/kalendarz', element: <CalendarPage /> },
-      { path: '/ankiety', element: <QuestionnairesPage /> },
+      {
+        path: '/ankiety',
+        element: <Navigate to="/ankiety/dane-do-umowy" replace />,
+      },
       {
         path: '/ankiety/dane-do-umowy',
         element: <ContractQuestionnaireEditorPage />,
       },
       {
         path: '/ankiety/szablony',
-        element: <QuestionnaireTemplatesPage />,
+        element: <Navigate to="/ankiety/dane-do-umowy" replace />,
       },
       {
         path: '/ustawienia/szablony-ankiet',
-        element: <Navigate to="/ankiety/szablony" replace />,
+        element: <Navigate to="/ankiety/dane-do-umowy" replace />,
       },
       { path: '/ankiety/:id', element: <QuestionnaireDetailPage /> },
       { path: '/oczekujace', element: <PendingWeddingsPage /> },

@@ -88,7 +88,6 @@ export function AnalysisStep() {
           <AiReport
             ai={analysis.aiAnalysis}
             fields={draft.fields}
-            questionnaire={draft.questionnaireDraft}
           />
 
           <div className={styles.analysisSplit}>
@@ -103,7 +102,7 @@ export function AnalysisStep() {
 
           <div className={styles.stepActions}>
             <Button type="button" variant="primary" onClick={goNext}>
-              Przejdź do ankiety
+              Przejdź do biblioteki
             </Button>
           </div>
         </div>

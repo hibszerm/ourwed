@@ -1,6 +1,5 @@
 import type { AiDocumentAnalysisResult } from '@/features/documents/ai'
 import type { DetectedField } from '../types'
-import type { QuestionnaireDraft } from '@/features/documents/questionnaire'
 import styles from '../MappingWizard.module.css'
 
 function documentTypeLabel(type: string | undefined): string {
@@ -15,16 +14,13 @@ function documentTypeLabel(type: string | undefined): string {
 export function AiReport({
   ai,
   fields,
-  questionnaire,
 }: {
   ai: AiDocumentAnalysisResult | null | undefined
   fields: DetectedField[]
-  questionnaire?: QuestionnaireDraft | null
 }) {
   const infoCount = fields.filter((f) => f.status !== 'ignored').length
   const sectionCount = ai?.sections?.length ?? 0
   const clauseCount = ai?.clauses?.length ?? 0
-  const counts = questionnaire?.counts
 
   return (
     <section className={styles.aiReport} aria-labelledby="ai-report-title">
@@ -52,32 +48,6 @@ export function AiReport({
             <strong>{infoCount}</strong> informacji w umowie
           </span>
         </li>
-        {counts && (
-          <li className={styles.aiReportCheckItem}>
-            <span className={styles.aiReportCheck} aria-hidden>
-              ✓
-            </span>
-            <span>
-              Ta umowa wymaga:{' '}
-              <strong>{counts.couple}</strong> odpowiedzi od pary,{' '}
-              <strong>{counts.studio}</strong> z firmy,{' '}
-              <strong>{counts.system}</strong> systemowych,{' '}
-              <strong>{counts.ourwedConfiguration}</strong> z konfiguracji
-              OurWed
-            </span>
-          </li>
-        )}
-        <li className={styles.aiReportCheckItem}>
-          <span className={styles.aiReportCheck} aria-hidden>
-            ✓
-          </span>
-          <span>
-            Ankieta została wygenerowana automatycznie
-            {questionnaire?.questions.length
-              ? ` (${questionnaire.questions.filter((q) => q.enabled).length} pytań)`
-              : ''}
-          </span>
-        </li>
         <li className={styles.aiReportCheckItem}>
           <span className={styles.aiReportCheck} aria-hidden>
             ✓
@@ -90,8 +60,8 @@ export function AiReport({
       </ul>
 
       <p className={styles.aiReportFootnote}>
-        Para uzupełni tylko to, czego umowa wymaga od nich. Pakiety pochodzą z
-        konfiguracji studia. Ceny i dane studia nie trafiają do ankiety.
+        OurWed mapuje wykryte pola na zmienne szablonu. Dane studia i ceny nie
+        pochodzą z tego kroku.
       </p>
     </section>
   )

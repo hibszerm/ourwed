@@ -29,8 +29,7 @@ export function SendQuestionnaireModal({
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
 
-  const isContract = kind === 'contractData'
-  const title = isContract ? 'Link: Dane do umowy' : 'Link do ankiety przedślubnej'
+  const title = 'Link: Dane do umowy'
   const description =
     'Skopiuj link i wyślij go parze przez Messengera, WhatsApp lub e-mail.'
 

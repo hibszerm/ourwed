@@ -5,13 +5,12 @@ import { useMappingWizard } from '../state/useMappingWizard'
 import { MappingWizardStepper } from './MappingWizardStepper'
 import { UploadStep } from './steps/UploadStep'
 import { AnalysisStep } from './steps/AnalysisStep'
-import { QuestionnaireStep } from './steps/QuestionnaireStep'
 import { SaveStep } from './steps/SaveStep'
 import styles from '../MappingWizard.module.css'
 
 /**
  * @deprecated Mapping Wizard — superseded by template-first SimpleContractImportFlow.
- * Do not mount in routes. Kept for reference / extraction utilities only.
+ * Do not mount in routes. Questionnaire generation step removed.
  */
 export function MappingWizardLayout({
   templateId,
@@ -46,8 +45,7 @@ export function MappingWizardLayout({
           <p className={styles.eyebrow}>Import kontraktu</p>
           <h1 className={styles.title}>{templateName}</h1>
           <p className={styles.subtitle}>
-            Prześlij umowę — AI zrozumie, czego wymaga, i przygotuje ankietę
-            dla pary.
+            Prześlij umowę — AI przygotuje mapowanie zmiennych w szablonie.
           </p>
         </div>
         <MappingWizardStepper current={state.step} onSelect={setStep} />
@@ -58,7 +56,6 @@ export function MappingWizardLayout({
           <UploadStep onUploadFile={onUploadFile} />
         )}
         {state.step === 'analysis' && <AnalysisStep />}
-        {state.step === 'questionnaire' && <QuestionnaireStep />}
         {state.step === 'save' && <SaveStep templateId={templateId} />}
       </main>
 
@@ -78,7 +75,7 @@ export function MappingWizardLayout({
             disabled={!canGoNext}
             onClick={goNext}
           >
-            Analizuj dokument
+            Dalej
           </Button>
         )}
         {state.step === 'analysis' && (
@@ -86,19 +83,9 @@ export function MappingWizardLayout({
             type="button"
             variant="primary"
             disabled={!canGoNext}
-            onClick={goNext}
+            onClick={() => setStep('save')}
           >
-            Przejdź do ankiety
-          </Button>
-        )}
-        {state.step === 'questionnaire' && (
-          <Button
-            type="button"
-            variant="primary"
-            disabled={!canGoNext}
-            onClick={goNext}
-          >
-            Przejdź do utworzenia typu
+            Dalej
           </Button>
         )}
       </footer>

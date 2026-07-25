@@ -1,5 +1,6 @@
 /**
  * Default ordered blocks + legacy config → blocks normalizer.
+ * Product scope: one Contract Data Questionnaire only.
  */
 
 import {
@@ -14,7 +15,7 @@ import {
   type SystemFieldKey,
 } from '@/types/questionnaireBlocks'
 
-export const CONTRACT_QUESTIONNAIRE_BLOCKS_VERSION = 3
+export const CONTRACT_QUESTIONNAIRE_BLOCKS_VERSION = 4
 
 function blk(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -24,7 +25,11 @@ function blk(
   return { ...partial, order } as ContractQuestionnaireBlock
 }
 
-/** Canonical default questionnaire layout (grouped bride / groom / catalog). */
+/**
+ * Exact public questionnaire order:
+ * 1 Data ślubu · 2 Pakiet · 3 Usługi · 4 Panna · 5 Pan ·
+ * 6 Adres do umowy · 7 E-mail · 8 Uwagi
+ */
 export function buildDefaultQuestionnaireBlocks(
   legacy?: Partial<ContractQuestionnaireConfig> | null,
 ): ContractQuestionnaireBlock[] {
@@ -56,14 +61,29 @@ export function buildDefaultQuestionnaireBlocks(
       order++,
     ),
   )
+  if (greeting.trim()) {
+    blocks.push(
+      blk(
+        {
+          id: 'sys_text_greeting',
+          type: 'text',
+          enabled: true,
+          content: greeting,
+          role: 'greeting',
+        },
+        order++,
+      ),
+    )
+  }
+
   blocks.push(
     blk(
       {
-        id: 'sys_text_greeting',
-        type: 'text',
+        id: 'sys_heading_wedding_date',
+        type: 'heading',
         enabled: true,
-        content: greeting,
-        role: 'greeting',
+        text: 'Data ślubu',
+        level: 2,
       },
       order++,
     ),
@@ -82,82 +102,6 @@ export function buildDefaultQuestionnaireBlocks(
       order++,
     ),
   )
-
-  blocks.push(
-    blk(
-      {
-        id: 'sys_heading_bride',
-        type: 'heading',
-        enabled: true,
-        text: 'Dane Panny Młodej',
-        level: 2,
-      },
-      order++,
-    ),
-  )
-  for (const [id, systemKey, label, inputType, required] of [
-    ['sys_p1_first', 'partner1.firstName', 'Imię', 'text', true],
-    ['sys_p1_last', 'partner1.lastName', 'Nazwisko', 'text', true],
-    ['sys_p1_address', 'partner1.address', 'Adres do umowy', 'address', true],
-    ['sys_p1_phone', 'partner1.phone', 'Telefon', 'phone', true],
-    ['sys_p1_email', 'partner1.email', 'E-mail', 'email', true],
-  ] as const) {
-    blocks.push(
-      blk(
-        {
-          id,
-          type: 'system_field',
-          enabled: true,
-          systemKey,
-          label,
-          required,
-          inputType,
-          ...(systemKey === 'partner1.email'
-            ? {
-                helperText:
-                  'Na ten adres wyślemy umowę oraz wszystkie informacje dotyczące współpracy.',
-              }
-            : {}),
-        },
-        order++,
-      ),
-    )
-  }
-
-  blocks.push(
-    blk(
-      {
-        id: 'sys_heading_groom',
-        type: 'heading',
-        enabled: true,
-        text: 'Dane Pana Młodego',
-        level: 2,
-      },
-      order++,
-    ),
-  )
-  for (const [id, systemKey, label, inputType, required] of [
-    ['sys_p2_first', 'partner2.firstName', 'Imię', 'text', true],
-    ['sys_p2_last', 'partner2.lastName', 'Nazwisko', 'text', true],
-    ['sys_p2_address', 'partner2.address', 'Adres do umowy', 'address', true],
-    ['sys_p2_phone', 'partner2.phone', 'Telefon', 'phone', true],
-    ['sys_p2_email', 'partner2.email', 'E-mail', 'email', true],
-  ] as const) {
-    blocks.push(
-      blk(
-        {
-          id,
-          type: 'system_field',
-          enabled: true,
-          systemKey,
-          label,
-          required,
-          inputType,
-        },
-        order++,
-      ),
-    )
-  }
 
   if (showPackages) {
     blocks.push(
@@ -194,79 +138,174 @@ export function buildDefaultQuestionnaireBlocks(
   blocks.push(
     blk(
       {
-        id: 'sys_heading_locations',
+        id: 'sys_heading_bride',
         type: 'heading',
         enabled: true,
-        text: 'Miejsca',
+        text: 'Dane Panny Młodej',
         level: 2,
       },
       order++,
     ),
   )
-  for (const [id, role, label, required] of [
-    [
-      'sys_loc_bride_prep',
-      'bride_preparation',
-      'Przygotowania Panny Młodej',
-      false,
-    ],
-    [
-      'sys_loc_groom_prep',
-      'groom_preparation',
-      'Przygotowania Pana Młodego',
-      false,
-    ],
-    ['sys_loc_ceremony', 'ceremony', 'Ceremonia', true],
-    ['sys_loc_reception', 'reception', 'Wesele / przyjęcie weselne', true],
+  for (const [id, systemKey, label, inputType] of [
+    ['sys_p1_first', 'partner1.firstName', 'Imię', 'text'],
+    ['sys_p1_last', 'partner1.lastName', 'Nazwisko', 'text'],
+    ['sys_p1_phone', 'partner1.phone', 'Telefon', 'phone'],
   ] as const) {
     blocks.push(
       blk(
         {
           id,
-          type: 'location',
+          type: 'system_field',
           enabled: true,
-          locationRole: role,
+          systemKey,
           label,
-          required,
+          required: true,
+          inputType,
         },
         order++,
       ),
     )
-  }
-
-  const customs = (legacy?.customFields ?? [])
-    .slice()
-    .sort((a, b) => a.order - b.order)
-  if (customs.length > 0) {
-    blocks.push(
-      blk(
-        {
-          id: 'sys_heading_custom',
-          type: 'heading',
-          enabled: true,
-          text: 'Dodatkowe pytania',
-          level: 2,
-        },
-        order++,
-      ),
-    )
-    for (const field of customs) {
-      blocks.push(customFieldToBlock(field, order++))
-    }
   }
 
   blocks.push(
     blk(
       {
-        id: 'sys_text_footer',
-        type: 'text',
+        id: 'sys_heading_groom',
+        type: 'heading',
         enabled: true,
-        content: footer,
-        role: 'footer',
+        text: 'Dane Pana Młodego',
+        level: 2,
       },
       order++,
     ),
   )
+  for (const [id, systemKey, label, inputType] of [
+    ['sys_p2_first', 'partner2.firstName', 'Imię', 'text'],
+    ['sys_p2_last', 'partner2.lastName', 'Nazwisko', 'text'],
+    ['sys_p2_phone', 'partner2.phone', 'Telefon', 'phone'],
+  ] as const) {
+    blocks.push(
+      blk(
+        {
+          id,
+          type: 'system_field',
+          enabled: true,
+          systemKey,
+          label,
+          required: true,
+          inputType,
+        },
+        order++,
+      ),
+    )
+  }
+
+  blocks.push(
+    blk(
+      {
+        id: 'sys_heading_contract_address',
+        type: 'heading',
+        enabled: true,
+        text: 'Adres do umowy',
+        level: 2,
+      },
+      order++,
+    ),
+  )
+  blocks.push(
+    blk(
+      {
+        id: 'sys_p1_address',
+        type: 'system_field',
+        enabled: true,
+        systemKey: 'partner1.address',
+        label: 'Adres do umowy',
+        required: true,
+        inputType: 'address',
+      },
+      order++,
+    ),
+  )
+
+  blocks.push(
+    blk(
+      {
+        id: 'sys_heading_email',
+        type: 'heading',
+        enabled: true,
+        text: 'Adres e-mail do kontaktu',
+        level: 2,
+      },
+      order++,
+    ),
+  )
+  blocks.push(
+    blk(
+      {
+        id: 'sys_p1_email',
+        type: 'system_field',
+        enabled: true,
+        systemKey: 'partner1.email',
+        label: 'Adres e-mail do kontaktu',
+        helperText:
+          'Na ten adres wyślemy umowę oraz wszystkie informacje dotyczące współpracy.',
+        required: true,
+        inputType: 'email',
+      },
+      order++,
+    ),
+  )
+
+  const customs = (legacy?.customFields ?? [])
+    .slice()
+    .sort((a, b) => a.order - b.order)
+  for (const field of customs) {
+    blocks.push(customFieldToBlock(field, order++))
+  }
+
+  blocks.push(
+    blk(
+      {
+        id: 'sys_heading_notes',
+        type: 'heading',
+        enabled: true,
+        text: 'Uwagi',
+        level: 2,
+      },
+      order++,
+    ),
+  )
+  blocks.push(
+    blk(
+      {
+        id: 'sys_field_notes',
+        type: 'system_field',
+        enabled: true,
+        systemKey: 'additionalNotes',
+        label: 'Uwagi',
+        helperText: 'Dodatkowe informacje, które chcecie nam przekazać',
+        required: false,
+        inputType: 'textarea',
+      },
+      order++,
+    ),
+  )
+
+  if (footer.trim()) {
+    blocks.push(
+      blk(
+        {
+          id: 'sys_text_footer',
+          type: 'text',
+          enabled: true,
+          content: footer,
+          role: 'footer',
+        },
+        order++,
+      ),
+    )
+  }
 
   return blocks
 }
@@ -310,130 +349,138 @@ function isBlockArray(raw: unknown): raw is ContractQuestionnaireBlock[] {
   return Array.isArray(raw) && raw.length > 0
 }
 
-const LEGACY_SPLIT_ADDRESS_KEYS = new Set<SystemFieldKey>([
+const OBSOLETE_SYSTEM_KEYS = new Set<SystemFieldKey>([
   'partner1.postalCode',
   'partner1.city',
+  'partner2.address',
+  'partner2.email',
 ])
 
 /**
- * Collapse split street/postal/city blocks into one address autocomplete field
- * per party. Preserves custom blocks and other system fields.
+ * Rebuild standard system layout into the product order while preserving
+ * custom questions and greeting/footer copy.
  */
-export function normalizeContractAddressBlocks(
-  blocks: ContractQuestionnaireBlock[],
+export function normalizeToProductQuestionnaireLayout(
+  config: ContractQuestionnaireConfig,
 ): ContractQuestionnaireBlock[] {
-  const hasSplit = blocks.some(
-    (b) =>
-      b.type === 'system_field' && LEGACY_SPLIT_ADDRESS_KEYS.has(b.systemKey),
+  const existing = (config.blocks ?? []).slice()
+  const customsFromBlocks = existing.filter(
+    (b): b is QuestionnaireCustomFieldBlock =>
+      b.type === 'short_text' ||
+      b.type === 'long_text' ||
+      b.type === 'single_choice' ||
+      b.type === 'multiple_choice' ||
+      b.type === 'checkbox' ||
+      b.type === 'date' ||
+      b.type === 'number' ||
+      b.type === 'email' ||
+      b.type === 'phone',
   )
-  const hasP1Address = blocks.some(
-    (b) => b.type === 'system_field' && b.systemKey === 'partner1.address',
+  const greetingBlock = existing.find(
+    (b) => b.type === 'text' && b.role === 'greeting',
   )
-  const hasP2Address = blocks.some(
-    (b) => b.type === 'system_field' && b.systemKey === 'partner2.address',
+  const footerBlock = existing.find(
+    (b) => b.type === 'text' && b.role === 'footer',
   )
+  const greeting =
+    greetingBlock && greetingBlock.type === 'text'
+      ? greetingBlock.content
+      : config.greeting
+  const footer =
+    footerBlock && footerBlock.type === 'text'
+      ? footerBlock.content
+      : config.footerText
 
-  let next = blocks
+  const customFields =
+    customsFromBlocks.length > 0
+      ? customsFromBlocks.map((b, i) => ({
+          id: b.id.replace(/^custom-/, ''),
+          fieldKey: b.fieldKey,
+          label: b.label,
+          helperText: b.helperText,
+          type: b.type,
+          required: b.required,
+          enabled: b.enabled,
+          order: i,
+          placeholder: b.placeholder,
+          options: (b.options ?? []).map((o) => ({
+            value: o.value,
+            label: o.label,
+          })),
+        }))
+      : (config.customFields ?? [])
+
+  return buildDefaultQuestionnaireBlocks({
+    ...config,
+    greeting,
+    footerText: footer,
+    customFields,
+  })
+}
+
+export function ensureQuestionnaireBlocks(
+  config: ContractQuestionnaireConfig,
+): ContractQuestionnaireConfig {
+  if (!isBlockArray(config.blocks) || (config.version ?? 0) < CONTRACT_QUESTIONNAIRE_BLOCKS_VERSION) {
+    const blocks = normalizeToProductQuestionnaireLayout(config)
+    return {
+      ...config,
+      version: CONTRACT_QUESTIONNAIRE_BLOCKS_VERSION,
+      greeting:
+        blocks.find((b) => b.type === 'text' && b.role === 'greeting')?.type ===
+        'text'
+          ? (
+              blocks.find(
+                (b) => b.type === 'text' && b.role === 'greeting',
+              ) as Extract<ContractQuestionnaireBlock, { type: 'text' }>
+            ).content
+          : config.greeting,
+      footerText:
+        blocks.find((b) => b.type === 'text' && b.role === 'footer')?.type ===
+        'text'
+          ? (
+              blocks.find(
+                (b) => b.type === 'text' && b.role === 'footer',
+              ) as Extract<ContractQuestionnaireBlock, { type: 'text' }>
+            ).content
+          : config.footerText,
+      blocks,
+    }
+  }
+
+  const blocks = [...config.blocks]
+    .map((b, i) => ({ ...b, order: typeof b.order === 'number' ? b.order : i }))
     .filter(
       (b) =>
         !(
-          b.type === 'system_field' && LEGACY_SPLIT_ADDRESS_KEYS.has(b.systemKey)
+          b.type === 'system_field' && OBSOLETE_SYSTEM_KEYS.has(b.systemKey)
+        ) &&
+        !(
+          b.type === 'location' &&
+          // Locations are no longer part of the contract questionnaire product.
+          true
         ),
     )
     .map((b) => {
       if (b.type === 'system_field' && b.systemKey === 'partner1.address') {
         return {
           ...b,
-          label: b.label === 'Ulica i numer domu' ? 'Adres do umowy' : b.label,
+          label: 'Adres do umowy',
           inputType: 'address' as const,
         }
       }
       return b
     })
-
-  if (hasSplit || hasP1Address) {
-    // ensure address input type
-    next = next.map((b) =>
-      b.type === 'system_field' && b.systemKey === 'partner1.address'
-        ? { ...b, inputType: 'address' as const }
-        : b,
-    )
-  }
-
-  if (!hasP2Address) {
-    const groomPhoneIdx = next.findIndex(
-      (b) => b.type === 'system_field' && b.systemKey === 'partner2.phone',
-    )
-    const insertAt =
-      groomPhoneIdx >= 0
-        ? groomPhoneIdx
-        : next.findIndex(
-            (b) =>
-              b.type === 'system_field' && b.systemKey === 'partner2.lastName',
-          ) + 1
-    if (insertAt > 0) {
-      const addressBlock = blk(
-        {
-          id: 'sys_p2_address',
-          type: 'system_field',
-          enabled: true,
-          systemKey: 'partner2.address',
-          label: 'Adres do umowy',
-          required: true,
-          inputType: 'address',
-        },
-        insertAt,
-      )
-      next = [...next.slice(0, insertAt), addressBlock, ...next.slice(insertAt)]
-    }
-  }
-
-  return next.map((b, i) => ({ ...b, order: i }))
-}
-
-/**
- * Ensure config has ordered blocks. Legacy greeting/footer/customFields
- * are normalized into the default layout without destroying historic snapshots.
- */
-export function ensureQuestionnaireBlocks(
-  config: ContractQuestionnaireConfig,
-): ContractQuestionnaireConfig {
-  if (isBlockArray(config.blocks)) {
-    let blocks = [...config.blocks]
-      .map((b, i) => ({ ...b, order: typeof b.order === 'number' ? b.order : i }))
-      .sort((a, b) => a.order - b.order)
-
-    if ((config.version ?? 0) < CONTRACT_QUESTIONNAIRE_BLOCKS_VERSION) {
-      blocks = normalizeContractAddressBlocks(blocks)
-    } else {
-      blocks = normalizeContractAddressBlocks(blocks)
-    }
-
-    return {
-      ...config,
-      version: Math.max(config.version, CONTRACT_QUESTIONNAIRE_BLOCKS_VERSION),
-      blocks,
-    }
-  }
-
-  const blocks = buildDefaultQuestionnaireBlocks(config)
-  const greeting = blocks.find(
-    (b) => b.type === 'text' && b.role === 'greeting',
-  )
-  const footer = blocks.find((b) => b.type === 'text' && b.role === 'footer')
+    .sort((a, b) => a.order - b.order)
+    .map((b, i) => ({ ...b, order: i }))
 
   return {
     ...config,
-    version: CONTRACT_QUESTIONNAIRE_BLOCKS_VERSION,
-    greeting:
-      greeting && greeting.type === 'text' ? greeting.content : config.greeting,
-    footerText:
-      footer && footer.type === 'text' ? footer.content : config.footerText,
+    version: Math.max(config.version, CONTRACT_QUESTIONNAIRE_BLOCKS_VERSION),
     blocks,
   }
 }
 
-/** Sync legacy greeting/footer/customFields from blocks for older readers. */
 export function syncLegacyFieldsFromBlocks(
   config: ContractQuestionnaireConfig,
 ): ContractQuestionnaireConfig {
@@ -495,21 +542,18 @@ export function canAddExtrasBlock(blocks: ContractQuestionnaireBlock[]): boolean
 }
 
 export function canAddLocationRole(
-  blocks: ContractQuestionnaireBlock[],
-  role: string,
+  _blocks: ContractQuestionnaireBlock[],
+  _role: string,
 ): boolean {
-  return !blocks.some(
-    (b) =>
-      b.type === 'location' &&
-      b.enabled &&
-      b.locationRole === role,
-  )
+  // Wedding locations are out of contract-questionnaire product scope.
+  return false
 }
 
 export function canAddSystemKey(
   blocks: ContractQuestionnaireBlock[],
   systemKey: SystemFieldKey,
 ): boolean {
+  if (OBSOLETE_SYSTEM_KEYS.has(systemKey)) return false
   return !blocks.some(
     (b) => b.type === 'system_field' && b.enabled && b.systemKey === systemKey,
   )
@@ -585,15 +629,7 @@ export function createBlockOfType(
         required: false,
       }
     case 'location':
-      return {
-        id,
-        type: 'location',
-        order,
-        enabled: true,
-        locationRole: 'ceremony',
-        label: 'Lokalizacja',
-        required: false,
-      }
+      return null
     default:
       return null
   }
@@ -603,9 +639,16 @@ export function createSystemFieldBlock(
   systemKey: SystemFieldKey,
   order: number,
 ): ContractQuestionnaireBlock {
-  const presets: Record<
-    SystemFieldKey,
-    { id: string; label: string; inputType: 'text' | 'phone' | 'email' | 'date' | 'textarea' | 'address'; required: boolean }
+  const presets: Partial<
+    Record<
+      SystemFieldKey,
+      {
+        id: string
+        label: string
+        inputType: 'text' | 'phone' | 'email' | 'date' | 'textarea' | 'address'
+        required: boolean
+      }
+    >
   > = {
     weddingDate: {
       id: 'sys_field_wedding_date',
@@ -631,18 +674,6 @@ export function createSystemFieldBlock(
       inputType: 'address',
       required: true,
     },
-    'partner1.postalCode': {
-      id: 'sys_p1_postal',
-      label: 'Kod pocztowy',
-      inputType: 'text',
-      required: false,
-    },
-    'partner1.city': {
-      id: 'sys_p1_city',
-      label: 'Miasto',
-      inputType: 'text',
-      required: false,
-    },
     'partner1.phone': {
       id: 'sys_p1_phone',
       label: 'Telefon',
@@ -651,7 +682,7 @@ export function createSystemFieldBlock(
     },
     'partner1.email': {
       id: 'sys_p1_email',
-      label: 'E-mail',
+      label: 'Adres e-mail do kontaktu',
       inputType: 'email',
       required: true,
     },
@@ -667,32 +698,32 @@ export function createSystemFieldBlock(
       inputType: 'text',
       required: true,
     },
-    'partner2.address': {
-      id: 'sys_p2_address',
-      label: 'Adres do umowy',
-      inputType: 'address',
-      required: true,
-    },
     'partner2.phone': {
       id: 'sys_p2_phone',
       label: 'Telefon',
       inputType: 'phone',
       required: true,
     },
-    'partner2.email': {
-      id: 'sys_p2_email',
-      label: 'E-mail',
-      inputType: 'email',
-      required: true,
-    },
     additionalNotes: {
       id: 'sys_field_notes',
-      label: 'Dodatkowe uwagi',
+      label: 'Uwagi',
       inputType: 'textarea',
       required: false,
     },
   }
   const preset = presets[systemKey]
+  if (!preset) {
+    return {
+      id: newBlockId('sys'),
+      type: 'system_field',
+      order,
+      enabled: true,
+      systemKey,
+      label: systemKey,
+      required: false,
+      inputType: 'text',
+    }
+  }
   return {
     id: preset.id,
     type: 'system_field',
@@ -736,3 +767,15 @@ export function moveBlockToIndex(
   next.splice(clamped, 0, item)
   return next.map((b, i) => ({ ...b, order: i }))
 }
+
+/** Stable labels used to assert public renderer order. */
+export const CONTRACT_QUESTIONNAIRE_SECTION_ORDER = [
+  'Data ślubu',
+  'Pakiet',
+  'Usługi dodatkowe',
+  'Dane Panny Młodej',
+  'Dane Pana Młodego',
+  'Adres do umowy',
+  'Adres e-mail do kontaktu',
+  'Uwagi',
+] as const

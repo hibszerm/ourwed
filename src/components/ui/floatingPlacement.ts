@@ -1,6 +1,6 @@
 /**
- * Viewport-aware floating position for portalled popovers.
- * No Floating UI / Radix dependency — pure layout math.
+ * Viewport helpers for floating popovers and mobile sheets.
+ * Prefer visualViewport when available (mobile keyboard).
  */
 
 export interface FloatingRect {
@@ -16,22 +16,49 @@ export interface FloatingPlacementResult {
   width: number
   maxHeight: number
   placement: 'below' | 'above'
+  mode: 'anchored' | 'sheet'
 }
 
 export interface ComputeFloatingOptions {
-  /** Preferred gap between anchor and menu (px). */
   gap?: number
-  /** Minimum menu height before flipping (px). */
   minSpace?: number
-  /** Max menu height cap (px). */
   maxMenuHeight?: number
-  /** Viewport padding (px). */
   padding?: number
+  /** Force sheet mode (mobile). */
+  forceSheet?: boolean
+  /** Sheet height as fraction of visible viewport (0–1). */
+  sheetFraction?: number
+}
+
+export const MOBILE_OVERLAY_BREAKPOINT = 640
+
+export function isMobileOverlayViewport(width = viewportWidth()): boolean {
+  return width < MOBILE_OVERLAY_BREAKPOINT
+}
+
+export function viewportWidth(): number {
+  if (typeof window === 'undefined') return 1024
+  return window.visualViewport?.width ?? window.innerWidth
+}
+
+export function viewportHeight(): number {
+  if (typeof window === 'undefined') return 768
+  return window.visualViewport?.height ?? window.innerHeight
+}
+
+export function visualViewportOffset(): { offsetTop: number; offsetLeft: number } {
+  if (typeof window === 'undefined' || !window.visualViewport) {
+    return { offsetTop: 0, offsetLeft: 0 }
+  }
+  return {
+    offsetTop: window.visualViewport.offsetTop,
+    offsetLeft: window.visualViewport.offsetLeft,
+  }
 }
 
 /**
  * Place a floating panel below the anchor when space allows, otherwise above.
- * Width matches the anchor; position stays inside the viewport.
+ * On narrow viewports (or forceSheet), return sheet-mode metrics.
  */
 export function computeFloatingPlacement(
   anchor: FloatingRect,
@@ -42,6 +69,25 @@ export function computeFloatingPlacement(
   const minSpace = options?.minSpace ?? 120
   const maxMenuHeight = options?.maxMenuHeight ?? 280
   const padding = options?.padding ?? 8
+  const sheetFraction = options?.sheetFraction ?? 0.48
+  const useSheet =
+    options?.forceSheet === true || isMobileOverlayViewport(viewport.width)
+
+  if (useSheet) {
+    const maxHeight = Math.max(
+      160,
+      Math.min(viewport.height * sheetFraction, viewport.height - padding * 2),
+    )
+    const { offsetTop } = visualViewportOffset()
+    return {
+      top: offsetTop + viewport.height - maxHeight - padding,
+      left: padding,
+      width: Math.max(0, viewport.width - padding * 2),
+      maxHeight,
+      placement: 'above',
+      mode: 'sheet',
+    }
+  }
 
   const spaceBelow = viewport.height - anchor.top - anchor.height - gap - padding
   const spaceAbove = anchor.top - gap - padding
@@ -66,6 +112,7 @@ export function computeFloatingPlacement(
       width,
       maxHeight,
       placement: 'below',
+      mode: 'anchored',
     }
   }
 
@@ -75,6 +122,7 @@ export function computeFloatingPlacement(
     width,
     maxHeight,
     placement: 'above',
+    mode: 'anchored',
   }
 }
 
@@ -85,7 +133,7 @@ export function rectFromElement(el: Element): FloatingRect {
 
 export function viewportSize(): { width: number; height: number } {
   return {
-    width: window.innerWidth,
-    height: window.innerHeight,
+    width: viewportWidth(),
+    height: viewportHeight(),
   }
 }

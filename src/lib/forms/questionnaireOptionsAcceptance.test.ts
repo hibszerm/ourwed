@@ -214,9 +214,9 @@ run('address: bride and groom use one autocomplete field each', () => {
   })
   const bride = tpl.questions.find((q) => q.fieldKey === 'partner1.address')
   const groom = tpl.questions.find((q) => q.fieldKey === 'partner2.address')
-  assertEq(bride?.type, 'location', 'bride autocomplete')
-  assertEq(groom?.type, 'location', 'groom autocomplete')
-  assertEq(bride?.label, 'Adres do umowy', 'bride label')
+  assertEq(bride?.type, 'location', 'address autocomplete')
+  assert(!groom, 'single canonical contract address only')
+  assertEq(bride?.label, 'Adres do umowy', 'label')
   assert(
     !tpl.questions.some((q) => q.fieldKey === 'partner1.postalCode'),
     'no postal field',
@@ -244,7 +244,7 @@ run('address: formattedAddress preserved for contract resolver string', () => {
   )
 })
 
-run('address: AddressField is shared portalled component', () => {
+run('address: AddressField is shared responsive overlay component', () => {
   const src = readFileSync(
     resolve(process.cwd(), 'src/features/forms/AddressField.tsx'),
     'utf8',
@@ -253,20 +253,19 @@ run('address: AddressField is shared portalled component', () => {
     resolve(process.cwd(), 'src/features/forms/QuestionField.tsx'),
     'utf8',
   )
-  assert(src.includes('FloatingPortal'), 'portalled')
+  assert(src.includes('ResponsiveFieldOverlay'), 'overlay')
   assert(qf.includes('AddressField'), 'QuestionField reuses AddressField')
   assert(qf.includes("question.type === 'location'"), 'location uses AddressField')
 })
 
-run('address: default blocks keep bride/groom groups separate', () => {
+run('address: default blocks keep single address after groom section', () => {
   const blocks = buildDefaultQuestionnaireBlocks(null)
   const ids = blocks.map((b) => b.id)
   const p1Addr = ids.indexOf('sys_p1_address')
-  const p1Phone = ids.indexOf('sys_p1_phone')
-  const p2Addr = ids.indexOf('sys_p2_address')
-  const p2First = ids.indexOf('sys_p2_first')
-  assert(p1Addr > 0 && p1Phone > p1Addr, 'bride address before phone')
-  assert(p2Addr > p2First, 'groom address under groom section')
+  const p2Phone = ids.indexOf('sys_p2_phone')
+  const email = ids.indexOf('sys_p1_email')
+  assert(p1Addr > p2Phone, 'address after groom identity')
+  assert(email > p1Addr, 'email after address')
 })
 
 if (process.exitCode && process.exitCode !== 0) {

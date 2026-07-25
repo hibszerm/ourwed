@@ -223,23 +223,66 @@ export function resolvePublicFormTemplate(
     packagesLength: packages.length,
     extrasLength: additionalServices.length,
     schemaIsTemplate: isFormTemplate(schema),
+    hasBlocks: Boolean(config?.blocks?.length),
   })
 
+  // Studio questionnaire config is the source of truth for newly sent forms.
+  // Prefer blocks over a stale forms.schema (which may still mark address as text).
+  if (config?.blocks && config.blocks.length > 0) {
+    return coerceContractAddressFields(
+      buildContractQuestionnaireTemplate({
+        packages,
+        additionalServices,
+        config,
+      }),
+    )
+  }
+
   if (isFormTemplate(schema)) {
-    return injectCatalogQuestions(
-      schema,
-      packages,
-      additionalServices,
-      config,
+    return coerceContractAddressFields(
+      injectCatalogQuestions(
+        schema,
+        packages,
+        additionalServices,
+        config,
+      ),
     )
   }
   if (packages.length > 0 || additionalServices.length > 0 || config) {
-    return buildContractQuestionnaireTemplate({
-      packages,
-      additionalServices,
-      config,
-    })
+    return coerceContractAddressFields(
+      buildContractQuestionnaireTemplate({
+        packages,
+        additionalServices,
+        config,
+      }),
+    )
   }
   debugLog('fallback → CONTRACT_QUESTIONNAIRE_TEMPLATE (empty packages)')
-  return CONTRACT_QUESTIONNAIRE_TEMPLATE
+  return coerceContractAddressFields(CONTRACT_QUESTIONNAIRE_TEMPLATE)
+}
+
+/** Ensure contract address always uses AddressField (type location). */
+function coerceContractAddressFields(template: FormTemplate): FormTemplate {
+  return {
+    ...template,
+    questions: template.questions.map((q) => {
+      if (
+        q.fieldKey === 'partner1.address' ||
+        q.fieldKey === 'partner2.address' ||
+        q.id === 'q-p1-address' ||
+        q.id === 'q-p2-address' ||
+        q.id === 'sys_p1_address' ||
+        q.id === 'sys_p2_address'
+      ) {
+        return {
+          ...q,
+          type: 'location',
+          label:
+            q.label === 'Ulica i numer domu' ? 'Adres do umowy' : q.label,
+          placeholder: q.placeholder || 'Wpisz adres…',
+        }
+      }
+      return q
+    }),
+  }
 }

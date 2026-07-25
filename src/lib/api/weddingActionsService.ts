@@ -16,7 +16,7 @@ import type {
   Wedding,
 } from '@/types/wedding'
 
-export type QuestionnaireKind = 'contractData' | 'weddingQuestionnaire'
+export type QuestionnaireKind = 'contractData'
 
 const QUESTIONNAIRE_CONFIG: Record<
   QuestionnaireKind,
@@ -33,13 +33,6 @@ const QUESTIONNAIRE_CONFIG: Record<
     notificationTitle: 'Dane do umowy — wysłano',
     notificationMessage: (couple) =>
       `Formularz „Dane do umowy” został wysłany do pary ${couple}.`,
-  },
-  weddingQuestionnaire: {
-    formCategory: 'pre_wedding',
-    timelineTitle: 'Wysłano ankietę przedślubną.',
-    notificationTitle: 'Ankieta przedślubna wysłana',
-    notificationMessage: (couple) =>
-      `Ankieta przedślubna została wysłana do pary ${couple}.`,
   },
 }
 

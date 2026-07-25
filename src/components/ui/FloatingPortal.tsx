@@ -65,13 +65,25 @@ export function FloatingPortal({
     const onResize = () => update()
     window.addEventListener('scroll', onScroll, true)
     window.addEventListener('resize', onResize)
+    window.addEventListener('orientationchange', onResize)
+    const vv = window.visualViewport
+    vv?.addEventListener('resize', onResize)
+    vv?.addEventListener('scroll', onScroll)
     return () => {
       window.removeEventListener('scroll', onScroll, true)
       window.removeEventListener('resize', onResize)
+      window.removeEventListener('orientationchange', onResize)
+      vv?.removeEventListener('resize', onResize)
+      vv?.removeEventListener('scroll', onScroll)
     }
   }, [open, update])
 
   if (!open || !placement || typeof document === 'undefined') return null
+
+  // Desktop anchored only — mobile sheet is handled by ResponsiveFieldOverlay.
+  if (placement.mode === 'sheet') {
+    // Still render anchored fallback with sheet metrics so legacy callers work.
+  }
 
   const style: CSSProperties = {
     position: 'fixed',
@@ -87,6 +99,7 @@ export function FloatingPortal({
     <div
       data-floating-portal="true"
       data-placement={placement.placement}
+      data-overlay-mode={placement.mode}
       style={style}
     >
       {children(placement)}

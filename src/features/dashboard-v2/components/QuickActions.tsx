@@ -20,8 +20,8 @@ const ACTIONS = [
     icon: FilePlus2,
   },
   {
-    to: '/ankiety/szablony',
-    label: 'Utwórz ankietę',
+    to: '/ankiety/dane-do-umowy',
+    label: 'Ankieta do umowy',
     icon: ClipboardList,
   },
   {

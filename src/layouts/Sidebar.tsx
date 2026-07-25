@@ -30,9 +30,7 @@ const navItems = [
 ]
 
 const questionnaireItems = [
-  { to: '/ankiety', label: 'Ankiety', end: true },
-  { to: '/ankiety/dane-do-umowy', label: 'Ankieta do umowy', end: false },
-  { to: '/ankiety/szablony', label: 'Szablony ankiet', end: false },
+  { to: '/ankiety/dane-do-umowy', label: 'Ankiety', end: false },
 ]
 
 const companyItems = [

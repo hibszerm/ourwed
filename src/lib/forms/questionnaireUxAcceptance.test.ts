@@ -82,8 +82,9 @@ const sampleExtras = [
 run('address: menu placement below when space available', () => {
   const result = computeFloatingPlacement(
     { top: 100, left: 40, width: 320, height: 40 },
-    { width: 800, height: 900 },
+    { width: 1024, height: 900 },
   )
+  assertEq(result.mode, 'anchored', 'desktop mode')
   assertEq(result.placement, 'below', 'placement')
   assertEq(result.width, 320, 'width matches anchor')
   assert(result.top > 140, 'below input')
@@ -92,9 +93,10 @@ run('address: menu placement below when space available', () => {
 run('address: menu placement above when insufficient space below', () => {
   const result = computeFloatingPlacement(
     { top: 820, left: 40, width: 320, height: 40 },
-    { width: 800, height: 900 },
+    { width: 1024, height: 900 },
     { minSpace: 160 },
   )
+  assertEq(result.mode, 'anchored', 'desktop mode')
   assertEq(result.placement, 'above', 'flips above')
   assert(result.top < 820, 'above input')
 })
@@ -109,12 +111,12 @@ run('address: menu stays inside viewport horizontally', () => {
   assert(result.left >= 8, 'left edge inside')
 })
 
-run('address: AddressField uses FloatingPortal (portal outside overflow)', () => {
+run('address: AddressField uses ResponsiveFieldOverlay (portal outside overflow)', () => {
   const src = readFileSync(
     resolve(process.cwd(), 'src/features/forms/AddressField.tsx'),
     'utf8',
   )
-  assert(src.includes('FloatingPortal'), 'uses FloatingPortal')
+  assert(src.includes('ResponsiveFieldOverlay'), 'uses ResponsiveFieldOverlay')
   assert(src.includes('data-testid="address-suggestion-menu"'), 'menu test id')
   assert(src.includes('Escape'), 'escape closes')
   assert(src.includes('ArrowDown'), 'keyboard nav')
@@ -245,21 +247,22 @@ run('builder: prevent duplicate extras block', () => {
   assert(!canAddExtrasBlock(blocks), 'cannot add second extras')
 })
 
-run('builder: prevent duplicate location role', () => {
+run('builder: location roles disabled in contract questionnaire product', () => {
   const blocks = buildDefaultQuestionnaireBlocks(null)
-  assert(!canAddLocationRole(blocks, 'ceremony'), 'ceremony taken')
-  assert(canAddLocationRole([], 'ceremony'), 'empty allows')
+  assert(!canAddLocationRole(blocks, 'ceremony'), 'cannot add ceremony')
+  assert(!canAddLocationRole([], 'ceremony'), 'locations out of product scope')
+  assert(!blocks.some((b) => b.type === 'location'), 'no default locations')
 })
 
-run('builder: system location keeps canonical role', () => {
+run('builder: system address field uses address inputType', () => {
   const blocks = buildDefaultQuestionnaireBlocks(null)
-  const loc = blocks.find(
-    (b) => b.type === 'location' && b.locationRole === 'bride_preparation',
+  const addr = blocks.find(
+    (b) => b.type === 'system_field' && b.systemKey === 'partner1.address',
   )
-  assert(Boolean(loc), 'bride prep exists')
+  assert(Boolean(addr), 'address exists')
   const qs = questionsFromBlocks(blocks, samplePackages, sampleExtras)
-  const q = qs.find((x) => x.fieldKey === 'bridePreparationLocation')
-  assert(Boolean(q), 'maps to bridePreparationLocation')
+  const q = qs.find((x) => x.fieldKey === 'partner1.address')
+  assertEq(q?.type, 'location', 'maps to AddressField type')
 })
 
 run('builder: public form follows saved block order', () => {
@@ -308,6 +311,10 @@ run('builder: dedicated Ankiety route hosts canvas builder', () => {
     resolve(process.cwd(), 'src/routes/router.tsx'),
     'utf8',
   )
+  const sidebar = readFileSync(
+    resolve(process.cwd(), 'src/layouts/Sidebar.tsx'),
+    'utf8',
+  )
   assert(router.includes('/ankiety/dane-do-umowy'), 'route registered')
   assert(page.includes('ContractQuestionnaireBuilder'), 'page wires builder')
   assert(builder.includes('questionnaire-builder-canvas'), 'canvas')
@@ -318,9 +325,10 @@ run('builder: dedicated Ankiety route hosts canvas builder', () => {
   assert(!builder.includes('>W dół<'), 'no permanent move-down links')
   assert(!company.includes('QuestionnaireSettingsSection'), 'removed from firma')
   assert(!company.includes('questionnaire-builder-canvas'), 'no builder in firma')
+  assert(!sidebar.includes('Szablony ankiet'), 'no templates in sidebar')
 })
 
-run('builder: default layout groups bride and groom with single address fields', () => {
+run('builder: default layout groups bride and groom then single address', () => {
   const blocks = buildDefaultQuestionnaireBlocks(null)
   const p1Address = blocks.find(
     (b) => b.type === 'system_field' && b.systemKey === 'partner1.address',
@@ -328,14 +336,11 @@ run('builder: default layout groups bride and groom with single address fields',
   const p2Address = blocks.find(
     (b) => b.type === 'system_field' && b.systemKey === 'partner2.address',
   )
-  assert(p1Address?.type === 'system_field', 'bride address')
-  assert(p2Address?.type === 'system_field', 'groom address')
+  assert(p1Address?.type === 'system_field', 'bride/canonical address')
+  assert(!p2Address, 'no separate groom address')
   if (p1Address?.type === 'system_field') {
-    assertEq(p1Address.inputType, 'address', 'bride address autocomplete')
-    assertEq(p1Address.label, 'Adres do umowy', 'bride label')
-  }
-  if (p2Address?.type === 'system_field') {
-    assertEq(p2Address.inputType, 'address', 'groom address autocomplete')
+    assertEq(p1Address.inputType, 'address', 'address autocomplete')
+    assertEq(p1Address.label, 'Adres do umowy', 'label')
   }
   assert(
     !blocks.some(
@@ -347,18 +352,12 @@ run('builder: default layout groups bride and groom with single address fields',
     'no split postal/city blocks',
   )
   const qs = questionsFromBlocks(blocks, samplePackages, sampleExtras)
-  const addrQs = qs.filter(
-    (q) =>
-      q.fieldKey === 'partner1.address' || q.fieldKey === 'partner2.address',
-  )
-  assertEq(addrQs.length, 2, 'two address questions')
-  assert(
-    addrQs.every((q) => q.type === 'location'),
-    'addresses use autocomplete field type',
-  )
+  const addrQs = qs.filter((q) => q.fieldKey === 'partner1.address')
+  assertEq(addrQs.length, 1, 'one address question')
+  assertEq(addrQs[0]?.type, 'location', 'autocomplete field type')
 })
 
-run('builder: legacy split address normalizes to one field', () => {
+run('builder: legacy split address normalizes away', () => {
   const legacy = ensureQuestionnaireBlocks({
     ...defaultContractQuestionnaireConfig(),
     version: 1,
@@ -436,12 +435,12 @@ run('date: invalid manual input rejected', () => {
   assertEq(parseFlexibleDate('abc'), null, 'garbage')
 })
 
-run('date: DatePickerField uses FloatingPortal + Polish calendar', () => {
+run('date: DatePickerField uses ResponsiveFieldOverlay + Polish calendar', () => {
   const src = readFileSync(
     resolve(process.cwd(), 'src/features/forms/DatePickerField.tsx'),
     'utf8',
   )
-  assert(src.includes('FloatingPortal'), 'portal')
+  assert(src.includes('ResponsiveFieldOverlay'), 'portal overlay')
   assert(src.includes('MONTHS_PL'), 'Polish months')
   assert(src.includes('WEEKDAYS_PL'), 'Polish weekdays')
   assert(src.includes('data-testid="date-picker-popover"'), 'popover test id')

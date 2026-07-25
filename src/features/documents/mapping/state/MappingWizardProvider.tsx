@@ -13,11 +13,6 @@ import {
   aiAnalysisToDetectedFields,
   getDocumentAiErrorMessage,
 } from '@/features/documents/ai'
-import {
-  generateQuestionnaireDraft,
-  type DraftQuestion,
-} from '@/features/documents/questionnaire'
-import { packageService } from '@/lib/api/packageService'
 import { activeDocumentStructureExtractor } from '../extraction'
 import {
   createInitialWizardState,
@@ -69,14 +64,6 @@ interface MappingWizardContextValue {
   ) => void
   toggleClauseId: (clauseId: string, enabled: boolean) => void
   toggleSuggestedClause: (key: string, enabled: boolean) => void
-  updateDraftQuestion: (
-    questionId: string,
-    patch: Partial<DraftQuestion>,
-  ) => void
-  toggleDraftQuestion: (questionId: string, enabled: boolean) => void
-  setQuestionnaireName: (name: string) => void
-  regenerateQuestionnaire: () => Promise<void>
-  markQuestionnaireSaved: (formId: string) => void
   canGoNext: boolean
   canGoBack: boolean
 }
@@ -88,7 +75,6 @@ const MappingWizardContext = createContext<MappingWizardContextValue | null>(
 const UNLOCKED_ORDER: MappingWizardStepId[] = [
   'upload',
   'analysis',
-  'questionnaire',
   'save',
 ]
 
@@ -183,25 +169,6 @@ export function MappingWizardProvider({
           aiAnalysis,
         },
       })
-
-      // Enrich draft with live studio packages (package Select, never free-text).
-      try {
-        const packages = await packageService.list({ activeOnly: true })
-        const packageOptions = packages.map((p) => ({
-          value: p.id,
-          label: p.name,
-        }))
-        const questionnaireDraft = generateQuestionnaireDraft({
-          fields,
-          ai: aiAnalysis,
-          sourceText: structure.plainText,
-          templateName: templateName ?? state.draft.sourceFileName,
-          packageOptions,
-        })
-        dispatch({ type: 'set_questionnaire_draft', draft: questionnaireDraft })
-      } catch {
-        // Keep draft from analysis_success without package options.
-      }
     } catch (err) {
       dispatch({
         type: 'analysis_error',
@@ -321,50 +288,6 @@ export function MappingWizardProvider({
     [],
   )
 
-  const updateDraftQuestion = useCallback(
-    (questionId: string, patch: Partial<DraftQuestion>) => {
-      dispatch({ type: 'update_draft_question', questionId, patch })
-    },
-    [],
-  )
-
-  const toggleDraftQuestion = useCallback(
-    (questionId: string, enabled: boolean) => {
-      dispatch({ type: 'toggle_draft_question', questionId, enabled })
-    },
-    [],
-  )
-
-  const setQuestionnaireName = useCallback((name: string) => {
-    dispatch({ type: 'set_questionnaire_name', name })
-  }, [])
-
-  const regenerateQuestionnaire = useCallback(async () => {
-    let packageOptions: { value: string; label: string }[] | undefined
-    try {
-      const packages = await packageService.list({ activeOnly: true })
-      packageOptions = packages.map((p) => ({
-        value: p.id,
-        label: p.name,
-      }))
-    } catch {
-      // Draft never bakes options; QuestionnaireStep injects live packages after isSuccess.
-      packageOptions = undefined
-    }
-    const next = generateQuestionnaireDraft({
-      fields: state.draft.fields,
-      ai: state.draft.analysis?.aiAnalysis,
-      sourceText: state.draft.analysis?.sourceText,
-      templateName: templateName ?? state.draft.sourceFileName,
-      packageOptions,
-    })
-    dispatch({ type: 'set_questionnaire_draft', draft: next })
-  }, [state.draft, templateName])
-
-  const markQuestionnaireSaved = useCallback((formId: string) => {
-    dispatch({ type: 'questionnaire_saved', formId })
-  }, [])
-
   const canGoBack = UNLOCKED_ORDER.indexOf(state.step) > 0
   const canGoNext =
     state.step === 'upload'
@@ -372,9 +295,7 @@ export function MappingWizardProvider({
         state.uploadStatus !== 'uploading'
       : state.step === 'analysis'
         ? state.analysisStatus === 'success'
-        : state.step === 'questionnaire'
-          ? Boolean(state.draft.questionnaireDraft)
-          : false
+        : false
 
   const markClean = useCallback(() => {
     dispatch({ type: 'mark_clean' })
@@ -410,11 +331,6 @@ export function MappingWizardProvider({
       moveComponent,
       toggleClauseId,
       toggleSuggestedClause,
-      updateDraftQuestion,
-      toggleDraftQuestion,
-      setQuestionnaireName,
-      regenerateQuestionnaire,
-      markQuestionnaireSaved,
       canGoNext,
       canGoBack,
     }),
@@ -447,11 +363,6 @@ export function MappingWizardProvider({
       moveComponent,
       toggleClauseId,
       toggleSuggestedClause,
-      updateDraftQuestion,
-      toggleDraftQuestion,
-      setQuestionnaireName,
-      regenerateQuestionnaire,
-      markQuestionnaireSaved,
       canGoNext,
       canGoBack,
     ],

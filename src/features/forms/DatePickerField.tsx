@@ -5,7 +5,7 @@ import {
   useState,
   type KeyboardEvent,
 } from 'react'
-import { FloatingPortal } from '@/components/ui/FloatingPortal'
+import { ResponsiveFieldOverlay } from '@/components/ui/ResponsiveFieldOverlay'
 import {
   WEEKDAYS_PL,
   MONTHS_PL,
@@ -29,7 +29,9 @@ interface DatePickerFieldProps {
 }
 
 /**
- * Polish calendar date picker with portalled popover.
+ * Polish calendar date picker.
+ * Desktop: anchored portalled popover.
+ * Mobile: visualViewport bottom sheet.
  * Display: dd.MM.yyyy · Storage: yyyy-MM-dd
  */
 export function DatePickerField({
@@ -42,6 +44,7 @@ export function DatePickerField({
 }: DatePickerFieldProps) {
   const listId = useId()
   const inputRef = useRef<HTMLInputElement>(null)
+  const portalRef = useRef<HTMLElement | null>(null)
   const parsed = parseFlexibleDate(value)
   const [open, setOpen] = useState(false)
   const [display, setDisplay] = useState(
@@ -67,15 +70,18 @@ export function DatePickerField({
 
   useEffect(() => {
     if (!open) return
-    function onDoc(e: MouseEvent) {
+    function onDoc(e: MouseEvent | TouchEvent) {
       const t = e.target as Node
       if (inputRef.current?.contains(t)) return
-      const portal = document.querySelector('[data-floating-portal="true"]')
-      if (portal?.contains(t)) return
+      if (portalRef.current?.contains(t)) return
       setOpen(false)
     }
     document.addEventListener('mousedown', onDoc)
-    return () => document.removeEventListener('mousedown', onDoc)
+    document.addEventListener('touchstart', onDoc)
+    return () => {
+      document.removeEventListener('mousedown', onDoc)
+      document.removeEventListener('touchstart', onDoc)
+    }
   }, [open])
 
   function commitManual(raw: string) {
@@ -153,16 +159,31 @@ export function DatePickerField({
         <span className={styles.error}>{error || localError}</span>
       )}
 
-      <FloatingPortal open={open && !disabled} anchorRef={inputRef}>
+      <ResponsiveFieldOverlay
+        open={open && !disabled}
+        anchorRef={inputRef}
+        sheetTitle="Wybierz datę"
+        onClose={() => setOpen(false)}
+        maxMenuHeight={340}
+        sheetFraction={0.52}
+      >
         {(placement) => (
           <div
+            ref={(node) => {
+              portalRef.current = node
+            }}
             id={listId}
-            className={styles.popover}
+            className={[
+              styles.popover,
+              placement.mode === 'sheet' ? styles.popoverSheet : '',
+            ]
+              .filter(Boolean)
+              .join(' ')}
             role="dialog"
             aria-label="Kalendarz"
             data-datepicker="true"
             data-testid="date-picker-popover"
-            style={{ maxHeight: placement.maxHeight }}
+            data-overlay-mode={placement.mode}
           >
             <div className={styles.toolbar}>
               <button
@@ -242,9 +263,28 @@ export function DatePickerField({
                 )
               })}
             </div>
+
+            <div className={styles.sheetActions}>
+              <button
+                type="button"
+                className={styles.todayBtn}
+                onClick={() => selectDay(today)}
+              >
+                Dzisiaj
+              </button>
+              {placement.mode === 'sheet' ? (
+                <button
+                  type="button"
+                  className={styles.cancelBtn}
+                  onClick={() => setOpen(false)}
+                >
+                  Anuluj
+                </button>
+              ) : null}
+            </div>
           </div>
         )}
-      </FloatingPortal>
+      </ResponsiveFieldOverlay>
     </div>
   )
 }

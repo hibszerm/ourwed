@@ -7,7 +7,6 @@ import type { DocumentComponentKind } from '@/types/documents'
 import type { AiDocumentAnalysisResult } from '@/features/documents/ai'
 import type { DocumentStructure } from './preview/documentNodes'
 import type { PlannedBlock } from './composition/defaultComponentBlocks'
-import type { QuestionnaireDraft } from '@/features/documents/questionnaire'
 
 /** Wizard progress (orthogonal to template.status draft | ready | archived). */
 export type TemplateConfigStatus =
@@ -19,9 +18,10 @@ export type TemplateConfigStatus =
 export type MappingWizardStepId =
   | 'upload'
   | 'analysis'
-  | 'questionnaire'
   | 'save'
-  /** @deprecated Kept for draft compatibility — use questionnaire / advanced. */
+  /** @deprecated Removed from active flow — kept for draft compatibility. */
+  | 'questionnaire'
+  /** @deprecated Kept for draft compatibility. */
   | 'review'
   | 'mapping'
   | 'components'
@@ -138,8 +138,8 @@ export interface MappingWizardDraft {
   manualMappings: ManualDocumentMapping[]
   /** Free-placed dynamic fields on the document canvas (primary). */
   manualPlacements: ManualDocumentPlacement[]
-  /** AI-generated questionnaire draft (couple questions only). */
-  questionnaireDraft: QuestionnaireDraft | null
+  /** @deprecated AI questionnaire generation removed — always null. */
+  questionnaireDraft: null
   dirty: boolean
 }
 
@@ -150,6 +150,5 @@ export const MAPPING_WIZARD_STEPS: {
 }[] = [
   { id: 'upload', label: 'Przesyłanie', unlocked: true },
   { id: 'analysis', label: 'Analiza', unlocked: true },
-  { id: 'questionnaire', label: 'Ankieta', unlocked: true },
   { id: 'save', label: 'Biblioteka', unlocked: true },
 ]

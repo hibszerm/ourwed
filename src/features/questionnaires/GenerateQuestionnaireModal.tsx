@@ -1,31 +1,21 @@
 import { useEffect, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
-import { listActiveFormTemplates } from '@/lib/api/forms'
-import {
-  questionnaireService,
-  questionnaireTypeLabel,
-} from '@/lib/api/questionnaireService'
-import { useAuth } from '@/features/auth/hooks/useAuth'
+import { questionnaireService } from '@/lib/api/questionnaireService'
 import styles from './Questionnaires.module.css'
 
 interface GenerateQuestionnaireModalProps {
   open: boolean
   onClose: () => void
   onGenerated: () => void
-  /** Prefer this form template when opening (e.g. package-linked). */
-  preferredFormId?: string | null
 }
 
+/** Create an indefinite Contract Data Questionnaire public link. */
 export function GenerateQuestionnaireModal({
   open,
   onClose,
   onGenerated,
-  preferredFormId = null,
 }: GenerateQuestionnaireModalProps) {
-  const { user } = useAuth()
-  const [formId, setFormId] = useState<string>('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<{
@@ -33,36 +23,20 @@ export function GenerateQuestionnaireModal({
     formName: string
   } | null>(null)
 
-  const { data: forms = [], isLoading: formsLoading } = useQuery({
-    queryKey: ['questionnaire-templates', user?.id],
-    queryFn: () => listActiveFormTemplates('contract'),
-    enabled: open && Boolean(user?.id),
-  })
-
-  const contractForms = forms.filter((f) => f.isActive)
-
   useEffect(() => {
-    if (!open || contractForms.length === 0) return
-    if (preferredFormId && contractForms.some((f) => f.id === preferredFormId)) {
-      setFormId(preferredFormId)
-      return
+    if (!open) {
+      setResult(null)
+      setError(null)
+      setBusy(false)
     }
-    if (!formId || !contractForms.some((f) => f.id === formId)) {
-      setFormId(contractForms[0]!.id)
-    }
-  }, [open, contractForms, preferredFormId, formId])
+  }, [open])
 
   async function handleGenerate() {
-    if (!formId) {
-      setError('Wybierz typ ankiety.')
-      return
-    }
     setBusy(true)
     setError(null)
     try {
       const generated = await questionnaireService.generate({
         type: 'contract',
-        formId,
       })
       setResult({ formUrl: generated.formUrl, formName: generated.formName })
       onGenerated()
@@ -94,7 +68,7 @@ export function GenerateQuestionnaireModal({
       description={
         result
           ? 'Skopiuj unikalny link i wyślij go do pary.'
-          : 'Wybierz typ ankiety z biblioteki i utwórz nowy link (nowy token przy każdym generowaniu).'
+          : 'Utwórz nowy link do ankiety „Dane do umowy” (bezterminowy).'
       }
       onClose={handleClose}
       busy={busy}
@@ -107,7 +81,7 @@ export function GenerateQuestionnaireModal({
           <Button
             type="button"
             variant="primary"
-            disabled={busy || formsLoading || !formId}
+            disabled={busy}
             onClick={() => void handleGenerate()}
           >
             {busy ? 'Generowanie…' : 'Generuj link'}
@@ -141,25 +115,7 @@ export function GenerateQuestionnaireModal({
           </div>
         </div>
       ) : (
-        <div className={styles.field} style={{ gap: 16 }}>
-          <label className={styles.field}>
-            <span>Typ ankiety</span>
-            <select
-              value={formId}
-              onChange={(e) => setFormId(e.target.value)}
-              disabled={busy || formsLoading}
-            >
-              {formsLoading && <option value="">Ładowanie…</option>}
-              {!formsLoading && contractForms.length === 0 && (
-                <option value="">Brak typów ankiet</option>
-              )}
-              {contractForms.map((form) => (
-                <option key={form.id} value={form.id}>
-                  {questionnaireTypeLabel(form)}
-                </option>
-              ))}
-            </select>
-          </label>
+        <div className={styles.field}>
           {error ? <p className={styles.errorText} role="alert">{error}</p> : null}
         </div>
       )}
