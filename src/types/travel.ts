@@ -92,4 +92,9 @@ export interface TravelPlan {
   /** True when any segment failed or routing was unavailable. */
   hasError: boolean
   errorMessage: string | null
+  /**
+   * Route calculation succeeded (or was reused) but saving travel_segments failed.
+   * UI should still show the map when places have coordinates.
+   */
+  persistenceError?: string | null
 }

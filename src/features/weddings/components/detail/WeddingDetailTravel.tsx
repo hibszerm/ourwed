@@ -182,15 +182,21 @@ export function WeddingDetailTravel({
     queryFn: async () => {
       try {
         return await travelService.getPlan(weddingId)
-      } catch {
+      } catch (err) {
+        // Route calc / load failure — do not invent empty places (would hide map).
+        // Persistence failures are soft-failed inside getPlan via persistenceError.
         return {
           weddingId,
           studio: null,
           places: [],
           segments: [],
           hasError: true,
-          errorMessage: 'Nie udało się wyliczyć tej trasy.',
-        }
+          errorMessage:
+            err instanceof Error && err.message.trim()
+              ? err.message
+              : 'Nie udało się wyliczyć tej trasy.',
+          persistenceError: null,
+        } satisfies TravelPlan
       }
     },
     enabled: Boolean(!useLocalPlan && userId && weddingId),
@@ -254,6 +260,14 @@ export function WeddingDetailTravel({
             </div>
           ) : (
             <>
+              {plan?.persistenceError ? (
+                <p className={styles.persistWarn} role="status">
+                  Trasa jest widoczna, ale nie udało się zapisać odcinków.
+                  Spróbuj ponownie później.
+                </p>
+              ) : null}
+
+              {/* Map uses stop coordinates — independent of segment persistence. */}
               {!hideMap ? <TravelMap stops={flow.stops} /> : null}
 
               <div className={styles.flow}>

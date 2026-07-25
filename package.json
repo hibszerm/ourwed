@@ -46,7 +46,7 @@
     "test:places-proxy": "npx tsx --tsconfig tsconfig.app.json src/lib/forms/googlePlacesProviderAcceptance.test.ts",
     "test:google-routes-provider": "npx tsx --tsconfig tsconfig.app.json src/lib/forms/googleRoutesProviderAcceptance.test.ts",
     "test:global-google-location-migration": "npx tsx --tsconfig tsconfig.app.json src/lib/forms/globalGoogleLocationMigrationAcceptance.test.ts",
-    "test:travel-google-migration": "npx tsx --tsconfig tsconfig.app.json src/lib/forms/travelGoogleMigrationAcceptance.test.ts",
+    "test:travel-google-migration": "npx tsx --tsconfig tsconfig.app.json src/lib/forms/travelGoogleMigrationAcceptance.test.ts && npx tsx --tsconfig tsconfig.app.json src/lib/forms/travelSegmentsUpsertAcceptance.test.ts",
     "test:google-maps-browser": "npx tsx --tsconfig tsconfig.app.json src/lib/forms/googleMapsBrowserAcceptance.test.ts",
     "test:google-maps-navigation-links": "npx tsx --tsconfig tsconfig.app.json src/lib/forms/googleMapsNavigationLinksAcceptance.test.ts",
     "test:wedding-preparation-split": "npx tsx --tsconfig tsconfig.app.json src/lib/forms/weddingPreparationSplitAcceptance.test.ts",

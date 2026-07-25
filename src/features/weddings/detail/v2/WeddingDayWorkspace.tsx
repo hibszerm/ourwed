@@ -36,14 +36,21 @@ export function WeddingDayWorkspace({
     queryFn: async (): Promise<TravelPlan> => {
       try {
         return await travelService.getPlan(wedding.id)
-      } catch {
+      } catch (err) {
+        // Keep verified wedding places so the map can still render.
+        // Persistence soft-fails inside getPlan (persistenceError); this catch
+        // is for hard failures (auth, places load, etc.).
         return {
           weddingId: wedding.id,
           studio: null,
-          places: [],
+          places,
           segments: [],
           hasError: true,
-          errorMessage: 'Nie udało się wyliczyć trasy.',
+          errorMessage:
+            err instanceof Error && err.message.trim()
+              ? err.message
+              : 'Nie udało się wyliczyć trasy.',
+          persistenceError: null,
         }
       }
     },
@@ -204,8 +211,15 @@ export function WeddingDayWorkspace({
         </div>
 
         <div className={styles.mapCol}>
+          {plan?.persistenceError ? (
+            <p className={styles.persistWarn} role="status">
+              Trasa jest widoczna, ale nie udało się zapisać odcinków. Spróbuj
+              ponownie później.
+            </p>
+          ) : null}
           {flow && flow.hasAnyLocation ? (
             <div className={styles.mapSticky}>
+              {/* Coordinates drive the map; segment persistence is independent. */}
               <TravelMap stops={flow.stops} />
             </div>
           ) : (

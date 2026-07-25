@@ -2,6 +2,7 @@ import { studioTravelSettingsService } from '@/lib/api/studioTravelSettingsServi
 import { weddingPlaceService } from '@/lib/api/weddingPlaceService'
 import { supabase } from '@/lib/supabase'
 import { nowIso, throwOnError, toNumber } from '@/lib/supabase/helpers'
+import { TRAVEL_SEGMENTS_ON_CONFLICT } from '@/lib/travel/travelSegmentsIdentity'
 import {
   TravelProviderError,
   travelProvider,
@@ -16,6 +17,8 @@ import type {
   WeddingPlace,
   WeddingPlaceRole,
 } from '@/types/travel'
+
+export { TRAVEL_SEGMENTS_ON_CONFLICT } from '@/lib/travel/travelSegmentsIdentity'
 
 interface TravelSegmentRow {
   id: string
@@ -318,13 +321,17 @@ async function listCachedSegments(weddingId: string): Promise<TravelSegment[]> {
 }
 
 /**
- * Persist planned legs: drop obsolete sequences, upsert by (wedding_id, sequence).
+ * Persist planned legs: exact sync by (wedding_id, sequence).
+ * Drops obsolete sequences for this wedding, then upserts current legs.
+ * Requires unique index travel_segments_wedding_sequence_uidx.
  */
 async function syncSegments(
   weddingId: string,
   rows: SegmentWrite[],
 ): Promise<TravelSegment[]> {
+  // Exact sync: remove all prior legs for this wedding, then upsert the plan.
   // Safer than `.not('sequence', 'in', ...)` which can 400 on PostgREST filter syntax.
+  // Scoped to this wedding_id only — never deletes another wedding's segments.
   const { error: delError } = await supabase
     .from('travel_segments')
     .delete()
@@ -344,7 +351,10 @@ async function syncSegments(
 
   const { data, error } = await supabase
     .from('travel_segments')
-    .upsert(rows, { onConflict: 'wedding_id,sequence' })
+    .upsert(rows, {
+      onConflict: TRAVEL_SEGMENTS_ON_CONFLICT,
+      ignoreDuplicates: false,
+    })
     .select('*')
     .order('sequence', { ascending: true })
   if (error) {
@@ -360,6 +370,50 @@ async function syncSegments(
     throwOnError(error)
   }
   return ((data ?? []) as TravelSegmentRow[]).map(mapSegment)
+}
+
+function segmentsFromWrites(
+  rows: SegmentWrite[],
+  cachedBySequence: Map<number, TravelSegment>,
+): TravelSegment[] {
+  return rows.map((row, index) =>
+    mapSegment({
+      ...row,
+      id: cachedBySequence.get(row.sequence)?.id ?? `local-${index}`,
+      created_at: nowIso(),
+      updated_at: nowIso(),
+    }),
+  )
+}
+
+function persistenceFailureMessage(err: unknown): string {
+  if (err instanceof Error && err.message.trim()) return err.message
+  return 'Nie udało się zapisać wyliczonej trasy.'
+}
+
+/**
+ * Exact sync with soft-fail: route UI keeps in-memory segments when DB write fails.
+ */
+async function syncSegmentsOrLocal(
+  weddingId: string,
+  rows: SegmentWrite[],
+  cachedBySequence: Map<number, TravelSegment>,
+): Promise<{ segments: TravelSegment[]; persistenceError: string | null }> {
+  try {
+    const segments = await syncSegments(weddingId, rows)
+    return { segments, persistenceError: null }
+  } catch (err) {
+    const persistenceError = persistenceFailureMessage(err)
+    console.error('[travel_segments] persistence soft-fail', {
+      weddingId,
+      rowCount: rows.length,
+      message: persistenceError,
+    })
+    return {
+      segments: segmentsFromWrites(rows, cachedBySequence),
+      persistenceError,
+    }
+  }
 }
 
 function allLegsCached(
@@ -398,8 +452,14 @@ export const travelService = {
     const cachedBySequence = new Map(cached.map((s) => [s.sequence, s]))
 
     if (planned.length === 0) {
+      let persistenceError: string | null = null
       if (cached.length > 0) {
-        await syncSegments(weddingId, [])
+        // Clear obsolete cached legs for this wedding only.
+        ;({ persistenceError } = await syncSegmentsOrLocal(
+          weddingId,
+          [],
+          cachedBySequence,
+        ))
       }
       return {
         weddingId,
@@ -408,6 +468,7 @@ export const travelService = {
         segments: [],
         hasError: false,
         errorMessage: null,
+        persistenceError,
       }
     }
 
@@ -415,9 +476,14 @@ export const travelService = {
       const segments = planned
         .map((leg) => cachedBySequence.get(leg.sequence)!)
         .filter(Boolean)
-      // Drop any obsolete cached sequences still in DB
+      let persistenceError: string | null = null
+      // Drop any obsolete cached sequences still in DB (fewer stops than before).
       if (cached.length !== segments.length) {
-        await syncSegments(weddingId, segments.map(segmentToWrite))
+        ;({ persistenceError } = await syncSegmentsOrLocal(
+          weddingId,
+          segments.map(segmentToWrite),
+          cachedBySequence,
+        ))
       }
       return {
         weddingId,
@@ -426,6 +492,7 @@ export const travelService = {
         segments,
         hasError: false,
         errorMessage: null,
+        persistenceError,
       }
     }
 
@@ -472,19 +539,11 @@ export const travelService = {
       }
     }
 
-    let segments: TravelSegment[]
-    try {
-      segments = await syncSegments(weddingId, rows)
-    } catch {
-      segments = rows.map((row, index) =>
-        mapSegment({
-          ...row,
-          id: cachedBySequence.get(row.sequence)?.id ?? `local-${index}`,
-          created_at: nowIso(),
-          updated_at: nowIso(),
-        }),
-      )
-    }
+    const { segments, persistenceError } = await syncSegmentsOrLocal(
+      weddingId,
+      rows,
+      cachedBySequence,
+    )
 
     return {
       weddingId,
@@ -493,6 +552,7 @@ export const travelService = {
       segments,
       hasError: segments.some((s) => s.status === 'error'),
       errorMessage: firstError,
+      persistenceError,
     }
   },
 

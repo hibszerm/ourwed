@@ -1,3 +1,14 @@
+-- Travel Planning infrastructure (HISTORICAL / BOOTSTRAP SQL)
+--
+-- This file is NOT a timestamped Supabase migration and is skipped by
+-- `supabase db push` / migration history. Tables and RLS may have been
+-- applied manually or via other paths.
+--
+-- The production unique index for travel_segments (wedding_id, sequence)
+-- is enforced by:
+--   20260725250000_travel_segments_wedding_sequence_unique.sql
+-- Do not rely on this file alone for active schema corrections.
+
 -- Travel Planning infrastructure
 -- Studio origin, wedding places, cached travel segments.
 
