@@ -690,6 +690,7 @@ export function bindSlotsFromAnalysis(input: {
     'preparation_location',
     'ceremony_location',
     'reception_location',
+    'coverage_start_time',
     'coverage_end_time',
     'coverage_hours',
     'overtime_rate',

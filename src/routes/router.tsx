@@ -9,6 +9,7 @@ import { CalendarPage } from '@/pages/CalendarPage'
 import { QuestionnairesPage } from '@/pages/QuestionnairesPage'
 import { QuestionnaireDetailPage } from '@/pages/QuestionnaireDetailPage'
 import { QuestionnaireTemplatesPage } from '@/pages/QuestionnaireTemplatesPage'
+import { ContractQuestionnaireEditorPage } from '@/pages/ContractQuestionnaireEditorPage'
 import { PendingWeddingsPage } from '@/pages/PendingWeddingsPage'
 import { PackagesPage } from '@/pages/PackagesPage'
 import { ExtraServicesPage } from '@/pages/ExtraServicesPage'
@@ -61,6 +62,10 @@ export const router = createBrowserRouter([
       { path: '/sluby/:id', element: <WeddingDetailPage /> },
       { path: '/kalendarz', element: <CalendarPage /> },
       { path: '/ankiety', element: <QuestionnairesPage /> },
+      {
+        path: '/ankiety/dane-do-umowy',
+        element: <ContractQuestionnaireEditorPage />,
+      },
       {
         path: '/ankiety/szablony',
         element: <QuestionnaireTemplatesPage />,

@@ -300,6 +300,14 @@ export const PACKAGE_VARIABLES: SystemVariableDef[] = [
     sortOrder: 392,
   }),
   pkg({
+    id: 'coverage_start_time',
+    label: 'Początek reportażu (godzina)',
+    description: 'Coverage clock start from work-hours range, e.g. „12:00”.',
+    legacyKey: 'package.coverageStartTime',
+    type: 'string',
+    sortOrder: 392.4,
+  }),
+  pkg({
     id: 'coverage_end_time',
     label: 'Koniec reportażu (godzina)',
     description: 'Wedding snapshot coverageEndTime, e.g. „00:30”.',

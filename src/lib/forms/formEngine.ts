@@ -66,7 +66,12 @@ export function validateAnswers(
     const empty =
       value === undefined ||
       value === '' ||
-      (Array.isArray(value) && value.length === 0)
+      (Array.isArray(value) && value.length === 0) ||
+      (typeof value === 'object' &&
+        value !== null &&
+        !Array.isArray(value) &&
+        'formattedAddress' in value &&
+        !(value as { formattedAddress?: string }).formattedAddress?.trim())
 
     if (empty) {
       errors[q.id] = 'Wymagane'
@@ -76,6 +81,21 @@ export function validateAnswers(
     if (q.type === 'email' && typeof value === 'string') {
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
         errors[q.id] = 'Podaj poprawny e-mail'
+      }
+    }
+
+    if (
+      q.type === 'radio' ||
+      (q.type === 'multiselect' && q.options && q.options.length > 0)
+    ) {
+      const allowed = new Set((q.options ?? []).map((o) => o.value))
+      if (typeof value === 'string' && value && !allowed.has(value)) {
+        errors[q.id] = 'Nieprawidłowa opcja'
+      }
+      if (Array.isArray(value)) {
+        if (value.some((v) => !allowed.has(v))) {
+          errors[q.id] = 'Nieprawidłowa opcja'
+        }
       }
     }
   }

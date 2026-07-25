@@ -14,8 +14,20 @@ import {
 import { formEngine } from '@/lib/forms/formEngine'
 import { DEFAULT_FORM_SETTINGS } from '@/lib/forms/contractQuestionnaireTemplate'
 import { resolvePublicFormTemplate } from '@/lib/forms/resolvePublicFormTemplate'
+import {
+  formatLocationAnswer,
+  normalizeSelectedPackageIds,
+  validateIdsAgainstOptions,
+} from '@/lib/forms/contractQuestionnaireSnapshot'
 import type { AnswerValue, FormTemplate } from '@/types/form'
 import type { FormInstance, FormSchema } from '@/types/formEngine'
+import type {
+  AdditionalServiceOptionSnapshot,
+  ContractQuestionnaireConfig,
+  FormInstanceOptionsSnapshot,
+  PackageOptionSnapshot,
+} from '@/types/contractQuestionnaire'
+import { defaultContractQuestionnaireConfig } from '@/types/contractQuestionnaire'
 import styles from './FormPublicPage.module.css'
 
 type LoadState =
@@ -26,8 +38,9 @@ type LoadState =
       status: 'ready'
       instance: FormInstance
       schema: FormSchema | null
-      /** Live Studio packages from the public RPC — template depends on this. */
-      packages: Array<{ id: string; name: string }>
+      packages: PackageOptionSnapshot[]
+      additionalServices: AdditionalServiceOptionSnapshot[]
+      optionsSnapshot: FormInstanceOptionsSnapshot | null
     }
 
 function emptyAnswers(template: FormTemplate): Record<string, AnswerValue> {
@@ -41,20 +54,21 @@ function emptyAnswers(template: FormTemplate): Record<string, AnswerValue> {
 }
 
 function packageFingerprint(
-  packages: Array<{ id: string; name: string }>,
+  packages: PackageOptionSnapshot[],
+  extras: AdditionalServiceOptionSnapshot[],
+  config: ContractQuestionnaireConfig | null,
 ): string {
-  return packages.map((p) => `${p.id}:${p.name}`).join('|')
+  return [
+    packages.map((p) => `${p.id}:${p.name}`).join('|'),
+    extras.map((e) => e.id).join('|'),
+    config?.version ?? 0,
+    config?.customFields?.map((f) => f.id).join(',') ?? '',
+  ].join('::')
 }
 
 /**
  * Production public questionnaire at /form/:token.
- *
- * Packages and schema live in load-state. The resolved template is derived with
- * useMemo whenever `packages` changes — never frozen from the first paint.
- *
- * Deliberately NOT using React Query: auth bootstrap calls queryClient.clear(),
- * which cancelled/cleared in-flight public-form fetches on first visit and left
- * an empty Pakiet select until a full browser refresh.
+ * Single screen — no wizard. Options come from the instance snapshot.
  */
 export function ProductionContractFormPage() {
   const { token = '' } = useParams<{ token: string }>()
@@ -63,7 +77,6 @@ export function ProductionContractFormPage() {
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
-  const renderCountRef = useRef(0)
   const seededForPackagesRef = useRef<string | null>(null)
 
   useEffect(() => {
@@ -103,19 +116,13 @@ export function ProductionContractFormPage() {
           return
         }
 
-        if (import.meta.env.DEV) {
-          console.info('[ProductionContractFormPage] fetch settled', {
-            packagesLength: publicForm.packages.length,
-            packageIds: publicForm.packages.map((p) => p.id),
-            packageNames: publicForm.packages.map((p) => p.name),
-          })
-        }
-
         setLoad({
           status: 'ready',
           instance: publicForm.instance,
           schema: publicForm.form.schema,
           packages: publicForm.packages,
+          additionalServices: publicForm.additionalServices,
+          optionsSnapshot: publicForm.optionsSnapshot,
         })
       } catch {
         if (!cancelled) setLoad({ status: 'not_found' })
@@ -129,36 +136,29 @@ export function ProductionContractFormPage() {
   }, [token])
 
   const packages = load.status === 'ready' ? load.packages : undefined
+  const additionalServices =
+    load.status === 'ready' ? load.additionalServices : undefined
+  const optionsSnapshot =
+    load.status === 'ready' ? load.optionsSnapshot : null
   const schema = load.status === 'ready' ? load.schema : null
+  const config =
+    optionsSnapshot?.config ??
+    (load.status === 'ready' ? defaultContractQuestionnaireConfig() : null)
+
   const packagesKey =
-    packages !== undefined ? packageFingerprint(packages) : 'loading'
+    packages !== undefined && additionalServices !== undefined
+      ? packageFingerprint(packages, additionalServices, config)
+      : 'loading'
 
-  // Recompute whenever packages (or schema) change — never cache first empty paint.
   const resolvedTemplate = useMemo(() => {
-    if (packages === undefined) return null
-    return resolvePublicFormTemplate(schema, packages)
-  }, [schema, packages, packagesKey])
-
-  renderCountRef.current += 1
-  if (import.meta.env.DEV) {
-    const pkg = resolvedTemplate?.questions.find(
-      (q) => q.id === 'q-package' || q.fieldKey === 'packageId',
-    )
-    console.info('[ProductionContractFormPage] render', {
-      render: renderCountRef.current,
-      loadStatus: load.status,
-      packagesIsLoading: load.status === 'loading',
-      packagesIsSuccess: load.status === 'ready',
-      packagesLength: packages?.length ?? null,
-      resolvedTemplateIdentity:
-        resolvedTemplate == null
-          ? null
-          : `tpl@${packagesKey || 'nopkg'}`,
-      packageOptionsLength: pkg?.options?.length ?? null,
+    if (packages === undefined || additionalServices === undefined) return null
+    return resolvePublicFormTemplate(schema, packages, {
+      packages,
+      additionalServices,
+      config,
     })
-  }
+  }, [schema, packages, additionalServices, packagesKey, config])
 
-  // Seed / re-seed answers when the package list identity changes (e.g. 0 → N).
   useEffect(() => {
     if (!resolvedTemplate || packages === undefined) return
     if (seededForPackagesRef.current === packagesKey) return
@@ -202,8 +202,23 @@ export function ProductionContractFormPage() {
   }
 
   const { instance } = load
-  const settings = DEFAULT_FORM_SETTINGS
   const template = resolvedTemplate
+  const greeting =
+    config?.greeting?.trim() ||
+    template.description ||
+    DEFAULT_FORM_SETTINGS.welcomeDescription
+  const footerText =
+    template.footerText?.trim() ||
+    config?.footerText?.trim() ||
+    DEFAULT_FORM_SETTINGS.footerMessage
+  const welcomeTitle = DEFAULT_FORM_SETTINGS.welcomeTitle
+  const settings = {
+    ...DEFAULT_FORM_SETTINGS,
+    welcomeDescription: greeting,
+    footerMessage: footerText,
+    successDescription:
+      config?.successMessage?.trim() || DEFAULT_FORM_SETTINGS.successDescription,
+  }
 
   if (
     success ||
@@ -215,6 +230,7 @@ export function ProductionContractFormPage() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
+    if (submitting) return
 
     const nextErrors = formEngine.validateAnswers(template, values)
     setErrors(nextErrors)
@@ -223,12 +239,98 @@ export function ProductionContractFormPage() {
     setSubmitting(true)
     try {
       const answers = formEngine.valuesToAnswers(values)
+      const fields = formEngine.answersToFieldMap(template, answers)
+
+      const selectedPackageIds = normalizeSelectedPackageIds(
+        fields as Record<string, unknown>,
+      )
+      const selectedAdditionalServiceIds = Array.isArray(
+        fields.selectedAdditionalServiceIds,
+      )
+        ? (fields.selectedAdditionalServiceIds as string[])
+        : []
+
+      const pkgCheck = validateIdsAgainstOptions(
+        selectedPackageIds,
+        packages ?? [],
+      )
+      if (!pkgCheck.ok) {
+        setErrors({
+          _form: 'Wybrany pakiet nie jest dostępny w tej ankiecie.',
+        })
+        return
+      }
+      const extraCheck = validateIdsAgainstOptions(
+        selectedAdditionalServiceIds,
+        additionalServices ?? [],
+      )
+      if (!extraCheck.ok) {
+        setErrors({
+          _form: 'Wybrana usługa dodatkowa nie jest dostępna w tej ankiecie.',
+        })
+        return
+      }
+
+      const customAnswers = template.questions
+        .filter(
+          (q) =>
+            typeof q.fieldKey === 'string' && q.fieldKey.startsWith('custom.'),
+        )
+        .map((q) => ({
+          fieldId: q.customFieldId || q.id,
+          fieldKey: q.fieldKey?.replace(/^custom\./, ''),
+          labelSnapshot: q.label,
+          type: q.type,
+          value: values[q.id],
+        }))
+
+      const packageSnapshots = (packages ?? [])
+        .filter((p) => selectedPackageIds.includes(p.id))
+        .map((p) => ({
+          id: p.id,
+          name: p.name,
+          description: p.description,
+          price: p.price,
+          currency: p.currency,
+        }))
+      const extraSnapshots = (additionalServices ?? [])
+        .filter((s) => selectedAdditionalServiceIds.includes(s.id))
+        .map((s) => ({
+          id: s.id,
+          name: s.name,
+          description: s.description,
+          price: s.price,
+          currency: s.currency,
+        }))
+
       const answerJson = {
         templateId: template.id,
         templateType: template.type,
         values,
         answers,
-        fields: formEngine.answersToFieldMap(template, answers),
+        fields: {
+          ...fields,
+          selectedPackageIds,
+          packageId: selectedPackageIds[0] ?? '',
+          selectedAdditionalServiceIds,
+          bridePreparationLocation:
+            fields.bridePreparationLocation ??
+            fields.preparationLocation ??
+            '',
+          groomPreparationLocation: fields.groomPreparationLocation ?? '',
+          ceremonyLocation: fields.ceremonyLocation ?? '',
+          receptionLocation: fields.receptionLocation ?? '',
+          preparationLocation:
+            formatLocationAnswer(fields.bridePreparationLocation) ||
+            formatLocationAnswer(fields.preparationLocation) ||
+            '',
+        },
+        customAnswers,
+        packageSnapshots,
+        additionalServiceSnapshots: extraSnapshots,
+        meta: {
+          configVersion: config?.version ?? 1,
+        },
       }
 
       await submitFormByToken(token, answerJson)
@@ -257,8 +359,8 @@ export function ProductionContractFormPage() {
     <div className={styles.shell}>
       <header className={styles.header}>
         <p className={styles.eyebrow}>{template.title}</p>
-        <h1 className={styles.title}>{settings.welcomeTitle}</h1>
-        <p className={styles.lead}>{settings.welcomeDescription}</p>
+        <h1 className={styles.title}>{welcomeTitle}</h1>
+        <p className={styles.lead}>{greeting}</p>
       </header>
 
       <form className={styles.form} onSubmit={handleSubmit} noValidate>
@@ -281,7 +383,7 @@ export function ProductionContractFormPage() {
                 {section.questions.map((question) => (
                   <div
                     key={
-                      question.fieldKey === 'packageId' ||
+                      question.fieldKey === 'selectedPackageIds' ||
                       question.id === 'q-package'
                         ? `${question.id}-opts-${question.options?.length ?? 0}-${packagesKey}`
                         : question.id
@@ -320,7 +422,7 @@ export function ProductionContractFormPage() {
         </div>
       </form>
 
-      <p className={styles.footer}>{settings.footerMessage}</p>
+      <p className={styles.footer}>{footerText}</p>
     </div>
   )
 }

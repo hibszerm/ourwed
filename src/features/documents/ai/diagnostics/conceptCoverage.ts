@@ -592,6 +592,19 @@ export const SEMANTIC_MAP: SemanticMapping[] = [
     minForFull: 1,
   },
   {
+    id: 'coverage_start_time',
+    aliases: [
+      'coverage start time',
+      'start of coverage',
+      'od godziny',
+      'rozpoczęcie pracy',
+      'początek reportażu',
+    ],
+    covers: ['coverage_start_time', 'package.coverageStartTime'],
+    mode: 'single',
+    minForFull: 1,
+  },
+  {
     id: 'coverage_end_time',
     aliases: [
       'coverage end time',

@@ -3,6 +3,8 @@
  * Persisted in public.studio_details (legacy table name; one row per account).
  */
 
+import type { ContractQuestionnaireConfig } from '@/types/contractQuestionnaire'
+
 export interface CompanyDetails {
   id: string
   userId: string
@@ -26,6 +28,8 @@ export interface CompanyDetails {
   logoPath: string | null
   signaturePath: string | null
   stampPath: string | null
+  /** Contract questionnaire defaults (greeting, footer, custom fields). */
+  questionnaireConfig: ContractQuestionnaireConfig | null
   createdAt: string
   updatedAt: string
 }
@@ -51,4 +55,5 @@ export interface UpsertCompanyDetailsInput {
   logoPath?: string | null
   signaturePath?: string | null
   stampPath?: string | null
+  questionnaireConfig?: ContractQuestionnaireConfig | null
 }

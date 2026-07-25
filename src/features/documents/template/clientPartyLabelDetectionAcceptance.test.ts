@@ -175,7 +175,7 @@ run('8 — PESEL associated with correct partner', () => {
   )
 })
 
-run('9 — dotted phone/email → empty placeholders, not dynamic values', () => {
+run('9 — dotted phone/email → safe placeholder slots', () => {
   const c = detectContractCandidates([
     { index: 0, text: 'a Parą Młodą:' },
     { index: 1, text: 'Panna Młoda: Katarzyna Dobrowolska' },
@@ -188,13 +188,17 @@ run('9 — dotted phone/email → empty placeholders, not dynamic values', () =>
   const email = c.find((x) => x.proposedKey === 'bride_email')
   assert(Boolean(phone), 'phone candidate')
   assert(Boolean(email), 'email candidate')
-  assertEq(phone!.text, '', 'no fake phone')
-  assertEq(email!.text, '', 'no fake email')
-  assertEq(phone!.decision, 'needs_confirmation', 'phone review')
+  assert(Boolean(phone!.text.trim()), 'phone has placeholder span')
+  assert(Boolean(email!.text.trim()), 'email has placeholder span')
+  assertEq(phone!.decision, 'accepted', 'phone accepted')
+  assertEq(email!.decision, 'accepted', 'email accepted')
   const slots = candidatesToTemplateSlots(c)
   const phoneSlot = slots.find((s) => s.registryKey === 'bride_phone')
-  assert(phoneSlot?.physicallyBound !== true, 'phone not bound')
-  assert(phoneSlot?.needsConfirmation === true, 'phone needs confirm')
+  const emailSlot = slots.find((s) => s.registryKey === 'bride_email')
+  assert(phoneSlot?.physicallyBound === true, 'phone bound')
+  assert(emailSlot?.physicallyBound === true, 'email bound')
+  assert(phoneSlot?.needsConfirmation !== true, 'phone no confirm')
+  assert(!phone!.text.includes('telefon'), 'label not in phone span')
 })
 
 run('10 — Zwanymi dalej Zamawiającymi is context, not a slot', () => {

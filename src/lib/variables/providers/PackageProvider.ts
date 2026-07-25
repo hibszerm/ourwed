@@ -121,6 +121,7 @@ export const packageVariableProvider: VariableProvider = {
       photographers_count: ['photographersCount'],
       videographers_count: ['videographersCount'],
       coverage_hours: ['coverageHours', 'workingHours', 'coverage_hours'],
+      coverage_start_time: ['coverageStartTime', 'coverage_start_time'],
       coverage_end_time: ['coverageEndTime', 'coverage_end_time'],
       overtime_price: [
         'overtimeRateFormatted',

@@ -9,6 +9,12 @@ import { canonicalizeParagraphText } from './canonicalParagraph'
 import type { IndexedParagraph } from './extractDocxParagraphs'
 import type { ContractCandidate } from './candidateDetection'
 import { validateMinimalSlotSpan } from './contractSlotSafety'
+import {
+  classifyPlaceholderType,
+  isContactPlaceholderValue,
+  logContactPlaceholder,
+  type ContactCanonicalKey,
+} from './contractContactPlaceholderClassification'
 
 const NAME_TOKEN =
   "[A-ZĄĆĘŁŃÓŚŹŻ][a-ząćęłńóśźżąćęłńóśźżĄĆĘŁŃÓŚŹŻ'\\-]{1,30}"
@@ -460,13 +466,22 @@ function consumeFollowUp(
     return
   }
 
-  const phone = /(?:telefon|tel\.)\s*:\s*(.+?)(?=\s*,\s*e-?mail|\s*$)/iu.exec(
+  const phone = /(?:telefon|tel\.?|numer\s+telefonu|nr\s+telefonu|kom\.?)\s*:\s*(.*?)(?=\s*,\s*e-?mail|\s*$)/iu.exec(
     text,
   )
-  const email = /e-?mail\s*:\s*(.+)$/iu.exec(text)
-  if (phone) {
-    const raw = phone[1]!.trim()
-    if (isObfuscatedContactValue(raw)) {
+  const email = /(?:e-?mail|adres\s+e-?mail|mail)\s*:\s*(.*)$/iu.exec(text)
+  const phoneLabelOnly =
+    !phone &&
+    /(?:telefon|tel\.?|numer\s+telefonu|nr\s+telefonu|kom\.?)\s*:?\s*$/iu.test(
+      text.trim(),
+    )
+  const emailLabelOnly =
+    !email &&
+    /(?:e-?mail|adres\s+e-?mail|mail)\s*:?\s*$/iu.test(text.trim())
+
+  if (phone && phone[1]!.trim()) {
+    const raw = phone[1]!.trim().replace(/[,;]+$/, '')
+    if (isContactPlaceholderValue(raw, 'phone') || isObfuscatedContactValue(raw)) {
       pushPlaceholder(out, para, text, raw, keys.phone, 'phone_placeholder', side)
     } else {
       const digits = raw.replace(/[^\d+]/g, '')
@@ -476,14 +491,22 @@ function consumeFollowUp(
         pushPlaceholder(out, para, text, raw, keys.phone, 'phone_placeholder', side)
       }
     }
+  } else if (phone || phoneLabelOnly) {
+    pushPlaceholder(out, para, text, '', keys.phone, 'phone_placeholder', side)
   }
-  if (email) {
-    const raw = email[1]!.trim()
-    if (isObfuscatedContactValue(raw) || !/@/.test(raw)) {
+  if (email && email[1]!.trim()) {
+    const raw = email[1]!.trim().replace(/[,;]+$/, '')
+    if (
+      isContactPlaceholderValue(raw, 'email') ||
+      isObfuscatedContactValue(raw) ||
+      !/@/.test(raw)
+    ) {
       pushPlaceholder(out, para, text, raw, keys.email, 'email_placeholder', side)
     } else {
       pushField(out, para, text, raw, keys.email, 'email_label', side)
     }
+  } else if (email || emailLabelOnly) {
+    pushPlaceholder(out, para, text, '', keys.email, 'email_placeholder', side)
   }
 }
 
@@ -578,41 +601,180 @@ function pushPlaceholder(
   association: string,
   side: PartnerSide,
 ) {
+  const kind: 'phone' | 'email' = /email|mail/i.test(key) ? 'email' : 'phone'
+  const placeholderType = classifyPlaceholderType(raw, kind)
+  const partyRole = side === 1 ? ('partner1' as const) : ('partner2' as const)
+  const labelText =
+    kind === 'phone'
+      ? (/telefon|tel\.?/i.exec(fullText)?.[0] ?? 'telefon')
+      : (/e-?mail/i.exec(fullText)?.[0] ?? 'e-mail')
+
+  // Locate the exact placeholder span after the label (never the label/colon).
+  let start = -1
+  if (raw.trim() && raw.trim() !== ':') {
+    const labelRe =
+      kind === 'phone'
+        ? /(?:telefon|tel\.?|numer\s+telefonu|nr\s+telefonu|kom\.?)\s*:\s*/iu
+        : /(?:e-?mail|adres\s+e-?mail|mail)\s*:\s*/iu
+    const labelHit = labelRe.exec(fullText)
+    const searchFrom = labelHit ? labelHit.index + labelHit[0].length : 0
+    start = fullText.indexOf(raw, searchFrom)
+    if (start < 0) start = fullText.indexOf(raw)
+  }
+
+  if (start < 0 || !raw.trim()) {
+    logContactPlaceholder({
+      labelText,
+      placeholderText: raw,
+      placeholderType: 'absent_no_span',
+      partyRole,
+      canonicalKey: key as ContactCanonicalKey,
+      paragraphIndex: para.index,
+      tableIndex: null,
+      rowIndex: null,
+      cellIndex: null,
+      startOffset: null,
+      endOffset: null,
+      insertionAnchor: null,
+      physicalSpanSafety: 'needs_review',
+      confidence: 0.45,
+      reviewState: 'needs_review',
+      rejectionReason: 'absent_no_span',
+      resolverAvailable: true,
+    })
+    logClientDetection({
+      paragraphIndex: para.index,
+      roleLabel: partyRole,
+      canonicalKey: key,
+      sourceText: raw.slice(0, 40),
+      startOffset: null,
+      endOffset: null,
+      localContext: fullText.slice(0, 120),
+      associationSource: association,
+      confidence: 0.45,
+      physicalSpanSafety: 'needs_review',
+      reviewState: 'empty_placeholder',
+      rejectionReason: 'No writable placeholder span after contact label',
+    })
+    out.push({
+      paragraphIndex: para.index,
+      paragraphText: fullText,
+      startOffset: 0,
+      endOffset: 0,
+      text: '',
+      proposedKey: key,
+      confidence: 0.45,
+      evidenceType: 'blank_between_anchors',
+      evidenceText: raw.slice(0, 60) || labelText,
+      operation: 'insert',
+      sourceHint: 'couple',
+      decision: 'needs_confirmation',
+      reason:
+        'Contact label present but no deterministic writable span — requires review',
+      variableClassification: 'dynamic_candidate',
+      meta: {
+        associationSource: association,
+        reviewState: 'empty_placeholder',
+        physicalSpanSafety: 'needs_review',
+      },
+    })
+    return
+  }
+
+  const end = start + raw.length
+  const spanCheck = validateMinimalSlotSpan({
+    registryKey: key,
+    text: raw,
+    paragraphText: fullText,
+    operation: 'replace',
+  })
+  const safe = spanCheck.ok && isContactPlaceholderValue(raw, kind)
+
+  logContactPlaceholder({
+    labelText,
+    placeholderText: raw,
+    placeholderType,
+    partyRole,
+    canonicalKey: key as ContactCanonicalKey,
+    paragraphIndex: para.index,
+    tableIndex: null,
+    rowIndex: null,
+    cellIndex: null,
+    startOffset: start,
+    endOffset: end,
+    insertionAnchor: null,
+    physicalSpanSafety: safe ? 'safe' : 'needs_review',
+    confidence: safe ? 0.92 : 0.55,
+    reviewState: safe ? 'ok' : 'needs_review',
+    rejectionReason: safe
+      ? null
+      : (spanCheck.blockingReasons[0] ?? 'unsafe_placeholder_span'),
+    resolverAvailable: true,
+  })
+
   logClientDetection({
     paragraphIndex: para.index,
-    roleLabel: side === 1 ? 'partner1' : 'partner2',
+    roleLabel: partyRole,
     canonicalKey: key,
     sourceText: raw.slice(0, 40),
-    startOffset: null,
-    endOffset: null,
+    startOffset: start,
+    endOffset: end,
     localContext: fullText.slice(0, 120),
     associationSource: association,
-    confidence: 0.7,
-    physicalSpanSafety: 'needs_review',
-    reviewState: 'empty_placeholder',
-    rejectionReason:
-      'Obfuscated or empty contact placeholder — not a bindable value',
+    confidence: safe ? 0.92 : 0.55,
+    physicalSpanSafety: safe ? 'safe' : 'needs_review',
+    reviewState: safe ? 'ok' : 'empty_placeholder',
+    rejectionReason: safe ? null : 'Placeholder span not safely replaceable',
   })
+
+  if (!safe) {
+    out.push({
+      paragraphIndex: para.index,
+      paragraphText: fullText,
+      startOffset: start,
+      endOffset: end,
+      text: raw,
+      proposedKey: key,
+      confidence: 0.55,
+      evidenceType: 'blank_between_anchors',
+      evidenceText: raw.slice(0, 60),
+      operation: 'replace',
+      sourceHint: 'couple',
+      decision: 'needs_confirmation',
+      reason: 'Contact placeholder present but requires review',
+      variableClassification: 'dynamic_candidate',
+      leftAnchor: fullText.slice(Math.max(0, start - 12), start),
+      rightAnchor: fullText.slice(end, end + 16),
+      meta: {
+        associationSource: association,
+        reviewState: 'empty_placeholder',
+        physicalSpanSafety: 'needs_review',
+      },
+    })
+    return
+  }
+
   out.push({
     paragraphIndex: para.index,
     paragraphText: fullText,
-    startOffset: 0,
-    endOffset: 0,
-    text: '',
+    startOffset: start,
+    endOffset: end,
+    text: raw,
     proposedKey: key,
-    confidence: 0.7,
+    confidence: 0.92,
     evidenceType: 'blank_between_anchors',
-    evidenceText: raw.slice(0, 60),
+    evidenceText: `${labelText}: ${placeholderType}`,
     operation: 'replace',
     sourceHint: 'couple',
-    decision: 'needs_confirmation',
-    reason:
-      'Empty/obfuscated contact placeholder — requires review (no fake originalText)',
+    decision: 'accepted',
+    reason: `Safe contact placeholder (${placeholderType}) for partner${side}`,
     variableClassification: 'dynamic_candidate',
+    leftAnchor: fullText.slice(Math.max(0, start - 12), start),
+    rightAnchor: fullText.slice(end, Math.min(fullText.length, end + 16)),
     meta: {
       associationSource: association,
-      reviewState: 'empty_placeholder',
-      physicalSpanSafety: 'needs_review',
+      reviewState: 'ok',
+      physicalSpanSafety: 'safe',
     },
   })
 }

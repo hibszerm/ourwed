@@ -260,7 +260,8 @@ export function analyzePartyCompleteness(input: {
               s.registryKey === 'groom_phone' ||
               s.registryKey === 'groom_email') &&
             (!s.originalText || !s.originalText.trim()) &&
-            s.needsConfirmation,
+            s.needsConfirmation &&
+            !s.physicallyBound,
         )
       ) {
         clientGaps.push('telefon / e-mail (pusty placeholder)')

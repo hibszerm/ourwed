@@ -211,6 +211,70 @@ function extractReceptionVenue(text: string): {
   return { venue: span, start, end: start + span.length }
 }
 
+/** Stage-specific “odbędą/odbędzie się w PLACE” clauses. */
+function extractStageSpecificVenues(text: string): Array<{
+  venue: string
+  start: number
+  end: number
+  stages: VenueStage[]
+  preferredConcept: VenueConcept
+}> {
+  const patterns: Array<{
+    left: RegExp
+    stages: VenueStage[]
+    preferredConcept: VenueConcept
+    right: RegExp
+  }> = [
+    {
+      left: /przygotowa[nń][^\n]{0,80}?odbęd[aą]\s+się\s+w\s+/iu,
+      stages: ['preparation'],
+      preferredConcept: 'preparation_location',
+      right: /[.;]|$/u,
+    },
+    {
+      left: /ceremoni[^\n]{0,80}?odbędzie\s+się\s+w\s+/iu,
+      stages: ['ceremony'],
+      preferredConcept: 'ceremony_location',
+      right: /[.;]|$/u,
+    },
+  ]
+
+  const out: Array<{
+    venue: string
+    start: number
+    end: number
+    stages: VenueStage[]
+    preferredConcept: VenueConcept
+  }> = []
+
+  for (const p of patterns) {
+    const left = p.left.exec(text)
+    if (!left || left.index == null) continue
+    // Skip if this is the combined “przygotowania, ceremonia, przyjęcie:” form
+    if (COMBINED_STAGES.test(text.slice(Math.max(0, left.index - 5), left.index + 80))) {
+      continue
+    }
+    const from = left.index + left[0].length
+    const rest = text.slice(from)
+    const right = p.right.exec(rest)
+    const endLocal = right ? right.index! : Math.min(rest.length, 80)
+    let span = rest.slice(0, endLocal).trim()
+    span = span.replace(/^[,:\s]+/, '').replace(/[,;\s]+$/, '')
+    if (span.length < 2 || span.length > 100) continue
+    if (/^\d{1,2}[./-]\d{1,2}/.test(span)) continue
+    const start = text.indexOf(span, from)
+    if (start < 0) continue
+    out.push({
+      venue: span,
+      start,
+      end: start + span.length,
+      stages: p.stages,
+      preferredConcept: p.preferredConcept,
+    })
+  }
+  return out
+}
+
 function isHardNegativeVenueContext(text: string): boolean {
   return HARD_NEGATIVE_VENUE.some((re) => re.test(text))
 }
@@ -269,28 +333,50 @@ export function inventoryVenueCandidates(
     }
 
     const combined = extractCombinedVenue(local)
-    const reception = combined
-      ? null
-      : extractReceptionVenue(local)
+    const stageSpecific = combined ? [] : extractStageSpecificVenues(local)
+    const reception =
+      combined || stageSpecific.length > 0
+        ? null
+        : extractReceptionVenue(local)
 
-    const hit = combined
-      ? {
-          venue: combined.venue,
-          start: combined.start,
-          end: combined.end,
-          stages: combined.stages,
-        }
-      : reception
-        ? {
-            venue: reception.venue,
-            start: reception.start,
-            end: reception.end,
-            stages: ['reception'] as VenueStage[],
-          }
-        : null
+    const hits: Array<{
+      venue: string
+      start: number
+      end: number
+      stages: VenueStage[]
+      preferredConcept?: VenueConcept
+    }> = []
 
-    if (!hit) continue
+    if (combined) {
+      hits.push({
+        venue: combined.venue,
+        start: combined.start,
+        end: combined.end,
+        stages: combined.stages,
+        preferredConcept: 'reception_location',
+      })
+    } else {
+      for (const s of stageSpecific) {
+        hits.push({
+          venue: s.venue,
+          start: s.start,
+          end: s.end,
+          stages: s.stages,
+          preferredConcept: s.preferredConcept,
+        })
+      }
+      if (reception) {
+        hits.push({
+          venue: reception.venue,
+          start: reception.start,
+          end: reception.end,
+          stages: ['reception'],
+          preferredConcept: 'reception_location',
+        })
+      }
+    }
 
+    for (const hit of hits) {
     // Provider/client address hard exclude on the span itself
     if (isHardNegativeVenueContext(hit.venue)) continue
     if (
@@ -301,8 +387,9 @@ export function inventoryVenueCandidates(
       continue
     }
 
+    const conceptKey = hit.preferredConcept ?? 'reception_location'
     const spanCheck = validateMinimalSlotSpan({
-      registryKey: 'reception_location',
+      registryKey: conceptKey,
       text: hit.venue,
       paragraphText: local,
       operation: 'replace',
@@ -317,12 +404,14 @@ export function inventoryVenueCandidates(
     ]
     const negativeAnchors = matchList(local, HARD_NEGATIVE_VENUE)
 
-    // Primary selection: reception_location for combined; else best score
-    let selected: VenueConcept | null = 'reception_location'
-    if (hit.stages.length === 1 && hit.stages[0] === 'ceremony') {
-      selected = 'ceremony_location'
-    } else if (hit.stages.length === 1 && hit.stages[0] === 'preparation') {
-      selected = 'preparation_location'
+    let selected: VenueConcept | null =
+      hit.preferredConcept ?? 'reception_location'
+    if (!hit.preferredConcept) {
+      if (hit.stages.length === 1 && hit.stages[0] === 'ceremony') {
+        selected = 'ceremony_location'
+      } else if (hit.stages.length === 1 && hit.stages[0] === 'preparation') {
+        selected = 'preparation_location'
+      }
     }
 
     const item: VenueCandidate = {
@@ -352,28 +441,35 @@ export function inventoryVenueCandidates(
     void prev
     void next
     out.push(item)
+    }
   }
 
-  // Unique winner for reception_location (highest score)
-  const ranked = [...out]
-    .filter((c) => c.selectedConcept === 'reception_location' && c.reviewState === 'ok')
-    .sort(
-      (a, b) =>
-        b.scoreByConcept.reception_location - a.scoreByConcept.reception_location,
-    )
-  if (ranked.length > 1) {
-    const winner = ranked[0]!
-    for (const c of out) {
-      if (
-        c !== winner &&
-        c.selectedConcept === 'reception_location' &&
-        `${c.paragraphIndex}:${c.startOffset}` !==
-          `${winner.paragraphIndex}:${winner.startOffset}`
-      ) {
-        c.selectedConcept = null
-        c.reviewState = 'needs_review'
-        c.rejectionReason = 'superseded_by_better_venue_candidate'
-        c.confidence = 0.35
+  // Unique winner per venue concept (highest score)
+  for (const concept of [
+    'reception_location',
+    'ceremony_location',
+    'preparation_location',
+  ] as VenueConcept[]) {
+    const ranked = [...out]
+      .filter((c) => c.selectedConcept === concept && c.reviewState === 'ok')
+      .sort(
+        (a, b) =>
+          b.scoreByConcept[concept] - a.scoreByConcept[concept],
+      )
+    if (ranked.length > 1) {
+      const winner = ranked[0]!
+      for (const c of out) {
+        if (
+          c !== winner &&
+          c.selectedConcept === concept &&
+          `${c.paragraphIndex}:${c.startOffset}` !==
+            `${winner.paragraphIndex}:${winner.startOffset}`
+        ) {
+          c.selectedConcept = null
+          c.reviewState = 'needs_review'
+          c.rejectionReason = 'superseded_by_better_venue_candidate'
+          c.confidence = 0.35
+        }
       }
     }
   }
@@ -478,12 +574,14 @@ export function inventoryCoverageTimeRanges(
           rejectionReason = 'non_coverage_time_context'
           confidence = 0.3
         } else if (consistency === false) {
+          // Keep endpoints selected for review — do not rewrite coverage_hours.
           reviewState = 'needs_review'
           rejectionReason = 'inconsistent_with_coverage_hours'
-          confidence = 0.55
+          confidence = 0.62
         } else if (posScore === 0) {
+          // Bare clock range without negative context — bindable, needs review.
           reviewState = 'needs_review'
-          confidence = 0.5
+          confidence = 0.72
         } else {
           confidence = Math.min(0.95, confidence)
           if (consistency === true) confidence = Math.min(0.96, confidence + 0.08)

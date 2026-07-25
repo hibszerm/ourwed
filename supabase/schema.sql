@@ -330,11 +330,15 @@ create table public.form_instances (
   submitted_at timestamptz,
   approved_at timestamptz,
   rejected_at timestamptz,
-  created_at timestamptz not null default timezone('utc', now())
+  created_at timestamptz not null default timezone('utc', now()),
+  options_snapshot jsonb
 );
 
 comment on table public.form_instances is
   'Issued Form Engine instances: one tokenized link for one wedding.';
+
+comment on column public.form_instances.options_snapshot is
+  'Public-safe package/extra/config snapshot taken when the questionnaire is created or sent.';
 
 create index form_instances_form_id_idx on public.form_instances (form_id);
 create index form_instances_wedding_id_idx on public.form_instances (wedding_id);
@@ -611,8 +615,26 @@ alter table public.weddings
 alter table public.weddings
   add column if not exists final_payment_due_date date;
 
+alter table public.weddings
+  add column if not exists bride_preparation_location text;
+
+alter table public.weddings
+  add column if not exists groom_preparation_location text;
+
+alter table public.weddings
+  add column if not exists selected_package_ids text[];
+
 comment on column public.weddings.package_items_snapshot is
   'Frozen package line items at assignment time. Never rewritten by catalog edits.';
+
+comment on column public.weddings.bride_preparation_location is
+  'Bride preparation location (formatted address).';
+
+comment on column public.weddings.groom_preparation_location is
+  'Groom preparation location (formatted address).';
+
+comment on column public.weddings.selected_package_ids is
+  'Client-requested package IDs from questionnaire (multi-select). package_id remains the primary commercial package.';
 
 create index if not exists weddings_package_id_idx on public.weddings (package_id);
 
@@ -643,6 +665,7 @@ create table public.studio_details (
   logo_path text,
   signature_path text,
   stamp_path text,
+  questionnaire_config jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now()),
   constraint studio_details_user_id_unique unique (user_id)
@@ -650,6 +673,9 @@ create table public.studio_details (
 
 comment on table public.studio_details is
   'Canonical company profile (Dane firmy). All modules must read company identity from here only.';
+
+comment on column public.studio_details.questionnaire_config is
+  'Default contract questionnaire config (greeting, footer, custom fields, section toggles).';
 
 create index studio_details_user_id_idx on public.studio_details (user_id);
 

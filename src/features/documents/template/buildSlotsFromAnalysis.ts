@@ -426,9 +426,24 @@ export function buildSlotsFromAnalysis(input: {
     if (report.physicalSpanSafety === 'unsafe') {
       const emptyPlaceholder =
         !(slot.originalText ?? '').trim() &&
-        /placeholder|obfuscat|puste|zamazane/i.test(
+        /placeholder|obfuscat|puste|zamazane|absent_no_span/i.test(
           `${slot.detectionReason ?? ''} ${slot.spanSafetyReasons?.join(' ') ?? ''}`,
         )
+      // Safe contact placeholders already carry originalText (masked/underscore span)
+      if (
+        (slot.originalText ?? '').trim() &&
+        slot.physicallyBound &&
+        /contact placeholder|Safe contact placeholder/i.test(
+          slot.detectionReason ?? '',
+        )
+      ) {
+        return {
+          ...slot,
+          physicalSpanSafety: 'safe' as const,
+          needsConfirmation: false,
+          detectionStatus: 'bound' as const,
+        }
+      }
       return {
         ...slot,
         physicalSpanSafety: emptyPlaceholder

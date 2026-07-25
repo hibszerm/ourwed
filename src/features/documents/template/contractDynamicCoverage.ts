@@ -15,6 +15,7 @@ export type CoverageClass =
   | 'dynamic_commercial'
   | 'dynamic_execution'
   | 'uncertain_requires_review'
+  | 'ignored_non_variable'
 
 export type CoverageStatus =
   | 'detected'
@@ -24,6 +25,7 @@ export type CoverageStatus =
   | 'unsupported_location'
   | 'review'
   | 'misclassified'
+  | 'excluded'
 
 export type MissReason =
   | 'not_present'
@@ -309,28 +311,42 @@ export function auditContractDynamicCoverage(input: {
   if (dottedContact) {
     const phoneSlot = slotForKey(slots, 'bride_phone')
     const emailSlot = slotForKey(slots, 'bride_email')
-    const placeholderSeen =
-      (phoneSlot && !(phoneSlot.originalText ?? '').trim()) ||
-      (emailSlot && !(emailSlot.originalText ?? '').trim()) ||
-      /placeholder|obfuscat|puste|zamazane/i.test(
-        `${phoneSlot?.detectionReason ?? ''} ${emailSlot?.detectionReason ?? ''}`,
-      )
+    const phoneSafe = Boolean(phoneSlot?.physicallyBound)
+    const emailSafe = Boolean(emailSlot?.physicallyBound)
+    const bothSafe = phoneSafe && emailSafe
     push({
-      id: 'client-contact-dotted',
-      sourceText: dottedContact.match,
-      semanticConcept: 'bride_phone / bride_email (obfuscated)',
+      id: 'client-contact-phone',
+      sourceText: phoneSlot?.originalText?.trim() || dottedContact.match,
+      semanticConcept: 'bride_phone (placeholder)',
       expectedKey: 'bride_phone',
-      coverageClass: 'uncertain_requires_review',
+      coverageClass: 'dynamic_client',
       paragraphIndex: dottedContact.index,
-      status: 'empty_placeholder',
-      detected: placeholderSeen,
-      safelyBound: false,
-      missReason: placeholderSeen ? null : 'unsupported_wording',
-      proposedFixGroup: placeholderSeen ? null : 'placeholder-detection',
-      note: placeholderSeen
-        ? 'Contact placeholder recognized — not safely bindable without a real value'
-        : 'Contact written with spaced dots — not a plain phone/email value',
+      status: phoneSafe ? 'detected' : 'empty_placeholder',
+      detected: phoneSafe,
+      safelyBound: phoneSafe,
+      missReason: phoneSafe ? null : 'unsupported_wording',
+      proposedFixGroup: phoneSafe ? null : 'placeholder-detection',
+      note: phoneSafe
+        ? 'safe_placeholder_slot'
+        : 'Contact phone placeholder not safely bound',
     })
+    push({
+      id: 'client-contact-email',
+      sourceText: emailSlot?.originalText?.trim() || 'e-mail',
+      semanticConcept: 'bride_email (placeholder)',
+      expectedKey: 'bride_email',
+      coverageClass: 'dynamic_client',
+      paragraphIndex: dottedContact.index,
+      status: emailSafe ? 'detected' : 'empty_placeholder',
+      detected: emailSafe,
+      safelyBound: emailSafe,
+      missReason: emailSafe ? null : 'unsupported_wording',
+      proposedFixGroup: emailSafe ? null : 'placeholder-detection',
+      note: emailSafe
+        ? 'safe_placeholder_slot'
+        : 'Contact email placeholder not safely bound',
+    })
+    void bothSafe
   }
 
   if (planner) {
@@ -425,6 +441,9 @@ export function auditContractDynamicCoverage(input: {
     })
   }
   if (clock) {
+    const startSlot = slotForKey(slots, 'coverage_start_time')
+    const endSlot = slotForKey(slots, 'coverage_end_time')
+    const clockOk = Boolean(startSlot && endSlot)
     push({
       id: 'wed-clock',
       sourceText: clock.match,
@@ -432,15 +451,20 @@ export function auditContractDynamicCoverage(input: {
       expectedKey: 'coverage_end_time',
       coverageClass: 'dynamic_wedding',
       paragraphIndex: clock.index,
-      status: 'missed',
-      detected: false,
-      safelyBound: false,
-      missReason: 'unsupported_wording',
-      proposedFixGroup: 'context-classification',
-      note: 'Range “12:00 - 23:00” not split into start/end slots',
+      status: clockOk ? 'detected' : 'missed',
+      detected: clockOk,
+      safelyBound: Boolean(
+        startSlot?.physicallyBound && endSlot?.physicallyBound,
+      ),
+      missReason: clockOk ? null : 'unsupported_wording',
+      proposedFixGroup: clockOk ? null : 'context-classification',
+      note: clockOk
+        ? 'Range split into coverage_start_time + coverage_end_time'
+        : 'Range “12:00 - 23:00” not split into start/end slots',
     })
   }
   if (operators) {
+    const opsSlot = slotForKey(slots, 'videographers_count')
     push({
       id: 'wed-ops',
       sourceText: operators.match.trim(),
@@ -448,26 +472,33 @@ export function auditContractDynamicCoverage(input: {
       expectedKey: 'videographers_count',
       coverageClass: 'dynamic_wedding',
       paragraphIndex: operators.index,
-      status: 'missed',
-      detected: false,
-      safelyBound: false,
-      missReason: 'unsupported_wording',
-      proposedFixGroup: 'context-classification',
+      status: opsSlot ? 'detected' : 'missed',
+      detected: Boolean(opsSlot),
+      safelyBound: Boolean(opsSlot?.physicallyBound),
+      missReason: opsSlot ? null : 'unsupported_wording',
+      proposedFixGroup: opsSlot ? null : 'context-classification',
     })
   }
   if (filmMins) {
+    const filmSlot = slotForKey(slots, 'film_duration')
+    // Prefer full “do 20 minut” when bound; audit match may be “20 minut”
+    const filmSource =
+      filmSlot?.originalText?.trim() ||
+      (filmMins.match.startsWith('do ')
+        ? filmMins.match
+        : `do ${filmMins.match}`)
     push({
       id: 'wed-film-len',
-      sourceText: filmMins.match,
+      sourceText: filmSource,
       semanticConcept: 'film_duration',
       expectedKey: 'film_duration',
       coverageClass: 'dynamic_commercial',
       paragraphIndex: filmMins.index,
-      status: 'missed',
-      detected: false,
-      safelyBound: false,
-      missReason: 'unsupported_wording',
-      proposedFixGroup: 'context-classification',
+      status: filmSlot ? 'detected' : 'missed',
+      detected: Boolean(filmSlot),
+      safelyBound: Boolean(filmSlot?.physicallyBound),
+      missReason: filmSlot ? null : 'unsupported_wording',
+      proposedFixGroup: filmSlot ? null : 'context-classification',
     })
   }
 
@@ -567,10 +598,9 @@ export function auditContractDynamicCoverage(input: {
   for (const [id, hit, concept, key] of [
     ['com-rata1', rata1, 'first installment', 'agreed_deposit_formatted'],
     ['com-rata3', rata3, 'final installment', 'remaining_after_deposit_formatted'],
-    ['com-penalty', penalty, 'cancellation penalty amount', null],
   ] as const) {
     if (!hit) continue
-    const slot = key ? slotForKey(slots, key) : undefined
+    const slot = slotForKey(slots, key)
     push({
       id,
       sourceText: hit.match.trim(),
@@ -581,13 +611,26 @@ export function auditContractDynamicCoverage(input: {
       status: slot ? 'detected' : 'missed',
       detected: Boolean(slot),
       safelyBound: Boolean(slot?.physicallyBound),
-      missReason: slot
-        ? null
-        : key
-          ? 'unsupported_wording'
-          : 'registry_concept_missing',
-      proposedFixGroup: key ? 'context-classification' : 'registry-additions',
+      missReason: slot ? null : 'unsupported_wording',
+      proposedFixGroup: slot ? null : 'context-classification',
       note: 'No słownie (words) side present for money pairs in this contract',
+    })
+  }
+  // Intentionally excluded legal penalty — not a missing dynamic field
+  if (penalty) {
+    push({
+      id: 'com-penalty',
+      sourceText: penalty.match.trim(),
+      semanticConcept: 'cancellation penalty amount',
+      expectedKey: null,
+      coverageClass: 'ignored_non_variable',
+      paragraphIndex: penalty.index,
+      status: 'excluded',
+      detected: false,
+      safelyBound: false,
+      missReason: null,
+      proposedFixGroup: null,
+      note: 'Intentionally excluded penalty context — not a required dynamic variable',
     })
   }
   if (delivery) {

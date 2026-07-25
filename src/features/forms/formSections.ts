@@ -45,10 +45,15 @@ export function isFullWidthQuestion(question: Question): boolean {
     question.type === 'textarea' ||
     question.type === 'location' ||
     question.type === 'email' ||
+    question.type === 'multiselect' ||
     question.fieldKey?.endsWith('.address') === true ||
     question.id === 'q-notes' ||
     question.id === 'q-prep' ||
+    question.id === 'q-bride-prep' ||
+    question.id === 'q-groom-prep' ||
     question.id === 'q-ceremony' ||
-    question.id === 'q-reception'
+    question.id === 'q-reception' ||
+    question.id === 'q-package' ||
+    question.id === 'q-extras'
   )
 }

@@ -244,6 +244,14 @@ export interface Wedding {
   ceremonyLocation?: string
   receptionLocation?: string
   preparationLocation?: string
+  /** Bride preparation — preferred over preparationLocation. */
+  bridePreparationLocation?: string
+  groomPreparationLocation?: string
+  /**
+   * Client-requested package IDs from questionnaire (multi-select).
+   * packageId remains the primary commercial package.
+   */
+  selectedPackageIds?: string[]
   checklist: ChecklistItem[]
   schedule: ScheduleEvent[]
   payments: Payment[]

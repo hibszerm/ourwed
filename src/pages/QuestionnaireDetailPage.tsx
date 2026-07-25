@@ -185,7 +185,7 @@ export function QuestionnaireDetailPage() {
                 <dd>{formatDateTime(instance.submittedAt)}</dd>
               </div>
               <div>
-                <dt>Wygaśnięcie</dt>
+                <dt>Ważność linku</dt>
                 <dd>
                   {instance.expiresAt
                     ? formatDateTime(instance.expiresAt)

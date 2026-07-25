@@ -4,6 +4,12 @@ import { requireStudioUserId } from '@/lib/api/ownership'
 import { timelineEventService } from '@/lib/api/timelineEventService'
 import { supabase } from '@/lib/supabase'
 import { nowIso, throwOnError } from '@/lib/supabase/helpers'
+import {
+  buildFormInstanceOptionsSnapshot,
+  normalizeAdditionalServiceOptions,
+  normalizePackageOptions,
+  parseOptionsSnapshot,
+} from '@/lib/forms/contractQuestionnaireSnapshot'
 import type {
   FormAnswerJson,
   FormAnswerRecord,
@@ -13,6 +19,11 @@ import type {
   FormInstanceStatus,
   FormSchema,
 } from '@/types/formEngine'
+import type {
+  AdditionalServiceOptionSnapshot,
+  FormInstanceOptionsSnapshot,
+  PackageOptionSnapshot,
+} from '@/types/contractQuestionnaire'
 
 /** Secure random token ≈ 32 URL-safe characters. */
 function generateSecureToken(): string {
@@ -51,6 +62,7 @@ interface FormInstanceRow {
   approved_at: string | null
   rejected_at: string | null
   created_at: string
+  options_snapshot?: unknown
 }
 
 interface FormAnswerRow {
@@ -87,6 +99,7 @@ function mapInstance(row: FormInstanceRow): FormInstance {
     approvedAt: row.approved_at ?? null,
     rejectedAt: row.rejected_at ?? null,
     createdAt: row.created_at,
+    optionsSnapshot: parseOptionsSnapshot(row.options_snapshot),
   }
 }
 
@@ -99,7 +112,7 @@ function mapAnswer(row: FormAnswerRow): FormAnswerRecord {
   }
 }
 
-function isExpired(instance: FormInstance): boolean {
+export function isExpired(instance: FormInstance): boolean {
   if (!instance.expiresAt) return false
   return new Date(instance.expiresAt).getTime() <= Date.now()
 }
@@ -417,6 +430,10 @@ export async function createFormInstance(
     options?.weddingId !== undefined ? options.weddingId : (weddingId ?? null)
   const userId = await requireStudioUserId()
 
+  // Snapshot must be ready before the public token is returned so the first
+  // public load already has package / additional-service options (no refresh).
+  const optionsSnapshot = await buildFormInstanceOptionsSnapshot()
+
   const { data, error } = await supabase
     .from('form_instances')
     .insert({
@@ -425,9 +442,11 @@ export async function createFormInstance(
       user_id: userId,
       token,
       status: 'pending',
+      // Contract-data questionnaires are indefinite unless an explicit expiry is passed.
       expires_at: options?.expiresAt ?? null,
       opened_at: null,
       submitted_at: null,
+      options_snapshot: optionsSnapshot,
     })
     .select('*')
     .single()
@@ -438,7 +457,15 @@ export async function createFormInstance(
     throw new Error('Nie udało się utworzyć instancji formularza.')
   }
 
-  return mapInstance(data as FormInstanceRow)
+  const instance = mapInstance(data as FormInstanceRow)
+  // Empty catalogs are valid; require the snapshot object itself to have been written.
+  if (!instance.optionsSnapshot) {
+    throw new Error(
+      'Nie udało się zapisać katalogu pakietów/usług w ankiecie. Spróbuj ponownie.',
+    )
+  }
+
+  return instance
 }
 
 export async function getFormInstanceById(
@@ -692,7 +719,9 @@ export async function getFormInstanceByToken(
 export async function getPublicFormByToken(token: string): Promise<{
   instance: FormInstance
   form: FormDefinition
-  packages: Array<{ id: string; name: string }>
+  packages: PackageOptionSnapshot[]
+  additionalServices: AdditionalServiceOptionSnapshot[]
+  optionsSnapshot: FormInstanceOptionsSnapshot | null
 } | null> {
   const { data, error } = await supabase.rpc('public_get_form_by_token', {
     p_token: token,
@@ -704,35 +733,35 @@ export async function getPublicFormByToken(token: string): Promise<{
     instance?: FormInstanceRow
     form?: FormRow
     packages?: unknown
+    additionalServices?: unknown
+    optionsSnapshot?: unknown
   }
   if (!payload.instance || !payload.form) return null
 
-  const rawPackages = payload.packages
-  const packages: Array<{ id: string; name: string }> = []
-  let list: unknown = rawPackages
-  if (typeof rawPackages === 'string') {
-    try {
-      list = JSON.parse(rawPackages) as unknown
-    } catch {
-      list = null
-    }
-  }
-  if (Array.isArray(list)) {
-    for (const item of list) {
-      if (!item || typeof item !== 'object') continue
-      const row = item as Record<string, unknown>
-      const id = String(row.id ?? row.value ?? '').trim()
-      const name = String(row.name ?? row.label ?? '').trim()
-      if (id && name) packages.push({ id, name })
-    }
-  }
+  const optionsSnapshot =
+    parseOptionsSnapshot(payload.optionsSnapshot) ??
+    parseOptionsSnapshot(payload.instance.options_snapshot)
+
+  const packagesFromSnapshot = optionsSnapshot?.packageOptions ?? []
+  const extrasFromSnapshot = optionsSnapshot?.additionalServiceOptions ?? []
+
+  const packages =
+    packagesFromSnapshot.length > 0
+      ? packagesFromSnapshot
+      : normalizePackageOptions(payload.packages)
+
+  const additionalServices =
+    extrasFromSnapshot.length > 0
+      ? extrasFromSnapshot
+      : normalizeAdditionalServiceOptions(payload.additionalServices)
 
   if (import.meta.env.DEV) {
     console.info('[getPublicFormByToken] packages', {
       packagesLength: packages.length,
       packageIds: packages.map((p) => p.id),
       packageNames: packages.map((p) => p.name),
-      rawType: Array.isArray(rawPackages) ? 'array' : typeof rawPackages,
+      extrasLength: additionalServices.length,
+      hasSnapshot: Boolean(optionsSnapshot),
     })
   }
 
@@ -740,6 +769,8 @@ export async function getPublicFormByToken(token: string): Promise<{
     instance: mapInstance(payload.instance),
     form: mapForm(payload.form),
     packages,
+    additionalServices,
+    optionsSnapshot,
   }
 }
 

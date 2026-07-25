@@ -3,6 +3,7 @@ import styles from '@/features/questionnaires/Questionnaires.module.css'
 
 const items = [
   { to: '/ankiety', label: 'Ankiety', end: true },
+  { to: '/ankiety/dane-do-umowy', label: 'Ankieta do umowy', end: false },
   { to: '/ankiety/szablony', label: 'Szablony ankiet', end: false },
 ] as const
 

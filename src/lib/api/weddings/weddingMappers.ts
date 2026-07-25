@@ -44,6 +44,9 @@ export interface WeddingRow {
   delivery_months?: number | string | null
   delivery_days?: number | string | null
   final_payment_due_date?: string | null
+  bride_preparation_location?: string | null
+  groom_preparation_location?: string | null
+  selected_package_ids?: string[] | null
   created_at: string
   updated_at: string
 }
@@ -188,6 +191,11 @@ export function mapWeddingRowToModel(row: WeddingRow): Wedding {
     ceremonyLocation: undefined,
     receptionLocation: undefined,
     preparationLocation: undefined,
+    bridePreparationLocation: row.bride_preparation_location?.trim() || undefined,
+    groomPreparationLocation: row.groom_preparation_location?.trim() || undefined,
+    selectedPackageIds: Array.isArray(row.selected_package_ids)
+      ? row.selected_package_ids.filter((id): id is string => typeof id === 'string')
+      : undefined,
     accentColor: row.accent_color || DEFAULT_WEDDING_ACCENT,
     createdAt: toDateString(row.created_at) || row.created_at,
     checklist: [],
@@ -248,5 +256,15 @@ export function mapWeddingModelToRow(
     delivery_months: wedding.deliveryMonths ?? null,
     delivery_days: wedding.deliveryDays ?? null,
     final_payment_due_date: wedding.finalPaymentDueDate?.trim() || null,
+    bride_preparation_location:
+      wedding.bridePreparationLocation?.trim() ||
+      wedding.preparationLocation?.trim() ||
+      null,
+    groom_preparation_location:
+      wedding.groomPreparationLocation?.trim() || null,
+    selected_package_ids:
+      wedding.selectedPackageIds && wedding.selectedPackageIds.length > 0
+        ? wedding.selectedPackageIds
+        : null,
   }
 }

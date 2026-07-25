@@ -24,6 +24,10 @@ import { weddingService } from '@/lib/api/weddingService'
 import { packageService } from '@/lib/api/packageService'
 import { asCatalogPackageId } from '@/lib/supabase/helpers'
 import { extractAnswerFields } from '@/lib/forms/mergeFormAnswersIntoWedding'
+import {
+  formatLocationAnswer,
+  normalizeSelectedPackageIds,
+} from '@/lib/forms/contractQuestionnaireSnapshot'
 import { shortLocationDisplay } from '@/features/travel/shortLocationDisplay'
 import type {
   FormAnswerJson,
@@ -102,19 +106,12 @@ function fieldString(fields: Record<string, unknown>, key: string): string {
   const value = fields[key]
   if (typeof value === 'string') return value.trim()
   if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  if (value && typeof value === 'object') return formatLocationAnswer(value)
   return ''
 }
 
 function fullName(first: string, last: string): string {
   return [first, last].filter(Boolean).join(' ').trim()
-}
-
-function expiresAtFromOption(option: QuestionnaireExpiration): string | null {
-  if (option === 'never') return null
-  const days = option === '7d' ? 7 : option === '14d' ? 14 : 30
-  const d = new Date()
-  d.setDate(d.getDate() + days)
-  return d.toISOString()
 }
 
 function publicFormUrl(token: string): string {
@@ -131,10 +128,17 @@ async function summarizeAnswers(answerJson: FormAnswerJson | null) {
     fieldString(fields, 'partner2.firstName'),
     fieldString(fields, 'partner2.lastName'),
   )
-  const packageId = asCatalogPackageId(fieldString(fields, 'packageId'))
+  const selectedPackageIds = normalizeSelectedPackageIds(fields)
+  const packageId = asCatalogPackageId(
+    selectedPackageIds[0] ?? fieldString(fields, 'packageId'),
+  )
   const pkg = packageId ? await packageService.get(packageId) : null
   const phone = fieldString(fields, 'partner1.phone')
   const partner2Phone = fieldString(fields, 'partner2.phone')
+  const bridePrep =
+    formatLocationAnswer(fields.bridePreparationLocation) ||
+    fieldString(fields, 'preparationLocation')
+  const groomPrep = formatLocationAnswer(fields.groomPreparationLocation)
 
   return {
     fields,
@@ -143,15 +147,18 @@ async function summarizeAnswers(answerJson: FormAnswerJson | null) {
     coupleLabel:
       bride && groom ? `${bride} i ${groom}` : bride || groom || 'Para',
     weddingDate: fieldString(fields, 'weddingDate'),
+    selectedPackageIds,
     packageId: pkg?.id ?? null,
     packageName: pkg?.name ?? '',
     packagePrice: pkg?.price ?? 0,
     depositAmount: pkg?.depositAmount ?? 0,
     currency: pkg?.currency ?? 'PLN',
     accentColor: pkg?.color ?? undefined,
-    ceremonyLocation: fieldString(fields, 'ceremonyLocation'),
-    receptionLocation: fieldString(fields, 'receptionLocation'),
-    preparationLocation: fieldString(fields, 'preparationLocation'),
+    ceremonyLocation: formatLocationAnswer(fields.ceremonyLocation),
+    receptionLocation: formatLocationAnswer(fields.receptionLocation),
+    preparationLocation: bridePrep,
+    bridePreparationLocation: bridePrep,
+    groomPreparationLocation: groomPrep,
     phone,
     email: fieldString(fields, 'partner1.email'),
     partner2Phone,
@@ -520,7 +527,8 @@ export const questionnaireService = {
 
   async generate(input: {
     type: QuestionnaireType
-    expiration: QuestionnaireExpiration
+    /** @deprecated Contract questionnaires are indefinite — ignored when provided. */
+    expiration?: QuestionnaireExpiration
     /** When set, issue from this form instead of the active contract form. */
     formId?: string
   }): Promise<{ instance: FormInstance; formUrl: string; formName: string }> {
@@ -533,7 +541,8 @@ export const questionnaireService = {
 
     const instance = await createFormInstance(form.id, null, {
       weddingId: null,
-      expiresAt: expiresAtFromOption(input.expiration),
+      // Contract-data questionnaire links do not expire automatically.
+      expiresAt: null,
     })
 
     return {
@@ -650,7 +659,15 @@ export const questionnaireService = {
           city: summary.city,
           venue: summary.receptionLocation || summary.ceremonyLocation,
         },
+        selectedPackageIds:
+          summary.selectedPackageIds.length > 0
+            ? summary.selectedPackageIds
+            : undefined,
         preparationLocation: summary.preparationLocation || undefined,
+        bridePreparationLocation:
+          summary.bridePreparationLocation || undefined,
+        groomPreparationLocation:
+          summary.groomPreparationLocation || undefined,
         ceremonyLocation: summary.ceremonyLocation || undefined,
         receptionLocation: summary.receptionLocation || undefined,
         questionnaires: {

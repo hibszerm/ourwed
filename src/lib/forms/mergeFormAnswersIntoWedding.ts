@@ -1,6 +1,11 @@
 import { packageService } from '@/lib/api/packageService'
 import { asCatalogPackageId } from '@/lib/supabase/helpers'
 import { CONTRACT_QUESTION_ID_TO_FIELD_KEY } from '@/lib/forms/contractQuestionnaireTemplate'
+import {
+  formatLocationAnswer,
+  normalizeSelectedPackageIds,
+} from '@/lib/forms/contractQuestionnaireSnapshot'
+import { packageSelectionNeedsReview } from '@/lib/forms/packageSelectionReview'
 import type { FormAnswerJson } from '@/types/formEngine'
 import type { Couple, Wedding } from '@/types/wedding'
 
@@ -16,6 +21,9 @@ function fieldString(
   if (typeof value === 'string') return value.trim()
   if (typeof value === 'number' || typeof value === 'boolean') {
     return String(value)
+  }
+  if (value && typeof value === 'object') {
+    return formatLocationAnswer(value)
   }
   return ''
 }
@@ -77,6 +85,12 @@ function preferForm(formValue: string, weddingValue: string | undefined): string
  * Merge contract questionnaire answers into a Wedding view model.
  * Package pricing is resolved from Studio Catalog (live) only when hydrating
  * newly submitted answers — persisted wedding snapshots remain authoritative.
+ *
+ * Compatibility:
+ * - selectedPackageIds[] is the canonical multi-select answer
+ * - packageId on wedding remains the primary commercial package
+ * - if wedding already has packageId, do not overwrite commercial fields;
+ *   still record selectedPackageIds for review
  */
 export async function mergeFormAnswersIntoWedding(
   wedding: Wedding,
@@ -104,21 +118,55 @@ export async function mergeFormAnswersIntoWedding(
   const brideEmail = fieldString(fields, 'partner1.email')
   const groomPhone = fieldString(fields, 'partner2.phone')
   const groomEmail = fieldString(fields, 'partner2.email')
+  const brideAddressRaw = fields['partner1.address']
   const brideAddress = fieldString(fields, 'partner1.address')
-  const bridePostal = fieldString(fields, 'partner1.postalCode')
-  const city = fieldString(fields, 'partner1.city')
+  const groomAddress = fieldString(fields, 'partner2.address')
+  const structuredPostal =
+    brideAddressRaw &&
+    typeof brideAddressRaw === 'object' &&
+    typeof (brideAddressRaw as { postalCode?: unknown }).postalCode === 'string'
+      ? String((brideAddressRaw as { postalCode: string }).postalCode).trim()
+      : ''
+  const structuredCity =
+    brideAddressRaw &&
+    typeof brideAddressRaw === 'object' &&
+    typeof (brideAddressRaw as { city?: unknown }).city === 'string'
+      ? String((brideAddressRaw as { city: string }).city).trim()
+      : ''
+  const bridePostal =
+    fieldString(fields, 'partner1.postalCode') || structuredPostal
+  const city = fieldString(fields, 'partner1.city') || structuredCity
   const weddingDate = fieldString(fields, 'weddingDate')
   const ceremonyLocation = fieldString(fields, 'ceremonyLocation')
   const receptionLocation = fieldString(fields, 'receptionLocation')
-  const preparationLocation = fieldString(fields, 'preparationLocation')
-  const packageId = asCatalogPackageId(fieldString(fields, 'packageId'))
+  const bridePreparationLocation = fieldString(
+    fields,
+    'bridePreparationLocation',
+  )
+  const groomPreparationLocation = fieldString(
+    fields,
+    'groomPreparationLocation',
+  )
+  const legacyPreparation = fieldString(fields, 'preparationLocation')
+  const preparationLocation =
+    bridePreparationLocation || legacyPreparation
+
+  const selectedPackageIds = normalizeSelectedPackageIds(fields)
+  const primaryFromForm = asCatalogPackageId(selectedPackageIds[0] ?? '')
+  const legacyPackageId = asCatalogPackageId(fieldString(fields, 'packageId'))
+  const requestedPrimary = primaryFromForm ?? legacyPackageId
+
+  const packageSelectionNeedsReviewFlag = packageSelectionNeedsReview(
+    wedding.packageId,
+    requestedPrimary,
+  )
 
   // Prefer existing wedding commercial snapshot. Catalog is only used to fill
   // packageId/name when the wedding has no package yet — never overwrite price,
   // agreedDeposit, currency, accentColor, or packageItems from live catalog.
   const pkg =
-    packageId && !wedding.packageId
-      ? await packageService.get(packageId)
+    requestedPrimary && !wedding.packageId
+      ? await packageService.get(requestedPrimary)
       : null
 
   const couple: Couple = {
@@ -139,6 +187,8 @@ export async function mergeFormAnswersIntoWedding(
     partner2Email: preferForm(groomEmail, wedding.couple.partner2Email) || undefined,
     partner1Address:
       preferForm(brideAddress, wedding.couple.partner1Address) || undefined,
+    partner2Address:
+      preferForm(groomAddress, wedding.couple.partner2Address) || undefined,
     partner1PostalCode:
       preferForm(bridePostal, wedding.couple.partner1PostalCode) || undefined,
     partner1City: preferForm(city, wedding.couple.partner1City) || undefined,
@@ -165,10 +215,15 @@ export async function mergeFormAnswersIntoWedding(
         }
 
   const nextPackageId =
-    asCatalogPackageId(wedding.packageId) ?? pkg?.id ?? packageId ?? null
+    asCatalogPackageId(wedding.packageId) ?? pkg?.id ?? requestedPrimary ?? null
   const nextPackageName = wedding.packageName?.trim()
     ? wedding.packageName
     : preferForm(pkg?.name ?? '', wedding.packageName)
+
+  const nextSelected =
+    selectedPackageIds.length > 0
+      ? selectedPackageIds
+      : wedding.selectedPackageIds
 
   return {
     ...wedding,
@@ -176,6 +231,7 @@ export async function mergeFormAnswersIntoWedding(
     date: preferForm(weddingDate, wedding.date),
     packageId: nextPackageId,
     packageName: nextPackageName,
+    selectedPackageIds: nextSelected,
     // Commercial snapshot stays authoritative
     price: wedding.price,
     depositAmount: wedding.depositAmount,
@@ -186,9 +242,33 @@ export async function mergeFormAnswersIntoWedding(
       preferForm(ceremonyLocation, wedding.ceremonyLocation) || undefined,
     receptionLocation:
       preferForm(receptionLocation, wedding.receptionLocation) || undefined,
+    bridePreparationLocation:
+      preferForm(
+        bridePreparationLocation,
+        wedding.bridePreparationLocation,
+      ) || undefined,
+    groomPreparationLocation:
+      preferForm(
+        groomPreparationLocation,
+        wedding.groomPreparationLocation,
+      ) || undefined,
     preparationLocation:
-      preferForm(preparationLocation, wedding.preparationLocation) || undefined,
-    notes: wedding.notes,
+      preferForm(preparationLocation, wedding.preparationLocation) ||
+      undefined,
+    notes: packageSelectionNeedsReviewFlag
+      ? [
+          ...wedding.notes,
+          {
+            id: `pkg-review-${submittedDay}`,
+            content:
+              'Klient wybrał inny pakiet w ankiecie niż potwierdzony w umowie — wymaga przeglądu.',
+            createdAt: submittedDay,
+            author: 'System',
+            source: 'package_change',
+            badge: 'Ankieta do umowy',
+          },
+        ]
+      : wedding.notes,
     questionnaires,
   }
 }

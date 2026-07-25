@@ -1,0 +1,84 @@
+.wrap {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
+.status {
+  position: absolute;
+  right: var(--space-3);
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: var(--type-helper-size);
+  color: var(--color-text-tertiary);
+  pointer-events: none;
+}
+
+/* Portalled menu — never clipped by questionnaire card overflow */
+.listPortal {
+  margin: 0;
+  padding: var(--space-1);
+  list-style: none;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  overflow: auto;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.option {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-3);
+  align-items: start;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+
+.option:hover,
+.option:focus-visible,
+.optionActive {
+  background: color-mix(in srgb, var(--color-accent) 6%, transparent);
+  outline: none;
+}
+
+.pin {
+  width: 8px;
+  height: 8px;
+  margin-top: 6px;
+  border-radius: 999px;
+  border: 1.5px solid var(--color-text-tertiary);
+  flex-shrink: 0;
+}
+
+.optionText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.optionLabel {
+  font-size: var(--text-sm);
+  color: var(--color-text-primary);
+}
+
+.optionSecondary {
+  font-size: var(--type-helper-size);
+  color: var(--color-text-tertiary);
+}
+
+.emptyRow {
+  padding: var(--space-3);
+  font-size: var(--type-helper-size);
+  color: var(--color-text-tertiary);
+}

@@ -7,10 +7,12 @@
 import { resolveStudioUserId } from '@/lib/api/studioUser'
 import { supabase } from '@/lib/supabase'
 import { nowIso, throwOnError } from '@/lib/supabase/helpers'
+import { normalizeContractQuestionnaireConfig } from '@/lib/forms/contractQuestionnaireSnapshot'
 import type {
   CompanyDetails,
   UpsertCompanyDetailsInput,
 } from '@/types/company'
+import type { ContractQuestionnaireConfig } from '@/types/contractQuestionnaire'
 
 interface CompanyDetailsRow {
   id: string
@@ -35,11 +37,19 @@ interface CompanyDetailsRow {
   logo_path: string | null
   signature_path: string | null
   stamp_path: string | null
+  questionnaire_config?: unknown
   created_at: string
   updated_at: string
 }
 
 function mapRow(row: CompanyDetailsRow): CompanyDetails {
+  const rawConfig = row.questionnaire_config
+  const hasConfig =
+    rawConfig != null &&
+    typeof rawConfig === 'object' &&
+    !Array.isArray(rawConfig) &&
+    Object.keys(rawConfig as object).length > 0
+
   return {
     id: row.id,
     userId: row.user_id,
@@ -63,6 +73,9 @@ function mapRow(row: CompanyDetailsRow): CompanyDetails {
     logoPath: row.logo_path,
     signaturePath: row.signature_path,
     stampPath: row.stamp_path,
+    questionnaireConfig: hasConfig
+      ? normalizeContractQuestionnaireConfig(rawConfig)
+      : null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -98,7 +111,7 @@ export const companyDetailsService = {
 
   async upsert(input: UpsertCompanyDetailsInput): Promise<CompanyDetails> {
     const userId = await resolveStudioUserId()
-    const payload = {
+    const payload: Record<string, unknown> = {
       user_id: userId,
       company_name: trimOrNull(input.companyName),
       owner_name: trimOrNull(input.ownerName),
@@ -130,6 +143,13 @@ export const companyDetailsService = {
       updated_at: nowIso(),
     }
 
+    if (input.questionnaireConfig !== undefined) {
+      payload.questionnaire_config =
+        input.questionnaireConfig === null
+          ? {}
+          : (input.questionnaireConfig as ContractQuestionnaireConfig)
+    }
+
     const { data: existing, error: existingError } = await supabase
       .from('studio_details')
       .select('id')
@@ -139,15 +159,18 @@ export const companyDetailsService = {
 
     if (existing?.id) {
       const patch = { ...payload }
-      delete (patch as { user_id?: string }).user_id
+      delete patch.user_id
       if (input.logoPath === undefined) {
-        delete (patch as { logo_path?: string }).logo_path
+        delete patch.logo_path
       }
       if (input.signaturePath === undefined) {
-        delete (patch as { signature_path?: string }).signature_path
+        delete patch.signature_path
       }
       if (input.stampPath === undefined) {
-        delete (patch as { stamp_path?: string }).stamp_path
+        delete patch.stamp_path
+      }
+      if (input.questionnaireConfig === undefined) {
+        delete patch.questionnaire_config
       }
       const { data, error } = await supabase
         .from('studio_details')
@@ -166,6 +189,11 @@ export const companyDetailsService = {
         logo_path: trimOrNull(input.logoPath),
         signature_path: trimOrNull(input.signaturePath),
         stamp_path: trimOrNull(input.stampPath),
+        questionnaire_config:
+          input.questionnaireConfig === undefined ||
+          input.questionnaireConfig === null
+            ? {}
+            : input.questionnaireConfig,
       })
       .select('*')
       .single()

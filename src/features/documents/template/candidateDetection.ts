@@ -22,6 +22,12 @@ import {
   inventoryAndClassifyVenueTime,
 } from './contractVenueTimeClassification'
 import {
+  inventoryAndClassifyDeliverables,
+} from './contractDeliverableClassification'
+import {
+  selectOpeningClauseCitySlot,
+} from './contractCompanyCitySlotClassification'
+import {
   segmentCompanyPartyClause,
 } from './segmentCompanyClause'
 import {
@@ -438,22 +444,24 @@ function detectCompanyParty(
   }
 
   if (segmented.cityLocative) {
+    // Provider seat city stays immutable template text — never a dynamic
+    // company_city_locative slot. Opening-clause city is classified globally.
     const city = segmented.cityLocative.text
     const start = text.indexOf(city)
     if (start >= 0) {
-      pushCandidate(out, claimed, {
+      console.info('[contract-company-city-slot]', {
+        sourceText: city,
         paragraphIndex: para.index,
-        paragraphText: text,
         startOffset: start,
         endOffset: start + city.length,
-        text: city,
-        proposedKey: 'company_city_locative',
+        localContext: text.slice(
+          Math.max(0, start - 40),
+          start + city.length + 20,
+        ),
+        detectedRole: 'provider_seat',
         confidence: 0.9,
-        evidenceType: 'legal_context',
-        evidenceText: 'z siedzibą w',
-        operation: 'replace',
-        sourceHint: 'company',
-        reason: 'Company seat city (locative) after z siedzibą w',
+        reviewState: 'excluded',
+        rejectionReason: 'provider_seat_immutable',
       })
     }
   }
@@ -664,100 +672,48 @@ function detectDates(
     })
   }
 
-  detectExecutionCity(para, out, claimed)
+  // Opening-clause city classified globally in detectCompanyCitySlotGlobally().
 }
 
-const CITY_TOKEN =
-  '[A-ZĄĆĘŁŃÓŚŹŻ][a-ząćęłńóśźżĄĆĘŁŃÓŚŹŻ]*(?:-[A-ZĄĆĘŁŃÓŚŹŻ][a-ząćęłńóśźżĄĆĘŁŃÓŚŹŻ]*)*'
-
-function detectExecutionCity(
-  para: IndexedParagraph,
+/**
+ * Opening-clause city → physical slot for company_city_locative
+ * (value always from Company Settings at generation time).
+ */
+function detectCompanyCitySlotGlobally(
+  paragraphs: IndexedParagraph[],
   out: ContractCandidate[],
   claimed: Map<number, Array<{ start: number; end: number }>>,
 ) {
-  const text = canonicalizeParagraphText(para.text)
-  const patterns: Array<{ re: RegExp; confidence: number; reason: string }> = [
-    {
-      // …30.10.2024 r. w Zabrzu, zwana dalej
-      re: new RegExp(
-        String.raw`\d{1,2}[./-]\d{1,2}[./-]\d{2,4}\s*r\.?\s+w\s+(${CITY_TOKEN})\s*,\s*zwana`,
-        'u',
-      ),
-      confidence: 0.96,
-      reason: 'Execution city after date before „zwana dalej”',
-    },
-    {
-      re: new RegExp(
-        String.raw`zawart[ay]\s+w\s+(?!dniu\b|dnia\b)(${CITY_TOKEN})(?=\s*[,.]|\s+zwana|\s+pomiędzy|$)`,
-        'iu',
-      ),
-      confidence: 0.92,
-      reason: 'Execution city after „zawarta w”',
-    },
-    {
-      re: new RegExp(
-        String.raw`sporządzon[ay]\s+w\s+(${CITY_TOKEN})(?=\s*[,.]|\s+zwana|$)`,
-        'iu',
-      ),
-      confidence: 0.9,
-      reason: 'Execution city after „sporządzona w”',
-    },
-  ]
+  const opening = selectOpeningClauseCitySlot(paragraphs)
+  if (!opening) return
 
-  for (const pattern of patterns) {
-    const m = pattern.re.exec(text)
-    if (!m || m.index == null) continue
-    const span = m[1]!
-    const start = text.indexOf(span, m.index)
-    if (start < 0) continue
-    const ctx = text.slice(Math.max(0, start - 40), start + span.length + 40)
+  pushCandidate(out, claimed, {
+    paragraphIndex: opening.paragraphIndex,
+    paragraphText: opening.paragraphText,
+    startOffset: opening.startOffset,
+    endOffset: opening.endOffset,
+    text: opening.sourceText,
+    proposedKey: 'company_city_locative',
+    confidence: opening.confidence,
+    evidenceType: 'legal_context',
+    evidenceText: opening.localContext.trim(),
+    operation: 'replace',
+    sourceHint: 'company',
+    reason:
+      'Opening-clause city slot for company_city_locative (Company Settings)',
+    leftAnchor: opening.leftAnchor,
+    rightAnchor: opening.rightAnchor,
+    variableClassification: 'dynamic_candidate',
+  })
 
-    // Reject event / company-street contexts
-    if (
-      /przygotowa|ceremon|przyj[eę]cia|ul\.|ulica|osiedle|partner|panny|pana młode/i.test(
-        ctx,
-      )
-    ) {
-      console.info('[contract-city-context]', {
-        paragraphIndex: para.index,
-        sourceText: span,
-        localContext: ctx.trim(),
-        classifiedKey: null,
-        confidence: 0,
-        reason: 'Rejected — event or street context',
-      })
-      continue
-    }
-
-    console.info('[contract-city-context]', {
-      paragraphIndex: para.index,
-      sourceText: span,
-      localContext: ctx.trim(),
-      classifiedKey: 'company_city_locative',
-      confidence: pattern.confidence,
-      reason: pattern.reason,
-    })
-
-    pushCandidate(out, claimed, {
-      paragraphIndex: para.index,
-      paragraphText: text,
-      startOffset: start,
-      endOffset: start + span.length,
-      text: span,
-      proposedKey: 'company_city_locative',
-      confidence: pattern.confidence,
-      evidenceType: 'legal_context',
-      evidenceText: ctx.trim(),
-      operation: 'replace',
-      sourceHint: 'company',
-      reason: pattern.reason,
-      leftAnchor: text.slice(Math.max(0, start - 8), start),
-      rightAnchor: text.slice(start + span.length, start + span.length + 12),
-      // Execution place city is dynamic (studio profile) — not provider party text
-      variableClassification: 'dynamic_candidate',
-    })
-    break
-  }
+  console.info('[contract-city-context]', {
+    paragraphIndex: opening.paragraphIndex,
+    sourceText: opening.sourceText,
+    localContext: opening.localContext.trim(),
+    classifiedKey: 'company_city_locative',
+    confidence: opening.confidence,
+    reason: 'Opening-clause city → company_city_locative physical slot',
+  })
 }
 
 function detectMoneyAndPackage(
@@ -1076,6 +1032,69 @@ function detectVenueAndCoverageTimeGlobally(
 
 
 /**
+ * Global film-duration + videographer/operator-count classification.
+ */
+function detectDeliverablesGlobally(
+  paragraphs: IndexedParagraph[],
+  out: ContractCandidate[],
+  claimed: Map<number, Array<{ start: number; end: number }>>,
+) {
+  const { crew, durations } = inventoryAndClassifyDeliverables(paragraphs)
+
+  for (const c of crew) {
+    if (!c.selectedConcept || c.reviewState === 'excluded') continue
+    if (c.physicalSpanSafety !== 'safe') continue
+    if (c.reviewState === 'needs_review' && c.normalizedCount == null) continue
+    if (c.reviewState === 'needs_review' && !c.selectedConcept) continue
+    pushCandidate(out, claimed, {
+      paragraphIndex: c.paragraphIndex,
+      paragraphText: c.paragraphText,
+      startOffset: c.startOffset,
+      endOffset: c.endOffset,
+      text: c.sourceText,
+      proposedKey: c.selectedConcept,
+      confidence: c.confidence,
+      evidenceType: 'legal_context',
+      evidenceText: c.positiveAnchors.join(', ') || 'crew count',
+      operation: 'replace',
+      sourceHint: 'package',
+      reason: 'Videographer / operator crew count',
+    })
+  }
+
+  for (const d of durations) {
+    if (!d.selectedConcept || d.reviewState === 'excluded') continue
+    if (d.physicalSpanSafety !== 'safe') continue
+    if (d.reviewState === 'needs_review' && !d.selectedConcept) continue
+    // Only bind clear film-duration winners (ok), or needs_review with concept still set
+    if (d.reviewState === 'needs_review' && d.rejectionReason?.startsWith('teaser')) {
+      continue
+    }
+    if (
+      d.reviewState === 'needs_review' &&
+      (d.rejectionReason === 'competing_film_durations' ||
+        d.rejectionReason === 'superseded_by_main_film_duration')
+    ) {
+      continue
+    }
+    pushCandidate(out, claimed, {
+      paragraphIndex: d.paragraphIndex,
+      paragraphText: d.paragraphText,
+      startOffset: d.startOffset,
+      endOffset: d.endOffset,
+      text: d.sourceText,
+      proposedKey: d.selectedConcept,
+      confidence: d.confidence,
+      evidenceType: 'legal_context',
+      evidenceText: d.positiveAnchors.join(', ') || 'film duration',
+      operation: 'replace',
+      sourceHint: 'package',
+      reason: 'Delivered film / material duration',
+    })
+  }
+}
+
+/**
  * Run two-pass detection over indexed paragraphs.
  */
 export function detectContractCandidates(
@@ -1095,6 +1114,9 @@ export function detectContractCandidates(
   }
 
   detectMoneyGlobally(paragraphs, out, claimed)
+  detectVenueAndCoverageTimeGlobally(paragraphs, out, claimed)
+  detectDeliverablesGlobally(paragraphs, out, claimed)
+  detectCompanyCitySlotGlobally(paragraphs, out, claimed)
 
   // Labeled client-party forms (Panna Młoda: / Pan Młody: …) — after composite
   // couple detection so "Name i Name, zwaną dalej" still wins on the same span.
@@ -1200,7 +1222,14 @@ export function candidatesToTemplateSlots(
       const isEmptyPlaceholder =
         !c.text.trim() &&
         (c.evidenceType === 'blank_between_anchors' ||
-          /placeholder|obfuscat/i.test(c.reason))
+          /placeholder|obfuscat|absent_no_span|no deterministic/i.test(
+            c.reason,
+          ))
+      const isSafeContactPlaceholder =
+        !isEmptyPlaceholder &&
+        c.decision === 'accepted' &&
+        c.evidenceType === 'blank_between_anchors' &&
+        /contact placeholder|Safe contact placeholder/i.test(c.reason)
       return {
         id: `slot-${c.proposedKey}-${c.paragraphIndex}-${c.startOffset}`,
         registryKey: c.proposedKey,
@@ -1223,7 +1252,10 @@ export function candidatesToTemplateSlots(
         suffix: '',
         omissionMode: 'keep_original' as const,
         paragraphFingerprint: paragraphFingerprint(c.paragraphText),
-        physicallyBound: !unsafe && !isEmptyPlaceholder && c.decision === 'accepted',
+        physicallyBound:
+          !unsafe &&
+          !isEmptyPlaceholder &&
+          (c.decision === 'accepted' || isSafeContactPlaceholder),
         componentKeys: c.componentKeys,
         separator: c.separator ?? null,
         confidence: c.confidence,
@@ -1251,6 +1283,9 @@ export function candidatesToTemplateSlots(
           : spanCheck.userMessage,
         variableClassification: 'dynamic_candidate' as const,
         canLinkToCompany: false,
+        requirement: isSafeContactPlaceholder
+          ? ('required' as const)
+          : undefined,
       }
     })
 }

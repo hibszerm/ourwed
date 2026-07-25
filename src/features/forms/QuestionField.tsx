@@ -1,3 +1,6 @@
+import { AddressField, type AddressFieldValue } from '@/features/forms/AddressField'
+import { DatePickerField } from '@/features/forms/DatePickerField'
+import { SelectableOptionCards } from '@/features/forms/SelectableOptionCards'
 import type { AnswerValue, Question } from '@/types/form'
 import styles from './QuestionField.module.css'
 
@@ -8,6 +11,16 @@ interface QuestionFieldProps {
   onChange: (value: AnswerValue) => void
   /** When true, inputs are disabled (CRM answer preview). */
   readOnly?: boolean
+}
+
+function isAddressValue(value: AnswerValue): value is AddressFieldValue {
+  return (
+    typeof value === 'string' ||
+    (typeof value === 'object' &&
+      value != null &&
+      !Array.isArray(value) &&
+      'formattedAddress' in (value as object))
+  )
 }
 
 export function QuestionField({
@@ -36,6 +49,12 @@ export function QuestionField({
   const stringValue = typeof value === 'string' ? value : ''
   const boolValue = typeof value === 'boolean' ? value : false
   const arrayValue = Array.isArray(value) ? value : []
+  const useCards =
+    question.presentation === 'cards' ||
+    question.fieldKey === 'selectedPackageIds' ||
+    question.fieldKey === 'selectedAdditionalServiceIds'
+  const compactCards =
+    question.fieldKey === 'selectedAdditionalServiceIds'
 
   return (
     <div className={styles.field}>
@@ -59,11 +78,19 @@ export function QuestionField({
         />
       )}
 
+      {question.type === 'location' && (
+        <AddressField
+          id={id}
+          value={isAddressValue(value) ? value : stringValue}
+          placeholder={question.placeholder || 'Wpisz adres…'}
+          disabled={readOnly}
+          onChange={(next) => onChange(next as AnswerValue)}
+        />
+      )}
+
       {(question.type === 'text' ||
         question.type === 'email' ||
-        question.type === 'phone' ||
-        question.type === 'date' ||
-        question.type === 'location') && (
+        question.type === 'phone') && (
         <input
           id={id}
           className={styles.input}
@@ -72,9 +99,7 @@ export function QuestionField({
               ? 'email'
               : question.type === 'phone'
                 ? 'tel'
-                : question.type === 'date'
-                  ? 'date'
-                  : 'text'
+                : 'text'
           }
           placeholder={question.placeholder}
           value={stringValue}
@@ -84,39 +109,33 @@ export function QuestionField({
         />
       )}
 
-      {question.type === 'select' &&
-        (() => {
-          if (
-            import.meta.env.DEV &&
-            (question.id === 'q-package' ||
-              question.id === 'q-q-package' ||
-              question.fieldKey === 'packageId')
-          ) {
-            console.info('[QuestionField] package select before render', {
-              id: question.id,
-              fieldKey: question.fieldKey,
-              type: question.type,
-              optionsLength: question.options?.length ?? 0,
-              optionLabels: (question.options ?? []).map((o) => o.label),
-            })
-          }
-          return (
-            <select
-              id={id}
-              className={styles.input}
-              value={stringValue}
-              disabled={readOnly}
-              onChange={(e) => onChange(e.target.value)}
-            >
-              <option value="">Wybierz…</option>
-              {(question.options ?? []).map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-          )
-        })()}
+      {question.type === 'date' && (
+        <DatePickerField
+          id={id}
+          value={stringValue}
+          disabled={readOnly}
+          error={error}
+          placeholder={question.placeholder || 'dd.mm.rrrr'}
+          onChange={(iso) => onChange(iso)}
+        />
+      )}
+
+      {question.type === 'select' && (
+        <select
+          id={id}
+          className={styles.input}
+          value={stringValue}
+          disabled={readOnly}
+          onChange={(e) => onChange(e.target.value)}
+        >
+          <option value="">Wybierz…</option>
+          {(question.options ?? []).map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+      )}
 
       {question.type === 'radio' && (
         <div className={styles.options} role="radiogroup" aria-labelledby={id}>
@@ -148,7 +167,18 @@ export function QuestionField({
         </label>
       )}
 
-      {question.type === 'multiselect' && (
+      {question.type === 'multiselect' && useCards && (
+        <SelectableOptionCards
+          name={question.label}
+          options={question.options ?? []}
+          value={arrayValue}
+          readOnly={readOnly}
+          compact={compactCards}
+          onChange={onChange}
+        />
+      )}
+
+      {question.type === 'multiselect' && !useCards && (
         <div className={styles.options}>
           {(question.options ?? []).map((opt) => {
             const checked = arrayValue.includes(opt.value)
@@ -173,7 +203,9 @@ export function QuestionField({
         </div>
       )}
 
-      {error && <span className={styles.error}>{error}</span>}
+      {error && question.type !== 'date' && (
+        <span className={styles.error}>{error}</span>
+      )}
       {question.description && (
         <p className={styles.hint}>{question.description}</p>
       )}

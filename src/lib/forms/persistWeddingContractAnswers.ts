@@ -49,7 +49,16 @@ export function weddingToContractAnswerFields(
     'partner2.email': c.partner2Email?.trim() || '',
     weddingDate: wedding.date || '',
     packageId: wedding.packageId || '',
-    preparationLocation: wedding.preparationLocation?.trim() || '',
+    preparationLocation:
+      wedding.bridePreparationLocation?.trim() ||
+      wedding.preparationLocation?.trim() ||
+      '',
+    bridePreparationLocation:
+      wedding.bridePreparationLocation?.trim() ||
+      wedding.preparationLocation?.trim() ||
+      '',
+    groomPreparationLocation:
+      wedding.groomPreparationLocation?.trim() || '',
     ceremonyLocation: wedding.ceremonyLocation?.trim() || '',
     receptionLocation: wedding.receptionLocation?.trim() || '',
   }

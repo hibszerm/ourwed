@@ -145,6 +145,7 @@ const CANONICAL_REFERENCE_KEYS = [
   'remaining_after_deposit_formatted',
   'remaining_to_pay_formatted',
   'coverage_hours',
+  'coverage_start_time',
   'coverage_end_time',
   'overtime_rate',
   'overtime_rate_formatted',

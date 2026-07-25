@@ -1,28 +1,33 @@
 /**
  * Prefer the form definition schema when it is a real FormTemplate.
  *
- * Package select ALWAYS comes from buildContractQuestionnaireTemplate —
- * the exact same question object Dane do umowy uses at runtime.
- * Never trust baked-in / AI / cached options.
- *
- * AI schemas may use wrong ids (q-q-package) or omit the field entirely.
- * Before render we strip every package-like question and insert a clone
- * of the built-in q-package with live Studio Packages.
+ * Package / extras selectors come from buildContractQuestionnaireTemplate
+ * using the public-safe options snapshot (or live fallback packages).
  */
 
 import type { FormTemplate, Question } from '@/types/form'
 import type { FormSchema } from '@/types/formEngine'
+import type {
+  AdditionalServiceOptionSnapshot,
+  ContractQuestionnaireConfig,
+  PackageOptionSnapshot,
+} from '@/types/contractQuestionnaire'
 import {
   buildContractQuestionnaireTemplate,
   CONTRACT_QUESTIONNAIRE_TEMPLATE,
 } from '@/lib/forms/contractQuestionnaireTemplate'
 import { CONTRACT_QUESTION_IDS } from '@/lib/forms/contractQuestionCatalog'
+import { normalizePackageOptions } from '@/lib/forms/contractQuestionnaireSnapshot'
 
 const LOG_PREFIX = '[resolvePublicFormTemplate]'
 
 function debugLog(...args: unknown[]): void {
-  if (import.meta.env.DEV) {
-    console.info(LOG_PREFIX, ...args)
+  try {
+    if (import.meta.env?.DEV) {
+      console.info(LOG_PREFIX, ...args)
+    }
+  } catch {
+    // Node acceptance tests may lack Vite import.meta.env
   }
 }
 
@@ -40,28 +45,35 @@ function isFormTemplate(value: unknown): value is FormTemplate {
 export function normalizeStudioPackages(
   raw: unknown,
 ): Array<{ id: string; name: string }> {
-  if (!Array.isArray(raw)) return []
-  const out: Array<{ id: string; name: string }> = []
-  for (const item of raw) {
-    if (!item || typeof item !== 'object') continue
-    const row = item as Record<string, unknown>
-    const id = String(row.id ?? row.value ?? '').trim()
-    const name = String(row.name ?? row.label ?? '').trim()
-    if (!id || !name) continue
-    out.push({ id, name })
-  }
-  return out
+  return normalizePackageOptions(raw).map((p) => ({ id: p.id, name: p.name }))
 }
 
 /** Any question that should be replaced by the built-in package selector. */
 export function isPackageQuestion(q: Question): boolean {
   if (q.id === CONTRACT_QUESTION_IDS.PACKAGE_SELECTOR) return true
   if (q.id === 'q-q-package') return true
-  if (q.fieldKey === 'packageId') return true
+  if (q.fieldKey === 'packageId' || q.fieldKey === 'selectedPackageIds') {
+    return true
+  }
   if (typeof q.label === 'string' && /^pakiet$/i.test(q.label.trim())) {
     return true
   }
   return false
+}
+
+export function isExtrasQuestion(q: Question): boolean {
+  return (
+    q.id === 'q-extras' ||
+    q.id === 'sys_extras' ||
+    q.id === 'q-section-extras' ||
+    q.fieldKey === 'selectedAdditionalServiceIds'
+  )
+}
+
+export interface ResolvePublicFormOptions {
+  packages?: PackageOptionSnapshot[] | unknown
+  additionalServices?: AdditionalServiceOptionSnapshot[] | unknown
+  config?: ContractQuestionnaireConfig | null
 }
 
 /**
@@ -76,7 +88,7 @@ export function getLivePackageQuestion(
     packages: packages.map((p) => ({ id: p.id, name: p.name })),
   })
 
-  const builtin = buildContractQuestionnaireTemplate(packages)
+  const builtin = buildContractQuestionnaireTemplate({ packages })
   const pkg = builtin.questions.find(
     (q) => q.id === CONTRACT_QUESTION_IDS.PACKAGE_SELECTOR,
   )
@@ -92,104 +104,141 @@ export function getLivePackageQuestion(
   }
   return {
     id: CONTRACT_QUESTION_IDS.PACKAGE_SELECTOR,
-    type: 'select',
+    type: 'multiselect',
     label: 'Pakiet',
     required: true,
-    fieldKey: 'packageId',
+    fieldKey: 'selectedPackageIds',
+    presentation: 'cards',
     options: packages.map((p) => ({ value: p.id, label: p.name })),
   }
 }
 
-/**
- * Remove every package-like field, then insert a cloned Dane q-package
- * with live options (after wedding date when present).
- */
-function injectLivePackageQuestion(
+function injectCatalogQuestions(
   template: FormTemplate,
-  packages: Array<{ id: string; name: string }>,
+  packages: PackageOptionSnapshot[],
+  additionalServices: AdditionalServiceOptionSnapshot[],
+  config: ContractQuestionnaireConfig | null | undefined,
 ): FormTemplate {
-  const livePackage = getLivePackageQuestion(packages)
-  const detected = template.questions.filter(isPackageQuestion)
-
-  debugLog('injectLivePackageQuestion() before', {
-    title: template.title,
-    questionCount: template.questions.length,
-    detectedPackageFields: detected.map((q) => ({
-      id: q.id,
-      type: q.type,
-      fieldKey: q.fieldKey,
-      optionsLength: q.options?.length ?? 0,
-    })),
+  const builtin = buildContractQuestionnaireTemplate({
+    packages,
+    additionalServices,
+    config,
   })
+  const livePackage = builtin.questions.find(isPackageQuestion)
+  // Match by fieldKey / isExtrasQuestion — block ids are `sys_extras`, not `q-extras`.
+  const liveExtrasSection = builtin.questions.filter(isExtrasQuestion)
+  const liveLocations = builtin.questions.filter(
+    (q) =>
+      q.fieldKey === 'bridePreparationLocation' ||
+      q.fieldKey === 'groomPreparationLocation' ||
+      q.fieldKey === 'ceremonyLocation' ||
+      q.fieldKey === 'receptionLocation' ||
+      q.id === 'q-section-locations',
+  )
+  const liveCustom = builtin.questions.filter(
+    (q) =>
+      q.id === 'q-section-custom' ||
+      (typeof q.fieldKey === 'string' && q.fieldKey.startsWith('custom.')),
+  )
 
-  const withoutPackage = template.questions.filter((q) => !isPackageQuestion(q))
+  const withoutCatalog = template.questions.filter(
+    (q) =>
+      !isPackageQuestion(q) &&
+      !isExtrasQuestion(q) &&
+      q.fieldKey !== 'preparationLocation' &&
+      q.fieldKey !== 'bridePreparationLocation' &&
+      q.fieldKey !== 'groomPreparationLocation' &&
+      q.fieldKey !== 'ceremonyLocation' &&
+      q.fieldKey !== 'receptionLocation' &&
+      q.id !== 'q-section-locations' &&
+      q.id !== 'q-prep' &&
+      q.id !== 'q-bride-prep' &&
+      q.id !== 'q-groom-prep' &&
+      q.id !== 'q-ceremony' &&
+      q.id !== 'q-reception' &&
+      q.id !== 'q-section-custom' &&
+      !(typeof q.fieldKey === 'string' && q.fieldKey.startsWith('custom.')),
+  )
 
-  const weddingDateIdx = withoutPackage.findIndex(
+  const weddingDateIdx = withoutCatalog.findIndex(
     (q) =>
       q.id === CONTRACT_QUESTION_IDS.WEDDING_DATE ||
       q.fieldKey === 'weddingDate',
   )
 
-  let questions: Question[]
-  if (weddingDateIdx >= 0) {
-    questions = [
-      ...withoutPackage.slice(0, weddingDateIdx + 1),
-      livePackage,
-      ...withoutPackage.slice(weddingDateIdx + 1),
-    ]
-  } else {
-    const sectionIdx = withoutPackage.findIndex(
-      (q) => q.type === 'section_title',
-    )
-    if (sectionIdx >= 0) {
-      questions = [
-        ...withoutPackage.slice(0, sectionIdx + 1),
-        livePackage,
-        ...withoutPackage.slice(sectionIdx + 1),
-      ]
-    } else {
-      questions = [livePackage, ...withoutPackage]
-    }
-  }
+  const insertAfter = weddingDateIdx >= 0 ? weddingDateIdx + 1 : 0
+  const head = withoutCatalog.slice(0, insertAfter)
+  const tail = withoutCatalog.slice(insertAfter)
 
-  const finalPkg = questions.find(isPackageQuestion)
-  debugLog('injectLivePackageQuestion() after', {
-    finalPackage: finalPkg
-      ? {
-          id: finalPkg.id,
-          type: finalPkg.type,
-          fieldKey: finalPkg.fieldKey,
-          optionsLength: finalPkg.options?.length ?? 0,
-          optionLabels: (finalPkg.options ?? []).map((o) => o.label),
-        }
-      : null,
+  const notesIdx = tail.findIndex(
+    (q) => q.id === 'q-section-notes' || q.fieldKey === 'additionalNotes',
+  )
+  const beforeNotes = notesIdx >= 0 ? tail.slice(0, notesIdx) : tail
+  const notesAndAfter = notesIdx >= 0 ? tail.slice(notesIdx) : []
+
+  const middle: Question[] = []
+  if (livePackage && config?.showPackages !== false) {
+    middle.push(livePackage)
+  }
+  if (config?.showAdditionalServices !== false) {
+    middle.push(...liveExtrasSection)
+  }
+  middle.push(...liveLocations)
+  middle.push(...liveCustom)
+
+  const questions = [...head, ...middle, ...beforeNotes, ...notesAndAfter]
+
+  debugLog('injectCatalogQuestions() after', {
+    packageOptions: livePackage?.options?.length ?? 0,
+    extras: liveExtrasSection.length,
     questionIds: questions.map((q) => q.id),
   })
 
-  return { ...template, questions }
+  return {
+    ...template,
+    title: builtin.title || template.title,
+    description: builtin.description || template.description,
+    submitLabel: builtin.submitLabel || template.submitLabel,
+    successTitle: builtin.successTitle || template.successTitle,
+    successDescription:
+      builtin.successDescription || template.successDescription,
+    questions,
+  }
 }
 
 export function resolvePublicFormTemplate(
   schema: FormSchema | null | undefined,
   packagesInput: unknown,
+  options?: ResolvePublicFormOptions,
 ): FormTemplate {
-  const packages = normalizeStudioPackages(packagesInput)
+  const packages = normalizePackageOptions(
+    options?.packages ?? packagesInput,
+  )
+  const additionalServices = normalizePackageOptions(
+    options?.additionalServices ?? [],
+  ) as AdditionalServiceOptionSnapshot[]
+  const config = options?.config ?? null
 
   debugLog('resolvePublicFormTemplate()', {
     packagesLength: packages.length,
+    extrasLength: additionalServices.length,
     schemaIsTemplate: isFormTemplate(schema),
-    schemaTitle:
-      schema && typeof schema === 'object' && 'title' in schema
-        ? String((schema as { title?: unknown }).title ?? '')
-        : null,
   })
 
   if (isFormTemplate(schema)) {
-    return injectLivePackageQuestion(schema, packages)
+    return injectCatalogQuestions(
+      schema,
+      packages,
+      additionalServices,
+      config,
+    )
   }
-  if (packages.length > 0) {
-    debugLog('fallback → buildContractQuestionnaireTemplate (Dane)')
-    return buildContractQuestionnaireTemplate(packages)
+  if (packages.length > 0 || additionalServices.length > 0 || config) {
+    return buildContractQuestionnaireTemplate({
+      packages,
+      additionalServices,
+      config,
+    })
   }
   debugLog('fallback → CONTRACT_QUESTIONNAIRE_TEMPLATE (empty packages)')
   return CONTRACT_QUESTIONNAIRE_TEMPLATE

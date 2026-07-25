@@ -3,6 +3,8 @@
  * Separate from the legacy mock types in `@/types/form`.
  */
 
+import type { FormInstanceOptionsSnapshot } from '@/types/contractQuestionnaire'
+
 export type FormCategory =
   | 'contract'
   | 'pre_wedding'
@@ -52,6 +54,8 @@ export interface FormInstance {
   approvedAt: string | null
   rejectedAt: string | null
   createdAt: string
+  /** Public-safe package/extra/config snapshot (when created/sent). */
+  optionsSnapshot?: FormInstanceOptionsSnapshot | null
 }
 
 export interface FormAnswerRecord {

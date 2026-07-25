@@ -22,11 +22,16 @@ export type FormTemplateType =
 
 export type FormStatus = 'open' | 'submitted' | 'closed'
 
-export type AnswerValue = string | string[] | boolean
+import type { NormalizedAddress } from '@/services/addressAutocompleteProvider'
+
+export type AnswerValue = string | string[] | boolean | NormalizedAddress
 
 export interface QuestionOption {
   value: string
   label: string
+  description?: string
+  price?: number
+  currency?: string
 }
 
 export interface Question {
@@ -43,6 +48,10 @@ export interface Question {
    * Display-only types omit this.
    */
   fieldKey?: string
+  /** Multiselect presentation — cards for packages/extras. */
+  presentation?: 'default' | 'cards'
+  /** Stable custom field id when question is studio-defined. */
+  customFieldId?: string
 }
 
 export interface FormTemplate {
@@ -56,6 +65,8 @@ export interface FormTemplate {
   submitLabel: string
   /** When true, public form shows a coming-soon state instead of inputs. */
   comingSoon?: boolean
+  /** Optional footer from questionnaire config / text block. */
+  footerText?: string
 }
 
 /** Studio-editable copy (later: Settings). */

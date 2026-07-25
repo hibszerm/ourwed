@@ -1,28 +1,99 @@
-import type { FormSettings, FormTemplate } from '@/types/form'
+import type { FormSettings, FormTemplate, Question } from '@/types/form'
+import type {
+  AdditionalServiceOptionSnapshot,
+  ContractQuestionnaireConfig,
+  PackageOptionSnapshot,
+  QuestionnaireCustomField,
+} from '@/types/contractQuestionnaire'
+import { defaultContractQuestionnaireConfig } from '@/types/contractQuestionnaire'
+import { ensureQuestionnaireBlocks } from '@/lib/forms/questionnaireBlocks'
+import { questionsFromBlocks } from '@/lib/forms/questionsFromBlocks'
+
+export interface BuildContractQuestionnaireInput {
+  packages: PackageOptionSnapshot[]
+  additionalServices?: AdditionalServiceOptionSnapshot[]
+  config?: ContractQuestionnaireConfig | null
+}
 
 /**
- * Build contract questionnaire UI template with package options
- * from the Studio Catalog (active packages only).
+ * Build contract questionnaire UI template with package / extra options
+ * from the Studio Catalog snapshot (active packages only at send time).
  */
 export function buildContractQuestionnaireTemplate(
-  packages: { id: string; name: string }[],
+  packagesOrInput:
+    | { id: string; name: string }[]
+    | BuildContractQuestionnaireInput,
 ): FormTemplate {
+  const input: BuildContractQuestionnaireInput = Array.isArray(packagesOrInput)
+    ? { packages: packagesOrInput }
+    : packagesOrInput
+
+  const config = ensureQuestionnaireBlocks(
+    input.config ?? defaultContractQuestionnaireConfig(),
+  )
+  const packages = input.packages ?? []
+  const additionalServices = input.additionalServices ?? []
+
+  if (config.blocks && config.blocks.length > 0) {
+    const greetingBlock = config.blocks.find(
+      (b) => b.type === 'text' && b.role === 'greeting' && b.enabled,
+    )
+    const footerBlock = config.blocks.find(
+      (b) => b.type === 'text' && b.role === 'footer' && b.enabled,
+    )
+    const headingBlock = config.blocks.find(
+      (b) => b.type === 'heading' && b.enabled && b.level === 1,
+    )
+    const questions = questionsFromBlocks(
+      config.blocks.filter(
+        (b) =>
+          !(
+            b.type === 'text' &&
+            (b.role === 'greeting' || b.role === 'footer')
+          ),
+      ),
+      packages,
+      additionalServices,
+    )
+    return {
+      id: 'tpl-contract',
+      type: 'contract_questionnaire',
+      title:
+        (headingBlock && headingBlock.type === 'heading'
+          ? headingBlock.text
+          : null) ||
+        config.questionnaireTitle?.trim() ||
+        'Dane do umowy',
+      description:
+        (greetingBlock && greetingBlock.type === 'text'
+          ? greetingBlock.content
+          : null) ||
+        config.greeting?.trim() ||
+        'Prosimy o uzupełnienie danych potrzebnych do przygotowania umowy. Pola oznaczone gwiazdką są wymagane.',
+      submitLabel: config.submitButtonLabel?.trim() || 'Wyślij',
+      successTitle: 'Dziękujemy!',
+      successDescription:
+        config.successMessage?.trim() ||
+        'Otrzymaliśmy Wasze dane. Wkrótce przygotujemy umowę i prześlemy ją na podany adres e-mail.',
+      questions,
+      footerText:
+        (footerBlock && footerBlock.type === 'text'
+          ? footerBlock.content
+          : null) || config.footerText,
+    }
+  }
+
   const packageOptions = packages.map((p) => ({
     value: p.id,
     label: p.name,
   }))
 
-  return {
-  id: 'tpl-contract',
-  type: 'contract_questionnaire',
-  title: 'Dane do umowy',
-  description:
-    'Prosimy o uzupełnienie danych potrzebnych do przygotowania umowy. Pola oznaczone gwiazdką są wymagane.',
-  submitLabel: 'Wyślij',
-  successTitle: 'Dziękujemy!',
-  successDescription:
-    'Otrzymaliśmy Wasze dane. Wkrótce przygotujemy umowę i prześlemy ją na podany adres e-mail.',
-  questions: [
+  const extraOptions = additionalServices.map((s) => ({
+    value: s.id,
+    label: s.name,
+  }))
+
+  const questions: Question[] = [
     {
       id: 'q-section-wedding',
       type: 'section_title',
@@ -35,14 +106,44 @@ export function buildContractQuestionnaireTemplate(
       required: true,
       fieldKey: 'weddingDate',
     },
-    {
+  ]
+
+  if (config.showPackages !== false && packageOptions.length > 0) {
+    questions.push({
       id: 'q-package',
-      type: 'select',
+      type: 'multiselect',
       label: 'Pakiet',
-      required: true,
-      fieldKey: 'packageId',
+      required: config.packagesRequired !== false,
+      fieldKey: 'selectedPackageIds',
       options: packageOptions,
-    },
+      presentation: 'cards',
+      description: config.allowMultiplePackages
+        ? 'Możecie wybrać jeden lub kilka pakietów.'
+        : undefined,
+    })
+  }
+
+  if (config.showAdditionalServices !== false && extraOptions.length > 0) {
+    questions.push(
+      {
+        id: 'q-section-extras',
+        type: 'section_title',
+        label: 'Usługi dodatkowe',
+      },
+      {
+        id: 'q-extras',
+        type: 'multiselect',
+        label: 'Usługi dodatkowe',
+        required: false,
+        fieldKey: 'selectedAdditionalServiceIds',
+        options: extraOptions,
+        presentation: 'cards',
+        description: 'Opcjonalnie — wybierzcie usługi, które Was interesują.',
+      },
+    )
+  }
+
+  questions.push(
     {
       id: 'q-section-p1',
       type: 'section_title',
@@ -63,11 +164,28 @@ export function buildContractQuestionnaireTemplate(
       fieldKey: 'partner1.lastName',
     },
     {
+      id: 'q-p1-address',
+      type: 'location',
+      label: 'Adres do umowy',
+      required: true,
+      fieldKey: 'partner1.address',
+      placeholder: 'Wpisz adres…',
+    },
+    {
       id: 'q-p1-phone',
       type: 'phone',
       label: 'Telefon',
       required: true,
       fieldKey: 'partner1.phone',
+    },
+    {
+      id: 'q-p1-email',
+      type: 'email',
+      label: 'E-mail',
+      required: true,
+      fieldKey: 'partner1.email',
+      description:
+        'Na ten adres wyślemy umowę oraz wszystkie informacje dotyczące współpracy.',
     },
     {
       id: 'q-section-p2',
@@ -89,6 +207,14 @@ export function buildContractQuestionnaireTemplate(
       fieldKey: 'partner2.lastName',
     },
     {
+      id: 'q-p2-address',
+      type: 'location',
+      label: 'Adres do umowy',
+      required: true,
+      fieldKey: 'partner2.address',
+      placeholder: 'Wpisz adres…',
+    },
+    {
       id: 'q-p2-phone',
       type: 'phone',
       label: 'Telefon',
@@ -96,45 +222,11 @@ export function buildContractQuestionnaireTemplate(
       fieldKey: 'partner2.phone',
     },
     {
-      id: 'q-section-address',
-      type: 'section_title',
-      label: 'Adres do umowy',
-    },
-    {
-      id: 'q-p1-address',
-      type: 'text',
-      label: 'Ulica i numer domu',
-      required: true,
-      fieldKey: 'partner1.address',
-    },
-    {
-      id: 'q-p1-postal',
-      type: 'text',
-      label: 'Kod pocztowy',
-      required: true,
-      fieldKey: 'partner1.postalCode',
-      placeholder: '00-000',
-    },
-    {
-      id: 'q-p1-city',
-      type: 'text',
-      label: 'Miasto',
-      required: true,
-      fieldKey: 'partner1.city',
-    },
-    {
-      id: 'q-section-email',
-      type: 'section_title',
-      label: 'Adres e-mail do kontaktu',
-    },
-    {
-      id: 'q-p1-email',
+      id: 'q-p2-email',
       type: 'email',
-      label: 'Email',
+      label: 'E-mail',
       required: true,
-      fieldKey: 'partner1.email',
-      description:
-        'Na ten adres wyślemy umowę oraz wszystkie informacje dotyczące współpracy.',
+      fieldKey: 'partner2.email',
     },
     {
       id: 'q-section-locations',
@@ -142,10 +234,16 @@ export function buildContractQuestionnaireTemplate(
       label: 'Miejsca',
     },
     {
-      id: 'q-prep',
+      id: 'q-bride-prep',
       type: 'location',
-      label: 'Przygotowania',
-      fieldKey: 'preparationLocation',
+      label: 'Przygotowania Panny Młodej',
+      fieldKey: 'bridePreparationLocation',
+    },
+    {
+      id: 'q-groom-prep',
+      type: 'location',
+      label: 'Przygotowania Pana Młodego',
+      fieldKey: 'groomPreparationLocation',
     },
     {
       id: 'q-ceremony',
@@ -157,10 +255,29 @@ export function buildContractQuestionnaireTemplate(
     {
       id: 'q-reception',
       type: 'location',
-      label: 'Przyjęcie weselne',
+      label: 'Wesele / przyjęcie weselne',
       required: true,
       fieldKey: 'receptionLocation',
     },
+  )
+
+  const enabledCustom = (config.customFields ?? [])
+    .filter((f) => f.enabled)
+    .slice()
+    .sort((a, b) => a.order - b.order)
+
+  if (enabledCustom.length > 0) {
+    questions.push({
+      id: 'q-section-custom',
+      type: 'section_title',
+      label: 'Dodatkowe pytania',
+    })
+    for (const field of enabledCustom) {
+      questions.push(customFieldToQuestion(field))
+    }
+  }
+
+  questions.push(
     {
       id: 'q-section-notes',
       type: 'section_title',
@@ -173,8 +290,65 @@ export function buildContractQuestionnaireTemplate(
       fieldKey: 'additionalNotes',
       placeholder: 'Opcjonalne uwagi…',
     },
-  ],
+  )
+
+  return {
+    id: 'tpl-contract',
+    type: 'contract_questionnaire',
+    title: config.questionnaireTitle?.trim() || 'Dane do umowy',
+    description:
+      config.greeting?.trim() ||
+      'Prosimy o uzupełnienie danych potrzebnych do przygotowania umowy. Pola oznaczone gwiazdką są wymagane.',
+    submitLabel: config.submitButtonLabel?.trim() || 'Wyślij',
+    successTitle: 'Dziękujemy!',
+    successDescription:
+      config.successMessage?.trim() ||
+      'Otrzymaliśmy Wasze dane. Wkrótce przygotujemy umowę i prześlemy ją na podany adres e-mail.',
+    questions,
+    footerText: config.footerText,
+  }
 }
+
+function customFieldToQuestion(field: QuestionnaireCustomField): Question {
+  const base = {
+    id: `custom-${field.id}`,
+    label: field.label,
+    required: field.required,
+    fieldKey: `custom.${field.fieldKey}`,
+    description: field.helperText,
+    placeholder: field.placeholder,
+    customFieldId: field.id,
+  }
+
+  switch (field.type) {
+    case 'long_text':
+      return { ...base, type: 'textarea' }
+    case 'single_choice':
+      return {
+        ...base,
+        type: 'radio',
+        options: field.options ?? [],
+      }
+    case 'multiple_choice':
+      return {
+        ...base,
+        type: 'multiselect',
+        options: field.options ?? [],
+      }
+    case 'checkbox':
+      return { ...base, type: 'checkbox' }
+    case 'date':
+      return { ...base, type: 'date' }
+    case 'number':
+      return { ...base, type: 'text', placeholder: field.placeholder || '0' }
+    case 'phone':
+      return { ...base, type: 'phone' }
+    case 'email':
+      return { ...base, type: 'email' }
+    case 'short_text':
+    default:
+      return { ...base, type: 'text' }
+  }
 }
 
 /** Base template without packages — prefer buildContractQuestionnaireTemplate. */

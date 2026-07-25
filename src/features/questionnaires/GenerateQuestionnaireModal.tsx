@@ -6,7 +6,6 @@ import { listActiveFormTemplates } from '@/lib/api/forms'
 import {
   questionnaireService,
   questionnaireTypeLabel,
-  type QuestionnaireExpiration,
 } from '@/lib/api/questionnaireService'
 import { useAuth } from '@/features/auth/hooks/useAuth'
 import styles from './Questionnaires.module.css'
@@ -27,8 +26,6 @@ export function GenerateQuestionnaireModal({
 }: GenerateQuestionnaireModalProps) {
   const { user } = useAuth()
   const [formId, setFormId] = useState<string>('')
-  const [expiration, setExpiration] =
-    useState<QuestionnaireExpiration>('14d')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<{
@@ -65,7 +62,6 @@ export function GenerateQuestionnaireModal({
     try {
       const generated = await questionnaireService.generate({
         type: 'contract',
-        expiration,
         formId,
       })
       setResult({ formUrl: generated.formUrl, formName: generated.formName })
@@ -162,21 +158,6 @@ export function GenerateQuestionnaireModal({
                   {questionnaireTypeLabel(form)}
                 </option>
               ))}
-            </select>
-          </label>
-          <label className={styles.field}>
-            <span>Ważność</span>
-            <select
-              value={expiration}
-              onChange={(e) =>
-                setExpiration(e.target.value as QuestionnaireExpiration)
-              }
-              disabled={busy}
-            >
-              <option value="7d">7 dni</option>
-              <option value="14d">14 dni</option>
-              <option value="30d">30 dni</option>
-              <option value="never">Bezterminowo</option>
             </select>
           </label>
           {error ? <p className={styles.errorText} role="alert">{error}</p> : null}

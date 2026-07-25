@@ -33,6 +33,7 @@ import {
 } from './docxParagraphEditor'
 import { extractDocxParagraphsIncludingEmpty } from './extractDocxParagraphs'
 import { resolveContractVariables } from './resolveContractVariables'
+import { lookupResolvedValue } from './lookupResolvedValue'
 import { validateTemplateSlotBindings } from './templateReadiness'
 import { isSlotPhysicallyBound, parseSlotMap } from './types'
 
@@ -258,6 +259,32 @@ export async function transformContract(
   if (needsExecDate && !resolved.contract_execution_date?.trim()) {
     throw new Error(
       'Szablon wymaga daty zawarcia umowy, ale nie udało się jej ustalić.',
+    )
+  }
+
+  // Required contact placeholders — generation input must supply real values
+  const missingContactMessages: string[] = []
+  for (const slot of boundSlots) {
+    if (!slot.physicallyBound || !slot.registryKey) continue
+    if ((slot.requirement ?? 'optional') !== 'required') continue
+    const key = slot.registryKey
+    const value =
+      resolved[key]?.trim() ||
+      lookupResolvedValue(resolved, key)
+    if (value) continue
+    if (key === 'bride_phone' || key === 'partner1_phone') {
+      missingContactMessages.push('Brakuje numeru telefonu Panny Młodej')
+    } else if (key === 'bride_email' || key === 'partner1_email') {
+      missingContactMessages.push('Brakuje adresu e-mail Panny Młodej')
+    } else if (key === 'groom_phone' || key === 'partner2_phone') {
+      missingContactMessages.push('Brakuje numeru telefonu Pana Młodego')
+    } else if (key === 'groom_email' || key === 'partner2_email') {
+      missingContactMessages.push('Brakuje adresu e-mail Pana Młodego')
+    }
+  }
+  if (missingContactMessages.length > 0) {
+    throw new Error(
+      [...new Set(missingContactMessages)].join('\n'),
     )
   }
 

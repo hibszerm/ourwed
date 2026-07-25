@@ -57,6 +57,7 @@ const DEFAULT_OPTIONAL_KEYS = new Set([
   'company_facebook',
   'marketing_consent',
   'preparation_location',
+  'coverage_start_time',
   'coverage_end_time',
   'coverage_hours',
   'working_hours',
