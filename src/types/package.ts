@@ -6,9 +6,16 @@
 export interface PackageItem {
   id: string
   packageId: string
+  /** Display label (catalog column: title). */
   title: string
   description: string | null
   sortOrder: number
+  /** When false, excluded from new wedding snapshots. */
+  enabled: boolean
+  quantity: number | null
+  unit: string | null
+  /** Optional free-text category/type. */
+  category: string | null
   createdAt: string
 }
 
@@ -17,6 +24,7 @@ export interface StudioPackage {
   name: string
   slug: string
   description: string | null
+  /** Catalog base price (basePrice). */
   price: number
   depositAmount: number
   currency: string
@@ -25,6 +33,16 @@ export interface StudioPackage {
   sortOrder: number
   /** Optional linked questionnaire form (AI import / package default). */
   questionnaireFormId: string | null
+  /** Default coverage length in hours. */
+  coverageHours: number | null
+  /** Default coverage end clock time, e.g. "00:30". */
+  coverageEndTime: string | null
+  /** Default overtime hourly rate. */
+  overtimeRate: number | null
+  /** Preferred delivery term in months. */
+  deliveryMonths: number | null
+  /** Delivery term in days when months is null. */
+  deliveryDays: number | null
   createdAt: string
   updatedAt: string
   items: PackageItem[]

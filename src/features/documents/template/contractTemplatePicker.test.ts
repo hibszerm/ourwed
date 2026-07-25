@@ -36,6 +36,10 @@ function base(
     usageCount: 0,
     sourceFileName: 'umowa.docx',
     sourceDocxPath: 'templates/u1/source.docx',
+    generationReady: patch.status === 'ready',
+    detectedFieldCount: patch.variableCount ?? 3,
+    safeBindingCount: patch.status === 'ready' ? 3 : 0,
+    unresolvedCount: 0,
     ...patch,
   }
 }

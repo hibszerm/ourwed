@@ -4,7 +4,12 @@ import {
   toNumber,
 } from '@/lib/supabase/helpers'
 import { createDefaultQuestionnaires } from '@/lib/utils/questionnaires'
-import type { Wedding, WeddingStatus, WorkflowStage } from '@/types/wedding'
+import type {
+  Wedding,
+  WeddingPackageItemSnapshot,
+  WeddingStatus,
+  WorkflowStage,
+} from '@/types/wedding'
 
 export const DEFAULT_WEDDING_ACCENT = '#0a0a0a'
 export const DEFAULT_WEDDING_CURRENCY = 'PLN'
@@ -32,6 +37,13 @@ export interface WeddingRow {
   deposit_amount: number | string | null
   currency: string
   accent_color: string | null
+  package_items_snapshot?: unknown
+  coverage_hours?: number | string | null
+  coverage_end_time?: string | null
+  overtime_rate?: number | string | null
+  delivery_months?: number | string | null
+  delivery_days?: number | string | null
+  final_payment_due_date?: string | null
   created_at: string
   updated_at: string
 }
@@ -74,6 +86,61 @@ function ceremonyTimeToInput(value: string | null): string | undefined {
   return value.slice(0, 5)
 }
 
+export function parsePackageItemsSnapshot(
+  raw: unknown,
+): WeddingPackageItemSnapshot[] {
+  if (!Array.isArray(raw)) return []
+  const items: WeddingPackageItemSnapshot[] = []
+  for (let i = 0; i < raw.length; i++) {
+    const row = raw[i]
+    if (!row || typeof row !== 'object') continue
+    const rec = row as Record<string, unknown>
+    const title = typeof rec.title === 'string' ? rec.title.trim() : ''
+    if (!title) continue
+    const quantityRaw = rec.quantity
+    items.push({
+      sourceItemId:
+        typeof rec.sourceItemId === 'string'
+          ? rec.sourceItemId
+          : typeof rec.source_item_id === 'string'
+            ? rec.source_item_id
+            : null,
+      title,
+      description:
+        typeof rec.description === 'string' ? rec.description : null,
+      sortOrder:
+        typeof rec.sortOrder === 'number'
+          ? rec.sortOrder
+          : typeof rec.sort_order === 'number'
+            ? rec.sort_order
+            : i,
+      enabled: rec.enabled === false || rec.is_enabled === false ? false : true,
+      quantity:
+        typeof quantityRaw === 'number'
+          ? quantityRaw
+          : typeof quantityRaw === 'string' && quantityRaw.trim()
+            ? Number(quantityRaw)
+            : null,
+      unit: typeof rec.unit === 'string' ? rec.unit : null,
+      category:
+        typeof rec.category === 'string'
+          ? rec.category
+          : typeof rec.item_category === 'string'
+            ? rec.item_category
+            : null,
+    })
+  }
+  return items.sort((a, b) => a.sortOrder - b.sortOrder)
+}
+
+function optionalRowNumber(
+  value: number | string | null | undefined,
+): number | null {
+  if (value == null || value === '') return null
+  const n = toNumber(value, Number.NaN)
+  return Number.isFinite(n) ? n : null
+}
+
 /** Map a `public.weddings` row → app `Wedding` view model (scalars only). */
 export function mapWeddingRowToModel(row: WeddingRow): Wedding {
   const venue = row.venue ?? ''
@@ -109,6 +176,15 @@ export function mapWeddingRowToModel(row: WeddingRow): Wedding {
     price: toNumber(row.contract_value, 0),
     depositAmount: toNumber(row.deposit_amount, 0),
     currency: row.currency || DEFAULT_WEDDING_CURRENCY,
+    packageItems: parsePackageItemsSnapshot(row.package_items_snapshot),
+    coverageHours: optionalRowNumber(row.coverage_hours),
+    coverageEndTime: row.coverage_end_time?.trim() || null,
+    overtimeRate: optionalRowNumber(row.overtime_rate),
+    deliveryMonths: optionalRowNumber(row.delivery_months),
+    deliveryDays: optionalRowNumber(row.delivery_days),
+    finalPaymentDueDate: row.final_payment_due_date
+      ? toDateString(row.final_payment_due_date) || row.final_payment_due_date
+      : null,
     ceremonyLocation: undefined,
     receptionLocation: undefined,
     preparationLocation: undefined,
@@ -165,5 +241,12 @@ export function mapWeddingModelToRow(
     deposit_amount: wedding.depositAmount ?? null,
     currency: wedding.currency || DEFAULT_WEDDING_CURRENCY,
     accent_color: wedding.accentColor || null,
+    package_items_snapshot: wedding.packageItems ?? [],
+    coverage_hours: wedding.coverageHours ?? null,
+    coverage_end_time: wedding.coverageEndTime?.trim() || null,
+    overtime_rate: wedding.overtimeRate ?? null,
+    delivery_months: wedding.deliveryMonths ?? null,
+    delivery_days: wedding.deliveryDays ?? null,
+    final_payment_due_date: wedding.finalPaymentDueDate?.trim() || null,
   }
 }

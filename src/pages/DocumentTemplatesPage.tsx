@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { Plus } from 'lucide-react'
@@ -8,7 +8,6 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { useToast } from '@/components/ui/Toast'
 import {
-  documentTemplateKeys,
   useDocumentTemplateMutations,
   useDocumentTemplates,
 } from '@/features/documents/hooks/useDocumentTemplates'
@@ -16,6 +15,7 @@ import { ContractCard } from '@/features/documents/components/ContractCard'
 import { DeleteContractModal } from '@/features/documents/components/DeleteContractModal'
 import { RenameTemplateModal } from '@/features/documents/components/TemplateModals'
 import { setPendingNewImport } from '@/features/documents/import/attachedImportCache'
+import { startDocumentsPerf } from '@/features/documents/performance/documentsPerformance'
 import { reanalyzeTemplate } from '@/features/documents/template/reanalyzeTemplate'
 import type { DocumentTemplateSummary } from '@/types/documents'
 import styles from '@/features/documents/DocumentsTemplates.module.css'
@@ -26,10 +26,43 @@ export function DocumentTemplatesPage() {
   const { showToast } = useToast()
   const fileRef = useRef<HTMLInputElement>(null)
   const replaceRef = useRef<HTMLInputElement>(null)
-  const { data: templates = [], isLoading, isError } = useDocumentTemplates()
+  const {
+    data: templates = [],
+    isLoading,
+    isError,
+    isFetching,
+    isPlaceholderData,
+  } = useDocumentTemplates()
   const { remove, rename, duplicate, uploadVersion } =
     useDocumentTemplateMutations()
   const [reanalyzingId, setReanalyzingId] = useState<string | null>(null)
+
+  useEffect(() => {
+    const perf = startDocumentsPerf('documents-route')
+    perf.stamp('routeMountedAt')
+    return () => {
+      /* route unmount */
+    }
+  }, [])
+
+  useEffect(() => {
+    if (isLoading && templates.length === 0) return
+    const perf = startDocumentsPerf('documents-route')
+    if (isPlaceholderData || templates.length > 0) {
+      perf.stamp('firstCachedDataAt')
+    }
+    perf.stamp('metadataResponseAt')
+    // Defer to next paint for cardsRenderedAt
+    requestAnimationFrame(() => {
+      perf.stamp('cardsRenderedAt')
+      perf.finish({
+        totalTemplateCount: templates.length,
+        numberOfNetworkRequests: isFetching && !isPlaceholderData ? 1 : 0,
+        analysisFunctionsCalled: 0,
+        binaryFilesFetched: 0,
+      })
+    })
+  }, [templates, isLoading, isFetching, isPlaceholderData])
 
   const [deleteTarget, setDeleteTarget] =
     useState<DocumentTemplateSummary | null>(null)
@@ -97,7 +130,9 @@ export function DocumentTemplatesPage() {
     setReanalyzingId(template.id)
     try {
       const result = await reanalyzeTemplate({ templateId: template.id })
-      await queryClient.invalidateQueries({ queryKey: documentTemplateKeys.all })
+      await queryClient.invalidateQueries({
+        queryKey: ['document-template-summaries'],
+      })
       if (result.readinessReady) {
         showToast('Szablon przeanalizowany — gotowy do generacji.', 'success')
       } else {

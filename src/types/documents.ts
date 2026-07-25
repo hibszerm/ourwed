@@ -11,6 +11,7 @@ export type DocumentTemplateStatus =
   | 'draft'
   | 'ready'
   | 'incomplete'
+  | 'needs_review'
   | 'archived'
 
 /** Template category (stored as doc_type). UI: Contract / Annex / GDPR / Protocol / Other */
@@ -136,10 +137,44 @@ export interface DocumentDraftMoney {
 
 export interface DocumentTemplateMeta {
   version: 1
-  /** True when every enabled variable has a physical binding. */
+  /** True when every required detected slot has a physical binding. */
   slotBindingsReady?: boolean
-  /** Registry keys still missing physical slots after analysis. */
+  /** Required registry keys still missing physical slots after analysis. */
   unresolvedSlotKeys?: string[]
+  /** Human reasons for unresolved required keys. */
+  unresolvedSlotReasons?: Array<{ key: string; reason: string }>
+  /** Precise slot counters (not full registry size). */
+  slotCounters?: {
+    detectedSlotCount: number
+    requiredSlotCount: number
+    optionalSlotCount: number
+    boundRequiredSlotCount: number
+    unresolvedRequiredSlotCount: number
+    ambiguousSlotCount: number
+    falsePositiveCount: number
+    detectedAutomatically?: number
+    needsConfirmationCount?: number
+    safeBindingsCount?: number
+    unsafeBindingsCount?: number
+    itemsRequiringReviewCount?: number
+    unresolvedRequiredConceptsCount?: number
+  }
+  analysisWarnings?: string[]
+  analysisStatus?: 'complete' | 'needs_review'
+  /**
+   * Persisted readiness snapshot for list/picker — never recompute on read.
+   * Written at upload analysis / reanalysis / config save.
+   */
+  generationReady?: boolean
+  safeBindingCount?: number
+  unsafeBindingCount?: number
+  unresolvedCount?: number
+  requiredMissingCount?: number
+  emptyPlaceholderCount?: number
+  lastAnalyzedAt?: string
+  analysisVersion?: string
+  readinessVersion?: string
+  lifecycleStatus?: string
   /** Couple-facing slots confirmed at review (questionnaire). */
   coupleVariables?: Array<{
     id: string
@@ -147,6 +182,8 @@ export interface DocumentTemplateMeta {
     label: string
     enabled: boolean
     physicallyBound?: boolean
+    requirement?: 'required' | 'optional'
+    detectionStatus?: string
   }>
   /** Studio settings slots used by this contract (never questionnaire). */
   studioVariables?: Array<{
@@ -155,6 +192,8 @@ export interface DocumentTemplateMeta {
     label: string
     enabled: boolean
     physicallyBound?: boolean
+    requirement?: 'required' | 'optional'
+    detectionStatus?: string
   }>
   /**
    * Package slots referenced by the contract (presence only).
@@ -166,6 +205,8 @@ export interface DocumentTemplateMeta {
     label: string
     enabled: boolean
     physicallyBound?: boolean
+    requirement?: 'required' | 'optional'
+    detectionStatus?: string
   }>
   /**
    * @deprecated Never store business values on the template.
@@ -221,7 +262,7 @@ export interface DocumentTemplateVersion {
   createdAt: string
 }
 
-/** List/detail enrichment for Template Management (Phase 1). */
+/** List/picker enrichment — lightweight; no slot_map / binary / full analysis. */
 export interface DocumentTemplateSummary extends DocumentTemplate {
   currentVersionNumber: number | null
   componentCount: number
@@ -231,6 +272,14 @@ export interface DocumentTemplateSummary extends DocumentTemplate {
   usageCount: number
   sourceFileName: string | null
   sourceDocxPath: string | null
+  /** Derived from persisted meta — list must not recompute readiness. */
+  generationReady: boolean
+  detectedFieldCount: number
+  safeBindingCount: number
+  unresolvedCount: number
+  /** True when persisted analysis/readiness version lags the app. */
+  summaryStale?: boolean
+  sourceFormat?: 'docx' | 'pdf'
 }
 
 export interface DocumentComponent {

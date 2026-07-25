@@ -4,6 +4,7 @@
  */
 
 import type { AiDocumentAnalysisResult } from '@/features/documents/ai/types'
+import { countOccurrences } from './canonicalParagraph'
 import {
   paragraphFingerprint,
   type IndexedParagraph,
@@ -76,12 +77,13 @@ export const SLOT_PATTERNS: SlotPattern[] = [
   },
   {
     registryKey: 'coverage_end_time',
-    aliases: ['working_hours', 'coverage_hours'],
     leftAnchors: [
       'reportaż ślubny obejmuje czas maksymalnie do godziny',
       'reportaz slubny obejmuje czas maksymalnie do godziny',
       'obejmuje czas maksymalnie do godziny',
       'maksymalnie do godziny',
+      'reportaż do godziny',
+      'reportaz do godziny',
     ],
     rightAnchors: [
       '. Czas pracy filmowca',
@@ -95,12 +97,30 @@ export const SLOT_PATTERNS: SlotPattern[] = [
     sourceHint: 'package',
   },
   {
+    registryKey: 'coverage_hours',
+    aliases: ['working_hours'],
+    leftAnchors: [
+      'maksymalnie',
+      'czas pracy kamerzysty',
+      'czas pracy filmowca',
+      'Czas pracy kamerzysty',
+      'Czas pracy filmowca',
+    ],
+    rightAnchors: [' godzin', 'godzin', ' h.'],
+    preferInsertWhenBlank: true,
+    prefix: ' ',
+    suffix: '',
+    sourceHint: 'package',
+  },
+  {
     registryKey: 'overtime_rate',
-    aliases: ['overtime_price'],
+    aliases: ['overtime_price', 'overtime_rate_formatted'],
     leftAnchors: [
       'Każda dodatkowa godzina to koszt w wysokości',
       'każda dodatkowa godzina to koszt w wysokości',
       'dodatkowa godzina to koszt w wysokości',
+      'koszt dodatkowej godziny',
+      'stawka za nadgodzinę',
       'koszt w wysokości',
     ],
     rightAnchors: ['.'],
@@ -110,13 +130,68 @@ export const SLOT_PATTERNS: SlotPattern[] = [
     sourceHint: 'package',
   },
   {
+    registryKey: 'delivery_term_text',
+    aliases: ['delivery_time', 'delivery_months'],
+    leftAnchors: [
+      'w terminie',
+      'termin oddania',
+      'czas realizacji',
+      'oddania materiałów w terminie',
+    ],
+    rightAnchors: ['.', ',', ';'],
+    preferInsertWhenBlank: true,
+    prefix: ' ',
+    suffix: '',
+    sourceHint: 'package',
+  },
+  {
+    registryKey: 'final_payment_due_date',
+    aliases: ['final_payment_due_date_long', 'payment_deadline'],
+    leftAnchors: [
+      'najpóźniej w dniu',
+      'pozostałą część wynagrodzenia',
+      'termin płatności końcowej',
+      'Termin płatności końcowej',
+    ],
+    rightAnchors: ['.', ',', ';'],
+    preferInsertWhenBlank: true,
+    prefix: ' ',
+    suffix: '',
+    sourceHint: 'package',
+  },
+  {
+    registryKey: 'included_services_text',
+    aliases: ['included_services'],
+    leftAnchors: [
+      'Pakiet obejmuje',
+      'pakiet obejmuje',
+      'W ramach pakietu',
+      'w ramach pakietu',
+      'Zawartość pakietu',
+    ],
+    rightAnchors: [],
+    preferInsertWhenBlank: true,
+    prefix: ' ',
+    suffix: '',
+    sourceHint: 'package',
+  },
+  {
     registryKey: 'company_name',
-    leftAnchors: ['firmą', 'Firmą'],
+    leftAnchors: ['firmą', 'Firmą', 'firmą', 'Firmą', 'pod firmą', 'pod firmą '],
     rightAnchors: [
       'zwanego dalej „Filmowcem”.',
       'zwanego dalej "Filmowcem".',
+      'zwanym dalej „Filmowcem”',
       'zwanego dalej',
+      'zwanym dalej',
       'zwanego',
+      'zwaną dalej „Kamerzystami”',
+      'zwaną dalej „Kamerzystami”',
+      'zwana dalej „Kamerzystami”',
+      'zwanym dalej „Kamerzystą”',
+      'zwanego dalej „Kamerzystą”',
+      'zwanym dalej „Wykonawcą”',
+      'zwanego dalej „Wykonawcą”',
     ],
     preferInsertWhenBlank: true,
     prefix: ' ',
@@ -129,7 +204,10 @@ export const SLOT_PATTERNS: SlotPattern[] = [
     rightAnchors: [
       ', zwaną dalej „Parą Młodą”',
       ', zwaną dalej "Parą Młodą"',
+      ', zwanymi dalej „Parą Młodą”',
+      ', zwanymi dalej "Parą Młodą"',
       ', zwaną dalej „Parą Młodą”,',
+      ' zwaną dalej „Parą Młodą”',
     ],
     preferInsertWhenBlank: true,
     prefix: '',
@@ -213,14 +291,54 @@ export function bindPatternInParagraph(
   claimed: Array<{ start: number; end: number }>,
   searchFrom = 0,
 ): BindHit | null {
-  // couple_full_names: right-anchor only (leading insert)
+  // couple_full_names / right-anchor-only: find name span before role cue.
+  // Do NOT reject filled names — those are replace/composite slots.
   if (pattern.leftAnchors.length === 0 && pattern.rightAnchors.length > 0) {
     const right = findRight(text, pattern.rightAnchors, searchFrom)
     if (!right) return null
-    const start = 0
-    const end = right.start
-    const mid = text.slice(start, end)
-    if (mid.trim().length > 40) return null // already filled / not empty slot
+    const before = text.slice(0, right.start)
+    const nameToken =
+      "[A-ZĄĆĘŁŃÓŚŹŻ][a-ząćęłńóśźżąćęłńóśźżĄĆĘŁŃÓŚŹŻ'\\-]{1,30}"
+    const fullName = `${nameToken}(?:\\s+${nameToken}){1,3}`
+    const coupleRe = new RegExp(
+      `(${fullName})\\s+(?:i|oraz)\\s+(${fullName})\\s*$`,
+      'u',
+    )
+    const couple = coupleRe.exec(before.trimEnd())
+    let start = 0
+    let end = right.start
+    let mid = text.slice(start, end)
+    let operation: ContractSlotOperation = mid.trim() ? 'replace' : 'insert'
+
+    if (couple) {
+      const full = `${couple[1]} i ${couple[2]}`
+      const idx = before.lastIndexOf(couple[1]!)
+      if (idx >= 0) {
+        start = idx
+        end = idx + full.length
+        mid = text.slice(start, end)
+        operation = 'composite'
+      }
+    } else {
+      // Single name — stop before address/phone clauses
+      const cut = before.split(/,\s*(?:zam\.?|zamieszkał|ul\.|tel\.|adres)/i)[0]
+      const singleRe = new RegExp(`(${fullName})\\s*$`, 'u')
+      const single = singleRe.exec((cut ?? before).trimEnd())
+      if (single) {
+        const name = single[1]!
+        const idx = before.lastIndexOf(name)
+        if (idx >= 0) {
+          start = idx
+          end = idx + name.length
+          mid = text.slice(start, end)
+          operation = 'replace'
+        }
+      } else if (mid.trim().length > 120) {
+        // No recognizable name span — avoid claiming the whole preamble
+        return null
+      }
+    }
+
     const range = { start, end }
     if (claimed.some((c) => rangesOverlap(c, range))) return null
     return {
@@ -230,7 +348,12 @@ export function bindPatternInParagraph(
       leftAnchor: '',
       rightAnchor: right.anchor,
       originalText: mid,
-      operation: mid.trim() ? 'replace' : 'insert',
+      operation:
+        pattern.registryKey === 'couple_full_names' && operation === 'composite'
+          ? 'composite'
+          : operation === 'insert'
+            ? 'insert'
+            : 'replace',
       prefix: pattern.prefix ?? '',
       suffix: pattern.suffix ?? '',
       paragraphText: text,
@@ -239,6 +362,57 @@ export function bindPatternInParagraph(
 
   const left = findLeft(text, pattern.leftAnchors, searchFrom)
   if (!left) return null
+
+  // coverage_end_time: bind the clock-time value immediately after the left cue.
+  // Do not require ". Czas …" so short clauses ("do godziny 00.30.") still bind,
+  // and do not use a bare "." right-anchor (would hit the separator inside 00.30).
+  if (pattern.registryKey === 'coverage_end_time') {
+    const afterLeft = text.slice(left.end)
+    const tm = /^\s*(\d{1,2}[.:]\d{2})/.exec(afterLeft)
+    if (tm) {
+      const value = tm[1]!
+      const rel = afterLeft.indexOf(value)
+      const start = left.end + rel
+      const end = start + value.length
+      const range = { start, end }
+      if (claimed.some((c) => rangesOverlap(c, range))) return null
+      const right =
+        findRight(text, pattern.rightAnchors, end) ?? {
+          anchor: text.slice(end, Math.min(text.length, end + 8)),
+          start: end,
+        }
+      console.info('[coverage-end-time-location]', {
+        phase: 'bind-direct-time',
+        paragraphIndex,
+        originalText: value,
+        startOffset: start,
+        endOffset: end,
+        leftAnchor: left.anchor,
+        rightAnchor: right.anchor,
+        operation: 'replace',
+        sourceSlice: text.slice(start, end),
+        paragraphEscaped: JSON.stringify(text),
+        rawLength: text.length,
+        nfcLength: text.normalize('NFC').length,
+        occurrences00dot30: countOccurrences(text, '00.30'),
+        occurrences00colon30: countOccurrences(text, '00:30'),
+        occurrencesDoGodziny: countOccurrences(text, 'do godziny'),
+      })
+      return {
+        paragraphIndex,
+        start,
+        end,
+        leftAnchor: left.anchor,
+        rightAnchor: right.anchor,
+        originalText: value,
+        operation: 'replace',
+        prefix: '',
+        suffix: pattern.suffix ?? '',
+        paragraphText: text,
+      }
+    }
+  }
+
   const right = findRight(text, pattern.rightAnchors, left.end)
   if (!right) return null
 
@@ -276,6 +450,25 @@ export function bindPatternInParagraph(
     prefix = prefix || (mid.startsWith(' ') ? '' : ' ')
   }
 
+  // coverage_end_time: shrink mid to the smallest clock-time source span
+  // (e.g. " 00.30" → "00.30"). Classification cues stay on anchors; the
+  // persisted replacement span must be the value only.
+  if (
+    pattern.registryKey === 'coverage_end_time' &&
+    operation === 'replace'
+  ) {
+    const timeRe = /(\d{1,2}[.:]\d{2})/
+    const tm = timeRe.exec(mid)
+    if (tm && tm.index != null) {
+      const value = tm[1]!
+      const rel = tm.index
+      start = start + rel
+      end = start + value.length
+      mid = value
+      prefix = ''
+    }
+  }
+
   // Expand replace range for ".;" glued cases where right is ";" but period is mid
   if (operation === 'replace' && midTrim === '.' && text[end] === ';') {
     // keep end at right.start (before ;)
@@ -286,6 +479,27 @@ export function bindPatternInParagraph(
 
   const range = { start, end }
   if (claimed.some((c) => rangesOverlap(c, range))) return null
+
+  if (pattern.registryKey === 'coverage_end_time') {
+    console.info('[coverage-end-time-location]', {
+      phase: 'bind',
+      paragraphIndex,
+      originalText: mid,
+      startOffset: start,
+      endOffset: end,
+      leftAnchor: left.anchor,
+      rightAnchor: right.anchor,
+      operation,
+      midBeforeShrink: normalizeMid(text.slice(left.end, right.start)),
+      sourceSlice: text.slice(start, end),
+      paragraphEscaped: JSON.stringify(text),
+      rawLength: text.length,
+      nfcLength: text.normalize('NFC').length,
+      occurrences00dot30: countOccurrences(text, '00.30'),
+      occurrences00colon30: countOccurrences(text, '00:30'),
+      occurrencesDoGodziny: countOccurrences(text, 'do godziny'),
+    })
+  }
 
   return {
     paragraphIndex,
@@ -361,7 +575,10 @@ export function bindSlotsToDocument(input: {
 
         bound.push({
           id: `slot-${canonical}-${para.index}-${hit.start}`,
-          registryKey: canonical,
+          registryKey:
+            canonical === 'couple_full_names' && hit.operation !== 'composite'
+              ? 'partner1_full_name'
+              : canonical,
           label: label ?? canonical.replace(/_/g, ' '),
           sourceHint: hint ?? pattern.sourceHint ?? sourceHints[canonical] ?? 'unknown',
           occurrences: 1,
@@ -381,6 +598,15 @@ export function bindSlotsToDocument(input: {
           omissionMode: 'empty',
           paragraphFingerprint: paragraphFingerprint(para.text),
           physicallyBound: true,
+          componentKeys:
+            hit.operation === 'composite'
+              ? ['partner1_full_name', 'partner2_full_name']
+              : undefined,
+          separator: hit.operation === 'composite' ? ' i ' : undefined,
+          confidence: 0.9,
+          evidenceType:
+            hit.operation === 'composite' ? 'composite_context' : 'legal_context',
+          detectionReason: 'Bound via structural SLOT_PATTERNS anchors',
         })
         return
       }
@@ -465,9 +691,14 @@ export function bindSlotsFromAnalysis(input: {
     'ceremony_location',
     'reception_location',
     'coverage_end_time',
+    'coverage_hours',
     'overtime_rate',
+    'overtime_rate_formatted',
     'overtime_price',
     'working_hours',
+    'delivery_term_text',
+    'final_payment_due_date',
+    'included_services_text',
     'company_name',
     'couple_full_names',
   ]

@@ -11,6 +11,9 @@ import {
   sourceLabel,
   type VariableDataSource,
 } from './resolveContractVariables'
+import {
+  isSystemAutoResolvedContractKey,
+} from './contractExecutionContext'
 import { parseSlotMap, type TemplateSlot, type TemplateSlotMap } from './types'
 
 export type CompletenessGroupId =
@@ -110,6 +113,8 @@ export async function buildContractCompletenessReport(input: {
   questionnaireAnswers?: Record<string, string>
   packageSnapshot?: PackageSnapshot
   overrides?: Record<string, string>
+  /** Stable generation instant — created once when the user starts generation. */
+  generationStartedAt?: Date | string | null
 }): Promise<ContractCompletenessReport> {
   const template = await documentTemplateService.get(input.templateId)
   if (!template) throw new Error('Nie znaleziono szablonu umowy.')
@@ -126,6 +131,7 @@ export async function buildContractCompletenessReport(input: {
     wedding: input.wedding,
     overrides: input.overrides,
     questionnaireAnswers: input.questionnaireAnswers,
+    generationStartedAt: input.generationStartedAt,
   })
 
   const enabledSlots = slotMap.slots.filter(
@@ -135,15 +141,17 @@ export async function buildContractCompletenessReport(input: {
   const fields: CompletenessField[] = enabledSlots.map((slot) => {
     const registryKey = slot.registryKey!
     const meta = ctx.lookup(registryKey)
+    const systemAuto = isSystemAutoResolvedContractKey(registryKey)
     return {
       slotId: slot.id,
       registryKey,
       label: labelForSlot(slot),
       group: groupForSlot(slot),
       value: meta.value,
-      missing: meta.missing,
-      source: meta.source,
-      sourceLabel: sourceLabel(meta.source),
+      // System auto values are never manual-required, even if empty (technical error later)
+      missing: systemAuto ? false : meta.missing,
+      source: systemAuto ? 'system' : meta.source,
+      sourceLabel: sourceLabel(systemAuto ? 'system' : meta.source),
     }
   })
 
@@ -168,6 +176,22 @@ export async function buildContractCompletenessReport(input: {
     .filter((g) => g.fields.length > 0)
 
   const missing = fields.filter((f) => f.missing)
+
+  console.info('[contract-execution-date-resolution]', {
+    phase: 'completeness',
+    generationStartedAt: ctx.generationStartedAt.toISOString(),
+    resolvedShort: ctx.resolved.contract_execution_date ?? null,
+    resolvedLong: ctx.resolved.contract_execution_date_long ?? null,
+    includedInManualFields: fields.some(
+      (f) =>
+        isSystemAutoResolvedContractKey(f.registryKey) &&
+        f.missing,
+    ),
+    includedInMissingVariables: missing.some((f) =>
+      isSystemAutoResolvedContractKey(f.registryKey),
+    ),
+    source: 'generation_context',
+  })
 
   return {
     templateId: template.id,

@@ -7,9 +7,26 @@ import { PageContainer } from '@/components/ui/PageContainer'
 import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
 import { packageItemService } from '@/lib/api/packageItemService'
 import { packageService } from '@/lib/api/packageService'
+import { ensureReferenceWeddingSetup } from '@/lib/dev/ensureReferenceWeddingSetup'
 import { formatCurrency } from '@/lib/utils/currency'
-import type { StudioPackage } from '@/types/package'
+import { formatDeliveryTerm } from '@/lib/utils/commercial'
+import type { PackageItem, StudioPackage } from '@/types/package'
 import styles from '@/features/studio/StudioCatalog.module.css'
+
+type PackageFormValues = {
+  name: string
+  description: string | null
+  price: number
+  depositAmount: number
+  currency: string
+  color: string | null
+  isActive: boolean
+  coverageHours: number | null
+  coverageEndTime: string | null
+  overtimeRate: number | null
+  deliveryMonths: number | null
+  deliveryDays: number | null
+}
 
 export function PackagesPage() {
   const queryClient = useQueryClient()
@@ -24,11 +41,13 @@ export function PackagesPage() {
   const [editing, setEditing] = useState<StudioPackage | null>(null)
   const [creating, setCreating] = useState(false)
   const [dragId, setDragId] = useState<string | null>(null)
+  const [seedBusy, setSeedBusy] = useState(false)
+  const [seedMessage, setSeedMessage] = useState<string | null>(null)
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ['studio-packages'] })
-    // Public /form/:token also rebuilds package options from a React Query cache.
     void queryClient.invalidateQueries({ queryKey: ['public-form'] })
+    void queryClient.invalidateQueries({ queryKey: ['weddings'] })
   }
 
   const createMutation = useMutation({
@@ -73,14 +92,47 @@ export function PackagesPage() {
   return (
     <AppLayout
       title="Pakiety"
-      subtitle="Katalog oferty — źródło cen i zawartości pakietów"
+      subtitle="Katalog oferty — źródło cen, warunków i zawartości pakietów"
       action={
-        <Button type="button" variant="primary" onClick={() => setCreating(true)}>
-          Nowy pakiet
-        </Button>
+        <div className={styles.actions}>
+          {import.meta.env.DEV ? (
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={seedBusy}
+              onClick={() => {
+                setSeedBusy(true)
+                setSeedMessage(null)
+                void ensureReferenceWeddingSetup()
+                  .then((result) => {
+                    setSeedMessage(
+                      result.companyReady
+                        ? `Ślub referencyjny gotowy: ${result.wedding.couple.partner1} · ${result.package.name}`
+                        : `Pakiet i ślub referencyjny zapisane. Uzupełnij Dane firmy, aby status był „Gotowe do umowy”.`,
+                    )
+                    void invalidate()
+                  })
+                  .catch((err) =>
+                    setSeedMessage(
+                      err instanceof Error
+                        ? err.message
+                        : 'Nie udało się utworzyć danych referencyjnych.',
+                    ),
+                  )
+                  .finally(() => setSeedBusy(false))
+              }}
+            >
+              {seedBusy ? 'Seed…' : 'Ślub referencyjny'}
+            </Button>
+          ) : null}
+          <Button type="button" variant="primary" onClick={() => setCreating(true)}>
+            Nowy pakiet
+          </Button>
+        </div>
       }
     >
       <PageContainer width="wide">
+        {seedMessage ? <p className={styles.docHint}>{seedMessage}</p> : null}
         {isError ? (
           <EmptyState
             title="Nie udało się załadować pakietów"
@@ -190,9 +242,13 @@ export function PackagesPage() {
                     </Button>
                   </div>
                 </header>
+
+                <PackageDetailsSummary pkg={pkg} />
+
                 {pkg.description ? (
                   <p className={styles.body}>{pkg.description}</p>
                 ) : null}
+
                 <PackageItemsEditor
                   packageId={pkg.id}
                   items={pkg.items}
@@ -212,6 +268,55 @@ export function PackagesPage() {
   )
 }
 
+function PackageDetailsSummary({ pkg }: { pkg: StudioPackage }) {
+  const delivery = formatDeliveryTerm(pkg.deliveryMonths, pkg.deliveryDays)
+  const updated = pkg.updatedAt
+    ? new Date(pkg.updatedAt).toLocaleDateString('pl-PL')
+    : '—'
+
+  return (
+    <dl className={styles.metaGrid}>
+      <div>
+        <dt>Cena</dt>
+        <dd>{formatCurrency(pkg.price)}</dd>
+      </div>
+      <div>
+        <dt>Zadatek</dt>
+        <dd>{formatCurrency(pkg.depositAmount)}</dd>
+      </div>
+      <div>
+        <dt>Reportaż</dt>
+        <dd>
+          {pkg.coverageHours != null ? `${pkg.coverageHours} h` : '—'}
+          {pkg.coverageEndTime ? ` · do ${pkg.coverageEndTime}` : ''}
+        </dd>
+      </div>
+      <div>
+        <dt>Nadgodziny</dt>
+        <dd>
+          {pkg.overtimeRate != null ? formatCurrency(pkg.overtimeRate) : '—'}
+        </dd>
+      </div>
+      <div>
+        <dt>Oddanie</dt>
+        <dd>{delivery || '—'}</dd>
+      </div>
+      <div>
+        <dt>Status</dt>
+        <dd>{pkg.isActive ? 'Aktywny' : 'Zarchiwizowany'}</dd>
+      </div>
+      <div>
+        <dt>Aktualizacja</dt>
+        <dd>{updated}</dd>
+      </div>
+      <div>
+        <dt>Pozycje</dt>
+        <dd>{pkg.items.filter((i) => i.enabled).length}</dd>
+      </div>
+    </dl>
+  )
+}
+
 function PackageForm({
   initial,
   busy,
@@ -221,15 +326,7 @@ function PackageForm({
   initial: StudioPackage | null
   busy: boolean
   onCancel: () => void
-  onSave: (values: {
-    name: string
-    description: string | null
-    price: number
-    depositAmount: number
-    currency: string
-    color: string | null
-    isActive: boolean
-  }) => Promise<void>
+  onSave: (values: PackageFormValues) => Promise<void>
 }) {
   const [name, setName] = useState(initial?.name ?? '')
   const [description, setDescription] = useState(initial?.description ?? '')
@@ -238,7 +335,29 @@ function PackageForm({
   const [currency, setCurrency] = useState(initial?.currency ?? 'PLN')
   const [color, setColor] = useState(initial?.color ?? '#0a0a0a')
   const [isActive, setIsActive] = useState(initial?.isActive ?? true)
+  const [coverageHours, setCoverageHours] = useState(
+    initial?.coverageHours != null ? String(initial.coverageHours) : '',
+  )
+  const [coverageEndTime, setCoverageEndTime] = useState(
+    initial?.coverageEndTime ?? '',
+  )
+  const [overtimeRate, setOvertimeRate] = useState(
+    initial?.overtimeRate != null ? String(initial.overtimeRate) : '',
+  )
+  const [deliveryMonths, setDeliveryMonths] = useState(
+    initial?.deliveryMonths != null ? String(initial.deliveryMonths) : '',
+  )
+  const [deliveryDays, setDeliveryDays] = useState(
+    initial?.deliveryDays != null ? String(initial.deliveryDays) : '',
+  )
   const [error, setError] = useState<string | null>(null)
+
+  function parseOptionalNumber(raw: string): number | null {
+    const t = raw.trim()
+    if (!t) return null
+    const n = Number(t)
+    return Number.isFinite(n) ? n : null
+  }
 
   return (
     <form
@@ -264,6 +383,11 @@ function PackageForm({
           currency: currency.trim() || 'PLN',
           color: color || null,
           isActive,
+          coverageHours: parseOptionalNumber(coverageHours),
+          coverageEndTime: coverageEndTime.trim() || null,
+          overtimeRate: parseOptionalNumber(overtimeRate),
+          deliveryMonths: parseOptionalNumber(deliveryMonths),
+          deliveryDays: parseOptionalNumber(deliveryDays),
         }).catch((err) =>
           setError(err instanceof Error ? err.message : 'Nie udało się zapisać.'),
         )
@@ -285,9 +409,11 @@ function PackageForm({
           disabled={busy}
         />
       </label>
+
+      <p className={styles.sectionLabel}>Warunki handlowe</p>
       <div className={styles.row}>
         <label className={styles.field}>
-          <span>Cena</span>
+          <span>Cena bazowa</span>
           <input
             type="number"
             min={0}
@@ -298,7 +424,7 @@ function PackageForm({
           />
         </label>
         <label className={styles.field}>
-          <span>Zaliczka</span>
+          <span>Zadatek</span>
           <input
             type="number"
             min={0}
@@ -326,6 +452,68 @@ function PackageForm({
           />
         </label>
       </div>
+
+      <p className={styles.sectionLabel}>Reportaż i oddanie</p>
+      <div className={styles.row}>
+        <label className={styles.field}>
+          <span>Godziny reportażu</span>
+          <input
+            type="number"
+            min={0}
+            step="0.5"
+            value={coverageHours}
+            onChange={(e) => setCoverageHours(e.target.value)}
+            disabled={busy}
+            placeholder="np. 12"
+          />
+        </label>
+        <label className={styles.field}>
+          <span>Koniec reportażu</span>
+          <input
+            value={coverageEndTime}
+            onChange={(e) => setCoverageEndTime(e.target.value)}
+            disabled={busy}
+            placeholder="np. 00:30"
+          />
+        </label>
+        <label className={styles.field}>
+          <span>Stawka nadgodzin</span>
+          <input
+            type="number"
+            min={0}
+            step="0.01"
+            value={overtimeRate}
+            onChange={(e) => setOvertimeRate(e.target.value)}
+            disabled={busy}
+            placeholder="np. 1400"
+          />
+        </label>
+        <label className={styles.field}>
+          <span>Oddanie (miesiące)</span>
+          <input
+            type="number"
+            min={0}
+            step="1"
+            value={deliveryMonths}
+            onChange={(e) => setDeliveryMonths(e.target.value)}
+            disabled={busy}
+            placeholder="np. 4"
+          />
+        </label>
+        <label className={styles.field}>
+          <span>Oddanie (dni)</span>
+          <input
+            type="number"
+            min={0}
+            step="1"
+            value={deliveryDays}
+            onChange={(e) => setDeliveryDays(e.target.value)}
+            disabled={busy}
+            placeholder="opcjonalnie"
+          />
+        </label>
+      </div>
+
       <label className={styles.check}>
         <input
           type="checkbox"
@@ -354,11 +542,18 @@ function PackageItemsEditor({
   onChanged,
 }: {
   packageId: string
-  items: StudioPackage['items']
+  items: PackageItem[]
   onChanged: () => void
 }) {
   const [title, setTitle] = useState('')
+  const [description, setDescription] = useState('')
   const [dragId, setDragId] = useState<string | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editTitle, setEditTitle] = useState('')
+  const [editDescription, setEditDescription] = useState('')
+  const [editQuantity, setEditQuantity] = useState('')
+  const [editUnit, setEditUnit] = useState('')
+  const [editCategory, setEditCategory] = useState('')
 
   async function handleReorder(fromId: string, toId: string) {
     if (fromId === toId) return
@@ -373,6 +568,15 @@ function PackageItemsEditor({
     onChanged()
   }
 
+  function beginEdit(item: PackageItem) {
+    setEditingId(item.id)
+    setEditTitle(item.title)
+    setEditDescription(item.description ?? '')
+    setEditQuantity(item.quantity != null ? String(item.quantity) : '')
+    setEditUnit(item.unit ?? '')
+    setEditCategory(item.category ?? '')
+  }
+
   return (
     <div className={styles.items}>
       <h3 className={styles.itemsTitle}>Zawartość pakietu</h3>
@@ -380,8 +584,8 @@ function PackageItemsEditor({
         {items.map((item) => (
           <li
             key={item.id}
-            className={styles.itemRow}
-            draggable
+            className={`${styles.itemRow} ${!item.enabled ? styles.itemDisabled : ''}`}
+            draggable={editingId !== item.id}
             onDragStart={() => setDragId(item.id)}
             onDragOver={(e) => e.preventDefault()}
             onDrop={() => {
@@ -389,18 +593,127 @@ function PackageItemsEditor({
               setDragId(null)
             }}
           >
-            <span>{item.title}</span>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={async () => {
-                await packageItemService.delete(item.id)
-                onChanged()
-              }}
-            >
-              Usuń
-            </Button>
+            {editingId === item.id ? (
+              <div className={styles.itemEdit}>
+                <input
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  placeholder="Nazwa pozycji"
+                />
+                <input
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  placeholder="Opis (opcjonalnie)"
+                />
+                <div className={styles.row}>
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={editQuantity}
+                    onChange={(e) => setEditQuantity(e.target.value)}
+                    placeholder="Ilość"
+                  />
+                  <input
+                    value={editUnit}
+                    onChange={(e) => setEditUnit(e.target.value)}
+                    placeholder="Jednostka"
+                  />
+                  <input
+                    value={editCategory}
+                    onChange={(e) => setEditCategory(e.target.value)}
+                    placeholder="Kategoria"
+                  />
+                </div>
+                <div className={styles.actions}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setEditingId(null)}
+                  >
+                    Anuluj
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={async () => {
+                      if (!editTitle.trim()) return
+                      const qty = editQuantity.trim()
+                        ? Number(editQuantity)
+                        : null
+                      await packageItemService.update(item.id, {
+                        title: editTitle.trim(),
+                        description: editDescription.trim() || null,
+                        quantity:
+                          qty != null && Number.isFinite(qty) ? qty : null,
+                        unit: editUnit.trim() || null,
+                        category: editCategory.trim() || null,
+                      })
+                      setEditingId(null)
+                      onChanged()
+                    }}
+                  >
+                    Zapisz pozycję
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className={styles.itemMain}>
+                  <span className={styles.itemTitle}>{item.title}</span>
+                  {item.description ? (
+                    <span className={styles.itemMeta}>{item.description}</span>
+                  ) : null}
+                  <span className={styles.itemMeta}>
+                    {[
+                      item.quantity != null
+                        ? `× ${item.quantity}${item.unit ? ` ${item.unit}` : ''}`
+                        : null,
+                      item.category,
+                      item.enabled ? null : 'wyłączona',
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </span>
+                </div>
+                <div className={styles.actions}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => beginEdit(item)}
+                  >
+                    Edytuj
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={async () => {
+                      await packageItemService.update(item.id, {
+                        enabled: !item.enabled,
+                      })
+                      onChanged()
+                    }}
+                  >
+                    {item.enabled ? 'Wyłącz' : 'Włącz'}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={async () => {
+                      await packageItemService.delete(item.id)
+                      onChanged()
+                    }}
+                  >
+                    Usuń
+                  </Button>
+                </div>
+              </>
+            )}
           </li>
         ))}
       </ul>
@@ -412,8 +725,10 @@ function PackageItemsEditor({
           await packageItemService.create({
             packageId,
             title: title.trim(),
+            description: description.trim() || null,
           })
           setTitle('')
+          setDescription('')
           onChanged()
         }}
       >
@@ -422,10 +737,19 @@ function PackageItemsEditor({
           value={title}
           onChange={(e) => setTitle(e.target.value)}
         />
+        <input
+          placeholder="Opis (opcjonalnie)"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+        />
         <Button type="submit" variant="secondary" size="sm">
           Dodaj
         </Button>
       </form>
+      <p className={styles.muted}>
+        Usługi dodatkowe (opcjonalne) konfigurujesz w katalogu „Usługi”, a
+        przypisujesz je per ślub.
+      </p>
     </div>
   )
 }

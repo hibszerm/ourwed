@@ -2,6 +2,7 @@ import { calendarEventService } from '@/lib/api/calendarEventService'
 import { contractService } from '@/lib/api/contractService'
 import { galleryService } from '@/lib/api/galleryService'
 import { noteService } from '@/lib/api/noteService'
+import { packageService } from '@/lib/api/packageService'
 import { paymentService } from '@/lib/api/paymentService'
 import { resolveStudioUserId } from '@/lib/api/studioUser'
 import { getWeddingDemoInFlightMap } from '@/lib/api/tenantModuleCaches'
@@ -18,7 +19,13 @@ import {
 } from '@/lib/api/weddings/weddingMappers'
 import { supabase } from '@/lib/supabase'
 import { isLikelyUuid, asCatalogPackageId, throwOnError } from '@/lib/supabase/helpers'
-import type { CreateWeddingInput, Wedding, WorkflowStage } from '@/types/wedding'
+import { snapshotPackageItemsFromStudioPackage } from '@/lib/utils/commercial'
+import type {
+  CreateWeddingInput,
+  Wedding,
+  WeddingPackageItemSnapshot,
+  WorkflowStage,
+} from '@/types/wedding'
 
 export { mapWeddingRowToModel, mapWeddingModelToRow } from '@/lib/api/weddings/weddingMappers'
 
@@ -26,6 +33,22 @@ export { mapWeddingRowToModel, mapWeddingModelToRow } from '@/lib/api/weddings/w
  * Wedding aggregate loader — `public.weddings` scalars + child-domain hydrate.
  * Nested writes belong in dedicated services (notes, timeline, payments, …).
  */
+
+async function resolvePackageItemsSnapshot(
+  input: CreateWeddingInput,
+): Promise<WeddingPackageItemSnapshot[]> {
+  if (input.packageItems && input.packageItems.length > 0) {
+    return input.packageItems
+  }
+  const packageId = asCatalogPackageId(input.packageId)
+  if (!packageId) return []
+  try {
+    const pkg = await packageService.get(packageId)
+    return pkg ? snapshotPackageItemsFromStudioPackage(pkg) : []
+  } catch {
+    return []
+  }
+}
 
 async function fetchWeddingsForUser(userId: string): Promise<WeddingRow[]> {
   const { data, error } = await supabase
@@ -159,6 +182,7 @@ export const weddingService = {
     const depositSnapshot =
       input.depositAmount ??
       (input.depositPaid ? Math.round(input.price * 0.3) : null)
+    const packageItemsSnapshot = await resolvePackageItemsSnapshot(input)
 
     const { data, error } = await supabase
       .from('weddings')
@@ -179,6 +203,13 @@ export const weddingService = {
         deposit_amount: depositSnapshot,
         currency: input.currency || DEFAULT_WEDDING_CURRENCY,
         accent_color: input.accentColor || null,
+        package_items_snapshot: packageItemsSnapshot,
+        coverage_hours: input.coverageHours ?? null,
+        coverage_end_time: input.coverageEndTime?.trim() || null,
+        overtime_rate: input.overtimeRate ?? null,
+        delivery_months: input.deliveryMonths ?? null,
+        delivery_days: input.deliveryDays ?? null,
+        final_payment_due_date: input.finalPaymentDueDate?.trim() || null,
       })
       .select('*')
       .single()
@@ -249,6 +280,13 @@ export const weddingService = {
         deposit_amount: patch.deposit_amount,
         currency: patch.currency,
         accent_color: patch.accent_color,
+        package_items_snapshot: patch.package_items_snapshot ?? [],
+        coverage_hours: patch.coverage_hours ?? null,
+        coverage_end_time: patch.coverage_end_time ?? null,
+        overtime_rate: patch.overtime_rate ?? null,
+        delivery_months: patch.delivery_months ?? null,
+        delivery_days: patch.delivery_days ?? null,
+        final_payment_due_date: patch.final_payment_due_date ?? null,
       })
       .eq('id', wedding.id)
       .eq('user_id', userId)
@@ -297,6 +335,13 @@ export const weddingService = {
       ceremonyLocation: wedding.ceremonyLocation,
       receptionLocation: wedding.receptionLocation,
       preparationLocation: wedding.preparationLocation,
+      coverageHours: mapped.coverageHours ?? wedding.coverageHours,
+      coverageEndTime: mapped.coverageEndTime ?? wedding.coverageEndTime,
+      overtimeRate: mapped.overtimeRate ?? wedding.overtimeRate,
+      deliveryMonths: mapped.deliveryMonths ?? wedding.deliveryMonths,
+      deliveryDays: mapped.deliveryDays ?? wedding.deliveryDays,
+      finalPaymentDueDate:
+        mapped.finalPaymentDueDate ?? wedding.finalPaymentDueDate,
       ceremonyTime: mapped.ceremonyTime ?? wedding.ceremonyTime,
       status: mapped.status,
     }

@@ -26,6 +26,7 @@ export interface TemplatePickerDiagnosis {
   unresolvedSlotCount: number
   boundSlotCount: number
   requiredSlotCount: number
+  detectedSlotCount: number
   hasSource: boolean
 }
 
@@ -37,15 +38,40 @@ export interface TemplatePickerClassification {
   diagnoses: TemplatePickerDiagnosis[]
 }
 
-function unresolvedCount(template: DocumentTemplateSummary): number {
+function unresolvedRequiredCount(template: DocumentTemplateSummary): number {
+  const fromCounters = template.meta?.slotCounters?.unresolvedRequiredSlotCount
+  if (typeof fromCounters === 'number') return fromCounters
   const fromMeta = template.meta?.unresolvedSlotKeys?.length
   if (typeof fromMeta === 'number') return fromMeta
   return 0
 }
 
+function requiredSlotCount(template: DocumentTemplateSummary): number {
+  const fromCounters = template.meta?.slotCounters?.requiredSlotCount
+  if (typeof fromCounters === 'number') return fromCounters
+  return (
+    (template.meta?.slotCounters?.boundRequiredSlotCount ?? 0) +
+    unresolvedRequiredCount(template)
+  )
+}
+
+function detectedSlotCount(template: DocumentTemplateSummary): number {
+  const fromCounters = template.meta?.slotCounters?.detectedSlotCount
+  if (typeof fromCounters === 'number') return fromCounters
+  return template.variableCount
+}
+
 function boundCount(template: DocumentTemplateSummary): number {
+  if (typeof template.safeBindingCount === 'number' && template.safeBindingCount > 0) {
+    return template.safeBindingCount
+  }
   const meta = template.meta
   if (!meta) return 0
+  if (typeof meta.safeBindingCount === 'number' && meta.safeBindingCount > 0) {
+    return meta.safeBindingCount
+  }
+  const fromCounters = meta.slotCounters?.safeBindingsCount
+  if (typeof fromCounters === 'number' && fromCounters > 0) return fromCounters
   const rows = [
     ...(meta.coupleVariables ?? []),
     ...(meta.studioVariables ?? []),
@@ -53,14 +79,15 @@ function boundCount(template: DocumentTemplateSummary): number {
   ]
   const bound = rows.filter((r) => r.physicallyBound === true).length
   if (bound > 0) return bound
-  return template.variableCount
+  return meta.slotCounters?.boundRequiredSlotCount ?? 0
 }
 
 function diagnose(template: DocumentTemplateSummary): TemplatePickerDiagnosis {
   const hasSource = Boolean(template.sourceDocxPath)
-  const unresolvedSlotCount = unresolvedCount(template)
+  const unresolvedSlotCount = unresolvedRequiredCount(template)
   const boundSlotCount = boundCount(template)
-  const requiredSlotCount = boundSlotCount + unresolvedSlotCount
+  const required = requiredSlotCount(template)
+  const detected = detectedSlotCount(template)
   const bindingsReady = template.meta?.slotBindingsReady
 
   const logBase = {
@@ -72,9 +99,10 @@ function diagnose(template: DocumentTemplateSummary): TemplatePickerDiagnosis {
     organizationId: null,
     packageType: template.category,
     sourceFileType: template.sourceFileName?.split('.').pop() ?? null,
-    requiredSlots: requiredSlotCount,
+    detectedSlotCount: detected,
+    requiredSlotCount: required,
     boundSlots: boundSlotCount,
-    unresolvedSlots: unresolvedSlotCount,
+    unresolvedRequiredSlots: unresolvedSlotCount,
     createdAt: template.createdAt,
     docType: template.docType,
     variableCount: template.variableCount,
@@ -106,9 +134,17 @@ function diagnose(template: DocumentTemplateSummary): TemplatePickerDiagnosis {
       reason,
       unresolvedSlotCount,
       boundSlotCount,
-      requiredSlotCount,
+      requiredSlotCount: required,
+      detectedSlotCount: detected,
       hasSource,
     }
+  }
+
+  if (template.summaryStale) {
+    return finish(
+      'incomplete',
+      'Persisted analysis summary is stale — requires explicit reanalysis (Wymaga ponownej analizy)',
+    )
   }
 
   if (template.status === 'archived') {
@@ -136,17 +172,26 @@ function diagnose(template: DocumentTemplateSummary): TemplatePickerDiagnosis {
     )
   }
 
+  if (template.status === 'needs_review') {
+    return finish(
+      'incomplete',
+      template.meta?.analysisWarnings?.[0] ??
+        'status is "needs_review" — party identity or analysis completeness requires review',
+    )
+  }
+
   if (template.status === 'incomplete') {
     return finish(
       'incomplete',
       unresolvedSlotCount > 0
-        ? `status is "incomplete" (${unresolvedSlotCount} unbound required slots)`
+        ? `status is "incomplete" because ${unresolvedSlotCount} required detected slot${
+            unresolvedSlotCount === 1 ? ' is' : 's are'
+          } unbound`
         : 'status is "incomplete"',
     )
   }
 
   if (template.status === 'draft') {
-    // Analyzed draft with ready bindings (e.g. incomplete status rejected by DB)
     if (bindingsReady === true && boundSlotCount > 0) {
       return finish(
         'selectable',
@@ -157,7 +202,7 @@ function diagnose(template: DocumentTemplateSummary): TemplatePickerDiagnosis {
       return finish(
         'incomplete',
         bindingsReady === false
-          ? `status is "draft" after analysis; slotBindingsReady=false (${unresolvedSlotCount} unresolved)`
+          ? `status is "draft" after analysis; ${unresolvedSlotCount} required detected slots unbound`
           : 'status is "draft" after analysis — not marked ready',
       )
     }
@@ -171,24 +216,25 @@ function diagnose(template: DocumentTemplateSummary): TemplatePickerDiagnosis {
     )
   }
 
-  // status === ready
   if (bindingsReady === false) {
     return finish(
       'incomplete',
-      'status is "ready" but meta.slotBindingsReady is false',
+      unresolvedSlotCount > 0
+        ? `status is "ready" but ${unresolvedSlotCount} required detected slots are unbound`
+        : 'status is "ready" but meta.slotBindingsReady is false',
     )
   }
 
-  if (boundSlotCount <= 0 && template.variableCount <= 0) {
+  if (boundSlotCount <= 0 && detected <= 0) {
     return finish(
       'incomplete',
-      'status is "ready" but no bound slots / variableCount is 0',
+      'status is "ready" but no bound slots / detected slots is 0',
     )
   }
 
   return finish(
     'selectable',
-    'status is "ready", source exists, bindings usable',
+    'status is "ready", source exists, required slots bound',
   )
 }
 
@@ -237,14 +283,12 @@ export function splitRecommended(
   const other: TemplatePickerDiagnosis[] = []
   for (const row of selectable) {
     const cat = row.template.category?.trim().toLowerCase() ?? ''
-    const name = row.template.name.toLowerCase()
-    if (cat && (needle.includes(cat) || cat.includes(needle) || name.includes(cat))) {
+    if (cat && (needle.includes(cat) || cat.includes(needle))) {
       recommended.push(row)
     } else {
       other.push(row)
     }
   }
-  // If nothing matched, do not invent a "recommended" section
   if (recommended.length === 0) {
     return { recommended: [], other: selectable }
   }

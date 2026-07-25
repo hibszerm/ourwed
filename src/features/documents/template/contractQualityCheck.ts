@@ -236,29 +236,51 @@ function spansFromPersistedSlots(input: {
     if (!oLoc) continue
     const value = lookupResolvedValue(input.resolved, slot.registryKey!)
     const rendered = renderSlotValue(slot, value, !value)
+    // Locate the generated span:
+    // - insert/composite: keep stored originalText (often empty/whitespace) so
+    //   anchors define the mid window (including spacing).
+    // - replace: originalText is gone after fill — locate the rendered value
+    //   (or the anchor mid). Never fall back to the whole paragraph.
     const gLoc = locateSlotInParagraph(input.generated, {
       ...slot,
-      // After render, mid is the rendered value — locate via anchors again
-      originalText: rendered,
+      originalText:
+        slot.operation === 'insert' || slot.operation === 'composite'
+          ? slot.originalText
+          : rendered || slot.originalText,
       startOffset: null,
       endOffset: null,
       allowedRange: null,
     })
-    // Fallback: same left/right anchors → mid in generated
     let gStart = gLoc?.start
     let gEnd = gLoc?.end
     if (gStart == null || gEnd == null) {
       const left = slot.leftAnchor ?? ''
       const right = slot.rightAnchor ?? ''
-      const li = left ? input.generated.indexOf(left) : 0
-      if (left && li < 0) continue
-      const leftEnd = left ? li + left.length : 0
-      const rightStart = right
-        ? input.generated.indexOf(right, leftEnd)
-        : input.generated.length
-      if (right && rightStart < 0) continue
-      gStart = leftEnd
-      gEnd = Math.max(leftEnd, rightStart)
+      if (left || right) {
+        const li = left ? input.generated.indexOf(left) : 0
+        if (left && li < 0) continue
+        const leftEnd = left ? li + left.length : 0
+        const rightStart = right
+          ? input.generated.indexOf(right, leftEnd)
+          : -1
+        if (right && rightStart < 0) continue
+        gStart = leftEnd
+        gEnd = right ? rightStart : leftEnd
+      } else if (rendered.trim()) {
+        // Unique rendered value — do not claim the whole paragraph.
+        const needle = rendered
+        const first = input.generated.indexOf(needle)
+        if (first < 0) continue
+        const second = input.generated.indexOf(
+          needle,
+          first + Math.max(1, needle.length),
+        )
+        if (second >= 0) continue
+        gStart = first
+        gEnd = first + needle.length
+      } else {
+        continue
+      }
     }
 
     bound.push({

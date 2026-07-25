@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate, useParams } from 'react-router-dom'
+import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { ProtectedRoute } from '@/features/auth/ProtectedRoute'
 import { DashboardPage } from '@/pages/DashboardPage'
 import { DashboardV2Page } from '@/pages/DashboardV2Page'
@@ -20,6 +20,7 @@ import { DocumentTemplatesPage } from '@/pages/DocumentTemplatesPage'
 import { DocumentTemplateNewPage } from '@/pages/DocumentTemplateNewPage'
 import { DocumentTemplateDetailPage } from '@/pages/DocumentTemplateDetailPage'
 import { DocumentTemplateMappingPage } from '@/pages/DocumentTemplateMappingPage'
+import { DocumentTemplateConfigPage } from '@/pages/DocumentTemplateConfigPage'
 import { PublicFormTokenPage } from '@/pages/PublicFormTokenPage'
 import { LandingPage } from '@/pages/LandingPage'
 import { LoginPage } from '@/pages/LoginPage'
@@ -42,12 +43,6 @@ const devRoutes = import.meta.env.DEV
     ]
   : []
 
-function RedirectTemplateAnaliza() {
-  const { id } = useParams<{ id: string }>()
-  return (
-    <Navigate to={`/ustawienia/dokumenty/szablony/${id}/analiza`} replace />
-  )
-}
 export const router = createBrowserRouter([
   { path: '/', element: <LandingPage /> },
   { path: '/login', element: <LoginPage /> },
@@ -112,7 +107,7 @@ export const router = createBrowserRouter([
       },
       {
         path: '/ustawienia/dokumenty/szablony/:id/konfiguracja',
-        element: <RedirectTemplateAnaliza />,
+        element: <DocumentTemplateConfigPage />,
       },
       ...devRoutes,
     ],

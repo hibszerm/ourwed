@@ -113,7 +113,13 @@ export async function mergeFormAnswersIntoWedding(
   const preparationLocation = fieldString(fields, 'preparationLocation')
   const packageId = asCatalogPackageId(fieldString(fields, 'packageId'))
 
-  const pkg = packageId ? await packageService.get(packageId) : null
+  // Prefer existing wedding commercial snapshot. Catalog is only used to fill
+  // packageId/name when the wedding has no package yet — never overwrite price,
+  // agreedDeposit, currency, accentColor, or packageItems from live catalog.
+  const pkg =
+    packageId && !wedding.packageId
+      ? await packageService.get(packageId)
+      : null
 
   const couple: Couple = {
     ...wedding.couple,
@@ -158,19 +164,24 @@ export async function mergeFormAnswersIntoWedding(
           },
         }
 
-  const nextPackageName = preferForm(pkg?.name ?? '', wedding.packageName)
-  const nextPrice = pkg ? pkg.price : wedding.price
+  const nextPackageId =
+    asCatalogPackageId(wedding.packageId) ?? pkg?.id ?? packageId ?? null
+  const nextPackageName = wedding.packageName?.trim()
+    ? wedding.packageName
+    : preferForm(pkg?.name ?? '', wedding.packageName)
 
   return {
     ...wedding,
     couple,
     date: preferForm(weddingDate, wedding.date),
-    packageId: pkg?.id ?? asCatalogPackageId(wedding.packageId) ?? null,
+    packageId: nextPackageId,
     packageName: nextPackageName,
-    price: nextPrice,
-    depositAmount: pkg?.depositAmount ?? wedding.depositAmount,
-    currency: pkg?.currency ?? wedding.currency,
-    accentColor: pkg?.color ?? wedding.accentColor,
+    // Commercial snapshot stays authoritative
+    price: wedding.price,
+    depositAmount: wedding.depositAmount,
+    currency: wedding.currency,
+    accentColor: wedding.accentColor,
+    packageItems: wedding.packageItems ?? [],
     ceremonyLocation:
       preferForm(ceremonyLocation, wedding.ceremonyLocation) || undefined,
     receptionLocation:

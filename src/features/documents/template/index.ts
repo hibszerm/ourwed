@@ -22,8 +22,61 @@ export {
   locateSlotInParagraph,
 } from './slotRenderer'
 export { applyBoundSlotsToParagraphs } from './applyBoundSlots'
-export { validateTemplateSlotBindings } from './templateReadiness'
+export {
+  validateTemplateSlotBindings,
+  finalizeSlotMapClassification,
+  stripNonDetectedSlots,
+  computeSlotCounters,
+} from './templateReadiness'
 export type { TemplateReadinessReport } from './templateReadiness'
+export {
+  canonicalRegistryKey,
+  dedupeSlotsByCanonicalKey,
+  classifySlotDetection,
+  defaultRequirementForKey,
+} from './slotClassification'
+export type {
+  TemplateSlotRequirement,
+  TemplateSlotDetectionStatus,
+  TemplateSlotCounters,
+} from './types'
+export {
+  canonicalizeParagraphText,
+  extractCanonicalParagraphText,
+  buildParagraphRunModel,
+} from './canonicalParagraph'
+export type { ParagraphRunModel, ParagraphCharMapEntry } from './canonicalParagraph'
+export { debugSlotLocation } from './slotRenderer'
+export type { SlotLocation } from './slotRenderer'
+export {
+  detectContractCandidates,
+  candidatesToTemplateSlots,
+  hasVisiblePartyIdentityWithoutSlot,
+  summarizeDetection,
+} from './candidateDetection'
+export type {
+  ContractCandidate,
+  CandidateEvidenceType,
+} from './candidateDetection'
+export {
+  MONEY_PAIR_CONCEPTS,
+  analyzeMoneyPairs,
+  assertSafeMoneyPairsForGeneration,
+  detectMoneyPairsInText,
+} from './contractMoneyPairs'
+export type { MoneyPairReport, MoneyPairConcept } from './contractMoneyPairs'
+export {
+  resolveContractExecutionValues,
+  localCalendarIsoDate,
+  assertCompanyCityLocativeForSlots,
+  isSystemAutoResolvedContractKey,
+  SYSTEM_AUTO_RESOLVED_CONTRACT_KEYS,
+} from './contractExecutionContext'
+export type { ContractExecutionSnapshot } from './contractExecutionContext'
+export {
+  updateTemplateSlotConfig,
+  slotsNeedingConfiguration,
+} from './updateTemplateSlotConfig'
 export {
   classifyTemplatesForGeneration,
   splitRecommended,

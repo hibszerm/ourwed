@@ -10,6 +10,12 @@ import { SystemVariableRegistry } from '@/lib/variables/registry'
 import type { PackageSnapshot } from '@/types/documents'
 import type { Wedding } from '@/types/wedding'
 import { lookupResolvedValue } from './lookupResolvedValue'
+import { buildContractCommercialResolved, logContractReferenceValues } from '@/lib/utils/contractCommercialVariables'
+import {
+  isSystemAutoResolvedContractKey,
+  resolveContractExecutionValues,
+  type ContractExecutionSnapshot,
+} from './contractExecutionContext'
 
 export { lookupResolvedValue } from './lookupResolvedValue'
 
@@ -124,30 +130,11 @@ export function weddingValuesFromWedding(
   if (c.city?.trim()) out['wedding_city'] = c.city.trim()
   if (c.venue?.trim()) out['venue'] = c.venue.trim()
 
-  // Money commonly referenced as wedding/package vars
-  if (Number.isFinite(wedding.price) && wedding.price > 0) {
-    emitWedding(out, 'package_price', String(wedding.price))
-    out['contract_price'] = String(wedding.price)
-    out['price'] = String(wedding.price)
-  }
-  if (
-    wedding.depositAmount != null &&
-    Number.isFinite(wedding.depositAmount) &&
-    wedding.depositAmount > 0
-  ) {
-    emitWedding(out, 'deposit_amount', String(wedding.depositAmount))
-    out['deposit'] = String(wedding.depositAmount)
-  }
-  const remaining = Math.max(
-    0,
-    (wedding.price ?? 0) - (wedding.depositAmount ?? 0),
-  )
-  if (remaining > 0) {
-    emitWedding(out, 'remaining_payment', String(remaining))
-  }
-
-  if (wedding.packageName?.trim()) {
-    emitWedding(out, 'package_name', wedding.packageName.trim())
+  // Contract commercial variables (formatted PLN, words, package items text)
+  const commercialResolved = buildContractCommercialResolved(wedding)
+  logContractReferenceValues(wedding, commercialResolved)
+  for (const [key, value] of Object.entries(commercialResolved.values)) {
+    emitWedding(out, key, value)
   }
 
   // Planner from contacts (when present on the wedding view model)
@@ -173,19 +160,21 @@ export function weddingValuesFromWedding(
 export function packageSnapshotFromWedding(
   wedding: Wedding,
 ): PackageSnapshot & Record<string, unknown> {
-  const deposit = wedding.depositAmount ?? 0
-  const price = wedding.price ?? 0
+  const commercialResolved = buildContractCommercialResolved(wedding)
   return {
     packageId: wedding.packageId ?? null,
     name: wedding.packageName ?? '',
     currency: wedding.currency || 'PLN',
-    items: [],
-    price,
-    totalPrice: price,
-    deposit,
-    depositAmount: deposit,
-    remaining: Math.max(0, price - deposit),
-    remainingPayment: Math.max(0, price - deposit),
+    items: (wedding.packageItems ?? []).map((item, index) => ({
+      key: item.sourceItemId ?? `item-${index}`,
+      name: item.title,
+      description: item.description ?? null,
+      unitPrice: 0,
+      enabled: true,
+      sortOrder: item.sortOrder,
+      sourceItemId: item.sourceItemId ?? null,
+    })),
+    ...commercialResolved.snapshotExtras,
   }
 }
 
@@ -268,12 +257,21 @@ export async function resolveContractVariables(input: {
   wedding: Wedding
   overrides?: Record<string, string>
   questionnaireAnswers?: Record<string, string>
+  /**
+   * Stable instant for this generation attempt (created once in the UI flow).
+   * All execution-date formatting derives from this — not from scattered new Date().
+   */
+  generationStartedAt?: Date | string | null
+  /** Frozen execution values from a saved document version. */
+  executionSnapshot?: Partial<ContractExecutionSnapshot> | null
 }): Promise<{
   resolved: Record<string, string>
   packageSnapshot: PackageSnapshot
   questionnaireAnswers: Record<string, string>
   weddingValues: Record<string, string>
   lookup: (registryKey: string) => ResolvedVariableMeta
+  generationStartedAt: Date
+  executionSnapshot: ContractExecutionSnapshot | null
 }> {
   const weddingValues = weddingValuesFromWedding(input.wedding)
   const packageSnapshot = packageSnapshotFromWedding(input.wedding)
@@ -316,6 +314,20 @@ export async function resolveContractVariables(input: {
     )
   }
 
+  // System execution date/city — available to completeness AND transform
+  const companyCity =
+    resolved.company_city?.trim() ||
+    input.overrides?.company_city?.trim() ||
+    null
+  const execution = resolveContractExecutionValues({
+    generationDate: input.generationStartedAt,
+    companyCity,
+    snapshot: input.executionSnapshot,
+  })
+  for (const [key, value] of Object.entries(execution.values)) {
+    if (value.trim()) resolved[key] = value.trim()
+  }
+
   // Source layers (earlier = lower priority for attribution of final value)
   const layers: Array<{ source: VariableDataSource; bag: Record<string, string> }> =
     [
@@ -323,6 +335,7 @@ export async function resolveContractVariables(input: {
       { source: 'wedding', bag: weddingValues },
       { source: 'package', bag: {} },
       { source: 'company', bag: {} },
+      { source: 'system', bag: execution.values },
     ]
 
   // Re-resolve per provider for attribution
@@ -351,11 +364,29 @@ export async function resolveContractVariables(input: {
 
     const value = lookupResolvedValue(resolved, registryKey)
     if (!value) {
+      // System auto keys are never "manual missing" — technical failure later
+      if (isSystemAutoResolvedContractKey(registryKey)) {
+        return {
+          registryKey,
+          value: '',
+          source: 'system',
+          missing: false,
+        }
+      }
       return {
         registryKey,
         value: '',
         source: 'missing',
         missing: true,
+      }
+    }
+
+    if (isSystemAutoResolvedContractKey(registryKey)) {
+      return {
+        registryKey,
+        value,
+        source: 'system',
+        missing: false,
       }
     }
 
@@ -377,5 +408,7 @@ export async function resolveContractVariables(input: {
     questionnaireAnswers,
     weddingValues,
     lookup,
+    generationStartedAt: execution.generationStartedAt,
+    executionSnapshot: execution.snapshot,
   }
 }

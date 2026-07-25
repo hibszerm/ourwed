@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase'
-import { asCatalogPackageId, throwOnError } from '@/lib/supabase/helpers'
+import { asCatalogPackageId, throwOnError, toNumber } from '@/lib/supabase/helpers'
 import type { PackageItem } from '@/types/package'
 
 interface PackageItemRow {
@@ -9,6 +9,10 @@ interface PackageItemRow {
   description: string | null
   sort_order: number
   created_at: string
+  is_enabled?: boolean | null
+  quantity?: number | string | null
+  unit?: string | null
+  item_category?: string | null
 }
 
 function mapItem(row: PackageItemRow): PackageItem {
@@ -18,6 +22,13 @@ function mapItem(row: PackageItemRow): PackageItem {
     title: row.title,
     description: row.description,
     sortOrder: row.sort_order,
+    enabled: row.is_enabled !== false,
+    quantity:
+      row.quantity == null || row.quantity === ''
+        ? null
+        : toNumber(row.quantity, 0),
+    unit: row.unit?.trim() || null,
+    category: row.item_category?.trim() || null,
     createdAt: row.created_at,
   }
 }
@@ -26,11 +37,19 @@ export interface CreatePackageItemInput {
   packageId: string
   title: string
   description?: string | null
+  enabled?: boolean
+  quantity?: number | null
+  unit?: string | null
+  category?: string | null
 }
 
 export interface UpdatePackageItemInput {
   title?: string
   description?: string | null
+  enabled?: boolean
+  quantity?: number | null
+  unit?: string | null
+  category?: string | null
 }
 
 export const packageItemService = {
@@ -98,6 +117,10 @@ export const packageItemService = {
         title: input.title.trim(),
         description: input.description?.trim() || null,
         sort_order: sortOrder,
+        is_enabled: input.enabled !== false,
+        quantity: input.quantity ?? null,
+        unit: input.unit?.trim() || null,
+        item_category: input.category?.trim() || null,
       })
       .select('*')
       .single()
@@ -111,6 +134,12 @@ export const packageItemService = {
     if (input.title !== undefined) patch.title = input.title.trim()
     if (input.description !== undefined) {
       patch.description = input.description?.trim() || null
+    }
+    if (input.enabled !== undefined) patch.is_enabled = input.enabled
+    if (input.quantity !== undefined) patch.quantity = input.quantity
+    if (input.unit !== undefined) patch.unit = input.unit?.trim() || null
+    if (input.category !== undefined) {
+      patch.item_category = input.category?.trim() || null
     }
 
     const { data, error } = await supabase

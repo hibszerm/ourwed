@@ -16,16 +16,24 @@ interface ModalProps {
   primaryAction?: ReactNode
   /** Footer cancel / secondary (left). Defaults to Anuluj. */
   cancelLabel?: string
+  /** Override cancel button handler (defaults to onClose). */
+  onCancel?: () => void
   /** Hide the default footer (cancel + primary). */
   hideFooter?: boolean
   /** Optional header close button. */
   showClose?: boolean
   /** Disable close + cancel while saving. */
   busy?: boolean
-  /** Wider content for richer forms. */
-  size?: 'md' | 'lg' | 'auth'
+  /** Wider content for richer forms. `document` = large contract preview shell. */
+  size?: 'md' | 'lg' | 'auth' | 'document'
   /** Mobile presentation: bottom sheet (default) or centered. */
   mobilePresentation?: 'sheet' | 'center'
+  /** Extra footer actions between cancel and primary (e.g. secondary save). */
+  secondaryAction?: ReactNode
+  /** Optional status chip under the title. */
+  statusBadge?: ReactNode
+  /** Optional actions in the header (right of title, left of close). */
+  headerActions?: ReactNode
 }
 
 /**
@@ -40,15 +48,20 @@ export function Modal({
   children,
   primaryAction,
   cancelLabel = 'Anuluj',
+  onCancel,
   hideFooter = false,
   showClose = false,
   busy = false,
   size = 'md',
   mobilePresentation = 'sheet',
+  secondaryAction,
+  statusBadge,
+  headerActions,
 }: ModalProps) {
   const titleId = useId()
   const descId = useId()
   const panelRef = useRef<HTMLDivElement>(null)
+  const isDocument = size === 'document'
 
   useOverlay({ open, onClose, busy, panelRef })
 
@@ -57,7 +70,7 @@ export function Modal({
   return (
     <ModalPortal>
       <div
-        className={`${styles.root} ${mobilePresentation === 'center' ? styles.centerMobile : ''}`.trim()}
+        className={`${styles.root} ${mobilePresentation === 'center' || isDocument ? styles.centerMobile : ''} ${isDocument ? styles.documentRoot : ''}`.trim()}
         role="presentation"
       >
         <Backdrop
@@ -75,43 +88,58 @@ export function Modal({
           aria-describedby={description ? descId : undefined}
         >
           <div className={styles.handle} aria-hidden />
-          <header className={styles.header}>
+          <header className={`${styles.header} ${isDocument ? styles.documentHeader : ''}`.trim()}>
             <div className={styles.headerText}>
-              <h2 id={titleId} className={styles.title}>
-                {title}
-              </h2>
+              <div className={styles.titleRow}>
+                <h2 id={titleId} className={styles.title}>
+                  {title}
+                </h2>
+                {statusBadge}
+              </div>
               {description ? (
                 <p id={descId} className={styles.description}>
                   {description}
                 </p>
               ) : null}
             </div>
-            {showClose ? (
-              <button
-                type="button"
-                className={styles.close}
-                aria-label="Zamknij"
-                disabled={busy}
-                onClick={onClose}
-              >
-                <IconClose width={18} height={18} />
-              </button>
-            ) : null}
+            <div className={styles.headerAside}>
+              {headerActions}
+              {showClose ? (
+                <button
+                  type="button"
+                  className={styles.close}
+                  aria-label="Zamknij"
+                  disabled={busy}
+                  onClick={onClose}
+                >
+                  <IconClose width={18} height={18} />
+                </button>
+              ) : null}
+            </div>
           </header>
 
-          <div className={styles.body}>{children}</div>
+          <div
+            className={`${styles.body} ${isDocument ? styles.documentBody : ''}`.trim()}
+          >
+            {children}
+          </div>
 
           {!hideFooter ? (
-            <footer className={styles.footer}>
+            <footer
+              className={`${styles.footer} ${isDocument ? styles.documentFooter : ''}`.trim()}
+            >
               <Button
                 type="button"
                 variant="ghost"
-                onClick={onClose}
+                onClick={onCancel ?? onClose}
                 disabled={busy}
               >
                 {cancelLabel}
               </Button>
-              <div className={styles.primary}>{primaryAction}</div>
+              <div className={styles.primary}>
+                {secondaryAction}
+                {primaryAction}
+              </div>
             </footer>
           ) : null}
         </div>

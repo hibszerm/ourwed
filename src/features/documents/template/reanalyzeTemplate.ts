@@ -60,6 +60,7 @@ export async function reanalyzeTemplate(input: {
     ai,
     plainText: structure.plainText,
     paragraphs,
+    sourceKind: kind === 'pdf' ? 'pdf' : 'docx',
   })
   slotMap.documentTitle = template.name
 
@@ -72,11 +73,14 @@ export async function reanalyzeTemplate(input: {
     documentTitle: template.name,
   })
 
-  const readiness = validateTemplateSlotBindings(saved.slotMap)
+  const readiness = validateTemplateSlotBindings(saved.slotMap, {
+    paragraphs: kind === 'docx' ? paragraphs : undefined,
+    sourceKind: kind === 'pdf' ? 'pdf' : 'docx',
+  })
   return {
     slotMap: saved.slotMap,
-    readinessReady: readiness.ready,
+    readinessReady: readiness.ready && kind !== 'pdf',
     unresolvedKeys: readiness.unresolvedKeys,
-    templateStatus: readiness.ready ? 'ready' : 'incomplete',
+    templateStatus: readiness.ready && kind !== 'pdf' ? 'ready' : 'incomplete',
   }
 }

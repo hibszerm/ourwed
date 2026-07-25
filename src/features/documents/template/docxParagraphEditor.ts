@@ -1,57 +1,18 @@
 /**
  * Light DOCX paragraph editor: extract / replace text in word/document.xml
  * while preserving runs, styles, headers, footers, tables, images.
+ *
+ * Paragraph text / offsets always use the shared canonical model.
  */
 
 import JSZip from 'jszip'
 import { cloneArrayBuffer } from '@/features/documents/mapping/extraction/sourceKind'
-
-function escapeXml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-}
-
-function unescapeXml(text: string): string {
-  return text
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'")
-    .replace(/&amp;/g, '&')
-}
-
-/** Extract visible text from a paragraph node (concatenated w:t). */
-function paragraphPlainText(paragraphXml: string): string {
-  const parts: string[] = []
-  const re = /<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/g
-  let m: RegExpExecArray | null
-  while ((m = re.exec(paragraphXml))) {
-    parts.push(unescapeXml(m[1] ?? ''))
-  }
-  return parts.join('')
-}
-
-/**
- * Replace all text in a paragraph with a single run, keeping the first run's rPr if present.
- */
-function replaceParagraphText(paragraphXml: string, nextText: string): string {
-  const firstRunMatch = paragraphXml.match(/<w:r\b[\s\S]*?<\/w:r>/)
-  let rPr = ''
-  if (firstRunMatch) {
-    const pr = firstRunMatch[0].match(/<w:rPr\b[\s\S]*?<\/w:rPr>/)
-    if (pr) rPr = pr[0]
-  }
-
-  const pPrMatch = paragraphXml.match(/<w:pPr\b[\s\S]*?<\/w:pPr>/)
-  const pPr = pPrMatch ? pPrMatch[0] : ''
-
-  const escaped = escapeXml(nextText)
-  const run = `<w:r>${rPr}<w:t xml:space="preserve">${escaped}</w:t></w:r>`
-  return `<w:p>${pPr}${run}</w:p>`
-}
+import {
+  buildParagraphRunModel,
+  canonicalizeParagraphText,
+  escapeXml,
+  extractCanonicalParagraphText,
+} from './canonicalParagraph'
 
 export interface DocxParagraph {
   index: number
@@ -70,7 +31,7 @@ export async function extractDocxParagraphs(
   let m: RegExpExecArray | null
   let index = 0
   while ((m = re.exec(xml))) {
-    const text = paragraphPlainText(m[0])
+    const text = extractCanonicalParagraphText(m[0]!)
     if (text.trim()) {
       paragraphs.push({ index, text })
     }
@@ -79,15 +40,191 @@ export async function extractDocxParagraphs(
   return paragraphs
 }
 
+function rebuildParagraphText(
+  canonicalText: string,
+  start: number,
+  end: number,
+  replacement: string,
+): {
+  beforeText: string
+  slotText: string
+  afterText: string
+  rebuiltParagraph: string
+} {
+  const safeStart = Math.max(0, Math.min(start, canonicalText.length))
+  const safeEnd = Math.max(safeStart, Math.min(end, canonicalText.length))
+  const beforeText = canonicalText.slice(0, safeStart)
+  const slotText = canonicalText.slice(safeStart, safeEnd)
+  const afterText = canonicalText.slice(safeEnd)
+  const rebuiltParagraph = beforeText + replacement + afterText
+  console.info('[contract-paragraph-rebuild]', {
+    beforeText,
+    slotText,
+    afterText,
+    rebuiltParagraph,
+    start,
+    end,
+    safeStart,
+    safeEnd,
+    replacement,
+  })
+  return { beforeText, slotText, afterText, rebuiltParagraph }
+}
+
+/**
+ * Replace a canonical character span inside a paragraph XML, preserving
+ * unaffected runs and the formatting of the first overlapped run.
+ */
+export function replaceCanonicalSpanInParagraphXml(
+  paragraphXml: string,
+  start: number,
+  end: number,
+  replacement: string,
+): string {
+  const model = buildParagraphRunModel(paragraphXml)
+  const { rebuiltParagraph } = rebuildParagraphText(
+    model.canonicalText,
+    start,
+    end,
+    replacement,
+  )
+
+  // Out-of-range spans: always rebuild full paragraph from before+repl+after.
+  // Never write only `replacement` as the paragraph body.
+  if (start < 0 || end < start || end > model.canonicalText.length) {
+    return replaceParagraphTextWhole(paragraphXml, rebuiltParagraph)
+  }
+
+  // Identify overlapped runs via charMap
+  const overlapped = new Set<number>()
+  for (let i = start; i < end; i++) {
+    const entry = model.charMap[i]
+    if (entry) overlapped.add(entry.runIndex)
+  }
+
+  if (overlapped.size === 0) {
+    return replaceParagraphTextWhole(paragraphXml, rebuiltParagraph)
+  }
+
+  // Prefer whole-paragraph rewrite when charMap collapsed to synthetic run,
+  // or when many runs are affected — still preserves pPr + first rPr.
+  if (
+    model.charMap.length > 0 &&
+    model.charMap.every((c) => c.runIndex === 0) &&
+    model.runs.length > 1
+  ) {
+    return replaceParagraphTextWhole(paragraphXml, rebuiltParagraph)
+  }
+
+  // Multi-run precise replace: clear overlapped runs, put replacement in first.
+  const runRe = /<w:r\b[\s\S]*?<\/w:r>/g
+  const runXmls: string[] = []
+  let rm: RegExpExecArray | null
+  while ((rm = runRe.exec(paragraphXml))) {
+    runXmls.push(rm[0]!)
+  }
+
+  const firstOverlapped = Math.min(...overlapped)
+  const lastOverlapped = Math.max(...overlapped)
+
+  // Span crosses runs — rewrite whole paragraph text into one run.
+  if (lastOverlapped !== firstOverlapped) {
+    return replaceParagraphTextWhole(paragraphXml, rebuiltParagraph)
+  }
+
+  // Span is inside a single run — rewrite only that run's text, keep siblings.
+  const runIdx = firstOverlapped
+  const runCanonical = model.runs[runIdx]?.canonicalText ?? ''
+  const entryStart = model.charMap[start]
+  const entryEnd = model.charMap[Math.max(start, end - 1)]
+  if (!entryStart || !entryEnd || entryStart.runIndex !== runIdx) {
+    return replaceParagraphTextWhole(paragraphXml, rebuiltParagraph)
+  }
+
+  const localStart = entryStart.localOffset
+  const localEnd = entryEnd.localOffset + (end > start ? 1 : 0)
+  const nextRunText =
+    runCanonical.slice(0, localStart) +
+    replacement +
+    runCanonical.slice(localEnd)
+
+  // Guard: single-run rewrite must equal full before+repl+after when this
+  // run is the only text-bearing run; otherwise verify via siblings.
+  const nextRuns = runXmls.map((rx, i) => {
+    if (i !== runIdx) return rx
+    return replaceRunText(rx, nextRunText)
+  })
+
+  const pPrMatch = paragraphXml.match(/<w:pPr\b[\s\S]*?<\/w:pPr>/)
+  const pPr = pPrMatch ? pPrMatch[0] : ''
+  const nextXml = `<w:p>${pPr}${nextRuns.join('')}</w:p>`
+
+  const actual = extractCanonicalParagraphText(nextXml)
+  if (actual !== rebuiltParagraph) {
+    console.warn(
+      '[contract-paragraph-rebuild] single-run rewrite mismatch — falling back to whole paragraph',
+      { expected: rebuiltParagraph, actual },
+    )
+    return replaceParagraphTextWhole(paragraphXml, rebuiltParagraph)
+  }
+  return nextXml
+}
+
+function replaceRunText(runXml: string, nextText: string): string {
+  const rPrMatch = runXml.match(/<w:rPr\b[\s\S]*?<\/w:rPr>/)
+  const rPr = rPrMatch ? rPrMatch[0] : ''
+  const escaped = escapeXml(nextText)
+  return `<w:r>${rPr}<w:t xml:space="preserve">${escaped}</w:t></w:r>`
+}
+
+/**
+ * Replace all text in a paragraph with a single run, keeping the first run's rPr.
+ */
+function replaceParagraphTextWhole(
+  paragraphXml: string,
+  nextText: string,
+): string {
+  const firstRunMatch = paragraphXml.match(/<w:r\b[\s\S]*?<\/w:r>/)
+  let rPr = ''
+  if (firstRunMatch) {
+    const pr = firstRunMatch[0].match(/<w:rPr\b[\s\S]*?<\/w:rPr>/)
+    if (pr) rPr = pr[0]
+  }
+
+  const pPrMatch = paragraphXml.match(/<w:pPr\b[\s\S]*?<\/w:pPr>/)
+  const pPr = pPrMatch ? pPrMatch[0] : ''
+
+  const escaped = escapeXml(nextText)
+  const run = `<w:r>${rPr}<w:t xml:space="preserve">${escaped}</w:t></w:r>`
+  return `<w:p>${pPr}${run}</w:p>`
+}
+
+export type DocxParagraphEdit = {
+  index: number
+  text: string
+  /** Optional: replace only this canonical span instead of whole paragraph. */
+  span?: { start: number; end: number; replacement: string }
+}
+
 /**
  * Apply edited paragraph texts (by original index) back into the DOCX.
  * Unmentioned paragraphs are left unchanged.
+ *
+ * When optional spanEdits are provided, only those character ranges are
+ * rewritten (multi-run aware). Multiple spans on the same paragraph are
+ * applied right-to-left so earlier offsets stay valid.
+ * Otherwise the whole paragraph text is replaced.
  */
 export async function applyDocxParagraphEdits(
   bytes: ArrayBuffer,
-  edits: Array<{ index: number; text: string }>,
+  edits: DocxParagraphEdit[],
 ): Promise<ArrayBuffer> {
-  const byIndex = new Map(edits.map((e) => [e.index, e.text]))
+  const byIndex = new Map<number, DocxParagraphEdit[]>()
+  for (const e of edits) {
+    const list = byIndex.get(e.index) ?? []
+    list.push(e)
+    byIndex.set(e.index, list)
+  }
   if (byIndex.size === 0) return cloneArrayBuffer(bytes)
 
   const zip = await JSZip.loadAsync(cloneArrayBuffer(bytes))
@@ -99,8 +236,33 @@ export async function applyDocxParagraphEdits(
   const nextXml = xml.replace(/<w:p\b[\s\S]*?<\/w:p>/g, (paragraphXml) => {
     const currentIndex = index
     index += 1
-    if (!byIndex.has(currentIndex)) return paragraphXml
-    return replaceParagraphText(paragraphXml, byIndex.get(currentIndex)!)
+    const editList = byIndex.get(currentIndex)
+    if (!editList || editList.length === 0) return paragraphXml
+
+    const spanEdits = editList
+      .filter((e) => e.span)
+      .sort((a, b) => (b.span!.start) - (a.span!.start))
+
+    if (spanEdits.length > 0) {
+      let next = paragraphXml
+      for (const edit of spanEdits) {
+        const span = edit.span!
+        next = replaceCanonicalSpanInParagraphXml(
+          next,
+          span.start,
+          span.end,
+          span.replacement,
+        )
+      }
+      return next
+    }
+
+    // Whole-paragraph rewrite — last text wins if duplicates exist.
+    const last = editList[editList.length - 1]!
+    return replaceParagraphTextWhole(
+      paragraphXml,
+      canonicalizeParagraphText(last.text),
+    )
   })
 
   zip.file('word/document.xml', nextXml)

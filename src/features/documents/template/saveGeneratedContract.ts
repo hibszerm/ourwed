@@ -19,6 +19,13 @@ export interface SaveGeneratedContractInput {
   versionNumber: number
   title: string
   docxBytes: ArrayBuffer
+  /** When false, only DOCX is persisted (default true). */
+  includePdf?: boolean
+  /** Frozen execution date/city written into this DOCX version. */
+  executionSnapshot?: {
+    contractExecutionDate?: string
+    contractExecutionCity?: string
+  } | null
 }
 
 export interface SaveGeneratedContractResult {
@@ -71,7 +78,13 @@ export async function saveGeneratedContract(
       format: 'docx',
       filePath: docxPath,
       fileName: `${base}.docx`,
-      snapshotJson: { kind: 'contract_reproduction' },
+      snapshotJson: {
+        kind: 'contract_reproduction',
+        contractExecutionDate:
+          input.executionSnapshot?.contractExecutionDate ?? null,
+        contractExecutionCity:
+          input.executionSnapshot?.contractExecutionCity ?? null,
+      },
     })
     docxExportId = exported.id
   } catch {
@@ -82,62 +95,68 @@ export async function saveGeneratedContract(
   let pdfExportId: string | null = null
   let pdfDownloadUrl: string | null = null
 
-  try {
-    const paragraphs = await extractDocxParagraphs(input.docxBytes)
-    const html = paragraphsToPrintHtml(input.title, paragraphs)
-    pdfHtmlPath = documentStorage.paths.draftAsset(
-      userId,
-      input.weddingId,
-      input.draftId,
-      'contract-print.html',
-    )
-    const htmlBlob = new Blob([html], { type: 'text/html;charset=utf-8' })
+  if (input.includePdf !== false) {
     try {
-      await documentStorage.remove(pdfHtmlPath)
-    } catch {
-      /* first write */
-    }
-    await documentStorage.upload(pdfHtmlPath, htmlBlob, 'text/html')
+      const paragraphs = await extractDocxParagraphs(input.docxBytes)
+      const html = paragraphsToPrintHtml(input.title, paragraphs)
+      pdfHtmlPath = documentStorage.paths.draftAsset(
+        userId,
+        input.weddingId,
+        input.draftId,
+        'contract-print.html',
+      )
+      const htmlBlob = new Blob([html], { type: 'text/html;charset=utf-8' })
+      try {
+        await documentStorage.remove(pdfHtmlPath)
+      } catch {
+        /* first write */
+      }
+      await documentStorage.upload(pdfHtmlPath, htmlBlob, 'text/html')
 
-    const pdfPath = documentStorage.paths.exportFile(
-      userId,
-      input.weddingId,
-      input.draftId,
-      'pdf',
-    )
-    // Store print-ready HTML under the PDF export path for download + print-to-PDF.
-    try {
-      await documentStorage.remove(pdfPath)
-    } catch {
-      /* ok */
-    }
-    await documentStorage.upload(pdfPath, htmlBlob, 'text/html')
+      const pdfPath = documentStorage.paths.exportFile(
+        userId,
+        input.weddingId,
+        input.draftId,
+        'pdf',
+      )
+      // Store print-ready HTML under the PDF export path for download + print-to-PDF.
+      try {
+        await documentStorage.remove(pdfPath)
+      } catch {
+        /* ok */
+      }
+      await documentStorage.upload(pdfPath, htmlBlob, 'text/html')
 
-    try {
-      const exported = await documentExportService.recordExport({
-        weddingId: input.weddingId,
-        draftId: input.draftId,
-        templateId: input.templateId,
-        templateVersionId: input.templateVersionId,
-        versionNumber: input.versionNumber,
-        format: 'pdf',
-        filePath: pdfPath,
-        fileName: `${base}.pdf.html`,
-        snapshotJson: {
-          kind: 'contract_print_html',
-          note: 'Open and use Print → Save as PDF for a PDF file.',
-        },
-      })
-      pdfExportId = exported.id
+      try {
+        const exported = await documentExportService.recordExport({
+          weddingId: input.weddingId,
+          draftId: input.draftId,
+          templateId: input.templateId,
+          templateVersionId: input.templateVersionId,
+          versionNumber: input.versionNumber,
+          format: 'pdf',
+          filePath: pdfPath,
+          fileName: `${base}.pdf.html`,
+          snapshotJson: {
+            kind: 'contract_print_html',
+            note: 'Open and use Print → Save as PDF for a PDF file.',
+            contractExecutionDate:
+              input.executionSnapshot?.contractExecutionDate ?? null,
+            contractExecutionCity:
+              input.executionSnapshot?.contractExecutionCity ?? null,
+          },
+        })
+        pdfExportId = exported.id
+      } catch {
+        pdfExportId = null
+      }
+
+      pdfDownloadUrl = await documentStorage.signedUrl(pdfPath, 3600)
     } catch {
+      pdfHtmlPath = null
       pdfExportId = null
+      pdfDownloadUrl = null
     }
-
-    pdfDownloadUrl = await documentStorage.signedUrl(pdfPath, 3600)
-  } catch {
-    pdfHtmlPath = null
-    pdfExportId = null
-    pdfDownloadUrl = null
   }
 
   const docxDownloadUrl = await documentStorage.signedUrl(docxPath, 3600)

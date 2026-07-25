@@ -20,8 +20,21 @@ interface PackageRow {
   is_active: boolean
   sort_order: number
   questionnaire_form_id?: string | null
+  coverage_hours?: number | string | null
+  coverage_end_time?: string | null
+  overtime_rate?: number | string | null
+  delivery_months?: number | string | null
+  delivery_days?: number | string | null
   created_at: string
   updated_at: string
+}
+
+function optionalNumber(
+  value: number | string | null | undefined,
+): number | null {
+  if (value == null || value === '') return null
+  const n = toNumber(value, Number.NaN)
+  return Number.isFinite(n) ? n : null
 }
 
 function mapPackage(row: PackageRow, items: PackageItem[] = []): StudioPackage {
@@ -37,6 +50,11 @@ function mapPackage(row: PackageRow, items: PackageItem[] = []): StudioPackage {
     isActive: row.is_active,
     sortOrder: row.sort_order,
     questionnaireFormId: row.questionnaire_form_id ?? null,
+    coverageHours: optionalNumber(row.coverage_hours),
+    coverageEndTime: row.coverage_end_time?.trim() || null,
+    overtimeRate: optionalNumber(row.overtime_rate),
+    deliveryMonths: optionalNumber(row.delivery_months),
+    deliveryDays: optionalNumber(row.delivery_days),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     items,
@@ -52,6 +70,11 @@ export interface CreatePackageInput {
   currency?: string
   color?: string | null
   isActive?: boolean
+  coverageHours?: number | null
+  coverageEndTime?: string | null
+  overtimeRate?: number | null
+  deliveryMonths?: number | null
+  deliveryDays?: number | null
 }
 
 export interface UpdatePackageInput {
@@ -64,6 +87,11 @@ export interface UpdatePackageInput {
   color?: string | null
   isActive?: boolean
   questionnaireFormId?: string | null
+  coverageHours?: number | null
+  coverageEndTime?: string | null
+  overtimeRate?: number | null
+  deliveryMonths?: number | null
+  deliveryDays?: number | null
 }
 
 async function uniqueSlug(base: string, excludeId?: string): Promise<string> {
@@ -71,18 +99,39 @@ async function uniqueSlug(base: string, excludeId?: string): Promise<string> {
   let candidate = slugify(base)
   let n = 0
   for (;;) {
-    let query = supabase
+    const { data, error } = await supabase
       .from('packages')
       .select('id')
       .eq('slug', candidate)
       .eq('user_id', userId)
       .maybeSingle()
-    const { data, error } = await query
     throwOnError(error)
     if (!data || (excludeId && data.id === excludeId)) return candidate
     n += 1
     candidate = `${slugify(base)}-${n}`
   }
+}
+
+function commercialPatch(
+  input: CreatePackageInput | UpdatePackageInput,
+): Record<string, unknown> {
+  const patch: Record<string, unknown> = {}
+  if ('coverageHours' in input && input.coverageHours !== undefined) {
+    patch.coverage_hours = input.coverageHours
+  }
+  if ('coverageEndTime' in input && input.coverageEndTime !== undefined) {
+    patch.coverage_end_time = input.coverageEndTime?.trim() || null
+  }
+  if ('overtimeRate' in input && input.overtimeRate !== undefined) {
+    patch.overtime_rate = input.overtimeRate
+  }
+  if ('deliveryMonths' in input && input.deliveryMonths !== undefined) {
+    patch.delivery_months = input.deliveryMonths
+  }
+  if ('deliveryDays' in input && input.deliveryDays !== undefined) {
+    patch.delivery_days = input.deliveryDays
+  }
+  return patch
 }
 
 export const packageService = {
@@ -151,6 +200,7 @@ export const packageService = {
         is_active: input.isActive ?? true,
         sort_order: sortOrder,
         user_id: userId,
+        ...commercialPatch(input),
       })
       .select('*')
       .single()
@@ -162,6 +212,7 @@ export const packageService = {
   async update(id: string, input: UpdatePackageInput): Promise<StudioPackage> {
     const patch: Record<string, unknown> = {
       updated_at: nowIso(),
+      ...commercialPatch(input),
     }
     if (input.name !== undefined) patch.name = input.name.trim()
     if (input.description !== undefined) {
@@ -215,6 +266,11 @@ export const packageService = {
       currency: source.currency,
       color: source.color,
       isActive: source.isActive,
+      coverageHours: source.coverageHours,
+      coverageEndTime: source.coverageEndTime,
+      overtimeRate: source.overtimeRate,
+      deliveryMonths: source.deliveryMonths,
+      deliveryDays: source.deliveryDays,
     })
 
     for (const item of source.items) {
@@ -222,6 +278,10 @@ export const packageService = {
         packageId: copy.id,
         title: item.title,
         description: item.description,
+        enabled: item.enabled,
+        quantity: item.quantity,
+        unit: item.unit,
+        category: item.category,
       })
     }
 

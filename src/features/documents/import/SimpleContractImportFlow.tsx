@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/Button'
 import { useToast } from '@/components/ui/Toast'
 import { documentTemplateService } from '@/lib/api/documents'
 import { documentStorage } from '@/lib/api/documents/storage'
-import { documentTemplateKeys } from '@/features/documents/hooks/useDocumentTemplates'
 import { fileFormatLabel, nameFromFileName } from '@/features/documents/contractUi'
 import {
   activeAiDocumentAnalyzer,
@@ -297,7 +296,7 @@ export function SimpleContractImportFlow(props: ExistingProps | CreateProps) {
           aiAnalyzedAt: new Date().toISOString(),
         })
         await queryClient.invalidateQueries({
-          queryKey: documentTemplateKeys.all,
+          queryKey: ['document-template-summaries'],
         })
       } catch {
         // best-effort lifecycle flag
@@ -371,7 +370,7 @@ export function SimpleContractImportFlow(props: ExistingProps | CreateProps) {
       })
     }
     await queryClient.invalidateQueries({
-      queryKey: documentTemplateKeys.all,
+      queryKey: ['document-template-summaries'],
     })
     setSlotMap(result.slotMap)
     setPhase('done')

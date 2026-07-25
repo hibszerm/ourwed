@@ -5,6 +5,7 @@ export type ContractUiStatus =
   | 'needs_analysis'
   | 'analyzing'
   | 'incomplete'
+  | 'needs_review'
 
 export function fileFormatLabel(fileName: string | null | undefined): string {
   if (!fileName) return 'Dokument'
@@ -35,6 +36,7 @@ export function nameFromFileName(fileName: string): string {
 export function getContractUiStatus(
   template: DocumentTemplateSummary,
 ): ContractUiStatus {
+  if (template.status === 'needs_review') return 'needs_review'
   if (template.status === 'incomplete') return 'incomplete'
   if (
     template.meta?.slotBindingsReady === false &&
@@ -63,6 +65,8 @@ export function contractStatusLabel(status: ContractUiStatus): string {
       return 'Gotowe'
     case 'incomplete':
       return 'Niekompletny'
+    case 'needs_review':
+      return 'Do weryfikacji'
     case 'needs_analysis':
       return 'Wymaga analizy'
   }

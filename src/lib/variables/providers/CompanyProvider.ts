@@ -2,6 +2,7 @@ import {
   companyDetailsService,
   formatCompanyAddress,
 } from '@/lib/api/companyDetailsService'
+import { toPolishLocativeCity } from '@/lib/utils/toPolishLocativeCity'
 import { SystemVariableRegistry } from '@/lib/variables/registry'
 import type { VariableProvider, VariableResolveContext } from '@/lib/variables/types'
 
@@ -32,6 +33,14 @@ export const companyVariableProvider: VariableProvider = {
       'company_address',
       formatCompanyAddress(details),
     )
+    const city = details.city?.trim() || null
+    SystemVariableRegistry.emit(out, 'company_city', city)
+    if (city) {
+      const locative = toPolishLocativeCity(city)
+      if (locative) {
+        SystemVariableRegistry.emit(out, 'company_city_locative', locative)
+      }
+    }
     SystemVariableRegistry.emit(out, 'company_phone', details.phone)
     SystemVariableRegistry.emit(out, 'company_email', details.email)
     SystemVariableRegistry.emit(out, 'company_website', details.website)

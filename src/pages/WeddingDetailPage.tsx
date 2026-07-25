@@ -20,6 +20,8 @@ import { WeddingDetailTasks } from '@/features/weddings/components/detail/Weddin
 import { WeddingDetailQuestionnaires } from '@/features/weddings/components/detail/WeddingDetailQuestionnaires'
 import { WeddingDetailFinances } from '@/features/weddings/components/detail/WeddingDetailFinances'
 import { WeddingDetailPackage } from '@/features/weddings/components/detail/WeddingDetailPackage'
+import { WeddingCommercialSummaryCard } from '@/features/weddings/components/detail/WeddingCommercialSummary'
+import { WeddingContractReadinessPanel } from '@/features/weddings/components/detail/WeddingContractReadiness'
 import { WeddingDetailContact } from '@/features/weddings/components/detail/WeddingDetailContact'
 import { WeddingDetailTravel } from '@/features/weddings/components/detail/WeddingDetailTravel'
 import { WeddingDangerZone } from '@/features/weddings/components/detail/WeddingDangerZone'
@@ -317,6 +319,10 @@ export function WeddingDetailPage() {
           <WeddingDetailWorkflow currentStage={stage} />
 
           <WeddingDetailCurrentStage wedding={view} />
+
+          <WeddingCommercialSummaryCard wedding={view} />
+
+          <WeddingContractReadinessPanel wedding={view} />
 
           <div className={styles.row}>
             <WeddingDetailFinances

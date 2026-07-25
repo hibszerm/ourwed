@@ -1,9 +1,11 @@
 import { Button } from '@/components/ui/Button'
 import { Card, CardHeader } from '@/components/ui/Card'
 import { Input, Select } from '@/components/ui/Input'
+import { getAgreedDeposit, getContractValue } from '@/lib/utils/commercial'
 import { formatCurrency } from '@/lib/utils/currency'
 import {
-  getRemainingAmount,
+  getRemainingAfterDeposit,
+  getRemainingToPay,
   getTotalPaid,
 } from '@/lib/utils/finance'
 import type { Payment, PaymentType, Wedding } from '@/types/wedding'
@@ -12,6 +14,7 @@ import styles from './WeddingDetailFinances.module.css'
 
 interface WeddingDetailFinancesProps {
   wedding: Wedding
+  /** Prefer wedding.price (contractValue). Kept for existing call sites. */
   contractPrice: number
   payments: Payment[]
   editing?: boolean
@@ -36,8 +39,14 @@ export function WeddingDetailFinances({
   onChangeWedding,
   onChangePayments,
 }: WeddingDetailFinancesProps) {
+  const contractValue = contractPrice || getContractValue(wedding)
+  const agreedDeposit = getAgreedDeposit(wedding)
   const totalPaid = getTotalPaid(payments)
-  const remaining = getRemainingAmount(contractPrice, payments)
+  const remainingToPay = getRemainingToPay(contractValue, payments)
+  const remainingAfterDeposit = getRemainingAfterDeposit(
+    contractValue,
+    agreedDeposit,
+  )
 
   function updatePayment(id: string, patch: Partial<Payment>) {
     onChangePayments?.(
@@ -77,10 +86,15 @@ export function WeddingDetailFinances({
   return (
     <Card padding="md" className={styles.card}>
       <CardHeader
-        title="Finanse"
+        title="Płatności"
         action={
           editing ? (
-            <Button type="button" variant="secondary" size="sm" onClick={addPayment}>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={addPayment}
+            >
               Dodaj wpłatę
             </Button>
           ) : undefined
@@ -94,17 +108,17 @@ export function WeddingDetailFinances({
             type="number"
             min={0}
             step="0.01"
-            value={contractPrice}
+            value={contractValue}
             onChange={(e) =>
               onChangeWedding?.({ price: Number(e.target.value) || 0 })
             }
           />
           <Input
-            label="Zaliczka (oczekiwana)"
+            label="Zaliczka uzgodniona"
             type="number"
             min={0}
             step="0.01"
-            value={wedding.depositAmount ?? 0}
+            value={agreedDeposit}
             onChange={(e) =>
               onChangeWedding?.({
                 depositAmount: Number(e.target.value) || 0,
@@ -116,7 +130,9 @@ export function WeddingDetailFinances({
 
       <div className={styles.hero}>
         <span className={styles.heroLabel}>Wartość umowy</span>
-        <span className={styles.heroValue}>{formatCurrency(contractPrice)}</span>
+        <span className={styles.heroValue}>
+          {formatCurrency(contractValue)}
+        </span>
       </div>
       <div className={styles.split}>
         <div className={styles.stat}>
@@ -126,12 +142,16 @@ export function WeddingDetailFinances({
           </span>
         </div>
         <div className={styles.stat}>
-          <span className={styles.label}>Pozostało</span>
+          <span className={styles.label}>Pozostało do zapłaty</span>
           <span className={`${styles.value} ${styles.valueRemaining}`}>
-            {formatCurrency(remaining)}
+            {formatCurrency(remainingToPay)}
           </span>
         </div>
       </div>
+      <p className={styles.afterDeposit}>
+        Po zaliczce uzgodnionej:{' '}
+        <strong>{formatCurrency(remainingAfterDeposit)}</strong>
+      </p>
 
       {payments.length === 0 ? (
         <p className={styles.emptyHint}>Brak zarejestrowanych wpłat.</p>

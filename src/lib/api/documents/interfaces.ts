@@ -155,8 +155,16 @@ export interface CreateExportRecordInput {
 export interface DocumentTemplateService {
   list(): Promise<DocumentTemplate[]>
   listSummaries(): Promise<DocumentTemplateSummary[]>
+  /** Ready contracts only — still lightweight summaries, no analysis. */
+  listGenerationReadySummaries(): Promise<DocumentTemplateSummary[]>
   get(id: string): Promise<DocumentTemplate | null>
   getSummary(id: string): Promise<DocumentTemplateSummary | null>
+  /** Current version including slot_map — detail/config only. */
+  getAnalysis(id: string): Promise<DocumentTemplateVersion | null>
+  /** Source binary — generation / reanalyze only. */
+  getSource(
+    id: string,
+  ): Promise<{ bytes: ArrayBuffer; fileName: string | null; path: string }>
   create(input: CreateTemplateInput): Promise<DocumentTemplate>
   update(id: string, input: UpdateTemplateInput): Promise<DocumentTemplate>
   archive(id: string): Promise<DocumentTemplate>

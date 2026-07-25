@@ -18,6 +18,14 @@ import type { PackageSnapshot } from '@/types/documents'
 import type { Wedding } from '@/types/wedding'
 import { applyBoundSlotsToParagraphs } from './applyBoundSlots'
 import { buildMinimalDocxFromParagraphs } from './buildMinimalDocx'
+import {
+  assertSafeMoneyPairsForGeneration,
+  findStaleMoneySourcePhrases,
+} from './contractMoneyPairs'
+import {
+  assertCompanyCityLocativeForSlots,
+  resolveContractExecutionValues,
+} from './contractExecutionContext'
 import { verifyContractTransformation } from './contractQualityCheck'
 import {
   applyDocxParagraphEdits,
@@ -36,6 +44,16 @@ export interface TransformContractInput {
   title?: string
   overrides?: Record<string, string>
   omittedKeys?: string[]
+  /** Explicit generation date (Date or YYYY-MM-DD). Defaults to local today. */
+  generationDate?: Date | string
+  /**
+   * Frozen execution values from a saved document version.
+   * When both fields are set, date/city are not recalculated.
+   */
+  executionSnapshot?: {
+    contractExecutionDate?: string
+    contractExecutionCity?: string
+  }
 }
 
 export interface TransformContractResult {
@@ -51,6 +69,11 @@ export interface TransformContractResult {
   docxBytes: ArrayBuffer
   usedMock: boolean
   qualityRetries: number
+  /** Snapshot to persist on export — exact values written into the DOCX. */
+  executionSnapshot: {
+    contractExecutionDate: string
+    contractExecutionCity: string
+  } | null
 }
 
 function allowedValuesList(
@@ -89,8 +112,34 @@ async function materializeDocx(input: {
   sourceBytes: ArrayBuffer
   isDocx: boolean
   paragraphs: DocxParagraph[]
+  spanEdits?: Array<{
+    index: number
+    start: number
+    end: number
+    replacement: string
+  }>
 }): Promise<ArrayBuffer> {
   if (input.isDocx) {
+    // Prefer span edits (run-aware) when available; fall back to whole paragraph.
+    if (input.spanEdits && input.spanEdits.length > 0) {
+      // Sort right-to-left within each paragraph
+      const sorted = [...input.spanEdits].sort((a, b) => {
+        if (a.index !== b.index) return a.index - b.index
+        return b.start - a.start
+      })
+      return applyDocxParagraphEdits(
+        input.sourceBytes,
+        sorted.map((e) => ({
+          index: e.index,
+          text: '',
+          span: {
+            start: e.start,
+            end: e.end,
+            replacement: e.replacement,
+          },
+        })),
+      )
+    }
     return applyDocxParagraphEdits(
       input.sourceBytes,
       input.paragraphs.map((p) => ({ index: p.index, text: p.text })),
@@ -158,12 +207,59 @@ export async function transformContract(
     wedding: input.wedding,
     overrides: input.overrides,
     questionnaireAnswers: input.questionnaireAnswers,
+    generationStartedAt: input.generationDate,
+    executionSnapshot: input.executionSnapshot,
   })
 
   const packageSnapshot: PackageSnapshot =
     input.packageSnapshot ?? ctx.packageSnapshot
 
   const resolved = { ...ctx.resolved }
+
+  const companyCity =
+    resolved.company_city?.trim() ||
+    input.overrides?.company_city?.trim() ||
+    null
+
+  // Idempotent re-apply with the same generationStartedAt / snapshot
+  // (ensures transform never drifts from completeness resolution).
+  const execution = resolveContractExecutionValues({
+    generationDate: input.generationDate ?? ctx.generationStartedAt,
+    companyCity,
+    snapshot: input.executionSnapshot ?? ctx.executionSnapshot,
+  })
+  for (const [key, value] of Object.entries(execution.values)) {
+    if (value.trim()) resolved[key] = value.trim()
+  }
+
+  // Prefer snapshot that includes city when available; always keep date from values
+  const executionSnapshotForSave =
+    execution.snapshot ??
+    (resolved.contract_execution_date
+      ? {
+          contractExecutionDate: resolved.contract_execution_date,
+          contractExecutionCity: resolved.company_city_locative ?? '',
+        }
+      : null)
+
+  assertCompanyCityLocativeForSlots({
+    slots: boundSlots,
+    companyCity: execution.companyCityNominative ?? companyCity,
+    locative: resolved.company_city_locative,
+    locativeUnsafe: execution.locativeUnsafe,
+  })
+
+  // Evidence-based: execution date slot requires a resolved date
+  const needsExecDate = boundSlots.some(
+    (s) =>
+      s.physicallyBound !== false &&
+      s.registryKey === 'contract_execution_date',
+  )
+  if (needsExecDate && !resolved.contract_execution_date?.trim()) {
+    throw new Error(
+      'Szablon wymaga daty zawarcia umowy, ale nie udało się jej ustalić.',
+    )
+  }
 
   const omittedKeys = [
     ...new Set((input.omittedKeys ?? []).map((k) => k.trim()).filter(Boolean)),
@@ -191,6 +287,11 @@ export async function transformContract(
     })
   }
 
+  assertSafeMoneyPairsForGeneration({
+    slots: boundSlots,
+    paragraphs: originalParagraphs,
+  })
+
   const applied = applyBoundSlotsToParagraphs({
     original: originalParagraphs,
     slots: boundSlots,
@@ -205,6 +306,21 @@ export async function transformContract(
     throw new Error(
       `Nie udało się bezpiecznie zlokalizować slotów w dokumencie:\n${detail}`,
     )
+  }
+
+  const staleMoney = findStaleMoneySourcePhrases({
+    transformed: applied.paragraphs,
+    slots: boundSlots,
+    resolved,
+  })
+  if (staleMoney.length > 0) {
+    const detail = staleMoney
+      .map(
+        (s) =>
+          `${s.registryKey} still has source “${s.originalText}” in paragraph ${s.paragraphIndex}`,
+      )
+      .join('\n')
+    throw new Error(`Stale financial source values after generation:\n${detail}`)
   }
 
   const transformed = applied.paragraphs
@@ -236,6 +352,7 @@ export async function transformContract(
     sourceBytes,
     isDocx,
     paragraphs: finalParagraphs,
+    spanEdits: applied.spanEdits,
   })
 
   const title =
@@ -274,5 +391,6 @@ export async function transformContract(
     docxBytes,
     usedMock: false,
     qualityRetries: 0,
+    executionSnapshot: executionSnapshotForSave,
   }
 }

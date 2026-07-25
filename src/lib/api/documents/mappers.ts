@@ -196,6 +196,50 @@ function mapTemplateMeta(raw: unknown): DocumentTemplateMeta {
           (k): k is string => typeof k === 'string' && Boolean(k.trim()),
         )
       : undefined,
+    unresolvedSlotReasons: Array.isArray(obj.unresolvedSlotReasons)
+      ? (obj.unresolvedSlotReasons as DocumentTemplateMeta['unresolvedSlotReasons'])
+      : undefined,
+    slotCounters:
+      obj.slotCounters && typeof obj.slotCounters === 'object'
+        ? (obj.slotCounters as DocumentTemplateMeta['slotCounters'])
+      : undefined,
+    analysisWarnings: Array.isArray(obj.analysisWarnings)
+      ? obj.analysisWarnings.filter(
+          (k): k is string => typeof k === 'string' && Boolean(k.trim()),
+        )
+      : undefined,
+    analysisStatus:
+      obj.analysisStatus === 'complete' || obj.analysisStatus === 'needs_review'
+        ? obj.analysisStatus
+        : undefined,
+    generationReady:
+      typeof obj.generationReady === 'boolean' ? obj.generationReady : undefined,
+    safeBindingCount:
+      typeof obj.safeBindingCount === 'number' ? obj.safeBindingCount : undefined,
+    unsafeBindingCount:
+      typeof obj.unsafeBindingCount === 'number'
+        ? obj.unsafeBindingCount
+        : undefined,
+    unresolvedCount:
+      typeof obj.unresolvedCount === 'number' ? obj.unresolvedCount : undefined,
+    requiredMissingCount:
+      typeof obj.requiredMissingCount === 'number'
+        ? obj.requiredMissingCount
+        : undefined,
+    emptyPlaceholderCount:
+      typeof obj.emptyPlaceholderCount === 'number'
+        ? obj.emptyPlaceholderCount
+        : undefined,
+    lastAnalyzedAt:
+      typeof obj.lastAnalyzedAt === 'string' ? obj.lastAnalyzedAt : undefined,
+    analysisVersion:
+      typeof obj.analysisVersion === 'string' ? obj.analysisVersion : undefined,
+    readinessVersion:
+      typeof obj.readinessVersion === 'string'
+        ? obj.readinessVersion
+        : undefined,
+    lifecycleStatus:
+      typeof obj.lifecycleStatus === 'string' ? obj.lifecycleStatus : undefined,
     coupleVariables: Array.isArray(obj.coupleVariables)
       ? (obj.coupleVariables as DocumentTemplateMeta['coupleVariables'])
       : undefined,
@@ -208,6 +252,31 @@ function mapTemplateMeta(raw: unknown): DocumentTemplateMeta {
     defaults: Array.isArray(obj.defaults)
       ? (obj.defaults as DocumentTemplateMeta['defaults'])
       : undefined,
+  }
+}
+
+/** List/picker projection — drop heavy per-slot arrays from meta. */
+export function slimTemplateMetaForList(
+  meta: DocumentTemplateMeta,
+): DocumentTemplateMeta {
+  return {
+    version: 1,
+    slotBindingsReady: meta.slotBindingsReady,
+    unresolvedSlotKeys: meta.unresolvedSlotKeys,
+    unresolvedSlotReasons: meta.unresolvedSlotReasons,
+    slotCounters: meta.slotCounters,
+    analysisWarnings: meta.analysisWarnings,
+    analysisStatus: meta.analysisStatus,
+    generationReady: meta.generationReady,
+    safeBindingCount: meta.safeBindingCount,
+    unsafeBindingCount: meta.unsafeBindingCount,
+    unresolvedCount: meta.unresolvedCount,
+    requiredMissingCount: meta.requiredMissingCount,
+    emptyPlaceholderCount: meta.emptyPlaceholderCount,
+    lastAnalyzedAt: meta.lastAnalyzedAt,
+    analysisVersion: meta.analysisVersion,
+    readinessVersion: meta.readinessVersion,
+    lifecycleStatus: meta.lifecycleStatus,
   }
 }
 

@@ -130,13 +130,16 @@ export function ContractCard({
           </div>
           <div>
             <dt>Wykryte zmienne</dt>
-            <dd>{template.variableCount}</dd>
+            <dd>{template.detectedFieldCount || template.variableCount}</dd>
           </div>
           <div>
             <dt>Wygenerowano</dt>
             <dd>{template.usageCount}</dd>
           </div>
         </dl>
+        {template.summaryStale ? (
+          <p className={styles.contractCardHint}>Wymaga ponownej analizy</p>
+        ) : null}
       </Link>
     </article>
   )

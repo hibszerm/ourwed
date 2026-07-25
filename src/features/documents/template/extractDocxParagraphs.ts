@@ -1,23 +1,16 @@
 /**
  * Shared DOCX paragraph extraction with stable indices (includes empty paras).
- * Import binding and contract generation MUST use the same indexing.
+ * Import binding and contract generation MUST use the same indexing + canonical text.
  */
 
 import JSZip from 'jszip'
 import { cloneArrayBuffer } from '@/features/documents/mapping/extraction/sourceKind'
+import { extractCanonicalParagraphText } from './canonicalParagraph'
 
 export interface IndexedParagraph {
   index: number
+  /** Canonical paragraph text — offsets are only valid in this form. */
   text: string
-}
-
-function unescapeXml(text: string): string {
-  return text
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'")
-    .replace(/&amp;/g, '&')
 }
 
 export async function extractDocxParagraphsIncludingEmpty(
@@ -32,13 +25,10 @@ export async function extractDocxParagraphsIncludingEmpty(
   let m: RegExpExecArray | null
   let index = 0
   while ((m = re.exec(xml))) {
-    const parts: string[] = []
-    const tRe = /<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/g
-    let tm: RegExpExecArray | null
-    while ((tm = tRe.exec(m[0]!))) {
-      parts.push(unescapeXml(tm[1] ?? ''))
-    }
-    paragraphs.push({ index, text: parts.join('') })
+    paragraphs.push({
+      index,
+      text: extractCanonicalParagraphText(m[0]!),
+    })
     index += 1
   }
   return paragraphs

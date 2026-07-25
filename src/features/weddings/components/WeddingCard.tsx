@@ -5,17 +5,16 @@ import { Card } from '@/components/ui/Card'
 import { ProgressBar } from '@/components/ui/ProgressBar'
 import { IconChevronRight, IconMapPin } from '@/components/icons'
 import { coupleName, formatDate, getDaysUntil } from '@/lib/utils/dates'
+import { getWeddingCommercialSummary } from '@/lib/utils/commercial'
+import { formatCurrency } from '@/lib/utils/currency'
 import { getWorkflowProgress } from '@/lib/utils/workflow'
 import type { Wedding } from '@/types/wedding'
 import styles from './WeddingCard.module.css'
 
 interface WeddingCardProps {
   wedding: Wedding
-  /** When set, card does not navigate via router — used by landing demo. */
   onOpen?: (wedding: Wedding) => void
-  /** Visible but non-interactive (landing demo secondary weddings). */
   disabled?: boolean
-  /** Prefer first-name couple label (Anna & Michał) when available. */
   shortNames?: boolean
 }
 
@@ -45,15 +44,15 @@ export function WeddingCard({
     wedding.ceremonyLocation ??
     wedding.receptionLocation ??
     `${wedding.couple.venue}, ${wedding.couple.city}`
+  const commercial = getWeddingCommercialSummary(wedding)
 
   const body = (
     <Card hover={!disabled} className={`${styles.card} ${disabled ? styles.disabled : ''}`.trim()}>
       <div className={styles.header}>
-        {/* Initials from bride full name (AK, JW, …) — matches product cards. */}
         <Avatar name={wedding.couple.partner1} color={wedding.accentColor} size="lg" />
         <div className={styles.info}>
           <h3 className={styles.name}>{name}</h3>
-          <p className={styles.package}>{wedding.packageName}</p>
+          <p className={styles.package}>{commercial.packageName || '—'}</p>
         </div>
         <WorkflowBadge stage={wedding.workflowStage} />
       </div>
@@ -64,6 +63,44 @@ export function WeddingCard({
           <span className={styles.detailText}>{location}</span>
         </div>
       )}
+
+      <div className={styles.commercial}>
+        <div className={styles.commercialItem}>
+          <span className={styles.commercialLabel}>Umowa</span>
+          <span className={styles.commercialValue}>
+            {formatCurrency(commercial.contractValue)}
+          </span>
+        </div>
+        <div className={styles.commercialItem}>
+          <span className={styles.commercialLabel}>Wpłacono</span>
+          <span className={styles.commercialValue}>
+            {formatCurrency(commercial.totalPaid)}
+          </span>
+        </div>
+        <div className={styles.commercialItem}>
+          <span className={styles.commercialLabel}>Pozostało</span>
+          <span className={styles.commercialValue}>
+            {formatCurrency(commercial.remainingToPay)}
+          </span>
+        </div>
+      </div>
+
+      <div className={styles.metaRow}>
+        <span className={styles.metaChip}>
+          Zadatek:{' '}
+          {commercial.depositPaid >= commercial.agreedDeposit &&
+          commercial.agreedDeposit > 0
+            ? 'opłacony'
+            : commercial.depositPaid > 0
+              ? 'częściowo'
+              : 'oczekuje'}
+        </span>
+        {commercial.coverageEndTime ? (
+          <span className={styles.metaChip}>
+            Do {commercial.coverageEndTime}
+          </span>
+        ) : null}
+      </div>
 
       <div className={styles.footer}>
         <div className={styles.progress}>

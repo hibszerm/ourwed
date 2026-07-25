@@ -213,27 +213,6 @@
   line-height: 1.4;
 }
 
-.editor {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  max-height: min(55vh, 28rem);
-  overflow: auto;
-  padding-right: var(--space-1);
-}
-
-.paragraph {
-  width: 100%;
-  resize: vertical;
-  padding: var(--space-3);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  font: inherit;
-  font-size: var(--text-sm);
-  line-height: 1.45;
-  background: var(--color-surface, #fff);
-}
-
 .saved {
   display: flex;
   flex-direction: column;
@@ -271,4 +250,16 @@
   padding: var(--space-3);
   background: var(--color-surface-muted, rgba(0, 0, 0, 0.04));
   border-radius: var(--radius-sm);
+}
+
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--color-success, #1a7f4b);
+  background: rgba(26, 127, 75, 0.1);
 }

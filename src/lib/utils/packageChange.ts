@@ -1,27 +1,41 @@
 import type { StudioPackage } from '@/types/package'
 import { studioPackageToLegacyPackage } from '@/types/package'
 import type { Wedding, WeddingDeliverable } from '@/types/wedding'
+import {
+  applyCommercialPackageSnapshot,
+  type ApplyPackageSnapshotOptions,
+} from '@/lib/utils/commercial'
 import { createWeddingDeliverablesFromPackage } from '@/lib/utils/deliverables'
 
 /**
  * When the couple changes package:
- * - update package snapshots (name, price, deposit, color)
- * - regenerate package deliverables from catalog items
+ * - rewrite commercial snapshot (name, terms, items, …)
+ * - regenerate package deliverables from the new snapshot items
  * - preserve manually added additional services / extra-service snapshots
  *
- * @param extrasTotal Sum of wedding_extra_services price_snapshot * quantity.
- *   Contract value = package snapshot + extras snapshots.
+ * Does not mutate the catalog package.
  */
 export function applyPackageChangeToWedding(
   wedding: Wedding,
   pkg: StudioPackage,
-  extrasTotal = 0,
+  extrasTotalOrOptions: number | ApplyPackageSnapshotOptions = 0,
 ): Wedding {
-  const nextPrice = pkg.price + extrasTotal
+  const commercial = applyCommercialPackageSnapshot(
+    wedding,
+    pkg,
+    extrasTotalOrOptions,
+  )
   if (
-    wedding.packageId === pkg.id &&
-    wedding.packageName === pkg.name &&
-    wedding.price === nextPrice
+    wedding.packageId === commercial.packageId &&
+    wedding.packageName === commercial.packageName &&
+    wedding.price === commercial.price &&
+    wedding.coverageHours === commercial.coverageHours &&
+    wedding.coverageEndTime === commercial.coverageEndTime &&
+    wedding.overtimeRate === commercial.overtimeRate &&
+    wedding.deliveryMonths === commercial.deliveryMonths &&
+    wedding.deliveryDays === commercial.deliveryDays &&
+    JSON.stringify(wedding.packageItems) ===
+      JSON.stringify(commercial.packageItems)
   ) {
     return wedding
   }
@@ -34,12 +48,7 @@ export function applyPackageChangeToWedding(
 
   return {
     ...wedding,
-    packageId: pkg.id,
-    packageName: pkg.name,
-    price: nextPrice,
-    depositAmount: pkg.depositAmount,
-    currency: pkg.currency,
-    accentColor: pkg.color ?? wedding.accentColor,
+    ...commercial,
     deliverables: [...fromPackage, ...additional],
   }
 }

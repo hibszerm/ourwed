@@ -1,5 +1,5 @@
 import type { QuestionnaireListItem } from '@/lib/api/questionnaireService'
-import { getRemainingAmount, getTotalPaid } from '@/lib/utils/finance'
+import { getRemainingToPay, getTotalPaid } from '@/lib/utils/finance'
 import type { TravelPlan } from '@/types/travel'
 import type { FormInstance } from '@/types/formEngine'
 import type {
@@ -106,6 +106,7 @@ function baseWedding(input: {
     price: input.price,
     depositAmount: input.deposit,
     currency: 'PLN',
+    packageItems: [],
     preparationLocation: input.prep,
     ceremonyLocation: input.ceremony,
     receptionLocation: input.reception,
@@ -139,6 +140,7 @@ export const demoWedding: Wedding = {
   price: 8500,
   depositAmount: 3000,
   currency: 'PLN',
+  packageItems: [],
   preparationLocation: 'Villa Love',
   ceremonyLocation: 'Kościół św. Anny',
   receptionLocation: 'Pałac Mała Wieś',
@@ -715,7 +717,7 @@ export function getDemoSeasonFinance(weddings: Wedding[] = demoWeddings): DemoSe
   for (const w of weddings) {
     seasonRevenue += w.price
     paidTotal += getTotalPaid(w.payments)
-    remainingTotal += getRemainingAmount(w.price, w.payments)
+    remainingTotal += getRemainingToPay(w.price, w.payments)
     expensesTotal += w.finances.reduce((s, e) => s + e.amount, 0)
 
     const monthKey = w.date.slice(0, 7)

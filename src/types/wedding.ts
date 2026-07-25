@@ -164,6 +164,22 @@ export interface DeliverableLinks {
 export type DeliverableSource = 'package' | 'additional'
 
 /**
+ * Frozen copy of a catalog package line at assignment time.
+ * Historical weddings must never re-read live catalog items.
+ */
+export interface WeddingPackageItemSnapshot {
+  /** Original catalog package_items.id when known. */
+  sourceItemId?: string | null
+  title: string
+  description?: string | null
+  sortOrder: number
+  enabled?: boolean
+  quantity?: number | null
+  unit?: string | null
+  category?: string | null
+}
+
+/**
  * Materiał do oddania przypisany do ślubu.
  * Kopia z pakietu + ewentualne usługi dodatkowe (source: additional).
  */
@@ -187,15 +203,44 @@ export interface Wedding {
   ceremonyTime?: string
   status: WeddingStatus
   workflowStage: WorkflowStage
-  /** Snapshot — historical package name at selection time. */
+  /**
+   * Commercial snapshot — historical package name.
+   * Catalog renames must not change this.
+   */
   packageName: string
-  /** Optional FK to Studio Catalog package (for contents). */
+  /** Optional FK to Studio Catalog package (reference only — not live pricing). */
   packageId?: string | null
-  /** Snapshot — contract total (package + extras at selection). */
+  /**
+   * Commercial snapshot — contractValue (total agreed contract value).
+   * Persisted as weddings.contract_value.
+   */
   price: number
-  /** Snapshot — expected deposit. */
+  /**
+   * Commercial snapshot — agreedDeposit (deposit agreed in the contract).
+   * Persisted as weddings.deposit_amount. Not the same as deposit paid.
+   */
   depositAmount?: number
   currency?: string
+  /**
+   * Commercial snapshot — package line items frozen at assignment.
+   * Persisted as weddings.package_items_snapshot.
+   */
+  packageItems: WeddingPackageItemSnapshot[]
+  /** Wedding snapshot — coverage hours (not live catalog). */
+  coverageHours?: number | null
+  /** Wedding snapshot — coverage end time, e.g. "00:30". */
+  coverageEndTime?: string | null
+  /** Wedding snapshot — overtime hourly rate. */
+  overtimeRate?: number | null
+  /** Wedding snapshot — delivery term in months. */
+  deliveryMonths?: number | null
+  /** Wedding snapshot — delivery term in days. */
+  deliveryDays?: number | null
+  /**
+   * Wedding-specific final payment due date (YYYY-MM-DD).
+   * Set by product rules / studio edit — never copied from DOCX templates.
+   */
+  finalPaymentDueDate?: string | null
   ceremonyLocation?: string
   receptionLocation?: string
   preparationLocation?: string
@@ -221,13 +266,23 @@ export interface CreateWeddingInput {
   receptionLocation?: string
   packageId?: string | null
   packageName: string
+  /** contractValue */
   price: number
   depositPaid: boolean
+  /** agreedDeposit */
   depositAmount?: number
   depositPaymentDate?: string
   currency?: string
   accentColor?: string
   notes?: string
+  /** Optional pre-built item snapshot; otherwise loaded from catalog on create. */
+  packageItems?: WeddingPackageItemSnapshot[]
+  coverageHours?: number | null
+  coverageEndTime?: string | null
+  overtimeRate?: number | null
+  deliveryMonths?: number | null
+  deliveryDays?: number | null
+  finalPaymentDueDate?: string | null
 }
 
 export interface Task {

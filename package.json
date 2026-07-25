@@ -8,7 +8,20 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test:contract-quality": "npx tsx --tsconfig tsconfig.app.json src/features/documents/template/contractQualityAcceptance.test.ts && npx tsx --tsconfig tsconfig.app.json src/features/documents/template/contractSlotBindingAcceptance.test.ts && npx tsx --tsconfig tsconfig.app.json src/features/documents/template/contractTemplatePicker.test.ts"
+    "test:commercial": "npx tsx --tsconfig tsconfig.app.json src/lib/utils/commercialAcceptance.test.ts",
+    "test:contract-commercial": "npx tsx --tsconfig tsconfig.app.json src/lib/utils/contractCommercialAcceptance.test.ts",
+    "test:package-setup": "npx tsx --tsconfig tsconfig.app.json src/lib/utils/packageSetupAcceptance.test.ts",
+    "test:reference-contract-values": "npx tsx --tsconfig tsconfig.app.json src/lib/utils/referenceContractValuesAcceptance.test.ts",
+    "test:coverage-end-time": "npx tsx --tsconfig tsconfig.app.json src/features/documents/template/coverageEndTimeLocationAcceptance.test.ts",
+    "test:contract-money-pairs": "npx tsx --tsconfig tsconfig.app.json src/features/documents/template/contractMoneyPairsAcceptance.test.ts",
+    "test:contract-money-context": "npx tsx --tsconfig tsconfig.app.json src/features/documents/template/contractMoneyContextAcceptance.test.ts",
+    "test:locative-city": "npx tsx --tsconfig tsconfig.app.json src/lib/utils/toPolishLocativeCityAcceptance.test.ts",
+    "test:contract-execution": "npx tsx --tsconfig tsconfig.app.json src/features/documents/template/contractExecutionAcceptance.test.ts",
+    "test:contract-execution-auto": "npx tsx --tsconfig tsconfig.app.json src/features/documents/template/contractExecutionAutoAcceptance.test.ts",
+    "test:contract-slot-safety": "npx tsx --tsconfig tsconfig.app.json src/features/documents/template/contractSlotSafetyAcceptance.test.ts",
+    "test:documents-perf": "npx tsx --tsconfig tsconfig.app.json src/features/documents/performance/documentsListPerformanceAcceptance.test.ts && npx tsx --tsconfig tsconfig.app.json src/features/documents/performance/documentsReadPathGuards.test.ts",
+    "test:client-party-labels": "npx tsx --tsconfig tsconfig.app.json src/features/documents/template/clientPartyLabelDetectionAcceptance.test.ts",
+    "test:contract-quality": "npx tsx --tsconfig tsconfig.app.json src/features/documents/template/contractQualityAcceptance.test.ts && npx tsx --tsconfig tsconfig.app.json src/features/documents/template/contractSlotBindingAcceptance.test.ts && npx tsx --tsconfig tsconfig.app.json src/features/documents/template/contractTemplatePicker.test.ts && npx tsx --tsconfig tsconfig.app.json src/features/documents/template/templateReadinessAcceptance.test.ts && npx tsx --tsconfig tsconfig.app.json src/features/documents/template/candidateDetectionAcceptance.test.ts && npx tsx --tsconfig tsconfig.app.json src/features/documents/template/slotLocationAcceptance.test.ts && npx tsx --tsconfig tsconfig.app.json src/features/documents/template/paragraphRebuildAcceptance.test.ts && npx tsx --tsconfig tsconfig.app.json src/features/documents/template/coverageEndTimeLocationAcceptance.test.ts && npx tsx --tsconfig tsconfig.app.json src/features/documents/template/contractMoneyPairsAcceptance.test.ts && npx tsx --tsconfig tsconfig.app.json src/features/documents/template/contractMoneyContextAcceptance.test.ts && npx tsx --tsconfig tsconfig.app.json src/lib/utils/toPolishLocativeCityAcceptance.test.ts && npx tsx --tsconfig tsconfig.app.json src/features/documents/template/contractExecutionAcceptance.test.ts && npx tsx --tsconfig tsconfig.app.json src/features/documents/template/contractExecutionAutoAcceptance.test.ts && npx tsx --tsconfig tsconfig.app.json src/features/documents/template/contractSlotSafetyAcceptance.test.ts && npx tsx --tsconfig tsconfig.app.json src/features/documents/template/clientPartyLabelDetectionAcceptance.test.ts && npx tsx --tsconfig tsconfig.app.json src/features/documents/performance/documentsListPerformanceAcceptance.test.ts && npx tsx --tsconfig tsconfig.app.json src/features/documents/performance/documentsReadPathGuards.test.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",

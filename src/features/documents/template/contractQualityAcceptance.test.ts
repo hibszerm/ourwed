@@ -224,6 +224,69 @@ run('Test 6 — never report identical unexpected change', () => {
   }
 })
 
+run('Test 7 — replace without anchors keeps surrounding legal text', () => {
+  const original =
+    'Przedmiotem Umowy jest wykonanie dzieła w dniu 19.06.2025r., składającego się z elementów:'
+  const generated =
+    'Przedmiotem Umowy jest wykonanie dzieła w dniu 30.10.2026r., składającego się z elementów:'
+  const slots: TemplateSlot[] = [
+    {
+      id: 'wedding_date',
+      registryKey: 'wedding_date',
+      label: 'Data',
+      sourceHint: 'wedding',
+      occurrences: 1,
+      enabled: true,
+      physicallyBound: true,
+      operation: 'replace',
+      paragraphIndex: 8,
+      originalText: '19.06.2025',
+      startOffset: original.indexOf('19.06.2025'),
+      endOffset: original.indexOf('19.06.2025') + 10,
+    },
+  ]
+  const result = verifyContractTransformation({
+    original: [para(8, original)],
+    transformed: [para(8, generated)],
+    resolvedByKey: { wedding_date: '30.10.2026' },
+    slots,
+  })
+  assert(result.ok, result.report ?? result.reason ?? 'expected PASS')
+  const report = result.report ?? ''
+  assert(
+    !/^PROTECTED GENERATED\n⟦VAR:[^\]]+⟧\s*$/m.test(report),
+    'protected generated must not collapse to only the VAR token',
+  )
+})
+
+run('Test 8 — package_name replace without anchors', () => {
+  const original =
+    'Para młoda wybiera Pakiecie Standard, który obejmuje następujące usługi:'
+  const generated =
+    'Para młoda wybiera Pakiecie Premium Film, który obejmuje następujące usługi:'
+  const slots: TemplateSlot[] = [
+    {
+      id: 'package_name',
+      registryKey: 'package_name',
+      label: 'Pakiet',
+      sourceHint: 'wedding',
+      occurrences: 1,
+      enabled: true,
+      physicallyBound: true,
+      operation: 'replace',
+      paragraphIndex: 12,
+      originalText: 'Standard',
+    },
+  ]
+  const result = verifyContractTransformation({
+    original: [para(12, original)],
+    transformed: [para(12, generated)],
+    resolvedByKey: { package_name: 'Premium Film' },
+    slots,
+  })
+  assert(result.ok, result.report ?? result.reason ?? 'expected PASS')
+})
+
 if (!process.exitCode) {
   console.log('\nAll acceptance tests passed.')
 }

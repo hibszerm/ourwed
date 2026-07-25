@@ -6,12 +6,20 @@ import type {
   DocumentTemplateStatus,
 } from '@/types/documents'
 
+/**
+ * Shared query keys — Documents page and Generate Contract picker must use the same list key.
+ */
 export const documentTemplateKeys = {
   all: ['document-templates'] as const,
+  /** Lightweight summaries only — never full slot_map / binary. */
+  summaries: (userId: string | null) =>
+    ['document-template-summaries', userId] as const,
   list: (userId: string | null) =>
-    [...documentTemplateKeys.all, 'list', userId] as const,
+    ['document-template-summaries', userId] as const,
   detail: (userId: string | null, id: string) =>
     [...documentTemplateKeys.all, 'detail', userId, id] as const,
+  analysis: (userId: string | null, id: string) =>
+    [...documentTemplateKeys.all, 'analysis', userId, id] as const,
   versions: (userId: string | null, id: string) =>
     [...documentTemplateKeys.all, 'versions', userId, id] as const,
   availableForWedding: (userId: string | null, weddingId: string) =>
@@ -21,13 +29,35 @@ export const documentTemplateKeys = {
 /** Alias — keep Generate Contract / Documents on one key factory. */
 export const contractTemplateKeys = documentTemplateKeys
 
+const SUMMARY_STALE_MS = 1000 * 60 * 5
+const SUMMARY_GC_MS = 1000 * 60 * 30
+
 export function useDocumentTemplates() {
   const userId = useStudioAuthId() ?? null
   return useQuery({
-    queryKey: documentTemplateKeys.list(userId),
+    queryKey: documentTemplateKeys.summaries(userId),
     queryFn: () => documentTemplateService.listSummaries(),
     enabled: Boolean(userId),
+    staleTime: SUMMARY_STALE_MS,
+    gcTime: SUMMARY_GC_MS,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    placeholderData: (previous) => previous,
   })
+}
+
+/** Same cache as useDocumentTemplates — filters ready contracts client-side. */
+export function useGenerationReadyTemplates() {
+  const query = useDocumentTemplates()
+  return {
+    ...query,
+    data: (query.data ?? []).filter(
+      (t) =>
+        t.docType === 'contract' &&
+        t.status !== 'archived' &&
+        (t.generationReady || t.status === 'ready'),
+    ),
+  }
 }
 
 export function useDocumentTemplate(id: string | undefined) {
@@ -36,6 +66,21 @@ export function useDocumentTemplate(id: string | undefined) {
     queryKey: documentTemplateKeys.detail(userId, id ?? ''),
     queryFn: () => documentTemplateService.getSummary(id!),
     enabled: Boolean(userId && id),
+    staleTime: SUMMARY_STALE_MS,
+  })
+}
+
+/** Lazy: full current version including slot_map. */
+export function useDocumentTemplateAnalysis(
+  id: string | undefined,
+  enabled = true,
+) {
+  const userId = useStudioAuthId() ?? null
+  return useQuery({
+    queryKey: documentTemplateKeys.analysis(userId, id ?? ''),
+    queryFn: () => documentTemplateService.getAnalysis(id!),
+    enabled: Boolean(userId && id && enabled),
+    staleTime: SUMMARY_STALE_MS,
   })
 }
 
@@ -52,11 +97,20 @@ export function useDocumentTemplateMutations(templateId?: string) {
   const queryClient = useQueryClient()
   const userId = useStudioAuthId() ?? null
 
+  const invalidateSummaries = async () => {
+    await queryClient.invalidateQueries({
+      queryKey: documentTemplateKeys.summaries(userId),
+    })
+  }
+
   const invalidate = async () => {
-    await queryClient.invalidateQueries({ queryKey: documentTemplateKeys.all })
+    await invalidateSummaries()
     if (templateId) {
       await queryClient.invalidateQueries({
         queryKey: documentTemplateKeys.detail(userId, templateId),
+      })
+      await queryClient.invalidateQueries({
+        queryKey: documentTemplateKeys.analysis(userId, templateId),
       })
       await queryClient.invalidateQueries({
         queryKey: documentTemplateKeys.versions(userId, templateId),
@@ -67,7 +121,14 @@ export function useDocumentTemplateMutations(templateId?: string) {
   const upload = useMutation({
     mutationFn: (input: Parameters<typeof documentTemplateService.uploadTemplate>[0]) =>
       documentTemplateService.uploadTemplate(input),
-    onSuccess: invalidate,
+    onSuccess: async (summary) => {
+      queryClient.setQueryData(
+        documentTemplateKeys.summaries(userId),
+        (prev: Awaited<ReturnType<typeof documentTemplateService.listSummaries>> | undefined) =>
+          prev ? [summary, ...prev.filter((t) => t.id !== summary.id)] : [summary],
+      )
+      await invalidateSummaries()
+    },
   })
 
   const rename = useMutation({
@@ -95,7 +156,7 @@ export function useDocumentTemplateMutations(templateId?: string) {
 
   const duplicate = useMutation({
     mutationFn: (id: string) => documentTemplateService.duplicate(id),
-    onSuccess: invalidate,
+    onSuccess: invalidateSummaries,
   })
 
   const archive = useMutation({

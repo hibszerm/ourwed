@@ -137,6 +137,12 @@
   line-height: 1.4;
 }
 
+.contractCardHint {
+  margin: 0.5rem 0 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
+
 .statusBadge {
   display: inline-flex;
   align-items: center;
@@ -1589,3 +1595,139 @@
     flex-shrink: 0;
   }
 }
+
+.configCounters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-5);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
+
+.configSlotList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.configSlotCard {
+  border: 1px solid color-mix(in srgb, var(--color-border) 75%, transparent);
+  border-radius: 14px;
+  padding: var(--space-5);
+  background: var(--color-surface);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.configSlotHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-3);
+}
+
+.configSlotKey {
+  font-size: var(--text-sm);
+  font-family: ui-monospace, monospace;
+  color: var(--color-text-tertiary);
+}
+
+.configSlotBadge {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-secondary);
+}
+
+.configSlotReason,
+.configSlotPreview {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--color-text-secondary);
+}
+
+.configSlotPreview {
+  padding: var(--space-3);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--color-bg-subtle, #f5f5f5) 80%, transparent);
+  color: var(--color-text-primary);
+}
+
+.configSlotActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.configToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  margin-right: var(--space-2);
+}
+
+.configWarning {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-radius: 10px;
+  background: color-mix(in srgb, #b45309 12%, transparent);
+  color: var(--color-text-primary);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+
+.configProviderInfo {
+  margin: var(--space-4) 0;
+  padding: var(--space-4);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--color-text-secondary) 6%, transparent);
+}
+
+.configSectionTitle {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-base);
+  font-weight: 600;
+}
+
+.configProviderRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  font-size: var(--text-sm);
+}
+
+.configCoverage {
+  margin: var(--space-4) 0;
+}
+
+.configCoverageList {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--color-text-secondary);
+}
+
+.configCoverageStatus {
+  display: inline-block;
+  min-width: 7.5rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.status_needs_review {
+  background: color-mix(in srgb, #b45309 14%, transparent);
+  color: #92400e;
+}
+

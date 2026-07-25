@@ -127,10 +127,10 @@ comment on column public.weddings.workflow_stage is
   'Pipeline stage only — workflow engine rules live in application code.';
 
 comment on column public.weddings.contract_value is
-  'Agreed package / contract total for the wedding.';
+  'Commercial snapshot: contractValue — total agreed contract value.';
 
 comment on column public.weddings.deposit_amount is
-  'Expected or agreed deposit amount (actual receipts live in payments).';
+  'Commercial snapshot: agreedDeposit — deposit agreed in the contract (actual receipts live in payments).';
 
 create index weddings_user_id_idx on public.weddings (user_id);
 create index weddings_wedding_date_idx on public.weddings (wedding_date);
@@ -508,6 +508,11 @@ create table public.packages (
   color text,
   is_active boolean not null default true,
   sort_order integer not null default 0,
+  coverage_hours numeric(6, 2),
+  coverage_end_time text,
+  overtime_rate numeric(12, 2),
+  delivery_months integer,
+  delivery_days integer,
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now())
 );
@@ -529,6 +534,10 @@ create table public.package_items (
   title text not null,
   description text,
   sort_order integer not null default 0,
+  is_enabled boolean not null default true,
+  quantity numeric(10, 2),
+  unit text,
+  item_category text,
   created_at timestamptz not null default timezone('utc', now())
 );
 
@@ -580,6 +589,30 @@ alter table public.weddings
 
 alter table public.weddings
   add column if not exists accent_color text;
+
+alter table public.weddings
+  add column if not exists package_items_snapshot jsonb not null default '[]'::jsonb;
+
+alter table public.weddings
+  add column if not exists coverage_hours numeric(6, 2);
+
+alter table public.weddings
+  add column if not exists coverage_end_time text;
+
+alter table public.weddings
+  add column if not exists overtime_rate numeric(12, 2);
+
+alter table public.weddings
+  add column if not exists delivery_months integer;
+
+alter table public.weddings
+  add column if not exists delivery_days integer;
+
+alter table public.weddings
+  add column if not exists final_payment_due_date date;
+
+comment on column public.weddings.package_items_snapshot is
+  'Frozen package line items at assignment time. Never rewritten by catalog edits.';
 
 create index if not exists weddings_package_id_idx on public.weddings (package_id);
 

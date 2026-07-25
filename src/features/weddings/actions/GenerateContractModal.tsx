@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
 import { useToast } from '@/components/ui/Toast'
@@ -21,13 +20,12 @@ import {
   splitRecommended,
   type TemplatePickerDiagnosis,
 } from '@/features/documents/template/contractTemplatePicker'
-import {
-  documentTemplateKeys,
-  useDocumentTemplates,
-} from '@/features/documents/hooks/useDocumentTemplates'
+import { useDocumentTemplates } from '@/features/documents/hooks/useDocumentTemplates'
+import { startDocumentsPerf } from '@/features/documents/performance/documentsPerformance'
 import { useInvalidateWedding } from '@/features/weddings/hooks/useInvalidateWedding'
 import { weddingActionsService } from '@/lib/api/weddingActionsService'
 import type { Wedding } from '@/types/wedding'
+import { ContractDocumentPreview } from './ContractDocumentPreview'
 import styles from './GenerateContractModal.module.css'
 
 type Step = 'template' | 'completeness' | 'editor' | 'saved'
@@ -38,6 +36,16 @@ interface GenerateContractModalProps {
   wedding: Wedding
 }
 
+function paragraphsDirty(
+  current: DocxParagraph[],
+  baseline: DocxParagraph[],
+): boolean {
+  if (current.length !== baseline.length) return true
+  return current.some(
+    (p, i) => p.index !== baseline[i]?.index || p.text !== baseline[i]?.text,
+  )
+}
+
 export function GenerateContractModal({
   open,
   onClose,
@@ -46,13 +54,11 @@ export function GenerateContractModal({
   const invalidate = useInvalidateWedding()
   const { showToast } = useToast()
   const navigate = useNavigate()
-  const queryClient = useQueryClient()
   const {
     data: templates = [],
     isLoading: templatesLoading,
     isError: templatesError,
     error: templatesQueryError,
-    refetch: refetchTemplates,
     isFetching: templatesFetching,
   } = useDocumentTemplates()
 
@@ -80,12 +86,22 @@ export function GenerateContractModal({
     null,
   )
   const [paragraphs, setParagraphs] = useState<DocxParagraph[]>([])
+  const [baselineParagraphs, setBaselineParagraphs] = useState<
+    DocxParagraph[]
+  >([])
   const [docxBytes, setDocxBytes] = useState<ArrayBuffer | null>(null)
   const [docxUrl, setDocxUrl] = useState<string | null>(null)
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
+  const [summaryPanelOpen, setSummaryPanelOpen] = useState(true)
+  /** Created once per modal open / generation attempt — preview + export share it. */
+  const [generationStartedAt, setGenerationStartedAt] = useState<Date | null>(
+    null,
+  )
 
   useEffect(() => {
     if (!open) return
+    const perf = startDocumentsPerf('generate-picker')
+    perf.stamp('modalOpenedAt')
     setStep('template')
     setBusy(false)
     setError(null)
@@ -95,13 +111,59 @@ export function GenerateContractModal({
     setOmitted({})
     setGenerated(null)
     setParagraphs([])
+    setBaselineParagraphs([])
     setDocxBytes(null)
     setDocxUrl(null)
     setPdfUrl(null)
-    // Always refresh — analysis may have completed since last open
-    void queryClient.invalidateQueries({ queryKey: documentTemplateKeys.all })
-    void refetchTemplates()
-  }, [open, wedding.id, queryClient, refetchTemplates])
+    setSummaryPanelOpen(true)
+    setGenerationStartedAt(new Date())
+    // Use shared React Query cache — do not invalidate or refetch on every open.
+    if (templates.length > 0 || !templatesLoading) {
+      perf.stamp('pickerDataAvailableAt')
+      perf.stamp('pickerRenderedAt')
+      perf.finish({
+        totalTemplateCount: templates.length,
+        numberOfNetworkRequests: templatesFetching && templates.length === 0 ? 1 : 0,
+        analysisFunctionsCalled: 0,
+        binaryFilesFetched: 0,
+      })
+    }
+  }, [open, wedding.id])
+
+  useEffect(() => {
+    if (!open) return
+    if (templatesLoading && templates.length === 0) return
+    console.info('[documents-performance]', {
+      phase: 'generate-picker-data',
+      pickerDataAvailableAt: performance.now(),
+      totalTemplateCount: templates.length,
+      fromCache: !templatesFetching,
+    })
+  }, [open, templates, templatesLoading, templatesFetching])
+
+  function requestClose() {
+    if (busy) return
+    if (
+      step === 'editor' &&
+      paragraphsDirty(paragraphs, baselineParagraphs)
+    ) {
+      const ok = window.confirm(
+        'Masz niezapisane zmiany w podglądzie umowy. Zamknąć mimo to?',
+      )
+      if (!ok) return
+    }
+    onClose()
+  }
+
+  function goBackToVariables() {
+    if (report) {
+      setStep('completeness')
+      setError(null)
+      return
+    }
+    setStep('template')
+    setError(null)
+  }
 
   async function runGenerate(input: {
     templateId: string
@@ -109,16 +171,22 @@ export function GenerateContractModal({
     omittedKeys: string[]
     questionnaireAnswers?: Record<string, string>
   }) {
+    const startedAt = generationStartedAt ?? new Date()
+    if (!generationStartedAt) setGenerationStartedAt(startedAt)
+
     const filled = await transformContract({
       wedding,
       templateId: input.templateId,
       overrides: input.overrides,
       omittedKeys: input.omittedKeys,
       questionnaireAnswers: input.questionnaireAnswers,
+      generationDate: startedAt,
     })
     setGenerated(filled)
     setDocxBytes(filled.docxBytes)
-    setParagraphs(filled.paragraphs.filter((p) => p.text.trim().length > 0))
+    const nextParas = filled.paragraphs.map((p) => ({ ...p }))
+    setParagraphs(nextParas)
+    setBaselineParagraphs(nextParas.map((p) => ({ ...p })))
     setStep('editor')
   }
 
@@ -127,9 +195,13 @@ export function GenerateContractModal({
     setError(null)
     setSelectedTemplateId(templateId)
     try {
+      const startedAt = generationStartedAt ?? new Date()
+      if (!generationStartedAt) setGenerationStartedAt(startedAt)
+
       const next = await buildContractCompletenessReport({
         wedding,
         templateId,
+        generationStartedAt: startedAt,
       })
       setReport(next)
       setOverrides({})
@@ -188,7 +260,7 @@ export function GenerateContractModal({
     }
   }
 
-  async function handleSave() {
+  async function persistGenerated(includePdf: boolean) {
     if (!generated || !docxBytes) return
     setBusy(true)
     setError(null)
@@ -207,6 +279,8 @@ export function GenerateContractModal({
         versionNumber: generated.versionNumber,
         title: generated.title,
         docxBytes: edited,
+        includePdf,
+        executionSnapshot: generated.executionSnapshot,
       })
 
       await weddingActionsService.markContractGenerated(wedding.id, {
@@ -217,8 +291,12 @@ export function GenerateContractModal({
 
       setDocxUrl(saved.docxDownloadUrl)
       setPdfUrl(saved.pdfDownloadUrl)
+      setBaselineParagraphs(paragraphs.map((p) => ({ ...p })))
       setStep('saved')
-      showToast('Umowa zapisana (DOCX + PDF).', 'success')
+      showToast(
+        includePdf ? 'Umowa zapisana (DOCX + PDF).' : 'Umowa zapisana (DOCX).',
+        'success',
+      )
     } catch (err) {
       setError(
         err instanceof Error ? err.message : 'Nie udało się zapisać umowy.',
@@ -245,16 +323,17 @@ export function GenerateContractModal({
     }
   }
 
-  const description =
-    step === 'template'
+  const isEditor = step === 'editor'
+
+  const description = isEditor
+    ? 'Sprawdź treść przed zapisaniem dokumentów.'
+    : step === 'template'
       ? 'Wybierz szablon. Dane pobierzemy automatycznie ze Ślubu, ankiet, pakietu i firmy.'
       : step === 'completeness'
         ? `Brakuje ${report?.missing.length ?? 0} ${
             (report?.missing.length ?? 0) === 1 ? 'wartości' : 'wartości'
           }. Reszta pochodzi z OurWed.`
-        : step === 'editor'
-          ? 'Podgląd po transformacji. Możesz poprawić tekst przed zapisem.'
-          : 'Umowa jest gotowa do pobrania.'
+        : 'Umowa jest gotowa do pobrania.'
 
   const primaryAction = (() => {
     if (step === 'template') {
@@ -289,29 +368,64 @@ export function GenerateContractModal({
           type="button"
           variant="primary"
           disabled={busy}
-          onClick={() => void handleSave()}
+          onClick={() => void persistGenerated(true)}
         >
           {busy ? 'Zapisywanie…' : 'Zapisz DOCX i PDF'}
         </Button>
       )
     }
     return (
-      <Button type="button" variant="primary" onClick={onClose}>
+      <Button type="button" variant="primary" onClick={requestClose}>
         Zamknij
       </Button>
     )
   })()
 
+  const secondaryAction =
+    step === 'editor' ? (
+      <Button
+        type="button"
+        variant="secondary"
+        disabled={busy}
+        onClick={() => void persistGenerated(false)}
+      >
+        Zapisz tylko DOCX
+      </Button>
+    ) : undefined
+
   return (
     <Modal
       open={open}
-      onClose={onClose}
-      title="Generuj umowę"
+      onClose={requestClose}
+      title={isEditor ? 'Podgląd umowy' : 'Generuj umowę'}
       description={description}
       busy={busy}
-      size="lg"
+      size={isEditor ? 'document' : 'lg'}
+      showClose={isEditor}
       primaryAction={primaryAction}
-      cancelLabel={step === 'saved' ? 'Zamknij' : 'Anuluj'}
+      secondaryAction={secondaryAction}
+      cancelLabel={
+        step === 'saved' ? 'Zamknij' : isEditor ? 'Wróć' : 'Anuluj'
+      }
+      onCancel={isEditor ? goBackToVariables : requestClose}
+      statusBadge={
+        isEditor ? (
+          <span className={styles.statusBadge}>Wygenerowano poprawnie</span>
+        ) : null
+      }
+      headerActions={
+        isEditor ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={busy}
+            onClick={goBackToVariables}
+          >
+            Powrót do zmiennych
+          </Button>
+        ) : null
+      }
     >
       {step === 'template' ? (
         <TemplatePicker
@@ -330,7 +444,7 @@ export function GenerateContractModal({
           onSelect={setSelectedTemplateId}
           onReanalyze={(id) => {
             onClose()
-            navigate(`/ustawienia/dokumenty/szablony/${id}`)
+            navigate(`/ustawienia/dokumenty/szablony/${id}/konfiguracja`)
           }}
         />
       ) : null}
@@ -350,13 +464,28 @@ export function GenerateContractModal({
       ) : null}
 
       {step === 'editor' ? (
-        <EditorStep
+        <ContractDocumentPreview
           paragraphs={paragraphs}
-          onChange={(index, text) =>
+          baselineParagraphs={baselineParagraphs}
+          resolvedValues={generated?.resolved ?? {}}
+          omittedKeys={generated?.omittedKeys ?? []}
+          busy={busy}
+          panelOpen={summaryPanelOpen}
+          onTogglePanel={() => setSummaryPanelOpen((v) => !v)}
+          onBackToVariables={goBackToVariables}
+          onChangeParagraph={(index, text) =>
             setParagraphs((prev) =>
-              prev.map((p) => (p.index === index ? { ...p, text } : p)),
+              prev.map((p) =>
+                p.index === index
+                  ? {
+                      ...p,
+                      text: text === '\u00a0' ? '' : text,
+                    }
+                  : p,
+              ),
             )
           }
+          onReplaceAll={setParagraphs}
         />
       ) : null}
 
@@ -465,9 +594,7 @@ function TemplatePicker({
                   <span className={styles.templateMeta}>
                     Status: {row.template.status}
                     {row.unresolvedSlotCount > 0
-                      ? ` · brakuje powiązania ${row.unresolvedSlotCount} ${
-                          row.unresolvedSlotCount === 1 ? 'pola' : 'pól'
-                        }`
+                      ? ` · ${row.unresolvedSlotCount} wymaganych bez powiązania`
                       : ''}
                   </span>
                   <span className={styles.templateMeta}>{row.reason}</span>
@@ -635,36 +762,6 @@ function VariableRow({
         </label>
       </td>
     </tr>
-  )
-}
-
-function EditorStep({
-  paragraphs,
-  onChange,
-}: {
-  paragraphs: DocxParagraph[]
-  onChange: (index: number, text: string) => void
-}) {
-  if (paragraphs.length === 0) {
-    return (
-      <p className={styles.muted}>
-        Dokument nie zawiera edytowalnych akapitów tekstowych. Możesz zapisać
-        wygenerowany DOCX bez zmian.
-      </p>
-    )
-  }
-  return (
-    <div className={styles.editor}>
-      {paragraphs.map((p) => (
-        <textarea
-          key={p.index}
-          className={styles.paragraph}
-          value={p.text}
-          rows={Math.min(6, Math.max(2, Math.ceil(p.text.length / 72)))}
-          onChange={(e) => onChange(p.index, e.target.value)}
-        />
-      ))}
-    </div>
   )
 }
 

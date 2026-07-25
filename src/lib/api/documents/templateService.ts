@@ -12,9 +12,16 @@ import type {
 import {
   mapTemplate,
   mapTemplateVersion,
+  slimTemplateMetaForList,
   type TemplateRow,
   type TemplateVersionRow,
 } from '@/lib/api/documents/mappers'
+import {
+  approxJsonBytes,
+  resetDocumentsPerfCounters,
+  startDocumentsPerf,
+} from '@/features/documents/performance/documentsPerformance'
+import { isTemplateSummaryStale } from '@/features/documents/performance/analysisVersions'
 import type {
   DocumentBlockPayload,
   DocumentTemplate,
@@ -30,6 +37,85 @@ function assertDocx(file: File) {
     !name.endsWith('.pdf')
   ) {
     throw new Error('Dodaj plik w formacie DOCX, DOC lub PDF.')
+  }
+}
+
+type CurrentVersionLite = {
+  version_number: number
+  source_file_name: string | null
+  source_docx_path: string | null
+}
+
+type TemplateListRow = TemplateRow & {
+  current_version?: CurrentVersionLite | CurrentVersionLite[] | null
+}
+
+function pickCurrentVersion(
+  raw: TemplateListRow['current_version'],
+): CurrentVersionLite | null {
+  if (!raw) return null
+  if (Array.isArray(raw)) return raw[0] ?? null
+  return raw
+}
+
+function inferSourceFormat(
+  fileName: string | null | undefined,
+): 'docx' | 'pdf' | undefined {
+  if (!fileName) return undefined
+  const lower = fileName.toLowerCase()
+  if (lower.endsWith('.pdf')) return 'pdf'
+  if (lower.endsWith('.docx') || lower.endsWith('.doc')) return 'docx'
+  return undefined
+}
+
+function buildSummaryFromPersisted(input: {
+  template: DocumentTemplate
+  currentVersionNumber: number | null
+  sourceFileName: string | null
+  sourceDocxPath: string | null
+  usageCount: number
+  slimMeta?: boolean
+}): DocumentTemplateSummary {
+  const meta = input.slimMeta
+    ? slimTemplateMetaForList(input.template.meta)
+    : input.template.meta
+  const counters = meta.slotCounters
+  const detectedFieldCount =
+    meta.slotCounters?.detectedSlotCount ??
+    (meta.coupleVariables?.length ?? 0) +
+      (meta.studioVariables?.length ?? 0) +
+      (meta.packageVariables?.length ?? 0)
+  const safeBindingCount =
+    meta.safeBindingCount ??
+    counters?.safeBindingsCount ??
+    counters?.boundRequiredSlotCount ??
+    0
+  const unresolvedCount =
+    meta.unresolvedCount ??
+    meta.requiredMissingCount ??
+    counters?.unresolvedRequiredSlotCount ??
+    meta.unresolvedSlotKeys?.length ??
+    0
+  const generationReady =
+    meta.generationReady ??
+    (meta.slotBindingsReady === true && input.template.status === 'ready')
+
+  return {
+    ...input.template,
+    meta,
+    currentVersionNumber: input.currentVersionNumber,
+    componentCount: 0,
+    blockCount: 0,
+    variableCount: detectedFieldCount,
+    usageCount: input.usageCount,
+    sourceFileName: input.sourceFileName,
+    sourceDocxPath: input.sourceDocxPath,
+    generationReady,
+    detectedFieldCount,
+    safeBindingCount,
+    unresolvedCount,
+    summaryStale: isTemplateSummaryStale(meta),
+    sourceFormat: inferSourceFormat(input.sourceFileName),
   }
 }
 
@@ -83,57 +169,128 @@ async function countStatsForVersion(templateVersionId: string | null): Promise<{
   }
 }
 
-async function toSummary(
+/** Detail-only enrichment (may hit version + stats). Not used by list/picker. */
+async function toDetailSummary(
   template: DocumentTemplate,
   versions: DocumentTemplateVersion[],
 ): Promise<DocumentTemplateSummary> {
-  const current = versions.find((v) => v.id === template.currentVersionId) ?? null
+  const current =
+    versions.find((v) => v.id === template.currentVersionId) ?? null
   const stats = await countStatsForVersion(template.currentVersionId)
-  const metaSlots =
-    (template.meta.coupleVariables?.length ?? 0) +
-    (template.meta.studioVariables?.length ?? 0) +
-    (template.meta.packageVariables?.length ?? 0)
-  const slotMapCount = Array.isArray(current?.slotMap?.slots)
-    ? (current!.slotMap.slots as unknown[]).length
-    : 0
+  const base = buildSummaryFromPersisted({
+    template,
+    currentVersionNumber: current?.versionNumber ?? null,
+    sourceFileName: current?.sourceFileName ?? null,
+    sourceDocxPath: current?.sourceDocxPath ?? null,
+    usageCount: 0,
+    slimMeta: false,
+  })
 
   const { count: usageCount, error: usageError } = await supabase
     .from('wedding_documents')
     .select('id', { count: 'exact', head: true })
     .eq('template_id', template.id)
   if (usageError) {
-    // Non-fatal — list still works without usage stats
+    // Non-fatal
   }
 
   return {
-    ...template,
-    currentVersionNumber: current?.versionNumber ?? null,
+    ...base,
     componentCount: stats.componentCount,
     blockCount: stats.blockCount,
-    variableCount: Math.max(stats.variableCount, metaSlots, slotMapCount),
+    variableCount: Math.max(base.variableCount, stats.variableCount),
     usageCount: usageCount ?? 0,
-    sourceFileName: current?.sourceFileName ?? null,
-    sourceDocxPath: current?.sourceDocxPath ?? null,
   }
 }
 
-async function clearDefaultsForType(userId: string, docType: string) {
-  const { error } = await supabase
-    .from('document_templates')
-    .update({ is_default: false })
-    .eq('user_id', userId)
-    .eq('doc_type', docType)
-    .eq('is_default', true)
-  throwOnError(error)
+async function batchUsageCounts(
+  templateIds: string[],
+): Promise<Map<string, number>> {
+  const map = new Map<string, number>()
+  if (templateIds.length === 0) return map
+  const { data, error } = await supabase
+    .from('wedding_documents')
+    .select('template_id')
+    .in('template_id', templateIds)
+  if (error) return map
+  for (const row of (data ?? []) as { template_id: string | null }[]) {
+    if (!row.template_id) continue
+    map.set(row.template_id, (map.get(row.template_id) ?? 0) + 1)
+  }
+  return map
 }
 
-async function copyStorageFile(fromPath: string, toPath: string): Promise<void> {
-  const buffer = await documentStorage.download(fromPath)
-  await documentStorage.upload(
-    toPath,
-    new Blob([buffer], {
-      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    }),
+/**
+ * Lightweight list for Documents page + Generate picker.
+ * One primary join query (+ optional usage batch). Never loads slot_map / binaries.
+ */
+async function listDocumentTemplateSummaries(): Promise<
+  DocumentTemplateSummary[]
+> {
+  resetDocumentsPerfCounters()
+  const perf = startDocumentsPerf('documents-list-query')
+  perf.stamp('listQueryStartedAt')
+
+  const userId = await requireStudioUserId()
+  let networkRequests = 0
+
+  const { data, error } = await supabase
+    .from('document_templates')
+    .select(
+      `
+      *,
+      current_version:document_template_versions!current_version_id (
+        version_number,
+        source_file_name,
+        source_docx_path
+      )
+    `,
+    )
+    .eq('user_id', userId)
+    .order('updated_at', { ascending: false })
+  networkRequests += 1
+  throwOnError(error)
+
+  const rows = (data ?? []) as TemplateListRow[]
+  const usageMap = await batchUsageCounts(rows.map((r) => r.id))
+  if (rows.length > 0) networkRequests += 1
+
+  const summaries = rows.map((row) => {
+    const template = mapTemplate(row)
+    const current = pickCurrentVersion(row.current_version)
+    return buildSummaryFromPersisted({
+      template,
+      currentVersionNumber: current?.version_number ?? null,
+      sourceFileName: current?.source_file_name ?? null,
+      sourceDocxPath: current?.source_docx_path ?? null,
+      usageCount: usageMap.get(template.id) ?? 0,
+      slimMeta: true,
+    })
+  })
+
+  perf.stamp('metadataResponseAt')
+  perf.finish({
+    totalTemplateCount: summaries.length,
+    totalPayloadBytes: approxJsonBytes(summaries),
+    numberOfNetworkRequests: networkRequests,
+    numberOfSequentialRequests: networkRequests,
+    analysisFunctionsCalled: 0,
+    binaryFilesFetched: 0,
+  })
+
+  return summaries
+}
+
+async function listGenerationReadyTemplateSummaries(): Promise<
+  DocumentTemplateSummary[]
+> {
+  const all = await listDocumentTemplateSummaries()
+  return all.filter(
+    (t) =>
+      t.docType === 'contract' &&
+      t.status !== 'archived' &&
+      t.generationReady &&
+      !t.summaryStale,
   )
 }
 
@@ -179,7 +336,50 @@ async function getTemplateSummary(
   const template = await getTemplate(id)
   if (!template) return null
   const versions = await listVersions(id)
-  return toSummary(template, versions)
+  return toDetailSummary(template, versions)
+}
+
+async function getDocumentTemplateAnalysis(
+  id: string,
+): Promise<DocumentTemplateVersion | null> {
+  const template = await getTemplate(id)
+  if (!template?.currentVersionId) return null
+  return getVersion(template.currentVersionId)
+}
+
+async function getDocumentTemplateSource(
+  id: string,
+): Promise<{ bytes: ArrayBuffer; fileName: string | null; path: string }> {
+  const summary = await getTemplateSummary(id)
+  if (!summary?.sourceDocxPath) {
+    throw new Error('Brak pliku źródłowego szablonu.')
+  }
+  const bytes = await documentStorage.download(summary.sourceDocxPath)
+  return {
+    bytes,
+    fileName: summary.sourceFileName,
+    path: summary.sourceDocxPath,
+  }
+}
+
+async function clearDefaultsForType(userId: string, docType: string) {
+  const { error } = await supabase
+    .from('document_templates')
+    .update({ is_default: false })
+    .eq('user_id', userId)
+    .eq('doc_type', docType)
+    .eq('is_default', true)
+  throwOnError(error)
+}
+
+async function copyStorageFile(fromPath: string, toPath: string): Promise<void> {
+  const buffer = await documentStorage.download(fromPath)
+  await documentStorage.upload(
+    toPath,
+    new Blob([buffer], {
+      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    }),
+  )
 }
 
 async function updateTemplate(
@@ -376,15 +576,10 @@ async function getVersion(
 export const documentTemplateService: DocumentTemplateService = {
   list: listTemplates,
 
-  async listSummaries() {
-    const templates = await listTemplates()
-    const summaries: DocumentTemplateSummary[] = []
-    for (const template of templates) {
-      const versions = await listVersions(template.id)
-      summaries.push(await toSummary(template, versions))
-    }
-    return summaries
-  },
+  listSummaries: listDocumentTemplateSummaries,
+  listGenerationReadySummaries: listGenerationReadyTemplateSummaries,
+  getAnalysis: getDocumentTemplateAnalysis,
+  getSource: getDocumentTemplateSource,
 
   get: getTemplate,
   getSummary: getTemplateSummary,
