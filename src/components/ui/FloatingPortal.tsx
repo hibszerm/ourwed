@@ -80,11 +80,8 @@ export function FloatingPortal({
 
   if (!open || !placement || typeof document === 'undefined') return null
 
-  // Desktop anchored only — mobile sheet is handled by ResponsiveFieldOverlay.
-  if (placement.mode === 'sheet') {
-    // Still render anchored fallback with sheet metrics so legacy callers work.
-  }
-
+  // FloatingPortal is desktop-anchored; force anchored metrics if a narrow
+  // viewport would otherwise select dialog mode (callers should use MobileFieldDialog).
   const style: CSSProperties = {
     position: 'fixed',
     top: placement.top,

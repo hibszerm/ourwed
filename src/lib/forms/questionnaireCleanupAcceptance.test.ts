@@ -221,15 +221,15 @@ run('order: stale schema address coerced to location', () => {
   assertEq(addr?.type, 'location', 'coerced')
 })
 
-run('mobile: placement sheet mode under breakpoint', () => {
+run('mobile: placement dialog mode under breakpoint', () => {
   assert(isMobileOverlayViewport(MOBILE_OVERLAY_BREAKPOINT - 1), 'mobile')
   assert(!isMobileOverlayViewport(MOBILE_OVERLAY_BREAKPOINT + 1), 'desktop')
-  const sheet = computeFloatingPlacement(
+  const mobile = computeFloatingPlacement(
     { top: 100, left: 20, width: 300, height: 40 },
     { width: 390, height: 500 },
   )
-  assertEq(sheet.mode, 'sheet', 'sheet mode')
-  assert(sheet.maxHeight <= 500 * 0.55, 'sheet height capped')
+  assertEq(mobile.mode, 'dialog', 'dialog mode')
+  assert(typeof mobile.height === 'number' && mobile.height > 0, 'dialog has height')
   const desktop = computeFloatingPlacement(
     { top: 100, left: 40, width: 320, height: 40 },
     { width: 1024, height: 800 },
@@ -238,25 +238,27 @@ run('mobile: placement sheet mode under breakpoint', () => {
   assertEq(desktop.placement, 'below', 'below when space')
 })
 
-run('mobile: AddressField uses ResponsiveFieldOverlay', () => {
+run('mobile: AddressField uses MobileFieldDialog + desktop overlay', () => {
   const src = readFileSync(
     resolve(process.cwd(), 'src/features/forms/AddressField.tsx'),
     'utf8',
   )
-  assert(src.includes('ResponsiveFieldOverlay'), 'overlay')
-  assert(src.includes('Wybierz adres'), 'sheet title')
+  assert(src.includes('ResponsiveFieldOverlay'), 'desktop overlay')
+  assert(src.includes('MobileFieldDialog'), 'mobile dialog')
+  assert(src.includes('Wybierz adres'), 'dialog title')
   assert(src.includes('data-overlay-mode'), 'mode attr')
 })
 
-run('mobile: DatePickerField uses ResponsiveFieldOverlay', () => {
+run('mobile: DatePickerField uses MobileFieldDialog without keyboard', () => {
   const src = readFileSync(
     resolve(process.cwd(), 'src/features/forms/DatePickerField.tsx'),
     'utf8',
   )
-  assert(src.includes('ResponsiveFieldOverlay'), 'overlay')
-  assert(src.includes('Wybierz datę'), 'sheet title')
-  assert(src.includes('Dzisiaj'), 'today')
-  assert(src.includes('YEAR') || src.includes('yearSelect'), 'year nav')
+  assert(src.includes('ResponsiveFieldOverlay'), 'desktop overlay')
+  assert(src.includes('MobileFieldDialog'), 'mobile dialog')
+  assert(src.includes('Wybierz datę'), 'dialog title')
+  assert(src.includes('mobile-date-trigger'), 'button trigger')
+  assert(src.includes('yearSelect') || src.includes('date-year-select'), 'year nav')
 })
 
 run('address: questionsFromBlocks emits location for address inputType', () => {

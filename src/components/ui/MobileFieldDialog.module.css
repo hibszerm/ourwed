@@ -1,0 +1,71 @@
+.dialog {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  background: var(--color-surface, #fff);
+  color: var(--color-text, #18181b);
+  overflow: hidden;
+  min-height: 0;
+  height: var(--visual-viewport-height, 100dvh);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-shrink: 0;
+  padding: 0.85rem 1rem 0.65rem;
+  border-bottom: 1px solid var(--color-border, #e4e4e7);
+  background: var(--color-surface, #fff);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 650;
+  color: var(--color-text, #18181b);
+}
+
+.close {
+  border: none;
+  background: transparent;
+  color: var(--color-text-secondary, #52525b);
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+  padding: 0.35rem 0.45rem;
+  min-height: 44px;
+}
+
+.headerExtra {
+  flex-shrink: 0;
+  padding: 0.65rem 1rem;
+  border-bottom: 1px solid var(--color-border, #e4e4e7);
+  background: var(--color-surface, #fff);
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+.footer {
+  flex-shrink: 0;
+  display: flex;
+  gap: 0.65rem;
+  justify-content: stretch;
+  padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--color-border, #e4e4e7);
+  background: var(--color-surface, #fff);
+}

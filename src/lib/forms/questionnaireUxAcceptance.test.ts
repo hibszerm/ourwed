@@ -117,6 +117,7 @@ run('address: AddressField uses ResponsiveFieldOverlay (portal outside overflow)
     'utf8',
   )
   assert(src.includes('ResponsiveFieldOverlay'), 'uses ResponsiveFieldOverlay')
+  assert(src.includes('MobileFieldDialog'), 'uses MobileFieldDialog')
   assert(src.includes('data-testid="address-suggestion-menu"'), 'menu test id')
   assert(src.includes('Escape'), 'escape closes')
   assert(src.includes('ArrowDown'), 'keyboard nav')
@@ -125,7 +126,6 @@ run('address: AddressField uses ResponsiveFieldOverlay (portal outside overflow)
     'utf8',
   )
   assert(css.includes('overflow: hidden'), 'card still overflow hidden')
-  // Portal to body is the fix — menu class is listPortal not absolute-in-card
   const addrCss = readFileSync(
     resolve(process.cwd(), 'src/features/forms/AddressField.module.css'),
     'utf8',
@@ -441,6 +441,7 @@ run('date: DatePickerField uses ResponsiveFieldOverlay + Polish calendar', () =>
     'utf8',
   )
   assert(src.includes('ResponsiveFieldOverlay'), 'portal overlay')
+  assert(src.includes('MobileFieldDialog'), 'mobile dialog')
   assert(src.includes('MONTHS_PL'), 'Polish months')
   assert(src.includes('WEEKDAYS_PL'), 'Polish weekdays')
   assert(src.includes('data-testid="date-picker-popover"'), 'popover test id')

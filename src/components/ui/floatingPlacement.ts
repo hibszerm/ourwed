@@ -1,7 +1,9 @@
 /**
- * Viewport helpers for floating popovers and mobile sheets.
+ * Viewport helpers for floating popovers and mobile dialogs.
  * Prefer visualViewport when available (mobile keyboard).
  */
+
+import { readVisualViewportBounds } from '@/components/ui/visualViewportBounds'
 
 export interface FloatingRect {
   top: number
@@ -15,8 +17,11 @@ export interface FloatingPlacementResult {
   left: number
   width: number
   maxHeight: number
+  /** Full visible height when mode is dialog. */
+  height?: number
   placement: 'below' | 'above'
-  mode: 'anchored' | 'sheet'
+  /** anchored = desktop popover; dialog = full visualViewport mobile dialog. */
+  mode: 'anchored' | 'dialog'
 }
 
 export interface ComputeFloatingOptions {
@@ -24,9 +29,10 @@ export interface ComputeFloatingOptions {
   minSpace?: number
   maxMenuHeight?: number
   padding?: number
-  /** Force sheet mode (mobile). */
+  /** Force full-viewport dialog mode (mobile). */
   forceSheet?: boolean
-  /** Sheet height as fraction of visible viewport (0–1). */
+  forceDialog?: boolean
+  /** @deprecated Half-height sheets are no longer used. Ignored. */
   sheetFraction?: number
 }
 
@@ -46,7 +52,10 @@ export function viewportHeight(): number {
   return window.visualViewport?.height ?? window.innerHeight
 }
 
-export function visualViewportOffset(): { offsetTop: number; offsetLeft: number } {
+export function visualViewportOffset(): {
+  offsetTop: number
+  offsetLeft: number
+} {
   if (typeof window === 'undefined' || !window.visualViewport) {
     return { offsetTop: 0, offsetLeft: 0 }
   }
@@ -58,7 +67,7 @@ export function visualViewportOffset(): { offsetTop: number; offsetLeft: number 
 
 /**
  * Place a floating panel below the anchor when space allows, otherwise above.
- * On narrow viewports (or forceSheet), return sheet-mode metrics.
+ * On narrow viewports (or forceDialog), return full visualViewport dialog metrics.
  */
 export function computeFloatingPlacement(
   anchor: FloatingRect,
@@ -69,27 +78,26 @@ export function computeFloatingPlacement(
   const minSpace = options?.minSpace ?? 120
   const maxMenuHeight = options?.maxMenuHeight ?? 280
   const padding = options?.padding ?? 8
-  const sheetFraction = options?.sheetFraction ?? 0.48
-  const useSheet =
-    options?.forceSheet === true || isMobileOverlayViewport(viewport.width)
+  const useDialog =
+    options?.forceDialog === true ||
+    options?.forceSheet === true ||
+    isMobileOverlayViewport(viewport.width)
 
-  if (useSheet) {
-    const maxHeight = Math.max(
-      160,
-      Math.min(viewport.height * sheetFraction, viewport.height - padding * 2),
-    )
-    const { offsetTop } = visualViewportOffset()
+  if (useDialog) {
+    const bounds = readVisualViewportBounds()
     return {
-      top: offsetTop + viewport.height - maxHeight - padding,
-      left: padding,
-      width: Math.max(0, viewport.width - padding * 2),
-      maxHeight,
-      placement: 'above',
-      mode: 'sheet',
+      top: bounds.top,
+      left: bounds.left,
+      width: bounds.width,
+      maxHeight: bounds.height,
+      height: bounds.height,
+      placement: 'below',
+      mode: 'dialog',
     }
   }
 
-  const spaceBelow = viewport.height - anchor.top - anchor.height - gap - padding
+  const spaceBelow =
+    viewport.height - anchor.top - anchor.height - gap - padding
   const spaceAbove = anchor.top - gap - padding
   const placeBelow = spaceBelow >= minSpace || spaceBelow >= spaceAbove
 
@@ -98,7 +106,10 @@ export function computeFloatingPlacement(
     Math.min(maxMenuHeight, placeBelow ? spaceBelow : spaceAbove),
   )
 
-  const width = Math.max(0, Math.min(anchor.width, viewport.width - padding * 2))
+  const width = Math.max(
+    0,
+    Math.min(anchor.width, viewport.width - padding * 2),
+  )
   let left = anchor.left
   if (left + width > viewport.width - padding) {
     left = Math.max(padding, viewport.width - padding - width)

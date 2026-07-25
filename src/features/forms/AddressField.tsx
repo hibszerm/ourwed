@@ -1,3 +1,9 @@
+/**
+ * Address autocomplete.
+ * Desktop: anchored ResponsiveFieldOverlay popover.
+ * Mobile: full visualViewport search dialog (MobileFieldDialog).
+ */
+
 import {
   useEffect,
   useId,
@@ -5,7 +11,9 @@ import {
   useState,
   type KeyboardEvent,
 } from 'react'
+import { MobileFieldDialog } from '@/components/ui/MobileFieldDialog'
 import { ResponsiveFieldOverlay } from '@/components/ui/ResponsiveFieldOverlay'
+import { useIsMobileOverlay } from '@/components/ui/useIsMobileOverlay'
 import {
   defaultAddressAutocompleteProvider,
   type AddressAutocompleteProvider,
@@ -35,10 +43,6 @@ function isNormalized(value: AddressFieldValue): value is NormalizedAddress {
   return typeof value === 'object' && value != null && 'formattedAddress' in value
 }
 
-/**
- * Address autocomplete with responsive overlay:
- * desktop anchored popover, mobile keyboard-aware bottom sheet.
- */
 export function AddressField({
   id,
   value,
@@ -48,9 +52,13 @@ export function AddressField({
   provider = defaultAddressAutocompleteProvider,
 }: AddressFieldProps) {
   const listId = useId()
+  const isMobile = useIsMobileOverlay()
   const inputRef = useRef<HTMLInputElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const searchRef = useRef<HTMLInputElement>(null)
   const portalRef = useRef<HTMLElement | null>(null)
   const [query, setQuery] = useState(toDisplay(value))
+  const [dialogQuery, setDialogQuery] = useState(toDisplay(value))
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([])
   const [loading, setLoading] = useState(false)
   const [open, setOpen] = useState(false)
@@ -69,7 +77,7 @@ export function AddressField({
   }, [])
 
   useEffect(() => {
-    if (!open) return
+    if (!open || isMobile) return
     function onDocPointer(e: MouseEvent | TouchEvent) {
       const target = e.target as Node | null
       if (!target) return
@@ -84,7 +92,7 @@ export function AddressField({
       document.removeEventListener('mousedown', onDocPointer)
       document.removeEventListener('touchstart', onDocPointer)
     }
-  }, [open])
+  }, [open, isMobile])
 
   function emitManual(text: string) {
     const prev = isNormalized(value) ? value : null
@@ -95,16 +103,25 @@ export function AddressField({
     onChange(text)
   }
 
-  function handleInput(next: string) {
-    setQuery(next)
-    emitManual(next)
-    setOpen(true)
+  function scheduleSearch(next: string) {
     setHighlight(-1)
     setEmptyAfterSearch(false)
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
       void runSearch(next)
     }, 280)
+  }
+
+  function handleDesktopInput(next: string) {
+    setQuery(next)
+    emitManual(next)
+    setOpen(true)
+    scheduleSearch(next)
+  }
+
+  function handleDialogInput(next: string) {
+    setDialogQuery(next)
+    scheduleSearch(next)
   }
 
   async function runSearch(q: string) {
@@ -116,10 +133,10 @@ export function AddressField({
     }
     setLoading(true)
     try {
-      const hits = await provider.search(q, { limit: 6 })
+      const hits = await provider.search(q, { limit: 8 })
       setSuggestions(hits)
       setEmptyAfterSearch(hits.length === 0)
-      setOpen(true)
+      if (!isMobile) setOpen(true)
     } catch {
       setSuggestions([])
       setEmptyAfterSearch(true)
@@ -133,11 +150,41 @@ export function AddressField({
       const resolved = await provider.resolve(s.id)
       onChange(resolved)
       setQuery(resolved.formattedAddress)
+      setDialogQuery(resolved.formattedAddress)
     } catch {
       onChange(s.label)
       setQuery(s.label)
+      setDialogQuery(s.label)
     }
     setSuggestions([])
+    setOpen(false)
+    setHighlight(-1)
+  }
+
+  function useTypedAddress() {
+    const text = (isMobile ? dialogQuery : query).trim()
+    if (!text) return
+    emitManual(text)
+    setQuery(text)
+    setOpen(false)
+    setHighlight(-1)
+  }
+
+  function openMobileDialog() {
+    if (disabled) return
+    const current = toDisplay(value) || query
+    setDialogQuery(current)
+    setSuggestions([])
+    setEmptyAfterSearch(false)
+    setHighlight(-1)
+    setOpen(true)
+    if (current.trim().length >= 2) {
+      void runSearch(current)
+    }
+    inputRef.current?.blur()
+  }
+
+  function closeDialog() {
     setOpen(false)
     setHighlight(-1)
   }
@@ -146,8 +193,7 @@ export function AddressField({
     if (e.key === 'Escape') {
       if (open) {
         e.preventDefault()
-        setOpen(false)
-        setHighlight(-1)
+        closeDialog()
       }
       return
     }
@@ -168,110 +214,171 @@ export function AddressField({
     }
   }
 
-  const showMenu =
+  const showDesktopMenu =
+    !isMobile &&
     open &&
     !disabled &&
     (loading || suggestions.length > 0 || emptyAfterSearch)
 
-  return (
-    <div className={styles.wrap}>
-      <input
-        ref={inputRef}
-        id={id}
-        className={fieldStyles.input}
-        type="text"
-        role="combobox"
-        aria-autocomplete="list"
-        aria-expanded={showMenu}
-        aria-controls={listId}
-        aria-activedescendant={
-          highlight >= 0 ? `${listId}-opt-${highlight}` : undefined
-        }
-        placeholder={placeholder}
-        value={query}
-        disabled={disabled}
-        readOnly={disabled}
-        autoComplete="street-address"
-        onChange={(e) => handleInput(e.target.value)}
-        onFocus={() => {
-          if (suggestions.length > 0 || emptyAfterSearch) setOpen(true)
-        }}
-        onKeyDown={onKeyDown}
-      />
-      {loading ? <span className={styles.status}>Szukam…</span> : null}
-
-      <ResponsiveFieldOverlay
-        open={showMenu}
-        anchorRef={inputRef}
-        sheetTitle="Wybierz adres"
-        onClose={() => {
-          setOpen(false)
-          setHighlight(-1)
-        }}
-        maxMenuHeight={280}
-        sheetFraction={0.45}
-      >
-        {(placement) => (
-          <ul
-            ref={(node) => {
-              portalRef.current = node
-            }}
-            id={listId}
+  const resultsList = (
+    <ul
+      ref={(node) => {
+        portalRef.current = node
+      }}
+      id={listId}
+      className={[styles.listPortal, isMobile ? styles.listDialog : '']
+        .filter(Boolean)
+        .join(' ')}
+      role="listbox"
+      data-testid="address-suggestion-menu"
+      data-overlay-mode={isMobile ? 'dialog' : 'anchored'}
+    >
+      {loading && suggestions.length === 0 ? (
+        <li className={styles.emptyRow} role="presentation">
+          Szukam adresów…
+        </li>
+      ) : null}
+      {!loading && emptyAfterSearch && suggestions.length === 0 ? (
+        <li className={styles.emptyRow} role="presentation">
+          Brak podpowiedzi — możesz użyć wpisanego adresu.
+        </li>
+      ) : null}
+      {suggestions.map((s, index) => (
+        <li
+          key={s.id}
+          id={`${listId}-opt-${index}`}
+          role="option"
+          aria-selected={highlight === index}
+        >
+          <button
+            type="button"
             className={[
-              styles.listPortal,
-              placement.mode === 'sheet' ? styles.listSheet : '',
+              styles.option,
+              styles.optionCompact,
+              highlight === index ? styles.optionActive : '',
             ]
               .filter(Boolean)
               .join(' ')}
-            role="listbox"
-            style={{ maxHeight: placement.maxHeight - (placement.mode === 'sheet' ? 52 : 0) }}
-            data-testid="address-suggestion-menu"
-            data-overlay-mode={placement.mode}
+            onMouseDown={(e) => e.preventDefault()}
+            onMouseEnter={() => setHighlight(index)}
+            onClick={() => void pickSuggestion(s)}
           >
-            {loading && suggestions.length === 0 ? (
-              <li className={styles.emptyRow} role="presentation">
-                Szukam adresów…
-              </li>
-            ) : null}
-            {!loading && emptyAfterSearch && suggestions.length === 0 ? (
-              <li className={styles.emptyRow} role="presentation">
-                Brak podpowiedzi — możesz wpisać adres ręcznie.
-              </li>
-            ) : null}
-            {suggestions.map((s, index) => (
-              <li
-                key={s.id}
-                id={`${listId}-opt-${index}`}
-                role="option"
-                aria-selected={highlight === index}
-              >
-                <button
-                  type="button"
-                  className={[
-                    styles.option,
-                    placement.mode === 'sheet' ? styles.optionCompact : '',
-                    highlight === index ? styles.optionActive : '',
-                  ]
-                    .filter(Boolean)
-                    .join(' ')}
-                  onMouseDown={(e) => e.preventDefault()}
-                  onMouseEnter={() => setHighlight(index)}
-                  onClick={() => void pickSuggestion(s)}
-                >
-                  <span className={styles.optionText}>
-                    <span className={styles.optionLabel}>{s.label}</span>
-                    {s.secondaryLabel ? (
-                      <span className={styles.optionSecondary}>
-                        {s.secondaryLabel}
-                      </span>
-                    ) : null}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </ResponsiveFieldOverlay>
+            <span className={styles.optionText}>
+              <span className={styles.optionLabel}>{s.label}</span>
+              {s.secondaryLabel ? (
+                <span className={styles.optionSecondary}>
+                  {s.secondaryLabel}
+                </span>
+              ) : null}
+            </span>
+          </button>
+        </li>
+      ))}
+    </ul>
+  )
+
+  return (
+    <div className={styles.wrap}>
+      {isMobile ? (
+        <button
+          ref={triggerRef}
+          id={id}
+          type="button"
+          className={[fieldStyles.input, styles.mobileTrigger]
+            .filter(Boolean)
+            .join(' ')}
+          disabled={disabled}
+          aria-haspopup="dialog"
+          aria-expanded={open}
+          onClick={openMobileDialog}
+        >
+          <span className={query ? undefined : styles.placeholder}>
+            {query || placeholder}
+          </span>
+        </button>
+      ) : (
+        <input
+          ref={inputRef}
+          id={id}
+          className={fieldStyles.input}
+          type="text"
+          role="combobox"
+          aria-autocomplete="list"
+          aria-expanded={showDesktopMenu}
+          aria-controls={listId}
+          aria-activedescendant={
+            highlight >= 0 ? `${listId}-opt-${highlight}` : undefined
+          }
+          placeholder={placeholder}
+          value={query}
+          disabled={disabled}
+          readOnly={disabled}
+          autoComplete="street-address"
+          onChange={(e) => handleDesktopInput(e.target.value)}
+          onFocus={() => {
+            if (suggestions.length > 0 || emptyAfterSearch) setOpen(true)
+          }}
+          onKeyDown={onKeyDown}
+        />
+      )}
+      {loading && !isMobile ? (
+        <span className={styles.status}>Szukam…</span>
+      ) : null}
+
+      {!isMobile ? (
+        <ResponsiveFieldOverlay
+          open={showDesktopMenu}
+          anchorRef={inputRef}
+          onClose={closeDialog}
+          maxMenuHeight={280}
+        >
+          {() => resultsList}
+        </ResponsiveFieldOverlay>
+      ) : (
+        <MobileFieldDialog
+          open={open && !disabled}
+          title="Wybierz adres"
+          onClose={closeDialog}
+          initialFocusRef={searchRef}
+          restoreFocusRef={triggerRef}
+          testId="mobile-address-dialog"
+          headerExtra={
+            <div className={styles.dialogSearch}>
+              <input
+                ref={searchRef}
+                className={fieldStyles.input}
+                type="text"
+                inputMode="text"
+                enterKeyHint="search"
+                placeholder={placeholder}
+                value={dialogQuery}
+                aria-autocomplete="list"
+                aria-controls={listId}
+                autoComplete="street-address"
+                data-testid="mobile-address-search"
+                onChange={(e) => handleDialogInput(e.target.value)}
+                onKeyDown={onKeyDown}
+              />
+              {loading ? (
+                <span className={styles.dialogSearchStatus}>Szukam…</span>
+              ) : null}
+            </div>
+          }
+          footer={
+            <button
+              type="button"
+              className={styles.useTypedBtn}
+              disabled={!dialogQuery.trim()}
+              data-testid="mobile-address-use-typed"
+              onClick={useTypedAddress}
+            >
+              Użyj wpisanego adresu
+            </button>
+          }
+        >
+          {resultsList}
+        </MobileFieldDialog>
+      )}
     </div>
   )
 }
