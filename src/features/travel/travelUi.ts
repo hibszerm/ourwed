@@ -1,5 +1,9 @@
 import type { TravelPlan, TravelSegment } from '@/types/travel'
 import { isPlaceVerified } from '@/features/travel/locationVerification'
+import {
+  buildGoogleMapsNavigationUrl,
+  googleMapsDirectionsUrl,
+} from '@/services/googleMapsLinks'
 
 export interface TravelStop {
   key: string
@@ -10,6 +14,8 @@ export interface TravelStop {
   longitude: number | null
   kind: 'studio' | 'wedding_place'
   role?: string
+  /** Accessible navigation label. */
+  navigateLabel: string
 }
 
 /** Present stops in route order (missing / unverified locations skipped). */
@@ -26,10 +32,29 @@ export interface TravelFlow {
 }
 
 const ROLE_TITLES: Record<string, string> = {
-  preparation: 'Przygotowania',
+  bride_preparation: 'Przygotowania Panny Młodej',
+  groom_preparation: 'Przygotowania Pana Młodego',
+  /** Legacy display only — migrated rows normalize to bride_preparation. */
+  preparation: 'Przygotowania — starszy zapis',
   ceremony: 'Ceremonia',
-  reception: 'Przyjęcie',
+  reception: 'Przyjęcie weselne',
 }
+
+const ROLE_NAV_LABELS: Record<string, string> = {
+  bride_preparation: 'Nawiguj do przygotowań Panny Młodej',
+  groom_preparation: 'Nawiguj do przygotowań Pana Młodego',
+  preparation: 'Nawiguj do przygotowań (starszy zapis)',
+  ceremony: 'Nawiguj do ceremonii',
+  reception: 'Nawiguj na przyjęcie weselne',
+  studio: 'Nawiguj do firmy',
+}
+
+const STOP_ROLES = [
+  'bride_preparation',
+  'groom_preparation',
+  'ceremony',
+  'reception',
+] as const
 
 /**
  * Build UI flow from plan — only verified stops (with coordinates), consecutive legs.
@@ -37,6 +62,10 @@ const ROLE_TITLES: Record<string, string> = {
  */
 export function buildTravelFlow(plan: TravelPlan): TravelFlow {
   const byRole = new Map(plan.places.map((p) => [p.role, p]))
+  // Compat: legacy preparation place fills bride slot when bride_preparation absent.
+  if (!byRole.has('bride_preparation') && byRole.has('preparation')) {
+    byRole.set('bride_preparation', byRole.get('preparation')!)
+  }
   const stops: TravelFlowStop[] = []
 
   const studio = plan.studio
@@ -56,12 +85,14 @@ export function buildTravelFlow(plan: TravelPlan): TravelFlow {
       latitude: studio.latitude,
       longitude: studio.longitude,
       kind: 'studio',
+      role: 'studio',
+      navigateLabel: ROLE_NAV_LABELS.studio,
       isSet: true,
       markerIndex: stops.length + 1,
     })
   }
 
-  for (const role of ['preparation', 'ceremony', 'reception'] as const) {
+  for (const role of STOP_ROLES) {
     const place = byRole.get(role)
     if (!place || !isPlaceVerified(place)) continue
     stops.push({
@@ -73,6 +104,7 @@ export function buildTravelFlow(plan: TravelPlan): TravelFlow {
       longitude: place.longitude,
       kind: 'wedding_place',
       role,
+      navigateLabel: ROLE_NAV_LABELS[role] ?? `Nawiguj do: ${ROLE_TITLES[role] ?? role}`,
       isSet: true,
       markerIndex: stops.length + 1,
     })
@@ -96,7 +128,9 @@ export function buildTravelFlow(plan: TravelPlan): TravelFlow {
 export function formatTotalDistance(meters: number): string {
   if (meters < 1000) return `${Math.round(meters)} m`
   const km = meters / 1000
-  return `${km.toFixed(km < 10 ? 1 : 0).replace('.', ',')} km`
+  const rounded = Math.round(km * 10) / 10
+  if (Number.isInteger(rounded)) return `${rounded} km`
+  return `${rounded.toFixed(1).replace('.', ',')} km`
 }
 
 export function formatTotalDuration(seconds: number): string {
@@ -129,39 +163,27 @@ export function sumTravelTotals(segments: TravelSegment[]): {
   }
 }
 
-/** Google Maps navigation URL for one-click full-route open (not Directions API). */
+/** @deprecated Prefer per-stop buildGoogleMapsNavigationUrl / navigateToStopUrl. */
 export function openFullRouteUrl(stops: TravelStop[]): string | null {
-  const usable = stops.filter(
-    (s) =>
-      (s.latitude != null &&
-        s.longitude != null &&
-        Number.isFinite(s.latitude) &&
-        Number.isFinite(s.longitude)) ||
-      s.address.trim().length > 0,
+  return googleMapsDirectionsUrl(
+    stops.map((s) => ({
+      placeId: s.placeId,
+      latitude: s.latitude,
+      longitude: s.longitude,
+      address: s.address,
+      formattedAddress: s.address,
+    })),
   )
-  if (usable.length < 2) return null
+}
 
-  const point = (s: TravelStop): string => {
-    if (
-      s.latitude != null &&
-      s.longitude != null &&
-      Number.isFinite(s.latitude) &&
-      Number.isFinite(s.longitude)
-    ) {
-      return `${s.latitude},${s.longitude}`
-    }
-    return s.address.trim()
-  }
-
-  const origin = encodeURIComponent(point(usable[0]))
-  const destination = encodeURIComponent(point(usable[usable.length - 1]))
-  const middle = usable.slice(1, -1)
-  const waypoints =
-    middle.length > 0
-      ? `&waypoints=${middle.map((s) => encodeURIComponent(point(s))).join('%7C')}`
-      : ''
-
-  return `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}${waypoints}&travelmode=driving`
+/** Direct navigation URL for one travel stop (current position → destination). */
+export function navigateToStopUrl(stop: TravelStop): string | null {
+  return buildGoogleMapsNavigationUrl({
+    placeId: stop.placeId,
+    latitude: stop.latitude,
+    longitude: stop.longitude,
+    formattedAddress: stop.address,
+  })
 }
 
 export function stopsWithCoordinates(

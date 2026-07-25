@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { useForm } from 'react-hook-form'
+import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { AppLayout } from '@/layouts/AppLayout'
 import { Button } from '@/components/ui/Button'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { IconArrowLeft, IconChevronRight } from '@/components/icons'
+import { AddressField } from '@/features/forms/AddressField'
 import { useCreateWedding } from '@/features/weddings/hooks/useCreateWedding'
 import { useQuery } from '@tanstack/react-query'
 import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
@@ -96,6 +97,7 @@ export function NewWeddingPage() {
     watch,
     setValue,
     trigger,
+    control,
     formState: { errors, isSubmitting, dirtyFields },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -423,24 +425,43 @@ export function NewWeddingPage() {
                 </header>
 
                 <div className={styles.fields}>
-                  <label className={styles.field}>
+                  <div className={styles.field}>
                     <span className={styles.label}>Miejsce ceremonii</span>
-                    <input
-                      className={styles.input}
-                      placeholder="Opcjonalnie"
-                      autoFocus
-                      {...register('ceremonyLocation')}
+                    <Controller
+                      name="ceremonyLocation"
+                      control={control}
+                      render={({ field }) => (
+                        <AddressField
+                          value={field.value || ''}
+                          onChange={(v) =>
+                            field.onChange(
+                              typeof v === 'string' ? v : v.formattedAddress,
+                            )
+                          }
+                          placeholder="Opcjonalnie"
+                        />
+                      )}
                     />
-                  </label>
+                  </div>
 
-                  <label className={styles.field}>
+                  <div className={styles.field}>
                     <span className={styles.label}>Miejsce przyjęcia</span>
-                    <input
-                      className={styles.input}
-                      placeholder="Opcjonalnie"
-                      {...register('receptionLocation')}
+                    <Controller
+                      name="receptionLocation"
+                      control={control}
+                      render={({ field }) => (
+                        <AddressField
+                          value={field.value || ''}
+                          onChange={(v) =>
+                            field.onChange(
+                              typeof v === 'string' ? v : v.formattedAddress,
+                            )
+                          }
+                          placeholder="Opcjonalnie"
+                        />
+                      )}
                     />
-                  </label>
+                  </div>
                 </div>
               </>
             )}

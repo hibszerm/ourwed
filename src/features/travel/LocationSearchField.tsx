@@ -6,10 +6,14 @@ import {
   type KeyboardEvent,
 } from 'react'
 import {
-  TravelProviderError,
-  travelProvider,
-  type TravelPlace,
-} from '@/services/travelProvider'
+  type AddressSuggestion,
+  type NormalizedAddress,
+} from '@/services/addressAutocompleteProvider'
+import { createDefaultAddressAutocompleteProvider } from '@/services/addressProviderResolver'
+import {
+  GOOGLE_PLACES_MIN_QUERY_LENGTH,
+  GOOGLE_USER_ERROR_PL,
+} from '@/services/googlePlacesNormalize'
 import type { GeoPlace } from '@/types/travel'
 import { shortLocationDisplay } from '@/features/travel/shortLocationDisplay'
 import styles from './LocationSearchField.module.css'
@@ -37,20 +41,25 @@ export interface LocationSearchFieldProps {
   onSelectPlace: (place: GeoPlace | null) => void | Promise<void>
 }
 
-function toGeoPlace(p: TravelPlace, compactDisplay: boolean): GeoPlace {
-  const short = shortLocationDisplay({ formattedAddress: p.formattedAddress })
+function toGeoPlace(
+  addr: NormalizedAddress,
+  compactDisplay: boolean,
+): GeoPlace {
+  const short = shortLocationDisplay({
+    formattedAddress: addr.formattedAddress,
+  })
   return {
-    placeId: p.placeId,
-    formattedAddress: p.formattedAddress,
-    latitude: p.lat,
-    longitude: p.lng,
+    placeId: addr.placeId ?? null,
+    formattedAddress: addr.formattedAddress,
+    latitude: addr.latitude ?? null,
+    longitude: addr.longitude ?? null,
     label: compactDisplay ? short : undefined,
+    provider: 'google',
   }
 }
 
 /**
- * Modern address search field — local typing state, debounced Geoapify autocomplete.
- * Does not lock the input; parent may sync `value` only when the field is blurred.
+ * Place search for travel / wedding details — Google Places via shared provider.
  */
 export function LocationSearchField({
   label,
@@ -68,18 +77,18 @@ export function LocationSearchField({
   const rootRef = useRef<HTMLDivElement | null>(null)
   const inputRef = useRef<HTMLInputElement | null>(null)
   const debounceRef = useRef<number | null>(null)
-  const requestIdRef = useRef(0)
+  const abortRef = useRef<AbortController | null>(null)
+  const [provider] = useState(() => createDefaultAddressAutocompleteProvider())
 
   const [text, setText] = useState(value)
   const [focused, setFocused] = useState(false)
-  const [suggestions, setSuggestions] = useState<TravelPlace[]>([])
+  const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([])
   const [open, setOpen] = useState(false)
   const [activeIndex, setActiveIndex] = useState(-1)
   const [searching, setSearching] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Sync from parent only when not focused — prevents cursor fights while typing.
   useEffect(() => {
     if (!focused) setText(value)
   }, [value, focused])
@@ -87,12 +96,14 @@ export function LocationSearchField({
   useEffect(() => {
     return () => {
       if (debounceRef.current) window.clearTimeout(debounceRef.current)
+      abortRef.current?.abort()
+      provider.endSession?.()
     }
-  }, [])
+  }, [provider])
 
   function scheduleSuggest(input: string) {
     if (debounceRef.current) window.clearTimeout(debounceRef.current)
-    if (input.trim().length < 3) {
+    if (input.trim().length < GOOGLE_PLACES_MIN_QUERY_LENGTH) {
       setSuggestions([])
       setOpen(false)
       setSearching(false)
@@ -101,24 +112,34 @@ export function LocationSearchField({
     }
 
     setSearching(true)
-    const requestId = ++requestIdRef.current
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
+    const sessionToken =
+      provider.getSessionToken?.() ?? provider.beginSession?.() ?? crypto.randomUUID()
+
     debounceRef.current = window.setTimeout(() => {
       void (async () => {
         try {
-          const next = await travelProvider.getAutocomplete(input)
-          if (requestId !== requestIdRef.current) return
+          const next = await provider.search(input, {
+            limit: 8,
+            signal: controller.signal,
+            sessionToken,
+            language: 'pl',
+          })
+          if (controller.signal.aborted) return
           setSuggestions(next)
           setOpen(next.length > 0)
           setActiveIndex(next.length > 0 ? 0 : -1)
           setError(null)
         } catch {
-          if (requestId !== requestIdRef.current) return
+          if (controller.signal.aborted) return
           setSuggestions([])
           setOpen(false)
           setActiveIndex(-1)
-          setError('Nie znaleziono adresu.')
+          setError(GOOGLE_USER_ERROR_PL)
         } finally {
-          if (requestId === requestIdRef.current) setSearching(false)
+          if (!controller.signal.aborted) setSearching(false)
         }
       })()
     }, 280)
@@ -136,28 +157,33 @@ export function LocationSearchField({
       setSuggestions([])
       setOpen(false)
       setActiveIndex(-1)
+      provider.endSession?.()
     } catch (err) {
       setError(
-        err instanceof TravelProviderError
-          ? err.message
-          : err instanceof Error
-            ? err.message
-            : 'Nie znaleziono adresu.',
+        err instanceof Error ? err.message : 'Nie znaleziono adresu.',
       )
     } finally {
       setSaving(false)
     }
   }
 
-  async function selectSuggestion(suggestion: TravelPlace) {
-    const geo = toGeoPlace(suggestion, compactDisplay)
-    const display = compactDisplay
-      ? shortLocationDisplay({
-          label: geo.label,
-          formattedAddress: geo.formattedAddress,
-        })
-      : geo.formattedAddress
-    await commitPlace(geo, display)
+  async function selectSuggestion(suggestion: AddressSuggestion) {
+    try {
+      const resolved = await provider.resolve(suggestion.id, {
+        sessionToken: provider.getSessionToken?.() ?? undefined,
+        language: 'pl',
+      })
+      const geo = toGeoPlace(resolved, compactDisplay)
+      const display = compactDisplay
+        ? shortLocationDisplay({
+            label: geo.label,
+            formattedAddress: geo.formattedAddress,
+          })
+        : geo.formattedAddress
+      await commitPlace(geo, display)
+    } catch {
+      setError(GOOGLE_USER_ERROR_PL)
+    }
   }
 
   async function clearField() {
@@ -167,6 +193,7 @@ export function LocationSearchField({
     setOpen(false)
     setActiveIndex(-1)
     setError(null)
+    provider.endSession?.()
     await commitPlace(null, '')
     inputRef.current?.focus()
   }
@@ -202,6 +229,7 @@ export function LocationSearchField({
     place?.latitude != null &&
     place.longitude != null &&
     !error
+  const showAttribution = suggestions.length > 0 || searching
 
   return (
     <div className={styles.root} ref={rootRef}>
@@ -229,10 +257,12 @@ export function LocationSearchField({
             setText(next)
             onChangeText?.(next)
             setError(null)
+            if (!provider.getSessionToken?.()) provider.beginSession?.()
             scheduleSuggest(next)
           }}
           onFocus={() => {
             setFocused(true)
+            if (!provider.getSessionToken?.()) provider.beginSession?.()
             if (suggestions.length > 0) setOpen(true)
           }}
           onBlur={() => {
@@ -275,7 +305,7 @@ export function LocationSearchField({
       {open && suggestions.length > 0 ? (
         <ul id={listId} className={styles.list} role="listbox">
           {suggestions.map((s, index) => (
-            <li key={`${s.placeId ?? s.formattedAddress}-${s.lat}-${s.lng}`}>
+            <li key={s.id}>
               <button
                 type="button"
                 id={`${listId}-opt-${index}`}
@@ -288,10 +318,18 @@ export function LocationSearchField({
                 onMouseEnter={() => setActiveIndex(index)}
                 onClick={() => void selectSuggestion(s)}
               >
-                <span className={styles.primary}>{s.formattedAddress}</span>
+                <span className={styles.primary}>{s.label}</span>
+                {s.secondaryLabel ? (
+                  <span className={styles.secondary}>{s.secondaryLabel}</span>
+                ) : null}
               </button>
             </li>
           ))}
+          {showAttribution ? (
+            <li className={styles.attribution} role="presentation">
+              <span aria-label="Powered by Google">Powered by Google</span>
+            </li>
+          ) : null}
         </ul>
       ) : null}
     </div>

@@ -165,7 +165,16 @@ export async function ensureReferenceWeddingSetup(): Promise<{
       deliveryDays: null,
       finalPaymentDueDate: finalDue,
       preparationLocation:
-        current.preparationLocation || 'Dom pani młodej, Grabowa 8A',
+        current.bridePreparationLocation ||
+        current.preparationLocation ||
+        'Dom pani młodej, Grabowa 8A',
+      bridePreparationLocation:
+        current.bridePreparationLocation ||
+        current.preparationLocation ||
+        'Dom pani młodej, Grabowa 8A',
+      groomPreparationLocation:
+        current.groomPreparationLocation ||
+        'Hotel Centralny, ul. Główna 3',
       ceremonyLocation: current.ceremonyLocation || 'Kościół pw. św. Anny',
       receptionLocation:
         current.receptionLocation || 'Sala weselna Pod Lipami',
@@ -232,6 +241,8 @@ export async function ensureReferenceWeddingSetup(): Promise<{
       phone: '777666251',
     },
     preparationLocation: 'Dom pani młodej, Grabowa 8A',
+    bridePreparationLocation: 'Dom pani młodej, Grabowa 8A',
+    groomPreparationLocation: 'Hotel Centralny, ul. Główna 3',
     ceremonyLocation: 'Kościół pw. św. Anny',
     receptionLocation: 'Sala weselna Pod Lipami',
     coverageHours: 12,

@@ -5,6 +5,12 @@
   min-width: 0;
 }
 
+.toolbarRow {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--space-4);
+}
+
 .row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);

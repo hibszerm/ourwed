@@ -722,7 +722,8 @@ create table public.wedding_places (
   wedding_id uuid not null references public.weddings (id) on delete cascade,
   role text not null
     check (role in (
-      'preparation',
+      'bride_preparation',
+      'groom_preparation',
       'ceremony',
       'reception',
       'hotel',
@@ -741,7 +742,12 @@ create table public.wedding_places (
 
 create unique index wedding_places_wedding_core_role_uidx
   on public.wedding_places (wedding_id, role)
-  where role in ('preparation', 'ceremony', 'reception');
+  where role in (
+    'bride_preparation',
+    'groom_preparation',
+    'ceremony',
+    'reception'
+  );
 
 create index wedding_places_wedding_id_idx on public.wedding_places (wedding_id);
 create index wedding_places_wedding_sort_idx on public.wedding_places (wedding_id, sort_order);

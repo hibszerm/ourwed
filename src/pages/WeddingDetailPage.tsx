@@ -8,27 +8,11 @@ import { useToast } from '@/components/ui/Toast'
 import { IconArrowLeft } from '@/components/icons'
 import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
 import { useWedding } from '@/features/weddings/hooks/useWedding'
-import {
-  WeddingDetailHero,
-  type WeddingHeroAction,
-} from '@/features/weddings/components/detail/WeddingDetailHero'
-import { WeddingDetailStatus } from '@/features/weddings/components/detail/WeddingDetailStatus'
-import { WeddingDetailWorkflow } from '@/features/weddings/components/detail/WeddingDetailWorkflow'
-import { WeddingDetailCurrentStage } from '@/features/weddings/components/detail/WeddingDetailCurrentStage'
-import { WeddingDetailTimeline } from '@/features/weddings/components/detail/WeddingDetailTimeline'
-import { WeddingDetailTasks } from '@/features/weddings/components/detail/WeddingDetailTasks'
-import { WeddingDetailQuestionnaires } from '@/features/weddings/components/detail/WeddingDetailQuestionnaires'
-import { WeddingDetailFinances } from '@/features/weddings/components/detail/WeddingDetailFinances'
-import { WeddingDetailPackage } from '@/features/weddings/components/detail/WeddingDetailPackage'
-import { WeddingCommercialSummaryCard } from '@/features/weddings/components/detail/WeddingCommercialSummary'
-import { WeddingContractReadinessPanel } from '@/features/weddings/components/detail/WeddingContractReadiness'
-import { WeddingDetailContact } from '@/features/weddings/components/detail/WeddingDetailContact'
-import { WeddingDetailTravel } from '@/features/weddings/components/detail/WeddingDetailTravel'
-import { WeddingDangerZone } from '@/features/weddings/components/detail/WeddingDangerZone'
-import { ScheduleSection } from '@/features/weddings/components/ScheduleSection'
-import { EquipmentSection } from '@/features/weddings/components/EquipmentSection'
-import { NotesSection } from '@/features/weddings/components/NotesSection'
-import { DeliverablesSection } from '@/features/weddings/components/DeliverablesSection'
+import type { WeddingHeroAction } from '@/features/weddings/components/detail/WeddingDetailHero'
+import { WeddingDetailV1 } from '@/features/weddings/detail/v1/WeddingDetailV1'
+import { WeddingDetailV2 } from '@/features/weddings/detail/v2/WeddingDetailV2'
+import { WeddingDetailViewSwitch } from '@/features/weddings/detail/WeddingDetailViewSwitch'
+import { useWeddingDetailViewMode } from '@/features/weddings/detail/useWeddingDetailViewMode'
 import { SendQuestionnaireModal } from '@/features/weddings/actions/SendQuestionnaireModal'
 import { AddPaymentModal } from '@/features/weddings/actions/AddPaymentModal'
 import { AddNoteModal } from '@/features/weddings/actions/AddNoteModal'
@@ -62,6 +46,7 @@ export function WeddingDetailPage() {
   const queryClient = useQueryClient()
   const { showToast } = useToast()
   const userId = useStudioAuthId()
+  const { viewMode, setViewMode } = useWeddingDetailViewMode()
   const { data: wedding, isLoading, isError, error, refetch } = useWedding(id ?? '')
 
   const { data: weddingTasks = [] } = useQuery({
@@ -89,7 +74,6 @@ export function WeddingDetailPage() {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
-  // Drop in-progress edit UI when the studio or wedding identity changes.
   useEffect(() => {
     setModal(null)
     setEditing(false)
@@ -164,7 +148,6 @@ export function WeddingDetailPage() {
   const showSchedule = isWeddingQuestionnaireComplete(view.questionnaires)
   const showEquipment = isSectionVisible(stage, 'equipment')
   const showDeliverables = isSectionVisible(stage, 'deliverables')
-  const hasConditional = showSchedule || showEquipment || showDeliverables
 
   function beginEdit() {
     const next = createWeddingEditDraft(snapshot!)
@@ -177,8 +160,10 @@ export function WeddingDetailPage() {
   function beginEditLocations() {
     beginEdit()
     window.requestAnimationFrame(() => {
+      const targetId =
+        viewMode === 'v2' ? 'wedding-locations-v2' : 'wedding-locations'
       document
-        .getElementById('wedding-locations')
+        .getElementById(targetId)
         ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     })
   }
@@ -251,6 +236,51 @@ export function WeddingDetailPage() {
     setModal(null)
   }
 
+  const sharedProps = {
+    wedding: view,
+    payments: viewPayments,
+    notes: viewNotes,
+    tasks: viewTasks,
+    contacts: viewContacts,
+    extras: viewExtras,
+    editing,
+    packageBasePrice: draft?.packageBasePrice,
+    onChangeWedding: patchWedding,
+    onChangePayments: (payments: typeof viewPayments) =>
+      setDraft((prev) => (prev ? { ...prev, payments } : prev)),
+    onChangeNotes: (notes: typeof viewNotes) =>
+      setDraft((prev) => (prev ? { ...prev, notes } : prev)),
+    onChangeTasks: (tasks: typeof viewTasks) =>
+      setDraft((prev) => (prev ? { ...prev, tasks } : prev)),
+    onChangeContacts: (next: typeof viewContacts) =>
+      setDraft((prev) => (prev ? { ...prev, contacts: next } : prev)),
+    onChangeExtras: (next: typeof viewExtras) =>
+      setDraft((prev) => (prev ? { ...prev, extras: next } : prev)),
+    onChangePackageBasePrice: (price: number) =>
+      setDraft((prev) => (prev ? { ...prev, packageBasePrice: price } : prev)),
+    onHeroAction: handleHeroAction,
+    onRequestVerifyLocations: beginEditLocations,
+    onAddNote: editing ? undefined : () => setModal({ type: 'note' }),
+    onSendQuestionnaire: editing
+      ? undefined
+      : (kind: QuestionnaireKind) => setModal({ type: 'questionnaire', kind }),
+    onArchive: async () => {
+      await weddingService.archive(wedding.id)
+      await queryClient.invalidateQueries({ queryKey: ['weddings'] })
+      showToast('Ślub został zarchiwizowany.', 'success')
+    },
+    onDelete: async () => {
+      await weddingService.delete(wedding.id)
+      await queryClient.invalidateQueries({ queryKey: ['weddings'] })
+      await queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      showToast('Ślub został usunięty.', 'success')
+      navigate('/sluby')
+    },
+    showSchedule,
+    showEquipment,
+    showDeliverables,
+  }
+
   return (
     <AppLayout
       action={
@@ -291,153 +321,27 @@ export function WeddingDetailPage() {
       }
     >
       <PageContainer>
-        <div className={styles.page}>
-          {editing ? (
-            <div className={editStyles.editBanner}>
-              <p className={editStyles.editBannerText}>
-                Tryb edycji — zmiany zapiszą się dopiero po kliknięciu „Zapisz zmiany”.
-              </p>
-              {saveError ? (
-                <p className={editStyles.dangerText}>{saveError}</p>
-              ) : null}
-            </div>
-          ) : null}
-
-          <WeddingDetailHero
-            wedding={view}
-            onAction={handleHeroAction}
-            editing={editing}
-            onChangeWedding={patchWedding}
-          />
-
-          <WeddingDetailStatus
-            wedding={view}
-            editing={editing}
-            onChangeWedding={patchWedding}
-          />
-
-          <WeddingDetailWorkflow currentStage={stage} />
-
-          <WeddingDetailCurrentStage wedding={view} />
-
-          <WeddingCommercialSummaryCard wedding={view} />
-
-          <WeddingContractReadinessPanel wedding={view} />
-
-          <div className={styles.row}>
-            <WeddingDetailFinances
-              wedding={view}
-              contractPrice={view.price}
-              payments={viewPayments}
-              editing={editing}
-              onChangeWedding={patchWedding}
-              onChangePayments={(payments) =>
-                setDraft((prev) => (prev ? { ...prev, payments } : prev))
-              }
-            />
-            <WeddingDetailPackage
-              wedding={view}
-              editing={editing}
-              extras={viewExtras}
-              packageBasePrice={draft?.packageBasePrice}
-              onChangeWedding={patchWedding}
-              onChangeExtras={(next) =>
-                setDraft((prev) => (prev ? { ...prev, extras: next } : prev))
-              }
-              onChangePackageBasePrice={(price) =>
-                setDraft((prev) =>
-                  prev ? { ...prev, packageBasePrice: price } : prev,
-                )
-              }
-            />
-            <WeddingDetailContact
-              couple={view.couple}
-              editing={editing}
-              contacts={viewContacts}
-              weddingId={view.id}
-              onChangeCouple={(couple) => patchWedding({ couple })}
-              onChangeContacts={(next) =>
-                setDraft((prev) => (prev ? { ...prev, contacts: next } : prev))
-              }
-            />
-          </div>
-
-          <WeddingDetailTravel
-            weddingId={view.id}
-            onRequestVerifyLocations={beginEditLocations}
-          />
-
-          <div className={styles.row}>
-            <WeddingDetailQuestionnaires
-              questionnaires={view.questionnaires}
-              onSend={
-                editing
-                  ? undefined
-                  : (kind) => setModal({ type: 'questionnaire', kind })
-              }
-            />
-            <WeddingDetailTasks
-              tasks={viewTasks}
-              editing={editing}
-              weddingId={view.id}
-              onChangeTasks={(tasks) =>
-                setDraft((prev) => (prev ? { ...prev, tasks } : prev))
-              }
-            />
-          </div>
-
-          {hasConditional && (
-            <div className={styles.conditional}>
-              {showSchedule && (
-                <div className={styles.conditionalItem}>
-                  <ScheduleSection events={view.schedule} />
-                </div>
-              )}
-              {showEquipment && (
-                <div className={styles.conditionalItem}>
-                  <EquipmentSection items={view.checklist} />
-                </div>
-              )}
-              {showDeliverables && (
-                <div className={styles.conditionalItem}>
-                  <DeliverablesSection deliverables={view.deliverables} />
-                </div>
-              )}
-            </div>
-          )}
-
-          <WeddingDetailTimeline entries={view.timeline} />
-
-          <div className={styles.notes}>
-            <NotesSection
-              notes={viewNotes}
-              editing={editing}
-              onChangeNotes={(notes) =>
-                setDraft((prev) => (prev ? { ...prev, notes } : prev))
-              }
-              onAddNote={
-                editing ? undefined : () => setModal({ type: 'note' })
-              }
-            />
-          </div>
-
-          {!editing ? (
-            <WeddingDangerZone
-              onArchive={async () => {
-                await weddingService.archive(wedding.id)
-                await queryClient.invalidateQueries({ queryKey: ['weddings'] })
-                showToast('Ślub został zarchiwizowany.', 'success')
-              }}
-              onDelete={async () => {
-                await weddingService.delete(wedding.id)
-                await queryClient.invalidateQueries({ queryKey: ['weddings'] })
-                await queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-                showToast('Ślub został usunięty.', 'success')
-                navigate('/sluby')
-              }}
-            />
-          ) : null}
+        <div className={styles.toolbarRow}>
+          <WeddingDetailViewSwitch value={viewMode} onChange={setViewMode} />
         </div>
+
+        {editing ? (
+          <div className={editStyles.editBanner}>
+            <p className={editStyles.editBannerText}>
+              Tryb edycji — zmiany zapiszą się dopiero po kliknięciu „Zapisz
+              zmiany”.
+            </p>
+            {saveError ? (
+              <p className={editStyles.dangerText}>{saveError}</p>
+            ) : null}
+          </div>
+        ) : null}
+
+        {viewMode === 'v1' ? (
+          <WeddingDetailV1 {...sharedProps} />
+        ) : (
+          <WeddingDetailV2 {...sharedProps} />
+        )}
       </PageContainer>
 
       <SendQuestionnaireModal

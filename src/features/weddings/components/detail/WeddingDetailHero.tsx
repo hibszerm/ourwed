@@ -35,7 +35,8 @@ interface WeddingDetailHeroProps {
 }
 
 const LOCATION_FIELDS: Array<{ role: WeddingPlaceRole; label: string }> = [
-  { role: 'preparation', label: 'Przygotowania' },
+  { role: 'bride_preparation', label: 'Przygotowania Panny Młodej' },
+  { role: 'groom_preparation', label: 'Przygotowania Pana Młodego' },
   { role: 'ceremony', label: 'Ceremonia' },
   { role: 'reception', label: 'Przyjęcie weselne' },
 ]
@@ -68,7 +69,7 @@ function placeDisplayText(place: WeddingPlace | null | undefined): string {
 }
 
 /**
- * Wedding hero — sole owner of Preparation / Ceremony / Reception editing.
+ * Wedding hero — sole owner of bride/groom preparation, ceremony, reception editing.
  * Persisted wedding_places is the single source of truth for location fields.
  */
 export function WeddingDetailHero({

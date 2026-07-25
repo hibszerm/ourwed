@@ -108,6 +108,7 @@ function baseWedding(input: {
     currency: 'PLN',
     packageItems: [],
     preparationLocation: input.prep,
+    bridePreparationLocation: input.prep,
     ceremonyLocation: input.ceremony,
     receptionLocation: input.reception,
     accentColor: input.accent,
@@ -142,6 +143,8 @@ export const demoWedding: Wedding = {
   currency: 'PLN',
   packageItems: [],
   preparationLocation: 'Villa Love',
+  bridePreparationLocation: 'Villa Love',
+  groomPreparationLocation: 'Hotel Verte, Warszawa',
   ceremonyLocation: 'Kościół św. Anny',
   receptionLocation: 'Pałac Mała Wieś',
   accentColor: '#0a0a0a',
@@ -399,7 +402,7 @@ export const demoQuestionnaireAnswers: Record<string, string> = {
   'Przygotowania Pana Młodego': 'Hotel Verte, Warszawa',
 }
 
-/** Travel: Studio → Przygotowania → Ceremonia → Przyjęcie */
+/** Travel: Studio → Bride prep → Groom prep → Ceremony → Reception */
 export const demoTravelPlan: TravelPlan = {
   weddingId: DEMO_WEDDING_ID,
   studio: {
@@ -420,15 +423,28 @@ export const demoTravelPlan: TravelPlan = {
   },
   places: [
     {
-      id: 'place-prep',
+      id: 'place-bride-prep',
       weddingId: DEMO_WEDDING_ID,
-      role: 'preparation',
+      role: 'bride_preparation',
       label: 'Villa Love',
       placeId: 'demo-villa-love',
       formattedAddress: 'Villa Love, Konstancin-Jeziorna',
       latitude: 52.0935,
       longitude: 21.1178,
-      sortOrder: 0,
+      sortOrder: 10,
+      createdAt: '2026-06-01T00:00:00.000Z',
+      updatedAt: '2026-06-01T00:00:00.000Z',
+    },
+    {
+      id: 'place-groom-prep',
+      weddingId: DEMO_WEDDING_ID,
+      role: 'groom_preparation',
+      label: 'Hotel Verte',
+      placeId: 'demo-hotel-verte',
+      formattedAddress: 'Hotel Verte, Warszawa',
+      latitude: 52.2319,
+      longitude: 21.0067,
+      sortOrder: 15,
       createdAt: '2026-06-01T00:00:00.000Z',
       updatedAt: '2026-06-01T00:00:00.000Z',
     },

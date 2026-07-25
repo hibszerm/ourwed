@@ -1,21 +1,17 @@
 /**
- * Provider-agnostic address autocomplete for questionnaires and forms.
- * Current implementation adapts Geoapify via geoapifyService.
- * A future Google Places adapter can implement the same interface.
+ * Provider-agnostic address autocomplete for questionnaires and travel.
+ *
+ * Switch point: createDefaultAddressAutocompleteProvider() → Google only.
  */
 
-import {
-  GeoapifyError,
-  geoapifyService,
-  type GeoapifyPlaceResult,
-} from '@/services/geoapifyService'
-
-export type AddressProviderKind = 'current' | 'google' | string
+export type AddressProviderKind = 'google' | 'geoapify' | 'current' | string
 
 export interface AddressSearchOptions {
   limit?: number
   language?: string
   countryCodes?: string[]
+  signal?: AbortSignal
+  sessionToken?: string
 }
 
 export interface AddressSuggestion {
@@ -39,74 +35,27 @@ export interface NormalizedAddress {
   longitude?: number
 }
 
+/** Travel / wedding location shape (provider-independent). */
+export type NormalizedLocation = NormalizedAddress & {
+  label?: string
+  coordinates?: {
+    latitude: number
+    longitude: number
+  }
+}
+
 export interface AddressAutocompleteProvider {
+  kind?: AddressProviderKind
+  attribution?: 'google' | null
   search(
     query: string,
     options?: AddressSearchOptions,
   ): Promise<AddressSuggestion[]>
-  resolve(id: string): Promise<NormalizedAddress>
+  resolve(
+    id: string,
+    options?: AddressSearchOptions,
+  ): Promise<NormalizedAddress>
+  beginSession?(): string
+  endSession?(): void
+  getSessionToken?(): string | null
 }
-
-function toNormalized(hit: GeoapifyPlaceResult): NormalizedAddress {
-  const line1 = hit.addressLine1?.trim() || ''
-  const street = line1 || undefined
-  return {
-    formattedAddress: hit.formatted,
-    placeId: hit.placeId ?? undefined,
-    provider: 'current',
-    street,
-    latitude: hit.lat,
-    longitude: hit.lon,
-  }
-}
-
-function suggestionId(hit: GeoapifyPlaceResult, index: number): string {
-  if (hit.placeId) return `place:${hit.placeId}`
-  return `geo:${hit.lat},${hit.lon}:${index}`
-}
-
-/** Adapter over the current maps/geocoding provider (Geoapify). */
-export function createTravelAddressProvider(): AddressAutocompleteProvider {
-  const cache = new Map<string, NormalizedAddress>()
-
-  return {
-    async search(query: string, options?: AddressSearchOptions) {
-      const q = query.trim()
-      if (q.length < 2) return []
-      try {
-        const hits = await geoapifyService.searchPlaces(q)
-        const limit = options?.limit ?? 8
-        const suggestions: AddressSuggestion[] = []
-        for (let i = 0; i < hits.length && suggestions.length < limit; i += 1) {
-          const hit = hits[i]
-          const id = suggestionId(hit, i)
-          cache.set(id, toNormalized(hit))
-          suggestions.push({
-            id,
-            label: hit.formatted,
-            secondaryLabel: hit.addressLine2 || undefined,
-          })
-        }
-        return suggestions
-      } catch (err) {
-        if (err instanceof GeoapifyError) return []
-        return []
-      }
-    },
-
-    async resolve(id: string) {
-      const cached = cache.get(id)
-      if (cached) return cached
-      // Manual / unknown ids — treat as free-text address string after prefix strip.
-      const manual = id.replace(/^manual:/, '').trim()
-      return {
-        formattedAddress: manual,
-        provider: 'current',
-      }
-    },
-  }
-}
-
-/** Default questionnaire address provider (swap for Google later). */
-export const defaultAddressAutocompleteProvider: AddressAutocompleteProvider =
-  createTravelAddressProvider()

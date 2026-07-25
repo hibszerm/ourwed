@@ -233,7 +233,8 @@ export function TimelineVignette() {
     demoWedding.schedule.length > 0
       ? demoWedding.schedule.slice(0, 6)
       : [
-          { id: '1', time: '12:00', title: 'Przygotowania' },
+          { id: '1', time: '12:00', title: 'Przygotowania Panny Młodej' },
+          { id: '1b', time: '13:00', title: 'Przygotowania Pana Młodego' },
           { id: '2', time: '14:30', title: 'Ceremonia' },
           { id: '3', time: '16:00', title: 'Sesja' },
           { id: '4', time: '18:00', title: 'Wesele' },
@@ -268,7 +269,17 @@ export function OpsVignette() {
   const gear = demoWedding.checklist.slice(0, 5)
   const stops = [
     { label: 'Start', detail: 'Baza' },
-    { label: 'Przygotowania', detail: demoWedding.preparationLocation ?? '—' },
+    {
+      label: 'Przygotowania Panny Młodej',
+      detail:
+        demoWedding.bridePreparationLocation ??
+        demoWedding.preparationLocation ??
+        '—',
+    },
+    {
+      label: 'Przygotowania Pana Młodego',
+      detail: demoWedding.groomPreparationLocation ?? '—',
+    },
     { label: 'Ceremonia', detail: demoWedding.ceremonyLocation ?? '—' },
     { label: 'Przyjęcie', detail: demoWedding.receptionLocation ?? '—' },
   ]

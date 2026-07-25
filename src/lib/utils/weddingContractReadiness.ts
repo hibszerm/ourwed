@@ -96,10 +96,18 @@ export function evaluateWeddingContractReadiness(
     required('client_phone', 'client', 'Telefon klienta', present(phone)),
     required('client_date', 'client', 'Data ślubu', present(wedding.date)),
     required(
-      'client_prep',
+      'client_prep_bride',
       'client',
-      'Miejsce przygotowań',
-      present(wedding.preparationLocation),
+      'Przygotowania Panny Młodej',
+      present(
+        wedding.bridePreparationLocation || wedding.preparationLocation,
+      ),
+    ),
+    required(
+      'client_prep_groom',
+      'client',
+      'Przygotowania Pana Młodego',
+      present(wedding.groomPreparationLocation),
     ),
     required(
       'client_ceremony',

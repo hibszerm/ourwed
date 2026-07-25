@@ -1,152 +1,294 @@
-import { useEffect, useRef } from 'react'
-import maplibregl, { type Map } from 'maplibre-gl'
-import 'maplibre-gl/dist/maplibre-gl.css'
+/**
+ * Interactive Google Maps overview for wedding travel stops.
+ * Markers from provider-independent coordinates; optional Routes API polyline.
+ * Does not call Places or Routes from the browser.
+ */
+
+import { useEffect, useRef, useState } from 'react'
 import type { TravelStop } from '@/features/travel/travelUi'
 import { stopsWithCoordinates } from '@/features/travel/travelUi'
+import { decodeEncodedPolyline } from '@/services/decodeEncodedPolyline'
+import {
+  getGoogleMapsBrowserConfig,
+  GoogleMapsBrowserError,
+  loadGoogleMapsLibrary,
+  loadGoogleMarkerLibrary,
+} from '@/services/googleMapsBrowserLoader'
 import styles from './TravelMap.module.css'
 
-interface TravelMapProps {
+export interface TravelMapProps {
   stops: TravelStop[]
+  /** Optional Google Routes encoded polyline (not recalculated in the browser). */
+  encodedPolyline?: string | null
 }
 
-type LngLatPoint = { latitude: number; longitude: number }
+type LngLatPoint = { latitude: number; longitude: number; title?: string }
 
-const OSM_STYLE = {
-  version: 8 as const,
-  sources: {
-    osm: {
-      type: 'raster' as const,
-      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-      tileSize: 256,
-      attribution: '© OpenStreetMap contributors',
-    },
-  },
-  layers: [
-    {
-      id: 'osm',
-      type: 'raster' as const,
-      source: 'osm',
-    },
-  ],
+type MapStatus = 'loading' | 'ready' | 'empty' | 'missing_key' | 'error'
+
+const POLAND_CENTER = { lat: 52.1, lng: 19.4 }
+const DEFAULT_ZOOM = 6
+const SINGLE_ZOOM = 12
+
+function coordsKey(points: LngLatPoint[], polyline: string): string {
+  return `${points.map((p) => `${p.latitude},${p.longitude}`).join('|')}::${polyline}`
 }
 
-function routeLineData(points: LngLatPoint[]) {
-  return {
-    type: 'FeatureCollection' as const,
-    features:
-      points.length >= 2
-        ? [
-            {
-              type: 'Feature' as const,
-              properties: {},
-              geometry: {
-                type: 'LineString' as const,
-                coordinates: points.map((p) => [p.longitude, p.latitude]),
-              },
-            },
-          ]
-        : [],
-  }
-}
-
-function coordsKey(points: LngLatPoint[]): string {
-  return points.map((p) => `${p.latitude},${p.longitude}`).join('|')
+function clearOverlays(
+  markers: google.maps.Marker[],
+  advanced: google.maps.marker.AdvancedMarkerElement[],
+  polyline: google.maps.Polyline | null,
+): void {
+  markers.forEach((m) => m.setMap(null))
+  advanced.forEach((m) => {
+    m.map = null
+  })
+  polyline?.setMap(null)
 }
 
 /**
- * Interactive MapLibre + OSM map for wedding travel stops.
- * Connects stops with a polyline; driving metrics come from Geoapify separately.
+ * Google Maps JavaScript API travel overview.
  */
-export function TravelMap({ stops }: TravelMapProps) {
+export function TravelMap({ stops, encodedPolyline = null }: TravelMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
-  const mapRef = useRef<Map | null>(null)
-  const markersRef = useRef<maplibregl.Marker[]>([])
-  const points = stopsWithCoordinates(stops)
-  const key = coordsKey(points)
+  const mapRef = useRef<google.maps.Map | null>(null)
+  const markersRef = useRef<google.maps.Marker[]>([])
+  const advancedMarkersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>(
+    [],
+  )
+  const polylineRef = useRef<google.maps.Polyline | null>(null)
+  const lastFitKeyRef = useRef<string>('')
+
+  const points = stopsWithCoordinates(stops).map((s) => ({
+    latitude: s.latitude,
+    longitude: s.longitude,
+    title: s.title || s.address,
+  }))
+  const poly = (encodedPolyline ?? '').trim()
+  const dataKey = coordsKey(points, poly)
+
+  const [status, setStatus] = useState<MapStatus>(() =>
+    points.length === 0 ? 'empty' : 'loading',
+  )
 
   useEffect(() => {
-    const currentPoints = stopsWithCoordinates(stops)
-    if (!containerRef.current || currentPoints.length === 0) return
+    if (points.length === 0) {
+      setStatus('empty')
+      return
+    }
 
-    const map = new maplibregl.Map({
-      container: containerRef.current,
-      style: OSM_STYLE,
-      center: [currentPoints[0].longitude, currentPoints[0].latitude],
-      zoom: 10,
-      attributionControl: { compact: true },
-    })
-    map.addControl(
-      new maplibregl.NavigationControl({ showCompass: false }),
-      'top-right',
-    )
-    mapRef.current = map
+    let cancelled = false
+    const container = containerRef.current
+    if (!container) return
 
-    map.on('load', () => {
-      map.addSource('travel-route', {
-        type: 'geojson',
-        data: routeLineData(currentPoints),
-      })
-      map.addLayer({
-        id: 'travel-route-line',
-        type: 'line',
-        source: 'travel-route',
-        layout: {
-          'line-cap': 'round',
-          'line-join': 'round',
-        },
-        paint: {
-          'line-color': '#3d4f5c',
-          'line-width': 4,
-          'line-opacity': 0.9,
-        },
-      })
+    setStatus('loading')
 
-      const bounds = new maplibregl.LngLatBounds()
-      currentPoints.forEach((p, index) => {
-        bounds.extend([p.longitude, p.latitude])
-        const el = document.createElement('div')
-        el.className = styles.marker
-        el.textContent = String(index + 1)
-        el.setAttribute('aria-label', `Przystanek ${index + 1}`)
-        markersRef.current.push(
-          new maplibregl.Marker({ element: el })
-            .setLngLat([p.longitude, p.latitude])
-            .addTo(map),
+    void (async () => {
+      try {
+        const config = getGoogleMapsBrowserConfig()
+        await loadGoogleMapsLibrary()
+        if (cancelled || !containerRef.current) return
+
+        const mapOptions: google.maps.MapOptions = {
+          center: POLAND_CENTER,
+          zoom: DEFAULT_ZOOM,
+          mapTypeControl: false,
+          streetViewControl: false,
+          fullscreenControl: false,
+          zoomControl: true,
+          gestureHandling: 'cooperative',
+          clickableIcons: false,
+          keyboardShortcuts: false,
+        }
+        if (config.mapId) {
+          mapOptions.mapId = config.mapId
+        }
+
+        if (!mapRef.current) {
+          mapRef.current = new google.maps.Map(containerRef.current, mapOptions)
+        }
+
+        const map = mapRef.current
+        clearOverlays(
+          markersRef.current,
+          advancedMarkersRef.current,
+          polylineRef.current,
         )
-      })
+        markersRef.current = []
+        advancedMarkersRef.current = []
+        polylineRef.current = null
 
-      if (currentPoints.length === 1) {
-        map.setCenter([
-          currentPoints[0].longitude,
-          currentPoints[0].latitude,
-        ])
-        map.setZoom(12)
-      } else {
-        map.fitBounds(bounds, { padding: 56, maxZoom: 11, duration: 0 })
+        const bounds = new google.maps.LatLngBounds()
+        let usedAdvanced = false
+
+        if (config.mapId) {
+          try {
+            const markerLib = await loadGoogleMarkerLibrary()
+            if (cancelled) return
+            usedAdvanced = true
+            points.forEach((p, index) => {
+              const position = { lat: p.latitude, lng: p.longitude }
+              bounds.extend(position)
+              const content = document.createElement('div')
+              content.className = styles.marker
+              content.textContent = String(index + 1)
+              content.setAttribute(
+                'aria-label',
+                p.title
+                  ? `${index + 1}. ${p.title}`
+                  : `Przystanek ${index + 1}`,
+              )
+              const marker = new markerLib.AdvancedMarkerElement({
+                map,
+                position,
+                title: p.title,
+                content,
+              })
+              advancedMarkersRef.current.push(marker)
+            })
+          } catch {
+            usedAdvanced = false
+          }
+        }
+
+        if (!usedAdvanced) {
+          points.forEach((p, index) => {
+            const position = { lat: p.latitude, lng: p.longitude }
+            bounds.extend(position)
+            const marker = new google.maps.Marker({
+              map,
+              position,
+              title: p.title,
+              label: {
+                text: String(index + 1),
+                color: '#ffffff',
+                fontWeight: '700',
+                fontSize: '12px',
+              },
+            })
+            markersRef.current.push(marker)
+          })
+        }
+
+        if (poly) {
+          const path = decodeEncodedPolyline(poly).map((c) => ({
+            lat: c.lat,
+            lng: c.lng,
+          }))
+          if (path.length >= 2) {
+            path.forEach((c) => bounds.extend(c))
+            polylineRef.current = new google.maps.Polyline({
+              map,
+              path,
+              geodesic: true,
+              strokeColor: '#3d4f5c',
+              strokeOpacity: 0.9,
+              strokeWeight: 4,
+            })
+          }
+        }
+
+        if (lastFitKeyRef.current !== dataKey) {
+          lastFitKeyRef.current = dataKey
+          if (points.length === 1 && !poly) {
+            map.setCenter({
+              lat: points[0].latitude,
+              lng: points[0].longitude,
+            })
+            map.setZoom(SINGLE_ZOOM)
+          } else if (!bounds.isEmpty()) {
+            map.fitBounds(bounds, 56)
+          }
+        }
+
+        if (!cancelled) setStatus('ready')
+      } catch (err) {
+        if (cancelled) return
+        clearOverlays(
+          markersRef.current,
+          advancedMarkersRef.current,
+          polylineRef.current,
+        )
+        markersRef.current = []
+        advancedMarkersRef.current = []
+        polylineRef.current = null
+        mapRef.current = null
+        lastFitKeyRef.current = ''
+        if (
+          err instanceof GoogleMapsBrowserError &&
+          err.code === 'missing_key'
+        ) {
+          setStatus('missing_key')
+        } else {
+          setStatus('error')
+        }
       }
-    })
+    })()
 
     return () => {
-      markersRef.current.forEach((m) => m.remove())
-      markersRef.current = []
-      map.remove()
-      mapRef.current = null
+      cancelled = true
     }
-    // `key` encodes stop coordinates; rebuild only when the route geometry changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- stops identity changes every render
-  }, [key])
+    // dataKey encodes coordinates + polyline; avoid rebuild on stop identity churn
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional
+  }, [dataKey])
 
-  if (points.length === 0) return null
+  useEffect(() => {
+    return () => {
+      clearOverlays(
+        markersRef.current,
+        advancedMarkersRef.current,
+        polylineRef.current,
+      )
+      markersRef.current = []
+      advancedMarkersRef.current = []
+      polylineRef.current = null
+      mapRef.current = null
+      lastFitKeyRef.current = ''
+    }
+  }, [])
+
+  if (status === 'empty' || points.length === 0) {
+    return (
+      <div className={styles.wrap} data-testid="travel-map-empty">
+        <p className={styles.stateMessage}>
+          Brak współrzędnych do wyświetlenia mapy.
+        </p>
+      </div>
+    )
+  }
+
+  if (status === 'missing_key') {
+    return (
+      <div className={styles.wrap} data-testid="travel-map-missing-key">
+        <p className={styles.stateMessage}>
+          Mapa Google nie została skonfigurowana.
+        </p>
+      </div>
+    )
+  }
+
+  if (status === 'error') {
+    return (
+      <div className={styles.wrap} data-testid="travel-map-error">
+        <p className={styles.stateMessage}>
+          Nie udało się wczytać mapy. Spróbuj ponownie.
+        </p>
+      </div>
+    )
+  }
 
   return (
-    <div className={styles.wrap}>
+    <div className={styles.wrap} data-testid="travel-map">
+      {status === 'loading' ? (
+        <div className={styles.skeleton} aria-hidden data-testid="travel-map-loading" />
+      ) : null}
       <div
         ref={containerRef}
         className={styles.map}
         role="img"
         aria-label="Mapa trasy"
+        data-google-maps="true"
       />
     </div>
   )
 }
-

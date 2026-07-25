@@ -1,15 +1,24 @@
 /**
- * Sole travel / geocoding / routing provider for OurWed.
- * Implementation: Geoapify (OpenStreetMap-based).
+ * Sole travel / geocoding / routing façade for OurWed.
+ * Implementation: Google Places (New) + Google Routes via Edge proxies.
  */
 
+import { PLACES_PROXY_FUNCTION } from '@/services/googlePlacesAddressProvider'
+import { GOOGLE_USER_ERROR_PL } from '@/services/googlePlacesNormalize'
 import {
-  GeoapifyError,
-  type GeoapifyErrorCode,
-  geoapifyService,
-} from '@/services/geoapifyService'
+  computeGoogleRoute,
+  GoogleRoutesProviderError,
+} from '@/services/googleRoutesProvider'
+import type { RouteResult } from '@/services/googleRoutesNormalize'
+import type { NormalizedAddress } from '@/services/addressAutocompleteProvider'
 
-export type TravelProviderErrorCode = GeoapifyErrorCode | 'unknown'
+export type TravelProviderErrorCode =
+  | 'bad_request'
+  | 'unauthorized'
+  | 'network'
+  | 'not_found'
+  | 'rate_limited'
+  | 'unknown'
 
 export class TravelProviderError extends Error {
   readonly code: TravelProviderErrorCode
@@ -26,17 +35,22 @@ export interface TravelPlace {
   lng: number
   formattedAddress: string
   placeId: string | null
+  provider?: 'google'
 }
 
 export interface TravelRoute {
   distanceMeters: number
   durationSeconds: number
+  distanceLabel?: string
+  durationLabel?: string
+  encodedPolyline?: string
+  provider?: 'google'
 }
 
 function wrapError(err: unknown, fallback: string): never {
   if (err instanceof TravelProviderError) throw err
-  if (err instanceof GeoapifyError) {
-    throw new TravelProviderError(err.message, err.code)
+  if (err instanceof GoogleRoutesProviderError) {
+    throw new TravelProviderError(err.message, 'unknown')
   }
   if (err instanceof TypeError) {
     throw new TravelProviderError(
@@ -46,55 +60,149 @@ function wrapError(err: unknown, fallback: string): never {
   }
   const message =
     err instanceof Error && err.message.trim() ? err.message.trim() : fallback
-  // Never surface opaque browser/network strings like "Load failed"
   if (/^load failed$/i.test(message) || /^failed to fetch$/i.test(message)) {
     throw new TravelProviderError(
       'Brak połączenia z serwisem lokalizacji. Sprawdź sieć i spróbuj ponownie.',
       'network',
     )
   }
-  throw new TravelProviderError(message, 'unknown')
+  throw new TravelProviderError(message || fallback, 'unknown')
 }
 
-function toTravelPlace(hit: {
-  lat: number
-  lon: number
-  formatted: string
-  placeId: string | null
-}): TravelPlace {
+function normalizedToTravelPlace(addr: NormalizedAddress): TravelPlace {
+  if (
+    typeof addr.latitude !== 'number' ||
+    typeof addr.longitude !== 'number' ||
+    !Number.isFinite(addr.latitude) ||
+    !Number.isFinite(addr.longitude)
+  ) {
+    throw new TravelProviderError(
+      'Nie udało się znaleźć lokalizacji.',
+      'not_found',
+    )
+  }
   return {
-    lat: hit.lat,
-    lng: hit.lon,
-    formattedAddress: hit.formatted,
-    placeId: hit.placeId,
+    lat: addr.latitude,
+    lng: addr.longitude,
+    formattedAddress: addr.formattedAddress,
+    placeId: addr.placeId ?? null,
+    provider: 'google',
   }
 }
 
+async function invokePlaces(
+  body: Record<string, unknown>,
+): Promise<unknown> {
+  const { supabase } = await import('@/lib/supabase')
+  const { data, error } = await supabase.functions.invoke(PLACES_PROXY_FUNCTION, {
+    body,
+  })
+  if (error) {
+    throw new TravelProviderError(GOOGLE_USER_ERROR_PL, 'network')
+  }
+  return data
+}
+
+function newSessionToken(): string {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return crypto.randomUUID()
+  }
+  return `s-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
+}
+
 export const travelProvider = {
+  /** Resolve a free-text address once (Places autocomplete + details). */
   async getCoordinates(address: string): Promise<TravelPlace> {
+    const q = address.trim()
+    if (q.length < 3) {
+      throw new TravelProviderError('Adres jest wymagany.', 'bad_request')
+    }
     try {
-      const hit = await geoapifyService.geocode(address)
-      return toTravelPlace(hit)
+      const data = (await invokePlaces({
+        operation: 'geocode',
+        query: q,
+        sessionToken: newSessionToken(),
+        languageCode: 'pl',
+        regionCode: 'PL',
+      })) as { ok?: boolean; address?: NormalizedAddress }
+
+      if (!data?.ok || !data.address) {
+        throw new TravelProviderError(
+          'Nie udało się znaleźć lokalizacji.',
+          'not_found',
+        )
+      }
+      return normalizedToTravelPlace(data.address)
     } catch (err) {
       wrapError(err, 'Nie udało się znaleźć lokalizacji.')
     }
   },
 
-  async getAutocomplete(query: string): Promise<TravelPlace[]> {
+  /**
+   * Autocomplete suggestions without coordinates.
+   * Prefer AddressAutocompleteProvider in UI; this remains for service callers.
+   */
+  async getAutocomplete(
+    query: string,
+  ): Promise<Array<{ id: string; label: string; secondaryLabel?: string }>> {
+    const q = query.trim()
+    if (q.length < 3) return []
     try {
-      const hits = await geoapifyService.searchPlaces(query)
-      return hits.map(toTravelPlace)
+      const data = (await invokePlaces({
+        operation: 'autocomplete',
+        query: q,
+        sessionToken: newSessionToken(),
+        languageCode: 'pl',
+        regionCode: 'PL',
+        limit: 8,
+      })) as {
+        ok?: boolean
+        suggestions?: Array<{
+          id: string
+          label: string
+          secondaryLabel?: string
+        }>
+      }
+      if (!data?.ok) return []
+      return Array.isArray(data.suggestions) ? data.suggestions : []
     } catch (err) {
       wrapError(err, 'Nie udało się wyszukać adresu.')
     }
   },
 
   async getRoute(
-    origin: { lat: number; lng: number },
-    destination: { lat: number; lng: number },
+    origin: { lat: number; lng: number; placeId?: string | null; address?: string },
+    destination: {
+      lat: number
+      lng: number
+      placeId?: string | null
+      address?: string
+    },
   ): Promise<TravelRoute> {
     try {
-      return await geoapifyService.route(origin, destination)
+      const result: RouteResult = await computeGoogleRoute({
+        origin: {
+          latitude: origin.lat,
+          longitude: origin.lng,
+          placeId: origin.placeId,
+          address: origin.address,
+        },
+        destination: {
+          latitude: destination.lat,
+          longitude: destination.lng,
+          placeId: destination.placeId,
+          address: destination.address,
+        },
+        travelMode: 'DRIVE',
+      })
+      return {
+        distanceMeters: result.distanceMeters,
+        durationSeconds: result.durationSeconds,
+        distanceLabel: result.distanceLabel,
+        durationLabel: result.durationLabel,
+        encodedPolyline: result.encodedPolyline,
+        provider: 'google',
+      }
     } catch (err) {
       wrapError(err, 'Nie udało się wyliczyć trasy.')
     }

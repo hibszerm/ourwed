@@ -125,7 +125,11 @@ export function weddingValuesFromWedding(
     wedding.ceremonyLocation || c.venue,
   )
   emitWedding(out, 'reception_location', wedding.receptionLocation)
-  emitWedding(out, 'preparation_location', wedding.preparationLocation)
+  emitWedding(
+    out,
+    'preparation_location',
+    wedding.bridePreparationLocation || wedding.preparationLocation,
+  )
 
   if (c.city?.trim()) out['wedding_city'] = c.city.trim()
   if (c.venue?.trim()) out['venue'] = c.venue.trim()

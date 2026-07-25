@@ -205,20 +205,28 @@ function searchFromWedding(wedding: Wedding): QuestionnaireSearchFields {
 
 /**
  * Geocode questionnaire address texts into wedding_places (same path as Hero).
- * Reliable Geoapify hits get coordinates; unreliable / failed geocodes still
+ * Google Places resolution via travelProvider.getCoordinates; failed geocodes still
  * store the couple's original text without place_id or coordinates
  * (needs verification). Never aborts approval.
  */
 async function syncQuestionnaireLocationsToPlaces(
   weddingId: string,
   locations: {
-    preparation?: string
+    bridePreparation?: string
+    groomPreparation?: string
     ceremony?: string
     reception?: string
   },
 ): Promise<void> {
   const pairs: Array<{ role: WeddingPlaceRole; text: string }> = [
-    { role: 'preparation', text: locations.preparation?.trim() || '' },
+    {
+      role: 'bride_preparation',
+      text: locations.bridePreparation?.trim() || '',
+    },
+    {
+      role: 'groom_preparation',
+      text: locations.groomPreparation?.trim() || '',
+    },
     { role: 'ceremony', text: locations.ceremony?.trim() || '' },
     { role: 'reception', text: locations.reception?.trim() || '' },
   ]
@@ -726,7 +734,8 @@ export const questionnaireService = {
 
       // Normalize locations → wedding_places (Hero / Travel source of truth).
       await syncQuestionnaireLocationsToPlaces(wedding.id, {
-        preparation: summary.preparationLocation,
+        bridePreparation: summary.bridePreparationLocation,
+        groomPreparation: summary.groomPreparationLocation,
         ceremony: summary.ceremonyLocation,
         reception: summary.receptionLocation,
       })

@@ -65,16 +65,27 @@ export function HeroShowcase({ className = '' }: { className?: string }) {
           <li>
             <span className={styles.stopIndex}>1</span>
             <div>
-              <strong>Przygotowania</strong>
+              <strong>Przygotowania Panny Młodej</strong>
               <span>Villa Love</span>
             </div>
           </li>
           <li className={styles.leg} aria-hidden>
             <span>↓</span>
-            <em>18 min · 22 km</em>
+            <em>12 min · 8 km</em>
           </li>
           <li>
             <span className={styles.stopIndex}>2</span>
+            <div>
+              <strong>Przygotowania Pana Młodego</strong>
+              <span>Hotel Verte</span>
+            </div>
+          </li>
+          <li className={styles.leg} aria-hidden>
+            <span>↓</span>
+            <em>18 min · 14 km</em>
+          </li>
+          <li>
+            <span className={styles.stopIndex}>3</span>
             <div>
               <strong>Ceremonia</strong>
               <span>Kościół św. Anny</span>
@@ -85,7 +96,7 @@ export function HeroShowcase({ className = '' }: { className?: string }) {
             <em>11 min · 12 km</em>
           </li>
           <li>
-            <span className={styles.stopIndex}>3</span>
+            <span className={styles.stopIndex}>4</span>
             <div>
               <strong>Przyjęcie</strong>
               <span>Pałac Mała Wieś</span>

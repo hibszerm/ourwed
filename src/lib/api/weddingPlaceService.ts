@@ -19,12 +19,15 @@ interface WeddingPlaceRow {
 }
 
 const CORE_ROLES: WeddingPlaceRole[] = [
-  'preparation',
+  'bride_preparation',
+  'groom_preparation',
   'ceremony',
   'reception',
 ]
 
 const ROLE_SORT: Record<WeddingPlaceRole, number> = {
+  bride_preparation: 10,
+  groom_preparation: 15,
   preparation: 10,
   ceremony: 20,
   reception: 30,
@@ -33,11 +36,17 @@ const ROLE_SORT: Record<WeddingPlaceRole, number> = {
   other: 100,
 }
 
+/** Normalize legacy preparation role → bride_preparation (bride-primary historical semantics). */
+export function normalizeWeddingPlaceRole(role: string): WeddingPlaceRole {
+  if (role === 'preparation') return 'bride_preparation'
+  return role as WeddingPlaceRole
+}
+
 function mapRow(row: WeddingPlaceRow): WeddingPlace {
   return {
     id: row.id,
     weddingId: row.wedding_id,
-    role: row.role as WeddingPlaceRole,
+    role: normalizeWeddingPlaceRole(row.role),
     label: row.label,
     placeId: row.place_id,
     formattedAddress: row.formatted_address,
@@ -86,14 +95,22 @@ export const weddingPlaceService = {
     weddingId: string,
     role: WeddingPlaceRole,
   ): Promise<WeddingPlace | null> {
-    const { data, error } = await supabase
-      .from('wedding_places')
-      .select('*')
-      .eq('wedding_id', weddingId)
-      .eq('role', role)
-      .maybeSingle()
-    throwOnError(error)
-    return data ? mapRow(data as WeddingPlaceRow) : null
+    const roles =
+      role === 'bride_preparation'
+        ? (['bride_preparation', 'preparation'] as const)
+        : ([role] as const)
+
+    for (const r of roles) {
+      const { data, error } = await supabase
+        .from('wedding_places')
+        .select('*')
+        .eq('wedding_id', weddingId)
+        .eq('role', r)
+        .maybeSingle()
+      throwOnError(error)
+      if (data) return mapRow(data as WeddingPlaceRow)
+    }
+    return null
   },
 
   /**
@@ -178,11 +195,15 @@ export const weddingPlaceService = {
     weddingId: string,
     role: WeddingPlaceRole,
   ): Promise<void> {
+    const roles =
+      role === 'bride_preparation'
+        ? ['bride_preparation', 'preparation']
+        : [role]
     const { error } = await supabase
       .from('wedding_places')
       .delete()
       .eq('wedding_id', weddingId)
-      .eq('role', role)
+      .in('role', roles)
     throwOnError(error)
   },
 
@@ -193,6 +214,9 @@ export const weddingPlaceService = {
   async syncCoreFromText(
     weddingId: string,
     locations: {
+      bridePreparation?: string | null
+      groomPreparation?: string | null
+      /** @deprecated Use bridePreparation — mapped to bride_preparation. */
       preparation?: string | null
       ceremony?: string | null
       reception?: string | null
@@ -204,7 +228,17 @@ export const weddingPlaceService = {
     const byRole = new Map(existing.map((p) => [p.role, p]))
 
     const pairs: { role: WeddingPlaceRole; text: string }[] = [
-      { role: 'preparation', text: locations.preparation?.trim() || '' },
+      {
+        role: 'bride_preparation',
+        text:
+          locations.bridePreparation?.trim() ||
+          locations.preparation?.trim() ||
+          '',
+      },
+      {
+        role: 'groom_preparation',
+        text: locations.groomPreparation?.trim() || '',
+      },
       { role: 'ceremony', text: locations.ceremony?.trim() || '' },
       { role: 'reception', text: locations.reception?.trim() || '' },
     ]

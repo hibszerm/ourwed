@@ -68,13 +68,55 @@
 }
 
 .stopCard {
+  display: block;
+  min-width: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  overflow: hidden;
+}
+
+.stopCardInner,
+.stopNavLink {
   display: flex;
   align-items: flex-start;
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
+  min-height: 56px;
+  box-sizing: border-box;
+  width: 100%;
+  text-decoration: none;
+  color: inherit;
+}
+
+.stopNavLink {
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.stopNavLink:hover,
+.stopNavLink:focus-visible {
+  background: color-mix(in srgb, var(--color-accent, #3d4f5c) 6%, transparent);
+  outline: none;
+}
+
+.stopNavAction {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  margin-left: auto;
+  align-self: center;
+  font-size: var(--text-2xs, 0.75rem);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.stopNavChevron {
+  font-size: 1.1rem;
+  line-height: 1;
+  color: var(--color-text-tertiary);
 }
 
 .stopIndex {
@@ -298,5 +340,18 @@
     flex-wrap: wrap;
     min-height: var(--touch-target);
     align-items: center;
+  }
+
+  .stopNavAction {
+    font-size: 0;
+  }
+
+  .stopNavChevron {
+    font-size: 1.35rem;
+  }
+
+  .stopNavLink {
+    min-height: 64px;
+    padding: var(--space-3);
   }
 }

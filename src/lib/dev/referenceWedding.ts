@@ -162,6 +162,8 @@ export function buildReferenceWedding(
     deliveryDays: null,
     finalPaymentDueDate: defaultFinalPaymentDueDate(date),
     preparationLocation: 'Dom pani młodej, Grabowa 8A',
+    bridePreparationLocation: 'Dom pani młodej, Grabowa 8A',
+    groomPreparationLocation: 'Hotel Centralny, ul. Główna 3',
     ceremonyLocation: 'Kościół pw. św. Anny',
     receptionLocation: 'Sala weselna Pod Lipami',
     accentColor: '#1a1a1a',

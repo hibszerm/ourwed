@@ -22,10 +22,10 @@ import { packageSelectionNeedsReview } from '@/lib/forms/packageSelectionReview'
 import { formEngine } from '@/lib/forms/formEngine'
 import { DEFAULT_FORM_SETTINGS } from '@/lib/forms/contractQuestionnaireTemplate'
 import {
-  createTravelAddressProvider,
   type AddressAutocompleteProvider,
   type NormalizedAddress,
 } from '@/services/addressAutocompleteProvider'
+import { createDefaultAddressAutocompleteProvider } from '@/services/addressProviderResolver'
 import { defaultContractQuestionnaireConfig } from '@/types/contractQuestionnaire'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -473,9 +473,11 @@ async function main() {
   )
 
   await run('28. address provider abstraction shape', () => {
-    const provider: AddressAutocompleteProvider = createTravelAddressProvider()
+    const provider: AddressAutocompleteProvider =
+      createDefaultAddressAutocompleteProvider()
     assert(typeof provider.search === 'function', 'search')
     assert(typeof provider.resolve === 'function', 'resolve')
+    assertEq(provider.kind, 'google', 'google provider')
   })
 
   await run('29. manual address entry works without provider data', () => {

@@ -114,6 +114,24 @@
   color: var(--color-text-primary);
 }
 
+.secondary {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--type-helper-size, 0.75rem);
+  color: var(--color-text-tertiary);
+}
+
+.attribution {
+  padding: 0.35rem 0.75rem 0.5rem;
+  text-align: right;
+  font-size: 11px;
+  font-weight: 500;
+  color: #5f6368;
+  font-family: Roboto, Arial, sans-serif;
+  border-top: 1px solid color-mix(in srgb, var(--color-border, #e4e4e7) 80%, transparent);
+  margin-top: 0.15rem;
+}
+
 .meta {
   margin: 0;
   font-size: var(--text-2xs);

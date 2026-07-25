@@ -334,7 +334,10 @@ export const weddingService = {
       deliverables: wedding.deliverables,
       ceremonyLocation: wedding.ceremonyLocation,
       receptionLocation: wedding.receptionLocation,
-      preparationLocation: wedding.preparationLocation,
+      bridePreparationLocation: wedding.bridePreparationLocation,
+      groomPreparationLocation: wedding.groomPreparationLocation,
+      preparationLocation:
+        wedding.bridePreparationLocation || wedding.preparationLocation,
       coverageHours: mapped.coverageHours ?? wedding.coverageHours,
       coverageEndTime: mapped.coverageEndTime ?? wedding.coverageEndTime,
       overtimeRate: mapped.overtimeRate ?? wedding.overtimeRate,

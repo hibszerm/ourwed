@@ -6,7 +6,8 @@ export type LocationVerificationStatus =
   | 'needs_verification'
 
 const CORE_ROLES: WeddingPlaceRole[] = [
-  'preparation',
+  'bride_preparation',
+  'groom_preparation',
   'ceremony',
   'reception',
 ]

@@ -2,6 +2,8 @@
  * Address autocomplete.
  * Desktop: anchored ResponsiveFieldOverlay popover.
  * Mobile: full visualViewport search dialog (MobileFieldDialog).
+ *
+ * Provider selection lives in addressProviderResolver — not hardcoded here.
  */
 
 import {
@@ -15,11 +17,15 @@ import { MobileFieldDialog } from '@/components/ui/MobileFieldDialog'
 import { ResponsiveFieldOverlay } from '@/components/ui/ResponsiveFieldOverlay'
 import { useIsMobileOverlay } from '@/components/ui/useIsMobileOverlay'
 import {
-  defaultAddressAutocompleteProvider,
   type AddressAutocompleteProvider,
   type AddressSuggestion,
   type NormalizedAddress,
 } from '@/services/addressAutocompleteProvider'
+import { createDefaultAddressAutocompleteProvider } from '@/services/addressProviderResolver'
+import {
+  GOOGLE_PLACES_MIN_QUERY_LENGTH,
+  GOOGLE_USER_ERROR_PL,
+} from '@/services/googlePlacesNormalize'
 import fieldStyles from './QuestionField.module.css'
 import styles from './AddressField.module.css'
 
@@ -43,20 +49,28 @@ function isNormalized(value: AddressFieldValue): value is NormalizedAddress {
   return typeof value === 'object' && value != null && 'formattedAddress' in value
 }
 
+const MIN_QUERY = GOOGLE_PLACES_MIN_QUERY_LENGTH
+
 export function AddressField({
   id,
   value,
   onChange,
   placeholder = 'Wpisz adres…',
   disabled = false,
-  provider = defaultAddressAutocompleteProvider,
+  provider: providerProp,
 }: AddressFieldProps) {
   const listId = useId()
   const isMobile = useIsMobileOverlay()
+  // One provider instance per field so Google session tokens are not shared.
+  const [provider] = useState(
+    () => providerProp ?? createDefaultAddressAutocompleteProvider(),
+  )
   const inputRef = useRef<HTMLInputElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
   const portalRef = useRef<HTMLElement | null>(null)
+  const abortRef = useRef<AbortController | null>(null)
+  const sessionRef = useRef<string | null>(null)
   const [query, setQuery] = useState(toDisplay(value))
   const [dialogQuery, setDialogQuery] = useState(toDisplay(value))
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([])
@@ -64,6 +78,7 @@ export function AddressField({
   const [open, setOpen] = useState(false)
   const [highlight, setHighlight] = useState(-1)
   const [emptyAfterSearch, setEmptyAfterSearch] = useState(false)
+  const [providerHint, setProviderHint] = useState<string | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -73,7 +88,10 @@ export function AddressField({
   useEffect(() => {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
+      abortRef.current?.abort()
+      endSearchSession()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- unmount only
   }, [])
 
   useEffect(() => {
@@ -83,8 +101,7 @@ export function AddressField({
       if (!target) return
       if (inputRef.current?.contains(target)) return
       if (portalRef.current?.contains(target)) return
-      setOpen(false)
-      setHighlight(-1)
+      closeDialog()
     }
     document.addEventListener('mousedown', onDocPointer)
     document.addEventListener('touchstart', onDocPointer)
@@ -93,6 +110,18 @@ export function AddressField({
       document.removeEventListener('touchstart', onDocPointer)
     }
   }, [open, isMobile])
+
+  function ensureSearchSession(): string {
+    if (sessionRef.current) return sessionRef.current
+    const token = provider.beginSession?.() ?? crypto.randomUUID()
+    sessionRef.current = token
+    return token
+  }
+
+  function endSearchSession() {
+    sessionRef.current = null
+    provider.endSession?.()
+  }
 
   function emitManual(text: string) {
     const prev = isNormalized(value) ? value : null
@@ -106,6 +135,7 @@ export function AddressField({
   function scheduleSearch(next: string) {
     setHighlight(-1)
     setEmptyAfterSearch(false)
+    setProviderHint(null)
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
       void runSearch(next)
@@ -125,29 +155,48 @@ export function AddressField({
   }
 
   async function runSearch(q: string) {
-    if (q.trim().length < 2) {
+    if (q.trim().length < MIN_QUERY) {
       setSuggestions([])
       setLoading(false)
       setEmptyAfterSearch(false)
       return
     }
+
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
+    const sessionToken = ensureSearchSession()
+
     setLoading(true)
     try {
-      const hits = await provider.search(q, { limit: 8 })
+      const hits = await provider.search(q, {
+        limit: 8,
+        signal: controller.signal,
+        sessionToken,
+        language: 'pl',
+      })
+      if (controller.signal.aborted) return
       setSuggestions(hits)
       setEmptyAfterSearch(hits.length === 0)
+      setProviderHint(null)
       if (!isMobile) setOpen(true)
     } catch {
+      if (controller.signal.aborted) return
       setSuggestions([])
       setEmptyAfterSearch(true)
+      setProviderHint(GOOGLE_USER_ERROR_PL)
     } finally {
-      setLoading(false)
+      if (!controller.signal.aborted) setLoading(false)
     }
   }
 
   async function pickSuggestion(s: AddressSuggestion) {
+    abortRef.current?.abort()
     try {
-      const resolved = await provider.resolve(s.id)
+      const resolved = await provider.resolve(s.id, {
+        sessionToken: sessionRef.current ?? undefined,
+        language: 'pl',
+      })
       onChange(resolved)
       setQuery(resolved.formattedAddress)
       setDialogQuery(resolved.formattedAddress)
@@ -156,9 +205,11 @@ export function AddressField({
       setQuery(s.label)
       setDialogQuery(s.label)
     }
+    endSearchSession()
     setSuggestions([])
     setOpen(false)
     setHighlight(-1)
+    setProviderHint(null)
   }
 
   function useTypedAddress() {
@@ -166,6 +217,7 @@ export function AddressField({
     if (!text) return
     emitManual(text)
     setQuery(text)
+    endSearchSession()
     setOpen(false)
     setHighlight(-1)
   }
@@ -177,8 +229,10 @@ export function AddressField({
     setSuggestions([])
     setEmptyAfterSearch(false)
     setHighlight(-1)
+    setProviderHint(null)
+    ensureSearchSession()
     setOpen(true)
-    if (current.trim().length >= 2) {
+    if (current.trim().length >= MIN_QUERY) {
       void runSearch(current)
     }
     inputRef.current?.blur()
@@ -187,6 +241,7 @@ export function AddressField({
   function closeDialog() {
     setOpen(false)
     setHighlight(-1)
+    endSearchSession()
   }
 
   function onKeyDown(e: KeyboardEvent<HTMLInputElement>) {
@@ -218,7 +273,11 @@ export function AddressField({
     !isMobile &&
     open &&
     !disabled &&
-    (loading || suggestions.length > 0 || emptyAfterSearch)
+    (loading || suggestions.length > 0 || emptyAfterSearch || !!providerHint)
+
+  const showAttribution =
+    provider.attribution === 'google' &&
+    (suggestions.length > 0 || loading)
 
   const resultsList = (
     <ul
@@ -238,7 +297,12 @@ export function AddressField({
           Szukam adresów…
         </li>
       ) : null}
-      {!loading && emptyAfterSearch && suggestions.length === 0 ? (
+      {!loading && providerHint ? (
+        <li className={styles.emptyRow} role="presentation">
+          {providerHint}
+        </li>
+      ) : null}
+      {!loading && !providerHint && emptyAfterSearch && suggestions.length === 0 ? (
         <li className={styles.emptyRow} role="presentation">
           Brak podpowiedzi — możesz użyć wpisanego adresu.
         </li>
@@ -274,6 +338,13 @@ export function AddressField({
           </button>
         </li>
       ))}
+      {showAttribution ? (
+        <li className={styles.attributionRow} role="presentation">
+          <span className={styles.poweredByGoogle} aria-label="Powered by Google">
+            Powered by Google
+          </span>
+        </li>
+      ) : null}
     </ul>
   )
 
@@ -316,7 +387,10 @@ export function AddressField({
           autoComplete="street-address"
           onChange={(e) => handleDesktopInput(e.target.value)}
           onFocus={() => {
-            if (suggestions.length > 0 || emptyAfterSearch) setOpen(true)
+            ensureSearchSession()
+            if (suggestions.length > 0 || emptyAfterSearch || providerHint) {
+              setOpen(true)
+            }
           }}
           onKeyDown={onKeyDown}
         />

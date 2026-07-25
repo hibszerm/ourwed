@@ -51,12 +51,17 @@ async function hydrateWeddingPlaces(wedding: Wedding): Promise<Wedding> {
     return {
       ...wedding,
       preparationLocation:
+        byRole.get('bride_preparation')?.formattedAddress ||
         byRole.get('preparation')?.formattedAddress ||
         wedding.preparationLocation,
       bridePreparationLocation:
+        byRole.get('bride_preparation')?.formattedAddress ||
         wedding.bridePreparationLocation ||
         byRole.get('preparation')?.formattedAddress ||
         wedding.preparationLocation,
+      groomPreparationLocation:
+        byRole.get('groom_preparation')?.formattedAddress ||
+        wedding.groomPreparationLocation,
       ceremonyLocation:
         byRole.get('ceremony')?.formattedAddress || wedding.ceremonyLocation,
       receptionLocation:

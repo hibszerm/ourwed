@@ -139,3 +139,23 @@
   opacity: 0.45;
   cursor: not-allowed;
 }
+
+.attributionRow {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.35rem 0.75rem 0.5rem;
+  border-top: 1px solid color-mix(in srgb, var(--color-border, #e4e4e7) 80%, transparent);
+  margin-top: 0.15rem;
+}
+
+/* Google Places attribution — required when predictions show without a map.
+   Do not hide, restyle to invisibility, or remove. */
+.poweredByGoogle {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: #5f6368;
+  font-family: Roboto, Arial, sans-serif;
+  user-select: none;
+  pointer-events: none;
+}

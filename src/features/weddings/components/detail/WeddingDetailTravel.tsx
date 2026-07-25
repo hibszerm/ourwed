@@ -5,7 +5,7 @@ import { TravelMap } from '@/features/travel/TravelMap'
 import { countPlacesNeedingVerification } from '@/features/travel/locationVerification'
 import {
   buildTravelFlow,
-  openFullRouteUrl,
+  navigateToStopUrl,
   sumTravelTotals,
   type TravelFlowStop,
 } from '@/features/travel/travelUi'
@@ -46,15 +46,42 @@ function TravelSkeleton() {
 }
 
 function StopCard({ stop }: { stop: TravelFlowStop }) {
+  const navUrl = navigateToStopUrl(stop)
+
   return (
     <div className={styles.stopCard}>
-      <span className={styles.stopIndex} aria-hidden>
-        {stop.markerIndex}
-      </span>
-      <div className={styles.stopBody}>
-        <p className={styles.stopTitle}>{stop.title}</p>
-        <p className={styles.stopAddress}>{stop.address}</p>
-      </div>
+      {navUrl ? (
+        <a
+          className={styles.stopNavLink}
+          href={navUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={stop.navigateLabel}
+          data-testid={`travel-nav-${stop.role ?? stop.key}`}
+        >
+          <span className={styles.stopIndex} aria-hidden>
+            {stop.markerIndex}
+          </span>
+          <div className={styles.stopBody}>
+            <p className={styles.stopTitle}>{stop.title}</p>
+            <p className={styles.stopAddress}>{stop.address}</p>
+          </div>
+          <span className={styles.stopNavAction} aria-hidden>
+            Nawiguj
+            <span className={styles.stopNavChevron}>›</span>
+          </span>
+        </a>
+      ) : (
+        <div className={styles.stopCardInner}>
+          <span className={styles.stopIndex} aria-hidden>
+            {stop.markerIndex}
+          </span>
+          <div className={styles.stopBody}>
+            <p className={styles.stopTitle}>{stop.title}</p>
+            <p className={styles.stopAddress}>{stop.address}</p>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -189,7 +216,6 @@ export function WeddingDetailTravel({
       (s) => s.status === 'ok' && s.distanceMeters != null,
     ) ?? []
   const totals = sumTravelTotals(okSegments)
-  const directionsUrl = flow ? openFullRouteUrl(flow.stops) : null
   const busy = isFetching || recalculateMutation.isPending
   const showLoading = !useLocalPlan && isLoading
 
@@ -197,7 +223,7 @@ export function WeddingDetailTravel({
     <Card padding="md" className={styles.card}>
       <CardHeader
         title="Travel"
-        subtitle="Firma → Przygotowania → Ceremonia → Przyjęcie"
+        subtitle="Firma → Przygotowania Panny Młodej → Przygotowania Pana Młodego → Ceremonia → Przyjęcie"
       />
 
       {showLoading ? (
@@ -268,20 +294,6 @@ export function WeddingDetailTravel({
                       ? 'Przeliczanie…'
                       : 'Przelicz trasę'}
                   </button>
-                  {directionsUrl ? (
-                    <a
-                      className={styles.actionSecondary}
-                      href={directionsUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      Otwórz pełną trasę
-                    </a>
-                  ) : (
-                    <span className={styles.actionDisabled}>
-                      Otwórz pełną trasę
-                    </span>
-                  )}
                 </div>
               ) : null}
             </>

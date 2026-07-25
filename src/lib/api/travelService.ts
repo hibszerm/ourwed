@@ -67,12 +67,13 @@ interface PlannedLeg {
 /** Preferred stop order for the wedding day route. */
 const STOP_ORDER: Array<'studio' | WeddingPlaceRole> = [
   'studio',
-  'preparation',
+  'bride_preparation',
+  'groom_preparation',
   'ceremony',
   'reception',
 ]
 
-const ROUTE_PROVIDER = 'geoapify'
+const ROUTE_PROVIDER = 'google'
 
 function mapSegment(row: TravelSegmentRow): TravelSegment {
   return {

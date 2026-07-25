@@ -3,12 +3,15 @@
  */
 
 export type WeddingPlaceRole =
-  | 'preparation'
+  | 'bride_preparation'
+  | 'groom_preparation'
   | 'ceremony'
   | 'reception'
   | 'hotel'
   | 'airport'
   | 'other'
+  /** @deprecated Legacy travel role — migrated to bride_preparation. */
+  | 'preparation'
 
 export type TravelEndpointKind = 'studio' | 'wedding_place'
 
@@ -23,6 +26,8 @@ export interface GeoPlace {
   latitude: number | null
   longitude: number | null
   label?: string | null
+  /** Active writes use google; historical rows may still say geoapify. */
+  provider?: 'google' | 'geoapify' | string | null
 }
 
 export interface StudioTravelSettings {
