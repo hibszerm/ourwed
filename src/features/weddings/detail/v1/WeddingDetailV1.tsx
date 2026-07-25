@@ -8,7 +8,6 @@ import { WeddingDetailQuestionnaires } from '@/features/weddings/components/deta
 import { WeddingDetailFinances } from '@/features/weddings/components/detail/WeddingDetailFinances'
 import { WeddingDetailPackage } from '@/features/weddings/components/detail/WeddingDetailPackage'
 import { WeddingCommercialSummaryCard } from '@/features/weddings/components/detail/WeddingCommercialSummary'
-import { WeddingContractReadinessPanel } from '@/features/weddings/components/detail/WeddingContractReadiness'
 import { WeddingDetailContact } from '@/features/weddings/components/detail/WeddingDetailContact'
 import { WeddingDetailTravel } from '@/features/weddings/components/detail/WeddingDetailTravel'
 import { WeddingDangerZone } from '@/features/weddings/components/detail/WeddingDangerZone'
@@ -19,7 +18,7 @@ import { DeliverablesSection } from '@/features/weddings/components/Deliverables
 import type { WeddingDetailSharedProps } from '@/features/weddings/detail/v2/weddingDetailV2Types'
 import pageStyles from '@/pages/WeddingDetailPage.module.css'
 
-/** Legacy wedding detail layout — preserved unchanged for V1 mode. */
+/** Legacy wedding detail layout — preserved for V1 mode. */
 export function WeddingDetailV1(props: WeddingDetailSharedProps) {
   const {
     wedding,
@@ -70,8 +69,6 @@ export function WeddingDetailV1(props: WeddingDetailSharedProps) {
       <WeddingDetailCurrentStage wedding={wedding} />
 
       <WeddingCommercialSummaryCard wedding={wedding} />
-
-      <WeddingContractReadinessPanel wedding={wedding} />
 
       <div className={pageStyles.row}>
         <WeddingDetailFinances

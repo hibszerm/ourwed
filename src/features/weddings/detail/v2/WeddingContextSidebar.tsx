@@ -16,6 +16,8 @@ interface WeddingContextSidebarProps {
   places: WeddingPlace[]
   contacts?: { id: string; name: string; role?: string }[]
   onEditLocations: () => void
+  onEditContacts?: () => void
+  onEditPackage?: () => void
   onShowPackageDetails: () => void
 }
 
@@ -24,6 +26,8 @@ export function WeddingContextSidebar({
   places,
   contacts = [],
   onEditLocations,
+  onEditContacts,
+  onEditPackage,
   onShowPackageDetails,
 }: WeddingContextSidebarProps) {
   const reception = getReceptionPlace(wedding, places)
@@ -35,10 +39,11 @@ export function WeddingContextSidebar({
       : 0
   const navUrl = !reception.empty
     ? buildGoogleMapsNavigationUrl({
+        formattedAddress: reception.address,
+        label: reception.placeName,
         placeId: reception.placeId,
         latitude: reception.latitude,
         longitude: reception.longitude,
-        formattedAddress: reception.address,
       })
     : null
 
@@ -102,6 +107,15 @@ export function WeddingContextSidebar({
               </div>
             </div>
           ))}
+          {onEditContacts ? (
+            <button
+              type="button"
+              className={styles.textAction}
+              onClick={onEditContacts}
+            >
+              Edytuj dane pary
+            </button>
+          ) : null}
           {contacts.filter((c) => c.name?.trim()).length > 0 ? (
             <div className={styles.contextPartner}>
               <p className={styles.contextRole}>Dodatkowe</p>
@@ -133,6 +147,15 @@ export function WeddingContextSidebar({
           >
             Pokaż szczegóły
           </Button>
+          {onEditPackage ? (
+            <button
+              type="button"
+              className={styles.textAction}
+              onClick={onEditPackage}
+            >
+              Edytuj pakiet
+            </button>
+          ) : null}
         </section>
 
         <section className={styles.contextBlock}>

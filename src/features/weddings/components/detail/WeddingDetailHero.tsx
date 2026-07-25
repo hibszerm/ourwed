@@ -16,12 +16,8 @@ import type { Wedding } from '@/types/wedding'
 import editStyles from '@/features/weddings/edit/WeddingEdit.module.css'
 import styles from './WeddingDetailHero.module.css'
 
-export type WeddingHeroAction =
-  | 'send_contract_questionnaire'
-  | 'generate_contract'
-  | 'add_payment'
-  | 'add_note'
-  | 'add_deposit'
+export type { WeddingHeroAction } from '@/features/weddings/detail/weddingHeroActions'
+import type { WeddingHeroAction } from '@/features/weddings/detail/weddingHeroActions'
 
 interface WeddingDetailHeroProps {
   wedding: Wedding
@@ -32,6 +28,8 @@ interface WeddingDetailHeroProps {
   places?: WeddingPlace[]
   /** Hide action buttons — still show locations / package. */
   readOnly?: boolean
+  /** DOM id for the locations block (V1 vs workspace scroll targets). */
+  locationsAnchorId?: string
 }
 
 const LOCATION_FIELDS: Array<{ role: WeddingPlaceRole; label: string }> = [
@@ -79,6 +77,7 @@ export function WeddingDetailHero({
   onChangeWedding,
   places: placesProp,
   readOnly = false,
+  locationsAnchorId = 'wedding-locations',
 }: WeddingDetailHeroProps) {
   const queryClient = useQueryClient()
   const userId = useStudioAuthId()
@@ -187,7 +186,7 @@ export function WeddingDetailHero({
         </div>
       )}
 
-      <div className={styles.locations} id="wedding-locations">
+      <div className={styles.locations} id={locationsAnchorId}>
         {!useLocalPlaces && placesLoading ? (
           <p className={styles.locationsMuted}>Ładowanie lokalizacji…</p>
         ) : editing && !readOnly ? (

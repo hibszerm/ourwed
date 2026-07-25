@@ -9,6 +9,8 @@ export interface TravelStop {
   key: string
   title: string
   address: string
+  /** Venue / place name when distinct from the postal address. */
+  label?: string | null
   placeId: string | null
   latitude: number | null
   longitude: number | null
@@ -81,6 +83,7 @@ export function buildTravelFlow(plan: TravelPlan): TravelFlow {
       key: 'studio',
       title: 'Firma',
       address: studio.formattedAddress || studio.studioName || 'Firma',
+      label: studio.studioName,
       placeId: studio.placeId,
       latitude: studio.latitude,
       longitude: studio.longitude,
@@ -99,6 +102,7 @@ export function buildTravelFlow(plan: TravelPlan): TravelFlow {
       key: place.id,
       title: ROLE_TITLES[role] ?? role,
       address: place.formattedAddress,
+      label: place.label,
       placeId: place.placeId,
       latitude: place.latitude,
       longitude: place.longitude,
@@ -179,10 +183,11 @@ export function openFullRouteUrl(stops: TravelStop[]): string | null {
 /** Direct navigation URL for one travel stop (current position → destination). */
 export function navigateToStopUrl(stop: TravelStop): string | null {
   return buildGoogleMapsNavigationUrl({
+    formattedAddress: stop.address,
+    label: stop.label ?? stop.title,
     placeId: stop.placeId,
     latitude: stop.latitude,
     longitude: stop.longitude,
-    formattedAddress: stop.address,
   })
 }
 

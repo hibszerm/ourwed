@@ -23,6 +23,8 @@ interface Props {
   editing: boolean
   onAddNote?: () => void
   onChangeTasks: (tasks: Task[]) => void
+  onEditTasks?: () => void
+  onEditNotes?: () => void
 }
 
 export function WeddingActivityWorkspace({
@@ -32,6 +34,8 @@ export function WeddingActivityWorkspace({
   editing,
   onAddNote,
   onChangeTasks,
+  onEditTasks,
+  onEditNotes,
 }: Props) {
   const [filter, setFilter] = useState<ActivityFilter>('all')
   const filtered = useMemo(
@@ -89,6 +93,16 @@ export function WeddingActivityWorkspace({
         {onAddNote && !editing ? (
           <Button type="button" variant="secondary" size="sm" onClick={onAddNote}>
             Dodaj notatkę
+          </Button>
+        ) : null}
+        {onEditNotes && !editing ? (
+          <Button type="button" variant="ghost" size="sm" onClick={onEditNotes}>
+            Edytuj notatki
+          </Button>
+        ) : null}
+        {onEditTasks && !editing ? (
+          <Button type="button" variant="ghost" size="sm" onClick={onEditTasks}>
+            Edytuj zadania
           </Button>
         ) : null}
         {editing ? (

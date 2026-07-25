@@ -1,0 +1,56 @@
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.groupHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.groupTitle {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 650;
+  color: var(--color-text-primary);
+}
+
+.contextLink {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: 550;
+  color: var(--color-text-secondary);
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.contextLink:hover {
+  color: var(--color-text-primary);
+}
+
+.list {
+  margin: 0;
+  padding-left: 1.15rem;
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  line-height: var(--leading-normal);
+}
+
+.list li + li {
+  margin-top: var(--space-1);
+}

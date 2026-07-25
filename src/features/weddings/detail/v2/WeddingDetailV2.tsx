@@ -1,9 +1,7 @@
 import { useCallback, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
-import { companyDetailsService } from '@/lib/api/companyDetailsService'
 import { weddingPlaceService } from '@/lib/api/weddingPlaceService'
-import { evaluateWeddingContractReadiness } from '@/lib/utils/weddingContractReadiness'
 import { WeddingActivityWorkspace } from '@/features/weddings/detail/v2/WeddingActivityWorkspace'
 import { WeddingContextSidebar } from '@/features/weddings/detail/v2/WeddingContextSidebar'
 import { WeddingContractFinanceWorkspace } from '@/features/weddings/detail/v2/WeddingContractFinanceWorkspace'
@@ -11,6 +9,7 @@ import { WeddingDayWorkspace } from '@/features/weddings/detail/v2/WeddingDayWor
 import { WeddingManagementSection } from '@/features/weddings/detail/v2/WeddingManagementSection'
 import { WeddingOverviewBand } from '@/features/weddings/detail/v2/WeddingOverviewBand'
 import { WeddingOverviewWorkspace } from '@/features/weddings/detail/v2/WeddingOverviewWorkspace'
+import { WeddingWorkspaceEditSurface } from '@/features/weddings/detail/v2/WeddingWorkspaceEditSurface'
 import { WeddingWorkspaceHeader } from '@/features/weddings/detail/v2/WeddingWorkspaceHeader'
 import { WeddingWorkspaceTabs } from '@/features/weddings/detail/v2/WeddingWorkspaceTabs'
 import type {
@@ -19,8 +18,6 @@ import type {
 } from '@/features/weddings/detail/v2/weddingDetailV2Types'
 import {
   buildActivityFeed,
-  getMissingReadinessItems,
-  getNextAction,
   getOverviewBand,
   parseWorkspaceTab,
 } from '@/features/weddings/detail/v2/weddingWorkspaceSelectors'
@@ -53,14 +50,14 @@ export function WeddingDetailV2(props: WeddingDetailSharedProps) {
     contacts,
     extras,
     editing,
-    packageBasePrice,
-    onChangeWedding,
-    onChangePayments,
+    editorSection = null,
     onChangeTasks,
-    onChangeExtras,
-    onChangePackageBasePrice,
     onHeroAction,
     onRequestVerifyLocations,
+    onEditSection,
+    onSaveEdit,
+    onCancelEdit,
+    saving,
     onAddNote,
     onArchive,
     onDelete,
@@ -82,16 +79,7 @@ export function WeddingDetailV2(props: WeddingDetailSharedProps) {
     enabled: Boolean(userId && wedding.id),
   })
 
-  const { data: company } = useQuery({
-    queryKey: ['company-details', userId],
-    queryFn: () => companyDetailsService.get(),
-    enabled: Boolean(userId),
-  })
-
-  const readiness = evaluateWeddingContractReadiness(wedding, company)
-  const band = getOverviewBand(wedding, readiness)
-  const nextAction = getNextAction(wedding, readiness)
-  const missing = getMissingReadinessItems(readiness)
+  const band = getOverviewBand(wedding)
   const feed = buildActivityFeed({
     timeline: wedding.timeline,
     notes,
@@ -104,8 +92,6 @@ export function WeddingDetailV2(props: WeddingDetailSharedProps) {
       <WeddingWorkspaceHeader
         wedding={wedding}
         places={places}
-        readinessLabel={band.readinessLabel}
-        readinessReady={band.readinessReady}
         editing={editing}
         onAction={onHeroAction}
       />
@@ -125,18 +111,19 @@ export function WeddingDetailV2(props: WeddingDetailSharedProps) {
             <div className={styles.overviewLayout}>
               <WeddingOverviewWorkspace
                 stage={wedding.workflowStage}
-                nextAction={nextAction}
-                missing={missing}
                 recent={feed}
-                onAction={onHeroAction}
-                onOpenContractTab={() => setTab('contract_finance')}
                 onOpenActivityTab={() => setTab('activity')}
               />
               <WeddingContextSidebar
                 wedding={wedding}
                 places={places}
                 contacts={contacts}
-                onEditLocations={onRequestVerifyLocations}
+                onEditLocations={() => {
+                  if (onEditSection) onEditSection('locations')
+                  else onRequestVerifyLocations()
+                }}
+                onEditContacts={() => onEditSection?.('contacts')}
+                onEditPackage={() => onEditSection?.('package')}
                 onShowPackageDetails={() => {
                   setPackageFocus(true)
                   setTab('contract_finance')
@@ -149,24 +136,32 @@ export function WeddingDetailV2(props: WeddingDetailSharedProps) {
             <WeddingDayWorkspace
               wedding={wedding}
               places={places}
-              onRequestVerifyLocations={onRequestVerifyLocations}
+              onRequestVerifyLocations={() => {
+                if (onEditSection) onEditSection('locations')
+                else onRequestVerifyLocations()
+              }}
+              onEditLocationRole={(role) => {
+                if (
+                  role === 'bride_preparation' ||
+                  role === 'groom_preparation' ||
+                  role === 'ceremony' ||
+                  role === 'reception'
+                ) {
+                  onEditSection?.(role)
+                }
+              }}
             />
           ) : null}
 
           {tab === 'contract_finance' ? (
             <WeddingContractFinanceWorkspace
               wedding={wedding}
-              readiness={readiness}
               payments={payments}
               extras={extras}
-              editing={editing}
-              packageBasePrice={packageBasePrice}
-              onChangeWedding={onChangeWedding}
-              onChangePayments={onChangePayments}
-              onChangeExtras={onChangeExtras}
-              onChangePackageBasePrice={onChangePackageBasePrice}
               onAction={onHeroAction}
               forcePackageOpen={packageFocus}
+              onEditPackage={() => onEditSection?.('package')}
+              onEditFinances={() => onEditSection?.('finances')}
             />
           ) : null}
 
@@ -175,9 +170,11 @@ export function WeddingDetailV2(props: WeddingDetailSharedProps) {
               wedding={wedding}
               feed={feed}
               tasks={tasks}
-              editing={editing}
+              editing={false}
               onAddNote={onAddNote}
               onChangeTasks={onChangeTasks}
+              onEditTasks={() => onEditSection?.('tasks')}
+              onEditNotes={() => onEditSection?.('notes')}
             />
           ) : null}
         </div>
@@ -185,6 +182,17 @@ export function WeddingDetailV2(props: WeddingDetailSharedProps) {
 
       {!editing ? (
         <WeddingManagementSection onArchive={onArchive} onDelete={onDelete} />
+      ) : null}
+
+      {editing ? (
+        <WeddingWorkspaceEditSurface
+          props={props}
+          focusSection={editorSection}
+          saving={saving}
+          saveError={props.saveError}
+          onSave={() => onSaveEdit?.()}
+          onClose={() => onCancelEdit?.()}
+        />
       ) : null}
     </div>
   )

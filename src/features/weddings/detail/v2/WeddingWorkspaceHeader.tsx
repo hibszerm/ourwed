@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { IconMapPin } from '@/components/icons'
 import { WorkflowBadge } from '@/components/ui/Badge'
-import type { WeddingHeroAction } from '@/features/weddings/components/detail/WeddingDetailHero'
+import type { WeddingHeroAction } from '@/features/weddings/detail/weddingHeroActions'
 import {
   getCoupleDisplayName,
   getReceptionDisplayName,
@@ -17,8 +17,6 @@ import styles from './WeddingDetailV2.module.css'
 interface WeddingWorkspaceHeaderProps {
   wedding: Wedding
   places: WeddingPlace[]
-  readinessLabel: string
-  readinessReady: boolean
   editing: boolean
   onAction: (action: WeddingHeroAction) => void
 }
@@ -26,8 +24,6 @@ interface WeddingWorkspaceHeaderProps {
 export function WeddingWorkspaceHeader({
   wedding,
   places,
-  readinessLabel,
-  readinessReady,
   editing,
   onAction,
 }: WeddingWorkspaceHeaderProps) {
@@ -73,12 +69,6 @@ export function WeddingWorkspaceHeader({
           </p>
           <div className={styles.commandPills}>
             <WorkflowBadge stage={wedding.workflowStage} />
-            <span
-              className={styles.statusPill}
-              data-ready={readinessReady}
-            >
-              {readinessLabel}
-            </span>
             {wedding.status === 'archived' ? (
               <span className={styles.statusPillMuted}>Zarchiwizowany</span>
             ) : null}

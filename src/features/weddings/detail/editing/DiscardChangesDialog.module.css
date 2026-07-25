@@ -1,0 +1,46 @@
+.root {
+  position: fixed;
+  inset: 0;
+  z-index: 10020;
+  pointer-events: none;
+}
+
+.root > * {
+  pointer-events: auto;
+}
+
+.panel {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10030;
+  width: min(420px, calc(100vw - 2rem));
+  padding: var(--space-5);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-lg);
+  outline: none;
+}
+
+.title {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 650;
+}
+
+.description {
+  margin: var(--space-3) 0 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  line-height: var(--leading-normal);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+}

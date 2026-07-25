@@ -7,7 +7,6 @@ import {
   WORKFLOW_STAGE_LABELS,
   WORKFLOW_STAGES,
 } from '@/lib/utils/workflow'
-import type { CompletenessItem, WeddingContractReadiness } from '@/lib/utils/weddingContractReadiness'
 import type { WeddingPlace, WeddingPlaceRole } from '@/types/travel'
 import type {
   Couple,
@@ -245,7 +244,7 @@ export function getPackageSummary(wedding: Wedding) {
   }
 }
 
-export function getOverviewBand(wedding: Wedding, readiness: WeddingContractReadiness) {
+export function getOverviewBand(wedding: Wedding) {
   const flow = getWorkflowDisplayState(wedding.workflowStage)
   const c = getWeddingCommercialSummary(wedding)
   return {
@@ -256,113 +255,7 @@ export function getOverviewBand(wedding: Wedding, readiness: WeddingContractRead
     finalDueLabel: c.finalPaymentDueDate
       ? formatDate(c.finalPaymentDueDate)
       : '—',
-    readinessCount: `${readiness.requiredTotal - readiness.requiredMissing} / ${readiness.requiredTotal}`,
-    readinessReady: readiness.overall === 'ready',
-    readinessLabel: readiness.overall === 'ready' ? 'Gotowe' : 'Wymaga uzupełnienia',
   }
-}
-
-export type NextActionKind =
-  | 'company_settings'
-  | 'generate_contract'
-  | 'send_questionnaire'
-  | 'add_deposit'
-  | 'none'
-
-export function getNextAction(
-  wedding: Wedding,
-  readiness: WeddingContractReadiness,
-): {
-  title: string
-  description: string
-  actionLabel: string | null
-  actionKind: NextActionKind
-} {
-  const flow = getWorkflowDisplayState(wedding.workflowStage)
-  const missingCompany = readiness.items.filter(
-    (i) => i.group === 'company' && i.status === 'missing',
-  )
-  const contractSent =
-    wedding.questionnaires.contractData.status !== 'not_sent'
-
-  if (readiness.overall !== 'ready' && missingCompany.length > 0) {
-    return {
-      title: 'Uzupełnij dane firmy',
-      description: `${flow.guidance} Brakuje ${missingCompany.length} ${
-        missingCompany.length === 1 ? 'danej firmy' : 'danych firmy'
-      } przed wygenerowaniem dokumentu.`,
-      actionLabel: 'Uzupełnij dane firmy',
-      actionKind: 'company_settings',
-    }
-  }
-
-  if (readiness.overall === 'ready') {
-    return {
-      title: 'Generowanie umowy',
-      description: flow.guidance,
-      actionLabel: 'Generuj umowę',
-      actionKind: 'generate_contract',
-    }
-  }
-
-  if (
-    wedding.workflowStage === 'reservation' ||
-    wedding.workflowStage === 'contract'
-  ) {
-    if (!contractSent) {
-      return {
-        title: 'Ankieta do umowy',
-        description: flow.guidance,
-        actionLabel: 'Wyślij ankietę',
-        actionKind: 'send_questionnaire',
-      }
-    }
-  }
-
-  if (wedding.workflowStage === 'deposit') {
-    return {
-      title: 'Zadatek',
-      description: flow.guidance,
-      actionLabel: 'Dodaj zadatek',
-      actionKind: 'add_deposit',
-    }
-  }
-
-  return {
-    title: flow.label,
-    description: flow.guidance,
-    actionLabel: null,
-    actionKind: 'none',
-  }
-}
-
-export function getMissingReadinessItems(
-  readiness: WeddingContractReadiness,
-): CompletenessItem[] {
-  return readiness.items.filter((i) => i.status === 'missing')
-}
-
-export function getReadinessGroups(readiness: WeddingContractReadiness) {
-  const groups = ['client', 'company', 'package', 'payments'] as const
-  const labels = {
-    client: 'Klient',
-    company: 'Firma',
-    package: 'Pakiet',
-    payments: 'Płatności',
-  } as const
-  return groups.map((group) => {
-    const items = readiness.items.filter((i) => i.group === group)
-    const missing = items.filter((i) => i.status === 'missing').length
-    const complete = items.filter((i) => i.status === 'complete').length
-    return {
-      group,
-      label: labels[group],
-      items,
-      missing,
-      complete,
-      total: items.length,
-    }
-  })
 }
 
 export function buildActivityFeed(input: {

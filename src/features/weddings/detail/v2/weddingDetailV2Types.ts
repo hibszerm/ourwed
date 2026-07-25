@@ -1,4 +1,5 @@
-import type { WeddingHeroAction } from '@/features/weddings/components/detail/WeddingDetailHero'
+import type { WeddingEditorSection } from '@/features/weddings/detail/weddingEditorTypes'
+import type { WeddingHeroAction } from '@/features/weddings/detail/weddingHeroActions'
 import type { WeddingExtraService } from '@/types/package'
 import type { WeddingPlace } from '@/types/travel'
 import type {
@@ -37,7 +38,11 @@ export interface WeddingDetailSharedProps {
   contacts: WeddingContact[]
   extras: WeddingExtraService[]
   editing: boolean
+  /** Section to focus after entering edit mode (workspace scroll). */
+  editorSection?: WeddingEditorSection
   packageBasePrice?: number
+  saving?: boolean
+  saveError?: string | null
   onChangeWedding: (patch: Partial<Wedding>) => void
   onChangePayments: (payments: Payment[]) => void
   onChangeNotes: (notes: WeddingNote[]) => void
@@ -47,6 +52,12 @@ export interface WeddingDetailSharedProps {
   onChangePackageBasePrice: (price: number) => void
   onHeroAction: (action: WeddingHeroAction) => void
   onRequestVerifyLocations: () => void
+  /** Open shared page editor focused on a section. */
+  onEditSection?: (section: WeddingEditorSection) => void
+  /** Persist draft (V2 drawer Zapisz). */
+  onSaveEdit?: () => void
+  /** Close editor / discard (V2 drawer Anuluj). */
+  onCancelEdit?: () => void
   onAddNote?: () => void
   onSendQuestionnaire?: (kind: 'contractData') => void
   onArchive: () => Promise<void>

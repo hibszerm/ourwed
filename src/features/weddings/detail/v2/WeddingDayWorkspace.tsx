@@ -12,7 +12,7 @@ import {
 } from '@/features/weddings/detail/v2/weddingWorkspaceSelectors'
 import { travelService } from '@/lib/api/travelService'
 import { buildGoogleMapsNavigationUrl } from '@/services/googleMapsLinks'
-import type { TravelPlan, WeddingPlace } from '@/types/travel'
+import type { TravelPlan, WeddingPlace, WeddingPlaceRole } from '@/types/travel'
 import type { Wedding } from '@/types/wedding'
 import styles from './WeddingDetailV2.module.css'
 
@@ -20,12 +20,15 @@ interface WeddingDayWorkspaceProps {
   wedding: Wedding
   places: WeddingPlace[]
   onRequestVerifyLocations?: () => void
+  /** Per-role location editor (V2 drawer). */
+  onEditLocationRole?: (role: WeddingPlaceRole) => void
 }
 
 export function WeddingDayWorkspace({
   wedding,
   places,
   onRequestVerifyLocations,
+  onEditLocationRole,
 }: WeddingDayWorkspaceProps) {
   const queryClient = useQueryClient()
   const userId = useStudioAuthId()
@@ -99,10 +102,11 @@ export function WeddingDayWorkspace({
                 const leg = next ? legBetween(loc.role, next.role) : null
                 const navUrl = !loc.empty
                   ? buildGoogleMapsNavigationUrl({
+                      formattedAddress: loc.address,
+                      label: loc.placeName,
                       placeId: loc.placeId,
                       latitude: loc.latitude,
                       longitude: loc.longitude,
-                      formattedAddress: loc.address,
                     })
                   : null
                 const flowStop = flow?.stops.find((s) => s.role === loc.role)
@@ -156,11 +160,19 @@ export function WeddingDayWorkspace({
                               Nawiguj
                             </a>
                           ) : null}
-                          {onRequestVerifyLocations ? (
+                          {onEditLocationRole || onRequestVerifyLocations ? (
                             <button
                               type="button"
                               className={styles.textAction}
-                              onClick={onRequestVerifyLocations}
+                              onClick={() => {
+                                if (onEditLocationRole) {
+                                  onEditLocationRole(
+                                    loc.role as WeddingPlaceRole,
+                                  )
+                                  return
+                                }
+                                onRequestVerifyLocations?.()
+                              }}
                             >
                               Edytuj
                             </button>

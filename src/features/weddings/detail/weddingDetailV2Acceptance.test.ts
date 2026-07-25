@@ -7,15 +7,12 @@ import { resolve } from 'node:path'
 import {
   buildActivityFeed,
   getCoupleDisplayName,
-  getMissingReadinessItems,
-  getNextAction,
   getReceptionDisplayName,
   getWeddingLocationItems,
   parseWorkspaceTab,
   WORKSPACE_TABS,
 } from '@/features/weddings/detail/v2/weddingWorkspaceSelectors'
 import { WEDDING_DETAIL_V2_TAB_KEY } from '@/features/weddings/detail/v2/weddingDetailV2Types'
-import { evaluateWeddingContractReadiness } from '@/lib/utils/weddingContractReadiness'
 import { getWeddingCommercialSummary } from '@/lib/utils/commercial'
 import { formatCurrency } from '@/lib/utils/currency'
 import type { WeddingPlace } from '@/types/travel'
@@ -127,14 +124,15 @@ function place(
 
 const v2Root = resolve(process.cwd(), 'src/features/weddings/detail/v2')
 
-run('1. V1 remains unchanged extraction', () => {
+run('1. V1 remains without persistent readiness panel', () => {
   const v1 = readFileSync(
     resolve(process.cwd(), 'src/features/weddings/detail/v1/WeddingDetailV1.tsx'),
     'utf8',
   )
   assert(v1.includes('WeddingDetailHero'), 'v1 hero')
   assert(v1.includes('WeddingDetailWorkflow'), 'v1 workflow')
-  assert(v1.includes('WeddingContractReadinessPanel'), 'v1 readiness')
+  assert(!v1.includes('WeddingContractReadinessPanel'), 'no readiness panel')
+  assert(!v1.includes('Gotowość'), 'no gotowosc copy')
 })
 
 run('2–4. Workspace header + tabs; default overview', () => {
@@ -183,29 +181,33 @@ run('6–9. Header reception only; no prep/ceremony', () => {
   )
 })
 
-run('10–11. Overview next action + unresolved readiness only', () => {
+run('10–11. Overview focuses on workflow + activity (no readiness checklist)', () => {
   const overview = readFileSync(
     resolve(v2Root, 'WeddingOverviewWorkspace.tsx'),
     'utf8',
   )
-  assert(overview.includes('WeddingNextAction'), 'next action')
-  assert(overview.includes('WeddingIssuesSummary'), 'issues')
-  const issues = readFileSync(resolve(v2Root, 'WeddingIssuesSummary.tsx'), 'utf8')
-  assert(issues.includes('missing'), 'missing items')
-  const readiness = evaluateWeddingContractReadiness(stubWedding(), null)
-  const missing = getMissingReadinessItems(readiness)
-  assert(missing.every((m) => m.status === 'missing'), 'only missing')
-  assert(getNextAction(stubWedding(), readiness).title.length > 0, 'next title')
+  assert(overview.includes('WeddingMilestoneRail'), 'milestones')
+  assert(overview.includes('WeddingRecentActivity'), 'activity')
+  assert(!overview.includes('WeddingNextAction'), 'no next action')
+  assert(!overview.includes('WeddingIssuesSummary'), 'no issues')
+  assert(!overview.includes('Gotowość umowy'), 'no readiness title')
+  assert(!overview.includes('Do uzupełnienia'), 'no unresolved block')
 })
 
-run('12. Full readiness in Contract and Finance', () => {
+run('12. Contract and Finance is commercial (no readiness checklist)', () => {
   const src = readFileSync(
     resolve(v2Root, 'WeddingContractFinanceWorkspace.tsx'),
     'utf8',
   )
-  assert(src.includes('Gotowość umowy'), 'title')
-  assert(src.includes('getReadinessGroups'), 'groups')
+  assert(!src.includes('Gotowość umowy'), 'no readiness title')
+  assert(!src.includes('getReadinessGroups'), 'no groups')
   assert(src.includes('data-testid="wedding-contract-finance"'), 'testid')
+  assert(src.includes('Pakiet i usługi'), 'package')
+  assert(src.includes('Płatności'), 'payments')
+  assert(
+    src.includes('Umowa nie została jeszcze wygenerowana'),
+    'lifecycle status',
+  )
 })
 
 run('13–16. Wedding Day itinerary + map + nav; no duplicate locations card', () => {
@@ -297,10 +299,11 @@ run('22. Rejected card-grid files deleted', () => {
   }
 })
 
-run('23. Overview band exists', () => {
+run('23. Overview band is commercial / stage summary (no readiness cell)', () => {
   const band = readFileSync(resolve(v2Root, 'WeddingOverviewBand.tsx'), 'utf8')
-  assert(band.includes('Gotowość umowy'), 'readiness cell')
+  assert(!band.includes('Gotowość umowy'), 'no readiness cell')
   assert(band.includes('Wartość umowy'), 'value')
+  assert(band.includes('Aktualny etap'), 'stage')
 })
 
 console.log('\nwedding workspace v2: done')

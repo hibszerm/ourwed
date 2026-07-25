@@ -1,172 +1,100 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/Button'
-import { WeddingDetailFinances } from '@/features/weddings/components/detail/WeddingDetailFinances'
-import { WeddingDetailPackage } from '@/features/weddings/components/detail/WeddingDetailPackage'
-import {
-  getPackageSummary,
-  getReadinessGroups,
-} from '@/features/weddings/detail/v2/weddingWorkspaceSelectors'
+import { getPackageSummary } from '@/features/weddings/detail/v2/weddingWorkspaceSelectors'
 import type { WeddingExtraService } from '@/types/package'
-import type { Payment, Wedding } from '@/types/wedding'
-import type { WeddingContractReadiness } from '@/lib/utils/weddingContractReadiness'
-import type { WeddingHeroAction } from '@/features/weddings/components/detail/WeddingDetailHero'
+import type { ContractStatus, Payment, Wedding } from '@/types/wedding'
+import type { WeddingHeroAction } from '@/features/weddings/detail/weddingHeroActions'
 import { formatCurrency } from '@/lib/utils/currency'
 import styles from './WeddingDetailV2.module.css'
 
 interface Props {
   wedding: Wedding
-  readiness: WeddingContractReadiness
   payments: Payment[]
   extras: WeddingExtraService[]
-  editing: boolean
-  packageBasePrice?: number
-  onChangeWedding: (patch: Partial<Wedding>) => void
-  onChangePayments: (payments: Payment[]) => void
-  onChangeExtras: (extras: WeddingExtraService[]) => void
-  onChangePackageBasePrice: (price: number) => void
   onAction: (action: WeddingHeroAction) => void
   forcePackageOpen?: boolean
+  onEditPackage?: () => void
+  onEditFinances?: () => void
 }
 
+function contractLifecycleLabel(status: ContractStatus): string {
+  switch (status) {
+    case 'generated':
+      return 'Wersja robocza'
+    case 'sent':
+      return 'Wysłana'
+    case 'signed':
+      return 'Podpisana'
+    case 'none':
+    default:
+      return 'Umowa nie została jeszcze wygenerowana'
+  }
+}
+
+/**
+ * Commercial contract + finance surface — no persistent readiness checklist.
+ * Generation validates missing data on demand via Generuj umowę.
+ * Editing opens the V2 drawer (page-owned), not inline V1 cards.
+ */
 export function WeddingContractFinanceWorkspace({
   wedding,
-  readiness,
   payments,
   extras,
-  editing,
-  packageBasePrice,
-  onChangeWedding,
-  onChangePayments,
-  onChangeExtras,
-  onChangePackageBasePrice,
   onAction,
   forcePackageOpen,
+  onEditPackage,
+  onEditFinances,
 }: Props) {
-  const groups = getReadinessGroups(readiness)
-  const [userOpen, setUserOpen] = useState<Partial<Record<string, boolean>>>({})
   const [contentsOpen, setContentsOpen] = useState(Boolean(forcePackageOpen))
   const pkg = getPackageSummary(wedding)
-  const completeRequired =
-    readiness.requiredTotal - readiness.requiredMissing
-  const progress =
-    readiness.requiredTotal > 0
-      ? Math.round((completeRequired / readiness.requiredTotal) * 100)
-      : 0
-
-  if (editing) {
-    return (
-      <div className={styles.contractWorkspace} data-testid="wedding-contract-finance">
-        <WeddingDetailPackage
-          wedding={wedding}
-          editing
-          extras={extras}
-          packageBasePrice={packageBasePrice}
-          onChangeWedding={onChangeWedding}
-          onChangeExtras={onChangeExtras}
-          onChangePackageBasePrice={onChangePackageBasePrice}
-        />
-        <WeddingDetailFinances
-          wedding={wedding}
-          contractPrice={wedding.price}
-          payments={payments}
-          editing
-          onChangeWedding={onChangeWedding}
-          onChangePayments={onChangePayments}
-        />
-      </div>
-    )
-  }
 
   return (
     <div
       className={styles.contractWorkspace}
       data-testid="wedding-contract-finance"
     >
-      <section className={styles.surfaceSection} aria-labelledby="ready-title">
+      <section className={styles.surfaceSection} aria-labelledby="contract-title">
         <div className={styles.surfaceHeader}>
           <div>
-            <h2 id="ready-title" className={styles.sectionHeading}>
-              Gotowość umowy
+            <h2 id="contract-title" className={styles.sectionHeading}>
+              Umowa
             </h2>
             <p className={styles.contextMuted}>
-              {completeRequired} / {readiness.requiredTotal}
+              {contractLifecycleLabel(wedding.contract.status)}
             </p>
           </div>
-          <span
-            className={styles.statusPill}
-            data-ready={readiness.overall === 'ready'}
+          <Button
+            type="button"
+            variant="primary"
+            size="sm"
+            onClick={() => onAction('generate_contract')}
           >
-            {readiness.overall === 'ready' ? 'Gotowe' : 'Wymaga uzupełnienia'}
-          </span>
-        </div>
-        <div
-          className={styles.progressTrack}
-          role="progressbar"
-          aria-valuenow={progress}
-          aria-valuemin={0}
-          aria-valuemax={100}
-        >
-          <div className={styles.progressFill} style={{ width: `${progress}%` }} />
-        </div>
-
-        <div className={styles.readinessGroups}>
-          {groups.map((g) => {
-            const expanded = userOpen[g.group] ?? g.missing > 0
-            return (
-              <div key={g.group} className={styles.readinessGroup}>
-                <button
-                  type="button"
-                  className={styles.readinessGroupHeader}
-                  aria-expanded={expanded}
-                  onClick={() =>
-                    setUserOpen((prev) => ({ ...prev, [g.group]: !expanded }))
-                  }
-                >
-                  <span className={styles.contextStrong}>{g.label}</span>
-                  <span className={styles.contextMuted}>
-                    {g.complete} / {g.total}
-                    {g.missing > 0
-                      ? ` · Brakuje ${g.missing}`
-                      : ' · Kompletne'}
-                  </span>
-                </button>
-                {expanded ? (
-                  <ul className={styles.readinessList}>
-                    {g.group === 'company' && readiness.overall !== 'ready' ? (
-                      <li className={styles.readinessHint}>
-                        <Link to="/ustawienia/firma">Ustawienia → Firma</Link>
-                      </li>
-                    ) : null}
-                    {g.items.map((item) => (
-                      <li
-                        key={item.id}
-                        className={styles.readinessItem}
-                        data-status={item.status}
-                      >
-                        <span aria-hidden>
-                          {item.status === 'complete'
-                            ? '✓'
-                            : item.status === 'missing'
-                              ? '!'
-                              : '○'}
-                        </span>
-                        <span>{item.label}</span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-              </div>
-            )
-          })}
+            Generuj umowę
+          </Button>
         </div>
       </section>
 
-      <section className={styles.surfaceSection} aria-labelledby="commercial-title">
-        <h2 id="commercial-title" className={styles.sectionHeading}>
-          Umowa handlowa
-        </h2>
-        <dl className={styles.editorialKv} id="package-details-anchor">
+      <section
+        className={styles.surfaceSection}
+        aria-labelledby="package-title"
+        id="package-details-anchor"
+      >
+        <div className={styles.surfaceHeader}>
+          <h2 id="package-title" className={styles.sectionHeading}>
+            Pakiet i usługi
+          </h2>
+          {onEditPackage ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={onEditPackage}
+            >
+              Edytuj pakiet
+            </Button>
+          ) : null}
+        </div>
+        <dl className={styles.editorialKv}>
           <div>
             <dt>Pakiet</dt>
             <dd>{pkg.name}</dd>
@@ -190,10 +118,6 @@ export function WeddingContractFinanceWorkspace({
           <div>
             <dt>Termin oddania</dt>
             <dd>{pkg.deliveryLabel}</dd>
-          </div>
-          <div>
-            <dt>Płatność końcowa</dt>
-            <dd>{pkg.finalPaymentDueLabel}</dd>
           </div>
           <div>
             <dt>Usługi dodatkowe</dt>
@@ -221,7 +145,9 @@ export function WeddingContractFinanceWorkspace({
         {contentsOpen ? (
           <ul className={styles.packageContents}>
             {pkg.items.length === 0 ? (
-              <li className={styles.contextMuted}>Brak pozycji w snapshotcie.</li>
+              <li className={styles.contextMuted}>
+                Brak pozycji w snapshotcie.
+              </li>
             ) : (
               pkg.items.map((item, i) => (
                 <li key={item.sourceItemId ?? `${item.title}-${i}`}>
@@ -233,10 +159,22 @@ export function WeddingContractFinanceWorkspace({
         ) : null}
       </section>
 
-      <section className={styles.surfaceSection} aria-labelledby="pay-title">
-        <h2 id="pay-title" className={styles.sectionHeading}>
-          Płatności
-        </h2>
+      <section className={styles.surfaceSection} aria-labelledby="finance-title">
+        <div className={styles.surfaceHeader}>
+          <h2 id="finance-title" className={styles.sectionHeading}>
+            Finanse
+          </h2>
+          {onEditFinances ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={onEditFinances}
+            >
+              Edytuj finanse
+            </Button>
+          ) : null}
+        </div>
         <div className={styles.paymentSummary}>
           <div>
             <p className={styles.paymentBig}>{pkg.contractValueLabel}</p>
@@ -253,6 +191,15 @@ export function WeddingContractFinanceWorkspace({
             <p className={styles.bandLabel}>Pozostało</p>
           </div>
         </div>
+        <p className={styles.contextMuted}>
+          Termin płatności końcowej: {pkg.finalPaymentDueLabel}
+        </p>
+      </section>
+
+      <section className={styles.surfaceSection} aria-labelledby="pay-title">
+        <h2 id="pay-title" className={styles.sectionHeading}>
+          Płatności
+        </h2>
         <div className={styles.contextActions}>
           <Button
             type="button"

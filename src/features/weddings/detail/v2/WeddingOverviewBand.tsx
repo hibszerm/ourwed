@@ -6,11 +6,9 @@ interface OverviewBandProps {
   totalPaidLabel: string
   remainingLabel: string
   finalDueLabel: string
-  readinessCount: string
-  readinessReady: boolean
-  readinessLabel: string
 }
 
+/** Compact commercial / workflow status summary (no contract-readiness). */
 export function WeddingOverviewBand(props: OverviewBandProps) {
   return (
     <section
@@ -37,20 +35,6 @@ export function WeddingOverviewBand(props: OverviewBandProps) {
       <div className={styles.bandItem}>
         <span className={styles.bandLabel}>Termin płatności</span>
         <span className={styles.bandValue}>{props.finalDueLabel}</span>
-      </div>
-      <div className={styles.bandItem}>
-        <span className={styles.bandLabel}>Gotowość umowy</span>
-        <span className={styles.bandValueRow}>
-          <span
-            className={styles.readyDot}
-            data-ready={props.readinessReady}
-            aria-hidden
-          />
-          <span>
-            {props.readinessCount}
-            <span className={styles.bandHint}> · {props.readinessLabel}</span>
-          </span>
-        </span>
       </div>
     </section>
   )

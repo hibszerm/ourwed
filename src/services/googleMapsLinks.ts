@@ -8,10 +8,29 @@ export interface MapsLinkPlace {
   longitude?: number | null
   formattedAddress?: string | null
   address?: string | null
+  label?: string | null
+  street?: string | null
+  buildingNumber?: string | null
+  postalCode?: string | null
+  city?: string | null
+  country?: string | null
 }
 
 export type NavigationDestination = {
+  /** Preferred complete postal / formatted address. */
   formattedAddress?: string | null
+  /** Venue / place display name — may prefix the postal address, never replace it. */
+  label?: string | null
+  address?: string | null
+  street?: string | null
+  buildingNumber?: string | null
+  postalCode?: string | null
+  city?: string | null
+  country?: string | null
+  /**
+   * Stored for maps/routes elsewhere — never passed as destination_place_id
+   * in direct “Nawiguj” links.
+   */
   placeId?: string | null
   latitude?: number | null
   longitude?: number | null
@@ -31,6 +50,47 @@ function hasCoords(p: {
 
 function stripPlaceIdPrefix(placeId: string): string {
   return placeId.replace(/^google:/, '').trim()
+}
+
+function assembleAddressParts(dest: NavigationDestination): string {
+  const line1 = [dest.street?.trim(), dest.buildingNumber?.trim()]
+    .filter(Boolean)
+    .join(' ')
+    .trim()
+  const cityLine = [dest.postalCode?.trim(), dest.city?.trim()]
+    .filter(Boolean)
+    .join(' ')
+    .trim()
+  const country = dest.country?.trim() || ''
+  return [line1, cityLine, country].filter(Boolean).join(', ').trim()
+}
+
+/**
+ * Resolve the destination text for direct Google Maps navigation.
+ * Prefers a complete postal address; never returns coords or place_id.
+ */
+export function resolveNavigationDestinationAddress(
+  dest: NavigationDestination,
+): string | null {
+  const formatted = (dest.formattedAddress || '').trim()
+  const assembled = assembleAddressParts(dest)
+  const legacy = (dest.address || '').trim()
+  const postal = formatted || assembled || legacy
+  const label = (dest.label || '').trim()
+
+  if (postal) {
+    if (
+      label &&
+      label.toLowerCase() !== postal.toLowerCase() &&
+      !postal.toLowerCase().includes(label.toLowerCase())
+    ) {
+      return `${label}, ${postal}`
+    }
+    return postal
+  }
+
+  // Last fallback: non-empty label only (better than empty Maps). Callers may still disable.
+  return label || null
 }
 
 function pointQuery(p: MapsLinkPlace): string {
@@ -74,33 +134,18 @@ export function googleMapsDirectionsUrl(
 
 /**
  * Direct navigation from the device's current/relevant location to one destination.
+ * Uses the complete stored address string — never destination_place_id / coords-first.
  * Intentionally omits origin and waypoints.
  */
 export function buildGoogleMapsNavigationUrl(
   destination: NavigationDestination,
 ): string | null {
-  const placeId = destination.placeId
-    ? stripPlaceIdPrefix(destination.placeId)
-    : ''
-
-  let destinationParam = ''
-  if (hasCoords(destination)) {
-    destinationParam = `${destination.latitude},${destination.longitude}`
-  } else if ((destination.formattedAddress || '').trim()) {
-    destinationParam = (destination.formattedAddress || '').trim()
-  } else if (placeId) {
-    // placeId alone is not enough for Maps URLs — use place_id: fallback value.
-    destinationParam = `place_id:${placeId}`
-  }
-
+  const destinationParam = resolveNavigationDestinationAddress(destination)
   if (!destinationParam) return null
 
   const url = new URL('https://www.google.com/maps/dir/')
   url.searchParams.set('api', '1')
   url.searchParams.set('destination', destinationParam)
-  if (placeId) {
-    url.searchParams.set('destination_place_id', placeId)
-  }
   url.searchParams.set('travelmode', 'driving')
   url.searchParams.set('dir_action', 'navigate')
   return url.toString()
