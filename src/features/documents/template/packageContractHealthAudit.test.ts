@@ -86,11 +86,18 @@ run('A — price + percentage + derived amount', () => {
     found.some((c) => c.code === 'derived_financial_value'),
     'derived financial detected',
   )
+  const first = found[0]
+  assert(first != null, 'has finding')
   assert(
-    found[0]!.message?.includes('calculated amount'),
+    typeof first.message === 'string' &&
+      first.message.includes('calculated amount'),
     'english product message',
   )
-  assert(found[0]!.recommendation?.includes('OPTION A'), 'option A/B')
+  assert(
+    typeof first.recommendation === 'string' &&
+      first.recommendation.includes('OPTION A'),
+    'option A/B',
+  )
 })
 
 run('B — single location representing three logical locations', () => {
@@ -107,9 +114,12 @@ run('B — single location representing three logical locations', () => {
   ]
   const found = detectMultiLocationSlot({ paragraphs, slots })
   assertEq(found.length, 1, 'one warning')
-  assertEq(found[0]!.code, 'multi_location_slot', 'code')
+  const first = found[0]
+  assert(first != null, 'has finding')
+  assertEq(first.code, 'multi_location_slot', 'code')
   assert(
-    found[0]!.message?.includes('preparation, ceremony and reception'),
+    typeof first.message === 'string' &&
+      first.message.includes('preparation, ceremony and reception'),
     'message',
   )
 })

@@ -301,15 +301,6 @@ export function WeddingContractGenerationPage() {
     el?.focus()
   }
 
-  function focusFirstMissingField() {
-    const first =
-      Object.keys(fieldErrors)[0] ??
-      visibleEditableFields[0]?.registryKey ??
-      reviewState?.editableMissingFields[0]?.registryKey
-    if (!first) return
-    focusField(first)
-  }
-
   /**
    * Validate drafts and commit them into review overrides.
    * Field visibility is driven by committedOverrides only — drafts never hide inputs.
