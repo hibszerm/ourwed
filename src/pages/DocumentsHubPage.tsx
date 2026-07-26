@@ -31,8 +31,8 @@ export function DocumentsHubPage() {
                 </div>
                 <p className={styles.contractCardFormat}>Contract Templates</p>
                 <p className={styles.studioSubtitle} style={{ margin: 0 }}>
-                  Upload → AI wykrywa zmienne → Generuj umowę na ślubie. Bez
-                  budowania ankiet przez AI.
+                  Prześlij umowę do pakietu — OurWed przygotuje ją do
+                  generowania na każdym ślubie.
                 </p>
               </div>
             </Link>

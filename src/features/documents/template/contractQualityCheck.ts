@@ -12,6 +12,8 @@ import {
 } from './slotBinding'
 import { lookupResolvedValue } from './lookupResolvedValue'
 import { locateSlotInParagraph, renderSlotValue } from './slotRenderer'
+import { prepareSlotReplacementValue } from './slotReplacementValue'
+import type { SlotReplacementTrace } from './applyBoundSlots'
 import type { TemplateSlot } from './types'
 
 export interface VariableReplacementHit {
@@ -213,7 +215,32 @@ function hitsFromSpans(spans: BoundSlotSpan[]): VariableReplacementHit[] {
 }
 
 /**
+ * Prefer authoritative apply-pass traces. Never rediscover generated ranges by
+ * searching for the replacement value (breaks for "d" inside "adres").
+ */
+function spansFromReplacementTraces(input: {
+  paragraphIndex: number
+  traces: SlotReplacementTrace[]
+}): BoundSlotSpan[] {
+  return input.traces
+    .filter((t) => t.paragraphIndex === input.paragraphIndex)
+    .map((t) => ({
+      slotId: t.bindingId,
+      registryKey: t.key,
+      operation: 'replace' as const,
+      originalStart: t.originalStart,
+      originalEnd: t.originalEnd,
+      generatedStart: t.generatedStart,
+      generatedEnd: t.generatedEnd,
+      resolvedValue: t.replacementValue,
+    }))
+    .sort((a, b) => a.originalStart - b.originalStart)
+}
+
+/**
  * Prefer persisted physical slots (offsets/anchors/prefix) over runtime inference.
+ * Generated ranges still must not be rediscovered via global value search when
+ * an apply-pass trace is available — callers should pass replacementTraces.
  */
 function spansFromPersistedSlots(input: {
   paragraphIndex: number
@@ -234,25 +261,35 @@ function spansFromPersistedSlots(input: {
   for (const slot of paraSlots) {
     const oLoc = locateSlotInParagraph(input.original, slot)
     if (!oLoc) continue
-    const value = lookupResolvedValue(input.resolved, slot.registryKey!)
-    const rendered = renderSlotValue(slot, value, !value)
-    // Locate the generated span:
-    // - insert/composite: keep stored originalText (often empty/whitespace) so
-    //   anchors define the mid window (including spacing).
-    // - replace: originalText is gone after fill — locate the rendered value
-    //   (or the anchor mid). Never fall back to the whole paragraph.
-    const gLoc = locateSlotInParagraph(input.generated, {
-      ...slot,
-      originalText:
-        slot.operation === 'insert' || slot.operation === 'composite'
-          ? slot.originalText
-          : rendered || slot.originalText,
-      startOffset: null,
-      endOffset: null,
-      allowedRange: null,
-    })
-    let gStart = gLoc?.start
-    let gEnd = gLoc?.end
+    const rawValue = lookupResolvedValue(input.resolved, slot.registryKey!)
+    // Must match applyBoundSlots: date/duration/etc. are style-prepared before write.
+    const prepared = rawValue
+      ? prepareSlotReplacementValue({
+          registryKey: slot.registryKey!,
+          value: rawValue,
+          originalText: slot.originalText,
+          resolved: input.resolved,
+        })
+      : ''
+    const rendered = renderSlotValue(slot, prepared, !prepared)
+
+    // Insert/composite may still use anchors on the generated side.
+    // For replace: do NOT search for rendered text — that matches substrings
+    // in immutable prose (e.g. "d" inside "adres"). Prefer left/right anchors
+    // when present; otherwise skip generated masking for this slot.
+    let gStart: number | undefined
+    let gEnd: number | undefined
+    if (slot.operation === 'insert' || slot.operation === 'composite') {
+      const gLoc = locateSlotInParagraph(input.generated, {
+        ...slot,
+        originalText: slot.originalText,
+        startOffset: null,
+        endOffset: null,
+        allowedRange: null,
+      })
+      gStart = gLoc?.start
+      gEnd = gLoc?.end
+    }
     if (gStart == null || gEnd == null) {
       const left = slot.leftAnchor ?? ''
       const right = slot.rightAnchor ?? ''
@@ -265,23 +302,37 @@ function spansFromPersistedSlots(input: {
           : -1
         if (right && rightStart < 0) continue
         gStart = leftEnd
-        gEnd = right ? rightStart : leftEnd
-      } else if (rendered.trim()) {
-        // Unique rendered value — do not claim the whole paragraph.
-        const needle = rendered
-        const first = input.generated.indexOf(needle)
-        if (first < 0) continue
-        const second = input.generated.indexOf(
-          needle,
-          first + Math.max(1, needle.length),
-        )
-        if (second >= 0) continue
-        gStart = first
-        gEnd = first + needle.length
+        gEnd = right ? rightStart : leftEnd + rendered.length
+        // When right anchor exists, the mid window is the owned span.
+        // When only left exists, own exactly the rendered length after left.
+        if (!right) {
+          gEnd = leftEnd + rendered.length
+        }
       } else {
+        // No safe generated range without a replacement trace or anchors.
+        // Skip rather than indexOf(rendered) — one-char values poison masking.
+        console.info('[contract-quality-mask]', {
+          strategy: 'skipped_no_trace_no_anchors',
+          registryKey: slot.registryKey,
+          paragraphIndex: input.paragraphIndex,
+          rendered,
+          originalStart: oLoc.start,
+          originalEnd: oLoc.end,
+        })
         continue
       }
     }
+
+    console.info('[contract-quality-mask]', {
+      strategy: 'persisted_anchors_or_insert',
+      registryKey: slot.registryKey,
+      paragraphIndex: input.paragraphIndex,
+      originalStart: oLoc.start,
+      originalEnd: oLoc.end,
+      generatedStart: gStart,
+      generatedEnd: gEnd,
+      rendered,
+    })
 
     bound.push({
       slotId: slot.id,
@@ -424,12 +475,18 @@ export function verifyContractTransformation(input: {
   allowedValues?: string[]
   resolvedByKey?: Record<string, string>
   slots?: TemplateSlot[]
+  /**
+   * Authoritative ranges from applyBoundSlots. When present, generated masking
+   * uses these exact offsets — never searches for replacement text.
+   */
+  replacementTraces?: SlotReplacementTrace[]
 }): QualityCheckResult {
   const {
     original,
     transformed,
     resolvedByKey = {},
     slots = [],
+    replacementTraces = [],
   } = input
   const failures: ParagraphFailureReport[] = []
 
@@ -470,13 +527,20 @@ export function verifyContractTransformation(input: {
       // May still be a valid leading insert — try binding first
     }
 
-    const persisted = spansFromPersistedSlots({
+    const fromTrace = spansFromReplacementTraces({
       paragraphIndex: o.index,
-      original: o.text,
-      generated: t.text,
-      slots,
-      resolved: resolvedByKey,
+      traces: replacementTraces,
     })
+    const persisted =
+      fromTrace.length > 0
+        ? fromTrace
+        : spansFromPersistedSlots({
+            paragraphIndex: o.index,
+            original: o.text,
+            generated: t.text,
+            slots,
+            resolved: resolvedByKey,
+          })
     const spans =
       persisted.length > 0
         ? persisted
@@ -487,6 +551,22 @@ export function verifyContractTransformation(input: {
             slots,
             resolved: resolvedByKey,
           })
+
+    if (fromTrace.length > 0) {
+      for (const s of fromTrace) {
+        console.info('[contract-quality-mask]', {
+          strategy: 'replacement_trace',
+          registryKey: s.registryKey,
+          paragraphIndex: o.index,
+          originalStart: s.originalStart,
+          originalEnd: s.originalEnd,
+          generatedStart: s.generatedStart,
+          generatedEnd: s.generatedEnd,
+          originalSlice: o.text.slice(s.originalStart, s.originalEnd),
+          generatedSlice: t.text.slice(s.generatedStart, s.generatedEnd),
+        })
+      }
+    }
 
     const protectedOriginal = protectParagraphText(
       o.text,

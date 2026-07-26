@@ -140,6 +140,19 @@
   color: var(--color-sidebar-text-active);
 }
 
+.experimentBadge {
+  margin-left: auto;
+  padding: 0.1rem 0.4rem;
+  border-radius: var(--radius-sm);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--color-sidebar-text);
+  opacity: 0.75;
+  background: color-mix(in srgb, var(--color-sidebar-text-active) 12%, transparent);
+}
+
 .footer {
   padding-top: var(--space-4);
   margin-top: var(--space-4);

@@ -14,6 +14,8 @@ import {
 } from 'react'
 import { Button } from '@/components/ui/Button'
 import type { DocxParagraph } from '@/features/documents/template'
+import type { DocxPreviewModel } from '@/features/documents/template/docxPreviewModel'
+import { twipsToPx } from '@/features/documents/template/docxPreviewModel'
 import styles from './ContractDocumentPreview.module.css'
 
 export interface ContractDocumentPreviewProps {
@@ -27,6 +29,12 @@ export interface ContractDocumentPreviewProps {
   onBackToVariables: () => void
   panelOpen?: boolean
   onTogglePanel?: () => void
+  /** Exact generated DOCX — preferred preview source when model is built. */
+  docxBytes?: ArrayBuffer | null
+  /** OOXML-derived preview model (from generated DOCX). */
+  previewModel?: DocxPreviewModel | null
+  /** Actionable incomplete values for photographer (not technical replacement counts). */
+  actionableIncompleteCount?: number
 }
 
 type ParaKind = 'blank' | 'title' | 'heading' | 'body'
@@ -79,11 +87,6 @@ function paragraphsEqual(a: DocxParagraph[], b: DocxParagraph[]): boolean {
   return a.every((p, i) => p.index === b[i]?.index && p.text === b[i]?.text)
 }
 
-function estimatePages(paragraphs: DocxParagraph[]): number {
-  const chars = paragraphs.reduce((sum, p) => sum + p.text.length + 1, 0)
-  return Math.max(1, Math.ceil(chars / 2800))
-}
-
 function EditableParagraph({
   text,
   className,
@@ -131,6 +134,8 @@ export function ContractDocumentPreview({
   onBackToVariables,
   panelOpen = true,
   onTogglePanel,
+  previewModel = null,
+  actionableIncompleteCount = 0,
 }: ContractDocumentPreviewProps) {
   const docLabelId = useId()
   const pageRef = useRef<HTMLDivElement>(null)
@@ -150,15 +155,8 @@ export function ContractDocumentPreview({
       .map(([, value]) => value.trim())
   }, [resolvedValues, omittedKeys])
 
-  const filledCount = useMemo(() => {
-    const omitted = new Set(omittedKeys)
-    return Object.entries(resolvedValues).filter(
-      ([key, value]) => !omitted.has(key) && value.trim().length > 0,
-    ).length
-  }, [resolvedValues, omittedKeys])
-
-  const skippedCount = omittedKeys.length
-  const pageEstimate = estimatePages(paragraphs)
+  const useDocxModel = Boolean(previewModel && previewModel.source === 'generated_docx')
+  const incomplete = Math.max(0, actionableIncompleteCount)
 
   const firstContentIndex = useMemo(() => {
     const found = paragraphs.find((p) => p.text.trim().length > 0)
@@ -414,14 +412,75 @@ export function ContractDocumentPreview({
           ) : (
             <div
               ref={pageRef}
-              className={`${styles.page} ${editMode ? styles.pageEditing : ''}`.trim()}
+              className={`${styles.page} ${editMode ? styles.pageEditing : ''} ${useDocxModel ? styles.pageFromDocx : ''}`.trim()}
               role="document"
               aria-labelledby={docLabelId}
+              style={
+                useDocxModel && previewModel
+                  ? {
+                      paddingTop: twipsToPx(previewModel.marginTopTwips),
+                      paddingBottom: twipsToPx(previewModel.marginBottomTwips),
+                      paddingLeft: twipsToPx(previewModel.marginLeftTwips),
+                      paddingRight: twipsToPx(previewModel.marginRightTwips),
+                      maxWidth: twipsToPx(previewModel.pageWidthTwips),
+                    }
+                  : undefined
+              }
             >
               <span id={docLabelId} className={styles.srOnly}>
                 Treść wygenerowanej umowy
               </span>
-              {paragraphs.map((p) => {
+              {useDocxModel && previewModel && !editMode
+                ? previewModel.paragraphs.map((p) => {
+                    const align =
+                      p.align === 'both'
+                        ? 'justify'
+                        : p.align === 'start'
+                          ? 'left'
+                          : p.align === 'end'
+                            ? 'right'
+                            : p.align
+                    return (
+                      <p
+                        key={`docx-${p.index}`}
+                        data-para-index={p.index}
+                        className={styles.para}
+                        style={{
+                          textAlign: align,
+                          marginTop: twipsToPx(p.spacingBeforeTwips),
+                          marginBottom: twipsToPx(p.spacingAfterTwips) || 8,
+                          paddingLeft: twipsToPx(p.indentLeftTwips),
+                          textIndent: twipsToPx(p.indentFirstTwips),
+                          whiteSpace: 'pre-wrap',
+                          pageBreakBefore: p.pageBreakBefore
+                            ? 'always'
+                            : undefined,
+                        }}
+                      >
+                        {p.runs.length === 0 || !p.text.trim()
+                          ? '\u00a0'
+                          : p.runs.map((run, i) => (
+                              <span
+                                key={i}
+                                style={{
+                                  fontWeight: run.bold ? 700 : undefined,
+                                  fontStyle: run.italic ? 'italic' : undefined,
+                                  textDecoration: run.underline
+                                    ? 'underline'
+                                    : undefined,
+                                  fontSize: run.fontSizePt
+                                    ? `${run.fontSizePt}pt`
+                                    : undefined,
+                                  fontFamily: run.fontFamily || undefined,
+                                }}
+                              >
+                                {run.text.replace(/\t/g, '\u00a0\u00a0\u00a0\u00a0')}
+                              </span>
+                            ))}
+                      </p>
+                    )
+                  })
+                : paragraphs.map((p) => {
                 const kind = classifyParagraph(
                   p.text,
                   p.index === firstContentIndex,
@@ -482,32 +541,20 @@ export function ContractDocumentPreview({
           aria-label="Podsumowanie"
           hidden={!panelOpen}
         >
-          <h3 className={styles.panelTitle}>Podsumowanie</h3>
-          <dl className={styles.stats}>
-            <div>
-              <dt>Uzupełnione dane</dt>
-              <dd>{filledCount}</dd>
-            </div>
-            <div>
-              <dt>Pominięte dane</dt>
-              <dd>{skippedCount}</dd>
-            </div>
-            <div>
-              <dt>Szacunek stron</dt>
-              <dd>{pageEstimate}</dd>
-            </div>
-            <div>
-              <dt>Formaty</dt>
-              <dd>DOCX, PDF</dd>
-            </div>
-          </dl>
-          {skippedCount > 0 ? (
+          <h3 className={styles.panelTitle}>Status dokumentu</h3>
+          <p className={styles.statusReady}>Umowa została przygotowana.</p>
+          {useDocxModel ? (
+            <p className={styles.statusHint}>
+              Podgląd z wygenerowanego DOCX (przybliżony układ — Word pozostaje
+              źródłem prawdy).
+            </p>
+          ) : null}
+          {incomplete > 0 ? (
             <div className={styles.skippedBox}>
               <p>
-                {skippedCount}{' '}
-                {skippedCount === 1
-                  ? 'wartość została pominięta'
-                  : 'wartości zostały pominięte'}
+                {incomplete === 1
+                  ? '1 wartość wymaga uzupełnienia'
+                  : `${incomplete} wartości wymagają uzupełnienia`}
               </p>
               <Button
                 type="button"
@@ -516,10 +563,22 @@ export function ContractDocumentPreview({
                 disabled={busy}
                 onClick={onBackToVariables}
               >
-                Sprawdź zmienne
+                Uzupełnij brakującą wartość
               </Button>
             </div>
-          ) : null}
+          ) : (
+            <div className={styles.skippedBox}>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={busy}
+                onClick={onBackToVariables}
+              >
+                Edytuj dane
+              </Button>
+            </div>
+          )}
         </aside>
       </div>
     </div>

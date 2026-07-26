@@ -291,6 +291,10 @@ export function classifySlotDetection(
 /**
  * Deduplicate slots by canonical registry key.
  * Prefer physically bound, then higher confidence, then required.
+ *
+ * Physically bound slots at distinct paragraph/offset spans are kept as
+ * separate occurrences (e.g. coverage_hours on two clauses). Unbound aliases
+ * still collapse to one logical key.
  */
 export function dedupeSlotsByCanonicalKey(slots: TemplateSlot[]): TemplateSlot[] {
   const best = new Map<string, TemplateSlot>()
@@ -303,6 +307,19 @@ export function dedupeSlotsByCanonicalKey(slots: TemplateSlot[]): TemplateSlot[]
     if (hasSourceEvidence(s)) n += 20
     if (typeof s.confidence === 'number') n += s.confidence
     return n
+  }
+
+  const identityKey = (s: TemplateSlot, canonical: string) => {
+    if (
+      s.physicallyBound &&
+      s.paragraphIndex != null &&
+      (s.startOffset != null || s.allowedRange?.start != null)
+    ) {
+      const start = s.startOffset ?? s.allowedRange!.start
+      const end = s.endOffset ?? s.allowedRange?.end ?? start
+      return `${canonical}@${s.paragraphIndex}:${start}:${end}`
+    }
+    return canonical
   }
 
   for (const slot of slots) {
@@ -322,7 +339,8 @@ export function dedupeSlotsByCanonicalKey(slots: TemplateSlot[]): TemplateSlot[]
         ].filter((k) => k !== canonical)),
       ],
     }
-    const prev = best.get(canonical)
+    const id = identityKey(normalized, canonical)
+    const prev = best.get(id)
     if (!prev || score(normalized) > score(prev)) {
       if (prev) {
         extras.push({
@@ -332,7 +350,7 @@ export function dedupeSlotsByCanonicalKey(slots: TemplateSlot[]): TemplateSlot[]
           detectionReason: `Duplicate alias of ${canonical}.`,
         })
       }
-      best.set(canonical, normalized)
+      best.set(id, normalized)
     } else {
       extras.push({
         ...normalized,

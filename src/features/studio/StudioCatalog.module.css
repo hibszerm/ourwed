@@ -56,6 +56,14 @@
   color: var(--color-text-secondary);
 }
 
+.healthItem[data-status='warning'] {
+  color: var(--color-warning, #b54708);
+}
+
+.healthItem[data-status='critical'] {
+  color: var(--color-danger, #b42318);
+}
+
 .healthMark {
   width: 1.1em;
   flex-shrink: 0;

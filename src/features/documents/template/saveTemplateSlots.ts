@@ -112,6 +112,28 @@ export async function saveTemplateSlots(
       ? 'needs_review'
       : 'incomplete'
 
+  console.info('[contract-loaded-bindings]', {
+    phase: 'saveTemplateSlots-before-db-write',
+    templateVersionId: input.templateVersionId,
+    paragraphIndex: 36,
+    bindingInputCount: input.slotMap.slots.length,
+    bindingOutputCount: finalMap.slots.length,
+    bindings: finalMap.slots
+      .filter((s) => s.paragraphIndex === 36)
+      .map((s) => ({
+        registryKey: s.registryKey,
+        paragraphIndex: s.paragraphIndex,
+        startOffset: s.startOffset ?? s.allowedRange?.start ?? null,
+        endOffset: s.endOffset ?? s.allowedRange?.end ?? null,
+        originalSpan: s.originalText ?? null,
+        leftAnchor: s.leftAnchor ?? null,
+        rightAnchor: s.rightAnchor ?? null,
+        enabled: s.enabled !== false,
+        physicallyBound: s.physicallyBound,
+        detectionStatus: s.detectionStatus,
+      })),
+  })
+
   const { error } = await supabase
     .from('document_template_versions')
     .update({
@@ -121,7 +143,9 @@ export async function saveTemplateSlots(
     .eq('id', input.templateVersionId)
   throwOnError(error)
 
+  const previous = await documentTemplateService.get(input.templateId)
   const meta = {
+    ...(previous?.meta ?? { version: 1 as const }),
     version: 1 as const,
     slotBindingsReady: readiness.ready,
     unresolvedSlotKeys: readiness.unresolvedKeys,

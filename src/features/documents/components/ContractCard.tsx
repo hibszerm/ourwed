@@ -5,6 +5,7 @@ import { ContractStatusBadge } from '@/features/documents/components/ContractSta
 import {
   formatContractDate,
   getContractUiStatus,
+  templateServiceTypeLabel,
 } from '@/features/documents/contractUi'
 import type { DocumentTemplateSummary } from '@/types/documents'
 import styles from '../DocumentsTemplates.module.css'
@@ -16,6 +17,7 @@ export function ContractCard({
   onReplace,
   onReanalyze,
   onDelete,
+  onUse,
 }: {
   template: DocumentTemplateSummary
   onRename: () => void
@@ -23,11 +25,14 @@ export function ContractCard({
   onReplace: () => void
   onReanalyze?: () => void
   onDelete: () => void
+  onUse?: () => void
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const menuId = useId()
   const status = getContractUiStatus(template)
+  const attentionMessage =
+    template.meta.automaticAttentionIssues?.[0]?.message ?? null
 
   useEffect(() => {
     if (!menuOpen) return
@@ -37,6 +42,21 @@ export function ContractCard({
     document.addEventListener('mousedown', onDoc)
     return () => document.removeEventListener('mousedown', onDoc)
   }, [menuOpen])
+
+  const primaryAction =
+    status === 'ready'
+      ? { label: 'Użyj szablonu', disabled: false, onClick: onUse }
+      : status === 'analyzing'
+        ? { label: 'Analizowanie…', disabled: true, onClick: undefined }
+        : status === 'attention'
+          ? { label: 'Zobacz', disabled: false, onClick: undefined }
+          : status === 'error'
+            ? {
+                label: 'Spróbuj ponownie',
+                disabled: !onReanalyze,
+                onClick: onReanalyze,
+              }
+            : null
 
   return (
     <article className={styles.contractCard}>
@@ -70,21 +90,29 @@ export function ContractCard({
               className={styles.overflowItem}
               onClick={() => {
                 setMenuOpen(false)
-                onDuplicate()
+                onReplace()
               }}
             >
-              Duplikuj
+              Wgraj nową wersję
             </button>
+            <Link
+              to={`/umowy/szablony/${template.id}`}
+              role="menuitem"
+              className={styles.overflowItem}
+              onClick={() => setMenuOpen(false)}
+            >
+              Podgląd
+            </Link>
             <button
               type="button"
               role="menuitem"
               className={styles.overflowItem}
               onClick={() => {
                 setMenuOpen(false)
-                onReplace()
+                onDuplicate()
               }}
             >
-              Zamień źródłowy DOCX
+              Duplikuj
             </button>
             {onReanalyze ? (
               <button
@@ -96,7 +124,7 @@ export function ContractCard({
                   onReanalyze()
                 }}
               >
-                Ponownie przeanalizuj szablon
+                Ponownie przeanalizuj
               </button>
             ) : null}
             <button
@@ -115,7 +143,7 @@ export function ContractCard({
       </div>
 
       <Link
-        to={`/ustawienia/dokumenty/szablony/${template.id}`}
+        to={`/umowy/szablony/${template.id}`}
         className={styles.contractCardLink}
       >
         <div className={styles.contractCardHeader}>
@@ -125,22 +153,66 @@ export function ContractCard({
 
         <dl className={styles.contractMeta}>
           <div>
-            <dt>Ostatnia aktualizacja</dt>
-            <dd>{formatContractDate(template.updatedAt)}</dd>
+            <dt>Typ</dt>
+            <dd>
+              {templateServiceTypeLabel(
+                template.meta.templateServiceType,
+                template.category,
+              )}
+            </dd>
           </div>
           <div>
-            <dt>Wykryte zmienne</dt>
-            <dd>{template.detectedFieldCount || template.variableCount}</dd>
+            <dt>Dodano</dt>
+            <dd>{formatContractDate(template.createdAt)}</dd>
+          </div>
+          <div>
+            <dt>Ostatnio użyty</dt>
+            <dd>{formatContractDate(template.updatedAt)}</dd>
           </div>
           <div>
             <dt>Wygenerowano</dt>
             <dd>{template.usageCount}</dd>
           </div>
         </dl>
-        {template.summaryStale ? (
-          <p className={styles.contractCardHint}>Wymaga ponownej analizy</p>
+        {status === 'attention' && attentionMessage ? (
+          <p className={styles.contractCardHint}>{attentionMessage}</p>
         ) : null}
       </Link>
+
+      {primaryAction ? (
+        <div className={styles.contractCardPrimary}>
+          {primaryAction.onClick || primaryAction.label === 'Zobacz' ? (
+            primaryAction.label === 'Zobacz' ? (
+              <Link
+                to={`/umowy/szablony/${template.id}`}
+                className={styles.contractCardPrimaryBtn}
+              >
+                {primaryAction.label}
+              </Link>
+            ) : (
+              <button
+                type="button"
+                className={styles.contractCardPrimaryBtn}
+                disabled={primaryAction.disabled}
+                onClick={(e) => {
+                  e.preventDefault()
+                  primaryAction.onClick?.()
+                }}
+              >
+                {primaryAction.label}
+              </button>
+            )
+          ) : (
+            <button
+              type="button"
+              className={styles.contractCardPrimaryBtn}
+              disabled
+            >
+              {primaryAction.label}
+            </button>
+          )}
+        </div>
+      ) : null}
     </article>
   )
 }

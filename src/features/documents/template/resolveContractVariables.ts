@@ -3,6 +3,7 @@
  * VariableResolver is the source of truth — UI never re-asks for known values.
  */
 
+import { clientNameRegistryValues } from '@/features/ai-contract-lab/clientNameParts'
 import { getLatestSubmittedFormAnswers } from '@/lib/api/forms'
 import { extractAnswerFields } from '@/lib/forms/mergeFormAnswersIntoWedding'
 import { VariableResolver } from '@/lib/variables'
@@ -10,7 +11,11 @@ import { SystemVariableRegistry } from '@/lib/variables/registry'
 import type { PackageSnapshot } from '@/types/documents'
 import type { Wedding } from '@/types/wedding'
 import { lookupResolvedValue } from './lookupResolvedValue'
-import { buildContractCommercialResolved, logContractReferenceValues } from '@/lib/utils/contractCommercialVariables'
+import {
+  buildContractCommercialResolved,
+  formatContractDateShort,
+  logContractReferenceValues,
+} from '@/lib/utils/contractCommercialVariables'
 import {
   isSystemAutoResolvedContractKey,
   resolveContractExecutionValues,
@@ -69,18 +74,12 @@ export function weddingValuesFromWedding(
   const out: Record<string, string> = {}
   const c = wedding.couple
 
-  const partner1First =
-    c.partner1FirstName?.trim() || c.partner1.split(/\s+/)[0] || ''
-  const partner1Last =
-    c.partner1LastName?.trim() ||
-    c.partner1.split(/\s+/).slice(1).join(' ') ||
-    ''
-  const partner2First =
-    c.partner2FirstName?.trim() || c.partner2.split(/\s+/)[0] || ''
-  const partner2Last =
-    c.partner2LastName?.trim() ||
-    c.partner2.split(/\s+/).slice(1).join(' ') ||
-    ''
+  // Generation-only name parts — never write back to the wedding record.
+  const nameParts = clientNameRegistryValues(c)
+  const partner1First = nameParts.bride_first_name ?? ''
+  const partner1Last = nameParts.bride_last_name ?? ''
+  const partner2First = nameParts.groom_first_name ?? ''
+  const partner2Last = nameParts.groom_last_name ?? ''
 
   const partner1Full =
     [partner1First, partner1Last].filter(Boolean).join(' ') ||
@@ -100,11 +99,12 @@ export function weddingValuesFromWedding(
     )
   }
 
-  // Legacy role aliases — same physical slots as UI labels (not gender inference)
-  emitWedding(out, 'bride_first_name', partner1First)
-  emitWedding(out, 'bride_last_name', partner1Last)
-  emitWedding(out, 'groom_first_name', partner2First)
-  emitWedding(out, 'groom_last_name', partner2Last)
+  // Legacy role aliases — same physical slots as UI labels (not gender inference).
+  // Unsafe fullName splits leave parts empty so verification can ask for review.
+  if (partner1First) emitWedding(out, 'bride_first_name', partner1First)
+  if (partner1Last) emitWedding(out, 'bride_last_name', partner1Last)
+  if (partner2First) emitWedding(out, 'groom_first_name', partner2First)
+  if (partner2Last) emitWedding(out, 'groom_last_name', partner2Last)
   emitWedding(out, 'bride_phone', c.partner1Phone || c.phone)
   emitWedding(out, 'bride_email', c.partner1Email || c.email)
   emitWedding(out, 'groom_phone', c.partner2Phone)
@@ -117,7 +117,10 @@ export function weddingValuesFromWedding(
   if (c.partner1.trim()) out['couple.partner1'] = c.partner1.trim()
   if (c.partner2.trim()) out['couple.partner2'] = c.partner2.trim()
 
-  emitWedding(out, 'wedding_date', wedding.date)
+  // Polish short date for prose (never raw ISO). Apply-time may restyle from source.
+  const weddingDateShort = formatContractDateShort(wedding.date)
+  emitWedding(out, 'wedding_date', weddingDateShort || wedding.date)
+  if (wedding.date?.trim()) out['wedding_date_iso'] = wedding.date.trim().slice(0, 10)
   emitWedding(out, 'ceremony_time', wedding.ceremonyTime)
   emitWedding(
     out,

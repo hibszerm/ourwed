@@ -11,6 +11,7 @@ import {
 import { formatContractPln } from '@/lib/utils/currency'
 import { formatDate } from '@/lib/utils/dates'
 import type { Wedding, WeddingPackageItemSnapshot } from '@/types/wedding'
+import { formatPolishHours } from '@/lib/utils/polishDuration'
 
 /** True when a numeric commercial field is intentionally present (0 allowed). */
 export function isPresentMoney(
@@ -272,12 +273,19 @@ export function buildContractCommercialResolved(
     wedding.coverageHours != null &&
     Number.isFinite(wedding.coverageHours)
   ) {
-    const hours = String(wedding.coverageHours)
+    const hours = String(Math.round(wedding.coverageHours))
     put(values, 'coverage_hours', hours)
     put(values, 'working_hours', hours)
+    // Full phrase for spans that include „godzin*” — never append clock times.
+    put(values, 'coverage_hours_text', formatPolishHours(wedding.coverageHours))
   }
 
-  put(values, 'coverage_end_time', wedding.coverageEndTime)
+  // End time only — never concatenate with duration.
+  if (wedding.coverageEndTime?.trim()) {
+    const raw = wedding.coverageEndTime.trim()
+    const clock = raw.match(/\d{1,2}[.:]\d{2}/)?.[0] ?? raw
+    put(values, 'coverage_end_time', clock)
+  }
 
   if (
     wedding.overtimeRate != null &&

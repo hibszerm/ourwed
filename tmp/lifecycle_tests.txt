@@ -1,0 +1,26 @@
+npm warn Unknown env config "devdir". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+
+> ourwed@0.0.0 test:generation-result-lifecycle
+> npx tsx --tsconfig tsconfig.app.json src/features/documents/template/generationResultLifecycle.test.ts
+
+npm warn Unknown env config "devdir". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+PASS  A — click path sets pending / Tworzymy umowę
+PASS  B — completed result opens preview / success state
+PASS  C — completed result is not erased by query invalidation
+PASS  D — needs_review with issues shows them
+PASS  E — needs_review with zero issues shows internal error
+PASS  F — failed / catch shows user-facing error
+PASS  G — undefined service result shows user-facing error
+PASS  H — no silent early return exists for needs_review
+PASS  I — finally resets pending without clearing success
+PASS  J — form submit does not reload/reset the page
+PASS  K — package-contract success shape is handled
+PASS  L — legacy success shape remains handled if still supported
+PASS  M — double click does not create duplicate generation
+PASS  N — query refetch cannot revert success UI to review
+PASS  completed without docx bytes → invalid_result
+PASS  needs_review with only contextual messages is valid
+PASS  page logs required generate lifecycle events
+PASS  service surfaces audit messages when field map empty
+
+Generation result lifecycle tests finished.

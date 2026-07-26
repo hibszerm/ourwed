@@ -271,11 +271,17 @@ function mergePreferBound(slots: TemplateSlot[]): TemplateSlot[] {
   const byKey = new Map<string, TemplateSlot>()
   for (const s of slots) {
     if (!s.registryKey) continue
-    const key = canonicalRegistryKey(s.registryKey)
-    const normalized = { ...s, registryKey: key, label: labelFor(key) }
-    const prev = byKey.get(key)
+    const canonical = canonicalRegistryKey(s.registryKey)
+    const normalized = { ...s, registryKey: canonical, label: labelFor(canonical) }
+    const identity =
+      normalized.physicallyBound &&
+      normalized.paragraphIndex != null &&
+      (normalized.startOffset != null || normalized.allowedRange?.start != null)
+        ? `${canonical}@${normalized.paragraphIndex}:${normalized.startOffset ?? normalized.allowedRange!.start}:${normalized.endOffset ?? normalized.allowedRange?.end ?? ''}`
+        : canonical
+    const prev = byKey.get(identity)
     if (!prev) {
-      byKey.set(key, normalized)
+      byKey.set(identity, normalized)
       continue
     }
     const score = (x: TemplateSlot) => {
@@ -285,7 +291,7 @@ function mergePreferBound(slots: TemplateSlot[]): TemplateSlot[] {
       if (x.needsConfirmation) n -= 5
       return n
     }
-    if (score(normalized) > score(prev)) byKey.set(key, normalized)
+    if (score(normalized) > score(prev)) byKey.set(identity, normalized)
   }
   return [...byKey.values()]
 }
@@ -530,6 +536,31 @@ export function buildSlotsFromAnalysis(input: {
         summary.needsConfirmation,
       ),
     },
+  }
+
+  // Diagnostics — coverage clause ownership (hours / start / end / overtime).
+  for (const para of paragraphs) {
+    const paraSlots = withAmbiguous.slots.filter(
+      (s) =>
+        s.paragraphIndex === para.index &&
+        (s.registryKey === 'coverage_hours' ||
+          s.registryKey === 'coverage_start_time' ||
+          s.registryKey === 'coverage_end_time' ||
+          s.registryKey === 'overtime_rate' ||
+          s.registryKey === 'overtime_rate_formatted'),
+    )
+    if (paraSlots.length === 0) continue
+    for (const s of paraSlots) {
+      console.info('[coverage-clause-slot]', {
+        registryKey: s.registryKey,
+        paragraphIndex: s.paragraphIndex,
+        startOffset: s.startOffset ?? s.allowedRange?.start ?? null,
+        endOffset: s.endOffset ?? s.allowedRange?.end ?? null,
+        originalSpan: s.originalText,
+        leftAnchor: s.leftAnchor,
+        rightAnchor: s.rightAnchor,
+      })
+    }
   }
 
   const readiness = validateTemplateSlotBindings(withAmbiguous, {

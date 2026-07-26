@@ -104,6 +104,10 @@ export function resolveContractExecutionValues(
     includedInMissingVariables: boolean
     snapshotValue?: string | null
   }) => {
+    const DEV =
+      typeof import.meta !== 'undefined' &&
+      Boolean((import.meta as ImportMeta & { env?: { DEV?: boolean } }).env?.DEV)
+    if (!DEV) return
     console.info('[contract-execution-date-resolution]', {
       generationStartedAt: generationStartedAt.toISOString(),
       localDate: localCalendarIsoDate(generationStartedAt),

@@ -4,6 +4,8 @@ import { DashboardPage } from '@/pages/DashboardPage'
 import { DashboardV2Page } from '@/pages/DashboardV2Page'
 import { WeddingsPage } from '@/pages/WeddingsPage'
 import { WeddingDetailPage } from '@/pages/WeddingDetailPage'
+import { WeddingContractGenerationPage } from '@/pages/WeddingContractGenerationPage'
+import { WeddingContractPreviewPage } from '@/pages/WeddingContractPreviewPage'
 import { NewWeddingPage } from '@/pages/NewWeddingPage'
 import { CalendarPage } from '@/pages/CalendarPage'
 import { ContractQuestionnaireEditorPage } from '@/pages/ContractQuestionnaireEditorPage'
@@ -20,6 +22,7 @@ import { DocumentTemplateNewPage } from '@/pages/DocumentTemplateNewPage'
 import { DocumentTemplateDetailPage } from '@/pages/DocumentTemplateDetailPage'
 import { DocumentTemplateMappingPage } from '@/pages/DocumentTemplateMappingPage'
 import { DocumentTemplateConfigPage } from '@/pages/DocumentTemplateConfigPage'
+import { DocumentTemplateFieldConfigPage } from '@/pages/DocumentTemplateFieldConfigPage'
 import { PublicFormTokenPage } from '@/pages/PublicFormTokenPage'
 import { LandingPage } from '@/pages/LandingPage'
 import { LoginPage } from '@/pages/LoginPage'
@@ -27,6 +30,21 @@ import { RegisterPage } from '@/pages/RegisterPage'
 import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage'
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage'
 import { CheckEmailPage } from '@/pages/CheckEmailPage'
+import { isAiContractLabEnabled } from '@/features/ai-contract-lab/aiContractLabFlags'
+
+const aiContractLabRoutes = isAiContractLabEnabled()
+  ? [
+      {
+        path: '/laboratorium-umow-ai',
+        lazy: async () => {
+          const mod = await import(
+            '@/features/ai-contract-lab/AiContractLabPage'
+          )
+          return { Component: mod.AiContractLabPage }
+        },
+      },
+    ]
+  : []
 
 const devRoutes = import.meta.env.DEV
   ? [
@@ -57,6 +75,14 @@ export const router = createBrowserRouter([
       { path: '/dashboard-v2', element: <DashboardV2Page /> },
       { path: '/sluby', element: <WeddingsPage /> },
       { path: '/sluby/nowy', element: <NewWeddingPage /> },
+      {
+        path: '/sluby/:weddingId/umowy/nowa',
+        element: <WeddingContractGenerationPage />,
+      },
+      {
+        path: '/sluby/:weddingId/umowy/:contractId',
+        element: <WeddingContractPreviewPage />,
+      },
       { path: '/sluby/:id', element: <WeddingDetailPage /> },
       { path: '/kalendarz', element: <CalendarPage /> },
       {
@@ -79,7 +105,25 @@ export const router = createBrowserRouter([
       { path: '/oczekujace', element: <PendingWeddingsPage /> },
       {
         path: '/dokumenty',
-        element: <Navigate to="/ustawienia/dokumenty/szablony" replace />,
+        element: <Navigate to="/umowy" replace />,
+      },
+      { path: '/umowy', element: <DocumentTemplatesPage /> },
+      { path: '/umowy/nowy', element: <DocumentTemplateNewPage /> },
+      {
+        path: '/umowy/szablony/:id',
+        element: <DocumentTemplateDetailPage />,
+      },
+      {
+        path: '/umowy/szablony/:id/analiza',
+        element: <DocumentTemplateMappingPage />,
+      },
+      {
+        path: '/umowy/szablony/:id/konfiguracja',
+        element: <DocumentTemplateFieldConfigPage />,
+      },
+      {
+        path: '/umowy/szablony/:id/pola-techniczne',
+        element: <DocumentTemplateConfigPage />,
       },
       { path: '/studio/pakiety', element: <PackagesPage /> },
       { path: '/studio/uslugi', element: <ExtraServicesPage /> },
@@ -115,6 +159,11 @@ export const router = createBrowserRouter([
         path: '/ustawienia/dokumenty/szablony/:id/konfiguracja',
         element: <DocumentTemplateConfigPage />,
       },
+      {
+        path: '/ustawienia/dokumenty/szablony/:id/konfiguracja-pol',
+        element: <DocumentTemplateFieldConfigPage />,
+      },
+      ...aiContractLabRoutes,
       ...devRoutes,
     ],
   },

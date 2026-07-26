@@ -1,11 +1,19 @@
 import type { DocumentTemplateSummary } from '@/types/documents'
+import {
+  automaticStatusFromTemplate,
+  type AutomaticTemplateStatus,
+} from '@/features/documents/template/automaticTemplateReadiness'
+import { isTemplateUsableForGeneration } from '@/features/documents/template/templateGenerationReadiness'
 
+export { isTemplateUsableForGeneration }
+
+/** User-facing template status for Contract Templates (primary product). */
 export type ContractUiStatus =
-  | 'ready'
-  | 'needs_analysis'
   | 'analyzing'
-  | 'incomplete'
-  | 'needs_review'
+  | 'ready'
+  | 'attention'
+  | 'error'
+  | 'archived'
 
 export function fileFormatLabel(fileName: string | null | undefined): string {
   if (!fileName) return 'Dokument'
@@ -32,42 +40,46 @@ export function nameFromFileName(fileName: string): string {
   return fileName.replace(/\.[^.]+$/, '').trim() || 'Umowa'
 }
 
-/** User-facing template status for Contract Templates. */
+export function templateServiceTypeLabel(
+  type: DocumentTemplateSummary['meta']['templateServiceType'] | undefined,
+  category?: string | null,
+): string {
+  const fromMeta = type
+  if (fromMeta === 'foto') return 'Foto'
+  if (fromMeta === 'video') return 'Video'
+  if (fromMeta === 'foto_video') return 'Foto + Video'
+  if (fromMeta === 'other') return 'Inny'
+  const cat = category?.trim().toLowerCase() ?? ''
+  if (cat.includes('foto') && cat.includes('video')) return 'Foto + Video'
+  if (cat.includes('foto') || cat.includes('photo')) return 'Foto'
+  if (cat.includes('video') || cat.includes('film')) return 'Video'
+  return 'Inny'
+}
+
+/** User-facing template status for Contract Templates (primary product). */
 export function getContractUiStatus(
   template: DocumentTemplateSummary,
 ): ContractUiStatus {
-  if (template.status === 'needs_review') return 'needs_review'
-  if (template.status === 'incomplete') return 'incomplete'
-  if (
-    template.meta?.slotBindingsReady === false &&
-    (template.meta?.unresolvedSlotKeys?.length ?? 0) > 0
-  ) {
-    return 'incomplete'
-  }
-  if (template.status === 'ready' && template.variableCount > 0) {
-    return 'ready'
-  }
-  if (template.status === 'draft' && !template.aiAnalyzedAt) {
-    return 'needs_analysis'
-  }
-  if (template.aiAnalyzedAt && template.variableCount === 0) {
-    return 'needs_analysis'
-  }
-  if (template.status === 'ready') return 'ready'
-  return 'needs_analysis'
+  return automaticStatusFromTemplate(template) as ContractUiStatus
 }
 
 export function contractStatusLabel(status: ContractUiStatus): string {
   switch (status) {
+    case 'archived':
+      return 'Archiwalny'
     case 'analyzing':
-      return 'Analizowanie…'
+      return 'Analizowanie'
     case 'ready':
-      return 'Gotowe'
-    case 'incomplete':
-      return 'Niekompletny'
-    case 'needs_review':
-      return 'Do weryfikacji'
-    case 'needs_analysis':
-      return 'Wymaga analizy'
+      return 'Gotowy'
+    case 'attention':
+      return 'Wymaga uwagi'
+    case 'error':
+      return 'Błąd analizy'
   }
+}
+
+export function toAutomaticStatus(
+  status: ContractUiStatus,
+): AutomaticTemplateStatus {
+  return status
 }

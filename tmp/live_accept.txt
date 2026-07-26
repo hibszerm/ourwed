@@ -1,0 +1,101 @@
+npm warn Unknown env config "devdir". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+slots under test [
+  {
+    id: 'slot-final_payment_due_date-31-176-186',
+    key: 'final_payment_due_date',
+    para: 31,
+    start: 176,
+    end: 186,
+    orig: '19.06.2025'
+  },
+  {
+    id: 'slot-reception_location-11-42-76',
+    key: 'reception_location',
+    para: 11,
+    start: 42,
+    end: 76,
+    orig: 'Rezydencji Lubomirskich - Retyrada'
+  }
+]
+[contract-resolve] {
+  registryKey: 'reception_location',
+  resolvedValue: 'Hotel Example Reception',
+  omitted: false,
+  paragraphIndex: 11,
+  operation: 'replace',
+  storedOriginalText: 'Rezydencji Lubomirskich - Retyrada'
+}
+[contract-apply-order] {
+  paragraphIndex: 11,
+  beforeSort: [
+    {
+      id: 'slot-reception_location-11-42-76',
+      registryKey: 'reception_location',
+      startOffset: 42,
+      endOffset: 76,
+      originalSpan: 'Rezydencji Lubomirskich - Retyrada'
+    }
+  ],
+  afterSort: [
+    {
+      id: 'slot-reception_location-11-42-76',
+      registryKey: 'reception_location',
+      start: 42,
+      end: 76,
+      ownedSpan: 'Rezydencji Lubomirskich - Retyrada',
+      replacement: 'Hotel Example Reception'
+    }
+  ],
+  applyOrder: [ 'reception_location' ]
+}
+[contract-resolve] {
+  registryKey: 'final_payment_due_date',
+  resolvedValue: '15.07.2026',
+  omitted: false,
+  paragraphIndex: 31,
+  operation: 'replace',
+  storedOriginalText: '19.06.2025'
+}
+[contract-apply-order] {
+  paragraphIndex: 31,
+  beforeSort: [
+    {
+      id: 'slot-final_payment_due_date-31-176-186',
+      registryKey: 'final_payment_due_date',
+      startOffset: 176,
+      endOffset: 186,
+      originalSpan: '19.06.2025'
+    }
+  ],
+  afterSort: [
+    {
+      id: 'slot-final_payment_due_date-31-176-186',
+      registryKey: 'final_payment_due_date',
+      start: 176,
+      end: 186,
+      ownedSpan: '19.06.2025',
+      replacement: '15.07.2026'
+    }
+  ],
+  applyOrder: [ 'final_payment_due_date' ]
+}
+failures []
+applied [
+  {
+    key: 'reception_location',
+    para: 11,
+    value: 'Hotel Example Reception',
+    loc: { start: 42, end: 76, method: 'stored_offsets' }
+  },
+  {
+    key: 'final_payment_due_date',
+    para: 31,
+    value: '15.07.2026',
+    loc: { start: 176, end: 186, method: 'stored_offsets' }
+  }
+]
+para11 after: przyjęcia weselnego, które odbędzie się w Hotel Example Reception – z czego w zakresie przyjęcia weselnego reportaż ślub
+para31 after: y złotych) brutto, Para młoda zapłaci Kamerzyście najpóźniej w dniu 15.07.2026r.
+quality { ok: true, reason: undefined, report: undefined }
+
+LIVE ACCEPTANCE OK

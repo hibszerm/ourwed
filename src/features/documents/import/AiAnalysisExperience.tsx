@@ -4,25 +4,25 @@ import styles from './AiAnalysisExperience.module.css'
 
 /** Semantic analysis stages — never fake percentages. */
 export const ANALYSIS_STAGES = [
-  { id: 'uploaded', label: 'Dokument przesłany', kind: 'complete' as const },
+  { id: 'read', label: 'Odczytujemy dokument', kind: 'active' as const },
   {
-    id: 'structure',
-    label: 'Analizowanie struktury dokumentu…',
+    id: 'couple',
+    label: 'Rozpoznajemy dane pary',
     kind: 'active' as const,
   },
   {
-    id: 'variables',
-    label: 'Wykrywanie wartości dynamicznych…',
+    id: 'places',
+    label: 'Wykrywamy daty i miejsca',
     kind: 'active' as const,
   },
   {
-    id: 'positions',
-    label: 'Mapowanie pozycji zmiennych…',
+    id: 'package',
+    label: 'Analizujemy pakiet i cenę',
     kind: 'active' as const,
   },
   {
     id: 'template',
-    label: 'Przygotowywanie szablonu…',
+    label: 'Przygotowujemy szablon',
     kind: 'active' as const,
   },
   { id: 'ready', label: 'Gotowe', kind: 'complete' as const },
@@ -99,7 +99,7 @@ export function AiAnalysisExperience({
         <div className={styles.iconWrap} key={current.id}>
           {current.id === 'ready' ? (
             <Check size={22} strokeWidth={2} className={styles.iconDone} />
-          ) : current.id === 'uploaded' ? (
+          ) : current.id === 'read' ? (
             <FileText size={22} strokeWidth={1.75} className={styles.iconIdle} />
           ) : (
             <LoaderCircle
@@ -113,8 +113,8 @@ export function AiAnalysisExperience({
         <h1 className={styles.title}>Analizujemy umowę</h1>
         <p className={styles.subtitle}>
           {fileName
-            ? `OurWed czyta „${fileName}” i przygotowuje konfigurację.`
-            : 'OurWed czyta dokument i przygotowuje konfigurację.'}
+            ? `OurWed czyta „${fileName}” i przygotowuje szablon.`
+            : 'OurWed czyta dokument i przygotowuje szablon.'}
         </p>
 
         <div

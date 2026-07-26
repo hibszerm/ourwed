@@ -199,6 +199,12 @@
   font-size: var(--text-sm);
 }
 
+.fieldBlock {
+  display: grid;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
 .missingInput:disabled {
   opacity: 0.55;
 }

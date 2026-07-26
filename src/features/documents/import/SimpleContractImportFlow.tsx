@@ -11,6 +11,15 @@ import {
   activeAiDocumentAnalyzer,
   getDocumentAiErrorMessage,
 } from '@/features/documents/ai'
+import type { AiDocumentAnalysisResult } from '@/features/documents/ai/types'
+import { productionAnalysisToSemanticMap } from '@/features/documents/ai/productionAnalysisToSemanticMap'
+import {
+  buildProposedTemplateConfiguration,
+} from '@/features/ai-contract-lab/templateFieldConfiguration'
+import {
+  fieldConfigurationFromMeta,
+  saveTemplateFieldConfiguration,
+} from '@/features/ai-contract-lab/persistTemplateFieldConfiguration'
 import { activeDocumentStructureExtractor } from '@/features/documents/mapping/extraction'
 import { isArrayBufferDetached } from '@/features/documents/mapping/extraction/sourceKind'
 import {
@@ -33,6 +42,7 @@ import {
   type WizardStepId,
 } from './ImportWizardStepper'
 import styles from './SimpleContractImport.module.css'
+import { validateContractDocx } from './contractUploadValidation'
 
 type Phase =
   | 'idle'
@@ -105,12 +115,26 @@ type CreateProps = {
   onCreateTemplate: (input: {
     name: string
     file: File
+    serviceType: 'foto' | 'video' | 'foto_video' | 'other'
   }) => Promise<CreateResult>
   templateId?: undefined
   sourceFileName?: undefined
   sourceDocxPath?: undefined
   onUploadFile?: undefined
   onRenameTemplate?: undefined
+}
+
+const SERVICE_TYPE_OPTIONS = [
+  { id: 'foto' as const, label: 'Foto' },
+  { id: 'video' as const, label: 'Video' },
+  { id: 'foto_video' as const, label: 'Foto + Video' },
+  { id: 'other' as const, label: 'Inny' },
+]
+
+function serviceTypeCategory(
+  type: (typeof SERVICE_TYPE_OPTIONS)[number]['id'],
+): string {
+  return SERVICE_TYPE_OPTIONS.find((option) => option.id === type)?.label ?? 'Inny'
 }
 
 export function SimpleContractImportFlow(props: ExistingProps | CreateProps) {
@@ -150,6 +174,9 @@ export function SimpleContractImportFlow(props: ExistingProps | CreateProps) {
     cachedMeta,
   )
   const [nameDraft, setNameDraft] = useState(initialName)
+  const [serviceType, setServiceType] = useState<
+    'foto' | 'video' | 'foto_video' | 'other'
+  >('foto')
   const [startingAnalysis, setStartingAnalysis] = useState(false)
   const [slotMap, setSlotMap] = useState<TemplateSlotMap>(() => emptySlotMap())
   const [templateVersionId, setTemplateVersionId] = useState<string | null>(null)
@@ -160,13 +187,17 @@ export function SimpleContractImportFlow(props: ExistingProps | CreateProps) {
   const [contentKey, setContentKey] = useState(0)
 
   const slotMapRef = useRef<TemplateSlotMap>(slotMap)
-  slotMapRef.current = slotMap
   const nameRef = useRef(nameDraft)
-  nameRef.current = nameDraft
   const templateIdRef = useRef(activeTemplateId)
-  templateIdRef.current = activeTemplateId
   const sourceBytesRef = useRef(sourceBytes)
-  sourceBytesRef.current = sourceBytes
+  const analysisRef = useRef<AiDocumentAnalysisResult | null>(null)
+
+  useEffect(() => {
+    slotMapRef.current = slotMap
+    nameRef.current = nameDraft
+    templateIdRef.current = activeTemplateId
+    sourceBytesRef.current = sourceBytes
+  }, [slotMap, nameDraft, activeTemplateId, sourceBytes])
 
   // Create path: upload in the background while showing preparing UI.
   useEffect(() => {
@@ -186,6 +217,7 @@ export function SimpleContractImportFlow(props: ExistingProps | CreateProps) {
         const created = await props.onCreateTemplate({
           name,
           file: attachment.file,
+          serviceType,
         })
         setActiveTemplateId(created.templateId)
         setFileName(created.sourceFileName)
@@ -199,11 +231,7 @@ export function SimpleContractImportFlow(props: ExistingProps | CreateProps) {
           await sleep(MIN_PREPARE_MS - elapsed)
         }
 
-        runStarted.current = false
-        setPipelineDone(false)
-        setAnalysisKey((k) => k + 1)
-        setContentKey((k) => k + 1)
-        setPhase('analyzing')
+        setPhase('ready')
       } catch (err) {
         setError(
           err instanceof Error
@@ -216,15 +244,6 @@ export function SimpleContractImportFlow(props: ExistingProps | CreateProps) {
     })()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- run once for create prepare
   }, [isCreate, phase])
-
-  useEffect(() => {
-    if (phase !== 'analyzing') return
-    if (runStarted.current) return
-    runStarted.current = true
-    if (activeTemplateId) clearAttachedImport(activeTemplateId)
-    void runPipeline()
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- start once when analyzing
-  }, [phase])
 
   async function runPipeline() {
     setError(null)
@@ -259,6 +278,7 @@ export function SimpleContractImportFlow(props: ExistingProps | CreateProps) {
         text: structure.plainText,
         structure,
       })
+      analysisRef.current = aiAnalysis
 
       const { detectSourceKind } = await import(
         '@/features/documents/mapping/extraction/sourceKind'
@@ -279,8 +299,10 @@ export function SimpleContractImportFlow(props: ExistingProps | CreateProps) {
         plainText: structure.plainText,
         paragraphs,
       })
-      nextSlots.documentTitle = nameRef.current.trim() || initialName
-      setSlotMap(nextSlots)
+      setSlotMap({
+        ...nextSlots,
+        documentTitle: nameRef.current.trim() || initialName,
+      })
 
       const versions = await documentTemplateService.listVersions(templateId)
       const template = await documentTemplateService.get(templateId)
@@ -313,6 +335,15 @@ export function SimpleContractImportFlow(props: ExistingProps | CreateProps) {
       runStarted.current = false
     }
   }
+
+  useEffect(() => {
+    if (phase !== 'analyzing') return
+    if (runStarted.current) return
+    runStarted.current = true
+    if (activeTemplateId) clearAttachedImport(activeTemplateId)
+    void runPipeline()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- start once when analyzing
+  }, [phase])
 
   async function finishAfterAnalysis() {
     try {
@@ -364,6 +395,20 @@ export function SimpleContractImportFlow(props: ExistingProps | CreateProps) {
       slotMap: slots,
       documentTitle: nameRef.current.trim() || initialName,
     })
+    const analysis = analysisRef.current
+    if (analysis) {
+      const latestTemplate = await documentTemplateService.get(templateId)
+      const proposal = buildProposedTemplateConfiguration({
+        templateId,
+        templateVersionId: versionId,
+        semanticMap: productionAnalysisToSemanticMap(analysis),
+        existing: fieldConfigurationFromMeta(latestTemplate?.meta),
+      })
+      await saveTemplateFieldConfiguration({
+        templateId,
+        configuration: proposal,
+      })
+    }
     if (nameRef.current.trim()) {
       await documentTemplateService.update(templateId, {
         name: nameRef.current.trim(),
@@ -375,19 +420,14 @@ export function SimpleContractImportFlow(props: ExistingProps | CreateProps) {
     setSlotMap(result.slotMap)
     setPhase('done')
     showToast(
-      result.status === 'ready'
-        ? result.insertedCount > 0
-          ? `Szablon gotowy (${result.insertedCount} zmiennych).`
-          : 'Szablon gotowy do generacji.'
-        : `Szablon zapisany jako niekompletny — brakuje powiązań: ${
-            result.unresolvedKeys.slice(0, 5).join(', ') || 'wymagane pola'
-          }.`,
-      result.status === 'ready' ? 'success' : 'error',
+      result.status === 'ready' || result.insertedCount >= 0
+        ? 'Szablon jest gotowy.'
+        : 'Szablon zapisany. OurWed przygotuje go automatycznie.',
+      'success',
     )
   }
 
   async function handleStartAnalysis() {
-    if (isCreate) return
     const nextName = nameDraft.trim()
     if (!nextName) {
       setError('Podaj nazwę szablonu.')
@@ -396,7 +436,19 @@ export function SimpleContractImportFlow(props: ExistingProps | CreateProps) {
     setError(null)
     setStartingAnalysis(true)
     try {
-      if (props.onRenameTemplate && nextName !== props.templateName) {
+      if (activeTemplateId) {
+        const latest = await documentTemplateService.get(activeTemplateId)
+        await documentTemplateService.update(activeTemplateId, {
+          name: nextName,
+          category: serviceTypeCategory(serviceType),
+          meta: {
+            ...(latest?.meta ?? { version: 1 }),
+            version: 1,
+            templateServiceType: serviceType,
+          },
+        })
+      }
+      if (!isCreate && props.onRenameTemplate && nextName !== props.templateName) {
         await props.onRenameTemplate(nextName)
       }
       runStarted.current = false
@@ -415,6 +467,12 @@ export function SimpleContractImportFlow(props: ExistingProps | CreateProps) {
 
   async function handleFile(file: File) {
     if (isCreate || !props.onUploadFile) return
+    const validation = validateContractDocx(file)
+    if (!validation.ok) {
+      setError(validation.message)
+      setPhase('error')
+      return
+    }
     setError(null)
     setPhase('uploading')
     setPipelineDone(false)
@@ -444,10 +502,10 @@ export function SimpleContractImportFlow(props: ExistingProps | CreateProps) {
 
   function goBack() {
     if (activeTemplateId) {
-      navigate(`/ustawienia/dokumenty/szablony/${activeTemplateId}`)
+      navigate(`/umowy/szablony/${activeTemplateId}`)
       return
     }
-    navigate('/ustawienia/dokumenty/szablony')
+    navigate('/umowy')
   }
 
   const wizardStep = wizardStepForPhase(phase)
@@ -499,14 +557,13 @@ export function SimpleContractImportFlow(props: ExistingProps | CreateProps) {
         </div>
       ) : null}
 
-      {phase === 'ready' && fileAttached && !isCreate ? (
+      {phase === 'ready' && fileAttached ? (
         <div className={styles.ready} aria-live="polite">
           <div className={styles.readyInner}>
             <p className={styles.stepCaption}>Krok 1 z 3</p>
-            <h1 className={styles.heroTitle}>Sprawdź plik przed analizą</h1>
+            <h1 className={styles.heroTitle}>Sprawdź szablon przed analizą</h1>
             <p className={styles.heroBody}>
-              Plik jest już dołączony. Nadaj nazwę szablonowi i uruchom analizę
-              AI.
+              Podaj nazwę i typ szablonu. Analiza AI przygotuje go automatycznie.
             </p>
 
             <div className={styles.fileCard}>
@@ -530,6 +587,29 @@ export function SimpleContractImportFlow(props: ExistingProps | CreateProps) {
                 placeholder="np. Umowa fotograficzna"
                 disabled={startingAnalysis}
               />
+            </label>
+
+            <label className={styles.nameField}>
+              Typ szablonu
+              <select
+                value={serviceType}
+                onChange={(e) =>
+                  setServiceType(
+                    e.target.value as
+                      | 'foto'
+                      | 'video'
+                      | 'foto_video'
+                      | 'other',
+                  )
+                }
+                disabled={startingAnalysis}
+              >
+                {SERVICE_TYPE_OPTIONS.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
             </label>
 
             {error ? <p className={styles.error}>{error}</p> : null}
@@ -608,16 +688,16 @@ export function SimpleContractImportFlow(props: ExistingProps | CreateProps) {
                 : phase === 'uploading'
                   ? 'Przesyłanie…'
                   : phase === 'done'
-                    ? 'Gotowe'
+                    ? 'Szablon jest gotowy'
                     : 'Wymaga uwagi'}
             </h1>
             <p className={styles.heroBody}>
               {phase === 'idle'
-                ? 'PDF lub DOCX. Po wyborze pliku od razu przejdziesz do kreatora.'
+                ? 'DOCX. Po wyborze pliku od razu przejdziesz do analizy.'
                 : phase === 'uploading'
                   ? 'Zapisujemy dokument.'
                   : phase === 'done'
-                    ? 'Szablon jest gotowy. Na ślubie wybierzesz go w Generuj umowę. Ankiety budujesz osobno w module Ankiety.'
+                    ? 'OurWed będzie automatycznie uzupełniać go danymi ze zlecenia.'
                     : (error ?? 'Coś poszło nie tak.')}
             </p>
 
@@ -627,19 +707,17 @@ export function SimpleContractImportFlow(props: ExistingProps | CreateProps) {
                   type="button"
                   variant="primary"
                   onClick={() =>
-                    navigate(
-                      `/ustawienia/dokumenty/szablony/${activeTemplateId}`,
-                    )
+                    navigate(`/umowy/szablony/${activeTemplateId}`)
                   }
                 >
-                  Zobacz szablon
+                  Przejdź do szablonu
                 </Button>
                 <Button
                   type="button"
                   variant="secondary"
-                  onClick={() => navigate('/ustawienia/dokumenty/szablony')}
+                  onClick={() => navigate('/umowy')}
                 >
-                  Wróć do listy
+                  Wygeneruj umowę
                 </Button>
               </div>
             ) : null}
@@ -704,7 +782,7 @@ export function SimpleContractImportFlow(props: ExistingProps | CreateProps) {
         <input
           ref={fileRef}
           type="file"
-          accept=".docx,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+          accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
           hidden
           onChange={(e) => {
             const file = e.target.files?.[0]

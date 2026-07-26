@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, MoreHorizontal } from 'lucide-react'
 import { AppLayout } from '@/layouts/AppLayout'
 import { Button } from '@/components/ui/Button'
@@ -8,32 +9,85 @@ import { PageContainer } from '@/components/ui/PageContainer'
 import { useToast } from '@/components/ui/Toast'
 import { documentStorage } from '@/lib/api/documents/storage'
 import {
+  documentTemplateKeys,
   useDocumentTemplate,
   useDocumentTemplateMutations,
 } from '@/features/documents/hooks/useDocumentTemplates'
 import { ContractStatusBadge } from '@/features/documents/components/ContractStatusBadge'
 import { DeleteContractModal } from '@/features/documents/components/DeleteContractModal'
 import { RenameTemplateModal } from '@/features/documents/components/TemplateModals'
+import { validateContractDocx } from '@/features/documents/import/contractUploadValidation'
+import { GeneratedWeddingContractService } from '@/features/documents/template'
+import { ensureAutomaticTemplateConfiguration } from '@/features/documents/template/ensureAutomaticTemplateConfiguration'
 import {
   fileFormatLabel,
   formatContractDate,
   getContractUiStatus,
+  templateServiceTypeLabel,
 } from '@/features/documents/contractUi'
+import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
 import styles from '@/features/documents/DocumentsTemplates.module.css'
 
 export function DocumentTemplateDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const userId = useStudioAuthId() ?? null
   const { showToast } = useToast()
   const fileRef = useRef<HTMLInputElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
   const { data: template, isLoading, isError } = useDocumentTemplate(id)
   const mutations = useDocumentTemplateMutations(id)
+  const { data: generatedContracts = [] } = useQuery({
+    queryKey: ['generated-wedding-contracts', 'template', id],
+    queryFn: async () =>
+      (await GeneratedWeddingContractService.listAllForStudio()).filter(
+        (contract) => contract.templateId === id,
+      ),
+    enabled: Boolean(id),
+  })
 
   const [renameOpen, setRenameOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [healNonce, setHealNonce] = useState(0)
+
+  const needsHeal = Boolean(
+    template &&
+      (template.aiAnalyzedAt || (template.variableCount ?? 0) > 0) &&
+      (template.meta.fieldConfigurationStatus !== 'ready' ||
+        template.meta.automaticReadinessStatus === 'attention' ||
+        template.meta.automaticReadinessStatus === 'analyzing' ||
+        (template.meta.automaticAttentionIssues ?? []).some(
+          (issue) => issue.code === 'physical_slots',
+        ) ||
+        !template.meta.fieldConfiguration),
+  )
+
+  const healQuery = useQuery({
+    queryKey: ['ensure-automatic-template-configuration', id, healNonce],
+    queryFn: async () => {
+      if (!id) throw new Error('Brak szablonu')
+      const result = await ensureAutomaticTemplateConfiguration(id)
+      await queryClient.invalidateQueries({
+        queryKey: documentTemplateKeys.detail(userId, id),
+      })
+      await queryClient.invalidateQueries({
+        queryKey: documentTemplateKeys.summaries(userId),
+      })
+      return result
+    },
+    enabled: Boolean(id && needsHeal),
+    staleTime: Infinity,
+    retry: false,
+  })
+
+  const healing = healQuery.isFetching
+  const healError =
+    healQuery.isError || (healQuery.data?.failure && !healQuery.data.repaired)
+      ? 'Nie udało się dokończyć przygotowania szablonu. Spróbuj ponownie.'
+      : null
 
   useEffect(() => {
     if (!menuOpen) return
@@ -65,7 +119,7 @@ export function DocumentTemplateDetailPage() {
               <Button
                 type="button"
                 variant="secondary"
-                onClick={() => navigate('/ustawienia/dokumenty/szablony')}
+                onClick={() => navigate('/umowy')}
               >
                 Wróć do szablonów
               </Button>
@@ -77,7 +131,7 @@ export function DocumentTemplateDetailPage() {
   }
 
   const doc = template
-  const status = getContractUiStatus(doc)
+  const status = healing ? 'analyzing' : getContractUiStatus(doc)
   const format = fileFormatLabel(doc.sourceFileName)
 
   async function handleDelete() {
@@ -85,7 +139,7 @@ export function DocumentTemplateDetailPage() {
       await mutations.remove.mutateAsync(doc.id)
       showToast('Szablon został usunięty.', 'success')
       setDeleteOpen(false)
-      navigate('/ustawienia/dokumenty/szablony')
+      navigate('/umowy')
     } catch (err) {
       showToast(
         err instanceof Error ? err.message : 'Nie udało się usunąć.',
@@ -95,10 +149,15 @@ export function DocumentTemplateDetailPage() {
   }
 
   async function handleReplace(file: File) {
+    const validation = validateContractDocx(file)
+    if (!validation.ok) {
+      showToast(validation.message, 'error')
+      return
+    }
     try {
       await mutations.uploadVersion.mutateAsync({ id: doc.id, file })
       showToast('Dokument zamieniony. Uruchamiamy analizę…', 'success')
-      navigate(`/ustawienia/dokumenty/szablony/${doc.id}/analiza`)
+      navigate(`/umowy/szablony/${doc.id}/analiza`)
     } catch (err) {
       showToast(
         err instanceof Error ? err.message : 'Nie udało się zamienić dokumentu.',
@@ -111,7 +170,7 @@ export function DocumentTemplateDetailPage() {
     try {
       const copy = await mutations.duplicate.mutateAsync(doc.id)
       showToast('Szablon zduplikowany.', 'success')
-      navigate(`/ustawienia/dokumenty/szablony/${copy.id}`)
+      navigate(`/umowy/szablony/${copy.id}`)
     } catch (err) {
       showToast(
         err instanceof Error ? err.message : 'Nie udało się zduplikować.',
@@ -143,7 +202,7 @@ export function DocumentTemplateDetailPage() {
           <button
             type="button"
             className={styles.backLink}
-            onClick={() => navigate('/ustawienia/dokumenty/szablony')}
+            onClick={() => navigate('/umowy')}
           >
             <ArrowLeft size={16} aria-hidden />
             Szablony umów
@@ -163,15 +222,15 @@ export function DocumentTemplateDetailPage() {
             </div>
 
             <div className={styles.detailHeroActions} ref={menuRef}>
-              {status === 'needs_analysis' ? (
+              {status === 'analyzing' || status === 'error' ? (
                 <Button
                   type="button"
                   variant="primary"
                   onClick={() =>
-                    navigate(`/ustawienia/dokumenty/szablony/${doc.id}/analiza`)
+                    navigate(`/umowy/szablony/${doc.id}/analiza`)
                   }
                 >
-                  Uruchom analizę
+                  {status === 'error' ? 'Spróbuj ponownie' : 'Uruchom analizę'}
                 </Button>
               ) : null}
               <Button
@@ -248,20 +307,23 @@ export function DocumentTemplateDetailPage() {
 
           <section className={styles.detailFacts}>
             <div className={styles.factBlock}>
-              <h2 className={styles.factLabel}>Wykryte zmienne</h2>
-              <p className={styles.factValue}>{doc.variableCount}</p>
+              <h2 className={styles.factLabel}>Typ</h2>
+              <p className={styles.factValue}>
+                {templateServiceTypeLabel(
+                  doc.meta.templateServiceType,
+                  doc.category,
+                )}
+              </p>
+            </div>
+            <div className={styles.factBlock}>
+              <h2 className={styles.factLabel}>Dodano</h2>
+              <p className={styles.factValue}>
+                {formatContractDate(doc.createdAt)}
+              </p>
             </div>
             <div className={styles.factBlock}>
               <h2 className={styles.factLabel}>Wygenerowano</h2>
               <p className={styles.factValue}>{doc.usageCount}</p>
-            </div>
-            <div className={styles.factBlock}>
-              <h2 className={styles.factLabel}>Wersja analizy</h2>
-              <p className={styles.factValue}>
-                {doc.currentVersionNumber != null
-                  ? `v${doc.currentVersionNumber}`
-                  : '—'}
-              </p>
             </div>
             {doc.description ? (
               <div className={styles.factBlock}>
@@ -270,13 +332,96 @@ export function DocumentTemplateDetailPage() {
               </div>
             ) : null}
           </section>
+
+          <section className={styles.section}>
+            <div className={styles.sectionHeader}>
+              <div>
+                <h2 className={styles.sectionTitle}>Wygenerowane umowy</h2>
+                <p className={styles.sectionSubtitle}>
+                  Zapisane artefakty utworzone z tego szablonu.
+                </p>
+              </div>
+            </div>
+            {generatedContracts.length === 0 ? (
+              <p className={styles.quietHint}>Brak wygenerowanych umów.</p>
+            ) : (
+              <div className={styles.generatedGrid}>
+                {generatedContracts.map((contract) => (
+                  <Link
+                    key={contract.draft.id}
+                    className={styles.generatedCard}
+                    to={`/sluby/${contract.weddingId}/umowy/${contract.draft.id}`}
+                  >
+                    <div className={styles.generatedCardTop}>
+                      <h3>{contract.draft.title}</h3>
+                      <span>Gotowa</span>
+                    </div>
+                    <p>
+                      Wersja {contract.generationVersion ?? 1} ·{' '}
+                      {formatContractDate(contract.updatedAt)}
+                    </p>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section className={styles.nextStepCard}>
+            <h2 className={styles.factLabel}>Gotowość</h2>
+            {healing || status === 'analyzing' ? (
+              <p className={styles.quietHint}>Przygotowujemy szablon…</p>
+            ) : status === 'ready' ? (
+              <>
+                <p className={styles.factValue}>
+                  Szablon jest gotowy do generowania umów.
+                </p>
+                <p className={styles.quietHint}>
+                  OurWed uzupełni ten szablon danymi ze zlecenia.
+                </p>
+              </>
+            ) : status === 'error' || healError ? (
+              <>
+                <p className={styles.quietHint}>
+                  {healError ??
+                    'Nie udało się dokończyć przygotowania szablonu. Spróbuj ponownie.'}
+                </p>
+                <div className={styles.configSlotActions}>
+                  <Button
+                    type="button"
+                    variant="primary"
+                    onClick={() => setHealNonce((value) => value + 1)}
+                  >
+                    Spróbuj ponownie
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <p className={styles.quietHint}>
+                {(doc.meta.automaticAttentionIssues ?? []).find(
+                  (issue) => issue.code !== 'physical_slots',
+                )?.message ??
+                  'Przy generowaniu poprosimy o uzupełnienie brakujących danych.'}
+              </p>
+            )}
+            <div className={styles.configSlotActions}>
+              {status === 'ready' && !healing ? (
+                <Button
+                  type="button"
+                  variant="primary"
+                  onClick={() => navigate('/sluby')}
+                >
+                  Wygeneruj umowę
+                </Button>
+              ) : null}
+            </div>
+          </section>
         </div>
       </PageContainer>
 
       <input
         ref={fileRef}
         type="file"
-        accept=".docx,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         hidden
         onChange={(e) => {
           const file = e.target.files?.[0]

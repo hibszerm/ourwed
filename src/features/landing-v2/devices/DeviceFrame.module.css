@@ -1,0 +1,171 @@
+.stage {
+  --lid: 1;
+  --morph: 0;
+  --screen-on: 1;
+  --device-w: calc(720px - (720px - 280px) * var(--morph));
+  --device-screen-h: calc(450px - (450px - 560px) * var(--morph));
+  --radius: calc(18px + 22px * var(--morph));
+  perspective: 1400px;
+  perspective-origin: 50% 40%;
+  width: min(92vw, var(--device-w));
+  margin: 0 auto;
+}
+
+.device {
+  position: relative;
+  width: 100%;
+  transform-style: preserve-3d;
+  transform: scale(calc(1 - 0.08 * var(--morph)));
+}
+
+.lid {
+  position: relative;
+  transform-origin: 50% 100%;
+  transform-style: preserve-3d;
+  /* Closed = fold toward user (rotateX negative from open upright) */
+  transform: rotateX(calc((1 - var(--lid)) * -88deg));
+  z-index: 2;
+}
+
+.bezel {
+  position: relative;
+  width: 100%;
+  height: var(--device-screen-h);
+  border: 1.5px solid color-mix(in srgb, var(--color-text-primary) 55%, transparent);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--color-surface) 92%, #111);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--color-text-primary) 6%, transparent),
+    0 28px 60px rgba(20, 20, 20, 0.08);
+  overflow: hidden;
+  padding: calc(14px - 4px * var(--morph));
+}
+
+.camera {
+  position: absolute;
+  top: 7px;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  margin-left: -3px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--color-text-primary) 35%, transparent);
+  opacity: calc(1 - var(--morph));
+  z-index: 3;
+}
+
+.screen {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: calc(10px + 14px * var(--morph));
+  overflow: hidden;
+  background: #0a0a0a;
+  isolation: isolate;
+}
+
+.screenGlow {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    80% 60% at 50% 40%,
+    color-mix(in srgb, var(--color-bg) 40%, transparent),
+    transparent 70%
+  );
+  opacity: calc(var(--screen-on) * 0.55);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.screenContent {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  background: var(--color-bg);
+  opacity: var(--screen-on);
+  transform: scale(calc(0.985 + 0.015 * var(--screen-on)));
+  transform-origin: center top;
+}
+
+.screenOff {
+  position: absolute;
+  inset: 0;
+  background: #050505;
+  opacity: calc(1 - var(--screen-on));
+  pointer-events: none;
+  z-index: 3;
+}
+
+.base {
+  position: relative;
+  margin-top: -1px;
+  transform-origin: 50% 0%;
+  opacity: calc(1 - var(--morph));
+  height: calc(18px * (1 - var(--morph)));
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.hinge {
+  height: 3px;
+  width: 42%;
+  margin: 0 auto;
+  border-radius: 0 0 4px 4px;
+  background: color-mix(in srgb, var(--color-text-primary) 28%, transparent);
+}
+
+.deck {
+  height: 12px;
+  margin-top: 2px;
+  border: 1.5px solid color-mix(in srgb, var(--color-text-primary) 45%, transparent);
+  border-top: none;
+  border-radius: 0 0 14px 14px;
+  background: color-mix(in srgb, var(--color-surface) 80%, var(--color-bg));
+  transform: perspective(800px) rotateX(52deg);
+  transform-origin: top center;
+}
+
+.notch {
+  position: absolute;
+  left: 50%;
+  bottom: 2px;
+  width: 56px;
+  height: 4px;
+  margin-left: -28px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-text-primary) 22%, transparent);
+}
+
+.phoneChin {
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  width: 72px;
+  height: 4px;
+  margin-left: -36px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-text-primary) 28%, transparent);
+  opacity: var(--morph);
+  z-index: 4;
+  pointer-events: none;
+}
+
+@media (max-width: 720px) {
+  .stage {
+    --device-w: calc(100vw - 32px);
+    --device-screen-h: calc(280px + 180px * var(--morph));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lid {
+    transform: none;
+  }
+
+  .screenContent,
+  .screenOff,
+  .screenGlow {
+    transition: none;
+  }
+}

@@ -94,6 +94,8 @@ export function buildReferenceStudioPackage(
     isActive: true,
     sortOrder: 0,
     questionnaireFormId: null,
+    activeContractTemplateId: null,
+    activeContractTemplateVersionId: null,
     coverageHours: 12,
     coverageEndTime: '00:30',
     overtimeRate: 1400,

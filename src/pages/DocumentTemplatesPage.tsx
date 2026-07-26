@@ -12,9 +12,11 @@ import {
   useDocumentTemplates,
 } from '@/features/documents/hooks/useDocumentTemplates'
 import { ContractCard } from '@/features/documents/components/ContractCard'
+import { GeneratedContractsHub } from '@/features/documents/components/GeneratedContractsHub'
 import { DeleteContractModal } from '@/features/documents/components/DeleteContractModal'
 import { RenameTemplateModal } from '@/features/documents/components/TemplateModals'
 import { setPendingNewImport } from '@/features/documents/import/attachedImportCache'
+import { validateContractDocx } from '@/features/documents/import/contractUploadValidation'
 import { startDocumentsPerf } from '@/features/documents/performance/documentsPerformance'
 import { reanalyzeTemplate } from '@/features/documents/template/reanalyzeTemplate'
 import type { DocumentTemplateSummary } from '@/types/documents'
@@ -36,6 +38,9 @@ export function DocumentTemplatesPage() {
   const { remove, rename, duplicate, uploadVersion } =
     useDocumentTemplateMutations()
   const [reanalyzingId, setReanalyzingId] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<'templates' | 'generated'>(
+    'templates',
+  )
 
   useEffect(() => {
     const perf = startDocumentsPerf('documents-route')
@@ -76,8 +81,14 @@ export function DocumentTemplatesPage() {
   }
 
   async function onFilePicked(file: File) {
+    const validation = validateContractDocx(file)
+    if (!validation.ok) {
+      showToast(validation.message, 'error')
+      if (fileRef.current) fileRef.current.value = ''
+      return
+    }
     setPendingNewImport(file)
-    navigate('/ustawienia/dokumenty/szablony/nowy')
+    navigate('/umowy/nowy')
     if (fileRef.current) fileRef.current.value = ''
   }
 
@@ -99,7 +110,7 @@ export function DocumentTemplatesPage() {
     try {
       const copy = await duplicate.mutateAsync(template.id)
       showToast('Szablon zduplikowany.', 'success')
-      navigate(`/ustawienia/dokumenty/szablony/${copy.id}`)
+      navigate(`/umowy/szablony/${copy.id}`)
     } catch (err) {
       showToast(
         err instanceof Error ? err.message : 'Nie udało się zduplikować.',
@@ -110,10 +121,16 @@ export function DocumentTemplatesPage() {
 
   async function handleReplace(file: File) {
     if (!replaceTarget) return
+    const validation = validateContractDocx(file)
+    if (!validation.ok) {
+      showToast(validation.message, 'error')
+      if (replaceRef.current) replaceRef.current.value = ''
+      return
+    }
     try {
       await uploadVersion.mutateAsync({ id: replaceTarget.id, file })
       showToast('Źródłowy dokument zamieniony. Uruchamiamy analizę…', 'success')
-      navigate(`/ustawienia/dokumenty/szablony/${replaceTarget.id}/analiza`)
+      navigate(`/umowy/szablony/${replaceTarget.id}/analiza`)
       setReplaceTarget(null)
     } catch (err) {
       showToast(
@@ -132,6 +149,22 @@ export function DocumentTemplatesPage() {
       const result = await reanalyzeTemplate({ templateId: template.id })
       await queryClient.invalidateQueries({
         queryKey: ['document-template-summaries'],
+      })
+      await queryClient.invalidateQueries({
+        queryKey: ['document-templates'],
+      })
+      console.info('[reanalyze-complete]', {
+        templateId: result.templateId,
+        templateVersionId: result.templateVersionId,
+        readinessReady: result.readinessReady,
+        paragraph36: result.slotMap.slots
+          .filter((s) => s.paragraphIndex === 36)
+          .map((s) => ({
+            registryKey: s.registryKey,
+            originalSpan: s.originalText,
+            startOffset: s.startOffset,
+            endOffset: s.endOffset,
+          })),
       })
       if (result.readinessReady) {
         showToast('Szablon przeanalizowany — gotowy do generacji.', 'success')
@@ -167,22 +200,53 @@ export function DocumentTemplatesPage() {
       <PageContainer width="wide">
         <div className={styles.studioPage}>
           <header className={styles.studioHero}>
-            <h1 className={styles.studioTitle}>Szablony umów</h1>
+            <h1 className={styles.studioTitle}>Umowy</h1>
             <p className={styles.studioSubtitle}>
-              Prześlij swój kontrakt raz. OurWed odtworzy go na każdym ślubie z
-              danych, które już masz w systemie.
+              Zarządzaj szablonami i wracaj do wygenerowanych umów w jednym,
+              spokojnym miejscu.
             </p>
-            <Button
-              type="button"
-              variant="primary"
-              className={styles.studioCta}
-              onClick={openUploadPicker}
-            >
-              <Plus size={16} style={{ marginRight: 8 }} aria-hidden />
-              Nowy szablon
-            </Button>
           </header>
 
+          <div className={styles.contractTabs} role="tablist" aria-label="Umowy">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'templates'}
+              className={styles.contractTab}
+              onClick={() => setActiveTab('templates')}
+            >
+              Szablony
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'generated'}
+              className={styles.contractTab}
+              onClick={() => setActiveTab('generated')}
+            >
+              Wygenerowane umowy
+            </button>
+          </div>
+
+          {activeTab === 'templates' ? (
+            <>
+              <div className={styles.tabToolbar}>
+                <div>
+                  <h2 className={styles.sectionHeading}>Szablony umów</h2>
+                  <p className={styles.quietHint}>
+                    Dodaj DOCX raz, a potem generuj umowy z danych zlecenia.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="primary"
+                  className={styles.studioCta}
+                  onClick={openUploadPicker}
+                >
+                  <Plus size={16} style={{ marginRight: 8 }} aria-hidden />
+                  Nowy szablon
+                </Button>
+              </div>
           {isLoading ? (
             <p className={styles.quietHint}>Ładowanie…</p>
           ) : isError ? (
@@ -193,7 +257,7 @@ export function DocumentTemplatesPage() {
           ) : sorted.length === 0 ? (
             <EmptyState
               title="Brak szablonów umów"
-              description="Prześlij DOCX lub PDF swojego kontraktu — AI wykryje zmienne, a Ty nigdy nie przebudujesz umowy od zera."
+              description="Prześlij umowę w formacie DOCX. OurWed przeanalizuje ją i przygotuje szablon automatycznie."
               action={
                 <Button
                   type="button"
@@ -218,9 +282,14 @@ export function DocumentTemplatesPage() {
                   }}
                   onReanalyze={() => void handleReanalyze(t)}
                   onDelete={() => setDeleteTarget(t)}
+                  onUse={() => navigate(`/umowy/szablony/${t.id}`)}
                 />
               ))}
             </div>
+          )}
+            </>
+          ) : (
+            <GeneratedContractsHub templates={templates} />
           )}
         </div>
       </PageContainer>
@@ -228,7 +297,7 @@ export function DocumentTemplatesPage() {
       <input
         ref={fileRef}
         type="file"
-        accept=".docx,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         hidden
         onChange={(e) => {
           const file = e.target.files?.[0]
@@ -238,7 +307,7 @@ export function DocumentTemplatesPage() {
       <input
         ref={replaceRef}
         type="file"
-        accept=".docx,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         hidden
         onChange={(e) => {
           const file = e.target.files?.[0]

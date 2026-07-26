@@ -28,10 +28,11 @@ export const TEMPLATE_STATUSES: {
   id: DocumentTemplateStatus
   label: string
 }[] = [
-  { id: 'draft', label: 'Szkic' },
+  { id: 'draft', label: 'Analizowanie' },
   { id: 'ready', label: 'Gotowy' },
-  { id: 'incomplete', label: 'Niekompletny' },
-  { id: 'archived', label: 'Zarchiwizowany' },
+  { id: 'incomplete', label: 'Wymaga uwagi' },
+  { id: 'needs_review', label: 'Wymaga uwagi' },
+  { id: 'archived', label: 'Archiwalny' },
 ]
 
 export function getCategoryMeta(docType: DocumentDocType) {

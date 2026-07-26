@@ -22,6 +22,7 @@ export {
   locateSlotInParagraph,
 } from './slotRenderer'
 export { applyBoundSlotsToParagraphs } from './applyBoundSlots'
+export type { SlotReplacementTrace, ApplySlotsResult } from './applyBoundSlots'
 export {
   validateTemplateSlotBindings,
   finalizeSlotMapClassification,
@@ -81,11 +82,21 @@ export {
   classifyTemplatesForGeneration,
   splitRecommended,
 } from './contractTemplatePicker'
+export {
+  isTemplateUsableForGeneration,
+  isTemplateGenerationReady,
+} from './templateGenerationReadiness'
+export type { GenerationReadinessOptions } from './templateGenerationReadiness'
 export type {
   ContractTemplateStatus,
   TemplatePickerClassification,
   TemplatePickerDiagnosis,
 } from './contractTemplatePicker'
+export {
+  logContractLoadedBindings,
+  syncPhysicalBindingsFromSource,
+} from './syncPhysicalBindingsFromSource'
+export type { BindingSyncDiagnostic } from './syncPhysicalBindingsFromSource'
 export { reanalyzeTemplate } from './reanalyzeTemplate'
 export type { ReanalyzeTemplateResult } from './reanalyzeTemplate'
 export { extractDocxParagraphsIncludingEmpty } from './extractDocxParagraphs'
@@ -151,3 +162,130 @@ export type {
   SaveGeneratedContractInput,
   SaveGeneratedContractResult,
 } from './saveGeneratedContract'
+export {
+  ContractExportService,
+  PDF_EXPORT_UNAVAILABLE_MESSAGE,
+  assertRealDocx,
+  createContractExportService,
+} from './ContractExportService'
+export type {
+  PdfConversionAdapter,
+  PersistedContractArtifact,
+} from './ContractExportService'
+export {
+  ContractArtifactPersistenceService,
+  GeneratedWeddingContractService,
+  allocateNextGenerationVersion,
+  createContractArtifactPersistenceService,
+} from './ContractArtifactPersistenceService'
+export type {
+  PersistGeneratedWeddingContractInput,
+  PersistGeneratedWeddingContractResult,
+} from './ContractArtifactPersistenceService'
+export {
+  buildContractArtifactSnapshot,
+  groupGeneratedWeddingContracts,
+  nextGenerationVersion,
+  sanitizeContractFileName,
+} from './contractArtifactDomain'
+export type {
+  ContractArtifact,
+  ContractArtifactSnapshot,
+  ContractSourceDataSnapshot,
+  GeneratedWeddingContract,
+  GeneratedWeddingContractStatus,
+} from './contractArtifactDomain'
+export {
+  buildAutomaticReadyConfiguration,
+  computeAutomaticTemplateReadiness,
+  finalizeAutomaticTemplateConfiguration,
+  automaticStatusFromTemplate,
+  toPersistedAutomaticMeta,
+  migrateLegacyTemplateConfiguration,
+  evaluateDocumentPreparationState,
+  configurationFromMeta,
+} from './automaticTemplateReadiness'
+export type {
+  AutomaticTemplateReadiness,
+  AutomaticTemplateStatus,
+  UserFacingTemplateIssue,
+  AutomaticConfigurationFailure,
+  AutomaticPreparationKind,
+} from './automaticTemplateReadiness'
+export {
+  persistAutomaticTemplateConfiguration,
+  persistLegacyTemplateMigration,
+} from './persistAutomaticTemplateConfiguration'
+export {
+  ensureAutomaticTemplateConfiguration,
+  semanticMapFromSlotMap,
+} from './ensureAutomaticTemplateConfiguration'
+export {
+  PACKAGE_CONTRACT_ALLOWED_DYNAMIC_KEYS,
+  PACKAGE_CONTRACT_IMMUTABLE_PACKAGE_KEYS,
+  PACKAGE_CONTRACT_CATEGORY_LABELS,
+  PACKAGE_CONTRACT_REQUIRED_CATEGORIES,
+  isPackageContractAllowedDynamicKey,
+  isPackageContractImmutableKey,
+  filterSlotsToPackageContractAllowlist,
+  applyPackageContractAllowlistToSlotMap,
+  evaluatePackageContractReadiness,
+  categoryForPackageContractKey,
+} from './packageContractAllowlist'
+export type {
+  PackageContractAllowedDynamicKey,
+  PackageContractUserCategory,
+  PackageContractReadiness,
+} from './packageContractAllowlist'
+export {
+  assignPackageContractFromDocx,
+  resolvePackageContractForWedding,
+  packageContractMissingCategoryLabels,
+} from './packageContractAssignment'
+export type { PackageContractAssignmentResult } from './packageContractAssignment'
+export {
+  buildPackageContractHealthReport,
+  detectDerivedFinancialClauses,
+  detectMultiLocationSlot,
+  detectPaymentNumberingIssues,
+  packageContractHealthMark,
+} from './packageContractHealthAudit'
+export type {
+  PackageContractHealthCheck,
+  PackageContractHealthReport,
+  PackageContractHealthCode,
+  PackageContractHealthStatus,
+} from './packageContractHealthAudit'
+export {
+  resolvePackageContractFromPackage,
+} from './packageContractResolve'
+export type { PackageContractResolution } from './packageContractResolve'
+export {
+  resolvePackageContractValue,
+  resolvePackageContractDeposit,
+  remainingAfterDeposit,
+} from './packageContractCommercial'
+export {
+  collapseCompletenessFieldsByRegistryKey,
+  groupSlotsIntoLogicalFields,
+  normalizePhysicalBindings,
+  normalizeSlotMap,
+  physicalBindingId,
+  slotsForSinglePassApply,
+} from './logicalContractFields'
+export type {
+  LogicalContractField,
+  PhysicalContractBinding,
+} from './logicalContractFields'
+export {
+  buildPackageContractGenerationModel,
+  assertPackageContractPersistedOnly,
+  filterToPackageContractAllowlist,
+  filterOverrideKeysToPackageAllowlist,
+  findSharedPhysicalSpanConflicts,
+  isPackageImmutableRegistryKey,
+} from './packageContractGenerationModel'
+export type {
+  PackageContractGenerationModel,
+  PackageContractGenerationSource,
+} from './packageContractGenerationModel'

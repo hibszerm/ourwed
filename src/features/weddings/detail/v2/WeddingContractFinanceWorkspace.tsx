@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
+import { WeddingContractsModule } from '@/features/weddings/components/detail/WeddingContractsModule'
 import { getPackageSummary } from '@/features/weddings/detail/v2/weddingWorkspaceSelectors'
 import type { WeddingExtraService } from '@/types/package'
-import type { ContractStatus, Payment, Wedding } from '@/types/wedding'
+import type { Payment, Wedding } from '@/types/wedding'
 import type { WeddingHeroAction } from '@/features/weddings/detail/weddingHeroActions'
 import { formatCurrency } from '@/lib/utils/currency'
 import styles from './WeddingDetailV2.module.css'
@@ -15,20 +16,6 @@ interface Props {
   forcePackageOpen?: boolean
   onEditPackage?: () => void
   onEditFinances?: () => void
-}
-
-function contractLifecycleLabel(status: ContractStatus): string {
-  switch (status) {
-    case 'generated':
-      return 'Wersja robocza'
-    case 'sent':
-      return 'Wysłana'
-    case 'signed':
-      return 'Podpisana'
-    case 'none':
-    default:
-      return 'Umowa nie została jeszcze wygenerowana'
-  }
 }
 
 /**
@@ -47,32 +34,22 @@ export function WeddingContractFinanceWorkspace({
 }: Props) {
   const [contentsOpen, setContentsOpen] = useState(Boolean(forcePackageOpen))
   const pkg = getPackageSummary(wedding)
+  const contractLifecycleDescription =
+    wedding.contract.status === 'none'
+      ? 'Umowa nie została jeszcze wygenerowana'
+      : 'Zapisane umowy dla tego ślubu'
 
   return (
     <div
       className={styles.contractWorkspace}
       data-testid="wedding-contract-finance"
     >
-      <section className={styles.surfaceSection} aria-labelledby="contract-title">
-        <div className={styles.surfaceHeader}>
-          <div>
-            <h2 id="contract-title" className={styles.sectionHeading}>
-              Umowa
-            </h2>
-            <p className={styles.contextMuted}>
-              {contractLifecycleLabel(wedding.contract.status)}
-            </p>
-          </div>
-          <Button
-            type="button"
-            variant="primary"
-            size="sm"
-            onClick={() => onAction('generate_contract')}
-          >
-            Generuj umowę
-          </Button>
-        </div>
-      </section>
+      <div aria-label={contractLifecycleDescription}>
+        <WeddingContractsModule
+          wedding={wedding}
+          onGenerate={() => onAction('generate_contract')}
+        />
+      </div>
 
       <section
         className={styles.surfaceSection}

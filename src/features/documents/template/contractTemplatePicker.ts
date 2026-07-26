@@ -1,9 +1,14 @@
 /**
  * Shared classification for the Generate Contract template picker.
  * Every template must be selectable, incomplete-with-reason, archived, or reported.
+ *
+ * Usability is delegated to isTemplateUsableForGeneration — the same rule as
+ * global Umowy cards / detail. Package/type matching only ranks, never hides.
  */
 
 import { parseSlotMap } from '@/features/documents/template/types'
+import { isTemplateUsableForGeneration } from './templateGenerationReadiness'
+import { automaticStatusFromTemplate } from './automaticTemplateReadiness'
 import type {
   DocumentTemplateStatus,
   DocumentTemplateSummary,
@@ -88,64 +93,21 @@ function diagnose(template: DocumentTemplateSummary): TemplatePickerDiagnosis {
   const boundSlotCount = boundCount(template)
   const required = requiredSlotCount(template)
   const detected = detectedSlotCount(template)
-  const bindingsReady = template.meta?.slotBindingsReady
-
-  const logBase = {
-    id: template.id,
-    name: template.name,
-    status: template.status,
-    isActive: template.status !== 'archived',
-    userId: template.userId,
-    organizationId: null,
-    packageType: template.category,
-    sourceFileType: template.sourceFileName?.split('.').pop() ?? null,
-    detectedSlotCount: detected,
-    requiredSlotCount: required,
-    boundSlots: boundSlotCount,
-    unresolvedRequiredSlots: unresolvedSlotCount,
-    createdAt: template.createdAt,
-    docType: template.docType,
-    variableCount: template.variableCount,
-    currentVersionId: template.currentVersionId,
-    sourceDocxPath: template.sourceDocxPath,
-    slotBindingsReady: bindingsReady ?? null,
-  }
+  const productStatus = automaticStatusFromTemplate(template)
 
   const finish = (
     bucket: TemplatePickerBucket,
     reason: string,
-  ): TemplatePickerDiagnosis => {
-    const result =
-      bucket === 'selectable'
-        ? 'INCLUDED'
-        : bucket === 'incomplete'
-          ? 'INCOMPLETE'
-          : bucket === 'archived'
-            ? 'ARCHIVED'
-            : 'EXCLUDED'
-    console.info('[contract-template-picker]', {
-      ...logBase,
-      result,
-      reason,
-    })
-    return {
-      template,
-      bucket,
-      reason,
-      unresolvedSlotCount,
-      boundSlotCount,
-      requiredSlotCount: required,
-      detectedSlotCount: detected,
-      hasSource,
-    }
-  }
-
-  if (template.summaryStale) {
-    return finish(
-      'incomplete',
-      'Persisted analysis summary is stale — requires explicit reanalysis (Wymaga ponownej analizy)',
-    )
-  }
+  ): TemplatePickerDiagnosis => ({
+    template,
+    bucket,
+    reason,
+    unresolvedSlotCount,
+    boundSlotCount,
+    requiredSlotCount: required,
+    detectedSlotCount: detected,
+    hasSource,
+  })
 
   if (template.status === 'archived') {
     return finish('archived', 'status is "archived"')
@@ -155,6 +117,13 @@ function diagnose(template: DocumentTemplateSummary): TemplatePickerDiagnosis {
     return finish(
       'other',
       `docType is "${template.docType}" (picker shows contracts only)`,
+    )
+  }
+
+  if (template.summaryStale) {
+    return finish(
+      'incomplete',
+      'Persisted analysis summary is stale — requires explicit reanalysis',
     )
   }
 
@@ -172,69 +141,39 @@ function diagnose(template: DocumentTemplateSummary): TemplatePickerDiagnosis {
     )
   }
 
-  if (template.status === 'needs_review') {
+  if (productStatus === 'error') {
+    return finish('incomplete', 'Błąd analizy — szablon nie może być użyty.')
+  }
+
+  if (productStatus === 'analyzing') {
+    return finish('incomplete', 'Szablon jest jeszcze analizowany.')
+  }
+
+  // Authoritative product rule — same as global "Gotowy".
+  // Does NOT require status===ready, slotBindingsReady, or generationReady.
+  if (isTemplateUsableForGeneration(template)) {
     return finish(
-      'incomplete',
-      template.meta?.analysisWarnings?.[0] ??
-        'status is "needs_review" — party identity or analysis completeness requires review',
+      'selectable',
+      productStatus === 'ready'
+        ? 'Szablon jest gotowy do generowania (isTemplateUsableForGeneration).'
+        : 'Szablon użyteczny mimo miękkich uwag generacyjnych (isTemplateUsableForGeneration).',
     )
   }
 
-  if (template.status === 'incomplete') {
+  if (
+    template.meta.fieldConfigurationStatus == null &&
+    !template.meta.fieldConfiguration &&
+    !template.aiAnalyzedAt
+  ) {
     return finish(
       'incomplete',
-      unresolvedSlotCount > 0
-        ? `status is "incomplete" because ${unresolvedSlotCount} required detected slot${
-            unresolvedSlotCount === 1 ? ' is' : 's are'
-          } unbound`
-        : 'status is "incomplete"',
-    )
-  }
-
-  if (template.status === 'draft') {
-    if (bindingsReady === true && boundSlotCount > 0) {
-      return finish(
-        'selectable',
-        'status is "draft" but slotBindingsReady=true — treating as selectable',
-      )
-    }
-    if (template.aiAnalyzedAt) {
-      return finish(
-        'incomplete',
-        bindingsReady === false
-          ? `status is "draft" after analysis; ${unresolvedSlotCount} required detected slots unbound`
-          : 'status is "draft" after analysis — not marked ready',
-      )
-    }
-    return finish('incomplete', 'status is "draft" (not analyzed yet)')
-  }
-
-  if (template.status !== 'ready') {
-    return finish(
-      'other',
-      `status is "${template.status}" (not ready/incomplete/draft/archived)`,
-    )
-  }
-
-  if (bindingsReady === false) {
-    return finish(
-      'incomplete',
-      unresolvedSlotCount > 0
-        ? `status is "ready" but ${unresolvedSlotCount} required detected slots are unbound`
-        : 'status is "ready" but meta.slotBindingsReady is false',
-    )
-  }
-
-  if (boundSlotCount <= 0 && detected <= 0) {
-    return finish(
-      'incomplete',
-      'status is "ready" but no bound slots / detected slots is 0',
+      'Szablon wymaga analizy przed generowaniem umowy.',
     )
   }
 
   return finish(
-    'selectable',
-    'status is "ready", source exists, required slots bound',
+    'incomplete',
+    'Szablon nie spełnia warunków użyteczności do generowania (isTemplateUsableForGeneration=false).',
   )
 }
 
@@ -245,53 +184,104 @@ function diagnose(template: DocumentTemplateSummary): TemplatePickerDiagnosis {
 export function classifyTemplatesForGeneration(
   templates: DocumentTemplateSummary[],
 ): TemplatePickerClassification {
-  console.info(
-    '[contract-template-picker] classifying',
-    templates.length,
-    'templates from query',
-  )
-
   const diagnoses = templates.map(diagnose)
   const selectable = diagnoses.filter((d) => d.bucket === 'selectable')
   const incomplete = diagnoses.filter((d) => d.bucket === 'incomplete')
   const archived = diagnoses.filter((d) => d.bucket === 'archived')
   const other = diagnoses.filter((d) => d.bucket === 'other')
 
-  console.info('[contract-template-picker] summary', {
-    selectable: selectable.length,
-    incomplete: incomplete.length,
-    archived: archived.length,
-    other: other.length,
-  })
-
   return { selectable, incomplete, archived, other, diagnoses }
 }
 
-/** Optional package/category recommendation — never hides templates. */
+export type TemplateRecommendationContext = {
+  packageName?: string | null
+  packageId?: string | null
+  /** foto | video | foto_video | other */
+  serviceType?: string | null
+}
+
+function scoreTemplateRecommendation(
+  template: DocumentTemplateSummary,
+  ctx: TemplateRecommendationContext,
+): number {
+  let score = 0
+  const packageId = ctx.packageId?.trim()
+  if (
+    packageId &&
+    template.meta.associatedPackageId &&
+    template.meta.associatedPackageId === packageId
+  ) {
+    score += 1000
+  }
+  const needle = ctx.packageName?.trim().toLowerCase()
+  const cat = template.category?.trim().toLowerCase() ?? ''
+  const name = template.name.trim().toLowerCase()
+  if (needle) {
+    if (cat && (needle.includes(cat) || cat.includes(needle))) score += 400
+    if (name.includes(needle) || needle.includes(name)) score += 200
+  }
+  const wanted = ctx.serviceType?.trim().toLowerCase()
+  const type = template.meta.templateServiceType
+  if (wanted && type) {
+    if (wanted === type) score += 300
+    else if (
+      (wanted === 'foto' || wanted === 'video') &&
+      type === 'foto_video'
+    ) {
+      score += 120
+    }
+  }
+  const updated = Date.parse(template.updatedAt)
+  if (Number.isFinite(updated)) {
+    score += Math.min(80, Math.floor((updated - 1_700_000_000_000) / 86_400_000))
+  }
+  score += Math.min(40, template.usageCount ?? 0)
+  return score
+}
+
+/**
+ * Rank selectable templates for a wedding.
+ * Order: exact package → type match → recently used → general.
+ * Never hides templates.
+ */
 export function splitRecommended(
   selectable: TemplatePickerDiagnosis[],
   weddingPackageName: string | null | undefined,
+  context?: TemplateRecommendationContext,
 ): {
   recommended: TemplatePickerDiagnosis[]
   other: TemplatePickerDiagnosis[]
 } {
-  const needle = weddingPackageName?.trim().toLowerCase()
-  if (!needle) {
-    return { recommended: [], other: selectable }
+  const ctx: TemplateRecommendationContext = {
+    packageName: context?.packageName ?? weddingPackageName,
+    packageId: context?.packageId ?? null,
+    serviceType: context?.serviceType ?? null,
   }
-  const recommended: TemplatePickerDiagnosis[] = []
-  const other: TemplatePickerDiagnosis[] = []
-  for (const row of selectable) {
-    const cat = row.template.category?.trim().toLowerCase() ?? ''
-    if (cat && (needle.includes(cat) || cat.includes(needle))) {
-      recommended.push(row)
-    } else {
-      other.push(row)
-    }
+  if (selectable.length === 0) {
+    return { recommended: [], other: [] }
   }
-  if (recommended.length === 0) {
-    return { recommended: [], other: selectable }
+  const ranked = [...selectable].sort(
+    (a, b) =>
+      scoreTemplateRecommendation(b.template, ctx) -
+      scoreTemplateRecommendation(a.template, ctx),
+  )
+  const hasSignal = Boolean(
+    ctx.packageId?.trim() ||
+      ctx.packageName?.trim() ||
+      ctx.serviceType?.trim(),
+  )
+  if (!hasSignal) {
+    return { recommended: [], other: ranked }
   }
+  const bestScore = scoreTemplateRecommendation(ranked[0]!.template, ctx)
+  if (bestScore < 100) {
+    return { recommended: [], other: ranked }
+  }
+  const recommended = ranked.filter(
+    (row) => scoreTemplateRecommendation(row.template, ctx) >= bestScore * 0.85,
+  )
+  const recommendedIds = new Set(recommended.map((r) => r.template.id))
+  const other = ranked.filter((row) => !recommendedIds.has(row.template.id))
   return { recommended, other }
 }
 

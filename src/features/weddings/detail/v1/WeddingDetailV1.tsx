@@ -15,6 +15,7 @@ import { ScheduleSection } from '@/features/weddings/components/ScheduleSection'
 import { EquipmentSection } from '@/features/weddings/components/EquipmentSection'
 import { NotesSection } from '@/features/weddings/components/NotesSection'
 import { DeliverablesSection } from '@/features/weddings/components/DeliverablesSection'
+import { WeddingContractsModule } from '@/features/weddings/components/detail/WeddingContractsModule'
 import type { WeddingDetailSharedProps } from '@/features/weddings/detail/v2/weddingDetailV2Types'
 import pageStyles from '@/pages/WeddingDetailPage.module.css'
 
@@ -69,6 +70,13 @@ export function WeddingDetailV1(props: WeddingDetailSharedProps) {
       <WeddingDetailCurrentStage wedding={wedding} />
 
       <WeddingCommercialSummaryCard wedding={wedding} />
+
+      {!editing ? (
+        <WeddingContractsModule
+          wedding={wedding}
+          onGenerate={() => onHeroAction('generate_contract')}
+        />
+      ) : null}
 
       <div className={pageStyles.row}>
         <WeddingDetailFinances

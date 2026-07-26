@@ -22,6 +22,7 @@ import {
   startDocumentsPerf,
 } from '@/features/documents/performance/documentsPerformance'
 import { isTemplateSummaryStale } from '@/features/documents/performance/analysisVersions'
+import { isTemplateUsableForGeneration } from '@/features/documents/template/templateGenerationReadiness'
 import type {
   DocumentBlockPayload,
   DocumentTemplate,
@@ -285,13 +286,7 @@ async function listGenerationReadyTemplateSummaries(): Promise<
   DocumentTemplateSummary[]
 > {
   const all = await listDocumentTemplateSummaries()
-  return all.filter(
-    (t) =>
-      t.docType === 'contract' &&
-      t.status !== 'archived' &&
-      t.generationReady &&
-      !t.summaryStale,
-  )
+  return all.filter((t) => isTemplateUsableForGeneration(t))
 }
 
 async function listTemplates(): Promise<DocumentTemplate[]> {

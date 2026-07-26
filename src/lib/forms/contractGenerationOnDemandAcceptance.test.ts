@@ -219,7 +219,10 @@ run('18. Template blockers remain in GenerateContractModal', () => {
   const src = readFileSync(generateModal, 'utf8')
   assert(src.includes('incomplete'), 'incomplete templates')
   assert(src.includes('Dokończ konfigurację'), 'template action')
-  assert(src.includes('classifyTemplatesForGeneration'), 'picker')
+  assert(
+    src.includes('WeddingContractGenerationService.selectTemplates'),
+    'shared picker service',
+  )
   assert(
     !src.includes('evaluateWeddingContractReadiness'),
     'no wedding readiness UI in modal',

@@ -3,8 +3,8 @@
  * Bump when list-visible readiness semantics change — never auto-reanalyze on load.
  */
 
-export const CONTRACT_ANALYSIS_VERSION = 'contract-analysis-v2'
-export const CONTRACT_READINESS_VERSION = 'contract-readiness-v2'
+export const CONTRACT_ANALYSIS_VERSION = 'contract-analysis-v3'
+export const CONTRACT_READINESS_VERSION = 'contract-readiness-v3'
 
 export function isTemplateSummaryStale(meta: {
   analysisVersion?: string | null

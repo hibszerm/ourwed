@@ -1,6 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
 import { documentTemplateService } from '@/lib/api/documents'
+import {
+  isTemplateUsableForGeneration,
+  type GenerationReadinessOptions,
+} from '@/features/documents/template/templateGenerationReadiness'
 import type {
   DocumentDocType,
   DocumentTemplateStatus,
@@ -47,7 +51,9 @@ export function useDocumentTemplates() {
 }
 
 /** Same cache as useDocumentTemplates — filters ready contracts client-side. */
-export function useGenerationReadyTemplates() {
+export function useGenerationReadyTemplates(
+  options: GenerationReadinessOptions = {},
+) {
   const query = useDocumentTemplates()
   return {
     ...query,
@@ -55,7 +61,7 @@ export function useGenerationReadyTemplates() {
       (t) =>
         t.docType === 'contract' &&
         t.status !== 'archived' &&
-        (t.generationReady || t.status === 'ready'),
+        isTemplateUsableForGeneration(t, options),
     ),
   }
 }

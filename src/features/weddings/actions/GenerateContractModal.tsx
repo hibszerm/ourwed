@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps, react-hooks/set-state-in-effect */
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/Button'
@@ -5,21 +6,19 @@ import { Modal } from '@/components/ui/Modal'
 import { useToast } from '@/components/ui/Toast'
 import {
   applyDocxParagraphEdits,
-  buildContractCompletenessReport,
   paragraphsToPrintHtml,
   printHtmlAsPdf,
   saveGeneratedContract,
-  transformContract,
-  type CompletenessField,
-  type ContractCompletenessReport,
   type DocxParagraph,
   type TransformContractResult,
 } from '@/features/documents/template'
+import { PDF_EXPORT_UNAVAILABLE_MESSAGE } from '@/features/documents/template/ContractExportService'
+import type { TemplatePickerDiagnosis } from '@/features/documents/template/contractTemplatePicker'
 import {
-  classifyTemplatesForGeneration,
-  splitRecommended,
-  type TemplatePickerDiagnosis,
-} from '@/features/documents/template/contractTemplatePicker'
+  WeddingContractGenerationService,
+  buildGenerationReviewState,
+  type ConfiguredContractCompletenessReport,
+} from '@/features/documents/template/WeddingContractGenerationService'
 import { useDocumentTemplates } from '@/features/documents/hooks/useDocumentTemplates'
 import { startDocumentsPerf } from '@/features/documents/performance/documentsPerformance'
 import { useInvalidateWedding } from '@/features/weddings/hooks/useInvalidateWedding'
@@ -62,16 +61,17 @@ export function GenerateContractModal({
     isFetching: templatesFetching,
   } = useDocumentTemplates()
 
-  const classification = useMemo(
-    () => classifyTemplatesForGeneration(templates),
-    [templates],
-  )
-
-  const { recommended, other: otherSelectable } = useMemo(
+  const selection = useMemo(
     () =>
-      splitRecommended(classification.selectable, wedding.packageName ?? null),
-    [classification.selectable, wedding.packageName],
+      WeddingContractGenerationService.selectTemplates(
+        templates,
+        wedding.packageName,
+      ),
+    [templates, wedding.packageName],
   )
+  const classification = selection.classification
+  const recommended = selection.recommended
+  const otherSelectable = selection.alternatives
 
   const [step, setStep] = useState<Step>('template')
   const [busy, setBusy] = useState(false)
@@ -79,9 +79,9 @@ export function GenerateContractModal({
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(
     null,
   )
-  const [report, setReport] = useState<ContractCompletenessReport | null>(null)
+  const [report, setReport] =
+    useState<ConfiguredContractCompletenessReport | null>(null)
   const [overrides, setOverrides] = useState<Record<string, string>>({})
-  const [omitted, setOmitted] = useState<Record<string, boolean>>({})
   const [generated, setGenerated] = useState<TransformContractResult | null>(
     null,
   )
@@ -91,12 +91,13 @@ export function GenerateContractModal({
   >([])
   const [docxBytes, setDocxBytes] = useState<ArrayBuffer | null>(null)
   const [docxUrl, setDocxUrl] = useState<string | null>(null)
-  const [pdfUrl, setPdfUrl] = useState<string | null>(null)
   const [summaryPanelOpen, setSummaryPanelOpen] = useState(true)
   /** Created once per modal open / generation attempt — preview + export share it. */
   const [generationStartedAt, setGenerationStartedAt] = useState<Date | null>(
     null,
   )
+  const effectiveTemplateId =
+    selectedTemplateId ?? selection.preselectedTemplateId
 
   useEffect(() => {
     if (!open) return
@@ -108,13 +109,11 @@ export function GenerateContractModal({
     setSelectedTemplateId(null)
     setReport(null)
     setOverrides({})
-    setOmitted({})
     setGenerated(null)
     setParagraphs([])
     setBaselineParagraphs([])
     setDocxBytes(null)
     setDocxUrl(null)
-    setPdfUrl(null)
     setSummaryPanelOpen(true)
     setGenerationStartedAt(new Date())
     // Use shared React Query cache — do not invalidate or refetch on every open.
@@ -166,22 +165,25 @@ export function GenerateContractModal({
   }
 
   async function runGenerate(input: {
-    templateId: string
     overrides: Record<string, string>
-    omittedKeys: string[]
-    questionnaireAnswers?: Record<string, string>
   }) {
     const startedAt = generationStartedAt ?? new Date()
     if (!generationStartedAt) setGenerationStartedAt(startedAt)
 
-    const filled = await transformContract({
+    if (!report) throw new Error('Najpierw sprawdź dane umowy.')
+    const attempt = await WeddingContractGenerationService.generate({
       wedding,
-      templateId: input.templateId,
+      report,
       overrides: input.overrides,
-      omittedKeys: input.omittedKeys,
-      questionnaireAnswers: input.questionnaireAnswers,
       generationDate: startedAt,
     })
+    if (attempt.status === 'needs_review') {
+      throw new Error(
+        attempt.reviewStatePatch.contextualMessages.join('\n') ||
+          'Uzupełnij wymagane dane przed generowaniem.',
+      )
+    }
+    const filled = attempt.artifact
     setGenerated(filled)
     setDocxBytes(filled.docxBytes)
     const nextParas = filled.paragraphs.map((p) => ({ ...p }))
@@ -198,22 +200,16 @@ export function GenerateContractModal({
       const startedAt = generationStartedAt ?? new Date()
       if (!generationStartedAt) setGenerationStartedAt(startedAt)
 
-      const next = await buildContractCompletenessReport({
+      const next = await WeddingContractGenerationService.prepareVerification({
         wedding,
         templateId,
+        overrides,
         generationStartedAt: startedAt,
       })
       setReport(next)
-      setOverrides({})
-      setOmitted({})
 
       if (next.allComplete) {
-        await runGenerate({
-          templateId,
-          overrides: {},
-          omittedKeys: [],
-          questionnaireAnswers: next.questionnaireAnswers,
-        })
+        setStep('completeness')
       } else {
         setStep('completeness')
       }
@@ -233,35 +229,45 @@ export function GenerateContractModal({
     setBusy(true)
     setError(null)
     try {
-      const omittedKeys = Object.entries(omitted)
-        .filter(([, v]) => v)
-        .map(([k]) => k)
-
-      for (const field of report.missing) {
-        if (omitted[field.registryKey]) continue
-        const value = overrides[field.registryKey]?.trim() ?? ''
-        if (!value) {
-          throw new Error(`Uzupełnij lub pomiń pole: ${field.label}`)
+      const review = buildGenerationReviewState({
+        report,
+        overrides,
+      })
+      if (!review.generationAllowed) {
+        if (review.editableMissingFields.length > 0) {
+          throw new Error('Uzupełnij brakujące pola poniżej i spróbuj ponownie.')
         }
+        throw new Error(
+          review.blockingUserInputs.map((item) => item.message).join('\n') ||
+            'Uzupełnij wymagane odpowiedzi i spróbuj ponownie.',
+        )
       }
 
       await runGenerate({
-        templateId: selectedTemplateId,
         overrides,
-        omittedKeys,
-        questionnaireAnswers: report.questionnaireAnswers,
       })
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : 'Nie udało się wygenerować umowy.',
-      )
+      const raw =
+        err instanceof Error ? err.message : 'Nie udało się wygenerować umowy.'
+      const review = report
+        ? buildGenerationReviewState({ report, overrides })
+        : null
+      if (
+        review &&
+        review.editableMissingFields.length === 0 &&
+        /brakujące pola poniżej/i.test(raw)
+      ) {
+        setError('Nie udało się wygenerować umowy. Spróbuj ponownie.')
+      } else {
+        setError(raw)
+      }
     } finally {
       setBusy(false)
     }
   }
 
-  async function persistGenerated(includePdf: boolean) {
-    if (!generated || !docxBytes) return
+  async function persistGenerated() {
+    if (!generated || !docxBytes || !report) return
     setBusy(true)
     setError(null)
     try {
@@ -272,15 +278,30 @@ export function GenerateContractModal({
       setDocxBytes(edited)
 
       const saved = await saveGeneratedContract({
-        weddingId: wedding.id,
+        wedding,
         draftId: generated.draftId,
         templateId: generated.templateId,
         templateVersionId: generated.templateVersionId,
-        versionNumber: generated.versionNumber,
         title: generated.title,
         docxBytes: edited,
-        includePdf,
-        executionSnapshot: generated.executionSnapshot,
+        packageSnapshot: report.packageSnapshot,
+        manualOverrides: overrides,
+        resolvedValues: generated.resolved,
+        omittedKeys: generated.omittedKeys,
+        templateMeta: templates.find((item) => item.id === generated.templateId)?.meta,
+        executionSnapshot: generated.executionSnapshot
+          ? {
+              contractExecutionDate:
+                generated.executionSnapshot.contractExecutionDate ?? null,
+              contractExecutionCity:
+                generated.executionSnapshot.contractExecutionCity ?? null,
+            }
+          : null,
+        auditSummary: {
+          browserEditsApplied: true,
+          qualityRetries: generated.qualityRetries,
+          usedMock: generated.usedMock,
+        },
       })
 
       await weddingActionsService.markContractGenerated(wedding.id, {
@@ -290,13 +311,9 @@ export function GenerateContractModal({
       await invalidate(wedding.id)
 
       setDocxUrl(saved.docxDownloadUrl)
-      setPdfUrl(saved.pdfDownloadUrl)
       setBaselineParagraphs(paragraphs.map((p) => ({ ...p })))
       setStep('saved')
-      showToast(
-        includePdf ? 'Umowa zapisana (DOCX + PDF).' : 'Umowa zapisana (DOCX).',
-        'success',
-      )
+      showToast('Umowa zapisana (DOCX).', 'success')
     } catch (err) {
       setError(
         err instanceof Error ? err.message : 'Nie udało się zapisać umowy.',
@@ -341,9 +358,9 @@ export function GenerateContractModal({
         <Button
           type="button"
           variant="primary"
-          disabled={busy || !selectedTemplateId}
+          disabled={busy || !effectiveTemplateId}
           onClick={() => {
-            if (selectedTemplateId) void afterTemplateSelected(selectedTemplateId)
+            if (effectiveTemplateId) void afterTemplateSelected(effectiveTemplateId)
           }}
         >
           {busy ? 'Przygotowywanie…' : 'Dalej'}
@@ -368,9 +385,9 @@ export function GenerateContractModal({
           type="button"
           variant="primary"
           disabled={busy}
-          onClick={() => void persistGenerated(true)}
+          onClick={() => void persistGenerated()}
         >
-          {busy ? 'Zapisywanie…' : 'Zapisz DOCX i PDF'}
+          {busy ? 'Zapisywanie…' : 'Zapisz DOCX'}
         </Button>
       )
     }
@@ -381,15 +398,14 @@ export function GenerateContractModal({
     )
   })()
 
-  const secondaryAction =
-    step === 'editor' ? (
+  const secondaryAction = step === 'editor' ? (
       <Button
         type="button"
         variant="secondary"
-        disabled={busy}
-        onClick={() => void persistGenerated(false)}
+        disabled
+        title={PDF_EXPORT_UNAVAILABLE_MESSAGE}
       >
-        Zapisz tylko DOCX
+        PDF niedostępny
       </Button>
     ) : undefined
 
@@ -440,7 +456,7 @@ export function GenerateContractModal({
           recommended={recommended}
           otherSelectable={otherSelectable}
           incomplete={classification.incomplete}
-          selectedId={selectedTemplateId}
+          selectedId={effectiveTemplateId}
           onSelect={setSelectedTemplateId}
           onReanalyze={(id) => {
             onClose()
@@ -453,12 +469,8 @@ export function GenerateContractModal({
         <CompletenessStep
           report={report}
           overrides={overrides}
-          omitted={omitted}
           onOverride={(key, value) =>
             setOverrides((prev) => ({ ...prev, [key]: value }))
-          }
-          onOmit={(key, value) =>
-            setOmitted((prev) => ({ ...prev, [key]: value }))
           }
         />
       ) : null}
@@ -492,7 +504,6 @@ export function GenerateContractModal({
       {step === 'saved' ? (
         <SavedStep
           docxUrl={docxUrl}
-          pdfUrl={pdfUrl}
           onPrintPdf={handlePrintPdf}
         />
       ) : null}
@@ -592,12 +603,8 @@ function TemplatePicker({
                     {row.template.name}
                   </span>
                   <span className={styles.templateMeta}>
-                    Status: {row.template.status}
-                    {row.unresolvedSlotCount > 0
-                      ? ` · ${row.unresolvedSlotCount} wymaganych bez powiązania`
-                      : ''}
+                    Wymaga dokończenia przygotowania
                   </span>
-                  <span className={styles.templateMeta}>{row.reason}</span>
                 </div>
                 <Button
                   type="button"
@@ -664,114 +671,67 @@ function SelectableList({
 function CompletenessStep({
   report,
   overrides,
-  omitted,
   onOverride,
-  onOmit,
 }: {
-  report: ContractCompletenessReport
+  report: ConfiguredContractCompletenessReport
   overrides: Record<string, string>
-  omitted: Record<string, boolean>
   onOverride: (key: string, value: string) => void
-  onOmit: (key: string, value: boolean) => void
 }) {
-  const resolvedCount = report.fields.length - report.missing.length
+  const review = buildGenerationReviewState({ report, overrides })
+  const resolved = review.resolvedValues
+  const missing = review.editableMissingFields
 
   return (
     <div className={styles.completeness}>
-      <p className={styles.ok}>
-        Automatycznie uzupełniono {resolvedCount} z {report.fields.length}{' '}
-        zmiennych z OurWed.
-      </p>
-
-      {report.fields.length > 0 ? (
-        <div className={styles.tableWrap}>
-          <table className={styles.varTable}>
-            <thead>
-              <tr>
-                <th>Zmienna</th>
-                <th>Źródło</th>
-                <th>Status</th>
-                <th>Wartość</th>
-              </tr>
-            </thead>
-            <tbody>
-              {report.fields.map((field) => (
-                <VariableRow
-                  key={field.slotId}
-                  field={field}
-                  override={overrides[field.registryKey] ?? ''}
-                  omit={Boolean(omitted[field.registryKey])}
-                  onOverride={onOverride}
-                  onOmit={onOmit}
-                />
-              ))}
-            </tbody>
-          </table>
+      {resolved.length > 0 ? (
+        <div>
+          <h3 className={styles.pickerHeading}>Uzupełnione ze zlecenia</h3>
+          <ul className={styles.incompleteList}>
+            {resolved.map((field) => (
+              <li key={field.slotId} className={styles.incompleteItem}>
+                <div>
+                  <span className={styles.templateName}>{field.label}</span>
+                  <span className={styles.templateMeta}>
+                    {overrides[field.registryKey]?.trim() || field.value}
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ul>
         </div>
       ) : null}
+
+      {missing.length > 0 ? (
+        <div>
+          <h3 className={styles.pickerHeading}>Brakuje</h3>
+          <div className={styles.tableWrap}>
+            {missing.map((field) => (
+              <label key={field.slotId} className={styles.fieldBlock}>
+                <span className={styles.templateName}>{field.label}</span>
+                <input
+                  className={styles.missingInput}
+                  type="text"
+                  value={overrides[field.registryKey] ?? ''}
+                  onChange={(e) => onOverride(field.registryKey, e.target.value)}
+                  placeholder={field.label}
+                  aria-label={field.label}
+                />
+              </label>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <p className={styles.ok}>Wszystkie potrzebne dane są uzupełnione.</p>
+      )}
     </div>
-  )
-}
-
-function VariableRow({
-  field,
-  override,
-  omit,
-  onOverride,
-  onOmit,
-}: {
-  field: CompletenessField
-  override: string
-  omit: boolean
-  onOverride: (key: string, value: string) => void
-  onOmit: (key: string, value: boolean) => void
-}) {
-  if (!field.missing) {
-    return (
-      <tr>
-        <td>{field.label}</td>
-        <td>{field.sourceLabel}</td>
-        <td className={styles.statusOk}>✓</td>
-        <td>{field.value}</td>
-      </tr>
-    )
-  }
-
-  return (
-    <tr className={styles.rowMissing}>
-      <td>{field.label}</td>
-      <td>{field.sourceLabel}</td>
-      <td>Brak</td>
-      <td>
-        <input
-          className={styles.missingInput}
-          type="text"
-          value={override}
-          disabled={omit}
-          onChange={(e) => onOverride(field.registryKey, e.target.value)}
-          placeholder="Wpisz wartość"
-          aria-label={field.label}
-        />
-        <label className={styles.omitLabel}>
-          <input
-            type="checkbox"
-            checked={omit}
-            onChange={(e) => onOmit(field.registryKey, e.target.checked)}
-          />
-          Pomiń
-        </label>
-      </td>
-    </tr>
   )
 }
 
 function SavedStep({
   docxUrl,
-  pdfUrl,
   onPrintPdf,
 }: {
   docxUrl: string | null
-  pdfUrl: string | null
   onPrintPdf: () => void
 }) {
   return (
@@ -790,17 +750,9 @@ function SavedStep({
           </Button>
         ) : null}
         <Button type="button" variant="secondary" onClick={onPrintPdf}>
-          Drukuj / Zapisz PDF
+          Drukuj (starsza funkcja)
         </Button>
-        {pdfUrl ? (
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => window.open(pdfUrl, '_blank', 'noopener,noreferrer')}
-          >
-            Otwórz podgląd HTML
-          </Button>
-        ) : null}
+        <span className={styles.muted}>{PDF_EXPORT_UNAVAILABLE_MESSAGE}</span>
       </div>
     </div>
   )

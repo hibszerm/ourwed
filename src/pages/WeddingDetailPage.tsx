@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -289,7 +290,7 @@ export function WeddingDetailPage() {
         setModal({ type: 'missing_contract_data' })
         return
       }
-      setModal({ type: 'contract' })
+      navigate(`/sluby/${wedding.id}/umowy/nowa`)
     } catch (err) {
       showToast(
         err instanceof Error

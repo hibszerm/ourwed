@@ -2,7 +2,7 @@
  * Completeness report — VariableResolver only; UI asks solely for unresolved keys.
  */
 
-import { documentTemplateService } from '@/lib/api/documents'
+import { documentStorage, documentTemplateService } from '@/lib/api/documents'
 import { SystemVariableRegistry } from '@/lib/variables/registry'
 import type { PackageSnapshot } from '@/types/documents'
 import type { Wedding } from '@/types/wedding'
@@ -14,6 +14,12 @@ import {
 import {
   isSystemAutoResolvedContractKey,
 } from './contractExecutionContext'
+import { extractDocxParagraphsIncludingEmpty } from './extractDocxParagraphs'
+import {
+  collapseCompletenessFieldsByRegistryKey,
+  logLogicalFieldModel,
+  normalizeSlotMap,
+} from './logicalContractFields'
 import { parseSlotMap, type TemplateSlot, type TemplateSlotMap } from './types'
 
 export type CompletenessGroupId =
@@ -32,6 +38,8 @@ export interface CompletenessField {
   missing: boolean
   source: VariableDataSource
   sourceLabel: string
+  /** Optional input placeholder for generation review. */
+  placeholder?: string
 }
 
 export interface CompletenessGroup {
@@ -48,6 +56,8 @@ export interface ContractCompletenessReport {
   resolved: Record<string, string>
   packageSnapshot: PackageSnapshot
   questionnaireAnswers: Record<string, string>
+  /** Canonical source paragraphs from the active template version (for preflight). */
+  sourceParagraphs: Array<{ index: number; text: string }>
   groups: CompletenessGroup[]
   /** All template variables with resolution status. */
   fields: CompletenessField[]
@@ -110,6 +120,8 @@ export { weddingValuesFromWedding } from './resolveContractVariables'
 export async function buildContractCompletenessReport(input: {
   wedding: Wedding
   templateId: string
+  /** Prefer the package-pinned version when present (same as generation). */
+  templateVersionId?: string | null
   questionnaireAnswers?: Record<string, string>
   packageSnapshot?: PackageSnapshot
   overrides?: Record<string, string>
@@ -119,13 +131,15 @@ export async function buildContractCompletenessReport(input: {
   const template = await documentTemplateService.get(input.templateId)
   if (!template) throw new Error('Nie znaleziono szablonu umowy.')
 
-  const versionId = template.currentVersionId
+  const versionId = input.templateVersionId ?? template.currentVersionId
   if (!versionId) throw new Error('Szablon nie ma aktywnej wersji.')
 
   const version = await documentTemplateService.getVersion(versionId)
   if (!version) throw new Error('Nie znaleziono wersji szablonu.')
 
-  const slotMap = parseSlotMap(version.slotMap)
+  // Authoritative persisted bindings only — same set generation must consume.
+  const slotMap = normalizeSlotMap(parseSlotMap(version.slotMap))
+  logLogicalFieldModel('completeness-persisted', slotMap.slots)
 
   const ctx = await resolveContractVariables({
     wedding: input.wedding,
@@ -138,22 +152,26 @@ export async function buildContractCompletenessReport(input: {
     (s) => s.enabled && Boolean(s.registryKey),
   )
 
-  const fields: CompletenessField[] = enabledSlots.map((slot) => {
-    const registryKey = slot.registryKey!
-    const meta = ctx.lookup(registryKey)
-    const systemAuto = isSystemAutoResolvedContractKey(registryKey)
-    return {
-      slotId: slot.id,
-      registryKey,
-      label: labelForSlot(slot),
-      group: groupForSlot(slot),
-      value: meta.value,
-      // System auto values are never manual-required, even if empty (technical error later)
-      missing: systemAuto ? false : meta.missing,
-      source: systemAuto ? 'system' : meta.source,
-      sourceLabel: sourceLabel(systemAuto ? 'system' : meta.source),
-    }
-  })
+  // One CompletenessField per physical slot first, then collapse to one logical
+  // row per registryKey (N physical bindings remain on slotMap for the renderer).
+  const fields: CompletenessField[] = collapseCompletenessFieldsByRegistryKey(
+    enabledSlots.map((slot) => {
+      const registryKey = slot.registryKey!
+      const meta = ctx.lookup(registryKey)
+      const systemAuto = isSystemAutoResolvedContractKey(registryKey)
+      return {
+        slotId: slot.id,
+        registryKey,
+        label: labelForSlot(slot),
+        group: groupForSlot(slot),
+        value: meta.value,
+        // System auto values are never manual-required, even if empty (technical error later)
+        missing: systemAuto ? false : meta.missing,
+        source: systemAuto ? 'system' : meta.source,
+        sourceLabel: sourceLabel(systemAuto ? 'system' : meta.source),
+      }
+    }),
+  )
 
   const order: CompletenessGroupId[] = [
     'company',
@@ -177,21 +195,55 @@ export async function buildContractCompletenessReport(input: {
 
   const missing = fields.filter((f) => f.missing)
 
-  console.info('[contract-execution-date-resolution]', {
-    phase: 'completeness',
-    generationStartedAt: ctx.generationStartedAt.toISOString(),
-    resolvedShort: ctx.resolved.contract_execution_date ?? null,
-    resolvedLong: ctx.resolved.contract_execution_date_long ?? null,
-    includedInManualFields: fields.some(
-      (f) =>
-        isSystemAutoResolvedContractKey(f.registryKey) &&
-        f.missing,
-    ),
-    includedInMissingVariables: missing.some((f) =>
-      isSystemAutoResolvedContractKey(f.registryKey),
-    ),
-    source: 'generation_context',
-  })
+  let sourceParagraphs: Array<{ index: number; text: string }> = []
+  if (version.sourceDocxPath) {
+    try {
+      const bytes = await documentStorage.download(version.sourceDocxPath)
+      const paras = await extractDocxParagraphsIncludingEmpty(bytes)
+      sourceParagraphs = paras.map((p) => ({ index: p.index, text: p.text }))
+    } catch {
+      sourceParagraphs = []
+    }
+  }
+  // Fallback: reconstruct prose cues from bound slots when DOCX download fails.
+  if (sourceParagraphs.length === 0) {
+    const byIndex = new Map<number, string>()
+    for (const slot of slotMap.slots) {
+      if (slot.paragraphIndex == null) continue
+      const cue =
+        slot.sampleContext?.trim() ||
+        (slot.originalText
+          ? `${slot.leftAnchor ?? ''}${slot.originalText}${slot.rightAnchor ?? ''}`
+          : '')
+      if (!cue) continue
+      const prev = byIndex.get(slot.paragraphIndex) ?? ''
+      if (cue.length > prev.length) byIndex.set(slot.paragraphIndex, cue)
+    }
+    sourceParagraphs = [...byIndex.entries()]
+      .sort((a, b) => a[0] - b[0])
+      .map(([index, text]) => ({ index, text }))
+  }
+
+  const DEV =
+    typeof import.meta !== 'undefined' &&
+    Boolean((import.meta as ImportMeta & { env?: { DEV?: boolean } }).env?.DEV)
+  if (DEV) {
+    console.info('[contract-execution-date-resolution]', {
+      phase: 'completeness',
+      generationStartedAt: ctx.generationStartedAt.toISOString(),
+      resolvedShort: ctx.resolved.contract_execution_date ?? null,
+      resolvedLong: ctx.resolved.contract_execution_date_long ?? null,
+      includedInManualFields: fields.some(
+        (f) =>
+          isSystemAutoResolvedContractKey(f.registryKey) &&
+          f.missing,
+      ),
+      includedInMissingVariables: missing.some((f) =>
+        isSystemAutoResolvedContractKey(f.registryKey),
+      ),
+      source: 'generation_context',
+    })
+  }
 
   return {
     templateId: template.id,
@@ -200,6 +252,7 @@ export async function buildContractCompletenessReport(input: {
     resolved: ctx.resolved,
     packageSnapshot: input.packageSnapshot ?? ctx.packageSnapshot,
     questionnaireAnswers: ctx.questionnaireAnswers,
+    sourceParagraphs,
     groups,
     fields,
     missing,

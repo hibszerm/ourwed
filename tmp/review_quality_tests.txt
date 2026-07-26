@@ -1,0 +1,902 @@
+npm warn Unknown env config "devdir". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+
+> ourwed@0.0.0 test:review-quality-trace
+> npx tsx --tsconfig tsconfig.app.json src/features/documents/template/reviewQualityTraceRegression.test.ts
+
+npm warn Unknown env config "devdir". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+FAIL  A — input does not disappear on first keystroke (committed vs draft)
+Cannot read properties of undefined (reading 'fields')
+PASS  B — one-letter address fails validation
+PASS  C — invalid field remains visible (page keeps errors + drafts)
+FAIL  D — valid committed address resolves the review issue
+Cannot read properties of undefined (reading 'fields')
+[contract-resolve] {
+  registryKey: 'groom_address',
+  resolvedValue: 'd',
+  omitted: false,
+  paragraphIndex: 0,
+  operation: 'replace',
+  storedOriginalText: 'ul. Świętego Tomasza 35/2A, 31-027 Kraków'
+}
+[contract-replacement-trace] {
+  bindingId: 'slot-groom_address-0-20-61',
+  key: 'groom_address',
+  paragraphIndex: 0,
+  originalStart: 20,
+  originalEnd: 61,
+  locatedOriginalSpan: 'ul. Świętego Tomasza 35/2A, 31-027 Kraków',
+  generatedReplacementValue: 'd',
+  generatedStart: 20,
+  generatedEnd: 21,
+  maskingStrategy: 'apply_pass_trace'
+}
+[contract-apply-order] {
+  paragraphIndex: 0,
+  beforeSort: [
+    {
+      id: 'slot-groom_address-0-20-61',
+      registryKey: 'groom_address',
+      startOffset: 20,
+      endOffset: 61,
+      originalSpan: 'ul. Świętego Tomasza 35/2A, 31-027 Kraków'
+    }
+  ],
+  afterSort: [
+    {
+      id: 'slot-groom_address-0-20-61',
+      registryKey: 'groom_address',
+      start: 20,
+      end: 61,
+      ownedSpan: 'ul. Świętego Tomasza 35/2A, 31-027 Kraków',
+      replacement: 'd'
+    }
+  ],
+  applyOrder: [ 'groom_address' ],
+  replacementTraces: [
+    {
+      bindingId: 'slot-groom_address-0-20-61',
+      key: 'groom_address',
+      paragraphIndex: 0,
+      originalStart: 20,
+      originalEnd: 61,
+      generatedStart: 20,
+      generatedEnd: 21,
+      originalValue: 'ul. Świętego Tomasza 35/2A, 31-027 Kraków',
+      replacementValue: 'd'
+    }
+  ]
+}
+[contract-quality-mask] {
+  strategy: 'replacement_trace',
+  registryKey: 'groom_address',
+  paragraphIndex: 0,
+  originalStart: 20,
+  originalEnd: 61,
+  generatedStart: 20,
+  generatedEnd: 21,
+  originalSlice: 'ul. Świętego Tomasza 35/2A, 31-027 Kraków',
+  generatedSlice: 'd'
+}
+[contract-quality-mask] {
+  strategy: 'skipped_no_trace_no_anchors',
+  registryKey: 'groom_address',
+  paragraphIndex: 0,
+  rendered: 'd',
+  originalStart: 20,
+  originalEnd: 61
+}
+PASS  E+F — generated value “d” does not match “d” in “adres”; trace exact
+[contract-resolve] {
+  registryKey: 'a',
+  resolvedValue: 'X',
+  omitted: false,
+  paragraphIndex: 0,
+  operation: 'replace',
+  storedOriginalText: 'OLDONE'
+}
+[contract-resolve] {
+  registryKey: 'b',
+  resolvedValue: 'YY',
+  omitted: false,
+  paragraphIndex: 0,
+  operation: 'replace',
+  storedOriginalText: 'OLDTWO'
+}
+[contract-replacement-trace] {
+  bindingId: 'slot-a-0-4-10',
+  key: 'a',
+  paragraphIndex: 0,
+  originalStart: 4,
+  originalEnd: 10,
+  locatedOriginalSpan: 'OLDONE',
+  generatedReplacementValue: 'X',
+  generatedStart: 4,
+  generatedEnd: 5,
+  maskingStrategy: 'apply_pass_trace'
+}
+[contract-replacement-trace] {
+  bindingId: 'slot-b-0-15-21',
+  key: 'b',
+  paragraphIndex: 0,
+  originalStart: 15,
+  originalEnd: 21,
+  locatedOriginalSpan: 'OLDTWO',
+  generatedReplacementValue: 'YY',
+  generatedStart: 10,
+  generatedEnd: 12,
+  maskingStrategy: 'apply_pass_trace'
+}
+[contract-apply-order] {
+  paragraphIndex: 0,
+  beforeSort: [
+    {
+      id: 'slot-a-0-4-10',
+      registryKey: 'a',
+      startOffset: 4,
+      endOffset: 10,
+      originalSpan: 'OLDONE'
+    },
+    {
+      id: 'slot-b-0-15-21',
+      registryKey: 'b',
+      startOffset: 15,
+      endOffset: 21,
+      originalSpan: 'OLDTWO'
+    }
+  ],
+  afterSort: [
+    {
+      id: 'slot-b-0-15-21',
+      registryKey: 'b',
+      start: 15,
+      end: 21,
+      ownedSpan: 'OLDTWO',
+      replacement: 'YY'
+    },
+    {
+      id: 'slot-a-0-4-10',
+      registryKey: 'a',
+      start: 4,
+      end: 10,
+      ownedSpan: 'OLDONE',
+      replacement: 'X'
+    }
+  ],
+  applyOrder: [ 'b', 'a' ],
+  replacementTraces: [
+    {
+      bindingId: 'slot-a-0-4-10',
+      key: 'a',
+      paragraphIndex: 0,
+      originalStart: 4,
+      originalEnd: 10,
+      generatedStart: 4,
+      generatedEnd: 5,
+      originalValue: 'OLDONE',
+      replacementValue: 'X'
+    },
+    {
+      bindingId: 'slot-b-0-15-21',
+      key: 'b',
+      paragraphIndex: 0,
+      originalStart: 15,
+      originalEnd: 21,
+      generatedStart: 10,
+      generatedEnd: 12,
+      originalValue: 'OLDTWO',
+      replacementValue: 'YY'
+    }
+  ]
+}
+PASS  G — shorter replacement updates following generated offsets
+[contract-resolve] {
+  registryKey: 'a',
+  resolvedValue: 'VERYLONG',
+  omitted: false,
+  paragraphIndex: 0,
+  operation: 'replace',
+  storedOriginalText: 'OLD'
+}
+[contract-resolve] {
+  registryKey: 'b',
+  resolvedValue: 'ZZ',
+  omitted: false,
+  paragraphIndex: 0,
+  operation: 'replace',
+  storedOriginalText: 'END'
+}
+[contract-replacement-trace] {
+  bindingId: 'slot-a-0-4-7',
+  key: 'a',
+  paragraphIndex: 0,
+  originalStart: 4,
+  originalEnd: 7,
+  locatedOriginalSpan: 'OLD',
+  generatedReplacementValue: 'VERYLONG',
+  generatedStart: 4,
+  generatedEnd: 12,
+  maskingStrategy: 'apply_pass_trace'
+}
+[contract-replacement-trace] {
+  bindingId: 'slot-b-0-12-15',
+  key: 'b',
+  paragraphIndex: 0,
+  originalStart: 12,
+  originalEnd: 15,
+  locatedOriginalSpan: 'END',
+  generatedReplacementValue: 'ZZ',
+  generatedStart: 17,
+  generatedEnd: 19,
+  maskingStrategy: 'apply_pass_trace'
+}
+[contract-apply-order] {
+  paragraphIndex: 0,
+  beforeSort: [
+    {
+      id: 'slot-a-0-4-7',
+      registryKey: 'a',
+      startOffset: 4,
+      endOffset: 7,
+      originalSpan: 'OLD'
+    },
+    {
+      id: 'slot-b-0-12-15',
+      registryKey: 'b',
+      startOffset: 12,
+      endOffset: 15,
+      originalSpan: 'END'
+    }
+  ],
+  afterSort: [
+    {
+      id: 'slot-b-0-12-15',
+      registryKey: 'b',
+      start: 12,
+      end: 15,
+      ownedSpan: 'END',
+      replacement: 'ZZ'
+    },
+    {
+      id: 'slot-a-0-4-7',
+      registryKey: 'a',
+      start: 4,
+      end: 7,
+      ownedSpan: 'OLD',
+      replacement: 'VERYLONG'
+    }
+  ],
+  applyOrder: [ 'b', 'a' ],
+  replacementTraces: [
+    {
+      bindingId: 'slot-a-0-4-7',
+      key: 'a',
+      paragraphIndex: 0,
+      originalStart: 4,
+      originalEnd: 7,
+      generatedStart: 4,
+      generatedEnd: 12,
+      originalValue: 'OLD',
+      replacementValue: 'VERYLONG'
+    },
+    {
+      bindingId: 'slot-b-0-12-15',
+      key: 'b',
+      paragraphIndex: 0,
+      originalStart: 12,
+      originalEnd: 15,
+      generatedStart: 17,
+      generatedEnd: 19,
+      originalValue: 'END',
+      replacementValue: 'ZZ'
+    }
+  ]
+}
+PASS  H — longer replacement updates following generated offsets
+[contract-resolve] {
+  registryKey: 'loc_a',
+  resolvedValue: 'SAME',
+  omitted: false,
+  paragraphIndex: 0,
+  operation: 'replace',
+  storedOriginalText: 'PLACE'
+}
+[contract-resolve] {
+  registryKey: 'loc_b',
+  resolvedValue: 'SAME',
+  omitted: false,
+  paragraphIndex: 0,
+  operation: 'replace',
+  storedOriginalText: 'PLACE'
+}
+[contract-replacement-trace] {
+  bindingId: 'slot-loc_a-0-4-9',
+  key: 'loc_a',
+  paragraphIndex: 0,
+  originalStart: 4,
+  originalEnd: 9,
+  locatedOriginalSpan: 'PLACE',
+  generatedReplacementValue: 'SAME',
+  generatedStart: 4,
+  generatedEnd: 8,
+  maskingStrategy: 'apply_pass_trace'
+}
+[contract-replacement-trace] {
+  bindingId: 'slot-loc_b-0-18-23',
+  key: 'loc_b',
+  paragraphIndex: 0,
+  originalStart: 18,
+  originalEnd: 23,
+  locatedOriginalSpan: 'PLACE',
+  generatedReplacementValue: 'SAME',
+  generatedStart: 17,
+  generatedEnd: 21,
+  maskingStrategy: 'apply_pass_trace'
+}
+[contract-apply-order] {
+  paragraphIndex: 0,
+  beforeSort: [
+    {
+      id: 'slot-loc_a-0-4-9',
+      registryKey: 'loc_a',
+      startOffset: 4,
+      endOffset: 9,
+      originalSpan: 'PLACE'
+    },
+    {
+      id: 'slot-loc_b-0-18-23',
+      registryKey: 'loc_b',
+      startOffset: 18,
+      endOffset: 23,
+      originalSpan: 'PLACE'
+    }
+  ],
+  afterSort: [
+    {
+      id: 'slot-loc_b-0-18-23',
+      registryKey: 'loc_b',
+      start: 18,
+      end: 23,
+      ownedSpan: 'PLACE',
+      replacement: 'SAME'
+    },
+    {
+      id: 'slot-loc_a-0-4-9',
+      registryKey: 'loc_a',
+      start: 4,
+      end: 9,
+      ownedSpan: 'PLACE',
+      replacement: 'SAME'
+    }
+  ],
+  applyOrder: [ 'loc_b', 'loc_a' ],
+  replacementTraces: [
+    {
+      bindingId: 'slot-loc_a-0-4-9',
+      key: 'loc_a',
+      paragraphIndex: 0,
+      originalStart: 4,
+      originalEnd: 9,
+      generatedStart: 4,
+      generatedEnd: 8,
+      originalValue: 'PLACE',
+      replacementValue: 'SAME'
+    },
+    {
+      bindingId: 'slot-loc_b-0-18-23',
+      key: 'loc_b',
+      paragraphIndex: 0,
+      originalStart: 18,
+      originalEnd: 23,
+      generatedStart: 17,
+      generatedEnd: 21,
+      originalValue: 'PLACE',
+      replacementValue: 'SAME'
+    }
+  ]
+}
+[contract-quality-mask] {
+  strategy: 'replacement_trace',
+  registryKey: 'loc_a',
+  paragraphIndex: 0,
+  originalStart: 4,
+  originalEnd: 9,
+  generatedStart: 4,
+  generatedEnd: 8,
+  originalSlice: 'PLACE',
+  generatedSlice: 'SAME'
+}
+[contract-quality-mask] {
+  strategy: 'replacement_trace',
+  registryKey: 'loc_b',
+  paragraphIndex: 0,
+  originalStart: 18,
+  originalEnd: 23,
+  generatedStart: 17,
+  generatedEnd: 21,
+  originalSlice: 'PLACE',
+  generatedSlice: 'SAME'
+}
+PASS  I — two slots with the same replacement value remain distinct
+[contract-resolve] {
+  registryKey: 'groom_address',
+  resolvedValue: 'a',
+  omitted: false,
+  paragraphIndex: 0,
+  operation: 'replace',
+  storedOriginalText: 'Kraków Stare Miasto'
+}
+[contract-replacement-trace] {
+  bindingId: 'slot-groom_address-0-20-39',
+  key: 'groom_address',
+  paragraphIndex: 0,
+  originalStart: 20,
+  originalEnd: 39,
+  locatedOriginalSpan: 'Kraków Stare Miasto',
+  generatedReplacementValue: 'a',
+  generatedStart: 20,
+  generatedEnd: 21,
+  maskingStrategy: 'apply_pass_trace'
+}
+[contract-apply-order] {
+  paragraphIndex: 0,
+  beforeSort: [
+    {
+      id: 'slot-groom_address-0-20-39',
+      registryKey: 'groom_address',
+      startOffset: 20,
+      endOffset: 39,
+      originalSpan: 'Kraków Stare Miasto'
+    }
+  ],
+  afterSort: [
+    {
+      id: 'slot-groom_address-0-20-39',
+      registryKey: 'groom_address',
+      start: 20,
+      end: 39,
+      ownedSpan: 'Kraków Stare Miasto',
+      replacement: 'a'
+    }
+  ],
+  applyOrder: [ 'groom_address' ],
+  replacementTraces: [
+    {
+      bindingId: 'slot-groom_address-0-20-39',
+      key: 'groom_address',
+      paragraphIndex: 0,
+      originalStart: 20,
+      originalEnd: 39,
+      generatedStart: 20,
+      generatedEnd: 21,
+      originalValue: 'Kraków Stare Miasto',
+      replacementValue: 'a'
+    }
+  ]
+}
+[contract-quality-mask] {
+  strategy: 'replacement_trace',
+  registryKey: 'groom_address',
+  paragraphIndex: 0,
+  originalStart: 20,
+  originalEnd: 39,
+  generatedStart: 20,
+  generatedEnd: 21,
+  originalSlice: 'Kraków Stare Miasto',
+  generatedSlice: 'a'
+}
+PASS  J — replacement value in immutable text does not confuse quality
+[contract-resolve] {
+  registryKey: 'wedding_date',
+  resolvedValue: '26.07.2026',
+  omitted: false,
+  paragraphIndex: 0,
+  operation: 'replace',
+  storedOriginalText: '19.06.2025'
+}
+[contract-resolve] {
+  registryKey: 'final_payment_due_date',
+  resolvedValue: '26.07.2026',
+  omitted: false,
+  paragraphIndex: 0,
+  operation: 'replace',
+  storedOriginalText: '19.06.2025'
+}
+[contract-replacement-trace] {
+  bindingId: 'slot-wedding_date-0-5-15',
+  key: 'wedding_date',
+  paragraphIndex: 0,
+  originalStart: 5,
+  originalEnd: 15,
+  locatedOriginalSpan: '19.06.2025',
+  generatedReplacementValue: '26.07.2026',
+  generatedStart: 5,
+  generatedEnd: 15,
+  maskingStrategy: 'apply_pass_trace'
+}
+[contract-replacement-trace] {
+  bindingId: 'slot-final_payment_due_date-0-30-40',
+  key: 'final_payment_due_date',
+  paragraphIndex: 0,
+  originalStart: 30,
+  originalEnd: 40,
+  locatedOriginalSpan: '19.06.2025',
+  generatedReplacementValue: '26.07.2026',
+  generatedStart: 30,
+  generatedEnd: 40,
+  maskingStrategy: 'apply_pass_trace'
+}
+[contract-apply-order] {
+  paragraphIndex: 0,
+  beforeSort: [
+    {
+      id: 'slot-wedding_date-0-5-15',
+      registryKey: 'wedding_date',
+      startOffset: 5,
+      endOffset: 15,
+      originalSpan: '19.06.2025'
+    },
+    {
+      id: 'slot-final_payment_due_date-0-30-40',
+      registryKey: 'final_payment_due_date',
+      startOffset: 30,
+      endOffset: 40,
+      originalSpan: '19.06.2025'
+    }
+  ],
+  afterSort: [
+    {
+      id: 'slot-final_payment_due_date-0-30-40',
+      registryKey: 'final_payment_due_date',
+      start: 30,
+      end: 40,
+      ownedSpan: '19.06.2025',
+      replacement: '26.07.2026'
+    },
+    {
+      id: 'slot-wedding_date-0-5-15',
+      registryKey: 'wedding_date',
+      start: 5,
+      end: 15,
+      ownedSpan: '19.06.2025',
+      replacement: '26.07.2026'
+    }
+  ],
+  applyOrder: [ 'final_payment_due_date', 'wedding_date' ],
+  replacementTraces: [
+    {
+      bindingId: 'slot-wedding_date-0-5-15',
+      key: 'wedding_date',
+      paragraphIndex: 0,
+      originalStart: 5,
+      originalEnd: 15,
+      generatedStart: 5,
+      generatedEnd: 15,
+      originalValue: '19.06.2025',
+      replacementValue: '26.07.2026'
+    },
+    {
+      bindingId: 'slot-final_payment_due_date-0-30-40',
+      key: 'final_payment_due_date',
+      paragraphIndex: 0,
+      originalStart: 30,
+      originalEnd: 40,
+      generatedStart: 30,
+      generatedEnd: 40,
+      originalValue: '19.06.2025',
+      replacementValue: '26.07.2026'
+    }
+  ]
+}
+[contract-quality-mask] {
+  strategy: 'replacement_trace',
+  registryKey: 'wedding_date',
+  paragraphIndex: 0,
+  originalStart: 5,
+  originalEnd: 15,
+  generatedStart: 5,
+  generatedEnd: 15,
+  originalSlice: '19.06.2025',
+  generatedSlice: '26.07.2026'
+}
+[contract-quality-mask] {
+  strategy: 'replacement_trace',
+  registryKey: 'final_payment_due_date',
+  paragraphIndex: 0,
+  originalStart: 30,
+  originalEnd: 40,
+  generatedStart: 30,
+  generatedEnd: 40,
+  originalSlice: '19.06.2025',
+  generatedSlice: '26.07.2026'
+}
+PASS  K — repeated dates use physical traces rather than value search
+[contract-resolve] {
+  registryKey: 'groom_address',
+  resolvedValue: 'ul. Nowa 2',
+  omitted: false,
+  paragraphIndex: 0,
+  operation: 'replace',
+  storedOriginalText: 'ul. Test 1'
+}
+[contract-replacement-trace] {
+  bindingId: 'slot-groom_address-0-20-30',
+  key: 'groom_address',
+  paragraphIndex: 0,
+  originalStart: 20,
+  originalEnd: 30,
+  locatedOriginalSpan: 'ul. Test 1',
+  generatedReplacementValue: 'ul. Nowa 2',
+  generatedStart: 20,
+  generatedEnd: 30,
+  maskingStrategy: 'apply_pass_trace'
+}
+[contract-apply-order] {
+  paragraphIndex: 0,
+  beforeSort: [
+    {
+      id: 'slot-groom_address-0-20-30',
+      registryKey: 'groom_address',
+      startOffset: 20,
+      endOffset: 30,
+      originalSpan: 'ul. Test 1'
+    }
+  ],
+  afterSort: [
+    {
+      id: 'slot-groom_address-0-20-30',
+      registryKey: 'groom_address',
+      start: 20,
+      end: 30,
+      ownedSpan: 'ul. Test 1',
+      replacement: 'ul. Nowa 2'
+    }
+  ],
+  applyOrder: [ 'groom_address' ],
+  replacementTraces: [
+    {
+      bindingId: 'slot-groom_address-0-20-30',
+      key: 'groom_address',
+      paragraphIndex: 0,
+      originalStart: 20,
+      originalEnd: 30,
+      generatedStart: 20,
+      generatedEnd: 30,
+      originalValue: 'ul. Test 1',
+      replacementValue: 'ul. Nowa 2'
+    }
+  ]
+}
+[contract-quality-mask] {
+  strategy: 'replacement_trace',
+  registryKey: 'groom_address',
+  paragraphIndex: 0,
+  originalStart: 20,
+  originalEnd: 30,
+  generatedStart: 20,
+  generatedEnd: 30,
+  originalSlice: 'ul. Test 1',
+  generatedSlice: ': ul. Nowa'
+}
+PASS  L — immutable-text modification still fails quality
+[contract-resolve] {
+  registryKey: 'groom_address',
+  resolvedValue: 'ul. Nowa 8, 00-001 Warszawa',
+  omitted: false,
+  paragraphIndex: 0,
+  operation: 'replace',
+  storedOriginalText: 'ul. Świętego Tomasza 35/2A, 31-027 Kraków'
+}
+[contract-replacement-trace] {
+  bindingId: 'slot-groom_address-0-20-61',
+  key: 'groom_address',
+  paragraphIndex: 0,
+  originalStart: 20,
+  originalEnd: 61,
+  locatedOriginalSpan: 'ul. Świętego Tomasza 35/2A, 31-027 Kraków',
+  generatedReplacementValue: 'ul. Nowa 8, 00-001 Warszawa',
+  generatedStart: 20,
+  generatedEnd: 47,
+  maskingStrategy: 'apply_pass_trace'
+}
+[contract-apply-order] {
+  paragraphIndex: 0,
+  beforeSort: [
+    {
+      id: 'slot-groom_address-0-20-61',
+      registryKey: 'groom_address',
+      startOffset: 20,
+      endOffset: 61,
+      originalSpan: 'ul. Świętego Tomasza 35/2A, 31-027 Kraków'
+    }
+  ],
+  afterSort: [
+    {
+      id: 'slot-groom_address-0-20-61',
+      registryKey: 'groom_address',
+      start: 20,
+      end: 61,
+      ownedSpan: 'ul. Świętego Tomasza 35/2A, 31-027 Kraków',
+      replacement: 'ul. Nowa 8, 00-001 Warszawa'
+    }
+  ],
+  applyOrder: [ 'groom_address' ],
+  replacementTraces: [
+    {
+      bindingId: 'slot-groom_address-0-20-61',
+      key: 'groom_address',
+      paragraphIndex: 0,
+      originalStart: 20,
+      originalEnd: 61,
+      generatedStart: 20,
+      generatedEnd: 47,
+      originalValue: 'ul. Świętego Tomasza 35/2A, 31-027 Kraków',
+      replacementValue: 'ul. Nowa 8, 00-001 Warszawa'
+    }
+  ]
+}
+[contract-quality-mask] {
+  strategy: 'replacement_trace',
+  registryKey: 'groom_address',
+  paragraphIndex: 0,
+  originalStart: 20,
+  originalEnd: 61,
+  generatedStart: 20,
+  generatedEnd: 47,
+  originalSlice: 'ul. Świętego Tomasza 35/2A, 31-027 Kraków',
+  generatedSlice: 'ul. Nowa 8, 00-001 Warszawa'
+}
+PASS  M — address-only replacement passes quality
+[contract-resolve] {
+  registryKey: 'k1',
+  resolvedValue: 'AAAA',
+  omitted: false,
+  paragraphIndex: 0,
+  operation: 'replace',
+  storedOriginalText: 'LEFT'
+}
+[contract-resolve] {
+  registryKey: 'k2',
+  resolvedValue: 'B',
+  omitted: false,
+  paragraphIndex: 0,
+  operation: 'replace',
+  storedOriginalText: 'MID'
+}
+[contract-resolve] {
+  registryKey: 'k3',
+  resolvedValue: 'CCCCCC',
+  omitted: false,
+  paragraphIndex: 0,
+  operation: 'replace',
+  storedOriginalText: 'RIGHT'
+}
+[contract-replacement-trace] {
+  bindingId: 'slot-k1-0-2-6',
+  key: 'k1',
+  paragraphIndex: 0,
+  originalStart: 2,
+  originalEnd: 6,
+  locatedOriginalSpan: 'LEFT',
+  generatedReplacementValue: 'AAAA',
+  generatedStart: 2,
+  generatedEnd: 6,
+  maskingStrategy: 'apply_pass_trace'
+}
+[contract-replacement-trace] {
+  bindingId: 'slot-k2-0-9-12',
+  key: 'k2',
+  paragraphIndex: 0,
+  originalStart: 9,
+  originalEnd: 12,
+  locatedOriginalSpan: 'MID',
+  generatedReplacementValue: 'B',
+  generatedStart: 9,
+  generatedEnd: 10,
+  maskingStrategy: 'apply_pass_trace'
+}
+[contract-replacement-trace] {
+  bindingId: 'slot-k3-0-15-20',
+  key: 'k3',
+  paragraphIndex: 0,
+  originalStart: 15,
+  originalEnd: 20,
+  locatedOriginalSpan: 'RIGHT',
+  generatedReplacementValue: 'CCCCCC',
+  generatedStart: 13,
+  generatedEnd: 19,
+  maskingStrategy: 'apply_pass_trace'
+}
+[contract-apply-order] {
+  paragraphIndex: 0,
+  beforeSort: [
+    {
+      id: 'slot-k1-0-2-6',
+      registryKey: 'k1',
+      startOffset: 2,
+      endOffset: 6,
+      originalSpan: 'LEFT'
+    },
+    {
+      id: 'slot-k2-0-9-12',
+      registryKey: 'k2',
+      startOffset: 9,
+      endOffset: 12,
+      originalSpan: 'MID'
+    },
+    {
+      id: 'slot-k3-0-15-20',
+      registryKey: 'k3',
+      startOffset: 15,
+      endOffset: 20,
+      originalSpan: 'RIGHT'
+    }
+  ],
+  afterSort: [
+    {
+      id: 'slot-k3-0-15-20',
+      registryKey: 'k3',
+      start: 15,
+      end: 20,
+      ownedSpan: 'RIGHT',
+      replacement: 'CCCCCC'
+    },
+    {
+      id: 'slot-k2-0-9-12',
+      registryKey: 'k2',
+      start: 9,
+      end: 12,
+      ownedSpan: 'MID',
+      replacement: 'B'
+    },
+    {
+      id: 'slot-k1-0-2-6',
+      registryKey: 'k1',
+      start: 2,
+      end: 6,
+      ownedSpan: 'LEFT',
+      replacement: 'AAAA'
+    }
+  ],
+  applyOrder: [ 'k3', 'k2', 'k1' ],
+  replacementTraces: [
+    {
+      bindingId: 'slot-k1-0-2-6',
+      key: 'k1',
+      paragraphIndex: 0,
+      originalStart: 2,
+      originalEnd: 6,
+      generatedStart: 2,
+      generatedEnd: 6,
+      originalValue: 'LEFT',
+      replacementValue: 'AAAA'
+    },
+    {
+      bindingId: 'slot-k2-0-9-12',
+      key: 'k2',
+      paragraphIndex: 0,
+      originalStart: 9,
+      originalEnd: 12,
+      generatedStart: 9,
+      generatedEnd: 10,
+      originalValue: 'MID',
+      replacementValue: 'B'
+    },
+    {
+      bindingId: 'slot-k3-0-15-20',
+      key: 'k3',
+      paragraphIndex: 0,
+      originalStart: 15,
+      originalEnd: 20,
+      generatedStart: 13,
+      generatedEnd: 19,
+      originalValue: 'RIGHT',
+      replacementValue: 'CCCCCC'
+    }
+  ]
+}
+PASS  N — right-to-left replacement trace remains correct for multiple slots
+PASS  O — empty and whitespace-only values remain unresolved
+PASS  user-facing quality message is concise
+PASS  page uses committed overrides for generation
+
+Review + quality trace regression finished.

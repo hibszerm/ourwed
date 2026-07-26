@@ -1,0 +1,149 @@
+npm warn Unknown env config "devdir". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+BEFORE 8
+{
+  id: 'slot-final_payment_due_date-31-176-186',
+  key: 'final_payment_due_date',
+  para: 31,
+  start: 176,
+  end: 186,
+  orig: '19.06.2025',
+  bound: true
+}
+{
+  id: 'slot-preparation_location-9-41-75',
+  key: 'preparation_location',
+  para: 9,
+  start: 41,
+  end: 75,
+  orig: 'Rezydencji Lubomirskich - Retyrada',
+  bound: true
+}
+{
+  id: 'slot-ceremony_location-10-38-47',
+  key: 'ceremony_location',
+  para: 10,
+  start: 38,
+  end: 47,
+  orig: 'Rzeszowie',
+  bound: true
+}
+{
+  id: 'slot-reception_location-11-42-76',
+  key: 'reception_location',
+  para: 11,
+  start: 42,
+  end: 76,
+  orig: 'Rezydencji Lubomirskich - Retyrada',
+  bound: true
+}
+{
+  id: 'slot-final_payment_due_date-31-175-178',
+  key: 'final_payment_due_date',
+  para: 31,
+  start: 175,
+  end: 178,
+  orig: ' 19',
+  bound: true
+}
+{
+  id: 'slot-ceremony_location-10-37-47',
+  key: 'ceremony_location',
+  para: 10,
+  start: 37,
+  end: 47,
+  orig: ' Rzeszowie',
+  bound: true
+}
+{
+  id: 'slot-reception_location-11-41-77',
+  key: 'reception_location',
+  para: 11,
+  start: 41,
+  end: 77,
+  orig: ' Rezydencji Lubomirskich - Retyrada ',
+  bound: true
+}
+{
+  id: 'slot-preparation_location-9-41',
+  key: 'preparation_location',
+  para: 9,
+  start: 41,
+  end: 75,
+  orig: 'Rezydencji Lubomirskich - Retyrada',
+  bound: true
+}
+[physical-binding-normalize] {
+  event: 'collapse_overlapping_same_key',
+  registryKey: 'final_payment_due_date',
+  paragraphIndex: 31,
+  keptId: 'slot-final_payment_due_date-31-176-186',
+  droppedId: 'slot-final_payment_due_date-31-175-178',
+  keptSpan: { start: 176, end: 186, original: '19.06.2025' },
+  droppedSpan: { start: 175, end: 178, original: ' 19' }
+}
+[physical-binding-normalize] {
+  event: 'collapse_overlapping_same_key',
+  registryKey: 'ceremony_location',
+  paragraphIndex: 10,
+  keptId: 'slot-ceremony_location-10-38-47',
+  droppedId: 'slot-ceremony_location-10-37-47',
+  keptSpan: { start: 38, end: 47, original: 'Rzeszowie' },
+  droppedSpan: { start: 37, end: 47, original: ' Rzeszowie' }
+}
+[physical-binding-normalize] {
+  event: 'collapse_overlapping_same_key',
+  registryKey: 'reception_location',
+  paragraphIndex: 11,
+  keptId: 'slot-reception_location-11-42-76',
+  droppedId: 'slot-reception_location-11-41-77',
+  keptSpan: {
+    start: 42,
+    end: 76,
+    original: 'Rezydencji Lubomirskich - Retyrada'
+  },
+  droppedSpan: {
+    start: 41,
+    end: 77,
+    original: ' Rezydencji Lubomirskich - Retyrada '
+  }
+}
+
+AFTER 4
+{
+  id: 'slot-final_payment_due_date-31-176-186',
+  key: 'final_payment_due_date',
+  para: 31,
+  start: 176,
+  end: 186,
+  orig: '19.06.2025',
+  bound: true
+}
+{
+  id: 'slot-preparation_location-9-41-75',
+  key: 'preparation_location',
+  para: 9,
+  start: 41,
+  end: 75,
+  orig: 'Rezydencji Lubomirskich - Retyrada',
+  bound: true
+}
+{
+  id: 'slot-ceremony_location-10-38-47',
+  key: 'ceremony_location',
+  para: 10,
+  start: 38,
+  end: 47,
+  orig: 'Rzeszowie',
+  bound: true
+}
+{
+  id: 'slot-reception_location-11-42-76',
+  key: 'reception_location',
+  para: 11,
+  start: 42,
+  end: 76,
+  orig: 'Rezydencji Lubomirskich - Retyrada',
+  bound: true
+}
+
+wrote tmp/slot_map_repaired.json 15 slots

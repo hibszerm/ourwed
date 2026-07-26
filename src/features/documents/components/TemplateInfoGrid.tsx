@@ -42,7 +42,7 @@ function readinessState(
     }
   }
   return {
-    label: 'Niekompletny',
+    label: 'Wymaga uwagi',
     helper: 'Prześlij plik DOCX',
     tone: 'incomplete',
   }

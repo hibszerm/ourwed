@@ -11,6 +11,7 @@ import { ensureReferenceWeddingSetup } from '@/lib/dev/ensureReferenceWeddingSet
 import { formatCurrency } from '@/lib/utils/currency'
 import { formatDeliveryTerm } from '@/lib/utils/commercial'
 import type { PackageItem, StudioPackage } from '@/types/package'
+import { PackageContractSection } from '@/features/studio/PackageContractSection'
 import styles from '@/features/studio/StudioCatalog.module.css'
 
 type PackageFormValues = {
@@ -244,6 +245,11 @@ export function PackagesPage() {
                 </header>
 
                 <PackageDetailsSummary pkg={pkg} />
+
+                <PackageContractSection
+                  pkg={pkg}
+                  onPackageUpdated={() => void invalidate()}
+                />
 
                 {pkg.description ? (
                   <p className={styles.body}>{pkg.description}</p>

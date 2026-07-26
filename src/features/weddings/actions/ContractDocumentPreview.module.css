@@ -233,6 +233,26 @@
   color: var(--color-warning-text, #7a5a00);
 }
 
+.statusReady {
+  margin: 0 0 8px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--color-text, #111);
+}
+
+.statusHint {
+  margin: 0 0 12px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--color-text-secondary, #666);
+}
+
+.pageFromDocx {
+  font-family: 'Times New Roman', Times, 'Liberation Serif', serif;
+  font-size: 12pt;
+  line-height: 1.35;
+}
+
 .srOnly {
   position: absolute;
   width: 1px;

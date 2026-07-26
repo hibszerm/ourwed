@@ -252,6 +252,68 @@ function mapTemplateMeta(raw: unknown): DocumentTemplateMeta {
     defaults: Array.isArray(obj.defaults)
       ? (obj.defaults as DocumentTemplateMeta['defaults'])
       : undefined,
+    fieldConfiguration:
+      obj.fieldConfiguration && typeof obj.fieldConfiguration === 'object'
+        ? (obj.fieldConfiguration as Record<string, unknown>)
+        : undefined,
+    fieldConfigurationStatus:
+      obj.fieldConfigurationStatus === 'unconfigured' ||
+      obj.fieldConfigurationStatus === 'incomplete' ||
+      obj.fieldConfigurationStatus === 'ready' ||
+      obj.fieldConfigurationStatus === 'requires_review'
+        ? obj.fieldConfigurationStatus
+        : undefined,
+    fieldConfigurationSummary:
+      obj.fieldConfigurationSummary &&
+      typeof obj.fieldConfigurationSummary === 'object'
+        ? (obj.fieldConfigurationSummary as DocumentTemplateMeta['fieldConfigurationSummary'])
+        : undefined,
+    automaticReadinessStatus:
+      obj.automaticReadinessStatus === 'analyzing' ||
+      obj.automaticReadinessStatus === 'ready' ||
+      obj.automaticReadinessStatus === 'attention' ||
+      obj.automaticReadinessStatus === 'error' ||
+      obj.automaticReadinessStatus === 'archived'
+        ? obj.automaticReadinessStatus
+        : undefined,
+    automaticAttentionIssues: Array.isArray(obj.automaticAttentionIssues)
+      ? (obj.automaticAttentionIssues as DocumentTemplateMeta['automaticAttentionIssues'])
+      : undefined,
+    associatedPackageId:
+      obj.associatedPackageId == null
+        ? undefined
+        : String(obj.associatedPackageId),
+    packageContractMode:
+      typeof obj.packageContractMode === 'boolean'
+        ? obj.packageContractMode
+        : undefined,
+    packageContractFilteredKeys: Array.isArray(obj.packageContractFilteredKeys)
+      ? obj.packageContractFilteredKeys.filter(
+          (k): k is string => typeof k === 'string',
+        )
+      : undefined,
+    packageContractReadiness:
+      obj.packageContractReadiness &&
+      typeof obj.packageContractReadiness === 'object'
+        ? (obj.packageContractReadiness as DocumentTemplateMeta['packageContractReadiness'])
+        : undefined,
+    packageContractSharedSpanConflicts: Array.isArray(
+      obj.packageContractSharedSpanConflicts,
+    )
+      ? (obj.packageContractSharedSpanConflicts as DocumentTemplateMeta['packageContractSharedSpanConflicts'])
+      : undefined,
+    packageContractHealthReport:
+      obj.packageContractHealthReport &&
+      typeof obj.packageContractHealthReport === 'object'
+        ? (obj.packageContractHealthReport as DocumentTemplateMeta['packageContractHealthReport'])
+        : undefined,
+    templateServiceType:
+      obj.templateServiceType === 'foto' ||
+      obj.templateServiceType === 'video' ||
+      obj.templateServiceType === 'foto_video' ||
+      obj.templateServiceType === 'other'
+        ? obj.templateServiceType
+        : undefined,
   }
 }
 
@@ -277,6 +339,12 @@ export function slimTemplateMetaForList(
     analysisVersion: meta.analysisVersion,
     readinessVersion: meta.readinessVersion,
     lifecycleStatus: meta.lifecycleStatus,
+    fieldConfigurationStatus: meta.fieldConfigurationStatus,
+    fieldConfigurationSummary: meta.fieldConfigurationSummary,
+    automaticReadinessStatus: meta.automaticReadinessStatus,
+    automaticAttentionIssues: meta.automaticAttentionIssues,
+    associatedPackageId: meta.associatedPackageId,
+    templateServiceType: meta.templateServiceType,
   }
 }
 

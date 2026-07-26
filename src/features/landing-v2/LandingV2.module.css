@@ -1,0 +1,349 @@
+.page {
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--color-bg);
+  color: var(--color-text-primary);
+  overflow-x: clip;
+}
+
+.nav {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  backdrop-filter: blur(16px);
+  background: color-mix(in srgb, var(--color-bg) 88%, transparent);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.navInner {
+  width: min(92vw, 1120px);
+  margin: 0 auto;
+  padding: 14px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.logoMark {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-text-primary);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.logoText {
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.navLinks {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.navGhost,
+.secondary {
+  appearance: none;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 550;
+  color: var(--color-text-secondary);
+  padding: 10px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  transition: color 160ms ease-out;
+}
+
+.navGhost:hover,
+.secondary:hover {
+  color: var(--color-text-primary);
+}
+
+.navCta {
+  appearance: none;
+  border: none;
+  cursor: pointer;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 11px;
+  background: var(--color-text-primary);
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 160ms ease-out, transform 160ms ease-out;
+}
+
+.navCta:hover {
+  opacity: 0.92;
+}
+
+.navCta:active {
+  transform: scale(0.985);
+}
+
+.runway {
+  position: relative;
+  width: 100%;
+}
+
+.pin {
+  height: 100vh;
+  height: 100dvh;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(1.25rem, 3vh, 2rem);
+  padding: 88px 16px 32px;
+  box-sizing: border-box;
+}
+
+.heroCopy {
+  width: min(92vw, 820px);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.eyebrow {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 550;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-tertiary);
+}
+
+.heroTitle,
+.sectionTitle,
+.finaleTitle,
+.morphCopy {
+  margin: 0;
+  font-weight: 650;
+  letter-spacing: -0.045em;
+  line-height: 1.05;
+  color: var(--color-text-primary);
+}
+
+.heroTitle {
+  font-size: clamp(2.35rem, 6.2vw, 4.1rem);
+}
+
+.heroSub,
+.finaleSub {
+  margin: 0;
+  max-width: 36em;
+  font-size: clamp(1rem, 1.4vw, 1.125rem);
+  line-height: 1.6;
+  letter-spacing: -0.01em;
+  color: var(--color-text-secondary);
+  text-wrap: pretty;
+}
+
+.deviceWrap {
+  width: min(92vw, 760px);
+}
+
+.scrollHint {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-tertiary);
+  letter-spacing: -0.01em;
+}
+
+.tourLayout {
+  width: min(96vw, 1100px);
+  display: grid;
+  grid-template-columns: minmax(140px, 1fr) minmax(280px, 720px) minmax(140px, 1fr);
+  align-items: center;
+  gap: clamp(12px, 2vw, 28px);
+}
+
+.spacerLabel {
+  min-height: 1px;
+}
+
+.morphCopy {
+  text-align: center;
+  font-size: clamp(1.6rem, 3.5vw, 2.4rem);
+}
+
+.sync,
+.metrics,
+.finale {
+  padding: clamp(4rem, 12vh, 7rem) 16px;
+}
+
+.syncInner,
+.metricsInner,
+.finaleInner {
+  width: min(92vw, 1000px);
+  margin: 0 auto;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(1.25rem, 3vh, 2rem);
+  align-items: center;
+}
+
+.sectionTitle {
+  font-size: clamp(1.8rem, 4vw, 2.8rem);
+}
+
+.syncRow {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr minmax(48px, 120px) 1.4fr;
+  align-items: center;
+  gap: 12px;
+}
+
+.syncDevice {
+  min-width: 0;
+}
+
+.syncPulse {
+  height: 2px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-text-primary) 35%, transparent);
+  transform-origin: center;
+}
+
+.metricsGrid {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.metric {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+}
+
+.metric strong {
+  font-size: clamp(1.8rem, 3.5vw, 2.6rem);
+  font-weight: 650;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+}
+
+.metric span {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  letter-spacing: -0.01em;
+}
+
+.finale {
+  border-top: 1px solid var(--color-border);
+}
+
+.finaleTitle {
+  font-size: clamp(2.2rem, 5.5vw, 3.6rem);
+}
+
+.finaleActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+}
+
+.footer {
+  border-top: 1px solid var(--color-border);
+  padding: 2.5rem 16px 3rem;
+}
+
+.footerInner {
+  width: min(92vw, 720px);
+  margin: 0 auto;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--color-text-secondary);
+  font-size: 14px;
+}
+
+.copy {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+}
+
+@media (max-width: 900px) {
+  .tourLayout {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+
+  .tourLayout > :first-child {
+    text-align: center;
+  }
+
+  .spacerLabel {
+    display: none;
+  }
+
+  .syncRow {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+
+  .syncPulse {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    transform: none !important;
+  }
+
+  .metricsGrid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pin {
+    height: auto;
+    min-height: auto;
+    padding: 48px 16px;
+  }
+
+  .runway {
+    height: auto !important;
+  }
+}

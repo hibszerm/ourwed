@@ -220,6 +220,82 @@ export interface DocumentTemplateMeta {
     enabled: boolean
     valueType?: string
   }>
+  /**
+   * AI Contract Lab / wedding-variable field configuration.
+   * Explicit user decisions for which detected fields change between bookings.
+   * Stored as opaque JSON — parsed by templateFieldConfiguration helpers.
+   */
+  fieldConfiguration?: Record<string, unknown>
+  /** Compact readiness snapshot for field configuration (list/detail). */
+  fieldConfigurationStatus?:
+    | 'unconfigured'
+    | 'incomplete'
+    | 'ready'
+    | 'requires_review'
+  fieldConfigurationSummary?: {
+    variableCount: number
+    fixedCount: number
+    ignoredCount: number
+    reviewCount: number
+    updatedAt?: string
+  }
+  /**
+   * Primary product readiness — independent of technical field-config labels.
+   * Written after automatic analysis / legacy migration.
+   */
+  automaticReadinessStatus?:
+    | 'analyzing'
+    | 'ready'
+    | 'attention'
+    | 'error'
+    | 'archived'
+  /** Concrete human issues resolved during generation (never technical codes alone). */
+  automaticAttentionIssues?: Array<{
+    code: string
+    message: string
+  }>
+  /** Optional associated package catalog id for ranking. */
+  associatedPackageId?: string | null
+  /** True when this template is the active package-owned contract. */
+  packageContractMode?: boolean
+  /** Keys detected but filtered as immutable package content. */
+  packageContractFilteredKeys?: string[]
+  /** User-facing readiness snapshot for package contracts. */
+  packageContractReadiness?: {
+    ready: boolean
+    presentCategories?: string[]
+    missingRequiredCategories?: string[]
+    userMessage?: string | null
+  }
+  /** Analysis-time shared span conflicts (multiple keys on one physical span). */
+  packageContractSharedSpanConflicts?: Array<{
+    paragraphIndex: number
+    startOffset: number
+    endOffset: number
+    registryKeys: string[]
+  }>
+  /**
+   * Upload-time package contract health report (bindings, derived finance,
+   * multi-location, payment numbering). Warnings do not block generation.
+   */
+  packageContractHealthReport?: {
+    generatedAt: string
+    warningCount: number
+    criticalCount: number
+    generationAllowed: boolean
+    checks: Array<{
+      id: string
+      code: string
+      status: 'ok' | 'warning' | 'critical'
+      title: string
+      message?: string
+      recommendation?: string
+      paragraphIndex?: number | null
+      evidence?: string | null
+    }>
+  }
+  /** User-facing template type: Foto / Video / Foto + Video / Inny */
+  templateServiceType?: 'foto' | 'video' | 'foto_video' | 'other'
 }
 
 export interface DocumentTemplate {

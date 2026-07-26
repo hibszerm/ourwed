@@ -4,6 +4,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { AppLayout } from '@/layouts/AppLayout'
 import { Button } from '@/components/ui/Button'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -30,6 +31,7 @@ import styles from '@/features/documents/DocumentsTemplates.module.css'
 export function DocumentTemplateConfigPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const { showToast } = useToast()
   const { data: template, isLoading, isError, refetch } = useDocumentTemplate(id)
 
@@ -142,7 +144,18 @@ export function DocumentTemplateConfigPage() {
     try {
       const result = await reanalyzeTemplate({ templateId: template.id })
       setSlotMap(result.slotMap)
+      await queryClient.invalidateQueries({
+        queryKey: ['document-template-summaries'],
+      })
+      await queryClient.invalidateQueries({
+        queryKey: ['document-templates'],
+      })
       await refetch()
+      console.info('[reanalyze-complete]', {
+        templateId: result.templateId,
+        templateVersionId: result.templateVersionId,
+        readinessReady: result.readinessReady,
+      })
       showToast(
         result.readinessReady
           ? 'Ponowna analiza zakończona — szablon gotowy.'

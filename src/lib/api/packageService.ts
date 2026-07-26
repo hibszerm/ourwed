@@ -20,6 +20,8 @@ interface PackageRow {
   is_active: boolean
   sort_order: number
   questionnaire_form_id?: string | null
+  active_contract_template_id?: string | null
+  active_contract_template_version_id?: string | null
   coverage_hours?: number | string | null
   coverage_end_time?: string | null
   overtime_rate?: number | string | null
@@ -50,6 +52,9 @@ function mapPackage(row: PackageRow, items: PackageItem[] = []): StudioPackage {
     isActive: row.is_active,
     sortOrder: row.sort_order,
     questionnaireFormId: row.questionnaire_form_id ?? null,
+    activeContractTemplateId: row.active_contract_template_id ?? null,
+    activeContractTemplateVersionId:
+      row.active_contract_template_version_id ?? null,
     coverageHours: optionalNumber(row.coverage_hours),
     coverageEndTime: row.coverage_end_time?.trim() || null,
     overtimeRate: optionalNumber(row.overtime_rate),
@@ -87,6 +92,8 @@ export interface UpdatePackageInput {
   color?: string | null
   isActive?: boolean
   questionnaireFormId?: string | null
+  activeContractTemplateId?: string | null
+  activeContractTemplateVersionId?: string | null
   coverageHours?: number | null
   coverageEndTime?: string | null
   overtimeRate?: number | null
@@ -226,6 +233,13 @@ export const packageService = {
     if (input.questionnaireFormId !== undefined) {
       patch.questionnaire_form_id = input.questionnaireFormId
     }
+    if (input.activeContractTemplateId !== undefined) {
+      patch.active_contract_template_id = input.activeContractTemplateId
+    }
+    if (input.activeContractTemplateVersionId !== undefined) {
+      patch.active_contract_template_version_id =
+        input.activeContractTemplateVersionId
+    }
     if (input.slug !== undefined || input.name !== undefined) {
       patch.slug = await uniqueSlug(
         input.slug?.trim() || input.name || 'pakiet',
@@ -305,6 +319,18 @@ export const packageService = {
   ): Promise<StudioPackage> {
     return packageService.update(packageId, {
       questionnaireFormId: formId,
+    })
+  },
+
+  /** Assign the active package contract template (+ optional version pin). */
+  async linkContractTemplate(
+    packageId: string,
+    templateId: string | null,
+    templateVersionId: string | null = null,
+  ): Promise<StudioPackage> {
+    return packageService.update(packageId, {
+      activeContractTemplateId: templateId,
+      activeContractTemplateVersionId: templateVersionId,
     })
   },
 }

@@ -899,25 +899,35 @@ function detectLocations(
     })
   }
 
-  // coverage hours — “12 godzin”, “maksymalnie 12 godzin”, “nie przekracza 11 godzin”
+  // coverage hours — numeric token only before „godzin…”
+  // nie przekracza 11 godzin | maksymalnie 11 godzin | czas pracy wynosi 11 godzin
+  // reportaż obejmuje 11 godzin | do 11 godzin pracy
   const hours =
     /nie\s+przekracza\s+(\d{1,2})\s+godzin/i.exec(text) ??
     /maksymalnie\s+(\d{1,2})\s+godzin/i.exec(text) ??
+    /czas\s+pracy\s+wynosi\s+(\d{1,2})\s+godzin/i.exec(text) ??
+    /reporta[żz]\s+obejmuje\s+(\d{1,2})\s+godzin/i.exec(text) ??
+    /do\s+(\d{1,2})\s+godzin\s+pracy/i.exec(text) ??
     /(\d{1,2})\s+godzin(?:y|ach)?/i.exec(text)
   if (
     hours &&
     hours.index != null &&
-    /czas pracy|kamerzyst|filmowc|reporta|obejmuje|maksymalnie|nie\s+przekracza/i.test(
+    /czas\s+(?:jego\s+)?pracy|kamerzyst|filmowc|reporta|obejmuje|maksymalnie|nie\s+przekracza|do\s+\d{1,2}\s+godzin\s+pracy|wynosi/i.test(
       lower,
     )
   ) {
     const span = hours[1]!
     const start = text.indexOf(span, hours.index)
+    const end = start + span.length
+    const leftAnchor = text.slice(hours.index, start)
+    const rightAnchor =
+      text.slice(end, Math.min(text.length, end + 12)).match(/^\s*godzin(?:y|ach)?/i)?.[0] ??
+      ' godzin'
     pushCandidate(out, claimed, {
       paragraphIndex: para.index,
       paragraphText: text,
       startOffset: start,
-      endOffset: start + span.length,
+      endOffset: end,
       text: span,
       proposedKey: 'coverage_hours',
       confidence: 0.88,
@@ -926,6 +936,17 @@ function detectLocations(
       operation: 'replace',
       sourceHint: 'package',
       reason: 'Coverage hours in “N godzin” / czas pracy clause',
+      leftAnchor,
+      rightAnchor,
+    })
+    console.info('[coverage-hours-slot]', {
+      registryKey: 'coverage_hours',
+      paragraphIndex: para.index,
+      startOffset: start,
+      endOffset: end,
+      originalSpan: span,
+      leftAnchor,
+      rightAnchor,
     })
   }
 

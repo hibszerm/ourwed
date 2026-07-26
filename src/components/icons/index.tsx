@@ -190,3 +190,14 @@ export function IconClose(props: IconProps) {
     </svg>
   )
 }
+
+/** Flask / experiment mark for AI Contract Lab. */
+export function IconFlask(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <path d="M10 2v7.31L4.9 18.5A2 2 0 0 0 6.64 21h10.72a2 2 0 0 0 1.74-2.5L14 9.31V2" />
+      <path d="M8.5 2h7" />
+      <path d="M7 16h10" />
+    </svg>
+  )
+}

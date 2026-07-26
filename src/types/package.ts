@@ -33,6 +33,10 @@ export interface StudioPackage {
   sortOrder: number
   /** Optional linked questionnaire form (AI import / package default). */
   questionnaireFormId: string | null
+  /** Active contract template for weddings using this package. */
+  activeContractTemplateId: string | null
+  /** Pinned analyzed version of the package contract (optional). */
+  activeContractTemplateVersionId: string | null
   /** Default coverage length in hours. */
   coverageHours: number | null
   /** Default coverage end clock time, e.g. "00:30". */

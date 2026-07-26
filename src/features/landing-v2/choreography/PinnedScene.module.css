@@ -1,0 +1,13 @@
+.runway {
+  position: relative;
+  width: 100%;
+}
+
+.pin {
+  height: 100vh;
+  height: 100dvh;
+  width: 100%;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}

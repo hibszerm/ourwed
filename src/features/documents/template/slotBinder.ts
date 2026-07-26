@@ -100,11 +100,16 @@ export const SLOT_PATTERNS: SlotPattern[] = [
     registryKey: 'coverage_hours',
     aliases: ['working_hours'],
     leftAnchors: [
-      'maksymalnie',
+      'nie przekracza',
+      'czas jego pracy',
+      'czas pracy wynosi',
       'czas pracy kamerzysty',
       'czas pracy filmowca',
       'Czas pracy kamerzysty',
       'Czas pracy filmowca',
+      'reportaż obejmuje',
+      'reportaz obejmuje',
+      'maksymalnie',
     ],
     rightAnchors: [' godzin', 'godzin', ' h.'],
     preferInsertWhenBlank: true,
@@ -282,6 +287,51 @@ export interface BindHit {
 }
 
 /**
+ * Locate the numeric coverage-hours token only (e.g. "11" in
+ * "nie przekracza 11 godzin"). Never owns „godzin”, clocks, or legal prose.
+ */
+export function bindCoverageHoursNumericSpan(
+  text: string,
+  searchFrom = 0,
+): {
+  start: number
+  end: number
+  originalText: string
+  leftAnchor: string
+  rightAnchor: string
+} | null {
+  const slice = text.slice(searchFrom)
+  const patterns: RegExp[] = [
+    /nie\s+przekracza\s+(\d{1,2})\s+godzin/i,
+    /maksymalnie\s+(\d{1,2})\s+godzin/i,
+    /czas\s+pracy\s+wynosi\s+(\d{1,2})\s+godzin/i,
+    /czas\s+(?:pracy\s+)?(?:kamerzysty|filmowca)\s+wynosi\s+maksymalnie\s+(\d{1,2})\s+godzin/i,
+    /reporta[żz]\s+obejmuje\s+(\d{1,2})\s+godzin/i,
+    /do\s+(\d{1,2})\s+godzin\s+pracy/i,
+    /(?:czas\s+(?:jego\s+)?pracy|kamerzyst|filmowc|reporta|obejmuje)[^\d]{0,48}(\d{1,2})\s+godzin/i,
+  ]
+  for (const re of patterns) {
+    const m = re.exec(slice)
+    if (!m || m.index == null || m[1] == null) continue
+    const span = m[1]
+    const absMatchStart = searchFrom + m.index
+    const start = text.indexOf(span, absMatchStart)
+    if (start < 0) continue
+    const end = start + span.length
+    const leftAnchor = text.slice(absMatchStart, start)
+    const rightAnchor = text.slice(end, Math.min(text.length, end + 12)).match(/^\s*godzin(?:y|ach)?/i)?.[0] ?? ' godzin'
+    return {
+      start,
+      end,
+      originalText: span,
+      leftAnchor,
+      rightAnchor,
+    }
+  }
+  return null
+}
+
+/**
  * Bind a single pattern inside one paragraph, avoiding claimed ranges.
  */
 export function bindPatternInParagraph(
@@ -358,6 +408,41 @@ export function bindPatternInParagraph(
       suffix: pattern.suffix ?? '',
       paragraphText: text,
     }
+  }
+
+  // coverage_hours: bind only the numeric duration token before „godzin…”.
+  // Prefer explicit clause cues (nie przekracza / maksymalnie / obejmuje / …).
+  // Runs before left-anchor lookup so “nie przekracza 11 godzin” binds even when
+  // legacy anchors (maksymalnie / kamerzysta) are absent.
+  if (pattern.registryKey === 'coverage_hours') {
+    const hoursHit = bindCoverageHoursNumericSpan(text, searchFrom)
+    if (hoursHit) {
+      const range = { start: hoursHit.start, end: hoursHit.end }
+      if (!claimed.some((c) => rangesOverlap(c, range))) {
+        console.info('[coverage-hours-slot]', {
+          registryKey: 'coverage_hours',
+          paragraphIndex,
+          startOffset: hoursHit.start,
+          endOffset: hoursHit.end,
+          originalSpan: hoursHit.originalText,
+          leftAnchor: hoursHit.leftAnchor,
+          rightAnchor: hoursHit.rightAnchor,
+        })
+        return {
+          paragraphIndex,
+          start: hoursHit.start,
+          end: hoursHit.end,
+          leftAnchor: hoursHit.leftAnchor,
+          rightAnchor: hoursHit.rightAnchor,
+          originalText: hoursHit.originalText,
+          operation: 'replace',
+          prefix: '',
+          suffix: '',
+          paragraphText: text,
+        }
+      }
+    }
+    return null
   }
 
   const left = findLeft(text, pattern.leftAnchors, searchFrom)

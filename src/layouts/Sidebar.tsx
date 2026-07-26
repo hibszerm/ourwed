@@ -25,7 +25,7 @@ const navItems = [
   },
   { to: '/sluby', label: 'Śluby', icon: IconWeddings },
   { to: '/kalendarz', label: 'Kalendarz', icon: IconCalendar },
-  { to: '/dokumenty', label: 'Dokumenty', icon: IconDocuments },
+  { to: '/umowy', label: 'Umowy', icon: IconDocuments },
   { to: '/oczekujace', label: 'Oczekujące', icon: IconInbox },
 ]
 
