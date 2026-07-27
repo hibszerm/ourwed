@@ -4,12 +4,15 @@ import {
   useRef,
   useState,
   type MutableRefObject,
+  type PointerEvent as ReactPointerEvent,
 } from 'react'
 import {
   appendPoint,
+  defaultSignatureLineWidth,
   hasMeaningfulSignature,
   paintSignatureStrokes,
   toNormalizedPoint,
+  type SignaturePoint,
   type SignatureStroke,
 } from './signatureStrokeModel'
 import styles from './SignaturePad.module.css'
@@ -34,7 +37,7 @@ type Props = {
 
 /**
  * Pointer-Events signature pad — mouse, touch, and stylus.
- * Internal stroke model uses normalized coordinates for retina + resize.
+ * Live preview, resize redraw, and PNG export share paintSignatureStrokes.
  */
 export function SignaturePad({
   className,
@@ -47,6 +50,7 @@ export function SignaturePad({
   const wrapRef = useRef<HTMLDivElement>(null)
   const strokesRef = useRef<SignatureStroke[]>([])
   const activeRef = useRef<SignatureStroke | null>(null)
+  const rafRef = useRef<number | null>(null)
   const [strokes, setStrokes] = useState<SignatureStroke[]>([])
 
   const notify = useEffectEvent((next: SignatureStroke[]) => {
@@ -55,7 +59,7 @@ export function SignaturePad({
     onStrokesChange?.(next)
   })
 
-  const redraw = useEffectEvent(() => {
+  const redrawNow = useEffectEvent(() => {
     const canvas = canvasRef.current
     const wrap = wrapRef.current
     if (!canvas || !wrap) return
@@ -64,9 +68,11 @@ export function SignaturePad({
     const cssH = Math.max(1, Math.floor(rect.height))
     const dpr = Math.min(window.devicePixelRatio || 1, 3)
 
-    if (canvas.width !== Math.floor(cssW * dpr) || canvas.height !== Math.floor(cssH * dpr)) {
-      canvas.width = Math.floor(cssW * dpr)
-      canvas.height = Math.floor(cssH * dpr)
+    const targetW = Math.floor(cssW * dpr)
+    const targetH = Math.floor(cssH * dpr)
+    if (canvas.width !== targetW || canvas.height !== targetH) {
+      canvas.width = targetW
+      canvas.height = targetH
       canvas.style.width = `${cssW}px`
       canvas.style.height = `${cssH}px`
     }
@@ -81,19 +87,36 @@ export function SignaturePad({
     paintSignatureStrokes(ctx, live, cssW, cssH)
   })
 
+  const scheduleRedraw = useEffectEvent(() => {
+    if (rafRef.current != null) return
+    rafRef.current = window.requestAnimationFrame(() => {
+      rafRef.current = null
+      redrawNow()
+    })
+  })
+
   useEffect(() => {
-    redraw()
-  }, [strokes, redraw])
+    scheduleRedraw()
+  }, [strokes, scheduleRedraw])
 
   useEffect(() => {
     const wrap = wrapRef.current
     if (!wrap) return
     const ro = new ResizeObserver(() => {
-      redraw()
+      scheduleRedraw()
     })
     ro.observe(wrap)
     return () => ro.disconnect()
-  }, [redraw])
+  }, [scheduleRedraw])
+
+  useEffect(() => {
+    return () => {
+      if (rafRef.current != null) {
+        window.cancelAnimationFrame(rafRef.current)
+        rafRef.current = null
+      }
+    }
+  }, [])
 
   useEffect(() => {
     if (!padRef) return
@@ -118,8 +141,9 @@ export function SignaturePad({
         const ctx = out.getContext('2d')
         if (!ctx) return null
         ctx.clearRect(0, 0, exportW, exportH)
+        // Same smooth renderer as live preview (CSS-pixel line width).
         paintSignatureStrokes(ctx, strokesRef.current, exportW, exportH, {
-          lineWidth: 3.2,
+          lineWidth: defaultSignatureLineWidth(exportW),
         })
         return out
       },
@@ -129,34 +153,57 @@ export function SignaturePad({
     }
   }, [padRef, notify])
 
-  function pointFromEvent(e: React.PointerEvent<HTMLCanvasElement>) {
+  function pointFromClient(
+    clientX: number,
+    clientY: number,
+    timestamp?: number,
+  ): SignaturePoint | null {
     const canvas = canvasRef.current
     if (!canvas) return null
     const rect = canvas.getBoundingClientRect()
-    return toNormalizedPoint(e.clientX, e.clientY, rect, e.timeStamp)
+    return toNormalizedPoint(clientX, clientY, rect, timestamp)
   }
 
-  function onPointerDown(e: React.PointerEvent<HTMLCanvasElement>) {
+  function appendFromPointerEvent(e: ReactPointerEvent<HTMLCanvasElement>) {
+    if (!activeRef.current) return
+    const native = e.nativeEvent
+    const coalesced =
+      typeof native.getCoalescedEvents === 'function'
+        ? native.getCoalescedEvents()
+        : null
+
+    if (coalesced && coalesced.length > 0) {
+      for (const ce of coalesced) {
+        const point = pointFromClient(ce.clientX, ce.clientY, ce.timeStamp)
+        if (!point) continue
+        activeRef.current = appendPoint(activeRef.current, point)
+      }
+    } else {
+      const point = pointFromClient(e.clientX, e.clientY, e.timeStamp)
+      if (!point) return
+      activeRef.current = appendPoint(activeRef.current, point)
+    }
+    scheduleRedraw()
+  }
+
+  function onPointerDown(e: ReactPointerEvent<HTMLCanvasElement>) {
     if (disabled) return
     if (e.button !== 0 && e.pointerType === 'mouse') return
     e.preventDefault()
-    const point = pointFromEvent(e)
+    const point = pointFromClient(e.clientX, e.clientY, e.timeStamp)
     if (!point) return
     canvasRef.current?.setPointerCapture(e.pointerId)
     activeRef.current = { points: [point] }
-    redraw()
+    scheduleRedraw()
   }
 
-  function onPointerMove(e: React.PointerEvent<HTMLCanvasElement>) {
+  function onPointerMove(e: ReactPointerEvent<HTMLCanvasElement>) {
     if (disabled || !activeRef.current) return
     e.preventDefault()
-    const point = pointFromEvent(e)
-    if (!point) return
-    activeRef.current = appendPoint(activeRef.current, point)
-    redraw()
+    appendFromPointerEvent(e)
   }
 
-  function endStroke(e: React.PointerEvent<HTMLCanvasElement>) {
+  function endStroke(e: ReactPointerEvent<HTMLCanvasElement>) {
     if (!activeRef.current) return
     e.preventDefault()
     try {
@@ -164,12 +211,14 @@ export function SignaturePad({
     } catch {
       /* already released */
     }
+    // Include final sample(s) before closing the stroke
+    appendFromPointerEvent(e)
     const finished = activeRef.current
     activeRef.current = null
-    if (finished.points.length >= 2) {
+    if (finished.points.length >= 1) {
       notify([...strokesRef.current, finished])
     } else {
-      redraw()
+      scheduleRedraw()
     }
   }
 

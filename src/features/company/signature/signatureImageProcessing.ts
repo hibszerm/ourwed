@@ -2,6 +2,11 @@
  * PNG crop / normalize for company signatures (transparent background).
  */
 
+import {
+  defaultSignatureLineWidth,
+  expandBoundsForStroke,
+} from './signatureStrokeModel'
+
 const MAX_WIDTH = 1200
 const MAX_HEIGHT = 500
 const MARGIN_RATIO = 0.06
@@ -105,10 +110,14 @@ export async function processSignaturePngBlob(
   }
   pctx.clearRect(0, 0, srcW, srcH)
   pctx.drawImage(img, 0, 0)
-  const bounds = findOpaqueBounds(pctx.getImageData(0, 0, srcW, srcH))
-  if (!bounds) {
+  const rawBounds = findOpaqueBounds(pctx.getImageData(0, 0, srcW, srcH))
+  if (!rawBounds) {
     throw new SignatureImageError('empty', 'Narysuj podpis przed zapisaniem.')
   }
+
+  // Pad for round caps / AA so smooth stroke ends are not clipped.
+  const strokePad = defaultSignatureLineWidth(srcW)
+  const bounds = expandBoundsForStroke(rawBounds, strokePad, srcW, srcH)
 
   const contentW = bounds.maxX - bounds.minX + 1
   const contentH = bounds.maxY - bounds.minY + 1
