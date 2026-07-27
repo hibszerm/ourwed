@@ -74,3 +74,31 @@
   margin-top: var(--space-1);
   display: block;
 }
+
+@media (max-width: 767px) {
+  .panel {
+    padding: var(--space-4);
+  }
+
+  .panel > :first-child {
+    margin-bottom: var(--space-3);
+  }
+
+  .list {
+    gap: var(--space-1);
+  }
+
+  .item {
+    gap: var(--space-2);
+    padding: var(--space-2);
+  }
+
+  .icon {
+    width: 26px;
+    height: 26px;
+  }
+
+  .message {
+    line-height: 1.35;
+  }
+}

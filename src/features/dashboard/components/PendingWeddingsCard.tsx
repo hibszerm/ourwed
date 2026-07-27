@@ -54,7 +54,7 @@ export function PendingWeddingsCard() {
   }
 
   return (
-    <Card>
+    <Card className={styles.panel}>
       <CardHeader
         title="Nowe zgłoszenia"
         subtitle={

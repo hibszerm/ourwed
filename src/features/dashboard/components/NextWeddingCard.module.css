@@ -216,8 +216,9 @@ button.cta {
 @media (max-width: 767px) {
   .card {
     grid-template-columns: 1fr;
-    gap: var(--space-6);
-    padding: var(--space-6);
+    gap: var(--space-3);
+    padding: var(--space-4);
+    border-radius: var(--radius-xl);
   }
 
   .countdown {
@@ -226,15 +227,67 @@ button.cta {
     text-align: left;
   }
 
-  .coupleName {
+  .days {
+    font-size: clamp(2rem, 11vw, 2.75rem);
+    line-height: 0.9;
+  }
+
+  .daysUnit {
+    margin-top: var(--space-1);
+    letter-spacing: 0.08em;
+  }
+
+  .today {
     font-size: var(--text-3xl);
+  }
+
+  .coupleName {
+    margin-top: var(--space-2);
+    font-size: var(--text-2xl);
+    line-height: 1.15;
     overflow-wrap: normal;
     word-break: normal;
     hyphens: none;
   }
 
-  .days {
-    font-size: clamp(2.75rem, 14vw, var(--text-6xl));
+  .meta {
+    margin-top: var(--space-2);
+    gap: var(--space-1) var(--space-2);
+    font-size: var(--text-sm);
+  }
+
+  .location {
+    margin-top: var(--space-1);
+    gap: 6px;
+  }
+
+  .status {
+    margin-top: var(--space-3);
+  }
+
+  .statusMessage {
+    margin-top: var(--space-1);
+    font-size: var(--text-sm);
+    line-height: 1.4;
+  }
+
+  .nextAction {
+    margin-top: 2px;
+  }
+
+  .cta {
+    margin-top: var(--space-3);
+  }
+
+  .ctaLabel {
+    min-height: var(--touch-target);
+    min-width: 120px;
+    padding: 0 16px;
+  }
+
+  .cta :global(button) {
+    min-height: var(--touch-target);
+    min-width: 120px;
   }
 }
 

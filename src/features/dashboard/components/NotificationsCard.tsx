@@ -13,7 +13,7 @@ export function NotificationsCard({ notifications }: NotificationsCardProps) {
   const unread = notifications.filter((n) => !n.read).length
 
   return (
-    <Card>
+    <Card className={styles.panel}>
       <CardHeader
         title="Powiadomienia"
         subtitle={unread > 0 ? `${unread} nieprzeczytane` : 'Wszystko przeczytane'}

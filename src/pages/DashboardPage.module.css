@@ -64,10 +64,10 @@
   }
 }
 
-/* Mobile: single column */
+/* Mobile: denser single column — desktop rules above stay unchanged */
 @media (max-width: 767px) {
   .dashboard {
-    gap: var(--space-6);
+    gap: var(--space-4);
   }
 
   .dashboard > *:first-child {
@@ -76,11 +76,11 @@
 
   .grid {
     grid-template-columns: 1fr;
-    gap: var(--space-4);
+    gap: var(--space-3);
   }
 
   .primary,
   .secondary {
-    gap: var(--space-4);
+    gap: var(--space-3);
   }
 }
