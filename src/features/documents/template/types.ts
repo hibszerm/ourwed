@@ -142,6 +142,12 @@ export interface TemplateSlot {
    * Never true for unsafe / whole-clause spans.
    */
   canLinkToCompany?: boolean
+
+  /** Table coordinates when the physical span lives in a Word table cell. */
+  tableIndex?: number | null
+  rowIndex?: number | null
+  cellIndex?: number | null
+  cellParagraphIndex?: number | null
 }
 
 /** Provider vs dynamic vs ignore classification for detections. */
@@ -462,6 +468,31 @@ export function parseSlotMap(raw: unknown): TemplateSlotMap {
           ? row.variableClassification
           : null,
       canLinkToCompany: row.canLinkToCompany === true,
+      tableIndex:
+        typeof row.tableIndex === 'number' && row.tableIndex >= 0
+          ? Math.floor(row.tableIndex)
+          : row.tableIndex === null
+            ? null
+            : undefined,
+      rowIndex:
+        typeof row.rowIndex === 'number' && row.rowIndex >= 0
+          ? Math.floor(row.rowIndex)
+          : row.rowIndex === null
+            ? null
+            : undefined,
+      cellIndex:
+        typeof row.cellIndex === 'number' && row.cellIndex >= 0
+          ? Math.floor(row.cellIndex)
+          : row.cellIndex === null
+            ? null
+            : undefined,
+      cellParagraphIndex:
+        typeof row.cellParagraphIndex === 'number' &&
+        row.cellParagraphIndex >= 0
+          ? Math.floor(row.cellParagraphIndex)
+          : row.cellParagraphIndex === null
+            ? null
+            : undefined,
     })
   }
   const unmapped = Array.isArray(obj.unmappedDynamics)

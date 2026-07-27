@@ -14,6 +14,7 @@ import {
   physicalBindingId,
   type LogicalContractField,
 } from './logicalContractFields'
+import { normalizeClientPartyPhysicalBindings } from './normalizeClientPartyPhysicalBindings'
 import { isSlotPhysicallyBound, type TemplateSlot, type TemplateSlotMap } from './types'
 
 export type PackageContractGenerationSource = {
@@ -159,7 +160,10 @@ export function buildPackageContractGenerationModel(input: {
 }): PackageContractGenerationModel {
   const normalized = normalizeSlotMap(input.slotMap)
   const filtered = applyPackageContractAllowlistToSlotMap(normalized)
-  const physicalBindings = filtered.slotMap.slots
+  const clientNormalized = normalizeClientPartyPhysicalBindings(
+    filtered.slotMap.slots,
+  )
+  const physicalBindings = clientNormalized.slots
     .filter((s) => s.enabled !== false && isSlotPhysicallyBound(s) && s.registryKey)
     .map((s) => ({ ...s, id: physicalBindingId(s) }))
   const logicalFields = groupSlotsIntoLogicalFields(physicalBindings)

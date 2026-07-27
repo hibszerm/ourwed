@@ -36,6 +36,7 @@ import {
   stripNonDetectedSlots,
   validateTemplateSlotBindings,
 } from './templateReadiness'
+import { normalizeClientPartyPhysicalBindings } from './normalizeClientPartyPhysicalBindings'
 import { paragraphFingerprint, type IndexedParagraph } from './extractDocxParagraphs'
 import type {
   TemplateSlot,
@@ -300,10 +301,18 @@ export function buildSlotsFromAnalysis(input: {
   ai: AiDocumentAnalysisResult
   plainText?: string
   paragraphs?: IndexedParagraph[]
+  /** Optional DOCX table model for header-aware cell binding. */
+  tables?: import('./extractDocxParagraphs').DocxExtractedTable[]
   /** pdf stays evidence-only; never generation-ready. */
   sourceKind?: 'docx' | 'pdf' | string
 }): TemplateSlotMap {
-  const { ai, plainText = '', paragraphs = [], sourceKind = 'docx' } = input
+  const {
+    ai,
+    plainText = '',
+    paragraphs = [],
+    tables = [],
+    sourceKind = 'docx',
+  } = input
   const joined = paragraphs.map((p) => p.text).join('\n') || plainText
 
   const unmappedDynamics = ai.fields
@@ -313,9 +322,23 @@ export function buildSlotsFromAnalysis(input: {
 
   // Pass 1+2 — concrete source spans with legal-context classification
   const candidates =
-    paragraphs.length > 0 ? detectContractCandidates(paragraphs) : []
+    paragraphs.length > 0
+      ? detectContractCandidates(paragraphs, { tables })
+      : []
   const summary = summarizeDetection(candidates)
   console.info('[contract-candidate-detection] summary', summary)
+  console.info('[contract-candidate-detection] rejected', {
+    count: summary.rejected,
+    items: candidates
+      .filter((c) => c.decision === 'rejected')
+      .map((c) => ({
+        proposedKey: c.proposedKey,
+        reason: c.reason,
+        confidence: c.confidence,
+        paragraphIndex: c.paragraphIndex,
+        text: c.text.slice(0, 80),
+      })),
+  })
 
   const candidateSlots = candidatesToTemplateSlots(candidates)
   const candidateKeys = new Set(
@@ -491,6 +514,10 @@ export function buildSlotsFromAnalysis(input: {
 
   // Money-pair invariant diagnostic (does not invent slots — detection already did).
   analyzeMoneyPairs({ slots: merged, paragraphs })
+
+  // Collapse safe client-party aliases (composite vs contained identities,
+  // identical shared address/phone) before persistence / conflict checks.
+  merged = normalizeClientPartyPhysicalBindings(merged).slots
 
   const needsReview =
     party.generationBlocked || sourceKind === 'pdf' || warnings.length > 0

@@ -283,21 +283,25 @@ export function SimpleContractImportFlow(props: ExistingProps | CreateProps) {
       const { detectSourceKind } = await import(
         '@/features/documents/mapping/extraction/sourceKind'
       )
-      const { extractDocxParagraphsIncludingEmpty } = await import(
+      const { extractDocxDocumentModel } = await import(
         '@/features/documents/template/extractDocxParagraphs'
       )
       const kind = detectSourceKind(fileName, bytes)
+      const docxModel =
+        kind === 'docx' ? await extractDocxDocumentModel(bytes) : null
       const paragraphs =
         kind === 'docx'
-          ? await extractDocxParagraphsIncludingEmpty(bytes)
+          ? docxModel!.paragraphs
           : structure.plainText
               .split(/\n/)
               .map((text, index) => ({ index, text }))
+      const tables = docxModel?.tables ?? []
 
       const nextSlots = buildSlotsFromAnalysis({
         ai: aiAnalysis,
         plainText: structure.plainText,
         paragraphs,
+        tables,
       })
       setSlotMap({
         ...nextSlots,
@@ -502,10 +506,10 @@ export function SimpleContractImportFlow(props: ExistingProps | CreateProps) {
 
   function goBack() {
     if (activeTemplateId) {
-      navigate(`/umowy/szablony/${activeTemplateId}`)
+      navigate(`/ustawienia/dokumenty/szablony/${activeTemplateId}`)
       return
     }
-    navigate('/umowy')
+    navigate('/studio/pakiety')
   }
 
   const wizardStep = wizardStepForPhase(phase)
@@ -707,7 +711,7 @@ export function SimpleContractImportFlow(props: ExistingProps | CreateProps) {
                   type="button"
                   variant="primary"
                   onClick={() =>
-                    navigate(`/umowy/szablony/${activeTemplateId}`)
+                    navigate(`/ustawienia/dokumenty/szablony/${activeTemplateId}`)
                   }
                 >
                   Przejdź do szablonu
@@ -715,7 +719,7 @@ export function SimpleContractImportFlow(props: ExistingProps | CreateProps) {
                 <Button
                   type="button"
                   variant="secondary"
-                  onClick={() => navigate('/umowy')}
+                  onClick={() => navigate('/studio/pakiety')}
                 >
                   Wygeneruj umowę
                 </Button>

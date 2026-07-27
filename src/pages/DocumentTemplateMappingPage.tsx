@@ -37,7 +37,7 @@ export function DocumentTemplateMappingPage() {
               <Button
                 type="button"
                 variant="secondary"
-                onClick={() => navigate('/umowy')}
+                onClick={() => navigate('/studio/pakiety')}
               >
                 Wróć
               </Button>

@@ -47,6 +47,13 @@ export type GenerationAttemptResult =
       artifact: TransformContractResult
     }
   | {
+      status: 'manual_input_required'
+      artifact: TransformContractResult
+      paymentSchedule: import('./payment-schedule').DetectedPaymentSchedule
+      generationRunId?: string
+      issue: import('./payment-schedule').ManualPaymentScheduleIssue
+    }
+  | {
       status: 'needs_review'
       issues: ActionableReviewIssue[]
       reviewStatePatch: GenerationReviewStatePatch

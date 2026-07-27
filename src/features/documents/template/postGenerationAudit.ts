@@ -9,6 +9,10 @@ import {
   auditPartnersRepresented,
   templateHasClientPartyData,
 } from './partyBlockResolver'
+import {
+  deriveClientPartyGenerationCapability,
+  selectClientPartyAuditParagraphs,
+} from './clientPartyGenerationCapability'
 import { isPlaceholderOnlyValue } from './placeholderValue'
 import type { PaymentDueRule } from './paymentDueRule'
 import type { TemplateSlot } from './types'
@@ -47,17 +51,14 @@ export interface PostGenerationAuditResult {
 }
 
 function partyParagraphs(
-  paragraphs: Array<{ text: string }>,
-): Array<{ text: string }> {
-  return paragraphs.filter((p) =>
-    /Parą Młodą|Parą Mlodą|zwan[aąyi]\s+dalej|Panna\s+Młoda|Pan\s+Młody|Zamawiając/i.test(
-      p.text,
-    ),
-  )
+  paragraphs: Array<{ index?: number; text: string }>,
+  slots: TemplateSlot[],
+): Array<{ index?: number; text: string }> {
+  return selectClientPartyAuditParagraphs({ paragraphs, slots })
 }
 
 export function runPostGenerationAudit(input: {
-  paragraphs: Array<{ text: string }>
+  paragraphs: Array<{ index?: number; text: string }>
   slots: TemplateSlot[]
   wedding: Pick<Wedding, 'couple' | 'date'>
   resolved: Record<string, string>
@@ -75,27 +76,45 @@ export function runPostGenerationAudit(input: {
 }): PostGenerationAuditResult {
   const issues: PostGenerationAuditIssue[] = []
   const hay = input.paragraphs.map((p) => p.text).join('\n')
-  const party = partyParagraphs(input.paragraphs)
+  const party = partyParagraphs(input.paragraphs, input.slots)
   const partyHay = party.length > 0 ? party.map((p) => p.text).join('\n') : hay
 
   const p1 = input.wedding.couple.partner1.trim()
   const p2 = input.wedding.couple.partner2.trim()
   const hasClientParty = templateHasClientPartyData(input.slots)
+  const capability = deriveClientPartyGenerationCapability(input.slots)
 
-  if (hasClientParty && p1 && p2) {
+  if (hasClientParty && (p1 || p2)) {
+    // Presence in generated text: when the wedding supplies both people, both
+    // must appear (composite / shared primary compose both). Preflight already
+    // decided whether person2 was required as wedding input.
+    const expectedInOutput: 0 | 1 | 2 =
+      p1 && p2 ? 2 : p1 || p2 ? 1 : 0
     const partners = auditPartnersRepresented({
       paragraphs: party.length > 0 ? party : input.paragraphs,
       partner1Name: p1,
       partner2Name: p2,
       templateHasClientParty: true,
+      expectedPersonCount: expectedInOutput,
     })
     if (!partners.ok) {
+      const weddingHasBoth = Boolean(p1 && p2)
+      const resolvedCouple = (input.resolved.couple_full_names ?? '').trim()
+      const message =
+        capability.physicalMode === 'none'
+          ? 'Szablon umowy nie zawiera prawidłowo rozpoznanego pola danych klientów.'
+          : !weddingHasBoth && capability.expectedPersonCount === 2
+            ? 'W danych ślubu brakuje drugiej osoby wymaganej przez ten wzór umowy.'
+            : weddingHasBoth && partners.missing.length > 0
+              ? 'Nie udało się przygotować danych klientów do wygenerowania umowy.'
+              : 'Nie udało się przygotować danych klientów do wygenerowania umowy.'
+
       issues.push({
         code: 'missing_second_partner',
         severity: 'critical',
-        message: `W umowie brakuje drugiej osoby z pary (${partners.missing.join(', ')}).`,
-        registryKey: 'couple_full_names',
-        diagnostic: `missing=${partners.missing.join('|')}`,
+        message,
+        registryKey: capability.compositeBindingKey ?? 'couple_full_names',
+        diagnostic: `missing=${partners.missing.join('|')};mode=${capability.physicalMode};partyHayLen=${partyHay.length};resolvedCouple=${Boolean(resolvedCouple)}`,
       })
     }
   }

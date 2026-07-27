@@ -21,7 +21,7 @@ import {
 import { documentStorage } from '@/lib/api/documents/storage'
 import { documentTemplateService } from '@/lib/api/documents'
 import { buildSlotsFromAnalysis } from './buildSlotsFromAnalysis'
-import { extractDocxParagraphsIncludingEmpty } from './extractDocxParagraphs'
+import { extractDocxParagraphsIncludingEmpty, tablesFromParagraphOrigins } from './extractDocxParagraphs'
 import { saveTemplateSlots } from './saveTemplateSlots'
 import { semanticMapFromSlotMap } from './slotMapSemanticBridge'
 import {
@@ -81,6 +81,9 @@ export async function reanalyzeTemplate(input: {
       ? await extractDocxParagraphsIncludingEmpty(sourceBytes)
       : structure.plainText.split(/\n/).map((text, index) => ({ index, text }))
 
+  const tables =
+    kind === 'docx' ? tablesFromParagraphOrigins(paragraphs) : []
+
   const ai = await activeAiDocumentAnalyzer.analyze({
     text: structure.plainText,
     structure,
@@ -90,6 +93,7 @@ export async function reanalyzeTemplate(input: {
     ai,
     plainText: structure.plainText,
     paragraphs,
+    tables,
     sourceKind: kind === 'pdf' ? 'pdf' : 'docx',
   })
   slotMap.documentTitle = template.name

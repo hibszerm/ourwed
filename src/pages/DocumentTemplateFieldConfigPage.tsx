@@ -57,7 +57,7 @@ export function DocumentTemplateFieldConfigPage() {
               <Button
                 type="button"
                 variant="secondary"
-                onClick={() => navigate('/umowy')}
+                onClick={() => navigate('/studio/pakiety')}
               >
                 Wróć
               </Button>
@@ -81,7 +81,7 @@ export function DocumentTemplateFieldConfigPage() {
                   type="button"
                   variant="secondary"
                   onClick={() =>
-                    navigate(`/umowy/szablony/${template.id}`)
+                    navigate(`/ustawienia/dokumenty/szablony/${template.id}`)
                   }
                 >
                   Wróć do szablonu
@@ -108,7 +108,7 @@ export function DocumentTemplateFieldConfigPage() {
           type="button"
           className={styles.backLink}
           onClick={() =>
-            navigate(`/umowy/szablony/${template.id}`)
+            navigate(`/ustawienia/dokumenty/szablony/${template.id}`)
           }
         >
           ← Wróć do szablonu
@@ -186,7 +186,7 @@ export function DocumentTemplateFieldConfigPage() {
                     : 'Konfiguracja zapisana.',
                   'success',
                 )
-                navigate(`/umowy/szablony/${template.id}`)
+                navigate(`/ustawienia/dokumenty/szablony/${template.id}`)
               })
               .catch((err) => {
                 showToast(

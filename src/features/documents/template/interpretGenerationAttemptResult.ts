@@ -16,6 +16,13 @@ export type GenerationUiOutcome =
       hasPreviewParagraphs: boolean
     }
   | {
+      kind: 'manual_input_required'
+      artifact: TransformContractResult
+      paymentSchedule: import('./payment-schedule').DetectedPaymentSchedule
+      generationRunId?: string
+      message: string
+    }
+  | {
       kind: 'needs_review'
       editableFields: CompletenessField[]
       messages: string[]
@@ -91,6 +98,23 @@ export function interpretGenerationAttemptResult(
       messages,
       issueKeys,
       invalidEmpty,
+    }
+  }
+
+  if (attempt.status === 'manual_input_required') {
+    const artifact = attempt.artifact
+    if (!artifact?.docxBytes?.byteLength) {
+      return {
+        kind: 'invalid_result',
+        reason: 'Brak dokumentu do uzupełnienia harmonogramu płatności.',
+      }
+    }
+    return {
+      kind: 'manual_input_required',
+      artifact,
+      paymentSchedule: attempt.paymentSchedule,
+      generationRunId: attempt.generationRunId,
+      message: attempt.issue.safeDescription,
     }
   }
 

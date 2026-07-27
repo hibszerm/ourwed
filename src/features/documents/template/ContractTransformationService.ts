@@ -544,11 +544,49 @@ export async function transformContract(
       if (key.trim()) omittedKeysStaging.push(key.trim())
     }
 
-    // Party block — both partners when template has client-party data.
+    // Party block — capability-aware (composite vs separate physical slots).
     const partyPlan = resolvePartyBlock({
       slots: boundSlots,
       wedding: input.wedding,
     })
+    const {
+      preflightClientPartyGeneration,
+      logPackageContractGenerationClientPartyTrace,
+    } = await import('./clientPartyGenerationCapability')
+    const clientPreflight = preflightClientPartyGeneration({
+      capability: partyPlan.capability,
+      wedding: {
+        person1FullName: partyPlan.partner1Name,
+        person2FullName: partyPlan.partner2Name,
+      },
+    })
+    if (packageContractMode) {
+      logPackageContractGenerationClientPartyTrace({
+        weddingId: input.wedding.id,
+        wedding: {
+          person1FullName: partyPlan.partner1Name,
+          person2FullName: partyPlan.partner2Name,
+        },
+        templateId: input.templateId,
+        templateVersionId: versionId,
+        slots: boundSlots,
+        capability: partyPlan.capability,
+        resolved: {
+          ...resolved,
+          ...partyPlan.overrides,
+        },
+        preflight: clientPreflight,
+      })
+    }
+    if (!clientPreflight.ready && partyPlan.capability.physicalMode !== 'none') {
+      throw wrapGenerationFailure(
+        trace,
+        'semantic_values_resolution',
+        'generation_input_invalid',
+        new Error(clientPreflight.message),
+        clientPreflight.message,
+      )
+    }
     for (const [key, value] of Object.entries(partyPlan.overrides)) {
       if (value.trim()) resolved[key] = value.trim()
     }

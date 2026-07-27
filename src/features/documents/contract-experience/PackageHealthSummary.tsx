@@ -44,7 +44,7 @@ export function PackageHealthSummary({
           <p className={styles.eyebrow}>Umowa pakietu</p>
           <h3 className={styles.title}>Umowa gotowa</h3>
           <p className={styles.subtitle}>
-            Dokument został przeanalizowany i jest gotowy do użycia w pakietach.
+            Umowa jest gotowa do automatycznego generowania.
           </p>
           {fileName ? (
             <p className={styles.fileChipMeta} style={{ marginTop: '0.65rem' }}>

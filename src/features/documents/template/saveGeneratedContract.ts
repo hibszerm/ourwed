@@ -9,6 +9,9 @@ export interface SaveGeneratedContractResult {
   docxDownloadUrl: string
   docxExportId: string
   pdfAvailable: boolean
+  pdfPath: string | null
+  pdfDownloadUrl: string | null
+  pdfError: string | null
 }
 
 export async function saveGeneratedContract(
@@ -21,6 +24,9 @@ export async function saveGeneratedContract(
     docxDownloadUrl: saved.docx.downloadUrl,
     docxExportId: saved.docx.document.id,
     pdfAvailable: saved.pdfAvailable,
+    pdfPath: saved.pdf?.document.filePath ?? null,
+    pdfDownloadUrl: saved.pdf?.downloadUrl ?? null,
+    pdfError: saved.pdfError,
   }
 }
 

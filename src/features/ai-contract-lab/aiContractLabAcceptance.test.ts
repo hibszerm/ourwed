@@ -277,8 +277,8 @@ await run('1. Feature flag gates route; lab hidden from product nav', () => {
   assert(r.includes('isAiContractLabEnabled'), 'router gate')
   assert(r.includes('/laboratorium-umow-ai'), 'route path')
   const s = readFileSync(sidebar, 'utf8')
-  assert(!s.includes('Laboratorium umów AI'), 'lab not in product sidebar')
-  assert(!s.includes('nav-ai-contract-lab'), 'lab nav test id removed')
+  assert(s.includes('Laboratorium umów AI'), 'lab in product sidebar when flagged')
+  assert(s.includes('nav-ai-contract-lab'), 'lab nav test id present')
 })
 
 await run('2. Production contract flow untouched', () => {
@@ -646,10 +646,15 @@ await run('16. Lab page notice + no workflow mutation APIs', () => {
   assert(!pageSrc.includes('weddingService.update'), 'no wedding update')
 })
 
-await run('17. Template routes unchanged', () => {
+await run('17. Template deep links remain; hub is packages-owned', () => {
   const r = readFileSync(router, 'utf8')
-  assert(r.includes('/ustawienia/dokumenty/szablony'), 'templates route')
-  assert(r.includes('DocumentTemplatesPage'), 'templates page')
+  assert(r.includes('/ustawienia/dokumenty/szablony/:id'), 'template deep link')
+  assert(r.includes('/studio/pakiety'), 'packages route')
+  assert(
+    r.includes('Navigate to="/studio/pakiety"'),
+    'standalone Contracts hub redirects to packages',
+  )
+  assert(!r.includes('DocumentTemplatesPage'), 'templates list hub demoted')
 })
 
 await run('18. Manual missing values become proposals and patches', async () => {

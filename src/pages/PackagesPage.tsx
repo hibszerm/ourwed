@@ -251,10 +251,6 @@ export function PackagesPage() {
                   onPackageUpdated={() => void invalidate()}
                 />
 
-                {pkg.description ? (
-                  <p className={styles.body}>{pkg.description}</p>
-                ) : null}
-
                 <PackageItemsEditor
                   packageId={pkg.id}
                   items={pkg.items}

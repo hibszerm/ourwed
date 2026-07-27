@@ -622,7 +622,7 @@ function TemplatePicker({
 
       {!hasSelectable && !hasIncomplete ? (
         <p className={styles.muted}>
-          Prześlij kontrakt w module Dokumenty → Szablony umów i uruchom analizę.
+          Prześlij wzór umowy w Pakietach — będzie używany przy generowaniu na ślubie.
         </p>
       ) : null}
     </div>

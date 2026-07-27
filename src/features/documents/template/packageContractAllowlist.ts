@@ -6,6 +6,11 @@
  * immutable template text even if the analyzer detects them.
  */
 
+import {
+  evaluateClientPartyReadiness,
+  type ClientPartyReadinessResult,
+} from './clientPartyReadiness'
+
 /** Keys the product may replace for a package contract. */
 export const PACKAGE_CONTRACT_ALLOWED_DYNAMIC_KEYS = [
   // Dates
@@ -128,7 +133,7 @@ export const PACKAGE_CONTRACT_CATEGORY_LABELS: Record<
   PackageContractUserCategory,
   string
 > = {
-  couple: 'Dane pary',
+  couple: 'Dane strony zamawiającej',
   contract_date: 'Data zawarcia umowy',
   wedding_date: 'Data ślubu',
   contract_value: 'Wartość umowy',
@@ -136,7 +141,7 @@ export const PACKAGE_CONTRACT_CATEGORY_LABELS: Record<
   remaining: 'Pozostała kwota',
   payment_deadline: 'Termin płatności',
   locations: 'Miejsca',
-  contact: 'Kontakt',
+  contact: 'Dane kontaktowe',
 }
 
 const CATEGORY_KEYS: Record<PackageContractUserCategory, readonly string[]> = {
@@ -266,21 +271,37 @@ export type PackageContractReadiness = {
   missingRequiredCategories: PackageContractUserCategory[]
   presentOptionalCategories: PackageContractUserCategory[]
   userMessage: string | null
+  /** Role-neutral client-party evaluation (authoritative for `couple`). */
+  clientParty: ClientPartyReadinessResult
+  /** Actionable capability / key diagnostics for incomplete categories. */
+  missingRegistryKeys: string[]
 }
 
 /**
  * Template is usable when every required category that the product needs has
  * at least one allowed physical slot present. Conditional categories (deposit,
  * locations, …) only matter when slots exist — they never block when absent.
+ *
+ * The `couple` category means: at least one client-party identity binding —
+ * not a traditional bride+groom pair.
  */
 export function evaluatePackageContractReadiness(input: {
   allowedRegistryKeys: string[]
 }): PackageContractReadiness {
+  const clientParty = evaluateClientPartyReadiness({
+    boundRegistryKeys: input.allowedRegistryKeys,
+  })
+
   const present = new Set<PackageContractUserCategory>()
   for (const key of input.allowedRegistryKeys) {
     const cat = categoryForPackageContractKey(key)
-    if (cat) present.add(cat)
+    if (!cat) continue
+    // Client-party presence is decided by the role-neutral evaluator only.
+    if (cat === 'couple') continue
+    present.add(cat)
   }
+  if (clientParty.ready) present.add('couple')
+
   const presentCategories = [...present]
   const missingRequiredCategories = PACKAGE_CONTRACT_REQUIRED_CATEGORIES.filter(
     (c) => !present.has(c),
@@ -289,6 +310,17 @@ export function evaluatePackageContractReadiness(input: {
     (c) => !PACKAGE_CONTRACT_REQUIRED_CATEGORIES.includes(c),
   )
   const ready = missingRequiredCategories.length === 0
+
+  const missingRegistryKeys: string[] = []
+  if (missingRequiredCategories.includes('couple')) {
+    missingRegistryKeys.push(...clientParty.missingRegistryKeys)
+  }
+  for (const cat of missingRequiredCategories) {
+    if (cat === 'couple') continue
+    const keys = CATEGORY_KEYS[cat]
+    if (keys[0]) missingRegistryKeys.push(keys[0])
+  }
+
   return {
     ready,
     presentCategories,
@@ -296,6 +328,8 @@ export function evaluatePackageContractReadiness(input: {
     presentOptionalCategories,
     userMessage: ready
       ? null
-      : 'Nie udało się rozpoznać danych potrzebnych do automatycznego generowania umowy.',
+      : 'Rozpoznaliśmy część danych, ale dokument nie zawiera wszystkich informacji potrzebnych do automatycznego generowania.',
+    clientParty,
+    missingRegistryKeys: [...new Set(missingRegistryKeys)],
   }
 }

@@ -6,15 +6,10 @@ import { Button } from '@/components/ui/Button'
 import { PageContainer } from '@/components/ui/PageContainer'
 import {
   applyDocxParagraphEdits,
-  paragraphsToPrintHtml,
-  printHtmlAsPdf,
   saveGeneratedContract,
   type DocxParagraph,
   type TransformContractResult,
 } from '@/features/documents/template'
-import { PDF_EXPORT_UNAVAILABLE_MESSAGE } from '@/features/documents/template/ContractExportService'
-import { buildDocxPreviewModel } from '@/features/documents/template/docxPreviewModel'
-import type { DocxPreviewModel } from '@/features/documents/template/docxPreviewModel'
 import {
   WeddingContractGenerationService,
   buildGenerationReviewState,
@@ -24,6 +19,8 @@ import {
   type ConfiguredContractCompletenessReport,
   type SharedLocationDecision,
 } from '@/features/documents/template/WeddingContractGenerationService'
+import { WeddingSparseContractGenerationService } from '@/features/documents/template/WeddingSparseContractGenerationService'
+import { isSparseWeddingContractGenerationEnabled } from '@/features/documents/template/sparseWeddingContractFlags'
 import {
   interpretGenerationAttemptResult,
   needsReviewUserMessage,
@@ -36,14 +33,27 @@ import {
   ContractGenerationOverlay,
   ContractSuccessState,
   DocxActionButton,
+  PaymentScheduleCompletionForm,
+  ContractReadyPreview,
+  ContractDocxPreview,
 } from '@/features/documents/contract-experience'
-import { ContractDocumentPreview } from '@/features/weddings/actions/ContractDocumentPreview'
 import { useInvalidateWedding } from '@/features/weddings/hooks/useInvalidateWedding'
 import { useWedding } from '@/features/weddings/hooks/useWedding'
 import { weddingActionsService } from '@/lib/api/weddingActionsService'
 import styles from './WeddingContractGenerationPage.module.css'
 
-type WizardStep = 'resolve' | 'verify' | 'generating' | 'preview' | 'saved'
+type WizardStep =
+  | 'resolve'
+  | 'verify'
+  | 'generating'
+  | 'manual_payment'
+  | 'creating_preview'
+  | 'preview'
+  | 'saved'
+  | 'failed'
+  | 'needs_attention'
+
+const useSparseGeneration = isSparseWeddingContractGenerationEnabled()
 
 type PackageContractResolution =
   | {
@@ -115,14 +125,17 @@ export function WeddingContractGenerationPage() {
     null,
   )
   const [paragraphs, setParagraphs] = useState<DocxParagraph[]>([])
-  const [baselineParagraphs, setBaselineParagraphs] = useState<DocxParagraph[]>(
-    [],
-  )
   const [docxBytes, setDocxBytes] = useState<ArrayBuffer | null>(null)
-  const [previewModel, setPreviewModel] = useState<DocxPreviewModel | null>(null)
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null)
+  const [paymentSchedule, setPaymentSchedule] = useState<
+    import('@/features/documents/template/payment-schedule').DetectedPaymentSchedule | null
+  >(null)
+  const [generationRunId, setGenerationRunId] = useState<string | null>(null)
+  const [qualitySummary, setQualitySummary] = useState<
+    import('@/features/documents/template/payment-schedule').FriendlyQualitySummary | null
+  >(null)
+  const [paymentWasManual, setPaymentWasManual] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [summaryOpen, setSummaryOpen] = useState(true)
   const [generationStartedAt] = useState(() => new Date())
   const [forcedEditableFields, setForcedEditableFields] = useState<
     CompletenessField[]
@@ -132,6 +145,7 @@ export function WeddingContractGenerationPage() {
     CompletenessField[]
   >([])
   const [generatePending, setGeneratePending] = useState(false)
+  const [busy, setBusy] = useState(false)
   const generateInFlightRef = useRef(false)
   const autoVerifyStarted = useRef(false)
   /** Survives success — query refetch must not wipe a completed generation. */
@@ -226,8 +240,9 @@ export function WeddingContractGenerationPage() {
     fieldErrors,
   ])
 
-  const canGenerate =
-    Boolean(reviewState?.generationAllowed) && !hasUncommittedDrafts
+  const canGenerate = useSparseGeneration
+    ? packageResolution?.status === 'ok' && !generatePending
+    : Boolean(reviewState?.generationAllowed) && !hasUncommittedDrafts
 
   const effectiveTemplateId =
     selectedTemplateId ??
@@ -286,6 +301,11 @@ export function WeddingContractGenerationPage() {
     if (autoVerifyStarted.current) return
     if (step !== 'resolve') return
     autoVerifyStarted.current = true
+    if (useSparseGeneration) {
+      // Sparse path: no slot completeness — go straight to generate gate.
+      setStep('verify')
+      return
+    }
     void prepareVerification(
       packageResolution.templateId,
       packageResolution.templateVersionId,
@@ -427,7 +447,80 @@ export function WeddingContractGenerationPage() {
   }
 
   async function generate() {
-    if (!wedding || !report || !reviewState) {
+    if (!wedding) {
+      setError('Nie można rozpocząć generowania — brak danych ślubu.')
+      return
+    }
+
+    if (useSparseGeneration) {
+      if (packageResolution?.status !== 'ok') {
+        setError('Brak szablonu umowy w pakiecie.')
+        return
+      }
+      if (generatePending || generateInFlightRef.current) return
+      setError(null)
+      const correlationId = createGenerationCorrelationId()
+      generateInFlightRef.current = true
+      setGeneratePending(true)
+      setGenerationPipelineDone(false)
+      setShowGenerationSuccess(false)
+      setStep('generating')
+      try {
+        const attempt = await WeddingSparseContractGenerationService.generate({
+          wedding,
+          correlationId,
+          generationDate: generationStartedAt,
+        })
+        const outcome = interpretGenerationAttemptResult(attempt)
+        if (outcome.kind === 'manual_input_required') {
+          generationSuccessRef.current = false
+          setGenerated(outcome.artifact)
+          setDocxBytes(outcome.artifact.docxBytes)
+          setParagraphs(
+            outcome.artifact.paragraphs.map((paragraph) => ({ ...paragraph })),
+          )
+          setPaymentSchedule(outcome.paymentSchedule)
+          setGenerationRunId(outcome.generationRunId ?? null)
+          setPaymentWasManual(false)
+          setStep('manual_payment')
+          return
+        }
+        if (outcome.kind === 'needs_review') {
+          generationSuccessRef.current = false
+          setError(
+            outcome.messages[0] ??
+              'Umowa wymaga uzupełnienia danych przed zapisem.',
+          )
+          setStep('needs_attention')
+          return
+        }
+        if (outcome.kind === 'invalid_result') {
+          generationSuccessRef.current = false
+          setError(outcome.reason)
+          setStep('failed')
+          return
+        }
+        generationSuccessRef.current = true
+        setGenerated(outcome.artifact)
+        setDocxBytes(outcome.artifact.docxBytes)
+        setParagraphs(
+          outcome.artifact.paragraphs.map((paragraph) => ({ ...paragraph })),
+        )
+        setGenerationPipelineDone(true)
+        setShowGenerationSuccess(true)
+        setStep('preview')
+      } catch (err) {
+        generationSuccessRef.current = false
+        setError(userFacingGenerationErrorMessage(err))
+        setStep('failed')
+      } finally {
+        generateInFlightRef.current = false
+        setGeneratePending(false)
+      }
+      return
+    }
+
+    if (!report || !reviewState) {
       console.info('[contract-generate-early-return]', {
         reason: 'missing_wedding_report_or_review_state',
         hasWedding: Boolean(wedding),
@@ -520,6 +613,20 @@ export function WeddingContractGenerationPage() {
               : null,
       })
 
+      if (outcome.kind === 'manual_input_required') {
+        generationSuccessRef.current = false
+        setGenerated(outcome.artifact)
+        setDocxBytes(outcome.artifact.docxBytes)
+        setParagraphs(
+          outcome.artifact.paragraphs.map((paragraph) => ({ ...paragraph })),
+        )
+        setPaymentSchedule(outcome.paymentSchedule)
+        setGenerationRunId(outcome.generationRunId ?? null)
+        setPaymentWasManual(false)
+        setStep('manual_payment')
+        return
+      }
+
       if (outcome.kind === 'needs_review') {
         console.info('[contract-generate-early-return]', {
           reason: outcome.invalidEmpty
@@ -570,20 +677,11 @@ export function WeddingContractGenerationPage() {
       setDocxBytes(result.docxBytes)
       const next = result.paragraphs.map((paragraph) => ({ ...paragraph }))
       setParagraphs(next)
-      setBaselineParagraphs(next.map((paragraph) => ({ ...paragraph })))
-      try {
-        const model = await buildDocxPreviewModel(result.docxBytes)
-        setPreviewModel(model)
-      } catch (previewErr) {
-        console.warn('[contract-generate-preview-model-failed]', previewErr)
-        setPreviewModel(null)
-      }
       // Stay on generating — presentation finishes stages, then success UI.
       setGenerationPipelineDone(true)
       console.info('[contract-generate-success]', {
         generatedDocumentId: outcome.generatedDocumentId,
         nextNavigationOrAction: 'generation_success_presentation',
-        hasPreviewModel: true,
         paragraphCount: next.length,
       })
     } catch (err) {
@@ -651,6 +749,19 @@ export function WeddingContractGenerationPage() {
           browserEditsApplied: true,
           qualityRetries: generated.qualityRetries,
           usedMock: generated.usedMock,
+          ...((
+            generated as TransformContractResult & {
+              sparseProvenance?: Record<string, unknown>
+            }
+          ).sparseProvenance
+            ? {
+                generator: (
+                  generated as TransformContractResult & {
+                    sparseProvenance?: Record<string, unknown>
+                  }
+                ).sparseProvenance,
+              }
+            : {}),
         },
       })
       await weddingActionsService.markContractGenerated(wedding.id, {
@@ -662,8 +773,27 @@ export function WeddingContractGenerationPage() {
         queryKey: ['generated-wedding-contracts'],
       })
       setDocxBytes(edited)
-      setBaselineParagraphs(paragraphs.map((paragraph) => ({ ...paragraph })))
       setDownloadUrl(saved.docxDownloadUrl)
+      if (wedding && generated) {
+        const { buildFriendlyQualitySummary } = await import(
+          '@/features/documents/template/payment-schedule'
+        )
+        setQualitySummary(
+          buildFriendlyQualitySummary({
+            hasClients: Boolean(
+              wedding.couple.partner1 && wedding.couple.partner2,
+            ),
+            hasWeddingDate: Boolean(wedding.date),
+            hasLocations: Boolean(
+              wedding.couple.venue || wedding.couple.city,
+            ),
+            providerProtected: true,
+            contractValueOk: (wedding.price ?? 0) > 0,
+            paymentSchedule,
+            paymentWasManual,
+          }),
+        )
+      }
       return true
     } catch (err) {
       setError(
@@ -812,7 +942,38 @@ export function WeddingContractGenerationPage() {
           </section>
         ) : null}
 
-        {step === 'verify' && report && reviewState ? (
+        {step === 'verify' && useSparseGeneration ? (
+          <section className={styles.card}>
+            <div>
+              <p className={styles.eyebrow}>Umowa z pakietu</p>
+              <h2>Wygeneruj umowę</h2>
+              <p className={styles.muted}>
+                Użyjemy szablonu pakietu{' '}
+                {packageResolution?.status === 'ok'
+                  ? packageResolution.packageName
+                  : ''}{' '}
+                oraz aktualnych danych ślubu, klientów i finansów.
+              </p>
+            </div>
+            {error ? (
+              <p role="alert" className={styles.error}>
+                {error}
+              </p>
+            ) : null}
+            <div className={styles.actions}>
+              <Button
+                type="button"
+                variant="primary"
+                disabled={!canGenerate}
+                onClick={() => void generate()}
+              >
+                Generuj umowę
+              </Button>
+            </div>
+          </section>
+        ) : null}
+
+        {step === 'verify' && !useSparseGeneration && report && reviewState ? (
           <section className={styles.card}>
             <div>
               <p className={styles.eyebrow}>Przed wygenerowaniem</p>
@@ -954,6 +1115,154 @@ export function WeddingContractGenerationPage() {
           </section>
         ) : null}
 
+        {step === 'manual_payment' && paymentSchedule ? (
+          <PaymentScheduleCompletionForm
+            schedule={paymentSchedule}
+            busy={busy}
+            onCancel={() => {
+              setPaymentSchedule(null)
+              setStep('verify')
+            }}
+            onSubmit={async (submitted) => {
+              if (!generated || !docxBytes) return
+              setBusy(true)
+              setError(null)
+              try {
+                const {
+                  applyManualPaymentSchedule,
+                  validateManualPaymentSubmission,
+                  contractGenerationRunService,
+                } = await import(
+                  '@/features/documents/template/payment-schedule'
+                )
+                const validated = validateManualPaymentSubmission({
+                  schedule: paymentSchedule,
+                  entries: submitted.entries,
+                })
+                if (!validated.ok) {
+                  setError(
+                    validated.issues[0]?.safeDescription ||
+                      'Podane raty nie sumują się do wartości umowy.',
+                  )
+                  return
+                }
+                const patched = applyManualPaymentSchedule({
+                  paragraphs: paragraphs.map((p) => ({
+                    index: p.index,
+                    text: p.text,
+                  })),
+                  detectedSchedule: paymentSchedule,
+                  submitted,
+                  resolvedValues: generated.resolved,
+                })
+                if (!patched.ok) {
+                  setError(
+                    patched.issues[0]?.safeDescription ||
+                      'Nie udało się zastosować harmonogramu.',
+                  )
+                  return
+                }
+                const nextBytes = await applyDocxParagraphEdits(
+                  docxBytes,
+                  patched.paragraphs.map((p) => ({
+                    index: p.index,
+                    text: p.text,
+                  })),
+                )
+                setDocxBytes(nextBytes)
+                setParagraphs(
+                  patched.paragraphs.map((p) => ({
+                    index: p.index,
+                    text: p.text,
+                  })),
+                )
+                setGenerated({
+                  ...generated,
+                  resolved: patched.resolvedValues,
+                  paragraphs: patched.paragraphs.map((p) => ({
+                    index: p.index,
+                    text: p.text,
+                  })),
+                  docxBytes: nextBytes,
+                })
+                setPaymentSchedule(patched.schedule)
+                setPaymentWasManual(true)
+                if (generationRunId) {
+                  try {
+                    await contractGenerationRunService.update(generationRunId, {
+                      status: 'ready',
+                      manualSchedule: patched.schedule,
+                    })
+                  } catch {
+                    // non-fatal if migration not applied yet
+                  }
+                }
+                setStep('creating_preview')
+                generationSuccessRef.current = true
+                const ok = await save()
+                if (ok) {
+                  setStep('saved')
+                } else {
+                  setStep('preview')
+                }
+              } catch (e) {
+                setError(
+                  e instanceof Error
+                    ? e.message
+                    : 'Nie udało się zastosować harmonogramu płatności.',
+                )
+              } finally {
+                setBusy(false)
+              }
+            }}
+          />
+        ) : null}
+
+        {step === 'creating_preview' ? (
+          <section className={styles.card}>
+            <p className={styles.muted}>Tworzymy podgląd dokumentu…</p>
+          </section>
+        ) : null}
+
+        {step === 'failed' || step === 'needs_attention' ? (
+          <section className={styles.card}>
+            <div>
+              <p className={styles.eyebrow}>
+                {step === 'needs_attention' ? 'Wymaga uwagi' : 'Nie udało się'}
+              </p>
+              <h2>
+                {step === 'needs_attention'
+                  ? 'Umowa wymaga uzupełnienia'
+                  : 'Nie udało się wygenerować umowy'}
+              </h2>
+            </div>
+            {error ? (
+              <p role="alert" className={styles.error}>
+                {error}
+              </p>
+            ) : null}
+            <div className={styles.actions}>
+              <Button
+                type="button"
+                variant="primary"
+                onClick={() => {
+                  setError(null)
+                  setStep('verify')
+                }}
+              >
+                Spróbuj ponownie
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => navigate(`/sluby/${wedding.id}`)}
+              >
+                Wróć do ślubu
+              </Button>
+            </div>
+          </section>
+        ) : null}
+
         {step === 'generating' ? (
           <section className={`${styles.card} ${styles.generating}`} aria-hidden>
             <p className={styles.eyebrow}>Przygotowanie</p>
@@ -989,8 +1298,13 @@ export function WeddingContractGenerationPage() {
           <section className={`${styles.card} ${styles.previewCard}`}>
             <div className={styles.previewHeader}>
               <div>
-                <p className={styles.eyebrow}>Dokument gotowy do sprawdzenia</p>
-                <h2>Podgląd umowy</h2>
+                <p className={styles.eyebrow}>Podgląd dokumentu</p>
+                <h2>Umowa jest gotowa</h2>
+                <p className={styles.muted}>
+                  Podgląd może nieznacznie różnić się od wyglądu dokumentu
+                  otwartego w programie Microsoft Word. Pobrany plik DOCX
+                  zachowuje oryginalną strukturę i formatowanie szablonu.
+                </p>
               </div>
               <div className={styles.actions}>
                 <Button
@@ -1001,89 +1315,44 @@ export function WeddingContractGenerationPage() {
                   Edytuj dane
                 </Button>
                 <DocxActionButton
-                  idleLabel="Zapisz DOCX"
+                  idleLabel="Zapisz umowę"
                   workingLabel="Zapisywanie…"
                   doneLabel="Gotowe"
-                  slowHint="Przygotowujemy plik DOCX…"
+                  slowHint="Zapisujemy plik DOCX…"
                   errorMessage="Nie udało się zapisać dokumentu. Spróbuj ponownie."
-                  variant="secondary"
+                  variant="primary"
                   action={() => save()}
                   onSuccess={() => setStep('saved')}
                 />
-                <Button
-                  type="button"
-                  variant="primary"
-                  disabled
-                  title={PDF_EXPORT_UNAVAILABLE_MESSAGE}
-                >
-                  PDF niedostępny
-                </Button>
               </div>
             </div>
-            <ContractDocumentPreview
-              paragraphs={paragraphs}
-              baselineParagraphs={baselineParagraphs}
-              resolvedValues={generated.resolved}
-              omittedKeys={generated.omittedKeys}
-              docxBytes={docxBytes}
-              previewModel={previewModel}
-              actionableIncompleteCount={
-                reviewState?.editableMissingFields.length ?? 0
-              }
-              busy={false}
-              panelOpen={summaryOpen}
-              onTogglePanel={() => setSummaryOpen((value) => !value)}
-              onBackToVariables={() => setStep('verify')}
-              onChangeParagraph={(index, text) =>
-                setParagraphs((current) =>
-                  current.map((paragraph) =>
-                    paragraph.index === index
-                      ? { ...paragraph, text: text === '\u00a0' ? '' : text }
-                      : paragraph,
-                  ),
-                )
-              }
-              onReplaceAll={setParagraphs}
-            />
+            <ContractDocxPreview source={docxBytes} />
           </section>
         ) : null}
 
-        {step === 'saved' ? (
-          <section className={`${styles.card} ${styles.saved}`}>
-            <p className={styles.eyebrow}>Gotowe</p>
-            <h2>Umowa została zapisana</h2>
-            <div className={styles.actions}>
-              {downloadUrl ? (
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() =>
-                    window.open(downloadUrl, '_blank', 'noopener,noreferrer')
-                  }
-                >
-                  Pobierz DOCX
-                </Button>
-              ) : null}
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => {
-                  const html = paragraphsToPrintHtml(generated?.title ?? 'Umowa', paragraphs)
-                  printHtmlAsPdf(html)
-                }}
-              >
-                Drukuj (starsza funkcja)
-              </Button>
-              <span className={styles.muted}>{PDF_EXPORT_UNAVAILABLE_MESSAGE}</span>
-              <Button
-                type="button"
-                variant="primary"
-                onClick={() => navigate(`/sluby/${wedding.id}`)}
-              >
-                Wróć do ślubu
-              </Button>
-            </div>
-          </section>
+        {step === 'saved' && generated ? (
+          <ContractReadyPreview
+            fileName={`${generated.title || 'umowa'}.docx`}
+            docxBytes={docxBytes}
+            onDownloadDocx={() => {
+              if (downloadUrl) {
+                window.open(downloadUrl, '_blank', 'noopener,noreferrer')
+              } else {
+                downloadGeneratedDocx()
+              }
+            }}
+            onRegenerate={() => {
+              generationSuccessRef.current = false
+              setStep('verify')
+            }}
+            onEditPaymentSchedule={
+              paymentWasManual && paymentSchedule
+                ? () => setStep('manual_payment')
+                : undefined
+            }
+            qualitySummary={qualitySummary}
+            runId={generationRunId ?? undefined}
+          />
         ) : null}
 
         {error ? (

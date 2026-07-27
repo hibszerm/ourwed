@@ -15,7 +15,7 @@ const ACTIONS = [
     icon: Plus,
   },
   {
-    to: '/ustawienia/dokumenty/szablony',
+    to: '/sluby',
     label: 'Generuj umowę',
     icon: FilePlus2,
   },
@@ -30,8 +30,8 @@ const ACTIONS = [
     icon: ListTodo,
   },
   {
-    to: '/ustawienia/dokumenty/szablony',
-    label: 'Dokumenty',
+    to: '/studio/pakiety',
+    label: 'Pakiety',
     icon: FileText,
   },
 ] as const

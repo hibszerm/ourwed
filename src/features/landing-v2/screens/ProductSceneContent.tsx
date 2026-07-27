@@ -17,7 +17,7 @@ function Shell({
         <aside className={styles.side}>
           <span className={styles.logo}>OW</span>
           <nav>
-            {['Pulpit', 'Śluby', 'Umowy', 'Kalendarz'].map((item) => (
+            {['Pulpit', 'Śluby', 'Pakiety', 'Kalendarz'].map((item) => (
               <em key={item} data-on={active === item || item === 'Pulpit'}>
                 {item}
               </em>

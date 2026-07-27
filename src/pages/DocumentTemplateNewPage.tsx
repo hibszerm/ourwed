@@ -75,7 +75,7 @@ export function DocumentTemplateNewPage() {
               <Button
                 type="button"
                 variant="ghost"
-                onClick={() => navigate('/umowy')}
+                onClick={() => navigate('/studio/pakiety')}
               >
                 Anuluj
               </Button>

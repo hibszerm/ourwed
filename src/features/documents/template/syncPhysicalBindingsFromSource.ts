@@ -7,6 +7,10 @@ import {
   candidatesToTemplateSlots,
   detectContractCandidates,
 } from './candidateDetection'
+import {
+  tablesFromParagraphOrigins,
+  type IndexedParagraph,
+} from './extractDocxParagraphs'
 import { dedupeSlotsByCanonicalKey } from './slotClassification'
 import {
   isSlotPhysicallyBound,
@@ -120,7 +124,9 @@ export function syncPhysicalBindingsFromSource(input: {
   )
 
   const fresh = candidatesToTemplateSlots(
-    detectContractCandidates(input.paragraphs),
+    detectContractCandidates(input.paragraphs as IndexedParagraph[], {
+      tables: tablesFromParagraphOrigins(input.paragraphs as IndexedParagraph[]),
+    }),
   ).filter((s) => isSlotPhysicallyBound(s))
 
   const added: BindingSyncDiagnostic['added'] = []

@@ -235,6 +235,7 @@ run('C/D/E — combined partners + owned participle; fixed wording preserved', (
     transformed: applied.paragraphs,
     resolvedByKey: resolved,
     slots,
+    replacementTraces: applied.replacementTraces,
   })
   assert(quality.ok, quality.report ?? 'quality must pass')
 })
@@ -351,6 +352,7 @@ run('L/M — visible outside-slot text still fails; owned changes pass', () => {
     transformed: tampered,
     resolvedByKey: resolved,
     slots,
+    replacementTraces: applied.replacementTraces,
   })
   assert(!bad.ok, 'outside-slot legal change must fail')
   assert(
@@ -363,6 +365,7 @@ run('L/M — visible outside-slot text still fails; owned changes pass', () => {
     transformed: applied.paragraphs,
     resolvedByKey: resolved,
     slots,
+    replacementTraces: applied.replacementTraces,
   })
   assert(good.ok, good.report ?? 'owned spans must pass')
 })
@@ -392,6 +395,7 @@ run('O — 8DD19470 fixture passes after the fix', () => {
     transformed: applied.paragraphs,
     resolvedByKey: resolved,
     slots,
+    replacementTraces: applied.replacementTraces,
   })
   assert(quality.ok, quality.report ?? '8DD19470 fixture')
   assertEq(quality.failures?.length ?? 0, 0)

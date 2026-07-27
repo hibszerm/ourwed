@@ -16,6 +16,7 @@ export type PackageContractHealthStatus = 'ok' | 'warning' | 'critical'
 
 export type PackageContractHealthCode =
   | 'bindings_valid'
+  | 'required_data_ready'
   | 'package_mode'
   | 'quality_safe'
   | 'immutable_preserved'
@@ -497,34 +498,99 @@ function dedupeChecks(
   return out
 }
 
-function baseOkChecks(hasPhysicalBindings: boolean): PackageContractHealthCheck[] {
-  return [
-    {
+function bindingsValidCheck(input: {
+  hasPhysicalBindings: boolean
+}): PackageContractHealthCheck {
+  if (input.hasPhysicalBindings) {
+    return {
       id: 'bindings_valid',
       code: 'bindings_valid',
-      status: hasPhysicalBindings ? 'ok' : 'critical',
-      title: 'Physical bindings valid',
-      message: hasPhysicalBindings
-        ? undefined
-        : 'No physical allowlisted bindings were found.',
-    },
+      status: 'ok',
+      title: 'Powiązania poprawne',
+    }
+  }
+
+  return {
+    id: 'bindings_valid',
+    code: 'bindings_valid',
+    status: 'critical',
+    title: 'Brak pól do uzupełnienia',
+    message:
+      'Nie udało się odnaleźć danych, które można bezpiecznie uzupełniać.',
+    recommendation:
+      'Upewnij się, że umowa zawiera dane strony zamawiającej, daty oraz wartość — w formie możliwej do odczytania z dokumentu.',
+    evidence: 'diagnostic:no_physical_allowlisted_bindings',
+  }
+}
+
+function requiredDataReadyCheck(input: {
+  requiredData: {
+    ready: boolean
+    missingCategories: readonly string[]
+    missingRegistryKeys: readonly string[]
+    blockingIssues: readonly { code: string; evidence: string; message: string }[]
+    evidence: readonly string[]
+  }
+}): PackageContractHealthCheck {
+  const { requiredData } = input
+  if (requiredData.ready) {
+    return {
+      id: 'required_data_ready',
+      code: 'required_data_ready',
+      status: 'ok',
+      title: 'Wymagane dane kompletne',
+    }
+  }
+
+  const evidence =
+    requiredData.evidence[0] ??
+    (requiredData.blockingIssues[0]?.evidence ||
+      (requiredData.missingCategories.length > 0
+        ? 'diagnostic:required_categories_incomplete'
+        : 'diagnostic:required_data_unspecified'))
+
+  // Never emit required_categories_incomplete without categories.
+  const safeEvidence =
+    evidence === 'diagnostic:required_categories_incomplete' &&
+    requiredData.missingCategories.length === 0
+      ? (requiredData.blockingIssues[0]?.evidence ??
+        'diagnostic:required_data_unspecified')
+      : evidence
+
+  return {
+    id: 'required_data_ready',
+    code: 'required_data_ready',
+    status: 'critical',
+    title: 'Brakuje wymaganych danych',
+    message:
+      requiredData.blockingIssues[0]?.message ??
+      'Rozpoznaliśmy część dokumentu, ale brakuje informacji potrzebnych do automatycznego generowania.',
+    recommendation:
+      requiredData.blockingIssues[0]?.message ??
+      'Sprawdź, czy w dokumencie są: dane strony zamawiającej, data zawarcia umowy, data ślubu oraz wartość umowy.',
+    evidence: safeEvidence,
+  }
+}
+
+function baseOkChecks(): PackageContractHealthCheck[] {
+  return [
     {
       id: 'package_mode',
       code: 'package_mode',
       status: 'ok',
-      title: 'Package mode',
+      title: 'Tryb pakietu',
     },
     {
       id: 'quality_safe',
       code: 'quality_safe',
       status: 'ok',
-      title: 'Quality safe',
+      title: 'Bezpieczeństwo dokumentu',
     },
     {
       id: 'immutable_preserved',
       code: 'immutable_preserved',
       status: 'ok',
-      title: 'Immutable clauses preserved',
+      title: 'Klauzule stałe zachowane',
     },
   ]
 }
@@ -535,44 +601,151 @@ function baseOkChecks(hasPhysicalBindings: boolean): PackageContractHealthCheck[
 export function buildPackageContractHealthReport(input: {
   paragraphs: Array<{ index: number; text: string }>
   slots: TemplateSlot[]
-  readinessReady: boolean
+  /**
+   * Canonical required-data readiness. Prefer this over bare readinessReady.
+   */
+  requiredData?: {
+    ready: boolean
+    missingCategories: readonly string[]
+    missingRegistryKeys: readonly string[]
+    blockingIssues: readonly {
+      code: string
+      evidence: string
+      message: string
+    }[]
+    evidence: readonly string[]
+  }
+  /** @deprecated Pass `requiredData` instead. Kept for older call sites/tests. */
+  readinessReady?: boolean
 }): PackageContractHealthReport {
-  const hasBindings = input.slots.some(
+  const physicalBound = input.slots.filter(
     (s) => s.registryKey && isSlotPhysicallyBound(s),
   )
+  const hasBindings = physicalBound.length > 0
+
+  const requiredForCheck =
+    input.requiredData ??
+    (input.readinessReady === true
+      ? {
+          ready: true as const,
+          missingCategories: [] as string[],
+          missingRegistryKeys: [] as string[],
+          blockingIssues: [] as Array<{
+            code: string
+            evidence: string
+            message: string
+          }>,
+          evidence: [] as string[],
+        }
+      : {
+          ready: false as const,
+          missingCategories: [] as string[],
+          missingRegistryKeys: [] as string[],
+          blockingIssues: [
+            {
+              code: 'legacy_readiness_boolean',
+              evidence: 'diagnostic:legacy_readiness_incomplete',
+              message:
+                'Rozpoznaliśmy część dokumentu, ale brakuje informacji potrzebnych do automatycznego generowania.',
+            },
+          ],
+          evidence: ['diagnostic:legacy_readiness_incomplete'],
+        })
+
   const checks: PackageContractHealthCheck[] = [
-    ...baseOkChecks(hasBindings && input.readinessReady),
+    bindingsValidCheck({ hasPhysicalBindings: hasBindings }),
+    requiredDataReadyCheck({ requiredData: requiredForCheck }),
+    ...baseOkChecks(),
     ...detectDerivedFinancialClauses(input),
     ...detectMultiLocationSlot(input),
     ...detectPaymentNumberingIssues(input),
   ]
 
-  // If readiness failed, mark bindings check critical (already handled).
-  if (!input.readinessReady) {
-    const bindings = checks.find((c) => c.code === 'bindings_valid')
-    if (bindings) {
-      bindings.status = 'critical'
-      bindings.message =
-        bindings.message ??
-        'Required package-contract categories are incomplete.'
-    }
-  }
-
   const warningCount = checks.filter((c) => c.status === 'warning').length
   const criticalCount = checks.filter((c) => c.status === 'critical').length
 
-  console.info('[package-contract-health-report]', {
-    warningCount,
-    criticalCount,
-    codes: checks.map((c) => `${c.status}:${c.code}`),
-  })
-
-  return {
+  const report: PackageContractHealthReport = {
     generatedAt: new Date().toISOString(),
     checks,
     warningCount,
     criticalCount,
     generationAllowed: criticalCount === 0,
+  }
+
+  assertPackageContractHealthConsistency(report, {
+    missingCategories: requiredForCheck.missingCategories,
+    missingRegistryKeys: requiredForCheck.missingRegistryKeys,
+    blockingIssues: requiredForCheck.blockingIssues,
+  })
+
+  console.info('[package-contract-health-report]', {
+    warningCount,
+    criticalCount,
+    hasPhysicalBindings: hasBindings,
+    physicalBindingCount: physicalBound.length,
+    physicalBindingKeys: physicalBound.map((s) => s.registryKey),
+    requiredDataReady: requiredForCheck.ready,
+    missingCategories: requiredForCheck.missingCategories,
+    missingRegistryKeys: requiredForCheck.missingRegistryKeys,
+    blockingIssues: requiredForCheck.blockingIssues.map((b) => b.code),
+    codes: checks.map((c) => `${c.status}:${c.code}`),
+    bindingsEvidence: checks.find((c) => c.code === 'bindings_valid')?.evidence,
+    requiredDataEvidence: checks.find((c) => c.code === 'required_data_ready')
+      ?.evidence,
+  })
+
+  return report
+}
+
+/**
+ * Enforce health-report invariants. Throws in DEV/tests; logs in production.
+ */
+export function assertPackageContractHealthConsistency(
+  report: PackageContractHealthReport,
+  gaps?: {
+    missingCategories?: readonly string[]
+    missingRegistryKeys?: readonly string[]
+    blockingIssues?: readonly { code: string }[]
+  },
+): void {
+  const required = report.checks.find((c) => c.code === 'required_data_ready')
+  const missingCats = gaps?.missingCategories?.length ?? 0
+  const missingKeys = gaps?.missingRegistryKeys?.length ?? 0
+  const blockers = gaps?.blockingIssues?.length ?? 0
+  const gapCount = missingCats + missingKeys + blockers
+
+  const fail = (message: string) => {
+    console.error('[package-contract-health-consistency]', {
+      message,
+      requiredStatus: required?.status,
+      requiredEvidence: required?.evidence,
+      gaps,
+      codes: report.checks.map((c) => `${c.status}:${c.code}`),
+    })
+    const strict =
+      import.meta.env?.DEV ||
+      import.meta.env?.MODE === 'test' ||
+      process.env.NODE_ENV !== 'production'
+    if (strict) {
+      throw new Error(`package-contract health inconsistency: ${message}`)
+    }
+  }
+
+  if (required?.status === 'critical' && gaps && gapCount === 0) {
+    fail('required_data_ready critical with no reported gaps')
+  }
+  if (
+    required?.evidence === 'diagnostic:required_categories_incomplete' &&
+    gaps &&
+    missingCats === 0
+  ) {
+    fail('required_categories_incomplete without missingCategories')
+  }
+  if (
+    report.generationAllowed &&
+    report.checks.some((c) => c.status === 'critical')
+  ) {
+    fail('generationAllowed with critical checks')
   }
 }
 

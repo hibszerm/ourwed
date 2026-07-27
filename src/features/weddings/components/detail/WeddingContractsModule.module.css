@@ -30,6 +30,36 @@
   font-size: var(--text-sm);
 }
 
+.stateBanner {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-text) 4%, var(--color-surface));
+  border: 1px solid var(--color-border);
+}
+
+.stateBanner[data-state='no_template'] {
+  border-color: color-mix(in srgb, var(--color-warning-text, #a15c00) 35%, var(--color-border));
+}
+
+.stateBanner[data-state='generated'] {
+  border-color: color-mix(in srgb, var(--color-success-text, #1a7f4b) 35%, var(--color-border));
+}
+
+.stateBanner strong {
+  color: var(--color-text-primary);
+  font-size: var(--text-sm);
+}
+
+.muted {
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
+}
+
+.error {
+  color: var(--color-danger-text, #b42318);
+  font-size: var(--text-sm);
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));

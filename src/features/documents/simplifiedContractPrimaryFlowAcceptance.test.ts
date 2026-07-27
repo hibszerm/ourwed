@@ -425,8 +425,11 @@ run('S — optional unresolved package field preserves template value (fixed)', 
 
 run('T — generated contract can be previewed', () => {
   const gen = source('src/pages/WeddingContractGenerationPage.tsx')
-  assert(gen.includes('ContractDocumentPreview'), 'preview component')
-  assert(gen.includes('Podgląd umowy'), 'preview copy')
+  assert(gen.includes('ContractDocxPreview'), 'preview component')
+  assert(
+    gen.includes('Podgląd dokumentu') || gen.includes('Umowa jest gotowa'),
+    'preview copy',
+  )
 })
 
 run('U — edited values regenerate via verify step', () => {
@@ -440,14 +443,54 @@ run('V — DOCX artifact is real and downloadable', () => {
     'src/features/documents/template/ContractExportService.ts',
   )
   assert(exportSrc.includes('assertRealDocx'), 'real docx assert')
-  const gen = source('src/pages/WeddingContractGenerationPage.tsx')
-  assert(gen.includes('Pobierz DOCX'), 'download action')
+  const ready = source(
+    'src/features/documents/contract-experience/ContractReadyPreview.tsx',
+  )
+  const success = source(
+    'src/features/documents/contract-experience/ContractSuccessState.tsx',
+  )
+  assert(
+    ready.includes('Pobierz DOCX') || success.includes('Pobierz DOCX'),
+    'download action',
+  )
 })
 
-run('W — PDF action is honest when unavailable', () => {
+run('W — DOCX preview is authoritative; experimental PDF is optional', () => {
   const gen = source('src/pages/WeddingContractGenerationPage.tsx')
-  assert(gen.includes('PDF_EXPORT_UNAVAILABLE_MESSAGE'), 'honest pdf')
-  assert(gen.includes('PDF niedostępny') || gen.includes('PDF będzie'), 'unavailable copy')
+  assert(gen.includes('ContractReadyPreview'), 'ready preview component')
+  assert(gen.includes('ContractDocxPreview'), 'docx-preview wired')
+  assert(
+    !gen.includes('ContractDocumentPreview'),
+    'react paragraph preview not production default',
+  )
+  assert(gen.includes('PaymentScheduleCompletionForm'), 'manual payment form')
+  assert(gen.includes("setStep('manual_payment')"), 'manual payment step')
+  const exportSrc = source(
+    'src/features/documents/template/ContractExportService.ts',
+  )
+  assert(
+    !exportSrc.includes('microsoftGraph') &&
+      !exportSrc.includes('createMicrosoftGraphPdfAdapter'),
+    'microsoft graph removed',
+  )
+  assert(
+    source(
+      'src/features/documents/template/gotenbergPdfAdapter.ts',
+    ).includes('createGotenbergPdfAdapter'),
+    'gotenberg adapter present',
+  )
+  assert(
+    source(
+      'src/features/documents/contract-experience/ExperimentalPdfActions.tsx',
+    ).includes('isExperimentalPdfExportEnabled'),
+    'pdf gated by flag',
+  )
+  assert(
+    source(
+      'src/features/ai-contract-transform/TransformComparisonPage.tsx',
+    ).includes('ExperimentalPdfActions'),
+    'lab result card has experimental pdf',
+  )
 })
 
 run('X/Y/Z — saved contract surfaces on wedding/client/global hubs', () => {
@@ -510,8 +553,14 @@ run('AC — AI Lab remains developer/support-only', () => {
   const flags = source('src/features/ai-contract-lab/aiContractLabFlags.ts')
   assert(flags.includes('VITE_ENABLE_AI_CONTRACT_LAB'), 'flagged')
   const sidebar = source('src/layouts/Sidebar.tsx')
-  assert(!sidebar.includes('Laboratorium umów AI'), 'lab hidden from product nav')
-  assert(!sidebar.includes('isAiContractLabEnabled'), 'no lab nav gate in product')
+  assert(
+    sidebar.includes('isAiContractLabEnabled'),
+    'lab nav is flag-gated',
+  )
+  assert(
+    sidebar.includes('Laboratorium umów AI'),
+    'lab label exists only behind flag',
+  )
   const router = source('src/routes/router.tsx')
   assert(router.includes('isAiContractLabEnabled'), 'route still flag-gated')
 })

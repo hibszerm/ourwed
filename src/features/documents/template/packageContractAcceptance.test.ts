@@ -106,16 +106,21 @@ run('A — package can store an active contract template version', () => {
   assert(svc.includes('linkContractTemplate'), 'link helper')
 })
 
-run('B — package upload runs analysis', () => {
-  const src = source(
+run('B — package upload stores DOCX without AI (product path)', () => {
+  const upload = source(
+    'src/features/documents/template/packageContractTemplateUpload.ts',
+  )
+  assert(upload.includes('uploadPackageContractTemplate'), 'upload entry')
+  assert(!upload.includes('activeAiDocumentAnalyzer'), 'no AI analysis')
+  assert(!upload.includes('buildSlotsFromAnalysis'), 'no slots from analysis')
+  assert(upload.includes('linkContractTemplate'), 'activates on package')
+  assert(upload.includes('extractDocxDocumentModel'), 'validates DOCX')
+  // Legacy analyzer path kept for rollback / lab — not used by product UI.
+  const legacy = source(
     'src/features/documents/template/packageContractAssignment.ts',
   )
-  assert(src.includes('assignPackageContractFromDocx'), 'assign entry')
-  assert(src.includes('activeAiDocumentAnalyzer.analyze'), 'runs AI analysis')
-  assert(src.includes('buildSlotsFromAnalysis'), 'builds slots')
-  assert(src.includes('applyPackageContractAllowlistToSlotMap'), 'filters')
-  assert(src.includes('saveTemplateSlots'), 'persists')
-  assert(src.includes('linkContractTemplate'), 'activates on package')
+  assert(legacy.includes('@deprecated'), 'legacy assign marked deprecated')
+  assert(legacy.includes('assignPackageContractFromDocx'), 'legacy still present')
 })
 
 run('C — allowed fields are persisted', () => {
@@ -535,20 +540,35 @@ run('readiness — required categories without inventing missing slots', () => {
   )
 })
 
-run('UI — package contract section is product-facing only', () => {
+run('UI — package contract section is template management only', () => {
   const ui = source('src/features/studio/PackageContractSection.tsx')
   assert(ui.includes('ContractUploadExperience'), 'upload experience')
-  assert(ui.includes('ContractAnalysisAnimation'), 'analysis experience')
-  assert(ui.includes('PackageHealthSummary'), 'ready experience')
-  assert(ui.includes('Umowa gotowa'), 'ready copy via summary')
-  assert(ui.includes('Zmień umowę'), 'replace')
+  assert(ui.includes('uploadPackageContractTemplate'), 'lightweight upload')
+  assert(!ui.includes('ContractAnalysisAnimation'), 'no AI analysis UX')
+  assert(!ui.includes('PackageHealthSummary'), 'no readiness summary')
+  assert(!ui.includes('PackageContractAttentionCard'), 'no mapping attention')
+  assert(ui.includes('PackageTemplateUploadProgress'), 'upload progress')
+  assert(ui.includes('idle_empty') || ui.includes('PackageTemplateUiPhase') || ui.includes('phase'), 'state machine')
   assert(ui.includes('Podgląd'), 'preview')
+  assert(ui.includes('Usuń szablon') || ui.includes('Odepnij szablon'), 'remove')
+  assert(ui.includes('inFlightRef') || ui.includes('success_transition'), 'no flicker guard')
+  assert(ui.includes('Dodaj wzór umowy dla tego pakietu.'), 'empty-state product copy')
+  assert(!ui.includes('Przechowuj DOCX'), 'no technical storage copy')
+  assert(!ui.includes('ze strony ślubu'), 'no generation-location copy')
   assert(!ui.includes('registryKey'), 'no registry keys')
   assert(!ui.includes('slot_map'), 'no slot map')
-  assert(!ui.includes('offset'), 'no offsets')
   assert(!ui.includes('semantic'), 'no semantic jargon')
   const packagesPage = source('src/pages/PackagesPage.tsx')
   assert(packagesPage.includes('PackageContractSection'), 'wired')
+  assert(
+    !/PackageContractSection[\s\S]{0,400}pkg\.description/.test(packagesPage),
+    'package description not between contract and contents',
+  )
+  const cxCss = source(
+    'src/features/documents/contract-experience/ContractExperience.module.css',
+  )
+  assert(!/templateStage\s*\{[^}]*min-height/.test(cxCss), 'no reserved template stage height')
+  assert(!/templateStageCard/.test(cxCss), 'no reserved progress card height')
 })
 
 run('authoritative allowlist is single source', () => {

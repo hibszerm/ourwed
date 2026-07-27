@@ -1,0 +1,126 @@
+.card {
+  display: grid;
+  gap: 1rem;
+  padding: 1.25rem 1.35rem;
+  border: 1px solid var(--border-subtle, #e5e2dc);
+  border-radius: 12px;
+  background: var(--surface-elevated, #fff);
+}
+
+.eyebrow {
+  margin: 0;
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted, #6b6560);
+}
+
+.card h2 {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 600;
+}
+
+.lead {
+  margin: 0;
+  max-width: 42rem;
+  line-height: 1.5;
+  color: var(--text-secondary, #4a4540);
+}
+
+.form {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.entries {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.entry {
+  margin: 0;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border-subtle, #e8e4de);
+  border-radius: 10px;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.entryLabel {
+  font-weight: 600;
+  padding: 0;
+}
+
+.sourceHint,
+.sourceHintRequired {
+  margin: 0;
+  font-size: 0.82rem;
+}
+
+.sourceHint {
+  color: var(--text-muted, #6b6560);
+}
+
+.sourceHintRequired {
+  color: var(--warn, #8a5a2b);
+}
+
+.field {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.88rem;
+}
+
+.field input {
+  font: inherit;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--border-subtle, #d8d3cb);
+  border-radius: 8px;
+}
+
+.field input:focus-visible {
+  outline: 2px solid var(--focus-ring, #2f5d50);
+  outline-offset: 1px;
+}
+
+.fieldError {
+  color: var(--danger, #a12828);
+  font-size: 0.8rem;
+}
+
+.totals {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0.75rem 0.9rem;
+  background: var(--surface-muted, #f7f5f1);
+  border-radius: 10px;
+}
+
+.totals > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.totals dt {
+  margin: 0;
+  color: var(--text-muted, #6b6560);
+}
+
+.totals dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.totals dd[data-over='true'] {
+  color: var(--danger, #a12828);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}

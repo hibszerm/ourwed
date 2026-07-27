@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate } from 'react-router-dom'
+import { createBrowserRouter, Navigate, useParams } from 'react-router-dom'
 import { ProtectedRoute } from '@/features/auth/ProtectedRoute'
 import { DashboardPage } from '@/pages/DashboardPage'
 import { DashboardV2Page } from '@/pages/DashboardV2Page'
@@ -16,9 +16,6 @@ import { ExtraServicesPage } from '@/pages/ExtraServicesPage'
 import { TravelSettingsPage } from '@/pages/TravelSettingsPage'
 import { SettingsPage } from '@/pages/SettingsPage'
 import { CompanyDetailsPage } from '@/pages/CompanyDetailsPage'
-import { DocumentsHubPage } from '@/pages/DocumentsHubPage'
-import { DocumentTemplatesPage } from '@/pages/DocumentTemplatesPage'
-import { DocumentTemplateNewPage } from '@/pages/DocumentTemplateNewPage'
 import { DocumentTemplateDetailPage } from '@/pages/DocumentTemplateDetailPage'
 import { DocumentTemplateMappingPage } from '@/pages/DocumentTemplateMappingPage'
 import { DocumentTemplateConfigPage } from '@/pages/DocumentTemplateConfigPage'
@@ -32,15 +29,58 @@ import { ResetPasswordPage } from '@/pages/ResetPasswordPage'
 import { CheckEmailPage } from '@/pages/CheckEmailPage'
 import { isAiContractLabEnabled } from '@/features/ai-contract-lab/aiContractLabFlags'
 
+/** Redirect legacy `/umowy/szablony/:id…` URLs while preserving the id param. */
+function RedirectTemplateDeepLink({
+  toSuffix = '',
+}: {
+  toSuffix?: string
+}) {
+  const { id } = useParams<{ id: string }>()
+  if (!id) return <Navigate to="/studio/pakiety" replace />
+  return (
+    <Navigate
+      to={`/ustawienia/dokumenty/szablony/${id}${toSuffix}`}
+      replace
+    />
+  )
+}
+
 const aiContractLabRoutes = isAiContractLabEnabled()
   ? [
       {
         path: '/laboratorium-umow-ai',
         lazy: async () => {
           const mod = await import(
+            '@/features/ai-contract-experiment/AiContractExperimentPage'
+          )
+          return { Component: mod.AiContractExperimentPage }
+        },
+      },
+      {
+        path: '/laboratorium-umow-ai/semantic',
+        lazy: async () => {
+          const mod = await import(
             '@/features/ai-contract-lab/AiContractLabPage'
           )
           return { Component: mod.AiContractLabPage }
+        },
+      },
+      {
+        path: '/eksperymenty/umowy-ai-transform',
+        lazy: async () => {
+          const mod = await import(
+            '@/features/ai-contract-transform/TransformComparisonPage'
+          )
+          return { Component: mod.TransformComparisonPage }
+        },
+      },
+      {
+        path: '/laboratorium-umow-ai/porownanie',
+        lazy: async () => {
+          const mod = await import(
+            '@/features/ai-contract-transform/TransformComparisonPage'
+          )
+          return { Component: mod.TransformComparisonPage }
         },
       },
     ]
@@ -103,27 +143,35 @@ export const router = createBrowserRouter([
       },
       { path: '/ankiety/:id', element: <QuestionnaireDetailPage /> },
       { path: '/oczekujace', element: <PendingWeddingsPage /> },
+      // Deprecated standalone Contracts hub — templates live on Packages,
+      // generated contracts live on Weddings. Keep deep links for Podgląd.
       {
         path: '/dokumenty',
-        element: <Navigate to="/umowy" replace />,
+        element: <Navigate to="/studio/pakiety" replace />,
       },
-      { path: '/umowy', element: <DocumentTemplatesPage /> },
-      { path: '/umowy/nowy', element: <DocumentTemplateNewPage /> },
+      {
+        path: '/umowy',
+        element: <Navigate to="/studio/pakiety" replace />,
+      },
+      {
+        path: '/umowy/nowy',
+        element: <Navigate to="/studio/pakiety" replace />,
+      },
       {
         path: '/umowy/szablony/:id',
-        element: <DocumentTemplateDetailPage />,
+        element: <RedirectTemplateDeepLink />,
       },
       {
         path: '/umowy/szablony/:id/analiza',
-        element: <DocumentTemplateMappingPage />,
+        element: <RedirectTemplateDeepLink toSuffix="/analiza" />,
       },
       {
         path: '/umowy/szablony/:id/konfiguracja',
-        element: <DocumentTemplateFieldConfigPage />,
+        element: <RedirectTemplateDeepLink toSuffix="/konfiguracja-pol" />,
       },
       {
         path: '/umowy/szablony/:id/pola-techniczne',
-        element: <DocumentTemplateConfigPage />,
+        element: <RedirectTemplateDeepLink toSuffix="/konfiguracja" />,
       },
       { path: '/studio/pakiety', element: <PackagesPage /> },
       { path: '/studio/uslugi', element: <ExtraServicesPage /> },
@@ -138,14 +186,17 @@ export const router = createBrowserRouter([
         element: <Navigate to="/ustawienia/firma" replace />,
       },
       { path: '/ustawienia/podroz', element: <TravelSettingsPage /> },
-      { path: '/ustawienia/dokumenty', element: <DocumentsHubPage /> },
+      {
+        path: '/ustawienia/dokumenty',
+        element: <Navigate to="/studio/pakiety" replace />,
+      },
       {
         path: '/ustawienia/dokumenty/szablony',
-        element: <DocumentTemplatesPage />,
+        element: <Navigate to="/studio/pakiety" replace />,
       },
       {
         path: '/ustawienia/dokumenty/szablony/nowy',
-        element: <DocumentTemplateNewPage />,
+        element: <Navigate to="/studio/pakiety" replace />,
       },
       {
         path: '/ustawienia/dokumenty/szablony/:id',

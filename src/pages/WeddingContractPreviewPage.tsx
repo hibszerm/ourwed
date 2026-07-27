@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AppLayout } from '@/layouts/AppLayout'
 import { Button } from '@/components/ui/Button'
@@ -7,15 +7,14 @@ import { PageContainer } from '@/components/ui/PageContainer'
 import { useToast } from '@/components/ui/Toast'
 import { useDocumentTemplates } from '@/features/documents/hooks/useDocumentTemplates'
 import {
-  extractDocxParagraphs,
   GeneratedWeddingContractService,
   saveGeneratedContract,
 } from '@/features/documents/template'
-import { PDF_EXPORT_UNAVAILABLE_MESSAGE } from '@/features/documents/template/ContractExportService'
 import {
   WeddingContractGenerationService,
   type ConfiguredContractCompletenessReport,
 } from '@/features/documents/template/WeddingContractGenerationService'
+import { ContractReadyPreview } from '@/features/documents/contract-experience'
 import { useWedding } from '@/features/weddings/hooks/useWedding'
 import { weddingActionsService } from '@/lib/api/weddingActionsService'
 import styles from './WeddingContractPreviewPage.module.css'
@@ -37,6 +36,7 @@ export function WeddingContractPreviewPage() {
     weddingId: string
     contractId: string
   }>()
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { showToast } = useToast()
   const { data: wedding } = useWedding(weddingId)
@@ -60,34 +60,26 @@ export function WeddingContractPreviewPage() {
         .sort((a, b) => b.generationVersion - a.generationVersion)[0],
     [contract],
   )
-  const latestPdf = useMemo(
-    () =>
-      contract?.artifacts
-        .filter((item) => item.format === 'pdf')
-        .sort((a, b) => b.generationVersion - a.generationVersion)[0],
-    [contract],
-  )
   const template = templates.find((item) => item.id === contract?.templateId)
+
   const {
-    data: paragraphs = [],
-    isLoading: previewLoading,
-    isError: previewFailed,
+    data: docxBytes = null,
+    isLoading: docxLoading,
+    isError: docxFailed,
+    refetch: refetchDocx,
   } = useQuery({
     queryKey: [
-      'generated-wedding-contract-preview',
+      'generated-wedding-contract-docx-bytes',
       weddingId,
       contractId,
       latestDocx?.id,
     ],
-    queryFn: async () => {
-      const bytes = await GeneratedWeddingContractService.downloadArtifact(
+    queryFn: () =>
+      GeneratedWeddingContractService.downloadArtifact(
         weddingId,
         contractId,
         'docx',
-      )
-      if (!bytes) return []
-      return (await extractDocxParagraphs(bytes)).map((item) => item.text)
-    },
+      ),
     enabled: Boolean(latestDocx),
   })
 
@@ -142,6 +134,10 @@ export function WeddingContractPreviewPage() {
           attempt.reviewStatePatch.contextualMessages.join('\n') ||
             'Uzupełnij wymagane dane przed ponownym generowaniem.',
         )
+        return
+      }
+      if (attempt.status === 'manual_input_required') {
+        navigate(`/sluby/${wedding.id}/umowa/generuj`)
         return
       }
       const generated = attempt.artifact
@@ -270,50 +266,41 @@ export function WeddingContractPreviewPage() {
             </div>
           </section>
         ) : (
-          <section className={styles.preview} aria-labelledby="simplified-preview">
-            <div className={styles.previewTitle}>
-              <h2 id="simplified-preview">Uproszczony podgląd DOCX</h2>
-              <p>
-                Tekst został odczytany z zapisanego pliku. Układ, grafiki i
-                formatowanie sprawdź w pobranym DOCX.
+          <>
+            {docxLoading ? <p>Ładowanie dokumentu…</p> : null}
+            {docxFailed ? (
+              <p role="alert">
+                Nie udało się pobrać pliku DOCX.{' '}
+                <button type="button" onClick={() => void refetchDocx()}>
+                  Spróbuj ponownie
+                </button>
               </p>
-            </div>
-            {previewFailed ? (
-              <p role="alert">Nie udało się odczytać uproszczonego podglądu.</p>
             ) : null}
-            {previewLoading ? <p>Odczytywanie treści…</p> : null}
-            <article className={styles.paper}>
-              {paragraphs.map((paragraph, index) => (
-                <p key={`${index}-${paragraph.slice(0, 20)}`}>{paragraph}</p>
-              ))}
-            </article>
-          </section>
+            <ContractReadyPreview
+              fileName={`${contract.draft.title || 'umowa'}.docx`}
+              docxBytes={docxBytes}
+              onDownloadDocx={() => void download('docx')}
+              onRegenerate={() =>
+                navigate(`/sluby/${wedding.id}/umowa/generuj`)
+              }
+            />
+          </>
         )}
 
         {actionError ? <p className={styles.error} role="alert">{actionError}</p> : null}
 
-        <div className={styles.stickyActions}>
-          <Button
-            type="button"
-            variant="secondary"
-            disabled={busy || editing}
-            onClick={() => void startEditing()}
-          >
-            Edytuj dane umowy
-          </Button>
-          <Button type="button" variant="primary" onClick={() => void download('docx')}>
-            Pobierz DOCX
-          </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            disabled={!latestPdf}
-            title={latestPdf ? undefined : PDF_EXPORT_UNAVAILABLE_MESSAGE}
-            onClick={() => latestPdf && void download('pdf')}
-          >
-            {latestPdf ? 'Pobierz PDF' : 'PDF niedostępny'}
-          </Button>
-        </div>
+        {editing ? null : (
+          <div className={styles.stickyActions}>
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={busy}
+              onClick={() => void startEditing()}
+            >
+              Edytuj dane umowy
+            </Button>
+          </div>
+        )}
       </PageContainer>
     </AppLayout>
   )

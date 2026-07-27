@@ -154,6 +154,18 @@ export {
   paragraphsToPrintHtml,
 } from './docxParagraphEditor'
 export type { DocxParagraph } from './docxParagraphEditor'
+export { isSparseWeddingContractGenerationEnabled } from './sparseWeddingContractFlags'
+export {
+  WeddingSparseContractGenerationService,
+  resolveSparseTemplateSource,
+} from './WeddingSparseContractGenerationService'
+export type { SparseGenerationSource } from './WeddingSparseContractGenerationService'
+export {
+  uploadPackageContractTemplate,
+  downloadPackageContractTemplateSource,
+  clearPackageContractTemplate,
+} from './packageContractTemplateUpload'
+export type { PackageContractTemplateUploadResult } from './packageContractTemplateUpload'
 export {
   printHtmlAsPdf,
   saveGeneratedContract,
@@ -172,6 +184,8 @@ export type {
   PdfConversionAdapter,
   PersistedContractArtifact,
 } from './ContractExportService'
+export { createGotenbergPdfAdapter } from './gotenbergPdfAdapter'
+export { isExperimentalPdfExportEnabled } from './experimentalPdfFlags'
 export {
   ContractArtifactPersistenceService,
   GeneratedWeddingContractService,
@@ -238,6 +252,25 @@ export type {
   PackageContractReadiness,
 } from './packageContractAllowlist'
 export {
+  evaluateClientPartyReadiness,
+  isClientPartyIdentityKey,
+  normalizeClientPartyKey,
+  CLIENT_PARTY_IDENTITY_KEYS,
+  CLIENT_PARTY_CAPABILITY_LABELS,
+} from './clientPartyReadiness'
+export type {
+  ClientPartyReadinessResult,
+  ClientPartyRole,
+  ClientPartyCapability,
+  ClientPartyPersonView,
+} from './clientPartyReadiness'
+export { buildClientPartyRightAnchors } from './clientPartyRolePhrases'
+export {
+  findClientPartyRoleAnchor,
+  normalizeClientPartyRoleLabel,
+  isProviderPartyRoleLabel,
+} from './clientPartyRolePhrases'
+export {
   assignPackageContractFromDocx,
   resolvePackageContractForWedding,
   packageContractMissingCategoryLabels,
@@ -249,6 +282,7 @@ export {
   detectMultiLocationSlot,
   detectPaymentNumberingIssues,
   packageContractHealthMark,
+  assertPackageContractHealthConsistency,
 } from './packageContractHealthAudit'
 export type {
   PackageContractHealthCheck,
@@ -256,6 +290,45 @@ export type {
   PackageContractHealthCode,
   PackageContractHealthStatus,
 } from './packageContractHealthAudit'
+export {
+  evaluatePackageContractRequiredDataReadiness,
+  assertPackageContractRequiredDataConsistency,
+} from './packageContractRequiredDataReadiness'
+export type {
+  PackageContractRequiredDataReadiness,
+  PackageContractBlockingIssue,
+} from './packageContractRequiredDataReadiness'
+export {
+  buildPackageContractFinalReport,
+  reconcilePackageContractPresentationFromPersisted,
+  derivePackageContractReportKind,
+  assertPackageContractFinalReportConsistency,
+} from './packageContractFinalReport'
+export type {
+  PackageContractFinalReport,
+  PackageContractReportKind,
+} from './packageContractFinalReport'
+export {
+  normalizeClientPartyPhysicalBindings,
+  classifySpanRelationship,
+  describeSharedPhysicalSpanConflicts,
+} from './normalizeClientPartyPhysicalBindings'
+export type {
+  ClientPartyBindingNormalizationResult,
+  SpanConflictRelationship,
+} from './normalizeClientPartyPhysicalBindings'
+export {
+  deriveClientPartyGenerationCapability,
+  preflightClientPartyGeneration,
+  composeCoupleFullNamesValue,
+  selectClientPartyAuditParagraphs,
+  logPackageContractGenerationClientPartyTrace,
+} from './clientPartyGenerationCapability'
+export type {
+  ClientPartyGenerationCapability,
+  ClientPartyPhysicalMode,
+  ClientPartyGenerationPreflight,
+} from './clientPartyGenerationCapability'
 export {
   resolvePackageContractFromPackage,
 } from './packageContractResolve'

@@ -4,6 +4,12 @@ Production-oriented Supabase / Postgres schema for the OurWed wedding photograph
 
 Source of truth for DDL: [`supabase/schema.sql`](../supabase/schema.sql)
 
+### Local vs remote bootstrap (important for developers)
+
+The **remote** Supabase database was historically bootstrapped from `supabase/schema.sql` (helpers such as `public.set_updated_at()`, core CRM tables, etc.). Incremental files under `supabase/migrations/` were applied **on top** of that baseline.
+
+A **fresh local** `supabase start` / `db reset` applies only `supabase/migrations/` and does **not** load `schema.sql`. Migration history is therefore incomplete for greenfield local DBs: many migrations assume baseline objects already exist. Prefer fixing gaps with small, idempotent prerequisite migrations (for example `20260722130000_set_updated_at_helper.sql`) rather than rewriting applied migration files. A full migration-history cleanup is a separate effort.
+
 This document describes tables, relationships, constraints, and how the schema supports the existing product workflow. It does **not** describe frontend implementation.
 
 ---

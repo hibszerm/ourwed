@@ -217,4 +217,6 @@ export const ContractExportService = createContractExportService({
     const { requireStudioUserId } = await import('@/lib/api/ownership')
     return requireStudioUserId()
   },
+  // PDF is experimental and on-demand only (Gotenberg). Never auto-wire here —
+  // see createGotenbergPdfAdapter + VITE_ENABLE_EXPERIMENTAL_PDF_EXPORT.
 })

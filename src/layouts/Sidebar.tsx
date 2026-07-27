@@ -3,15 +3,16 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import {
   IconCalendar,
   IconClipboard,
-  IconDocuments,
   IconClose,
   IconDashboard,
+  IconFlask,
   IconInbox,
   IconSettings,
   IconWeddings,
 } from '@/components/icons'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { useCurrentStudioUser } from '@/features/auth/useCurrentStudioUser'
+import { isAiContractLabEnabled } from '@/features/ai-contract-lab/aiContractLabFlags'
 import styles from './Sidebar.module.css'
 import catalogStyles from '@/features/studio/StudioCatalog.module.css'
 
@@ -25,7 +26,6 @@ const navItems = [
   },
   { to: '/sluby', label: 'Śluby', icon: IconWeddings },
   { to: '/kalendarz', label: 'Kalendarz', icon: IconCalendar },
-  { to: '/umowy', label: 'Umowy', icon: IconDocuments },
   { to: '/oczekujace', label: 'Oczekujące', icon: IconInbox },
 ]
 
@@ -110,6 +110,34 @@ export function Sidebar({ open = false, onClose, onNavigate }: SidebarProps) {
             <span>{label}</span>
           </NavLink>
         ))}
+
+        {isAiContractLabEnabled() ? (
+          <div className={catalogStyles.navGroup}>
+            <p className={styles.studioGroupLabel}>Eksperymentalne</p>
+            <NavLink
+              to="/laboratorium-umow-ai"
+              onClick={onNavigate}
+              data-testid="nav-ai-contract-lab"
+              className={({ isActive }) =>
+                `${styles.navItem} ${isActive ? styles.active : ''}`
+              }
+            >
+              <IconFlask className={styles.navIcon} />
+              <span>Laboratorium mapowania</span>
+            </NavLink>
+            <NavLink
+              to="/eksperymenty/umowy-ai-transform"
+              onClick={onNavigate}
+              data-testid="nav-ai-contract-transform"
+              className={({ isActive }) =>
+                `${styles.navItem} ${isActive ? styles.active : ''}`
+              }
+            >
+              <IconFlask className={styles.navIcon} />
+              <span>Laboratorium porównania umów</span>
+            </NavLink>
+          </div>
+        ) : null}
 
         <div className={catalogStyles.navGroup}>
           <p className={styles.studioGroupLabel}>Ankiety</p>

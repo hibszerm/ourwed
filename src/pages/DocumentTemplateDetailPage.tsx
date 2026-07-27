@@ -119,9 +119,9 @@ export function DocumentTemplateDetailPage() {
               <Button
                 type="button"
                 variant="secondary"
-                onClick={() => navigate('/umowy')}
+                onClick={() => navigate('/studio/pakiety')}
               >
-                Wróć do szablonów
+                Wróć do pakietów
               </Button>
             }
           />
@@ -139,7 +139,7 @@ export function DocumentTemplateDetailPage() {
       await mutations.remove.mutateAsync(doc.id)
       showToast('Szablon został usunięty.', 'success')
       setDeleteOpen(false)
-      navigate('/umowy')
+      navigate('/studio/pakiety')
     } catch (err) {
       showToast(
         err instanceof Error ? err.message : 'Nie udało się usunąć.',
@@ -157,7 +157,7 @@ export function DocumentTemplateDetailPage() {
     try {
       await mutations.uploadVersion.mutateAsync({ id: doc.id, file })
       showToast('Dokument zamieniony. Uruchamiamy analizę…', 'success')
-      navigate(`/umowy/szablony/${doc.id}/analiza`)
+      navigate(`/ustawienia/dokumenty/szablony/${doc.id}/analiza`)
     } catch (err) {
       showToast(
         err instanceof Error ? err.message : 'Nie udało się zamienić dokumentu.',
@@ -170,7 +170,7 @@ export function DocumentTemplateDetailPage() {
     try {
       const copy = await mutations.duplicate.mutateAsync(doc.id)
       showToast('Szablon zduplikowany.', 'success')
-      navigate(`/umowy/szablony/${copy.id}`)
+      navigate(`/ustawienia/dokumenty/szablony/${copy.id}`)
     } catch (err) {
       showToast(
         err instanceof Error ? err.message : 'Nie udało się zduplikować.',
@@ -202,10 +202,10 @@ export function DocumentTemplateDetailPage() {
           <button
             type="button"
             className={styles.backLink}
-            onClick={() => navigate('/umowy')}
+            onClick={() => navigate('/studio/pakiety')}
           >
             <ArrowLeft size={16} aria-hidden />
-            Szablony umów
+            Pakiety
           </button>
 
           <header className={styles.detailHeroClean}>
@@ -227,7 +227,7 @@ export function DocumentTemplateDetailPage() {
                   type="button"
                   variant="primary"
                   onClick={() =>
-                    navigate(`/umowy/szablony/${doc.id}/analiza`)
+                    navigate(`/ustawienia/dokumenty/szablony/${doc.id}/analiza`)
                   }
                 >
                   {status === 'error' ? 'Spróbuj ponownie' : 'Uruchom analizę'}

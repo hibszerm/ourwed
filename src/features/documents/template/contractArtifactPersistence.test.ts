@@ -301,6 +301,10 @@ await run('artifact persistence requires DOCX record success', async () => {
       events.push('persist-docx')
       throw new Error('database unavailable')
     },
+    generatePdf: async () => {
+      events.push('persist-pdf')
+      throw new Error('should not run')
+    },
     pdfAvailable: false,
   })
   let message = ''
@@ -324,6 +328,47 @@ await run('artifact persistence requires DOCX record success', async () => {
   equal(events, ['allocate', 'persist-docx'], 'artifact order')
 })
 
+await run('artifact persistence keeps DOCX when PDF conversion fails', async () => {
+  const events: string[] = []
+  const service = createContractArtifactPersistenceService({
+    allocateVersion: async () => {
+      events.push('allocate')
+      return 1
+    },
+    getDraft: async () => draft(),
+    generateDocx: async () => {
+      events.push('persist-docx')
+      return {
+        document: document(),
+        downloadUrl: 'https://example.test/docx',
+        bytes: await realDocx(),
+      }
+    },
+    generatePdf: async () => {
+      events.push('persist-pdf')
+      throw new Error('gotenberg misconfigured')
+    },
+    pdfAvailable: true,
+  })
+  const result = await service.persist({
+    wedding: wedding(),
+    draftId: 'draft',
+    templateId: 'template',
+    templateVersionId: 'template-version',
+    title: 'Umowa',
+    docxBytes: await realDocx(),
+    packageSnapshot,
+    manualOverrides: {},
+    resolvedValues: {},
+    omittedKeys: [],
+  })
+  equal(events.join(','), 'allocate,persist-docx,persist-pdf', 'order')
+  assert(result.docx != null, 'docx kept')
+  equal(result.pdf, null, 'pdf null')
+  equal(result.pdfAvailable, false, 'pdf unavailable')
+  equal(result.pdfError, 'gotenberg misconfigured', 'pdf error surfaced')
+})
+
 await run('CRM status follows artifact persistence in both UIs', async () => {
   const files = await Promise.all([
     readFile(
@@ -340,6 +385,5 @@ await run('CRM status follows artifact persistence in both UIs', async () => {
     const crm = source.indexOf('await weddingActionsService.markContractGenerated')
     assert(persistence >= 0, 'missing artifact persistence')
     assert(crm > persistence, 'CRM status must follow persisted artifact')
-    assert(!source.includes('pdfDownloadUrl'), 'must not expose pseudo-PDF')
   }
 })

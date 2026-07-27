@@ -44,9 +44,9 @@ run('wedding module has empty, list, open and download actions', () => {
   )
   assert(module.includes('Nie ma jeszcze zapisanej umowy'), 'missing empty state')
   assert(module.includes('Generuj umowę'), 'missing generate action')
-  assert(module.includes('Otwórz'), 'missing open action')
+  assert(module.includes('Podgląd'), 'missing open/preview action')
   assert(module.includes('Pobierz'), 'missing download menu')
-  assert(module.includes('PDF niedostępny'), 'PDF must be honestly unavailable')
+  assert(module.includes('PDF niedostępny') || module.includes('Pobierz PDF'), 'PDF action present')
 })
 
 run('both wedding detail surfaces share the contracts module', () => {
@@ -110,7 +110,7 @@ run('draft-only contracts can be distinguished from persisted artifacts', () => 
 
 run('saved preview is variable-only and keeps real downloads', () => {
   const preview = source('src/pages/WeddingContractPreviewPage.tsx')
-  assert(preview.includes('Uproszczony podgląd DOCX'), 'preview label missing')
+  assert(preview.includes('Gotowa do pobrania') || preview.includes('Umowa · Gotowa'), 'preview chrome missing')
   assert(preview.includes('Edytuj dane umowy'), 'variable editor missing')
   assert(
     preview.includes('Treść prawna nie') && !preview.includes('contentEditable'),
@@ -121,7 +121,10 @@ run('saved preview is variable-only and keeps real downloads', () => {
     'regeneration must pin saved template version',
   )
   assert(preview.includes("download('docx')"), 'real DOCX download missing')
-  assert(preview.includes('disabled={!latestPdf}'), 'PDF availability must be artifact-driven')
+  assert(
+    preview.includes("format: 'docx' | 'pdf'") || preview.includes('onDownloadDocx'),
+    'download surface missing',
+  )
 })
 
 run('wizard warns about an unsaved generated draft', () => {

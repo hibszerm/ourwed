@@ -14,10 +14,13 @@ export function ContractUploadExperience({
   disabled,
   selectedFile,
   onFile,
+  embedded = false,
 }: {
   disabled?: boolean
   selectedFile: File | null
   onFile: (file: File) => void
+  /** Dropzone only — section label/copy live in the parent. */
+  embedded?: boolean
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [dragging, setDragging] = useState(false)
@@ -37,16 +40,88 @@ export function ContractUploadExperience({
     accept(event.dataTransfer.files?.[0])
   }
 
+  const dropzone = (
+    <AnimatePresence mode="wait" initial={false}>
+      {selectedFile ? (
+        <motion.div
+          key="file"
+          className={styles.fileChip}
+          variants={variants}
+          initial="initial"
+          animate="animate"
+          exit="exit"
+          layout
+        >
+          <span className={styles.fileChipIcon} aria-hidden>
+            <FileText size={20} strokeWidth={1.75} />
+          </span>
+          <div className={styles.fileChipBody}>
+            <p className={styles.fileChipName}>{selectedFile.name}</p>
+            <p className={styles.fileChipMeta}>
+              {formatBytes(selectedFile.size)}
+            </p>
+          </div>
+          <span className={styles.fileChipOk}>
+            <Check size={14} strokeWidth={2.5} aria-hidden />
+            Wgrano
+          </span>
+        </motion.div>
+      ) : (
+        <motion.button
+          key="zone"
+          type="button"
+          className={styles.uploadZone}
+          data-dragging={dragging}
+          data-active={!disabled}
+          disabled={disabled}
+          variants={variants}
+          initial="initial"
+          animate="animate"
+          exit="exit"
+          whileHover={prefersReduced || disabled ? undefined : { scale: 1.01 }}
+          whileTap={prefersReduced || disabled ? undefined : { scale: 0.995 }}
+          transition={softSpring}
+          onClick={() => inputRef.current?.click()}
+          onDragEnter={(e) => {
+            e.preventDefault()
+            setDragging(true)
+          }}
+          onDragOver={(e) => {
+            e.preventDefault()
+            setDragging(true)
+          }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={onDrop}
+        >
+          <span className={styles.docxArt} aria-hidden>
+            <FileText size={28} strokeWidth={1.5} />
+          </span>
+          <div className={styles.uploadCopy}>
+            <p className={styles.uploadLead}>Przeciągnij plik DOCX</p>
+            <p className={styles.uploadHint}>lub kliknij, aby wybrać</p>
+          </div>
+        </motion.button>
+      )}
+    </AnimatePresence>
+  )
+
   return (
-    <div className={`${styles.experience} ${styles.card}`}>
-      <div>
-        <p className={styles.eyebrow}>Umowa pakietu</p>
-        <h3 className={styles.title}>Dodaj umowę</h3>
-        <p className={styles.subtitle}>
-          Prześlij dokument DOCX — przygotujemy go do automatycznego
-          generowania dla zleceń z tym pakietem.
-        </p>
-      </div>
+    <div
+      className={
+        embedded
+          ? styles.experience
+          : `${styles.experience} ${styles.card}`
+      }
+    >
+      {!embedded ? (
+        <div>
+          <p className={styles.eyebrow}>Umowa pakietu</p>
+          <h3 className={styles.title}>Dodaj umowę</h3>
+          <p className={styles.subtitle}>
+            Ten wzór będzie używany podczas generowania umów.
+          </p>
+        </div>
+      ) : null}
 
       <input
         ref={inputRef}
@@ -60,68 +135,7 @@ export function ContractUploadExperience({
         }}
       />
 
-      <AnimatePresence mode="wait" initial={false}>
-        {selectedFile ? (
-          <motion.div
-            key="file"
-            className={styles.fileChip}
-            variants={variants}
-            initial="initial"
-            animate="animate"
-            exit="exit"
-            layout
-          >
-            <span className={styles.fileChipIcon} aria-hidden>
-              <FileText size={20} strokeWidth={1.75} />
-            </span>
-            <div className={styles.fileChipBody}>
-              <p className={styles.fileChipName}>{selectedFile.name}</p>
-              <p className={styles.fileChipMeta}>
-                {formatBytes(selectedFile.size)}
-              </p>
-            </div>
-            <span className={styles.fileChipOk}>
-              <Check size={14} strokeWidth={2.5} aria-hidden />
-              Wgrano
-            </span>
-          </motion.div>
-        ) : (
-          <motion.button
-            key="zone"
-            type="button"
-            className={styles.uploadZone}
-            data-dragging={dragging}
-            data-active={!disabled}
-            disabled={disabled}
-            variants={variants}
-            initial="initial"
-            animate="animate"
-            exit="exit"
-            whileHover={prefersReduced || disabled ? undefined : { scale: 1.01 }}
-            whileTap={prefersReduced || disabled ? undefined : { scale: 0.995 }}
-            transition={softSpring}
-            onClick={() => inputRef.current?.click()}
-            onDragEnter={(e) => {
-              e.preventDefault()
-              setDragging(true)
-            }}
-            onDragOver={(e) => {
-              e.preventDefault()
-              setDragging(true)
-            }}
-            onDragLeave={() => setDragging(false)}
-            onDrop={onDrop}
-          >
-            <span className={styles.docxArt} aria-hidden>
-              <FileText size={28} strokeWidth={1.5} />
-            </span>
-            <div className={styles.uploadCopy}>
-              <p className={styles.uploadLead}>Przeciągnij plik DOCX</p>
-              <p className={styles.uploadHint}>lub kliknij, aby wybrać</p>
-            </div>
-          </motion.button>
-        )}
-      </AnimatePresence>
+      {dropzone}
     </div>
   )
 }

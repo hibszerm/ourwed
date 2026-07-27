@@ -1,0 +1,20 @@
+# Optional local services for OurWed development.
+# Gotenberg is experimental DOCX→PDF only — not required for normal DOCX preview.
+#
+#   docker compose --profile gotenberg up gotenberg
+#
+# Then set Edge secrets / local env:
+#   GOTENBERG_URL=http://host.docker.internal:3000
+#   ENABLE_EXPERIMENTAL_PDF_EXPORT=true
+#   VITE_ENABLE_EXPERIMENTAL_PDF_EXPORT=true
+#
+# Note: hosting Gotenberg in production may introduce infrastructure cost
+# even though the software is open source. Prefer HTTPS and network ACLs.
+
+services:
+  gotenberg:
+    image: gotenberg/gotenberg:8
+    profiles: ['gotenberg']
+    ports:
+      - '3000:3000'
+    restart: unless-stopped

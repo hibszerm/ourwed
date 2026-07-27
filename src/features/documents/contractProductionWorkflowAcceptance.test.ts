@@ -384,9 +384,19 @@ function fakeStorage(events: string[]): DocumentStorageService {
       draftAsset: () => '',
       exportFile: (_user, _wedding, id, format) => `${id}.${format}`,
     },
-    async upload(_path, file) {
+    async upload(path, file) {
       events.push('upload')
-      await assertRealDocx(await file.arrayBuffer())
+      const bytes = await file.arrayBuffer()
+      if (String(path).endsWith('.pdf')) {
+        const prefix = new TextDecoder().decode(
+          new Uint8Array(bytes, 0, Math.min(5, bytes.byteLength)),
+        )
+        if (prefix !== '%PDF-') {
+          throw new Error('Usługa konwersji nie zwróciła prawidłowego pliku PDF.')
+        }
+        return
+      }
+      await assertRealDocx(bytes)
     },
     async download() {
       throw new Error('unused')
@@ -401,20 +411,29 @@ function fakeStorage(events: string[]): DocumentStorageService {
   }
 }
 
-await run('A', 'navigation and canonical routes are wired', () => {
+await run('A', 'navigation owns packages and weddings, not standalone Contracts', () => {
   const router = source('src/routes/router.tsx')
   const sidebar = source('src/layouts/Sidebar.tsx')
   for (const path of [
-    '/umowy',
-    '/umowy/nowy',
-    '/umowy/szablony/:id',
-    '/umowy/szablony/:id/konfiguracja',
     '/sluby/:weddingId/umowy/nowa',
     '/sluby/:weddingId/umowy/:contractId',
+    '/studio/pakiety',
+    '/ustawienia/dokumenty/szablony/:id',
   ]) {
     assert(router.includes(`path: '${path}'`), `missing route ${path}`)
   }
-  assert(sidebar.includes("to: '/umowy', label: 'Umowy'"), 'missing contracts nav')
+  assert(
+    router.includes('Navigate to="/studio/pakiety"'),
+    'standalone Contracts hub redirects to packages',
+  )
+  assert(
+    !sidebar.includes("to: '/umowy', label: 'Umowy'"),
+    'standalone Umowy nav must be removed',
+  )
+  assert(
+    sidebar.includes("to: '/studio/pakiety', label: 'Pakiety'"),
+    'Pakiety nav required',
+  )
 })
 
 await run('B', 'direct upload route stays focused on DOCX', () => {
@@ -964,7 +983,7 @@ await run('AF', 'artifact filenames are sanitized', () => {
   equal(sanitizeContractFileName('...'), 'umowa', 'safe fallback')
 })
 
-await run('AG', 'PDF is unavailable without manufacturing a fake artifact', async () => {
+await run('AG', 'PDF without adapter stays unavailable; with adapter converts final DOCX', async () => {
   const service = createContractExportService({
     storage: fakeStorage([]),
     getUserId: async () => 'user',
@@ -987,6 +1006,38 @@ await run('AG', 'PDF is unavailable without manufacturing a fake artifact', asyn
     message = error instanceof Error ? error.message : ''
   }
   equal(message, PDF_EXPORT_UNAVAILABLE_MESSAGE, 'truthful PDF error')
+
+  const docxBytes = await realDocx()
+  let convertedFrom: ArrayBuffer | null = null
+  const withAdapter = createContractExportService({
+    storage: fakeStorage([]),
+    getUserId: async () => 'user',
+    recordExport: async () => document(2),
+    pdfAdapter: {
+      async convertDocx({ docxBytes: input }) {
+        convertedFrom = input
+        const pdf = new TextEncoder().encode('%PDF-1.4 fake')
+        return pdf.buffer
+      },
+    },
+  })
+  assert(withAdapter.pdfAvailable, 'adapter advertises PDF')
+  await withAdapter.generatePdf({
+    weddingId: wedding().id,
+    draftId: 'draft',
+    templateId: 'template',
+    templateVersionId: 'template-version',
+    generationVersion: 1,
+    title: 'Umowa',
+    docxBytes,
+    snapshotJson: {},
+  })
+  assert(convertedFrom != null, 'adapter received DOCX')
+  equal(
+    new Uint8Array(convertedFrom!).byteLength,
+    new Uint8Array(docxBytes).byteLength,
+    'exact final DOCX bytes',
+  )
 })
 
 await run('AH', 'wedding listing is artifact-only with preview and download links', () => {
@@ -1006,12 +1057,24 @@ await run('AI', 'global listing is artifact-only and links to wedding context', 
   assert(hub.includes('Wyłącznie dokumenty, których artefakt'), 'artifact-only contract is not explained')
 })
 
-await run('AJ', 'saved preview is simplified and downloads persisted formats', () => {
+await run('AJ', 'saved preview uses exact DOCX via docx-preview', () => {
   const preview = source('src/pages/WeddingContractPreviewPage.tsx')
-  assert(preview.includes('Uproszczony podgląd DOCX'), 'simplified label missing')
+  assert(preview.includes('ContractReadyPreview'), 'ready preview missing')
+  assert(
+    preview.includes('downloadArtifact') ||
+      preview.includes("format === 'docx'") ||
+      preview.includes("'docx'"),
+    'loads final DOCX artifact',
+  )
   assert(preview.includes("download('docx')"), 'DOCX download missing')
-  assert(preview.includes('disabled={!latestPdf}'), 'PDF availability not artifact-driven')
+  assert(
+    source(
+      'src/features/documents/contract-experience/ContractDocxPreview.tsx',
+    ).includes('renderAsync'),
+    'docx-preview renderAsync',
+  )
   assert(!preview.includes('contentEditable'), 'saved legal text is arbitrarily editable')
+  assert(!preview.includes('MICROSOFT_GRAPH'), 'no microsoft graph')
 })
 
 await run('AK', 'regeneration is variable-only and pinned to template version', () => {

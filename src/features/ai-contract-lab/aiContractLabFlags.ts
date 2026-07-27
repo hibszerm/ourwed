@@ -3,6 +3,14 @@ export function isAiContractLabEnabled(): boolean {
   return import.meta.env.VITE_ENABLE_AI_CONTRACT_LAB === 'true'
 }
 
+/**
+ * When true (with lab enabled), show Full AI vs Guarded AI side-by-side.
+ * Production wedding UI never uses this flag.
+ */
+export function isContractAiDebugModesEnabled(): boolean {
+  return import.meta.env.VITE_ENABLE_CONTRACT_AI_DEBUG_MODES === 'true'
+}
+
 export function getAiContractLabWeddingIdOverride(): string | null {
   const raw = import.meta.env.VITE_AI_CONTRACT_LAB_WEDDING_ID?.trim()
   return raw || null

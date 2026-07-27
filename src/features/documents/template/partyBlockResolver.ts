@@ -1,17 +1,23 @@
 /**
- * Deterministic party-block resolver — both wedding partners must appear
- * when the template contains client-party data.
+ * Deterministic party-block resolver — wedding partners must appear according
+ * to the template's client-party generation capability (composite vs separate).
  */
 
 import type { Wedding } from '@/types/wedding'
 import type { TemplateSlot } from './types'
 import { isSlotPhysicallyBound } from './types'
+import {
+  deriveClientPartyGenerationCapability,
+  composeCoupleFullNamesValue,
+  type ClientPartyGenerationCapability,
+} from './clientPartyGenerationCapability'
 
 export type PartyBlockStrategy =
   | 'separate_slots'
   | 'shared_client_slot'
   | 'primary_plus_continuation'
   | 'no_client_party'
+  | 'composite_slot'
 
 export interface PartyBlockPlan {
   strategy: PartyBlockStrategy
@@ -30,19 +36,9 @@ export interface PartyBlockPlan {
   } | null
   /** True when both partners are known and the plan represents both. */
   bothPartnersRepresented: boolean
+  capability: ClientPartyGenerationCapability
 }
 
-const PARTNER1_NAME_KEYS = new Set([
-  'bride_full_name',
-  'partner1_full_name',
-  'client_name',
-  'client_full_name',
-])
-const PARTNER2_NAME_KEYS = new Set([
-  'groom_full_name',
-  'partner2_full_name',
-])
-const COUPLE_KEYS = new Set(['couple_full_names'])
 const ADDRESS_KEYS = new Set([
   'bride_address',
   'groom_address',
@@ -81,37 +77,33 @@ function normalizeAddr(value: string | null | undefined): string {
 
 /**
  * Inspect physical slots and compose partner overrides so a known second
- * partner is never silently dropped.
+ * partner is never silently dropped — without requiring a second physical
+ * name slot when the template uses composite `couple_full_names`.
  */
 export function resolvePartyBlock(input: {
   slots: TemplateSlot[]
   wedding: Pick<Wedding, 'couple'>
-  /** Prefer "oraz" for formal shared party strings. */
+  /** Prefer source separator from the composite slot when omitted. */
   sharedSeparator?: string
 }): PartyBlockPlan {
   const c = input.wedding.couple
-  const partner1Name =
-    fullName({ full: c.partner1 }) || c.partner1.trim()
-  const partner2Name =
-    fullName({ full: c.partner2 }) || c.partner2.trim()
-  const sep = input.sharedSeparator ?? ' oraz '
+  const partner1Name = fullName({ full: c.partner1 }) || c.partner1.trim()
+  const partner2Name = fullName({ full: c.partner2 }) || c.partner2.trim()
+  const capability = deriveClientPartyGenerationCapability(input.slots)
+  const sep = input.sharedSeparator ?? capability.separator
   const keys = boundKeys(input.slots)
 
-  const hasP1 = [...PARTNER1_NAME_KEYS].some((k) => keys.has(k))
-  const hasP2 = [...PARTNER2_NAME_KEYS].some((k) => keys.has(k))
-  const hasCouple = [...COUPLE_KEYS].some((k) => keys.has(k))
-  const hasAnyClientParty = hasP1 || hasP2 || hasCouple
-
   const overrides: Record<string, string> = {}
-  const combined =
-    partner1Name && partner2Name
-      ? `${partner1Name}${sep}${partner2Name}`
-      : partner1Name || partner2Name
+  const combined = composeCoupleFullNamesValue({
+    person1FullName: partner1Name,
+    person2FullName: partner2Name,
+    separator: sep,
+  })
 
   let strategy: PartyBlockStrategy = 'no_client_party'
   let bothPartnersRepresented = !(partner1Name && partner2Name)
 
-  if (!hasAnyClientParty) {
+  if (capability.physicalMode === 'none') {
     return {
       strategy: 'no_client_party',
       partner1Name,
@@ -119,64 +111,73 @@ export function resolvePartyBlock(input: {
       overrides,
       addressAmbiguity: null,
       bothPartnersRepresented: true,
+      capability,
     }
   }
 
-  if (hasP1 && hasP2) {
+  if (capability.physicalMode === 'composite') {
+    strategy = 'composite_slot'
+    if (combined) {
+      overrides.couple_full_names = combined
+      for (const alias of capability.semanticAliases) {
+        if (alias !== 'couple_full_names') overrides[alias] = combined
+      }
+    }
+    bothPartnersRepresented = Boolean(partner1Name && partner2Name)
+  } else if (capability.physicalMode === 'separate_persons') {
     strategy = 'separate_slots'
     if (partner1Name) {
       overrides.bride_full_name = partner1Name
       overrides.partner1_full_name = partner1Name
+      if (capability.person1BindingKey) {
+        overrides[capability.person1BindingKey] = partner1Name
+      }
     }
     if (partner2Name) {
       overrides.groom_full_name = partner2Name
       overrides.partner2_full_name = partner2Name
+      if (capability.person2BindingKey) {
+        overrides[capability.person2BindingKey] = partner2Name
+      }
     }
     if (combined) overrides.couple_full_names = combined
     bothPartnersRepresented = Boolean(partner1Name && partner2Name)
-  } else if (hasCouple && !hasP1 && !hasP2) {
-    strategy = 'shared_client_slot'
-    if (combined) {
-      overrides.couple_full_names = combined
-      overrides.bride_full_name = combined
-      overrides.partner1_full_name = combined
-      overrides.client_name = combined
+  } else if (capability.physicalMode === 'single_person') {
+    // One physical identity slot: may be a true single-client template, or a
+    // legacy shared primary slot that receives both wedding partners when known.
+    strategy =
+      keys.has('groom_first_name') || keys.has('partner2_first_name')
+        ? 'primary_plus_continuation'
+        : 'shared_client_slot'
+    const value =
+      partner1Name && partner2Name
+        ? composeCoupleFullNamesValue({
+            person1FullName: partner1Name,
+            person2FullName: partner2Name,
+            separator: sep,
+          })
+        : partner1Name || partner2Name
+    if (value) {
+      if (capability.person1BindingKey) {
+        overrides[capability.person1BindingKey] = value
+      }
+      if (capability.person2BindingKey) {
+        overrides[capability.person2BindingKey] = value
+      }
+      overrides.bride_full_name = value
+      overrides.partner1_full_name = value
+      overrides.client_name = value
+      overrides.client_full_name = value
+      overrides.couple_full_names = value
     }
-    bothPartnersRepresented = Boolean(partner1Name && partner2Name)
-  } else if (hasP1 && !hasP2) {
-    // Shared / primary client slot — compose both partners.
-    strategy = keys.has('groom_first_name') || keys.has('partner2_first_name')
-      ? 'primary_plus_continuation'
-      : 'shared_client_slot'
-    if (combined) {
-      overrides.bride_full_name = combined
-      overrides.partner1_full_name = combined
-      overrides.client_name = combined
-      overrides.client_full_name = combined
-      overrides.couple_full_names = combined
-    }
-    bothPartnersRepresented = Boolean(partner1Name && partner2Name)
-  } else if (hasP2 && !hasP1) {
-    strategy = 'shared_client_slot'
-    if (combined) {
-      overrides.groom_full_name = combined
-      overrides.partner2_full_name = combined
-      overrides.couple_full_names = combined
-    }
-    bothPartnersRepresented = Boolean(partner1Name && partner2Name)
+    bothPartnersRepresented = Boolean(partner1Name && partner2Name) || Boolean(value)
   }
 
-  // Address ambiguity: one address slot, two different known addresses.
   const boundAddressKeys = [...ADDRESS_KEYS].filter((k) => keys.has(k))
   const a1 = normalizeAddr(c.partner1Address)
   const a2 = normalizeAddr(c.partner2Address)
   let addressAmbiguity: PartyBlockPlan['addressAmbiguity'] = null
-  if (
-    boundAddressKeys.length === 1 &&
-    a1 &&
-    a2 &&
-    a1 !== a2
-  ) {
+  if (boundAddressKeys.length === 1 && a1 && a2 && a1 !== a2) {
     addressAmbiguity = {
       slotKeys: boundAddressKeys,
       partner1Address: c.partner1Address?.trim() || '',
@@ -197,7 +198,6 @@ export function resolvePartyBlock(input: {
     }
   }
 
-  // Shared single address when identical — fill without inventing.
   if (
     !addressAmbiguity &&
     boundAddressKeys.length === 1 &&
@@ -215,44 +215,41 @@ export function resolvePartyBlock(input: {
     overrides,
     addressAmbiguity,
     bothPartnersRepresented,
+    capability,
   }
 }
 
 /**
- * Critical check: when the template has client-party data, both known
- * wedding partners must appear in the generated party region text.
+ * Critical check: wedding partners required by the template capability must
+ * appear in the generated client-party region text.
  */
 export function auditPartnersRepresented(input: {
   paragraphs: Array<{ text: string }>
   partner1Name: string
   partner2Name: string
   templateHasClientParty: boolean
+  /** When 1, only person1 is required in output. */
+  expectedPersonCount?: 0 | 1 | 2
 }): { ok: boolean; missing: string[] } {
   if (!input.templateHasClientParty) return { ok: true, missing: [] }
   const hay = input.paragraphs.map((p) => p.text).join('\n')
   const missing: string[] = []
   const p1 = input.partner1Name.trim()
   const p2 = input.partner2Name.trim()
-  if (p1 && !hay.includes(p1)) missing.push(p1)
-  if (p2 && !hay.includes(p2)) missing.push(p2)
+  const expected = input.expectedPersonCount ?? 2
+  if (expected >= 1 && p1 && !hay.includes(p1)) missing.push(p1)
+  if (expected >= 2 && p2 && !hay.includes(p2)) missing.push(p2)
   return { ok: missing.length === 0, missing }
 }
 
 export function templateHasClientPartyData(slots: TemplateSlot[]): boolean {
-  const keys = boundKeys(slots)
-  return (
-    [...PARTNER1_NAME_KEYS].some((k) => keys.has(k)) ||
-    [...PARTNER2_NAME_KEYS].some((k) => keys.has(k)) ||
-    [...COUPLE_KEYS].some((k) => keys.has(k))
-  )
+  return deriveClientPartyGenerationCapability(slots).physicalMode !== 'none'
 }
 
 /**
  * When the source document has a singular party participle near „Parą Młodą”
  * and both wedding partners will be named, bind an exact physical slot for
  * that participle so „zwaną dalej” → „zwani dalej” stays owned.
- *
- * Ownership is derived from the source OOXML text — never from desired output.
  */
 export function ensureCouplePartyParticipleSlot(input: {
   slots: TemplateSlot[]

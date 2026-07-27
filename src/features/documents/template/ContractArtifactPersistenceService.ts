@@ -41,7 +41,9 @@ export interface PersistGeneratedWeddingContractResult {
   generationVersion: number
   status: 'ready'
   docx: PersistedContractArtifact
+  pdf: PersistedContractArtifact | null
   pdfAvailable: boolean
+  pdfError: string | null
 }
 
 export async function allocateNextGenerationVersion(
@@ -72,6 +74,7 @@ interface ArtifactPersistenceDependencies {
   allocateVersion: (weddingId: string, templateId: string) => Promise<number>
   getDraft: (id: string) => Promise<WeddingDocumentDraft | null>
   generateDocx: typeof ContractExportService.generateDocx
+  generatePdf: typeof ContractExportService.generatePdf
   pdfAvailable: boolean
 }
 
@@ -119,11 +122,36 @@ export function createContractArtifactPersistenceService(
         docxBytes: input.docxBytes,
         snapshotJson: snapshotJson as unknown as Record<string, unknown>,
       })
+
+      let pdf: PersistedContractArtifact | null = null
+      let pdfError: string | null = null
+      if (dependencies.pdfAvailable) {
+        try {
+          pdf = await dependencies.generatePdf({
+            weddingId: input.wedding.id,
+            draftId: input.draftId,
+            templateId: input.templateId,
+            templateVersionId: input.templateVersionId,
+            generationVersion,
+            title: input.title,
+            docxBytes: input.docxBytes,
+            snapshotJson: snapshotJson as unknown as Record<string, unknown>,
+          })
+        } catch (e) {
+          pdfError =
+            e instanceof Error
+              ? e.message
+              : 'Nie udało się przygotować podglądu PDF. Dokument DOCX został zachowany.'
+        }
+      }
+
       return {
         generationVersion,
         status: 'ready',
         docx,
-        pdfAvailable: dependencies.pdfAvailable,
+        pdf,
+        pdfAvailable: Boolean(pdf),
+        pdfError,
       }
     },
   }
@@ -137,7 +165,9 @@ export const ContractArtifactPersistenceService =
       return documentDraftService.get(id)
     },
     generateDocx: (input) => ContractExportService.generateDocx(input),
-    pdfAvailable: ContractExportService.pdfAvailable,
+    generatePdf: (input) => ContractExportService.generatePdf(input),
+    // DOCX is authoritative; experimental PDF is on-demand and never blocks save.
+    pdfAvailable: false,
   })
 
 async function loadGrouped(

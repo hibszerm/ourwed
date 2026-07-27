@@ -5,6 +5,7 @@
 
 import type { AiDocumentAnalysisResult } from '@/features/documents/ai/types'
 import { countOccurrences } from './canonicalParagraph'
+import { buildClientPartyRightAnchors } from './clientPartyRolePhrases'
 import {
   paragraphFingerprint,
   type IndexedParagraph,
@@ -206,14 +207,7 @@ export const SLOT_PATTERNS: SlotPattern[] = [
   {
     registryKey: 'couple_full_names',
     leftAnchors: [],
-    rightAnchors: [
-      ', zwaną dalej „Parą Młodą”',
-      ', zwaną dalej "Parą Młodą"',
-      ', zwanymi dalej „Parą Młodą”',
-      ', zwanymi dalej "Parą Młodą"',
-      ', zwaną dalej „Parą Młodą”,',
-      ' zwaną dalej „Parą Młodą”',
-    ],
+    rightAnchors: buildClientPartyRightAnchors(),
     preferInsertWhenBlank: true,
     prefix: '',
     suffix: '',
@@ -347,6 +341,13 @@ export function bindPatternInParagraph(
     const right = findRight(text, pattern.rightAnchors, searchFrom)
     if (!right) return null
     const before = text.slice(0, right.start)
+    // Cut address/phone clauses so composite matching uses the identity region
+    // only — same boundary rule as candidateDetection client-party parsing.
+    const nameRegion = (
+      before.split(/,\s*(?:zam\.?|zamieszkał|ul\.|tel\.|adres)/i)[0] ?? before
+    )
+      .replace(/[,\s;]+$/g, '')
+      .trimEnd()
     const nameToken =
       "[A-ZĄĆĘŁŃÓŚŹŻ][a-ząćęłńóśźżąćęłńóśźżĄĆĘŁŃÓŚŹŻ'\\-]{1,30}"
     const fullName = `${nameToken}(?:\\s+${nameToken}){1,3}`
@@ -354,26 +355,27 @@ export function bindPatternInParagraph(
       `(${fullName})\\s+(?:i|oraz)\\s+(${fullName})\\s*$`,
       'u',
     )
-    const couple = coupleRe.exec(before.trimEnd())
+    const couple = coupleRe.exec(nameRegion)
     let start = 0
     let end = right.start
     let mid = text.slice(start, end)
     let operation: ContractSlotOperation = mid.trim() ? 'replace' : 'insert'
 
     if (couple) {
-      const full = `${couple[1]} i ${couple[2]}`
-      const idx = before.lastIndexOf(couple[1]!)
-      if (idx >= 0) {
+      const leftName = couple[1]!
+      const rightName = couple[2]!
+      const idx = before.lastIndexOf(leftName)
+      const rightAt = before.lastIndexOf(rightName)
+      if (idx >= 0 && rightAt > idx) {
         start = idx
-        end = idx + full.length
+        end = rightAt + rightName.length
         mid = text.slice(start, end)
         operation = 'composite'
       }
     } else {
       // Single name — stop before address/phone clauses
-      const cut = before.split(/,\s*(?:zam\.?|zamieszkał|ul\.|tel\.|adres)/i)[0]
       const singleRe = new RegExp(`(${fullName})\\s*$`, 'u')
-      const single = singleRe.exec((cut ?? before).trimEnd())
+      const single = singleRe.exec(nameRegion)
       if (single) {
         const name = single[1]!
         const idx = before.lastIndexOf(name)

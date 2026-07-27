@@ -49,7 +49,13 @@ export type DocumentBlockType =
 
 export type DocumentConditionScope = 'block' | 'component'
 
-export type DocumentDraftStatus = 'editing' | 'ready_to_export'
+export type DocumentDraftStatus =
+  | 'editing'
+  | 'ready_to_export'
+  | 'processing'
+  | 'manual_input_required'
+  | 'ready'
+  | 'failed'
 
 export type DocumentExportFormat = 'docx' | 'pdf'
 
@@ -258,6 +264,15 @@ export interface DocumentTemplateMeta {
   associatedPackageId?: string | null
   /** True when this template is the active package-owned contract. */
   packageContractMode?: boolean
+  /**
+   * Product path: template bytes only (no slot/AI analysis required for generation).
+   * Legacy slot_map may still exist but is ignored by sparse wedding generation.
+   */
+  sparseTemplateOnly?: boolean
+  uploadedAt?: string
+  sourceFileName?: string
+  /** Soft notice when generation may require payment-schedule clarification. */
+  paymentScheduleNotice?: string
   /** Keys detected but filtered as immutable package content. */
   packageContractFilteredKeys?: string[]
   /** User-facing readiness snapshot for package contracts. */
@@ -266,6 +281,26 @@ export interface DocumentTemplateMeta {
     presentCategories?: string[]
     missingRequiredCategories?: string[]
     userMessage?: string | null
+    missingRegistryKeys?: string[]
+    /** Explicit blockers not represented by category/key gaps. */
+    blockingIssues?: Array<{
+      code: string
+      message: string
+      evidence: string
+    }>
+    /** Derived report kind at upload time (recalculated on load). */
+    reportKind?:
+      | 'ready'
+      | 'partial_recognition'
+      | 'no_recognition'
+      | 'internal_inconsistency'
+    clientParty?: {
+      ready: boolean
+      recognizedPersonCount: number
+      missingRequiredCapabilities?: string[]
+      missingRegistryKeys?: string[]
+      evidence?: string[]
+    }
   }
   /** Analysis-time shared span conflicts (multiple keys on one physical span). */
   packageContractSharedSpanConflicts?: Array<{

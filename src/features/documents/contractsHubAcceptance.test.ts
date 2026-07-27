@@ -42,36 +42,49 @@ run('DOCX validation rejects empty and non-DOCX files', () => {
   )
 })
 
-run('canonical routes, sidebar navigation and empty state stay wired', () => {
+run('canonical routes: packages own templates, weddings own contracts', () => {
   const root = process.cwd()
   const router = readFileSync(resolve(root, 'src/routes/router.tsx'), 'utf8')
   const sidebar = readFileSync(resolve(root, 'src/layouts/Sidebar.tsx'), 'utf8')
   const hub = readFileSync(
-    resolve(root, 'src/pages/DocumentTemplatesPage.tsx'),
-    'utf8',
-  ) + readFileSync(
     resolve(root, 'src/features/documents/components/GeneratedContractsHub.tsx'),
     'utf8',
   )
-  const focusedImport = readFileSync(
-    resolve(root, 'src/pages/DocumentTemplateNewPage.tsx'),
-    'utf8',
-  )
   for (const route of [
-    '/umowy',
-    '/umowy/nowy',
-    '/umowy/szablony/:id',
-    '/umowy/szablony/:id/konfiguracja',
+    '/sluby/:weddingId/umowy/nowa',
+    '/sluby/:weddingId/umowy/:contractId',
+    '/studio/pakiety',
+    '/ustawienia/dokumenty/szablony/:id',
   ]) {
     assert(router.includes(`path: '${route}'`), `missing route ${route}`)
   }
   assert(
-    sidebar.includes("to: '/umowy', label: 'Umowy'"),
-    'sidebar must expose Umowy',
+    router.includes("Navigate to=\"/studio/pakiety\""),
+    'standalone Contracts hub must redirect to packages',
+  )
+  assert(
+    !sidebar.includes("to: '/umowy', label: 'Umowy'"),
+    'sidebar must not expose standalone Umowy',
+  )
+  assert(
+    sidebar.includes("to: '/studio/pakiety', label: 'Pakiety'"),
+    'sidebar must expose Pakiety',
+  )
+  assert(
+    sidebar.includes('Eksperymentalne') ||
+      sidebar.includes('isAiContractLabEnabled'),
+    'experimental tools remain under Eksperymentalne',
   )
   assert(
     hub.includes('Nie ma jeszcze wygenerowanych umów'),
-    'generated contracts tab needs a calm empty state',
+    'generated contracts hub keeps a calm empty state',
+  )
+})
+
+run('legacy Contracts upload page no longer auto-redirects away on mount', () => {
+  const focusedImport = readFileSync(
+    resolve(process.cwd(), 'src/pages/DocumentTemplateNewPage.tsx'),
+    'utf8',
   )
   assert(
     focusedImport.includes('Wybierz DOCX') &&

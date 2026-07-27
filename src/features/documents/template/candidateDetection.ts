@@ -34,6 +34,16 @@ import {
   validateMinimalSlotSpan,
 } from './contractSlotSafety'
 import { detectClientPartyLabelForms } from './clientPartyLabelDetection'
+import {
+  buildClientPartyRightAnchors,
+  CLIENT_PARTY_CLAUSE_CUE_RE,
+  findClientPartyRoleAnchor,
+} from './clientPartyRolePhrases'
+import { analyzePackageContractTables } from './packageContractTableAnalysis'
+import { bindingIdForLocator } from './docxPhysicalLocator'
+import type {
+  DocxExtractedTable,
+} from './extractDocxParagraphs'
 import type {
   ContractSlotOperation,
   TemplateSlot,
@@ -75,22 +85,25 @@ export interface ContractCandidate {
     | 'template_constant'
     | 'dynamic_candidate'
     | 'ignored_non_variable'
+  /** Table coordinates when the span lives in a Word table cell. */
+  tableIndex?: number
+  rowIndex?: number
+  cellIndex?: number
+  cellParagraphIndex?: number
+  packageValueClassification?:
+    | 'dynamic_wedding_data'
+    | 'immutable_package_fact'
+    | 'unsupported_or_ambiguous'
+  physicalLocator?: import('./docxPhysicalLocator').DocxPhysicalLocator
 }
 
 const NAME_TOKEN =
   "[A-ZĄĆĘŁŃÓŚŹŻ][a-ząćęłńóśźżąćęłńóśźżĄĆĘŁŃÓŚŹŻ'\\-]{1,30}"
 const FULL_NAME = `${NAME_TOKEN}(?:\\s+${NAME_TOKEN}){1,3}`
-const COUPLE_JOIN = `(?:\\s+(?:i|oraz)\\s+)`
+const COUPLE_JOIN = `(?:\\s+(?:i|oraz|&|/)\\s+|\\s*,\\s*)`
 
-const COUPLE_RIGHT_ANCHORS = [
-  ', zwaną dalej „Parą Młodą”',
-  ', zwaną dalej "Parą Młodą"',
-  ', zwanymi dalej „Parą Młodą”',
-  ', zwanymi dalej "Parą Młodą"',
-  ', zwaną dalej „Parą Młodą”,',
-  ' zwaną dalej „Parą Młodą”',
-  ' zwanymi dalej „Parą Młodą”',
-]
+/** Masculine, feminine, plural, and neutral client-party role phrases. */
+const COUPLE_RIGHT_ANCHORS = buildClientPartyRightAnchors()
 
 const COMPANY_RIGHT_ANCHORS = [
   'zwanym dalej „Filmowcem”',
@@ -215,101 +228,136 @@ function pushCandidate(
   logCandidate(c)
 }
 
-/** Pass 1+2: couple / party identity */
-function detectCoupleParty(
+/**
+ * Extract client identity / shared contact candidates from a single paragraph
+ * that already contains (or is paired with) a client role phrase.
+ */
+function extractClientPartyFromParagraph(
   para: IndexedParagraph,
   out: ContractCandidate[],
   claimed: Map<number, Array<{ start: number; end: number }>>,
+  rightAnchorText: string,
+  rightStart: number,
+  diagnosticContext?: string,
 ) {
   const text = canonicalizeParagraphText(para.text)
-  const right = findFirstAnchor(text, COUPLE_RIGHT_ANCHORS)
-  if (!right) return
+  const before = text.slice(0, rightStart >= 0 ? rightStart : text.length).trimEnd()
+  const nameRegion = (
+    before.split(/,\s*(?:zam\.?|zamieszkał|ul\.|tel\.|adres)/i)[0] ?? before
+  )
+    .replace(/[,\s;]+$/g, '')
+    .trimEnd()
 
-  const before = text.slice(0, right.start).trimEnd()
-  // Prefer "Name i Name" composite
+  // Prefer "Name i/oraz/, Name" composite
   const coupleRe = new RegExp(
     `(${FULL_NAME})${COUPLE_JOIN}(${FULL_NAME})\\s*$`,
     'u',
   )
-  const couple = coupleRe.exec(before)
+  const couple = coupleRe.exec(nameRegion)
   if (couple) {
-    const full = `${couple[1]} i ${couple[2]}`
-    const start = before.lastIndexOf(couple[1]!)
-    if (start < 0) return
+    const leftName = couple[1]!
+    const rightName = couple[2]!
+    const start = before.lastIndexOf(leftName)
+    const rightNameAt = before.lastIndexOf(rightName)
+    if (start < 0 || rightNameAt < 0) return
+    const end = rightNameAt + rightName.length
+    const full = before.slice(start, end)
+    const joinMatch = before.slice(start + leftName.length, rightNameAt)
+    const separator = /oraz/i.test(joinMatch)
+      ? ' oraz '
+      : /&/.test(joinMatch)
+        ? ' & '
+        : /\//.test(joinMatch)
+          ? ' / '
+          : joinMatch.includes(',')
+            ? ', '
+            : ' i '
     pushCandidate(out, claimed, {
       paragraphIndex: para.index,
       paragraphText: text,
       startOffset: start,
-      endOffset: start + full.length,
+      endOffset: end,
       text: full,
       proposedKey: 'couple_full_names',
       confidence: 0.95,
       evidenceType: 'composite_context',
-      evidenceText: right.anchor,
+      evidenceText: rightAnchorText,
       operation: 'composite',
       componentKeys: ['partner1_full_name', 'partner2_full_name'],
-      separator: ' i ',
+      separator,
       sourceHint: 'couple',
       leftAnchor: '',
-      rightAnchor: right.anchor,
-      reason: 'Two personal names before „zwaną/zwanymi dalej Parą Młodą”',
-    })
-    return
-  }
-
-  // Single name before address/contact: "Aleksandrą Biłas, zam. …"
-  const singleCut = before.split(/,\s*(?:zam\.?|zamieszkał|ul\.|tel\.|adres)/i)[0]?.trim()
-  const singleRe = new RegExp(`^(${FULL_NAME})$`, 'u')
-  const single = singleCut ? singleRe.exec(singleCut) : null
-  if (single) {
-    const name = single[1]!
-    const start = before.indexOf(name)
-    if (start < 0) return
-    pushCandidate(out, claimed, {
-      paragraphIndex: para.index,
-      paragraphText: text,
-      startOffset: start,
-      endOffset: start + name.length,
-      text: name,
-      proposedKey: 'partner1_full_name',
-      confidence: 0.9,
-      evidenceType: 'legal_context',
-      evidenceText: right.anchor,
-      operation: 'replace',
-      sourceHint: 'couple',
-      leftAnchor: '',
-      rightAnchor: before.slice(start + name.length, right.start) + right.anchor,
+      rightAnchor: rightAnchorText,
       reason:
-        'Personal name before „Parą Młodą” role (single-party / first partner)',
+        diagnosticContext ??
+        'Two personal names before client-party role phrase',
     })
   } else {
-    // Fallback: take leading name tokens
-    const lead = new RegExp(`^(${FULL_NAME})`, 'u').exec(before)
-    if (lead) {
-      const name = lead[1]!
-      pushCandidate(out, claimed, {
-        paragraphIndex: para.index,
-        paragraphText: text,
-        startOffset: 0,
-        endOffset: name.length,
-        text: name,
-        proposedKey: 'partner1_full_name',
-        confidence: 0.8,
-        evidenceType: 'legal_context',
-        evidenceText: right.anchor,
-        operation: 'replace',
-        sourceHint: 'couple',
-        reason: 'Leading name tokens before Para Młoda role phrase',
-      })
+    const trailingNameRe = new RegExp(`(${FULL_NAME})\\s*$`, 'u')
+    const trailing = nameRegion ? trailingNameRe.exec(nameRegion) : null
+    const singleName = trailing?.[1] ?? null
+    if (singleName) {
+      const start = before.lastIndexOf(singleName)
+      if (start >= 0) {
+        pushCandidate(out, claimed, {
+          paragraphIndex: para.index,
+          paragraphText: text,
+          startOffset: start,
+          endOffset: start + singleName.length,
+          text: singleName,
+          proposedKey: 'partner1_full_name',
+          confidence: 0.9,
+          evidenceType: 'legal_context',
+          evidenceText: rightAnchorText,
+          operation: 'replace',
+          sourceHint: 'couple',
+          leftAnchor: '',
+          rightAnchor:
+            before.slice(start + singleName.length) + rightAnchorText,
+          reason:
+            diagnosticContext ??
+            'Personal name before client-party role phrase (single-party)',
+        })
+      }
+    } else {
+      const lead = new RegExp(`^(${FULL_NAME})`, 'u').exec(before)
+      if (lead) {
+        const name = lead[1]!
+        pushCandidate(out, claimed, {
+          paragraphIndex: para.index,
+          paragraphText: text,
+          startOffset: 0,
+          endOffset: name.length,
+          text: name,
+          proposedKey: 'partner1_full_name',
+          confidence: 0.8,
+          evidenceType: 'legal_context',
+          evidenceText: rightAnchorText,
+          operation: 'replace',
+          sourceHint: 'couple',
+          reason: 'Leading name tokens before client-party role phrase',
+        })
+      } else if (import.meta.env?.DEV) {
+        console.info('[client-party-detection-trace]', {
+          diagnostic: 'diagnostic:client_party_names_not_parsed',
+          paragraphIndex: para.index,
+          nameRegion,
+          rightAnchorText,
+        })
+      }
     }
   }
 
-  // Address after zam.
-  const addr = /zam\.?\s*((?:ul\.|al\.|aleja|plac|os\.)[^,;]{5,80})/i.exec(text)
+  // Shared address after zam. (may include postal code + city)
+  const addr =
+    /zam\.?\s*((?:ul\.|al\.|aleja|plac|os\.)[^;]{3,100}?)(?=\s*,?\s*(?:tel\.|zwan|określan|dalej\s+jako)|$)/iu.exec(
+      text,
+    ) ??
+    /zam\.?\s*((?:ul\.|al\.|aleja|plac|os\.)[^,;]{5,80})/i.exec(text)
   if (addr && addr.index != null) {
-    const span = addr[1]!.trim()
+    const span = addr[1]!.replace(/\s+,/g, ',').trim().replace(/,\s*$/, '')
     const start = text.indexOf(span, addr.index)
-    if (start >= 0) {
+    if (start >= 0 && span.length >= 5) {
       pushCandidate(out, claimed, {
         paragraphIndex: para.index,
         paragraphText: text,
@@ -319,15 +367,14 @@ function detectCoupleParty(
         proposedKey: 'bride_address',
         confidence: 0.82,
         evidenceType: 'legal_context',
-        evidenceText: 'zam. … near Para Młoda',
+        evidenceText: 'zam. … in client-party clause',
         operation: 'replace',
         sourceHint: 'couple',
-        reason: 'Address after zam. in couple party clause',
+        reason: 'Shared address after zam. in client-party clause',
       })
     }
   }
 
-  // Phone in same party clause
   const phone = /tel\.?\s*([+\d][\d\s\u00a0-]{7,18}\d)/i.exec(text)
   if (phone && phone.index != null) {
     const span = phone[1]!.replace(/\u00a0/g, ' ').trim()
@@ -342,11 +389,224 @@ function detectCoupleParty(
         proposedKey: 'bride_phone',
         confidence: 0.85,
         evidenceType: 'legal_context',
-        evidenceText: 'tel. in Para Młoda clause',
+        evidenceText: 'tel. in client-party clause',
         operation: 'replace',
         sourceHint: 'couple',
-        reason: 'Phone number in couple party introduction',
+        reason: 'Shared phone in client-party introduction',
       })
+    }
+  }
+}
+
+/** Pass 1+2: couple / party identity (single-paragraph clauses). */
+function detectCoupleParty(
+  para: IndexedParagraph,
+  out: ContractCandidate[],
+  claimed: Map<number, Array<{ start: number; end: number }>>,
+) {
+  const text = canonicalizeParagraphText(para.text)
+  const right = findClientPartyRoleAnchor(text)
+  if (!right) {
+    // Fallback to legacy exact anchors (binder-compatible list)
+    const legacy = findFirstAnchor(text, COUPLE_RIGHT_ANCHORS)
+    if (!legacy) return
+    extractClientPartyFromParagraph(
+      para,
+      out,
+      claimed,
+      legacy.anchor,
+      legacy.start,
+    )
+    return
+  }
+
+  extractClientPartyFromParagraph(
+    para,
+    out,
+    claimed,
+    right.matchedText,
+    right.start,
+  )
+}
+
+/**
+ * Multi-paragraph client-party blocks:
+ *   pomiędzy:
+ *   Name i Name,
+ *   zam. …
+ *   tel. …
+ *   zwanymi dalej „Klientami”
+ *   a
+ *   firmą …
+ */
+function detectClientPartyAcrossParagraphs(
+  paragraphs: IndexedParagraph[],
+  out: ContractCandidate[],
+  claimed: Map<number, Array<{ start: number; end: number }>>,
+) {
+  const hasIdentity = out.some(
+    (c) =>
+      (c.decision === 'accepted' || c.decision === 'needs_confirmation') &&
+      (c.proposedKey === 'couple_full_names' ||
+        c.proposedKey === 'partner1_full_name' ||
+        c.proposedKey === 'partner2_full_name' ||
+        c.proposedKey === 'bride_full_name' ||
+        c.proposedKey === 'groom_full_name'),
+  )
+  if (hasIdentity) return
+
+  const normalized = paragraphs.map((p) => ({
+    index: p.index,
+    text: canonicalizeParagraphText(p.text),
+  }))
+
+  let roleParaIdx = -1
+  let roleHit: ReturnType<typeof findClientPartyRoleAnchor> = null
+  for (let i = 0; i < normalized.length; i++) {
+    const hit = findClientPartyRoleAnchor(normalized[i]!.text)
+    if (!hit) continue
+    roleParaIdx = i
+    roleHit = hit
+    break
+  }
+
+  if (roleParaIdx < 0 || !roleHit) {
+    if (import.meta.env?.DEV) {
+      const hasPomiedzy = normalized.some((p) => /pomiędzy/i.test(p.text))
+      console.info('[client-party-detection-trace]', {
+        diagnostic: hasPomiedzy
+          ? 'diagnostic:client_party_role_anchor_not_found'
+          : 'diagnostic:client_party_boundary_not_found',
+        paragraphCount: normalized.length,
+      })
+    }
+    return
+  }
+
+  // Left boundary: pomiędzy within a lookback window
+  let startIdx = Math.max(0, roleParaIdx - 4)
+  for (let j = roleParaIdx; j >= Math.max(0, roleParaIdx - 10); j--) {
+    if (/pomiędzy/i.test(normalized[j]!.text)) {
+      startIdx = j
+      break
+    }
+  }
+
+  // Right boundary: role phrase paragraph (identity/contact sit at or above it)
+  const endIdx = roleParaIdx
+
+  if (import.meta.env?.DEV) {
+    console.info('[client-party-detection-trace]', {
+      clientClauseBoundary: {
+        startParagraph: normalized[startIdx]?.index,
+        endParagraph: normalized[endIdx]?.index,
+        detectedBy: 'pomiędzy→role-phrase',
+        text: normalized
+          .slice(startIdx, endIdx + 1)
+          .map((p) => p.text)
+          .join('\n'),
+      },
+      rightAnchor: {
+        found: true,
+        matchedText: roleHit.matchedText,
+        normalizedForm: roleHit.normalizedForm,
+        roleLabel: roleHit.roleLabel,
+        paragraphIndex: normalized[roleParaIdx]!.index,
+        start: roleHit.start,
+        end: roleHit.end,
+      },
+    })
+  }
+
+  // Prefer the paragraph that actually contains person names
+  let identityPara: IndexedParagraph | null = null
+  for (let j = startIdx; j <= endIdx; j++) {
+    const t = normalized[j]!.text
+    const region =
+      t.split(/,\s*(?:zam\.?|zamieszkał|ul\.|tel\.|adres)/i)[0]?.trimEnd() ?? t
+    if (
+      new RegExp(`(${FULL_NAME})${COUPLE_JOIN}(${FULL_NAME})`, 'u').test(
+        region,
+      ) ||
+      new RegExp(`(${FULL_NAME})\\s*$`, 'u').test(region.trim())
+    ) {
+      identityPara = normalized[j]!
+      break
+    }
+  }
+
+  if (!identityPara) {
+    if (import.meta.env?.DEV) {
+      console.info('[client-party-detection-trace]', {
+        diagnostic: 'diagnostic:client_party_identity_region_empty',
+        startParagraph: normalized[startIdx]?.index,
+        endParagraph: normalized[endIdx]?.index,
+      })
+    }
+    return
+  }
+
+  // Role phrase may live on a different paragraph than the names — pass
+  // rightStart past end of identity paragraph so the whole text is searched.
+  const roleOnSamePara = identityPara.index === normalized[roleParaIdx]!.index
+  extractClientPartyFromParagraph(
+    identityPara,
+    out,
+    claimed,
+    roleHit.matchedText,
+    roleOnSamePara ? roleHit.start : identityPara.text.length,
+    'Multi-paragraph client-party block (pomiędzy … role phrase)',
+  )
+
+  // Shared address / phone may sit on sibling paragraphs inside the block
+  for (let j = startIdx; j <= endIdx; j++) {
+    if (normalized[j]!.index === identityPara.index) continue
+    const sibling = normalized[j]!
+    const addr =
+      /zam\.?\s*((?:ul\.|al\.|aleja|plac|os\.)[^;]{3,100}?)(?=\s*,?\s*(?:tel\.|zwan|określan|dalej\s+jako)|$)/iu.exec(
+        sibling.text,
+      ) ??
+      /zam\.?\s*((?:ul\.|al\.|aleja|plac|os\.)[^,;]{5,80})/i.exec(sibling.text)
+    if (addr && addr.index != null) {
+      const span = addr[1]!.replace(/\s+,/g, ',').trim().replace(/,\s*$/, '')
+      const start = sibling.text.indexOf(span, addr.index)
+      if (start >= 0 && span.length >= 5) {
+        pushCandidate(out, claimed, {
+          paragraphIndex: sibling.index,
+          paragraphText: sibling.text,
+          startOffset: start,
+          endOffset: start + span.length,
+          text: span,
+          proposedKey: 'bride_address',
+          confidence: 0.82,
+          evidenceType: 'legal_context',
+          evidenceText: 'zam. in multi-paragraph client block',
+          operation: 'replace',
+          sourceHint: 'couple',
+          reason: 'Shared address in multi-paragraph client-party block',
+        })
+      }
+    }
+    const phone = /tel\.?\s*([+\d][\d\s\u00a0-]{7,18}\d)/i.exec(sibling.text)
+    if (phone && phone.index != null) {
+      const span = phone[1]!.replace(/\u00a0/g, ' ').trim()
+      const start = sibling.text.indexOf(phone[1]!, phone.index)
+      if (start >= 0) {
+        pushCandidate(out, claimed, {
+          paragraphIndex: sibling.index,
+          paragraphText: sibling.text,
+          startOffset: start,
+          endOffset: start + phone[1]!.length,
+          text: span,
+          proposedKey: 'bride_phone',
+          confidence: 0.85,
+          evidenceType: 'legal_context',
+          evidenceText: 'tel. in multi-paragraph client block',
+          operation: 'replace',
+          sourceHint: 'couple',
+          reason: 'Shared phone in multi-paragraph client-party block',
+        })
+      }
     }
   }
 }
@@ -1117,22 +1377,46 @@ function detectDeliverablesGlobally(
 
 /**
  * Run two-pass detection over indexed paragraphs.
+ * Optional `tables` enables header-aware event/payment table binding.
  */
 export function detectContractCandidates(
   paragraphs: IndexedParagraph[],
+  options?: { tables?: DocxExtractedTable[] },
 ): ContractCandidate[] {
   const out: ContractCandidate[] = []
   const claimed = new Map<number, Array<{ start: number; end: number }>>()
 
+  // Table-aware pass first so cell spans are claimed before prose heuristics.
+  if (options?.tables && options.tables.length > 0) {
+    const tableResult = analyzePackageContractTables({
+      paragraphs,
+      tables: options.tables,
+    })
+    for (const c of tableResult.candidates) {
+      if (c.decision === 'rejected') {
+        out.push(c)
+        continue
+      }
+      pushCandidate(out, claimed, c)
+    }
+  }
+
   for (const para of paragraphs) {
     if (!para.text.trim()) continue
-    const normalized = { index: para.index, text: canonicalizeParagraphText(para.text) }
+    const normalized = {
+      index: para.index,
+      text: canonicalizeParagraphText(para.text),
+      origin: para.origin,
+    }
     detectCoupleParty(normalized, out, claimed)
     detectCompanyParty(normalized, out, claimed)
     detectLocations(normalized, out, claimed)
     detectDates(normalized, out, claimed)
     detectMoneyAndPackage(normalized, out, claimed)
   }
+
+  // Multi-paragraph client blocks (pomiędzy: / names / zam. / tel. / role)
+  detectClientPartyAcrossParagraphs(paragraphs, out, claimed)
 
   detectMoneyGlobally(paragraphs, out, claimed)
   detectVenueAndCoverageTimeGlobally(paragraphs, out, claimed)
@@ -1185,13 +1469,23 @@ export function candidatesToTemplateSlots(
             : 'template_constant'
           : 'dynamic_candidate')
 
+      const slotId = c.physicalLocator
+        ? bindingIdForLocator(c.proposedKey, c.physicalLocator)
+        : `slot-${c.proposedKey}-${c.paragraphIndex}-${c.startOffset}`
+      const tableMeta = {
+        tableIndex: c.tableIndex ?? null,
+        rowIndex: c.rowIndex ?? null,
+        cellIndex: c.cellIndex ?? null,
+        cellParagraphIndex: c.cellParagraphIndex ?? null,
+      }
+
       // Provider immutable — evidence only, not a generation replace slot
       if (
         classification === 'template_constant' ||
         classification === 'ignored_non_variable'
       ) {
         return {
-          id: `slot-${c.proposedKey}-${c.paragraphIndex}-${c.startOffset}`,
+          id: slotId,
           registryKey: c.proposedKey,
           label: c.proposedKey.replace(/_/g, ' '),
           sourceHint: c.sourceHint,
@@ -1217,9 +1511,11 @@ export function candidatesToTemplateSlots(
           separator: c.separator ?? null,
           confidence: c.confidence,
           detectionReason:
-            classification === 'ignored_non_variable'
-              ? 'Zakres zbyt szeroki — dane usługodawcy pozostają tekstem szablonu (bez podmiany).'
-              : 'Dane usługodawcy w szablonie — niezmienne domyślnie.',
+            c.packageValueClassification === 'immutable_package_fact'
+              ? `immutable_package_fact: ${c.reason}`
+              : classification === 'ignored_non_variable'
+                ? 'Zakres zbyt szeroki — dane usługodawcy pozostają tekstem szablonu (bez podmiany).'
+                : 'Dane usługodawcy w szablonie — niezmienne domyślnie.',
           detectionStatus: 'optional_unbound' as const,
           requirement: 'optional' as const,
           evidenceType: c.evidenceType,
@@ -1235,6 +1531,7 @@ export function candidatesToTemplateSlots(
             classification === 'template_constant' &&
             !unsafe &&
             c.sourceHint === 'company',
+          ...tableMeta,
         }
       }
 
@@ -1252,7 +1549,7 @@ export function candidatesToTemplateSlots(
         c.evidenceType === 'blank_between_anchors' &&
         /contact placeholder|Safe contact placeholder/i.test(c.reason)
       return {
-        id: `slot-${c.proposedKey}-${c.paragraphIndex}-${c.startOffset}`,
+        id: slotId,
         registryKey: c.proposedKey,
         label: c.proposedKey.replace(/_/g, ' '),
         sourceHint: c.sourceHint,
@@ -1307,6 +1604,7 @@ export function candidatesToTemplateSlots(
         requirement: isSafeContactPlaceholder
           ? ('required' as const)
           : undefined,
+        ...tableMeta,
       }
     })
 }
@@ -1317,8 +1615,7 @@ export function hasVisiblePartyIdentityWithoutSlot(
   slots: TemplateSlot[],
 ): boolean {
   const joined = paragraphs.map((p) => canonicalizeParagraphText(p.text)).join('\n')
-  const hasCue =
-    /Parą Młodą|Parą Mlodą|zwaną dalej|zwanymi dalej|pomiędzy/i.test(joined)
+  const hasCue = CLIENT_PARTY_CLAUSE_CUE_RE.test(joined)
   if (!hasCue) return false
   const hasPartySlot = slots.some(
     (s) =>

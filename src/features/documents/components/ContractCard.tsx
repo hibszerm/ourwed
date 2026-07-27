@@ -96,7 +96,7 @@ export function ContractCard({
               Wgraj nową wersję
             </button>
             <Link
-              to={`/umowy/szablony/${template.id}`}
+              to={`/ustawienia/dokumenty/szablony/${template.id}`}
               role="menuitem"
               className={styles.overflowItem}
               onClick={() => setMenuOpen(false)}
@@ -143,7 +143,7 @@ export function ContractCard({
       </div>
 
       <Link
-        to={`/umowy/szablony/${template.id}`}
+        to={`/ustawienia/dokumenty/szablony/${template.id}`}
         className={styles.contractCardLink}
       >
         <div className={styles.contractCardHeader}>
@@ -184,7 +184,7 @@ export function ContractCard({
           {primaryAction.onClick || primaryAction.label === 'Zobacz' ? (
             primaryAction.label === 'Zobacz' ? (
               <Link
-                to={`/umowy/szablony/${template.id}`}
+                to={`/ustawienia/dokumenty/szablony/${template.id}`}
                 className={styles.contractCardPrimaryBtn}
               >
                 {primaryAction.label}

@@ -88,7 +88,7 @@ export function DocumentTemplatesPage() {
       return
     }
     setPendingNewImport(file)
-    navigate('/umowy/nowy')
+    navigate('/studio/pakiety')
     if (fileRef.current) fileRef.current.value = ''
   }
 
@@ -110,7 +110,7 @@ export function DocumentTemplatesPage() {
     try {
       const copy = await duplicate.mutateAsync(template.id)
       showToast('Szablon zduplikowany.', 'success')
-      navigate(`/umowy/szablony/${copy.id}`)
+      navigate(`/ustawienia/dokumenty/szablony/${copy.id}`)
     } catch (err) {
       showToast(
         err instanceof Error ? err.message : 'Nie udało się zduplikować.',
@@ -130,7 +130,7 @@ export function DocumentTemplatesPage() {
     try {
       await uploadVersion.mutateAsync({ id: replaceTarget.id, file })
       showToast('Źródłowy dokument zamieniony. Uruchamiamy analizę…', 'success')
-      navigate(`/umowy/szablony/${replaceTarget.id}/analiza`)
+      navigate(`/ustawienia/dokumenty/szablony/${replaceTarget.id}/analiza`)
       setReplaceTarget(null)
     } catch (err) {
       showToast(
@@ -282,7 +282,7 @@ export function DocumentTemplatesPage() {
                   }}
                   onReanalyze={() => void handleReanalyze(t)}
                   onDelete={() => setDeleteTarget(t)}
-                  onUse={() => navigate(`/umowy/szablony/${t.id}`)}
+                  onUse={() => navigate(`/ustawienia/dokumenty/szablony/${t.id}`)}
                 />
               ))}
             </div>

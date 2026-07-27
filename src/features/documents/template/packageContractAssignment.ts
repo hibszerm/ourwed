@@ -1,4 +1,8 @@
 /**
+ * @deprecated Product package upload no longer analyzes at upload time.
+ * Use `uploadPackageContractTemplate` instead.
+ * Kept for emergency rollback / lab tooling; do not call from PackageContractSection.
+ *
  * Assign / analyze a DOCX as the active contract for a studio package.
  * Analysis runs at upload; generation uses only allowlisted dynamic bindings.
  */
@@ -15,23 +19,52 @@ import { supabase } from '@/lib/supabase'
 import type { StudioPackage } from '@/types/package'
 import { CONTRACT_ANALYSIS_VERSION } from '@/features/documents/performance/analysisVersions'
 import { buildSlotsFromAnalysis } from './buildSlotsFromAnalysis'
-import { extractDocxParagraphsIncludingEmpty } from './extractDocxParagraphs'
+import {
+  extractDocxDocumentModel,
+} from './extractDocxParagraphs'
 import {
   applyPackageContractAllowlistToSlotMap,
   evaluatePackageContractReadiness,
+  isPackageContractAllowedDynamicKey,
+  isPackageContractImmutableKey,
   PACKAGE_CONTRACT_CATEGORY_LABELS,
   type PackageContractReadiness,
 } from './packageContractAllowlist'
+import {
+  logPackageContractBindingSummary,
+} from './packageContractTableAnalysis'
 import {
   resolvePackageContractFromPackage,
   type PackageContractResolution,
 } from './packageContractResolve'
 import { saveTemplateSlots } from './saveTemplateSlots'
-import { isSlotPhysicallyBound, type TemplateSlotMap } from './types'
 import {
-  buildPackageContractHealthReport,
-  type PackageContractHealthReport,
-} from './packageContractHealthAudit'
+  isSlotPhysicallyBound,
+  type TemplateSlot,
+  type TemplateSlotMap,
+} from './types'
+import type { PackageContractHealthReport } from './packageContractHealthAudit'
+import {
+  buildPackageContractFinalReport,
+  type PackageContractReportKind,
+} from './packageContractFinalReport'
+import type { PackageContractBlockingIssue } from './packageContractRequiredDataReadiness'
+
+function slotKey(slot: TemplateSlot): string | null {
+  return slot.registryKey ?? null
+}
+
+function physicalKeys(slots: TemplateSlot[]): string[] {
+  return slots
+    .filter(isSlotPhysicallyBound)
+    .map((s) => s.registryKey!)
+    .filter(Boolean)
+}
+
+/** Dev-only pipeline trace — never shown in product UI. */
+function logPackageContractPipeline(trace: Record<string, unknown>) {
+  console.info('[package-contract-pipeline]', trace)
+}
 
 export type PackageContractAssignmentResult = {
   package: StudioPackage
@@ -40,6 +73,8 @@ export type PackageContractAssignmentResult = {
   slotMap: TemplateSlotMap
   readiness: PackageContractReadiness
   healthReport: PackageContractHealthReport
+  reportKind: PackageContractReportKind
+  blockingIssues: PackageContractBlockingIssue[]
   filteredOutKeys: string[]
   sourceFileName: string
 }
@@ -79,10 +114,13 @@ export async function assignPackageContractFromDocx(input: {
     bytes,
     fileName,
   )
+  const docxModel =
+    kind === 'docx' ? await extractDocxDocumentModel(bytes) : null
   const paragraphs =
     kind === 'docx'
-      ? await extractDocxParagraphsIncludingEmpty(bytes)
+      ? docxModel!.paragraphs
       : structure.plainText.split(/\n/).map((text, index) => ({ index, text }))
+  const tables = docxModel?.tables ?? []
 
   const ai = await activeAiDocumentAnalyzer.analyze({
     text: structure.plainText,
@@ -93,17 +131,62 @@ export async function assignPackageContractFromDocx(input: {
     ai,
     plainText: structure.plainText,
     paragraphs,
+    tables,
     sourceKind: kind === 'pdf' ? 'pdf' : 'docx',
   })
   rawMap.documentTitle = `Umowa — ${pkg.name}`
 
+  const rawLogicalKeys = [
+    ...new Set(
+      rawMap.slots.map(slotKey).filter((k): k is string => Boolean(k)),
+    ),
+  ]
+  const rawPhysicalKeys = physicalKeys(rawMap.slots)
+  const rawUnboundLogical = rawMap.slots
+    .filter((s) => s.registryKey && !isSlotPhysicallyBound(s))
+    .map((s) => ({
+      key: s.registryKey!,
+      reason:
+        s.detectionReason ??
+        s.spanSafetyReasons?.join('; ') ??
+        'no_physical_span',
+    }))
+
   const { slotMap: filteredMap, filteredOutKeys } =
     applyPackageContractAllowlistToSlotMap(rawMap)
 
+  const filteredOutReasons = filteredOutKeys.map((key) => ({
+    key,
+    reason: isPackageContractImmutableKey(key)
+      ? 'immutable_package_key'
+      : isPackageContractAllowedDynamicKey(key)
+        ? 'unexpected_allowlist_drop'
+        : 'not_on_package_allowlist',
+  }))
+
+  logPackageContractBindingSummary({
+    detectedKeys: rawLogicalKeys,
+    persistedKeys: physicalKeys(filteredMap.slots),
+    filteredKeys: filteredOutKeys,
+    rejectionReasons: [
+      ...rawUnboundLogical,
+      ...filteredOutReasons,
+    ],
+  })
   const { normalizeSlotMap, logLogicalFieldModel } = await import(
     './logicalContractFields'
   )
-  const normalizedMap = normalizeSlotMap(filteredMap)
+  const { normalizeClientPartyPhysicalBindings } = await import(
+    './normalizeClientPartyPhysicalBindings'
+  )
+  const afterPhysical = normalizeSlotMap(filteredMap)
+  const clientNormalized = normalizeClientPartyPhysicalBindings(
+    afterPhysical.slots,
+  )
+  const normalizedMap = {
+    ...afterPhysical,
+    slots: clientNormalized.slots,
+  }
   logLogicalFieldModel('package-upload-before-persist', normalizedMap.slots)
 
   const saved = await saveTemplateSlots({
@@ -115,10 +198,23 @@ export async function assignPackageContractFromDocx(input: {
     documentTitle: `Umowa — ${pkg.name}`,
   })
 
-  const finalFiltered = applyPackageContractAllowlistToSlotMap(
+  const afterPersistAllowlist = applyPackageContractAllowlistToSlotMap(
     normalizeSlotMap(saved.slotMap),
   )
-  if (finalFiltered.filteredOutKeys.length > 0) {
+  const afterPersistClient = normalizeClientPartyPhysicalBindings(
+    afterPersistAllowlist.slotMap.slots,
+  )
+  const finalFiltered = {
+    ...afterPersistAllowlist,
+    slotMap: {
+      ...afterPersistAllowlist.slotMap,
+      slots: afterPersistClient.slots,
+    },
+  }
+  if (
+    finalFiltered.filteredOutKeys.length > 0 ||
+    afterPersistClient.discarded.length > 0
+  ) {
     const { error } = await supabase
       .from('document_template_versions')
       .update({ slot_map: finalFiltered.slotMap })
@@ -129,45 +225,155 @@ export async function assignPackageContractFromDocx(input: {
   const { findSharedPhysicalSpanConflicts } = await import(
     './packageContractGenerationModel'
   )
+  const { describeSharedPhysicalSpanConflicts } = await import(
+    './normalizeClientPartyPhysicalBindings'
+  )
   const sharedSpanConflicts = findSharedPhysicalSpanConflicts(
     finalFiltered.slotMap.slots,
   )
-
-  const allowedKeys = finalFiltered.slotMap.slots
-    .filter(isSlotPhysicallyBound)
-    .map((s) => s.registryKey!)
-    .filter(Boolean)
-
-  let readiness = evaluatePackageContractReadiness({
-    allowedRegistryKeys: allowedKeys,
-  })
   if (sharedSpanConflicts.length > 0) {
-    readiness = {
-      ...readiness,
-      ready: false,
-      userMessage:
-        'Nie udało się jednoznacznie rozpoznać miejsc w umowie. Sprawdź lokalizacje i prześlij umowę ponownie.',
-    }
+    describeSharedPhysicalSpanConflicts({
+      documentName: fileName,
+      paragraphs,
+      slots: finalFiltered.slotMap.slots,
+      conflicts: sharedSpanConflicts,
+    })
+  }
+
+  const allowedKeys = physicalKeys(finalFiltered.slotMap.slots)
+  const allowlistedKeys = [
+    ...new Set(
+      finalFiltered.slotMap.slots
+        .map(slotKey)
+        .filter((k): k is string => Boolean(k)),
+    ),
+  ]
+  const unboundAllowlisted = finalFiltered.slotMap.slots
+    .filter((s) => s.registryKey && !isSlotPhysicallyBound(s))
+    .map((s) => ({
+      key: s.registryKey!,
+      reason:
+        s.detectionReason ??
+        s.spanSafetyReasons?.join('; ') ??
+        'logical_key_without_physical_binding',
+    }))
+
+  if (sharedSpanConflicts.length > 0) {
     console.info('[package-contract-shared-span-conflict]', {
       templateVersionId: versionId,
       conflicts: sharedSpanConflicts,
     })
   }
 
-  const healthReport = buildPackageContractHealthReport({
+  const finalReport = buildPackageContractFinalReport({
     paragraphs,
     slots: finalFiltered.slotMap.slots,
-    readinessReady: readiness.ready,
+    allowedRegistryKeys: allowedKeys,
+    sharedSpanConflicts,
   })
+  const healthReport = finalReport.healthReport
+  const requiredData = finalReport.requiredData
+  const categorySnapshot = evaluatePackageContractReadiness({
+    allowedRegistryKeys: allowedKeys,
+  })
+  const readiness: PackageContractReadiness = {
+    ready: requiredData.ready,
+    presentCategories: categorySnapshot.presentCategories,
+    missingRequiredCategories: requiredData.missingCategories,
+    presentOptionalCategories: categorySnapshot.presentOptionalCategories,
+    userMessage: requiredData.userMessage,
+    clientParty: requiredData.clientParty,
+    missingRegistryKeys: requiredData.missingRegistryKeys,
+  }
 
   const allFiltered = [
     ...new Set([...filteredOutKeys, ...finalFiltered.filteredOutKeys]),
   ]
 
-  // Merge health warnings into analysisWarnings for template detail surfaces.
+  const aiLogicalKeys = [
+    ...new Set(
+      ai.fields
+        .map((f) => f.registryKey)
+        .filter((k): k is string => Boolean(k)),
+    ),
+  ]
+
+  logPackageContractPipeline({
+    templateVersionId: versionId,
+    paragraphCount: paragraphs.length,
+    aiLogicalFieldCount: aiLogicalKeys.length,
+    aiLogicalKeys,
+    aiUnmappedLabels: ai.fields
+      .filter((f) => !f.registryKey)
+      .map((f) => f.label)
+      .filter(Boolean),
+    // Candidate accept/reject counts: see [contract-candidate-detection] logs above.
+    rawLogicalFieldCount: rawLogicalKeys.length,
+    rawPhysicalBindingCount: rawPhysicalKeys.length,
+    rawPhysicalKeys,
+    rawLogicalKeys,
+    rawRejectedOrUnboundLogical: rawUnboundLogical,
+    allowlistedBindingCount: allowedKeys.length,
+    allowlistedKeys,
+    filteredOutKeys: allFiltered,
+    filteredOutReasons: [
+      ...filteredOutReasons,
+      ...finalFiltered.filteredOutKeys
+        .filter((k) => !filteredOutKeys.includes(k))
+        .map((key) => ({
+          key,
+          reason: 'dropped_after_persist_refilter',
+        })),
+    ],
+    unboundAllowlisted,
+    persistedBindingCount: allowedKeys.length,
+    persistedKeys: allowedKeys,
+    blockedBindingCount: allFiltered.length + unboundAllowlisted.length,
+    readinessReady: readiness.ready,
+    missingRequiredCategories: readiness.missingRequiredCategories,
+    sharedSpanConflicts: sharedSpanConflicts.length,
+    healthBindingsEvidence: healthReport.checks.find(
+      (c) => c.code === 'bindings_valid',
+    )?.evidence,
+    healthRequiredDataEvidence: healthReport.checks.find(
+      (c) => c.code === 'required_data_ready',
+    )?.evidence,
+    clientParty: readiness.clientParty,
+    missingRegistryKeys: readiness.missingRegistryKeys,
+  })
+
+  if (import.meta.env?.DEV) {
+    console.info('[package-contract-client-party-analysis]', {
+      documentName: fileName,
+      clientParty: {
+        detectedPersons: readiness.clientParty.persons.map((p) => ({
+          ordinal: p.ordinal,
+          role: p.role,
+          assignedKeys: p.boundFullNameKeys,
+          addressKeys: p.boundAddressKeys,
+          phoneKeys: p.boundPhoneKeys,
+          peselKeys: p.boundPeselKeys,
+          physicalBindingCreated: p.boundFullNameKeys.length > 0,
+          allowlisted: true,
+          contributesToReadiness: p.boundFullNameKeys.length > 0,
+        })),
+        categorySatisfied: readiness.clientParty.ready,
+        failureReason: readiness.clientParty.ready
+          ? null
+          : readiness.clientParty.missingRequiredCapabilities.join(','),
+        evidence: readiness.clientParty.evidence,
+      },
+    })
+  }
+
+  // Product-facing warnings only — never store English diagnostics in meta.
   const healthWarningMessages = healthReport.checks
     .filter((c) => c.status === 'warning' || c.status === 'critical')
     .map((c) => c.message ?? c.title)
+    .filter(
+      (msg) =>
+        !/allowlisted|bindings_valid|Required package-contract/i.test(msg),
+    )
 
   await documentTemplateService.update(templateId, {
     status: readiness.ready ? 'ready' : 'needs_review',
@@ -183,6 +389,21 @@ export async function assignPackageContractFromDocx(input: {
         presentCategories: readiness.presentCategories,
         missingRequiredCategories: readiness.missingRequiredCategories,
         userMessage: readiness.userMessage,
+        missingRegistryKeys: readiness.missingRegistryKeys,
+        blockingIssues: requiredData.blockingIssues.map((b) => ({
+          code: b.code,
+          message: b.message,
+          evidence: b.evidence,
+        })),
+        reportKind: finalReport.kind,
+        clientParty: {
+          ready: readiness.clientParty.ready,
+          recognizedPersonCount: readiness.clientParty.recognizedPersonCount,
+          missingRequiredCapabilities:
+            readiness.clientParty.missingRequiredCapabilities,
+          missingRegistryKeys: readiness.clientParty.missingRegistryKeys,
+          evidence: readiness.clientParty.evidence,
+        },
       },
       packageContractHealthReport: healthReport,
       analysisWarnings: [
@@ -210,6 +431,8 @@ export async function assignPackageContractFromDocx(input: {
     slotMap: finalFiltered.slotMap,
     readiness,
     healthReport,
+    reportKind: finalReport.kind,
+    blockingIssues: requiredData.blockingIssues,
     filteredOutKeys: allFiltered,
     sourceFileName: fileName,
   }

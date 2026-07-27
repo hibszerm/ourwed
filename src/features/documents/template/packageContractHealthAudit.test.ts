@@ -13,6 +13,7 @@ import {
   extractMoneyAmountsPln,
   extractPercentages,
 } from './packageContractHealthAudit'
+import { packageHealthRecommendation } from '../contract-experience/packageHealthCopy'
 import type { TemplateSlot } from './types'
 
 function assert(condition: boolean, message: string) {
@@ -215,6 +216,96 @@ run('F — template without any warnings', () => {
   )
 })
 
+run('bindings exist + readiness incomplete — bindings ok, required_data critical', () => {
+  const paragraphs = [
+    { index: 0, text: 'Umowa zawarta dnia 01.01.2026.' },
+    { index: 1, text: 'Wynagrodzenie wynosi 9000 zł.' },
+  ]
+  const slots = [
+    slot('contract_execution_date', 0, 18, 28, '01.01.2026'),
+    slot('contract_value_formatted', 1, 20, 28, '9000 zł'),
+  ]
+  const report = buildPackageContractHealthReport({
+    paragraphs,
+    slots,
+    requiredData: {
+      ready: false,
+      missingCategories: ['couple', 'wedding_date'],
+      missingRegistryKeys: ['client_party_identity', 'wedding_date'],
+      blockingIssues: [],
+      evidence: ['diagnostic:required_categories_incomplete'],
+    },
+  })
+  const bindings = report.checks.find((c) => c.code === 'bindings_valid')
+  const required = report.checks.find((c) => c.code === 'required_data_ready')
+  assert(bindings != null, 'bindings check present')
+  assert(required != null, 'required_data check present')
+  assertEq(bindings!.status, 'ok', 'bindings remain ok')
+  assertEq(required!.status, 'critical', 'required data critical')
+  assertEq(
+    required!.evidence,
+    'diagnostic:required_categories_incomplete',
+    'required evidence',
+  )
+  assert(
+    !String(bindings!.message ?? '').includes(
+      'No physical allowlisted bindings',
+    ),
+    'must not claim zero bindings when slots exist',
+  )
+})
+
+run('legacy readinessReady false without categories uses blockingIssues evidence', () => {
+  const report = buildPackageContractHealthReport({
+    paragraphs: [{ index: 0, text: 'Umowa.' }],
+    slots: [slot('contract_value_formatted', 0, 0, 5, '9000zł')],
+    readinessReady: false,
+  })
+  const required = report.checks.find((c) => c.code === 'required_data_ready')
+  assertEq(required?.status, 'critical', 'critical')
+  assertEq(
+    required?.evidence,
+    'diagnostic:legacy_readiness_incomplete',
+    'legacy evidence — not required_categories_incomplete',
+  )
+})
+
+run('zero physical bindings — Polish product message, English only in evidence', () => {
+  const report = buildPackageContractHealthReport({
+    paragraphs: [{ index: 0, text: 'Stały tekst bez pól.' }],
+    slots: [],
+    readinessReady: false,
+  })
+  const bindings = report.checks.find((c) => c.code === 'bindings_valid')
+  assert(bindings != null, 'bindings check present')
+  assertEq(bindings!.status, 'critical', 'critical')
+  assertEq(
+    bindings!.evidence,
+    'diagnostic:no_physical_allowlisted_bindings',
+    'zero-binding evidence code',
+  )
+  assert(
+    !String(bindings!.message ?? '').includes('No physical allowlisted'),
+    'no English technical message',
+  )
+  assert(
+    !String(bindings!.recommendation ?? '').includes('No physical allowlisted'),
+    'no English in recommendation',
+  )
+})
+
+run('product copy never surfaces legacy English bindings message', () => {
+  const text = packageHealthRecommendation({
+    id: 'bindings_valid',
+    code: 'bindings_valid',
+    status: 'critical',
+    title: 'Physical bindings valid',
+    message: 'No physical allowlisted bindings were found.',
+  })
+  assert(!text.includes('No physical allowlisted'), 'sanitized')
+  assert(!text.includes('allowlisted'), 'no allowlist jargon')
+})
+
 run('Zinnar-style health report shape', () => {
   const paragraphs = [
     {
@@ -277,9 +368,10 @@ run('assignment persists healthReport on result type', () => {
     resolve('src/features/documents/template/packageContractAssignment.ts'),
     'utf8',
   )
-  assert(src.includes('buildPackageContractHealthReport'), 'wired')
+  assert(src.includes('buildPackageContractFinalReport'), 'wired')
   assert(src.includes('packageContractHealthReport'), 'meta field')
   assert(src.includes('healthReport'), 'result field')
+  assert(src.includes('[package-contract-pipeline]'), 'pipeline diagnostic log')
 })
 
 run('UI renders health checklist', () => {
@@ -288,7 +380,7 @@ run('UI renders health checklist', () => {
     'utf8',
   )
   assert(src.includes('PackageHealthSummary'), 'health summary')
-  assert(src.includes('packageHealthRecommendations'), 'recommendations')
+  assert(src.includes('PackageContractAttentionCard'), 'attention card')
   const summary = readFileSync(
     resolve(
       'src/features/documents/contract-experience/PackageHealthSummary.tsx',
@@ -297,6 +389,14 @@ run('UI renders health checklist', () => {
   )
   assert(summary.includes('Rekomendacje'), 'recs label')
   assert(summary.includes('Umowa gotowa'), 'ready headline')
+  const attention = readFileSync(
+    resolve(
+      'src/features/documents/contract-experience/PackageContractAttentionCard.tsx',
+    ),
+    'utf8',
+  )
+  assert(attention.includes('Pokaż szczegóły'), 'details toggle')
+  assert(attention.includes('import.meta.env.DEV'), 'dev-only diagnostics')
 })
 
 console.log('\nPackage contract health audit tests finished.')

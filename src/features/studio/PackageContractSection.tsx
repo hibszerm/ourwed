@@ -1,47 +1,68 @@
 /**
- * Package details — contract assignment section (product UI only).
+ * Package contract template section — explicit UI state machine.
+ * Never returns to the empty dropzone while upload/save is in flight.
  */
 
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useQueryClient } from '@tanstack/react-query'
-import { AnimatePresence, motion } from 'framer-motion'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { Button } from '@/components/ui/Button'
 import { useToast } from '@/components/ui/Toast'
 import {
-  ContractAnalysisAnimation,
   ContractUploadExperience,
-  PackageHealthSummary,
-  packageHealthRecommendations,
+  PackageTemplateUploadProgress,
 } from '@/features/documents/contract-experience'
 import {
-  assignPackageContractFromDocx,
-  packageContractMissingCategoryLabels,
-} from '@/features/documents/template/packageContractAssignment'
+  fadeSlide,
+  reducedMotionSafe,
+  scaleIn,
+} from '@/features/documents/contract-experience/motion'
 import {
-  PACKAGE_CONTRACT_CATEGORY_LABELS,
-  type PackageContractUserCategory,
-} from '@/features/documents/template/packageContractAllowlist'
-import type { PackageContractHealthReport } from '@/features/documents/template/packageContractHealthAudit'
+  clearPackageContractTemplate,
+  downloadPackageContractTemplateSource,
+  uploadPackageContractTemplate,
+  type PackageContractTemplateUploadResult,
+} from '@/features/documents/template/packageContractTemplateUpload'
 import { documentTemplateKeys } from '@/features/documents/hooks/useDocumentTemplates'
 import { documentTemplateService } from '@/lib/api/documents'
-import { packageService } from '@/lib/api/packageService'
+import type { PackageTemplateUiPhase } from './packageTemplateUiPhase'
+import {
+  resolvePackageTemplateSurface,
+  shouldShowEmptyDropzone,
+  type PackageTemplateCardModel,
+} from './packageTemplateUploadSurface'
 import type { StudioPackage } from '@/types/package'
-import type { DocumentTemplateMeta } from '@/types/documents'
 import styles from '@/features/documents/contract-experience/ContractExperience.module.css'
 
-type View =
-  | 'upload'
-  | 'analyzing'
-  | 'ready'
-  | 'attention'
+export type { PackageTemplateUiPhase } from './packageTemplateUiPhase'
+export type { PackageTemplateCardModel } from './packageTemplateUploadSurface'
+export {
+  resolvePackageTemplateSurface,
+  shouldShowEmptyDropzone,
+} from './packageTemplateUploadSurface'
 
-function healthFromMeta(
-  meta: DocumentTemplateMeta | undefined,
-): PackageContractHealthReport | null {
-  const raw = meta?.packageContractHealthReport
-  if (!raw || !Array.isArray(raw.checks)) return null
-  return raw as PackageContractHealthReport
+function formatUploadedAt(iso: string | null | undefined): string | null {
+  if (!iso) return null
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return null
+  return new Intl.DateTimeFormat('pl-PL', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(d)
+}
+
+function cardFromUploadResult(
+  result: PackageContractTemplateUploadResult,
+): PackageTemplateCardModel {
+  return {
+    templateId: result.templateId,
+    templateVersionId: result.templateVersionId,
+    fileName: result.sourceFileName,
+    versionLabel: `Wersja ${result.versionNumber}`,
+    uploadedAtLabel: formatUploadedAt(result.uploadedAt),
+    paymentNotice: result.paymentScheduleWarning,
+  }
 }
 
 export function PackageContractSection(input: {
@@ -52,151 +73,172 @@ export function PackageContractSection(input: {
   const replaceInputRef = useRef<HTMLInputElement>(null)
   const queryClient = useQueryClient()
   const { showToast } = useToast()
+  const prefersReduced = useReducedMotion() ?? false
 
-  const [view, setView] = useState<View>(
-    pkg.activeContractTemplateId ? 'ready' : 'upload',
+  const hasPersistedTemplate = Boolean(pkg.activeContractTemplateId)
+
+  const [phase, setPhase] = useState<PackageTemplateUiPhase>(() =>
+    hasPersistedTemplate ? 'ready' : 'idle_empty',
   )
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const [card, setCard] = useState<PackageTemplateCardModel | null>(null)
   const [pipelineDone, setPipelineDone] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [fileName, setFileName] = useState<string | null>(null)
-  const [missingLabels, setMissingLabels] = useState<string[]>([])
-  const [healthReport, setHealthReport] =
-    useState<PackageContractHealthReport | null>(null)
-  const pendingResultRef = useRef<{
-    ready: boolean
-    fileName: string
-    healthReport: PackageContractHealthReport
-    missingLabels: string[]
-    error: string | null
-    warnCount: number
-  } | null>(null)
+  const sessionRef = useRef(0)
+  const inFlightRef = useRef(false)
 
-  const hasContract = Boolean(pkg.activeContractTemplateId)
+  const versionsQuery = useQuery({
+    queryKey: [
+      'document-template-versions',
+      pkg.activeContractTemplateId ?? 'none',
+    ],
+    queryFn: () =>
+      documentTemplateService.listVersions(pkg.activeContractTemplateId!),
+    enabled: Boolean(pkg.activeContractTemplateId),
+    staleTime: 30_000,
+  })
 
+  // Hydrate ready card from persisted package binding — never during in-flight upload.
   useEffect(() => {
-    const templateId = pkg.activeContractTemplateId
-    if (!templateId) {
-      setFileName(null)
-      setError(null)
-      setMissingLabels([])
-      setHealthReport(null)
-      setView('upload')
+    if (inFlightRef.current) return
+    if (
+      phase === 'uploading' ||
+      phase === 'saving' ||
+      phase === 'success_transition' ||
+      phase === 'error'
+    ) {
       return
     }
+
+    const templateId = pkg.activeContractTemplateId
+    if (!templateId) {
+      setCard(null)
+      setPhase('idle_empty')
+      return
+    }
+
     let cancelled = false
     void documentTemplateService.get(templateId).then((template) => {
-      if (cancelled || !template) return
-      setFileName(template.name)
-      setHealthReport(healthFromMeta(template.meta))
-      const readiness = template.meta?.packageContractReadiness
-      if (readiness && readiness.ready === false) {
-        setError(
-          readiness.userMessage ??
-            'Nie udało się rozpoznać danych potrzebnych do automatycznego generowania umowy.',
-        )
-        const missing = (readiness.missingRequiredCategories ?? [])
-          .map((key) => {
-            const label =
-              PACKAGE_CONTRACT_CATEGORY_LABELS[
-                key as PackageContractUserCategory
-              ]
-            return label ?? null
-          })
-          .filter((label): label is string => Boolean(label))
-        setMissingLabels(missing)
-        setView('attention')
-      } else {
-        setError(null)
-        setMissingLabels([])
-        setView('ready')
-      }
+      if (cancelled || !template || inFlightRef.current) return
+      const activeVersion = versionsQuery.data?.find(
+        (row) =>
+          row.id ===
+          (pkg.activeContractTemplateVersionId ?? template.currentVersionId),
+      )
+      setCard({
+        templateId,
+        templateVersionId:
+          pkg.activeContractTemplateVersionId ?? template.currentVersionId,
+        fileName:
+          template.meta?.sourceFileName ?? template.name ?? 'umowa.docx',
+        versionLabel: activeVersion
+          ? `Wersja ${activeVersion.versionNumber}`
+          : 'Aktualna wersja',
+        uploadedAtLabel: formatUploadedAt(template.meta?.uploadedAt),
+        paymentNotice: template.meta?.paymentScheduleNotice ?? null,
+      })
+      setPhase('ready')
     })
     return () => {
       cancelled = true
     }
-  }, [pkg.activeContractTemplateId, pkg.activeContractTemplateVersionId])
+  }, [
+    pkg.activeContractTemplateId,
+    pkg.activeContractTemplateVersionId,
+    versionsQuery.data,
+    phase,
+  ])
 
-  async function invalidate() {
-    await queryClient.invalidateQueries({ queryKey: ['studio-packages'] })
-    await queryClient.invalidateQueries({
-      queryKey: documentTemplateKeys.all,
-    })
-    await queryClient.invalidateQueries({
-      queryKey: ['document-template-summaries'],
-    })
-  }
-
-  function revealPendingResult() {
-    const pending = pendingResultRef.current
-    if (!pending) return
-    pendingResultRef.current = null
-    setFileName(pending.fileName)
-    setHealthReport(pending.healthReport)
-    setMissingLabels(pending.missingLabels)
-    setError(pending.error)
+  function finishSuccessTransition(session: number) {
+    if (session !== sessionRef.current) return
+    inFlightRef.current = false
+    setPhase('ready')
     setSelectedFile(null)
     setPipelineDone(false)
-    if (pending.ready) {
-      setView('ready')
-      showToast(
-        pending.warnCount > 0
-          ? 'Umowa gotowa. Warto zajrzeć do rekomendacji.'
-          : 'Umowa jest gotowa do generowania.',
-        pending.warnCount > 0 ? 'info' : 'success',
-      )
-    } else {
-      setView('attention')
-    }
+    showToast('Szablon został dodany', 'success')
   }
 
-  async function handleFile(file: File | null) {
-    if (!file) return
-    setError(null)
-    setMissingLabels([])
-    setHealthReport(null)
+  async function handleFile(file: File) {
+    const session = ++sessionRef.current
+    inFlightRef.current = true
     setSelectedFile(file)
-    setFileName(file.name)
+    setUploadError(null)
     setPipelineDone(false)
-    pendingResultRef.current = null
-    setView('analyzing')
+    setPhase('uploading')
 
+    // Brief presentational beat so “Przesyłanie” is visible before persistence work.
+    await new Promise<void>((resolve) => {
+      window.setTimeout(resolve, prefersReduced ? 40 : 220)
+    })
+    if (session !== sessionRef.current) return
+
+    setPhase('saving')
     try {
-      const result = await assignPackageContractFromDocx({
+      const result = await uploadPackageContractTemplate({
         packageId: pkg.id,
         file,
       })
+      if (session !== sessionRef.current) return
+
+      const nextCard = cardFromUploadResult(result)
+      setCard(nextCard)
       onPackageUpdated(result.package)
-      const ready = result.readiness.ready
-      pendingResultRef.current = {
-        ready,
-        fileName: result.sourceFileName,
-        healthReport: result.healthReport,
-        missingLabels: ready
-          ? []
-          : packageContractMissingCategoryLabels(result.readiness),
-        error: ready
-          ? null
-          : (result.readiness.userMessage ??
-            'Nie udało się rozpoznać danych potrzebnych do automatycznego generowania umowy.'),
-        warnCount: result.healthReport.warningCount,
-      }
-      setPipelineDone(true)
-      await invalidate()
-    } catch (err) {
-      setSelectedFile(null)
-      setPipelineDone(false)
-      pendingResultRef.current = null
-      setError(
-        err instanceof Error
-          ? err.message
-          : 'Nie udało się dodać umowy do pakietu.',
+
+      // Seed version list cache so ready UI does not wait on a blank refetch.
+      queryClient.setQueryData(
+        ['document-template-versions', result.templateId],
+        (prev: unknown) => prev ?? [],
       )
-      setView('attention')
+      void queryClient.invalidateQueries({
+        queryKey: documentTemplateKeys.all,
+      })
+      void queryClient.invalidateQueries({
+        queryKey: ['document-template-versions', result.templateId],
+      })
+
+      setPhase('success_transition')
+      setPipelineDone(true)
+
+      if (prefersReduced) {
+        finishSuccessTransition(session)
+      }
+    } catch (e) {
+      if (session !== sessionRef.current) return
+      inFlightRef.current = false
+      setPipelineDone(false)
+      setUploadError(
+        e instanceof Error ? e.message : 'Przesyłanie umowy wymaga ponowienia.',
+      )
+      setPhase('error')
       showToast(
-        err instanceof Error
-          ? err.message
-          : 'Nie udało się dodać umowy do pakietu.',
+        e instanceof Error ? e.message : 'Przesyłanie umowy wymaga ponowienia.',
+        'error',
+      )
+    }
+  }
+
+  async function handleDownload() {
+    const templateId = card?.templateId ?? pkg.activeContractTemplateId
+    if (!templateId) return
+    try {
+      const { fileName: name, bytes } =
+        await downloadPackageContractTemplateSource({
+          templateId,
+          templateVersionId:
+            card?.templateVersionId ?? pkg.activeContractTemplateVersionId,
+        })
+      const blob = new Blob([bytes], {
+        type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = name
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      showToast(
+        e instanceof Error ? e.message : 'Nie udało się pobrać szablonu.',
         'error',
       )
     }
@@ -204,21 +246,31 @@ export function PackageContractSection(input: {
 
   async function handleClear() {
     try {
-      const next = await packageService.linkContractTemplate(pkg.id, null, null)
+      const next = await clearPackageContractTemplate({ packageId: pkg.id })
       onPackageUpdated(next)
-      setFileName(null)
-      setError(null)
-      setMissingLabels([])
-      setHealthReport(null)
+      inFlightRef.current = false
+      sessionRef.current += 1
+      setCard(null)
       setSelectedFile(null)
-      setView('upload')
-      await invalidate()
-    } catch (err) {
+      setUploadError(null)
+      setPipelineDone(false)
+      setPhase('idle_empty')
+      showToast('Szablon odpięty od pakietu', 'success')
+    } catch (e) {
       showToast(
-        err instanceof Error ? err.message : 'Nie udało się usunąć umowy.',
+        e instanceof Error ? e.message : 'Nie udało się odpiąć szablonu.',
         'error',
       )
     }
+  }
+
+  function handleRetry() {
+    if (selectedFile) {
+      void handleFile(selectedFile)
+      return
+    }
+    setUploadError(null)
+    setPhase(hasPersistedTemplate || card ? 'ready' : 'idle_empty')
   }
 
   const replaceActions = (
@@ -228,7 +280,11 @@ export function PackageContractSection(input: {
         type="file"
         accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         hidden
-        onChange={(e) => void handleFile(e.target.files?.[0] ?? null)}
+        onChange={(e) => {
+          const file = e.target.files?.[0]
+          e.target.value = ''
+          if (file) void handleFile(file)
+        }}
       />
       <Button
         type="button"
@@ -236,129 +292,185 @@ export function PackageContractSection(input: {
         variant="secondary"
         onClick={() => replaceInputRef.current?.click()}
       >
-        Zmień umowę
+        Zastąp szablon
       </Button>
-      {hasContract ? (
-        <Button
-          type="button"
-          size="sm"
-          variant="ghost"
-          onClick={() => void handleClear()}
-        >
-          Usuń
-        </Button>
-      ) : null}
+      <Button
+        type="button"
+        size="sm"
+        variant="ghost"
+        onClick={() => void handleDownload()}
+      >
+        Pobierz oryginał
+      </Button>
+      <Button
+        type="button"
+        size="sm"
+        variant="ghost"
+        onClick={() => void handleClear()}
+      >
+        Usuń szablon
+      </Button>
     </>
   )
 
+  const surface = resolvePackageTemplateSurface({
+    phase,
+    hasPersistedTemplate,
+    card,
+  })
+  const progressVariants = reducedMotionSafe(prefersReduced, fadeSlide)
+  const readyVariants = reducedMotionSafe(prefersReduced, scaleIn)
+  const statusCopy =
+    phase === 'uploading'
+      ? 'Przesyłanie pliku…'
+      : phase === 'saving'
+        ? 'Zapisywanie szablonu…'
+        : phase === 'success_transition'
+          ? 'Szablon został dodany'
+          : phase === 'error'
+            ? uploadError
+            : null
+
+  const displayName =
+    card?.fileName ?? selectedFile?.name ?? 'Dokument DOCX'
+
+  const showEmptyHint =
+    surface === 'empty' && shouldShowEmptyDropzone(phase)
+
   return (
-    <section aria-labelledby={`pkg-contract-${pkg.id}`}>
+    <section
+      className={`${styles.experience} ${styles.packageContractBlock}`}
+      aria-labelledby={`pkg-contract-${pkg.id}`}
+      data-phase={phase}
+      data-testid="package-contract-section"
+    >
       <h3 className={styles.eyebrow} id={`pkg-contract-${pkg.id}`}>
-        Umowa
+        Szablon umowy
       </h3>
+      {showEmptyHint ? (
+        <p className={styles.packageContractEmptyHint}>
+          Dodaj wzór umowy dla tego pakietu.
+        </p>
+      ) : null}
 
-      <AnimatePresence mode="wait">
-        {view === 'upload' ? (
-          <motion.div key="upload" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <ContractUploadExperience
-              selectedFile={selectedFile}
-              onFile={(file) => void handleFile(file)}
-            />
-          </motion.div>
+      <div className={styles.templateStage} aria-live="polite">
+        {statusCopy && phase !== 'error' ? (
+          <p className={styles.templateStatusLive}>{statusCopy}</p>
         ) : null}
 
-        {view === 'analyzing' ? (
-          <motion.div
-            key="analyzing"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
-            <ContractAnalysisAnimation
-              fileName={fileName ?? selectedFile?.name ?? null}
-              pipelineDone={pipelineDone}
-              onComplete={revealPendingResult}
-            />
-          </motion.div>
-        ) : null}
+        <AnimatePresence mode="wait" initial={false}>
+          {showEmptyHint ? (
+            <motion.div
+              key="empty"
+              variants={progressVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              className={styles.templateStageInner}
+            >
+              <ContractUploadExperience
+                embedded
+                selectedFile={null}
+                onFile={(file) => void handleFile(file)}
+              />
+            </motion.div>
+          ) : null}
 
-        {view === 'ready' ? (
-          <motion.div
-            key="ready"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
-            <PackageHealthSummary
-              fileName={fileName}
-              healthReport={healthReport}
-              actions={
-                <>
-                  {pkg.activeContractTemplateId ? (
-                    <Link
-                      to={`/ustawienia/dokumenty/szablony/${pkg.activeContractTemplateId}`}
-                    >
-                      <Button type="button" size="sm" variant="secondary">
-                        Podgląd
-                      </Button>
-                    </Link>
+          {surface === 'progress' || surface === 'error' ? (
+            <motion.div
+              key="progress"
+              variants={progressVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              className={styles.templateStageInner}
+            >
+              <PackageTemplateUploadProgress
+                fileName={displayName}
+                phase={phase}
+                pipelineDone={pipelineDone}
+                error={phase === 'error' ? uploadError : null}
+                onRetry={phase === 'error' ? handleRetry : undefined}
+                onComplete={() =>
+                  finishSuccessTransition(sessionRef.current)
+                }
+              />
+            </motion.div>
+          ) : null}
+
+          {surface === 'ready' && card ? (
+            <motion.div
+              key={`ready-${card.templateId}`}
+              variants={readyVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              className={styles.templateStageInner}
+            >
+              <div
+                className={`${styles.card} ${styles.packageContractReadyCard}`}
+              >
+                <div>
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      alignItems: 'center',
+                      gap: '0.65rem',
+                    }}
+                  >
+                    <p className={styles.title} style={{ fontSize: '1.15rem' }}>
+                      {card.fileName}
+                    </p>
+                    <span className={styles.templateStatus}>Gotowy</span>
+                  </div>
+                  <div className={styles.templateMetaRow}>
+                    <p className={styles.templateMetaItem}>
+                      <strong>{card.versionLabel}</strong>
+                    </p>
+                    {card.uploadedAtLabel ? (
+                      <p className={styles.templateMetaItem}>
+                        Dodano: {card.uploadedAtLabel}
+                      </p>
+                    ) : null}
+                  </div>
+                  {card.paymentNotice ? (
+                    <p className={styles.templateNotice} role="status">
+                      {card.paymentNotice}
+                    </p>
                   ) : null}
+                </div>
+                <div className={styles.actions}>
+                  <Link to={`/ustawienia/dokumenty/szablony/${card.templateId}`}>
+                    <Button type="button" size="sm" variant="secondary">
+                      Podgląd
+                    </Button>
+                  </Link>
                   {replaceActions}
-                </>
-              }
-            />
-          </motion.div>
-        ) : null}
-
-        {view === 'attention' ? (
-          <motion.div
-            key="attention"
-            className={`${styles.experience} ${styles.card}`}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
-            <div>
-              <p className={styles.eyebrow}>Wymaga uwagi</p>
-              <h3 className={styles.title}>Uzupełnij umowę</h3>
-              <p className={styles.subtitle}>
-                {error ??
-                  'Nie udało się rozpoznać wszystkich danych potrzebnych do generowania.'}
-              </p>
-              {fileName ? (
-                <p className={styles.fileChipMeta} style={{ marginTop: '0.5rem' }}>
-                  {fileName}
-                </p>
-              ) : null}
-            </div>
-            {missingLabels.length > 0 ? (
-              <ul className={styles.missingList}>
-                {missingLabels.map((label) => (
-                  <li key={label}>{label}</li>
-                ))}
-              </ul>
-            ) : null}
-            {healthReport &&
-            packageHealthRecommendations(healthReport.checks).length > 0 ? (
-              <div className={styles.recs}>
-                <div className={styles.recsToggle} style={{ cursor: 'default' }}>
-                  <span>Rekomendacje</span>
                 </div>
-                <div className={styles.recsBody}>
-                  <ul className={styles.recsList}>
-                    {packageHealthRecommendations(healthReport.checks).map(
-                      (text) => (
-                        <li key={text}>{text}</li>
-                      ),
-                    )}
-                  </ul>
-                </div>
+                {versionsQuery.data && versionsQuery.data.length > 1 ? (
+                  <div>
+                    <p className={styles.eyebrow}>Historia wersji</p>
+                    <ul className={styles.subtitle}>
+                      {versionsQuery.data.map((v) => (
+                        <li key={v.id}>
+                          Wersja {v.versionNumber}
+                          {v.sourceFileName ? ` — ${v.sourceFileName}` : ''}
+                          {v.id ===
+                          (card.templateVersionId ??
+                            pkg.activeContractTemplateVersionId)
+                            ? ' (aktywna)'
+                            : ''}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
               </div>
-            ) : null}
-            <div className={styles.actions}>{replaceActions}</div>
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
+      </div>
     </section>
   )
 }

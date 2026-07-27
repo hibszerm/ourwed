@@ -1,13 +1,14 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Download, FileText, MoreHorizontal } from 'lucide-react'
+import { Download, FileText } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { useDocumentTemplates } from '@/features/documents/hooks/useDocumentTemplates'
 import {
   GeneratedWeddingContractService,
   type GeneratedWeddingContract,
 } from '@/features/documents/template'
+import { resolvePackageContractForWedding } from '@/features/documents/template/packageContractAssignment'
 import type { Wedding } from '@/types/wedding'
 import styles from './WeddingContractsModule.module.css'
 
@@ -23,24 +24,86 @@ function formatDate(value: string): string {
   }).format(new Date(value))
 }
 
+type CardState =
+  | 'no_template'
+  | 'template_available'
+  | 'generated'
+  | 'archived'
+
 export function WeddingContractsModule({ wedding, onGenerate }: Props) {
   const { data: templates = [] } = useDocumentTemplates()
   const { data: contracts = [], isLoading, isError } = useQuery({
     queryKey: ['generated-wedding-contracts', wedding.id],
     queryFn: () => GeneratedWeddingContractService.listForWedding(wedding.id),
   })
+  const packageQuery = useQuery({
+    queryKey: [
+      'package-contract-for-wedding',
+      wedding.id,
+      wedding.packageId ?? null,
+    ],
+    queryFn: () =>
+      resolvePackageContractForWedding({
+        packageId: wedding.packageId,
+        packageName: wedding.packageName,
+      }),
+    staleTime: 30_000,
+  })
   const templateNames = new Map(templates.map((item) => [item.id, item.name]))
+
+  const packageStatus = packageQuery.data?.status
+  const hasTemplate = packageStatus === 'ok'
+  const hasGenerated = contracts.length > 0
+  const cardState: CardState =
+    wedding.status === 'archived'
+      ? 'archived'
+      : !hasTemplate
+        ? 'no_template'
+        : hasGenerated
+          ? 'generated'
+          : 'template_available'
+
+  const stateCopy: Record<CardState, { title: string; body: string }> = {
+    no_template: {
+      title: 'Brak szablonu w pakiecie',
+      body: 'Dodaj szablon umowy w pakiecie, aby móc wygenerować dokument dla tego ślubu.',
+    },
+    template_available: {
+      title: 'Szablon gotowy',
+      body: 'Wygeneruj umowę na podstawie szablonu pakietu i danych tego ślubu.',
+    },
+    generated: {
+      title: 'Umowa wygenerowana',
+      body: 'Poniżej znajdziesz zapisane wersje. Możesz wygenerować kolejną.',
+    },
+    archived: {
+      title: 'Umowa zarchiwizowana',
+      body: 'Ten ślub ma zarchiwizowany status umowy.',
+    },
+  }
 
   return (
     <section className={styles.section} aria-labelledby="wedding-contracts-title">
       <div className={styles.header}>
         <div>
-          <h2 id="wedding-contracts-title">Umowy</h2>
-          <p>Dokumenty zapisane dla tego ślubu.</p>
+          <h2 id="wedding-contracts-title">Umowa</h2>
+          <p>{stateCopy[cardState].body}</p>
         </div>
-        <Button type="button" variant="primary" size="sm" onClick={onGenerate}>
-          Generuj umowę
-        </Button>
+        {cardState === 'no_template' ? (
+          <Link to="/studio/pakiety">
+            <Button type="button" variant="secondary" size="sm">
+              Przejdź do pakietu
+            </Button>
+          </Link>
+        ) : cardState !== 'archived' ? (
+          <Button type="button" variant="primary" size="sm" onClick={onGenerate}>
+            {hasGenerated ? 'Generuj ponownie' : 'Generuj umowę'}
+          </Button>
+        ) : null}
+      </div>
+
+      <div className={styles.stateBanner} data-state={cardState}>
+        <strong>{stateCopy[cardState].title}</strong>
       </div>
 
       {isLoading ? <p className={styles.muted}>Ładowanie umów…</p> : null}
@@ -54,11 +117,17 @@ export function WeddingContractsModule({ wedding, onGenerate }: Props) {
           <FileText size={24} aria-hidden />
           <div>
             <strong>Nie ma jeszcze zapisanej umowy</strong>
-            <p>Wygeneruj dokument, sprawdź dane i zapisz artefakt DOCX.</p>
+            <p>
+              {hasTemplate
+                ? 'Wygeneruj dokument, sprawdź podgląd i pobierz DOCX lub PDF.'
+                : 'Najpierw przypisz szablon DOCX do pakietu.'}
+            </p>
           </div>
-          <Button type="button" variant="secondary" size="sm" onClick={onGenerate}>
-            Generuj umowę
-          </Button>
+          {hasTemplate ? (
+            <Button type="button" variant="secondary" size="sm" onClick={onGenerate}>
+              Generuj umowę
+            </Button>
+          ) : null}
         </div>
       ) : null}
       {contracts.length > 0 ? (
@@ -127,7 +196,7 @@ function ContractRow({
         </div>
         <div>
           <dt>Formaty</dt>
-          <dd>{formats.map((value) => value.toUpperCase()).join(', ')}</dd>
+          <dd>{formats.map((value) => value.toUpperCase()).join(', ') || 'DOCX'}</dd>
         </div>
         <div>
           <dt>Zmodyfikowano</dt>
@@ -136,7 +205,7 @@ function ContractRow({
       </dl>
       <div className={styles.actions}>
         <Link className={styles.openLink} to={previewPath}>
-          Otwórz
+          Podgląd
         </Link>
         <details className={styles.downloadMenu}>
           <summary aria-label={`Pobierz ${contract.draft.title}`}>
@@ -150,26 +219,16 @@ function ContractRow({
               disabled={downloading}
               onClick={() => void download('docx')}
             >
-              DOCX
+              Pobierz DOCX
             </button>
             <button
               type="button"
               role="menuitem"
-              disabled={downloading || !formats.includes('pdf')}
-              onClick={() => formats.includes('pdf') && void download('pdf')}
+              disabled={downloading}
+              onClick={() => void download('pdf')}
             >
-              {formats.includes('pdf') ? 'PDF' : 'PDF niedostępny'}
+              Pobierz PDF
             </button>
-          </div>
-        </details>
-        <details className={styles.moreMenu}>
-          <summary aria-label={`Więcej opcji dla ${contract.draft.title}`}>
-            <MoreHorizontal size={17} aria-hidden />
-          </summary>
-          <div role="menu">
-            <Link role="menuitem" to={previewPath}>
-              Szczegóły umowy
-            </Link>
           </div>
         </details>
       </div>

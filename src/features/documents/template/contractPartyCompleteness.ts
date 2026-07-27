@@ -6,6 +6,7 @@
  */
 
 import { canonicalizeParagraphText } from './canonicalParagraph'
+import { CLIENT_PARTY_CLAUSE_CUE_RE } from './clientPartyRolePhrases'
 import type { IndexedParagraph } from './extractDocxParagraphs'
 import { segmentCompanyPartyClause } from './segmentCompanyClause'
 import type { TemplateSlot } from './types'
@@ -95,9 +96,8 @@ export function analyzePartyCompleteness(input: {
       joined,
     )
   const hasClientCue =
-    /Parą Młodą|Parą Mlodą|zwaną dalej|zwanymi dalej|pomiędzy|Panna\s+Młoda|Pan\s+Młody|Zamawiającym/i.test(
-      joined,
-    )
+    CLIENT_PARTY_CLAUSE_CUE_RE.test(joined) ||
+    /Panna\s+Młoda|Pan\s+Młody/i.test(joined)
 
   const boundDynamic = (key: string) =>
     input.slots.some(

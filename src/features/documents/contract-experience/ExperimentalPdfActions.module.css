@@ -1,0 +1,47 @@
+.panel {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.9rem 1rem;
+  border: 1px dashed var(--border-subtle, #d9d4cc);
+  border-radius: 12px;
+  background: #faf9f7;
+}
+
+.compact {
+  display: grid;
+  gap: 0.5rem;
+  width: 100%;
+  margin-top: 0.35rem;
+}
+
+.title {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.desc {
+  margin: 0.25rem 0 0;
+  font-size: 0.85rem;
+  color: var(--text-muted, #6b6560);
+  max-width: 40rem;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.error {
+  margin: 0;
+  color: var(--color-danger-text, #9b1c1c);
+  font-size: 0.9rem;
+}
+
+.frame {
+  width: 100%;
+  height: 55vh;
+  border: 1px solid var(--border-subtle, #e5e2dc);
+  border-radius: 8px;
+  background: #fff;
+}

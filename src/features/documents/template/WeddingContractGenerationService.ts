@@ -1359,6 +1359,68 @@ export async function generateWeddingContract(input: {
       generationDate: input.generationDate,
       correlationId,
     })
+
+    // Payment schedule gate — never invent installment splits
+    const {
+      detectPaymentSchedule,
+      evaluatePaymentSchedulePolicy,
+      buildManualPaymentScheduleRequiredIssue,
+    } = await import('./payment-schedule')
+    const total = Math.round(wedding.price ?? 0)
+    const deposit =
+      wedding.depositAmount != null ? Math.round(wedding.depositAmount) : null
+    const remaining =
+      deposit != null ? Math.max(0, total - deposit) : null
+    const detected = detectPaymentSchedule({
+      slots: input.report.slotMap.slots,
+      paragraphs: artifact.paragraphs.map((p) => ({
+        index: p.index,
+        text: p.text,
+      })),
+      finances: {
+        totalContractAmount: total,
+        depositAmount: deposit,
+        remainingAmount: remaining,
+      },
+    })
+    const policy = evaluatePaymentSchedulePolicy(detected, {
+      totalContractAmount: total,
+      depositAmount: deposit,
+      remainingAmount: remaining,
+    })
+    if (policy.requiresManualCompletion && policy.resolvedSchedule) {
+      let generationRunId: string | undefined
+      try {
+        const { contractGenerationRunService } = await import(
+          './payment-schedule'
+        )
+        const run = await contractGenerationRunService.create({
+          weddingId: wedding.id,
+          draftId: artifact.draftId,
+          templateId: artifact.templateId,
+          templateVersionId: artifact.templateVersionId,
+          status: 'manual_input_required',
+          detectedSchedule: policy.resolvedSchedule,
+          resolvedValues: artifact.resolved,
+          totalContractAmount: total,
+          intermediateDocxBytes: artifact.docxBytes,
+        })
+        generationRunId = run.id
+      } catch {
+        // Persistence optional for offline / pre-migration; UI can still proceed with in-memory schedule
+      }
+      return {
+        status: 'manual_input_required',
+        artifact,
+        paymentSchedule: policy.resolvedSchedule,
+        generationRunId,
+        issue: buildManualPaymentScheduleRequiredIssue(
+          policy.resolvedSchedule,
+          policy.unresolvedEntryIds,
+        ),
+      }
+    }
+
     return { status: 'completed', artifact }
   } catch (err) {
     if (err instanceof TransformNeedsReviewSignal) {
