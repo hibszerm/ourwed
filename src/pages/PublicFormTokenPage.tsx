@@ -4,5 +4,5 @@ import { ProductionContractFormPage } from '@/features/forms/ProductionContractF
 /** Public production questionnaire — /form/:token */
 export function PublicFormTokenPage() {
   const { token = '' } = useParams<{ token: string }>()
-  return <ProductionContractFormPage key={token} />
+  return <ProductionContractFormPage key={token} token={token} />
 }

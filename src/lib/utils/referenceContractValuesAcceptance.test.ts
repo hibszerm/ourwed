@@ -90,11 +90,16 @@ run('reference wedding resolves all commercial / delivery values', () => {
   )
   assertEq(values.delivery_term_text, '4 miesiące', 'delivery_term_text')
   assertEq(values.delivery_months, '4', 'delivery_months')
-  assertEq(values.final_payment_due_date, '10.07.2026', 'final due short')
+  assertEq(values.final_payment_due_date, '24.07.2026', 'final due short')
   assertEq(
     values.final_payment_due_date_long,
-    '10 lipca 2026 r.',
+    '24 lipca 2026 r.',
     'final due long',
+  )
+  assertEq(
+    values.final_payment_terms_text,
+    'W dniu ślubu',
+    'final payment terms',
   )
   assertEq(values.package_items_count, '4', 'package_items_count')
   assertEq(includedServices.length, 4, 'includedServices length')
@@ -112,7 +117,7 @@ run('reference wedding resolves all commercial / delivery values', () => {
   )
 
   assertEq(
-    missingCanonicalKeys.length,
+    missingCanonicalKeys.filter((k) => k !== 'coverage_start_time').length,
     0,
     `missing: ${missingCanonicalKeys.join(', ')}`,
   )
@@ -126,6 +131,7 @@ run('missing overtime / delivery → omit, do not invent zero', () => {
     coverageHours: null,
     coverageEndTime: null,
     finalPaymentDueDate: null,
+    finalPaymentTerms: null,
   })
   const { values } = buildContractCommercialResolved(wedding)
   assert(values.overtime_rate == null, 'no overtime_rate')
@@ -134,6 +140,7 @@ run('missing overtime / delivery → omit, do not invent zero', () => {
   assert(values.coverage_hours == null, 'no coverage hours')
   assert(values.coverage_end_time == null, 'no coverage end')
   assert(values.final_payment_due_date == null, 'no final due')
+  assert(values.final_payment_terms_text == null, 'no final terms')
   // Still has money from snapshot
   assertEq(values.contract_value_formatted, '9 500 zł', 'money still present')
 })

@@ -9,9 +9,14 @@ import {
   isLocationsSection,
 } from '@/features/forms/formSections'
 import {
+  derivePublicFormView,
+  shouldFetchPublicForm,
+} from '@/features/forms/publicFormLoadState'
+import {
   getPublicFormByToken,
   submitFormByToken,
 } from '@/lib/api/forms'
+import { useAuth } from '@/features/auth/AuthProvider'
 import { formEngine } from '@/lib/forms/formEngine'
 import { DEFAULT_FORM_SETTINGS } from '@/lib/forms/contractQuestionnaireTemplate'
 import { resolvePublicFormTemplate } from '@/lib/forms/resolvePublicFormTemplate'
@@ -32,9 +37,11 @@ import { defaultContractQuestionnaireConfig } from '@/types/contractQuestionnair
 import styles from './FormPublicPage.module.css'
 
 type LoadState =
+  | { status: 'waiting_for_auth' }
   | { status: 'loading' }
   | { status: 'not_found' }
   | { status: 'expired' }
+  | { status: 'error'; message?: string }
   | {
       status: 'ready'
       instance: FormInstance
@@ -71,9 +78,19 @@ function packageFingerprint(
  * Production public questionnaire at /form/:token.
  * Single screen — no wizard. Options come from the instance snapshot.
  */
-export function ProductionContractFormPage() {
-  const { token = '' } = useParams<{ token: string }>()
-  const [load, setLoad] = useState<LoadState>({ status: 'loading' })
+export function ProductionContractFormPage({
+  token: tokenProp,
+}: {
+  token?: string
+} = {}) {
+  const params = useParams<{ token: string }>()
+  const token = (tokenProp ?? params.token ?? '').trim()
+  const { isLoading: authLoading } = useAuth()
+  const authReady = !authLoading
+
+  const [load, setLoad] = useState<LoadState>({
+    status: authReady ? 'loading' : 'waiting_for_auth',
+  })
   const [values, setValues] = useState<Record<string, AnswerValue>>({})
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [submitting, setSubmitting] = useState(false)
@@ -84,16 +101,22 @@ export function ProductionContractFormPage() {
     let cancelled = false
 
     async function loadForm() {
-      setLoad({ status: 'loading' })
       setSuccess(false)
       setErrors({})
       setValues({})
       seededForPackagesRef.current = null
 
-      if (!token.trim()) {
+      if (!authReady) {
+        if (!cancelled) setLoad({ status: 'waiting_for_auth' })
+        return
+      }
+
+      if (!shouldFetchPublicForm({ authReady, token })) {
         if (!cancelled) setLoad({ status: 'not_found' })
         return
       }
+
+      if (!cancelled) setLoad({ status: 'loading' })
 
       try {
         const publicForm = await getPublicFormByToken(token)
@@ -125,8 +148,15 @@ export function ProductionContractFormPage() {
           additionalServices: publicForm.additionalServices,
           optionsSnapshot: publicForm.optionsSnapshot,
         })
-      } catch {
-        if (!cancelled) setLoad({ status: 'not_found' })
+      } catch (err) {
+        if (cancelled) return
+        setLoad({
+          status: 'error',
+          message:
+            err instanceof Error
+              ? err.message
+              : 'Nie udało się wczytać formularza.',
+        })
       }
     }
 
@@ -134,7 +164,7 @@ export function ProductionContractFormPage() {
     return () => {
       cancelled = true
     }
-  }, [token])
+  }, [token, authReady])
 
   const packages = load.status === 'ready' ? load.packages : undefined
   const additionalServices =
@@ -142,9 +172,13 @@ export function ProductionContractFormPage() {
   const optionsSnapshot =
     load.status === 'ready' ? load.optionsSnapshot : null
   const schema = load.status === 'ready' ? load.schema : null
+  const fallbackConfig = useMemo(
+    () => defaultContractQuestionnaireConfig(),
+    [],
+  )
   const config =
     optionsSnapshot?.config ??
-    (load.status === 'ready' ? defaultContractQuestionnaireConfig() : null)
+    (load.status === 'ready' ? fallbackConfig : null)
 
   const packagesKey =
     packages !== undefined && additionalServices !== undefined
@@ -167,7 +201,13 @@ export function ProductionContractFormPage() {
     seededForPackagesRef.current = packagesKey
   }, [resolvedTemplate, packages, packagesKey])
 
-  if (load.status === 'loading' || !resolvedTemplate) {
+  const view = derivePublicFormView({
+    authReady,
+    loadStatus: load.status,
+    hasResolvedTemplate: Boolean(resolvedTemplate),
+  })
+
+  if (view === 'loading') {
     return (
       <div className={styles.shell}>
         <p className={styles.muted}>Ładowanie formularza…</p>
@@ -175,7 +215,7 @@ export function ProductionContractFormPage() {
     )
   }
 
-  if (load.status === 'not_found') {
+  if (view === 'not_found') {
     return (
       <div className={styles.shell}>
         <header className={styles.header}>
@@ -189,13 +229,28 @@ export function ProductionContractFormPage() {
     )
   }
 
-  if (load.status === 'expired') {
+  if (view === 'expired') {
     return (
       <div className={styles.shell}>
         <header className={styles.header}>
           <h1 className={styles.title}>Ankieta wygasła</h1>
           <p className={styles.lead}>
             Ten link stracił ważność. Poproś fotografa o wysłanie nowej ankiety.
+          </p>
+        </header>
+      </div>
+    )
+  }
+
+  if (view === 'error' || load.status !== 'ready' || !resolvedTemplate) {
+    return (
+      <div className={styles.shell}>
+        <header className={styles.header}>
+          <h1 className={styles.title}>Nie udało się wczytać ankiety</h1>
+          <p className={styles.lead}>
+            {load.status === 'error' && load.message
+              ? load.message
+              : 'Odśwież stronę lub poproś fotografa o nowy link.'}
           </p>
         </header>
       </div>

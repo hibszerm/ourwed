@@ -5,6 +5,11 @@
 
 import { formatCurrency } from '@/lib/utils/currency'
 import { getWeddingCommercialSummary } from '@/lib/utils/commercial'
+import { formatPolishPostalAddress } from '@/lib/utils/formatPolishPostalAddress'
+import {
+  buildPreparationLocationEntries,
+  formatPreparationLocationsDisplayText,
+} from '@/lib/utils/preparationLocations'
 import {
   isIncompleteLocationAddress,
   looksLikeStreetAddress,
@@ -35,12 +40,19 @@ function moneyFormatted(n: number): string {
 
 function partnerAddress(wedding: Wedding, which: 1 | 2): string | undefined {
   const c = wedding.couple
-  const parts =
+  const formatted =
     which === 1
-      ? [c.partner1Address, c.partner1PostalCode, c.partner1City]
-      : [c.partner2Address, c.partner2PostalCode, c.partner2City]
-  const joined = parts.map((p) => p?.trim()).filter(Boolean)
-  return joined.length ? joined.join(', ') : undefined
+      ? formatPolishPostalAddress({
+          fullAddress: c.partner1Address,
+          postalCode: c.partner1PostalCode,
+          city: c.partner1City,
+        })
+      : formatPolishPostalAddress({
+          fullAddress: c.partner2Address,
+          postalCode: c.partner2PostalCode,
+          city: c.partner2City,
+        })
+  return formatted || undefined
 }
 
 function locationFromString(
@@ -48,17 +60,18 @@ function locationFromString(
 ): ContractTransformationDataset['locations']['ceremony'] | undefined {
   const raw = value?.trim() || undefined
   if (!raw) return undefined
-  if (isIncompleteLocationAddress(raw)) {
-    return { fullAddress: raw }
+  const normalized = formatPolishPostalAddress({ fullAddress: raw }) || raw
+  if (isIncompleteLocationAddress(normalized)) {
+    return { fullAddress: normalized }
   }
-  if (looksLikeStreetAddress(raw) && !looksLikeVenueDisplayName(raw)) {
-    return { fullAddress: raw }
+  if (looksLikeStreetAddress(normalized) && !looksLikeVenueDisplayName(normalized)) {
+    return { fullAddress: normalized }
   }
-  if (looksLikeVenueDisplayName(raw) && !looksLikeStreetAddress(raw)) {
-    return { displayName: raw }
+  if (looksLikeVenueDisplayName(normalized) && !looksLikeStreetAddress(normalized)) {
+    return { displayName: normalized }
   }
   // Ambiguous: keep both so prompts/classifier can choose
-  return { displayName: raw, fullAddress: raw }
+  return { displayName: normalized, fullAddress: normalized }
 }
 
 /** Flatten dataset into allowlisted replacement strings for classification. */
@@ -83,6 +96,13 @@ export function collectDatasetTargetStrings(
     push(`locations.${key}.displayName`, loc.displayName)
     push(`locations.${key}.fullAddress`, loc.fullAddress)
     push(`locations.${key}.city`, loc.city)
+  }
+  push(
+    'locations.preparationDisplayText',
+    dataset.locations.preparationDisplayText,
+  )
+  for (const entry of dataset.locations.preparationLocations ?? []) {
+    push(`locations.preparation.${entry.person}`, entry.fullAddress)
   }
   push('finances.contractValueFormatted', dataset.finances.contractValueFormatted)
   push('finances.contractValueWords', dataset.finances.contractValueWords)
@@ -150,11 +170,28 @@ export function buildContractTransformationDataset(input: {
     finances.remainingWords = polishContractMoneyWords(remainingAmount)
   }
 
+  const prepEntries = buildPreparationLocationEntries(wedding)
+  const prepDisplay = formatPreparationLocationsDisplayText(prepEntries)
   const locations: ContractTransformationDataset['locations'] = {}
-  const prep = locationFromString(wedding.preparationLocation)
+
+  if (prepEntries.length > 0) {
+    locations.preparationLocations = prepEntries.map((e) => ({
+      person: e.person,
+      label: e.label,
+      fullAddress: e.address,
+    }))
+    if (prepDisplay) locations.preparationDisplayText = prepDisplay
+    // Legacy singular field: prefer shared / bride / first for older prompts
+    const primary =
+      prepEntries.find((e) => e.person === 'shared') ??
+      prepEntries.find((e) => e.person === 'bride') ??
+      prepEntries[0]!
+    const prep = locationFromString(primary.address)
+    if (prep) locations.preparation = prep
+  }
+
   const ceremony = locationFromString(wedding.ceremonyLocation)
   const reception = locationFromString(wedding.receptionLocation)
-  if (prep) locations.preparation = prep
   if (ceremony) locations.ceremony = ceremony
   if (reception) locations.reception = reception
 
@@ -185,7 +222,9 @@ export function sanitizeTransformationDataset(
     const next = { ...obj }
     for (const [k, v] of Object.entries(next)) {
       if (v === undefined || v === null || v === '') delete next[k]
-      else if (typeof v === 'object' && !Array.isArray(v)) {
+      else if (Array.isArray(v)) {
+        if (v.length === 0) delete next[k]
+      } else if (typeof v === 'object') {
         const nested = strip(v as Record<string, unknown>)
         if (Object.keys(nested).length === 0) delete next[k]
         else (next as Record<string, unknown>)[k] = nested

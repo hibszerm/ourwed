@@ -15,10 +15,56 @@ import type {
   TransformationExpectationManifest,
 } from './types'
 
-function parseTotal(formatted: string): number | null {
-  const digits = formatted.replace(/[^\d]/g, '')
+function parsePlnAmount(raw: string): number | null {
+  const digits = raw.replace(/[^\d]/g, '')
   if (!digits) return null
   return Number(digits)
+}
+
+function wordsForAmount(
+  amount: number,
+  finances: ContractTransformationDataset['finances'],
+): string | null {
+  const total = parsePlnAmount(finances.contractValueFormatted)
+  const deposit = finances.depositFormatted
+    ? parsePlnAmount(finances.depositFormatted)
+    : null
+  const remaining = finances.remainingFormatted
+    ? parsePlnAmount(finances.remainingFormatted)
+    : null
+
+  if (deposit != null && amount === deposit) {
+    return finances.depositWords ?? polishContractMoneyWords(amount)
+  }
+  if (remaining != null && amount === remaining) {
+    return finances.remainingWords ?? polishContractMoneyWords(amount)
+  }
+  if (total != null && amount === total) {
+    return finances.contractValueWords ?? polishContractMoneyWords(amount)
+  }
+  // Unknown amount near słownie — still convert deterministically; never use total
+  return polishContractMoneyWords(amount)
+}
+
+/**
+ * Pair each "(słownie: …)" clause with the nearest preceding PLN amount
+ * and insert the matching deterministic words — never reuse total for all.
+ */
+export function repairMoneyWordsInText(
+  text: string,
+  finances: ContractTransformationDataset['finances'],
+): string {
+  if (!/słownie/i.test(text)) return text
+  return text.replace(
+    /(\d[\d\s\u00a0]*\s*zł(?:otych|ote|oty)?)([\s\S]{0,100}?)\(\s*słownie:\s*([^).]+)\)/gi,
+    (full, amountWithCurrency: string, between: string, _oldWords: string) => {
+      const amount = parsePlnAmount(amountWithCurrency)
+      if (amount == null) return full
+      const expected = wordsForAmount(amount, finances)
+      if (!expected) return full
+      return `${amountWithCurrency}${between}(słownie: ${expected})`
+    },
+  )
 }
 
 /**
@@ -49,34 +95,20 @@ export function applyDeterministicRepairs(input: {
     return b
   })
 
-  // 2. Normalize money words when "słownie:" present and total known
-  const total = parseTotal(input.dataset.finances.contractValueFormatted)
-  const expectedWords =
-    total != null
-      ? polishContractMoneyWords(total)
-      : input.dataset.finances.contractValueWords
-  if (expectedWords) {
-    blocks = blocks.map((b) => {
-      if (!/słownie/i.test(b.text)) return b
-      const replaced = b.text
-        .replace(
-          /(słownie:\s*)([^).]+)/i,
-          (_m, prefix: string) => `${prefix}${expectedWords}`,
-        )
-        .replace(/\bjeden\s+tysiąc\s+złotych\b/gi, 'tysiąc złotych')
-      if (replaced === b.text) return b
-      // Only if still mentions the formatted total nearby or słownie clause
-      if (!/słownie/i.test(replaced)) return b
-      repairs.push({
-        repairCode: 'insert_deterministic_money_words',
-        blockId: b.blockId,
-        canonicalField: 'contract.totalPriceWords',
-        beforeFingerprint: fingerprintText(b.text),
-        afterFingerprint: fingerprintText(replaced),
-      })
-      return { ...b, text: replaced }
+  // 2. Normalize money words — each amount owns its own words
+  blocks = blocks.map((b) => {
+    if (!/słownie/i.test(b.text)) return b
+    const replaced = repairMoneyWordsInText(b.text, input.dataset.finances)
+    if (replaced === b.text) return b
+    repairs.push({
+      repairCode: 'insert_deterministic_money_words',
+      blockId: b.blockId,
+      canonicalField: 'contract.totalPriceWords',
+      beforeFingerprint: fingerprintText(b.text),
+      afterFingerprint: fingerprintText(replaced),
     })
-  }
+    return { ...b, text: replaced }
+  })
 
   // 3. One-to-one exact stale → target in required contexts (unambiguous only)
   for (const rep of input.manifest.requiredReplacements) {

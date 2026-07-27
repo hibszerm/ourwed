@@ -5,6 +5,7 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { Input } from '@/components/ui/Input'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
+import { CompanySignatureSection } from '@/features/company/signature/CompanySignatureSection'
 import { buildCompanyHealth } from '@/features/company/companyHealth'
 import { companyDetailsService } from '@/lib/api/companyDetailsService'
 import type { CompanyDetails } from '@/types/company'
@@ -468,21 +469,6 @@ export function CompanyDetailsPage() {
                     ) : null}
                   </label>
                   <label className={catalogStyles.field}>
-                    Podpis
-                    <input
-                      type="file"
-                      accept="image/png,image/jpeg,image/webp,image/svg+xml"
-                      onChange={(e) =>
-                        void onUpload('signature', e.target.files)
-                      }
-                    />
-                    {form.signaturePath ? (
-                      <span className={catalogStyles.muted}>
-                        {form.signaturePath}
-                      </span>
-                    ) : null}
-                  </label>
-                  <label className={catalogStyles.field}>
                     Pieczęć
                     <input
                       type="file"
@@ -496,6 +482,24 @@ export function CompanyDetailsPage() {
                     ) : null}
                   </label>
                 </div>
+                <CompanySignatureSection
+                  signaturePath={form.signaturePath || null}
+                  signatureUpdatedAt={data?.signatureUpdatedAt}
+                  onSignaturePathChange={(path) => {
+                    // Independent save already persisted — sync form without dirty autosave race.
+                    const next = path ?? ''
+                    setForm((prev) => {
+                      const updated = { ...prev, signaturePath: next }
+                      lastSavedRef.current = serializeForm({
+                        ...updated,
+                      })
+                      return updated
+                    })
+                    dirtyRef.current = false
+                    setDirty(false)
+                    setSaveStatus('saved')
+                  }}
+                />
               </div>
             </section>
           </div>

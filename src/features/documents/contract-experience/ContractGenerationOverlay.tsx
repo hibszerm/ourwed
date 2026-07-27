@@ -1,9 +1,11 @@
+import { useEffect, useState } from 'react'
 import { CheckCircle2, FileText, Sparkles } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import {
   AnimatedChecklist,
   stagesToChecklist,
 } from './AnimatedChecklist'
+import { LONG_RUNNING_HINT_MS } from './generationProgressState'
 import { fadeSlide, reducedMotionSafe, scaleIn, softSpring } from './motion'
 import { useSequentialStages } from './useSequentialStages'
 import styles from './ContractExperience.module.css'
@@ -16,6 +18,8 @@ export const GENERATION_STAGES = [
   { id: 'verify', label: 'Sprawdzamy poprawność dokumentu' },
   { id: 'done', label: 'Dokument jest gotowy' },
 ] as const
+
+export { LONG_RUNNING_HINT_MS } from './generationProgressState'
 
 export function ContractGenerationOverlay({
   open,
@@ -43,6 +47,23 @@ export function ContractGenerationOverlay({
   const finished =
     pipelineDone && index >= GENERATION_STAGES.length - 1
   const iconLive = open && !finished && !prefersReduced
+  const current = items.find((item) => item.state === 'current')
+
+  const [showLongRunningHint, setShowLongRunningHint] = useState(false)
+
+  useEffect(() => {
+    if (!open || finished) {
+      setShowLongRunningHint(false)
+      return
+    }
+    setShowLongRunningHint(false)
+    const timer = window.setTimeout(() => {
+      setShowLongRunningHint(true)
+    }, LONG_RUNNING_HINT_MS)
+    return () => {
+      window.clearTimeout(timer)
+    }
+  }, [open, finished, index])
 
   return (
     <AnimatePresence>
@@ -116,9 +137,22 @@ export function ContractGenerationOverlay({
             <div style={{ marginTop: '1rem' }}>
               <AnimatedChecklist
                 items={items}
-                announce="Generujemy umowę…"
+                announce={
+                  current
+                    ? `Trwa ${current.label}`
+                    : 'Generujemy umowę…'
+                }
               />
             </div>
+            {showLongRunningHint && !finished ? (
+              <p
+                className={styles.longRunningHint}
+                data-testid="generation-long-running-hint"
+              >
+                Generowanie dokumentu może potrwać kilkadziesiąt sekund. Dokument
+                nadal jest przetwarzany — nie zamykaj tej strony.
+              </p>
+            ) : null}
           </motion.div>
         </motion.div>
       ) : null}

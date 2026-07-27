@@ -3,17 +3,20 @@ import { MoreVertical } from 'lucide-react'
 import styles from './StudioCatalog.module.css'
 
 export function PackageItemOverflowMenu({
+  open,
+  onOpenChange,
   enabled,
   onEdit,
   onToggleEnabled,
   onDelete,
 }: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
   enabled: boolean
   onEdit: () => void
   onToggleEnabled: () => void
   onDelete: () => void
 }) {
-  const [open, setOpen] = useState(false)
   const [placement, setPlacement] = useState<'below' | 'above'>('below')
   const rootRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -31,12 +34,15 @@ export function PackageItemOverflowMenu({
 
     function onPointerDown(event: MouseEvent) {
       if (!rootRef.current?.contains(event.target as Node)) {
-        setOpen(false)
+        onOpenChange(false)
       }
     }
 
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') setOpen(false)
+      if (event.key === 'Escape') {
+        onOpenChange(false)
+        triggerRef.current?.focus()
+      }
     }
 
     document.addEventListener('mousedown', onPointerDown)
@@ -45,10 +51,11 @@ export function PackageItemOverflowMenu({
       document.removeEventListener('mousedown', onPointerDown)
       document.removeEventListener('keydown', onKeyDown)
     }
-  }, [open])
+  }, [open, onOpenChange])
 
   function run(action: () => void) {
-    setOpen(false)
+    onOpenChange(false)
+    triggerRef.current?.focus()
     action()
   }
 
@@ -67,7 +74,7 @@ export function PackageItemOverflowMenu({
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={menuId}
-        onClick={() => setOpen((value) => !value)}
+        onClick={() => onOpenChange(!open)}
       >
         <MoreVertical size={18} strokeWidth={2} aria-hidden />
       </button>

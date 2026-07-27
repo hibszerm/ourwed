@@ -7,6 +7,11 @@ import {
   type StudioPackage,
 } from '@/types/package'
 import { packageItemService } from '@/lib/api/packageItemService'
+import {
+  normalizeFinalPaymentTerms,
+  parseFinalPaymentTerms,
+  type FinalPaymentTerms,
+} from '@/lib/utils/finalPaymentTerms'
 
 interface PackageRow {
   id: string
@@ -27,6 +32,7 @@ interface PackageRow {
   overtime_rate?: number | string | null
   delivery_months?: number | string | null
   delivery_days?: number | string | null
+  final_payment_terms?: unknown
   created_at: string
   updated_at: string
 }
@@ -60,6 +66,7 @@ function mapPackage(row: PackageRow, items: PackageItem[] = []): StudioPackage {
     overtimeRate: optionalNumber(row.overtime_rate),
     deliveryMonths: optionalNumber(row.delivery_months),
     deliveryDays: optionalNumber(row.delivery_days),
+    finalPaymentTerms: parseFinalPaymentTerms(row.final_payment_terms),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     items,
@@ -80,6 +87,7 @@ export interface CreatePackageInput {
   overtimeRate?: number | null
   deliveryMonths?: number | null
   deliveryDays?: number | null
+  finalPaymentTerms?: FinalPaymentTerms | null
 }
 
 export interface UpdatePackageInput {
@@ -99,6 +107,7 @@ export interface UpdatePackageInput {
   overtimeRate?: number | null
   deliveryMonths?: number | null
   deliveryDays?: number | null
+  finalPaymentTerms?: FinalPaymentTerms | null
 }
 
 async function uniqueSlug(base: string, excludeId?: string): Promise<string> {
@@ -137,6 +146,11 @@ function commercialPatch(
   }
   if ('deliveryDays' in input && input.deliveryDays !== undefined) {
     patch.delivery_days = input.deliveryDays
+  }
+  if ('finalPaymentTerms' in input && input.finalPaymentTerms !== undefined) {
+    patch.final_payment_terms = input.finalPaymentTerms
+      ? normalizeFinalPaymentTerms(input.finalPaymentTerms)
+      : null
   }
   return patch
 }
@@ -285,6 +299,7 @@ export const packageService = {
       overtimeRate: source.overtimeRate,
       deliveryMonths: source.deliveryMonths,
       deliveryDays: source.deliveryDays,
+      finalPaymentTerms: source.finalPaymentTerms,
     })
 
     for (const item of source.items) {

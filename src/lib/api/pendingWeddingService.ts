@@ -82,6 +82,7 @@ export const pendingWeddingService = {
       partner1: pending.partner1FirstName,
       partner2: pending.partner2FirstName,
       date: pending.weddingDate,
+      packageId: pending.packageId || null,
       packageName: pending.packageName,
       price: pending.packagePrice,
       depositPaid: false,

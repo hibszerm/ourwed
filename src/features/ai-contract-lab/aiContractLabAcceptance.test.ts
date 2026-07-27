@@ -241,6 +241,7 @@ function stubCompany(): CompanyDetails {
     logoPath: null,
     signaturePath: null,
     stampPath: null,
+    signatureUpdatedAt: null,
     questionnaireConfig: null,
     createdAt: '2026-01-01',
     updatedAt: '2026-01-01',

@@ -9,6 +9,10 @@ import {
   applyCommercialPackageSnapshot,
   fillWeddingTermsFromCatalogPackage,
 } from '@/lib/utils/commercial'
+import {
+  FINAL_PAYMENT_TERMS_MODE_OPTIONS,
+  resolveFinalPaymentDueDate,
+} from '@/lib/utils/finalPaymentTerms'
 import { formatCurrency } from '@/lib/utils/currency'
 import type { StudioPackage, WeddingExtraService } from '@/types/package'
 import type { Wedding } from '@/types/wedding'
@@ -231,6 +235,104 @@ export function PackageFields({
             })
           }
         />
+        <Input
+          label="Oddanie (dni)"
+          type="number"
+          min={0}
+          value={wedding.deliveryDays ?? ''}
+          onChange={(e) =>
+            onChangeWedding({
+              deliveryDays: e.target.value ? Number(e.target.value) : null,
+            })
+          }
+        />
+      </div>
+
+      <div className={styles.fieldRow}>
+        <Select
+          label="Termin płatności końcowej"
+          value={wedding.finalPaymentTerms?.mode ?? ''}
+          onChange={(e) => {
+            const mode = e.target.value as
+              | ''
+              | 'wedding_day'
+              | 'days_after_wedding'
+              | 'months_after_wedding'
+              | 'after_delivery'
+            if (!mode) {
+              onChangeWedding({
+                finalPaymentTerms: null,
+                finalPaymentDueDate: null,
+              })
+              return
+            }
+            const current = wedding.finalPaymentTerms
+            const value =
+              current &&
+              (current.mode === 'days_after_wedding' ||
+                current.mode === 'months_after_wedding')
+                ? current.value
+                : 14
+            const terms =
+              mode === 'days_after_wedding' || mode === 'months_after_wedding'
+                ? { mode, value }
+                : { mode }
+            const due = resolveFinalPaymentDueDate({
+              terms,
+              weddingDate: wedding.date,
+            })
+            onChangeWedding({
+              finalPaymentTerms: terms,
+              finalPaymentDueDate: due,
+            })
+          }}
+        >
+          <option value="">Nie ustawiono</option>
+          {FINAL_PAYMENT_TERMS_MODE_OPTIONS.map((opt) => (
+            <option key={opt.mode} value={opt.mode}>
+              {opt.label}
+            </option>
+          ))}
+        </Select>
+        {wedding.finalPaymentTerms?.mode === 'days_after_wedding' ||
+        wedding.finalPaymentTerms?.mode === 'months_after_wedding' ? (
+          <Input
+            label={
+              wedding.finalPaymentTerms.mode === 'days_after_wedding'
+                ? 'Liczba dni'
+                : 'Liczba miesięcy'
+            }
+            type="number"
+            min={1}
+            value={wedding.finalPaymentTerms.value}
+            onChange={(e) => {
+              const value = Math.max(1, Number(e.target.value) || 1)
+              const terms = {
+                mode: wedding.finalPaymentTerms!.mode,
+                value,
+              } as const
+              onChangeWedding({
+                finalPaymentTerms: terms,
+                finalPaymentDueDate: resolveFinalPaymentDueDate({
+                  terms,
+                  weddingDate: wedding.date,
+                }),
+              })
+            }}
+          />
+        ) : (
+          <Input
+            label="Termin płatności (data)"
+            type="date"
+            value={wedding.finalPaymentDueDate ?? ''}
+            onChange={(e) =>
+              onChangeWedding({
+                finalPaymentDueDate: e.target.value.trim() || null,
+              })
+            }
+            disabled={wedding.finalPaymentTerms?.mode === 'after_delivery'}
+          />
+        )}
       </div>
 
       {wedding.packageId ? (

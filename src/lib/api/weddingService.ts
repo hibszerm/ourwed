@@ -19,7 +19,7 @@ import {
 } from '@/lib/api/weddings/weddingMappers'
 import { supabase } from '@/lib/supabase'
 import { isLikelyUuid, asCatalogPackageId, throwOnError } from '@/lib/supabase/helpers'
-import { snapshotPackageItemsFromStudioPackage } from '@/lib/utils/commercial'
+import { snapshotPackageItemsFromStudioPackage, buildCreateWeddingCommercialFromPackage } from '@/lib/utils/commercial'
 import type {
   CreateWeddingInput,
   Wedding,
@@ -178,11 +178,73 @@ export const weddingService = {
     const workflowStage: WorkflowStage = input.depositPaid
       ? 'deposit'
       : 'reservation'
-    // Snapshot deposit from catalog / form even when not yet paid.
-    const depositSnapshot =
-      input.depositAmount ??
-      (input.depositPaid ? Math.round(input.price * 0.3) : null)
-    const packageItemsSnapshot = await resolvePackageItemsSnapshot(input)
+
+    const packageId = asCatalogPackageId(input.packageId)
+    let commercial = {
+      packageId,
+      packageName: input.packageName || null,
+      price: input.price,
+      depositAmount:
+        input.depositAmount ??
+        (input.depositPaid ? Math.round(input.price * 0.3) : null),
+      currency: input.currency || DEFAULT_WEDDING_CURRENCY,
+      accentColor: input.accentColor || null,
+      packageItems: await resolvePackageItemsSnapshot(input),
+      coverageHours: input.coverageHours ?? null,
+      coverageEndTime: input.coverageEndTime?.trim() || null,
+      overtimeRate: input.overtimeRate ?? null,
+      deliveryMonths: input.deliveryMonths ?? null,
+      deliveryDays: input.deliveryDays ?? null,
+      finalPaymentTerms: input.finalPaymentTerms ?? null,
+      finalPaymentDueDate: input.finalPaymentDueDate?.trim() || null,
+    }
+
+    if (packageId) {
+      const pkg = await packageService.get(packageId)
+      if (!pkg) {
+        throw new Error('Wybrany pakiet nie istnieje lub jest niedostępny.')
+      }
+      if (!pkg.isActive) {
+        throw new Error('Wybrany pakiet jest nieaktywny.')
+      }
+      const snap = buildCreateWeddingCommercialFromPackage({
+        weddingDate: input.date,
+        pkg,
+        overrides: {
+          packageName: input.packageName || undefined,
+          price: input.price,
+          depositAmount: input.depositAmount,
+          currency: input.currency,
+          accentColor: input.accentColor,
+          packageItems: input.packageItems,
+          coverageHours: input.coverageHours,
+          coverageEndTime: input.coverageEndTime,
+          overtimeRate: input.overtimeRate,
+          deliveryMonths: input.deliveryMonths,
+          deliveryDays: input.deliveryDays,
+          finalPaymentTerms: input.finalPaymentTerms,
+          finalPaymentDueDate: input.finalPaymentDueDate,
+        },
+      })
+      commercial = {
+        packageId: snap.packageId ?? packageId,
+        packageName: snap.packageName || null,
+        price: snap.price,
+        depositAmount: snap.depositAmount ?? null,
+        currency: snap.currency || DEFAULT_WEDDING_CURRENCY,
+        accentColor: snap.accentColor || null,
+        packageItems: snap.packageItems,
+        coverageHours: snap.coverageHours ?? null,
+        coverageEndTime: snap.coverageEndTime?.trim() || null,
+        overtimeRate: snap.overtimeRate ?? null,
+        deliveryMonths: snap.deliveryMonths ?? null,
+        deliveryDays: snap.deliveryDays ?? null,
+        finalPaymentTerms: snap.finalPaymentTerms ?? null,
+        finalPaymentDueDate: snap.finalPaymentDueDate?.trim() || null,
+      }
+    }
+
+    const depositSnapshot = commercial.depositAmount
 
     const { data, error } = await supabase
       .from('weddings')
@@ -197,19 +259,20 @@ export const weddingService = {
         venue,
         status: 'active',
         workflow_stage: workflowStage,
-        package_name: input.packageName || null,
-        package_id: asCatalogPackageId(input.packageId),
-        contract_value: input.price,
+        package_name: commercial.packageName,
+        package_id: commercial.packageId,
+        contract_value: commercial.price,
         deposit_amount: depositSnapshot,
-        currency: input.currency || DEFAULT_WEDDING_CURRENCY,
-        accent_color: input.accentColor || null,
-        package_items_snapshot: packageItemsSnapshot,
-        coverage_hours: input.coverageHours ?? null,
-        coverage_end_time: input.coverageEndTime?.trim() || null,
-        overtime_rate: input.overtimeRate ?? null,
-        delivery_months: input.deliveryMonths ?? null,
-        delivery_days: input.deliveryDays ?? null,
-        final_payment_due_date: input.finalPaymentDueDate?.trim() || null,
+        currency: commercial.currency,
+        accent_color: commercial.accentColor,
+        package_items_snapshot: commercial.packageItems,
+        coverage_hours: commercial.coverageHours,
+        coverage_end_time: commercial.coverageEndTime,
+        overtime_rate: commercial.overtimeRate,
+        delivery_months: commercial.deliveryMonths,
+        delivery_days: commercial.deliveryDays,
+        final_payment_terms: commercial.finalPaymentTerms,
+        final_payment_due_date: commercial.finalPaymentDueDate,
       })
       .select('*')
       .single()
@@ -286,6 +349,7 @@ export const weddingService = {
         overtime_rate: patch.overtime_rate ?? null,
         delivery_months: patch.delivery_months ?? null,
         delivery_days: patch.delivery_days ?? null,
+        final_payment_terms: patch.final_payment_terms ?? null,
         final_payment_due_date: patch.final_payment_due_date ?? null,
       })
       .eq('id', wedding.id)
@@ -343,6 +407,8 @@ export const weddingService = {
       overtimeRate: mapped.overtimeRate ?? wedding.overtimeRate,
       deliveryMonths: mapped.deliveryMonths ?? wedding.deliveryMonths,
       deliveryDays: mapped.deliveryDays ?? wedding.deliveryDays,
+      finalPaymentTerms:
+        mapped.finalPaymentTerms ?? wedding.finalPaymentTerms,
       finalPaymentDueDate:
         mapped.finalPaymentDueDate ?? wedding.finalPaymentDueDate,
       ceremonyTime: mapped.ceremonyTime ?? wedding.ceremonyTime,

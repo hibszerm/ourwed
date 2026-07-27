@@ -18,6 +18,7 @@ import {
 } from '@/lib/dev/referenceWedding'
 import { persistWeddingContractAnswerFields } from '@/lib/forms/persistWeddingContractAnswers'
 import { defaultFinalPaymentDueDate } from '@/lib/utils/commercial'
+import { resolveFinalPaymentDueDate } from '@/lib/utils/finalPaymentTerms'
 import { supabase } from '@/lib/supabase'
 import { throwOnError } from '@/lib/supabase/helpers'
 import type { StudioPackage } from '@/types/package'
@@ -43,6 +44,7 @@ async function ensureVideoMiniPackage(): Promise<StudioPackage> {
       overtimeRate: 1400,
       deliveryMonths: 4,
       deliveryDays: null,
+      finalPaymentTerms: { mode: 'wedding_day' },
     })
 
     if ((updated.items ?? []).length === 0) {
@@ -76,6 +78,7 @@ async function ensureVideoMiniPackage(): Promise<StudioPackage> {
     overtimeRate: 1400,
     deliveryMonths: 4,
     deliveryDays: null,
+    finalPaymentTerms: { mode: 'wedding_day' },
   })
 
   for (const item of REFERENCE_PACKAGE_ITEMS) {
@@ -131,7 +134,12 @@ export async function ensureReferenceWeddingSetup(): Promise<{
     pkg.items.map((i) => i.id),
   )
   const weddingDate = '2026-07-24'
-  const finalDue = defaultFinalPaymentDueDate(weddingDate)
+  const finalPaymentTerms = { mode: 'wedding_day' as const }
+  const finalDue =
+    resolveFinalPaymentDueDate({
+      terms: finalPaymentTerms,
+      weddingDate,
+    }) ?? defaultFinalPaymentDueDate(weddingDate)
 
   const existingId = await findReferenceWeddingId(userId)
   if (existingId) {
@@ -163,6 +171,7 @@ export async function ensureReferenceWeddingSetup(): Promise<{
       overtimeRate: 1400,
       deliveryMonths: 4,
       deliveryDays: null,
+      finalPaymentTerms,
       finalPaymentDueDate: finalDue,
       preparationLocation:
         current.bridePreparationLocation ||
@@ -225,6 +234,7 @@ export async function ensureReferenceWeddingSetup(): Promise<{
     overtimeRate: 1400,
     deliveryMonths: 4,
     deliveryDays: null,
+    finalPaymentTerms,
     finalPaymentDueDate: finalDue,
     notes: REFERENCE_WEDDING_MARKER,
   })

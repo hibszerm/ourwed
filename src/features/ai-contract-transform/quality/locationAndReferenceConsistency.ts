@@ -11,6 +11,7 @@ import {
   renderLocationSummary,
 } from './locationRendering'
 import type { ContractTransformationDataset } from '../types'
+import { hasDuplicatedPostalCity } from '@/lib/utils/formatPolishPostalAddress'
 
 export function verifyReferenceNumberConsistency(input: {
   sourceBlocks: TransformDocumentBlock[]
@@ -123,6 +124,45 @@ export function verifyLocationConsistency(input: {
           : `Supplied ${role} location has no matching template slot`,
       })
     }
+  }
+
+  const prepEntries = input.dataset.locations.preparationLocations ?? []
+  if (prepEntries.length >= 2) {
+    for (const entry of prepEntries) {
+      if (!textContainsNormalized(text, entry.fullAddress)) {
+        missingRoles.push(`preparation:${entry.person}`)
+        issues.push({
+          code: 'expected_dataset_value_missing',
+          severity: 'blocking',
+          canonicalField: 'wedding.preparationLocation',
+          safeDescription: `${entry.label} address is missing from the transformed document`,
+        })
+      } else {
+        representedRoles.push(`preparation:${entry.person}`)
+      }
+    }
+  }
+
+  if (
+    input.dataset.clients.address &&
+    hasDuplicatedPostalCity(input.dataset.clients.address)
+  ) {
+    issues.push({
+      code: 'duplicated_location_wrapper',
+      severity: 'blocking',
+      canonicalField: 'customer.address',
+      safeDescription:
+        'Customer address contains duplicated postal code / city',
+    })
+  }
+  if (hasDuplicatedPostalCity(text)) {
+    issues.push({
+      code: 'duplicated_location_wrapper',
+      severity: 'review_required',
+      canonicalField: 'customer.address',
+      safeDescription:
+        'Transformed document may contain duplicated postal code / city',
+    })
   }
 
   for (const src of input.manifest.sourceSpecificValues) {

@@ -268,6 +268,30 @@ run('address: default blocks keep single address after groom section', () => {
   assert(email > p1Addr, 'email after address')
 })
 
+run('public form first-load waits for auth and never masks errors as loading', () => {
+  const page = readFileSync(
+    resolve(process.cwd(), 'src/features/forms/ProductionContractFormPage.tsx'),
+    'utf8',
+  )
+  const state = readFileSync(
+    resolve(process.cwd(), 'src/features/forms/publicFormLoadState.ts'),
+    'utf8',
+  )
+  assert(page.includes('useAuth()'), 'waits on auth provider')
+  assert(page.includes('authReady'), 'auth-ready gate')
+  assert(page.includes('derivePublicFormView'), 'explicit view derivation')
+  assert(page.includes("status: 'error'"), 'explicit error status')
+  assert(!page.includes("window.location.reload"), 'no hard reload workaround')
+  assert(
+    state.includes("if (input.loadStatus === 'not_found') return 'not_found'"),
+    'not_found is not loading',
+  )
+  assert(
+    !/loading \|\| !resolvedTemplate/.test(page),
+    'must not mask terminal states behind !resolvedTemplate',
+  )
+})
+
 if (process.exitCode && process.exitCode !== 0) {
   process.exit(process.exitCode)
 }

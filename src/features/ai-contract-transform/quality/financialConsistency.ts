@@ -17,6 +17,22 @@ function parsePln(formatted?: string): number | null {
   return Number(digits)
 }
 
+/** Extract the "(słownie: …)" clause nearest to a formatted PLN amount. */
+function extractMoneyWordsNearAmount(
+  text: string,
+  formattedAmount: string,
+): string | null {
+  const amountDigits = normalizeMoneyDigits(formattedAmount)
+  if (!amountDigits) return null
+  const amountRe = new RegExp(
+    amountDigits.split('').join('[\\s\\u00a0]*') +
+      '\\s*zł(?:otych|ote|oty)?[\\s\\S]{0,100}?\\(\\s*słownie:\\s*([^).]+)\\)',
+    'i',
+  )
+  const m = text.replace(/\u00a0/g, ' ').match(amountRe)
+  return m?.[0] ?? null
+}
+
 export function verifyFinancialConsistency(input: {
   dataset: ContractTransformationDataset
   transformedBlocks: TransformedBlock[]
@@ -115,6 +131,66 @@ export function verifyFinancialConsistency(input: {
         canonicalField: 'contract.remainingAmount',
         safeDescription: 'Dataset remaining amount is missing from the contract',
       })
+    }
+
+    // Each amount must own its own words — never reuse total words for deposit/remaining
+    if (f.depositWords && f.depositFormatted) {
+      const depositClause = extractMoneyWordsNearAmount(text, f.depositFormatted)
+      if (
+        depositClause &&
+        !textContainsNormalized(depositClause, f.depositWords) &&
+        textContainsNormalized(depositClause, expectedWords)
+      ) {
+        issues.push({
+          code: 'money_words_mismatch',
+          severity: 'blocking',
+          canonicalField: 'contract.depositAmount',
+          safeDescription:
+            'Deposit amount is paired with total-contract money words',
+        })
+      } else if (
+        depositClause &&
+        f.depositWords &&
+        !textContainsNormalized(depositClause, f.depositWords)
+      ) {
+        issues.push({
+          code: 'money_words_mismatch',
+          severity: 'blocking',
+          canonicalField: 'contract.depositAmount',
+          safeDescription: 'Deposit Polish money words do not match deposit amount',
+        })
+      }
+    }
+
+    if (f.remainingWords && f.remainingFormatted) {
+      const remainingClause = extractMoneyWordsNearAmount(
+        text,
+        f.remainingFormatted,
+      )
+      if (
+        remainingClause &&
+        !textContainsNormalized(remainingClause, f.remainingWords) &&
+        textContainsNormalized(remainingClause, expectedWords)
+      ) {
+        issues.push({
+          code: 'money_words_mismatch',
+          severity: 'blocking',
+          canonicalField: 'contract.remainingAmount',
+          safeDescription:
+            'Remaining amount is paired with total-contract money words',
+        })
+      } else if (
+        remainingClause &&
+        !textContainsNormalized(remainingClause, f.remainingWords)
+      ) {
+        issues.push({
+          code: 'money_words_mismatch',
+          severity: 'blocking',
+          canonicalField: 'contract.remainingAmount',
+          safeDescription:
+            'Remaining Polish money words do not match remaining amount',
+        })
+      }
     }
 
     const oneTime = /płatne\s+jednorazowo|jednorazowo/i.test(text)

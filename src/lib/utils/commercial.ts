@@ -24,6 +24,12 @@ import {
   getRemainingToPay,
   getTotalPaid,
 } from '@/lib/utils/finance'
+import {
+  normalizeFinalPaymentTerms,
+  parseFinalPaymentTerms,
+  resolveFinalPaymentDueDate,
+  type FinalPaymentTerms,
+} from '@/lib/utils/finalPaymentTerms'
 
 /** Snapshot field: total agreed contract value. */
 export function getContractValue(wedding: Pick<Wedding, 'price'>): number {
@@ -52,6 +58,7 @@ export interface WeddingCommercialSummary {
   overtimeRate: number | null
   deliveryMonths: number | null
   deliveryDays: number | null
+  finalPaymentTerms: FinalPaymentTerms | null
   finalPaymentDueDate: string | null
   totalPaid: number
   remainingToPay: number
@@ -79,6 +86,8 @@ export function getWeddingCommercialSummary(
     overtimeRate: wedding.overtimeRate ?? null,
     deliveryMonths: wedding.deliveryMonths ?? null,
     deliveryDays: wedding.deliveryDays ?? null,
+    finalPaymentTerms:
+      parseFinalPaymentTerms(wedding.finalPaymentTerms),
     finalPaymentDueDate: wedding.finalPaymentDueDate?.trim() || null,
     totalPaid: getTotalPaid(payments),
     remainingToPay: getRemainingToPay(contractValue, payments),
@@ -112,7 +121,8 @@ export function formatDeliveryTerm(
 }
 
 /**
- * Product rule: final payment due 14 days before the wedding date.
+ * Legacy fallback: final payment due 14 days before the wedding date.
+ * Used only when a package has no structured finalPaymentTerms.
  * Never copied from DOCX templates.
  */
 export function defaultFinalPaymentDueDate(weddingDate: string): string | null {
@@ -160,8 +170,8 @@ export type ApplyPackageSnapshotOptions = {
    */
   preserveContractValue?: boolean
   /**
-   * When true, keep an existing finalPaymentDueDate.
-   * Otherwise set from product rule if wedding.date is known.
+   * When true, keep an existing finalPaymentDueDate / finalPaymentTerms.
+   * Otherwise derive from package terms (or legacy rule).
    */
   preserveFinalPaymentDueDate?: boolean
 }
@@ -180,11 +190,12 @@ export type WeddingCommercialSnapshotPatch = Pick<
   | 'overtimeRate'
   | 'deliveryMonths'
   | 'deliveryDays'
+  | 'finalPaymentTerms'
   | 'finalPaymentDueDate'
 >
 
 /**
- * Apply a catalog package as a new commercial snapshot on the wedding.
+ * Single source of truth: copy all contract-relevant package fields onto a Wedding.
  * Does not touch payments. Does not mutate the catalog package.
  */
 export function applyCommercialPackageSnapshot(
@@ -199,11 +210,39 @@ export function applyCommercialPackageSnapshot(
   const extrasTotal = options.extrasTotal ?? 0
   const catalogPrice = pkg.price + extrasTotal
 
+  const packageTerms =
+    parseFinalPaymentTerms(pkg.finalPaymentTerms) ??
+    (pkg.finalPaymentTerms
+      ? normalizeFinalPaymentTerms(pkg.finalPaymentTerms)
+      : null)
+
+  let finalPaymentTerms: FinalPaymentTerms | null =
+    wedding.finalPaymentTerms ?? null
   let finalPaymentDueDate: string | null =
     wedding.finalPaymentDueDate?.trim() || null
-  if (!options.preserveFinalPaymentDueDate || !finalPaymentDueDate) {
+
+  if (!options.preserveFinalPaymentDueDate) {
+    finalPaymentTerms = packageTerms
+    if (packageTerms) {
+      finalPaymentDueDate =
+        resolveFinalPaymentDueDate({
+          terms: packageTerms,
+          weddingDate: wedding.date,
+        }) ?? null
+    } else {
+      finalPaymentDueDate =
+        defaultFinalPaymentDueDate(wedding.date) ?? finalPaymentDueDate
+    }
+  } else if (!finalPaymentDueDate && packageTerms) {
+    // Preserve terms if present; still fill a concrete date when derivable and empty.
+    finalPaymentTerms = finalPaymentTerms ?? packageTerms
     finalPaymentDueDate =
-      defaultFinalPaymentDueDate(wedding.date) ?? finalPaymentDueDate
+      resolveFinalPaymentDueDate({
+        terms: finalPaymentTerms,
+        weddingDate: wedding.date,
+      }) ?? null
+  } else if (!finalPaymentDueDate && !packageTerms) {
+    finalPaymentDueDate = defaultFinalPaymentDueDate(wedding.date)
   }
 
   return {
@@ -219,6 +258,7 @@ export function applyCommercialPackageSnapshot(
     overtimeRate: pkg.overtimeRate,
     deliveryMonths: pkg.deliveryMonths,
     deliveryDays: pkg.deliveryDays,
+    finalPaymentTerms,
     finalPaymentDueDate,
   }
 }
@@ -237,4 +277,96 @@ export function fillWeddingTermsFromCatalogPackage(
     preserveContractValue: options?.preserveContractValue === true,
     preserveFinalPaymentDueDate: false,
   })
+}
+
+/**
+ * Build create/update commercial fields from a catalog package.
+ * Prefer explicit CreateWeddingInput overrides when provided (non-null).
+ */
+export function buildCreateWeddingCommercialFromPackage(input: {
+  weddingDate: string
+  pkg: StudioPackage
+  extrasTotal?: number
+  overrides?: Partial<WeddingCommercialSnapshotPatch>
+}): WeddingCommercialSnapshotPatch {
+  const stub = {
+    id: 'create-stub',
+    date: input.weddingDate,
+    accentColor: input.pkg.color ?? '#0a0a0a',
+    price: 0,
+    packageName: '',
+    packageItems: [],
+    finalPaymentDueDate: null,
+    finalPaymentTerms: null,
+    couple: {
+      partner1: '',
+      partner2: '',
+      email: '',
+      phone: '',
+      venue: '',
+      city: '',
+    },
+    status: 'active',
+    workflowStage: 'reservation',
+    checklist: [],
+    schedule: [],
+    payments: [],
+    finances: [],
+    questionnaires: {
+      contractData: { status: 'not_sent' },
+      weddingQuestionnaire: { status: 'not_sent' },
+    },
+    contract: { status: 'none' },
+    notes: [],
+    deliverables: [],
+    timeline: [],
+    createdAt: '',
+  } as Wedding
+
+  const snap = applyCommercialPackageSnapshot(stub, input.pkg, {
+    extrasTotal: input.extrasTotal ?? 0,
+  })
+  const o = input.overrides ?? {}
+
+  return {
+    ...snap,
+    packageId: o.packageId !== undefined ? o.packageId : snap.packageId,
+    packageName: o.packageName?.trim() ? o.packageName : snap.packageName,
+    price:
+      o.price != null && Number.isFinite(o.price) && o.price > 0
+        ? o.price
+        : snap.price,
+    depositAmount:
+      o.depositAmount != null && Number.isFinite(o.depositAmount)
+        ? o.depositAmount
+        : snap.depositAmount,
+    currency: o.currency?.trim() ? o.currency : snap.currency,
+    accentColor: o.accentColor?.trim() ? o.accentColor : snap.accentColor,
+    packageItems:
+      o.packageItems && o.packageItems.length > 0
+        ? o.packageItems
+        : snap.packageItems,
+    coverageHours:
+      o.coverageHours !== undefined ? o.coverageHours : snap.coverageHours,
+    coverageEndTime:
+      o.coverageEndTime !== undefined
+        ? o.coverageEndTime
+        : snap.coverageEndTime,
+    overtimeRate:
+      o.overtimeRate !== undefined ? o.overtimeRate : snap.overtimeRate,
+    deliveryMonths:
+      o.deliveryMonths !== undefined
+        ? o.deliveryMonths
+        : snap.deliveryMonths,
+    deliveryDays:
+      o.deliveryDays !== undefined ? o.deliveryDays : snap.deliveryDays,
+    finalPaymentTerms:
+      o.finalPaymentTerms !== undefined
+        ? o.finalPaymentTerms
+        : snap.finalPaymentTerms,
+    finalPaymentDueDate:
+      o.finalPaymentDueDate !== undefined
+        ? o.finalPaymentDueDate
+        : snap.finalPaymentDueDate,
+  }
 }

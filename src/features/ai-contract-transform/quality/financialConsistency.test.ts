@@ -114,21 +114,26 @@ function main() {
   )
   assert(!withScope.downloadAllowed, 'Mode B blocks scope mismatch')
 
-  // Money words mismatch
-  const wrongWords = blocksFromPlainParagraphs([
-    'Wynagrodzenie 10 500 zł (słownie: jeden tysiąc złotych).',
-    'Zadatek 1 000 zł. Pozostała kwota 9 500 zł.',
+  // Money words mismatch — deposit clause uses total words
+  const wrongDepositWords = blocksFromPlainParagraphs([
+    'Wynagrodzenie 10 500 zł (słownie: dziesięć tysięcy pięćset złotych).',
+    'Zadatek 1 000 zł (słownie: dziesięć tysięcy pięćset złotych).',
+    'Pozostała kwota 9 500 zł (słownie: dziewięć tysięcy pięćset złotych).',
   ])
-  const wordsCheck = verifyFinancialConsistency({
+  const depositWordsCheck = verifyFinancialConsistency({
     dataset: COMPLETENESS_DATASET,
-    transformedBlocks: wrongWords.map((b) => ({
+    transformedBlocks: wrongDepositWords.map((b) => ({
       blockId: b.blockId,
       text: b.text,
     })),
   })
   assert(
-    wordsCheck.issues.some((i) => i.code === 'money_words_mismatch'),
-    'money_words_mismatch',
+    depositWordsCheck.issues.some(
+      (i) =>
+        i.code === 'money_words_mismatch' &&
+        i.canonicalField === 'contract.depositAmount',
+    ),
+    'deposit paired with total words → money_words_mismatch',
   )
 
   console.log('ok — ai-contract-transform-financial-consistency')

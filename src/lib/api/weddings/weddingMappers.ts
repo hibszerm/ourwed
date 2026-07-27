@@ -4,6 +4,7 @@ import {
   toNumber,
 } from '@/lib/supabase/helpers'
 import { createDefaultQuestionnaires } from '@/lib/utils/questionnaires'
+import { parseFinalPaymentTerms } from '@/lib/utils/finalPaymentTerms'
 import type {
   Wedding,
   WeddingPackageItemSnapshot,
@@ -43,6 +44,7 @@ export interface WeddingRow {
   overtime_rate?: number | string | null
   delivery_months?: number | string | null
   delivery_days?: number | string | null
+  final_payment_terms?: unknown
   final_payment_due_date?: string | null
   bride_preparation_location?: string | null
   groom_preparation_location?: string | null
@@ -185,6 +187,7 @@ export function mapWeddingRowToModel(row: WeddingRow): Wedding {
     overtimeRate: optionalRowNumber(row.overtime_rate),
     deliveryMonths: optionalRowNumber(row.delivery_months),
     deliveryDays: optionalRowNumber(row.delivery_days),
+    finalPaymentTerms: parseFinalPaymentTerms(row.final_payment_terms),
     finalPaymentDueDate: row.final_payment_due_date
       ? toDateString(row.final_payment_due_date) || row.final_payment_due_date
       : null,
@@ -255,6 +258,7 @@ export function mapWeddingModelToRow(
     overtime_rate: wedding.overtimeRate ?? null,
     delivery_months: wedding.deliveryMonths ?? null,
     delivery_days: wedding.deliveryDays ?? null,
+    final_payment_terms: wedding.finalPaymentTerms ?? null,
     final_payment_due_date: wedding.finalPaymentDueDate?.trim() || null,
     bride_preparation_location:
       wedding.bridePreparationLocation?.trim() ||

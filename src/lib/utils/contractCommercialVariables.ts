@@ -8,6 +8,7 @@ import {
   formatDeliveryTerm,
   getWeddingCommercialSummary,
 } from '@/lib/utils/commercial'
+import { formatFinalPaymentTerms } from '@/lib/utils/finalPaymentTerms'
 import { formatContractPln } from '@/lib/utils/currency'
 import { formatDate } from '@/lib/utils/dates'
 import type { Wedding, WeddingPackageItemSnapshot } from '@/types/wedding'
@@ -327,6 +328,13 @@ export function buildContractCommercialResolved(
   put(values, 'final_payment_due_date', dueShort)
   put(values, 'final_payment_due_date_long', dueLong)
 
+  const finalTermsText = formatFinalPaymentTerms(wedding.finalPaymentTerms)
+  put(values, 'final_payment_terms_text', finalTermsText)
+  // Prefer concrete date; fall back to contractual rule for after_delivery etc.
+  if (!dueShort && finalTermsText) {
+    put(values, 'final_payment_due_date', finalTermsText)
+  }
+
   const includedServices = buildIncludedServices(wedding.packageItems ?? [])
   const includedText = buildIncludedServicesText(wedding.packageItems ?? [])
   put(values, 'included_services_text', includedText)
@@ -366,6 +374,8 @@ export function buildContractCommercialResolved(
       deliveryDays: wedding.deliveryDays ?? null,
       deliveryTermText: deliveryTerm || null,
       deliveryTime: deliveryTerm || null,
+      finalPaymentTerms: wedding.finalPaymentTerms ?? null,
+      finalPaymentTermsText: finalTermsText || null,
       finalPaymentDueDate: dueShort || null,
       finalPaymentDueDateLong: dueLong || null,
       finalPaymentDueDateIso: wedding.finalPaymentDueDate ?? null,

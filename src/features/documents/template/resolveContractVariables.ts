@@ -16,6 +16,7 @@ import {
   formatContractDateShort,
   logContractReferenceValues,
 } from '@/lib/utils/contractCommercialVariables'
+import { formatPolishPostalAddress } from '@/lib/utils/formatPolishPostalAddress'
 import {
   isSystemAutoResolvedContractKey,
   resolveContractExecutionValues,
@@ -109,8 +110,24 @@ export function weddingValuesFromWedding(
   emitWedding(out, 'bride_email', c.partner1Email || c.email)
   emitWedding(out, 'groom_phone', c.partner2Phone)
   emitWedding(out, 'groom_email', c.partner2Email)
-  emitWedding(out, 'bride_address', c.partner1Address)
-  emitWedding(out, 'groom_address', c.partner2Address)
+  emitWedding(
+    out,
+    'bride_address',
+    formatPolishPostalAddress({
+      fullAddress: c.partner1Address,
+      postalCode: c.partner1PostalCode,
+      city: c.partner1City,
+    }) || c.partner1Address,
+  )
+  emitWedding(
+    out,
+    'groom_address',
+    formatPolishPostalAddress({
+      fullAddress: c.partner2Address,
+      postalCode: c.partner2PostalCode,
+      city: c.partner2City,
+    }) || c.partner2Address,
+  )
   emitWedding(out, 'bride_full_name', partner1Full)
   emitWedding(out, 'groom_full_name', partner2Full)
 
@@ -132,6 +149,16 @@ export function weddingValuesFromWedding(
     out,
     'preparation_location',
     wedding.bridePreparationLocation || wedding.preparationLocation,
+  )
+  emitWedding(
+    out,
+    'bride_preparation_location',
+    wedding.bridePreparationLocation || wedding.preparationLocation,
+  )
+  emitWedding(
+    out,
+    'groom_preparation_location',
+    wedding.groomPreparationLocation,
   )
 
   if (c.city?.trim()) out['wedding_city'] = c.city.trim()

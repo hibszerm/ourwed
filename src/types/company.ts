@@ -28,6 +28,8 @@ export interface CompanyDetails {
   logoPath: string | null
   signaturePath: string | null
   stampPath: string | null
+  /** When the signature asset was last saved/replaced. */
+  signatureUpdatedAt: string | null
   /** Contract questionnaire defaults (greeting, footer, custom fields). */
   questionnaireConfig: ContractQuestionnaireConfig | null
   createdAt: string

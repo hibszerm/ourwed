@@ -1,0 +1,127 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.helper {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  color: color-mix(in srgb, var(--color-text) 58%, transparent);
+}
+
+.previewCard,
+.emptyCard {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.85rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg, 12px);
+  background: var(--color-surface);
+}
+
+.previewFrame {
+  display: grid;
+  place-items: center;
+  min-height: 88px;
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  background:
+    repeating-conic-gradient(
+        color-mix(in srgb, var(--color-border) 55%, transparent) 0% 25%,
+        transparent 0% 50%
+      )
+      0 0 / 16px 16px;
+}
+
+.previewImage {
+  max-width: 100%;
+  max-height: 120px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+
+.previewFallback,
+.previewLoading {
+  margin: 0;
+  text-align: center;
+  font-size: 0.88rem;
+  color: color-mix(in srgb, var(--color-text) 62%, transparent);
+}
+
+.previewFallback {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.previewMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.statusOk {
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 550;
+  color: var(--color-text);
+}
+
+.muted {
+  margin: 0;
+  font-size: 0.82rem;
+  color: color-mix(in srgb, var(--color-text) 55%, transparent);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.actions > * {
+  min-height: 44px;
+}
+
+.hiddenInput {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.error {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--color-danger, #b42318);
+}
+
+@media (max-width: 767px) {
+  .actions {
+    flex-direction: column;
+  }
+
+  .actions > * {
+    width: 100%;
+  }
+}

@@ -7,6 +7,7 @@ import {
   looksLikeVenueDisplayName,
 } from '../locationInsertionPolicy'
 import { sanitizeDuplicatedLocationWrappers } from './normalize'
+import { formatPolishPostalAddress } from '@/lib/utils/formatPolishPostalAddress'
 
 export type LocationValue = {
   displayName?: string
@@ -73,6 +74,28 @@ export function renderPreparationLocationClause(location: LocationValue): string
   )
 }
 
+/** Deterministic clause when bride and/or groom preparation addresses exist. */
+export function renderPreparationLocationsClause(input: {
+  entries: Array<{ person: string; label: string; address: string }>
+  displayText?: string
+}): string {
+  const text =
+    input.displayText?.trim() ||
+    (input.entries.length === 1
+      ? `przygotowań, które odbędą się pod adresem ${input.entries[0]!.address}`
+      : input.entries
+          .map((e) => `${e.label.toLowerCase()} pod adresem ${e.address}`)
+          .join(' oraz '))
+  if (!text) return ''
+  const body = text.startsWith('przygotowań')
+    ? text
+    : `przygotowań ${text}`
+  return sanitizeDuplicatedLocationWrappers(
+    body.charAt(0).toUpperCase() + body.slice(1) +
+      (body.endsWith('.') ? '' : '.'),
+  )
+}
+
 export function renderCeremonyLocationClause(location: LocationValue): string {
   return sanitizeDuplicatedLocationWrappers(
     `Ceremonia odbędzie się ${renderLocationAfterPreposition(location, 'ceremony')}.`,
@@ -117,16 +140,15 @@ export function renderMultiLocationSummary(input: {
 
 /** Customer address for "zam. …" patterns. */
 export function renderCustomerAddress(address: string): string {
-  let a = address.trim().replace(/\s+/g, ' ')
+  let a = formatPolishPostalAddress({ fullAddress: address }) || address.trim()
+  a = a.replace(/\s+/g, ' ')
   a = a.replace(/,\s*,/g, ',')
   a = a.replace(/\s*,\s*/g, ', ')
-  // Strip trailing ", Polska" for domestic addresses
   a = a.replace(/,\s*Polska\s*$/i, '')
   if (/^ul\.?\s/i.test(a) || /^al\.?\s/i.test(a)) {
     return a
   }
   if (/^[A-ZĄĆĘŁŃÓŚŹŻ]/.test(a) && !/\d{2}-\d{3}/.test(a.slice(0, 10))) {
-    // Street name without ul. prefix — keep as-is if already "przy ul."
     if (!/^przy\s+ul/i.test(a)) {
       return `ul. ${a}`
     }

@@ -37,6 +37,7 @@ interface CompanyDetailsRow {
   logo_path: string | null
   signature_path: string | null
   stamp_path: string | null
+  signature_updated_at?: string | null
   questionnaire_config?: unknown
   created_at: string
   updated_at: string
@@ -73,6 +74,7 @@ function mapRow(row: CompanyDetailsRow): CompanyDetails {
     logoPath: row.logo_path,
     signaturePath: row.signature_path,
     stampPath: row.stamp_path,
+    signatureUpdatedAt: row.signature_updated_at ?? null,
     questionnaireConfig: hasConfig
       ? normalizeContractQuestionnaireConfig(rawConfig)
       : null,
@@ -206,18 +208,115 @@ export const companyDetailsService = {
     file: File,
   ): Promise<string> {
     const userId = await resolveStudioUserId()
-    const ext = file.name.split('.').pop()?.toLowerCase() || 'png'
+    const ext =
+      kind === 'signature'
+        ? 'png'
+        : file.name.split('.').pop()?.toLowerCase() || 'png'
     const path = `${userId}/company/${kind}-${Date.now()}.${ext}`
     const { error } = await supabase.storage
       .from('document-files')
-      .upload(path, file, { upsert: true, contentType: file.type })
+      .upload(path, file, {
+        upsert: false,
+        contentType: file.type || 'image/png',
+      })
     throwOnError(error)
     return path
   },
 
-  async getPublicUrl(path: string | null | undefined): Promise<string | null> {
+  /** Private preview / download — never use a permanent public URL. */
+  async getSignedUrl(
+    path: string | null | undefined,
+    expiresInSeconds = 3600,
+  ): Promise<string | null> {
     if (!path) return null
-    const { data } = supabase.storage.from('document-files').getPublicUrl(path)
-    return data.publicUrl || null
+    const { data, error } = await supabase.storage
+      .from('document-files')
+      .createSignedUrl(path, expiresInSeconds)
+    throwOnError(error)
+    return data?.signedUrl ?? null
+  },
+
+  /**
+   * @deprecated Bucket is private — prefer getSignedUrl.
+   * Kept for callers that still expect a URL string shape.
+   */
+  async getPublicUrl(path: string | null | undefined): Promise<string | null> {
+    return companyDetailsService.getSignedUrl(path)
+  },
+
+  async removeStorageObject(path: string | null | undefined): Promise<void> {
+    if (!path) return
+    const { error } = await supabase.storage
+      .from('document-files')
+      .remove([path])
+    // Ignore missing objects so replace/delete stay idempotent
+    if (error && !/not\s*found|404/i.test(error.message)) {
+      throwOnError(error)
+    }
+  },
+
+  /**
+   * Independently save a signature PNG: upload first, then update DB,
+   * then remove the previous object.
+   */
+  async saveSignature(file: File): Promise<CompanyDetails> {
+    const current = await companyDetailsService.get()
+    const previousPath = current?.signaturePath ?? null
+    const path = await companyDetailsService.uploadAsset('signature', file)
+    const userId = await resolveStudioUserId()
+    const stamp = nowIso()
+
+    if (current?.id) {
+      const { data, error } = await supabase
+        .from('studio_details')
+        .update({
+          signature_path: path,
+          signature_updated_at: stamp,
+          updated_at: stamp,
+        })
+        .eq('id', current.id)
+        .select('*')
+        .single()
+      throwOnError(error)
+      if (previousPath && previousPath !== path) {
+        await companyDetailsService.removeStorageObject(previousPath)
+      }
+      return mapRow(data as CompanyDetailsRow)
+    }
+
+    const { data, error } = await supabase
+      .from('studio_details')
+      .insert({
+        user_id: userId,
+        signature_path: path,
+        signature_updated_at: stamp,
+        country: 'Polska',
+        questionnaire_config: {},
+        updated_at: stamp,
+      })
+      .select('*')
+      .single()
+    throwOnError(error)
+    return mapRow(data as CompanyDetailsRow)
+  },
+
+  async deleteSignature(): Promise<CompanyDetails | null> {
+    const current = await companyDetailsService.get()
+    if (!current) return null
+    const previousPath = current.signaturePath
+    const stamp = nowIso()
+    const { data, error } = await supabase
+      .from('studio_details')
+      .update({
+        signature_path: null,
+        signature_updated_at: null,
+        updated_at: stamp,
+      })
+      .eq('id', current.id)
+      .select('*')
+      .single()
+    throwOnError(error)
+    await companyDetailsService.removeStorageObject(previousPath)
+    return mapRow(data as CompanyDetailsRow)
   },
 }

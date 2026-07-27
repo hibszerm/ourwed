@@ -405,6 +405,11 @@
   animation: dotTravel 2.2s ease-in-out infinite;
 }
 
+.stageSpin {
+  color: var(--cx-ink);
+  animation: stageSpin 0.85s linear infinite;
+}
+
 .stageLiveRing {
   position: absolute;
   inset: -3px;
@@ -413,6 +418,14 @@
   opacity: 0;
   animation: ringPulse 2.2s ease-out infinite;
   pointer-events: none;
+}
+
+.longRunningHint {
+  margin: 0.85rem 0 0;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: color-mix(in srgb, var(--color-text) 62%, transparent);
+  letter-spacing: -0.01em;
 }
 
 .stageLabel {
@@ -940,6 +953,12 @@
   }
 }
 
+@keyframes stageSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 @keyframes iconBreath {
   0%,
   100% {
@@ -960,6 +979,7 @@
   .stageShimmer,
   .stageLiveDot,
   .stageLiveRing,
+  .stageSpin,
   .fileChipLiving::before,
   .fileChipLiving::after,
   .fileChipMetaLiving,

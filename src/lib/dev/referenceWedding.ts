@@ -7,9 +7,9 @@ import type { StudioPackage, PackageItem } from '@/types/package'
 import type { CompanyDetails } from '@/types/company'
 import type { Payment, Wedding, WeddingPackageItemSnapshot } from '@/types/wedding'
 import {
-  defaultFinalPaymentDueDate,
   getWeddingCommercialSummary,
 } from '@/lib/utils/commercial'
+import { resolveFinalPaymentDueDate } from '@/lib/utils/finalPaymentTerms'
 
 export const REFERENCE_PACKAGE_SLUG = 'video-mini-reference'
 export const REFERENCE_WEDDING_MARKER = 'reference-wedding:video-mini'
@@ -101,6 +101,7 @@ export function buildReferenceStudioPackage(
     overtimeRate: 1400,
     deliveryMonths: 4,
     deliveryDays: null,
+    finalPaymentTerms: { mode: 'wedding_day' },
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     items,
@@ -162,7 +163,12 @@ export function buildReferenceWedding(
     overtimeRate: 1400,
     deliveryMonths: 4,
     deliveryDays: null,
-    finalPaymentDueDate: defaultFinalPaymentDueDate(date),
+    finalPaymentTerms: { mode: 'wedding_day' },
+    finalPaymentDueDate:
+      resolveFinalPaymentDueDate({
+        terms: { mode: 'wedding_day' },
+        weddingDate: date,
+      }) ?? date,
     preparationLocation: 'Dom pani młodej, Grabowa 8A',
     bridePreparationLocation: 'Dom pani młodej, Grabowa 8A',
     groomPreparationLocation: 'Hotel Centralny, ul. Główna 3',
@@ -222,6 +228,7 @@ export function buildReferenceCompany(
     logoPath: null,
     signaturePath: null,
     stampPath: null,
+    signatureUpdatedAt: null,
     questionnaireConfig: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',

@@ -97,6 +97,10 @@ export function WeddingContractFinanceWorkspace({
             <dd>{pkg.deliveryLabel}</dd>
           </div>
           <div>
+            <dt>Termin płatności końcowej</dt>
+            <dd>{pkg.finalPaymentDueLabel}</dd>
+          </div>
+          <div>
             <dt>Usługi dodatkowe</dt>
             <dd>
               {extras.length === 0

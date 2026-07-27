@@ -9,6 +9,7 @@ import {
   formatDeliveryTerm,
   getWeddingCommercialSummary,
 } from '@/lib/utils/commercial'
+import { isFinalPaymentTermsSatisfied } from '@/lib/utils/finalPaymentTerms'
 
 export type CompletenessStatus = 'complete' | 'missing' | 'optional'
 
@@ -206,7 +207,10 @@ export function evaluateWeddingContractReadiness(
       'pay_final_due',
       'payments',
       'Termin płatności końcowej',
-      present(wedding.finalPaymentDueDate),
+      isFinalPaymentTermsSatisfied({
+        terms: wedding.finalPaymentTerms,
+        dueDate: wedding.finalPaymentDueDate,
+      }),
     ),
   ]
 

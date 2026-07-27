@@ -1,5 +1,9 @@
 import { coupleName, formatDate, getCountdownParts } from '@/lib/utils/dates'
-import { getWeddingCommercialSummary } from '@/lib/utils/commercial'
+import {
+  formatDeliveryTerm,
+  getWeddingCommercialSummary,
+} from '@/lib/utils/commercial'
+import { formatFinalPaymentTerms } from '@/lib/utils/finalPaymentTerms'
 import { formatCurrency } from '@/lib/utils/currency'
 import { locationVerificationStatus } from '@/features/travel/locationVerification'
 import {
@@ -214,27 +218,39 @@ export function getContactSections(couple: Couple): PartnerContactView[] {
 
 export function getPackageSummary(wedding: Wedding) {
   const c = getWeddingCommercialSummary(wedding)
+  const delivery = formatDeliveryTerm(c.deliveryMonths, c.deliveryDays)
+  const finalTermsLabel = formatFinalPaymentTerms(c.finalPaymentTerms)
+  const finalPaymentLabel = finalTermsLabel
+    ? c.finalPaymentDueDate
+      ? `${finalTermsLabel} (${formatDate(c.finalPaymentDueDate)})`
+      : finalTermsLabel
+    : c.finalPaymentDueDate
+      ? formatDate(c.finalPaymentDueDate)
+      : '—'
   return {
     name: c.packageName || 'Pakiet nieustalony',
     contractValueLabel: formatCurrency(c.contractValue),
     agreedDepositLabel: formatCurrency(c.agreedDeposit),
     coverageLabel:
-      c.coverageHours != null
-        ? `${c.coverageHours} godz.${c.coverageEndTime ? ` · do ${c.coverageEndTime}` : ''}`
+      c.coverageHours != null || c.coverageEndTime
+        ? [
+            c.coverageHours != null ? `${c.coverageHours} godz.` : null,
+            c.coverageEndTime ? `do ${c.coverageEndTime}` : null,
+          ]
+            .filter(Boolean)
+            .join(' · ')
         : '—',
     coverageShort:
-      c.coverageHours != null ? `${c.coverageHours} godz.` : '—',
+      c.coverageHours != null
+        ? `${c.coverageHours} godz.`
+        : c.coverageEndTime
+          ? `do ${c.coverageEndTime}`
+          : '—',
     overtimeLabel:
       c.overtimeRate != null ? formatCurrency(c.overtimeRate) : '—',
-    deliveryLabel:
-      c.deliveryMonths != null
-        ? `${c.deliveryMonths} mies.`
-        : c.deliveryDays != null
-          ? `${c.deliveryDays} dni`
-          : '—',
-    finalPaymentDueLabel: c.finalPaymentDueDate
-      ? formatDate(c.finalPaymentDueDate)
-      : '—',
+    deliveryLabel: delivery || '—',
+    finalPaymentDueLabel: finalPaymentLabel,
+    finalPaymentTermsLabel: finalTermsLabel || '—',
     currency: c.currency,
     contractValue: c.contractValue,
     totalPaid: c.totalPaid,

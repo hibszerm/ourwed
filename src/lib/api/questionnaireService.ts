@@ -151,12 +151,15 @@ async function summarizeAnswers(answerJson: FormAnswerJson | null) {
       bride && groom ? `${bride} i ${groom}` : bride || groom || 'Para',
     weddingDate: fieldString(fields, 'weddingDate'),
     selectedPackageIds,
+    requestedPackageId: packageId,
     packageId: pkg?.id ?? null,
     packageName: pkg?.name ?? '',
     packagePrice: pkg?.price ?? 0,
     depositAmount: pkg?.depositAmount ?? 0,
     currency: pkg?.currency ?? 'PLN',
     accentColor: pkg?.color ?? undefined,
+    packageActive: pkg?.isActive ?? false,
+    packageFound: Boolean(pkg),
     ceremonyLocation: formatLocationAnswer(fields.ceremonyLocation),
     receptionLocation: formatLocationAnswer(fields.receptionLocation),
     preparationLocation: bridePrep,
@@ -633,6 +636,18 @@ export const questionnaireService = {
     const summary = await summarizeAnswers(answers.answerJson)
     if (!summary.bride || !summary.groom) {
       throw new Error('Ankieta nie zawiera imion pary.')
+    }
+    if (summary.requestedPackageId) {
+      if (!summary.packageFound) {
+        throw new Error(
+          'Wybrany pakiet nie istnieje lub jest niedostępny. Poproś parę o ponowny wybór pakietu.',
+        )
+      }
+      if (!summary.packageActive) {
+        throw new Error(
+          'Wybrany pakiet jest nieaktywny. Poproś parę o wybór innego pakietu.',
+        )
+      }
     }
 
     // Claim before creating a wedding so a concurrent approve cannot create orphans.

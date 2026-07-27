@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { AppLayout } from '@/layouts/AppLayout'
 import { Button } from '@/components/ui/Button'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -10,9 +10,21 @@ import { packageService } from '@/lib/api/packageService'
 import { ensureReferenceWeddingSetup } from '@/lib/dev/ensureReferenceWeddingSetup'
 import { formatCurrency } from '@/lib/utils/currency'
 import { formatDeliveryTerm } from '@/lib/utils/commercial'
+import {
+  FINAL_PAYMENT_TERMS_MODE_OPTIONS,
+  formatFinalPaymentTerms,
+  normalizeFinalPaymentTerms,
+  validateFinalPaymentTerms,
+  type FinalPaymentTerms,
+  type FinalPaymentTermsMode,
+} from '@/lib/utils/finalPaymentTerms'
 import type { PackageItem, StudioPackage } from '@/types/package'
 import { PackageContractSection } from '@/features/studio/PackageContractSection'
 import { PackageItemOverflowMenu } from '@/features/studio/PackageItemOverflowMenu'
+import {
+  nextOpenPackageItemId,
+  sanitizeOpenPackageItemId,
+} from '@/features/studio/packageItemMenuState'
 import styles from '@/features/studio/StudioCatalog.module.css'
 
 type PackageFormValues = {
@@ -28,6 +40,7 @@ type PackageFormValues = {
   overtimeRate: number | null
   deliveryMonths: number | null
   deliveryDays: number | null
+  finalPaymentTerms: FinalPaymentTerms
 }
 
 export function PackagesPage() {
@@ -305,6 +318,12 @@ function PackageDetailsSummary({ pkg }: { pkg: StudioPackage }) {
         <dd>{delivery || '—'}</dd>
       </div>
       <div>
+        <dt>Płatność końcowa</dt>
+        <dd>
+          {formatFinalPaymentTerms(pkg.finalPaymentTerms) || '—'}
+        </dd>
+      </div>
+      <div>
         <dt>Status</dt>
         <dd>{pkg.isActive ? 'Aktywny' : 'Zarchiwizowany'}</dd>
       </div>
@@ -353,6 +372,20 @@ function PackageForm({
   const [deliveryDays, setDeliveryDays] = useState(
     initial?.deliveryDays != null ? String(initial.deliveryDays) : '',
   )
+  const [finalPaymentMode, setFinalPaymentMode] = useState<FinalPaymentTermsMode>(
+    initial?.finalPaymentTerms?.mode ?? 'wedding_day',
+  )
+  const [finalPaymentValue, setFinalPaymentValue] = useState(() => {
+    const terms = initial?.finalPaymentTerms
+    if (
+      terms &&
+      (terms.mode === 'days_after_wedding' ||
+        terms.mode === 'months_after_wedding')
+    ) {
+      return String(terms.value)
+    }
+    return ''
+  })
   const [error, setError] = useState<string | null>(null)
 
   function parseOptionalNumber(raw: string): number | null {
@@ -361,6 +394,22 @@ function PackageForm({
     const n = Number(t)
     return Number.isFinite(n) ? n : null
   }
+
+  function buildFinalPaymentTerms(): FinalPaymentTerms | null {
+    if (
+      finalPaymentMode === 'days_after_wedding' ||
+      finalPaymentMode === 'months_after_wedding'
+    ) {
+      const n = Number(finalPaymentValue)
+      if (!Number.isFinite(n)) return null
+      return { mode: finalPaymentMode, value: n }
+    }
+    return { mode: finalPaymentMode }
+  }
+
+  const needsFinalPaymentValue =
+    finalPaymentMode === 'days_after_wedding' ||
+    finalPaymentMode === 'months_after_wedding'
 
   return (
     <form
@@ -378,6 +427,12 @@ function PackageForm({
           setError('Podaj poprawną cenę.')
           return
         }
+        const terms = buildFinalPaymentTerms()
+        const termsError = validateFinalPaymentTerms(terms)
+        if (termsError || !terms) {
+          setError(termsError ?? 'Wybierz termin płatności końcowej.')
+          return
+        }
         void onSave({
           name: name.trim(),
           description: description.trim() || null,
@@ -391,6 +446,7 @@ function PackageForm({
           overtimeRate: parseOptionalNumber(overtimeRate),
           deliveryMonths: parseOptionalNumber(deliveryMonths),
           deliveryDays: parseOptionalNumber(deliveryDays),
+          finalPaymentTerms: normalizeFinalPaymentTerms(terms),
         }).catch((err) =>
           setError(err instanceof Error ? err.message : 'Nie udało się zapisać.'),
         )
@@ -517,6 +573,51 @@ function PackageForm({
         </label>
       </div>
 
+      <p className={styles.sectionLabel}>Termin płatności końcowej</p>
+      <div className={styles.row}>
+        <label className={styles.field}>
+          <span>Tryb</span>
+          <select
+            value={finalPaymentMode}
+            onChange={(e) =>
+              setFinalPaymentMode(e.target.value as FinalPaymentTermsMode)
+            }
+            disabled={busy}
+          >
+            {FINAL_PAYMENT_TERMS_MODE_OPTIONS.map((opt) => (
+              <option key={opt.mode} value={opt.mode}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        {needsFinalPaymentValue ? (
+          <label className={styles.field}>
+            <span>
+              {finalPaymentMode === 'days_after_wedding'
+                ? 'Liczba dni'
+                : 'Liczba miesięcy'}
+            </span>
+            <input
+              type="number"
+              min={1}
+              step="1"
+              value={finalPaymentValue}
+              onChange={(e) => setFinalPaymentValue(e.target.value)}
+              disabled={busy}
+              placeholder={
+                finalPaymentMode === 'days_after_wedding' ? 'np. 14' : 'np. 3'
+              }
+            />
+          </label>
+        ) : null}
+      </div>
+      {needsFinalPaymentValue && finalPaymentValue.trim() ? (
+        <p className={styles.muted}>
+          {formatFinalPaymentTerms(buildFinalPaymentTerms())}
+        </p>
+      ) : null}
+
       <label className={styles.check}>
         <input
           type="checkbox"
@@ -551,12 +652,22 @@ function PackageItemsEditor({
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [dragId, setDragId] = useState<string | null>(null)
+  const [openItemId, setOpenItemId] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editTitle, setEditTitle] = useState('')
   const [editDescription, setEditDescription] = useState('')
   const [editQuantity, setEditQuantity] = useState('')
   const [editUnit, setEditUnit] = useState('')
   const [editCategory, setEditCategory] = useState('')
+
+  useEffect(() => {
+    setOpenItemId((current) =>
+      sanitizeOpenPackageItemId(
+        current,
+        items.map((item) => item.id),
+      ),
+    )
+  }, [items])
 
   async function handleReorder(fromId: string, toId: string) {
     if (fromId === toId) return
@@ -567,11 +678,13 @@ function PackageItemsEditor({
     const next = [...ids]
     const [moved] = next.splice(from, 1)
     next.splice(to, 0, moved)
+    setOpenItemId(null)
     await packageItemService.reorder(packageId, next)
     onChanged()
   }
 
   function beginEdit(item: PackageItem) {
+    setOpenItemId(null)
     setEditingId(item.id)
     setEditTitle(item.title)
     setEditDescription(item.description ?? '')
@@ -719,14 +832,22 @@ function PackageItemsEditor({
                   </Button>
                 </div>
                 <PackageItemOverflowMenu
+                  open={openItemId === item.id}
+                  onOpenChange={(open) =>
+                    setOpenItemId((current) =>
+                      nextOpenPackageItemId(current, item.id, open),
+                    )
+                  }
                   enabled={item.enabled}
                   onEdit={() => beginEdit(item)}
                   onToggleEnabled={() => {
+                    setOpenItemId(null)
                     void packageItemService
                       .update(item.id, { enabled: !item.enabled })
                       .then(() => onChanged())
                   }}
                   onDelete={() => {
+                    setOpenItemId(null)
                     void packageItemService
                       .delete(item.id)
                       .then(() => onChanged())

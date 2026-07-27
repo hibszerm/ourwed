@@ -1,3 +1,5 @@
+import type { FinalPaymentTerms } from '@/lib/utils/finalPaymentTerms'
+
 export type WorkflowStage =
   | 'reservation'
   | 'contract'
@@ -237,8 +239,14 @@ export interface Wedding {
   /** Wedding snapshot — delivery term in days. */
   deliveryDays?: number | null
   /**
+   * Wedding snapshot — structured final payment rule from the package.
+   * Independent of later catalog edits; editable per wedding.
+   */
+  finalPaymentTerms?: FinalPaymentTerms | null
+  /**
    * Wedding-specific final payment due date (YYYY-MM-DD).
-   * Set by product rules / studio edit — never copied from DOCX templates.
+   * Derived from finalPaymentTerms + wedding date when possible;
+   * never copied from DOCX templates.
    */
   finalPaymentDueDate?: string | null
   ceremonyLocation?: string
@@ -290,6 +298,7 @@ export interface CreateWeddingInput {
   overtimeRate?: number | null
   deliveryMonths?: number | null
   deliveryDays?: number | null
+  finalPaymentTerms?: FinalPaymentTerms | null
   finalPaymentDueDate?: string | null
 }
 

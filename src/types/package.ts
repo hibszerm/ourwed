@@ -3,6 +3,8 @@
  * Live catalog prices apply to future weddings only; weddings store snapshots.
  */
 
+import type { FinalPaymentTerms } from '@/lib/utils/finalPaymentTerms'
+
 export interface PackageItem {
   id: string
   packageId: string
@@ -47,6 +49,11 @@ export interface StudioPackage {
   deliveryMonths: number | null
   /** Delivery term in days when months is null. */
   deliveryDays: number | null
+  /**
+   * Required catalog rule for final payment deadline.
+   * Copied into Wedding on assignment — null only on legacy rows.
+   */
+  finalPaymentTerms: FinalPaymentTerms | null
   createdAt: string
   updatedAt: string
   items: PackageItem[]

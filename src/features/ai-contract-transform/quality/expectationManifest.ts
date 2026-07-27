@@ -324,7 +324,10 @@ export function buildExpectationManifest(input: {
   const reception = locationFromDatasetEntry(dataset.locations.reception)
 
   if (prep) {
+    const prepEntries = dataset.locations.preparationLocations ?? []
     const targets = [
+      dataset.locations.preparationDisplayText ?? '',
+      ...prepEntries.map((e) => e.fullAddress),
       renderLocationSummary(prep),
       preferredLocationInsertionHint(dataset.locations.preparation!) ===
       'pod_adresem'
@@ -417,7 +420,10 @@ export function buildExpectationManifest(input: {
     addRequired(
       'contract.depositAmount',
       [],
-      [dataset.finances.depositFormatted],
+      [
+        dataset.finances.depositFormatted,
+        dataset.finances.depositWords ?? '',
+      ].filter(Boolean),
       'must_appear',
     )
   }
@@ -425,7 +431,10 @@ export function buildExpectationManifest(input: {
     addRequired(
       'contract.remainingAmount',
       [],
-      [dataset.finances.remainingFormatted],
+      [
+        dataset.finances.remainingFormatted,
+        dataset.finances.remainingWords ?? '',
+      ].filter(Boolean),
       'must_appear',
     )
   }

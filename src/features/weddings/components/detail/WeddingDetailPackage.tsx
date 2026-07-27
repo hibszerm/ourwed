@@ -12,6 +12,7 @@ import {
   fillWeddingTermsFromCatalogPackage,
   formatDeliveryTerm,
 } from '@/lib/utils/commercial'
+import { formatFinalPaymentTerms } from '@/lib/utils/finalPaymentTerms'
 import { formatCurrency } from '@/lib/utils/currency'
 import type { StudioPackage, WeddingExtraService } from '@/types/package'
 import type { Wedding, WeddingPackageItemSnapshot } from '@/types/wedding'
@@ -455,7 +456,11 @@ export function WeddingDetailPackage({
           </div>
           <div>
             <dt>Płatność końcowa</dt>
-            <dd>{wedding.finalPaymentDueDate || '—'}</dd>
+            <dd>
+              {formatFinalPaymentTerms(wedding.finalPaymentTerms) ||
+                wedding.finalPaymentDueDate ||
+                '—'}
+            </dd>
           </div>
           <div>
             <dt>Waluta</dt>

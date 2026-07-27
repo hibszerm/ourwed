@@ -47,6 +47,14 @@ export type ContractTransformationDataset = {
       fullAddress?: string
       city?: string
     }
+    /** Structured bride/groom/shared preparation addresses (authoritative). */
+    preparationLocations?: Array<{
+      person: 'bride' | 'groom' | 'shared'
+      label: string
+      fullAddress: string
+    }>
+    /** Deterministic Polish display fragment for preparation clauses. */
+    preparationDisplayText?: string
     ceremony?: {
       displayName?: string
       fullAddress?: string

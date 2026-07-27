@@ -1,18 +1,23 @@
-import { Check } from 'lucide-react'
+import { Check, LoaderCircle } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { checklistItem, reducedMotionSafe, softSpring } from './motion'
+import type {
+  AnimatedChecklistItem,
+  ChecklistItemState,
+} from './generationProgressState'
 import styles from './ContractExperience.module.css'
 
-export type ChecklistItemState = 'upcoming' | 'current' | 'done'
+export type { AnimatedChecklistItem, ChecklistItemState }
+export { stagesToChecklist } from './generationProgressState'
 
-export type AnimatedChecklistItem = {
-  id: string
-  label: string
+/** Active mark — spinner ring (or static for reduced motion); morphs to check. */
+function StageMark({
+  state,
+  label,
+}: {
   state: ChecklistItemState
-}
-
-/** Active mark — CSS breath / ring; morphs to check. */
-function StageMark({ state }: { state: ChecklistItemState }) {
+  label: string
+}) {
   const prefersReduced = useReducedMotion() ?? false
 
   return (
@@ -21,7 +26,10 @@ function StageMark({ state }: { state: ChecklistItemState }) {
         state === 'current' ? styles.stageMarkLive : ''
       }`}
       data-state={state}
-      aria-hidden
+      aria-hidden={state !== 'current'}
+      aria-label={
+        state === 'current' ? `Trwa: ${label}` : undefined
+      }
     >
       <AnimatePresence mode="wait" initial={false}>
         {state === 'done' ? (
@@ -48,8 +56,15 @@ function StageMark({ state }: { state: ChecklistItemState }) {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.18 }}
           >
-            <span className={styles.stageLiveDot} />
-            <span className={styles.stageLiveRing} />
+            {prefersReduced ? (
+              <span className={styles.stageLiveDot} />
+            ) : (
+              <LoaderCircle
+                size={14}
+                strokeWidth={2.4}
+                className={styles.stageSpin}
+              />
+            )}
           </motion.span>
         ) : (
           <motion.span
@@ -98,8 +113,9 @@ export function AnimatedChecklist({
             animate="animate"
             layout={!prefersReduced}
             transition={softSpring}
+            aria-current={item.state === 'current' ? 'step' : undefined}
           >
-            <StageMark state={item.state} />
+            <StageMark state={item.state} label={item.label} />
             <span className={styles.stageLabel}>
               {item.label}
               {item.state === 'current' && !prefersReduced ? (
@@ -111,22 +127,4 @@ export function AnimatedChecklist({
       </AnimatePresence>
     </ul>
   )
-}
-
-export function stagesToChecklist(
-  stages: readonly { id: string; label: string }[],
-  index: number,
-  pipelineDone: boolean,
-): AnimatedChecklistItem[] {
-  const last = stages.length - 1
-  return stages.map((stage, i) => {
-    if (i < index) return { ...stage, state: 'done' as const }
-    if (i === index) {
-      if (i === last && pipelineDone) {
-        return { ...stage, state: 'done' as const }
-      }
-      return { ...stage, state: 'current' as const }
-    }
-    return { ...stage, state: 'upcoming' as const }
-  })
 }
