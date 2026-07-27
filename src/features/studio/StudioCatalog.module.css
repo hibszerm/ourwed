@@ -297,11 +297,15 @@
 .itemTitle {
   font-weight: 500;
   color: var(--color-text-primary);
+  overflow-wrap: break-word;
+  word-break: normal;
 }
 
 .itemMeta {
   font-size: var(--text-xs);
   color: var(--color-text-tertiary);
+  overflow-wrap: break-word;
+  word-break: normal;
 }
 
 .itemEdit {
@@ -371,5 +375,68 @@
 
   .row {
     grid-template-columns: 1fr;
+  }
+
+  /* Package contents: stack Title → Description → Actions */
+  .itemList {
+    gap: var(--space-2);
+  }
+
+  .itemRow {
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    border-style: solid;
+    border-radius: var(--radius-lg);
+    background: var(--color-surface);
+  }
+
+  .itemMain {
+    flex: none;
+    width: 100%;
+    min-width: 0;
+    gap: 4px;
+  }
+
+  .itemTitle {
+    display: block;
+    width: 100%;
+    font-size: var(--text-sm);
+    line-height: 1.35;
+    white-space: normal;
+  }
+
+  .itemMeta {
+    display: block;
+    width: 100%;
+    line-height: 1.4;
+    white-space: normal;
+  }
+
+  .itemRow > .actions {
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: stretch;
+    margin-top: 0;
+    padding-top: var(--space-1);
+    border-top: 1px solid var(--color-border);
+  }
+
+  .itemRow > .actions > :global(button) {
+    flex: 1 1 calc(33.333% - var(--space-2));
+    min-width: 0;
+    min-height: var(--touch-target);
+  }
+
+  .itemAdd {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .itemAdd > :global(button) {
+    width: 100%;
+    min-height: var(--touch-target);
   }
 }
