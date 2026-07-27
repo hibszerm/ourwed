@@ -12,6 +12,7 @@ import { formatCurrency } from '@/lib/utils/currency'
 import { formatDeliveryTerm } from '@/lib/utils/commercial'
 import type { PackageItem, StudioPackage } from '@/types/package'
 import { PackageContractSection } from '@/features/studio/PackageContractSection'
+import { PackageItemOverflowMenu } from '@/features/studio/PackageItemOverflowMenu'
 import styles from '@/features/studio/StudioCatalog.module.css'
 
 type PackageFormValues = {
@@ -668,8 +669,8 @@ function PackageItemsEditor({
                   {item.description ? (
                     <span className={styles.itemMeta}>{item.description}</span>
                   ) : null}
-                  <span className={styles.itemMeta}>
-                    {[
+                  {(() => {
+                    const meta = [
                       item.quantity != null
                         ? `× ${item.quantity}${item.unit ? ` ${item.unit}` : ''}`
                         : null,
@@ -677,10 +678,13 @@ function PackageItemsEditor({
                       item.enabled ? null : 'wyłączona',
                     ]
                       .filter(Boolean)
-                      .join(' · ')}
-                  </span>
+                      .join(' · ')
+                    return meta ? (
+                      <span className={styles.itemMeta}>{meta}</span>
+                    ) : null
+                  })()}
                 </div>
-                <div className={styles.actions}>
+                <div className={`${styles.actions} ${styles.itemActionsDesktop}`}>
                   <Button
                     type="button"
                     variant="ghost"
@@ -714,6 +718,20 @@ function PackageItemsEditor({
                     Usuń
                   </Button>
                 </div>
+                <PackageItemOverflowMenu
+                  enabled={item.enabled}
+                  onEdit={() => beginEdit(item)}
+                  onToggleEnabled={() => {
+                    void packageItemService
+                      .update(item.id, { enabled: !item.enabled })
+                      .then(() => onChanged())
+                  }}
+                  onDelete={() => {
+                    void packageItemService
+                      .delete(item.id)
+                      .then(() => onChanged())
+                  }}
+                />
               </>
             )}
           </li>
