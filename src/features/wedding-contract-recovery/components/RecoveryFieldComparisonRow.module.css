@@ -1,0 +1,125 @@
+.row {
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: 12px;
+  padding: 1rem;
+  display: grid;
+  gap: 0.75rem;
+  background: var(--color-surface, #fff);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+.label {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.badge {
+  font-size: 0.75rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  background: var(--color-surface-muted, #f3f4f6);
+  white-space: nowrap;
+}
+
+.columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.colLabel {
+  margin: 0 0 0.25rem;
+  font-size: 0.75rem;
+  color: var(--color-text-muted, #6b7280);
+}
+
+.value {
+  margin: 0;
+}
+
+.confidence {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--color-text-secondary, #374151);
+}
+
+.evidence {
+  margin: 0;
+  padding: 0.75rem;
+  border-left: 3px solid var(--color-border-strong, #d1d5db);
+  background: var(--color-surface-muted, #f9fafb);
+  font-size: 0.875rem;
+}
+
+.evidence footer {
+  margin-top: 0.35rem;
+  color: var(--color-text-muted, #6b7280);
+}
+
+.sourceRef {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--color-text-muted, #6b7280);
+  font-weight: 600;
+}
+
+.sharedEvidence {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 0.25rem;
+}
+
+.warnings {
+  margin: 0;
+  padding-left: 1rem;
+  color: var(--color-danger, #b91c1c);
+  font-size: 0.875rem;
+}
+
+.actions {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.choice {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+}
+
+.summaryGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+}
+
+.summaryCard {
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: 12px;
+  padding: 0.875rem;
+  background: var(--color-surface, #fff);
+}
+
+.summaryTitle {
+  margin: 0 0 0.35rem;
+  font-weight: 600;
+}
+
+.summaryStatus {
+  margin: 0;
+  color: var(--color-text-muted, #6b7280);
+  font-size: 0.875rem;
+}
+
+@media (max-width: 720px) {
+  .columns {
+    grid-template-columns: 1fr;
+  }
+}

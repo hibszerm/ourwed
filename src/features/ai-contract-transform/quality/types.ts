@@ -78,12 +78,20 @@ export type SourceSpecificValue = {
   mustDisappear: boolean
 }
 
+export type AdditionalServicesExpectation = {
+  expectedNames: string[]
+  shouldAppear: boolean
+  pricesMustNotAppear: true
+  quantitiesMustNotAppear: true
+}
+
 export type TransformationExpectationManifest = {
   requiredFields: RequiredFieldExpectation[]
   protectedFields: ProtectedFieldExpectation[]
   consistencyRules: ConsistencyRule[]
   sourceSpecificValues: SourceSpecificValue[]
   requiredReplacements: RequiredReplacement[]
+  additionalServices?: AdditionalServicesExpectation
 }
 
 export type RequiredReplacement = {

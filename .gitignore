@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Local benchmark outputs (may contain timing/token metrics)
+tmp/

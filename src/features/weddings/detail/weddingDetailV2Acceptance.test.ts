@@ -159,9 +159,9 @@ run('5. Tab switch does not refetch wedding', () => {
   assert(page.includes('useWedding(id'), 'page owns wedding query')
 })
 
-run('6–9. Header reception only; no prep/ceremony', () => {
+run('6–9. Header reception venue + locality; no prep/ceremony preference', () => {
   const header = readFileSync(resolve(v2Root, 'WeddingWorkspaceHeader.tsx'), 'utf8')
-  assert(header.includes('getReceptionDisplayName'), 'reception')
+  assert(header.includes('getWeddingPrimaryLocationSummary'), 'primary location')
   assert(!header.includes('bridePreparation'), 'no bride')
   assert(!header.includes('groomPreparation'), 'no groom')
   assert(!header.includes('ceremonyLocation'), 'no ceremony')
@@ -169,14 +169,18 @@ run('6–9. Header reception only; no prep/ceremony', () => {
   assert(!header.includes("'Ceremonia'"), 'no ceremony label')
   const wedding = stubWedding()
   const places = [
-    place('reception', 'Lwowska 34, Izdebnik', 'Villa Love'),
+    place('reception', 'Lwowska 78, 34-144 Izdebnik', 'Villa Love'),
     place('bride_preparation', 'Zabrze'),
     place('ceremony', 'Kościół'),
   ]
-  assertEq(getReceptionDisplayName(wedding, places), 'Villa Love', 'label')
+  assertEq(
+    getReceptionDisplayName(wedding, places),
+    'Villa Love, Izdebnik',
+    'reception compact',
+  )
   assertEq(
     getCoupleDisplayName(wedding.couple),
-    'Iza Karczewska & Jan Kulewski',
+    'Iza Karczewska i Jan Kulewski',
     'names',
   )
 })
@@ -213,9 +217,12 @@ run('12. Contract and Finance is commercial (no readiness checklist)', () => {
 run('13–16. Wedding Day itinerary + map + nav; no duplicate locations card', () => {
   const day = readFileSync(resolve(v2Root, 'WeddingDayWorkspace.tsx'), 'utf8')
   assert(day.includes('data-testid="wedding-itinerary"'), 'itinerary')
+  assert(day.includes('data-testid="travel-base-stop"'), 'base stop')
+  assert(day.includes('TRAVEL_SETTINGS_PATH'), 'settings link')
   assert(day.includes('TravelMap'), 'map')
   assert(day.includes('buildGoogleMapsNavigationUrl'), 'nav')
   assert(day.includes('travel-nav-'), 'nav testids')
+  assert(day.includes('itineraryLegRoute'), 'leg origin→destination')
   assert(!day.includes('Lokalizacje'), 'no separate locations card title')
   const items = getWeddingLocationItems(stubWedding(), [
     place('bride_preparation', 'A'),

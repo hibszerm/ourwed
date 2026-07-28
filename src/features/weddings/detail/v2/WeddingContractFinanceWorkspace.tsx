@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { WeddingContractsModule } from '@/features/weddings/components/detail/WeddingContractsModule'
+import { WeddingSourceContractsPanel } from '@/features/wedding-contract-recovery/components/WeddingSourceContractsPanel'
 import { getPackageSummary } from '@/features/weddings/detail/v2/weddingWorkspaceSelectors'
 import type { WeddingExtraService } from '@/types/package'
 import type { Payment, Wedding } from '@/types/wedding'
@@ -49,6 +50,7 @@ export function WeddingContractFinanceWorkspace({
           wedding={wedding}
           onGenerate={() => onAction('generate_contract')}
         />
+        <WeddingSourceContractsPanel weddingId={wedding.id} />
       </div>
 
       <section

@@ -12,6 +12,22 @@ export type WorkflowStage =
 
 export type WeddingStatus = 'active' | 'archived' | 'cancelled'
 
+/** Compact primary location projection for list / dashboard / header. */
+export type WeddingPrimaryLocationSource =
+  | 'reception'
+  | 'ceremony'
+  | 'preparation'
+  | 'legacy'
+  | 'none'
+
+export interface WeddingPrimaryLocationSummary {
+  venueName: string | null
+  locality: string | null
+  /** Compact one-line text, e.g. "Villa Love, Izdebnik". Null when nothing useful. */
+  displayText: string | null
+  source: WeddingPrimaryLocationSource
+}
+
 export interface Couple {
   partner1: string
   partner2: string
@@ -200,6 +216,11 @@ export interface WeddingDeliverable {
 export interface Wedding {
   id: string
   couple: Couple
+  /**
+   * Presentation-only title for app UI (lists, cards, headers).
+   * Must never be used by contracts, questionnaires, merge fields, or exports.
+   */
+  displayName?: string | null
   date: string
   /** Ceremony start time — HH:MM (from weddings.ceremony_time). */
   ceremonyTime?: string
@@ -256,6 +277,11 @@ export interface Wedding {
   bridePreparationLocation?: string
   groomPreparationLocation?: string
   /**
+   * Compact primary location for list/dashboard/header (hydrated).
+   * Prefer reception venue name + locality; never a full street address.
+   */
+  primaryLocation?: WeddingPrimaryLocationSummary
+  /**
    * Client-requested package IDs from questionnaire (multi-select).
    * packageId remains the primary commercial package.
    */
@@ -300,6 +326,20 @@ export interface CreateWeddingInput {
   deliveryDays?: number | null
   finalPaymentTerms?: FinalPaymentTerms | null
   finalPaymentDueDate?: string | null
+  phone?: string
+  email?: string
+  /**
+   * Presentation-only title (e.g. imported single client name).
+   * Does not replace partner1/partner2 business data.
+   */
+  displayName?: string | null
+  creationOptions?: WeddingCreationOptions
+}
+
+export type WeddingCreationOptions = {
+  source?: 'manual' | 'spreadsheet_import'
+  /** Imported contract value must not be replaced by catalog package price. */
+  preserveImportedPrice?: boolean
 }
 
 export interface Task {

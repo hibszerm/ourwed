@@ -15,7 +15,10 @@ import {
   GOOGLE_USER_ERROR_PL,
 } from '@/services/googlePlacesNormalize'
 import type { GeoPlace } from '@/types/travel'
-import { shortLocationDisplay } from '@/features/travel/shortLocationDisplay'
+import {
+  mapPlaceSelectionToGeoPlace,
+  mapSuggestionAndResolvedToGeoPlace,
+} from '@/features/travel/weddingLocationModel'
 import styles from './LocationSearchField.module.css'
 
 export interface LocationSearchFieldProps {
@@ -26,10 +29,18 @@ export interface LocationSearchFieldProps {
   disabled?: boolean
   placeholder?: string
   /**
-   * When true, the input shows a short place name after selection / when idle.
-   * Full formattedAddress is still passed to onSelectPlace for persistence.
+   * When true, idle input may show a compact venue name when present.
+   * Full formattedAddress is always what is persisted for the address.
+   * Does NOT invent a venue name from the street address.
    */
   compactDisplay?: boolean
+  /**
+   * Existing venue name to preserve when the user selects a pure street address.
+   * Ignored when nameManuallyEdited is true and preserveName is empty (cleared).
+   */
+  preserveName?: string | null
+  /** When true, do not adopt a newly detected venue name from Places. */
+  nameManuallyEdited?: boolean
   /** Show “Location saved with coordinates” under the field. Default true. */
   showSavedHint?: boolean
   /** Fired while typing (local text). */
@@ -39,23 +50,22 @@ export interface LocationSearchFieldProps {
    * May be async (autosave). Existing saved location is kept on search errors.
    */
   onSelectPlace: (place: GeoPlace | null) => void | Promise<void>
+  /**
+   * When true, blurring the field with typed text (no suggestion pick) commits an
+   * unresolved address GeoPlace so manual entry is saved.
+   */
+  commitTypedOnBlur?: boolean
 }
 
-function toGeoPlace(
-  addr: NormalizedAddress,
+function idleDisplayText(
+  value: string,
+  place: GeoPlace | null,
   compactDisplay: boolean,
-): GeoPlace {
-  const short = shortLocationDisplay({
-    formattedAddress: addr.formattedAddress,
-  })
-  return {
-    placeId: addr.placeId ?? null,
-    formattedAddress: addr.formattedAddress,
-    latitude: addr.latitude ?? null,
-    longitude: addr.longitude ?? null,
-    label: compactDisplay ? short : undefined,
-    provider: 'google',
-  }
+): string {
+  if (!compactDisplay) return value
+  const name = place?.label?.trim()
+  if (name) return name
+  return value || place?.formattedAddress || ''
 }
 
 /**
@@ -68,9 +78,12 @@ export function LocationSearchField({
   disabled = false,
   placeholder = 'Zacznij wpisywać adres…',
   compactDisplay = false,
+  preserveName = null,
+  nameManuallyEdited = false,
   showSavedHint = true,
   onChangeText,
   onSelectPlace,
+  commitTypedOnBlur = false,
 }: LocationSearchFieldProps) {
   const listId = useId()
   const inputId = useId()
@@ -90,8 +103,8 @@ export function LocationSearchField({
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!focused) setText(value)
-  }, [value, focused])
+    if (!focused) setText(idleDisplayText(value, place, compactDisplay))
+  }, [value, place, compactDisplay, focused])
 
   useEffect(() => {
     return () => {
@@ -169,19 +182,31 @@ export function LocationSearchField({
 
   async function selectSuggestion(suggestion: AddressSuggestion) {
     try {
-      const resolved = await provider.resolve(suggestion.id, {
+      const resolved: NormalizedAddress = await provider.resolve(suggestion.id, {
         sessionToken: provider.getSessionToken?.() ?? undefined,
         language: 'pl',
       })
-      const geo = toGeoPlace(resolved, compactDisplay)
-      const display = compactDisplay
-        ? shortLocationDisplay({
-            label: geo.label,
-            formattedAddress: geo.formattedAddress,
-          })
-        : geo.formattedAddress
-      await commitPlace(geo, display)
+      const geo = mapSuggestionAndResolvedToGeoPlace(suggestion, resolved, {
+        preserveName: preserveName ?? place?.label,
+        nameManuallyEdited,
+      })
+      // Address field shows the navigable address; venue name lives on geo.label.
+      await commitPlace(geo, geo.formattedAddress)
     } catch {
+      // Resolve failed — still try to keep suggestion primary text as a name hint
+      // with the secondary line as address when present.
+      const fallbackAddress =
+        suggestion.secondaryLabel?.trim() || suggestion.label.trim()
+      const geo = mapPlaceSelectionToGeoPlace({
+        resolved: {
+          formattedAddress: fallbackAddress,
+          provider: 'google',
+        },
+        suggestionLabel: suggestion.label,
+        preserveName: preserveName ?? place?.label,
+        nameManuallyEdited,
+      })
+      await commitPlace(geo, geo.formattedAddress)
       setError(GOOGLE_USER_ERROR_PL)
     }
   }
@@ -271,6 +296,29 @@ export function LocationSearchField({
               if (!rootRef.current?.contains(document.activeElement)) {
                 setOpen(false)
                 setActiveIndex(-1)
+                if (commitTypedOnBlur) {
+                  const typed = text.trim()
+                  const current =
+                    place?.formattedAddress?.trim() || ''
+                  if (typed && typed !== current) {
+                    void commitPlace(
+                      {
+                        placeId: null,
+                        formattedAddress: typed,
+                        latitude: null,
+                        longitude: null,
+                        label:
+                          preserveName?.trim() ||
+                          place?.label ||
+                          null,
+                        provider: null,
+                      },
+                      typed,
+                    )
+                  } else if (!typed && current) {
+                    void commitPlace(null, '')
+                  }
+                }
               }
             }, 120)
           }}

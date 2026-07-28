@@ -6,7 +6,7 @@ import { paymentService } from '@/lib/api/paymentService'
 import { timelineEventService } from '@/lib/api/timelineEventService'
 import { weddingService } from '@/lib/api/weddingService'
 import { getDepositPaid } from '@/lib/utils/finance'
-import { coupleName } from '@/lib/utils/dates'
+import { getWeddingDisplayName } from '@/features/weddings/presentation/getWeddingDisplayName'
 import { getNextStage } from '@/lib/workflow/workflowEngine'
 import { getCurrentStudioUser } from '@/lib/api/studioUser'
 import type { FormCategory } from '@/types/formEngine'
@@ -104,7 +104,7 @@ export const weddingActionsService = {
     const formUrl = `${window.location.origin}/form/${formToken}`
 
     const today = new Date().toISOString().slice(0, 10)
-    const couple = coupleName(wedding.couple.partner1, wedding.couple.partner2)
+    const couple = getWeddingDisplayName(wedding)
 
     await weddingService.update({
       ...wedding,
@@ -167,7 +167,7 @@ export const weddingActionsService = {
     }
 
     const methodLabel = PAYMENT_METHOD_LABELS[input.method]
-    const couple = coupleName(wedding.couple.partner1, wedding.couple.partner2)
+    const couple = getWeddingDisplayName(wedding)
 
     if (workflowStage !== wedding.workflowStage) {
       await weddingService.update({
@@ -240,7 +240,7 @@ export const weddingActionsService = {
     const wedding = await requireWedding(weddingId)
     const missingFields = options?.missingFields ?? []
     const today = new Date().toISOString().slice(0, 10)
-    const couple = coupleName(wedding.couple.partner1, wedding.couple.partner2)
+    const couple = getWeddingDisplayName(wedding)
 
     await contractService.updateStatus(wedding.id, 'generated')
 

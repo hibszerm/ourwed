@@ -1,11 +1,18 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/Button'
 import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
 import { TravelMap } from '@/features/travel/TravelMap'
 import {
   buildTravelFlow,
+  getTravelBaseAddress,
+  getTravelBaseDisplayName,
+  getTravelBaseStatus,
   navigateToStopUrl,
-  sumTravelTotals,
+  summarizeTravelRoute,
+  TRAVEL_SETTINGS_PATH,
+  type TravelFlow,
+  type TravelFlowLeg,
 } from '@/features/travel/travelUi'
 import {
   getWeddingLocationItems,
@@ -22,6 +29,45 @@ interface WeddingDayWorkspaceProps {
   onRequestVerifyLocations?: () => void
   /** Per-role location editor (V2 drawer). */
   onEditLocationRole?: (role: WeddingPlaceRole) => void
+}
+
+function formatLegMetrics(leg: TravelFlowLeg): string | null {
+  const segment = leg.segment
+  if (
+    !segment ||
+    segment.status !== 'ok' ||
+    !(segment.durationText || segment.distanceText)
+  ) {
+    return null
+  }
+  return [segment.durationText, segment.distanceText].filter(Boolean).join(' · ')
+}
+
+function LegBlock({ leg }: { leg: TravelFlowLeg }) {
+  const metrics = formatLegMetrics(leg)
+  if (metrics) {
+    return (
+      <div className={styles.itineraryLegBlock} data-testid="travel-leg">
+        <p className={styles.itineraryLegRoute}>{leg.label}</p>
+        <p className={styles.itineraryLeg}>{metrics}</p>
+      </div>
+    )
+  }
+  return (
+    <div className={styles.itineraryLegBlock} data-testid="travel-leg-empty">
+      <p className={styles.itineraryLegRoute}>{leg.label}</p>
+      <p className={styles.itineraryLegMuted}>—</p>
+    </div>
+  )
+}
+
+function findOutgoingLeg(
+  flow: TravelFlow,
+  originRole: string,
+): TravelFlowLeg | null {
+  return (
+    flow.routeLegs.find((leg) => leg.origin.role === originRole) ?? null
+  )
 }
 
 export function WeddingDayWorkspace({
@@ -71,19 +117,18 @@ export function WeddingDayWorkspace({
   })
 
   const flow = plan ? buildTravelFlow(plan) : null
-  const okSegments =
-    plan?.segments.filter(
-      (s) => s.status === 'ok' && s.distanceMeters != null,
-    ) ?? []
-  const totals = sumTravelTotals(okSegments)
-
-  function legBetween(fromRole: string, toRole: string) {
-    if (!flow) return null
-    const fromIdx = flow.stops.findIndex((s) => s.role === fromRole)
-    const toIdx = flow.stops.findIndex((s) => s.role === toRole)
-    if (fromIdx < 0 || toIdx !== fromIdx + 1) return null
-    return flow.legs[fromIdx] ?? null
-  }
+  const summary = flow ? summarizeTravelRoute(flow) : null
+  const baseStatus = plan
+    ? getTravelBaseStatus(plan.studio)
+    : getTravelBaseStatus(null)
+  const baseTitle = getTravelBaseDisplayName(plan?.studio)
+  const baseAddress = getTravelBaseAddress(plan?.studio)
+  const baseStop = flow?.stops.find((s) => s.kind === 'studio') ?? null
+  const baseOutgoingLeg = flow ? findOutgoingLeg(flow, 'studio') : null
+  const routeRoles = new Set(
+    flow?.stops.filter((s) => s.kind === 'wedding_place').map((s) => s.role) ??
+      [],
+  )
 
   return (
     <div
@@ -96,118 +141,222 @@ export function WeddingDayWorkspace({
           {isLoading ? (
             <p className={styles.contextMuted}>Ładowanie trasy…</p>
           ) : (
-            <ol className={styles.itinerary} data-testid="wedding-itinerary">
-              {locations.map((loc, index) => {
-                const next = locations[index + 1]
-                const leg = next ? legBetween(loc.role, next.role) : null
-                const navUrl = !loc.empty
-                  ? buildGoogleMapsNavigationUrl({
-                      formattedAddress: loc.address,
-                      label: loc.placeName,
-                      placeId: loc.placeId,
-                      latitude: loc.latitude,
-                      longitude: loc.longitude,
-                    })
-                  : null
-                const flowStop = flow?.stops.find((s) => s.role === loc.role)
-                const flowNav = flowStop ? navigateToStopUrl(flowStop) : null
-                const href = flowNav || navUrl
+            <>
+              {baseStatus === 'missing' ? (
+                <div
+                  className={styles.travelBaseNotice}
+                  role="status"
+                  data-testid="travel-base-missing"
+                >
+                  <p className={styles.travelBaseNoticeText}>
+                    Ustaw bazę podróży, aby obliczyć dojazd do pierwszej
+                    lokalizacji.
+                  </p>
+                  <Link
+                    className={styles.textAction}
+                    to={TRAVEL_SETTINGS_PATH}
+                  >
+                    Ustawienia podróży
+                  </Link>
+                </div>
+              ) : null}
 
-                return (
-                  <li key={loc.role} className={styles.itineraryStop}>
+              {baseStatus === 'incomplete' ? (
+                <div
+                  className={styles.travelBaseNotice}
+                  role="status"
+                  data-testid="travel-base-invalid"
+                >
+                  <p className={styles.travelBaseNoticeText}>
+                    Nie można użyć adresu bazy do obliczenia trasy. Sprawdź
+                    adres w ustawieniach podróży.
+                  </p>
+                  <Link
+                    className={styles.textAction}
+                    to={TRAVEL_SETTINGS_PATH}
+                  >
+                    Ustawienia podróży
+                  </Link>
+                </div>
+              ) : null}
+
+              <ol className={styles.itinerary} data-testid="wedding-itinerary">
+                {baseStatus === 'ready' || baseStatus === 'incomplete' ? (
+                  <li
+                    className={`${styles.itineraryStop} ${styles.itineraryStopStart}`}
+                    data-testid="travel-base-stop"
+                  >
                     <div className={styles.itineraryMarker} aria-hidden>
-                      <span className={styles.itineraryDot} />
-                      {index < locations.length - 1 ? (
-                        <span className={styles.itineraryLine} />
-                      ) : null}
+                      <span
+                        className={`${styles.itineraryDot} ${styles.itineraryDotStart}`}
+                      />
+                      <span className={styles.itineraryLine} />
                     </div>
                     <div className={styles.itineraryBody}>
                       <div className={styles.itineraryHeader}>
                         <div>
-                          <p className={styles.itineraryRole}>{loc.label}</p>
+                          <p className={styles.itineraryStartLabel}>Start</p>
+                          <p className={styles.itineraryRole}>{baseTitle}</p>
                           <p className={styles.itineraryAddress}>
-                            {loc.empty
-                              ? 'Nieuzupełnione'
-                              : loc.placeName || loc.address}
+                            {baseAddress ||
+                              (baseStatus === 'incomplete'
+                                ? 'Adres niekompletny'
+                                : '—')}
                           </p>
-                          {!loc.empty && loc.placeName ? (
-                            <p className={styles.contextMuted}>{loc.address}</p>
-                          ) : null}
-                          {!loc.empty ? (
-                            <p
-                              className={
-                                loc.verified
-                                  ? styles.verifiedHint
-                                  : styles.verifyHint
-                              }
-                            >
-                              {loc.verified
-                                ? 'Zweryfikowano'
-                                : 'Wymaga weryfikacji'}
-                            </p>
-                          ) : null}
                         </div>
                         <div className={styles.itineraryActions}>
-                          {href ? (
-                            <a
-                              className={styles.textAction}
-                              href={href}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              aria-label={`Nawiguj do: ${loc.label}`}
-                              data-testid={`travel-nav-${loc.role}`}
-                            >
-                              Nawiguj
-                            </a>
-                          ) : null}
-                          {onEditLocationRole || onRequestVerifyLocations ? (
-                            <button
-                              type="button"
-                              className={styles.textAction}
-                              onClick={() => {
-                                if (onEditLocationRole) {
-                                  onEditLocationRole(
-                                    loc.role as WeddingPlaceRole,
-                                  )
-                                  return
-                                }
-                                onRequestVerifyLocations?.()
-                              }}
-                            >
-                              Edytuj
-                            </button>
-                          ) : null}
+                          <Link
+                            className={styles.textAction}
+                            to={TRAVEL_SETTINGS_PATH}
+                          >
+                            Ustawienia podróży
+                          </Link>
                         </div>
                       </div>
-                      {leg &&
-                      leg.status === 'ok' &&
-                      (leg.durationText || leg.distanceText) ? (
-                        <p className={styles.itineraryLeg}>
-                          {[leg.durationText, leg.distanceText]
-                            .filter(Boolean)
-                            .join(' · ')}
+                      {baseOutgoingLeg ? (
+                        <LegBlock leg={baseOutgoingLeg} />
+                      ) : baseStatus === 'ready' &&
+                        (flow?.stops.length ?? 0) <= 1 ? (
+                        <p className={styles.itineraryLegMuted}>
+                          Brak lokalizacji dnia ślubu do wyliczenia dojazdu.
                         </p>
-                      ) : next ? (
-                        <p className={styles.itineraryLegMuted}>—</p>
                       ) : null}
                     </div>
                   </li>
-                )
-              })}
-            </ol>
+                ) : null}
+
+                {locations.map((loc, index) => {
+                  const outgoing = flow
+                    ? findOutgoingLeg(flow, loc.role)
+                    : null
+                  const omittedFromRoute =
+                    !loc.empty &&
+                    flow != null &&
+                    flow.hasAnyLocation &&
+                    !routeRoles.has(loc.role)
+                  const navUrl = !loc.empty
+                    ? buildGoogleMapsNavigationUrl({
+                        formattedAddress: loc.address,
+                        label: loc.placeName,
+                        placeId: loc.placeId,
+                        latitude: loc.latitude,
+                        longitude: loc.longitude,
+                      })
+                    : null
+                  const flowStop = flow?.stops.find((s) => s.role === loc.role)
+                  const flowNav = flowStop ? navigateToStopUrl(flowStop) : null
+                  const href = flowNav || navUrl
+                  const isLast = index === locations.length - 1
+
+                  return (
+                    <li key={loc.role} className={styles.itineraryStop}>
+                      <div className={styles.itineraryMarker} aria-hidden>
+                        <span className={styles.itineraryDot} />
+                        {!isLast ? (
+                          <span className={styles.itineraryLine} />
+                        ) : null}
+                      </div>
+                      <div className={styles.itineraryBody}>
+                        <div className={styles.itineraryHeader}>
+                          <div>
+                            <p className={styles.itineraryRole}>{loc.label}</p>
+                            <p className={styles.itineraryAddress}>
+                              {loc.empty
+                                ? 'Nieuzupełnione'
+                                : loc.placeName || loc.address}
+                            </p>
+                            {!loc.empty && loc.placeName ? (
+                              <p className={styles.contextMuted}>{loc.address}</p>
+                            ) : null}
+                            {!loc.empty ? (
+                              <p
+                                className={
+                                  loc.verified
+                                    ? styles.verifiedHint
+                                    : styles.verifyHint
+                                }
+                              >
+                                {loc.verified
+                                  ? 'Zweryfikowano'
+                                  : 'Wymaga weryfikacji'}
+                              </p>
+                            ) : null}
+                            {omittedFromRoute ? (
+                              <p
+                                className={styles.verifyHint}
+                                data-testid={`travel-skipped-${loc.role}`}
+                              >
+                                Pominięto w trasie — brak ważnych współrzędnych
+                              </p>
+                            ) : null}
+                          </div>
+                          <div className={styles.itineraryActions}>
+                            {href ? (
+                              <a
+                                className={styles.textAction}
+                                href={href}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                aria-label={`Nawiguj do: ${loc.label}`}
+                                data-testid={`travel-nav-${loc.role}`}
+                              >
+                                Nawiguj
+                              </a>
+                            ) : null}
+                            {onEditLocationRole || onRequestVerifyLocations ? (
+                              <button
+                                type="button"
+                                className={styles.textAction}
+                                onClick={() => {
+                                  if (onEditLocationRole) {
+                                    onEditLocationRole(
+                                      loc.role as WeddingPlaceRole,
+                                    )
+                                    return
+                                  }
+                                  onRequestVerifyLocations?.()
+                                }}
+                              >
+                                Edytuj
+                              </button>
+                            ) : null}
+                          </div>
+                        </div>
+                        {outgoing ? <LegBlock leg={outgoing} /> : null}
+                      </div>
+                    </li>
+                  )
+                })}
+              </ol>
+            </>
           )}
 
           <div className={styles.routeSummary}>
             <div>
-              <span className={styles.bandLabel}>Łączny dystans</span>
+              <span className={styles.bandLabel}>
+                {summary?.distanceLabel ?? 'Łączny dystans'}
+              </span>
               <p className={styles.bandValue}>
-                {okSegments.length > 0 ? totals.distanceText : '—'}
+                {summary && summary.okSegments.length > 0
+                  ? summary.distanceText
+                  : '—'}
               </p>
+              {summary &&
+              summary.okSegments.length > 0 &&
+              !summary.isCompleteDayRoute ? (
+                <p className={styles.routeSummaryHint}>
+                  Bez dojazdu z bazy firmy
+                </p>
+              ) : null}
             </div>
             <div>
-              <span className={styles.bandLabel}>Szacowany czas jazdy</span>
+              <span className={styles.bandLabel}>
+                {summary?.durationLabel ?? 'Szacowany czas jazdy'}
+              </span>
               <p className={styles.bandValue}>
-                {okSegments.length > 0 ? totals.durationText : '—'}
+                {summary && summary.okSegments.length > 0
+                  ? summary.durationText
+                  : '—'}
               </p>
             </div>
             <Button
@@ -237,7 +386,9 @@ export function WeddingDayWorkspace({
           ) : (
             <div className={styles.mapEmpty}>
               <p className={styles.contextMuted}>
-                Mapa pojawi się po weryfikacji lokalizacji z współrzędnymi.
+                {baseStop
+                  ? 'Dodaj zweryfikowane lokalizacje dnia ślubu, aby zobaczyć trasę na mapie.'
+                  : 'Mapa pojawi się po weryfikacji lokalizacji z współrzędnymi.'}
               </p>
               {onRequestVerifyLocations ? (
                 <Button

@@ -65,12 +65,13 @@ run('6–7. Wedding wizard + wedding details use Google search', () => {
     resolve(process.cwd(), 'src/features/weddings/components/detail/WeddingDetailHero.tsx'),
     'utf8',
   )
-  assert(hero.includes('LocationSearchField'), 'hero search')
+  assert(hero.includes('WeddingLocationEditor'), 'hero location editor')
   const loc = readFileSync(
     resolve(process.cwd(), 'src/features/travel/LocationSearchField.tsx'),
     'utf8',
   )
   assert(loc.includes('createDefaultAddressAutocompleteProvider'), 'google')
+  assert(loc.includes('mapSuggestionAndResolvedToGeoPlace'), 'shared venue map')
   assert(!loc.includes('geoapifyService'), 'no geoapify service')
   assert(!loc.includes('travelProvider.getAutocomplete'), 'no old autocomplete')
 })

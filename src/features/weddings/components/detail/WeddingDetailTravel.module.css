@@ -129,8 +129,9 @@
   flex-shrink: 0;
   display: grid;
   place-items: center;
-  width: 1.5rem;
+  min-width: 1.5rem;
   height: 1.5rem;
+  padding: 0 0.35rem;
   margin-top: 1px;
   border-radius: 999px;
   background: #2f3b46;
@@ -172,6 +173,14 @@
   font-size: 1.1rem;
   line-height: 1;
   color: var(--color-text-tertiary);
+}
+
+.legRoute {
+  margin: 0;
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  color: var(--color-text-tertiary);
+  text-align: center;
 }
 
 .legMeta,

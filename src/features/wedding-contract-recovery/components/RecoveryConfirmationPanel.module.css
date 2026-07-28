@@ -1,0 +1,88 @@
+.wrap {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.title {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.block {
+  display: grid;
+  gap: 0.65rem;
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: 12px;
+  padding: 1rem;
+}
+
+.blockTitle {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.group {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.groupTitle {
+  margin: 0;
+  font-size: 0.9375rem;
+}
+
+.changeList,
+.plainList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.changeItem {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.fieldLabel {
+  margin: 0;
+  font-weight: 600;
+}
+
+.transition {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.55rem;
+  align-items: baseline;
+  overflow-wrap: anywhere;
+}
+
+.arrow {
+  color: var(--color-text-muted, #6b7280);
+}
+
+.muted,
+.counts {
+  margin: 0;
+  color: var(--color-text-muted, #6b7280);
+  font-size: 0.875rem;
+}
+
+.details summary {
+  cursor: pointer;
+  color: var(--color-text-muted, #6b7280);
+  font-size: 0.875rem;
+}
+
+.error {
+  margin: 0;
+  color: var(--color-danger, #b91c1c);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}

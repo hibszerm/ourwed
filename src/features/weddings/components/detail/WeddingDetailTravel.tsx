@@ -6,7 +6,7 @@ import { countPlacesNeedingVerification } from '@/features/travel/locationVerifi
 import {
   buildTravelFlow,
   navigateToStopUrl,
-  sumTravelTotals,
+  summarizeTravelRoute,
   type TravelFlowStop,
 } from '@/features/travel/travelUi'
 import { travelService } from '@/lib/api/travelService'
@@ -60,7 +60,7 @@ function StopCard({ stop }: { stop: TravelFlowStop }) {
           data-testid={`travel-nav-${stop.role ?? stop.key}`}
         >
           <span className={styles.stopIndex} aria-hidden>
-            {stop.markerIndex}
+            {stop.kind === 'studio' ? 'Start' : stop.markerIndex}
           </span>
           <div className={styles.stopBody}>
             <p className={styles.stopTitle}>{stop.title}</p>
@@ -74,7 +74,7 @@ function StopCard({ stop }: { stop: TravelFlowStop }) {
       ) : (
         <div className={styles.stopCardInner}>
           <span className={styles.stopIndex} aria-hidden>
-            {stop.markerIndex}
+            {stop.kind === 'studio' ? 'Start' : stop.markerIndex}
           </span>
           <div className={styles.stopBody}>
             <p className={styles.stopTitle}>{stop.title}</p>
@@ -86,7 +86,13 @@ function StopCard({ stop }: { stop: TravelFlowStop }) {
   )
 }
 
-function LegConnector({ segment }: { segment: TravelSegment | null }) {
+function LegConnector({
+  segment,
+  label,
+}: {
+  segment: TravelSegment | null
+  label: string
+}) {
   const failed = segment?.status === 'error'
   const ok =
     segment?.status === 'ok' &&
@@ -98,6 +104,7 @@ function LegConnector({ segment }: { segment: TravelSegment | null }) {
       <div className={styles.legArrow} aria-hidden>
         ↓
       </div>
+      <p className={styles.legRoute}>{label}</p>
       <div className={failed ? styles.legMetaError : styles.legMeta}>
         {ok ? (
           <>
@@ -217,11 +224,7 @@ export function WeddingDetailTravel({
   const flow = plan ? buildTravelFlow(plan) : null
   const needsCount = plan ? countPlacesNeedingVerification(plan.places) : 0
   const hasCorePlaces = (plan?.places.length ?? 0) > 0
-  const okSegments =
-    plan?.segments.filter(
-      (s) => s.status === 'ok' && s.distanceMeters != null,
-    ) ?? []
-  const totals = sumTravelTotals(okSegments)
+  const summary = flow ? summarizeTravelRoute(flow) : null
   const busy = isFetching || recalculateMutation.isPending
   const showLoading = !useLocalPlan && isLoading
 
@@ -229,7 +232,7 @@ export function WeddingDetailTravel({
     <Card padding="md" className={styles.card}>
       <CardHeader
         title="Travel"
-        subtitle="Firma → Przygotowania Panny Młodej → Przygotowania Pana Młodego → Ceremonia → Przyjęcie"
+        subtitle="Baza firmy → Przygotowania Panny Młodej → Przygotowania Pana Młodego → Ceremonia → Przyjęcie"
       />
 
       {showLoading ? (
@@ -275,7 +278,13 @@ export function WeddingDetailTravel({
                   <div key={stop.key} className={styles.flowItem}>
                     <StopCard stop={stop} />
                     {index < flow.stops.length - 1 ? (
-                      <LegConnector segment={flow.legs[index] ?? null} />
+                      <LegConnector
+                        segment={flow.legs[index] ?? null}
+                        label={
+                          flow.routeLegs[index]?.label ??
+                          `${stop.title} → ${flow.stops[index + 1]?.title ?? '—'}`
+                        }
+                      />
                     ) : null}
                   </div>
                 ))}
@@ -283,15 +292,23 @@ export function WeddingDetailTravel({
 
               <div className={styles.summary}>
                 <div className={styles.summaryStat}>
-                  <span className={styles.summaryLabel}>Łączny dystans</span>
+                  <span className={styles.summaryLabel}>
+                    {summary?.distanceLabel ?? 'Łączny dystans'}
+                  </span>
                   <span className={styles.summaryValue}>
-                    {okSegments.length > 0 ? totals.distanceText : '—'}
+                    {summary && summary.okSegments.length > 0
+                      ? summary.distanceText
+                      : '—'}
                   </span>
                 </div>
                 <div className={styles.summaryStat}>
-                  <span className={styles.summaryLabel}>Szacowany czas jazdy</span>
+                  <span className={styles.summaryLabel}>
+                    {summary?.durationLabel ?? 'Szacowany czas jazdy'}
+                  </span>
                   <span className={styles.summaryValue}>
-                    {okSegments.length > 0 ? totals.durationText : '—'}
+                    {summary && summary.okSegments.length > 0
+                      ? summary.durationText
+                      : '—'}
                   </span>
                 </div>
               </div>

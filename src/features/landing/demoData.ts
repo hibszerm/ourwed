@@ -1,5 +1,6 @@
 import type { QuestionnaireListItem } from '@/lib/api/questionnaireService'
 import { getRemainingToPay, getTotalPaid } from '@/lib/utils/finance'
+import { getWeddingDisplayName } from '@/features/weddings/presentation/getWeddingDisplayName'
 import type { TravelPlan } from '@/types/travel'
 import type { FormInstance } from '@/types/formEngine'
 import type {
@@ -739,7 +740,7 @@ export function getDemoSeasonFinance(weddings: Wedding[] = demoWeddings): DemoSe
     const monthKey = w.date.slice(0, 7)
     monthlyMap.set(monthKey, (monthlyMap.get(monthKey) ?? 0) + w.price)
 
-    const coupleLabel = `${w.couple.partner1FirstName ?? w.couple.partner1} & ${w.couple.partner2FirstName ?? w.couple.partner2}`
+    const coupleLabel = getWeddingDisplayName(w, { short: true })
 
     for (const p of w.payments) {
       const row: DemoPaymentRow = {

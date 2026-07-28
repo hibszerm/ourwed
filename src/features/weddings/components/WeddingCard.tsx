@@ -2,12 +2,12 @@ import { Link } from 'react-router-dom'
 import { Avatar } from '@/components/ui/Avatar'
 import { WorkflowBadge } from '@/components/ui/Badge'
 import { Card } from '@/components/ui/Card'
-import { ProgressBar } from '@/components/ui/ProgressBar'
 import { IconChevronRight, IconMapPin } from '@/components/icons'
-import { coupleName, formatDate, getDaysUntil } from '@/lib/utils/dates'
+import { formatDate, getDaysUntil } from '@/lib/utils/dates'
 import { getWeddingCommercialSummary } from '@/lib/utils/commercial'
 import { formatCurrency } from '@/lib/utils/currency'
-import { getWorkflowProgress } from '@/lib/utils/workflow'
+import { getWeddingDisplayName } from '@/features/weddings/presentation/getWeddingDisplayName'
+import { getWeddingPrimaryLocationSummary } from '@/features/weddings/presentation/getWeddingPrimaryLocationSummary'
 import type { Wedding } from '@/types/wedding'
 import styles from './WeddingCard.module.css'
 
@@ -18,32 +18,15 @@ interface WeddingCardProps {
   shortNames?: boolean
 }
 
-function displayCoupleName(wedding: Wedding, shortNames: boolean): string {
-  if (shortNames) {
-    const a =
-      wedding.couple.partner1FirstName?.trim() ||
-      wedding.couple.partner1.split(/\s+/)[0]
-    const b =
-      wedding.couple.partner2FirstName?.trim() ||
-      wedding.couple.partner2.split(/\s+/)[0]
-    return coupleName(a, b)
-  }
-  return coupleName(wedding.couple.partner1, wedding.couple.partner2)
-}
-
 export function WeddingCard({
   wedding,
   onOpen,
   disabled = false,
   shortNames = false,
 }: WeddingCardProps) {
-  const name = displayCoupleName(wedding, shortNames)
+  const name = getWeddingDisplayName(wedding, { short: shortNames })
   const days = getDaysUntil(wedding.date)
-  const progress = getWorkflowProgress(wedding.workflowStage)
-  const location =
-    wedding.ceremonyLocation ??
-    wedding.receptionLocation ??
-    `${wedding.couple.venue}, ${wedding.couple.city}`
+  const location = getWeddingPrimaryLocationSummary(wedding).displayText
   const commercial = getWeddingCommercialSummary(wedding)
 
   const body = (
@@ -57,12 +40,14 @@ export function WeddingCard({
         <WorkflowBadge stage={wedding.workflowStage} />
       </div>
 
-      {location && (
+      {location ? (
         <div className={styles.detail}>
           <IconMapPin className={styles.icon} />
-          <span className={styles.detailText}>{location}</span>
+          <span className={styles.detailText} title={location}>
+            {location}
+          </span>
         </div>
-      )}
+      ) : null}
 
       <div className={styles.commercial}>
         <div className={styles.commercialItem}>
@@ -103,10 +88,6 @@ export function WeddingCard({
       </div>
 
       <div className={styles.footer}>
-        <div className={styles.progress}>
-          <span className={styles.progressLabel}>Workflow</span>
-          <ProgressBar value={progress} max={100} showLabel={false} />
-        </div>
         <div className={styles.dateBlock}>
           <span className={styles.date}>
             {formatDate(wedding.date, {
@@ -119,7 +100,9 @@ export function WeddingCard({
             {days > 0 ? `za ${days} dni` : days === 0 ? 'dziś' : 'minął'}
           </span>
         </div>
-        {!onOpen && !disabled ? <IconChevronRight className={styles.chevron} /> : null}
+        {!onOpen && !disabled ? (
+          <IconChevronRight className={styles.chevron} />
+        ) : null}
       </div>
 
       {onOpen && !disabled ? (

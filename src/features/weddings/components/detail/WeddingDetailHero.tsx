@@ -2,12 +2,16 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
-import { LocationSearchField } from '@/features/travel/LocationSearchField'
 import {
   locationVerificationStatus,
 } from '@/features/travel/locationVerification'
-import { shortLocationDisplay } from '@/features/travel/shortLocationDisplay'
-import { coupleName, formatDate, getCountdownParts } from '@/lib/utils/dates'
+import {
+  didWeddingLocationRouteChange,
+  getWeddingLocationDisplay,
+} from '@/features/travel/weddingLocationModel'
+import { WeddingLocationEditor } from '@/features/weddings/detail/editing/fields/WeddingLocationEditor'
+import { formatDate, getCountdownParts } from '@/lib/utils/dates'
+import { getWeddingDisplayName } from '@/features/weddings/presentation/getWeddingDisplayName'
 import { travelService } from '@/lib/api/travelService'
 import { weddingActionsService } from '@/lib/api/weddingActionsService'
 import { weddingPlaceService } from '@/lib/api/weddingPlaceService'
@@ -46,24 +50,12 @@ function countdownLabel(date: string): string {
   return `Za ${days} dni`
 }
 
-function placeToGeo(place: WeddingPlace | null | undefined): GeoPlace | null {
-  if (!place) return null
-  return {
-    placeId: place.placeId,
-    formattedAddress: place.formattedAddress,
-    latitude: place.latitude,
-    longitude: place.longitude,
-    label: place.label,
-  }
-}
-
 /** Display text from wedding_places only — never wedding scalar / form fallbacks. */
 function placeDisplayText(place: WeddingPlace | null | undefined): string {
   if (!place) return ''
-  return shortLocationDisplay({
-    label: place.label,
-    formattedAddress: place.formattedAddress,
-  })
+  const display = getWeddingLocationDisplay(place, '')
+  if (display.secondary) return `${display.primary} · ${display.secondary}`
+  return display.primary
 }
 
 /**
@@ -98,24 +90,32 @@ export function WeddingDetailHero({
       role: WeddingPlaceRole
       place: GeoPlace | null
     }) => {
+      const existing = await weddingPlaceService.getByRole(
+        weddingId,
+        input.role,
+      )
       if (!input.place) {
         await weddingPlaceService.removeByRole(weddingId, input.role)
-      } else {
-        await weddingPlaceService.upsert({
-          weddingId,
-          role: input.role,
-          place: input.place,
-          addressText: input.place.formattedAddress,
-          resolve: false,
-        })
+        return { routeChanged: Boolean(existing) }
+      }
+      await weddingPlaceService.upsert({
+        weddingId,
+        role: input.role,
+        place: input.place,
+        addressText: input.place.formattedAddress,
+        resolve: false,
+      })
+      return {
+        routeChanged: didWeddingLocationRouteChange(existing, input.place),
       }
     },
-    onSuccess: async () => {
+    onSuccess: async (result) => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['wedding-places'] }),
         queryClient.invalidateQueries({ queryKey: ['weddings'] }),
         queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
       ])
+      if (!result?.routeChanged) return
       try {
         await travelService.recalculate(weddingId)
         await queryClient.invalidateQueries({
@@ -127,20 +127,7 @@ export function WeddingDetailHero({
     },
   })
 
-  const name = coupleName(
-    [
-      wedding.couple.partner1FirstName,
-      wedding.couple.partner1LastName,
-    ]
-      .filter(Boolean)
-      .join(' ') || wedding.couple.partner1,
-    [
-      wedding.couple.partner2FirstName,
-      wedding.couple.partner2LastName,
-    ]
-      .filter(Boolean)
-      .join(' ') || wedding.couple.partner2,
-  )
+  const name = getWeddingDisplayName(wedding)
   const contractSent = wedding.questionnaires.contractData.status !== 'not_sent'
   const showDeposit = !weddingActionsService.hasDepositPayment(wedding)
 
@@ -193,16 +180,12 @@ export function WeddingDetailHero({
           LOCATION_FIELDS.map(({ role, label }) => {
             const saved = byRole.get(role) ?? null
             return (
-              <LocationSearchField
+              <WeddingLocationEditor
                 key={role}
-                label={label}
-                value={placeDisplayText(saved)}
-                place={placeToGeo(saved)}
-                compactDisplay
-                showSavedHint={false}
+                roleLabel={label}
+                saved={saved}
                 disabled={saveMutation.isPending}
-                placeholder="Zacznij wpisywać adres…"
-                onSelectPlace={async (place) => {
+                onSave={async (place) => {
                   await saveMutation.mutateAsync({ role, place })
                 }}
               />

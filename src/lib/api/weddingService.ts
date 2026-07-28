@@ -120,15 +120,24 @@ async function loadWeddingsOrSeedDemo(userId: string): Promise<WeddingRow[]> {
   return next
 }
 
-async function seedNewWeddingSideEffects(wedding: Wedding): Promise<void> {
+async function seedNewWeddingSideEffects(
+  wedding: Wedding,
+  source: 'manual' | 'spreadsheet_import' = 'manual',
+): Promise<void> {
   const today = new Date().toISOString().slice(0, 10)
   const timeline = await timelineEventService.listByWeddingId(wedding.id)
   if (timeline.length === 0) {
     await timelineEventService.create({
       weddingId: wedding.id,
       type: 'created',
-      title: 'Utworzono zlecenie.',
-      description: 'Ślub dodany do CRM.',
+      title:
+        source === 'spreadsheet_import'
+          ? 'Zaimportowano z arkusza.'
+          : 'Utworzono zlecenie.',
+      description:
+        source === 'spreadsheet_import'
+          ? 'Ślub dodany przez import z pliku.'
+          : 'Ślub dodany do CRM.',
       systemGenerated: true,
       date: today,
     })
@@ -212,7 +221,9 @@ export const weddingService = {
         pkg,
         overrides: {
           packageName: input.packageName || undefined,
-          price: input.price,
+          price: input.creationOptions?.preserveImportedPrice
+            ? input.price
+            : input.price,
           depositAmount: input.depositAmount,
           currency: input.currency,
           accentColor: input.accentColor,
@@ -228,8 +239,10 @@ export const weddingService = {
       })
       commercial = {
         packageId: snap.packageId ?? packageId,
-        packageName: snap.packageName || null,
-        price: snap.price,
+        packageName: snap.packageName || input.packageName || null,
+        price: input.creationOptions?.preserveImportedPrice
+          ? input.price
+          : snap.price,
         depositAmount: snap.depositAmount ?? null,
         currency: snap.currency || DEFAULT_WEDDING_CURRENCY,
         accentColor: snap.accentColor || null,
@@ -252,8 +265,9 @@ export const weddingService = {
         user_id: userId,
         bride_name: input.partner1.trim(),
         groom_name: input.partner2.trim(),
-        email: null,
-        phone: null,
+        display_name: input.displayName?.trim() || null,
+        email: input.email?.trim() || null,
+        phone: input.phone?.trim() || null,
         wedding_date: input.date || null,
         ceremony_time: null,
         venue,
@@ -304,7 +318,10 @@ export const weddingService = {
       receptionLocation: input.receptionLocation?.trim() || undefined,
     }
 
-    await seedNewWeddingSideEffects(withLocations)
+    await seedNewWeddingSideEffects(
+      withLocations,
+      input.creationOptions?.source ?? 'manual',
+    )
 
     if (input.notes?.trim()) {
       await noteService.create({
@@ -330,6 +347,7 @@ export const weddingService = {
       .update({
         bride_name: patch.bride_name,
         groom_name: patch.groom_name,
+        display_name: patch.display_name ?? null,
         email: patch.email,
         phone: patch.phone,
         wedding_date: patch.wedding_date,
@@ -391,6 +409,7 @@ export const weddingService = {
         city: wedding.couple.city || mapped.couple.city,
       },
       accentColor: wedding.accentColor || mapped.accentColor,
+      displayName: wedding.displayName ?? mapped.displayName,
       checklist: wedding.checklist,
       schedule: wedding.schedule,
       finances: wedding.finances,

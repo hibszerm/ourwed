@@ -143,6 +143,8 @@ function storage(events: string[]): DocumentStorageService {
       draftAsset: () => '',
       exportFile: (_userId, _weddingId, documentId, format) =>
         `${documentId}.${format}`,
+      sourceContract: (_userId, _weddingId, sourceContractId, fileName) =>
+        `${sourceContractId}/${fileName}`,
     },
     async upload(_path, file) {
       events.push('upload')

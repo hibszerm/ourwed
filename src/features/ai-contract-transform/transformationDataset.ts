@@ -16,8 +16,9 @@ import {
   looksLikeVenueDisplayName,
 } from './locationInsertionPolicy'
 import { polishContractMoneyWords } from './polishContractMoneyWords'
-import type { StudioPackage } from '@/types/package'
+import type { StudioPackage, WeddingExtraService } from '@/types/package'
 import type { Wedding } from '@/types/wedding'
+import { buildDatasetAdditionalServices } from './insertAdditionalServices'
 import type { ContractTransformationDataset } from './types'
 
 function plDate(isoOrDisplay: string | null | undefined): string | undefined {
@@ -111,6 +112,13 @@ export function collectDatasetTargetStrings(
   push('finances.remainingFormatted', dataset.finances.remainingFormatted)
   push('finances.remainingWords', dataset.finances.remainingWords)
   push('package.name', dataset.package.name)
+  for (const svc of dataset.additionalServices ?? []) {
+    push('additionalServices.name', svc.name)
+  }
+  push(
+    'additionalServices.displayText',
+    dataset.additionalServicesDisplayText,
+  )
   return out
 }
 
@@ -118,6 +126,8 @@ export function buildContractTransformationDataset(input: {
   wedding: Wedding
   package: Pick<StudioPackage, 'id' | 'name'>
   currentDate?: string
+  /** Wedding extra services from wedding_extra_services (joined catalog names). */
+  extras?: WeddingExtraService[]
 }): ContractTransformationDataset {
   const { wedding, package: pkg } = input
   const commercial = getWeddingCommercialSummary(wedding)
@@ -195,6 +205,8 @@ export function buildContractTransformationDataset(input: {
   if (ceremony) locations.ceremony = ceremony
   if (reception) locations.reception = reception
 
+  const extraProjection = buildDatasetAdditionalServices(input.extras ?? [])
+
   const dataset: ContractTransformationDataset = {
     clients: {
       displayNames,
@@ -209,6 +221,19 @@ export function buildContractTransformationDataset(input: {
     locations,
     finances,
     package: pkg.name?.trim() ? { name: pkg.name.trim() } : {},
+    ...(extraProjection.additionalServices.length > 0
+      ? {
+          additionalServices: extraProjection.additionalServices,
+          additionalServicesDisplayText:
+            extraProjection.additionalServicesDisplayText,
+          additionalServicesExpectation: {
+            expectedNames: extraProjection.additionalServices.map((s) => s.name),
+            shouldAppear: true,
+            pricesMustNotAppear: true as const,
+            quantitiesMustNotAppear: true as const,
+          },
+        }
+      : {}),
   }
 
   return dataset

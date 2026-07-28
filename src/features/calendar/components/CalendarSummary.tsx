@@ -1,4 +1,5 @@
-import { coupleName, formatDate, getDaysUntil } from '@/lib/utils/dates'
+import { formatDate, getDaysUntil } from '@/lib/utils/dates'
+import { getWeddingDisplayName } from '@/features/weddings/presentation/getWeddingDisplayName'
 import { formatCurrency } from '@/lib/utils/currency'
 import {
   getMonthlyContractValue,
@@ -35,7 +36,7 @@ export function CalendarSummary({ weddings, anchor }: CalendarSummaryProps) {
           <>
             <p className={styles.value}>{formatDate(nearest.date)}</p>
             <p className={styles.couple}>
-              {coupleName(nearest.couple.partner1, nearest.couple.partner2)}
+              {getWeddingDisplayName(nearest)}
             </p>
             <span className={styles.meta}>{countdownLabel(nearest.date)}</span>
           </>

@@ -518,6 +518,17 @@ export function buildExpectationManifest(input: {
     )
   }
 
+  const additionalServices: import('./types').AdditionalServicesExpectation | undefined =
+    dataset.additionalServicesExpectation ??
+    (dataset.additionalServices && dataset.additionalServices.length > 0
+      ? {
+          expectedNames: dataset.additionalServices.map((s) => s.name),
+          shouldAppear: true,
+          pricesMustNotAppear: true,
+          quantitiesMustNotAppear: true,
+        }
+      : undefined)
+
   // silence unused import warnings for clause renderers (used by repairs / prompts consumers)
   void renderPreparationLocationClause
   void renderCeremonyLocationClause
@@ -530,5 +541,6 @@ export function buildExpectationManifest(input: {
     consistencyRules,
     sourceSpecificValues,
     requiredReplacements,
+    ...(additionalServices ? { additionalServices } : {}),
   }
 }

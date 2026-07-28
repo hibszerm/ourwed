@@ -123,6 +123,9 @@ create table public.weddings (
 comment on table public.weddings is
   'Core project entity. All wedding-scoped records reference this table.';
 
+-- display_name added in migration 20260728140000_wedding_display_name.sql
+-- (UI-only title; ignored by contracts and questionnaires)
+
 comment on column public.weddings.workflow_stage is
   'Pipeline stage only — workflow engine rules live in application code.';
 

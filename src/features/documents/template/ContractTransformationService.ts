@@ -81,6 +81,7 @@ import {
 } from './postGenerationAudit'
 import { assertOvertimeValueSource } from './numericSemanticFamily'
 import { formatContractDateShort } from '@/lib/utils/contractCommercialVariables'
+import type { FinalContractGenerationArtifact } from './finalContractGenerationArtifact'
 
 export interface TransformContractInput {
   wedding: Wedding
@@ -132,6 +133,11 @@ export interface TransformContractResult {
   } | null
   paymentDueRule: PaymentDueRule | null
   postGenerationAudit: PostGenerationAuditResult
+  /**
+   * Frozen generation artifact — preview, save, and PDF must share these bytes
+   * and fingerprints. Present for sparse full-AI generation.
+   */
+  finalArtifact?: FinalContractGenerationArtifact | null
 }
 
 function allowedValuesList(

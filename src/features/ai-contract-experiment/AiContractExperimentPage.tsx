@@ -14,7 +14,7 @@ import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
 import { isAiContractLabEnabled } from '@/features/ai-contract-lab/aiContractLabFlags'
 import { packageService } from '@/lib/api/packageService'
 import { weddingService } from '@/lib/api/weddingService'
-import { coupleName } from '@/lib/utils/dates'
+import { getWeddingDisplayName } from '@/features/weddings/presentation/getWeddingDisplayName'
 import {
   buildTestDownloadFileName,
   createExperimentTemplateFromDocx,
@@ -130,7 +130,7 @@ function ExperimentInner() {
       .join(' i ')
     return [
       `Pakiet: ${selectedPackage.name}`,
-      `Ślub: ${coupleName(selectedWedding.couple.partner1, selectedWedding.couple.partner2)}`,
+      `Ślub: ${getWeddingDisplayName(selectedWedding)}`,
       `Data: ${selectedWedding.date ?? '—'}`,
       `Klienci: ${clients || '—'}`,
       `Przyjęcie: ${selectedWedding.receptionLocation ?? '—'}`,
@@ -317,7 +317,7 @@ function ExperimentInner() {
                   <option value="">Wybierz ślub</option>
                   {weddings.map((w) => (
                     <option key={w.id} value={w.id}>
-                      {coupleName(w.couple.partner1, w.couple.partner2)} —{' '}
+                      {getWeddingDisplayName(w)} —{' '}
                       {w.date ?? 'bez daty'}
                     </option>
                   ))}

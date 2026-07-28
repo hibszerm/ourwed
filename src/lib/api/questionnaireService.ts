@@ -31,7 +31,10 @@ import {
   formatLocationAnswer,
   normalizeSelectedPackageIds,
 } from '@/lib/forms/contractQuestionnaireSnapshot'
-import { shortLocationDisplay } from '@/features/travel/shortLocationDisplay'
+import {
+  mergeLocationAnswerWithExisting,
+  normalizeLocationAnswer,
+} from '@/features/travel/weddingLocationModel'
 import type {
   FormAnswerJson,
   FormAnswerRecord,
@@ -207,49 +210,44 @@ function searchFromWedding(wedding: Wedding): QuestionnaireSearchFields {
 }
 
 /**
- * Geocode questionnaire address texts into wedding_places (same path as Hero).
- * Google Places resolution via travelProvider.getCoordinates; failed geocodes still
- * store the couple's original text without place_id or coordinates
- * (needs verification). Never aborts approval.
+ * Apply questionnaire location answers into wedding_places.
+ * Preserves structured name + address; never invents a venue name from a street.
+ * Never silently overwrites an existing meaningful venue name with address-only data.
  */
 async function syncQuestionnaireLocationsToPlaces(
   weddingId: string,
   locations: {
-    bridePreparation?: string
-    groomPreparation?: string
-    ceremony?: string
-    reception?: string
+    bridePreparation?: unknown
+    groomPreparation?: unknown
+    ceremony?: unknown
+    reception?: unknown
   },
 ): Promise<void> {
-  const pairs: Array<{ role: WeddingPlaceRole; text: string }> = [
-    {
-      role: 'bride_preparation',
-      text: locations.bridePreparation?.trim() || '',
-    },
-    {
-      role: 'groom_preparation',
-      text: locations.groomPreparation?.trim() || '',
-    },
-    { role: 'ceremony', text: locations.ceremony?.trim() || '' },
-    { role: 'reception', text: locations.reception?.trim() || '' },
+  const pairs: Array<{ role: WeddingPlaceRole; value: unknown }> = [
+    { role: 'bride_preparation', value: locations.bridePreparation },
+    { role: 'groom_preparation', value: locations.groomPreparation },
+    { role: 'ceremony', value: locations.ceremony },
+    { role: 'reception', value: locations.reception },
   ]
 
-  for (const { role, text } of pairs) {
-    if (!text) continue
-    const label = shortLocationDisplay({ formattedAddress: text })
+  for (const { role, value } of pairs) {
+    const incoming = normalizeLocationAnswer(value)
+    if (!incoming.name && !incoming.formattedAddress) continue
+
+    const existing = await weddingPlaceService.getByRole(weddingId, role)
+    const geo = mergeLocationAnswerWithExisting(incoming, existing)
+    if (!geo.formattedAddress?.trim() && !geo.label?.trim()) continue
+
     try {
       await weddingPlaceService.upsert({
         weddingId,
         role,
-        addressText: text,
-        place: {
-          placeId: null,
-          formattedAddress: text,
-          latitude: null,
-          longitude: null,
-          label,
-        },
-        resolve: true,
+        addressText: geo.formattedAddress,
+        place: geo,
+        resolve: Boolean(
+          geo.formattedAddress?.trim() &&
+            (geo.latitude == null || geo.longitude == null),
+        ),
       })
     } catch (err) {
       console.warn(
@@ -260,13 +258,12 @@ async function syncQuestionnaireLocationsToPlaces(
         await weddingPlaceService.upsert({
           weddingId,
           role,
-          addressText: text,
+          addressText: geo.formattedAddress,
           place: {
+            ...geo,
             placeId: null,
-            formattedAddress: text,
             latitude: null,
             longitude: null,
-            label,
           },
           resolve: false,
         })
@@ -748,11 +745,14 @@ export const questionnaireService = {
       })
 
       // Normalize locations → wedding_places (Hero / Travel source of truth).
+      const answerFields = answers.answerJson
+        ? extractAnswerFields(answers.answerJson)
+        : {}
       await syncQuestionnaireLocationsToPlaces(wedding.id, {
-        bridePreparation: summary.bridePreparationLocation,
-        groomPreparation: summary.groomPreparationLocation,
-        ceremony: summary.ceremonyLocation,
-        reception: summary.receptionLocation,
+        bridePreparation: answerFields.bridePreparationLocation,
+        groomPreparation: answerFields.groomPreparationLocation,
+        ceremony: answerFields.ceremonyLocation,
+        reception: answerFields.receptionLocation,
       })
 
       try {

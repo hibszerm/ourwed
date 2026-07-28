@@ -7,6 +7,8 @@ import { WeddingDetailPage } from '@/pages/WeddingDetailPage'
 import { WeddingContractGenerationPage } from '@/pages/WeddingContractGenerationPage'
 import { WeddingContractPreviewPage } from '@/pages/WeddingContractPreviewPage'
 import { NewWeddingPage } from '@/pages/NewWeddingPage'
+import { WeddingImportPage } from '@/pages/WeddingImportPage'
+import { WeddingContractRecoveryPage } from '@/pages/WeddingContractRecoveryPage'
 import { CalendarPage } from '@/pages/CalendarPage'
 import { ContractQuestionnaireEditorPage } from '@/pages/ContractQuestionnaireEditorPage'
 import { QuestionnaireDetailPage } from '@/pages/QuestionnaireDetailPage'
@@ -115,6 +117,11 @@ export const router = createBrowserRouter([
       { path: '/dashboard-v2', element: <DashboardV2Page /> },
       { path: '/sluby', element: <WeddingsPage /> },
       { path: '/sluby/nowy', element: <NewWeddingPage /> },
+      { path: '/sluby/import', element: <WeddingImportPage /> },
+      {
+        path: '/sluby/:weddingId/uzupelnij-z-umowy',
+        element: <WeddingContractRecoveryPage />,
+      },
       {
         path: '/sluby/:weddingId/umowy/nowa',
         element: <WeddingContractGenerationPage />,

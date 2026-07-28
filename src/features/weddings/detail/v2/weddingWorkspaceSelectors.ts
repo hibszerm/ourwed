@@ -1,4 +1,5 @@
-import { coupleName, formatDate, getCountdownParts } from '@/lib/utils/dates'
+import { formatDate, getCountdownParts } from '@/lib/utils/dates'
+import { getWeddingDisplayName } from '@/features/weddings/presentation/getWeddingDisplayName'
 import {
   formatDeliveryTerm,
   getWeddingCommercialSummary,
@@ -6,6 +7,8 @@ import {
 import { formatFinalPaymentTerms } from '@/lib/utils/finalPaymentTerms'
 import { formatCurrency } from '@/lib/utils/currency'
 import { locationVerificationStatus } from '@/features/travel/locationVerification'
+import { adaptLegacyWeddingLocationFields } from '@/features/travel/weddingLocationModel'
+import { getWeddingPrimaryLocationSummary } from '@/features/weddings/presentation/getWeddingPrimaryLocationSummary'
 import {
   WORKFLOW_STAGE_DESCRIPTIONS,
   WORKFLOW_STAGE_LABELS,
@@ -68,14 +71,12 @@ export function parseWorkspaceTab(raw: string | null): WeddingWorkspaceTab {
 }
 
 export function getCoupleDisplayName(couple: Couple): string {
-  return coupleName(
-    [couple.partner1FirstName, couple.partner1LastName]
-      .filter(Boolean)
-      .join(' ') || couple.partner1,
-    [couple.partner2FirstName, couple.partner2LastName]
-      .filter(Boolean)
-      .join(' ') || couple.partner2,
-  )
+  return getWeddingDisplayName({ couple })
+}
+
+/** Prefer this over getCoupleDisplayName — respects wedding.displayName. */
+export function getWeddingWorkspaceTitle(wedding: Wedding): string {
+  return getWeddingDisplayName(wedding)
 }
 
 export function getWeddingDateLabel(date: string): string {
@@ -96,13 +97,23 @@ export function getReceptionDisplayName(
   places: WeddingPlace[],
 ): string {
   const reception = places.find((p) => p.role === 'reception')
-  const label = reception?.label?.trim()
-  if (label) return label
-  const formatted = reception?.formattedAddress?.trim()
-  if (formatted) return formatted
-  const scalar = wedding.receptionLocation?.trim()
-  if (scalar) return scalar
-  return 'Miejsce przyjęcia nieuzupełnione'
+  const summary = getWeddingPrimaryLocationSummary(
+    {
+      ...wedding,
+      primaryLocation: undefined,
+      ceremonyLocation: undefined,
+      bridePreparationLocation: undefined,
+      groomPreparationLocation: undefined,
+      preparationLocation: undefined,
+      couple: {
+        ...wedding.couple,
+        venue: '',
+        city: '',
+      },
+    },
+    reception ? [reception] : [],
+  )
+  return summary.displayText || 'Miejsce przyjęcia nieuzupełnione'
 }
 
 export function getReceptionPlace(
@@ -153,7 +164,6 @@ export function getWeddingLocationItems(
   return LOCATION_ROLES.map(({ role, label }) => {
     const place = byRole.get(role)
     const status = locationVerificationStatus(place)
-    const address = place?.formattedAddress?.trim() || ''
     const scalarFallback =
       role === 'bride_preparation'
         ? wedding.bridePreparationLocation || wedding.preparationLocation
@@ -162,15 +172,21 @@ export function getWeddingLocationItems(
           : role === 'ceremony'
             ? wedding.ceremonyLocation
             : wedding.receptionLocation
-    const display =
-      address || place?.label?.trim() || scalarFallback?.trim() || ''
+
+    const adapted = place
+      ? adaptLegacyWeddingLocationFields(place)
+      : {
+          name: null as string | null,
+          formattedAddress: scalarFallback?.trim() || null,
+        }
+
     return {
       role,
       label,
-      address: display,
-      placeName: place?.label?.trim() || null,
+      address: adapted.formattedAddress || '',
+      placeName: adapted.name,
       verified: status === 'verified',
-      empty: !display,
+      empty: !adapted.name && !adapted.formattedAddress,
       placeId: place?.placeId ?? null,
       latitude: place?.latitude ?? null,
       longitude: place?.longitude ?? null,

@@ -109,7 +109,12 @@ run('editing saves Google metadata (LocationSearchField)', () => {
     resolve(process.cwd(), 'src/features/travel/LocationSearchField.tsx'),
     'utf8',
   )
-  assert(src.includes("provider: 'google'"), 'writes google')
+  assert(src.includes('mapSuggestionAndResolvedToGeoPlace'), 'maps selection')
+  const model = readFileSync(
+    resolve(process.cwd(), 'src/features/travel/weddingLocationModel.ts'),
+    'utf8',
+  )
+  assert(model.includes("provider: resolved.provider ?? 'google'"), 'writes google')
 })
 
 run('TravelMap uses Google Maps JS (no MapLibre/OSM)', () => {

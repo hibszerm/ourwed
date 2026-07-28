@@ -20,6 +20,8 @@ export interface GooglePlaceDetailsLike {
   formattedAddress?: string
   addressComponents?: GoogleAddressComponent[]
   location?: { latitude?: number; longitude?: number }
+  displayName?: { text?: string; languageCode?: string }
+  types?: string[]
 }
 
 export interface GooglePlacePredictionLike {
@@ -68,10 +70,14 @@ export function mapGooglePlaceToNormalized(
     [street, buildingNumber, postalCode, city].filter(Boolean).join(', ') ||
     'Adres'
 
+  const displayName = place.displayName?.text?.trim() || undefined
+
   return {
     formattedAddress: formatted,
     placeId: place.id?.trim() || undefined,
     provider: 'google',
+    name: displayName,
+    types: Array.isArray(place.types) ? place.types.filter(Boolean) : undefined,
     street,
     buildingNumber,
     apartmentNumber,
@@ -123,6 +129,8 @@ export function stripRawGoogleFields(
     formattedAddress: value.formattedAddress,
     placeId: value.placeId,
     provider: 'google',
+    name: value.name,
+    types: value.types,
     street: value.street,
     buildingNumber: value.buildingNumber,
     apartmentNumber: value.apartmentNumber,

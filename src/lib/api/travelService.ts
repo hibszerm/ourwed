@@ -1,5 +1,6 @@
 import { studioTravelSettingsService } from '@/lib/api/studioTravelSettingsService'
 import { weddingPlaceService } from '@/lib/api/weddingPlaceService'
+import { weddingPlaceRouteLabel } from '@/features/travel/weddingLocationModel'
 import { supabase } from '@/lib/supabase'
 import { nowIso, throwOnError, toNumber } from '@/lib/supabase/helpers'
 import { TRAVEL_SEGMENTS_ON_CONFLICT } from '@/lib/travel/travelSegmentsIdentity'
@@ -137,7 +138,7 @@ function studioEndpoint(
   return {
     kind: 'studio',
     place: null,
-    label: studio!.studioName || studio!.formattedAddress || 'Studio',
+    label: studio!.studioName || studio!.formattedAddress || 'Baza firmy',
     lat: studio!.latitude!,
     lng: studio!.longitude!,
   }
@@ -148,7 +149,7 @@ function placeEndpoint(place: WeddingPlace | undefined): EndpointRef | null {
   return {
     kind: 'wedding_place',
     place,
-    label: place.label || place.formattedAddress,
+    label: weddingPlaceRouteLabel(place, place.label || place.formattedAddress),
     lat: place.latitude!,
     lng: place.longitude!,
   }
@@ -585,10 +586,13 @@ export const travelService = {
     const placeName = (id: string | null) => {
       if (!id) return '—'
       const place = places.find((p) => p.id === id)
-      return place?.label || place?.formattedAddress || '—'
+      if (!place) return '—'
+      return weddingPlaceRouteLabel(place, place.formattedAddress || '—')
     }
     const studioName =
-      studio?.studioName || studio?.formattedAddress || 'Studio'
+      studio?.studioName?.trim() ||
+      studio?.formattedAddress?.trim() ||
+      'Baza firmy'
 
     return {
       from:

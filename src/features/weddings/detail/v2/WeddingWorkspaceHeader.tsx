@@ -3,12 +3,12 @@ import { Button } from '@/components/ui/Button'
 import { IconMapPin } from '@/components/icons'
 import { WorkflowBadge } from '@/components/ui/Badge'
 import type { WeddingHeroAction } from '@/features/weddings/detail/weddingHeroActions'
+import { getWeddingDisplayName } from '@/features/weddings/presentation/getWeddingDisplayName'
 import {
-  getCoupleDisplayName,
-  getReceptionDisplayName,
   getWeddingCountdownLabel,
   getWeddingDateLabel,
 } from '@/features/weddings/detail/v2/weddingWorkspaceSelectors'
+import { getWeddingPrimaryLocationSummary } from '@/features/weddings/presentation/getWeddingPrimaryLocationSummary'
 import type { WeddingPlace } from '@/types/travel'
 import type { Wedding } from '@/types/wedding'
 import { weddingActionsService } from '@/lib/api/weddingActionsService'
@@ -42,12 +42,17 @@ export function WeddingWorkspaceHeader({
     return () => document.removeEventListener('mousedown', onDoc)
   }, [moreOpen])
 
+  const locationSummary = getWeddingPrimaryLocationSummary(wedding, places)
+  const venueLine = [locationSummary.displayText, wedding.packageName?.trim()]
+    .filter(Boolean)
+    .join(' · ')
+
   return (
     <header className={styles.commandHeader} data-testid="wedding-workspace-header">
       <div className={styles.commandMain}>
         <div className={styles.commandIdentity}>
           <h1 className={styles.commandTitle}>
-            {getCoupleDisplayName(wedding.couple)}
+            {getWeddingDisplayName(wedding)}
           </h1>
           <p className={styles.commandMetaLine}>
             <time>{getWeddingDateLabel(wedding.date)}</time>
@@ -58,15 +63,14 @@ export function WeddingWorkspaceHeader({
               </>
             ) : null}
           </p>
-          <p className={styles.commandVenueLine}>
-            <IconMapPin width={14} height={14} aria-hidden />
-            <span>
-              {getReceptionDisplayName(wedding, places)}
-              {wedding.packageName?.trim()
-                ? ` · ${wedding.packageName.trim()}`
-                : ''}
-            </span>
-          </p>
+          {venueLine ? (
+            <p className={styles.commandVenueLine}>
+              <IconMapPin width={14} height={14} aria-hidden />
+              <span title={locationSummary.displayText ?? undefined}>
+                {venueLine}
+              </span>
+            </p>
+          ) : null}
           <div className={styles.commandPills}>
             <WorkflowBadge stage={wedding.workflowStage} />
             {wedding.status === 'archived' ? (

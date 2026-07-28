@@ -4,7 +4,8 @@
  */
 
 import type { Notification, Task, Wedding } from '@/types/wedding'
-import { coupleName, getDaysUntil } from '@/lib/utils/dates'
+import { getDaysUntil } from '@/lib/utils/dates'
+import { getWeddingDisplayName } from '@/features/weddings/presentation/getWeddingDisplayName'
 import {
   getWorkflowProgress,
   WORKFLOW_STAGE_LABELS,
@@ -89,7 +90,7 @@ function money(n: number, currency = 'PLN'): string {
 }
 
 function weddingLabel(w: Wedding): string {
-  return coupleName(w.couple.partner1, w.couple.partner2)
+  return getWeddingDisplayName(w)
 }
 
 function unpaidRemaining(w: Wedding): number {

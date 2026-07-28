@@ -2,7 +2,8 @@ import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/Button'
 import { WorkflowBadge } from '@/components/ui/Badge'
 import { IconMapPin } from '@/components/icons'
-import { coupleName, formatDate, getDaysUntil } from '@/lib/utils/dates'
+import { formatDate, getDaysUntil } from '@/lib/utils/dates'
+import { getWeddingDisplayName } from '@/features/weddings/presentation/getWeddingDisplayName'
 import { getWorkflowStatus } from '@/lib/workflow/workflowEngine'
 import { getWeddingsInMonth } from '@/lib/utils/weddingMetrics'
 import { formatMonthTitle, startOfMonth, toDateKey } from '../utils/calendarDates'
@@ -34,7 +35,7 @@ function MonthWeddingCard({
   onOpenWedding?: (wedding: Wedding) => void
 }) {
   const status = getWorkflowStatus(wedding)
-  const name = coupleName(wedding.couple.partner1, wedding.couple.partner2)
+  const name = getWeddingDisplayName(wedding)
   const countdown = countdownLabel(wedding.date)
   const ceremony = wedding.ceremonyLocation ?? '—'
   const reception = wedding.receptionLocation ?? '—'

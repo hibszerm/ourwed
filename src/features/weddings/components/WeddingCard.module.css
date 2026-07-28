@@ -97,6 +97,7 @@
   font-size: var(--text-sm);
   color: var(--color-text-secondary);
   min-width: 0;
+  margin-bottom: var(--space-4);
 }
 
 .detailText {
@@ -114,26 +115,14 @@
 .footer {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: var(--space-4);
   padding-top: var(--space-4);
   border-top: 1px solid var(--color-border);
-  flex-wrap: wrap;
-}
-
-.progress {
-  flex: 1;
-  min-width: 0;
-}
-
-.progressLabel {
-  font-size: var(--text-xs);
-  color: var(--color-text-tertiary);
-  display: block;
-  margin-bottom: var(--space-2);
 }
 
 .dateBlock {
-  text-align: right;
+  text-align: left;
   flex-shrink: 0;
 }
 
@@ -153,6 +142,7 @@
 .chevron {
   color: var(--color-text-tertiary);
   flex-shrink: 0;
+  margin-left: auto;
 }
 
 .openAction {
@@ -193,11 +183,5 @@ button.link {
 @media (max-width: 767px) {
   .footer {
     gap: var(--space-3);
-  }
-
-  .dateBlock {
-    text-align: left;
-    width: 100%;
-    order: -1;
   }
 }

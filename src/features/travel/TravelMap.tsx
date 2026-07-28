@@ -22,13 +22,34 @@ export interface TravelMapProps {
   encodedPolyline?: string | null
 }
 
-type LngLatPoint = { latitude: number; longitude: number; title?: string }
+type LngLatPoint = {
+  latitude: number
+  longitude: number
+  title?: string
+  kind?: 'studio' | 'wedding_place'
+  markerIndex?: number
+}
 
 type MapStatus = 'loading' | 'ready' | 'empty' | 'missing_key' | 'error'
 
 const POLAND_CENTER = { lat: 52.1, lng: 19.4 }
 const DEFAULT_ZOOM = 6
 const SINGLE_ZOOM = 12
+
+function markerLabelText(point: LngLatPoint, fallbackIndex: number): string {
+  if (point.kind === 'studio') return 'Start'
+  if (point.markerIndex != null && point.markerIndex > 0) {
+    return String(point.markerIndex)
+  }
+  return String(fallbackIndex)
+}
+
+function markerAriaLabel(point: LngLatPoint, label: string): string {
+  if (point.kind === 'studio') {
+    return point.title ? `Start. ${point.title}` : 'Punkt startowy'
+  }
+  return point.title ? `${label}. ${point.title}` : `Przystanek ${label}`
+}
 
 function coordsKey(points: LngLatPoint[], polyline: string): string {
   return `${points.map((p) => `${p.latitude},${p.longitude}`).join('|')}::${polyline}`
@@ -63,6 +84,11 @@ export function TravelMap({ stops, encodedPolyline = null }: TravelMapProps) {
     latitude: s.latitude,
     longitude: s.longitude,
     title: s.title || s.address,
+    kind: s.kind,
+    markerIndex:
+      'markerIndex' in s && typeof (s as { markerIndex?: unknown }).markerIndex === 'number'
+        ? (s as { markerIndex: number }).markerIndex
+        : undefined,
   }))
   const poly = (encodedPolyline ?? '').trim()
   const dataKey = coordsKey(points, poly)
@@ -129,15 +155,14 @@ export function TravelMap({ stops, encodedPolyline = null }: TravelMapProps) {
             points.forEach((p, index) => {
               const position = { lat: p.latitude, lng: p.longitude }
               bounds.extend(position)
+              const label = markerLabelText(p, index + 1)
               const content = document.createElement('div')
-              content.className = styles.marker
-              content.textContent = String(index + 1)
-              content.setAttribute(
-                'aria-label',
-                p.title
-                  ? `${index + 1}. ${p.title}`
-                  : `Przystanek ${index + 1}`,
-              )
+              content.className =
+                p.kind === 'studio'
+                  ? `${styles.marker} ${styles.markerStart}`
+                  : styles.marker
+              content.textContent = label
+              content.setAttribute('aria-label', markerAriaLabel(p, label))
               const marker = new markerLib.AdvancedMarkerElement({
                 map,
                 position,
@@ -155,15 +180,16 @@ export function TravelMap({ stops, encodedPolyline = null }: TravelMapProps) {
           points.forEach((p, index) => {
             const position = { lat: p.latitude, lng: p.longitude }
             bounds.extend(position)
+            const label = markerLabelText(p, index + 1)
             const marker = new google.maps.Marker({
               map,
               position,
               title: p.title,
               label: {
-                text: String(index + 1),
+                text: label,
                 color: '#ffffff',
                 fontWeight: '700',
-                fontSize: '12px',
+                fontSize: label === 'Start' ? '9px' : '12px',
               },
             })
             markersRef.current.push(marker)

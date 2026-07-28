@@ -150,6 +150,7 @@ export async function applyLocalModeA(input: {
         sourceBytes: input.sourceBytes,
         sourceBlocks: input.sourceBlocks,
         transformedBlocks: aligned,
+        paragraphInsertions: gate.paragraphInsertions,
       })
       downloadAvailable = true
     } catch {
@@ -216,6 +217,9 @@ export type SparseProductTransformSuccess = {
   outputBytes: ArrayBuffer
   transformedBlocks: TransformedBlock[]
   sourceBlocks: TransformDocumentBlock[]
+  paragraphInsertions: ReturnType<
+    typeof runPostReconstructionQualityGate
+  >['paragraphInsertions']
   promptVersion: string
   responseVersion: string
   model?: string
@@ -332,12 +336,14 @@ export async function runSparseProductTransform(input: {
       sourceBytes: input.sourceBytes,
       sourceBlocks: input.sourceBlocks,
       transformedBlocks: aligned,
+      paragraphInsertions: gate.paragraphInsertions,
     })
     return {
       ok: true,
       outputBytes,
       transformedBlocks: gate.blocks,
       sourceBlocks: input.sourceBlocks,
+      paragraphInsertions: gate.paragraphInsertions,
       promptVersion: FULL_AI_PROMPT_VERSION,
       responseVersion: edge.responseVersion ?? FULL_AI_RESPONSE_VERSION,
       model: edge.model,
@@ -465,6 +471,7 @@ export async function runGuardedProductTransform(input: {
       sourceBytes: input.sourceBytes,
       sourceBlocks: input.sourceBlocks,
       transformedBlocks: gate.blocks,
+      paragraphInsertions: gate.paragraphInsertions,
     })
     return {
       ok: true,
@@ -543,6 +550,7 @@ export async function applyLocalModeB(input: {
         sourceBytes: input.sourceBytes,
         sourceBlocks: input.sourceBlocks,
         transformedBlocks: gate.blocks,
+        paragraphInsertions: gate.paragraphInsertions,
       })
       downloadAvailable = true
     } catch {

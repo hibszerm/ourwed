@@ -188,6 +188,9 @@ const lazyDocumentStorage: DocumentStorageService = {
     exportFile(userId, weddingId, documentId, format) {
       return `${userId}/weddings/${weddingId}/exports/${documentId}.${format}`
     },
+    sourceContract(userId, weddingId, sourceContractId, fileName) {
+      return `${userId}/weddings/${weddingId}/source-contracts/${sourceContractId}/${fileName}`
+    },
   },
   async upload(...args) {
     const { documentStorage } = await import('@/lib/api/documents/storage')

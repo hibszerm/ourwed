@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { IconCheck } from '@/components/icons'
-import { coupleName, formatShortDate } from '@/lib/utils/dates'
+import { formatShortDate } from '@/lib/utils/dates'
+import { getWeddingDisplayName } from '@/features/weddings/presentation/getWeddingDisplayName'
 import type { Task, Wedding } from '@/types/wedding'
 import styles from './TodoTodayCard.module.css'
 
@@ -56,9 +57,7 @@ export function TodoTodayCard({
         <ul className={styles.list}>
           {visible.map((task, i) => {
             const wedding = weddingById.get(task.weddingId)
-            const couple = wedding
-              ? coupleName(wedding.couple.partner1, wedding.couple.partner2)
-              : null
+            const couple = wedding ? getWeddingDisplayName(wedding) : null
 
             const bodyClass = styles.body
             const bodyLabel = couple ? `Otwórz ślub: ${couple}` : task.title

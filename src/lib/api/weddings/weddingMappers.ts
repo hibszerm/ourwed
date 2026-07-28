@@ -25,6 +25,8 @@ export interface WeddingRow {
   user_id: string
   bride_name: string
   groom_name: string
+  /** UI-only title; never read by contract/questionnaire pipelines. */
+  display_name?: string | null
   email: string | null
   phone: string | null
   wedding_date: string | null
@@ -170,6 +172,7 @@ export function mapWeddingRowToModel(row: WeddingRow): Wedding {
       venue,
       city: '',
     },
+    displayName: row.display_name?.trim() || null,
     date: toDateString(row.wedding_date),
     ceremonyTime: ceremonyTimeToInput(row.ceremony_time),
     status: isWeddingStatus(row.status) ? row.status : 'active',
@@ -239,6 +242,7 @@ export function mapWeddingModelToRow(
   return {
     bride_name: brideName,
     groom_name: groomName,
+    display_name: wedding.displayName?.trim() || null,
     email,
     phone,
     wedding_date: wedding.date || null,

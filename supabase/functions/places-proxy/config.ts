@@ -19,14 +19,16 @@ export const PLACES_PROXY_CONFIG = {
     'suggestions.placePrediction.structuredFormat',
   ].join(','),
   /**
-   * Place Details (New) — Essentials-tier address fields only.
-   * Avoids Pro/Enterprise SKUs.
+   * Place Details (New) — address essentials + displayName/types for venue names.
+   * displayName is required so establishment names (e.g. Villa Love) survive resolve.
    */
   placeDetailsFieldMask: [
     'id',
     'formattedAddress',
     'addressComponents',
     'location',
+    'displayName',
+    'types',
   ].join(','),
   providerTimeoutMs: 12_000,
   /** Simple in-memory rate limit per client key (IP / anon). */

@@ -6,6 +6,8 @@ import { paymentService } from '@/lib/api/paymentService'
 import { timelineEventService } from '@/lib/api/timelineEventService'
 import { weddingPlaceService } from '@/lib/api/weddingPlaceService'
 import { mergeFormAnswersIntoWedding } from '@/lib/forms/mergeFormAnswersIntoWedding'
+import { buildWeddingPrimaryLocationFromPlaces } from '@/features/weddings/presentation/getWeddingPrimaryLocationSummary'
+import type { WeddingPlace } from '@/types/travel'
 import type { Wedding, WeddingContract } from '@/types/wedding'
 
 function applyGalleryToDeliverables(
@@ -40,35 +42,55 @@ async function hydrateWeddingFromContractForm(
 
 /**
  * Operational locations from wedding_places override free-text when present.
- * Keeps legacy form/venue text as fallback for display.
+ * Also attaches compact primaryLocation for list/dashboard/header.
  */
+function applyWeddingPlaces(
+  wedding: Wedding,
+  places: WeddingPlace[],
+): Wedding {
+  if (places.length === 0) {
+    return {
+      ...wedding,
+      primaryLocation: buildWeddingPrimaryLocationFromPlaces(wedding, []),
+    }
+  }
+
+  const byRole = new Map(places.map((p) => [p.role, p]))
+  const withScalars: Wedding = {
+    ...wedding,
+    preparationLocation:
+      byRole.get('bride_preparation')?.formattedAddress ||
+      byRole.get('preparation')?.formattedAddress ||
+      wedding.preparationLocation,
+    bridePreparationLocation:
+      byRole.get('bride_preparation')?.formattedAddress ||
+      wedding.bridePreparationLocation ||
+      byRole.get('preparation')?.formattedAddress ||
+      wedding.preparationLocation,
+    groomPreparationLocation:
+      byRole.get('groom_preparation')?.formattedAddress ||
+      wedding.groomPreparationLocation,
+    ceremonyLocation:
+      byRole.get('ceremony')?.formattedAddress || wedding.ceremonyLocation,
+    receptionLocation:
+      byRole.get('reception')?.formattedAddress || wedding.receptionLocation,
+  }
+
+  return {
+    ...withScalars,
+    primaryLocation: buildWeddingPrimaryLocationFromPlaces(withScalars, places),
+  }
+}
+
 async function hydrateWeddingPlaces(wedding: Wedding): Promise<Wedding> {
   try {
     const places = await weddingPlaceService.listByWeddingId(wedding.id)
-    if (places.length === 0) return wedding
-
-    const byRole = new Map(places.map((p) => [p.role, p]))
+    return applyWeddingPlaces(wedding, places)
+  } catch {
     return {
       ...wedding,
-      preparationLocation:
-        byRole.get('bride_preparation')?.formattedAddress ||
-        byRole.get('preparation')?.formattedAddress ||
-        wedding.preparationLocation,
-      bridePreparationLocation:
-        byRole.get('bride_preparation')?.formattedAddress ||
-        wedding.bridePreparationLocation ||
-        byRole.get('preparation')?.formattedAddress ||
-        wedding.preparationLocation,
-      groomPreparationLocation:
-        byRole.get('groom_preparation')?.formattedAddress ||
-        wedding.groomPreparationLocation,
-      ceremonyLocation:
-        byRole.get('ceremony')?.formattedAddress || wedding.ceremonyLocation,
-      receptionLocation:
-        byRole.get('reception')?.formattedAddress || wedding.receptionLocation,
+      primaryLocation: buildWeddingPrimaryLocationFromPlaces(wedding, []),
     }
-  } catch {
-    return wedding
   }
 }
 
@@ -124,14 +146,21 @@ export async function finalizeWeddingViews(
 
   const ids = weddings.map((w) => w.id)
 
-  const [paymentsMap, notesMap, timelineMap, contractsMap, galleriesMap] =
-    await Promise.all([
-      paymentService.listByWeddingIds(ids),
-      noteService.listByWeddingIds(ids),
-      timelineEventService.listByWeddingIds(ids),
-      contractService.listByWeddingIds(ids),
-      galleryService.listByWeddingIds(ids),
-    ])
+  const [
+    paymentsMap,
+    notesMap,
+    timelineMap,
+    contractsMap,
+    galleriesMap,
+    placesMap,
+  ] = await Promise.all([
+    paymentService.listByWeddingIds(ids),
+    noteService.listByWeddingIds(ids),
+    timelineEventService.listByWeddingIds(ids),
+    contractService.listByWeddingIds(ids),
+    galleryService.listByWeddingIds(ids),
+    weddingPlaceService.listByWeddingIds(ids),
+  ])
 
   return Promise.all(
     weddings.map(async (wedding) => {
@@ -144,7 +173,7 @@ export async function finalizeWeddingViews(
         galleriesMap.get(wedding.id) ?? null,
       )
       const withForm = await hydrateWeddingFromContractForm(assembled)
-      return hydrateWeddingPlaces(withForm)
+      return applyWeddingPlaces(withForm, placesMap.get(wedding.id) ?? [])
     }),
   )
 }

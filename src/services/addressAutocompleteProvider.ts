@@ -24,6 +24,10 @@ export interface NormalizedAddress {
   formattedAddress: string
   placeId?: string
   provider?: AddressProviderKind
+  /** Semantic place/venue name when known (establishment), never a street-only label. */
+  name?: string
+  /** Provider place types when available (Google Places types). */
+  types?: string[]
   street?: string
   buildingNumber?: string
   apartmentNumber?: string

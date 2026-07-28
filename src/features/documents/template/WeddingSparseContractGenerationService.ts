@@ -13,9 +13,15 @@ import {
 import { documentDraftService, documentTemplateService } from '@/lib/api/documents'
 import { documentStorage } from '@/lib/api/documents/storage'
 import { packageService } from '@/lib/api/packageService'
+import { weddingExtraServiceService } from '@/lib/api/weddingExtraServiceService'
+import { hashDocumentText } from '@/features/documents/ai/hash'
 import type { Wedding } from '@/types/wedding'
 import type { TransformContractResult } from './ContractTransformationService'
-import type { DocxParagraph } from './docxParagraphEditor'
+import { extractDocxParagraphsIncludingEmpty } from './extractDocxParagraphs'
+import {
+  buildFinalContractGenerationArtifact,
+  createGenerationId,
+} from './finalContractGenerationArtifact'
 import {
   createGenerationCorrelationId,
   GenerationPipelineError,
@@ -104,17 +110,6 @@ export async function resolveSparseTemplateSource(input: {
   }
 }
 
-function paragraphsFromTransform(input: {
-  sourceBlocks: Array<{ blockId: string; paragraphIndex: number; text: string }>
-  transformedBlocks: Array<{ blockId: string; text: string }>
-}): DocxParagraph[] {
-  const byId = new Map(input.transformedBlocks.map((b) => [b.blockId, b.text]))
-  return input.sourceBlocks.map((src) => ({
-    index: src.paragraphIndex,
-    text: byId.get(src.blockId) ?? src.text,
-  }))
-}
-
 export const WeddingSparseContractGenerationService = {
   async generate(input: {
     wedding: Wedding
@@ -197,10 +192,15 @@ export const WeddingSparseContractGenerationService = {
           ? input.generationDate
           : input.generationDate?.toISOString()
 
+      const extras = await weddingExtraServiceService.listByWeddingId(
+        input.wedding.id,
+      )
+
       const dataset = buildContractTransformationDataset({
         wedding: input.wedding,
         package: { id: pkg.id, name: pkg.name },
         currentDate,
+        extras,
       })
       logGenerationStage(trace, 'generation_input_build', 'succeeded', {
         blockCount: blocks.length,
@@ -246,14 +246,30 @@ export const WeddingSparseContractGenerationService = {
         durationMs: transform.durationMs,
       })
 
-      const paragraphs = paragraphsFromTransform({
-        sourceBlocks: transform.sourceBlocks,
-        transformedBlocks: transform.transformedBlocks,
-      })
+      const extractedParagraphs = await extractDocxParagraphsIncludingEmpty(
+        transform.outputBytes,
+      )
       const originalParagraphs = transform.sourceBlocks.map((b) => ({
         index: b.paragraphIndex,
         text: b.text,
       }))
+
+      const datasetFingerprint = await hashDocumentText(
+        JSON.stringify({
+          weddingId: input.wedding.id,
+          packageId: source.packageId,
+          templateVersionId: source.templateVersionId,
+          extras: extras.map((e) => e.id).sort(),
+        }),
+      )
+      const finalArtifact = await buildFinalContractGenerationArtifact({
+        generationId: createGenerationId(),
+        sourceTemplateVersionId: source.templateVersionId,
+        datasetFingerprint,
+        finalBlocks: transform.transformedBlocks,
+        paragraphInsertions: transform.paragraphInsertions,
+        docxBytes: transform.outputBytes,
+      })
 
       const template = await documentTemplateService.get(source.templateId)
       const title =
@@ -294,10 +310,11 @@ export const WeddingSparseContractGenerationService = {
         resolved: {},
         omittedKeys: [],
         originalParagraphs,
-        paragraphs,
+        paragraphs: extractedParagraphs,
         docxBytes: transform.outputBytes,
         usedMock: false,
         qualityRetries: 0,
+        finalArtifact,
         executionSnapshot: {
           contractExecutionDate: dataset.dates.contractExecutionDate,
           contractExecutionCity: '',
@@ -345,7 +362,7 @@ export const WeddingSparseContractGenerationService = {
       }
       const detected = detectPaymentSchedule({
         slots: [],
-        paragraphs: paragraphs.map((p) => ({
+        paragraphs: extractedParagraphs.map((p) => ({
           index: p.index,
           text: p.text,
         })),

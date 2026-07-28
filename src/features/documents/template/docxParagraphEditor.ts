@@ -199,6 +199,12 @@ function replaceParagraphTextWhole(
   return `<w:p>${pPr}${run}</w:p>`
 }
 
+export type DocxParagraphInsertion = {
+  /** Insert new paragraphs immediately after this document paragraph index. */
+  afterIndex: number
+  paragraphs: string[]
+}
+
 export type DocxParagraphEdit = {
   index: number
   text: string
@@ -270,6 +276,78 @@ export async function applyDocxParagraphEdits(
     type: 'arraybuffer',
     compression: 'DEFLATE',
   })
+}
+
+/**
+ * Insert new paragraphs after specific document indices (sorted internally).
+ * Clones paragraph properties from the anchor paragraph for consistent styling.
+ */
+export async function applyDocxParagraphInsertions(
+  bytes: ArrayBuffer,
+  insertions: DocxParagraphInsertion[],
+): Promise<ArrayBuffer> {
+  if (insertions.length === 0) return cloneArrayBuffer(bytes)
+
+  const zip = await JSZip.loadAsync(cloneArrayBuffer(bytes))
+  const docFile = zip.file('word/document.xml')
+  if (!docFile) return cloneArrayBuffer(bytes)
+
+  const xml = await docFile.async('string')
+  const paragraphRe = /<w:p\b[\s\S]*?<\/w:p>/g
+  const paragraphs: string[] = []
+  let m: RegExpExecArray | null
+  while ((m = paragraphRe.exec(xml))) {
+    paragraphs.push(m[0]!)
+  }
+
+  const byAfter = new Map<number, string[]>()
+  for (const ins of insertions) {
+    const existing = byAfter.get(ins.afterIndex) ?? []
+    byAfter.set(ins.afterIndex, [...existing, ...ins.paragraphs])
+  }
+
+  const nextParagraphs: string[] = []
+  for (let i = 0; i < paragraphs.length; i++) {
+    nextParagraphs.push(paragraphs[i]!)
+    const toInsert = byAfter.get(i)
+    if (!toInsert?.length) continue
+    const template = paragraphs[i]!
+    for (const text of toInsert) {
+      nextParagraphs.push(replaceParagraphTextWhole(template, canonicalizeParagraphText(text)))
+    }
+  }
+
+  let idx = 0
+  let nextXml = xml.replace(/<w:p\b[\s\S]*?<\/w:p>/g, () => {
+    const next = nextParagraphs[idx] ?? paragraphs[idx]!
+    idx += 1
+    return next
+  })
+
+  if (idx < nextParagraphs.length) {
+    const tail = nextParagraphs.slice(idx).join('')
+    const closeBody = nextXml.indexOf('</w:body>')
+    if (closeBody >= 0) {
+      nextXml =
+        nextXml.slice(0, closeBody) + tail + nextXml.slice(closeBody)
+    }
+  }
+
+  zip.file('word/document.xml', nextXml)
+  return zip.generateAsync({
+    type: 'arraybuffer',
+    compression: 'DEFLATE',
+  })
+}
+
+/** Apply paragraph text edits, then optional insertions after specific indices. */
+export async function applyDocxParagraphEditsAndInsertions(
+  bytes: ArrayBuffer,
+  edits: DocxParagraphEdit[],
+  insertions: DocxParagraphInsertion[] = [],
+): Promise<ArrayBuffer> {
+  const edited = await applyDocxParagraphEdits(bytes, edits)
+  return applyDocxParagraphInsertions(edited, insertions)
 }
 
 /** Build a printable HTML document from DOCX paragraph texts. */

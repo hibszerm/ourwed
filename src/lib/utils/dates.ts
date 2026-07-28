@@ -33,5 +33,10 @@ export function getCountdownParts(dateStr: string) {
 }
 
 export function coupleName(partner1: string, partner2: string): string {
-  return `${partner1} & ${partner2}`
+  const a = partner1.trim()
+  const b = partner2.trim()
+  if (!a && !b) return 'Bez tytułu'
+  if (!b || b === '—' || b === '–' || b === '-') return a || b
+  if (!a) return b
+  return `${a} i ${b}`
 }

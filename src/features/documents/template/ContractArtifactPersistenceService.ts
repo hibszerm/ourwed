@@ -11,6 +11,7 @@ import type {
   WeddingDocumentDraft,
 } from '@/types/documents'
 import type { Wedding } from '@/types/wedding'
+import { hashBytes } from '@/features/documents/ai/hash'
 import {
   ContractExportService,
   type PersistedContractArtifact,
@@ -70,6 +71,12 @@ export async function allocateNextGenerationVersion(
   return value
 }
 
+function assertEqDocxHash(left: string, right: string): void {
+  if (left !== right) {
+    throw new Error('CONTRACT_ARTIFACT_VERSION_MISMATCH: DOCX bytes differ between save and PDF conversion')
+  }
+}
+
 interface ArtifactPersistenceDependencies {
   allocateVersion: (weddingId: string, templateId: string) => Promise<number>
   getDraft: (id: string) => Promise<WeddingDocumentDraft | null>
@@ -123,10 +130,14 @@ export function createContractArtifactPersistenceService(
         snapshotJson: snapshotJson as unknown as Record<string, unknown>,
       })
 
+      const persistedDocxHash = await hashBytes(input.docxBytes)
+
       let pdf: PersistedContractArtifact | null = null
       let pdfError: string | null = null
       if (dependencies.pdfAvailable) {
         try {
+          const pdfSourceHash = await hashBytes(input.docxBytes)
+          assertEqDocxHash(persistedDocxHash, pdfSourceHash)
           pdf = await dependencies.generatePdf({
             weddingId: input.wedding.id,
             draftId: input.draftId,

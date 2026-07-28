@@ -136,7 +136,13 @@ run('6–8. Travel creates distinct stops, markers, route order', () => {
   assertEq(flow.stops[2].role, 'groom_preparation', 'groom')
   assertEq(flow.stops[3].role, 'ceremony', 'ceremony')
   assertEq(flow.stops[4].role, 'reception', 'reception')
-  assert(flow.stops.every((s) => s.markerIndex >= 1), 'markers')
+  assertEq(flow.stops[0].kind, 'studio', 'studio first')
+  assertEq(flow.stops[0].markerIndex, 0, 'base marker Start/0')
+  assertEq(flow.stops[1].markerIndex, 1, 'first wedding marker')
+  assert(flow.stops.slice(1).every((s) => s.markerIndex >= 1), 'wedding markers')
+  assertEq(flow.routeLegs.length, 4, '4 legs including base')
+  assertEq(flow.routeLegs[0].origin.kind, 'studio', 'first leg from base')
+  assert(!flow.routeLegs.some((l) => l.destination.kind === 'studio'), 'no return')
 
   const travel = readFileSync(
     resolve(process.cwd(), 'src/lib/api/travelService.ts'),

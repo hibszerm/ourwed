@@ -16,6 +16,7 @@ import {
 } from '@/features/documents/template/WeddingContractGenerationService'
 import { ContractReadyPreview } from '@/features/documents/contract-experience'
 import { useWedding } from '@/features/weddings/hooks/useWedding'
+import { getWeddingDisplayName } from '@/features/weddings/presentation/getWeddingDisplayName'
 import { weddingActionsService } from '@/lib/api/weddingActionsService'
 import styles from './WeddingContractPreviewPage.module.css'
 
@@ -208,7 +209,7 @@ export function WeddingContractPreviewPage() {
             <p className={styles.eyebrow}>Umowa · Gotowa</p>
             <h1>{contract.draft.title}</h1>
             <p>
-              {wedding.couple.partner1} i {wedding.couple.partner2} ·{' '}
+              {getWeddingDisplayName(wedding)} ·{' '}
               {template?.name ?? 'Szablon archiwalny'} · wersja{' '}
               {contract.generationVersion ?? 1}
             </p>

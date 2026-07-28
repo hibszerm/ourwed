@@ -1,0 +1,52 @@
+.wrap {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.dropzone {
+  border: 1px dashed var(--color-border, #d1d5db);
+  border-radius: 12px;
+  padding: 2rem 1.25rem;
+  text-align: center;
+  cursor: pointer;
+  background: var(--color-surface, #fff);
+}
+
+.dropzone[data-dragging] {
+  border-color: var(--color-primary, #111827);
+  background: var(--color-surface-muted, #f9fafb);
+}
+
+.title {
+  margin: 0;
+  font-weight: 600;
+}
+
+.hint,
+.limit {
+  margin: 0.35rem 0 0;
+  color: var(--color-text-muted, #6b7280);
+  font-size: 0.875rem;
+}
+
+.fileChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  text-align: left;
+}
+
+.fileName {
+  margin: 0;
+  font-weight: 600;
+}
+
+.fileMeta {
+  margin: 0.15rem 0 0;
+  color: var(--color-text-muted, #6b7280);
+  font-size: 0.875rem;
+}
+
+.hiddenInput {
+  display: none;
+}

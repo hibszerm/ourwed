@@ -253,6 +253,12 @@ export interface DocumentStoragePaths {
     documentId: string,
     format: DocumentExportFormat,
   ): string
+  sourceContract(
+    userId: string,
+    weddingId: string,
+    sourceContractId: string,
+    fileName: string,
+  ): string
 }
 
 export interface DocumentStorageService {

@@ -74,6 +74,8 @@ Content rules:
 - Do not change provider identity, provider contacts, NIP, REGON, bank account.
 - Do not change package inclusions, delivery times, working hours, extra fees, legal/copyright/cancellation clauses.
 - Do not rewrite package/service scope tables (e.g. Materiał / Długość / W cenie) unless the dataset supplies an explicit structured package scope replacement. A package name alone is not enough.
+- The package provisions already present in the template are authoritative and protected. Do not rewrite, summarize, replace or regenerate them.
+- Additional services listed in additionalServices are separate wedding-specific additions. Do NOT insert, list, price or quantity them — a deterministic post-processor handles additional services after your rewrite. Do not add an "Usługi dodatkowe" section yourself.
 - Do not improve style, summarize, modernize wording, or fix unrelated grammar/spelling.
 - Grammatical adjustment is REQUIRED for agreement directly caused by clients.personCount (e.g. one female client → "zwaną"; one male client → "zwanym"; two clients → "zwani"). Adjust only that local agreement word; do not rewrite the rest of the sentence.
 - Locations: prefer the deterministic targetRenderedValues. Do NOT invent "przygotowania: pod adresem:" or duplicate "pod adresem:". Never invent missing street names.

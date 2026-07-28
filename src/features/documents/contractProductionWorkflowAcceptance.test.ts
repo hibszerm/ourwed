@@ -383,6 +383,7 @@ function fakeStorage(events: string[]): DocumentStorageService {
       templateFillable: () => '',
       draftAsset: () => '',
       exportFile: (_user, _wedding, id, format) => `${id}.${format}`,
+      sourceContract: (_user, _wedding, id, fileName) => `${id}/${fileName}`,
     },
     async upload(path, file) {
       events.push('upload')

@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { travelService } from '@/lib/api/travelService'
 import { weddingPlaceService } from '@/lib/api/weddingPlaceService'
+import { didWeddingLocationRouteChange } from '@/features/travel/weddingLocationModel'
 import type { GeoPlace, WeddingPlaceRole } from '@/types/travel'
 
 /** Shared location upsert + travel refresh (no presentation). */
@@ -11,24 +12,32 @@ export function useWeddingLocationSave(weddingId: string) {
       role: WeddingPlaceRole
       place: GeoPlace | null
     }) => {
+      const existing = await weddingPlaceService.getByRole(
+        weddingId,
+        input.role,
+      )
       if (!input.place) {
         await weddingPlaceService.removeByRole(weddingId, input.role)
-      } else {
-        await weddingPlaceService.upsert({
-          weddingId,
-          role: input.role,
-          place: input.place,
-          addressText: input.place.formattedAddress,
-          resolve: false,
-        })
+        return { routeChanged: Boolean(existing) }
+      }
+      await weddingPlaceService.upsert({
+        weddingId,
+        role: input.role,
+        place: input.place,
+        addressText: input.place.formattedAddress,
+        resolve: false,
+      })
+      return {
+        routeChanged: didWeddingLocationRouteChange(existing, input.place),
       }
     },
-    onSuccess: async () => {
+    onSuccess: async (result) => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['wedding-places'] }),
         queryClient.invalidateQueries({ queryKey: ['weddings'] }),
         queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
       ])
+      if (!result?.routeChanged) return
       try {
         await travelService.recalculate(weddingId)
         await queryClient.invalidateQueries({ queryKey: ['travel-plan'] })

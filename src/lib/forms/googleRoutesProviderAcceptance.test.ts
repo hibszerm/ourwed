@@ -128,7 +128,7 @@ async function main() {
       resolve(process.cwd(), 'src/features/weddings/components/detail/WeddingDetailHero.tsx'),
       'utf8',
     )
-    assert(hero.includes('LocationSearchField'), 'search field')
+    assert(hero.includes('WeddingLocationEditor'), 'location editor')
     const loc = readFileSync(
       resolve(process.cwd(), 'src/features/travel/LocationSearchField.tsx'),
       'utf8',

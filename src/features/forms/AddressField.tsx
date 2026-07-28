@@ -197,9 +197,13 @@ export function AddressField({
         sessionToken: sessionRef.current ?? undefined,
         language: 'pl',
       })
-      onChange(resolved)
-      setQuery(resolved.formattedAddress)
-      setDialogQuery(resolved.formattedAddress)
+      const withName = {
+        ...resolved,
+        name: resolved.name?.trim() || s.label.trim() || resolved.name,
+      }
+      onChange(withName)
+      setQuery(withName.formattedAddress)
+      setDialogQuery(withName.formattedAddress)
     } catch {
       onChange(s.label)
       setQuery(s.label)

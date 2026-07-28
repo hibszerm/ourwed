@@ -5,6 +5,7 @@ import { FileText } from 'lucide-react'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { GeneratedWeddingContractService } from '@/features/documents/template'
 import { useWeddings } from '@/features/weddings/hooks/useWeddings'
+import { getWeddingDisplayName } from '@/features/weddings/presentation/getWeddingDisplayName'
 import type { DocumentTemplateSummary } from '@/types/documents'
 import styles from '@/features/documents/DocumentsTemplates.module.css'
 
@@ -36,9 +37,7 @@ export function GeneratedContractsHub({
       contracts.filter((contract) => {
         const wedding = weddingById.get(contract.weddingId)
         const couple = wedding
-          ? `${wedding.couple.partner1} ${wedding.couple.partner2}`.toLocaleLowerCase(
-              'pl-PL',
-            )
+          ? getWeddingDisplayName(wedding).toLocaleLowerCase('pl-PL')
           : ''
         if (search.trim() && !couple.includes(search.trim().toLocaleLowerCase('pl-PL'))) {
           return false
@@ -131,9 +130,7 @@ export function GeneratedContractsHub({
                   <span>Gotowa</span>
                 </div>
                 <p>
-                  {wedding
-                    ? `${wedding.couple.partner1} i ${wedding.couple.partner2}`
-                    : 'Ślub'}
+                  {wedding ? getWeddingDisplayName(wedding) : 'Ślub'}
                 </p>
                 <dl>
                   <div>

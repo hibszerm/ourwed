@@ -2,7 +2,7 @@ import { listOwnedWeddingIds } from '@/lib/api/ownership'
 import { supabase } from '@/lib/supabase'
 import { throwOnError } from '@/lib/supabase/helpers'
 import type { Wedding } from '@/types/wedding'
-import { coupleName } from '@/lib/utils/dates'
+import { getWeddingDisplayName } from '@/features/weddings/presentation/getWeddingDisplayName'
 
 export type CalendarEventType =
   | 'wedding'
@@ -191,7 +191,7 @@ export const calendarEventService = {
 
     const existing = await this.listByWeddingId(wedding.id)
     const weddingEvent = existing.find((e) => e.type === 'wedding')
-    const title = `Ślub: ${coupleName(wedding.couple.partner1, wedding.couple.partner2)}`
+    const title = `Ślub: ${getWeddingDisplayName(wedding)}`
     const startDate = weddingDayStartIso(wedding.date)
     const location =
       wedding.ceremonyLocation || wedding.receptionLocation || wedding.couple.venue || undefined

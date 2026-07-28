@@ -1,10 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
 import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
-import { LocationSearchField } from '@/features/travel/LocationSearchField'
-import { shortLocationDisplay } from '@/features/travel/shortLocationDisplay'
+import { WeddingLocationEditor } from '@/features/weddings/detail/editing/fields/WeddingLocationEditor'
 import { useWeddingLocationSave } from '@/features/weddings/detail/editing/useWeddingLocationSave'
 import { weddingPlaceService } from '@/lib/api/weddingPlaceService'
-import type { GeoPlace, WeddingPlace, WeddingPlaceRole } from '@/types/travel'
+import type { WeddingPlaceRole } from '@/types/travel'
 import styles from '../WeddingEditorFields.module.css'
 
 const ALL_ROLES: Array<{ role: WeddingPlaceRole; label: string }> = [
@@ -13,25 +12,6 @@ const ALL_ROLES: Array<{ role: WeddingPlaceRole; label: string }> = [
   { role: 'ceremony', label: 'Ceremonia' },
   { role: 'reception', label: 'Przyjęcie weselne' },
 ]
-
-function placeToGeo(place: WeddingPlace | null | undefined): GeoPlace | null {
-  if (!place) return null
-  return {
-    placeId: place.placeId,
-    formattedAddress: place.formattedAddress,
-    latitude: place.latitude,
-    longitude: place.longitude,
-    label: place.label,
-  }
-}
-
-function placeDisplayText(place: WeddingPlace | null | undefined): string {
-  if (!place) return ''
-  return shortLocationDisplay({
-    label: place.label,
-    formattedAddress: place.formattedAddress,
-  })
-}
 
 export function LocationRoleFields({
   weddingId,
@@ -61,16 +41,12 @@ export function LocationRoleFields({
       {fields.map(({ role, label }) => {
         const saved = byRole.get(role) ?? null
         return (
-          <LocationSearchField
+          <WeddingLocationEditor
             key={role}
-            label={label}
-            value={placeDisplayText(saved)}
-            place={placeToGeo(saved)}
-            compactDisplay
-            showSavedHint={false}
+            roleLabel={label}
+            saved={saved}
             disabled={saveMutation.isPending}
-            placeholder="Zacznij wpisywać adres…"
-            onSelectPlace={async (place) => {
+            onSave={async (place) => {
               await saveMutation.mutateAsync({ role, place })
             }}
           />

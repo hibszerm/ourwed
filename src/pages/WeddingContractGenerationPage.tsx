@@ -10,6 +10,12 @@ import {
   type DocxParagraph,
   type TransformContractResult,
 } from '@/features/documents/template'
+import { resolveContractSaveBytes } from '@/features/documents/template/resolveContractSaveBytes'
+import {
+  ContractArtifactVersionMismatchError,
+  refreshFinalDocxHash,
+} from '@/features/documents/template/finalContractGenerationArtifact'
+import { extractDocxParagraphsIncludingEmpty } from '@/features/documents/template/extractDocxParagraphs'
 import {
   WeddingContractGenerationService,
   buildGenerationReviewState,
@@ -39,6 +45,7 @@ import {
 } from '@/features/documents/contract-experience'
 import { useInvalidateWedding } from '@/features/weddings/hooks/useInvalidateWedding'
 import { useWedding } from '@/features/weddings/hooks/useWedding'
+import { getWeddingDisplayName } from '@/features/weddings/presentation/getWeddingDisplayName'
 import { weddingActionsService } from '@/lib/api/weddingActionsService'
 import styles from './WeddingContractGenerationPage.module.css'
 
@@ -714,20 +721,18 @@ export function WeddingContractGenerationPage() {
     if (!generated || !docxBytes || !wedding) return false
     setError(null)
     try {
-      const edited = await applyDocxParagraphEdits(
+      const { bytes: bytesToSave, editsApplied } = await resolveContractSaveBytes({
         docxBytes,
-        paragraphs.map((paragraph) => ({
-          index: paragraph.index,
-          text: paragraph.text,
-        })),
-      )
+        generated,
+        currentParagraphs: paragraphs,
+      })
       const saved = await saveGeneratedContract({
         wedding,
         draftId: generated.draftId,
         templateId: generated.templateId,
         templateVersionId: generated.templateVersionId,
         title: generated.title,
-        docxBytes: edited,
+        docxBytes: bytesToSave,
         packageSnapshot: report?.packageSnapshot ?? {
           packageId: wedding.packageId ?? null,
           name: wedding.packageName ?? '',
@@ -746,9 +751,14 @@ export function WeddingContractGenerationPage() {
             }
           : null,
         auditSummary: {
-          browserEditsApplied: true,
+          browserEditsApplied: editsApplied,
           qualityRetries: generated.qualityRetries,
           usedMock: generated.usedMock,
+          generationId: generated.finalArtifact?.generationId ?? null,
+          finalDocxHash: generated.finalArtifact?.finalDocxHash ?? null,
+          finalBlocksHash: generated.finalArtifact?.finalBlocksHash ?? null,
+          paragraphInsertionsHash:
+            generated.finalArtifact?.paragraphInsertionsHash ?? null,
           ...((
             generated as TransformContractResult & {
               sparseProvenance?: Record<string, unknown>
@@ -772,7 +782,14 @@ export function WeddingContractGenerationPage() {
       await queryClient.invalidateQueries({
         queryKey: ['generated-wedding-contracts'],
       })
-      setDocxBytes(edited)
+      setDocxBytes(bytesToSave)
+      setGenerated({
+        ...generated,
+        docxBytes: bytesToSave,
+        finalArtifact: generated.finalArtifact
+          ? await refreshFinalDocxHash(generated.finalArtifact, bytesToSave)
+          : generated.finalArtifact,
+      })
       setDownloadUrl(saved.docxDownloadUrl)
       if (wedding && generated) {
         const { buildFriendlyQualitySummary } = await import(
@@ -796,6 +813,12 @@ export function WeddingContractGenerationPage() {
       }
       return true
     } catch (err) {
+      if (err instanceof ContractArtifactVersionMismatchError) {
+        setError(
+          'Wygenerowany dokument nie jest już dostępny. Wygeneruj umowę ponownie przed zapisaniem.',
+        )
+        return false
+      }
       setError(
         err instanceof Error ? err.message : 'Nie udało się zapisać umowy.',
       )
@@ -804,15 +827,15 @@ export function WeddingContractGenerationPage() {
   }
 
   function downloadGeneratedDocx(): boolean {
-    if (!generated?.docxBytes) return false
+    if (!docxBytes) return false
     try {
-      const blob = new Blob([generated.docxBytes], {
+      const blob = new Blob([docxBytes], {
         type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       })
       const url = URL.createObjectURL(blob)
       const anchor = document.createElement('a')
       anchor.href = url
-      anchor.download = `${generated.title || 'umowa'}.docx`
+      anchor.download = `${generated?.title || 'umowa'}.docx`
       anchor.rel = 'noopener'
       document.body.appendChild(anchor)
       anchor.click()
@@ -852,7 +875,7 @@ export function WeddingContractGenerationPage() {
   return (
     <AppLayout
       title="Nowa umowa"
-      subtitle={`${wedding.couple.partner1} i ${wedding.couple.partner2}`}
+      subtitle={getWeddingDisplayName(wedding)}
       action={
         <Button
           type="button"
@@ -1169,21 +1192,19 @@ export function WeddingContractGenerationPage() {
                     text: p.text,
                   })),
                 )
+                const nextParagraphs =
+                  await extractDocxParagraphsIncludingEmpty(nextBytes)
+                const nextArtifact = generated.finalArtifact
+                  ? await refreshFinalDocxHash(generated.finalArtifact, nextBytes)
+                  : generated.finalArtifact
                 setDocxBytes(nextBytes)
-                setParagraphs(
-                  patched.paragraphs.map((p) => ({
-                    index: p.index,
-                    text: p.text,
-                  })),
-                )
+                setParagraphs(nextParagraphs)
                 setGenerated({
                   ...generated,
                   resolved: patched.resolvedValues,
-                  paragraphs: patched.paragraphs.map((p) => ({
-                    index: p.index,
-                    text: p.text,
-                  })),
+                  paragraphs: nextParagraphs,
                   docxBytes: nextBytes,
+                  finalArtifact: nextArtifact,
                 })
                 setPaymentSchedule(patched.schedule)
                 setPaymentWasManual(true)

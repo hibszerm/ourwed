@@ -269,5 +269,9 @@ export function formatLocationAnswer(value: unknown): string {
   ]
     .map((p) => (typeof p === 'string' ? p.trim() : ''))
     .filter(Boolean)
-  return parts.join(', ')
+  if (parts.length > 0) return parts.join(', ')
+  // Name-only structured answer — still useful as a display string for wedding scalars.
+  if (typeof row.name === 'string' && row.name.trim()) return row.name.trim()
+  if (typeof row.label === 'string' && row.label.trim()) return row.label.trim()
+  return ''
 }

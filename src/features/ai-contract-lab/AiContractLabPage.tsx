@@ -77,7 +77,7 @@ import { companyDetailsService } from '@/lib/api/companyDetailsService'
 import { weddingExtraServiceService } from '@/lib/api/weddingExtraServiceService'
 import { weddingPlaceService } from '@/lib/api/weddingPlaceService'
 import { weddingService } from '@/lib/api/weddingService'
-import { coupleName } from '@/lib/utils/dates'
+import { getWeddingDisplayName } from '@/features/weddings/presentation/getWeddingDisplayName'
 import styles from './AiContractLabPage.module.css'
 
 function displayValue(value: string | null | undefined) {
@@ -776,7 +776,7 @@ function AiContractLabInner() {
                 <option value="">Wybierz…</option>
                 {weddings.map((w) => (
                   <option key={w.id} value={w.id}>
-                    {coupleName(w.couple.partner1, w.couple.partner2)} ·{' '}
+                    {getWeddingDisplayName(w)} ·{' '}
                     {w.date || 'brak daty'}
                   </option>
                 ))}

@@ -81,14 +81,33 @@ function hasCoordinates(place: Pick<WeddingPlace, 'latitude' | 'longitude'>): bo
 
 export const weddingPlaceService = {
   async listByWeddingId(weddingId: string): Promise<WeddingPlace[]> {
+    const map = await this.listByWeddingIds([weddingId])
+    return map.get(weddingId) ?? []
+  },
+
+  /** Batch load places for many weddings — one query (list/dashboard hydrate). */
+  async listByWeddingIds(
+    weddingIds: string[],
+  ): Promise<Map<string, WeddingPlace[]>> {
+    const map = new Map<string, WeddingPlace[]>()
+    if (weddingIds.length === 0) return map
+    for (const id of weddingIds) map.set(id, [])
+
     const { data, error } = await supabase
       .from('wedding_places')
       .select('*')
-      .eq('wedding_id', weddingId)
+      .in('wedding_id', weddingIds)
       .order('sort_order', { ascending: true })
       .order('created_at', { ascending: true })
     throwOnError(error)
-    return ((data ?? []) as WeddingPlaceRow[]).map(mapRow)
+
+    for (const row of (data ?? []) as WeddingPlaceRow[]) {
+      const place = mapRow(row)
+      const list = map.get(place.weddingId) ?? []
+      list.push(place)
+      map.set(place.weddingId, list)
+    }
+    return map
   },
 
   async getByRole(
@@ -121,8 +140,12 @@ export const weddingPlaceService = {
     let place = input.place ?? null
     const addressText =
       place?.formattedAddress?.trim() || input.addressText?.trim() || ''
+    const explicitName =
+      place != null && place.label !== undefined
+        ? place.label?.trim() || null
+        : undefined
 
-    if (!addressText && !place?.placeId) {
+    if (!addressText && !place?.placeId && !explicitName) {
       await this.removeByRole(input.weddingId, input.role)
       return null
     }
@@ -147,8 +170,9 @@ export const weddingPlaceService = {
     }
 
     const formatted =
-      place?.formattedAddress?.trim() || addressText
-    if (!formatted) {
+      place?.formattedAddress?.trim() || addressText || ''
+    // formatted_address is NOT NULL — empty string allowed for name-only rows.
+    if (!formatted && !(place?.label?.trim() || explicitName)) {
       await this.removeByRole(input.weddingId, input.role)
       return null
     }
@@ -156,15 +180,20 @@ export const weddingPlaceService = {
     const existing = await this.getByRole(input.weddingId, input.role)
     // When `place` is provided, its fields win — including explicit nulls
     // (unresolved / needs verification). Do not fall back to stale coords.
+    // label: undefined means preserve existing; null/'' clears; string sets.
+    const nextLabel =
+      place == null
+        ? existing?.label || null
+        : place.label === undefined
+          ? existing?.label || null
+          : place.label?.trim() || null
+
     const patch = {
       wedding_id: input.weddingId,
       role: input.role,
-      label:
-        place != null
-          ? place.label?.trim() || existing?.label || null
-          : existing?.label || null,
+      label: nextLabel,
       place_id: place != null ? place.placeId : (existing?.placeId ?? null),
-      formatted_address: formatted,
+      formatted_address: formatted || existing?.formattedAddress || '',
       latitude: place != null ? place.latitude : (existing?.latitude ?? null),
       longitude: place != null ? place.longitude : (existing?.longitude ?? null),
       sort_order: ROLE_SORT[input.role] ?? 100,

@@ -1,7 +1,9 @@
 import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/Button'
 import { IconCheck, IconMapPin } from '@/components/icons'
-import { coupleName, formatDate, getDaysUntil } from '@/lib/utils/dates'
+import { formatDate, getDaysUntil } from '@/lib/utils/dates'
+import { getWeddingDisplayName } from '@/features/weddings/presentation/getWeddingDisplayName'
+import { getWeddingPrimaryLocationSummary } from '@/features/weddings/presentation/getWeddingPrimaryLocationSummary'
 import { getNextRecommendedAction, getWorkflowStatus } from '@/lib/workflow/workflowEngine'
 import type { Wedding } from '@/types/wedding'
 import styles from './NextWeddingCard.module.css'
@@ -21,17 +23,9 @@ export function NextWeddingCard({ wedding, onOpen }: NextWeddingCardProps) {
     )
   }
 
-  const name = coupleName(
-    wedding.couple.partner1FirstName?.trim() ||
-      wedding.couple.partner1.split(/\s+/)[0],
-    wedding.couple.partner2FirstName?.trim() ||
-      wedding.couple.partner2.split(/\s+/)[0],
-  )
+  const name = getWeddingDisplayName(wedding, { short: true })
   const days = getDaysUntil(wedding.date)
-  const location =
-    wedding.ceremonyLocation ??
-    wedding.receptionLocation ??
-    `${wedding.couple.venue}, ${wedding.couple.city}`
+  const location = getWeddingPrimaryLocationSummary(wedding).displayText
   const status = getWorkflowStatus(wedding)
   const nextAction = getNextRecommendedAction(wedding)
 
@@ -51,12 +45,12 @@ export function NextWeddingCard({ wedding, onOpen }: NextWeddingCardProps) {
           <span className={styles.package}>{wedding.packageName}</span>
         </div>
 
-        {location && (
+        {location ? (
           <div className={styles.location}>
             <IconMapPin width={15} height={15} />
-            <span>{location}</span>
+            <span title={location}>{location}</span>
           </div>
-        )}
+        ) : null}
 
         <div className={styles.status}>
           <span className={styles.stage}>

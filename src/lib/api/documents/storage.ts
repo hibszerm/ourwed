@@ -24,6 +24,9 @@ export const documentStorage: DocumentStorageService = {
     exportFile(userId, weddingId, documentId, format: DocumentExportFormat) {
       return `${userId}/weddings/${weddingId}/exports/${documentId}.${format}`
     },
+    sourceContract(userId, weddingId, sourceContractId, fileName) {
+      return `${userId}/weddings/${weddingId}/source-contracts/${sourceContractId}/${safeName(fileName)}`
+    },
   },
 
   async upload(path, file, contentType) {

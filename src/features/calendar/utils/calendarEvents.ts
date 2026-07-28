@@ -1,4 +1,4 @@
-import { coupleName } from '@/lib/utils/dates'
+import { getWeddingDisplayName } from '@/features/weddings/presentation/getWeddingDisplayName'
 import {
   getMonthlyWeddingCount,
   getNearestUpcomingWedding,
@@ -54,7 +54,7 @@ export function toCalendarEvent(wedding: Wedding): CalendarWeddingEvent {
     id: wedding.id,
     wedding,
     dateKey: toDateKey(parseDateKey(wedding.date)),
-    coupleLabel: coupleName(wedding.couple.partner1, wedding.couple.partner2),
+    coupleLabel: getWeddingDisplayName(wedding),
     ceremonyLocation: wedding.ceremonyLocation ?? '—',
     receptionLocation: wedding.receptionLocation ?? '—',
     ceremonyTime,
@@ -89,7 +89,7 @@ export function buildCalendarEventsFromRows(
       id: event.id,
       wedding,
       dateKey,
-      coupleLabel: coupleName(wedding.couple.partner1, wedding.couple.partner2),
+      coupleLabel: getWeddingDisplayName(wedding),
       ceremonyLocation: event.location || wedding.ceremonyLocation || '—',
       receptionLocation: wedding.receptionLocation ?? '—',
       ceremonyTime,

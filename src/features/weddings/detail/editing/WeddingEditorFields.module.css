@@ -3,6 +3,18 @@
   gap: var(--space-4);
 }
 
+.locationEditor {
+  display: grid;
+  gap: var(--space-3);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.locationEditor:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
 .fieldRow {
   display: grid;
   grid-template-columns: 1fr 1fr;

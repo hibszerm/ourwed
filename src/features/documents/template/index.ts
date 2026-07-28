@@ -156,6 +156,20 @@ export {
 export type { DocxParagraph } from './docxParagraphEditor'
 export { isSparseWeddingContractGenerationEnabled } from './sparseWeddingContractFlags'
 export {
+  buildFinalContractGenerationArtifact,
+  createGenerationId,
+  hashFinalBlocks,
+  hashParagraphInsertions,
+  refreshFinalDocxHash,
+  paragraphsTextChanged,
+  assertSaveArtifactConsistency,
+  CONTRACT_ARTIFACT_VERSION_MISMATCH,
+  ContractArtifactVersionMismatchError,
+} from './finalContractGenerationArtifact'
+export type { FinalContractGenerationArtifact } from './finalContractGenerationArtifact'
+export { resolveContractSaveBytes } from './resolveContractSaveBytes'
+export type { ResolveContractSaveBytesResult } from './resolveContractSaveBytes'
+export {
   WeddingSparseContractGenerationService,
   resolveSparseTemplateSource,
 } from './WeddingSparseContractGenerationService'

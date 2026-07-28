@@ -12,6 +12,13 @@ import type {
 import { verifyTransformationCompleteness } from './completenessVerifier'
 import { applyDeterministicRepairs } from './deterministicRepairs'
 import { buildExpectationManifest } from './expectationManifest'
+import { insertAdditionalServicesIntoBlocks } from '../insertAdditionalServices'
+import { expandBlocksWithParagraphInsertions } from '../expandBlocksWithInsertions'
+import type { ContractParagraphInsertion } from '../expandBlocksWithInsertions'
+import {
+  verifyAdditionalServicesConsistency,
+  verifyNoAdditionalServicesSectionWhenEmpty,
+} from './additionalServicesConsistency'
 import {
   verifyFinancialConsistency,
   verifyPackageScopeConsistency,
@@ -55,6 +62,10 @@ export function buildQualityReport(input: {
   protectedData: ProtectedContractData
   manifest?: TransformationExpectationManifest
   repairs?: DocumentQualityReport['repairs']
+  additionalServicesDiagnostics?: import('../insertAdditionalServices').AdditionalServicesInsertionDiagnostics
+  paragraphInsertions?: ContractParagraphInsertion[]
+  /** Transformed blocks before virtual paragraph expansion (for anchor integrity). */
+  additionalServicesBlocksBeforeExpansion?: TransformedBlock[]
 }): DocumentQualityReport {
   const manifest =
     input.manifest ??
@@ -125,6 +136,22 @@ export function buildQualityReport(input: {
     safeDescription: 'A protected provider/legal value is missing or changed',
   }))
 
+  const additionalServicesIssues = [
+    ...verifyAdditionalServicesConsistency({
+      transformedBlocks: input.transformedBlocks,
+      sourceBlocks: input.sourceBlocks,
+      dataset: input.dataset,
+      expectation: manifest.additionalServices,
+      diagnostics: input.additionalServicesDiagnostics,
+      blocksBeforeExpansion: input.additionalServicesBlocksBeforeExpansion,
+      paragraphInsertions: input.paragraphInsertions,
+    }),
+    ...verifyNoAdditionalServicesSectionWhenEmpty({
+      transformedBlocks: input.transformedBlocks,
+      dataset: input.dataset,
+    }),
+  ]
+
   const allIssues: QualityIssue[] = [
     ...completeness.issues,
     ...financial.issues,
@@ -132,6 +159,7 @@ export function buildQualityReport(input: {
     ...location.issues,
     ...referenceIssues,
     ...protectionIssues,
+    ...additionalServicesIssues,
   ]
 
   // Deduplicate by code+field+block
@@ -182,6 +210,7 @@ export function runPostReconstructionQualityGate(input: {
   manifest: TransformationExpectationManifest
   report: DocumentQualityReport
   downloadAllowed: boolean
+  paragraphInsertions: ContractParagraphInsertion[]
 } {
   const manifest = buildExpectationManifest({
     sourceBlocks: input.sourceBlocks,
@@ -196,13 +225,28 @@ export function runPostReconstructionQualityGate(input: {
     sourceBlocks: input.sourceBlocks,
   })
 
+  const additionalServices = insertAdditionalServicesIntoBlocks({
+    blocks: repaired.blocks,
+    sourceBlocks: input.sourceBlocks,
+    dataset: input.dataset,
+  })
+
+  const expandedBlocks = expandBlocksWithParagraphInsertions({
+    sourceBlocks: input.sourceBlocks,
+    blocks: additionalServices.blocks,
+    insertions: additionalServices.paragraphInsertions,
+  })
+
   const report = buildQualityReport({
     sourceBlocks: input.sourceBlocks,
-    transformedBlocks: repaired.blocks,
+    transformedBlocks: expandedBlocks,
     dataset: input.dataset,
     protectedData: input.protectedData,
     manifest,
     repairs: repaired.repairs,
+    additionalServicesDiagnostics: additionalServices.diagnostics,
+    paragraphInsertions: additionalServices.paragraphInsertions,
+    additionalServicesBlocksBeforeExpansion: additionalServices.blocks,
   })
 
   let downloadAllowed: boolean
@@ -217,10 +261,11 @@ export function runPostReconstructionQualityGate(input: {
   }
 
   return {
-    blocks: repaired.blocks,
+    blocks: additionalServices.blocks,
     manifest,
     report,
     downloadAllowed,
+    paragraphInsertions: additionalServices.paragraphInsertions,
   }
 }
 

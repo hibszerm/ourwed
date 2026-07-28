@@ -81,6 +81,12 @@ export type ContractTransformationDataset = {
       rows: Array<{ material?: string; duration?: string; included?: string }>
     }
   }
+  /** Wedding-specific additional services — names only, no price or quantity. */
+  additionalServices?: Array<{ id?: string; name: string }>
+  /** Deterministic newline-separated display for prompts / diagnostics. */
+  additionalServicesDisplayText?: string
+  /** Quality-gate expectation (derived from additionalServices). */
+  additionalServicesExpectation?: import('./quality/types').AdditionalServicesExpectation
 }
 
 export type ProtectedPattern = {
