@@ -6,10 +6,10 @@ Dziękujemy za założenie konta.
 Potwierdź swój adres e-mail, aby rozpocząć korzystanie z aplikacji.
 
 Potwierdź adres e-mail:
-{{ .ConfirmationURL }}
+https://ourwed.pl/auth/callback?token_hash={{ .TokenHash }}&type=email&intent=signup
 
-Jeżeli przycisk nie działa, skopiuj poniższy adres:
-{{ .ConfirmationURL }}
+Jeżeli przycisk nie działa, załóż konto ponownie lub wróć do rejestracji:
+https://ourwed.pl/register
 
 Jeżeli konto nie zostało utworzone przez Ciebie, zignoruj tę wiadomość.
 

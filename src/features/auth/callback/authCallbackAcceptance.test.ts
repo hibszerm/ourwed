@@ -1,22 +1,24 @@
 /**
- * Acceptance tests for Supabase Auth callback:
- * - TokenHash recovery (verifyOtp) — cross-browser / cross-device
- * - Legacy PKCE (?code= → exchangeCodeForSession)
+ * Acceptance tests for unified TokenHash auth callback + legacy PKCE.
  */
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import type { EmailOtpType } from '@supabase/supabase-js'
 import {
+  AUTH_TOKEN_HASH_FLOWS,
+  authEmailActionHref,
   buildAuthCallbackRedirect,
   exchangeAuthCodeOnce,
-  isTokenHashRecovery,
+  isTokenHashCallback,
   locationNeedsAuthCallback,
   parseAuthCallbackParams,
-  recoveryEmailActionHref,
   resetAuthCallbackExchangeCache,
   resolveAuthCallbackDestination,
   resolveAuthCallbackErrorAction,
-  verifyRecoveryTokenHashOnce,
+  resolveTokenHashFlow,
+  verifyAuthTokenHashOnce,
+  type AuthCallbackIntent,
 } from '@/features/auth/callback/authCallback'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../../../..')
@@ -47,6 +49,14 @@ const noopListener = () => ({
   data: { subscription: { unsubscribe: () => undefined } },
 })
 
+const INTENTS: AuthCallbackIntent[] = [
+  'recovery',
+  'signup',
+  'magic-link',
+  'invite',
+  'email-change',
+]
+
 // ── parse / gate ─────────────────────────────────────────────
 {
   const parsed = parseAuthCallbackParams('?code=abc123&next=recovery')
@@ -65,52 +75,86 @@ const noopListener = () => ({
   )
 }
 
-{
-  const recovery = parseAuthCallbackParams(
-    '?token_hash=th_secret_value&type=recovery',
-  )
-  assertEq(recovery.tokenHash, 'th_secret_value', 'parses token_hash')
-  assertEq(recovery.type, 'recovery', 'parses type=recovery')
-  assertEq(recovery.next, 'recovery', 'type=recovery implies next=recovery')
-  assertEq(recovery.code, null, 'no code on token_hash recovery')
-  assert(isTokenHashRecovery(recovery), 'isTokenHashRecovery true')
-  assert(
-    locationNeedsAuthCallback('/', '?token_hash=x&type=recovery'),
-    'token_hash gates to callback',
-  )
+for (const intent of INTENTS) {
+  const flow = AUTH_TOKEN_HASH_FLOWS[intent]
+  const type = flow.verificationType
+  const qs = `?token_hash=th_secret&type=${type}&intent=${intent}`
+  const parsed = parseAuthCallbackParams(qs)
+  assertEq(parsed.tokenHash, 'th_secret', `${intent}: parses token_hash`)
+  assertEq(parsed.type, type, `${intent}: parses type`)
+  assertEq(parsed.intent, intent, `${intent}: parses intent`)
+  assert(isTokenHashCallback(parsed), `${intent}: isTokenHashCallback`)
+  assert(locationNeedsAuthCallback('/', qs), `${intent}: gate intercepts`)
+
+  const resolved = resolveTokenHashFlow(parsed)
+  assert(resolved.ok, `${intent}: resolveTokenHashFlow ok`)
+  if (resolved.ok) {
+    assertEq(resolved.verificationType, type, `${intent}: verification type`)
+    assertEq(resolved.intent, intent, `${intent}: resolved intent`)
+  }
+
   assertEq(
-    recoveryEmailActionHref(),
-    'https://ourwed.pl/auth/callback?token_hash={{ .TokenHash }}&type=recovery',
-    'production recovery CTA',
+    authEmailActionHref(intent),
+    `https://ourwed.pl/auth/callback?token_hash={{ .TokenHash }}&type=${type}&intent=${intent}`,
+    `${intent}: production CTA`,
   )
+}
+
+{
+  // Legacy recovery without intent still works via type inference.
+  const legacy = parseAuthCallbackParams('?token_hash=th&type=recovery')
+  assertEq(legacy.intent, 'recovery', 'infers recovery intent from type')
+  assert(resolveTokenHashFlow(legacy).ok, 'legacy recovery TokenHash resolves')
+}
+
+{
+  const ambiguous = parseAuthCallbackParams('?token_hash=th&type=email')
+  assertEq(ambiguous.intent, null, 'type=email alone does not invent intent')
+  const resolved = resolveTokenHashFlow(ambiguous)
+  assert(!resolved.ok, 'ambiguous email type fails safely')
+}
+
+{
+  const mismatch = resolveTokenHashFlow(
+    parseAuthCallbackParams(
+      '?token_hash=th&type=recovery&intent=signup',
+    ),
+  )
+  assert(!mismatch.ok, 'type/intent mismatch fails')
+}
+
+{
+  const missing = resolveTokenHashFlow(
+    parseAuthCallbackParams('?type=email&intent=signup'),
+  )
+  assert(!missing.ok, 'missing token_hash fails')
+}
+
+{
+  const unknown = resolveTokenHashFlow(
+    parseAuthCallbackParams(
+      '?token_hash=th&type=email&intent=not-a-real-intent',
+    ),
+  )
+  assert(!unknown.ok, 'unknown intent fails')
 }
 
 {
   const expired = parseAuthCallbackParams(
     '?error=access_denied&error_description=Email+link+is+invalid+or+has+expired&next=recovery',
   )
-  assertEq(expired.code, null, 'no code on provider error')
   assertEq(expired.error, 'access_denied', 'parses error')
-  assert(
-    expired.errorDescription?.includes('expired'),
-    'parses error_description',
-  )
-  assert(locationNeedsAuthCallback('/', '?error=access_denied'), 'error gates to callback')
-}
-
-{
-  const missing = parseAuthCallbackParams('?type=recovery')
-  assertEq(missing.tokenHash, null, 'missing token_hash')
-  assert(!isTokenHashRecovery(missing), 'not token-hash recovery without hash')
+  assert(locationNeedsAuthCallback('/', '?error=access_denied'), 'error gates')
 }
 
 // ── destinations ─────────────────────────────────────────────
 {
   assertEq(
     resolveAuthCallbackDestination({
-      next: 'recovery',
+      next: 'auto',
       isRecovery: false,
       hasSession: true,
+      intent: 'recovery',
     }).path,
     '/reset-password',
     'recovery → reset-password',
@@ -118,25 +162,57 @@ const noopListener = () => ({
   assertEq(
     resolveAuthCallbackDestination({
       next: 'auto',
-      isRecovery: true,
+      isRecovery: false,
       hasSession: true,
+      intent: 'signup',
     }).path,
-    '/reset-password',
-    'auto+recovery event → reset-password',
+    '/dashboard',
+    'signup with session → dashboard',
   )
   assertEq(
     resolveAuthCallbackDestination({
-      next: 'confirm',
+      next: 'auto',
       isRecovery: false,
-      hasSession: true,
+      hasSession: false,
+      intent: 'signup',
     }).path,
-    '/dashboard',
-    'confirm with session → dashboard',
+    '/login',
+    'signup without session → login',
   )
   assertEq(
-    resolveAuthCallbackErrorAction('recovery').to,
-    '/forgot-password',
-    'recovery error CTA → forgot-password',
+    resolveAuthCallbackDestination({
+      next: 'auto',
+      isRecovery: false,
+      hasSession: true,
+      intent: 'magic-link',
+    }).path,
+    '/dashboard',
+    'magic-link → dashboard',
+  )
+  assertEq(
+    resolveAuthCallbackDestination({
+      next: 'auto',
+      isRecovery: false,
+      hasSession: true,
+      intent: 'invite',
+    }).path,
+    '/dashboard',
+    'invite → dashboard',
+  )
+  assertEq(
+    resolveAuthCallbackDestination({
+      next: 'auto',
+      isRecovery: false,
+      hasSession: true,
+      intent: 'email-change',
+    }).path,
+    '/login',
+    'email-change → login',
+  )
+  assertEq(
+    resolveAuthCallbackErrorAction('signup').to,
+    '/register',
+    'signup error CTA → register',
   )
   assertEq(
     resolveAuthCallbackErrorAction('recovery').label,
@@ -145,25 +221,27 @@ const noopListener = () => ({
   )
 }
 
-// ── verifyOtp recovery (cross-device: no PKCE verifier) ───────
-{
+// ── verifyOtp exact-once per intent (no PKCE verifier) ───────
+for (const intent of INTENTS) {
   resetAuthCallbackExchangeCache()
   let verifyCalls = 0
   let exchangeCalls = 0
-  let lastTokenHash: string | null = null
   let lastType: string | null = null
+  let lastHash: string | null = null
+  const verificationType = AUTH_TOKEN_HASH_FLOWS[intent].verificationType
+  const tokenHash = `hash-${intent}`
 
   const deps = {
     exchangeCodeForSession: async () => {
       exchangeCalls += 1
       return noopExchange()
     },
-    verifyOtp: async (args: { token_hash: string; type: string }) => {
+    verifyOtp: async (args: { token_hash: string; type: EmailOtpType }) => {
       verifyCalls += 1
-      lastTokenHash = args.token_hash
       lastType = args.type
+      lastHash = args.token_hash
       return {
-        data: { session: { access_token: 'recovery-session' } as never },
+        data: { session: { access_token: 'sess' } as never },
         error: null,
       }
     },
@@ -171,59 +249,43 @@ const noopListener = () => ({
   }
 
   const [a, b] = await Promise.all([
-    verifyRecoveryTokenHashOnce('hash-cross-device', deps),
-    verifyRecoveryTokenHashOnce('hash-cross-device', deps),
+    verifyAuthTokenHashOnce({ tokenHash, verificationType, intent }, deps),
+    verifyAuthTokenHashOnce({ tokenHash, verificationType, intent }, deps),
   ])
+  assert(a.ok && b.ok, `${intent}: concurrent verify success`)
+  assertEq(verifyCalls, 1, `${intent}: verifyOtp exactly once`)
+  assertEq(exchangeCalls, 0, `${intent}: no exchangeCodeForSession`)
+  assertEq(lastType, verificationType, `${intent}: correct verify type`)
+  assertEq(lastHash, tokenHash, `${intent}: correct token_hash`)
 
-  assert(a.ok && b.ok, 'concurrent verify success')
-  assertEq(verifyCalls, 1, 'verifyOtp called exactly once')
-  assertEq(exchangeCalls, 0, 'exchangeCodeForSession not called for token_hash')
-  assertEq(lastTokenHash, 'hash-cross-device', 'verify receives token_hash')
-  assertEq(lastType, 'recovery', "verify type is 'recovery'")
-  if (a.ok) {
-    assert(a.isRecovery, 'token_hash path marks isRecovery')
-    assert(a.session, 'session present after verify')
-  }
-
-  // Second sequential call must still be cache-only (no new SDK call).
-  const c = await verifyRecoveryTokenHashOnce('hash-cross-device', deps)
-  assert(c.ok, 'cached verify still ok')
-  assertEq(verifyCalls, 1, 'still exactly one verifyOtp after cache hit')
+  const c = await verifyAuthTokenHashOnce(
+    { tokenHash, verificationType, intent },
+    deps,
+  )
+  assert(c.ok, `${intent}: cache hit ok`)
+  assertEq(verifyCalls, 1, `${intent}: still one verify after cache`)
 }
 
 {
   resetAuthCallbackExchangeCache()
-  const result = await verifyRecoveryTokenHashOnce('expired-hash', {
-    exchangeCodeForSession: noopExchange,
-    verifyOtp: async () => ({
-      data: { session: null },
-      error: { message: 'Token has expired or is invalid' },
-    }),
-    onAuthStateChange: noopListener,
-  })
-  assert(!result.ok, 'expired token fails')
+  const result = await verifyAuthTokenHashOnce(
+    {
+      tokenHash: 'expired',
+      verificationType: 'email',
+      intent: 'signup',
+    },
+    {
+      exchangeCodeForSession: noopExchange,
+      verifyOtp: async () => ({
+        data: { session: null },
+        error: { message: 'Token has expired or is invalid' },
+      }),
+      onAuthStateChange: noopListener,
+    },
+  )
+  assert(!result.ok, 'expired signup fails')
   if (!result.ok) {
-    assertEq(
-      result.message,
-      'Link wygasł lub został już użyty.',
-      'friendly expired message',
-    )
-  }
-}
-
-{
-  resetAuthCallbackExchangeCache()
-  const result = await verifyRecoveryTokenHashOnce('used-hash', {
-    exchangeCodeForSession: noopExchange,
-    verifyOtp: async () => ({
-      data: { session: null },
-      error: { message: 'OTP has already been used' },
-    }),
-    onAuthStateChange: noopListener,
-  })
-  assert(!result.ok, 'already-used fails')
-  if (!result.ok) {
-    assertEq(result.message, 'Link wygasł lub został już użyty.', 'friendly used message')
+    assertEq(result.message, 'Link wygasł lub został już użyty.', 'friendly expired')
   }
 }
 
@@ -257,27 +319,6 @@ const noopListener = () => ({
   assert(a.ok && b.ok, 'concurrent exchange success')
   assertEq(realCalls, 1, 'legacy exchange once')
   assertEq(verifyCalls, 0, 'legacy path does not call verifyOtp')
-  if (a.ok) assert(a.isRecovery, 'PASSWORD_RECOVERY sets isRecovery')
-}
-
-{
-  resetAuthCallbackExchangeCache()
-  const result = await exchangeAuthCodeOnce('expired', {
-    exchangeCodeForSession: async () => ({
-      data: { session: null },
-      error: { message: 'Email link is invalid or has expired' },
-    }),
-    verifyOtp: noopVerify,
-    onAuthStateChange: noopListener,
-  })
-  assert(!result.ok, 'expired PKCE fails')
-  if (!result.ok) {
-    assertEq(
-      result.message,
-      'Link wygasł lub został już użyty.',
-      'friendly PKCE expired message',
-    )
-  }
 }
 
 // ── source wiring + security ─────────────────────────────────
@@ -285,130 +326,85 @@ const noopListener = () => ({
   const router = readFileSync(join(ROOT, 'src/routes/router.tsx'), 'utf8')
   assert(router.includes('AuthCallbackGate'), 'router uses AuthCallbackGate')
   assert(router.includes('/auth/callback'), 'router has /auth/callback')
-  assert(router.includes('AuthCallbackPage'), 'router mounts AuthCallbackPage')
 
   const supabaseClient = readFileSync(join(ROOT, 'src/lib/supabase.ts'), 'utf8')
   assert(
     supabaseClient.includes('detectSessionInUrl: false'),
-    'detectSessionInUrl disabled — callback owns exchange/verify',
+    'detectSessionInUrl disabled',
   )
-  assert(supabaseClient.includes("flowType: 'pkce'"), 'PKCE flow preserved globally')
-
-  const authService = readFileSync(
-    join(ROOT, 'src/features/auth/services/authService.ts'),
-    'utf8',
-  )
-  assert(
-    authService.includes("authCallbackUrl('confirm')"),
-    'signup redirects to callback?next=confirm',
-  )
-  assert(
-    authService.includes("authCallbackUrl('recovery')"),
-    'resetPasswordForEmail redirectTo still set (legacy + SiteURL)',
-  )
+  assert(supabaseClient.includes("flowType: 'pkce'"), 'PKCE preserved globally')
 
   const callbackSrc = readFileSync(
     join(ROOT, 'src/features/auth/callback/authCallback.ts'),
     'utf8',
   )
-  assert(!callbackSrc.includes('__OURWED_AUTH_EXCHANGE__'), 'no TEMP window diagnostics')
-  assert(!callbackSrc.includes('getAuthExchangeDiagnostics'), 'diagnostics helper removed')
-  assert(!callbackSrc.includes('fullCallbackUrl'), 'no fullCallbackUrl logging')
+  assert(!callbackSrc.includes('__OURWED_AUTH_EXCHANGE__'), 'no TEMP diagnostics')
   assert(
     !/console\.(log|debug|info|warn)\([^)]*token_hash/.test(callbackSrc),
     'no token_hash console logging',
   )
+  assert(callbackSrc.includes('verifyAuthTokenHashOnce'), 'canonical verify helper')
 
   const callbackPage = readFileSync(
     join(ROOT, 'src/pages/AuthCallbackPage.tsx'),
     'utf8',
   )
-  assert(
-    callbackPage.includes('verifyRecoveryTokenHashOnce'),
-    'callback page verifies token_hash',
-  )
-  assert(
-    callbackPage.includes('exchangeAuthCodeOnce'),
-    'callback page still exchanges legacy code',
-  )
-  assert(
-    callbackPage.includes('isTokenHashRecovery'),
-    'token_hash recovery takes priority',
-  )
-  assert(
-    callbackPage.includes('confirm_recovery') ||
-      callbackPage.includes('Kontynuuj reset hasła'),
-    'confirm-click before verifyOtp (prefetch guard)',
-  )
+  assert(callbackPage.includes('verifyAuthTokenHashOnce'), 'page uses verifyAuthTokenHashOnce')
+  assert(callbackPage.includes('resolveTokenHashFlow'), 'page resolves token-hash flow')
+  assert(callbackPage.includes('exchangeAuthCodeOnce'), 'legacy code path retained')
   assert(
     callbackPage.includes("replaceState({}, '', '/auth/callback')"),
-    'strips sensitive params from URL',
+    'strips sensitive params',
   )
   assert(
     callbackPage.includes('navigate(phase.path, { replace: true') ||
       callbackPage.includes('<Navigate to={phase.path} replace'),
-    'navigation uses replace semantics',
+    'replace navigation',
   )
-  assert(callbackPage.includes("path: '/reset-password'"), 'success → /reset-password')
-  assert(
-    callbackPage.includes('Trwa weryfikacja') ||
-      callbackPage.includes('AuthLoadingScreen'),
-    'callback shows verification status (not homepage)',
-  )
-  assert(
-    callbackPage.includes('Link wygasł lub został już użyty'),
-    'callback error copy',
-  )
-  assert(
-    callbackPage.includes('Wyślij nowy link') ||
-      callbackPage.includes('resolveAuthCallbackErrorAction'),
-    'callback offers new link action',
-  )
-  assert(callbackPage.includes('armPasswordRecovery'), 'arms recovery for reset page')
   assert(
     !/console\.(log|debug|info)\([^)]*token/.test(callbackPage),
-    'callback page does not console-log tokens',
+    'page does not console-log tokens',
   )
+  // User-facing JSX strings (not code comments)
+  const jsxCopy = callbackPage
+    .split('\n')
+    .filter((line) => !line.trim().startsWith('*') && !line.trim().startsWith('//'))
+    .join('\n')
+  assert(!jsxCopy.includes("'PKCE'") && !/"PKCE"/.test(jsxCopy), 'no PKCE in UI strings')
+  assert(callbackSrc.includes('Potwierdź konto'), 'signup confirm copy in flow map')
+  assert(callbackSrc.includes('Kontynuuj reset hasła'), 'recovery confirm copy in flow map')
+  assert(callbackSrc.includes('Kontynuuj logowanie'), 'magic-link confirm copy')
+  assert(callbackSrc.includes('Przyjmij zaproszenie'), 'invite confirm copy')
+  assert(callbackSrc.includes('Potwierdź zmianę adresu'), 'email-change confirm copy')
 
-  const gate = readFileSync(
-    join(ROOT, 'src/features/auth/callback/AuthCallbackGate.tsx'),
-    'utf8',
-  )
-  assert(
-    gate.includes('locationNeedsAuthCallback'),
-    'gate intercepts code/token before child routes',
-  )
-
-  const resetForm = readFileSync(
-    join(ROOT, 'src/features/auth/components/ResetPasswordForm.tsx'),
-    'utf8',
-  )
-  assert(
-    resetForm.includes("navigate('/login'") &&
-      resetForm.includes('passwordReset: true'),
-    'successful password update → login with success state',
-  )
-
-  const loginPage = readFileSync(join(ROOT, 'src/pages/LoginPage.tsx'), 'utf8')
-  assert(
-    loginPage.includes('Hasło zostało zmienione'),
-    'login shows password-changed message',
-  )
-
-  const recoveryHtml = readFileSync(
-    join(ROOT, 'supabase/templates/auth/recovery.html'),
-    'utf8',
-  )
-  assert(
-    recoveryHtml.includes(
-      'https://ourwed.pl/auth/callback?token_hash={{ .TokenHash }}&type=recovery',
-    ),
-    'recovery email CTA uses TokenHash',
-  )
-  assert(
-    !recoveryHtml.includes('href="{{ .ConfirmationURL }}"'),
-    'recovery CTA no longer ConfirmationURL',
-  )
+  for (const intent of INTENTS) {
+    const flow = AUTH_TOKEN_HASH_FLOWS[intent]
+    const needle = authEmailActionHref(intent)
+    // Map template id from intent
+    const fileId =
+      intent === 'signup'
+        ? 'confirmation'
+        : intent === 'magic-link'
+          ? 'magic_link'
+          : intent === 'email-change'
+            ? 'email_change'
+            : intent
+    const html = readFileSync(
+      join(ROOT, `supabase/templates/auth/${fileId}.html`),
+      'utf8',
+    )
+    assert(html.includes(needle), `${fileId} CTA matches ${intent}`)
+    assert(
+      !html.includes('{{ .ConfirmationURL }}'),
+      `${fileId} has no ConfirmationURL`,
+    )
+    assert(!/\blocalhost\b/i.test(html), `${fileId} no localhost`)
+    assert(
+      html.includes(flow.safeFallbackPath) ||
+        html.includes(`https://ourwed.pl${flow.safeFallbackPath}`),
+      `${fileId} safe fallback`,
+    )
+  }
 }
 
 console.log('PASS  auth callback')

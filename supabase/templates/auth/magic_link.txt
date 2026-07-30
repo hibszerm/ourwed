@@ -5,10 +5,10 @@ Jednorazowe logowanie
 Kliknij przycisk poniżej, aby zalogować się do OurWed.
 
 Zaloguj się:
-{{ .ConfirmationURL }}
+https://ourwed.pl/auth/callback?token_hash={{ .TokenHash }}&type=email&intent=magic-link
 
-Jeżeli przycisk nie działa, skopiuj poniższy adres:
-{{ .ConfirmationURL }}
+Jeżeli przycisk nie działa, wróć do logowania i poproś o nowy link:
+https://ourwed.pl/login
 
 Jeżeli nie prosiłeś o ten link, możesz bezpiecznie zignorować tę wiadomość.
 

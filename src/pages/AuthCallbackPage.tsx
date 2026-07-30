@@ -6,38 +6,47 @@ import { AuthShell } from '@/features/auth/components/AuthShell'
 import { useAuth } from '@/features/auth/AuthProvider'
 import {
   exchangeAuthCodeOnce,
-  isTokenHashRecovery,
+  getConfirmCopyForIntent,
+  isTokenHashCallback,
   mapAuthCallbackFailureMessage,
   parseAuthCallbackParams,
   resolveAuthCallbackDestination,
   resolveAuthCallbackErrorAction,
-  verifyRecoveryTokenHashOnce,
+  resolveTokenHashFlow,
+  verifyAuthTokenHashOnce,
+  type AuthCallbackIntent,
   type AuthCallbackResult,
+  type AuthConfirmCopy,
 } from '@/features/auth/callback/authCallback'
 import styles from '@/features/auth/components/AuthForms.module.css'
 
 type Phase =
   | { kind: 'loading' }
   | {
-      kind: 'confirm_recovery'
+      kind: 'confirm'
       tokenHash: string
+      intent: AuthCallbackIntent
+      verificationType: Parameters<
+        typeof verifyAuthTokenHashOnce
+      >[0]['verificationType']
+      copy: AuthConfirmCopy
     }
   | {
       kind: 'error'
       message: string
-      next: ReturnType<typeof parseAuthCallbackParams>['next']
+      intentOrNext: AuthCallbackIntent | ReturnType<
+        typeof parseAuthCallbackParams
+      >['next']
     }
   | { kind: 'done'; path: string; state?: Record<string, unknown> }
 
-/** Survives StrictMode remounts for PKCE codes / token hashes already started. */
+/** Survives StrictMode remounts for tokens / codes already started. */
 const startedKeys = new Set<string>()
 
 /**
  * Single entry for Supabase Auth email callbacks.
  *
- * Recovery (token_hash): waits for an explicit user click before verifyOtp
- * (guards against email-client link prefetch consuming the token).
- *
+ * Token-hash flows: intent-specific confirm click, then verifyOtp once.
  * Legacy PKCE (?code=): exchanges once, then routes by intent.
  */
 export function AuthCallbackPage() {
@@ -57,21 +66,27 @@ export function AuthCallbackPage() {
     async function finishFromResult(
       result: AuthCallbackResult,
       next: typeof params.next,
+      intent: AuthCallbackIntent | null,
     ) {
       if (!result.ok) {
         setPhase({
           kind: 'error',
           message: result.message,
-          next,
+          intentOrNext: intent ?? next,
         })
         return
       }
 
-      const isRecovery = result.isRecovery || next === 'recovery'
+      const resolvedIntent = result.intent ?? intent
+      const isRecovery =
+        result.isRecovery ||
+        resolvedIntent === 'recovery' ||
+        next === 'recovery'
       const destination = resolveAuthCallbackDestination({
         next,
         isRecovery,
         hasSession: Boolean(result.session),
+        intent: resolvedIntent,
       })
 
       if (isRecovery) {
@@ -95,7 +110,7 @@ export function AuthCallbackPage() {
         setPhase({
           kind: 'error',
           message: mapAuthCallbackFailureMessage('provider_error'),
-          next: params.next,
+          intentOrNext: params.next,
         })
         return
       }
@@ -104,7 +119,7 @@ export function AuthCallbackPage() {
         setPhase({
           kind: 'error',
           message: mapAuthCallbackFailureMessage('missing_code'),
-          next: params.next,
+          intentOrNext: params.next,
         })
         return
       }
@@ -121,43 +136,32 @@ export function AuthCallbackPage() {
         setPhase({
           kind: 'error',
           message: mapAuthCallbackFailureMessage('exchange_failed'),
-          next: params.next,
+          intentOrNext: params.next,
         })
         return
       }
 
-      await finishFromResult(result, params.next)
+      await finishFromResult(result, params.next, params.intent)
     }
 
-    // Priority: token_hash recovery (cross-device) over legacy PKCE code.
-    if (isTokenHashRecovery(params) && params.tokenHash) {
-      setPhase({ kind: 'confirm_recovery', tokenHash: params.tokenHash })
-      return
-    }
+    // Priority: token_hash (all intents) over legacy PKCE code.
+    if (isTokenHashCallback(params)) {
+      const resolved = resolveTokenHashFlow(params)
+      if (!resolved.ok) {
+        setPhase({
+          kind: 'error',
+          message: resolved.message,
+          intentOrNext: params.intent ?? params.next,
+        })
+        return
+      }
 
-    if (params.type === 'recovery' && !params.tokenHash) {
       setPhase({
-        kind: 'error',
-        message: mapAuthCallbackFailureMessage('missing_token'),
-        next: 'recovery',
-      })
-      return
-    }
-
-    if (params.tokenHash && params.type && params.type !== 'recovery') {
-      setPhase({
-        kind: 'error',
-        message: mapAuthCallbackFailureMessage('invalid_type'),
-        next: params.next,
-      })
-      return
-    }
-
-    if (params.tokenHash && !params.type) {
-      setPhase({
-        kind: 'error',
-        message: mapAuthCallbackFailureMessage('invalid_type'),
-        next: params.next,
+        kind: 'confirm',
+        tokenHash: resolved.tokenHash,
+        intent: resolved.intent,
+        verificationType: resolved.verificationType,
+        copy: resolved.confirm,
       })
       return
     }
@@ -165,23 +169,27 @@ export function AuthCallbackPage() {
     void runLegacyPkce()
   }, [armPasswordRecovery, clearPasswordRecovery, location.search])
 
-  async function confirmRecovery(tokenHash: string) {
+  async function confirmTokenHash(phaseConfirm: Extract<Phase, { kind: 'confirm' }>) {
     if (verifying) return
     setVerifying(true)
 
-    const key = `token:${tokenHash}`
+    const key = `token:${phaseConfirm.verificationType}:${phaseConfirm.tokenHash}`
     if (!startedKeys.has(key)) {
       startedKeys.add(key)
     }
 
     let result: AuthCallbackResult
     try {
-      result = await verifyRecoveryTokenHashOnce(tokenHash)
+      result = await verifyAuthTokenHashOnce({
+        tokenHash: phaseConfirm.tokenHash,
+        verificationType: phaseConfirm.verificationType,
+        intent: phaseConfirm.intent,
+      })
     } catch {
       setPhase({
         kind: 'error',
         message: mapAuthCallbackFailureMessage('verify_failed'),
-        next: 'recovery',
+        intentOrNext: phaseConfirm.intent,
       })
       setVerifying(false)
       return
@@ -191,17 +199,31 @@ export function AuthCallbackPage() {
       setPhase({
         kind: 'error',
         message: result.message,
-        next: 'recovery',
+        intentOrNext: phaseConfirm.intent,
       })
       setVerifying(false)
       return
     }
 
-    armPasswordRecovery()
+    if (phaseConfirm.intent === 'recovery') {
+      armPasswordRecovery()
+    } else {
+      clearPasswordRecovery()
+    }
+
     window.history.replaceState({}, '', '/auth/callback')
+
+    const destination = resolveAuthCallbackDestination({
+      next: 'auto',
+      isRecovery: phaseConfirm.intent === 'recovery',
+      hasSession: Boolean(result.session),
+      intent: phaseConfirm.intent,
+    })
+
     setPhase({
       kind: 'done',
-      path: '/reset-password',
+      path: destination.path,
+      state: destination.state,
     })
   }
 
@@ -214,26 +236,24 @@ export function AuthCallbackPage() {
     return <Navigate to={phase.path} replace state={phase.state} />
   }
 
-  if (phase.kind === 'confirm_recovery') {
+  if (phase.kind === 'confirm') {
+    const copy = phase.copy ?? getConfirmCopyForIntent(phase.intent)
     return (
       <AuthShell
-        title="Reset hasła"
-        subtitle="Potwierdź, że chcesz ustawić nowe hasło do konta OurWed."
+        title={copy.title}
+        subtitle={copy.subtitle}
         footer={<Link to="/login">Wróć do logowania</Link>}
       >
         <div className={styles.successPanel}>
-          <p className={styles.successBody}>
-            Kliknij poniżej, aby kontynuować. Ten krok chroni przed
-            automatycznym otwieraniem linków przez skrzynki e-mail.
-          </p>
+          <p className={styles.successBody}>{copy.body}</p>
           <Button
             type="button"
             variant="primary"
             className={styles.submit}
             disabled={verifying}
-            onClick={() => void confirmRecovery(phase.tokenHash)}
+            onClick={() => void confirmTokenHash(phase)}
           >
-            {verifying ? 'Weryfikacja…' : 'Kontynuuj reset hasła'}
+            {verifying ? copy.verifyingLabel : copy.buttonLabel}
           </Button>
         </div>
       </AuthShell>
@@ -241,7 +261,7 @@ export function AuthCallbackPage() {
   }
 
   if (phase.kind === 'error') {
-    const action = resolveAuthCallbackErrorAction(phase.next)
+    const action = resolveAuthCallbackErrorAction(phase.intentOrNext)
     return (
       <AuthShell
         title="Link wygasł lub został już użyty"

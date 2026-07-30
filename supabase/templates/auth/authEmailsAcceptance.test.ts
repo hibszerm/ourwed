@@ -1,6 +1,6 @@
 /**
  * Acceptance checks for branded OurWed auth email templates.
- * Ensures placeholders, Polish copy, and CTA buttons stay intact.
+ * All actionable templates must use TokenHash (never ConfirmationURL).
  */
 import { readFileSync, existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -19,36 +19,42 @@ const TEMPLATES = [
     subject: 'Zmień hasło do konta OurWed',
     heading: 'Reset hasła',
     button: 'Zmień hasło',
+    cta: 'https://ourwed.pl/auth/callback?token_hash={{ .TokenHash }}&type=recovery&intent=recovery',
+    fallback: 'https://ourwed.pl/forgot-password',
   },
   {
     id: 'confirmation',
     subject: 'Potwierdź adres e-mail',
     heading: 'Witamy w OurWed',
     button: 'Potwierdź adres e-mail',
+    cta: 'https://ourwed.pl/auth/callback?token_hash={{ .TokenHash }}&type=email&intent=signup',
+    fallback: 'https://ourwed.pl/register',
   },
   {
     id: 'magic_link',
     subject: 'Zaloguj się do OurWed',
     heading: 'Jednorazowe logowanie',
     button: 'Zaloguj się',
+    cta: 'https://ourwed.pl/auth/callback?token_hash={{ .TokenHash }}&type=email&intent=magic-link',
+    fallback: 'https://ourwed.pl/login',
   },
   {
     id: 'email_change',
     subject: 'Potwierdź zmianę adresu e-mail',
     heading: 'Zmiana adresu e-mail',
     button: 'Potwierdź zmianę',
+    cta: 'https://ourwed.pl/auth/callback?token_hash={{ .TokenHash }}&type=email_change&intent=email-change',
+    fallback: 'https://ourwed.pl/login',
   },
   {
     id: 'invite',
     subject: 'Zaproszenie do OurWed',
     heading: 'Otrzymałeś zaproszenie',
     button: 'Akceptuję zaproszenie',
+    cta: 'https://ourwed.pl/auth/callback?token_hash={{ .TokenHash }}&type=invite&intent=invite',
+    fallback: 'https://ourwed.pl/login',
   },
 ] as const
-
-const CONFIRMATION_PLACEHOLDER = '{{ .ConfirmationURL }}'
-const RECOVERY_CTA =
-  'https://ourwed.pl/auth/callback?token_hash={{ .TokenHash }}&type=recovery'
 
 assert(existsSync(join(AUTH, 'previews/index.html')), 'preview index missing')
 assert(existsSync(join(AUTH, 'config.snippet.toml')), 'config snippet missing')
@@ -80,46 +86,22 @@ for (const t of TEMPLATES) {
   assert(snippet.includes(`template.${t.id}`), `snippet wires ${t.id}`)
   assert(snippet.includes(t.subject), `snippet subject for ${t.id}`)
 
-  if (t.id === 'recovery') {
-    assert(html.includes(RECOVERY_CTA), 'recovery html TokenHash CTA')
-    assert(txt.includes(RECOVERY_CTA), 'recovery txt TokenHash CTA')
-    assert(
-      html.includes(`href="${RECOVERY_CTA}"`),
-      'recovery CTA href uses TokenHash URL',
-    )
-    assert(
-      !html.includes(`href="${CONFIRMATION_PLACEHOLDER}"`),
-      'recovery CTA is not ConfirmationURL',
-    )
-    assert(
-      html.includes('https://ourwed.pl/forgot-password'),
-      'recovery visible fallback is forgot-password (no token in body)',
-    )
-    assert(
-      !html.includes('token_hash={{ .TokenHash }}</a>'),
-      'token_hash URL not shown as visible fallback link text',
-    )
-    assert(
-      preview.includes('token_hash=example-token-hash&type=recovery'),
-      'recovery preview uses sample TokenHash URL',
-    )
-    assert(
-      !preview.includes('supabase.co/auth/v1/verify?token=example'),
-      'recovery preview is not ConfirmationURL sample',
-    )
-  } else {
-    assert(html.includes(CONFIRMATION_PLACEHOLDER), `${t.id} html keeps ConfirmationURL`)
-    assert(txt.includes(CONFIRMATION_PLACEHOLDER), `${t.id} txt keeps ConfirmationURL`)
-    assert(
-      html.includes(`href="${CONFIRMATION_PLACEHOLDER}"`),
-      `${t.id} CTA href uses ConfirmationURL`,
-    )
-    assert(
-      !html.includes('supabase.co/auth/v1/verify?token=example'),
-      `${t.id} no sample URL in prod`,
-    )
-    assert(preview.includes('supabase.co/auth/v1/verify'), `${t.id} preview has sample URL`)
-  }
+  assert(html.includes(t.cta), `${t.id} html TokenHash CTA`)
+  assert(txt.includes(t.cta), `${t.id} txt TokenHash CTA`)
+  assert(html.includes(`href="${t.cta}"`), `${t.id} CTA href`)
+  assert(!html.includes('{{ .ConfirmationURL }}'), `${t.id} no ConfirmationURL`)
+  assert(!txt.includes('{{ .ConfirmationURL }}'), `${t.id} txt no ConfirmationURL`)
+  assert(!/\blocalhost\b/i.test(html), `${t.id} no localhost in prod html`)
+  assert(!/\blocalhost\b/i.test(txt), `${t.id} no localhost in prod txt`)
+  assert(html.includes(t.fallback), `${t.id} safe fallback`)
+  assert(
+    !html.includes(`>${t.cta}<`),
+    `${t.id} does not print token_hash URL as visible text node`,
+  )
+  assert(
+    preview.includes('token_hash=example-token-hash'),
+    `${t.id} preview uses sample TokenHash`,
+  )
 }
 
 const emailChange = readFileSync(join(AUTH, 'email_change.html'), 'utf8')
@@ -138,26 +120,19 @@ assert(
 )
 
 const builder = readFileSync(join(ROOT, 'scripts/buildAuthEmails.ts'), 'utf8')
-assert(builder.includes('TokenHash'), 'builder documents TokenHash recovery')
-assert(
-  builder.includes('RECOVERY_ACTION_URL'),
-  'builder has recovery action URL constant',
-)
+assert(builder.includes('assertSafeProductionOutput'), 'builder guards ConfirmationURL/localhost')
+assert(builder.includes('tokenHashActionUrl'), 'builder builds TokenHash CTAs')
+assert(!builder.includes("CONFIRMATION_URL = '{{ .ConfirmationURL }}'"), 'builder dropped ConfirmationURL default')
 
-// Auth service must remain untouched by this work — smoke that redirects still exist.
+// No reauthentication actionable template in this project (OTP code only if added later).
+assert(!existsSync(join(AUTH, 'reauthentication.html')), 'no reauthentication clickable template')
+
 const authService = readFileSync(
   join(ROOT, 'src/features/auth/services/authService.ts'),
   'utf8',
 )
 assert(authService.includes('resetPasswordForEmail'), 'auth reset still present')
-assert(authService.includes('authCallbackUrl'), 'auth uses callback URLs')
-assert(
-  authService.includes("authCallbackUrl('recovery')"),
-  'reset redirect uses /auth/callback?next=recovery',
-)
-assert(
-  authService.includes("authCallbackUrl('confirm')"),
-  'signup redirect uses /auth/callback?next=confirm',
-)
+assert(authService.includes('signUp'), 'auth signup still present')
+assert(authService.includes('authCallbackUrl'), 'auth uses callback URLs for redirect allow-list')
 
 console.log('PASS  auth emails')

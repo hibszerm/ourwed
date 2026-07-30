@@ -2,107 +2,91 @@
 
 OurWed uses Supabase Auth with `flowType: 'pkce'` globally (`persistSession`, `autoRefreshToken`, `detectSessionInUrl: false`).
 
-Password **recovery** does **not** rely on PKCE `?code=` + `exchangeCodeForSession`. That path stores a code verifier in the browser that requested the reset, so opening the email on another browser or device fails with `pkce_code_verifier_not_found` / `AuthPKCECodeVerifierMissingError`.
+**All actionable auth emails** use a unified TokenHash architecture. They do **not** use `{{ .ConfirmationURL }}` + `exchangeCodeForSession`.
 
-## Password recovery (TokenHash + verifyOtp)
+That old path stores a PKCE code verifier in the browser that requested the email, so opening the link on another browser or device fails (`pkce_code_verifier_not_found`). Email security prefetch can also consume one-time ConfirmationURL links.
+
+## Unified flow
 
 ```
 Email CTA (custom)
-  → https://ourwed.pl/auth/callback?token_hash={{ .TokenHash }}&type=recovery
-  → confirm-click landing („Kontynuuj reset hasła”)
-  → verifyOtp({ token_hash, type: 'recovery' })  // exactly once
-  → armPasswordRecovery + strip sensitive params (replaceState)
-  → /reset-password (navigate replace)
-  → updateUser({ password }) → /login
+  → https://ourwed.pl/auth/callback?token_hash={{ .TokenHash }}&type=<EmailOtpType>&intent=<OurWedIntent>
+  → intent-specific confirm screen (no verifyOtp on mount)
+  → verifyOtp({ token_hash, type })  // exactly once
+  → strip sensitive params (replaceState)
+  → allow-listed destination
 ```
 
-Supabase Reset Password template CTA must use:
+## Intent ↔ verifyOtp type ↔ destination
 
-```html
-<a href="https://ourwed.pl/auth/callback?token_hash={{ .TokenHash }}&type=recovery">
-  Zmień hasło
-</a>
-```
+| Intent | Email template | `type` (verifyOtp) | Success destination |
+|--------|----------------|--------------------|---------------------|
+| `recovery` | Reset password | `recovery` | `/reset-password` |
+| `signup` | Confirm signup | `email` | `/dashboard` if session, else `/login` (+ confirmed message) |
+| `magic-link` | Magic link | `email` | `/dashboard` if session |
+| `invite` | Invite user | `invite` | `/dashboard` if session |
+| `email-change` | Change email | `email_change` | `/login` (+ changed message) |
 
-Do **not** use `{{ .ConfirmationURL }}` for recovery. Keep branded Polish HTML; only change the CTA (and do not print the token_hash URL as visible fallback text — use `https://ourwed.pl/forgot-password`).
+Installed SDK `EmailOtpType` includes `signup` | `invite` | `magiclink` | `recovery` | `email_change` | `email`. Current Supabase docs use `type=email` for token-hash signup and magic-link verification; OurWed follows that for those intents (and still accepts legacy `signup` / `magiclink` query values if present).
 
-Local template testing equivalent (not for production template):
+`intent` is required when `type=email` (ambiguous otherwise). For `recovery` / `invite` / `email_change`, intent may be inferred from `type` (supports older recovery links without `intent=`).
 
-```text
-http://localhost:5173/auth/callback?token_hash={{ .TokenHash }}&type=recovery
-```
+Arbitrary redirects from the query string are **never** trusted. Destinations come only from `AUTH_TOKEN_HASH_FLOWS`.
 
-## Prefetch / email security
+## Confirm-click (prefetch protection)
 
-Official Supabase guidance: email security scanners may prefetch links and consume one-time tokens.
+`verifyOtp` is **not** called on page load. The user must click an intent-specific button (e.g. „Potwierdź konto”, „Kontynuuj reset hasła”). Prefetch GETs therefore do not consume the one-time token.
 
-Decision for OurWed:
+Keep Resend **click tracking disabled** for auth SMTP.
 
-1. Recovery link lands on `/auth/callback` with `token_hash` in the query.
-2. **`verifyOtp` is not called on mount** — the user must click „Kontynuuj reset hasła”.
-3. Prefetch GETs therefore do not consume the token.
-4. Auth emails via Resend should keep **click tracking disabled** (open/click wrappers must not rewrite auth CTAs). Confirm in the Resend dashboard for the OurWed domain/API key used by Supabase SMTP.
+## Legacy PKCE (`?code=`)
 
-## Legacy PKCE callback (still supported)
-
-Older emails and non-recovery flows may still arrive as:
+Emails already sent with ConfirmationURL may still arrive as `?code=…&next=…`.
 
 ```
-?code=…&next=recovery|confirm|…
-  → exchangeCodeForSession(code)  // exactly once
-  → route by next / PASSWORD_RECOVERY
+?code=… → exchangeCodeForSession(code)  // exact-once
+       → route by next / PASSWORD_RECOVERY
 ```
 
 | Priority | Condition | Action |
 |----------|-----------|--------|
-| 1 | `token_hash` + `type=recovery` | confirm → `verifyOtp` → `/reset-password` |
-| 2 | `token_hash` + other/missing type | friendly error |
-| 3 | `type=recovery` without `token_hash` | friendly error |
-| 4 | `?code=` / provider `error` | legacy exchange / error UI |
+| 1 | `token_hash` present | validate intent/type → confirm → `verifyOtp` |
+| 2 | provider `error` / `?code=` | legacy exchange / error UI |
 
-`AuthCallbackGate` still intercepts `?code=`, `?token_hash=`, or `?error=` on non-callback routes so the homepage never paints during processing.
+Remove legacy exchange after the configured email-link TTL has elapsed for all pre-migration messages (typically days; confirm in Dashboard Auth settings).
 
-## Other email flows
-
-Signup confirm / magic / invite may keep `{{ .ConfirmationURL }}` + PKCE `?code=` (same browser is acceptable for those). Global PKCE is unchanged.
-
-| `next` | Destination |
-|--------|-------------|
-| `recovery` | `/reset-password` |
-| `confirm` | `/dashboard` if session, else `/login` |
-| `magic` / `invite` | `/dashboard` if session |
-| `email_change` | `/login` (message) |
-| `auto` (legacy) | infer from recovery / session |
+`AuthCallbackGate` intercepts `?code=`, `?token_hash=`, or `?error=` on non-callback routes so the homepage never paints during processing.
 
 ## Key files
 
 | File | Role |
 |------|------|
-| `src/features/auth/callback/authCallback.ts` | Parse, verifyOtp / exchange-once, destinations |
+| `src/features/auth/callback/authCallback.ts` | Parse, allow-list, verify/exchange once, destinations |
 | `src/features/auth/callback/AuthCallbackGate.tsx` | Intercept before homepage |
-| `src/pages/AuthCallbackPage.tsx` | Confirm landing / loading / errors |
+| `src/pages/AuthCallbackPage.tsx` | Confirm UI / loading / errors |
 | `src/lib/supabase.ts` | PKCE + `detectSessionInUrl: false` |
-| `supabase/templates/auth/recovery.html` | TokenHash CTA source |
+| `supabase/templates/auth/*.html` | TokenHash CTAs |
 
-## Dashboard checklist
+## Reauthentication
+
+Supabase reauthentication emails use a **6-digit `{{ .Token }}` OTP**, not a clickable ConfirmationURL. OurWed has no branded `reauthentication.html` and no in-app reauth OTP UI yet. Do not force reauth into the TokenHash click flow.
+
+## Dashboard
 
 Authentication → URL Configuration:
 
 - Site URL = `https://ourwed.pl`
-- Redirect URLs include `/auth/callback` (and local Vite origin)
+- Redirect URLs include `/auth/callback`
 
-Authentication → Email Templates → **Reset password**:
+Authentication → Email Templates: paste **every** generated production HTML file (see `docs/auth-emails.md`). Templates are **not** auto-deployed from git.
 
-- Paste generated `supabase/templates/auth/recovery.html` (TokenHash CTA). Templates are **not** auto-deployed from git.
+## Deployment order
 
-## Production verification
-
-After deploy + template paste:
-
-1. Same browser: request reset → open email → confirm → set password → login.
-2. Cross-browser: request in Chrome → open in Safari → set password.
-3. Cross-device: desktop request → mobile email → set password.
-4. Reused link → „Link wygasł lub został już użyty.” + „Wyślij nowy link”.
+1. Ship app with `/auth/callback` TokenHash handling.
+2. Paste all five actionable templates in Supabase.
+3. Confirm no template uses ConfirmationURL.
+4. Confirm Resend click tracking off.
+5. Send only **fresh** emails; run acceptance matrix.
 
 ## Verify
 

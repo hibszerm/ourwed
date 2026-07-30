@@ -2,98 +2,94 @@
 
 Branded Polish authentication emails for Supabase Auth + Resend SMTP.
 
-**Do not change auth logic, tokens, users, or redirect URLs.** Templates only replace default Supabase copy/HTML.
+**All actionable templates** use TokenHash → OurWed `/auth/callback` (never `{{ .ConfirmationURL }}`). See `docs/auth-callback.md`.
 
 ## Templates
 
-| Flow | Dashboard name | Subject | Files |
-|------|----------------|---------|-------|
-| Password reset | Reset password | `Zmień hasło do konta OurWed` | `recovery.html` / `.txt` |
-| Confirm signup | Confirm signup | `Potwierdź adres e-mail` | `confirmation.html` / `.txt` |
-| Magic link | Magic link | `Zaloguj się do OurWed` | `magic_link.html` / `.txt` |
-| Change email | Change email address | `Potwierdź zmianę adresu e-mail` | `email_change.html` / `.txt` |
-| Invite | Invite user | `Zaproszenie do OurWed` | `invite.html` / `.txt` |
+| Flow | Dashboard name | Subject | Files | Intent | verifyOtp `type` |
+|------|----------------|---------|-------|--------|------------------|
+| Password reset | Reset password | `Zmień hasło do konta OurWed` | `recovery.html` / `.txt` | `recovery` | `recovery` |
+| Confirm signup | Confirm signup | `Potwierdź adres e-mail` | `confirmation.html` / `.txt` | `signup` | `email` |
+| Magic link | Magic link | `Zaloguj się do OurWed` | `magic_link.html` / `.txt` | `magic-link` | `email` |
+| Change email | Change email address | `Potwierdź zmianę adresu e-mail` | `email_change.html` / `.txt` | `email-change` | `email_change` |
+| Invite | Invite user | `Zaproszenie do OurWed` | `invite.html` / `.txt` | `invite` | `invite` |
 
 Source directory: `supabase/templates/auth/`
 
-Browser previews (sample URLs substituted): `supabase/templates/auth/previews/index.html`
+Browser previews: `supabase/templates/auth/previews/index.html`
 
-## Placeholders
+**Reauthentication:** not generated. Supabase default uses `{{ .Token }}` (OTP code), not a clickable link.
 
-**Recovery (password reset)** uses TokenHash (cross-device; see `docs/auth-callback.md`):
+**Security notification emails** (password changed, etc.): informational only — no TokenHash migration.
 
-```html
-https://ourwed.pl/auth/callback?token_hash={{ .TokenHash }}&type=recovery
-```
-
-Do **not** use `{{ .ConfirmationURL }}` for the recovery CTA. Visible fallback in the body is `https://ourwed.pl/forgot-password` (never print the token_hash URL).
-
-**Other flows** keep:
+## CTA pattern
 
 ```html
-{{ .ConfirmationURL }}
+https://ourwed.pl/auth/callback?token_hash={{ .TokenHash }}&type=<TYPE>&intent=<INTENT>
 ```
 
-Change-email also includes:
+| Template | CTA |
+|----------|-----|
+| confirmation | `…&type=email&intent=signup` |
+| recovery | `…&type=recovery&intent=recovery` |
+| magic_link | `…&type=email&intent=magic-link` |
+| invite | `…&type=invite&intent=invite` |
+| email_change | `…&type=email_change&intent=email-change` |
 
-```html
-{{ .NewEmail }}
+Visible fallbacks point only at safe pages (`/forgot-password`, `/register`, `/login`) — never print the token_hash URL.
+
+Local testing pattern (not for production HTML):
+
+```text
+http://localhost:5173/auth/callback?token_hash={{ .TokenHash }}&type=…&intent=…
 ```
 
-Never hardcode live verify tokens in production `.html` files (TokenHash Go placeholder is required for recovery).
+Change-email also includes `{{ .NewEmail }}`.
 
-## Rebuild from shared shell
+## Rebuild
 
 ```bash
 npm run emails:auth:build
 ```
 
-Generator: `scripts/buildAuthEmails.ts`
+Generator: `scripts/buildAuthEmails.ts` — fails if any actionable production template contains `ConfirmationURL` or `localhost`.
 
-## Auth callback
+## App call sites
 
-Password recovery emails use the TokenHash CTA above. Other flows may still use ConfirmationURL → PKCE `?code=`.
+| API | In OurWed today | `redirectTo` / `emailRedirectTo` |
+|-----|-----------------|----------------------------------|
+| `signUp` | yes (`authService.register`) | `/auth/callback?next=confirm` (allow-list; CTA is template-owned) |
+| `resetPasswordForEmail` | yes | `/auth/callback?next=recovery` |
+| `signInWithOtp` | no | — |
+| `inviteUserByEmail` | no (admin/Dashboard) | — |
+| `updateUser({ email })` | no | — |
+| `resend` | no dedicated UI | — |
+| `generateLink` | no | — |
 
-1. Supabase Dashboard → **Authentication → URL Configuration**
-2. **Site URL**: `https://ourwed.pl`
-3. **Redirect URLs** must include:
-   - `https://ourwed.pl/auth/callback`
-   - `https://ourwed.pl/**`
-   - `http://localhost:5173/auth/callback` (local)
+## Manual migration table
 
-App `redirectTo` for `resetPasswordForEmail` remains `/auth/callback?next=recovery` (legacy / SiteURL); the **email CTA** is what users click and must be the TokenHash URL.
+| Supabase template | Project file | Intent | verifyOtp type | Success destination | Dashboard action |
+|-------------------|--------------|--------|----------------|---------------------|------------------|
+| Confirm signup | `confirmation.html` | signup | email | `/dashboard` or `/login` | Replace entire HTML + subject |
+| Reset password | `recovery.html` | recovery | recovery | `/reset-password` | Replace entire HTML + subject |
+| Magic link | `magic_link.html` | magic-link | email | `/dashboard` | Replace entire HTML + subject |
+| Invite user | `invite.html` | invite | invite | `/dashboard` | Replace entire HTML + subject |
+| Change email address | `email_change.html` | email-change | email_change | `/login` | Replace entire HTML + subject |
+| Reauthentication | — | — | OTP `{{ .Token }}` | — | Leave default / OTP-only |
 
-Confirm Resend **click tracking is disabled** for auth SMTP so CTA hrefs are not rewritten.
+## Deploy to hosted Supabase
 
-See `docs/auth-callback.md`.
+Templates are **not** auto-pushed from git.
 
-## Deploy to hosted Supabase (production)
+1. Deploy the app so `/auth/callback` understands all intents.
+2. Open Authentication → Email Templates.
+3. For each row above: set Subject, paste the matching `*.html` body (entire file).
+4. Confirm CTA href matches the TokenHash pattern (no ConfirmationURL).
+5. Confirm Resend click tracking is disabled for auth SMTP.
+6. Send only fresh test emails.
 
-SMTP (Resend) is already configured in the project. Templates are **not** auto-pushed from git.
-
-1. Open [Authentication → Email Templates](https://supabase.com/dashboard/project/xyycwllsovpxlcustpcv/auth/templates).
-2. For each template above:
-   - Set the **Subject** from the table.
-   - Paste the matching `*.html` body (entire file).
-3. Send a test email from the dashboard where available.
-4. For recovery: confirm the button href is the TokenHash callback URL (not ConfirmationURL). Visible fallback should be forgot-password.
-
-Local CLI (optional): merge `supabase/templates/auth/config.snippet.toml` into a full `supabase/config.toml`, then `supabase stop && supabase start`.
+Local CLI (optional): merge `supabase/templates/auth/config.snippet.toml` into `supabase/config.toml`.
 
 ## Design notes
 
-- Max width ~560px, white card, soft gray border, large heading typography
-- Black primary CTA (Classic OurWed accent)
-- Fallback raw URL under the button
-- Shared footer: OurWed / CRM copy / https://ourwed.pl
-- Dark-mode friendly `@media (prefers-color-scheme: dark)` for Apple Mail
-- Mobile padding adjustments under 620px
-
-## Verification
-
-```bash
-npm run test:auth-emails
-npm run build
-```
-
-Open `supabase/templates/auth/previews/index.html` in a browser; check desktop (~1280) and mobile (~390).
+Shared shell: brand first, single CTA, dark-mode-safe inline styles, max-width 560px, Polish copy.

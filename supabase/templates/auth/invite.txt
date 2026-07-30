@@ -5,10 +5,10 @@ Otrzymałeś zaproszenie
 Zostałeś zaproszony do korzystania z aplikacji OurWed.
 
 Akceptuję zaproszenie:
-{{ .ConfirmationURL }}
+https://ourwed.pl/auth/callback?token_hash={{ .TokenHash }}&type=invite&intent=invite
 
-Jeżeli przycisk nie działa, skopiuj poniższy adres:
-{{ .ConfirmationURL }}
+Jeżeli przycisk nie działa, poproś o nowe zaproszenie lub wróć do logowania:
+https://ourwed.pl/login
 
 Jeżeli nie spodziewałeś się tego zaproszenia, możesz zignorować tę wiadomość.
 

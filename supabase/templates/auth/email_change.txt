@@ -6,10 +6,10 @@ Otrzymaliśmy prośbę o zmianę adresu e-mail przypisanego do Twojego konta.
 Nowy adres: {{ .NewEmail }}
 
 Potwierdź zmianę:
-{{ .ConfirmationURL }}
+https://ourwed.pl/auth/callback?token_hash={{ .TokenHash }}&type=email_change&intent=email-change
 
-Jeżeli przycisk nie działa, skopiuj poniższy adres:
-{{ .ConfirmationURL }}
+Jeżeli przycisk nie działa, zaloguj się i ponów zmianę adresu:
+https://ourwed.pl/login
 
 Jeżeli to nie Ty wysłałeś tę prośbę, zignoruj tę wiadomość.
 

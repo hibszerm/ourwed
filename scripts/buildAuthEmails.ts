@@ -4,10 +4,8 @@
  * Generates production HTML + plain text for Supabase Auth,
  * plus browser previews with sample action URLs.
  *
- * Placeholders must remain exact Go template syntax for GoTrue:
- *   Recovery CTA: token_hash={{ .TokenHash }}&type=recovery
- *   Other flows:  {{ .ConfirmationURL }}
- *   {{ .SiteURL }} / {{ .Email }} / {{ .NewEmail }} (email_change)
+ * All actionable CTAs use TokenHash + type + intent (never ConfirmationURL):
+ *   https://ourwed.pl/auth/callback?token_hash={{ .TokenHash }}&type=…&intent=…
  *
  * Run: npx tsx scripts/buildAuthEmails.ts
  */
@@ -20,17 +18,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const OUT = join(ROOT, 'supabase/templates/auth')
 const PREVIEWS = join(OUT, 'previews')
 
-const CONFIRMATION_URL = '{{ .ConfirmationURL }}'
-
-/** Production recovery CTA — TokenHash + verifyOtp (cross-device). */
-const RECOVERY_ACTION_URL =
-  'https://ourwed.pl/auth/callback?token_hash={{ .TokenHash }}&type=recovery'
-
-const SAMPLE_CONFIRMATION_URL =
-  'https://xyycwllsovpxlcustpcv.supabase.co/auth/v1/verify?token=example-token-hash&type=recovery&redirect_to=https://ourwed.pl/reset-password'
-
-const SAMPLE_RECOVERY_ACTION_URL =
-  'https://ourwed.pl/auth/callback?token_hash=example-token-hash&type=recovery'
+const ORIGIN = 'https://ourwed.pl'
 
 type AuthEmailId =
   | 'recovery'
@@ -38,6 +26,13 @@ type AuthEmailId =
   | 'magic_link'
   | 'email_change'
   | 'invite'
+
+type AuthIntent =
+  | 'recovery'
+  | 'signup'
+  | 'magic-link'
+  | 'invite'
+  | 'email-change'
 
 interface AuthEmailSpec {
   id: AuthEmailId
@@ -55,16 +50,19 @@ interface AuthEmailSpec {
   extraHtml?: string
   /** Extra plain-text lines after body paragraphs */
   extraText?: string[]
-  /** Override CTA href (defaults to ConfirmationURL). */
-  actionUrl?: string
-  /**
-   * When true, do not print the action URL as visible text
-   * (used for recovery so token_hash is not shown in the email body).
-   */
-  hideVisibleActionUrl?: boolean
-  /** Optional safe fallback href when hideVisibleActionUrl is true. */
-  safeFallbackUrl?: string
-  safeFallbackLabel?: string
+  intent: AuthIntent
+  /** verifyOtp / GoTrue type query value */
+  otpType: string
+  safeFallbackUrl: string
+  safeFallbackLabel: string
+}
+
+function tokenHashActionUrl(otpType: string, intent: AuthIntent): string {
+  return `${ORIGIN}/auth/callback?token_hash={{ .TokenHash }}&type=${otpType}&intent=${intent}`
+}
+
+function sampleActionUrl(otpType: string, intent: AuthIntent): string {
+  return `${ORIGIN}/auth/callback?token_hash=example-token-hash&type=${otpType}&intent=${intent}`
 }
 
 const EMAILS: AuthEmailSpec[] = [
@@ -82,10 +80,10 @@ const EMAILS: AuthEmailSpec[] = [
       'Jeżeli przycisk nie działa, poproś o nowy link na stronie resetu hasła:',
     disclaimer:
       'Jeżeli to nie Ty wysłałeś tę prośbę, po prostu zignoruj tę wiadomość.',
-    actionUrl: RECOVERY_ACTION_URL,
-    hideVisibleActionUrl: true,
-    safeFallbackUrl: 'https://ourwed.pl/forgot-password',
-    safeFallbackLabel: 'https://ourwed.pl/forgot-password',
+    intent: 'recovery',
+    otpType: 'recovery',
+    safeFallbackUrl: `${ORIGIN}/forgot-password`,
+    safeFallbackLabel: `${ORIGIN}/forgot-password`,
   },
   {
     id: 'confirmation',
@@ -97,9 +95,14 @@ const EMAILS: AuthEmailSpec[] = [
       'Potwierdź swój adres e-mail, aby rozpocząć korzystanie z aplikacji.',
     ],
     buttonLabel: 'Potwierdź adres e-mail',
-    fallbackIntro: 'Jeżeli przycisk nie działa, skopiuj poniższy adres:',
+    fallbackIntro:
+      'Jeżeli przycisk nie działa, załóż konto ponownie lub wróć do rejestracji:',
     disclaimer:
       'Jeżeli konto nie zostało utworzone przez Ciebie, zignoruj tę wiadomość.',
+    intent: 'signup',
+    otpType: 'email',
+    safeFallbackUrl: `${ORIGIN}/register`,
+    safeFallbackLabel: `${ORIGIN}/register`,
   },
   {
     id: 'magic_link',
@@ -108,9 +111,14 @@ const EMAILS: AuthEmailSpec[] = [
     heading: 'Jednorazowe logowanie',
     paragraphs: ['Kliknij przycisk poniżej, aby zalogować się do OurWed.'],
     buttonLabel: 'Zaloguj się',
-    fallbackIntro: 'Jeżeli przycisk nie działa, skopiuj poniższy adres:',
+    fallbackIntro:
+      'Jeżeli przycisk nie działa, wróć do logowania i poproś o nowy link:',
     disclaimer:
       'Jeżeli nie prosiłeś o ten link, możesz bezpiecznie zignorować tę wiadomość.',
+    intent: 'magic-link',
+    otpType: 'email',
+    safeFallbackUrl: `${ORIGIN}/login`,
+    safeFallbackLabel: `${ORIGIN}/login`,
   },
   {
     id: 'email_change',
@@ -121,12 +129,17 @@ const EMAILS: AuthEmailSpec[] = [
       'Otrzymaliśmy prośbę o zmianę adresu e-mail przypisanego do Twojego konta.',
     ],
     buttonLabel: 'Potwierdź zmianę',
-    fallbackIntro: 'Jeżeli przycisk nie działa, skopiuj poniższy adres:',
+    fallbackIntro:
+      'Jeżeli przycisk nie działa, zaloguj się i ponów zmianę adresu:',
     disclaimer:
       'Jeżeli to nie Ty wysłałeś tę prośbę, zignoruj tę wiadomość.',
     extraHtml:
       '<p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#5c5c5c;">Nowy adres: <strong style="color:#0a0a0a;font-weight:600;">{{ .NewEmail }}</strong></p>',
     extraText: ['Nowy adres: {{ .NewEmail }}'],
+    intent: 'email-change',
+    otpType: 'email_change',
+    safeFallbackUrl: `${ORIGIN}/login`,
+    safeFallbackLabel: `${ORIGIN}/login`,
   },
   {
     id: 'invite',
@@ -137,9 +150,14 @@ const EMAILS: AuthEmailSpec[] = [
       'Zostałeś zaproszony do korzystania z aplikacji OurWed.',
     ],
     buttonLabel: 'Akceptuję zaproszenie',
-    fallbackIntro: 'Jeżeli przycisk nie działa, skopiuj poniższy adres:',
+    fallbackIntro:
+      'Jeżeli przycisk nie działa, poproś o nowe zaproszenie lub wróć do logowania:',
     disclaimer:
       'Jeżeli nie spodziewałeś się tego zaproszenia, możesz zignorować tę wiadomość.',
+    intent: 'invite',
+    otpType: 'invite',
+    safeFallbackUrl: `${ORIGIN}/login`,
+    safeFallbackLabel: `${ORIGIN}/login`,
   },
 ]
 
@@ -149,15 +167,6 @@ function escapeHtml(value: string): string {
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
-}
-
-function resolveActionUrl(spec: AuthEmailSpec): string {
-  return spec.actionUrl ?? CONFIRMATION_URL
-}
-
-function resolvePreviewActionUrl(spec: AuthEmailSpec): string {
-  if (spec.id === 'recovery') return SAMPLE_RECOVERY_ACTION_URL
-  return SAMPLE_CONFIRMATION_URL
 }
 
 function renderHtml(
@@ -180,13 +189,6 @@ function renderHtml(
   if (options?.newEmail && extra.includes('{{ .NewEmail }}')) {
     extra = extra.replaceAll('{{ .NewEmail }}', escapeHtml(options.newEmail))
   }
-
-  const visibleFallbackUrl = spec.hideVisibleActionUrl
-    ? (spec.safeFallbackUrl ?? 'https://ourwed.pl/forgot-password')
-    : actionUrl
-  const visibleFallbackLabel = spec.hideVisibleActionUrl
-    ? (spec.safeFallbackLabel ?? visibleFallbackUrl)
-    : actionUrl
 
   return `<!DOCTYPE html>
 <html lang="pl" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
@@ -287,7 +289,7 @@ function renderHtml(
                   ${escapeHtml(spec.fallbackIntro)}
                 </p>
                 <p class="ow-url" style="margin:0;font-size:12px;line-height:1.6;word-break:break-all;color:#5c5c5c;">
-                  <a href="${visibleFallbackUrl}" target="_blank" rel="noopener noreferrer" style="color:#5c5c5c;text-decoration:underline;">${escapeHtml(visibleFallbackLabel)}</a>
+                  <a href="${spec.safeFallbackUrl}" target="_blank" rel="noopener noreferrer" style="color:#5c5c5c;text-decoration:underline;">${escapeHtml(spec.safeFallbackLabel)}</a>
                 </p>
 
                 ${disclaimer}
@@ -298,7 +300,7 @@ function renderHtml(
                 <p class="ow-footer-brand" style="margin:0 0 6px;font-size:14px;line-height:1.4;font-weight:600;letter-spacing:-0.02em;color:#0a0a0a;">OurWed</p>
                 <p class="ow-footer-copy" style="margin:0 0 10px;font-size:13px;line-height:1.5;color:#8f8f8f;">CRM dla fotografów i filmowców ślubnych</p>
                 <p style="margin:0;font-size:13px;line-height:1.5;">
-                  <a href="https://ourwed.pl" target="_blank" rel="noopener noreferrer" style="color:#5c5c5c;text-decoration:underline;">https://ourwed.pl</a>
+                  <a href="${ORIGIN}" target="_blank" rel="noopener noreferrer" style="color:#5c5c5c;text-decoration:underline;">${ORIGIN}</a>
                 </p>
               </td>
             </tr>
@@ -313,10 +315,6 @@ function renderHtml(
 }
 
 function renderText(spec: AuthEmailSpec, actionUrl: string): string {
-  const visibleFallback = spec.hideVisibleActionUrl
-    ? (spec.safeFallbackLabel ?? 'https://ourwed.pl/forgot-password')
-    : actionUrl
-
   const lines = [
     'OurWed',
     '',
@@ -329,7 +327,7 @@ function renderText(spec: AuthEmailSpec, actionUrl: string): string {
     actionUrl,
     '',
     spec.fallbackIntro,
-    visibleFallback,
+    spec.safeFallbackLabel,
   ]
 
   if (spec.disclaimer) {
@@ -341,7 +339,7 @@ function renderText(spec: AuthEmailSpec, actionUrl: string): string {
     '—',
     'OurWed',
     'CRM dla fotografów i filmowców ślubnych',
-    'https://ourwed.pl',
+    ORIGIN,
     '',
   )
 
@@ -351,7 +349,7 @@ function renderText(spec: AuthEmailSpec, actionUrl: string): string {
 function renderPreviewIndex(): string {
   const links = EMAILS.map(
     (e) =>
-      `<li style="margin:0 0 12px;"><a href="./${e.id}.html" style="color:#0a0a0a;font-size:16px;">${escapeHtml(e.subject)}</a> <span style="color:#8f8f8f;font-size:13px;">(${e.id})</span></li>`,
+      `<li style="margin:0 0 12px;"><a href="./${e.id}.html" style="color:#0a0a0a;font-size:16px;">${escapeHtml(e.subject)}</a> <span style="color:#8f8f8f;font-size:13px;">(${e.id} → intent=${e.intent})</span></li>`,
   ).join('\n')
 
   return `<!DOCTYPE html>
@@ -372,11 +370,11 @@ function renderPreviewIndex(): string {
 <body>
   <main>
     <h1>Auth email previews</h1>
-    <p>Branded OurWed authentication emails. Recovery uses TokenHash; other flows keep ConfirmationURL.</p>
+    <p>All actionable OurWed auth emails use TokenHash → /auth/callback → confirm → verifyOtp.</p>
     <ul>
       ${links}
     </ul>
-    <p class="note">Local recovery CTA equivalent: <code>http://localhost:5173/auth/callback?token_hash={{ .TokenHash }}&amp;type=recovery</code> (do not use in production templates).</p>
+    <p class="note">Local equivalent pattern (do not use in production templates): <code>http://localhost:5173/auth/callback?token_hash={{ .TokenHash }}&amp;type=…&amp;intent=…</code></p>
   </main>
 </body>
 </html>
@@ -388,12 +386,40 @@ function write(path: string, contents: string) {
   writeFileSync(path, contents, 'utf8')
 }
 
+function assertSafeProductionOutput(spec: AuthEmailSpec, html: string, text: string) {
+  if (html.includes('{{ .ConfirmationURL }}') || text.includes('{{ .ConfirmationURL }}')) {
+    throw new Error(
+      `FATAL: actionable template ${spec.id} still contains ConfirmationURL`,
+    )
+  }
+  if (/\blocalhost\b/i.test(html) || /\blocalhost\b/i.test(text)) {
+    throw new Error(`FATAL: production template ${spec.id} contains localhost`)
+  }
+  const expected = tokenHashActionUrl(spec.otpType, spec.intent)
+  if (!html.includes(expected) || !text.includes(expected)) {
+    throw new Error(
+      `FATAL: template ${spec.id} missing expected TokenHash CTA: ${expected}`,
+    )
+  }
+  if (html.includes(`>${expected}<`) || html.includes(`>${expected}</a>`)) {
+    // CTA href may include the URL; visible fallback must not print token_hash.
+  }
+  if (
+    html.includes(spec.safeFallbackUrl) === false ||
+    text.includes(spec.safeFallbackLabel) === false
+  ) {
+    throw new Error(`FATAL: template ${spec.id} missing safe fallback`)
+  }
+}
+
 function main() {
   for (const spec of EMAILS) {
-    const actionUrl = resolveActionUrl(spec)
+    const actionUrl = tokenHashActionUrl(spec.otpType, spec.intent)
     const html = renderHtml(spec, actionUrl)
     const text = renderText(spec, actionUrl)
-    const preview = renderHtml(spec, resolvePreviewActionUrl(spec), {
+    assertSafeProductionOutput(spec, html, text)
+
+    const preview = renderHtml(spec, sampleActionUrl(spec.otpType, spec.intent), {
       newEmail: 'nowy@example.com',
     })
 
@@ -401,7 +427,7 @@ function main() {
     write(join(OUT, `${spec.id}.txt`), text)
     write(join(PREVIEWS, `${spec.id}.html`), preview)
 
-    console.log(`wrote ${spec.id}`)
+    console.log(`wrote ${spec.id} (${spec.intent} / ${spec.otpType})`)
   }
 
   write(join(PREVIEWS, 'index.html'), renderPreviewIndex())

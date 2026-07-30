@@ -1,8 +1,11 @@
 /**
  * Canonical Supabase Auth callback pipeline.
  *
- * Password recovery (cross-device): token_hash + type=recovery → verifyOtp
- * Legacy / other PKCE email flows: ?code= → exchangeCodeForSession
+ * All actionable auth emails:
+ *   token_hash + type + intent → confirm click → verifyOtp (exact-once)
+ *
+ * Legacy emails already sent:
+ *   ?code= → exchangeCodeForSession (exact-once)
  *
  * Supabase client is loaded lazily when deps are not injected (tests).
  */
@@ -11,9 +14,18 @@ import type { EmailOtpType, Session } from '@supabase/supabase-js'
 
 export const AUTH_CALLBACK_PATH = '/auth/callback'
 
-/** Production origin for recovery email CTAs (Dashboard template). */
+/** Production origin for auth email CTAs (Dashboard templates). */
 export const AUTH_EMAIL_PRODUCTION_ORIGIN = 'https://ourwed.pl'
 
+/** OurWed intent — never trust arbitrary redirect URLs from the query string. */
+export type AuthCallbackIntent =
+  | 'recovery'
+  | 'signup'
+  | 'magic-link'
+  | 'invite'
+  | 'email-change'
+
+/** Legacy `next` query values still accepted for ?code= links. */
 export type AuthCallbackNext =
   | 'recovery'
   | 'confirm'
@@ -26,8 +38,10 @@ export interface AuthCallbackParams {
   code: string | null
   tokenHash: string | null
   type: string | null
+  intent: AuthCallbackIntent | null
   error: string | null
   errorDescription: string | null
+  /** Legacy PKCE / redirect intent. */
   next: AuthCallbackNext
 }
 
@@ -36,16 +50,11 @@ export type AuthCallbackResult =
       ok: true
       session: Session | null
       isRecovery: boolean
+      intent: AuthCallbackIntent | null
     }
   | {
       ok: false
-      reason:
-        | 'missing_code'
-        | 'missing_token'
-        | 'provider_error'
-        | 'exchange_failed'
-        | 'verify_failed'
-        | 'invalid_type'
+      reason: AuthCallbackFailureReason
       /** Friendly Polish message — never raw Supabase text. */
       message: string
     }
@@ -54,6 +63,16 @@ export interface AuthCallbackDestination {
   path: string
   state?: Record<string, unknown>
 }
+
+export interface AuthConfirmCopy {
+  title: string
+  subtitle: string
+  body: string
+  buttonLabel: string
+  verifyingLabel: string
+}
+
+const FRIENDLY_EXPIRED = 'Link wygasł lub został już użyty.'
 
 const NEXT_VALUES = new Set<AuthCallbackNext>([
   'recovery',
@@ -64,12 +83,123 @@ const NEXT_VALUES = new Set<AuthCallbackNext>([
   'auto',
 ])
 
-const FRIENDLY_EXPIRED = 'Link wygasł lub został już użyty.'
+const INTENT_VALUES = new Set<AuthCallbackIntent>([
+  'recovery',
+  'signup',
+  'magic-link',
+  'invite',
+  'email-change',
+])
+
+/**
+ * Allow-listed OurWed intent → verifyOtp type + destinations.
+ * Types match installed @supabase/auth-js EmailOtpType + current docs:
+ * signup/magic-link use `email` for token_hash verification.
+ */
+export const AUTH_TOKEN_HASH_FLOWS: Record<
+  AuthCallbackIntent,
+  {
+    verificationType: EmailOtpType
+    /** Accepted `type` query values (primary first). */
+    acceptedTypes: readonly string[]
+    destination: (hasSession: boolean) => AuthCallbackDestination
+    confirm: AuthConfirmCopy
+    errorAction: { label: string; to: string }
+    safeFallbackPath: string
+  }
+> = {
+  recovery: {
+    verificationType: 'recovery',
+    acceptedTypes: ['recovery'],
+    destination: () => ({ path: '/reset-password' }),
+    confirm: {
+      title: 'Reset hasła',
+      subtitle: 'Potwierdź, że chcesz ustawić nowe hasło do konta OurWed.',
+      body: 'Kliknij poniżej, aby kontynuować.',
+      buttonLabel: 'Kontynuuj reset hasła',
+      verifyingLabel: 'Weryfikacja…',
+    },
+    errorAction: { label: 'Wyślij nowy link', to: '/forgot-password' },
+    safeFallbackPath: '/forgot-password',
+  },
+  signup: {
+    verificationType: 'email',
+    acceptedTypes: ['email', 'signup'],
+    destination: (hasSession) =>
+      hasSession
+        ? { path: '/dashboard' }
+        : { path: '/login', state: { emailConfirmed: true } },
+    confirm: {
+      title: 'Potwierdź konto',
+      subtitle:
+        'Potwierdź adres e-mail, aby dokończyć zakładanie konta OurWed.',
+      body: 'Kliknij poniżej, aby aktywować konto.',
+      buttonLabel: 'Potwierdź konto',
+      verifyingLabel: 'Weryfikacja…',
+    },
+    errorAction: {
+      label: 'Wyślij ponownie link potwierdzający',
+      to: '/register',
+    },
+    safeFallbackPath: '/register',
+  },
+  'magic-link': {
+    verificationType: 'email',
+    acceptedTypes: ['email', 'magiclink'],
+    destination: (hasSession) =>
+      hasSession
+        ? { path: '/dashboard' }
+        : { path: '/login', state: { emailConfirmed: true } },
+    confirm: {
+      title: 'Zaloguj się do OurWed',
+      subtitle: 'Potwierdź, że chcesz zalogować się jednym kliknięciem.',
+      body: 'Kliknij poniżej, aby kontynuować logowanie.',
+      buttonLabel: 'Kontynuuj logowanie',
+      verifyingLabel: 'Weryfikacja…',
+    },
+    errorAction: { label: 'Wyślij nowy link logowania', to: '/login' },
+    safeFallbackPath: '/login',
+  },
+  invite: {
+    verificationType: 'invite',
+    acceptedTypes: ['invite'],
+    destination: (hasSession) =>
+      hasSession
+        ? { path: '/dashboard' }
+        : { path: '/login', state: { emailConfirmed: true } },
+    confirm: {
+      title: 'Zaproszenie do OurWed',
+      subtitle: 'Przyjmij zaproszenie, aby dokończyć zakładanie konta.',
+      body: 'Kliknij poniżej, aby kontynuować.',
+      buttonLabel: 'Przyjmij zaproszenie',
+      verifyingLabel: 'Weryfikacja…',
+    },
+    errorAction: { label: 'Poproś o nowe zaproszenie', to: '/login' },
+    safeFallbackPath: '/login',
+  },
+  'email-change': {
+    verificationType: 'email_change',
+    acceptedTypes: ['email_change'],
+    destination: () => ({
+      path: '/login',
+      state: { emailChanged: true },
+    }),
+    confirm: {
+      title: 'Potwierdź nowy adres e-mail',
+      subtitle: 'Potwierdź zmianę adresu e-mail przypisanego do konta OurWed.',
+      body: 'Kliknij poniżej, aby potwierdzić zmianę.',
+      buttonLabel: 'Potwierdź zmianę adresu',
+      verifyingLabel: 'Weryfikacja…',
+    },
+    errorAction: { label: 'Zaloguj się ponownie', to: '/login' },
+    safeFallbackPath: '/login',
+  },
+}
 
 /** In-flight / completed PKCE exchanges keyed by code (exact-once). */
 const exchangeCache = new Map<string, Promise<AuthCallbackResult>>()
 
-/** In-flight / completed verifyOtp recoveries keyed by token_hash (exact-once). */
+/** In-flight / completed verifyOtp keyed by `${type}:${tokenHash}` (exact-once). */
 const verifyCache = new Map<string, Promise<AuthCallbackResult>>()
 
 export function authCallbackUrl(next: AuthCallbackNext): string {
@@ -81,9 +211,18 @@ export function authCallbackUrl(next: AuthCallbackNext): string {
   return `${origin}${AUTH_CALLBACK_PATH}?${params.toString()}`
 }
 
-/** Production recovery CTA for Supabase Reset Password email template. */
+/** Production CTA for a TokenHash auth email. */
+export function authEmailActionHref(
+  intent: AuthCallbackIntent,
+  verificationType: EmailOtpType = AUTH_TOKEN_HASH_FLOWS[intent]
+    .verificationType,
+): string {
+  return `${AUTH_EMAIL_PRODUCTION_ORIGIN}${AUTH_CALLBACK_PATH}?token_hash={{ .TokenHash }}&type=${verificationType}&intent=${intent}`
+}
+
+/** @deprecated use authEmailActionHref('recovery') */
 export function recoveryEmailActionHref(): string {
-  return `${AUTH_EMAIL_PRODUCTION_ORIGIN}${AUTH_CALLBACK_PATH}?token_hash={{ .TokenHash }}&type=recovery`
+  return authEmailActionHref('recovery')
 }
 
 export function parseAuthCallbackNext(raw: string | null): AuthCallbackNext {
@@ -93,6 +232,27 @@ export function parseAuthCallbackNext(raw: string | null): AuthCallbackNext {
   return 'auto'
 }
 
+export function parseAuthCallbackIntent(
+  raw: string | null,
+): AuthCallbackIntent | null {
+  if (raw && INTENT_VALUES.has(raw as AuthCallbackIntent)) {
+    return raw as AuthCallbackIntent
+  }
+  return null
+}
+
+/** Infer intent from OTP type when `intent` is absent (legacy TokenHash recovery links). */
+export function inferIntentFromType(
+  type: string | null,
+): AuthCallbackIntent | null {
+  if (!type) return null
+  if (type === 'recovery') return 'recovery'
+  if (type === 'invite') return 'invite'
+  if (type === 'email_change') return 'email-change'
+  // `email` / `signup` / `magiclink` are ambiguous without intent.
+  return null
+}
+
 export function parseAuthCallbackParams(search: string): AuthCallbackParams {
   const params = new URLSearchParams(
     search.startsWith('?') ? search.slice(1) : search,
@@ -100,16 +260,30 @@ export function parseAuthCallbackParams(search: string): AuthCallbackParams {
   const code = params.get('code')
   const tokenHash = params.get('token_hash')
   const type = params.get('type')
+  const intentRaw = params.get('intent')
   const error = params.get('error')
   const errorDescription = params.get('error_description')
-  const typeHint = type
+  const intent =
+    parseAuthCallbackIntent(intentRaw) ?? inferIntentFromType(type)
   const nextRaw =
-    params.get('next') ?? (typeHint === 'recovery' ? 'recovery' : null)
+    params.get('next') ??
+    (intent === 'recovery' || type === 'recovery'
+      ? 'recovery'
+      : intent === 'signup'
+        ? 'confirm'
+        : intent === 'magic-link'
+          ? 'magic'
+          : intent === 'invite'
+            ? 'invite'
+            : intent === 'email-change'
+              ? 'email_change'
+              : null)
 
   return {
     code: code && code.trim() ? code.trim() : null,
     tokenHash: tokenHash && tokenHash.trim() ? tokenHash.trim() : null,
     type: type && type.trim() ? type.trim() : null,
+    intent,
     error: error && error.trim() ? error.trim() : null,
     errorDescription:
       errorDescription && errorDescription.trim()
@@ -119,11 +293,92 @@ export function parseAuthCallbackParams(search: string): AuthCallbackParams {
   }
 }
 
-/**
- * Token-hash recovery takes priority when type=recovery and token_hash is present.
- */
+export function isTokenHashCallback(params: AuthCallbackParams): boolean {
+  return Boolean(params.tokenHash)
+}
+
+/** @deprecated use isTokenHashCallback */
 export function isTokenHashRecovery(params: AuthCallbackParams): boolean {
-  return Boolean(params.tokenHash && params.type === 'recovery')
+  return Boolean(params.tokenHash && params.intent === 'recovery')
+}
+
+export type AuthCallbackFailureReason =
+  | 'missing_code'
+  | 'missing_token'
+  | 'missing_intent'
+  | 'unsupported_intent'
+  | 'type_mismatch'
+  | 'provider_error'
+  | 'exchange_failed'
+  | 'verify_failed'
+  | 'invalid_type'
+
+export type ResolvedTokenHashFlow =
+  | {
+      ok: true
+      tokenHash: string
+      intent: AuthCallbackIntent
+      verificationType: EmailOtpType
+      confirm: AuthConfirmCopy
+    }
+  | { ok: false; reason: AuthCallbackFailureReason; message: string }
+
+/**
+ * Validate token_hash + type + intent against the allow-listed flow map.
+ */
+export function resolveTokenHashFlow(
+  params: AuthCallbackParams,
+): ResolvedTokenHashFlow {
+  if (!params.tokenHash) {
+    return {
+      ok: false,
+      reason: 'missing_token',
+      message: mapAuthCallbackFailureMessage('missing_token'),
+    }
+  }
+
+  if (!params.intent) {
+    return {
+      ok: false,
+      reason: params.type ? 'missing_intent' : 'unsupported_intent',
+      message: mapAuthCallbackFailureMessage(
+        params.type ? 'missing_intent' : 'unsupported_intent',
+      ),
+    }
+  }
+
+  const flow = AUTH_TOKEN_HASH_FLOWS[params.intent]
+  if (!flow) {
+    return {
+      ok: false,
+      reason: 'unsupported_intent',
+      message: mapAuthCallbackFailureMessage('unsupported_intent'),
+    }
+  }
+
+  if (!params.type) {
+    return {
+      ok: false,
+      reason: 'invalid_type',
+      message: mapAuthCallbackFailureMessage('invalid_type'),
+    }
+  }
+
+  if (!flow.acceptedTypes.includes(params.type)) {
+    return {
+      ok: false,
+      reason: 'type_mismatch',
+      message: mapAuthCallbackFailureMessage('type_mismatch'),
+    }
+  }
+
+  return {
+    ok: true,
+    tokenHash: params.tokenHash,
+    intent: params.intent,
+    verificationType: flow.verificationType,
+    confirm: flow.confirm,
+  }
 }
 
 /** True when the current location must be handled by the callback pipeline. */
@@ -146,13 +401,7 @@ export function buildAuthCallbackRedirect(
 }
 
 export function mapAuthCallbackFailureMessage(
-  _reason:
-    | 'missing_code'
-    | 'missing_token'
-    | 'provider_error'
-    | 'exchange_failed'
-    | 'verify_failed'
-    | 'invalid_type',
+  _reason: AuthCallbackFailureReason,
 ): string {
   void _reason
   return FRIENDLY_EXPIRED
@@ -170,7 +419,9 @@ function isExpiredOrUsedError(message: string): boolean {
     n.includes('flow state') ||
     n.includes('pkce') ||
     n.includes('code verifier') ||
-    n.includes('auth code')
+    n.includes('auth code') ||
+    n.includes('user not found') ||
+    n.includes('deleted')
   )
 }
 
@@ -223,25 +474,47 @@ export async function exchangeAuthCodeOnce(
   }
 }
 
+export type VerifyAuthTokenHashInput = {
+  tokenHash: string
+  verificationType: EmailOtpType
+  intent: AuthCallbackIntent
+}
+
 /**
- * Verify a recovery token_hash exactly once (cross-browser / cross-device).
+ * Verify a token_hash exactly once (cross-browser / cross-device).
  * Does not use exchangeCodeForSession.
  */
+export async function verifyAuthTokenHashOnce(
+  input: VerifyAuthTokenHashInput,
+  deps?: AuthCallbackDeps,
+): Promise<AuthCallbackResult> {
+  const key = `${input.verificationType}:${input.tokenHash}`
+  const existing = verifyCache.get(key)
+  if (existing) return existing
+
+  const promise = performVerifyTokenHash(input, deps)
+  verifyCache.set(key, promise)
+  try {
+    return await promise
+  } catch (err) {
+    verifyCache.delete(key)
+    throw err
+  }
+}
+
+/** @deprecated use verifyAuthTokenHashOnce */
 export async function verifyRecoveryTokenHashOnce(
   tokenHash: string,
   deps?: AuthCallbackDeps,
 ): Promise<AuthCallbackResult> {
-  const existing = verifyCache.get(tokenHash)
-  if (existing) return existing
-
-  const promise = performVerifyRecovery(tokenHash, deps)
-  verifyCache.set(tokenHash, promise)
-  try {
-    return await promise
-  } catch (err) {
-    verifyCache.delete(tokenHash)
-    throw err
-  }
+  return verifyAuthTokenHashOnce(
+    {
+      tokenHash,
+      verificationType: 'recovery',
+      intent: 'recovery',
+    },
+    deps,
+  )
 }
 
 async function resolveAuthFns(deps?: AuthCallbackDeps): Promise<{
@@ -310,6 +583,7 @@ async function performExchange(
       ok: true,
       session: data.session,
       isRecovery: sawRecovery,
+      intent: sawRecovery ? 'recovery' : null,
     }
   } catch (err) {
     const raw = err instanceof Error ? err.message : String(err)
@@ -330,19 +604,17 @@ async function performExchange(
   }
 }
 
-async function performVerifyRecovery(
-  tokenHash: string,
+async function performVerifyTokenHash(
+  input: VerifyAuthTokenHashInput,
   deps?: AuthCallbackDeps,
 ): Promise<AuthCallbackResult> {
   const fns = await resolveAuthFns(deps)
-
-  // Listener kept for parity with PKCE path; recovery intent is explicit.
   const { data: listener } = fns.onAuthStateChange(() => undefined)
 
   try {
     const { data, error } = await fns.verifyOtp({
-      token_hash: tokenHash,
-      type: 'recovery',
+      token_hash: input.tokenHash,
+      type: input.verificationType,
     })
 
     if (error) {
@@ -356,7 +628,12 @@ async function performVerifyRecovery(
       }
     }
 
-    if (!data.session) {
+    const needsSession =
+      input.intent === 'recovery' ||
+      input.intent === 'magic-link' ||
+      input.intent === 'invite'
+
+    if (needsSession && !data.session) {
       return {
         ok: false,
         reason: 'verify_failed',
@@ -367,7 +644,8 @@ async function performVerifyRecovery(
     return {
       ok: true,
       session: data.session,
-      isRecovery: true,
+      isRecovery: input.intent === 'recovery',
+      intent: input.intent,
     }
   } catch (err) {
     const raw = err instanceof Error ? err.message : String(err)
@@ -392,8 +670,13 @@ export function resolveAuthCallbackDestination(input: {
   next: AuthCallbackNext
   isRecovery: boolean
   hasSession: boolean
+  intent?: AuthCallbackIntent | null
 }): AuthCallbackDestination {
-  const { next, isRecovery, hasSession } = input
+  const { next, isRecovery, hasSession, intent } = input
+
+  if (intent && AUTH_TOKEN_HASH_FLOWS[intent]) {
+    return AUTH_TOKEN_HASH_FLOWS[intent].destination(hasSession)
+  }
 
   if (next === 'recovery' || isRecovery) {
     return { path: '/reset-password' }
@@ -434,16 +717,40 @@ export function resolveAuthCallbackDestination(input: {
   }
 }
 
-export function resolveAuthCallbackErrorAction(next: AuthCallbackNext): {
+export function resolveAuthCallbackErrorAction(
+  nextOrIntent: AuthCallbackNext | AuthCallbackIntent,
+): {
   label: string
   to: string
 } {
+  if (INTENT_VALUES.has(nextOrIntent as AuthCallbackIntent)) {
+    return AUTH_TOKEN_HASH_FLOWS[nextOrIntent as AuthCallbackIntent].errorAction
+  }
+
+  const next = nextOrIntent as AuthCallbackNext
   if (next === 'recovery') {
     return { label: 'Wyślij nowy link', to: '/forgot-password' }
   }
-  if (next === 'confirm' || next === 'invite') {
-    return { label: 'Wróć do logowania', to: '/login' }
+  if (next === 'confirm') {
+    return {
+      label: 'Wyślij ponownie link potwierdzający',
+      to: '/register',
+    }
+  }
+  if (next === 'magic') {
+    return { label: 'Wyślij nowy link logowania', to: '/login' }
+  }
+  if (next === 'invite') {
+    return { label: 'Poproś o nowe zaproszenie', to: '/login' }
+  }
+  if (next === 'email_change') {
+    return { label: 'Zaloguj się ponownie', to: '/login' }
   }
   return { label: 'Wyślij nowy link', to: '/forgot-password' }
 }
 
+export function getConfirmCopyForIntent(
+  intent: AuthCallbackIntent,
+): AuthConfirmCopy {
+  return AUTH_TOKEN_HASH_FLOWS[intent].confirm
+}
