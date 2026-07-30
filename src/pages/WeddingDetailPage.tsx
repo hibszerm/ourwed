@@ -370,6 +370,9 @@ export function WeddingDetailPage() {
       showToast('Ślub został usunięty.', 'success')
       navigate('/sluby')
     },
+    onWeddingRefreshed: () => {
+      showToast('Zlecenie zostało zaktualizowane.', 'success')
+    },
   }
 
   return (

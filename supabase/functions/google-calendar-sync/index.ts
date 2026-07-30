@@ -12,6 +12,16 @@ import {
   sha256Hex,
   type CanonicalEvent,
 } from '../_shared/calendar/cryptoDates.ts'
+import {
+  deleteGoogleEvent,
+  enqueueCoalescedJob,
+  findOwnedGoogleEvents,
+  googleFetch,
+  normalizeCalendarId,
+  ourwedPrivateProps,
+  reconcileEntityDuplicates,
+  reserveMapping,
+} from '../_shared/calendar/syncCore.ts'
 
 const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -200,19 +210,209 @@ async function getAccessToken(
   return { token: access }
 }
 
-async function googleFetch(
-  accessToken: string,
-  path: string,
-  init?: RequestInit,
-): Promise<Response> {
-  return fetch(`https://www.googleapis.com/calendar/v3${path}`, {
-    ...init,
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-      ...(init?.headers ?? {}),
+async function finalizeMapping(
+  service: SupabaseClient,
+  userId: string,
+  calendarId: string,
+  event: CanonicalEvent,
+  googleEvent: { id: string; htmlLink?: string },
+) {
+  await service.from('external_calendar_events').upsert(
+    {
+      user_id: userId,
+      provider: 'google',
+      entity_type: event.entityType,
+      entity_id: event.entityId,
+      external_calendar_id: calendarId,
+      external_event_id: googleEvent.id,
+      external_event_url: googleEvent.htmlLink ?? null,
+      source_fingerprint: event.fingerprint,
+      sync_status: 'synced',
+      last_synced_at: new Date().toISOString(),
+      last_error_code: null,
+      last_error_at: null,
     },
+    {
+      onConflict:
+        'user_id,provider,entity_type,entity_id,external_calendar_id',
+    },
+  )
+}
+
+async function createOrAdoptGoogleEvent(
+  service: SupabaseClient,
+  userId: string,
+  integration: IntegrationRow,
+  accessToken: string,
+  event: CanonicalEvent,
+  calendarIdRaw: string,
+  calendarPathId: string,
+): Promise<'created' | 'updated' | 'failed'> {
+  const calendarId = normalizeCalendarId(calendarIdRaw)
+  const reservation = await reserveMapping(service, {
+    userId,
+    entityType: event.entityType,
+    entityId: event.entityId,
+    calendarId,
+    fingerprint: event.fingerprint,
   })
+
+  if (reservation.status === 'conflict') {
+    // Another worker is creating — wait briefly and adopt if present
+    await new Promise((r) => setTimeout(r, 750))
+    const owned = await findOwnedGoogleEvents(
+      accessToken,
+      calendarPathId,
+      event.entityType,
+      event.entityId,
+    )
+    if (owned.length >= 1) {
+      const keep = owned[0]
+      await finalizeMapping(service, userId, calendarId, event, {
+        id: keep.id,
+        htmlLink: keep.htmlLink,
+      })
+      for (const extra of owned.slice(1)) {
+        await deleteGoogleEvent(accessToken, calendarPathId, extra.id)
+      }
+      return 'updated'
+    }
+    return 'failed'
+  }
+
+  if (reservation.status === 'exists') {
+    const existingId = String(reservation.mapping.external_event_id ?? '')
+    if (
+      existingId &&
+      reservation.mapping.source_fingerprint === event.fingerprint &&
+      reservation.mapping.sync_status === 'synced'
+    ) {
+      return 'updated'
+    }
+    if (existingId) {
+      const body = {
+        summary: event.title,
+        start: { date: event.startDate },
+        end: { date: event.endDateExclusive },
+        extendedProperties: {
+          private: ourwedPrivateProps(event, userId),
+        },
+      }
+      const patchRes = await googleFetch(
+        accessToken,
+        `/calendars/${encodeURIComponent(calendarPathId)}/events/${encodeURIComponent(existingId)}`,
+        { method: 'PATCH', body: JSON.stringify(body) },
+      )
+      if (patchRes.ok) {
+        const eventJson = (await patchRes.json()) as {
+          id: string
+          htmlLink?: string
+        }
+        await finalizeMapping(service, userId, calendarId, event, eventJson)
+        return 'updated'
+      }
+      if (patchRes.status === 404 || patchRes.status === 410) {
+        // Event-specific missing — fall through to adopt/create
+      } else if (patchRes.status === 401 || patchRes.status === 403) {
+        await markAuthError(service, integration, patchRes.status)
+        return 'failed'
+      } else {
+        return 'failed'
+      }
+    }
+  }
+
+  // Adopt any existing owned event before creating
+  const owned = await findOwnedGoogleEvents(
+    accessToken,
+    calendarPathId,
+    event.entityType,
+    event.entityId,
+  )
+  if (owned.length > 0) {
+    const keep = [...owned].sort((a, b) =>
+      String(a.created ?? '').localeCompare(String(b.created ?? '')),
+    )[0]
+    const body = {
+      summary: event.title,
+      start: { date: event.startDate },
+      end: { date: event.endDateExclusive },
+      extendedProperties: {
+        private: ourwedPrivateProps(event, userId),
+      },
+    }
+    await googleFetch(
+      accessToken,
+      `/calendars/${encodeURIComponent(calendarPathId)}/events/${encodeURIComponent(keep.id)}`,
+      { method: 'PATCH', body: JSON.stringify(body) },
+    )
+    await finalizeMapping(service, userId, calendarId, event, {
+      id: keep.id,
+      htmlLink: keep.htmlLink,
+    })
+    for (const extra of owned) {
+      if (extra.id === keep.id) continue
+      await deleteGoogleEvent(accessToken, calendarPathId, extra.id)
+    }
+    return 'updated'
+  }
+
+  const createRes = await googleFetch(
+    accessToken,
+    `/calendars/${encodeURIComponent(calendarPathId)}/events`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        summary: event.title,
+        start: { date: event.startDate },
+        end: { date: event.endDateExclusive },
+        extendedProperties: {
+          private: ourwedPrivateProps(event, userId),
+        },
+      }),
+    },
+  )
+
+  if (createRes.status === 401 || createRes.status === 403) {
+    await markAuthError(service, integration, createRes.status)
+    return 'failed'
+  }
+  if (createRes.status === 404) {
+    await service
+      .from('calendar_integrations')
+      .update({
+        last_error_code: 'calendar_unavailable',
+        last_error_at: new Date().toISOString(),
+        last_error_message:
+          'Wybrany kalendarz nie jest już dostępny. Wybierz inny kalendarz.',
+      })
+      .eq('id', integration.id)
+    return 'failed'
+  }
+  if (!createRes.ok) {
+    logCalendar('warn', 'google_create_failed', {
+      provider: 'google',
+      operation: 'create',
+      entityType: event.entityType,
+      entityId: event.entityId,
+      status: createRes.status,
+    })
+    await upsertMappingError(
+      service,
+      userId,
+      integration,
+      event,
+      `http_${createRes.status}`,
+    )
+    return 'failed'
+  }
+
+  const eventJson = (await createRes.json()) as {
+    id: string
+    htmlLink?: string
+  }
+  await finalizeMapping(service, userId, calendarId, event, eventJson)
+  return 'created'
 }
 
 async function upsertGoogleEvent(
@@ -234,23 +434,14 @@ async function upsertGoogleEvent(
     return 'omitted'
   }
 
-  const calendarId = encodeURIComponent(
-    String(integration.google_calendar_id || 'primary'),
+  const calendarIdRaw = normalizeCalendarId(
+    integration.google_calendar_id as string | null,
   )
-  const body = {
-    summary: event.title,
-    start: { date: event.startDate },
-    end: { date: event.endDateExclusive },
-    extendedProperties: {
-      private: {
-        ourwed_source: 'ourwed',
-        ourwed_entity_type: event.entityType,
-        ourwed_entity_id: event.entityId,
-        ourwed_user_ref: userId.slice(0, 8),
-        ourwed_revision: event.fingerprint.slice(0, 64),
-      },
-    },
-  }
+  // API path: use literal "primary" when stored as primary; else the real id
+  const calendarPathId =
+    calendarIdRaw === 'primary'
+      ? 'primary'
+      : String(integration.google_calendar_id || 'primary')
 
   const { data: mapping } = await service
     .from('external_calendar_events')
@@ -259,7 +450,7 @@ async function upsertGoogleEvent(
     .eq('provider', 'google')
     .eq('entity_type', event.entityType)
     .eq('entity_id', event.entityId)
-    .eq('external_calendar_id', integration.google_calendar_id || 'primary')
+    .eq('external_calendar_id', calendarIdRaw)
     .maybeSingle()
 
   if (
@@ -270,92 +461,72 @@ async function upsertGoogleEvent(
     return 'updated'
   }
 
-  let res: Response
-  let created = false
   if (mapping?.external_event_id) {
-    res = await googleFetch(
+    const body = {
+      summary: event.title,
+      start: { date: event.startDate },
+      end: { date: event.endDateExclusive },
+      extendedProperties: {
+        private: ourwedPrivateProps(event, userId),
+      },
+    }
+    const patchRes = await googleFetch(
       accessToken,
-      `/calendars/${calendarId}/events/${encodeURIComponent(mapping.external_event_id)}`,
+      `/calendars/${encodeURIComponent(calendarPathId)}/events/${encodeURIComponent(mapping.external_event_id)}`,
       { method: 'PATCH', body: JSON.stringify(body) },
     )
-    if (res.status === 404) {
-      res = await googleFetch(
-        accessToken,
-        `/calendars/${calendarId}/events`,
-        { method: 'POST', body: JSON.stringify(body) },
-      )
-      created = true
+    if (patchRes.ok) {
+      const eventJson = (await patchRes.json()) as {
+        id: string
+        htmlLink?: string
+      }
+      await finalizeMapping(service, userId, calendarIdRaw, event, eventJson)
+      return 'updated'
     }
-  } else {
-    res = await googleFetch(accessToken, `/calendars/${calendarId}/events`, {
-      method: 'POST',
-      body: JSON.stringify(body),
-    })
-    created = true
-  }
-
-  if (res.status === 401 || res.status === 403) {
-    await markAuthError(service, integration, res.status)
-    return 'failed'
-  }
-  if (res.status === 404) {
-    await service
-      .from('calendar_integrations')
-      .update({
-        last_error_code: 'calendar_unavailable',
-        last_error_at: new Date().toISOString(),
-        last_error_message:
-          'Wybrany kalendarz nie jest już dostępny. Wybierz inny kalendarz.',
+    if (patchRes.status === 401 || patchRes.status === 403) {
+      await markAuthError(service, integration, patchRes.status)
+      return 'failed'
+    }
+    if (patchRes.status === 404 || patchRes.status === 410) {
+      // Event-specific missing: heal by adopt/create (not calendar-level failure)
+      logCalendar('info', 'google_event_404_heal', {
+        provider: 'google',
+        operation: 'patch',
+        entityType: event.entityType,
+        entityId: event.entityId,
+        status: patchRes.status,
       })
-      .eq('id', integration.id)
-    return 'failed'
-  }
-  if (!res.ok) {
-    logCalendar('warn', 'google_upsert_failed', {
-      provider: 'google',
-      operation: 'upsert',
-      entityType: event.entityType,
-      entityId: event.entityId,
-      errorCategory: 'provider',
-      status: res.status,
-    })
-    await upsertMappingError(
-      service,
-      userId,
-      integration,
-      event,
-      `http_${res.status}`,
-    )
+      await service
+        .from('external_calendar_events')
+        .update({
+          sync_status: 'pending',
+          external_event_id: null,
+          external_event_url: null,
+          last_error_code: 'event_missing',
+        })
+        .eq('id', mapping.id)
+      return createOrAdoptGoogleEvent(
+        service,
+        userId,
+        integration,
+        accessToken,
+        event,
+        calendarIdRaw,
+        calendarPathId,
+      )
+    }
     return 'failed'
   }
 
-  const eventJson = (await res.json()) as {
-    id: string
-    htmlLink?: string
-  }
-
-  await service.from('external_calendar_events').upsert(
-    {
-      user_id: userId,
-      provider: 'google',
-      entity_type: event.entityType,
-      entity_id: event.entityId,
-      external_calendar_id: integration.google_calendar_id || 'primary',
-      external_event_id: eventJson.id,
-      external_event_url: eventJson.htmlLink ?? null,
-      source_fingerprint: event.fingerprint,
-      sync_status: 'synced',
-      last_synced_at: new Date().toISOString(),
-      last_error_code: null,
-      last_error_at: null,
-    },
-    {
-      onConflict:
-        'user_id,provider,entity_type,entity_id,external_calendar_id',
-    },
+  return createOrAdoptGoogleEvent(
+    service,
+    userId,
+    integration,
+    accessToken,
+    event,
+    calendarIdRaw,
+    calendarPathId,
   )
-
-  return created ? 'created' : 'updated'
 }
 
 async function removeGoogleEventIfMapped(
@@ -658,14 +829,15 @@ async function processJobs(
     .select('*')
     .eq('user_id', userId)
     .eq('provider', 'google')
-    .in('status', ['pending', 'failed'])
+    .eq('status', 'pending')
     .lte('next_attempt_at', new Date().toISOString())
     .order('created_at', { ascending: true })
     .limit(20)
 
   let processed = 0
   for (const job of jobs ?? []) {
-    await service
+    // Exclusive claim — only one worker may process a pending job
+    const { data: claimed } = await service
       .from('calendar_sync_jobs')
       .update({
         status: 'running',
@@ -673,6 +845,11 @@ async function processJobs(
         attempt_count: (job.attempt_count ?? 0) + 1,
       })
       .eq('id', job.id)
+      .eq('status', 'pending')
+      .select('id')
+      .maybeSingle()
+
+    if (!claimed) continue
 
     try {
       if (job.operation === 'backfill' || job.operation === 'sync_now') {
@@ -879,6 +1056,39 @@ Deno.serve(async (req) => {
     return errorResponse('METHOD_NOT_ALLOWED', 'Method not allowed', 405)
   }
 
+  let body: Record<string, unknown> = {}
+  try {
+    body = await req.json()
+  } catch {
+    body = {}
+  }
+  const action = String(body.action ?? '')
+  const service = createServiceClient()
+
+  // Internal worker call from OAuth callback (service-role only).
+  if (action === 'process_jobs_internal') {
+    const internal = req.headers.get('x-ourwed-internal')
+    const serviceKey = env('SUPABASE_SERVICE_ROLE_KEY')
+    if (!serviceKey || internal !== serviceKey) {
+      return errorResponse('UNAUTHORIZED', 'Unauthorized', 401)
+    }
+    const targetUserId = String(body.userId ?? '')
+    if (!targetUserId) {
+      return errorResponse('INVALID', 'userId required')
+    }
+    try {
+      const result = await processJobs(service, targetUserId)
+      return jsonResponse({ ok: true, ...result })
+    } catch (err) {
+      logCalendar('error', 'internal_process_failed', {
+        provider: 'google',
+        operation: 'process_jobs_internal',
+        message: err instanceof Error ? err.message : 'unknown',
+      })
+      return errorResponse('INTERNAL', 'process failed', 500)
+    }
+  }
+
   const authHeader = req.headers.get('Authorization')
   if (!authHeader) return errorResponse('UNAUTHORIZED', 'Unauthorized', 401)
 
@@ -888,15 +1098,6 @@ Deno.serve(async (req) => {
     return errorResponse('UNAUTHORIZED', 'Unauthorized', 401)
   }
   const userId = userData.user.id
-  const service = createServiceClient()
-
-  let body: Record<string, unknown> = {}
-  try {
-    body = await req.json()
-  } catch {
-    body = {}
-  }
-  const action = String(body.action ?? '')
 
   try {
     if (action === 'list_calendars') {
@@ -992,16 +1193,16 @@ Deno.serve(async (req) => {
           body.syncSessions !== prevSessions) ||
         (typeof body.calendarId === 'string' &&
           body.calendarId !== prevCalendar) ||
-        body.backfillMode != null
+        ((body.backfillMode === 'future' || body.backfillMode === 'all_active') &&
+          body.backfillMode !== integration.backfill_mode)
 
       if (categoryChanged && updated?.enabled) {
-        await service.from('calendar_sync_jobs').insert({
-          user_id: userId,
-          entity_type: 'integration',
-          entity_id: updated.id,
+        await enqueueCoalescedJob(service, {
+          userId,
+          entityType: 'integration',
+          entityId: updated.id as string,
           provider: 'google',
           operation: 'sync_now',
-          status: 'pending',
         })
         await processJobs(service, userId)
       }
@@ -1032,6 +1233,13 @@ Deno.serve(async (req) => {
       if (!integration?.enabled) {
         return errorResponse('NOT_CONNECTED', 'Google Calendar nie jest połączony.')
       }
+      await enqueueCoalescedJob(service, {
+        userId,
+        entityType: 'integration',
+        entityId: integration.id as string,
+        provider: 'google',
+        operation: 'sync_now',
+      })
       const tokenResult = await getAccessToken(service, integration)
       if ('error' in tokenResult) {
         return errorResponse(
@@ -1045,12 +1253,136 @@ Deno.serve(async (req) => {
         integration,
         tokenResult.token,
       )
+      // Mark coalesced job succeeded if still pending/running
+      await service
+        .from('calendar_sync_jobs')
+        .update({ status: 'succeeded' })
+        .eq('user_id', userId)
+        .eq('provider', 'google')
+        .eq('operation', 'sync_now')
+        .in('status', ['pending', 'running'])
       return jsonResponse({ ok: true, result })
     }
 
     if (action === 'process_jobs') {
       const result = await processJobs(service, userId)
       return jsonResponse({ ok: true, ...result })
+    }
+
+    if (action === 'reconcile_duplicates') {
+      const { data: integration } = await service
+        .from('calendar_integrations')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('provider', 'google')
+        .maybeSingle()
+      if (!integration?.enabled) {
+        return errorResponse('NOT_CONNECTED', 'Google Calendar nie jest połączony.')
+      }
+      const tokenResult = await getAccessToken(service, integration)
+      if ('error' in tokenResult) {
+        return errorResponse(
+          tokenResult.error,
+          'Połączenie z Google Calendar wygasło. Połącz konto ponownie.',
+        )
+      }
+
+      const calendarId = String(integration.google_calendar_id || 'primary')
+      const connectedAt =
+        (integration.google_connected_at as string | null) ?? null
+      const results = []
+
+      // Prefer mapped entities (fingerprints available for title/date orphan cleanup).
+      const { data: mappings } = await service
+        .from('external_calendar_events')
+        .select('entity_type, entity_id')
+        .eq('user_id', userId)
+        .eq('provider', 'google')
+        .eq('external_calendar_id', normalizeCalendarId(calendarId))
+
+      const mappedKeys = new Set(
+        (mappings ?? []).map((m) => `${m.entity_type}:${m.entity_id}`),
+      )
+
+      for (const m of mappings ?? []) {
+        if (m.entity_type !== 'wedding' && m.entity_type !== 'session') continue
+        results.push(
+          await reconcileEntityDuplicates(
+            service,
+            tokenResult.token,
+            userId,
+            calendarId,
+            m.entity_type,
+            m.entity_id as string,
+            { connectedAt },
+          ),
+        )
+      }
+
+      const { data: weddings } = await service
+        .from('weddings')
+        .select('id')
+        .eq('user_id', userId)
+      for (const w of weddings ?? []) {
+        if (mappedKeys.has(`wedding:${w.id}`)) continue
+        results.push(
+          await reconcileEntityDuplicates(
+            service,
+            tokenResult.token,
+            userId,
+            calendarId,
+            'wedding',
+            w.id,
+            { connectedAt },
+          ),
+        )
+      }
+
+      const { data: sessions } = await service
+        .from('sessions')
+        .select('id')
+        .eq('user_id', userId)
+      for (const s of sessions ?? []) {
+        if (mappedKeys.has(`session:${s.id}`)) continue
+        results.push(
+          await reconcileEntityDuplicates(
+            service,
+            tokenResult.token,
+            userId,
+            calendarId,
+            'session',
+            s.id,
+            { connectedAt },
+          ),
+        )
+      }
+
+      const deleted = results.reduce((n, r) => n + r.deleted.length, 0)
+      const found = results.reduce((n, r) => n + r.found, 0)
+      const titleMatches = results.reduce((n, r) => n + r.titleDateMatches, 0)
+      const manual = results.flatMap((r) => r.needsManualDeletion)
+      logCalendar('info', 'reconcile_duplicates_done', {
+        provider: 'google',
+        operation: 'reconcile',
+        found,
+        deleted,
+        titleMatches,
+        manual: manual.length,
+        entities: results.length,
+      })
+
+      return jsonResponse({
+        ok: true,
+        summary: {
+          entities: results.length,
+          ownedEventsFound: found,
+          titleDateMatches: titleMatches,
+          duplicatesDeleted: deleted,
+          kept: results.filter((r) => r.kept).length,
+          needsManualDeletion: manual,
+        },
+        results,
+      })
     }
 
     if (action === 'enqueue_entity') {
@@ -1096,13 +1428,12 @@ Deno.serve(async (req) => {
         .eq('entity_id', entityId)
         .eq('status', 'pending')
 
-      await service.from('calendar_sync_jobs').insert({
-        user_id: userId,
-        entity_type: entityType,
-        entity_id: entityId,
+      await enqueueCoalescedJob(service, {
+        userId,
+        entityType,
+        entityId,
         provider: 'google',
         operation,
-        status: 'pending',
       })
       await processJobs(service, userId)
       return jsonResponse({ ok: true })

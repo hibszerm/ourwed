@@ -62,25 +62,20 @@ export function CalendarIntegrationsPage() {
   useEffect(() => {
     const google = searchParams.get('google')
     if (!google) return
+
+    // Consume the query param once so StrictMode / reloads cannot re-trigger.
+    const next = new URLSearchParams(searchParams)
+    next.delete('google')
+    setSearchParams(next, { replace: true })
+
     if (google === 'connected') {
       showToast('Połączono z Google Calendar', 'success')
-      const pending = window.localStorage.getItem(
-        'ourwed:calendar-backfill-pending',
-      )
-      if (pending === 'future' || pending === 'all_active') {
-        void calendarIntegrationsService
-          .updateGoogleSettings({ backfillMode: pending })
-          .finally(() => {
-            window.localStorage.removeItem('ourwed:calendar-backfill-pending')
-            void queryClient.invalidateQueries({
-              queryKey: calendarIntegrationQueryKeys.all,
-            })
-          })
-      } else {
-        void queryClient.invalidateQueries({
-          queryKey: calendarIntegrationQueryKeys.all,
-        })
-      }
+      window.localStorage.removeItem('ourwed:calendar-backfill-pending')
+      // Initial backfill is enqueued exclusively by the OAuth callback.
+      // Do not call updateGoogleSettings / sync_now here — that caused duplicates.
+      void queryClient.invalidateQueries({
+        queryKey: calendarIntegrationQueryKeys.all,
+      })
     } else if (google === 'error' || google === 'token_failed') {
       showToast('Nie udało się połączyć z Google Calendar', 'error')
     } else if (google === 'not_configured') {
@@ -91,13 +86,14 @@ export function CalendarIntegrationsPage() {
     } else {
       showToast('Połączenie z Google nie powiodło się', 'error')
     }
-    const next = new URLSearchParams(searchParams)
-    next.delete('google')
-    setSearchParams(next, { replace: true })
   }, [searchParams, setSearchParams, showToast, queryClient])
 
   const connectMutation = useMutation({
-    mutationFn: () => calendarIntegrationsService.startGoogleOAuth(),
+    mutationFn: (backfillMode: CalendarBackfillMode = 'future') =>
+      calendarIntegrationsService.startGoogleOAuth(
+        '/ustawienia/integracje',
+        backfillMode,
+      ),
     onSuccess: ({ url }) => {
       window.location.assign(url)
     },
@@ -115,6 +111,20 @@ export function CalendarIntegrationsPage() {
       showToast(
         `Zsynchronizowano ${result.synced} wydarzeń. ${result.updated} wymagało aktualizacji. ${result.failed} nie zostało zsynchronizowanych.`,
         result.failed > 0 ? 'info' : 'success',
+      )
+    },
+    onError: (err: Error) => showToast(err.message, 'error'),
+  })
+
+  const reconcileMutation = useMutation({
+    mutationFn: () => calendarIntegrationsService.reconcileGoogleDuplicates(),
+    onSuccess: (data) => {
+      void queryClient.invalidateQueries({
+        queryKey: calendarIntegrationQueryKeys.all,
+      })
+      showToast(
+        `Usunięto ${data.summary.duplicatesDeleted} duplikatów OurWed. Zachowano ${data.summary.kept} wydarzeń.`,
+        'success',
       )
     },
     onError: (err: Error) => showToast(err.message, 'error'),
@@ -344,7 +354,7 @@ export function CalendarIntegrationsPage() {
                           'ourwed:calendar-backfill-pending',
                           backfillDraft,
                         )
-                        connectMutation.mutate()
+                        connectMutation.mutate(backfillDraft)
                       }}
                     >
                       {connectMutation.isPending
@@ -485,7 +495,7 @@ export function CalendarIntegrationsPage() {
                       <Button
                         variant="primary"
                         disabled={connectMutation.isPending}
-                        onClick={() => connectMutation.mutate()}
+                        onClick={() => connectMutation.mutate(backfillDraft)}
                       >
                         Połącz ponownie
                       </Button>
@@ -500,6 +510,15 @@ export function CalendarIntegrationsPage() {
                           : 'Synchronizuj teraz'}
                       </Button>
                     )}
+                    <Button
+                      variant="secondary"
+                      disabled={reconcileMutation.isPending}
+                      onClick={() => reconcileMutation.mutate()}
+                    >
+                      {reconcileMutation.isPending
+                        ? 'Czyszczenie…'
+                        : 'Usuń duplikaty OurWed'}
+                    </Button>
                     <Button
                       variant="danger"
                       onClick={() => setDisconnectOpen(true)}

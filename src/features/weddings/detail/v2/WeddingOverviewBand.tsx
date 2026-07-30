@@ -1,14 +1,13 @@
 import styles from './WeddingDetailV2.module.css'
 
 interface OverviewBandProps {
-  stageLabel: string
   contractValueLabel: string
   totalPaidLabel: string
   remainingLabel: string
   finalDueLabel: string
 }
 
-/** Compact commercial / workflow status summary (no contract-readiness). */
+/** Compact commercial summary — value / paid / remaining / due date. */
 export function WeddingOverviewBand(props: OverviewBandProps) {
   return (
     <section
@@ -16,10 +15,6 @@ export function WeddingOverviewBand(props: OverviewBandProps) {
       aria-label="Podsumowanie zlecenia"
       data-testid="wedding-overview-band"
     >
-      <div className={styles.bandItem}>
-        <span className={styles.bandLabel}>Aktualny etap</span>
-        <span className={styles.bandValue}>{props.stageLabel}</span>
-      </div>
       <div className={styles.bandItem}>
         <span className={styles.bandLabel}>Wartość umowy</span>
         <span className={styles.bandValue}>{props.contractValueLabel}</span>

@@ -178,7 +178,21 @@ const events: CalendarUiEvent[] = [
   assert(hero.includes('Najbliższe zlecenie'), 'hero label')
   assert(hero.includes('assignment.href'), 'hero navigates by href')
   assert(hero.includes('Otwórz'), 'hero CTA')
-  assert(hero.includes('getAssignmentContextItems'), 'hero checklist')
+  assert(hero.includes('getWeddingBusinessStatus'), 'hero business status')
+  assert(hero.includes('getDashboardLocationLabel'), 'hero location')
+  assert(!hero.includes('buildDashboardJobReadiness'), 'no readiness helper')
+  assert(!hero.includes('getAssignmentContextItems'), 'no fact checklist')
+  assert(!hero.includes('Wymaga działania'), 'no attention readiness')
+  assert(!hero.includes('Gotowe do realizacji'), 'no ready readiness')
+  assert(!hero.includes('Wyślij ankietę przedślubną'), 'no questionnaire action')
+  assert(!hero.includes('Oczekuje na podpis umowy'), 'no contract action')
+  assert(!hero.includes('Oczekuje na wpłatę zaliczki'), 'no deposit action')
+  assert(!hero.includes('Uzupełnij lokalizacje'), 'no location action')
+  assert(!hero.includes('Umowa podpisana'), 'no contract fact')
+  assert(!hero.includes('Zaliczka opłacona'), 'no deposit fact')
+  assert(!hero.includes('Ankieta niewysłana'), 'no questionnaire fact')
+  assert(hero.includes('countdown'), 'countdown present')
+  assert(hero.includes('assignmentTypeLabel'), 'entity badge')
 
   const next = readFileSync(
     resolve('src/features/dashboard/components/NextAssignmentsSection.tsx'),
@@ -186,6 +200,9 @@ const events: CalendarUiEvent[] = [
   )
   assert(next.includes('Kolejne zlecenia'), 'next title')
   assert(next.includes('assignment.href'), 'card navigation')
+  assert(next.includes('getWeddingBusinessStatus'), 'upcoming business status')
+  assert(next.includes('getDashboardLocationLabel'), 'upcoming location')
+  assert(!next.includes('WorkflowBadge'), 'no workflow badge')
 }
 
 console.log('PASS  dashboard assignments')

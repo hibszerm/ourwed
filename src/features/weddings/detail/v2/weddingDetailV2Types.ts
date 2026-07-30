@@ -60,6 +60,8 @@ export interface WeddingDetailSharedProps {
   onSendQuestionnaire?: (kind: 'contractData') => void
   onArchive: () => Promise<void>
   onDelete: () => Promise<void>
+  /** Called after identity or other in-workspace wedding mutations. */
+  onWeddingRefreshed?: (wedding: Wedding) => void
 }
 
 export interface PartnerContactView {

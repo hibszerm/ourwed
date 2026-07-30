@@ -13,6 +13,9 @@ import {
   writeWeddingsViewMode,
   type WeddingsViewMode,
 } from '@/features/weddings/presentation/weddingsViewMode'
+import { getWeddingDisplayName } from '@/features/weddings/presentation/getWeddingDisplayName'
+import { SeasonGroupedList } from '@/features/shared/components/SeasonGroupedList'
+import { formatWeddingSeasonCount } from '@/features/shared/presentation/groupAssignmentsBySeason'
 import styles from './WeddingsPage.module.css'
 
 export function WeddingsPage() {
@@ -67,14 +70,25 @@ export function WeddingsPage() {
             title="Brak ślubów"
             description="Dodaj pierwsze zlecenie, aby zacząć pracę w CRM."
           />
-        ) : viewMode === 'list' ? (
-          <WeddingList weddings={weddings} />
         ) : (
-          <div className={styles.grid} data-testid="weddings-grid">
-            {weddings.map((wedding) => (
-              <WeddingCard key={wedding.id} wedding={wedding} />
-            ))}
-          </div>
+          <SeasonGroupedList
+            items={weddings}
+            getDate={(w) => w.date}
+            getSearchText={(w) => getWeddingDisplayName(w)}
+            formatCount={formatWeddingSeasonCount}
+            searchPlaceholder="Szukaj pary…"
+            renderItems={(seasonWeddings) =>
+              viewMode === 'list' ? (
+                <WeddingList weddings={seasonWeddings} />
+              ) : (
+                <div className={styles.grid} data-testid="weddings-grid">
+                  {seasonWeddings.map((wedding) => (
+                    <WeddingCard key={wedding.id} wedding={wedding} />
+                  ))}
+                </div>
+              )
+            }
+          />
         )}
         {isError ? (
           <div style={{ marginTop: 16 }}>

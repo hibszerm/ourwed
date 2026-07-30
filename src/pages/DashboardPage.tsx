@@ -54,11 +54,6 @@ export function DashboardPage() {
     [assignments],
   )
 
-  const linkedSessionsForHero = useMemo(() => {
-    if (!nearest || nearest.entityType !== 'wedding') return []
-    return sessions.filter((s) => s.linkedWeddingId === nearest.entityId)
-  }, [nearest, sessions])
-
   if (isLoading || weddingsLoading || sessionsLoading) {
     return (
       <AppLayout>
@@ -102,10 +97,7 @@ export function DashboardPage() {
             }
           />
 
-          <NextAssignmentCard
-            assignment={nearest}
-            linkedSessions={linkedSessionsForHero}
-          />
+          <NextAssignmentCard assignment={nearest} />
 
           <NextAssignmentsSection assignments={nextThree} />
 

@@ -6,6 +6,8 @@ import {
   UNKNOWN_TIME_LABEL,
   type CalendarUiEvent,
 } from '@/features/calendar/utils/calendarEvents'
+import { getDashboardLocationLabel } from '@/features/dashboard/presentation/getDashboardLocationLabel'
+import { getWeddingBusinessStatus } from '@/features/weddings/presentation/getWeddingBusinessStatus'
 import styles from './NextAssignmentsSection.module.css'
 
 interface NextAssignmentsSectionProps {
@@ -19,6 +21,10 @@ function countdownLabel(dateKey: string): string {
   return `Za ${days} dni`
 }
 
+function businessBadgeVariant(tone: 'ok' | 'warn'): 'success' | 'warning' {
+  return tone === 'ok' ? 'success' : 'warning'
+}
+
 function CompactAssignmentCard({
   assignment,
 }: {
@@ -28,15 +34,31 @@ function CompactAssignmentCard({
     assignment.ceremonyTime && assignment.timeLabel !== UNKNOWN_TIME_LABEL
       ? assignment.timeLabel
       : assignment.ceremonyTime ?? null
+  const location = getDashboardLocationLabel(assignment)
+  const business =
+    assignment.entityType === 'wedding'
+      ? getWeddingBusinessStatus(assignment.wedding)
+      : null
 
   return (
-    <Link to={assignment.href} className={styles.card}>
+    <Link
+      to={assignment.href}
+      className={styles.card}
+      aria-label={`${assignment.assignmentTypeLabel}: ${assignment.title}`}
+    >
       <div className={styles.cardTop}>
-        <Badge
-          variant={assignment.entityType === 'wedding' ? 'info' : 'neutral'}
-        >
-          {assignment.assignmentTypeLabel}
-        </Badge>
+        <div className={styles.badges} role="group" aria-label="Status zlecenia">
+          <Badge
+            variant={assignment.entityType === 'wedding' ? 'info' : 'neutral'}
+          >
+            {assignment.assignmentTypeLabel}
+          </Badge>
+          {business ? (
+            <Badge variant={businessBadgeVariant(business.tone)}>
+              {business.label}
+            </Badge>
+          ) : null}
+        </div>
         <span className={styles.countdown}>{countdownLabel(assignment.dateKey)}</span>
       </div>
       <h3 className={styles.name}>{assignment.title}</h3>
@@ -49,14 +71,10 @@ function CompactAssignmentCard({
           </>
         ) : null}
       </p>
-      {assignment.locationSummary ? (
-        <p className={styles.location}>
-          <IconMapPin width={13} height={13} aria-hidden />
-          <span title={assignment.locationSummary}>
-            {assignment.locationSummary}
-          </span>
-        </p>
-      ) : null}
+      <p className={styles.location}>
+        <IconMapPin width={13} height={13} aria-hidden />
+        <span title={location.primary}>{location.primary}</span>
+      </p>
     </Link>
   )
 }

@@ -13,6 +13,9 @@ import {
   writeSessionsViewMode,
   type SessionsViewMode,
 } from '@/features/sessions/presentation/sessionsViewMode'
+import { getSessionDisplayName } from '@/features/sessions/presentation/getSessionDisplayName'
+import { SeasonGroupedList } from '@/features/shared/components/SeasonGroupedList'
+import { formatSessionSeasonCount } from '@/features/shared/presentation/groupAssignmentsBySeason'
 import styles from '@/pages/WeddingsPage.module.css'
 
 export function SessionsPage() {
@@ -64,14 +67,25 @@ export function SessionsPage() {
             title="Brak sesji"
             description="Dodaj pierwszą sesję zdjęciową — szybko, bez workflow ślubnego."
           />
-        ) : viewMode === 'list' ? (
-          <SessionList sessions={sessions} />
         ) : (
-          <div className={styles.grid} data-testid="sessions-grid">
-            {sessions.map((session) => (
-              <SessionCard key={session.id} session={session} />
-            ))}
-          </div>
+          <SeasonGroupedList
+            items={sessions}
+            getDate={(s) => s.date}
+            getSearchText={(s) => getSessionDisplayName(s)}
+            formatCount={formatSessionSeasonCount}
+            searchPlaceholder="Szukaj sesji…"
+            renderItems={(seasonSessions) =>
+              viewMode === 'list' ? (
+                <SessionList sessions={seasonSessions} />
+              ) : (
+                <div className={styles.grid} data-testid="sessions-grid">
+                  {seasonSessions.map((session) => (
+                    <SessionCard key={session.id} session={session} />
+                  ))}
+                </div>
+              )
+            }
+          />
         )}
         {isError ? (
           <div style={{ marginTop: 16 }}>

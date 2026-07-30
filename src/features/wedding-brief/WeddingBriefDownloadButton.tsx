@@ -1,12 +1,6 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
-import { convertWeddingBriefHtmlToPdf, downloadPdfBytes } from '@/features/wedding-brief/convertWeddingBriefHtmlToPdf'
-import { loadWeddingBriefPdfData } from '@/features/wedding-brief/loadWeddingBriefPdfData'
-import { renderWeddingBriefFooterHtml } from '@/features/wedding-brief/renderWeddingBriefFooterHtml'
-import {
-  buildWeddingBriefFilename,
-  renderWeddingBriefHtml,
-} from '@/features/wedding-brief/renderWeddingBriefHtml'
+import { downloadWeddingBriefPdf } from '@/features/wedding-brief/downloadWeddingBriefPdf'
 import styles from '@/features/weddings/detail/v2/WeddingDetailV2.module.css'
 
 type Props = {
@@ -26,16 +20,7 @@ export function WeddingBriefDownloadButton({ weddingId, compact }: Props) {
     setBusy(true)
     setError(null)
     try {
-      const data = await loadWeddingBriefPdfData(weddingId)
-      const html = renderWeddingBriefHtml(data)
-      const footerHtml = renderWeddingBriefFooterHtml(data)
-      const filename = buildWeddingBriefFilename(data)
-      const pdf = await convertWeddingBriefHtmlToPdf({
-        html,
-        filename,
-        footerHtml,
-      })
-      downloadPdfBytes(pdf, filename)
+      await downloadWeddingBriefPdf(weddingId)
     } catch (e) {
       const raw = e instanceof Error ? e.message : ''
       setError(

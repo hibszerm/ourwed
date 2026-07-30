@@ -1,13 +1,12 @@
 import { useCallback, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
+import { calendarIntegrationQueryKeys } from '@/features/calendar-integrations/queryKeys'
 import { weddingPlaceService } from '@/lib/api/weddingPlaceService'
 import { WeddingActivityWorkspace } from '@/features/weddings/detail/v2/WeddingActivityWorkspace'
 import { WeddingPreWeddingQuestionnaireWorkspace } from '@/features/weddings/detail/v2/WeddingPreWeddingQuestionnaireWorkspace'
-import { WeddingContextSidebar } from '@/features/weddings/detail/v2/WeddingContextSidebar'
 import { WeddingContractFinanceWorkspace } from '@/features/weddings/detail/v2/WeddingContractFinanceWorkspace'
 import { WeddingDayWorkspace } from '@/features/weddings/detail/v2/WeddingDayWorkspace'
-import { WeddingManagementSection } from '@/features/weddings/detail/v2/WeddingManagementSection'
 import { WeddingOverviewBand } from '@/features/weddings/detail/v2/WeddingOverviewBand'
 import { WeddingOverviewWorkspace } from '@/features/weddings/detail/v2/WeddingOverviewWorkspace'
 import { WeddingWorkspaceEditSurface } from '@/features/weddings/detail/v2/WeddingWorkspaceEditSurface'
@@ -23,6 +22,7 @@ import {
   parseWorkspaceTab,
 } from '@/features/weddings/detail/v2/weddingWorkspaceSelectors'
 import { WEDDING_DETAIL_V2_TAB_KEY } from '@/features/weddings/detail/v2/weddingDetailV2Types'
+import type { Wedding } from '@/types/wedding'
 import styles from './WeddingDetailV2.module.css'
 
 function readTab(): WeddingWorkspaceTab {
@@ -48,7 +48,6 @@ export function WeddingDetailV2(props: WeddingDetailSharedProps) {
     payments,
     notes,
     tasks,
-    contacts,
     extras,
     editing,
     editorSection = null,
@@ -58,10 +57,10 @@ export function WeddingDetailV2(props: WeddingDetailSharedProps) {
     onSaveEdit,
     onCancelEdit,
     saving,
-    onAddNote,
     onSendQuestionnaire,
     onArchive,
     onDelete,
+    onWeddingRefreshed,
   } = props
 
   const userId = useStudioAuthId()
@@ -89,9 +88,29 @@ export function WeddingDetailV2(props: WeddingDetailSharedProps) {
     wedding,
   })
 
+  async function handleWeddingUpdated(next: Wedding) {
+    queryClient.setQueryData(['weddings', userId, wedding.id], next)
+    await queryClient.invalidateQueries({ queryKey: ['weddings'] })
+    await queryClient.invalidateQueries({
+      queryKey: calendarIntegrationQueryKeys.entityStatus(
+        userId,
+        'wedding',
+        wedding.id,
+      ),
+    })
+    await queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+    onWeddingRefreshed?.(next)
+  }
+
   return (
     <div className={styles.workspace} data-testid="wedding-detail-v2">
-      <WeddingWorkspaceHeader wedding={wedding} places={places} />
+      <WeddingWorkspaceHeader
+        wedding={wedding}
+        places={places}
+        onWeddingUpdated={(next) => void handleWeddingUpdated(next)}
+        onArchive={onArchive}
+        onDelete={onDelete}
+      />
 
       <WeddingOverviewBand {...band} />
 
@@ -105,38 +124,27 @@ export function WeddingDetailV2(props: WeddingDetailSharedProps) {
           aria-labelledby={`ws-tab-${tab}`}
         >
           {tab === 'overview' ? (
-            <div className={styles.overviewLayout}>
-              <WeddingOverviewWorkspace
-                wedding={wedding}
-                places={places}
-                notes={notes}
-                tasks={tasks}
-                onAddNote={onAddNote}
-                onEditNotes={() => onEditSection?.('notes')}
-                onEditTasks={() => onEditSection?.('tasks')}
-                onSendQuestionnaire={
-                  onSendQuestionnaire
-                    ? () => onSendQuestionnaire('contractData')
-                    : undefined
-                }
-                onOpenPreWeddingTab={() => setTab('pre_wedding_questionnaire')}
-              />
-              <WeddingContextSidebar
-                wedding={wedding}
-                places={places}
-                contacts={contacts}
-                onEditLocations={() => {
-                  if (onEditSection) onEditSection('locations')
-                  else onRequestVerifyLocations()
-                }}
-                onEditContacts={() => onEditSection?.('contacts')}
-                onEditPackage={() => onEditSection?.('package')}
-                onShowPackageDetails={() => {
-                  setPackageFocus(true)
-                  setTab('contract_finance')
-                }}
-              />
-            </div>
+            <WeddingOverviewWorkspace
+              wedding={wedding}
+              places={places}
+              onSendQuestionnaire={
+                onSendQuestionnaire
+                  ? () => onSendQuestionnaire('contractData')
+                  : undefined
+              }
+              onOpenPreWeddingTab={() => setTab('pre_wedding_questionnaire')}
+              onOpenFinanceTab={() => setTab('contract_finance')}
+              onEditLocations={() => {
+                if (onEditSection) onEditSection('locations')
+                else onRequestVerifyLocations()
+              }}
+              onEditContacts={() => onEditSection?.('contacts')}
+              onEditPackage={() => onEditSection?.('package')}
+              onShowPackageDetails={() => {
+                setPackageFocus(true)
+                setTab('contract_finance')
+              }}
+            />
           ) : null}
 
           {tab === 'wedding_day' ? (
@@ -169,6 +177,9 @@ export function WeddingDetailV2(props: WeddingDetailSharedProps) {
               forcePackageOpen={packageFocus}
               onEditPackage={() => onEditSection?.('package')}
               onEditFinances={() => onEditSection?.('finances')}
+              onContractStatusChanged={() => {
+                void queryClient.invalidateQueries({ queryKey: ['weddings'] })
+              }}
             />
           ) : null}
 
@@ -195,15 +206,6 @@ export function WeddingDetailV2(props: WeddingDetailSharedProps) {
           ) : null}
         </div>
       </div>
-
-      {!editing ? (
-        <WeddingManagementSection
-          weddingId={wedding.id}
-          onEditWedding={() => onEditSection?.('contacts')}
-          onArchive={onArchive}
-          onDelete={onDelete}
-        />
-      ) : null}
 
       {editing ? (
         <WeddingWorkspaceEditSurface

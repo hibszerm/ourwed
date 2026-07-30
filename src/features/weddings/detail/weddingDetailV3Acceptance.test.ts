@@ -134,13 +134,16 @@ run('9–12. Generation guard + missing dialog on page', () => {
   )
 })
 
-run('13. Workflow stage Rezerwacja remains visible', () => {
+run('13. Business status badge replaces workflow stage pill', () => {
   const header = readFileSync(
     resolve(v2Root, 'WeddingWorkspaceHeader.tsx'),
     'utf8',
   )
-  assert(header.includes('WorkflowBadge'), 'stage badge')
-  assertEq(getOverviewBand(stubWedding()).stageLabel, 'Rezerwacja', 'band')
+  assert(!header.includes('WorkflowBadge'), 'no workflow stage badge')
+  assert(header.includes('getHeaderStatusBadges'), 'business badges')
+  const band = getOverviewBand(stubWedding())
+  assertEq(band.contractValueLabel != null, true, 'band has contract value')
+  assert(!('stageLabel' in band), 'band has no stage')
 })
 
 run('14. Canonical details page has no V1 readiness / V1 shell', () => {

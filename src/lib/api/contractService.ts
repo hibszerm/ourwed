@@ -71,7 +71,7 @@ export const contractService = {
   },
 
   async create(input: CreateContractInput): Promise<WeddingContract> {
-    let generatedBy: string | null = null
+    let generatedBy: string | null
     try {
       generatedBy = await resolveStudioUserId()
     } catch {
@@ -128,6 +128,9 @@ export const contractService = {
     }
     if (status === 'signed') {
       patch.signed_at = now
+    } else if (status === 'generated' || status === 'sent') {
+      // Leaving signed clears the manual signature timestamp.
+      patch.signed_at = null
     }
     if (status === 'none') {
       patch.generated_at = null

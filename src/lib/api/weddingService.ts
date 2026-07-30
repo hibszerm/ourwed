@@ -476,7 +476,7 @@ export const weddingService = {
         city: wedding.couple.city || mapped.couple.city,
       },
       accentColor: wedding.accentColor || mapped.accentColor,
-      displayName: wedding.displayName ?? mapped.displayName,
+      displayName: mapped.displayName,
       checklist: wedding.checklist,
       schedule: wedding.schedule,
       finances: wedding.finances,

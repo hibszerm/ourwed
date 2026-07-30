@@ -1,5 +1,6 @@
 import { formatDate, getCountdownParts } from '@/lib/utils/dates'
 import { getWeddingDisplayName } from '@/features/weddings/presentation/getWeddingDisplayName'
+import { getWeddingBusinessStatus } from '@/features/weddings/presentation/getWeddingBusinessStatus'
 import {
   formatDeliveryTerm,
   getAgreedDeposit,
@@ -376,31 +377,19 @@ export function getAssignmentStatusItems(
   return items
 }
 
-/** Compact header status badges from existing wedding state. */
+/** Compact header badges: entity type + business contract status only. */
 export function getHeaderStatusBadges(
   wedding: Wedding,
 ): HeaderStatusBadge[] {
-  const badges: HeaderStatusBadge[] = []
-  const countdown = getWeddingCountdownLabel(wedding.date)
-  if (countdown) {
-    badges.push({ id: 'countdown', label: countdown, tone: 'neutral' })
-  }
-
-  const contractStatus = wedding.contract?.status ?? 'none'
-  if (contractStatus === 'signed') {
-    badges.push({ id: 'contract', label: 'Umowa podpisana', tone: 'ok' })
-  } else if (contractStatus === 'sent') {
-    badges.push({ id: 'contract', label: 'Umowa wysłana', tone: 'warn' })
-  } else if (contractStatus === 'generated') {
-    badges.push({ id: 'contract', label: 'Umowa wygenerowana', tone: 'ok' })
-  }
-
-  const agreedDeposit = getAgreedDeposit(wedding)
-  if (agreedDeposit > 0 && !hasDepositPaymentRecord(wedding)) {
-    badges.push({ id: 'deposit', label: 'Zaliczka oczekuje', tone: 'warn' })
-  }
-
-  return badges
+  const business = getWeddingBusinessStatus(wedding)
+  return [
+    { id: 'entity', label: 'Ślub', tone: 'neutral' },
+    {
+      id: 'business',
+      label: business.label,
+      tone: business.tone === 'ok' ? 'ok' : 'warn',
+    },
+  ]
 }
 
 export function getPackageSummary(wedding: Wedding) {
@@ -448,10 +437,8 @@ export function getPackageSummary(wedding: Wedding) {
 }
 
 export function getOverviewBand(wedding: Wedding) {
-  const flow = getWorkflowDisplayState(wedding.workflowStage)
   const c = getWeddingCommercialSummary(wedding)
   return {
-    stageLabel: flow.label,
     contractValueLabel: formatCurrency(c.contractValue),
     totalPaidLabel: formatCurrency(c.totalPaid),
     remainingLabel: formatCurrency(c.remainingToPay),

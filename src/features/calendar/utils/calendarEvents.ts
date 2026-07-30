@@ -1,4 +1,5 @@
 import { getWeddingDisplayName } from '@/features/weddings/presentation/getWeddingDisplayName'
+import { getWeddingPrimaryLocationSummary } from '@/features/weddings/presentation/getWeddingPrimaryLocationSummary'
 import { getSessionDisplayName } from '@/features/sessions/presentation/getSessionDisplayName'
 import { formatSessionType } from '@/features/sessions/presentation/sessionType'
 import { getSessionLocationSummary } from '@/features/sessions/presentation/getSessionLocationSummary'
@@ -27,11 +28,7 @@ export const SESSION_CALENDAR_COLORS: WorkflowStageColor = {
 }
 
 function compactWeddingLocation(wedding: Wedding): string | undefined {
-  const reception = wedding.receptionLocation?.trim()
-  if (reception && reception !== '—') return reception
-  const ceremony = wedding.ceremonyLocation?.trim()
-  if (ceremony && ceremony !== '—') return ceremony
-  return undefined
+  return getWeddingPrimaryLocationSummary(wedding).displayText ?? undefined
 }
 
 export interface CalendarWeddingEvent {

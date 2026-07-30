@@ -65,7 +65,7 @@ function listTsx(dir: string): string[] {
   return out
 }
 
-run('1. Management section opens shared beginEdit (no top Edytuj ślub)', () => {
+run('1. Header menu opens identity edit; couple edit still via drawer', () => {
   const src = readFileSync(page, 'utf8')
   assert(!src.includes('Edytuj ślub'), 'no page header edit')
   assert(src.includes('beginEdit('), 'beginEdit')
@@ -73,11 +73,12 @@ run('1. Management section opens shared beginEdit (no top Edytuj ślub)', () => 
   assert(src.includes('editorSection'), 'section state')
   assert(src.includes('DiscardChangesDialog'), 'dirty confirm')
   assert(src.includes('Porzucić zmiany') || src.includes('discardOpen'), 'discard state')
-  const management = readFileSync(
-    resolve(process.cwd(), 'src/features/weddings/detail/v2/WeddingManagementSection.tsx'),
+  const headerActions = readFileSync(
+    resolve(process.cwd(), 'src/features/weddings/detail/v2/WeddingHeaderActions.tsx'),
     'utf8',
   )
-  assert(management.includes('Edytuj dane ślubu'), 'management edit')
+  assert(headerActions.includes('Edytuj nazwę i datę'), 'identity edit in menu')
+  assert(headerActions.includes('WeddingIdentityEditDialog'), 'identity dialog')
 })
 
 run('2. V2 edit surface is drawer-hosted with shared fields (no V1 presentation)', () => {
@@ -149,17 +150,17 @@ run('6. Location roles stay separate in hero LOCATION_FIELDS', () => {
   assert(src.includes('saveMutation'), 'per-role save')
 })
 
-run('7. Sidebar / day Edytuj call onEditSection (per-role day)', () => {
-  const sidebar = readFileSync(
+run('7. Overview / day Edytuj call onEditSection (per-role day)', () => {
+  const essentials = readFileSync(
     resolve(
       process.cwd(),
-      'src/features/weddings/detail/v2/WeddingContextSidebar.tsx',
+      'src/features/weddings/detail/v2/WeddingOverviewEssentials.tsx',
     ),
     'utf8',
   )
-  assert(sidebar.includes('onEditLocations'), 'locations')
-  assert(sidebar.includes('Edytuj dane pary'), 'couple')
-  assert(sidebar.includes('Edytuj pakiet'), 'package')
+  assert(essentials.includes('onEditLocations'), 'locations')
+  assert(essentials.includes('Edytuj dane pary'), 'couple')
+  assert(essentials.includes('Edytuj pakiet'), 'package')
   const day = readFileSync(
     resolve(
       process.cwd(),

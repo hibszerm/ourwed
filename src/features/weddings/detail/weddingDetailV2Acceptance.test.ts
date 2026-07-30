@@ -6,7 +6,6 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import {
   buildActivityFeed,
-  getAssignmentStatusItems,
   getContactSections,
   getCoupleDisplayName,
   getHeaderStatusBadges,
@@ -15,6 +14,7 @@ import {
   parseWorkspaceTab,
   WORKSPACE_TABS,
 } from '@/features/weddings/detail/v2/weddingWorkspaceSelectors'
+import { buildWeddingProgressSummary } from '@/features/weddings/detail/v2/buildWeddingProgressSummary'
 import { WEDDING_DETAIL_V2_TAB_KEY } from '@/features/weddings/detail/v2/weddingDetailV2Types'
 import { getWeddingCommercialSummary } from '@/lib/utils/commercial'
 import { formatCurrency } from '@/lib/utils/currency'
@@ -166,7 +166,7 @@ run('2–4. Workspace header + tabs; default overview', () => {
 run('5. Tab switch does not refetch wedding', () => {
   const shell = readFileSync(resolve(v2Root, 'WeddingDetailV2.tsx'), 'utf8')
   assert(!shell.includes('useWedding('), 'no wedding hook')
-  assert(!shell.includes("queryKey: ['weddings'"), 'no weddings query')
+  assert(!shell.includes("queryFn: () => weddingService"), 'no wedding fetch in shell')
   const page = readFileSync(
     resolve(process.cwd(), 'src/pages/WeddingDetailPage.tsx'),
     'utf8',
@@ -200,59 +200,118 @@ run('6–9. Header reception venue + locality; no prep/ceremony preference', () 
   )
 })
 
-run('10–11. Overview shows assignment status + current-state panels (no timeline)', () => {
+run('10–11. Overview shows Postęp zlecenia + full-width essentials (no sidebar)', () => {
   const overview = readFileSync(
     resolve(v2Root, 'WeddingOverviewWorkspace.tsx'),
     'utf8',
   )
-  assert(overview.includes('WeddingAssignmentStatus'), 'assignment status')
-  assert(overview.includes('WeddingOverviewCurrentState'), 'current state')
+  assert(overview.includes('WeddingProgressCard'), 'progress card')
+  assert(overview.includes('WeddingOverviewEssentials'), 'essentials grid')
+  assert(overview.includes('WeddingOverviewAttention'), 'optional attention')
+  assert(!overview.includes('WeddingOverviewCurrentState'), 'no current-state cards')
+  assert(!overview.includes('WeddingOverviewRecentActivity'), 'no recent activity')
+  assert(!overview.includes('Ostatnia aktywność'), 'no activity title')
   assert(!overview.includes('WeddingMilestoneRail'), 'no milestone rail')
-  assert(!overview.includes('WeddingRecentActivity'), 'no recent activity')
-  assert(!overview.includes('Przebieg'), 'no przebieg')
-  assert(!overview.includes('Ostatnia aktywność'), 'no recent activity copy')
+  assert(!overview.includes('WeddingAssignmentStatus'), 'no legacy status name')
   assert(!overview.includes('WeddingNextAction'), 'no next action')
   assert(!overview.includes('WeddingIssuesSummary'), 'no issues')
   assert(!overview.includes('Gotowość umowy'), 'no readiness title')
-  assert(!overview.includes('Do uzupełnienia'), 'no unresolved block')
 
-  const status = readFileSync(
-    resolve(v2Root, 'WeddingAssignmentStatus.tsx'),
+  const shell = readFileSync(resolve(v2Root, 'WeddingDetailV2.tsx'), 'utf8')
+  assert(!shell.includes('WeddingContextSidebar'), 'sidebar removed from shell')
+  assert(!shell.includes('WeddingManagementSection'), 'management removed from shell')
+  assert(!shell.includes('overviewLayout'), 'no sidebar layout wrapper')
+  assert(shell.includes('WeddingHeaderActions') || shell.includes('WeddingWorkspaceHeader'), 'header actions path')
+
+  const progress = readFileSync(
+    resolve(v2Root, 'WeddingProgressCard.tsx'),
     'utf8',
   )
-  assert(status.includes('Stan zlecenia'), 'status title')
-  assert(status.includes('getAssignmentStatusItems'), 'selector')
+  assert(progress.includes('Postęp zlecenia'), 'progress title')
+  assert(progress.includes('buildWeddingProgressSummary'), 'selector')
+  assert(!progress.includes('bez ręcznego ustawiania'), 'no intro copy')
+  assert(!progress.includes('Przejdź do płatności'), 'no payment CTA')
+  assert(!progress.includes("'Ukończone'"), 'no complete badge label')
+  assert(progress.includes('activeToneLabel'), 'active badges only')
+  assert(!progress.includes('type="checkbox"'), 'no manual toggles')
 
-  const current = readFileSync(
-    resolve(v2Root, 'WeddingOverviewCurrentState.tsx'),
+  const essentials = readFileSync(
+    resolve(v2Root, 'WeddingOverviewEssentials.tsx'),
     'utf8',
   )
-  assert(current.includes('overview-questionnaire'), 'questionnaire panel')
-  assert(current.includes('overview-tasks'), 'tasks panel')
-  assert(current.includes('overview-notes'), 'notes panel')
-  assert(current.includes('Dodaj notatkę'), 'add note')
-  assert(current.includes('Edytuj notatki'), 'edit notes')
-  assert(current.includes('Edytuj zadania'), 'edit tasks')
-  assert(current.includes('Wyślij ankietę'), 'send questionnaire')
+  assert(essentials.includes('overview-locations-card'), 'locations')
+  assert(essentials.includes('overview-contact-card'), 'contact')
+  assert(essentials.includes('overview-package-card'), 'package')
+  assert(essentials.includes('overview-calendars-card'), 'calendars')
+  assert(essentials.includes('essentialsGrid'), 'grid class')
+  assert(essentials.includes('overview-contact-channels'), 'channels block')
+  assert(essentials.includes('Zarządzaj integracjami'), 'calendar manage link')
+  assert(
+    !essentials.includes('Otwórz w Google Calendar'),
+    'no open google on overview',
+  )
+  assert(!essentials.includes('overview-finance-link'), 'no finance CTA card')
+  assert(!essentials.includes('Przejdź do płatności'), 'no finance CTA copy')
 
-  const items = getAssignmentStatusItems(stubWedding(), [
+  const summary = buildWeddingProgressSummary(stubWedding(), [
     place('reception', 'Lwowska 78, 34-144 Izdebnik', 'Villa Love'),
   ])
+  assertEq(summary.groups.length, 2, 'two domains only')
   assert(
-    items.some((i) => i.id === 'contract'),
-    'contract item',
+    summary.groups.some((g) => g.id === 'contract'),
+    'contract group',
   )
   assert(
-    items.some((i) => i.id === 'deposit' && i.tone === 'warn'),
-    'deposit pending',
+    summary.groups.some((g) => g.id === 'preparation'),
+    'preparation group',
   )
   assert(
-    items.some((i) => i.id === 'locations' && i.tone === 'ok'),
-    'locations ok',
+    !summary.groups.map((g) => g.id as string).includes('payments'),
+    'no payments group',
   )
   assert(
-    items.some((i) => i.id === 'package' && i.tone === 'ok'),
-    'package ok',
+    summary.primaryAction == null ||
+      (summary.primaryAction.id as string) !== 'open_finance',
+    'no finance primary action',
+  )
+})
+
+run('10a. Progress summary derives from canonical data only', () => {
+  const signed = buildWeddingProgressSummary(
+    stubWedding({
+      contract: { status: 'signed' },
+      questionnaires: {
+        contractData: { status: 'completed', completedAt: '2026-06-01' },
+        weddingQuestionnaire: { status: 'completed' },
+      },
+      payments: [
+        {
+          id: 'p1',
+          label: 'Zaliczka',
+          amount: 1000,
+          type: 'deposit',
+          paid: true,
+          paidAt: '2026-06-01',
+        },
+      ],
+    }),
+    [
+      place('ceremony', 'Kościół'),
+      place('reception', 'Villa Love'),
+    ],
+  )
+  const contract = signed.groups.find((g) => g.id === 'contract')!
+  assert(
+    contract.items.some(
+      (i) => i.id === 'contract-signed' && i.tone === 'complete',
+    ),
+    'signed complete',
+  )
+  assert(
+    !signed.groups.some((g) =>
+      g.items.some((i) => i.label.toLowerCase().includes('toggle')),
+    ),
+    'no manual controls',
   )
 })
 
@@ -266,13 +325,13 @@ run('10b. History tab is a pure chronological event log', () => {
   const shell = readFileSync(resolve(v2Root, 'WeddingDetailV2.tsx'), 'utf8')
   assert(shell.includes('WeddingActivityWorkspace'), 'history workspace')
   assert(
-    !shell.includes('onOpenActivityTab'),
-    'overview does not deep-link activity',
+    shell.includes("setTab('activity')") || shell.includes("tab === 'activity'"),
+    'history tab wiring',
   )
   assert(
-    shell.includes('WeddingOverviewCurrentState') ||
-      shell.includes('onAddNote={onAddNote}'),
-    'note actions on overview wiring',
+    !shell.includes('WeddingOverviewCurrentState') &&
+      !shell.includes('onAddNote={onAddNote}'),
+    'notes/tasks not on overview',
   )
 
   const activity = readFileSync(
@@ -299,38 +358,44 @@ run('10b. History tab is a pure chronological event log', () => {
 })
 
 
-run('10c. Header exposes compact status badges', () => {
+run('10c. Header exposes entity + business badges only', () => {
   const header = readFileSync(resolve(v2Root, 'WeddingWorkspaceHeader.tsx'), 'utf8')
   assert(header.includes('getHeaderStatusBadges'), 'badges selector')
   assert(header.includes('wedding-header-status-badges'), 'testid')
-  const badges = getHeaderStatusBadges(
+  assert(!header.includes('WorkflowBadge'), 'no workflow stage badge')
+  const signed = getHeaderStatusBadges(
     stubWedding({ contract: { status: 'signed' } }),
   )
-  assert(
-    badges.some((b) => b.label === 'Umowa podpisana'),
-    'signed badge',
+  assertEq(signed.length, 2, 'two badges')
+  assert(signed.some((b) => b.id === 'entity' && b.label === 'Ślub'), 'entity')
+  assert(signed.some((b) => b.id === 'business' && b.label === 'Umowa'), 'signed')
+  const waiting = getHeaderStatusBadges(
+    stubWedding({ contract: { status: 'generated' } }),
   )
-  assert(
-    badges.some((b) => b.label === 'Zaliczka oczekuje'),
-    'deposit badge',
+  assert(waiting.some((b) => b.label === 'Oczekuje'), 'waiting')
+  const fresh = getHeaderStatusBadges(
+    stubWedding({ contract: { status: 'none' } }),
   )
+  assert(fresh.some((b) => b.label === 'Nowe'), 'new')
+  assert(!signed.some((b) => b.label === 'Umowa podpisana'), 'no long signed label')
+  assert(!signed.some((b) => b.id === 'countdown'), 'countdown not a badge')
+  assert(!signed.some((b) => b.id === 'deposit'), 'no deposit badge')
 })
 
-run('10d. Sidebar order Location → Couple → Finance → Package + address', () => {
-  const sidebar = readFileSync(
-    resolve(v2Root, 'WeddingContextSidebar.tsx'),
+run('10d. Overview essentials replace sidebar (locations, contact, package)', () => {
+  const essentials = readFileSync(
+    resolve(v2Root, 'WeddingOverviewEssentials.tsx'),
     'utf8',
   )
-  const loc = sidebar.indexOf('data-testid="sidebar-location"')
-  const couple = sidebar.indexOf('data-testid="sidebar-couple"')
-  const finance = sidebar.indexOf('data-testid="sidebar-finance"')
-  const pkg = sidebar.indexOf('data-testid="sidebar-package"')
-  assert(loc >= 0 && couple > loc, 'couple after location')
-  assert(finance > couple, 'finance after couple')
-  assert(pkg > finance, 'package after finance')
-  assert(sidebar.includes('Para'), 'couple title')
-  assert(sidebar.includes('sidebar-contract-address'), 'address testid')
-  assert(sidebar.includes('p.address'), 'renders address')
+  assert(essentials.includes('Lokalizacje'), 'locations title')
+  assert(essentials.includes('Para i kontakt'), 'couple title')
+  assert(essentials.includes('Edytuj dane pary'), 'edit couple')
+  assert(essentials.includes('Pokaż szczegóły'), 'package details')
+  assert(essentials.includes('Edytuj pakiet'), 'edit package')
+  assert(essentials.includes('getCorrespondenceDisplay'), 'channels use safe display')
+  assert(essentials.includes('overview-contact-channels'), 'channels when populated')
+  assert(!essentials.includes('sidebar-contract-address'), 'no contract address dump')
+  assert(!essentials.includes('Otwórz w Google Calendar'), 'no google open link')
 
   const sections = getContactSections(
     stubWedding({
@@ -351,7 +416,7 @@ run('10d. Sidebar order Location → Couple → Finance → Package + address', 
       },
     }).couple,
   )
-  assert(Boolean(sections[0].address), 'bride address present')
+  assert(Boolean(sections[0].address), 'bride address still in selector')
   assert(
     sections[0].address!.includes('Gliwice') ||
       sections[0].address!.includes('Grabowa'),
@@ -375,7 +440,7 @@ run('10e. Contracts module shows latest first; older behind history toggle', () 
   assert(src.includes('older.map'), 'older only in history')
 })
 
-run('12. Contract and Finance is commercial (no readiness checklist)', () => {
+run('12. Contract and Finance is commercial + collapsible questionnaire', () => {
   const src = readFileSync(
     resolve(v2Root, 'WeddingContractFinanceWorkspace.tsx'),
     'utf8',
@@ -388,6 +453,10 @@ run('12. Contract and Finance is commercial (no readiness checklist)', () => {
   assert(src.includes('contract-finance-contracts'), 'contracts group')
   assert(src.includes('contract-finance-finance'), 'finance group')
   assert(src.includes('contract-finance-package'), 'package group')
+  assert(
+    src.includes('WeddingContractQuestionnaireSection'),
+    'questionnaire section',
+  )
   const contractsIdx = src.indexOf('contract-finance-contracts')
   const financeIdx = src.indexOf('contract-finance-finance')
   const packageIdx = src.indexOf('contract-finance-package')
@@ -397,6 +466,16 @@ run('12. Contract and Finance is commercial (no readiness checklist)', () => {
     src.includes('Umowa nie została jeszcze wygenerowana'),
     'lifecycle status',
   )
+
+  const qSection = readFileSync(
+    resolve(v2Root, 'WeddingContractQuestionnaireSection.tsx'),
+    'utf8',
+  )
+  assert(qSection.includes('Dane z ankiety do umowy'), 'title')
+  assert(qSection.includes('useState(false)'), 'collapsed by default')
+  assert(qSection.includes('aria-expanded'), 'a11y')
+  assert(qSection.includes('Rozwiń dane'), 'expand label')
+  assert(qSection.includes('WeddingContractQuestionnaireAnswers'), 'answers')
 })
 
 run('13–16. Wedding Day itinerary + map + nav; no duplicate locations card', () => {
@@ -446,24 +525,26 @@ run('19. Activity feed combines without mutating source', () => {
   assertEq(wedding.notes[0].content, notes[0].content, 'content same')
 })
 
-run('20. Danger zone collapsed; edit action in management', () => {
-  const src = readFileSync(
-    resolve(v2Root, 'WeddingManagementSection.tsx'),
-    'utf8',
-  )
-  assert(src.includes('useState(false)'), 'danger collapsed')
-  assert(src.includes('Zarządzanie zleceniem'), 'label')
-  assert(src.includes('Edytuj dane ślubu'), 'edit action')
-  assert(src.includes('wedding-edit-from-management'), 'edit testid')
-  assert(src.includes('aria-expanded'), 'a11y')
+run('20. Admin actions live in header menu (not Overview footer)', () => {
+  const header = readFileSync(resolve(v2Root, 'WeddingWorkspaceHeader.tsx'), 'utf8')
+  assert(header.includes('WeddingHeaderActions'), 'header actions')
+  const actions = readFileSync(resolve(v2Root, 'WeddingHeaderActions.tsx'), 'utf8')
+  assert(actions.includes('Edytuj nazwę i datę'), 'identity edit')
+  assert(actions.includes('Pobierz brief PDF'), 'brief')
+  assert(actions.includes('Archiwizuj zlecenie'), 'archive')
+  assert(actions.includes('Usuń zlecenie'), 'delete')
+  assert(actions.includes('WeddingIdentityEditDialog'), 'identity dialog')
+  const shell = readFileSync(resolve(v2Root, 'WeddingDetailV2.tsx'), 'utf8')
+  assert(!shell.includes('WeddingManagementSection'), 'no management section')
+  assert(!shell.includes('Zarządzanie zleceniem'), 'no management title')
 })
 
-run('20b. Header has no operational command buttons', () => {
+run('20b. Header has no contract/payment command buttons', () => {
   const header = readFileSync(resolve(v2Root, 'WeddingWorkspaceHeader.tsx'), 'utf8')
   assert(!header.includes('Generuj umowę'), 'no generate')
   assert(!header.includes('Dodaj wpłatę'), 'no payment')
-  assert(!header.includes('Więcej'), 'no more menu')
   assert(!header.includes('onAction'), 'no hero actions')
+  assert(header.includes('WeddingHeaderActions'), 'overflow menu present')
 })
 
 run('20c. Generate / payment live in Contract & Finance', () => {
@@ -475,6 +556,7 @@ run('20c. Generate / payment live in Contract & Finance', () => {
     'utf8',
   )
   assert(contracts.includes('contracts-generate'), 'generate testid')
+  assert(contracts.includes('WeddingContractSignedControls'), 'signed controls')
   const finance = readFileSync(
     resolve(v2Root, 'WeddingContractFinanceWorkspace.tsx'),
     'utf8',
@@ -482,20 +564,13 @@ run('20c. Generate / payment live in Contract & Finance', () => {
   assert(finance.includes('finance-add-payment'), 'payment testid')
 })
 
-run('20d. Correspondence block shows all entries in Para sidebar', () => {
-  const sidebar = readFileSync(
-    resolve(v2Root, 'WeddingContextSidebar.tsx'),
+run('20d. Correspondence editor remains; Overview renders populated channels', () => {
+  const essentials = readFileSync(
+    resolve(v2Root, 'WeddingOverviewEssentials.tsx'),
     'utf8',
   )
-  assert(sidebar.includes('WeddingCorrespondenceBlock'), 'block')
-  assert(sidebar.includes('sidebar-correspondence') || sidebar.includes('WeddingCorrespondenceBlock'), 'wired')
-  const block = readFileSync(
-    resolve(v2Root, 'WeddingCorrespondenceBlock.tsx'),
-    'utf8',
-  )
-  assert(block.includes('sidebar-correspondence-entry'), 'per-entry')
-  assert(block.includes('Nie ustawiono'), 'empty state')
-  assert(!block.includes('correspondence[0]'), 'no first-only')
+  assert(essentials.includes('getCorrespondenceDisplay'), 'safe display')
+  assert(essentials.includes('CORRESPONDENCE_CHANNEL_LABELS'), 'labels')
   const fields = readFileSync(
     resolve(
       process.cwd(),
@@ -508,17 +583,17 @@ run('20d. Correspondence block shows all entries in Para sidebar', () => {
   assert(fields.includes('Dodaj kanał kontaktu'), 'add label')
 })
 
-
-run('21. Mobile CSS present; no card-grid composition', () => {
+run('21. Mobile CSS present; full-width overview grid', () => {
   const css = readFileSync(resolve(v2Root, 'WeddingDetailV2.module.css'), 'utf8')
   assert(css.includes('@media (max-width: 767px)'), 'mobile')
   assert(css.includes('commandHeader'), 'command header')
   assert(css.includes('tabsBar'), 'tabs')
-  assert(css.includes('contextSidebar'), 'sidebar')
-  assert(css.includes('position: sticky'), 'sticky')
+  assert(css.includes('essentialsGrid'), 'essentials grid')
+  assert(css.includes('progressGroups'), 'progress groups')
   const shell = readFileSync(resolve(v2Root, 'WeddingDetailV2.tsx'), 'utf8')
   assert(!shell.includes('WeddingMetricsV2'), 'no old metrics')
   assert(!shell.includes('WeddingHeroV2'), 'no old hero')
+  assert(!shell.includes('WeddingContextSidebar'), 'no sidebar in shell')
   assert(shell.includes('WeddingWorkspaceHeader'), 'new header')
 })
 
@@ -544,11 +619,14 @@ run('22. Rejected card-grid files deleted', () => {
   }
 })
 
-run('23. Overview band is commercial / stage summary (no readiness cell)', () => {
+run('23. Overview band is commercial summary only (no stage cell)', () => {
   const band = readFileSync(resolve(v2Root, 'WeddingOverviewBand.tsx'), 'utf8')
   assert(!band.includes('Gotowość umowy'), 'no readiness cell')
+  assert(!band.includes('Aktualny etap'), 'no stage cell')
   assert(band.includes('Wartość umowy'), 'value')
-  assert(band.includes('Aktualny etap'), 'stage')
+  assert(band.includes('Wpłacono'), 'paid')
+  assert(band.includes('Pozostało'), 'remaining')
+  assert(band.includes('Termin płatności'), 'due')
 })
 
 console.log('\nwedding workspace v2: done')

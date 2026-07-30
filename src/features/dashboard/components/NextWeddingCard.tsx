@@ -8,19 +8,13 @@ import {
   UNKNOWN_TIME_LABEL,
   type CalendarUiEvent,
 } from '@/features/calendar/utils/calendarEvents'
-import {
-  getAssignmentContextItems,
-  type AssignmentContextItem,
-} from '@/features/dashboard/presentation/getAssignmentContextItems'
-import { getWeddingPrimaryLocationSummary } from '@/features/weddings/presentation/getWeddingPrimaryLocationSummary'
-import type { Session } from '@/types/session'
+import { getDashboardLocationLabel } from '@/features/dashboard/presentation/getDashboardLocationLabel'
+import { getWeddingBusinessStatus } from '@/features/weddings/presentation/getWeddingBusinessStatus'
 import type { Wedding } from '@/types/wedding'
 import styles from './NextWeddingCard.module.css'
 
 interface NextAssignmentCardProps {
   assignment: CalendarUiEvent | null
-  /** Sessions linked to the hero wedding (for context checklist). */
-  linkedSessions?: Session[]
   /** When set, CTA does not navigate via router — used by landing demo. */
   onOpen?: () => void
 }
@@ -32,29 +26,14 @@ function countdownUnit(days: number, entityType: CalendarUiEvent['entityType']) 
   return days === 1 ? 'dzień do ślubu' : 'dni do ślubu'
 }
 
-function ContextList({ items }: { items: AssignmentContextItem[] }) {
-  if (items.length === 0) {
-    return <p className={styles.contextEmpty}>Wszystko na bieżąco</p>
-  }
-
-  return (
-    <ul className={styles.contextList}>
-      {items.map((item) => (
-        <li
-          key={item.id}
-          className={styles.contextItem}
-          data-tone={item.tone}
-        >
-          {item.label}
-        </li>
-      ))}
-    </ul>
-  )
+function businessBadgeVariant(
+  tone: 'ok' | 'warn',
+): 'success' | 'warning' {
+  return tone === 'ok' ? 'success' : 'warning'
 }
 
 export function NextAssignmentCard({
   assignment,
-  linkedSessions = [],
   onOpen,
 }: NextAssignmentCardProps) {
   if (!assignment) {
@@ -70,26 +49,35 @@ export function NextAssignmentCard({
     assignment.ceremonyTime && assignment.timeLabel !== UNKNOWN_TIME_LABEL
       ? assignment.timeLabel
       : assignment.ceremonyTime ?? null
-  const contextItems = getAssignmentContextItems(assignment, linkedSessions)
-  const location =
+  const location = getDashboardLocationLabel(assignment)
+  const business =
     assignment.entityType === 'wedding'
-      ? getWeddingPrimaryLocationSummary(assignment.wedding).displayText
-      : assignment.locationSummary
+      ? getWeddingBusinessStatus(assignment.wedding)
+      : null
 
   return (
-    <section className={styles.card}>
+    <section className={styles.card} data-testid="nearest-assignment-card">
       <div className={styles.body}>
         <div className={styles.eyebrowRow}>
           <span
             className={styles.dot}
             style={{ background: assignment.packageColor }}
+            aria-hidden
           />
           <span className={styles.eyebrow}>Najbliższe zlecenie</span>
+        </div>
+
+        <div className={styles.badges} role="group" aria-label="Status zlecenia">
           <Badge
             variant={assignment.entityType === 'wedding' ? 'info' : 'neutral'}
           >
             {assignment.assignmentTypeLabel}
           </Badge>
+          {business ? (
+            <Badge variant={businessBadgeVariant(business.tone)}>
+              {business.label}
+            </Badge>
+          ) : null}
         </div>
 
         <h2 className={styles.coupleName}>{assignment.title}</h2>
@@ -98,35 +86,40 @@ export function NextAssignmentCard({
           <time className={styles.date}>{formatDate(assignment.dateKey)}</time>
           {timeDisplay ? (
             <>
-              <span className={styles.metaDot}>·</span>
+              <span className={styles.metaDot} aria-hidden>
+                ·
+              </span>
               <span className={styles.package}>{timeDisplay}</span>
             </>
           ) : null}
         </div>
 
-        {location ? (
-          <div className={styles.location}>
-            <IconMapPin width={15} height={15} />
-            <span title={location}>{location}</span>
-          </div>
-        ) : null}
-
-        <div className={styles.status}>
-          <ContextList items={contextItems} />
+        <div className={styles.location}>
+          <IconMapPin width={15} height={15} aria-hidden />
+          <span title={location.primary}>{location.primary}</span>
         </div>
 
         {onOpen ? (
-          <button type="button" className={styles.cta} onClick={onOpen}>
+          <button
+            type="button"
+            className={styles.cta}
+            onClick={onOpen}
+            aria-label={`Otwórz ${assignment.title}`}
+          >
             <span className={styles.ctaLabel}>Otwórz</span>
           </button>
         ) : (
-          <Link to={assignment.href} className={styles.cta}>
+          <Link
+            to={assignment.href}
+            className={styles.cta}
+            aria-label={`Otwórz ${assignment.title}`}
+          >
             <Button variant="primary">Otwórz</Button>
           </Link>
         )}
       </div>
 
-      <div className={styles.countdown}>
+      <div className={styles.countdown} aria-label="Odliczanie">
         {days === 0 ? (
           <span className={styles.today}>Dziś</span>
         ) : (

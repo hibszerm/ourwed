@@ -214,16 +214,17 @@ run('7. Missing package/location still produce scannable fields', () => {
 
 // --- Source wiring ---
 
-run('8. WeddingsPage wires switcher, preference, exclusive views', () => {
+run('8. WeddingsPage wires switcher, preference, season grouping, exclusive views', () => {
   const page = src('src/pages/WeddingsPage.tsx')
   assert(page.includes('WeddingsViewSwitch'), 'switcher')
   assert(page.includes('readWeddingsViewMode'), 'read pref')
   assert(page.includes('writeWeddingsViewMode'), 'write pref')
+  assert(page.includes('SeasonGroupedList'), 'shared season list')
+  assert(page.includes('formatWeddingSeasonCount'), 'wedding counts')
   assert(page.includes("viewMode === 'list'"), 'list branch')
   assert(page.includes('<WeddingList'), 'list component')
   assert(page.includes('WeddingCard'), 'grid cards')
   assert(page.includes('weddings-grid') || page.includes('styles.grid'), 'grid')
-  // Only active view: no simultaneous render of both
   assert(
     page.includes("viewMode === 'list' ?") || page.includes("viewMode === 'list'"),
     'conditional render',

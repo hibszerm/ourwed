@@ -9,12 +9,14 @@ import {
   type GeneratedWeddingContract,
 } from '@/features/documents/template'
 import { resolvePackageContractForWedding } from '@/features/documents/template/packageContractAssignment'
+import { WeddingContractSignedControls } from '@/features/weddings/components/detail/WeddingContractSignedControls'
 import type { Wedding } from '@/types/wedding'
 import styles from './WeddingContractsModule.module.css'
 
 interface Props {
   wedding: Wedding
   onGenerate: () => void
+  onContractStatusChanged?: () => void
 }
 
 function formatDate(value: string): string {
@@ -54,7 +56,11 @@ type CardState =
   | 'generated'
   | 'archived'
 
-export function WeddingContractsModule({ wedding, onGenerate }: Props) {
+export function WeddingContractsModule({
+  wedding,
+  onGenerate,
+  onContractStatusChanged,
+}: Props) {
   const [historyOpen, setHistoryOpen] = useState(false)
   const { data: templates = [] } = useDocumentTemplates()
   const { data: contracts = [], isLoading, isError } = useQuery({
@@ -149,6 +155,11 @@ export function WeddingContractsModule({ wedding, onGenerate }: Props) {
       <div className={styles.stateBanner} data-state={cardState}>
         <strong>{stateCopy[cardState].title}</strong>
       </div>
+
+      <WeddingContractSignedControls
+        wedding={wedding}
+        onStatusChanged={onContractStatusChanged}
+      />
 
       {isLoading ? <p className={styles.muted}>Ładowanie umów…</p> : null}
       {isError ? (

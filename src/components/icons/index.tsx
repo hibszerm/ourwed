@@ -83,6 +83,14 @@ export function IconChevronRight(props: IconProps) {
   )
 }
 
+export function IconChevronDown(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <path d="M6 9l6 6 6-6" />
+    </svg>
+  )
+}
+
 export function IconArrowLeft(props: IconProps) {
   return (
     <svg {...defaults} {...props}>

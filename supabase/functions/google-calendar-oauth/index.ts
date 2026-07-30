@@ -124,7 +124,7 @@ Deno.serve(async (req) => {
     return errorResponse('UNAUTHORIZED', 'Unauthorized', 401)
   }
 
-  let body: { action?: string; redirectPath?: string } = {}
+  let body: { action?: string; redirectPath?: string; backfillMode?: string } = {}
   try {
     body = await req.json()
   } catch {
@@ -148,13 +148,15 @@ Deno.serve(async (req) => {
   const verifier = randomPkceVerifier()
   const challenge = await pkceChallenge(verifier)
   const redirectPath = body.redirectPath || '/ustawienia/integracje'
+  const backfillMode =
+    body.backfillMode === 'all_active' ? 'all_active' : 'future'
   const service = createServiceClient()
 
   const { error: stateError } = await service.from('calendar_oauth_states').insert({
     state,
     user_id: userData.user.id,
     code_verifier: verifier,
-    redirect_path: redirectPath,
+    redirect_path: `${redirectPath}#bf=${backfillMode}`,
     expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
   })
 
@@ -324,6 +326,12 @@ async function handleCallback(url: URL): Promise<Response> {
     ? new Date(Date.now() + tokenJson.expires_in * 1000).toISOString()
     : null
 
+  const backfillFromState = String(stateRow.redirect_path ?? '').includes(
+    '#bf=all_active',
+  )
+    ? 'all_active'
+    : 'future'
+
   const { data: existing } = await service
     .from('calendar_integrations')
     .select('id, sync_weddings, sync_sessions, backfill_mode')
@@ -337,7 +345,7 @@ async function handleCallback(url: URL): Promise<Response> {
     enabled: true,
     sync_weddings: existing?.sync_weddings ?? true,
     sync_sessions: existing?.sync_sessions ?? true,
-    backfill_mode: existing?.backfill_mode ?? 'future',
+    backfill_mode: backfillFromState,
     google_account_email: accountEmail,
     google_account_id: accountId,
     google_calendar_id: primaryCalendarId,
@@ -399,7 +407,19 @@ async function handleCallback(url: URL): Promise<Response> {
     raw_expires_at: expiresAt,
   })
 
-  // Enqueue initial backfill
+  // Enqueue one coalesced initial backfill (authoritative trigger).
+  const coalesce_key = [
+    userId,
+    'google',
+    'integration',
+    integrationId,
+    'backfill',
+  ].join(':')
+  await service
+    .from('calendar_sync_jobs')
+    .update({ status: 'cancelled' })
+    .eq('coalesce_key', coalesce_key)
+    .eq('status', 'pending')
   await service.from('calendar_sync_jobs').insert({
     user_id: userId,
     entity_type: 'integration',
@@ -407,8 +427,35 @@ async function handleCallback(url: URL): Promise<Response> {
     provider: 'google',
     operation: 'backfill',
     status: 'pending',
+    coalesce_key,
     payload_json: {},
   })
+
+  // Process immediately server-side — frontend must not start another backfill.
+  try {
+    const syncUrl = `${(env('SUPABASE_URL') ?? '').replace(/\/$/, '')}/functions/v1/google-calendar-sync`
+    const serviceKey = env('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    void fetch(syncUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${serviceKey}`,
+        apikey: serviceKey,
+        'Content-Type': 'application/json',
+        'x-ourwed-internal': serviceKey,
+      },
+      body: JSON.stringify({
+        action: 'process_jobs_internal',
+        userId,
+      }),
+    }).catch(() => {
+      logCalendar('warn', 'oauth_backfill_invoke_failed', {
+        provider: 'google',
+        operation: 'callback',
+      })
+    })
+  } catch {
+    // Non-blocking — Sync Now can recover
+  }
 
   logCalendar('info', 'oauth_connected', {
     provider: 'google',
@@ -417,8 +464,9 @@ async function handleCallback(url: URL): Promise<Response> {
     userId,
   })
 
-  const redirectPath =
+  const redirectPathRaw =
     (stateRow.redirect_path as string) || '/ustawienia/integracje'
+  const redirectPath = redirectPathRaw.split('#')[0] || '/ustawienia/integracje'
   return Response.redirect(
     `${appUrl}${redirectPath}?google=connected`,
     302,

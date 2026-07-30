@@ -1,5 +1,5 @@
 import { IconMapPin } from '@/components/icons'
-import { WorkflowBadge } from '@/components/ui/Badge'
+import { WeddingHeaderActions } from '@/features/weddings/detail/v2/WeddingHeaderActions'
 import { getWeddingDisplayName } from '@/features/weddings/presentation/getWeddingDisplayName'
 import {
   getHeaderStatusBadges,
@@ -14,15 +14,20 @@ import styles from './WeddingDetailV2.module.css'
 interface WeddingWorkspaceHeaderProps {
   wedding: Wedding
   places: WeddingPlace[]
+  onWeddingUpdated?: (wedding: Wedding) => void
+  onArchive?: () => Promise<void>
+  onDelete?: () => Promise<void>
 }
 
 /**
- * Identity header — name, date, location, status badges.
- * Operational actions live in Contracts / Finance / Management sections.
+ * Identity header — name, date, location, entity + business badges, overflow.
  */
 export function WeddingWorkspaceHeader({
   wedding,
   places,
+  onWeddingUpdated,
+  onArchive,
+  onDelete,
 }: WeddingWorkspaceHeaderProps) {
   const statusBadges = getHeaderStatusBadges(wedding)
   const locationSummary = getWeddingPrimaryLocationSummary(wedding, places)
@@ -53,11 +58,11 @@ export function WeddingWorkspaceHeader({
                     : styles.statusPill
                 }
                 data-ready={badge.tone === 'ok' ? 'true' : undefined}
+                data-badge={badge.id}
               >
                 {badge.label}
               </span>
             ))}
-            <WorkflowBadge stage={wedding.workflowStage} />
             {wedding.status === 'archived' ? (
               <span className={styles.statusPillMuted}>Zarchiwizowany</span>
             ) : null}
@@ -80,6 +85,14 @@ export function WeddingWorkspaceHeader({
             </p>
           ) : null}
         </div>
+        {onWeddingUpdated && onArchive && onDelete ? (
+          <WeddingHeaderActions
+            wedding={wedding}
+            onWeddingUpdated={onWeddingUpdated}
+            onArchive={onArchive}
+            onDelete={onDelete}
+          />
+        ) : null}
       </div>
     </header>
   )

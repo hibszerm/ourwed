@@ -26,39 +26,12 @@
   flex-wrap: wrap;
 }
 
-.contextList {
-  margin: 0;
-  padding: 0;
-  list-style: none;
+.badges {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-
-.contextItem {
-  font-size: var(--text-sm);
-  font-weight: 500;
-  color: var(--color-text-secondary);
-  line-height: 1.4;
-}
-
-.contextItem[data-tone='ok'] {
-  color: var(--color-text-secondary);
-}
-
-.contextItem[data-tone='pending'] {
-  color: var(--color-text-primary);
-}
-
-.contextItem[data-tone='neutral'] {
-  color: var(--color-text-tertiary);
-}
-
-.contextEmpty {
-  margin: 0;
-  font-size: var(--text-sm);
-  font-weight: 500;
-  color: var(--color-text-tertiary);
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-top: var(--space-3);
 }
 
 .dot {
@@ -117,41 +90,16 @@
   margin-top: var(--space-2);
   font-size: var(--text-sm);
   color: var(--color-text-tertiary);
+  min-width: 0;
+}
+
+.location span {
+  overflow-wrap: anywhere;
+  min-width: 0;
 }
 
 .location svg {
   flex-shrink: 0;
-}
-
-.status {
-  margin-top: var(--space-8);
-}
-
-.stage {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  font-size: var(--text-xs);
-  font-weight: 600;
-  color: var(--color-accent);
-}
-
-.stage svg {
-  flex-shrink: 0;
-}
-
-.statusMessage {
-  margin-top: var(--space-2);
-  font-size: var(--text-base);
-  font-weight: 500;
-  color: var(--color-text-primary);
-  line-height: 1.5;
-}
-
-.nextAction {
-  margin-top: var(--space-1);
-  font-size: var(--text-sm);
-  color: var(--color-text-tertiary);
 }
 
 .cta {
@@ -295,20 +243,6 @@ button.cta {
   .location {
     margin-top: var(--space-1);
     gap: 6px;
-  }
-
-  .status {
-    margin-top: var(--space-3);
-  }
-
-  .statusMessage {
-    margin-top: var(--space-1);
-    font-size: var(--text-sm);
-    line-height: 1.4;
-  }
-
-  .nextAction {
-    margin-top: 2px;
   }
 
   .cta {

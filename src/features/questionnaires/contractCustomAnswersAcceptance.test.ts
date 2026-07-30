@@ -154,16 +154,36 @@ function snapshotFromBlocks(
   }
 }
 
-run('Wedding Details wires Contract answers component', () => {
-  const overview = readFileSync(
-    resolve(process.cwd(), 'src/features/weddings/detail/v2/WeddingOverviewCurrentState.tsx'),
+run('Wedding Details wires Contract answers in Umowa i finanse', () => {
+  const section = readFileSync(
+    resolve(
+      process.cwd(),
+      'src/features/weddings/detail/v2/WeddingContractQuestionnaireSection.tsx',
+    ),
     'utf8',
   )
   assert(
-    overview.includes('WeddingContractQuestionnaireAnswers'),
-    'overview mounts answers',
+    section.includes('WeddingContractQuestionnaireAnswers'),
+    'section mounts answers',
   )
-  assert(overview.includes("q.status === 'completed'"), 'only when completed')
+  assert(section.includes('useState(false)'), 'collapsed by default')
+  assert(section.includes('aria-expanded'), 'a11y')
+
+  const overview = readFileSync(
+    resolve(
+      process.cwd(),
+      'src/features/weddings/detail/v2/WeddingOverviewWorkspace.tsx',
+    ),
+    'utf8',
+  )
+  assert(
+    !overview.includes('WeddingContractQuestionnaireAnswers'),
+    'overview does not mount full answers',
+  )
+  assert(
+    !overview.includes('Ankieta do umowy'),
+    'overview has no contract questionnaire card',
+  )
 })
 
 run('custom field keys survive editor round-trip', () => {

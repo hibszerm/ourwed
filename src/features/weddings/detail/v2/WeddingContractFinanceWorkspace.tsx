@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { WeddingContractsModule } from '@/features/weddings/components/detail/WeddingContractsModule'
 import { WeddingSourceContractsPanel } from '@/features/wedding-contract-recovery/components/WeddingSourceContractsPanel'
+import { WeddingContractQuestionnaireSection } from '@/features/weddings/detail/v2/WeddingContractQuestionnaireSection'
 import { getPackageSummary } from '@/features/weddings/detail/v2/weddingWorkspaceSelectors'
 import type { WeddingExtraService } from '@/types/package'
 import type { Payment, Wedding } from '@/types/wedding'
@@ -17,6 +18,7 @@ interface Props {
   forcePackageOpen?: boolean
   onEditPackage?: () => void
   onEditFinances?: () => void
+  onContractStatusChanged?: () => void
 }
 
 /**
@@ -32,6 +34,7 @@ export function WeddingContractFinanceWorkspace({
   forcePackageOpen,
   onEditPackage,
   onEditFinances,
+  onContractStatusChanged,
 }: Props) {
   const [contentsOpen, setContentsOpen] = useState(Boolean(forcePackageOpen))
   const pkg = getPackageSummary(wedding)
@@ -53,9 +56,12 @@ export function WeddingContractFinanceWorkspace({
         <WeddingContractsModule
           wedding={wedding}
           onGenerate={() => onAction('generate_contract')}
+          onContractStatusChanged={onContractStatusChanged}
         />
         <WeddingSourceContractsPanel weddingId={wedding.id} />
       </section>
+
+      <WeddingContractQuestionnaireSection wedding={wedding} />
 
       <section
         className={styles.surfaceSection}

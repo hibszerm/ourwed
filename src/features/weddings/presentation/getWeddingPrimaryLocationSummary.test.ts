@@ -239,8 +239,24 @@ run('9. Surfaces use shared helper (source)', () => {
     ),
     'utf8',
   )
-  assert(dash.includes('getWeddingPrimaryLocationSummary'), 'dashboard')
+  assert(
+    dash.includes('getDashboardLocationLabel') ||
+      dash.includes('getWeddingPrimaryLocationSummary'),
+    'dashboard',
+  )
   assert(!dash.includes('ceremonyLocation ??'), 'no ceremony prefer dash')
+
+  const dashLoc = readFileSync(
+    resolve(
+      process.cwd(),
+      'src/features/dashboard/presentation/getDashboardLocationLabel.ts',
+    ),
+    'utf8',
+  )
+  assert(
+    dashLoc.includes('getWeddingPrimaryLocationSummary'),
+    'dashboard location wraps primary',
+  )
 
   const header = readFileSync(
     resolve(

@@ -168,12 +168,16 @@ export const calendarIntegrationsService = {
     }
   },
 
-  async startGoogleOAuth(redirectPath = '/ustawienia/integracje'): Promise<{
+  async startGoogleOAuth(
+    redirectPath = '/ustawienia/integracje',
+    backfillMode: 'future' | 'all_active' = 'future',
+  ): Promise<{
     url: string
   }> {
     return invokeCalendarApi('google-calendar-oauth', {
       action: 'start',
       redirectPath,
+      backfillMode,
     })
   },
 
@@ -293,6 +297,21 @@ export const calendarIntegrationsService = {
       entityType,
       entityId,
       operation: 'upsert',
+    })
+  },
+
+  async reconcileGoogleDuplicates(): Promise<{
+    summary: {
+      entities: number
+      ownedEventsFound: number
+      titleDateMatches?: number
+      duplicatesDeleted: number
+      kept: number
+      needsManualDeletion?: string[]
+    }
+  }> {
+    return invokeCalendarApi('google-calendar-sync', {
+      action: 'reconcile_duplicates',
     })
   },
 }
