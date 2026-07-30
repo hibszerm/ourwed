@@ -263,6 +263,79 @@ assertEq(laterWedding.href, `/sluby/${laterWedding.entityId}`, 'wedding href')
   assert(dialog.includes('/sluby/nowy'), 'dialog wedding path')
   assert(dialog.includes('/sesje/nowa'), 'dialog session path')
   assert(dialog.includes('Dodaj zlecenie'), 'dialog title')
+  assert(
+    dialog.includes('Wybierz rodzaj zlecenia'),
+    'dialog description remains',
+  )
+  assert(dialog.includes('Ślub'), 'dialog Ślub option')
+  assert(dialog.includes('Sesja'), 'dialog Sesja option')
+  assert(dialog.includes('showClose'), 'dialog X close remains')
+  assert(dialog.includes('hideFooter'), 'dialog hides Anuluj footer')
+  assert(!dialog.includes('Anuluj'), 'dialog has no Anuluj')
+  assert(!dialog.includes('cancelLabel'), 'dialog has no cancelLabel')
+  assert(
+    dialog.includes('?date=${encodeURIComponent(dateKey)}'),
+    'dialog preserves tapped date for create routes',
+  )
+
+  const monthView = readFileSync(
+    resolve('src/features/calendar/components/CalendarMonthView.tsx'),
+    'utf8',
+  )
+  assert(
+    monthView.includes('accessibleDayLabel'),
+    'empty day has accessible label helper',
+  )
+  assert(
+    monthView.includes('Dodaj zlecenie —'),
+    'accessible label uses Dodaj zlecenie — date',
+  )
+  assert(monthView.includes("role={canCreate ? 'button'"), 'empty day is button')
+  assert(
+    monthView.includes('tabIndex={canCreate ? 0'),
+    'empty day is keyboard focusable',
+  )
+  assert(
+    monthView.includes("e.key === 'Enter' || e.key === ' '"),
+    'empty day supports Enter/Space',
+  )
+  assert(
+    monthView.includes('aria-hidden="true"'),
+    'visible add hint is aria-hidden (desktop hover only)',
+  )
+  assert(
+    monthView.includes('onAddAssignment?.(dateKey)'),
+    'empty day passes tapped dateKey',
+  )
+
+  const monthCss = readFileSync(
+    resolve('src/features/calendar/components/CalendarMonthView.module.css'),
+    'utf8',
+  )
+  assert(
+    monthCss.includes('@media (max-width: 900px)'),
+    'mobile breakpoint hides empty-cell add hint',
+  )
+  assert(
+    /@media \(max-width: 900px\)[\s\S]*?\.addHint\s*\{\s*display:\s*none/m.test(
+      monthCss,
+    ),
+    'mobile hides + Dodaj zlecenie addHint',
+  )
+  assert(monthCss.includes('.today .dayNumber'), 'today styling preserved')
+  assert(
+    monthCss.includes('.emptyCell:focus-visible'),
+    'empty cell has visible focus state',
+  )
+
+  const chip = readFileSync(
+    resolve('src/features/calendar/components/CalendarEventChip.tsx'),
+    'utf8',
+  )
+  assert(
+    chip.includes('e.stopPropagation()'),
+    'event chip stops propagation so event tap does not open chooser',
+  )
 
   const detail = readFileSync(resolve('src/pages/SessionDetailPage.tsx'), 'utf8')
   assert(detail.includes('commandHeader'), 'session detail command header')

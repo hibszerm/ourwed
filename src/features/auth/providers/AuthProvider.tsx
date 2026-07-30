@@ -36,6 +36,8 @@ interface AuthContextValue {
   requestPasswordReset: (email: string) => Promise<AuthResult>
   updatePassword: (password: string) => Promise<AuthResult>
   clearPasswordRecovery: () => void
+  /** Mark recovery mode after PKCE callback with next=recovery. */
+  armPasswordRecovery: () => void
   logout: () => Promise<void>
 }
 
@@ -219,6 +221,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsPasswordRecovery(false)
   }, [])
 
+  const armPasswordRecovery = useCallback(() => {
+    setIsPasswordRecovery(true)
+    lastAuthUserIdRef.current = applyAuthIdentityChange(
+      lastAuthUserIdRef.current,
+      null,
+    )
+    setUser(null)
+    setIsLoading(false)
+  }, [])
+
   const logout = useCallback(async () => {
     // Ensure ProtectedRoute sends users to `/` instead of racing to `/login`.
     markLogoutRedirectToLanding()
@@ -243,6 +255,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       requestPasswordReset,
       updatePassword,
       clearPasswordRecovery,
+      armPasswordRecovery,
       logout,
     }),
     [
@@ -254,6 +267,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       requestPasswordReset,
       updatePassword,
       clearPasswordRecovery,
+      armPasswordRecovery,
       logout,
     ],
   )

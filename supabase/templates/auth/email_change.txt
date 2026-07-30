@@ -1,0 +1,19 @@
+OurWed
+
+Zmiana adresu e-mail
+
+Otrzymaliśmy prośbę o zmianę adresu e-mail przypisanego do Twojego konta.
+Nowy adres: {{ .NewEmail }}
+
+Potwierdź zmianę:
+{{ .ConfirmationURL }}
+
+Jeżeli przycisk nie działa, skopiuj poniższy adres:
+{{ .ConfirmationURL }}
+
+Jeżeli to nie Ty wysłałeś tę prośbę, zignoruj tę wiadomość.
+
+—
+OurWed
+CRM dla fotografów i filmowców ślubnych
+https://ourwed.pl

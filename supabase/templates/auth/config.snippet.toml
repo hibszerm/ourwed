@@ -1,0 +1,27 @@
+# OurWed — Auth email template wiring for local Supabase CLI.
+#
+# Hosted production (Resend SMTP already configured): paste each HTML file and
+# subject from docs/auth-emails.md into Dashboard → Authentication → Email Templates.
+#
+# Local: merge these blocks into a full `supabase init` config.toml, or keep this
+# file when you only need template content_path references for documentation parity.
+
+[auth.email.template.recovery]
+subject = "Zmień hasło do konta OurWed"
+content_path = "./supabase/templates/auth/recovery.html"
+
+[auth.email.template.confirmation]
+subject = "Potwierdź adres e-mail"
+content_path = "./supabase/templates/auth/confirmation.html"
+
+[auth.email.template.magic_link]
+subject = "Zaloguj się do OurWed"
+content_path = "./supabase/templates/auth/magic_link.html"
+
+[auth.email.template.email_change]
+subject = "Potwierdź zmianę adresu e-mail"
+content_path = "./supabase/templates/auth/email_change.html"
+
+[auth.email.template.invite]
+subject = "Zaproszenie do OurWed"
+content_path = "./supabase/templates/auth/invite.html"

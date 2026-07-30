@@ -11,6 +11,7 @@ import styles from './CalendarMonthView.module.css'
 
 const WEEKDAY_HEADERS = ['Pon', 'Wt', 'Śr', 'Czw', 'Pt', 'Sob', 'Niedz']
 const MAX_VISIBLE = 3
+const PL_LOCALE = 'pl-PL'
 
 interface CalendarMonthViewProps {
   anchor: Date
@@ -20,6 +21,15 @@ interface CalendarMonthViewProps {
   onAddAssignment?: (dateKey: string) => void
   /** When false, empty days do not open create (landing demo). */
   allowCreateOnEmpty?: boolean
+}
+
+function accessibleDayLabel(day: Date): string {
+  const dateLabel = day.toLocaleDateString(PL_LOCALE, {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  })
+  return `Dodaj zlecenie — ${dateLabel}`
 }
 
 export function CalendarMonthView({
@@ -55,12 +65,13 @@ export function CalendarMonthView({
           const isToday = isSameDay(day, today)
           const overflow = dayEvents.length - MAX_VISIBLE
           const isEmpty = dayEvents.length === 0
-          const canCreate = isEmpty && allowCreateOnEmpty && Boolean(onAddAssignment)
+          const canCreate =
+            isEmpty && allowCreateOnEmpty && Boolean(onAddAssignment)
 
           return (
             <div
               key={key}
-              className={`${styles.cell} ${outside ? styles.outside : ''} ${isToday ? styles.today : ''} ${isEmpty ? styles.emptyCell : ''}`}
+              className={`${styles.cell} ${outside ? styles.outside : ''} ${isToday ? styles.today : ''} ${canCreate ? styles.emptyCell : ''}`}
               onClick={() => {
                 if (canCreate) openCreate(key)
               }}
@@ -72,6 +83,7 @@ export function CalendarMonthView({
               }}
               role={canCreate ? 'button' : undefined}
               tabIndex={canCreate ? 0 : undefined}
+              aria-label={canCreate ? accessibleDayLabel(day) : undefined}
             >
               <div className={styles.dayHeader}>
                 <span className={styles.dayNumber}>{day.getDate()}</span>
@@ -89,8 +101,11 @@ export function CalendarMonthView({
                 {overflow > 0 && (
                   <span className={styles.more}>+{overflow} więcej</span>
                 )}
-                {isEmpty && allowCreateOnEmpty ? (
-                  <span className={styles.addHint}>+ Dodaj zlecenie</span>
+                {/* Desktop hover affordance only — hidden on mobile via CSS. */}
+                {canCreate ? (
+                  <span className={styles.addHint} aria-hidden="true">
+                    + Dodaj zlecenie
+                  </span>
                 ) : null}
               </div>
             </div>

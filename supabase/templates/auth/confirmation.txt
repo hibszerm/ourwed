@@ -1,0 +1,19 @@
+OurWed
+
+Witamy w OurWed
+
+Dziękujemy za założenie konta.
+Potwierdź swój adres e-mail, aby rozpocząć korzystanie z aplikacji.
+
+Potwierdź adres e-mail:
+{{ .ConfirmationURL }}
+
+Jeżeli przycisk nie działa, skopiuj poniższy adres:
+{{ .ConfirmationURL }}
+
+Jeżeli konto nie zostało utworzone przez Ciebie, zignoruj tę wiadomość.
+
+—
+OurWed
+CRM dla fotografów i filmowców ślubnych
+https://ourwed.pl

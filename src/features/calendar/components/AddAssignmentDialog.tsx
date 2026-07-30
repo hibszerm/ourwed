@@ -37,7 +37,7 @@ export function AddAssignmentDialog({
       showClose
       size="md"
       mobilePresentation="center"
-      cancelLabel="Anuluj"
+      hideFooter
     >
       <div className={styles.choices} role="list">
         <button

@@ -8,9 +8,14 @@ import styles from '@/features/auth/components/AuthForms.module.css'
 export function LoginPage() {
   const { isAuthenticated, isLoading } = useAuth()
   const location = useLocation()
-  const passwordReset = Boolean(
-    (location.state as { passwordReset?: boolean } | null)?.passwordReset,
-  )
+  const state = (location.state as {
+    passwordReset?: boolean
+    emailConfirmed?: boolean
+    emailChanged?: boolean
+  } | null) ?? null
+  const passwordReset = Boolean(state?.passwordReset)
+  const emailConfirmed = Boolean(state?.emailConfirmed)
+  const emailChanged = Boolean(state?.emailChanged)
 
   if (isLoading) return <AuthLoadingScreen />
   if (isAuthenticated) return <Navigate to="/dashboard" replace />
@@ -28,6 +33,16 @@ export function LoginPage() {
       {passwordReset ? (
         <p className={styles.formSuccess} role="status">
           Hasło zostało zmienione. Możesz się zalogować.
+        </p>
+      ) : null}
+      {emailConfirmed ? (
+        <p className={styles.formSuccess} role="status">
+          Adres e-mail został potwierdzony. Możesz się zalogować.
+        </p>
+      ) : null}
+      {emailChanged ? (
+        <p className={styles.formSuccess} role="status">
+          Adres e-mail został zmieniony. Zaloguj się ponownie.
         </p>
       ) : null}
       <LoginForm />

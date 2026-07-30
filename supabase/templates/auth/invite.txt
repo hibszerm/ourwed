@@ -1,0 +1,18 @@
+OurWed
+
+Otrzymałeś zaproszenie
+
+Zostałeś zaproszony do korzystania z aplikacji OurWed.
+
+Akceptuję zaproszenie:
+{{ .ConfirmationURL }}
+
+Jeżeli przycisk nie działa, skopiuj poniższy adres:
+{{ .ConfirmationURL }}
+
+Jeżeli nie spodziewałeś się tego zaproszenia, możesz zignorować tę wiadomość.
+
+—
+OurWed
+CRM dla fotografów i filmowców ślubnych
+https://ourwed.pl

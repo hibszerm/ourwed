@@ -1,4 +1,5 @@
 import { createBrowserRouter, Navigate, useParams } from 'react-router-dom'
+import { AuthCallbackGate } from '@/features/auth/callback/AuthCallbackGate'
 import { ProtectedRoute } from '@/features/auth/ProtectedRoute'
 import { DashboardPage } from '@/pages/DashboardPage'
 import { DashboardV2Page } from '@/pages/DashboardV2Page'
@@ -38,6 +39,7 @@ import { RegisterPage } from '@/pages/RegisterPage'
 import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage'
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage'
 import { CheckEmailPage } from '@/pages/CheckEmailPage'
+import { AuthCallbackPage } from '@/pages/AuthCallbackPage'
 import { isAiContractLabEnabled } from '@/features/ai-contract-lab/aiContractLabFlags'
 
 /** Redirect legacy `/umowy/szablony/:id…` URLs while preserving the id param. */
@@ -112,40 +114,44 @@ const devRoutes = import.meta.env.DEV
   : []
 
 export const router = createBrowserRouter([
-  { path: '/', element: <LandingPage /> },
-  { path: '/login', element: <LoginPage /> },
-  { path: '/register', element: <RegisterPage /> },
-  { path: '/check-email', element: <CheckEmailPage /> },
-  { path: '/forgot-password', element: <ForgotPasswordPage /> },
-  { path: '/reset-password', element: <ResetPasswordPage /> },
-  { path: '/form/:token', element: <PublicFormTokenPage /> },
-  { path: '/ankieta/:token', element: <PublicPreWeddingQuestionnairePage /> },
   {
-    element: <ProtectedRoute />,
+    element: <AuthCallbackGate />,
     children: [
-      { path: '/dashboard', element: <DashboardPage /> },
-      { path: '/dashboard-v2', element: <DashboardV2Page /> },
-      { path: '/sluby', element: <WeddingsPage /> },
-      { path: '/sluby/nowy', element: <NewWeddingPage /> },
-      { path: '/sluby/import', element: <WeddingImportPage /> },
+      { path: '/', element: <LandingPage /> },
+      { path: '/login', element: <LoginPage /> },
+      { path: '/register', element: <RegisterPage /> },
+      { path: '/check-email', element: <CheckEmailPage /> },
+      { path: '/forgot-password', element: <ForgotPasswordPage /> },
+      { path: '/reset-password', element: <ResetPasswordPage /> },
+      { path: '/auth/callback', element: <AuthCallbackPage /> },
+      { path: '/form/:token', element: <PublicFormTokenPage /> },
+      { path: '/ankieta/:token', element: <PublicPreWeddingQuestionnairePage /> },
       {
-        path: '/sluby/:weddingId/uzupelnij-z-umowy',
-        element: <WeddingContractRecoveryPage />,
-      },
-      {
-        path: '/sluby/:weddingId/umowy/nowa',
-        element: <WeddingContractGenerationPage />,
-      },
-      {
-        path: '/sluby/:weddingId/umowy/:contractId',
-        element: <WeddingContractPreviewPage />,
-      },
-      { path: '/sluby/:id', element: <WeddingDetailPage /> },
-      { path: '/sesje', element: <SessionsPage /> },
-      { path: '/sesje/nowa', element: <NewSessionPage /> },
-      { path: '/sesje/:sessionId/edytuj', element: <EditSessionPage /> },
-      { path: '/sesje/:sessionId', element: <SessionDetailPage /> },
-      { path: '/kalendarz', element: <CalendarPage /> },
+        element: <ProtectedRoute />,
+        children: [
+          { path: '/dashboard', element: <DashboardPage /> },
+          { path: '/dashboard-v2', element: <DashboardV2Page /> },
+          { path: '/sluby', element: <WeddingsPage /> },
+          { path: '/sluby/nowy', element: <NewWeddingPage /> },
+          { path: '/sluby/import', element: <WeddingImportPage /> },
+          {
+            path: '/sluby/:weddingId/uzupelnij-z-umowy',
+            element: <WeddingContractRecoveryPage />,
+          },
+          {
+            path: '/sluby/:weddingId/umowy/nowa',
+            element: <WeddingContractGenerationPage />,
+          },
+          {
+            path: '/sluby/:weddingId/umowy/:contractId',
+            element: <WeddingContractPreviewPage />,
+          },
+          { path: '/sluby/:id', element: <WeddingDetailPage /> },
+          { path: '/sesje', element: <SessionsPage /> },
+          { path: '/sesje/nowa', element: <NewSessionPage /> },
+          { path: '/sesje/:sessionId/edytuj', element: <EditSessionPage /> },
+          { path: '/sesje/:sessionId', element: <SessionDetailPage /> },
+          { path: '/kalendarz', element: <CalendarPage /> },
       {
         path: '/ankiety',
         element: <QuestionnaireLibraryPage />,
@@ -248,6 +254,8 @@ export const router = createBrowserRouter([
       },
       ...aiContractLabRoutes,
       ...devRoutes,
+        ],
+      },
     ],
   },
 ])

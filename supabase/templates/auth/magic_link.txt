@@ -1,0 +1,18 @@
+OurWed
+
+Jednorazowe logowanie
+
+Kliknij przycisk poniżej, aby zalogować się do OurWed.
+
+Zaloguj się:
+{{ .ConfirmationURL }}
+
+Jeżeli przycisk nie działa, skopiuj poniższy adres:
+{{ .ConfirmationURL }}
+
+Jeżeli nie prosiłeś o ten link, możesz bezpiecznie zignorować tę wiadomość.
+
+—
+OurWed
+CRM dla fotografów i filmowców ślubnych
+https://ourwed.pl

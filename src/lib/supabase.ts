@@ -15,12 +15,15 @@ if (typeof supabaseAnonKey !== 'string' || !supabaseAnonKey) {
  * Shared Supabase client (web).
  * Session persistence uses localStorage by default — required for refresh tokens.
  * "Remember me" is handled at the UX layer; mobile can inject its own storage later.
+ *
+ * detectSessionInUrl is false: PKCE ?code= is exchanged exactly once by the
+ * Auth Callback module (/auth/callback), not implicitly on every page load.
  */
 export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
-    detectSessionInUrl: true,
+    detectSessionInUrl: false,
     flowType: 'pkce',
   },
 })

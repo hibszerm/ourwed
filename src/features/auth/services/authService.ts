@@ -5,6 +5,7 @@
 
 import type { AuthChangeEvent, Session, User } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
+import { authCallbackUrl } from '@/features/auth/callback/authCallback'
 import { mapAuthError } from '@/features/auth/services/authErrors'
 import { clearStudioUserCache } from '@/lib/api/studioUser'
 import { resetTenantClientState } from '@/lib/auth/resetTenantClientState'
@@ -17,11 +18,6 @@ import type {
 } from '@/features/auth/types'
 
 const REMEMBER_KEY = 'ourwed_auth_remember'
-
-function appOrigin(): string {
-  if (typeof window === 'undefined') return ''
-  return window.location.origin
-}
 
 function deriveInitials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean)
@@ -170,7 +166,7 @@ export const authService = {
         email,
         password: input.password,
         options: {
-          emailRedirectTo: `${appOrigin()}/login`,
+          emailRedirectTo: authCallbackUrl('confirm'),
           data: {
             first_name: firstName,
             last_name: lastName,
@@ -218,7 +214,7 @@ export const authService = {
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(
         email.trim().toLowerCase(),
-        { redirectTo: `${appOrigin()}/reset-password` },
+        { redirectTo: authCallbackUrl('recovery') },
       )
       if (error) {
         return {
