@@ -100,14 +100,52 @@ function pointQuery(p: MapsLinkPlace): string {
   return (p.formattedAddress || p.address || '').trim()
 }
 
-/** Open a single place in Google Maps. */
+function humanPlaceQuery(p: MapsLinkPlace): string {
+  const label = (p.label || '').trim()
+  const address = (p.formattedAddress || p.address || '').trim()
+  if (
+    label &&
+    address &&
+    label.toLowerCase() !== address.toLowerCase() &&
+    !address.toLowerCase().includes(label.toLowerCase())
+  ) {
+    return `${label}, ${address}`
+  }
+  return address || label
+}
+
+/**
+ * Open a single place in Google Maps.
+ * Prefer query_place_id (never encode place_id: into query text — that opens as a
+ * literal search). Fall back to formatted address / label, then coordinates.
+ */
 export function googleMapsPlaceUrl(place: MapsLinkPlace): string | null {
-  const q = pointQuery(place)
-  if (!q) return null
-  const url = new URL('https://www.google.com/maps/search/')
-  url.searchParams.set('api', '1')
-  url.searchParams.set('query', q)
-  return url.toString()
+  const placeId = place.placeId ? stripPlaceIdPrefix(place.placeId) : ''
+  if (placeId) {
+    const url = new URL('https://www.google.com/maps/search/')
+    url.searchParams.set('api', '1')
+    url.searchParams.set('query_place_id', placeId)
+    const fallback = humanPlaceQuery(place)
+    if (fallback) url.searchParams.set('query', fallback)
+    return url.toString()
+  }
+
+  const human = humanPlaceQuery(place)
+  if (human) {
+    const url = new URL('https://www.google.com/maps/search/')
+    url.searchParams.set('api', '1')
+    url.searchParams.set('query', human)
+    return url.toString()
+  }
+
+  if (hasCoords(place)) {
+    const url = new URL('https://www.google.com/maps/search/')
+    url.searchParams.set('api', '1')
+    url.searchParams.set('query', `${place.latitude},${place.longitude}`)
+    return url.toString()
+  }
+
+  return null
 }
 
 /** Driving directions URL for an ordered list of stops (external nav). */

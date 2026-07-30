@@ -20,7 +20,7 @@ const ACTIONS = [
     icon: FilePlus2,
   },
   {
-    to: '/ankiety/dane-do-umowy',
+    to: '/ankiety',
     label: 'Ankieta do umowy',
     icon: ClipboardList,
   },

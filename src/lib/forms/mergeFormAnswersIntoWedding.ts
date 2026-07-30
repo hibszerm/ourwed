@@ -1,5 +1,6 @@
 import { packageService } from '@/lib/api/packageService'
 import { asCatalogPackageId } from '@/lib/supabase/helpers'
+import { resolveHydratedWeddingPackageId } from '@/lib/api/weddings/weddingPackageIdSafety'
 import { CONTRACT_QUESTION_ID_TO_FIELD_KEY } from '@/lib/forms/contractQuestionnaireTemplate'
 import {
   formatLocationAnswer,
@@ -214,8 +215,12 @@ export async function mergeFormAnswersIntoWedding(
           },
         }
 
-  const nextPackageId =
-    asCatalogPackageId(wedding.packageId) ?? pkg?.id ?? requestedPrimary ?? null
+  // Never fall back to an unresolved form packageId — missing/deleted catalog
+  // rows must not hydrate into weddings.package_id (FK violation on save).
+  const nextPackageId = resolveHydratedWeddingPackageId({
+    weddingPackageId: wedding.packageId,
+    resolvedCatalogPackageId: pkg?.id,
+  })
   const nextPackageName = wedding.packageName?.trim()
     ? wedding.packageName
     : preferForm(pkg?.name ?? '', wedding.packageName)

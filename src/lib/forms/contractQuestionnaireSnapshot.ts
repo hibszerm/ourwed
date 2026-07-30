@@ -257,21 +257,26 @@ export function formatLocationAnswer(value: unknown): string {
   if (typeof value === 'string') return value.trim()
   if (!value || typeof value !== 'object') return ''
   const row = value as Record<string, unknown>
-  if (typeof row.formattedAddress === 'string' && row.formattedAddress.trim()) {
-    return row.formattedAddress.trim()
-  }
-  const parts = [
-    row.street,
-    row.buildingNumber,
-    row.postalCode,
-    row.city,
-    row.country,
-  ]
-    .map((p) => (typeof p === 'string' ? p.trim() : ''))
-    .filter(Boolean)
-  if (parts.length > 0) return parts.join(', ')
-  // Name-only structured answer — still useful as a display string for wedding scalars.
-  if (typeof row.name === 'string' && row.name.trim()) return row.name.trim()
-  if (typeof row.label === 'string' && row.label.trim()) return row.label.trim()
+  const address =
+    (typeof row.formattedAddress === 'string' && row.formattedAddress.trim()) ||
+    [
+      row.street,
+      row.buildingNumber,
+      row.postalCode,
+      row.city,
+      row.country,
+    ]
+      .map((p) => (typeof p === 'string' ? p.trim() : ''))
+      .filter(Boolean)
+      .join(', ') ||
+    ''
+  const name =
+    (typeof row.label === 'string' && row.label.trim()) ||
+    (typeof row.name === 'string' && row.name.trim()) ||
+    ''
+  // Keep venue name when richer GeoPlace / NormalizedAddress is present.
+  if (name && address && name !== address) return `${name} — ${address}`
+  if (address) return address
+  if (name) return name
   return ''
 }

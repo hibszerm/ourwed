@@ -291,15 +291,15 @@ run('builder: protected system mapping cannot change type via create', () => {
   }
 })
 
-run('builder: dedicated Ankiety route hosts canvas builder', () => {
+run('builder: dedicated Ankiety route hosts section editor', () => {
   const page = readFileSync(
     resolve(process.cwd(), 'src/pages/ContractQuestionnaireEditorPage.tsx'),
     'utf8',
   )
-  const builder = readFileSync(
+  const editor = readFileSync(
     resolve(
       process.cwd(),
-      'src/features/questionnaires/builder/ContractQuestionnaireBuilder.tsx',
+      'src/features/questionnaires/shared-editor/ContractQuestionnaireSectionEditor.tsx',
     ),
     'utf8',
   )
@@ -316,13 +316,13 @@ run('builder: dedicated Ankiety route hosts canvas builder', () => {
     'utf8',
   )
   assert(router.includes('/ankiety/dane-do-umowy'), 'route registered')
-  assert(page.includes('ContractQuestionnaireBuilder'), 'page wires builder')
-  assert(builder.includes('questionnaire-builder-canvas'), 'canvas')
-  assert(builder.includes('Dodaj element'), 'add element')
-  assert(builder.includes('questionnaire-preview'), 'preview test id')
-  assert(builder.includes('Podgląd'), 'preview action')
-  assert(!builder.includes('>W górę<'), 'no permanent move-up links')
-  assert(!builder.includes('>W dół<'), 'no permanent move-down links')
+  assert(page.includes('ContractQuestionnaireSectionEditor'), 'page wires section editor')
+  assert(editor.includes('contract-section-editor'), 'section editor test id')
+  assert(editor.includes('Sekcje i pytania'), 'sections heading')
+  assert(!editor.includes('builder-element-panel'), 'no left add panel')
+  assert(!editor.includes('Dodaj element'), 'no canvas add element')
+  assert(editor.includes('questionnaire-preview'), 'preview test id')
+  assert(editor.includes('Podgląd'), 'preview action')
   assert(!company.includes('QuestionnaireSettingsSection'), 'removed from firma')
   assert(!company.includes('questionnaire-builder-canvas'), 'no builder in firma')
   assert(!sidebar.includes('Szablony ankiet'), 'no templates in sidebar')

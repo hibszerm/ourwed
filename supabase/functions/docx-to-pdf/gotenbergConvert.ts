@@ -128,3 +128,84 @@ export async function convertDocxViaGotenberg(input: {
 
   return { pdfBytes: bytes, provider: 'gotenberg_libreoffice' }
 }
+
+/**
+ * Gotenberg Chromium: HTML → PDF (A4).
+ * Reuses the same Docker service as DOCX conversion — not a second PDF engine.
+ */
+export async function convertHtmlViaGotenberg(input: {
+  html: string
+  filename?: string
+  footerHtml?: string
+  headerHtml?: string
+  config: Extract<GotenbergConfig, { ok: true }>
+  maxPdfBytes: number
+  fetchImpl?: typeof fetch
+}): Promise<{ pdfBytes: Uint8Array; provider: 'gotenberg_chromium' }> {
+  const fetchFn = input.fetchImpl ?? fetch
+  const form = new FormData()
+  form.append(
+    'files',
+    new File([input.html], 'index.html', { type: 'text/html; charset=utf-8' }),
+  )
+  if (input.headerHtml) {
+    form.append(
+      'files',
+      new File([input.headerHtml], 'header.html', {
+        type: 'text/html; charset=utf-8',
+      }),
+    )
+  }
+  if (input.footerHtml) {
+    form.append(
+      'files',
+      new File([input.footerHtml], 'footer.html', {
+        type: 'text/html; charset=utf-8',
+      }),
+    )
+  }
+
+  // A4 in inches
+  form.append('paperWidth', '8.27')
+  form.append('paperHeight', '11.7')
+  form.append('marginTop', input.headerHtml ? '0.55' : '0.4')
+  form.append('marginBottom', input.footerHtml ? '0.6' : '0.45')
+  form.append('marginLeft', '0.45')
+  form.append('marginRight', '0.45')
+  form.append('printBackground', 'true')
+  form.append('preferCssPageSize', 'false')
+
+  const headers: Record<string, string> = {}
+  if (input.config.apiKey) {
+    headers.Authorization = `Bearer ${input.config.apiKey}`
+  }
+
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), input.config.timeoutMs)
+  let res: Response
+  try {
+    res = await fetchFn(`${input.config.url}/forms/chromium/convert/html`, {
+      method: 'POST',
+      headers,
+      body: form,
+      signal: controller.signal,
+    })
+  } catch (e) {
+    if (e instanceof Error && e.name === 'AbortError') {
+      throw new Error('timeout', { cause: e })
+    }
+    throw e
+  } finally {
+    clearTimeout(timer)
+  }
+
+  const bytes = new Uint8Array(await res.arrayBuffer())
+  assertPdfResponse({
+    status: res.status,
+    contentType: res.headers.get('content-type'),
+    bytes,
+    maxPdfBytes: input.maxPdfBytes,
+  })
+
+  return { pdfBytes: bytes, provider: 'gotenberg_chromium' }
+}

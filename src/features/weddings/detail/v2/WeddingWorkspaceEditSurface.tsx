@@ -83,7 +83,11 @@ export function WeddingWorkspaceEditSurface({
         {drawerSection === 'contacts' || drawerSection === 'couple' ? (
           <CoupleContactFields
             couple={p.wedding.couple}
-            onChange={(couple) => p.onChangeWedding({ couple })}
+            correspondence={p.wedding.correspondence}
+            onChangeCouple={(couple) => p.onChangeWedding({ couple })}
+            onChangeCorrespondence={(correspondence) =>
+              p.onChangeWedding({ correspondence })
+            }
           />
         ) : null}
 

@@ -46,15 +46,15 @@ function run(name: string, fn: () => void) {
 const pkgs = [{ id: 'p1', name: 'Pakiet A', price: 1, currency: 'PLN' }]
 const extras = [{ id: 'e1', name: 'Drone', price: 1, currency: 'PLN' }]
 
-run('cleanup: sidebar has single Ankiety entry to dane-do-umowy', () => {
+run('cleanup: sidebar has single Ankiety entry to library', () => {
   const src = readFileSync(
     resolve(process.cwd(), 'src/layouts/Sidebar.tsx'),
     'utf8',
   )
-  assert(src.includes("/ankiety/dane-do-umowy"), 'route')
+  assert(src.includes("to: '/ankiety'"), 'route')
   assert(src.includes("label: 'Ankiety'"), 'label')
   assert(!src.includes('Szablony ankiet'), 'no templates nav')
-  assert(!src.includes('/ankiety/szablony'), 'no templates path')
+  assert(!src.includes("to: '/ankiety/szablony'"), 'no templates path')
 })
 
 run('cleanup: templates page and module nav removed', () => {
@@ -63,7 +63,8 @@ run('cleanup: templates page and module nav removed', () => {
     'utf8',
   )
   assert(!router.includes('QuestionnaireTemplatesPage'), 'no templates page')
-  assert(router.includes('Navigate to="/ankiety/dane-do-umowy"'), 'redirect')
+  assert(router.includes('QuestionnaireLibraryPage'), 'library page')
+  assert(router.includes("path: '/ankiety'"), 'ankiety route')
   try {
     readFileSync(
       resolve(process.cwd(), 'src/pages/QuestionnaireTemplatesPage.tsx'),

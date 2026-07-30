@@ -1,0 +1,515 @@
+/* Pre-Wedding Public Form — mobile-first, one long page */
+
+.shell {
+  min-height: 100dvh;
+  width: 100%;
+  max-width: 640px;
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-5) calc(var(--space-10) + 60px);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  background: var(--color-bg);
+  box-sizing: border-box;
+  overflow-x: clip;
+}
+
+@media (min-width: 640px) {
+  .shell {
+    padding: var(--space-8) var(--space-8) calc(var(--space-8) + 16px);
+  }
+}
+
+.muted {
+  color: var(--color-text-tertiary);
+  font-size: var(--text-sm);
+}
+
+/* ── Brand header ── */
+
+.header {
+  margin-bottom: var(--space-6);
+}
+
+.studioLogo {
+  display: block;
+  max-height: 56px;
+  width: auto;
+  max-width: 180px;
+  object-fit: contain;
+  margin-bottom: var(--space-4);
+}
+
+.studioName {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+.title {
+  margin: 0 0 var(--space-4);
+  font-size: clamp(1.5rem, 4vw, 2.1rem);
+  font-weight: 700;
+  letter-spacing: var(--tracking-snug);
+  line-height: var(--leading-tight);
+  color: var(--color-text-primary);
+}
+
+.lead {
+  margin: 0;
+  font-size: var(--text-base);
+  color: var(--color-text-secondary);
+  line-height: var(--leading-relaxed);
+}
+
+.brandCompact {
+  display: none;
+}
+
+.brandCompactTitle {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 650;
+}
+
+/* ── Sticky progress ── */
+
+.stickyProgress {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: color-mix(in srgb, var(--color-surface) 92%, transparent);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-5);
+  box-shadow: var(--shadow-sm);
+}
+
+.progressMeta {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+.progressTitleBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.progressTitle {
+  font-size: var(--text-sm);
+  font-weight: 650;
+  color: var(--color-text-primary);
+}
+
+.progressCount {
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+}
+
+.progressPercent {
+  font-size: var(--text-sm);
+  font-weight: 650;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.progressBar {
+  position: relative;
+  height: 4px;
+  background: var(--color-neutral-200);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.progressFill {
+  position: absolute;
+  inset: 0;
+  right: auto;
+  background: var(--color-accent, #3b82f6);
+  border-radius: var(--radius-full);
+  transition: width 0.3s ease;
+}
+
+.progressBlock {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: color-mix(in srgb, var(--color-surface) 92%, transparent);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-5);
+  box-shadow: var(--shadow-sm);
+}
+
+.progressLabel {
+  font-size: var(--text-xs);
+  color: var(--color-text-tertiary);
+  white-space: nowrap;
+}
+
+/* ── Form / question cards ── */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.questionStack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.contextSeparator,
+.contextSeparatorLine,
+.contextSeparatorLabel {
+  display: none;
+}
+
+.questionCard {
+  background: var(--color-surface);
+  border: 0;
+  border-radius: var(--radius-lg);
+  padding: var(--space-5) var(--space-4);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-border) 70%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+@media (min-width: 480px) {
+  .questionCard {
+    padding: var(--space-6) var(--space-5);
+  }
+}
+
+.tipsAckQuestionCard {
+  gap: var(--space-5);
+}
+
+.tipsAckCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.tipsAckTitle {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 650;
+  color: var(--color-text-primary);
+  letter-spacing: var(--tracking-snug);
+}
+
+.tipsAckText {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  line-height: var(--leading-relaxed);
+}
+
+.tipsAckDivider {
+  height: 1px;
+  background: var(--color-border);
+  margin: var(--space-1) 0;
+}
+
+.tipsAckFooter {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.questionNumber {
+  margin: 0;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--color-text-tertiary);
+}
+
+/* Legacy section cards — unused in V3 long-form */
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5) var(--space-4);
+}
+
+.cardTitle {
+  margin: 0 0 var(--space-2);
+  font-size: clamp(1.15rem, 3vw, 1.35rem);
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.sectionDescription {
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
+
+.cardBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.sectionNumber {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--color-text-tertiary);
+}
+
+.sectionStep {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--color-text-tertiary);
+}
+
+.sectionNav {
+  display: none;
+}
+
+/* ── Private / sensitive section ── */
+
+.privateSection {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-warning-500, #f59e0b) 40%, var(--color-border));
+}
+
+/* ── Fields ── */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.label {
+  font-size: clamp(1.05rem, 2.6vw, 1.2rem);
+  font-weight: 650;
+  color: var(--color-text-primary);
+  line-height: var(--leading-snug);
+}
+
+.required {
+  color: var(--color-danger-600, #b91c1c);
+}
+
+.helpText {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  line-height: var(--leading-relaxed);
+}
+
+.input,
+.textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: var(--text-base);
+}
+
+.input:focus,
+.textarea:focus {
+  outline: 2px solid color-mix(in srgb, var(--color-text) 18%, transparent);
+  outline-offset: 1px;
+}
+
+.inputError {
+  border-color: var(--color-danger-500, #ef4444);
+}
+
+.textarea {
+  resize: vertical;
+  min-height: 9rem;
+}
+
+.error {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-danger-600, #b91c1c);
+}
+
+.fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.optionsList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.optionLabel {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  background: color-mix(in srgb, var(--color-surface) 96%, var(--color-neutral-100));
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.optionLabel:has(.optionInput:checked) {
+  border-color: color-mix(in srgb, var(--color-accent, #3b82f6) 45%, var(--color-border));
+  background: color-mix(in srgb, var(--color-accent, #3b82f6) 6%, var(--color-surface));
+}
+
+.optionInput {
+  margin-top: 0.2rem;
+  flex-shrink: 0;
+}
+
+.optionText {
+  font-size: var(--text-sm);
+  color: var(--color-text-primary);
+  line-height: var(--leading-relaxed);
+}
+
+.checkboxLabel {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.checkbox {
+  margin-top: 0.2rem;
+}
+
+.checkboxText {
+  font-size: var(--text-sm);
+  color: var(--color-text-primary);
+  line-height: var(--leading-relaxed);
+}
+
+.infoBlock {
+  padding: var(--space-3) var(--space-4);
+  background: color-mix(in srgb, var(--color-neutral-100) 80%, transparent);
+  border-radius: var(--radius-md);
+}
+
+.infoText {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  line-height: var(--leading-relaxed);
+}
+
+.addressFieldWrap {
+  min-width: 0;
+}
+
+.formError {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-danger-500, #ef4444) 10%, transparent);
+  color: var(--color-danger-700, #b91c1c);
+  font-size: var(--text-sm);
+}
+
+.submitRow {
+  display: flex;
+  justify-content: stretch;
+  padding-top: var(--space-2);
+}
+
+.submitRow button {
+  width: 100%;
+  min-height: 48px;
+  font-size: var(--text-base);
+}
+
+.saveState {
+  margin-top: var(--space-4);
+  min-height: 1.25rem;
+  font-size: var(--text-xs);
+  color: var(--color-text-tertiary);
+  text-align: center;
+}
+
+.saveError {
+  color: var(--color-danger-600, #b91c1c);
+}
+
+/* ── Thank you ── */
+
+.thankYou {
+  text-align: center;
+  padding: var(--space-8) var(--space-2) var(--space-6);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.thankYouTitle {
+  margin: 0;
+  font-size: clamp(1.8rem, 5vw, 2.4rem);
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.thankYouLead,
+.thankYouBody,
+.thankYouClose {
+  margin: 0;
+  max-width: 28rem;
+  font-size: var(--text-base);
+  color: var(--color-text-secondary);
+  line-height: var(--leading-relaxed);
+}
+
+.thankYouClose {
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+.thankYouLogo {
+  margin-top: var(--space-4);
+  max-height: 64px;
+  width: auto;
+  max-width: 200px;
+  object-fit: contain;
+}
+
+.thankYouStudio {
+  margin-top: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}

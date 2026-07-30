@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { AppLayout } from '@/layouts/AppLayout'
 import { Button } from '@/components/ui/Button'
@@ -7,6 +6,8 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { useWeddings } from '@/features/weddings/hooks/useWeddings'
+import { useSessions } from '@/features/sessions/hooks/useSessions'
+import { AddAssignmentDialog } from '@/features/calendar/components/AddAssignmentDialog'
 import { CalendarSummary } from '@/features/calendar/components/CalendarSummary'
 import {
   CalendarToolbar,
@@ -19,7 +20,8 @@ import { CalendarMonthWeddings } from '@/features/calendar/components/CalendarMo
 import { addDays, addMonths, startOfMonth, startOfWeek } from '@/features/calendar/utils/calendarDates'
 import {
   buildCalendarEventsFromRows,
-  type CalendarWeddingEvent,
+  mergeCalendarUiEvents,
+  type CalendarUiEvent,
 } from '@/features/calendar/utils/calendarEvents'
 import { calendarEventService } from '@/lib/api/calendarEventService'
 import styles from './CalendarPage.module.css'
@@ -34,6 +36,13 @@ export function CalendarPage() {
     refetch: refetchWeddings,
   } = useWeddings()
   const {
+    data: sessions = [],
+    isLoading: sessionsLoading,
+    isError: sessionsError,
+    error: sessionsErr,
+    refetch: refetchSessions,
+  } = useSessions()
+  const {
     data: calendarRows = [],
     isLoading: eventsLoading,
     isError: eventsError,
@@ -46,15 +55,32 @@ export function CalendarPage() {
   })
   const [view, setView] = useState<CalendarViewMode>('month')
   const [anchor, setAnchor] = useState(() => startOfMonth(new Date()))
-  const [selected, setSelected] = useState<CalendarWeddingEvent | null>(null)
+  const [selected, setSelected] = useState<CalendarUiEvent | null>(null)
+  const [assignmentDialogOpen, setAssignmentDialogOpen] = useState(false)
+  const [assignmentDateKey, setAssignmentDateKey] = useState<string | null>(
+    null,
+  )
 
-  const events = useMemo(
+  const weddingEvents = useMemo(
     () => buildCalendarEventsFromRows(calendarRows, weddings),
     [calendarRows, weddings],
   )
 
-  const isLoading = weddingsLoading || (weddings.length > 0 && eventsLoading)
-  const isError = weddingsError || eventsError
+  const events = useMemo(
+    () => mergeCalendarUiEvents(weddingEvents, sessions),
+    [weddingEvents, sessions],
+  )
+
+  const isLoading =
+    weddingsLoading ||
+    sessionsLoading ||
+    (weddings.length > 0 && eventsLoading)
+  const isError = weddingsError || eventsError || sessionsError
+
+  function openAssignmentChooser(dateKey?: string) {
+    setAssignmentDateKey(dateKey ?? null)
+    setAssignmentDialogOpen(true)
+  }
 
   function handleToday() {
     const today = new Date()
@@ -83,11 +109,15 @@ export function CalendarPage() {
   return (
     <AppLayout
       title="Kalendarz"
-      subtitle="Planowanie ślubów"
+      subtitle="Planowanie ślubów i sesji"
       action={
-        <Link to="/sluby/nowy">
-          <Button variant="primary">+ Nowe zlecenie</Button>
-        </Link>
+        <Button
+          type="button"
+          variant="primary"
+          onClick={() => openAssignmentChooser()}
+        >
+          + Dodaj zlecenie
+        </Button>
       }
     >
       {isLoading ? (
@@ -103,6 +133,7 @@ export function CalendarPage() {
                 ? weddingsErr.message
                 : null) ||
               (eventsErr instanceof Error ? eventsErr.message : null) ||
+              (sessionsErr instanceof Error ? sessionsErr.message : null) ||
               'Spróbuj ponownie.'
             }
           />
@@ -112,6 +143,7 @@ export function CalendarPage() {
             onClick={() => {
               void refetchWeddings()
               void refetchEvents()
+              void refetchSessions()
             }}
           >
             Spróbuj ponownie
@@ -120,7 +152,7 @@ export function CalendarPage() {
       ) : (
         <PageContainer width="wide">
           <div className={styles.page}>
-            <CalendarSummary weddings={weddings} anchor={anchor} />
+            <CalendarSummary events={events} anchor={anchor} />
 
             <CalendarToolbar
               view={view}
@@ -136,6 +168,7 @@ export function CalendarPage() {
                 anchor={anchor}
                 events={events}
                 onSelectEvent={setSelected}
+                onAddAssignment={openAssignmentChooser}
               />
             ) : (
               <CalendarWeekView
@@ -145,12 +178,25 @@ export function CalendarPage() {
               />
             )}
 
-            <CalendarMonthWeddings weddings={weddings} anchor={anchor} />
+            <CalendarMonthWeddings
+              events={events}
+              anchor={anchor}
+              onAddAssignment={openAssignmentChooser}
+            />
 
             <CalendarDrawer event={selected} onClose={() => setSelected(null)} />
           </div>
         </PageContainer>
       )}
+
+      <AddAssignmentDialog
+        open={assignmentDialogOpen}
+        dateKey={assignmentDateKey}
+        onClose={() => {
+          setAssignmentDialogOpen(false)
+          setAssignmentDateKey(null)
+        }}
+      />
     </AppLayout>
   )
 }

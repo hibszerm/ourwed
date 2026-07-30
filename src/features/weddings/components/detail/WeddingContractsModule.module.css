@@ -66,13 +66,54 @@
   gap: var(--space-3);
 }
 
-.card {
+.card,
+.cardProminent {
   display: grid;
   gap: var(--space-4);
   padding: var(--space-5);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background: var(--color-bg);
+}
+
+.cardProminent {
+  padding: var(--space-6);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--color-surface) 70%, var(--color-bg));
+}
+
+.currentContract {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.versionHistory {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.versionHistoryToggle {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: var(--space-2) 0;
+  min-height: 40px;
+  text-align: left;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.versionHistoryToggle:hover,
+.versionHistoryToggle:focus-visible {
+  color: var(--color-text-primary);
+  outline: none;
+}
+
+.versionHistoryList {
+  display: grid;
+  gap: var(--space-3);
 }
 
 .cardTop,

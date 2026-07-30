@@ -52,50 +52,48 @@
 }
 
 .primary {
-  background: var(--color-accent);
-  color: #fff;
-  box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.12),
-    0 4px 12px rgba(0, 0, 0, 0.08);
+  background: var(--button-primary-background, var(--color-accent));
+  color: var(--button-primary-text, var(--text-inverse));
+  border: 1px solid var(--button-primary-border, transparent);
+  box-shadow: var(--shadow-xs);
 }
 
 .primary:hover:not(:disabled) {
-  background: var(--color-accent-hover);
-  box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.14),
-    0 6px 16px rgba(0, 0, 0, 0.1);
+  background: var(--button-primary-background-hover, var(--color-accent-hover));
+  box-shadow: var(--shadow-sm);
 }
 
 .secondary {
-  background: var(--color-surface);
-  color: var(--color-text-primary);
-  border: 1px solid var(--color-border-strong);
+  background: var(--button-secondary-background, var(--color-surface));
+  color: var(--button-secondary-text, var(--color-text-primary));
+  border: 1px solid var(--button-secondary-border, var(--color-border-strong));
   box-shadow: var(--shadow-xs);
 }
 
 .secondary:hover:not(:disabled) {
-  background: var(--color-surface-hover);
-  border-color: color-mix(in srgb, var(--color-text-primary) 18%, transparent);
+  background: var(
+    --button-secondary-background-hover,
+    var(--color-surface-hover)
+  );
+  border-color: var(--border-hover, var(--color-border-strong));
 }
 
 .ghost {
   background: transparent;
-  color: var(--color-text-secondary);
+  color: var(--button-ghost-text, var(--color-text-secondary));
 }
 
 .ghost:hover:not(:disabled) {
-  background: var(--color-bg-subtle);
+  background: var(--button-ghost-background-hover, var(--color-bg-subtle));
   color: var(--color-text-primary);
 }
 
 .danger {
-  background: var(--color-error);
-  color: #fff;
-  box-shadow:
-    0 1px 2px rgba(180, 35, 24, 0.2),
-    0 4px 12px rgba(180, 35, 24, 0.12);
+  background: var(--status-error, var(--color-error));
+  color: var(--text-inverse, var(--button-primary-text));
+  box-shadow: var(--shadow-xs);
 }
 
 .danger:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--color-error) 88%, #000);
+  background: color-mix(in srgb, var(--status-error, var(--color-error)) 88%, var(--text-primary));
 }

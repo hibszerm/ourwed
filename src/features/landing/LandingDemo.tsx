@@ -385,7 +385,7 @@ function DemoCalendar({ onOpenWedding }: { onOpenWedding: () => void }) {
 
   return (
     <div className={styles.calendarShowcase}>
-      <CalendarSummary weddings={demoWeddings} anchor={anchor} />
+      <CalendarSummary events={events} anchor={anchor} />
       <CalendarToolbar
         view={view}
         anchor={anchor}
@@ -399,7 +399,12 @@ function DemoCalendar({ onOpenWedding }: { onOpenWedding: () => void }) {
         events={events}
         allowCreateOnEmpty={false}
         onSelectEvent={(event) => {
-          if (event.wedding.id === DEMO_WEDDING_ID) onOpenWedding()
+          if (
+            event.entityType === 'wedding' &&
+            event.wedding.id === DEMO_WEDDING_ID
+          ) {
+            onOpenWedding()
+          }
         }}
       />
     </div>

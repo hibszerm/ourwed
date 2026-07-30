@@ -23,8 +23,15 @@ export type FormTemplateType =
 export type FormStatus = 'open' | 'submitted' | 'closed'
 
 import type { NormalizedAddress } from '@/services/addressAutocompleteProvider'
+import type { GeoPlace } from '@/types/travel'
 
-export type AnswerValue = string | string[] | boolean | NormalizedAddress
+/** Location answers use shared GeoPlace (same as Pre-Wedding); NormalizedAddress remains for legacy. */
+export type AnswerValue =
+  | string
+  | string[]
+  | boolean
+  | NormalizedAddress
+  | GeoPlace
 
 export interface QuestionOption {
   value: string

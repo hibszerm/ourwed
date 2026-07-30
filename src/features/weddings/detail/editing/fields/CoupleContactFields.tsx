@@ -1,4 +1,6 @@
 import { Input } from '@/components/ui/Input'
+import { CorrespondenceFields } from '@/features/weddings/detail/editing/fields/CorrespondenceFields'
+import type { WeddingCorrespondenceEntry } from '@/features/weddings/correspondence/weddingCorrespondence'
 import type { Couple } from '@/types/wedding'
 import styles from '../WeddingEditorFields.module.css'
 
@@ -72,13 +74,21 @@ function PartnerFields({
   )
 }
 
-/** Shared couple/contact fields — no V1 layout wrappers. */
+/** Shared couple/contact + correspondence fields — no V1 layout wrappers. */
 export function CoupleContactFields({
   couple,
-  onChange,
+  correspondence,
+  onChangeCouple,
+  onChangeCorrespondence,
+  correspondenceError,
+  correspondenceErrorRowIndex,
 }: {
   couple: Couple
-  onChange: (couple: Couple) => void
+  correspondence?: WeddingCorrespondenceEntry[] | null
+  onChangeCouple: (couple: Couple) => void
+  onChangeCorrespondence?: (next: WeddingCorrespondenceEntry[]) => void
+  correspondenceError?: string | null
+  correspondenceErrorRowIndex?: number | null
 }) {
   return (
     <div className={styles.fieldGrid}>
@@ -86,14 +96,22 @@ export function CoupleContactFields({
         title="Panna Młoda"
         prefix="partner1"
         couple={couple}
-        onChange={onChange}
+        onChange={onChangeCouple}
       />
       <PartnerFields
         title="Pan Młody"
         prefix="partner2"
         couple={couple}
-        onChange={onChange}
+        onChange={onChangeCouple}
       />
+      {onChangeCorrespondence ? (
+        <CorrespondenceFields
+          correspondence={correspondence}
+          onChange={onChangeCorrespondence}
+          error={correspondenceError}
+          errorRowIndex={correspondenceErrorRowIndex}
+        />
+      ) : null}
     </div>
   )
 }

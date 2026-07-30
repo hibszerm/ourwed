@@ -7,6 +7,7 @@ import {
   IconDashboard,
   IconFlask,
   IconInbox,
+  IconSessions,
   IconSettings,
   IconWeddings,
 } from '@/components/icons'
@@ -25,12 +26,13 @@ const navItems = [
     end: true,
   },
   { to: '/sluby', label: 'Śluby', icon: IconWeddings },
+  { to: '/sesje', label: 'Sesje', icon: IconSessions },
   { to: '/kalendarz', label: 'Kalendarz', icon: IconCalendar },
   { to: '/oczekujace', label: 'Oczekujące', icon: IconInbox },
 ]
 
 const questionnaireItems = [
-  { to: '/ankiety/dane-do-umowy', label: 'Ankiety', end: false },
+  { to: '/ankiety', label: 'Ankiety', end: true },
 ]
 
 const companyItems = [

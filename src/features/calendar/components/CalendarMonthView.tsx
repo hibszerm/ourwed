@@ -1,4 +1,3 @@
-import { useNavigate } from 'react-router-dom'
 import {
   formatWeekdayShort,
   getMonthGrid,
@@ -6,7 +5,7 @@ import {
   isSameMonth,
   toDateKey,
 } from '../utils/calendarDates'
-import { eventsForDate, type CalendarWeddingEvent } from '../utils/calendarEvents'
+import { eventsForDate, type CalendarUiEvent } from '../utils/calendarEvents'
 import { CalendarEventChip } from './CalendarEventChip'
 import styles from './CalendarMonthView.module.css'
 
@@ -15,9 +14,11 @@ const MAX_VISIBLE = 3
 
 interface CalendarMonthViewProps {
   anchor: Date
-  events: CalendarWeddingEvent[]
-  onSelectEvent: (event: CalendarWeddingEvent) => void
-  /** When false, empty days do not navigate to new-wedding (landing demo). */
+  events: CalendarUiEvent[]
+  onSelectEvent: (event: CalendarUiEvent) => void
+  /** Opens assignment chooser for empty day (generic “Dodaj zlecenie”). */
+  onAddAssignment?: (dateKey: string) => void
+  /** When false, empty days do not open create (landing demo). */
   allowCreateOnEmpty?: boolean
 }
 
@@ -25,15 +26,15 @@ export function CalendarMonthView({
   anchor,
   events,
   onSelectEvent,
+  onAddAssignment,
   allowCreateOnEmpty = true,
 }: CalendarMonthViewProps) {
-  const navigate = useNavigate()
   const days = getMonthGrid(anchor)
   const today = new Date()
 
-  function openNewWedding(dateKey: string) {
+  function openCreate(dateKey: string) {
     if (!allowCreateOnEmpty) return
-    navigate(`/sluby/nowy?date=${dateKey}`)
+    onAddAssignment?.(dateKey)
   }
 
   return (
@@ -54,26 +55,23 @@ export function CalendarMonthView({
           const isToday = isSameDay(day, today)
           const overflow = dayEvents.length - MAX_VISIBLE
           const isEmpty = dayEvents.length === 0
+          const canCreate = isEmpty && allowCreateOnEmpty && Boolean(onAddAssignment)
 
           return (
             <div
               key={key}
               className={`${styles.cell} ${outside ? styles.outside : ''} ${isToday ? styles.today : ''} ${isEmpty ? styles.emptyCell : ''}`}
               onClick={() => {
-                if (isEmpty && allowCreateOnEmpty) openNewWedding(key)
+                if (canCreate) openCreate(key)
               }}
               onKeyDown={(e) => {
-                if (
-                  isEmpty &&
-                  allowCreateOnEmpty &&
-                  (e.key === 'Enter' || e.key === ' ')
-                ) {
+                if (canCreate && (e.key === 'Enter' || e.key === ' ')) {
                   e.preventDefault()
-                  openNewWedding(key)
+                  openCreate(key)
                 }
               }}
-              role={isEmpty && allowCreateOnEmpty ? 'button' : undefined}
-              tabIndex={isEmpty && allowCreateOnEmpty ? 0 : undefined}
+              role={canCreate ? 'button' : undefined}
+              tabIndex={canCreate ? 0 : undefined}
             >
               <div className={styles.dayHeader}>
                 <span className={styles.dayNumber}>{day.getDate()}</span>
@@ -91,9 +89,9 @@ export function CalendarMonthView({
                 {overflow > 0 && (
                   <span className={styles.more}>+{overflow} więcej</span>
                 )}
-                {isEmpty && (
+                {isEmpty && allowCreateOnEmpty ? (
                   <span className={styles.addHint}>+ Dodaj zlecenie</span>
-                )}
+                ) : null}
               </div>
             </div>
           )

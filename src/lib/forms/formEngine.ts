@@ -54,6 +54,29 @@ export function getFieldString(
   return fallback
 }
 
+/** Empty GeoPlace / NormalizedAddress / legacy location object. */
+function isEmptyStructuredLocation(value: object): boolean {
+  const row = value as {
+    formattedAddress?: unknown
+    label?: unknown
+    name?: unknown
+    placeId?: unknown
+    street?: unknown
+    city?: unknown
+    postalCode?: unknown
+  }
+  const hasText = (v: unknown) => typeof v === 'string' && v.trim().length > 0
+  return !(
+    hasText(row.formattedAddress) ||
+    hasText(row.label) ||
+    hasText(row.name) ||
+    hasText(row.placeId) ||
+    hasText(row.street) ||
+    hasText(row.city) ||
+    hasText(row.postalCode)
+  )
+}
+
 export function validateAnswers(
   template: FormTemplate,
   values: Record<string, AnswerValue>,
@@ -70,8 +93,7 @@ export function validateAnswers(
       (typeof value === 'object' &&
         value !== null &&
         !Array.isArray(value) &&
-        'formattedAddress' in value &&
-        !(value as { formattedAddress?: string }).formattedAddress?.trim())
+        isEmptyStructuredLocation(value))
 
     if (empty) {
       errors[q.id] = 'Wymagane'

@@ -132,8 +132,8 @@ run('6–8. Travel creates distinct stops, markers, route order', () => {
   }
   const flow = buildTravelFlow(plan)
   assertEq(flow.stops.length, 5, '5 stops with studio')
-  assertEq(flow.stops[1].role, 'bride_preparation', 'bride')
-  assertEq(flow.stops[2].role, 'groom_preparation', 'groom')
+  assertEq(flow.stops[1].role, 'groom_preparation', 'groom')
+  assertEq(flow.stops[2].role, 'bride_preparation', 'bride')
   assertEq(flow.stops[3].role, 'ceremony', 'ceremony')
   assertEq(flow.stops[4].role, 'reception', 'reception')
   assertEq(flow.stops[0].kind, 'studio', 'studio first')
@@ -148,13 +148,25 @@ run('6–8. Travel creates distinct stops, markers, route order', () => {
     resolve(process.cwd(), 'src/lib/api/travelService.ts'),
     'utf8',
   )
-  assert(travel.includes("'bride_preparation'"), 'STOP_ORDER bride')
-  assert(travel.includes("'groom_preparation'"), 'STOP_ORDER groom')
-  const stopOrderBlock = travel.slice(
-    travel.indexOf('const STOP_ORDER'),
-    travel.indexOf(']', travel.indexOf('const STOP_ORDER')) + 1,
+  assert(travel.includes('buildOrderedWeddingDayRouteStops'), 'uses ordered builder')
+  const routeStops = readFileSync(
+    resolve(process.cwd(), 'src/features/travel/weddingDayRouteStops.ts'),
+    'utf8',
   )
-  assert(!stopOrderBlock.includes("'preparation'"), 'no legacy in STOP_ORDER')
+  assert(routeStops.includes("'bride_preparation'"), 'order bride')
+  assert(routeStops.includes("'groom_preparation'"), 'order groom')
+  assert(
+    routeStops.indexOf("'groom_preparation'") <
+      routeStops.indexOf("'bride_preparation'"),
+    'groom before bride in canonical order',
+  )
+  // Legacy `preparation` may appear in sort/compat maps, but not in the
+  // operational CANONICAL_ROUTE_ROLE_ORDER array.
+  const orderArray = routeStops.slice(
+    routeStops.indexOf('CANONICAL_ROUTE_ROLE_ORDER'),
+    routeStops.indexOf(']', routeStops.indexOf('CANONICAL_ROUTE_ROLE_ORDER')) + 1,
+  )
+  assert(!orderArray.includes("'preparation'"), 'no legacy in canonical order')
 })
 
 run('9. Missing one preparation stop is omitted cleanly', () => {

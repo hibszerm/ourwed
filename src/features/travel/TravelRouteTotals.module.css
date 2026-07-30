@@ -1,0 +1,32 @@
+.routeSummary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+
+.bandLabel {
+  display: block;
+  font-size: var(--text-2xs);
+  color: var(--color-text-tertiary);
+  font-weight: 500;
+  margin-bottom: var(--space-1);
+}
+
+.bandValue {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: 650;
+  letter-spacing: var(--tracking-snug);
+  color: var(--color-text-primary);
+  word-break: break-word;
+  font-variant-numeric: tabular-nums;
+}
+
+.routeSummaryHint {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-2xs);
+  color: var(--color-text-tertiary);
+}

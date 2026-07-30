@@ -74,12 +74,25 @@ create table if not exists public.profiles (
   first_name text not null default '',
   last_name text not null default '',
   profession text not null default '',
+  theme_id text not null default 'classic',
   created_at timestamptz not null default timezone('utc', now()),
-  updated_at timestamptz not null default timezone('utc', now())
+  updated_at timestamptz not null default timezone('utc', now()),
+  constraint profiles_theme_id_check check (
+    theme_id in (
+      'classic',
+      'gentlemen',
+      'sage_garden',
+      'burgundy_estate',
+      'mocha_editorial'
+    )
+  )
 );
 
 comment on table public.profiles is
   'Studio profile linked 1:1 to auth.users.id. See migration auth_profiles.sql.';
+
+comment on column public.profiles.theme_id is
+  'Private CRM UI theme id. Not studio public branding.';
 
 -- =============================================================================
 -- 2. weddings — one wedding = one project
@@ -125,6 +138,10 @@ comment on table public.weddings is
 
 -- display_name added in migration 20260728140000_wedding_display_name.sql
 -- (UI-only title; ignored by contracts and questionnaires)
+-- correspondence_channel / correspondence_value added in
+-- migration 20260729120000_wedding_correspondence.sql
+-- correspondence jsonb array added in
+-- migration 20260729140000_wedding_correspondence_multi.sql
 
 comment on column public.weddings.workflow_stage is
   'Pipeline stage only — workflow engine rules live in application code.';
@@ -400,6 +417,79 @@ comment on column public.contracts.generated_by is
 create index contracts_wedding_id_idx on public.contracts (wedding_id);
 create index contracts_status_idx on public.contracts (status);
 create index contracts_generated_by_idx on public.contracts (generated_by);
+
+-- =============================================================================
+-- 11b. sessions — standalone photography assignments
+-- =============================================================================
+
+create table public.sessions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.users (id) on delete cascade,
+
+  custom_name text,
+
+  primary_first_name text,
+  primary_last_name text,
+  secondary_first_name text,
+  secondary_last_name text,
+
+  session_type text not null
+    check (session_type in (
+      'engagement',
+      'postWedding',
+      'family',
+      'business',
+      'other'
+    )),
+  custom_session_type text,
+
+  session_date date not null,
+  start_time time,
+  end_time time,
+
+  location_name text,
+  location_address text,
+  formatted_address text,
+  place_id text,
+  latitude double precision,
+  longitude double precision,
+  location_source text,
+
+  total_price numeric(12, 2) not null default 0
+    check (total_price >= 0),
+  deposit_amount numeric(12, 2) not null default 0
+    check (deposit_amount >= 0),
+
+  notes text,
+
+  linked_wedding_id uuid references public.weddings (id) on delete set null,
+
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now()),
+
+  check (deposit_amount <= total_price),
+  check (
+    end_time is null
+    or start_time is null
+    or end_time >= start_time
+  ),
+  check (
+    (session_type = 'other' and custom_session_type is not null and length(trim(custom_session_type)) > 0)
+    or (session_type <> 'other' and custom_session_type is null)
+  )
+);
+
+comment on table public.sessions is
+  'Standalone photo sessions (engagement, family, business, …). Not wedding workflow.';
+
+create index sessions_user_id_idx on public.sessions (user_id);
+create index sessions_session_date_idx on public.sessions (session_date);
+create index sessions_linked_wedding_id_idx on public.sessions (linked_wedding_id);
+
+create trigger sessions_set_updated_at
+  before update on public.sessions
+  for each row
+  execute function public.set_updated_at();
 
 -- =============================================================================
 -- 12. calendar_events
@@ -820,6 +910,7 @@ create trigger travel_segments_set_updated_at
 
 alter table public.users enable row level security;
 alter table public.weddings enable row level security;
+alter table public.sessions enable row level security;
 alter table public.contacts enable row level security;
 alter table public.payments enable row level security;
 alter table public.notes enable row level security;

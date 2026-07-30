@@ -244,18 +244,20 @@ run('address: formattedAddress preserved for contract resolver string', () => {
   )
 })
 
-run('address: AddressField is shared responsive overlay component', () => {
-  const src = readFileSync(
-    resolve(process.cwd(), 'src/features/forms/AddressField.tsx'),
+run('address: Contract location uses shared QuestionnaireLocationField', () => {
+  const loc = readFileSync(
+    resolve(process.cwd(), 'src/features/prewedding/QuestionnaireLocationField.tsx'),
     'utf8',
   )
   const qf = readFileSync(
     resolve(process.cwd(), 'src/features/forms/QuestionField.tsx'),
     'utf8',
   )
-  assert(src.includes('ResponsiveFieldOverlay'), 'overlay')
-  assert(qf.includes('AddressField'), 'QuestionField reuses AddressField')
-  assert(qf.includes("question.type === 'location'"), 'location uses AddressField')
+  assert(loc.includes('LocationSearchField'), 'search')
+  assert(loc.includes('SelectedLocationCard'), 'card')
+  assert(qf.includes('QuestionnaireLocationField'), 'QuestionField reuses shared location')
+  assert(qf.includes("question.type === 'location'"), 'location branch')
+  assert(!qf.includes('AddressField'), 'no AddressField in QuestionField')
 })
 
 run('address: default blocks keep single address after groom section', () => {

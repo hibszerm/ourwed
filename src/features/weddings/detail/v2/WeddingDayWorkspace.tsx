@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/Button'
 import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
 import { TravelMap } from '@/features/travel/TravelMap'
+import { TravelRouteTotals } from '@/features/travel/TravelRouteTotals'
 import {
   buildTravelFlow,
   getTravelBaseAddress,
@@ -10,6 +11,7 @@ import {
   getTravelBaseStatus,
   navigateToStopUrl,
   summarizeTravelRoute,
+  travelLegFailureMessage,
   TRAVEL_SETTINGS_PATH,
   type TravelFlow,
   type TravelFlowLeg,
@@ -53,21 +55,90 @@ function LegBlock({ leg }: { leg: TravelFlowLeg }) {
       </div>
     )
   }
+  const reason = travelLegFailureMessage(leg.failureReason)
   return (
     <div className={styles.itineraryLegBlock} data-testid="travel-leg-empty">
       <p className={styles.itineraryLegRoute}>{leg.label}</p>
-      <p className={styles.itineraryLegMuted}>—</p>
+      <p className={styles.itineraryLegMuted}>{reason}</p>
     </div>
   )
 }
 
-function findOutgoingLeg(
+/** Outgoing leg by stable stop key (not role) — supports future reorder. */
+function findOutgoingLegByStopKey(
   flow: TravelFlow,
-  originRole: string,
+  originKey: string,
 ): TravelFlowLeg | null {
   return (
-    flow.routeLegs.find((leg) => leg.origin.role === originRole) ?? null
+    flow.routeLegs.find((leg) => leg.origin.key === originKey) ?? null
   )
+}
+
+type ItineraryLocationRow = {
+  key: string
+  role: WeddingPlaceRole | string
+  label: string
+  address: string
+  placeName: string | null
+  verified: boolean
+  empty: boolean
+  placeId: string | null
+  latitude: number | null
+  longitude: number | null
+  onRoute: boolean
+}
+
+/**
+ * Explicit route order first; empty / off-route locations appended in catalog order.
+ */
+function buildItineraryLocationRows(
+  locations: ReturnType<typeof getWeddingLocationItems>,
+  flow: TravelFlow | null,
+): ItineraryLocationRow[] {
+  const byRole = new Map(locations.map((loc) => [loc.role, loc]))
+  const rows: ItineraryLocationRow[] = []
+  const seen = new Set<string>()
+
+  const routeWeddingStops =
+    flow?.stops.filter((s) => s.kind === 'wedding_place') ?? []
+
+  for (const stop of routeWeddingStops) {
+    const role = (stop.role ?? 'other') as WeddingPlaceRole
+    const loc = byRole.get(role)
+    seen.add(role)
+    rows.push({
+      key: stop.key,
+      role,
+      label: loc?.label ?? stop.title,
+      address: loc?.address || stop.address,
+      placeName: loc?.placeName ?? stop.label ?? null,
+      verified: loc?.verified ?? true,
+      empty: false,
+      placeId: stop.placeId,
+      latitude: stop.latitude,
+      longitude: stop.longitude,
+      onRoute: true,
+    })
+  }
+
+  for (const loc of locations) {
+    if (seen.has(loc.role)) continue
+    rows.push({
+      key: `off-route-${loc.role}`,
+      role: loc.role,
+      label: loc.label,
+      address: loc.address,
+      placeName: loc.placeName,
+      verified: loc.verified,
+      empty: loc.empty,
+      placeId: loc.placeId,
+      latitude: loc.latitude,
+      longitude: loc.longitude,
+      onRoute: false,
+    })
+  }
+
+  return rows
 }
 
 export function WeddingDayWorkspace({
@@ -124,11 +195,10 @@ export function WeddingDayWorkspace({
   const baseTitle = getTravelBaseDisplayName(plan?.studio)
   const baseAddress = getTravelBaseAddress(plan?.studio)
   const baseStop = flow?.stops.find((s) => s.kind === 'studio') ?? null
-  const baseOutgoingLeg = flow ? findOutgoingLeg(flow, 'studio') : null
-  const routeRoles = new Set(
-    flow?.stops.filter((s) => s.kind === 'wedding_place').map((s) => s.role) ??
-      [],
-  )
+  const baseOutgoingLeg = flow
+    ? findOutgoingLegByStopKey(flow, 'studio')
+    : null
+  const itineraryRows = buildItineraryLocationRows(locations, flow)
 
   return (
     <div
@@ -216,7 +286,7 @@ export function WeddingDayWorkspace({
                       {baseOutgoingLeg ? (
                         <LegBlock leg={baseOutgoingLeg} />
                       ) : baseStatus === 'ready' &&
-                        (flow?.stops.length ?? 0) <= 1 ? (
+                        itineraryRows.filter((r) => r.onRoute).length === 0 ? (
                         <p className={styles.itineraryLegMuted}>
                           Brak lokalizacji dnia ślubu do wyliczenia dojazdu.
                         </p>
@@ -225,15 +295,13 @@ export function WeddingDayWorkspace({
                   </li>
                 ) : null}
 
-                {locations.map((loc, index) => {
-                  const outgoing = flow
-                    ? findOutgoingLeg(flow, loc.role)
-                    : null
+                {itineraryRows.map((loc, index) => {
+                  const outgoing =
+                    flow && loc.onRoute
+                      ? findOutgoingLegByStopKey(flow, loc.key)
+                      : null
                   const omittedFromRoute =
-                    !loc.empty &&
-                    flow != null &&
-                    flow.hasAnyLocation &&
-                    !routeRoles.has(loc.role)
+                    !loc.empty && !loc.onRoute && flow != null && flow.hasAnyLocation
                   const navUrl = !loc.empty
                     ? buildGoogleMapsNavigationUrl({
                         formattedAddress: loc.address,
@@ -243,13 +311,13 @@ export function WeddingDayWorkspace({
                         longitude: loc.longitude,
                       })
                     : null
-                  const flowStop = flow?.stops.find((s) => s.role === loc.role)
+                  const flowStop = flow?.stops.find((s) => s.key === loc.key)
                   const flowNav = flowStop ? navigateToStopUrl(flowStop) : null
                   const href = flowNav || navUrl
-                  const isLast = index === locations.length - 1
+                  const isLast = index === itineraryRows.length - 1
 
                   return (
-                    <li key={loc.role} className={styles.itineraryStop}>
+                    <li key={loc.key} className={styles.itineraryStop}>
                       <div className={styles.itineraryMarker} aria-hidden>
                         <span className={styles.itineraryDot} />
                         {!isLast ? (
@@ -331,44 +399,11 @@ export function WeddingDayWorkspace({
             </>
           )}
 
-          <div className={styles.routeSummary}>
-            <div>
-              <span className={styles.bandLabel}>
-                {summary?.distanceLabel ?? 'Łączny dystans'}
-              </span>
-              <p className={styles.bandValue}>
-                {summary && summary.okSegments.length > 0
-                  ? summary.distanceText
-                  : '—'}
-              </p>
-              {summary &&
-              summary.okSegments.length > 0 &&
-              !summary.isCompleteDayRoute ? (
-                <p className={styles.routeSummaryHint}>
-                  Bez dojazdu z bazy firmy
-                </p>
-              ) : null}
-            </div>
-            <div>
-              <span className={styles.bandLabel}>
-                {summary?.durationLabel ?? 'Szacowany czas jazdy'}
-              </span>
-              <p className={styles.bandValue}>
-                {summary && summary.okSegments.length > 0
-                  ? summary.durationText
-                  : '—'}
-              </p>
-            </div>
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              disabled={recalculate.isPending}
-              onClick={() => void recalculate.mutateAsync()}
-            >
-              {recalculate.isPending ? 'Przeliczanie…' : 'Przelicz trasę'}
-            </Button>
-          </div>
+          <TravelRouteTotals
+            summary={summary}
+            onRecalculate={() => void recalculate.mutateAsync()}
+            recalculatePending={recalculate.isPending}
+          />
         </div>
 
         <div className={styles.mapCol}>

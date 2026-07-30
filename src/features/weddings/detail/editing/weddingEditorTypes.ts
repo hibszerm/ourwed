@@ -33,7 +33,8 @@ export function getEditorSectionMeta(
     case 'couple':
       return {
         title: 'Edytuj dane pary',
-        description: 'Imiona, telefony, e-maile i adresy kontaktowe.',
+        description:
+          'Imiona, telefony, e-maile, adresy oraz główny kanał korespondencji.',
       }
     case 'wedding':
       return {

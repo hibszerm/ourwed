@@ -983,6 +983,7 @@ export async function getLatestSubmittedFormAnswerRecord(
   answerJson: FormAnswerJson
   submittedAt: string | null
   instanceId: string
+  optionsSnapshot: FormInstanceOptionsSnapshot | null
 } | null> {
   const { data: formRows, error: formsError } = await supabase
     .from('forms')
@@ -996,7 +997,7 @@ export async function getLatestSubmittedFormAnswerRecord(
 
   const { data: instance, error: instanceError } = await supabase
     .from('form_instances')
-    .select('id, submitted_at')
+    .select('id, submitted_at, options_snapshot')
     .eq('wedding_id', weddingId)
     .in('status', ['submitted', 'approved'])
     .in('form_id', formIds)
@@ -1022,10 +1023,16 @@ export async function getLatestSubmittedFormAnswerRecord(
     return null
   }
 
+  const row = instance as {
+    submitted_at: string | null
+    options_snapshot?: unknown
+  }
+
   return {
     answerJson,
-    submittedAt: (instance as { submitted_at: string | null }).submitted_at,
+    submittedAt: row.submitted_at,
     instanceId: instance.id,
+    optionsSnapshot: parseOptionsSnapshot(row.options_snapshot),
   }
 }
 

@@ -5,6 +5,7 @@ import { taskService } from '@/lib/api/taskService'
 import { travelService } from '@/lib/api/travelService'
 import { weddingExtraServiceService } from '@/lib/api/weddingExtraServiceService'
 import { weddingService } from '@/lib/api/weddingService'
+import { validateWeddingCorrespondenceEntries } from '@/features/weddings/correspondence/weddingCorrespondence'
 import { persistWeddingContractAnswerFields } from '@/lib/forms/persistWeddingContractAnswers'
 import { isLikelyUuid } from '@/lib/supabase/helpers'
 import type { WeddingExtraService } from '@/types/package'
@@ -78,6 +79,10 @@ export function validateWeddingEditDraft(draft: WeddingEditDraft): string | null
   if ((wedding.depositAmount ?? 0) < 0) {
     return 'Zaliczka nie może być ujemna.'
   }
+  const correspondenceResult = validateWeddingCorrespondenceEntries(
+    wedding.correspondence ?? [],
+  )
+  if (!correspondenceResult.ok) return correspondenceResult.error
   for (const contact of draft.contacts) {
     if (!contact.name.trim()) return 'Kontakt musi mieć nazwę.'
   }
@@ -113,8 +118,14 @@ export async function persistWeddingEditDraft(
   if (error) throw new Error(error)
 
   const weddingId = draft.wedding.id
+  const correspondenceResult = validateWeddingCorrespondenceEntries(
+    draft.wedding.correspondence ?? [],
+  )
+  if (!correspondenceResult.ok) throw new Error(correspondenceResult.error)
+
   const nextWedding: Wedding = {
     ...draft.wedding,
+    correspondence: correspondenceResult.normalized,
     price: draft.wedding.price,
     couple: {
       ...draft.wedding.couple,

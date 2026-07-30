@@ -20,6 +20,7 @@ import {
 import { supabase } from '@/lib/supabase'
 import { isLikelyUuid, asCatalogPackageId, throwOnError } from '@/lib/supabase/helpers'
 import { snapshotPackageItemsFromStudioPackage, buildCreateWeddingCommercialFromPackage } from '@/lib/utils/commercial'
+import { decideWeddingPackageIdWrite } from '@/lib/api/weddings/weddingPackageIdSafety'
 import type {
   CreateWeddingInput,
   Wedding,
@@ -33,6 +34,46 @@ export { mapWeddingRowToModel, mapWeddingModelToRow } from '@/lib/api/weddings/w
  * Wedding aggregate loader — `public.weddings` scalars + child-domain hydrate.
  * Nested writes belong in dedicated services (notes, timeline, payments, …).
  */
+
+/**
+ * Decide whether `weddings.package_id` may be written.
+ * - unchanged vs current DB value → omit
+ * - null → clear the FK (allowed by schema)
+ * - valid existing package → write
+ * - stale / deleted UUID → omit from the update so the existing DB value is preserved
+ *   (avoids weddings_package_id_fkey on unrelated edits)
+ */
+export async function resolveWritableWeddingPackageId(
+  packageId: string | null | undefined,
+  currentPackageId?: string | null,
+): Promise<{ include: true; value: string | null } | { include: false }> {
+  if (packageId == null || packageId === '') {
+    return decideWeddingPackageIdWrite({
+      incomingPackageId: null,
+      packageExists: null,
+      currentPackageId,
+    })
+  }
+  const id = asCatalogPackageId(packageId)
+  if (!id) {
+    return decideWeddingPackageIdWrite({
+      incomingPackageId: packageId,
+      packageExists: null,
+      currentPackageId,
+    })
+  }
+  const { data, error } = await supabase
+    .from('packages')
+    .select('id')
+    .eq('id', id)
+    .maybeSingle()
+  throwOnError(error)
+  return decideWeddingPackageIdWrite({
+    incomingPackageId: id,
+    packageExists: Boolean(data),
+    currentPackageId,
+  })
+}
 
 async function resolvePackageItemsSnapshot(
   input: CreateWeddingInput,
@@ -331,6 +372,16 @@ export const weddingService = {
       })
     }
 
+    // External calendars: after local commit only (never blocks / rolls back).
+    const { enqueueExternalCalendarSync } = await import(
+      '@/features/calendar-integrations/calendarIntegrationsService'
+    )
+    void enqueueExternalCalendarSync({
+      entityType: 'wedding',
+      entityId: weddingId,
+      operation: 'upsert',
+    })
+
     return finalizeWeddingView(withLocations)
   },
 
@@ -342,12 +393,28 @@ export const weddingService = {
     const userId = await resolveStudioUserId()
     const patch = mapWeddingModelToRow(wedding)
 
+    const { data: currentRow, error: currentError } = await supabase
+      .from('weddings')
+      .select('package_id')
+      .eq('id', wedding.id)
+      .eq('user_id', userId)
+      .maybeSingle()
+    throwOnError(currentError)
+
+    const packageIdWrite = await resolveWritableWeddingPackageId(
+      patch.package_id,
+      (currentRow as { package_id?: string | null } | null)?.package_id ?? null,
+    )
+
     const { data, error } = await supabase
       .from('weddings')
       .update({
         bride_name: patch.bride_name,
         groom_name: patch.groom_name,
         display_name: patch.display_name ?? null,
+        correspondence: patch.correspondence ?? [],
+        correspondence_channel: patch.correspondence_channel ?? null,
+        correspondence_value: patch.correspondence_value ?? null,
         email: patch.email,
         phone: patch.phone,
         wedding_date: patch.wedding_date,
@@ -356,7 +423,7 @@ export const weddingService = {
         status: patch.status,
         workflow_stage: patch.workflow_stage,
         package_name: patch.package_name,
-        package_id: patch.package_id,
+        ...(packageIdWrite.include ? { package_id: packageIdWrite.value } : {}),
         contract_value: patch.contract_value,
         deposit_amount: patch.deposit_amount,
         currency: patch.currency,
@@ -436,6 +503,15 @@ export const weddingService = {
 
     await calendarEventService.ensureWeddingDayEvent(withScalars)
 
+    const { enqueueExternalCalendarSync } = await import(
+      '@/features/calendar-integrations/calendarIntegrationsService'
+    )
+    void enqueueExternalCalendarSync({
+      entityType: 'wedding',
+      entityId: withScalars.id,
+      operation: withScalars.status === 'cancelled' ? 'delete' : 'upsert',
+    })
+
     return finalizeWeddingView(withScalars)
   },
 
@@ -456,5 +532,14 @@ export const weddingService = {
       .eq('id', id)
       .eq('user_id', userId)
     throwOnError(error)
+
+    const { enqueueExternalCalendarSync } = await import(
+      '@/features/calendar-integrations/calendarIntegrationsService'
+    )
+    void enqueueExternalCalendarSync({
+      entityType: 'wedding',
+      entityId: id,
+      operation: 'delete',
+    })
   },
 }

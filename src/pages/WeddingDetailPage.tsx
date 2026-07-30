@@ -10,10 +10,7 @@ import { IconArrowLeft } from '@/components/icons'
 import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
 import { useWedding } from '@/features/weddings/hooks/useWedding'
 import type { WeddingHeroAction } from '@/features/weddings/detail/weddingHeroActions'
-import { WeddingDetailV1 } from '@/features/weddings/detail/v1/WeddingDetailV1'
 import { WeddingDetailV2 } from '@/features/weddings/detail/v2/WeddingDetailV2'
-import { WeddingDetailViewSwitch } from '@/features/weddings/detail/WeddingDetailViewSwitch'
-import { useWeddingDetailViewMode } from '@/features/weddings/detail/useWeddingDetailViewMode'
 import { SendQuestionnaireModal } from '@/features/weddings/actions/SendQuestionnaireModal'
 import { AddPaymentModal } from '@/features/weddings/actions/AddPaymentModal'
 import { AddNoteModal } from '@/features/weddings/actions/AddNoteModal'
@@ -30,19 +27,16 @@ import {
   type WeddingEditDraft,
   type WeddingEditSnapshot,
 } from '@/features/weddings/edit/persistWeddingEditDraft'
-import editStyles from '@/features/weddings/edit/WeddingEdit.module.css'
 import { companyDetailsService } from '@/lib/api/companyDetailsService'
 import { contactService } from '@/lib/api/contactService'
 import { taskService } from '@/lib/api/taskService'
 import { weddingExtraServiceService } from '@/lib/api/weddingExtraServiceService'
 import { weddingService } from '@/lib/api/weddingService'
-import { isWeddingQuestionnaireComplete } from '@/lib/utils/questionnaires'
 import {
   validateContractGeneration,
   type ContractGenerationValidation,
   type MissingDataCorrectionKind,
 } from '@/lib/utils/validateContractGeneration'
-import { isSectionVisible } from '@/lib/utils/workflow'
 import type { QuestionnaireKind } from '@/lib/api/weddingActionsService'
 import styles from './WeddingDetailPage.module.css'
 
@@ -60,7 +54,6 @@ export function WeddingDetailPage() {
   const queryClient = useQueryClient()
   const { showToast } = useToast()
   const userId = useStudioAuthId()
-  const { viewMode, setViewMode } = useWeddingDetailViewMode()
   const { data: wedding, isLoading, isError, error, refetch } = useWedding(id ?? '')
 
   const { data: weddingTasks = [] } = useQuery({
@@ -168,11 +161,6 @@ export function WeddingDetailPage() {
   const viewContacts = editing && draft ? draft.contacts : contacts
   const viewExtras = editing && draft ? draft.extras : extras
 
-  const stage = view.workflowStage
-  const showSchedule = isWeddingQuestionnaireComplete(view.questionnaires)
-  const showEquipment = isSectionVisible(stage, 'equipment')
-  const showDeliverables = isSectionVisible(stage, 'deliverables')
-
   function isDraftDirty(): boolean {
     if (!draft || !baseline) return false
     if (isLocationEditorSection(editorSection)) return false
@@ -186,22 +174,8 @@ export function WeddingDetailPage() {
     setDraft(next)
     setSaveError(null)
     setDiscardOpen(false)
-    setEditorSection(
-      viewMode === 'v2' && section == null ? 'contacts' : section,
-    )
+    setEditorSection(section ?? 'contacts')
     setEditing(true)
-    if (section && viewMode === 'v1') {
-      window.requestAnimationFrame(() => {
-        const scrollId = isLocationEditorSection(section)
-          ? 'wedding-locations'
-          : undefined
-        if (scrollId) {
-          document
-            .getElementById(scrollId)
-            ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-        }
-      })
-    }
   }
 
   function openEditor(section: WeddingEditorSection) {
@@ -396,72 +370,23 @@ export function WeddingDetailPage() {
       showToast('Ślub został usunięty.', 'success')
       navigate('/sluby')
     },
-    showSchedule,
-    showEquipment,
-    showDeliverables,
   }
 
   return (
     <AppLayout
       action={
-        <div className={editStyles.toolbar}>
-          {editing && viewMode === 'v1' ? (
-            <>
-              <Button
-                type="button"
-                variant="ghost"
-                disabled={saving}
-                onClick={requestCancelEdit}
-              >
-                Anuluj
-              </Button>
-              <Button
-                type="button"
-                variant="primary"
-                disabled={saving}
-                onClick={() => void saveEdit()}
-              >
-                {saving ? 'Zapisywanie…' : 'Zapisz zmiany'}
-              </Button>
-            </>
-          ) : !editing ? (
-            <>
-              <Button type="button" variant="primary" onClick={() => beginEdit()}>
-                Edytuj ślub
-              </Button>
-              <Link to="/sluby">
-                <Button variant="ghost">
-                  <IconArrowLeft />
-                  Wróć do listy
-                </Button>
-              </Link>
-            </>
-          ) : null}
-        </div>
+        !editing ? (
+          <Link to="/sluby">
+            <Button variant="ghost">
+              <IconArrowLeft />
+              Wróć do listy
+            </Button>
+          </Link>
+        ) : null
       }
     >
       <PageContainer>
-        <div className={styles.toolbarRow}>
-          <WeddingDetailViewSwitch value={viewMode} onChange={setViewMode} />
-        </div>
-
-        {editing && viewMode === 'v1' ? (
-          <div className={editStyles.editBanner}>
-            <p className={editStyles.editBannerText}>
-              Tryb edycji — zmiany zapiszą się dopiero po kliknięciu „Zapisz
-              zmiany”.
-            </p>
-            {saveError ? (
-              <p className={editStyles.dangerText}>{saveError}</p>
-            ) : null}
-          </div>
-        ) : null}
-
-        {viewMode === 'v1' ? (
-          <WeddingDetailV1 {...sharedProps} />
-        ) : (
-          <WeddingDetailV2 {...sharedProps} />
-        )}
+        <WeddingDetailV2 {...sharedProps} />
       </PageContainer>
 
       <DiscardChangesDialog

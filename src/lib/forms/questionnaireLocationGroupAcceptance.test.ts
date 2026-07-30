@@ -119,13 +119,14 @@ run('8. mobile and desktop share the same one-column stack', () => {
   )
 })
 
-run('9. each field uses shared AddressField', () => {
+run('9. each field uses shared QuestionnaireLocationField', () => {
   const qf = readFileSync(
     resolve(process.cwd(), 'src/features/forms/QuestionField.tsx'),
     'utf8',
   )
-  assert(qf.includes('AddressField'), 'AddressField')
+  assert(qf.includes('QuestionnaireLocationField'), 'shared GeoPlace field')
   assert(qf.includes("question.type === 'location'"), 'location branch')
+  assert(!qf.includes('AddressField'), 'no AddressField')
 })
 
 run('10. legacy separate location headings normalize into group', () => {

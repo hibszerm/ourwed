@@ -76,7 +76,7 @@ run('1–4. four wedding locations appear in default template', () => {
   }
 })
 
-run('5. all four use AddressField (location question type)', () => {
+run('5. all four use location question type (shared GeoPlace field)', () => {
   const qs = questionsFromBlocks(
     buildDefaultQuestionnaireBlocks(null),
     pkgs,
@@ -86,24 +86,26 @@ run('5. all four use AddressField (location question type)', () => {
     assertEq(
       qs.find((q) => q.fieldKey === key)?.type,
       'location',
-      `${key} → AddressField`,
+      `${key} → location`,
     )
   }
 })
 
-run('6. AddressField + provider wiring still present', () => {
+run('6. QuestionField uses shared QuestionnaireLocationField (GeoPlace UX)', () => {
   const field = readFileSync(
     resolve(process.cwd(), 'src/features/forms/QuestionField.tsx'),
     'utf8',
   )
-  const addr = readFileSync(
-    resolve(process.cwd(), 'src/features/forms/AddressField.tsx'),
+  const loc = readFileSync(
+    resolve(process.cwd(), 'src/features/prewedding/QuestionnaireLocationField.tsx'),
     'utf8',
   )
   assert(field.includes("question.type === 'location'"), 'QuestionField location')
-  assert(field.includes('AddressField'), 'AddressField mount')
-  assert(addr.includes('AddressAutocompleteProvider'), 'provider')
-  assert(addr.includes('ResponsiveFieldOverlay'), 'overlay')
+  assert(field.includes('QuestionnaireLocationField'), 'shared location field')
+  assert(!field.includes('AddressField'), 'no AddressField in QuestionField')
+  assert(loc.includes('LocationSearchField'), 'search')
+  assert(loc.includes('SelectedLocationCard'), 'selected card')
+  assert(loc.includes('geoPlaceToAnswer'), 'GeoPlace persist')
 })
 
 run('7–9. distinct canonical keys — no overwrite of contract address', () => {

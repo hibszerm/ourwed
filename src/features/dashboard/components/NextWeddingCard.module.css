@@ -23,6 +23,42 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.contextList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.contextItem {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  line-height: 1.4;
+}
+
+.contextItem[data-tone='ok'] {
+  color: var(--color-text-secondary);
+}
+
+.contextItem[data-tone='pending'] {
+  color: var(--color-text-primary);
+}
+
+.contextItem[data-tone='neutral'] {
+  color: var(--color-text-tertiary);
+}
+
+.contextEmpty {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--color-text-tertiary);
 }
 
 .dot {

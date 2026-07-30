@@ -97,4 +97,8 @@ export interface TravelPlan {
    * UI should still show the map when places have coordinates.
    */
   persistenceError?: string | null
+  /** Fingerprint of ordered eligible stops used to produce this plan. */
+  routeFingerprint?: string | null
+  /** True when a newer rebuild superseded this result. */
+  routeStale?: boolean
 }

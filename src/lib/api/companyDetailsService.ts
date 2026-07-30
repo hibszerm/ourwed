@@ -88,6 +88,11 @@ function trimOrNull(value: string | null | undefined): string | null {
   return v ? v : null
 }
 
+/** Stable React Query key for company / studio_details. */
+export function companyDetailsQueryKey(userId: string | undefined) {
+  return ['company-details', userId] as const
+}
+
 export function formatCompanyAddress(details: CompanyDetails): string {
   const line1 = details.address?.trim() || ''
   const line2 = [details.postalCode, details.city]
@@ -174,13 +179,20 @@ export const companyDetailsService = {
       if (input.questionnaireConfig === undefined) {
         delete patch.questionnaire_config
       }
-      const { data, error } = await supabase
+      const { data, error, count } = await supabase
         .from('studio_details')
-        .update(patch)
+        .update(patch, { count: 'exact' })
         .eq('id', existing.id)
         .select('*')
-        .single()
+        .maybeSingle()
       throwOnError(error)
+      if (!data) {
+        throw new Error(
+          count === 0
+            ? 'Nie udało się zapisać danych firmy (brak wiersza do aktualizacji).'
+            : 'Nie udało się zapisać danych firmy.',
+        )
+      }
       return mapRow(data as CompanyDetailsRow)
     }
 
@@ -200,6 +212,9 @@ export const companyDetailsService = {
       .select('*')
       .single()
     throwOnError(error)
+    if (!data) {
+      throw new Error('Nie udało się utworzyć danych firmy.')
+    }
     return mapRow(data as CompanyDetailsRow)
   },
 

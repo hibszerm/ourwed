@@ -32,12 +32,13 @@ function walkTsFiles(dir: string, out: string[] = []): string[] {
   return out
 }
 
-run('1–5. Contract + four wedding locations use AddressField / Google provider', () => {
+run('1–5. Contract + four wedding locations use shared GeoPlace / Google provider', () => {
   const qf = readFileSync(
     resolve(process.cwd(), 'src/features/forms/QuestionField.tsx'),
     'utf8',
   )
-  assert(qf.includes('<AddressField'), 'QuestionField → AddressField')
+  assert(qf.includes('QuestionnaireLocationField'), 'QuestionField → shared GeoPlace field')
+  assert(!qf.includes('AddressField'), 'no AddressField in QuestionField')
   const blocks = readFileSync(
     resolve(process.cwd(), 'src/types/questionnaireBlocks.ts'),
     'utf8',
@@ -47,12 +48,12 @@ run('1–5. Contract + four wedding locations use AddressField / Google provider
   assert(blocks.includes('ceremonyLocation'), 'ceremony')
   assert(blocks.includes('receptionLocation'), 'reception')
   assert(blocks.includes('partner1.address'), 'contract address')
-  const addr = readFileSync(
-    resolve(process.cwd(), 'src/features/forms/AddressField.tsx'),
+  const search = readFileSync(
+    resolve(process.cwd(), 'src/features/travel/LocationSearchField.tsx'),
     'utf8',
   )
-  assert(addr.includes('createDefaultAddressAutocompleteProvider'), 'google factory')
-  assert(!addr.includes('geoapify'), 'no geoapify in AddressField')
+  assert(search.includes('createDefaultAddressAutocompleteProvider'), 'google factory')
+  assert(!search.includes('geoapify'), 'no geoapify in LocationSearchField')
 })
 
 run('6–7. Wedding wizard + wedding details use Google search', () => {

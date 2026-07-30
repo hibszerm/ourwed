@@ -122,7 +122,7 @@
   width: 2px;
   height: 16px;
   border-radius: 999px;
-  background: #fff;
+  background: var(--navigation-active-indicator, #fff);
 }
 
 .navIcon {

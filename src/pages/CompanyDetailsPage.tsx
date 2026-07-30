@@ -1,14 +1,15 @@
-import { useQuery } from '@tanstack/react-query'
-import { useEffect, useEffectEvent, useRef, useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect, useRef, useState } from 'react'
 import { AppLayout } from '@/layouts/AppLayout'
+import { Button } from '@/components/ui/Button'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Input } from '@/components/ui/Input'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
 import { CompanySignatureSection } from '@/features/company/signature/CompanySignatureSection'
 import { buildCompanyHealth } from '@/features/company/companyHealth'
-import { companyDetailsService } from '@/lib/api/companyDetailsService'
-import type { CompanyDetails } from '@/types/company'
+import { companyDetailsService, companyDetailsQueryKey } from '@/lib/api/companyDetailsService'
+import type { CompanyDetails, UpsertCompanyDetailsInput } from '@/types/company'
 import catalogStyles from '@/features/studio/StudioCatalog.module.css'
 
 interface FormState {
@@ -91,16 +92,42 @@ function serializeForm(form: FormState): string {
   return JSON.stringify(form)
 }
 
+function formToUpsertInput(form: FormState): UpsertCompanyDetailsInput {
+  return {
+    companyName: form.companyName,
+    ownerName: form.ownerName,
+    nip: form.nip,
+    regon: form.regon,
+    vatId: form.vatId,
+    address: form.address,
+    postalCode: form.postalCode,
+    city: form.city,
+    country: form.country,
+    phone: form.phone,
+    email: form.email,
+    website: form.website,
+    instagram: form.instagram,
+    facebook: form.facebook,
+    bankAccount: form.bankAccount,
+    iban: form.iban,
+    swift: form.swift,
+    logoPath: form.logoPath || null,
+    signaturePath: form.signaturePath || null,
+    stampPath: form.stampPath || null,
+  }
+}
+
 export function CompanyDetailsPage() {
   const userId = useStudioAuthId()
+  const queryClient = useQueryClient()
+  const queryKey = companyDetailsQueryKey(userId)
   const { data, dataUpdatedAt, isLoading, isError, error } = useQuery({
-    queryKey: ['company-details', userId],
+    queryKey,
     queryFn: () => companyDetailsService.get(),
     enabled: Boolean(userId),
   })
 
   const [form, setForm] = useState<FormState>(emptyForm)
-  const [hydratedAt, setHydratedAt] = useState(0)
   const [dirty, setDirty] = useState(false)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -110,92 +137,132 @@ export function CompanyDetailsPage() {
   const savingRef = useRef(false)
   const lastSavedRef = useRef(serializeForm(emptyForm))
   const saveGenRef = useRef(0)
-
-  formRef.current = form
-
-  // Hydrate from server only when not dirty (never interrupt typing).
-  if (dataUpdatedAt !== hydratedAt && !dirtyRef.current && !savingRef.current) {
-    const next = toForm(data)
-    setHydratedAt(dataUpdatedAt)
-    setForm(next)
-    setDirty(false)
-    lastSavedRef.current = serializeForm(next)
-    setSaveStatus('idle')
-    setSaveError(null)
-  }
+  const mountedRef = useRef(true)
+  const hydratedAtRef = useRef(0)
+  const persistRef = useRef<(reason?: 'autosave' | 'flush' | 'retry') => Promise<void>>(
+    async () => {},
+  )
 
   useEffect(() => {
-    dirtyRef.current = false
-    savingRef.current = false
-    setForm(emptyForm)
-    setDirty(false)
-    setHydratedAt(0)
-    lastSavedRef.current = serializeForm(emptyForm)
-    setSaveStatus('idle')
-    setSaveError(null)
+    formRef.current = form
+  }, [form])
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
+
+  useEffect(() => {
+    // Studio account switched — clear local form baseline.
+    const timer = window.setTimeout(() => {
+      dirtyRef.current = false
+      savingRef.current = false
+      hydratedAtRef.current = 0
+      lastSavedRef.current = serializeForm(emptyForm)
+      setForm(emptyForm)
+      setDirty(false)
+      setSaveStatus('idle')
+      setSaveError(null)
+    }, 0)
+    return () => window.clearTimeout(timer)
   }, [userId])
 
-  const persist = useEffectEvent(async () => {
+  // Hydrate from query only when idle — never during dirty/saving edits.
+  useEffect(() => {
+    if (isLoading) return
+    if (dirtyRef.current || savingRef.current) return
+    if (dataUpdatedAt === hydratedAtRef.current) return
+
+    const timer = window.setTimeout(() => {
+      if (dirtyRef.current || savingRef.current) return
+      if (dataUpdatedAt === hydratedAtRef.current) return
+      const next = toForm(data)
+      const serialized = serializeForm(next)
+      hydratedAtRef.current = dataUpdatedAt
+      lastSavedRef.current = serialized
+      setForm(next)
+      setDirty(false)
+      dirtyRef.current = false
+      setSaveStatus((prev) => (prev === 'error' ? prev : 'idle'))
+      setSaveError(null)
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [data, dataUpdatedAt, isLoading])
+
+  async function persist(reason: 'autosave' | 'flush' | 'retry' = 'autosave') {
     const snapshot = formRef.current
     const serialized = serializeForm(snapshot)
     if (serialized === lastSavedRef.current) {
       dirtyRef.current = false
-      setDirty(false)
+      if (mountedRef.current) {
+        setDirty(false)
+        if (reason === 'retry') setSaveStatus('saved')
+      }
       return
     }
 
     const gen = ++saveGenRef.current
     savingRef.current = true
-    setSaveStatus('saving')
-    setSaveError(null)
+    if (mountedRef.current) {
+      setSaveStatus('saving')
+      setSaveError(null)
+    }
 
     try {
-      await companyDetailsService.upsert({
-        companyName: snapshot.companyName,
-        ownerName: snapshot.ownerName,
-        nip: snapshot.nip,
-        regon: snapshot.regon,
-        vatId: snapshot.vatId,
-        address: snapshot.address,
-        postalCode: snapshot.postalCode,
-        city: snapshot.city,
-        country: snapshot.country,
-        phone: snapshot.phone,
-        email: snapshot.email,
-        website: snapshot.website,
-        instagram: snapshot.instagram,
-        facebook: snapshot.facebook,
-        bankAccount: snapshot.bankAccount,
-        iban: snapshot.iban,
-        swift: snapshot.swift,
-        logoPath: snapshot.logoPath || null,
-        signaturePath: snapshot.signaturePath || null,
-        stampPath: snapshot.stampPath || null,
-      })
+      const saved = await companyDetailsService.upsert(formToUpsertInput(snapshot))
 
       if (gen !== saveGenRef.current) return
 
-      if (serializeForm(formRef.current) === serialized) {
+      // Canonical cache must match DB so SPA remounts do not restore stale values.
+      if (userId) {
+        queryClient.setQueryData(companyDetailsQueryKey(userId), saved)
+      }
+
+      const savedForm = toForm(saved)
+      const savedSerialized = serializeForm(savedForm)
+      const stillMatches =
+        serializeForm(formRef.current) === serialized ||
+        serializeForm(formRef.current) === savedSerialized
+
+      if (stillMatches) {
         dirtyRef.current = false
-        setDirty(false)
-        lastSavedRef.current = serialized
-        setSaveStatus('saved')
+        lastSavedRef.current = savedSerialized
+        if (mountedRef.current) {
+          const nextUpdatedAt =
+            queryClient.getQueryState(queryKey)?.dataUpdatedAt ?? Date.now()
+          hydratedAtRef.current = nextUpdatedAt
+          setForm(savedForm)
+          setDirty(false)
+          setSaveStatus('saved')
+          setSaveError(null)
+        }
       } else {
         dirtyRef.current = true
-        setDirty(true)
-        setSaveStatus('idle')
+        lastSavedRef.current = savedSerialized
+        if (mountedRef.current) {
+          setDirty(true)
+          setSaveStatus('idle')
+        }
       }
     } catch (err) {
       if (gen !== saveGenRef.current) return
-      setSaveStatus('error')
-      setSaveError(
-        err instanceof Error ? err.message : 'Nie udało się zapisać',
-      )
+      if (mountedRef.current) {
+        setSaveStatus('error')
+        setSaveError(
+          err instanceof Error ? err.message : 'Nie udało się zapisać',
+        )
+      }
     } finally {
       if (gen === saveGenRef.current) {
         savingRef.current = false
       }
     }
+  }
+
+  useEffect(() => {
+    persistRef.current = persist
   })
 
   useEffect(() => {
@@ -203,11 +270,29 @@ export function CompanyDetailsPage() {
     if (isLoading || isError) return
 
     const timer = window.setTimeout(() => {
-      void persist()
+      void persistRef.current('autosave')
     }, AUTOSAVE_MS)
 
     return () => window.clearTimeout(timer)
-  }, [form, dirty, isLoading, isError, persist])
+  }, [form, dirty, isLoading, isError])
+
+  // Flush pending edits on leave so debounce cancel cannot drop a save.
+  useEffect(() => {
+    return () => {
+      if (!dirtyRef.current || savingRef.current) return
+      const snapshot = formRef.current
+      if (serializeForm(snapshot) === lastSavedRef.current) return
+      void companyDetailsService
+        .upsert(formToUpsertInput(snapshot))
+        .then((saved) => {
+          if (!userId) return
+          queryClient.setQueryData(companyDetailsQueryKey(userId), saved)
+        })
+        .catch(() => {
+          /* unmount flush — error surfaces on next visit if needed */
+        })
+    }
+  }, [queryClient, userId])
 
   function setField<K extends keyof FormState>(key: K, value: FormState[K]) {
     dirtyRef.current = true
@@ -254,7 +339,7 @@ export function CompanyDetailsPage() {
       : saveStatus === 'saved'
         ? 'Zapisano'
         : saveStatus === 'error'
-          ? 'Błąd zapisu'
+          ? 'Nie udało się zapisać'
           : dirty
             ? 'Niezapisane zmiany'
             : null
@@ -319,9 +404,18 @@ export function CompanyDetailsPage() {
             </section>
 
             {saveError ? (
-              <p className={catalogStyles.saveError} role="alert">
-                {saveError}
-              </p>
+              <div className={catalogStyles.saveError} role="alert">
+                <p>{saveError}</p>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  data-testid="company-details-retry"
+                  onClick={() => void persistRef.current('retry')}
+                >
+                  Spróbuj ponownie
+                </Button>
+              </div>
             ) : null}
 
             <section className={catalogStyles.sectionCard}>
@@ -487,17 +581,26 @@ export function CompanyDetailsPage() {
                   signatureUpdatedAt={data?.signatureUpdatedAt}
                   onSignaturePathChange={(path) => {
                     // Independent save already persisted — sync form without dirty autosave race.
-                    const next = path ?? ''
+                    const nextPath = path ?? ''
                     setForm((prev) => {
-                      const updated = { ...prev, signaturePath: next }
-                      lastSavedRef.current = serializeForm({
-                        ...updated,
-                      })
+                      const updated = { ...prev, signaturePath: nextPath }
+                      lastSavedRef.current = serializeForm(updated)
                       return updated
                     })
                     dirtyRef.current = false
                     setDirty(false)
                     setSaveStatus('saved')
+                    if (userId) {
+                      const current = queryClient.getQueryData<CompanyDetails | null>(
+                        companyDetailsQueryKey(userId),
+                      )
+                      if (current) {
+                        queryClient.setQueryData(companyDetailsQueryKey(userId), {
+                          ...current,
+                          signaturePath: path,
+                        })
+                      }
+                    }
                   }}
                 />
               </div>

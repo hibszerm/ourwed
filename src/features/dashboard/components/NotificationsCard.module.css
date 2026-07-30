@@ -17,11 +17,11 @@
 }
 
 .unread {
-  background: var(--color-accent-subtle);
+  background: var(--surface-secondary, var(--color-bg-subtle));
 }
 
 .unread:hover {
-  background: var(--color-accent-subtle-hover);
+  background: var(--surface-hover, var(--color-surface-hover));
 }
 
 .icon {

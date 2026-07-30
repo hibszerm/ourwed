@@ -11,6 +11,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import {
   convertDocxViaGotenberg,
+  convertHtmlViaGotenberg,
   readGotenbergConfig,
   type GotenbergConfig,
 } from '../supabase/functions/docx-to-pdf/gotenbergConvert.ts'
@@ -18,7 +19,9 @@ import {
 const HOST = '127.0.0.1'
 const PORT = Number(process.env.LOCAL_PDF_LISTEN_PORT ?? '54322')
 const PATH = '/docx-to-pdf'
+const HTML_PATH = '/html-to-pdf'
 const MAX_DOCX_BYTES = 25 * 1024 * 1024
+const MAX_HTML_CHARS = 4 * 1024 * 1024
 const MAX_PDF_BYTES = 40 * 1024 * 1024
 const MAX_BODY_BYTES = Math.ceil(MAX_DOCX_BYTES * 1.4) + 64_000
 /** Truncate Gotenberg error bodies — never dump full documents. */
@@ -254,7 +257,7 @@ const server = createServer(async (req, res) => {
       return
     }
 
-    if (url.pathname !== PATH) {
+    if (url.pathname !== PATH && url.pathname !== HTML_PATH) {
       const message = 'Not found'
       diag.failureKind = 'bad_request'
       logFailure({
@@ -284,7 +287,9 @@ const server = createServer(async (req, res) => {
     const rawGotenberg = process.env.GOTENBERG_URL?.trim() || null
     diag.gotenbergUrlResolved = Boolean(rawGotenberg)
     diag.targetGotenbergUrl = config.ok
-      ? `${config.url}/forms/libreoffice/convert`
+      ? url.pathname === HTML_PATH
+        ? `${config.url}/forms/chromium/convert/html`
+        : `${config.url}/forms/libreoffice/convert`
       : rawGotenberg
 
     if (!config.ok) {
@@ -303,6 +308,75 @@ const server = createServer(async (req, res) => {
         detailsFromDiag(message, diag),
         'misconfigured',
       )
+      return
+    }
+
+    if (url.pathname === HTML_PATH) {
+      let raw: Buffer
+      try {
+        raw = await readBody(req, MAX_BODY_BYTES)
+      } catch (e) {
+        diag.failureKind = 'bad_request'
+        const message = 'Nie udało się odczytać body żądania.'
+        logFailure({ label: 'read_body_html', error: e, diag, httpStatus: 400 })
+        failJson(res, 400, message, detailsFromDiag(message, diag), 'bad_request')
+        return
+      }
+
+      let body: {
+        html?: string
+        filename?: string
+        footerHtml?: string
+        headerHtml?: string
+      }
+      try {
+        body = JSON.parse(raw.toString('utf8')) as typeof body
+      } catch (e) {
+        diag.failureKind = 'bad_request'
+        failJson(res, 400, 'Nieprawidłowy JSON.', detailsFromDiag('json', diag), 'bad_request')
+        return
+      }
+
+      if (!body.html || typeof body.html !== 'string') {
+        failJson(res, 400, 'html wymagane.', detailsFromDiag('missing_html', diag), 'bad_request')
+        return
+      }
+      if (body.html.length > MAX_HTML_CHARS) {
+        failJson(res, 413, 'HTML ma niedozwolony rozmiar.', detailsFromDiag('html_too_large', diag), 'payload_too_large')
+        return
+      }
+
+      try {
+        const result = await convertHtmlViaGotenberg({
+          html: body.html,
+          filename: body.filename,
+          footerHtml: body.footerHtml,
+          headerHtml: body.headerHtml,
+          config,
+          maxPdfBytes: MAX_PDF_BYTES,
+          fetchImpl: createDiagnosticFetch(diag),
+        })
+        console.info(
+          `[dev-pdf] ← 200 html-to-pdf pdfBytes=${result.pdfBytes.byteLength}`,
+        )
+        sendJson(res, 200, {
+          ok: true,
+          pdfBase64: base64FromBytes(result.pdfBytes),
+          provider: result.provider,
+        })
+      } catch (e) {
+        diag.failureKind = classifyError(e)
+        const status = diag.failureKind === 'timeout' ? 504 : 502
+        const errMessage = e instanceof Error ? e.message : String(e)
+        logFailure({ label: 'html_convert', error: e, diag, httpStatus: status })
+        failJson(
+          res,
+          status,
+          `Nie udało się przygotować briefu PDF. (${errMessage})`,
+          detailsFromDiag(errMessage, diag, e instanceof Error ? e.stack : undefined),
+          diag.failureKind,
+        )
+      }
       return
     }
 

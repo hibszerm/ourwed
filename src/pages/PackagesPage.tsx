@@ -8,6 +8,7 @@ import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
 import { packageItemService } from '@/lib/api/packageItemService'
 import { packageService } from '@/lib/api/packageService'
 import { ensureReferenceWeddingSetup } from '@/lib/dev/ensureReferenceWeddingSetup'
+import { ensureCompleteWeddingBriefReference } from '@/lib/dev/ensureCompleteWeddingBriefReference'
 import { formatCurrency } from '@/lib/utils/currency'
 import { formatDeliveryTerm } from '@/lib/utils/commercial'
 import {
@@ -111,6 +112,7 @@ export function PackagesPage() {
       action={
         <div className={styles.actions}>
           {import.meta.env.DEV ? (
+            <>
             <Button
               type="button"
               variant="ghost"
@@ -139,6 +141,34 @@ export function PackagesPage() {
             >
               {seedBusy ? 'Seed…' : 'Ślub referencyjny'}
             </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={seedBusy}
+              data-testid="seed-wedding-brief-demo"
+              onClick={() => {
+                setSeedBusy(true)
+                setSeedMessage(null)
+                void ensureCompleteWeddingBriefReference()
+                  .then((result) => {
+                    setSeedMessage(
+                      `Brief demo gotowy: ${result.wedding.couple.partner1} & ${result.wedding.couple.partner2} · ${result.package.name} · extras: ${result.extras.map((e) => e.name).join(', ') || 'brak'}`,
+                    )
+                    void invalidate()
+                  })
+                  .catch((err) =>
+                    setSeedMessage(
+                      err instanceof Error
+                        ? err.message
+                        : 'Nie udało się utworzyć ślubu brief demo.',
+                    ),
+                  )
+                  .finally(() => setSeedBusy(false))
+              }}
+            >
+              {seedBusy ? 'Seed…' : 'Brief demo'}
+            </Button>
+            </>
           ) : null}
           <Button type="button" variant="primary" onClick={() => setCreating(true)}>
             Nowy pakiet

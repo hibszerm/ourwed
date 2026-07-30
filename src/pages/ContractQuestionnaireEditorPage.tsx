@@ -1,12 +1,12 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
 import { AppLayout } from '@/layouts/AppLayout'
 import { Button } from '@/components/ui/Button'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
-import { ContractQuestionnaireBuilder } from '@/features/questionnaires/builder/ContractQuestionnaireBuilder'
+import { ContractQuestionnaireSectionEditor } from '@/features/questionnaires/shared-editor/ContractQuestionnaireSectionEditor'
 import { GenerateQuestionnaireModal } from '@/features/questionnaires/GenerateQuestionnaireModal'
 import { companyDetailsService } from '@/lib/api/companyDetailsService'
+import { useQuery } from '@tanstack/react-query'
 import styles from '@/features/questionnaires/Questionnaires.module.css'
 
 export function ContractQuestionnaireEditorPage() {
@@ -23,13 +23,9 @@ export function ContractQuestionnaireEditorPage() {
       <PageContainer>
         <div className={styles.pageHeaderRow}>
           <div>
-            <h1 className={styles.pageTitle}>Ankieta do umowy</h1>
-            <p className={styles.pageLead}>
-              Skonfiguruj pytania wysyłane parze przed przygotowaniem umowy.
-            </p>
-            <p className={styles.muted}>
-              Zmiany dotyczą nowo wysyłanych ankiet.
-            </p>
+            <h1 className={styles.pageTitle} style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden' }}>
+              Ankieta do umowy
+            </h1>
           </div>
           <Button
             type="button"
@@ -48,7 +44,7 @@ export function ContractQuestionnaireEditorPage() {
               : 'Nie udało się wczytać konfiguracji ankiety.'}
           </p>
         ) : (
-          <ContractQuestionnaireBuilder
+          <ContractQuestionnaireSectionEditor
             initialConfig={data?.questionnaireConfig}
             dataUpdatedAt={dataUpdatedAt}
           />

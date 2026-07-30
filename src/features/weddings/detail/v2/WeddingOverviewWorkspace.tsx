@@ -1,31 +1,52 @@
-import { WeddingMilestoneRail } from '@/features/weddings/detail/v2/WeddingMilestoneRail'
-import { WeddingRecentActivity } from '@/features/weddings/detail/v2/WeddingRecentActivity'
-import type { ActivityFeedItem } from '@/features/weddings/detail/v2/weddingDetailV2Types'
-import type { WorkflowStage } from '@/types/wedding'
+import { WeddingAssignmentStatus } from '@/features/weddings/detail/v2/WeddingAssignmentStatus'
+import { WeddingOverviewCurrentState } from '@/features/weddings/detail/v2/WeddingOverviewCurrentState'
+import type { WeddingPlace } from '@/types/travel'
+import type { Task, Wedding, WeddingNote } from '@/types/wedding'
 import styles from './WeddingDetailV2.module.css'
 
 interface WeddingOverviewWorkspaceProps {
-  stage: WorkflowStage
-  recent: ActivityFeedItem[]
-  onOpenActivityTab: () => void
+  wedding: Wedding
+  places: WeddingPlace[]
+  notes: WeddingNote[]
+  tasks: Task[]
+  onAddNote?: () => void
+  onEditNotes?: () => void
+  onEditTasks?: () => void
+  onSendQuestionnaire?: () => void
+  onOpenPreWeddingTab?: () => void
 }
 
 /**
- * Overview focuses on wedding identity context already in the header/band,
- * workflow progression, and recent activity — not contract-readiness detail.
+ * Overview answers current status / attention / context.
+ * Chronological history lives on the Historia tab.
  */
 export function WeddingOverviewWorkspace({
-  stage,
-  recent,
-  onOpenActivityTab,
+  wedding,
+  places,
+  notes,
+  tasks,
+  onAddNote,
+  onEditNotes,
+  onEditTasks,
+  onSendQuestionnaire,
+  onOpenPreWeddingTab,
 }: WeddingOverviewWorkspaceProps) {
   return (
     <div
       className={styles.overviewMain}
       data-testid="wedding-overview-workspace"
     >
-      <WeddingMilestoneRail stage={stage} />
-      <WeddingRecentActivity items={recent} onShowAll={onOpenActivityTab} />
+      <WeddingAssignmentStatus wedding={wedding} places={places} />
+      <WeddingOverviewCurrentState
+        wedding={wedding}
+        notes={notes}
+        tasks={tasks}
+        onAddNote={onAddNote}
+        onEditNotes={onEditNotes}
+        onEditTasks={onEditTasks}
+        onSendQuestionnaire={onSendQuestionnaire}
+        onOpenPreWeddingTab={onOpenPreWeddingTab}
+      />
     </div>
   )
 }

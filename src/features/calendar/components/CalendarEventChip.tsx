@@ -1,13 +1,22 @@
-import type { CalendarWeddingEvent } from '../utils/calendarEvents'
+import type { CalendarUiEvent } from '../utils/calendarEvents'
 import styles from './CalendarEventChip.module.css'
 
 interface CalendarEventChipProps {
-  event: CalendarWeddingEvent
+  event: CalendarUiEvent
   compact?: boolean
-  onClick: (event: CalendarWeddingEvent) => void
+  onClick: (event: CalendarUiEvent) => void
 }
 
-export function CalendarEventChip({ event, compact = false, onClick }: CalendarEventChipProps) {
+export function CalendarEventChip({
+  event,
+  compact = false,
+  onClick,
+}: CalendarEventChipProps) {
+  const subtitle =
+    event.entityType === 'wedding'
+      ? event.statusMessage
+      : event.sessionTypeLabel
+
   return (
     <button
       type="button"
@@ -22,10 +31,10 @@ export function CalendarEventChip({ event, compact = false, onClick }: CalendarE
         e.stopPropagation()
         onClick(event)
       }}
-      title={`${event.coupleLabel} — ${event.statusMessage}`}
+      title={`${event.title} — ${subtitle}`}
     >
-      <span className={styles.name}>{event.coupleLabel}</span>
-      {!compact && <span className={styles.status}>{event.statusMessage}</span>}
+      <span className={styles.name}>{event.title}</span>
+      {!compact && <span className={styles.status}>{subtitle}</span>}
     </button>
   )
 }

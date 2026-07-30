@@ -1,4 +1,6 @@
 import type { FinalPaymentTerms } from '@/lib/utils/finalPaymentTerms'
+import type { WeddingCorrespondenceEntry } from '@/features/weddings/correspondence/weddingCorrespondence'
+
 
 export type WorkflowStage =
   | 'reservation'
@@ -221,6 +223,11 @@ export interface Wedding {
    * Must never be used by contracts, questionnaires, merge fields, or exports.
    */
   displayName?: string | null
+  /**
+   * Studio ↔ couple correspondence channels (email / Instagram / Facebook).
+   * Empty array when unset. Not a marketing attribution field.
+   */
+  correspondence?: WeddingCorrespondenceEntry[]
   date: string
   /** Ceremony start time — HH:MM (from weddings.ceremony_time). */
   ceremonyTime?: string

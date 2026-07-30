@@ -1,6 +1,12 @@
 import { studioTravelSettingsService } from '@/lib/api/studioTravelSettingsService'
 import { weddingPlaceService } from '@/lib/api/weddingPlaceService'
 import { weddingPlaceRouteLabel } from '@/features/travel/weddingLocationModel'
+import {
+  buildAdjacentRoutePairs,
+  buildOrderedWeddingDayRouteStops,
+  computeRouteInputFingerprint,
+  type WeddingDayRoutePair,
+} from '@/features/travel/weddingDayRouteStops'
 import { supabase } from '@/lib/supabase'
 import { nowIso, throwOnError, toNumber } from '@/lib/supabase/helpers'
 import { TRAVEL_SEGMENTS_ON_CONFLICT } from '@/lib/travel/travelSegmentsIdentity'
@@ -16,10 +22,14 @@ import type {
   TravelSegment,
   TravelSegmentStatus,
   WeddingPlace,
-  WeddingPlaceRole,
 } from '@/types/travel'
 
 export { TRAVEL_SEGMENTS_ON_CONFLICT } from '@/lib/travel/travelSegmentsIdentity'
+export {
+  CANONICAL_ROUTE_ROLE_ORDER,
+  buildOrderedWeddingDayRouteStops,
+  computeRouteInputFingerprint,
+} from '@/features/travel/weddingDayRouteStops'
 
 interface TravelSegmentRow {
   id: string
@@ -45,16 +55,9 @@ interface TravelSegmentRow {
 
 type SegmentWrite = Omit<TravelSegmentRow, 'id' | 'created_at' | 'updated_at'>
 
-interface EndpointRef {
-  kind: TravelEndpointKind
-  place: WeddingPlace | null
-  label: string
-  lat: number
-  lng: number
-}
-
 interface PlannedLeg {
   sequence: number
+  pairKey: string
   originKind: TravelEndpointKind
   originPlace: WeddingPlace | null
   destinationKind: TravelEndpointKind
@@ -68,14 +71,18 @@ interface PlannedLeg {
   labelTo: string
 }
 
-/** Preferred stop order for the wedding day route. */
-const STOP_ORDER: Array<'studio' | WeddingPlaceRole> = [
-  'studio',
-  'bride_preparation',
-  'groom_preparation',
-  'ceremony',
-  'reception',
-]
+/** In-flight revision per wedding — newer rebuilds win over stale async responses. */
+const routeRevisionByWedding = new Map<string, number>()
+
+function nextRouteRevision(weddingId: string): number {
+  const next = (routeRevisionByWedding.get(weddingId) ?? 0) + 1
+  routeRevisionByWedding.set(weddingId, next)
+  return next
+}
+
+function isCurrentRevision(weddingId: string, revision: number): boolean {
+  return routeRevisionByWedding.get(weddingId) === revision
+}
 
 const ROUTE_PROVIDER = 'google'
 
@@ -109,93 +116,37 @@ function mapSegment(row: TravelSegmentRow): TravelSegment {
   }
 }
 
-function endpointFingerprint(
-  kind: TravelEndpointKind,
-  place: WeddingPlace | null,
-  studio: StudioTravelSettings | null,
-): string {
-  if (kind === 'studio') {
-    return [
-      'studio',
-      studio?.placeId ?? '',
-      studio?.latitude ?? '',
-      studio?.longitude ?? '',
-    ].join(':')
-  }
-  return [
-    'place',
-    place?.id ?? '',
-    place?.placeId ?? '',
-    place?.latitude ?? '',
-    place?.longitude ?? '',
-  ].join(':')
-}
-
-function studioEndpoint(
-  studio: StudioTravelSettings | null,
-): EndpointRef | null {
-  if (!studioTravelSettingsService.hasCoordinates(studio)) return null
+function pairToPlannedLeg(pair: WeddingDayRoutePair): PlannedLeg {
   return {
-    kind: 'studio',
-    place: null,
-    label: studio!.studioName || studio!.formattedAddress || 'Baza firmy',
-    lat: studio!.latitude!,
-    lng: studio!.longitude!,
-  }
-}
-
-function placeEndpoint(place: WeddingPlace | undefined): EndpointRef | null {
-  if (!place || !weddingPlaceService.hasCoordinates(place)) return null
-  return {
-    kind: 'wedding_place',
-    place,
-    label: weddingPlaceRouteLabel(place, place.label || place.formattedAddress),
-    lat: place.latitude!,
-    lng: place.longitude!,
+    sequence: pair.sequence,
+    pairKey: pair.pairKey,
+    originKind: pair.from.kind,
+    originPlace: pair.from.place,
+    destinationKind: pair.to.kind,
+    destinationPlace: pair.to.place,
+    originLat: pair.from.latitude,
+    originLng: pair.from.longitude,
+    destLat: pair.to.latitude,
+    destLng: pair.to.longitude,
+    endpointsHash: pair.endpointsHash,
+    labelFrom: pair.from.title,
+    labelTo: pair.to.title,
   }
 }
 
 /**
- * Build consecutive legs across available stops (skip missing locations).
- * Example: Studio → Ceremony → Reception when Preparation is absent.
+ * Full sequential rebuild: N eligible stops → exactly N-1 adjacent directional legs.
  */
 function buildPlannedLegs(
   studio: StudioTravelSettings | null,
   places: WeddingPlace[],
-): PlannedLeg[] {
-  const byRole = new Map(places.map((p) => [p.role, p]))
-  const resolve = (key: 'studio' | WeddingPlaceRole): EndpointRef | null =>
-    key === 'studio' ? studioEndpoint(studio) : placeEndpoint(byRole.get(key))
-
-  const chain: EndpointRef[] = []
-  for (const key of STOP_ORDER) {
-    const endpoint = resolve(key)
-    if (endpoint) chain.push(endpoint)
+): { legs: PlannedLeg[]; fingerprint: string } {
+  const stops = buildOrderedWeddingDayRouteStops({ studio, places })
+  const pairs = buildAdjacentRoutePairs(stops, studio)
+  return {
+    legs: pairs.map(pairToPlannedLeg),
+    fingerprint: computeRouteInputFingerprint(stops),
   }
-
-  const legs: PlannedLeg[] = []
-  for (let i = 0; i < chain.length - 1; i++) {
-    const from = chain[i]
-    const to = chain[i + 1]
-    legs.push({
-      sequence: i,
-      originKind: from.kind,
-      originPlace: from.place,
-      destinationKind: to.kind,
-      destinationPlace: to.place,
-      originLat: from.lat,
-      originLng: from.lng,
-      destLat: to.lat,
-      destLng: to.lng,
-      endpointsHash: [
-        endpointFingerprint(from.kind, from.place, studio),
-        endpointFingerprint(to.kind, to.place, studio),
-      ].join('>'),
-      labelFrom: from.label,
-      labelTo: to.label,
-    })
-  }
-  return legs
 }
 
 function formatDistance(meters: number): string {
@@ -218,7 +169,6 @@ function cachedLegReusable(
 ): boolean {
   return (
     cached != null &&
-    cached.sequence === leg.sequence &&
     cached.endpointsHash === leg.endpointsHash &&
     cached.status === 'ok' &&
     cached.distanceMeters != null &&
@@ -419,11 +369,11 @@ async function syncSegmentsOrLocal(
 
 function allLegsCached(
   planned: PlannedLeg[],
-  cachedBySequence: Map<number, TravelSegment>,
+  cachedByHash: Map<string, TravelSegment>,
 ): boolean {
   if (planned.length === 0) return true
   return planned.every((leg) =>
-    cachedLegReusable(leg, cachedBySequence.get(leg.sequence)),
+    cachedLegReusable(leg, cachedByHash.get(leg.endpointsHash)),
   )
 }
 
@@ -434,7 +384,7 @@ function allLegsCached(
 export const travelService = {
   /**
    * Load travel plan for a wedding.
-   * Unchanged legs are reused from travel_segments; only dirty legs hit the provider.
+   * Full adjacent rebuild from ordered stops; reusable ok legs matched by endpointsHash.
    */
   async getPlan(
     weddingId: string,
@@ -442,6 +392,7 @@ export const travelService = {
   ): Promise<TravelPlan> {
     const travelMode = options?.travelMode ?? 'DRIVE'
     const forceRefresh = Boolean(options?.forceRefresh)
+    const revision = nextRouteRevision(weddingId)
 
     const [studio, places, cached] = await Promise.all([
       studioTravelSettingsService.get(),
@@ -449,18 +400,48 @@ export const travelService = {
       listCachedSegments(weddingId),
     ])
 
-    const planned = buildPlannedLegs(studio, places)
+    if (!isCurrentRevision(weddingId, revision)) {
+      // A newer rebuild started — return empty placeholder; caller should refetch.
+      return {
+        weddingId,
+        studio,
+        places,
+        segments: [],
+        hasError: false,
+        errorMessage: null,
+        persistenceError: null,
+        routeFingerprint: null,
+        routeStale: true,
+      }
+    }
+
+    const { legs: planned, fingerprint } = buildPlannedLegs(studio, places)
     const cachedBySequence = new Map(cached.map((s) => [s.sequence, s]))
+    const cachedByHash = new Map(
+      cached.filter((s) => s.endpointsHash).map((s) => [s.endpointsHash, s]),
+    )
 
     if (planned.length === 0) {
       let persistenceError: string | null = null
       if (cached.length > 0) {
-        // Clear obsolete cached legs for this wedding only.
         ;({ persistenceError } = await syncSegmentsOrLocal(
           weddingId,
           [],
           cachedBySequence,
         ))
+      }
+      if (!isCurrentRevision(weddingId, revision)) {
+        return {
+          weddingId,
+          studio,
+          places,
+          segments: [],
+          hasError: false,
+          errorMessage: null,
+          persistenceError: null,
+          routeFingerprint: fingerprint,
+          routeStale: true,
+        }
       }
       return {
         weddingId,
@@ -470,21 +451,41 @@ export const travelService = {
         hasError: false,
         errorMessage: null,
         persistenceError,
+        routeFingerprint: fingerprint,
+        routeStale: false,
       }
     }
 
-    if (!forceRefresh && allLegsCached(planned, cachedBySequence)) {
+    if (!forceRefresh && allLegsCached(planned, cachedByHash)) {
       const segments = planned
-        .map((leg) => cachedBySequence.get(leg.sequence)!)
+        .map((leg) => cachedByHash.get(leg.endpointsHash)!)
         .filter(Boolean)
+        .map((seg, index) => ({ ...seg, sequence: index }))
       let persistenceError: string | null = null
-      // Drop any obsolete cached sequences still in DB (fewer stops than before).
-      if (cached.length !== segments.length) {
+      if (
+        cached.length !== segments.length ||
+        segments.some((s, i) => s.sequence !== planned[i]?.sequence)
+      ) {
         ;({ persistenceError } = await syncSegmentsOrLocal(
           weddingId,
-          segments.map(segmentToWrite),
+          segments.map((s, i) =>
+            segmentToWrite({ ...s, sequence: planned[i]!.sequence }),
+          ),
           cachedBySequence,
         ))
+      }
+      if (!isCurrentRevision(weddingId, revision)) {
+        return {
+          weddingId,
+          studio,
+          places,
+          segments,
+          hasError: false,
+          errorMessage: null,
+          persistenceError: null,
+          routeFingerprint: fingerprint,
+          routeStale: true,
+        }
       }
       return {
         weddingId,
@@ -494,6 +495,8 @@ export const travelService = {
         hasError: false,
         errorMessage: null,
         persistenceError,
+        routeFingerprint: fingerprint,
+        routeStale: false,
       }
     }
 
@@ -501,9 +504,28 @@ export const travelService = {
     let firstError: string | null = null
 
     for (const leg of planned) {
-      const previous = cachedBySequence.get(leg.sequence)
+      if (!isCurrentRevision(weddingId, revision)) {
+        return {
+          weddingId,
+          studio,
+          places,
+          segments: [],
+          hasError: false,
+          errorMessage: null,
+          persistenceError: null,
+          routeFingerprint: fingerprint,
+          routeStale: true,
+        }
+      }
+
+      const previous = cachedByHash.get(leg.endpointsHash)
       if (!forceRefresh && cachedLegReusable(leg, previous)) {
-        rows.push(segmentToWrite(previous!))
+        rows.push(
+          segmentToWrite({
+            ...previous!,
+            sequence: leg.sequence,
+          }),
+        )
         continue
       }
 
@@ -528,15 +550,39 @@ export const travelService = {
             : err instanceof Error
               ? err.message
               : 'Nie udało się wyliczyć trasy.'
+        console.warn('[travel] segment calculation failed', {
+          weddingId,
+          routeFingerprint: fingerprint,
+          pairKey: leg.pairKey,
+          from: leg.labelFrom,
+          to: leg.labelTo,
+          category:
+            err instanceof TravelProviderError ? err.name : 'unknown',
+          message,
+        })
         if (!firstError) firstError = message
         rows.push(
           errorWrite(
             weddingId,
             leg,
             travelMode,
-            'Nie udało się wyliczyć tej trasy.',
+            'Nie udało się obliczyć tego odcinka',
           ),
         )
+      }
+    }
+
+    if (!isCurrentRevision(weddingId, revision)) {
+      return {
+        weddingId,
+        studio,
+        places,
+        segments: [],
+        hasError: false,
+        errorMessage: null,
+        persistenceError: null,
+        routeFingerprint: fingerprint,
+        routeStale: true,
       }
     }
 
@@ -554,6 +600,8 @@ export const travelService = {
       hasError: segments.some((s) => s.status === 'error'),
       errorMessage: firstError,
       persistenceError,
+      routeFingerprint: fingerprint,
+      routeStale: false,
     }
   },
 
@@ -571,6 +619,7 @@ export const travelService = {
   },
 
   async invalidate(weddingId: string): Promise<void> {
+    nextRouteRevision(weddingId)
     const { error } = await supabase
       .from('travel_segments')
       .delete()

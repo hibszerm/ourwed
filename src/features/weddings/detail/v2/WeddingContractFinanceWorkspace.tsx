@@ -45,18 +45,106 @@ export function WeddingContractFinanceWorkspace({
       className={styles.contractWorkspace}
       data-testid="wedding-contract-finance"
     >
-      <div aria-label={contractLifecycleDescription}>
+      <section
+        className={styles.surfaceSection}
+        aria-label={contractLifecycleDescription}
+        data-testid="contract-finance-contracts"
+      >
         <WeddingContractsModule
           wedding={wedding}
           onGenerate={() => onAction('generate_contract')}
         />
         <WeddingSourceContractsPanel weddingId={wedding.id} />
-      </div>
+      </section>
+
+      <section
+        className={styles.surfaceSection}
+        aria-labelledby="finance-title"
+        data-testid="contract-finance-finance"
+      >
+        <div className={styles.surfaceHeader}>
+          <h2 id="finance-title" className={styles.sectionHeading}>
+            Finanse
+          </h2>
+          {onEditFinances ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={onEditFinances}
+            >
+              Edytuj finanse
+            </Button>
+          ) : null}
+        </div>
+        <div className={styles.paymentSummary}>
+          <div>
+            <p className={styles.paymentBig}>{pkg.contractValueLabel}</p>
+            <p className={styles.bandLabel}>Wartość umowy</p>
+          </div>
+          <div>
+            <p className={styles.paymentBig}>{formatCurrency(pkg.totalPaid)}</p>
+            <p className={styles.bandLabel}>Wpłacono</p>
+          </div>
+          <div>
+            <p className={styles.paymentBig}>
+              {formatCurrency(pkg.remainingToPay)}
+            </p>
+            <p className={styles.bandLabel}>Pozostało</p>
+          </div>
+        </div>
+        <p className={styles.contextMuted}>
+          Termin płatności końcowej: {pkg.finalPaymentDueLabel}
+        </p>
+
+        <div className={styles.financePaymentsBlock}>
+          <h3 id="pay-title" className={styles.sectionHeading}>
+            Płatności
+          </h3>
+          <div className={styles.contextActions}>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              data-testid="finance-add-payment"
+              onClick={() => onAction('add_payment')}
+            >
+              Dodaj wpłatę
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              data-testid="finance-add-deposit"
+              onClick={() => onAction('add_deposit')}
+            >
+              Dodaj zadatek
+            </Button>
+          </div>
+          {payments.length === 0 ? (
+            <p className={styles.contextMuted}>Brak wpłat.</p>
+          ) : (
+            <ul className={styles.paymentList}>
+              {payments.map((p) => (
+                <li key={p.id}>
+                  <span>
+                    {p.label} · {formatCurrency(p.amount)}
+                  </span>
+                  <span className={styles.contextMuted}>
+                    {p.paid ? 'Opłacone' : 'Oczekuje'}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </section>
 
       <section
         className={styles.surfaceSection}
         aria-labelledby="package-title"
         id="package-details-anchor"
+        data-testid="contract-finance-package"
       >
         <div className={styles.surfaceHeader}>
           <h2 id="package-title" className={styles.sectionHeading}>
@@ -140,83 +228,6 @@ export function WeddingContractFinanceWorkspace({
             )}
           </ul>
         ) : null}
-      </section>
-
-      <section className={styles.surfaceSection} aria-labelledby="finance-title">
-        <div className={styles.surfaceHeader}>
-          <h2 id="finance-title" className={styles.sectionHeading}>
-            Finanse
-          </h2>
-          {onEditFinances ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={onEditFinances}
-            >
-              Edytuj finanse
-            </Button>
-          ) : null}
-        </div>
-        <div className={styles.paymentSummary}>
-          <div>
-            <p className={styles.paymentBig}>{pkg.contractValueLabel}</p>
-            <p className={styles.bandLabel}>Wartość umowy</p>
-          </div>
-          <div>
-            <p className={styles.paymentBig}>{formatCurrency(pkg.totalPaid)}</p>
-            <p className={styles.bandLabel}>Wpłacono</p>
-          </div>
-          <div>
-            <p className={styles.paymentBig}>
-              {formatCurrency(pkg.remainingToPay)}
-            </p>
-            <p className={styles.bandLabel}>Pozostało</p>
-          </div>
-        </div>
-        <p className={styles.contextMuted}>
-          Termin płatności końcowej: {pkg.finalPaymentDueLabel}
-        </p>
-      </section>
-
-      <section className={styles.surfaceSection} aria-labelledby="pay-title">
-        <h2 id="pay-title" className={styles.sectionHeading}>
-          Płatności
-        </h2>
-        <div className={styles.contextActions}>
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            onClick={() => onAction('add_payment')}
-          >
-            Dodaj wpłatę
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => onAction('add_deposit')}
-          >
-            Dodaj zadatek
-          </Button>
-        </div>
-        {payments.length === 0 ? (
-          <p className={styles.contextMuted}>Brak wpłat.</p>
-        ) : (
-          <ul className={styles.paymentList}>
-            {payments.map((p) => (
-              <li key={p.id}>
-                <span>
-                  {p.label} · {formatCurrency(p.amount)}
-                </span>
-                <span className={styles.contextMuted}>
-                  {p.paid ? 'Opłacone' : 'Oczekuje'}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
       </section>
     </div>
   )

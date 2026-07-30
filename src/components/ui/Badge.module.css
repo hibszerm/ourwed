@@ -11,31 +11,31 @@
 }
 
 .neutral {
-  background: var(--color-bg-subtle);
-  color: var(--color-text-secondary);
-  border-color: var(--color-border);
+  background: var(--badge-neutral-background, var(--color-bg-subtle));
+  color: var(--badge-neutral-text, var(--color-text-secondary));
+  border-color: var(--badge-neutral-border, var(--color-border));
 }
 
 .info {
-  background: var(--color-surface);
-  color: var(--color-text-primary);
-  border-color: var(--color-border-strong);
+  background: var(--status-info-soft, var(--color-surface));
+  color: var(--status-info-text, var(--color-text-primary));
+  border-color: var(--status-info-border, var(--color-border-strong));
 }
 
 .success {
-  background: var(--color-success-bg);
-  color: var(--color-success-text);
-  border-color: color-mix(in srgb, var(--color-success-text) 18%, transparent);
+  background: var(--status-success-soft, var(--color-success-bg));
+  color: var(--status-success-text, var(--color-success-text));
+  border-color: var(--status-success-border, transparent);
 }
 
 .warning {
-  background: var(--color-warning-bg);
-  color: var(--color-warning-text);
-  border-color: color-mix(in srgb, var(--color-warning-text) 18%, transparent);
+  background: var(--status-warning-soft, var(--color-warning-bg));
+  color: var(--status-warning-text, var(--color-warning-text));
+  border-color: var(--status-warning-border, transparent);
 }
 
 .danger {
-  background: var(--color-error-bg);
-  color: var(--color-error);
-  border-color: color-mix(in srgb, var(--color-error) 18%, transparent);
+  background: var(--status-error-soft, var(--color-error-bg));
+  color: var(--status-error-text, var(--color-error));
+  border-color: var(--status-error-border, transparent);
 }

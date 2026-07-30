@@ -58,6 +58,12 @@ export function PackageFields({
   const snapshotItems = (wedding.packageItems ?? []).filter(
     (i) => i.enabled !== false,
   )
+  const linkedPackageAvailable =
+    !wedding.packageId ||
+    packageChoices.some((p) => p.id === wedding.packageId)
+  const missingCatalogPackage =
+    Boolean(wedding.packageId) && !catalogPending && !linkedPackageAvailable
+  const selectValue = missingCatalogPackage ? '' : (wedding.packageId ?? '')
 
   function commitPackageChange(
     pkg: StudioPackage,
@@ -150,12 +156,17 @@ export function PackageFields({
 
       <Select
         label="Pakiet katalogowy"
-        value={wedding.packageId ?? ''}
+        value={selectValue}
         onChange={(e) => requestPackageChange(e.target.value)}
         disabled={catalogPending}
+        data-testid="package-catalog-select"
       >
         <option value="">
-          {catalogPending ? 'Ładowanie…' : 'Wybierz pakiet…'}
+          {catalogPending
+            ? 'Ładowanie…'
+            : missingCatalogPackage
+              ? 'Wybierz dostępny pakiet…'
+              : 'Wybierz pakiet…'}
         </option>
         {packageChoices.map((p) => (
           <option key={p.id} value={p.id}>
@@ -163,6 +174,14 @@ export function PackageFields({
           </option>
         ))}
       </Select>
+
+      {missingCatalogPackage ? (
+        <p className={styles.muted} data-testid="package-catalog-missing">
+          Powiązany pakiet katalogowy jest niedostępny (usunięty lub nieaktywny).
+          Snapshot „{wedding.packageName || 'bez nazwy'}” pozostaje bez zmian —
+          wybierz pakiet, aby ponownie powiązać katalog.
+        </p>
+      ) : null}
 
       <p className={styles.muted}>
         Snapshot: {wedding.packageName || 'brak'} ·{' '}

@@ -81,10 +81,6 @@ function stubWedding(overrides: Partial<Wedding> = {}): Wedding {
 }
 
 const v2Root = resolve(process.cwd(), 'src/features/weddings/detail/v2')
-const v1Path = resolve(
-  process.cwd(),
-  'src/features/weddings/detail/v1/WeddingDetailV1.tsx',
-)
 const pagePath = resolve(process.cwd(), 'src/pages/WeddingDetailPage.tsx')
 
 function overviewSources(): string {
@@ -147,11 +143,11 @@ run('13. Workflow stage Rezerwacja remains visible', () => {
   assertEq(getOverviewBand(stubWedding()).stageLabel, 'Rezerwacja', 'band')
 })
 
-run('14. V1 has no persistent readiness panel', () => {
-  const v1 = readFileSync(v1Path, 'utf8')
-  assert(!v1.includes('WeddingContractReadinessPanel'), 'no panel')
-  assert(!v1.includes('Gotowość'), 'no gotowosc')
-  assert(v1.includes('WeddingDetailHero'), 'v1 hero kept')
+run('14. Canonical details page has no V1 readiness / V1 shell', () => {
+  const page = readFileSync(pagePath, 'utf8')
+  assert(!page.includes('WeddingDetailV1'), 'no v1')
+  assert(!page.includes('Gotowość'), 'no gotowosc')
+  assert(page.includes('WeddingDetailV2'), 'v2 only')
 })
 
 run('15. Workspace shell remains', () => {

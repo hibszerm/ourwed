@@ -96,15 +96,19 @@ function segment(
   meters: number,
   seconds: number,
   hash: string,
+  originPlaceId: string | null = null,
+  destPlaceId: string | null = null,
 ): TravelSegment {
   return {
     id: `seg-${sequence}`,
     weddingId: 'w1',
     sequence,
     originKind,
-    originWeddingPlaceId: originKind === 'wedding_place' ? 'x' : null,
+    originWeddingPlaceId:
+      originKind === 'wedding_place' ? originPlaceId : null,
     destinationKind,
-    destinationWeddingPlaceId: destinationKind === 'wedding_place' ? 'y' : null,
+    destinationWeddingPlaceId:
+      destinationKind === 'wedding_place' ? destPlaceId : null,
     endpointsHash: hash,
     distanceMeters: meters,
     distanceText: `${Math.round(meters / 100) / 10} km`.replace('.', ','),
@@ -139,13 +143,13 @@ run('1. Base is first route point; wedding locations follow order; no return', (
   const flow = buildTravelFlow(plan)
   assertEq(flow.stops[0].kind, 'studio', 'base first')
   assertEq(flow.stops[0].title, 'Atelier', 'display name')
-  assertEq(flow.stops[1].role, 'bride_preparation', 'bride')
-  assertEq(flow.stops[2].role, 'groom_preparation', 'groom')
+  assertEq(flow.stops[1].role, 'groom_preparation', 'groom')
+  assertEq(flow.stops[2].role, 'bride_preparation', 'bride')
   assertEq(flow.stops[3].role, 'ceremony', 'ceremony')
   assertEq(flow.stops[4].role, 'reception', 'reception')
   assertEq(flow.routeLegs.length, 4, 'four legs')
   assertEq(flow.routeLegs[0].origin.kind, 'studio', 'initial base leg')
-  assertEq(flow.routeLegs[0].destination.role, 'bride_preparation', 'to bride')
+  assertEq(flow.routeLegs[0].destination.role, 'groom_preparation', 'to groom')
   assert(
     !flow.routeLegs.some((l) => l.destination.kind === 'studio'),
     'no return-to-base',
@@ -201,10 +205,10 @@ run('4. Totals include base leg exactly once; one-location equals initial leg', 
     studio: studio(),
     places: weddingPlaces,
     segments: [
-      segment(0, 'studio', 'wedding_place', 9600, 600, 'base>b'),
-      segment(1, 'wedding_place', 'wedding_place', 113000, 4920, 'b>g'),
-      segment(2, 'wedding_place', 'wedding_place', 5000, 600, 'g>c'),
-      segment(3, 'wedding_place', 'wedding_place', 8000, 900, 'c>r'),
+      segment(0, 'studio', 'wedding_place', 9600, 600, 'base>g', null, 'g'),
+      segment(1, 'wedding_place', 'wedding_place', 113000, 4920, 'g>b', 'g', 'b'),
+      segment(2, 'wedding_place', 'wedding_place', 5000, 600, 'b>c', 'b', 'c'),
+      segment(3, 'wedding_place', 'wedding_place', 8000, 900, 'c>r', 'c', 'r'),
     ],
     hasError: false,
     errorMessage: null,
@@ -221,7 +225,7 @@ run('4. Totals include base leg exactly once; one-location equals initial leg', 
     weddingId: 'w1',
     studio: studio(),
     places: [place('ceremony', 'Ceremonia', 'c')],
-    segments: [segment(0, 'studio', 'wedding_place', 9600, 600, 'base>c')],
+    segments: [segment(0, 'studio', 'wedding_place', 9600, 600, 'base>c', null, 'c')],
     hasError: false,
     errorMessage: null,
   }
@@ -237,7 +241,7 @@ run('5. Missing base → event-only totals; no fake zero base leg', () => {
     studio: null,
     places: weddingPlaces.slice(0, 2),
     segments: [
-      segment(0, 'wedding_place', 'wedding_place', 10000, 900, 'b>g'),
+      segment(0, 'wedding_place', 'wedding_place', 10000, 900, 'g>b', 'g', 'b'),
     ],
     hasError: false,
     errorMessage: null,
@@ -247,6 +251,7 @@ run('5. Missing base → event-only totals; no fake zero base leg', () => {
   assertEq(flow.baseStatus, 'missing', 'missing status')
   assertEq(flow.routeLegs.length, 1, 'only event leg')
   assertEq(flow.routeLegs[0].origin.kind, 'wedding_place', 'starts at place')
+  assertEq(flow.routeLegs[0].origin.role, 'groom_preparation', 'groom first')
   const summary = summarizeTravelRoute(flow)
   assert(!summary.includesBaseLeg, 'no base leg')
   assert(!summary.isCompleteDayRoute, 'incomplete day')
@@ -273,16 +278,18 @@ run('7. Cache key includes studio coordinates (source)', () => {
     resolve(process.cwd(), 'src/lib/api/travelService.ts'),
     'utf8',
   )
-  assert(travel.includes("studio?.latitude ?? ''"), 'lat in fingerprint')
-  assert(travel.includes("studio?.longitude ?? ''"), 'lng in fingerprint')
-  assert(travel.includes("studio?.placeId ?? ''"), 'placeId in fingerprint')
-  assert(travel.includes("'studio'"), 'studio in STOP_ORDER')
-  const stopOrder = travel.slice(
-    travel.indexOf('const STOP_ORDER'),
-    travel.indexOf(']', travel.indexOf('const STOP_ORDER')) + 1,
+  assert(travel.includes('buildOrderedWeddingDayRouteStops'), 'ordered stop builder')
+  assert(travel.includes('computeRouteInputFingerprint'), 'route fingerprint')
+  const routeStops = readFileSync(
+    resolve(process.cwd(), 'src/features/travel/weddingDayRouteStops.ts'),
+    'utf8',
   )
-  assert(stopOrder.indexOf("'studio'") < stopOrder.indexOf("'bride_preparation'"), 'studio before bride')
-  assert(!stopOrder.includes('return'), 'no return trip in order')
+  assert(routeStops.includes("'studio'"), 'studio in canonical order')
+  assert(
+    routeStops.indexOf("'studio'") < routeStops.indexOf("'bride_preparation'"),
+    'studio before bride',
+  )
+  assert(!routeStops.includes("'return'"), 'no return trip in order')
 })
 
 run('8. UI: Start base, settings link, labeled legs, missing/invalid notices', () => {
@@ -307,9 +314,20 @@ run('8. UI: Start base, settings link, labeled legs, missing/invalid notices', (
     'invalid copy',
   )
   assert(day.includes('itineraryLegRoute'), 'leg corridor label')
-  assert(day.includes('Trasa między lokalizacjami') || day.includes('distanceLabel'), 'totals label')
+  assert(
+    day.includes('TravelRouteTotals') || day.includes('distanceLabel'),
+    'totals label',
+  )
   assert(!day.includes('O której muszę wyjechać'), 'no departure time')
   assert(!day.includes('powrót'), 'no return trip UI')
+
+  const totals = readFileSync(
+    resolve(process.cwd(), 'src/features/travel/TravelRouteTotals.tsx'),
+    'utf8',
+  )
+  assert(totals.includes('Łączny dystans'), 'shared distance label')
+  assert(totals.includes('Szacowany czas jazdy'), 'shared duration label')
+  assert(totals.includes('totalsComplete'), 'complete gate')
 
   const map = readFileSync(
     resolve(process.cwd(), 'src/features/travel/TravelMap.tsx'),

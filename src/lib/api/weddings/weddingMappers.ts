@@ -5,6 +5,10 @@ import {
 } from '@/lib/supabase/helpers'
 import { createDefaultQuestionnaires } from '@/lib/utils/questionnaires'
 import { parseFinalPaymentTerms } from '@/lib/utils/finalPaymentTerms'
+import {
+  parseWeddingCorrespondenceCollection,
+  serializeCorrespondenceForDb,
+} from '@/features/weddings/correspondence/weddingCorrespondence'
 import type {
   Wedding,
   WeddingPackageItemSnapshot,
@@ -51,6 +55,9 @@ export interface WeddingRow {
   bride_preparation_location?: string | null
   groom_preparation_location?: string | null
   selected_package_ids?: string[] | null
+  correspondence?: unknown
+  correspondence_channel?: string | null
+  correspondence_value?: string | null
   created_at: string
   updated_at: string
 }
@@ -173,6 +180,11 @@ export function mapWeddingRowToModel(row: WeddingRow): Wedding {
       city: '',
     },
     displayName: row.display_name?.trim() || null,
+    correspondence: parseWeddingCorrespondenceCollection({
+      correspondence: row.correspondence,
+      correspondence_channel: row.correspondence_channel,
+      correspondence_value: row.correspondence_value,
+    }),
     date: toDateString(row.wedding_date),
     ceremonyTime: ceremonyTimeToInput(row.ceremony_time),
     status: isWeddingStatus(row.status) ? row.status : 'active',
@@ -239,10 +251,17 @@ export function mapWeddingModelToRow(
     ceremonyTime = t.length === 5 ? `${t}:00` : t.slice(0, 8)
   }
 
+  const correspondence = serializeCorrespondenceForDb(wedding.correspondence)
+  // Dual-write first entry to legacy columns during transition; clear when empty.
+  const legacy = correspondence[0] ?? null
+
   return {
     bride_name: brideName,
     groom_name: groomName,
     display_name: wedding.displayName?.trim() || null,
+    correspondence,
+    correspondence_channel: legacy?.channel ?? null,
+    correspondence_value: legacy?.value?.trim() || null,
     email,
     phone,
     wedding_date: wedding.date || null,

@@ -338,6 +338,10 @@ export function ProductionContractFormPage({
           labelSnapshot: q.label,
           type: q.type,
           value: values[q.id],
+          optionSnapshots: (q.options ?? []).map((o) => ({
+            value: o.value,
+            label: o.label,
+          })),
         }))
 
       const packageSnapshots = (packages ?? [])

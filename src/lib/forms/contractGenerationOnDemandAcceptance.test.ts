@@ -99,10 +99,6 @@ const generateModal = resolve(
   process.cwd(),
   'src/features/weddings/actions/GenerateContractModal.tsx',
 )
-const v1 = resolve(
-  process.cwd(),
-  'src/features/weddings/detail/v1/WeddingDetailV1.tsx',
-)
 const v2Shell = resolve(
   process.cwd(),
   'src/features/weddings/detail/v2/WeddingDetailV2.tsx',
@@ -112,8 +108,7 @@ const finance = resolve(
   'src/features/weddings/detail/v2/WeddingContractFinanceWorkspace.tsx',
 )
 
-run('1–3. V1/V2/workspace do not show persistent Gotowość umowy', () => {
-  assert(!readFileSync(v1, 'utf8').includes('Gotowość umowy'), 'v1')
+run('1–3. Workspace does not show persistent Gotowość umowy', () => {
   assert(!readFileSync(v2Shell, 'utf8').includes('Gotowość umowy'), 'v2 shell')
   assert(!readFileSync(finance, 'utf8').includes('Gotowość umowy'), 'finance')
   assert(
@@ -128,7 +123,7 @@ run('1–3. V1/V2/workspace do not show persistent Gotowość umowy', () => {
 })
 
 run('4–7. No readiness counts / categories / checklist on detail', () => {
-  const sources = [v1, v2Shell, finance].map((p) =>
+  const sources = [v2Shell, finance].map((p) =>
     readFileSync(p, 'utf8'),
   ).join('\n')
   assert(!sources.includes('Wymaga uzupełnienia'), 'no status')
@@ -211,7 +206,8 @@ run('14–17. Contextual correction actions', () => {
 
   const pageSrc = readFileSync(page, 'utf8')
   assert(pageSrc.includes("navigate('/ustawienia/firma')"), 'company route')
-  assert(pageSrc.includes('beginEdit()'), 'edit couple/package')
+  assert(pageSrc.includes("openEditor('contacts')"), 'edit couple')
+  assert(pageSrc.includes("openEditor('package')"), 'edit package')
   assert(pageSrc.includes("asDeposit: true"), 'deposit action')
 })
 
@@ -242,10 +238,10 @@ run('19. Validation recomputes each attempt (pure function, no cache)', () => {
   )
 })
 
-run('20. V1/V2 share the same page-level generation guard', () => {
+run('20. V2 uses the page-level generation guard', () => {
   const pageSrc = readFileSync(page, 'utf8')
-  assert(pageSrc.includes('WeddingDetailV1'), 'v1')
   assert(pageSrc.includes('WeddingDetailV2'), 'v2')
+  assert(!pageSrc.includes('WeddingDetailV1'), 'no v1')
   assert(pageSrc.includes('onHeroAction: handleHeroAction'), 'shared')
   assertEq(
     (pageSrc.match(/handleGenerateContract/g) ?? []).length >= 2,
@@ -258,9 +254,6 @@ run('21. Detail load does not fetch company for readiness UI', () => {
   const shell = readFileSync(v2Shell, 'utf8')
   assert(!shell.includes('companyDetailsService'), 'v2 no company')
   assert(!shell.includes('evaluateWeddingContractReadiness'), 'v2 no eval')
-  const v1Src = readFileSync(v1, 'utf8')
-  assert(!v1Src.includes('companyDetailsService'), 'v1 no company')
-  assert(!v1Src.includes('evaluateWeddingContractReadiness'), 'v1 no eval')
   const pageSrc = readFileSync(page, 'utf8')
   assert(
     pageSrc.includes("queryKey: ['company-details', userId]"),

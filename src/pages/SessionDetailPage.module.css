@@ -1,0 +1,280 @@
+/* Session detail — compact Wedding V2 rhythm (one page, no tabs). */
+
+.workspace {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-width: 0;
+}
+
+.commandHeader {
+  padding: var(--space-2) 0 var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.commandMain {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-6);
+}
+
+.commandIdentity {
+  min-width: 0;
+  flex: 1;
+}
+
+.commandTitle {
+  margin: 0;
+  font-size: clamp(1.85rem, 2.6vw, 2.65rem);
+  font-weight: 650;
+  letter-spacing: var(--tracking-snug, -0.02em);
+  line-height: var(--leading-tight, 1.15);
+  color: var(--color-text-primary);
+}
+
+.commandMetaLine {
+  margin: var(--space-3) 0 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
+
+.commandVenueLine {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-tertiary);
+}
+
+.commandPills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+  align-items: center;
+}
+
+.statusPillMuted {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 var(--space-3);
+  border-radius: 999px;
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  background: var(--color-bg-subtle);
+  color: var(--color-text-secondary);
+}
+
+.commandActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.overviewBand {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0;
+  padding: var(--space-4) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.bandItem {
+  padding: 0 var(--space-4);
+  border-right: 1px solid var(--color-border);
+  min-width: 0;
+}
+
+.bandItem:first-child {
+  padding-left: 0;
+}
+
+.bandItem:last-child {
+  border-right: 0;
+  padding-right: 0;
+}
+
+.bandLabel {
+  display: block;
+  font-size: var(--text-2xs);
+  color: var(--color-text-tertiary);
+  font-weight: 500;
+  margin-bottom: var(--space-1);
+}
+
+.bandValue {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: 650;
+  letter-spacing: var(--tracking-snug, -0.02em);
+  color: var(--color-text-primary);
+  word-break: break-word;
+  font-variant-numeric: tabular-nums;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.surfaceSection {
+  padding: var(--space-5) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.surfaceSection:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.sectionHeading {
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-base);
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  color: var(--color-text-primary);
+}
+
+.editorialKv {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4) var(--space-5);
+}
+
+.editorialKv dt {
+  font-size: var(--text-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-tertiary);
+  margin-bottom: 2px;
+}
+
+.editorialKv dd {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.location {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+
+.pin {
+  color: var(--color-text-tertiary);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.placeName {
+  margin: 0 0 2px;
+  font-weight: 650;
+  color: var(--color-text-primary);
+}
+
+.placeAddress {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
+
+.muted {
+  margin: 0;
+  color: var(--color-text-tertiary);
+  font-size: var(--text-sm);
+}
+
+.financeGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.finLabel {
+  display: block;
+  font-size: var(--text-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-tertiary);
+  margin-bottom: 4px;
+}
+
+.finValue {
+  font-size: var(--text-base);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-primary);
+}
+
+.notes {
+  margin: 0;
+  white-space: pre-wrap;
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  color: var(--color-text-primary);
+}
+
+.linked,
+.linkedEmpty {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+@media (max-width: 900px) {
+  .overviewBand {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-4) 0;
+  }
+
+  .bandItem {
+    border-right: 0;
+    padding: 0;
+    padding-bottom: var(--space-3);
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .bandItem:nth-child(odd) {
+    padding-right: var(--space-4);
+  }
+
+  .bandItem:last-child {
+    border-bottom: 0;
+    padding-bottom: 0;
+  }
+}
+
+@media (max-width: 700px) {
+  .commandMain {
+    flex-direction: column;
+    gap: var(--space-4);
+  }
+
+  .commandActions {
+    width: 100%;
+  }
+
+  .editorialKv,
+  .financeGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .overviewBand {
+    grid-template-columns: 1fr;
+  }
+
+  .bandItem:nth-child(odd) {
+    padding-right: 0;
+  }
+}

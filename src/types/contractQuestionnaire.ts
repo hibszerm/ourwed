@@ -84,6 +84,8 @@ export interface CustomFieldAnswer {
   labelSnapshot: string
   type: string
   value: unknown
+  /** Frozen choice options at submit time (label resolution without live config). */
+  optionSnapshots?: Array<{ value: string; label: string }>
 }
 
 export const CONTRACT_QUESTIONNAIRE_CONFIG_VERSION = 2

@@ -1,11 +1,9 @@
 import { useMemo, useState } from 'react'
-import { Button } from '@/components/ui/Button'
 import { formatShortDate } from '@/lib/utils/dates'
 import type {
   ActivityFeedItem,
   ActivityFilter,
 } from '@/features/weddings/detail/v2/weddingDetailV2Types'
-import type { Task, Wedding } from '@/types/wedding'
 import styles from './WeddingDetailV2.module.css'
 
 const FILTERS: Array<{ id: ActivityFilter; label: string }> = [
@@ -17,26 +15,14 @@ const FILTERS: Array<{ id: ActivityFilter; label: string }> = [
 ]
 
 interface Props {
-  wedding: Wedding
   feed: ActivityFeedItem[]
-  tasks: Task[]
-  editing: boolean
-  onAddNote?: () => void
-  onChangeTasks: (tasks: Task[]) => void
-  onEditTasks?: () => void
-  onEditNotes?: () => void
 }
 
-export function WeddingActivityWorkspace({
-  wedding,
-  feed,
-  tasks,
-  editing,
-  onAddNote,
-  onChangeTasks,
-  onEditTasks,
-  onEditNotes,
-}: Props) {
+/**
+ * Historia — chronological event log only.
+ * Current-state summaries and operational actions live on Overview.
+ */
+export function WeddingActivityWorkspace({ feed }: Props) {
   const [filter, setFilter] = useState<ActivityFilter>('all')
   const filtered = useMemo(
     () =>
@@ -44,78 +30,18 @@ export function WeddingActivityWorkspace({
     [feed, filter],
   )
 
-  const q = wedding.questionnaires.contractData
-  const pendingTasks = tasks.filter((t) => !t.completed)
-
-  function addTask() {
-    onChangeTasks([
-      ...tasks,
-      {
-        id: `temp-${crypto.randomUUID()}`,
-        weddingId: wedding.id,
-        title: '',
-        dueDate: new Date().toISOString().slice(0, 10),
-        completed: false,
-        priority: 'medium',
-      },
-    ])
-  }
-
   return (
     <div
       className={styles.activityWorkspace}
       data-testid="wedding-activity-workspace"
     >
-      <div className={styles.activitySummaries}>
-        <div className={styles.activitySummaryChip}>
-          <span className={styles.bandLabel}>Ankieta do umowy</span>
-          <p className={styles.contextStrong}>
-            {q.status === 'completed'
-              ? `Wypełniona${q.completedAt ? ` · ${formatShortDate(q.completedAt)}` : ''}`
-              : q.status === 'not_sent'
-                ? 'Nie wysłana'
-                : 'Wysłana'}
-          </p>
-        </div>
-        <div className={styles.activitySummaryChip}>
-          <span className={styles.bandLabel}>Zadania</span>
-          <p className={styles.contextStrong}>
-            {tasks.length === 0
-              ? 'Brak zadań'
-              : pendingTasks.length === 0
-                ? 'Wszystko wykonane'
-                : `${pendingTasks.length} otwarte`}
-          </p>
-        </div>
-      </div>
-
-      <div className={styles.activityQuick}>
-        {onAddNote && !editing ? (
-          <Button type="button" variant="secondary" size="sm" onClick={onAddNote}>
-            Dodaj notatkę
-          </Button>
-        ) : null}
-        {onEditNotes && !editing ? (
-          <Button type="button" variant="ghost" size="sm" onClick={onEditNotes}>
-            Edytuj notatki
-          </Button>
-        ) : null}
-        {onEditTasks && !editing ? (
-          <Button type="button" variant="ghost" size="sm" onClick={onEditTasks}>
-            Edytuj zadania
-          </Button>
-        ) : null}
-        {editing ? (
-          <Button type="button" variant="secondary" size="sm" onClick={addTask}>
-            Dodaj zadanie
-          </Button>
-        ) : null}
-      </div>
+      <h2 className={styles.sectionHeading}>Historia</h2>
 
       <div
         className={styles.activityFilters}
         role="tablist"
-        aria-label="Filtr aktywności"
+        aria-label="Filtr historii"
+        data-testid="history-filters"
       >
         {FILTERS.map((f) => (
           <button
@@ -127,18 +53,26 @@ export function WeddingActivityWorkspace({
               filter === f.id ? styles.filterActive : styles.filterTab
             }
             onClick={() => setFilter(f.id)}
+            data-testid={`history-filter-${f.id}`}
           >
             {f.label}
           </button>
         ))}
       </div>
 
-      <ul className={styles.activityFeed}>
+      <ul className={styles.activityFeed} data-testid="history-event-list">
         {filtered.length === 0 ? (
-          <li className={styles.contextMuted}>Brak pozycji w tym filtrze.</li>
+          <li className={styles.contextMuted} data-testid="history-empty">
+            Brak pozycji w tym filtrze.
+          </li>
         ) : (
           filtered.map((item) => (
-            <li key={item.id} className={styles.activityFeedItem}>
+            <li
+              key={item.id}
+              className={styles.activityFeedItem}
+              data-testid="history-event"
+              data-filter={item.filter}
+            >
               <div className={styles.activityFeedMeta}>
                 <span className={styles.activityBadge}>
                   {item.badge || item.source}

@@ -65,14 +65,19 @@ function listTsx(dir: string): string[] {
   return out
 }
 
-run('1. Page Edytuj ślub opens shared beginEdit', () => {
+run('1. Management section opens shared beginEdit (no top Edytuj ślub)', () => {
   const src = readFileSync(page, 'utf8')
-  assert(src.includes('Edytuj ślub'), 'label')
+  assert(!src.includes('Edytuj ślub'), 'no page header edit')
   assert(src.includes('beginEdit('), 'beginEdit')
   assert(src.includes('onEditSection: openEditor'), 'shared openEditor')
   assert(src.includes('editorSection'), 'section state')
   assert(src.includes('DiscardChangesDialog'), 'dirty confirm')
   assert(src.includes('Porzucić zmiany') || src.includes('discardOpen'), 'discard state')
+  const management = readFileSync(
+    resolve(process.cwd(), 'src/features/weddings/detail/v2/WeddingManagementSection.tsx'),
+    'utf8',
+  )
+  assert(management.includes('Edytuj dane ślubu'), 'management edit')
 })
 
 run('2. V2 edit surface is drawer-hosted with shared fields (no V1 presentation)', () => {
@@ -81,7 +86,13 @@ run('2. V2 edit surface is drawer-hosted with shared fields (no V1 presentation)
   const src = readFileSync(editSurface, 'utf8')
   assert(src.includes('WeddingEditDrawerV2'), 'drawer shell')
   assert(src.includes('CoupleContactFields'), 'couple fields')
+  assert(src.includes('CorrespondenceFields') || src.includes('onChangeCorrespondence'), 'correspondence')
   assert(src.includes('PackageFields'), 'package fields')
+  const packageFields = readFileSync(
+    resolve(process.cwd(), 'src/features/weddings/detail/editing/fields/PackageFields.tsx'),
+    'utf8',
+  )
+  assert(packageFields.includes('package-catalog-missing'), 'missing package state')
   assert(src.includes('FinanceFields'), 'finance fields')
   assert(src.includes('LocationRoleFields'), 'location fields')
   assert(!src.includes('WeddingDetailHero'), 'no hero')
@@ -123,13 +134,10 @@ run('4. Architecture: detail/v2 must not import detail/v1 or V1 editors', () => 
   }
 })
 
-run('5. V1 still wires editing into hero/contact/package', () => {
-  assert(existsSync(v1Root), 'v1 folder')
-  const src = readFileSync(v1, 'utf8')
-  assert(src.includes('editing={editing}'), 'editing prop')
-  assert(src.includes('WeddingDetailHero'), 'hero')
-  assert(src.includes('WeddingDetailContact'), 'contact')
-  assert(src.includes('WeddingDetailPackage'), 'package')
+run('5. V1 detail shell removed; shared presentation cards may remain for LandingDemo', () => {
+  assert(!existsSync(v1Root), 'v1 folder gone')
+  assert(!existsSync(v1), 'v1 file gone')
+  assert(existsSync(hero), 'hero kept for other surfaces')
 })
 
 run('6. Location roles stay separate in hero LOCATION_FIELDS', () => {
@@ -211,7 +219,9 @@ run('11. Shared location save refreshes travel', () => {
     ),
     'utf8',
   )
+  assert(hook.includes('travelService.invalidate'), 'invalidate')
   assert(hook.includes('travelService.recalculate'), 'recalculate')
+  assert(hook.includes('forceRefresh: true'), 'force refresh')
   assert(hook.includes('weddingPlaceService.upsert'), 'upsert')
 })
 

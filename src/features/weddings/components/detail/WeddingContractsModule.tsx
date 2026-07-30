@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Download, FileText } from 'lucide-react'
@@ -24,6 +24,30 @@ function formatDate(value: string): string {
   }).format(new Date(value))
 }
 
+function sortContractsNewestFirst(
+  contracts: GeneratedWeddingContract[],
+): GeneratedWeddingContract[] {
+  return [...contracts].sort((a, b) => {
+    const versionDiff =
+      (b.generationVersion ?? 0) - (a.generationVersion ?? 0)
+    if (versionDiff !== 0) return versionDiff
+    return b.updatedAt.localeCompare(a.updatedAt)
+  })
+}
+
+function contractLifecycleLabel(wedding: Wedding): string {
+  switch (wedding.contract?.status) {
+    case 'signed':
+      return 'Podpisana'
+    case 'sent':
+      return 'Wysłana'
+    case 'generated':
+      return 'Wygenerowana'
+    default:
+      return 'Gotowa'
+  }
+}
+
 type CardState =
   | 'no_template'
   | 'template_available'
@@ -31,6 +55,7 @@ type CardState =
   | 'archived'
 
 export function WeddingContractsModule({ wedding, onGenerate }: Props) {
+  const [historyOpen, setHistoryOpen] = useState(false)
   const { data: templates = [] } = useDocumentTemplates()
   const { data: contracts = [], isLoading, isError } = useQuery({
     queryKey: ['generated-wedding-contracts', wedding.id],
@@ -50,6 +75,13 @@ export function WeddingContractsModule({ wedding, onGenerate }: Props) {
     staleTime: 30_000,
   })
   const templateNames = new Map(templates.map((item) => [item.id, item.name]))
+
+  const sorted = useMemo(
+    () => sortContractsNewestFirst(contracts),
+    [contracts],
+  )
+  const latest = sorted[0] ?? null
+  const older = sorted.slice(1)
 
   const packageStatus = packageQuery.data?.status
   const hasTemplate = packageStatus === 'ok'
@@ -73,8 +105,8 @@ export function WeddingContractsModule({ wedding, onGenerate }: Props) {
       body: 'Wygeneruj umowę na podstawie szablonu pakietu i danych tego ślubu.',
     },
     generated: {
-      title: 'Umowa wygenerowana',
-      body: 'Poniżej znajdziesz zapisane wersje. Możesz wygenerować kolejną.',
+      title: 'Aktualna umowa',
+      body: 'Najnowsza wygenerowana wersja. Starsze wersje są w historii.',
     },
     archived: {
       title: 'Umowa zarchiwizowana',
@@ -83,10 +115,16 @@ export function WeddingContractsModule({ wedding, onGenerate }: Props) {
   }
 
   return (
-    <section className={styles.section} aria-labelledby="wedding-contracts-title">
+    <section
+      className={styles.section}
+      aria-labelledby="wedding-contracts-title"
+      data-testid="wedding-contracts-module"
+    >
       <div className={styles.header}>
         <div>
-          <h2 id="wedding-contracts-title">Umowa</h2>
+          <h2 id="wedding-contracts-title">
+            {hasGenerated ? 'Aktualna umowa' : 'Umowa'}
+          </h2>
           <p>{stateCopy[cardState].body}</p>
         </div>
         {cardState === 'no_template' ? (
@@ -96,7 +134,13 @@ export function WeddingContractsModule({ wedding, onGenerate }: Props) {
             </Button>
           </Link>
         ) : cardState !== 'archived' ? (
-          <Button type="button" variant="primary" size="sm" onClick={onGenerate}>
+          <Button
+            type="button"
+            variant="primary"
+            size="sm"
+            data-testid="contracts-generate"
+            onClick={onGenerate}
+          >
             {hasGenerated ? 'Generuj ponownie' : 'Generuj umowę'}
           </Button>
         ) : null}
@@ -130,18 +174,54 @@ export function WeddingContractsModule({ wedding, onGenerate }: Props) {
           ) : null}
         </div>
       ) : null}
-      {contracts.length > 0 ? (
-        <div className={styles.grid}>
-          {contracts.map((contract) => (
-            <ContractRow
-              key={contract.draft.id}
-              contract={contract}
-              wedding={wedding}
-              templateName={
-                templateNames.get(contract.templateId) ?? 'Szablon archiwalny'
-              }
-            />
-          ))}
+
+      {latest ? (
+        <div
+          className={styles.currentContract}
+          data-testid="wedding-current-contract"
+        >
+          <ContractRow
+            contract={latest}
+            wedding={wedding}
+            templateName={
+              templateNames.get(latest.templateId) ?? 'Szablon archiwalny'
+            }
+            statusLabel={contractLifecycleLabel(wedding)}
+            prominent
+          />
+        </div>
+      ) : null}
+
+      {older.length > 0 ? (
+        <div className={styles.versionHistory} data-testid="wedding-version-history">
+          <button
+            type="button"
+            className={styles.versionHistoryToggle}
+            aria-expanded={historyOpen}
+            data-testid="wedding-version-history-toggle"
+            onClick={() => setHistoryOpen((v) => !v)}
+          >
+            Historia wersji ({older.length})
+          </button>
+          {historyOpen ? (
+            <div
+              className={styles.versionHistoryList}
+              data-testid="wedding-version-history-list"
+            >
+              {older.map((contract) => (
+                <ContractRow
+                  key={contract.draft.id}
+                  contract={contract}
+                  wedding={wedding}
+                  templateName={
+                    templateNames.get(contract.templateId) ??
+                    'Szablon archiwalny'
+                  }
+                  statusLabel="Wersja archiwalna"
+                />
+              ))}
+            </div>
+          ) : null}
         </div>
       ) : null}
     </section>
@@ -152,10 +232,14 @@ function ContractRow({
   contract,
   wedding,
   templateName,
+  statusLabel,
+  prominent = false,
 }: {
   contract: GeneratedWeddingContract
   wedding: Wedding
   templateName: string
+  statusLabel: string
+  prominent?: boolean
 }) {
   const [downloading, setDownloading] = useState(false)
   const formats = [...new Set(contract.artifacts.map((item) => item.format))]
@@ -177,30 +261,37 @@ function ContractRow({
   }
 
   return (
-    <article className={styles.card}>
+    <article
+      className={prominent ? styles.cardProminent : styles.card}
+      data-testid={
+        prominent ? 'wedding-contract-latest' : 'wedding-contract-older'
+      }
+    >
       <div className={styles.cardTop}>
         <div>
           <h3>{contract.draft.title}</h3>
           <p>{templateName}</p>
         </div>
-        <span className={styles.status}>Gotowa</span>
+        <span className={styles.status}>{statusLabel}</span>
       </div>
       <dl className={styles.meta}>
-        <div>
-          <dt>Ślub</dt>
-          <dd>{wedding.date}</dd>
-        </div>
         <div>
           <dt>Wersja</dt>
           <dd>v{contract.generationVersion ?? 1}</dd>
         </div>
         <div>
-          <dt>Formaty</dt>
-          <dd>{formats.map((value) => value.toUpperCase()).join(', ') || 'DOCX'}</dd>
+          <dt>Data generacji</dt>
+          <dd>{formatDate(contract.updatedAt)}</dd>
         </div>
         <div>
-          <dt>Zmodyfikowano</dt>
-          <dd>{formatDate(contract.updatedAt)}</dd>
+          <dt>Status</dt>
+          <dd>{statusLabel}</dd>
+        </div>
+        <div>
+          <dt>Formaty</dt>
+          <dd>
+            {formats.map((value) => value.toUpperCase()).join(', ') || 'DOCX'}
+          </dd>
         </div>
       </dl>
       <div className={styles.actions}>

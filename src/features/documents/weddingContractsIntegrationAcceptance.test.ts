@@ -50,11 +50,9 @@ run('wedding module has empty, list, open and download actions', () => {
 })
 
 run('both wedding detail surfaces share the contracts module', () => {
-  const v1 = source('src/features/weddings/detail/v1/WeddingDetailV1.tsx')
   const v2 = source(
     'src/features/weddings/detail/v2/WeddingContractFinanceWorkspace.tsx',
   )
-  assert(v1.includes('<WeddingContractsModule'), 'V1 integration missing')
   assert(v2.includes('<WeddingContractsModule'), 'V2 integration missing')
 })
 

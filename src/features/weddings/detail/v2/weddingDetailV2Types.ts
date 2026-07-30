@@ -11,16 +11,14 @@ import type {
   WeddingNote,
 } from '@/types/wedding'
 
-export type WeddingDetailViewMode = 'v1' | 'v2'
-
-export const WEDDING_DETAIL_VIEW_STORAGE_KEY = 'ourwed:wedding-detail-view'
-export const WEDDING_DETAIL_V2_TAB_KEY = 'ourwed:wedding-detail-v2-tab'
-
 export type WeddingWorkspaceTab =
   | 'overview'
   | 'wedding_day'
   | 'contract_finance'
+  | 'pre_wedding_questionnaire'
   | 'activity'
+
+export const WEDDING_DETAIL_V2_TAB_KEY = 'ourwed:wedding-detail-v2-tab'
 
 export type ActivityFilter =
   | 'all'
@@ -29,7 +27,7 @@ export type ActivityFilter =
   | 'questionnaires'
   | 'system'
 
-/** Shared props for V1 and V2 — page owns data + mutations. */
+/** Shared props for Wedding Details — page owns data + mutations. */
 export interface WeddingDetailSharedProps {
   wedding: Wedding
   payments: Payment[]
@@ -62,9 +60,6 @@ export interface WeddingDetailSharedProps {
   onSendQuestionnaire?: (kind: 'contractData') => void
   onArchive: () => Promise<void>
   onDelete: () => Promise<void>
-  showSchedule: boolean
-  showEquipment: boolean
-  showDeliverables: boolean
 }
 
 export interface PartnerContactView {
@@ -72,6 +67,22 @@ export interface PartnerContactView {
   name: string
   phone: string | null
   email: string | null
+  /** Contract / questionnaire postal address when available. */
+  address: string | null
+}
+
+export type AssignmentStatusTone = 'ok' | 'warn'
+
+export interface AssignmentStatusItem {
+  id: string
+  label: string
+  tone: AssignmentStatusTone
+}
+
+export interface HeaderStatusBadge {
+  id: string
+  label: string
+  tone: 'ok' | 'warn' | 'neutral'
 }
 
 export interface LocationItemView {

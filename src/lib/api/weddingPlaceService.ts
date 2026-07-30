@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase'
 import { nowIso, throwOnError, toNumber } from '@/lib/supabase/helpers'
 import { listOwnedWeddingIds } from '@/lib/api/ownership'
+import { ROUTE_ROLE_SORT } from '@/features/travel/weddingDayRouteStops'
 import { travelProvider } from '@/services/travelProvider'
 import type { GeoPlace, WeddingPlace, WeddingPlaceRole } from '@/types/travel'
 
@@ -25,16 +26,7 @@ const CORE_ROLES: WeddingPlaceRole[] = [
   'reception',
 ]
 
-const ROLE_SORT: Record<WeddingPlaceRole, number> = {
-  bride_preparation: 10,
-  groom_preparation: 15,
-  preparation: 10,
-  ceremony: 20,
-  reception: 30,
-  hotel: 40,
-  airport: 50,
-  other: 100,
-}
+const ROLE_SORT = ROUTE_ROLE_SORT
 
 /** Normalize legacy preparation role → bride_preparation (bride-primary historical semantics). */
 export function normalizeWeddingPlaceRole(role: string): WeddingPlaceRole {

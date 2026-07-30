@@ -39,7 +39,9 @@ export function useWeddingLocationSave(weddingId: string) {
       ])
       if (!result?.routeChanged) return
       try {
-        await travelService.recalculate(weddingId)
+        // Full rebuild — never merge partial legs into a stale matrix.
+        await travelService.invalidate(weddingId)
+        await travelService.recalculate(weddingId, { forceRefresh: true })
         await queryClient.invalidateQueries({ queryKey: ['travel-plan'] })
       } catch {
         // Place save already succeeded; travel cache is best-effort.

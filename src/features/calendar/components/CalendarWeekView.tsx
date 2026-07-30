@@ -8,14 +8,14 @@ import {
   eventsForDate,
   getEventPositionPercent,
   getWeekHourSlots,
-  type CalendarWeddingEvent,
+  type CalendarUiEvent,
 } from '../utils/calendarEvents'
 import styles from './CalendarWeekView.module.css'
 
 interface CalendarWeekViewProps {
   anchor: Date
-  events: CalendarWeddingEvent[]
-  onSelectEvent: (event: CalendarWeddingEvent) => void
+  events: CalendarUiEvent[]
+  onSelectEvent: (event: CalendarUiEvent) => void
 }
 
 export function CalendarWeekView({ anchor, events, onSelectEvent }: CalendarWeekViewProps) {
@@ -47,7 +47,7 @@ export function CalendarWeekView({ anchor, events, onSelectEvent }: CalendarWeek
           const unknown = eventsForDate(events, key).filter((e) => !e.ceremonyTime)
           return (
             <div key={key} className={styles.allDayCell}>
-              {unknown.map((event) => (
+                  {unknown.map((event) => (
                 <button
                   key={event.id}
                   type="button"
@@ -59,7 +59,7 @@ export function CalendarWeekView({ anchor, events, onSelectEvent }: CalendarWeek
                   }}
                   onClick={() => onSelectEvent(event)}
                 >
-                  {event.coupleLabel}
+                  {event.title}
                 </button>
               ))}
             </div>
@@ -103,8 +103,12 @@ export function CalendarWeekView({ anchor, events, onSelectEvent }: CalendarWeek
                       onClick={() => onSelectEvent(event)}
                     >
                       <span className={styles.blockTime}>{event.ceremonyTime}</span>
-                      <span className={styles.blockName}>{event.coupleLabel}</span>
-                      <span className={styles.blockLoc}>{event.ceremonyLocation}</span>
+                      <span className={styles.blockName}>{event.title}</span>
+                      <span className={styles.blockLoc}>
+                        {event.entityType === 'wedding'
+                          ? event.ceremonyLocation
+                          : event.locationSummary || '—'}
+                      </span>
                     </button>
                   )
                 })}

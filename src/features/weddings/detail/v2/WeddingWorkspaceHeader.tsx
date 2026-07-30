@@ -1,59 +1,67 @@
-import { useEffect, useRef, useState } from 'react'
-import { Button } from '@/components/ui/Button'
 import { IconMapPin } from '@/components/icons'
 import { WorkflowBadge } from '@/components/ui/Badge'
-import type { WeddingHeroAction } from '@/features/weddings/detail/weddingHeroActions'
 import { getWeddingDisplayName } from '@/features/weddings/presentation/getWeddingDisplayName'
 import {
+  getHeaderStatusBadges,
   getWeddingCountdownLabel,
   getWeddingDateLabel,
 } from '@/features/weddings/detail/v2/weddingWorkspaceSelectors'
 import { getWeddingPrimaryLocationSummary } from '@/features/weddings/presentation/getWeddingPrimaryLocationSummary'
 import type { WeddingPlace } from '@/types/travel'
 import type { Wedding } from '@/types/wedding'
-import { weddingActionsService } from '@/lib/api/weddingActionsService'
 import styles from './WeddingDetailV2.module.css'
 
 interface WeddingWorkspaceHeaderProps {
   wedding: Wedding
   places: WeddingPlace[]
-  editing: boolean
-  onAction: (action: WeddingHeroAction) => void
 }
 
+/**
+ * Identity header — name, date, location, status badges.
+ * Operational actions live in Contracts / Finance / Management sections.
+ */
 export function WeddingWorkspaceHeader({
   wedding,
   places,
-  editing,
-  onAction,
 }: WeddingWorkspaceHeaderProps) {
-  const [moreOpen, setMoreOpen] = useState(false)
-  const moreRef = useRef<HTMLDivElement>(null)
-  const showDeposit = !weddingActionsService.hasDepositPayment(wedding)
-  const contractSent =
-    wedding.questionnaires.contractData.status !== 'not_sent'
-
-  useEffect(() => {
-    if (!moreOpen) return
-    function onDoc(e: MouseEvent) {
-      if (!moreRef.current?.contains(e.target as Node)) setMoreOpen(false)
-    }
-    document.addEventListener('mousedown', onDoc)
-    return () => document.removeEventListener('mousedown', onDoc)
-  }, [moreOpen])
-
+  const statusBadges = getHeaderStatusBadges(wedding)
   const locationSummary = getWeddingPrimaryLocationSummary(wedding, places)
   const venueLine = [locationSummary.displayText, wedding.packageName?.trim()]
     .filter(Boolean)
     .join(' · ')
 
   return (
-    <header className={styles.commandHeader} data-testid="wedding-workspace-header">
+    <header
+      className={styles.commandHeader}
+      data-testid="wedding-workspace-header"
+    >
       <div className={styles.commandMain}>
         <div className={styles.commandIdentity}>
           <h1 className={styles.commandTitle}>
             {getWeddingDisplayName(wedding)}
           </h1>
+          <div
+            className={styles.commandPills}
+            data-testid="wedding-header-status-badges"
+          >
+            {statusBadges.map((badge) => (
+              <span
+                key={badge.id}
+                className={
+                  badge.tone === 'neutral'
+                    ? styles.statusPillMuted
+                    : styles.statusPill
+                }
+                data-ready={badge.tone === 'ok' ? 'true' : undefined}
+              >
+                {badge.label}
+              </span>
+            ))}
+            <WorkflowBadge stage={wedding.workflowStage} />
+            {wedding.status === 'archived' ? (
+              <span className={styles.statusPillMuted}>Zarchiwizowany</span>
+            ) : null}
+          </div>
           <p className={styles.commandMetaLine}>
             <time>{getWeddingDateLabel(wedding.date)}</time>
             {getWeddingCountdownLabel(wedding.date) ? (
@@ -71,84 +79,7 @@ export function WeddingWorkspaceHeader({
               </span>
             </p>
           ) : null}
-          <div className={styles.commandPills}>
-            <WorkflowBadge stage={wedding.workflowStage} />
-            {wedding.status === 'archived' ? (
-              <span className={styles.statusPillMuted}>Zarchiwizowany</span>
-            ) : null}
-          </div>
         </div>
-
-        {!editing ? (
-          <div className={styles.commandActions}>
-            <Button
-              type="button"
-              variant="primary"
-              className={styles.commandPrimary}
-              onClick={() => onAction('generate_contract')}
-            >
-              Generuj umowę
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => onAction('add_payment')}
-            >
-              Dodaj wpłatę
-            </Button>
-            <div className={styles.moreWrap} ref={moreRef}>
-              <Button
-                type="button"
-                variant="ghost"
-                aria-expanded={moreOpen}
-                aria-haspopup="menu"
-                onClick={() => setMoreOpen((v) => !v)}
-              >
-                Więcej
-              </Button>
-              {moreOpen ? (
-                <div className={styles.moreMenu} role="menu">
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className={styles.moreItem}
-                    disabled={contractSent}
-                    onClick={() => {
-                      setMoreOpen(false)
-                      onAction('send_contract_questionnaire')
-                    }}
-                  >
-                    Wyślij ankietę
-                  </button>
-                  {showDeposit ? (
-                    <button
-                      type="button"
-                      role="menuitem"
-                      className={styles.moreItem}
-                      onClick={() => {
-                        setMoreOpen(false)
-                        onAction('add_deposit')
-                      }}
-                    >
-                      Dodaj zadatek
-                    </button>
-                  ) : null}
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className={styles.moreItem}
-                    onClick={() => {
-                      setMoreOpen(false)
-                      onAction('add_note')
-                    }}
-                  >
-                    Dodaj notatkę
-                  </button>
-                </div>
-              ) : null}
-            </div>
-          </div>
-        ) : null}
       </div>
     </header>
   )

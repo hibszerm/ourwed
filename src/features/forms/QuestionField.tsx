@@ -1,7 +1,8 @@
-import { AddressField, type AddressFieldValue } from '@/features/forms/AddressField'
 import { DatePickerField } from '@/features/forms/DatePickerField'
 import { SelectableOptionCards } from '@/features/forms/SelectableOptionCards'
+import { QuestionnaireLocationField } from '@/features/prewedding/QuestionnaireLocationField'
 import type { AnswerValue, Question } from '@/types/form'
+import type { PreWeddingAnswerValue } from '@/types/preweddingQuestionnaire'
 import styles from './QuestionField.module.css'
 
 interface QuestionFieldProps {
@@ -11,16 +12,6 @@ interface QuestionFieldProps {
   onChange: (value: AnswerValue) => void
   /** When true, inputs are disabled (CRM answer preview). */
   readOnly?: boolean
-}
-
-function isAddressValue(value: AnswerValue): value is AddressFieldValue {
-  return (
-    typeof value === 'string' ||
-    (typeof value === 'object' &&
-      value != null &&
-      !Array.isArray(value) &&
-      'formattedAddress' in (value as object))
-  )
 }
 
 export function QuestionField({
@@ -43,6 +34,26 @@ export function QuestionField({
 
   if (question.type === 'paragraph') {
     return <p className={styles.paragraph}>{question.label}</p>
+  }
+
+  // Shared GeoPlace UX (same as Pre-Wedding) — owns its own label/error.
+  if (question.type === 'location') {
+    return (
+      <QuestionnaireLocationField
+        id={`q-${question.id}`}
+        label={question.label}
+        required={question.required}
+        helpText={question.description}
+        placeholder={
+          question.placeholder ||
+          'Zacznij wpisywać adres lub nazwę miejsca…'
+        }
+        value={value as PreWeddingAnswerValue}
+        error={error}
+        disabled={readOnly}
+        onChange={(next) => onChange(next as AnswerValue)}
+      />
+    )
   }
 
   const id = `q-${question.id}`
@@ -75,16 +86,6 @@ export function QuestionField({
           disabled={readOnly}
           readOnly={readOnly}
           onChange={(e) => onChange(e.target.value)}
-        />
-      )}
-
-      {question.type === 'location' && (
-        <AddressField
-          id={id}
-          value={isAddressValue(value) ? value : stringValue}
-          placeholder={question.placeholder || 'Wpisz adres…'}
-          disabled={readOnly}
-          onChange={(next) => onChange(next as AnswerValue)}
         />
       )}
 

@@ -10,6 +10,10 @@ import { NewWeddingPage } from '@/pages/NewWeddingPage'
 import { WeddingImportPage } from '@/pages/WeddingImportPage'
 import { WeddingContractRecoveryPage } from '@/pages/WeddingContractRecoveryPage'
 import { CalendarPage } from '@/pages/CalendarPage'
+import { SessionsPage } from '@/pages/SessionsPage'
+import { NewSessionPage } from '@/pages/NewSessionPage'
+import { SessionDetailPage } from '@/pages/SessionDetailPage'
+import { EditSessionPage } from '@/pages/EditSessionPage'
 import { ContractQuestionnaireEditorPage } from '@/pages/ContractQuestionnaireEditorPage'
 import { QuestionnaireDetailPage } from '@/pages/QuestionnaireDetailPage'
 import { PendingWeddingsPage } from '@/pages/PendingWeddingsPage'
@@ -17,12 +21,17 @@ import { PackagesPage } from '@/pages/PackagesPage'
 import { ExtraServicesPage } from '@/pages/ExtraServicesPage'
 import { TravelSettingsPage } from '@/pages/TravelSettingsPage'
 import { SettingsPage } from '@/pages/SettingsPage'
+import { AppearanceSettingsPage } from '@/pages/AppearanceSettingsPage'
+import { CalendarIntegrationsPage } from '@/pages/CalendarIntegrationsPage'
 import { CompanyDetailsPage } from '@/pages/CompanyDetailsPage'
 import { DocumentTemplateDetailPage } from '@/pages/DocumentTemplateDetailPage'
 import { DocumentTemplateMappingPage } from '@/pages/DocumentTemplateMappingPage'
 import { DocumentTemplateConfigPage } from '@/pages/DocumentTemplateConfigPage'
 import { DocumentTemplateFieldConfigPage } from '@/pages/DocumentTemplateFieldConfigPage'
 import { PublicFormTokenPage } from '@/pages/PublicFormTokenPage'
+import { PublicPreWeddingQuestionnairePage } from '@/pages/PublicPreWeddingQuestionnairePage'
+import { QuestionnaireLibraryPage } from '@/pages/QuestionnaireLibraryPage'
+import { PreWeddingTemplateEditorRoute } from '@/pages/PreWeddingTemplateEditorRoute'
 import { LandingPage } from '@/pages/LandingPage'
 import { LoginPage } from '@/pages/LoginPage'
 import { RegisterPage } from '@/pages/RegisterPage'
@@ -110,6 +119,7 @@ export const router = createBrowserRouter([
   { path: '/forgot-password', element: <ForgotPasswordPage /> },
   { path: '/reset-password', element: <ResetPasswordPage /> },
   { path: '/form/:token', element: <PublicFormTokenPage /> },
+  { path: '/ankieta/:token', element: <PublicPreWeddingQuestionnairePage /> },
   {
     element: <ProtectedRoute />,
     children: [
@@ -131,23 +141,32 @@ export const router = createBrowserRouter([
         element: <WeddingContractPreviewPage />,
       },
       { path: '/sluby/:id', element: <WeddingDetailPage /> },
+      { path: '/sesje', element: <SessionsPage /> },
+      { path: '/sesje/nowa', element: <NewSessionPage /> },
+      { path: '/sesje/:sessionId/edytuj', element: <EditSessionPage /> },
+      { path: '/sesje/:sessionId', element: <SessionDetailPage /> },
       { path: '/kalendarz', element: <CalendarPage /> },
       {
         path: '/ankiety',
-        element: <Navigate to="/ankiety/dane-do-umowy" replace />,
+        element: <QuestionnaireLibraryPage />,
       },
       {
         path: '/ankiety/dane-do-umowy',
         element: <ContractQuestionnaireEditorPage />,
       },
       {
+        path: '/ankiety/przedslubne/:templateId',
+        element: <PreWeddingTemplateEditorRoute />,
+      },
+      {
         path: '/ankiety/szablony',
-        element: <Navigate to="/ankiety/dane-do-umowy" replace />,
+        element: <Navigate to="/ankiety" replace />,
       },
       {
         path: '/ustawienia/szablony-ankiet',
-        element: <Navigate to="/ankiety/dane-do-umowy" replace />,
+        element: <Navigate to="/ankiety" replace />,
       },
+      { path: '/ankiety/instancje/:id', element: <QuestionnaireDetailPage /> },
       { path: '/ankiety/:id', element: <QuestionnaireDetailPage /> },
       { path: '/oczekujace', element: <PendingWeddingsPage /> },
       // Deprecated standalone Contracts hub — templates live on Packages,
@@ -186,7 +205,13 @@ export const router = createBrowserRouter([
         path: '/studio/podroz',
         element: <Navigate to="/ustawienia/podroz" replace />,
       },
+      {
+        path: '/ustawienia/ankiety-przedslubne',
+        element: <Navigate to="/ankiety" replace />,
+      },
       { path: '/ustawienia', element: <SettingsPage /> },
+      { path: '/ustawienia/wyglad', element: <AppearanceSettingsPage /> },
+      { path: '/ustawienia/integracje', element: <CalendarIntegrationsPage /> },
       { path: '/ustawienia/firma', element: <CompanyDetailsPage /> },
       {
         path: '/ustawienia/studio',

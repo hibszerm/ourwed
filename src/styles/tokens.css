@@ -1,11 +1,14 @@
 /**
- * OurWed Design Tokens — Monochrome Premium
- * Black / white / neutral grays. Black is the primary accent.
- * Color is reserved for status (success, warning, error) — never brand surfaces.
+ * OurWed Design Tokens — layout, type, and Classic color defaults.
+ *
+ * Color values on :root match Classic. Runtime themes override via
+ * `document.documentElement` CSS variables + `data-theme` (see src/features/theme).
+ * Product components must use semantic tokens / --color-* bridges — never hard-coded theme hex.
+ * Status colors are shared across themes (see statusColors.ts).
  */
 
 :root {
-  /* ── Surfaces ─────────────────────────────────────── */
+  /* ── Surfaces (Classic defaults) ──────────────────── */
   --color-bg: #f7f7f7;
   --color-bg-subtle: #efefef;
   --color-bg-sunken: #e8e8e8;
@@ -39,17 +42,34 @@
   --color-sidebar-border: rgba(255, 255, 255, 0.08);
   --color-sidebar-muted: rgba(255, 255, 255, 0.35);
 
-  /* ── Semantic (status only) ───────────────────────── */
-  --color-warning: #b45309;
-  --color-warning-bg: #fef3c7;
-  --color-warning-text: #92400e;
-  --color-success-bg: #ecfdf3;
-  --color-success-text: #067647;
-  --color-info-bg: #f4f4f5;
-  --color-info-text: #3f3f46;
-  --color-error: #b42318;
-  --color-error-bg: #fef3f2;
-  --color-danger: #b42318;
+  /* ── Semantic (status only — shared across themes) ── */
+  --status-success: #067647;
+  --status-success-text: #067647;
+  --status-success-soft: #ecfdf3;
+  --status-success-border: #abefc6;
+  --status-warning: #b45309;
+  --status-warning-text: #92400e;
+  --status-warning-soft: #fef3c7;
+  --status-warning-border: #fde68a;
+  --status-error: #b42318;
+  --status-error-text: #b42318;
+  --status-error-soft: #fef3f2;
+  --status-error-border: #fecdca;
+  --status-info: #175cd3;
+  --status-info-text: #175cd3;
+  --status-info-soft: #eff8ff;
+  --status-info-border: #b2ddff;
+
+  --color-warning: var(--status-warning);
+  --color-warning-bg: var(--status-warning-soft);
+  --color-warning-text: var(--status-warning-text);
+  --color-success-bg: var(--status-success-soft);
+  --color-success-text: var(--status-success-text);
+  --color-info-bg: var(--status-info-soft);
+  --color-info-text: var(--status-info-text);
+  --color-error: var(--status-error);
+  --color-error-bg: var(--status-error-soft);
+  --color-danger: var(--status-error);
 
   /* ── Spacing scale (8px rhythm, 4px half-steps) ───── */
   --space-1: 4px;

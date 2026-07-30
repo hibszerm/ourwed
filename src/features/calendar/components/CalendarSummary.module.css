@@ -32,9 +32,36 @@
 
 .couple {
   margin-top: var(--space-1);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
   font-size: var(--text-sm);
   font-weight: 500;
   color: var(--color-text-secondary);
+}
+
+.nearestLink {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+}
+
+.nearestLink:hover .value,
+.nearestLink:hover .couple {
+  color: var(--color-text-primary);
+}
+
+.nearestLink:focus-visible {
+  outline: 2px solid var(--color-focus-ring, var(--color-border-strong));
+  outline-offset: 4px;
+}
+
+.countSep {
+  margin: 0 0.35em;
+  font-weight: 500;
+  color: var(--color-text-tertiary);
 }
 
 .month {

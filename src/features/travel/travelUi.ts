@@ -1,3 +1,9 @@
+import {
+  CANONICAL_ROUTE_ROLE_ORDER,
+  segmentMatchesPair,
+  buildAdjacentRoutePairs,
+  buildOrderedWeddingDayRouteStops,
+} from '@/features/travel/weddingDayRouteStops'
 import type {
   StudioTravelSettings,
   TravelPlan,
@@ -18,8 +24,8 @@ export type TravelBaseStatus = 'missing' | 'incomplete' | 'ready'
 export interface TravelStop {
   key: string
   title: string
-  address: string
   /** Venue / place name when distinct from the postal address. */
+  address: string
   label?: string | null
   placeId: string | null
   latitude: number | null
@@ -45,7 +51,17 @@ export interface TravelFlowLeg {
   destination: TravelFlowStop
   segment: TravelSegment | null
   label: string
+  /** Why metrics are missing, when segment is absent or failed. */
+  failureReason: TravelLegFailureReason | null
 }
+
+export type TravelLegFailureReason =
+  | 'pending'
+  | 'missing_origin_coords'
+  | 'missing_destination_coords'
+  | 'provider_error'
+  | 'stale'
+  | 'unavailable'
 
 export interface TravelFlow {
   stops: TravelFlowStop[]
@@ -56,6 +72,10 @@ export interface TravelFlow {
   hasAnyLocation: boolean
   hasTravelBase: boolean
   baseStatus: TravelBaseStatus
+  routeFingerprint: string | null
+  routeStale: boolean
+  /** True when every adjacent pair has an ok segment. */
+  routeComplete: boolean
 }
 
 const ROLE_TITLES: Record<string, string> = {
@@ -65,6 +85,9 @@ const ROLE_TITLES: Record<string, string> = {
   preparation: 'Przygotowania — starszy zapis',
   ceremony: 'Ceremonia',
   reception: 'Przyjęcie weselne',
+  hotel: 'Hotel',
+  airport: 'Lotnisko',
+  other: 'Inna lokalizacja',
 }
 
 const ROLE_NAV_LABELS: Record<string, string> = {
@@ -76,12 +99,11 @@ const ROLE_NAV_LABELS: Record<string, string> = {
   studio: 'Nawiguj do bazy firmy',
 }
 
-const STOP_ROLES = [
-  'bride_preparation',
-  'groom_preparation',
-  'ceremony',
-  'reception',
-] as const
+/** Wedding place roles in canonical route order (no studio). */
+export const STOP_ROLES = CANONICAL_ROUTE_ROLE_ORDER.filter(
+  (r): r is Exclude<(typeof CANONICAL_ROUTE_ROLE_ORDER)[number], 'studio'> =>
+    r !== 'studio',
+)
 
 export function getTravelBaseDisplayName(
   studio: StudioTravelSettings | null | undefined,
@@ -127,42 +149,65 @@ export function formatRouteLegLabel(fromTitle: string, toTitle: string): string 
   return `${fromTitle} → ${toTitle}`
 }
 
+export function travelLegFailureMessage(
+  reason: TravelLegFailureReason | null,
+): string {
+  switch (reason) {
+    case 'missing_origin_coords':
+      return 'Brak współrzędnych miejsca początkowego'
+    case 'missing_destination_coords':
+      return 'Brak współrzędnych miejsca docelowego'
+    case 'provider_error':
+      return 'Nie udało się obliczyć tego odcinka'
+    case 'stale':
+      return 'Trasa wymaga ponownego przeliczenia'
+    case 'pending':
+      return 'Trasa jest liczona…'
+    case 'unavailable':
+      return 'Trasa niedostępna'
+    default:
+      return '—'
+  }
+}
+
 /**
- * Build UI flow from plan — only verified stops (with coordinates), consecutive legs.
- * Matches travelService skip-ahead routing. Travel base is first when geocoded.
+ * Build UI flow from plan — ordered eligible stops, legs matched by endpoint identity.
  */
 export function buildTravelFlow(plan: TravelPlan): TravelFlow {
-  const byRole = new Map(plan.places.map((p) => [p.role, p]))
-  // Compat: legacy preparation place fills bride slot when bride_preparation absent.
-  if (!byRole.has('bride_preparation') && byRole.has('preparation')) {
-    byRole.set('bride_preparation', byRole.get('preparation')!)
-  }
+  const ordered = buildOrderedWeddingDayRouteStops({
+    studio: plan.studio,
+    places: plan.places,
+  })
+  // Prefer verified (address + coords) for UI markers; keep engine-eligible if verified fails.
   const stops: TravelFlowStop[] = []
   const baseStatus = getTravelBaseStatus(plan.studio)
 
-  const studio = plan.studio
-  if (baseStatus === 'ready' && studio) {
-    const title = getTravelBaseDisplayName(studio)
-    stops.push({
-      key: 'studio',
-      title,
-      address: getTravelBaseAddress(studio) || title,
-      label: studio.studioName,
-      placeId: studio.placeId,
-      latitude: studio.latitude,
-      longitude: studio.longitude,
-      kind: 'studio',
-      role: 'studio',
-      navigateLabel: ROLE_NAV_LABELS.studio,
-      isSet: true,
-      markerIndex: 0,
-    })
-  }
-
-  let weddingMarker = 1
-  for (const role of STOP_ROLES) {
-    const place = byRole.get(role)
-    if (!place || !isPlaceVerified(place)) continue
+  for (const stop of ordered) {
+    if (stop.kind === 'studio') {
+      const studio = plan.studio!
+      const title = getTravelBaseDisplayName(studio)
+      stops.push({
+        key: 'studio',
+        title,
+        address: getTravelBaseAddress(studio) || title,
+        label: studio.studioName,
+        placeId: studio.placeId,
+        latitude: studio.latitude,
+        longitude: studio.longitude,
+        kind: 'studio',
+        role: 'studio',
+        navigateLabel: ROLE_NAV_LABELS.studio,
+        isSet: true,
+        markerIndex: 0,
+      })
+      continue
+    }
+    const place = stop.place
+    if (!place || !isPlaceVerified(place)) {
+      // Engine used coords-only; still show when we have coords for map consistency.
+      if (!place) continue
+    }
+    const role = stop.role
     const roleTitle = ROLE_TITLES[role] ?? role
     stops.push({
       key: place.id,
@@ -176,27 +221,71 @@ export function buildTravelFlow(plan: TravelPlan): TravelFlow {
       role,
       navigateLabel: ROLE_NAV_LABELS[role] ?? `Nawiguj do: ${roleTitle}`,
       isSet: true,
-      markerIndex: weddingMarker++,
+      markerIndex: stops.filter((s) => s.kind === 'wedding_place').length + 1,
     })
   }
 
-  const sortedSegments = [...plan.segments].sort(
-    (a, b) => a.sequence - b.sequence,
-  )
+  const pairs = buildAdjacentRoutePairs(ordered, plan.studio)
   const legs: Array<TravelSegment | null> = []
   const routeLegs: TravelFlowLeg[] = []
+
   for (let i = 0; i < Math.max(0, stops.length - 1); i++) {
-    const segment = sortedSegments[i] ?? null
+    const origin = stops[i]!
+    const destination = stops[i + 1]!
+    const pair = pairs.find(
+      (p) =>
+        p.from.id === origin.key &&
+        p.to.id === destination.key,
+    )
+    const segment =
+      (pair
+        ? plan.segments.find((s) => segmentMatchesPair(s, pair))
+        : null) ??
+      plan.segments.find(
+        (s) =>
+          (origin.kind === 'studio'
+            ? s.originKind === 'studio'
+            : s.originWeddingPlaceId === origin.key) &&
+          (destination.kind === 'studio'
+            ? s.destinationKind === 'studio'
+            : s.destinationWeddingPlaceId === destination.key),
+      ) ??
+      null
+
     legs.push(segment)
-    const origin = stops[i]
-    const destination = stops[i + 1]
+
+    let failureReason: TravelLegFailureReason | null = null
+    if (plan.routeStale) {
+      failureReason = 'stale'
+    } else if (!segment) {
+      failureReason = 'unavailable'
+    } else if (segment.status === 'error') {
+      failureReason = 'provider_error'
+    } else if (segment.status !== 'ok') {
+      failureReason = 'pending'
+    }
+
     routeLegs.push({
       origin,
       destination,
       segment,
       label: formatRouteLegLabel(origin.title, destination.title),
+      failureReason:
+        segment?.status === 'ok' &&
+        (segment.durationText || segment.distanceText)
+          ? null
+          : failureReason,
     })
   }
+
+  const routeComplete =
+    !plan.routeStale &&
+    routeLegs.length > 0 &&
+    routeLegs.every(
+      (leg) =>
+        leg.segment?.status === 'ok' &&
+        (leg.segment.durationText || leg.segment.distanceText),
+    )
 
   return {
     stops,
@@ -205,6 +294,9 @@ export function buildTravelFlow(plan: TravelPlan): TravelFlow {
     hasAnyLocation: stops.length > 0,
     hasTravelBase: stops.some((s) => s.kind === 'studio'),
     baseStatus,
+    routeFingerprint: plan.routeFingerprint ?? null,
+    routeStale: Boolean(plan.routeStale),
+    routeComplete,
   }
 }
 
@@ -258,6 +350,8 @@ export function summarizeTravelRoute(flow: TravelFlow): {
   isCompleteDayRoute: boolean
   distanceLabel: string
   durationLabel: string
+  /** False when any required adjacent leg failed / is missing. */
+  totalsComplete: boolean
 } {
   const okSegments = flow.routeLegs
     .map((leg) => leg.segment)
@@ -265,6 +359,10 @@ export function summarizeTravelRoute(flow: TravelFlow): {
       (s): s is TravelSegment =>
         s != null && s.status === 'ok' && s.distanceMeters != null,
     )
+  const totalsComplete =
+    flow.routeComplete &&
+    flow.routeLegs.length > 0 &&
+    okSegments.length === flow.routeLegs.length
   const totals = sumTravelTotals(okSegments)
   const includesBaseLeg = flow.routeLegs.some(
     (leg) =>
@@ -279,6 +377,7 @@ export function summarizeTravelRoute(flow: TravelFlow): {
     ...totals,
     includesBaseLeg,
     isCompleteDayRoute,
+    totalsComplete,
     distanceLabel: isCompleteDayRoute
       ? 'Łączny dystans'
       : 'Trasa między lokalizacjami',
