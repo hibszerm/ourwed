@@ -18,9 +18,17 @@ Source directory: `supabase/templates/auth/`
 
 Browser previews (sample URLs substituted): `supabase/templates/auth/previews/index.html`
 
-## Placeholders (do not alter)
+## Placeholders
 
-Every action template uses Supabase Go templates:
+**Recovery (password reset)** uses TokenHash (cross-device; see `docs/auth-callback.md`):
+
+```html
+https://ourwed.pl/auth/callback?token_hash={{ .TokenHash }}&type=recovery
+```
+
+Do **not** use `{{ .ConfirmationURL }}` for the recovery CTA. Visible fallback in the body is `https://ourwed.pl/forgot-password` (never print the token_hash URL).
+
+**Other flows** keep:
 
 ```html
 {{ .ConfirmationURL }}
@@ -32,7 +40,7 @@ Change-email also includes:
 {{ .NewEmail }}
 ```
 
-Never hardcode verify URLs in production `.html` files.
+Never hardcode live verify tokens in production `.html` files (TokenHash Go placeholder is required for recovery).
 
 ## Rebuild from shared shell
 
@@ -42,27 +50,22 @@ npm run emails:auth:build
 
 Generator: `scripts/buildAuthEmails.ts`
 
-## Auth callback (PKCE)
+## Auth callback
 
-Email links must land on the app callback, not the marketing homepage alone:
+Password recovery emails use the TokenHash CTA above. Other flows may still use ConfirmationURL → PKCE `?code=`.
 
 1. Supabase Dashboard → **Authentication → URL Configuration**
-2. **Site URL**: `https://ourwed.pl` (or your app origin)
+2. **Site URL**: `https://ourwed.pl`
 3. **Redirect URLs** must include:
    - `https://ourwed.pl/auth/callback`
    - `https://ourwed.pl/**`
    - `http://localhost:5173/auth/callback` (local)
 
-App redirects:
+App `redirectTo` for `resetPasswordForEmail` remains `/auth/callback?next=recovery` (legacy / SiteURL); the **email CTA** is what users click and must be the TokenHash URL.
 
-| Flow | `redirectTo` / `emailRedirectTo` |
-|------|----------------------------------|
-| Password reset | `/auth/callback?next=recovery` |
-| Confirm signup | `/auth/callback?next=confirm` |
+Confirm Resend **click tracking is disabled** for auth SMTP so CTA hrefs are not rewritten.
 
-Legacy links that open `/?code=…` are intercepted by `AuthCallbackGate` and forwarded to `/auth/callback` without painting the homepage.
-
-See `src/features/auth/callback/` and `docs/auth-callback.md`.
+See `docs/auth-callback.md`.
 
 ## Deploy to hosted Supabase (production)
 
@@ -73,7 +76,7 @@ SMTP (Resend) is already configured in the project. Templates are **not** auto-p
    - Set the **Subject** from the table.
    - Paste the matching `*.html` body (entire file).
 3. Send a test email from the dashboard where available.
-4. Confirm the CTA opens the same verify URL as the fallback link.
+4. For recovery: confirm the button href is the TokenHash callback URL (not ConfirmationURL). Visible fallback should be forgot-password.
 
 Local CLI (optional): merge `supabase/templates/auth/config.snippet.toml` into a full `supabase/config.toml`, then `supabase stop && supabase start`.
 

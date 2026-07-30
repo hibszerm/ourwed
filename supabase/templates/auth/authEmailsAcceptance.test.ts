@@ -47,6 +47,8 @@ const TEMPLATES = [
 ] as const
 
 const CONFIRMATION_PLACEHOLDER = '{{ .ConfirmationURL }}'
+const RECOVERY_CTA =
+  'https://ourwed.pl/auth/callback?token_hash={{ .TokenHash }}&type=recovery'
 
 assert(existsSync(join(AUTH, 'previews/index.html')), 'preview index missing')
 assert(existsSync(join(AUTH, 'config.snippet.toml')), 'config snippet missing')
@@ -66,12 +68,6 @@ for (const t of TEMPLATES) {
   const txt = readFileSync(txtPath, 'utf8')
   const preview = readFileSync(previewPath, 'utf8')
 
-  assert(html.includes(CONFIRMATION_PLACEHOLDER), `${t.id} html keeps ConfirmationURL`)
-  assert(txt.includes(CONFIRMATION_PLACEHOLDER), `${t.id} txt keeps ConfirmationURL`)
-  assert(
-    html.includes(`href="${CONFIRMATION_PLACEHOLDER}"`),
-    `${t.id} CTA href uses ConfirmationURL`,
-  )
   assert(html.includes(t.heading), `${t.id} heading`)
   assert(html.includes(t.button), `${t.id} button label`)
   assert(txt.includes(t.heading), `${t.id} txt heading`)
@@ -81,10 +77,49 @@ for (const t of TEMPLATES) {
   assert(html.includes('CRM dla fotografów i filmowców ślubnych'), `${t.id} footer tagline`)
   assert(html.includes('prefers-color-scheme: dark'), `${t.id} dark mode styles`)
   assert(html.includes('max-width:560px'), `${t.id} max width`)
-  assert(!html.includes('supabase.co/auth/v1/verify?token=example'), `${t.id} no sample URL in prod`)
-  assert(preview.includes('supabase.co/auth/v1/verify'), `${t.id} preview has sample URL`)
   assert(snippet.includes(`template.${t.id}`), `snippet wires ${t.id}`)
   assert(snippet.includes(t.subject), `snippet subject for ${t.id}`)
+
+  if (t.id === 'recovery') {
+    assert(html.includes(RECOVERY_CTA), 'recovery html TokenHash CTA')
+    assert(txt.includes(RECOVERY_CTA), 'recovery txt TokenHash CTA')
+    assert(
+      html.includes(`href="${RECOVERY_CTA}"`),
+      'recovery CTA href uses TokenHash URL',
+    )
+    assert(
+      !html.includes(`href="${CONFIRMATION_PLACEHOLDER}"`),
+      'recovery CTA is not ConfirmationURL',
+    )
+    assert(
+      html.includes('https://ourwed.pl/forgot-password'),
+      'recovery visible fallback is forgot-password (no token in body)',
+    )
+    assert(
+      !html.includes('token_hash={{ .TokenHash }}</a>'),
+      'token_hash URL not shown as visible fallback link text',
+    )
+    assert(
+      preview.includes('token_hash=example-token-hash&type=recovery'),
+      'recovery preview uses sample TokenHash URL',
+    )
+    assert(
+      !preview.includes('supabase.co/auth/v1/verify?token=example'),
+      'recovery preview is not ConfirmationURL sample',
+    )
+  } else {
+    assert(html.includes(CONFIRMATION_PLACEHOLDER), `${t.id} html keeps ConfirmationURL`)
+    assert(txt.includes(CONFIRMATION_PLACEHOLDER), `${t.id} txt keeps ConfirmationURL`)
+    assert(
+      html.includes(`href="${CONFIRMATION_PLACEHOLDER}"`),
+      `${t.id} CTA href uses ConfirmationURL`,
+    )
+    assert(
+      !html.includes('supabase.co/auth/v1/verify?token=example'),
+      `${t.id} no sample URL in prod`,
+    )
+    assert(preview.includes('supabase.co/auth/v1/verify'), `${t.id} preview has sample URL`)
+  }
 }
 
 const emailChange = readFileSync(join(AUTH, 'email_change.html'), 'utf8')
@@ -100,6 +135,13 @@ const confirmation = readFileSync(join(AUTH, 'confirmation.html'), 'utf8')
 assert(
   confirmation.includes('Jeżeli konto nie zostało utworzone przez Ciebie'),
   'confirmation disclaimer',
+)
+
+const builder = readFileSync(join(ROOT, 'scripts/buildAuthEmails.ts'), 'utf8')
+assert(builder.includes('TokenHash'), 'builder documents TokenHash recovery')
+assert(
+  builder.includes('RECOVERY_ACTION_URL'),
+  'builder has recovery action URL constant',
 )
 
 // Auth service must remain untouched by this work — smoke that redirects still exist.

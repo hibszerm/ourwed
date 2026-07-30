@@ -16,7 +16,7 @@
 <body>
   <main>
     <h1>Auth email previews</h1>
-    <p>Branded OurWed authentication emails. Sample confirmation URLs are substituted for browser review only — production templates keep <code>{{ .ConfirmationURL }}</code>.</p>
+    <p>Branded OurWed authentication emails. Recovery uses TokenHash; other flows keep ConfirmationURL.</p>
     <ul>
       <li style="margin:0 0 12px;"><a href="./recovery.html" style="color:#0a0a0a;font-size:16px;">Zmień hasło do konta OurWed</a> <span style="color:#8f8f8f;font-size:13px;">(recovery)</span></li>
 <li style="margin:0 0 12px;"><a href="./confirmation.html" style="color:#0a0a0a;font-size:16px;">Potwierdź adres e-mail</a> <span style="color:#8f8f8f;font-size:13px;">(confirmation)</span></li>
@@ -24,7 +24,7 @@
 <li style="margin:0 0 12px;"><a href="./email_change.html" style="color:#0a0a0a;font-size:16px;">Potwierdź zmianę adresu e-mail</a> <span style="color:#8f8f8f;font-size:13px;">(email_change)</span></li>
 <li style="margin:0 0 12px;"><a href="./invite.html" style="color:#0a0a0a;font-size:16px;">Zaproszenie do OurWed</a> <span style="color:#8f8f8f;font-size:13px;">(invite)</span></li>
     </ul>
-    <p class="note">Tip: resize the browser to ~390px width to check mobile layout. Toggle OS dark mode to check Apple Mail dark rendering.</p>
+    <p class="note">Local recovery CTA equivalent: <code>http://localhost:5173/auth/callback?token_hash={{ .TokenHash }}&amp;type=recovery</code> (do not use in production templates).</p>
   </main>
 </body>
 </html>

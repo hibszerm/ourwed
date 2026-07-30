@@ -6,10 +6,10 @@ Otrzymaliśmy prośbę o zmianę hasła do Twojego konta OurWed.
 Kliknij przycisk poniżej, aby ustawić nowe hasło.
 
 Zmień hasło:
-{{ .ConfirmationURL }}
+https://ourwed.pl/auth/callback?token_hash={{ .TokenHash }}&type=recovery
 
-Jeżeli przycisk nie działa, skopiuj poniższy adres:
-{{ .ConfirmationURL }}
+Jeżeli przycisk nie działa, poproś o nowy link na stronie resetu hasła:
+https://ourwed.pl/forgot-password
 
 Jeżeli to nie Ty wysłałeś tę prośbę, po prostu zignoruj tę wiadomość.
 

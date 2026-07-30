@@ -5,7 +5,7 @@ import {
 } from '@/features/auth/callback/authCallback'
 
 /**
- * Pathless layout: any ?code= / ?error= outside /auth/callback
+ * Pathless layout: any ?code= / ?token_hash= / ?error= outside /auth/callback
  * is forwarded there before child routes (e.g. homepage) can paint.
  */
 export function AuthCallbackGate() {

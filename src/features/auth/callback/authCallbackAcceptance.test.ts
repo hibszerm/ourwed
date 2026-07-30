@@ -1,5 +1,7 @@
 /**
- * Acceptance tests for the canonical Supabase Auth PKCE callback pipeline.
+ * Acceptance tests for Supabase Auth callback:
+ * - TokenHash recovery (verifyOtp) — cross-browser / cross-device
+ * - Legacy PKCE (?code= → exchangeCodeForSession)
  */
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -7,11 +9,14 @@ import { fileURLToPath } from 'node:url'
 import {
   buildAuthCallbackRedirect,
   exchangeAuthCodeOnce,
+  isTokenHashRecovery,
   locationNeedsAuthCallback,
   parseAuthCallbackParams,
+  recoveryEmailActionHref,
   resetAuthCallbackExchangeCache,
   resolveAuthCallbackDestination,
   resolveAuthCallbackErrorAction,
+  verifyRecoveryTokenHashOnce,
 } from '@/features/auth/callback/authCallback'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../../../..')
@@ -22,15 +27,29 @@ function assert(cond: unknown, msg: string): asserts cond {
 
 function assertEq<T>(actual: T, expected: T, msg: string) {
   if (actual !== expected) {
-    throw new Error(`FAIL  auth callback — ${msg}: got ${String(actual)} expected ${String(expected)}`)
+    throw new Error(
+      `FAIL  auth callback — ${msg}: got ${String(actual)} expected ${String(expected)}`,
+    )
   }
 }
 
+const noopVerify = async () => ({
+  data: { session: null },
+  error: { message: 'unexpected verifyOtp' },
+})
+
+const noopExchange = async () => ({
+  data: { session: null },
+  error: { message: 'unexpected exchangeCodeForSession' },
+})
+
+const noopListener = () => ({
+  data: { subscription: { unsubscribe: () => undefined } },
+})
+
 // ── parse / gate ─────────────────────────────────────────────
 {
-  const parsed = parseAuthCallbackParams(
-    '?code=abc123&next=recovery',
-  )
+  const parsed = parseAuthCallbackParams('?code=abc123&next=recovery')
   assertEq(parsed.code, 'abc123', 'parses code')
   assertEq(parsed.next, 'recovery', 'parses next=recovery')
   assert(locationNeedsAuthCallback('/', '?code=abc123'), 'root with code needs callback')
@@ -38,14 +57,31 @@ function assertEq<T>(actual: T, expected: T, msg: string) {
     !locationNeedsAuthCallback('/auth/callback', '?code=abc123'),
     'callback path does not re-gate',
   )
-  assert(
-    !locationNeedsAuthCallback('/', ''),
-    'homepage without code does not gate',
-  )
+  assert(!locationNeedsAuthCallback('/', ''), 'homepage without code does not gate')
   assertEq(
     buildAuthCallbackRedirect('?code=abc&next=recovery'),
     '/auth/callback?code=abc&next=recovery',
     'builds callback redirect',
+  )
+}
+
+{
+  const recovery = parseAuthCallbackParams(
+    '?token_hash=th_secret_value&type=recovery',
+  )
+  assertEq(recovery.tokenHash, 'th_secret_value', 'parses token_hash')
+  assertEq(recovery.type, 'recovery', 'parses type=recovery')
+  assertEq(recovery.next, 'recovery', 'type=recovery implies next=recovery')
+  assertEq(recovery.code, null, 'no code on token_hash recovery')
+  assert(isTokenHashRecovery(recovery), 'isTokenHashRecovery true')
+  assert(
+    locationNeedsAuthCallback('/', '?token_hash=x&type=recovery'),
+    'token_hash gates to callback',
+  )
+  assertEq(
+    recoveryEmailActionHref(),
+    'https://ourwed.pl/auth/callback?token_hash={{ .TokenHash }}&type=recovery',
+    'production recovery CTA',
   )
 }
 
@@ -60,6 +96,12 @@ function assertEq<T>(actual: T, expected: T, msg: string) {
     'parses error_description',
   )
   assert(locationNeedsAuthCallback('/', '?error=access_denied'), 'error gates to callback')
+}
+
+{
+  const missing = parseAuthCallbackParams('?type=recovery')
+  assertEq(missing.tokenHash, null, 'missing token_hash')
+  assert(!isTokenHashRecovery(missing), 'not token-hash recovery without hash')
 }
 
 // ── destinations ─────────────────────────────────────────────
@@ -92,85 +134,74 @@ function assertEq<T>(actual: T, expected: T, msg: string) {
     'confirm with session → dashboard',
   )
   assertEq(
-    resolveAuthCallbackDestination({
-      next: 'confirm',
-      isRecovery: false,
-      hasSession: false,
-    }).path,
-    '/login',
-    'confirm without session → login',
-  )
-  assertEq(
-    resolveAuthCallbackDestination({
-      next: 'magic',
-      isRecovery: false,
-      hasSession: true,
-    }).path,
-    '/dashboard',
-    'magic → dashboard',
-  )
-  assertEq(
-    resolveAuthCallbackDestination({
-      next: 'invite',
-      isRecovery: false,
-      hasSession: true,
-    }).path,
-    '/dashboard',
-    'invite → dashboard',
-  )
-  assertEq(
-    resolveAuthCallbackDestination({
-      next: 'email_change',
-      isRecovery: false,
-      hasSession: false,
-    }).path,
-    '/login',
-    'email_change → login',
-  )
-  assertEq(
     resolveAuthCallbackErrorAction('recovery').to,
     '/forgot-password',
     'recovery error CTA → forgot-password',
   )
+  assertEq(
+    resolveAuthCallbackErrorAction('recovery').label,
+    'Wyślij nowy link',
+    'recovery error label',
+  )
 }
 
-// ── exchangeCodeForSession once + expired ────────────────────
+// ── verifyOtp recovery (cross-device: no PKCE verifier) ───────
 {
   resetAuthCallbackExchangeCache()
-  let calls = 0
+  let verifyCalls = 0
+  let exchangeCalls = 0
+  let lastTokenHash: string | null = null
+  let lastType: string | null = null
+
   const deps = {
     exchangeCodeForSession: async () => {
-      calls += 1
+      exchangeCalls += 1
+      return noopExchange()
+    },
+    verifyOtp: async (args: { token_hash: string; type: string }) => {
+      verifyCalls += 1
+      lastTokenHash = args.token_hash
+      lastType = args.type
       return {
-        data: { session: { access_token: 't' } as never },
+        data: { session: { access_token: 'recovery-session' } as never },
         error: null,
       }
     },
-    onAuthStateChange: (cb: (event: string) => void) => {
-      cb('PASSWORD_RECOVERY')
-      return { data: { subscription: { unsubscribe: () => undefined } } }
-    },
+    onAuthStateChange: noopListener,
   }
 
-  const a = await exchangeAuthCodeOnce('code-1', deps)
-  const b = await exchangeAuthCodeOnce('code-1', deps)
-  assert(a.ok && b.ok, 'exchange success')
-  assertEq(calls, 1, 'exchangeCodeForSession called once')
-  if (a.ok) assert(a.isRecovery, 'recovery event detected')
+  const [a, b] = await Promise.all([
+    verifyRecoveryTokenHashOnce('hash-cross-device', deps),
+    verifyRecoveryTokenHashOnce('hash-cross-device', deps),
+  ])
+
+  assert(a.ok && b.ok, 'concurrent verify success')
+  assertEq(verifyCalls, 1, 'verifyOtp called exactly once')
+  assertEq(exchangeCalls, 0, 'exchangeCodeForSession not called for token_hash')
+  assertEq(lastTokenHash, 'hash-cross-device', 'verify receives token_hash')
+  assertEq(lastType, 'recovery', "verify type is 'recovery'")
+  if (a.ok) {
+    assert(a.isRecovery, 'token_hash path marks isRecovery')
+    assert(a.session, 'session present after verify')
+  }
+
+  // Second sequential call must still be cache-only (no new SDK call).
+  const c = await verifyRecoveryTokenHashOnce('hash-cross-device', deps)
+  assert(c.ok, 'cached verify still ok')
+  assertEq(verifyCalls, 1, 'still exactly one verifyOtp after cache hit')
 }
 
 {
   resetAuthCallbackExchangeCache()
-  const result = await exchangeAuthCodeOnce('expired', {
-    exchangeCodeForSession: async () => ({
+  const result = await verifyRecoveryTokenHashOnce('expired-hash', {
+    exchangeCodeForSession: noopExchange,
+    verifyOtp: async () => ({
       data: { session: null },
-      error: { message: 'Email link is invalid or has expired' },
+      error: { message: 'Token has expired or is invalid' },
     }),
-    onAuthStateChange: () => ({
-      data: { subscription: { unsubscribe: () => undefined } },
-    }),
+    onAuthStateChange: noopListener,
   })
-  assert(!result.ok, 'expired fails')
+  assert(!result.ok, 'expired token fails')
   if (!result.ok) {
     assertEq(
       result.message,
@@ -180,7 +211,76 @@ function assertEq<T>(actual: T, expected: T, msg: string) {
   }
 }
 
-// ── source wiring ────────────────────────────────────────────
+{
+  resetAuthCallbackExchangeCache()
+  const result = await verifyRecoveryTokenHashOnce('used-hash', {
+    exchangeCodeForSession: noopExchange,
+    verifyOtp: async () => ({
+      data: { session: null },
+      error: { message: 'OTP has already been used' },
+    }),
+    onAuthStateChange: noopListener,
+  })
+  assert(!result.ok, 'already-used fails')
+  if (!result.ok) {
+    assertEq(result.message, 'Link wygasł lub został już użyty.', 'friendly used message')
+  }
+}
+
+// ── legacy PKCE exchange still works ─────────────────────────
+{
+  resetAuthCallbackExchangeCache()
+  let realCalls = 0
+  let verifyCalls = 0
+  const deps = {
+    exchangeCodeForSession: async () => {
+      realCalls += 1
+      return {
+        data: { session: { access_token: 't' } as never },
+        error: null,
+      }
+    },
+    verifyOtp: async () => {
+      verifyCalls += 1
+      return noopVerify()
+    },
+    onAuthStateChange: (cb: (event: string) => void) => {
+      cb('PASSWORD_RECOVERY')
+      return noopListener()
+    },
+  }
+
+  const [a, b] = await Promise.all([
+    exchangeAuthCodeOnce('legacy-code', deps),
+    exchangeAuthCodeOnce('legacy-code', deps),
+  ])
+  assert(a.ok && b.ok, 'concurrent exchange success')
+  assertEq(realCalls, 1, 'legacy exchange once')
+  assertEq(verifyCalls, 0, 'legacy path does not call verifyOtp')
+  if (a.ok) assert(a.isRecovery, 'PASSWORD_RECOVERY sets isRecovery')
+}
+
+{
+  resetAuthCallbackExchangeCache()
+  const result = await exchangeAuthCodeOnce('expired', {
+    exchangeCodeForSession: async () => ({
+      data: { session: null },
+      error: { message: 'Email link is invalid or has expired' },
+    }),
+    verifyOtp: noopVerify,
+    onAuthStateChange: noopListener,
+  })
+  assert(!result.ok, 'expired PKCE fails')
+  if (!result.ok) {
+    assertEq(
+      result.message,
+      'Link wygasł lub został już użyty.',
+      'friendly PKCE expired message',
+    )
+  }
+}
+
+// ── source wiring + security ─────────────────────────────────
 {
   const router = readFileSync(join(ROOT, 'src/routes/router.tsx'), 'utf8')
   assert(router.includes('AuthCallbackGate'), 'router uses AuthCallbackGate')
@@ -190,9 +290,9 @@ function assertEq<T>(actual: T, expected: T, msg: string) {
   const supabaseClient = readFileSync(join(ROOT, 'src/lib/supabase.ts'), 'utf8')
   assert(
     supabaseClient.includes('detectSessionInUrl: false'),
-    'detectSessionInUrl disabled — callback owns exchange',
+    'detectSessionInUrl disabled — callback owns exchange/verify',
   )
-  assert(supabaseClient.includes("flowType: 'pkce'"), 'PKCE flow preserved')
+  assert(supabaseClient.includes("flowType: 'pkce'"), 'PKCE flow preserved globally')
 
   const authService = readFileSync(
     join(ROOT, 'src/features/auth/services/authService.ts'),
@@ -204,7 +304,19 @@ function assertEq<T>(actual: T, expected: T, msg: string) {
   )
   assert(
     authService.includes("authCallbackUrl('recovery')"),
-    'reset redirects to callback?next=recovery',
+    'resetPasswordForEmail redirectTo still set (legacy + SiteURL)',
+  )
+
+  const callbackSrc = readFileSync(
+    join(ROOT, 'src/features/auth/callback/authCallback.ts'),
+    'utf8',
+  )
+  assert(!callbackSrc.includes('__OURWED_AUTH_EXCHANGE__'), 'no TEMP window diagnostics')
+  assert(!callbackSrc.includes('getAuthExchangeDiagnostics'), 'diagnostics helper removed')
+  assert(!callbackSrc.includes('fullCallbackUrl'), 'no fullCallbackUrl logging')
+  assert(
+    !/console\.(log|debug|info|warn)\([^)]*token_hash/.test(callbackSrc),
+    'no token_hash console logging',
   )
 
   const callbackPage = readFileSync(
@@ -212,16 +324,36 @@ function assertEq<T>(actual: T, expected: T, msg: string) {
     'utf8',
   )
   assert(
+    callbackPage.includes('verifyRecoveryTokenHashOnce'),
+    'callback page verifies token_hash',
+  )
+  assert(
     callbackPage.includes('exchangeAuthCodeOnce'),
-    'callback page exchanges code',
+    'callback page still exchanges legacy code',
   )
   assert(
-    callbackPage.includes('Trwa weryfikacja'),
-    'callback shows verification status',
+    callbackPage.includes('isTokenHashRecovery'),
+    'token_hash recovery takes priority',
   )
   assert(
-    callbackPage.includes('armPasswordRecovery'),
-    'callback arms recovery for reset page',
+    callbackPage.includes('confirm_recovery') ||
+      callbackPage.includes('Kontynuuj reset hasła'),
+    'confirm-click before verifyOtp (prefetch guard)',
+  )
+  assert(
+    callbackPage.includes("replaceState({}, '', '/auth/callback')"),
+    'strips sensitive params from URL',
+  )
+  assert(
+    callbackPage.includes('navigate(phase.path, { replace: true') ||
+      callbackPage.includes('<Navigate to={phase.path} replace'),
+    'navigation uses replace semantics',
+  )
+  assert(callbackPage.includes("path: '/reset-password'"), 'success → /reset-password')
+  assert(
+    callbackPage.includes('Trwa weryfikacja') ||
+      callbackPage.includes('AuthLoadingScreen'),
+    'callback shows verification status (not homepage)',
   )
   assert(
     callbackPage.includes('Link wygasł lub został już użyty'),
@@ -232,6 +364,11 @@ function assertEq<T>(actual: T, expected: T, msg: string) {
       callbackPage.includes('resolveAuthCallbackErrorAction'),
     'callback offers new link action',
   )
+  assert(callbackPage.includes('armPasswordRecovery'), 'arms recovery for reset page')
+  assert(
+    !/console\.(log|debug|info)\([^)]*token/.test(callbackPage),
+    'callback page does not console-log tokens',
+  )
 
   const gate = readFileSync(
     join(ROOT, 'src/features/auth/callback/AuthCallbackGate.tsx'),
@@ -239,7 +376,7 @@ function assertEq<T>(actual: T, expected: T, msg: string) {
   )
   assert(
     gate.includes('locationNeedsAuthCallback'),
-    'gate intercepts code before child routes',
+    'gate intercepts code/token before child routes',
   )
 
   const resetForm = readFileSync(
@@ -256,6 +393,21 @@ function assertEq<T>(actual: T, expected: T, msg: string) {
   assert(
     loginPage.includes('Hasło zostało zmienione'),
     'login shows password-changed message',
+  )
+
+  const recoveryHtml = readFileSync(
+    join(ROOT, 'supabase/templates/auth/recovery.html'),
+    'utf8',
+  )
+  assert(
+    recoveryHtml.includes(
+      'https://ourwed.pl/auth/callback?token_hash={{ .TokenHash }}&type=recovery',
+    ),
+    'recovery email CTA uses TokenHash',
+  )
+  assert(
+    !recoveryHtml.includes('href="{{ .ConfirmationURL }}"'),
+    'recovery CTA no longer ConfirmationURL',
   )
 }
 

@@ -2,13 +2,12 @@
  * OurWed auth email templates — shared branded shell.
  *
  * Generates production HTML + plain text for Supabase Auth,
- * plus browser previews with sample confirmation URLs.
+ * plus browser previews with sample action URLs.
  *
  * Placeholders must remain exact Go template syntax for GoTrue:
- *   {{ .ConfirmationURL }}
- *   {{ .SiteURL }}
- *   {{ .Email }}
- *   {{ .NewEmail }}  (email_change only)
+ *   Recovery CTA: token_hash={{ .TokenHash }}&type=recovery
+ *   Other flows:  {{ .ConfirmationURL }}
+ *   {{ .SiteURL }} / {{ .Email }} / {{ .NewEmail }} (email_change)
  *
  * Run: npx tsx scripts/buildAuthEmails.ts
  */
@@ -23,8 +22,15 @@ const PREVIEWS = join(OUT, 'previews')
 
 const CONFIRMATION_URL = '{{ .ConfirmationURL }}'
 
+/** Production recovery CTA — TokenHash + verifyOtp (cross-device). */
+const RECOVERY_ACTION_URL =
+  'https://ourwed.pl/auth/callback?token_hash={{ .TokenHash }}&type=recovery'
+
 const SAMPLE_CONFIRMATION_URL =
   'https://xyycwllsovpxlcustpcv.supabase.co/auth/v1/verify?token=example-token-hash&type=recovery&redirect_to=https://ourwed.pl/reset-password'
+
+const SAMPLE_RECOVERY_ACTION_URL =
+  'https://ourwed.pl/auth/callback?token_hash=example-token-hash&type=recovery'
 
 type AuthEmailId =
   | 'recovery'
@@ -49,6 +55,16 @@ interface AuthEmailSpec {
   extraHtml?: string
   /** Extra plain-text lines after body paragraphs */
   extraText?: string[]
+  /** Override CTA href (defaults to ConfirmationURL). */
+  actionUrl?: string
+  /**
+   * When true, do not print the action URL as visible text
+   * (used for recovery so token_hash is not shown in the email body).
+   */
+  hideVisibleActionUrl?: boolean
+  /** Optional safe fallback href when hideVisibleActionUrl is true. */
+  safeFallbackUrl?: string
+  safeFallbackLabel?: string
 }
 
 const EMAILS: AuthEmailSpec[] = [
@@ -62,9 +78,14 @@ const EMAILS: AuthEmailSpec[] = [
       'Kliknij przycisk poniżej, aby ustawić nowe hasło.',
     ],
     buttonLabel: 'Zmień hasło',
-    fallbackIntro: 'Jeżeli przycisk nie działa, skopiuj poniższy adres:',
+    fallbackIntro:
+      'Jeżeli przycisk nie działa, poproś o nowy link na stronie resetu hasła:',
     disclaimer:
       'Jeżeli to nie Ty wysłałeś tę prośbę, po prostu zignoruj tę wiadomość.',
+    actionUrl: RECOVERY_ACTION_URL,
+    hideVisibleActionUrl: true,
+    safeFallbackUrl: 'https://ourwed.pl/forgot-password',
+    safeFallbackLabel: 'https://ourwed.pl/forgot-password',
   },
   {
     id: 'confirmation',
@@ -130,9 +151,18 @@ function escapeHtml(value: string): string {
     .replaceAll('"', '&quot;')
 }
 
+function resolveActionUrl(spec: AuthEmailSpec): string {
+  return spec.actionUrl ?? CONFIRMATION_URL
+}
+
+function resolvePreviewActionUrl(spec: AuthEmailSpec): string {
+  if (spec.id === 'recovery') return SAMPLE_RECOVERY_ACTION_URL
+  return SAMPLE_CONFIRMATION_URL
+}
+
 function renderHtml(
   spec: AuthEmailSpec,
-  confirmationUrl: string,
+  actionUrl: string,
   options?: { newEmail?: string },
 ): string {
   const paragraphs = spec.paragraphs
@@ -150,6 +180,13 @@ function renderHtml(
   if (options?.newEmail && extra.includes('{{ .NewEmail }}')) {
     extra = extra.replaceAll('{{ .NewEmail }}', escapeHtml(options.newEmail))
   }
+
+  const visibleFallbackUrl = spec.hideVisibleActionUrl
+    ? (spec.safeFallbackUrl ?? 'https://ourwed.pl/forgot-password')
+    : actionUrl
+  const visibleFallbackLabel = spec.hideVisibleActionUrl
+    ? (spec.safeFallbackLabel ?? visibleFallbackUrl)
+    : actionUrl
 
   return `<!DOCTYPE html>
 <html lang="pl" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
@@ -232,13 +269,13 @@ function renderHtml(
                   <tr>
                     <td align="left">
                       <!--[if mso]>
-                      <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${confirmationUrl}" style="height:48px;v-text-anchor:middle;width:220px;" arcsize="17%" stroke="f" fillcolor="#0a0a0a">
+                      <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${actionUrl}" style="height:48px;v-text-anchor:middle;width:220px;" arcsize="17%" stroke="f" fillcolor="#0a0a0a">
                         <w:anchorlock/>
                         <center style="color:#ffffff;font-family:Segoe UI,sans-serif;font-size:15px;font-weight:600;">${escapeHtml(spec.buttonLabel)}</center>
                       </v:roundrect>
                       <![endif]-->
                       <!--[if !mso]><!-- -->
-                      <a class="ow-button" href="${confirmationUrl}" target="_blank" rel="noopener noreferrer" style="display:inline-block;background-color:#0a0a0a;color:#ffffff;font-size:15px;font-weight:600;line-height:1;text-decoration:none;padding:16px 28px;border-radius:8px;border:1px solid #0a0a0a;">
+                      <a class="ow-button" href="${actionUrl}" target="_blank" rel="noopener noreferrer" style="display:inline-block;background-color:#0a0a0a;color:#ffffff;font-size:15px;font-weight:600;line-height:1;text-decoration:none;padding:16px 28px;border-radius:8px;border:1px solid #0a0a0a;">
                         ${escapeHtml(spec.buttonLabel)}
                       </a>
                       <!--<![endif]-->
@@ -250,7 +287,7 @@ function renderHtml(
                   ${escapeHtml(spec.fallbackIntro)}
                 </p>
                 <p class="ow-url" style="margin:0;font-size:12px;line-height:1.6;word-break:break-all;color:#5c5c5c;">
-                  <a href="${confirmationUrl}" target="_blank" rel="noopener noreferrer" style="color:#5c5c5c;text-decoration:underline;">${confirmationUrl}</a>
+                  <a href="${visibleFallbackUrl}" target="_blank" rel="noopener noreferrer" style="color:#5c5c5c;text-decoration:underline;">${escapeHtml(visibleFallbackLabel)}</a>
                 </p>
 
                 ${disclaimer}
@@ -275,7 +312,11 @@ function renderHtml(
 `
 }
 
-function renderText(spec: AuthEmailSpec, confirmationUrl: string): string {
+function renderText(spec: AuthEmailSpec, actionUrl: string): string {
+  const visibleFallback = spec.hideVisibleActionUrl
+    ? (spec.safeFallbackLabel ?? 'https://ourwed.pl/forgot-password')
+    : actionUrl
+
   const lines = [
     'OurWed',
     '',
@@ -285,10 +326,10 @@ function renderText(spec: AuthEmailSpec, confirmationUrl: string): string {
     ...(spec.extraText ?? []),
     '',
     `${spec.buttonLabel}:`,
-    confirmationUrl,
+    actionUrl,
     '',
     spec.fallbackIntro,
-    confirmationUrl,
+    visibleFallback,
   ]
 
   if (spec.disclaimer) {
@@ -331,11 +372,11 @@ function renderPreviewIndex(): string {
 <body>
   <main>
     <h1>Auth email previews</h1>
-    <p>Branded OurWed authentication emails. Sample confirmation URLs are substituted for browser review only — production templates keep <code>{{ .ConfirmationURL }}</code>.</p>
+    <p>Branded OurWed authentication emails. Recovery uses TokenHash; other flows keep ConfirmationURL.</p>
     <ul>
       ${links}
     </ul>
-    <p class="note">Tip: resize the browser to ~390px width to check mobile layout. Toggle OS dark mode to check Apple Mail dark rendering.</p>
+    <p class="note">Local recovery CTA equivalent: <code>http://localhost:5173/auth/callback?token_hash={{ .TokenHash }}&amp;type=recovery</code> (do not use in production templates).</p>
   </main>
 </body>
 </html>
@@ -349,9 +390,10 @@ function write(path: string, contents: string) {
 
 function main() {
   for (const spec of EMAILS) {
-    const html = renderHtml(spec, CONFIRMATION_URL)
-    const text = renderText(spec, CONFIRMATION_URL)
-    const preview = renderHtml(spec, SAMPLE_CONFIRMATION_URL, {
+    const actionUrl = resolveActionUrl(spec)
+    const html = renderHtml(spec, actionUrl)
+    const text = renderText(spec, actionUrl)
+    const preview = renderHtml(spec, resolvePreviewActionUrl(spec), {
       newEmail: 'nowy@example.com',
     })
 

@@ -1,16 +1,18 @@
 /**
- * Canonical Supabase Auth PKCE callback pipeline.
- * Pure module — no React. Used by AuthCallbackPage + tests.
+ * Canonical Supabase Auth callback pipeline.
  *
- * All email flows (recovery, confirm, magic link, invite, email change)
- * land here with ?code=… and optionally ?next=….
+ * Password recovery (cross-device): token_hash + type=recovery → verifyOtp
+ * Legacy / other PKCE email flows: ?code= → exchangeCodeForSession
  *
- * Supabase client is loaded lazily only when exchanging without test deps.
+ * Supabase client is loaded lazily when deps are not injected (tests).
  */
 
-import type { Session } from '@supabase/supabase-js'
+import type { EmailOtpType, Session } from '@supabase/supabase-js'
 
 export const AUTH_CALLBACK_PATH = '/auth/callback'
+
+/** Production origin for recovery email CTAs (Dashboard template). */
+export const AUTH_EMAIL_PRODUCTION_ORIGIN = 'https://ourwed.pl'
 
 export type AuthCallbackNext =
   | 'recovery'
@@ -20,20 +22,16 @@ export type AuthCallbackNext =
   | 'email_change'
   | 'auto'
 
-export type AuthCallbackStatus =
-  | 'idle'
-  | 'exchanging'
-  | 'success'
-  | 'error'
-
 export interface AuthCallbackParams {
   code: string | null
+  tokenHash: string | null
+  type: string | null
   error: string | null
   errorDescription: string | null
   next: AuthCallbackNext
 }
 
-export type AuthCallbackExchangeResult =
+export type AuthCallbackResult =
   | {
       ok: true
       session: Session | null
@@ -41,7 +39,13 @@ export type AuthCallbackExchangeResult =
     }
   | {
       ok: false
-      reason: 'missing_code' | 'provider_error' | 'exchange_failed'
+      reason:
+        | 'missing_code'
+        | 'missing_token'
+        | 'provider_error'
+        | 'exchange_failed'
+        | 'verify_failed'
+        | 'invalid_type'
       /** Friendly Polish message — never raw Supabase text. */
       message: string
     }
@@ -60,8 +64,13 @@ const NEXT_VALUES = new Set<AuthCallbackNext>([
   'auto',
 ])
 
-/** In-flight / completed exchanges keyed by code (exact-once). */
-const exchangeCache = new Map<string, Promise<AuthCallbackExchangeResult>>()
+const FRIENDLY_EXPIRED = 'Link wygasł lub został już użyty.'
+
+/** In-flight / completed PKCE exchanges keyed by code (exact-once). */
+const exchangeCache = new Map<string, Promise<AuthCallbackResult>>()
+
+/** In-flight / completed verifyOtp recoveries keyed by token_hash (exact-once). */
+const verifyCache = new Map<string, Promise<AuthCallbackResult>>()
 
 export function authCallbackUrl(next: AuthCallbackNext): string {
   const origin =
@@ -72,6 +81,11 @@ export function authCallbackUrl(next: AuthCallbackNext): string {
   return `${origin}${AUTH_CALLBACK_PATH}?${params.toString()}`
 }
 
+/** Production recovery CTA for Supabase Reset Password email template. */
+export function recoveryEmailActionHref(): string {
+  return `${AUTH_EMAIL_PRODUCTION_ORIGIN}${AUTH_CALLBACK_PATH}?token_hash={{ .TokenHash }}&type=recovery`
+}
+
 export function parseAuthCallbackNext(raw: string | null): AuthCallbackNext {
   if (raw && NEXT_VALUES.has(raw as AuthCallbackNext)) {
     return raw as AuthCallbackNext
@@ -79,21 +93,23 @@ export function parseAuthCallbackNext(raw: string | null): AuthCallbackNext {
   return 'auto'
 }
 
-export function parseAuthCallbackParams(
-  search: string,
-): AuthCallbackParams {
+export function parseAuthCallbackParams(search: string): AuthCallbackParams {
   const params = new URLSearchParams(
     search.startsWith('?') ? search.slice(1) : search,
   )
   const code = params.get('code')
+  const tokenHash = params.get('token_hash')
+  const type = params.get('type')
   const error = params.get('error')
   const errorDescription = params.get('error_description')
-  // Supabase may include type=recovery on some redirects; prefer explicit next=.
-  const typeHint = params.get('type')
-  const nextRaw = params.get('next') ?? (typeHint === 'recovery' ? 'recovery' : null)
+  const typeHint = type
+  const nextRaw =
+    params.get('next') ?? (typeHint === 'recovery' ? 'recovery' : null)
 
   return {
     code: code && code.trim() ? code.trim() : null,
+    tokenHash: tokenHash && tokenHash.trim() ? tokenHash.trim() : null,
+    type: type && type.trim() ? type.trim() : null,
     error: error && error.trim() ? error.trim() : null,
     errorDescription:
       errorDescription && errorDescription.trim()
@@ -103,14 +119,21 @@ export function parseAuthCallbackParams(
   }
 }
 
+/**
+ * Token-hash recovery takes priority when type=recovery and token_hash is present.
+ */
+export function isTokenHashRecovery(params: AuthCallbackParams): boolean {
+  return Boolean(params.tokenHash && params.type === 'recovery')
+}
+
 /** True when the current location must be handled by the callback pipeline. */
 export function locationNeedsAuthCallback(
   pathname: string,
   search: string,
 ): boolean {
   if (pathname === AUTH_CALLBACK_PATH) return false
-  const { code, error } = parseAuthCallbackParams(search)
-  return Boolean(code || error)
+  const { code, error, tokenHash } = parseAuthCallbackParams(search)
+  return Boolean(code || error || tokenHash)
 }
 
 export function buildAuthCallbackRedirect(
@@ -123,10 +146,16 @@ export function buildAuthCallbackRedirect(
 }
 
 export function mapAuthCallbackFailureMessage(
-  reason: 'missing_code' | 'provider_error' | 'exchange_failed',
+  _reason:
+    | 'missing_code'
+    | 'missing_token'
+    | 'provider_error'
+    | 'exchange_failed'
+    | 'verify_failed'
+    | 'invalid_type',
 ): string {
-  void reason
-  return 'Link wygasł lub został już użyty.'
+  void _reason
+  return FRIENDLY_EXPIRED
 }
 
 function isExpiredOrUsedError(message: string): boolean {
@@ -137,6 +166,7 @@ function isExpiredOrUsedError(message: string): boolean {
     n.includes('already') ||
     n.includes('used') ||
     n.includes('otp') ||
+    n.includes('token') ||
     n.includes('flow state') ||
     n.includes('pkce') ||
     n.includes('code verifier') ||
@@ -144,24 +174,42 @@ function isExpiredOrUsedError(message: string): boolean {
   )
 }
 
+type ExchangeFn = (authCode: string) => Promise<{
+  data: { session: Session | null; user?: Session['user'] | null }
+  error: { message?: string } | null
+}>
+
+type VerifyOtpFn = (args: {
+  token_hash: string
+  type: EmailOtpType
+}) => Promise<{
+  data: { session: Session | null; user?: Session['user'] | null }
+  error: { message?: string } | null
+}>
+
+type OnAuthStateChangeFn = (
+  callback: (event: string) => void,
+) => { data: { subscription: { unsubscribe: () => void } } }
+
+export type AuthCallbackDeps = {
+  exchangeCodeForSession?: ExchangeFn
+  verifyOtp?: VerifyOtpFn
+  onAuthStateChange?: OnAuthStateChangeFn
+}
+
+/** Test helper — clears exact-once caches. */
+export function resetAuthCallbackExchangeCache(): void {
+  exchangeCache.clear()
+  verifyCache.clear()
+}
+
 /**
- * Exchange a PKCE auth code for a session exactly once per code value.
- * Optional deps are for tests only.
+ * Exchange a legacy PKCE auth code for a session exactly once per code.
  */
 export async function exchangeAuthCodeOnce(
   code: string,
-  deps?: {
-    exchangeCodeForSession: (
-      authCode: string,
-    ) => Promise<{
-      data: { session: Session | null }
-      error: { message: string } | null
-    }>
-    onAuthStateChange: (
-      callback: (event: string) => void,
-    ) => { data: { subscription: { unsubscribe: () => void } } }
-  },
-): Promise<AuthCallbackExchangeResult> {
+  deps?: AuthCallbackDeps,
+): Promise<AuthCallbackResult> {
   const existing = exchangeCache.get(code)
   if (existing) return existing
 
@@ -175,48 +223,75 @@ export async function exchangeAuthCodeOnce(
   }
 }
 
-/** Test helper — clears the exact-once cache. */
-export function resetAuthCallbackExchangeCache(): void {
-  exchangeCache.clear()
+/**
+ * Verify a recovery token_hash exactly once (cross-browser / cross-device).
+ * Does not use exchangeCodeForSession.
+ */
+export async function verifyRecoveryTokenHashOnce(
+  tokenHash: string,
+  deps?: AuthCallbackDeps,
+): Promise<AuthCallbackResult> {
+  const existing = verifyCache.get(tokenHash)
+  if (existing) return existing
+
+  const promise = performVerifyRecovery(tokenHash, deps)
+  verifyCache.set(tokenHash, promise)
+  try {
+    return await promise
+  } catch (err) {
+    verifyCache.delete(tokenHash)
+    throw err
+  }
+}
+
+async function resolveAuthFns(deps?: AuthCallbackDeps): Promise<{
+  exchangeCodeForSession: ExchangeFn
+  verifyOtp: VerifyOtpFn
+  onAuthStateChange: OnAuthStateChangeFn
+}> {
+  if (
+    deps?.exchangeCodeForSession &&
+    deps.verifyOtp &&
+    deps.onAuthStateChange
+  ) {
+    return {
+      exchangeCodeForSession: deps.exchangeCodeForSession,
+      verifyOtp: deps.verifyOtp,
+      onAuthStateChange: deps.onAuthStateChange,
+    }
+  }
+
+  const { supabase } = await import('@/lib/supabase')
+  return {
+    exchangeCodeForSession:
+      deps?.exchangeCodeForSession ??
+      ((authCode: string) => supabase.auth.exchangeCodeForSession(authCode)),
+    verifyOtp:
+      deps?.verifyOtp ?? ((args) => supabase.auth.verifyOtp(args)),
+    onAuthStateChange:
+      deps?.onAuthStateChange ??
+      ((callback: (event: string) => void) =>
+        supabase.auth.onAuthStateChange((event) => {
+          callback(event)
+        })),
+  }
 }
 
 async function performExchange(
   code: string,
-  deps?: {
-    exchangeCodeForSession: (
-      authCode: string,
-    ) => Promise<{
-      data: { session: Session | null }
-      error: { message: string } | null
-    }>
-    onAuthStateChange: (
-      callback: (event: string) => void,
-    ) => { data: { subscription: { unsubscribe: () => void } } }
-  },
-): Promise<AuthCallbackExchangeResult> {
+  deps?: AuthCallbackDeps,
+): Promise<AuthCallbackResult> {
   let sawRecovery = false
+  const fns = await resolveAuthFns(deps)
 
-  let exchangeCodeForSession = deps?.exchangeCodeForSession
-  let onAuthStateChange = deps?.onAuthStateChange
-
-  if (!exchangeCodeForSession || !onAuthStateChange) {
-    const { supabase } = await import('@/lib/supabase')
-    exchangeCodeForSession ??= (authCode: string) =>
-      supabase.auth.exchangeCodeForSession(authCode)
-    onAuthStateChange ??= (callback: (event: string) => void) =>
-      supabase.auth.onAuthStateChange((event) => {
-        callback(event)
-      })
-  }
-
-  const { data: listener } = onAuthStateChange((event) => {
+  const { data: listener } = fns.onAuthStateChange((event) => {
     if (event === 'PASSWORD_RECOVERY') {
       sawRecovery = true
     }
   })
 
   try {
-    const { data, error } = await exchangeCodeForSession(code)
+    const { data, error } = await fns.exchangeCodeForSession(code)
 
     if (error) {
       const raw = error.message || ''
@@ -224,12 +299,11 @@ async function performExchange(
         ok: false,
         reason: 'exchange_failed',
         message: isExpiredOrUsedError(raw)
-          ? 'Link wygasł lub został już użyty.'
+          ? FRIENDLY_EXPIRED
           : 'Nie udało się zweryfikować linku. Spróbuj ponownie.',
       }
     }
 
-    // Give the auth listener a tick to observe PASSWORD_RECOVERY.
     await Promise.resolve()
 
     return {
@@ -249,7 +323,65 @@ async function performExchange(
       reason: 'exchange_failed',
       message: network
         ? 'Brak połączenia. Sprawdź sieć i spróbuj ponownie.'
-        : 'Link wygasł lub został już użyty.',
+        : FRIENDLY_EXPIRED,
+    }
+  } finally {
+    listener.subscription.unsubscribe()
+  }
+}
+
+async function performVerifyRecovery(
+  tokenHash: string,
+  deps?: AuthCallbackDeps,
+): Promise<AuthCallbackResult> {
+  const fns = await resolveAuthFns(deps)
+
+  // Listener kept for parity with PKCE path; recovery intent is explicit.
+  const { data: listener } = fns.onAuthStateChange(() => undefined)
+
+  try {
+    const { data, error } = await fns.verifyOtp({
+      token_hash: tokenHash,
+      type: 'recovery',
+    })
+
+    if (error) {
+      const raw = error.message || ''
+      return {
+        ok: false,
+        reason: 'verify_failed',
+        message: isExpiredOrUsedError(raw)
+          ? FRIENDLY_EXPIRED
+          : 'Nie udało się zweryfikować linku. Spróbuj ponownie.',
+      }
+    }
+
+    if (!data.session) {
+      return {
+        ok: false,
+        reason: 'verify_failed',
+        message: FRIENDLY_EXPIRED,
+      }
+    }
+
+    return {
+      ok: true,
+      session: data.session,
+      isRecovery: true,
+    }
+  } catch (err) {
+    const raw = err instanceof Error ? err.message : String(err)
+    const network =
+      raw.toLowerCase().includes('network') ||
+      raw.toLowerCase().includes('fetch') ||
+      raw.toLowerCase().includes('failed to fetch')
+
+    return {
+      ok: false,
+      reason: 'verify_failed',
+      message: network
+        ? 'Brak połączenia. Sprawdź sieć i spróbuj ponownie.'
+        : FRIENDLY_EXPIRED,
     }
   } finally {
     listener.subscription.unsubscribe()
@@ -290,7 +422,6 @@ export function resolveAuthCallbackDestination(input: {
       : { path: '/login', state: { emailConfirmed: true } }
   }
 
-  // auto — infer from recovery flag / session
   if (isRecovery) {
     return { path: '/reset-password' }
   }
@@ -315,3 +446,4 @@ export function resolveAuthCallbackErrorAction(next: AuthCallbackNext): {
   }
   return { label: 'Wyślij nowy link', to: '/forgot-password' }
 }
+
