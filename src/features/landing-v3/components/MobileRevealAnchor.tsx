@@ -44,8 +44,8 @@ export function MobileRevealAnchor({
       if (rect.bottom <= 0 || rect.top >= vh) return
       const visible = Math.max(0, Math.min(rect.bottom, vh) - Math.max(rect.top, 0))
       const coverage = visible / Math.max(rect.height, 1)
-      const topOk = rect.top < vh * 0.75
-      if (topOk && (coverage >= 0.35 || visible / vh >= 0.28)) activate()
+      const topOk = rect.top < vh * 0.72
+      if (topOk && (coverage >= 0.28 || visible / vh >= 0.22)) activate()
     }
 
     const io = new IntersectionObserver(() => check(), {

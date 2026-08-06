@@ -8,15 +8,15 @@ import styles from './mobileArtboard.module.css'
 
 const MAX_MONTH = Math.max(...DEMO_SEASON.months.map((m) => m.amount))
 
-/** Pattern B — compact finance bento (not tall card stack). */
+/** Parity artboard — desktop finance bento hierarchy. */
 export function MobileFinanceArtboard() {
   return (
     <MobileRevealAnchor>
       {(active) => (
         <div
-          className={`${styles.board} ${styles.financeBoard}`}
+          className={styles.financeBoard}
           data-mobile-artboard="finance"
-          data-artboard-pattern="B"
+          data-artboard-pattern="parity-B"
           data-reveal-active={active ? 'true' : 'false'}
           style={
             {
@@ -24,11 +24,14 @@ export function MobileFinanceArtboard() {
             } as CSSProperties
           }
         >
-          <div className={styles.finPrimary}>
-            <span>{DEMO_ASSIGNMENT.displayName}</span>
+          <div className={styles.finPrimary} data-dominant="true">
+            <span className={styles.eyebrow}>{DEMO_ASSIGNMENT.displayName}</span>
             <strong>{DEMO_ASSIGNMENT.contractValueLabel}</strong>
-            <span>Wartość umowy</span>
-            <div className={styles.finRail} data-active={active ? 'true' : 'false'}>
+            <span className={styles.meta}>Wartość umowy</span>
+            <div
+              className={styles.finRail}
+              data-active={active ? 'true' : 'false'}
+            >
               <i className={styles.finRailFill} aria-hidden />
             </div>
           </div>
@@ -46,6 +49,8 @@ export function MobileFinanceArtboard() {
 
           <div className={styles.finSeason}>
             <span>{DEMO_SEASON.yearLabel}</span>
+            <strong>{DEMO_SEASON.contractedLabel}</strong>
+            <span>Zakontraktowano</span>
             <div
               className={styles.finBars}
               data-active={active ? 'true' : 'false'}
@@ -55,15 +60,21 @@ export function MobileFinanceArtboard() {
                 <i
                   key={m.id}
                   className={styles.finBar}
-                  style={{ height: `${Math.max(18, (m.amount / MAX_MONTH) * 100)}%` }}
+                  style={{
+                    height: `${Math.max(18, (m.amount / MAX_MONTH) * 100)}%`,
+                  }}
                 />
               ))}
+            </div>
+            <div className={styles.finBarLabel}>
+              <span>Sty</span>
+              <span>Cze</span>
             </div>
           </div>
 
           <div className={styles.finRow4}>
             <div className={styles.finMini}>
-              <span>Najbliższa płatność</span>
+              <span>Najbliższa wpłata</span>
               <strong>{DEMO_ASSIGNMENT.remainingLabel}</strong>
               <span>{DEMO_ASSIGNMENT.finalDueLabel}</span>
             </div>

@@ -476,15 +476,25 @@ const importArt = readFileSync(
 )
 assert(importArt.includes('slice(0, 3)'), 'import shows max 3 rows')
 assert(importArt.includes('Gotowe do zatwierdzenia'), 'import result status')
-assert(importArt.includes('data-artboard-pattern="B"'), 'import pattern B')
+assert(importArt.includes('data-dominant="true"'), 'import dominant result')
+assert(importArt.includes('importPreviews'), 'import source pair')
 
 const assignArt = readFileSync(
   join(FEATURE, 'components/mobile-artboards/MobileAssignmentArtboard.tsx'),
   'utf8',
 )
-assert(assignArt.includes('MobileScaledStage'), 'assignment uses scaled stage')
-assert(assignArt.includes('baseWidth={760}'), 'assignment base width')
-assert(assignArt.includes('baseHeight={860}'), 'assignment base height')
+assert(assignArt.includes('assignHub'), 'assignment central hub')
+assert(assignArt.includes('assignGrid'), 'assignment module grid')
+assert(assignArt.includes('assignConnectors'), 'assignment connectors')
+assert((assignArt.match(/title: '/g) || []).length >= 6, 'six assignment modules')
+
+const qcArt = readFileSync(
+  join(FEATURE, 'components/mobile-artboards/MobileQcArtboard.tsx'),
+  'utf8',
+)
+assert(qcArt.includes('data-surface="questionnaire"'), 'qc questionnaire surface')
+assert(qcArt.includes('data-surface="contract"'), 'qc contract surface')
+assert(qcArt.includes('MAP'), 'qc mapping chips')
 
 const secArt = readFileSync(
   join(FEATURE, 'components/mobile-artboards/MobileSecurityArtboard.tsx'),
@@ -499,7 +509,49 @@ const finArt = readFileSync(
   'utf8',
 )
 assert(finArt.includes('finRow2'), 'finance bento row2')
-assert(finArt.includes('data-artboard-pattern="B"'), 'finance pattern B')
+assert(finArt.includes('finSeason'), 'finance season panel')
+assert(finArt.includes('Wpłacono'), 'finance paid card')
+
+const dayArt = readFileSync(
+  join(FEATURE, 'components/mobile-artboards/MobileDayArtboard.tsx'),
+  'utf8',
+)
+assert(dayArt.includes('data-surface="questionnaire"'), 'day questionnaire surface')
+assert(dayArt.includes('data-surface="itinerary"'), 'day itinerary surface')
+assert(dayArt.includes('Zastosowano odpowiedzi'), 'day applied status')
+
+const briefArt = readFileSync(
+  join(FEATURE, 'components/mobile-artboards/MobileBriefArtboard.tsx'),
+  'utf8',
+)
+assert(briefArt.includes('data-brief-layer="rear"'), 'brief rear page')
+assert(briefArt.includes('data-brief-layer="primary"'), 'brief primary page')
+
+const sessionsArt = readFileSync(
+  join(FEATURE, 'components/mobile-artboards/MobileSessionsArtboard.tsx'),
+  'utf8',
+)
+assert(sessionsArt.includes('sessionWedding'), 'sessions wedding dominant')
+assert(sessionsArt.includes('sessionSession'), 'sessions session card')
+
+const calArt = readFileSync(
+  join(FEATURE, 'components/mobile-artboards/MobileCalendarArtboard.tsx'),
+  'utf8',
+)
+assert(calArt.includes('Czerwiec 2027'), 'calendar full month')
+assert(calArt.includes('Google Calendar'), 'calendar google integration')
+assert(calArt.includes('Apple Calendar'), 'calendar apple integration')
+
+assert(
+  existsSync(join(ROOT, 'docs/landing-v3-mobile-parity.md')),
+  'parity specification exists',
+)
+assert(
+  readFileSync(join(ROOT, 'docs/landing-v3-mobile-parity.md'), 'utf8').includes(
+    'Desktop ↔ Mobile Parity',
+  ),
+  'parity doc titled',
+)
 
 const stageSrc = readFileSync(join(FEATURE, 'components/MobileScaledStage.tsx'), 'utf8')
 const stageCss = readFileSync(join(FEATURE, 'components/MobileScaledStage.module.css'), 'utf8')
@@ -520,6 +572,7 @@ assert(mobileSeq.includes('doneAt: 6.4'), 'mobile simple doneAt 6.4')
 assert(readFileSync(join(FEATURE, 'hooks/useSectionReveal.ts'), 'utf8').includes('effectiveThreshold'), 'tall-section adaptive reveal')
 assert(iphoneCss.includes('perspective: none'), 'mobile perspective flattened')
 assert(mobileSec.includes('useLandingViewportMode'), 'section uses viewport mode')
+assert(mobileSec.includes('0.8'), 'phone requires 80% primary visible')
 assert(briefView.includes('compact'), 'brief supports compact layout')
 
 const marketing = [page, security, day, pricing, importSec, mobileSec].join('\n')

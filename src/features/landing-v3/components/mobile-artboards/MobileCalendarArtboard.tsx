@@ -12,7 +12,7 @@ const EVENTS: Record<number, string> = {
   26: 'Ślub',
 }
 
-/** Pattern B — full-width mobile month calendar. */
+/** Parity artboard — full month surface matching desktop calendar. */
 export function MobileCalendarArtboard() {
   const days: Array<{ day: number | null; event?: string }> = []
   for (let i = 0; i < 1; i++) days.push({ day: null })
@@ -26,12 +26,12 @@ export function MobileCalendarArtboard() {
         <div
           className={`${styles.board} ${styles.calBoard}`}
           data-mobile-artboard="calendar"
-          data-artboard-pattern="B"
+          data-artboard-pattern="parity-B"
           data-reveal-active={active ? 'true' : 'false'}
         >
           <div className={styles.calHead}>
             <h3>Czerwiec 2027</h3>
-            <span className={styles.meta}>Sezon</span>
+            <span className={styles.calMeta}>Sezon</span>
           </div>
           <div className={styles.calGrid} aria-label="Kalendarz czerwca 2027">
             {DOWS.map((d) => (
@@ -57,7 +57,7 @@ export function MobileCalendarArtboard() {
             <strong>OurWed</strong>
             <span>Google Calendar · Zsynchronizowano</span>
             <span>Apple Calendar · Aktywny</span>
-            <span className={styles.meta}>
+            <span className={styles.calMeta}>
               {DEMO_ASSIGNMENT.displayName} · {DEMO_SESSION.displayName}
             </span>
           </div>

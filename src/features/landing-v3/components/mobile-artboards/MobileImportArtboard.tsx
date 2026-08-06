@@ -8,7 +8,7 @@ import styles from './mobileArtboard.module.css'
 
 const ROWS = IMPORT_SPREADSHEET_ROWS.slice(0, 3)
 
-/** Pattern B — one controlled import artboard for ≤768px. */
+/** Parity artboard — desktop import hierarchy at 358px. */
 export function MobileImportArtboard() {
   return (
     <MobileRevealAnchor>
@@ -16,7 +16,7 @@ export function MobileImportArtboard() {
         <div
           className={`${styles.board} ${styles.importBoard}`}
           data-mobile-artboard="import"
-          data-artboard-pattern="B"
+          data-artboard-pattern="parity-B"
           data-reveal-active={active ? 'true' : 'false'}
         >
           <ol className={styles.importSteps} aria-label="Kroki importu">
@@ -44,13 +44,17 @@ export function MobileImportArtboard() {
               ))}
             </div>
             <div className={styles.importDocMini}>
-              <div className={styles.importDocIcon} aria-hidden />
+              <div className={styles.importDocIcon} aria-hidden>
+                PDF
+              </div>
               <h4>{IMPORT_PREPARED.document}</h4>
             </div>
           </div>
 
-          <div className={styles.importResult}>
-            <p className={styles.importResultEyebrow}>Przygotowane zlecenie</p>
+          <div className={styles.importResult} data-dominant="true">
+            <p className={styles.importResultEyebrow}>
+              Zlecenie gotowe do zatwierdzenia
+            </p>
             <h3 className={styles.importResultTitle}>{IMPORT_PREPARED.couple}</h3>
             <p className={styles.importResultMeta}>{IMPORT_PREPARED.date}</p>
             <div className={styles.importResultRow}>

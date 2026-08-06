@@ -2006,10 +2006,12 @@
     max-height: 480px;
     mask-image: none;
     -webkit-mask-image: none;
+    margin-bottom: 1.25rem;
   }
 
   .heroDashboard > * {
     max-width: 100%;
+    width: 100%;
   }
 
   .financeTotals {

@@ -7,6 +7,12 @@ import { MobileRevealAnchor } from '@/features/landing-v3/components/MobileRevea
 import { usePrefersReducedMotion } from '@/features/landing-v3/hooks/usePrefersReducedMotion'
 import styles from './mobileArtboard.module.css'
 
+const Q_FIELDS = [
+  { label: 'Ceremonia', value: DEMO_ASSIGNMENT.ceremony },
+  { label: 'Przyjęcie', value: 'Folwark Wąsowo' },
+  { label: 'Godzina', value: DEMO_ASSIGNMENT.ceremonyTime },
+] as const
+
 const ITINERARY = [
   { time: '09:00', title: 'Start', place: 'Studio, Poznań', travel: null as string | null },
   {
@@ -35,7 +41,7 @@ const ITINERARY = [
   },
 ] as const
 
-/** Pattern B — one graphite wedding-day composition (≤2s). */
+/** Parity artboard — questionnaire → itinerary transfer on graphite. */
 export function MobileDayArtboard() {
   const reduced = usePrefersReducedMotion()
   return (
@@ -70,33 +76,42 @@ function DayScene({ active, reduced }: { active: boolean; reduced: boolean }) {
     <div
       className={styles.dayBoard}
       data-mobile-artboard="wedding-day"
-      data-artboard-pattern="B"
+      data-artboard-pattern="parity-B"
     >
-      <div className={styles.daySummary}>
+      <div className={styles.daySummary} data-surface="questionnaire">
         <p className={styles.daySummaryEyebrow}>Ankieta przedślubna</p>
         <h3>{DEMO_ASSIGNMENT.displayName}</h3>
         <p>
           {DEMO_ASSIGNMENT.dateLabel} · {DEMO_ASSIGNMENT.ceremonyTime} ceremonia
         </p>
+        {Q_FIELDS.map((f) => (
+          <div key={f.label} className={styles.dayField}>
+            <span>{f.label}</span>
+            <strong>{f.value}</strong>
+          </div>
+        ))}
         <span className={styles.dayCheck} data-active={check ? 'true' : 'false'}>
-          Plan dnia kompletny
+          ✓ Zastosowano odpowiedzi
         </span>
       </div>
 
-      <ol className={styles.dayItin}>
-        {ITINERARY.map((row) => (
-          <li key={row.time}>
-            <time>{row.time}</time>
-            <div>
-              <strong>{row.title}</strong>
-              <em>
-                {row.place}
-                {row.travel ? ` · ${row.travel}` : ''}
-              </em>
-            </div>
-          </li>
-        ))}
-      </ol>
+      <div className={styles.dayItineraryCard} data-surface="itinerary" data-dominant="true">
+        <p className={styles.daySummaryEyebrow}>Plan dnia</p>
+        <ol className={styles.dayItin}>
+          {ITINERARY.map((row) => (
+            <li key={row.time}>
+              <time>{row.time}</time>
+              <div>
+                <strong>{row.title}</strong>
+                <em>
+                  {row.place}
+                  {row.travel ? ` · ${row.travel}` : ''}
+                </em>
+              </div>
+            </li>
+          ))}
+        </ol>
+      </div>
 
       <div className={styles.dayTotals} data-active={totals ? 'true' : 'false'}>
         <span>Trasa dnia</span>

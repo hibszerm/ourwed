@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { useReducedMotion } from 'framer-motion'
 import { IPhoneMockup } from '@/features/landing-v3/components/mobile/IPhoneMockup'
 import { IPhoneNavigationPreview } from '@/features/landing-v3/components/mobile/IPhoneNavigationPreview'
@@ -25,11 +26,51 @@ export function MobileWeddingDaySection() {
   const viewport = useLandingViewportMode()
   const narrow = isMobileLandingMode(viewport)
   const { ref, active } = useSectionReveal({
-    threshold: narrow ? 0.22 : 0.35,
+    threshold: narrow ? 0.18 : 0.35,
     reduced,
   })
+  // Phone special case: require primary device mostly visible before starting.
+  const [phoneReady, setPhoneReady] = useState(reduced || !narrow)
+  useEffect(() => {
+    if (!narrow || reduced) {
+      const t = window.setTimeout(() => setPhoneReady(true), 0)
+      return () => window.clearTimeout(t)
+    }
+    const el = document.querySelector(
+      '[data-testid="lv3-mobile-stage"] [data-iphone-mockup="primary"]',
+    ) as HTMLElement | null
+    if (!el) {
+      const t = window.setTimeout(() => setPhoneReady(true), 700)
+      return () => window.clearTimeout(t)
+    }
+    let done = false
+    const activate = () => {
+      if (done) return
+      done = true
+      setPhoneReady(true)
+    }
+    const check = () => {
+      const rect = el.getBoundingClientRect()
+      const vh = window.innerHeight || 1
+      if (rect.bottom <= 0 || rect.top >= vh) return
+      const visible = Math.max(0, Math.min(rect.bottom, vh) - Math.max(rect.top, 0))
+      if (visible / Math.max(rect.height, 1) >= 0.8) activate()
+    }
+    const io = new IntersectionObserver(() => check(), {
+      threshold: [0, 0.5, 0.7, 0.8, 0.9, 1],
+      rootMargin: '0px 0px -8% 0px',
+    })
+    io.observe(el)
+    check()
+    const fallback = window.setTimeout(activate, 700)
+    return () => {
+      io.disconnect()
+      window.clearTimeout(fallback)
+    }
+  }, [narrow, reduced])
+
   const snapshot = useMobileWeddingDaySequence({
-    active,
+    active: active && phoneReady,
     reduced,
     mode: narrow ? 'simple' : 'full',
   })
