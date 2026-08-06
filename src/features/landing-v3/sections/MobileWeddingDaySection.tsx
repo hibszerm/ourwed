@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react'
 import { useReducedMotion } from 'framer-motion'
 import { IPhoneMockup } from '@/features/landing-v3/components/mobile/IPhoneMockup'
 import { IPhoneNavigationPreview } from '@/features/landing-v3/components/mobile/IPhoneNavigationPreview'
@@ -6,33 +5,27 @@ import { MobileAssignmentView } from '@/features/landing-v3/components/mobile/Mo
 import { MobileBriefView } from '@/features/landing-v3/components/mobile/MobileBriefView'
 import { MobileItineraryView } from '@/features/landing-v3/components/mobile/MobileItineraryView'
 import { MobileNavigationChooser } from '@/features/landing-v3/components/mobile/MobileNavigationChooser'
+import {
+  isMobileLandingMode,
+  useLandingViewportMode,
+} from '@/features/landing-v3/hooks/useLandingViewportMode'
 import { useMobileWeddingDaySequence } from '@/features/landing-v3/hooks/useMobileWeddingDaySequence'
 import { useSectionReveal } from '@/features/landing-v3/hooks/useSectionReveal'
 import { MOBILE_DEMO_BENEFITS } from '@/features/landing-v3/motion/mobileWeddingDaySequence'
 import styles from '@/features/landing-v3/styles/landingV3.module.css'
 import mobileStyles from './MobileWeddingDaySection.module.css'
 
-function useNarrowViewport(breakpoint = 768) {
-  const [narrow, setNarrow] = useState(false)
-  useEffect(() => {
-    const mq = window.matchMedia(`(max-width: ${breakpoint}px)`)
-    const sync = () => setNarrow(mq.matches)
-    sync()
-    mq.addEventListener('change', sync)
-    return () => mq.removeEventListener('change', sync)
-  }, [breakpoint])
-  return narrow
-}
-
 /**
  * Mobile wedding-day — IPhoneMockup + one-shot nav → brief.
  * Stable layers inside display mask. Final brief state persists.
+ * Desktop phone geometry unchanged; mobile uses dedicated widths.
  */
 export function MobileWeddingDaySection() {
   const reduced = !!useReducedMotion()
-  const narrow = useNarrowViewport()
+  const viewport = useLandingViewportMode()
+  const narrow = isMobileLandingMode(viewport)
   const { ref, active } = useSectionReveal({
-    threshold: 0.35,
+    threshold: narrow ? 0.28 : 0.35,
     reduced,
   })
   const snapshot = useMobileWeddingDaySequence({
@@ -59,6 +52,7 @@ export function MobileWeddingDaySection() {
       data-motion="mobile-wedding-day"
       data-demo-oneshot="true"
       data-final-state="brief"
+      data-viewport-mode={viewport}
       aria-labelledby="mobile-day-title"
     >
       <div className={mobileStyles.layout}>
@@ -125,7 +119,10 @@ export function MobileWeddingDaySection() {
                 progress={snapshot.chooserProgress}
                 focus={snapshot.focus}
               />
-              <MobileBriefView progress={snapshot.briefProgress} />
+              <MobileBriefView
+                progress={snapshot.briefProgress}
+                compact={narrow}
+              />
             </IPhoneMockup>
           </div>
         </div>

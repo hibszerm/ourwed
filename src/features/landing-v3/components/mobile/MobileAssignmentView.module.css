@@ -164,3 +164,35 @@
   color: #2f6b4f;
   background: rgba(47, 107, 79, 0.1);
 }
+
+@container phone-display (max-width: 280px) {
+  .layer {
+    padding: 2rem 0.7rem 1.15rem;
+  }
+
+  .title {
+    font-size: 1.12rem;
+  }
+
+  .next {
+    padding: 0.75rem 0.7rem;
+  }
+
+  .nextTime {
+    font-size: 1.15rem;
+  }
+
+  .nextTitle {
+    font-size: 0.9rem;
+  }
+
+  .action {
+    min-height: 2.2rem;
+    font-size: 0.74rem;
+  }
+
+  .navRow {
+    padding: 0.45rem 0.1rem;
+    font-size: 0.74rem;
+  }
+}

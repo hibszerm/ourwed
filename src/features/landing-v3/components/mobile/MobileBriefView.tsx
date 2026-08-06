@@ -4,15 +4,18 @@ import styles from './MobileBriefView.module.css'
 type Props = {
   /** 0 = hidden, 1 = fully shown */
   progress: number
+  /** Narrow phone: fewer shot rows so content fits without scroll. */
+  compact?: boolean
 }
 
 /**
  * Mobile-native Brief layer — not a scaled PDF.
  * Content derived from shared mobileWeddingDayDemo.
  */
-export function MobileBriefView({ progress }: Props) {
+export function MobileBriefView({ progress, compact = false }: Props) {
   const brief = getMobileBriefContent()
   const visible = progress > 0.02
+  const shots = compact ? brief.shotList.slice(0, 3) : brief.shotList
 
   return (
     <div
@@ -20,6 +23,7 @@ export function MobileBriefView({ progress }: Props) {
       data-mobile-screen="brief"
       data-screen-layer="brief"
       data-active={visible ? 'true' : 'false'}
+      data-brief-compact={compact ? 'true' : 'false'}
       style={{
         opacity: progress,
         transform: `translateX(${(1 - progress) * 24}px)`,
@@ -31,10 +35,16 @@ export function MobileBriefView({ progress }: Props) {
         <h3 className={styles.title}>{brief.title}</h3>
         <p className={styles.meta}>{brief.meta}</p>
         <p className={styles.status}>{brief.status}</p>
-        <p className={styles.routeSummary}>
-          <span>{brief.routeSummary.line}</span>
-          <span>{brief.routeSummary.metrics}</span>
-        </p>
+        {!compact ? (
+          <p className={styles.routeSummary}>
+            <span>{brief.routeSummary.line}</span>
+            <span>{brief.routeSummary.metrics}</span>
+          </p>
+        ) : (
+          <p className={styles.routeSummaryCompact}>
+            {brief.routeSummary.metrics}
+          </p>
+        )}
       </header>
 
       <section className={styles.card} data-brief-section="next">
@@ -59,7 +69,7 @@ export function MobileBriefView({ progress }: Props) {
       <section className={styles.block} data-brief-section="shots">
         <p className={styles.sectionLabel}>Do ujęcia</p>
         <ul className={styles.shots}>
-          {brief.shotList.map((shot) => (
+          {shots.map((shot) => (
             <li key={shot}>{shot}</li>
           ))}
         </ul>

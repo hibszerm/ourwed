@@ -1879,8 +1879,25 @@
     grid-template-columns: 1fr;
   }
 
+  .daySplit,
+  .briefSplit {
+    min-height: 0;
+  }
+
   .importSheet,
   .importResult {
+    min-height: 0;
+  }
+
+  .importCompose {
+    min-height: 0;
+  }
+
+  .qcCanvas {
+    min-height: 0;
+  }
+
+  .assignmentCanvas {
     min-height: 0;
   }
 
@@ -1957,7 +1974,7 @@
 
   .editorialSection,
   .faq {
-    padding: 3.5rem 0 2.75rem;
+    padding: 4.5rem 0 4rem;
   }
 
   .editorialTitle,
@@ -1986,13 +2003,21 @@
 
   .heroDashboard {
     height: auto;
-    max-height: 520px;
+    max-height: 480px;
     mask-image: none;
     -webkit-mask-image: none;
   }
 
+  .heroDashboard > * {
+    max-width: 100%;
+  }
+
   .financeTotals {
     grid-template-columns: 1fr;
+  }
+
+  .financeBento {
+    gap: 0.85rem;
   }
 
   .pricingGrid {
@@ -2017,6 +2042,13 @@
   .priceCardRecommended {
     min-height: 0;
     margin-top: 0;
+    width: 100%;
+  }
+
+  .priceCard a,
+  .priceCard .cta,
+  .priceCard button {
+    width: 100%;
   }
 
   .finalCta {
@@ -2027,6 +2059,57 @@
   .dayQuestionnaire,
   .dayItinerary {
     min-height: 0;
+  }
+
+  .daySplit,
+  .briefSplit,
+  .qcCanvas,
+  .assignmentCanvas,
+  .importCompose,
+  .securityVisual,
+  .calendarSplit {
+    min-height: 0;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .assignmentModule,
+  .assignmentHub,
+  .importSheet,
+  .importResult,
+  .qcForm,
+  .qcDoc {
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .sessionsSplit {
+    gap: 1.25rem;
+  }
+
+  .faqItem button {
+    min-height: 3rem;
+  }
+
+  .footer {
+    padding-bottom: calc(2rem + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+@media (max-width: 430px) {
+  .page {
+    --lv3-container: calc(100vw - 28px);
+  }
+
+  .editorialSection,
+  .faq {
+    padding: 4rem 0 3.5rem;
+  }
+
+  .heroDashboard {
+    max-height: 440px;
+    transform: scale(0.92);
+    transform-origin: top center;
   }
 }
 

@@ -63,22 +63,22 @@ export const MOBILE_DEMO_KEYFRAMES = {
   doneAt: 12.5,
 } as const
 
-/** Compressed timeline for ≤768px. */
+/** Compressed timeline for ≤768px — shorter reliable mobile sequence. */
 export const MOBILE_DEMO_SIMPLE_KEYFRAMES = {
-  settleEnd: 1.15,
-  navigateFocusEnd: 1.4,
-  chooserInEnd: 1.8,
-  chooserHoldEnd: 2.7,
-  mapsFocusEnd: 2.95,
-  navRevealEnd: 3.35,
-  routeDrawEnd: 4.2,
-  routeHoldEnd: 5.2,
-  statusOpenEnd: 5.6,
-  assignReturnEnd: 6.15,
-  assignHoldEnd: 6.55,
-  briefFocusEnd: 6.9,
-  briefRevealEnd: 7.45,
-  doneAt: 9.8,
+  settleEnd: 1.2,
+  navigateFocusEnd: 1.6,
+  chooserInEnd: 2.1,
+  chooserHoldEnd: 3.0,
+  mapsFocusEnd: 3.35,
+  navRevealEnd: 4.0,
+  routeDrawEnd: 4.9,
+  routeHoldEnd: 6.1,
+  statusOpenEnd: 6.35,
+  assignReturnEnd: 6.65,
+  assignHoldEnd: 6.8,
+  briefFocusEnd: 7.0,
+  briefRevealEnd: 7.6,
+  doneAt: 7.6,
 } as const
 
 export const MOBILE_DEMO_BENEFITS = [
@@ -93,7 +93,7 @@ export const IPHONE_PERSPECTIVE = {
   primary: { rotateZ: 0.4, rotateY: -0.8 },
   secondary: { rotateZ: -2.8, rotateY: 1.2 },
   mobilePrimary: { rotateZ: 0.2, rotateY: 0 },
-  mobileSecondary: { rotateZ: -2.5, rotateY: 0.8 },
+  mobileSecondary: { rotateZ: -2.0, rotateY: 0 },
 } as const
 
 /** Canonical iPhone-like device ratio — visual silhouette source of truth. */

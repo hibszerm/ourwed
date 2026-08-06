@@ -188,3 +188,43 @@
     border-top: 1px solid rgba(39, 32, 25, 0.12);
   }
 }
+
+@media (max-width: 768px) {
+  .root {
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
+  }
+
+  .cell {
+    min-height: 48px;
+    padding: 0.28rem 0.22rem;
+  }
+
+  .dayNum {
+    font-size: 0.68rem;
+  }
+
+  .eventCard {
+    font-size: 0.58rem;
+    padding: 0.12rem 0.28rem;
+  }
+
+  .eventCard strong,
+  .eventCard span {
+    font-size: inherit;
+  }
+}
+
+@media (max-width: 430px) {
+  .cell {
+    min-height: 42px;
+  }
+
+  .eventCard {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
