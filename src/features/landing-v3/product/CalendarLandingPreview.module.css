@@ -1,0 +1,190 @@
+.root {
+  width: 100%;
+  max-width: 1080px;
+  margin: 0 auto;
+  aspect-ratio: 1.52 / 1;
+  height: auto;
+  max-height: 730px;
+  min-height: 690px;
+  padding: 1.35rem 1.35rem 0;
+  border-radius: 22px;
+  background: #fbf9f5;
+  border: 1px solid rgba(39, 32, 25, 0.12);
+  overflow: hidden;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 24px 56px rgba(17, 17, 17, 0.08);
+}
+
+.header {
+  margin-bottom: 0.75rem;
+  flex-shrink: 0;
+}
+
+.title {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.sub {
+  margin: 0.2rem 0 0;
+  font-size: 0.9rem;
+  color: #756e66;
+}
+
+.month {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.weekdays,
+.grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.weekday {
+  padding: 0.3rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #8a8278;
+  text-align: center;
+}
+
+.grid {
+  flex: 1;
+  grid-template-rows: repeat(5, minmax(0, 1fr));
+  border-top: 1px solid rgba(39, 32, 25, 0.1);
+  border-left: 1px solid rgba(39, 32, 25, 0.1);
+}
+
+.cell {
+  min-height: 0;
+  padding: 0.3rem;
+  border-right: 1px solid rgba(39, 32, 25, 0.1);
+  border-bottom: 1px solid rgba(39, 32, 25, 0.1);
+  background: #fff;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.empty {
+  background: rgba(243, 239, 232, 0.35);
+}
+
+.dayNum {
+  font-size: 0.72rem;
+  font-weight: 550;
+  color: #756e66;
+}
+
+.eventDay {
+  background: rgba(46, 125, 90, 0.05);
+}
+
+.sessionDay {
+  background: rgba(29, 39, 43, 0.035);
+}
+
+.eventCard {
+  flex: 1;
+  min-height: 0;
+  padding: 0.35rem 0.4rem;
+  border-radius: 8px;
+  background: rgba(46, 125, 90, 0.14);
+  color: #1f6b4a;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  overflow: hidden;
+}
+
+.eventCard[data-kind='session'] {
+  background: rgba(29, 39, 43, 0.1);
+  color: #1d272b;
+}
+
+.eventCard strong {
+  font-size: 0.78rem;
+  font-weight: 650;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+
+.eventCard span {
+  font-size: 0.68rem;
+  line-height: 1.25;
+  opacity: 0.85;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.integFooter {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-top: 1px solid rgba(39, 32, 25, 0.12);
+  margin-top: auto;
+  flex-shrink: 0;
+}
+
+.integCell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.85rem 1rem;
+  font-size: 0.88rem;
+}
+
+.integCell + .integCell {
+  border-left: 1px solid rgba(39, 32, 25, 0.12);
+}
+
+.integCell strong {
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.integCell span {
+  color: #756e66;
+}
+
+.ok {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-weight: 550;
+  color: #1f6b4a !important;
+}
+
+@media (max-width: 900px) {
+  .root {
+    aspect-ratio: auto;
+    min-height: 0;
+    max-height: none;
+  }
+
+  .grid {
+    grid-template-rows: none;
+  }
+
+  .cell {
+    min-height: 64px;
+  }
+
+  .integFooter {
+    grid-template-columns: 1fr;
+  }
+
+  .integCell + .integCell {
+    border-left: none;
+    border-top: 1px solid rgba(39, 32, 25, 0.12);
+  }
+}

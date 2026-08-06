@@ -23,6 +23,7 @@ import { ExtraServicesPage } from '@/pages/ExtraServicesPage'
 import { TravelSettingsPage } from '@/pages/TravelSettingsPage'
 import { SettingsPage } from '@/pages/SettingsPage'
 import { AppearanceSettingsPage } from '@/pages/AppearanceSettingsPage'
+import { AccountSettingsPage } from '@/pages/AccountSettingsPage'
 import { CalendarIntegrationsPage } from '@/pages/CalendarIntegrationsPage'
 import { CompanyDetailsPage } from '@/pages/CompanyDetailsPage'
 import { DocumentTemplateDetailPage } from '@/pages/DocumentTemplateDetailPage'
@@ -118,6 +119,13 @@ export const router = createBrowserRouter([
     element: <AuthCallbackGate />,
     children: [
       { path: '/', element: <LandingPage /> },
+      {
+        path: '/landing-v3',
+        lazy: async () => {
+          const mod = await import('@/pages/LandingV3Page')
+          return { Component: mod.LandingV3Page }
+        },
+      },
       { path: '/login', element: <LoginPage /> },
       { path: '/register', element: <RegisterPage /> },
       { path: '/check-email', element: <CheckEmailPage /> },
@@ -216,6 +224,7 @@ export const router = createBrowserRouter([
         element: <Navigate to="/ankiety" replace />,
       },
       { path: '/ustawienia', element: <SettingsPage /> },
+      { path: '/ustawienia/konto', element: <AccountSettingsPage /> },
       { path: '/ustawienia/wyglad', element: <AppearanceSettingsPage /> },
       { path: '/ustawienia/integracje', element: <CalendarIntegrationsPage /> },
       { path: '/ustawienia/firma', element: <CompanyDetailsPage /> },

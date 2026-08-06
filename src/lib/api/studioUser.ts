@@ -6,6 +6,8 @@ export interface CurrentStudioUser {
   id: string
   email: string
   displayName: string
+  firstName?: string
+  lastName?: string
   initials?: string
 }
 
@@ -30,11 +32,17 @@ function toEmailPrefix(email: string): string {
   return email.split('@')[0] || 'Studio'
 }
 
+function initialsFromName(displayName: string): string {
+  const parts = displayName.split(/\s+/).filter(Boolean)
+  if (parts.length >= 2) {
+    return `${parts[0]!.charAt(0)}${parts[1]!.charAt(0)}`.toUpperCase()
+  }
+  return displayName.charAt(0).toUpperCase() || '—'
+}
+
 /**
- * Resolve the logged-in studio owner from Supabase Auth + public.users.
- *
- * Prefer public.users.id = auth.uid() (created by signup trigger).
- * Falls back to email lookup for legacy rows.
+ * Resolve the logged-in studio owner from Auth + public.profiles (+ users fallback).
+ * Display name priority: profiles → auth metadata → public.users.name → email prefix.
  */
 export async function getCurrentStudioUser(): Promise<CurrentStudioUser> {
   const { data: authData, error: authError } = await supabase.auth.getUser()
@@ -48,7 +56,22 @@ export async function getCurrentStudioUser(): Promise<CurrentStudioUser> {
 
   if (cachedUser && cachedUserId === supabaseUser.id) return cachedUser
 
-  let publicUser: { id: string; name: string | null } | null = null
+  const profileRes = await supabase
+    .from('profiles')
+    .select('first_name, last_name')
+    .eq('id', supabaseUser.id)
+    .maybeSingle()
+  throwOnError(profileRes.error)
+
+  const profileFirst =
+    typeof profileRes.data?.first_name === 'string'
+      ? profileRes.data.first_name.trim()
+      : ''
+  const profileLast =
+    typeof profileRes.data?.last_name === 'string'
+      ? profileRes.data.last_name.trim()
+      : ''
+  const profileName = `${profileFirst} ${profileLast}`.trim()
 
   const byId = await supabase
     .from('users')
@@ -57,11 +80,7 @@ export async function getCurrentStudioUser(): Promise<CurrentStudioUser> {
     .maybeSingle()
   throwOnError(byId.error)
 
-  if (byId.data?.id) {
-    publicUser = byId.data
-  }
-
-  if (!publicUser?.id) {
+  if (!byId.data?.id) {
     throw new Error(
       'Brak konta studia powiązanego z zalogowanym użytkownikiem. Wyloguj się i zarejestruj ponownie.',
     )
@@ -70,15 +89,17 @@ export async function getCurrentStudioUser(): Promise<CurrentStudioUser> {
   const metadataName = getUserMetadataName(supabaseUser)
   const emailPrefix = toEmailPrefix(email)
   const publicName =
-    typeof publicUser.name === 'string' ? publicUser.name.trim() : null
+    typeof byId.data.name === 'string' ? byId.data.name.trim() : null
 
-  const displayName = metadataName ?? publicName ?? emailPrefix
-  const initials = displayName.charAt(0).toUpperCase()
+  const displayName = profileName || metadataName || publicName || emailPrefix
+  const initials = initialsFromName(displayName)
 
   cachedUser = {
-    id: publicUser.id,
+    id: byId.data.id,
     email,
     displayName,
+    firstName: profileFirst || undefined,
+    lastName: profileLast || undefined,
     initials,
   }
   cachedUserId = supabaseUser.id
@@ -91,7 +112,7 @@ export async function resolveStudioUserId(): Promise<string> {
   return (await getCurrentStudioUser()).id
 }
 
-/** Clear cache on logout so the next login re-resolves. */
+/** Clear cache on logout / profile update so the next resolve is fresh. */
 export function clearStudioUserCache(): void {
   cachedUser = null
   cachedUserId = null

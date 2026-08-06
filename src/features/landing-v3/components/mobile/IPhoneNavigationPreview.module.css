@@ -1,0 +1,106 @@
+.layer {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  z-index: 3;
+  background: #f3efe8;
+  pointer-events: none;
+  overflow: hidden;
+  transition: none;
+}
+
+.inner {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 2.3rem 0.75rem 1.85rem;
+  box-sizing: border-box;
+  gap: 0.55rem;
+}
+
+.mapLabel {
+  margin: 0;
+  flex: 0 0 auto;
+  font-size: 0.62rem;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #6f6861;
+}
+
+.mapCard {
+  flex: 1 1 60%;
+  min-height: 0;
+  max-height: 62%;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid rgba(39, 32, 25, 0.1);
+  background: #ebe6de;
+  box-shadow: 0 8px 20px rgba(17, 17, 17, 0.06);
+}
+
+.routeCard {
+  flex: 0 0 auto;
+  margin-top: 0.15rem;
+  margin-bottom: 0.35rem;
+  padding: 0.95rem 1rem 1.05rem;
+  border-radius: 16px;
+  background: #fffdf9;
+  border: 1px solid rgba(39, 32, 25, 0.1);
+  box-shadow: 0 10px 24px rgba(17, 17, 17, 0.06);
+}
+
+.routeCardTop {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.85rem;
+  align-items: flex-start;
+}
+
+.dest {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 650;
+  letter-spacing: -0.025em;
+  color: #1d272b;
+}
+
+.from {
+  margin: 0.28rem 0 0;
+  font-size: 0.8rem;
+  color: #6f6861;
+}
+
+.metrics {
+  display: grid;
+  gap: 0.2rem;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.metrics strong {
+  font-size: 0.98rem;
+  font-weight: 650;
+  color: #1d272b;
+}
+
+.metrics span {
+  font-size: 0.8rem;
+  color: #6f6861;
+}
+
+.status {
+  margin: 0.8rem 0 0;
+  padding: 0.62rem 0.75rem;
+  border-radius: 12px;
+  text-align: center;
+  font-size: 0.8rem;
+  font-weight: 650;
+  color: #3d3428;
+  background: linear-gradient(180deg, #e8d7b8 0%, #dcc59a 100%);
+}
+
+.status[data-nav-status='opened'] {
+  color: #f7f3ec;
+  background: #1d272b;
+}

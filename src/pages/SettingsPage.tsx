@@ -37,9 +37,9 @@ const appearanceLinks = [
 
 const accountLinks = [
   {
+    to: '/ustawienia/konto',
     title: 'Konto',
-    description: 'Dane logowania i bezpieczeństwo konta.',
-    soon: true,
+    description: 'Imię, nazwisko i dane konta.',
     icon: Users,
   },
   {

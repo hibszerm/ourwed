@@ -1,0 +1,221 @@
+.root {
+  width: 100%;
+  min-height: 720px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stage {
+  position: relative;
+  width: min(920px, 100%);
+  height: clamp(700px, 62vw, 820px);
+  margin: 0 auto;
+}
+
+.lockSlot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -46%);
+  width: clamp(400px, 32vw, 440px);
+  z-index: 3;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.lockShell {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* Total lock ~620–680px tall */
+  min-height: 620px;
+}
+
+/* Classic inverted-U shackle — 48–54% of body (~220 / 420 ≈ 0.52) */
+.shackleWrap {
+  width: clamp(210px, 52%, 235px);
+  height: clamp(210px, 22vw, 245px);
+  margin-bottom: -42px;
+  z-index: 4;
+  display: flex;
+  justify-content: center;
+}
+
+.shackleSvg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  filter: drop-shadow(0 8px 14px rgba(17, 17, 17, 0.18));
+}
+
+/* Vertical classic body — slightly taller than wide */
+.lockBody {
+  position: relative;
+  width: 100%;
+  height: clamp(450px, 38vw, 490px);
+  border-radius: 62px;
+  background: #1d272b;
+  box-shadow:
+    0 28px 56px rgba(17, 17, 17, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.bodyFace {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.35rem;
+  border-radius: inherit;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* Large unmistakable keyhole — circle + stem */
+.keyhole {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: clamp(92px, 9vw, 112px);
+}
+
+.keyholeCircle {
+  width: clamp(48px, 5vw, 58px);
+  height: clamp(48px, 5vw, 58px);
+  border-radius: 50%;
+  background: #efe8dc;
+  box-shadow: inset 0 2px 4px rgba(17, 17, 17, 0.18);
+}
+
+.keyholeStem {
+  width: clamp(24px, 2.4vw, 32px);
+  height: clamp(44px, 4.2vw, 54px);
+  margin-top: -6px;
+  border-radius: 0 0 14px 14px;
+  background: #efe8dc;
+  clip-path: polygon(12% 0, 88% 0, 100% 100%, 0 100%);
+}
+
+.checkMark {
+  width: 2rem;
+  height: 2rem;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  border: 1.5px solid rgba(244, 241, 236, 0.55);
+}
+
+.checkSvg {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
+.sealLabel {
+  margin: 1.15rem 0 0;
+  text-align: center;
+  font-size: 0.92rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #1d272b;
+}
+
+.record {
+  position: absolute;
+  width: clamp(250px, 22vw, 310px);
+  z-index: 4;
+}
+
+.recordInner {
+  padding: 0.85rem 1rem;
+  min-height: 76px;
+  max-height: 92px;
+  border-radius: 14px;
+  background: #fbf9f5;
+  border: 1px solid rgba(39, 32, 25, 0.14);
+  box-shadow: 0 10px 22px rgba(17, 17, 17, 0.07);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.18rem;
+}
+
+.recordInner strong {
+  font-size: 0.98rem;
+  letter-spacing: -0.02em;
+}
+
+.recordInner span {
+  font-size: 0.84rem;
+  color: #756e66;
+  line-height: 1.3;
+}
+
+@media (max-width: 900px) {
+  .root {
+    min-height: 0;
+  }
+
+  .stage {
+    height: auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 0.5rem 0 1rem;
+  }
+
+  .lockSlot {
+    position: relative;
+    left: auto;
+    top: auto;
+    transform: none;
+    width: min(100%, 360px);
+    margin: 0 auto;
+    order: 2;
+  }
+
+  .lockShell {
+    min-height: 0;
+  }
+
+  .shackleWrap {
+    height: 160px;
+    margin-bottom: -28px;
+  }
+
+  .lockBody {
+    height: 380px;
+    border-radius: 48px;
+  }
+
+  .record {
+    position: relative;
+    left: auto !important;
+    top: auto !important;
+    width: 100%;
+    order: 1;
+  }
+
+  .record[data-mobile-index='3'],
+  .record[data-mobile-index='4'],
+  .record[data-mobile-index='5'] {
+    display: none;
+  }
+
+  .root[data-lock-phase='closed'] .record {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .record {
+    display: none;
+  }
+}

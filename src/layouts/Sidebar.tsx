@@ -63,9 +63,7 @@ export function Sidebar({ open = false, onClose, onNavigate }: SidebarProps) {
 
   const displayName = studioUser?.displayName ?? ''
   const displayRole = user?.role ?? ''
-  const avatarLetter = displayName
-    ? displayName.charAt(0).toUpperCase()
-    : '—'
+  const avatarLetter = (studioUser?.initials ?? displayName).charAt(0).toUpperCase() || '—'
 
   async function handleLogout() {
     onNavigate?.()

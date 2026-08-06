@@ -1,0 +1,178 @@
+.perspective {
+  perspective: 1800px;
+  perspective-origin: 50% 45%;
+  flex-shrink: 0;
+}
+
+.device {
+  transform-style: preserve-3d;
+  transform: rotateY(var(--phone-ry, 0deg)) rotateZ(var(--phone-rz, 0deg))
+    translateY(18px);
+  opacity: 0;
+  transition:
+    transform 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform, opacity;
+}
+
+.entered {
+  opacity: 1;
+  transform: rotateY(var(--phone-ry, 0deg)) rotateZ(var(--phone-rz, 0deg))
+    translateY(0);
+}
+
+.pending {
+  opacity: 0;
+}
+
+.primary {
+  width: clamp(410px, 26vw, 430px);
+  z-index: 2;
+}
+
+.secondary {
+  width: clamp(350px, 22vw, 365px);
+  z-index: 1;
+  filter: saturate(0.95) contrast(0.98) brightness(0.995);
+}
+
+.body {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 393 / 852;
+  border-radius: clamp(48px, 11.8%, 52px);
+  background:
+    linear-gradient(155deg, #3e444a 0%, #1c2126 40%, #0d1013 78%, #080a0c 100%);
+  box-shadow:
+    0 42px 72px rgba(17, 17, 17, 0.26),
+    0 14px 28px rgba(17, 17, 17, 0.14),
+    0 2px 0 rgba(255, 255, 255, 0.08) inset,
+    0 -4px 8px rgba(0, 0, 0, 0.35) inset;
+  /* Physical edge 3–4px + bezel 5–6px → display ≈ 92–94% width */
+  padding: 3.5px;
+}
+
+.secondary .body {
+  box-shadow:
+    0 28px 52px rgba(17, 17, 17, 0.16),
+    0 10px 20px rgba(17, 17, 17, 0.1),
+    0 1px 0 rgba(255, 255, 255, 0.06) inset;
+  padding: 3.25px;
+}
+
+.edgeHighlight {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow:
+    inset 1px 0 0 rgba(255, 255, 255, 0.2),
+    inset -1px 0 0 rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.mute,
+.volumeUp,
+.volumeDown,
+.power {
+  position: absolute;
+  z-index: 5;
+  background: linear-gradient(90deg, #3a4046, #171b1f);
+  border-radius: 2px;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.1),
+    0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+.mute {
+  left: -3px;
+  top: 14%;
+  width: 3px;
+  height: 3.2%;
+}
+
+.volumeUp {
+  left: -3px;
+  top: 19%;
+  width: 3.5px;
+  height: 6.5%;
+}
+
+.volumeDown {
+  left: -3px;
+  top: 27%;
+  width: 3.5px;
+  height: 6.5%;
+}
+
+.power {
+  right: -3px;
+  top: 22%;
+  width: 3.5px;
+  height: 9%;
+}
+
+.bezel {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: clamp(44px, 10.5%, 48px);
+  background: #000;
+  padding: 5.5px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+  overflow: hidden;
+}
+
+.island {
+  position: absolute;
+  top: 13px;
+  left: 50%;
+  z-index: 6;
+  width: clamp(108px, 26%, 116px);
+  height: 31px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: #000;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+/**
+ * Permanent display mask — never animate radius / size.
+ * Display ≈ 92–94% of body width after edge + bezel.
+ */
+.phoneDisplayMask {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  isolation: isolate;
+  contain: paint;
+  border-radius: clamp(40px, 9.8%, 43px);
+  background: #f7f4ef;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-mask-image: -webkit-radial-gradient(white, black);
+}
+
+.homeIndicator {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  z-index: 6;
+  width: clamp(118px, 30%, 134px);
+  height: 4.5px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.28);
+  pointer-events: none;
+}
+
+@media (max-width: 768px) {
+  .primary {
+    width: min(88vw, 390px);
+  }
+
+  .secondary {
+    width: min(74vw, 330px);
+  }
+}

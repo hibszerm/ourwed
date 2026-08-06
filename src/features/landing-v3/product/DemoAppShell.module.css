@@ -1,0 +1,138 @@
+.shell {
+  display: flex;
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: none;
+  box-shadow: 0 28px 64px rgba(17, 17, 17, 0.12);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans, inherit);
+  text-align: left;
+}
+
+.frame_hero {
+  aspect-ratio: 16 / 10;
+  min-height: 560px;
+  max-height: min(72vh, 820px);
+}
+
+.frame_wedding {
+  aspect-ratio: 16 / 9;
+  min-height: 650px;
+  max-height: min(78vh, 780px);
+}
+
+.frame_calendar {
+  aspect-ratio: 16 / 10;
+  min-height: 620px;
+  max-height: min(72vh, 720px);
+}
+
+.frame_compact {
+  min-height: 0;
+  max-height: none;
+  aspect-ratio: auto;
+}
+
+.shell[data-hide-sidebar='true'] {
+  min-height: 0;
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  width: 200px;
+  flex-shrink: 0;
+  background: var(--color-sidebar-bg, #121212);
+  border-right: 1px solid var(--color-sidebar-border, rgba(255, 255, 255, 0.08));
+  padding: var(--space-5) var(--space-3);
+  overflow: hidden;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2);
+  margin-bottom: var(--space-6);
+}
+
+.logoMark {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm, 6px);
+  background: #fff;
+  color: #0a0a0a;
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
+.logoText {
+  font-size: var(--text-lg);
+  font-weight: 650;
+  color: var(--color-sidebar-text-active, #fff);
+}
+
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.navItem,
+.navActive {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0.5rem 0.65rem;
+  border-radius: var(--control-radius, 8px);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--color-sidebar-text, rgba(255, 255, 255, 0.55));
+}
+
+.navActive {
+  background: var(--color-sidebar-hover, rgba(255, 255, 255, 0.08));
+  color: var(--color-sidebar-text-active, #fff);
+  font-weight: 600;
+}
+
+.main {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  background: var(--color-bg);
+  overflow: hidden;
+}
+
+.content {
+  height: 100%;
+  padding: var(--space-5) var(--space-6);
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+@media (max-width: 900px) {
+  .sidebar {
+    display: none;
+  }
+
+  .frame_hero,
+  .frame_wedding,
+  .frame_calendar {
+    aspect-ratio: auto;
+    min-height: 0;
+    max-height: none;
+  }
+
+  .content {
+    padding: var(--space-4);
+  }
+}
