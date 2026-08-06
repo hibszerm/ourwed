@@ -1,7 +1,12 @@
 import { motion, useReducedMotion } from 'framer-motion'
-import { LandingBriefPreview } from '@/features/landing-v3/product/LandingBriefPreview'
+import { MobileBriefArtboard } from '@/features/landing-v3/components/mobile-artboards'
+import {
+  isMobileLandingMode,
+  useLandingViewportMode,
+} from '@/features/landing-v3/hooks/useLandingViewportMode'
 import { useSectionReveal } from '@/features/landing-v3/hooks/useSectionReveal'
 import { DURATION, premiumEase } from '@/features/landing-v3/motion/variants'
+import { LandingBriefPreview } from '@/features/landing-v3/product/LandingBriefPreview'
 import styles from '@/features/landing-v3/styles/landingV3.module.css'
 
 const BENEFITS = [
@@ -14,9 +19,11 @@ const BENEFITS = [
 /** Brief — separate feature section below Calendar. */
 export function BriefSection() {
   const reduced = useReducedMotion()
+  const viewport = useLandingViewportMode()
+  const mobile = isMobileLandingMode(viewport)
   const { ref, active } = useSectionReveal({
-    threshold: 0.55,
-    reduced: !!reduced,
+    threshold: mobile ? 0.28 : 0.55,
+    reduced: !!reduced || mobile,
   })
 
   return (
@@ -24,6 +31,7 @@ export function BriefSection() {
       ref={ref}
       className={styles.briefSection}
       data-testid="lv3-brief-section"
+      data-viewport-mode={viewport}
       aria-labelledby="brief-title"
     >
       <div className={styles.sectionIntro}>
@@ -38,39 +46,43 @@ export function BriefSection() {
         </p>
       </div>
 
-      <div className={styles.briefSplit} data-landing-preview="">
-        <motion.div
-          className={styles.briefDocCol}
-          initial={reduced ? false : { opacity: 0, x: -36 }}
-          animate={active ? { opacity: 1, x: 0 } : { opacity: 0.5, x: -20 }}
-          transition={{ duration: reduced ? 0 : 0.5, ease: premiumEase }}
-        >
-          <LandingBriefPreview showBackPage />
-          <button type="button" className={styles.briefDownload} tabIndex={-1}>
-            Pobierz brief PDF
-          </button>
-        </motion.div>
+      {mobile ? (
+        <MobileBriefArtboard />
+      ) : (
+        <div className={styles.briefSplit} data-landing-preview="">
+          <motion.div
+            className={styles.briefDocCol}
+            initial={reduced ? false : { opacity: 0, x: -36 }}
+            animate={active ? { opacity: 1, x: 0 } : { opacity: 0.5, x: -20 }}
+            transition={{ duration: reduced ? 0 : 0.5, ease: premiumEase }}
+          >
+            <LandingBriefPreview showBackPage />
+            <button type="button" className={styles.briefDownload} tabIndex={-1}>
+              Pobierz brief PDF
+            </button>
+          </motion.div>
 
-        <ol className={styles.briefBenefits}>
-          {BENEFITS.map((item, i) => (
-            <motion.li
-              key={item}
-              initial={reduced ? false : { opacity: 0, y: 10 }}
-              animate={active ? { opacity: 1, y: 0 } : { opacity: 0.4, y: 6 }}
-              transition={{
-                duration: reduced ? 0 : DURATION.micro,
-                delay: reduced ? 0 : 0.22 + i * 0.07,
-                ease: premiumEase,
-              }}
-            >
-              <span className={styles.briefNum}>
-                {String(i + 1).padStart(2, '0')}
-              </span>
-              <span>{item}</span>
-            </motion.li>
-          ))}
-        </ol>
-      </div>
+          <ol className={styles.briefBenefits}>
+            {BENEFITS.map((item, i) => (
+              <motion.li
+                key={item}
+                initial={reduced ? false : { opacity: 0, y: 10 }}
+                animate={active ? { opacity: 1, y: 0 } : { opacity: 0.4, y: 6 }}
+                transition={{
+                  duration: reduced ? 0 : DURATION.micro,
+                  delay: reduced ? 0 : 0.22 + i * 0.07,
+                  ease: premiumEase,
+                }}
+              >
+                <span className={styles.briefNum}>
+                  {String(i + 1).padStart(2, '0')}
+                </span>
+                <span>{item}</span>
+              </motion.li>
+            ))}
+          </ol>
+        </div>
+      )}
     </section>
   )
 }

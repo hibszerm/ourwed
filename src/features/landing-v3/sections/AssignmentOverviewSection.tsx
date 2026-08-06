@@ -1,5 +1,10 @@
 import { motion, useReducedMotion } from 'framer-motion'
+import { MobileAssignmentArtboard } from '@/features/landing-v3/components/mobile-artboards'
 import { DEMO_ASSIGNMENT, demoRouteTotal } from '@/features/landing-v3/data/demoData'
+import {
+  isMobileLandingMode,
+  useLandingViewportMode,
+} from '@/features/landing-v3/hooks/useLandingViewportMode'
 import { useSectionReveal } from '@/features/landing-v3/hooks/useSectionReveal'
 import { DURATION, premiumEase } from '@/features/landing-v3/motion/variants'
 import styles from '@/features/landing-v3/styles/landingV3.module.css'
@@ -46,9 +51,11 @@ const MODULES = [
 /** Section 1 — complete assignment overview. Full-bleed product canvas. */
 export function AssignmentOverviewSection() {
   const reduced = useReducedMotion()
+  const viewport = useLandingViewportMode()
+  const mobile = isMobileLandingMode(viewport)
   const { ref, active } = useSectionReveal({
-    threshold: 0.55,
-    reduced: !!reduced,
+    threshold: mobile ? 0.28 : 0.55,
+    reduced: !!reduced || mobile,
   })
 
   return (
@@ -58,6 +65,7 @@ export function AssignmentOverviewSection() {
       className={styles.editorialSection}
       data-composition="full-bleed"
       data-testid="lv3-assignment-overview"
+      data-viewport-mode={viewport}
       aria-labelledby="assignment-title"
     >
       <div className={styles.sectionIntro}>
@@ -72,6 +80,9 @@ export function AssignmentOverviewSection() {
         </p>
       </div>
 
+      {mobile ? (
+        <MobileAssignmentArtboard />
+      ) : (
       <div className={styles.assignmentCanvas} data-landing-preview="">
         <svg
           className={styles.assignmentLines}
@@ -146,6 +157,7 @@ export function AssignmentOverviewSection() {
           </motion.div>
         ))}
       </div>
+      )}
     </section>
   )
 }

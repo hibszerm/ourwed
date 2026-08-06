@@ -25,7 +25,7 @@ export function MobileWeddingDaySection() {
   const viewport = useLandingViewportMode()
   const narrow = isMobileLandingMode(viewport)
   const { ref, active } = useSectionReveal({
-    threshold: narrow ? 0.28 : 0.35,
+    threshold: narrow ? 0.22 : 0.35,
     reduced,
   })
   const snapshot = useMobileWeddingDaySequence({

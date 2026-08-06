@@ -114,7 +114,12 @@ assert(!/Marcin Hibszer/i.test(sources), 'no real name')
 
 const security = readFileSync(join(FEATURE, 'sections/SecuritySection.tsx'), 'utf8')
 assert(security.includes('ClassicDataLock'), 'ClassicDataLock used')
-assert(security.includes('threshold: 0.68'), '65–70% trigger')
+assert(
+  security.includes('threshold: mobile ? 0.28 : 0.68') ||
+    security.includes('threshold: 0.68'),
+  '65–70% desktop trigger',
+)
+assert(security.includes('MobileSecurityArtboard'), 'mobile security artboard')
 assert(
   security.indexOf('lv3-security-visual') < security.indexOf('lv3-security-copy'),
   'visual before copy',
@@ -321,8 +326,8 @@ assert(/\.body\s*\{[^}]*aspect-ratio: 393 \/ 852/.test(iphoneCss), 'body uses as
 assert(!/\.body\s*\{[^}]*\bheight\s*:/.test(iphoneCss), 'no conflicting body height')
 assert(iphoneCss.includes('clamp(410px, 26vw, 430px)'), 'primary width clamp')
 assert(iphoneCss.includes('clamp(350px, 22vw, 365px)'), 'secondary width clamp')
-assert(iphoneCss.includes('clamp(250px, 72vw, 292px)'), 'mobile primary width')
-assert(iphoneCss.includes('clamp(205px, 58vw, 238px)'), 'mobile secondary width')
+assert(iphoneCss.includes('clamp(238px, 64vw, 258px)'), 'mobile primary width')
+assert(iphoneCss.includes('clamp(184px, 50vw, 202px)'), 'mobile secondary width')
 assert(iphone.includes('data-phone-layers="body-bezel-display"'), 'body/bezel/display')
 assert(iphone.includes('data-phone-layer="body"'), 'body layer')
 assert(iphone.includes('data-phone-layer="bezel"'), 'bezel layer')
@@ -423,7 +428,95 @@ assert(!mobileSeq.includes('toastVisible'), 'no toast return')
 assert(existsSync(join(FEATURE, 'components/MobileScaledStage.tsx')), 'MobileScaledStage exists')
 assert(existsSync(join(FEATURE, 'hooks/useLandingViewportMode.ts')), 'viewport mode hook')
 assert(existsSync(join(FEATURE, 'hooks/useMobileSectionActivation.ts')), 'mobile activation hook')
-assert(mobileSeq.includes('doneAt: 7.6'), 'mobile simple doneAt')
+assert(existsSync(join(FEATURE, 'components/MobileRevealAnchor.tsx')), 'MobileRevealAnchor exists')
+assert(
+  existsSync(join(FEATURE, 'components/mobile-artboards/MobileImportArtboard.tsx')),
+  'import mobile artboard',
+)
+assert(
+  existsSync(join(FEATURE, 'components/mobile-artboards/MobileAssignmentArtboard.tsx')),
+  'assignment mobile artboard',
+)
+assert(
+  existsSync(join(FEATURE, 'components/mobile-artboards/MobileQcArtboard.tsx')),
+  'qc mobile artboard',
+)
+assert(
+  existsSync(join(FEATURE, 'components/mobile-artboards/MobileFinanceArtboard.tsx')),
+  'finance mobile artboard',
+)
+assert(
+  existsSync(join(FEATURE, 'components/mobile-artboards/MobileSecurityArtboard.tsx')),
+  'security mobile artboard',
+)
+assert(
+  existsSync(join(FEATURE, 'components/mobile-artboards/MobileCalendarArtboard.tsx')),
+  'calendar mobile artboard',
+)
+assert(
+  existsSync(join(FEATURE, 'components/mobile-artboards/MobileBriefArtboard.tsx')),
+  'brief mobile artboard',
+)
+assert(
+  existsSync(join(FEATURE, 'components/mobile-artboards/MobileDayArtboard.tsx')),
+  'day mobile artboard',
+)
+assert(
+  existsSync(join(FEATURE, 'components/mobile-artboards/MobileSessionsArtboard.tsx')),
+  'sessions mobile artboard',
+)
+assert(
+  existsSync(join(FEATURE, 'components/mobile-artboards/MobilePricingArtboard.tsx')),
+  'pricing mobile artboard',
+)
+
+const importArt = readFileSync(
+  join(FEATURE, 'components/mobile-artboards/MobileImportArtboard.tsx'),
+  'utf8',
+)
+assert(importArt.includes('slice(0, 3)'), 'import shows max 3 rows')
+assert(importArt.includes('Gotowe do zatwierdzenia'), 'import result status')
+assert(importArt.includes('data-artboard-pattern="B"'), 'import pattern B')
+
+const assignArt = readFileSync(
+  join(FEATURE, 'components/mobile-artboards/MobileAssignmentArtboard.tsx'),
+  'utf8',
+)
+assert(assignArt.includes('MobileScaledStage'), 'assignment uses scaled stage')
+assert(assignArt.includes('baseWidth={760}'), 'assignment base width')
+assert(assignArt.includes('baseHeight={860}'), 'assignment base height')
+
+const secArt = readFileSync(
+  join(FEATURE, 'components/mobile-artboards/MobileSecurityArtboard.tsx'),
+  'utf8',
+)
+assert(secArt.includes('SECURITY_RECORDS.slice(0, 4)'), 'security records immediate')
+assert(secArt.includes('data-anim-duration="1.75"'), 'security ≤1.8s')
+assert(secArt.includes('START'), 'security start positions visible')
+
+const finArt = readFileSync(
+  join(FEATURE, 'components/mobile-artboards/MobileFinanceArtboard.tsx'),
+  'utf8',
+)
+assert(finArt.includes('finRow2'), 'finance bento row2')
+assert(finArt.includes('data-artboard-pattern="B"'), 'finance pattern B')
+
+const stageSrc = readFileSync(join(FEATURE, 'components/MobileScaledStage.tsx'), 'utf8')
+const stageCss = readFileSync(join(FEATURE, 'components/MobileScaledStage.module.css'), 'utf8')
+assert(stageSrc.includes('baseHeight * scale'), 'stage exact outer height')
+assert(stageSrc.includes('fallbackDelayMs'), 'stage fallback')
+assert(stageCss.includes('transform-origin: top center'), 'stage CSS origin')
+assert(!stageCss.includes('zoom:'), 'no CSS zoom')
+
+assert(importSec.includes('MobileImportArtboard'), 'import mounts mobile artboard')
+assert(importSec.includes('isMobileLandingMode'), 'import variant isolation')
+assert(readFileSync(join(FEATURE, 'sections/FinanceSection.tsx'), 'utf8').includes('MobileFinanceArtboard'), 'finance mounts mobile')
+assert(readFileSync(join(FEATURE, 'sections/SecuritySection.tsx'), 'utf8').includes('MobileSecurityArtboard'), 'security mounts mobile')
+assert(readFileSync(join(FEATURE, 'sections/AssignmentOverviewSection.tsx'), 'utf8').includes('MobileAssignmentArtboard'), 'assignment mounts mobile')
+assert(readFileSync(join(FEATURE, 'sections/PricingSection.tsx'), 'utf8').includes('MobilePricingArtboard'), 'pricing mounts mobile')
+assert(iphoneCss.includes('238px'), 'mobile primary phone width')
+assert(iphoneCss.includes('184px'), 'mobile secondary phone width')
+assert(mobileSeq.includes('doneAt: 6.4'), 'mobile simple doneAt 6.4')
 assert(readFileSync(join(FEATURE, 'hooks/useSectionReveal.ts'), 'utf8').includes('effectiveThreshold'), 'tall-section adaptive reveal')
 assert(iphoneCss.includes('perspective: none'), 'mobile perspective flattened')
 assert(mobileSec.includes('useLandingViewportMode'), 'section uses viewport mode')

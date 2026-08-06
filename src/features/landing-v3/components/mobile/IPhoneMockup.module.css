@@ -173,12 +173,12 @@
   }
 
   .primary {
-    width: clamp(250px, 72vw, 292px);
+    width: clamp(238px, 64vw, 258px);
     --phone-ui-scale: 0.82;
   }
 
   .secondary {
-    width: clamp(205px, 58vw, 238px);
+    width: clamp(184px, 50vw, 202px);
     --phone-ui-scale: 0.78;
     filter: saturate(0.96) contrast(0.98) brightness(0.997);
   }
@@ -212,10 +212,10 @@
 
 @media (max-width: 430px) {
   .primary {
-    width: clamp(250px, 74vw, 286px);
+    width: clamp(238px, 66vw, 252px);
   }
 
   .secondary {
-    width: clamp(200px, 58vw, 228px);
+    width: clamp(184px, 52vw, 198px);
   }
 }

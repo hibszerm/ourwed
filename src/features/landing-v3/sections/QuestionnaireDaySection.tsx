@@ -1,8 +1,13 @@
 import { motion, useReducedMotion } from 'framer-motion'
+import { MobileDayArtboard } from '@/features/landing-v3/components/mobile-artboards'
 import {
   DEMO_ASSIGNMENT,
   demoRouteTotal,
 } from '@/features/landing-v3/data/demoData'
+import {
+  isMobileLandingMode,
+  useLandingViewportMode,
+} from '@/features/landing-v3/hooks/useLandingViewportMode'
 import { useSectionReveal } from '@/features/landing-v3/hooks/useSectionReveal'
 import { premiumEase } from '@/features/landing-v3/motion/variants'
 import styles from '@/features/landing-v3/styles/landingV3.module.css'
@@ -69,14 +74,15 @@ const ITINERARY = [
 
 /**
  * Wedding day — complete composition from first paint.
- * One calm confirmation: status reveal → route draw → totals.
- * No intermediate review state. Does not reset on scroll up.
+ * Desktop canvas frozen; mobile mounts dedicated graphite artboard.
  */
 export function QuestionnaireDaySection() {
   const reduced = useReducedMotion()
+  const viewport = useLandingViewportMode()
+  const mobile = isMobileLandingMode(viewport)
   const { ref, active } = useSectionReveal({
-    threshold: 0.62,
-    reduced: !!reduced,
+    threshold: mobile ? 0.28 : 0.62,
+    reduced: !!reduced || mobile,
   })
   const run = !!reduced || active
 
@@ -85,9 +91,10 @@ export function QuestionnaireDaySection() {
       ref={ref}
       className={styles.daySection}
       data-composition="full-bleed"
-      data-day-layout="36-64"
+      data-day-layout={mobile ? 'mobile-artboard' : '36-64'}
       data-day-timing="calm-confirm"
       data-testid="lv3-day-section"
+      data-viewport-mode={viewport}
       aria-labelledby="day-title"
     >
       <div className={styles.dayInner}>
@@ -103,93 +110,97 @@ export function QuestionnaireDaySection() {
           </p>
         </div>
 
-        <div className={styles.daySplit} data-landing-preview="">
-          <article
-            className={styles.dayQuestionnaire}
-            data-day-surface="questionnaire"
-          >
-            <p className={styles.surfaceEyebrowOnDark}>Ankieta przedślubna</p>
-            <div className={styles.dayFields}>
-              {DAY_FIELDS.map((f) => (
-                <div key={f.label} className={styles.dayField}>
-                  <span>{f.label}</span>
-                  <strong>{f.value}</strong>
-                </div>
-              ))}
-            </div>
-            <p className={styles.dayCheck}>✓ Ankieta wypełniona</p>
-          </article>
+        {mobile ? (
+          <MobileDayArtboard />
+        ) : (
+          <div className={styles.daySplit} data-landing-preview="">
+            <article
+              className={styles.dayQuestionnaire}
+              data-day-surface="questionnaire"
+            >
+              <p className={styles.surfaceEyebrowOnDark}>Ankieta przedślubna</p>
+              <div className={styles.dayFields}>
+                {DAY_FIELDS.map((f) => (
+                  <div key={f.label} className={styles.dayField}>
+                    <span>{f.label}</span>
+                    <strong>{f.value}</strong>
+                  </div>
+                ))}
+              </div>
+              <p className={styles.dayCheck}>✓ Ankieta wypełniona</p>
+            </article>
 
-          <article className={styles.dayItinerary} data-day-surface="itinerary">
-            <div className={styles.dayItineraryHead}>
-              <p className={styles.surfaceEyebrowOnDark}>Plan dnia</p>
-              <motion.p
-                className={styles.dayApproved}
-                data-testid="lv3-day-status"
-                data-day-status="static"
+            <article className={styles.dayItinerary} data-day-surface="itinerary">
+              <div className={styles.dayItineraryHead}>
+                <p className={styles.surfaceEyebrowOnDark}>Plan dnia</p>
+                <motion.p
+                  className={styles.dayApproved}
+                  data-testid="lv3-day-status"
+                  data-day-status="static"
+                  initial={false}
+                  animate={run ? { opacity: 1 } : { opacity: 0.35 }}
+                  transition={{
+                    delay: reduced ? 0 : 0.6,
+                    duration: reduced ? 0 : 0.35,
+                    ease: premiumEase,
+                  }}
+                >
+                  ✓ Dane z ankiety zastosowane
+                </motion.p>
+              </div>
+
+              <ol className={styles.itineraryList}>
+                {ITINERARY.map((stop, i) => (
+                  <li key={stop.time}>
+                    {stop.travel ? (
+                      <motion.div
+                        className={styles.travelLeg}
+                        data-route-leg=""
+                        initial={false}
+                        animate={
+                          run
+                            ? { scaleY: 1, opacity: 1 }
+                            : { scaleY: 0.15, opacity: 0.4 }
+                        }
+                        transition={{
+                          duration: reduced ? 0 : 1.2,
+                          delay: reduced ? 0 : 0.8 + i * 0.12,
+                          ease: premiumEase,
+                        }}
+                        style={{ transformOrigin: 'top' }}
+                      >
+                        {stop.travel}
+                      </motion.div>
+                    ) : null}
+                    <div className={styles.stopRow}>
+                      <time>{stop.time}</time>
+                      <div>
+                        <strong>{stop.title}</strong>
+                        <span>{stop.place}</span>
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+
+              <motion.div
+                className={styles.dayTotals}
+                data-testid="lv3-day-totals"
                 initial={false}
-                animate={run ? { opacity: 1 } : { opacity: 0.35 }}
+                animate={run ? { opacity: 1, y: 0 } : { opacity: 0.25, y: 6 }}
                 transition={{
-                  delay: reduced ? 0 : 0.6,
-                  duration: reduced ? 0 : 0.35,
+                  delay: reduced ? 0 : 2.0,
+                  duration: reduced ? 0 : 0.4,
                   ease: premiumEase,
                 }}
               >
-                ✓ Dane z ankiety zastosowane
-              </motion.p>
-            </div>
-
-            <ol className={styles.itineraryList}>
-              {ITINERARY.map((stop, i) => (
-                <li key={stop.time}>
-                  {stop.travel ? (
-                    <motion.div
-                      className={styles.travelLeg}
-                      data-route-leg=""
-                      initial={false}
-                      animate={
-                        run
-                          ? { scaleY: 1, opacity: 1 }
-                          : { scaleY: 0.15, opacity: 0.4 }
-                      }
-                      transition={{
-                        duration: reduced ? 0 : 1.2,
-                        delay: reduced ? 0 : 0.8 + i * 0.12,
-                        ease: premiumEase,
-                      }}
-                      style={{ transformOrigin: 'top' }}
-                    >
-                      {stop.travel}
-                    </motion.div>
-                  ) : null}
-                  <div className={styles.stopRow}>
-                    <time>{stop.time}</time>
-                    <div>
-                      <strong>{stop.title}</strong>
-                      <span>{stop.place}</span>
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ol>
-
-            <motion.div
-              className={styles.dayTotals}
-              data-testid="lv3-day-totals"
-              initial={false}
-              animate={run ? { opacity: 1, y: 0 } : { opacity: 0.25, y: 6 }}
-              transition={{
-                delay: reduced ? 0 : 2.0,
-                duration: reduced ? 0 : 0.4,
-                ease: premiumEase,
-              }}
-            >
-              <span>{demoRouteTotal.distance}</span>
-              <span>·</span>
-              <span>{demoRouteTotal.duration}</span>
-            </motion.div>
-          </article>
-        </div>
+                <span>{demoRouteTotal.distance}</span>
+                <span>·</span>
+                <span>{demoRouteTotal.duration}</span>
+              </motion.div>
+            </article>
+          </div>
+        )}
       </div>
     </section>
   )

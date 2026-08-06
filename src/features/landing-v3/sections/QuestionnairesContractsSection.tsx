@@ -1,5 +1,10 @@
 import { motion, useReducedMotion } from 'framer-motion'
+import { MobileQcArtboard } from '@/features/landing-v3/components/mobile-artboards'
 import { DEMO_ASSIGNMENT } from '@/features/landing-v3/data/demoData'
+import {
+  isMobileLandingMode,
+  useLandingViewportMode,
+} from '@/features/landing-v3/hooks/useLandingViewportMode'
 import { useSectionReveal } from '@/features/landing-v3/hooks/useSectionReveal'
 import { DURATION, premiumEase } from '@/features/landing-v3/motion/variants'
 import styles from '@/features/landing-v3/styles/landingV3.module.css'
@@ -22,9 +27,11 @@ const MAP_LABELS = ['Dane pary', 'Pakiet', 'Termin realizacji'] as const
 /** Section 2 — questionnaire → contract. Asymmetric split. */
 export function QuestionnairesContractsSection() {
   const reduced = useReducedMotion()
+  const viewport = useLandingViewportMode()
+  const mobile = isMobileLandingMode(viewport)
   const { ref, active } = useSectionReveal({
-    threshold: 0.55,
-    reduced: !!reduced,
+    threshold: mobile ? 0.28 : 0.55,
+    reduced: !!reduced || mobile,
   })
 
   return (
@@ -32,8 +39,9 @@ export function QuestionnairesContractsSection() {
       ref={ref}
       className={styles.editorialSection}
       data-composition="asymmetric"
-      data-qc-layout="editorial"
+      data-qc-layout={mobile ? 'mobile-artboard' : 'editorial'}
       data-testid="lv3-qc-section"
+      data-viewport-mode={viewport}
       aria-labelledby="qc-title"
     >
       <div className={styles.sectionIntro}>
@@ -44,6 +52,7 @@ export function QuestionnairesContractsSection() {
         </h2>
       </div>
 
+      {mobile ? <MobileQcArtboard /> : (
       <div className={styles.qcCanvas} data-landing-preview="">
         <motion.div
           className={styles.qcForm}
@@ -169,6 +178,7 @@ export function QuestionnairesContractsSection() {
           </div>
         </motion.article>
       </div>
+      )}
     </section>
   )
 }

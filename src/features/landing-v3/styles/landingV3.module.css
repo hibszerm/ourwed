@@ -2073,6 +2073,24 @@
     max-width: 100%;
   }
 
+  .securityVisual {
+    min-height: 0;
+    max-height: none;
+    height: auto;
+    margin-bottom: 2rem;
+    padding: 0;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    overflow: visible;
+    display: block;
+    width: 100%;
+  }
+
+  .sectionIntro {
+    margin-bottom: 1.75rem;
+  }
+
   .assignmentModule,
   .assignmentHub,
   .importSheet,
@@ -2098,18 +2116,34 @@
 
 @media (max-width: 430px) {
   .page {
-    --lv3-container: calc(100vw - 28px);
+    --lv3-container: calc(100vw - 32px);
   }
 
   .editorialSection,
-  .faq {
-    padding: 4rem 0 3.5rem;
+  .faq,
+  .daySection,
+  .securitySection,
+  .calendarSection,
+  .briefSection {
+    padding: 4.5rem 0 4.25rem;
+  }
+
+  .securitySection {
+    padding: 5rem 0 4.5rem;
+  }
+
+  .sectionIntro {
+    margin-bottom: 1.5rem;
   }
 
   .heroDashboard {
-    max-height: 440px;
-    transform: scale(0.92);
+    max-height: 400px;
+    transform: scale(0.9);
     transform-origin: top center;
+  }
+
+  .securityVisual {
+    margin-bottom: 2.25rem;
   }
 }
 

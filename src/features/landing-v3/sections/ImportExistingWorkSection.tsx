@@ -1,9 +1,14 @@
 import { motion, useReducedMotion } from 'framer-motion'
+import { MobileImportArtboard } from '@/features/landing-v3/components/mobile-artboards'
 import {
   IMPORT_PREPARED,
   IMPORT_SPREADSHEET_ROWS,
   IMPORT_STEPS,
 } from '@/features/landing-v3/data/importDemoData'
+import {
+  isMobileLandingMode,
+  useLandingViewportMode,
+} from '@/features/landing-v3/hooks/useLandingViewportMode'
 import { useSectionReveal } from '@/features/landing-v3/hooks/useSectionReveal'
 import { premiumEase } from '@/features/landing-v3/motion/variants'
 import styles from '@/features/landing-v3/styles/landingV3.module.css'
@@ -11,21 +16,25 @@ import styles from '@/features/landing-v3/styles/landingV3.module.css'
 /**
  * Import existing season — spreadsheet + contracts → prepared assignment.
  * Presentational only; does not connect to real import.
+ * Desktop canvas frozen; mobile mounts dedicated artboard only.
  */
 export function ImportExistingWorkSection() {
   const reduced = useReducedMotion()
+  const viewport = useLandingViewportMode()
+  const mobile = isMobileLandingMode(viewport)
   const { ref, active } = useSectionReveal({
-    threshold: 0.6,
-    reduced: !!reduced,
+    threshold: mobile ? 0.28 : 0.6,
+    reduced: !!reduced || mobile,
   })
-  const done = reduced || active
+  const done = reduced || active || mobile
 
   return (
     <section
       ref={ref}
       className={styles.editorialSection}
       data-testid="lv3-import-section"
-      data-import-layout="two-panel"
+      data-import-layout={mobile ? 'mobile-artboard' : 'two-panel'}
+      data-viewport-mode={viewport}
       aria-labelledby="import-title"
     >
       <div className={styles.sectionIntro}>
@@ -44,6 +53,9 @@ export function ImportExistingWorkSection() {
         </p>
       </div>
 
+      {mobile ? <MobileImportArtboard /> : null}
+
+      {!mobile ? (
       <ol className={styles.importProcess} aria-label="Kroki importu">
         {IMPORT_STEPS.map((step, i) => (
           <li key={step}>
@@ -57,7 +69,9 @@ export function ImportExistingWorkSection() {
           </li>
         ))}
       </ol>
+      ) : null}
 
+      {!mobile ? (
       <div className={styles.importCompose} data-landing-preview="">
         <article className={styles.importSheet} data-import-panel="sheet">
           <header className={styles.importSheetHead}>
@@ -175,6 +189,7 @@ export function ImportExistingWorkSection() {
           </button>
         </article>
       </div>
+      ) : null}
     </section>
   )
 }

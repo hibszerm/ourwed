@@ -1,9 +1,14 @@
 import { motion, useReducedMotion } from 'framer-motion'
+import { MobileFinanceArtboard } from '@/features/landing-v3/components/mobile-artboards'
 import {
   DEMO_ASSIGNMENT,
   DEMO_FINANCE_PAYMENTS,
   DEMO_SEASON,
 } from '@/features/landing-v3/data/demoData'
+import {
+  isMobileLandingMode,
+  useLandingViewportMode,
+} from '@/features/landing-v3/hooks/useLandingViewportMode'
 import { useSectionReveal } from '@/features/landing-v3/hooks/useSectionReveal'
 import { premiumEase } from '@/features/landing-v3/motion/variants'
 import styles from '@/features/landing-v3/styles/landingV3.module.css'
@@ -13,9 +18,11 @@ const MAX_MONTH = Math.max(...DEMO_SEASON.months.map((m) => m.amount))
 /** Section 3 — finances bento (12-col). */
 export function FinanceSection() {
   const reduced = useReducedMotion()
+  const viewport = useLandingViewportMode()
+  const mobile = isMobileLandingMode(viewport)
   const { ref, active } = useSectionReveal({
-    threshold: 0.55,
-    reduced: !!reduced,
+    threshold: mobile ? 0.28 : 0.55,
+    reduced: !!reduced || mobile,
   })
 
   return (
@@ -23,8 +30,9 @@ export function FinanceSection() {
       ref={ref}
       className={`${styles.editorialSection} ${styles.editorialSectionTight}`}
       data-composition="bento"
-      data-finance-layout="bento-4"
+      data-finance-layout={mobile ? 'mobile-bento' : 'bento-4'}
       data-testid="lv3-finance-section"
+      data-viewport-mode={viewport}
       aria-labelledby="finance-title"
     >
       <div className={styles.sectionIntro}>
@@ -39,6 +47,7 @@ export function FinanceSection() {
         </p>
       </div>
 
+      {mobile ? <MobileFinanceArtboard /> : (
       <div className={styles.financeBento} data-landing-preview="">
         <article className={styles.financeCardA} data-finance-module="assignment">
           <p className={styles.surfaceEyebrow}>{DEMO_ASSIGNMENT.displayName}</p>
@@ -133,6 +142,7 @@ export function FinanceSection() {
           </p>
         </article>
       </div>
+      )}
     </section>
   )
 }
