@@ -16,7 +16,7 @@ export function MobileFinanceArtboard() {
         <div
           className={styles.financeBoard}
           data-mobile-artboard="finance"
-          data-artboard-pattern="parity-B"
+          data-artboard-pattern="parity-scale"
           data-reveal-active={active ? 'true' : 'false'}
           style={
             {

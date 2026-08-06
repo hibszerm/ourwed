@@ -73,7 +73,7 @@ function SecurityScene({
     <div
       className={styles.securityBoard}
       data-mobile-artboard="security"
-      data-artboard-pattern="B"
+      data-artboard-pattern="parity-scale"
       data-security-mobile="true"
       data-lock-phase={shackleClosed ? 'closed' : 'open'}
       data-anim-duration="1.75"
@@ -116,7 +116,7 @@ function SecurityScene({
       </div>
 
       <p className={styles.secStatus} data-visible={statusVisible ? 'true' : 'false'}>
-        Dane chronione
+        Dane zabezpieczone
       </p>
     </div>
   )

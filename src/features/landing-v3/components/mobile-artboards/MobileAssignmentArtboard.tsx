@@ -29,7 +29,7 @@ export function MobileAssignmentArtboard() {
         <div
           className={styles.assignBoard}
           data-mobile-artboard="assignment"
-          data-artboard-pattern="parity-B"
+          data-artboard-pattern="parity-scale"
           data-reveal-active={active ? 'true' : 'false'}
         >
           <svg

@@ -10,7 +10,7 @@ export function MobileSessionsArtboard() {
         <div
           className={styles.sessionsBoard}
           data-mobile-artboard="sessions"
-          data-artboard-pattern="parity-B"
+          data-artboard-pattern="parity-scale"
           data-reveal-active={active ? 'true' : 'false'}
         >
           <article className={styles.sessionWedding} data-dominant="true">

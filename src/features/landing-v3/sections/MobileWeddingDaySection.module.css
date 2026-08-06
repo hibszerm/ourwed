@@ -203,31 +203,55 @@
 
   .layout {
     min-height: 0;
+    gap: 0;
+  }
+
+  .intro {
+    margin-bottom: 0;
+  }
+
+  .intro :global(h2) {
+    margin-bottom: 0.75rem;
+  }
+
+  .webNote {
+    margin-top: 0.75rem;
+  }
+
+  .stage {
+    min-height: 0;
+    align-items: center;
+    padding-bottom: 0;
+    margin-top: 2.5rem; /* 38–44px from support copy */
   }
 
   .phones {
-    width: min(100%, 340px);
-    max-width: 340px;
+    width: min(100%, 338px);
+    max-width: 342px;
     min-height: 0;
-    height: 590px;
-    max-height: 590px;
+    height: 565px;
+    max-height: 585px;
     padding-top: 36px;
     overflow: visible;
     margin: 0 auto;
   }
 
   .secondaryPhone {
-    left: -24px;
-    top: 36px;
+    left: -18px;
+    top: 28px;
     bottom: auto;
-    opacity: 0.78;
+    opacity: 0.9;
   }
 
   .primaryPhone {
     right: 0;
-    left: auto;
     bottom: 4px;
     top: auto;
+  }
+
+  .benefits {
+    max-width: none;
+    margin-top: 1.6rem; /* 24–30px below phone group */
   }
 
   .benefitLabel {
@@ -236,14 +260,19 @@
 }
 
 @media (max-width: 430px) {
+  .section {
+    padding-top: 4.25rem;
+    padding-bottom: 3.75rem;
+  }
+
   .phones {
-    width: min(100%, 340px);
-    height: 580px;
-    max-height: 590px;
+    width: min(100%, 338px);
+    height: 560px;
+    max-height: 585px;
   }
 
   .secondaryPhone {
     left: -22px;
-    top: 34px;
+    top: 26px;
   }
 }

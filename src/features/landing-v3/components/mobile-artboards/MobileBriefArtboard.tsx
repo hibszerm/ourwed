@@ -16,7 +16,7 @@ export function MobileBriefArtboard() {
         <div
           className={styles.briefBoard}
           data-mobile-artboard="brief"
-          data-artboard-pattern="parity-B"
+          data-artboard-pattern="parity-scale"
           data-reveal-active={active ? 'true' : 'false'}
         >
           <div className={styles.briefStack} data-dominant="true">

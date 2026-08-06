@@ -6,15 +6,14 @@ import styles from './mobileArtboard.module.css'
 
 const FIELDS = [
   { label: 'Imię i nazwisko', value: 'Julia Nowak' },
-  { label: 'Partner', value: 'Adrian Kowalski' },
-  { label: 'Telefon', value: '500 100 200' },
+  { label: 'Partner', value: 'Adrian Nowak' },
   { label: 'Data ślubu', value: DEMO_ASSIGNMENT.dateLabel },
   { label: 'Pakiet', value: DEMO_ASSIGNMENT.packageName },
 ] as const
 
 const MAP = ['Dane pary', 'Pakiet', 'Termin'] as const
 
-/** Parity artboard — asymmetric form → mapping → contract. */
+/** Real-scale overlapping questionnaire → contract. */
 export function MobileQcArtboard() {
   const reduced = usePrefersReducedMotion()
   return (
@@ -52,11 +51,16 @@ function QcScene({ active, reduced }: { active: boolean; reduced: boolean }) {
     <div
       className={styles.qcBoard}
       data-mobile-artboard="qc"
-      data-artboard-pattern="parity-B"
+      data-artboard-pattern="parity-scale"
       data-qc-phase={String(phase)}
     >
-      <div className={styles.qcStage}>
-        <div className={styles.qcForm} data-surface="questionnaire">
+      <div className={styles.qcStage} data-dominant="true" data-composition="qc-overlap">
+        <div
+          className={styles.qcForm}
+          data-surface="questionnaire"
+          data-surface-w="200"
+          data-surface-h="420"
+        >
           <p className={styles.eyebrow}>Ankieta kontraktowa</p>
           {FIELDS.map((f) => (
             <label key={f.label}>
@@ -67,26 +71,41 @@ function QcScene({ active, reduced }: { active: boolean; reduced: boolean }) {
         </div>
 
         <div
+          className={styles.qcDoc}
+          data-surface="contract"
+          data-surface-w="224"
+          data-surface-h="470"
+        >
+          <p className={styles.eyebrow}>Studio North Wedding</p>
+          <p className={styles.qcDocTitle}>UMOWA O ŚWIADCZENIE USŁUG</p>
+          <p className={styles.qcDocLine}>
+            Zawarta pomiędzy:
+            <br />
+            <strong>{DEMO_ASSIGNMENT.displayName}</strong>
+          </p>
+          <p className={styles.qcDocLine}>
+            Pakiet: <strong>{DEMO_ASSIGNMENT.packageName}</strong>
+          </p>
+          <p className={styles.qcDocLine}>
+            Termin: <strong>{DEMO_ASSIGNMENT.dateLabel}</strong>
+          </p>
+          <p className={styles.qcDocLine}>
+            Wartość: <strong>{DEMO_ASSIGNMENT.contractValueLabel}</strong>
+          </p>
+          <div className={styles.qcDocStatus}>
+            {ready
+              ? '✓ Umowa wygenerowana\nGotowa do wysłania'
+              : 'Przygotowywanie dokumentu…'}
+          </div>
+        </div>
+
+        <div
           className={styles.qcBridge}
           data-active={showMap ? 'true' : 'false'}
         >
           {MAP.map((label) => (
             <span key={label}>{label}</span>
           ))}
-        </div>
-
-        <div className={styles.qcDoc} data-surface="contract" data-dominant="true">
-          <p className={styles.eyebrow}>Studio North Wedding</p>
-          <p className={styles.qcDocTitle}>UMOWA O ŚWIADCZENIE USŁUG</p>
-          <p className={styles.qcValue}>
-            <strong>{DEMO_ASSIGNMENT.displayName}</strong>
-          </p>
-          <p className={styles.qcValue}>{DEMO_ASSIGNMENT.packageName}</p>
-          <p className={styles.qcValue}>{DEMO_ASSIGNMENT.contractValueLabel}</p>
-          <p className={styles.qcValue}>{DEMO_ASSIGNMENT.dateLabel}</p>
-          <p className={styles.qcStatus} style={{ position: 'static', marginTop: '0.75rem' }}>
-            {ready ? '✓ Umowa wygenerowana · Gotowa do wysłania' : 'Przygotowywanie…'}
-          </p>
         </div>
       </div>
     </div>

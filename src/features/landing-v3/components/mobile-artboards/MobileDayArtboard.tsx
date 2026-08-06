@@ -76,7 +76,7 @@ function DayScene({ active, reduced }: { active: boolean; reduced: boolean }) {
     <div
       className={styles.dayBoard}
       data-mobile-artboard="wedding-day"
-      data-artboard-pattern="parity-B"
+      data-artboard-pattern="parity-scale"
     >
       <div className={styles.daySummary} data-surface="questionnaire">
         <p className={styles.daySummaryEyebrow}>Ankieta przedślubna</p>
@@ -111,13 +111,12 @@ function DayScene({ active, reduced }: { active: boolean; reduced: boolean }) {
             </li>
           ))}
         </ol>
-      </div>
-
-      <div className={styles.dayTotals} data-active={totals ? 'true' : 'false'}>
-        <span>Trasa dnia</span>
-        <span>
-          {demoRouteTotal.distance} · {demoRouteTotal.duration}
-        </span>
+        <div className={styles.dayTotals} data-active={totals ? 'true' : 'false'}>
+          <span>Trasa dnia</span>
+          <span>
+            {demoRouteTotal.distance} · {demoRouteTotal.duration}
+          </span>
+        </div>
       </div>
     </div>
   )

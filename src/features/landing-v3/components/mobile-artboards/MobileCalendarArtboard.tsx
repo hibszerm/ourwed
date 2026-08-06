@@ -4,7 +4,6 @@ import styles from './mobileArtboard.module.css'
 
 const DOWS = ['Pn', 'Wt', 'Śr', 'Cz', 'Pt', 'So', 'Nd'] as const
 
-/** June 2027 starts Tuesday — pad 1 empty (Mon). */
 const EVENTS: Record<number, string> = {
   4: 'Sesja',
   12: 'Ślub',
@@ -12,7 +11,7 @@ const EVENTS: Record<number, string> = {
   26: 'Ślub',
 }
 
-/** Parity artboard — full month surface matching desktop calendar. */
+/** Real-scale full-month calendar surface. */
 export function MobileCalendarArtboard() {
   const days: Array<{ day: number | null; event?: string }> = []
   for (let i = 0; i < 1; i++) days.push({ day: null })
@@ -26,40 +25,42 @@ export function MobileCalendarArtboard() {
         <div
           className={`${styles.board} ${styles.calBoard}`}
           data-mobile-artboard="calendar"
-          data-artboard-pattern="parity-B"
+          data-artboard-pattern="parity-scale"
           data-reveal-active={active ? 'true' : 'false'}
         >
-          <div className={styles.calHead}>
-            <h3>Czerwiec 2027</h3>
-            <span className={styles.calMeta}>Sezon</span>
-          </div>
-          <div className={styles.calGrid} aria-label="Kalendarz czerwca 2027">
-            {DOWS.map((d) => (
-              <span key={d} className={styles.calDow}>
-                {d}
+          <div className={styles.calInner}>
+            <div className={styles.calHead}>
+              <h3>Czerwiec 2027</h3>
+              <span className={styles.calMeta}>Sezon</span>
+            </div>
+            <div className={styles.calGrid} aria-label="Kalendarz czerwca 2027">
+              {DOWS.map((d) => (
+                <span key={d} className={styles.calDow}>
+                  {d}
+                </span>
+              ))}
+              {days.map((cell, i) => (
+                <div
+                  key={i}
+                  className={styles.calDay}
+                  data-empty={cell.day == null ? 'true' : 'false'}
+                  data-event={cell.event ? 'true' : 'false'}
+                >
+                  {cell.day ?? ''}
+                  {cell.event ? (
+                    <span className={styles.calChip}>{cell.event}</span>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+            <div className={styles.calFooter}>
+              <strong>OurWed</strong>
+              <span>Google Calendar · Zsynchronizowano</span>
+              <span>Apple Calendar · Aktywny</span>
+              <span className={styles.calMeta}>
+                {DEMO_ASSIGNMENT.displayName} · {DEMO_SESSION.displayName}
               </span>
-            ))}
-            {days.map((cell, i) => (
-              <div
-                key={i}
-                className={styles.calDay}
-                data-empty={cell.day == null ? 'true' : 'false'}
-                data-event={cell.event ? 'true' : 'false'}
-              >
-                {cell.day ?? ''}
-                {cell.event ? (
-                  <span className={styles.calChip}>{cell.event}</span>
-                ) : null}
-              </div>
-            ))}
-          </div>
-          <div className={styles.calFooter}>
-            <strong>OurWed</strong>
-            <span>Google Calendar · Zsynchronizowano</span>
-            <span>Apple Calendar · Aktywny</span>
-            <span className={styles.calMeta}>
-              {DEMO_ASSIGNMENT.displayName} · {DEMO_SESSION.displayName}
-            </span>
+            </div>
           </div>
         </div>
       )}

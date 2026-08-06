@@ -8,7 +8,7 @@ import styles from './mobileArtboard.module.css'
 
 const ROWS = IMPORT_SPREADSHEET_ROWS.slice(0, 3)
 
-/** Parity artboard — desktop import hierarchy at 358px. */
+/** Real-scale import — sources + dominant completed assignment. */
 export function MobileImportArtboard() {
   return (
     <MobileRevealAnchor>
@@ -16,7 +16,7 @@ export function MobileImportArtboard() {
         <div
           className={`${styles.board} ${styles.importBoard}`}
           data-mobile-artboard="import"
-          data-artboard-pattern="parity-B"
+          data-artboard-pattern="parity-scale"
           data-reveal-active={active ? 'true' : 'false'}
         >
           <ol className={styles.importSteps} aria-label="Kroki importu">
@@ -30,6 +30,7 @@ export function MobileImportArtboard() {
 
           <div className={styles.importPreviews}>
             <div className={styles.importSheetMini}>
+              <p className={styles.eyebrow}>Arkusz</p>
               <h4>zlecenia_sezon_2027.xlsx</h4>
               {ROWS.map((row) => (
                 <div
@@ -44,10 +45,23 @@ export function MobileImportArtboard() {
               ))}
             </div>
             <div className={styles.importDocMini}>
-              <div className={styles.importDocIcon} aria-hidden>
-                PDF
+              <p className={styles.eyebrow}>Umowa</p>
+              <div className={styles.importDocSurface}>
+                <div className={styles.importDocHeader}>
+                  <span className={styles.importDocBadge}>PDF</span>
+                  <span className={styles.importDocStatus}>Załączono</span>
+                </div>
+                <p className={styles.importDocTitle}>{IMPORT_PREPARED.document}</p>
+                <div className={styles.importDocLines} aria-hidden>
+                  <span />
+                  <span />
+                  <span />
+                  <span />
+                </div>
+                <span className={styles.importDocMeta}>
+                  Dołączona do wiersza Julia i Adrian
+                </span>
               </div>
-              <h4>{IMPORT_PREPARED.document}</h4>
             </div>
           </div>
 

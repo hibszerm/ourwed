@@ -115,14 +115,21 @@ assert(!/Marcin Hibszer/i.test(sources), 'no real name')
 const security = readFileSync(join(FEATURE, 'sections/SecuritySection.tsx'), 'utf8')
 assert(security.includes('ClassicDataLock'), 'ClassicDataLock used')
 assert(
-  security.includes('threshold: mobile ? 0.28 : 0.68') ||
+  security.includes('threshold: mobile ? 0.22 : 0.68') ||
+    security.includes('threshold: mobile ? 0.28 : 0.68') ||
     security.includes('threshold: 0.68'),
   '65–70% desktop trigger',
 )
 assert(security.includes('MobileSecurityArtboard'), 'mobile security artboard')
 assert(
-  security.indexOf('lv3-security-visual') < security.indexOf('lv3-security-copy'),
-  'visual before copy',
+  security.includes('heading-copy-artboard-facts'),
+  'mobile security order heading→copy→artboard→facts',
+)
+assert(security.includes('Uwierzytelnianie'), 'mobile security fact labels')
+assert(
+  security.indexOf('lv3-security-visual') < security.indexOf('lv3-security-copy') ||
+    security.includes('securityMobileIntro'),
+  'visual before or with structured mobile copy',
 )
 assert(!security.includes('position: sticky'), 'no sticky security')
 
@@ -494,7 +501,25 @@ const qcArt = readFileSync(
 )
 assert(qcArt.includes('data-surface="questionnaire"'), 'qc questionnaire surface')
 assert(qcArt.includes('data-surface="contract"'), 'qc contract surface')
+assert(qcArt.includes('data-surface-w="200"'), 'qc form width ~200')
+assert(qcArt.includes('data-surface-w="224"'), 'qc doc width ~224')
+assert(qcArt.includes('data-composition="qc-overlap"'), 'qc overlap composition')
+assert(qcArt.includes('Adrian Nowak'), 'qc partner Adrian Nowak')
 assert(qcArt.includes('MAP'), 'qc mapping chips')
+assert(importArt.includes('importDocSurface'), 'import real document surface')
+
+const mobileCss = readFileSync(
+  join(FEATURE, 'components/mobile-artboards/mobileArtboard.module.css'),
+  'utf8',
+)
+const mobileWeddingCss = readFileSync(
+  join(FEATURE, 'sections/MobileWeddingDaySection.module.css'),
+  'utf8',
+)
+assert(mobileCss.includes('min-height: 570px') || mobileCss.includes('570px'), 'import min height scale')
+assert(mobileCss.includes('height: 660px') || mobileCss.includes('min-height: 640px'), 'qc tall artboard')
+assert(mobileWeddingCss.includes('2.5rem'), 'phone copy gap')
+assert(mobileWeddingCss.includes('1.6rem'), 'benefit proximity')
 
 const secArt = readFileSync(
   join(FEATURE, 'components/mobile-artboards/MobileSecurityArtboard.tsx'),
@@ -503,6 +528,7 @@ const secArt = readFileSync(
 assert(secArt.includes('SECURITY_RECORDS.slice(0, 4)'), 'security records immediate')
 assert(secArt.includes('data-anim-duration="1.75"'), 'security ≤1.8s')
 assert(secArt.includes('START'), 'security start positions visible')
+assert(secArt.includes('Dane zabezpieczone'), 'security status label')
 
 const finArt = readFileSync(
   join(FEATURE, 'components/mobile-artboards/MobileFinanceArtboard.tsx'),

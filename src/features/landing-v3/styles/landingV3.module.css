@@ -2127,25 +2127,53 @@
   .securitySection,
   .calendarSection,
   .briefSection {
-    padding: 4.5rem 0 4.25rem;
-  }
-
-  .securitySection {
-    padding: 5rem 0 4.5rem;
+    padding: 4.75rem 0 4.5rem;
   }
 
   .sectionIntro {
-    margin-bottom: 1.5rem;
+    margin-bottom: 2rem;
+  }
+
+  .sectionIntro h2 {
+    margin-bottom: 0.85rem;
+  }
+
+  .sectionIntro .editorialLead,
+  .sectionIntro .editorialLeadSecondary {
+    margin-top: 0;
   }
 
   .heroDashboard {
     max-height: 400px;
     transform: scale(0.9);
     transform-origin: top center;
+    margin-bottom: 1.5rem;
   }
 
   .securityVisual {
-    margin-bottom: 2.25rem;
+    margin-bottom: 0;
+    min-height: 0;
+    max-height: none;
+    height: auto;
+    padding: 0;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    overflow: visible;
+    display: block;
+  }
+
+  .securitySection [data-security-mobile-layout] .securityVisual {
+    margin-top: 0;
+  }
+
+  .finalSummary {
+    padding: 1.5rem 1.35rem;
+    min-height: 0;
+  }
+
+  .finalSummary h3 {
+    font-size: 1.45rem;
   }
 }
 
