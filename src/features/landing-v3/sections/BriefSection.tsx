@@ -1,13 +1,12 @@
 import { motion, useReducedMotion } from 'framer-motion'
-import { MobileBriefArtboard } from '@/features/landing-v3/components/mobile-artboards'
-import {
-  isMobileLandingMode,
-  useLandingViewportMode,
-} from '@/features/landing-v3/hooks/useLandingViewportMode'
+import { DesktopCompositionScale } from '@/features/landing-v3/components/DesktopCompositionScale'
+import { useLandingViewportMode } from '@/features/landing-v3/hooks/useLandingViewportMode'
 import { useSectionReveal } from '@/features/landing-v3/hooks/useSectionReveal'
 import { DURATION, premiumEase } from '@/features/landing-v3/motion/variants'
 import { LandingBriefPreview } from '@/features/landing-v3/product/LandingBriefPreview'
 import styles from '@/features/landing-v3/styles/landingV3.module.css'
+
+const DESKTOP_THRESHOLD = 0.55
 
 const BENEFITS = [
   'Plan dnia w poprawnej kolejności',
@@ -20,10 +19,11 @@ const BENEFITS = [
 export function BriefSection() {
   const reduced = useReducedMotion()
   const viewport = useLandingViewportMode()
-  const mobile = isMobileLandingMode(viewport)
+  const scaled = viewport !== 'desktop'
   const { ref, active } = useSectionReveal({
-    threshold: mobile ? 0.28 : 0.55,
-    reduced: !!reduced || mobile,
+    threshold: scaled ? 0.05 : DESKTOP_THRESHOLD,
+    topTriggerRatio: scaled ? 0.72 : undefined,
+    reduced: !!reduced,
   })
 
   return (
@@ -46,9 +46,7 @@ export function BriefSection() {
         </p>
       </div>
 
-      {mobile ? (
-        <MobileBriefArtboard />
-      ) : (
+      <DesktopCompositionScale composition="brief">
         <div className={styles.briefSplit} data-landing-preview="">
           <motion.div
             className={styles.briefDocCol}
@@ -82,7 +80,7 @@ export function BriefSection() {
             ))}
           </ol>
         </div>
-      )}
+      </DesktopCompositionScale>
     </section>
   )
 }

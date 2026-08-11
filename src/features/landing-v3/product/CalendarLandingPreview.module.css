@@ -228,3 +228,26 @@
     white-space: nowrap;
   }
 }
+
+:global([data-desktop-parity-canvas='true']) .root {
+  width: 100% !important;
+  max-width: 1080px !important;
+  aspect-ratio: 1.52 / 1 !important;
+  min-height: 690px !important;
+  max-height: 730px !important;
+  overflow: hidden !important;
+}
+
+:global([data-desktop-parity-canvas='true']) .cell {
+  min-height: unset !important;
+  padding: unset;
+}
+
+:global([data-desktop-parity-canvas='true']) .integFooter {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+}
+
+:global([data-desktop-parity-canvas='true']) .integCell + .integCell {
+  border-left: 1px solid rgba(39, 32, 25, 0.12) !important;
+  border-top: none !important;
+}

@@ -163,3 +163,15 @@
     padding: 1.25rem;
   }
 }
+
+:global([data-desktop-parity-canvas='true']) .summary {
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+}
+
+:global([data-desktop-parity-canvas='true']) .columns {
+  grid-template-columns: 1.15fr 0.85fr !important;
+}
+
+:global([data-desktop-parity-canvas='true']) .page {
+  padding: 2.15rem 2.25rem 1.9rem !important;
+}

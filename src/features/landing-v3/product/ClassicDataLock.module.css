@@ -219,3 +219,62 @@
     display: none;
   }
 }
+
+/* Force desktop lock geometry inside DesktopCompositionScale */
+:global([data-desktop-parity-canvas='true']) .root {
+  width: 100% !important;
+  min-height: 720px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+:global([data-desktop-parity-canvas='true']) .stage {
+  position: relative !important;
+  width: 920px !important;
+  height: 760px !important;
+  min-height: 760px !important;
+  margin: 0 auto !important;
+  display: block !important;
+  flex-direction: unset !important;
+  gap: unset !important;
+  padding: 0 !important;
+}
+
+:global([data-desktop-parity-canvas='true']) .lockSlot {
+  position: absolute !important;
+  left: 50% !important;
+  top: 50% !important;
+  transform: translate(-50%, -46%) !important;
+  width: 420px !important;
+  margin: 0 !important;
+  order: unset !important;
+}
+
+:global([data-desktop-parity-canvas='true']) .lockShell {
+  min-height: 620px !important;
+}
+
+:global([data-desktop-parity-canvas='true']) .shackleWrap {
+  width: 220px !important;
+  height: 230px !important;
+  margin-bottom: -42px !important;
+}
+
+:global([data-desktop-parity-canvas='true']) .lockBody {
+  height: 470px !important;
+  border-radius: 62px !important;
+}
+
+:global([data-desktop-parity-canvas='true']) .record {
+  position: absolute !important;
+  width: 280px !important;
+  order: unset !important;
+  display: block !important;
+}
+
+:global([data-desktop-parity-canvas='true']) .record[data-mobile-index='3'],
+:global([data-desktop-parity-canvas='true']) .record[data-mobile-index='4'],
+:global([data-desktop-parity-canvas='true']) .record[data-mobile-index='5'] {
+  display: block !important;
+}

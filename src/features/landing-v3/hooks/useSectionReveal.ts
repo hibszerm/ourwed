@@ -8,12 +8,18 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 export function useSectionReveal(options?: {
   threshold?: number
   reduced?: boolean
+  /**
+   * When set (e.g. 0.72), activate once the observed top crosses this
+   * fraction of the viewport — used for scaled desktop canvases on mobile.
+   */
+  topTriggerRatio?: number
 }) {
   const nodeRef = useRef<HTMLElement | null>(null)
   const [active, setActive] = useState(false)
   const started = useRef(false)
   const threshold = options?.threshold ?? 0.55
   const reduced = !!options?.reduced
+  const topTriggerRatio = options?.topTriggerRatio
 
   const ref = useCallback((node: HTMLElement | null) => {
     nodeRef.current = node
@@ -54,6 +60,15 @@ export function useSectionReveal(options?: {
     const check = () => {
       const el = nodeRef.current
       if (!el || cancelled || started.current) return
+      const rect = el.getBoundingClientRect()
+      const vh = window.innerHeight || 1
+      if (topTriggerRatio != null) {
+        const near =
+          rect.top < vh * topTriggerRatio && rect.bottom > 0
+        const coverage = visibleRatio(el)
+        if (near && coverage >= Math.min(threshold, 0.05)) activate()
+        return
+      }
       if (visibleRatio(el) >= effectiveThreshold(el)) activate()
     }
 
@@ -97,7 +112,7 @@ export function useSectionReveal(options?: {
       window.removeEventListener('orientationchange', check)
       io?.disconnect()
     }
-  }, [reduced, threshold])
+  }, [reduced, threshold, topTriggerRatio])
 
   return { ref, active }
 }

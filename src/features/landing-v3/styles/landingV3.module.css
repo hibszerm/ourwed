@@ -2182,3 +2182,242 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* ═══════════════════════════════════════════════════
+   DESKTOP PARITY CANVAS
+   Force approved desktop product geometry inside
+   DesktopCompositionScale regardless of viewport.
+   Marketing copy outside remains responsive.
+   ═══════════════════════════════════════════════════ */
+
+:global([data-desktop-parity-canvas='true']) .assignmentCanvas {
+  position: relative !important;
+  width: 100% !important;
+  height: 780px !important;
+  min-height: 780px !important;
+  display: block !important;
+  gap: unset !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+
+:global([data-desktop-parity-canvas='true']) .assignmentLines {
+  display: block !important;
+  position: absolute !important;
+  inset: 0 !important;
+}
+
+:global([data-desktop-parity-canvas='true']) .assignmentHubSlot {
+  position: absolute !important;
+  left: 50% !important;
+  top: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  width: min(52%, 460px) !important;
+}
+
+:global([data-desktop-parity-canvas='true']) .assignmentHub {
+  position: relative !important;
+  width: 100% !important;
+}
+
+:global([data-desktop-parity-canvas='true']) .assignmentModule {
+  position: absolute !important;
+  width: min(28%, 280px) !important;
+  top: auto;
+  left: auto;
+  right: auto;
+  bottom: auto;
+}
+
+:global([data-desktop-parity-canvas='true']) .assignmentModule[data-pos='tl'] {
+  top: 8% !important;
+  left: 4% !important;
+  right: auto !important;
+  bottom: auto !important;
+}
+
+:global([data-desktop-parity-canvas='true']) .assignmentModule[data-pos='tr'] {
+  top: 8% !important;
+  right: 4% !important;
+  left: auto !important;
+  bottom: auto !important;
+}
+
+:global([data-desktop-parity-canvas='true']) .assignmentModule[data-pos='ml'] {
+  top: 42% !important;
+  left: 3% !important;
+  right: auto !important;
+  bottom: auto !important;
+}
+
+:global([data-desktop-parity-canvas='true']) .assignmentModule[data-pos='mr'] {
+  top: 42% !important;
+  right: 3% !important;
+  left: auto !important;
+  bottom: auto !important;
+}
+
+:global([data-desktop-parity-canvas='true']) .assignmentModule[data-pos='bl'] {
+  bottom: 8% !important;
+  left: 4% !important;
+  top: auto !important;
+  right: auto !important;
+}
+
+:global([data-desktop-parity-canvas='true']) .assignmentModule[data-pos='br'] {
+  bottom: 8% !important;
+  right: 4% !important;
+  top: auto !important;
+  left: auto !important;
+}
+
+:global([data-desktop-parity-canvas='true']) .qcCanvas {
+  display: grid !important;
+  grid-template-columns: minmax(0, 0.4fr) minmax(100px, 0.12fr) minmax(0, 0.48fr) !important;
+  gap: 1.25rem !important;
+  align-items: stretch !important;
+  min-height: 797px !important;
+  height: 797px !important;
+  padding: 2rem !important;
+}
+
+:global([data-desktop-parity-canvas='true']) .qcBridge {
+  flex-direction: column !important;
+  flex-wrap: nowrap !important;
+  justify-content: center !important;
+}
+
+:global([data-desktop-parity-canvas='true']) .mapLine {
+  width: auto !important;
+  margin: 0 !important;
+}
+
+:global([data-desktop-parity-canvas='true']) .financeBento {
+  display: grid !important;
+  grid-template-columns: repeat(12, minmax(0, 1fr)) !important;
+  grid-template-rows: auto auto !important;
+  gap: 1rem !important;
+  min-height: 700px !important;
+  height: 700px !important;
+}
+
+:global([data-desktop-parity-canvas='true']) .financeCardA {
+  grid-column: 1 / span 7 !important;
+  grid-row: 1 / span 2 !important;
+  min-height: 640px !important;
+}
+
+:global([data-desktop-parity-canvas='true']) .financeCardB {
+  grid-column: 8 / span 5 !important;
+  grid-row: 1 !important;
+  min-height: 430px !important;
+}
+
+:global([data-desktop-parity-canvas='true']) .financeCardC {
+  grid-column: 8 / span 3 !important;
+  grid-row: 2 !important;
+  min-height: 210px !important;
+}
+
+:global([data-desktop-parity-canvas='true']) .financeCardD {
+  grid-column: 11 / span 2 !important;
+  grid-row: 2 !important;
+  min-height: 210px !important;
+}
+
+:global([data-desktop-parity-canvas='true']) .paymentList li {
+  grid-template-columns: 1.2fr 0.8fr 1fr !important;
+}
+
+:global([data-desktop-parity-canvas='true']) .paymentList em {
+  text-align: right !important;
+}
+
+:global([data-desktop-parity-canvas='true']) .daySplit {
+  display: grid !important;
+  grid-template-columns: minmax(0, 0.36fr) minmax(0, 0.64fr) !important;
+  gap: 1.25rem !important;
+  min-height: 700px !important;
+  height: 700px !important;
+}
+
+:global([data-desktop-parity-canvas='true']) .dayQuestionnaire,
+:global([data-desktop-parity-canvas='true']) .dayItinerary {
+  min-height: 640px !important;
+}
+
+:global([data-desktop-parity-canvas='true']) .importProcess {
+  margin-bottom: 1.5rem !important;
+  font-size: inherit !important;
+}
+
+:global([data-desktop-parity-canvas='true']) .importCompose {
+  display: grid !important;
+  grid-template-columns: minmax(0, 0.47fr) minmax(0, 0.47fr) !important;
+  column-gap: 6% !important;
+  min-height: 652px !important;
+}
+
+:global([data-desktop-parity-canvas='true']) .importSheet,
+:global([data-desktop-parity-canvas='true']) .importResult {
+  min-height: 622px !important;
+}
+
+:global([data-desktop-parity-canvas='true']) .importTableRow[data-mobile-hide='true'] {
+  display: grid !important;
+}
+
+:global([data-desktop-parity-canvas='true']) .importTableHead,
+:global([data-desktop-parity-canvas='true']) .importTableRow {
+  grid-template-columns: 1.35fr 0.9fr 0.95fr 0.85fr !important;
+}
+
+:global([data-desktop-parity-canvas='true']) .importTableHead span:nth-child(n + 3),
+:global([data-desktop-parity-canvas='true']) .importTableRow span:nth-child(n + 3) {
+  display: block !important;
+}
+
+:global([data-desktop-parity-canvas='true']) .securityVisual {
+  width: 100% !important;
+  min-height: 822px !important;
+  height: 822px !important;
+  max-height: none !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  margin-bottom: 0 !important;
+  padding: 0 !important;
+  border-radius: 28px !important;
+  background: #e8e2d8 !important;
+  border: 1px solid var(--border) !important;
+  overflow: hidden !important;
+  box-shadow: none !important;
+}
+
+:global([data-desktop-parity-canvas='true']) .calendarVisualCentered {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+}
+
+:global([data-desktop-parity-canvas='true']) .briefSplit {
+  display: grid !important;
+  grid-template-columns: minmax(0, 0.62fr) minmax(0, 0.38fr) !important;
+  gap: 1.5rem !important;
+  align-items: center !important;
+  min-height: 779px !important;
+  height: 779px !important;
+}
+
+:global([data-desktop-parity-canvas='true']) .sessionsSplit {
+  display: grid !important;
+  grid-template-columns: 1fr auto 1fr !important;
+  gap: 0 !important;
+  min-height: 332px !important;
+  height: 332px !important;
+}
+
+:global([data-desktop-parity-canvas='true']) .sessionDivider {
+  width: 1px !important;
+  height: auto !important;
+}

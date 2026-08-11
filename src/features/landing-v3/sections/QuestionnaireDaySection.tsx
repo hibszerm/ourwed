@@ -1,16 +1,15 @@
 import { motion, useReducedMotion } from 'framer-motion'
-import { MobileDayArtboard } from '@/features/landing-v3/components/mobile-artboards'
+import { DesktopCompositionScale } from '@/features/landing-v3/components/DesktopCompositionScale'
 import {
   DEMO_ASSIGNMENT,
   demoRouteTotal,
 } from '@/features/landing-v3/data/demoData'
-import {
-  isMobileLandingMode,
-  useLandingViewportMode,
-} from '@/features/landing-v3/hooks/useLandingViewportMode'
+import { useLandingViewportMode } from '@/features/landing-v3/hooks/useLandingViewportMode'
 import { useSectionReveal } from '@/features/landing-v3/hooks/useSectionReveal'
 import { premiumEase } from '@/features/landing-v3/motion/variants'
 import styles from '@/features/landing-v3/styles/landingV3.module.css'
+
+const DESKTOP_THRESHOLD = 0.62
 
 const DAY_FIELDS = [
   {
@@ -74,15 +73,16 @@ const ITINERARY = [
 
 /**
  * Wedding day — complete composition from first paint.
- * Desktop canvas frozen; mobile mounts dedicated graphite artboard.
+ * Exact desktop canvas on every viewport; scaled below 1100px.
  */
 export function QuestionnaireDaySection() {
   const reduced = useReducedMotion()
   const viewport = useLandingViewportMode()
-  const mobile = isMobileLandingMode(viewport)
+  const scaled = viewport !== 'desktop'
   const { ref, active } = useSectionReveal({
-    threshold: mobile ? 0.28 : 0.62,
-    reduced: !!reduced || mobile,
+    threshold: scaled ? 0.05 : DESKTOP_THRESHOLD,
+    topTriggerRatio: scaled ? 0.72 : undefined,
+    reduced: !!reduced,
   })
   const run = !!reduced || active
 
@@ -91,7 +91,7 @@ export function QuestionnaireDaySection() {
       ref={ref}
       className={styles.daySection}
       data-composition="full-bleed"
-      data-day-layout={mobile ? 'mobile-artboard' : '36-64'}
+      data-day-layout="36-64"
       data-day-timing="calm-confirm"
       data-testid="lv3-day-section"
       data-viewport-mode={viewport}
@@ -110,9 +110,7 @@ export function QuestionnaireDaySection() {
           </p>
         </div>
 
-        {mobile ? (
-          <MobileDayArtboard />
-        ) : (
+        <DesktopCompositionScale composition="weddingDay">
           <div className={styles.daySplit} data-landing-preview="">
             <article
               className={styles.dayQuestionnaire}
@@ -200,7 +198,7 @@ export function QuestionnaireDaySection() {
               </motion.div>
             </article>
           </div>
-        )}
+        </DesktopCompositionScale>
       </div>
     </section>
   )

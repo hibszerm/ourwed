@@ -1,0 +1,23 @@
+.outer {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: visible;
+}
+
+.outer[data-scale-active='false'] {
+  height: auto;
+}
+
+.inner {
+  box-sizing: border-box;
+}
+
+.outer[data-scale-active='true'] .inner {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform-origin: top center;
+  will-change: transform;
+}

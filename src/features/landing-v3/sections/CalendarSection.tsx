@@ -1,22 +1,22 @@
 import { motion, useReducedMotion } from 'framer-motion'
-import { MobileCalendarArtboard } from '@/features/landing-v3/components/mobile-artboards'
-import {
-  isMobileLandingMode,
-  useLandingViewportMode,
-} from '@/features/landing-v3/hooks/useLandingViewportMode'
+import { DesktopCompositionScale } from '@/features/landing-v3/components/DesktopCompositionScale'
+import { useLandingViewportMode } from '@/features/landing-v3/hooks/useLandingViewportMode'
 import { useSectionReveal } from '@/features/landing-v3/hooks/useSectionReveal'
 import { DURATION, premiumEase } from '@/features/landing-v3/motion/variants'
 import { CalendarLandingPreview } from '@/features/landing-v3/product/CalendarLandingPreview'
 import styles from '@/features/landing-v3/styles/landingV3.module.css'
 
+const DESKTOP_THRESHOLD = 0.6
+
 /** Calendar — full month, constrained width, short reveal. */
 export function CalendarSection() {
   const reduced = useReducedMotion()
   const viewport = useLandingViewportMode()
-  const mobile = isMobileLandingMode(viewport)
+  const scaled = viewport !== 'desktop'
   const { ref, active } = useSectionReveal({
-    threshold: mobile ? 0.28 : 0.6,
-    reduced: !!reduced || mobile,
+    threshold: scaled ? 0.05 : DESKTOP_THRESHOLD,
+    topTriggerRatio: scaled ? 0.72 : undefined,
+    reduced: !!reduced,
   })
 
   return (
@@ -39,9 +39,7 @@ export function CalendarSection() {
         </p>
       </div>
 
-      {mobile ? (
-        <MobileCalendarArtboard />
-      ) : (
+      <DesktopCompositionScale composition="calendar">
         <motion.div
           className={styles.calendarVisualCentered}
           data-landing-preview=""
@@ -54,7 +52,7 @@ export function CalendarSection() {
         >
           <CalendarLandingPreview animate={active} />
         </motion.div>
-      )}
+      </DesktopCompositionScale>
     </section>
   )
 }

@@ -1,0 +1,308 @@
+{
+  "compositionVersion": "3",
+  "scales": {
+    "360": [
+      {
+        "key": "import",
+        "baseW": 1360,
+        "baseH": 727,
+        "scale": 0.241176,
+        "active": "true",
+        "version": "3",
+        "id": "landing-import",
+        "outerH": 182,
+        "outerW": 328
+      },
+      {
+        "key": "assignment",
+        "baseW": 1360,
+        "baseH": 780,
+        "scale": 0.241176,
+        "active": "true",
+        "version": "3",
+        "id": "landing-assignment",
+        "outerH": 195,
+        "outerW": 328
+      },
+      {
+        "key": "questionnaireContract",
+        "baseW": 1360,
+        "baseH": 797,
+        "scale": 0.241176,
+        "active": "true",
+        "version": "3",
+        "id": "landing-qc",
+        "outerH": 199,
+        "outerW": 328
+      },
+      {
+        "key": "finance",
+        "baseW": 1360,
+        "baseH": 700,
+        "scale": 0.241176,
+        "active": "true",
+        "version": "3",
+        "id": "landing-finance",
+        "outerH": 175,
+        "outerW": 328
+      },
+      {
+        "key": "weddingDay",
+        "baseW": 1360,
+        "baseH": 700,
+        "scale": 0.241176,
+        "active": "true",
+        "version": "3",
+        "id": "landing-wedding-day",
+        "outerH": 175,
+        "outerW": 328
+      },
+      {
+        "key": "security",
+        "baseW": 1360,
+        "baseH": 822,
+        "scale": 0.241176,
+        "active": "true",
+        "version": "3",
+        "id": "landing-security",
+        "outerH": 203,
+        "outerW": 328
+      },
+      {
+        "key": "calendar",
+        "baseW": 1120,
+        "baseH": 711,
+        "scale": 0.292857,
+        "active": "true",
+        "version": "3",
+        "id": "landing-calendar",
+        "outerH": 215,
+        "outerW": 328
+      },
+      {
+        "key": "brief",
+        "baseW": 1360,
+        "baseH": 779,
+        "scale": 0.241176,
+        "active": "true",
+        "version": "3",
+        "id": "landing-brief",
+        "outerH": 195,
+        "outerW": 328
+      },
+      {
+        "key": "sessions",
+        "baseW": 1360,
+        "baseH": 332,
+        "scale": 0.241176,
+        "active": "true",
+        "version": "3",
+        "id": "landing-sessions",
+        "outerH": 86,
+        "outerW": 328
+      }
+    ],
+    "390": [
+      {
+        "key": "import",
+        "baseW": 1360,
+        "baseH": 727,
+        "scale": 0.263235,
+        "active": "true",
+        "version": "3",
+        "id": "landing-import",
+        "outerH": 199,
+        "outerW": 358
+      },
+      {
+        "key": "assignment",
+        "baseW": 1360,
+        "baseH": 780,
+        "scale": 0.263235,
+        "active": "true",
+        "version": "3",
+        "id": "landing-assignment",
+        "outerH": 213,
+        "outerW": 358
+      },
+      {
+        "key": "questionnaireContract",
+        "baseW": 1360,
+        "baseH": 797,
+        "scale": 0.263235,
+        "active": "true",
+        "version": "3",
+        "id": "landing-qc",
+        "outerH": 217,
+        "outerW": 358
+      },
+      {
+        "key": "finance",
+        "baseW": 1360,
+        "baseH": 700,
+        "scale": 0.263235,
+        "active": "true",
+        "version": "3",
+        "id": "landing-finance",
+        "outerH": 191,
+        "outerW": 358
+      },
+      {
+        "key": "weddingDay",
+        "baseW": 1360,
+        "baseH": 700,
+        "scale": 0.263235,
+        "active": "true",
+        "version": "3",
+        "id": "landing-wedding-day",
+        "outerH": 191,
+        "outerW": 358
+      },
+      {
+        "key": "security",
+        "baseW": 1360,
+        "baseH": 822,
+        "scale": 0.263235,
+        "active": "true",
+        "version": "3",
+        "id": "landing-security",
+        "outerH": 222,
+        "outerW": 358
+      },
+      {
+        "key": "calendar",
+        "baseW": 1120,
+        "baseH": 711,
+        "scale": 0.319643,
+        "active": "true",
+        "version": "3",
+        "id": "landing-calendar",
+        "outerH": 235,
+        "outerW": 358
+      },
+      {
+        "key": "brief",
+        "baseW": 1360,
+        "baseH": 779,
+        "scale": 0.263235,
+        "active": "true",
+        "version": "3",
+        "id": "landing-brief",
+        "outerH": 212,
+        "outerW": 358
+      },
+      {
+        "key": "sessions",
+        "baseW": 1360,
+        "baseH": 332,
+        "scale": 0.263235,
+        "active": "true",
+        "version": "3",
+        "id": "landing-sessions",
+        "outerH": 94,
+        "outerW": 358
+      }
+    ],
+    "430": [
+      {
+        "key": "import",
+        "baseW": 1360,
+        "baseH": 727,
+        "scale": 0.292647,
+        "active": "true",
+        "version": "3",
+        "id": "landing-import",
+        "outerH": 221,
+        "outerW": 398
+      },
+      {
+        "key": "assignment",
+        "baseW": 1360,
+        "baseH": 780,
+        "scale": 0.292647,
+        "active": "true",
+        "version": "3",
+        "id": "landing-assignment",
+        "outerH": 236,
+        "outerW": 398
+      },
+      {
+        "key": "questionnaireContract",
+        "baseW": 1360,
+        "baseH": 797,
+        "scale": 0.292647,
+        "active": "true",
+        "version": "3",
+        "id": "landing-qc",
+        "outerH": 241,
+        "outerW": 398
+      },
+      {
+        "key": "finance",
+        "baseW": 1360,
+        "baseH": 700,
+        "scale": 0.292647,
+        "active": "true",
+        "version": "3",
+        "id": "landing-finance",
+        "outerH": 212,
+        "outerW": 398
+      },
+      {
+        "key": "weddingDay",
+        "baseW": 1360,
+        "baseH": 700,
+        "scale": 0.292647,
+        "active": "true",
+        "version": "3",
+        "id": "landing-wedding-day",
+        "outerH": 212,
+        "outerW": 398
+      },
+      {
+        "key": "security",
+        "baseW": 1360,
+        "baseH": 822,
+        "scale": 0.292647,
+        "active": "true",
+        "version": "3",
+        "id": "landing-security",
+        "outerH": 246,
+        "outerW": 398
+      },
+      {
+        "key": "calendar",
+        "baseW": 1120,
+        "baseH": 711,
+        "scale": 0.355357,
+        "active": "true",
+        "version": "3",
+        "id": "landing-calendar",
+        "outerH": 261,
+        "outerW": 398
+      },
+      {
+        "key": "brief",
+        "baseW": 1360,
+        "baseH": 779,
+        "scale": 0.292647,
+        "active": "true",
+        "version": "3",
+        "id": "landing-brief",
+        "outerH": 236,
+        "outerW": 398
+      },
+      {
+        "key": "sessions",
+        "baseW": 1360,
+        "baseH": 332,
+        "scale": 0.292647,
+        "active": "true",
+        "version": "3",
+        "id": "landing-sessions",
+        "outerH": 104,
+        "outerW": 398
+      }
+    ]
+  }
+}

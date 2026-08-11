@@ -114,23 +114,18 @@ assert(!/Marcin Hibszer/i.test(sources), 'no real name')
 
 const security = readFileSync(join(FEATURE, 'sections/SecuritySection.tsx'), 'utf8')
 assert(security.includes('ClassicDataLock'), 'ClassicDataLock used')
+assert(security.includes('DesktopCompositionScale'), 'security uses scale wrapper')
 assert(
-  security.includes('threshold: mobile ? 0.22 : 0.68') ||
-    security.includes('threshold: mobile ? 0.28 : 0.68') ||
-    security.includes('threshold: 0.68'),
-  '65–70% desktop trigger',
+  security.includes('composition="security"'),
+  'security composition key',
 )
-assert(security.includes('MobileSecurityArtboard'), 'mobile security artboard')
 assert(
-  security.includes('heading-copy-artboard-facts'),
-  'mobile security order heading→copy→artboard→facts',
+  security.includes('threshold: scaled ? 0.05 : DESKTOP_THRESHOLD') ||
+    security.includes('threshold: scaled ? 0.05 : 0.68'),
+  'scaled activation threshold',
 )
-assert(security.includes('Uwierzytelnianie'), 'mobile security fact labels')
-assert(
-  security.indexOf('lv3-security-visual') < security.indexOf('lv3-security-copy') ||
-    security.includes('securityMobileIntro'),
-  'visual before or with structured mobile copy',
-)
+assert(!security.includes('MobileSecurityArtboard'), 'no mobile security artboard')
+assert(!security.includes('heading-copy-artboard-facts'), 'no mobile security reorder layout')
 assert(!security.includes('position: sticky'), 'no sticky security')
 
 const lock = readFileSync(join(FEATURE, 'product/ClassicDataLock.tsx'), 'utf8')
@@ -432,170 +427,140 @@ assert(mobileSeq.includes("index: '04'"), 'benefit 04')
 assert(mobileSeq.includes("'done'"), 'final persistent state')
 assert(!mobileSeq.includes('toastVisible'), 'no toast return')
 
-assert(existsSync(join(FEATURE, 'components/MobileScaledStage.tsx')), 'MobileScaledStage exists')
+assert(existsSync(join(FEATURE, 'components/DesktopCompositionScale.tsx')), 'DesktopCompositionScale exists')
+assert(existsSync(join(FEATURE, 'components/desktopCompositionMetrics.ts')), 'desktop metrics exist')
+assert(existsSync(join(FEATURE, 'components/DesktopParityContext.ts')), 'parity context exists')
 assert(existsSync(join(FEATURE, 'hooks/useLandingViewportMode.ts')), 'viewport mode hook')
 assert(existsSync(join(FEATURE, 'hooks/useMobileSectionActivation.ts')), 'mobile activation hook')
-assert(existsSync(join(FEATURE, 'components/MobileRevealAnchor.tsx')), 'MobileRevealAnchor exists')
 assert(
-  existsSync(join(FEATURE, 'components/mobile-artboards/MobileImportArtboard.tsx')),
-  'import mobile artboard',
+  !existsSync(join(FEATURE, 'components/MobileScaledStage.tsx')),
+  'MobileScaledStage removed',
 )
 assert(
-  existsSync(join(FEATURE, 'components/mobile-artboards/MobileAssignmentArtboard.tsx')),
-  'assignment mobile artboard',
+  !existsSync(join(FEATURE, 'components/MobileRevealAnchor.tsx')),
+  'MobileRevealAnchor removed',
 )
 assert(
-  existsSync(join(FEATURE, 'components/mobile-artboards/MobileQcArtboard.tsx')),
-  'qc mobile artboard',
+  !existsSync(join(FEATURE, 'components/mobile-artboards/MobileImportArtboard.tsx')),
+  'import mobile artboard deleted',
 )
 assert(
-  existsSync(join(FEATURE, 'components/mobile-artboards/MobileFinanceArtboard.tsx')),
-  'finance mobile artboard',
+  !existsSync(join(FEATURE, 'components/mobile-artboards/MobileAssignmentArtboard.tsx')),
+  'assignment mobile artboard deleted',
 )
 assert(
-  existsSync(join(FEATURE, 'components/mobile-artboards/MobileSecurityArtboard.tsx')),
-  'security mobile artboard',
+  !existsSync(join(FEATURE, 'components/mobile-artboards/MobileQcArtboard.tsx')),
+  'qc mobile artboard deleted',
 )
 assert(
-  existsSync(join(FEATURE, 'components/mobile-artboards/MobileCalendarArtboard.tsx')),
-  'calendar mobile artboard',
+  !existsSync(join(FEATURE, 'components/mobile-artboards/MobileFinanceArtboard.tsx')),
+  'finance mobile artboard deleted',
 )
 assert(
-  existsSync(join(FEATURE, 'components/mobile-artboards/MobileBriefArtboard.tsx')),
-  'brief mobile artboard',
+  !existsSync(join(FEATURE, 'components/mobile-artboards/MobileSecurityArtboard.tsx')),
+  'security mobile artboard deleted',
 )
 assert(
-  existsSync(join(FEATURE, 'components/mobile-artboards/MobileDayArtboard.tsx')),
-  'day mobile artboard',
+  !existsSync(join(FEATURE, 'components/mobile-artboards/MobileCalendarArtboard.tsx')),
+  'calendar mobile artboard deleted',
 )
 assert(
-  existsSync(join(FEATURE, 'components/mobile-artboards/MobileSessionsArtboard.tsx')),
-  'sessions mobile artboard',
+  !existsSync(join(FEATURE, 'components/mobile-artboards/MobileBriefArtboard.tsx')),
+  'brief mobile artboard deleted',
+)
+assert(
+  !existsSync(join(FEATURE, 'components/mobile-artboards/MobileDayArtboard.tsx')),
+  'day mobile artboard deleted',
+)
+assert(
+  !existsSync(join(FEATURE, 'components/mobile-artboards/MobileSessionsArtboard.tsx')),
+  'sessions mobile artboard deleted',
 )
 assert(
   existsSync(join(FEATURE, 'components/mobile-artboards/MobilePricingArtboard.tsx')),
-  'pricing mobile artboard',
+  'pricing mobile artboard kept (not a product canvas)',
 )
 
-const importArt = readFileSync(
-  join(FEATURE, 'components/mobile-artboards/MobileImportArtboard.tsx'),
+const metricsSrc = readFileSync(
+  join(FEATURE, 'components/desktopCompositionMetrics.ts'),
   'utf8',
 )
-assert(importArt.includes('slice(0, 3)'), 'import shows max 3 rows')
-assert(importArt.includes('Gotowe do zatwierdzenia'), 'import result status')
-assert(importArt.includes('data-dominant="true"'), 'import dominant result')
-assert(importArt.includes('importPreviews'), 'import source pair')
+assert(metricsSrc.includes('DESKTOP_COMPOSITION_METRICS'), 'metrics export')
+assert(metricsSrc.includes('width: 1360'), 'measured desktop width')
+assert(metricsSrc.includes("compositionId: 'landing-import'"), 'import composition id')
+assert(metricsSrc.includes("compositionId: 'landing-qc'"), 'qc composition id')
+assert(metricsSrc.includes("compositionId: 'landing-finance'"), 'finance composition id')
+assert(metricsSrc.includes('COMPOSITION_VERSION'), 'composition version')
 
-const assignArt = readFileSync(
-  join(FEATURE, 'components/mobile-artboards/MobileAssignmentArtboard.tsx'),
+const scaleSrc = readFileSync(
+  join(FEATURE, 'components/DesktopCompositionScale.tsx'),
   'utf8',
 )
-assert(assignArt.includes('assignHub'), 'assignment central hub')
-assert(assignArt.includes('assignGrid'), 'assignment module grid')
-assert(assignArt.includes('assignConnectors'), 'assignment connectors')
-assert((assignArt.match(/title: '/g) || []).length >= 6, 'six assignment modules')
+const scaleCss = readFileSync(
+  join(FEATURE, 'components/DesktopCompositionScale.module.css'),
+  'utf8',
+)
+assert(scaleSrc.includes('translateX(-50%) scale('), 'uniform scale transform')
+assert(scaleSrc.includes('data-desktop-parity-canvas'), 'parity canvas attr')
+assert(scaleSrc.includes('data-composition-version'), 'composition version attr')
+assert(scaleSrc.includes('computeCompositionScale'), 'exact scale formula')
+assert(scaleCss.includes('transform-origin: top center'), 'scale CSS origin')
+assert(!scaleCss.includes('zoom:'), 'no CSS zoom')
 
-const qcArt = readFileSync(
-  join(FEATURE, 'components/mobile-artboards/MobileQcArtboard.tsx'),
-  'utf8',
-)
-assert(qcArt.includes('data-surface="questionnaire"'), 'qc questionnaire surface')
-assert(qcArt.includes('data-surface="contract"'), 'qc contract surface')
-assert(qcArt.includes('data-surface-w="200"'), 'qc form width ~200')
-assert(qcArt.includes('data-surface-w="224"'), 'qc doc width ~224')
-assert(qcArt.includes('data-composition="qc-overlap"'), 'qc overlap composition')
-assert(qcArt.includes('Adrian Nowak'), 'qc partner Adrian Nowak')
-assert(qcArt.includes('MAP'), 'qc mapping chips')
-assert(importArt.includes('importDocSurface'), 'import real document surface')
-
-const mobileCss = readFileSync(
-  join(FEATURE, 'components/mobile-artboards/mobileArtboard.module.css'),
-  'utf8',
-)
-const mobileWeddingCss = readFileSync(
-  join(FEATURE, 'sections/MobileWeddingDaySection.module.css'),
-  'utf8',
-)
-assert(mobileCss.includes('min-height: 570px') || mobileCss.includes('570px'), 'import min height scale')
-assert(mobileCss.includes('height: 660px') || mobileCss.includes('min-height: 640px'), 'qc tall artboard')
-assert(mobileWeddingCss.includes('2.5rem'), 'phone copy gap')
-assert(mobileWeddingCss.includes('1.6rem'), 'benefit proximity')
-
-const secArt = readFileSync(
-  join(FEATURE, 'components/mobile-artboards/MobileSecurityArtboard.tsx'),
-  'utf8',
-)
-assert(secArt.includes('SECURITY_RECORDS.slice(0, 4)'), 'security records immediate')
-assert(secArt.includes('data-anim-duration="1.75"'), 'security ≤1.8s')
-assert(secArt.includes('START'), 'security start positions visible')
-assert(secArt.includes('Dane zabezpieczone'), 'security status label')
-
-const finArt = readFileSync(
-  join(FEATURE, 'components/mobile-artboards/MobileFinanceArtboard.tsx'),
-  'utf8',
-)
-assert(finArt.includes('finRow2'), 'finance bento row2')
-assert(finArt.includes('finSeason'), 'finance season panel')
-assert(finArt.includes('Wpłacono'), 'finance paid card')
-
-const dayArt = readFileSync(
-  join(FEATURE, 'components/mobile-artboards/MobileDayArtboard.tsx'),
-  'utf8',
-)
-assert(dayArt.includes('data-surface="questionnaire"'), 'day questionnaire surface')
-assert(dayArt.includes('data-surface="itinerary"'), 'day itinerary surface')
-assert(dayArt.includes('Zastosowano odpowiedzi'), 'day applied status')
-
-const briefArt = readFileSync(
-  join(FEATURE, 'components/mobile-artboards/MobileBriefArtboard.tsx'),
-  'utf8',
-)
-assert(briefArt.includes('data-brief-layer="rear"'), 'brief rear page')
-assert(briefArt.includes('data-brief-layer="primary"'), 'brief primary page')
-
-const sessionsArt = readFileSync(
-  join(FEATURE, 'components/mobile-artboards/MobileSessionsArtboard.tsx'),
-  'utf8',
-)
-assert(sessionsArt.includes('sessionWedding'), 'sessions wedding dominant')
-assert(sessionsArt.includes('sessionSession'), 'sessions session card')
-
-const calArt = readFileSync(
-  join(FEATURE, 'components/mobile-artboards/MobileCalendarArtboard.tsx'),
-  'utf8',
-)
-assert(calArt.includes('Czerwiec 2027'), 'calendar full month')
-assert(calArt.includes('Google Calendar'), 'calendar google integration')
-assert(calArt.includes('Apple Calendar'), 'calendar apple integration')
-
+assert(importSec.includes('DesktopCompositionScale'), 'import uses DesktopCompositionScale')
+assert(importSec.includes('composition="import"'), 'import composition key')
+assert(!importSec.includes('MobileImportArtboard'), 'import no mobile artboard')
 assert(
-  existsSync(join(ROOT, 'docs/landing-v3-mobile-parity.md')),
-  'parity specification exists',
-)
-assert(
-  readFileSync(join(ROOT, 'docs/landing-v3-mobile-parity.md'), 'utf8').includes(
-    'Desktop ↔ Mobile Parity',
+  readFileSync(join(FEATURE, 'sections/FinanceSection.tsx'), 'utf8').includes(
+    'DesktopCompositionScale',
   ),
-  'parity doc titled',
+  'finance uses scale',
+)
+assert(
+  !readFileSync(join(FEATURE, 'sections/FinanceSection.tsx'), 'utf8').includes(
+    'MobileFinanceArtboard',
+  ),
+  'finance no mobile artboard',
+)
+assert(
+  readFileSync(join(FEATURE, 'sections/AssignmentOverviewSection.tsx'), 'utf8').includes(
+    'DesktopCompositionScale',
+  ),
+  'assignment uses scale',
+)
+assert(
+  readFileSync(join(FEATURE, 'sections/QuestionnairesContractsSection.tsx'), 'utf8').includes(
+    'composition="questionnaireContract"',
+  ),
+  'qc composition key',
+)
+assert(
+  readFileSync(join(FEATURE, 'sections/PricingSection.tsx'), 'utf8').includes(
+    'MobilePricingArtboard',
+  ),
+  'pricing mounts mobile artboard',
 )
 
-const stageSrc = readFileSync(join(FEATURE, 'components/MobileScaledStage.tsx'), 'utf8')
-const stageCss = readFileSync(join(FEATURE, 'components/MobileScaledStage.module.css'), 'utf8')
-assert(stageSrc.includes('baseHeight * scale'), 'stage exact outer height')
-assert(stageSrc.includes('fallbackDelayMs'), 'stage fallback')
-assert(stageCss.includes('transform-origin: top center'), 'stage CSS origin')
-assert(!stageCss.includes('zoom:'), 'no CSS zoom')
+const parityCss = readFileSync(join(FEATURE, 'styles/landingV3.module.css'), 'utf8')
+assert(
+  parityCss.includes("data-desktop-parity-canvas='true'"),
+  'parity CSS forces desktop geometry',
+)
+assert(
+  parityCss.includes('grid-template-columns: repeat(12, minmax(0, 1fr))'),
+  'finance bento forced in parity',
+)
+assert(
+  parityCss.includes('minmax(0, 0.36fr) minmax(0, 0.64fr)'),
+  'day 36/64 forced in parity',
+)
 
-assert(importSec.includes('MobileImportArtboard'), 'import mounts mobile artboard')
-assert(importSec.includes('isMobileLandingMode'), 'import variant isolation')
-assert(readFileSync(join(FEATURE, 'sections/FinanceSection.tsx'), 'utf8').includes('MobileFinanceArtboard'), 'finance mounts mobile')
-assert(readFileSync(join(FEATURE, 'sections/SecuritySection.tsx'), 'utf8').includes('MobileSecurityArtboard'), 'security mounts mobile')
-assert(readFileSync(join(FEATURE, 'sections/AssignmentOverviewSection.tsx'), 'utf8').includes('MobileAssignmentArtboard'), 'assignment mounts mobile')
-assert(readFileSync(join(FEATURE, 'sections/PricingSection.tsx'), 'utf8').includes('MobilePricingArtboard'), 'pricing mounts mobile')
+const revealSrc = readFileSync(join(FEATURE, 'hooks/useSectionReveal.ts'), 'utf8')
+assert(revealSrc.includes('topTriggerRatio'), 'canvas top trigger')
+assert(revealSrc.includes('effectiveThreshold'), 'tall-section adaptive reveal')
 assert(iphoneCss.includes('238px'), 'mobile primary phone width')
 assert(iphoneCss.includes('184px'), 'mobile secondary phone width')
 assert(mobileSeq.includes('doneAt: 6.4'), 'mobile simple doneAt 6.4')
-assert(readFileSync(join(FEATURE, 'hooks/useSectionReveal.ts'), 'utf8').includes('effectiveThreshold'), 'tall-section adaptive reveal')
 assert(iphoneCss.includes('perspective: none'), 'mobile perspective flattened')
 assert(mobileSec.includes('useLandingViewportMode'), 'section uses viewport mode')
 assert(mobileSec.includes('0.8'), 'phone requires 80% primary visible')

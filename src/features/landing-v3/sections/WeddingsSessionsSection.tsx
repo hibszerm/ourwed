@@ -1,15 +1,11 @@
-import { MobileSessionsArtboard } from '@/features/landing-v3/components/mobile-artboards'
+import { DesktopCompositionScale } from '@/features/landing-v3/components/DesktopCompositionScale'
 import { DEMO_ASSIGNMENT, DEMO_SESSION } from '@/features/landing-v3/data/demoData'
-import {
-  isMobileLandingMode,
-  useLandingViewportMode,
-} from '@/features/landing-v3/hooks/useLandingViewportMode'
+import { useLandingViewportMode } from '@/features/landing-v3/hooks/useLandingViewportMode'
 import styles from '@/features/landing-v3/styles/landingV3.module.css'
 
 /** Section 7 — weddings and sessions. Wide split card. */
 export function WeddingsSessionsSection() {
   const viewport = useLandingViewportMode()
-  const mobile = isMobileLandingMode(viewport)
 
   return (
     <section
@@ -27,9 +23,7 @@ export function WeddingsSessionsSection() {
         </h2>
       </div>
 
-      {mobile ? (
-        <MobileSessionsArtboard />
-      ) : (
+      <DesktopCompositionScale composition="sessions">
         <div className={styles.sessionsSplit} data-landing-preview="">
           <article className={styles.sessionSide}>
             <p className={styles.sessionKind}>ŚLUB</p>
@@ -51,7 +45,7 @@ export function WeddingsSessionsSection() {
             <p className={styles.sessionProcess}>Termin · Lokalizacja · Rozliczenie</p>
           </article>
         </div>
-      )}
+      </DesktopCompositionScale>
     </section>
   )
 }
