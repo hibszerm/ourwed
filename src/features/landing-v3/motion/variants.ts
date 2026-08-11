@@ -2,8 +2,8 @@
 
 export const premiumEase: [number, number, number, number] = [0.22, 1, 0.36, 1]
 
-/** @deprecated prefer premiumEase */
-export const EASE_PREMIUM = premiumEase
+/** Calm ease for opacity handoffs — no bounce. */
+export const softEase: [number, number, number, number] = [0.33, 0, 0.2, 1]
 
 export const DURATION = {
   micro: 0.2,
@@ -15,10 +15,9 @@ export const DURATION = {
   heroMorph: 0.9,
 } as const
 
-export const LAYOUT_IDS = {
-  assignmentCard: 'lv3-assignment-card',
-  coupleTitle: 'lv3-couple-title',
-  statusBadge: 'lv3-status-badge',
-  date: 'lv3-date',
-  venue: 'lv3-venue',
-} as const
+/** Mobile product motion ~25% faster than desktop choreography. */
+export const MOBILE_DURATION_SCALE = 0.75
+
+export function mobileDuration(seconds: number): number {
+  return seconds * MOBILE_DURATION_SCALE
+}

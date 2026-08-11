@@ -63,22 +63,23 @@ export const MOBILE_DEMO_KEYFRAMES = {
   doneAt: 12.5,
 } as const
 
-/** Compressed timeline for ≤768px — matches approved mobile sequence (~6.4s). */
+/** Compressed timeline for ≤768px — ~25% faster, longer pause on navigation. */
 export const MOBILE_DEMO_SIMPLE_KEYFRAMES = {
-  settleEnd: 1.0,
-  navigateFocusEnd: 1.4,
-  chooserInEnd: 1.9,
-  chooserHoldEnd: 2.7,
-  mapsFocusEnd: 2.95,
-  navRevealEnd: 3.2,
-  routeDrawEnd: 4.0,
-  routeHoldEnd: 5.0,
-  statusOpenEnd: 5.15,
-  assignReturnEnd: 5.5,
-  assignHoldEnd: 5.55,
-  briefFocusEnd: 5.8,
-  briefRevealEnd: 6.4,
-  doneAt: 6.4,
+  settleEnd: 0.75,
+  navigateFocusEnd: 1.05,
+  chooserInEnd: 1.45,
+  chooserHoldEnd: 2.05,
+  mapsFocusEnd: 2.25,
+  navRevealEnd: 2.45,
+  routeDrawEnd: 3.05,
+  /** Extended hold so navigation reads clearly before brief. */
+  routeHoldEnd: 4.35,
+  statusOpenEnd: 4.5,
+  assignReturnEnd: 4.8,
+  assignHoldEnd: 4.85,
+  briefFocusEnd: 5.05,
+  briefRevealEnd: 5.55,
+  doneAt: 5.55,
 } as const
 
 export const MOBILE_DEMO_BENEFITS = [

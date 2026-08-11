@@ -158,11 +158,17 @@
 }
 
 @media (max-width: 900px) {
-  .root {
+  /*
+   * Legacy dedicated-mobile lock layout (pre desktop-parity).
+   * Do NOT apply when layers stay mounted for DesktopCompositionScale —
+   * `left/top: auto !important` was stacking every record at 0,0 and
+   * creating the empty beige stage on true-scale mobile.
+   */
+  .root:not([data-layers-mounted]) {
     min-height: 0;
   }
 
-  .stage {
+  .root:not([data-layers-mounted]) .stage {
     height: auto;
     min-height: 0;
     display: flex;
@@ -171,7 +177,7 @@
     padding: 0.5rem 0 1rem;
   }
 
-  .lockSlot {
+  .root:not([data-layers-mounted]) .lockSlot {
     position: relative;
     left: auto;
     top: auto;
@@ -181,21 +187,21 @@
     order: 2;
   }
 
-  .lockShell {
+  .root:not([data-layers-mounted]) .lockShell {
     min-height: 0;
   }
 
-  .shackleWrap {
+  .root:not([data-layers-mounted]) .shackleWrap {
     height: 160px;
     margin-bottom: -28px;
   }
 
-  .lockBody {
+  .root:not([data-layers-mounted]) .lockBody {
     height: 380px;
     border-radius: 48px;
   }
 
-  .record {
+  .root:not([data-layers-mounted]) .record {
     position: relative;
     left: auto !important;
     top: auto !important;
@@ -203,13 +209,13 @@
     order: 1;
   }
 
-  .record[data-mobile-index='3'],
-  .record[data-mobile-index='4'],
-  .record[data-mobile-index='5'] {
+  .root:not([data-layers-mounted]) .record[data-mobile-index='3'],
+  .root:not([data-layers-mounted]) .record[data-mobile-index='4'],
+  .root:not([data-layers-mounted]) .record[data-mobile-index='5'] {
     display: none;
   }
 
-  .root[data-lock-phase='closed'] .record {
+  .root[data-lock-phase='closed']:not([data-layers-mounted]) .record {
     display: none;
   }
 }
@@ -276,5 +282,10 @@
 :global([data-desktop-parity-canvas='true']) .record[data-mobile-index='3'],
 :global([data-desktop-parity-canvas='true']) .record[data-mobile-index='4'],
 :global([data-desktop-parity-canvas='true']) .record[data-mobile-index='5'] {
+  display: block !important;
+}
+
+/* Never unmount/hide records via display during the handoff — opacity only */
+:global([data-desktop-parity-canvas='true']) .root[data-lock-phase='closed'] .record {
   display: block !important;
 }

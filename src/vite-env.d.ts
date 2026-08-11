@@ -22,8 +22,6 @@ interface ImportMetaEnv {
   readonly VITE_DOCUMENT_AI_DIAGNOSTIC?: string
   readonly VITE_GOOGLE_MAPS_BROWSER_KEY?: string
   readonly VITE_GOOGLE_MAPS_MAP_ID?: string
-  /** Landing page version override: "v1" | "v2" */
-  readonly VITE_LANDING_VERSION?: string
 }
 
 interface ImportMeta {

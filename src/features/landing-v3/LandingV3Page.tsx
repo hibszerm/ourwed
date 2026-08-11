@@ -23,10 +23,7 @@ const PAGE_TITLE =
 const PAGE_DESCRIPTION =
   'Obsługa zleceń ślubnych bez chaosu — umowy, ankiety, płatności, plan dnia i kalendarze w jednym systemie.'
 
-/**
- * Landing V3 — editorial product landing.
- * Route: /landing-v3. Does not replace production `/`.
- */
+/** Production landing — editorial product showcase. */
 export function LandingV3Page() {
   const reduced = usePrefersReducedMotion()
 
@@ -55,9 +52,7 @@ export function LandingV3Page() {
     <div
       id="top"
       className={styles.page}
-      data-landing-v3=""
-      data-landing-v3-rebuild="classic-lock-day"
-      data-gate="classic-lock-day"
+      data-landing=""
       data-reduced-motion={reduced ? 'true' : 'false'}
     >
       <div className={styles.noise} aria-hidden />

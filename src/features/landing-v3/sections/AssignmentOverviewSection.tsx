@@ -52,8 +52,9 @@ export function AssignmentOverviewSection() {
   const scaled = viewport !== 'desktop'
   const { ref, active } = useSectionReveal({
     threshold: scaled ? 0.05 : 0.55,
-    topTriggerRatio: scaled ? 0.72 : undefined,
+    topTriggerRatio: scaled ? 0.7 : undefined,
     reduced: !!reduced,
+    forceCompleteOnExitAbove: scaled,
   })
 
   return (

@@ -121,10 +121,7 @@ export const router = createBrowserRouter([
       { path: '/', element: <LandingPage /> },
       {
         path: '/landing-v3',
-        lazy: async () => {
-          const mod = await import('@/pages/LandingV3Page')
-          return { Component: mod.LandingV3Page }
-        },
+        element: <LandingPage />,
       },
       { path: '/login', element: <LoginPage /> },
       { path: '/register', element: <RegisterPage /> },

@@ -27,10 +27,12 @@ export function useMobileWeddingDaySequence(options: {
   active: boolean
   reduced: boolean
   mode: 'full' | 'simple'
+  /** Fast-scroll past phones — land on final brief immediately. */
+  forceFinal?: boolean
 }) {
-  const { active, reduced, mode } = options
+  const { active, reduced, mode, forceFinal = false } = options
   const [snapshot, setSnapshot] = useState<MobileDemoSnapshot>(() =>
-    reduced ? REDUCED_MOTION_SNAPSHOT : IDLE_SNAPSHOT,
+    reduced || forceFinal ? REDUCED_MOTION_SNAPSHOT : IDLE_SNAPSHOT,
   )
 
   const elapsedRef = useRef(0)
@@ -40,7 +42,14 @@ export function useMobileWeddingDaySequence(options: {
   const rafRef = useRef<number | null>(null)
 
   useEffect(() => {
-    if (reduced) return
+    if (reduced || forceFinal) {
+      completedRef.current = true
+      if (rafRef.current != null) {
+        cancelAnimationFrame(rafRef.current)
+        rafRef.current = null
+      }
+      return
+    }
     if (!active) return
     if (completedRef.current) return
 
@@ -72,8 +81,8 @@ export function useMobileWeddingDaySequence(options: {
       rafRef.current = null
       lastTsRef.current = null
     }
-  }, [active, reduced, mode])
+  }, [active, reduced, mode, forceFinal])
 
-  if (reduced) return REDUCED_MOTION_SNAPSHOT
+  if (reduced || forceFinal) return REDUCED_MOTION_SNAPSHOT
   return snapshot
 }

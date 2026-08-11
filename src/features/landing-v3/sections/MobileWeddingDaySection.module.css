@@ -156,7 +156,7 @@
     min-height: 0;
     align-items: center;
     padding-bottom: 0;
-    margin-top: 2.4rem; /* 36–44px breathing from support copy */
+    margin-top: 2.25rem; /* ~36px breathing from support copy */
   }
 
   .phones {
@@ -191,14 +191,15 @@
 
   .benefits {
     max-width: none;
-    margin-top: 1.85rem; /* 28–36px below phone group */
+    margin-top: 1.75rem; /* ~28px below phone group */
   }
 }
 
 @media (max-width: 768px) {
   .section {
-    padding-top: 4rem;
-    padding-bottom: 3.5rem;
+    /* Own rhythm — wins over shared editorialSection padding */
+    padding-top: calc(var(--lv3-mobile-section-gap-normal, 56px) / 2) !important;
+    padding-bottom: calc(var(--lv3-mobile-section-gap-major, 64px) / 2) !important;
   }
 
   .layout {
@@ -222,7 +223,7 @@
     min-height: 0;
     align-items: center;
     padding-bottom: 0;
-    margin-top: 2.5rem; /* 38–44px from support copy */
+    margin-top: 2.25rem; /* 34–40px from support copy */
   }
 
   .phones {
@@ -261,8 +262,12 @@
 
 @media (max-width: 430px) {
   .section {
-    padding-top: 4.25rem;
-    padding-bottom: 3.75rem;
+    padding-top: calc(var(--lv3-mobile-section-gap-normal, 52px) / 2) !important;
+    padding-bottom: calc(var(--lv3-mobile-section-gap-major, 60px) / 2) !important;
+  }
+
+  .stage {
+    margin-top: 2.25rem; /* ~36px copy → phones */
   }
 
   .phones {
@@ -274,5 +279,9 @@
   .secondaryPhone {
     left: -22px;
     top: 26px;
+  }
+
+  .benefits {
+    margin-top: 1.65rem; /* ~26px phones → first benefit */
   }
 }

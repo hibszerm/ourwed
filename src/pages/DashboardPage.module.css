@@ -84,3 +84,30 @@
     gap: var(--space-3);
   }
 }
+
+/* Landing V3 Hero parity canvas — keep approved desktop dashboard geometry */
+:global([data-desktop-parity-canvas='true']) .dashboard {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: var(--space-10) !important;
+  min-width: 0 !important;
+}
+
+:global([data-desktop-parity-canvas='true']) .dashboard > *:first-child {
+  margin-bottom: calc(var(--space-6) - var(--space-10)) !important;
+}
+
+:global([data-desktop-parity-canvas='true']) .grid {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr) !important;
+  gap: var(--space-8) !important;
+  align-items: start !important;
+}
+
+:global([data-desktop-parity-canvas='true']) .primary,
+:global([data-desktop-parity-canvas='true']) .secondary {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: var(--space-6) !important;
+  min-width: 0 !important;
+}

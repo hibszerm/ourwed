@@ -21,8 +21,9 @@ export function FinanceSection() {
   const scaled = viewport !== 'desktop'
   const { ref, active } = useSectionReveal({
     threshold: scaled ? 0.05 : DESKTOP_THRESHOLD,
-    topTriggerRatio: scaled ? 0.72 : undefined,
+    topTriggerRatio: scaled ? 0.7 : undefined,
     reduced: !!reduced,
+    forceCompleteOnExitAbove: scaled,
   })
 
   return (

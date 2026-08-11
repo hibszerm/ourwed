@@ -22,8 +22,9 @@ export function ImportExistingWorkSection() {
   const scaled = viewport !== 'desktop'
   const { ref, active } = useSectionReveal({
     threshold: scaled ? 0.05 : 0.6,
-    topTriggerRatio: scaled ? 0.72 : undefined,
+    topTriggerRatio: scaled ? 0.7 : undefined,
     reduced: !!reduced,
+    forceCompleteOnExitAbove: scaled,
   })
   const done = reduced || active
 

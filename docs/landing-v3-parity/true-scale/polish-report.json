@@ -1,0 +1,239 @@
+{
+  "generatedAt": "2026-08-11T18:12:21.143Z",
+  "base": "http://127.0.0.1:5173/landing-v3",
+  "gaps-390": [
+    {
+      "from": "hero",
+      "to": "import",
+      "px": 87
+    },
+    {
+      "from": "import",
+      "to": "assignment",
+      "px": 52
+    },
+    {
+      "from": "assignment",
+      "to": "qc",
+      "px": 52
+    },
+    {
+      "from": "qc",
+      "to": "finance",
+      "px": 52
+    },
+    {
+      "from": "finance",
+      "to": "day",
+      "px": 56
+    },
+    {
+      "from": "day",
+      "to": "phones",
+      "px": 56
+    },
+    {
+      "from": "phones",
+      "to": "security",
+      "px": 30
+    },
+    {
+      "from": "security",
+      "to": "calendar",
+      "px": 665
+    },
+    {
+      "from": "calendar",
+      "to": "brief",
+      "px": 52
+    },
+    {
+      "from": "brief",
+      "to": "sessions",
+      "px": 52
+    },
+    {
+      "from": "sessions",
+      "to": "pricing",
+      "px": 52
+    },
+    {
+      "from": "pricing",
+      "to": "faq",
+      "px": 26
+    },
+    {
+      "from": "faq",
+      "to": "cta",
+      "px": 464
+    }
+  ],
+  "tokens-390": {
+    "major": "60px",
+    "normal": "52px",
+    "copyToProduct": "28px",
+    "productToCopy": "28px",
+    "productToNext": "56px",
+    "headingToSupport": "12px"
+  },
+  "gaps-430": [
+    {
+      "from": "hero",
+      "to": "import",
+      "px": 88
+    },
+    {
+      "from": "import",
+      "to": "assignment",
+      "px": 52
+    },
+    {
+      "from": "assignment",
+      "to": "qc",
+      "px": 52
+    },
+    {
+      "from": "qc",
+      "to": "finance",
+      "px": 52
+    },
+    {
+      "from": "finance",
+      "to": "day",
+      "px": 56
+    },
+    {
+      "from": "day",
+      "to": "phones",
+      "px": 56
+    },
+    {
+      "from": "phones",
+      "to": "security",
+      "px": 30
+    },
+    {
+      "from": "security",
+      "to": "calendar",
+      "px": 644
+    },
+    {
+      "from": "calendar",
+      "to": "brief",
+      "px": 52
+    },
+    {
+      "from": "brief",
+      "to": "sessions",
+      "px": 52
+    },
+    {
+      "from": "sessions",
+      "to": "pricing",
+      "px": 52
+    },
+    {
+      "from": "pricing",
+      "to": "faq",
+      "px": 26
+    },
+    {
+      "from": "faq",
+      "to": "cta",
+      "px": 464
+    }
+  ],
+  "tokens-430": {
+    "major": "60px",
+    "normal": "52px",
+    "copyToProduct": "28px",
+    "productToCopy": "28px",
+    "productToNext": "56px",
+    "headingToSupport": "12px"
+  },
+  "gaps-360": [
+    {
+      "from": "hero",
+      "to": "import",
+      "px": 86
+    },
+    {
+      "from": "import",
+      "to": "assignment",
+      "px": 52
+    },
+    {
+      "from": "assignment",
+      "to": "qc",
+      "px": 52
+    },
+    {
+      "from": "qc",
+      "to": "finance",
+      "px": 52
+    },
+    {
+      "from": "finance",
+      "to": "day",
+      "px": 56
+    },
+    {
+      "from": "day",
+      "to": "phones",
+      "px": 56
+    },
+    {
+      "from": "phones",
+      "to": "security",
+      "px": 30
+    },
+    {
+      "from": "security",
+      "to": "calendar",
+      "px": 665
+    },
+    {
+      "from": "calendar",
+      "to": "brief",
+      "px": 52
+    },
+    {
+      "from": "brief",
+      "to": "sessions",
+      "px": 52
+    },
+    {
+      "from": "sessions",
+      "to": "pricing",
+      "px": 52
+    },
+    {
+      "from": "pricing",
+      "to": "faq",
+      "px": 26
+    },
+    {
+      "from": "faq",
+      "to": "cta",
+      "px": 490
+    }
+  ],
+  "tokens-360": {
+    "major": "60px",
+    "normal": "52px",
+    "copyToProduct": "28px",
+    "productToCopy": "28px",
+    "productToNext": "56px",
+    "headingToSupport": "12px"
+  },
+  "securityFrames": [
+    "security-frame-0s.png",
+    "security-frame-0p4s.png",
+    "security-frame-0p8s.png",
+    "security-frame-1p05s.png",
+    "security-frame-1p25s.png",
+    "security-frame-1p5s.png",
+    "security-frame-1p75s.png"
+  ],
+  "securityActivateLagMs": 42
+}

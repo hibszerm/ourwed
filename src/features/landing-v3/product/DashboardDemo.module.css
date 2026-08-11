@@ -2,6 +2,12 @@
   width: 100%;
 }
 
+:global([data-desktop-parity-canvas='true']) .frame {
+  width: 1280px !important;
+  max-width: 1280px !important;
+  height: 720px !important;
+}
+
 .nearestFocus :global([data-testid='nearest-assignment-card']) {
   outline: 2px solid rgba(29, 39, 43, 0.28);
   outline-offset: 4px;

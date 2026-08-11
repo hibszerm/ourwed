@@ -25,12 +25,14 @@ export function MobileWeddingDaySection() {
   const reduced = !!useReducedMotion()
   const viewport = useLandingViewportMode()
   const narrow = isMobileLandingMode(viewport)
-  const { ref, active } = useSectionReveal({
+  const { ref, active, instantComplete } = useSectionReveal({
     threshold: narrow ? 0.18 : 0.35,
     reduced,
+    forceCompleteOnExitAbove: narrow,
   })
   // Phone special case: require primary device mostly visible before starting.
   const [phoneReady, setPhoneReady] = useState(reduced || !narrow)
+  const [phoneForceFinal, setPhoneForceFinal] = useState(false)
   useEffect(() => {
     if (!narrow || reduced) {
       const t = window.setTimeout(() => setPhoneReady(true), 0)
@@ -44,6 +46,7 @@ export function MobileWeddingDaySection() {
       return () => window.clearTimeout(t)
     }
     let done = false
+    let sawNear = false
     const activate = () => {
       if (done) return
       done = true
@@ -52,6 +55,13 @@ export function MobileWeddingDaySection() {
     const check = () => {
       const rect = el.getBoundingClientRect()
       const vh = window.innerHeight || 1
+      if (rect.bottom > 0 && rect.top < vh) sawNear = true
+      // Fast-scroll past the phones → unlock sequence at final brief.
+      if (sawNear && rect.bottom < 0) {
+        setPhoneForceFinal(true)
+        activate()
+        return
+      }
       if (rect.bottom <= 0 || rect.top >= vh) return
       const visible = Math.max(0, Math.min(rect.bottom, vh) - Math.max(rect.top, 0))
       if (visible / Math.max(rect.height, 1) >= 0.8) activate()
@@ -63,9 +73,11 @@ export function MobileWeddingDaySection() {
     io.observe(el)
     check()
     const fallback = window.setTimeout(activate, 700)
+    window.addEventListener('scroll', check, { passive: true })
     return () => {
       io.disconnect()
       window.clearTimeout(fallback)
+      window.removeEventListener('scroll', check)
     }
   }, [narrow, reduced])
 
@@ -73,6 +85,7 @@ export function MobileWeddingDaySection() {
     active: active && phoneReady,
     reduced,
     mode: narrow ? 'simple' : 'full',
+    forceFinal: phoneForceFinal || instantComplete,
   })
 
   const assignmentOpacity =

@@ -13,13 +13,21 @@ export function useSectionReveal(options?: {
    * fraction of the viewport — used for scaled desktop canvases on mobile.
    */
   topTriggerRatio?: number
+  /**
+   * If the observed node scrolls fully above the viewport before/during
+   * activation, jump to the completed state (fast-scroll fallback).
+   */
+  forceCompleteOnExitAbove?: boolean
 }) {
   const nodeRef = useRef<HTMLElement | null>(null)
   const [active, setActive] = useState(false)
+  /** True when activation came from exit-above (skip long in-flight timelines). */
+  const [instantComplete, setInstantComplete] = useState(false)
   const started = useRef(false)
   const threshold = options?.threshold ?? 0.55
   const reduced = !!options?.reduced
   const topTriggerRatio = options?.topTriggerRatio
+  const forceCompleteOnExitAbove = !!options?.forceCompleteOnExitAbove
 
   const ref = useCallback((node: HTMLElement | null) => {
     nodeRef.current = node
@@ -27,16 +35,21 @@ export function useSectionReveal(options?: {
 
   useEffect(() => {
     if (reduced) {
-      const t = window.setTimeout(() => setActive(true), 0)
+      const t = window.setTimeout(() => {
+        setInstantComplete(true)
+        setActive(true)
+      }, 0)
       return () => window.clearTimeout(t)
     }
 
     let cancelled = false
     let io: IntersectionObserver | null = null
+    let sawNearViewport = false
 
-    const activate = () => {
+    const activate = (opts?: { instant?: boolean }) => {
       if (cancelled || started.current) return
       started.current = true
+      if (opts?.instant) setInstantComplete(true)
       setActive(true)
       io?.disconnect()
       io = null
@@ -45,7 +58,6 @@ export function useSectionReveal(options?: {
     const effectiveThreshold = (el: HTMLElement) => {
       const h = Math.max(el.getBoundingClientRect().height, 1)
       const maxPossible = (window.innerHeight * 0.9) / h
-      // Keep desktop intent when the section fits; adapt for tall mobile stacks.
       return Math.min(threshold, Math.max(0.22, maxPossible * 0.92))
     }
 
@@ -59,9 +71,36 @@ export function useSectionReveal(options?: {
 
     const check = () => {
       const el = nodeRef.current
-      if (!el || cancelled || started.current) return
+      if (!el || cancelled) return
       const rect = el.getBoundingClientRect()
       const vh = window.innerHeight || 1
+
+      if (rect.bottom > 0 && rect.top < vh) {
+        sawNearViewport = true
+      }
+
+      if (started.current) {
+        // Mid-flight fast-scroll: jump visuals to final (no long invisible timers).
+        if (
+          forceCompleteOnExitAbove &&
+          sawNearViewport &&
+          rect.bottom < 0
+        ) {
+          setInstantComplete(true)
+        }
+        return
+      }
+
+      // Fast-scroll: node left upward after being near — finish to final state.
+      if (
+        forceCompleteOnExitAbove &&
+        sawNearViewport &&
+        rect.bottom < 0
+      ) {
+        activate({ instant: true })
+        return
+      }
+
       if (topTriggerRatio != null) {
         const near =
           rect.top < vh * topTriggerRatio && rect.bottom > 0
@@ -91,7 +130,6 @@ export function useSectionReveal(options?: {
     }
 
     const raf = window.requestAnimationFrame(observe)
-    // Safety: never leave visuals stuck invisible after a few seconds on-page.
     const fallback = window.setTimeout(() => {
       const el = nodeRef.current
       if (!el || started.current) return
@@ -112,7 +150,7 @@ export function useSectionReveal(options?: {
       window.removeEventListener('orientationchange', check)
       io?.disconnect()
     }
-  }, [reduced, threshold, topTriggerRatio])
+  }, [reduced, threshold, topTriggerRatio, forceCompleteOnExitAbove])
 
-  return { ref, active }
+  return { ref, active, instantComplete }
 }

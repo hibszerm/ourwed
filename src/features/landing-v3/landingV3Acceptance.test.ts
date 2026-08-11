@@ -49,19 +49,50 @@ function countOccurrences(haystack: string, needle: string): number {
 }
 
 const router = readFileSync(join(ROOT, 'src/routes/router.tsx'), 'utf8')
-assert(router.includes("path: '/landing-v3'"), 'route /landing-v3')
-assert(router.includes("path: '/'"), 'production / preserved')
+assert(router.includes("path: '/'"), 'production / route')
+assert(router.includes("path: '/landing-v3'"), 'legacy /landing-v3 alias')
 assert(
-  !readFileSync(join(ROOT, 'src/pages/LandingPage.tsx'), 'utf8').includes(
-    'landing-v3',
-  ),
-  'production LandingPage untouched',
+  router.includes("path: '/'") &&
+    router.includes('element: <LandingPage />') &&
+    router.includes("path: '/landing-v3'") &&
+    countOccurrences(router, 'element: <LandingPage />') >= 2,
+  '/ and /landing-v3 both render LandingPage',
+)
+assert(!router.includes('LandingV3Page'), 'no separate LandingV3Page route import')
+
+const landingEntry = readFileSync(join(ROOT, 'src/pages/LandingPage.tsx'), 'utf8')
+assert(landingEntry.includes('LandingV3Page'), 'LandingPage mounts V3')
+assert(!landingEntry.includes('LandingV2'), 'Landing V2 removed from production')
+assert(!landingEntry.includes('LandingPageV1'), 'Landing V1 removed from production')
+assert(!landingEntry.includes('useLandingVersion'), 'version switch removed')
+assert(
+  !existsSync(join(ROOT, 'src/features/landing-v2')),
+  'landing-v2 feature deleted',
+)
+assert(
+  !existsSync(join(ROOT, 'src/features/landing')),
+  'legacy landing feature deleted',
+)
+assert(
+  !existsSync(join(ROOT, 'src/pages/LandingPageV1.tsx')),
+  'LandingPageV1 deleted',
 )
 
+const indexHtml = readFileSync(join(ROOT, 'index.html'), 'utf8')
+assert(indexHtml.includes('og:image'), 'OpenGraph image')
+assert(indexHtml.includes('og-image.jpg'), 'OG asset path')
+assert(indexHtml.includes('application/ld+json'), 'JSON-LD')
+assert(indexHtml.includes('canonical'), 'canonical link')
+assert(indexHtml.includes('theme-color'), 'theme-color')
+assert(existsSync(join(ROOT, 'public/og-image.jpg')), 'og-image.jpg present')
+
 const page = readFileSync(join(FEATURE, 'LandingV3Page.tsx'), 'utf8')
+assert(page.includes('data-landing=""'), 'production landing marker')
+assert(!page.includes('data-landing-v3-rebuild'), 'review rebuild flag removed')
+assert(!page.includes('data-gate='), 'review gate flag removed')
 assert(
-  page.includes('data-landing-v3-rebuild="classic-lock-day"'),
-  'rebuild marker',
+  page.includes('Production landing') || page.includes('editorial product'),
+  'production comment',
 )
 
 const mainSlice = page.slice(page.indexOf('<main'))
@@ -120,10 +151,15 @@ assert(
   'security composition key',
 )
 assert(
-  security.includes('threshold: scaled ? 0.05 : DESKTOP_THRESHOLD') ||
-    security.includes('threshold: scaled ? 0.05 : 0.68'),
-  'scaled activation threshold',
+  security.includes('threshold: scaled ? 0.02 : DESKTOP_THRESHOLD') ||
+    security.includes('threshold: scaled ? 0.02 : 0.68'),
+  'scaled activation threshold 0.02',
 )
+assert(security.includes('topTriggerRatio: scaled ? 0.64'), 'security ~64% VH trigger')
+assert(security.includes('forceCompleteOnExitAbove: scaled'), 'security fast-scroll complete')
+assert(security.includes("timeline={scaled ? 'mobile' : 'desktop'}"), 'mobile timeline branch')
+assert(security.includes('instantComplete={instantComplete}'), 'instant complete wiring')
+assert(security.includes('data-security-activation-target'), 'observe visual not section')
 assert(!security.includes('MobileSecurityArtboard'), 'no mobile security artboard')
 assert(!security.includes('heading-copy-artboard-facts'), 'no mobile security reorder layout')
 assert(!security.includes('position: sticky'), 'no sticky security')
@@ -149,6 +185,28 @@ assert(lock.includes('<svg'), 'svg shackle')
 assert(!/\breplay\b/i.test(lock), 'no replay logic')
 assert(!lock.includes('setForceOpen'), 'no replay reset')
 assert(!lock.includes('SECURITY_LOCK_CATEGORIES'), 'no category table inside lock')
+assert(lock.includes('DESKTOP_TIMELINE'), 'desktop timeline constant')
+assert(lock.includes('MOBILE_TIMELINE'), 'mobile timeline constant')
+assert(lock.includes('lockDelay: 1.8'), 'desktop lock delay unchanged')
+assert(lock.includes('lockDelay: 0.52'), 'mobile lock starts before records vanish')
+assert(lock.includes('recordFadeDelay: 0.75'), 'mobile record fade delayed until lock present')
+assert(lock.includes('softEase'), 'mobile soft opacity ease')
+assert(lock.includes("data-layers-mounted=\"records+lock\""), 'layers stay mounted')
+assert(lock.includes('data-empty-frame-guard'), 'empty-frame guard attr')
+assert(lock.includes('instantComplete'), 'instantComplete prop')
+assert(
+  !lockCss.includes(".root[data-lock-phase='closed'] .record {\n    display: none;"),
+  'closed phase does not display:none records unconditionally',
+)
+assert(
+  lockCss.includes(
+    ".root[data-lock-phase='closed']:not([data-layers-mounted]) .record",
+  ) ||
+    lockCss.includes(
+      "[data-desktop-parity-canvas='true']) .root[data-lock-phase='closed'] .record",
+    ),
+  'records remain displayable during handoff',
+)
 assert(lockCss.includes('clamp(450px') && lockCss.includes('490px'), 'body height')
 assert(lockCss.includes('clamp(400px') && lockCss.includes('440px'), 'body width')
 assert(SECURITY_RECORDS.length === 6, 'six records')
@@ -198,6 +256,32 @@ assert(LANDING_PRICING.annualPrice === 490, 'annual 490')
 assert(pricing.includes('Okres próbny'), 'trial label')
 
 assert(countOccurrences(sources, 'data-motion="hero"') === 1, 'hero motion')
+
+const heroSec = readFileSync(join(FEATURE, 'sections/Act1Hero.tsx'), 'utf8')
+assert(heroSec.includes('DesktopCompositionScale'), 'hero uses DesktopCompositionScale')
+assert(heroSec.includes('composition="hero"'), 'hero composition key')
+assert(heroSec.includes('variant="hero"'), 'hero uses desktop dashboard variant')
+assert(!heroSec.includes('variant="mobile"'), 'hero no mobile dashboard variant')
+assert(!heroSec.includes('heroMobileOnly'), 'hero no mobile-only branch')
+assert(!heroSec.includes('heroDesktopOnly'), 'hero no desktop-only split')
+
+const heroMetrics = readFileSync(
+  join(FEATURE, 'components/desktopCompositionMetrics.ts'),
+  'utf8',
+)
+assert(heroMetrics.includes("compositionId: 'landing-hero'"), 'hero metrics id')
+assert(heroMetrics.includes('width: 1280'), 'hero base width 1280')
+assert(heroMetrics.includes('height: 720'), 'hero base height 720')
+
+const shellCss = readFileSync(
+  join(FEATURE, 'product/DemoAppShell.module.css'),
+  'utf8',
+)
+assert(
+  shellCss.includes("data-desktop-parity-canvas='true'") &&
+    shellCss.includes('width: 200px'),
+  'hero parity forces sidebar',
+)
 assert(countOccurrences(sources, 'data-motion="security-lock"') === 1, 'security motion')
 assert(
   countOccurrences(sources, 'data-motion="mobile-wedding-day"') === 1,
@@ -431,7 +515,10 @@ assert(existsSync(join(FEATURE, 'components/DesktopCompositionScale.tsx')), 'Des
 assert(existsSync(join(FEATURE, 'components/desktopCompositionMetrics.ts')), 'desktop metrics exist')
 assert(existsSync(join(FEATURE, 'components/DesktopParityContext.ts')), 'parity context exists')
 assert(existsSync(join(FEATURE, 'hooks/useLandingViewportMode.ts')), 'viewport mode hook')
-assert(existsSync(join(FEATURE, 'hooks/useMobileSectionActivation.ts')), 'mobile activation hook')
+assert(
+  !existsSync(join(FEATURE, 'hooks/useMobileSectionActivation.ts')),
+  'obsolete mobile activation hook removed',
+)
 assert(
   !existsSync(join(FEATURE, 'components/MobileScaledStage.tsx')),
   'MobileScaledStage removed',
@@ -558,12 +645,33 @@ assert(
 const revealSrc = readFileSync(join(FEATURE, 'hooks/useSectionReveal.ts'), 'utf8')
 assert(revealSrc.includes('topTriggerRatio'), 'canvas top trigger')
 assert(revealSrc.includes('effectiveThreshold'), 'tall-section adaptive reveal')
+assert(revealSrc.includes('forceCompleteOnExitAbove'), 'fast-scroll exit-above')
+assert(revealSrc.includes('instantComplete'), 'instantComplete signal')
+assert(parityCss.includes('--lv3-mobile-section-gap-major'), 'mobile major gap token')
+assert(parityCss.includes('--lv3-mobile-section-gap-normal'), 'mobile normal gap token')
+assert(parityCss.includes('--lv3-mobile-copy-to-product'), 'copy-to-product token')
+assert(parityCss.includes('--lv3-mobile-product-to-copy'), 'product-to-copy token')
+assert(parityCss.includes('--lv3-mobile-product-to-next-section'), 'product-to-next token')
+assert(parityCss.includes('--lv3-mobile-heading-to-support'), 'heading-to-support token')
+assert(
+  !parityCss.includes('padding: 4.75rem 0 4.5rem'),
+  'obsolete 4.75rem mobile section padding removed',
+)
+assert(
+  !parityCss.includes('padding: 4.5rem 0 4rem'),
+  'obsolete 4.5rem mobile section padding removed',
+)
 assert(iphoneCss.includes('238px'), 'mobile primary phone width')
 assert(iphoneCss.includes('184px'), 'mobile secondary phone width')
-assert(mobileSeq.includes('doneAt: 6.4'), 'mobile simple doneAt 6.4')
+assert(mobileSeq.includes('doneAt: 5.55'), 'mobile simple doneAt 5.55')
+assert(mobileSeq.includes('routeHoldEnd: 4.35'), 'longer navigation pause')
+const variantsSrc = readFileSync(join(FEATURE, 'motion/variants.ts'), 'utf8')
+assert(variantsSrc.includes('MOBILE_DURATION_SCALE'), 'mobile duration scale')
+assert(variantsSrc.includes('softEase'), 'soft ease export')
 assert(iphoneCss.includes('perspective: none'), 'mobile perspective flattened')
 assert(mobileSec.includes('useLandingViewportMode'), 'section uses viewport mode')
 assert(mobileSec.includes('0.8'), 'phone requires 80% primary visible')
+assert(mobileSec.includes('forceFinal'), 'phone fast-scroll forceFinal')
 assert(briefView.includes('compact'), 'brief supports compact layout')
 
 const marketing = [page, security, day, pricing, importSec, mobileSec].join('\n')

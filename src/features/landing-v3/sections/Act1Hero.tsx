@@ -1,11 +1,12 @@
 import { motion, useReducedMotion } from 'framer-motion'
+import { DesktopCompositionScale } from '@/features/landing-v3/components/DesktopCompositionScale'
 import { LandingButton } from '@/features/landing-v3/components/LandingButton'
 import { DEMO_CAPABILITY_LINE } from '@/features/landing-v3/data/demoData'
 import { DashboardDemo } from '@/features/landing-v3/product/DashboardDemo'
 import { DURATION, premiumEase } from '@/features/landing-v3/motion/variants'
 import styles from '@/features/landing-v3/styles/landingV3.module.css'
 
-/** Accepted hero copy + real Dashboard product visual. */
+/** Accepted hero copy + exact desktop dashboard product mockup (scaled on mobile). */
 export function Act1Hero() {
   const reduced = useReducedMotion()
 
@@ -66,16 +67,14 @@ export function Act1Hero() {
 
       <motion.div
         className={styles.heroDashboard}
+        data-hero-product-canvas=""
         initial={reduced ? false : { opacity: 0, y: 72 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.28, duration: DURATION.heroMorph, ease: premiumEase }}
       >
-        <div className={styles.heroDesktopOnly}>
+        <DesktopCompositionScale composition="hero">
           <DashboardDemo variant="hero" focusNearest />
-        </div>
-        <div className={styles.heroMobileOnly}>
-          <DashboardDemo variant="mobile" focusNearest />
-        </div>
+        </DesktopCompositionScale>
       </motion.div>
 
       <p className={styles.capabilityLine} data-testid="lv3-capability-line">

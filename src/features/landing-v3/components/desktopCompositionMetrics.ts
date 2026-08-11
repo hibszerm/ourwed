@@ -1,10 +1,11 @@
 /**
- * Approved desktop composition metrics measured at 1440×1000 on /landing-v3.
+ * Approved desktop composition metrics measured at 1440×1000 on production `/`.
  * Source of truth for DesktopCompositionScale — do not invent mobile sizes.
  */
 export const COMPOSITION_VERSION = '3' as const
 
 export type CompositionKey =
+  | 'hero'
   | 'import'
   | 'assignment'
   | 'questionnaireContract'
@@ -27,6 +28,13 @@ export const DESKTOP_COMPOSITION_METRICS: Record<
   CompositionKey,
   CompositionMetrics
 > = {
+  /** DemoAppShell hero frame measured at 1440×1000. */
+  hero: {
+    width: 1280,
+    height: 720,
+    shadowPadding: 36,
+    compositionId: 'landing-hero',
+  },
   import: {
     width: 1360,
     height: 727,

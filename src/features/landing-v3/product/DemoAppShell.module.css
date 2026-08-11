@@ -136,3 +136,47 @@
     padding: var(--space-4);
   }
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .shell * {
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Exact desktop chrome inside DesktopCompositionScale (Hero mockup) */
+:global([data-desktop-parity-canvas='true']) .shell {
+  display: flex !important;
+  width: 1280px !important;
+  max-width: 1280px !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+  border-radius: 16px !important;
+  box-shadow: 0 28px 64px rgba(17, 17, 17, 0.12) !important;
+}
+
+:global([data-desktop-parity-canvas='true']) .frame_hero {
+  aspect-ratio: 16 / 10 !important;
+  width: 1280px !important;
+  height: 720px !important;
+  min-height: 720px !important;
+  max-height: 720px !important;
+}
+
+:global([data-desktop-parity-canvas='true']) .sidebar {
+  display: flex !important;
+  flex-direction: column !important;
+  width: 200px !important;
+  flex-shrink: 0 !important;
+}
+
+:global([data-desktop-parity-canvas='true']) .main {
+  flex: 1 !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+}
+
+:global([data-desktop-parity-canvas='true']) .content {
+  height: 100% !important;
+  padding: var(--space-5) var(--space-6) !important;
+  overflow: hidden !important;
+}
