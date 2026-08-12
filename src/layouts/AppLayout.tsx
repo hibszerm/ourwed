@@ -2,6 +2,8 @@ import { useEffect, useId, useState, type ReactNode } from 'react'
 import { useLocation } from 'react-router-dom'
 import { IconMenu } from '@/components/icons'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { ReadOnlyBanner } from '@/features/billing/ReadOnlyBanner'
+import { useProAccessGate } from '@/features/billing/ProAccessGate'
 import { Sidebar } from './Sidebar'
 import styles from './AppLayout.module.css'
 
@@ -17,6 +19,8 @@ export function AppLayout({ children, title, subtitle, action }: AppLayoutProps)
   const [navOpen, setNavOpen] = useState(false)
   const navId = useId()
   const showPageHeader = Boolean(title || action)
+  const { isReadOnly, loading, bannerHiddenForSession, hideReadOnlyBanner } =
+    useProAccessGate()
 
   useEffect(() => {
     setNavOpen(false)
@@ -76,6 +80,10 @@ export function AppLayout({ children, title, subtitle, action }: AppLayoutProps)
           ) : null}
         </div>
         <main className={styles.content} id={navId}>
+          <ReadOnlyBanner
+            visible={!loading && isReadOnly && !bannerHiddenForSession}
+            onHide={hideReadOnlyBanner}
+          />
           {children}
         </main>
       </div>

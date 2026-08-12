@@ -4,7 +4,10 @@
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { ADMIN_PHASE2_RPC_CONTRACTS } from '@/admin/api/rpcContracts'
+import {
+  ADMIN_BILLING_RPC_CONTRACTS,
+  ADMIN_PHASE2_RPC_CONTRACTS,
+} from '@/admin/api/rpcContracts'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../../..')
 
@@ -19,6 +22,17 @@ const corrective = readFileSync(
 )
 const original = readFileSync(
   join(ROOT, 'supabase/migrations/20260806140000_admin_phase2_aggregates.sql'),
+  'utf8',
+)
+const usersSubscriptionFilter = readFileSync(
+  join(
+    ROOT,
+    'supabase/migrations/20260811210000_admin_users_subscription_filter.sql',
+  ),
+  'utf8',
+)
+const subscriptionFoundation = readFileSync(
+  join(ROOT, 'supabase/migrations/20260811200000_subscription_foundation.sql'),
   'utf8',
 )
 
@@ -56,6 +70,31 @@ function parseFrontendArgs(rpcName: string): string[] {
   return []
 }
 
+function assertContractAgainstSql(
+  contract: (typeof ADMIN_PHASE2_RPC_CONTRACTS)[number],
+  sql: string,
+  sqlLabel: string,
+) {
+  const sqlArgs = parseSqlIdentityArgs(sql, contract.name)
+  const expected = contract.args.map((a) => a.name)
+  assert(
+    JSON.stringify(sqlArgs) === JSON.stringify(expected),
+    `${contract.name} SQL args (${sqlLabel}) ${JSON.stringify(sqlArgs)} !== ${JSON.stringify(expected)}`,
+  )
+
+  const feArgs = parseFrontendArgs(contract.name)
+  assert(
+    JSON.stringify(feArgs) === JSON.stringify(expected),
+    `${contract.name} frontend args ${JSON.stringify(feArgs)} !== ${JSON.stringify(expected)}`,
+  )
+
+  assert(api.includes(`'${contract.name}'`), `adminApi references ${contract.name}`)
+  assert(
+    sql.includes(`grant execute on function public.${contract.name}`),
+    `grant execute ${contract.name} (${sqlLabel})`,
+  )
+}
+
 // Content-Length: 13 diagnosis — browser body for today-range is p_days with a single digit
 assert(JSON.stringify({ p_days: 1 }) === '{"p_days":1}', 'compact payload shape')
 assert(JSON.stringify({ p_days: 1 }).length === 12, 'compact {"p_days":1} is 12 bytes')
@@ -70,23 +109,22 @@ assert(corrective.includes('revoke all on function public.admin_get_registration
 assert(original.includes('admin_get_registration_series(p_days integer default 30)'), 'original signature documented')
 
 for (const contract of ADMIN_PHASE2_RPC_CONTRACTS) {
-  const sqlArgs = parseSqlIdentityArgs(corrective, contract.name)
-  const expected = contract.args.map((a) => a.name)
-  assert(
-    JSON.stringify(sqlArgs) === JSON.stringify(expected),
-    `${contract.name} SQL args ${JSON.stringify(sqlArgs)} !== ${JSON.stringify(expected)}`,
-  )
+  if (contract.name === 'admin_list_users') {
+    assertContractAgainstSql(
+      contract,
+      usersSubscriptionFilter,
+      '20260811210000_admin_users_subscription_filter.sql',
+    )
+    continue
+  }
+  assertContractAgainstSql(contract, corrective, 'admin_phase2_rpc_signature_fix.sql')
+}
 
-  const feArgs = parseFrontendArgs(contract.name)
-  assert(
-    JSON.stringify(feArgs) === JSON.stringify(expected),
-    `${contract.name} frontend args ${JSON.stringify(feArgs)} !== ${JSON.stringify(expected)}`,
-  )
-
-  assert(api.includes(`'${contract.name}'`), `adminApi references ${contract.name}`)
-  assert(
-    corrective.includes(`grant execute on function public.${contract.name}`),
-    `grant execute ${contract.name}`,
+for (const contract of ADMIN_BILLING_RPC_CONTRACTS) {
+  assertContractAgainstSql(
+    contract,
+    subscriptionFoundation,
+    '20260811200000_subscription_foundation.sql',
   )
 }
 

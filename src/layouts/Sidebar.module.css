@@ -113,6 +113,19 @@
   font-weight: 600;
 }
 
+.navBadge {
+  margin-left: auto;
+  min-width: 1.25rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 999px;
+  background: #fff;
+  color: #0a0a0a;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+}
+
 .navItem.active::before {
   content: '';
   position: absolute;

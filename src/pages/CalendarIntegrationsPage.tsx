@@ -8,6 +8,7 @@ import { Card, CardHeader } from '@/components/ui/Card'
 import { Modal } from '@/components/ui/Modal'
 import { useToast } from '@/components/ui/Toast'
 import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
+import { useProAccessGate } from '@/features/billing/ProAccessGate'
 import { calendarIntegrationsService } from '@/features/calendar-integrations/calendarIntegrationsService'
 import { calendarIntegrationQueryKeys } from '@/features/calendar-integrations/queryKeys'
 import type {
@@ -30,6 +31,7 @@ function formatWhen(iso: string | null): string {
 
 export function CalendarIntegrationsPage() {
   const userId = useStudioAuthId()
+  const { requirePro } = useProAccessGate()
   const { showToast } = useToast()
   const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -253,6 +255,7 @@ export function CalendarIntegrationsPage() {
     field: 'syncWeddings' | 'syncSessions',
     next: boolean,
   ) {
+    if (!requirePro()) return
     if (!next) {
       setDisableCategoryConfirm({ provider, field })
       return
@@ -265,6 +268,7 @@ export function CalendarIntegrationsPage() {
     field: 'syncWeddings' | 'syncSessions',
     next: boolean,
   ) {
+    if (!requirePro()) return
     if (provider === 'google') {
       updateGoogleMutation.mutate({ [field]: next })
     } else {
@@ -349,13 +353,15 @@ export function CalendarIntegrationsPage() {
                     <Button
                       variant="primary"
                       disabled={connectMutation.isPending}
-                      onClick={() => {
-                        window.localStorage.setItem(
-                          'ourwed:calendar-backfill-pending',
-                          backfillDraft,
-                        )
-                        connectMutation.mutate(backfillDraft)
-                      }}
+                      onClick={() =>
+                        requirePro(() => {
+                          window.localStorage.setItem(
+                            'ourwed:calendar-backfill-pending',
+                            backfillDraft,
+                          )
+                          connectMutation.mutate(backfillDraft)
+                        })
+                      }
                     >
                       {connectMutation.isPending
                         ? 'Łączenie…'
@@ -407,10 +413,12 @@ export function CalendarIntegrationsPage() {
                       onChange={(e) => {
                         const id = e.target.value
                         const cal = calendarsQuery.data?.find((c) => c.id === id)
-                        updateGoogleMutation.mutate({
-                          calendarId: id,
-                          calendarName: cal?.summary ?? null,
-                        })
+                        requirePro(() =>
+                          updateGoogleMutation.mutate({
+                            calendarId: id,
+                            calendarName: cal?.summary ?? null,
+                          }),
+                        )
                       }}
                     >
                       {calendarsQuery.data?.length ? (
@@ -468,9 +476,11 @@ export function CalendarIntegrationsPage() {
                           type="radio"
                           checked={google.backfillMode === 'future'}
                           onChange={() =>
-                            updateGoogleMutation.mutate({
-                              backfillMode: 'future',
-                            })
+                            requirePro(() =>
+                              updateGoogleMutation.mutate({
+                                backfillMode: 'future',
+                              }),
+                            )
                           }
                         />
                         Tylko przyszłe zlecenia
@@ -480,9 +490,11 @@ export function CalendarIntegrationsPage() {
                           type="radio"
                           checked={google.backfillMode === 'all_active'}
                           onChange={() =>
-                            updateGoogleMutation.mutate({
-                              backfillMode: 'all_active',
-                            })
+                            requirePro(() =>
+                              updateGoogleMutation.mutate({
+                                backfillMode: 'all_active',
+                              }),
+                            )
                           }
                         />
                         Wszystkie aktywne zlecenia
@@ -495,7 +507,11 @@ export function CalendarIntegrationsPage() {
                       <Button
                         variant="primary"
                         disabled={connectMutation.isPending}
-                        onClick={() => connectMutation.mutate(backfillDraft)}
+                        onClick={() =>
+                          requirePro(() =>
+                            connectMutation.mutate(backfillDraft),
+                          )
+                        }
                       >
                         Połącz ponownie
                       </Button>
@@ -503,7 +519,9 @@ export function CalendarIntegrationsPage() {
                       <Button
                         variant="primary"
                         disabled={syncNowMutation.isPending}
-                        onClick={() => syncNowMutation.mutate()}
+                        onClick={() =>
+                          requirePro(() => syncNowMutation.mutate())
+                        }
                       >
                         {syncNowMutation.isPending
                           ? 'Synchronizowanie…'
@@ -513,7 +531,9 @@ export function CalendarIntegrationsPage() {
                     <Button
                       variant="secondary"
                       disabled={reconcileMutation.isPending}
-                      onClick={() => reconcileMutation.mutate()}
+                      onClick={() =>
+                        requirePro(() => reconcileMutation.mutate())
+                      }
                     >
                       {reconcileMutation.isPending
                         ? 'Czyszczenie…'
@@ -521,7 +541,7 @@ export function CalendarIntegrationsPage() {
                     </Button>
                     <Button
                       variant="danger"
-                      onClick={() => setDisconnectOpen(true)}
+                      onClick={() => requirePro(() => setDisconnectOpen(true))}
                     >
                       Odłącz Google Calendar
                     </Button>
@@ -580,7 +600,9 @@ export function CalendarIntegrationsPage() {
                     <Button
                       variant="primary"
                       disabled={activateAppleMutation.isPending}
-                      onClick={() => activateAppleMutation.mutate()}
+                      onClick={() =>
+                        requirePro(() => activateAppleMutation.mutate())
+                      }
                     >
                       {activateAppleMutation.isPending
                         ? 'Aktywowanie…'
@@ -652,20 +674,24 @@ export function CalendarIntegrationsPage() {
                     <Button
                       variant="secondary"
                       disabled={refreshAppleMutation.isPending}
-                      onClick={() => refreshAppleMutation.mutate()}
+                      onClick={() =>
+                        requirePro(() => refreshAppleMutation.mutate())
+                      }
                     >
                       Odśwież dane kalendarza
                     </Button>
                     <Button
                       variant="secondary"
-                      onClick={() => setRotateOpen(true)}
+                      onClick={() => requirePro(() => setRotateOpen(true))}
                     >
                       Wygeneruj nowy link
                     </Button>
                     <Button
                       variant="danger"
                       disabled={disableAppleMutation.isPending}
-                      onClick={() => disableAppleMutation.mutate()}
+                      onClick={() =>
+                        requirePro(() => disableAppleMutation.mutate())
+                      }
                     >
                       Wyłącz kalendarz
                     </Button>
@@ -687,7 +713,9 @@ export function CalendarIntegrationsPage() {
           <Button
             variant="danger"
             disabled={disconnectMutation.isPending}
-            onClick={() => disconnectMutation.mutate()}
+            onClick={() =>
+              requirePro(() => disconnectMutation.mutate())
+            }
           >
             Odłącz
           </Button>
@@ -723,7 +751,9 @@ export function CalendarIntegrationsPage() {
           <Button
             variant="primary"
             disabled={rotateAppleMutation.isPending}
-            onClick={() => rotateAppleMutation.mutate()}
+            onClick={() =>
+              requirePro(() => rotateAppleMutation.mutate())
+            }
           >
             Wygeneruj nowy link
           </Button>
@@ -745,12 +775,14 @@ export function CalendarIntegrationsPage() {
             variant="danger"
             onClick={() => {
               if (!disableCategoryConfirm) return
-              applyCategoryToggle(
-                disableCategoryConfirm.provider,
-                disableCategoryConfirm.field,
-                false,
-              )
-              setDisableCategoryConfirm(null)
+              requirePro(() => {
+                applyCategoryToggle(
+                  disableCategoryConfirm.provider,
+                  disableCategoryConfirm.field,
+                  false,
+                )
+                setDisableCategoryConfirm(null)
+              })
             }}
           >
             Wyłącz

@@ -365,6 +365,8 @@ export interface Notification {
   createdAt: string
   read: boolean
   type: 'info' | 'warning' | 'success'
+  /** In-app deep link (relative path), when set. */
+  link?: string | null
 }
 
 export interface Deadline {

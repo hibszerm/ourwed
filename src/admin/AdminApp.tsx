@@ -10,6 +10,7 @@ import { AdminLoginPage } from '@/admin/pages/AdminLoginPage'
 import { AdminMfaSetupPage } from '@/admin/pages/AdminMfaSetupPage'
 import { AdminMfaVerifyPage } from '@/admin/pages/AdminMfaVerifyPage'
 import { AdminOverviewPage } from '@/admin/pages/AdminOverviewPage'
+import { AdminSubscriptionsPage } from '@/admin/pages/AdminSubscriptionsPage'
 import { AdminSystemPage } from '@/admin/pages/AdminSystemPage'
 import { AdminUnauthorizedPage } from '@/admin/pages/AdminUnauthorizedPage'
 import { AdminUserDetailPage } from '@/admin/pages/AdminUserDetailPage'
@@ -34,6 +35,7 @@ function createAdminRouter(basename: string) {
           { path: '/overview', element: <AdminOverviewPage /> },
           { path: '/users', element: <AdminUsersPage /> },
           { path: '/users/:userId', element: <AdminUserDetailPage /> },
+          { path: '/subscriptions', element: <AdminSubscriptionsPage /> },
           { path: '/emails', element: <AdminEmailsPage /> },
           { path: '/integrations', element: <AdminIntegrationsPage /> },
           { path: '/system', element: <AdminSystemPage /> },

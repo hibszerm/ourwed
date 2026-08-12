@@ -1,0 +1,123 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(17, 17, 17, 0.4);
+}
+
+.dialog {
+  width: min(100%, 520px);
+  max-height: min(92vh, 720px);
+  overflow: auto;
+  padding: 1.35rem 1.35rem 1.2rem;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 24px 60px rgba(17, 17, 17, 0.22);
+}
+
+.dialog h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.25rem;
+  letter-spacing: -0.02em;
+}
+
+.copy {
+  margin: 0;
+  line-height: 1.45;
+  color: #4a4540;
+  font-size: 0.95rem;
+}
+
+.plans {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin-top: 1.15rem;
+}
+
+.plan {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.95rem 0.9rem;
+  border-radius: 12px;
+  border: 1px solid rgba(17, 17, 17, 0.1);
+}
+
+.planAnnual {
+  border-color: rgba(29, 39, 43, 0.28);
+  background: linear-gradient(180deg, rgba(184, 140, 78, 0.07), transparent 50%);
+}
+
+.badge {
+  margin: 0 0 0.25rem;
+  width: fit-content;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  background: #1d272b;
+  color: #f4f1ec;
+  font-size: 0.62rem;
+  font-weight: 650;
+  letter-spacing: 0.03em;
+}
+
+.plan h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.price {
+  margin: 0.2rem 0 0.55rem;
+  font-size: 1.35rem;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+}
+
+.price span {
+  margin-left: 0.2rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #6e6e73;
+}
+
+.plan :global(button) {
+  width: 100%;
+  margin-top: auto;
+}
+
+.note {
+  margin: 0.85rem 0 0;
+  padding: 0.7rem 0.8rem;
+  border-radius: 10px;
+  background: rgba(29, 39, 43, 0.05);
+  font-size: 0.88rem;
+  line-height: 1.4;
+}
+
+.recovery {
+  margin: 0.85rem 0 0;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: #5c5348;
+}
+
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  margin-top: 1rem;
+}
+
+@media (max-width: 520px) {
+  .plans {
+    grid-template-columns: 1fr;
+  }
+
+  .planAnnual {
+    order: -1;
+  }
+}

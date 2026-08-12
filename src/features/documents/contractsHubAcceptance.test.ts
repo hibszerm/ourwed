@@ -71,9 +71,9 @@ run('canonical routes: packages own templates, weddings own contracts', () => {
     'sidebar must expose Pakiety',
   )
   assert(
-    sidebar.includes('Eksperymentalne') ||
-      sidebar.includes('isAiContractLabEnabled'),
-    'experimental tools remain under Eksperymentalne',
+    !sidebar.includes('Eksperymentalne') &&
+      !sidebar.includes('nav-ai-contract-lab'),
+    'experimental tools must be hidden from customer sidebar',
   )
   assert(
     hub.includes('Nie ma jeszcze wygenerowanych umów'),

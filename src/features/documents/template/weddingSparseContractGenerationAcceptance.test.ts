@@ -26,6 +26,7 @@ const transformService = source(
   'src/features/ai-contract-transform/transformService.ts',
 )
 const sidebar = source('src/layouts/Sidebar.tsx')
+const router = source('src/routes/router.tsx')
 const flags = source(
   'src/features/documents/template/sparseWeddingContractFlags.ts',
 )
@@ -94,11 +95,12 @@ assert(
   page.includes('isSparseWeddingContractGenerationEnabled'),
   'generation page respects flag',
 )
-assert(sidebar.includes('Eksperymentalne'), 'lab links under experimental group')
+assert(!sidebar.includes('Eksperymentalne'), 'experimental nav hidden from customer sidebar')
 assert(
-  sidebar.includes('Laboratorium porównania umów'),
-  'comparison lab renamed',
+  !sidebar.includes('Laboratorium porównania umów'),
+  'comparison lab not in customer sidebar',
 )
+assert(router.includes('/eksperymenty/umowy-ai-transform'), 'comparison route retained')
 assert(flags.includes("raw === 'false'"), 'flag can disable sparse path')
 
 console.log('ok — weddingSparseContractGenerationAcceptance')

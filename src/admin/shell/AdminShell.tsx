@@ -31,9 +31,7 @@ const NAV: Array<{ section: string; items: NavItem[] }> = [
   },
   {
     section: 'ROZLICZENIA',
-    items: [
-      { kind: 'disabled', label: 'Subskrypcje', badge: 'Niepodłączone' },
-    ],
+    items: [{ kind: 'link', to: '/subscriptions', label: 'Subskrypcje' }],
   },
 ]
 

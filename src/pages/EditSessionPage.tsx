@@ -8,6 +8,7 @@ import { useToast } from '@/components/ui/Toast'
 import { SessionForm } from '@/features/sessions/components/SessionForm'
 import { useSession } from '@/features/sessions/hooks/useSession'
 import { useUpdateSession } from '@/features/sessions/hooks/useUpdateSession'
+import { useProAccessGate } from '@/features/billing/ProAccessGate'
 import { getSessionDisplayName } from '@/features/sessions/presentation/getSessionDisplayName'
 
 export function EditSessionPage() {
@@ -16,6 +17,7 @@ export function EditSessionPage() {
   const { data: session, isLoading, isError, error } = useSession(sessionId)
   const updateSession = useUpdateSession()
   const { showToast } = useToast()
+  const { requirePro } = useProAccessGate()
 
   if (isLoading) {
     return (
@@ -66,6 +68,8 @@ export function EditSessionPage() {
           cancelTo={`/sesje/${session.id}`}
           pending={updateSession.isPending}
           onSubmit={async (input) => {
+            const allowed = requirePro()
+            if (!allowed) return
             try {
               await updateSession.mutateAsync({ id: session.id, input })
               showToast('Zapisano zmiany', 'success')

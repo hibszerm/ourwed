@@ -1,7 +1,7 @@
 /**
- * Experimental DOCX→PDF action (Gotenberg via Edge Function).
- * Shared by production ready preview and Transform Lab results.
- * Conversion only — never rebuilds DOCX or reruns AI.
+ * Lab-only DOCX→PDF via Gotenberg/LibreOffice (experimental flag).
+ * Production customer PDF uses ContractPdfActions → Cloudmersive Edge.
+ * Keep this for TransformComparison / DEV comparison only.
  */
 
 import { useEffect, useState } from 'react'
@@ -35,10 +35,12 @@ export function ExperimentalPdfActions(props: {
   if (!show) return null
 
   async function convert() {
-    if (!props.docxBytes) {
-      setError(
-        'Brak pliku DOCX do konwersji. Najpierw pobierz lub wygeneruj dokument.',
-      )
+    if (busy || !props.docxBytes) {
+      if (!props.docxBytes) {
+        setError(
+          'Brak pliku DOCX do konwersji. Najpierw pobierz lub wygeneruj dokument.',
+        )
+      }
       return
     }
     setBusy(true)
@@ -76,10 +78,11 @@ export function ExperimentalPdfActions(props: {
     >
       {!props.compact ? (
         <div>
-          <h3 className={styles.title}>Testowy PDF</h3>
+          <h3 className={styles.title}>Testowy PDF (lab)</h3>
           <p className={styles.desc}>
-            PDF jest tworzony przez LibreOffice i może nieznacznie różnić się od
-            dokumentu otwartego w Microsoft Word.
+            Eksperymentalny PDF z DOCX przez LibreOffice (lab). Produkcyjny
+            „Pobierz PDF” na ekranie gotowej umowy używa Cloudmersive. Kanoniczny
+            dokument to DOCX.
           </p>
         </div>
       ) : null}

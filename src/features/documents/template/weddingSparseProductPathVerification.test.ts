@@ -162,11 +162,20 @@ assert(preview.includes('docx-preview') || preview.includes('renderAsync'), '5: 
 
 // 6. PDF
 assert(
-  page.includes('ExperimentalPdfActions') ||
-    page.includes('ContractReadyPreview'),
-  '6: PDF actions surface',
+  page.includes('ContractReadyPreview'),
+  '6: ready preview surface',
 )
-assert(pdfActions.includes('createGotenbergPdfAdapter'), '6: Gotenberg adapter')
+assert(
+  source('src/features/documents/contract-experience/ContractReadyPreview.tsx').includes(
+    'ContractPdfActions',
+  ),
+  '6: production Cloudmersive PDF actions',
+)
+assert(
+  source('src/features/documents/pdf/contractPdfAdapter.ts').includes('contract-docx-to-pdf'),
+  '6: Edge contract-docx-to-pdf',
+)
+assert(pdfActions.includes('createGotenbergPdfAdapter'), '6: lab Gotenberg adapter kept')
 
 // 7. Rollback flag false → legacy slot path
 assert(flags.includes("raw === 'false'"), '7: flag can disable sparse')

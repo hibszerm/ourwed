@@ -1,6 +1,7 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { AuthLoadingScreen } from '@/features/auth/components/AuthLoadingScreen'
+import { ProAccessGateProvider } from '@/features/billing/ProAccessGate'
 import { shouldRedirectLogoutToLanding } from '@/lib/auth/logoutRedirect'
 
 /**
@@ -23,5 +24,9 @@ export function ProtectedRoute() {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />
   }
 
-  return <Outlet />
+  return (
+    <ProAccessGateProvider>
+      <Outlet />
+    </ProAccessGateProvider>
+  )
 }

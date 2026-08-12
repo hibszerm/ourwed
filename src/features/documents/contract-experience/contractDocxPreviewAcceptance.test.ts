@@ -69,11 +69,14 @@ const pdfActions = source(
 )
 assert(
   pdfActions.includes('isExperimentalPdfExportEnabled'),
-  'pdf UI gated by flag',
+  'lab pdf UI gated by flag',
 )
-assert(pdfActions.includes('Utwórz testowy PDF'), 'explicit pdf action')
-assert(pdfActions.includes('Testowy PDF') || ready.includes('ExperimentalPdfActions'), 'experimental label')
-assert(ready.includes('ExperimentalPdfActions'), 'ready uses shared pdf actions')
+assert(pdfActions.includes('Utwórz testowy PDF'), 'lab explicit pdf action')
+assert(ready.includes('ContractPdfActions'), 'ready uses production PDF actions')
+assert(ready.includes('Pobierz PDF') || source(
+  'src/features/documents/contract-experience/ContractPdfActions.tsx',
+).includes('Pobierz PDF'), 'production PDF label')
+assert(!ready.includes('ExperimentalPdfActions'), 'ready no experimental PDF panel')
 assert(
   source(
     'src/features/ai-contract-transform/TransformComparisonPage.tsx',

@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
 import { calendarIntegrationQueryKeys } from '@/features/calendar-integrations/queryKeys'
@@ -25,7 +26,7 @@ import { WEDDING_DETAIL_V2_TAB_KEY } from '@/features/weddings/detail/v2/wedding
 import type { Wedding } from '@/types/wedding'
 import styles from './WeddingDetailV2.module.css'
 
-function readTab(): WeddingWorkspaceTab {
+function readStoredTab(): WeddingWorkspaceTab {
   try {
     return parseWorkspaceTab(localStorage.getItem(WEDDING_DETAIL_V2_TAB_KEY))
   } catch {
@@ -65,7 +66,12 @@ export function WeddingDetailV2(props: WeddingDetailSharedProps) {
 
   const userId = useStudioAuthId()
   const queryClient = useQueryClient()
-  const [tab, setTabState] = useState<WeddingWorkspaceTab>(readTab)
+  const [searchParams] = useSearchParams()
+  const [tab, setTabState] = useState<WeddingWorkspaceTab>(() => {
+    const fromUrl = parseWorkspaceTab(searchParams.get('tab'))
+    if (searchParams.get('tab')) return fromUrl
+    return readStoredTab()
+  })
   const [packageFocus, setPackageFocus] = useState(false)
 
   const setTab = useCallback((next: WeddingWorkspaceTab) => {

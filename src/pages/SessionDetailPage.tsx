@@ -8,6 +8,7 @@ import { IconArrowLeft, IconMapPin } from '@/components/icons'
 import { useToast } from '@/components/ui/Toast'
 import { useSession } from '@/features/sessions/hooks/useSession'
 import { useDeleteSession } from '@/features/sessions/hooks/useDeleteSession'
+import { useProAccessGate } from '@/features/billing/ProAccessGate'
 import { useWedding } from '@/features/weddings/hooks/useWedding'
 import { getSessionDisplayName } from '@/features/sessions/presentation/getSessionDisplayName'
 import { formatSessionType } from '@/features/sessions/presentation/sessionType'
@@ -29,11 +30,12 @@ function countdownLabel(date: string): string | null {
 export function SessionDetailPage() {
   const { sessionId = '' } = useParams()
   const navigate = useNavigate()
+  const { showToast } = useToast()
+  const { requirePro } = useProAccessGate()
   const { data: session, isLoading, isError, error } = useSession(sessionId)
   const linkedId = session?.linkedWeddingId ?? ''
   const { data: linkedWedding } = useWedding(linkedId)
   const deleteSession = useDeleteSession()
-  const { showToast } = useToast()
 
   if (isLoading) {
     return (
@@ -81,6 +83,8 @@ export function SessionDetailPage() {
   async function handleDelete() {
     const current = session
     if (!current) return
+    const allowed = requirePro()
+    if (!allowed) return
     if (
       !window.confirm(
         `Usunąć sesję „${name}"? Tej operacji nie można cofnąć.`,

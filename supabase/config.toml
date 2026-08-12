@@ -1,0 +1,3 @@
+# Function JWT settings (Database Webhooks use NOTIFICATION_DISPATCH_SECRET in authorize()).
+[functions.notification-email-dispatcher]
+verify_jwt = false

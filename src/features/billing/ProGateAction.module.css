@@ -1,0 +1,15 @@
+.action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  cursor: pointer;
+}
+
+.locked {
+  opacity: 0.72;
+}
+
+.lock {
+  flex-shrink: 0;
+  color: currentColor;
+}

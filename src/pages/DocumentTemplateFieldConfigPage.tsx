@@ -74,7 +74,7 @@ export function DocumentTemplateFieldConfigPage() {
         <PageContainer width="wide">
           <EmptyState
             title="Brak wykrytych pól"
-            description="Uruchom analizę w Laboratorium umów AI, aby przygotować propozycję konfiguracji, albo wróć po zapisaniu konfiguracji z laboratorium."
+            description="Uruchom analizę szablonu, aby przygotować propozycję konfiguracji, albo wróć do szczegółów szablonu."
             action={
               <div className={styles.configSlotActions}>
                 <Button
@@ -85,13 +85,6 @@ export function DocumentTemplateFieldConfigPage() {
                   }
                 >
                   Wróć do szablonu
-                </Button>
-                <Button
-                  type="button"
-                  variant="primary"
-                  onClick={() => navigate('/laboratorium-umow-ai')}
-                >
-                  Otwórz laboratorium
                 </Button>
               </div>
             }

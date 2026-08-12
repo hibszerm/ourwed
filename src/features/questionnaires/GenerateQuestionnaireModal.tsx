@@ -1,6 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
+import { useProAccessGate } from '@/features/billing/ProAccessGate'
+import {
+  isProAccessRequiredError,
+  toProAccessUserMessage,
+} from '@/features/billing/proAccessError'
 import { questionnaireService } from '@/lib/api/questionnaireService'
 import styles from './Questionnaires.module.css'
 
@@ -16,22 +21,27 @@ export function GenerateQuestionnaireModal({
   onClose,
   onGenerated,
 }: GenerateQuestionnaireModalProps) {
+  const { requirePro, openUpgradeDialog } = useProAccessGate()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<{
     formUrl: string
     formName: string
   } | null>(null)
-
-  useEffect(() => {
+  const [wasOpen, setWasOpen] = useState(open)
+  if (open !== wasOpen) {
+    setWasOpen(open)
     if (!open) {
       setResult(null)
       setError(null)
       setBusy(false)
     }
-  }, [open])
+  }
 
   async function handleGenerate() {
+    if (!requirePro(undefined, { actionKey: 'generate_questionnaire_link' })) {
+      return
+    }
     setBusy(true)
     setError(null)
     try {
@@ -41,6 +51,11 @@ export function GenerateQuestionnaireModal({
       setResult({ formUrl: generated.formUrl, formName: generated.formName })
       onGenerated()
     } catch (err) {
+      if (isProAccessRequiredError(err)) {
+        setError(toProAccessUserMessage())
+        openUpgradeDialog('pro_required_action', 'generate_questionnaire_link')
+        return
+      }
       setError(
         err instanceof Error ? err.message : 'Nie udało się wygenerować ankiety.',
       )

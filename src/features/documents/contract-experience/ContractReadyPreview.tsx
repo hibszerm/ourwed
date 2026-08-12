@@ -1,13 +1,13 @@
 /**
- * Production contract ready screen: DOCX preview by default,
- * optional experimental PDF (Gotenberg) on explicit user request.
+ * Production contract ready screen: DOCX preview + Cloudmersive PDF download.
+ * PDF converts the exact final generated DOCX (no HTML rewrite).
  */
 
 import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import type { FriendlyQualitySummary } from '@/features/documents/template/payment-schedule'
 import { ContractDocxPreview } from './ContractDocxPreview'
-import { ExperimentalPdfActions } from './ExperimentalPdfActions'
+import { ContractPdfActions } from './ContractPdfActions'
 import styles from './ContractReadyPreview.module.css'
 
 export function ContractReadyPreview(props: {
@@ -19,6 +19,8 @@ export function ContractReadyPreview(props: {
   onEditPaymentSchedule?: () => void
   qualitySummary?: FriendlyQualitySummary | null
   runId?: string
+  weddingId?: string
+  documentId?: string
 }) {
   const [docxRetryKey, setDocxRetryKey] = useState(0)
 
@@ -34,6 +36,13 @@ export function ContractReadyPreview(props: {
           <Button type="button" variant="primary" onClick={props.onDownloadDocx}>
             Pobierz DOCX
           </Button>
+          <ContractPdfActions
+            compact
+            docxBytes={props.docxBytes}
+            fileName={props.fileName}
+            weddingId={props.weddingId}
+            documentId={props.documentId}
+          />
           {props.onEditPaymentSchedule ? (
             <Button
               type="button"
@@ -98,12 +107,6 @@ export function ContractReadyPreview(props: {
         key={docxRetryKey}
         source={props.docxBytes}
         onRetry={() => setDocxRetryKey((n) => n + 1)}
-      />
-
-      <ExperimentalPdfActions
-        docxBytes={props.docxBytes}
-        fileName={props.fileName}
-        runId={props.runId}
       />
     </section>
   )

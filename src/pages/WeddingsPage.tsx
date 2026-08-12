@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
 import { AppLayout } from '@/layouts/AppLayout'
 import { Button } from '@/components/ui/Button'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { PageContainer } from '@/components/ui/PageContainer'
+import { ProGateNavButton } from '@/features/billing/ProGateNavButton'
 import { useWeddings } from '@/features/weddings/hooks/useWeddings'
 import { WeddingCard } from '@/features/weddings/components/WeddingCard'
 import { WeddingList } from '@/features/weddings/components/WeddingList'
@@ -44,12 +44,12 @@ export function WeddingsPage() {
           {!isLoading && !isError && weddings && weddings.length > 0 ? (
             <WeddingsViewSwitch value={viewMode} onChange={handleViewChange} />
           ) : null}
-          <Link to="/sluby/import">
-            <Button variant="secondary">Importuj z pliku</Button>
-          </Link>
-          <Link to="/sluby/nowy">
-            <Button variant="primary">Nowy ślub</Button>
-          </Link>
+          <ProGateNavButton to="/sluby/import" variant="secondary" actionKey="create_wedding">
+            Importuj z pliku
+          </ProGateNavButton>
+          <ProGateNavButton to="/sluby/nowy" variant="primary" actionKey="create_wedding">
+            Nowy ślub
+          </ProGateNavButton>
         </div>
       }
     >

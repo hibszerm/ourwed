@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
 import { AppLayout } from '@/layouts/AppLayout'
 import { Button } from '@/components/ui/Button'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { PageContainer } from '@/components/ui/PageContainer'
+import { ProGateNavButton } from '@/features/billing/ProGateNavButton'
 import { useSessions } from '@/features/sessions/hooks/useSessions'
 import { SessionCard } from '@/features/sessions/components/SessionCard'
 import { SessionList } from '@/features/sessions/components/SessionList'
@@ -44,9 +44,9 @@ export function SessionsPage() {
           {!isLoading && !isError && sessions && sessions.length > 0 ? (
             <SessionsViewSwitch value={viewMode} onChange={handleViewChange} />
           ) : null}
-          <Link to="/sesje/nowa">
-            <Button variant="primary">Dodaj sesję</Button>
-          </Link>
+          <ProGateNavButton to="/sesje/nowa" variant="primary" actionKey="create_session">
+            Dodaj sesję
+          </ProGateNavButton>
         </div>
       }
     >

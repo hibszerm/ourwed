@@ -951,3 +951,19 @@ alter table public.travel_segments enable row level security;
 -- AI lifecycle: document_templates.ai_analyzed_at, questionnaire_form_id
 -- AI review: document_templates.meta jsonb (couple/studio/package variable plan)
 -- =============================================================================
+
+-- =============================================================================
+-- Subscription foundation (Phase 1 — provider-agnostic)
+-- =============================================================================
+-- Authoritative DDL + RPCs + RLS:
+--   supabase/migrations/20260811200000_subscription_foundation.sql
+--   supabase/migrations/20260811210000_admin_users_subscription_filter.sql
+--
+-- Tables:
+--   billing_accounts (owner_user_id → public.users, future Studio membership root)
+--   account_subscriptions (trial / paid / manual override; provider_* nullable)
+-- Resolver: public.resolve_account_entitlement(billing_account_id, now)
+-- Customer: public.get_my_subscription_summary()
+-- Admin: admin_get_subscription_metrics, admin_list_subscriptions,
+--        admin_extend_trial, admin_grant_manual_pro, admin_revoke_manual_access
+-- =============================================================================

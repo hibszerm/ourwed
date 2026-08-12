@@ -277,9 +277,11 @@ await run('1. Feature flag gates route; lab hidden from product nav', () => {
   const r = readFileSync(router, 'utf8')
   assert(r.includes('isAiContractLabEnabled'), 'router gate')
   assert(r.includes('/laboratorium-umow-ai'), 'route path')
+  assert(r.includes('intentionally hidden'), 'route marked hidden from nav')
   const s = readFileSync(sidebar, 'utf8')
-  assert(s.includes('Laboratorium umów AI'), 'lab in product sidebar when flagged')
-  assert(s.includes('nav-ai-contract-lab'), 'lab nav test id present')
+  assert(!s.includes('Laboratorium umów AI'), 'lab not in product sidebar')
+  assert(!s.includes('nav-ai-contract-lab'), 'lab nav test id absent')
+  assert(!s.includes('Eksperymentalne'), 'experimental section absent')
 })
 
 await run('2. Production contract flow untouched', () => {

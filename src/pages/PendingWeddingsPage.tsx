@@ -7,6 +7,7 @@ import { Card, CardHeader } from '@/components/ui/Card'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
+import { useProAccessGate } from '@/features/billing/ProAccessGate'
 import { questionnaireService } from '@/lib/api/questionnaireService'
 import { formatShortDate } from '@/lib/utils/dates'
 import styles from '@/features/questionnaires/Questionnaires.module.css'
@@ -15,6 +16,7 @@ export function PendingWeddingsPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const userId = useStudioAuthId()
+  const { requirePro } = useProAccessGate()
   const [busyId, setBusyId] = useState<string | null>(null)
   const { data = [], isLoading, isError, error, refetch } = useQuery({
     queryKey: ['pending-questionnaires', userId],
@@ -23,6 +25,7 @@ export function PendingWeddingsPage() {
   })
 
   async function handleApprove(id: string) {
+    if (!requirePro()) return
     if (busyId) return
     setBusyId(id)
     try {
@@ -40,6 +43,7 @@ export function PendingWeddingsPage() {
   }
 
   async function handleReject(id: string) {
+    if (!requirePro()) return
     if (busyId) return
     setBusyId(id)
     try {

@@ -6,6 +6,7 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { Input } from '@/components/ui/Input'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
+import { useProAccessGate } from '@/features/billing/ProAccessGate'
 import { CompanySignatureSection } from '@/features/company/signature/CompanySignatureSection'
 import { buildCompanyHealth } from '@/features/company/companyHealth'
 import { companyDetailsService, companyDetailsQueryKey } from '@/lib/api/companyDetailsService'
@@ -119,6 +120,7 @@ function formToUpsertInput(form: FormState): UpsertCompanyDetailsInput {
 
 export function CompanyDetailsPage() {
   const userId = useStudioAuthId()
+  const { requirePro, isReadOnly } = useProAccessGate()
   const queryClient = useQueryClient()
   const queryKey = companyDetailsQueryKey(userId)
   const { data, dataUpdatedAt, isLoading, isError, error } = useQuery({
@@ -192,6 +194,7 @@ export function CompanyDetailsPage() {
   }, [data, dataUpdatedAt, isLoading])
 
   async function persist(reason: 'autosave' | 'flush' | 'retry' = 'autosave') {
+    if (!requirePro()) return
     const snapshot = formRef.current
     const serialized = serializeForm(snapshot)
     if (serialized === lastSavedRef.current) {
@@ -295,6 +298,7 @@ export function CompanyDetailsPage() {
   }, [queryClient, userId])
 
   function setField<K extends keyof FormState>(key: K, value: FormState[K]) {
+    if (isReadOnly) return
     dirtyRef.current = true
     setDirty(true)
     setSaveStatus('idle')
@@ -305,6 +309,7 @@ export function CompanyDetailsPage() {
     kind: 'logo' | 'signature' | 'stamp',
     fileList: FileList | null,
   ) {
+    if (!requirePro()) return
     const file = fileList?.[0]
     if (!file) return
     try {
@@ -428,11 +433,13 @@ export function CompanyDetailsPage() {
                   <Input
                     label="Nazwa firmy"
                     value={form.companyName}
+                    readOnly={isReadOnly}
                     onChange={(e) => setField('companyName', e.target.value)}
                   />
                   <Input
                     label="Właściciel / reprezentant"
                     value={form.ownerName}
+                    readOnly={isReadOnly}
                     onChange={(e) => setField('ownerName', e.target.value)}
                   />
                 </div>
@@ -440,38 +447,45 @@ export function CompanyDetailsPage() {
                   <Input
                     label="NIP"
                     value={form.nip}
+                    readOnly={isReadOnly}
                     onChange={(e) => setField('nip', e.target.value)}
                   />
                   <Input
                     label="REGON"
                     value={form.regon}
+                    readOnly={isReadOnly}
                     onChange={(e) => setField('regon', e.target.value)}
                   />
                   <Input
                     label="VAT ID"
                     value={form.vatId}
+                    readOnly={isReadOnly}
                     onChange={(e) => setField('vatId', e.target.value)}
                   />
                 </div>
                 <Input
                   label="Adres"
                   value={form.address}
+                  readOnly={isReadOnly}
                   onChange={(e) => setField('address', e.target.value)}
                 />
                 <div className={catalogStyles.row}>
                   <Input
                     label="Kod pocztowy"
                     value={form.postalCode}
+                    readOnly={isReadOnly}
                     onChange={(e) => setField('postalCode', e.target.value)}
                   />
                   <Input
                     label="Miasto"
                     value={form.city}
+                    readOnly={isReadOnly}
                     onChange={(e) => setField('city', e.target.value)}
                   />
                   <Input
                     label="Kraj"
                     value={form.country}
+                    readOnly={isReadOnly}
                     onChange={(e) => setField('country', e.target.value)}
                   />
                 </div>
@@ -488,16 +502,19 @@ export function CompanyDetailsPage() {
                   <Input
                     label="Numer konta"
                     value={form.bankAccount}
+                    readOnly={isReadOnly}
                     onChange={(e) => setField('bankAccount', e.target.value)}
                   />
                   <Input
                     label="IBAN"
                     value={form.iban}
+                    readOnly={isReadOnly}
                     onChange={(e) => setField('iban', e.target.value)}
                   />
                   <Input
                     label="SWIFT"
                     value={form.swift}
+                    readOnly={isReadOnly}
                     onChange={(e) => setField('swift', e.target.value)}
                   />
                 </div>
@@ -514,17 +531,20 @@ export function CompanyDetailsPage() {
                   <Input
                     label="Telefon"
                     value={form.phone}
+                    readOnly={isReadOnly}
                     onChange={(e) => setField('phone', e.target.value)}
                   />
                   <Input
                     label="E-mail"
                     type="email"
                     value={form.email}
+                    readOnly={isReadOnly}
                     onChange={(e) => setField('email', e.target.value)}
                   />
                   <Input
                     label="Strona WWW"
                     value={form.website}
+                    readOnly={isReadOnly}
                     onChange={(e) => setField('website', e.target.value)}
                   />
                 </div>
@@ -532,11 +552,13 @@ export function CompanyDetailsPage() {
                   <Input
                     label="Instagram"
                     value={form.instagram}
+                    readOnly={isReadOnly}
                     onChange={(e) => setField('instagram', e.target.value)}
                   />
                   <Input
                     label="Facebook"
                     value={form.facebook}
+                    readOnly={isReadOnly}
                     onChange={(e) => setField('facebook', e.target.value)}
                   />
                 </div>
@@ -556,6 +578,7 @@ export function CompanyDetailsPage() {
                     <input
                       type="file"
                       accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                      disabled={isReadOnly}
                       onChange={(e) => void onUpload('logo', e.target.files)}
                     />
                     {form.logoPath ? (
@@ -567,6 +590,7 @@ export function CompanyDetailsPage() {
                     <input
                       type="file"
                       accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                      disabled={isReadOnly}
                       onChange={(e) => void onUpload('stamp', e.target.files)}
                     />
                     {form.stampPath ? (

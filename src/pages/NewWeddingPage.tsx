@@ -9,6 +9,8 @@ import { PageContainer } from '@/components/ui/PageContainer'
 import { IconArrowLeft, IconChevronRight } from '@/components/icons'
 import { AddressField } from '@/features/forms/AddressField'
 import { useCreateWedding } from '@/features/weddings/hooks/useCreateWedding'
+import { useProAccessGate } from '@/features/billing/ProAccessGate'
+import { useProMutationPageGuard } from '@/features/billing/useProMutationPageGuard'
 import { useQuery } from '@tanstack/react-query'
 import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
 import { packageService } from '@/lib/api/packageService'
@@ -73,6 +75,8 @@ export function NewWeddingPage() {
   const [searchParams] = useSearchParams()
   const prefillDate = searchParams.get('date') ?? ''
   const createWedding = useCreateWedding()
+  const { requirePro } = useProAccessGate()
+  useProMutationPageGuard('/sluby')
   const userId = useStudioAuthId()
   const {
     data: packages,
@@ -193,6 +197,8 @@ export function NewWeddingPage() {
 
   const handleCreate = handleSubmit(async (data) => {
     if (step !== STEPS.length - 1) return
+    const allowed = requirePro()
+    if (!allowed) return
     try {
       const wedding = await createWedding.mutateAsync({
         partner1: data.partner1,

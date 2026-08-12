@@ -24,6 +24,8 @@ import { TravelSettingsPage } from '@/pages/TravelSettingsPage'
 import { SettingsPage } from '@/pages/SettingsPage'
 import { AppearanceSettingsPage } from '@/pages/AppearanceSettingsPage'
 import { AccountSettingsPage } from '@/pages/AccountSettingsPage'
+import { SubscriptionSettingsPage } from '@/pages/SubscriptionSettingsPage'
+import { NotificationSettingsPage } from '@/pages/NotificationSettingsPage'
 import { CalendarIntegrationsPage } from '@/pages/CalendarIntegrationsPage'
 import { CompanyDetailsPage } from '@/pages/CompanyDetailsPage'
 import { DocumentTemplateDetailPage } from '@/pages/DocumentTemplateDetailPage'
@@ -61,6 +63,8 @@ function RedirectTemplateDeepLink({
 
 const aiContractLabRoutes = isAiContractLabEnabled()
   ? [
+      // Internal / experimental — intentionally hidden from customer navigation.
+      // Routes remain reachable by direct URL when VITE_ENABLE_AI_CONTRACT_LAB=true.
       {
         path: '/laboratorium-umow-ai',
         lazy: async () => {
@@ -102,6 +106,7 @@ const aiContractLabRoutes = isAiContractLabEnabled()
 
 const devRoutes = import.meta.env.DEV
   ? [
+      // Internal / experimental — intentionally hidden from customer navigation.
       {
         path: '/dev/contract-analysis-eval',
         lazy: async () => {
@@ -135,6 +140,7 @@ export const router = createBrowserRouter([
         element: <ProtectedRoute />,
         children: [
           { path: '/dashboard', element: <DashboardPage /> },
+          // Internal / experimental — hidden from sidebar; direct URL retained.
           { path: '/dashboard-v2', element: <DashboardV2Page /> },
           { path: '/sluby', element: <WeddingsPage /> },
           { path: '/sluby/nowy', element: <NewWeddingPage /> },
@@ -222,6 +228,11 @@ export const router = createBrowserRouter([
       },
       { path: '/ustawienia', element: <SettingsPage /> },
       { path: '/ustawienia/konto', element: <AccountSettingsPage /> },
+      { path: '/ustawienia/subskrypcja', element: <SubscriptionSettingsPage /> },
+      {
+        path: '/ustawienia/powiadomienia',
+        element: <NotificationSettingsPage />,
+      },
       { path: '/ustawienia/wyglad', element: <AppearanceSettingsPage /> },
       { path: '/ustawienia/integracje', element: <CalendarIntegrationsPage /> },
       { path: '/ustawienia/firma', element: <CompanyDetailsPage /> },

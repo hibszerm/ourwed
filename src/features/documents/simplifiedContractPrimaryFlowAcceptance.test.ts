@@ -455,7 +455,7 @@ run('V — DOCX artifact is real and downloadable', () => {
   )
 })
 
-run('W — DOCX preview is authoritative; experimental PDF is optional', () => {
+run('W — DOCX preview is authoritative; production PDF via Cloudmersive', () => {
   const gen = source('src/pages/WeddingContractGenerationPage.tsx')
   assert(gen.includes('ContractReadyPreview'), 'ready preview component')
   assert(gen.includes('ContractDocxPreview'), 'docx-preview wired')
@@ -475,15 +475,21 @@ run('W — DOCX preview is authoritative; experimental PDF is optional', () => {
   )
   assert(
     source(
-      'src/features/documents/template/gotenbergPdfAdapter.ts',
-    ).includes('createGotenbergPdfAdapter'),
-    'gotenberg adapter present',
+      'src/features/documents/contract-experience/ContractReadyPreview.tsx',
+    ).includes('ContractPdfActions'),
+    'ready wires production PDF',
+  )
+  assert(
+    source(
+      'src/features/documents/pdf/contractPdfAdapter.ts',
+    ).includes("contract-docx-to-pdf"),
+    'production adapter uses Cloudmersive Edge',
   )
   assert(
     source(
       'src/features/documents/contract-experience/ExperimentalPdfActions.tsx',
     ).includes('isExperimentalPdfExportEnabled'),
-    'pdf gated by flag',
+    'lab pdf gated by flag',
   )
   assert(
     source(

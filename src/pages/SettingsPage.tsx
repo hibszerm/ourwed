@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { Bell, Building2, MapPin, Package, Palette, Plug, Users } from 'lucide-react'
+import { Bell, Building2, CreditCard, MapPin, Package, Palette, Plug, Users } from 'lucide-react'
 import { AppLayout } from '@/layouts/AppLayout'
 import { PageContainer } from '@/components/ui/PageContainer'
 import styles from '@/features/documents/DocumentsTemplates.module.css'
@@ -43,6 +43,12 @@ const accountLinks = [
     icon: Users,
   },
   {
+    to: '/ustawienia/subskrypcja',
+    title: 'Subskrypcja',
+    description: 'Trial, plan PRO i dostęp do funkcji OurWed.',
+    icon: CreditCard,
+  },
+  {
     title: 'Zespół',
     description: 'Zaproszenia i role współpracowników.',
     soon: true,
@@ -55,9 +61,9 @@ const accountLinks = [
     icon: Plug,
   },
   {
+    to: '/ustawienia/powiadomienia',
     title: 'Powiadomienia',
-    description: 'Alerty e-mail i w aplikacji.',
-    soon: true,
+    description: 'Alerty e-mail o uzupełnionych ankietach.',
     icon: Bell,
   },
 ] as const

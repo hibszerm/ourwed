@@ -1,11 +1,10 @@
 import { useEffect, useState } from 'react'
-import { NavLink, useNavigate } from 'react-router-dom'
+import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import {
   IconCalendar,
   IconClipboard,
   IconClose,
   IconDashboard,
-  IconFlask,
   IconInbox,
   IconSessions,
   IconSettings,
@@ -13,26 +12,23 @@ import {
 } from '@/components/icons'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { useCurrentStudioUser } from '@/features/auth/useCurrentStudioUser'
-import { isAiContractLabEnabled } from '@/features/ai-contract-lab/aiContractLabFlags'
+import { SidebarSubscriptionBlock } from '@/features/billing/SidebarSubscriptionBlock'
+import { useProAccessGate } from '@/features/billing/ProAccessGate'
+import { notificationService } from '@/lib/api/notificationService'
 import styles from './Sidebar.module.css'
 import catalogStyles from '@/features/studio/StudioCatalog.module.css'
 
 const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: IconDashboard, end: true },
-  {
-    to: '/dashboard-v2',
-    label: 'Dashboard V2 (Beta)',
-    icon: IconDashboard,
-    end: true,
-  },
   { to: '/sluby', label: 'Śluby', icon: IconWeddings },
   { to: '/sesje', label: 'Sesje', icon: IconSessions },
   { to: '/kalendarz', label: 'Kalendarz', icon: IconCalendar },
   { to: '/oczekujace', label: 'Oczekujące', icon: IconInbox },
 ]
 
+/** Match /ankiety and all authenticated Ankiety subroutes. */
 const questionnaireItems = [
-  { to: '/ankiety', label: 'Ankiety', end: true },
+  { to: '/ankiety', label: 'Ankiety', end: false },
 ]
 
 const companyItems = [
@@ -49,7 +45,9 @@ interface SidebarProps {
 export function Sidebar({ open = false, onClose, onNavigate }: SidebarProps) {
   const { logout, user } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const [isMobile, setIsMobile] = useState(false)
+  const [unreadCount, setUnreadCount] = useState(0)
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 767px)')
@@ -59,7 +57,24 @@ export function Sidebar({ open = false, onClose, onNavigate }: SidebarProps) {
     return () => mq.removeEventListener('change', sync)
   }, [])
 
+  useEffect(() => {
+    let cancelled = false
+    void notificationService
+      .unreadCount()
+      .then((n) => {
+        if (!cancelled) setUnreadCount(n)
+      })
+      .catch(() => {
+        if (!cancelled) setUnreadCount(0)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [location.pathname])
+
   const { data: studioUser } = useCurrentStudioUser()
+  const { entitlement, loading: subscriptionLoading, error: subscriptionError } =
+    useProAccessGate()
 
   const displayName = studioUser?.displayName ?? ''
   const displayRole = user?.role ?? ''
@@ -108,36 +123,16 @@ export function Sidebar({ open = false, onClose, onNavigate }: SidebarProps) {
           >
             <Icon className={styles.navIcon} />
             <span>{label}</span>
+            {to === '/dashboard' && unreadCount > 0 ? (
+              <span
+                className={styles.navBadge}
+                aria-label={`${unreadCount} nieprzeczytane powiadomienia`}
+              >
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </span>
+            ) : null}
           </NavLink>
         ))}
-
-        {isAiContractLabEnabled() ? (
-          <div className={catalogStyles.navGroup}>
-            <p className={styles.studioGroupLabel}>Eksperymentalne</p>
-            <NavLink
-              to="/laboratorium-umow-ai"
-              onClick={onNavigate}
-              data-testid="nav-ai-contract-lab"
-              className={({ isActive }) =>
-                `${styles.navItem} ${isActive ? styles.active : ''}`
-              }
-            >
-              <IconFlask className={styles.navIcon} />
-              <span>Laboratorium mapowania</span>
-            </NavLink>
-            <NavLink
-              to="/eksperymenty/umowy-ai-transform"
-              onClick={onNavigate}
-              data-testid="nav-ai-contract-transform"
-              className={({ isActive }) =>
-                `${styles.navItem} ${isActive ? styles.active : ''}`
-              }
-            >
-              <IconFlask className={styles.navIcon} />
-              <span>Laboratorium porównania umów</span>
-            </NavLink>
-          </div>
-        ) : null}
 
         <div className={catalogStyles.navGroup}>
           <p className={styles.studioGroupLabel}>Ankiety</p>
@@ -188,6 +183,12 @@ export function Sidebar({ open = false, onClose, onNavigate }: SidebarProps) {
       </nav>
 
       <div className={styles.footer}>
+        <SidebarSubscriptionBlock
+          loading={subscriptionLoading}
+          error={subscriptionError}
+          entitlement={entitlement}
+          onNavigate={onNavigate}
+        />
         <div className={styles.userMenu}>
           <div className={styles.user}>
             <div className={styles.userAvatar}>{avatarLetter}</div>

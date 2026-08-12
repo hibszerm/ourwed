@@ -1,20 +1,13 @@
 /**
- * Edge Function: convert final DOCX bytes to PDF via self-hosted Gotenberg (LibreOffice).
+ * Edge Function: convert DOCX bytes to PDF via Gotenberg (LibreOffice).
+ * LAB / DEV comparison only — NOT production contract PDF.
+ *
+ * Production contract PDF uses Edge `contract-docx-to-pdf` → Cloudmersive.
  *
  * Secrets (never in Vite):
  *   GOTENBERG_URL=http://localhost:3000
  *   GOTENBERG_API_KEY=            (optional)
  *   ENABLE_EXPERIMENTAL_PDF_EXPORT=true
- *
- * Deploy:
- *   supabase functions deploy docx-to-pdf
- *   supabase secrets set GOTENBERG_URL=... ENABLE_EXPERIMENTAL_PDF_EXPORT=true
- *
- * Local Gotenberg:
- *   docker run --rm -p 3000:3000 gotenberg/gotenberg:8
- *
- * Production hosting of Gotenberg may incur infrastructure cost. Use HTTPS and
- * network access restrictions when Gotenberg is remote.
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'

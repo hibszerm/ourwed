@@ -46,6 +46,7 @@ import {
 import { useInvalidateWedding } from '@/features/weddings/hooks/useInvalidateWedding'
 import { useWedding } from '@/features/weddings/hooks/useWedding'
 import { getWeddingDisplayName } from '@/features/weddings/presentation/getWeddingDisplayName'
+import { useProMutationPageGuard } from '@/features/billing/useProMutationPageGuard'
 import { weddingActionsService } from '@/lib/api/weddingActionsService'
 import styles from './WeddingContractGenerationPage.module.css'
 
@@ -88,6 +89,7 @@ export function WeddingContractGenerationPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const invalidateWedding = useInvalidateWedding()
+  useProMutationPageGuard(weddingId ? `/sluby/${weddingId}` : '/sluby')
   const { data: wedding, isLoading: weddingLoading } = useWedding(weddingId)
 
   const packageContractQuery = useQuery({
@@ -1373,6 +1375,7 @@ export function WeddingContractGenerationPage() {
             }
             qualitySummary={qualitySummary}
             runId={generationRunId ?? undefined}
+            weddingId={wedding.id}
           />
         ) : null}
 

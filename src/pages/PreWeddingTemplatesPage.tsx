@@ -1,7 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { AppLayout } from '@/layouts/AppLayout'
 import { Button } from '@/components/ui/Button'
+import { PageContainer } from '@/components/ui/PageContainer'
+import { useProAccessGate } from '@/features/billing/ProAccessGate'
+import { LocalReadOnlyNotice } from '@/features/billing/LocalReadOnlyNotice'
 import {
   QUESTIONNAIRE_TEMPLATES_QUERY_KEY,
   questionnaireTemplateService,
@@ -242,6 +246,12 @@ function SectionEditor({
   onMoveDown?: () => void
   onAddQuestion: () => void
 }) {
+  const { requirePro } = useProAccessGate()
+
+  function mutateStructure(fn: () => void) {
+    requirePro(fn, { actionKey: 'edit_questionnaire_template' })
+  }
+
   return (
     <div className={styles.sectionEditor} data-testid={`section-editor-${section.id}`}>
       <div className={styles.sectionEditorHeader}>
@@ -271,18 +281,24 @@ function SectionEditor({
               onChange({ ...section, questions })
             }}
             onDelete={() => {
-              const questions = section.questions.filter((_, i) => i !== qi)
-              onChange({ ...section, questions })
+              mutateStructure(() => {
+                const questions = section.questions.filter((_, i) => i !== qi)
+                onChange({ ...section, questions })
+              })
             }}
             onMoveUp={qi > 0 ? () => {
-              const questions = [...section.questions]
-              ;[questions[qi - 1], questions[qi]] = [questions[qi], questions[qi - 1]]
-              onChange({ ...section, questions })
+              mutateStructure(() => {
+                const questions = [...section.questions]
+                ;[questions[qi - 1], questions[qi]] = [questions[qi], questions[qi - 1]]
+                onChange({ ...section, questions })
+              })
             } : undefined}
             onMoveDown={qi < section.questions.length - 1 ? () => {
-              const questions = [...section.questions]
-              ;[questions[qi], questions[qi + 1]] = [questions[qi + 1], questions[qi]]
-              onChange({ ...section, questions })
+              mutateStructure(() => {
+                const questions = [...section.questions]
+                ;[questions[qi], questions[qi + 1]] = [questions[qi + 1], questions[qi]]
+                onChange({ ...section, questions })
+              })
             } : undefined}
           />
         ))}
@@ -341,6 +357,7 @@ function TemplateEditor({
   onBackToLibrary?: () => void
   saving: boolean
 }) {
+  const { requirePro, isReadOnly } = useProAccessGate()
   const [name, setName] = useState(template?.name ?? '')
   const [title, setTitle] = useState(template?.title ?? '')
   const [introduction, setIntroduction] = useState(template?.introduction ?? '')
@@ -365,47 +382,77 @@ function TemplateEditor({
   }
 
   function deleteSection(idx: number) {
-    setSchema({ ...schema, sections: schema.sections.filter((_, i) => i !== idx) })
+    requirePro(
+      () => {
+        setSchema({ ...schema, sections: schema.sections.filter((_, i) => i !== idx) })
+      },
+      { actionKey: 'edit_questionnaire_template' },
+    )
   }
 
   function addSection() {
-    setSchema({ ...schema, sections: [...schema.sections, newSection()] })
+    requirePro(
+      () => {
+        setSchema({ ...schema, sections: [...schema.sections, newSection()] })
+      },
+      { actionKey: 'edit_questionnaire_template' },
+    )
   }
 
   function moveSectionUp(idx: number) {
     if (idx === 0) return
-    const sections = [...schema.sections]
-    ;[sections[idx - 1], sections[idx]] = [sections[idx], sections[idx - 1]]
-    setSchema({ ...schema, sections })
+    requirePro(
+      () => {
+        const sections = [...schema.sections]
+        ;[sections[idx - 1], sections[idx]] = [sections[idx], sections[idx - 1]]
+        setSchema({ ...schema, sections })
+      },
+      { actionKey: 'edit_questionnaire_template' },
+    )
   }
 
   function moveSectionDown(idx: number) {
     if (idx >= schema.sections.length - 1) return
-    const sections = [...schema.sections]
-    ;[sections[idx], sections[idx + 1]] = [sections[idx + 1], sections[idx]]
-    setSchema({ ...schema, sections })
+    requirePro(
+      () => {
+        const sections = [...schema.sections]
+        ;[sections[idx], sections[idx + 1]] = [sections[idx + 1], sections[idx]]
+        setSchema({ ...schema, sections })
+      },
+      { actionKey: 'edit_questionnaire_template' },
+    )
   }
 
   function trySave() {
-    const nextErrors = validateQuestionnaireTemplate({ name, title, schema })
-    setErrors(nextErrors)
-    if (nextErrors.length > 0) return
-    onSave(name, title, introduction, schema)
+    requirePro(
+      () => {
+        const nextErrors = validateQuestionnaireTemplate({ name, title, schema })
+        setErrors(nextErrors)
+        if (nextErrors.length > 0) return
+        onSave(name, title, introduction, schema)
+      },
+      { actionKey: 'edit_questionnaire_template' },
+    )
   }
 
   function trySaveAsNew() {
     if (!onSaveAsNew) return
-    const newName = window.prompt('Nazwa nowej ankiety', `${name.trim()} — kopia`)
-    if (newName === null) return
-    const nextErrors = validateQuestionnaireTemplate({
-      name: newName,
-      title,
-      schema,
-    })
-    setErrors(nextErrors)
-    if (nextErrors.length > 0) return
-    onSaveAsNew(newName, title, introduction, schema)
-    setMoreOpen(false)
+    requirePro(
+      () => {
+        const newName = window.prompt('Nazwa nowej ankiety', `${name.trim()} — kopia`)
+        if (newName === null) return
+        const nextErrors = validateQuestionnaireTemplate({
+          name: newName,
+          title,
+          schema,
+        })
+        setErrors(nextErrors)
+        if (nextErrors.length > 0) return
+        onSaveAsNew(newName, title, introduction, schema)
+        setMoreOpen(false)
+      },
+      { actionKey: 'create_questionnaire' },
+    )
   }
 
   return (
@@ -462,6 +509,8 @@ function TemplateEditor({
           </Button>
         </div>
       </div>
+
+      <LocalReadOnlyNotice visible={isReadOnly} />
 
       {errors.length > 0 ? (
         <ul className={styles.errorList} role="alert" data-testid="template-validation-errors">
@@ -520,10 +569,15 @@ function TemplateEditor({
             onMoveUp={si > 0 ? () => moveSectionUp(si) : undefined}
             onMoveDown={si < schema.sections.length - 1 ? () => moveSectionDown(si) : undefined}
             onAddQuestion={() => {
-              updateSection(si, {
-                ...section,
-                questions: [...section.questions, newQuestion()],
-              })
+              requirePro(
+                () => {
+                  updateSection(si, {
+                    ...section,
+                    questions: [...section.questions, newQuestion()],
+                  })
+                },
+                { actionKey: 'edit_questionnaire_template' },
+              )
             }}
           />
         ))}
@@ -547,6 +601,7 @@ export function PreWeddingTemplatesPage({
 } = {}) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
+  const { requirePro, isReadOnly } = useProAccessGate()
   const [selectedTemplate, setSelectedTemplate] = useState<QuestionnaireTemplate | null>(null)
   const [isCreating, setIsCreating] = useState(false)
   const libraryMode = Boolean(initialTemplateId)
@@ -685,15 +740,17 @@ export function PreWeddingTemplatesPage({
   const showEditor = isCreating || Boolean(selectedTemplate)
 
   return (
-    <div className={styles.page} data-testid="prewedding-templates-page">
-      {!libraryMode ? (
-        <div className={styles.pageHeader}>
-          <h1 className={styles.pageTitle}>Ankiety przedślubne</h1>
-          <p className={styles.pageDescription}>
-            Konfiguruj szablony ankiet, które możesz wysłać do par przed dniem ślubu.
-          </p>
-        </div>
-      ) : null}
+    <AppLayout
+      title={libraryMode ? 'Edytor ankiety przedślubnej' : 'Ankiety przedślubne'}
+      subtitle={
+        libraryMode
+          ? 'Konfiguracja szablonu — zapis wymaga PRO, gdy Trial wygasł.'
+          : 'Konfiguruj szablony ankiet, które możesz wysłać do par przed dniem ślubu.'
+      }
+    >
+      <PageContainer width="wide">
+        <div className={styles.page} data-testid="prewedding-templates-page">
+          <LocalReadOnlyNotice visible={isReadOnly} />
 
       <div className={libraryMode ? styles.pageBodyEditorOnly : styles.pageBody}>
         {!libraryMode ? (
@@ -708,17 +765,37 @@ export function PreWeddingTemplatesPage({
                   setIsCreating(false)
                 }}
                 onNew={() => {
-                  setSelectedTemplate(null)
-                  setIsCreating(true)
+                  requirePro(
+                    () => {
+                      setSelectedTemplate(null)
+                      setIsCreating(true)
+                    },
+                    { actionKey: 'create_questionnaire' },
+                  )
                 }}
-                onDuplicate={(t) => duplicateMutation.mutate(t)}
+                onDuplicate={(t) =>
+                  requirePro(
+                    () => duplicateMutation.mutate(t),
+                    { actionKey: 'edit_questionnaire_template' },
+                  )
+                }
                 onArchive={(t) => {
-                  if (window.confirm(`Zarchiwizować szablon „${t.name}"?`)) {
-                    archiveMutation.mutate(t)
-                    if (selectedTemplate?.id === t.id) setSelectedTemplate(null)
-                  }
+                  requirePro(
+                    () => {
+                      if (window.confirm(`Zarchiwizować szablon „${t.name}"?`)) {
+                        archiveMutation.mutate(t)
+                        if (selectedTemplate?.id === t.id) setSelectedTemplate(null)
+                      }
+                    },
+                    { actionKey: 'edit_questionnaire_template' },
+                  )
                 }}
-                onSetDefault={(t) => setDefaultMutation.mutate(t)}
+                onSetDefault={(t) =>
+                  requirePro(
+                    () => setDefaultMutation.mutate(t),
+                    { actionKey: 'edit_questionnaire_template' },
+                  )
+                }
                 selectedId={selectedTemplate?.id}
               />
             )}
@@ -727,7 +804,12 @@ export function PreWeddingTemplatesPage({
               <Button
                 variant="secondary"
                 size="sm"
-                onClick={() => initSeed.mutate()}
+                onClick={() =>
+                  requirePro(
+                    () => initSeed.mutate(),
+                    { actionKey: 'create_questionnaire' },
+                  )
+                }
                 disabled={initSeed.isPending}
                 data-testid="seed-default-btn"
               >
@@ -761,6 +843,8 @@ export function PreWeddingTemplatesPage({
           )}
         </div>
       </div>
-    </div>
+        </div>
+      </PageContainer>
+    </AppLayout>
   )
 }

@@ -1,0 +1,99 @@
+.block {
+  display: block;
+  margin: 0 0 var(--space-3);
+  padding: 0.7rem 0.75rem;
+  border-radius: var(--radius-md, 10px);
+  border: 1px solid var(--color-sidebar-border, rgba(255, 255, 255, 0.08));
+  background: rgba(255, 255, 255, 0.03);
+  text-decoration: none;
+  color: inherit;
+  transition: background 0.18s ease, border-color 0.18s ease;
+}
+
+.block:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+.tone_warm {
+  border-color: rgba(196, 140, 72, 0.35);
+  background: rgba(196, 140, 72, 0.08);
+}
+
+.tone_warmStrong {
+  border-color: rgba(196, 140, 72, 0.5);
+  background: rgba(196, 140, 72, 0.14);
+}
+
+.tone_muted {
+  opacity: 0.92;
+}
+
+.row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.title {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  color: var(--color-sidebar-text-active, #fff);
+}
+
+.subtitle {
+  margin: 0.2rem 0 0;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: var(--color-sidebar-text, rgba(255, 255, 255, 0.65));
+}
+
+.cta {
+  flex-shrink: 0;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--color-sidebar-text-active, #fff);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.rail {
+  margin-top: 0.55rem;
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.railFill {
+  height: 100%;
+  border-radius: inherit;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.skelTitle,
+.skelLine,
+.skelRail {
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.skelTitle {
+  width: 42%;
+  height: 0.7rem;
+}
+
+.skelLine {
+  width: 78%;
+  height: 0.55rem;
+  margin-top: 0.4rem;
+}
+
+.skelRail {
+  width: 100%;
+  height: 3px;
+  margin-top: 0.55rem;
+}

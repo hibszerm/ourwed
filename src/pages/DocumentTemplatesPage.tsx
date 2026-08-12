@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { useToast } from '@/components/ui/Toast'
+import { useProAccessGate } from '@/features/billing/ProAccessGate'
 import {
   useDocumentTemplateMutations,
   useDocumentTemplates,
@@ -26,6 +27,7 @@ export function DocumentTemplatesPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { showToast } = useToast()
+  const { requirePro } = useProAccessGate()
   const fileRef = useRef<HTMLInputElement>(null)
   const replaceRef = useRef<HTMLInputElement>(null)
   const {
@@ -77,10 +79,12 @@ export function DocumentTemplatesPage() {
     useState<DocumentTemplateSummary | null>(null)
 
   function openUploadPicker() {
+    if (!requirePro()) return
     fileRef.current?.click()
   }
 
   async function onFilePicked(file: File) {
+    if (!requirePro()) return
     const validation = validateContractDocx(file)
     if (!validation.ok) {
       showToast(validation.message, 'error')
@@ -93,6 +97,7 @@ export function DocumentTemplatesPage() {
   }
 
   async function handleDelete() {
+    if (!requirePro()) return
     if (!deleteTarget) return
     try {
       await remove.mutateAsync(deleteTarget.id)
@@ -107,6 +112,7 @@ export function DocumentTemplatesPage() {
   }
 
   async function handleDuplicate(template: DocumentTemplateSummary) {
+    if (!requirePro()) return
     try {
       const copy = await duplicate.mutateAsync(template.id)
       showToast('Szablon zduplikowany.', 'success')
@@ -120,6 +126,7 @@ export function DocumentTemplatesPage() {
   }
 
   async function handleReplace(file: File) {
+    if (!requirePro()) return
     if (!replaceTarget) return
     const validation = validateContractDocx(file)
     if (!validation.ok) {
@@ -274,14 +281,16 @@ export function DocumentTemplatesPage() {
                 <ContractCard
                   key={t.id}
                   template={t}
-                  onRename={() => setRenameTarget(t)}
+                  onRename={() => requirePro(() => setRenameTarget(t))}
                   onDuplicate={() => void handleDuplicate(t)}
                   onReplace={() => {
-                    setReplaceTarget(t)
-                    replaceRef.current?.click()
+                    requirePro(() => {
+                      setReplaceTarget(t)
+                      replaceRef.current?.click()
+                    })
                   }}
                   onReanalyze={() => void handleReanalyze(t)}
-                  onDelete={() => setDeleteTarget(t)}
+                  onDelete={() => requirePro(() => setDeleteTarget(t))}
                   onUse={() => navigate(`/ustawienia/dokumenty/szablony/${t.id}`)}
                 />
               ))}
@@ -326,6 +335,7 @@ export function DocumentTemplatesPage() {
         initialDescription={renameTarget?.description ?? null}
         onClose={() => setRenameTarget(null)}
         onSubmit={async ({ name, description }) => {
+          if (!requirePro()) return
           if (!renameTarget) return
           await rename.mutateAsync({
             id: renameTarget.id,

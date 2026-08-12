@@ -7,6 +7,8 @@ import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
+import { useProAccessGate } from '@/features/billing/ProAccessGate'
+import { LocalReadOnlyNotice } from '@/features/billing/LocalReadOnlyNotice'
 import { companyDetailsService } from '@/lib/api/companyDetailsService'
 import { packageService } from '@/lib/api/packageService'
 import { extraServiceService } from '@/lib/api/extraServiceService'
@@ -46,6 +48,7 @@ function QuestionRow({
   onMoveUp,
   onMoveDown,
   defaultExpanded,
+  readOnly,
 }: {
   question: ContractEditorQuestion
   onChange: (q: ContractEditorQuestion) => void
@@ -53,6 +56,7 @@ function QuestionRow({
   onMoveUp?: () => void
   onMoveDown?: () => void
   defaultExpanded?: boolean
+  readOnly?: boolean
 }) {
   const [expanded, setExpanded] = useState(Boolean(defaultExpanded))
   const labelRef = useRef<HTMLInputElement>(null)
@@ -74,7 +78,7 @@ function QuestionRow({
           <button
             type="button"
             onClick={onMoveUp}
-            disabled={!onMoveUp}
+            disabled={readOnly || !onMoveUp}
             className={editorStyles.moveBtn}
             aria-label="Przesuń w górę"
           >
@@ -83,7 +87,7 @@ function QuestionRow({
           <button
             type="button"
             onClick={onMoveDown}
-            disabled={!onMoveDown}
+            disabled={readOnly || !onMoveDown}
             className={editorStyles.moveBtn}
             aria-label="Przesuń w dół"
           >
@@ -108,13 +112,21 @@ function QuestionRow({
           </span>
           <span className={editorStyles.expandIcon}>{expanded ? '▲' : '▼'}</span>
         </button>
-        {question.protected ? (
+        {question.protected || readOnly ? (
           <button
             type="button"
             className={editorStyles.deleteBtn}
             disabled
-            title="To pole jest potrzebne do przygotowania umowy i nie może zostać usunięte."
-            aria-label="Pole chronione — nie można usunąć"
+            title={
+              readOnly
+                ? 'Tryb tylko do odczytu'
+                : 'To pole jest potrzebne do przygotowania umowy i nie może zostać usunięte.'
+            }
+            aria-label={
+              readOnly
+                ? 'Tryb tylko do odczytu — nie można usunąć'
+                : 'Pole chronione — nie można usunąć'
+            }
           >
             ×
           </button>
@@ -145,6 +157,7 @@ function QuestionRow({
               type="text"
               className={editorStyles.fieldInput}
               value={question.label}
+              readOnly={readOnly}
               onChange={(e) => onChange({ ...question, label: e.target.value })}
               data-testid="question-label-input"
             />
@@ -155,7 +168,7 @@ function QuestionRow({
             <select
               className={editorStyles.fieldSelect}
               value={question.editorType}
-              disabled={question.typeLocked}
+              disabled={readOnly || question.typeLocked}
               onChange={(e) =>
                 onChange({ ...question, editorType: e.target.value })
               }
@@ -181,6 +194,7 @@ function QuestionRow({
                 <input
                   type="checkbox"
                   checked={question.required}
+                  disabled={readOnly}
                   onChange={(e) =>
                     onChange({ ...question, required: e.target.checked })
                   }
@@ -199,6 +213,7 @@ function QuestionRow({
                 className={editorStyles.fieldTextarea}
                 rows={4}
                 value={question.optionLabels.join('\n')}
+                readOnly={readOnly}
                 onChange={(e) =>
                   onChange({
                     ...question,
@@ -219,6 +234,7 @@ function QuestionRow({
               type="text"
               className={editorStyles.fieldInput}
               value={question.helpText}
+              readOnly={readOnly}
               onChange={(e) =>
                 onChange({ ...question, helpText: e.target.value })
               }
@@ -237,6 +253,7 @@ function SectionCard({
   onMoveUp,
   onMoveDown,
   focusQuestionId,
+  readOnly,
 }: {
   section: ContractEditorSection
   onChange: (s: ContractEditorSection) => void
@@ -244,16 +261,19 @@ function SectionCard({
   onMoveUp?: () => void
   onMoveDown?: () => void
   focusQuestionId?: string | null
+  readOnly?: boolean
 }) {
   const [addOpen, setAddOpen] = useState(false)
 
   function updateQuestion(qi: number, q: ContractEditorQuestion) {
+    if (readOnly) return
     const questions = [...section.questions]
     questions[qi] = q
     onChange({ ...section, questions })
   }
 
   function addQuestion(type: ContractAddableType) {
+    if (readOnly) return
     const q = createEditorQuestion(type)
     onChange({ ...section, questions: [...section.questions, q] })
     setAddOpen(false)
@@ -269,7 +289,7 @@ function SectionCard({
           <button
             type="button"
             onClick={onMoveUp}
-            disabled={!onMoveUp}
+            disabled={readOnly || !onMoveUp}
             className={editorStyles.moveBtn}
             aria-label="Przesuń sekcję w górę"
           >
@@ -278,7 +298,7 @@ function SectionCard({
           <button
             type="button"
             onClick={onMoveDown}
-            disabled={!onMoveDown}
+            disabled={readOnly || !onMoveDown}
             className={editorStyles.moveBtn}
             aria-label="Przesuń sekcję w dół"
           >
@@ -289,17 +309,24 @@ function SectionCard({
           type="text"
           className={editorStyles.sectionTitleInput}
           value={section.title}
+          readOnly={readOnly}
           onChange={(e) => onChange({ ...section, title: e.target.value })}
           placeholder="Nazwa sekcji"
           data-testid="section-title-input"
         />
-        {section.questions.some((q) => q.protected) ? (
+        {section.questions.some((q) => q.protected) || readOnly ? (
           <button
             type="button"
             className={editorStyles.deleteBtn}
             disabled
-            title="Sekcja zawiera pola potrzebne do umowy."
-            aria-label="Sekcja chroniona"
+            title={
+              readOnly
+                ? 'Tryb tylko do odczytu'
+                : 'Sekcja zawiera pola potrzebne do umowy.'
+            }
+            aria-label={
+              readOnly ? 'Tryb tylko do odczytu' : 'Sekcja chroniona'
+            }
           >
             ×
           </button>
@@ -320,17 +347,18 @@ function SectionCard({
           <QuestionRow
             key={q.id}
             question={q}
+            readOnly={readOnly}
             defaultExpanded={focusQuestionId === q.id}
             onChange={(updated) => updateQuestion(qi, updated)}
             onDelete={() => {
-              if (q.protected) return
+              if (readOnly || q.protected) return
               onChange({
                 ...section,
                 questions: section.questions.filter((_, i) => i !== qi),
               })
             }}
             onMoveUp={
-              qi > 0
+              !readOnly && qi > 0
                 ? () => {
                     const questions = [...section.questions]
                     ;[questions[qi - 1], questions[qi]] = [
@@ -342,7 +370,7 @@ function SectionCard({
                 : undefined
             }
             onMoveDown={
-              qi < section.questions.length - 1
+              !readOnly && qi < section.questions.length - 1
                 ? () => {
                     const questions = [...section.questions]
                     ;[questions[qi], questions[qi + 1]] = [
@@ -357,30 +385,32 @@ function SectionCard({
         ))}
       </div>
 
-      <div className={editorStyles.moreWrap}>
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={() => setAddOpen((v) => !v)}
-          data-testid="add-question-btn"
-        >
-          + Dodaj pytanie
-        </Button>
-        {addOpen ? (
-          <div className={editorStyles.menu} role="menu">
-            {CONTRACT_ADDABLE_TYPES.map((t) => (
-              <button
-                key={t}
-                type="button"
-                role="menuitem"
-                onClick={() => addQuestion(t)}
-              >
-                {CONTRACT_FIELD_TYPE_LABELS[t]}
-              </button>
-            ))}
-          </div>
-        ) : null}
-      </div>
+      {!readOnly ? (
+        <div className={editorStyles.moreWrap}>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setAddOpen((v) => !v)}
+            data-testid="add-question-btn"
+          >
+            + Dodaj pytanie
+          </Button>
+          {addOpen ? (
+            <div className={editorStyles.menu} role="menu">
+              {CONTRACT_ADDABLE_TYPES.map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  role="menuitem"
+                  onClick={() => addQuestion(t)}
+                >
+                  {CONTRACT_FIELD_TYPE_LABELS[t]}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -458,11 +488,14 @@ function ContractPreview({
 export function ContractQuestionnaireSectionEditor({
   initialConfig,
   dataUpdatedAt,
+  readOnly = false,
 }: {
   initialConfig?: ContractQuestionnaireConfig | null
   dataUpdatedAt?: number
+  readOnly?: boolean
 }) {
   const navigate = useNavigate()
+  const { requirePro } = useProAccessGate()
   const [hydratedAt, setHydratedAt] = useState(dataUpdatedAt)
   const [config, setConfig] = useState(() =>
     normalizeContractQuestionnaireConfig(initialConfig ?? null),
@@ -533,6 +566,7 @@ export function ContractQuestionnaireSectionEditor({
   }, [dirty])
 
   function markDirty(nextSections: ContractEditorSection[]) {
+    if (readOnly) return
     dirtyRef.current = true
     setDirty(true)
     setSaveStatus('dirty')
@@ -550,6 +584,12 @@ export function ContractQuestionnaireSectionEditor({
   }
 
   const persist = useEffectEvent(async () => {
+    if (
+      readOnly ||
+      !requirePro(undefined, { actionKey: 'edit_questionnaire_template' })
+    ) {
+      return
+    }
     const blocks = editorSectionsToBlocks(sections, config.blocks ?? [], {
       greeting: introduction,
       footer: config.footerText,
@@ -644,13 +684,20 @@ export function ContractQuestionnaireSectionEditor({
               size="sm"
               variant="primary"
               disabled={saveStatus === 'saving' || !dirty}
-              onClick={() => void persist()}
+              onClick={() => {
+                requirePro(
+                  () => void persist(),
+                  { actionKey: 'edit_questionnaire_template' },
+                )
+              }}
               data-testid="save-template-btn"
             >
               {saveStatus === 'saving' ? 'Zapisywanie…' : 'Zapisz'}
             </Button>
           </div>
         </div>
+
+        <LocalReadOnlyNotice visible={readOnly} />
 
         {saveError ? (
           <p className={editorStyles.errorList} role="alert">
@@ -666,7 +713,9 @@ export function ContractQuestionnaireSectionEditor({
               type="text"
               className={editorStyles.fieldInput}
               value={internalName}
+              readOnly={readOnly}
               onChange={(e) => {
+                if (readOnly) return
                 setInternalName(e.target.value)
                 dirtyRef.current = true
                 setDirty(true)
@@ -683,7 +732,9 @@ export function ContractQuestionnaireSectionEditor({
               type="text"
               className={editorStyles.fieldInput}
               value={clientTitle}
+              readOnly={readOnly}
               onChange={(e) => {
+                if (readOnly) return
                 setClientTitle(e.target.value)
                 dirtyRef.current = true
                 setDirty(true)
@@ -698,7 +749,9 @@ export function ContractQuestionnaireSectionEditor({
               className={editorStyles.fieldTextarea}
               rows={4}
               value={introduction}
+              readOnly={readOnly}
               onChange={(e) => {
+                if (readOnly) return
                 setIntroduction(e.target.value)
                 dirtyRef.current = true
                 setDirty(true)
@@ -720,6 +773,7 @@ export function ContractQuestionnaireSectionEditor({
             <SectionCard
               key={section.id}
               section={section}
+              readOnly={readOnly}
               focusQuestionId={focusQuestionId}
               onChange={(updated) => {
                 const next = [...sections]
@@ -734,11 +788,11 @@ export function ContractQuestionnaireSectionEditor({
                 markDirty(next)
               }}
               onDelete={() => {
-                if (section.questions.some((q) => q.protected)) return
+                if (readOnly || section.questions.some((q) => q.protected)) return
                 markDirty(sections.filter((_, i) => i !== si))
               }}
               onMoveUp={
-                si > 0
+                !readOnly && si > 0
                   ? () => {
                       const next = [...sections]
                       ;[next[si - 1], next[si]] = [next[si]!, next[si - 1]!]
@@ -747,7 +801,7 @@ export function ContractQuestionnaireSectionEditor({
                   : undefined
               }
               onMoveDown={
-                si < sections.length - 1
+                !readOnly && si < sections.length - 1
                   ? () => {
                       const next = [...sections]
                       ;[next[si], next[si + 1]] = [next[si + 1]!, next[si]!]
@@ -758,16 +812,18 @@ export function ContractQuestionnaireSectionEditor({
             />
           ))}
 
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => {
-              markDirty([...sections, createEditorSection()])
-            }}
-            data-testid="add-section-btn"
-          >
-            + Dodaj sekcję
-          </Button>
+          {!readOnly ? (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                markDirty([...sections, createEditorSection()])
+              }}
+              data-testid="add-section-btn"
+            >
+              + Dodaj sekcję
+            </Button>
+          ) : null}
         </div>
       </div>
 

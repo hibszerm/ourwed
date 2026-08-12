@@ -3,6 +3,12 @@ import { AppLayout } from '@/layouts/AppLayout'
 import { Button } from '@/components/ui/Button'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
+import { useProAccessGate } from '@/features/billing/ProAccessGate'
+import { ProLockIcon } from '@/features/billing/ProLockIcon'
+import {
+  PRO_LOCKED_ARIA,
+  PRO_LOCKED_HINT,
+} from '@/features/billing/proGateActions'
 import { ContractQuestionnaireSectionEditor } from '@/features/questionnaires/shared-editor/ContractQuestionnaireSectionEditor'
 import { GenerateQuestionnaireModal } from '@/features/questionnaires/GenerateQuestionnaireModal'
 import { companyDetailsService } from '@/lib/api/companyDetailsService'
@@ -11,6 +17,7 @@ import styles from '@/features/questionnaires/Questionnaires.module.css'
 
 export function ContractQuestionnaireEditorPage() {
   const userId = useStudioAuthId()
+  const { requirePro, isReadOnly } = useProAccessGate()
   const [generateOpen, setGenerateOpen] = useState(false)
   const { data, dataUpdatedAt, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['company-details', userId, 'questionnaire-config'],
@@ -30,8 +37,20 @@ export function ContractQuestionnaireEditorPage() {
           <Button
             type="button"
             variant="secondary"
-            onClick={() => setGenerateOpen(true)}
+            title={isReadOnly ? PRO_LOCKED_HINT : undefined}
+            aria-label={
+              isReadOnly
+                ? `Wygeneruj link — ${PRO_LOCKED_ARIA}`
+                : undefined
+            }
+            onClick={() =>
+              requirePro(
+                () => setGenerateOpen(true),
+                { actionKey: 'generate_questionnaire_link' },
+              )
+            }
           >
+            {isReadOnly ? <ProLockIcon /> : null}
             Wygeneruj link
           </Button>
         </div>
@@ -47,6 +66,7 @@ export function ContractQuestionnaireEditorPage() {
           <ContractQuestionnaireSectionEditor
             initialConfig={data?.questionnaireConfig}
             dataUpdatedAt={dataUpdatedAt}
+            readOnly={isReadOnly}
           />
         )}
         <GenerateQuestionnaireModal

@@ -9,6 +9,11 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { IconArrowLeft } from '@/components/icons'
 import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
+import { useProAccessGate } from '@/features/billing/ProAccessGate'
+import {
+  isProAccessRequiredError,
+  toProAccessUserMessage,
+} from '@/features/billing/proAccessError'
 import { QuestionnaireAnswersReadOnly } from '@/features/questionnaires/QuestionnaireAnswersReadOnly'
 import {
   QUESTIONNAIRE_STATUS_LABELS,
@@ -35,6 +40,7 @@ export function QuestionnaireDetailPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const userId = useStudioAuthId()
+  const { requirePro, openUpgradeDialog } = useProAccessGate()
   const [approving, setApproving] = useState(false)
 
   const { data, isLoading, isError, error, refetch } = useQuery({
@@ -88,6 +94,9 @@ export function QuestionnaireDetailPage() {
   }
 
   async function handleApprove() {
+    if (!requirePro(undefined, { actionKey: 'apply_questionnaire_responses' })) {
+      return
+    }
     if (approving) return
     setApproving(true)
     try {
@@ -96,6 +105,11 @@ export function QuestionnaireDetailPage() {
       await queryClient.invalidateQueries({ queryKey: ['weddings'] })
       navigate(`/sluby/${wedding.id}`)
     } catch (err) {
+      if (isProAccessRequiredError(err)) {
+        openUpgradeDialog('pro_required_action', 'apply_questionnaire_responses')
+        window.alert(toProAccessUserMessage())
+        return
+      }
       window.alert(err instanceof Error ? err.message : 'Nie udało się zatwierdzić.')
     } finally {
       setApproving(false)

@@ -673,6 +673,59 @@
   text-decoration: none;
 }
 
+.actionRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.85rem;
+}
+
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 1.25rem;
+  background: rgba(20, 24, 27, 0.42);
+}
+
+.modalCard {
+  width: min(440px, 100%);
+  padding: 1.35rem 1.25rem 1.2rem;
+  border-radius: 16px;
+  background: var(--admin-surface);
+  border: 1px solid var(--admin-border);
+  box-shadow: 0 24px 56px rgba(17, 17, 17, 0.16);
+}
+
+.modalCard h3 {
+  margin: 0 0 0.45rem;
+  font-size: 1.1rem;
+  font-weight: 650;
+}
+
+.modalBody {
+  margin: 0 0 1rem;
+  color: var(--admin-muted);
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+.modalActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.55rem;
+}
+
+.quietNote {
+  margin: 0.35rem 0 0;
+  color: var(--admin-muted);
+  font-size: 0.88rem;
+  line-height: 1.4;
+}
+
 @media (max-width: 1100px) {
   .metricRow,
   .row65_35,

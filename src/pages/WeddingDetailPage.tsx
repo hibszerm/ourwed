@@ -38,6 +38,7 @@ import {
   type MissingDataCorrectionKind,
 } from '@/lib/utils/validateContractGeneration'
 import type { QuestionnaireKind } from '@/lib/api/weddingActionsService'
+import { useProAccessGate } from '@/features/billing/ProAccessGate'
 import styles from './WeddingDetailPage.module.css'
 
 type ModalState =
@@ -54,6 +55,7 @@ export function WeddingDetailPage() {
   const queryClient = useQueryClient()
   const { showToast } = useToast()
   const userId = useStudioAuthId()
+  const { requirePro } = useProAccessGate()
   const { data: wedding, isLoading, isError, error, refetch } = useWedding(id ?? '')
 
   const { data: weddingTasks = [] } = useQuery({
@@ -169,13 +171,15 @@ export function WeddingDetailPage() {
   }
 
   function beginEdit(section: WeddingEditorSection = null) {
-    const next = createWeddingEditDraft(snapshot!)
-    setBaseline(snapshot!)
-    setDraft(next)
-    setSaveError(null)
-    setDiscardOpen(false)
-    setEditorSection(section ?? 'contacts')
-    setEditing(true)
+    requirePro(() => {
+      const next = createWeddingEditDraft(snapshot!)
+      setBaseline(snapshot!)
+      setDraft(next)
+      setSaveError(null)
+      setDiscardOpen(false)
+      setEditorSection(section ?? 'contacts')
+      setEditing(true)
+    })
   }
 
   function openEditor(section: WeddingEditorSection) {
@@ -221,6 +225,8 @@ export function WeddingDetailPage() {
 
   async function saveEdit() {
     if (!draft || !baseline) return
+    const allowed = requirePro()
+    if (!allowed) return
     setSaving(true)
     setSaveError(null)
     try {
@@ -251,6 +257,8 @@ export function WeddingDetailPage() {
    */
   async function handleGenerateContract() {
     if (!wedding || editing || generateGuardBusy) return
+    const allowed = requirePro()
+    if (!allowed) return
     setGenerateGuardBusy(true)
     setMissingValidation(null)
     try {
@@ -301,23 +309,25 @@ export function WeddingDetailPage() {
 
   function handleHeroAction(action: WeddingHeroAction) {
     if (editing) return
-    switch (action) {
-      case 'send_contract_questionnaire':
-        setModal({ type: 'questionnaire', kind: 'contractData' })
-        break
-      case 'generate_contract':
-        void handleGenerateContract()
-        break
-      case 'add_payment':
-        setModal({ type: 'payment', asDeposit: false })
-        break
-      case 'add_deposit':
-        setModal({ type: 'payment', asDeposit: true })
-        break
-      case 'add_note':
-        setModal({ type: 'note' })
-        break
-    }
+    requirePro(() => {
+      switch (action) {
+        case 'send_contract_questionnaire':
+          setModal({ type: 'questionnaire', kind: 'contractData' })
+          break
+        case 'generate_contract':
+          void handleGenerateContract()
+          break
+        case 'add_payment':
+          setModal({ type: 'payment', asDeposit: false })
+          break
+        case 'add_deposit':
+          setModal({ type: 'payment', asDeposit: true })
+          break
+        case 'add_note':
+          setModal({ type: 'note' })
+          break
+      }
+    })
   }
 
   function closeModal() {
@@ -354,16 +364,23 @@ export function WeddingDetailPage() {
     onCancelEdit: requestCancelEdit,
     saving,
     saveError,
-    onAddNote: editing ? undefined : () => setModal({ type: 'note' }),
+    onAddNote: editing
+      ? undefined
+      : () => requirePro(() => setModal({ type: 'note' })),
     onSendQuestionnaire: editing
       ? undefined
-      : (kind: QuestionnaireKind) => setModal({ type: 'questionnaire', kind }),
+      : (kind: QuestionnaireKind) =>
+          requirePro(() => setModal({ type: 'questionnaire', kind })),
     onArchive: async () => {
+      const allowed = requirePro()
+      if (!allowed) return
       await weddingService.archive(wedding.id)
       await queryClient.invalidateQueries({ queryKey: ['weddings'] })
       showToast('Ślub został zarchiwizowany.', 'success')
     },
     onDelete: async () => {
+      const allowed = requirePro()
+      if (!allowed) return
       await weddingService.delete(wedding.id)
       await queryClient.invalidateQueries({ queryKey: ['weddings'] })
       await queryClient.invalidateQueries({ queryKey: ['dashboard'] })

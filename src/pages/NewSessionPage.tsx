@@ -6,6 +6,8 @@ import { IconArrowLeft } from '@/components/icons'
 import { useToast } from '@/components/ui/Toast'
 import { SessionForm } from '@/features/sessions/components/SessionForm'
 import { useCreateSession } from '@/features/sessions/hooks/useCreateSession'
+import { useProAccessGate } from '@/features/billing/ProAccessGate'
+import { useProMutationPageGuard } from '@/features/billing/useProMutationPageGuard'
 
 function isDateKey(value: string | null): value is string {
   return Boolean(value && /^\d{4}-\d{2}-\d{2}$/.test(value))
@@ -15,6 +17,8 @@ export function NewSessionPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const createSession = useCreateSession()
+  const { requirePro } = useProAccessGate()
+  useProMutationPageGuard('/sesje')
   const { showToast } = useToast()
   const dateParam = searchParams.get('date')
   const defaultDate = isDateKey(dateParam) ? dateParam : undefined
@@ -40,6 +44,8 @@ export function NewSessionPage() {
           cancelTo="/sesje"
           pending={createSession.isPending}
           onSubmit={async (input) => {
+            const allowed = requirePro()
+            if (!allowed) return
             try {
               const session = await createSession.mutateAsync(input)
               showToast('Sesja została utworzona', 'success')

@@ -1,8 +1,70 @@
 /** Privacy-safe admin API contracts — Phase 2. No private customer fields. */
 
+import type { AccountEntitlement } from '@/lib/billing/entitlement'
+
 export type AdminMetricRange = 'today' | '7d' | '30d'
 
 export type AdminUserStatus = 'active' | 'unconfirmed' | 'banned' | 'inactive'
+
+export type AdminSubscriptionFilter =
+  | 'trial'
+  | 'trial_ending'
+  | 'pro'
+  | 'expired'
+  | 'manual'
+  | 'past_due'
+
+export type AdminSubscriptionMetrics = {
+  trialActive: number
+  trialEndingSoon: number
+  proActive: number
+  expired: number
+  manualAccess: number
+  paymentsConnected: boolean
+}
+
+export type AdminSubscriptionListItem = {
+  billingAccountId: string
+  userId: string
+  email: string | null
+  firstName: string | null
+  lastName: string | null
+  entitlement: AccountEntitlement
+  updatedAt: string
+}
+
+export type AdminSubscriptionListResult = {
+  total: number
+  items: AdminSubscriptionListItem[]
+}
+
+export type AdminUserSubscriptionDetail = {
+  entitlement: AccountEntitlement
+  subscription: {
+    id: string
+    status: string
+    plan: string
+    billingInterval: string | null
+    trialStartedAt: string | null
+    trialEndsAt: string | null
+    currentPeriodStartedAt: string | null
+    currentPeriodEndsAt: string | null
+    provider: string | null
+    providerStatus: string | null
+    providerCustomerId: string | null
+    providerSubscriptionId: string | null
+    manualAccessUntil: string | null
+    manualAccessIndefinite: boolean
+    createdAt: string
+    updatedAt: string
+  }
+}
+
+export type AdminSubscriptionMutationResult = {
+  ok: boolean
+  entitlement: AccountEntitlement
+  trialEndsAt?: string
+}
 
 export type AdminOverviewMetrics = {
   range: AdminMetricRange | string
@@ -97,6 +159,7 @@ export type AdminUserListItem = {
   sessions: number
   documents: number
   integrations: number
+  entitlement?: AccountEntitlement | null
 }
 
 export type AdminUserListResult = {

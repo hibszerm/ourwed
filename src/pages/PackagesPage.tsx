@@ -22,6 +22,7 @@ import {
 import type { PackageItem, StudioPackage } from '@/types/package'
 import { PackageContractSection } from '@/features/studio/PackageContractSection'
 import { PackageItemOverflowMenu } from '@/features/studio/PackageItemOverflowMenu'
+import { useProAccessGate } from '@/features/billing/ProAccessGate'
 import {
   nextOpenPackageItemId,
   sanitizeOpenPackageItemId,
@@ -47,6 +48,7 @@ type PackageFormValues = {
 export function PackagesPage() {
   const queryClient = useQueryClient()
   const userId = useStudioAuthId()
+  const { requirePro } = useProAccessGate()
   const { data: packages, isLoading, isError, error, refetch, isSuccess } =
     useQuery({
       queryKey: ['studio-packages', userId],
@@ -93,6 +95,7 @@ export function PackagesPage() {
   )
 
   async function handleReorder(fromId: string, toId: string) {
+    if (!requirePro()) return
     if (fromId === toId) return
     const ids = ordered.map((p) => p.id)
     const from = ids.indexOf(fromId)
@@ -170,7 +173,11 @@ export function PackagesPage() {
             </Button>
             </>
           ) : null}
-          <Button type="button" variant="primary" onClick={() => setCreating(true)}>
+          <Button
+            type="button"
+            variant="primary"
+            onClick={() => requirePro(() => setCreating(true))}
+          >
             Nowy pakiet
           </Button>
         </div>
@@ -215,7 +222,10 @@ export function PackagesPage() {
                 key={pkg.id}
                 className={styles.card}
                 draggable
-                onDragStart={() => setDragId(pkg.id)}
+                onDragStart={() => {
+                  if (!requirePro()) return
+                  setDragId(pkg.id)
+                }}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={() => {
                   if (dragId) void handleReorder(dragId, pkg.id)
@@ -242,10 +252,12 @@ export function PackagesPage() {
                       type="button"
                       variant="ghost"
                       size="sm"
-                      onClick={() => {
-                        setCreating(false)
-                        setEditing(pkg)
-                      }}
+                      onClick={() =>
+                        requirePro(() => {
+                          setCreating(false)
+                          setEditing(pkg)
+                        })
+                      }
                     >
                       Edytuj
                     </Button>
@@ -253,10 +265,11 @@ export function PackagesPage() {
                       type="button"
                       variant="ghost"
                       size="sm"
-                      onClick={async () => {
-                        await packageService.duplicate(pkg.id)
-                        void invalidate()
-                      }}
+                      onClick={() =>
+                        requirePro(() => {
+                          void packageService.duplicate(pkg.id).then(() => invalidate())
+                        })
+                      }
                     >
                       Duplikuj
                     </Button>
@@ -265,10 +278,11 @@ export function PackagesPage() {
                         type="button"
                         variant="ghost"
                         size="sm"
-                        onClick={async () => {
-                          await packageService.archive(pkg.id)
-                          void invalidate()
-                        }}
+                        onClick={() =>
+                          requirePro(() => {
+                            void packageService.archive(pkg.id).then(() => invalidate())
+                          })
+                        }
                       >
                         Archiwizuj
                       </Button>
@@ -277,11 +291,15 @@ export function PackagesPage() {
                       type="button"
                       variant="ghost"
                       size="sm"
-                      onClick={async () => {
-                        if (!window.confirm('Usunąć pakiet na stałe?')) return
-                        await packageService.delete(pkg.id)
-                        void invalidate()
-                      }}
+                      onClick={() =>
+                        requirePro(() => {
+                          void (async () => {
+                            if (!window.confirm('Usunąć pakiet na stałe?')) return
+                            await packageService.delete(pkg.id)
+                            void invalidate()
+                          })()
+                        })
+                      }
                     >
                       Usuń
                     </Button>
@@ -679,6 +697,7 @@ function PackageItemsEditor({
   items: PackageItem[]
   onChanged: () => void
 }) {
+  const { requirePro } = useProAccessGate()
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [dragId, setDragId] = useState<string | null>(null)
@@ -700,6 +719,7 @@ function PackageItemsEditor({
   }, [items])
 
   async function handleReorder(fromId: string, toId: string) {
+    if (!requirePro()) return
     if (fromId === toId) return
     const ids = items.map((i) => i.id)
     const from = ids.indexOf(fromId)
@@ -732,7 +752,10 @@ function PackageItemsEditor({
             key={item.id}
             className={`${styles.itemRow} ${!item.enabled ? styles.itemDisabled : ''}`}
             draggable={editingId !== item.id}
-            onDragStart={() => setDragId(item.id)}
+            onDragStart={() => {
+              if (!requirePro()) return
+              setDragId(item.id)
+            }}
             onDragOver={(e) => e.preventDefault()}
             onDrop={() => {
               if (dragId) void handleReorder(dragId, item.id)
@@ -832,7 +855,7 @@ function PackageItemsEditor({
                     type="button"
                     variant="ghost"
                     size="sm"
-                    onClick={() => beginEdit(item)}
+                    onClick={() => requirePro(() => beginEdit(item))}
                   >
                     Edytuj
                   </Button>
@@ -840,12 +863,13 @@ function PackageItemsEditor({
                     type="button"
                     variant="ghost"
                     size="sm"
-                    onClick={async () => {
-                      await packageItemService.update(item.id, {
-                        enabled: !item.enabled,
+                    onClick={() =>
+                      requirePro(() => {
+                        void packageItemService
+                          .update(item.id, { enabled: !item.enabled })
+                          .then(() => onChanged())
                       })
-                      onChanged()
-                    }}
+                    }
                   >
                     {item.enabled ? 'Wyłącz' : 'Włącz'}
                   </Button>
@@ -853,10 +877,11 @@ function PackageItemsEditor({
                     type="button"
                     variant="ghost"
                     size="sm"
-                    onClick={async () => {
-                      await packageItemService.delete(item.id)
-                      onChanged()
-                    }}
+                    onClick={() =>
+                      requirePro(() => {
+                        void packageItemService.delete(item.id).then(() => onChanged())
+                      })
+                    }
                   >
                     Usuń
                   </Button>
@@ -869,18 +894,22 @@ function PackageItemsEditor({
                     )
                   }
                   enabled={item.enabled}
-                  onEdit={() => beginEdit(item)}
+                  onEdit={() => requirePro(() => beginEdit(item))}
                   onToggleEnabled={() => {
-                    setOpenItemId(null)
-                    void packageItemService
-                      .update(item.id, { enabled: !item.enabled })
-                      .then(() => onChanged())
+                    requirePro(() => {
+                      setOpenItemId(null)
+                      void packageItemService
+                        .update(item.id, { enabled: !item.enabled })
+                        .then(() => onChanged())
+                    })
                   }}
                   onDelete={() => {
-                    setOpenItemId(null)
-                    void packageItemService
-                      .delete(item.id)
-                      .then(() => onChanged())
+                    requirePro(() => {
+                      setOpenItemId(null)
+                      void packageItemService
+                        .delete(item.id)
+                        .then(() => onChanged())
+                    })
                   }}
                 />
               </>
@@ -890,17 +919,21 @@ function PackageItemsEditor({
       </ul>
       <form
         className={styles.itemAdd}
-        onSubmit={async (e) => {
+        onSubmit={(e) => {
           e.preventDefault()
-          if (!title.trim()) return
-          await packageItemService.create({
-            packageId,
-            title: title.trim(),
-            description: description.trim() || null,
+          requirePro(() => {
+            void (async () => {
+              if (!title.trim()) return
+              await packageItemService.create({
+                packageId,
+                title: title.trim(),
+                description: description.trim() || null,
+              })
+              setTitle('')
+              setDescription('')
+              onChanged()
+            })()
           })
-          setTitle('')
-          setDescription('')
-          onChanged()
         }}
       >
         <input

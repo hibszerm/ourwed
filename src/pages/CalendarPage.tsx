@@ -24,10 +24,12 @@ import {
   type CalendarUiEvent,
 } from '@/features/calendar/utils/calendarEvents'
 import { calendarEventService } from '@/lib/api/calendarEventService'
+import { useProAccessGate } from '@/features/billing/ProAccessGate'
 import styles from './CalendarPage.module.css'
 
 export function CalendarPage() {
   const { user } = useAuth()
+  const { requirePro } = useProAccessGate()
   const {
     data: weddings = [],
     isLoading: weddingsLoading,
@@ -78,8 +80,10 @@ export function CalendarPage() {
   const isError = weddingsError || eventsError || sessionsError
 
   function openAssignmentChooser(dateKey?: string) {
-    setAssignmentDateKey(dateKey ?? null)
-    setAssignmentDialogOpen(true)
+    requirePro(() => {
+      setAssignmentDateKey(dateKey ?? null)
+      setAssignmentDialogOpen(true)
+    })
   }
 
   function handleToday() {

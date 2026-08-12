@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/Input'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { useToast } from '@/components/ui/Toast'
 import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
+import { useProAccessGate } from '@/features/billing/ProAccessGate'
 import { PlacePicker } from '@/features/travel/PlacePicker'
 import { studioTravelSettingsService } from '@/lib/api/studioTravelSettingsService'
 import { TravelProviderError } from '@/services/travelProvider'
@@ -63,6 +64,7 @@ function toFormState(data: StudioTravelSettings | null | undefined): FormState {
 export function TravelSettingsPage() {
   const queryClient = useQueryClient()
   const { showToast } = useToast()
+  const { requirePro } = useProAccessGate()
   const userId = useStudioAuthId()
   const { data, dataUpdatedAt, isLoading, isError, error } = useQuery({
     queryKey: ['studio-travel-settings', userId],
@@ -125,7 +127,7 @@ export function TravelSettingsPage() {
           type="button"
           variant="primary"
           disabled={saveMutation.isPending}
-          onClick={() => void saveMutation.mutateAsync()}
+          onClick={() => requirePro(() => void saveMutation.mutateAsync())}
         >
           {saveMutation.isPending ? 'Zapisywanie…' : 'Zapisz'}
         </Button>

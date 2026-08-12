@@ -28,6 +28,7 @@ export { PaymentScheduleCompletionForm } from './PaymentScheduleCompletionForm'
 export { ContractDocxPreview } from './ContractDocxPreview'
 export { DOCX_PREVIEW_OPTIONS } from './docxPreviewOptions'
 export { ContractReadyPreview } from './ContractReadyPreview'
+export { ContractPdfActions } from './ContractPdfActions'
 export { ExperimentalPdfActions } from './ExperimentalPdfActions'
 export {
   packageHealthRecommendation,

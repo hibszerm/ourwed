@@ -284,6 +284,8 @@ export function WeddingContractPreviewPage() {
               onRegenerate={() =>
                 navigate(`/sluby/${wedding.id}/umowa/generuj`)
               }
+              weddingId={wedding.id}
+              documentId={contract.draft.id}
             />
           </>
         )}

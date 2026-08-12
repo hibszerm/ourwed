@@ -7,7 +7,19 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { MoreHorizontal } from 'lucide-react'
+import { AppLayout } from '@/layouts/AppLayout'
 import { Button } from '@/components/ui/Button'
+import { PageContainer } from '@/components/ui/PageContainer'
+import { useProAccessGate } from '@/features/billing/ProAccessGate'
+import { ProLockIcon } from '@/features/billing/ProLockIcon'
+import {
+  PRO_LOCKED_ARIA,
+  PRO_LOCKED_HINT,
+} from '@/features/billing/proGateActions'
+import {
+  isProAccessRequiredError,
+  toProAccessUserMessage,
+} from '@/features/billing/proAccessError'
 import { countAnswerableQuestions } from '@/features/prewedding/templateSchemaUtils'
 import {
   QUESTIONNAIRE_TEMPLATES_QUERY_KEY,
@@ -30,20 +42,24 @@ type Filter = 'all' | QuestionnaireTemplateType
 
 function TemplateCard({
   template,
+  onView,
   onEdit,
   onDuplicate,
   onRename,
   onSetDefault,
   onArchive,
   onRestore,
+  editLocked,
 }: {
   template: QuestionnaireTemplate
+  onView: () => void
   onEdit: () => void
   onDuplicate: () => void
   onRename: () => void
   onSetDefault: () => void
   onArchive: () => void
   onRestore: () => void
+  editLocked?: boolean
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const questions = countAnswerableQuestions(template.schema)
@@ -57,7 +73,7 @@ function TemplateCard({
       data-type={template.type}
       data-archived={template.isArchived ? '1' : '0'}
     >
-      <button type="button" className={styles.cardMain} onClick={onEdit}>
+      <button type="button" className={styles.cardMain} onClick={onView}>
         <div className={styles.cardTitleRow}>
           <h3 className={styles.cardName}>{template.name}</h3>
           {template.isDefault && !template.isArchived ? (
@@ -75,7 +91,16 @@ function TemplateCard({
       </button>
 
       <div className={styles.cardActions}>
-        <Button size="sm" variant="secondary" onClick={onEdit}>
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={onEdit}
+          title={editLocked ? PRO_LOCKED_HINT : undefined}
+          aria-label={
+            editLocked ? `Edytuj — ${PRO_LOCKED_ARIA}` : undefined
+          }
+        >
+          {editLocked ? <ProLockIcon /> : null}
           Edytuj
         </Button>
         <div className={styles.moreWrap}>
@@ -167,6 +192,7 @@ function CreateDialog({
   onClose: () => void
   onCreated: (id: string) => void
 }) {
+  const { requirePro, openUpgradeDialog } = useProAccessGate()
   const [type, setType] = useState<QuestionnaireTemplateType>(initialType)
   const [name, setName] = useState('')
   const [mode, setMode] = useState<'builtin' | 'empty'>('builtin')
@@ -175,6 +201,7 @@ function CreateDialog({
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
+    if (!requirePro(undefined, { actionKey: 'create_questionnaire' })) return
     const trimmed = name.trim()
     if (!trimmed) {
       setError('Podaj nazwę ankiety.')
@@ -197,6 +224,11 @@ function CreateDialog({
       })
       onCreated(created.id)
     } catch (err) {
+      if (isProAccessRequiredError(err)) {
+        setError(toProAccessUserMessage())
+        openUpgradeDialog('pro_required_action', 'create_questionnaire')
+        return
+      }
       setError(err instanceof Error ? err.message : 'Nie udało się utworzyć ankiety.')
     } finally {
       setBusy(false)
@@ -308,6 +340,7 @@ function CreateDialog({
 export function QuestionnaireLibraryPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const { requirePro, isReadOnly } = useProAccessGate()
   const [filter, setFilter] = useState<Filter>('all')
   const [createOpen, setCreateOpen] = useState(false)
   const [createType, setCreateType] = useState<QuestionnaireTemplateType>('pre_wedding')
@@ -363,19 +396,29 @@ export function QuestionnaireLibraryPage() {
   const showPreWedding = filter === 'all' || filter === 'pre_wedding'
 
   function openCreate(type: QuestionnaireTemplateType) {
-    setCreateType(type)
-    setCreateOpen(true)
+    requirePro(
+      () => {
+        setCreateType(type)
+        setCreateOpen(true)
+      },
+      { actionKey: 'create_questionnaire' },
+    )
   }
 
   function renameTemplate(t: QuestionnaireTemplate) {
-    const next = window.prompt('Nowa nazwa ankiety', t.name)
-    if (next === null) return
-    const trimmed = next.trim()
-    if (!trimmed || trimmed === t.name) return
-    void renameMut.mutateAsync({ id: t.id, name: trimmed })
+    requirePro(
+      () => {
+        const next = window.prompt('Nowa nazwa ankiety', t.name)
+        if (next === null) return
+        const trimmed = next.trim()
+        if (!trimmed || trimmed === t.name) return
+        void renameMut.mutateAsync({ id: t.id, name: trimmed })
+      },
+      { actionKey: 'edit_questionnaire_template' },
+    )
   }
 
-  function editTemplate(t: QuestionnaireTemplate) {
+  function viewTemplate(t: QuestionnaireTemplate) {
     if (t.type === 'contract') {
       navigate('/ankiety/dane-do-umowy')
       return
@@ -383,22 +426,34 @@ export function QuestionnaireLibraryPage() {
     navigate(`/ankiety/przedslubne/${t.id}`)
   }
 
+  function editTemplate(t: QuestionnaireTemplate) {
+    requirePro(
+      () => viewTemplate(t),
+      { actionKey: 'edit_questionnaire' },
+    )
+  }
+
   return (
-    <div className={styles.page} data-testid="questionnaire-library-page">
-      <header className={styles.header}>
-        <div>
-          <h1 className={styles.title}>Ankiety</h1>
-          <p className={styles.lead}>Zarządzaj szablonami ankiet wysyłanych do par.</p>
-        </div>
+    <AppLayout
+      title="Ankiety"
+      subtitle="Zarządzaj szablonami ankiet wysyłanych do par."
+      action={
         <Button
           variant="primary"
           onClick={() => openCreate('pre_wedding')}
           data-testid="new-questionnaire-btn"
+          title={isReadOnly ? PRO_LOCKED_HINT : undefined}
+          aria-label={
+            isReadOnly ? `Nowa ankieta — ${PRO_LOCKED_ARIA}` : undefined
+          }
         >
+          {isReadOnly ? <ProLockIcon /> : null}
           Nowa ankieta
         </Button>
-      </header>
-
+      }
+    >
+      <PageContainer>
+        <div className={styles.page} data-testid="questionnaire-library-page">
       <div className={styles.filters} role="tablist" aria-label="Filtr typów">
         {(
           [
@@ -446,8 +501,18 @@ export function QuestionnaireLibraryPage() {
                   <Button
                     size="sm"
                     variant="secondary"
-                    onClick={() => navigate('/ankiety/dane-do-umowy')}
+                    title={isReadOnly ? PRO_LOCKED_HINT : undefined}
+                    aria-label={
+                      isReadOnly ? `Edytuj — ${PRO_LOCKED_ARIA}` : undefined
+                    }
+                    onClick={() =>
+                      requirePro(
+                        () => navigate('/ankiety/dane-do-umowy'),
+                        { actionKey: 'edit_questionnaire' },
+                      )
+                    }
                   >
+                    {isReadOnly ? <ProLockIcon /> : null}
                     Edytuj
                   </Button>
                 </div>
@@ -482,7 +547,12 @@ export function QuestionnaireLibraryPage() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => void seedMut.mutateAsync()}
+                      onClick={() =>
+                        requirePro(
+                          () => void seedMut.mutateAsync(),
+                          { actionKey: 'create_questionnaire' },
+                        )
+                      }
                       disabled={seedMut.isPending}
                     >
                       Użyj domyślnej
@@ -495,20 +565,42 @@ export function QuestionnaireLibraryPage() {
                     <TemplateCard
                       key={t.id}
                       template={t}
+                      editLocked={isReadOnly}
+                      onView={() => viewTemplate(t)}
                       onEdit={() => editTemplate(t)}
-                      onDuplicate={() => void duplicateMut.mutateAsync(t.id)}
+                      onDuplicate={() =>
+                        requirePro(
+                          () => void duplicateMut.mutateAsync(t.id),
+                          { actionKey: 'edit_questionnaire_template' },
+                        )
+                      }
                       onRename={() => renameTemplate(t)}
-                      onSetDefault={() => void defaultMut.mutateAsync(t.id)}
+                      onSetDefault={() =>
+                        requirePro(
+                          () => void defaultMut.mutateAsync(t.id),
+                          { actionKey: 'edit_questionnaire_template' },
+                        )
+                      }
                       onArchive={() => {
-                        if (
-                          window.confirm(
-                            `Zarchiwizować ankietę „${t.name}”?\n\nNie będzie można używać jej przy nowych ślubach. Istniejące ankiety i odpowiedzi pozostaną bez zmian.`,
-                          )
-                        ) {
-                          void archiveMut.mutateAsync(t.id)
-                        }
+                        requirePro(
+                          () => {
+                            if (
+                              window.confirm(
+                                `Zarchiwizować ankietę „${t.name}”?\n\nNie będzie można używać jej przy nowych ślubach. Istniejące ankiety i odpowiedzi pozostaną bez zmian.`,
+                              )
+                            ) {
+                              void archiveMut.mutateAsync(t.id)
+                            }
+                          },
+                          { actionKey: 'edit_questionnaire_template' },
+                        )
                       }}
-                      onRestore={() => void restoreMut.mutateAsync(t.id)}
+                      onRestore={() =>
+                        requirePro(
+                          () => void restoreMut.mutateAsync(t.id),
+                          { actionKey: 'edit_questionnaire_template' },
+                        )
+                      }
                     />
                   ))}
                 </div>
@@ -526,12 +618,24 @@ export function QuestionnaireLibraryPage() {
                       <TemplateCard
                         key={t.id}
                         template={t}
+                        editLocked={isReadOnly}
+                        onView={() => viewTemplate(t)}
                         onEdit={() => editTemplate(t)}
-                        onDuplicate={() => void duplicateMut.mutateAsync(t.id)}
+                        onDuplicate={() =>
+                          requirePro(
+                            () => void duplicateMut.mutateAsync(t.id),
+                            { actionKey: 'edit_questionnaire_template' },
+                          )
+                        }
                         onRename={() => renameTemplate(t)}
                         onSetDefault={() => undefined}
                         onArchive={() => undefined}
-                        onRestore={() => void restoreMut.mutateAsync(t.id)}
+                        onRestore={() =>
+                          requirePro(
+                            () => void restoreMut.mutateAsync(t.id),
+                            { actionKey: 'edit_questionnaire_template' },
+                          )
+                        }
                       />
                     ))}
                   </div>
@@ -557,6 +661,8 @@ export function QuestionnaireLibraryPage() {
           }}
         />
       ) : null}
-    </div>
+        </div>
+      </PageContainer>
+    </AppLayout>
   )
 }

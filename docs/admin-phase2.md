@@ -6,14 +6,14 @@ Date: 2026-08-06
 See `docs/admin-phase2-data-inventory.md` (audited from migrations + `schema.sql`).
 
 ## 2. Metrics supported now
-Accounts (auth.users), active users (`last_sign_in_at` in range), weddings, sessions, registration series, product usage counts (forms, prewedding, documents, payments, calendar), activation cohort sizes, attention items, user list/summary counts, audit log, integration aggregates, on-demand system checks.
+Accounts (auth.users), active users (`last_sign_in_at` in range), weddings, sessions, registration series, product usage counts (forms, prewedding, documents, payments, calendar), activation cohort sizes, attention items, user list/summary counts, audit log, integration aggregates, on-demand system checks, subscription access/trial metrics (billing foundation).
 
 ## 3. Metrics unavailable and why
 | Metric | Why |
 |--------|-----|
 | Brief downloads | No persisted download event |
 | Email deliverability history | Table + webhook ready; empty until first Resend event |
-| MRR / subscriptions | No Stripe/billing tables |
+| MRR / Stripe payments | Payment provider not connected |
 | Uptime % | No monitoring history |
 | Chronological funnel conversion | Absolute cohorts only |
 | SMTP configured boolean from DB | Not readable from SQL; shown as unknown |
@@ -26,7 +26,7 @@ Resend: Edge Function `resend-webhook` with service role **only** for inserting 
 `assert_admin_owner_aal2()`: session → `aal=aal2` → enabled `admin_members.role=owner`. UI guards are not trusted alone.
 
 ## 6. Database functions
-`admin_get_overview_metrics`, `admin_get_registration_series`, `admin_get_product_usage`, `admin_get_activation_funnel`, `admin_get_attention_items`, `admin_list_users`, `admin_get_user_summary`, `admin_get_integration_health`, `admin_get_system_health`, `admin_list_audit`, `admin_get_email_metrics`, helpers `admin_mask_email`, `admin_range_bounds`.
+`admin_get_overview_metrics`, `admin_get_registration_series`, `admin_get_product_usage`, `admin_get_activation_funnel`, `admin_get_attention_items`, `admin_list_users`, `admin_get_user_summary`, `admin_get_integration_health`, `admin_get_system_health`, `admin_list_audit`, `admin_get_email_metrics`, helpers `admin_mask_email`, `admin_range_bounds`. Billing: `admin_get_subscription_metrics`, `admin_list_subscriptions`, `admin_get_user_subscription`, `admin_extend_trial`, `admin_grant_manual_pro`, `admin_revoke_manual_access`.
 
 ## 7–10. Overview / usage / funnel / attention
 Implemented on `/overview` with Europe/Warsaw ranges (`today` / `7d` / `30d`, default 30d). Definitions documented in inventory + UI tooltips. Attention only for real conditions (disabled owner, unauthorized audits, calendar errors, old unconfirmed emails).
@@ -53,11 +53,14 @@ Corrective migrations: `20260806190000_admin_list_users_cte_scope_fix.sql`, `202
 ## 14–15. Email webhook
 `admin_email_events` migration + Edge Function with Svix verify. UI shows setup state until events exist. Env: `RESEND_WEBHOOK_SECRET`.
 
+Product notification deliveries (`notification_deliveries`) are updated by the same webhook when `provider_message_id` matches. See `docs/notification-engine.md`. Customer V1 success state is **sent** (not a separate delivered metric in admin).
+
 ## 16–19. Integrations / system / deploy / audit
 Real calendar aggregates; Resend from events table; system checks on demand; deployment from mount + optional `VITE_VERCEL_*` (Local when local); audit paginated with allow-listed action labels + one `admin.audit_viewed` event.
 
 ## 20. Billing
-Sidebar **Subskrypcje → Niepodłączone**.
+Access and Trial are live (`/subscriptions`, user list entitlement column, user detail actions).  
+Sidebar **Subskrypcje** links to the page. **Płatności online: Niepodłączone** — no MRR/revenue.
 
 ## 21–22. Product events / collection start
 No `product_events` table added — existing tables suffice. Email metrics collect from first webhook after deploy.
@@ -73,6 +76,8 @@ Loading / zero / unavailable / forbidden / error distinguished. Aggregates via S
 - `20260806180000_admin_phase2_rpc_signature_fix.sql`
 - `20260806190000_admin_list_users_cte_scope_fix.sql`
 - `20260806200000_admin_user_identity_fields.sql`
+- `20260811200000_subscription_foundation.sql`
+- `20260811210000_admin_users_subscription_filter.sql`
 
 ## 27. Environment variables
 | Name | Where |

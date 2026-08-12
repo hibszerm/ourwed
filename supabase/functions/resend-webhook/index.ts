@@ -103,5 +103,62 @@ Deno.serve(async (req) => {
     return json({ ok: false, error: { code: 'persist_failed' } }, 500)
   }
 
+  // Map Resend lifecycle → notification_deliveries when provider_message_id matches.
+  // V1 UI treats "sent" as the product success state; webhook may refine status.
+  const providerId = row.externalEmailId
+  if (providerId) {
+    let deliveryStatus: string | null = null
+    let errorCode: string | null = null
+    switch (eventType) {
+      case 'email.sent':
+        deliveryStatus = 'sent'
+        break
+      case 'email.delivered':
+        // Keep status=sent (V1 does not distinguish delivered in customer UI).
+        deliveryStatus = 'sent'
+        break
+      case 'email.bounced':
+        deliveryStatus = 'failed'
+        errorCode = 'bounced'
+        break
+      case 'email.failed':
+        deliveryStatus = 'failed'
+        errorCode = 'provider_failed'
+        break
+      case 'email.complained':
+        deliveryStatus = 'failed'
+        errorCode = 'complained'
+        break
+      case 'email.suppressed':
+        deliveryStatus = 'skipped'
+        errorCode = 'suppressed'
+        break
+      default:
+        deliveryStatus = null
+    }
+
+    if (deliveryStatus) {
+      const patch: Record<string, unknown> = {
+        status: deliveryStatus,
+        updated_at: new Date().toISOString(),
+      }
+      if (errorCode) patch.last_error_code = errorCode
+      if (deliveryStatus === 'sent') {
+        patch.sent_at = row.occurredAt
+        patch.last_error_code = null
+      }
+
+      const { error: deliveryErr } = await supabase
+        .from('notification_deliveries')
+        .update(patch)
+        .eq('provider_message_id', providerId)
+        .eq('channel', 'email')
+
+      if (deliveryErr) {
+        console.error('notification_deliveries_webhook_update_failed', deliveryErr.code)
+      }
+    }
+  }
+
   return json({ ok: true })
 })

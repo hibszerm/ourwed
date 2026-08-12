@@ -34,6 +34,7 @@ import {
 } from '@/features/travel/SelectedLocationCard'
 import { noteService } from '@/lib/api/noteService'
 import { weddingPlaceService } from '@/lib/api/weddingPlaceService'
+import { useProAccessGate } from '@/features/billing/ProAccessGate'
 import { WEDDING_QUESTIONNAIRE_STATUS_LABELS, isPreWeddingSubmittedStatus } from '@/types/preweddingQuestionnaire'
 import type { Wedding } from '@/types/wedding'
 import type { WeddingQuestionnaire } from '@/types/preweddingQuestionnaire'
@@ -376,6 +377,7 @@ export function WeddingPreWeddingQuestionnaireWorkspace({
 }: Props) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
+  const { requirePro } = useProAccessGate()
   const [preparing, setPreparing] = useState(false)
   const [templateSelectOpen, setTemplateSelectOpen] = useState(false)
   const [selectableTemplates, setSelectableTemplates] = useState<
@@ -502,6 +504,9 @@ export function WeddingPreWeddingQuestionnaireWorkspace({
   }
 
   async function runApply(selected: WeddingDaySyncCandidate[], opts?: { confirm?: boolean }) {
+    if (!requirePro(undefined, { actionKey: 'apply_questionnaire_responses' })) {
+      return
+    }
     if (!questionnaire || selected.length === 0) return
     const replacesValid = selected.some(
       (c) =>
@@ -570,6 +575,7 @@ export function WeddingPreWeddingQuestionnaireWorkspace({
   }
 
   async function handlePrepare() {
+    if (!requirePro(undefined, { actionKey: 'create_questionnaire' })) return
     setPreparing(true)
     setActionError(null)
     setNoTemplates(false)
@@ -596,6 +602,7 @@ export function WeddingPreWeddingQuestionnaireWorkspace({
   }
 
   async function handleConfirmTemplate(templateId: string) {
+    if (!requirePro(undefined, { actionKey: 'create_questionnaire' })) return
     setPreparing(true)
     setActionError(null)
     try {
@@ -613,6 +620,15 @@ export function WeddingPreWeddingQuestionnaireWorkspace({
   }
 
   async function runShareFlow(mode: 'generate' | 'share', rotate = false) {
+    if (
+      !requirePro(undefined, {
+        actionKey: rotate
+          ? 'rotate_questionnaire_token'
+          : 'generate_questionnaire_link',
+      })
+    ) {
+      return
+    }
     if (!questionnaire || sharePending) return
     setSharePending(mode)
     setActionError(null)
@@ -668,6 +684,9 @@ export function WeddingPreWeddingQuestionnaireWorkspace({
   }
 
   async function handleRotateLink() {
+    if (!requirePro(undefined, { actionKey: 'rotate_questionnaire_token' })) {
+      return
+    }
     if (!questionnaire) return
     if (
       !window.confirm(
@@ -681,6 +700,7 @@ export function WeddingPreWeddingQuestionnaireWorkspace({
   }
 
   async function handleUpgradeLayout() {
+    if (!requirePro(undefined, { actionKey: 'edit_questionnaire' })) return
     if (!questionnaire) return
     if (
       !window.confirm(

@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
+import { useProAccessGate } from '@/features/billing/ProAccessGate'
 import { extraServiceService } from '@/lib/api/extraServiceService'
 import { formatCurrency } from '@/lib/utils/currency'
 import type { ExtraService } from '@/types/package'
@@ -13,6 +14,7 @@ import styles from '@/features/studio/StudioCatalog.module.css'
 export function ExtraServicesPage() {
   const queryClient = useQueryClient()
   const userId = useStudioAuthId()
+  const { requirePro } = useProAccessGate()
   const { data: services = [], isLoading, isError, error, refetch } = useQuery({
     queryKey: ['studio-extra-services', userId],
     queryFn: () => extraServiceService.list(),
@@ -51,6 +53,7 @@ export function ExtraServicesPage() {
   })
 
   async function handleReorder(fromId: string, toId: string) {
+    if (!requirePro()) return
     if (fromId === toId) return
     const ids = ordered.map((s) => s.id)
     const from = ids.indexOf(fromId)
@@ -68,7 +71,11 @@ export function ExtraServicesPage() {
       title="Usługi dodatkowe"
       subtitle="Katalog oferty — dodatki do pakietów"
       action={
-        <Button type="button" variant="primary" onClick={() => setCreating(true)}>
+        <Button
+          type="button"
+          variant="primary"
+          onClick={() => requirePro(() => setCreating(true))}
+        >
           Nowa usługa
         </Button>
       }
@@ -96,7 +103,10 @@ export function ExtraServicesPage() {
                   setCreating(false)
                   setEditing(null)
                 }}
-                onSave={(values) => saveMutation.mutateAsync(values)}
+                onSave={async (values) => {
+                  if (!requirePro()) return
+                  await saveMutation.mutateAsync(values)
+                }}
               />
             )}
             {ordered.map((service) => (
@@ -104,7 +114,10 @@ export function ExtraServicesPage() {
                 key={service.id}
                 className={styles.card}
                 draggable
-                onDragStart={() => setDragId(service.id)}
+                onDragStart={() => {
+                  if (!requirePro()) return
+                  setDragId(service.id)
+                }}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={() => {
                   if (dragId) void handleReorder(dragId, service.id)
@@ -124,10 +137,12 @@ export function ExtraServicesPage() {
                       type="button"
                       variant="ghost"
                       size="sm"
-                      onClick={() => {
-                        setCreating(false)
-                        setEditing(service)
-                      }}
+                      onClick={() =>
+                        requirePro(() => {
+                          setCreating(false)
+                          setEditing(service)
+                        })
+                      }
                     >
                       Edytuj
                     </Button>
@@ -135,11 +150,15 @@ export function ExtraServicesPage() {
                       type="button"
                       variant="ghost"
                       size="sm"
-                      onClick={async () => {
-                        if (!window.confirm('Usunąć usługę?')) return
-                        await extraServiceService.delete(service.id)
-                        void invalidate()
-                      }}
+                      onClick={() =>
+                        requirePro(() => {
+                          void (async () => {
+                            if (!window.confirm('Usunąć usługę?')) return
+                            await extraServiceService.delete(service.id)
+                            void invalidate()
+                          })()
+                        })
+                      }
                     >
                       Usuń
                     </Button>

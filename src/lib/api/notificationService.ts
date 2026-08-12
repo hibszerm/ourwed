@@ -36,6 +36,7 @@ export function mapNotificationRowToModel(row: NotificationRow): Notification {
     createdAt: toDateString(row.created_at) || row.created_at,
     read: row.read,
     type: mapNotificationType(row.type),
+    link: row.link,
   }
 }
 
@@ -122,5 +123,17 @@ export const notificationService = {
     }
 
     return mapNotificationRowToModel(data as NotificationRow)
+  },
+
+  async unreadCount(): Promise<number> {
+    const userId = await resolveStudioUserId()
+    const { count, error } = await supabase
+      .from('notifications')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('read', false)
+
+    throwOnError(error)
+    return count ?? 0
   },
 }

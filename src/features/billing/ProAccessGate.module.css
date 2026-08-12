@@ -1,0 +1,36 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 1.25rem;
+  background: rgba(17, 17, 17, 0.35);
+}
+
+.dialog {
+  width: min(100%, 420px);
+  padding: 1.35rem 1.4rem 1.25rem;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 24px 60px rgba(17, 17, 17, 0.2);
+}
+
+.dialog h2 {
+  margin: 0 0 0.55rem;
+  font-size: 1.2rem;
+  letter-spacing: -0.02em;
+}
+
+.dialog p {
+  margin: 0;
+  line-height: 1.45;
+  color: #4a4540;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-top: 1.15rem;
+}

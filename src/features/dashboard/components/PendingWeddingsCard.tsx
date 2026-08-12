@@ -4,6 +4,11 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/Button'
 import { Card, CardHeader } from '@/components/ui/Card'
 import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
+import { useProAccessGate } from '@/features/billing/ProAccessGate'
+import {
+  isProAccessRequiredError,
+  toProAccessUserMessage,
+} from '@/features/billing/proAccessError'
 import { questionnaireService } from '@/lib/api/questionnaireService'
 import { formatShortDate } from '@/lib/utils/dates'
 import styles from './PendingWeddingsCard.module.css'
@@ -11,6 +16,7 @@ import styles from './PendingWeddingsCard.module.css'
 export function PendingWeddingsCard() {
   const queryClient = useQueryClient()
   const userId = useStudioAuthId()
+  const { requirePro, openUpgradeDialog } = useProAccessGate()
   const [busyId, setBusyId] = useState<string | null>(null)
   const { data: pending = [], isLoading } = useQuery({
     queryKey: ['pending-questionnaires', userId],
@@ -19,6 +25,11 @@ export function PendingWeddingsCard() {
   })
 
   async function handleAccept(id: string) {
+    if (
+      !requirePro(undefined, { actionKey: 'apply_questionnaire_responses' })
+    ) {
+      return
+    }
     if (busyId) return
     setBusyId(id)
     try {
@@ -28,6 +39,11 @@ export function PendingWeddingsCard() {
       await queryClient.invalidateQueries({ queryKey: ['weddings'] })
       await queryClient.invalidateQueries({ queryKey: ['dashboard'] })
     } catch (err) {
+      if (isProAccessRequiredError(err)) {
+        openUpgradeDialog('pro_required_action', 'apply_questionnaire_responses')
+        window.alert(toProAccessUserMessage())
+        return
+      }
       window.alert(
         err instanceof Error ? err.message : 'Nie udało się zaakceptować zgłoszenia.',
       )
@@ -37,6 +53,11 @@ export function PendingWeddingsCard() {
   }
 
   async function handleReject(id: string) {
+    if (
+      !requirePro(undefined, { actionKey: 'apply_questionnaire_responses' })
+    ) {
+      return
+    }
     if (busyId) return
     setBusyId(id)
     try {
@@ -45,6 +66,11 @@ export function PendingWeddingsCard() {
       await queryClient.invalidateQueries({ queryKey: ['questionnaires'] })
       await queryClient.invalidateQueries({ queryKey: ['dashboard'] })
     } catch (err) {
+      if (isProAccessRequiredError(err)) {
+        openUpgradeDialog('pro_required_action', 'apply_questionnaire_responses')
+        window.alert(toProAccessUserMessage())
+        return
+      }
       window.alert(
         err instanceof Error ? err.message : 'Nie udało się odrzucić zgłoszenia.',
       )

@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/Button'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { useToast } from '@/components/ui/Toast'
 import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
+import { useProAccessGate } from '@/features/billing/ProAccessGate'
+import { useProMutationPageGuard } from '@/features/billing/useProMutationPageGuard'
 import { useWeddings } from '@/features/weddings/hooks/useWeddings'
 import { packageService } from '@/lib/api/packageService'
 import { formatCurrency } from '@/lib/utils/currency'
@@ -49,6 +51,8 @@ const STATUS_LABELS: Record<WeddingImportReviewRow['status'], string> = {
 
 export function WeddingImportPage() {
   const userId = useStudioAuthId()
+  const { requirePro } = useProAccessGate()
+  useProMutationPageGuard('/sluby')
   const queryClient = useQueryClient()
   const { showToast } = useToast()
   const { data: existingWeddings = [] } = useWeddings()
@@ -97,7 +101,7 @@ export function WeddingImportPage() {
       const parsed = await parseImportWorkbook(file)
       setWorkbook(parsed)
       const firstSheet = parsed.sheets[0]!
-      applySheet(firstSheet, parsed)
+      applySheet(firstSheet)
     } catch (err) {
       setError(
         err instanceof Error
@@ -125,7 +129,7 @@ export function WeddingImportPage() {
     return applied
   }
 
-  function applySheet(sheet: ParsedWorkbookSheet, _wb?: ParsedWorkbook) {
+  function applySheet(sheet: ParsedWorkbookSheet) {
     const applied = applySheetSelection(sheet, null)
     if (userId) {
       const savedForHeaders = loadSavedColumnMappings({
@@ -258,6 +262,7 @@ export function WeddingImportPage() {
   }
 
   async function runImport() {
+    if (!requirePro()) return
     const selected = reviewRows.filter((row) => row.selectedForImport)
     if (!selected.length) {
       setError('Wybierz co najmniej jeden rekord do importu.')

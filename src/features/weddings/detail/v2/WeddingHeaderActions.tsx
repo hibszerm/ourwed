@@ -4,7 +4,9 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
 import { WeddingIdentityEditDialog } from '@/features/weddings/detail/v2/WeddingIdentityEditDialog'
+import { useProAccessGate } from '@/features/billing/ProAccessGate'
 import { downloadWeddingBriefPdf } from '@/features/wedding-brief/downloadWeddingBriefPdf'
+import { mapPdfRenderErrorForUser } from '@/features/documents/pdf/pdfRenderErrors'
 import type { Wedding } from '@/types/wedding'
 import styles from './WeddingDetailV2.module.css'
 
@@ -24,6 +26,7 @@ export function WeddingHeaderActions({
   onArchive,
   onDelete,
 }: Props) {
+  const { requirePro } = useProAccessGate()
   const menuId = useId()
   const wrapRef = useRef<HTMLDivElement>(null)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -51,6 +54,7 @@ export function WeddingHeaderActions({
   }, [menuOpen])
 
   async function handleBrief() {
+    if (busy) return
     setMenuOpen(false)
     setBriefError(null)
     setBusy(true)
@@ -58,11 +62,7 @@ export function WeddingHeaderActions({
       await downloadWeddingBriefPdf(wedding.id)
     } catch (e) {
       const raw = e instanceof Error ? e.message : ''
-      setBriefError(
-        !raw || /failed to fetch|networkerror|load failed/i.test(raw)
-          ? 'Nie udało się przygotować briefu PDF.'
-          : raw,
-      )
+      setBriefError(mapPdfRenderErrorForUser(raw))
     } finally {
       setBusy(false)
     }
@@ -110,8 +110,10 @@ export function WeddingHeaderActions({
               role="menuitem"
               data-testid="wedding-menu-edit-identity"
               onClick={() => {
-                setMenuOpen(false)
-                setIdentityOpen(true)
+                requirePro(() => {
+                  setMenuOpen(false)
+                  setIdentityOpen(true)
+                })
               }}
             >
               Edytuj nazwę i datę
@@ -131,8 +133,10 @@ export function WeddingHeaderActions({
               role="menuitem"
               data-testid="wedding-menu-archive"
               onClick={() => {
-                setMenuOpen(false)
-                setArchiveOpen(true)
+                requirePro(() => {
+                  setMenuOpen(false)
+                  setArchiveOpen(true)
+                })
               }}
             >
               Archiwizuj zlecenie
@@ -143,9 +147,11 @@ export function WeddingHeaderActions({
               className={styles.headerMenuDanger}
               data-testid="wedding-menu-delete"
               onClick={() => {
-                setMenuOpen(false)
-                setConfirmText('')
-                setDeleteOpen(true)
+                requirePro(() => {
+                  setMenuOpen(false)
+                  setConfirmText('')
+                  setDeleteOpen(true)
+                })
               }}
             >
               Usuń zlecenie

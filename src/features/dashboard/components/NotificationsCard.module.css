@@ -10,9 +10,25 @@
   padding: var(--space-3);
   border-radius: var(--radius-md);
   transition: background var(--transition-fast);
+  width: 100%;
+  text-align: left;
 }
 
-.item:hover {
+.itemButton {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.itemButton:focus-visible {
+  outline: 2px solid var(--color-text-primary, #1d272b);
+  outline-offset: 2px;
+}
+
+.item:hover,
+.itemButton:hover {
   background: var(--color-bg-subtle);
 }
 

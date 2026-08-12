@@ -10,9 +10,14 @@ import type {
   AdminOverviewMetrics,
   AdminProductUsage,
   AdminRegistrationSeries,
+  AdminSubscriptionFilter,
+  AdminSubscriptionListResult,
+  AdminSubscriptionMetrics,
+  AdminSubscriptionMutationResult,
   AdminSystemHealth,
   AdminUserListResult,
   AdminUserStatus,
+  AdminUserSubscriptionDetail,
   AdminUserSummary,
 } from '@/admin/api/types'
 
@@ -234,12 +239,74 @@ export async function fetchUserList(input: {
   offset?: number
   search?: string | null
   status?: AdminUserStatus | null
+  subscriptionFilter?: AdminSubscriptionFilter | null
 }): Promise<AdminUserListResult> {
   return callRpc('admin_list_users', {
     p_limit: input.limit ?? 25,
     p_offset: input.offset ?? 0,
     p_search: input.search ?? null,
     p_status: input.status ?? null,
+    p_subscription_filter: input.subscriptionFilter ?? null,
+  })
+}
+
+export async function fetchSubscriptionMetrics(): Promise<AdminSubscriptionMetrics> {
+  return callRpc('admin_get_subscription_metrics')
+}
+
+export async function fetchSubscriptionList(input: {
+  limit?: number
+  offset?: number
+  filter?: AdminSubscriptionFilter | null
+}): Promise<AdminSubscriptionListResult> {
+  return callRpc('admin_list_subscriptions', {
+    p_limit: input.limit ?? 50,
+    p_offset: input.offset ?? 0,
+    p_filter: input.filter ?? null,
+  })
+}
+
+export async function fetchUserSubscription(
+  userId: string,
+): Promise<AdminUserSubscriptionDetail> {
+  return callRpc('admin_get_user_subscription', { p_user_id: userId })
+}
+
+export async function extendTrialAdmin(input: {
+  userId: string
+  days?: number | null
+  until?: string | null
+  reason?: string | null
+}): Promise<AdminSubscriptionMutationResult> {
+  return callRpc('admin_extend_trial', {
+    p_user_id: input.userId,
+    p_days: input.days ?? null,
+    p_until: input.until ?? null,
+    p_reason: input.reason ?? null,
+  })
+}
+
+export async function grantManualProAdmin(input: {
+  userId: string
+  until?: string | null
+  indefinite?: boolean
+  reason?: string | null
+}): Promise<AdminSubscriptionMutationResult> {
+  return callRpc('admin_grant_manual_pro', {
+    p_user_id: input.userId,
+    p_until: input.until ?? null,
+    p_indefinite: input.indefinite ?? false,
+    p_reason: input.reason ?? null,
+  })
+}
+
+export async function revokeManualAccessAdmin(input: {
+  userId: string
+  reason?: string | null
+}): Promise<AdminSubscriptionMutationResult> {
+  return callRpc('admin_revoke_manual_access', {
+    p_user_id: input.userId,
+    p_reason: input.reason ?? null,
   })
 }
 

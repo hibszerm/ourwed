@@ -5,10 +5,15 @@ import {
   AdminApiRequestError,
   fetchUserList,
 } from '@/admin/api/adminApi'
-import type { AdminUserListResult, AdminUserStatus } from '@/admin/api/types'
+import type {
+  AdminSubscriptionFilter,
+  AdminUserListResult,
+  AdminUserStatus,
+} from '@/admin/api/types'
 import { AdminStateMessage } from '@/admin/components/AdminStateMessage'
 import { formatAdminDateTime, formatUpdatedAt } from '@/admin/lib/adminFormat'
 import { adminDisplayName } from '@/admin/lib/adminIdentityDisplay'
+import { adminSubscriptionBadge } from '@/lib/billing/entitlement'
 import styles from '@/admin/styles/admin.module.css'
 
 const PAGE_SIZE = 25
@@ -20,9 +25,22 @@ const STATUS_LABEL: Record<AdminUserStatus, string> = {
   inactive: 'Brak aktywności',
 }
 
+const SUB_FILTERS: Array<{ id: AdminSubscriptionFilter | ''; label: string }> = [
+  { id: '', label: 'Wszystkie subskrypcje' },
+  { id: 'trial', label: 'Trial' },
+  { id: 'trial_ending', label: 'Trial kończy się ≤7 dni' },
+  { id: 'pro', label: 'PRO' },
+  { id: 'expired', label: 'Wygasł' },
+  { id: 'manual', label: 'Ręczny dostęp' },
+  { id: 'past_due', label: 'Problem z płatnością' },
+]
+
 export function AdminUsersPage() {
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState<AdminUserStatus | ''>('')
+  const [subscriptionFilter, setSubscriptionFilter] = useState<
+    AdminSubscriptionFilter | ''
+  >('')
   const [offset, setOffset] = useState(0)
   const [data, setData] = useState<AdminUserListResult | null>(null)
   const [state, setState] = useState<'loading' | 'ready' | 'error' | 'forbidden'>(
@@ -30,7 +48,12 @@ export function AdminUsersPage() {
   )
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
-  async function load(nextOffset: number, nextSearch: string, nextStatus: string) {
+  async function load(
+    nextOffset: number,
+    nextSearch: string,
+    nextStatus: string,
+    nextSub: AdminSubscriptionFilter | '',
+  ) {
     setState('loading')
     setErrorMessage(null)
     try {
@@ -39,6 +62,7 @@ export function AdminUsersPage() {
         offset: nextOffset,
         search: nextSearch.trim() || null,
         status: (nextStatus || null) as AdminUserStatus | null,
+        subscriptionFilter: (nextSub || null) as AdminSubscriptionFilter | null,
       })
       setData(result)
       setOffset(nextOffset)
@@ -58,12 +82,12 @@ export function AdminUsersPage() {
   }
 
   useEffect(() => {
-    void load(0, '', '')
+    void load(0, '', '', '')
   }, [])
 
   function onSearch(e: FormEvent) {
     e.preventDefault()
-    void load(0, search, status)
+    void load(0, search, status, subscriptionFilter)
   }
 
   return (
@@ -83,7 +107,7 @@ export function AdminUsersPage() {
           <button
             type="button"
             className={styles.secondaryBtn}
-            onClick={() => void load(offset, search, status)}
+            onClick={() => void load(offset, search, status, subscriptionFilter)}
           >
             Odśwież
           </button>
@@ -109,6 +133,20 @@ export function AdminUsersPage() {
             <option value="banned">Zablokowane</option>
             <option value="inactive">Brak aktywności</option>
           </select>
+          <select
+            className={styles.toolbarInput}
+            value={subscriptionFilter}
+            onChange={(e) =>
+              setSubscriptionFilter(e.target.value as AdminSubscriptionFilter | '')
+            }
+            aria-label="Subskrypcja"
+          >
+            {SUB_FILTERS.map((f) => (
+              <option key={f.id || 'all'} value={f.id}>
+                {f.label}
+              </option>
+            ))}
+          </select>
           <button type="submit" className={styles.primaryBtn} style={{ width: 'auto' }}>
             Filtruj
           </button>
@@ -122,7 +160,7 @@ export function AdminUsersPage() {
         {state === 'error' || state === 'forbidden' ? (
           <AdminStateMessage
             state={state === 'forbidden' ? 'forbidden' : 'error'}
-            onRetry={() => void load(offset, search, status)}
+            onRetry={() => void load(offset, search, status, subscriptionFilter)}
           >
             {errorMessage}
           </AdminStateMessage>
@@ -137,6 +175,7 @@ export function AdminUsersPage() {
                     <th>Użytkownik</th>
                     <th>E-mail</th>
                     <th>Stan</th>
+                    <th>Subskrypcja</th>
                     <th>Rejestracja</th>
                     <th>Ostatnie logowanie</th>
                     <th>Śluby</th>
@@ -148,7 +187,7 @@ export function AdminUsersPage() {
                 <tbody>
                   {data.rows.length === 0 ? (
                     <tr>
-                      <td colSpan={9}>
+                      <td colSpan={10}>
                         <AdminStateMessage state="empty">0</AdminStateMessage>
                       </td>
                     </tr>
@@ -167,6 +206,11 @@ export function AdminUsersPage() {
                           </span>
                         </td>
                         <td>{STATUS_LABEL[row.status] ?? row.status}</td>
+                        <td>
+                          {row.entitlement
+                            ? adminSubscriptionBadge(row.entitlement)
+                            : '—'}
+                        </td>
                         <td>{formatAdminDateTime(row.createdAt)}</td>
                         <td>{formatAdminDateTime(row.lastSignInAt)}</td>
                         <td>{row.weddings}</td>
@@ -185,7 +229,14 @@ export function AdminUsersPage() {
                 type="button"
                 className={styles.secondaryBtn}
                 disabled={offset <= 0}
-                onClick={() => void load(Math.max(0, offset - PAGE_SIZE), search, status)}
+                onClick={() =>
+                  void load(
+                    Math.max(0, offset - PAGE_SIZE),
+                    search,
+                    status,
+                    subscriptionFilter,
+                  )
+                }
               >
                 Poprzednia
               </button>
@@ -196,7 +247,9 @@ export function AdminUsersPage() {
                 type="button"
                 className={styles.secondaryBtn}
                 disabled={offset + PAGE_SIZE >= data.total}
-                onClick={() => void load(offset + PAGE_SIZE, search, status)}
+                onClick={() =>
+                  void load(offset + PAGE_SIZE, search, status, subscriptionFilter)
+                }
               >
                 Następna
               </button>

@@ -1,0 +1,549 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+  padding-bottom: 2.5rem;
+  max-width: 980px;
+}
+
+.sectionTitle {
+  margin: 0 0 0.9rem;
+  font-size: 1.05rem;
+  letter-spacing: -0.02em;
+  color: var(--color-text-primary, #1d1d1f);
+}
+
+/* ── Current plan / Trial ─────────────────────────────────────────── */
+
+.current {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1.5rem 2rem;
+  padding: 1.4rem 1.5rem 1.35rem;
+  border-radius: 16px;
+  border: 1px solid var(--color-border, rgba(17, 17, 17, 0.1));
+  background: var(--color-surface, #fff);
+  box-shadow: 0 8px 24px rgba(29, 39, 43, 0.04);
+}
+
+.currentTrial {
+  border-color: rgba(184, 140, 78, 0.28);
+}
+
+.currentMain {
+  min-width: 0;
+}
+
+.currentHead {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.statusIcon {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  margin-top: 0.15rem;
+  border-radius: 999px;
+  background: rgba(184, 140, 78, 0.12);
+  color: #8a6a38;
+  flex-shrink: 0;
+}
+
+.eyebrow {
+  margin: 0 0 0.15rem;
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary, #6e6e73);
+}
+
+.current h2 {
+  margin: 0;
+  font-size: 1.55rem;
+  letter-spacing: -0.03em;
+  color: var(--color-text-primary, #1d1d1f);
+}
+
+.currentLead {
+  margin: 0.65rem 0 0;
+  line-height: 1.45;
+  color: var(--color-text-primary, #1d1d1f);
+}
+
+.meta {
+  margin: 0.45rem 0 0;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  color: var(--color-text-secondary, #6e6e73);
+}
+
+.segmentedRail {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 0.28rem;
+  margin-top: 1.05rem;
+}
+
+.segment {
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(29, 39, 43, 0.08);
+}
+
+.segmentFilled {
+  background: linear-gradient(90deg, #c49a4f, #a87d35);
+}
+
+.reassure {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  margin: 1rem 0 0;
+  padding: 0.7rem 0.8rem;
+  border-radius: 10px;
+  background: rgba(29, 39, 43, 0.035);
+  font-size: 0.86rem;
+  line-height: 1.45;
+  color: var(--color-text-secondary, #6e6e73);
+}
+
+.reassureIcon {
+  display: grid;
+  place-items: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-top: 0.05rem;
+  border-radius: 999px;
+  background: rgba(90, 130, 90, 0.14);
+  color: #4f6f4f;
+  flex-shrink: 0;
+}
+
+.currentAside {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  min-width: 10.5rem;
+  text-align: center;
+}
+
+.ring {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  color: #b48c46;
+}
+
+.ringProgress {
+  transition: stroke-dashoffset 0.4s ease;
+}
+
+.ringLabel {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  pointer-events: none;
+}
+
+.ringValue {
+  font-size: 1.7rem;
+  font-weight: 650;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  color: var(--color-text-primary, #1d1d1f);
+}
+
+.ringUnit {
+  margin-top: 0.25rem;
+  font-size: 0.72rem;
+  color: var(--color-text-secondary, #6e6e73);
+}
+
+.asideMeta {
+  margin: 0;
+  font-size: 0.84rem;
+  line-height: 1.35;
+  color: var(--color-text-primary, #1d1d1f);
+}
+
+.asideHint {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--color-text-secondary, #6e6e73);
+}
+
+/* ── Plans ────────────────────────────────────────────────────────── */
+
+.plansSection {
+  display: flex;
+  flex-direction: column;
+}
+
+.plansRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(12rem, 0.85fr);
+  gap: 1rem 1.25rem;
+  align-items: stretch;
+}
+
+.planCards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.9rem;
+}
+
+.planCard {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 1.2rem 1.15rem 1.1rem;
+  border-radius: 14px;
+  border: 1px solid var(--color-border, rgba(17, 17, 17, 0.1));
+  background: var(--color-surface, #fff);
+}
+
+.planCard h3 {
+  margin: 0;
+  font-size: 1.08rem;
+  letter-spacing: -0.02em;
+}
+
+.planAnnual {
+  border-color: rgba(29, 39, 43, 0.28);
+  box-shadow: 0 10px 28px rgba(17, 17, 17, 0.05);
+  background:
+    linear-gradient(180deg, rgba(184, 140, 78, 0.06), transparent 42%),
+    var(--color-surface, #fff);
+}
+
+.badge {
+  margin: 0 0 0.4rem;
+  width: fit-content;
+  padding: 0.18rem 0.5rem;
+  border-radius: 999px;
+  background: #1d272b;
+  color: #f4f1ec;
+  font-size: 0.66rem;
+  font-weight: 650;
+  letter-spacing: 0.03em;
+}
+
+.price {
+  margin: 0.45rem 0 0;
+  font-size: 1.7rem;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+}
+
+.price span {
+  margin-left: 0.25rem;
+  font-size: 0.92rem;
+  font-weight: 500;
+  color: var(--color-text-secondary, #6e6e73);
+}
+
+.equiv,
+.planDesc {
+  margin: 0.15rem 0 0;
+  font-size: 0.88rem;
+  line-height: 1.4;
+  color: var(--color-text-secondary, #6e6e73);
+}
+
+.savePanel {
+  margin: 0.55rem 0 0.35rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 10px;
+  background: rgba(184, 140, 78, 0.1);
+}
+
+.save {
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #1d272b;
+}
+
+.saveSub {
+  margin: 0.15rem 0 0;
+  font-size: 0.8rem;
+  color: var(--color-text-secondary, #6e6e73);
+}
+
+.planCard :global(button) {
+  margin-top: auto;
+  width: 100%;
+}
+
+.benefits {
+  list-style: none;
+  margin: 0;
+  padding: 1rem 1.05rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.95rem;
+  border-radius: 14px;
+  border: 1px solid var(--color-border, rgba(17, 17, 17, 0.1));
+  background: var(--color-surface, #fff);
+}
+
+.benefits li {
+  display: flex;
+  gap: 0.65rem;
+  align-items: flex-start;
+}
+
+.benefitIcon {
+  display: grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 999px;
+  background: rgba(29, 39, 43, 0.06);
+  color: #1d272b;
+  flex-shrink: 0;
+}
+
+.benefitTitle {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.benefitDesc {
+  margin: 0.15rem 0 0;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--color-text-secondary, #6e6e73);
+}
+
+.checkoutNote {
+  margin: 0.95rem 0 0;
+  padding: 0.85rem 1rem;
+  border-radius: 10px;
+  background: rgba(29, 39, 43, 0.05);
+  font-size: 0.92rem;
+  line-height: 1.4;
+}
+
+.paymentsHint {
+  margin: 0.85rem 0 0;
+  font-size: 0.82rem;
+  color: var(--color-text-secondary, #6e6e73);
+}
+
+/* ── Comparison ───────────────────────────────────────────────────── */
+
+.comparison {
+  padding: 1.15rem 1.2rem 1.05rem;
+  border-radius: 14px;
+  border: 1px solid var(--color-border, rgba(17, 17, 17, 0.1));
+  background: var(--color-surface, #fff);
+}
+
+.tableWrap {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.table th,
+.table td {
+  padding: 0.7rem 0.55rem;
+  border-bottom: 1px solid rgba(17, 17, 17, 0.06);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.table thead th {
+  font-size: 0.75rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary, #6e6e73);
+}
+
+.table tbody th {
+  font-weight: 500;
+  color: var(--color-text-primary, #1d1d1f);
+}
+
+.table td {
+  text-align: center;
+  color: var(--color-text-secondary, #6e6e73);
+}
+
+.featureCell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.featureCell svg {
+  color: var(--color-text-secondary, #6e6e73);
+  flex-shrink: 0;
+}
+
+.check {
+  display: inline-grid;
+  place-items: center;
+  width: 1.55rem;
+  height: 1.55rem;
+  border-radius: 999px;
+  background: rgba(90, 130, 90, 0.12);
+  color: #4f6f4f;
+}
+
+.summaryRow th,
+.summaryRow td {
+  border-bottom: 0;
+  padding-top: 0.95rem;
+  font-weight: 600;
+  color: var(--color-text-primary, #1d1d1f);
+}
+
+/* ── History ──────────────────────────────────────────────────────── */
+
+.history {
+  padding: 1.15rem 1.2rem 0.85rem;
+  border-radius: 14px;
+  border: 1px solid var(--color-border, rgba(17, 17, 17, 0.1));
+  background: var(--color-surface, #fff);
+}
+
+.historyList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.historyItem {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 0;
+  border-bottom: 1px solid rgba(17, 17, 17, 0.06);
+}
+
+.historyItem:last-child {
+  border-bottom: 0;
+}
+
+.historyTitle {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.historyDetail {
+  margin: 0.2rem 0 0;
+  font-size: 0.84rem;
+  color: var(--color-text-secondary, #6e6e73);
+}
+
+.historyStatus {
+  flex-shrink: 0;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  background: rgba(29, 39, 43, 0.06);
+  color: #1d272b;
+}
+
+.historyItem[data-status='active'] .historyStatus {
+  background: rgba(90, 130, 90, 0.14);
+  color: #3f5f3f;
+}
+
+.historyItem[data-status='scheduled'] .historyStatus {
+  background: rgba(184, 140, 78, 0.14);
+  color: #7a5c2e;
+}
+
+.historyItem[data-status='action_required'] .historyStatus,
+.historyItem[data-status='revoked'] .historyStatus {
+  background: rgba(29, 39, 43, 0.08);
+  color: #1d272b;
+}
+
+.historyItem[data-status='ended'] .historyStatus {
+  background: rgba(17, 17, 17, 0.05);
+  color: #6e6e73;
+}
+
+/* ── States ───────────────────────────────────────────────────────── */
+
+.notice {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+  border-radius: 12px;
+  border: 1px solid var(--color-border, rgba(17, 17, 17, 0.1));
+  background: var(--color-surface, #fff);
+}
+
+.skeleton {
+  display: grid;
+  gap: 1rem;
+}
+
+.skelCard {
+  height: 140px;
+  border-radius: 14px;
+  background: rgba(17, 17, 17, 0.05);
+}
+
+/* ── Responsive ───────────────────────────────────────────────────── */
+
+@media (max-width: 960px) {
+  .plansRow {
+    grid-template-columns: 1fr;
+  }
+
+  .benefits {
+    order: 3;
+  }
+}
+
+@media (max-width: 720px) {
+  .current {
+    grid-template-columns: 1fr;
+  }
+
+  .currentAside {
+    order: 2;
+  }
+
+  .ring {
+    width: 120px;
+    height: 120px;
+  }
+
+  .planCards {
+    grid-template-columns: 1fr;
+  }
+
+  .planAnnual {
+    order: -1;
+  }
+
+  .table th:first-child,
+  .table td:first-child {
+    min-width: 10rem;
+  }
+}

@@ -61,6 +61,7 @@ for (const route of [
   '/overview',
   '/users',
   '/users/:userId',
+  '/subscriptions',
   '/emails',
   '/integrations',
   '/system',
@@ -72,7 +73,14 @@ for (const route of [
 assert(shell.includes('OurWed Platform'), 'shell product name')
 assert(shell.includes('document.title = \'OurWed Platform\''), 'browser title')
 assert(shell.includes('OW'), 'OW mark')
-assert(shell.includes('Subskrypcje') && shell.includes('Niepodłączone'), 'billing disabled')
+assert(
+  shell.includes("to: '/subscriptions'") && shell.includes('Subskrypcje'),
+  'subscriptions nav link',
+)
+assert(
+  !shell.includes("label: 'Subskrypcje', badge: 'Niepodłączone'"),
+  'subscriptions not disabled badge',
+)
 assert(shell.includes('MFA aktywne'), 'mfa badge')
 assert(!shell.includes('Wkrótce'), 'no Wkrótce placeholders for phase2 nav')
 
@@ -166,6 +174,7 @@ assert(pkg.includes('test:admin-phase2'), 'npm script')
 for (const page of [
   'AdminUsersPage.tsx',
   'AdminUserDetailPage.tsx',
+  'AdminSubscriptionsPage.tsx',
   'AdminEmailsPage.tsx',
   'AdminIntegrationsPage.tsx',
   'AdminSystemPage.tsx',
@@ -173,5 +182,20 @@ for (const page of [
 ]) {
   assert(existsSync(join(ADMIN, 'pages', page)), page)
 }
+
+const subscriptionsPage = readFileSync(
+  join(ADMIN, 'pages/AdminSubscriptionsPage.tsx'),
+  'utf8',
+)
+assert(
+  subscriptionsPage.includes('Płatności online: Niepodłączone') ||
+    subscriptionsPage.includes('Niepodłączone'),
+  'subscriptions page payments note',
+)
+assert(
+  subscriptionsPage.includes('fetchSubscriptionMetrics'),
+  'subscriptions page metrics',
+)
+assert(!/MRR|revenue|przychód/i.test(subscriptionsPage), 'no fake revenue on subscriptions')
 
 console.log('PASS  admin-phase2 acceptance')

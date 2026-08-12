@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
 import { getWeddingDisplayName } from '@/features/weddings/presentation/getWeddingDisplayName'
+import { useProAccessGate } from '@/features/billing/ProAccessGate'
 import { weddingService } from '@/lib/api/weddingService'
 import type { Wedding } from '@/types/wedding'
 
@@ -53,6 +54,7 @@ function IdentityForm({
   onClose: () => void
   onSaved: (wedding: Wedding) => void
 }) {
+  const { requirePro } = useProAccessGate()
   const [displayName, setDisplayName] = useState(
     wedding.displayName?.trim() ?? '',
   )
@@ -66,6 +68,7 @@ function IdentityForm({
   })
 
   async function handleSave() {
+    if (!requirePro()) return
     const nextDate = date.trim()
     if (!/^\d{4}-\d{2}-\d{2}$/.test(nextDate)) {
       setError('Podaj prawidłową datę ślubu.')

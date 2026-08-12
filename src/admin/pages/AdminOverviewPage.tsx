@@ -8,6 +8,7 @@ import {
   fetchOverviewMetrics,
   fetchProductUsage,
   fetchRegistrationSeries,
+  fetchSubscriptionMetrics,
   fetchSystemHealth,
 } from '@/admin/api/adminApi'
 import type {
@@ -17,6 +18,7 @@ import type {
   AdminOverviewMetrics,
   AdminProductUsage,
   AdminRegistrationSeries,
+  AdminSubscriptionMetrics,
   AdminSystemHealth,
 } from '@/admin/api/types'
 import {
@@ -43,19 +45,22 @@ export function AdminOverviewPage() {
   const [funnel, setFunnel] = useState<AdminActivationFunnel | null>(null)
   const [attention, setAttention] = useState<AdminAttentionPayload | null>(null)
   const [system, setSystem] = useState<AdminSystemHealth | null>(null)
+  const [subscriptionMetrics, setSubscriptionMetrics] =
+    useState<AdminSubscriptionMetrics | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   async function load(nextRange: AdminMetricRange) {
     setState('loading')
     setErrorMessage(null)
     try {
-      const [o, s, u, f, a, h] = await Promise.all([
+      const [o, s, u, f, a, h, sub] = await Promise.all([
         fetchOverviewMetrics(nextRange),
         fetchRegistrationSeries(nextRange === 'today' ? 1 : nextRange === '7d' ? 7 : 30),
         fetchProductUsage(),
         fetchActivationFunnel(),
         fetchAttentionItems(),
         fetchSystemHealth(),
+        fetchSubscriptionMetrics(),
       ])
       setOverview(o)
       setSeries(s)
@@ -63,6 +68,7 @@ export function AdminOverviewPage() {
       setFunnel(f)
       setAttention(a)
       setSystem(h)
+      setSubscriptionMetrics(sub)
       setState('ready')
     } catch (err) {
       if (err instanceof AdminApiRequestError && err.code !== 'admin_fetch_failed') {
@@ -310,6 +316,37 @@ export function AdminOverviewPage() {
                   Sprawdzono: {system?.checkedAt ? formatUpdatedAt(system.checkedAt).replace('Dane zaktualizowane: ', '') : '—'}
                 </p>
               </article>
+            </section>
+
+            <section className={styles.panelCard}>
+              <h2 className={styles.sans}>Dostęp i Trial</h2>
+              {subscriptionMetrics ? (
+                <ul className={styles.usageList}>
+                  <li>
+                    <span>Trial aktywny</span>
+                    <strong>{subscriptionMetrics.trialActive}</strong>
+                  </li>
+                  <li>
+                    <span>Kończy się ≤7 dni</span>
+                    <strong>{subscriptionMetrics.trialEndingSoon}</strong>
+                  </li>
+                  <li>
+                    <span>PRO aktywny</span>
+                    <strong>{subscriptionMetrics.proActive}</strong>
+                  </li>
+                  <li>
+                    <span>Wygasł</span>
+                    <strong>{subscriptionMetrics.expired}</strong>
+                  </li>
+                  <li>
+                    <span>Ręczny dostęp</span>
+                    <strong>{subscriptionMetrics.manualAccess}</strong>
+                  </li>
+                </ul>
+              ) : null}
+              <p className={styles.quietNote}>
+                Płatności online: Niepodłączone
+              </p>
             </section>
 
             <section className={styles.panelCard}>

@@ -11,6 +11,7 @@ import { NextAssignmentsSection } from '@/features/dashboard/components/NextAssi
 import { TodoTodayCard } from '@/features/dashboard/components/TodoTodayCard'
 import { NotificationsCard } from '@/features/dashboard/components/NotificationsCard'
 import { PendingWeddingsCard } from '@/features/dashboard/components/PendingWeddingsCard'
+import { TrialEndingNotice } from '@/features/billing/TrialEndingNotice'
 import { buildAssignmentEvents } from '@/features/calendar/utils/calendarEvents'
 import {
   getNearestUpcomingAssignment,
@@ -90,6 +91,7 @@ export function DashboardPage() {
     <AppLayout>
       <PageContainer>
         <div className={styles.dashboard}>
+          <TrialEndingNotice />
           <DashboardHero
             userName={studioUser?.displayName ?? '—'}
             nextWedding={
@@ -107,7 +109,10 @@ export function DashboardPage() {
               <TodoTodayCard tasks={data.todayTasks} weddings={weddings ?? []} />
             </div>
             <div className={styles.secondary}>
-              <NotificationsCard notifications={data.notifications} />
+              <NotificationsCard
+                notifications={data.notifications}
+                onMarkedRead={() => void refetch()}
+              />
             </div>
           </div>
         </div>

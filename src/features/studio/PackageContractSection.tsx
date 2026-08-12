@@ -9,6 +9,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { Button } from '@/components/ui/Button'
 import { useToast } from '@/components/ui/Toast'
+import { useProAccessGate } from '@/features/billing/ProAccessGate'
 import {
   ContractUploadExperience,
   PackageTemplateUploadProgress,
@@ -70,6 +71,7 @@ export function PackageContractSection(input: {
   onPackageUpdated: (next: StudioPackage) => void
 }) {
   const { pkg, onPackageUpdated } = input
+  const { requirePro } = useProAccessGate()
   const replaceInputRef = useRef<HTMLInputElement>(null)
   const queryClient = useQueryClient()
   const { showToast } = useToast()
@@ -159,6 +161,7 @@ export function PackageContractSection(input: {
   }
 
   async function handleFile(file: File) {
+    if (!requirePro()) return
     const session = ++sessionRef.current
     inFlightRef.current = true
     setSelectedFile(file)
@@ -245,6 +248,7 @@ export function PackageContractSection(input: {
   }
 
   async function handleClear() {
+    if (!requirePro()) return
     try {
       const next = await clearPackageContractTemplate({ packageId: pkg.id })
       onPackageUpdated(next)

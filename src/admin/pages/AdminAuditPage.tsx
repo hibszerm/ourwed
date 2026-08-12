@@ -20,6 +20,9 @@ const ACTION_LABELS: Record<string, string> = {
   'admin.logout': 'Wylogowanie',
   'admin.audit_viewed': 'Podgląd audytu',
   'admin.unauthorized_attempt': 'Próba nieautoryzowana',
+  'subscription.trial_extended': 'Przedłużenie trial',
+  'subscription.manual_access_granted': 'Przyznanie ręcznego PRO',
+  'subscription.manual_access_revoked': 'Cofnięcie ręcznego dostępu',
 }
 
 export function AdminAuditPage() {

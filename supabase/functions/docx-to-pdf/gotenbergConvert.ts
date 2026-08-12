@@ -87,9 +87,11 @@ export async function convertDocxViaGotenberg(input: {
   const fetchFn = input.fetchImpl ?? fetch
   const form = new FormData()
   const filename = safeFileName(input.filename)
+  // Fresh copy: BlobPart expects ArrayBuffer-backed Uint8Array in strict DOM typings.
+  const fileBytes = new Uint8Array(input.docxBytes)
   form.append(
     'files',
-    new File([input.docxBytes], filename, {
+    new File([fileBytes], filename, {
       type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     }),
   )
