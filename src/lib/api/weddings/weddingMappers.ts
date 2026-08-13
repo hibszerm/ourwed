@@ -6,6 +6,10 @@ import {
 import { createDefaultQuestionnaires } from '@/lib/utils/questionnaires'
 import { parseFinalPaymentTerms } from '@/lib/utils/finalPaymentTerms'
 import {
+  isTravelFeeStatus,
+  type TravelFeeStatus,
+} from '@/lib/utils/travelFeeCommercial'
+import {
   parseWeddingCorrespondenceCollection,
   serializeCorrespondenceForDb,
 } from '@/features/weddings/correspondence/weddingCorrespondence'
@@ -52,6 +56,12 @@ export interface WeddingRow {
   delivery_days?: number | string | null
   final_payment_terms?: unknown
   final_payment_due_date?: string | null
+  travel_fee_status?: string | null
+  travel_fee_amount?: number | string | null
+  travel_fee_resolved_at?: string | null
+  travel_fee_free_km_snapshot?: number | string | null
+  travel_fee_route_distance_m_snapshot?: number | string | null
+  travel_fee_note?: string | null
   bride_preparation_location?: string | null
   groom_preparation_location?: string | null
   selected_package_ids?: string[] | null
@@ -155,6 +165,10 @@ function optionalRowNumber(
   return Number.isFinite(n) ? n : null
 }
 
+function mapTravelFeeStatus(raw: string | null | undefined): TravelFeeStatus {
+  return isTravelFeeStatus(raw) ? raw : 'unresolved'
+}
+
 /** Map a `public.weddings` row → app `Wedding` view model (scalars only). */
 export function mapWeddingRowToModel(row: WeddingRow): Wedding {
   const venue = row.venue ?? ''
@@ -162,6 +176,12 @@ export function mapWeddingRowToModel(row: WeddingRow): Wedding {
   const phone = row.phone ?? ''
   const brideSplit = splitPersonName(row.bride_name)
   const groomSplit = splitPersonName(row.groom_name)
+  const travelFeeStatus = mapTravelFeeStatus(row.travel_fee_status)
+  const travelFeeAmountRaw = optionalRowNumber(row.travel_fee_amount)
+  const travelFeeAmount =
+    travelFeeStatus === 'charged'
+      ? Math.max(0, travelFeeAmountRaw ?? 0)
+      : 0
 
   return {
     id: row.id,
@@ -194,6 +214,14 @@ export function mapWeddingRowToModel(row: WeddingRow): Wedding {
     packageName: row.package_name ?? '',
     packageId: asCatalogPackageId(row.package_id),
     price: toNumber(row.contract_value, 0),
+    travelFeeStatus,
+    travelFeeAmount,
+    travelFeeResolvedAt: row.travel_fee_resolved_at ?? null,
+    travelFeeFreeKmSnapshot: optionalRowNumber(row.travel_fee_free_km_snapshot),
+    travelFeeRouteDistanceMSnapshot: optionalRowNumber(
+      row.travel_fee_route_distance_m_snapshot,
+    ),
+    travelFeeNote: row.travel_fee_note?.trim() || null,
     depositAmount: toNumber(row.deposit_amount, 0),
     currency: row.currency || DEFAULT_WEDDING_CURRENCY,
     packageItems: parsePackageItemsSnapshot(row.package_items_snapshot),
@@ -283,6 +311,16 @@ export function mapWeddingModelToRow(
     delivery_days: wedding.deliveryDays ?? null,
     final_payment_terms: wedding.finalPaymentTerms ?? null,
     final_payment_due_date: wedding.finalPaymentDueDate?.trim() || null,
+    travel_fee_status: wedding.travelFeeStatus ?? 'unresolved',
+    travel_fee_amount:
+      (wedding.travelFeeStatus ?? 'unresolved') === 'charged'
+        ? Math.max(0, wedding.travelFeeAmount ?? 0)
+        : 0,
+    travel_fee_resolved_at: wedding.travelFeeResolvedAt ?? null,
+    travel_fee_free_km_snapshot: wedding.travelFeeFreeKmSnapshot ?? null,
+    travel_fee_route_distance_m_snapshot:
+      wedding.travelFeeRouteDistanceMSnapshot ?? null,
+    travel_fee_note: wedding.travelFeeNote?.trim() || null,
     bride_preparation_location:
       wedding.bridePreparationLocation?.trim() ||
       wedding.preparationLocation?.trim() ||

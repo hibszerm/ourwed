@@ -43,6 +43,8 @@ export interface StudioTravelSettings {
   latitude: number | null
   longitude: number | null
   placeId: string | null
+  /** Studio free-distance policy (km). Null/undefined = unset. Suggestion only. */
+  freeDistanceKm?: number | null
   createdAt: string
   updatedAt: string
 }

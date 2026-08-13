@@ -160,7 +160,11 @@ run('Ankieta Plan dnia uses TravelRouteTotals + same travel-plan query', () => {
   )
   assert(plan.includes('TravelRouteTotals'), 'uses shared totals')
   assert(plan.includes('summarizeTravelRoute'), 'canonical summary')
-  assert(plan.includes("queryKey: ['travel-plan', userId, weddingId]"), 'same query key')
+  assert(
+    plan.includes('travelPlanQueryKey') ||
+      plan.includes("queryKey: ['travel-plan', userId, weddingId]"),
+    'same query key',
+  )
   assert(plan.includes('forceRefresh: true'), 'recalc updates cache')
   assert(!plan.includes('distanceMeters /'), 'no local distance calc')
 })
@@ -186,7 +190,27 @@ run('TravelRouteTotals shows dash when incomplete; values when complete', () => 
   assert(ui.includes('travel-route-totals'), 'testid')
   assert(ui.includes('travel-total-distance'), 'distance testid')
   assert(ui.includes('travel-total-duration'), 'duration testid')
-  assert(ui.includes("? summary.distanceText : '—'"), 'dash when incomplete')
+  assert(ui.includes('showValues'), 'values gated')
+  assert(ui.includes('travel-route-loading'), 'loading state')
+  assert(ui.includes('Przeliczamy trasę…'), 'loading copy')
+  assert(ui.includes('travel-route-error'), 'error state')
+  assert(ui.includes('Nie udało się przeliczyć trasy.'), 'error copy')
+  assert(ui.includes('aria-live="polite"'), 'a11y live region')
+  assert(ui.includes('disabled={loading}'), 'button disabled while loading')
+})
+
+run('Plan dnia has no visible DEV order panel; shared loading for auto/manual', () => {
+  const plan = readFileSync(
+    resolve(process.cwd(), 'src/features/prewedding/PreWeddingDayPlan.tsx'),
+    'utf8',
+  )
+  assert(!plan.includes('operational-order-debug'), 'no visible DEV panel')
+  assert(!plan.includes('wedding-places-db-debug'), 'no DB debug query in UI')
+  assert(!plan.includes('DB: ${'), 'no DB label in JSX')
+  assert(plan.includes("setRouteStatus('loading')"), 'loading on recalc')
+  assert(plan.includes("setRouteStatus('error')"), 'error on failure')
+  assert(plan.includes('routeStatus={'), 'passes status to totals')
+  assert(plan.includes('data-route-busy'), 'leg busy marker')
 })
 
 console.log('\nTravel route totals acceptance finished.')

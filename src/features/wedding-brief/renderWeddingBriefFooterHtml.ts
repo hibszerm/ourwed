@@ -1,5 +1,5 @@
 /**
- * Gotenberg footer HTML for page numbers (Chromium).
+ * Quiet page footer for Wedding Brief PDF (PDFShift adapts pageNumber/totalPages).
  */
 
 import type { WeddingBriefPdfData } from '@/features/wedding-brief/types'
@@ -18,17 +18,17 @@ export function renderWeddingBriefFooterHtml(data: WeddingBriefPdfData): string 
   .f {
     width: 100%;
     font-family: Helvetica, Arial, sans-serif;
-    font-size: 8pt;
-    color: #6b6b6b;
+    font-size: 7.5pt;
+    color: #9a9a9a;
     display: flex;
     justify-content: space-between;
-    padding: 0 2mm;
+    padding: 0 1mm;
   }
 </style></head>
 <body>
   <div class="f">
     <span>${esc(data.footer.coupleDisplayName)} · ${esc(data.footer.weddingDateLabel)}</span>
-    <span>Strona <span class="pageNumber"></span> z <span class="totalPages"></span> · Wygenerowano ${esc(data.document.generatedAtLabel)}</span>
+    <span><span class="pageNumber"></span>/<span class="totalPages"></span> · ${esc(data.document.generatedAtLabel)}</span>
   </div>
 </body></html>`
 }

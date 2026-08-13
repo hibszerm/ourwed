@@ -1,5 +1,8 @@
 import type { FinalPaymentTerms } from '@/lib/utils/finalPaymentTerms'
 import type { WeddingCorrespondenceEntry } from '@/features/weddings/correspondence/weddingCorrespondence'
+import type { TravelFeeStatus } from '@/lib/utils/travelFeeCommercial'
+
+export type { TravelFeeStatus } from '@/lib/utils/travelFeeCommercial'
 
 
 export type WorkflowStage =
@@ -243,8 +246,22 @@ export interface Wedding {
   /**
    * Commercial snapshot — contractValue (total agreed contract value).
    * Persisted as weddings.contract_value.
+   * Includes package base + extras + charged travel fee.
    */
   price: number
+  /**
+   * Travel fee commercial decision — snapshotted per wedding.
+   * Not derived live from route distance.
+   */
+  travelFeeStatus?: TravelFeeStatus
+  /** Amount when charged; 0 when included/unresolved. */
+  travelFeeAmount?: number
+  travelFeeResolvedAt?: string | null
+  /** Studio free-km policy at resolve time (audit). */
+  travelFeeFreeKmSnapshot?: number | null
+  /** Round-trip commercial distance (meters) at resolve time (audit). */
+  travelFeeRouteDistanceMSnapshot?: number | null
+  travelFeeNote?: string | null
   /**
    * Commercial snapshot — agreedDeposit (deposit agreed in the contract).
    * Persisted as weddings.deposit_amount. Not the same as deposit paid.

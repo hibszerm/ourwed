@@ -129,6 +129,9 @@ export function isPreWeddingSubmittedStatus(
 // Wedding questionnaire instance
 // ---------------------------------------------------------------------------
 
+/** Prefill JSON values — scalars or structured places for address mappings. */
+export type PrefillValue = string | import('@/types/travel').GeoPlace
+
 export interface WeddingQuestionnaire {
   id: string
   weddingId: string
@@ -138,7 +141,11 @@ export interface WeddingQuestionnaire {
   title: string
   introduction: string
   schema: PreWeddingTemplateSchema
-  prefill: Record<string, string>
+  /**
+   * Prefill keyed by weddingDayMapping.
+   * Location mappings may be GeoPlace (structured) or legacy plain address strings.
+   */
+  prefill: Record<string, PrefillValue>
   status: WeddingQuestionnaireStatus
   /** True when a public_token_hash exists (plaintext is never recoverable from DB). */
   hasPublicToken: boolean
@@ -186,7 +193,7 @@ export interface PublicPreWeddingForm {
   title: string
   introduction: string
   schema: PreWeddingTemplateSchema
-  prefill: Record<string, string>
+  prefill: Record<string, PrefillValue>
   status: WeddingQuestionnaireStatus
   submittedAt?: string | null
   savedAnswers: Record<string, PreWeddingAnswerValue>

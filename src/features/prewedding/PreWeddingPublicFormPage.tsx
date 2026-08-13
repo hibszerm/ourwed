@@ -1,12 +1,15 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { QuestionnaireLocationField } from '@/features/prewedding/QuestionnaireLocationField'
 import {
   isAnswerEmpty,
   isStructuredLocationAnswer,
+  formatLocationAnswerDisplay,
 } from '@/features/prewedding/preweddingLocation'
 import { publicPreWeddingService } from '@/lib/api/preweddingQuestionnaireService'
+import { scrollPublicFormToTop } from '@/features/prewedding/scrollPublicFormToTop'
 import type {
+  PrefillValue,
   PreWeddingAnswerValue,
   PreWeddingQuestion,
   PreWeddingSection,
@@ -23,7 +26,15 @@ interface FieldProps {
   value: PreWeddingAnswerValue
   error?: string
   onChange: (value: PreWeddingAnswerValue) => void
+  /** Scalar placeholder only — structured place prefill is applied as answer value. */
   prefill?: string
+}
+
+function prefillPlaceholder(value: PrefillValue | undefined): string | undefined {
+  if (value == null) return undefined
+  if (typeof value === 'string') return value
+  const display = formatLocationAnswerDisplay(value)
+  return display || undefined
 }
 
 function ShortTextField({ question, value, error, onChange, prefill }: FieldProps) {
@@ -467,6 +478,7 @@ export function PreWeddingPublicFormPage({ token }: { token: string }) {
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastSavedAnswersRef = useRef<string>('')
   const inflightRef = useRef<number>(0)
+  const thankYouRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     if (!token) {
@@ -579,7 +591,6 @@ export function PreWeddingPublicFormPage({ token }: { token: string }) {
       const answeredReq = countAnsweredRequired(sections, answers)
       await publicPreWeddingService.submit(token, answers, answeredReq, totalReq)
       setSubmitted(true)
-      window.scrollTo({ top: 0, behavior: 'smooth' })
     } catch (err) {
       setErrors({
         _form: err instanceof Error ? err.message : 'Nie udało się wysłać ankiety.',
@@ -588,6 +599,12 @@ export function PreWeddingPublicFormPage({ token }: { token: string }) {
       setSubmitting(false)
     }
   }
+
+  useLayoutEffect(() => {
+    if (!submitted) return
+    scrollPublicFormToTop(thankYouRef.current)
+    thankYouRef.current?.focus()
+  }, [submitted])
 
   if (loading) {
     return (
@@ -623,13 +640,15 @@ export function PreWeddingPublicFormPage({ token }: { token: string }) {
 
   if (submitted) {
     return (
-      <div className={styles.shell} data-testid="prewedding-thank-you">
-        <StudioBrandHeader form={form} />
+      <div
+        ref={thankYouRef}
+        className={styles.shell}
+        data-testid="prewedding-thank-you"
+        tabIndex={-1}
+      >
         <div className={styles.thankYou}>
           <h1 className={styles.thankYouTitle}>Dziękujemy!</h1>
-          <p className={styles.thankYouLead}>
-            Bardzo dziękujemy za poświęcony czas.
-          </p>
+          <p className={styles.thankYouLead}>Ankieta została wysłana.</p>
           <p className={styles.thankYouBody}>
             Dzięki Waszym odpowiedziom będziemy mogli jeszcze lepiej przygotować się do Waszego
             dnia.
@@ -638,7 +657,7 @@ export function PreWeddingPublicFormPage({ token }: { token: string }) {
           {form.studioLogoUrl ? (
             <img
               src={form.studioLogoUrl}
-              alt={form.studioName || form.title || 'Logo fotografa'}
+              alt={form.studioName || 'Logo studia'}
               className={styles.thankYouLogo}
             />
           ) : form.studioName ? (
@@ -728,7 +747,9 @@ export function PreWeddingPublicFormPage({ token }: { token: string }) {
                     error={errors[q.id]}
                     onChange={(v) => handleChange(q.id, v)}
                     prefill={
-                      q.weddingDayMapping ? form.prefill[q.weddingDayMapping] : undefined
+                      q.weddingDayMapping
+                        ? prefillPlaceholder(form.prefill[q.weddingDayMapping])
+                        : undefined
                     }
                   />
                 )}

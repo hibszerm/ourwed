@@ -8,6 +8,7 @@ import { weddingService } from '@/lib/api/weddingService'
 import { validateWeddingCorrespondenceEntries } from '@/features/weddings/correspondence/weddingCorrespondence'
 import { persistWeddingContractAnswerFields } from '@/lib/forms/persistWeddingContractAnswers'
 import { isLikelyUuid } from '@/lib/supabase/helpers'
+import { getEffectiveTravelFeeAmount } from '@/lib/utils/travelFeeCommercial'
 import type { WeddingExtraService } from '@/types/package'
 import type {
   Payment,
@@ -24,7 +25,7 @@ export interface WeddingEditDraft {
   notes: WeddingNote[]
   tasks: Task[]
   payments: Payment[]
-  /** Package price portion before extras — used to recompute contract value. */
+  /** Package price portion before extras + travel — used to recompute contract value. */
   packageBasePrice: number
 }
 
@@ -44,6 +45,7 @@ export function createWeddingEditDraft(
     0,
   )
   const wedding = structuredClone(snapshot.wedding)
+  const travel = getEffectiveTravelFeeAmount(wedding)
   return {
     wedding,
     contacts: structuredClone(snapshot.contacts),
@@ -51,7 +53,7 @@ export function createWeddingEditDraft(
     notes: structuredClone(snapshot.wedding.notes),
     tasks: structuredClone(snapshot.tasks),
     payments: structuredClone(snapshot.wedding.payments),
-    packageBasePrice: Math.max(0, wedding.price - extrasTotal),
+    packageBasePrice: Math.max(0, wedding.price - extrasTotal - travel),
   }
 }
 
@@ -59,6 +61,7 @@ export function recomputeContractValue(draft: WeddingEditDraft): number {
   return weddingExtraServiceService.totalFromSnapshots(
     draft.packageBasePrice,
     draft.extras,
+    getEffectiveTravelFeeAmount(draft.wedding),
   )
 }
 

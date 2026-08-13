@@ -67,6 +67,11 @@
   padding-left: calc(2rem + var(--space-3));
 }
 
+.legMetricsBusy {
+  letter-spacing: 0.12em;
+  opacity: 0.75;
+}
+
 .legIcon {
   flex-shrink: 0;
   color: var(--color-text-tertiary);
@@ -140,6 +145,41 @@
   gap: var(--space-3);
 }
 
+.stageRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.dragHandle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-left: -0.15rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-tertiary);
+  cursor: grab;
+  opacity: 0;
+  flex-shrink: 0;
+  touch-action: none;
+}
+
+.dragHandle:hover,
+.dragHandle:focus-visible,
+.item:hover .dragHandle,
+.item:focus-within .dragHandle {
+  opacity: 1;
+}
+
+.dragHandle:active {
+  cursor: grabbing;
+}
+
 .stage {
   margin: 0;
   font-size: var(--text-sm);
@@ -148,13 +188,43 @@
   line-height: var(--leading-snug);
 }
 
-.time {
+.time,
+.timeButton {
   margin: 0;
   font-size: var(--text-sm);
   font-weight: 650;
   font-variant-numeric: tabular-nums;
   color: var(--color-text-secondary);
   flex-shrink: 0;
+}
+
+.timeButton {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.timeButton:hover,
+.timeButton:focus-visible {
+  color: var(--color-text-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.timeInput {
+  width: 6.5rem;
+  height: 1.6rem;
+  padding: 0 0.35rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  font-size: var(--text-sm);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
 }
 
 .venue {

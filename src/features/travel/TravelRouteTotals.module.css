@@ -23,10 +23,84 @@
   color: var(--color-text-primary);
   word-break: break-word;
   font-variant-numeric: tabular-nums;
+  min-height: 1.5em;
+}
+
+.bandSkeleton {
+  display: inline-block;
+  width: 4.5rem;
+  height: 0.85em;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-border) 85%, transparent);
+  vertical-align: middle;
+  animation: routePulse 1.2s ease-in-out infinite;
 }
 
 .routeSummaryHint {
   margin: var(--space-1) 0 0;
   font-size: var(--text-2xs);
   color: var(--color-text-tertiary);
+}
+
+.routeStatus {
+  flex: 1 1 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  margin-bottom: var(--space-1);
+}
+
+.routeStatusCopy {
+  min-width: 0;
+}
+
+.routeStatusTitle {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.routeStatusDetail {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-tertiary);
+  line-height: 1.4;
+}
+
+.routeSpinner {
+  flex-shrink: 0;
+  width: 1rem;
+  height: 1rem;
+  margin-top: 0.15rem;
+  border: 1.5px solid var(--color-border);
+  border-top-color: var(--color-text-tertiary);
+  border-radius: 50%;
+  animation: routeSpin 0.8s linear infinite;
+}
+
+@keyframes routeSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes routePulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
+
+@media (max-width: 40rem) {
+  .routeSummary {
+    gap: var(--space-4);
+  }
+
+  .routeStatus {
+    margin-bottom: var(--space-2);
+  }
 }

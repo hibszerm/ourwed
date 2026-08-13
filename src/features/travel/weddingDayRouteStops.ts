@@ -4,6 +4,10 @@
  */
 
 import { weddingPlaceRouteLabel } from '@/features/travel/weddingLocationModel'
+import {
+  assertRouteInputMatchesOperationalOrder,
+  logOperationalOrder,
+} from '@/features/wedding-day/operationalOrderDebug'
 import type {
   StudioTravelSettings,
   TravelEndpointKind,
@@ -36,6 +40,18 @@ export const ROUTE_ROLE_SORT: Record<WeddingPlaceRole, number> = {
   hotel: 40,
   airport: 50,
   other: 100,
+}
+
+/**
+ * Studio-committed operational order uses this base so values can never be
+ * mistaken for ROLE_SORT / legacy catalogs (10/15/20/30).
+ * Bride-first after reorder → 1000, 2000, 3000, 4000.
+ */
+export const OPERATIONAL_SORT_BASE = 1000
+export const OPERATIONAL_SORT_STEP = 1000
+
+export function operationalSortOrderAt(index: number): number {
+  return OPERATIONAL_SORT_BASE + index * OPERATIONAL_SORT_STEP
 }
 
 export type WeddingDayRouteStop = {
@@ -139,21 +155,114 @@ function placeStop(
 }
 
 /**
+ * Preserve an explicit id sequence (drag draft / committed reorder).
+ * Does NOT re-sort by sort_order — array order is authoritative.
+ */
+export function orderPlacesByExplicitIds(
+  places: WeddingPlace[],
+  orderedIds: string[],
+): WeddingPlace[] {
+  const byId = new Map(places.map((p) => [p.id, p]))
+  const out: WeddingPlace[] = []
+  const seen = new Set<string>()
+  for (const id of orderedIds) {
+    const place = byId.get(id)
+    if (!place || seen.has(id)) continue
+    seen.add(id)
+    out.push(place)
+  }
+  return out
+}
+
+/**
  * Build ordered route-eligible stops.
  *
- * Uses CANONICAL_ROUTE_ROLE_ORDER as the operational source of truth.
- * When places carry a custom sequential sortOrder (future drag-reorder),
- * that order wins for wedding places after studio.
+ * Wedding places: `orderedPlaceIds` when provided (exact sequence), else
+ * `getOperationalOrderedPlaces` (persisted sort_order / catalog fallback).
+ * Studio is always first when present.
  */
 export function buildOrderedWeddingDayRouteStops(input: {
   studio: StudioTravelSettings | null
   places: WeddingPlace[]
+  /** When set, this id sequence wins over sort_order / catalog. */
+  orderedPlaceIds?: string[]
 }): WeddingDayRouteStop[] {
-  const { studio, places } = input
+  const { studio, places, orderedPlaceIds } = input
   const stops: WeddingDayRouteStop[] = []
 
   const start = studioStop(studio)
   if (start) stops.push(start)
+
+  const orderedPlaces = orderedPlaceIds?.length
+    ? orderPlacesByExplicitIds(places, orderedPlaceIds)
+    : getOperationalOrderedPlaces(places)
+
+  let order = start ? 1 : 0
+  for (const place of orderedPlaces) {
+    const stop = placeStop(place, order)
+    if (!stop) continue
+    stops.push(stop)
+    order += 1
+  }
+
+  logOperationalOrder({
+    source: 'buildOrderedWeddingDayRouteStops',
+    weddingId: places[0]?.weddingId ?? '',
+    places: orderedPlaces,
+    note: orderedPlaceIds?.length
+      ? `explicit-ids stops=${stops.map((s) => s.id).join('>')}`
+      : `stops=${stops.map((s) => s.id).join('>')}`,
+  })
+  assertRouteInputMatchesOperationalOrder({
+    weddingId: places[0]?.weddingId ?? '',
+    operationalPlaceIds: orderedPlaces.map((p) => p.id),
+    routeStopIds: stops.map((s) => s.id),
+  })
+
+  return stops
+}
+
+/**
+ * Sole place-order resolver for Plan dnia, travel, manual recalc, and Brief.
+ * Studio is not included — callers prepend it when present.
+ *
+ * Alias: prefer this name at call sites; `orderWeddingDayPlaces` is the same fn.
+ */
+export function getOperationalOrderedPlaces(
+  places: WeddingPlace[],
+): WeddingPlace[] {
+  return orderWeddingDayPlaces(places)
+}
+
+/**
+ * Wedding places in operational day order (custom sort_order or role catalog).
+ * Studio is not included — it is always first when present.
+ */
+export function orderWeddingDayPlaces(places: WeddingPlace[]): WeddingPlace[] {
+  if (places.length === 0) return []
+
+  if (placesHaveCustomSequentialOrder(places)) {
+    const sorted = [...places].sort((a, b) => {
+      const d = Number(a.sortOrder) - Number(b.sortOrder)
+      if (d !== 0) return d
+      return a.id.localeCompare(b.id)
+    })
+    const seen = new Set<string>()
+    const out: WeddingPlace[] = []
+    for (const place of sorted) {
+      const role = place.role === 'preparation' ? 'bride_preparation' : place.role
+      if (seen.has(role)) continue
+      seen.add(role)
+      out.push(place)
+    }
+    logOperationalOrder({
+      source: 'orderWeddingDayPlaces',
+      weddingId: places[0]?.weddingId ?? '',
+      places: out,
+      note: 'custom sort_order',
+    })
+    return out
+  }
 
   const byRole = new Map<string, WeddingPlace>()
   for (const place of places) {
@@ -161,35 +270,19 @@ export function buildOrderedWeddingDayRouteStops(input: {
     if (!byRole.has(role)) byRole.set(role, place)
   }
 
-  const usesCustomOrder = placesHaveCustomSequentialOrder(places)
-
-  let order = start ? 1 : 0
-  if (usesCustomOrder) {
-    const sorted = [...places].sort((a, b) => a.sortOrder - b.sortOrder)
-    const seen = new Set<string>()
-    for (const place of sorted) {
-      const role = place.role === 'preparation' ? 'bride_preparation' : place.role
-      if (seen.has(role)) continue
-      seen.add(role)
-      const stop = placeStop(place, order)
-      if (!stop) continue
-      stops.push(stop)
-      order += 1
-    }
-    return stops
-  }
-
+  const out: WeddingPlace[] = []
   for (const key of CANONICAL_ROUTE_ROLE_ORDER) {
     if (key === 'studio') continue
     const place = byRole.get(key)
-    if (!place) continue
-    const stop = placeStop(place, order)
-    if (!stop) continue
-    stops.push(stop)
-    order += 1
+    if (place) out.push(place)
   }
-
-  return stops
+  logOperationalOrder({
+    source: 'orderWeddingDayPlaces',
+    weddingId: places[0]?.weddingId ?? '',
+    places: out,
+    note: 'catalog role fallback',
+  })
+  return out
 }
 
 /**
@@ -213,16 +306,27 @@ const ROLE_SORT_CATALOGS: ReadonlyArray<Partial<Record<WeddingPlaceRole, number>
   ]
 
 /**
- * True when sortOrder values encode a deliberate sequence (unique ascending)
- * that differs from known role catalogs — ready for future manual reorder.
+ * True when sortOrder values encode a deliberate operational sequence.
+ *
+ * - Any place in the OPERATIONAL_SORT_BASE range means a studio reorder was
+ *   committed — always honor numeric sort_order (never snap back to roles).
+ * - Unique sort orders that match a known role catalog → catalog defaults.
+ * - Any other unique non-catalog sequence → sort_order is authoritative.
  */
-function placesHaveCustomSequentialOrder(places: WeddingPlace[]): boolean {
+export function placesHaveCustomSequentialOrder(places: WeddingPlace[]): boolean {
   if (places.length < 2) return false
-  const orders = places.map((p) => p.sortOrder)
+  const orders = places.map((p) => Number(p.sortOrder))
+  if (orders.some((n) => !Number.isFinite(n))) return false
+
+  // Once reorder (or an operational insert) has written ≥1000, never revert
+  // to groom→bride→ceremony→reception role reconstruction.
+  if (orders.some((n) => n >= OPERATIONAL_SORT_BASE)) return true
+
   const unique = new Set(orders)
   if (unique.size !== places.length) return false
+
   const matchesCatalog = ROLE_SORT_CATALOGS.some((catalog) =>
-    places.every((p) => p.sortOrder === (catalog[p.role] ?? 100)),
+    places.every((p) => Number(p.sortOrder) === (catalog[p.role] ?? 100)),
   )
   if (matchesCatalog) return false
   return true

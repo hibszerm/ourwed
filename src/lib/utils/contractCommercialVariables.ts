@@ -13,6 +13,7 @@ import { formatContractPln } from '@/lib/utils/currency'
 import { formatDate } from '@/lib/utils/dates'
 import type { Wedding, WeddingPackageItemSnapshot } from '@/types/wedding'
 import { formatPolishHours } from '@/lib/utils/polishDuration'
+import { getEffectiveTravelFeeAmount } from '@/lib/utils/travelFeeCommercial'
 
 /** True when a numeric commercial field is intentionally present (0 allowed). */
 export function isPresentMoney(
@@ -341,6 +342,23 @@ export function buildContractCommercialResolved(
   put(values, 'included_services', includedText)
   put(values, 'package_items_count', String(includedServices.length))
 
+  // Travel fee — only expose when resolved (charged or included). Unresolved = omit.
+  const travelStatus = wedding.travelFeeStatus ?? 'unresolved'
+  if (travelStatus === 'charged' || travelStatus === 'included') {
+    const travelAmount =
+      travelStatus === 'charged' ? getEffectiveTravelFeeAmount(wedding) : 0
+    putMoneyBundle(
+      values,
+      {
+        raw: 'travel_fee',
+        formatted: 'travel_fee_formatted',
+        words: 'travel_fee_words',
+      },
+      travelAmount,
+    )
+    put(values, 'travelFee', String(Math.round(travelAmount)))
+  }
+
   const missingCanonicalKeys = CANONICAL_REFERENCE_KEYS.filter(
     (key) => !values[key],
   )
@@ -384,6 +402,14 @@ export function buildContractCommercialResolved(
       includedServicesText: includedText,
       included_services_text: includedText,
       workingHours: wedding.coverageHours ?? null,
+      travelFee:
+        travelStatus === 'charged' || travelStatus === 'included'
+          ? travelStatus === 'charged'
+            ? getEffectiveTravelFeeAmount(wedding)
+            : 0
+          : undefined,
+      travelFeeFormatted: values.travel_fee_formatted,
+      travelFeeStatus: travelStatus,
       price: values.contract_value_formatted,
       totalPrice: values.contract_value_formatted,
       deposit: values.agreed_deposit_formatted,

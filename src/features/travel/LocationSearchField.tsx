@@ -41,8 +41,6 @@ export interface LocationSearchFieldProps {
   preserveName?: string | null
   /** When true, do not adopt a newly detected venue name from Places. */
   nameManuallyEdited?: boolean
-  /** Show “Location saved with coordinates” under the field. Default true. */
-  showSavedHint?: boolean
   /** Fired while typing (local text). */
   onChangeText?: (text: string) => void
   /**
@@ -80,7 +78,6 @@ export function LocationSearchField({
   compactDisplay = false,
   preserveName = null,
   nameManuallyEdited = false,
-  showSavedHint = true,
   onChangeText,
   onSelectPlace,
   commitTypedOnBlur = false,
@@ -249,11 +246,6 @@ export function LocationSearchField({
   }
 
   const showClear = text.trim().length > 0 && !disabled && !saving
-  const showHint =
-    showSavedHint &&
-    place?.latitude != null &&
-    place.longitude != null &&
-    !error
   const showAttribution = suggestions.length > 0 || searching
 
   return (
@@ -339,10 +331,6 @@ export function LocationSearchField({
           </button>
         ) : null}
       </div>
-
-      {showHint ? (
-        <p className={styles.meta}>Location saved with coordinates</p>
-      ) : null}
 
       {error ? (
         <p className={styles.error} role="status">

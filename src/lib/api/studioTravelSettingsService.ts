@@ -17,11 +17,16 @@ interface StudioTravelSettingsRow {
   latitude: number | string | null
   longitude: number | string | null
   place_id: string | null
+  free_distance_km?: number | string | null
   created_at: string
   updated_at: string
 }
 
 function mapRow(row: StudioTravelSettingsRow): StudioTravelSettings {
+  const freeKm =
+    row.free_distance_km == null || row.free_distance_km === ''
+      ? null
+      : toNumber(row.free_distance_km, Number.NaN)
   return {
     id: row.id,
     userId: row.user_id,
@@ -37,6 +42,7 @@ function mapRow(row: StudioTravelSettingsRow): StudioTravelSettings {
     longitude:
       row.longitude == null ? null : toNumber(row.longitude, Number.NaN) || null,
     placeId: row.place_id,
+    freeDistanceKm: freeKm != null && Number.isFinite(freeKm) ? freeKm : null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -49,6 +55,8 @@ export interface UpsertStudioTravelSettingsInput {
   postalCode?: string | null
   city?: string | null
   country?: string | null
+  /** Studio free-distance policy (km). Null clears. Undefined leaves unchanged. */
+  freeDistanceKm?: number | null
   /** When set, skips geocode and uses this resolved place. */
   place?: GeoPlace | null
   /** Force geocode from structured address fields. */
@@ -125,6 +133,13 @@ export const studioTravelSettingsService = {
       latitude: place?.latitude ?? existing?.latitude ?? null,
       longitude: place?.longitude ?? existing?.longitude ?? null,
       place_id: place?.placeId ?? existing?.placeId ?? null,
+      free_distance_km:
+        input.freeDistanceKm === undefined
+          ? (existing?.freeDistanceKm ?? null)
+          : input.freeDistanceKm == null ||
+              !Number.isFinite(input.freeDistanceKm)
+            ? null
+            : Math.max(0, input.freeDistanceKm),
       updated_at: nowIso(),
     }
 

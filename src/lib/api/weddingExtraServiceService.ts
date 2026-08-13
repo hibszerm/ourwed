@@ -112,15 +112,16 @@ export const weddingExtraServiceService = {
     return mapRow(row, service?.name)
   },
 
-  /** Package snapshot + sum of extra snapshots. */
+  /** Package snapshot + extras + optional effective travel fee. */
   totalFromSnapshots(
     packagePrice: number,
     extras: WeddingExtraService[],
+    effectiveTravelFee = 0,
   ): number {
     const extrasTotal = extras.reduce(
       (sum, e) => sum + e.priceSnapshot * e.quantity,
       0,
     )
-    return packagePrice + extrasTotal
+    return packagePrice + extrasTotal + Math.max(0, effectiveTravelFee)
   },
 }

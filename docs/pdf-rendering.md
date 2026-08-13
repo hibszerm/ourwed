@@ -56,14 +56,17 @@ No automatic retry. No localhost fallback. Conversion failure does **not** mutat
 
 One user PDF click → one Edge invoke → one Cloudmersive conversion (busy + in-flight guard).
 
-### Brief PDF (unchanged)
+### Brief PDF (unchanged provider; V2 information architecture)
 
-1. `buildWeddingBriefPdfData` / `loadWeddingBriefPdfData`
-2. `renderWeddingBriefHtml` + `renderWeddingBriefFooterHtml`
-3. `convertWeddingBriefHtmlToPdf` → `renderProductionHtmlToPdf` → Edge `pdf-render`
-4. `downloadPdfBytes`
+1. `buildWeddingBriefPdfData` / `loadWeddingBriefPdfData` — derived **operational field guide** (not questionnaire dump)
+2. Field registry: `briefFieldRegistry.ts` (classification + single destination per fact)
+3. `renderWeddingBriefHtml` + `renderWeddingBriefFooterHtml`
+4. `convertWeddingBriefHtmlToPdf` → `renderProductionHtmlToPdf` → Edge `pdf-render` → PDFShift
+5. `downloadPdfBytes`
 
-No localhost. No Gotenberg. `sandbox=false`.
+Page order: assignment → contacts → timeline → Nie przegap → locations → semantic ops → vendors → settlement.
+
+No localhost. No Gotenberg. `sandbox=false`. Preview: `tmp/wedding-brief-v2/brief-preview.html` via `npm run test:wedding-brief`.
 
 ## Provider modules
 

@@ -101,7 +101,6 @@ export function QuestionnaireLocationField({
               disabled={disabled}
               compactDisplay={false}
               preserveName={place?.label}
-              showSavedHint={false}
               commitTypedOnBlur
               placeholder={placeholder ?? 'Zacznij wpisywać adres lub nazwę miejsca…'}
               onChangeText={(text) => {

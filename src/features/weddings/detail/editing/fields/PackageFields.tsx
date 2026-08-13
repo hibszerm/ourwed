@@ -14,6 +14,8 @@ import {
   resolveFinalPaymentDueDate,
 } from '@/lib/utils/finalPaymentTerms'
 import { formatCurrency } from '@/lib/utils/currency'
+import { recomposeContractValueForExtrasEdit } from '@/lib/forms/weddingExtraPricing'
+import { getEffectiveTravelFeeAmount } from '@/lib/utils/travelFeeCommercial'
 import type { StudioPackage, WeddingExtraService } from '@/types/package'
 import type { Wedding } from '@/types/wedding'
 import styles from '../WeddingEditorFields.module.css'
@@ -39,6 +41,20 @@ export function PackageFields({
     pkg: StudioPackage
     extrasTotal: number
   } | null>(null)
+
+  function applyExtrasSelection(next: WeddingExtraService[]) {
+    onChangeExtras(next)
+    const travel = getEffectiveTravelFeeAmount(wedding)
+    onChangeWedding({
+      price: recomposeContractValueForExtrasEdit({
+        currentWeddingPrice: wedding.price,
+        extrasBefore: extras,
+        extrasAfter: next,
+        effectiveTravelFee: travel,
+        packageBasePrice,
+      }),
+    })
+  }
 
   const { data: catalogPackages, isPending: catalogPending } = useQuery({
     queryKey: ['studio-packages', userId, 'active'],
@@ -70,14 +86,16 @@ export function PackageFields({
     extrasTotal: number,
     preserveContractValue: boolean,
   ) {
+    const travel = getEffectiveTravelFeeAmount(wedding)
     onChangePackageBasePrice(
       preserveContractValue
-        ? Math.max(0, wedding.price - extrasTotal)
+        ? Math.max(0, wedding.price - extrasTotal - travel)
         : pkg.price,
     )
     onChangeWedding(
       applyCommercialPackageSnapshot(wedding, pkg, {
         extrasTotal,
+        effectiveTravelFee: travel,
         preserveContractValue,
       }),
     )
@@ -375,13 +393,15 @@ export function PackageFields({
               (sum, e) => sum + e.priceSnapshot * e.quantity,
               0,
             )
+            const travel = getEffectiveTravelFeeAmount(wedding)
             onChangePackageBasePrice(
-              Math.max(0, wedding.price - extrasTotal),
+              Math.max(0, wedding.price - extrasTotal - travel),
             )
             onChangeWedding(
               fillWeddingTermsFromCatalogPackage(wedding, selected, {
                 preserveContractValue: true,
                 extrasTotal,
+                effectiveTravelFee: travel,
               }),
             )
           }}
@@ -398,7 +418,7 @@ export function PackageFields({
           onChange={(e) => {
             const service = catalogExtras.find((s) => s.id === e.target.value)
             if (!service) return
-            const next = [
+            applyExtrasSelection([
               ...extras,
               {
                 id: `temp-${crypto.randomUUID()}`,
@@ -409,20 +429,7 @@ export function PackageFields({
                 quantity: 1,
                 createdAt: new Date().toISOString(),
               },
-            ]
-            onChangeExtras(next)
-            const base =
-              packageBasePrice ??
-              Math.max(
-                0,
-                wedding.price -
-                  extras.reduce((s, x) => s + x.priceSnapshot * x.quantity, 0),
-              )
-            onChangeWedding({
-              price:
-                base +
-                next.reduce((sum, x) => sum + x.priceSnapshot * x.quantity, 0),
-            })
+            ])
           }}
         >
           <option value="">Wybierz…</option>
@@ -460,28 +467,11 @@ export function PackageFields({
                   value={e.quantity}
                   onChange={(ev) => {
                     const quantity = Math.max(1, Number(ev.target.value) || 1)
-                    const next = extras.map((row) =>
-                      row.id === e.id ? { ...row, quantity } : row,
+                    applyExtrasSelection(
+                      extras.map((row) =>
+                        row.id === e.id ? { ...row, quantity } : row,
+                      ),
                     )
-                    onChangeExtras(next)
-                    const base =
-                      packageBasePrice ??
-                      Math.max(
-                        0,
-                        wedding.price -
-                          extras.reduce(
-                            (s, x) => s + x.priceSnapshot * x.quantity,
-                            0,
-                          ),
-                      )
-                    onChangeWedding({
-                      price:
-                        base +
-                        next.reduce(
-                          (sum, x) => sum + x.priceSnapshot * x.quantity,
-                          0,
-                        ),
-                    })
                   }}
                 />
               </div>
@@ -490,26 +480,7 @@ export function PackageFields({
                 variant="ghost"
                 size="sm"
                 onClick={() => {
-                  const next = extras.filter((row) => row.id !== e.id)
-                  onChangeExtras(next)
-                  const base =
-                    packageBasePrice ??
-                    Math.max(
-                      0,
-                      wedding.price -
-                        extras.reduce(
-                          (s, x) => s + x.priceSnapshot * x.quantity,
-                          0,
-                        ),
-                    )
-                  onChangeWedding({
-                    price:
-                      base +
-                      next.reduce(
-                        (sum, x) => sum + x.priceSnapshot * x.quantity,
-                        0,
-                      ),
-                  })
+                  applyExtrasSelection(extras.filter((row) => row.id !== e.id))
                 }}
               >
                 Usuń

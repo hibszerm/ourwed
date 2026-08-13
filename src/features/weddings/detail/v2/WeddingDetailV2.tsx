@@ -186,6 +186,9 @@ export function WeddingDetailV2(props: WeddingDetailSharedProps) {
               onContractStatusChanged={() => {
                 void queryClient.invalidateQueries({ queryKey: ['weddings'] })
               }}
+              onWeddingUpdated={() => {
+                void queryClient.invalidateQueries({ queryKey: ['weddings'] })
+              }}
             />
           ) : null}
 

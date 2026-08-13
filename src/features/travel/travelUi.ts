@@ -172,11 +172,22 @@ export function travelLegFailureMessage(
 
 /**
  * Build UI flow from plan — ordered eligible stops, legs matched by endpoint identity.
+ *
+ * Place ORDER never comes from plan.places alone. Pass `places` (and optional
+ * `orderedPlaceIds`) from the operational wedding_places authority.
  */
-export function buildTravelFlow(plan: TravelPlan): TravelFlow {
+export function buildTravelFlow(
+  plan: TravelPlan,
+  options?: {
+    places?: TravelPlan['places']
+    orderedPlaceIds?: string[]
+  },
+): TravelFlow {
+  const places = options?.places ?? plan.places
   const ordered = buildOrderedWeddingDayRouteStops({
     studio: plan.studio,
-    places: plan.places,
+    places,
+    orderedPlaceIds: options?.orderedPlaceIds,
   })
   // Prefer verified (address + coords) for UI markers; keep engine-eligible if verified fails.
   const stops: TravelFlowStop[] = []
@@ -360,10 +371,19 @@ export function summarizeTravelRoute(flow: TravelFlow): {
         s != null && s.status === 'ok' && s.distanceMeters != null,
     )
   const totalsComplete =
+    !flow.routeStale &&
     flow.routeComplete &&
     flow.routeLegs.length > 0 &&
     okSegments.length === flow.routeLegs.length
-  const totals = sumTravelTotals(okSegments)
+  // Stale / empty route must not keep previous totals in the UI.
+  const totals = totalsComplete
+    ? sumTravelTotals(okSegments)
+    : {
+        distanceMeters: 0,
+        durationSeconds: 0,
+        distanceText: '—',
+        durationText: '—',
+      }
   const includesBaseLeg = flow.routeLegs.some(
     (leg) =>
       leg.origin.kind === 'studio' &&

@@ -26,6 +26,7 @@ import { asCatalogPackageId } from '@/lib/supabase/helpers'
 import { extractAnswerFields } from '@/lib/forms/mergeFormAnswersIntoWedding'
 import { syncWeddingExtrasFromQuestionnaireAnswer } from '@/lib/forms/syncWeddingExtrasFromQuestionnaire'
 import { recomputeContractValueAfterExtrasSync } from '@/lib/forms/weddingExtraPricing'
+import { getEffectiveTravelFeeAmount } from '@/lib/utils/travelFeeCommercial'
 import { weddingExtraServiceService } from '@/lib/api/weddingExtraServiceService'
 import {
   formatLocationAnswer,
@@ -727,6 +728,7 @@ export const questionnaireService = {
         currentWeddingPrice: wedding.price,
         extrasBeforeSync: extrasBefore,
         extrasAfterSync: extrasAfter,
+        effectiveTravelFee: getEffectiveTravelFeeAmount(wedding),
         explicitPackagePrice: summary.packagePrice || 0,
       })
       if (nextPrice !== wedding.price) {

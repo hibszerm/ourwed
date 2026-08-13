@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import {
   computeWeddingContractValue,
+  recomposeContractValueForExtrasEdit,
   recomputeContractValueAfterExtrasSync,
   resolvePackageBasePrice,
   sumExtraPriceSnapshots,
@@ -196,7 +197,7 @@ run('17–18. approve + RPC paths recompute contract value', () => {
   const rpc = readFileSync(
     resolve(
       process.cwd(),
-      'supabase/migrations/20260725220000_questionnaire_extras_update_contract_value.sql',
+      'supabase/migrations/20260813160000_travel_fee_commercial.sql',
     ),
     'utf8',
   )
@@ -205,8 +206,11 @@ run('17–18. approve + RPC paths recompute contract value', () => {
     'approve prices',
   )
   assert(forms.includes('recomputeContractValueAfterExtrasSync'), 'submitForm')
+  assert(forms.includes('effectiveTravelFee'), 'submitForm travel-aware')
+  assert(approve.includes('effectiveTravelFee'), 'approve travel-aware')
   assert(rpc.includes('contract_value = next_value'), 'rpc updates price')
   assert(rpc.includes('package_base'), 'rpc derives base')
+  assert(rpc.includes('travel_fee'), 'rpc subtracts travel')
 })
 
 run('19. public questionnaire shows names only', () => {
@@ -239,4 +243,234 @@ run('20. public form never trusts client prices for total', () => {
   assert(rpc.includes("snapshot->'additionalServiceOptions'"), 'rpc snapshot')
   assert(page.includes('additionalServiceSnapshots'), 'answer carries snapshots')
   assertEq(sumExtraPriceSnapshots([{ priceSnapshot: 600, quantity: 1 }]), 600, 'server math')
+})
+
+run('A. simple add/remove extras 900', () => {
+  const base = 5000
+  const afterAdd = recomposeContractValueForExtrasEdit({
+    currentWeddingPrice: 5000,
+    extrasBefore: [],
+    extrasAfter: [{ priceSnapshot: 900, quantity: 1 }],
+    packageBasePrice: base,
+    effectiveTravelFee: 0,
+  })
+  assertEq(afterAdd, 5900, 'add → 5900')
+  const afterRemove = recomposeContractValueForExtrasEdit({
+    currentWeddingPrice: afterAdd,
+    extrasBefore: [{ priceSnapshot: 900, quantity: 1 }],
+    extrasAfter: [],
+    packageBasePrice: base,
+    effectiveTravelFee: 0,
+  })
+  assertEq(afterRemove, 5000, 'remove → 5000')
+})
+
+run('B. manual commercial base preserved (CV 5800, catalog 5000)', () => {
+  // Draft base = CV − extras − travel = 5800 (manual delta absorbed in base).
+  const packageBasePrice = 5800
+  const afterAdd = recomposeContractValueForExtrasEdit({
+    currentWeddingPrice: 5800,
+    extrasBefore: [],
+    extrasAfter: [{ priceSnapshot: 900, quantity: 1 }],
+    packageBasePrice,
+    effectiveTravelFee: 0,
+  })
+  assertEq(afterAdd, 6700, 'must NOT rebase to catalog 5000+900=5900')
+  const afterRemove = recomposeContractValueForExtrasEdit({
+    currentWeddingPrice: afterAdd,
+    extrasBefore: [{ priceSnapshot: 900, quantity: 1 }],
+    extrasAfter: [],
+    packageBasePrice,
+    effectiveTravelFee: 0,
+  })
+  assertEq(afterRemove, 5800, 'symmetric remove')
+})
+
+run('C. travel coexistence — QA regression (+100 bug)', () => {
+  // CV 6150 = base 5800 + travel 350. Draft subtracts travel from packageBasePrice.
+  const packageBasePrice = 5800
+  const travel = 350
+  const afterAdd = recomposeContractValueForExtrasEdit({
+    currentWeddingPrice: 6150,
+    extrasBefore: [],
+    extrasAfter: [{ priceSnapshot: 900, quantity: 1 }],
+    packageBasePrice,
+    effectiveTravelFee: travel,
+  })
+  assertEq(afterAdd, 7050, 'add keeps travel')
+  // Bug repro: base+extras without travel would yield 6700 (or 5800+900=6700).
+  // Observed QA shape: base(CV-travel)=5000-ish + 900 without +travel → +100 when travel=800.
+  const buggyWithoutTravel = packageBasePrice + 900
+  assert(buggyWithoutTravel !== afterAdd, 'must include travel in recompose')
+  const afterRemove = recomposeContractValueForExtrasEdit({
+    currentWeddingPrice: afterAdd,
+    extrasBefore: [{ priceSnapshot: 900, quantity: 1 }],
+    extrasAfter: [],
+    packageBasePrice,
+    effectiveTravelFee: travel,
+  })
+  assertEq(afterRemove, 6150, 'remove restores CV with travel')
+})
+
+run('C2. exact QA asymmetry: travel 800 + extra 900 must be +900 not +100', () => {
+  const cv = 5800
+  const travel = 800
+  const packageBasePrice = cv - 0 - travel // createWeddingEditDraft
+  assertEq(packageBasePrice, 5000, 'draft base')
+  const afterAdd = recomposeContractValueForExtrasEdit({
+    currentWeddingPrice: cv,
+    extrasBefore: [],
+    extrasAfter: [{ priceSnapshot: 900, quantity: 1 }],
+    packageBasePrice,
+    effectiveTravelFee: travel,
+  })
+  assertEq(afterAdd, 6700, '+900 not +100')
+  assertEq(afterAdd - cv, 900, 'delta')
+  const legacyBug = packageBasePrice + 900 // PackageFields before fix
+  assertEq(legacyBug, 5900, 'documents old +100 path')
+  assertEq(legacyBug - cv, 100, 'old asymmetric delta')
+  const afterRemove = recomposeContractValueForExtrasEdit({
+    currentWeddingPrice: afterAdd,
+    extrasBefore: [{ priceSnapshot: 900, quantity: 1 }],
+    extrasAfter: [],
+    packageBasePrice,
+    effectiveTravelFee: travel,
+  })
+  assertEq(afterRemove, 5800, 'symmetric')
+})
+
+run('D. existing extras + travel', () => {
+  const packageBasePrice = 5000
+  const travel = 350
+  const existing = [{ priceSnapshot: 500, quantity: 1 }]
+  const cv = 5850
+  const afterAdd = recomposeContractValueForExtrasEdit({
+    currentWeddingPrice: cv,
+    extrasBefore: existing,
+    extrasAfter: [...existing, { priceSnapshot: 900, quantity: 1 }],
+    packageBasePrice,
+    effectiveTravelFee: travel,
+  })
+  assertEq(afterAdd, 6750, 'add VHS')
+  const afterRemove = recomposeContractValueForExtrasEdit({
+    currentWeddingPrice: afterAdd,
+    extrasBefore: [...existing, { priceSnapshot: 900, quantity: 1 }],
+    extrasAfter: existing,
+    packageBasePrice,
+    effectiveTravelFee: travel,
+  })
+  assertEq(afterRemove, 5850, 'remove VHS only')
+})
+
+run('E. edit selection 900 → 500 is −400', () => {
+  const cv = 5900
+  const next = recomposeContractValueForExtrasEdit({
+    currentWeddingPrice: cv,
+    extrasBefore: [{ priceSnapshot: 900, quantity: 1 }],
+    extrasAfter: [{ priceSnapshot: 500, quantity: 1 }],
+    packageBasePrice: 5000,
+    effectiveTravelFee: 0,
+  })
+  assertEq(next, 5500, '−400')
+})
+
+run('F. repeated save same extras — CV unchanged', () => {
+  const extras = [{ priceSnapshot: 900, quantity: 1 }]
+  const first = recomposeContractValueForExtrasEdit({
+    currentWeddingPrice: 5900,
+    extrasBefore: extras,
+    extrasAfter: extras,
+    packageBasePrice: 5000,
+    effectiveTravelFee: 0,
+  })
+  assertEq(first, 5900, 'stable')
+  const second = recomposeContractValueForExtrasEdit({
+    currentWeddingPrice: first,
+    extrasBefore: extras,
+    extrasAfter: extras,
+    packageBasePrice: 5000,
+    effectiveTravelFee: 0,
+  })
+  assertEq(second, 5900, 'second save')
+})
+
+run('G. explicit package default uses catalog base (not extras-only)', () => {
+  // Zastosuj domyślne: packageBase becomes catalog price.
+  const catalogBase = 5000
+  const withDefaults = computeWeddingContractValue({
+    packageBasePrice: catalogBase,
+    extras: [{ priceSnapshot: 900, quantity: 1 }],
+    effectiveTravelFee: 350,
+  })
+  assertEq(withDefaults, 6250, 'catalog + extras + travel')
+  // Preserve path keeps manual CV while rebasing sticky base.
+  const preservedBase = resolvePackageBasePrice({
+    currentWeddingPrice: 6700,
+    extrasBeforeOrCurrent: [{ priceSnapshot: 900, quantity: 1 }],
+    effectiveTravelFee: 350,
+  })
+  assertEq(preservedBase, 5450, 'Zachowaj wartość umowy base')
+})
+
+run('H. questionnaire sync preserves travel + manual base', () => {
+  const next = recomputeContractValueAfterExtrasSync({
+    currentWeddingPrice: 6150,
+    extrasBeforeSync: [],
+    extrasAfterSync: [{ priceSnapshot: 900, quantity: 1 }],
+    effectiveTravelFee: 350,
+  })
+  assertEq(next, 7050, 'questionnaire +900 with travel')
+  const remove = recomputeContractValueAfterExtrasSync({
+    currentWeddingPrice: next,
+    extrasBeforeSync: [{ priceSnapshot: 900, quantity: 1 }],
+    extrasAfterSync: [],
+    effectiveTravelFee: 350,
+  })
+  assertEq(remove, 6150, 'questionnaire remove')
+})
+
+run('PackageFields / DetailPackage use shared extras recompose (source)', () => {
+  const fields = readFileSync(
+    resolve(
+      process.cwd(),
+      'src/features/weddings/detail/editing/fields/PackageFields.tsx',
+    ),
+    'utf8',
+  )
+  const detail = readFileSync(
+    resolve(
+      process.cwd(),
+      'src/features/weddings/components/detail/WeddingDetailPackage.tsx',
+    ),
+    'utf8',
+  )
+  const draft = readFileSync(
+    resolve(
+      process.cwd(),
+      'src/features/weddings/edit/persistWeddingEditDraft.ts',
+    ),
+    'utf8',
+  )
+  assert(
+    fields.includes('recomposeContractValueForExtrasEdit'),
+    'PackageFields helper',
+  )
+  assert(
+    fields.includes('getEffectiveTravelFeeAmount'),
+    'PackageFields travel',
+  )
+  assert(
+    detail.includes('recomposeContractValueForExtrasEdit'),
+    'DetailPackage helper',
+  )
+  assert(
+    draft.includes('getEffectiveTravelFeeAmount'),
+    'draft base subtracts travel',
+  )
+  assert(
+    !fields.includes(
+      'base +\n                next.reduce((sum, x) => sum + x.priceSnapshot * x.quantity, 0),',
+    ),
+    'no travel-blind recompose in PackageFields',
+  )
 })

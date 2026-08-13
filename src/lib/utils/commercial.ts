@@ -165,7 +165,12 @@ export type ApplyPackageSnapshotOptions = {
   /** Sum of wedding extras (priceSnapshot × quantity). */
   extrasTotal?: number
   /**
-   * When true, keep wedding.price instead of pkg.price + extrasTotal.
+   * Effective charged travel fee currently included in contract_value
+   * (0 when travel fee is included / unresolved).
+   */
+  effectiveTravelFee?: number
+  /**
+   * When true, keep wedding.price instead of pkg.price + extras + travel.
    * Used when the studio confirms “preserve overridden contract price”.
    */
   preserveContractValue?: boolean
@@ -208,7 +213,8 @@ export function applyCommercialPackageSnapshot(
       ? { extrasTotal: extrasTotalOrOptions }
       : extrasTotalOrOptions
   const extrasTotal = options.extrasTotal ?? 0
-  const catalogPrice = pkg.price + extrasTotal
+  const effectiveTravelFee = Math.max(0, options.effectiveTravelFee ?? 0)
+  const catalogPrice = pkg.price + extrasTotal + effectiveTravelFee
 
   const packageTerms =
     parseFinalPaymentTerms(pkg.finalPaymentTerms) ??
@@ -270,10 +276,15 @@ export function applyCommercialPackageSnapshot(
 export function fillWeddingTermsFromCatalogPackage(
   wedding: Wedding,
   pkg: StudioPackage,
-  options?: { preserveContractValue?: boolean; extrasTotal?: number },
+  options?: {
+    preserveContractValue?: boolean
+    extrasTotal?: number
+    effectiveTravelFee?: number
+  },
 ): WeddingCommercialSnapshotPatch {
   return applyCommercialPackageSnapshot(wedding, pkg, {
     extrasTotal: options?.extrasTotal ?? 0,
+    effectiveTravelFee: options?.effectiveTravelFee ?? 0,
     preserveContractValue: options?.preserveContractValue === true,
     preserveFinalPaymentDueDate: false,
   })
@@ -287,6 +298,7 @@ export function buildCreateWeddingCommercialFromPackage(input: {
   weddingDate: string
   pkg: StudioPackage
   extrasTotal?: number
+  effectiveTravelFee?: number
   overrides?: Partial<WeddingCommercialSnapshotPatch>
 }): WeddingCommercialSnapshotPatch {
   const stub = {
@@ -298,6 +310,8 @@ export function buildCreateWeddingCommercialFromPackage(input: {
     packageItems: [],
     finalPaymentDueDate: null,
     finalPaymentTerms: null,
+    travelFeeStatus: 'unresolved',
+    travelFeeAmount: 0,
     couple: {
       partner1: '',
       partner2: '',
@@ -325,6 +339,7 @@ export function buildCreateWeddingCommercialFromPackage(input: {
 
   const snap = applyCommercialPackageSnapshot(stub, input.pkg, {
     extrasTotal: input.extrasTotal ?? 0,
+    effectiveTravelFee: input.effectiveTravelFee ?? 0,
   })
   const o = input.overrides ?? {}
 

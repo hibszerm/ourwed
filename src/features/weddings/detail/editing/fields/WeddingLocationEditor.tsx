@@ -119,7 +119,6 @@ export function WeddingLocationEditor({
           compactDisplay={false}
           preserveName={name}
           nameManuallyEdited={nameManuallyEdited}
-          showSavedHint={false}
           commitTypedOnBlur
           placeholder="Zacznij wpisywać adres lub nazwę miejsca…"
           onChangeText={(text) => {

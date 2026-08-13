@@ -25,3 +25,6 @@ dist-ssr
 
 # Local benchmark outputs (may contain timing/token metrics)
 tmp/
+
+# Supabase CLI local cache (versions, linked project metadata)
+supabase/.temp/

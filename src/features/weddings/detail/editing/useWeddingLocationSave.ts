@@ -41,8 +41,18 @@ export function useWeddingLocationSave(weddingId: string) {
       try {
         // Full rebuild — never merge partial legs into a stale matrix.
         await travelService.invalidate(weddingId)
-        await travelService.recalculate(weddingId, { forceRefresh: true })
-        await queryClient.invalidateQueries({ queryKey: ['travel-plan'] })
+        const next = await travelService.recalculate(weddingId, {
+          forceRefresh: true,
+        })
+        queryClient.setQueriesData(
+          { queryKey: ['travel-plan'] },
+          (prev: unknown) => {
+            if (!prev || typeof prev !== 'object') return next
+            const plan = prev as { weddingId?: string }
+            if (plan.weddingId && plan.weddingId !== weddingId) return prev
+            return next
+          },
+        )
       } catch {
         // Place save already succeeded; travel cache is best-effort.
       }

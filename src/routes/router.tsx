@@ -5,6 +5,7 @@ import { DashboardPage } from '@/pages/DashboardPage'
 import { DashboardV2Page } from '@/pages/DashboardV2Page'
 import { WeddingsPage } from '@/pages/WeddingsPage'
 import { WeddingDetailPage } from '@/pages/WeddingDetailPage'
+import { WeddingDayCockpitPage } from '@/pages/WeddingDayCockpitPage'
 import { WeddingContractGenerationPage } from '@/pages/WeddingContractGenerationPage'
 import { WeddingContractPreviewPage } from '@/pages/WeddingContractPreviewPage'
 import { NewWeddingPage } from '@/pages/NewWeddingPage'
@@ -156,6 +157,10 @@ export const router = createBrowserRouter([
           {
             path: '/sluby/:weddingId/umowy/:contractId',
             element: <WeddingContractPreviewPage />,
+          },
+          {
+            path: '/sluby/:weddingId/dzien-slubu',
+            element: <WeddingDayCockpitPage />,
           },
           { path: '/sluby/:id', element: <WeddingDetailPage /> },
           { path: '/sesje', element: <SessionsPage /> },

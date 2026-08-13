@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { IconMapPin } from '@/components/icons'
 import { WeddingHeaderActions } from '@/features/weddings/detail/v2/WeddingHeaderActions'
 import { getWeddingDisplayName } from '@/features/weddings/presentation/getWeddingDisplayName'
@@ -85,14 +86,23 @@ export function WeddingWorkspaceHeader({
             </p>
           ) : null}
         </div>
-        {onWeddingUpdated && onArchive && onDelete ? (
-          <WeddingHeaderActions
-            wedding={wedding}
-            onWeddingUpdated={onWeddingUpdated}
-            onArchive={onArchive}
-            onDelete={onDelete}
-          />
-        ) : null}
+        <div className={styles.headerActionsCluster}>
+          <Link
+            to={`/sluby/${wedding.id}/dzien-slubu`}
+            className={styles.cockpitEntry}
+            data-testid="open-wedding-day-cockpit"
+          >
+            Otwórz tryb dnia ślubu
+          </Link>
+          {onWeddingUpdated && onArchive && onDelete ? (
+            <WeddingHeaderActions
+              wedding={wedding}
+              onWeddingUpdated={onWeddingUpdated}
+              onArchive={onArchive}
+              onDelete={onDelete}
+            />
+          ) : null}
+        </div>
       </div>
     </header>
   )

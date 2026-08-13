@@ -1,13 +1,25 @@
 /**
- * Plan dnia — operational timeline for photographers (Wedding Detail V2 aesthetic).
- * Travel metrics come only from travelService / buildTravelFlow.
- * Display order: Start → Groom prep → Bride prep → Ceremony → Reception.
+ * Plan dnia — studio operational timeline (Wedding Detail).
+ *
+ * ONE display/route array:
+ *   getOperationalOrderedPlaces(wedding_places)
+ *   + optional draft id permutation while dragging
+ *
+ * travel-plan supplies studio + segments only — never place order.
  */
 
+import {
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type PointerEvent,
+} from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Car,
   Church,
+  GripVertical,
   Home,
   MapPin,
   PartyPopper,
@@ -17,13 +29,18 @@ import {
 import type { LucideIcon } from 'lucide-react'
 import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
 import {
-  PLAN_DNIA_ROLE_ORDER,
   PLAN_DNIA_STAGE_LABELS,
   buildDayTimelineSummary,
   timelineTimesByRole,
 } from '@/features/prewedding/answerSummary'
-import { answerToGeoPlace } from '@/features/prewedding/preweddingLocation'
+import { OperationalTimeControl } from '@/features/prewedding/OperationalTimeControl'
 import { TravelRouteTotals } from '@/features/travel/TravelRouteTotals'
+import type { TravelRouteUiStatus } from '@/features/travel/TravelRouteTotals'
+import {
+  buildOrderedWeddingDayRouteStops,
+  computeRouteInputFingerprint,
+  getOperationalOrderedPlaces,
+} from '@/features/travel/weddingDayRouteStops'
 import { getWeddingLocationDisplay } from '@/features/travel/weddingLocationModel'
 import {
   buildTravelFlow,
@@ -34,12 +51,34 @@ import {
   travelLegFailureMessage,
   type TravelFlow,
   type TravelFlowLeg,
-  type TravelFlowStop,
 } from '@/features/travel/travelUi'
 import { googleMapsPlaceUrl } from '@/services/googleMapsLinks'
 import { travelService } from '@/lib/api/travelService'
+import { weddingOperationalTimesService } from '@/lib/api/weddingOperationalTimesService'
+import { weddingPlaceService } from '@/lib/api/weddingPlaceService'
+import {
+  buildOperationalDayStops,
+  reorderPlaceIds,
+  type OperationalDayStop,
+  type OperationalTimeMap,
+} from '@/features/wedding-day/operationalDayPlan'
+import {
+  isOperationalOrderDebugEnabled,
+  logOperationalOrder,
+  summarizeIdRoles,
+  summarizePlaceOrder,
+} from '@/features/wedding-day/operationalOrderDebug'
+import {
+  setExpectedRouteFingerprint,
+  shouldAcceptTravelPlanResult,
+} from '@/features/wedding-day/routeResultGuard'
+import {
+  operationalTimesQueryKey,
+  travelPlanQueryKey,
+  weddingPlacesQueryKey,
+} from '@/features/wedding-day/queryKeys'
 import type { PreWeddingTemplateSchema } from '@/types/preweddingQuestionnaire'
-import type { GeoPlace, TravelPlan } from '@/types/travel'
+import type { GeoPlace, TravelPlan, WeddingPlace } from '@/types/travel'
 import styles from './PreWeddingDayPlan.module.css'
 
 const STAGE_ICONS: Record<string, LucideIcon> = {
@@ -64,32 +103,17 @@ function formatLegMetrics(leg: TravelFlowLeg | null): string {
   return travelLegFailureMessage(leg.failureReason)
 }
 
-function stopToGeoPlace(stop: TravelFlowStop): GeoPlace {
-  return {
-    placeId: stop.placeId,
-    formattedAddress: stop.address || '',
-    latitude: stop.latitude,
-    longitude: stop.longitude,
-    label: stop.label || null,
-    provider: stop.placeId ? 'google' : null,
-  }
-}
-
-function findLegBetween(
-  flow: TravelFlow,
-  fromRole: string | undefined,
-  toRole: string | undefined,
+function findLegBetweenKeys(
+  flow: TravelFlow | null,
+  fromKey: string | undefined,
+  toKey: string | undefined,
 ): TravelFlowLeg | null {
-  if (!fromRole || !toRole) return null
-  const forward =
-    flow.routeLegs.find((leg) => {
-      const originRole =
-        leg.origin.kind === 'studio' ? 'studio' : leg.origin.role
-      const destRole = leg.destination.role
-      return originRole === fromRole && destRole === toRole
-    }) ?? null
-  if (forward) return forward
-  return null
+  if (!flow || !fromKey || !toKey) return null
+  return (
+    flow.routeLegs.find(
+      (leg) => leg.origin.key === fromKey && leg.destination.key === toKey,
+    ) ?? null
+  )
 }
 
 function samePlace(a: GeoPlace, b: GeoPlace): boolean {
@@ -101,15 +125,32 @@ function samePlace(a: GeoPlace, b: GeoPlace): boolean {
   return Boolean(fa && fb && fa === fb)
 }
 
-function timeForRole(
-  role: string,
-  times: Partial<Record<string, string>>,
-  answerTime: string | null,
-): string | null {
-  if (role === 'ceremony') return times.ceremony ?? answerTime
-  if (role === 'reception') return times.reception ?? answerTime
-  // Do not attach departure-to-ceremony onto prep stages.
-  return answerTime
+function stopToDisplayPlace(stop: OperationalDayStop): GeoPlace {
+  return {
+    placeId: stop.placeId ?? null,
+    formattedAddress: stop.address || '',
+    latitude: stop.latitude ?? null,
+    longitude: stop.longitude ?? null,
+    label: stop.placeName || null,
+    provider: stop.placeId ? 'google' : null,
+  }
+}
+
+function emptyStalePlan(
+  weddingId: string,
+  studio: TravelPlan['studio'],
+): TravelPlan {
+  return {
+    weddingId,
+    studio,
+    places: [],
+    segments: [],
+    hasError: false,
+    errorMessage: null,
+    persistenceError: null,
+    routeFingerprint: null,
+    routeStale: true,
+  }
 }
 
 interface Props {
@@ -121,113 +162,485 @@ interface Props {
 export function PreWeddingDayPlan({ weddingId, schema, answers }: Props) {
   const queryClient = useQueryClient()
   const userId = useStudioAuthId()
-  const times = timelineTimesByRole(schema, answers)
+  const qTimes = timelineTimesByRole(schema, answers)
   const answerStops = buildDayTimelineSummary(schema, answers)
+  const placesKey = weddingPlacesQueryKey(userId, weddingId)
+  const travelKey = travelPlanQueryKey(userId, weddingId)
+  const timesKey = operationalTimesQueryKey(userId, weddingId)
 
-  const { data: plan, isLoading } = useQuery({
-    queryKey: ['travel-plan', userId, weddingId],
+  const { data: places = [], isLoading: placesLoading } = useQuery({
+    queryKey: placesKey,
+    queryFn: () => weddingPlaceService.listByWeddingId(weddingId),
+    enabled: Boolean(userId && weddingId),
+    retry: false,
+  })
+
+  const { data: plan, isLoading: planLoading } = useQuery({
+    queryKey: travelKey,
     queryFn: async (): Promise<TravelPlan> => {
       try {
-        return await travelService.getPlan(weddingId)
-      } catch {
-        return {
-          weddingId,
-          studio: null,
-          places: [],
-          segments: [],
-          hasError: true,
-          errorMessage: null,
-          persistenceError: null,
+        const next = await travelService.getPlan(weddingId)
+        if (
+          !shouldAcceptTravelPlanResult({
+            weddingId,
+            routeFingerprint: next.routeFingerprint,
+            routeStale: next.routeStale,
+          })
+        ) {
+          logOperationalOrder({
+            source: 'stale-plan-discard',
+            weddingId,
+            note: 'queryFn discarded mismatched fingerprint',
+            extra: { got: next.routeFingerprint },
+          })
+          const prev = queryClient.getQueryData<TravelPlan>(travelKey)
+          return (
+            prev ??
+            emptyStalePlan(weddingId, next.studio)
+          )
         }
+        // Strip places — UI never reads plan.places for order.
+        return { ...next, places: [] }
+      } catch {
+        return emptyStalePlan(weddingId, null)
       }
     },
     enabled: Boolean(userId && weddingId),
     retry: false,
   })
 
+  const { data: operationalTimes = {} } = useQuery({
+    queryKey: timesKey,
+    queryFn: () => weddingOperationalTimesService.listByWeddingId(weddingId),
+    enabled: Boolean(userId && weddingId),
+    retry: false,
+  })
+
+  const [routeStatus, setRouteStatus] = useState<TravelRouteUiStatus>('idle')
+
   const recalculate = useMutation({
-    mutationFn: () =>
-      travelService.recalculate(weddingId, { forceRefresh: true }),
-    onSuccess: async (next) => {
-      queryClient.setQueryData(['travel-plan', userId, weddingId], next)
-      await queryClient.invalidateQueries({ queryKey: ['travel-plan'] })
+    mutationFn: async () => {
+      setRouteStatus('loading')
+      const authoritative =
+        queryClient.getQueryData<WeddingPlace[]>(placesKey) ?? places
+      const orderedIds = getOperationalOrderedPlaces(authoritative).map(
+        (p) => p.id,
+      )
+      await queryClient.cancelQueries({ queryKey: travelKey })
+      const routeStops = buildOrderedWeddingDayRouteStops({
+        studio: plan?.studio ?? null,
+        places: authoritative,
+        orderedPlaceIds: orderedIds,
+      })
+      const fingerprint = computeRouteInputFingerprint(routeStops)
+      setExpectedRouteFingerprint(weddingId, fingerprint)
+      logOperationalOrder({
+        source: 'PreWeddingDayPlan',
+        weddingId,
+        places: getOperationalOrderedPlaces(authoritative),
+        note: 'manual-przelicz-trasy',
+        extra: { orderedIds, fingerprint },
+      })
+      queryClient.setQueryData(
+        travelKey,
+        emptyStalePlan(weddingId, plan?.studio ?? null),
+      )
+      return travelService.recalculate(weddingId, {
+        forceRefresh: true,
+        places: authoritative,
+        orderedPlaceIds: orderedIds,
+      })
+    },
+    onSuccess: (next) => {
+      if (
+        !shouldAcceptTravelPlanResult({
+          weddingId,
+          routeFingerprint: next.routeFingerprint,
+          routeStale: next.routeStale,
+        })
+      ) {
+        logOperationalOrder({
+          source: 'stale-plan-discard',
+          weddingId,
+          note: 'manual recalc discarded',
+          extra: { got: next.routeFingerprint },
+        })
+        setRouteStatus('error')
+        return
+      }
+      queryClient.setQueryData(travelKey, { ...next, places: [] })
+      setRouteStatus('idle')
+    },
+    onError: () => {
+      setRouteStatus('error')
     },
   })
 
-  const flow = plan ? buildTravelFlow(plan) : null
-  const summary = flow ? summarizeTravelRoute(flow) : null
-  const baseStatus = getTravelBaseStatus(plan?.studio ?? null)
-  const baseReady = baseStatus === 'ready' || baseStatus === 'incomplete'
-  const travelStops = flow?.stops ?? []
-  const useTravel = travelStops.some((s) => s.kind === 'wedding_place')
-
-  type RenderStop = {
-    key: string
-    role: string
-    time: string | null
-    place: GeoPlace
-    sameAsPrevious: boolean
-  }
-
-  const collected: RenderStop[] = []
-
-  if (useTravel && flow) {
-    for (const stop of travelStops) {
-      const role = stop.kind === 'studio' ? 'studio' : stop.role || 'other'
-      const place = stopToGeoPlace(stop)
-      const answerStop = answerStops.find((s) => s.role === role)
-      collected.push({
-        key: stop.key,
-        role,
-        time: timeForRole(role, times, answerStop?.time ?? null),
-        place,
-        sameAsPrevious: false,
-      })
-    }
-  } else {
-    if (baseReady && plan?.studio) {
-      collected.push({
-        key: 'studio',
-        role: 'studio',
-        time: null,
-        place: {
-          placeId: plan.studio.placeId,
-          formattedAddress:
-            getTravelBaseAddress(plan.studio) ||
-            getTravelBaseDisplayName(plan.studio),
-          latitude: plan.studio.latitude,
-          longitude: plan.studio.longitude,
-          label: getTravelBaseDisplayName(plan.studio),
-          provider: plan.studio.placeId ? 'google' : null,
+  const saveTime = useMutation({
+    mutationFn: async ({
+      stopKey,
+      time,
+    }: {
+      stopKey: string
+      time: string | null
+    }) => {
+      if (time) {
+        const saved = await weddingOperationalTimesService.setTime(
+          weddingId,
+          stopKey,
+          time,
+        )
+        return { stopKey, time: saved }
+      }
+      await weddingOperationalTimesService.clearTime(weddingId, stopKey)
+      return { stopKey, time: null }
+    },
+    onSuccess: ({ stopKey, time }) => {
+      // Same key Cockpit reads — immediate live consistency without hard refresh.
+      queryClient.setQueryData(
+        timesKey,
+        (prev: OperationalTimeMap | undefined) => {
+          const next = { ...(prev ?? {}) }
+          if (time) next[stopKey] = time
+          else delete next[stopKey]
+          return next
         },
-        sameAsPrevious: false,
+      )
+    },
+  })
+
+  // ——— ONE canonical place sequence ———
+  const canonicalPlaces = getOperationalOrderedPlaces(places)
+  const canonicalIds = canonicalPlaces.map((p) => p.id)
+  const hasOperationalPlaces = canonicalPlaces.length > 0
+
+  const [draftPlaceIds, setDraftPlaceIds] = useState<string[] | null>(null)
+  const draftIdsRef = useRef<string[] | null>(null)
+  const dragRef = useRef<{ id: string } | null>(null)
+  const committingRef = useRef(false)
+  const lastRenderedLogRef = useRef<string>('')
+  const displayIds = draftPlaceIds ?? canonicalIds
+  const dragging = Boolean(draftPlaceIds)
+
+  function setDraft(next: string[] | null) {
+    draftIdsRef.current = next
+    setDraftPlaceIds(next)
+  }
+
+  const baseStops = hasOperationalPlaces
+    ? buildOperationalDayStops({
+        studio: plan?.studio ?? null,
+        places: canonicalPlaces,
+        operationalTimes,
+        questionnaireTimes: qTimes,
       })
+    : []
+
+  // Remap place cards by displayIds — do NOT re-sort by sort_order here.
+  const studioStop = baseStops.filter((s) => s.kind === 'studio')
+  const byId = new Map(
+    baseStops.filter((s) => s.reorderable).map((s) => [s.key, s]),
+  )
+  const renderStops: OperationalDayStop[] = hasOperationalPlaces
+    ? [
+        ...studioStop,
+        ...displayIds
+          .map((id) => byId.get(id))
+          .filter((s): s is OperationalDayStop => Boolean(s)),
+      ]
+    : (() => {
+        const collected: OperationalDayStop[] = []
+        const baseStatus = getTravelBaseStatus(plan?.studio ?? null)
+        const baseReady = baseStatus === 'ready' || baseStatus === 'incomplete'
+        if (baseReady && plan?.studio) {
+          collected.push({
+            key: 'studio',
+            kind: 'studio',
+            role: 'studio',
+            title: PLAN_DNIA_STAGE_LABELS.studio || 'Start dnia',
+            placeName: getTravelBaseDisplayName(plan.studio),
+            address: getTravelBaseAddress(plan.studio) || undefined,
+            time: operationalTimes.studio ? operationalTimes.studio : null,
+            timeSource: operationalTimes.studio ? 'studio' : null,
+            latitude: plan.studio.latitude,
+            longitude: plan.studio.longitude,
+            placeId: plan.studio.placeId,
+            reorderable: false,
+          })
+        }
+        for (const stop of answerStops) {
+          if (!stop.place) continue
+          collected.push({
+            key: stop.id,
+            kind: 'wedding_place',
+            role: stop.role,
+            title: stop.label,
+            placeName: stop.place.label || undefined,
+            address: stop.place.formattedAddress || stop.location || undefined,
+            time: stop.time,
+            timeSource: stop.time ? 'questionnaire' : null,
+            latitude: stop.place.latitude,
+            longitude: stop.place.longitude,
+            placeId: stop.place.placeId,
+            reorderable: false,
+          })
+        }
+        return collected
+      })()
+
+  const renderedPlaceDebug = renderStops
+    .filter((s) => s.reorderable)
+    .map((s) => {
+      const place = places.find((p) => p.id === s.key)
+      return {
+        id: s.key,
+        role: s.role,
+        sortOrder: place?.sortOrder,
+      }
+    })
+  const renderedSummary = summarizeIdRoles(renderedPlaceDebug)
+
+  useEffect(() => {
+    if (!isOperationalOrderDebugEnabled() || !hasOperationalPlaces) return
+    if (renderedSummary === lastRenderedLogRef.current) return
+    lastRenderedLogRef.current = renderedSummary
+    logOperationalOrder({
+      source: 'PreWeddingDayPlan',
+      weddingId,
+      note: 'RENDERED ARRAY (exact JSX map source)',
+      extra: {
+        rendered: renderedSummary,
+        displayIds,
+        draftActive: dragging,
+        canonical: summarizePlaceOrder(canonicalPlaces),
+      },
+    })
+  }, [
+    renderedSummary,
+    hasOperationalPlaces,
+    weddingId,
+    displayIds,
+    dragging,
+    canonicalPlaces,
+  ])
+
+  const routeInputIds = dragging ? null : canonicalIds
+  const flow =
+    plan && hasOperationalPlaces && routeInputIds
+      ? buildTravelFlow(
+          {
+            ...plan,
+            places: [],
+            routeStale: plan.routeStale || plan.segments.length === 0,
+          },
+          {
+            places: canonicalPlaces,
+            orderedPlaceIds: routeInputIds,
+          },
+        )
+      : null
+  const summary =
+    dragging || !flow || flow.routeStale
+      ? flow
+        ? {
+            ...summarizeTravelRoute({ ...flow, routeStale: true, routeComplete: false }),
+            distanceText: '—',
+            durationText: '—',
+            totalsComplete: false,
+          }
+        : null
+      : summarizeTravelRoute(flow)
+  const isLoading = placesLoading || planLoading
+  const useTravel = Boolean(flow?.stops.some((s) => s.kind === 'wedding_place'))
+
+  async function commitReorder(nextIds: string[]) {
+    const beforeIds = canonicalIds
+    const unchanged =
+      nextIds.length === beforeIds.length &&
+      nextIds.every((id, i) => id === beforeIds[i])
+    if (unchanged) {
+      setDraft(null)
+      return
     }
-    for (const stop of answerStops) {
-      if (!stop.place) continue
-      collected.push({
-        key: stop.id,
-        role: stop.role,
-        time: stop.time,
-        place: stop.place,
-        sameAsPrevious: Boolean(stop.sameAsPrevious),
+
+    logOperationalOrder({
+      source: 'drag-commit',
+      weddingId,
+      note: 'commitReorder inputs',
+      extra: {
+        beforeIds,
+        afterIds: nextIds,
+        beforeRoles: beforeIds.map(
+          (id) => places.find((p) => p.id === id)?.role,
+        ),
+        afterRoles: nextIds.map(
+          (id) => places.find((p) => p.id === id)?.role,
+        ),
+      },
+    })
+
+    try {
+      await queryClient.cancelQueries({ queryKey: travelKey })
+      await queryClient.cancelQueries({ queryKey: placesKey })
+
+      const updatedPlaces = await weddingPlaceService.reorder(
+        weddingId,
+        nextIds,
+      )
+      // Verified DB readback (service already listByWeddingId after writes).
+      const verifiedIds = updatedPlaces.map((p) => p.id)
+      if (
+        verifiedIds.length !== nextIds.length ||
+        !nextIds.every((id, i) => verifiedIds[i] === id)
+      ) {
+        throw new Error('DB readback order does not match committed drag order')
+      }
+
+      logOperationalOrder({
+        source: 'db-readback',
+        weddingId,
+        places: updatedPlaces,
+        note: 'verified after reorder',
       })
+
+      queryClient.setQueryData(placesKey, updatedPlaces)
+
+      const routeStops = buildOrderedWeddingDayRouteStops({
+        studio: plan?.studio ?? null,
+        places: updatedPlaces,
+        orderedPlaceIds: verifiedIds,
+      })
+      const fingerprint = computeRouteInputFingerprint(routeStops)
+      setExpectedRouteFingerprint(weddingId, fingerprint)
+
+      queryClient.setQueryData(
+        travelKey,
+        emptyStalePlan(weddingId, plan?.studio ?? null),
+      )
+      setDraft(null)
+      setRouteStatus('loading')
+
+      try {
+        const nextPlan = await travelService.recalculate(weddingId, {
+          forceRefresh: true,
+          places: updatedPlaces,
+          orderedPlaceIds: verifiedIds,
+        })
+        if (
+          !shouldAcceptTravelPlanResult({
+            weddingId,
+            routeFingerprint: nextPlan.routeFingerprint,
+            routeStale: nextPlan.routeStale,
+          })
+        ) {
+          logOperationalOrder({
+            source: 'stale-plan-discard',
+            weddingId,
+            note: 'post-reorder recalc discarded',
+            extra: {
+              expected: fingerprint,
+              got: nextPlan.routeFingerprint,
+            },
+          })
+          setRouteStatus('error')
+          return
+        }
+        queryClient.setQueryData(travelKey, { ...nextPlan, places: [] })
+        setRouteStatus('idle')
+      } catch {
+        // Order kept; route stays stale/empty.
+        setRouteStatus('error')
+      }
+    } catch (err) {
+      logOperationalOrder({
+        source: 'drag-commit',
+        weddingId,
+        note: 'commitReorder failed — clearing draft to cache order',
+        extra: {
+          error: err instanceof Error ? err.message : String(err),
+        },
+      })
+      setDraft(null)
+      await queryClient.invalidateQueries({ queryKey: placesKey })
     }
   }
 
-  const byRole = new Map(collected.map((s) => [s.role, s]))
-  const renderStops: RenderStop[] = []
-  for (const role of PLAN_DNIA_ROLE_ORDER) {
-    const stop = byRole.get(role)
-    if (!stop) continue
-    const prev = renderStops[renderStops.length - 1]
-    renderStops.push({
-      ...stop,
-      sameAsPrevious: prev ? samePlace(prev.place, stop.place) : false,
+  function onHandlePointerDown(
+    event: PointerEvent<HTMLButtonElement>,
+    stopKey: string,
+  ) {
+    if (!hasOperationalPlaces) return
+    event.preventDefault()
+    event.currentTarget.setPointerCapture(event.pointerId)
+    dragRef.current = { id: stopKey }
+    setDraft(displayIds)
+  }
+
+  function onHandlePointerMove(event: PointerEvent<HTMLButtonElement>) {
+    if (!dragRef.current) return
+    const el = document.elementFromPoint(event.clientX, event.clientY)
+    // Only place rows — travel legs have no data-stop-key / data-place-id.
+    const overKey =
+      el
+        ?.closest('[data-place-id]')
+        ?.getAttribute('data-place-id') ??
+      el?.closest('[data-stop-key]')?.getAttribute('data-stop-key')
+    if (
+      !overKey ||
+      overKey === 'studio' ||
+      overKey === dragRef.current.id
+    ) {
+      return
+    }
+    // Ignore if target is not a reorderable place id.
+    if (!canonicalIds.includes(overKey)) return
+    const ids = draftIdsRef.current ?? displayIds
+    const from = ids.indexOf(dragRef.current.id)
+    const to = ids.indexOf(overKey)
+    if (from < 0 || to < 0 || from === to) return
+    setDraft(reorderPlaceIds(ids, from, to))
+  }
+
+  function endDrag() {
+    if (!dragRef.current) return
+    dragRef.current = null
+    const next = draftIdsRef.current
+    if (!next || committingRef.current) return
+    committingRef.current = true
+    void commitReorder(next).finally(() => {
+      committingRef.current = false
     })
   }
 
+  // Window-level end so pointerup outside the handle still commits.
+  useEffect(() => {
+    if (!dragging) return
+    const onUp = () => endDrag()
+    window.addEventListener('pointerup', onUp)
+    window.addEventListener('pointercancel', onUp)
+    return () => {
+      window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('pointercancel', onUp)
+    }
+    // endDrag closes over latest draft via refs
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- drag session
+  }, [dragging])
+
+  function onHandleKeyDown(
+    event: KeyboardEvent<HTMLButtonElement>,
+    stopKey: string,
+  ) {
+    if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return
+    event.preventDefault()
+    const from = displayIds.indexOf(stopKey)
+    const to = event.key === 'ArrowUp' ? from - 1 : from + 1
+    const next = reorderPlaceIds(displayIds, from, to)
+    void commitReorder(next)
+  }
+
   if (renderStops.length === 0) return null
+
+  const routeBusy = routeStatus === 'loading' || recalculate.isPending
 
   return (
     <section className={styles.plan} data-testid="prewedding-day-timeline">
@@ -238,28 +651,59 @@ export function PreWeddingDayPlan({ weddingId, schema, answers }: Props) {
         {renderStops.map((stop, index) => {
           const prev = renderStops[index - 1]
           const leg =
-            flow && prev ? findLegBetween(flow, prev.role, stop.role) : null
-          const metrics = formatLegMetrics(leg)
-          const stage =
-            PLAN_DNIA_STAGE_LABELS[stop.role] || stop.role
+            !dragging && !routeBusy && flow
+              ? findLegBetweenKeys(flow, prev?.key, stop.key)
+              : null
+          const metrics = dragging
+            ? '—'
+            : routeBusy
+              ? '…'
+              : routeStatus === 'error' || plan?.routeStale
+                ? '—'
+                : formatLegMetrics(leg)
           const Icon = STAGE_ICONS[stop.role] || MapPin
-          const display = getWeddingLocationDisplay(stop.place)
-          const mapsUrl = googleMapsPlaceUrl(stop.place)
+          const place = stopToDisplayPlace(stop)
+          const display = getWeddingLocationDisplay(place)
+          const mapsUrl = googleMapsPlaceUrl(place)
+          const prevPlace = prev ? stopToDisplayPlace(prev) : null
+          const sameAsPrevious = prevPlace ? samePlace(prevPlace, place) : false
 
           return (
-            <li key={stop.key} className={styles.item}>
+            <li
+              key={stop.key}
+              className={styles.item}
+              data-stop-key={stop.key}
+              data-place-id={stop.reorderable ? stop.key : undefined}
+              data-role={stop.role}
+            >
               {index > 0 ? (
                 <div
                   className={styles.leg}
                   data-testid="prewedding-travel-leg"
-                  aria-label={leg?.label || 'Odcinek trasy'}
+                  data-route-busy={routeBusy ? 'true' : undefined}
+                  aria-label={
+                    routeBusy
+                      ? 'Przeliczamy odcinek trasy'
+                      : leg?.label || 'Odcinek trasy'
+                  }
                 >
                   <span className={styles.timelineConnector} aria-hidden="true" />
-                  <span className={styles.legMetrics}>
-                    <Car className={styles.legIcon} aria-hidden="true" size={14} strokeWidth={2} />
+                  <span
+                    className={
+                      routeBusy
+                        ? `${styles.legMetrics} ${styles.legMetricsBusy}`
+                        : styles.legMetrics
+                    }
+                  >
+                    <Car
+                      className={styles.legIcon}
+                      aria-hidden="true"
+                      size={14}
+                      strokeWidth={2}
+                    />
                     {metrics}
                   </span>
-                  {stop.sameAsPrevious ? (
+                  {sameAsPrevious ? (
                     <span className={styles.samePlace}>To samo miejsce</span>
                   ) : null}
                 </div>
@@ -277,8 +721,38 @@ export function PreWeddingDayPlan({ weddingId, schema, answers }: Props) {
                 </div>
                 <div className={styles.rowBody}>
                   <div className={styles.rowTop}>
-                    <p className={styles.stage}>{stage}</p>
-                    <p className={styles.time}>{stop.time || '—'}</p>
+                    <div className={styles.stageRow}>
+                      {stop.reorderable ? (
+                        <button
+                          type="button"
+                          className={styles.dragHandle}
+                          aria-label={`Zmień kolejność: ${stop.title}`}
+                          data-testid="day-plan-drag-handle"
+                          onPointerDown={(e) => onHandlePointerDown(e, stop.key)}
+                          onPointerMove={onHandlePointerMove}
+                          onPointerUp={endDrag}
+                          onPointerCancel={endDrag}
+                          onKeyDown={(e) => onHandleKeyDown(e, stop.key)}
+                        >
+                          <GripVertical
+                            size={14}
+                            strokeWidth={2}
+                            aria-hidden="true"
+                          />
+                        </button>
+                      ) : null}
+                      <p className={styles.stage}>{stop.title}</p>
+                    </div>
+                    <OperationalTimeControl
+                      time={stop.time}
+                      disabled={!hasOperationalPlaces && stop.kind !== 'studio'}
+                      onCommit={async (next) => {
+                        await saveTime.mutateAsync({
+                          stopKey: stop.key,
+                          time: next,
+                        })
+                      }}
+                    />
                   </div>
                   <p className={styles.venue}>{display.primary}</p>
                   {display.secondary ? (
@@ -302,17 +776,14 @@ export function PreWeddingDayPlan({ weddingId, schema, answers }: Props) {
         })}
       </ol>
 
-      {useTravel ? (
+      {useTravel || hasOperationalPlaces ? (
         <TravelRouteTotals
-          summary={summary}
+          summary={routeBusy || routeStatus === 'error' ? null : summary}
           onRecalculate={() => void recalculate.mutateAsync()}
-          recalculatePending={recalculate.isPending}
+          recalculatePending={routeBusy}
+          routeStatus={routeBusy ? 'loading' : routeStatus}
         />
       ) : null}
     </section>
   )
-}
-
-export function geoFromAnswerValue(value: unknown): GeoPlace | null {
-  return answerToGeoPlace(value)
 }

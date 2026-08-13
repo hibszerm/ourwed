@@ -1,7 +1,14 @@
 import { supabase } from '@/lib/supabase'
 import { nowIso, throwOnError, toNumber } from '@/lib/supabase/helpers'
 import { listOwnedWeddingIds } from '@/lib/api/ownership'
-import { ROUTE_ROLE_SORT } from '@/features/travel/weddingDayRouteStops'
+import {
+  ROUTE_ROLE_SORT,
+  OPERATIONAL_SORT_BASE,
+  OPERATIONAL_SORT_STEP,
+  operationalSortOrderAt,
+  placesHaveCustomSequentialOrder,
+} from '@/features/travel/weddingDayRouteStops'
+import { logOperationalOrder } from '@/features/wedding-day/operationalOrderDebug'
 import { travelProvider } from '@/services/travelProvider'
 import type { GeoPlace, WeddingPlace, WeddingPlaceRole } from '@/types/travel'
 
@@ -74,7 +81,14 @@ function hasCoordinates(place: Pick<WeddingPlace, 'latitude' | 'longitude'>): bo
 export const weddingPlaceService = {
   async listByWeddingId(weddingId: string): Promise<WeddingPlace[]> {
     const map = await this.listByWeddingIds([weddingId])
-    return map.get(weddingId) ?? []
+    const listed = map.get(weddingId) ?? []
+    logOperationalOrder({
+      source: 'weddingPlaceService.listByWeddingId',
+      weddingId,
+      places: listed,
+      note: 'db',
+    })
+    return listed
   },
 
   /** Batch load places for many weddings — one query (list/dashboard hydrate). */
@@ -180,6 +194,26 @@ export const weddingPlaceService = {
           ? existing?.label || null
           : place.label?.trim() || null
 
+    // Existing rows: never reset sort_order (preserves operational reorder).
+    // New rows after a custom order exists: append after max operational slot.
+    // New rows on catalog-only weddings: role default.
+    let sortOrder = existing?.sortOrder
+    if (sortOrder == null) {
+      const siblings = await this.listByWeddingId(input.weddingId)
+      if (
+        siblings.some((p) => Number(p.sortOrder) >= OPERATIONAL_SORT_BASE) ||
+        placesHaveCustomSequentialOrder(siblings)
+      ) {
+        const max = siblings.reduce(
+          (m, p) => Math.max(m, Number(p.sortOrder) || 0),
+          OPERATIONAL_SORT_BASE - OPERATIONAL_SORT_STEP,
+        )
+        sortOrder = max + OPERATIONAL_SORT_STEP
+      } else {
+        sortOrder = ROLE_SORT[input.role] ?? 100
+      }
+    }
+
     const patch = {
       wedding_id: input.weddingId,
       role: input.role,
@@ -188,7 +222,7 @@ export const weddingPlaceService = {
       formatted_address: formatted || existing?.formattedAddress || '',
       latitude: place != null ? place.latitude : (existing?.latitude ?? null),
       longitude: place != null ? place.longitude : (existing?.longitude ?? null),
-      sort_order: ROLE_SORT[input.role] ?? 100,
+      sort_order: sortOrder,
       updated_at: nowIso(),
     }
 
@@ -200,7 +234,14 @@ export const weddingPlaceService = {
         .select('*')
         .single()
       throwOnError(error)
-      return mapRow(data as WeddingPlaceRow)
+      const mapped = mapRow(data as WeddingPlaceRow)
+      logOperationalOrder({
+        source: 'weddingPlaceService.upsert',
+        weddingId: input.weddingId,
+        places: [mapped],
+        note: 'update-preserve-sort',
+      })
+      return mapped
     }
 
     const { data, error } = await supabase
@@ -209,7 +250,90 @@ export const weddingPlaceService = {
       .select('*')
       .single()
     throwOnError(error)
-    return mapRow(data as WeddingPlaceRow)
+    const mapped = mapRow(data as WeddingPlaceRow)
+    logOperationalOrder({
+      source: 'weddingPlaceService.upsert',
+      weddingId: input.weddingId,
+      places: [mapped],
+      note: 'insert',
+    })
+    return mapped
+  },
+
+  /**
+   * Persist operational stop order.
+   * Writes unique sort_order values in the OPERATIONAL_SORT_BASE range so the
+   * route engine treats them as custom (never confused with role catalogs).
+   * Returns the re-fetched place list in the new order.
+   * Does not recalculate travel — caller must rebuild the plan after commit.
+   */
+  async reorder(
+    weddingId: string,
+    orderedPlaceIds: string[],
+  ): Promise<WeddingPlace[]> {
+    const existing = await this.listByWeddingId(weddingId)
+    const byId = new Map(existing.map((p) => [p.id, p]))
+    const uniqueIds = [...new Set(orderedPlaceIds.filter((id) => byId.has(id)))]
+    if (uniqueIds.length === 0) return existing
+
+    const remaining = existing
+      .filter((p) => !uniqueIds.includes(p.id))
+      .sort((a, b) => Number(a.sortOrder) - Number(b.sortOrder))
+    const fullOrder = [...uniqueIds, ...remaining.map((p) => p.id)]
+
+    const now = nowIso()
+    for (let i = 0; i < fullOrder.length; i++) {
+      const id = fullOrder[i]!
+      const nextOrder = operationalSortOrderAt(i)
+      const { data, error } = await supabase
+        .from('wedding_places')
+        .update({ sort_order: nextOrder, updated_at: now })
+        .eq('id', id)
+        .eq('wedding_id', weddingId)
+        .select('id, sort_order')
+        .maybeSingle()
+      throwOnError(error)
+      if (!data) {
+        throw new Error(
+          `Nie udało się zapisać kolejności planu dnia (miejsce ${id}).`,
+        )
+      }
+      if (Number((data as { sort_order: number }).sort_order) !== nextOrder) {
+        throw new Error('Zapisana kolejność planu dnia nie zgadza się z żądaniem.')
+      }
+    }
+
+    const listed = await this.listByWeddingId(weddingId)
+    const listedIds = listed.map((p) => p.id)
+    const expectedIds = fullOrder.filter((id) => listedIds.includes(id))
+    const ok =
+      expectedIds.length === listed.length &&
+      expectedIds.every((id, i) => listed[i]?.id === id)
+    logOperationalOrder({
+      source: 'weddingPlaceService.reorder',
+      weddingId,
+      places: listed,
+      note: ok ? 'persisted+verified' : 'list-order-mismatch',
+      extra: {
+        requestedIds: uniqueIds,
+        fullOrder,
+        writes: fullOrder.map((id, i) => ({
+          id,
+          sort_order: operationalSortOrderAt(i),
+        })),
+      },
+    })
+    if (!ok) {
+      console.error('[wedding_places] reorder list order mismatch', {
+        weddingId,
+        expectedIds,
+        listedIds,
+      })
+      throw new Error(
+        'Zapisana kolejność planu dnia nie zgadza się z odczytem z bazy.',
+      )
+    }
+    return listed
   },
 
   async removeByRole(

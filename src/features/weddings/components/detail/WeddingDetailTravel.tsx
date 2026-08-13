@@ -10,7 +10,7 @@ import {
   type TravelFlowStop,
 } from '@/features/travel/travelUi'
 import { travelService } from '@/lib/api/travelService'
-import type { TravelPlan, TravelSegment } from '@/types/travel'
+import type { TravelPlan, TravelSegment, WeddingPlace } from '@/types/travel'
 import styles from './WeddingDetailTravel.module.css'
 
 interface WeddingDetailTravelProps {
@@ -213,11 +213,34 @@ export function WeddingDetailTravel({
   const plan = planProp ?? fetchedPlan
 
   const recalculateMutation = useMutation({
-    mutationFn: () =>
-      travelService.recalculate(weddingId, { forceRefresh: true }),
-    onSuccess: async (next) => {
-      queryClient.setQueryData(['travel-plan', userId, weddingId], next)
-      await queryClient.invalidateQueries({ queryKey: ['travel-plan'] })
+    mutationFn: async () => {
+      const placesKey = ['wedding-places', userId, weddingId] as const
+      const authoritative =
+        queryClient.getQueryData<WeddingPlace[]>(placesKey) ??
+        queryClient.getQueryData<TravelPlan>([
+          'travel-plan',
+          userId,
+          weddingId,
+        ])?.places
+      await queryClient.cancelQueries({
+        queryKey: ['travel-plan', userId, weddingId],
+      })
+      return travelService.recalculate(weddingId, {
+        forceRefresh: true,
+        places: authoritative,
+      })
+    },
+    onSuccess: (next) => {
+      const authoritative =
+        queryClient.getQueryData<WeddingPlace[]>([
+          'wedding-places',
+          userId,
+          weddingId,
+        ]) ?? next.places
+      queryClient.setQueryData(['travel-plan', userId, weddingId], {
+        ...next,
+        places: authoritative,
+      })
     },
   })
 

@@ -147,10 +147,14 @@ comment on column public.weddings.workflow_stage is
   'Pipeline stage only — workflow engine rules live in application code.';
 
 comment on column public.weddings.contract_value is
-  'Commercial snapshot: contractValue — total agreed contract value.';
+  'Commercial snapshot: contractValue — total agreed contract value (package base + extras + charged travel fee).';
 
 comment on column public.weddings.deposit_amount is
   'Commercial snapshot: agreedDeposit — deposit agreed in the contract (actual receipts live in payments).';
+
+-- Travel fee columns added in migration 20260813160000_travel_fee_commercial.sql
+-- travel_fee_status / travel_fee_amount / travel_fee_resolved_at /
+-- travel_fee_free_km_snapshot / travel_fee_route_distance_m_snapshot / travel_fee_note
 
 create index weddings_user_id_idx on public.weddings (user_id);
 create index weddings_wedding_date_idx on public.weddings (wedding_date);
@@ -794,6 +798,8 @@ create table public.studio_travel_settings (
   latitude numeric(10, 7),
   longitude numeric(10, 7),
   place_id text,
+  free_distance_km numeric(10, 2)
+    check (free_distance_km is null or free_distance_km >= 0),
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now()),
   constraint studio_travel_settings_user_id_unique unique (user_id)
@@ -930,6 +936,8 @@ alter table public.wedding_extra_services enable row level security;
 alter table public.studio_travel_settings enable row level security;
 alter table public.wedding_places enable row level security;
 alter table public.travel_segments enable row level security;
+-- wedding_operational_times: supabase/migrations/20260813120000_wedding_operational_times.sql
+-- wedding_operational_completions: supabase/migrations/20260813140000_wedding_operational_completions.sql
 
 -- =============================================================================
 -- Documents engine (Phase 0 foundation)

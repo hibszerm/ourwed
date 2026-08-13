@@ -1,6 +1,6 @@
 /**
- * Canonical DTO for the offline Wedding Brief PDF.
- * Built from wedding aggregates — never from React DOM.
+ * Canonical DTO for the offline Wedding Brief PDF (field guide / call sheet).
+ * Derived operational view — not a questionnaire archive.
  */
 
 export type BriefMoneySummary = {
@@ -20,7 +20,8 @@ export type BriefContact = {
 }
 
 export type BriefLocation = {
-  role: string
+  /** One or more operational roles for this unique place. */
+  roles: string[]
   name?: string
   address: string
   latitude?: number | null
@@ -29,44 +30,36 @@ export type BriefLocation = {
 }
 
 export type BriefTimelineItem = {
+  /** Empty string when stage is known but untimed. */
   time: string
   title: string
-  location?: string
-  address?: string
-  description?: string
-  note?: string
+  placeName?: string
+  shortAddress?: string
+  /** Optional one-line critical context. */
+  context?: string
+  untimed?: boolean
 }
 
 export type BriefNote = {
-  label?: string
+  label: string
   content: string
-  critical?: boolean
 }
 
-export type BriefQuestionnaireAnswer = {
+export type BriefOperationalItem = {
   label: string
   value: string
-  kind: 'text' | 'location' | 'time' | 'date' | 'long_text'
 }
 
-export type BriefQuestionnaireSection = {
+export type BriefOperationalSection = {
+  id: string
   title: string
-  answers: BriefQuestionnaireAnswer[]
+  items: BriefOperationalItem[]
 }
 
 export type BriefVendor = {
   name: string
   role?: string
   detail?: string
-}
-
-export type BriefEquipmentItem = {
-  label: string
-  ready: boolean
-}
-
-export type BriefEquipmentSection = {
-  items: BriefEquipmentItem[]
 }
 
 export type BriefSession = {
@@ -79,6 +72,17 @@ export type BriefSession = {
 
 export type BriefSettlementSummary = BriefMoneySummary & {
   depositPaid: number
+  settled?: boolean
+  /** Compact travel fee when resolved (charged/included). */
+  travelFeeLabel?: string
+}
+
+/** Coverage audit — every answered operational question must appear here. */
+export type BriefCoverageAudit = {
+  mappedQuestionIds: string[]
+  adminOnlyQuestionIds: string[]
+  additionalQuestionIds: string[]
+  unmappedNonEmptyQuestionIds: string[]
 }
 
 export type WeddingBriefPdfData = {
@@ -101,33 +105,22 @@ export type WeddingBriefPdfData = {
     coverageEnd?: string
     guestCount?: number
   }
-  quickSummary: {
-    keyContacts: BriefContact[]
-    startTime?: string
-    firstLocation?: BriefLocation
-    remainingPayment?: BriefMoneySummary
-    criticalNote?: string
-  }
+  contacts: BriefContact[]
   timeline: BriefTimelineItem[]
   locations: BriefLocation[]
-  contacts: BriefContact[]
-  importantNotes: BriefNote[]
-  questionnaire: {
-    title?: string
-    submittedAt?: string
-    sections: BriefQuestionnaireSection[]
-  } | null
-  contractQuestionnaire: {
-    sections: BriefQuestionnaireSection[]
-  } | null
+  /** Nie przegap — P1 critical field notes only. */
+  criticalNotes: BriefNote[]
+  operationalSections: BriefOperationalSection[]
   vendors: BriefVendor[]
-  equipment?: BriefEquipmentSection
   settlement?: BriefSettlementSummary
   sessions?: BriefSession[]
+  /** Unmapped / leftover operational answers (compact). */
+  additionalOperational: BriefOperationalItem[]
   footer: {
     generatedBy: string
     coupleDisplayName: string
     weddingDateLabel: string
   }
+  coverageAudit: BriefCoverageAudit
   missingOperational?: string[]
 }

@@ -12,6 +12,7 @@ import {
 } from '@/lib/forms/contractQuestionnaireSnapshot'
 import { syncWeddingExtrasFromQuestionnaireAnswer } from '@/lib/forms/syncWeddingExtrasFromQuestionnaire'
 import { recomputeContractValueAfterExtrasSync } from '@/lib/forms/weddingExtraPricing'
+import { getEffectiveTravelFeeAmount } from '@/lib/utils/travelFeeCommercial'
 import { weddingExtraServiceService } from '@/lib/api/weddingExtraServiceService'
 import { weddingService } from '@/lib/api/weddingService'
 import type {
@@ -935,6 +936,7 @@ export async function submitForm(
         currentWeddingPrice: wedding.price,
         extrasBeforeSync: extrasBefore,
         extrasAfterSync: extrasAfter,
+        effectiveTravelFee: getEffectiveTravelFeeAmount(wedding),
       })
       if (nextPrice !== wedding.price) {
         await weddingService.update({ ...wedding, price: nextPrice })

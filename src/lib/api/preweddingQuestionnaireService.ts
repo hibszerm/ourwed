@@ -23,9 +23,11 @@ import {
   mergeLocationAnswerWithExisting,
   normalizeLocationAnswer,
 } from '@/features/travel/weddingLocationModel'
+import { buildPrefill } from '@/lib/api/preweddingPrefill'
 import { weddingPlaceService } from '@/lib/api/weddingPlaceService'
 import type { WeddingPlaceRole } from '@/types/travel'
 import type {
+  PrefillValue,
   PreWeddingAnswerValue,
   PreWeddingTemplateSchema,
   PublicPreWeddingForm,
@@ -85,7 +87,7 @@ function mapWeddingQuestionnaireRow(row: Record<string, unknown>): WeddingQuesti
     title: (row.title as string) ?? '',
     introduction: (row.introduction as string) ?? '',
     schema: (row.schema_snapshot_json as PreWeddingTemplateSchema) ?? { sections: [] },
-    prefill: (row.prefill_json as Record<string, string>) ?? {},
+    prefill: (row.prefill_json as Record<string, import('@/types/preweddingQuestionnaire').PrefillValue>) ?? {},
     status: (row.status as WeddingQuestionnaireStatus) ?? 'draft',
     hasPublicToken: Boolean(row.public_token_hash),
     preparedAt: (row.prepared_at as string | null) ?? null,
@@ -380,27 +382,7 @@ export const questionnaireTemplateService = {
 // Wedding questionnaire service
 // ---------------------------------------------------------------------------
 
-/** Build prefill from wedding data — keys match weddingDayMapping. */
-function buildPrefill(wedding: Wedding): Record<string, string> {
-  const prefill: Record<string, string> = {}
-  if (wedding.date) prefill.weddingDate = wedding.date
-  if (wedding.couple.partner1) prefill.brideName = wedding.couple.partner1
-  if (wedding.couple.partner1Phone || wedding.couple.phone) {
-    prefill.bridePhone = wedding.couple.partner1Phone || wedding.couple.phone
-  }
-  if (wedding.couple.partner2) prefill.groomName = wedding.couple.partner2
-  if (wedding.couple.partner2Phone) prefill.groomPhone = wedding.couple.partner2Phone
-  if (wedding.bridePreparationLocation) {
-    prefill.bridePreparationLocation = wedding.bridePreparationLocation
-  }
-  if (wedding.groomPreparationLocation) {
-    prefill.groomPreparationLocation = wedding.groomPreparationLocation
-  }
-  if (wedding.ceremonyLocation) prefill.ceremonyLocation = wedding.ceremonyLocation
-  if (wedding.ceremonyTime) prefill.ceremonyTime = wedding.ceremonyTime
-  if (wedding.receptionLocation) prefill.receptionVenue = wedding.receptionLocation
-  return prefill
-}
+export { buildPrefill } from '@/lib/api/preweddingPrefill'
 
 export const weddingQuestionnaireService = {
   async getByWeddingId(weddingId: string): Promise<WeddingQuestionnaire | null> {
@@ -452,7 +434,8 @@ export const weddingQuestionnaireService = {
       throw new Error('Szablon nie ma tytułu widocznego dla pary.')
     }
 
-    const prefill = buildPrefill(wedding)
+    const places = await weddingPlaceService.listByWeddingId(wedding.id)
+    const prefill = buildPrefill(wedding, places)
     // Deep-copy schema so later template edits never touch this instance.
     const schemaSnapshot = JSON.parse(
       JSON.stringify(template.schema),
@@ -852,7 +835,7 @@ export const publicPreWeddingService = {
       title: (row.title as string) ?? '',
       introduction: (row.introduction as string) ?? '',
       schema: (row.schema as PreWeddingTemplateSchema) ?? { sections: [] },
-      prefill: (row.prefill as Record<string, string>) ?? {},
+      prefill: (row.prefill as Record<string, PrefillValue>) ?? {},
       status: (row.status as WeddingQuestionnaireStatus) ?? 'sent',
       submittedAt: (row.submitted_at as string | null) ?? null,
       savedAnswers: (row.saved_answers as Record<string, PreWeddingAnswerValue>) ?? {},

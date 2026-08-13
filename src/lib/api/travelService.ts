@@ -7,6 +7,7 @@ import {
   computeRouteInputFingerprint,
   type WeddingDayRoutePair,
 } from '@/features/travel/weddingDayRouteStops'
+import { logOperationalOrder } from '@/features/wedding-day/operationalOrderDebug'
 import { supabase } from '@/lib/supabase'
 import { nowIso, throwOnError, toNumber } from '@/lib/supabase/helpers'
 import { TRAVEL_SEGMENTS_ON_CONFLICT } from '@/lib/travel/travelSegmentsIdentity'
@@ -140,8 +141,13 @@ function pairToPlannedLeg(pair: WeddingDayRoutePair): PlannedLeg {
 function buildPlannedLegs(
   studio: StudioTravelSettings | null,
   places: WeddingPlace[],
+  orderedPlaceIds?: string[],
 ): { legs: PlannedLeg[]; fingerprint: string } {
-  const stops = buildOrderedWeddingDayRouteStops({ studio, places })
+  const stops = buildOrderedWeddingDayRouteStops({
+    studio,
+    places,
+    orderedPlaceIds,
+  })
   const pairs = buildAdjacentRoutePairs(stops, studio)
   return {
     legs: pairs.map(pairToPlannedLeg),
@@ -385,23 +391,47 @@ export const travelService = {
   /**
    * Load travel plan for a wedding.
    * Full adjacent rebuild from ordered stops; reusable ok legs matched by endpointsHash.
+   *
+   * Pass `places` after a committed reorder so calculation cannot race a stale
+   * listByWeddingId read — the provided array is the operational source of truth.
    */
   async getPlan(
     weddingId: string,
-    options?: { forceRefresh?: boolean; travelMode?: TravelMode },
+    options?: {
+      forceRefresh?: boolean
+      travelMode?: TravelMode
+      /** Committed operational places (custom sort_order). */
+      places?: WeddingPlace[]
+      /** Exact place-id sequence; wins over sort_order when provided. */
+      orderedPlaceIds?: string[]
+    },
   ): Promise<TravelPlan> {
     const travelMode = options?.travelMode ?? 'DRIVE'
     const forceRefresh = Boolean(options?.forceRefresh)
     const revision = nextRouteRevision(weddingId)
 
-    const [studio, places, cached] = await Promise.all([
+    const [studio, listedPlaces, cached] = await Promise.all([
       studioTravelSettingsService.get(),
-      weddingPlaceService.listByWeddingId(weddingId),
+      options?.places
+        ? Promise.resolve(options.places)
+        : weddingPlaceService.listByWeddingId(weddingId),
       listCachedSegments(weddingId),
     ])
+    const places = options?.places ?? listedPlaces
+    const orderedPlaceIds =
+      options?.orderedPlaceIds ??
+      (options?.places ? options.places.map((p) => p.id) : undefined)
+    logOperationalOrder({
+      source: 'travelService.getPlan',
+      weddingId,
+      places,
+      note: options?.places
+        ? `explicit-places forceRefresh=${forceRefresh}`
+        : `listed-places forceRefresh=${forceRefresh}`,
+      extra: { orderedPlaceIds },
+    })
 
     if (!isCurrentRevision(weddingId, revision)) {
-      // A newer rebuild started — return empty placeholder; caller should refetch.
       return {
         weddingId,
         studio,
@@ -415,7 +445,11 @@ export const travelService = {
       }
     }
 
-    const { legs: planned, fingerprint } = buildPlannedLegs(studio, places)
+    const { legs: planned, fingerprint } = buildPlannedLegs(
+      studio,
+      places,
+      orderedPlaceIds,
+    )
     const cachedBySequence = new Map(cached.map((s) => [s.sequence, s]))
     const cachedByHash = new Map(
       cached.filter((s) => s.endpointsHash).map((s) => [s.endpointsHash, s]),
@@ -606,15 +640,30 @@ export const travelService = {
   },
 
   /**
-   * Recalculate after location edits.
+   * Recalculate after location edits or committed operational reorder.
    * Default: only dirty legs (hash change). Pass forceRefresh to re-route all.
+   * Pass `places` after reorder so the new order is used even if a concurrent
+   * list read would race.
    */
   async recalculate(
     weddingId: string,
-    options?: { forceRefresh?: boolean },
+    options?: {
+      forceRefresh?: boolean
+      places?: WeddingPlace[]
+      orderedPlaceIds?: string[]
+    },
   ): Promise<TravelPlan> {
+    logOperationalOrder({
+      source: 'travelService.recalculate',
+      weddingId,
+      places: options?.places,
+      note: `forceRefresh=${options?.forceRefresh ?? false}`,
+      extra: { orderedPlaceIds: options?.orderedPlaceIds },
+    })
     return this.getPlan(weddingId, {
       forceRefresh: options?.forceRefresh ?? false,
+      places: options?.places,
+      orderedPlaceIds: options?.orderedPlaceIds,
     })
   },
 

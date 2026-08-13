@@ -14,6 +14,8 @@ import {
 } from '@/lib/utils/commercial'
 import { formatFinalPaymentTerms } from '@/lib/utils/finalPaymentTerms'
 import { formatCurrency } from '@/lib/utils/currency'
+import { recomposeContractValueForExtrasEdit } from '@/lib/forms/weddingExtraPricing'
+import { getEffectiveTravelFeeAmount } from '@/lib/utils/travelFeeCommercial'
 import type { StudioPackage, WeddingExtraService } from '@/types/package'
 import type { Wedding, WeddingPackageItemSnapshot } from '@/types/wedding'
 import editStyles from '@/features/weddings/edit/WeddingEdit.module.css'
@@ -111,12 +113,13 @@ export function WeddingDetailPackage({
   ) {
     onChangePackageBasePrice?.(
       preserveContractValue
-        ? Math.max(0, wedding.price - extrasTotal)
+        ? Math.max(0, wedding.price - extrasTotal - getEffectiveTravelFeeAmount(wedding))
         : pkg.price,
     )
     onChangeWedding?.(
       applyCommercialPackageSnapshot(wedding, pkg, {
         extrasTotal,
+        effectiveTravelFee: getEffectiveTravelFeeAmount(wedding),
         preserveContractValue,
       }),
     )
@@ -140,13 +143,19 @@ export function WeddingDetailPackage({
     )
     onChangePackageBasePrice?.(
       preserveContractValue
-        ? Math.max(0, wedding.price - extrasTotal)
+        ? Math.max(
+            0,
+            wedding.price -
+              extrasTotal -
+              getEffectiveTravelFeeAmount(wedding),
+          )
         : selected.price,
     )
     onChangeWedding?.(
       fillWeddingTermsFromCatalogPackage(wedding, selected, {
         preserveContractValue,
         extrasTotal,
+        effectiveTravelFee: getEffectiveTravelFeeAmount(wedding),
       }),
     )
   }
@@ -155,16 +164,14 @@ export function WeddingDetailPackage({
     if (!onChangeExtras) return
     const next = extras.map((e) => (e.id === id ? { ...e, ...patch } : e))
     onChangeExtras(next)
-    const base =
-      packageBasePrice ??
-      Math.max(
-        0,
-        wedding.price -
-          extras.reduce((s, e) => s + e.priceSnapshot * e.quantity, 0),
-      )
     onChangeWedding?.({
-      price:
-        base + next.reduce((sum, e) => sum + e.priceSnapshot * e.quantity, 0),
+      price: recomposeContractValueForExtrasEdit({
+        currentWeddingPrice: wedding.price,
+        extrasBefore: extras,
+        extrasAfter: next,
+        effectiveTravelFee: getEffectiveTravelFeeAmount(wedding),
+        packageBasePrice,
+      }),
     })
   }
 
@@ -172,16 +179,14 @@ export function WeddingDetailPackage({
     if (!onChangeExtras) return
     const next = extras.filter((e) => e.id !== id)
     onChangeExtras(next)
-    const base =
-      packageBasePrice ??
-      Math.max(
-        0,
-        wedding.price -
-          extras.reduce((s, e) => s + e.priceSnapshot * e.quantity, 0),
-      )
     onChangeWedding?.({
-      price:
-        base + next.reduce((sum, e) => sum + e.priceSnapshot * e.quantity, 0),
+      price: recomposeContractValueForExtrasEdit({
+        currentWeddingPrice: wedding.price,
+        extrasBefore: extras,
+        extrasAfter: next,
+        effectiveTravelFee: getEffectiveTravelFeeAmount(wedding),
+        packageBasePrice,
+      }),
     })
   }
 
@@ -200,16 +205,14 @@ export function WeddingDetailPackage({
     }
     const next = [...extras, created]
     onChangeExtras(next)
-    const base =
-      packageBasePrice ??
-      Math.max(
-        0,
-        wedding.price -
-          extras.reduce((s, e) => s + e.priceSnapshot * e.quantity, 0),
-      )
     onChangeWedding?.({
-      price:
-        base + next.reduce((sum, e) => sum + e.priceSnapshot * e.quantity, 0),
+      price: recomposeContractValueForExtrasEdit({
+        currentWeddingPrice: wedding.price,
+        extrasBefore: extras,
+        extrasAfter: next,
+        effectiveTravelFee: getEffectiveTravelFeeAmount(wedding),
+        packageBasePrice,
+      }),
     })
   }
 

@@ -155,11 +155,15 @@ export function WeddingDayWorkspace({
     queryKey: ['travel-plan', userId, wedding.id],
     queryFn: async (): Promise<TravelPlan> => {
       try {
-        return await travelService.getPlan(wedding.id)
+        const next = await travelService.getPlan(wedding.id)
+        const authoritative =
+          queryClient.getQueryData<WeddingPlace[]>([
+            'wedding-places',
+            userId,
+            wedding.id,
+          ]) ?? places
+        return { ...next, places: authoritative.length ? authoritative : next.places }
       } catch (err) {
-        // Keep verified wedding places so the map can still render.
-        // Persistence soft-fails inside getPlan (persistenceError); this catch
-        // is for hard failures (auth, places load, etc.).
         return {
           weddingId: wedding.id,
           studio: null,
@@ -179,16 +183,55 @@ export function WeddingDayWorkspace({
   })
 
   const recalculate = useMutation({
-    mutationFn: () =>
-      travelService.recalculate(wedding.id, { forceRefresh: true }),
-    onSuccess: async (next) => {
-      queryClient.setQueryData(['travel-plan', userId, wedding.id], next)
-      await queryClient.invalidateQueries({ queryKey: ['travel-plan'] })
+    mutationFn: async () => {
+      const authoritative =
+        queryClient.getQueryData<WeddingPlace[]>([
+          'wedding-places',
+          userId,
+          wedding.id,
+        ]) ?? places
+      const orderedIds = authoritative.map((p) => p.id)
+      await queryClient.cancelQueries({
+        queryKey: ['travel-plan', userId, wedding.id],
+      })
+      return travelService.recalculate(wedding.id, {
+        forceRefresh: true,
+        places: authoritative,
+        orderedPlaceIds: orderedIds,
+      })
+    },
+    onSuccess: (next) => {
+      queryClient.setQueryData(['travel-plan', userId, wedding.id], {
+        ...next,
+        places: [],
+      })
     },
   })
 
-  const flow = plan ? buildTravelFlow(plan) : null
-  const summary = flow ? summarizeTravelRoute(flow) : null
+  const planForFlow = plan
+    ? { ...plan, places: [], routeStale: plan.routeStale || plan.segments.length === 0 }
+    : null
+  const flow = planForFlow
+    ? buildTravelFlow(planForFlow, {
+        places,
+        orderedPlaceIds: places.map((p) => p.id),
+      })
+    : null
+  const summary =
+    !flow || flow.routeStale
+      ? flow
+        ? {
+            ...summarizeTravelRoute({
+              ...flow,
+              routeStale: true,
+              routeComplete: false,
+            }),
+            distanceText: '—',
+            durationText: '—',
+            totalsComplete: false,
+          }
+        : null
+      : summarizeTravelRoute(flow)
   const baseStatus = plan
     ? getTravelBaseStatus(plan.studio)
     : getTravelBaseStatus(null)
@@ -207,6 +250,22 @@ export function WeddingDayWorkspace({
     >
       <div className={styles.dayLayout}>
         <div className={styles.itineraryCol}>
+          <div className={styles.cockpitBanner}>
+            <div>
+              <h2 className={styles.sectionHeading}>Tryb dnia ślubu</h2>
+              <p className={styles.contextMuted}>
+                Operacyjny widok na telefon: następny punkt, dojazd, kontakty i
+                brief.
+              </p>
+            </div>
+            <Link
+              to={`/sluby/${wedding.id}/dzien-slubu`}
+              className={styles.cockpitBannerLink}
+              data-testid="wedding-day-open-cockpit"
+            >
+              Dzień ślubu
+            </Link>
+          </div>
           <h2 className={styles.sectionHeading}>Plan dnia</h2>
           {isLoading ? (
             <p className={styles.contextMuted}>Ładowanie trasy…</p>

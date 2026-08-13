@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Check, Lock } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
+import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
 import {
   weddingQuestionnaireService,
   questionnaireTemplateService,
@@ -376,6 +377,7 @@ export function WeddingPreWeddingQuestionnaireWorkspace({
   onWeddingSynced,
 }: Props) {
   const queryClient = useQueryClient()
+  const userId = useStudioAuthId()
   const navigate = useNavigate()
   const { requirePro } = useProAccessGate()
   const [preparing, setPreparing] = useState(false)
@@ -413,9 +415,9 @@ export function WeddingPreWeddingQuestionnaireWorkspace({
   })
 
   const { data: places = [] } = useQuery({
-    queryKey: ['wedding-places', wedding.id],
+    queryKey: ['wedding-places', userId, wedding.id],
     queryFn: () => weddingPlaceService.listByWeddingId(wedding.id),
-    enabled: Boolean(wedding.id),
+    enabled: Boolean(userId && wedding.id),
   })
 
   const { data: notes = [] } = useQuery({
@@ -551,6 +553,15 @@ export function WeddingPreWeddingQuestionnaireWorkspace({
         setApplySuccess(
           (prev) =>
             `${prev ?? ''} Trasa została odświeżona po zmianie lokalizacji.`.trim(),
+        )
+      }
+      if (
+        (result.wedding.travelFeeStatus ?? 'unresolved') === 'unresolved' &&
+        result.routeNeedsRecalculation
+      ) {
+        setApplySuccess(
+          (prev) =>
+            `${prev ?? ''} Ustal koszt dojazdu w zakładce Umowa i finanse — na podstawie planu możesz sprawdzić dystans i ustalić opłatę.`.trim(),
         )
       }
     } catch (err) {

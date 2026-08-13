@@ -3,11 +3,13 @@ import { Button } from '@/components/ui/Button'
 import { WeddingContractsModule } from '@/features/weddings/components/detail/WeddingContractsModule'
 import { WeddingSourceContractsPanel } from '@/features/wedding-contract-recovery/components/WeddingSourceContractsPanel'
 import { WeddingContractQuestionnaireSection } from '@/features/weddings/detail/v2/WeddingContractQuestionnaireSection'
+import { TravelFeeResolveModal } from '@/features/weddings/detail/travel-fee/TravelFeeResolveModal'
 import { getPackageSummary } from '@/features/weddings/detail/v2/weddingWorkspaceSelectors'
 import type { WeddingExtraService } from '@/types/package'
 import type { Payment, Wedding } from '@/types/wedding'
 import type { WeddingHeroAction } from '@/features/weddings/detail/weddingHeroActions'
 import { formatCurrency } from '@/lib/utils/currency'
+import { formatTravelFeeDisplay } from '@/lib/utils/travelFeeCommercial'
 import styles from './WeddingDetailV2.module.css'
 
 interface Props {
@@ -19,6 +21,7 @@ interface Props {
   onEditPackage?: () => void
   onEditFinances?: () => void
   onContractStatusChanged?: () => void
+  onWeddingUpdated?: (wedding: Wedding) => void
 }
 
 /**
@@ -35,9 +38,14 @@ export function WeddingContractFinanceWorkspace({
   onEditPackage,
   onEditFinances,
   onContractStatusChanged,
+  onWeddingUpdated,
 }: Props) {
   const [contentsOpen, setContentsOpen] = useState(Boolean(forcePackageOpen))
+  const [travelFeeOpen, setTravelFeeOpen] = useState(false)
   const pkg = getPackageSummary(wedding)
+  const travelLabel = formatTravelFeeDisplay(wedding, formatCurrency)
+  const travelUnresolved =
+    (wedding.travelFeeStatus ?? 'unresolved') === 'unresolved'
   const contractLifecycleDescription =
     wedding.contract.status === 'none'
       ? 'Umowa nie została jeszcze wygenerowana'
@@ -98,6 +106,21 @@ export function WeddingContractFinanceWorkspace({
             </p>
             <p className={styles.bandLabel}>Pozostało</p>
           </div>
+        </div>
+        <div className={styles.surfaceHeader} data-testid="travel-fee-summary">
+          <div>
+            <p className={styles.bandLabel}>Koszt dojazdu</p>
+            <p className={styles.paymentBig}>{travelLabel}</p>
+          </div>
+          <Button
+            type="button"
+            variant={travelUnresolved ? 'secondary' : 'ghost'}
+            size="sm"
+            onClick={() => setTravelFeeOpen(true)}
+            data-testid="travel-fee-resolve-open"
+          >
+            {travelUnresolved ? 'Ustal' : 'Edytuj'}
+          </Button>
         </div>
         <p className={styles.contextMuted}>
           Termin płatności końcowej: {pkg.finalPaymentDueLabel}
@@ -177,6 +200,10 @@ export function WeddingContractFinanceWorkspace({
             <dd>{pkg.contractValueLabel}</dd>
           </div>
           <div>
+            <dt>Koszt dojazdu</dt>
+            <dd>{travelLabel}</dd>
+          </div>
+          <div>
             <dt>Zaliczka</dt>
             <dd>{pkg.agreedDepositLabel}</dd>
           </div>
@@ -235,6 +262,14 @@ export function WeddingContractFinanceWorkspace({
           </ul>
         ) : null}
       </section>
+
+      <TravelFeeResolveModal
+        open={travelFeeOpen}
+        wedding={wedding}
+        extras={extras}
+        onClose={() => setTravelFeeOpen(false)}
+        onSaved={(updated) => onWeddingUpdated?.(updated)}
+      />
     </div>
   )
 }

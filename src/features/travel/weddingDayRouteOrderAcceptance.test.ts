@@ -6,6 +6,7 @@ import {
   buildAdjacentRoutePairs,
   buildOrderedWeddingDayRouteStops,
   computeRouteInputFingerprint,
+  placesHaveCustomSequentialOrder,
   routePairKey,
   segmentMatchesPair,
   CANONICAL_ROUTE_ROLE_ORDER,
@@ -423,6 +424,33 @@ run('manual location save forces full route rebuild', () => {
   )
   assert(save.includes('travelService.invalidate'), 'invalidate on edit')
   assert(save.includes('forceRefresh: true'), 'force refresh')
+  assert(save.includes('setQueriesData'), 'write plan cache directly')
+  assert(
+    !save.includes("invalidateQueries({ queryKey: ['travel-plan'] })"),
+    'no travel-plan invalidate race',
+  )
+})
+
+run('operational sort_order range is always treated as custom order', () => {
+  const places = [
+    place('bride_preparation', 'bride', 50.32, 18.79, 1000),
+    place('groom_preparation', 'groom', 50.3, 18.78, 2000),
+    place('ceremony', 'cer', 50.06, 19.94, 3000),
+    place('reception', 'rec', 49.82, 19.75, 4000),
+  ]
+  assert(placesHaveCustomSequentialOrder(places), 'operational base = custom')
+  const stops = buildOrderedWeddingDayRouteStops({
+    studio: studio(),
+    places,
+  })
+  assert(
+    stops.map((s) => s.role).join('>') ===
+      'studio>bride_preparation>groom_preparation>ceremony>reception',
+    'bride before groom from sort_order',
+  )
+  const pairs = buildAdjacentRoutePairs(stops, studio())
+  assert(pairs[0]!.pairKey === routePairKey('studio', 'bride'), pairs[0]!.pairKey)
+  assert(pairs[1]!.pairKey === routePairKey('bride', 'groom'), pairs[1]!.pairKey)
 })
 
 run('orders A–E: adjacent pair sequences', () => {
