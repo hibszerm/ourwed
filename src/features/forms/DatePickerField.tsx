@@ -37,6 +37,12 @@ interface DatePickerFieldProps {
   error?: string
 }
 
+/**
+ * Desktop calendar footprint — matches Contract half-column density.
+ * Caps wide Pre-Wedding question-card anchors without enlarging narrow ones.
+ */
+const DESKTOP_CALENDAR_MAX_WIDTH = 320
+
 export function DatePickerField({
   id,
   value,
@@ -341,7 +347,9 @@ export function DatePickerField({
           open={open && !disabled}
           anchorRef={inputRef}
           onClose={() => setOpen(false)}
-          maxMenuHeight={340}
+          maxMenuHeight={420}
+          maxMenuWidth={DESKTOP_CALENDAR_MAX_WIDTH}
+          scrollBody={false}
         >
           {() => calendarBody}
         </ResponsiveFieldOverlay>

@@ -152,6 +152,7 @@ function place(
     sessionType: 'engagement',
     totalPrice: 0,
     depositAmount: 0,
+    payments: [],
     createdAt: '2026-01-01',
     updatedAt: '2026-01-01',
     location: {
@@ -190,6 +191,7 @@ function place(
     sessionType: 'engagement',
     totalPrice: 0,
     depositAmount: 0,
+    payments: [],
     createdAt: '2026-01-01',
     updatedAt: '2026-01-01',
   })

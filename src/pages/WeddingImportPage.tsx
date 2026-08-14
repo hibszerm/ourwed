@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { useToast } from '@/components/ui/Toast'
 import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
+import { invalidateFinanceQueries } from '@/features/finance/invalidateFinanceQueries'
 import { useProAccessGate } from '@/features/billing/ProAccessGate'
 import { useProMutationPageGuard } from '@/features/billing/useProMutationPageGuard'
 import { useWeddings } from '@/features/weddings/hooks/useWeddings'
@@ -289,6 +290,7 @@ export function WeddingImportPage() {
       setImportResult(result)
       await queryClient.invalidateQueries({ queryKey: ['weddings'] })
       await queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      await invalidateFinanceQueries(queryClient)
       setStep('done')
       if (result.failedCount > 0) {
         showToast(

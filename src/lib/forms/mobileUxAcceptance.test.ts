@@ -120,10 +120,16 @@ function assertNotIncludes(src: string, needle: string, m: string) {
   )
   assertIncludes(loc, 'mapSuggestionAndResolvedToGeoPlace', 'E/J — GeoPlace path')
   assertIncludes(loc, 'unresolvedFromText', 'manual typed fallback')
-  assertIncludes(loc, 'location-desktop-suggestion-list', 'B — desktop inline list')
-  assertIncludes(loc, 'showDesktopList = !isMobile && open', 'B/I — desktop-only inline list')
+  assertIncludes(loc, 'location-desktop-suggestion-list', 'B — desktop suggestion list')
+  assertIncludes(loc, 'showDesktopList = !isMobile && open', 'B/I — desktop-only list')
+  assertIncludes(loc, 'ResponsiveFieldOverlay', 'B — desktop portal escapes card overflow')
   assertIncludes(loc, 'location-mobile-trigger', 'A — mobile trigger (not inline input)')
-  assertIncludes(loc, "data-overlay-mode={dialogOpen ? 'dialog' : 'inline'}", 'modes')
+  assertIncludes(
+    loc,
+    "data-overlay-mode={dialogOpen ? 'dialog' : 'anchored'}",
+    'modes dialog / anchored',
+  )
+  assertNotIncludes(loc, "'inline'", 'desktop no longer inline-clipped list')
   assertNotIncludes(loc, 'googleapis.com', 'K — no live Google URL')
 
   assertIncludes(qLoc, 'LocationSearchField', 'H — shared questionnaire fields')

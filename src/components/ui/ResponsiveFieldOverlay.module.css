@@ -41,3 +41,10 @@
   flex: 1;
   min-height: 0;
 }
+
+/* Compact overlays (month calendar) — no nested scroll container. */
+.bodyNatural {
+  overflow: visible;
+  flex: 0 0 auto;
+  min-height: 0;
+}

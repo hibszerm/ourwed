@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
 import { calendarIntegrationQueryKeys } from '@/features/calendar-integrations/queryKeys'
+import { invalidateFinanceQueries } from '@/features/finance/invalidateFinanceQueries'
 import { weddingPlaceService } from '@/lib/api/weddingPlaceService'
 import { WeddingActivityWorkspace } from '@/features/weddings/detail/v2/WeddingActivityWorkspace'
 import { WeddingPreWeddingQuestionnaireWorkspace } from '@/features/weddings/detail/v2/WeddingPreWeddingQuestionnaireWorkspace'
@@ -99,6 +100,7 @@ export function WeddingDetailV2(props: WeddingDetailSharedProps) {
       ),
     })
     await queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+    await invalidateFinanceQueries(queryClient)
     onWeddingRefreshed?.(next)
   }
 
@@ -177,11 +179,14 @@ export function WeddingDetailV2(props: WeddingDetailSharedProps) {
               forcePackageOpen={packageFocus}
               onEditPackage={() => onEditSection?.('package')}
               onEditFinances={() => onEditSection?.('finances')}
+              onEditPayment={props.onEditPayment}
               onContractStatusChanged={() => {
                 void queryClient.invalidateQueries({ queryKey: ['weddings'] })
+                void invalidateFinanceQueries(queryClient)
               }}
               onWeddingUpdated={() => {
                 void queryClient.invalidateQueries({ queryKey: ['weddings'] })
+                void invalidateFinanceQueries(queryClient)
               }}
             />
           ) : null}
@@ -200,6 +205,7 @@ export function WeddingDetailV2(props: WeddingDetailSharedProps) {
                 void queryClient.invalidateQueries({
                   queryKey: ['travel-plan', userId, wedding.id],
                 })
+                void invalidateFinanceQueries(queryClient)
               }}
             />
           ) : null}

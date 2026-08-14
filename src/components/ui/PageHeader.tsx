@@ -5,14 +5,25 @@ interface PageHeaderProps {
   title?: string
   subtitle?: string
   action?: ReactNode
+  /** Optional class on the header root (page-specific hierarchy). */
+  className?: string
 }
 
 /** Shared studio page header — Apple / Linear calm hierarchy. */
-export function PageHeader({ title, subtitle, action }: PageHeaderProps) {
+export function PageHeader({
+  title,
+  subtitle,
+  action,
+  className,
+}: PageHeaderProps) {
   if (!title && !action) return null
 
   return (
-    <header className={styles.header}>
+    <header
+      className={
+        className ? `${styles.header} ${className}` : styles.header
+      }
+    >
       <div className={styles.text}>
         {title && <h1 className={styles.title}>{title}</h1>}
         {subtitle && <p className={styles.subtitle}>{subtitle}</p>}

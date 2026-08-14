@@ -6,6 +6,7 @@ import {
   type KeyboardEvent,
 } from 'react'
 import { MobileFieldDialog } from '@/components/ui/MobileFieldDialog'
+import { ResponsiveFieldOverlay } from '@/components/ui/ResponsiveFieldOverlay'
 import { useIsMobileOverlay } from '@/components/ui/useIsMobileOverlay'
 import { blurActiveElement, settleAfterBlur } from '@/components/ui/iosFocus'
 import {
@@ -87,7 +88,8 @@ function unresolvedFromText(
 
 /**
  * Place search for travel / wedding details / questionnaires — Google Places via shared provider.
- * Desktop: inline autocomplete. Mobile: full-screen picker with confirm („Zapisz adres”).
+ * Desktop: anchored ResponsiveFieldOverlay (escapes card overflow).
+ * Mobile: full-screen picker with confirm („Zapisz adres”).
  */
 export function LocationSearchField({
   label,
@@ -110,6 +112,7 @@ export function LocationSearchField({
   const inputRef = useRef<HTMLInputElement | null>(null)
   const triggerRef = useRef<HTMLButtonElement | null>(null)
   const searchRef = useRef<HTMLInputElement | null>(null)
+  const portalRef = useRef<HTMLElement | null>(null)
   const debounceRef = useRef<number | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const [provider] = useState(() => createDefaultAddressAutocompleteProvider())
@@ -137,6 +140,25 @@ export function LocationSearchField({
       provider.endSession?.()
     }
   }, [provider])
+
+  useEffect(() => {
+    if (!open || isMobile) return
+    function onDocPointer(e: MouseEvent | TouchEvent) {
+      const target = e.target as Node | null
+      if (!target) return
+      if (inputRef.current?.contains(target)) return
+      if (rootRef.current?.contains(target)) return
+      if (portalRef.current?.contains(target)) return
+      setOpen(false)
+      setActiveIndex(-1)
+    }
+    document.addEventListener('mousedown', onDocPointer)
+    document.addEventListener('touchstart', onDocPointer)
+    return () => {
+      document.removeEventListener('mousedown', onDocPointer)
+      document.removeEventListener('touchstart', onDocPointer)
+    }
+  }, [open, isMobile])
 
   function scheduleSuggest(input: string, { openList }: { openList: boolean }) {
     if (debounceRef.current) window.clearTimeout(debounceRef.current)
@@ -379,15 +401,18 @@ export function LocationSearchField({
 
   const suggestionList = (
     <ul
+      ref={(node) => {
+        portalRef.current = node
+      }}
       id={listId}
-      className={dialogOpen ? styles.listDialog : styles.list}
+      className={dialogOpen ? styles.listDialog : styles.listPortal}
       role="listbox"
       data-testid={
         dialogOpen
           ? 'location-mobile-suggestion-list'
           : 'location-desktop-suggestion-list'
       }
-      data-overlay-mode={dialogOpen ? 'dialog' : 'inline'}
+      data-overlay-mode={dialogOpen ? 'dialog' : 'anchored'}
     >
       {searching && suggestions.length === 0 ? (
         <li className={styles.emptyRow} role="presentation">
@@ -491,10 +516,13 @@ export function LocationSearchField({
             }}
             onBlur={() => {
               setFocused(false)
+              // Desktop list is portalled — do not close on blur via root.contains.
+              // Outside dismiss is handled by document pointer listener + overlay onClose.
               window.setTimeout(() => {
-                if (!rootRef.current?.contains(document.activeElement)) {
-                  setOpen(false)
-                  setActiveIndex(-1)
+                if (
+                  !rootRef.current?.contains(document.activeElement) &&
+                  !portalRef.current?.contains(document.activeElement)
+                ) {
                   if (commitTypedOnBlur) {
                     const typed = text.trim()
                     const current = place?.formattedAddress?.trim() || ''
@@ -535,7 +563,19 @@ export function LocationSearchField({
         </p>
       ) : null}
 
-      {showDesktopList ? suggestionList : null}
+      {!isMobile ? (
+        <ResponsiveFieldOverlay
+          open={showDesktopList}
+          anchorRef={inputRef}
+          onClose={() => {
+            setOpen(false)
+            setActiveIndex(-1)
+          }}
+          maxMenuHeight={280}
+        >
+          {() => suggestionList}
+        </ResponsiveFieldOverlay>
+      ) : null}
 
       {isMobile ? (
         <MobileFieldDialog

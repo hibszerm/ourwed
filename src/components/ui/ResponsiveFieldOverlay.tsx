@@ -29,6 +29,17 @@ export interface ResponsiveFieldOverlayProps {
   onReposition?: () => void
   zIndex?: number
   maxMenuHeight?: number
+  /**
+   * Cap desktop popover width so compact content (e.g. month calendar) does
+   * not stretch to a full-width field anchor. Omit for menus that should
+   * match the anchor (address suggestions).
+   */
+  maxMenuWidth?: number
+  /**
+   * When false, body does not scroll — use for compact content that should
+   * size naturally (e.g. month calendar). Default true for long suggestion lists.
+   */
+  scrollBody?: boolean
 }
 
 /**
@@ -43,6 +54,8 @@ export function ResponsiveFieldOverlay({
   onReposition,
   zIndex = 1200,
   maxMenuHeight = 280,
+  maxMenuWidth,
+  scrollBody = true,
 }: ResponsiveFieldOverlayProps) {
   const [placement, setPlacement] = useState<FloatingPlacementResult | null>(
     null,
@@ -57,11 +70,12 @@ export function ResponsiveFieldOverlay({
     setPlacement(
       computeFloatingPlacement(rectFromElement(el), viewportSize(), {
         maxMenuHeight,
+        maxMenuWidth,
         forceSheet: false,
       }),
     )
     onReposition?.()
-  }, [anchorRef, maxMenuHeight, onReposition])
+  }, [anchorRef, maxMenuHeight, maxMenuWidth, onReposition])
 
   useLayoutEffect(() => {
     if (!open) {
@@ -111,7 +125,11 @@ export function ResponsiveFieldOverlay({
       data-overlay-mode="anchored"
       data-testid="responsive-field-overlay-anchored"
     >
-      <div className={styles.body}>{children(placement)}</div>
+      <div
+        className={scrollBody ? styles.body : styles.bodyNatural}
+      >
+        {children(placement)}
+      </div>
     </div>,
     document.body,
   )

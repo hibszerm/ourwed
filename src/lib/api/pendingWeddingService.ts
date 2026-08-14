@@ -142,6 +142,7 @@ export const pendingWeddingService = {
       type: 'success',
       entityType: 'wedding',
       entityId: wedding.id,
+      link: `/sluby/${wedding.id}`,
     })
 
     return setStatus(id, 'accepted', { weddingId: wedding.id, reviewedAt: today })

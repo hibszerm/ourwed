@@ -158,14 +158,12 @@ export function NewWeddingPage() {
 
   useEffect(() => {
     if (depositPaid) {
+      // Prefill from package catalog only — never invent % of contract value.
       if (!depositAmount || depositAmount <= 0) {
         const fromCatalog = values.depositAmountCatalog
-        setValue(
-          'depositAmount',
-          fromCatalog && fromCatalog > 0
-            ? fromCatalog
-            : Math.round((values.price || 0) * 0.3),
-        )
+        if (fromCatalog != null && fromCatalog > 0) {
+          setValue('depositAmount', fromCatalog)
+        }
       }
       if (!values.depositPaymentDate) {
         setValue('depositPaymentDate', new Date().toISOString().slice(0, 10))
@@ -180,7 +178,6 @@ export function NewWeddingPage() {
     setValue,
     values.depositPaymentDate,
     values.depositAmountCatalog,
-    values.price,
   ])
 
   async function goNext() {

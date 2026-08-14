@@ -29,7 +29,7 @@
   border-radius: 0;
   box-shadow: none;
   padding: var(--space-3);
-  overflow: auto;
+  overflow: visible;
   width: 100%;
   box-sizing: border-box;
 }
@@ -155,9 +155,14 @@
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   gap: 4px;
+  flex: 0 0 auto;
+  min-height: auto;
+  align-content: start;
+}
+
+.popoverDialog .grid {
   flex: 1;
   min-height: 0;
-  align-content: start;
 }
 
 .empty {

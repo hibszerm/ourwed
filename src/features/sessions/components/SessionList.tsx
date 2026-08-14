@@ -15,7 +15,7 @@ function SessionListRow({ session }: { session: Session }) {
   const typeLabel = formatSessionType(session)
   const remaining = getSessionRemainingAmount(
     session.totalPrice,
-    session.depositAmount,
+    session.payments,
   )
   const dateLabel = formatDate(session.date, {
     day: 'numeric',

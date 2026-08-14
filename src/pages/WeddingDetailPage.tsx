@@ -8,6 +8,7 @@ import { PageContainer } from '@/components/ui/PageContainer'
 import { useToast } from '@/components/ui/Toast'
 import { IconArrowLeft } from '@/components/icons'
 import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
+import { invalidateFinanceQueries } from '@/features/finance/invalidateFinanceQueries'
 import { useWedding } from '@/features/weddings/hooks/useWedding'
 import type { WeddingHeroAction } from '@/features/weddings/detail/weddingHeroActions'
 import { WeddingDetailV2 } from '@/features/weddings/detail/v2/WeddingDetailV2'
@@ -39,11 +40,12 @@ import {
 } from '@/lib/utils/validateContractGeneration'
 import type { QuestionnaireKind } from '@/lib/api/weddingActionsService'
 import { useProAccessGate } from '@/features/billing/ProAccessGate'
+import type { Payment } from '@/types/wedding'
 import styles from './WeddingDetailPage.module.css'
 
 type ModalState =
   | { type: 'questionnaire'; kind: QuestionnaireKind }
-  | { type: 'payment'; asDeposit: boolean }
+  | { type: 'payment'; asDeposit: boolean; payment?: Payment }
   | { type: 'note' }
   | { type: 'contract' }
   | { type: 'missing_contract_data' }
@@ -241,6 +243,7 @@ export function WeddingDetailPage() {
       await queryClient.invalidateQueries({ queryKey: ['wedding-extras'] })
       await queryClient.invalidateQueries({ queryKey: ['travel-plan'] })
       await queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      await invalidateFinanceQueries(queryClient)
       showToast('Zmiany zostały zapisane.', 'success')
     } catch (err) {
       setSaveError(
@@ -360,6 +363,16 @@ export function WeddingDetailPage() {
     onHeroAction: handleHeroAction,
     onRequestVerifyLocations: beginEditLocations,
     onEditSection: openEditor,
+    onEditPayment: editing
+      ? undefined
+      : (payment: Payment) =>
+          requirePro(() =>
+            setModal({
+              type: 'payment',
+              asDeposit: payment.type === 'deposit',
+              payment,
+            }),
+          ),
     onSaveEdit: () => void saveEdit(),
     onCancelEdit: requestCancelEdit,
     saving,
@@ -376,6 +389,7 @@ export function WeddingDetailPage() {
       if (!allowed) return
       await weddingService.archive(wedding.id)
       await queryClient.invalidateQueries({ queryKey: ['weddings'] })
+      await invalidateFinanceQueries(queryClient)
       showToast('Ślub został zarchiwizowany.', 'success')
     },
     onDelete: async () => {
@@ -384,6 +398,7 @@ export function WeddingDetailPage() {
       await weddingService.delete(wedding.id)
       await queryClient.invalidateQueries({ queryKey: ['weddings'] })
       await queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      await invalidateFinanceQueries(queryClient)
       showToast('Ślub został usunięty.', 'success')
       navigate('/sluby')
     },
@@ -426,6 +441,7 @@ export function WeddingDetailPage() {
         onClose={closeModal}
         wedding={wedding}
         asDeposit={modal?.type === 'payment' ? modal.asDeposit : false}
+        payment={modal?.type === 'payment' ? modal.payment : null}
       />
       <AddNoteModal
         open={modal?.type === 'note'}

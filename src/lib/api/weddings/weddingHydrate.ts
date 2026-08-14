@@ -44,7 +44,7 @@ async function hydrateWeddingFromContractForm(
  * Operational locations from wedding_places override free-text when present.
  * Also attaches compact primaryLocation for list/dashboard/header.
  */
-function applyWeddingPlaces(
+export function applyWeddingPlaces(
   wedding: Wedding,
   places: WeddingPlace[],
 ): Wedding {

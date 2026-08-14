@@ -517,7 +517,9 @@ run('17–18. Commercial + payment math unchanged', () => {
     'utf8',
   )
   assert(finance.includes('getPackageSummary'), 'package summary')
-  assert(finance.includes('Dodaj wpłatę'), 'payment action')
+  assert(finance.includes('hasPaidDepositPayment'), 'contextual payment CTA')
+  assert(finance.includes('Dodaj zadatek'), 'deposit CTA')
+  assert(finance.includes('Dodaj wpłatę'), 'payment CTA')
 })
 
 run('19. Activity feed combines without mutating source', () => {

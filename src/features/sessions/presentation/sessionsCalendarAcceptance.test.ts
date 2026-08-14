@@ -25,6 +25,7 @@ function session(partial: Partial<Session> & Pick<Session, 'id' | 'date'>): Sess
     sessionType: 'engagement',
     totalPrice: 0,
     depositAmount: 0,
+    payments: [],
     createdAt: '2026-01-01',
     updatedAt: '2026-01-01',
     ...partial,
@@ -87,8 +88,13 @@ const calPage = readFileSync(
   resolve(process.cwd(), 'src/pages/CalendarPage.tsx'),
   'utf8',
 )
-assert(calPage.includes('useSessions'), 'loads sessions')
+assert(calPage.includes('useCalendarSessions'), 'loads light sessions')
 assert(calPage.includes('mergeCalendarUiEvents'), 'merges')
+assert(!calPage.includes('useWeddings'), 'no full wedding hydrate hook')
+assert(
+  !calPage.includes('queryFn: () => calendarEventService.syncWeddingDayEvents'),
+  'sync not on query critical path',
+)
 
 const weddingService = readFileSync(
   resolve(process.cwd(), 'src/lib/api/calendarEventService.ts'),

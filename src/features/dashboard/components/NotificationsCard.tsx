@@ -1,29 +1,46 @@
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Card, CardHeader } from '@/components/ui/Card'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { IconBell } from '@/components/icons'
-import { notificationService } from '@/lib/api/notificationService'
+import {
+  useLatestNotifications,
+  useMarkNotificationRead,
+  useUnreadNotificationCount,
+} from '@/features/notifications/useNotifications'
+import { NOTIFICATION_DASHBOARD_LATEST } from '@/lib/api/notificationService'
 import { formatShortDate } from '@/lib/utils/dates'
 import type { Notification } from '@/types/wedding'
 import styles from './NotificationsCard.module.css'
 
 interface NotificationsCardProps {
-  notifications: Notification[]
-  onMarkedRead?: (id: string) => void
+  /** Optional override for demos / landing. Live Dashboard leaves this unset. */
+  notifications?: Notification[]
+  unreadCountOverride?: number
 }
 
 export function NotificationsCard({
-  notifications,
-  onMarkedRead,
-}: NotificationsCardProps) {
+  notifications: notificationsProp,
+  unreadCountOverride,
+}: NotificationsCardProps = {}) {
   const navigate = useNavigate()
-  const unread = notifications.filter((n) => !n.read).length
+  const latestQuery = useLatestNotifications(NOTIFICATION_DASHBOARD_LATEST)
+  const unreadQuery = useUnreadNotificationCount()
+  const markRead = useMarkNotificationRead()
+
+  const notifications =
+    notificationsProp ?? latestQuery.data ?? []
+  const unread =
+    unreadCountOverride ??
+    unreadQuery.data ??
+    notifications.filter((n) => !n.read).length
+
+  const loading =
+    notificationsProp == null && latestQuery.isLoading && !latestQuery.data
 
   async function handleActivate(notification: Notification) {
     if (!notification.read) {
       try {
-        await notificationService.markRead(notification.id)
-        onMarkedRead?.(notification.id)
+        await markRead.mutateAsync(notification.id)
       } catch {
         // Navigation may still continue; do not block.
       }
@@ -37,42 +54,56 @@ export function NotificationsCard({
     <Card className={styles.panel}>
       <CardHeader
         title="Powiadomienia"
-        subtitle={unread > 0 ? `${unread} nieprzeczytane` : 'Wszystko przeczytane'}
+        subtitle={
+          unread > 0 ? `${unread} nieprzeczytane` : 'Wszystko przeczytane'
+        }
       />
-      {notifications.length === 0 ? (
+      {loading ? (
+        <div className={styles.loadingPulse} aria-busy="true" />
+      ) : notifications.length === 0 ? (
         <EmptyState
           title="Brak powiadomień"
           description="Nowe alerty pojawią się tutaj."
         />
       ) : (
         <ul className={styles.list}>
-          {notifications.slice(0, 4).map((notification) => {
-            const interactive = Boolean(notification.link)
-            const unreadLabel = notification.read ? undefined : 'nieprzeczytane'
-            return (
-              <li key={notification.id}>
-                {interactive ? (
-                  <button
-                    type="button"
-                    className={`${styles.item} ${styles.itemButton} ${!notification.read ? styles.unread : ''}`}
-                    onClick={() => void handleActivate(notification)}
-                    aria-label={`${notification.title}${unreadLabel ? `, ${unreadLabel}` : ''}`}
-                  >
-                    <NotificationBody notification={notification} />
-                  </button>
-                ) : (
-                  <div
-                    className={`${styles.item} ${!notification.read ? styles.unread : ''}`}
-                    aria-label={`${notification.title}${unreadLabel ? `, ${unreadLabel}` : ''}`}
-                  >
-                    <NotificationBody notification={notification} />
-                  </div>
-                )}
-              </li>
-            )
-          })}
+          {notifications.slice(0, NOTIFICATION_DASHBOARD_LATEST).map(
+            (notification) => {
+              const actionable =
+                Boolean(notification.link) || !notification.read
+              const unreadLabel = notification.read
+                ? undefined
+                : 'nieprzeczytane'
+              return (
+                <li key={notification.id}>
+                  {actionable ? (
+                    <button
+                      type="button"
+                      className={`${styles.item} ${styles.itemButton} ${!notification.read ? styles.unread : ''}`}
+                      onClick={() => void handleActivate(notification)}
+                      aria-label={`${notification.title}${unreadLabel ? `, ${unreadLabel}` : ''}`}
+                    >
+                      <NotificationBody notification={notification} />
+                    </button>
+                  ) : (
+                    <div
+                      className={`${styles.item} ${!notification.read ? styles.unread : ''}`}
+                      aria-label={`${notification.title}${unreadLabel ? `, ${unreadLabel}` : ''}`}
+                    >
+                      <NotificationBody notification={notification} />
+                    </div>
+                  )}
+                </li>
+              )
+            },
+          )}
         </ul>
       )}
+      <div className={styles.footer}>
+        <Link to="/powiadomienia" className={styles.seeAll}>
+          Zobacz wszystkie
+        </Link>
+      </div>
     </Card>
   )
 }
@@ -87,7 +118,7 @@ function NotificationBody({ notification }: { notification: Notification }) {
         <p className={styles.title}>{notification.title}</p>
         <p className={styles.message}>{notification.message}</p>
         <time className={styles.date}>
-          {formatShortDate(notification.createdAt)}
+          {formatShortDate(notification.createdAtIso ?? notification.createdAt)}
         </time>
       </div>
     </>

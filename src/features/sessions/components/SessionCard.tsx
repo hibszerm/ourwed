@@ -15,7 +15,7 @@ export function SessionCard({ session }: { session: Session }) {
   const location = getSessionLocationSummary(session.location)
   const remaining = getSessionRemainingAmount(
     session.totalPrice,
-    session.depositAmount,
+    session.payments,
   )
 
   return (

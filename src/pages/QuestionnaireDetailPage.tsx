@@ -9,6 +9,7 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { IconArrowLeft } from '@/components/icons'
 import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
+import { invalidateFinanceQueries } from '@/features/finance/invalidateFinanceQueries'
 import { useProAccessGate } from '@/features/billing/ProAccessGate'
 import {
   isProAccessRequiredError,
@@ -106,6 +107,7 @@ export function QuestionnaireDetailPage() {
         queryClient.invalidateQueries({ queryKey: ['questionnaires'] }),
         queryClient.invalidateQueries({ queryKey: ['weddings'] }),
         queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
+        invalidateFinanceQueries(queryClient),
       ]).catch(() => {
         /* non-blocking */
       })

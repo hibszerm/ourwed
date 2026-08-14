@@ -1,6 +1,13 @@
 /**
  * Session — standalone photography assignment (not a Wedding workflow).
+ *
+ * Commercial:
+ * - totalPrice = contractual price SoT
+ * - depositAmount = agreed zaliczka (not payment truth)
+ * - payments = session_payments ledger (actual paid amounts)
  */
+
+import type { SessionPayment } from '@/types/sessionPayment'
 
 export type SessionType =
   | 'engagement'
@@ -37,7 +44,9 @@ export interface Session {
   endTime?: string
   location?: SessionLocation
   totalPrice: number
+  /** Agreed zaliczka — not ledger paid. */
   depositAmount: number
+  payments: SessionPayment[]
   notes?: string
   linkedWeddingId?: string
   createdAt: string

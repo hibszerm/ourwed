@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { invalidateSessionFinanceQueries } from '@/features/sessions/invalidateSessionFinanceQueries'
 import { sessionService } from '@/lib/api/sessionService'
 
 export function useDeleteSession() {
@@ -6,9 +7,8 @@ export function useDeleteSession() {
 
   return useMutation({
     mutationFn: (id: string) => sessionService.delete(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['sessions'] })
-      queryClient.invalidateQueries({ queryKey: ['calendar'] })
+    onSuccess: async (_, id) => {
+      await invalidateSessionFinanceQueries(queryClient, id)
     },
   })
 }

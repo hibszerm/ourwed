@@ -1,16 +1,11 @@
 /**
  * Module-level caches that must die when auth.uid() changes.
  * Kept in a leaf module so auth reset cannot create import cycles.
+ *
+ * Production wedding reads must not use an in-flight demo-seed map.
+ * Add future tenant caches here and clear them in clearTenantModuleCaches.
  */
 
-type InFlightMap = Map<string, Promise<unknown>>
-
-const weddingDemoInFlight: InFlightMap = new Map()
-
-export function getWeddingDemoInFlightMap(): Map<string, Promise<unknown>> {
-  return weddingDemoInFlight
-}
-
 export function clearTenantModuleCaches(): void {
-  weddingDemoInFlight.clear()
+  // Intentionally empty until a module-level tenant cache is reintroduced.
 }

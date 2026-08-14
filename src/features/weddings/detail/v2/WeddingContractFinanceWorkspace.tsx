@@ -1,15 +1,21 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
+import { Modal } from '@/components/ui/Modal'
+import { useToast } from '@/components/ui/Toast'
+import { useProAccessGate } from '@/features/billing/ProAccessGate'
 import { WeddingContractsModule } from '@/features/weddings/components/detail/WeddingContractsModule'
 import { WeddingSourceContractsPanel } from '@/features/wedding-contract-recovery/components/WeddingSourceContractsPanel'
 import { WeddingContractQuestionnaireSection } from '@/features/weddings/detail/v2/WeddingContractQuestionnaireSection'
 import { TravelFeeResolveModal } from '@/features/weddings/detail/travel-fee/TravelFeeResolveModal'
 import { getPackageSummary } from '@/features/weddings/detail/v2/weddingWorkspaceSelectors'
+import { useInvalidateWedding } from '@/features/weddings/hooks/useInvalidateWedding'
+import { paymentService } from '@/lib/api/paymentService'
 import type { WeddingExtraService } from '@/types/package'
 import type { Payment, Wedding } from '@/types/wedding'
 import type { WeddingHeroAction } from '@/features/weddings/detail/weddingHeroActions'
 import { formatCurrency } from '@/lib/utils/currency'
 import { formatTravelFeeDisplay } from '@/lib/utils/travelFeeCommercial'
+import { hasPaidDepositPayment } from '@/lib/finance/hasPaidDepositPayment'
 import styles from './WeddingDetailV2.module.css'
 
 interface Props {
@@ -20,8 +26,22 @@ interface Props {
   forcePackageOpen?: boolean
   onEditPackage?: () => void
   onEditFinances?: () => void
+  onEditPayment?: (payment: Payment) => void
   onContractStatusChanged?: () => void
   onWeddingUpdated?: (wedding: Wedding) => void
+}
+
+function deletePaymentCopy(payment: Payment): { title: string; body: string } {
+  if (payment.type === 'deposit') {
+    return {
+      title: 'Usunąć zadatek?',
+      body: 'Ta operacja usunie wpis zadatku i ponownie przeliczy kwotę wpłaconą oraz pozostałą do zapłaty. Ustalona kwota zadatku w umowie pozostanie bez zmian.',
+    }
+  }
+  return {
+    title: 'Usunąć wpłatę?',
+    body: 'Ta operacja usunie wpis płatności i ponownie przeliczy kwotę wpłaconą oraz pozostałą do zapłaty.',
+  }
 }
 
 /**
@@ -37,11 +57,17 @@ export function WeddingContractFinanceWorkspace({
   forcePackageOpen,
   onEditPackage,
   onEditFinances,
+  onEditPayment,
   onContractStatusChanged,
   onWeddingUpdated,
 }: Props) {
+  const invalidate = useInvalidateWedding()
+  const { showToast } = useToast()
+  const { requirePro } = useProAccessGate()
   const [contentsOpen, setContentsOpen] = useState(Boolean(forcePackageOpen))
   const [travelFeeOpen, setTravelFeeOpen] = useState(false)
+  const [pendingDelete, setPendingDelete] = useState<Payment | null>(null)
+  const [deleting, setDeleting] = useState(false)
   const pkg = getPackageSummary(wedding)
   const travelLabel = formatTravelFeeDisplay(wedding, formatCurrency)
   const travelUnresolved =
@@ -50,6 +76,30 @@ export function WeddingContractFinanceWorkspace({
     wedding.contract.status === 'none'
       ? 'Umowa nie została jeszcze wygenerowana'
       : 'Zapisane umowy dla tego ślubu'
+  const deleteCopy = pendingDelete ? deletePaymentCopy(pendingDelete) : null
+
+  async function confirmDeletePayment() {
+    if (!pendingDelete) return
+    setDeleting(true)
+    try {
+      await paymentService.delete(pendingDelete.id)
+      await invalidate(wedding.id)
+      showToast(
+        pendingDelete.type === 'deposit'
+          ? 'Zadatek został usunięty'
+          : 'Wpłata została usunięta',
+        'success',
+      )
+      setPendingDelete(null)
+    } catch (err) {
+      showToast(
+        err instanceof Error ? err.message : 'Nie udało się usunąć wpłaty',
+        'error',
+      )
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   return (
     <div
@@ -131,37 +181,65 @@ export function WeddingContractFinanceWorkspace({
             Płatności
           </h3>
           <div className={styles.contextActions}>
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              data-testid="finance-add-payment"
-              onClick={() => onAction('add_payment')}
-            >
-              Dodaj wpłatę
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              data-testid="finance-add-deposit"
-              onClick={() => onAction('add_deposit')}
-            >
-              Dodaj zadatek
-            </Button>
+            {hasPaidDepositPayment(payments) ? (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                data-testid="finance-add-payment"
+                onClick={() => onAction('add_payment')}
+              >
+                Dodaj wpłatę
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                data-testid="finance-add-deposit"
+                onClick={() => onAction('add_deposit')}
+              >
+                Dodaj zadatek
+              </Button>
+            )}
           </div>
           {payments.length === 0 ? (
             <p className={styles.contextMuted}>Brak wpłat.</p>
           ) : (
             <ul className={styles.paymentList}>
               {payments.map((p) => (
-                <li key={p.id}>
-                  <span>
-                    {p.label} · {formatCurrency(p.amount)}
-                  </span>
-                  <span className={styles.contextMuted}>
-                    {p.paid ? 'Opłacone' : 'Oczekuje'}
-                  </span>
+                <li key={p.id} className={styles.paymentItem}>
+                  <div className={styles.paymentMain}>
+                    <span className={styles.paymentLabel}>
+                      {p.label} · {formatCurrency(p.amount)}
+                    </span>
+                    <span className={styles.contextMuted}>
+                      {p.paid ? 'Opłacone' : 'Oczekuje'}
+                    </span>
+                  </div>
+                  <div className={styles.paymentActions}>
+                    {onEditPayment ? (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        data-testid="finance-edit-payment"
+                        onClick={() => onEditPayment(p)}
+                      >
+                        Edytuj
+                      </Button>
+                    ) : null}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      data-testid="finance-delete-payment"
+                      disabled={deleting && pendingDelete?.id === p.id}
+                      onClick={() => requirePro(() => setPendingDelete(p))}
+                    >
+                      Usuń
+                    </Button>
+                  </div>
                 </li>
               ))}
             </ul>
@@ -270,6 +348,34 @@ export function WeddingContractFinanceWorkspace({
         onClose={() => setTravelFeeOpen(false)}
         onSaved={(updated) => onWeddingUpdated?.(updated)}
       />
+
+      <Modal
+        open={Boolean(pendingDelete)}
+        onClose={() => {
+          if (!deleting) setPendingDelete(null)
+        }}
+        title={deleteCopy?.title ?? 'Usunąć wpłatę?'}
+        description={deleteCopy?.body}
+        busy={deleting}
+        cancelLabel="Anuluj"
+        primaryAction={
+          <Button
+            type="button"
+            variant="danger"
+            disabled={deleting}
+            data-testid="finance-delete-payment-confirm"
+            onClick={() => void confirmDeletePayment()}
+          >
+            {deleting ? 'Usuwanie…' : 'Usuń'}
+          </Button>
+        }
+      >
+        {pendingDelete ? (
+          <p className={styles.contextMuted} style={{ margin: 0 }}>
+            {pendingDelete.label} · {formatCurrency(pendingDelete.amount)}
+          </p>
+        ) : null}
+      </Modal>
     </div>
   )
 }

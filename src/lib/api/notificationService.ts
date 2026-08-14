@@ -18,6 +18,20 @@ interface NotificationRow {
   created_at: string
 }
 
+export type NotificationListFilter = 'all' | 'unread'
+
+export interface NotificationListCursor {
+  createdAt: string
+  id: string
+}
+
+export interface NotificationListPage {
+  items: Notification[]
+  nextCursor: NotificationListCursor | null
+}
+
+export const NOTIFICATION_PAGE_SIZE = 30
+export const NOTIFICATION_DASHBOARD_LATEST = 4
 
 function mapNotificationType(value: string): NotificationType {
   if (value === 'info' || value === 'warning' || value === 'success') {
@@ -34,10 +48,17 @@ export function mapNotificationRowToModel(row: NotificationRow): Notification {
     title: row.title,
     message: row.content,
     createdAt: toDateString(row.created_at) || row.created_at,
+    createdAtIso: row.created_at,
     read: row.read,
     type: mapNotificationType(row.type),
     link: row.link,
   }
+}
+
+export function notificationCursorFromItem(
+  item: Pick<Notification, 'id' | 'createdAtIso'>,
+): NotificationListCursor {
+  return { createdAt: item.createdAtIso, id: item.id }
 }
 
 export interface CreateNotificationInput {
@@ -49,10 +70,70 @@ export interface CreateNotificationInput {
   link?: string
 }
 
+export interface ListNotificationsInput {
+  limit?: number
+  cursor?: NotificationListCursor | null
+  unreadOnly?: boolean
+}
+
 /**
  * Notifications data layer — `public.notifications` only.
+ * Owner filters applied in addition to RLS.
  */
 export const notificationService = {
+  /**
+   * Paginated newest-first list. Cursor = (created_at, id) of last row.
+   */
+  async listPage(
+    input: ListNotificationsInput = {},
+  ): Promise<NotificationListPage> {
+    const userId = await resolveStudioUserId()
+    const limit = Math.max(1, Math.min(input.limit ?? NOTIFICATION_PAGE_SIZE, 100))
+
+    let query = supabase
+      .from('notifications')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .limit(limit + 1)
+
+    if (input.unreadOnly) {
+      query = query.eq('read', false)
+    }
+
+    if (input.cursor) {
+      const { createdAt, id } = input.cursor
+      // Older than cursor: created_at < c OR (created_at = c AND id < c.id)
+      query = query.or(
+        `created_at.lt.${createdAt},and(created_at.eq.${createdAt},id.lt.${id})`,
+      )
+    }
+
+    const { data, error } = await query
+    throwOnError(error)
+
+    const rows = ((data ?? []) as NotificationRow[]).map(mapNotificationRowToModel)
+    const hasMore = rows.length > limit
+    const items = hasMore ? rows.slice(0, limit) : rows
+    const last = items[items.length - 1]
+    return {
+      items,
+      nextCursor: hasMore && last ? notificationCursorFromItem(last) : null,
+    }
+  },
+
+  /** Dashboard preview — newest N only. */
+  async listLatest(
+    limit: number = NOTIFICATION_DASHBOARD_LATEST,
+  ): Promise<Notification[]> {
+    const page = await this.listPage({ limit, unreadOnly: false })
+    return page.items
+  },
+
+  /**
+   * @deprecated Prefer listPage / listLatest. Full history load is not for UI.
+   */
   async list(): Promise<Notification[]> {
     const userId = await resolveStudioUserId()
     const { data, error } = await supabase
@@ -60,6 +141,7 @@ export const notificationService = {
       .select('*')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
 
     throwOnError(error)
 
@@ -67,17 +149,11 @@ export const notificationService = {
   },
 
   async unread(): Promise<Notification[]> {
-    const userId = await resolveStudioUserId()
-    const { data, error } = await supabase
-      .from('notifications')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('read', false)
-      .order('created_at', { ascending: false })
-
-    throwOnError(error)
-
-    return ((data ?? []) as NotificationRow[]).map(mapNotificationRowToModel)
+    const page = await this.listPage({
+      limit: NOTIFICATION_PAGE_SIZE,
+      unreadOnly: true,
+    })
+    return page.items
   },
 
   async create(input: CreateNotificationInput): Promise<Notification> {
@@ -123,6 +199,20 @@ export const notificationService = {
     }
 
     return mapNotificationRowToModel(data as NotificationRow)
+  },
+
+  /** One UPDATE — all unread rows for the current owner. */
+  async markAllRead(): Promise<number> {
+    const userId = await resolveStudioUserId()
+    const { data, error } = await supabase
+      .from('notifications')
+      .update({ read: true })
+      .eq('user_id', userId)
+      .eq('read', false)
+      .select('id')
+
+    throwOnError(error)
+    return (data ?? []).length
   },
 
   async unreadCount(): Promise<number> {

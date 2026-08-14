@@ -87,7 +87,10 @@ export function getCeremonyTime(wedding: Wedding): string | undefined {
   const ceremony = wedding.schedule.find((event) =>
     /ceremonia/i.test(event.title),
   )
-  return ceremony?.time
+  if (ceremony?.time) return ceremony.time
+  // Light calendar path has no schedule hydrate — use weddings.ceremony_time.
+  const scalar = wedding.ceremonyTime?.trim()
+  return scalar || undefined
 }
 
 function extractTimeLabel(iso: string, allDay: boolean): string | undefined {

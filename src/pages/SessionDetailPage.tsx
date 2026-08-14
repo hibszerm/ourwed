@@ -1,3 +1,5 @@
+import { useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { AppLayout } from '@/layouts/AppLayout'
 import { PageContainer } from '@/components/ui/PageContainer'
@@ -8,15 +10,20 @@ import { IconArrowLeft, IconMapPin } from '@/components/icons'
 import { useToast } from '@/components/ui/Toast'
 import { useSession } from '@/features/sessions/hooks/useSession'
 import { useDeleteSession } from '@/features/sessions/hooks/useDeleteSession'
+import { SessionPaymentModal } from '@/features/sessions/actions/SessionPaymentModal'
+import { invalidateSessionFinanceQueries } from '@/features/sessions/invalidateSessionFinanceQueries'
 import { useProAccessGate } from '@/features/billing/ProAccessGate'
 import { useWedding } from '@/features/weddings/hooks/useWedding'
 import { getSessionDisplayName } from '@/features/sessions/presentation/getSessionDisplayName'
 import { formatSessionType } from '@/features/sessions/presentation/sessionType'
-import { getSessionRemainingAmount } from '@/features/sessions/presentation/getSessionRemainingAmount'
+import { buildSessionCommercialSummary } from '@/features/sessions/presentation/sessionFinance'
+import { hasPaidDepositPayment } from '@/lib/finance/hasPaidDepositPayment'
 import { getWeddingDisplayName } from '@/features/weddings/presentation/getWeddingDisplayName'
 import { EntityCalendarStatus } from '@/features/calendar-integrations'
 import { formatCurrency } from '@/lib/utils/currency'
 import { formatDate, getDaysUntil } from '@/lib/utils/dates'
+import { sessionPaymentService } from '@/lib/api/sessionPaymentService'
+import type { SessionPayment } from '@/types/sessionPayment'
 import styles from './SessionDetailPage.module.css'
 
 function countdownLabel(date: string): string | null {
@@ -30,12 +37,17 @@ function countdownLabel(date: string): string | null {
 export function SessionDetailPage() {
   const { sessionId = '' } = useParams()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const { showToast } = useToast()
   const { requirePro } = useProAccessGate()
   const { data: session, isLoading, isError, error } = useSession(sessionId)
   const linkedId = session?.linkedWeddingId ?? ''
   const { data: linkedWedding } = useWedding(linkedId)
   const deleteSession = useDeleteSession()
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false)
+  const [editedPayment, setEditedPayment] = useState<SessionPayment | null>(null)
+  const [addAsDeposit, setAddAsDeposit] = useState(true)
+  const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(null)
 
   if (isLoading) {
     return (
@@ -66,10 +78,12 @@ export function SessionDetailPage() {
   }
 
   const name = getSessionDisplayName(session)
-  const remaining = getSessionRemainingAmount(
+  const finance = buildSessionCommercialSummary(
     session.totalPrice,
     session.depositAmount,
+    session.payments,
   )
+  const hasPaidDeposit = hasPaidDepositPayment(session.payments)
   const timeLabel = [session.startTime, session.endTime]
     .filter(Boolean)
     .join(' – ')
@@ -101,6 +115,37 @@ export function SessionDetailPage() {
         err instanceof Error ? err.message : 'Nie udało się usunąć sesji',
         'error',
       )
+    }
+  }
+
+  function openAddPayment() {
+    if (!requirePro()) return
+    setEditedPayment(null)
+    setAddAsDeposit(!hasPaidDeposit)
+    setPaymentModalOpen(true)
+  }
+
+  function openEditPayment(payment: SessionPayment) {
+    if (!requirePro()) return
+    setEditedPayment(payment)
+    setPaymentModalOpen(true)
+  }
+
+  async function handleDeletePayment(payment: SessionPayment) {
+    if (!requirePro()) return
+    if (!window.confirm(`Usunąć wpłatę „${payment.label}”?`)) return
+    setDeletingPaymentId(payment.id)
+    try {
+      await sessionPaymentService.delete(payment.id)
+      await invalidateSessionFinanceQueries(queryClient, sessionId)
+      showToast('Wpłata została usunięta', 'success')
+    } catch (err) {
+      showToast(
+        err instanceof Error ? err.message : 'Nie udało się usunąć wpłaty',
+        'error',
+      )
+    } finally {
+      setDeletingPaymentId(null)
     }
   }
 
@@ -182,37 +227,31 @@ export function SessionDetailPage() {
 
           <section
             className={styles.overviewBand}
-            aria-label="Podsumowanie sesji"
+            aria-label="Podsumowanie finansów sesji"
           >
-            <div className={styles.bandItem}>
-              <span className={styles.bandLabel}>Data</span>
-              <p className={styles.bandValue}>
-                {formatDate(session.date, {
-                  day: 'numeric',
-                  month: 'short',
-                  year: 'numeric',
-                })}
-              </p>
-            </div>
-            <div className={styles.bandItem}>
-              <span className={styles.bandLabel}>Godzina</span>
-              <p className={styles.bandValue}>{timeLabel || 'Do ustalenia'}</p>
-            </div>
             <div className={styles.bandItem}>
               <span className={styles.bandLabel}>Cena</span>
               <p className={styles.bandValue}>
-                {formatCurrency(session.totalPrice)}
+                {formatCurrency(finance.totalPrice)}
               </p>
             </div>
             <div className={styles.bandItem}>
-              <span className={styles.bandLabel}>Zaliczka</span>
+              <span className={styles.bandLabel}>Ustalona zaliczka</span>
               <p className={styles.bandValue}>
-                {formatCurrency(session.depositAmount)}
+                {formatCurrency(finance.agreedDeposit)}
+              </p>
+            </div>
+            <div className={styles.bandItem}>
+              <span className={styles.bandLabel}>Wpłacono</span>
+              <p className={styles.bandValue}>
+                {formatCurrency(finance.totalPaid)}
               </p>
             </div>
             <div className={styles.bandItem}>
               <span className={styles.bandLabel}>Pozostało</span>
-              <p className={styles.bandValue}>{formatCurrency(remaining)}</p>
+              <p className={styles.bandValue}>
+                {formatCurrency(finance.remaining)}
+              </p>
             </div>
           </section>
 
@@ -277,29 +316,88 @@ export function SessionDetailPage() {
             </section>
 
             <section className={styles.surfaceSection} aria-labelledby="fin-title">
-              <h2 id="fin-title" className={styles.sectionHeading}>
-                Finanse
-              </h2>
+              <div className={styles.sectionHeadingRow}>
+                <h2 id="fin-title" className={styles.sectionHeading}>
+                  Finanse
+                </h2>
+                <Button type="button" size="sm" onClick={openAddPayment}>
+                  {hasPaidDeposit ? 'Dodaj wpłatę' : 'Dodaj zaliczkę'}
+                </Button>
+              </div>
               <div className={styles.financeGrid}>
                 <div>
                   <span className={styles.finLabel}>Cena</span>
                   <span className={styles.finValue}>
-                    {formatCurrency(session.totalPrice)}
+                    {formatCurrency(finance.totalPrice)}
                   </span>
                 </div>
                 <div>
-                  <span className={styles.finLabel}>Zaliczka</span>
+                  <span className={styles.finLabel}>Ustalona zaliczka</span>
                   <span className={styles.finValue}>
-                    {formatCurrency(session.depositAmount)}
+                    {formatCurrency(finance.agreedDeposit)}
+                  </span>
+                </div>
+                <div>
+                  <span className={styles.finLabel}>Wpłacono</span>
+                  <span className={styles.finValue}>
+                    {formatCurrency(finance.totalPaid)}
                   </span>
                 </div>
                 <div>
                   <span className={styles.finLabel}>Pozostało</span>
                   <span className={styles.finValue}>
-                    {formatCurrency(remaining)}
+                    {formatCurrency(finance.remaining)}
                   </span>
                 </div>
               </div>
+              {session.payments.length > 0 ? (
+                <ul className={styles.paymentList}>
+                  {session.payments.map((payment) => (
+                    <li key={payment.id} className={styles.paymentItem}>
+                      <div className={styles.paymentMain}>
+                        <span className={styles.paymentLabel}>
+                          {payment.label}
+                        </span>
+                        <span className={styles.paymentMeta}>
+                          {payment.paid
+                            ? `Wpłacono ${formatDate(payment.paidAt ?? payment.createdAt, {
+                                day: 'numeric',
+                                month: 'short',
+                                year: 'numeric',
+                              })}`
+                            : 'Nieopłacona'}
+                          {payment.method ? ` · ${payment.method}` : ''}
+                          {payment.note ? ` · ${payment.note}` : ''}
+                        </span>
+                      </div>
+                      <strong className={styles.paymentAmount}>
+                        {formatCurrency(payment.amount)}
+                      </strong>
+                      <div className={styles.paymentActions}>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => openEditPayment(payment)}
+                        >
+                          Edytuj
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          disabled={deletingPaymentId === payment.id}
+                          onClick={() => void handleDeletePayment(payment)}
+                        >
+                          Usuń
+                        </Button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className={styles.paymentEmpty}>Brak zarejestrowanych wpłat.</p>
+              )}
             </section>
 
             <section
@@ -368,6 +466,30 @@ export function SessionDetailPage() {
               )}
             </section>
           </div>
+          {paymentModalOpen ? (
+            <SessionPaymentModal
+              key={
+                editedPayment?.id ??
+                `new-${addAsDeposit ? 'deposit' : 'payment'}`
+              }
+              open
+              onClose={() => setPaymentModalOpen(false)}
+              sessionId={session.id}
+              payment={editedPayment}
+              defaultType={
+                editedPayment
+                  ? editedPayment.type
+                  : addAsDeposit
+                    ? 'deposit'
+                    : 'installment'
+              }
+              suggestedAmount={
+                addAsDeposit && !editedPayment
+                  ? session.depositAmount
+                  : undefined
+              }
+            />
+          ) : null}
         </div>
       </PageContainer>
     </AppLayout>

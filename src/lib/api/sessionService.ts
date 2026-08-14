@@ -1,4 +1,5 @@
 import { resolveStudioUserId } from '@/lib/api/studioUser'
+import { sessionPaymentService } from '@/lib/api/sessionPaymentService'
 import { supabase } from '@/lib/supabase'
 import { isLikelyUuid, throwOnError } from '@/lib/supabase/helpers'
 import type {
@@ -9,6 +10,7 @@ import type {
   SessionType,
   UpdateSessionInput,
 } from '@/types/session'
+import type { SessionPayment } from '@/types/sessionPayment'
 
 export interface SessionRow {
   id: string
@@ -137,11 +139,23 @@ export function mapSessionRowToModel(row: SessionRow): Session {
     location: locationFromRow(row),
     totalPrice: toNumber(row.total_price),
     depositAmount: toNumber(row.deposit_amount),
+    payments: [],
     notes: trimOrUndef(row.notes),
     linkedWeddingId: row.linked_wedding_id ?? undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
+}
+
+async function withPayments(sessions: Session[]): Promise<Session[]> {
+  if (sessions.length === 0) return sessions
+  const map = await sessionPaymentService.listBySessionIds(
+    sessions.map((s) => s.id),
+  )
+  return sessions.map((s) => ({
+    ...s,
+    payments: map.get(s.id) ?? ([] as SessionPayment[]),
+  }))
 }
 
 function locationColumns(location?: SessionLocation | null) {
@@ -222,7 +236,9 @@ export const sessionService = {
       .order('session_date', { ascending: true, nullsFirst: false })
 
     throwOnError(error)
-    return ((data ?? []) as SessionRow[]).map(mapSessionRowToModel)
+    return withPayments(
+      ((data ?? []) as SessionRow[]).map(mapSessionRowToModel),
+    )
   },
 
   async getById(id: string): Promise<Session | null> {
@@ -237,7 +253,10 @@ export const sessionService = {
 
     throwOnError(error)
     if (!data) return null
-    return mapSessionRowToModel(data as SessionRow)
+    const [hydrated] = await withPayments([
+      mapSessionRowToModel(data as SessionRow),
+    ])
+    return hydrated
   },
 
   async listByWeddingId(weddingId: string): Promise<Session[]> {
@@ -251,7 +270,9 @@ export const sessionService = {
       .order('session_date', { ascending: true })
 
     throwOnError(error)
-    return ((data ?? []) as SessionRow[]).map(mapSessionRowToModel)
+    return withPayments(
+      ((data ?? []) as SessionRow[]).map(mapSessionRowToModel),
+    )
   },
 
   async create(input: CreateSessionInput): Promise<Session> {
@@ -265,7 +286,10 @@ export const sessionService = {
 
     throwOnError(error)
     if (!data) throw new Error('Nie udało się utworzyć sesji.')
-    const created = mapSessionRowToModel(data as SessionRow)
+    const created = {
+      ...mapSessionRowToModel(data as SessionRow),
+      payments: [] as SessionPayment[],
+    }
 
     const { enqueueExternalCalendarSync } = await import(
       '@/features/calendar-integrations/calendarIntegrationsService'
@@ -332,7 +356,10 @@ export const sessionService = {
 
     throwOnError(error)
     if (!data) throw new Error('Nie udało się zaktualizować sesji.')
-    const updated = mapSessionRowToModel(data as SessionRow)
+    const updated = {
+      ...mapSessionRowToModel(data as SessionRow),
+      payments: existing.payments,
+    }
 
     const { enqueueExternalCalendarSync } = await import(
       '@/features/calendar-integrations/calendarIntegrationsService'

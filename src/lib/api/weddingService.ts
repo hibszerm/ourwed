@@ -5,7 +5,6 @@ import { noteService } from '@/lib/api/noteService'
 import { packageService } from '@/lib/api/packageService'
 import { paymentService } from '@/lib/api/paymentService'
 import { resolveStudioUserId } from '@/lib/api/studioUser'
-import { getWeddingDemoInFlightMap } from '@/lib/api/tenantModuleCaches'
 import { timelineEventService } from '@/lib/api/timelineEventService'
 import {
   finalizeWeddingView,
@@ -106,65 +105,6 @@ async function fetchWeddingsForUser(userId: string): Promise<WeddingRow[]> {
 
   throwOnError(error)
   return (data ?? []) as WeddingRow[]
-}
-
-async function ensureDemoWedding(userId: string): Promise<WeddingRow> {
-  const { data, error } = await supabase
-    .from('weddings')
-    .insert({
-      user_id: userId,
-      bride_name: 'Anna',
-      groom_name: 'Michał',
-      email: 'anna.michal@email.pl',
-      phone: '+48 600 123 456',
-      wedding_date: '2026-08-15',
-      ceremony_time: null,
-      venue: 'Pałac w Wilanowie, Warszawa',
-      status: 'active',
-      workflow_stage: 'contract',
-      package_name: null,
-      package_id: null,
-      contract_value: 0,
-      deposit_amount: 0,
-      currency: DEFAULT_WEDDING_CURRENCY,
-      accent_color: null,
-    })
-    .select('*')
-    .single()
-
-  throwOnError(error)
-
-  if (!data) {
-    throw new Error('Nie udało się utworzyć demo ślubu w Supabase.')
-  }
-
-  return data as WeddingRow
-}
-
-const ensureDemoInFlightByUser = getWeddingDemoInFlightMap() as Map<
-  string,
-  Promise<WeddingRow[]>
->
-
-async function loadWeddingsOrSeedDemo(userId: string): Promise<WeddingRow[]> {
-  const existing = await fetchWeddingsForUser(userId)
-  if (existing.length > 0) return existing
-
-  const inflight = ensureDemoInFlightByUser.get(userId)
-  if (inflight) return inflight
-
-  const next = (async () => {
-    const again = await fetchWeddingsForUser(userId)
-    if (again.length > 0) return again
-    const demo = await ensureDemoWedding(userId)
-    await seedNewWeddingSideEffects(mapWeddingRowToModel(demo))
-    return fetchWeddingsForUser(userId)
-  })().finally(() => {
-    ensureDemoInFlightByUser.delete(userId)
-  })
-
-  ensureDemoInFlightByUser.set(userId, next)
-  return next
 }
 
 async function seedNewWeddingSideEffects(
@@ -275,10 +215,13 @@ export async function seedDeferredWeddingShells(
 }
 
 export const weddingService = {
+  /**
+   * Read-only list. Empty accounts stay empty — never auto-inserts demo CRM rows.
+   */
   async getAll(): Promise<Wedding[]> {
     return withDevPerf('weddingService.getAll', async () => {
       const userId = await resolveStudioUserId()
-      const rows = await loadWeddingsOrSeedDemo(userId)
+      const rows = await fetchWeddingsForUser(userId)
       return finalizeWeddingViews(rows.map(mapWeddingRowToModel))
     })
   },
@@ -320,9 +263,8 @@ export const weddingService = {
       packageId,
       packageName: input.packageName || null,
       price: input.price,
-      depositAmount:
-        input.depositAmount ??
-        (input.depositPaid ? Math.round(input.price * 0.3) : null),
+      // Agreed deposit: explicit input or package snapshot below — never % of price.
+      depositAmount: input.depositAmount ?? null,
       currency: input.currency || DEFAULT_WEDDING_CURRENCY,
       accentColor: input.accentColor || null,
       packageItems: await resolvePackageItemsSnapshot(input),

@@ -27,6 +27,8 @@ import { AppearanceSettingsPage } from '@/pages/AppearanceSettingsPage'
 import { AccountSettingsPage } from '@/pages/AccountSettingsPage'
 import { SubscriptionSettingsPage } from '@/pages/SubscriptionSettingsPage'
 import { NotificationSettingsPage } from '@/pages/NotificationSettingsPage'
+import { NotificationsPage } from '@/pages/NotificationsPage'
+import { FinancePage } from '@/pages/FinancePage'
 import { CalendarIntegrationsPage } from '@/pages/CalendarIntegrationsPage'
 import { CompanyDetailsPage } from '@/pages/CompanyDetailsPage'
 import { DocumentTemplateDetailPage } from '@/pages/DocumentTemplateDetailPage'
@@ -141,6 +143,8 @@ export const router = createBrowserRouter([
         element: <ProtectedRoute />,
         children: [
           { path: '/dashboard', element: <DashboardPage /> },
+          { path: '/powiadomienia', element: <NotificationsPage /> },
+          { path: '/finanse', element: <FinancePage /> },
           // Internal / experimental — hidden from sidebar; direct URL retained.
           { path: '/dashboard-v2', element: <DashboardV2Page /> },
           { path: '/sluby', element: <WeddingsPage /> },

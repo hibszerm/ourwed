@@ -486,6 +486,12 @@ create table public.sessions (
 comment on table public.sessions is
   'Standalone photo sessions (engagement, family, business, …). Not wedding workflow.';
 
+comment on column public.sessions.total_price is
+  'Contractual session price (SoT). Remaining uses session_payments ledger, not deposit_amount.';
+
+comment on column public.sessions.deposit_amount is
+  'Agreed zaliczka / agreed deposit (contractual). Not payment truth — paid amounts live in session_payments.';
+
 create index sessions_user_id_idx on public.sessions (user_id);
 create index sessions_session_date_idx on public.sessions (session_date);
 create index sessions_linked_wedding_id_idx on public.sessions (linked_wedding_id);
@@ -494,6 +500,84 @@ create trigger sessions_set_updated_at
   before update on public.sessions
   for each row
   execute function public.set_updated_at();
+
+-- =============================================================================
+-- 11b. session_payments
+-- =============================================================================
+
+create table public.session_payments (
+  id uuid primary key default gen_random_uuid(),
+  session_id uuid not null references public.sessions (id) on delete cascade,
+  type text not null
+    check (type in ('deposit', 'installment', 'final', 'other')),
+  amount numeric(12, 2) not null check (amount >= 0),
+  payment_date date,
+  method text
+    check (method is null or method in ('transfer', 'cash', 'blik', 'other')),
+  note text,
+  created_at timestamptz not null default timezone('utc', now())
+);
+
+comment on table public.session_payments is
+  'Client payments toward a session total_price (deposit/zaliczka, installments, final).';
+
+create index session_payments_session_id_idx on public.session_payments (session_id);
+create index session_payments_session_id_payment_date_idx
+  on public.session_payments (session_id, payment_date);
+
+-- Ownership helper + RLS (parity with 20260814160000_session_payments.sql)
+create or replace function public.is_session_owner(p_session_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.sessions s
+    where s.id = p_session_id
+      and s.user_id = auth.uid()
+  );
+$$;
+
+comment on function public.is_session_owner(uuid) is
+  'True when auth.uid() owns the session row.';
+
+revoke all on function public.is_session_owner(uuid) from public, anon;
+grant execute on function public.is_session_owner(uuid) to authenticated;
+
+alter table public.session_payments enable row level security;
+alter table public.session_payments force row level security;
+
+create policy session_payments_select_own
+  on public.session_payments for select
+  using (public.is_session_owner(session_id));
+
+create policy session_payments_insert_own
+  on public.session_payments for insert
+  with check (
+    public.is_session_owner(session_id)
+    and public.account_has_pro_access()
+  );
+
+create policy session_payments_update_own
+  on public.session_payments for update
+  using (
+    public.is_session_owner(session_id)
+    and public.account_has_pro_access()
+  )
+  with check (
+    public.is_session_owner(session_id)
+    and public.account_has_pro_access()
+  );
+
+create policy session_payments_delete_own
+  on public.session_payments for delete
+  using (
+    public.is_session_owner(session_id)
+    and public.account_has_pro_access()
+  );
 
 -- =============================================================================
 -- 12. calendar_events
@@ -919,6 +1003,7 @@ alter table public.weddings enable row level security;
 alter table public.sessions enable row level security;
 alter table public.contacts enable row level security;
 alter table public.payments enable row level security;
+alter table public.session_payments enable row level security;
 alter table public.notes enable row level security;
 alter table public.timeline_events enable row level security;
 alter table public.tasks enable row level security;

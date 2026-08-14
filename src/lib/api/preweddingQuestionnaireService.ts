@@ -694,6 +694,7 @@ export const weddingQuestionnaireService = {
       type: 'info',
       entityType: 'wedding_questionnaire',
       entityId: questionnaireId,
+      link: `/sluby/${weddingId}?tab=pre_wedding_questionnaire`,
     })
   },
 

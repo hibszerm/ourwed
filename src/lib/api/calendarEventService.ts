@@ -94,6 +94,14 @@ function weddingDayStartIso(date: string): string {
   return `${date.slice(0, 10)}T10:00:00.000Z`
 }
 
+/** Serialize concurrent ensure calls for the same wedding (Strict Mode / deferred repair). */
+const ensureWeddingDayInFlight = new Map<
+  string,
+  Promise<CalendarEvent | null>
+>()
+
+let syncWeddingDayInFlight: Promise<CalendarEvent[]> | null = null
+
 /**
  * Calendar data layer — `public.calendar_events` only.
  */
@@ -192,32 +200,45 @@ export const calendarEventService = {
   async ensureWeddingDayEvent(wedding: Wedding): Promise<CalendarEvent | null> {
     if (!wedding.date) return null
 
-    const existing = await this.listByWeddingId(wedding.id)
-    const weddingEvent = existing.find((e) => e.type === 'wedding')
-    const title = `Ślub: ${getWeddingDisplayName(wedding)}`
-    const startDate = weddingDayStartIso(wedding.date)
-    const location =
-      wedding.ceremonyLocation || wedding.receptionLocation || wedding.couple.venue || undefined
+    const inFlight = ensureWeddingDayInFlight.get(wedding.id)
+    if (inFlight) return inFlight
 
-    if (weddingEvent) {
-      return this.update(weddingEvent.id, {
+    const run = (async (): Promise<CalendarEvent | null> => {
+      const existing = await this.listByWeddingId(wedding.id)
+      const weddingEvent = existing.find((e) => e.type === 'wedding')
+      const title = `Ślub: ${getWeddingDisplayName(wedding)}`
+      const startDate = weddingDayStartIso(wedding.date!)
+      const location =
+        wedding.ceremonyLocation ||
+        wedding.receptionLocation ||
+        wedding.couple.venue ||
+        undefined
+
+      if (weddingEvent) {
+        return this.update(weddingEvent.id, {
+          title,
+          startDate,
+          location: location ?? null,
+          color: wedding.accentColor,
+          allDay: true,
+        })
+      }
+
+      return this.create({
+        weddingId: wedding.id,
         title,
         startDate,
-        location: location ?? null,
+        type: 'wedding',
+        location,
         color: wedding.accentColor,
         allDay: true,
       })
-    }
-
-    return this.create({
-      weddingId: wedding.id,
-      title,
-      startDate,
-      type: 'wedding',
-      location,
-      color: wedding.accentColor,
-      allDay: true,
+    })().finally(() => {
+      ensureWeddingDayInFlight.delete(wedding.id)
     })
+
+    ensureWeddingDayInFlight.set(wedding.id, run)
+    return run
   },
 
   /**
@@ -255,7 +276,9 @@ export const calendarEventService = {
    * (bounded parallelism). Does not hydrate weddings.
    */
   async syncWeddingDayEvents(weddings: Wedding[]): Promise<CalendarEvent[]> {
-    return withDevPerf('calendar.syncWeddingDayEvents', async () => {
+    if (syncWeddingDayInFlight) return syncWeddingDayInFlight
+
+    syncWeddingDayInFlight = withDevPerf('calendar.syncWeddingDayEvents', async () => {
       const dated = weddings.filter((w) => Boolean(w.date))
       if (dated.length === 0) return this.listAll()
 
@@ -304,6 +327,10 @@ export const calendarEventService = {
       }
 
       return this.listAll()
+    }).finally(() => {
+      syncWeddingDayInFlight = null
     })
+
+    return syncWeddingDayInFlight
   },
 }

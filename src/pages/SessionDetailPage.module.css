@@ -78,7 +78,7 @@
 
 .overviewBand {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0;
   padding: var(--space-4) 0;
   border-bottom: 1px solid var(--color-border);
@@ -141,6 +141,18 @@
   color: var(--color-text-primary);
 }
 
+.sectionHeadingRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.sectionHeadingRow .sectionHeading {
+  margin-bottom: 0;
+}
+
 .editorialKv {
   margin: 0;
   display: grid;
@@ -195,7 +207,7 @@
 
 .financeGrid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: var(--space-4);
 }
 
@@ -213,6 +225,58 @@
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: var(--color-text-primary);
+}
+
+.paymentList {
+  list-style: none;
+  padding: 0;
+  margin: var(--space-5) 0 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.paymentItem {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.paymentMain {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.paymentLabel,
+.paymentAmount {
+  font-size: var(--text-sm);
+  color: var(--color-text-primary);
+}
+
+.paymentLabel {
+  font-weight: 650;
+}
+
+.paymentAmount {
+  font-variant-numeric: tabular-nums;
+}
+
+.paymentMeta,
+.paymentEmpty {
+  font-size: var(--text-2xs);
+  color: var(--color-text-tertiary);
+}
+
+.paymentEmpty {
+  margin: var(--space-5) 0 0;
+}
+
+.paymentActions {
+  display: flex;
+  gap: var(--space-2);
 }
 
 .notes {
@@ -276,5 +340,13 @@
 
   .bandItem:nth-child(odd) {
     padding-right: 0;
+  }
+
+  .paymentItem {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .paymentActions {
+    grid-column: 1 / -1;
   }
 }

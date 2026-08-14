@@ -673,7 +673,8 @@ export const demoNotifications: Notification[] = [
     type: 'info',
     title: 'Ankieta przedślubna',
     message: 'Julia i Adrian przesłali odpowiedzi do przeglądu.',
-    createdAt: '2027-04-28T10:00:00.000Z',
+    createdAt: '2027-04-28',
+    createdAtIso: '2027-04-28T10:00:00.000Z',
     read: false,
   },
   {
@@ -681,7 +682,8 @@ export const demoNotifications: Notification[] = [
     type: 'success',
     title: 'Umowa podpisana',
     message: 'Julia i Adrian — umowa oznaczona jako podpisana.',
-    createdAt: '2026-10-02T14:00:00.000Z',
+    createdAt: '2026-10-02',
+    createdAtIso: '2026-10-02T14:00:00.000Z',
     read: true,
   },
   {
@@ -689,7 +691,8 @@ export const demoNotifications: Notification[] = [
     type: 'warning',
     title: 'Zbliżający się termin',
     message: 'Ola i Bartek — 3 tygodnie do ślubu.',
-    createdAt: '2027-06-12T08:00:00.000Z',
+    createdAt: '2027-06-12',
+    createdAtIso: '2027-06-12T08:00:00.000Z',
     read: false,
   },
 ]

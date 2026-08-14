@@ -3,7 +3,7 @@
  * No new business rules — only existing contract / deposit / questionnaire / link fields.
  */
 import { getDepositPaid } from '@/lib/utils/finance'
-import { getSessionRemainingAmount } from '@/features/sessions/presentation/getSessionRemainingAmount'
+import { buildSessionCommercialSummary } from '@/features/sessions/presentation/sessionFinance'
 import type { CalendarUiEvent } from '@/features/calendar/utils/calendarEvents'
 import type { Session } from '@/types/session'
 import type { Wedding } from '@/types/wedding'
@@ -93,15 +93,16 @@ function sessionContextItems(session: Session): AssignmentContextItem[] {
     })
   }
 
-  const remaining = getSessionRemainingAmount(
+  const finance = buildSessionCommercialSummary(
     session.totalPrice,
     session.depositAmount,
+    session.payments,
   )
-  if (session.totalPrice > 0 && remaining === 0) {
+  if (finance.paymentStatus === 'paid') {
     items.push({ id: 'finance', label: 'Opłacone', tone: 'ok' })
-  } else if (session.depositAmount > 0) {
+  } else if (finance.depositPaid > 0) {
     items.push({ id: 'finance', label: 'Zaliczka przyjęta', tone: 'ok' })
-  } else if (session.totalPrice > 0) {
+  } else if (finance.agreedDeposit > 0 && finance.depositPaid <= 0) {
     items.push({ id: 'finance', label: 'Brak zaliczki', tone: 'pending' })
   }
 

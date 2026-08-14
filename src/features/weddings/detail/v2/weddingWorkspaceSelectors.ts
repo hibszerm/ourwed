@@ -9,6 +9,7 @@ import {
 import { formatFinalPaymentTerms } from '@/lib/utils/finalPaymentTerms'
 import { formatCurrency } from '@/lib/utils/currency'
 import { formatPolishPostalAddress } from '@/lib/utils/formatPolishPostalAddress'
+import { hasPaidDepositPayment } from '@/lib/finance/hasPaidDepositPayment'
 import { locationVerificationStatus } from '@/features/travel/locationVerification'
 import { adaptLegacyWeddingLocationFields } from '@/features/travel/weddingLocationModel'
 import { getWeddingPrimaryLocationSummary } from '@/features/weddings/presentation/getWeddingPrimaryLocationSummary'
@@ -282,7 +283,7 @@ function hasContractPartyData(couple: Couple): boolean {
 }
 
 function hasDepositPaymentRecord(wedding: Wedding): boolean {
-  return (wedding.payments ?? []).some((p) => p.type === 'deposit' && p.paid)
+  return hasPaidDepositPayment(wedding.payments ?? [])
 }
 
 /**

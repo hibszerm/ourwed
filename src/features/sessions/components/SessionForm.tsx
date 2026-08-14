@@ -9,7 +9,10 @@ import { useWeddings } from '@/features/weddings/hooks/useWeddings'
 import { getWeddingDisplayName } from '@/features/weddings/presentation/getWeddingDisplayName'
 import { formatDate } from '@/lib/utils/dates'
 import { formatCurrency } from '@/lib/utils/currency'
-import { getSessionRemainingAmount } from '@/features/sessions/presentation/getSessionRemainingAmount'
+import {
+  getSessionRemainingAmount,
+  getSessionTotalPaid,
+} from '@/features/sessions/presentation/sessionFinance'
 import {
   SESSION_TYPE_LABELS,
   SESSION_TYPES,
@@ -112,7 +115,7 @@ function sessionToFormValues(
   }
 }
 
-export function formValuesToCreateInput(
+function formValuesToCreateInput(
   values: SessionFormValues,
 ): CreateSessionInput {
   const sessionType = values.sessionType
@@ -197,9 +200,10 @@ export function SessionForm({
 
   const sessionType = watch('sessionType')
   const totalPrice = watch('totalPrice') || 0
-  const depositAmount = watch('depositAmount') || 0
   const location = watch('location')
-  const remaining = getSessionRemainingAmount(totalPrice, depositAmount)
+  const ledgerPayments = mode === 'edit' ? initial?.payments ?? [] : []
+  const totalPaid = getSessionTotalPaid(ledgerPayments)
+  const remaining = getSessionRemainingAmount(totalPrice, ledgerPayments)
 
   useEffect(() => {
     if (sessionType !== 'other') {
@@ -389,10 +393,19 @@ export function SessionForm({
             type="number"
             min={0}
             step="1"
-            label="Zaliczka (zł)"
+            label="Ustalona zaliczka (zł)"
+            hint="To kwota ustalona w umowie — nie jest automatycznie rejestrowana jako wpłata."
             error={errors.depositAmount?.message}
             {...register('depositAmount', { valueAsNumber: true })}
           />
+          {mode === 'edit' ? (
+            <div className={styles.remainingBox}>
+              <span className={styles.remainingLabel}>Wpłacono</span>
+              <span className={styles.remainingValue}>
+                {formatCurrency(totalPaid)}
+              </span>
+            </div>
+          ) : null}
           <div className={styles.remainingBox}>
             <span className={styles.remainingLabel}>Pozostało</span>
             <span className={styles.remainingValue}>

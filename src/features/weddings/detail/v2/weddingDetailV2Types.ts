@@ -52,6 +52,8 @@ export interface WeddingDetailSharedProps {
   onRequestVerifyLocations: () => void
   /** Open shared page editor focused on a section. */
   onEditSection?: (section: WeddingEditorSection) => void
+  /** Edit a single ledger payment from Contract & Finance. */
+  onEditPayment?: (payment: Payment) => void
   /** Persist draft (V2 drawer Zapisz). */
   onSaveEdit?: () => void
   /** Close editor / discard (V2 drawer Anuluj). */

@@ -34,6 +34,7 @@ function session(
     sessionType: 'engagement',
     totalPrice: 0,
     depositAmount: 0,
+    payments: [],
     createdAt: '2026-01-01',
     updatedAt: '2026-01-01',
     ...partial,
@@ -169,7 +170,9 @@ const events: CalendarUiEvent[] = [
   assert(page.includes('getNextAssignmentsAfterNearest'), 'page next three')
   assert(page.includes('NextAssignmentsSection'), 'page next section')
   assert(page.includes('NextAssignmentCard'), 'page hero card')
-  assert(page.includes('useSessions'), 'page loads sessions')
+  assert(page.includes('useDashboardAssignments'), 'page loads light assignments')
+  assert(!page.includes('useWeddings'), 'page must not use heavy useWeddings')
+  assert(!page.includes('useSessions'), 'page must not use full useSessions')
 
   const hero = readFileSync(
     resolve('src/features/dashboard/components/NextWeddingCard.tsx'),

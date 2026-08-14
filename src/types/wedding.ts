@@ -413,7 +413,10 @@ export interface Notification {
   id: string
   title: string
   message: string
+  /** Calendar date string for display helpers. */
   createdAt: string
+  /** Raw timestamptz — cursor pagination + precise display. */
+  createdAtIso: string
   read: boolean
   type: 'info' | 'warning' | 'success'
   /** In-app deep link (relative path), when set. */

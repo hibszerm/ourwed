@@ -28,6 +28,13 @@ export interface ComputeFloatingOptions {
   gap?: number
   minSpace?: number
   maxMenuHeight?: number
+  /**
+   * Cap anchored menu width (desktop). When the anchor is wider than this
+   * (e.g. full-width question card), the popover stays compact instead of
+   * stretching to the anchor. Narrower anchors keep their natural width.
+   * Ignored in dialog/mobile mode.
+   */
+  maxMenuWidth?: number
   padding?: number
   /** Force full-viewport dialog mode (mobile). */
   forceSheet?: boolean
@@ -106,9 +113,13 @@ export function computeFloatingPlacement(
     Math.min(maxMenuHeight, placeBelow ? spaceBelow : spaceAbove),
   )
 
+  const targetWidth =
+    options?.maxMenuWidth != null
+      ? Math.min(anchor.width, options.maxMenuWidth)
+      : anchor.width
   const width = Math.max(
     0,
-    Math.min(anchor.width, viewport.width - padding * 2),
+    Math.min(targetWidth, viewport.width - padding * 2),
   )
   let left = anchor.left
   if (left + width > viewport.width - padding) {

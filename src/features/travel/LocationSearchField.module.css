@@ -112,6 +112,21 @@
   overflow: auto;
 }
 
+/* Desktop suggestions inside ResponsiveFieldOverlay (not clipped by card overflow). */
+.listPortal {
+  margin: 0;
+  padding: var(--space-1);
+  list-style: none;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: auto;
+  width: 100%;
+  max-height: none;
+  box-sizing: border-box;
+}
+
 .listDialog {
   margin: 0;
   padding: 0.25rem 0;

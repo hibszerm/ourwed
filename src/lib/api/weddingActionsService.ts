@@ -6,6 +6,8 @@ import { paymentService } from '@/lib/api/paymentService'
 import { timelineEventService } from '@/lib/api/timelineEventService'
 import { weddingService } from '@/lib/api/weddingService'
 import { getDepositPaid } from '@/lib/utils/finance'
+import { hasPaidDepositPayment } from '@/lib/finance/hasPaidDepositPayment'
+import { getAgreedDeposit } from '@/lib/utils/commercial'
 import { getWeddingDisplayName } from '@/features/weddings/presentation/getWeddingDisplayName'
 import { getNextStage } from '@/lib/workflow/workflowEngine'
 import { getCurrentStudioUser } from '@/lib/api/studioUser'
@@ -131,6 +133,7 @@ export const weddingActionsService = {
       type: 'success',
       entityType: 'wedding',
       entityId: wedding.id,
+      link: `/sluby/${wedding.id}?tab=contract_finance`,
     })
 
     const updated = await weddingService.getById(wedding.id)
@@ -191,6 +194,7 @@ export const weddingActionsService = {
         type: 'success',
         entityType: 'wedding',
         entityId: wedding.id,
+        link: `/sluby/${wedding.id}?tab=contract_finance`,
       })
     }
 
@@ -275,6 +279,7 @@ export const weddingActionsService = {
       type: 'info',
       entityType: 'wedding',
       entityId: wedding.id,
+      link: `/sluby/${wedding.id}?tab=contract_finance`,
     })
 
     const updated = await weddingService.getById(wedding.id)
@@ -296,13 +301,16 @@ export const weddingActionsService = {
     return this.markContractGenerated(weddingId, { hadDocument: false })
   },
 
-  /** Suggested deposit amount (30% of contract price). */
-  getSuggestedDepositAmount(wedding: Wedding): number {
-    return Math.round(wedding.price * 0.3)
+  /**
+   * Suggested deposit for "Dodaj zadatek" — wedding-snapshotted agreed deposit only.
+   * Returns 0 when unset (no 30% / package-live fallback). Amount stays editable in UI.
+   */
+  getSuggestedDepositAmount(wedding: Pick<Wedding, 'depositAmount'>): number {
+    return getAgreedDeposit(wedding)
   },
 
   hasDepositPayment(wedding: Wedding): boolean {
-    return wedding.payments.some((p) => p.type === 'deposit' && p.paid)
+    return hasPaidDepositPayment(wedding.payments ?? [])
   },
 }
 

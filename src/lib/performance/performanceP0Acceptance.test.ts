@@ -65,23 +65,34 @@ function assertNotIncludes(src: string, needle: string, m: string) {
   )
   assertNotIncludes(dash, 'taskService.listAll', 'dashboard must not listAll tasks')
   assertNotIncludes(dash, 'upcomingDeadlines', 'removed dead upcomingDeadlines')
-  assertNotIncludes(dash, 'nextWedding', 'nextWedding derived from useWeddings')
+  assertNotIncludes(dash, 'nextWedding', 'nextWedding not owned by dashboardService')
   assertIncludes(dash, 'listDueOn', 'still loads today tasks')
-  assertIncludes(dash, 'notificationService.list', 'still loads notifications')
+  assertNotIncludes(
+    dash,
+    'notificationService.list',
+    'dashboard must not load full notification history',
+  )
   assertIncludes(dash, 'listNeedingVerification', 'location verify tasks')
+  assertIncludes(dash, 'getAssignmentLists', 'light assignment lists')
+  assertIncludes(dash, 'DASHBOARD_LIGHT_WEDDING_SELECT', 'pinned wedding select')
+  assertNotIncludes(dash, 'finalizeWedding', 'no finalize hydrate')
+  assertNotIncludes(dash, 'weddingService', 'no weddingService')
 
   const page = read('src/pages/DashboardPage.tsx')
-  assertIncludes(page, 'weddingsLoading || sessionsLoading', 'primary gate weddings+sessions')
+  assertIncludes(page, 'assignmentsLoading', 'primary gate light assignments')
+  assertNotIncludes(page, 'useWeddings', 'V1 must not use heavy useWeddings')
+  assertIncludes(page, 'useDashboardAssignments', 'V1 uses light assignment hook')
   assertNotIncludes(
     page,
-    'isLoading || weddingsLoading || sessionsLoading',
-    'must not wait on dashboard for primary paint',
+    'isLoading || assignmentsLoading',
+    'must not wait on dashboard tasks for primary paint',
   )
-  assertIncludes(page, 'useWeddings', 'canonical weddings query')
 
   const v2 = read('src/pages/DashboardV2Page.tsx')
   assertIncludes(v2, 'getNearestUpcomingWedding', 'V2 derives nextWedding from list')
-  assertIncludes(v2, 'weddingsLoading', 'V2 primary gate is weddings')
+  assertIncludes(v2, 'useDashboardAssignments', 'V2 uses light assignment lists')
+  assertNotIncludes(v2, 'useWeddings', 'V2 must not use heavy useWeddings')
+  assertIncludes(v2, 'assignmentsLoading', 'V2 primary gate is light assignments')
 
   console.log('PASS  dashboard no hydrate storm / dead work removed')
 }

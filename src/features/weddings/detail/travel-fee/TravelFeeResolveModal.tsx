@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
 import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
+import { invalidateFinanceQueries } from '@/features/finance/invalidateFinanceQueries'
 import {
   travelPlanQueryKey,
   weddingPlacesQueryKey,
@@ -173,6 +174,7 @@ function TravelFeeResolveForm({
     },
     onSuccess: async (updated) => {
       await queryClient.invalidateQueries({ queryKey: ['weddings'] })
+      await invalidateFinanceQueries(queryClient)
       queryClient.setQueryData(
         ['weddings', userId, wedding.id],
         (prev: unknown) => {

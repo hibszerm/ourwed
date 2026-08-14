@@ -1,9 +1,12 @@
-/** Remaining amount for a session — never negative. */
-export function getSessionRemainingAmount(
-  totalPrice: number,
-  depositAmount: number,
-): number {
-  const total = Number.isFinite(totalPrice) ? totalPrice : 0
-  const deposit = Number.isFinite(depositAmount) ? depositAmount : 0
-  return Math.max(total - deposit, 0)
-}
+/**
+ * @deprecated Import from sessionFinance — remaining is ledger-based.
+ * Re-export keeps existing import paths compiling during cutover.
+ */
+export {
+  getSessionRemainingAmount,
+  getSessionRemainingToPay,
+  getSessionTotalPaid,
+  getSessionDepositPaid,
+  buildSessionCommercialSummary,
+  resolveSessionPaymentStatus,
+} from '@/features/sessions/presentation/sessionFinance'

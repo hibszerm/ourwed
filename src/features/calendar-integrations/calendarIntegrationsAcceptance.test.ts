@@ -60,6 +60,7 @@ function sessionFixture(
     sessionType: 'engagement',
     totalPrice: 0,
     depositAmount: 0,
+    payments: [],
     ...overrides,
   } as Session
 }

@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
+import { invalidateFinanceQueries } from '@/features/finance/invalidateFinanceQueries'
 import { questionnaireService } from '@/lib/api/questionnaireService'
 
 /** Canonical React Query key prefix for pending contract lead questionnaires. */
@@ -37,6 +38,7 @@ export function invalidateAfterQuestionnaireApproval(
     queryClient.invalidateQueries({ queryKey: ['questionnaires'] }),
     queryClient.invalidateQueries({ queryKey: ['weddings'] }),
     queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
+    invalidateFinanceQueries(queryClient),
   ]).catch((err) => {
     console.warn(
       '[pending-questionnaires] invalidation failed:',

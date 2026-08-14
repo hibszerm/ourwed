@@ -3,8 +3,7 @@ import { AppLayout } from '@/layouts/AppLayout'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { useDashboard } from '@/features/dashboard/hooks/useDashboard'
-import { useWeddings } from '@/features/weddings/hooks/useWeddings'
-import { useSessions } from '@/features/sessions/hooks/useSessions'
+import { useDashboardAssignments } from '@/features/dashboard/hooks/useDashboardAssignments'
 import { DashboardHero } from '@/features/dashboard/components/DashboardHero'
 import { NextAssignmentCard } from '@/features/dashboard/components/NextWeddingCard'
 import { NextAssignmentsSection } from '@/features/dashboard/components/NextAssignmentsSection'
@@ -21,28 +20,23 @@ import styles from './DashboardPage.module.css'
 import { useCurrentStudioUser } from '@/features/auth/useCurrentStudioUser'
 
 export function DashboardPage() {
+  const { data } = useDashboard()
   const {
-    data,
-    isLoading: dashboardLoading,
-    isError: dashboardError,
-    error,
-    refetch,
-  } = useDashboard()
-  const {
-    data: weddings,
-    isLoading: weddingsLoading,
-    isError: weddingsError,
-  } = useWeddings()
-  const {
-    data: sessions = [],
-    isLoading: sessionsLoading,
-    isError: sessionsError,
-  } = useSessions()
+    data: assignmentLists,
+    isLoading: assignmentsLoading,
+    isError: assignmentsError,
+  } = useDashboardAssignments()
   const { data: studioUser } = useCurrentStudioUser()
 
+  const weddings = assignmentLists?.weddings ?? []
+
   const assignments = useMemo(
-    () => buildAssignmentEvents(weddings ?? [], sessions),
-    [weddings, sessions],
+    () =>
+      buildAssignmentEvents(
+        assignmentLists?.weddings ?? [],
+        assignmentLists?.sessions ?? [],
+      ),
+    [assignmentLists],
   )
 
   const nearest = useMemo(
@@ -55,8 +49,8 @@ export function DashboardPage() {
     [assignments],
   )
 
-  // Primary content needs weddings + sessions; dashboard cards are secondary.
-  if (weddingsLoading || sessionsLoading) {
+  // Primary content needs light assignment lists; dashboard cards are secondary.
+  if (assignmentsLoading) {
     return (
       <AppLayout>
         <PageContainer>
@@ -68,21 +62,14 @@ export function DashboardPage() {
     )
   }
 
-  if (weddingsError || sessionsError) {
+  if (assignmentsError) {
     return (
       <AppLayout>
         <PageContainer>
           <EmptyState
             title="Nie udało się załadować pulpitu"
-            description={
-              error instanceof Error
-                ? error.message
-                : 'Odśwież stronę lub spróbuj ponownie później.'
-            }
+            description="Odśwież stronę lub spróbuj ponownie później."
           />
-          <button type="button" onClick={() => void refetch()}>
-            Spróbuj ponownie
-          </button>
         </PageContainer>
       </AppLayout>
     )
@@ -109,27 +96,11 @@ export function DashboardPage() {
               <PendingWeddingsCard />
               <TodoTodayCard
                 tasks={data?.todayTasks ?? []}
-                weddings={weddings ?? []}
+                weddings={weddings}
               />
             </div>
             <div className={styles.secondary}>
-              {dashboardError ? (
-                <EmptyState
-                  title="Nie udało się załadować powiadomień"
-                  description={
-                    error instanceof Error
-                      ? error.message
-                      : 'Odśwież lub spróbuj ponownie.'
-                  }
-                />
-              ) : dashboardLoading && !data ? (
-                <div className={styles.loadingPulse} />
-              ) : (
-                <NotificationsCard
-                  notifications={data?.notifications ?? []}
-                  onMarkedRead={() => void refetch()}
-                />
-              )}
+              <NotificationsCard />
             </div>
           </div>
         </div>

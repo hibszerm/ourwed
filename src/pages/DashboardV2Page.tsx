@@ -5,7 +5,11 @@ import { AppLayout } from '@/layouts/AppLayout'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { useDashboard } from '@/features/dashboard/hooks/useDashboard'
-import { useWeddings } from '@/features/weddings/hooks/useWeddings'
+import { useDashboardAssignments } from '@/features/dashboard/hooks/useDashboardAssignments'
+import {
+  useLatestNotifications,
+  useUnreadNotificationCount,
+} from '@/features/notifications/useNotifications'
 import { getNearestUpcomingWedding } from '@/lib/utils/weddingMetrics'
 import {
   ActivityTimeline,
@@ -21,6 +25,7 @@ import styles from '@/features/dashboard-v2/DashboardV2.module.css'
 
 /**
  * Experimental Dashboard V2 — does not replace /dashboard (V1).
+ * Uses the same light assignment lists as V1 (no full wedding hydrate path).
  */
 export function DashboardV2Page() {
   const {
@@ -31,23 +36,32 @@ export function DashboardV2Page() {
     refetch,
   } = useDashboard()
   const {
-    data: weddings,
-    isLoading: weddingsLoading,
-    isError: weddingsError,
-  } = useWeddings()
+    data: assignmentLists,
+    isLoading: assignmentsLoading,
+    isError: assignmentsError,
+  } = useDashboardAssignments()
+  const latestNotifications = useLatestNotifications(8)
+  const unreadCount = useUnreadNotificationCount()
+
+  const weddings = assignmentLists?.weddings
 
   const model = useMemo(() => {
     if (!weddings) return null
-    return buildDashboardV2Model({
+    const notifications = latestNotifications.data ?? []
+    const built = buildDashboardV2Model({
       nextWedding: getNearestUpcomingWedding(weddings),
       weddings,
       todayTasks: data?.todayTasks ?? [],
-      notifications: data?.notifications ?? [],
+      notifications,
     })
-  }, [data, weddings])
+    if (typeof unreadCount.data === 'number') {
+      built.hero.stats.unreadNotifications = unreadCount.data
+    }
+    return built
+  }, [data, weddings, latestNotifications.data, unreadCount.data])
 
-  // Primary: canonical weddings. Dashboard cards fill in when ready.
-  if (weddingsLoading) {
+  // Primary: light dashboard assignment lists.
+  if (assignmentsLoading) {
     return (
       <AppLayout>
         <PageContainer width="wide">
@@ -57,7 +71,7 @@ export function DashboardV2Page() {
     )
   }
 
-  if (weddingsError || !model) {
+  if (assignmentsError || !model) {
     return (
       <AppLayout>
         <PageContainer width="wide">
@@ -97,7 +111,7 @@ export function DashboardV2Page() {
           {dashboardError ? (
             <EmptyState
               title="Część pulpitu nie załadowała się"
-              description="Śluby są widoczne; odśwież, aby dociągnąć zadania i powiadomienia."
+              description="Śluby są widoczne; odśwież, aby dociągnąć zadania."
             />
           ) : null}
           {dashboardLoading && !data ? (

@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
-import { NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { NavLink, useNavigate } from 'react-router-dom'
 import {
+  IconBell,
   IconCalendar,
   IconClipboard,
   IconClose,
   IconDashboard,
+  IconFinances,
   IconInbox,
   IconSessions,
   IconSettings,
@@ -14,12 +16,14 @@ import { useAuth } from '@/features/auth/AuthProvider'
 import { useCurrentStudioUser } from '@/features/auth/useCurrentStudioUser'
 import { SidebarSubscriptionBlock } from '@/features/billing/SidebarSubscriptionBlock'
 import { useProAccessGate } from '@/features/billing/ProAccessGate'
-import { notificationService } from '@/lib/api/notificationService'
+import { useUnreadNotificationCount } from '@/features/notifications/useNotifications'
 import styles from './Sidebar.module.css'
 import catalogStyles from '@/features/studio/StudioCatalog.module.css'
 
 const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: IconDashboard, end: true },
+  { to: '/powiadomienia', label: 'Powiadomienia', icon: IconBell, end: true },
+  { to: '/finanse', label: 'Finanse', icon: IconFinances, end: true },
   { to: '/sluby', label: 'Śluby', icon: IconWeddings },
   { to: '/sesje', label: 'Sesje', icon: IconSessions },
   { to: '/kalendarz', label: 'Kalendarz', icon: IconCalendar },
@@ -45,9 +49,8 @@ interface SidebarProps {
 export function Sidebar({ open = false, onClose, onNavigate }: SidebarProps) {
   const { logout, user } = useAuth()
   const navigate = useNavigate()
-  const location = useLocation()
   const [isMobile, setIsMobile] = useState(false)
-  const [unreadCount, setUnreadCount] = useState(0)
+  const { data: unreadCount = 0 } = useUnreadNotificationCount()
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 767px)')
@@ -56,21 +59,6 @@ export function Sidebar({ open = false, onClose, onNavigate }: SidebarProps) {
     mq.addEventListener('change', sync)
     return () => mq.removeEventListener('change', sync)
   }, [])
-
-  useEffect(() => {
-    let cancelled = false
-    void notificationService
-      .unreadCount()
-      .then((n) => {
-        if (!cancelled) setUnreadCount(n)
-      })
-      .catch(() => {
-        if (!cancelled) setUnreadCount(0)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [location.pathname])
 
   const { data: studioUser } = useCurrentStudioUser()
   const { entitlement, loading: subscriptionLoading, error: subscriptionError } =
@@ -123,7 +111,7 @@ export function Sidebar({ open = false, onClose, onNavigate }: SidebarProps) {
           >
             <Icon className={styles.navIcon} />
             <span>{label}</span>
-            {to === '/dashboard' && unreadCount > 0 ? (
+            {to === '/powiadomienia' && unreadCount > 0 ? (
               <span
                 className={styles.navBadge}
                 aria-label={`${unreadCount} nieprzeczytane powiadomienia`}

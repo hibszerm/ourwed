@@ -129,7 +129,7 @@ export function WeddingDetailHero({
 
   const name = getWeddingDisplayName(wedding)
   const contractSent = wedding.questionnaires.contractData.status !== 'not_sent'
-  const showDeposit = !weddingActionsService.hasDepositPayment(wedding)
+  const hasPaidDeposit = weddingActionsService.hasDepositPayment(wedding)
 
   return (
     <section className={styles.hero} id="wedding-hero">
@@ -252,20 +252,12 @@ export function WeddingDetailHero({
             type="button"
             variant="ghost"
             size="sm"
-            onClick={() => onAction('add_payment')}
+            onClick={() =>
+              onAction(hasPaidDeposit ? 'add_payment' : 'add_deposit')
+            }
           >
-            Dodaj wpłatę
+            {hasPaidDeposit ? 'Dodaj wpłatę' : 'Dodaj zadatek'}
           </Button>
-          {showDeposit && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => onAction('add_deposit')}
-            >
-              Dodaj zadatek
-            </Button>
-          )}
           <Button
             type="button"
             variant="ghost"

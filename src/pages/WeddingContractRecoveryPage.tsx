@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { useToast } from '@/components/ui/Toast'
 import { useWedding } from '@/features/weddings/hooks/useWedding'
+import { useInvalidateWedding } from '@/features/weddings/hooks/useInvalidateWedding'
 import { ContractRecoveryError } from '@/features/wedding-contract-recovery/errors'
 import {
   applyWeddingContractRecoveryProposal,
@@ -50,6 +51,7 @@ export function WeddingContractRecoveryPage() {
   const navigate = useNavigate()
   const { showToast } = useToast()
   const { data: wedding, isLoading } = useWedding(weddingId)
+  const invalidateWedding = useInvalidateWedding()
 
   const [step, setStep] = useState<RecoveryWizardStep>('upload')
   const [file, setFile] = useState<File | null>(null)
@@ -260,7 +262,8 @@ export function WeddingContractRecoveryPage() {
       setStep('done')
       scrollToRecoveryTop()
       showToast('Dane z umowy zostały zapisane', 'success')
-      await queryClient.invalidateQueries({ queryKey: ['wedding', weddingId] })
+      // Canonical wedding list/detail + dashboard + Finance Center.
+      await invalidateWedding(weddingId)
       await queryClient.invalidateQueries({
         queryKey: ['wedding-source-contracts', weddingId],
       })

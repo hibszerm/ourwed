@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/Button'
+import { DatePickerField } from '@/features/forms/DatePickerField'
 import { QuestionnaireLocationField } from '@/features/prewedding/QuestionnaireLocationField'
 import {
   isAnswerEmpty,
@@ -92,26 +93,21 @@ function LongTextField({ question, value, error, onChange }: FieldProps) {
 }
 
 function DateField({ question, value, error, onChange, prefill }: FieldProps) {
+  const isoValue = String(value ?? prefill ?? '')
   return (
     <div className={styles.field}>
       <label htmlFor={question.id} className={styles.label}>
         {question.label}
         {question.required && <span className={styles.required} aria-label="wymagane"> *</span>}
       </label>
-      <input
+      {question.helpText && <p className={styles.helpText}>{question.helpText}</p>}
+      <DatePickerField
         id={question.id}
-        type="date"
-        className={`${styles.input} ${error ? styles.inputError : ''}`}
-        value={String(value ?? prefill ?? '')}
-        onChange={(e) => onChange(e.target.value)}
-        aria-required={question.required}
-        aria-describedby={error ? `${question.id}-error` : undefined}
+        value={isoValue}
+        error={error}
+        placeholder="dd.mm.rrrr"
+        onChange={(iso) => onChange(iso)}
       />
-      {error && (
-        <p id={`${question.id}-error`} className={styles.error} role="alert">
-          {error}
-        </p>
-      )}
     </div>
   )
 }
