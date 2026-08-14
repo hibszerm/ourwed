@@ -3,7 +3,10 @@
  * Legacy PreWeddingAddressAnswer-shaped JSON remains readable.
  */
 
-import { getWeddingLocationDisplay } from '@/features/travel/weddingLocationModel'
+import {
+  getWeddingLocationDisplay,
+  parseFiniteCoordinate,
+} from '@/features/travel/weddingLocationModel'
 import { googleMapsPlaceUrl } from '@/services/googleMapsLinks'
 import type { GeoPlace } from '@/types/travel'
 
@@ -52,14 +55,8 @@ export function answerToGeoPlace(value: unknown): GeoPlace | null {
     typeof value.placeId === 'string' && value.placeId.trim()
       ? value.placeId.trim()
       : null
-  const latitude =
-    typeof value.latitude === 'number' && Number.isFinite(value.latitude)
-      ? value.latitude
-      : null
-  const longitude =
-    typeof value.longitude === 'number' && Number.isFinite(value.longitude)
-      ? value.longitude
-      : null
+  const latitude = parseFiniteCoordinate(value.latitude)
+  const longitude = parseFiniteCoordinate(value.longitude)
 
   if (!formatted && !label && !placeId) return null
 

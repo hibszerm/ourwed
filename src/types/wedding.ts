@@ -364,6 +364,40 @@ export type WeddingCreationOptions = {
   source?: 'manual' | 'spreadsheet_import'
   /** Imported contract value must not be replaced by catalog package price. */
   preserveImportedPrice?: boolean
+  /**
+   * When false, skip finalizeWeddingView and return the mapped row + input scalars.
+   * Default true — approval uses false to avoid multi-hydrate on the critical path.
+   */
+  hydrate?: boolean
+  /**
+   * Approval: only seed local calendar on the critical path.
+   * Timeline / contract / gallery shells are deferred by the caller.
+   * Default `'full'` preserves manual create / import behavior.
+   */
+  seedMode?: 'full' | 'calendar_only'
+  /**
+   * Already-validated studio package from the same approval transaction.
+   * Skips repeat packageService.get inside create. Must originate from
+   * an authenticated package lookup — never from public form prices alone.
+   */
+  resolvedPackage?: import('@/types/package').StudioPackage
+}
+
+/** Optional write behavior for weddingService.update. Defaults preserve legacy behavior. */
+export type WeddingUpdateOptions = {
+  /** When false, skip finalizeWeddingView. Default true. */
+  hydrate?: boolean
+  /**
+   * When false, skip ensureWeddingDayEvent (e.g. approval after create already seeded).
+   * Default true.
+   */
+  ensureCalendarEvent?: boolean
+  /**
+   * When false, omit package_id from the UPDATE and skip package existence queries.
+   * Use when the caller knows package_id is unchanged (approval scalar enrichment).
+   * Default true (legacy validation).
+   */
+  validatePackageId?: boolean
 }
 
 export interface Task {

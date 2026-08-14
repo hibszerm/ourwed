@@ -1,4 +1,5 @@
 import { listOwnedWeddingIds } from '@/lib/api/ownership'
+import { withDevPerf } from '@/lib/performance/devPerf'
 import { supabase } from '@/lib/supabase'
 import { throwOnError } from '@/lib/supabase/helpers'
 import type { Wedding } from '@/types/wedding'
@@ -98,18 +99,20 @@ function weddingDayStartIso(date: string): string {
  */
 export const calendarEventService = {
   async listAll(): Promise<CalendarEvent[]> {
-    const weddingIds = await listOwnedWeddingIds()
-    if (weddingIds.length === 0) return []
+    return withDevPerf('calendar.listAll', async () => {
+      const weddingIds = await listOwnedWeddingIds()
+      if (weddingIds.length === 0) return []
 
-    const { data, error } = await supabase
-      .from('calendar_events')
-      .select('*')
-      .in('wedding_id', weddingIds)
-      .order('start_date', { ascending: true })
+      const { data, error } = await supabase
+        .from('calendar_events')
+        .select('*')
+        .in('wedding_id', weddingIds)
+        .order('start_date', { ascending: true })
 
-    throwOnError(error)
+      throwOnError(error)
 
-    return ((data ?? []) as CalendarEventRow[]).map(mapCalendarEventRowToModel)
+      return ((data ?? []) as CalendarEventRow[]).map(mapCalendarEventRowToModel)
+    })
   },
 
   async listByWeddingId(weddingId: string): Promise<CalendarEvent[]> {
@@ -218,15 +221,89 @@ export const calendarEventService = {
   },
 
   /**
-   * For each wedding with a date, ensure a wedding-day calendar row exists.
-   * Used by the calendar page so the DB is the source of truth without deriving events.
+   * New-wedding create path: insert the wedding-day row without listing first.
+   * Only safe when the wedding id is brand-new (approval / create seed).
+   * Duplicate prevention for existing weddings remains on ensureWeddingDayEvent.
+   */
+  async createWeddingDayEventForNewWedding(
+    wedding: Wedding,
+  ): Promise<CalendarEvent | null> {
+    if (!wedding.date) return null
+
+    const title = `Ślub: ${getWeddingDisplayName(wedding)}`
+    const startDate = weddingDayStartIso(wedding.date)
+    const location =
+      wedding.ceremonyLocation ||
+      wedding.receptionLocation ||
+      wedding.couple.venue ||
+      undefined
+
+    return this.create({
+      weddingId: wedding.id,
+      title,
+      startDate,
+      type: 'wedding',
+      location,
+      color: wedding.accentColor,
+      allDay: true,
+    })
+  },
+
+  /**
+   * Ensure wedding-day calendar rows exist / stay in sync.
+   * Fetches existing events once; only creates/updates missing or stale rows
+   * (bounded parallelism). Does not hydrate weddings.
    */
   async syncWeddingDayEvents(weddings: Wedding[]): Promise<CalendarEvent[]> {
-    for (const wedding of weddings) {
-      if (wedding.date) {
-        await this.ensureWeddingDayEvent(wedding)
+    return withDevPerf('calendar.syncWeddingDayEvents', async () => {
+      const dated = weddings.filter((w) => Boolean(w.date))
+      if (dated.length === 0) return this.listAll()
+
+      const existing = await this.listAll()
+      const weddingEventsByWeddingId = new Map<string, CalendarEvent>()
+      for (const event of existing) {
+        if (event.type === 'wedding') {
+          weddingEventsByWeddingId.set(event.weddingId, event)
+        }
       }
-    }
-    return this.listAll()
+
+      const needsEnsure: Wedding[] = []
+      for (const wedding of dated) {
+        const current = weddingEventsByWeddingId.get(wedding.id)
+        if (!current) {
+          needsEnsure.push(wedding)
+          continue
+        }
+        const title = `Ślub: ${getWeddingDisplayName(wedding)}`
+        const startDate = weddingDayStartIso(wedding.date!)
+        const location =
+          wedding.ceremonyLocation ||
+          wedding.receptionLocation ||
+          wedding.couple.venue ||
+          undefined
+        const locationChanged =
+          (location ?? undefined) !== (current.location ?? undefined)
+        const colorChanged =
+          (wedding.accentColor ?? undefined) !== (current.color ?? undefined)
+        if (
+          current.title !== title ||
+          current.startDate !== startDate ||
+          locationChanged ||
+          colorChanged
+        ) {
+          needsEnsure.push(wedding)
+        }
+      }
+
+      if (needsEnsure.length === 0) return existing
+
+      const CONCURRENCY = 4
+      for (let i = 0; i < needsEnsure.length; i += CONCURRENCY) {
+        const chunk = needsEnsure.slice(i, i + CONCURRENCY)
+        await Promise.all(chunk.map((w) => this.ensureWeddingDayEvent(w)))
+      }
+
+      return this.listAll()
+    })
   },
 }

@@ -11,6 +11,7 @@ import {
   finalizeWeddingView,
   finalizeWeddingViews,
 } from '@/lib/api/weddings/weddingHydrate'
+import { withDevPerf } from '@/lib/performance/devPerf'
 import {
   DEFAULT_WEDDING_CURRENCY,
   mapWeddingModelToRow,
@@ -25,6 +26,7 @@ import type {
   CreateWeddingInput,
   Wedding,
   WeddingPackageItemSnapshot,
+  WeddingUpdateOptions,
   WorkflowStage,
 } from '@/types/wedding'
 
@@ -81,6 +83,10 @@ async function resolvePackageItemsSnapshot(
   if (input.packageItems && input.packageItems.length > 0) {
     return input.packageItems
   }
+  const resolved = input.creationOptions?.resolvedPackage
+  if (resolved) {
+    return snapshotPackageItemsFromStudioPackage(resolved)
+  }
   const packageId = asCatalogPackageId(input.packageId)
   if (!packageId) return []
   try {
@@ -135,7 +141,7 @@ async function ensureDemoWedding(userId: string): Promise<WeddingRow> {
   return data as WeddingRow
 }
 
-let ensureDemoInFlightByUser = getWeddingDemoInFlightMap() as Map<
+const ensureDemoInFlightByUser = getWeddingDemoInFlightMap() as Map<
   string,
   Promise<WeddingRow[]>
 >
@@ -164,26 +170,45 @@ async function loadWeddingsOrSeedDemo(userId: string): Promise<WeddingRow[]> {
 async function seedNewWeddingSideEffects(
   wedding: Wedding,
   source: 'manual' | 'spreadsheet_import' = 'manual',
+  options?: { mode?: 'full' | 'calendar_only'; newWeddingCalendar?: boolean },
 ): Promise<void> {
+  const mode = options?.mode ?? 'full'
   const today = new Date().toISOString().slice(0, 10)
-  const timeline = await timelineEventService.listByWeddingId(wedding.id)
-  if (timeline.length === 0) {
-    await timelineEventService.create({
-      weddingId: wedding.id,
-      type: 'created',
-      title:
-        source === 'spreadsheet_import'
-          ? 'Zaimportowano z arkusza.'
-          : 'Utworzono zlecenie.',
-      description:
-        source === 'spreadsheet_import'
-          ? 'Ślub dodany przez import z pliku.'
-          : 'Ślub dodany do CRM.',
-      systemGenerated: true,
-      date: today,
-    })
+
+  if (mode === 'full') {
+    const timeline = await timelineEventService.listByWeddingId(wedding.id)
+    if (timeline.length === 0) {
+      await timelineEventService.create({
+        weddingId: wedding.id,
+        type: 'created',
+        title:
+          source === 'spreadsheet_import'
+            ? 'Zaimportowano z arkusza.'
+            : 'Utworzono zlecenie.',
+        description:
+          source === 'spreadsheet_import'
+            ? 'Ślub dodany przez import z pliku.'
+            : 'Ślub dodany do CRM.',
+        systemGenerated: true,
+        date: today,
+      })
+    }
   }
-  await calendarEventService.ensureWeddingDayEvent(wedding)
+
+  if (options?.newWeddingCalendar) {
+    const createCal = () =>
+      calendarEventService.createWeddingDayEventForNewWedding(wedding)
+    if (mode === 'calendar_only') {
+      await withDevPerf('questionnaire.approve.calendar', createCal)
+    } else {
+      await createCal()
+    }
+  } else {
+    await calendarEventService.ensureWeddingDayEvent(wedding)
+  }
+
+  if (mode === 'calendar_only') return
+
   if (!(await contractService.getByWeddingId(wedding.id))) {
     await contractService.create({ weddingId: wedding.id, status: 'none' })
   }
@@ -192,31 +217,92 @@ async function seedNewWeddingSideEffects(
   }
 }
 
+/**
+ * Deferred shells after approval navigation — timeline + empty contract/gallery.
+ * Failures must not roll back approval.
+ */
+export async function seedDeferredWeddingShells(
+  wedding: Wedding,
+  source: 'manual' | 'spreadsheet_import' = 'manual',
+): Promise<void> {
+  const today = new Date().toISOString().slice(0, 10)
+  try {
+    const timeline = await timelineEventService.listByWeddingId(wedding.id)
+    if (timeline.length === 0) {
+      await timelineEventService.create({
+        weddingId: wedding.id,
+        type: 'created',
+        title:
+          source === 'spreadsheet_import'
+            ? 'Zaimportowano z arkusza.'
+            : 'Utworzono zlecenie.',
+        description:
+          source === 'spreadsheet_import'
+            ? 'Ślub dodany przez import z pliku.'
+            : 'Ślub dodany do CRM.',
+        systemGenerated: true,
+        date: today,
+      })
+    }
+  } catch (err) {
+    console.warn(
+      '[seedDeferredWeddingShells] timeline failed:',
+      err instanceof Error ? err.message : err,
+    )
+  }
+
+  try {
+    if (!(await contractService.getByWeddingId(wedding.id))) {
+      await contractService.create({ weddingId: wedding.id, status: 'none' })
+    }
+  } catch (err) {
+    console.warn(
+      '[seedDeferredWeddingShells] contract failed:',
+      err instanceof Error ? err.message : err,
+    )
+  }
+
+  try {
+    if (!(await galleryService.getByWeddingId(wedding.id))) {
+      await galleryService.create({ weddingId: wedding.id, status: 'not_ready' })
+    }
+  } catch (err) {
+    console.warn(
+      '[seedDeferredWeddingShells] gallery failed:',
+      err instanceof Error ? err.message : err,
+    )
+  }
+}
+
 export const weddingService = {
   async getAll(): Promise<Wedding[]> {
-    const userId = await resolveStudioUserId()
-    const rows = await loadWeddingsOrSeedDemo(userId)
-    return finalizeWeddingViews(rows.map(mapWeddingRowToModel))
+    return withDevPerf('weddingService.getAll', async () => {
+      const userId = await resolveStudioUserId()
+      const rows = await loadWeddingsOrSeedDemo(userId)
+      return finalizeWeddingViews(rows.map(mapWeddingRowToModel))
+    })
   },
 
   async getById(id: string): Promise<Wedding | null> {
-    if (!isLikelyUuid(id)) {
-      return null
-    }
+    return withDevPerf('weddingService.getById', async () => {
+      if (!isLikelyUuid(id)) {
+        return null
+      }
 
-    const userId = await resolveStudioUserId()
+      const userId = await resolveStudioUserId()
 
-    const { data, error } = await supabase
-      .from('weddings')
-      .select('*')
-      .eq('id', id)
-      .eq('user_id', userId)
-      .maybeSingle()
+      const { data, error } = await supabase
+        .from('weddings')
+        .select('*')
+        .eq('id', id)
+        .eq('user_id', userId)
+        .maybeSingle()
 
-    throwOnError(error)
+      throwOnError(error)
 
-    if (!data) return null
-    return finalizeWeddingView(mapWeddingRowToModel(data as WeddingRow))
+      if (!data) return null
+      return finalizeWeddingView(mapWeddingRowToModel(data as WeddingRow))
+    })
   },
 
   async create(input: CreateWeddingInput): Promise<Wedding> {
@@ -250,7 +336,9 @@ export const weddingService = {
     }
 
     if (packageId) {
-      const pkg = await packageService.get(packageId)
+      const pkg =
+        input.creationOptions?.resolvedPackage ??
+        (await packageService.get(packageId))
       if (!pkg) {
         throw new Error('Wybrany pakiet nie istnieje lub jest niedostępny.')
       }
@@ -362,6 +450,10 @@ export const weddingService = {
     await seedNewWeddingSideEffects(
       withLocations,
       input.creationOptions?.source ?? 'manual',
+      {
+        mode: input.creationOptions?.seedMode ?? 'full',
+        newWeddingCalendar: true,
+      },
     )
 
     if (input.notes?.trim()) {
@@ -382,10 +474,16 @@ export const weddingService = {
       operation: 'upsert',
     })
 
+    if (input.creationOptions?.hydrate === false) {
+      return withLocations
+    }
     return finalizeWeddingView(withLocations)
   },
 
-  async update(wedding: Wedding): Promise<Wedding> {
+  async update(
+    wedding: Wedding,
+    options?: WeddingUpdateOptions,
+  ): Promise<Wedding> {
     if (!isLikelyUuid(wedding.id)) {
       throw new Error('Nieprawidłowy identyfikator ślubu.')
     }
@@ -393,18 +491,24 @@ export const weddingService = {
     const userId = await resolveStudioUserId()
     const patch = mapWeddingModelToRow(wedding)
 
-    const { data: currentRow, error: currentError } = await supabase
-      .from('weddings')
-      .select('package_id')
-      .eq('id', wedding.id)
-      .eq('user_id', userId)
-      .maybeSingle()
-    throwOnError(currentError)
+    const skipPackageValidation = options?.validatePackageId === false
+    let packageIdWrite: { include: true; value: string | null } | { include: false } =
+      { include: false }
 
-    const packageIdWrite = await resolveWritableWeddingPackageId(
-      patch.package_id,
-      (currentRow as { package_id?: string | null } | null)?.package_id ?? null,
-    )
+    if (!skipPackageValidation) {
+      const { data: currentRow, error: currentError } = await supabase
+        .from('weddings')
+        .select('package_id')
+        .eq('id', wedding.id)
+        .eq('user_id', userId)
+        .maybeSingle()
+      throwOnError(currentError)
+
+      packageIdWrite = await resolveWritableWeddingPackageId(
+        patch.package_id,
+        (currentRow as { package_id?: string | null } | null)?.package_id ?? null,
+      )
+    }
 
     const { data, error } = await supabase
       .from('weddings')
@@ -501,7 +605,9 @@ export const weddingService = {
       status: mapped.status,
     }
 
-    await calendarEventService.ensureWeddingDayEvent(withScalars)
+    if (options?.ensureCalendarEvent !== false) {
+      await calendarEventService.ensureWeddingDayEvent(withScalars)
+    }
 
     const { enqueueExternalCalendarSync } = await import(
       '@/features/calendar-integrations/calendarIntegrationsService'
@@ -512,6 +618,9 @@ export const weddingService = {
       operation: withScalars.status === 'cancelled' ? 'delete' : 'upsert',
     })
 
+    if (options?.hydrate === false) {
+      return withScalars
+    }
     return finalizeWeddingView(withScalars)
   },
 

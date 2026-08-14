@@ -1,99 +1,74 @@
-import { calendarEventService } from '@/lib/api/calendarEventService'
 import { notificationService } from '@/lib/api/notificationService'
+import { resolveStudioUserId } from '@/lib/api/studioUser'
 import { taskService } from '@/lib/api/taskService'
 import { weddingPlaceService } from '@/lib/api/weddingPlaceService'
-import { weddingService } from '@/lib/api/weddingService'
-import { getNearestUpcomingWedding } from '@/lib/utils/weddingMetrics'
-import type { Deadline, Notification, Task, Wedding } from '@/types/wedding'
+import { withDevPerf } from '@/lib/performance/devPerf'
+import { supabase } from '@/lib/supabase'
+import { throwOnError } from '@/lib/supabase/helpers'
+import type { Notification, Task } from '@/types/wedding'
 
 export interface DashboardData {
-  nextWedding: Wedding | null
   todayTasks: Task[]
   notifications: Notification[]
-  upcomingDeadlines: Deadline[]
+}
+
+/** Light active-id query — no wedding hydrate. */
+async function listActiveOwnedWeddingIds(): Promise<Set<string>> {
+  const userId = await resolveStudioUserId()
+  const { data, error } = await supabase
+    .from('weddings')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('status', 'active')
+
+  throwOnError(error)
+  return new Set(((data ?? []) as { id: string }[]).map((r) => r.id))
 }
 
 export const dashboardService = {
+  /**
+   * Dashboard-specific aggregates only.
+   * Canonical wedding list comes from `['weddings', userId]` / useWeddings —
+   * this must NOT full-hydrate weddings.
+   */
   async getDashboardData(): Promise<DashboardData> {
-    const [
-      weddings,
-      todayTasks,
-      notifications,
-      allTasks,
-      calendarEvents,
-      placesNeedingVerification,
-    ] = await Promise.all([
-      weddingService.getAll(),
-      taskService.listDueOn(new Date().toISOString().slice(0, 10)),
-      notificationService.list(),
-      taskService.listAll(),
-      calendarEventService.listAll(),
-      weddingPlaceService.listNeedingVerification(),
-    ])
+    return withDevPerf('dashboard.getDashboardData', async () => {
+      const [todayTasks, notifications, placesNeedingVerification, activeIds] =
+        await Promise.all([
+          taskService.listDueOn(new Date().toISOString().slice(0, 10)),
+          notificationService.list(),
+          weddingPlaceService.listNeedingVerification(),
+          listActiveOwnedWeddingIds(),
+        ])
 
-    const today = new Date().toISOString().slice(0, 10)
-    const nextWedding = getNearestUpcomingWedding(weddings)
+      const today = new Date().toISOString().slice(0, 10)
 
-    const unverifiedByWedding = new Map<string, number>()
-    for (const place of placesNeedingVerification) {
-      unverifiedByWedding.set(
-        place.weddingId,
-        (unverifiedByWedding.get(place.weddingId) ?? 0) + 1,
-      )
-    }
+      const unverifiedByWedding = new Map<string, number>()
+      for (const place of placesNeedingVerification) {
+        unverifiedByWedding.set(
+          place.weddingId,
+          (unverifiedByWedding.get(place.weddingId) ?? 0) + 1,
+        )
+      }
 
-    const activeWeddingIds = new Set(
-      weddings.filter((w) => w.status === 'active').map((w) => w.id),
-    )
+      const locationVerifyTasks: Task[] = [...unverifiedByWedding.entries()]
+        .filter(([weddingId]) => activeIds.has(weddingId))
+        .map(([weddingId, count]) => ({
+          id: `verify-locations-${weddingId}`,
+          weddingId,
+          title:
+            count === 1
+              ? 'Verify wedding locations'
+              : `Verify wedding locations (${count})`,
+          dueDate: today,
+          completed: false,
+          priority: 'high' as const,
+        }))
 
-    const locationVerifyTasks: Task[] = [...unverifiedByWedding.entries()]
-      .filter(([weddingId]) => activeWeddingIds.has(weddingId))
-      .map(([weddingId, count]) => ({
-        id: `verify-locations-${weddingId}`,
-        weddingId,
-        title:
-          count === 1
-            ? 'Verify wedding locations'
-            : `Verify wedding locations (${count})`,
-        dueDate: today,
-        completed: false,
-        priority: 'high' as const,
-      }))
-
-    const upcomingDeadlines: Deadline[] = [
-      ...allTasks
-        .filter((t) => !t.completed && t.dueDate >= today)
-        .slice(0, 8)
-        .map((t) => ({
-          id: `task-${t.id}`,
-          weddingId: t.weddingId,
-          title: t.title,
-          date: t.dueDate,
-          type: 'other' as const,
-        })),
-      ...calendarEvents
-        .filter((e) => e.type === 'delivery' || e.type === 'meeting')
-        .filter((e) => e.startDate.slice(0, 10) >= today)
-        .slice(0, 8)
-        .map((e) => ({
-          id: `cal-${e.id}`,
-          weddingId: e.weddingId,
-          title: e.title,
-          date: e.startDate.slice(0, 10),
-          type:
-            e.type === 'delivery'
-              ? ('delivery' as const)
-              : ('meeting' as const),
-        })),
-    ]
-      .sort((a, b) => a.date.localeCompare(b.date))
-      .slice(0, 8)
-
-    return {
-      nextWedding,
-      todayTasks: [...locationVerifyTasks, ...todayTasks],
-      notifications,
-      upcomingDeadlines,
-    }
+      return {
+        todayTasks: [...locationVerifyTasks, ...todayTasks],
+        notifications,
+      }
+    })
   },
 }

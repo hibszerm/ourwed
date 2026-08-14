@@ -261,6 +261,55 @@ export const weddingPlaceService = {
   },
 
   /**
+   * Approval-only: insert initial places for a brand-new wedding in one batch.
+   * No getByRole / listByWeddingId probes — caller guarantees empty roles.
+   * Uses deterministic ROUTE_ROLE_SORT values (catalog order, not operational reorder).
+   * Never geocodes.
+   */
+  async insertInitialWeddingPlaces(
+    weddingId: string,
+    places: Array<{
+      role: WeddingPlaceRole
+      place: GeoPlace
+    }>,
+  ): Promise<WeddingPlace[]> {
+    if (places.length === 0) return []
+
+    const now = nowIso()
+    const rows = places.map(({ role, place }) => {
+      const formatted =
+        place.formattedAddress?.trim() || place.label?.trim() || ''
+      return {
+        wedding_id: weddingId,
+        role,
+        label: place.label?.trim() || null,
+        place_id: place.placeId ?? null,
+        formatted_address: formatted,
+        latitude: place.latitude,
+        longitude: place.longitude,
+        sort_order: ROLE_SORT[role] ?? 100,
+        updated_at: now,
+      }
+    })
+
+    const { data, error } = await supabase
+      .from('wedding_places')
+      .insert(rows)
+      .select('*')
+
+    throwOnError(error)
+
+    const mapped = ((data ?? []) as WeddingPlaceRow[]).map(mapRow)
+    logOperationalOrder({
+      source: 'weddingPlaceService.insertInitialWeddingPlaces',
+      weddingId,
+      places: mapped,
+      note: 'approval-batch-insert',
+    })
+    return mapped
+  },
+
+  /**
    * Persist operational stop order.
    * Writes unique sort_order values in the OPERATIONAL_SORT_BASE range so the
    * route engine treats them as custom (never confused with role catalogs).

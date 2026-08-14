@@ -362,6 +362,23 @@ export function weddingPlaceRouteLabel(
 }
 
 /**
+ * Parse a coordinate from number or numeric string.
+ * Rejects empty strings, NaN, Infinity, and non-numeric values.
+ */
+export function parseFiniteCoordinate(value: unknown): number | null {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : null
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) return null
+    const n = Number(trimmed)
+    return Number.isFinite(n) ? n : null
+  }
+  return null
+}
+
+/**
  * Normalize questionnaire / import location answers into name + address.
  */
 export function normalizeLocationAnswer(value: unknown): {
@@ -440,15 +457,6 @@ export function normalizeLocationAnswer(value: unknown): {
       ? rawName
       : null
 
-  const lat =
-    typeof row.latitude === 'number' && Number.isFinite(row.latitude)
-      ? row.latitude
-      : null
-  const lng =
-    typeof row.longitude === 'number' && Number.isFinite(row.longitude)
-      ? row.longitude
-      : null
-
   return {
     name,
     formattedAddress: formatted,
@@ -456,8 +464,8 @@ export function normalizeLocationAnswer(value: unknown): {
       typeof row.placeId === 'string' && row.placeId.trim()
         ? row.placeId.trim()
         : null,
-    latitude: lat,
-    longitude: lng,
+    latitude: parseFiniteCoordinate(row.latitude),
+    longitude: parseFiniteCoordinate(row.longitude),
   }
 }
 

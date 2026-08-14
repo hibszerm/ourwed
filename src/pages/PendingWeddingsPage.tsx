@@ -1,28 +1,26 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AppLayout } from '@/layouts/AppLayout'
 import { Button } from '@/components/ui/Button'
 import { Card, CardHeader } from '@/components/ui/Card'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { PageContainer } from '@/components/ui/PageContainer'
-import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
 import { useProAccessGate } from '@/features/billing/ProAccessGate'
+import {
+  useInvalidateAfterQuestionnaireMutation,
+  usePendingQuestionnaires,
+} from '@/features/questionnaires/hooks/usePendingQuestionnaires'
 import { questionnaireService } from '@/lib/api/questionnaireService'
 import { formatShortDate } from '@/lib/utils/dates'
 import styles from '@/features/questionnaires/Questionnaires.module.css'
 
 export function PendingWeddingsPage() {
   const navigate = useNavigate()
-  const queryClient = useQueryClient()
-  const userId = useStudioAuthId()
   const { requirePro } = useProAccessGate()
   const [busyId, setBusyId] = useState<string | null>(null)
-  const { data = [], isLoading, isError, error, refetch } = useQuery({
-    queryKey: ['pending-questionnaires', userId],
-    queryFn: () => questionnaireService.listPending(),
-    enabled: Boolean(userId),
-  })
+  const { data = [], isLoading, isError, error, refetch } =
+    usePendingQuestionnaires()
+  const { afterApprove, afterReject } = useInvalidateAfterQuestionnaireMutation()
 
   async function handleApprove(id: string) {
     if (!requirePro()) return
@@ -30,10 +28,7 @@ export function PendingWeddingsPage() {
     setBusyId(id)
     try {
       const { wedding } = await questionnaireService.approve(id)
-      await queryClient.invalidateQueries({ queryKey: ['pending-questionnaires'] })
-      await queryClient.invalidateQueries({ queryKey: ['questionnaires'] })
-      await queryClient.invalidateQueries({ queryKey: ['weddings'] })
-      await queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      afterApprove()
       navigate(`/sluby/${wedding.id}`)
     } catch (err) {
       window.alert(err instanceof Error ? err.message : 'Nie udało się zatwierdzić.')
@@ -48,9 +43,7 @@ export function PendingWeddingsPage() {
     setBusyId(id)
     try {
       await questionnaireService.reject(id)
-      await queryClient.invalidateQueries({ queryKey: ['pending-questionnaires'] })
-      await queryClient.invalidateQueries({ queryKey: ['questionnaires'] })
-      await queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      afterReject()
     } catch (err) {
       window.alert(err instanceof Error ? err.message : 'Nie udało się odrzucić.')
     } finally {

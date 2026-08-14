@@ -6,6 +6,7 @@ import { PageContainer } from '@/components/ui/PageContainer'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { useDashboard } from '@/features/dashboard/hooks/useDashboard'
 import { useWeddings } from '@/features/weddings/hooks/useWeddings'
+import { getNearestUpcomingWedding } from '@/lib/utils/weddingMetrics'
 import {
   ActivityTimeline,
   BusinessOverview,
@@ -24,8 +25,8 @@ import styles from '@/features/dashboard-v2/DashboardV2.module.css'
 export function DashboardV2Page() {
   const {
     data,
-    isLoading,
-    isError,
+    isLoading: dashboardLoading,
+    isError: dashboardError,
     error,
     refetch,
   } = useDashboard()
@@ -36,16 +37,17 @@ export function DashboardV2Page() {
   } = useWeddings()
 
   const model = useMemo(() => {
-    if (!data) return null
+    if (!weddings) return null
     return buildDashboardV2Model({
-      nextWedding: data.nextWedding,
-      weddings: weddings ?? [],
-      todayTasks: data.todayTasks,
-      notifications: data.notifications,
+      nextWedding: getNearestUpcomingWedding(weddings),
+      weddings,
+      todayTasks: data?.todayTasks ?? [],
+      notifications: data?.notifications ?? [],
     })
   }, [data, weddings])
 
-  if (isLoading || weddingsLoading) {
+  // Primary: canonical weddings. Dashboard cards fill in when ready.
+  if (weddingsLoading) {
     return (
       <AppLayout>
         <PageContainer width="wide">
@@ -55,7 +57,7 @@ export function DashboardV2Page() {
     )
   }
 
-  if (isError || weddingsError || !model) {
+  if (weddingsError || !model) {
     return (
       <AppLayout>
         <PageContainer width="wide">
@@ -91,6 +93,16 @@ export function DashboardV2Page() {
               Wróć do Dashboard V1
             </Link>
           </div>
+
+          {dashboardError ? (
+            <EmptyState
+              title="Część pulpitu nie załadowała się"
+              description="Śluby są widoczne; odśwież, aby dociągnąć zadania i powiadomienia."
+            />
+          ) : null}
+          {dashboardLoading && !data ? (
+            <div aria-busy="true" />
+          ) : null}
 
           <HeroCard model={model.hero} />
 

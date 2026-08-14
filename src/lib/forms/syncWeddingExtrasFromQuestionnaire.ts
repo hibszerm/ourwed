@@ -25,6 +25,7 @@ import type {
   FormInstanceOptionsSnapshot,
 } from '@/types/contractQuestionnaire'
 import type { FormAnswerJson } from '@/types/formEngine'
+import type { WeddingExtraService } from '@/types/package'
 
 function asIdList(value: unknown): string[] {
   if (!Array.isArray(value)) return []
@@ -48,19 +49,35 @@ function snapshotExtras(
   return []
 }
 
+export type SyncWeddingExtrasResult = {
+  inserted: string[]
+  skipped: string[]
+  /** Authoritative extras after sync (for CV math — no second list required). */
+  extrasAfter: WeddingExtraService[]
+  /** Extras observed before sync (empty when none selected / brand-new wedding). */
+  extrasBefore: WeddingExtraService[]
+}
+
 /**
  * Validate selected IDs against the questionnaire snapshot, then upsert missing
  * wedding_extra_services rows. Rejects invalid IDs when a non-empty allow-list exists.
+ *
+ * Zero selected extras: no list round-trips.
  */
 export async function syncWeddingExtrasFromQuestionnaireAnswer(
   weddingId: string,
   answerJson: FormAnswerJson,
   optionsSnapshot?: FormInstanceOptionsSnapshot | null,
-): Promise<{ inserted: string[]; skipped: string[] }> {
+): Promise<SyncWeddingExtrasResult> {
   const fields = extractAnswerFields(answerJson)
   const selectedIds = asIdList(fields.selectedAdditionalServiceIds)
   if (selectedIds.length === 0) {
-    return { inserted: [], skipped: [] }
+    return {
+      inserted: [],
+      skipped: [],
+      extrasAfter: [],
+      extrasBefore: [],
+    }
   }
 
   const catalog = snapshotExtras(answerJson, optionsSnapshot)
@@ -76,23 +93,31 @@ export async function syncWeddingExtrasFromQuestionnaireAnswer(
     }
   }
 
-  const existing = await weddingExtraServiceService.listByWeddingId(weddingId)
+  const extrasBefore =
+    await weddingExtraServiceService.listByWeddingId(weddingId)
   const { toInsert, toSkip } = planWeddingExtraSync(
     selectedIds,
-    existing.map((e) => e.extraServiceId),
+    extrasBefore.map((e) => e.extraServiceId),
   )
 
-  for (const id of toInsert) {
-    const snap = byId.get(id)
-    await weddingExtraServiceService.add({
-      weddingId,
-      extraServiceId: id,
-      quantity: 1,
-      priceSnapshot: typeof snap?.price === 'number' ? snap.price : 0,
-    })
-  }
+  const insertedRows = await Promise.all(
+    toInsert.map((id) => {
+      const snap = byId.get(id)
+      return weddingExtraServiceService.add({
+        weddingId,
+        extraServiceId: id,
+        quantity: 1,
+        priceSnapshot: typeof snap?.price === 'number' ? snap.price : 0,
+      })
+    }),
+  )
 
-  return { inserted: toInsert, skipped: toSkip }
+  return {
+    inserted: toInsert,
+    skipped: toSkip,
+    extrasBefore,
+    extrasAfter: [...extrasBefore, ...insertedRows],
+  }
 }
 
 export {

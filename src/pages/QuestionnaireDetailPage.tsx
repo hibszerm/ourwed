@@ -101,8 +101,14 @@ export function QuestionnaireDetailPage() {
     setApproving(true)
     try {
       const { wedding } = await questionnaireService.approve(instance.id)
-      await queryClient.invalidateQueries({ queryKey: ['questionnaires'] })
-      await queryClient.invalidateQueries({ queryKey: ['weddings'] })
+      void Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['pending-questionnaires'] }),
+        queryClient.invalidateQueries({ queryKey: ['questionnaires'] }),
+        queryClient.invalidateQueries({ queryKey: ['weddings'] }),
+        queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
+      ]).catch(() => {
+        /* non-blocking */
+      })
       navigate(`/sluby/${wedding.id}`)
     } catch (err) {
       if (isProAccessRequiredError(err)) {

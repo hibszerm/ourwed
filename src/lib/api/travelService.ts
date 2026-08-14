@@ -1,5 +1,6 @@
 import { studioTravelSettingsService } from '@/lib/api/studioTravelSettingsService'
 import { weddingPlaceService } from '@/lib/api/weddingPlaceService'
+import { withDevPerf } from '@/lib/performance/devPerf'
 import { weddingPlaceRouteLabel } from '@/features/travel/weddingLocationModel'
 import {
   buildAdjacentRoutePairs,
@@ -653,17 +654,19 @@ export const travelService = {
       orderedPlaceIds?: string[]
     },
   ): Promise<TravelPlan> {
-    logOperationalOrder({
-      source: 'travelService.recalculate',
-      weddingId,
-      places: options?.places,
-      note: `forceRefresh=${options?.forceRefresh ?? false}`,
-      extra: { orderedPlaceIds: options?.orderedPlaceIds },
-    })
-    return this.getPlan(weddingId, {
-      forceRefresh: options?.forceRefresh ?? false,
-      places: options?.places,
-      orderedPlaceIds: options?.orderedPlaceIds,
+    return withDevPerf('travelService.recalculate', async () => {
+      logOperationalOrder({
+        source: 'travelService.recalculate',
+        weddingId,
+        places: options?.places,
+        note: `forceRefresh=${options?.forceRefresh ?? false}`,
+        extra: { orderedPlaceIds: options?.orderedPlaceIds },
+      })
+      return this.getPlan(weddingId, {
+        forceRefresh: options?.forceRefresh ?? false,
+        places: options?.places,
+        orderedPlaceIds: options?.orderedPlaceIds,
+      })
     })
   },
 

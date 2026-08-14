@@ -8,6 +8,7 @@ import type { WeddingPlace } from '@/types/travel'
 export type OperationalOrderSource =
   | 'weddingPlaceService.reorder'
   | 'weddingPlaceService.upsert'
+  | 'weddingPlaceService.insertInitialWeddingPlaces'
   | 'weddingPlaceService.listByWeddingId'
   | 'weddingPlaceService.syncCoreFromText'
   | 'travelService.getPlan'

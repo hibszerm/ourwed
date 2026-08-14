@@ -1,28 +1,25 @@
 import { Link } from 'react-router-dom'
 import { useState } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/Button'
 import { Card, CardHeader } from '@/components/ui/Card'
-import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
 import { useProAccessGate } from '@/features/billing/ProAccessGate'
 import {
   isProAccessRequiredError,
   toProAccessUserMessage,
 } from '@/features/billing/proAccessError'
+import {
+  useInvalidateAfterQuestionnaireMutation,
+  usePendingQuestionnaires,
+} from '@/features/questionnaires/hooks/usePendingQuestionnaires'
 import { questionnaireService } from '@/lib/api/questionnaireService'
 import { formatShortDate } from '@/lib/utils/dates'
 import styles from './PendingWeddingsCard.module.css'
 
 export function PendingWeddingsCard() {
-  const queryClient = useQueryClient()
-  const userId = useStudioAuthId()
   const { requirePro, openUpgradeDialog } = useProAccessGate()
   const [busyId, setBusyId] = useState<string | null>(null)
-  const { data: pending = [], isLoading } = useQuery({
-    queryKey: ['pending-questionnaires', userId],
-    queryFn: () => questionnaireService.listPending(),
-    enabled: Boolean(userId),
-  })
+  const { data: pending = [], isLoading } = usePendingQuestionnaires()
+  const { afterApprove, afterReject } = useInvalidateAfterQuestionnaireMutation()
 
   async function handleAccept(id: string) {
     if (
@@ -34,10 +31,7 @@ export function PendingWeddingsCard() {
     setBusyId(id)
     try {
       await questionnaireService.approve(id)
-      await queryClient.invalidateQueries({ queryKey: ['pending-questionnaires'] })
-      await queryClient.invalidateQueries({ queryKey: ['questionnaires'] })
-      await queryClient.invalidateQueries({ queryKey: ['weddings'] })
-      await queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      afterApprove()
     } catch (err) {
       if (isProAccessRequiredError(err)) {
         openUpgradeDialog('pro_required_action', 'apply_questionnaire_responses')
@@ -62,9 +56,7 @@ export function PendingWeddingsCard() {
     setBusyId(id)
     try {
       await questionnaireService.reject(id)
-      await queryClient.invalidateQueries({ queryKey: ['pending-questionnaires'] })
-      await queryClient.invalidateQueries({ queryKey: ['questionnaires'] })
-      await queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      afterReject()
     } catch (err) {
       if (isProAccessRequiredError(err)) {
         openUpgradeDialog('pro_required_action', 'apply_questionnaire_responses')

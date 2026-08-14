@@ -23,8 +23,8 @@ import { useCurrentStudioUser } from '@/features/auth/useCurrentStudioUser'
 export function DashboardPage() {
   const {
     data,
-    isLoading,
-    isError,
+    isLoading: dashboardLoading,
+    isError: dashboardError,
     error,
     refetch,
   } = useDashboard()
@@ -55,7 +55,8 @@ export function DashboardPage() {
     [assignments],
   )
 
-  if (isLoading || weddingsLoading || sessionsLoading) {
+  // Primary content needs weddings + sessions; dashboard cards are secondary.
+  if (weddingsLoading || sessionsLoading) {
     return (
       <AppLayout>
         <PageContainer>
@@ -67,7 +68,7 @@ export function DashboardPage() {
     )
   }
 
-  if (isError || weddingsError || sessionsError || !data) {
+  if (weddingsError || sessionsError) {
     return (
       <AppLayout>
         <PageContainer>
@@ -106,13 +107,29 @@ export function DashboardPage() {
           <div className={styles.grid}>
             <div className={styles.primary}>
               <PendingWeddingsCard />
-              <TodoTodayCard tasks={data.todayTasks} weddings={weddings ?? []} />
+              <TodoTodayCard
+                tasks={data?.todayTasks ?? []}
+                weddings={weddings ?? []}
+              />
             </div>
             <div className={styles.secondary}>
-              <NotificationsCard
-                notifications={data.notifications}
-                onMarkedRead={() => void refetch()}
-              />
+              {dashboardError ? (
+                <EmptyState
+                  title="Nie udało się załadować powiadomień"
+                  description={
+                    error instanceof Error
+                      ? error.message
+                      : 'Odśwież lub spróbuj ponownie.'
+                  }
+                />
+              ) : dashboardLoading && !data ? (
+                <div className={styles.loadingPulse} />
+              ) : (
+                <NotificationsCard
+                  notifications={data?.notifications ?? []}
+                  onMarkedRead={() => void refetch()}
+                />
+              )}
             </div>
           </div>
         </div>
