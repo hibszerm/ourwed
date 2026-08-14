@@ -811,6 +811,11 @@ run('M. Desktop/mobile: no viewport-based feature removal; route + entry wired',
   assert(router.includes('WeddingDayCockpitPage'), 'page import')
   assert(header.includes('/dzien-slubu'), 'header entry')
   assert(header.includes('Otwórz tryb dnia ślubu'), 'header copy')
+  const headerActions = readFileSync(
+    resolve(process.cwd(), 'src/features/weddings/detail/v2/WeddingHeaderActions.tsx'),
+    'utf8',
+  )
+  assert(headerActions.includes('Tryb dnia ślubu'), 'menu day mode')
   assert(dayWs.includes('/dzien-slubu'), 'workspace entry')
   assert(viewSrc.includes('cockpit-plan-list'), 'plan always rendered')
   assert(viewSrc.includes('cockpit-settlement') || viewSrc.includes('Rozliczenie'), 'settlement')

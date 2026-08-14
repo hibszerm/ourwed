@@ -188,10 +188,14 @@
   gap: 2px;
 }
 
-.headerMenu button {
-  display: block;
+.headerMenu button,
+.headerMenuLink {
+  display: flex;
+  align-items: center;
   width: 100%;
+  box-sizing: border-box;
   text-align: left;
+  min-height: 40px;
   padding: var(--space-2) var(--space-3);
   border: none;
   border-radius: var(--radius-md);
@@ -199,11 +203,14 @@
   color: var(--color-text-primary);
   font: inherit;
   font-size: var(--text-sm);
+  text-decoration: none;
   cursor: pointer;
 }
 
 .headerMenu button:hover,
-.headerMenu button:focus-visible {
+.headerMenu button:focus-visible,
+.headerMenuLink:hover,
+.headerMenuLink:focus-visible {
   background: var(--color-bg-subtle);
   outline: none;
 }
@@ -492,8 +499,11 @@ a.contactChannelValue:hover {
 
 .tabsBar {
   display: flex;
+  flex-wrap: nowrap;
   gap: var(--space-1);
+  /* overflow-x alone makes overflow-y compute to auto → unwanted Y scrollport */
   overflow-x: auto;
+  overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
   border-bottom: 1px solid var(--color-border);
   padding-bottom: 0;
@@ -1708,8 +1718,38 @@ a.contactChannelValue:hover {
 }
 
 @media (max-width: 767px) {
+  .commandHeader {
+    padding: var(--space-1) 0 var(--space-3);
+  }
+
   .commandMain {
     flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  .headerActionsCluster {
+    align-self: flex-end;
+    gap: var(--space-2);
+  }
+
+  /* Mobile: Day Mode lives in ••• — drop the large hero CTA */
+  .cockpitEntry {
+    display: none;
+  }
+
+  .headerMenuBtn {
+    width: 44px;
+    height: 44px;
+  }
+
+  .headerMenu {
+    min-width: min(18rem, calc(100vw - 1.5rem));
+    max-width: calc(100vw - 1.5rem);
+  }
+
+  .headerMenu button,
+  .headerMenuLink {
+    min-height: 44px;
   }
 
   .commandActions {

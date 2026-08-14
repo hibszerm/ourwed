@@ -22,24 +22,21 @@ import {
   getOverviewBand,
   parseWorkspaceTab,
 } from '@/features/weddings/detail/v2/weddingWorkspaceSelectors'
-import { WEDDING_DETAIL_V2_TAB_KEY } from '@/features/weddings/detail/v2/weddingDetailV2Types'
 import type { Wedding } from '@/types/wedding'
 import styles from './WeddingDetailV2.module.css'
 
-function readStoredTab(): WeddingWorkspaceTab {
-  try {
-    return parseWorkspaceTab(localStorage.getItem(WEDDING_DETAIL_V2_TAB_KEY))
-  } catch {
-    return 'overview'
+/**
+ * Initial tab for `/sluby/:id`.
+ * - Explicit `?tab=` deep links are honored.
+ * - Otherwise always Przegląd — never restore from localStorage or another wedding.
+ */
+function initialWorkspaceTab(
+  tabParam: string | null,
+): WeddingWorkspaceTab {
+  if (tabParam != null && tabParam !== '') {
+    return parseWorkspaceTab(tabParam)
   }
-}
-
-function writeTab(tab: WeddingWorkspaceTab) {
-  try {
-    localStorage.setItem(WEDDING_DETAIL_V2_TAB_KEY, tab)
-  } catch {
-    // ignore
-  }
+  return 'overview'
 }
 
 /** Premium Wedding Workspace — tabbed operational surface (not a card grid). */
@@ -67,16 +64,13 @@ export function WeddingDetailV2(props: WeddingDetailSharedProps) {
   const userId = useStudioAuthId()
   const queryClient = useQueryClient()
   const [searchParams] = useSearchParams()
-  const [tab, setTabState] = useState<WeddingWorkspaceTab>(() => {
-    const fromUrl = parseWorkspaceTab(searchParams.get('tab'))
-    if (searchParams.get('tab')) return fromUrl
-    return readStoredTab()
-  })
+  const [tab, setTabState] = useState<WeddingWorkspaceTab>(() =>
+    initialWorkspaceTab(searchParams.get('tab')),
+  )
   const [packageFocus, setPackageFocus] = useState(false)
 
   const setTab = useCallback((next: WeddingWorkspaceTab) => {
     setTabState(next)
-    writeTab(next)
     if (next !== 'contract_finance') setPackageFocus(false)
   }, [])
 

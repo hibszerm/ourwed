@@ -26,7 +26,7 @@
   background: var(--color-surface);
   color: var(--color-text-primary);
   font: inherit;
-  font-size: var(--text-sm);
+  font-size: var(--text-form-control, var(--text-sm));
 }
 
 .input:focus {
@@ -37,6 +37,27 @@
 .input:disabled {
   opacity: 0.7;
   cursor: default;
+}
+
+.mobileTrigger {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 44px;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.placeholder {
+  color: var(--color-text-tertiary);
 }
 
 .spinner {
@@ -91,6 +112,33 @@
   overflow: auto;
 }
 
+.listDialog {
+  margin: 0;
+  padding: 0.25rem 0;
+  list-style: none;
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.dialogSearch {
+  position: relative;
+}
+
+.dialogSearchStatus {
+  position: absolute;
+  right: var(--space-3);
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: var(--type-helper-size, 0.75rem);
+  color: var(--color-text-tertiary);
+  pointer-events: none;
+}
+
 .option,
 .optionActive {
   width: 100%;
@@ -102,6 +150,13 @@
   background: transparent;
   font: inherit;
   cursor: pointer;
+}
+
+.listDialog .option,
+.listDialog .optionActive {
+  min-height: 48px;
+  padding: var(--space-3) 1rem;
+  border-radius: 0;
 }
 
 .option:hover,
@@ -121,6 +176,12 @@
   color: var(--color-text-tertiary);
 }
 
+.emptyRow {
+  padding: var(--space-3) 1rem;
+  font-size: var(--text-sm);
+  color: var(--color-text-tertiary);
+}
+
 .attribution {
   padding: 0.35rem 0.75rem 0.5rem;
   text-align: right;
@@ -130,6 +191,70 @@
   font-family: Roboto, Arial, sans-serif;
   border-top: 1px solid color-mix(in srgb, var(--color-border, #e4e4e7) 80%, transparent);
   margin-top: 0.15rem;
+}
+
+.pendingSelection {
+  padding: 1rem;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.pendingLabel {
+  margin: 0;
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-tertiary);
+}
+
+.pendingPrimary {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.pendingSecondary {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
+
+.pendingMeta {
+  margin: 0.35rem 0 0;
+  font-size: var(--text-2xs);
+  color: var(--color-text-tertiary);
+}
+
+.confirmBtn {
+  flex: 1;
+  min-height: 44px;
+  border: none;
+  border-radius: var(--radius-md, 10px);
+  background: var(--color-accent, #18181b);
+  color: #fff;
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.confirmBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .meta {
@@ -147,5 +272,12 @@
 @keyframes spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 767px) {
+  .input {
+    /* iOS Safari auto-zooms focused inputs below ~16px */
+    font-size: var(--text-form-control-mobile, 1rem);
   }
 }

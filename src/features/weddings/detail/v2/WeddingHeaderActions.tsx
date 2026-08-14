@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { MoreHorizontal } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -105,6 +106,15 @@ export function WeddingHeaderActions({
         </button>
         {menuOpen ? (
           <div id={menuId} className={styles.headerMenu} role="menu">
+            <Link
+              role="menuitem"
+              to={`/sluby/${wedding.id}/dzien-slubu`}
+              className={styles.headerMenuLink}
+              data-testid="wedding-menu-day-cockpit"
+              onClick={() => setMenuOpen(false)}
+            >
+              Tryb dnia ślubu
+            </Link>
             <button
               type="button"
               role="menuitem"

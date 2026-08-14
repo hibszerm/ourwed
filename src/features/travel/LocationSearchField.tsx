@@ -5,6 +5,9 @@ import {
   useState,
   type KeyboardEvent,
 } from 'react'
+import { MobileFieldDialog } from '@/components/ui/MobileFieldDialog'
+import { useIsMobileOverlay } from '@/components/ui/useIsMobileOverlay'
+import { blurActiveElement, settleAfterBlur } from '@/components/ui/iosFocus'
 import {
   type AddressSuggestion,
   type NormalizedAddress,
@@ -41,7 +44,7 @@ export interface LocationSearchFieldProps {
   preserveName?: string | null
   /** When true, do not adopt a newly detected venue name from Places. */
   nameManuallyEdited?: boolean
-  /** Fired while typing (local text). */
+  /** Fired while typing (local text). Desktop only — mobile draft stays in-dialog until confirm. */
   onChangeText?: (text: string) => void
   /**
    * Fired when user selects a suggestion or clears the field.
@@ -51,6 +54,7 @@ export interface LocationSearchFieldProps {
   /**
    * When true, blurring the field with typed text (no suggestion pick) commits an
    * unresolved address GeoPlace so manual entry is saved.
+   * On mobile, typed text is committed only via „Zapisz adres”.
    */
   commitTypedOnBlur?: boolean
 }
@@ -66,8 +70,24 @@ function idleDisplayText(
   return value || place?.formattedAddress || ''
 }
 
+function unresolvedFromText(
+  typed: string,
+  preserveName: string | null | undefined,
+  place: GeoPlace | null,
+): GeoPlace {
+  return {
+    placeId: null,
+    formattedAddress: typed,
+    latitude: null,
+    longitude: null,
+    label: preserveName?.trim() || place?.label || null,
+    provider: null,
+  }
+}
+
 /**
- * Place search for travel / wedding details — Google Places via shared provider.
+ * Place search for travel / wedding details / questionnaires — Google Places via shared provider.
+ * Desktop: inline autocomplete. Mobile: full-screen picker with confirm („Zapisz adres”).
  */
 export function LocationSearchField({
   label,
@@ -84,8 +104,12 @@ export function LocationSearchField({
 }: LocationSearchFieldProps) {
   const listId = useId()
   const inputId = useId()
+  const searchLabelId = useId()
+  const isMobile = useIsMobileOverlay()
   const rootRef = useRef<HTMLDivElement | null>(null)
   const inputRef = useRef<HTMLInputElement | null>(null)
+  const triggerRef = useRef<HTMLButtonElement | null>(null)
+  const searchRef = useRef<HTMLInputElement | null>(null)
   const debounceRef = useRef<number | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const [provider] = useState(() => createDefaultAddressAutocompleteProvider())
@@ -94,14 +118,17 @@ export function LocationSearchField({
   const [focused, setFocused] = useState(false)
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([])
   const [open, setOpen] = useState(false)
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [dialogQuery, setDialogQuery] = useState('')
+  const [pendingPlace, setPendingPlace] = useState<GeoPlace | null>(null)
   const [activeIndex, setActiveIndex] = useState(-1)
   const [searching, setSearching] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (!focused) setText(idleDisplayText(value, place, compactDisplay))
-  }, [value, place, compactDisplay, focused])
+  // Keep local draft in sync with external value only when not editing.
+  const idleText = idleDisplayText(value, place, compactDisplay)
+  const inputValue = focused ? text : idleText
 
   useEffect(() => {
     return () => {
@@ -111,11 +138,11 @@ export function LocationSearchField({
     }
   }, [provider])
 
-  function scheduleSuggest(input: string) {
+  function scheduleSuggest(input: string, { openList }: { openList: boolean }) {
     if (debounceRef.current) window.clearTimeout(debounceRef.current)
     if (input.trim().length < GOOGLE_PLACES_MIN_QUERY_LENGTH) {
       setSuggestions([])
-      setOpen(false)
+      if (openList) setOpen(false)
       setSearching(false)
       setActiveIndex(-1)
       return
@@ -139,13 +166,15 @@ export function LocationSearchField({
           })
           if (controller.signal.aborted) return
           setSuggestions(next)
-          setOpen(next.length > 0)
+          if (openList) {
+            setOpen(next.length > 0)
+          }
           setActiveIndex(next.length > 0 ? 0 : -1)
           setError(null)
         } catch {
           if (controller.signal.aborted) return
           setSuggestions([])
-          setOpen(false)
+          if (openList) setOpen(false)
           setActiveIndex(-1)
           setError(GOOGLE_USER_ERROR_PL)
         } finally {
@@ -177,24 +206,23 @@ export function LocationSearchField({
     }
   }
 
-  async function selectSuggestion(suggestion: AddressSuggestion) {
+  async function resolveSuggestion(
+    suggestion: AddressSuggestion,
+  ): Promise<GeoPlace> {
     try {
       const resolved: NormalizedAddress = await provider.resolve(suggestion.id, {
         sessionToken: provider.getSessionToken?.() ?? undefined,
         language: 'pl',
       })
-      const geo = mapSuggestionAndResolvedToGeoPlace(suggestion, resolved, {
+      return mapSuggestionAndResolvedToGeoPlace(suggestion, resolved, {
         preserveName: preserveName ?? place?.label,
         nameManuallyEdited,
       })
-      // Address field shows the navigable address; venue name lives on geo.label.
-      await commitPlace(geo, geo.formattedAddress)
     } catch {
-      // Resolve failed — still try to keep suggestion primary text as a name hint
-      // with the secondary line as address when present.
       const fallbackAddress =
         suggestion.secondaryLabel?.trim() || suggestion.label.trim()
-      const geo = mapPlaceSelectionToGeoPlace({
+      setError(GOOGLE_USER_ERROR_PL)
+      return mapPlaceSelectionToGeoPlace({
         resolved: {
           formattedAddress: fallbackAddress,
           provider: 'google',
@@ -203,8 +231,24 @@ export function LocationSearchField({
         preserveName: preserveName ?? place?.label,
         nameManuallyEdited,
       })
-      await commitPlace(geo, geo.formattedAddress)
-      setError(GOOGLE_USER_ERROR_PL)
+    }
+  }
+
+  async function selectSuggestionDesktop(suggestion: AddressSuggestion) {
+    const geo = await resolveSuggestion(suggestion)
+    await commitPlace(geo, geo.formattedAddress)
+  }
+
+  async function selectSuggestionMobile(suggestion: AddressSuggestion) {
+    setSearching(true)
+    try {
+      const geo = await resolveSuggestion(suggestion)
+      setPendingPlace(geo)
+      setDialogQuery(geo.formattedAddress)
+      setSuggestions([])
+      setActiveIndex(-1)
+    } finally {
+      setSearching(false)
     }
   }
 
@@ -220,14 +264,92 @@ export function LocationSearchField({
     inputRef.current?.focus()
   }
 
+  function openMobileDialog() {
+    if (disabled || saving) return
+    const current =
+      place?.formattedAddress?.trim() ||
+      text.trim() ||
+      idleDisplayText(value, place, compactDisplay)
+    setDialogQuery(current)
+    setPendingPlace(null)
+    setSuggestions([])
+    setActiveIndex(-1)
+    setError(null)
+    if (!provider.getSessionToken?.()) provider.beginSession?.()
+    setDialogOpen(true)
+    if (current.trim().length >= GOOGLE_PLACES_MIN_QUERY_LENGTH) {
+      scheduleSuggest(current, { openList: false })
+    }
+  }
+
+  async function blurPickerBeforeClose(): Promise<void> {
+    // Prefer explicit search blur so body unlock does not run while focused.
+    searchRef.current?.blur()
+    blurActiveElement()
+    await settleAfterBlur()
+  }
+
+  async function closeMobileDialog() {
+    // Cancel: discard draft / pending — do not touch parent field value.
+    await blurPickerBeforeClose()
+    setDialogOpen(false)
+    setPendingPlace(null)
+    setSuggestions([])
+    setActiveIndex(-1)
+    setSearching(false)
+    abortRef.current?.abort()
+    provider.endSession?.()
+    setDialogQuery('')
+    setError(null)
+  }
+
+  async function confirmMobileAddress() {
+    if (saving) return
+    const toCommit = pendingPlace
+    const typed = dialogQuery.trim()
+    const current = place?.formattedAddress?.trim() || ''
+
+    await blurPickerBeforeClose()
+
+    if (toCommit) {
+      await commitPlace(toCommit, toCommit.formattedAddress)
+      setDialogOpen(false)
+      setPendingPlace(null)
+      setSuggestions([])
+      return
+    }
+    if (!typed) {
+      setDialogOpen(false)
+      setPendingPlace(null)
+      return
+    }
+    if (typed === current && place) {
+      setDialogOpen(false)
+      setPendingPlace(null)
+      return
+    }
+    await commitPlace(
+      unresolvedFromText(typed, preserveName, place),
+      typed,
+    )
+    setDialogOpen(false)
+    setPendingPlace(null)
+    setSuggestions([])
+  }
+
   function onKeyDown(e: KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'Escape') {
       e.preventDefault()
+      if (dialogOpen) {
+        void closeMobileDialog()
+        return
+      }
       setOpen(false)
       setActiveIndex(-1)
       return
     }
-    if (!open || suggestions.length === 0) return
+    if (suggestions.length === 0) return
+    if (!open && !dialogOpen) return
 
     if (e.key === 'ArrowDown') {
       e.preventDefault()
@@ -241,132 +363,256 @@ export function LocationSearchField({
     }
     if (e.key === 'Enter' && activeIndex >= 0 && suggestions[activeIndex]) {
       e.preventDefault()
-      void selectSuggestion(suggestions[activeIndex])
+      if (dialogOpen) {
+        void selectSuggestionMobile(suggestions[activeIndex])
+      } else {
+        void selectSuggestionDesktop(suggestions[activeIndex])
+      }
     }
   }
 
-  const showClear = text.trim().length > 0 && !disabled && !saving
-  const showAttribution = suggestions.length > 0 || searching
+  const displayText = idleText || text
+  const showClear = inputValue.trim().length > 0 && !disabled && !saving && !isMobile
+  const showDesktopList = !isMobile && open && suggestions.length > 0
+  const canConfirmMobile =
+    Boolean(pendingPlace) || dialogQuery.trim().length > 0
 
-  return (
-    <div className={styles.root} ref={rootRef}>
-      <label className={styles.label} htmlFor={inputId}>
-        {label}
-      </label>
-      <div className={styles.control}>
-        <input
-          ref={inputRef}
-          id={inputId}
-          className={styles.input}
-          value={text}
-          disabled={disabled || saving}
-          placeholder={placeholder}
-          autoComplete="off"
-          role="combobox"
-          aria-expanded={open}
-          aria-controls={listId}
-          aria-autocomplete="list"
-          aria-activedescendant={
-            activeIndex >= 0 ? `${listId}-opt-${activeIndex}` : undefined
-          }
-          onChange={(e) => {
-            const next = e.target.value
-            setText(next)
-            onChangeText?.(next)
-            setError(null)
-            if (!provider.getSessionToken?.()) provider.beginSession?.()
-            scheduleSuggest(next)
-          }}
-          onFocus={() => {
-            setFocused(true)
-            if (!provider.getSessionToken?.()) provider.beginSession?.()
-            if (suggestions.length > 0) setOpen(true)
-          }}
-          onBlur={() => {
-            setFocused(false)
-            window.setTimeout(() => {
-              if (!rootRef.current?.contains(document.activeElement)) {
-                setOpen(false)
-                setActiveIndex(-1)
-                if (commitTypedOnBlur) {
-                  const typed = text.trim()
-                  const current =
-                    place?.formattedAddress?.trim() || ''
-                  if (typed && typed !== current) {
-                    void commitPlace(
-                      {
-                        placeId: null,
-                        formattedAddress: typed,
-                        latitude: null,
-                        longitude: null,
-                        label:
-                          preserveName?.trim() ||
-                          place?.label ||
-                          null,
-                        provider: null,
-                      },
-                      typed,
-                    )
-                  } else if (!typed && current) {
-                    void commitPlace(null, '')
-                  }
-                }
-              }
-            }, 120)
-          }}
-          onKeyDown={onKeyDown}
-        />
-        {searching ? (
-          <span className={styles.spinner} aria-label="Searching" />
-        ) : null}
-        {showClear ? (
+  const suggestionList = (
+    <ul
+      id={listId}
+      className={dialogOpen ? styles.listDialog : styles.list}
+      role="listbox"
+      data-testid={
+        dialogOpen
+          ? 'location-mobile-suggestion-list'
+          : 'location-desktop-suggestion-list'
+      }
+      data-overlay-mode={dialogOpen ? 'dialog' : 'inline'}
+    >
+      {searching && suggestions.length === 0 ? (
+        <li className={styles.emptyRow} role="presentation">
+          Szukam adresów…
+        </li>
+      ) : null}
+      {!searching &&
+      dialogOpen &&
+      dialogQuery.trim().length >= GOOGLE_PLACES_MIN_QUERY_LENGTH &&
+      suggestions.length === 0 &&
+      !pendingPlace ? (
+        <li className={styles.emptyRow} role="presentation">
+          Brak podpowiedzi — możesz zapisać wpisany adres.
+        </li>
+      ) : null}
+      {suggestions.map((s, index) => (
+        <li key={s.id}>
           <button
             type="button"
-            className={styles.clear}
-            aria-label="Clear address"
+            id={`${listId}-opt-${index}`}
+            role="option"
+            aria-selected={index === activeIndex}
+            className={
+              index === activeIndex ? styles.optionActive : styles.option
+            }
             onMouseDown={(e) => e.preventDefault()}
-            onClick={() => void clearField()}
+            onMouseEnter={() => setActiveIndex(index)}
+            onClick={() =>
+              void (dialogOpen
+                ? selectSuggestionMobile(s)
+                : selectSuggestionDesktop(s))
+            }
           >
-            ×
+            <span className={styles.primary}>{s.label}</span>
+            {s.secondaryLabel ? (
+              <span className={styles.secondary}>{s.secondaryLabel}</span>
+            ) : null}
           </button>
-        ) : null}
-      </div>
+        </li>
+      ))}
+      {(suggestions.length > 0 || searching) && !pendingPlace ? (
+        <li className={styles.attribution} role="presentation">
+          <span aria-label="Powered by Google">Powered by Google</span>
+        </li>
+      ) : null}
+    </ul>
+  )
 
-      {error ? (
+  return (
+    <div className={styles.root} ref={rootRef} data-location-picker-mode={isMobile ? 'mobile' : 'desktop'}>
+      <label className={styles.label} htmlFor={isMobile ? undefined : inputId} id={searchLabelId}>
+        {label}
+      </label>
+
+      {isMobile ? (
+        <button
+          ref={triggerRef}
+          type="button"
+          className={styles.mobileTrigger}
+          disabled={disabled || saving}
+          aria-haspopup="dialog"
+          aria-expanded={dialogOpen}
+          aria-labelledby={searchLabelId}
+          data-testid="location-mobile-trigger"
+          onClick={openMobileDialog}
+        >
+          <span className={displayText ? undefined : styles.placeholder}>
+            {displayText || placeholder}
+          </span>
+        </button>
+      ) : (
+        <div className={styles.control}>
+          <input
+            ref={inputRef}
+            id={inputId}
+            className={styles.input}
+            value={inputValue}
+            disabled={disabled || saving}
+            placeholder={placeholder}
+            autoComplete="off"
+            role="combobox"
+            aria-expanded={open}
+            aria-controls={listId}
+            aria-autocomplete="list"
+            aria-activedescendant={
+              activeIndex >= 0 ? `${listId}-opt-${activeIndex}` : undefined
+            }
+            onChange={(e) => {
+              const next = e.target.value
+              setText(next)
+              onChangeText?.(next)
+              setError(null)
+              if (!provider.getSessionToken?.()) provider.beginSession?.()
+              scheduleSuggest(next, { openList: true })
+            }}
+            onFocus={() => {
+              setFocused(true)
+              setText(idleText)
+              if (!provider.getSessionToken?.()) provider.beginSession?.()
+              if (suggestions.length > 0) setOpen(true)
+            }}
+            onBlur={() => {
+              setFocused(false)
+              window.setTimeout(() => {
+                if (!rootRef.current?.contains(document.activeElement)) {
+                  setOpen(false)
+                  setActiveIndex(-1)
+                  if (commitTypedOnBlur) {
+                    const typed = text.trim()
+                    const current = place?.formattedAddress?.trim() || ''
+                    if (typed && typed !== current) {
+                      void commitPlace(
+                        unresolvedFromText(typed, preserveName, place),
+                        typed,
+                      )
+                    } else if (!typed && current) {
+                      void commitPlace(null, '')
+                    }
+                  }
+                }
+              }, 120)
+            }}
+            onKeyDown={onKeyDown}
+          />
+          {searching ? (
+            <span className={styles.spinner} aria-label="Searching" />
+          ) : null}
+          {showClear ? (
+            <button
+              type="button"
+              className={styles.clear}
+              aria-label="Clear address"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => void clearField()}
+            >
+              ×
+            </button>
+          ) : null}
+        </div>
+      )}
+
+      {error && !dialogOpen ? (
         <p className={styles.error} role="status">
           {error}
         </p>
       ) : null}
 
-      {open && suggestions.length > 0 ? (
-        <ul id={listId} className={styles.list} role="listbox">
-          {suggestions.map((s, index) => (
-            <li key={s.id}>
-              <button
-                type="button"
-                id={`${listId}-opt-${index}`}
-                role="option"
-                aria-selected={index === activeIndex}
-                className={
-                  index === activeIndex ? styles.optionActive : styles.option
-                }
-                onMouseDown={(e) => e.preventDefault()}
-                onMouseEnter={() => setActiveIndex(index)}
-                onClick={() => void selectSuggestion(s)}
-              >
-                <span className={styles.primary}>{s.label}</span>
-                {s.secondaryLabel ? (
-                  <span className={styles.secondary}>{s.secondaryLabel}</span>
-                ) : null}
-              </button>
-            </li>
-          ))}
-          {showAttribution ? (
-            <li className={styles.attribution} role="presentation">
-              <span aria-label="Powered by Google">Powered by Google</span>
-            </li>
-          ) : null}
-        </ul>
+      {showDesktopList ? suggestionList : null}
+
+      {isMobile ? (
+        <MobileFieldDialog
+          open={dialogOpen && !disabled}
+          title="Wybierz adres"
+          closeLabel="Anuluj"
+          onClose={() => void closeMobileDialog()}
+          initialFocusRef={searchRef}
+          restoreFocusRef={triggerRef}
+          testId="location-mobile-address-dialog"
+          headerExtra={
+            <div className={styles.dialogSearch}>
+              <label className={styles.srOnly} htmlFor={`${inputId}-mobile-search`}>
+                Szukaj adresu
+              </label>
+              <input
+                ref={searchRef}
+                id={`${inputId}-mobile-search`}
+                className={styles.input}
+                type="text"
+                inputMode="search"
+                enterKeyHint="search"
+                placeholder={placeholder}
+                value={dialogQuery}
+                aria-autocomplete="list"
+                aria-controls={listId}
+                autoComplete="off"
+                data-testid="location-mobile-search"
+                onChange={(e) => {
+                  const next = e.target.value
+                  setDialogQuery(next)
+                  setPendingPlace(null)
+                  setError(null)
+                  if (!provider.getSessionToken?.()) provider.beginSession?.()
+                  scheduleSuggest(next, { openList: false })
+                }}
+                onKeyDown={onKeyDown}
+              />
+              {searching ? (
+                <span className={styles.dialogSearchStatus}>Szukam…</span>
+              ) : null}
+            </div>
+          }
+          footer={
+            <button
+              type="button"
+              className={styles.confirmBtn}
+              disabled={!canConfirmMobile || saving}
+              data-testid="location-mobile-confirm"
+              onClick={() => void confirmMobileAddress()}
+            >
+              {saving ? 'Zapisywanie…' : 'Zapisz adres'}
+            </button>
+          }
+        >
+          {pendingPlace ? (
+            <div
+              className={styles.pendingSelection}
+              data-testid="location-mobile-pending"
+            >
+              <p className={styles.pendingLabel}>Wybrane miejsce</p>
+              {pendingPlace.label?.trim() ? (
+                <p className={styles.pendingPrimary}>{pendingPlace.label}</p>
+              ) : null}
+              <p className={styles.pendingSecondary}>
+                {pendingPlace.formattedAddress}
+              </p>
+              {pendingPlace.placeId ? (
+                <p className={styles.pendingMeta}>Potwierdzony adres Google</p>
+              ) : (
+                <p className={styles.pendingMeta}>Adres wpisany ręcznie</p>
+              )}
+            </div>
+          ) : (
+            suggestionList
+          )}
+        </MobileFieldDialog>
       ) : null}
     </div>
   )

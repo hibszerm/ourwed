@@ -406,7 +406,7 @@ export function WeddingDetailPage() {
       }
     >
       <PageContainer>
-        <WeddingDetailV2 {...sharedProps} />
+        <WeddingDetailV2 key={wedding.id} {...sharedProps} />
       </PageContainer>
 
       <DiscardChangesDialog

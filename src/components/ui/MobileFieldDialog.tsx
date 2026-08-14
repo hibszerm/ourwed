@@ -15,6 +15,7 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import { lockBodyScroll, unlockBodyScroll } from '@/components/ui/bodyScrollLock'
+import { focusWithoutScroll, settleAfterBlur } from '@/components/ui/iosFocus'
 import {
   readVisualViewportBounds,
   subscribeVisualViewport,
@@ -35,6 +36,8 @@ export interface MobileFieldDialogProps {
   initialFocusRef?: RefObject<HTMLElement | null>
   /** Element to restore focus to on close. */
   restoreFocusRef?: RefObject<HTMLElement | null>
+  /** Close / cancel control label. Default: Zamknij */
+  closeLabel?: string
   zIndex?: number
   /** data-testid for the dialog root. */
   testId?: string
@@ -49,6 +52,7 @@ export function MobileFieldDialog({
   headerExtra,
   initialFocusRef,
   restoreFocusRef,
+  closeLabel = 'Zamknij',
   zIndex = 1300,
   testId = 'mobile-field-dialog',
 }: MobileFieldDialogProps) {
@@ -61,7 +65,7 @@ export function MobileFieldDialog({
 
   useLayoutEffect(() => {
     if (!open) return
-    setBounds(readVisualViewportBounds())
+    // subscribeVisualViewport notifies immediately, then on resize/scroll.
     return subscribeVisualViewport(setBounds)
   }, [open])
 
@@ -75,7 +79,7 @@ export function MobileFieldDialog({
     if (!open) return
     const t = window.setTimeout(() => {
       const target = initialFocusRef?.current ?? dialogRef.current
-      target?.focus?.()
+      if (target) focusWithoutScroll(target)
     }, 30)
     return () => window.clearTimeout(t)
   }, [open, initialFocusRef])
@@ -101,8 +105,14 @@ export function MobileFieldDialog({
     wasOpenRef.current = false
     const el = restoreFocusRef?.current
     if (!el) return
-    const t = window.setTimeout(() => el.focus?.(), 0)
-    return () => window.clearTimeout(t)
+    let cancelled = false
+    void settleAfterBlur().then(() => {
+      if (cancelled) return
+      focusWithoutScroll(el)
+    })
+    return () => {
+      cancelled = true
+    }
   }, [open, restoreFocusRef])
 
   if (!open || typeof document === 'undefined') return null
@@ -140,7 +150,7 @@ export function MobileFieldDialog({
           className={styles.close}
           onClick={onClose}
         >
-          Zamknij
+          {closeLabel}
         </button>
       </header>
       {headerExtra ? <div className={styles.headerExtra}>{headerExtra}</div> : null}

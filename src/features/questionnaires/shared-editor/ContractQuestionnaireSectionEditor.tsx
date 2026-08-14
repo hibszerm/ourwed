@@ -3,7 +3,7 @@
  * Persists to studio_details.questionnaire_config via blocks adapter.
  */
 
-import { useEffect, useEffectEvent, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
@@ -59,13 +59,23 @@ function QuestionRow({
   readOnly?: boolean
 }) {
   const [expanded, setExpanded] = useState(Boolean(defaultExpanded))
+  const [sawDefaultExpanded, setSawDefaultExpanded] = useState(
+    Boolean(defaultExpanded),
+  )
   const labelRef = useRef<HTMLInputElement>(null)
 
+  // Adjust expand when focus moves onto this row (prop change during render).
+  if (defaultExpanded && !sawDefaultExpanded) {
+    setSawDefaultExpanded(true)
+    setExpanded(true)
+  } else if (!defaultExpanded && sawDefaultExpanded) {
+    setSawDefaultExpanded(false)
+  }
+
   useEffect(() => {
-    if (defaultExpanded) {
-      setExpanded(true)
-      requestAnimationFrame(() => labelRef.current?.focus())
-    }
+    if (!defaultExpanded) return
+    const id = requestAnimationFrame(() => labelRef.current?.focus())
+    return () => cancelAnimationFrame(id)
   }, [defaultExpanded])
 
   return (
@@ -521,11 +531,10 @@ export function ContractQuestionnaireSectionEditor({
   >([])
 
   const dirtyRef = useRef(false)
-  const lastSavedRef = useRef(JSON.stringify(config))
-  const configRef = useRef(config)
-  configRef.current = config
 
-  if (dataUpdatedAt !== hydratedAt && !dirtyRef.current) {
+  // Re-hydrate from query only when the source revision changes and the user
+  // has no unsaved edits (React “adjust state when props change” pattern).
+  if (dataUpdatedAt !== hydratedAt && !dirty) {
     const next = normalizeContractQuestionnaireConfig(initialConfig ?? null)
     setHydratedAt(dataUpdatedAt)
     setConfig(next)
@@ -534,7 +543,6 @@ export function ContractQuestionnaireSectionEditor({
       next.questionnaireTitle || 'Dane potrzebne do przygotowania umowy',
     )
     setIntroduction(next.greeting ?? '')
-    lastSavedRef.current = JSON.stringify(next)
     setDirty(false)
     setSaveStatus('idle')
   }
@@ -583,7 +591,7 @@ export function ContractQuestionnaireSectionEditor({
     }))
   }
 
-  const persist = useEffectEvent(async () => {
+  async function persist() {
     if (
       readOnly ||
       !requirePro(undefined, { actionKey: 'edit_questionnaire_template' })
@@ -608,7 +616,6 @@ export function ContractQuestionnaireSectionEditor({
       dirtyRef.current = false
       setDirty(false)
       setConfig(snapshot)
-      lastSavedRef.current = JSON.stringify(snapshot)
       setSaveStatus('saved')
     } catch (err) {
       setSaveStatus('error')
@@ -616,7 +623,7 @@ export function ContractQuestionnaireSectionEditor({
         err instanceof Error ? err.message : 'Nie udało się zapisać ankiety',
       )
     }
-  })
+  }
 
   const statusLabel =
     saveStatus === 'saving'
@@ -628,6 +635,30 @@ export function ContractQuestionnaireSectionEditor({
           : dirty
             ? 'Niezapisane zmiany'
             : 'Zapisano'
+
+  const saveUi =
+    saveStatus === 'saving'
+      ? {
+          state: 'saving' as const,
+          label: 'Zapisywanie…',
+          showPrimarySave: true,
+          disabled: true,
+        }
+      : dirty || saveStatus === 'error'
+        ? {
+            state: (saveStatus === 'error' && !dirty
+              ? 'error'
+              : 'dirty') as 'dirty' | 'error',
+            label: 'Zapisz',
+            showPrimarySave: true,
+            disabled: false,
+          }
+        : {
+            state: 'saved' as const,
+            label: 'Zapisano',
+            showPrimarySave: false,
+            disabled: true,
+          }
 
   const previewConfig: ContractQuestionnaireConfig = {
     ...config,
@@ -646,7 +677,7 @@ export function ContractQuestionnaireSectionEditor({
     >
       <div className={editorStyles.templateEditor}>
         <div className={editorStyles.editorHeader}>
-          <div>
+          <div className={editorStyles.editorHeaderIdentity}>
             <button
               type="button"
               className={editorStyles.backLink}
@@ -659,41 +690,62 @@ export function ContractQuestionnaireSectionEditor({
             <p className={editorStyles.editorType}>Do umowy</p>
           </div>
           <div className={editorStyles.editorHeaderActions}>
-            <span
-              className={editorStyles.muted}
-              data-testid="questionnaire-save-status"
-              data-status={dirty ? 'dirty' : saveStatus}
-            >
-              {statusLabel}
-            </span>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => navigate('/ankiety')}
-            >
-              Anuluj
-            </Button>
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => setPreviewOpen(true)}
-            >
-              Podgląd
-            </Button>
-            <Button
-              size="sm"
-              variant="primary"
-              disabled={saveStatus === 'saving' || !dirty}
-              onClick={() => {
-                requirePro(
-                  () => void persist(),
-                  { actionKey: 'edit_questionnaire_template' },
-                )
-              }}
-              data-testid="save-template-btn"
-            >
-              {saveStatus === 'saving' ? 'Zapisywanie…' : 'Zapisz'}
-            </Button>
+            <div className={editorStyles.editorSecondaryActions}>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => navigate('/ankiety')}
+              >
+                Anuluj
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => setPreviewOpen(true)}
+              >
+                Podgląd
+              </Button>
+            </div>
+            {saveUi.showPrimarySave ? (
+              <Button
+                size="sm"
+                variant="primary"
+                disabled={saveUi.disabled}
+                className={editorStyles.editorPrimarySave}
+                onClick={() => {
+                  requirePro(
+                    () => void persist(),
+                    { actionKey: 'edit_questionnaire_template' },
+                  )
+                }}
+                data-testid="save-template-btn"
+                data-save-state={saveUi.state}
+              >
+                {saveUi.label}
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled
+                className={`${editorStyles.savedAction} ${editorStyles.editorPrimarySave}`}
+                data-testid="questionnaire-save-status"
+                data-status={saveUi.state}
+                data-save-state={saveUi.state}
+                aria-live="polite"
+              >
+                {saveUi.label}
+              </Button>
+            )}
+            {saveUi.showPrimarySave && saveStatus === 'error' ? (
+              <span
+                className={editorStyles.muted}
+                data-testid="questionnaire-save-error-hint"
+                role="status"
+              >
+                {statusLabel}
+              </span>
+            ) : null}
           </div>
         </div>
 

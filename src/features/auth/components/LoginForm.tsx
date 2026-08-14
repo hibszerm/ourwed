@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
+import { blurActiveElement, settleAfterBlur } from '@/components/ui/iosFocus'
 import { useAuth } from '@/features/auth/AuthProvider'
 import {
   loginSchema,
@@ -45,6 +46,9 @@ export function LoginForm({ onSuccess, onForgotPassword }: LoginFormProps = {}) 
       setFormError(result.error)
       return
     }
+    // iOS: dismiss keyboard / auto-zoom before mounting the app shell.
+    blurActiveElement()
+    await settleAfterBlur()
     if (onSuccess) {
       onSuccess()
       return

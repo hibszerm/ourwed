@@ -107,6 +107,12 @@
   --text-xs: 0.75rem;
   --text-sm: 0.875rem;
   --text-base: 1rem;
+  /**
+   * Focusable form controls on desktop may use --text-sm (14px).
+   * On narrow/touch layouts use ≥16px to prevent iOS Safari input auto-zoom.
+   */
+  --text-form-control: var(--text-sm);
+  --text-form-control-mobile: 1rem;
   --text-lg: 1.125rem;
   --text-xl: 1.375rem;
   --text-2xl: 1.75rem;

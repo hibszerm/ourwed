@@ -15,7 +15,7 @@
 .control {
   width: 100%;
   font-family: inherit;
-  font-size: var(--text-sm);
+  font-size: var(--text-form-control, var(--text-sm));
   color: var(--color-text-primary);
   background: var(--color-surface);
   border: 1px solid var(--color-border-strong);
@@ -46,6 +46,11 @@
 }
 
 @media (max-width: 767px) {
+  .control {
+    /* iOS Safari auto-zooms focused inputs below ~16px */
+    font-size: var(--text-form-control-mobile, 1rem);
+  }
+
   .md,
   .sm {
     min-height: var(--touch-target);

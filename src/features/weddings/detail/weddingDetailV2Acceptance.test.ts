@@ -15,7 +15,6 @@ import {
   WORKSPACE_TABS,
 } from '@/features/weddings/detail/v2/weddingWorkspaceSelectors'
 import { buildWeddingProgressSummary } from '@/features/weddings/detail/v2/buildWeddingProgressSummary'
-import { WEDDING_DETAIL_V2_TAB_KEY } from '@/features/weddings/detail/v2/weddingDetailV2Types'
 import { getWeddingCommercialSummary } from '@/lib/utils/commercial'
 import { formatCurrency } from '@/lib/utils/currency'
 import type { WeddingPlace } from '@/types/travel'
@@ -154,13 +153,23 @@ run('2–4. Workspace header + tabs; default overview', () => {
   const shell = readFileSync(resolve(v2Root, 'WeddingDetailV2.tsx'), 'utf8')
   const header = readFileSync(resolve(v2Root, 'WeddingWorkspaceHeader.tsx'), 'utf8')
   const tabs = readFileSync(resolve(v2Root, 'WeddingWorkspaceTabs.tsx'), 'utf8')
+  const page = readFileSync(
+    resolve(process.cwd(), 'src/pages/WeddingDetailPage.tsx'),
+    'utf8',
+  )
   assert(header.includes('data-testid="wedding-workspace-header"'), 'header')
   assert(tabs.includes('data-testid="wedding-workspace-tabs"'), 'tabs')
   assert(shell.includes('WeddingWorkspaceTabs'), 'tabs wired')
   assertEq(parseWorkspaceTab(null), 'overview', 'default tab')
   assertEq(parseWorkspaceTab('nope'), 'overview', 'invalid tab')
   assertEq(WORKSPACE_TABS[0].id, 'overview', 'first tab')
-  assertEq(WEDDING_DETAIL_V2_TAB_KEY, 'ourwed:wedding-detail-v2-tab', 'tab key')
+  // No cross-wedding tab persistence
+  assert(!shell.includes('localStorage.getItem'), 'no tab localStorage read')
+  assert(!shell.includes('localStorage.setItem'), 'no tab localStorage write')
+  assert(!shell.includes('WEDDING_DETAIL_V2_TAB_KEY'), 'no global tab key usage')
+  assert(shell.includes("return 'overview'"), 'defaults to overview')
+  assert(shell.includes('searchParams.get(\'tab\')'), 'honors ?tab=')
+  assert(page.includes('key={wedding.id}'), 'remount per wedding id')
 })
 
 run('5. Tab switch does not refetch wedding', () => {
@@ -529,6 +538,9 @@ run('20. Admin actions live in header menu (not Overview footer)', () => {
   const header = readFileSync(resolve(v2Root, 'WeddingWorkspaceHeader.tsx'), 'utf8')
   assert(header.includes('WeddingHeaderActions'), 'header actions')
   const actions = readFileSync(resolve(v2Root, 'WeddingHeaderActions.tsx'), 'utf8')
+  assert(actions.includes('Tryb dnia ślubu'), 'day mode in menu')
+  assert(actions.includes('wedding-menu-day-cockpit'), 'day mode test id')
+  assert(actions.includes('/dzien-slubu'), 'day mode route')
   assert(actions.includes('Edytuj nazwę i datę'), 'identity edit')
   assert(actions.includes('Pobierz brief PDF'), 'brief')
   assert(actions.includes('Archiwizuj zlecenie'), 'archive')
@@ -537,6 +549,16 @@ run('20. Admin actions live in header menu (not Overview footer)', () => {
   const shell = readFileSync(resolve(v2Root, 'WeddingDetailV2.tsx'), 'utf8')
   assert(!shell.includes('WeddingManagementSection'), 'no management section')
   assert(!shell.includes('Zarządzanie zleceniem'), 'no management title')
+  const css = readFileSync(resolve(v2Root, 'WeddingDetailV2.module.css'), 'utf8')
+  assert(css.includes('.cockpitEntry'), 'desktop CTA class')
+  assert(
+    css.includes('max-width: 767px') &&
+      css.includes('.cockpitEntry') &&
+      css.includes('display: none'),
+    'mobile hides standalone Day Mode CTA',
+  )
+  assert(header.includes('Otwórz tryb dnia ślubu'), 'desktop CTA copy kept')
+  assert(header.includes('open-wedding-day-cockpit'), 'desktop CTA test id')
 })
 
 run('20b. Header has no contract/payment command buttons', () => {

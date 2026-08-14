@@ -16,6 +16,7 @@ import {
 import { MobileFieldDialog } from '@/components/ui/MobileFieldDialog'
 import { ResponsiveFieldOverlay } from '@/components/ui/ResponsiveFieldOverlay'
 import { useIsMobileOverlay } from '@/components/ui/useIsMobileOverlay'
+import { blurActiveElement, settleAfterBlur } from '@/components/ui/iosFocus'
 import {
   type AddressAutocompleteProvider,
   type AddressSuggestion,
@@ -82,6 +83,8 @@ export function AddressField({
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
+    // Keep controlled display in sync when the parent value changes.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- controlled field sync
     setQuery(toDisplay(value))
   }, [value])
 
@@ -101,7 +104,11 @@ export function AddressField({
       if (!target) return
       if (inputRef.current?.contains(target)) return
       if (portalRef.current?.contains(target)) return
-      closeDialog()
+      // Desktop dismiss — no keyboard settle required
+      setOpen(false)
+      setHighlight(-1)
+      sessionRef.current = null
+      provider.endSession?.()
     }
     document.addEventListener('mousedown', onDocPointer)
     document.addEventListener('touchstart', onDocPointer)
@@ -109,7 +116,7 @@ export function AddressField({
       document.removeEventListener('mousedown', onDocPointer)
       document.removeEventListener('touchstart', onDocPointer)
     }
-  }, [open, isMobile])
+  }, [open, isMobile, provider])
 
   function ensureSearchSession(): string {
     if (sessionRef.current) return sessionRef.current
@@ -211,19 +218,29 @@ export function AddressField({
     }
     endSearchSession()
     setSuggestions([])
-    setOpen(false)
     setHighlight(-1)
     setProviderHint(null)
+    if (isMobile) {
+      searchRef.current?.blur()
+      blurActiveElement()
+      await settleAfterBlur()
+    }
+    setOpen(false)
   }
 
-  function useTypedAddress() {
+  async function applyTypedAddress() {
     const text = (isMobile ? dialogQuery : query).trim()
     if (!text) return
     emitManual(text)
     setQuery(text)
     endSearchSession()
-    setOpen(false)
     setHighlight(-1)
+    if (isMobile) {
+      searchRef.current?.blur()
+      blurActiveElement()
+      await settleAfterBlur()
+    }
+    setOpen(false)
   }
 
   function openMobileDialog() {
@@ -242,7 +259,12 @@ export function AddressField({
     inputRef.current?.blur()
   }
 
-  function closeDialog() {
+  async function closeDialog() {
+    if (isMobile && open) {
+      searchRef.current?.blur()
+      blurActiveElement()
+      await settleAfterBlur()
+    }
     setOpen(false)
     setHighlight(-1)
     endSearchSession()
@@ -252,7 +274,7 @@ export function AddressField({
     if (e.key === 'Escape') {
       if (open) {
         e.preventDefault()
-        closeDialog()
+        void closeDialog()
       }
       return
     }
@@ -407,7 +429,7 @@ export function AddressField({
         <ResponsiveFieldOverlay
           open={showDesktopMenu}
           anchorRef={inputRef}
-          onClose={closeDialog}
+          onClose={() => void closeDialog()}
           maxMenuHeight={280}
         >
           {() => resultsList}
@@ -416,7 +438,7 @@ export function AddressField({
         <MobileFieldDialog
           open={open && !disabled}
           title="Wybierz adres"
-          onClose={closeDialog}
+          onClose={() => void closeDialog()}
           initialFocusRef={searchRef}
           restoreFocusRef={triggerRef}
           testId="mobile-address-dialog"
@@ -448,7 +470,7 @@ export function AddressField({
               className={styles.useTypedBtn}
               disabled={!dialogQuery.trim()}
               data-testid="mobile-address-use-typed"
-              onClick={useTypedAddress}
+              onClick={() => void applyTypedAddress()}
             >
               Użyj wpisanego adresu
             </button>
