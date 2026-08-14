@@ -137,11 +137,20 @@ export function SessionDetailPage() {
     setDeletingPaymentId(payment.id)
     try {
       await sessionPaymentService.delete(payment.id)
-      await invalidateSessionFinanceQueries(queryClient, sessionId)
-      showToast('Wpłata została usunięta', 'success')
+      showToast(
+        payment.type === 'deposit'
+          ? 'Zaliczka została usunięta.'
+          : 'Wpłata została usunięta.',
+        'success',
+      )
+      try {
+        await invalidateSessionFinanceQueries(queryClient, sessionId)
+      } catch {
+        // Delete already succeeded.
+      }
     } catch (err) {
       showToast(
-        err instanceof Error ? err.message : 'Nie udało się usunąć wpłaty',
+        err instanceof Error ? err.message : 'Nie udało się usunąć wpłaty.',
         'error',
       )
     } finally {

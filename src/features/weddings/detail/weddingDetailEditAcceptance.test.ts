@@ -186,7 +186,7 @@ run('9. Missing-data corrections open focused editor', () => {
   assert(src.includes("openEditor('package')"), 'package')
 })
 
-run('10. Drawer shell has sticky footer actions', () => {
+run('10. Drawer shell has stable footer outside scroll body', () => {
   const src = readFileSync(drawer, 'utf8')
   assert(src.includes('Anuluj'), 'cancel')
   assert(src.includes('Zapisz zmiany'), 'save')
@@ -198,8 +198,10 @@ run('10. Drawer shell has sticky footer actions', () => {
     ),
     'utf8',
   )
-  assert(css.includes('position: sticky') || css.includes('sticky'), 'sticky footer')
-  assert(css.includes('100vw') || css.includes('max-width: 767px'), 'mobile full')
+  assert(css.includes('flex-shrink: 0'), 'footer outside scroll body')
+  assert(!css.includes('position: sticky'), 'no sticky-in-scroll footer')
+  assert(css.includes('overflow-x: clip'), 'no horizontal pan')
+  assert(css.includes('max-width: 767px'), 'mobile full')
 })
 
 run('11. Shared location save refreshes travel', () => {

@@ -187,7 +187,11 @@ function AddPaymentForm({
   }
 
   return (
-    <form id="add-payment-form" className={formStyles.form} onSubmit={handleSubmit}>
+    <form
+      id="add-payment-form"
+      className={`${formStyles.form} ${formStyles.paymentSheet}`}
+      onSubmit={handleSubmit}
+    >
       <Input
         id="payment-amount"
         label="Kwota (PLN)"

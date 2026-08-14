@@ -433,6 +433,8 @@ export function normalizeLocationAnswer(value: unknown): {
   const row = value as Record<string, unknown>
   const formatted =
     (typeof row.formattedAddress === 'string' && row.formattedAddress.trim()) ||
+    (typeof row.address === 'string' && row.address.trim()) ||
+    (typeof row.addressLine === 'string' && row.addressLine.trim()) ||
     [
       row.street,
       row.buildingNumber,

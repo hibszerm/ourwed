@@ -80,24 +80,36 @@ export function WeddingContractFinanceWorkspace({
 
   async function confirmDeletePayment() {
     if (!pendingDelete) return
+    const payment = pendingDelete
     setDeleting(true)
     try {
-      await paymentService.delete(pendingDelete.id)
-      await invalidate(wedding.id)
-      showToast(
-        pendingDelete.type === 'deposit'
-          ? 'Zadatek został usunięty'
-          : 'Wpłata została usunięta',
-        'success',
-      )
-      setPendingDelete(null)
+      await paymentService.delete(payment.id)
     } catch (err) {
       showToast(
-        err instanceof Error ? err.message : 'Nie udało się usunąć wpłaty',
+        err instanceof Error
+          ? err.message
+          : 'Nie udało się usunąć wpłaty.',
         'error',
       )
-    } finally {
       setDeleting(false)
+      return
+    }
+
+    // Close confirmation before invalidation — delete already succeeded.
+    // Waiting on invalidate previously left the modal open on slow/failed refresh.
+    setPendingDelete(null)
+    setDeleting(false)
+    showToast(
+      payment.type === 'deposit'
+        ? 'Zadatek został usunięty.'
+        : 'Wpłata została usunięta.',
+      'success',
+    )
+
+    try {
+      await invalidate(wedding.id)
+    } catch {
+      // Non-fatal: ledger delete already committed; queries may refresh on next focus.
     }
   }
 

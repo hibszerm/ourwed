@@ -14,6 +14,18 @@ function getFocusable(container: HTMLElement): HTMLElement[] {
   ).filter((el) => !el.hasAttribute('disabled') && el.tabIndex !== -1)
 }
 
+/** Nested field popovers (address/date) own Escape while open. */
+function hasNestedFieldOverlayOpen(): boolean {
+  if (typeof document === 'undefined') return false
+  return Boolean(
+    document.querySelector('[data-floating-portal="true"]') ||
+      document.querySelector('[data-testid="location-mobile-address-dialog"]') ||
+      document.querySelector(
+        '[data-testid="mobile-field-dialog"][data-overlay-mode="dialog"]',
+      ),
+  )
+}
+
 interface UseOverlayOptions {
   open: boolean
   onClose: () => void
@@ -37,7 +49,10 @@ export function useOverlay({
 }: UseOverlayOptions): void {
   const previouslyFocused = useRef<HTMLElement | null>(null)
   const onCloseRef = useRef(onClose)
-  onCloseRef.current = onClose
+
+  useEffect(() => {
+    onCloseRef.current = onClose
+  })
 
   useEffect(() => {
     if (!open) return
@@ -58,6 +73,9 @@ export function useOverlay({
 
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape' && closeOnEscape && !busy) {
+        // Let LocationSearchField / date overlays dismiss first — do not close
+        // the host drawer/modal on the same Escape keypress.
+        if (hasNestedFieldOverlayOpen()) return
         event.preventDefault()
         event.stopPropagation()
         onCloseRef.current()

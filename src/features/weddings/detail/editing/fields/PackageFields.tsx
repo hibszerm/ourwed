@@ -285,7 +285,13 @@ export function PackageFields({
         />
       </div>
 
-      <div className={styles.fieldRow}>
+      {/*
+        finalPaymentTerms = rule/mode; finalPaymentDueDate = derived concrete date.
+        Show one coherent control: mode (+ numeric value when needed).
+        Hide duplicate date when mode already defines the deadline.
+        Legacy: date-only (no mode) keeps a single date field.
+      */}
+      <div className={styles.deadlineBlock} data-testid="final-payment-deadline">
         <Select
           label="Termin płatności końcowej"
           value={wedding.finalPaymentTerms?.mode ?? ''}
@@ -299,7 +305,8 @@ export function PackageFields({
             if (!mode) {
               onChangeWedding({
                 finalPaymentTerms: null,
-                finalPaymentDueDate: null,
+                // Keep existing due date until user clears/edits legacy field.
+                finalPaymentDueDate: wedding.finalPaymentDueDate ?? null,
               })
               return
             }
@@ -357,7 +364,8 @@ export function PackageFields({
               })
             }}
           />
-        ) : (
+        ) : null}
+        {!wedding.finalPaymentTerms?.mode ? (
           <Input
             label="Termin płatności (data)"
             type="date"
@@ -367,9 +375,9 @@ export function PackageFields({
                 finalPaymentDueDate: e.target.value.trim() || null,
               })
             }
-            disabled={wedding.finalPaymentTerms?.mode === 'after_delivery'}
+            hint="Opcjonalnie, gdy nie wybrano reguły powyżej."
           />
-        )}
+        ) : null}
       </div>
 
       {wedding.packageId ? (

@@ -193,9 +193,15 @@
 }
 
 @media (max-width: 767px) {
+  /*
+   * Mobile sheet: viewport-bound width, single vertical scroll owner (.body).
+   * overflow-y:auto alone also enables overflow-x:auto — clip X explicitly.
+   */
   .root {
     padding: 0;
     align-items: flex-end;
+    overflow-x: clip;
+    overscroll-behavior: none;
   }
 
   .centerMobile {
@@ -207,8 +213,14 @@
   }
 
   .panel {
+    width: 100%;
     max-width: 100%;
-    max-height: min(92vh, 92dvh);
+    min-width: 0;
+    height: auto;
+    max-height: min(92dvh, 92vh);
+    overflow-x: clip;
+    overflow-y: hidden;
+    touch-action: pan-y;
     border-radius: 20px 20px 0 0;
     animation: sheetIn 220ms var(--ease-out, ease) both;
   }
@@ -273,21 +285,51 @@
   }
 
   .header {
-    padding-top: var(--space-4);
+    flex-shrink: 0;
+    padding-top: var(--space-3);
+    padding-bottom: var(--space-3);
+  }
+
+  .description {
+    margin-top: 6px;
+    line-height: 1.45;
+  }
+
+  .body {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    padding-bottom: var(--space-4);
+    overflow-x: clip;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+  }
+
+  /* Native date/select can inflate min-content width past the sheet. */
+  .body :global(input),
+  .body :global(select),
+  .body :global(textarea) {
+    max-width: 100%;
+    min-width: 0;
   }
 
   .footer {
-    position: sticky;
-    bottom: 0;
+    flex-shrink: 0;
     flex-wrap: wrap;
-    padding: var(--space-4) var(--space-5)
-      calc(var(--space-5) + var(--safe-bottom));
+    width: 100%;
+    min-width: 0;
+    overflow-x: clip;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-5)
+      calc(var(--space-3) + var(--safe-bottom));
     background: var(--color-surface);
   }
 
   .primary {
     flex-wrap: wrap;
     width: 100%;
+    min-width: 0;
     justify-content: flex-end;
   }
 

@@ -1,6 +1,7 @@
 .viewport {
   position: fixed;
-  z-index: 80;
+  /* Above Modal / Drawer panels (10000) so success feedback is visible. */
+  z-index: 12000;
   right: var(--space-4);
   bottom: var(--space-4);
   display: grid;

@@ -187,4 +187,38 @@ function pay(
   console.log('PASS  UX  edit/delete + Modal confirm + edit modal')
 }
 
+{
+  const workspace = read(
+    'src/features/weddings/detail/v2/WeddingContractFinanceWorkspace.tsx',
+  )
+  const deleteFn = workspace.slice(
+    workspace.indexOf('async function confirmDeletePayment()'),
+    workspace.indexOf('return (', workspace.indexOf('async function confirmDeletePayment()')),
+  )
+  const deleteCallAt = deleteFn.indexOf('paymentService.delete')
+  const closeAt = deleteFn.indexOf('setPendingDelete(null)')
+  const invalidateAt = deleteFn.indexOf('await invalidate(')
+  assert(deleteCallAt >= 0 && closeAt > deleteCallAt, 'success closes after delete')
+  assert(
+    invalidateAt < 0 || closeAt < invalidateAt,
+    'modal closes before invalidate (no stuck confirm)',
+  )
+  assertIncludes(deleteFn, 'Zadatek został usunięty.', 'deposit success toast')
+  assertIncludes(deleteFn, 'Wpłata została usunięta.', 'payment success toast')
+  assertIncludes(deleteFn, "showToast(", 'success feedback')
+  assertIncludes(deleteFn, "'error'", 'error toast keeps modal via early return')
+  assertIncludes(deleteFn, 'setDeleting(false)', 'pending cleared')
+  assertIncludes(deleteFn, 'return', 'failure returns before close')
+  assertIncludes(workspace, 'disabled={deleting}', 'confirm disabled while pending')
+  assertIncludes(workspace, 'Usuwanie…', 'pending label')
+
+  const toastCss = read('src/components/ui/Toast.module.css')
+  assertIncludes(toastCss, 'z-index: 12000', 'toast above modal')
+
+  const sessionPage = read('src/pages/SessionDetailPage.tsx')
+  assertIncludes(sessionPage, 'Zaliczka została usunięta.', 'session deposit toast')
+  assertIncludes(sessionPage, 'Wpłata została usunięta.', 'session payment toast')
+  console.log('PASS  UX  delete success closes modal + toast parity')
+}
+
 console.log('OK  weddingPaymentDeleteAcceptance')

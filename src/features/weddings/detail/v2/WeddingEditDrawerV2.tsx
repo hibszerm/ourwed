@@ -4,7 +4,7 @@ import { Backdrop } from '@/components/ui/Backdrop'
 import { IconClose } from '@/components/icons'
 import { ModalPortal } from '@/components/ui/ModalPortal'
 import { useOverlay } from '@/components/ui/overlay/useOverlay'
-import { useId, useRef } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import styles from './WeddingEditDrawerV2.module.css'
 
 interface WeddingEditDrawerV2Props {
@@ -38,8 +38,28 @@ export function WeddingEditDrawerV2({
   const titleId = useId()
   const descId = useId()
   const panelRef = useRef<HTMLDivElement>(null)
+  /**
+   * Opening from a control that sits under the frosted backdrop (Overview /
+   * Wedding Day "Edytuj lokalizacje") mounts this drawer in the same click
+   * turn. Without a short arming delay, that generating click hits the
+   * backdrop and immediately closes the drawer — looks like "edit does nothing".
+   * Editability must not depend on verified GeoPlace data; this guard is
+   * purely about pointer lifetime.
+   *
+   * Parent unmounts this drawer when editing ends, so armed state resets on
+   * each open via fresh mount (no sync setState in an effect).
+   */
+  const [backdropDismissArmed, setBackdropDismissArmed] = useState(false)
 
   useOverlay({ open, onClose, busy, panelRef })
+
+  useEffect(() => {
+    if (!open) return
+    const armId = window.setTimeout(() => {
+      setBackdropDismissArmed(true)
+    }, 300)
+    return () => window.clearTimeout(armId)
+  }, [open])
 
   if (!open) return null
 
@@ -47,9 +67,9 @@ export function WeddingEditDrawerV2({
     <ModalPortal>
       <div className={styles.root} role="presentation" data-testid="wedding-edit-drawer-v2">
         <Backdrop
-          disabled={busy}
+          disabled={busy || !backdropDismissArmed}
           onClick={() => {
-            if (!busy) onClose()
+            if (!busy && backdropDismissArmed) onClose()
           }}
         />
         <div

@@ -3,3 +3,88 @@
   flex-direction: column;
   gap: var(--space-4);
 }
+
+.checkRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--color-text-primary);
+}
+
+/**
+ * Compact mobile editor sheet controls (payment + identity, etc.).
+ * Does not change shared Input / questionnaire DatePickerField defaults.
+ */
+@media (max-width: 767px) {
+  .paymentSheet,
+  .compactMobileForm {
+    gap: var(--space-3);
+  }
+
+  .paymentSheet :global(.field),
+  .compactMobileForm :global(.field) {
+    gap: 6px;
+  }
+
+  /*
+   * Coherent control row ≈ touch target.
+   * Native WebKit date inputs ignore min-height alone and inflate —
+   * force an explicit height + neutralize appearance padding.
+   */
+  .paymentSheet :global(input:not([type='checkbox'])),
+  .paymentSheet :global(select),
+  .compactMobileForm :global(input:not([type='checkbox'])),
+  .compactMobileForm :global(select) {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    min-height: var(--touch-target);
+    height: 48px;
+    max-height: 48px;
+    padding-top: 0;
+    padding-bottom: 0;
+    line-height: 1.25;
+  }
+
+  .paymentSheet :global(input[type='date']),
+  .compactMobileForm :global(input[type='date']) {
+    -webkit-appearance: none;
+    appearance: none;
+    display: flex;
+    align-items: center;
+  }
+
+  .paymentSheet :global(input[type='date']::-webkit-date-and-time-value),
+  .compactMobileForm :global(input[type='date']::-webkit-date-and-time-value) {
+    text-align: left;
+    margin: 0;
+    padding: 0;
+  }
+
+  .paymentSheet :global(input[type='date']::-webkit-datetime-edit),
+  .paymentSheet :global(input[type='date']::-webkit-datetime-edit-fields-wrapper),
+  .compactMobileForm :global(input[type='date']::-webkit-datetime-edit),
+  .compactMobileForm :global(input[type='date']::-webkit-datetime-edit-fields-wrapper) {
+    padding: 0;
+    margin: 0;
+  }
+
+  .paymentSheet :global(input[type='date']::-webkit-calendar-picker-indicator),
+  .compactMobileForm :global(input[type='date']::-webkit-calendar-picker-indicator) {
+    margin-inline-start: auto;
+    flex-shrink: 0;
+  }
+
+  /* Payment notes only — identity has no textarea. */
+  .paymentSheet :global(textarea) {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    min-height: 5.25rem;
+    max-height: none;
+    resize: vertical;
+  }
+}

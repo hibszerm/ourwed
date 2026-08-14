@@ -214,10 +214,10 @@ export function buildTravelFlow(
       continue
     }
     const place = stop.place
-    if (!place || !isPlaceVerified(place)) {
-      // Engine used coords-only; still show when we have coords for map consistency.
-      if (!place) continue
-    }
+    // Route/map stops require verification (address + coordinates).
+    // Free-text / unresolved questionnaire places remain editable via the
+    // location editor — they must not enter the route/map stop list.
+    if (!place || !isPlaceVerified(place)) continue
     const role = stop.role
     const roleTitle = ROLE_TITLES[role] ?? role
     stops.push({

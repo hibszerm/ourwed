@@ -361,17 +361,20 @@ export function WeddingDayWorkspace({
                       : null
                   const omittedFromRoute =
                     !loc.empty && !loc.onRoute && flow != null && flow.hasAnyLocation
-                  const navUrl = !loc.empty
-                    ? buildGoogleMapsNavigationUrl({
-                        formattedAddress: loc.address,
-                        label: loc.placeName,
-                        placeId: loc.placeId,
-                        latitude: loc.latitude,
-                        longitude: loc.longitude,
-                      })
-                    : null
+                  // Navigation requires verification; free-text stays editable only.
+                  const navUrl =
+                    !loc.empty && loc.verified
+                      ? buildGoogleMapsNavigationUrl({
+                          formattedAddress: loc.address,
+                          label: loc.placeName,
+                          placeId: loc.placeId,
+                          latitude: loc.latitude,
+                          longitude: loc.longitude,
+                        })
+                      : null
                   const flowStop = flow?.stops.find((s) => s.key === loc.key)
-                  const flowNav = flowStop ? navigateToStopUrl(flowStop) : null
+                  const flowNav =
+                    flowStop && loc.verified ? navigateToStopUrl(flowStop) : null
                   const href = flowNav || navUrl
                   const isLast = index === itineraryRows.length - 1
 

@@ -158,6 +158,8 @@ export function WeddingDetailV2(props: WeddingDetailSharedProps) {
                 else onRequestVerifyLocations()
               }}
               onEditLocationRole={(role) => {
+                // Always open the shared location editor — never no-op.
+                // Role focus when known; otherwise all locations.
                 if (
                   role === 'bride_preparation' ||
                   role === 'groom_preparation' ||
@@ -165,7 +167,10 @@ export function WeddingDetailV2(props: WeddingDetailSharedProps) {
                   role === 'reception'
                 ) {
                   onEditSection?.(role)
+                  return
                 }
+                if (onEditSection) onEditSection('locations')
+                else onRequestVerifyLocations()
               }}
             />
           ) : null}

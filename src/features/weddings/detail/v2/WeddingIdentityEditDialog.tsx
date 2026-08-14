@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useState, type FormEvent } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
 import { getWeddingDisplayName } from '@/features/weddings/presentation/getWeddingDisplayName'
 import { useProAccessGate } from '@/features/billing/ProAccessGate'
 import { weddingService } from '@/lib/api/weddingService'
+import formStyles from '@/features/weddings/actions/actionForm.module.css'
 import type { Wedding } from '@/types/wedding'
 
 interface Props {
@@ -24,6 +25,8 @@ export function WeddingIdentityEditDialog({
   onClose,
   onSaved,
 }: Props) {
+  const [busy, setBusy] = useState(false)
+
   return (
     <Modal
       open={open}
@@ -31,12 +34,25 @@ export function WeddingIdentityEditDialog({
       description="Zmień nazwę wyświetlaną i datę ślubu. Dane pary i pakiet edytujesz osobno."
       onClose={onClose}
       showClose
-      hideFooter
+      busy={busy}
+      primaryAction={
+        <Button
+          type="submit"
+          form="wedding-identity-form"
+          variant="primary"
+          disabled={busy}
+          data-testid="wedding-identity-save"
+        >
+          {busy ? 'Zapisywanie…' : 'Zapisz'}
+        </Button>
+      }
     >
       {open ? (
         <IdentityForm
           key={`${wedding.id}:${wedding.displayName ?? ''}:${wedding.date}`}
           wedding={wedding}
+          busy={busy}
+          setBusy={setBusy}
           onClose={onClose}
           onSaved={onSaved}
         />
@@ -47,10 +63,14 @@ export function WeddingIdentityEditDialog({
 
 function IdentityForm({
   wedding,
+  busy,
+  setBusy,
   onClose,
   onSaved,
 }: {
   wedding: Wedding
+  busy: boolean
+  setBusy: (v: boolean) => void
   onClose: () => void
   onSaved: (wedding: Wedding) => void
 }) {
@@ -59,7 +79,6 @@ function IdentityForm({
     wedding.displayName?.trim() ?? '',
   )
   const [date, setDate] = useState(wedding.date?.trim() ?? '')
-  const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const derivedPreview = getWeddingDisplayName({
@@ -67,7 +86,8 @@ function IdentityForm({
     displayName: null,
   })
 
-  async function handleSave() {
+  async function handleSave(event: FormEvent) {
+    event.preventDefault()
     if (!requirePro()) return
     const nextDate = date.trim()
     if (!/^\d{4}-\d{2}-\d{2}$/.test(nextDate)) {
@@ -94,8 +114,10 @@ function IdentityForm({
   }
 
   return (
-    <div
-      style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}
+    <form
+      id="wedding-identity-form"
+      className={`${formStyles.form} ${formStyles.compactMobileForm}`}
+      onSubmit={(e) => void handleSave(e)}
       data-testid="wedding-identity-dialog"
     >
       <Input
@@ -103,9 +125,17 @@ function IdentityForm({
         value={displayName}
         onChange={(e) => setDisplayName(e.target.value)}
         placeholder={derivedPreview}
+        disabled={busy}
         data-testid="wedding-identity-display-name"
       />
-      <p style={{ margin: 0, fontSize: '0.875rem', opacity: 0.75 }}>
+      <p
+        style={{
+          margin: 0,
+          fontSize: '0.875rem',
+          color: 'var(--color-text-secondary)',
+          lineHeight: 1.45,
+        }}
+      >
         Nazwa wyświetlana jest opcjonalna. Gdy pozostawisz ją pustą, OurWed
         użyje imion i nazwisk pary.
       </p>
@@ -115,6 +145,7 @@ function IdentityForm({
         required
         value={date}
         onChange={(e) => setDate(e.target.value)}
+        disabled={busy}
         data-testid="wedding-identity-date"
       />
       {error ? (
@@ -122,27 +153,6 @@ function IdentityForm({
           {error}
         </p>
       ) : null}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          disabled={busy}
-          onClick={onClose}
-        >
-          Anuluj
-        </Button>
-        <Button
-          type="button"
-          variant="primary"
-          size="sm"
-          disabled={busy}
-          data-testid="wedding-identity-save"
-          onClick={() => void handleSave()}
-        >
-          {busy ? 'Zapisywanie…' : 'Zapisz'}
-        </Button>
-      </div>
-    </div>
+    </form>
   )
 }

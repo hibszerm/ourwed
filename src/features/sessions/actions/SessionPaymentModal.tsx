@@ -131,7 +131,11 @@ export function SessionPaymentModal({
         </Button>
       }
     >
-      <form id={formId} className={formStyles.form} onSubmit={handleSubmit}>
+      <form
+        id={formId}
+        className={`${formStyles.form} ${formStyles.paymentSheet}`}
+        onSubmit={handleSubmit}
+      >
         <Select
           id={`${formId}-type`}
           label="Rodzaj"

@@ -25,6 +25,13 @@ import {
 } from '@/features/travel/weddingLocationModel'
 import styles from './LocationSearchField.module.css'
 
+/**
+ * Must sit above WeddingEditDrawerV2 / Modal panels (z-index 10000).
+ * Questionnaire pages are unaffected — higher stacking is still correct.
+ */
+export const LOCATION_SEARCH_OVERLAY_Z_INDEX = 11050
+
+
 export interface LocationSearchFieldProps {
   label: string
   /** External address string (display / sync when not focused). */
@@ -572,6 +579,7 @@ export function LocationSearchField({
             setActiveIndex(-1)
           }}
           maxMenuHeight={280}
+          zIndex={LOCATION_SEARCH_OVERLAY_Z_INDEX}
         >
           {() => suggestionList}
         </ResponsiveFieldOverlay>
@@ -586,6 +594,7 @@ export function LocationSearchField({
           initialFocusRef={searchRef}
           restoreFocusRef={triggerRef}
           testId="location-mobile-address-dialog"
+          zIndex={LOCATION_SEARCH_OVERLAY_Z_INDEX}
           headerExtra={
             <div className={styles.dialogSearch}>
               <label className={styles.srOnly} htmlFor={`${inputId}-mobile-search`}>
