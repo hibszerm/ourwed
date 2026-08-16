@@ -2,7 +2,6 @@ import { createBrowserRouter, Navigate, useParams } from 'react-router-dom'
 import { AuthCallbackGate } from '@/features/auth/callback/AuthCallbackGate'
 import { ProtectedRoute } from '@/features/auth/ProtectedRoute'
 import { DashboardPage } from '@/pages/DashboardPage'
-import { DashboardV2Page } from '@/pages/DashboardV2Page'
 import { WeddingsPage } from '@/pages/WeddingsPage'
 import { WeddingDetailPage } from '@/pages/WeddingDetailPage'
 import { WeddingDayCockpitPage } from '@/pages/WeddingDayCockpitPage'
@@ -146,8 +145,8 @@ export const router = createBrowserRouter([
           { path: '/dashboard', element: <DashboardPage /> },
           { path: '/powiadomienia', element: <NotificationsPage /> },
           { path: '/finanse', element: <FinancePage /> },
-          // Internal / experimental — hidden from sidebar; direct URL retained.
-          { path: '/dashboard-v2', element: <DashboardV2Page /> },
+          // Retired experimental Dashboard V2 — bookmarks redirect to production Pulpit.
+          { path: '/dashboard-v2', element: <Navigate to="/dashboard" replace /> },
           { path: '/sluby', element: <WeddingsPage /> },
           { path: '/zadania', element: <TasksPage /> },
           { path: '/sluby/nowy', element: <NewWeddingPage /> },

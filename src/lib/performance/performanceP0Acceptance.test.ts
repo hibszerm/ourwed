@@ -90,11 +90,18 @@ function assertNotIncludes(src: string, needle: string, m: string) {
     'must not wait on dashboard tasks for primary paint',
   )
 
-  const v2 = read('src/pages/DashboardV2Page.tsx')
-  assertIncludes(v2, 'getNearestUpcomingWedding', 'V2 derives nextWedding from list')
-  assertIncludes(v2, 'useDashboardAssignments', 'V2 uses light assignment lists')
-  assertNotIncludes(v2, 'useWeddings', 'V2 must not use heavy useWeddings')
-  assertIncludes(v2, 'assignmentsLoading', 'V2 primary gate is light assignments')
+  const router = read('src/routes/router.tsx')
+  assertNotIncludes(router, 'DashboardV2Page', 'V2 page not in production router')
+  assertIncludes(
+    router,
+    'Navigate to="/dashboard"',
+    'legacy /dashboard-v2 redirects to V1',
+  )
+  assertNotIncludes(
+    read('src/pages/DashboardPage.tsx'),
+    'useWeddings',
+    'V1 must not use heavy useWeddings',
+  )
 
   console.log('PASS  dashboard no hydrate storm / dead work removed')
 }

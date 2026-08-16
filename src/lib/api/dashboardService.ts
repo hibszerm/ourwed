@@ -40,8 +40,8 @@ export const DASHBOARD_LIGHT_SESSION_SELECT =
   'id, user_id, custom_name, primary_first_name, primary_last_name, secondary_first_name, secondary_last_name, session_type, custom_session_type, session_date, start_time, end_time, location_name, location_address, formatted_address, place_id, latitude, longitude, location_source, total_price, deposit_amount, notes, linked_wedding_id, created_at, updated_at'
 
 /**
- * Attach only what Dashboard cards need beyond wedding scalars:
- * - contract.status → business badge
+ * Attach only what Dashboard needs beyond wedding scalars:
+ * - contract.status → Attention / assignment context (not a card badge)
  * - wedding_places → location label (batch, not N+1)
  */
 async function enrichDashboardWeddings(

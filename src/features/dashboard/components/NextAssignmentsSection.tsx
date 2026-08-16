@@ -7,7 +7,6 @@ import {
   type CalendarUiEvent,
 } from '@/features/calendar/utils/calendarEvents'
 import { getDashboardLocationLabel } from '@/features/dashboard/presentation/getDashboardLocationLabel'
-import { getWeddingBusinessStatus } from '@/features/weddings/presentation/getWeddingBusinessStatus'
 import styles from './NextAssignmentsSection.module.css'
 
 interface NextAssignmentsSectionProps {
@@ -21,10 +20,6 @@ function countdownLabel(dateKey: string): string {
   return `Za ${days} dni`
 }
 
-function businessBadgeVariant(tone: 'ok' | 'warn'): 'success' | 'warning' {
-  return tone === 'ok' ? 'success' : 'warning'
-}
-
 function CompactAssignmentCard({
   assignment,
 }: {
@@ -35,10 +30,6 @@ function CompactAssignmentCard({
       ? assignment.timeLabel
       : assignment.ceremonyTime ?? null
   const location = getDashboardLocationLabel(assignment)
-  const business =
-    assignment.entityType === 'wedding'
-      ? getWeddingBusinessStatus(assignment.wedding)
-      : null
 
   return (
     <Link
@@ -47,17 +38,12 @@ function CompactAssignmentCard({
       aria-label={`${assignment.assignmentTypeLabel}: ${assignment.title}`}
     >
       <div className={styles.cardTop}>
-        <div className={styles.badges} role="group" aria-label="Status zlecenia">
+        <div className={styles.badges} role="group" aria-label="Typ zlecenia">
           <Badge
             variant={assignment.entityType === 'wedding' ? 'info' : 'neutral'}
           >
             {assignment.assignmentTypeLabel}
           </Badge>
-          {business ? (
-            <Badge variant={businessBadgeVariant(business.tone)}>
-              {business.label}
-            </Badge>
-          ) : null}
         </div>
         <span className={styles.countdown}>{countdownLabel(assignment.dateKey)}</span>
       </div>

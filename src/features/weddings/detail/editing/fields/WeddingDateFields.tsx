@@ -1,6 +1,5 @@
 import { Input, Select } from '@/components/ui/Input'
-import { WORKFLOW_STAGE_LABELS, WORKFLOW_STAGES } from '@/lib/utils/workflow'
-import type { Wedding, WeddingStatus, WorkflowStage } from '@/types/wedding'
+import type { Wedding, WeddingStatus } from '@/types/wedding'
 import styles from '../WeddingEditorFields.module.css'
 
 const STATUS_LABELS: Record<WeddingStatus, string> = {
@@ -43,19 +42,6 @@ export function WeddingDateFields({
         {(Object.keys(STATUS_LABELS) as WeddingStatus[]).map((key) => (
           <option key={key} value={key}>
             {STATUS_LABELS[key]}
-          </option>
-        ))}
-      </Select>
-      <Select
-        label="Etap workflow"
-        value={wedding.workflowStage}
-        onChange={(e) =>
-          onChange({ workflowStage: e.target.value as WorkflowStage })
-        }
-      >
-        {WORKFLOW_STAGES.map((stage) => (
-          <option key={stage} value={stage}>
-            {WORKFLOW_STAGE_LABELS[stage]}
           </option>
         ))}
       </Select>

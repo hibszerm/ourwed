@@ -9,7 +9,6 @@ import {
   type CalendarUiEvent,
 } from '@/features/calendar/utils/calendarEvents'
 import { getDashboardLocationLabel } from '@/features/dashboard/presentation/getDashboardLocationLabel'
-import { getWeddingBusinessStatus } from '@/features/weddings/presentation/getWeddingBusinessStatus'
 import type { Wedding } from '@/types/wedding'
 import styles from './NextWeddingCard.module.css'
 
@@ -24,12 +23,6 @@ function countdownUnit(days: number, entityType: CalendarUiEvent['entityType']) 
     return days === 1 ? 'dzień do sesji' : 'dni do sesji'
   }
   return days === 1 ? 'dzień do ślubu' : 'dni do ślubu'
-}
-
-function businessBadgeVariant(
-  tone: 'ok' | 'warn',
-): 'success' | 'warning' {
-  return tone === 'ok' ? 'success' : 'warning'
 }
 
 export function NextAssignmentCard({
@@ -50,10 +43,6 @@ export function NextAssignmentCard({
       ? assignment.timeLabel
       : assignment.ceremonyTime ?? null
   const location = getDashboardLocationLabel(assignment)
-  const business =
-    assignment.entityType === 'wedding'
-      ? getWeddingBusinessStatus(assignment.wedding)
-      : null
 
   return (
     <section className={styles.card} data-testid="nearest-assignment-card">
@@ -67,17 +56,12 @@ export function NextAssignmentCard({
           <span className={styles.eyebrow}>Najbliższe zlecenie</span>
         </div>
 
-        <div className={styles.badges} role="group" aria-label="Status zlecenia">
+        <div className={styles.badges} role="group" aria-label="Typ zlecenia">
           <Badge
             variant={assignment.entityType === 'wedding' ? 'info' : 'neutral'}
           >
             {assignment.assignmentTypeLabel}
           </Badge>
-          {business ? (
-            <Badge variant={businessBadgeVariant(business.tone)}>
-              {business.label}
-            </Badge>
-          ) : null}
         </div>
 
         <h2 className={styles.coupleName}>{assignment.title}</h2>

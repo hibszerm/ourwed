@@ -15,7 +15,6 @@ import { getWeddingDisplayName } from '@/features/weddings/presentation/getWeddi
 import { getWeddingPrimaryLocationSummary } from '@/features/weddings/presentation/getWeddingPrimaryLocationSummary'
 import { getWeddingCommercialSummary } from '@/lib/utils/commercial'
 import { formatCurrency } from '@/lib/utils/currency'
-import { WORKFLOW_STAGE_LABELS } from '@/lib/utils/workflow'
 import type { Couple, Wedding } from '@/types/wedding'
 import type { WeddingPlace } from '@/types/travel'
 
@@ -181,7 +180,6 @@ run('5. List and card share display helpers for same wedding', () => {
   assertEq(location.displayText, 'Villa Love, Izdebnik', 'venue')
   assert(!location.displayText?.includes('Lwowska'), 'no street')
   assert(formatCurrency(commercial.remainingToPay).includes('zł'), 'pln')
-  assertEq(WORKFLOW_STAGE_LABELS[w.workflowStage], 'Zadatek', 'stage label')
 })
 
 run('6. Same order preserved for shared collection', () => {
@@ -242,10 +240,12 @@ run('9. View switcher is accessible segmented control', () => {
   assert(sw.includes('Lista'), 'list text')
 })
 
-run('10. WeddingCard removes Workflow label/progress, keeps stage', () => {
+run('10. WeddingCard has no workflow stage badge', () => {
   const card = src('src/features/weddings/components/WeddingCard.tsx')
   const css = src('src/features/weddings/components/WeddingCard.module.css')
-  assert(card.includes('WorkflowBadge'), 'stage badge remains')
+  assert(!card.includes('WorkflowBadge'), 'no WorkflowBadge on card')
+  assert(!card.includes('workflowStage'), 'no workflowStage on card')
+  assert(!card.includes('WORKFLOW_STAGE_LABELS'), 'no stage labels on card')
   assert(!card.includes('ProgressBar'), 'no progress bar')
   assert(!card.includes('getWorkflowProgress'), 'no progress helper')
   assert(!card.includes("'Workflow'") && !card.includes('"Workflow"'), 'no Workflow label')
@@ -254,16 +254,20 @@ run('10. WeddingCard removes Workflow label/progress, keeps stage', () => {
   assert(card.includes('getWeddingDisplayName'), 'shared name')
   assert(card.includes('formatDate'), 'date kept')
   assert(card.includes('getDaysUntil'), 'relative date kept')
+  assert(card.includes('remainingToPay'), 'commercial remaining kept')
 })
 
-run('11. WeddingList shows expected desktop fields without address', () => {
+run('11. WeddingList shows expected desktop fields without stage badge', () => {
   const list = src('src/features/weddings/components/WeddingList.tsx')
   const css = src('src/features/weddings/components/WeddingList.module.css')
   assert(list.includes('getWeddingDisplayName'), 'name helper')
   assert(list.includes('getWeddingPrimaryLocationSummary'), 'location helper')
   assert(list.includes('formatCurrency'), 'currency')
   assert(list.includes('remainingToPay'), 'remaining')
-  assert(list.includes('WorkflowBadge'), 'stage')
+  assert(!list.includes('WorkflowBadge'), 'no WorkflowBadge on list')
+  assert(!list.includes('workflowStage'), 'no workflowStage on list')
+  assert(!list.includes('styles.stage'), 'no stage column wrapper')
+  assert(!css.includes('.stage'), 'no stage CSS residue')
   assert(list.includes('IconChevronRight'), 'chevron')
   assert(list.includes('to={`/sluby/${wedding.id}`}'), 'navigation')
   assert(list.includes('<ul'), 'semantic list')
@@ -275,11 +279,12 @@ run('11. WeddingList shows expected desktop fields without address', () => {
   assert(!list.includes('street'), 'no street')
   assert(css.includes('@media (max-width: 720px)'), 'mobile breakpoint')
   assert(css.includes('grid-template-areas:'), 'mobile stacked areas')
-  assert(css.includes("'name stage'"), 'mobile name+stage')
+  assert(css.includes("'name name'"), 'mobile name full width')
+  assert(!css.includes("'name stage'"), 'no mobile name+stage area')
   assert(css.includes('min-height: 4.75rem'), 'touch height')
   assert(css.includes('-webkit-line-clamp: 2'), 'name clamp')
 
-  // Desktop DOM order: date → name → venue → package → remaining → stage → chevron
+  // Desktop DOM order: date → name → venue → package → remaining → chevron
   const rowStart = list.indexOf('className={styles.row}')
   const rowChunk = list.slice(rowStart, list.indexOf('</Link>', rowStart))
   const datePos = rowChunk.indexOf('styles.date')
@@ -287,27 +292,30 @@ run('11. WeddingList shows expected desktop fields without address', () => {
   const venuePos = rowChunk.indexOf('styles.venue')
   const packagePos = rowChunk.indexOf('styles.package')
   const remainingPos = rowChunk.indexOf('styles.remainingWrap')
-  const stagePos = rowChunk.indexOf('styles.stage')
   const chevronPos = rowChunk.indexOf('styles.chevron')
   assert(datePos >= 0 && namePos > datePos, 'date before name in JSX')
   assert(venuePos > namePos, 'name before venue')
   assert(packagePos > venuePos, 'venue before package')
   assert(remainingPos > packagePos, 'package before remaining')
-  assert(stagePos > remainingPos, 'remaining before stage')
-  assert(chevronPos > stagePos, 'stage before chevron')
+  assert(chevronPos > remainingPos, 'remaining before chevron')
   assert(
     /grid-template-columns:\s*7rem\s+minmax\(10rem/.test(css),
     'date column (7rem) precedes name column in grid-template-columns',
   )
 })
 
-run('12. Workflow domain model untouched', () => {
+run('12. Workflow domain model untouched outside list', () => {
   const types = src('src/types/wedding.ts')
   assert(types.includes('workflowStage'), 'stage on Wedding')
   const engine = src('src/lib/workflow/workflowEngine.ts')
   assert(engine.includes('getWorkflowSnapshot'), 'engine remains')
   const utils = src('src/lib/utils/workflow.ts')
   assert(utils.includes('getWorkflowProgress'), 'progress util remains for other surfaces')
+  const badge = src('src/components/ui/Badge.tsx')
+  assert(badge.includes('WorkflowBadge'), 'WorkflowBadge component retained globally')
+  const edit = src('src/features/weddings/detail/editing/fields/WeddingDateFields.tsx')
+  assert(!edit.includes('Etap workflow'), 'manual Etap workflow removed (W1.1)')
+  assert(!edit.includes('workflowStage'), 'editor does not patch workflowStage')
 })
 
 run('13. Empty/loading/error stay page-level', () => {

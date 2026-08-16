@@ -28,8 +28,15 @@ This is not security-through-obscurity. Routes that remain registered still requ
 | `/laboratorium-umow-ai/semantic` | Semantic lab | same |
 | `/eksperymenty/umowy-ai-transform` | Transform comparison | same |
 | `/laboratorium-umow-ai/porownanie` | Alias → comparison | same |
-| `/dashboard-v2` | Dashboard V2 beta | always registered; nav hidden |
 | `/dev/contract-analysis-eval` | Contract analysis eval | `import.meta.env.DEV` only |
+
+## Retired experimental routes
+
+| Route | Behavior |
+|-------|----------|
+| `/dashboard-v2` | Redirects to `/dashboard` (V2 beta retired; stage-based prototype) |
+
+Source under `src/features/dashboard-v2/` may remain on disk for historical reference until a later cleanup; it is **not** mounted in the production route graph.
 
 ## Why retained
 

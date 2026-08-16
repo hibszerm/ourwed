@@ -63,8 +63,10 @@ assert(header.includes("!== 'USUŃ'"), 'header delete confirm USUŃ')
 assert(!header.includes("!== 'DELETE'"), 'header no DELETE')
 
 const v2 = read('src/pages/DashboardV2Page.tsx')
-assert(v2.includes('Pulpit V2 · Beta'), 'v2 chrome Polish')
+assert(v2.includes('Pulpit V2 · Beta'), 'v2 chrome Polish (source retained)')
 assert(!v2.includes('Dashboard V2 · Beta'), 'no English Dashboard V2 chrome')
+const router = read('src/routes/router.tsx')
+assert(!router.includes('DashboardV2Page'), 'V2 not mounted in production router')
 
 // Founder brand runtime/defaults (N1 purge) — exclude migration SQL
 const defaultTpl = read('src/features/prewedding/defaultTemplate.ts')

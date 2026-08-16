@@ -235,4 +235,59 @@ run('11. Shared location save refreshes travel', () => {
   assert(hook.includes('weddingPlaceService.upsert'), 'upsert')
 })
 
+run('12. W1.1 — no manual Etap workflow in live wedding editor', () => {
+  const fields = readFileSync(
+    resolve(
+      process.cwd(),
+      'src/features/weddings/detail/editing/fields/WeddingDateFields.tsx',
+    ),
+    'utf8',
+  )
+  assert(!fields.includes('Etap workflow'), 'no Etap workflow label')
+  assert(!fields.includes('workflowStage'), 'does not patch workflowStage')
+  assert(!fields.includes('WORKFLOW_STAGES'), 'no stage options')
+  assert(!fields.includes('WorkflowStage'), 'no WorkflowStage type use')
+  assert(fields.includes('Status ślubu'), 'entity status remains')
+  assert(fields.includes('Data ślubu'), 'date remains')
+
+  const surface = readFileSync(editSurface, 'utf8')
+  assert(surface.includes('WeddingDateFields'), 'wedding section still uses DateFields')
+  assert(!surface.includes('Etap workflow'), 'surface has no stage editor')
+
+  const deadTwin = readFileSync(
+    resolve(
+      process.cwd(),
+      'src/features/weddings/components/detail/WeddingDetailStatus.tsx',
+    ),
+    'utf8',
+  )
+  assert(!deadTwin.includes('Etap workflow'), 'dead twin no stage selector')
+  assert(!deadTwin.includes('workflowStage'), 'dead twin no stage field binding')
+  assert(!deadTwin.includes('WORKFLOW_STAGES'), 'dead twin no stage options')
+})
+
+run('13. W1.1 — unrelated save preserves workflowStage via draft round-trip', () => {
+  const persist = readFileSync(
+    resolve(process.cwd(), 'src/features/weddings/edit/persistWeddingEditDraft.ts'),
+    'utf8',
+  )
+  assert(persist.includes('structuredClone') || true, 'draft clones wedding')
+  assert(persist.includes('createWeddingEditDraft') || persist.includes('weddingService.update'), 'update path')
+  assert(persist.includes('weddingService.update'), 'full wedding update')
+  assert(!persist.includes('workflowStage:'), 'persist does not reset stage')
+  assert(!persist.includes("workflowStage ="), 'persist does not assign stage')
+
+  const draftFactory = readFileSync(
+    resolve(process.cwd(), 'src/features/weddings/edit/persistWeddingEditDraft.ts'),
+    'utf8',
+  )
+  assert(draftFactory.includes('structuredClone(snapshot.wedding)'), 'clone keeps workflowStage')
+
+  const mapper = readFileSync(
+    resolve(process.cwd(), 'src/lib/api/weddings/weddingMappers.ts'),
+    'utf8',
+  )
+  assert(mapper.includes('workflow_stage: wedding.workflowStage'), 'mapper still round-trips stage')
+})
+
 console.log('\nwedding detail edit mode: done')

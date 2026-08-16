@@ -1,5 +1,4 @@
 import { Link } from 'react-router-dom'
-import { WorkflowBadge } from '@/components/ui/Badge'
 import { IconChevronRight } from '@/components/icons'
 import { formatDate } from '@/lib/utils/dates'
 import { getWeddingCommercialSummary } from '@/lib/utils/commercial'
@@ -54,10 +53,6 @@ function WeddingListRow({ wedding }: { wedding: Wedding }) {
         <span className={styles.remainingWrap}>
           <span className={styles.remainingLabel}>Pozostało</span>
           <span className={styles.remaining}>{remaining}</span>
-        </span>
-
-        <span className={styles.stage}>
-          <WorkflowBadge stage={wedding.workflowStage} />
         </span>
 
         <IconChevronRight className={styles.chevron} aria-hidden />

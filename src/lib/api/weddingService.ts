@@ -26,7 +26,6 @@ import type {
   Wedding,
   WeddingPackageItemSnapshot,
   WeddingUpdateOptions,
-  WorkflowStage,
 } from '@/types/wedding'
 import { devWarnArgs } from '@/lib/debug/devConsole'
 
@@ -255,9 +254,6 @@ export const weddingService = {
       input.receptionLocation?.trim() ||
       input.ceremonyLocation?.trim() ||
       null
-    const workflowStage: WorkflowStage = input.depositPaid
-      ? 'deposit'
-      : 'reservation'
 
     const packageId = asCatalogPackageId(input.packageId)
     let commercial = {
@@ -344,7 +340,7 @@ export const weddingService = {
         ceremony_time: null,
         venue,
         status: 'active',
-        workflow_stage: workflowStage,
+        // workflow_stage omitted — DB default 'reservation' (W4: no deposit-derived stage)
         package_name: commercial.packageName,
         package_id: commercial.packageId,
         contract_value: commercial.price,

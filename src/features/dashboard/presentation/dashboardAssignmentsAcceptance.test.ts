@@ -54,9 +54,6 @@ function weddingEvent(
     ceremonyLocation: '—',
     receptionLocation: '—',
     timeLabel: partial.ceremonyTime ?? 'Godzina do ustalenia',
-    stage: 'reservation',
-    stageLabel: 'Rezerwacja',
-    statusMessage: '',
     colors: { background: '#fff', text: '#000', border: '#ccc' },
     packageName: 'Pakiet',
     packageColor: '#000',
@@ -181,7 +178,7 @@ const events: CalendarUiEvent[] = [
   assert(hero.includes('Najbliższe zlecenie'), 'hero label')
   assert(hero.includes('assignment.href'), 'hero navigates by href')
   assert(hero.includes('Otwórz'), 'hero CTA')
-  assert(hero.includes('getWeddingBusinessStatus'), 'hero business status')
+  assert(!hero.includes('getWeddingBusinessStatus'), 'no hero business status badge')
   assert(hero.includes('getDashboardLocationLabel'), 'hero location')
   assert(!hero.includes('buildDashboardJobReadiness'), 'no readiness helper')
   assert(!hero.includes('getAssignmentContextItems'), 'no fact checklist')
@@ -196,6 +193,9 @@ const events: CalendarUiEvent[] = [
   assert(!hero.includes('Ankieta niewysłana'), 'no questionnaire fact')
   assert(hero.includes('countdown'), 'countdown present')
   assert(hero.includes('assignmentTypeLabel'), 'entity badge')
+  assert(!hero.includes('workflowStage'), 'no workflowStage on hero')
+  assert(!hero.includes('WORKFLOW_STAGE_LABELS'), 'no stage labels on hero')
+  assert(!hero.includes('WorkflowBadge'), 'no WorkflowBadge on hero')
 
   const next = readFileSync(
     resolve('src/features/dashboard/components/NextAssignmentsSection.tsx'),
@@ -203,9 +203,15 @@ const events: CalendarUiEvent[] = [
   )
   assert(next.includes('Kolejne zlecenia'), 'next title')
   assert(next.includes('assignment.href'), 'card navigation')
-  assert(next.includes('getWeddingBusinessStatus'), 'upcoming business status')
+  assert(
+    !next.includes('getWeddingBusinessStatus'),
+    'no upcoming business status badge',
+  )
   assert(next.includes('getDashboardLocationLabel'), 'upcoming location')
+  assert(next.includes('assignmentTypeLabel'), 'upcoming entity badge')
   assert(!next.includes('WorkflowBadge'), 'no workflow badge')
+  assert(!next.includes('workflowStage'), 'no workflowStage on upcoming')
+  assert(!next.includes('WORKFLOW_STAGE_LABELS'), 'no stage labels on upcoming')
 }
 
 console.log('PASS  dashboard assignments')

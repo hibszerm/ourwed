@@ -12,7 +12,7 @@
   min-width: 0;
 }
 
-/* Desktop DOM/grid order: date | name | venue | package | remaining | stage | chevron */
+/* Desktop DOM/grid order: date | name | venue | package | remaining | chevron */
 .row {
   display: grid;
   grid-template-columns:
@@ -21,7 +21,6 @@
     minmax(8rem, 1.15fr)
     minmax(5rem, 0.9fr)
     6.5rem
-    7.5rem
     1.25rem;
   align-items: center;
   column-gap: var(--space-4);
@@ -112,26 +111,19 @@
   white-space: nowrap;
 }
 
-.stage {
-  display: inline-flex;
-  justify-content: flex-end;
-  min-width: 0;
-}
-
 .chevron {
   color: var(--color-text-tertiary);
   flex-shrink: 0;
   justify-self: end;
 }
 
-/* Narrow laptop / tablet: date | name | stacked venue/package | remaining | stage | chevron */
+/* Narrow laptop / tablet: date | name | stacked venue/package | remaining | chevron */
 @media (max-width: 1100px) and (min-width: 721px) {
   .row {
     grid-template-columns:
       minmax(5.5rem, auto)
       minmax(9rem, 1.2fr)
       minmax(0, 1.4fr)
-      auto
       auto
       1.25rem;
     grid-template-rows: auto auto;
@@ -170,14 +162,8 @@
     align-self: center;
   }
 
-  .stage {
-    grid-column: 5;
-    grid-row: 1 / -1;
-    align-self: center;
-  }
-
   .chevron {
-    grid-column: 6;
+    grid-column: 5;
     grid-row: 1 / -1;
     align-self: center;
   }
@@ -189,7 +175,7 @@
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     grid-template-areas:
-      'name stage'
+      'name name'
       'date date'
       'venue venue'
       'package package'
@@ -205,11 +191,6 @@
     grid-area: name;
     padding-right: var(--space-2);
     font-size: var(--text-sm);
-  }
-
-  .stage {
-    grid-area: stage;
-    justify-content: flex-end;
   }
 
   .date {

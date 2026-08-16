@@ -5,11 +5,9 @@ import { notificationService } from '@/lib/api/notificationService'
 import { paymentService } from '@/lib/api/paymentService'
 import { timelineEventService } from '@/lib/api/timelineEventService'
 import { weddingService } from '@/lib/api/weddingService'
-import { getDepositPaid } from '@/lib/utils/finance'
 import { hasPaidDepositPayment } from '@/lib/finance/hasPaidDepositPayment'
 import { getAgreedDeposit } from '@/lib/utils/commercial'
 import { getWeddingDisplayName } from '@/features/weddings/presentation/getWeddingDisplayName'
-import { getNextStage } from '@/lib/workflow/workflowEngine'
 import { getCurrentStudioUser } from '@/lib/api/studioUser'
 import type { FormCategory } from '@/types/formEngine'
 import type {
@@ -161,23 +159,8 @@ export const weddingActionsService = {
       note: input.note?.trim() || undefined,
     })
 
-    const payments = await paymentService.listByWeddingId(wedding.id)
-
-    let workflowStage = wedding.workflowStage
-    if (wedding.workflowStage === 'deposit' && getDepositPaid(payments) > 0) {
-      const advanced = getNextStage('deposit')
-      if (advanced) workflowStage = advanced
-    }
-
     const methodLabel = PAYMENT_METHOD_LABELS[input.method]
     const couple = getWeddingDisplayName(wedding)
-
-    if (workflowStage !== wedding.workflowStage) {
-      await weddingService.update({
-        ...wedding,
-        workflowStage,
-      })
-    }
 
     await timelineEventService.create({
       weddingId: wedding.id,
@@ -247,16 +230,6 @@ export const weddingActionsService = {
     const couple = getWeddingDisplayName(wedding)
 
     await contractService.updateStatus(wedding.id, 'generated')
-
-    const workflowStage =
-      wedding.workflowStage === 'reservation' ? 'contract' : wedding.workflowStage
-
-    if (workflowStage !== wedding.workflowStage) {
-      await weddingService.update({
-        ...wedding,
-        workflowStage,
-      })
-    }
 
     await timelineEventService.create({
       weddingId: wedding.id,

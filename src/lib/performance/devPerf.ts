@@ -7,6 +7,8 @@ import { devDebugArgs } from '@/lib/debug/devConsole'
 export type DevPerfLabel =
   | 'weddingService.getAll'
   | 'weddingService.getById'
+  | 'weddingService.listForList'
+  | 'sessionService.listForList'
   | 'listOwnedWeddingIds'
   | 'dashboard.getDashboardData'
   | 'dashboard.getAssignmentLists'

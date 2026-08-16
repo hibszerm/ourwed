@@ -14,7 +14,7 @@ export function CalendarEventChip({
 }: CalendarEventChipProps) {
   const subtitle =
     event.entityType === 'wedding'
-      ? event.statusMessage
+      ? event.packageName || event.timeLabel
       : event.sessionTypeLabel
 
   return (

@@ -1,8 +1,7 @@
 import { Card, CardHeader } from '@/components/ui/Card'
 import { Select } from '@/components/ui/Input'
 import { getWorkflowStatus } from '@/lib/workflow/workflowEngine'
-import { WORKFLOW_STAGE_LABELS, WORKFLOW_STAGES } from '@/lib/utils/workflow'
-import type { Wedding, WeddingStatus, WorkflowStage } from '@/types/wedding'
+import type { Wedding, WeddingStatus } from '@/types/wedding'
 import editStyles from '@/features/weddings/edit/WeddingEdit.module.css'
 import styles from './WeddingDetailStatus.module.css'
 
@@ -18,6 +17,10 @@ const STATUS_LABELS: Record<WeddingStatus, string> = {
   cancelled: 'Anulowany',
 }
 
+/**
+ * Legacy V1 status card — unmounted from Wedding Detail V2.
+ * Manual pipeline-stage editing removed (W1.1); entity status edit kept for parity.
+ */
 export function WeddingDetailStatus({
   wedding,
   editing = false,
@@ -40,21 +43,6 @@ export function WeddingDetailStatus({
             {(Object.keys(STATUS_LABELS) as WeddingStatus[]).map((key) => (
               <option key={key} value={key}>
                 {STATUS_LABELS[key]}
-              </option>
-            ))}
-          </Select>
-          <Select
-            label="Etap workflow"
-            value={wedding.workflowStage}
-            onChange={(e) =>
-              onChangeWedding?.({
-                workflowStage: e.target.value as WorkflowStage,
-              })
-            }
-          >
-            {WORKFLOW_STAGES.map((stage) => (
-              <option key={stage} value={stage}>
-                {WORKFLOW_STAGE_LABELS[stage]}
               </option>
             ))}
           </Select>

@@ -23,7 +23,7 @@ function assertNotIncludes(src: string, needle: string, m: string) {
 }
 
 const page = read('src/pages/DashboardPage.tsx')
-const v2 = read('src/pages/DashboardV2Page.tsx')
+const router = read('src/routes/router.tsx')
 const service = read('src/lib/api/dashboardService.ts')
 const hook = read('src/features/dashboard/hooks/useDashboardAssignments.ts')
 const noDemo = read('src/lib/api/weddings/noDemoWeddingSeedAcceptance.test.ts')
@@ -41,9 +41,18 @@ const notificationsCard = read(
 }
 
 {
-  assertIncludes(v2, 'useDashboardAssignments', 'V2 light assignments hook')
-  assertNotIncludes(v2, 'useWeddings', 'V2 no heavy useWeddings')
-  console.log('PASS  DashboardV2 first-paint wiring')
+  assertNotIncludes(router, 'DashboardV2Page', 'V2 page not imported in router')
+  assertIncludes(
+    router,
+    "path: '/dashboard-v2'",
+    'legacy path still registered',
+  )
+  assertIncludes(
+    router,
+    'Navigate to="/dashboard"',
+    'dashboard-v2 redirects to production Pulpit',
+  )
+  console.log('PASS  DashboardV2 retired from production route graph')
 }
 
 {

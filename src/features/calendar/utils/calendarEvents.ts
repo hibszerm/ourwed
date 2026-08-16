@@ -7,21 +7,33 @@ import {
   getMonthlyWeddingCount,
   getNearestUpcomingWedding,
 } from '@/lib/utils/weddingMetrics'
-import {
-  getWorkflowStageColor,
-  getWorkflowStatus,
-  type WorkflowStageColor,
-} from '@/lib/workflow/workflowEngine'
 import type { CalendarEvent } from '@/lib/api/calendarEventService'
 import type { Session } from '@/types/session'
-import type { Wedding, WorkflowStage } from '@/types/wedding'
+import type { Wedding } from '@/types/wedding'
 import { compareCalendarUiEvents } from './assignmentMetrics'
 import { parseDateKey, toDateKey } from './calendarDates'
 
 export const UNKNOWN_TIME_LABEL = 'Godzina do ustalenia'
 
-/** Neutral chip colors for session events (no workflow stage). */
-export const SESSION_CALENDAR_COLORS: WorkflowStageColor = {
+/** Chip / block colors — category identity, not workflow stage. */
+export interface CalendarEventColors {
+  background: string
+  text: string
+  border: string
+}
+
+/** Neutral chip colors for session events. */
+export const SESSION_CALENDAR_COLORS: CalendarEventColors = {
+  background: 'rgba(0, 0, 0, 0.04)',
+  text: '#1a1a1a',
+  border: 'rgba(0, 0, 0, 0.12)',
+}
+
+/**
+ * Neutral wedding event treatment.
+ * Package accent remains on the left border via `packageColor` — not workflow stage.
+ */
+export const WEDDING_CALENDAR_COLORS: CalendarEventColors = {
   background: 'rgba(0, 0, 0, 0.04)',
   text: '#1a1a1a',
   border: 'rgba(0, 0, 0, 0.12)',
@@ -46,10 +58,7 @@ export interface CalendarWeddingEvent {
   /** Ceremony start time HH:mm, or undefined if unknown. */
   ceremonyTime?: string
   timeLabel: string
-  stage: WorkflowStage
-  stageLabel: string
-  statusMessage: string
-  colors: WorkflowStageColor
+  colors: CalendarEventColors
   packageName: string
   packageColor: string
   /** Badge label for assignment widgets. */
@@ -74,7 +83,7 @@ export interface CalendarSessionEvent {
   ceremonyTime?: string
   timeLabel: string
   locationSummary?: string
-  colors: WorkflowStageColor
+  colors: CalendarEventColors
   packageColor: string
   assignmentTypeLabel: 'Sesja'
   /** List / stats value (session.totalPrice). */
@@ -101,7 +110,6 @@ function extractTimeLabel(iso: string, allDay: boolean): string | undefined {
 }
 
 export function toCalendarEvent(wedding: Wedding): CalendarWeddingEvent {
-  const status = getWorkflowStatus(wedding)
   const ceremonyTime = getCeremonyTime(wedding)
   const coupleLabel = getWeddingDisplayName(wedding)
 
@@ -118,10 +126,7 @@ export function toCalendarEvent(wedding: Wedding): CalendarWeddingEvent {
     receptionLocation: wedding.receptionLocation ?? '—',
     ceremonyTime,
     timeLabel: ceremonyTime ?? UNKNOWN_TIME_LABEL,
-    stage: status.stage,
-    stageLabel: status.stageLabel,
-    statusMessage: status.message,
-    colors: getWorkflowStageColor(status.stage),
+    colors: WEDDING_CALENDAR_COLORS,
     packageName: wedding.packageName,
     packageColor: wedding.accentColor,
     assignmentTypeLabel: 'Ślub',
@@ -174,7 +179,6 @@ export function buildCalendarEventsFromRows(
     const wedding = byId.get(event.weddingId)
     if (!wedding) continue
 
-    const status = getWorkflowStatus(wedding)
     const dateKey = toDateKey(parseDateKey(event.startDate.slice(0, 10)))
     const ceremonyTime =
       extractTimeLabel(event.startDate, event.allDay) ?? getCeremonyTime(wedding)
@@ -193,10 +197,7 @@ export function buildCalendarEventsFromRows(
       receptionLocation: wedding.receptionLocation ?? '—',
       ceremonyTime,
       timeLabel: ceremonyTime ?? UNKNOWN_TIME_LABEL,
-      stage: status.stage,
-      stageLabel: status.stageLabel,
-      statusMessage: status.message,
-      colors: getWorkflowStageColor(status.stage),
+      colors: WEDDING_CALENDAR_COLORS,
       packageName: wedding.packageName,
       packageColor: event.color || wedding.accentColor,
       assignmentTypeLabel: 'Ślub',

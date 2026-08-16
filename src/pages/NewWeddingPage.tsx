@@ -16,7 +16,6 @@ import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
 import { packageService } from '@/lib/api/packageService'
 import { coupleName, formatDate } from '@/lib/utils/dates'
 import { formatCurrency } from '@/lib/utils/currency'
-import { WORKFLOW_STAGE_LABELS } from '@/lib/utils/workflow'
 import styles from './NewWeddingPage.module.css'
 import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
@@ -226,9 +225,6 @@ export function NewWeddingPage() {
   })
 
   const isLastStep = step === STEPS.length - 1
-  const workflowLabel = depositPaid
-    ? WORKFLOW_STAGE_LABELS.deposit
-    : WORKFLOW_STAGE_LABELS.reservation
 
   return (
     <AppLayout
@@ -529,10 +525,6 @@ export function NewWeddingPage() {
                           ? `${formatCurrency(values.depositAmount ?? 0)} (${values.depositPaymentDate ? formatDate(values.depositPaymentDate) : 'bez daty'})`
                           : 'Nie wpłacona'}
                       </span>
-                    </div>
-                    <div className={styles.summaryRow}>
-                      <span className={styles.summaryLabel}>Etap startowy</span>
-                      <span className={styles.summaryValue}>{workflowLabel}</span>
                     </div>
                     <div className={styles.summaryRow}>
                       <span className={styles.summaryLabel}>Ceremonia</span>

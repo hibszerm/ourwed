@@ -1,6 +1,5 @@
 import { Link } from 'react-router-dom'
 import { Avatar } from '@/components/ui/Avatar'
-import { WorkflowBadge } from '@/components/ui/Badge'
 import { Card } from '@/components/ui/Card'
 import { IconChevronRight, IconMapPin } from '@/components/icons'
 import { formatDate, getDaysUntil } from '@/lib/utils/dates'
@@ -37,7 +36,6 @@ export function WeddingCard({
           <h3 className={styles.name}>{name}</h3>
           <p className={styles.package}>{commercial.packageName || '—'}</p>
         </div>
-        <WorkflowBadge stage={wedding.workflowStage} />
       </div>
 
       {location ? (

@@ -128,10 +128,25 @@ export function SeasonGroupedList<T>({
     commitExpansion(toggleSeasonExpanded(expanded, season))
   }
 
+  /**
+   * Scroll the season section into view inside AppLayout's scroll root.
+   * Prefer Element.scrollTo over section/chip scrollIntoView — sticky chips
+   * calling scrollIntoView(block:nearest) race and jump the viewport to top.
+   */
   function scrollToSeason(season: number) {
     const node = sectionRefs.current.get(season)
     if (!node) return
+    const root = findScrollRoot(rootRef.current)
     const behavior = prefersReducedMotion() ? 'auto' : 'smooth'
+    if (root instanceof HTMLElement) {
+      const stickyHeight = stickyRef.current?.offsetHeight ?? 0
+      const rootRect = root.getBoundingClientRect()
+      const nodeRect = node.getBoundingClientRect()
+      const nextTop =
+        root.scrollTop + (nodeRect.top - rootRect.top) - stickyHeight
+      root.scrollTo({ top: Math.max(0, nextTop), behavior })
+      return
+    }
     node.scrollIntoView({ behavior, block: 'start' })
   }
 
@@ -229,6 +244,11 @@ export function SeasonGroupedList<T>({
     return () => observer.disconnect()
   }, [groups, seasons, signature, showChipsRow])
 
+  /**
+   * Keep the active year chip visible in the horizontal chip strip only.
+   * Never call scrollIntoView on sticky chips with a vertical block — that
+   * scrolls AppLayout `.content` to the top on nested overflow layouts.
+   */
   useEffect(() => {
     if (!showChipsRow) return
     const key = allSelected
@@ -238,11 +258,15 @@ export function SeasonGroupedList<T>({
         : null
     if (!key) return
     const btn = chipRefs.current.get(key)
-    btn?.scrollIntoView({
-      behavior: prefersReducedMotion() ? 'auto' : 'smooth',
-      inline: 'nearest',
-      block: 'nearest',
-    })
+    const strip = btn?.parentElement
+    if (!btn || !(strip instanceof HTMLElement)) return
+    const stripRect = strip.getBoundingClientRect()
+    const btnRect = btn.getBoundingClientRect()
+    if (btnRect.left < stripRect.left) {
+      strip.scrollLeft -= stripRect.left - btnRect.left + 8
+    } else if (btnRect.right > stripRect.right) {
+      strip.scrollLeft += btnRect.right - stripRect.right + 8
+    }
   }, [allSelected, currentYear, showChipsRow])
 
   if (items.length === 0) {

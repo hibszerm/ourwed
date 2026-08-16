@@ -68,6 +68,16 @@ const invalidateWedding = read(
     'queryClient.setQueryData(calendarEventsQueryKey',
     'repair updates cache without blanking',
   )
+  assertNotIncludes(
+    page,
+    'useCalendarWeddingNextAction',
+    'CalendarPage does not enrich Next Action on first paint',
+  )
+  assertNotIncludes(
+    page,
+    'weddingService.getById',
+    'CalendarPage does not hydrate single wedding on first paint',
+  )
   console.log('PASS  CalendarPage first-paint wiring')
 }
 
