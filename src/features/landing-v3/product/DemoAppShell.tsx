@@ -11,7 +11,7 @@ import {
 import styles from './DemoAppShell.module.css'
 
 const NAV = [
-  { id: 'dashboard', label: 'Dashboard', Icon: IconDashboard },
+  { id: 'dashboard', label: 'Pulpit', Icon: IconDashboard },
   { id: 'weddings', label: 'Śluby', Icon: IconWeddings },
   { id: 'sessions', label: 'Sesje', Icon: IconSessions },
   { id: 'calendar', label: 'Kalendarz', Icon: IconCalendar },

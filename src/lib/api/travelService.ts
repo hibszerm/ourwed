@@ -25,6 +25,7 @@ import type {
   TravelSegmentStatus,
   WeddingPlace,
 } from '@/types/travel'
+import { devErrorArgs, devWarnArgs } from '@/lib/debug/devConsole'
 
 export { TRAVEL_SEGMENTS_ON_CONFLICT } from '@/lib/travel/travelSegmentsIdentity'
 export {
@@ -264,7 +265,7 @@ async function listCachedSegments(weddingId: string): Promise<TravelSegment[]> {
     .eq('wedding_id', weddingId)
     .order('sequence', { ascending: true })
   if (error) {
-    console.error('[travel_segments] list failed', {
+    devErrorArgs('[travel_segments] list failed', {
       weddingId,
       message: error.message,
       details: error.details,
@@ -295,7 +296,7 @@ async function syncSegments(
     .delete()
     .eq('wedding_id', weddingId)
   if (delError) {
-    console.error('[travel_segments] delete failed', {
+    devErrorArgs('[travel_segments] delete failed', {
       weddingId,
       message: delError.message,
       details: delError.details,
@@ -316,7 +317,7 @@ async function syncSegments(
     .select('*')
     .order('sequence', { ascending: true })
   if (error) {
-    console.error('[travel_segments] upsert failed', {
+    devErrorArgs('[travel_segments] upsert failed', {
       weddingId,
       rowCount: rows.length,
       message: error.message,
@@ -362,7 +363,7 @@ async function syncSegmentsOrLocal(
     return { segments, persistenceError: null }
   } catch (err) {
     const persistenceError = persistenceFailureMessage(err)
-    console.error('[travel_segments] persistence soft-fail', {
+    devErrorArgs('[travel_segments] persistence soft-fail', {
       weddingId,
       rowCount: rows.length,
       message: persistenceError,
@@ -585,7 +586,7 @@ export const travelService = {
             : err instanceof Error
               ? err.message
               : 'Nie udało się wyliczyć trasy.'
-        console.warn('[travel] segment calculation failed', {
+        devWarnArgs('[travel] segment calculation failed', {
           weddingId,
           routeFingerprint: fingerprint,
           pairKey: leg.pairKey,

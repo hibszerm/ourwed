@@ -23,6 +23,7 @@ import {
 } from './packageContractAllowlist'
 import type { ContractCandidate } from './candidateDetection'
 import type { TemplateSlot } from './types'
+import { devInfoArgs } from '@/lib/debug/devConsole'
 
 export type PackageValueClassification =
   | 'dynamic_wedding_data'
@@ -1102,10 +1103,8 @@ export function analyzePackageContractTables(input: {
     }
   }
 
-  if (typeof console !== 'undefined' && console.info) {
-    for (const trace of traces) {
-      console.info('[package-contract-table-candidate-trace]', trace)
-    }
+  for (const trace of traces) {
+    devInfoArgs('[package-contract-table-candidate-trace]', trace)
   }
 
   return { candidates, traces, classifications }
@@ -1159,7 +1158,7 @@ export function logPackageContractBindingSummary(input: {
   filteredKeys: string[]
   rejectionReasons: Array<{ key: string; reason: string }>
 }) {
-  console.info('[package-contract-binding-summary]', input)
+  devInfoArgs('[package-contract-binding-summary]', input)
 }
 
 export function classifyDetectedKey(key: string): PackageValueClassification {

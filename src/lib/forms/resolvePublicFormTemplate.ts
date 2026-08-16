@@ -18,13 +18,14 @@ import {
 } from '@/lib/forms/contractQuestionnaireTemplate'
 import { CONTRACT_QUESTION_IDS } from '@/lib/forms/contractQuestionCatalog'
 import { normalizePackageOptions } from '@/lib/forms/contractQuestionnaireSnapshot'
+import { devInfoArgs } from '@/lib/debug/devConsole'
 
 const LOG_PREFIX = '[resolvePublicFormTemplate]'
 
 function debugLog(...args: unknown[]): void {
   try {
     if (import.meta.env?.DEV) {
-      console.info(LOG_PREFIX, ...args)
+      devInfoArgs(LOG_PREFIX, ...args)
     }
   } catch {
     // Node acceptance tests may lack Vite import.meta.env

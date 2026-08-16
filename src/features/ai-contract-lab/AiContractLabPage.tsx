@@ -79,6 +79,7 @@ import { weddingPlaceService } from '@/lib/api/weddingPlaceService'
 import { weddingService } from '@/lib/api/weddingService'
 import { getWeddingDisplayName } from '@/features/weddings/presentation/getWeddingDisplayName'
 import styles from './AiContractLabPage.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 function displayValue(value: string | null | undefined) {
   if (value == null || !String(value).trim()) {
@@ -708,7 +709,7 @@ function AiContractLabInner() {
       setStep('compare')
     } catch (err) {
       setGenerateError(
-        err instanceof Error ? err.message : 'Generowanie nie powiodło się.',
+        getUserFacingErrorMessage(err, 'Generowanie nie powiodło się.'),
       )
     } finally {
       setGenerating(false)
@@ -857,9 +858,7 @@ function AiContractLabInner() {
                     const file = e.target.files?.[0] ?? null
                     void onUpload(file).catch((err) => {
                       setAnalysisError(
-                        err instanceof Error
-                          ? err.message
-                          : 'Nie udało się wczytać pliku.',
+                        getUserFacingErrorMessage(err, 'Nie udało się wczytać pliku.'),
                       )
                     })
                   }}

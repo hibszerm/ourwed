@@ -5,6 +5,7 @@
 
 import type { ContractOccurrence, ValidatedAiMapping } from '../types'
 import type { ReplacementReadiness } from './types'
+import { devWarnArgs } from '@/lib/debug/devConsole'
 
 export function getReplacementReadiness(
   occurrence: Pick<ContractOccurrence, 'validationDimensions'>,
@@ -64,12 +65,12 @@ export function assertReplacementInvariant(
     readiness?.status === 'ready' &&
     (!target || target.length === 0)
   ) {
-    console.warn(`[occurrence-invariant] ready without target in ${context}`, occurrence.id)
+    devWarnArgs(`[occurrence-invariant] ready without target in ${context}`, occurrence.id)
   }
   if (
     occurrence.replacementStrategy === 'AUTO_REPLACE' &&
     readiness?.status === 'missing_target_value'
   ) {
-    console.warn(`[occurrence-invariant] AUTO_REPLACE with missing target in ${context}`, occurrence.id)
+    devWarnArgs(`[occurrence-invariant] AUTO_REPLACE with missing target in ${context}`, occurrence.id)
   }
 }

@@ -106,7 +106,7 @@ UMOWA
 Zawarta dnia 02.03.2026 w Warszawie.
 
 Usługodawca / Zleceniobiorca:
-Marcin Hibszer Video Lab, ul. Producencka 9, 00-001 Warszawa, tel. 668 698 892, NIP 1112223344
+Atelier Studio Lab, ul. Przykładowa 9, 00-001 Warszawa, tel. 500 100 200, NIP 5250000001
 
 Usługobiorca / Zamawiający / Para Młoda:
 Ewa Klientowa, ul. Klienta 3, 02-200 Warszawa, tel. 501 111 222
@@ -131,11 +131,11 @@ Zaliczka: 1500 PLN płatna do 09.03.2026.
     partner1PhoneContains: '501',
     partner2FirstName: 'Tomasz',
     forbiddenClientSubstrings: [
-      'Hibszer',
-      'Video Lab',
-      'Producencka',
-      '668 698 892',
-      '1112223344',
+      'Kowalski',
+      'Atelier Studio Lab',
+      'Przykładowa 9',
+      '500 100 200',
+      '5250000001',
     ],
     signingDate: '2026-03-02',
     weddingDate: '2027-09-20',

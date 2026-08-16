@@ -9,6 +9,7 @@
 
 import type { PdfConversionAdapter } from './ContractExportService'
 import { isExperimentalPdfExportEnabled } from './experimentalPdfFlags'
+import { devInfoArgs } from '@/lib/debug/devConsole'
 
 function bytesToBase64(bytes: ArrayBuffer): string {
   const arr = new Uint8Array(bytes)
@@ -68,7 +69,7 @@ async function invokeLocalPdf(input: {
   runId: string
   endpoint: string
 }): Promise<ArrayBuffer> {
-  console.info(`[pdf-export] transport=local url=${input.endpoint}`)
+  devInfoArgs(`[pdf-export] transport=local url=${input.endpoint}`)
   const res = await fetch(input.endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -110,7 +111,7 @@ async function invokeEdgePdf(input: {
   filename: string
   runId: string
 }): Promise<ArrayBuffer> {
-  console.info('[pdf-export] transport=supabase function=docx-to-pdf')
+  devInfoArgs('[pdf-export] transport=supabase function=docx-to-pdf')
   const { supabase } = await import('@/lib/supabase')
   const { data, error } = await supabase.functions.invoke('docx-to-pdf', {
     body: {
@@ -138,7 +139,7 @@ function logAdapterInitOnce(): void {
   if (!import.meta.env.DEV) return
   didLogInit = true
   const localUrl = getLocalPdfFunctionUrl()
-  console.info(
+  devInfoArgs(
     `[pdf-export] DEV=true localUrlConfigured=${Boolean(localUrl)}`,
   )
 }

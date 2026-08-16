@@ -22,7 +22,7 @@ import styles from './Sidebar.module.css'
 import catalogStyles from '@/features/studio/StudioCatalog.module.css'
 
 const navItems = [
-  { to: '/dashboard', label: 'Dashboard', icon: IconDashboard, end: true },
+  { to: '/dashboard', label: 'Pulpit', icon: IconDashboard, end: true },
   { to: '/powiadomienia', label: 'Powiadomienia', icon: IconBell, end: true },
   { to: '/finanse', label: 'Finanse', icon: IconFinances, end: true },
   { to: '/sluby', label: 'Śluby', icon: IconWeddings },

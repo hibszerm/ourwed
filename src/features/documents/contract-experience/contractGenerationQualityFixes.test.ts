@@ -109,7 +109,7 @@ run('B. no duplicated postal code / city', () => {
 })
 
 run('C. two preparation locations preserved', () => {
-  const bride = '3 Maja 66, 41-800 Zabrze'
+  const bride = '3 Maja 66, 00-001 Warszawa'
   const groom = 'ul. Korfantego 10, 40-001 Katowice'
   const entries = buildPreparationLocationEntries({
     bridePreparationLocation: bride,

@@ -17,6 +17,7 @@ import { formatCurrency } from '@/lib/utils/currency'
 import { formatTravelFeeDisplay } from '@/lib/utils/travelFeeCommercial'
 import { hasPaidDepositPayment } from '@/lib/finance/hasPaidDepositPayment'
 import styles from './WeddingDetailV2.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 interface Props {
   wedding: Wedding
@@ -86,9 +87,7 @@ export function WeddingContractFinanceWorkspace({
       await paymentService.delete(payment.id)
     } catch (err) {
       showToast(
-        err instanceof Error
-          ? err.message
-          : 'Nie udało się usunąć wpłaty.',
+        getUserFacingErrorMessage(err, 'Nie udało się usunąć wpłaty.'),
         'error',
       )
       setDeleting(false)

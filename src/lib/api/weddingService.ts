@@ -28,6 +28,7 @@ import type {
   WeddingUpdateOptions,
   WorkflowStage,
 } from '@/types/wedding'
+import { devWarnArgs } from '@/lib/debug/devConsole'
 
 export { mapWeddingRowToModel, mapWeddingModelToRow } from '@/lib/api/weddings/weddingMappers'
 
@@ -185,7 +186,7 @@ export async function seedDeferredWeddingShells(
       })
     }
   } catch (err) {
-    console.warn(
+    devWarnArgs(
       '[seedDeferredWeddingShells] timeline failed:',
       err instanceof Error ? err.message : err,
     )
@@ -196,7 +197,7 @@ export async function seedDeferredWeddingShells(
       await contractService.create({ weddingId: wedding.id, status: 'none' })
     }
   } catch (err) {
-    console.warn(
+    devWarnArgs(
       '[seedDeferredWeddingShells] contract failed:',
       err instanceof Error ? err.message : err,
     )
@@ -207,7 +208,7 @@ export async function seedDeferredWeddingShells(
       await galleryService.create({ weddingId: wedding.id, status: 'not_ready' })
     }
   } catch (err) {
-    console.warn(
+    devWarnArgs(
       '[seedDeferredWeddingShells] gallery failed:',
       err instanceof Error ? err.message : err,
     )

@@ -22,6 +22,7 @@ import {
   questionnaireStatusVariant,
 } from '@/lib/api/questionnaireService'
 import styles from '@/features/questionnaires/Questionnaires.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 function formatDateTime(value: string | null): string {
   if (!value) return '—'
@@ -73,7 +74,7 @@ export function QuestionnaireDetailPage() {
           <EmptyState
             title="Nie znaleziono ankiety"
             description={
-              error instanceof Error ? error.message : 'Sprawdź link lub wróć do listy.'
+              getUserFacingErrorMessage(error, 'Sprawdź link lub wróć do listy.')
             }
           />
           <Button type="button" variant="secondary" onClick={() => void refetch()}>
@@ -118,7 +119,7 @@ export function QuestionnaireDetailPage() {
         window.alert(toProAccessUserMessage())
         return
       }
-      window.alert(err instanceof Error ? err.message : 'Nie udało się zatwierdzić.')
+      window.alert(getUserFacingErrorMessage(err, 'Nie udało się zatwierdzić.'))
     } finally {
       setApproving(false)
     }

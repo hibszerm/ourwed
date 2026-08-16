@@ -14,6 +14,7 @@ import { formatDate } from '@/lib/utils/dates'
 import type { Wedding, WeddingPackageItemSnapshot } from '@/types/wedding'
 import { formatPolishHours } from '@/lib/utils/polishDuration'
 import { getEffectiveTravelFeeAmount } from '@/lib/utils/travelFeeCommercial'
+import { devInfoArgs } from '@/lib/debug/devConsole'
 
 /** True when a numeric commercial field is intentionally present (0 allowed). */
 export function isPresentMoney(
@@ -435,7 +436,7 @@ export function logContractReferenceValues(
     wedding.deliveryMonths,
     wedding.deliveryDays,
   )
-  console.info('[contract-reference-values]', {
+  devInfoArgs('[contract-reference-values]', {
     weddingId: wedding.id,
     packageName: commercial.packageName || null,
     contractValue: isPresentMoney(wedding.price)

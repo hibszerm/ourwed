@@ -26,7 +26,7 @@ export interface CompanyClauseSegment {
 /**
  * Extract the minimal trade name from text immediately after „pod firmą ”.
  * Stops before partner names, seat, or address.
- * Does not treat Title-Case brand names (e.g. Video Productions) as persons.
+ * Does not treat Title-Case brand names (e.g. Atelier Studio) as persons.
  */
 export function extractMinimalCompanyNameAfterFirm(
   afterFirm: string,
@@ -68,7 +68,7 @@ export function extractMinimalCompanyNameAfterFirm(
   const window = trimmedStart.slice(0, cut)
 
   // Person names only after a non-empty brand prefix (never cut at index 0 —
-  // Title-Case brands like "Video Productions" look like Firstname Lastname).
+  // Title-Case brands like "Atelier Studio" look like Firstname Lastname).
   const people = [...window.matchAll(new RegExp(PERSON_RE.source, 'gu'))]
   for (const m of people) {
     if (m.index == null || m.index === 0) continue

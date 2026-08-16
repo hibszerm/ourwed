@@ -3,6 +3,7 @@
  * Does not invent wedding contact values; spans are replace targets only.
  */
 
+import { devInfoArgs } from '@/lib/debug/devConsole'
 export type ContactPlaceholderType =
   | 'underscore_placeholder'
   | 'dot_placeholder'
@@ -115,7 +116,7 @@ export function isContactPlaceholderValue(
 export function logContactPlaceholder(
   candidate: ContactPlaceholderCandidate,
 ): void {
-  console.info('[contract-contact-placeholder-classification]', {
+  devInfoArgs('[contract-contact-placeholder-classification]', {
     labelText: candidate.labelText,
     placeholderText: candidate.placeholderText.slice(0, 80),
     placeholderType: candidate.placeholderType,

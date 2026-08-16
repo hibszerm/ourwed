@@ -20,6 +20,7 @@ import { weddingPlaceService } from '@/lib/api/weddingPlaceService'
 import { weddingService } from '@/lib/api/weddingService'
 import type { PreWeddingAnswerValue } from '@/types/preweddingQuestionnaire'
 import type { Wedding } from '@/types/wedding'
+import { devWarnArgs } from '@/lib/debug/devConsole'
 
 export type ApplyWeddingDaySyncResult = {
   wedding: Wedding
@@ -183,7 +184,7 @@ export async function applyWeddingDaySyncCandidates(input: {
     try {
       await travelService.recalculate(weddingId, { forceRefresh: true })
     } catch (err) {
-      console.warn(
+      devWarnArgs(
         '[weddingDaySync] route recalculation failed:',
         err instanceof Error ? err.message : err,
       )

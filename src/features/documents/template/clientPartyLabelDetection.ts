@@ -15,6 +15,7 @@ import {
   logContactPlaceholder,
   type ContactCanonicalKey,
 } from './contractContactPlaceholderClassification'
+import { devInfoArgs } from '@/lib/debug/devConsole'
 
 const NAME_TOKEN =
   "[A-ZĄĆĘŁŃÓŚŹŻ][a-ząćęłńóśźżąćęłńóśźżĄĆĘŁŃÓŚŹŻ'\\-]{1,30}"
@@ -269,7 +270,7 @@ function detectInsideSection(
     if (!trimmed) continue
 
     if (isClosingZamawiajacymi(trimmed)) {
-      console.info('[contract-client-party-detection]', {
+      devInfoArgs('[contract-client-party-detection]', {
         paragraphIndex: para.index,
         roleLabel: null,
         canonicalKey: null,
@@ -793,7 +794,7 @@ function logClientDetection(input: {
   reviewState: string
   rejectionReason: string | null
 }) {
-  console.info('[contract-client-party-detection]', {
+  devInfoArgs('[contract-client-party-detection]', {
     paragraphIndex: input.paragraphIndex,
     roleLabel: input.roleLabel,
     canonicalKey: input.canonicalKey,

@@ -101,7 +101,7 @@ async function findReferenceWeddingId(userId: string): Promise<string | null> {
     .from('weddings')
     .select('id')
     .eq('user_id', userId)
-    .eq('bride_name', 'Marcin Nowak')
+    .eq('bride_name', 'Jan Kowalski')
     .eq('wedding_date', '2026-07-24')
     .order('created_at', { ascending: true })
     .limit(1)
@@ -150,7 +150,7 @@ export async function ensureReferenceWeddingSetup(): Promise<{
       ...current,
       couple: {
         ...current.couple,
-        partner1: 'Marcin Nowak',
+        partner1: 'Jan Kowalski',
         partner2: current.couple.partner2 || 'Anna Nowak',
         partner1FirstName: 'Marcin',
         partner1LastName: 'Nowak',
@@ -215,7 +215,7 @@ export async function ensureReferenceWeddingSetup(): Promise<{
   }
 
   const created = await weddingService.create({
-    partner1: 'Marcin Nowak',
+    partner1: 'Jan Kowalski',
     partner2: 'Anna Nowak',
     date: weddingDate,
     ceremonyLocation: 'Kościół pw. św. Anny',

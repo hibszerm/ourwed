@@ -15,6 +15,7 @@ import { formatAdminDateTime, formatUpdatedAt } from '@/admin/lib/adminFormat'
 import { adminDisplayName } from '@/admin/lib/adminIdentityDisplay'
 import { adminSubscriptionBadge } from '@/lib/billing/entitlement'
 import styles from '@/admin/styles/admin.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 const PAGE_SIZE = 25
 
@@ -27,8 +28,8 @@ const STATUS_LABEL: Record<AdminUserStatus, string> = {
 
 const SUB_FILTERS: Array<{ id: AdminSubscriptionFilter | ''; label: string }> = [
   { id: '', label: 'Wszystkie subskrypcje' },
-  { id: 'trial', label: 'Trial' },
-  { id: 'trial_ending', label: 'Trial kończy się ≤7 dni' },
+  { id: 'trial', label: 'Okres próbny' },
+  { id: 'trial_ending', label: 'Okres próbny kończy się ≤7 dni' },
   { id: 'pro', label: 'PRO' },
   { id: 'expired', label: 'Wygasł' },
   { id: 'manual', label: 'Ręczny dostęp' },
@@ -75,7 +76,7 @@ export function AdminUsersPage() {
       }
       setErrorMessage(
         err instanceof AdminApiRequestError
-          ? err.message
+          ? getUserFacingErrorMessage(err, 'Nie udało się wykonać operacji. Spróbuj ponownie.')
           : 'Nie udało się pobrać danych',
       )
     }

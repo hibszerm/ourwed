@@ -14,6 +14,7 @@ import { SimpleContractImportFlow } from '@/features/documents/import/SimpleCont
 import { validateContractDocx } from '@/features/documents/import/contractUploadValidation'
 import { documentTemplateService } from '@/lib/api/documents'
 import styles from './DocumentTemplateNewPage.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 /**
  * Create-from-file entry: file is already chosen on the templates list.
@@ -49,7 +50,7 @@ export function DocumentTemplateNewPage() {
                 if (!file) return
                 const validation = validateContractDocx(file)
                 if (!validation.ok) {
-                  showToast(validation.message, 'error')
+                  showToast(getUserFacingErrorMessage(validation, 'Nie udało się wykonać operacji. Spróbuj ponownie.'), 'error')
                   event.target.value = ''
                   return
                 }

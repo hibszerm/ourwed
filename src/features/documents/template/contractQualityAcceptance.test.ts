@@ -7,7 +7,7 @@ import { verifyContractTransformation } from './contractQualityCheck'
 import type { TemplateSlot } from './types'
 
 const companyResolved = {
-  company_name: 'Video Productions',
+  company_name: 'Atelier Studio',
 }
 
 const coupleResolved = {
@@ -58,7 +58,7 @@ run('Test 1 — empty company insertion', () => {
   ]
   const result = verifyContractTransformation({
     original: [para(0, 'firmą zwanego dalej „Filmowcem”.')],
-    transformed: [para(0, 'firmą Video Productions zwanego dalej „Filmowcem”.')],
+    transformed: [para(0, 'firmą Atelier Studio zwanego dalej „Filmowcem”.')],
     resolvedByKey: companyResolved,
     slots,
   })
@@ -179,7 +179,7 @@ run('Test 4 — company value plus legal modification', () => {
   const result = verifyContractTransformation({
     original: [para(0, 'firmą zwanego dalej „Filmowcem”.')],
     transformed: [
-      para(0, 'firmą Video Productions określaną dalej jako „Usługodawca”.'),
+      para(0, 'firmą Atelier Studio określaną dalej jako „Usługodawca”.'),
     ],
     resolvedByKey: companyResolved,
     slots,
@@ -194,7 +194,7 @@ run('Test 4 — company value plus legal modification', () => {
 
 run('Test 5 — DOCX run splitting (NBSP / same visible text)', () => {
   const original = 'firmą\u00a0zwanego dalej „Filmowcem”.'
-  const generated = 'firmą Video Productions zwanego dalej „Filmowcem”.'
+  const generated = 'firmą Atelier Studio zwanego dalej „Filmowcem”.'
   const result = verifyContractTransformation({
     original: [para(0, original)],
     transformed: [para(0, generated)],
@@ -207,7 +207,7 @@ run('Test 5 — DOCX run splitting (NBSP / same visible text)', () => {
 run('Test 6 — never report identical unexpected change', () => {
   const result = verifyContractTransformation({
     original: [para(0, 'firmą zwanego dalej „Filmowcem”.')],
-    transformed: [para(0, 'firmą Video Productions zwanego dalej „Filmowcem”.')],
+    transformed: [para(0, 'firmą Atelier Studio zwanego dalej „Filmowcem”.')],
     resolvedByKey: companyResolved,
     slots: [],
   })

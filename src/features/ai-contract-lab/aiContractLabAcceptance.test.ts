@@ -2405,7 +2405,7 @@ await run('Phase A soft-fail: bad rows do not kill siblings', () => {
 await run('Phase B quality: equality, dates, temporal, spans, package group, metrics', () => {
   // Field-aware normalization
   assert(
-    semanticValuesEqual('6482810484', '648 281 0484', 'nip'),
+    semanticValuesEqual('5250000000', '648 281 0484', 'nip'),
     'identical NIP → equal',
   )
   assert(
@@ -2491,7 +2491,7 @@ await run('Phase B quality: equality, dates, temporal, spans, package group, met
   }
   const company = {
     ...stubCompany(),
-    nip: '6482810484',
+    nip: '5250000000',
     regon: '522500508',
     phone: '500100200',
     companyName: 'Studio Filmowe XYZ',
@@ -2539,7 +2539,7 @@ await run('Phase B quality: equality, dates, temporal, spans, package group, met
       paragraphIndex: 2,
       runStart: 0,
       runEnd: 200,
-      text: 'NIP 6482810484, REGON 522500508, tel. 500 100 200',
+      text: 'NIP 5250000000, REGON 123456789, tel. 500 100 200',
       contextBefore: '',
       contextAfter: '',
     },
@@ -2648,7 +2648,7 @@ await run('Phase B quality: equality, dates, temporal, spans, package group, met
         anchorId: 'body:p2',
         semanticRole: 'company_nip',
         confidence: 0.99,
-        valueSpan: { sourceText: '6482810484' },
+        valueSpan: { sourceText: '5250000000' },
       },
       {
         anchorId: 'body:p2',
@@ -2922,8 +2922,8 @@ await run('Phase B safety sprint: spans, relative rules, phones, legal refs', ()
 
   assert(
     semanticValuesEqual(
-      'ul. Juliusza Słowackiego 6/17, 41-800 Zabrze',
-      'Juliusza Słowackiego 6/17, 41-800, Zabrze',
+      'ul. Przykładowa 1, 00-001 Warszawa',
+      'ul. Przykładowa 1, 00-001, Warszawa',
       'address',
     ),
     'Equivalent address formatting returns UNCHANGED',
@@ -3061,10 +3061,10 @@ await run('Phase B safety sprint: spans, relative rules, phones, legal refs', ()
   const company = {
     ...stubCompany(),
     phone: '500100200',
-    address: 'Juliusza Słowackiego 6/17',
+    address: 'ul. Przykładowa 1',
     postalCode: '41-800',
     city: 'Zabrze',
-    nip: '6482810484',
+    nip: '5250000000',
   }
   const fields = buildContractDataSnapshot({
     wedding,
@@ -3100,7 +3100,7 @@ await run('Phase B safety sprint: spans, relative rules, phones, legal refs', ()
       paragraphIndex: 3,
       runStart: 0,
       runEnd: 120,
-      text: 'ul. Juliusza Słowackiego 6/17, 41-800 Zabrze',
+      text: 'ul. Przykładowa 1, 00-001 Warszawa',
       contextBefore: '',
       contextAfter: '',
     },
@@ -3231,7 +3231,7 @@ await run('Phase B safety sprint: spans, relative rules, phones, legal refs', ()
         semanticRole: 'company_address',
         confidence: 0.99,
         valueSpan: {
-          sourceText: 'ul. Juliusza Słowackiego 6/17, 41-800 Zabrze',
+          sourceText: 'ul. Przykładowa 1, 00-001 Warszawa',
         },
       },
       {

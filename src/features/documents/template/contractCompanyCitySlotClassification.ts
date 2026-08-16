@@ -8,6 +8,7 @@
 
 import { canonicalizeParagraphText } from './canonicalParagraph'
 import type { IndexedParagraph } from './extractDocxParagraphs'
+import { devInfoArgs } from '@/lib/debug/devConsole'
 
 export type CompanyCityRole =
   | 'opening_clause_city'
@@ -256,7 +257,7 @@ export function inventoryCompanyCityCandidates(
   }
 
   for (const c of out) {
-    console.info('[contract-company-city-slot]', {
+    devInfoArgs('[contract-company-city-slot]', {
       sourceText: c.sourceText,
       paragraphIndex: c.paragraphIndex,
       startOffset: c.startOffset,

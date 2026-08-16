@@ -42,13 +42,13 @@ export function toAuthUser(user: User): AuthUser {
   const name =
     fullFromParts ||
     metaName ||
-    (email ? email.split('@')[0]! : 'Studio')
+    (email ? email.split('@')[0]! : 'Konto')
 
   return {
     id: user.id,
     email,
     name,
-    role: 'Studio',
+    role: 'Konto',
     initials: deriveInitials(name),
     emailConfirmed: Boolean(user.email_confirmed_at),
     profession: metadataString(user, 'profession'),

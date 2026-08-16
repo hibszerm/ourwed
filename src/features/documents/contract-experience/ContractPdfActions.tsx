@@ -13,6 +13,7 @@ import {
 } from '@/features/documents/pdf/docxToPdf/errors'
 import { downloadPdfBytes } from '@/features/wedding-brief/convertWeddingBriefHtmlToPdf'
 import styles from './ContractPdfActions.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 function pdfFileNameFromDocx(fileName: string): string {
   const base = fileName.replace(/\.docx$/i, '') || 'umowa'
@@ -66,7 +67,7 @@ export function ContractPdfActions(props: {
       if (e instanceof ContractPdfError) {
         setError(mapContractPdfErrorForUser(e.code))
       } else {
-        const raw = e instanceof Error ? e.message : ''
+        const raw = getUserFacingErrorMessage(e, '')
         setError(mapContractPdfErrorForUser(raw))
       }
     } finally {

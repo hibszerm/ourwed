@@ -3,6 +3,8 @@
  * User-facing copy stays friendly; internals keep the original exception.
  */
 
+import { devErrorArgs, devInfoArgs } from '@/lib/debug/devConsole'
+
 export type GenerationPipelineStage =
   | 'review_state_validation'
   | 'generation_input_build'
@@ -126,7 +128,8 @@ export function logGenerationStage(
   status: 'started' | 'succeeded' | 'failed' | 'needs_review',
   extra?: Record<string, unknown>,
 ) {
-  if (!DEV && (status === 'succeeded' || status === 'needs_review')) return
+  // Browser production: no stage dumps (IDs / messages / stacks).
+  if (!DEV) return
   const payload = {
     correlationId: trace.correlationId,
     stage,
@@ -137,9 +140,9 @@ export function logGenerationStage(
     ...extra,
   }
   if (status === 'failed') {
-    console.error('[contract-generation]', payload)
-  } else if (DEV) {
-    console.info('[contract-generation]', payload)
+    devErrorArgs('[contract-generation]', payload)
+  } else {
+    devInfoArgs('[contract-generation]', payload)
   }
 }
 
@@ -157,8 +160,9 @@ export function wrapGenerationFailure(
       : fallbackMessage
   logGenerationStage(trace, stage, 'failed', {
     errorName: err instanceof Error ? err.name : typeof err,
+    errorCode: code,
+    // Message only in DEV (function already no-ops outside DEV).
     errorMessage: message,
-    stack: err instanceof Error ? err.stack : null,
   })
   return new GenerationPipelineError({
     code,

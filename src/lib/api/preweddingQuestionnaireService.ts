@@ -12,6 +12,7 @@ import {
   DEFAULT_TEMPLATE_NAME,
   DEFAULT_TEMPLATE_SCHEMA,
   DEFAULT_TEMPLATE_SOURCE_KEY,
+  DEFAULT_TEMPLATE_SOURCE_KEY_V1,
   DEFAULT_TEMPLATE_TITLE,
 } from '@/features/prewedding/defaultTemplate'
 import {
@@ -42,6 +43,7 @@ import {
   persistShareToken,
   readShareToken,
 } from '@/features/prewedding/preweddingShareHelpers'
+import { devWarnArgs } from '@/lib/debug/devConsole'
 
 export {
   buildPreweddingPublicUrl,
@@ -177,7 +179,7 @@ export const questionnaireTemplateService = {
       .from('questionnaire_templates')
       .select('*')
       .eq('owner_id', userId)
-      .eq('source_key', 'pre_wedding_gentlemen_v1')
+      .eq('source_key', DEFAULT_TEMPLATE_SOURCE_KEY_V1)
       .maybeSingle()
 
     if (existingV1) {
@@ -796,7 +798,7 @@ export const weddingQuestionnaireService = {
           ),
         })
       } catch (err) {
-        console.warn(
+        devWarnArgs(
           `[prewedding.apply] location upsert failed for ${role}:`,
           err instanceof Error ? err.message : err,
         )

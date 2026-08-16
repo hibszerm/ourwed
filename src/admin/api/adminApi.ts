@@ -20,6 +20,7 @@ import type {
   AdminUserSubscriptionDetail,
   AdminUserSummary,
 } from '@/admin/api/types'
+import { devWarnArgs } from '@/lib/debug/devConsole'
 
 export class AdminApiRequestError extends Error {
   readonly code: string
@@ -104,7 +105,7 @@ function mapRpcError(operation: string, err: RpcLikeError): never {
     raw.includes('does not exist')
   ) {
     if (isDev()) {
-      console.warn('[ADM-RPC-RELATION]', {
+      devWarnArgs('[ADM-RPC-RELATION]', {
         operation,
         category: 'ADM-RPC-RELATION',
         relation: relation ?? null,
@@ -131,7 +132,7 @@ function mapRpcError(operation: string, err: RpcLikeError): never {
     (raw.includes('function public.admin_') && raw.includes('does not exist'))
   ) {
     if (isDev()) {
-      console.warn('[ADM-RPC-SIGNATURE]', {
+      devWarnArgs('[ADM-RPC-SIGNATURE]', {
         operation,
         category: 'ADM-RPC-SIGNATURE',
         HTTP: httpStatus ?? 404,
@@ -182,7 +183,7 @@ function mapRpcError(operation: string, err: RpcLikeError): never {
   }
 
   if (isDev()) {
-    console.warn('[ADM-RPC-FAILED]', {
+    devWarnArgs('[ADM-RPC-FAILED]', {
       operation,
       category: 'ADM-RPC-FAILED',
       databaseCode: databaseCode ?? null,

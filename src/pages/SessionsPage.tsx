@@ -17,6 +17,7 @@ import { getSessionDisplayName } from '@/features/sessions/presentation/getSessi
 import { SeasonGroupedList } from '@/features/shared/components/SeasonGroupedList'
 import { formatSessionSeasonCount } from '@/features/shared/presentation/groupAssignmentsBySeason'
 import styles from '@/pages/WeddingsPage.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 export function SessionsPage() {
   const { data: sessions, isLoading, isError, error, refetch } = useSessions()
@@ -57,9 +58,7 @@ export function SessionsPage() {
           <EmptyState
             title="Nie udało się załadować sesji"
             description={
-              error instanceof Error
-                ? error.message
-                : 'Spróbuj odświeżyć listę.'
+              getUserFacingErrorMessage(error, 'Spróbuj odświeżyć listę.')
             }
           />
         ) : !sessions || sessions.length === 0 ? (

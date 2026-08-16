@@ -7,6 +7,7 @@ import { useProAccessGate } from '@/features/billing/ProAccessGate'
 import { weddingService } from '@/lib/api/weddingService'
 import formStyles from '@/features/weddings/actions/actionForm.module.css'
 import type { Wedding } from '@/types/wedding'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 interface Props {
   open: boolean
@@ -106,7 +107,7 @@ function IdentityForm({
       onClose()
     } catch (e) {
       setError(
-        e instanceof Error ? e.message : 'Nie udało się zapisać zmian.',
+        getUserFacingErrorMessage(e, 'Nie udało się zapisać zmian.'),
       )
     } finally {
       setBusy(false)

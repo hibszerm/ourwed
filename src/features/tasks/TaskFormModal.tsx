@@ -17,6 +17,7 @@ import {
 import { taskWeddingOptionsQueryKey } from '@/features/tasks/tasksQueryKeys'
 import { taskService, type StudioTask } from '@/lib/api/taskService'
 import formStyles from '@/features/weddings/actions/actionForm.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 export interface TaskFormModalProps {
   open: boolean
@@ -164,7 +165,7 @@ function TaskFormFields({
       onClose()
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : 'Nie udało się zapisać zadania.'
+        getUserFacingErrorMessage(err, 'Nie udało się zapisać zadania.')
       setError(message)
       showToast(message, 'error')
     } finally {

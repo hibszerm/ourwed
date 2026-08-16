@@ -27,6 +27,7 @@ import {
 } from '@/features/documents/contractUi'
 import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
 import styles from '@/features/documents/DocumentsTemplates.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 export function DocumentTemplateDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -142,7 +143,7 @@ export function DocumentTemplateDetailPage() {
       navigate('/studio/pakiety')
     } catch (err) {
       showToast(
-        err instanceof Error ? err.message : 'Nie udało się usunąć.',
+        getUserFacingErrorMessage(err, 'Nie udało się usunąć.'),
         'error',
       )
     }
@@ -151,7 +152,7 @@ export function DocumentTemplateDetailPage() {
   async function handleReplace(file: File) {
     const validation = validateContractDocx(file)
     if (!validation.ok) {
-      showToast(validation.message, 'error')
+      showToast(getUserFacingErrorMessage(validation, 'Nie udało się wykonać operacji. Spróbuj ponownie.'), 'error')
       return
     }
     try {
@@ -160,7 +161,7 @@ export function DocumentTemplateDetailPage() {
       navigate(`/ustawienia/dokumenty/szablony/${doc.id}/analiza`)
     } catch (err) {
       showToast(
-        err instanceof Error ? err.message : 'Nie udało się zamienić dokumentu.',
+        getUserFacingErrorMessage(err, 'Nie udało się zamienić dokumentu.'),
         'error',
       )
     }
@@ -173,7 +174,7 @@ export function DocumentTemplateDetailPage() {
       navigate(`/ustawienia/dokumenty/szablony/${copy.id}`)
     } catch (err) {
       showToast(
-        err instanceof Error ? err.message : 'Nie udało się zduplikować.',
+        getUserFacingErrorMessage(err, 'Nie udało się zduplikować.'),
         'error',
       )
     }
@@ -189,7 +190,7 @@ export function DocumentTemplateDetailPage() {
       window.open(url, '_blank', 'noopener,noreferrer')
     } catch (err) {
       showToast(
-        err instanceof Error ? err.message : 'Nie udało się otworzyć dokumentu.',
+        getUserFacingErrorMessage(err, 'Nie udało się otworzyć dokumentu.'),
         'error',
       )
     }
@@ -436,7 +437,7 @@ export function DocumentTemplateDetailPage() {
         busy={mutations.rename.isPending}
         error={
           mutations.rename.error instanceof Error
-            ? mutations.rename.error.message
+            ? getUserFacingErrorMessage(mutations.rename.error, 'Nie udało się zmienić nazwy.')
             : null
         }
         initialName={doc.name}

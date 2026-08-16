@@ -9,6 +9,7 @@ import {
   removeTaskFromWeddingCaches,
 } from '@/features/tasks/invalidateTaskDomain'
 import { taskService, type StudioTask } from '@/lib/api/taskService'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 export interface TaskDeleteModalProps {
   open: boolean
@@ -37,7 +38,7 @@ export function TaskDeleteModal({ open, onClose, task }: TaskDeleteModalProps) {
       onClose()
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : 'Nie udało się usunąć zadania.'
+        getUserFacingErrorMessage(err, 'Nie udało się usunąć zadania.')
       setError(message)
       showToast(message, 'error')
     } finally {

@@ -49,6 +49,7 @@ import type {
   TemplateSlot,
   TemplateSlotSourceHint,
 } from './types'
+import { devInfoArgs } from '@/lib/debug/devConsole'
 
 export type CandidateEvidenceType =
   | 'explicit_label'
@@ -125,7 +126,7 @@ const COMPANY_RIGHT_ANCHORS = [
 ]
 
 function logCandidate(c: ContractCandidate) {
-  console.info('[contract-candidate-detection]', {
+  devInfoArgs('[contract-candidate-detection]', {
     paragraphIndex: c.paragraphIndex,
     text: c.paragraphText.slice(0, 120),
     candidateSpan: c.text,
@@ -338,7 +339,7 @@ function extractClientPartyFromParagraph(
           reason: 'Leading name tokens before client-party role phrase',
         })
       } else if (import.meta.env?.DEV) {
-        console.info('[client-party-detection-trace]', {
+        devInfoArgs('[client-party-detection-trace]', {
           diagnostic: 'diagnostic:client_party_names_not_parsed',
           paragraphIndex: para.index,
           nameRegion,
@@ -473,7 +474,7 @@ function detectClientPartyAcrossParagraphs(
   if (roleParaIdx < 0 || !roleHit) {
     if (import.meta.env?.DEV) {
       const hasPomiedzy = normalized.some((p) => /pomiędzy/i.test(p.text))
-      console.info('[client-party-detection-trace]', {
+      devInfoArgs('[client-party-detection-trace]', {
         diagnostic: hasPomiedzy
           ? 'diagnostic:client_party_role_anchor_not_found'
           : 'diagnostic:client_party_boundary_not_found',
@@ -496,7 +497,7 @@ function detectClientPartyAcrossParagraphs(
   const endIdx = roleParaIdx
 
   if (import.meta.env?.DEV) {
-    console.info('[client-party-detection-trace]', {
+    devInfoArgs('[client-party-detection-trace]', {
       clientClauseBoundary: {
         startParagraph: normalized[startIdx]?.index,
         endParagraph: normalized[endIdx]?.index,
@@ -537,7 +538,7 @@ function detectClientPartyAcrossParagraphs(
 
   if (!identityPara) {
     if (import.meta.env?.DEV) {
-      console.info('[client-party-detection-trace]', {
+      devInfoArgs('[client-party-detection-trace]', {
         diagnostic: 'diagnostic:client_party_identity_region_empty',
         startParagraph: normalized[startIdx]?.index,
         endParagraph: normalized[endIdx]?.index,
@@ -644,7 +645,7 @@ function detectCompanyParty(
       operation: 'replace',
     })
     const confidence = spanCheck.ok ? (right ? 0.94 : 0.82) : 0.72
-    console.info('[contract-slot-safety]', {
+    devInfoArgs('[contract-slot-safety]', {
       phase: 'detect-company_name',
       sourceText: name,
       sourceLength: name.length,
@@ -709,7 +710,7 @@ function detectCompanyParty(
     const city = segmented.cityLocative.text
     const start = text.indexOf(city)
     if (start >= 0) {
-      console.info('[contract-company-city-slot]', {
+      devInfoArgs('[contract-company-city-slot]', {
         sourceText: city,
         paragraphIndex: para.index,
         startOffset: start,
@@ -902,7 +903,7 @@ function detectDates(
       key = 'wedding_date'
     }
 
-    console.info('[contract-date-context]', {
+    devInfoArgs('[contract-date-context]', {
       paragraphIndex: para.index,
       sourceText: span,
       localContext: ctx.trim(),
@@ -966,7 +967,7 @@ function detectCompanyCitySlotGlobally(
     variableClassification: 'dynamic_candidate',
   })
 
-  console.info('[contract-city-context]', {
+  devInfoArgs('[contract-city-context]', {
     paragraphIndex: opening.paragraphIndex,
     sourceText: opening.sourceText,
     localContext: opening.localContext.trim(),
@@ -1199,7 +1200,7 @@ function detectLocations(
       leftAnchor,
       rightAnchor,
     })
-    console.info('[coverage-hours-slot]', {
+    devInfoArgs('[coverage-hours-slot]', {
       registryKey: 'coverage_hours',
       paragraphIndex: para.index,
       startOffset: start,

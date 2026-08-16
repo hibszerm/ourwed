@@ -27,7 +27,7 @@ const emptyAi: AiDocumentAnalysisResult = {
 }
 
 async function main() {
-  const path = process.argv[2] ?? '/Users/marcin/Downloads/2026.06.20_Zinnar_film_signed.docx'
+  const path = process.argv[2] ?? ''
   const bytes = readFileSync(path)
   const ab = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)
   const paragraphs = await extractDocxParagraphsIncludingEmpty(ab)

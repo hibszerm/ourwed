@@ -35,6 +35,8 @@ import { withDevPerf } from '@/lib/performance/devPerf'
 import { useProAccessGate } from '@/features/billing/ProAccessGate'
 import type { Wedding } from '@/types/wedding'
 import styles from './CalendarPage.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
+import { devWarnArgs } from '@/lib/debug/devConsole'
 
 function calendarEventsFingerprint(events: CalendarEvent[]): string {
   return events
@@ -137,9 +139,9 @@ export function CalendarPage() {
         queryClient.setQueryData(calendarEventsQueryKey(user.id), next)
       } catch (err) {
         if (import.meta.env?.DEV) {
-          console.warn(
+          devWarnArgs(
             '[calendar.repair] deferred wedding-day sync failed',
-            err instanceof Error ? err.message : err,
+            err,
           )
         }
       }
@@ -203,14 +205,10 @@ export function CalendarPage() {
         <PageContainer width="wide">
           <EmptyState
             title="Nie udało się załadować kalendarza"
-            description={
-              (weddingsErr instanceof Error
-                ? weddingsErr.message
-                : null) ||
-              (eventsErr instanceof Error ? eventsErr.message : null) ||
-              (sessionsErr instanceof Error ? sessionsErr.message : null) ||
-              'Spróbuj ponownie.'
-            }
+            description={getUserFacingErrorMessage(
+              weddingsErr ?? eventsErr ?? sessionsErr,
+              'Nie udało się pobrać wydarzeń.',
+            )}
           />
           <Button
             type="button"

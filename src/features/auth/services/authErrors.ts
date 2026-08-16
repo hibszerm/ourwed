@@ -74,5 +74,6 @@ export function mapAuthError(error: unknown, fallback: string): string {
     return 'Sesja wygasła. Zaloguj się ponownie.'
   }
 
-  return message.trim() || fallback
+  // Unknown Auth/provider text must never reach the user verbatim.
+  return fallback
 }

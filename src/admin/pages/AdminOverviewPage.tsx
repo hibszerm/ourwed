@@ -27,6 +27,7 @@ import {
 } from '@/admin/components/AdminStateMessage'
 import { formatUpdatedAt, pctOf } from '@/admin/lib/adminFormat'
 import styles from '@/admin/styles/admin.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 const RANGES: Array<{ id: AdminMetricRange; label: string }> = [
   { id: 'today', label: 'Dzisiaj' },
@@ -73,7 +74,7 @@ export function AdminOverviewPage() {
     } catch (err) {
       if (err instanceof AdminApiRequestError && err.code !== 'admin_fetch_failed') {
         setState('forbidden')
-        setErrorMessage(err.message)
+        setErrorMessage(getUserFacingErrorMessage(err, 'Nie udało się wykonać operacji. Spróbuj ponownie.'))
       } else {
         setState('error')
         setErrorMessage(

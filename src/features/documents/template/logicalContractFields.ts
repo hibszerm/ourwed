@@ -10,6 +10,7 @@
 
 import type { CompletenessField } from './buildContractCompleteness'
 import { isSlotPhysicallyBound, type TemplateSlot, type TemplateSlotMap } from './types'
+import { devInfoArgs } from '@/lib/debug/devConsole'
 
 export type PhysicalContractBinding = {
   bindingId: string
@@ -153,7 +154,7 @@ export function normalizePhysicalBindings(slots: TemplateSlot[]): TemplateSlot[]
       const keepA = scoreBinding(a) >= scoreBinding(b)
       const loser = keepA ? b : a
       dropped.add(loser.id)
-      console.info('[physical-binding-normalize]', {
+      devInfoArgs('[physical-binding-normalize]', {
         event: 'collapse_overlapping_same_key',
         registryKey: a.registryKey,
         paragraphIndex: a.paragraphIndex,
@@ -321,7 +322,7 @@ export function slotsForSinglePassApply(slots: TemplateSlot[]): TemplateSlot[] {
         .map((key) => group.find((s) => s.registryKey === key))
         .find(Boolean) ?? group[0]!
     selected.push(preferred)
-    console.info('[logical-field-apply]', {
+    devInfoArgs('[logical-field-apply]', {
       event: 'collapse_shared_physical_span',
       keptRegistryKey: preferred.registryKey,
       droppedRegistryKeys: group
@@ -341,7 +342,7 @@ export function logLogicalFieldModel(
   slots: TemplateSlot[],
 ): void {
   const logical = groupSlotsIntoLogicalFields(slots)
-  console.info('[logical-contract-fields]', {
+  devInfoArgs('[logical-contract-fields]', {
     phase,
     logicalFieldCount: logical.length,
     physicalBindingCount: logical.reduce(

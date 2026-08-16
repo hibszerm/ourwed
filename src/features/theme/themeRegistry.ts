@@ -5,7 +5,7 @@ import {
   type ThemeTokenMap,
 } from '@/features/theme/tokenKeys'
 import { CLASSIC_TOKENS } from '@/features/theme/tokens/classic'
-import { GENTLEMEN_TOKENS } from '@/features/theme/tokens/gentlemen'
+import { GRAPHITE_TOKENS } from '@/features/theme/tokens/graphite'
 import { SAGE_GARDEN_TOKENS } from '@/features/theme/tokens/sageGarden'
 import { BURGUNDY_ESTATE_TOKENS } from '@/features/theme/tokens/burgundyEstate'
 import { MOCHA_EDITORIAL_TOKENS } from '@/features/theme/tokens/mochaEditorial'
@@ -36,14 +36,14 @@ export const THEME_REGISTRY: Record<ThemeId, ThemeDefinition> = {
     sortOrder: 0,
     tokens: CLASSIC_TOKENS,
   },
-  gentlemen: {
-    id: 'gentlemen',
-    name: 'Gentlemen',
+  graphite: {
+    id: 'graphite',
+    name: 'Graphite',
     description:
       'Elegancki motyw z grafitem, ciepłym beżem i szlachetnymi brązami.',
     referencePalette: ['#0A0908', '#22333B', '#EAE0D5', '#C6AC8E', '#5E503F'],
     sortOrder: 1,
-    tokens: GENTLEMEN_TOKENS,
+    tokens: GRAPHITE_TOKENS,
   },
   sage_garden: {
     id: 'sage_garden',

@@ -12,6 +12,7 @@ import {
   isClientPartyPhoneKey,
 } from './clientPartyReadiness'
 import { isSlotPhysicallyBound, type TemplateSlot } from './types'
+import { devInfoArgs } from '@/lib/debug/devConsole'
 
 export type SpanConflictRelationship =
   | 'identical'
@@ -117,7 +118,7 @@ function logBindingSnapshot(
   bindings: TemplateSlot[],
   extra?: Record<string, unknown>,
 ) {
-  console.info(label, {
+  devInfoArgs(label, {
     ...extra,
     bindings: bindings.map((b) => {
       const span = spanOf(b)
@@ -281,7 +282,7 @@ export function normalizeClientPartyPhysicalBindings(
     }
   }
 
-  console.info('[client-party-bindings-after-normalization]', {
+  devInfoArgs('[client-party-bindings-after-normalization]', {
     retained: retained.map((b) => {
       const span = spanOf(b)
       return {
@@ -393,7 +394,7 @@ export function describeSharedPhysicalSpanConflicts(input: {
       ? null
       : (input.paragraphs?.find((p) => p.index === paraIndex)?.text ?? null)
 
-  console.info('[package-contract-shared-span-conflict]', {
+  devInfoArgs('[package-contract-shared-span-conflict]', {
     documentName: input.documentName ?? null,
     paragraphIndex: paraIndex ?? null,
     sourceParagraphText,

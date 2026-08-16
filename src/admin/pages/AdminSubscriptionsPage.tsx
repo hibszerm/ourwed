@@ -19,13 +19,14 @@ import {
   type AccountEntitlement,
 } from '@/lib/billing/entitlement'
 import styles from '@/admin/styles/admin.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 const PAGE_SIZE = 50
 
 const FILTERS: Array<{ id: AdminSubscriptionFilter | ''; label: string }> = [
   { id: '', label: 'Wszystkie' },
-  { id: 'trial', label: 'Trial' },
-  { id: 'trial_ending', label: 'Trial kończy się ≤7 dni' },
+  { id: 'trial', label: 'Okres próbny' },
+  { id: 'trial_ending', label: 'Okres próbny kończy się ≤7 dni' },
   { id: 'pro', label: 'PRO' },
   { id: 'expired', label: 'Wygasł' },
   { id: 'manual', label: 'Ręczny dostęp' },
@@ -35,7 +36,7 @@ const FILTERS: Array<{ id: AdminSubscriptionFilter | ''; label: string }> = [
 function sourceLabel(source: AccountEntitlement['source']): string {
   switch (source) {
     case 'trial':
-      return 'Trial'
+      return 'Okres próbny'
     case 'paid_subscription':
       return 'Subskrypcja'
     case 'admin_override':
@@ -116,7 +117,7 @@ export function AdminSubscriptionsPage() {
       }
       setErrorMessage(
         err instanceof AdminApiRequestError
-          ? err.message
+          ? getUserFacingErrorMessage(err, 'Nie udało się wykonać operacji. Spróbuj ponownie.')
           : 'Nie udało się pobrać danych',
       )
     }

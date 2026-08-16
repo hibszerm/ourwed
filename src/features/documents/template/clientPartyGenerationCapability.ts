@@ -14,6 +14,7 @@ import {
   isClientPartyPhoneKey,
 } from './clientPartyReadiness'
 import { isSlotPhysicallyBound, type TemplateSlot } from './types'
+import { devInfoArgs } from '@/lib/debug/devConsole'
 
 export type ClientPartyPhysicalMode =
   | 'composite'
@@ -309,7 +310,7 @@ export function logPackageContractGenerationClientPartyTrace(input: {
   const physicalBindingKeys = input.slots
     .filter((s) => s.registryKey && isSlotPhysicallyBound(s))
     .map((s) => s.registryKey!)
-  console.info('[package-contract-generation-client-party-trace]', {
+  devInfoArgs('[package-contract-generation-client-party-trace]', {
     wedding: {
       id: input.weddingId ?? null,
       person1: {

@@ -27,6 +27,7 @@ import {
 import { isOvertimeRegistryKey } from './numericSemanticFamily'
 import { prepareSlotReplacementValue } from './slotReplacementValue'
 import { stripClockTimeFromDuration } from './polishDuration'
+import { devInfoArgs } from '@/lib/debug/devConsole'
 
 export { prepareSlotReplacementValue } from './slotReplacementValue'
 
@@ -252,7 +253,7 @@ export function applyBoundSlotsToParagraphs(input: {
         continue
       }
 
-      console.info('[contract-resolve]', {
+      devInfoArgs('[contract-resolve]', {
         registryKey: slot.registryKey,
         resolvedValue: prepared.value,
         omitted: prepared.isOmitted,
@@ -271,7 +272,7 @@ export function applyBoundSlotsToParagraphs(input: {
         (slot.registryKey &&
           MONEY_COMMERCIAL_APPLY_KEYS.has(slot.registryKey))
       ) {
-        console.info('[contract-commercial-apply]', {
+        devInfoArgs('[contract-commercial-apply]', {
           registryKey: slot.registryKey,
           paragraphIndex: paraIndex,
           originalSpan: slot.originalText,
@@ -381,7 +382,7 @@ export function applyBoundSlotsToParagraphs(input: {
       }
       tracesForPara.push(trace)
       replacementTraces.push(trace)
-      console.info('[contract-replacement-trace]', {
+      devInfoArgs('[contract-replacement-trace]', {
         bindingId: trace.bindingId,
         key: trace.key,
         paragraphIndex: paraIndex,
@@ -401,7 +402,7 @@ export function applyBoundSlotsToParagraphs(input: {
       (a, b) => b.location.start - a.location.start,
     )
 
-    console.info('[contract-apply-order]', {
+    devInfoArgs('[contract-apply-order]', {
       paragraphIndex: paraIndex,
       beforeSort,
       afterSort: afterSort.map((w) => ({

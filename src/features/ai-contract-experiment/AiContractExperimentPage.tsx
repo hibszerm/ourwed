@@ -39,6 +39,7 @@ import type {
   IndexedDocxBlock,
 } from './types'
 import styles from './AiContractExperimentPage.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 type ResultTab =
   | 'summary'
@@ -156,7 +157,7 @@ function ExperimentInner() {
       setTemplate(created.template)
       setBlocks(created.blocks)
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      setError(getUserFacingErrorMessage(e, 'Nie udało się wykonać operacji. Spróbuj ponownie.'))
     } finally {
       setBusy(false)
     }
@@ -212,7 +213,7 @@ function ExperimentInner() {
       setResult(next)
       setTab('summary')
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e)
+      const msg = getUserFacingErrorMessage(e, 'Nie udało się wykonać operacji. Spróbuj ponownie.')
       setError(msg)
       setLastErrorRetryable(
         /limit|timeout|ponownie|sieć|network/i.test(msg),
@@ -501,7 +502,7 @@ function ExperimentInner() {
                     setResult(next)
                     setTab('summary')
                   } catch (e) {
-                    setError(e instanceof Error ? e.message : String(e))
+                    setError(getUserFacingErrorMessage(e, 'Nie udało się wykonać operacji. Spróbuj ponownie.'))
                   } finally {
                     setBusy(false)
                   }

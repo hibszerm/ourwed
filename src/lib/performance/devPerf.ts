@@ -3,6 +3,7 @@
  * No-ops in production; never throws.
  */
 
+import { devDebugArgs } from '@/lib/debug/devConsole'
 export type DevPerfLabel =
   | 'weddingService.getAll'
   | 'weddingService.getById'
@@ -94,7 +95,7 @@ export async function withDevPerf<T>(
     mark(end)
     const ms = measureMs(measureName, start, end)
     if (ms != null && typeof console !== 'undefined') {
-      console.debug(`[perf] ${label} ${Math.round(ms)}ms`)
+      devDebugArgs(`[perf] ${label} ${Math.round(ms)}ms`)
     }
   }
 }

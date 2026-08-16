@@ -31,6 +31,7 @@ import type { Wedding } from '@/types/wedding'
 import type { WeddingExtraService as ExtraRow } from '@/types/package'
 import editStyles from '@/features/weddings/edit/WeddingEdit.module.css'
 import styles from '@/features/weddings/detail/editing/WeddingEditorFields.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 type Mode = 'charge' | 'included'
 
@@ -203,9 +204,7 @@ function TravelFeeResolveForm({
         return
       }
       setError(
-        err instanceof Error
-          ? err.message
-          : 'Nie udało się zapisać kosztu dojazdu.',
+        getUserFacingErrorMessage(err, 'Nie udało się zapisać kosztu dojazdu.'),
       )
     },
   })

@@ -94,7 +94,7 @@ const day = read('src/features/weddings/detail/v2/WeddingDayWorkspace.tsx')
 {
   const selected: GeoPlace = {
     placeId: 'ChIJ_test',
-    formattedAddress: '3 Maja 66, 41-800 Zabrze',
+    formattedAddress: '3 Maja 66, 00-001 Warszawa',
     latitude: 50.32,
     longitude: 18.78,
     label: 'Zabrze',

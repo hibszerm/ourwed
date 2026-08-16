@@ -27,6 +27,8 @@ import {
 } from '@/features/documents/template/types'
 import { validateTemplateSlotBindings } from '@/features/documents/template/templateReadiness'
 import styles from '@/features/documents/DocumentsTemplates.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
+import { devInfoArgs } from '@/lib/debug/devConsole'
 
 export function DocumentTemplateConfigPage() {
   const { id } = useParams<{ id: string }>()
@@ -54,7 +56,7 @@ export function DocumentTemplateConfigPage() {
       setSlotMap(parseSlotMap(version?.slotMap))
     } catch (err) {
       showToast(
-        err instanceof Error ? err.message : 'Nie udało się wczytać slotów.',
+        getUserFacingErrorMessage(err, 'Nie udało się wczytać slotów.'),
         'error',
       )
     } finally {
@@ -130,7 +132,7 @@ export function DocumentTemplateConfigPage() {
       )
     } catch (err) {
       showToast(
-        err instanceof Error ? err.message : 'Nie udało się zapisać.',
+        getUserFacingErrorMessage(err, 'Nie udało się zapisać.'),
         'error',
       )
     } finally {
@@ -151,7 +153,7 @@ export function DocumentTemplateConfigPage() {
         queryKey: ['document-templates'],
       })
       await refetch()
-      console.info('[reanalyze-complete]', {
+      devInfoArgs('[reanalyze-complete]', {
         templateId: result.templateId,
         templateVersionId: result.templateVersionId,
         readinessReady: result.readinessReady,
@@ -164,7 +166,7 @@ export function DocumentTemplateConfigPage() {
       )
     } catch (err) {
       showToast(
-        err instanceof Error ? err.message : 'Analiza nie powiodła się.',
+        getUserFacingErrorMessage(err, 'Analiza nie powiodła się.'),
         'error',
       )
     } finally {

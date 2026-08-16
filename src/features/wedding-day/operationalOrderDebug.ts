@@ -4,6 +4,7 @@
  */
 
 import type { WeddingPlace } from '@/types/travel'
+import { devErrorArgs, devInfoArgs } from '@/lib/debug/devConsole'
 
 export type OperationalOrderSource =
   | 'weddingPlaceService.reorder'
@@ -77,7 +78,7 @@ export function logOperationalOrder(input: {
     sortOrders: input.places?.map((p) => p.sortOrder),
     ...input.extra,
   }
-  console.info('[operational-order]', payload)
+  devInfoArgs('[operational-order]', payload)
 }
 
 /** DEV assertion: route input ids must match operational place ids in order. */
@@ -93,7 +94,7 @@ export function assertRouteInputMatchesOperationalOrder(input: {
     ops.length === routePlaces.length &&
     ops.every((id, i) => id === routePlaces[i])
   if (!same) {
-    console.error('[operational-order] ROUTE INPUT MISMATCH', {
+    devErrorArgs('[operational-order] ROUTE INPUT MISMATCH', {
       weddingId: input.weddingId,
       operationalPlaceIds: ops,
       routeStopIds: input.routeStopIds,

@@ -69,7 +69,7 @@ export function getTrialTimeRemaining(
     return {
       kind: 'ended',
       fullDays: 0,
-      label: 'Trial zakończony',
+      label: 'Okres próbny zakończony',
       endingSoon: false,
       ended: true,
     }
@@ -80,7 +80,7 @@ export function getTrialTimeRemaining(
     return {
       kind: 'ended',
       fullDays: 0,
-      label: 'Trial zakończony',
+      label: 'Okres próbny zakończony',
       endingSoon: false,
       ended: true,
     }
@@ -223,7 +223,7 @@ export function sidebarSubscriptionCopy(
     )
     if (rem.kind === 'today') {
       return {
-        title: 'PRO Trial',
+        title: 'Okres próbny PRO',
         subtitle: 'Kończy się dzisiaj',
         tone: 'warmStrong',
         cta: 'choose_plan',
@@ -234,7 +234,7 @@ export function sidebarSubscriptionCopy(
     }
     if (rem.fullDays <= 3) {
       return {
-        title: 'PRO Trial',
+        title: 'Okres próbny PRO',
         subtitle:
           rem.fullDays === 1
             ? '1 dzień pozostał'
@@ -248,7 +248,7 @@ export function sidebarSubscriptionCopy(
     }
     if (rem.endingSoon) {
       return {
-        title: 'PRO Trial',
+        title: 'Okres próbny PRO',
         subtitle: `${rem.fullDays} dni pozostało`,
         tone: 'warm',
         cta: 'choose_plan',
@@ -258,7 +258,7 @@ export function sidebarSubscriptionCopy(
       }
     }
     return {
-      title: 'PRO Trial',
+      title: 'Okres próbny PRO',
       subtitle: `${rem.fullDays} dni pozostało`,
       tone: 'default',
       cta: 'choose_plan',
@@ -269,7 +269,7 @@ export function sidebarSubscriptionCopy(
   }
 
   return {
-    title: 'Trial zakończony',
+    title: 'Okres próbny zakończony',
     subtitle: 'Aktywuj PRO',
     tone: 'muted',
     cta: 'choose_plan',
@@ -310,7 +310,7 @@ export function buildSubscriptionHistory(
       entitlement.source === 'trial' && entitlement.accessLevel === 'pro' && !rem.ended
     items.push({
       id: 'trial-started',
-      title: 'Trial rozpoczęty',
+      title: 'Okres próbny rozpoczęty',
       detail: formatWarsawDate(entitlement.trialStartedAt),
       status: trialLive ? 'active' : 'ended',
       statusLabel: trialLive ? 'Aktywne' : 'Zakończone',
@@ -322,14 +322,14 @@ export function buildSubscriptionHistory(
     if (!rem.ended && entitlement.source === 'trial' && entitlement.accessLevel === 'pro') {
       items.push({
         id: 'trial-ends',
-        title: 'Trial zakończy się',
+        title: 'Okres próbny zakończy się',
         detail: formatWarsawDate(entitlement.trialEndsAt),
         status: 'scheduled',
         statusLabel: 'Zaplanowane',
       })
       items.push({
         id: 'post-trial',
-        title: 'Dostęp po Trialu',
+        title: 'Dostęp po okresie próbnym',
         detail: 'Wybierz plan PRO, aby kontynuować pełny dostęp.',
         status: 'scheduled',
         statusLabel: 'Zaplanowane',
@@ -337,7 +337,7 @@ export function buildSubscriptionHistory(
     } else if (rem.ended) {
       items.push({
         id: 'trial-ended',
-        title: 'Trial zakończony',
+        title: 'Okres próbny zakończony',
         detail: formatWarsawDate(entitlement.trialEndsAt),
         status: 'ended',
         statusLabel: 'Zakończone',
@@ -388,8 +388,8 @@ export function adminSubscriptionBadge(
   if (entitlement.source === 'trial' && entitlement.accessLevel === 'pro') {
     const rem = getTrialTimeRemaining(entitlement.trialEndsAt, now)
     if (rem.ended) return 'Wygasł'
-    if (rem.kind === 'today') return 'Trial · dziś'
-    return `Trial · ${rem.fullDays} dni`
+    if (rem.kind === 'today') return 'Okres próbny · dziś'
+    return `Okres próbny · ${rem.fullDays} dni`
   }
   if (entitlement.status === 'past_due') return 'Problem z płatnością'
   return 'Wygasł'

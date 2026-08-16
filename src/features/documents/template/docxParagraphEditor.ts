@@ -13,6 +13,7 @@ import {
   escapeXml,
   extractCanonicalParagraphText,
 } from './canonicalParagraph'
+import { devInfoArgs, devWarnArgs } from '@/lib/debug/devConsole'
 
 export interface DocxParagraph {
   index: number
@@ -57,7 +58,7 @@ function rebuildParagraphText(
   const slotText = canonicalText.slice(safeStart, safeEnd)
   const afterText = canonicalText.slice(safeEnd)
   const rebuiltParagraph = beforeText + replacement + afterText
-  console.info('[contract-paragraph-rebuild]', {
+  devInfoArgs('[contract-paragraph-rebuild]', {
     beforeText,
     slotText,
     afterText,
@@ -161,7 +162,7 @@ export function replaceCanonicalSpanInParagraphXml(
 
   const actual = extractCanonicalParagraphText(nextXml)
   if (actual !== rebuiltParagraph) {
-    console.warn(
+    devWarnArgs(
       '[contract-paragraph-rebuild] single-run rewrite mismatch — falling back to whole paragraph',
       { expected: rebuiltParagraph, actual },
     )

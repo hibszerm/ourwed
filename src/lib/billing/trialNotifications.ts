@@ -44,24 +44,24 @@ function copyFor(milestone: Milestone): { title: string; message: string } {
   switch (milestone) {
     case '7d':
       return {
-        title: 'Trial PRO kończy się wkrótce',
+        title: 'Okres próbny PRO kończy się wkrótce',
         message:
-          'Twój Trial PRO kończy się za kilka dni. Wybierz plan, aby zachować pełny dostęp.',
+          'Twój okres próbny PRO kończy się za kilka dni. Wybierz plan, aby zachować pełny dostęp.',
       }
     case '3d':
       return {
-        title: 'Trial PRO kończy się za 3 dni',
+        title: 'Okres próbny PRO kończy się za 3 dni',
         message:
           'Wybierz plan, aby zachować pełny dostęp do funkcji. Twoje dane pozostaną dostępne.',
       }
     case '1d':
       return {
-        title: 'Trial PRO kończy się dzisiaj',
+        title: 'Okres próbny PRO kończy się dzisiaj',
         message: 'Wybierz plan, aby dalej tworzyć i obsługiwać zlecenia.',
       }
     case 'expired':
       return {
-        title: 'Trial PRO zakończony',
+        title: 'Okres próbny PRO zakończony',
         message:
           'Twoje dane pozostają bezpieczne i dostępne. Wybierz PRO, aby dalej tworzyć i obsługiwać zlecenia.',
       }

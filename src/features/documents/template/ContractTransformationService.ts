@@ -82,6 +82,7 @@ import {
 import { assertOvertimeValueSource } from './numericSemanticFamily'
 import { formatContractDateShort } from '@/lib/utils/contractCommercialVariables'
 import type { FinalContractGenerationArtifact } from './finalContractGenerationArtifact'
+import { devErrorArgs, devInfoArgs, devWarnArgs } from '@/lib/debug/devConsole'
 
 export interface TransformContractInput {
   wedding: Wedding
@@ -333,7 +334,7 @@ export async function transformContract(
         slotMap: loadedMap,
       })
       slotMap = model.slotMap
-      console.info('[package-contract-generation-source]', {
+      devInfoArgs('[package-contract-generation-source]', {
         mode: 'persisted_only',
         runtimeSyncInvoked: false,
         packageContractMode: true,
@@ -349,7 +350,7 @@ export async function transformContract(
           field.registryKey === 'reception_location' ||
           field.registryKey === 'final_payment_due_date'
         ) {
-          console.info('[package-contract-critical-binding]', {
+          devInfoArgs('[package-contract-critical-binding]', {
             registryKey: field.registryKey,
             bindings: field.physicalBindings.map((b) => ({
               bindingId: b.bindingId,
@@ -399,12 +400,12 @@ export async function transformContract(
           .update({ slot_map: slotMap })
           .eq('id', versionId)
         if (persistError) {
-          console.warn('[contract-loaded-bindings] persist sync failed', {
+          devWarnArgs('[contract-loaded-bindings] persist sync failed', {
             templateVersionId: versionId,
-            message: persistError.message,
+            code: persistError.code ?? null,
           })
         } else {
-          console.info('[contract-loaded-bindings]', {
+          devInfoArgs('[contract-loaded-bindings]', {
             phase: 'persisted-sync-write',
             templateVersionId: versionId,
             addedCount: syncedAddedCount,
@@ -422,7 +423,10 @@ export async function transformContract(
           })
         }
       } catch (err) {
-        console.warn('[contract-loaded-bindings] persist sync error', err)
+        devWarnArgs(
+          '[contract-loaded-bindings] persist sync error',
+          err instanceof Error ? err.name : typeof err,
+        )
       }
     }
 
@@ -624,7 +628,7 @@ export async function transformContract(
         normalizePhysicalBindings(slotsForApply),
       )
       logLogicalFieldModel('package-slots-for-apply', slotsForApply)
-      console.info('[package-contract-apply-bindings]', {
+      devInfoArgs('[package-contract-apply-bindings]', {
         templateVersionId: versionId,
         bindings: slotsForApply
           .filter((s) => s.enabled && s.registryKey && s.paragraphIndex != null)
@@ -877,14 +881,15 @@ export async function transformContract(
         })),
         replacementTraces: applied.replacementTraces,
       })
-      if (typeof console !== 'undefined') {
+      if (import.meta.env.DEV && typeof console !== 'undefined') {
         // Chunked so browser consoles do not truncate the diagnostic.
-        console.error('[contract-generation] QUALITY DIFF FULL', {
+        // DEV only — paragraph text is contract content (PII risk).
+        devErrorArgs('[contract-generation] QUALITY DIFF FULL', {
           correlationId: trace.correlationId,
           failureCount: quality.failures?.length ?? 0,
         })
         for (const f of quality.failures ?? []) {
-          console.error(
+          devErrorArgs(
             `[contract-generation] QUALITY PARA ${f.index}\n` +
               `ORIGINAL:\n${f.original}\n\nGENERATED:\n${f.generated}\n\n` +
               `UNEXPECTED:\n${JSON.stringify(f.unexpectedEdits, null, 2)}\n\n` +

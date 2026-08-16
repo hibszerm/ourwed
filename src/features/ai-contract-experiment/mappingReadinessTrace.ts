@@ -19,6 +19,7 @@ import type {
   StructuredAiMappingResponse,
   ValidatedAiMapping,
 } from './types'
+import { devInfoArgs } from '@/lib/debug/devConsole'
 
 export type MappingReadinessTrace = {
   experimentRunId: string
@@ -195,7 +196,7 @@ export function logMappingReadinessTrace(input: {
 }): MappingReadinessTrace {
   const trace = buildMappingReadinessTrace(input)
   if (typeof import.meta !== 'undefined' && import.meta.env?.DEV) {
-    console.info('[ai-contract-mapping-readiness-trace]', trace)
+    devInfoArgs('[ai-contract-mapping-readiness-trace]', trace)
   }
   return trace
 }

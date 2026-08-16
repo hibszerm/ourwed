@@ -17,6 +17,7 @@ import {
   type TemplateSlot,
   type TemplateSlotMap,
 } from './types'
+import { devInfoArgs } from '@/lib/debug/devConsole'
 
 export type BindingRemovalReason =
   | 'duplicate_same_span'
@@ -100,7 +101,7 @@ export function logContractLoadedBindings(input: {
       physicallyBound: s.physicallyBound,
       detectionStatus: s.detectionStatus,
     }))
-  console.info('[contract-loaded-bindings]', {
+  devInfoArgs('[contract-loaded-bindings]', {
     phase: input.phase,
     templateVersionId: input.templateVersionId ?? null,
     paragraphIndex: para,
@@ -161,7 +162,7 @@ export function syncPhysicalBindingsFromSource(input: {
       endOffset: slot.endOffset ?? slot.allowedRange?.end ?? null,
       originalSpan: slot.originalText ?? null,
     })
-    console.info('[binding-sync]', {
+    devInfoArgs('[binding-sync]', {
       event: 'added',
       registryKey: slot.registryKey,
       paragraphIndex: slot.paragraphIndex,
@@ -180,7 +181,7 @@ export function syncPhysicalBindingsFromSource(input: {
         paragraphIndex: s.paragraphIndex ?? null,
         reason: 'duplicate_same_span',
       })
-      console.info('[binding-sync]', {
+      devInfoArgs('[binding-sync]', {
         event: 'removed',
         registryKey: s.registryKey,
         paragraphIndex: s.paragraphIndex,
@@ -199,7 +200,7 @@ export function syncPhysicalBindingsFromSource(input: {
     paragraph36: describePara36(output),
   }
 
-  console.info('[binding-sync-summary]', {
+  devInfoArgs('[binding-sync-summary]', {
     bindingInputCount: diagnostic.inputCount,
     bindingOutputCount: diagnostic.outputCount,
     addedCount: diagnostic.added.length,

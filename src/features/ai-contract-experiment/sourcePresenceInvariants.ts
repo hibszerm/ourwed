@@ -9,6 +9,7 @@ import {
 } from './templateShapeRequirements'
 import { evaluateAllSourceFieldPresence } from './sourceFieldPresence'
 import type { MappingReadinessStatus, ValidatedAiMapping } from './types'
+import { devErrorArgs } from '@/lib/debug/devConsole'
 
 function isApproved(m: ValidatedAiMapping): boolean {
   return (
@@ -78,7 +79,7 @@ export function assertSourcePresenceInvariants(input: {
   }
 
   if (violations.length > 0) {
-    console.error('[ai-contract-source-presence-invariant-failed]', {
+    devErrorArgs('[ai-contract-source-presence-invariant-failed]', {
       experimentRunId: input.experimentRunId,
       invariant: violations,
       sourcePresence: presence,

@@ -132,7 +132,7 @@ const brideGeo: GeoPlace = {
 
 const groomGeo: GeoPlace = {
   placeId: 'ChIJgroom',
-  formattedAddress: 'Wolności 100, 41-800 Zabrze',
+  formattedAddress: 'Wolności 100, 00-001 Warszawa',
   latitude: 50.3012,
   longitude: 18.7851,
   label: 'Wolności 100',

@@ -35,6 +35,7 @@ import type {
 } from '@/types/contractQuestionnaire'
 import { defaultContractQuestionnaireConfig } from '@/types/contractQuestionnaire'
 import styles from './FormPublicPage.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 type LoadState =
   | { status: 'waiting_for_auth' }
@@ -153,9 +154,7 @@ export function ProductionContractFormPage({
         setLoad({
           status: 'error',
           message:
-            err instanceof Error
-              ? err.message
-              : 'Nie udało się wczytać formularza.',
+            getUserFacingErrorMessage(err, 'Nie udało się wczytać formularza.'),
         })
       }
     }
@@ -397,7 +396,7 @@ export function ProductionContractFormPage({
       setSuccess(true)
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : 'Nie udało się wysłać formularza.'
+        getUserFacingErrorMessage(err, 'Nie udało się wysłać formularza.')
       setErrors({ _form: message })
     } finally {
       setSubmitting(false)

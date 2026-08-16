@@ -22,6 +22,7 @@ import { useStudioTasks } from '@/features/tasks/useStudioTasks'
 import { taskService, type StudioTask } from '@/lib/api/taskService'
 import { localCalendarDateKey } from '@/lib/utils/localCalendarDate'
 import styles from './TasksCenter.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 export function TasksCenter() {
   const query = useStudioTasks()
@@ -110,9 +111,7 @@ export function TasksCenter() {
       }
       setFilter(completing ? 'active' : 'done')
       const message =
-        err instanceof Error
-          ? err.message
-          : 'Nie udało się zaktualizować zadania.'
+        getUserFacingErrorMessage(err, 'Nie udało się zaktualizować zadania.')
       showToast(message, 'error')
     } finally {
       setTogglingId(null)

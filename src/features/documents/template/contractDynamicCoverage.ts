@@ -6,6 +6,7 @@
 import { canonicalizeParagraphText } from './canonicalParagraph'
 import type { IndexedParagraph } from './extractDocxParagraphs'
 import type { TemplateSlot, TemplateSlotMap } from './types'
+import { devInfoArgs } from '@/lib/debug/devConsole'
 
 export type CoverageClass =
   | 'immutable_provider'
@@ -772,7 +773,7 @@ export function auditContractDynamicCoverage(input: {
     structureNotes: input.structureNotes ?? [],
   }
 
-  console.info('[contract-dynamic-coverage]', {
+  devInfoArgs('[contract-dynamic-coverage]', {
     sourceFormat: report.sourceFormat,
     filename: report.filename,
     totalInventoriedValues: report.totalInventoriedValues,
@@ -784,7 +785,7 @@ export function auditContractDynamicCoverage(input: {
     coveragePercent: report.coveragePercent,
   })
   for (const m of missedDynamic) {
-    console.info('[contract-dynamic-coverage] missed', {
+    devInfoArgs('[contract-dynamic-coverage] missed', {
       sourceText: m.redactedPreview,
       location: m.paragraphIndex,
       expectedKey: m.expectedKey,

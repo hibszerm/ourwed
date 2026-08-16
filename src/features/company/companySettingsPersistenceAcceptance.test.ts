@@ -34,9 +34,9 @@ function stubCompany(overrides: Partial<CompanyDetails> = {}): CompanyDetails {
   return {
     id: 'c1',
     userId: 'u1',
-    companyName: 'Gentlemen Productions',
+    companyName: 'Studio Testowe',
     ownerName: null,
-    nip: '6482810484',
+    nip: '5250000000',
     regon: null,
     vatId: null,
     address: 'Slowackiego 6/17',
@@ -144,9 +144,9 @@ run('5. query cache remount regression: setQueryData wins over staleTime', () =>
     defaultOptions: { queries: { staleTime: 1000 * 60 * 5 } },
   })
   const key = ['company-details', 'u1'] as const
-  const stale = stubCompany({ companyName: 'Gentlemen Productions' })
+  const stale = stubCompany({ companyName: 'Studio Testowe' })
   const saved = stubCompany({
-    companyName: 'Gentlemen Productions Test',
+    companyName: 'Studio Testowe Test',
     nip: '1234567890',
     email: 'firma@example.test',
     phone: '500 600 700',
@@ -161,7 +161,7 @@ run('5. query cache remount regression: setQueryData wins over staleTime', () =>
   queryClient.setQueryData(key, saved)
 
   const cached = queryClient.getQueryData<CompanyDetails>(key)
-  assertEq(cached?.companyName, 'Gentlemen Productions Test', 'name')
+  assertEq(cached?.companyName, 'Studio Testowe Test', 'name')
   assertEq(cached?.nip, '1234567890', 'nip')
   assertEq(cached?.email, 'firma@example.test', 'email')
   assertEq(cached?.phone, '500 600 700', 'phone')
@@ -174,7 +174,7 @@ run('5. query cache remount regression: setQueryData wins over staleTime', () =>
   assert(Boolean(state?.data), 'cache present')
   assertEq(
     (state?.data as CompanyDetails).companyName,
-    'Gentlemen Productions Test',
+    'Studio Testowe Test',
     'remount reads saved cache',
   )
 })

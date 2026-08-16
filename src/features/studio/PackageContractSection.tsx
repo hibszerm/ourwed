@@ -35,6 +35,7 @@ import {
 } from './packageTemplateUploadSurface'
 import type { StudioPackage } from '@/types/package'
 import styles from '@/features/documents/contract-experience/ContractExperience.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 export type { PackageTemplateUiPhase } from './packageTemplateUiPhase'
 export type { PackageTemplateCardModel } from './packageTemplateUploadSurface'
@@ -210,11 +211,11 @@ export function PackageContractSection(input: {
       inFlightRef.current = false
       setPipelineDone(false)
       setUploadError(
-        e instanceof Error ? e.message : 'Przesyłanie umowy wymaga ponowienia.',
+        getUserFacingErrorMessage(e, 'Przesyłanie umowy wymaga ponowienia.'),
       )
       setPhase('error')
       showToast(
-        e instanceof Error ? e.message : 'Przesyłanie umowy wymaga ponowienia.',
+        getUserFacingErrorMessage(e, 'Przesyłanie umowy wymaga ponowienia.'),
         'error',
       )
     }
@@ -241,7 +242,7 @@ export function PackageContractSection(input: {
       URL.revokeObjectURL(url)
     } catch (e) {
       showToast(
-        e instanceof Error ? e.message : 'Nie udało się pobrać szablonu.',
+        getUserFacingErrorMessage(e, 'Nie udało się pobrać szablonu.'),
         'error',
       )
     }
@@ -262,7 +263,7 @@ export function PackageContractSection(input: {
       showToast('Szablon odpięty od pakietu', 'success')
     } catch (e) {
       showToast(
-        e instanceof Error ? e.message : 'Nie udało się odpiąć szablonu.',
+        getUserFacingErrorMessage(e, 'Nie udało się odpiąć szablonu.'),
         'error',
       )
     }

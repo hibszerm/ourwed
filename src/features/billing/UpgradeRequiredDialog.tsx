@@ -55,12 +55,12 @@ export function UpgradeRequiredDialog({
   const title =
     variant === 'pro_required_action'
       ? 'Ta funkcja wymaga PRO.'
-      : 'Twój Trial PRO dobiegł końca.'
+      : 'Twój okres próbny PRO dobiegł końca.'
 
   const body =
     variant === 'pro_required_action'
       ? (actionContext ??
-        'Twój Trial już się zakończył. Wybierz plan, aby kontynuować.')
+        'Twój okres próbny już się zakończył. Wybierz plan, aby kontynuować.')
       : 'Twoje dane pozostają bezpieczne i dostępne. Wybierz PRO, aby dalej tworzyć i edytować zlecenia oraz korzystać ze wszystkich funkcji OurWed.'
 
   async function onChoose(interval: 'month' | 'year') {
@@ -83,7 +83,7 @@ export function UpgradeRequiredDialog({
           : null
       setCheckoutNote(
         ends
-          ? `${result.message} Twój Trial pozostaje aktywny do ${ends}.`
+          ? `${result.message} Twój okres próbny pozostaje aktywny do ${ends}.`
           : result.message,
       )
     }

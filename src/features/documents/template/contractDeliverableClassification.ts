@@ -6,6 +6,7 @@
 import { canonicalizeParagraphText } from './canonicalParagraph'
 import type { IndexedParagraph } from './extractDocxParagraphs'
 import { validateMinimalSlotSpan } from './contractSlotSafety'
+import { devInfoArgs } from '@/lib/debug/devConsole'
 
 export type CrewConcept = 'videographers_count' | 'photographers_count'
 
@@ -473,7 +474,7 @@ export function inventoryCrewCountCandidates(
   }
 
   for (const c of out) {
-    console.info('[contract-deliverable-classification]', {
+    devInfoArgs('[contract-deliverable-classification]', {
       kind: 'crew',
       sourceText: c.sourceText,
       normalizedCount: c.normalizedCount,
@@ -632,7 +633,7 @@ export function inventoryFilmDurationCandidates(
   }
 
   for (const c of out) {
-    console.info('[contract-deliverable-classification]', {
+    devInfoArgs('[contract-deliverable-classification]', {
       kind: 'duration',
       sourceText: c.sourceText,
       normalizedMinimumMinutes: c.normalizedMinimumMinutes,

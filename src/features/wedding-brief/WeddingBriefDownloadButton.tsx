@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/Button'
 import { downloadWeddingBriefPdf } from '@/features/wedding-brief/downloadWeddingBriefPdf'
 import { mapPdfRenderErrorForUser } from '@/features/documents/pdf/pdfRenderErrors'
 import styles from '@/features/weddings/detail/v2/WeddingDetailV2.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 type Props = {
   weddingId: string
@@ -23,7 +24,7 @@ export function WeddingBriefDownloadButton({ weddingId, compact }: Props) {
     try {
       await downloadWeddingBriefPdf(weddingId)
     } catch (e) {
-      const raw = e instanceof Error ? e.message : ''
+      const raw = getUserFacingErrorMessage(e, '')
       setError(mapPdfRenderErrorForUser(raw))
     } finally {
       setBusy(false)

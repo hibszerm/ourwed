@@ -29,7 +29,7 @@ export function DocumentsHubPage() {
                   </span>
                   <h2 className={styles.contractCardTitle}>Szablony umów</h2>
                 </div>
-                <p className={styles.contractCardFormat}>Contract Templates</p>
+                <p className={styles.contractCardFormat}>Szablony umów</p>
                 <p className={styles.studioSubtitle} style={{ margin: 0 }}>
                   Prześlij umowę do pakietu — OurWed przygotuje ją do
                   generowania na każdym ślubie.

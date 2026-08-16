@@ -24,7 +24,7 @@ export const COMPLETENESS_DATASET: ContractTransformationDataset = {
   clients: {
     displayNames: 'Ewa Nowak i Piotr Nowak',
     personCount: 2,
-    address: 'Juliusza Słowackiego 6/17, 41-800 Zabrze',
+    address: 'ul. Przykładowa 1, 00-001 Warszawa',
     phone: '501 502 503',
   },
   dates: {

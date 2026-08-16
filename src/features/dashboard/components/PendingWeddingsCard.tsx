@@ -14,6 +14,7 @@ import {
 import { questionnaireService } from '@/lib/api/questionnaireService'
 import { formatShortDate } from '@/lib/utils/dates'
 import styles from './PendingWeddingsCard.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 export function PendingWeddingsCard() {
   const { requirePro, openUpgradeDialog } = useProAccessGate()
@@ -39,7 +40,7 @@ export function PendingWeddingsCard() {
         return
       }
       window.alert(
-        err instanceof Error ? err.message : 'Nie udało się zaakceptować zgłoszenia.',
+        getUserFacingErrorMessage(err, 'Nie udało się zaakceptować zgłoszenia.'),
       )
     } finally {
       setBusyId(null)
@@ -64,7 +65,7 @@ export function PendingWeddingsCard() {
         return
       }
       window.alert(
-        err instanceof Error ? err.message : 'Nie udało się odrzucić zgłoszenia.',
+        getUserFacingErrorMessage(err, 'Nie udało się odrzucić zgłoszenia.'),
       )
     } finally {
       setBusyId(null)

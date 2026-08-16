@@ -7,6 +7,7 @@ import { canonicalizeParagraphText } from './canonicalParagraph'
 import { canonicalRegistryKey } from './slotClassification'
 import { classifyMoneyConceptScored } from './contractMoneyClassification'
 import type { TemplateSlot } from './types'
+import { devInfoArgs } from '@/lib/debug/devConsole'
 
 export interface MoneyPairConcept {
   concept: 'contract_value' | 'agreed_deposit' | 'remaining_after_deposit'
@@ -353,7 +354,7 @@ export function analyzeMoneyPairs(input: {
     })
   }
 
-  console.info('[contract-money-pairs]', reports)
+  devInfoArgs('[contract-money-pairs]', reports)
   return reports
 }
 

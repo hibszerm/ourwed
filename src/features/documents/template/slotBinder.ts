@@ -15,6 +15,7 @@ import type {
   TemplateSlot,
   TemplateSlotSourceHint,
 } from './types'
+import { devInfoArgs } from '@/lib/debug/devConsole'
 
 export interface SlotPattern {
   registryKey: string
@@ -421,7 +422,7 @@ export function bindPatternInParagraph(
     if (hoursHit) {
       const range = { start: hoursHit.start, end: hoursHit.end }
       if (!claimed.some((c) => rangesOverlap(c, range))) {
-        console.info('[coverage-hours-slot]', {
+        devInfoArgs('[coverage-hours-slot]', {
           registryKey: 'coverage_hours',
           paragraphIndex,
           startOffset: hoursHit.start,
@@ -468,7 +469,7 @@ export function bindPatternInParagraph(
           anchor: text.slice(end, Math.min(text.length, end + 8)),
           start: end,
         }
-      console.info('[coverage-end-time-location]', {
+      devInfoArgs('[coverage-end-time-location]', {
         phase: 'bind-direct-time',
         paragraphIndex,
         originalText: value,
@@ -568,7 +569,7 @@ export function bindPatternInParagraph(
   if (claimed.some((c) => rangesOverlap(c, range))) return null
 
   if (pattern.registryKey === 'coverage_end_time') {
-    console.info('[coverage-end-time-location]', {
+    devInfoArgs('[coverage-end-time-location]', {
       phase: 'bind',
       paragraphIndex,
       originalText: mid,

@@ -37,6 +37,7 @@ import type {
   FinanceSortField,
 } from '@/lib/finance/financeSeasonTypes'
 import styles from '@/features/finance/FinanceCenter.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 type FinanceTab = 'season' | 'weddings'
 
@@ -256,7 +257,7 @@ export function FinancePage() {
                 title="Nie udało się załadować finansów"
                 description={
                   seasonQuery.error instanceof Error
-                    ? seasonQuery.error.message
+                    ? getUserFacingErrorMessage(seasonQuery.error, 'Nie udało się pobrać danych finansowych.')
                     : 'Spróbuj odświeżyć stronę.'
                 }
               />

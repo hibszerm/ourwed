@@ -26,6 +26,7 @@ import {
   type AccountEntitlement,
 } from '@/lib/billing/entitlement'
 import styles from '@/admin/styles/admin.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 function accountStateLabel(data: AdminUserSummary): string {
   if (data.bannedUntil && new Date(data.bannedUntil).getTime() > Date.now()) {
@@ -44,7 +45,7 @@ function accountStateLabel(data: AdminUserSummary): string {
 function sourceLabel(source: AccountEntitlement['source']): string {
   switch (source) {
     case 'trial':
-      return 'Trial'
+      return 'Okres próbny'
     case 'paid_subscription':
       return 'Subskrypcja'
     case 'admin_override':
@@ -177,7 +178,7 @@ export function AdminUserDetailPage() {
       }
       setSubError(
         err instanceof AdminApiRequestError
-          ? err.message
+          ? getUserFacingErrorMessage(err, 'Nie udało się wykonać operacji. Spróbuj ponownie.')
           : 'Nie udało się pobrać subskrypcji',
       )
     }
@@ -211,7 +212,7 @@ export function AdminUserDetailPage() {
       }
       setErrorMessage(
         err instanceof AdminApiRequestError
-          ? err.message
+          ? getUserFacingErrorMessage(err, 'Nie udało się wykonać operacji. Spróbuj ponownie.')
           : 'Nie udało się pobrać danych',
       )
     }
@@ -268,7 +269,7 @@ export function AdminUserDetailPage() {
     } catch (err) {
       setActionError(
         err instanceof AdminApiRequestError
-          ? err.message
+          ? getUserFacingErrorMessage(err, 'Nie udało się wykonać operacji. Spróbuj ponownie.')
           : 'Nie udało się zapisać zmiany',
       )
     } finally {

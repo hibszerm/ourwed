@@ -21,6 +21,7 @@ import {
   validateTemplateSlotBindings,
 } from './templateReadiness'
 import type { TemplateSlotMap } from './types'
+import { devErrorArgs, devInfoArgs, devWarnArgs } from '@/lib/debug/devConsole'
 
 export interface SaveTemplateSlotsInput {
   templateId: string
@@ -112,7 +113,7 @@ export async function saveTemplateSlots(
       ? 'needs_review'
       : 'incomplete'
 
-  console.info('[contract-loaded-bindings]', {
+  devInfoArgs('[contract-loaded-bindings]', {
     phase: 'saveTemplateSlots-before-db-write',
     templateVersionId: input.templateVersionId,
     paragraphIndex: 36,
@@ -230,7 +231,7 @@ export async function saveTemplateSlots(
       (status === 'incomplete' || status === 'needs_review') &&
       /incomplete|needs_review|check|violat/i.test(message)
     ) {
-      console.warn(
+      devWarnArgs(
         `[saveTemplateSlots] status "${status}" rejected by DB, falling back to draft`,
         message,
       )
@@ -241,7 +242,7 @@ export async function saveTemplateSlots(
         meta,
       })
     } else {
-      console.error('[saveTemplateSlots] template update failed', {
+      devErrorArgs('[saveTemplateSlots] template update failed', {
         templateId: input.templateId,
         status,
         message,

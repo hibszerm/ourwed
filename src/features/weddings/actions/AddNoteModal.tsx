@@ -7,6 +7,7 @@ import { useInvalidateWedding } from '@/features/weddings/hooks/useInvalidateWed
 import type { Wedding } from '@/types/wedding'
 import styles from './AddNoteModal.module.css'
 import formStyles from './actionForm.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 interface AddNoteModalProps {
   open: boolean
@@ -47,7 +48,7 @@ export function AddNoteModal({ open, onClose, wedding }: AddNoteModalProps) {
       await invalidate(wedding.id)
       onClose()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Nie udało się dodać notatki.')
+      setError(getUserFacingErrorMessage(err, 'Nie udało się dodać notatki.'))
     } finally {
       setBusy(false)
     }

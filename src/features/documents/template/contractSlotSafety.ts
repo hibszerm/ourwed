@@ -4,6 +4,7 @@
  */
 
 import type { TemplateSlot } from './types'
+import { devInfoArgs } from '@/lib/debug/devConsole'
 
 export type PhysicalSpanSafety = 'safe' | 'unsafe' | 'needs_review'
 
@@ -96,7 +97,7 @@ export function detectEntityTypesInSpan(text: string): DetectedEntityType[] {
   if (findLegalWrapperTokensInside(text).length > 0) types.add('legal_wrapper')
   if (LEGAL_FORM_IN_NAME.test(text)) types.add('legal_form')
   const people = text.match(new RegExp(PERSON_NAME_RE.source, 'gu')) ?? []
-  // Whole-span Title-Case brands (e.g. "Video Productions") look like names —
+  // Whole-span Title-Case brands (e.g. "Atelier Studio") look like names —
   // only treat as person_name when a person is a *subset* of a larger span.
   const wholeIsPersonLike =
     people.length === 1 && people[0]!.trim() === text.trim()
@@ -270,7 +271,7 @@ export function buildSlotSafetyReport(
     blockingReasons: validation.blockingReasons,
   }
 
-  console.info('[contract-slot-safety]', {
+  devInfoArgs('[contract-slot-safety]', {
     canonicalKey: report.canonicalKey,
     sourceLength: report.sourceLength,
     paragraphIndex: report.paragraphIndex,

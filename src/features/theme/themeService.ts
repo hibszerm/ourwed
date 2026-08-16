@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import { isThemeId, validateThemeId, type ThemeId } from '@/features/theme/types'
+import { devWarnArgs } from '@/lib/debug/devConsole'
 
 export const themeQueryKeys = {
   all: ['user-theme'] as const,
@@ -19,7 +20,7 @@ export async function getUserTheme(userId: string): Promise<ThemeId> {
     .maybeSingle()
 
   if (error) {
-    console.warn('[theme] getUserTheme failed:', error.message)
+    devWarnArgs('[theme] getUserTheme failed:', error.message)
     return validateThemeId(null)
   }
 

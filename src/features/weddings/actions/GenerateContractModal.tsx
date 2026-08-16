@@ -26,6 +26,8 @@ import { weddingActionsService } from '@/lib/api/weddingActionsService'
 import type { Wedding } from '@/types/wedding'
 import { ContractDocumentPreview } from './ContractDocumentPreview'
 import styles from './GenerateContractModal.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
+import { devInfoArgs } from '@/lib/debug/devConsole'
 
 type Step = 'template' | 'completeness' | 'editor' | 'saved'
 
@@ -132,7 +134,7 @@ export function GenerateContractModal({
   useEffect(() => {
     if (!open) return
     if (templatesLoading && templates.length === 0) return
-    console.info('[documents-performance]', {
+    devInfoArgs('[documents-performance]', {
       phase: 'generate-picker-data',
       pickerDataAvailableAt: performance.now(),
       totalTemplateCount: templates.length,
@@ -215,9 +217,7 @@ export function GenerateContractModal({
       }
     } catch (err) {
       setError(
-        err instanceof Error
-          ? err.message
-          : 'Nie udało się przygotować generowania umowy.',
+        getUserFacingErrorMessage(err, 'Nie udało się przygotować generowania umowy.'),
       )
     } finally {
       setBusy(false)
@@ -248,7 +248,7 @@ export function GenerateContractModal({
       })
     } catch (err) {
       const raw =
-        err instanceof Error ? err.message : 'Nie udało się wygenerować umowy.'
+        getUserFacingErrorMessage(err, 'Nie udało się wygenerować umowy.')
       const review = report
         ? buildGenerationReviewState({ report, overrides })
         : null
@@ -316,7 +316,7 @@ export function GenerateContractModal({
       showToast('Umowa zapisana (DOCX).', 'success')
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : 'Nie udało się zapisać umowy.',
+        getUserFacingErrorMessage(err, 'Nie udało się zapisać umowy.'),
       )
     } finally {
       setBusy(false)
@@ -333,9 +333,7 @@ export function GenerateContractModal({
       printHtmlAsPdf(html)
     } catch (err) {
       setError(
-        err instanceof Error
-          ? err.message
-          : 'Nie udało się otworzyć podglądu PDF.',
+        getUserFacingErrorMessage(err, 'Nie udało się otworzyć podglądu PDF.'),
       )
     }
   }
@@ -448,9 +446,7 @@ export function GenerateContractModal({
           loading={templatesLoading || templatesFetching}
           queryError={
             templatesError
-              ? templatesQueryError instanceof Error
-                ? templatesQueryError.message
-                : 'Nie udało się wczytać szablonów.'
+              ? getUserFacingErrorMessage(templatesQueryError, 'Nie udało się wczytać szablonów.')
               : null
           }
           recommended={recommended}

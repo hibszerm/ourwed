@@ -10,6 +10,7 @@ import { useSession } from '@/features/sessions/hooks/useSession'
 import { useUpdateSession } from '@/features/sessions/hooks/useUpdateSession'
 import { useProAccessGate } from '@/features/billing/ProAccessGate'
 import { getSessionDisplayName } from '@/features/sessions/presentation/getSessionDisplayName'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 export function EditSessionPage() {
   const { sessionId = '' } = useParams()
@@ -36,7 +37,7 @@ export function EditSessionPage() {
           <EmptyState
             title="Nie znaleziono sesji"
             description={
-              error instanceof Error ? error.message : 'Sesja nie istnieje.'
+              getUserFacingErrorMessage(error, 'Sesja nie istnieje.')
             }
           />
           <Link to="/sesje">
@@ -76,9 +77,7 @@ export function EditSessionPage() {
               navigate(`/sesje/${session.id}`)
             } catch (err) {
               showToast(
-                err instanceof Error
-                  ? err.message
-                  : 'Nie udało się zapisać sesji',
+                getUserFacingErrorMessage(err, 'Nie udało się zapisać sesji'),
                 'error',
               )
             }

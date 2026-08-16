@@ -9,6 +9,7 @@ import {
 import { useInvalidateWedding } from '@/features/weddings/hooks/useInvalidateWedding'
 import type { Wedding } from '@/types/wedding'
 import formStyles from './actionForm.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 interface SendQuestionnaireModalProps {
   open: boolean
@@ -55,7 +56,7 @@ export function SendQuestionnaireModal({
       } catch (err) {
         if (cancelled) return
         setError(
-          err instanceof Error ? err.message : 'Nie udało się wygenerować linku.',
+          getUserFacingErrorMessage(err, 'Nie udało się wygenerować linku.'),
         )
       } finally {
         if (!cancelled) setBusy(false)

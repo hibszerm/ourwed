@@ -37,6 +37,7 @@ import {
 } from '@/features/prewedding/defaultTemplate'
 import { formatDate } from '@/lib/utils/dates'
 import styles from './QuestionnaireLibraryPage.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 type Filter = 'all' | QuestionnaireTemplateType
 
@@ -229,7 +230,7 @@ function CreateDialog({
         openUpgradeDialog('pro_required_action', 'create_questionnaire')
         return
       }
-      setError(err instanceof Error ? err.message : 'Nie udało się utworzyć ankiety.')
+      setError(getUserFacingErrorMessage(err, 'Nie udało się utworzyć ankiety.'))
     } finally {
       setBusy(false)
     }
@@ -285,7 +286,7 @@ function CreateDialog({
 
           {type === 'pre_wedding' ? (
             <fieldset className={styles.fieldset}>
-              <legend className={styles.fieldLabel}>Start</legend>
+              <legend className={styles.fieldLabel}>Od czego zacząć</legend>
               <label className={styles.radioRow}>
                 <input
                   type="radio"

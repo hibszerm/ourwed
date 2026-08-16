@@ -15,6 +15,7 @@ import {
   type PackageContractUserCategory,
 } from './packageContractAllowlist'
 import type { ClientPartyReadinessResult } from './clientPartyReadiness'
+import { devErrorArgs, devInfoArgs } from '@/lib/debug/devConsole'
 
 export type PackageContractBlockingIssue = {
   code: string
@@ -85,7 +86,7 @@ export function evaluatePackageContractRequiredDataReadiness(input: {
       blockingIssues.length === 0)
 
   if (!consistentReady && import.meta.env?.DEV) {
-    console.error('[package-contract-readiness-aggregation]', {
+    devErrorArgs('[package-contract-readiness-aggregation]', {
       error: 'invariant_violation_in_evaluator',
       baseReady: base.ready,
       ready,
@@ -110,7 +111,7 @@ export function evaluatePackageContractRequiredDataReadiness(input: {
     userMessage,
   }
 
-  console.info('[package-contract-readiness-aggregation]', {
+  devInfoArgs('[package-contract-readiness-aggregation]', {
     sourceValues: {
       categoryReady: base.ready,
       clientPartyReady: base.clientParty.ready,

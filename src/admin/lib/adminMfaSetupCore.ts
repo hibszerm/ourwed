@@ -2,6 +2,7 @@
  * Pure MFA setup pipeline — no Supabase module import (test-safe).
  */
 
+import { devErrorArgs } from '@/lib/debug/devConsole'
 export type TotpEnrollment = {
   factorId: string
   qrCode: string
@@ -176,7 +177,7 @@ export function resetTotpSetupInFlightForTests(): void {
 export function logMfaSetupError(err: unknown): void {
   if (typeof import.meta !== 'undefined' && import.meta.env?.DEV) {
     const message = err instanceof Error ? err.message : String(err)
-    console.error(
+    devErrorArgs(
       '[admin-mfa-setup]',
       message.replace(/secret[=:]\S+/gi, '[redacted]'),
     )

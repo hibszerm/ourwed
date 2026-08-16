@@ -19,7 +19,7 @@ Bootstrap runs from `src/features/theme/bootstrapTheme.ts` (imported first in `m
 | ID | Name |
 |----|------|
 | `classic` | Classic (default — current OurWed look) |
-| `gentlemen` | Gentlemen |
+| `graphite` | Graphite |
 | `sage_garden` | Sage Garden |
 | `burgundy_estate` | Burgundy Estate |
 | `mocha_editorial` | Mocha Editorial |

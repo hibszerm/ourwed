@@ -53,14 +53,14 @@ export const PLAN_REASSURANCE = [
   },
   {
     title: 'Pełny dostęp',
-    description: 'Wszystkie funkcje PRO są dostępne już w okresie Trial.',
+    description: 'Wszystkie funkcje PRO są dostępne już w okresie próbnym.',
   },
 ] as const
 
 export const TRIAL_HIGHLIGHTS = [
   '30 dni pełnego dostępu',
   'Bez karty płatniczej',
-  'Po trialu wybierasz, czy kontynuować z PRO',
+  'Po okresie próbnym wybierasz, czy kontynuować z PRO',
 ] as const
 
 /** @deprecated Prefer PRO_PLAN — kept for landing imports during transition */

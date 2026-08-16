@@ -5,6 +5,7 @@ import { useWeddingLocationSave } from '@/features/weddings/detail/editing/useWe
 import { weddingPlaceService } from '@/lib/api/weddingPlaceService'
 import type { WeddingPlaceRole } from '@/types/travel'
 import styles from '../WeddingEditorFields.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 const ALL_ROLES: Array<{ role: WeddingPlaceRole; label: string }> = [
   { role: 'bride_preparation', label: 'Przygotowania Panny Młodej' },
@@ -55,7 +56,7 @@ export function LocationRoleFields({
       {saveMutation.isError ? (
         <p className={styles.muted} role="alert">
           {saveMutation.error instanceof Error
-            ? saveMutation.error.message
+            ? getUserFacingErrorMessage(saveMutation.error, 'Nie udało się zapisać lokalizacji.')
             : 'Nie udało się zapisać lokalizacji.'}
         </p>
       ) : null}

@@ -10,6 +10,7 @@ import { extraServiceService } from '@/lib/api/extraServiceService'
 import { formatCurrency } from '@/lib/utils/currency'
 import type { ExtraService } from '@/types/package'
 import styles from '@/features/studio/StudioCatalog.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 export function ExtraServicesPage() {
   const queryClient = useQueryClient()
@@ -86,7 +87,7 @@ export function ExtraServicesPage() {
         ) : isError ? (
           <EmptyState
             title="Nie udało się załadować usług"
-            description={error instanceof Error ? error.message : 'Spróbuj ponownie.'}
+            description={getUserFacingErrorMessage(error, 'Spróbuj ponownie.')}
           />
         ) : ordered.length === 0 && !creating ? (
           <EmptyState
@@ -224,7 +225,7 @@ function ExtraServiceForm({
           price: priceN,
           isActive,
         }).catch((err) =>
-          setError(err instanceof Error ? err.message : 'Nie udało się zapisać.'),
+          setError(getUserFacingErrorMessage(err, 'Nie udało się zapisać.')),
         )
       }}
     >

@@ -19,6 +19,7 @@ import { useWedding } from '@/features/weddings/hooks/useWedding'
 import { getWeddingDisplayName } from '@/features/weddings/presentation/getWeddingDisplayName'
 import { weddingActionsService } from '@/lib/api/weddingActionsService'
 import styles from './WeddingContractPreviewPage.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 function manualOverridesFromSnapshot(snapshot: Record<string, unknown>): Record<string, string> {
   const source = snapshot.sourceDataSnapshot
@@ -111,7 +112,7 @@ export function WeddingContractPreviewPage() {
       setEditing(true)
     } catch (error) {
       setActionError(
-        error instanceof Error ? error.message : 'Nie udało się wczytać pól umowy.',
+        getUserFacingErrorMessage(error, 'Nie udało się wczytać pól umowy.'),
       )
     } finally {
       setBusy(false)
@@ -174,7 +175,7 @@ export function WeddingContractPreviewPage() {
       showToast(`Zapisano wersję v${saved.generationVersion}.`, 'success')
     } catch (error) {
       setActionError(
-        error instanceof Error ? error.message : 'Nie udało się zapisać nowej wersji.',
+        getUserFacingErrorMessage(error, 'Nie udało się zapisać nowej wersji.'),
       )
     } finally {
       setBusy(false)

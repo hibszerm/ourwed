@@ -9,6 +9,7 @@ import {
   evaluateDocumentPreparationState,
   toPersistedAutomaticMeta,
 } from '@/features/documents/template/automaticTemplateReadiness'
+import { devErrorArgs } from '@/lib/debug/devConsole'
 
 /**
  * Persist / load ContractTemplateConfiguration on document_templates.meta.
@@ -96,7 +97,7 @@ export async function saveTemplateFieldConfiguration(input: {
         cause: error instanceof Error ? error.message : String(error),
         diagnosticCode: 'automatic_configuration_persist_failed' as const,
       }
-      console.error('[automatic-config]', failure)
+      devErrorArgs('[automatic-config]', failure)
       throw Object.assign(
         new Error('Nie udało się dokończyć przygotowania szablonu. Spróbuj ponownie.'),
         { failure },

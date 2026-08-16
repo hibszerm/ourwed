@@ -41,6 +41,7 @@ import {
   SINGLE_TARGET_FIELDS,
 } from '@/features/weddings/import'
 import styles from './WeddingImportPage.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 const STATUS_LABELS: Record<WeddingImportReviewRow['status'], string> = {
   ready: 'Gotowy',
@@ -105,9 +106,7 @@ export function WeddingImportPage() {
       applySheet(firstSheet)
     } catch (err) {
       setError(
-        err instanceof Error
-          ? err.message
-          : 'Nie udało się odczytać tego pliku. Wybierz plik XLSX lub CSV.',
+        getUserFacingErrorMessage(err, 'Nie udało się odczytać tego pliku. Wybierz plik XLSX lub CSV.'),
       )
     } finally {
       setParsing(false)
@@ -302,9 +301,7 @@ export function WeddingImportPage() {
       }
     } catch (err) {
       setError(
-        err instanceof Error
-          ? err.message
-          : 'Nie udało się zakończyć importu.',
+        getUserFacingErrorMessage(err, 'Nie udało się zakończyć importu.'),
       )
     } finally {
       setImporting(false)

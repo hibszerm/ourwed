@@ -21,6 +21,7 @@ import {
   normalizeSlotMap,
 } from './logicalContractFields'
 import { parseSlotMap, type TemplateSlot, type TemplateSlotMap } from './types'
+import { devInfoArgs } from '@/lib/debug/devConsole'
 
 export type CompletenessGroupId =
   | 'company'
@@ -228,7 +229,7 @@ export async function buildContractCompletenessReport(input: {
     typeof import.meta !== 'undefined' &&
     Boolean((import.meta as ImportMeta & { env?: { DEV?: boolean } }).env?.DEV)
   if (DEV) {
-    console.info('[contract-execution-date-resolution]', {
+    devInfoArgs('[contract-execution-date-resolution]', {
       phase: 'completeness',
       generationStartedAt: ctx.generationStartedAt.toISOString(),
       resolvedShort: ctx.resolved.contract_execution_date ?? null,

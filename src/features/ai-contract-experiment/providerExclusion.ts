@@ -12,6 +12,7 @@ import type {
   IndexedDocxBlock,
   StructuredAiMappingResponse,
 } from './types'
+import { devInfoArgs } from '@/lib/debug/devConsole'
 
 const CLIENT_DYNAMIC_FIELDS = new Set<ContractFieldKey>([
   'couple_full_names',
@@ -72,7 +73,7 @@ function rangesOverlap(
 
 function logProviderExclusionTrace(trace: ProviderExclusionTrace): void {
   if (typeof import.meta !== 'undefined' && import.meta.env?.DEV) {
-    console.info('[ai-mapping-provider-exclusion-trace]', trace)
+    devInfoArgs('[ai-mapping-provider-exclusion-trace]', trace)
   }
 }
 

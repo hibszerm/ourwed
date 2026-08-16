@@ -24,6 +24,7 @@ import {
   mapSuggestionAndResolvedToGeoPlace,
 } from '@/features/travel/weddingLocationModel'
 import styles from './LocationSearchField.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 /**
  * Must sit above WeddingEditDrawerV2 / Modal panels (z-index 10000).
@@ -228,7 +229,7 @@ export function LocationSearchField({
       provider.endSession?.()
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : 'Nie znaleziono adresu.',
+        getUserFacingErrorMessage(err, 'Nie znaleziono adresu.'),
       )
     } finally {
       setSaving(false)
@@ -548,13 +549,13 @@ export function LocationSearchField({
             onKeyDown={onKeyDown}
           />
           {searching ? (
-            <span className={styles.spinner} aria-label="Searching" />
+            <span className={styles.spinner} aria-label="Wyszukiwanie" />
           ) : null}
           {showClear ? (
             <button
               type="button"
               className={styles.clear}
-              aria-label="Clear address"
+              aria-label="Wyczyść adres"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => void clearField()}
             >

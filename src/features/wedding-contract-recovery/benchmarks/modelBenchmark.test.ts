@@ -221,7 +221,7 @@ function assertEq(actual: unknown, expected: unknown, message: string) {
 {
   const bad = emptyContractRecoveryExtraction()
   bad.clients.partner1.fullName = {
-    value: 'Marcin Hibszer Video Lab',
+    value: 'Atelier Studio Lab',
     rawValue: null,
     confidence: 0.9,
     evidence: [{ quote: 'Usługodawca' }],

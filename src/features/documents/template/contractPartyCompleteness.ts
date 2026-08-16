@@ -10,6 +10,7 @@ import { CLIENT_PARTY_CLAUSE_CUE_RE } from './clientPartyRolePhrases'
 import type { IndexedParagraph } from './extractDocxParagraphs'
 import { segmentCompanyPartyClause } from './segmentCompanyClause'
 import type { TemplateSlot } from './types'
+import { devInfoArgs } from '@/lib/debug/devConsole'
 
 export type ProviderPartyMode =
   | 'immutable_template'
@@ -297,7 +298,7 @@ export function analyzePartyCompleteness(input: {
 
   const generationBlocked = blockingReasons.length > 0
 
-  console.info('[contract-party-completeness]', {
+  devInfoArgs('[contract-party-completeness]', {
     providerEntitiesDetected: [...new Set(providerEntitiesDetected)],
     clientEntitiesDetected: [...new Set(clientEntitiesDetected)],
     unsupportedEntityRequirements,

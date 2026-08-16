@@ -6,6 +6,7 @@
 import { canonicalizeParagraphText } from './canonicalParagraph'
 import type { IndexedParagraph } from './extractDocxParagraphs'
 import { validateMinimalSlotSpan } from './contractSlotSafety'
+import { devInfoArgs } from '@/lib/debug/devConsole'
 
 export type VenueConcept =
   | 'preparation_location'
@@ -475,7 +476,7 @@ export function inventoryVenueCandidates(
   }
 
   for (const c of out) {
-    console.info('[contract-venue-time-classification]', {
+    devInfoArgs('[contract-venue-time-classification]', {
       kind: 'venue',
       sourceText: c.sourceText,
       paragraphIndex: c.paragraphIndex,
@@ -660,7 +661,7 @@ export function inventoryCoverageTimeRanges(
   }
 
   for (const c of out) {
-    console.info('[contract-venue-time-classification]', {
+    devInfoArgs('[contract-venue-time-classification]', {
       kind: 'time_range',
       rawRange: c.rawRange,
       normalizedStart: c.normalizedStart,

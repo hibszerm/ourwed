@@ -14,6 +14,7 @@ import { GenerateQuestionnaireModal } from '@/features/questionnaires/GenerateQu
 import { companyDetailsService } from '@/lib/api/companyDetailsService'
 import { useQuery } from '@tanstack/react-query'
 import styles from '@/features/questionnaires/Questionnaires.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 export function ContractQuestionnaireEditorPage() {
   const userId = useStudioAuthId()
@@ -58,9 +59,7 @@ export function ContractQuestionnaireEditorPage() {
           <p className={styles.muted}>Ładowanie konfiguracji ankiety…</p>
         ) : isError ? (
           <p className={styles.errorText} role="alert">
-            {error instanceof Error
-              ? error.message
-              : 'Nie udało się wczytać konfiguracji ankiety.'}
+            {getUserFacingErrorMessage(error, 'Nie udało się wczytać konfiguracji ankiety.')}
           </p>
         ) : (
           <ContractQuestionnaireSectionEditor

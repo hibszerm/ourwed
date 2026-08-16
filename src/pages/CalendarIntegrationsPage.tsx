@@ -16,6 +16,7 @@ import type {
   CalendarBackfillMode,
 } from '@/features/calendar-integrations/types'
 import styles from './CalendarIntegrationsPage.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 function formatWhen(iso: string | null): string {
   if (!iso) return '—'
@@ -100,7 +101,7 @@ export function CalendarIntegrationsPage() {
       window.location.assign(url)
     },
     onError: (err: Error) => {
-      showToast(err.message || 'Nie udało się rozpocząć OAuth', 'error')
+      showToast(getUserFacingErrorMessage(err, 'Nie udało się połączyć z Google Calendar.'), 'error')
     },
   })
 
@@ -115,7 +116,7 @@ export function CalendarIntegrationsPage() {
         result.failed > 0 ? 'info' : 'success',
       )
     },
-    onError: (err: Error) => showToast(err.message, 'error'),
+    onError: (err: Error) => showToast(getUserFacingErrorMessage(err, 'Nie udało się zsynchronizować kalendarza.'), 'error'),
   })
 
   const reconcileMutation = useMutation({
@@ -129,7 +130,7 @@ export function CalendarIntegrationsPage() {
         'success',
       )
     },
-    onError: (err: Error) => showToast(err.message, 'error'),
+    onError: (err: Error) => showToast(getUserFacingErrorMessage(err, 'Nie udało się uporządkować wydarzeń kalendarza.'), 'error'),
   })
 
   const disconnectMutation = useMutation({
@@ -146,7 +147,7 @@ export function CalendarIntegrationsPage() {
       setDisconnectOpen(false)
       showToast('Odłączono Google Calendar', 'success')
     },
-    onError: (err: Error) => showToast(err.message, 'error'),
+    onError: (err: Error) => showToast(getUserFacingErrorMessage(err, 'Nie udało się odłączyć kalendarza.'), 'error'),
   })
 
   const updateGoogleMutation = useMutation({
@@ -160,7 +161,7 @@ export function CalendarIntegrationsPage() {
         queryKey: calendarIntegrationQueryKeys.googleCalendars(userId),
       })
     },
-    onError: (err: Error) => showToast(err.message, 'error'),
+    onError: (err: Error) => showToast(getUserFacingErrorMessage(err, 'Nie udało się zapisać ustawień Google Calendar.'), 'error'),
   })
 
   const activateAppleMutation = useMutation({
@@ -177,7 +178,7 @@ export function CalendarIntegrationsPage() {
       })
       showToast('Aktywowano kalendarz Apple', 'success')
     },
-    onError: (err: Error) => showToast(err.message, 'error'),
+    onError: (err: Error) => showToast(getUserFacingErrorMessage(err, 'Nie udało się aktywować Apple Calendar.'), 'error'),
   })
 
   const rotateAppleMutation = useMutation({
@@ -190,7 +191,7 @@ export function CalendarIntegrationsPage() {
       })
       showToast('Wygenerowano nowy link subskrypcji', 'success')
     },
-    onError: (err: Error) => showToast(err.message, 'error'),
+    onError: (err: Error) => showToast(getUserFacingErrorMessage(err, 'Nie udało się odświeżyć powiązania Apple Calendar.'), 'error'),
   })
 
   const disableAppleMutation = useMutation({
@@ -202,7 +203,7 @@ export function CalendarIntegrationsPage() {
       })
       showToast('Wyłączono kalendarz Apple', 'success')
     },
-    onError: (err: Error) => showToast(err.message, 'error'),
+    onError: (err: Error) => showToast(getUserFacingErrorMessage(err, 'Nie udało się wyłączyć Apple Calendar.'), 'error'),
   })
 
   const updateAppleMutation = useMutation({
@@ -212,7 +213,7 @@ export function CalendarIntegrationsPage() {
         queryKey: calendarIntegrationQueryKeys.settings(userId),
       })
     },
-    onError: (err: Error) => showToast(err.message, 'error'),
+    onError: (err: Error) => showToast(getUserFacingErrorMessage(err, 'Nie udało się zapisać ustawień Apple Calendar.'), 'error'),
   })
 
   const refreshAppleMutation = useMutation({
@@ -226,7 +227,7 @@ export function CalendarIntegrationsPage() {
         'info',
       )
     },
-    onError: (err: Error) => showToast(err.message, 'error'),
+    onError: (err: Error) => showToast(getUserFacingErrorMessage(err, 'Nie udało się odświeżyć Apple Calendar.'), 'error'),
   })
 
   const google = settingsQuery.data?.google

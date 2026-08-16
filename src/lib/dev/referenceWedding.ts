@@ -134,7 +134,7 @@ export function buildReferenceWedding(
   return {
     id: 'ref-wedding',
     couple: {
-      partner1: 'Marcin Nowak',
+      partner1: 'Jan Kowalski',
       partner2: 'Anna Nowak',
       partner1FirstName: 'Marcin',
       partner1LastName: 'Nowak',

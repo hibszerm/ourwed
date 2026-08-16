@@ -24,6 +24,7 @@ import { buildGoogleMapsNavigationUrl } from '@/services/googleMapsLinks'
 import type { TravelPlan, WeddingPlace, WeddingPlaceRole } from '@/types/travel'
 import type { Wedding } from '@/types/wedding'
 import styles from './WeddingDetailV2.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 interface WeddingDayWorkspaceProps {
   wedding: Wedding
@@ -171,9 +172,7 @@ export function WeddingDayWorkspace({
           segments: [],
           hasError: true,
           errorMessage:
-            err instanceof Error && err.message.trim()
-              ? err.message
-              : 'Nie udało się wyliczyć trasy.',
+            getUserFacingErrorMessage(err, 'Nie udało się wyliczyć trasy.'),
           persistenceError: null,
         }
       }
@@ -324,7 +323,7 @@ export function WeddingDayWorkspace({
                     <div className={styles.itineraryBody}>
                       <div className={styles.itineraryHeader}>
                         <div>
-                          <p className={styles.itineraryStartLabel}>Start</p>
+                          <p className={styles.itineraryStartLabel}>Punkt startowy</p>
                           <p className={styles.itineraryRole}>{baseTitle}</p>
                           <p className={styles.itineraryAddress}>
                             {baseAddress ||

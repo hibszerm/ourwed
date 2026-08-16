@@ -4,6 +4,7 @@
 
 import { unresolvedOccurrenceBlockers } from './occurrenceResolution'
 import type { ContractFieldKey, IndexedDocxBlock, ValidatedAiMapping } from './types'
+import { devInfoArgs } from '@/lib/debug/devConsole'
 
 export function logLogicalFieldOccurrenceTrace(input: {
   experimentRunId: string
@@ -21,7 +22,7 @@ export function logLogicalFieldOccurrenceTrace(input: {
       (m.approvalStatus === 'approved' || m.approvalStatus === 'manually_mapped'),
   )
 
-  console.info('[ai-contract-logical-field-occurrence-trace]', {
+  devInfoArgs('[ai-contract-logical-field-occurrence-trace]', {
     experimentRunId: input.experimentRunId,
     fieldKey: input.fieldKey,
     sourceCandidates: fieldMappings.map((m) => ({

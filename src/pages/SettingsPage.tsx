@@ -45,7 +45,7 @@ const accountLinks = [
   {
     to: '/ustawienia/subskrypcja',
     title: 'Subskrypcja',
-    description: 'Trial, plan PRO i dostęp do funkcji OurWed.',
+    description: 'Okres próbny, plan PRO i dostęp do funkcji OurWed.',
     icon: CreditCard,
   },
   {

@@ -18,6 +18,7 @@ import {
 import { packageHealthRecommendations } from './packageHealthCopy'
 import { fadeSlide, reducedMotionSafe, softSpring } from './motion'
 import styles from './ContractExperience.module.css'
+import { devErrorArgs } from '@/lib/debug/devConsole'
 
 export function PackageContractAttentionCard(input: {
   fileName: string | null
@@ -42,7 +43,7 @@ export function PackageContractAttentionCard(input: {
   })
 
   if (kind === 'internal_inconsistency' && import.meta.env.DEV) {
-    console.error('[package-contract-readiness-aggregation]', {
+    devErrorArgs('[package-contract-readiness-aggregation]', {
       error: 'internal_inconsistency_shown_in_ui',
       kind,
       missingCategories: input.missingCategories,

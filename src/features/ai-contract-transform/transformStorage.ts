@@ -9,6 +9,7 @@ import type {
   TransformMode,
 } from './types'
 import { TRANSFORM_PIPELINE_SCHEMA_VERSION } from './types'
+import { devWarnArgs } from '@/lib/debug/devConsole'
 
 export const TRANSFORM_STORAGE_KEY = 'ourwed:ai-contract-transform:v2'
 const LEGACY_STORAGE_KEYS = ['ourwed:ai-contract-transform:v1']
@@ -42,7 +43,7 @@ export function readTransformStore(): StoreState {
     if (parsed.schemaVersion !== TRANSFORM_PIPELINE_SCHEMA_VERSION) {
       localStorage.removeItem(TRANSFORM_STORAGE_KEY)
       if (import.meta.env?.DEV) {
-        console.warn(
+        devWarnArgs(
           '[ai-contract-transform] Cleared incompatible store — re-run required.',
         )
       }

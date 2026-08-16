@@ -9,6 +9,7 @@ import type {
   GoogleSyncNowResult,
   WritableGoogleCalendar,
 } from '@/features/calendar-integrations/types'
+import { devInfoArgs } from '@/lib/debug/devConsole'
 
 function mapGoogle(row: CalendarIntegrationRow | null): GoogleIntegrationView {
   if (!row || row.provider !== 'google') {
@@ -333,7 +334,7 @@ export async function enqueueExternalCalendarSync(input: {
       .eq('user_id', userId)
       .eq('enabled', true)
     if (error) {
-      console.info('[calendar-sync] skip enqueue', { reason: 'query_failed' })
+      devInfoArgs('[calendar-sync] skip enqueue', { reason: 'query_failed' })
       return
     }
     if (!integrations?.length) return
@@ -366,7 +367,7 @@ export async function enqueueExternalCalendarSync(input: {
         .invoke('google-calendar-sync', { body: { action: 'process_jobs' } })
         .then(({ error: invokeError }) => {
           if (invokeError) {
-            console.info('[calendar-sync] process_jobs deferred', {
+            devInfoArgs('[calendar-sync] process_jobs deferred', {
               provider: 'google',
               entityType: input.entityType,
             })
@@ -387,7 +388,7 @@ export async function enqueueExternalCalendarSync(input: {
         .eq('enabled', true)
     }
   } catch {
-    console.info('[calendar-sync] enqueue swallowed', {
+    devInfoArgs('[calendar-sync] enqueue swallowed', {
       provider: 'google|apple',
       entityType: input.entityType,
     })

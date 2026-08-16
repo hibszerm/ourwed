@@ -80,7 +80,7 @@ create table if not exists public.profiles (
   constraint profiles_theme_id_check check (
     theme_id in (
       'classic',
-      'gentlemen',
+      'graphite',
       'sage_garden',
       'burgundy_estate',
       'mocha_editorial'

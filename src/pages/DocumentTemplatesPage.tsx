@@ -22,6 +22,8 @@ import { startDocumentsPerf } from '@/features/documents/performance/documentsPe
 import { reanalyzeTemplate } from '@/features/documents/template/reanalyzeTemplate'
 import type { DocumentTemplateSummary } from '@/types/documents'
 import styles from '@/features/documents/DocumentsTemplates.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
+import { devInfoArgs } from '@/lib/debug/devConsole'
 
 export function DocumentTemplatesPage() {
   const navigate = useNavigate()
@@ -87,7 +89,7 @@ export function DocumentTemplatesPage() {
     if (!requirePro()) return
     const validation = validateContractDocx(file)
     if (!validation.ok) {
-      showToast(validation.message, 'error')
+      showToast(getUserFacingErrorMessage(validation, 'Nie udało się wykonać operacji. Spróbuj ponownie.'), 'error')
       if (fileRef.current) fileRef.current.value = ''
       return
     }
@@ -105,7 +107,7 @@ export function DocumentTemplatesPage() {
       setDeleteTarget(null)
     } catch (err) {
       showToast(
-        err instanceof Error ? err.message : 'Nie udało się usunąć.',
+        getUserFacingErrorMessage(err, 'Nie udało się usunąć.'),
         'error',
       )
     }
@@ -119,7 +121,7 @@ export function DocumentTemplatesPage() {
       navigate(`/ustawienia/dokumenty/szablony/${copy.id}`)
     } catch (err) {
       showToast(
-        err instanceof Error ? err.message : 'Nie udało się zduplikować.',
+        getUserFacingErrorMessage(err, 'Nie udało się zduplikować.'),
         'error',
       )
     }
@@ -130,7 +132,7 @@ export function DocumentTemplatesPage() {
     if (!replaceTarget) return
     const validation = validateContractDocx(file)
     if (!validation.ok) {
-      showToast(validation.message, 'error')
+      showToast(getUserFacingErrorMessage(validation, 'Nie udało się wykonać operacji. Spróbuj ponownie.'), 'error')
       if (replaceRef.current) replaceRef.current.value = ''
       return
     }
@@ -141,7 +143,7 @@ export function DocumentTemplatesPage() {
       setReplaceTarget(null)
     } catch (err) {
       showToast(
-        err instanceof Error ? err.message : 'Nie udało się zamienić pliku.',
+        getUserFacingErrorMessage(err, 'Nie udało się zamienić pliku.'),
         'error',
       )
     } finally {
@@ -160,7 +162,7 @@ export function DocumentTemplatesPage() {
       await queryClient.invalidateQueries({
         queryKey: ['document-templates'],
       })
-      console.info('[reanalyze-complete]', {
+      devInfoArgs('[reanalyze-complete]', {
         templateId: result.templateId,
         templateVersionId: result.templateVersionId,
         readinessReady: result.readinessReady,
@@ -183,9 +185,7 @@ export function DocumentTemplatesPage() {
       }
     } catch (err) {
       showToast(
-        err instanceof Error
-          ? err.message
-          : 'Nie udało się ponownie przeanalizować szablonu.',
+        getUserFacingErrorMessage(err, 'Nie udało się ponownie przeanalizować szablonu.'),
         'error',
       )
     } finally {
@@ -329,7 +329,7 @@ export function DocumentTemplatesPage() {
         open={Boolean(renameTarget)}
         busy={rename.isPending}
         error={
-          rename.error instanceof Error ? rename.error.message : null
+          rename.error ? getUserFacingErrorMessage(rename.error, 'Nie udało się zmienić nazwy.') : null
         }
         initialName={renameTarget?.name ?? ''}
         initialDescription={renameTarget?.description ?? null}

@@ -20,7 +20,7 @@ export function WeddingDangerZone({
   const [deleting, setDeleting] = useState(false)
   const [archiving, setArchiving] = useState(false)
 
-  const canConfirmDelete = confirmText === 'DELETE'
+  const canConfirmDelete = confirmText === 'USUŃ'
 
   async function handleDelete() {
     if (!canConfirmDelete) return
@@ -92,7 +92,7 @@ export function WeddingDangerZone({
         }
       >
         <p className={styles.dangerText}>
-          Aby potwierdzić, wpisz dokładnie: <strong>DELETE</strong>
+          Aby potwierdzić, wpisz dokładnie: <strong>USUŃ</strong>
         </p>
         <Input
           className={styles.confirmInput}

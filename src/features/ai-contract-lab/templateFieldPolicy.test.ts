@@ -182,7 +182,7 @@ await run('A–J — company/contractor fields are template-invariant', () => {
         id: 'company-name',
         anchor: getAnchor(11),
         originalText: 'PRIMEPHOTO s.c.',
-        proposedValue: 'Video Productions',
+        proposedValue: 'Atelier Studio',
         role: 'company_name',
         fieldKey: 'company.name',
       }),
@@ -541,7 +541,7 @@ await run('Phase B maps company fields as UNCHANGED template invariants', () => 
       warnings: [],
     },
     fields: [
-      canonical('company.name', 'Video Productions'),
+      canonical('company.name', 'Atelier Studio'),
       canonical('company.nip', '9999999999'),
       canonical('company.regon', '111111111'),
       canonical('company.bank_account', '11 1111 1111 1111 1111 1111 1111'),

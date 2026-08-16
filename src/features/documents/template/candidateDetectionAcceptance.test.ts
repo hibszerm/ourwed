@@ -71,7 +71,7 @@ run('Test 2 — company name in legal sentence', () => {
   const paragraphs = [
     {
       index: 5,
-      text: 'prowadzącym działalność pod firmą Video Productions, zwanym dalej „Filmowcem”',
+      text: 'prowadzącym działalność pod firmą Atelier Studio, zwanym dalej „Filmowcem”',
     },
   ]
   const c = detectContractCandidates(paragraphs)
@@ -80,7 +80,7 @@ run('Test 2 — company name in legal sentence', () => {
   )
   assert(Boolean(company), 'missing company_name')
   assert(
-    company!.text.includes('Video Productions'),
+    company!.text.includes('Atelier Studio'),
     `text=${company!.text}`,
   )
 })
@@ -188,7 +188,7 @@ run('Integration — buildSlotsFromAnalysis on sample party intro', () => {
     },
     {
       index: 5,
-      text: 'firmą Video Productions, zwanym dalej „Filmowcem” NIP 1234567890',
+      text: 'firmą Atelier Studio, zwanym dalej „Filmowcem” NIP 1234567890',
     },
     {
       index: 8,
@@ -217,7 +217,7 @@ run('Real contract shape — Aleksandrą Biłas single party + Kamerzystami', ()
     },
     {
       index: 5,
-      text: 'firmą Video Productions Marcin Hibszer, stałe miejsce wykonywania działalności gospodarczej: ul. Juliusza Słowackiego 6/17, 41-800 Zabrze, NIP 6482810484, REGON 522500508, tel. 668 698 892, tel. 697 172 437 zwaną dalej „Kamerzystami”.',
+      text: 'firmą Atelier Studio Jan Kowalski, stałe miejsce wykonywania działalności gospodarczej: ul. Przykładowa 1, 00-001 Warszawa, NIP 5250000000, REGON 123456789, tel. 500 100 200, tel. 500 100 201 zwaną dalej „Kamerzystami”.',
     },
     {
       index: 9,

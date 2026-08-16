@@ -12,6 +12,7 @@ import {
   type SessionPayment,
 } from '@/types/sessionPayment'
 import formStyles from '@/features/weddings/actions/actionForm.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 interface SessionPaymentModalProps {
   open: boolean
@@ -92,7 +93,7 @@ export function SessionPaymentModal({
       onClose()
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : 'Nie udało się zapisać wpłaty.',
+        getUserFacingErrorMessage(err, 'Nie udało się zapisać wpłaty.'),
       )
     } finally {
       setBusy(false)

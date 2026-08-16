@@ -38,6 +38,7 @@ import {
 } from '@/features/questionnaires/shared-editor/contractBlocksAdapter'
 import editorStyles from '@/pages/PreWeddingTemplatesPage.module.css'
 import publicStyles from '@/features/forms/FormPublicPage.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 type SaveStatus = 'idle' | 'dirty' | 'saving' | 'saved' | 'error'
 
@@ -620,7 +621,7 @@ export function ContractQuestionnaireSectionEditor({
     } catch (err) {
       setSaveStatus('error')
       setSaveError(
-        err instanceof Error ? err.message : 'Nie udało się zapisać ankiety',
+        getUserFacingErrorMessage(err, 'Nie udało się zapisać ankiety'),
       )
     }
   }

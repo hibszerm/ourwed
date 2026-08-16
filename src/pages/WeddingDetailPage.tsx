@@ -43,6 +43,7 @@ import type { QuestionnaireKind } from '@/lib/api/weddingActionsService'
 import { useProAccessGate } from '@/features/billing/ProAccessGate'
 import type { Payment } from '@/types/wedding'
 import styles from './WeddingDetailPage.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 type ModalState =
   | { type: 'questionnaire'; kind: QuestionnaireKind }
@@ -134,9 +135,7 @@ export function WeddingDetailPage() {
       <AppLayout title="Błąd">
         <PageContainer>
           <p className={styles.notFound}>
-            {error instanceof Error
-              ? error.message
-              : 'Nie udało się załadować ślubu.'}
+            {getUserFacingErrorMessage(error, 'Nie udało się załadować ślubu.')}
           </p>
           <Button type="button" variant="secondary" onClick={() => void refetch()}>
             Spróbuj ponownie
@@ -248,7 +247,7 @@ export function WeddingDetailPage() {
       showToast('Zmiany zostały zapisane.', 'success')
     } catch (err) {
       setSaveError(
-        err instanceof Error ? err.message : 'Nie udało się zapisać zmian.',
+        getUserFacingErrorMessage(err, 'Nie udało się zapisać zmian.'),
       )
     } finally {
       setSaving(false)
@@ -279,9 +278,7 @@ export function WeddingDetailPage() {
       navigate(`/sluby/${wedding.id}/umowy/nowa`)
     } catch (err) {
       showToast(
-        err instanceof Error
-          ? err.message
-          : 'Nie udało się sprawdzić danych do umowy.',
+        getUserFacingErrorMessage(err, 'Nie udało się sprawdzić danych do umowy.'),
         'error',
       )
     } finally {

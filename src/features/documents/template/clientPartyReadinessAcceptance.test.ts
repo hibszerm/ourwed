@@ -95,10 +95,10 @@ function analyzeClientClause(text: string, documentName: string) {
 }
 
 const FIXTURE_WOMAN =
-  'Zawarta w dniu 01.01.2026 pomiędzy: Aleksandrą Biłas, zam. ul. Wrocławska 1 Kraków, tel. 600 100 200, zwaną dalej „Parą Młodą” a firmą Video Productions Marcin Hibszer, zwanym dalej „Filmowcem”.'
+  'Zawarta w dniu 01.01.2026 pomiędzy: Aleksandrą Biłas, zam. ul. Wrocławska 1 Kraków, tel. 600 100 200, zwaną dalej „Parą Młodą” a firmą Atelier Studio Jan Kowalski, zwanym dalej „Filmowcem”.'
 
 const FIXTURE_MAN =
-  'Zawarta w dniu 01.01.2026 pomiędzy: Robertem Strojek, zam. ul. Wrocławska 1 Kraków, tel. 600 100 200, zwanego dalej „Parą Młodą” a firmą Video Productions Marcin Hibszer, zwanym dalej „Filmowcem”.'
+  'Zawarta w dniu 01.01.2026 pomiędzy: Robertem Strojek, zam. ul. Wrocławska 1 Kraków, tel. 600 100 200, zwanego dalej „Parą Młodą” a firmą Atelier Studio Jan Kowalski, zwanym dalej „Filmowcem”.'
 
 run('prove divergence: feminine zwaną detects; masculine zwanego must detect equally', () => {
   const woman = analyzeClientClause(FIXTURE_WOMAN, 'fixture-woman')
@@ -230,7 +230,7 @@ run('I — one person without PESEL — still ready', () => {
 
 run('J — service provider only does not satisfy client readiness', () => {
   const r = analyzeClientClause(
-    'firmą Video Productions Marcin Hibszer, zwanym dalej „Filmowcem”, NIP 525-000-00-00',
+    'firmą Atelier Studio Jan Kowalski, zwanym dalej „Filmowcem”, NIP 525-000-00-00',
     'J',
   )
   assert(!r.clientParty.ready, 'not ready')

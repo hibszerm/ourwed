@@ -3,6 +3,7 @@
  */
 
 import type { ContractFieldKey } from './types'
+import { devWarnArgs } from '@/lib/debug/devConsole'
 
 export function createMappingId(input: {
   experimentRunId: string
@@ -26,6 +27,6 @@ export function logMissingDecisionTarget(input: {
   action: string
 }): void {
   if (typeof import.meta !== 'undefined' && import.meta.env?.DEV) {
-    console.warn('[ai-contract-mapping-decision-target-missing]', input)
+    devWarnArgs('[ai-contract-mapping-decision-target-missing]', input)
   }
 }

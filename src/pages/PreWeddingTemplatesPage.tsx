@@ -744,7 +744,7 @@ export function PreWeddingTemplatesPage({
       title={libraryMode ? 'Edytor ankiety przedślubnej' : 'Ankiety przedślubne'}
       subtitle={
         libraryMode
-          ? 'Konfiguracja szablonu — zapis wymaga PRO, gdy Trial wygasł.'
+          ? 'Konfiguracja szablonu — zapis wymaga PRO, gdy okres próbny wygasł.'
           : 'Konfiguruj szablony ankiet, które możesz wysłać do par przed dniem ślubu.'
       }
     >

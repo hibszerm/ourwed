@@ -43,6 +43,7 @@ import {
 } from './ImportWizardStepper'
 import styles from './SimpleContractImport.module.css'
 import { validateContractDocx } from './contractUploadValidation'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 type Phase =
   | 'idle'
@@ -234,9 +235,7 @@ export function SimpleContractImportFlow(props: ExistingProps | CreateProps) {
         setPhase('ready')
       } catch (err) {
         setError(
-          err instanceof Error
-            ? err.message
-            : 'Nie udało się przygotować dokumentu.',
+          getUserFacingErrorMessage(err, 'Nie udało się przygotować dokumentu.'),
         )
         setPhase('error')
         prepareStarted.current = false
@@ -332,7 +331,7 @@ export function SimpleContractImportFlow(props: ExistingProps | CreateProps) {
     } catch (err) {
       setError(
         getDocumentAiErrorMessage(err) ||
-          (err instanceof Error ? err.message : 'Coś poszło nie tak.'),
+          (getUserFacingErrorMessage(err, 'Coś poszło nie tak.')),
       )
       setPhase('error')
       setPipelineDone(false)
@@ -355,7 +354,7 @@ export function SimpleContractImportFlow(props: ExistingProps | CreateProps) {
       await persistTemplate(slotMapRef.current)
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : 'Nie udało się zapisać szablonu.',
+        getUserFacingErrorMessage(err, 'Nie udało się zapisać szablonu.'),
       )
       setPhase('error')
       runStarted.current = false
@@ -462,7 +461,7 @@ export function SimpleContractImportFlow(props: ExistingProps | CreateProps) {
       setPhase('analyzing')
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : 'Nie udało się zapisać nazwy.',
+        getUserFacingErrorMessage(err, 'Nie udało się zapisać nazwy.'),
       )
     } finally {
       setStartingAnalysis(false)
@@ -473,7 +472,7 @@ export function SimpleContractImportFlow(props: ExistingProps | CreateProps) {
     if (isCreate || !props.onUploadFile) return
     const validation = validateContractDocx(file)
     if (!validation.ok) {
-      setError(validation.message)
+      setError(getUserFacingErrorMessage(validation, 'Nie udało się wykonać operacji. Spróbuj ponownie.'))
       setPhase('error')
       return
     }
@@ -497,7 +496,7 @@ export function SimpleContractImportFlow(props: ExistingProps | CreateProps) {
       setPhase('ready')
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : 'Nie udało się przesłać pliku.',
+        getUserFacingErrorMessage(err, 'Nie udało się przesłać pliku.'),
       )
       setPhase('error')
       if (fileRef.current) fileRef.current.value = ''

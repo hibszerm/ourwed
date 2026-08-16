@@ -31,10 +31,10 @@ export function TrialEndingNotice() {
 
   const message =
     rem.kind === 'today'
-      ? 'Twój Trial PRO kończy się dzisiaj.'
+      ? 'Twój okres próbny PRO kończy się dzisiaj.'
       : rem.fullDays === 1
-        ? 'Twój Trial PRO kończy się za 1 dzień.'
-        : `Twój Trial PRO kończy się za ${rem.fullDays} dni.`
+        ? 'Twój okres próbny PRO kończy się za 1 dzień.'
+        : `Twój okres próbny PRO kończy się za ${rem.fullDays} dni.`
 
   return (
     <aside className={styles.notice} data-testid="trial-ending-notice">

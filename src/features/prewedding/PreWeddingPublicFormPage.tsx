@@ -17,6 +17,7 @@ import type {
   PublicPreWeddingForm,
 } from '@/types/preweddingQuestionnaire'
 import styles from './PreWeddingPublicForm.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 // ---------------------------------------------------------------------------
 // Field components
@@ -589,7 +590,7 @@ export function PreWeddingPublicFormPage({ token }: { token: string }) {
       setSubmitted(true)
     } catch (err) {
       setErrors({
-        _form: err instanceof Error ? err.message : 'Nie udało się wysłać ankiety.',
+        _form: getUserFacingErrorMessage(err, 'Nie udało się wysłać ankiety.'),
       })
     } finally {
       setSubmitting(false)

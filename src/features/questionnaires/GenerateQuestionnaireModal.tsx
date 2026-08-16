@@ -8,6 +8,7 @@ import {
 } from '@/features/billing/proAccessError'
 import { questionnaireService } from '@/lib/api/questionnaireService'
 import styles from './Questionnaires.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 interface GenerateQuestionnaireModalProps {
   open: boolean
@@ -57,7 +58,7 @@ export function GenerateQuestionnaireModal({
         return
       }
       setError(
-        err instanceof Error ? err.message : 'Nie udało się wygenerować ankiety.',
+        getUserFacingErrorMessage(err, 'Nie udało się wygenerować ankiety.'),
       )
     } finally {
       setBusy(false)

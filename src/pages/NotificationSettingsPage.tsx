@@ -10,6 +10,7 @@ import {
   type EmailPreferenceMap,
 } from '@/lib/api/notificationPreferencesService'
 import styles from './NotificationSettingsPage.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 export function NotificationSettingsPage() {
   const [prefs, setPrefs] = useState<EmailPreferenceMap | null>(null)
@@ -27,9 +28,7 @@ export function NotificationSettingsPage() {
     } catch (err) {
       setPrefs(null)
       setError(
-        err instanceof Error
-          ? err.message
-          : 'Nie udało się wczytać preferencji powiadomień.',
+        getUserFacingErrorMessage(err, 'Nie udało się wczytać preferencji powiadomień.'),
       )
     } finally {
       setLoading(false)

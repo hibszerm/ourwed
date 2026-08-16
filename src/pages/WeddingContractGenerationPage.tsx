@@ -49,6 +49,8 @@ import { getWeddingDisplayName } from '@/features/weddings/presentation/getWeddi
 import { useProMutationPageGuard } from '@/features/billing/useProMutationPageGuard'
 import { weddingActionsService } from '@/lib/api/weddingActionsService'
 import styles from './WeddingContractGenerationPage.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
+import { devError, devInfo } from '@/lib/debug/devConsole'
 
 type WizardStep =
   | 'resolve'
@@ -296,7 +298,7 @@ export function WeddingContractGenerationPage() {
       autoVerifyStarted.current = false
       return
     }
-    console.info('[package-contract-page-load]', {
+    devInfo('[package-contract-page-load]', {
       weddingId: wedding.id,
       packageId: wedding.packageId,
       resolvedTemplateId: packageResolution.templateId,
@@ -389,7 +391,7 @@ export function WeddingContractGenerationPage() {
     versionIdOverride?: string | null,
   ) {
     if (generationSuccessRef.current) {
-      console.info('[contract-generate-early-return]', {
+      devInfo('[contract-generate-early-return]', {
         reason: 'prepare_verification_skipped_after_success',
       })
       return
@@ -426,9 +428,7 @@ export function WeddingContractGenerationPage() {
       setStep('verify')
     } catch (err) {
       setError(
-        err instanceof Error
-          ? err.message
-          : 'Nie udało się przygotować danych umowy.',
+        getUserFacingErrorMessage(err, 'Nie udało się przygotować danych umowy.'),
       )
       setStep('resolve')
       autoVerifyStarted.current = false
@@ -530,7 +530,7 @@ export function WeddingContractGenerationPage() {
     }
 
     if (!report || !reviewState) {
-      console.info('[contract-generate-early-return]', {
+      devInfo('[contract-generate-early-return]', {
         reason: 'missing_wedding_report_or_review_state',
         hasWedding: Boolean(wedding),
         hasReport: Boolean(report),
@@ -540,7 +540,7 @@ export function WeddingContractGenerationPage() {
       return
     }
     if (generatePending || generateInFlightRef.current) {
-      console.info('[contract-generate-early-return]', {
+      devInfo('[contract-generate-early-return]', {
         reason: 'duplicate_submit_guard',
         generatePending,
         inFlight: generateInFlightRef.current,
@@ -552,7 +552,7 @@ export function WeddingContractGenerationPage() {
     // Commit drafts first when the photographer clicks “Uzupełnij dane”
     // or when there are uncommitted edits before generate.
     if (!canGenerate || hasUncommittedDrafts) {
-      console.info('[contract-generate-early-return]', {
+      devInfo('[contract-generate-early-return]', {
         reason: hasUncommittedDrafts
           ? 'commit_drafts_before_generate'
           : 'generation_not_allowed',
@@ -579,7 +579,7 @@ export function WeddingContractGenerationPage() {
     setGenerationPipelineDone(false)
     setShowGenerationSuccess(false)
     setStep('generating')
-    console.info('[contract-generate-start]', {
+    devInfo('[contract-generate-start]', {
       weddingId: wedding.id,
       packageId: wedding.packageId ?? null,
       templateId: report.templateId,
@@ -600,7 +600,7 @@ export function WeddingContractGenerationPage() {
       })
 
       const outcome = interpretGenerationAttemptResult(attempt)
-      console.info('[contract-generate-service-result]', {
+      devInfo('[contract-generate-service-result]', {
         exactResultKind: outcome.kind,
         serviceStatus:
           attempt && 'status' in attempt ? attempt.status : null,
@@ -637,7 +637,7 @@ export function WeddingContractGenerationPage() {
       }
 
       if (outcome.kind === 'needs_review') {
-        console.info('[contract-generate-early-return]', {
+        devInfo('[contract-generate-early-return]', {
           reason: outcome.invalidEmpty
             ? 'needs_review_empty_payload'
             : 'needs_review',
@@ -666,7 +666,7 @@ export function WeddingContractGenerationPage() {
       }
 
       if (outcome.kind === 'invalid_result') {
-        console.info('[contract-generate-early-return]', {
+        devInfo('[contract-generate-early-return]', {
           reason: 'invalid_service_result',
           resultKind: outcome.kind,
           message: outcome.reason,
@@ -688,20 +688,22 @@ export function WeddingContractGenerationPage() {
       setParagraphs(next)
       // Stay on generating — presentation finishes stages, then success UI.
       setGenerationPipelineDone(true)
-      console.info('[contract-generate-success]', {
+      devInfo('[contract-generate-success]', {
         generatedDocumentId: outcome.generatedDocumentId,
         nextNavigationOrAction: 'generation_success_presentation',
         paragraphCount: next.length,
       })
     } catch (err) {
-      console.info('[contract-generate-catch]', {
+      devInfo('[contract-generate-catch]', {
         errorName: err instanceof Error ? err.name : typeof err,
-        errorMessage: err instanceof Error ? err.message : String(err),
       })
-      console.error('[contract-generation] generate failed', {
+      devError('[contract-generation] generate failed', {
         correlationId,
-        diagnostic:
-          err instanceof GenerationPipelineError ? err.toJSON() : err,
+        errorName: err instanceof Error ? err.name : typeof err,
+        code:
+          err instanceof GenerationPipelineError ? err.code : undefined,
+        stage:
+          err instanceof GenerationPipelineError ? err.stage : undefined,
       })
       generationSuccessRef.current = false
       setGenerationPipelineDone(false)
@@ -709,7 +711,7 @@ export function WeddingContractGenerationPage() {
       setError(userFacingGenerationErrorMessage(err))
       setStep('verify')
     } finally {
-      console.info('[contract-generate-finally]', {
+      devInfo('[contract-generate-finally]', {
         pendingBeforeReset: true,
         currentScreenStateIntent: 'reset_pending_keep_step',
         generationSuccess: generationSuccessRef.current,
@@ -822,7 +824,7 @@ export function WeddingContractGenerationPage() {
         return false
       }
       setError(
-        err instanceof Error ? err.message : 'Nie udało się zapisać umowy.',
+        getUserFacingErrorMessage(err, 'Nie udało się zapisać umowy.'),
       )
       return false
     }
@@ -1230,9 +1232,7 @@ export function WeddingContractGenerationPage() {
                 }
               } catch (e) {
                 setError(
-                  e instanceof Error
-                    ? e.message
-                    : 'Nie udało się zastosować harmonogramu płatności.',
+                  getUserFacingErrorMessage(e, 'Nie udało się zastosować harmonogramu płatności.'),
                 )
               } finally {
                 setBusy(false)

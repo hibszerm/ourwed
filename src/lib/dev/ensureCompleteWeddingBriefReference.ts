@@ -42,6 +42,7 @@ import type { StudioPackage, ExtraService } from '@/types/package'
 import type { PreWeddingAnswerValue } from '@/types/preweddingQuestionnaire'
 import type { GeoPlace } from '@/types/travel'
 import type { Wedding } from '@/types/wedding'
+import { devWarnArgs } from '@/lib/debug/devConsole'
 
 function geo(
   label: string,
@@ -447,7 +448,7 @@ async function ensureSessions(weddingId: string): Promise<void> {
       })
     }
   } catch (err) {
-    console.warn(
+    devWarnArgs(
       '[brief-demo] sessions seed skipped:',
       err instanceof Error ? err.message : err,
     )

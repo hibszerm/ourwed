@@ -7,6 +7,7 @@ import { weddingActionsService } from '@/lib/api/weddingActionsService'
 import { useInvalidateWedding } from '@/features/weddings/hooks/useInvalidateWedding'
 import type { Payment, PaymentMethod, Wedding } from '@/types/wedding'
 import formStyles from './actionForm.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 interface AddPaymentModalProps {
   open: boolean
@@ -175,11 +176,12 @@ function AddPaymentForm({
       onClose()
     } catch (err) {
       setError(
-        err instanceof Error
-          ? err.message
-          : payment
+        getUserFacingErrorMessage(
+          err,
+          payment
             ? 'Nie udało się zaktualizować wpłaty.'
             : 'Nie udało się dodać wpłaty.',
+        ),
       )
     } finally {
       setBusy(false)

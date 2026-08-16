@@ -10,6 +10,7 @@ import { downloadWeddingBriefPdf } from '@/features/wedding-brief/downloadWeddin
 import { mapPdfRenderErrorForUser } from '@/features/documents/pdf/pdfRenderErrors'
 import type { Wedding } from '@/types/wedding'
 import styles from './WeddingDetailV2.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 interface Props {
   wedding: Wedding
@@ -62,7 +63,7 @@ export function WeddingHeaderActions({
     try {
       await downloadWeddingBriefPdf(wedding.id)
     } catch (e) {
-      const raw = e instanceof Error ? e.message : ''
+      const raw = getUserFacingErrorMessage(e, '')
       setBriefError(mapPdfRenderErrorForUser(raw))
     } finally {
       setBusy(false)
@@ -80,7 +81,7 @@ export function WeddingHeaderActions({
   }
 
   async function handleDelete() {
-    if (confirmText !== 'DELETE') return
+    if (confirmText !== 'USUŃ') return
     setBusy(true)
     try {
       await onDelete()
@@ -216,7 +217,7 @@ export function WeddingHeaderActions({
             type="button"
             variant="danger"
             size="sm"
-            disabled={busy || confirmText !== 'DELETE'}
+            disabled={busy || confirmText !== 'USUŃ'}
             data-testid="wedding-delete-confirm"
             onClick={() => void handleDelete()}
           >
@@ -225,7 +226,7 @@ export function WeddingHeaderActions({
         }
       >
         <Input
-          label='Wpisz DELETE, aby potwierdzić'
+          label="Wpisz USUŃ, aby potwierdzić"
           value={confirmText}
           onChange={(e) => setConfirmText(e.target.value)}
           data-testid="wedding-delete-confirm-input"

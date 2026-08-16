@@ -18,6 +18,7 @@ import {
   validateManualSourceSpan,
 } from '@/features/ai-contract-lab/resolveExactSourceSpan'
 import { gateMissingFieldClassifications } from '@/features/ai-contract-lab/gateMissingFieldClassifications'
+import { devInfoArgs } from '@/lib/debug/devConsole'
 
 export function confidenceLabel(
   confidence: number,
@@ -243,8 +244,8 @@ export function validateAiReplacementPlan(
     }
   }
 
-  console.info('[ai-contract-lab] source-span counters', counters)
-  console.info('[ai-contract-lab] missing-field gate', gated.counters)
+  devInfoArgs('[ai-contract-lab] source-span counters', counters)
+  devInfoArgs('[ai-contract-lab] missing-field gate', gated.counters)
 
   if (hardErrors.length > 0) return { ok: false, errors: hardErrors }
 

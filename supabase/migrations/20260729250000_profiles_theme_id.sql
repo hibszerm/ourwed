@@ -6,7 +6,7 @@ alter table public.profiles
   add column if not exists theme_id text not null default 'classic';
 
 comment on column public.profiles.theme_id is
-  'Private CRM UI theme id (classic|gentlemen|sage_garden|burgundy_estate|mocha_editorial). Not studio public branding.';
+  'Private CRM UI theme id (classic|graphite|sage_garden|burgundy_estate|mocha_editorial). Not studio public branding.';
 
 alter table public.profiles
   drop constraint if exists profiles_theme_id_check;
@@ -16,7 +16,7 @@ alter table public.profiles
   check (
     theme_id in (
       'classic',
-      'gentlemen',
+      'graphite',
       'sage_garden',
       'burgundy_estate',
       'mocha_editorial'
@@ -29,7 +29,7 @@ set theme_id = 'classic'
 where theme_id is null
    or theme_id not in (
      'classic',
-     'gentlemen',
+     'graphite',
      'sage_garden',
      'burgundy_estate',
      'mocha_editorial'

@@ -7,8 +7,6 @@ import { PageContainer } from '@/components/ui/PageContainer'
 import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
 import { packageItemService } from '@/lib/api/packageItemService'
 import { packageService } from '@/lib/api/packageService'
-import { ensureReferenceWeddingSetup } from '@/lib/dev/ensureReferenceWeddingSetup'
-import { ensureCompleteWeddingBriefReference } from '@/lib/dev/ensureCompleteWeddingBriefReference'
 import { formatCurrency } from '@/lib/utils/currency'
 import { formatDeliveryTerm } from '@/lib/utils/commercial'
 import {
@@ -28,6 +26,7 @@ import {
   sanitizeOpenPackageItemId,
 } from '@/features/studio/packageItemMenuState'
 import styles from '@/features/studio/StudioCatalog.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 type PackageFormValues = {
   name: string
@@ -59,8 +58,6 @@ export function PackagesPage() {
   const [editing, setEditing] = useState<StudioPackage | null>(null)
   const [creating, setCreating] = useState(false)
   const [dragId, setDragId] = useState<string | null>(null)
-  const [seedBusy, setSeedBusy] = useState(false)
-  const [seedMessage, setSeedMessage] = useState<string | null>(null)
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ['studio-packages'] })
@@ -114,65 +111,6 @@ export function PackagesPage() {
       subtitle="Katalog oferty — źródło cen, warunków i zawartości pakietów"
       action={
         <div className={styles.actions}>
-          {import.meta.env.DEV ? (
-            <>
-            <Button
-              type="button"
-              variant="ghost"
-              disabled={seedBusy}
-              onClick={() => {
-                setSeedBusy(true)
-                setSeedMessage(null)
-                void ensureReferenceWeddingSetup()
-                  .then((result) => {
-                    setSeedMessage(
-                      result.companyReady
-                        ? `Ślub referencyjny gotowy: ${result.wedding.couple.partner1} · ${result.package.name}`
-                        : `Pakiet i ślub referencyjny zapisane. Uzupełnij Dane firmy, aby status był „Gotowe do umowy”.`,
-                    )
-                    void invalidate()
-                  })
-                  .catch((err) =>
-                    setSeedMessage(
-                      err instanceof Error
-                        ? err.message
-                        : 'Nie udało się utworzyć danych referencyjnych.',
-                    ),
-                  )
-                  .finally(() => setSeedBusy(false))
-              }}
-            >
-              {seedBusy ? 'Seed…' : 'Ślub referencyjny'}
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              disabled={seedBusy}
-              data-testid="seed-wedding-brief-demo"
-              onClick={() => {
-                setSeedBusy(true)
-                setSeedMessage(null)
-                void ensureCompleteWeddingBriefReference()
-                  .then((result) => {
-                    setSeedMessage(
-                      `Brief demo gotowy: ${result.wedding.couple.partner1} & ${result.wedding.couple.partner2} · ${result.package.name} · extras: ${result.extras.map((e) => e.name).join(', ') || 'brak'}`,
-                    )
-                    void invalidate()
-                  })
-                  .catch((err) =>
-                    setSeedMessage(
-                      err instanceof Error
-                        ? err.message
-                        : 'Nie udało się utworzyć ślubu brief demo.',
-                    ),
-                  )
-                  .finally(() => setSeedBusy(false))
-              }}
-            >
-              {seedBusy ? 'Seed…' : 'Brief demo'}
-            </Button>
-            </>
-          ) : null}
           <Button
             type="button"
             variant="primary"
@@ -184,11 +122,10 @@ export function PackagesPage() {
       }
     >
       <PageContainer width="wide">
-        {seedMessage ? <p className={styles.docHint}>{seedMessage}</p> : null}
         {isError ? (
           <EmptyState
             title="Nie udało się załadować pakietów"
-            description={error instanceof Error ? error.message : 'Spróbuj ponownie.'}
+            description={getUserFacingErrorMessage(error, 'Spróbuj ponownie.')}
           />
         ) : isLoading || !isSuccess ? (
           <p className={styles.muted}>Ładowanie pakietów…</p>
@@ -496,7 +433,7 @@ function PackageForm({
           deliveryDays: parseOptionalNumber(deliveryDays),
           finalPaymentTerms: normalizeFinalPaymentTerms(terms),
         }).catch((err) =>
-          setError(err instanceof Error ? err.message : 'Nie udało się zapisać.'),
+          setError(getUserFacingErrorMessage(err, 'Nie udało się zapisać.')),
         )
       }}
     >

@@ -141,7 +141,7 @@ assert(!sources.includes('lv3-security-replay'), 'no replay control')
 assert(!sources.includes('Pokaż animację ponownie'), 'no replay label')
 assert(!/\bAI-powered\b/i.test(sources), 'no AI')
 assert(!/sztuczna inteligencja/i.test(sources), 'no AI PL')
-assert(!/Marcin Hibszer/i.test(sources), 'no real name')
+assert(!new RegExp('Marcin Hib' + 'szer', 'i').test(sources), 'no real name')
 
 const security = readFileSync(join(FEATURE, 'sections/SecuritySection.tsx'), 'utf8')
 assert(security.includes('ClassicDataLock'), 'ClassicDataLock used')

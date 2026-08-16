@@ -1,11 +1,11 @@
 import type { ThemeTokenMap } from '@/features/theme/tokenKeys'
 
 /**
- * Gentlemen — luxury graphite navy, champagne paper, walnut neutrals.
+ * Graphite — luxury graphite navy, champagne paper, walnut neutrals.
  * Reference: #0A0908, #22333B, #EAE0D5, #C6AC8E, #5E503F
  * Brand = accents only; surfaces stay warm ivory.
  */
-export const GENTLEMEN_TOKENS: ThemeTokenMap = {
+export const GRAPHITE_TOKENS: ThemeTokenMap = {
   '--app-background': '#F3EEE7',
   '--app-background-subtle': '#EBE4DA',
   '--app-background-raised': '#FFFCF8',

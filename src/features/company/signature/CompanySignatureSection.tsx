@@ -8,10 +8,10 @@ import type { CompanyDetails } from '@/types/company'
 import {
   exportCanvasSignaturePng,
   normalizeUploadedSignatureFile,
-  SignatureImageError,
 } from './signatureImageProcessing'
 import { SignaturePad, type SignaturePadHandle } from './SignaturePad'
 import styles from './CompanySignatureSection.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 type Props = {
   signaturePath: string | null
@@ -95,11 +95,7 @@ export function CompanySignatureSection({
       setDirtyPad(false)
     } catch (err) {
       setError(
-        err instanceof SignatureImageError
-          ? err.message
-          : err instanceof Error
-            ? err.message
-            : 'Nie udało się zapisać podpisu.',
+        getUserFacingErrorMessage(err, 'Nie udało się zapisać podpisu.'),
       )
     } finally {
       setBusy(false)
@@ -123,9 +119,7 @@ export function CompanySignatureSection({
       await persistFile(file, 'Podpis zapisany')
     } catch (err) {
       setError(
-        err instanceof SignatureImageError
-          ? err.message
-          : 'Nie udało się wyeksportować podpisu.',
+        getUserFacingErrorMessage(err, 'Nie udało się wyeksportować podpisu.'),
       )
     }
   }
@@ -140,11 +134,7 @@ export function CompanySignatureSection({
       await persistFile(normalized, 'Podpis wgrany')
     } catch (err) {
       setError(
-        err instanceof SignatureImageError
-          ? err.message
-          : err instanceof Error
-            ? err.message
-            : 'Upload nie powiódł się.',
+        getUserFacingErrorMessage(err, 'Nie udało się przesłać pliku.'),
       )
       setBusy(false)
     }
@@ -168,7 +158,7 @@ export function CompanySignatureSection({
       await invalidateCompany()
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : 'Nie udało się usunąć podpisu.',
+        getUserFacingErrorMessage(err, 'Nie udało się usunąć podpisu.'),
       )
     } finally {
       setBusy(false)

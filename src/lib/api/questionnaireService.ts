@@ -49,6 +49,7 @@ import type {
 import type { WeddingPlaceRole, GeoPlace } from '@/types/travel'
 import type { Wedding } from '@/types/wedding'
 import type { StudioPackage } from '@/types/package'
+import { devWarnArgs } from '@/lib/debug/devConsole'
 
 export type QuestionnaireExpiration = '7d' | '14d' | '30d' | 'never'
 
@@ -253,7 +254,7 @@ async function syncQuestionnaireLocationsToPlaces(
   try {
     await weddingPlaceService.insertInitialWeddingPlaces(weddingId, toInsert)
   } catch (err) {
-    console.warn(
+    devWarnArgs(
       '[questionnaire.approve] batch place insert failed, retrying without coords:',
       err instanceof Error ? err.message : err,
     )
@@ -271,7 +272,7 @@ async function syncQuestionnaireLocationsToPlaces(
         })),
       )
     } catch (storeErr) {
-      console.warn(
+      devWarnArgs(
         '[questionnaire.approve] could not store places:',
         storeErr instanceof Error ? storeErr.message : storeErr,
       )
@@ -776,7 +777,7 @@ export const questionnaireService = {
 
         // Deferred shells — must not block navigation.
         void seedDeferredWeddingShells(wedding).catch((err) => {
-          console.warn(
+          devWarnArgs(
             '[questionnaire.approve] deferred shells failed:',
             err instanceof Error ? err.message : err,
           )
@@ -792,7 +793,7 @@ export const questionnaireService = {
             systemGenerated: true,
           })
           .catch((err) => {
-            console.warn(
+            devWarnArgs(
               '[questionnaire.approve] timeline failed:',
               err instanceof Error ? err.message : err,
             )
@@ -806,7 +807,7 @@ export const questionnaireService = {
               author: 'Para',
             })
             .catch((err) => {
-              console.warn(
+              devWarnArgs(
                 '[questionnaire.approve] note failed:',
                 err instanceof Error ? err.message : err,
               )
@@ -823,7 +824,7 @@ export const questionnaireService = {
             link: `/sluby/${wedding.id}`,
           })
           .catch((err) => {
-            console.warn(
+            devWarnArgs(
               '[questionnaire.approve] notification failed:',
               err instanceof Error ? err.message : err,
             )
@@ -831,7 +832,7 @@ export const questionnaireService = {
 
         // Travel routes are NOT on the approval critical path.
         void travelService.recalculate(wedding.id).catch((err) => {
-          console.warn(
+          devWarnArgs(
             '[questionnaire.approve] travel recalculate failed:',
             err instanceof Error ? err.message : err,
           )

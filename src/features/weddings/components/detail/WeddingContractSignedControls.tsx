@@ -8,6 +8,7 @@ import { timelineEventService } from '@/lib/api/timelineEventService'
 import { formatDate } from '@/lib/utils/dates'
 import type { Wedding } from '@/types/wedding'
 import styles from './WeddingContractsModule.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 interface Props {
   wedding: Wedding
@@ -50,7 +51,7 @@ export function WeddingContractSignedControls({
       onStatusChanged?.()
     } catch (e) {
       showToast(
-        e instanceof Error ? e.message : 'Nie udało się oznaczyć podpisu.',
+        getUserFacingErrorMessage(e, 'Nie udało się oznaczyć podpisu.'),
         'error',
       )
     } finally {
@@ -79,7 +80,7 @@ export function WeddingContractSignedControls({
       onStatusChanged?.()
     } catch (e) {
       showToast(
-        e instanceof Error ? e.message : 'Nie udało się cofnąć oznaczenia.',
+        getUserFacingErrorMessage(e, 'Nie udało się cofnąć oznaczenia.'),
         'error',
       )
     } finally {

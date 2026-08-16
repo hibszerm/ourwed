@@ -16,7 +16,7 @@ export function ReadOnlyBanner({ visible, onHide }: Props) {
         <div className={styles.copy}>
           <p className={styles.heading}>Tryb tylko do odczytu</p>
           <p className={styles.body}>
-            Twój Trial PRO dobiegł końca. Nadal możesz przeglądać wszystkie swoje
+            Twój okres próbny PRO dobiegł końca. Nadal możesz przeglądać wszystkie swoje
             dane.
           </p>
         </div>

@@ -29,6 +29,7 @@ import type {
   FormInstanceOptionsSnapshot,
   PackageOptionSnapshot,
 } from '@/types/contractQuestionnaire'
+import { devInfoArgs } from '@/lib/debug/devConsole'
 
 /** Secure random token ≈ 32 URL-safe characters. */
 function generateSecureToken(): string {
@@ -761,7 +762,7 @@ export async function getPublicFormByToken(token: string): Promise<{
       : normalizeAdditionalServiceOptions(payload.additionalServices)
 
   if (import.meta.env.DEV) {
-    console.info('[getPublicFormByToken] packages', {
+    devInfoArgs('[getPublicFormByToken] packages', {
       packagesLength: packages.length,
       packageIds: packages.map((p) => p.id),
       packageNames: packages.map((p) => p.name),

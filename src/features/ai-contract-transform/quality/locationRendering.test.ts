@@ -79,7 +79,7 @@ function main() {
   assert(multi.includes('przyjęcie:'), 'multi reception')
 
   const addr = renderCustomerAddress(
-    'Juliusza Słowackiego 6/17, 41-800 Zabrze, Polska',
+    'ul. Przykładowa 1, 00-001 Warszawa, Polska',
   )
   assert(/^ul\./i.test(addr), 'ul prefix added')
   assert(!/Polska/i.test(addr), 'country stripped')

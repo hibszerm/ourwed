@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase'
 import { throwOnError } from '@/lib/supabase/helpers'
 import { clearStudioUserCache } from '@/lib/api/studioUser'
+import { devWarnArgs } from '@/lib/debug/devConsole'
 
 export type AccountProfile = {
   id: string
@@ -87,7 +88,7 @@ export async function updateOwnAccountNames(input: {
     .update({ name: displayName })
     .eq('id', auth.id)
   if (usersUpdate.error) {
-    console.warn('[account] public.users.name sync failed:', usersUpdate.error.message)
+    devWarnArgs('[account] public.users.name sync failed:', usersUpdate.error.message)
   }
 
   clearStudioUserCache()

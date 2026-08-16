@@ -8,6 +8,7 @@ import { SessionForm } from '@/features/sessions/components/SessionForm'
 import { useCreateSession } from '@/features/sessions/hooks/useCreateSession'
 import { useProAccessGate } from '@/features/billing/ProAccessGate'
 import { useProMutationPageGuard } from '@/features/billing/useProMutationPageGuard'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 function isDateKey(value: string | null): value is string {
   return Boolean(value && /^\d{4}-\d{2}-\d{2}$/.test(value))
@@ -52,9 +53,7 @@ export function NewSessionPage() {
               navigate(`/sesje/${session.id}`)
             } catch (err) {
               showToast(
-                err instanceof Error
-                  ? err.message
-                  : 'Nie udało się utworzyć sesji',
+                getUserFacingErrorMessage(err, 'Nie udało się utworzyć sesji'),
                 'error',
               )
             }

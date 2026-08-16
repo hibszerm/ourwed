@@ -11,6 +11,7 @@
  */
 
 import { isSlotPhysicallyBound, type TemplateSlot } from './types'
+import { devErrorArgs, devInfoArgs } from '@/lib/debug/devConsole'
 
 export type PackageContractHealthStatus = 'ok' | 'warning' | 'critical'
 
@@ -678,7 +679,7 @@ export function buildPackageContractHealthReport(input: {
     blockingIssues: requiredForCheck.blockingIssues,
   })
 
-  console.info('[package-contract-health-report]', {
+  devInfoArgs('[package-contract-health-report]', {
     warningCount,
     criticalCount,
     hasPhysicalBindings: hasBindings,
@@ -715,7 +716,7 @@ export function assertPackageContractHealthConsistency(
   const gapCount = missingCats + missingKeys + blockers
 
   const fail = (message: string) => {
-    console.error('[package-contract-health-consistency]', {
+    devErrorArgs('[package-contract-health-consistency]', {
       message,
       requiredStatus: required?.status,
       requiredEvidence: required?.evidence,

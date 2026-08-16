@@ -8,6 +8,7 @@ import {
   normalizeForMatch,
 } from './canonicalParagraph'
 import type { OmissionMode, TemplateSlot } from './types'
+import { devInfoArgs } from '@/lib/debug/devConsole'
 
 export function renderSlotValue(
   slot: Pick<
@@ -274,7 +275,7 @@ export function debugSlotLocation(
     : ''
   const loc = locateSlotInParagraph(text, slot)
   if (slot.registryKey === 'coverage_end_time') {
-    console.info('[coverage-end-time-location]', {
+    devInfoArgs('[coverage-end-time-location]', {
       phase: 'locate',
       paragraphIndex: slot.paragraphIndex,
       storedOriginalText: slot.originalText,
@@ -300,7 +301,7 @@ export function debugSlotLocation(
       ...extra,
     })
   }
-  console.info('[contract-slot-location-debug]', {
+  devInfoArgs('[contract-slot-location-debug]', {
     registryKey: slot.registryKey,
     paragraphIndex: slot.paragraphIndex,
     storedOriginalText: slot.originalText,
@@ -351,7 +352,7 @@ export function applySlotToParagraphText(
   const slotText = canonical.slice(loc.start, loc.end)
   const afterText = canonical.slice(loc.end)
   const rebuiltParagraph = beforeText + rendered + afterText
-  console.info('[contract-paragraph-rebuild]', {
+  devInfoArgs('[contract-paragraph-rebuild]', {
     registryKey: slot.registryKey,
     paragraphIndex: slot.paragraphIndex,
     method: loc.method,

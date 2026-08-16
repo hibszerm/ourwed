@@ -13,6 +13,7 @@ import {
 import { questionnaireService } from '@/lib/api/questionnaireService'
 import { formatShortDate } from '@/lib/utils/dates'
 import styles from '@/features/questionnaires/Questionnaires.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 export function PendingWeddingsPage() {
   const navigate = useNavigate()
@@ -31,7 +32,7 @@ export function PendingWeddingsPage() {
       afterApprove()
       navigate(`/sluby/${wedding.id}`)
     } catch (err) {
-      window.alert(err instanceof Error ? err.message : 'Nie udało się zatwierdzić.')
+      window.alert(getUserFacingErrorMessage(err, 'Nie udało się zatwierdzić.'))
     } finally {
       setBusyId(null)
     }
@@ -45,7 +46,7 @@ export function PendingWeddingsPage() {
       await questionnaireService.reject(id)
       afterReject()
     } catch (err) {
-      window.alert(err instanceof Error ? err.message : 'Nie udało się odrzucić.')
+      window.alert(getUserFacingErrorMessage(err, 'Nie udało się odrzucić.'))
     } finally {
       setBusyId(null)
     }
@@ -67,7 +68,7 @@ export function PendingWeddingsPage() {
           <EmptyState
             title="Nie udało się załadować zgłoszeń"
             description={
-              error instanceof Error ? error.message : 'Spróbuj ponownie.'
+              getUserFacingErrorMessage(error, 'Spróbuj ponownie.')
             }
           />
         ) : data.length === 0 ? (

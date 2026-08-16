@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/Button'
 import { isExperimentalPdfExportEnabled } from '@/features/documents/template/experimentalPdfFlags'
 import { createGotenbergPdfAdapter } from '@/features/documents/template/gotenbergPdfAdapter'
 import styles from './ExperimentalPdfActions.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 export function ExperimentalPdfActions(props: {
   /** Exact final DOCX for this artifact (already generated). */
@@ -62,9 +63,7 @@ export function ExperimentalPdfActions(props: {
       })
     } catch (e) {
       setError(
-        e instanceof Error
-          ? e.message
-          : 'Nie udało się utworzyć testowego PDF. Dokument DOCX jest nadal gotowy i możesz go pobrać.',
+        getUserFacingErrorMessage(e, 'Nie udało się utworzyć testowego PDF. Dokument DOCX jest nadal gotowy i możesz go pobrać.'),
       )
     } finally {
       setBusy(false)

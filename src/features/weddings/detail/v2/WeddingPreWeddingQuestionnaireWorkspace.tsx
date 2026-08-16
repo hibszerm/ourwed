@@ -41,6 +41,8 @@ import type { Wedding } from '@/types/wedding'
 import type { WeddingQuestionnaire } from '@/types/preweddingQuestionnaire'
 import styles from './WeddingPreWeddingQuestionnaire.module.css'
 import { formatShortDate, formatDate } from '@/lib/utils/dates'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
+import { devErrorArgs } from '@/lib/debug/devConsole'
 
 interface Props {
   wedding: Wedding
@@ -569,7 +571,7 @@ export function WeddingPreWeddingQuestionnaireWorkspace({
       }
     } catch (err) {
       setApplyError(
-        err instanceof Error ? err.message : 'Nie udało się zastosować danych.',
+        getUserFacingErrorMessage(err, 'Nie udało się zastosować danych.'),
       )
     } finally {
       setApplying(false)
@@ -608,7 +610,7 @@ export function WeddingPreWeddingQuestionnaireWorkspace({
       setTemplateSelectOpen(true)
       void effective
     } catch (err) {
-      console.error('[prewedding] prepare failed:', err)
+      devErrorArgs('[prewedding] prepare failed:', err)
       setActionError('Nie udało się przygotować ankiety. Spróbuj ponownie.')
     } finally {
       setPreparing(false)
@@ -626,7 +628,7 @@ export function WeddingPreWeddingQuestionnaireWorkspace({
       }
       await prepareFromTemplate(template)
     } catch (err) {
-      console.error('[prewedding] prepare from select failed:', err)
+      devErrorArgs('[prewedding] prepare from select failed:', err)
       setActionError('Nie udało się przygotować ankiety. Spróbuj ponownie.')
     } finally {
       setPreparing(false)
@@ -663,7 +665,7 @@ export function WeddingPreWeddingQuestionnaireWorkspace({
       )
       await invalidateRelated()
     } catch (err) {
-      console.error('[prewedding] share failed:', err)
+      devErrorArgs('[prewedding] share failed:', err)
       setActionError(mapPreweddingShareError(err))
     } finally {
       setSharePending(null)
@@ -678,7 +680,7 @@ export function WeddingPreWeddingQuestionnaireWorkspace({
       setActionError(null)
       setTimeout(() => setCopied(null), 2000)
     } catch (err) {
-      console.error('[prewedding] copy link failed:', err)
+      devErrorArgs('[prewedding] copy link failed:', err)
       setActionError('Nie udało się skopiować linku.')
     }
   }
@@ -692,7 +694,7 @@ export function WeddingPreWeddingQuestionnaireWorkspace({
       setActionError(null)
       setTimeout(() => setCopied(null), 2000)
     } catch (err) {
-      console.error('[prewedding] copy message failed:', err)
+      devErrorArgs('[prewedding] copy message failed:', err)
       setActionError('Nie udało się skopiować wiadomości.')
     }
   }
@@ -732,11 +734,9 @@ export function WeddingPreWeddingQuestionnaireWorkspace({
       await invalidateRelated()
       setActionSuccess('Układ ankiety zaktualizowany.')
     } catch (err) {
-      console.error('[prewedding] upgrade failed:', err)
+      devErrorArgs('[prewedding] upgrade failed:', err)
       setActionError(
-        err instanceof Error
-          ? err.message
-          : 'Nie udało się zaktualizować układu ankiety.',
+        getUserFacingErrorMessage(err, 'Nie udało się zaktualizować układu ankiety.'),
       )
     }
   }

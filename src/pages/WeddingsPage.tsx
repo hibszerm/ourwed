@@ -17,6 +17,7 @@ import { getWeddingDisplayName } from '@/features/weddings/presentation/getWeddi
 import { SeasonGroupedList } from '@/features/shared/components/SeasonGroupedList'
 import { formatWeddingSeasonCount } from '@/features/shared/presentation/groupAssignmentsBySeason'
 import styles from './WeddingsPage.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 export function WeddingsPage() {
   const { data: weddings, isLoading, isError, error, refetch } = useWeddings()
@@ -60,9 +61,7 @@ export function WeddingsPage() {
           <EmptyState
             title="Nie udało się załadować ślubów"
             description={
-              error instanceof Error
-                ? error.message
-                : 'Spróbuj odświeżyć listę.'
+              getUserFacingErrorMessage(error, 'Spróbuj odświeżyć listę.')
             }
           />
         ) : !weddings || weddings.length === 0 ? (

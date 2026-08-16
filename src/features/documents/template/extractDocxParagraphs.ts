@@ -14,6 +14,7 @@ import JSZip from 'jszip'
 import { cloneArrayBuffer } from '@/features/documents/mapping/extraction/sourceKind'
 import { extractCanonicalParagraphText } from './canonicalParagraph'
 import type { DocxParagraphOrigin } from './docxPhysicalLocator'
+import { devInfoArgs } from '@/lib/debug/devConsole'
 
 export interface IndexedParagraph {
   index: number
@@ -287,23 +288,21 @@ export function extractDocxParagraphsFromXml(xml: string): DocxExtractionResult 
     }
   }
 
-  if (typeof console !== 'undefined' && console.info) {
-    console.info('[docx-table-extraction]', {
-      tables: tables.map((t) => ({
-        tableIndex: t.tableIndex,
-        rows: t.rows.map((r) => ({
-          rowIndex: r.rowIndex,
-          cells: r.cells.map((c) => ({
-            cellIndex: c.cellIndex,
-            rawText: c.rawText,
-            normalizedText: c.normalizedText,
-            paragraphs: c.paragraphs.map((p) => p.rawText),
-            runs: c.paragraphs.flatMap((p) => p.runs),
-          })),
+  devInfoArgs('[docx-table-extraction]', {
+    tables: tables.map((t) => ({
+      tableIndex: t.tableIndex,
+      rows: t.rows.map((r) => ({
+        rowIndex: r.rowIndex,
+        cells: r.cells.map((c) => ({
+          cellIndex: c.cellIndex,
+          rawText: c.rawText,
+          normalizedText: c.normalizedText,
+          paragraphs: c.paragraphs.map((p) => p.rawText),
+          runs: c.paragraphs.flatMap((p) => p.runs),
         })),
       })),
-    })
-  }
+    })),
+  })
 
   return { paragraphs, tables }
 }

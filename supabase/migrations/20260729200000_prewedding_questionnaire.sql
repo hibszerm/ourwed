@@ -20,7 +20,7 @@ create table public.questionnaire_templates (
   id            uuid primary key default gen_random_uuid(),
   owner_id      uuid not null references auth.users(id) on delete cascade,
   name          text not null,
-  -- source_key: stable built-in key, e.g. 'pre_wedding_gentlemen_v1'
+  -- source_key: stable built-in key, e.g. 'pre_wedding_default_v1'
   source_key    text,
   title         text not null default '',
   introduction  text not null default '',

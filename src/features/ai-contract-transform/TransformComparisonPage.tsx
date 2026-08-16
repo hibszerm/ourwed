@@ -36,6 +36,7 @@ import type {
 } from './types'
 import type { DocumentQualityReport, QualityIssue } from './quality/types'
 import styles from './TransformComparisonPage.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 function downloadBytes(bytes: ArrayBuffer, fileName: string) {
   const blob = new Blob([bytes], {
@@ -98,7 +99,7 @@ export function TransformComparisonPage() {
       setBlocks(indexed)
       setFileName(file.name)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Nie udało się odczytać DOCX')
+      setError(getUserFacingErrorMessage(e, 'Nie udało się odczytać DOCX'))
     }
   }
 
@@ -117,7 +118,7 @@ export function TransformComparisonPage() {
       })
       setDataset(built)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Błąd danych ślubu')
+      setError(getUserFacingErrorMessage(e, 'Błąd danych ślubu'))
     }
   }
 
@@ -189,7 +190,7 @@ export function TransformComparisonPage() {
       } catch (e) {
       // Modes should already be terminal inside runBothTransformModes;
       // keep page-level note only as last resort.
-      setError(e instanceof Error ? e.message : 'Uruchomienie nie powiodło się')
+      setError(getUserFacingErrorMessage(e, 'Uruchomienie nie powiodło się'))
       setRun((prev) => {
         if (!prev) return prev
         return {
@@ -201,7 +202,7 @@ export function TransformComparisonPage() {
                   status: 'error',
                   errorCode: 'unknown_error',
                   errorMessage:
-                    e instanceof Error ? e.message : String(e),
+                    getUserFacingErrorMessage(e, 'Nie udało się wykonać operacji. Spróbuj ponownie.'),
                 }
               : prev.modeA,
           modeB:
@@ -211,7 +212,7 @@ export function TransformComparisonPage() {
                   status: 'error',
                   errorCode: 'unknown_error',
                   errorMessage:
-                    e instanceof Error ? e.message : String(e),
+                    getUserFacingErrorMessage(e, 'Nie udało się wykonać operacji. Spróbuj ponownie.'),
                 }
               : prev.modeB,
         }

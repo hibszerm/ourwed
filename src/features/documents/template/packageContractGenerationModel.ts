@@ -16,6 +16,7 @@ import {
 } from './logicalContractFields'
 import { normalizeClientPartyPhysicalBindings } from './normalizeClientPartyPhysicalBindings'
 import { isSlotPhysicallyBound, type TemplateSlot, type TemplateSlotMap } from './types'
+import { devInfoArgs } from '@/lib/debug/devConsole'
 
 export type PackageContractGenerationSource = {
   mode: 'persisted_only'
@@ -178,8 +179,8 @@ export function buildPackageContractGenerationModel(input: {
     packageId: input.packageId ?? null,
   }
 
-  console.info('[package-contract-generation-source]', generationSource)
-  console.info('[package-contract-generation-model]', {
+  devInfoArgs('[package-contract-generation-source]', generationSource)
+  devInfoArgs('[package-contract-generation-model]', {
     templateVersionId: input.templateVersionId,
     logicalFieldCount: logicalFields.length,
     physicalBindingCount: physicalBindings.length,
@@ -224,7 +225,7 @@ export function assertPackageContractPersistedOnly(input: {
       'Package-contract generation invoked syncPhysicalBindingsFromSource — persisted_only required.',
     )
   }
-  console.info('[package-contract-generation-source]', {
+  devInfoArgs('[package-contract-generation-source]', {
     mode: 'persisted_only',
     runtimeSyncInvoked: false,
   })

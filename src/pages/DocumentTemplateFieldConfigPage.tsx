@@ -20,6 +20,7 @@ import {
   type ContractTemplateConfiguration,
 } from '@/features/ai-contract-lab/templateFieldConfiguration'
 import styles from '@/features/documents/DocumentsTemplates.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 export function DocumentTemplateFieldConfigPage() {
   const { id } = useParams<{ id: string }>()
@@ -183,7 +184,7 @@ export function DocumentTemplateFieldConfigPage() {
               })
               .catch((err) => {
                 showToast(
-                  err instanceof Error ? err.message : 'Nie udało się zapisać.',
+                  getUserFacingErrorMessage(err, 'Nie udało się zapisać.'),
                   'error',
                 )
               })

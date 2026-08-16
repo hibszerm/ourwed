@@ -86,12 +86,12 @@ run('Test 2 — locator searches storedOriginalText, never resolved value', () =
 run('Test 3 — company multi-word span with NFC/NFD mismatch still locates', () => {
   // NFD "firmą" (a + combining ogonek)
   const nfdFirm = 'firma' + '\u0328' + ' '
-  const paragraphXml = `<w:p><w:r><w:t>${nfdFirm}</w:t></w:r><w:r><w:t>Video </w:t></w:r><w:r><w:t>Productions</w:t></w:r><w:r><w:t> Marcin </w:t></w:r><w:r><w:t>Hibszer</w:t></w:r><w:r><w:t>, zwaną dalej „Kamerzystami”.</w:t></w:r></w:p>`
+  const paragraphXml = `<w:p><w:r><w:t>${nfdFirm}</w:t></w:r><w:r><w:t>Atelier </w:t></w:r><w:r><w:t>Studio</w:t></w:r><w:r><w:t> Jan </w:t></w:r><w:r><w:t>Kowalski</w:t></w:r><w:r><w:t>, zwaną dalej „Kamerzystami”.</w:t></w:r></w:p>`
   const text = extractCanonicalParagraphText(paragraphXml)
   assert(text.startsWith('firmą '), `canonical starts with firmą, got ${JSON.stringify(text.slice(0, 10))}`)
 
   // Offsets stored from canonical analysis
-  const company = 'Video Productions Marcin Hibszer'
+  const company = 'Atelier Studio Jan Kowalski'
   const start = text.indexOf(company)
   assert(start >= 0, 'company in canonical')
 
@@ -166,11 +166,11 @@ run('Test 6 — multi-run XML replace preserves non-slot runs when possible', ()
 
 run('Test 7 — broken anchors must not block originalText fallback', () => {
   const text = canonicalizeParagraphText(
-    'Video Productions Marcin Hibszer, zwaną dalej „Kamerzystami”.',
+    'Atelier Studio Jan Kowalski, zwaną dalej „Kamerzystami”.',
   )
   const s = slot({
     registryKey: 'company_name',
-    originalText: 'Video Productions Marcin Hibszer',
+    originalText: 'Atelier Studio Jan Kowalski',
     // NFC left that would fail on raw NFD without canonicalize — and wrong right
     leftAnchor: 'firmą XXX',
     rightAnchor: 'Filmowcem',

@@ -8,6 +8,7 @@ import {
 } from '@/lib/utils/contractCommercialVariables'
 import { toPolishLocativeCity } from '@/lib/utils/toPolishLocativeCity'
 import { SystemVariableRegistry } from '@/lib/variables/registry'
+import { devInfoArgs } from '@/lib/debug/devConsole'
 
 export interface ContractExecutionSnapshot {
   /** Exact short date written into the DOCX, e.g. "25.07.2026". */
@@ -108,7 +109,7 @@ export function resolveContractExecutionValues(
       typeof import.meta !== 'undefined' &&
       Boolean((import.meta as ImportMeta & { env?: { DEV?: boolean } }).env?.DEV)
     if (!DEV) return
-    console.info('[contract-execution-date-resolution]', {
+    devInfoArgs('[contract-execution-date-resolution]', {
       generationStartedAt: generationStartedAt.toISOString(),
       localDate: localCalendarIsoDate(generationStartedAt),
       resolvedShort: payload.resolvedShort,
@@ -191,7 +192,7 @@ export function resolveContractExecutionValues(
       SystemVariableRegistry.emit(values, 'company_city_locative', locative)
     } else {
       locativeUnsafe = true
-      console.info('[contract-city-inflection]', {
+      devInfoArgs('[contract-city-inflection]', {
         companyCity: nominative,
         locative: null,
         safe: false,
@@ -249,7 +250,7 @@ export function assertCompanyCityLocativeForSlots(input: {
     )
   }
   if (input.locativeUnsafe || !input.locative?.trim()) {
-    console.info('[contract-city-inflection]', {
+    devInfoArgs('[contract-city-inflection]', {
       companyCity: city,
       locative: null,
       safe: false,

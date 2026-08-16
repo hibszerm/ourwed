@@ -15,6 +15,7 @@ import { locateSlotInParagraph, renderSlotValue } from './slotRenderer'
 import { prepareSlotReplacementValue } from './slotReplacementValue'
 import type { SlotReplacementTrace } from './applyBoundSlots'
 import type { TemplateSlot } from './types'
+import { devInfoArgs } from '@/lib/debug/devConsole'
 
 export interface VariableReplacementHit {
   key: string
@@ -311,7 +312,7 @@ function spansFromPersistedSlots(input: {
       } else {
         // No safe generated range without a replacement trace or anchors.
         // Skip rather than indexOf(rendered) — one-char values poison masking.
-        console.info('[contract-quality-mask]', {
+        devInfoArgs('[contract-quality-mask]', {
           strategy: 'skipped_no_trace_no_anchors',
           registryKey: slot.registryKey,
           paragraphIndex: input.paragraphIndex,
@@ -323,7 +324,7 @@ function spansFromPersistedSlots(input: {
       }
     }
 
-    console.info('[contract-quality-mask]', {
+    devInfoArgs('[contract-quality-mask]', {
       strategy: 'persisted_anchors_or_insert',
       registryKey: slot.registryKey,
       paragraphIndex: input.paragraphIndex,
@@ -554,7 +555,7 @@ export function verifyContractTransformation(input: {
 
     if (fromTrace.length > 0) {
       for (const s of fromTrace) {
-        console.info('[contract-quality-mask]', {
+        devInfoArgs('[contract-quality-mask]', {
           strategy: 'replacement_trace',
           registryKey: s.registryKey,
           paragraphIndex: o.index,

@@ -3,6 +3,7 @@ import { CheckCircle2, FileText, Upload } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { useMappingWizard } from '../../state/useMappingWizard'
 import styles from '../../MappingWizard.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 export function UploadStep({
   onUploadFile,
@@ -38,7 +39,7 @@ export function UploadStep({
       })
     } catch (err) {
       notifyUploadError(
-        err instanceof Error ? err.message : 'Nie udało się przesłać pliku.',
+        getUserFacingErrorMessage(err, 'Nie udało się przesłać pliku.'),
       )
     } finally {
       if (fileRef.current) fileRef.current.value = ''

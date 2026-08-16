@@ -6,6 +6,7 @@
 import { canonicalizeParagraphText } from './canonicalParagraph'
 import type { IndexedParagraph } from './extractDocxParagraphs'
 import { validateMinimalSlotSpan } from './contractSlotSafety'
+import { devInfoArgs } from '@/lib/debug/devConsole'
 
 export type MoneyPairRole = 'contract_value' | 'agreed_deposit' | 'remaining_after_deposit'
 
@@ -441,7 +442,7 @@ export function inventoryAndClassifyMoney(
   const assigned = assignUniqueConcepts(raw)
 
   for (const c of assigned) {
-    console.info('[contract-money-classification]', {
+    devInfoArgs('[contract-money-classification]', {
       sourceText: c.sourceText,
       normalizedAmount: c.normalizedAmount,
       paragraphIndex: c.paragraphIndex,

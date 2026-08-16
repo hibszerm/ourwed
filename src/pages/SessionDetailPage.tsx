@@ -25,6 +25,7 @@ import { formatDate, getDaysUntil } from '@/lib/utils/dates'
 import { sessionPaymentService } from '@/lib/api/sessionPaymentService'
 import type { SessionPayment } from '@/types/sessionPayment'
 import styles from './SessionDetailPage.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 function countdownLabel(date: string): string | null {
   const days = getDaysUntil(date)
@@ -66,7 +67,7 @@ export function SessionDetailPage() {
           <EmptyState
             title="Nie znaleziono sesji"
             description={
-              error instanceof Error ? error.message : 'Sesja nie istnieje.'
+              getUserFacingErrorMessage(error, 'Sesja nie istnieje.')
             }
           />
           <Link to="/sesje">
@@ -112,7 +113,7 @@ export function SessionDetailPage() {
       navigate('/sesje')
     } catch (err) {
       showToast(
-        err instanceof Error ? err.message : 'Nie udało się usunąć sesji',
+        getUserFacingErrorMessage(err, 'Nie udało się usunąć sesji'),
         'error',
       )
     }
@@ -150,7 +151,7 @@ export function SessionDetailPage() {
       }
     } catch (err) {
       showToast(
-        err instanceof Error ? err.message : 'Nie udało się usunąć wpłaty.',
+        getUserFacingErrorMessage(err, 'Nie udało się usunąć wpłaty.'),
         'error',
       )
     } finally {

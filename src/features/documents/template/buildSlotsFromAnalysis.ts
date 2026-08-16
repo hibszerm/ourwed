@@ -43,6 +43,7 @@ import type {
   TemplateSlotMap,
   TemplateSlotSourceHint,
 } from './types'
+import { devInfoArgs } from '@/lib/debug/devConsole'
 
 function sourceHintForKey(registryKey: string): TemplateSlotSourceHint {
   if (isStudioFacingRegistryKey(registryKey)) return 'company'
@@ -326,8 +327,8 @@ export function buildSlotsFromAnalysis(input: {
       ? detectContractCandidates(paragraphs, { tables })
       : []
   const summary = summarizeDetection(candidates)
-  console.info('[contract-candidate-detection] summary', summary)
-  console.info('[contract-candidate-detection] rejected', {
+  devInfoArgs('[contract-candidate-detection] summary', summary)
+  devInfoArgs('[contract-candidate-detection] rejected', {
     count: summary.rejected,
     items: candidates
       .filter((c) => c.decision === 'rejected')
@@ -578,7 +579,7 @@ export function buildSlotsFromAnalysis(input: {
     )
     if (paraSlots.length === 0) continue
     for (const s of paraSlots) {
-      console.info('[coverage-clause-slot]', {
+      devInfoArgs('[coverage-clause-slot]', {
         registryKey: s.registryKey,
         paragraphIndex: s.paragraphIndex,
         startOffset: s.startOffset ?? s.allowedRange?.start ?? null,

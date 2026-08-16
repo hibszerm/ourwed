@@ -58,6 +58,7 @@ import {
   inferPaymentDueRule,
   paymentDueRuleNeedsManualInput,
 } from './paymentDueRule'
+import { devInfoArgs } from '@/lib/debug/devConsole'
 
 export {
   createGenerationCorrelationId,
@@ -503,7 +504,7 @@ export async function prepareContractVerification(input: {
         .filter((group) => group.fields.length > 0),
       allComplete: filterToPackageContractAllowlist(configured.missing).length === 0,
     }
-    console.info('[package-contract-review-prepare]', {
+    devInfoArgs('[package-contract-review-prepare]', {
       weddingId: input.wedding.id,
       packageId: configured.packageId,
       templateId: input.templateId,
@@ -1178,7 +1179,7 @@ export function buildGenerationReviewState(input: {
           'Wybierz, które miejsce wpisać w umowie — albo połącz miejsca.',
       })),
     ]
-    console.info('[package-contract-review-state]', {
+    devInfoArgs('[package-contract-review-state]', {
       packageContractMode: true,
       resolvedKeys: resolvedOut.map((f) => f.registryKey),
       editableKeys: editableOut.map((f) => f.registryKey),

@@ -48,7 +48,7 @@ run('1. exactly five themes with stable unique IDs', () => {
   assertEq(THEME_IDS.length, 5, 'count')
   assertEq(new Set(THEME_IDS).size, 5, 'unique')
   assert(THEME_IDS.includes('classic'), 'classic')
-  assert(THEME_IDS.includes('gentlemen'), 'gentlemen')
+  assert(THEME_IDS.includes('graphite'), 'graphite')
   assert(THEME_IDS.includes('sage_garden'), 'sage')
   assert(THEME_IDS.includes('burgundy_estate'), 'burgundy')
   assert(THEME_IDS.includes('mocha_editorial'), 'mocha')
@@ -117,11 +117,11 @@ run('6. Classic preserves current OurWed core colors', () => {
   assertEq(legacy['--color-sidebar-bg'], '#0a0a0a', 'legacy sidebar')
 })
 
-run('7. Gentlemen / Sage / Burgundy / Mocha use reference accents', () => {
+run('7. Graphite / Sage / Burgundy / Mocha use reference accents', () => {
   assert(
-    getTheme('gentlemen').tokens['--brand-primary'].toLowerCase().includes('22333b') ||
-      getTheme('gentlemen').tokens['--sidebar-background'].toLowerCase().includes('0a0908'),
-    'gentlemen graphite',
+    getTheme('graphite').tokens['--brand-primary'].toLowerCase().includes('22333b') ||
+      getTheme('graphite').tokens['--sidebar-background'].toLowerCase().includes('0a0908'),
+    'graphite accent',
   )
   assert(
     getTheme('sage_garden').tokens['--brand-primary'].toLowerCase().includes('345635'),

@@ -10,6 +10,7 @@ import {
   packageSnapshotFromRow,
 } from '@/features/wedding-contract-recovery/components/PackageSnapshotCard'
 import styles from './WeddingSourceContractsPanel.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 function statusLabel(status: string): string {
   switch (status) {
@@ -62,7 +63,7 @@ export function WeddingSourceContractsPanel({ weddingId }: { weddingId: string }
       navigate(`/sluby/${weddingId}/uzupelnij-z-umowy?recoveryId=${recovery.id}`)
     } catch (err) {
       showToast(
-        err instanceof Error ? err.message : 'Nie udało się ponowić analizy.',
+        getUserFacingErrorMessage(err, 'Nie udało się ponowić analizy.'),
         'error',
       )
     }

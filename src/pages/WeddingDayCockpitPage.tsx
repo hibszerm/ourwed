@@ -4,6 +4,7 @@ import { WeddingDayCockpitView } from '@/features/wedding-day-cockpit/WeddingDay
 import { useWeddingDayCockpitData } from '@/features/wedding-day-cockpit/useWeddingDayCockpitData'
 import { Button } from '@/components/ui/Button'
 import styles from '@/features/wedding-day-cockpit/WeddingDayCockpit.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 export function WeddingDayCockpitPage() {
   const { weddingId = '' } = useParams<{ weddingId: string }>()
@@ -33,9 +34,7 @@ export function WeddingDayCockpitPage() {
       <AppLayout title="Dzień ślubu">
         <div className={styles.errorBox} data-testid="cockpit-error">
           <p>
-            {error instanceof Error
-              ? error.message
-              : 'Nie udało się otworzyć trybu dnia ślubu.'}
+            {getUserFacingErrorMessage(error, 'Nie udało się otworzyć trybu dnia ślubu.')}
           </p>
           <Button type="button" variant="secondary" onClick={() => void refetch()}>
             Spróbuj ponownie

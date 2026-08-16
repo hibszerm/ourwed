@@ -3,6 +3,7 @@ import {
   type AdminAssurance,
   type AdminSessionStatus,
 } from '@/admin/lib/adminAccessDecision'
+import { devErrorArgs } from '@/lib/debug/devConsole'
 
 export type {
   AdminAccessDecision,
@@ -29,7 +30,7 @@ const EMPTY_STATUS: AdminSessionStatus = {
 export async function fetchAdminSessionStatus(): Promise<AdminSessionStatus> {
   const { data, error } = await supabase.rpc('get_admin_session_status')
   if (error) {
-    console.error('[admin] get_admin_session_status failed', error.message)
+    devErrorArgs('[admin] get_admin_session_status failed', error.message)
     return EMPTY_STATUS
   }
 

@@ -16,6 +16,7 @@ import {
   useUpdateAccountNames,
 } from '@/features/account/useAccountProfile'
 import styles from './AccountSettingsPage.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 type SaveFlash = 'idle' | 'saved' | 'error'
 
@@ -104,7 +105,7 @@ export function AccountSettingsPage() {
             ) : profileQuery.isError ? (
               <p className={styles.status} data-state="error" role="alert">
                 {profileQuery.error instanceof Error
-                  ? profileQuery.error.message
+                  ? getUserFacingErrorMessage(profileQuery.error, 'Nie udało się pobrać profilu.')
                   : 'Nie udało się wczytać profilu.'}
               </p>
             ) : (

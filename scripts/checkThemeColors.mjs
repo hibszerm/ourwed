@@ -74,7 +74,7 @@ function collectViolations() {
 }
 
 const THEME_BRANCH_RE =
-  /themeId\s*===\s*['"](?:classic|gentlemen|sage_garden|burgundy_estate|mocha_editorial)['"]|[data-theme=['"](?:gentlemen|sage_garden|burgundy_estate|mocha_editorial)['"]|switch\s*\(\s*themeId/i
+  /themeId\s*===\s*['"](?:classic|graphite|sage_garden|burgundy_estate|mocha_editorial)['"]|[data-theme=['"](?:graphite|sage_garden|burgundy_estate|mocha_editorial)['"]|switch\s*\(\s*themeId/i
 
 function collectThemeBranches() {
   const hits = []

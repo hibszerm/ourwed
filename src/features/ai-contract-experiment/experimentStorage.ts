@@ -10,6 +10,7 @@ import type {
   ExperimentStoreState,
 } from './types'
 import { EXPERIMENT_PIPELINE_SCHEMA_VERSION } from './types'
+import { devWarnArgs } from '@/lib/debug/devConsole'
 
 const STORED_SCHEMA_KEY = 'pipelineSchemaVersion'
 
@@ -28,7 +29,7 @@ export function readExperimentStore(): ExperimentStoreState {
       if (legacy) {
         localStorage.removeItem('ourwed:ai-contract-experiment:v2')
         if (import.meta.env?.DEV) {
-          console.warn(
+          devWarnArgs(
             '[ai-contract-experiment] Cleared v2 experiment state — re-analysis required after pipeline schema bump.',
           )
         }
@@ -40,7 +41,7 @@ export function readExperimentStore(): ExperimentStoreState {
     }
     if (parsed[STORED_SCHEMA_KEY] !== EXPERIMENT_PIPELINE_SCHEMA_VERSION) {
       if (import.meta.env?.DEV) {
-        console.warn(
+        devWarnArgs(
           `[ai-contract-experiment] Stored schema ${parsed[STORED_SCHEMA_KEY] ?? 'unknown'} ≠ ${EXPERIMENT_PIPELINE_SCHEMA_VERSION} — mapping state invalidated.`,
         )
       }

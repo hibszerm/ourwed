@@ -18,6 +18,7 @@ import { coupleName, formatDate } from '@/lib/utils/dates'
 import { formatCurrency } from '@/lib/utils/currency'
 import { WORKFLOW_STAGE_LABELS } from '@/lib/utils/workflow'
 import styles from './NewWeddingPage.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 const STEPS = [
   { id: 1, label: 'Para' },
@@ -219,7 +220,7 @@ export function NewWeddingPage() {
       }, 950)
     } catch (err) {
       window.alert(
-        err instanceof Error ? err.message : 'Nie udało się utworzyć ślubu.',
+        getUserFacingErrorMessage(err, 'Nie udało się utworzyć ślubu.'),
       )
     }
   })

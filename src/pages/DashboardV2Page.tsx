@@ -22,6 +22,7 @@ import {
   buildDashboardV2Model,
 } from '@/features/dashboard-v2'
 import styles from '@/features/dashboard-v2/DashboardV2.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 /**
  * Experimental Dashboard V2 — does not replace /dashboard (V1).
@@ -76,18 +77,16 @@ export function DashboardV2Page() {
       <AppLayout>
         <PageContainer width="wide">
           <EmptyState
-            title="Nie udało się załadować Dashboard V2"
+            title="Nie udało się załadować pulpitu V2"
             description={
-              error instanceof Error
-                ? error.message
-                : 'Odśwież stronę lub wróć do Dashboard V1.'
+              getUserFacingErrorMessage(error, 'Odśwież stronę lub wróć do pulpitu.')
             }
           />
           <div style={{ display: 'flex', gap: 12, marginTop: 16 }}>
             <button type="button" onClick={() => void refetch()}>
               Spróbuj ponownie
             </button>
-            <Link to="/dashboard">Wróć do Dashboard V1</Link>
+            <Link to="/dashboard">Wróć do pulpitu</Link>
           </div>
         </PageContainer>
       </AppLayout>
@@ -101,10 +100,10 @@ export function DashboardV2Page() {
           <div className={styles.topBar}>
             <span className={styles.betaPill}>
               <FlaskConical size={12} aria-hidden />
-              Dashboard V2 · Beta
+              Pulpit V2 · Beta
             </span>
             <Link to="/dashboard" className={styles.switchLink}>
-              Wróć do Dashboard V1
+              Wróć do pulpitu
             </Link>
           </div>
 

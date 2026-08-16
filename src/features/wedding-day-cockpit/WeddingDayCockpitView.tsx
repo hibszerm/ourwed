@@ -20,6 +20,7 @@ import type { OperationalCompletionMap } from '@/lib/api/weddingOperationalCompl
 import { weddingOperationalCompletionsService } from '@/lib/api/weddingOperationalCompletionsService'
 import { formatCurrency } from '@/lib/utils/currency'
 import styles from './WeddingDayCockpit.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 function legLabel(
   leg: CockpitStop['incomingLeg'],
@@ -222,7 +223,7 @@ export function WeddingDayCockpitView({ data, userId }: Props) {
     try {
       await downloadWeddingBriefPdf(data.weddingId)
     } catch (e) {
-      const raw = e instanceof Error ? e.message : ''
+      const raw = getUserFacingErrorMessage(e, '')
       setBriefError(mapPdfRenderErrorForUser(raw))
     } finally {
       setBriefBusy(false)

@@ -10,6 +10,7 @@ import {
   evaluateClientPartyReadiness,
   type ClientPartyReadinessResult,
 } from './clientPartyReadiness'
+import { devInfoArgs } from '@/lib/debug/devConsole'
 
 /** Keys the product may replace for a package contract. */
 export const PACKAGE_CONTRACT_ALLOWED_DYNAMIC_KEYS = [
@@ -254,7 +255,7 @@ export function applyPackageContractAllowlistToSlotMap<
         .filter((k): k is string => Boolean(k)),
     ),
   ]
-  console.info('[package-contract-allowlist]', {
+  devInfoArgs('[package-contract-allowlist]', {
     keptCount: kept.length,
     filteredOutCount: filteredOut.length,
     filteredOutKeys,

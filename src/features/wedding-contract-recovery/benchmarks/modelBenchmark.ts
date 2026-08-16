@@ -187,7 +187,7 @@ async function loadKingaFixture(): Promise<BenchmarkFixture | null> {
     // is reconstructed from a local anonymized? No — user asked for stored Kinga text.
     // Fetch via storage is hard. Use Desktop DOCX if available (runtime only, not committed).
     const candidates = [
-      '/Users/marcin/Desktop/Gentlemen Productions/Umowa GP - Kinga T doc.docx',
+      process.env.OW_BENCHMARK_DOCX ?? '',
     ]
     for (const path of candidates) {
       if (!existsSync(path)) continue
@@ -226,7 +226,7 @@ function kingaFixtureFromText(plainText: string): BenchmarkFixture {
     partner1LastName: 'Tchórz',
     partner1PhoneContains: '530',
     partner2FirstName: null,
-    forbiddenClientSubstrings: ['Hibszer', 'Video Productions', '668 698', '6482810484'],
+    forbiddenClientSubstrings: ['Kowalski', 'Atelier Studio', '500 100', '5250000000'],
     signingDate: '2026-07-25',
     weddingDate: '2028-06-03',
     totalValue: 20800,

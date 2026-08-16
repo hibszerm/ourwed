@@ -3,6 +3,7 @@
  * Never throws — list/picker must stay snappy even if timing fails.
  */
 
+import { devInfoArgs, devWarnArgs } from '@/lib/debug/devConsole'
 export type DocumentsPerfPhase =
   | 'documents-route'
   | 'documents-list-query'
@@ -45,7 +46,7 @@ function isDev(): boolean {
 export function noteAnalysisFunctionCalled(name: string) {
   analysisCallCount += 1
   if (isDev()) {
-    console.warn('[documents-performance] analysis function during read path', {
+    devWarnArgs('[documents-performance] analysis function during read path', {
       name,
       analysisFunctionsCalled: analysisCallCount,
     })
@@ -55,7 +56,7 @@ export function noteAnalysisFunctionCalled(name: string) {
 export function noteBinaryFileFetched(path: string) {
   binaryFetchCount += 1
   if (isDev()) {
-    console.warn('[documents-performance] binary fetch during read path', {
+    devWarnArgs('[documents-performance] binary fetch during read path', {
       path: path.slice(0, 120),
       binaryFilesFetched: binaryFetchCount,
     })
@@ -130,7 +131,7 @@ export function startDocumentsPerf(phase: DocumentsPerfPhase) {
       }
 
       if (isDev()) {
-        console.info('[documents-performance]', payload)
+        devInfoArgs('[documents-performance]', payload)
         warnBudgets(phase, totalMs, stamps, extra)
       }
 
@@ -146,7 +147,7 @@ function warnBudgets(
   extra?: DocumentsPerfCounters,
 ) {
   if (phase === 'documents-list-query' && totalMs > BUDGETS.listQueryMs) {
-    console.warn(
+    devWarnArgs(
       `[documents-performance] summary list query exceeded ${BUDGETS.listQueryMs}ms`,
       { totalMs: Math.round(totalMs) },
     )
@@ -159,7 +160,7 @@ function warnBudgets(
   ) {
     const renderLag = stamps.cardsRenderedAt - stamps.metadataResponseAt
     if (renderLag > BUDGETS.cardsAfterDataMs) {
-      console.warn(
+      devWarnArgs(
         `[documents-performance] cards rendered >${BUDGETS.cardsAfterDataMs}ms after data`,
         { renderLagMs: Math.round(renderLag) },
       )
@@ -173,7 +174,7 @@ function warnBudgets(
   ) {
     const fromOpen = stamps.pickerDataAvailableAt - stamps.modalOpenedAt
     if (fromOpen > BUDGETS.pickerFromCacheMs) {
-      console.warn(
+      devWarnArgs(
         `[documents-performance] picker data not available within ${BUDGETS.pickerFromCacheMs}ms`,
         { fromOpenMs: Math.round(fromOpen) },
       )
@@ -185,21 +186,21 @@ function warnBudgets(
     typeof requests === 'number' &&
     requests > BUDGETS.maxListNetworkRequests
   ) {
-    console.warn(
+    devWarnArgs(
       `[documents-performance] list/picker used >${BUDGETS.maxListNetworkRequests} network requests`,
       { requests },
     )
   }
 
   if ((extra?.analysisFunctionsCalled ?? analysisCallCount) > 0) {
-    console.warn(
+    devWarnArgs(
       '[documents-performance] analysis ran during list/picker loading',
       { count: extra?.analysisFunctionsCalled ?? analysisCallCount },
     )
   }
 
   if ((extra?.binaryFilesFetched ?? binaryFetchCount) > 0) {
-    console.warn(
+    devWarnArgs(
       '[documents-performance] binary fetched during list/picker loading',
       { count: extra?.binaryFilesFetched ?? binaryFetchCount },
     )

@@ -24,6 +24,7 @@ import { TravelProviderError } from '@/services/travelProvider'
 import catalogStyles from '@/features/studio/StudioCatalog.module.css'
 import editStyles from '@/features/weddings/edit/WeddingEdit.module.css'
 import styles from './TravelSettingsPage.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 export function TravelSettingsPage() {
   const queryClient = useQueryClient()
@@ -105,10 +106,8 @@ export function TravelSettingsPage() {
     onError: (err) => {
       setSaveError(
         err instanceof TravelProviderError
-          ? err.message
-          : err instanceof Error
-            ? err.message
-            : 'Nie udało się zapisać ustawień.',
+          ? getUserFacingErrorMessage(err, 'Nie udało się zapisać ustawień dojazdu.')
+          : getUserFacingErrorMessage(err, 'Nie udało się zapisać ustawień.'),
       )
     },
   })
@@ -160,7 +159,7 @@ export function TravelSettingsPage() {
           <EmptyState
             title="Nie udało się załadować ustawień"
             description={
-              error instanceof Error ? error.message : 'Spróbuj ponownie.'
+              getUserFacingErrorMessage(error, 'Spróbuj ponownie.')
             }
           />
         ) : (

@@ -39,6 +39,7 @@ import type {
   WeddingSourceContract,
 } from '@/features/wedding-contract-recovery/types'
 import styles from './WeddingContractRecoveryPage.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 function scrollToRecoveryTop() {
   window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -184,10 +185,8 @@ export function WeddingContractRecoveryPage() {
   function handleAnalysisError(err: unknown) {
     const message =
       err instanceof ContractRecoveryError
-        ? err.message
-        : err instanceof Error
-          ? err.message
-          : 'Analiza nie powiodła się.'
+        ? getUserFacingErrorMessage(err, 'Nie udało się wykonać operacji. Spróbuj ponownie.')
+        : getUserFacingErrorMessage(err, 'Analiza nie powiodła się.')
     setError(message)
     showToast(message, 'error')
   }
@@ -273,7 +272,7 @@ export function WeddingContractRecoveryPage() {
     } catch (err) {
       const message =
         err instanceof ContractRecoveryError
-          ? err.message
+          ? getUserFacingErrorMessage(err, 'Nie udało się wykonać operacji. Spróbuj ponownie.')
           : 'Nie udało się zapisać danych.'
       setConfirmError(message)
       showToast(message, 'error')

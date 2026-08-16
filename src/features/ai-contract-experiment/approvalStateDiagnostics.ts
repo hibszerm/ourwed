@@ -3,6 +3,7 @@
  */
 
 import type { ValidatedAiMapping } from './types'
+import { devInfoArgs } from '@/lib/debug/devConsole'
 
 export type ApprovalStateSource =
   | 'review_ui'
@@ -34,7 +35,7 @@ export function logApprovalState(input: {
     if (m.approvalStatus === 'manually_mapped') counts.manuallyMapped++
   }
 
-  console.info('[ai-contract-mapping-approval-state]', {
+  devInfoArgs('[ai-contract-mapping-approval-state]', {
     experimentRunId: input.experimentRunId,
     source: input.source,
     mappings: input.mappings.map((m) => ({

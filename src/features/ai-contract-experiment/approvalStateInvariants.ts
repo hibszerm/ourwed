@@ -4,6 +4,7 @@
 
 import type { ExperimentalRenderEligibility } from './experimentalRenderEligibility'
 import type { ExperimentComparisonMetrics, MappingReadinessStatus, ValidatedAiMapping } from './types'
+import { devErrorArgs } from '@/lib/debug/devConsole'
 
 function isApprovedDisplay(m: ValidatedAiMapping): boolean {
   return (
@@ -44,7 +45,7 @@ export function assertApprovalStateInvariants(input: {
   }
 
   if (violations.length > 0) {
-    console.error('[ai-contract-experiment-state-invariant-failed]', {
+    devErrorArgs('[ai-contract-experiment-state-invariant-failed]', {
       experimentRunId: input.experimentRunId,
       invariant: violations,
       canonicalMappings: input.mappings,

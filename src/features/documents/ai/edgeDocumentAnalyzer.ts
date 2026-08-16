@@ -19,15 +19,16 @@ import type {
   AiDocumentAnalysisResult,
   DocumentAiErrorPayload,
 } from './types'
+import { devInfoArgs, devWarnArgs } from '@/lib/debug/devConsole'
 
 const AI_DEBUG = '[document-ai]'
 
 function aiLog(...args: unknown[]) {
-  console.info(AI_DEBUG, ...args)
+  devInfoArgs(AI_DEBUG, ...args)
 }
 
 function aiWarn(...args: unknown[]) {
-  console.warn(AI_DEBUG, ...args)
+  devWarnArgs(AI_DEBUG, ...args)
 }
 
 interface EdgeSuccessBody {

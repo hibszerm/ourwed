@@ -11,6 +11,7 @@ import {
 import { logOperationalOrder } from '@/features/wedding-day/operationalOrderDebug'
 import { travelProvider } from '@/services/travelProvider'
 import type { GeoPlace, WeddingPlace, WeddingPlaceRole } from '@/types/travel'
+import { devErrorArgs } from '@/lib/debug/devConsole'
 
 interface WeddingPlaceRow {
   id: string
@@ -373,7 +374,7 @@ export const weddingPlaceService = {
       },
     })
     if (!ok) {
-      console.error('[wedding_places] reorder list order mismatch', {
+      devErrorArgs('[wedding_places] reorder list order mismatch', {
         weddingId,
         expectedIds,
         listedIds,

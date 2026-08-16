@@ -1,25 +1,26 @@
 // =============================================================================
 // Default Pre-Wedding Questionnaire Template
-// Gentlemen Productions — chronological Wedding-day flow (v2)
+// OurWed built-in — chronological Wedding-day flow (v2)
 // =============================================================================
-// v1 (pre_wedding_gentlemen_v1) is preserved for existing snapshots.
-// New seeds use v2. Do not mutate submitted questionnaire schema_snapshot_json.
+// Internal source_key values (pre_wedding_default_v*) are stable identifiers only.
+// v1 key is preserved for upgrade recognition. New seeds use v2.
+// Do not mutate submitted questionnaire schema_snapshot_json from the app.
 
 import type { PreWeddingTemplateSchema } from '@/types/preweddingQuestionnaire'
 
 /** Legacy built-in key — existing studio templates / snapshots may still reference it. */
-export const DEFAULT_TEMPLATE_SOURCE_KEY_V1 = 'pre_wedding_gentlemen_v1'
+export const DEFAULT_TEMPLATE_SOURCE_KEY_V1 = 'pre_wedding_default_v1'
 
 /** Current built-in key for newly seeded default templates. */
-export const DEFAULT_TEMPLATE_SOURCE_KEY = 'pre_wedding_gentlemen_v2'
+export const DEFAULT_TEMPLATE_SOURCE_KEY = 'pre_wedding_default_v2'
 
 export const DEFAULT_TEMPLATE_NAME = 'Ankieta przedślubna'
 
-export const DEFAULT_TEMPLATE_TITLE = 'Krótka ankieta od Gentlemen Productions :)'
+export const DEFAULT_TEMPLATE_TITLE = 'Ankieta przedślubna'
 
 export const DEFAULT_TEMPLATE_INTRODUCTION =
-  'Cześć! Z tej strony Gentlemen Productions! Będziemy z Wami już za kilka dni :)\n' +
-  'Potrzebujemy od Was kilku informacji, które pozwolą nam lepiej zaplanować cały dzień :)'
+  'Cześć! Wasze odpowiedzi pomogą nam lepiej przygotować się do dnia ślubu.\n' +
+  'Potrzebujemy od Was kilku informacji, które pozwolą nam lepiej zaplanować cały dzień.'
 
 const TIPS_HELP =
   'Łapcie kilka wskazówek od Nas :)\n' +
@@ -127,7 +128,7 @@ export const DEFAULT_TEMPLATE_SCHEMA_V1: PreWeddingTemplateSchema = {
         {
           id: 'q20',
           label:
-            'Jeśli macie harmonogram Wesela podeślijcie go proszę na maila: kontakt.gentlemenproductions@gmail.com lub na IG',
+            'Jeśli macie harmonogram wesela, podeślijcie go proszę fotografowi albo napiszcie poniżej, gdzie można go znaleźć.',
           type: 'short_text',
           required: true,
           placeholder: 'np. „Wysłano na maila" lub adres gdzie można znaleźć',
@@ -358,7 +359,7 @@ export const DEFAULT_TEMPLATE_SCHEMA: PreWeddingTemplateSchema = {
         {
           id: 'q20',
           label:
-            'Jeśli macie harmonogram Wesela podeślijcie go proszę na maila: kontakt.gentlemenproductions@gmail.com lub na IG',
+            'Jeśli macie harmonogram wesela, podeślijcie go proszę fotografowi albo napiszcie poniżej, gdzie można go znaleźć.',
           type: 'short_text',
           required: true,
           placeholder: 'np. „Wysłano na maila" lub adres gdzie można znaleźć',

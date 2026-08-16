@@ -52,7 +52,7 @@ const almostEnd = new Date('2026-07-30T18:00:00.000Z')
 
 {
   const copy = sidebarSubscriptionCopy(base(), day1)
-  assert(copy.title === 'PRO Trial', 'sidebar trial title')
+  assert(copy.title === 'Okres próbny PRO', 'sidebar trial title')
   assert(copy.subtitle === '29 dni pozostało', 'sidebar compact remaining')
 }
 
@@ -125,7 +125,7 @@ const almostEnd = new Date('2026-07-30T18:00:00.000Z')
   const copy = sidebarSubscriptionCopy(
     base({ accessLevel: 'expired', source: 'none', canUseProFeatures: false }),
   )
-  assert(copy.title === 'Trial zakończony', 'expired sidebar')
+  assert(copy.title === 'Okres próbny zakończony', 'expired sidebar')
   assert(copy.subtitle === 'Aktywuj PRO', 'activate PRO copy')
 }
 
@@ -160,7 +160,7 @@ const almostEnd = new Date('2026-07-30T18:00:00.000Z')
   assert(manual?.statusLabel === 'Aktywne', 'manual active')
 }
 
-assert(adminSubscriptionBadge(base(), day23).startsWith('Trial'), 'admin badge trial')
+assert(adminSubscriptionBadge(base(), day23).startsWith('Okres próbny'), 'admin badge trial')
 
 assert(PRO_PLAN.monthly.amountPln === 49, 'monthly 49')
 assert(PRO_PLAN.annual.amountPln === 490, 'annual 490')

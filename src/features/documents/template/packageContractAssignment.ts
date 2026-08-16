@@ -49,6 +49,7 @@ import {
   type PackageContractReportKind,
 } from './packageContractFinalReport'
 import type { PackageContractBlockingIssue } from './packageContractRequiredDataReadiness'
+import { devInfoArgs } from '@/lib/debug/devConsole'
 
 function slotKey(slot: TemplateSlot): string | null {
   return slot.registryKey ?? null
@@ -63,7 +64,7 @@ function physicalKeys(slots: TemplateSlot[]): string[] {
 
 /** Dev-only pipeline trace — never shown in product UI. */
 function logPackageContractPipeline(trace: Record<string, unknown>) {
-  console.info('[package-contract-pipeline]', trace)
+  devInfoArgs('[package-contract-pipeline]', trace)
 }
 
 export type PackageContractAssignmentResult = {
@@ -259,7 +260,7 @@ export async function assignPackageContractFromDocx(input: {
     }))
 
   if (sharedSpanConflicts.length > 0) {
-    console.info('[package-contract-shared-span-conflict]', {
+    devInfoArgs('[package-contract-shared-span-conflict]', {
       templateVersionId: versionId,
       conflicts: sharedSpanConflicts,
     })
@@ -343,7 +344,7 @@ export async function assignPackageContractFromDocx(input: {
   })
 
   if (import.meta.env?.DEV) {
-    console.info('[package-contract-client-party-analysis]', {
+    devInfoArgs('[package-contract-client-party-analysis]', {
       documentName: fileName,
       clientParty: {
         detectedPersons: readiness.clientParty.persons.map((p) => ({

@@ -12,6 +12,7 @@ import { buildCompanyHealth } from '@/features/company/companyHealth'
 import { companyDetailsService, companyDetailsQueryKey } from '@/lib/api/companyDetailsService'
 import type { CompanyDetails, UpsertCompanyDetailsInput } from '@/types/company'
 import catalogStyles from '@/features/studio/StudioCatalog.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 interface FormState {
   companyName: string
@@ -254,7 +255,7 @@ export function CompanyDetailsPage() {
       if (mountedRef.current) {
         setSaveStatus('error')
         setSaveError(
-          err instanceof Error ? err.message : 'Nie udało się zapisać',
+          getUserFacingErrorMessage(err, 'Nie udało się zapisać'),
         )
       }
     } finally {
@@ -325,7 +326,7 @@ export function CompanyDetailsPage() {
     } catch (err) {
       setSaveStatus('error')
       setSaveError(
-        err instanceof Error ? err.message : 'Upload nie powiódł się',
+        getUserFacingErrorMessage(err, 'Nie udało się przesłać pliku.'),
       )
     }
   }
@@ -370,7 +371,7 @@ export function CompanyDetailsPage() {
           <EmptyState
             title="Nie udało się załadować danych"
             description={
-              error instanceof Error ? error.message : 'Spróbuj ponownie.'
+              getUserFacingErrorMessage(error, 'Spróbuj ponownie.')
             }
           />
         ) : isLoading ? (

@@ -19,6 +19,7 @@ import {
   type SharedSpanConflictInput,
 } from './packageContractRequiredDataReadiness'
 import type { PackageContractUserCategory } from './packageContractAllowlist'
+import { devErrorArgs, devInfoArgs } from '@/lib/debug/devConsole'
 
 export type PackageContractReportKind =
   | 'ready'
@@ -95,7 +96,7 @@ export function assertPackageContractFinalReportConsistency(
   report: PackageContractFinalReport,
 ): void {
   const fail = (message: string) => {
-    console.error('[package-contract-final-report-consistency]', {
+    devErrorArgs('[package-contract-final-report-consistency]', {
       message,
       kind: report.kind,
       missingCategories: report.missingCategories,
@@ -212,7 +213,7 @@ export function buildPackageContractFinalReport(input: {
     requiredData,
   }
 
-  console.info('[package-contract-readiness-aggregation]', {
+  devInfoArgs('[package-contract-readiness-aggregation]', {
     sourceValues: {
       readinessReady: requiredData.ready,
       requiredCategoriesReady: requiredData.missingCategories.length === 0,
@@ -420,7 +421,7 @@ export function reconcilePackageContractPresentationFromPersisted(input: {
   const finalKind: PackageContractReportKind =
     ready && coreOk ? 'ready' : kind
 
-  console.info('[package-contract-readiness-aggregation]', {
+  devInfoArgs('[package-contract-readiness-aggregation]', {
     sourceValues: {
       readinessReady: ready,
       requiredCategoriesReady: missingCategories.length === 0,

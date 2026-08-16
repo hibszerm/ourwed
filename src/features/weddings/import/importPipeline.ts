@@ -7,6 +7,7 @@ import type {
   RawImportRow,
   SpreadsheetMatrixRow,
 } from './types'
+import { devDebugArgs } from '@/lib/debug/devConsole'
 
 export function headersFromMatrixRow(row: SpreadsheetMatrixRow): {
   headers: string[]
@@ -99,5 +100,5 @@ export function logImportDateDiagnostics(
   } catch {
     return
   }
-  console.debug('[wedding-import] first data row date diagnostics', diagnostics)
+  devDebugArgs('[wedding-import] first data row date diagnostics', diagnostics)
 }

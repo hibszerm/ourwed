@@ -69,7 +69,7 @@ export function SubscriptionSettingsPage() {
           : null
       setCheckoutNote(
         ends
-          ? `${result.message} Twój Trial pozostaje aktywny do ${ends}.`
+          ? `${result.message} Twój okres próbny pozostaje aktywny do ${ends}.`
           : result.message,
       )
     }
@@ -199,7 +199,7 @@ export function SubscriptionSettingsPage() {
 function paymentsUnavailableHint(entitlement: AccountEntitlement): string {
   const base = 'Płatności online będą dostępne wkrótce.'
   if (entitlement.source === 'trial' && entitlement.accessLevel === 'pro') {
-    return `${base} Twój Trial pozostaje aktywny do ${formatWarsawDate(entitlement.trialEndsAt)}.`
+    return `${base} Twój okres próbny pozostaje aktywny do ${formatWarsawDate(entitlement.trialEndsAt)}.`
   }
   return base
 }
@@ -287,7 +287,7 @@ function CurrentPlanCard({ entitlement }: { entitlement: AccountEntitlement }) {
             </span>
             <div>
               <p className={styles.eyebrow}>Twój plan</p>
-              <h2>PRO Trial</h2>
+              <h2>Okres próbny PRO</h2>
             </div>
           </div>
           <p className={styles.currentLead}>
@@ -312,7 +312,7 @@ function CurrentPlanCard({ entitlement }: { entitlement: AccountEntitlement }) {
             <span className={styles.reassureIcon} aria-hidden>
               <IconCheck width={14} height={14} />
             </span>
-            Po zakończeniu Trial nadal będziesz mieć dostęp do swoich danych. Aby tworzyć
+            Po zakończeniu okresu próbnego nadal będziesz mieć dostęp do swoich danych. Aby tworzyć
             nowe zlecenia, aktywuj jeden z planów PRO.
           </p>
         </div>
@@ -323,7 +323,7 @@ function CurrentPlanCard({ entitlement }: { entitlement: AccountEntitlement }) {
             daysLabel={daysLabel}
           />
           <p className={styles.asideMeta} data-testid="trial-ends-at">
-            Trial kończy się {formatWarsawDate(entitlement.trialEndsAt)}.
+            Okres próbny kończy się {formatWarsawDate(entitlement.trialEndsAt)}.
           </p>
           <p className={styles.asideHint}>Płatności online będą dostępne wkrótce.</p>
         </aside>
@@ -370,7 +370,7 @@ function CurrentPlanCard({ entitlement }: { entitlement: AccountEntitlement }) {
     <section className={styles.current} data-testid="subscription-current" data-state="expired">
       <div className={styles.currentMain}>
         <p className={styles.eyebrow}>Twój plan</p>
-        <h2>Trial zakończony</h2>
+        <h2>Okres próbny zakończony</h2>
         <p className={styles.currentLead}>
           Twoje dane pozostają dostępne w trybie tylko do odczytu.
         </p>
@@ -402,7 +402,7 @@ function PlanComparison() {
           <thead>
             <tr>
               <th scope="col">Funkcja</th>
-              <th scope="col">Trial</th>
+              <th scope="col">Okres próbny</th>
               <th scope="col">PRO</th>
             </tr>
           </thead>
@@ -418,7 +418,7 @@ function PlanComparison() {
                     </span>
                   </th>
                   <td>
-                    <span className={styles.check} aria-label="Dostępne w Trial">
+                    <span className={styles.check} aria-label="Dostępne w okresie próbnym">
                       <IconCheck width={16} height={16} />
                     </span>
                   </td>

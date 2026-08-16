@@ -12,6 +12,7 @@ import {
 import { travelService } from '@/lib/api/travelService'
 import type { TravelPlan, TravelSegment, WeddingPlace } from '@/types/travel'
 import styles from './WeddingDetailTravel.module.css'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 interface WeddingDetailTravelProps {
   weddingId: string
@@ -199,9 +200,7 @@ export function WeddingDetailTravel({
           segments: [],
           hasError: true,
           errorMessage:
-            err instanceof Error && err.message.trim()
-              ? err.message
-              : 'Nie udało się wyliczyć tej trasy.',
+            getUserFacingErrorMessage(err, 'Nie udało się wyliczyć tej trasy.'),
           persistenceError: null,
         } satisfies TravelPlan
       }
@@ -254,7 +253,7 @@ export function WeddingDetailTravel({
   return (
     <Card padding="md" className={styles.card}>
       <CardHeader
-        title="Travel"
+        title="Dojazd"
         subtitle="Baza firmy → Przygotowania Panny Młodej → Przygotowania Pana Młodego → Ceremonia → Przyjęcie"
       />
 
