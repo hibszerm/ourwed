@@ -1,10 +1,12 @@
 /**
  * Apply approved Pre-Wedding sync candidates to canonical Wedding data.
+ * Note-only / descriptive mappings are ignored (Brief / Day Plan only).
  */
 
 import type { QueryClient } from '@tanstack/react-query'
 import type { WeddingDaySyncCandidate } from '@/features/prewedding/weddingDaySync/buildCandidates'
 import {
+  CANONICAL_WEDDING_DAY_MAPPINGS,
   isLocationMappingKey,
   LOCATION_MAPPING_TO_ROLE,
 } from '@/features/prewedding/weddingDaySync/mappingCatalog'
@@ -12,7 +14,6 @@ import {
   mergeLocationAnswerWithExisting,
   normalizeLocationAnswer,
 } from '@/features/travel/weddingLocationModel'
-import { noteService } from '@/lib/api/noteService'
 import { timelineEventService } from '@/lib/api/timelineEventService'
 import { travelService } from '@/lib/api/travelService'
 import { weddingPlaceService } from '@/lib/api/weddingPlaceService'
@@ -24,10 +25,6 @@ export type ApplyWeddingDaySyncResult = {
   wedding: Wedding
   routeNeedsRecalculation: boolean
   appliedLabels: string[]
-}
-
-function noteTitleForMapping(_mapping: string, label: string): string {
-  return `Ankieta: ${label}`
 }
 
 async function applyLocationCandidate(
@@ -120,21 +117,6 @@ function applyScalarToWedding(
   }
 }
 
-const NOTE_MAPPINGS = new Set([
-  'ceremonyNotes',
-  'sensitiveFamilyNotes',
-  'photoVideoPriorities',
-  'blessingPlan',
-  'groupPhotoPlan',
-  'guestWishesPlan',
-  'groomDepartureNote',
-  'smallGroupPhotosPlan',
-  'djBandProvider',
-  'guestCount',
-  'departureToCeremonyTime',
-  'receptionArrivalTime',
-])
-
 export async function applyWeddingDaySyncCandidates(input: {
   weddingId: string
   wedding: Wedding
@@ -143,7 +125,10 @@ export async function applyWeddingDaySyncCandidates(input: {
   queryClient?: QueryClient
 }): Promise<ApplyWeddingDaySyncResult> {
   const { weddingId, candidates, answers, queryClient } = input
-  if (candidates.length === 0) {
+  const canonical = candidates.filter((c) =>
+    CANONICAL_WEDDING_DAY_MAPPINGS.has(c.mapping),
+  )
+  if (canonical.length === 0) {
     return {
       wedding: input.wedding,
       routeNeedsRecalculation: false,
@@ -160,7 +145,7 @@ export async function applyWeddingDaySyncCandidates(input: {
   let routeNeedsRecalculation = false
   const appliedLabels: string[] = []
 
-  for (const candidate of candidates) {
+  for (const candidate of canonical) {
     if (isLocationMappingKey(candidate.mapping)) {
       await applyLocationCandidate(weddingId, candidate, answers)
       next = applyScalarToWedding(next, candidate)
@@ -179,26 +164,15 @@ export async function applyWeddingDaySyncCandidates(input: {
     ) {
       next = applyScalarToWedding(next, candidate)
       appliedLabels.push(candidate.label)
-      continue
     }
+    // Non-canonical mappings (notes-only legacy) are never applied here.
+  }
 
-    if (NOTE_MAPPINGS.has(candidate.mapping)) {
-      const content = `${noteTitleForMapping(candidate.mapping, candidate.label)}\n${candidate.proposedDisplay}`
-      const existing = await noteService.listByWeddingId(weddingId)
-      const already = existing.some(
-        (n) =>
-          n.content.includes(noteTitleForMapping(candidate.mapping, candidate.label)) &&
-          n.content.includes(candidate.proposedDisplay),
-      )
-      if (!already) {
-        await noteService.create({
-          weddingId,
-          content,
-          author: 'Studio',
-          pinned: candidate.mapping === 'sensitiveFamilyNotes',
-        })
-      }
-      appliedLabels.push(candidate.label)
+  if (appliedLabels.length === 0) {
+    return {
+      wedding: owned,
+      routeNeedsRecalculation: false,
+      appliedLabels: [],
     }
   }
 

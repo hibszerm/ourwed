@@ -679,6 +679,14 @@ export const travelService = {
     throwOnError(error)
   },
 
+  /**
+   * Read-only cached segments — never recalculates or calls the route provider.
+   * Safe for Brief / offline aggregates that must not trigger Google Routes.
+   */
+  async listCachedSegments(weddingId: string): Promise<TravelSegment[]> {
+    return listCachedSegments(weddingId)
+  },
+
   segmentLabel(
     segment: TravelSegment,
     places: WeddingPlace[],

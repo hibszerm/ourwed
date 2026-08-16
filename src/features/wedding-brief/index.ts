@@ -7,6 +7,10 @@ export {
 export { renderWeddingBriefFooterHtml } from '@/features/wedding-brief/renderWeddingBriefFooterHtml'
 export { WeddingBriefDownloadButton } from '@/features/wedding-brief/WeddingBriefDownloadButton'
 export type { WeddingBriefPdfData } from '@/features/wedding-brief/types'
+export type {
+  BriefQuestionnaireSection,
+  BriefQuestionnaireItem,
+} from '@/features/wedding-brief/types'
 export {
   BRIEF_MAPPING_RULES,
   resolveBriefFieldRule,

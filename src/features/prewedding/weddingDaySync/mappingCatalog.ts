@@ -1,5 +1,9 @@
 /**
  * Pre-Wedding → Wedding Day sync — mapping labels, groups, and apply targets.
+ *
+ * Canonical Apply uses only mappings with a real structured wedding destination.
+ * Descriptive / note-only mappings stay on the schema for Brief + Day Plan,
+ * but are never Apply candidates.
  */
 
 export const WEDDING_DAY_MAPPING_LABELS: Record<string, string> = {
@@ -66,8 +70,11 @@ export const WEDDING_DAY_MAPPING_GROUP: Record<string, WeddingDaySyncGroupId> = 
   sensitiveFamilyNotes: 'organization',
 }
 
-/** Targets with a real apply path (places, wedding row, or operational note). */
-export const APPLIABLE_WEDDING_DAY_MAPPINGS = new Set([
+/**
+ * Structured wedding destinations only (row fields + wedding_places).
+ * Used by MappingPanel / buildWeddingDaySyncCandidates / apply.
+ */
+export const CANONICAL_WEDDING_DAY_MAPPINGS = new Set([
   'weddingDate',
   'brideName',
   'bridePhone',
@@ -78,19 +85,33 @@ export const APPLIABLE_WEDDING_DAY_MAPPINGS = new Set([
   'ceremonyLocation',
   'receptionVenue',
   'ceremonyTime',
+])
+
+/** @deprecated Alias — prefer CANONICAL_WEDDING_DAY_MAPPINGS. */
+export const APPLIABLE_WEDDING_DAY_MAPPINGS = CANONICAL_WEDDING_DAY_MAPPINGS
+
+/**
+ * Semantic keys that remain on the questionnaire schema for Brief / Day Plan,
+ * but must never become Zastosuj → noteService candidates.
+ */
+export const NOTE_ONLY_WEDDING_DAY_MAPPINGS = new Set([
   'departureToCeremonyTime',
   'receptionArrivalTime',
-  'guestCount',
   'groomDepartureNote',
   'blessingPlan',
   'ceremonyNotes',
   'groupPhotoPlan',
   'guestWishesPlan',
+  'guestCount',
   'smallGroupPhotosPlan',
   'photoVideoPriorities',
   'djBandProvider',
   'sensitiveFamilyNotes',
 ])
+
+export function isCanonicalWeddingDayMapping(key: string): boolean {
+  return CANONICAL_WEDDING_DAY_MAPPINGS.has(key)
+}
 
 export const LOCATION_MAPPING_TO_ROLE = {
   bridePreparationLocation: 'bride_preparation',

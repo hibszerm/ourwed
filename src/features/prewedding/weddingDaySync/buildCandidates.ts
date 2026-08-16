@@ -1,5 +1,6 @@
 /**
  * Build actionable Pre-Wedding → Wedding Day update candidates.
+ * Only canonical structured mappings (CANONICAL_WEDDING_DAY_MAPPINGS).
  */
 
 import {
@@ -13,7 +14,7 @@ import {
   valuesAreSemanticallyEqual,
 } from '@/features/prewedding/weddingDaySync/compareValues'
 import {
-  APPLIABLE_WEDDING_DAY_MAPPINGS,
+  CANONICAL_WEDDING_DAY_MAPPINGS,
   isLocationMappingKey,
   isPlaceholderValue,
   LOCATION_MAPPING_TO_ROLE,
@@ -34,7 +35,6 @@ export type WeddingDaySyncCandidateKind =
   | 'phone'
   | 'date'
   | 'time'
-  | 'note'
 
 export type WeddingDaySyncCandidate = {
   id: string
@@ -61,31 +61,18 @@ export type BuildWeddingDaySyncCandidatesInput = {
   answers: Record<string, PreWeddingAnswerValue>
   wedding: Wedding
   places: WeddingPlace[]
-  /** Operational notes — used to hide already-applied note-only mappings. */
+  /**
+   * Retained for call-site compatibility. Note-only mappings are no longer
+   * Apply candidates, so notes are unused for candidate generation.
+   */
   notes?: Array<{ content: string }>
 }
 
 function kindForMapping(mapping: string): WeddingDaySyncCandidateKind {
   if (isLocationMappingKey(mapping)) return 'location'
   if (mapping === 'weddingDate') return 'date'
-  if (mapping.endsWith('Time') || mapping === 'ceremonyTime') return 'time'
+  if (mapping === 'ceremonyTime') return 'time'
   if (mapping.endsWith('Phone')) return 'phone'
-  if (
-    mapping === 'ceremonyNotes' ||
-    mapping === 'sensitiveFamilyNotes' ||
-    mapping === 'photoVideoPriorities' ||
-    mapping === 'blessingPlan' ||
-    mapping === 'groupPhotoPlan' ||
-    mapping === 'guestWishesPlan' ||
-    mapping === 'groomDepartureNote' ||
-    mapping === 'smallGroupPhotosPlan' ||
-    mapping === 'djBandProvider' ||
-    mapping === 'guestCount' ||
-    mapping === 'departureToCeremonyTime' ||
-    mapping === 'receptionArrivalTime'
-  ) {
-    return 'note'
-  }
   return 'text'
 }
 
@@ -141,37 +128,10 @@ function isAnswerEmpty(value: PreWeddingAnswerValue | undefined): boolean {
   return true
 }
 
-const NOTE_ONLY_MAPPINGS = new Set([
-  'ceremonyNotes',
-  'sensitiveFamilyNotes',
-  'photoVideoPriorities',
-  'blessingPlan',
-  'groupPhotoPlan',
-  'guestWishesPlan',
-  'groomDepartureNote',
-  'smallGroupPhotosPlan',
-  'djBandProvider',
-  'guestCount',
-  'departureToCeremonyTime',
-  'receptionArrivalTime',
-])
-
-function noteAlreadyApplied(
-  notes: Array<{ content: string }> | undefined,
-  label: string,
-  proposedDisplay: string,
-): boolean {
-  if (!notes?.length) return false
-  const title = `Ankieta: ${label}`
-  return notes.some(
-    (n) => n.content.includes(title) && n.content.includes(proposedDisplay),
-  )
-}
-
 export function buildWeddingDaySyncCandidates(
   input: BuildWeddingDaySyncCandidatesInput,
 ): WeddingDaySyncCandidate[] {
-  const { questionnaire, answers, wedding, places, notes } = input
+  const { questionnaire, answers, wedding, places } = input
   const out: WeddingDaySyncCandidate[] = []
   /** One candidate per mapping — duplicate system questions do not double-apply. */
   const seenMappings = new Set<string>()
@@ -180,7 +140,7 @@ export function buildWeddingDaySyncCandidates(
     for (const q of section.questions) {
       const mapping = q.weddingDayMapping?.trim()
       if (!mapping) continue
-      if (!APPLIABLE_WEDDING_DAY_MAPPINGS.has(mapping)) continue
+      if (!CANONICAL_WEDDING_DAY_MAPPINGS.has(mapping)) continue
       if (q.type === 'information') continue
       if (seenMappings.has(mapping)) continue
 
@@ -191,14 +151,6 @@ export function buildWeddingDaySyncCandidates(
       if (!proposedDisplay.trim()) continue
 
       const label = resolveWeddingDayLabel(mapping, q.label)
-
-      if (
-        NOTE_ONLY_MAPPINGS.has(mapping) &&
-        noteAlreadyApplied(notes, label, proposedDisplay)
-      ) {
-        seenMappings.add(mapping)
-        continue
-      }
 
       const place = placeForMapping(places, mapping)
       const currentGeo = place

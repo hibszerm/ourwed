@@ -234,8 +234,8 @@ function MappingPanel({
     <div className={styles.mappingPanel} data-testid="mapping-panel">
       <h3 className={styles.mappingTitle}>Aktualizacje z ankiety</h3>
       <p className={styles.mappingLead}>
-        Para podała informacje, które mogą zaktualizować dane tego zlecenia.
-        Sprawdź je przed zastosowaniem.
+        Para podała dane, które mogą zaktualizować zlecenie (kontakty, datę,
+        godzinę ceremonii lub lokalizacje). Sprawdź je przed zastosowaniem.
       </p>
 
       {groups.map(({ group, items }) => (

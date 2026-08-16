@@ -22,6 +22,8 @@ import {
   normalizePhoneDigits,
   normalizeTimeValue,
   resolveWeddingDayLabel,
+  CANONICAL_WEDDING_DAY_MAPPINGS,
+  NOTE_ONLY_WEDDING_DAY_MAPPINGS,
   WEDDING_DAY_MAPPING_LABELS,
 } from '@/features/prewedding/weddingDaySync/mappingCatalog'
 import type {
@@ -453,6 +455,12 @@ run('apply service preserves GeoPlace upsert path', () => {
     applySrc.includes('Zastosowano dane z ankiety przedślubnej'),
     'history title',
   )
+  assert(
+    !/\bfrom\s+['"][^'"]*noteService['"]/.test(applySrc) &&
+      !/\bnoteService\./.test(applySrc),
+    'no noteService apply path',
+  )
+  assert(applySrc.includes('CANONICAL_WEDDING_DAY_MAPPINGS'), 'canonical gate')
 })
 
 run('custom question newQuestion has no mapping in editor', () => {
@@ -464,6 +472,201 @@ run('custom question newQuestion has no mapping in editor', () => {
   const fn = page.slice(page.indexOf('function newQuestion()'))
   const body = fn.slice(0, fn.indexOf('function newSection()'))
   assert(!body.includes('weddingDayMapping'), 'custom has no mapping')
+})
+
+run('canonical allowlist: ceremonyTime + location candidates', () => {
+  const candidates = buildWeddingDaySyncCandidates({
+    questionnaire: questionnaireFromSchema(),
+    answers: {
+      q12: '15:30',
+      q4: brideGeo,
+      q11: groomGeo,
+    },
+    wedding: baseWedding({ ceremonyTime: '14:00' }),
+    places: [],
+  })
+  assert(
+    candidates.some((c) => c.mapping === 'ceremonyTime'),
+    'A: ceremonyTime candidate',
+  )
+  assert(
+    candidates.some((c) => c.mapping === 'bridePreparationLocation'),
+    'B: location candidate',
+  )
+  assert(
+    candidates.some((c) => c.mapping === 'ceremonyLocation'),
+    'B: ceremony location candidate',
+  )
+})
+
+run('renamed mapped ceremony question still candidate', () => {
+  const schema = structuredClone(DEFAULT_TEMPLATE_SCHEMA)
+  const q12 = schema.sections
+    .flatMap((s) => s.questions)
+    .find((q) => q.id === 'q12')!
+  q12.label = 'O której rozpoczyna się ceremonia?'
+  assert(q12.weddingDayMapping === 'ceremonyTime', 'mapping preserved')
+  const candidates = buildWeddingDaySyncCandidates({
+    questionnaire: questionnaireFromSchema(schema),
+    answers: { q12: '16:00' },
+    wedding: baseWedding({ ceremonyTime: '' }),
+    places: [],
+  })
+  assert(
+    candidates.some((c) => c.mapping === 'ceremonyTime'),
+    'C: renamed still candidate',
+  )
+})
+
+run('custom TIME with ceremony wording but no mapping → not candidate', () => {
+  const schema = structuredClone(DEFAULT_TEMPLATE_SCHEMA)
+  schema.sections[0]!.questions.push({
+    id: 'q_custom_start',
+    label: 'Start ceremonii',
+    type: 'time',
+    required: false,
+  })
+  const candidates = buildWeddingDaySyncCandidates({
+    questionnaire: questionnaireFromSchema(schema),
+    answers: { q_custom_start: '14:00', q12: '14:00' },
+    wedding: baseWedding({ ceremonyTime: '14:00' }),
+    places: [],
+  })
+  assert(
+    !candidates.some((c) => c.questionId === 'q_custom_start'),
+    'D: custom unmapped excluded',
+  )
+  assert(
+    !candidates.some((c) => c.mapping === 'ceremonyTime'),
+    'identical ceremonyTime omitted',
+  )
+})
+
+run('note-only mappings never become Apply candidates', () => {
+  const noteOnly = [
+    'blessingPlan',
+    'groupPhotoPlan',
+    'guestWishesPlan',
+    'ceremonyNotes',
+    'photoVideoPriorities',
+    'djBandProvider',
+    'guestCount',
+    'sensitiveFamilyNotes',
+    'departureToCeremonyTime',
+    'receptionArrivalTime',
+    'groomDepartureNote',
+    'smallGroupPhotosPlan',
+  ] as const
+
+  const answers: Record<string, PreWeddingAnswerValue> = {
+    q8: '12:00',
+    q9: 'Tak, jedno wspólne u Panny Młodej',
+    q10: '13:00',
+    q13: 'czytania bliskich',
+    q14: 'Chcemy pod kościołem',
+    q15: 'Życzenia odbędą się na sali',
+    q17: '17:00',
+    q18: '130',
+    q19: true,
+    q21: 'emocje i bliskość',
+    q24: 'ważne',
+    q26: 'dj willy',
+  }
+
+  const candidates = buildWeddingDaySyncCandidates({
+    questionnaire: questionnaireFromSchema(),
+    answers,
+    wedding: baseWedding(),
+    places: [],
+    notes: [],
+  })
+
+  for (const key of noteOnly) {
+    assert(
+      !candidates.some((c) => c.mapping === key),
+      `note-only ${key} not candidate`,
+    )
+  }
+
+  assert(
+    !CANONICAL_WEDDING_DAY_MAPPINGS.has('blessingPlan'),
+    'E–N: not in canonical set',
+  )
+  for (const key of noteOnly) {
+    assert(
+      NOTE_ONLY_WEDDING_DAY_MAPPINGS.has(key),
+      `${key} classified note-only`,
+    )
+    assert(!CANONICAL_WEDDING_DAY_MAPPINGS.has(key), `${key} not canonical`)
+  }
+})
+
+run('MappingPanel hidden when zero canonical candidates', () => {
+  const workspace = readFileSync(
+    resolve(
+      process.cwd(),
+      'src/features/weddings/detail/v2/WeddingPreWeddingQuestionnaireWorkspace.tsx',
+    ),
+    'utf8',
+  )
+  assert(
+    workspace.includes('{candidates.length > 0 && ('),
+    'P: panel gated on candidates',
+  )
+  assert(
+    workspace.includes('kontakty, datę'),
+    'canonical copy mentions structured fields',
+  )
+})
+
+run('Brief registry still knows descriptive mappings', () => {
+  const briefReg = readFileSync(
+    resolve(process.cwd(), 'src/features/wedding-brief/briefFieldRegistry.ts'),
+    'utf8',
+  )
+  for (const key of [
+    'blessingPlan',
+    'groupPhotoPlan',
+    'photoVideoPriorities',
+    'djBandProvider',
+    'departureToCeremonyTime',
+    'receptionArrivalTime',
+  ]) {
+    assert(briefReg.includes(`${key}:`), `O: Brief still has ${key}`)
+  }
+  assert(
+    !briefReg.includes('CANONICAL_WEDDING_DAY_MAPPINGS'),
+    'Brief not coupled to Apply allowlist',
+  )
+})
+
+run('resubmission path does not reintroduce note-only Apply', () => {
+  const catalog = readFileSync(
+    resolve(
+      process.cwd(),
+      'src/features/prewedding/weddingDaySync/mappingCatalog.ts',
+    ),
+    'utf8',
+  )
+  assert(
+    catalog.includes('CANONICAL_WEDDING_DAY_MAPPINGS'),
+    'T: canonical set is source of Apply',
+  )
+  const buildSrc = readFileSync(
+    resolve(
+      process.cwd(),
+      'src/features/prewedding/weddingDaySync/buildCandidates.ts',
+    ),
+    'utf8',
+  )
+  assert(
+    buildSrc.includes('CANONICAL_WEDDING_DAY_MAPPINGS.has(mapping)'),
+    'T: candidates gated by canonical',
+  )
+  assert(
+    !buildSrc.includes('noteAlreadyApplied'),
+    'T: no note-dedupe candidate path',
+  )
 })
 
 console.log('\nWedding Day sync acceptance finished.')

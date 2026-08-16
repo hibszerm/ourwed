@@ -1,9 +1,19 @@
 /**
  * Wedding Brief PDF HTML — offline field guide / call sheet.
- * Premium, quiet, operational. No questionnaire dump.
+ * Stable operational overview + dynamic questionnaire sections.
+ * V1.1: editorial typography, location presentation dedupe, pagination polish.
+ * PDF engine/API frozen.
  */
 
-import type { WeddingBriefPdfData } from '@/features/wedding-brief/types'
+import {
+  normalizeBriefWhitespace,
+  textsSemanticallyEqual,
+} from '@/features/wedding-brief/briefNormalize'
+import type {
+  BriefLocation,
+  BriefTimelineItem,
+  WeddingBriefPdfData,
+} from '@/features/wedding-brief/types'
 import { formatCurrency } from '@/lib/utils/currency'
 
 function esc(value: string | null | undefined): string {
@@ -18,10 +28,44 @@ function nl2br(value: string): string {
   return esc(value).replace(/\r\n|\n|\r/g, '<br/>')
 }
 
+/**
+ * Presentation-only: hide standard places already shown on Plan dnia.
+ * Does not mutate wedding_places or timeline business logic.
+ */
+export function selectLocationsForBriefDirectory(
+  locations: BriefLocation[],
+  timeline: BriefTimelineItem[],
+): BriefLocation[] {
+  if (!locations.length) return []
+  if (!timeline.length) return locations
+
+  const timelineTokens: string[] = []
+  for (const item of timeline) {
+    const name = normalizeBriefWhitespace(item.placeName || '')
+    const addr = normalizeBriefWhitespace(item.shortAddress || '')
+    if (name) timelineTokens.push(name)
+    if (addr) timelineTokens.push(addr)
+  }
+  if (!timelineTokens.length) return locations
+
+  return locations.filter((loc) => {
+    const name = normalizeBriefWhitespace(loc.name || '')
+    const addr = normalizeBriefWhitespace(loc.address || '')
+    const represented = timelineTokens.some(
+      (tok) =>
+        (name && textsSemanticallyEqual(name, tok)) ||
+        (addr && textsSemanticallyEqual(addr, tok)) ||
+        (name && textsSemanticallyEqual(addr, tok)) ||
+        (addr && textsSemanticallyEqual(name, tok)),
+    )
+    return !represented
+  })
+}
+
 const CSS = `
 @page {
   size: A4 portrait;
-  margin: 12mm 12mm 16mm 12mm;
+  margin: 11mm 12mm 15mm 12mm;
 }
 * { box-sizing: border-box; }
 html, body {
@@ -29,24 +73,26 @@ html, body {
   padding: 0;
   font-family: "Helvetica Neue", Helvetica, Arial, "Segoe UI", sans-serif;
   font-size: 10pt;
-  line-height: 1.4;
+  line-height: 1.45;
   color: #161616;
   background: #fff;
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
+  word-wrap: break-word;
+  overflow-wrap: anywhere;
 }
 .doc-label {
-  font-size: 8pt;
-  letter-spacing: 0.16em;
+  font-size: 7.5pt;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: #737373;
+  color: #8a8a8a;
   margin: 0 0 2px;
 }
 h1 {
   font-size: 18pt;
   font-weight: 650;
   letter-spacing: -0.025em;
-  margin: 0 0 4px;
+  margin: 0 0 3px;
   line-height: 1.15;
   color: #0a0a0a;
 }
@@ -55,43 +101,38 @@ h1 {
   color: #404040;
   margin: 0 0 2px;
 }
-.header-sub {
-  font-size: 9pt;
-  color: #737373;
-  margin: 0 0 6px;
-}
 .snapshot {
   font-size: 8pt;
-  color: #8a8a8a;
-  margin: 0 0 14px;
+  color: #9a9a9a;
+  margin: 0 0 12px;
 }
 .section {
   margin: 0 0 14px;
 }
 .section-title {
   font-size: 8pt;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   color: #0a0a0a;
-  border-bottom: 1px solid #e8e8e8;
-  padding-bottom: 3px;
   margin: 0 0 8px;
+  padding: 0;
+  border: 0;
   font-weight: 650;
+  break-after: avoid;
+  page-break-after: avoid;
 }
 .assignment {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 6px 18px;
   margin: 0 0 14px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid #f0f0f0;
 }
 .assignment-item label {
   display: block;
-  font-size: 7.5pt;
-  letter-spacing: 0.08em;
+  font-size: 7pt;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: #8a8a8a;
+  color: #9a9a9a;
   margin-bottom: 1px;
 }
 .assignment-item div {
@@ -104,22 +145,23 @@ h1 {
   grid-template-columns: 1fr 1fr;
   gap: 8px 16px;
   break-inside: avoid;
+  page-break-inside: avoid;
 }
 .contact {
   padding: 0;
   break-inside: avoid;
 }
 .contact-role {
-  font-size: 7.5pt;
+  font-size: 7pt;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: #8a8a8a;
+  color: #9a9a9a;
   margin: 0 0 2px;
 }
 .contact-name {
   font-weight: 650;
   font-size: 11pt;
-  margin: 0 0 2px;
+  margin: 0 0 1px;
   color: #0a0a0a;
 }
 .contact-phone {
@@ -142,58 +184,74 @@ h1 {
 }
 .timeline-item {
   display: grid;
-  grid-template-columns: 48px 1fr;
+  grid-template-columns: 46px 1fr;
   gap: 10px;
-  padding: 6px 0;
-  border-bottom: 1px solid #f3f3f3;
+  padding: 5px 0;
+  border: 0;
   break-inside: avoid;
+  page-break-inside: avoid;
 }
 .timeline-item.untimed .timeline-time {
-  color: #b0b0b0;
+  color: #c0c0c0;
   font-weight: 500;
   font-size: 8pt;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 .timeline-time {
   font-weight: 700;
-  font-size: 11pt;
+  font-size: 11.5pt;
   color: #0a0a0a;
   font-variant-numeric: tabular-nums;
+  line-height: 1.2;
 }
 .timeline-title {
   font-weight: 600;
   margin: 0 0 1px;
   font-size: 10pt;
+  color: #0a0a0a;
 }
 .timeline-meta {
   font-size: 8.5pt;
-  color: #666;
+  color: #737373;
   margin: 0;
+}
+.timeline-travel {
+  grid-column: 1 / -1;
+  margin: 2px 0 1px;
+  padding: 0 0 0 46px;
+  font-size: 7.5pt;
+  font-weight: 500;
+  color: #9a9a9a;
+  letter-spacing: 0.02em;
+  line-height: 1.3;
+}
+.timeline-item.has-travel {
+  padding-top: 8px;
 }
 .nie-przegap {
   background: #faf8f4;
   border: 1px solid #ebe4d6;
   border-radius: 3px;
-  padding: 10px 12px;
+  padding: 9px 11px;
   margin: 0 0 14px;
   break-inside: avoid;
+  page-break-inside: avoid;
 }
 .nie-przegap .section-title {
-  border-bottom-color: #e4dccb;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
+  color: #5c4a2a;
+  letter-spacing: 0.1em;
 }
 .nie-item {
-  margin: 0 0 8px;
+  margin: 0 0 7px;
   break-inside: avoid;
 }
 .nie-item:last-child { margin-bottom: 0; }
 .nie-label {
-  font-size: 8pt;
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  font-size: 7.5pt;
+  font-weight: 650;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: #5c4a2a;
+  color: #7a6540;
   margin: 0 0 2px;
 }
 .nie-body {
@@ -201,99 +259,191 @@ h1 {
   font-size: 10pt;
   color: #2a2418;
   white-space: pre-wrap;
+  line-height: 1.4;
 }
 .loc-card {
-  border: 1px solid #ececec;
-  border-radius: 3px;
-  padding: 8px 10px;
-  margin: 0 0 7px;
-  background: #fcfcfc;
+  padding: 4px 0 6px;
+  margin: 0;
+  border: 0;
   break-inside: avoid;
+  page-break-inside: avoid;
 }
 .loc-roles {
-  font-size: 7.5pt;
-  letter-spacing: 0.08em;
+  font-size: 7pt;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: #8a8a8a;
-  margin: 0 0 3px;
+  color: #9a9a9a;
+  margin: 0 0 1px;
 }
 .loc-name {
   font-weight: 650;
-  font-size: 10.5pt;
-  margin: 0 0 2px;
+  font-size: 10pt;
+  margin: 0 0 1px;
 }
 .loc-address {
   margin: 0;
   white-space: pre-line;
-  color: #2a2a2a;
-  font-size: 9.5pt;
-}
-.loc-coords {
-  margin: 3px 0 0;
-  font-size: 8.5pt;
-  color: #737373;
-  font-variant-numeric: tabular-nums;
-}
-.op-row {
-  display: grid;
-  grid-template-columns: 132px 1fr;
-  gap: 8px;
-  padding: 5px 0;
-  border-bottom: 1px solid #f5f5f5;
-  break-inside: avoid;
-}
-.op-label {
+  color: #404040;
   font-size: 9pt;
-  font-weight: 650;
-  color: #0a0a0a;
 }
-.op-value {
-  margin: 0;
-  color: #2a2a2a;
-  white-space: pre-wrap;
-  font-size: 9.5pt;
+.meta-block {
+  margin: 10px 0 0;
+  /* Allow many vendors/sessions to split; individual rows stay together. */
+  break-inside: auto;
+  page-break-inside: auto;
+}
+.meta-block .section-title {
+  color: #9a9a9a;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  margin-bottom: 6px;
+  break-after: avoid;
+  page-break-after: avoid;
 }
 .vendor-row {
-  padding: 4px 0;
-  border-bottom: 1px solid #f5f5f5;
+  padding: 0 0 7px;
+  border: 0;
   break-inside: avoid;
-  font-size: 9.5pt;
+  page-break-inside: avoid;
 }
+.vendor-row:last-child { padding-bottom: 0; }
 .vendor-role {
-  color: #8a8a8a;
-  font-size: 8pt;
+  display: block;
+  color: #9a9a9a;
+  font-size: 7pt;
+  font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  margin-right: 6px;
+  letter-spacing: 0.08em;
+  margin: 0 0 1px;
+}
+.vendor-name {
+  display: block;
+  font-size: 10pt;
+  font-weight: 550;
+  color: #0a0a0a;
+  line-height: 1.35;
+}
+.detail-layer {
+  margin-top: 4px;
+  padding-top: 8px;
+}
+.q-section {
+  margin: 0 0 12px;
+}
+.q-section-start {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+/* Compact sections (few short answers): keep whole section together. */
+.q-section-compact {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+.q-section-compact .q-section-keep {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+.q-section-title {
+  font-size: 10.5pt;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  text-transform: none;
+  color: #0a0a0a;
+  margin: 0 0 7px;
+  padding: 0;
+  border: 0;
+  break-after: avoid;
+  page-break-after: avoid;
+}
+.q-item {
+  margin: 0 0 7px;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+.q-item.q-long {
+  margin: 0 0 10px;
+  break-inside: auto;
+  page-break-inside: auto;
+}
+.q-item.q-long .q-label {
+  break-after: avoid;
+  page-break-after: avoid;
+}
+.q-label {
+  display: block;
+  font-size: 7.5pt;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  color: #8f8f8f;
+  margin: 0 0 2px;
+  break-after: avoid;
+  page-break-after: avoid;
+}
+.q-value {
+  margin: 0;
+  font-size: 10.5pt;
+  font-weight: 500;
+  color: #0a0a0a;
+  white-space: pre-wrap;
+  line-height: 1.42;
+}
+.settlement-meta {
+  margin: 8px 0 0;
+  padding: 0;
+  border: 0;
+  break-before: auto;
+  page-break-before: auto;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+.settlement-meta .section-title {
+  font-size: 6.5pt;
+  letter-spacing: 0.14em;
+  color: #b0b0b0;
+  font-weight: 600;
+  margin-bottom: 3px;
+  text-transform: uppercase;
 }
 .settlement {
-  border: 1px solid #ececec;
-  border-radius: 3px;
-  padding: 10px 12px;
-  background: #fafafa;
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px 16px;
-  break-inside: avoid;
+  grid-template-columns: auto 1fr;
+  gap: 1px 10px;
+  font-size: 8pt;
+  color: #6a6a6a;
+  max-width: 280px;
+}
+.settlement div {
+  display: contents;
 }
 .settlement div span {
   display: block;
-  font-size: 7.5pt;
-  color: #8a8a8a;
+  font-size: 6.5pt;
+  color: #b0b0b0;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
+  padding: 1px 0;
+}
+.settlement div b {
+  display: block;
+  font-weight: 500;
+  font-size: 8pt;
+  color: #595959;
+  text-align: right;
+  padding: 1px 0;
 }
 .settlement-paid {
   grid-column: 1 / -1;
-  font-size: 10pt;
-  color: #2a2a2a;
-  margin: 0;
+  font-size: 8pt;
+  color: #6a6a6a;
+  margin: 2px 0 0;
+  font-weight: 500;
 }
 .muted {
   color: #8a8a8a;
   font-size: 9pt;
 }
-.footer-space { height: 6px; }
+.footer-space { height: 4px; }
 `
 
 function daysLabel(days: number | undefined): string {
@@ -357,6 +507,33 @@ function renderContacts(data: WeddingBriefPdfData): string {
   return `<section class="section"><h2 class="section-title">Kluczowe kontakty</h2><div class="contacts">${cards}</div></section>`
 }
 
+function formatBriefTravelDistance(meters: number): string {
+  if (!Number.isFinite(meters) || meters < 0) return ''
+  if (meters < 1000) return `${Math.round(meters)} m`
+  const km = meters / 1000
+  const rounded = Math.round(km * 10) / 10
+  if (Number.isInteger(rounded)) return `${rounded} km`
+  return `${rounded.toFixed(1).replace('.', ',')} km`
+}
+
+function formatBriefTravelDuration(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 0) return ''
+  const totalMin = Math.max(0, Math.round(seconds / 60))
+  if (totalMin < 60) return `ok. ${totalMin} min`
+  const h = Math.floor(totalMin / 60)
+  const m = totalMin % 60
+  return m > 0 ? `ok. ${h} godz. ${m} min` : `ok. ${h} godz.`
+}
+
+function formatBriefTravelConnector(travel: {
+  distanceMeters: number
+  durationSeconds: number
+}): string {
+  const dist = formatBriefTravelDistance(travel.distanceMeters)
+  const dur = formatBriefTravelDuration(travel.durationSeconds)
+  return [dist, dur].filter(Boolean).join(' · ')
+}
+
 function renderTimeline(data: WeddingBriefPdfData): string {
   if (!data.timeline.length) {
     return data.missingOperational?.includes('Brak uzupełnionego planu dnia.')
@@ -373,8 +550,15 @@ function renderTimeline(data: WeddingBriefPdfData): string {
         : item.untimed
           ? '—'
           : ''
-      // Use subtle dash only for untimed stages (meaningful missing clock)
-      return `<li class="timeline-item${item.untimed || !item.time ? ' untimed' : ''}">
+      const travelLabel = item.travelFromPrevious
+        ? formatBriefTravelConnector(item.travelFromPrevious)
+        : ''
+      const travel = travelLabel
+        ? `<div class="timeline-travel">${esc(travelLabel)}</div>`
+        : ''
+      const hasTravel = travel ? ' has-travel' : ''
+      return `<li class="timeline-item${hasTravel}${item.untimed || !item.time ? ' untimed' : ''}">
+        ${travel}
         <div class="timeline-time">${timeCell || '·'}</div>
         <div>
           <p class="timeline-title">${esc(item.title)}</p>
@@ -399,17 +583,15 @@ function renderCritical(data: WeddingBriefPdfData): string {
   return `<section class="nie-przegap"><h2 class="section-title">Nie przegap</h2>${body}</section>`
 }
 
-function renderLocations(data: WeddingBriefPdfData): string {
-  if (!data.locations.length) return ''
-  const cards = data.locations
+function renderLocations(
+  locations: BriefLocation[],
+  timeline: BriefTimelineItem[],
+): string {
+  const extra = selectLocationsForBriefDirectory(locations, timeline)
+  if (!extra.length) return ''
+  const cards = extra
     .map((loc) => {
       const roles = (loc.roles?.length ? loc.roles : []).join(' · ')
-      const coords =
-        loc.latitude != null && loc.longitude != null
-          ? `<p class="loc-coords">${esc(
-              `${Number(loc.latitude).toFixed(5)}, ${Number(loc.longitude).toFixed(5)}`,
-            )}</p>`
-          : ''
       const name =
         loc.name && loc.name !== loc.address
           ? `<div class="loc-name">${esc(loc.name)}</div>`
@@ -418,43 +600,77 @@ function renderLocations(data: WeddingBriefPdfData): string {
         ${roles ? `<div class="loc-roles">${esc(roles)}</div>` : ''}
         ${name}
         <p class="loc-address">${esc(loc.address || loc.name || '')}</p>
-        ${coords}
       </div>`
     })
     .join('')
-  return `<section class="section"><h2 class="section-title">Lokalizacje</h2>${cards}</section>`
+  return `<section class="section"><h2 class="section-title">Dodatkowe lokalizacje</h2>${cards}</section>`
 }
 
-function renderOperational(data: WeddingBriefPdfData): string {
-  if (!data.operationalSections.length) return ''
-  return data.operationalSections
+/**
+ * Compact questionnaire section: few short answers — keep whole section together.
+ * Large / long-text sections remain splittable (heading+first only).
+ */
+export function isCompactQuestionnaireSection(
+  items: Array<{ type: string; displayValue: string }>,
+): boolean {
+  if (items.length === 0 || items.length > 4) return false
+  return items.every(
+    (i) => i.type !== 'long_text' && i.displayValue.length <= 180,
+  )
+}
+
+function renderQuestionnaireSections(data: WeddingBriefPdfData): string {
+  if (!data.questionnaireSections?.length) return ''
+  const body = data.questionnaireSections
     .map((sec) => {
-      const rows = sec.items
-        .map(
-          (item) => `<div class="op-row">
-          <div class="op-label">${esc(item.label)}</div>
-          <p class="op-value">${nl2br(item.value)}</p>
-        </div>`,
-        )
-        .join('')
-      return `<section class="section"><h2 class="section-title">${esc(sec.title)}</h2>${rows}</section>`
+      if (!sec.items.length) return ''
+      const compact = isCompactQuestionnaireSection(sec.items)
+      const renderItem = (item: (typeof sec.items)[number]) => {
+        const long =
+          item.type === 'long_text' || item.displayValue.length > 180
+        return `<div class="q-item${long ? ' q-long' : ''}" data-question-id="${esc(item.questionId)}">
+            <span class="q-label">${esc(item.label)}</span>
+            <p class="q-value">${nl2br(item.displayValue)}</p>
+          </div>`
+      }
+      const title = sec.title
+        ? `<h2 class="q-section-title">${esc(sec.title)}</h2>`
+        : ''
+      const compactClass = compact ? ' q-section-compact' : ''
+      if (compact) {
+        const all = sec.items.map(renderItem).join('')
+        return `<section class="q-section${compactClass}" data-section-id="${esc(sec.id)}" data-compact="1">
+          <div class="q-section-keep">${title}${all}</div>
+        </section>`
+      }
+      const [first, ...rest] = sec.items
+      const head = `<div class="q-section-start">${title}${renderItem(first!)}</div>`
+      const tail = rest.map(renderItem).join('')
+      return `<section class="q-section${compactClass}" data-section-id="${esc(sec.id)}" data-compact="0">${head}${tail}</section>`
     })
     .join('')
+  return `<div class="detail-layer">${body}</div>`
 }
 
 function renderVendors(data: WeddingBriefPdfData): string {
   if (!data.vendors.length) return ''
   const rows = data.vendors
     .map((v) => {
-      const role = v.role
-        ? `<span class="vendor-role">${esc(v.role)}</span>`
-        : ''
-      return `<div class="vendor-row">${role}<strong>${esc(v.name)}</strong>${
-        v.detail ? ` — ${esc(v.detail)}` : ''
-      }</div>`
+      // Structured role+name when role exists; otherwise single clean value (no guessing).
+      if (v.role?.trim()) {
+        return `<div class="vendor-row">
+          <span class="vendor-role">${esc(v.role)}</span>
+          <span class="vendor-name">${esc(v.name)}</span>
+          ${v.detail ? `<span class="vendor-name">${esc(v.detail)}</span>` : ''}
+        </div>`
+      }
+      return `<div class="vendor-row">
+        <span class="vendor-name">${esc(v.name)}</span>
+        ${v.detail ? `<span class="vendor-name">${esc(v.detail)}</span>` : ''}
+      </div>`
     })
     .join('')
-  return `<section class="section"><h2 class="section-title">Usługodawcy</h2>${rows}</section>`
+  return `<section class="meta-block" data-testid="brief-vendors"><h2 class="section-title">Usługodawcy</h2>${rows}</section>`
 }
 
 function renderSessions(data: WeddingBriefPdfData): string {
@@ -462,61 +678,48 @@ function renderSessions(data: WeddingBriefPdfData): string {
   const rows = data.sessions
     .map((s) => {
       const meta = [s.date, s.time, s.location].filter(Boolean).join(' · ')
-      return `<div class="op-row">
-        <div class="op-label">${esc(s.title)}</div>
-        <p class="op-value">${esc(meta)}${
+      return `<div class="q-item">
+        <span class="q-label">${esc(s.title)}</span>
+        <p class="q-value">${esc(meta)}${
           s.notes ? `<br/>${nl2br(s.notes)}` : ''
         }</p>
       </div>`
     })
     .join('')
-  return `<section class="section"><h2 class="section-title">Sesje</h2>${rows}</section>`
+  return `<section class="meta-block"><h2 class="section-title">Sesje</h2>${rows}</section>`
 }
 
-function renderAdditional(data: WeddingBriefPdfData): string {
+function renderOrphanFallback(data: WeddingBriefPdfData): string {
   if (!data.additionalOperational.length) return ''
   const rows = data.additionalOperational
     .map(
-      (item) => `<div class="op-row">
-      <div class="op-label">${esc(item.label)}</div>
-      <p class="op-value">${nl2br(item.value)}</p>
+      (item) => `<div class="q-item">
+      <span class="q-label">${esc(item.label)}</span>
+      <p class="q-value">${nl2br(item.value)}</p>
     </div>`,
     )
     .join('')
-  return `<section class="section"><h2 class="section-title">Dodatkowe informacje</h2>${rows}</section>`
+  return `<section class="q-section"><h2 class="q-section-title">Pozostałe odpowiedzi</h2>${rows}</section>`
 }
 
 function renderSettlement(data: WeddingBriefPdfData): string {
   const s = data.settlement
   if (!s) return ''
+  const row = (label: string, value: string) =>
+    `<div><span>${esc(label)}</span><b>${esc(value)}</b></div>`
   if (s.settled || s.remainingToPay <= 0) {
-    return `<section class="section"><h2 class="section-title">Rozliczenie</h2>
+    return `<section class="settlement-meta"><h2 class="section-title">Rozliczenie</h2>
       <div class="settlement">
-        <div><span>Wartość zlecenia</span>${esc(formatCurrency(s.contractValue))}</div>
-        ${
-          s.travelFeeLabel
-            ? `<div><span>Dojazd</span>${esc(s.travelFeeLabel)}</div>`
-            : ''
-        }
-        <div><span>Wpłacono</span>${esc(formatCurrency(s.totalPaid))}</div>
+        ${row('Wartość', formatCurrency(s.contractValue))}
+        ${row('Wpłacono', formatCurrency(s.totalPaid))}
         <p class="settlement-paid">Rozliczenie uregulowane.</p>
       </div></section>`
   }
-  return `<section class="section"><h2 class="section-title">Rozliczenie</h2>
+  return `<section class="settlement-meta"><h2 class="section-title">Rozliczenie</h2>
     <div class="settlement">
-      <div><span>Wartość zlecenia</span>${esc(formatCurrency(s.contractValue))}</div>
-      ${
-        s.travelFeeLabel
-          ? `<div><span>Dojazd</span>${esc(s.travelFeeLabel)}</div>`
-          : ''
-      }
-      <div><span>Wpłacono</span>${esc(formatCurrency(s.totalPaid))}</div>
-      <div><span>Pozostało</span>${esc(formatCurrency(s.remainingToPay))}</div>
-      ${
-        s.dueLabel
-          ? `<div><span>Termin</span>${esc(s.dueLabel)}</div>`
-          : ''
-      }
+      ${row('Wartość', formatCurrency(s.contractValue))}
+      ${row('Wpłacono', formatCurrency(s.totalPaid))}
+      ${row('Pozostało', formatCurrency(s.remainingToPay))}
     </div></section>`
 }
 
@@ -543,11 +746,11 @@ export function renderWeddingBriefHtml(data: WeddingBriefPdfData): string {
   ${renderContacts(data)}
   ${renderTimeline(data)}
   ${renderCritical(data)}
-  ${renderLocations(data)}
-  ${renderOperational(data)}
+  ${renderLocations(data.locations, data.timeline)}
+  ${renderQuestionnaireSections(data)}
+  ${renderOrphanFallback(data)}
   ${renderVendors(data)}
   ${renderSessions(data)}
-  ${renderAdditional(data)}
   ${renderSettlement(data)}
   <div class="footer-space"></div>
 </body>

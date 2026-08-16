@@ -9,10 +9,10 @@ import {
 } from '@/features/prewedding/answerSummary'
 import {
   buildOperationalDayStops,
-  operationalStopsToBriefTimeline,
   vendorNamesEqual,
   type OperationalTimeMap,
 } from '@/features/wedding-day/operationalDayPlan'
+import { buildBriefTimelineWithTravel } from '@/features/wedding-brief/attachBriefPlanDayTravel'
 import {
   answerToGeoPlace,
   formatLocationAnswerDisplay,
@@ -20,11 +20,10 @@ import {
 import {
   BRIEF_QUESTION_RULES,
   isAdminOnlyRule,
-  OPERATIONAL_SECTION_TITLES,
   resolveBriefFieldRule,
-  type BriefDestination,
   type BriefFieldRule,
 } from '@/features/wedding-brief/briefFieldRegistry'
+import { buildQuestionnaireBriefSections } from '@/features/wedding-brief/buildQuestionnaireBriefSections'
 import {
   distinctPlaceAndAddress,
   isPresentationNoValue,
@@ -39,16 +38,13 @@ import type {
   BriefLocation,
   BriefNote,
   BriefOperationalItem,
-  BriefOperationalSection,
   BriefSession,
   BriefTimelineItem,
   BriefVendor,
   WeddingBriefPdfData,
 } from '@/features/wedding-brief/types'
 import { getWeddingCommercialSummary } from '@/lib/utils/commercial'
-import { formatCurrency } from '@/lib/utils/currency'
 import { formatDate } from '@/lib/utils/dates'
-import { formatTravelFeeDisplay } from '@/lib/utils/travelFeeCommercial'
 import type { FormAnswerJson } from '@/types/formEngine'
 import type { FormInstanceOptionsSnapshot } from '@/types/contractQuestionnaire'
 import type {
@@ -56,7 +52,7 @@ import type {
   PreWeddingTemplateSchema,
 } from '@/types/preweddingQuestionnaire'
 import type { Session } from '@/types/session'
-import type { WeddingPlace } from '@/types/travel'
+import type { TravelSegment, WeddingPlace } from '@/types/travel'
 import type { Wedding, WeddingContact, WeddingNote } from '@/types/wedding'
 import type { WeddingExtraService } from '@/types/package'
 
@@ -92,6 +88,11 @@ export type BuildWeddingBriefPdfDataInput = {
   timezone?: string
   /** Studio-persisted operational times (stop_key → HH:MM). */
   operationalTimes?: OperationalTimeMap
+  /**
+   * Cached travel_segments only (read-only). Never pass freshly calculated routes
+   * that would require a provider call during Brief generation.
+   */
+  travelSegments?: TravelSegment[]
 }
 
 type AnswerHit = {
@@ -245,6 +246,7 @@ function buildTimeline(
   places: WeddingPlace[],
   hits: AnswerHit[],
   operationalTimes: OperationalTimeMap,
+  travelSegments: TravelSegment[] = [],
 ): BriefTimelineItem[] {
   if (places.length > 0) {
     const qTimes = preWedding
@@ -256,7 +258,11 @@ function buildTimeline(
       operationalTimes,
       questionnaireTimes: qTimes,
     })
-    const items = operationalStopsToBriefTimeline(ops)
+    const items = buildBriefTimelineWithTravel({
+      stops: ops,
+      places,
+      segments: travelSegments,
+    })
     if (items.length > 0) {
       return enrichTimelineWithPlaces(items, places)
     }
@@ -587,82 +593,183 @@ function isUnusualBlessing(value: string): boolean {
   )
 }
 
-function isMustHavePhotoPriority(value: string): boolean {
-  const t = value.toLowerCase()
-  if (!t || t.length < 8) return false
-  return (
-    /priorytet|koniecznie|musi|ważn|nie przegap|szczególnie|zależy|must|please|prosimy/i.test(
-      t,
-    ) || t.length >= 20
-  )
+/** Shoot-day alert copy — never truncates FAMILY_SENSITIVITY. */
+function conciseCriticalAlert(
+  content: string,
+  opts: { mapping?: string; classification?: string },
+): string {
+  const c = normalizeBriefWhitespace(content)
+  if (
+    opts.classification === 'FAMILY_SENSITIVITY' ||
+    opts.mapping === 'sensitiveFamilyNotes'
+  ) {
+    return c
+  }
+  if (c.length <= 100) return c
+  const sentence = c.match(/^(.{20,100}?[.!?])(\s|$)/)
+  if (sentence?.[1]) return sentence[1]
+  return `${c.slice(0, 97).trimEnd()}…`
 }
+
+/** Deterministic Nie przegap priority (lower = earlier). Mapping-based only. */
+function criticalPriority(input: {
+  mapping?: string
+  classification?: string
+  studio?: boolean
+}): number {
+  if (input.studio) return 10
+  if (
+    input.classification === 'FAMILY_SENSITIVITY' ||
+    input.mapping === 'sensitiveFamilyNotes'
+  ) {
+    return 0
+  }
+  switch (input.mapping) {
+    case 'ceremonyNotes':
+      return 20
+    case 'groupPhotoPlan':
+      return 30
+    case 'blessingPlan':
+      return 40
+    case 'groomDepartureNote':
+      return 50
+    default:
+      return 80
+  }
+}
+
+/** Short alert labels for Nie przegap (registry briefLabel may be longer). */
+function criticalAlertLabel(mapping: string | undefined, fallback: string): string {
+  switch (mapping) {
+    case 'ceremonyNotes':
+      return 'Ceremonia'
+    case 'groupPhotoPlan':
+      return 'Zdjęcie grupowe'
+    case 'blessingPlan':
+      return 'Błogosławieństwo'
+    case 'sensitiveFamilyNotes':
+      return 'Rodzina'
+    case 'groomDepartureNote':
+      return 'Wyjazd Pana Młodego'
+    default:
+      return fallback
+  }
+}
+
+/** Max non-safety operational alerts in Nie przegap (sensitive/studio uncapped). */
+const MAX_OPERATIONAL_CRITICAL_ALERTS = 4
 
 function buildCriticalNotes(
   hits: AnswerHit[],
   weddingNotes: WeddingNote[],
 ): BriefNote[] {
-  const notes: BriefNote[] = []
+  type Candidate = {
+    label: string
+    content: string
+    priority: number
+    safety: boolean
+  }
+  const candidates: Candidate[] = []
   const seen: string[] = []
 
-  function push(label: string, content: string) {
-    const c = normalizeBriefWhitespace(content)
-    if (!c) return
+  function consider(input: {
+    label: string
+    content: string
+    mapping?: string
+    classification?: string
+    studio?: boolean
+  }) {
+    const raw = normalizeBriefWhitespace(input.content)
+    if (!raw) return
     if (
       isPresentationNoValue({
-        displayValue: c,
+        displayValue: raw,
         questionType: 'long_text',
       })
     ) {
       return
     }
-    if (seen.some((s) => textsSemanticallyEqual(s, c))) return
-    // Skip non-actionable "Nie chcemy" group photo as critical
-    if (/^nie chcemy$/i.test(c) && /grupowe/i.test(label)) return
-    seen.push(c)
-    notes.push({ label, content: c })
+    if (/^nie chcemy$/i.test(raw) && /grupowe/i.test(input.label)) return
+    const content = conciseCriticalAlert(raw, {
+      mapping: input.mapping,
+      classification: input.classification,
+    })
+    if (seen.some((s) => textsSemanticallyEqual(s, content))) return
+    seen.push(content)
+    const safety =
+      Boolean(input.studio) ||
+      input.classification === 'FAMILY_SENSITIVITY' ||
+      input.mapping === 'sensitiveFamilyNotes'
+    candidates.push({
+      label: input.label,
+      content,
+      priority: criticalPriority({
+        mapping: input.mapping,
+        classification: input.classification,
+        studio: input.studio,
+      }),
+      safety,
+    })
   }
 
   for (const hit of hits) {
     if (hit.rule.destination === 'omit') continue
+    const mapping = hit.question.weddingDayMapping
+
+    // Creative photo priorities stay in questionnaire detail only (not alerts).
+    if (mapping === 'photoVideoPriorities') continue
 
     if (hit.rule.destination === 'nie_przegap') {
       if (
-        hit.question.weddingDayMapping === 'groupPhotoPlan' &&
+        mapping === 'groupPhotoPlan' &&
         /^nie chcemy$/i.test(hit.displayValue.trim())
       ) {
         continue
       }
-      push(hit.rule.briefLabel, hit.displayValue)
+      consider({
+        label: criticalAlertLabel(mapping, hit.rule.briefLabel),
+        content: hit.displayValue,
+        mapping,
+        classification: hit.rule.classification,
+      })
       continue
     }
 
     if (!hit.rule.criticalEligible) continue
 
     if (hit.rule.classification === 'FAMILY_SENSITIVITY') {
-      push(hit.rule.briefLabel, hit.displayValue)
+      consider({
+        label: criticalAlertLabel(mapping, hit.rule.briefLabel),
+        content: hit.displayValue,
+        mapping,
+        classification: hit.rule.classification,
+      })
       continue
     }
 
-    if (hit.question.weddingDayMapping === 'blessingPlan') {
+    if (mapping === 'blessingPlan') {
       if (isUnusualBlessing(hit.displayValue)) {
-        push(hit.rule.briefLabel, hit.displayValue)
-      }
-      continue
-    }
-
-    if (hit.question.weddingDayMapping === 'photoVideoPriorities') {
-      if (isMustHavePhotoPriority(hit.displayValue)) {
-        push(hit.rule.briefLabel, hit.displayValue)
+        consider({
+          label: criticalAlertLabel(mapping, hit.rule.briefLabel),
+          content: hit.displayValue,
+          mapping,
+          classification: hit.rule.classification,
+        })
       }
       continue
     }
 
     if (
-      hit.question.weddingDayMapping === 'groomDepartureNote' &&
+      mapping === 'groomDepartureNote' &&
       !/^\d{1,2}[.:]\d{2}$/.test(hit.displayValue) &&
       /nie dotyczy|razem|jednym adres/i.test(hit.displayValue)
     ) {
-      push(hit.rule.briefLabel, hit.displayValue)
+      consider({
+        label: criticalAlertLabel(mapping, hit.rule.briefLabel),
+        content: hit.displayValue,
+        mapping,
+        classification: hit.rule.classification,
+      })
     }
   }
 
@@ -672,9 +779,24 @@ function buildCriticalNotes(
     if (c.includes('reference_data_key=')) continue
     if (c.includes('reference-wedding:')) continue
     if (!isCriticalStudioNote(c)) continue
-    push('Uwaga studia', c.replace(/^ważne:\s*/i, ''))
+    consider({
+      label: 'Uwaga studia',
+      content: c.replace(/^ważne:\s*/i, ''),
+      studio: true,
+    })
   }
 
+  candidates.sort((a, b) => a.priority - b.priority || a.label.localeCompare(b.label, 'pl'))
+
+  const notes: BriefNote[] = []
+  let operationalCount = 0
+  for (const c of candidates) {
+    if (!c.safety) {
+      if (operationalCount >= MAX_OPERATIONAL_CRITICAL_ALERTS) continue
+      operationalCount += 1
+    }
+    notes.push({ label: c.label, content: c.content })
+  }
   return notes
 }
 
@@ -769,54 +891,6 @@ function weddingDaySessions(sessions: Session[], weddingDate: string): BriefSess
     }))
 }
 
-function buildOperationalSections(
-  hits: AnswerHit[],
-  consumed: Set<string>,
-  criticalNotes: BriefNote[],
-): BriefOperationalSection[] {
-  const buckets = new Map<string, BriefOperationalItem[]>()
-
-  for (const hit of hits) {
-    if (consumed.has(hit.questionId)) continue
-    if (isAdminOnlyRule(hit.rule)) continue
-    if (hit.rule.destination === 'omit') continue
-    const dest = hit.rule.destination
-    if (!dest.startsWith('section_')) continue
-    if (criticalNotes.some((n) => textsSemanticallyEqual(n.content, hit.displayValue))) {
-      consumed.add(hit.questionId)
-      continue
-    }
-    const title =
-      OPERATIONAL_SECTION_TITLES[dest as keyof typeof OPERATIONAL_SECTION_TITLES]
-    if (!title) continue
-    const list = buckets.get(dest) ?? []
-    list.push({ label: hit.rule.briefLabel, value: hit.displayValue })
-    buckets.set(dest, list)
-    consumed.add(hit.questionId)
-  }
-
-  const order: BriefDestination[] = [
-    'section_family',
-    'section_ceremony',
-    'section_photo',
-    'section_group_photo',
-    'section_blessing_logistics',
-    'section_music',
-    'section_other',
-  ]
-  const sections: BriefOperationalSection[] = []
-  for (const id of order) {
-    const items = buckets.get(id)
-    if (!items?.length) continue
-    sections.push({
-      id,
-      title: OPERATIONAL_SECTION_TITLES[id as keyof typeof OPERATIONAL_SECTION_TITLES],
-      items,
-    })
-  }
-  return sections
-}
-
 /**
  * Pure builder — safe for tests and production PDF generation.
  */
@@ -892,6 +966,7 @@ export function buildWeddingBriefPdfData(
     places,
     hits,
     input.operationalTimes ?? {},
+    input.travelSegments ?? [],
   )
   const locations = mergeLocations(places, wedding, hits, input.preWedding)
   const criticalNotes = buildCriticalNotes(hits, wedding.notes ?? [])
@@ -924,37 +999,79 @@ export function buildWeddingBriefPdfData(
     if (hit.rule.destination === 'vendors') consumed.add(hit.questionId)
   }
 
-  const operationalSections = buildOperationalSections(
-    hits,
-    consumed,
-    criticalNotes,
-  )
+  // Dynamic Brief V1 — questionnaire detail from instance snapshot (Layer B).
+  // Hardcoded operationalSections are no longer the primary detail structure.
+  const operationalSections: WeddingBriefPdfData['operationalSections'] = []
 
+  let questionnaireSections: WeddingBriefPdfData['questionnaireSections'] = []
   const additionalOperational: BriefOperationalItem[] = []
-  for (const hit of hits) {
-    if (consumed.has(hit.questionId)) continue
-    if (isAdminOnlyRule(hit.rule)) continue
-    if (hit.rule.destination === 'omit') continue
-    if (hit.rule.destination.startsWith('section_')) continue
-    const isAdditionalBucket =
-      hit.rule.destination === 'additional' ||
-      (!hit.question.weddingDayMapping && !BRIEF_QUESTION_RULES[hit.questionId])
-    if (!isAdditionalBucket) continue
+  const questionnaireDetailQuestionIds: string[] = []
 
-    if (criticalNotes.some((n) => textsSemanticallyEqual(n.content, hit.displayValue))) {
-      consumed.add(hit.questionId)
-      continue
+  if (input.preWedding) {
+    const schemaSections = input.preWedding.schema.sections ?? []
+    const hasSnapshotStructure = schemaSections.length > 0
+
+    if (hasSnapshotStructure) {
+      const built = buildQuestionnaireBriefSections({
+        schema: input.preWedding.schema,
+        answers: input.preWedding.answers,
+        criticalNotes,
+      })
+      questionnaireSections = built.sections
+      questionnaireDetailQuestionIds.push(...built.includedQuestionIds)
+      for (const id of built.includedQuestionIds) consumed.add(id)
+
+      for (const orphan of built.orphanAnswers) {
+        additionalOperational.push({
+          label: 'Pozostała odpowiedź',
+          value: orphan.displayValue,
+        })
+        additionalQuestionIds.push(orphan.questionId)
+        unmappedNonEmptyQuestionIds.push(orphan.questionId)
+        consumed.add(orphan.questionId)
+      }
+    } else {
+      // Malformed / empty snapshot — flat orphan fallback from answers.
+      const built = buildQuestionnaireBriefSections({
+        schema: { sections: [] },
+        answers: input.preWedding.answers,
+        criticalNotes,
+      })
+      for (const orphan of built.orphanAnswers) {
+        if (
+          criticalNotes.some((n) =>
+            textsSemanticallyEqual(n.content, orphan.displayValue),
+          )
+        ) {
+          continue
+        }
+        if (
+          vendors.some((v) => textsSemanticallyEqual(v.name, orphan.displayValue))
+        ) {
+          continue
+        }
+        additionalOperational.push({
+          label: 'Pozostała odpowiedź',
+          value: orphan.displayValue,
+        })
+        additionalQuestionIds.push(orphan.questionId)
+        unmappedNonEmptyQuestionIds.push(orphan.questionId)
+      }
     }
-    if (vendors.some((v) => textsSemanticallyEqual(v.name, hit.displayValue))) {
-      consumed.add(hit.questionId)
-      continue
+
+    // Track unmapped customs that landed in questionnaire sections (not Additional).
+    for (const sec of questionnaireSections) {
+      for (const item of sec.items) {
+        if (
+          !item.semanticMapping &&
+          !BRIEF_QUESTION_RULES[item.questionId]
+        ) {
+          if (!unmappedNonEmptyQuestionIds.includes(item.questionId)) {
+            unmappedNonEmptyQuestionIds.push(item.questionId)
+          }
+        }
+      }
     }
-    additionalOperational.push({
-      label: hit.rule.briefLabel,
-      value: hit.displayValue,
-    })
-    additionalQuestionIds.push(hit.questionId)
-    consumed.add(hit.questionId)
   }
 
   const missingOperational: string[] = []
@@ -971,16 +1088,6 @@ export function buildWeddingBriefPdfData(
           depositPaid: commercial.depositPaid,
           currency: commercial.currency || 'PLN',
           settled: commercial.remainingToPay <= 0,
-          dueLabel:
-            commercial.remainingToPay > 0
-              ? commercial.finalPaymentDueDate
-                ? formatDate(commercial.finalPaymentDueDate)
-                : 'dzień ślubu'
-              : undefined,
-          travelFeeLabel:
-            (wedding.travelFeeStatus ?? 'unresolved') === 'unresolved'
-              ? undefined
-              : formatTravelFeeDisplay(wedding, formatCurrency),
         }
       : undefined
 
@@ -1020,6 +1127,7 @@ export function buildWeddingBriefPdfData(
     settlement,
     sessions: weddingDaySessions(input.sessions ?? [], wedding.date),
     additionalOperational,
+    questionnaireSections,
     footer: {
       generatedBy: 'OurWed',
       coupleDisplayName,
@@ -1030,6 +1138,7 @@ export function buildWeddingBriefPdfData(
       adminOnlyQuestionIds,
       additionalQuestionIds,
       unmappedNonEmptyQuestionIds,
+      questionnaireDetailQuestionIds,
     },
     missingOperational:
       missingOperational.length > 0 ? missingOperational : undefined,

@@ -15,6 +15,7 @@ import { weddingPlaceService } from '@/lib/api/weddingPlaceService'
 import { weddingOperationalTimesService } from '@/lib/api/weddingOperationalTimesService'
 import { weddingService } from '@/lib/api/weddingService'
 import { contactService } from '@/lib/api/contactService'
+import { travelService } from '@/lib/api/travelService'
 
 export async function loadWeddingBriefPdfData(
   weddingId: string,
@@ -24,7 +25,7 @@ export async function loadWeddingBriefPdfData(
     throw new Error('Nie znaleziono zlecenia lub brak dostępu.')
   }
 
-  const [places, contacts, extras, sessions, preQ, operationalTimes] =
+  const [places, contacts, extras, sessions, preQ, operationalTimes, travelSegments] =
     await Promise.all([
       weddingPlaceService.listByWeddingId(weddingId),
       contactService.listByWeddingId(weddingId),
@@ -32,6 +33,7 @@ export async function loadWeddingBriefPdfData(
       sessionService.listByWeddingId(weddingId),
       weddingQuestionnaireService.getByWeddingId(weddingId),
       weddingOperationalTimesService.listByWeddingId(weddingId),
+      travelService.listCachedSegments(weddingId),
     ])
 
   let preWedding: Parameters<typeof buildWeddingBriefPdfData>[0]['preWedding'] =
@@ -68,5 +70,6 @@ export async function loadWeddingBriefPdfData(
     preWedding,
     contractAnswers,
     operationalTimes,
+    travelSegments,
   })
 }
