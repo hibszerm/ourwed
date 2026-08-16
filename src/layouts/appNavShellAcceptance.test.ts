@@ -23,8 +23,27 @@ assert(!sidebar.includes('Dashboard V2'), 'no dashboard v2 nav')
 assert(!sidebar.includes('isAiContractLabEnabled'), 'lab flag unused in sidebar')
 assert(sidebar.includes("to: '/ankiety'"), 'ankiety nav present')
 assert(sidebar.includes('end: false'), 'ankiety active on subroutes')
+assert(sidebar.includes("to: '/zadania'"), 'zadania nav present')
+assert(sidebar.includes('IconTasks'), 'zadania icon')
+{
+  const sluby = sidebar.indexOf("to: '/sluby'")
+  const sesje = sidebar.indexOf("to: '/sesje'")
+  const kalendarz = sidebar.indexOf("to: '/kalendarz'")
+  const zadania = sidebar.indexOf("to: '/zadania'")
+  const oczekujace = sidebar.indexOf("to: '/oczekujace'")
+  assert(
+    sluby >= 0 &&
+      sesje > sluby &&
+      kalendarz > sesje &&
+      zadania > kalendarz &&
+      oczekujace > zadania,
+    'nav order Śluby→Sesje→Kalendarz→Zadania→Oczekujące',
+  )
+}
 
 const router = read('src/routes/router.tsx')
+assert(router.includes("path: '/zadania'"), 'zadania route')
+assert(router.includes('TasksPage'), 'TasksPage wired')
 assert(router.includes('/laboratorium-umow-ai'), 'experimental routes retained')
 assert(router.includes('intentionally hidden'), 'hidden comment on experimental routes')
 assert(router.includes('/form/:token'), 'public form route')

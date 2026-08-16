@@ -66,13 +66,15 @@ function assertNotIncludes(src: string, needle: string, m: string) {
   assertNotIncludes(dash, 'taskService.listAll', 'dashboard must not listAll tasks')
   assertNotIncludes(dash, 'upcomingDeadlines', 'removed dead upcomingDeadlines')
   assertNotIncludes(dash, 'nextWedding', 'nextWedding not owned by dashboardService')
-  assertIncludes(dash, 'listDueOn', 'still loads today tasks')
+  assertIncludes(dash, 'listDueThrough', 'loads overdue+today tasks')
   assertNotIncludes(
     dash,
     'notificationService.list',
     'dashboard must not load full notification history',
   )
-  assertIncludes(dash, 'listNeedingVerification', 'location verify tasks')
+  assertNotIncludes(dash, 'listNeedingVerification', 'no synthetic location verify tasks')
+  assertNotIncludes(dash, 'verify-locations', 'no fake verify task ids')
+  assertIncludes(dash, 'localCalendarDateKey', 'local calendar day')
   assertIncludes(dash, 'getAssignmentLists', 'light assignment lists')
   assertIncludes(dash, 'DASHBOARD_LIGHT_WEDDING_SELECT', 'pinned wedding select')
   assertNotIncludes(dash, 'finalizeWedding', 'no finalize hydrate')

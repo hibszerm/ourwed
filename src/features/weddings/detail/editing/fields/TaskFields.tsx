@@ -3,6 +3,12 @@ import { Input } from '@/components/ui/Input'
 import type { Task } from '@/types/wedding'
 import styles from '../WeddingEditorFields.module.css'
 
+function dueSortKey(dueDate: string): number {
+  if (!dueDate.trim()) return Number.POSITIVE_INFINITY
+  const t = new Date(dueDate).getTime()
+  return Number.isFinite(t) ? t : Number.POSITIVE_INFINITY
+}
+
 export function TaskFields({
   tasks,
   weddingId,
@@ -13,7 +19,7 @@ export function TaskFields({
   onChangeTasks: (tasks: Task[]) => void
 }) {
   const sorted = [...tasks].sort(
-    (a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime(),
+    (a, b) => dueSortKey(a.dueDate) - dueSortKey(b.dueDate),
   )
 
   return (
@@ -30,7 +36,7 @@ export function TaskFields({
                 id: `temp-${crypto.randomUUID()}`,
                 weddingId,
                 title: '',
-                dueDate: new Date().toISOString().slice(0, 10),
+                dueDate: '',
                 completed: false,
                 priority: 'medium',
               },

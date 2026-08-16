@@ -1,6 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
 import { IconCheck, IconClipboard, IconDocuments } from '@/components/icons'
-import { Button } from '@/components/ui/Button'
 import {
   buildWeddingProgressSummary,
   type ProgressStatusTone,
@@ -14,7 +13,6 @@ import styles from './WeddingDetailV2.module.css'
 interface Props {
   wedding: Wedding
   places: WeddingPlace[]
-  onPrimaryAction?: (actionId: string) => void
 }
 
 function toneMark(tone: ProgressStatusTone): string {
@@ -51,12 +49,9 @@ function groupIcon(id: string) {
 
 /**
  * Calm two-domain Wedding Progress — Umowa + Przygotowania.
+ * Primary CTA lives in WeddingNextActionCard (shared resolver).
  */
-export function WeddingProgressCard({
-  wedding,
-  places,
-  onPrimaryAction,
-}: Props) {
+export function WeddingProgressCard({ wedding, places }: Props) {
   const { data: preWeddingQ } = useQuery({
     queryKey: ['prewedding-questionnaire', wedding.id],
     queryFn: () => weddingQuestionnaireService.getByWeddingId(wedding.id),
@@ -93,17 +88,6 @@ export function WeddingProgressCard({
         <h2 id="wedding-progress-title" className={styles.sectionHeading}>
           Postęp zlecenia
         </h2>
-        {summary.primaryAction && onPrimaryAction ? (
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            data-testid="progress-primary-action"
-            onClick={() => onPrimaryAction(summary.primaryAction!.id)}
-          >
-            {summary.primaryAction.label}
-          </Button>
-        ) : null}
       </div>
 
       <div className={styles.progressGroups}>

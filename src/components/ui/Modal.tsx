@@ -3,7 +3,10 @@ import { IconClose } from '@/components/icons'
 import { Backdrop } from '@/components/ui/Backdrop'
 import { Button } from '@/components/ui/Button'
 import { ModalPortal } from '@/components/ui/ModalPortal'
-import { useOverlay } from '@/components/ui/overlay/useOverlay'
+import {
+  useOverlay,
+  type OverlayInitialFocus,
+} from '@/components/ui/overlay/useOverlay'
 import styles from './Modal.module.css'
 
 interface ModalProps {
@@ -34,6 +37,12 @@ interface ModalProps {
   statusBadge?: ReactNode
   /** Optional actions in the header (right of title, left of close). */
   headerActions?: ReactNode
+  /**
+   * Initial focus when the dialog opens.
+   * Default `first` preserves existing modal behavior.
+   * Use `panel` for calm mobile sheets (no keyboard on open).
+   */
+  initialFocus?: OverlayInitialFocus
 }
 
 /**
@@ -57,13 +66,14 @@ export function Modal({
   secondaryAction,
   statusBadge,
   headerActions,
+  initialFocus = 'first',
 }: ModalProps) {
   const titleId = useId()
   const descId = useId()
   const panelRef = useRef<HTMLDivElement>(null)
   const isDocument = size === 'document'
 
-  useOverlay({ open, onClose, busy, panelRef })
+  useOverlay({ open, onClose, busy, panelRef, initialFocus })
 
   if (!open) return null
 
@@ -86,6 +96,7 @@ export function Modal({
           aria-modal="true"
           aria-labelledby={titleId}
           aria-describedby={description ? descId : undefined}
+          tabIndex={-1}
         >
           <div className={styles.handle} aria-hidden />
           <header className={`${styles.header} ${isDocument ? styles.documentHeader : ''}`.trim()}>

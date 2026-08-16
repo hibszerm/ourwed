@@ -16,7 +16,8 @@ export interface DashboardV2FocusAction {
   title: string
   priority: 'high' | 'medium' | 'low'
   timeLabel: string
-  weddingId: string
+  /** Null/empty when task is unlinked (Phase 1D.1+). */
+  weddingId: string | null
   weddingLabel: string
   href: string
 }
@@ -142,15 +143,19 @@ export function buildDashboardV2Model(input: {
   const focusCandidates: DashboardV2FocusAction[] = []
 
   for (const task of todayTasks.filter((t) => !t.completed)) {
-    const w = byId.get(task.weddingId)
+    const w = task.weddingId ? byId.get(task.weddingId) : undefined
     focusCandidates.push({
       id: task.id,
       title: task.title,
       priority: task.priority ?? 'medium',
       timeLabel: task.dueDate === today ? 'Dziś' : formatRelativeDay(task.dueDate),
       weddingId: task.weddingId,
-      weddingLabel: w ? weddingLabel(w) : 'Ślub',
-      href: `/sluby/${task.weddingId}`,
+      weddingLabel: w
+        ? weddingLabel(w)
+        : task.weddingId
+          ? 'Ślub'
+          : 'Bez zlecenia',
+      href: task.weddingId ? `/sluby/${task.weddingId}` : '/dashboard',
     })
   }
 

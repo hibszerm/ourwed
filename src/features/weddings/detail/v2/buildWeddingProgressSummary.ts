@@ -1,6 +1,11 @@
 /**
  * Derived Wedding Overview progress — presentation only.
  * Domains: Umowa + Przygotowania (payments live in the financial band).
+ *
+ * Phase 1B: Overview primary CTA uses `resolveWeddingNextAction` via
+ * WeddingNextActionCard. `pickPrimaryAction` / `primaryAction` are LEGACY —
+ * not the live Overview CTA source; kept for progress-summary consumers/tests.
+ * Shared proximity window constant: PRE_WEDDING_PREP_WINDOW_DAYS (21).
  */
 import { getCountdownParts } from '@/lib/utils/dates'
 import type { WeddingPlace } from '@/types/travel'
@@ -258,6 +263,7 @@ function applyEmphasis(
   })
 }
 
+/** @deprecated Phase 1B — Overview CTA uses resolveWeddingNextAction. Kept for summary field/tests. */
 function pickPrimaryAction(
   wedding: Wedding,
   proximity: 'far' | 'near' | 'past',

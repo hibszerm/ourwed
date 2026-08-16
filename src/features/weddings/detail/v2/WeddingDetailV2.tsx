@@ -1,5 +1,5 @@
-import { useCallback, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useCallback, useMemo, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
 import { calendarIntegrationQueryKeys } from '@/features/calendar-integrations/queryKeys'
@@ -14,6 +14,7 @@ import { WeddingOverviewWorkspace } from '@/features/weddings/detail/v2/WeddingO
 import { WeddingWorkspaceEditSurface } from '@/features/weddings/detail/v2/WeddingWorkspaceEditSurface'
 import { WeddingWorkspaceHeader } from '@/features/weddings/detail/v2/WeddingWorkspaceHeader'
 import { WeddingWorkspaceTabs } from '@/features/weddings/detail/v2/WeddingWorkspaceTabs'
+import type { WeddingNextActionHandlers } from '@/features/weddings/detail/v2/dispatchWeddingNextAction'
 import type {
   WeddingDetailSharedProps,
   WeddingWorkspaceTab,
@@ -63,6 +64,7 @@ export function WeddingDetailV2(props: WeddingDetailSharedProps) {
   } = props
 
   const userId = useStudioAuthId()
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [searchParams] = useSearchParams()
   const [tab, setTabState] = useState<WeddingWorkspaceTab>(() =>
@@ -80,6 +82,42 @@ export function WeddingDetailV2(props: WeddingDetailSharedProps) {
     queryFn: () => weddingPlaceService.listByWeddingId(wedding.id),
     enabled: Boolean(userId && wedding.id),
   })
+
+  const nextActionHandlers = useMemo<WeddingNextActionHandlers>(
+    () => ({
+      sendContractQuestionnaire: () => {
+        onSendQuestionnaire?.('contractData')
+      },
+      generateContract: () => {
+        onHeroAction('generate_contract')
+      },
+      openContractFinance: () => {
+        setTab('contract_finance')
+      },
+      recordDeposit: () => {
+        onHeroAction('add_deposit')
+      },
+      openPreWedding: () => {
+        setTab('pre_wedding_questionnaire')
+      },
+      editLocations: () => {
+        if (onEditSection) onEditSection('locations')
+        else onRequestVerifyLocations()
+      },
+      openCockpit: () => {
+        void navigate(`/sluby/${wedding.id}/dzien-slubu`)
+      },
+    }),
+    [
+      navigate,
+      onEditSection,
+      onHeroAction,
+      onRequestVerifyLocations,
+      onSendQuestionnaire,
+      setTab,
+      wedding.id,
+    ],
+  )
 
   const band = getOverviewBand(wedding)
   const feed = buildActivityFeed({
@@ -129,12 +167,7 @@ export function WeddingDetailV2(props: WeddingDetailSharedProps) {
             <WeddingOverviewWorkspace
               wedding={wedding}
               places={places}
-              onSendQuestionnaire={
-                onSendQuestionnaire
-                  ? () => onSendQuestionnaire('contractData')
-                  : undefined
-              }
-              onOpenPreWeddingTab={() => setTab('pre_wedding_questionnaire')}
+              nextActionHandlers={nextActionHandlers}
               onOpenFinanceTab={() => setTab('contract_finance')}
               onEditLocations={() => {
                 if (onEditSection) onEditSection('locations')
@@ -216,7 +249,15 @@ export function WeddingDetailV2(props: WeddingDetailSharedProps) {
           ) : null}
 
           {tab === 'activity' ? (
-            <WeddingActivityWorkspace feed={feed} />
+            <WeddingActivityWorkspace
+              feed={feed}
+              onEditTasks={
+                onEditSection ? () => onEditSection('tasks') : undefined
+              }
+              onEditNotes={
+                onEditSection ? () => onEditSection('notes') : undefined
+              }
+            />
           ) : null}
         </div>
       </div>

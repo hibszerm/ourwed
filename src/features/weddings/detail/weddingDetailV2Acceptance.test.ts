@@ -215,6 +215,7 @@ run('10–11. Overview shows Postęp zlecenia + full-width essentials (no sideba
     'utf8',
   )
   assert(overview.includes('WeddingProgressCard'), 'progress card')
+  assert(overview.includes('WeddingNextActionCard'), 'next action card')
   assert(overview.includes('WeddingOverviewEssentials'), 'essentials grid')
   assert(overview.includes('WeddingOverviewAttention'), 'optional attention')
   assert(!overview.includes('WeddingOverviewCurrentState'), 'no current-state cards')
@@ -222,15 +223,8 @@ run('10–11. Overview shows Postęp zlecenia + full-width essentials (no sideba
   assert(!overview.includes('Ostatnia aktywność'), 'no activity title')
   assert(!overview.includes('WeddingMilestoneRail'), 'no milestone rail')
   assert(!overview.includes('WeddingAssignmentStatus'), 'no legacy status name')
-  assert(!overview.includes('WeddingNextAction'), 'no next action')
   assert(!overview.includes('WeddingIssuesSummary'), 'no issues')
   assert(!overview.includes('Gotowość umowy'), 'no readiness title')
-
-  const shell = readFileSync(resolve(v2Root, 'WeddingDetailV2.tsx'), 'utf8')
-  assert(!shell.includes('WeddingContextSidebar'), 'sidebar removed from shell')
-  assert(!shell.includes('WeddingManagementSection'), 'management removed from shell')
-  assert(!shell.includes('overviewLayout'), 'no sidebar layout wrapper')
-  assert(shell.includes('WeddingHeaderActions') || shell.includes('WeddingWorkspaceHeader'), 'header actions path')
 
   const progress = readFileSync(
     resolve(v2Root, 'WeddingProgressCard.tsx'),
@@ -240,9 +234,33 @@ run('10–11. Overview shows Postęp zlecenia + full-width essentials (no sideba
   assert(progress.includes('buildWeddingProgressSummary'), 'selector')
   assert(!progress.includes('bez ręcznego ustawiania'), 'no intro copy')
   assert(!progress.includes('Przejdź do płatności'), 'no payment CTA')
+  assert(!progress.includes('onPrimaryAction'), 'no primary CTA on progress')
+  assert(!progress.includes('summary.primaryAction'), 'progress ignores primaryAction')
   assert(!progress.includes("'Ukończone'"), 'no complete badge label')
   assert(progress.includes('activeToneLabel'), 'active badges only')
   assert(!progress.includes('type="checkbox"'), 'no manual toggles')
+
+  const nextAction = readFileSync(
+    resolve(v2Root, 'WeddingNextActionCard.tsx'),
+    'utf8',
+  )
+  assert(nextAction.includes('resolveWeddingNextAction'), 'shared resolver')
+  assert(nextAction.includes('dispatchWeddingNextAction'), 'UI adapter')
+  assert(nextAction.includes('Następny krok'), 'next action heading')
+  assert(!nextAction.includes('pickPrimaryAction'), 'no legacy pickPrimaryAction')
+  assert(nextAction.includes('if (!action) return null'), 'null omits card')
+
+  const shell = readFileSync(resolve(v2Root, 'WeddingDetailV2.tsx'), 'utf8')
+  assert(shell.includes('nextActionHandlers'), 'handlers wired')
+  assert(shell.includes("onHeroAction('generate_contract')"), 'generate destination')
+  assert(shell.includes("onHeroAction('add_deposit')"), 'deposit destination')
+  assert(shell.includes("setTab('pre_wedding_questionnaire')"), 'ankieta destination')
+  assert(shell.includes('dzien-slubu'), 'cockpit destination')
+  assert(shell.includes("onSendQuestionnaire?.('contractData')"), 'contract Q send')
+  assert(!shell.includes('WeddingContextSidebar'), 'sidebar removed from shell')
+  assert(!shell.includes('WeddingManagementSection'), 'management removed from shell')
+  assert(!shell.includes('overviewLayout'), 'no sidebar layout wrapper')
+  assert(shell.includes('WeddingHeaderActions') || shell.includes('WeddingWorkspaceHeader'), 'header actions path')
 
   const essentials = readFileSync(
     resolve(v2Root, 'WeddingOverviewEssentials.tsx'),
@@ -354,18 +372,28 @@ run('10b. History tab is a pure chronological event log', () => {
   assert(activity.includes('Zadania'), 'filter tasks')
   assert(activity.includes('Ankiety'), 'filter questionnaires')
   assert(activity.includes('Zmiany systemowe'), 'filter system')
-  assert(!activity.includes('Dodaj notatkę'), 'no add note')
-  assert(!activity.includes('Edytuj notatki'), 'no edit notes')
-  assert(!activity.includes('Edytuj zadania'), 'no edit tasks')
+  assert(activity.includes('history-edit-tasks'), 'tasks entry')
+  assert(activity.includes('history-edit-notes'), 'notes entry')
+  assert(activity.includes('Edytuj zadania'), 'tasks CTA copy')
+  assert(activity.includes('Edytuj notatki'), 'notes CTA copy')
+  assert(activity.includes('onEditTasks'), 'tasks callback')
+  assert(activity.includes('onEditNotes'), 'notes callback')
   assert(!activity.includes('Wyślij ankietę'), 'no send questionnaire')
   assert(!activity.includes('activitySummaries'), 'no summaries')
   assert(!activity.includes('Ankieta do umowy'), 'no questionnaire summary')
   assert(!activity.includes('Brak zadań'), 'no task summary')
-  assert(!activity.includes('onAddNote'), 'no note prop')
-  assert(!activity.includes('onEditTasks'), 'no task prop')
+  assert(!activity.includes('onAddNote'), 'no legacy note modal prop')
   assert(!activity.includes('onSendQuestionnaire'), 'no questionnaire prop')
-})
 
+  assert(
+    shell.includes("onEditSection('tasks')"),
+    'shell wires tasks editor',
+  )
+  assert(
+    shell.includes("onEditSection('notes')"),
+    'shell wires notes editor',
+  )
+})
 
 run('10c. Header exposes entity + business badges only', () => {
   const header = readFileSync(resolve(v2Root, 'WeddingWorkspaceHeader.tsx'), 'utf8')

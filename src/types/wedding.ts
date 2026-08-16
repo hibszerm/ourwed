@@ -402,10 +402,17 @@ export type WeddingUpdateOptions = {
 
 export interface Task {
   id: string
-  weddingId: string
+  /**
+   * Optional wedding association.
+   * `null` = studio-wide unlinked task (Phase 1D.1+).
+   * Ownership is always via DB `user_id`, not this field.
+   */
+  weddingId: string | null
   title: string
+  /** Empty string = no due date (never invent created_at). */
   dueDate: string
   completed: boolean
+  /** Display-only — not persisted. */
   priority: 'low' | 'medium' | 'high'
 }
 

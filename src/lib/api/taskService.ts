@@ -1,4 +1,4 @@
-import { listOwnedWeddingIds } from '@/lib/api/ownership'
+import { resolveStudioUserId } from '@/lib/api/studioUser'
 import { supabase } from '@/lib/supabase'
 import { throwOnError, toDateString } from '@/lib/supabase/helpers'
 import type { Task } from '@/types/wedding'
@@ -7,7 +7,8 @@ type TaskStatus = 'todo' | 'in_progress' | 'done' | 'cancelled'
 
 interface TaskRow {
   id: string
-  wedding_id: string
+  user_id: string
+  wedding_id: string | null
   title: string
   description: string | null
   status: string
@@ -15,7 +16,6 @@ interface TaskRow {
   completed_at: string | null
   created_at: string
 }
-
 
 function isTaskStatus(value: string): value is TaskStatus {
   return (
@@ -31,19 +31,56 @@ export function mapTaskRowToModel(row: TaskRow): Task {
   const status = isTaskStatus(row.status) ? row.status : 'todo'
   return {
     id: row.id,
-    weddingId: row.wedding_id,
+    weddingId: row.wedding_id ?? null,
     title: row.title,
-    dueDate: toDateString(row.due_date) || toDateString(row.created_at),
+    // Empty string = no due date. Never invent created_at as a fake deadline.
+    dueDate: toDateString(row.due_date) || '',
     completed: status === 'done',
+    // Priority is not persisted — display default only.
     priority: 'medium',
   }
 }
 
+/**
+ * Studio / Tasks Center read DTO — includes status timestamps for grouping.
+ * Does not expose display-only priority.
+ */
+export interface StudioTask {
+  id: string
+  title: string
+  weddingId: string | null
+  /** Empty string = no due date. */
+  dueDate: string
+  status: TaskStatus
+  createdAt: string
+  completedAt: string | null
+  completed: boolean
+}
+
+export function mapTaskRowToStudioTask(row: TaskRow): StudioTask {
+  const status = isTaskStatus(row.status) ? row.status : 'todo'
+  return {
+    id: row.id,
+    title: row.title,
+    weddingId: row.wedding_id ?? null,
+    dueDate: toDateString(row.due_date) || '',
+    status,
+    createdAt: row.created_at,
+    completedAt: row.completed_at,
+    completed: status === 'done',
+  }
+}
+
 export interface CreateTaskInput {
-  weddingId: string
   title: string
   description?: string
-  dueDate?: string
+  dueDate?: string | null
+  /**
+   * Optional wedding association.
+   * Omit / null / undefined → unlinked studio task.
+   * Caller cannot choose owner — always current studio user.
+   */
+  weddingId?: string | null
   status?: TaskStatus
 }
 
@@ -52,16 +89,22 @@ export interface UpdateTaskInput {
   description?: string | null
   dueDate?: string | null
   status?: TaskStatus
+  /** Optional reassignment; RLS rejects other users' weddings. */
+  weddingId?: string | null
 }
 
 /**
  * Tasks data layer — `public.tasks` only.
+ * Ownership: DB `user_id` (= auth.uid / resolveStudioUserId).
+ * Association: optional `wedding_id`.
  */
 export const taskService = {
   async listByWeddingId(weddingId: string): Promise<Task[]> {
+    const userId = await resolveStudioUserId()
     const { data, error } = await supabase
       .from('tasks')
       .select('*')
+      .eq('user_id', userId)
       .eq('wedding_id', weddingId)
       .order('due_date', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: true })
@@ -71,32 +114,68 @@ export const taskService = {
     return ((data ?? []) as TaskRow[]).map(mapTaskRowToModel)
   },
 
-  async listAll(): Promise<Task[]> {
-    const weddingIds = await listOwnedWeddingIds()
-    if (weddingIds.length === 0) return []
-
+  /**
+   * Owner-scoped studio-wide list (linked + unlinked).
+   * Task rows only — no wedding hydration (Center enriches labels separately).
+   */
+  async listForStudio(): Promise<StudioTask[]> {
+    const userId = await resolveStudioUserId()
     const { data, error } = await supabase
       .from('tasks')
       .select('*')
-      .in('wedding_id', weddingIds)
+      .eq('user_id', userId)
       .order('due_date', { ascending: true, nullsFirst: false })
+      .order('created_at', { ascending: true })
+
+    throwOnError(error)
+
+    return ((data ?? []) as TaskRow[]).map(mapTaskRowToStudioTask)
+  },
+
+  /**
+   * @deprecated Prefer listForStudio(). Kept as owner-scoped alias — no longer
+   * fans out via wedding IDs only (would miss unlinked tasks).
+   */
+  async listAll(): Promise<StudioTask[]> {
+    return this.listForStudio()
+  },
+
+  /**
+   * Exact calendar-day due tasks (owner-scoped, linked + unlinked).
+   * Active statuses only — done/cancelled never returned.
+   */
+  async listDueOn(date: string): Promise<Task[]> {
+    const userId = await resolveStudioUserId()
+    const day = date.slice(0, 10)
+    const { data, error } = await supabase
+      .from('tasks')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('due_date', day)
+      .in('status', ['todo', 'in_progress'])
+      .order('created_at', { ascending: true })
 
     throwOnError(error)
 
     return ((data ?? []) as TaskRow[]).map(mapTaskRowToModel)
   },
 
-  async listDueOn(date: string): Promise<Task[]> {
-    const weddingIds = await listOwnedWeddingIds()
-    if (weddingIds.length === 0) return []
-
+  /**
+   * Dashboard Dzisiaj: incomplete manual tasks due on or before local today.
+   * Overdue + today. Excludes future, undated, done, cancelled.
+   * Owner-scoped; no wedding hydration.
+   */
+  async listDueThrough(date: string): Promise<Task[]> {
+    const userId = await resolveStudioUserId()
     const day = date.slice(0, 10)
     const { data, error } = await supabase
       .from('tasks')
       .select('*')
-      .in('wedding_id', weddingIds)
-      .eq('due_date', day)
-      .neq('status', 'cancelled')
+      .eq('user_id', userId)
+      .not('due_date', 'is', null)
+      .lte('due_date', day)
+      .in('status', ['todo', 'in_progress'])
+      .order('due_date', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: true })
 
     throwOnError(error)
@@ -108,10 +187,17 @@ export const taskService = {
     const title = input.title.trim()
     if (!title) throw new Error('Tytuł zadania nie może być pusty.')
 
+    const userId = await resolveStudioUserId()
+    const weddingId =
+      input.weddingId && input.weddingId.trim()
+        ? input.weddingId.trim()
+        : null
+
     const { data, error } = await supabase
       .from('tasks')
       .insert({
-        wedding_id: input.weddingId,
+        user_id: userId,
+        wedding_id: weddingId,
         title,
         description: input.description?.trim() || null,
         status: input.status ?? 'todo',
@@ -142,6 +228,12 @@ export const taskService = {
     if (input.dueDate !== undefined) {
       patch.due_date = input.dueDate ? input.dueDate.slice(0, 10) : null
     }
+    if (input.weddingId !== undefined) {
+      patch.wedding_id =
+        input.weddingId && input.weddingId.trim()
+          ? input.weddingId.trim()
+          : null
+    }
     if (input.status !== undefined) {
       patch.status = input.status
       patch.completed_at =
@@ -168,8 +260,15 @@ export const taskService = {
     return this.update(id, { status: 'done' })
   },
 
+  async reopen(id: string): Promise<Task> {
+    return this.update(id, { status: 'todo' })
+  },
+
   async delete(id: string): Promise<void> {
     const { error } = await supabase.from('tasks').delete().eq('id', id)
     throwOnError(error)
   },
 }
+
+/** React Query root for task domain consumers (Center / Dashboard / Detail). */
+export const TASKS_QUERY_ROOT = 'tasks' as const

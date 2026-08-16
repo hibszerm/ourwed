@@ -2,7 +2,6 @@ import { useMemo } from 'react'
 import { AppLayout } from '@/layouts/AppLayout'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { EmptyState } from '@/components/ui/EmptyState'
-import { useDashboard } from '@/features/dashboard/hooks/useDashboard'
 import { useDashboardAssignments } from '@/features/dashboard/hooks/useDashboardAssignments'
 import { DashboardHero } from '@/features/dashboard/components/DashboardHero'
 import { NextAssignmentCard } from '@/features/dashboard/components/NextWeddingCard'
@@ -20,7 +19,6 @@ import styles from './DashboardPage.module.css'
 import { useCurrentStudioUser } from '@/features/auth/useCurrentStudioUser'
 
 export function DashboardPage() {
-  const { data } = useDashboard()
   const {
     data: assignmentLists,
     isLoading: assignmentsLoading,
@@ -94,10 +92,7 @@ export function DashboardPage() {
           <div className={styles.grid}>
             <div className={styles.primary}>
               <PendingWeddingsCard />
-              <TodoTodayCard
-                tasks={data?.todayTasks ?? []}
-                weddings={weddings}
-              />
+              <TodoTodayCard weddings={weddings} />
             </div>
             <div className={styles.secondary}>
               <NotificationsCard />

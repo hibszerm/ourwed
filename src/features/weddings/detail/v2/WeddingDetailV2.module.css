@@ -590,6 +590,42 @@ a.contactChannelValue:hover {
   width: 100%;
 }
 
+/* ── Następny krok (shared resolveWeddingNextAction) ─ */
+
+.nextActionCard {
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  background: color-mix(in srgb, var(--color-surface) 92%, var(--color-bg));
+}
+
+.nextActionHeader {
+  margin-bottom: var(--space-2);
+}
+
+.nextActionTitle {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: 650;
+  color: var(--color-text-primary);
+  line-height: var(--leading-normal);
+}
+
+.nextActionDescription {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  line-height: var(--leading-normal);
+}
+
+.nextActionCta {
+  margin-top: var(--space-3);
+}
+
+.nextActionCta :global(button) {
+  min-height: 44px;
+}
+
 /* ── Postęp zlecenia ──────────────────────────────── */
 
 .progressCard {
@@ -1512,8 +1548,26 @@ a.contactChannelValue:hover {
   max-width: 760px;
 }
 
+.activityHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
 .activityWorkspace .sectionHeading {
   margin-bottom: 0;
+}
+
+.activityActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.activityActions :global(button) {
+  min-height: 44px;
 }
 
 .activityFilters {

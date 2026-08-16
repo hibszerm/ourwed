@@ -26,6 +26,8 @@ function hasNestedFieldOverlayOpen(): boolean {
   )
 }
 
+export type OverlayInitialFocus = 'first' | 'panel'
+
 interface UseOverlayOptions {
   open: boolean
   onClose: () => void
@@ -35,6 +37,12 @@ interface UseOverlayOptions {
   panelRef: RefObject<HTMLElement | null>
   /** Close on Escape (default true). */
   closeOnEscape?: boolean
+  /**
+   * Where to place focus when the overlay opens.
+   * - `first` (default): `data-autofocus` target, else first focusable
+   * - `panel`: dialog container (no input keyboard on mobile open)
+   */
+  initialFocus?: OverlayInitialFocus
 }
 
 /**
@@ -46,6 +54,7 @@ export function useOverlay({
   busy = false,
   panelRef,
   closeOnEscape = true,
+  initialFocus = 'first',
 }: UseOverlayOptions): void {
   const previouslyFocused = useRef<HTMLElement | null>(null)
   const onCloseRef = useRef(onClose)
@@ -63,9 +72,13 @@ export function useOverlay({
 
     const panel = panelRef.current
     const focusables = panel ? getFocusable(panel) : []
+    const marked = focusables.find(
+      (el) => el.getAttribute('data-autofocus') === 'true',
+    )
     const initial =
-      focusables.find((el) => el.getAttribute('data-autofocus') === 'true') ??
-      focusables[0]
+      initialFocus === 'panel'
+        ? panel
+        : (marked ?? focusables[0] ?? panel)
     // Defer so portal content is mounted.
     const focusId = window.requestAnimationFrame(() => {
       initial?.focus()
@@ -110,5 +123,5 @@ export function useOverlay({
       setAppInert(false)
       previouslyFocused.current?.focus?.()
     }
-  }, [open, busy, closeOnEscape, panelRef])
+  }, [open, busy, closeOnEscape, panelRef, initialFocus])
 }

@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react'
+import { Button } from '@/components/ui/Button'
 import { formatShortDate } from '@/lib/utils/dates'
 import type {
   ActivityFeedItem,
   ActivityFilter,
 } from '@/features/weddings/detail/v2/weddingDetailV2Types'
+import { useMemo, useState } from 'react'
 import styles from './WeddingDetailV2.module.css'
 
 const FILTERS: Array<{ id: ActivityFilter; label: string }> = [
@@ -16,13 +17,19 @@ const FILTERS: Array<{ id: ActivityFilter; label: string }> = [
 
 interface Props {
   feed: ActivityFeedItem[]
+  onEditTasks?: () => void
+  onEditNotes?: () => void
 }
 
 /**
- * Historia — chronological event log only.
- * Current-state summaries and operational actions live on Overview.
+ * Historia — chronological event log + entry to Tasks/Notes drawer CRUD.
+ * Current-state summaries and Next Action live on Overview.
  */
-export function WeddingActivityWorkspace({ feed }: Props) {
+export function WeddingActivityWorkspace({
+  feed,
+  onEditTasks,
+  onEditNotes,
+}: Props) {
   const [filter, setFilter] = useState<ActivityFilter>('all')
   const filtered = useMemo(
     () =>
@@ -30,12 +37,45 @@ export function WeddingActivityWorkspace({ feed }: Props) {
     [feed, filter],
   )
 
+  const showTaskActions =
+    Boolean(onEditTasks) && (filter === 'all' || filter === 'tasks')
+  const showNoteActions =
+    Boolean(onEditNotes) && (filter === 'all' || filter === 'notes')
+
   return (
     <div
       className={styles.activityWorkspace}
       data-testid="wedding-activity-workspace"
     >
-      <h2 className={styles.sectionHeading}>Historia</h2>
+      <div className={styles.activityHeader}>
+        <h2 className={styles.sectionHeading}>Historia</h2>
+        {showTaskActions || showNoteActions ? (
+          <div className={styles.activityActions} data-testid="history-crud-actions">
+            {showTaskActions ? (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                data-testid="history-edit-tasks"
+                onClick={onEditTasks}
+              >
+                Edytuj zadania
+              </Button>
+            ) : null}
+            {showNoteActions ? (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                data-testid="history-edit-notes"
+                onClick={onEditNotes}
+              >
+                Edytuj notatki
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
 
       <div
         className={styles.activityFilters}

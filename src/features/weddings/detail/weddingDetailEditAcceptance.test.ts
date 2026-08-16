@@ -170,6 +170,13 @@ run('7. Overview / day Edytuj call onEditSection (per-role day)', () => {
   )
   assert(day.includes('onEditLocationRole'), 'per-role edit')
   assert(day.includes('Edytuj'), 'day edit label')
+
+  const shell = readFileSync(v2, 'utf8')
+  assert(shell.includes("onEditSection('tasks')"), 'Historia→tasks')
+  assert(shell.includes("onEditSection('notes')"), 'Historia→notes')
+  const surface = readFileSync(editSurface, 'utf8')
+  assert(surface.includes('TaskFields'), 'TaskFields in surface')
+  assert(surface.includes('NoteFields'), 'NoteFields in surface')
 })
 
 run('8. Cancel clears editor; save uses persistWeddingEditDraft', () => {

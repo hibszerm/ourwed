@@ -1,3 +1,5 @@
+import { WeddingNextActionCard } from '@/features/weddings/detail/v2/WeddingNextActionCard'
+import type { WeddingNextActionHandlers } from '@/features/weddings/detail/v2/dispatchWeddingNextAction'
 import { WeddingOverviewAttention } from '@/features/weddings/detail/v2/WeddingOverviewAttention'
 import { WeddingOverviewEssentials } from '@/features/weddings/detail/v2/WeddingOverviewEssentials'
 import { WeddingProgressCard } from '@/features/weddings/detail/v2/WeddingProgressCard'
@@ -8,8 +10,7 @@ import styles from './WeddingDetailV2.module.css'
 interface WeddingOverviewWorkspaceProps {
   wedding: Wedding
   places: WeddingPlace[]
-  onSendQuestionnaire?: () => void
-  onOpenPreWeddingTab?: () => void
+  nextActionHandlers: WeddingNextActionHandlers
   onOpenFinanceTab?: () => void
   onEditLocations: () => void
   onEditContacts?: () => void
@@ -18,14 +19,13 @@ interface WeddingOverviewWorkspaceProps {
 }
 
 /**
- * Calm full-width Overview — progress + essentials only.
- * Detailed questionnaires, history, and admin live in other tabs / header menu.
+ * Calm full-width Overview — Next Action + progress + essentials + Attention.
+ * Next Action uses shared resolveWeddingNextAction (Phase 1B).
  */
 export function WeddingOverviewWorkspace({
   wedding,
   places,
-  onSendQuestionnaire,
-  onOpenPreWeddingTab,
+  nextActionHandlers,
   onOpenFinanceTab,
   onEditLocations,
   onEditContacts,
@@ -37,19 +37,13 @@ export function WeddingOverviewWorkspace({
       className={styles.overviewMain}
       data-testid="wedding-overview-workspace"
     >
-      <WeddingProgressCard
+      <WeddingNextActionCard
         wedding={wedding}
         places={places}
-        onPrimaryAction={(actionId) => {
-          if (actionId === 'send_prewedding' || actionId === 'open_prewedding') {
-            onOpenPreWeddingTab?.()
-            return
-          }
-          if (actionId === 'send_contract_questionnaire') {
-            onSendQuestionnaire?.()
-          }
-        }}
+        handlers={nextActionHandlers}
       />
+
+      <WeddingProgressCard wedding={wedding} places={places} />
 
       <WeddingOverviewEssentials
         wedding={wedding}

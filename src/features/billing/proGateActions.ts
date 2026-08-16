@@ -20,6 +20,8 @@ export type ProGateActionKey =
   | 'generate_contract_pdf'
   | 'edit_package'
   | 'connect_integration'
+  | 'create_task'
+  | 'edit_task'
   | 'generic'
 
 export const PRO_LOCKED_HINT = 'Dostępne w planie PRO'
@@ -47,6 +49,8 @@ const ACTION_CONTEXT: Partial<Record<ProGateActionKey, string>> = {
   generate_contract_pdf: 'Generowanie PDF umowy wymaga aktywnego PRO.',
   edit_package: 'Zmiany w pakietach i usługach wymagają aktywnego PRO.',
   connect_integration: 'Zarządzanie integracjami wymaga aktywnego PRO.',
+  create_task: 'Dodawanie zadań wymaga aktywnego PRO.',
+  edit_task: 'Edycja i usuwanie zadań wymaga aktywnego PRO.',
 }
 
 export function getProGateActionContext(

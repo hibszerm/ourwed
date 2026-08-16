@@ -10,6 +10,7 @@ import {
   IconInbox,
   IconSessions,
   IconSettings,
+  IconTasks,
   IconWeddings,
 } from '@/components/icons'
 import { useAuth } from '@/features/auth/AuthProvider'
@@ -27,6 +28,7 @@ const navItems = [
   { to: '/sluby', label: 'Śluby', icon: IconWeddings },
   { to: '/sesje', label: 'Sesje', icon: IconSessions },
   { to: '/kalendarz', label: 'Kalendarz', icon: IconCalendar },
+  { to: '/zadania', label: 'Zadania', icon: IconTasks, end: true },
   { to: '/oczekujace', label: 'Oczekujące', icon: IconInbox },
 ]
 

@@ -248,19 +248,34 @@ export async function persistWeddingEditDraft(
     if (!draftTaskIds.has(id)) await taskService.delete(id)
   }
   for (const task of draft.tasks) {
+    const dueDate = task.dueDate?.trim() ? task.dueDate.slice(0, 10) : null
     if (isTempId(task.id)) {
       await taskService.create({
         weddingId,
         title: task.title,
-        dueDate: task.dueDate,
+        dueDate: dueDate ?? undefined,
         status: task.completed ? 'done' : 'todo',
       })
     } else {
-      await taskService.update(task.id, {
+      const orig = original.tasks.find((t) => t.id === task.id)
+      const patch: {
+        title: string
+        dueDate: string | null
+        status?: 'todo' | 'done'
+      } = {
         title: task.title,
-        dueDate: task.dueDate,
-        status: task.completed ? 'done' : 'todo',
-      })
+        dueDate,
+      }
+      // Preserve richer DB statuses (in_progress / cancelled) unless the
+      // done/not-done checkbox actually changed.
+      if (orig) {
+        if (task.completed && !orig.completed) patch.status = 'done'
+        else if (!task.completed && orig.completed) patch.status = 'todo'
+      } else {
+        patch.status = task.completed ? 'done' : 'todo'
+      }
+      // description is intentionally omitted — partial update preserves DB value.
+      await taskService.update(task.id, patch)
     }
   }
 

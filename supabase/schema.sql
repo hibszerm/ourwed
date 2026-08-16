@@ -265,7 +265,8 @@ create index timeline_events_created_by_idx on public.timeline_events (created_b
 
 create table public.tasks (
   id uuid primary key default gen_random_uuid(),
-  wedding_id uuid not null references public.weddings (id) on delete cascade,
+  user_id uuid not null references public.users (id) on delete cascade,
+  wedding_id uuid references public.weddings (id) on delete cascade,
   title text not null,
   description text,
   status text not null default 'todo'
@@ -276,11 +277,21 @@ create table public.tasks (
 );
 
 comment on table public.tasks is
-  'Operational to-dos scoped to a single wedding.';
+  'Manual studio to-dos. Owned by user_id; optionally linked to a wedding.';
+
+comment on column public.tasks.user_id is
+  'Studio owner (public.users.id = auth.uid()). Required for linked and unlinked tasks.';
+
+comment on column public.tasks.wedding_id is
+  'Optional wedding association. NULL = studio-wide unlinked task.';
 
 create index tasks_wedding_id_idx on public.tasks (wedding_id);
 create index tasks_status_idx on public.tasks (status);
 create index tasks_due_date_idx on public.tasks (due_date);
+create index tasks_user_id_status_due_date_idx
+  on public.tasks (user_id, status, due_date);
+create index tasks_user_id_wedding_id_idx
+  on public.tasks (user_id, wedding_id);
 
 -- =============================================================================
 -- 8. forms — Form Engine definitions (reusable)
@@ -1007,6 +1018,51 @@ alter table public.session_payments enable row level security;
 alter table public.notes enable row level security;
 alter table public.timeline_events enable row level security;
 alter table public.tasks enable row level security;
+alter table public.tasks force row level security;
+
+-- tasks ownership: user_id = auth.uid(); wedding_id optional + is_wedding_owner when set.
+-- Pro write gate mirrors 20260811230000_pro_mutation_gate + 20260816120000_tasks_global_owner.
+drop policy if exists tasks_select_own on public.tasks;
+create policy tasks_select_own on public.tasks
+  for select to authenticated
+  using (user_id = auth.uid());
+
+drop policy if exists tasks_insert_own on public.tasks;
+create policy tasks_insert_own on public.tasks
+  for insert to authenticated
+  with check (
+    user_id = auth.uid()
+    and public.account_has_pro_access()
+    and (
+      wedding_id is null
+      or public.is_wedding_owner(wedding_id)
+    )
+  );
+
+drop policy if exists tasks_update_own on public.tasks;
+create policy tasks_update_own on public.tasks
+  for update to authenticated
+  using (
+    user_id = auth.uid()
+    and public.account_has_pro_access()
+  )
+  with check (
+    user_id = auth.uid()
+    and public.account_has_pro_access()
+    and (
+      wedding_id is null
+      or public.is_wedding_owner(wedding_id)
+    )
+  );
+
+drop policy if exists tasks_delete_own on public.tasks;
+create policy tasks_delete_own on public.tasks
+  for delete to authenticated
+  using (
+    user_id = auth.uid()
+    and public.account_has_pro_access()
+  );
+
 alter table public.forms enable row level security;
 alter table public.form_instances enable row level security;
 alter table public.form_answers enable row level security;

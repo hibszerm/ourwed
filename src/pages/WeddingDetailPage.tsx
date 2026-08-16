@@ -31,6 +31,7 @@ import {
 import { companyDetailsService } from '@/lib/api/companyDetailsService'
 import { contactService } from '@/lib/api/contactService'
 import { taskService } from '@/lib/api/taskService'
+import { weddingTasksQueryKey } from '@/features/tasks/tasksQueryKeys'
 import { weddingExtraServiceService } from '@/lib/api/weddingExtraServiceService'
 import { weddingService } from '@/lib/api/weddingService'
 import {
@@ -61,7 +62,7 @@ export function WeddingDetailPage() {
   const { data: wedding, isLoading, isError, error, refetch } = useWedding(id ?? '')
 
   const { data: weddingTasks = [] } = useQuery({
-    queryKey: ['tasks', userId, id],
+    queryKey: weddingTasksQueryKey(userId, id ?? ''),
     queryFn: () => taskService.listByWeddingId(id!),
     enabled: Boolean(userId && id),
   })

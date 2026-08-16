@@ -398,6 +398,10 @@ export function canAdvanceStage(wedding: Wedding): boolean {
 // ---------------------------------------------------------------------------
 // Next recommended action
 // ---------------------------------------------------------------------------
+// LEGACY (Phase 1A): stage-gated StageTask pick. Prefer
+// `resolveWeddingNextAction` from `@/lib/workflow/resolveWeddingNextAction`
+// for new consumers. Calendar still uses this until Phase 1E.
+// ---------------------------------------------------------------------------
 
 export function getNextRecommendedAction(wedding: Wedding): RecommendedAction | null {
   const remaining = getRemainingStageTasks(wedding)

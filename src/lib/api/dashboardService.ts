@@ -14,6 +14,7 @@ import { applyWeddingPlaces } from '@/lib/api/weddings/weddingHydrate'
 import { withDevPerf } from '@/lib/performance/devPerf'
 import { supabase } from '@/lib/supabase'
 import { throwOnError } from '@/lib/supabase/helpers'
+import { localCalendarDateKey } from '@/lib/utils/localCalendarDate'
 import type { Session } from '@/types/session'
 import type { Task, Wedding } from '@/types/wedding'
 
@@ -37,19 +38,6 @@ export const DASHBOARD_LIGHT_WEDDING_SELECT =
 /** Explicit session columns — no session_payments hydrate. */
 export const DASHBOARD_LIGHT_SESSION_SELECT =
   'id, user_id, custom_name, primary_first_name, primary_last_name, secondary_first_name, secondary_last_name, session_type, custom_session_type, session_date, start_time, end_time, location_name, location_address, formatted_address, place_id, latitude, longitude, location_source, total_price, deposit_amount, notes, linked_wedding_id, created_at, updated_at'
-
-/** Light active-id query — no wedding hydrate. */
-async function listActiveOwnedWeddingIds(): Promise<Set<string>> {
-  const userId = await resolveStudioUserId()
-  const { data, error } = await supabase
-    .from('weddings')
-    .select('id')
-    .eq('user_id', userId)
-    .eq('status', 'active')
-
-  throwOnError(error)
-  return new Set(((data ?? []) as { id: string }[]).map((r) => r.id))
-}
 
 /**
  * Attach only what Dashboard cards need beyond wedding scalars:
@@ -79,46 +67,15 @@ async function enrichDashboardWeddings(
 
 export const dashboardService = {
   /**
-   * Dashboard-specific aggregates only.
-   * Notifications use dedicated React Query hooks (latest + unread count).
-   * Assignment cards use getAssignmentLists — never the full wedding hydrate path.
+   * Dashboard Dzisiaj card — incomplete manual tasks due on or before endDate.
+   * Overdue + today (+ future through horizon). Excludes undated / done / cancelled.
+   * Owner-scoped; no wedding hydration.
    */
-  async getDashboardData(): Promise<DashboardData> {
+  async getDashboardData(endDate?: string): Promise<DashboardData> {
     return withDevPerf('dashboard.getDashboardData', async () => {
-      const [todayTasks, placesNeedingVerification, activeIds] =
-        await Promise.all([
-          taskService.listDueOn(new Date().toISOString().slice(0, 10)),
-          weddingPlaceService.listNeedingVerification(),
-          listActiveOwnedWeddingIds(),
-        ])
-
-      const today = new Date().toISOString().slice(0, 10)
-
-      const unverifiedByWedding = new Map<string, number>()
-      for (const place of placesNeedingVerification) {
-        unverifiedByWedding.set(
-          place.weddingId,
-          (unverifiedByWedding.get(place.weddingId) ?? 0) + 1,
-        )
-      }
-
-      const locationVerifyTasks: Task[] = [...unverifiedByWedding.entries()]
-        .filter(([weddingId]) => activeIds.has(weddingId))
-        .map(([weddingId, count]) => ({
-          id: `verify-locations-${weddingId}`,
-          weddingId,
-          title:
-            count === 1
-              ? 'Verify wedding locations'
-              : `Verify wedding locations (${count})`,
-          dueDate: today,
-          completed: false,
-          priority: 'high' as const,
-        }))
-
-      return {
-        todayTasks: [...locationVerifyTasks, ...todayTasks],
-      }
+      const through = (endDate ?? localCalendarDateKey()).slice(0, 10)
+      const todayTasks = await taskService.listDueThrough(through)
+      return { todayTasks }
     })
   },
 
