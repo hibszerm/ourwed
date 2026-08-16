@@ -1,7 +1,7 @@
 /**
- * Canonical Wedding business status for Detail header badges.
- * Derived only from contract.status — no manual editing.
- * Dashboard V1 no longer renders this badge (W4.1).
+ * Canonical Wedding business status from contract.status.
+ * Not rendered on Dashboard V1 (W4.1) or Detail header (W4.2).
+ * Kept for tests / any future contract UI that needs the shorthand.
  */
 import type { Wedding } from '@/types/wedding'
 

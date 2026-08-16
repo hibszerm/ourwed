@@ -21,7 +21,7 @@ interface WeddingWorkspaceHeaderProps {
 }
 
 /**
- * Identity header — name, date, location, entity + business badges, overflow.
+ * Identity header — name, date, location, assignment-type badge, overflow.
  */
 export function WeddingWorkspaceHeader({
   wedding,
@@ -30,7 +30,7 @@ export function WeddingWorkspaceHeader({
   onArchive,
   onDelete,
 }: WeddingWorkspaceHeaderProps) {
-  const statusBadges = getHeaderStatusBadges(wedding)
+  const statusBadges = getHeaderStatusBadges()
   const locationSummary = getWeddingPrimaryLocationSummary(wedding, places)
   const venueLine = [locationSummary.displayText, wedding.packageName?.trim()]
     .filter(Boolean)

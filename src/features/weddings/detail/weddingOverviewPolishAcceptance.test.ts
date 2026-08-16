@@ -201,9 +201,14 @@ run('6. Manual contract signing uses canonical status + signed_at', () => {
     'progress signed',
   )
   assertEq(progress.groups.length, 2, 'no payments domain')
+  assertEq(
+    getHeaderStatusBadges().length,
+    1,
+    'header type badge only (W4.2)',
+  )
   assert(
-    getHeaderStatusBadges(signed).some((b) => b.label === 'Umowa'),
-    'header agrees',
+    getHeaderStatusBadges().every((b) => b.label === 'Ślub'),
+    'header Ślub only',
   )
 
   const unsigned = stub({ contract: { status: 'generated' } })

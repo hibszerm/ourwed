@@ -134,13 +134,14 @@ run('9–12. Generation guard + missing dialog on page', () => {
   )
 })
 
-run('13. Business status badge replaces workflow stage pill', () => {
+run('13. Assignment-type badge only — no workflow or business pill (W4.2)', () => {
   const header = readFileSync(
     resolve(v2Root, 'WeddingWorkspaceHeader.tsx'),
     'utf8',
   )
   assert(!header.includes('WorkflowBadge'), 'no workflow stage badge')
-  assert(header.includes('getHeaderStatusBadges'), 'business badges')
+  assert(header.includes('getHeaderStatusBadges'), 'type badge selector')
+  assert(!header.includes('getWeddingBusinessStatus'), 'no business status')
   const band = getOverviewBand(stubWedding())
   assertEq(band.contractValueLabel != null, true, 'band has contract value')
   assert(!('stageLabel' in band), 'band has no stage')

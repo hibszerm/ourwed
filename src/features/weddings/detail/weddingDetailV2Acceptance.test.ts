@@ -395,25 +395,23 @@ run('10b. History tab is a pure chronological event log', () => {
   )
 })
 
-run('10c. Header exposes entity + business badges only', () => {
+run('10c. Header exposes assignment-type badge only (W4.2)', () => {
   const header = readFileSync(resolve(v2Root, 'WeddingWorkspaceHeader.tsx'), 'utf8')
   assert(header.includes('getHeaderStatusBadges'), 'badges selector')
   assert(header.includes('wedding-header-status-badges'), 'testid')
   assert(!header.includes('WorkflowBadge'), 'no workflow stage badge')
-  const signed = getHeaderStatusBadges(
-    stubWedding({ contract: { status: 'signed' } }),
-  )
-  assertEq(signed.length, 2, 'two badges')
+  assert(!header.includes('getWeddingBusinessStatus'), 'no business status helper')
+  const signed = getHeaderStatusBadges()
+  assertEq(signed.length, 1, 'one badge')
   assert(signed.some((b) => b.id === 'entity' && b.label === 'Ślub'), 'entity')
-  assert(signed.some((b) => b.id === 'business' && b.label === 'Umowa'), 'signed')
-  const waiting = getHeaderStatusBadges(
-    stubWedding({ contract: { status: 'generated' } }),
-  )
-  assert(waiting.some((b) => b.label === 'Oczekuje'), 'waiting')
-  const fresh = getHeaderStatusBadges(
-    stubWedding({ contract: { status: 'none' } }),
-  )
-  assert(fresh.some((b) => b.label === 'Nowe'), 'new')
+  assert(!signed.some((b) => b.id === 'business'), 'no business badge')
+  assert(!signed.some((b) => b.label === 'Umowa'), 'no Umowa header badge')
+  const waiting = getHeaderStatusBadges()
+  assertEq(waiting.length, 1, 'waiting still one badge')
+  assert(!waiting.some((b) => b.label === 'Oczekuje'), 'no Oczekuje header badge')
+  const fresh = getHeaderStatusBadges()
+  assertEq(fresh.length, 1, 'fresh still one badge')
+  assert(!fresh.some((b) => b.label === 'Nowe'), 'no Nowe header badge')
   assert(!signed.some((b) => b.label === 'Umowa podpisana'), 'no long signed label')
   assert(!signed.some((b) => b.id === 'countdown'), 'countdown not a badge')
   assert(!signed.some((b) => b.id === 'deposit'), 'no deposit badge')

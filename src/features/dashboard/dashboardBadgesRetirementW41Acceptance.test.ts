@@ -200,13 +200,17 @@ run('7. Dashboard first-paint architecture remains light', () => {
   assert(firstPaint.includes('contractService.listByWeddingIds'), 'batch contracts guarded')
 })
 
-run('8. Detail header business badges unchanged (out of W4.1 scope)', () => {
+run('8. Detail header no longer maps business status (W4.2)', () => {
   const header = src('src/features/weddings/detail/v2/WeddingWorkspaceHeader.tsx')
   const selectors = src(
     'src/features/weddings/detail/v2/weddingWorkspaceSelectors.ts',
   )
-  assert(header.includes('getHeaderStatusBadges'), 'detail still uses badges')
-  assert(selectors.includes('getWeddingBusinessStatus'), 'detail still maps status')
+  assert(header.includes('getHeaderStatusBadges'), 'detail type badge remains')
+  assert(!header.includes('getWeddingBusinessStatus'), 'header no business helper')
+  assert(
+    !selectors.includes('getWeddingBusinessStatus'),
+    'selectors no business helper',
+  )
 })
 
 if (process.exitCode) {

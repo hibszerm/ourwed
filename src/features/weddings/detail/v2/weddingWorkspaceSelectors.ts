@@ -1,6 +1,5 @@
 import { formatDate, getCountdownParts } from '@/lib/utils/dates'
 import { getWeddingDisplayName } from '@/features/weddings/presentation/getWeddingDisplayName'
-import { getWeddingBusinessStatus } from '@/features/weddings/presentation/getWeddingBusinessStatus'
 import {
   formatDeliveryTerm,
   getAgreedDeposit,
@@ -378,19 +377,9 @@ export function getAssignmentStatusItems(
   return items
 }
 
-/** Compact header badges: entity type + business contract status only. */
-export function getHeaderStatusBadges(
-  wedding: Wedding,
-): HeaderStatusBadge[] {
-  const business = getWeddingBusinessStatus(wedding)
-  return [
-    { id: 'entity', label: 'Ślub', tone: 'neutral' },
-    {
-      id: 'business',
-      label: business.label,
-      tone: business.tone === 'ok' ? 'ok' : 'warn',
-    },
-  ]
+/** Compact header badge: assignment type only (W4.2 — no business/lifecycle pill). */
+export function getHeaderStatusBadges(): HeaderStatusBadge[] {
+  return [{ id: 'entity', label: 'Ślub', tone: 'neutral' }]
 }
 
 export function getPackageSummary(wedding: Wedding) {
