@@ -66,7 +66,7 @@ function baseWedding(overrides?: Partial<Wedding>): Wedding {
       city: 'Izdebnik',
     },
     date: '2026-09-12',
-    ceremonyTime: '14:30',
+    ceremonyTime: '16:00',
     packageName: 'Video Standard',
     packageId: 'pkg-1',
     price: 8500,
@@ -249,7 +249,7 @@ run('1. assignment + settlement + contacts from questionnaire', () => {
     'groom phone in contacts',
   )
   assert(data.locations.some((l) => l.name === 'Villa Love'), 'venue')
-  assert(data.timeline.some((t) => t.time === '16:00'), 'ceremony 16:00')
+  assert(data.timeline.some((t) => t.time === '16:00'), 'ceremony 16:00 (canonical)')
   assert(data.timeline.some((t) => t.time === '18:00'), 'reception 18:00')
   assert(data.criticalNotes.length >= 1, 'critical notes present')
   assert(!(data as { questionnaire?: unknown }).questionnaire, 'no questionnaire dump on DTO')
@@ -417,6 +417,19 @@ run('7. partial wedding omits empties', () => {
       price: 0,
       depositAmount: 0,
       coverageEndTime: undefined,
+      ceremonyTime: undefined,
+      couple: {
+        partner1: '',
+        partner2: '',
+        partner1FirstName: '',
+        partner1LastName: '',
+        partner2FirstName: '',
+        partner2LastName: '',
+        email: '',
+        phone: '',
+        venue: '',
+        city: '',
+      },
     }),
     places: [],
     contacts: [],
@@ -697,7 +710,7 @@ run('13. operational PLAN DNIA order and times (not chronological)', () => {
     },
   ]
   const data = buildWeddingBriefPdfData({
-    wedding: baseWedding({ notes: [] }),
+    wedding: baseWedding({ notes: [], ceremonyTime: undefined }),
     places: opsPlaces,
     operationalTimes: {
       'pl-bride': '10:45',
@@ -1663,6 +1676,222 @@ run('29. V1.4 — Plan dnia travel connectors from cached segments only', () => 
   assert(!renderSrc.includes('getRoute'), 'renderer has no route calls')
   assert(!renderSrc.includes('travelService'), 'renderer has no travel service')
   assert(convert.includes('renderProductionHtmlToPdf'), 'converter frozen')
+})
+
+run('30. Canonical operational precedence — time, contacts, locations', () => {
+  // A: wedding.ceremonyTime wins over Q seed; ops override wins both
+  const placesFull: WeddingPlace[] = [
+    {
+      id: 'groom',
+      weddingId: 'w',
+      role: 'groom_preparation',
+      label: 'Groom Prep',
+      placeId: 'test:groom',
+      formattedAddress: 'Groom St 1',
+      latitude: 50.1,
+      longitude: 19.1,
+      sortOrder: 10,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    },
+    {
+      id: 'ceremony',
+      weddingId: 'w',
+      role: 'ceremony',
+      label: 'Kościół B',
+      placeId: 'test:ceremony-b',
+      formattedAddress: 'Nowa 10, Kraków',
+      latitude: 50.05,
+      longitude: 19.94,
+      sortOrder: 20,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    },
+    {
+      id: 'reception',
+      weddingId: 'w',
+      role: 'reception',
+      label: 'Villa Love',
+      placeId: 'test:villa',
+      formattedAddress: 'Lwowska 78, 34-144 Izdebnik',
+      latitude: 49.825068,
+      longitude: 19.752234,
+      sortOrder: 30,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    },
+  ]
+
+  const answersA = {
+    ...COMPLETE_BRIEF_ANSWERS,
+    q12: '14:00',
+    q3: '111 111 111',
+    q11: {
+      placeId: 'test:ceremony-a',
+      formattedAddress: 'Stara 1, Kraków',
+      latitude: 50.04,
+      longitude: 19.95,
+      label: 'Kościół A',
+    },
+  }
+
+  const timeWin = buildWeddingBriefPdfData({
+    wedding: baseWedding({ ceremonyTime: '14:30' }),
+    places: placesFull,
+    preWedding: {
+      schema: DEFAULT_TEMPLATE_SCHEMA,
+      answers: answersA,
+    },
+  })
+  const ceremonyStop = timeWin.timeline.find((t) => /Ceremonia/i.test(t.title))
+  assert(ceremonyStop?.time === '14:30', 'Brief Plan uses wedding.ceremonyTime')
+  assert(
+    !timeWin.timeline.some((t) => t.time === '14:00' && /Ceremonia/i.test(t.title)),
+    'old Q ceremony time not operational',
+  )
+
+  const opsWin = buildWeddingBriefPdfData({
+    wedding: baseWedding({ ceremonyTime: '14:30' }),
+    places: placesFull,
+    operationalTimes: { ceremony: '14:45' },
+    preWedding: {
+      schema: DEFAULT_TEMPLATE_SCHEMA,
+      answers: answersA,
+    },
+  })
+  assert(
+    opsWin.timeline.find((t) => /Ceremonia/i.test(t.title))?.time === '14:45',
+    'explicit ops ceremony time wins',
+  )
+
+  // B: current wedding phone wins; Q fallback when empty
+  const contactWin = buildWeddingBriefPdfData({
+    wedding: baseWedding({
+      couple: {
+        ...baseWedding().couple,
+        partner1Phone: '999 888 777',
+        phone: '999 888 777',
+        partner2Phone: '666 555 444',
+      },
+    }),
+    places: placesFull,
+    preWedding: {
+      schema: DEFAULT_TEMPLATE_SCHEMA,
+      answers: answersA,
+    },
+  })
+  const bride = contactWin.contacts.find((c) => c.role === 'Panna Młoda')
+  const groom = contactWin.contacts.find((c) => c.role === 'Pan Młody')
+  assert(bride?.phone === '999 888 777', 'Brief contact uses wedding phone')
+  assert(groom?.phone === '666 555 444', 'groom wedding phone')
+  assert(bride?.phone !== '111 111 111', 'old Q phone not operational')
+
+  const contactFallback = buildWeddingBriefPdfData({
+    wedding: baseWedding({
+      couple: {
+        ...baseWedding().couple,
+        partner1Phone: '',
+        phone: '',
+        partner2Phone: '',
+      },
+    }),
+    places: placesFull,
+    preWedding: {
+      schema: DEFAULT_TEMPLATE_SCHEMA,
+      answers: answersA,
+    },
+  })
+  assert(
+    contactFallback.contacts.find((c) => c.role === 'Panna Młoda')?.phone ===
+      '111 111 111',
+    'Q phone fallback when wedding empty',
+  )
+
+  // C: WeddingPlace ceremony B wins; Dodatkowe must not reintroduce A for Ceremonia
+  const locWin = buildWeddingBriefPdfData({
+    wedding: baseWedding({ ceremonyTime: '14:30' }),
+    places: placesFull,
+    preWedding: {
+      schema: DEFAULT_TEMPLATE_SCHEMA,
+      answers: answersA,
+    },
+  })
+  const planCeremony = locWin.timeline.find((t) => /Ceremonia/i.test(t.title))
+  assert(
+    Boolean(
+      planCeremony?.placeName?.includes('Kościół B') ||
+        planCeremony?.shortAddress?.includes('Nowa 10'),
+    ),
+    'Plan dnia uses place B',
+  )
+  const ceremonyDir = locWin.locations.filter((l) =>
+    l.roles.some((r) => /ceremon/i.test(r)),
+  )
+  assert(
+    ceremonyDir.every(
+      (l) =>
+        (l.name || '').includes('Kościół B') ||
+        (l.address || '').includes('Nowa 10'),
+    ),
+    'directory ceremony is place B',
+  )
+  assert(
+    !locWin.locations.some(
+      (l) =>
+        l.roles.some((r) => /ceremon/i.test(r)) &&
+        ((l.name || '').includes('Kościół A') ||
+          (l.address || '').includes('Stara 1')),
+    ),
+    'old Q ceremony A not in Dodatkowe as ceremony role',
+  )
+
+  // Historical Layer B: ceremony location consumed from detail (locations dest)
+  // but ceremony notes / other Q detail remain available
+  assert(
+    locWin.questionnaireSections.some((s) =>
+      s.items.some((i) => i.displayValue.includes('konfetti')),
+    ),
+    'questionnaire historical detail preserved',
+  )
+
+  // D: custom unmapped question does not override locations
+  const custom = buildWeddingBriefPdfData({
+    wedding: baseWedding({ ceremonyTime: '14:30' }),
+    places: placesFull,
+    preWedding: {
+      schema: {
+        sections: [
+          {
+            id: 'sx',
+            title: 'Custom',
+            questions: [
+              {
+                id: 'qc_meet',
+                label: 'Gdzie dokładnie mamy się spotkać?',
+                type: 'short_text',
+                required: false,
+              },
+            ],
+          },
+        ],
+      },
+      answers: { qc_meet: 'Parking za kościołem A' },
+    },
+  })
+  assert(
+    custom.questionnaireSections.some((s) =>
+      s.items.some((i) => i.displayValue.includes('Parking')),
+    ),
+    'custom stays in questionnaire detail',
+  )
+  assert(
+    !custom.timeline.some((t) => (t.shortAddress || '').includes('Parking')),
+    'custom does not override Plan dnia',
+  )
+  assert(
+    !custom.locations.some((l) => (l.address || '').includes('Parking')),
+    'custom does not invent operational location',
+  )
 })
 
 if (!process.exitCode) {

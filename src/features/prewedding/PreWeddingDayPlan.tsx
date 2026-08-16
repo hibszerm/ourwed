@@ -155,11 +155,18 @@ function emptyStalePlan(
 
 interface Props {
   weddingId: string
+  /** Current wedding.ceremonyTime — operational precedence over questionnaire seed. */
+  weddingCeremonyTime?: string | null
   schema: PreWeddingTemplateSchema
   answers: Record<string, unknown>
 }
 
-export function PreWeddingDayPlan({ weddingId, schema, answers }: Props) {
+export function PreWeddingDayPlan({
+  weddingId,
+  weddingCeremonyTime,
+  schema,
+  answers,
+}: Props) {
   const queryClient = useQueryClient()
   const userId = useStudioAuthId()
   const qTimes = timelineTimesByRole(schema, answers)
@@ -333,6 +340,7 @@ export function PreWeddingDayPlan({ weddingId, schema, answers }: Props) {
         places: canonicalPlaces,
         operationalTimes,
         questionnaireTimes: qTimes,
+        weddingCeremonyTime: weddingCeremonyTime,
       })
     : []
 

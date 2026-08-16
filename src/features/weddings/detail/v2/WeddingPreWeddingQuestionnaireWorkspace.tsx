@@ -76,10 +76,12 @@ async function copyText(text: string): Promise<void> {
 
 function AnswersView({
   weddingId,
+  weddingCeremonyTime,
   questionnaire,
   answers,
 }: {
   weddingId: string
+  weddingCeremonyTime?: string | null
   questionnaire: WeddingQuestionnaire
   answers: Record<string, unknown>
 }) {
@@ -151,6 +153,7 @@ function AnswersView({
       <div className={styles.answersReadable}>
         <PreWeddingDayPlan
           weddingId={weddingId}
+          weddingCeremonyTime={weddingCeremonyTime}
           schema={questionnaire.schema}
           answers={answers}
         />
@@ -1018,6 +1021,7 @@ export function WeddingPreWeddingQuestionnaireWorkspace({
           </p>
           <AnswersView
             weddingId={wedding.id}
+            weddingCeremonyTime={wedding.ceremonyTime}
             questionnaire={questionnaire}
             answers={answers}
           />
@@ -1065,6 +1069,7 @@ export function WeddingPreWeddingQuestionnaireWorkspace({
             </p>
             <AnswersView
               weddingId={wedding.id}
+              weddingCeremonyTime={wedding.ceremonyTime}
               questionnaire={questionnaire}
               answers={answers}
             />

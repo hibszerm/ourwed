@@ -247,6 +247,7 @@ function buildTimeline(
   hits: AnswerHit[],
   operationalTimes: OperationalTimeMap,
   travelSegments: TravelSegment[] = [],
+  weddingCeremonyTime?: string | null,
 ): BriefTimelineItem[] {
   if (places.length > 0) {
     const qTimes = preWedding
@@ -257,6 +258,7 @@ function buildTimeline(
       places,
       operationalTimes,
       questionnaireTimes: qTimes,
+      weddingCeremonyTime,
     })
     const items = buildBriefTimelineWithTravel({
       stops: ops,
@@ -425,57 +427,12 @@ function mergeLocations(
     return drafts.some((d) => d.roles.includes(role))
   }
 
-  // 1) Questionnaire answers first (couple authority when present).
-  if (preWedding) {
-    for (const hit of hits) {
-      if (hit.rule.destination !== 'locations') continue
-      const raw = preWedding.answers[hit.questionId]
-      const geo = answerToGeoPlace(raw as never)
-      const address =
-        geo?.formattedAddress?.trim() ||
-        (typeof raw === 'string' ? raw.trim() : '') ||
-        hit.displayValue
-      const qName = geo?.label?.trim() || undefined
-      // Prefer raw address for matching; display string may be "Name — Address".
-      upsert({
-        role: hit.rule.briefLabel,
-        name: qName,
-        address: address || qName || '',
-        latitude: geo?.latitude ?? null,
-        longitude: geo?.longitude ?? null,
-        placeId: geo?.placeId,
-      })
-    }
-  }
-
-  // 2) Structured wedding places — enrich names/GPS for same physical place,
-  //    or fill roles the couple did not answer.
+  // 1) Current WeddingPlace rows win for canonical roles.
   for (const p of places) {
     const address = (p.formattedAddress || '').trim()
     const label = (p.label || '').trim()
     if (!address && !label) continue
     const role = PLACE_ROLE_LABELS[p.role] ?? p.role
-    const candidate: LocDraft = {
-      roles: [role],
-      name: label || undefined,
-      address: address || label,
-      latitude: p.latitude,
-      longitude: p.longitude,
-      placeId: p.placeId,
-    }
-    const match = drafts.find((d) => placeDraftsMatch(d, candidate))
-    if (match) {
-      if (!match.roles.includes(role)) match.roles.push(role)
-      if (!match.name && label) match.name = label
-      if (!match.placeId && p.placeId) match.placeId = p.placeId
-      if (match.latitude == null && p.latitude != null) match.latitude = p.latitude
-      if (match.longitude == null && p.longitude != null) {
-        match.longitude = p.longitude
-      }
-      continue
-    }
-    // Different physical place for a role already answered by couple → keep couple.
-    if (roleAlreadyPresent(role)) continue
     upsert({
       role,
       name: label || undefined,
@@ -484,6 +441,30 @@ function mergeLocations(
       longitude: p.longitude,
       placeId: p.placeId,
     })
+  }
+
+  // 2) Questionnaire locations only when that role has no current WeddingPlace.
+  if (preWedding) {
+    for (const hit of hits) {
+      if (hit.rule.destination !== 'locations') continue
+      const role = hit.rule.briefLabel
+      if (roleAlreadyPresent(role)) continue
+      const raw = preWedding.answers[hit.questionId]
+      const geo = answerToGeoPlace(raw as never)
+      const address =
+        geo?.formattedAddress?.trim() ||
+        (typeof raw === 'string' ? raw.trim() : '') ||
+        hit.displayValue
+      const qName = geo?.label?.trim() || undefined
+      upsert({
+        role,
+        name: qName,
+        address: address || qName || '',
+        latitude: geo?.latitude ?? null,
+        longitude: geo?.longitude ?? null,
+        placeId: geo?.placeId,
+      })
+    }
   }
 
   // 3) Legacy wedding string fields only when nothing else provided.
@@ -512,28 +493,59 @@ function mergeLocations(
 }
 
 function buildContacts(
+  wedding: Wedding,
   weddingContacts: WeddingContact[],
   hits: AnswerHit[],
 ): BriefContact[] {
   const byRole = new Map<string, BriefContact>()
 
-  const brideName = hits.find((h) => h.question.weddingDayMapping === 'brideName')
-  const bridePhone = hits.find((h) => h.question.weddingDayMapping === 'bridePhone')
-  const groomName = hits.find((h) => h.question.weddingDayMapping === 'groomName')
-  const groomPhone = hits.find((h) => h.question.weddingDayMapping === 'groomPhone')
+  const brideNameHit = hits.find((h) => h.question.weddingDayMapping === 'brideName')
+  const bridePhoneHit = hits.find(
+    (h) => h.question.weddingDayMapping === 'bridePhone',
+  )
+  const groomNameHit = hits.find((h) => h.question.weddingDayMapping === 'groomName')
+  const groomPhoneHit = hits.find(
+    (h) => h.question.weddingDayMapping === 'groomPhone',
+  )
 
+  const couple = wedding.couple
+  const brideName =
+    [couple.partner1FirstName, couple.partner1LastName]
+      .map((p) => p?.trim())
+      .filter(Boolean)
+      .join(' ') ||
+    couple.partner1?.trim() ||
+    brideNameHit?.displayValue ||
+    ''
+  const bridePhone =
+    couple.partner1Phone?.trim() ||
+    couple.phone?.trim() ||
+    bridePhoneHit?.displayValue ||
+    undefined
+  const groomName =
+    [couple.partner2FirstName, couple.partner2LastName]
+      .map((p) => p?.trim())
+      .filter(Boolean)
+      .join(' ') ||
+    couple.partner2?.trim() ||
+    groomNameHit?.displayValue ||
+    ''
+  const groomPhone =
+    couple.partner2Phone?.trim() || groomPhoneHit?.displayValue || undefined
+
+  // Current canonical couple wins; questionnaire fills gaps only.
   if (brideName || bridePhone) {
     byRole.set('Panna Młoda', {
       role: 'Panna Młoda',
-      name: brideName?.displayValue || 'Panna Młoda',
-      phone: bridePhone?.displayValue,
+      name: brideName || 'Panna Młoda',
+      phone: bridePhone,
     })
   }
   if (groomName || groomPhone) {
     byRole.set('Pan Młody', {
       role: 'Pan Młody',
-      name: groomName?.displayValue || 'Pan Młody',
-      phone: groomPhone?.displayValue,
+      name: groomName || 'Pan Młody',
+      phone: groomPhone,
     })
   }
 
@@ -548,9 +560,11 @@ function buildContacts(
       if (!existing.email && c.email?.trim()) existing.email = c.email.trim()
       continue
     }
-    // Skip duplicate of bride/groom by phone
     const dupPhone = [...byRole.values()].some(
-      (x) => x.phone && phone && x.phone.replace(/\s/g, '') === phone.replace(/\s/g, ''),
+      (x) =>
+        x.phone &&
+        phone &&
+        x.phone.replace(/\s/g, '') === phone.replace(/\s/g, ''),
     )
     if (dupPhone) continue
     byRole.set(role, {
@@ -960,13 +974,14 @@ export function buildWeddingBriefPdfData(
     consumed.add('q20')
   }
 
-  const contacts = buildContacts(input.contacts ?? [], hits)
+  const contacts = buildContacts(wedding, input.contacts ?? [], hits)
   const timeline = buildTimeline(
     input.preWedding,
     places,
     hits,
     input.operationalTimes ?? {},
     input.travelSegments ?? [],
+    wedding.ceremonyTime,
   )
   const locations = mergeLocations(places, wedding, hits, input.preWedding)
   const criticalNotes = buildCriticalNotes(hits, wedding.notes ?? [])

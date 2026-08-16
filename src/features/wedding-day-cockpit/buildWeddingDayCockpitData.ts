@@ -129,6 +129,7 @@ export function buildWeddingDayCockpitData(
     places,
     operationalTimes,
     questionnaireTimes,
+    weddingCeremonyTime: wedding.ceremonyTime,
   })
 
   const routeStale = Boolean(plan?.routeStale)

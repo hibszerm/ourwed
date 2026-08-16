@@ -112,6 +112,36 @@ run('1. questionnaire seeds missing ceremony/reception times', () => {
   assert(groom?.time == null, 'prep has no questionnaire time')
 })
 
+run('1b. wedding.ceremonyTime wins over questionnaire when no ops override', () => {
+  const stops = buildOperationalDayStops({
+    studio: studio(),
+    places: fixturePlaces(),
+    operationalTimes: {},
+    questionnaireTimes: { ceremony: '14:00', reception: '17:00' },
+    weddingCeremonyTime: '14:30',
+  })
+  const ceremony = stops.find((s) => s.role === 'ceremony')
+  assert(ceremony?.time === '14:30', 'canonical ceremony time')
+  assert(ceremony?.timeSource === 'wedding', 'wedding source')
+  assert(
+    stops.find((s) => s.role === 'reception')?.time === '17:00',
+    'reception still Q seed',
+  )
+})
+
+run('1c. explicit ops ceremony time wins over wedding + questionnaire', () => {
+  const stops = buildOperationalDayStops({
+    studio: studio(),
+    places: fixturePlaces(),
+    operationalTimes: { ceremony: '14:45' },
+    questionnaireTimes: { ceremony: '14:00' },
+    weddingCeremonyTime: '14:30',
+  })
+  const ceremony = stops.find((s) => s.key === 'ceremony')
+  assert(ceremony?.time === '14:45', 'ops override')
+  assert(ceremony?.timeSource === 'studio', 'studio source')
+})
+
 run('2. studio override wins over questionnaire', () => {
   const stops = buildOperationalDayStops({
     studio: studio(),

@@ -1,7 +1,7 @@
 /**
  * Shared operational day-plan builder.
  * Order comes from wedding_places.sort_order (via orderWeddingDayPlaces).
- * Times: studio override wins; questionnaire seeds missing values only.
+ * Times: studio override → wedding.ceremonyTime (ceremony only) → questionnaire seed.
  */
 
 import { PLAN_DNIA_STAGE_LABELS } from '@/features/prewedding/answerSummary'
@@ -15,6 +15,8 @@ export const STUDIO_STOP_KEY = 'studio'
 
 export type OperationalTimeMap = Record<string, string>
 
+export type OperationalTimeSource = 'studio' | 'wedding' | 'questionnaire' | null
+
 export type OperationalDayStop = {
   key: string
   kind: 'studio' | 'wedding_place'
@@ -23,7 +25,7 @@ export type OperationalDayStop = {
   placeName?: string
   address?: string
   time: string | null
-  timeSource: 'studio' | 'questionnaire' | null
+  timeSource: OperationalTimeSource
   latitude?: number | null
   longitude?: number | null
   placeId?: string | null
@@ -41,12 +43,19 @@ export function normalizeOperationalClock(raw: string | null | undefined): strin
   return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`
 }
 
+/**
+ * Resolve a stop clock.
+ * Precedence: explicit operational override → optional canonical wedding time → questionnaire seed.
+ */
 export function resolveStopTime(
   override: string | undefined,
   seed: string | null | undefined,
-): { time: string | null; timeSource: OperationalDayStop['timeSource'] } {
+  canonical?: string | null | undefined,
+): { time: string | null; timeSource: OperationalTimeSource } {
   const studioTime = normalizeOperationalClock(override)
   if (studioTime) return { time: studioTime, timeSource: 'studio' }
+  const weddingTime = normalizeOperationalClock(canonical)
+  if (weddingTime) return { time: weddingTime, timeSource: 'wedding' }
   const questionnaireTime = normalizeOperationalClock(seed)
   if (questionnaireTime) return { time: questionnaireTime, timeSource: 'questionnaire' }
   return { time: null, timeSource: null }
@@ -66,6 +75,11 @@ export function buildOperationalDayStops(input: {
   places: WeddingPlace[]
   operationalTimes?: OperationalTimeMap
   questionnaireTimes?: Partial<Record<string, string>>
+  /**
+   * Current wedding.ceremonyTime — wins over questionnaire seed for ceremony
+   * when no explicit operational stop time is set.
+   */
+  weddingCeremonyTime?: string | null
 }): OperationalDayStop[] {
   const times = input.operationalTimes ?? {}
   const qTimes = input.questionnaireTimes ?? {}
@@ -97,6 +111,7 @@ export function buildOperationalDayStops(input: {
     const resolved = resolveStopTime(
       times[place.id],
       questionnaireSeedTimeForRole(role, qTimes),
+      role === 'ceremony' ? input.weddingCeremonyTime : null,
     )
     const distinct = distinctPlaceAndAddress(
       place.label || undefined,
