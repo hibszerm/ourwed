@@ -15,6 +15,11 @@ import {
   richnessRank,
   valuesAreSemanticallyEqual,
 } from '@/features/prewedding/weddingDaySync/compareValues'
+import { splitPersonName } from '@/lib/api/weddings/weddingMappers'
+import {
+  resolveCoupleNamesFromFormParts,
+  weddingToContractAnswerFields,
+} from '@/lib/forms/weddingCoupleNameFields'
 import {
   isPlaceholderValue,
   normalizeComparableText,
@@ -26,6 +31,10 @@ import {
   NOTE_ONLY_WEDDING_DAY_MAPPINGS,
   WEDDING_DAY_MAPPING_LABELS,
 } from '@/features/prewedding/weddingDaySync/mappingCatalog'
+import {
+  mergeLocationAnswerWithExisting,
+  normalizeLocationAnswer,
+} from '@/features/travel/weddingLocationModel'
 import type {
   PreWeddingAnswerValue,
   WeddingQuestionnaire,
@@ -37,9 +46,29 @@ function assert(condition: boolean, message: string) {
   if (!condition) throw new Error(message)
 }
 
-function run(name: string, fn: () => void) {
+function assertEq(actual: unknown, expected: unknown, label: string) {
+  if (actual !== expected) {
+    throw new Error(
+      `${label}: expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`,
+    )
+  }
+}
+
+function run(name: string, fn: () => void | Promise<void>) {
   try {
-    fn()
+    const result = fn()
+    if (result && typeof (result as Promise<void>).then === 'function') {
+      ;(result as Promise<void>)
+        .then(() => {
+          console.log(`PASS  ${name}`)
+        })
+        .catch((err) => {
+          console.error(`FAIL  ${name}`)
+          console.error(err instanceof Error ? err.message : err)
+          process.exitCode = 1
+        })
+      return
+    }
     console.log(`PASS  ${name}`)
   } catch (err) {
     console.error(`FAIL  ${name}`)
@@ -380,7 +409,141 @@ run('poorer incoming location flagged; richer default-selected', () => {
   const bride = candidates.find((c) => c.mapping === 'bridePreparationLocation')
   assert(Boolean(bride), 'still shown as difference')
   assert(bride!.incomingPoorer, 'incoming poorer flagged')
-  assert(!bride!.defaultSelected, 'not preselected')
+  assert(!bride!.defaultSelected, 'not preselected — auto-protect')
+})
+
+run('A. verified current + manual questionnaire → explicit Apply selectable', () => {
+  const verified = place('bride_preparation', {
+    placeId: 'ChIJistanbul',
+    formattedAddress: 'Jodłowa 13, 30-251 Kraków',
+    latitude: 50.05,
+    longitude: 19.88,
+    label: 'Zinar Castle',
+  })
+  const candidates = buildWeddingDaySyncCandidates({
+    questionnaire: questionnaireFromSchema(),
+    answers: { q4: 'Jodłowa 13, 30-251 Kraków' },
+    wedding: baseWedding({
+      bridePreparationLocation: 'Zinar Castle — Jodłowa 13, 30-251 Kraków',
+    }),
+    places: [verified],
+  })
+  const bride = candidates.find((c) => c.mapping === 'bridePreparationLocation')
+  assert(Boolean(bride), 'candidate visible')
+  assert(bride!.incomingPoorer, 'flagged as poorer for warning')
+  assert(!bride!.defaultSelected, 'B. not auto-selected')
+
+  const workspace = readFileSync(
+    resolve(
+      process.cwd(),
+      'src/features/weddings/detail/v2/WeddingPreWeddingQuestionnaireWorkspace.tsx',
+    ),
+    'utf8',
+  )
+  assert(
+    !workspace.includes('disabled={applying || candidate.incomingPoorer}'),
+    'A/G. checkbox and row Apply not blocked by incomingPoorer',
+  )
+  assert(
+    workspace.includes(
+      'Obecna lokalizacja jest zweryfikowana. Zastosowanie danych',
+    ),
+    'downgrade warning copy',
+  )
+  assert(
+    !workspace.includes('nie zastąpią jej automatycznie'),
+    'old blocking copy removed',
+  )
+})
+
+run('C–E. explicit Apply replaces verified with manual; clears stale geo', () => {
+  const incomingManual = normalizeLocationAnswer('dasdas')
+  const geo = mergeLocationAnswerWithExisting(incomingManual, null)
+  assertEq(geo.formattedAddress, 'dasdas', 'C. manual text persisted')
+  assertEq(geo.placeId, null, 'D. no placeId')
+  assertEq(geo.latitude, null, 'D. no lat')
+  assertEq(geo.longitude, null, 'D. no lng')
+  assertEq(geo.provider, null, 'D. no provider')
+  assertEq(geo.label, null, 'D. no stale venue name')
+
+  // Document why apply must pass null existing: legacy merge keeps stale geo.
+  const existingVerified: WeddingPlace = place('bride_preparation', {
+    placeId: 'ChIJold',
+    formattedAddress: 'Istanbul old',
+    latitude: 41.0,
+    longitude: 29.0,
+    label: 'Old Venue',
+  })
+  const wrongMerge = mergeLocationAnswerWithExisting(
+    incomingManual,
+    existingVerified,
+  )
+  assertEq(wrongMerge.placeId, 'ChIJold', 'legacy merge keeps placeId')
+  assertEq(wrongMerge.latitude, 41.0, 'legacy merge keeps lat')
+
+  const applySrc = readFileSync(
+    resolve(
+      process.cwd(),
+      'src/features/prewedding/weddingDaySync/applyWeddingDaySync.ts',
+    ),
+    'utf8',
+  )
+  assert(
+    !applySrc.includes('if (candidate.incomingPoorer)'),
+    'explicit Apply no longer throws on poorer',
+  )
+  assert(
+    applySrc.includes('mergeLocationAnswerWithExisting(incoming, null)'),
+    'apply uses candidate-only geo (null existing)',
+  )
+  assert(applySrc.includes('resolve: false'), 'no geocode invent on apply')
+
+  // E. candidate-owned valid geo preserved
+  const incomingVerified = normalizeLocationAnswer({
+    placeId: 'ChIJnew',
+    formattedAddress: 'Nowa 1, Kraków',
+    latitude: 50.1,
+    longitude: 19.9,
+    label: 'Nowa Sala',
+  })
+  const kept = mergeLocationAnswerWithExisting(incomingVerified, null)
+  assertEq(kept.placeId, 'ChIJnew', 'E. own placeId')
+  assertEq(kept.latitude, 50.1, 'E. own lat')
+  assertEq(kept.longitude, 19.9, 'E. own lng')
+})
+
+run('F. bulk Apply can include explicit downgrade candidate', () => {
+  const workspace = readFileSync(
+    resolve(
+      process.cwd(),
+      'src/features/weddings/detail/v2/WeddingPreWeddingQuestionnaireWorkspace.tsx',
+    ),
+    'utf8',
+  )
+  // Checkbox enablement is the gate for bulk inclusion
+  const checkboxBlock = workspace.slice(
+    workspace.indexOf('type="checkbox"'),
+    workspace.indexOf('type="checkbox"') + 200,
+  )
+  assert(
+    checkboxBlock.includes('disabled={applying}'),
+    'F. checkbox only disabled while applying',
+  )
+  assert(
+    !checkboxBlock.includes('incomingPoorer'),
+    'F. poorer selectable for bulk',
+  )
+})
+
+run('H. travel after downgrade does not use stale coords (source)', () => {
+  const travelUi = readFileSync(
+    resolve(process.cwd(), 'src/features/travel/travelUi.ts'),
+    'utf8',
+  )
+  assert(
+    travelUi.includes('if (!place || !isPlaceVerified(place)) continue'),
+    'H. route skips unverified — no stale coords from manual text',
+  )
 })
 
 run('grouping hides empty groups; groups use Polish titles', () => {
@@ -448,7 +611,10 @@ run('apply service preserves GeoPlace upsert path', () => {
     'utf8',
   )
   assert(applySrc.includes('weddingPlaceService.upsert'), 'upsert places')
-  assert(applySrc.includes('mergeLocationAnswerWithExisting'), 'merge geo')
+  assert(
+    applySrc.includes('mergeLocationAnswerWithExisting(incoming, null)'),
+    'candidate-only geo (no stale merge)',
+  )
   assert(applySrc.includes('travelService.invalidate'), 'route invalidate')
   assert(applySrc.includes('travelService.recalculate'), 'route recalc')
   assert(
@@ -666,6 +832,390 @@ run('resubmission path does not reintroduce note-only Apply', () => {
   assert(
     !buildSrc.includes('noteAlreadyApplied'),
     'T: no note-dedupe candidate path',
+  )
+})
+
+run('A–E. contact Apply: empty → candidate; equal hydrated → suppressed', () => {
+  const answers: Record<string, PreWeddingAnswerValue> = {
+    q5: 'karol nowakowski',
+    q6: '555444335',
+  }
+
+  const emptyCouple = baseWedding({
+    couple: {
+      ...baseWedding().couple,
+      partner2: '',
+      partner2FirstName: undefined,
+      partner2LastName: undefined,
+      partner2Phone: undefined,
+    },
+  })
+  const before = buildWeddingDaySyncCandidates({
+    questionnaire: questionnaireFromSchema(),
+    answers,
+    wedding: emptyCouple,
+    places: [],
+  })
+  assert(
+    before.some((c) => c.mapping === 'groomName'),
+    'A. empty groom name → candidate',
+  )
+  assert(
+    before.some((c) => c.mapping === 'groomPhone'),
+    'A. empty groom phone → candidate',
+  )
+
+  // B/C. After Apply + persisted rehydrate (couple matches questionnaire)
+  const afterPersist = baseWedding({
+    couple: {
+      ...baseWedding().couple,
+      partner2: 'karol nowakowski',
+      partner2FirstName: 'karol',
+      partner2LastName: 'nowakowski',
+      partner2Phone: '555444335',
+    },
+  })
+  const after = buildWeddingDaySyncCandidates({
+    questionnaire: questionnaireFromSchema(),
+    answers,
+    wedding: afterPersist,
+    places: [],
+  })
+  assert(
+    !after.some((c) => c.mapping === 'groomName'),
+    'B/C. equal groom name suppressed after rehydrate',
+  )
+  assert(
+    !after.some((c) => c.mapping === 'groomPhone'),
+    'B/C. equal groom phone suppressed after rehydrate',
+  )
+
+  // D. phone formatting equivalence
+  const phoneFmt = buildWeddingDaySyncCandidates({
+    questionnaire: questionnaireFromSchema(),
+    answers: { q6: '555 444 335' },
+    wedding: baseWedding({
+      couple: {
+        ...baseWedding().couple,
+        partner2Phone: '555444335',
+      },
+    }),
+    places: [],
+  })
+  assert(
+    !phoneFmt.some((c) => c.mapping === 'groomPhone'),
+    'D. phone digits-equal suppresses candidate',
+  )
+
+  // E. bulk both absent
+  assertEq(
+    after.filter((c) => c.mapping === 'groomName' || c.mapping === 'groomPhone')
+      .length,
+    0,
+    'E. bulk name+phone both absent',
+  )
+})
+
+run('F–G. questionnaire history preserved; later Q change resurfaces', () => {
+  const applySrc = readFileSync(
+    resolve(
+      process.cwd(),
+      'src/features/prewedding/weddingDaySync/applyWeddingDaySync.ts',
+    ),
+    'utf8',
+  )
+  assert(
+    !applySrc.includes('weddingQuestionnaireService'),
+    'F. Apply does not mutate questionnaire answers',
+  )
+  assert(
+    !applySrc.includes('updateResponse') &&
+      !applySrc.includes('updateFormAnswer'),
+    'F. no questionnaire answer rewrite API',
+  )
+
+  const resurfaced = buildWeddingDaySyncCandidates({
+    questionnaire: questionnaireFromSchema(),
+    answers: { q5: 'Karol Kowalski' },
+    wedding: baseWedding({
+      couple: {
+        ...baseWedding().couple,
+        partner2: 'karol nowakowski',
+        partner2FirstName: 'karol',
+        partner2LastName: 'nowakowski',
+      },
+    }),
+    places: [],
+  })
+  assert(
+    resurfaced.some((c) => c.mapping === 'groomName'),
+    'G. later different Q value → new candidate',
+  )
+})
+
+run('contact Apply persists form_answers couple fields (source)', () => {
+  const applySrc = readFileSync(
+    resolve(
+      process.cwd(),
+      'src/features/prewedding/weddingDaySync/applyWeddingDaySync.ts',
+    ),
+    'utf8',
+  )
+  assert(
+    applySrc.includes('persistWeddingContractAnswerFields'),
+    'writes contract form_answers like Detail edit',
+  )
+  assert(
+    applySrc.includes('splitPersonName'),
+    'name Apply syncs first/last for row+form write',
+  )
+  assert(
+    applySrc.includes("partner2FirstName: split.first"),
+    'groom first synced',
+  )
+
+  const shell = readFileSync(
+    resolve(
+      process.cwd(),
+      'src/features/weddings/detail/v2/WeddingDetailV2.tsx',
+    ),
+    'utf8',
+  )
+  assert(
+    shell.includes("onWeddingSynced={(next) =>"),
+    'cache set from Apply result',
+  )
+  assert(
+    shell.includes("setQueryData(['weddings', userId, wedding.id], next)"),
+    'immediate wedding cache update',
+  )
+})
+
+run('H. location explicit downgrade fix still intact', () => {
+  const applySrc = readFileSync(
+    resolve(
+      process.cwd(),
+      'src/features/prewedding/weddingDaySync/applyWeddingDaySync.ts',
+    ),
+    'utf8',
+  )
+  assert(
+    applySrc.includes('mergeLocationAnswerWithExisting(incoming, null)'),
+    'H. candidate-only geo',
+  )
+  assert(applySrc.includes('resolve: false'), 'H. no geocode invent')
+  assert(
+    !applySrc.includes('if (candidate.incomingPoorer)'),
+    'H. poorer not hard-blocked',
+  )
+})
+
+run('I–J. ceremony time + wedding date Apply equality still works', () => {
+  assert(
+    !buildWeddingDaySyncCandidates({
+      questionnaire: questionnaireFromSchema(),
+      answers: { q12: '14:00' },
+      wedding: baseWedding({ ceremonyTime: '14:00' }),
+      places: [],
+    }).some((c) => c.mapping === 'ceremonyTime'),
+    'I. equal ceremony time omitted',
+  )
+  assert(
+    buildWeddingDaySyncCandidates({
+      questionnaire: questionnaireFromSchema(),
+      answers: { q12: '15:30' },
+      wedding: baseWedding({ ceremonyTime: '14:00' }),
+      places: [],
+    }).some((c) => c.mapping === 'ceremonyTime'),
+    'I. different ceremony time candidate',
+  )
+  assert(
+    !buildWeddingDaySyncCandidates({
+      questionnaire: questionnaireFromSchema(),
+      answers: { q1: '2026-09-12' },
+      wedding: baseWedding({ date: '2026-09-12' }),
+      places: [],
+    }).some((c) => c.mapping === 'weddingDate'),
+    'J. equal wedding date omitted',
+  )
+})
+
+run('K–L. unmapped custom + no label matching', () => {
+  const schema = structuredClone(DEFAULT_TEMPLATE_SCHEMA)
+  schema.sections[0]!.questions.push({
+    id: 'q_custom_phone',
+    label: 'Telefon awaryjny do Pana Młodego',
+    type: 'short_text',
+    required: false,
+  })
+  const candidates = buildWeddingDaySyncCandidates({
+    questionnaire: questionnaireFromSchema(schema),
+    answers: { q_custom_phone: '111222333', q6: '555444335' },
+    wedding: baseWedding({
+      couple: { ...baseWedding().couple, partner2Phone: undefined },
+    }),
+    places: [],
+  })
+  assert(
+    !candidates.some((c) => c.questionId === 'q_custom_phone'),
+    'K. unmapped custom excluded',
+  )
+  assert(
+    candidates.some((c) => c.mapping === 'groomPhone'),
+    'K. mapped phone still candidate',
+  )
+  const buildSrc = readFileSync(
+    resolve(
+      process.cwd(),
+      'src/features/prewedding/weddingDaySync/buildCandidates.ts',
+    ),
+    'utf8',
+  )
+  assert(
+    !buildSrc.includes('label.includes') && !buildSrc.includes('label.contains'),
+    'L. no label matching',
+  )
+})
+
+run('PARTIAL NAME. karol nowakowski — first must survive hydrate', () => {
+  const parsed = splitPersonName('karol nowakowski')
+  assertEq(parsed.first, 'karol', 'A. parser first')
+  assertEq(parsed.last, 'nowakowski', 'A. parser last')
+
+  // Simulate Apply model write
+  const afterApply = baseWedding({
+    couple: {
+      ...baseWedding().couple,
+      partner2: 'karol nowakowski',
+      partner2FirstName: parsed.first,
+      partner2LastName: parsed.last,
+      partner2Phone: '555444335',
+    },
+  })
+  assertEq(afterApply.couple.partner2, 'karol nowakowski', 'A. composed')
+  assertEq(afterApply.couple.partner2FirstName, 'karol', 'A. first on model')
+  assertEq(afterApply.couple.partner2LastName, 'nowakowski', 'A. last on model')
+
+  const fields = weddingToContractAnswerFields(afterApply)
+  assertEq(fields['partner2.firstName'], 'karol', 'A. form first persisted')
+  assertEq(fields['partner2.lastName'], 'nowakowski', 'A. form last persisted')
+  assertEq(fields['partner2.phone'], '555444335', 'B. phone persisted')
+
+  // Screenshot bug: form had lastName only (or firstName = "—")
+  const poisoned = resolveCoupleNamesFromFormParts({
+    formBrideFirst: '',
+    formBrideLast: '',
+    formGroomFirst: '—',
+    formGroomLast: 'nowakowski',
+    wedding: baseWedding({
+      couple: {
+        ...baseWedding().couple,
+        partner2: 'karol nowakowski',
+        partner2FirstName: 'karol',
+        partner2LastName: 'nowakowski',
+      },
+    }),
+  })
+  assertEq(
+    poisoned.partner2,
+    'karol nowakowski',
+    'hydrate keeps full name when form first is placeholder',
+  )
+  assertEq(poisoned.partner2FirstName, 'karol', 'first restored')
+  assertEq(poisoned.partner2LastName, 'nowakowski', 'last kept')
+
+  const lastOnly = resolveCoupleNamesFromFormParts({
+    formBrideFirst: '',
+    formBrideLast: '',
+    formGroomFirst: '',
+    formGroomLast: 'nowakowski',
+    wedding: baseWedding({
+      couple: {
+        ...baseWedding().couple,
+        partner2: 'karol nowakowski',
+        partner2FirstName: 'karol',
+        partner2LastName: 'nowakowski',
+      },
+    }),
+  })
+  assertEq(
+    lastOnly.partner2,
+    'karol nowakowski',
+    'last-only form must not collapse partner2',
+  )
+  assertEq(lastOnly.partner2FirstName, 'karol', 'first from wedding')
+
+  // Placeholder first on model must not be written back
+  const dashModel = baseWedding({
+    couple: {
+      ...baseWedding().couple,
+      partner2: 'karol nowakowski',
+      partner2FirstName: '—',
+      partner2LastName: 'nowakowski',
+    },
+  })
+  assertEq(
+    weddingToContractAnswerFields(dashModel)['partner2.firstName'],
+    'karol',
+    'persist splits full name when first is placeholder',
+  )
+
+  // Candidate rebuild after healthy hydrate
+  const after = buildWeddingDaySyncCandidates({
+    questionnaire: questionnaireFromSchema(),
+    answers: { q5: 'karol nowakowski', q6: '555444335' },
+    wedding: baseWedding({
+      couple: {
+        ...baseWedding().couple,
+        partner2: poisoned.partner2,
+        partner2FirstName: poisoned.partner2FirstName,
+        partner2LastName: poisoned.partner2LastName,
+        partner2Phone: '555444335',
+      },
+    }),
+    places: [],
+  })
+  assert(
+    !after.some((c) => c.mapping === 'groomName'),
+    'A. no groom-name candidate after full hydrate',
+  )
+  assert(
+    !after.some((c) => c.mapping === 'groomPhone'),
+    'B/C. no phone candidate',
+  )
+
+  // D. bride symmetry
+  const brideFields = weddingToContractAnswerFields(
+    baseWedding({
+      couple: {
+        ...baseWedding().couple,
+        partner1: 'anna kowalska',
+        partner1FirstName: 'anna',
+        partner1LastName: 'kowalska',
+      },
+    }),
+  )
+  assertEq(brideFields['partner1.firstName'], 'anna', 'D. bride first')
+  assertEq(brideFields['partner1.lastName'], 'kowalska', 'D. bride last')
+
+  // Apply source: persist pre-hydrate snapshot
+  const applySrc = readFileSync(
+    resolve(
+      process.cwd(),
+      'src/features/prewedding/weddingDaySync/applyWeddingDaySync.ts',
+    ),
+    'utf8',
+  )
+  assert(applySrc.includes('hydrate: false'), 'update without poison hydrate')
+  assert(applySrc.includes('coupleSnapshot'), 'persist Apply snapshot')
+
+  const mergeSrc = readFileSync(
+    resolve(process.cwd(), 'src/lib/forms/mergeFormAnswersIntoWedding.ts'),
+    'utf8',
+  )
+  assert(
+    mergeSrc.includes('resolveCoupleNamesFromFormParts'),
+    'hydrate uses shared name resolver',
   )
 })
 

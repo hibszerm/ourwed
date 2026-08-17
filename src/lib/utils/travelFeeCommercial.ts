@@ -75,6 +75,27 @@ export function isValidTravelFeeDraft(input: {
 }
 
 /**
+ * Persisted travel decision is complete enough for contract generation.
+ * Missing/legacy status is unresolved. Charged requires a valid positive amount.
+ */
+export function isTravelFeeResolved(
+  wedding: Pick<Wedding, 'travelFeeStatus' | 'travelFeeAmount'> | {
+    travelFeeStatus?: TravelFeeStatus | null
+    travelFeeAmount?: number | null
+  },
+): boolean {
+  const status = wedding.travelFeeStatus ?? 'unresolved'
+  if (status === 'included') return true
+  if (status === 'charged') {
+    return isValidTravelFeeDraft({
+      status: 'charged',
+      amount: wedding.travelFeeAmount ?? 0,
+    })
+  }
+  return false
+}
+
+/**
  * Non-throwing preview for incomplete form drafts.
  * Returns null when charged amount is not yet valid (empty / 0).
  * Does not weaken normalizeTravelFeeDecision for persisted decisions.

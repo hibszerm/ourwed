@@ -14,6 +14,8 @@ import {
   mergeLocationAnswerWithExisting,
   normalizeLocationAnswer,
 } from '@/features/travel/weddingLocationModel'
+import { persistWeddingContractAnswerFields } from '@/lib/forms/persistWeddingContractAnswers'
+import { splitPersonName } from '@/lib/api/weddings/weddingMappers'
 import { timelineEventService } from '@/lib/api/timelineEventService'
 import { travelService } from '@/lib/api/travelService'
 import { weddingPlaceService } from '@/lib/api/weddingPlaceService'
@@ -28,17 +30,19 @@ export type ApplyWeddingDaySyncResult = {
   appliedLabels: string[]
 }
 
+const COUPLE_DETAIL_MAPPINGS = new Set([
+  'brideName',
+  'groomName',
+  'bridePhone',
+  'groomPhone',
+])
+
 async function applyLocationCandidate(
   weddingId: string,
   candidate: WeddingDaySyncCandidate,
   answers: Record<string, PreWeddingAnswerValue>,
 ): Promise<boolean> {
   if (!isLocationMappingKey(candidate.mapping)) return false
-  if (candidate.incomingPoorer) {
-    throw new Error(
-      `Nie można zastąpić zweryfikowanej lokalizacji („${candidate.label}”) uboższymi danymi z ankiety.`,
-    )
-  }
 
   const role = LOCATION_MAPPING_TO_ROLE[candidate.mapping]
   const raw = answers[candidate.questionId] ?? candidate.rawAnswer
@@ -47,22 +51,23 @@ async function applyLocationCandidate(
     throw new Error(`Brak poprawnego adresu dla: ${candidate.label}`)
   }
 
-  const existing = await weddingPlaceService.getByRole(weddingId, role)
-  const geo = mergeLocationAnswerWithExisting(incoming, existing)
+  // Explicit Apply is a full replacement from the questionnaire answer.
+  // Never inherit placeId / coordinates / provider from the previous place —
+  // that would create a corrupt hybrid (new text + old geo).
+  // Pass null existing so merge uses only candidate-owned fields.
+  const geo = mergeLocationAnswerWithExisting(incoming, null)
   if (!geo.formattedAddress?.trim() && !geo.label?.trim()) {
     throw new Error(`Brak poprawnego adresu dla: ${candidate.label}`)
   }
 
+  // Match free-text location editor: persist as given, no geocode invent.
+  // Manual / unverified answers stay manual until the studio verifies them.
   await weddingPlaceService.upsert({
     weddingId,
     role,
     addressText: geo.formattedAddress,
     place: geo,
-    resolve: Boolean(
-      geo.formattedAddress?.trim() &&
-        (geo.latitude == null || geo.longitude == null) &&
-        !geo.placeId,
-    ),
+    resolve: false,
   })
   return true
 }
@@ -75,16 +80,30 @@ function applyScalarToWedding(
   switch (candidate.mapping) {
     case 'weddingDate':
       return { ...wedding, date: value.slice(0, 10) }
-    case 'brideName':
+    case 'brideName': {
+      const split = splitPersonName(value)
       return {
         ...wedding,
-        couple: { ...wedding.couple, partner1: value },
+        couple: {
+          ...wedding.couple,
+          partner1: value,
+          partner1FirstName: split.first || undefined,
+          partner1LastName: split.last || undefined,
+        },
       }
-    case 'groomName':
+    }
+    case 'groomName': {
+      const split = splitPersonName(value)
       return {
         ...wedding,
-        couple: { ...wedding.couple, partner2: value },
+        couple: {
+          ...wedding.couple,
+          partner2: value,
+          partner2FirstName: split.first || undefined,
+          partner2LastName: split.last || undefined,
+        },
       }
+    }
     case 'bridePhone':
       return {
         ...wedding,
@@ -144,6 +163,7 @@ export async function applyWeddingDaySyncCandidates(input: {
 
   let next = { ...owned }
   let routeNeedsRecalculation = false
+  let coupleDetailsChanged = false
   const appliedLabels: string[] = []
 
   for (const candidate of canonical) {
@@ -165,6 +185,9 @@ export async function applyWeddingDaySyncCandidates(input: {
     ) {
       next = applyScalarToWedding(next, candidate)
       appliedLabels.push(candidate.label)
+      if (COUPLE_DETAIL_MAPPINGS.has(candidate.mapping)) {
+        coupleDetailsChanged = true
+      }
     }
     // Non-canonical mappings (notes-only legacy) are never applied here.
   }
@@ -177,7 +200,18 @@ export async function applyWeddingDaySyncCandidates(input: {
     }
   }
 
-  next = await weddingService.update(next)
+  // Persist couple detail from the post-Apply model BEFORE hydrate can mix in
+  // partial/placeholder form_answers (e.g. lastName-only → "— nowakowski").
+  const coupleSnapshot = next
+
+  next = await weddingService.update(next, { hydrate: false })
+
+  if (coupleDetailsChanged) {
+    await persistWeddingContractAnswerFields(coupleSnapshot)
+    next = (await weddingService.getById(weddingId)) ?? next
+  } else {
+    next = (await weddingService.getById(weddingId)) ?? next
+  }
 
   if (routeNeedsRecalculation) {
     await travelService.invalidate(weddingId)

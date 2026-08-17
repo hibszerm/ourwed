@@ -50,6 +50,7 @@ import { useProMutationPageGuard } from '@/features/billing/useProMutationPageGu
 import { weddingActionsService } from '@/lib/api/weddingActionsService'
 import styles from './WeddingContractGenerationPage.module.css'
 import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
+import { isTravelFeeResolved } from '@/lib/utils/travelFeeCommercial'
 import { devError, devInfo } from '@/lib/debug/devConsole'
 
 type WizardStep =
@@ -293,6 +294,9 @@ export function WeddingContractGenerationPage() {
     if (generationSuccessRef.current || step === 'preview' || step === 'saved') {
       return
     }
+    if (!isTravelFeeResolved(wedding)) {
+      return
+    }
     if (packageResolution.status !== 'ok') {
       setStep('resolve')
       autoVerifyStarted.current = false
@@ -458,6 +462,10 @@ export function WeddingContractGenerationPage() {
   async function generate() {
     if (!wedding) {
       setError('Nie można rozpocząć generowania — brak danych ślubu.')
+      return
+    }
+    if (!isTravelFeeResolved(wedding)) {
+      setError('Najpierw ustal koszt dojazdu.')
       return
     }
 
@@ -868,6 +876,46 @@ export function WeddingContractGenerationPage() {
           <div className={styles.card}>
             <h2>Nie znaleziono ślubu</h2>
             <Link to="/sluby">Wróć do listy ślubów</Link>
+          </div>
+        </PageContainer>
+      </AppLayout>
+    )
+  }
+
+  if (!isTravelFeeResolved(wedding)) {
+    return (
+      <AppLayout
+        title="Nowa umowa"
+        subtitle={getWeddingDisplayName(wedding)}
+        action={
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => navigate(`/sluby/${wedding.id}?tab=overview`)}
+          >
+            Wróć do ślubu
+          </Button>
+        }
+      >
+        <PageContainer width="wide">
+          <div
+            className={styles.card}
+            data-testid="travel-fee-generation-block"
+            role="alert"
+          >
+            <h2>Najpierw ustal koszt dojazdu.</h2>
+            <p className={styles.muted}>
+              Określ, czy dojazd jest w cenie, czy doliczany osobno.
+            </p>
+            <div className={styles.actions}>
+              <Button
+                type="button"
+                variant="primary"
+                onClick={() => navigate(`/sluby/${wedding.id}?tab=overview`)}
+              >
+                Ustal koszt dojazdu
+              </Button>
+            </div>
           </div>
         </PageContainer>
       </AppLayout>

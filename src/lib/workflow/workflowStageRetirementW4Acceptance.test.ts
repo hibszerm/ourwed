@@ -178,6 +178,7 @@ run('6–7. Next Action progresses on domain state; stale stage ignored', () => 
     wedding({
       workflowStage: 'wedding_day',
       contract: { status: 'none' },
+      travelFeeStatus: 'included',
       questionnaires: {
         contractData: { status: 'completed' },
         weddingQuestionnaire: { status: 'not_sent' },

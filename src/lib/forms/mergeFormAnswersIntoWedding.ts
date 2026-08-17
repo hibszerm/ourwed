@@ -7,8 +7,24 @@ import {
   normalizeSelectedPackageIds,
 } from '@/lib/forms/contractQuestionnaireSnapshot'
 import { packageSelectionNeedsReview } from '@/lib/forms/packageSelectionReview'
+import { isAbsentPartnerName } from '@/features/weddings/presentation/getWeddingDisplayName'
+import { resolveCoupleNamesFromFormParts } from '@/lib/forms/weddingCoupleNameFields'
 import type { FormAnswerJson } from '@/types/formEngine'
 import type { Couple, Wedding } from '@/types/wedding'
+
+/** Block-builder question ids used by studio-configured contract forms. */
+const SYSTEM_QUESTION_ID_TO_FIELD_KEY: Record<string, string> = {
+  sys_p1_first: 'partner1.firstName',
+  sys_p1_last: 'partner1.lastName',
+  sys_p1_phone: 'partner1.phone',
+  sys_p1_email: 'partner1.email',
+  sys_p1_address: 'partner1.address',
+  sys_p2_first: 'partner2.firstName',
+  sys_p2_last: 'partner2.lastName',
+  sys_p2_phone: 'partner2.phone',
+  sys_p2_email: 'partner2.email',
+  sys_p2_address: 'partner2.address',
+}
 
 function isBlank(value: string | undefined | null): boolean {
   return value === undefined || value === null || String(value).trim() === ''
@@ -29,14 +45,27 @@ function fieldString(
   return ''
 }
 
-function fullName(first: string, last: string): string {
-  return [first, last].filter(Boolean).join(' ').trim()
+/** Name parts: blank and UI placeholders (—, -, brak) are not real values. */
+function nameFieldString(
+  fields: Record<string, unknown>,
+  key: string,
+): string {
+  const raw = fieldString(fields, key)
+  if (isAbsentPartnerName(raw)) return ''
+  return raw
+}
+
+function resolveQuestionFieldKey(questionId: string): string | undefined {
+  return (
+    CONTRACT_QUESTION_ID_TO_FIELD_KEY[questionId] ??
+    SYSTEM_QUESTION_ID_TO_FIELD_KEY[questionId]
+  )
 }
 
 function fieldsFromValues(values: Record<string, unknown>): Record<string, unknown> {
   const fields: Record<string, unknown> = {}
   for (const [questionId, value] of Object.entries(values)) {
-    const fieldKey = CONTRACT_QUESTION_ID_TO_FIELD_KEY[questionId]
+    const fieldKey = resolveQuestionFieldKey(questionId)
     if (fieldKey) fields[fieldKey] = value
   }
   return fields
@@ -50,7 +79,7 @@ function fieldsFromAnswers(answers: unknown): Record<string, unknown> {
     const questionId = (item as { questionId?: unknown }).questionId
     const value = (item as { value?: unknown }).value
     if (typeof questionId !== 'string') continue
-    const fieldKey = CONTRACT_QUESTION_ID_TO_FIELD_KEY[questionId]
+    const fieldKey = resolveQuestionFieldKey(questionId)
     if (fieldKey) fields[fieldKey] = value
   }
   return fields
@@ -108,13 +137,10 @@ export async function mergeFormAnswersIntoWedding(
     10,
   )
 
-  const brideFirst = fieldString(fields, 'partner1.firstName')
-  const brideLast = fieldString(fields, 'partner1.lastName')
-  const groomFirst = fieldString(fields, 'partner2.firstName')
-  const groomLast = fieldString(fields, 'partner2.lastName')
-  const brideName = fullName(brideFirst, brideLast)
-  const groomName = fullName(groomFirst, groomLast)
-
+  const brideFirst = nameFieldString(fields, 'partner1.firstName')
+  const brideLast = nameFieldString(fields, 'partner1.lastName')
+  const groomFirst = nameFieldString(fields, 'partner2.firstName')
+  const groomLast = nameFieldString(fields, 'partner2.lastName')
   const bridePhone = fieldString(fields, 'partner1.phone')
   const brideEmail = fieldString(fields, 'partner1.email')
   const groomPhone = fieldString(fields, 'partner2.phone')
@@ -170,18 +196,22 @@ export async function mergeFormAnswersIntoWedding(
       ? await packageService.get(requestedPrimary)
       : null
 
+  const resolvedNames = resolveCoupleNamesFromFormParts({
+    formBrideFirst: brideFirst,
+    formBrideLast: brideLast,
+    formGroomFirst: groomFirst,
+    formGroomLast: groomLast,
+    wedding,
+  })
+
   const couple: Couple = {
     ...wedding.couple,
-    partner1: preferForm(brideName, wedding.couple.partner1),
-    partner2: preferForm(groomName, wedding.couple.partner2),
-    partner1FirstName:
-      preferForm(brideFirst, wedding.couple.partner1FirstName) || undefined,
-    partner1LastName:
-      preferForm(brideLast, wedding.couple.partner1LastName) || undefined,
-    partner2FirstName:
-      preferForm(groomFirst, wedding.couple.partner2FirstName) || undefined,
-    partner2LastName:
-      preferForm(groomLast, wedding.couple.partner2LastName) || undefined,
+    partner1: resolvedNames.partner1,
+    partner2: resolvedNames.partner2,
+    partner1FirstName: resolvedNames.partner1FirstName,
+    partner1LastName: resolvedNames.partner1LastName,
+    partner2FirstName: resolvedNames.partner2FirstName,
+    partner2LastName: resolvedNames.partner2LastName,
     partner1Phone: preferForm(bridePhone, wedding.couple.partner1Phone) || undefined,
     partner2Phone: preferForm(groomPhone, wedding.couple.partner2Phone) || undefined,
     partner1Email: preferForm(brideEmail, wedding.couple.partner1Email) || undefined,

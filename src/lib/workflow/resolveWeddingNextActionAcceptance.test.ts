@@ -148,6 +148,8 @@ run('0. architecture freeze — pure resolver, no task persistence, legacy noted
   assert(!src.includes('supabase'), 'no supabase')
   assert(!src.includes('await '), 'no async/await')
   assert(!src.includes('open_prewedding'), 'waiting open_prewedding removed')
+  assert(!src.includes('open_cockpit'), 'cockpit next action removed')
+  assert(src.includes('resolve_travel_fee'), 'travel gate id')
   assert(src.includes('mark_contract_signed'), 'mark signed id')
   assert(src.includes('PHASE A'), 'lifecycle phases')
   assert(src.includes('PHASE B'), 'deposit phase')
@@ -202,7 +204,7 @@ run('2. contract Q sent waiting → no fake Next Action from that domain', () =>
   assertEq(a, null, 'waiting on couple → no invented CTA')
 })
 
-run('3. Q completed + contract none → generate_contract', () => {
+run('3. Q completed + contract none + travel unresolved → resolve_travel_fee', () => {
   assertEq(
     resolveWeddingNextAction(
       stub({
@@ -214,12 +216,12 @@ run('3. Q completed + contract none → generate_contract', () => {
       }),
       { today: FAR },
     )?.id,
-    'generate_contract',
+    'resolve_travel_fee',
     'id',
   )
 })
 
-run('1B.1-1. Tomorrow + Q completed + no contract → generate_contract', () => {
+run('3b. travel included + contract none → generate_contract', () => {
   assertEq(
     resolveWeddingNextAction(
       stub({
@@ -228,6 +230,25 @@ run('1B.1-1. Tomorrow + Q completed + no contract → generate_contract', () => 
           weddingQuestionnaire: { status: 'not_sent' },
         },
         contract: { status: 'none' },
+        travelFeeStatus: 'included',
+      }),
+      { today: FAR },
+    )?.id,
+    'generate_contract',
+    'id',
+  )
+})
+
+run('1B.1-1. Tomorrow + Q completed + no contract + travel included → generate_contract', () => {
+  assertEq(
+    resolveWeddingNextAction(
+      stub({
+        questionnaires: {
+          contractData: { status: 'completed' },
+          weddingQuestionnaire: { status: 'not_sent' },
+        },
+        contract: { status: 'none' },
+        travelFeeStatus: 'included',
         ceremonyTime: undefined,
       }),
       { today: IMMINENT, places: corePlaces() },
@@ -364,7 +385,7 @@ run('1B.1-8. Tomorrow + completed + locations ok + missing time → set_ceremony
   )
 })
 
-run('1B.1-9. Tomorrow + completed + ready → open_cockpit', () => {
+run('1B.1-9. Tomorrow + completed + ready → null (no cockpit)', () => {
   assertEq(
     resolveWeddingNextAction(
       commercialReady({
@@ -375,9 +396,9 @@ run('1B.1-9. Tomorrow + completed + ready → open_cockpit', () => {
         ceremonyTime: '16:00',
       }),
       { today: IMMINENT, places: corePlaces(), canonicalApplyCandidateCount: 0 },
-    )?.id,
-    'open_cockpit',
-    'cockpit',
+    ),
+    null,
+    'ready → null',
   )
 })
 
@@ -414,7 +435,6 @@ run('1B.1-12. pre sent waiting — 60/20/1 → no fake operational CTA', () => {
     assert(a?.id !== 'set_ceremony_time', `${today}: no ceremony`)
     assert(a?.id !== 'complete_core_locations', `${today}: no locations`)
     assert(a?.id !== 'review_apply', `${today}: no apply`)
-    assert(a?.id !== 'open_cockpit', `${today}: no cockpit`)
     assert(a?.id !== 'send_prewedding', `${today}: not re-send`)
     assertEq(a, null, `${today}: waiting null`)
   }
@@ -432,7 +452,7 @@ run('1B.1-13. manual wedding.ceremonyTime → never set_ceremony_time', () => {
     { today: IMMINENT, places: corePlaces(), canonicalApplyCandidateCount: 0 },
   )
   assert(a?.id !== 'set_ceremony_time', 'no set time')
-  assertEq(a?.id, 'open_cockpit', 'ready for cockpit')
+  assertEq(a, null, 'ready → null')
 })
 
 run('1B.1-14. ops ceremony override → never set_ceremony_time', () => {
@@ -454,7 +474,7 @@ run('1B.1-14. ops ceremony override → never set_ceremony_time', () => {
     },
   )
   assert(a?.id !== 'set_ceremony_time', 'ops counts')
-  assertEq(a?.id, 'open_cockpit', 'cockpit')
+  assertEq(a, null, 'ready → null')
 })
 
 run('1B.1-15. questionnaire ceremony seed after completed → never set_ceremony_time', () => {
@@ -474,7 +494,7 @@ run('1B.1-15. questionnaire ceremony seed after completed → never set_ceremony
     },
   )
   assert(a?.id !== 'set_ceremony_time', 'seed counts')
-  assertEq(a?.id, 'open_cockpit', 'cockpit')
+  assertEq(a, null, 'ready → null')
 })
 
 run('1B.1-16. stale workflowStage must not alter result', () => {
@@ -679,7 +699,7 @@ run('12. ceremony time when locations ok (completed only)', () => {
   )
 })
 
-run('13. today fully ready → open_cockpit', () => {
+run('13. today fully ready → null (no cockpit)', () => {
   assertEq(
     resolveWeddingNextAction(
       commercialReady({
@@ -694,8 +714,8 @@ run('13. today fully ready → open_cockpit', () => {
         places: corePlaces(),
         canonicalApplyCandidateCount: 0,
       },
-    )?.id,
-    'open_cockpit',
+    ),
+    null,
     'today',
   )
 })
@@ -785,6 +805,277 @@ run('19. send_prewedding title is send copy', () => {
   const a = resolveWeddingNextAction(commercialReady(), { today: NEAR })
   assertEq(a?.id, 'send_prewedding', 'id')
   assertEq(a?.title, 'Wyślij ankietę przedślubną', 'title')
+})
+
+run('A1. contract Q not sent + travel unresolved → send_contract_questionnaire', () => {
+  assertEq(
+    resolveWeddingNextAction(
+      stub({ travelFeeStatus: 'unresolved' }),
+      { today: FAR },
+    )?.id,
+    'send_contract_questionnaire',
+    'Q outranks travel',
+  )
+})
+
+run('A2. contract Q sent/waiting + travel unresolved → no travel action', () => {
+  const a = resolveWeddingNextAction(
+    stub({
+      questionnaires: {
+        contractData: { status: 'sent', sentAt: '2026-01-02' },
+        weddingQuestionnaire: { status: 'not_sent' },
+      },
+      couple: couple({
+        partner1: '',
+        partner2: '',
+        partner1FirstName: '',
+        partner1LastName: '',
+        partner2FirstName: '',
+        partner2LastName: '',
+        partner1Phone: '',
+        phone: '',
+        email: '',
+      }),
+      contract: { status: 'none' },
+      travelFeeStatus: 'unresolved',
+    }),
+    { today: FAR },
+  )
+  assert(a?.id !== 'resolve_travel_fee', 'no travel while waiting')
+  assertEq(a, null, 'waiting')
+})
+
+run('A3. contract data ready + none + travel unresolved → resolve_travel_fee', () => {
+  const a = resolveWeddingNextAction(
+    stub({
+      questionnaires: {
+        contractData: { status: 'completed' },
+        weddingQuestionnaire: { status: 'not_sent' },
+      },
+      contract: { status: 'none' },
+      travelFeeStatus: 'unresolved',
+    }),
+    { today: FAR },
+  )
+  assertEq(a?.id, 'resolve_travel_fee', 'id')
+  assertEq(a?.title, 'Ustal koszt dojazdu', 'title')
+})
+
+run('A4. travel included + contract none → generate_contract', () => {
+  assertEq(
+    resolveWeddingNextAction(
+      stub({
+        questionnaires: {
+          contractData: { status: 'completed' },
+          weddingQuestionnaire: { status: 'not_sent' },
+        },
+        contract: { status: 'none' },
+        travelFeeStatus: 'included',
+      }),
+      { today: FAR },
+    )?.id,
+    'generate_contract',
+    'included',
+  )
+})
+
+run('A5. travel charged valid + contract none → generate_contract', () => {
+  assertEq(
+    resolveWeddingNextAction(
+      stub({
+        questionnaires: {
+          contractData: { status: 'completed' },
+          weddingQuestionnaire: { status: 'not_sent' },
+        },
+        contract: { status: 'none' },
+        travelFeeStatus: 'charged',
+        travelFeeAmount: 350,
+      }),
+      { today: FAR },
+    )?.id,
+    'generate_contract',
+    'charged',
+  )
+})
+
+run('A6. travel unresolved + contract generated → mark_contract_signed', () => {
+  assertEq(
+    resolveWeddingNextAction(
+      stub({
+        questionnaires: {
+          contractData: { status: 'completed' },
+          weddingQuestionnaire: { status: 'not_sent' },
+        },
+        contract: { status: 'generated' },
+        travelFeeStatus: 'unresolved',
+      }),
+      { today: FAR },
+    )?.id,
+    'mark_contract_signed',
+    'generated not retro travel',
+  )
+})
+
+run('A7. travel unresolved + contract sent → mark_contract_signed', () => {
+  assertEq(
+    resolveWeddingNextAction(
+      stub({
+        questionnaires: {
+          contractData: { status: 'completed' },
+          weddingQuestionnaire: { status: 'not_sent' },
+        },
+        contract: { status: 'sent' },
+        travelFeeStatus: 'unresolved',
+      }),
+      { today: FAR },
+    )?.id,
+    'mark_contract_signed',
+    'sent not retro travel',
+  )
+})
+
+run('A8. signed + deposit unpaid → record_deposit (travel unresolved ignored)', () => {
+  assertEq(
+    resolveWeddingNextAction(
+      stub({
+        questionnaires: {
+          contractData: { status: 'completed' },
+          weddingQuestionnaire: { status: 'not_sent' },
+        },
+        contract: { status: 'signed' },
+        depositAmount: 2000,
+        payments: [],
+        travelFeeStatus: 'unresolved',
+      }),
+      { today: FAR },
+    )?.id,
+    'record_deposit',
+    'deposit',
+  )
+})
+
+run('A9. stale workflowStage has no effect on travel gate', () => {
+  assertEq(
+    resolveWeddingNextAction(
+      stub({
+        workflowStage: 'wedding_day',
+        questionnaires: {
+          contractData: { status: 'completed' },
+          weddingQuestionnaire: { status: 'not_sent' },
+        },
+        contract: { status: 'none' },
+        travelFeeStatus: 'unresolved',
+      }),
+      { today: FAR },
+    )?.id,
+    'resolve_travel_fee',
+    'stage ignored',
+  )
+})
+
+run('B1. today + everything ready → null', () => {
+  assertEq(
+    resolveWeddingNextAction(
+      commercialReady({
+        questionnaires: {
+          contractData: { status: 'completed' },
+          weddingQuestionnaire: { status: 'completed' },
+        },
+        ceremonyTime: '16:00',
+      }),
+      {
+        today: TODAY_WEDDING,
+        places: corePlaces(),
+        canonicalApplyCandidateCount: 0,
+      },
+    ),
+    null,
+    'today ready',
+  )
+})
+
+run('B3. today + missing ceremony time → set_ceremony_time', () => {
+  assertEq(
+    resolveWeddingNextAction(
+      commercialReady({
+        questionnaires: {
+          contractData: { status: 'completed' },
+          weddingQuestionnaire: { status: 'completed' },
+        },
+        ceremonyTime: undefined,
+      }),
+      {
+        today: TODAY_WEDDING,
+        places: corePlaces(),
+        canonicalApplyCandidateCount: 0,
+      },
+    )?.id,
+    'set_ceremony_time',
+    'time',
+  )
+})
+
+run('B4. today + missing locations → complete_core_locations', () => {
+  assertEq(
+    resolveWeddingNextAction(
+      commercialReady({
+        questionnaires: {
+          contractData: { status: 'completed' },
+          weddingQuestionnaire: { status: 'completed' },
+        },
+        ceremonyTime: '16:00',
+        ceremonyLocation: '',
+        receptionLocation: '',
+      }),
+      { today: TODAY_WEDDING, places: [], canonicalApplyCandidateCount: 0 },
+    )?.id,
+    'complete_core_locations',
+    'locations',
+  )
+})
+
+run('B5. today + Apply candidates → review_apply', () => {
+  assertEq(
+    resolveWeddingNextAction(
+      commercialReady({
+        questionnaires: {
+          contractData: { status: 'completed' },
+          weddingQuestionnaire: { status: 'completed' },
+        },
+        ceremonyTime: '16:00',
+      }),
+      {
+        today: TODAY_WEDDING,
+        places: corePlaces(),
+        canonicalApplyCandidateCount: 2,
+      },
+    )?.id,
+    'review_apply',
+    'apply',
+  )
+})
+
+run('B7. resolver never returns open_cockpit', () => {
+  const src = readFileSync(
+    resolve(process.cwd(), 'src/lib/workflow/resolveWeddingNextAction.ts'),
+    'utf8',
+  )
+  assert(!src.includes('open_cockpit'), 'id absent')
+  const ready = resolveWeddingNextAction(
+    commercialReady({
+      questionnaires: {
+        contractData: { status: 'completed' },
+        weddingQuestionnaire: { status: 'completed' },
+      },
+      ceremonyTime: '16:00',
+    }),
+    {
+      today: TODAY_WEDDING,
+      places: corePlaces(),
+      canonicalApplyCandidateCount: 0,
+    },
+  )
+  assertEq(ready, null, 'runtime null not cockpit')
 })
 
 console.log('\nOK wedding next-action Phase 1B.1 lifecycle acceptance')

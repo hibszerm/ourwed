@@ -12,7 +12,7 @@
  * B. Deposit when required
  * C. Pre-wedding prep window (send; waiting ⇒ null)
  * D. Operational completion only after pre-wedding completed
- *    (Apply → locations → ceremony time → cockpit when imminent)
+ *    (Apply → locations → ceremony time; Cockpit is not a Next Action)
  *
  * Legacy consumers (migrate in later phases):
  * - `getNextRecommendedAction` in workflowEngine.ts (stage-gated)
@@ -25,6 +25,7 @@ import type { OperationalTimeMap } from '@/features/wedding-day/operationalDayPl
 import { hasPaidDepositPayment } from '@/lib/finance/hasPaidDepositPayment'
 import { getAgreedDeposit } from '@/lib/utils/commercial'
 import { getDaysUntil } from '@/lib/utils/dates'
+import { isTravelFeeResolved } from '@/lib/utils/travelFeeCommercial'
 import type { WeddingPlace } from '@/types/travel'
 import type { QuestionnaireStatus, Wedding } from '@/types/wedding'
 
@@ -43,6 +44,7 @@ export type WeddingNextActionTab =
 
 export type WeddingNextActionId =
   | 'send_contract_questionnaire'
+  | 'resolve_travel_fee'
   | 'generate_contract'
   | 'mark_contract_signed'
   | 'record_deposit'
@@ -50,7 +52,6 @@ export type WeddingNextActionId =
   | 'review_apply'
   | 'complete_core_locations'
   | 'set_ceremony_time'
-  | 'open_cockpit'
 
 export type WeddingNextActionPriority = 'blocker' | 'preparation' | 'imminent'
 
@@ -61,9 +62,11 @@ export type WeddingNextActionPriority = 'blocker' | 'preparation' | 'imminent'
 export type WeddingNextActionDestination =
   | { kind: 'wedding_tab'; tab: WeddingNextActionTab }
   | { kind: 'route'; path: string }
-  | { kind: 'modal'; intent: 'send_contract_questionnaire' | 'add_deposit' }
+  | {
+      kind: 'modal'
+      intent: 'send_contract_questionnaire' | 'add_deposit' | 'resolve_travel_fee'
+    }
   | { kind: 'editor'; section: 'locations' | 'wedding' | 'finances' }
-  | { kind: 'cockpit' }
 
 export type WeddingNextAction = {
   id: WeddingNextActionId
@@ -152,10 +155,6 @@ function isInPrepWindow(days: number): boolean {
   return Number.isFinite(days) && days >= 0 && days <= PRE_WEDDING_PREP_WINDOW_DAYS
 }
 
-function isImminent(days: number): boolean {
-  return days === 0 || days === 1
-}
-
 function isPast(days: number): boolean {
   return Number.isFinite(days) && days < 0
 }
@@ -220,16 +219,8 @@ function resolveOperationalAction(args: {
   applyCount: number
   coreLocationsOk: boolean
   ceremonyTimeOk: boolean
-  days: number
-  allowCockpit: boolean
 }): WeddingNextAction | null {
-  const {
-    applyCount,
-    coreLocationsOk,
-    ceremonyTimeOk,
-    days,
-    allowCockpit,
-  } = args
+  const { applyCount, coreLocationsOk, ceremonyTimeOk } = args
 
   if (applyCount > 0) {
     return action({
@@ -265,16 +256,6 @@ function resolveOperationalAction(args: {
     })
   }
 
-  if (allowCockpit && isImminent(days) && coreLocationsOk && ceremonyTimeOk) {
-    return action({
-      id: 'open_cockpit',
-      title: 'Otwórz tryb dnia ślubu',
-      description: 'Przejdź do operacyjnego trybu dnia ślubu.',
-      priority: 'imminent',
-      destination: { kind: 'cockpit' },
-    })
-  }
-
   return null
 }
 
@@ -282,13 +263,15 @@ function resolveOperationalAction(args: {
  * Resolve the single highest-priority Next Action for a wedding.
  * Priority is deterministic and independent of workflowStage.
  *
- * Ordering (1B.1):
- * A. Legal create — send contract Q (not_sent) / generate (none + party/Q ok)
+ * Ordering:
+ * A. Legal create — send contract Q (not_sent)
+ *    → travel resolved (none + party/Q ok)
+ *    → generate (none + party/Q ok + travel resolved)
  *    Waiting contract Q (`sent` without party) → null (no fake CTA)
- * B. Mark signed / record deposit — always before ops, even when imminent
+ * B. Mark signed / record deposit — always before ops
  * C. Prep window — send pre-wedding; sent/waiting → null
- * D. After pre-wedding completed — Apply → locations → time → cockpit
- * Past: only remaining legal/commercial; no invented delivery
+ * D. After pre-wedding completed — Apply → locations → time → null
+ * Past: only remaining legal/commercial; no invented delivery / Cockpit
  */
 export function resolveWeddingNextAction(
   wedding: Wedding,
@@ -321,6 +304,16 @@ export function resolveWeddingNextAction(
   }
 
   if (partyOk && contractStatus === 'none') {
+    if (!isTravelFeeResolved(wedding)) {
+      return action({
+        id: 'resolve_travel_fee',
+        title: 'Ustal koszt dojazdu',
+        description:
+          'Określ, czy dojazd jest w cenie, czy doliczany osobno.',
+        priority: 'blocker',
+        destination: { kind: 'modal', intent: 'resolve_travel_fee' },
+      })
+    }
     return action({
       id: 'generate_contract',
       title: 'Wygeneruj umowę',
@@ -389,8 +382,6 @@ export function resolveWeddingNextAction(
       applyCount,
       coreLocationsOk,
       ceremonyTimeOk,
-      days,
-      allowCockpit: true,
     })
   }
 

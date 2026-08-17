@@ -7,6 +7,7 @@ import type { WeddingNextAction } from '@/lib/workflow/resolveWeddingNextAction'
 
 export type WeddingNextActionHandlers = {
   sendContractQuestionnaire: () => void
+  resolveTravelFee: () => void
   generateContract: () => void
   /** Contract tab — WeddingContractSignedControls lives there. */
   openContractFinance: () => void
@@ -17,7 +18,6 @@ export type WeddingNextActionHandlers = {
    */
   openPreWedding: () => void
   editLocations: () => void
-  openCockpit: () => void
 }
 
 /**
@@ -31,6 +31,9 @@ export function dispatchWeddingNextAction(
   switch (action.id) {
     case 'send_contract_questionnaire':
       handlers.sendContractQuestionnaire()
+      return
+    case 'resolve_travel_fee':
+      handlers.resolveTravelFee()
       return
     case 'generate_contract':
       handlers.generateContract()
@@ -48,9 +51,6 @@ export function dispatchWeddingNextAction(
       return
     case 'complete_core_locations':
       handlers.editLocations()
-      return
-    case 'open_cockpit':
-      handlers.openCockpit()
       return
     default: {
       const _exhaustive: never = action.id

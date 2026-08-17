@@ -4,64 +4,27 @@ import {
   getLatestSubmittedFormAnswerRecord,
   updateFormAnswerJson,
 } from '@/lib/api/forms'
-import { CONTRACT_QUESTION_ID_TO_FIELD_KEY } from '@/lib/forms/contractQuestionnaireTemplate'
-import { splitPersonName } from '@/lib/api/weddings/weddingMappers'
+import { FIELD_KEY_TO_CONTRACT_QUESTION_ID } from '@/lib/forms/contractQuestionCatalog'
+import { weddingToContractAnswerFields } from '@/lib/forms/weddingCoupleNameFields'
 import { supabase } from '@/lib/supabase'
 import { throwOnError } from '@/lib/supabase/helpers'
 import type { FormAnswerJson } from '@/types/formEngine'
 import type { Wedding } from '@/types/wedding'
 
-const FIELD_KEY_TO_QUESTION_ID: Record<string, string> = Object.fromEntries(
-  Object.entries(CONTRACT_QUESTION_ID_TO_FIELD_KEY).map(([qid, key]) => [
-    key,
-    qid,
-  ]),
-)
+export { weddingToContractAnswerFields } from '@/lib/forms/weddingCoupleNameFields'
 
-/**
- * Build the contract-questionnaire fieldKey map from a Wedding view model.
- * Same shape that mergeFormAnswersIntoWedding reads.
- */
-export function weddingToContractAnswerFields(
-  wedding: Wedding,
-): Record<string, string> {
-  const c = wedding.couple
-  const brideFirst =
-    c.partner1FirstName?.trim() || splitPersonName(c.partner1).first
-  const brideLast =
-    c.partner1LastName?.trim() || splitPersonName(c.partner1).last
-  const groomFirst =
-    c.partner2FirstName?.trim() || splitPersonName(c.partner2).first
-  const groomLast =
-    c.partner2LastName?.trim() || splitPersonName(c.partner2).last
-
-  return {
-    'partner1.firstName': brideFirst,
-    'partner1.lastName': brideLast,
-    'partner1.phone': c.partner1Phone?.trim() || c.phone?.trim() || '',
-    'partner1.email': c.partner1Email?.trim() || c.email?.trim() || '',
-    'partner1.address': c.partner1Address?.trim() || '',
-    'partner1.postalCode': c.partner1PostalCode?.trim() || '',
-    'partner1.city': c.partner1City?.trim() || c.city?.trim() || '',
-    'partner2.firstName': groomFirst,
-    'partner2.lastName': groomLast,
-    'partner2.phone': c.partner2Phone?.trim() || '',
-    'partner2.email': c.partner2Email?.trim() || '',
-    weddingDate: wedding.date || '',
-    packageId: wedding.packageId || '',
-    preparationLocation:
-      wedding.bridePreparationLocation?.trim() ||
-      wedding.preparationLocation?.trim() ||
-      '',
-    bridePreparationLocation:
-      wedding.bridePreparationLocation?.trim() ||
-      wedding.preparationLocation?.trim() ||
-      '',
-    groomPreparationLocation:
-      wedding.groomPreparationLocation?.trim() || '',
-    ceremonyLocation: wedding.ceremonyLocation?.trim() || '',
-    receptionLocation: wedding.receptionLocation?.trim() || '',
-  }
+/** Studio block-builder question ids — dual-write with catalog q-* ids. */
+const FIELD_KEY_TO_SYSTEM_QUESTION_ID: Record<string, string> = {
+  'partner1.firstName': 'sys_p1_first',
+  'partner1.lastName': 'sys_p1_last',
+  'partner1.phone': 'sys_p1_phone',
+  'partner1.email': 'sys_p1_email',
+  'partner1.address': 'sys_p1_address',
+  'partner2.firstName': 'sys_p2_first',
+  'partner2.lastName': 'sys_p2_last',
+  'partner2.phone': 'sys_p2_phone',
+  'partner2.email': 'sys_p2_email',
+  'partner2.address': 'sys_p2_address',
 }
 
 function mergeFieldsIntoAnswerJson(
@@ -85,8 +48,10 @@ function mergeFieldsIntoAnswerJson(
 
   for (const [key, value] of Object.entries(fields)) {
     prevFields[key] = value
-    const questionId = FIELD_KEY_TO_QUESTION_ID[key]
-    if (questionId) prevValues[questionId] = value
+    const catalogId = FIELD_KEY_TO_CONTRACT_QUESTION_ID[key]
+    if (catalogId) prevValues[catalogId] = value
+    const systemId = FIELD_KEY_TO_SYSTEM_QUESTION_ID[key]
+    if (systemId) prevValues[systemId] = value
   }
 
   return {

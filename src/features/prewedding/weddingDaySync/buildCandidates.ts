@@ -49,7 +49,9 @@ export type WeddingDaySyncCandidate = {
   currentIsPlaceholder: boolean
   proposedGeo: GeoPlace | null
   currentGeo: GeoPlace | WeddingPlace | null
-  /** Incoming location is poorer than current verified place. */
+  /** Incoming location is poorer than current verified place.
+   * Used for warning copy + defaultSelected (auto-protect).
+   * Does NOT block explicit Apply. */
   incomingPoorer: boolean
   /** Safe to preselect (empty/placeholder current, not poorer). */
   defaultSelected: boolean

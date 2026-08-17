@@ -154,6 +154,7 @@ run('8–10. Shared guard: complete opens flow; missing blocks', () => {
   assert(incomplete.missingGroups.length > 0, 'has groups')
 
   const readyWedding = stubWedding({
+    travelFeeStatus: 'included',
     couple: {
       ...stubWedding().couple,
       partner1Address: 'ul. Test 1, Kraków',
@@ -166,6 +167,76 @@ run('8–10. Shared guard: complete opens flow; missing blocks', () => {
   )
   assertEq(ready.isReady, true, 'ready when complete')
   assertEq(ready.missingGroups.length, 0, 'no blockers')
+
+  const travelUnresolved = validateContractGeneration(
+    stubWedding({
+      travelFeeStatus: 'unresolved',
+      couple: {
+        ...stubWedding().couple,
+        partner1Address: 'ul. Test 1, Kraków',
+        partner1Phone: '500100200',
+      },
+    }),
+    buildReferenceCompany(),
+  )
+  assertEq(travelUnresolved.isReady, false, 'travel unresolved blocks')
+  assertEq(
+    travelUnresolved.blockCode,
+    'TRAVEL_FEE_UNRESOLVED',
+    'controlled travel code',
+  )
+  assertEq(
+    travelUnresolved.title,
+    'Najpierw ustal koszt dojazdu.',
+    'travel polish title',
+  )
+  assertEq(
+    travelUnresolved.primaryCorrection?.kind,
+    'edit_travel_fee',
+    'travel correction',
+  )
+
+  const travelChargedZero = validateContractGeneration(
+    stubWedding({
+      travelFeeStatus: 'charged',
+      travelFeeAmount: 0,
+      couple: {
+        ...stubWedding().couple,
+        partner1Address: 'ul. Test 1, Kraków',
+        partner1Phone: '500100200',
+      },
+    }),
+    buildReferenceCompany(),
+  )
+  assertEq(travelChargedZero.isReady, false, 'charged 0 blocks')
+
+  const travelChargedOk = validateContractGeneration(
+    stubWedding({
+      travelFeeStatus: 'charged',
+      travelFeeAmount: 350,
+      couple: {
+        ...stubWedding().couple,
+        partner1Address: 'ul. Test 1, Kraków',
+        partner1Phone: '500100200',
+      },
+    }),
+    buildReferenceCompany(),
+  )
+  assertEq(travelChargedOk.isReady, true, 'charged valid allows')
+
+  const travelLegacyNull = validateContractGeneration(
+    stubWedding({
+      travelFeeStatus: undefined,
+      travelFeeAmount: undefined,
+      couple: {
+        ...stubWedding().couple,
+        partner1Address: 'ul. Test 1, Kraków',
+        partner1Phone: '500100200',
+      },
+    }),
+    buildReferenceCompany(),
+  )
+  assertEq(travelLegacyNull.isReady, false, 'legacy null blocks')
 })
 
 run('11–13. Missing dialog shows only blockers, no counts/percent', () => {
@@ -209,6 +280,33 @@ run('14–17. Contextual correction actions', () => {
   assert(pageSrc.includes("openEditor('contacts')"), 'edit couple')
   assert(pageSrc.includes("openEditor('package')"), 'edit package')
   assert(pageSrc.includes("asDeposit: true"), 'deposit action')
+  assert(pageSrc.includes("case 'edit_travel_fee'"), 'travel correction')
+  assert(pageSrc.includes('TravelFeeResolveModal'), 'travel modal reused')
+})
+
+run('14b. Dialog uses travel title override when travel-only', () => {
+  const src = readFileSync(dialog, 'utf8')
+  assert(src.includes('validation?.title'), 'title override')
+  assert(src.includes('validation?.description'), 'description override')
+})
+
+run('14c. Direct generation route guards unresolved travel', () => {
+  const genPage = resolve(
+    process.cwd(),
+    'src/pages/WeddingContractGenerationPage.tsx',
+  )
+  const src = readFileSync(genPage, 'utf8')
+  assert(src.includes('isTravelFeeResolved'), 'shared travel helper')
+  assert(src.includes('travel-fee-generation-block'), 'block UI')
+  assert(src.includes('Najpierw ustal koszt dojazdu.'), 'polish guidance')
+  assert(
+    src.includes("navigate(`/sluby/${wedding.id}?tab=overview`)"),
+    'back to overview',
+  )
+  assert(
+    src.includes('if (!isTravelFeeResolved(wedding))'),
+    'generate() hard stop',
+  )
 })
 
 run('18. Template blockers remain in GenerateContractModal', () => {

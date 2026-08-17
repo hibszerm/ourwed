@@ -17,6 +17,7 @@ import { AddPaymentModal } from '@/features/weddings/actions/AddPaymentModal'
 import { AddNoteModal } from '@/features/weddings/actions/AddNoteModal'
 import { GenerateContractModal } from '@/features/weddings/actions/GenerateContractModal'
 import { MissingContractDataDialog } from '@/features/weddings/actions/MissingContractDataDialog'
+import { TravelFeeResolveModal } from '@/features/weddings/detail/travel-fee/TravelFeeResolveModal'
 import { DiscardChangesDialog } from '@/features/weddings/detail/editing/DiscardChangesDialog'
 import {
   isLocationEditorSection,
@@ -41,7 +42,7 @@ import {
 } from '@/lib/utils/validateContractGeneration'
 import type { QuestionnaireKind } from '@/lib/api/weddingActionsService'
 import { useProAccessGate } from '@/features/billing/ProAccessGate'
-import type { Payment } from '@/types/wedding'
+import type { Payment, Wedding } from '@/types/wedding'
 import styles from './WeddingDetailPage.module.css'
 import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
@@ -51,6 +52,7 @@ type ModalState =
   | { type: 'note' }
   | { type: 'contract' }
   | { type: 'missing_contract_data' }
+  | { type: 'travel_fee' }
   | null
 
 export function WeddingDetailPage() {
@@ -302,10 +304,22 @@ export function WeddingDetailPage() {
       case 'edit_package':
         openEditor('package')
         break
+      case 'edit_travel_fee':
+        setModal({ type: 'travel_fee' })
+        break
       case 'multi':
         openEditor('wedding')
         break
     }
+  }
+
+  async function handleTravelFeeSaved(next: Wedding) {
+    if (!userId) return
+    queryClient.setQueryData(['weddings', userId, next.id], next)
+    await queryClient.invalidateQueries({ queryKey: ['weddings'] })
+    await invalidateFinanceQueries(queryClient)
+    setModal(null)
+    showToast('Koszt dojazdu został zapisany.', 'success')
   }
 
   function handleHeroAction(action: WeddingHeroAction) {
@@ -457,6 +471,17 @@ export function WeddingDetailPage() {
         onClose={closeModal}
         onCorrect={handleMissingDataCorrection}
       />
+      {wedding ? (
+        <TravelFeeResolveModal
+          open={modal?.type === 'travel_fee'}
+          wedding={wedding}
+          extras={extras}
+          onClose={closeModal}
+          onSaved={(next) => {
+            void handleTravelFeeSaved(next)
+          }}
+        />
+      ) : null}
     </AppLayout>
   )
 }

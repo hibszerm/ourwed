@@ -5,6 +5,7 @@
 
 import type { CompanyDetails } from '@/types/company'
 import type { Wedding } from '@/types/wedding'
+import { isTravelFeeResolved } from '@/lib/utils/travelFeeCommercial'
 import {
   evaluateWeddingContractReadiness,
   type CompletenessItem,
@@ -15,6 +16,7 @@ export type MissingContractDataGroupId =
   | 'company'
   | 'package'
   | 'payments'
+  | 'travel'
 
 export interface MissingContractDataGroup {
   id: MissingContractDataGroupId
@@ -32,7 +34,11 @@ export type MissingDataCorrectionKind =
   | 'edit_couple'
   | 'edit_package'
   | 'edit_payments'
+  | 'edit_travel_fee'
   | 'multi'
+
+/** Controlled domain code — never show raw to users. */
+export type ContractGenerationBlockCode = 'TRAVEL_FEE_UNRESOLVED'
 
 export interface ContractGenerationValidation {
   isReady: boolean
@@ -42,9 +48,16 @@ export interface ContractGenerationValidation {
     kind: MissingDataCorrectionKind
     label: string
   } | null
+  /** Present when travel fee blocks generation. */
+  blockCode?: ContractGenerationBlockCode
+  /** Optional dialog title override (e.g. travel-only). */
+  title?: string
+  /** Optional dialog description override (e.g. travel-only). */
+  description?: string
 }
 
 const GROUP_LABEL: Record<MissingContractDataGroupId, string> = {
+  travel: 'Dojazd',
   client: 'Dane klienta',
   company: 'Dane firmy',
   package: 'Pakiet',
@@ -55,6 +68,7 @@ const GROUP_ACTION: Record<
   MissingContractDataGroupId,
   { label: string; kind: MissingDataCorrectionKind }
 > = {
+  travel: { label: 'Ustal koszt dojazdu', kind: 'edit_travel_fee' },
   company: { label: 'Ustawienia firmy', kind: 'company_settings' },
   client: { label: 'Edytuj dane pary', kind: 'edit_couple' },
   package: { label: 'Edytuj pakiet', kind: 'edit_package' },
@@ -66,16 +80,24 @@ const PRIMARY_LABEL: Record<MissingDataCorrectionKind, string> = {
   edit_couple: 'Edytuj dane pary',
   edit_package: 'Uzupełnij pakiet',
   edit_payments: 'Uzupełnij płatności',
+  edit_travel_fee: 'Ustal koszt dojazdu',
   multi: 'Uzupełnij dane',
 }
 
+const TRAVEL_ONLY_TITLE = 'Najpierw ustal koszt dojazdu.'
+const TRAVEL_ONLY_DESCRIPTION =
+  'Określ, czy dojazd jest w cenie, czy doliczany osobno.'
+
 function groupOrder(id: MissingContractDataGroupId): number {
-  return (['company', 'client', 'package', 'payments'] as const).indexOf(id)
+  return (
+    ['travel', 'company', 'client', 'package', 'payments'] as const
+  ).indexOf(id)
 }
 
 /**
  * Validate wedding + company data required before opening contract generation.
  * Always recompute — never cache a previous result across attempts.
+ * Travel fee must be resolved (included, or charged with valid amount).
  */
 export function validateContractGeneration(
   wedding: Wedding,
@@ -83,8 +105,9 @@ export function validateContractGeneration(
 ): ContractGenerationValidation {
   const readiness = evaluateWeddingContractReadiness(wedding, company)
   const missing = readiness.items.filter((i) => i.status === 'missing')
+  const travelUnresolved = !isTravelFeeResolved(wedding)
 
-  if (missing.length === 0) {
+  if (missing.length === 0 && !travelUnresolved) {
     return {
       isReady: true,
       missingGroups: [],
@@ -108,8 +131,20 @@ export function validateContractGeneration(
       contextualAction: GROUP_ACTION[id],
     }))
 
-  const primaryKind: MissingDataCorrectionKind =
-    missingGroups.length === 1
+  if (travelUnresolved) {
+    missingGroups.unshift({
+      id: 'travel',
+      label: GROUP_LABEL.travel,
+      items: ['Koszt dojazdu'],
+      contextualAction: GROUP_ACTION.travel,
+    })
+  }
+
+  const onlyTravel = travelUnresolved && missingGroups.length === 1
+
+  const primaryKind: MissingDataCorrectionKind = onlyTravel
+    ? 'edit_travel_fee'
+    : missingGroups.length === 1
       ? missingGroups[0]!.contextualAction.kind
       : 'multi'
 
@@ -120,6 +155,9 @@ export function validateContractGeneration(
       kind: primaryKind,
       label: PRIMARY_LABEL[primaryKind],
     },
+    blockCode: travelUnresolved ? 'TRAVEL_FEE_UNRESOLVED' : undefined,
+    title: onlyTravel ? TRAVEL_ONLY_TITLE : undefined,
+    description: onlyTravel ? TRAVEL_ONLY_DESCRIPTION : undefined,
   }
 }
 

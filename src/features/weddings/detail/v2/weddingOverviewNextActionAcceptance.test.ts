@@ -39,6 +39,7 @@ const libRoot = resolve(process.cwd(), 'src/lib/workflow')
 
 const ALL_ACTION_IDS: WeddingNextActionId[] = [
   'send_contract_questionnaire',
+  'resolve_travel_fee',
   'generate_contract',
   'mark_contract_signed',
   'record_deposit',
@@ -46,7 +47,6 @@ const ALL_ACTION_IDS: WeddingNextActionId[] = [
   'review_apply',
   'complete_core_locations',
   'set_ceremony_time',
-  'open_cockpit',
 ]
 
 function stubAction(id: WeddingNextActionId): WeddingNextAction {
@@ -64,16 +64,19 @@ function trackingHandlers(): {
 } {
   const calls: Record<keyof WeddingNextActionHandlers, number> = {
     sendContractQuestionnaire: 0,
+    resolveTravelFee: 0,
     generateContract: 0,
     openContractFinance: 0,
     recordDeposit: 0,
     openPreWedding: 0,
     editLocations: 0,
-    openCockpit: 0,
   }
   const handlers: WeddingNextActionHandlers = {
     sendContractQuestionnaire: () => {
       calls.sendContractQuestionnaire += 1
+    },
+    resolveTravelFee: () => {
+      calls.resolveTravelFee += 1
     },
     generateContract: () => {
       calls.generateContract += 1
@@ -89,9 +92,6 @@ function trackingHandlers(): {
     },
     editLocations: () => {
       calls.editLocations += 1
-    },
-    openCockpit: () => {
-      calls.openCockpit += 1
     },
   }
   return { handlers, calls }
@@ -128,6 +128,7 @@ run('2. Overview no longer uses pickPrimaryAction as CTA source', () => {
 run('3. Destination adapter covers every V1 action exhaustively', () => {
   const expected: Record<WeddingNextActionId, keyof WeddingNextActionHandlers> = {
     send_contract_questionnaire: 'sendContractQuestionnaire',
+    resolve_travel_fee: 'resolveTravelFee',
     generate_contract: 'generateContract',
     mark_contract_signed: 'openContractFinance',
     record_deposit: 'recordDeposit',
@@ -135,7 +136,6 @@ run('3. Destination adapter covers every V1 action exhaustively', () => {
     review_apply: 'openPreWedding',
     complete_core_locations: 'editLocations',
     set_ceremony_time: 'openPreWedding',
-    open_cockpit: 'openCockpit',
   }
 
   for (const id of ALL_ACTION_IDS) {
@@ -159,6 +159,9 @@ run('4–12. DetailV2 wires real destinations for each action family', () => {
   )
 
   assert(shell.includes("onSendQuestionnaire?.('contractData')"), '4. contract Q')
+  assert(dispatch.includes("case 'resolve_travel_fee'"), '4b. travel case')
+  assert(shell.includes('setTravelFeeOpen(true)'), '4c. travel opens modal')
+  assert(shell.includes('TravelFeeResolveModal'), '4d. existing modal')
   assert(shell.includes("onHeroAction('generate_contract')"), '5. generate')
   assert(shell.includes("setTab('contract_finance')"), '6. mark signed tab')
   assert(dispatch.includes("case 'mark_contract_signed'"), '6b. mark signed case')
@@ -172,8 +175,10 @@ run('4–12. DetailV2 wires real destinations for each action family', () => {
   assert(shell.includes("onEditSection('locations')"), '10. locations')
   assert(dispatch.includes("case 'set_ceremony_time'"), '11. ceremony time')
   assert(dispatch.includes('handlers.openPreWedding()'), '11b. time → Ankieta')
-  assert(shell.includes('dzien-slubu'), '12. cockpit route')
-  assert(dispatch.includes("case 'open_cockpit'"), '12b. cockpit case')
+  assert(!dispatch.includes("case 'open_cockpit'"), '12b. cockpit not a Next Action')
+  assert(!dispatch.includes('openCockpit'), '12c. no cockpit handler')
+  const header = readFileSync(resolve(v2Root, 'WeddingWorkspaceHeader.tsx'), 'utf8')
+  assert(header.includes('dzien-slubu'), '12. cockpit route still in header')
 })
 
 run('13. Null action renders no fake CTA', () => {
@@ -312,6 +317,23 @@ run('23. Manual ceremony-time save reflected via operational-times query', () =>
   assert(plan.includes('weddingOperationalTimesService.setTime'), 'manual save path')
   assert(plan.includes('setQueryData'), 'Plan dnia updates cache')
   assert(card.includes('operationalTimes,'), 'passed into resolver context')
+})
+
+run('24. Overview travel CTA reuses TravelFeeResolveModal; save invalidates wedding', () => {
+  const shell = readFileSync(resolve(v2Root, 'WeddingDetailV2.tsx'), 'utf8')
+  const dispatch = readFileSync(
+    resolve(v2Root, 'dispatchWeddingNextAction.ts'),
+    'utf8',
+  )
+  const header = readFileSync(resolve(v2Root, 'WeddingWorkspaceHeader.tsx'), 'utf8')
+  assert(dispatch.includes('resolveTravelFee'), 'travel handler')
+  assert(shell.includes('TravelFeeResolveModal'), 'modal mounted')
+  assert(shell.includes('from \'@/features/weddings/detail/travel-fee/TravelFeeResolveModal\''), 'same module')
+  assert(shell.includes('handleWeddingUpdated'), 'save refresh')
+  assert(shell.includes("invalidateQueries({ queryKey: ['weddings'] })"), 'no hard reload')
+  assert(!shell.includes("onHeroAction('open_cockpit')"), 'no cockpit hero')
+  assert(header.includes('Otwórz tryb dnia ślubu'), 'manual cockpit kept')
+  assert(!dispatch.includes('open_cockpit'), 'no cockpit dispatch')
 })
 
 console.log('\nwedding overview next action (1B / 1B.1): done')

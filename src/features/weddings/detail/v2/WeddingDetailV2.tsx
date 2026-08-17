@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
 import { calendarIntegrationQueryKeys } from '@/features/calendar-integrations/queryKeys'
@@ -14,6 +14,7 @@ import { WeddingOverviewWorkspace } from '@/features/weddings/detail/v2/WeddingO
 import { WeddingWorkspaceEditSurface } from '@/features/weddings/detail/v2/WeddingWorkspaceEditSurface'
 import { WeddingWorkspaceHeader } from '@/features/weddings/detail/v2/WeddingWorkspaceHeader'
 import { WeddingWorkspaceTabs } from '@/features/weddings/detail/v2/WeddingWorkspaceTabs'
+import { TravelFeeResolveModal } from '@/features/weddings/detail/travel-fee/TravelFeeResolveModal'
 import type { WeddingNextActionHandlers } from '@/features/weddings/detail/v2/dispatchWeddingNextAction'
 import type {
   WeddingDetailSharedProps,
@@ -64,13 +65,13 @@ export function WeddingDetailV2(props: WeddingDetailSharedProps) {
   } = props
 
   const userId = useStudioAuthId()
-  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [searchParams] = useSearchParams()
   const [tab, setTabState] = useState<WeddingWorkspaceTab>(() =>
     initialWorkspaceTab(searchParams.get('tab')),
   )
   const [packageFocus, setPackageFocus] = useState(false)
+  const [travelFeeOpen, setTravelFeeOpen] = useState(false)
 
   const setTab = useCallback((next: WeddingWorkspaceTab) => {
     setTabState(next)
@@ -88,6 +89,9 @@ export function WeddingDetailV2(props: WeddingDetailSharedProps) {
       sendContractQuestionnaire: () => {
         onSendQuestionnaire?.('contractData')
       },
+      resolveTravelFee: () => {
+        setTravelFeeOpen(true)
+      },
       generateContract: () => {
         onHeroAction('generate_contract')
       },
@@ -104,18 +108,13 @@ export function WeddingDetailV2(props: WeddingDetailSharedProps) {
         if (onEditSection) onEditSection('locations')
         else onRequestVerifyLocations()
       },
-      openCockpit: () => {
-        void navigate(`/sluby/${wedding.id}/dzien-slubu`)
-      },
     }),
     [
-      navigate,
       onEditSection,
       onHeroAction,
       onRequestVerifyLocations,
       onSendQuestionnaire,
       setTab,
-      wedding.id,
     ],
   )
 
@@ -232,7 +231,8 @@ export function WeddingDetailV2(props: WeddingDetailSharedProps) {
           {tab === 'pre_wedding_questionnaire' ? (
             <WeddingPreWeddingQuestionnaireWorkspace
               wedding={wedding}
-              onWeddingSynced={() => {
+              onWeddingSynced={(next) => {
+                queryClient.setQueryData(['weddings', userId, wedding.id], next)
                 void queryClient.invalidateQueries({
                   predicate: (q) =>
                     Array.isArray(q.queryKey) && q.queryKey[0] === 'weddings',
@@ -272,6 +272,17 @@ export function WeddingDetailV2(props: WeddingDetailSharedProps) {
           onClose={() => onCancelEdit?.()}
         />
       ) : null}
+
+      <TravelFeeResolveModal
+        open={travelFeeOpen}
+        wedding={wedding}
+        extras={extras}
+        onClose={() => setTravelFeeOpen(false)}
+        onSaved={(next) => {
+          setTravelFeeOpen(false)
+          void handleWeddingUpdated(next)
+        }}
+      />
     </div>
   )
 }

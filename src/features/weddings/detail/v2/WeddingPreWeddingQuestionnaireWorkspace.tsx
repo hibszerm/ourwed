@@ -261,7 +261,7 @@ function MappingPanel({
                   <input
                     type="checkbox"
                     checked={checked}
-                    disabled={applying || candidate.incomingPoorer}
+                    disabled={applying}
                     onChange={() => onToggle(candidate.id)}
                     aria-label={`Zaznacz: ${candidate.label}`}
                   />
@@ -332,8 +332,8 @@ function MappingPanel({
                   </div>
                   {candidate.incomingPoorer ? (
                     <p className={styles.mappingWarn}>
-                      Obecna lokalizacja jest pełniejsza (współrzędne / weryfikacja).
-                      Dane z ankiety nie zastąpią jej automatycznie.
+                      Obecna lokalizacja jest zweryfikowana. Zastosowanie danych
+                      z ankiety zastąpi ją adresem wpisanym ręcznie.
                     </p>
                   ) : null}
                 </div>
@@ -341,7 +341,7 @@ function MappingPanel({
                   <Button
                     size="sm"
                     variant="secondary"
-                    disabled={applying || candidate.incomingPoorer}
+                    disabled={applying}
                     onClick={() => onApplyOne(candidate)}
                   >
                     Zastosuj

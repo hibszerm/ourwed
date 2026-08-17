@@ -20,6 +20,7 @@ import {
 import {
   getEffectiveTravelFeeAmount,
   getTravelFeeContractGuardLevel,
+  isTravelFeeResolved,
   isValidTravelFeeDraft,
   normalizeTravelFeeDecision,
   previewTravelFeeContractValue,
@@ -351,6 +352,18 @@ run('legacy default semantics', () => {
   assertEq(w.travelFeeStatus ?? 'unresolved', 'unresolved', 'status')
   assertEq(getEffectiveTravelFeeAmount(w), 0, 'amount')
   assertEq(w.price, 5000, 'cv untouched')
+  assertEq(isTravelFeeResolved(w), false, 'unresolved not resolved')
+  assertEq(isTravelFeeResolved({ travelFeeStatus: 'included' }), true, 'included')
+  assertEq(
+    isTravelFeeResolved({ travelFeeStatus: 'charged', travelFeeAmount: 350 }),
+    true,
+    'charged valid',
+  )
+  assertEq(
+    isTravelFeeResolved({ travelFeeStatus: 'charged', travelFeeAmount: 0 }),
+    false,
+    'charged zero invalid',
+  )
 })
 
 run('outbound summarizer does not invent return', () => {

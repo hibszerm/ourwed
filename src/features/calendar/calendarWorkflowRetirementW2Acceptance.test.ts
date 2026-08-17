@@ -173,6 +173,27 @@ run('4. waiting questionnaire produces no fake CTA', () => {
   assertEq(action, null, 'waiting — null')
 })
 
+run('5b. unresolved travel + contract none navigates to Overview (no calendar modal)', () => {
+  const action = resolveWeddingNextAction(
+    wedding({
+      questionnaires: {
+        contractData: { status: 'completed' },
+        weddingQuestionnaire: { status: 'not_sent' },
+      },
+      contract: { status: 'none' },
+      travelFeeStatus: 'unresolved',
+    }),
+  )
+  assertEq(action?.id, 'resolve_travel_fee', 'travel')
+  assertEq(
+    hrefForWeddingNextAction('w1', action!),
+    '/sluby/w1?tab=overview',
+    'overview href',
+  )
+  const drawer = src('src/features/calendar/components/CalendarDrawer.tsx')
+  assert(!drawer.includes('TravelFeeResolveModal'), 'no modal in calendar')
+})
+
 run('5. unsigned contract produces mark-signed action', () => {
   const action = resolveWeddingNextAction(
     wedding({
@@ -255,7 +276,7 @@ run('8. missing ceremony time produces ceremony-time action', () => {
   assertEq(action?.id, 'set_ceremony_time', 'ceremony time')
 })
 
-run('9. imminent ready wedding produces Cockpit', () => {
+run('9. imminent ready wedding produces no Cockpit Next Action', () => {
   const places = [place('ceremony', 'Kościół'), place('reception', 'Sala')]
   const action = resolveWeddingNextAction(
     wedding({
@@ -278,12 +299,7 @@ run('9. imminent ready wedding produces Cockpit', () => {
       canonicalApplyCandidateCount: 0,
     },
   )
-  assertEq(action?.id, 'open_cockpit', 'cockpit')
-  assertEq(
-    hrefForWeddingNextAction('w1', action!),
-    '/sluby/w1/dzien-slubu',
-    'cockpit href',
-  )
+  assertEq(action, null, 'ready → null')
 })
 
 run('10. past ready wedding does not invent postproduction CTA', () => {
@@ -380,6 +396,7 @@ run('16–21. Calendar first-paint remains light; enrichment is drawer-scoped', 
 run('href catalog covers all action ids', () => {
   const ids = [
     'send_contract_questionnaire',
+    'resolve_travel_fee',
     'generate_contract',
     'mark_contract_signed',
     'record_deposit',
@@ -387,7 +404,6 @@ run('href catalog covers all action ids', () => {
     'review_apply',
     'complete_core_locations',
     'set_ceremony_time',
-    'open_cockpit',
   ] as const
   for (const id of ids) {
     const href = hrefForWeddingNextAction('w1', {
@@ -397,12 +413,25 @@ run('href catalog covers all action ids', () => {
       destination:
         id === 'generate_contract'
           ? { kind: 'route', path: '/sluby/w1/umowy/nowa' }
-          : id === 'open_cockpit'
-            ? { kind: 'cockpit' }
+          : id === 'resolve_travel_fee'
+            ? { kind: 'modal', intent: 'resolve_travel_fee' }
             : { kind: 'wedding_tab', tab: 'overview' },
     })
     assert(href.includes('/sluby/w1'), `${id} → ${href}`)
   }
+  assertEq(
+    hrefForWeddingNextAction('w1', {
+      id: 'resolve_travel_fee',
+      title: 'Ustal koszt dojazdu',
+      priority: 'blocker',
+      destination: { kind: 'modal', intent: 'resolve_travel_fee' },
+    }),
+    '/sluby/w1?tab=overview',
+    'travel → overview (no calendar modal)',
+  )
+  const hrefSrc = src('src/features/calendar/utils/hrefForWeddingNextAction.ts')
+  assert(!hrefSrc.includes('open_cockpit'), 'no cockpit href')
+  assert(!hrefSrc.includes('TravelFeeResolveModal'), 'no modal in calendar')
 })
 
 if (process.exitCode) {

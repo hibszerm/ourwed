@@ -28,9 +28,8 @@ export function hrefForWeddingNextAction(
     case 'set_ceremony_time':
       return `/sluby/${weddingId}?tab=pre_wedding_questionnaire`
     case 'complete_core_locations':
+    case 'resolve_travel_fee':
       return `/sluby/${weddingId}?tab=overview`
-    case 'open_cockpit':
-      return `/sluby/${weddingId}/dzien-slubu`
     default: {
       const _exhaustive: never = action.id
       void _exhaustive

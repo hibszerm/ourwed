@@ -25,13 +25,17 @@ export function MissingContractDataDialog({
 }: MissingContractDataDialogProps) {
   const groups = validation?.missingGroups ?? []
   const primary = validation?.primaryCorrection
+  const title = validation?.title ?? 'Uzupełnij dane do umowy'
+  const description =
+    validation?.description ??
+    'Przed wygenerowaniem umowy uzupełnij poniższe informacje.'
 
   return (
     <Modal
       open={open}
       onClose={onClose}
-      title="Uzupełnij dane do umowy"
-      description="Przed wygenerowaniem umowy uzupełnij poniższe informacje."
+      title={title}
+      description={description}
       size="md"
       primaryAction={
         primary ? (
