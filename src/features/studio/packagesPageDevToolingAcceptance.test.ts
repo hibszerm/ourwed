@@ -41,10 +41,17 @@ assert(!src.includes('seedMessage'), 'no seedMessage state')
 assert(!src.includes('import.meta.env.DEV'), 'no DEV gate leftover on Packages')
 
 // Real package product still present
-assert(src.includes('packageService'), 'packageService still used')
-assert(src.includes('Nowy pakiet'), 'create package CTA preserved')
-assert(src.includes('PackageContractSection'), 'package contract section preserved')
-assert(src.includes('packageItemService'), 'package items still used')
+const workspacePath = resolve(
+  process.cwd(),
+  'src/features/studio/packages/modern/ModernPackagesWorkspace.tsx',
+)
+const workspace = readFileSync(workspacePath, 'utf8')
+const joined = `${src}\n${workspace}`
+
+assert(joined.includes('packageService'), 'packageService still used')
+assert(joined.includes('Nowy pakiet') || joined.includes('PACKAGES_ADD_LABEL'), 'create package CTA preserved')
+assert(joined.includes('PackageContractSection'), 'package contract section preserved')
+assert(joined.includes('packageItemService'), 'package items still used')
 
 // Dev fixtures remain available outside the page (tests / scripts)
 const refPath = resolve(process.cwd(), 'src/lib/dev/referenceWedding.ts')

@@ -214,12 +214,22 @@ function QuestionEditor({
 
           <div className={styles.fieldRow}>
             <label className={styles.fieldLabel}>Tekst pomocniczy</label>
-            <input
-              type="text"
-              className={styles.fieldInput}
-              value={question.helpText ?? ''}
-              onChange={(e) => onChange({ ...question, helpText: e.target.value || undefined })}
-            />
+            {question.type === 'information' ? (
+              <textarea
+                className={styles.fieldTextarea}
+                rows={8}
+                value={question.helpText ?? ''}
+                onChange={(e) => onChange({ ...question, helpText: e.target.value || undefined })}
+                data-testid="question-help-textarea"
+              />
+            ) : (
+              <input
+                type="text"
+                className={styles.fieldInput}
+                value={question.helpText ?? ''}
+                onChange={(e) => onChange({ ...question, helpText: e.target.value || undefined })}
+              />
+            )}
           </div>
         </div>
       )}

@@ -84,19 +84,37 @@ function assertNotIncludes(src: string, needle: string, m: string) {
   assertIncludes(router, "path: '/ustawienia/powiadomienia'", 'settings prefs preserved')
 
   const page = read('src/pages/NotificationsPage.tsx')
-  assertIncludes(page, "useState<NotificationListFilter>('all')", 'B — all default')
-  assertIncludes(page, "setFilter('unread')", 'C — unread filter')
-  assertIncludes(page, 'styles.unread', 'D — unread style')
-  assertIncludes(page, 'styles.dot', 'D — unread dot')
-  assertIncludes(page, 'markRead.mutateAsync', 'E/F — mark read')
-  assertIncludes(page, 'navigate(notification.link)', 'E — navigate when link')
-  assertIncludes(page, 'markAll.mutateAsync', 'G — mark all')
-  assertIncludes(page, 'fetchNextPage', 'H — load more')
-  assertIncludes(page, 'Pokaż więcej', 'H — load more label')
-  assertIncludes(page, 'Nie masz jeszcze żadnych powiadomień', 'I — empty all')
-  assertIncludes(page, 'Wszystko przeczytane', 'J — empty unread')
+  assertIncludes(page, 'ModernNotificationsWorkspace', 'page mounts modern workspace')
+  assertIncludes(page, 'width="wide"', 'Modern wide shell')
+  assertNotIncludes(page, 'title="Powiadomienia"', 'no AppLayout title H1')
+
+  const workspace = read(
+    'src/features/notifications/modern/ModernNotificationsWorkspace.tsx',
+  )
+  const row = read('src/features/notifications/modern/ModernNotificationRow.tsx')
+  const copy = read('src/features/notifications/modern/notificationsCopy.ts')
+  assertIncludes(workspace, "useState<NotificationListFilter>('all')", 'B — all default')
+  assertIncludes(workspace, "setFilter('unread')", 'C — unread filter')
+  assertIncludes(row, 'styles.unread', 'D — unread style')
+  assertIncludes(row, 'styles.dot', 'D — unread dot')
+  assertIncludes(workspace, 'markRead.mutateAsync', 'E/F — mark read')
+  assertIncludes(workspace, 'navigate(notification.link)', 'E — navigate when link')
+  assertIncludes(workspace, 'markAll.mutateAsync', 'G — mark all')
+  assertIncludes(workspace, 'fetchNextPage', 'H — load more')
+  assertIncludes(copy, 'Pokaż więcej', 'H — load more label')
+  assertIncludes(copy, 'Brak powiadomień', 'I — empty all')
   assertIncludes(
-    page,
+    copy,
+    'Nowe powiadomienia dotyczące Twojej pracy pojawią się tutaj.',
+    'I — empty all copy',
+  )
+  assertIncludes(copy, 'Wszystko przeczytane', 'J — empty unread')
+  assertNotIncludes(copy, 'alerty', 'no alerty copy')
+  assertNotIncludes(workspace, 'Ładowanie powiadomień', 'no loading copy')
+  assertNotIncludes(row, 'IconBell', 'no type-colored bell')
+  assertNotIncludes(workspace, 'items.length}', 'no Wszystkie loaded-page count')
+  assertIncludes(
+    row,
     'Boolean(notification.link) || !notification.read',
     'F — link-less actionable',
   )
@@ -115,9 +133,13 @@ function assertNotIncludes(src: string, needle: string, m: string) {
   )
   assertIncludes(sidebar, "unreadCount > 99 ? '99+'", 'O — 99+ cap')
 
-  const css = read('src/pages/NotificationsPage.module.css')
+  const css = read(
+    'src/features/notifications/modern/ModernNotificationsWorkspace.module.css',
+  )
   assertIncludes(css, 'overflow-wrap: anywhere', 'K — long text wrap')
-  assertIncludes(css, 'min-height: 44px', 'K — touch targets')
+  assertIncludes(css, 'min-height: var(--touch-target)', 'K — touch targets')
+  assertIncludes(css, 'max-width: 1080px', 'feed 1080 left axis')
+  assertNotIncludes(css, 'margin-inline: auto', 'feed not centered catalog')
 
   console.log('PASS  notification center UI')
 }

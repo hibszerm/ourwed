@@ -44,23 +44,25 @@ function task(
   }
 }
 
-const center = read('src/features/tasks/TasksCenter.tsx')
-const row = read('src/features/tasks/TasksCenterRow.tsx')
+const center = read('src/features/tasks/modern/ModernTasksWorkspace.tsx')
+const row = read('src/features/tasks/modern/ModernTasksRow.tsx')
+const overflow = read('src/features/tasks/modern/TaskOverflowMenu.tsx')
 const form = read('src/features/tasks/TaskFormModal.tsx')
 const del = read('src/features/tasks/TaskDeleteModal.tsx')
 const service = read('src/lib/api/taskService.ts')
 const weddingMeta = read('src/features/tasks/taskWeddingMeta.ts')
 const invalidate = read('src/features/tasks/invalidateTaskDomain.ts')
 const keys = read('src/features/tasks/tasksQueryKeys.ts')
-const css = read('src/features/tasks/TasksCenter.module.css')
+const css = read('src/features/tasks/modern/ModernTasksWorkspace.module.css')
 const detailPage = read('src/pages/WeddingDetailPage.tsx')
+const detailHost = read('src/features/weddings/detail/useWeddingDetailHost.ts')
 const persist = read('src/features/weddings/edit/persistWeddingEditDraft.ts')
 const nextAction = read('src/lib/workflow/resolveWeddingNextAction.ts')
 const dashboardTodo = read('src/features/dashboard/components/TodoTodayCard.tsx')
 const gates = read('src/features/billing/proGateActions.ts')
 
 run('1–2. Add CTA + create modal', () => {
-  assert(center.includes('Dodaj zadanie'), 'CTA')
+  assert(center.includes('TASKS_ADD_LABEL'), 'CTA')
   assert(center.includes('ProGateAction'), 'pro gate')
   assert(center.includes('actionKey="create_task"'), 'create_task key')
   assert(center.includes('TaskFormModal'), 'form modal')
@@ -109,7 +111,8 @@ run('11–19. Complete / reopen', () => {
   assert(center.includes('taskService.reopen'), 'center reopen')
   assert(row.includes('onToggleComplete'), 'checkbox wired')
   assert(
-    css.includes('min-height: 2.75rem') || css.includes('height: 2.75rem'),
+    css.includes('min-height: var(--touch-target)') ||
+      css.includes('height: var(--touch-target)'),
     'touch target',
   )
 
@@ -172,8 +175,9 @@ run('36–42. Cross-surface + Next Action freeze', () => {
   assert(service.includes('listForStudio'), 'studio list')
   assert(invalidate.includes('TASKS_QUERY_ROOT'), 'shared root')
   assert(keys.includes('weddingTasksQueryKey'), 'canonical wedding key')
-  assert(detailPage.includes('weddingTasksQueryKey'), 'detail uses canonical key')
-  assert(detailPage.includes('taskService.listByWeddingId'), 'detail dynamic list')
+  assert(detailHost.includes('weddingTasksQueryKey'), 'detail uses canonical key')
+  assert(detailHost.includes('taskService.listByWeddingId'), 'detail dynamic list')
+  assert(detailPage.includes('useWeddingDetailHost'), 'page uses host')
   assert(nextAction.includes('export function resolveWeddingNextAction'), 'resolver')
   assert(!center.includes('resolveWeddingNextAction'), 'no NA in center')
   assert(!form.includes('resolveWeddingNextAction'), 'no NA in form')
@@ -222,16 +226,15 @@ run('1D.3.1 complete UX optimistic', () => {
 })
 
 run('1D.3.1 edit affordance', () => {
-  assert(row.includes('Edytuj'), 'Edytuj cue')
-  assert(row.includes('styles.editCue'), 'editCue class')
+  assert(overflow.includes('TASKS_EDIT_LABEL'), 'Edytuj in overflow')
+  assert(overflow.includes('TASKS_DELETE_LABEL'), 'Usuń in overflow')
+  assert(overflow.includes('FloatingPortal'), 'portal menu')
   assert(row.includes('onEdit(task)'), 'opens edit')
-  assert(css.includes('.editCue'), 'css')
-  assert(css.includes('.row:hover .editCue'), 'hover shows')
-  assert(css.includes('.row:focus-within .editCue'), 'focus shows')
-  assert(css.includes('display: none'), 'hidden on mobile')
-  assert(row.includes('stopPropagation'), 'wedding link isolated')
+  assert(row.includes('onDelete(task)'), 'opens delete')
+  assert(!row.includes('editCue'), 'no hover-only cue')
+  assert(!css.includes('.editCue'), 'no editCue css')
   assert(row.includes('onToggleComplete'), 'checkbox separate')
-  assert(row.includes('titleBtn'), 'title still opens edit without hover')
+  assert(!row.includes('titleBtn'), 'title is not an edit button')
 })
 
 run('1D.3.2 mobile calm sheet focus', () => {
@@ -264,10 +267,13 @@ run('43–49. Mobile / interaction', () => {
   assert(form.includes('type="date"'), 'native date')
   assert(css.includes('overflow-x: clip'), 'no x overflow')
   assert(css.includes('@media (max-width: 430px)'), '430')
-  assert(row.includes('stopPropagation'), 'wedding link isolated')
-  assert(row.includes('onEdit'), 'title opens edit')
+  assert(row.includes('onEdit'), 'overflow opens edit')
   assert(row.includes('onToggleComplete'), 'checkbox separate')
-  assert(css.includes('height: 2.75rem'), '44px check')
+  assert(
+    css.includes('height: var(--touch-target)') ||
+      css.includes('min-height: var(--touch-target)'),
+    '44px check',
+  )
 })
 
 run('50. Dashboard shares complete domain (1D.4)', () => {

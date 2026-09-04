@@ -1,6 +1,18 @@
 /* eslint-disable react-hooks/set-state-in-effect -- page load + retry mirror AdminEmailsPage */
 import { useEffect, useState } from 'react'
-import { AppLayout } from '@/layouts/AppLayout'
+import { SettingsLayout } from '@/features/settings/SettingsLayout'
+import {
+  SettingsAlert,
+  SettingsHelper,
+  SettingsMuted,
+  SettingsPreferenceList,
+  SettingsPreferenceRow,
+  SettingsSaveStatus,
+  SettingsSection,
+  SettingsSectionHeader,
+  SettingsSwitch,
+  SettingsWorkspace,
+} from '@/features/settings/SettingsWorkspace'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Button } from '@/components/ui/Button'
@@ -9,7 +21,6 @@ import {
   notificationPreferencesService,
   type EmailPreferenceMap,
 } from '@/lib/api/notificationPreferencesService'
-import styles from './NotificationSettingsPage.module.css'
 import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 export function NotificationSettingsPage() {
@@ -28,7 +39,10 @@ export function NotificationSettingsPage() {
     } catch (err) {
       setPrefs(null)
       setError(
-        getUserFacingErrorMessage(err, 'Nie udało się wczytać preferencji powiadomień.'),
+        getUserFacingErrorMessage(
+          err,
+          'Nie udało się wczytać preferencji powiadomień.',
+        ),
       )
     } finally {
       setLoading(false)
@@ -60,14 +74,23 @@ export function NotificationSettingsPage() {
     }
   }
 
+  const headerStatus = busyKey ? (
+    <SettingsSaveStatus status="saving">Zapisywanie…</SettingsSaveStatus>
+  ) : error && prefs ? (
+    <SettingsSaveStatus status="error">{error}</SettingsSaveStatus>
+  ) : savedKey ? (
+    <SettingsSaveStatus status="saved">Zapisano</SettingsSaveStatus>
+  ) : null
+
   return (
-    <AppLayout
-      title="Powiadomienia"
+    <SettingsLayout
+      title="Preferencje powiadomień"
       subtitle="Wybierz, o czym OurWed ma informować Cię e-mailem."
+      action={headerStatus}
     >
-      <PageContainer width="narrow">
+      <PageContainer width="full">
         {loading ? (
-          <p className={styles.muted}>Ładowanie…</p>
+          <SettingsMuted>Ładowanie…</SettingsMuted>
         ) : error && !prefs ? (
           <EmptyState
             title="Nie udało się wczytać powiadomień"
@@ -79,60 +102,50 @@ export function NotificationSettingsPage() {
             }
           />
         ) : prefs ? (
-          <div className={styles.page} data-testid="notification-settings-page">
-            {error ? (
-              <p className={styles.error} role="alert">
-                {error}
-              </p>
-            ) : null}
+          <SettingsWorkspace testId="notification-settings-page">
+            {error ? <SettingsAlert>{error}</SettingsAlert> : null}
 
-            <section className={styles.section} aria-labelledby="notif-ankiety">
-              <h2 id="notif-ankiety" className={styles.sectionTitle}>
-                Ankiety
-              </h2>
-              <ul className={styles.list}>
+            <SettingsSection labelledBy="notif-email">
+              <SettingsSectionHeader
+                id="notif-email"
+                title="E-mail"
+                description="Alerty wysyłane na adres konta, gdy para uzupełni ankietę."
+              />
+              <SettingsPreferenceList>
                 {NOTIFICATION_CATALOG.map((entry) => {
                   const enabled = prefs[entry.eventType]
-                  const id = `email-${entry.eventType}`
+                  const titleId = `email-title-${entry.eventType}`
                   return (
-                    <li key={entry.eventType} className={styles.row}>
-                      <div className={styles.copy}>
-                        <p className={styles.label}>{entry.label}</p>
-                        <p className={styles.desc}>{entry.description}</p>
-                        {savedKey === entry.eventType ? (
-                          <p className={styles.saved} role="status">
-                            Zapisano
-                          </p>
-                        ) : null}
-                      </div>
-                      <label className={styles.toggleWrap} htmlFor={id}>
-                        <span className={styles.channel}>E-mail</span>
-                        <input
-                          id={id}
-                          type="checkbox"
-                          className={styles.toggle}
-                          role="switch"
-                          aria-checked={enabled}
+                    <SettingsPreferenceRow
+                      key={entry.eventType}
+                      titleId={titleId}
+                      title={entry.label}
+                      description={entry.description}
+                      control={
+                        <SettingsSwitch
+                          id={`email-${entry.eventType}`}
                           checked={enabled}
                           disabled={busyKey === entry.eventType}
-                          onChange={(e) =>
-                            void onToggle(entry.eventType, e.target.checked)
+                          labelledBy={titleId}
+                          testId={`pref-email-${entry.eventType}`}
+                          onCheckedChange={(next) =>
+                            void onToggle(entry.eventType, next)
                           }
-                          data-testid={`pref-email-${entry.eventType}`}
                         />
-                      </label>
-                    </li>
+                      }
+                    />
                   )
                 })}
-              </ul>
-            </section>
+              </SettingsPreferenceList>
+            </SettingsSection>
 
-            <p className={styles.footnote}>
-              Powiadomienia w aplikacji pozostają włączone dla tych zdarzeń.
-            </p>
-          </div>
+            <SettingsHelper>
+              Powiadomienia w aplikacji są zarządzane przez OurWed i nie
+              wyłącza się ich w tym miejscu.
+            </SettingsHelper>
+          </SettingsWorkspace>
         ) : null}
       </PageContainer>
-    </AppLayout>
+    </SettingsLayout>
   )
 }
