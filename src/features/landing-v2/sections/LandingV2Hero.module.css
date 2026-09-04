@@ -6,6 +6,8 @@
   --lv2-hero-paper: var(--paper, #f3efe8);
   --lv2-nav-h: var(--lv3-nav-h, 68px);
   --lv2-hero-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  /* Compact scroll runway — shorter than desktop, still multi-beat */
+  --lv2-hero-track-compact: 280svh;
 
   position: relative;
   /*
@@ -14,7 +16,9 @@
    */
   height: 420svh;
   width: 100%;
+  max-width: 100%;
   background: transparent;
+  overflow-x: clip;
 }
 
 .sticky {
@@ -22,6 +26,7 @@
   top: var(--lv2-nav-h);
   height: calc(100svh - var(--lv2-nav-h));
   width: 100%;
+  max-width: 100%;
   overflow: hidden;
   display: grid;
   place-items: center;
@@ -124,7 +129,8 @@
 /* Whole physical iPad — sole exit scale/translate target */
 .deviceExit {
   position: relative;
-  width: 100%;
+  width: min(100%, 100%);
+  max-width: 100%;
   display: flex;
   justify-content: center;
   transform-origin: 50% 42%;
@@ -153,13 +159,72 @@
   padding: 10px 12px 1.25rem;
 }
 
+/*
+ * Compact viewport — scroll theater stays sticky with a shorter runway.
+ * Reduced-motion / simple theater uses the static stack rules below.
+ */
 @media (max-width: 1100px) {
-  .track {
+  .track[data-hero-theater='scroll'] {
+    height: var(--lv2-hero-track-compact);
+  }
+
+  .track[data-hero-theater='scroll'] .sticky {
+    position: sticky;
+    top: var(--lv2-nav-h);
+    height: calc(100svh - var(--lv2-nav-h));
+    min-height: 0;
+    place-items: center;
+    overflow: hidden;
+  }
+
+  .track[data-hero-theater='scroll'] .copy {
+    text-align: center;
+    width: min(36rem, calc(100% - 2rem));
+    max-width: calc(100vw - 2rem);
+    padding: 0 0.25rem;
+  }
+
+  .track[data-hero-theater='scroll'] .title {
+    font-size: clamp(2.45rem, 9.5vw, 3.35rem);
+    font-weight: 650;
+    letter-spacing: -0.05em;
+    line-height: 0.98;
+    margin-bottom: 0.7rem;
+  }
+
+  .track[data-hero-theater='scroll'] .titleLine {
+    white-space: normal;
+  }
+
+  .track[data-hero-theater='scroll'] .support {
+    margin: 0 auto 1rem;
+    font-size: clamp(0.98rem, 3.6vw, 1.08rem);
+    max-width: 28rem;
+  }
+
+  .track[data-hero-theater='scroll'] .scrollHint {
+    margin-top: 1.5rem;
+  }
+
+  .track[data-hero-theater='scroll'] .stage {
+    padding: 10px 12px 14px;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  .track[data-hero-theater='scroll'] .deviceExit {
+    width: min(100%, calc(100vw - 1.5rem));
+    max-width: calc(100vw - 1.5rem);
+  }
+
+  /* Static / reduced-motion stack on compact viewports */
+  .track[data-hero-theater='simple'] {
     height: auto;
     min-height: 135svh;
   }
 
-  .sticky {
+  .track[data-hero-theater='simple'] .sticky {
     position: relative;
     top: auto;
     height: auto;
@@ -167,20 +232,20 @@
     place-items: stretch;
   }
 
-  .simpleStack {
+  .track[data-hero-theater='simple'] .simpleStack {
     padding: 1rem 16px 0;
     gap: 1.25rem;
     overflow: visible;
   }
 
-  .copy {
+  .track[data-hero-theater='simple'] .copy {
     text-align: left;
     width: 100%;
     max-width: 36rem;
     padding: 0;
   }
 
-  .title {
+  .track[data-hero-theater='simple'] .title {
     font-size: clamp(2.7rem, 12vw, 3.6rem);
     font-weight: 650;
     letter-spacing: -0.05em;
@@ -188,38 +253,46 @@
     margin-bottom: 0.75rem;
   }
 
-  .titleLine {
+  .track[data-hero-theater='simple'] .titleLine {
     white-space: normal;
   }
 
-  .support {
+  .track[data-hero-theater='simple'] .support {
     margin: 0 0 1rem;
     font-size: 1rem;
     max-width: none;
   }
 
-  .ctas {
+  .track[data-hero-theater='simple'] .ctas {
     justify-content: center;
     width: 100%;
   }
 
-  .micro {
+  .track[data-hero-theater='simple'] .micro {
     text-align: center;
     width: 100%;
   }
 
-  .simpleStage {
+  .track[data-hero-theater='simple'] .simpleStage {
     width: 100%;
     padding-bottom: 1.5rem;
   }
 }
 
 @media (max-width: 520px) {
-  .title {
+  .track[data-hero-theater='scroll'] .title {
+    font-size: clamp(2.25rem, 10.5vw, 3rem);
+  }
+
+  .track[data-hero-theater='scroll'] .support {
+    font-size: 0.96rem;
+  }
+
+  .track[data-hero-theater='simple'] .title {
     font-size: clamp(2.6rem, 11.5vw, 3.4rem);
   }
 
-  .support {
+  .track[data-hero-theater='simple'] .support {
     font-size: 0.96rem;
   }
 }

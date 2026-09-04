@@ -327,8 +327,40 @@ function walkTs(dir: string, out: string[] = []): string[] {
   assertIncludes(hero, 'hardwareProgress', 'late hardware reveal')
   /* hardware window asserted with assemble/exit map below */
 
+  /* Phase 1 mobile parity — Hero motion policy */
+  assertIncludes(hero, 'useLandingCompactViewport', 'shared compact viewport hook')
+  assertIncludes(hero, 'isReducedMotion', 'explicit reduced-motion flag')
+  assertIncludes(hero, 'isCompactViewport', 'explicit compact viewport flag')
+  assertIncludes(hero, 'const skipTheater = isReducedMotion', 'Hero skips theater only for reduced motion')
+  assertNotIncludes(
+    hero,
+    'Boolean(reduced) || compact',
+    'Hero no longer equates compact viewport with reduced motion',
+  )
+  assertNotIncludes(
+    hero,
+    'skipTheater = Boolean(reduced) || compact',
+    'legacy Hero skipTheater compact gate removed',
+  )
+  assertIncludes(hero, 'heroTheaterGeometry', 'compact/desktop geometry table')
+  assertIncludes(hero, 'data-hero-compact', 'compact viewport marker')
+  assertIncludes(hero, 'data-hero-reduced-motion', 'reduced-motion marker')
+  assertIncludes(
+    hero,
+    "data-hero-theater={skipTheater ? 'simple' : 'scroll'}",
+    'theater attr still driven by skipTheater (reduced only)',
+  )
+
+  const heroGeom = read('src/features/landing-v2/hero/heroTheaterGeometry.ts')
+  assertIncludes(heroGeom, 'HERO_THEATER_GEOMETRY_DESKTOP', 'desktop geometry frozen')
+  assertIncludes(heroGeom, 'HERO_THEATER_GEOMETRY_COMPACT', 'compact geometry table')
+  assertIncludes(heroGeom, '[360, 220, 10, 0]', 'desktop productY travel preserved')
+  assertIncludes(heroGeom, 'coverScaleMax: 2.45', 'desktop cover scale max preserved')
+
   const heroCss = read('src/features/landing-v2/sections/LandingV2Hero.module.css')
   assertIncludes(heroCss, '420svh', 'desktop scroll track with exit')
+  assertIncludes(heroCss, '--lv2-hero-track-compact: 280svh', 'compact scroll runway token')
+  assertIncludes(heroCss, "data-hero-theater='scroll'", 'compact scroll theater CSS')
   assertIncludes(heroCss, 'position: sticky', 'sticky viewport')
   assertIncludes(heroCss, 'clamp(3.5rem, 7vw, 6.75rem)', 'monumental H1 near production')
   assertIncludes(heroCss, 'titleLine', 'controlled H1 lines')
@@ -346,6 +378,46 @@ function walkTs(dir: string, out: string[] = []): string[] {
   assertIncludes(hero, '[0.54, 0.64]', 'theme transition window')
   assertIncludes(hero, '[0.7, 0.91]', 'exit window after graphite hold')
   assertIncludes(hero, '[0.76, 0.92]', 'hardware resolve window')
+
+  /* Phase 1 — other theaters still use compact∨reduced static gate */
+  const productStoryGate = read(
+    'src/features/landing-v2/product-story/LandingV2ProductStory.tsx',
+  )
+  const problemGate = read('src/features/landing-v2/sections/LandingV2ProblemStory.tsx')
+  const lifecycleGate = read(
+    'src/features/landing-v2/lifecycle-story/LandingV2LifecycleStory.tsx',
+  )
+  const mobileStoryGate = read(
+    'src/features/landing-v2/mobile-story/LandingV2MobileStory.tsx',
+  )
+  const founderGate = read(
+    'src/features/landing-v2/mobile-story/LandingV2FounderStory.tsx',
+  )
+  assertIncludes(
+    productStoryGate,
+    'Boolean(reduced) || compact',
+    'Product Story still compact∨reduced static (Phase 1)',
+  )
+  assertIncludes(
+    problemGate,
+    'Boolean(reduced) || compact',
+    'Problem Story still compact∨reduced static (Phase 1)',
+  )
+  assertIncludes(
+    lifecycleGate,
+    'Boolean(reduced) || compact',
+    'Lifecycle Story still compact∨reduced static (Phase 1)',
+  )
+  assertIncludes(
+    mobileStoryGate,
+    'Boolean(reduced) || compact',
+    'Mobile Story still compact∨reduced static (Phase 1)',
+  )
+  assertIncludes(
+    founderGate,
+    'Boolean(reduced) || compact',
+    'Founder Story still compact∨reduced static (Phase 1)',
+  )
 
   const problem = read('src/features/landing-v2/sections/LandingV2ProblemStory.tsx')
   const problemCss = read(

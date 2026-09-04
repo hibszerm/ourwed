@@ -266,8 +266,9 @@
   --outer-radius: 28px;
   --bezel-radius: 24px;
   --screen-radius: 16px;
-  width: min(100%, calc(400px + 2 * var(--outset)));
-  max-width: calc(400px + 2 * (var(--chassis) + var(--bezel)));
+  /* Never exceed usable viewport — side margins for sticky stage padding */
+  width: min(100%, calc(100vw - 1.5rem), calc(400px + 2 * var(--outset)));
+  max-width: min(calc(100vw - 1.5rem), calc(400px + 2 * (var(--chassis) + var(--bezel))));
   margin-inline: auto;
 }
 
@@ -316,8 +317,8 @@
     --outer-radius: 28px;
     --bezel-radius: 24px;
     --screen-radius: 16px;
-    width: min(100%, calc(400px + 2 * var(--outset)));
-    max-width: calc(400px + 2 * (var(--chassis) + var(--bezel)));
+    width: min(100%, calc(100vw - 1.5rem), calc(400px + 2 * var(--outset)));
+    max-width: min(calc(100vw - 1.5rem), calc(400px + 2 * (var(--chassis) + var(--bezel))));
     margin-inline: auto;
   }
 

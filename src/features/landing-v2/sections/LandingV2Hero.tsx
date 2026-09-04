@@ -13,6 +13,8 @@ import {
 } from '@/features/landing-v2/hero/HeroModernDashboard'
 import { HeroTabletFrame } from '@/features/landing-v2/hero/HeroTabletFrame'
 import { applyHeroDemoThemeToElement } from '@/features/landing-v2/hero/heroDemoThemeInterpolation'
+import { heroTheaterGeometry } from '@/features/landing-v2/hero/heroTheaterGeometry'
+import { useLandingCompactViewport } from '@/features/landing-v2/motion/landingViewport'
 import styles from './LandingV2Hero.module.css'
 
 /**
@@ -21,27 +23,24 @@ import styles from './LandingV2Hero.module.css'
  *
  * Master progress 0–1 spans assemble + hold + exit + black settle.
  * Existing reveal keyframes run on assembleProgress (0–1 remapped).
+ *
+ * Motion policy: prefers-reduced-motion disables the theater.
+ * Compact viewport only adapts geometry — it does not disable motion.
  */
 export function LandingV2Hero() {
   const trackRef = useRef<HTMLElement | null>(null)
   const stickyRef = useRef<HTMLDivElement | null>(null)
   const exitWrapRef = useRef<HTMLDivElement | null>(null)
-  const reduced = useReducedMotion()
-  const [compact, setCompact] = useState(false)
-  const [coverScale, setCoverScale] = useState(1.75)
+  const isReducedMotion = Boolean(useReducedMotion())
+  const isCompactViewport = useLandingCompactViewport()
+  const geom = heroTheaterGeometry(isCompactViewport)
+  const [coverScale, setCoverScale] = useState(geom.coverScaleMin)
   const [exitLift, setExitLift] = useState(0)
   const progress = useMotionValue(0)
   const baseScreenRef = useRef<{ w: number; h: number } | null>(null)
 
-  useEffect(() => {
-    const mq = window.matchMedia('(max-width: 1100px)')
-    const sync = () => setCompact(mq.matches)
-    sync()
-    mq.addEventListener('change', sync)
-    return () => mq.removeEventListener('change', sync)
-  }, [])
-
-  const skipTheater = Boolean(reduced) || compact
+  /* Theater runs on compact; only accessibility reduces to static. */
+  const skipTheater = isReducedMotion
 
   useEffect(() => {
     if (skipTheater) {
@@ -97,6 +96,8 @@ export function LandingV2Hero() {
    * 0.64–0.70  hold complete Graphite
    * 0.70–0.91  exit: scale + blackout (unchanged geometry)
    * 0.91–0.94  tiny pure-black beat → Problem Story handoff
+   *
+   * Compact keeps the same progress windows; only px/scale ranges change.
    */
   const assembleProgress = useTransform(progress, [0, 0.5], [0, 1])
 
@@ -106,44 +107,52 @@ export function LandingV2Hero() {
   const hardwareMv = useTransform(assembleProgress, [0.76, 0.92], [0, 1])
 
   const copyOpacity = useTransform(assembleProgress, [0, 0.18, 0.34], [1, 1, 0])
-  const copyY = useTransform(assembleProgress, [0.18, 0.34], [0, -40])
+  const copyY = useTransform(assembleProgress, [0.18, 0.34], geom.copyY)
   const copyScale = useTransform(assembleProgress, [0.18, 0.34], [1, 0.98])
 
-  const productY = useTransform(assembleProgress, [0.14, 0.22, 0.46, 0.8], [360, 220, 10, 0])
+  const productY = useTransform(
+    assembleProgress,
+    [0.14, 0.22, 0.46, 0.8],
+    geom.productY,
+  )
   const productOpacity = useTransform(
     assembleProgress,
     [0.12, 0.2, 0.3, 0.36],
     [0, 0.55, 0.95, 1],
   )
-  const productScale = useTransform(assembleProgress, [0.22, 0.42, 0.8], [0.978, 0.992, 1])
+  const productScale = useTransform(
+    assembleProgress,
+    [0.22, 0.42, 0.8],
+    geom.productScale,
+  )
 
   const shellOpacity = useTransform(assembleProgress, [0.18, 0.34], [0, 1])
-  const shellY = useTransform(assembleProgress, [0.18, 0.34], [24, 0])
+  const shellY = useTransform(assembleProgress, [0.18, 0.34], geom.shellY)
   const greetingOpacity = useTransform(assembleProgress, [0.2, 0.36], [0, 1])
-  const greetingY = useTransform(assembleProgress, [0.2, 0.36], [20, 0])
+  const greetingY = useTransform(assembleProgress, [0.2, 0.36], geom.greetingY)
 
   const nearestOpacity = useTransform(assembleProgress, [0.28, 0.46], [0, 1])
-  const nearestY = useTransform(assembleProgress, [0.28, 0.46], [72, 0])
+  const nearestY = useTransform(assembleProgress, [0.28, 0.46], geom.nearestY)
   const nearestScale = useTransform(assembleProgress, [0.28, 0.46], [0.97, 1])
 
   const upcomingLabelOpacity = useTransform(assembleProgress, [0.42, 0.52], [0, 1])
   const upcomingLabelY = useTransform(assembleProgress, [0.42, 0.52], [18, 0])
 
   const u0Opacity = useTransform(assembleProgress, [0.42, 0.54], [0, 1])
-  const u0Y = useTransform(assembleProgress, [0.42, 0.54], [22, 0])
+  const u0Y = useTransform(assembleProgress, [0.42, 0.54], geom.upcomingY)
   const u1Opacity = useTransform(assembleProgress, [0.445, 0.56], [0, 1])
-  const u1Y = useTransform(assembleProgress, [0.445, 0.56], [22, 0])
+  const u1Y = useTransform(assembleProgress, [0.445, 0.56], geom.upcomingY)
   const u2Opacity = useTransform(assembleProgress, [0.47, 0.58], [0, 1])
-  const u2Y = useTransform(assembleProgress, [0.47, 0.58], [22, 0])
+  const u2Y = useTransform(assembleProgress, [0.47, 0.58], geom.upcomingY)
 
   const todayOpacity = useTransform(assembleProgress, [0.52, 0.66], [0, 1])
   const todayY = useTransform(assembleProgress, [0.52, 0.66], [20, 0])
 
   const notifOpacity = useTransform(assembleProgress, [0.62, 0.76], [0, 1])
-  const notifY = useTransform(assembleProgress, [0.62, 0.76], [22, 0])
+  const notifY = useTransform(assembleProgress, [0.62, 0.76], geom.moduleY)
 
   const deadlineOpacity = useTransform(assembleProgress, [0.66, 0.8], [0, 1])
-  const deadlineY = useTransform(assembleProgress, [0.66, 0.8], [22, 0])
+  const deadlineY = useTransform(assembleProgress, [0.66, 0.8], geom.moduleY)
 
   const peekHintOpacity = useTransform(assembleProgress, [0, 0.12, 0.22], [0.7, 0.4, 0])
 
@@ -178,8 +187,10 @@ export function LandingV2Hero() {
     const needX = st.width / base.w
     const needY = st.height / base.h
     /* Safety so SCREEN — not merely body — overshoots viewport; hardware exits */
-    const next = Math.max(needX, needY) * 1.22
-    setCoverScale(Math.min(2.45, Math.max(1.55, next)))
+    const next = Math.max(needX, needY) * geom.coverScaleSafety
+    setCoverScale(
+      Math.min(geom.coverScaleMax, Math.max(geom.coverScaleMin, next)),
+    )
 
     const screenCenterY = sr.top + sr.height / 2
     const stickyCenterY = st.top + st.height / 2
@@ -194,6 +205,11 @@ export function LandingV2Hero() {
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
   }, [skipTheater])
+
+  useEffect(() => {
+    baseScreenRef.current = null
+    setCoverScale(geom.coverScaleMin)
+  }, [isCompactViewport, geom.coverScaleMin])
 
   const reveal: HeroModernRevealStyles | undefined = skipTheater
     ? undefined
@@ -221,6 +237,8 @@ export function LandingV2Hero() {
       data-testid="lv2-hero"
       data-landing-v2-hero=""
       data-hero-theater={skipTheater ? 'simple' : 'scroll'}
+      data-hero-compact={isCompactViewport ? 'true' : 'false'}
+      data-hero-reduced-motion={isReducedMotion ? 'true' : 'false'}
       aria-labelledby="lv2-hero-title"
       style={{ ['--hero-progress' as string]: 0 }}
     >
@@ -244,8 +262,8 @@ export function LandingV2Hero() {
               <p className={styles.micro}>Bez karty płatniczej.</p>
             </div>
             <div className={styles.simpleStage} data-testid="lv2-hero-stage">
-              <HeroTabletFrame compact={compact} hardwareProgress={1}>
-                <HeroModernDashboard compact={compact} revealComplete />
+              <HeroTabletFrame compact={isCompactViewport} hardwareProgress={1}>
+                <HeroModernDashboard compact={isCompactViewport} revealComplete />
               </HeroTabletFrame>
             </div>
           </div>
@@ -314,8 +332,12 @@ export function LandingV2Hero() {
                   y: exitYMv,
                 }}
               >
-                <HeroTabletFrame>
-                  <HeroModernDashboard reveal={reveal} themeProgress={themeProgressMv} />
+                <HeroTabletFrame compact={isCompactViewport}>
+                  <HeroModernDashboard
+                    compact={isCompactViewport}
+                    reveal={reveal}
+                    themeProgress={themeProgressMv}
+                  />
                 </HeroTabletFrame>
               </motion.div>
             </motion.div>
