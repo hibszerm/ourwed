@@ -56,9 +56,10 @@ import type {
 } from './types'
 import type { StudioPackage } from '@/types/package'
 import type { Wedding } from '@/types/wedding'
+import { createBrowserSafeId } from '@/lib/utils/createBrowserSafeId'
 
 function newId(prefix: string): string {
-  return `${prefix}-${crypto.randomUUID()}`
+  return `${prefix}-${createBrowserSafeId()}`
 }
 
 export type RunExperimentOptions = {

@@ -20,6 +20,7 @@ import {
 import { supabase } from '@/lib/supabase'
 import { isLikelyUuid, asCatalogPackageId, throwOnError } from '@/lib/supabase/helpers'
 import { snapshotPackageItemsFromStudioPackage, buildCreateWeddingCommercialFromPackage } from '@/lib/utils/commercial'
+import { snapshotDeliveryDeadlineFromRule } from '@/lib/utils/weddingDeliveryDeadline'
 import { decideWeddingPackageIdWrite } from '@/lib/api/weddings/weddingPackageIdSafety'
 import type {
   CreateWeddingInput,
@@ -325,6 +326,12 @@ export const weddingService = {
       }
     }
 
+    const deliveryDeadline = snapshotDeliveryDeadlineFromRule({
+      weddingDate: input.date,
+      deliveryMonths: commercial.deliveryMonths,
+      deliveryDays: commercial.deliveryDays,
+    })
+
     const depositSnapshot = commercial.depositAmount
 
     const { data, error } = await supabase
@@ -336,6 +343,10 @@ export const weddingService = {
         display_name: input.displayName?.trim() || null,
         email: input.email?.trim() || null,
         phone: input.phone?.trim() || null,
+        groom_phone: input.partner2Phone?.trim() || null,
+        contract_address: input.partner1Address?.trim() || null,
+        contract_postal_code: input.partner1PostalCode?.trim() || null,
+        contract_city: input.partner1City?.trim() || null,
         wedding_date: input.date || null,
         ceremony_time: null,
         venue,
@@ -353,6 +364,9 @@ export const weddingService = {
         overtime_rate: commercial.overtimeRate,
         delivery_months: commercial.deliveryMonths,
         delivery_days: commercial.deliveryDays,
+        delivery_due_date: deliveryDeadline.deliveryDueDate,
+        delivery_due_source: deliveryDeadline.deliveryDueSource,
+        delivery_completed_at: deliveryDeadline.deliveryCompletedAt,
         final_payment_terms: commercial.finalPaymentTerms,
         final_payment_due_date: commercial.finalPaymentDueDate,
       })
@@ -460,6 +474,10 @@ export const weddingService = {
         correspondence_value: patch.correspondence_value ?? null,
         email: patch.email,
         phone: patch.phone,
+        groom_phone: patch.groom_phone ?? null,
+        contract_address: patch.contract_address ?? null,
+        contract_postal_code: patch.contract_postal_code ?? null,
+        contract_city: patch.contract_city ?? null,
         wedding_date: patch.wedding_date,
         ceremony_time: patch.ceremony_time,
         venue: patch.venue,
@@ -477,6 +495,9 @@ export const weddingService = {
         overtime_rate: patch.overtime_rate ?? null,
         delivery_months: patch.delivery_months ?? null,
         delivery_days: patch.delivery_days ?? null,
+        delivery_due_date: patch.delivery_due_date ?? null,
+        delivery_due_source: patch.delivery_due_source ?? null,
+        delivery_completed_at: patch.delivery_completed_at ?? null,
         final_payment_terms: patch.final_payment_terms ?? null,
         final_payment_due_date: patch.final_payment_due_date ?? null,
       })
@@ -493,7 +514,8 @@ export const weddingService = {
 
     const mapped = mapWeddingRowToModel(data as WeddingRow)
 
-    // Preserve view fields that live in form_answers (hydrated later / passed in).
+    // First/last names and unused partner2 address still hydrate from form_answers.
+    // Groom phone + contract address now persist on weddings columns.
     const withScalars: Wedding = {
       ...mapped,
       couple: {
@@ -508,15 +530,17 @@ export const weddingService = {
           wedding.couple.partner2LastName ?? mapped.couple.partner2LastName,
         partner1Phone: wedding.couple.partner1Phone ?? mapped.couple.partner1Phone,
         partner1Email: wedding.couple.partner1Email ?? mapped.couple.partner1Email,
-        partner1Address: wedding.couple.partner1Address,
-        partner1PostalCode: wedding.couple.partner1PostalCode,
-        partner1City: wedding.couple.partner1City ?? mapped.couple.partner1City,
-        partner2Phone: wedding.couple.partner2Phone,
+        partner1Address:
+          mapped.couple.partner1Address ?? wedding.couple.partner1Address,
+        partner1PostalCode:
+          mapped.couple.partner1PostalCode ?? wedding.couple.partner1PostalCode,
+        partner1City: mapped.couple.partner1City ?? wedding.couple.partner1City,
+        partner2Phone: mapped.couple.partner2Phone ?? wedding.couple.partner2Phone,
         partner2Email: wedding.couple.partner2Email,
         partner2Address: wedding.couple.partner2Address,
         partner2PostalCode: wedding.couple.partner2PostalCode,
         partner2City: wedding.couple.partner2City,
-        city: wedding.couple.city || mapped.couple.city,
+        city: mapped.couple.city || wedding.couple.city,
       },
       accentColor: wedding.accentColor || mapped.accentColor,
       displayName: mapped.displayName,
@@ -534,8 +558,11 @@ export const weddingService = {
       coverageHours: mapped.coverageHours ?? wedding.coverageHours,
       coverageEndTime: mapped.coverageEndTime ?? wedding.coverageEndTime,
       overtimeRate: mapped.overtimeRate ?? wedding.overtimeRate,
-      deliveryMonths: mapped.deliveryMonths ?? wedding.deliveryMonths,
-      deliveryDays: mapped.deliveryDays ?? wedding.deliveryDays,
+      deliveryMonths: mapped.deliveryMonths ?? null,
+      deliveryDays: mapped.deliveryDays ?? null,
+      deliveryDueDate: mapped.deliveryDueDate ?? null,
+      deliveryDueSource: mapped.deliveryDueSource ?? null,
+      deliveryCompletedAt: mapped.deliveryCompletedAt ?? null,
       finalPaymentTerms:
         mapped.finalPaymentTerms ?? wedding.finalPaymentTerms,
       finalPaymentDueDate:

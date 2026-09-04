@@ -4,6 +4,7 @@
  */
 
 import { normalizeForMatch } from './quality/normalize'
+import { resolveWeddingExtraDisplayName } from '@/lib/forms/weddingExtraName'
 import type { WeddingExtraService } from '@/types/package'
 
 export type ContractAdditionalService = {
@@ -18,7 +19,7 @@ export function projectContractAdditionalServices(
   const seen = new Set<string>()
   const out: ContractAdditionalService[] = []
   for (const extra of extras) {
-    const name = (extra.name ?? 'Usługa').trim()
+    const name = resolveWeddingExtraDisplayName(extra)
     if (!name) continue
     const key = normalizeForMatch(name)
     if (!key || seen.has(key)) continue

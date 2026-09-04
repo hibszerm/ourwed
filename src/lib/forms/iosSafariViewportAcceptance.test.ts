@@ -57,6 +57,21 @@ function assertNotIncludes(src: string, needle: string, m: string) {
     'desktop Input keeps form-control token',
   )
 
+  const newWedding = read('src/pages/NewWeddingPage.tsx')
+  assertIncludes(newWedding, "from '@/components/ui/Input'", 'A — New Wedding uses shared Input')
+  assertNotIncludes(
+    read('src/pages/NewWeddingPage.module.css'),
+    '\n.input {',
+    'A — New Wedding has no local 14px input class',
+  )
+
+  const inputCss = read('src/components/ui/Input.module.css')
+  assertIncludes(inputCss, ".control[type='date']", 'A — date shrink selector')
+  assertIncludes(inputCss, 'min-width: 0', 'A — date/field can shrink')
+  assertIncludes(inputCss, 'max-width: 100%', 'A — date max-width 100%')
+  assertIncludes(inputCss, '::-webkit-datetime-edit', 'A — webkit datetime edit')
+  assertIncludes(inputCss, '::-webkit-calendar-picker-indicator', 'A — webkit calendar indicator')
+
   console.log('PASS  A — mobile form font sizes ≥16px')
 }
 
@@ -145,6 +160,17 @@ function assertNotIncludes(src: string, needle: string, m: string) {
   assertNotIncludes(html, 'maximum-scale=1.0', 'H — no maximum-scale=1.0')
 
   console.log('PASS  H — viewport meta accessibility')
+}
+
+{
+  const page = read('src/pages/NewWeddingPage.tsx')
+  const address = read('src/features/forms/AddressField.tsx')
+  assertIncludes(page, 'name="contractAddress"', 'N — contract uses AddressField controller')
+  assertIncludes(page, 'Adres do umowy', 'N — contract label')
+  assertIncludes(address, 'MobileFieldDialog', 'N — shared mobile dialog')
+  assertIncludes(address, 'testId="mobile-address-dialog"', 'N — existing dialog test id')
+  assertIncludes(page, 'name="bridePreparation"', 'N — wedding-place fields still AddressField')
+  console.log('PASS  N — contract AddressField uses existing MobileFieldDialog')
 }
 
 console.log('\nAll iOS Safari viewport acceptance checks passed.')

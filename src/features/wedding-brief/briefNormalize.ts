@@ -6,6 +6,17 @@ export function normalizeBriefWhitespace(value: string): string {
   return value.replace(/\s+/g, ' ').trim()
 }
 
+/** Studio notes that appear in Nie przegap — fingerprint only these contents. */
+export function isCriticalStudioNote(content: string): boolean {
+  const t = content.trim().toLowerCase()
+  return (
+    t.startsWith('ważne') ||
+    t.includes('nie organizować') ||
+    t.includes('nie bierze udziału') ||
+    t.includes('uwaga')
+  )
+}
+
 /** Safe time display: 13.00 → 13:00 when clearly a clock time. */
 export function normalizeBriefTime(raw: string): string {
   const t = normalizeBriefWhitespace(raw)

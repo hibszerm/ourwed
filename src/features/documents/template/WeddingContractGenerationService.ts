@@ -405,6 +405,7 @@ export async function prepareContractVerification(input: {
   generationStartedAt?: Date | string | null
 }): Promise<ConfiguredContractCompletenessReport> {
   const packageContractMode = Boolean(input.packageContractMode)
+  const pinnedVersionId = input.templateVersionId ?? null
   const [{ documentTemplateService }, { fieldConfigurationFromMeta }] =
     await Promise.all([
       import('@/lib/api/documents'),
@@ -414,38 +415,9 @@ export async function prepareContractVerification(input: {
   if (!template) throw new Error('Nie znaleziono szablonu umowy.')
 
   // Re-assert package mode on template meta so transform + reload stay consistent.
+  // Non-fatal: archived / RLS-locked templates must still allow pinned regeneration.
   if (packageContractMode && !template.meta?.packageContractMode) {
-    await documentTemplateService.update(input.templateId, {
-      meta: {
-        ...(template.meta ?? { version: 1 }),
-        version: 1,
-        packageContractMode: true,
-      },
-    })
-    template = (await documentTemplateService.get(input.templateId)) ?? template
-  }
-
-  let configuration = fieldConfigurationFromMeta(template.meta)
-  if (
-    !configuration ||
-    template.meta.fieldConfigurationStatus !== 'ready' ||
-    (template.meta.automaticAttentionIssues ?? []).some(
-      (issue) => issue.code === 'physical_slots',
-    )
-  ) {
-    const { ensureAutomaticTemplateConfiguration } = await import(
-      '@/features/documents/template/ensureAutomaticTemplateConfiguration'
-    )
-    const repaired = await ensureAutomaticTemplateConfiguration(input.templateId)
-    if (repaired.failure && !repaired.repaired && !repaired.readiness.configuration) {
-      throw new Error(
-        'Nie udało się dokończyć przygotowania szablonu. Spróbuj ponownie.',
-      )
-    }
-    template = (await documentTemplateService.get(input.templateId)) ?? template
-    configuration = fieldConfigurationFromMeta(template.meta)
-    // ensureAutomatic can rewrite meta — restore packageContractMode.
-    if (packageContractMode && !template.meta?.packageContractMode) {
+    try {
       await documentTemplateService.update(input.templateId, {
         meta: {
           ...(template.meta ?? { version: 1 }),
@@ -454,12 +426,113 @@ export async function prepareContractVerification(input: {
         },
       })
       template = (await documentTemplateService.get(input.templateId)) ?? template
+    } catch (error) {
+      console.warn(
+        '[prepareVerification] could not persist packageContractMode; continuing in-memory',
+        error,
+      )
     }
   }
 
-  if (!configuration) {
+  const existingConfiguration = fieldConfigurationFromMeta(template.meta)
+  let configuration = existingConfiguration
+  const hasPhysicalSlotsIssue = (
+    template.meta.automaticAttentionIssues ?? []
+  ).some((issue) => issue.code === 'physical_slots')
+  const configurationUnusable =
+    !configuration || configuration.fields.length === 0
+  const readinessNotReady =
+    template.meta.fieldConfigurationStatus !== 'ready' || hasPhysicalSlotsIssue
+
+  // Pinned regeneration/edit (already-generated contract): prefer the existing
+  // field configuration + pinned templateVersionId. Do not force first-time
+  // automatic template repair against a drifted currentVersionId.
+  const canUseExistingForPinnedEdit =
+    Boolean(pinnedVersionId) &&
+    Boolean(configuration) &&
+    (configuration?.fields.length ?? 0) > 0
+
+  if (!canUseExistingForPinnedEdit && (configurationUnusable || readinessNotReady)) {
+    const { ensureAutomaticTemplateConfiguration } = await import(
+      '@/features/documents/template/ensureAutomaticTemplateConfiguration'
+    )
+    const repaired = await ensureAutomaticTemplateConfiguration(input.templateId)
+    if (repaired.failure && !repaired.repaired && !repaired.readiness.configuration) {
+      console.error('[prepareVerification] automatic configuration failed', {
+        templateId: input.templateId,
+        pinnedVersionId,
+        failure: repaired.failure,
+      })
+
+      // Prefer pre-repair configuration if present.
+      if (existingConfiguration && existingConfiguration.fields.length > 0) {
+        configuration = existingConfiguration
+        console.warn(
+          '[prepareVerification] continuing with existing field configuration after repair failure',
+        )
+      } else {
+        const recovered = pinnedVersionId
+          ? await recoverConfigurationFromPinnedVersion({
+              templateId: input.templateId,
+              templateVersionId: pinnedVersionId,
+              template,
+            })
+          : null
+        if (recovered) {
+          configuration = recovered
+          console.warn(
+            '[prepareVerification] recovered field configuration from pinned template version',
+            pinnedVersionId,
+          )
+        } else {
+          throw new Error(
+            userFacingPrepareFailureMessage(repaired.failure.stage),
+          )
+        }
+      }
+    } else {
+      template = (await documentTemplateService.get(input.templateId)) ?? template
+      configuration =
+        fieldConfigurationFromMeta(template.meta) ??
+        repaired.readiness.configuration
+      // ensureAutomatic can rewrite meta — restore packageContractMode.
+      if (packageContractMode && !template.meta?.packageContractMode) {
+        try {
+          await documentTemplateService.update(input.templateId, {
+            meta: {
+              ...(template.meta ?? { version: 1 }),
+              version: 1,
+              packageContractMode: true,
+            },
+          })
+          template =
+            (await documentTemplateService.get(input.templateId)) ?? template
+        } catch (error) {
+          console.warn(
+            '[prepareVerification] could not restore packageContractMode after repair',
+            error,
+          )
+        }
+      }
+    }
+  }
+
+  if (!configuration || configuration.fields.length === 0) {
+    if (pinnedVersionId) {
+      const recovered = await recoverConfigurationFromPinnedVersion({
+        templateId: input.templateId,
+        templateVersionId: pinnedVersionId,
+        template,
+      })
+      if (recovered) configuration = recovered
+    }
+  }
+
+  if (!configuration || configuration.fields.length === 0) {
     throw new Error(
-      'Szablon wymaga ponownej analizy przed generowaniem. Otwórz szablon w Umowach i uruchom analizę.',
+      pinnedVersionId
+        ? 'Nie udało się wczytać konfiguracji pól dla zapisanej wersji szablonu. Otwórz szablon w Umowach i uruchom analizę.'
+        : 'Szablon wymaga ponownej analizy przed generowaniem. Otwórz szablon w Umowach i uruchom analizę.',
     )
   }
   const { buildContractCompletenessReport } = await import(
@@ -518,6 +591,74 @@ export async function prepareContractVerification(input: {
   }
 
   return configured
+}
+
+function userFacingPrepareFailureMessage(
+  stage: string,
+): string {
+  if (stage === 'load_template') {
+    return 'Nie znaleziono szablonu umowy powiązanego z tą generacją.'
+  }
+  if (stage === 'load_analysis') {
+    return 'Brakuje mapowania pól w wersji szablonu użytej do tej umowy. Otwórz szablon w Umowach i uruchom analizę.'
+  }
+  if (stage === 'persist_configuration') {
+    return 'Nie udało się zapisać konfiguracji szablonu. Spróbuj ponownie.'
+  }
+  return 'Nie udało się przygotować danych umowy do edycji. Spróbuj ponownie.'
+}
+
+async function recoverConfigurationFromPinnedVersion(input: {
+  templateId: string
+  templateVersionId: string
+  template: Awaited<
+    ReturnType<
+      (typeof import('@/lib/api/documents'))['documentTemplateService']['get']
+    >
+  >
+}): Promise<
+  NonNullable<
+    ReturnType<
+      (typeof import('@/features/ai-contract-lab/persistTemplateFieldConfiguration'))['fieldConfigurationFromMeta']
+    >
+  > | null
+> {
+  if (!input.template) return null
+  try {
+    const { documentTemplateService } = await import('@/lib/api/documents')
+    const { parseSlotMap } = await import('./types')
+    const { semanticMapFromSlotMap } = await import(
+      '@/features/documents/template/slotMapSemanticBridge'
+    )
+    const { buildAutomaticReadyConfiguration } = await import(
+      '@/features/documents/template/automaticTemplateReadiness'
+    )
+    const version = await documentTemplateService.getVersion(
+      input.templateVersionId,
+    )
+    if (!version) return null
+    const slotMap = parseSlotMap(version.slotMap ?? null)
+    const detected = slotMap.slots.filter((slot) => slot.registryKey).length
+    if (detected === 0) return null
+    const semanticMap = semanticMapFromSlotMap({
+      templateId: input.templateId,
+      templateVersionId: input.templateVersionId,
+      slotMap,
+    })
+    const readiness = buildAutomaticReadyConfiguration({
+      templateId: input.templateId,
+      templateVersionId: input.templateVersionId,
+      semanticMap,
+      existing: null,
+    })
+    return readiness.configuration
+  } catch (error) {
+    console.error(
+      '[prepareVerification] pinned version configuration recovery failed',
+      error,
+    )
+    return null
+  }
 }
 
 type SharedSlotGroup = {

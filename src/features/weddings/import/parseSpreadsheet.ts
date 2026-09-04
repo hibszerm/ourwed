@@ -88,9 +88,17 @@ export async function parseImportWorkbook(file: File): Promise<ParsedWorkbook> {
     if (ext === '.csv') {
       const text = new TextDecoder('utf-8').decode(buffer)
       const withBom = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text
+      const firstLine = withBom.split(/\r?\n/, 1)[0] ?? ''
+      const semicolonCount = (firstLine.match(/;/g) ?? []).length
+      const commaCount = (firstLine.match(/,/g) ?? []).length
+      // Detect delimiter from the header row only. Body cells may contain
+      // Polish decimal commas (10.500,00) which are not column separators.
+      const FS = semicolonCount > commaCount ? ';' : ','
+      // Keep CSV cells as text. cellDates would coerce 12.06.2027 into a US Date.
       workbook = XLSX.read(withBom, {
         type: 'string',
-        FS: withBom.includes(';') && !withBom.includes(',') ? ';' : ',',
+        raw: true,
+        FS,
       })
     } else {
       workbook = XLSX.read(buffer, { type: 'array', cellDates: true })

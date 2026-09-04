@@ -120,15 +120,23 @@ const router = read('src/routes/router.tsx')
 assert(router.includes('/ustawienia/powiadomienia'), 'prefs route')
 assert(router.includes('NotificationSettingsPage'), 'prefs page import')
 
-const settings = read('src/pages/SettingsPage.tsx')
-assert(settings.includes('/ustawienia/powiadomienia'), 'settings hub link')
-assert(!/title: 'Powiadomienia'[\s\S]{0,80}soon: true/.test(settings), 'powiadomienia not soon')
+const settingsNav = read('src/features/settings/settingsNav.ts')
+assert(settingsNav.includes('/ustawienia/powiadomienia'), 'settings hub link')
+assert(!/label: 'Powiadomienia'[\s\S]{0,80}soon: true/.test(settingsNav), 'powiadomienia not soon')
 
 const prefsPage = read('src/pages/NotificationSettingsPage.tsx')
 assert(prefsPage.includes('Wybierz, o czym OurWed ma informować Cię e-mailem'), 'support copy')
 assert(prefsPage.includes('NOTIFICATION_CATALOG'), 'uses shared catalog')
-assert(prefsPage.includes('role="switch"'), 'a11y switch')
+assert(prefsPage.includes('SettingsSwitch'), 'a11y switch')
 assert(prefsPage.includes('Zapisano'), 'saved feedback')
+const switchSrc = read('src/features/settings/SettingsWorkspace.tsx')
+assert(switchSrc.includes('role="switch"'), 'shared switch role')
+assert(
+  read('src/features/settings/SettingsWorkspace.module.css').includes(
+    'min-height: var(--touch-target)',
+  ),
+  'switch 44px',
+)
 
 const catalogSrc = read('src/lib/notifications/catalog.ts')
 assert(catalogSrc.includes('Dane do umowy'), 'contract row label')

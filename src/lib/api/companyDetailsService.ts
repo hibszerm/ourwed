@@ -88,6 +88,74 @@ function trimOrNull(value: string | null | undefined): string | null {
   return v ? v : null
 }
 
+/**
+ * Studio profile + legacy studio_details columns.
+ * Undefined means “leave the existing DB value”.
+ */
+const OPTIONAL_TEXT_COLUMNS: {
+  key: keyof UpsertCompanyDetailsInput
+  column: string
+}[] = [
+  { key: 'companyName', column: 'company_name' },
+  { key: 'ownerName', column: 'owner_name' },
+  { key: 'nip', column: 'nip' },
+  { key: 'regon', column: 'regon' },
+  { key: 'vatId', column: 'vat_id' },
+  { key: 'address', column: 'address' },
+  { key: 'postalCode', column: 'postal_code' },
+  { key: 'city', column: 'city' },
+  { key: 'phone', column: 'phone' },
+  { key: 'email', column: 'email' },
+  { key: 'website', column: 'website' },
+  { key: 'instagram', column: 'instagram' },
+  { key: 'facebook', column: 'facebook' },
+  { key: 'bankAccount', column: 'bank_account' },
+  { key: 'iban', column: 'iban' },
+  { key: 'swift', column: 'swift' },
+]
+
+function assignDefinedTextFields(
+  payload: Record<string, unknown>,
+  input: UpsertCompanyDetailsInput,
+) {
+  for (const { key, column } of OPTIONAL_TEXT_COLUMNS) {
+    if (input[key] !== undefined) {
+      payload[column] = trimOrNull(input[key] as string | null)
+    }
+  }
+}
+
+/**
+ * Column map for studio_details writes.
+ * Keys omitted from `input` are omitted from the patch so hidden legacy
+ * values (VAT, IBAN, socials, stamp, country) are not nulled on autosave.
+ */
+export function buildStudioDetailsColumnPatch(
+  input: UpsertCompanyDetailsInput,
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {}
+  assignDefinedTextFields(payload, input)
+  if (input.country !== undefined) {
+    payload.country = trimOrNull(input.country) || 'Polska'
+  }
+  if (input.logoPath !== undefined) {
+    payload.logo_path = trimOrNull(input.logoPath)
+  }
+  if (input.signaturePath !== undefined) {
+    payload.signature_path = trimOrNull(input.signaturePath)
+  }
+  if (input.stampPath !== undefined) {
+    payload.stamp_path = trimOrNull(input.stampPath)
+  }
+  if (input.questionnaireConfig !== undefined) {
+    payload.questionnaire_config =
+      input.questionnaireConfig === null
+        ? {}
+        : (input.questionnaireConfig as ContractQuestionnaireConfig)
+  }
+  return payload
+}
+
 /** Stable React Query key for company / studio_details. */
 export function companyDetailsQueryKey(userId: string | undefined) {
   return ['company-details', userId] as const
@@ -120,41 +188,8 @@ export const companyDetailsService = {
     const userId = await resolveStudioUserId()
     const payload: Record<string, unknown> = {
       user_id: userId,
-      company_name: trimOrNull(input.companyName),
-      owner_name: trimOrNull(input.ownerName),
-      nip: trimOrNull(input.nip),
-      regon: trimOrNull(input.regon),
-      vat_id: trimOrNull(input.vatId),
-      address: trimOrNull(input.address),
-      postal_code: trimOrNull(input.postalCode),
-      city: trimOrNull(input.city),
-      country: trimOrNull(input.country) || 'Polska',
-      phone: trimOrNull(input.phone),
-      email: trimOrNull(input.email),
-      website: trimOrNull(input.website),
-      instagram: trimOrNull(input.instagram),
-      facebook: trimOrNull(input.facebook),
-      bank_account: trimOrNull(input.bankAccount),
-      iban: trimOrNull(input.iban),
-      swift: trimOrNull(input.swift),
-      logo_path:
-        input.logoPath === undefined ? undefined : trimOrNull(input.logoPath),
-      signature_path:
-        input.signaturePath === undefined
-          ? undefined
-          : trimOrNull(input.signaturePath),
-      stamp_path:
-        input.stampPath === undefined
-          ? undefined
-          : trimOrNull(input.stampPath),
       updated_at: nowIso(),
-    }
-
-    if (input.questionnaireConfig !== undefined) {
-      payload.questionnaire_config =
-        input.questionnaireConfig === null
-          ? {}
-          : (input.questionnaireConfig as ContractQuestionnaireConfig)
+      ...buildStudioDetailsColumnPatch(input),
     }
 
     const { data: existing, error: existingError } = await supabase
@@ -167,18 +202,6 @@ export const companyDetailsService = {
     if (existing?.id) {
       const patch = { ...payload }
       delete patch.user_id
-      if (input.logoPath === undefined) {
-        delete patch.logo_path
-      }
-      if (input.signaturePath === undefined) {
-        delete patch.signature_path
-      }
-      if (input.stampPath === undefined) {
-        delete patch.stamp_path
-      }
-      if (input.questionnaireConfig === undefined) {
-        delete patch.questionnaire_config
-      }
       const { data, error, count } = await supabase
         .from('studio_details')
         .update(patch, { count: 'exact' })
@@ -200,9 +223,6 @@ export const companyDetailsService = {
       .from('studio_details')
       .insert({
         ...payload,
-        logo_path: trimOrNull(input.logoPath),
-        signature_path: trimOrNull(input.signaturePath),
-        stamp_path: trimOrNull(input.stampPath),
         questionnaire_config:
           input.questionnaireConfig === undefined ||
           input.questionnaireConfig === null

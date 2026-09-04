@@ -48,29 +48,42 @@ run('library: routes and nav point to Ankiety hub', () => {
     resolve(process.cwd(), 'src/pages/QuestionnaireLibraryPage.tsx'),
     'utf8',
   )
+  const modern = readFileSync(
+    resolve(process.cwd(), 'src/features/prewedding/modern/ModernQuestionnaireLibrary.tsx'),
+    'utf8',
+  )
+  const librarySrc = `${library}\n${modern}`
   assert(router.includes('QuestionnaireLibraryPage'), 'library route component')
   assert(router.includes("/ankiety/przedslubne/:templateId"), 'pre-wedding editor route')
   assert(router.includes("/ankiety/dane-do-umowy"), 'contract editor kept')
   assert(sidebar.includes("to: '/ankiety'"), 'sidebar Ankiety → /ankiety')
-  assert(library.includes('library-section-contract'), 'contract section')
-  assert(library.includes('library-section-pre-wedding'), 'pre-wedding section')
-  assert(library.includes('Zarchiwizowane'), 'archived area')
+  assert(librarySrc.includes('library-section-contract'), 'contract section')
+  assert(librarySrc.includes('library-section-pre-wedding'), 'pre-wedding section')
+  assert(librarySrc.includes('Archiwalne'), 'archived area')
 })
 
 run('library: wedding prepare uses 0/1/N selection', () => {
   const src = readFileSync(
     resolve(
       process.cwd(),
+      'src/features/prewedding/usePreWeddingQuestionnaireWorkspace.ts',
+    ),
+    'utf8',
+  )
+  const ui = readFileSync(
+    resolve(
+      process.cwd(),
       'src/features/weddings/detail/v2/WeddingPreWeddingQuestionnaireWorkspace.tsx',
     ),
     'utf8',
   )
-  assert(src.includes("listActive('pre_wedding')"), 'lists active pre-wedding')
-  assert(src.includes('active.length === 0'), 'zero templates branch')
-  assert(src.includes('active.length === 1'), 'one template branch')
-  assert(src.includes('PreWeddingTemplateSelectDialog'), 'multi select dialog')
-  assert(src.includes('Nie masz aktywnej ankiety przedślubnej'), 'empty copy')
-  assert(!src.includes('getOrSeedDefault()'), 'prepare does not auto-seed silently')
+  const combined = `${src}\n${ui}`
+  assert(combined.includes("listActive('pre_wedding')"), 'lists active pre-wedding')
+  assert(combined.includes('active.length === 0'), 'zero templates branch')
+  assert(combined.includes('active.length === 1'), 'one template branch')
+  assert(combined.includes('PreWeddingTemplateSelectDialog'), 'multi select dialog')
+  assert(combined.includes('Nie masz aktywnej ankiety przedślubnej'), 'empty copy')
+  assert(!combined.includes('getOrSeedDefault()'), 'prepare does not auto-seed silently')
 })
 
 run('selection dialog: radio cards + default + no archived contract mix', () => {
@@ -133,6 +146,20 @@ run('duplicate: regenerateSchemaIds creates new question ids', () => {
   )
 })
 
+run('getOrSeedDefault: never rewrites an owned template in place', () => {
+  const service = readFileSync(
+    resolve(process.cwd(), 'src/lib/api/preweddingQuestionnaireService.ts'),
+    'utf8',
+  )
+  const start = service.indexOf('async getOrSeedDefault()')
+  const end = service.indexOf('async create(', start)
+  const body = service.slice(start, end)
+  assert(start >= 0 && end > start, 'getOrSeedDefault located')
+  assert(!body.includes('.update('), 'no in-place template UPDATE')
+  assert(body.includes("error.code === '23505'"), 'unique source_key race returns existing row')
+  assert(!body.includes('DEFAULT_TEMPLATE_SOURCE_KEY_V1'), 'v1 rows are left unchanged')
+})
+
 run('snapshot safety: prepare stores deep-copied schema_snapshot', () => {
   const service = readFileSync(
     resolve(process.cwd(), 'src/lib/api/preweddingQuestionnaireService.ts'),
@@ -164,8 +191,106 @@ run('deferred: contract multi-template selection kept on existing editor', () =>
     resolve(process.cwd(), 'src/pages/QuestionnaireLibraryPage.tsx'),
     'utf8',
   )
-  assert(library.includes('/ankiety/dane-do-umowy'), 'contract opens existing editor')
-  assert(library.includes('contract-template-card'), 'contract card present')
+  const modern = readFileSync(
+    resolve(
+      process.cwd(),
+      'src/features/prewedding/modern/ModernQuestionnaireLibrary.tsx',
+    ),
+    'utf8',
+  )
+  const librarySrc = `${library}\n${modern}`
+  assert(librarySrc.includes('/ankiety/dane-do-umowy'), 'contract opens existing editor')
+  assert(librarySrc.includes('contract-template-card'), 'contract card present')
+})
+
+run('permanent delete: SET NULL snapshot safety, archived-only, no cascade to issued', () => {
+  const service = readFileSync(
+    resolve(process.cwd(), 'src/lib/api/preweddingQuestionnaireService.ts'),
+    'utf8',
+  )
+  const modern = readFileSync(
+    resolve(
+      process.cwd(),
+      'src/features/prewedding/modern/ModernQuestionnaireLibrary.tsx',
+    ),
+    'utf8',
+  )
+  const copy = readFileSync(
+    resolve(
+      process.cwd(),
+      'src/features/prewedding/modern/questionnaireLibraryCopy.ts',
+    ),
+    'utf8',
+  )
+  const createMig = readFileSync(
+    resolve(
+      process.cwd(),
+      'supabase/migrations/20260729200000_prewedding_questionnaire.sql',
+    ),
+    'utf8',
+  )
+  const publicGet = readFileSync(
+    resolve(
+      process.cwd(),
+      'supabase/migrations/20260729220000_prewedding_public_studio_branding_restore.sql',
+    ),
+    'utf8',
+  )
+
+  assert(
+    createMig.includes(
+      'template_id           uuid references public.questionnaire_templates(id) on delete set null',
+    ),
+    'issued template_id SET NULL',
+  )
+  assertEqual(
+    (createMig.match(/references public\.questionnaire_templates/g) ?? []).length,
+    1,
+    'only issued WQ FK points at templates',
+  )
+  assert(
+    createMig.includes(
+      'references public.wedding_questionnaires(id) on delete cascade',
+    ),
+    'responses cascade from issued questionnaire, not template',
+  )
+  assert(
+    !publicGet.toLowerCase().includes('questionnaire_templates'),
+    'public form does not join templates',
+  )
+  assert(publicGet.includes('schema_snapshot_json'), 'public form uses snapshot')
+
+  const delStart = service.indexOf('async deletePermanently')
+  const delEnd = service.indexOf('async setDefault', delStart)
+  const delBody = service.slice(delStart, delEnd)
+  assert(delStart >= 0 && delEnd > delStart, 'deletePermanently located')
+  assert(delBody.includes("from('questionnaire_templates')"), 'deletes template row')
+  assert(delBody.includes('.delete()'), 'hard delete')
+  assert(!delBody.includes("from('wedding_questionnaires')"), 'does not delete issued')
+  assert(
+    !delBody.includes("from('wedding_questionnaire_responses')"),
+    'does not delete responses',
+  )
+  assert(delBody.includes("type !== 'pre_wedding'"), 'refuses contract templates')
+  assert(delBody.includes('!current.isArchived'), 'refuses active templates')
+  assert(!delBody.includes('getOrSeedDefault'), 'does not re-seed presets')
+  assert(
+    service.includes('if (patch.isArchived) updatePayload.is_default = false'),
+    'archive clears default before delete path',
+  )
+
+  assertEqual(
+    copy.includes("export const QUESTIONNAIRE_LIBRARY_DELETE_TITLE = 'Usunąć ankietę na stałe?'"),
+    true,
+    'delete title copy',
+  )
+  assert(modern.includes('QUESTIONNAIRE_LIBRARY_DELETE_BODY'), 'delete body in modal')
+  assert(modern.includes('Usuń na stałe') || modern.includes('QUESTIONNAIRE_LIBRARY_DELETE_CONFIRM'), 'confirm label')
+  assert(!modern.includes('window.confirm'), 'no window.confirm')
+  assert(modern.includes("variant=\"danger\""), 'danger confirm')
+  assert(modern.includes('getUserFacingErrorMessage'), 'mapped Polish errors')
+  assert(!modern.includes('removeQueries'), 'no optimistic removal')
+  assert(modern.includes('mutateAsync(deleteTarget.id)'), 'waits for DB success')
 })
 
 console.log(`\n${passed} passed, ${failed} failed`)

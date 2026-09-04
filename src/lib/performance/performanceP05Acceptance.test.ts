@@ -218,7 +218,9 @@ function assertNotIncludes(src: string, needle: string, m: string) {
 
 // --- Invalidations do not block navigation ---
 {
-  const page = read('src/pages/PendingWeddingsPage.tsx')
+  const page = read(
+    'src/features/questionnaires/pending/modern/ModernPendingWorkspace.tsx',
+  )
   const approveFn = page.slice(
     page.indexOf('async function handleApprove'),
     page.indexOf('async function handleReject'),
@@ -266,18 +268,20 @@ function assertNotIncludes(src: string, needle: string, m: string) {
   assertNotIncludes(hook, 'supabase.channel', 'no channel')
 
   const card = read('src/features/dashboard/components/PendingWeddingsCard.tsx')
-  const page = read('src/pages/PendingWeddingsPage.tsx')
+  const workspace = read(
+    'src/features/questionnaires/pending/modern/ModernPendingWorkspace.tsx',
+  )
   assertIncludes(card, 'usePendingQuestionnaires', 'card uses shared hook')
-  assertIncludes(page, 'usePendingQuestionnaires', 'page uses shared hook')
+  assertIncludes(workspace, 'usePendingQuestionnaires', 'queue uses shared hook')
   assertNotIncludes(
     card,
     "queryKey: ['pending-questionnaires'",
     'card does not duplicate query options',
   )
   assertNotIncludes(
-    page,
+    workspace,
     "queryKey: ['pending-questionnaires'",
-    'page does not duplicate query options',
+    'queue does not duplicate query options',
   )
 
   const qc = read('src/lib/queryClient.ts')

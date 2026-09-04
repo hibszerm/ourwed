@@ -108,6 +108,7 @@ export async function syncWeddingExtrasFromQuestionnaireAnswer(
         extraServiceId: id,
         quantity: 1,
         priceSnapshot: typeof snap?.price === 'number' ? snap.price : 0,
+        nameSnapshot: snap?.name?.trim() || undefined,
       })
     }),
   )

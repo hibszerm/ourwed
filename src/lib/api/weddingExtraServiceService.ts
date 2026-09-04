@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import { throwOnError, toNumber } from '@/lib/supabase/helpers'
+import { resolveWeddingExtraDisplayName } from '@/lib/forms/weddingExtraName'
 import type { WeddingExtraService } from '@/types/package'
 import { extraServiceService } from '@/lib/api/extraServiceService'
 
@@ -10,12 +11,18 @@ interface WeddingExtraServiceRow {
   price_snapshot: number | string
   quantity: number
   created_at: string
+  name_snapshot?: string | null
 }
 
 function mapRow(
   row: WeddingExtraServiceRow,
-  name?: string,
+  catalogName?: string,
 ): WeddingExtraService {
+  const nameSnapshot = row.name_snapshot?.trim() || undefined
+  const name = resolveWeddingExtraDisplayName({
+    nameSnapshot,
+    name: catalogName,
+  })
   return {
     id: row.id,
     weddingId: row.wedding_id,
@@ -23,6 +30,7 @@ function mapRow(
     priceSnapshot: toNumber(row.price_snapshot, 0),
     quantity: row.quantity,
     createdAt: row.created_at,
+    nameSnapshot: nameSnapshot ?? name,
     name,
   }
 }
@@ -33,6 +41,8 @@ export interface AddWeddingExtraServiceInput {
   quantity?: number
   /** Optional override; defaults to live catalog price at selection time. */
   priceSnapshot?: number
+  /** Optional override; defaults to live catalog name at selection time. */
+  nameSnapshot?: string
 }
 
 export const weddingExtraServiceService = {
@@ -61,6 +71,8 @@ export const weddingExtraServiceService = {
 
     const priceSnapshot = input.priceSnapshot ?? service.price
     const quantity = input.quantity ?? 1
+    const nameSnapshot =
+      input.nameSnapshot?.trim() || service.name.trim() || 'Usługa'
 
     const { data, error } = await supabase
       .from('wedding_extra_services')
@@ -69,6 +81,7 @@ export const weddingExtraServiceService = {
         extra_service_id: input.extraServiceId,
         price_snapshot: priceSnapshot,
         quantity,
+        name_snapshot: nameSnapshot,
       })
       .select('*')
       .single()

@@ -12,9 +12,14 @@ import {
   DEFAULT_TEMPLATE_NAME,
   DEFAULT_TEMPLATE_SCHEMA,
   DEFAULT_TEMPLATE_SOURCE_KEY,
-  DEFAULT_TEMPLATE_SOURCE_KEY_V1,
   DEFAULT_TEMPLATE_TITLE,
 } from '@/features/prewedding/defaultTemplate'
+import { decidePreWeddingDefaultSeed } from '@/features/prewedding/defaultTemplateSeed'
+import {
+  OFFICIAL_PRESET_SOURCE_KEY_PHOTO,
+  OFFICIAL_PRESET_SOURCE_KEY_PHOTO_VIDEO,
+  OFFICIAL_PRESET_SOURCE_KEYS,
+} from '@/features/prewedding/officialPresets'
 import {
   locationAnswerToPlainText,
   isAnswerEmpty,
@@ -40,8 +45,10 @@ import type {
 } from '@/types/preweddingQuestionnaire'
 import type { Wedding } from '@/types/wedding'
 import {
+  hashPreweddingShareToken,
   persistShareToken,
-  readShareToken,
+  readValidShareToken,
+  shareTokenHashesEqual,
 } from '@/features/prewedding/preweddingShareHelpers'
 import { devWarnArgs } from '@/lib/debug/devConsole'
 
@@ -52,6 +59,7 @@ export {
   persistShareToken,
   preweddingShareMessage,
   readShareToken,
+  readValidShareToken,
 } from '@/features/prewedding/preweddingShareHelpers'
 
 // ---------------------------------------------------------------------------
@@ -92,6 +100,10 @@ function mapWeddingQuestionnaireRow(row: Record<string, unknown>): WeddingQuesti
     prefill: (row.prefill_json as Record<string, import('@/types/preweddingQuestionnaire').PrefillValue>) ?? {},
     status: (row.status as WeddingQuestionnaireStatus) ?? 'draft',
     hasPublicToken: Boolean(row.public_token_hash),
+    publicTokenHash:
+      typeof row.public_token_hash === 'string' && row.public_token_hash.trim()
+        ? row.public_token_hash.trim()
+        : null,
     preparedAt: (row.prepared_at as string | null) ?? null,
     sentAt: (row.sent_at as string | null) ?? null,
     firstOpenedAt: (row.first_opened_at as string | null) ?? null,
@@ -163,49 +175,55 @@ export const questionnaireTemplateService = {
     return null
   },
 
-  /** Get or seed the default pre-wedding template (v2 chronological). */
+  /**
+   * Return the owner's default pre-wedding template.
+   * Official V1 photo+video (or any official V1 preset) satisfies this — never
+   * insert generic pre_wedding_default_v2 beside those rows.
+   * Legacy accounts without official presets still get a NEW v2 copy if missing.
+   * Never UPDATE an existing owned template. Issued snapshots are not touched.
+   */
   async getOrSeedDefault(): Promise<QuestionnaireTemplate> {
     const userId = await resolveStudioUserId()
 
+    const { data: officialRows, error: officialError } = await supabase
+      .from('questionnaire_templates')
+      .select('*')
+      .eq('owner_id', userId)
+      .in('source_key', [...OFFICIAL_PRESET_SOURCE_KEYS])
+    if (officialError) throw officialError
+
+    const official = (officialRows ?? []) as Record<string, unknown>[]
     const { data: existingV2 } = await supabase
       .from('questionnaire_templates')
       .select('*')
       .eq('owner_id', userId)
       .eq('source_key', DEFAULT_TEMPLATE_SOURCE_KEY)
       .maybeSingle()
-    if (existingV2) return mapTemplateRow(existingV2 as Record<string, unknown>)
-
-    const { data: existingV1 } = await supabase
-      .from('questionnaire_templates')
-      .select('*')
-      .eq('owner_id', userId)
-      .eq('source_key', DEFAULT_TEMPLATE_SOURCE_KEY_V1)
-      .maybeSingle()
-
-    if (existingV1) {
-      const { data: upgraded, error: upgradeError } = await supabase
-        .from('questionnaire_templates')
-        .update({
-          source_key: DEFAULT_TEMPLATE_SOURCE_KEY,
-          name: DEFAULT_TEMPLATE_NAME,
-          title: DEFAULT_TEMPLATE_TITLE,
-          introduction: DEFAULT_TEMPLATE_INTRODUCTION,
-          schema_json: DEFAULT_TEMPLATE_SCHEMA,
-          type: 'pre_wedding',
-          is_default: true,
-          is_archived: false,
-        })
-        .eq('id', (existingV1 as { id: string }).id)
-        .eq('owner_id', userId)
-        .select()
-        .single()
-      if (upgradeError) throw upgradeError
-      return mapTemplateRow(upgraded as Record<string, unknown>)
-    }
 
     const existingActive = await this.listActive('pre_wedding')
-    if (existingActive.length > 0) {
-      return existingActive.find((t) => t.isDefault) ?? existingActive[0]!
+    const decision = decidePreWeddingDefaultSeed({
+      hasCurrentSourceKey: Boolean(existingV2),
+      hasOfficialPresetSourceKey: official.length > 0,
+      hasActiveDefault: existingActive.some((t) => t.isDefault),
+    })
+
+    if (decision.action === 'return_official') {
+      // Honor the user's current default. Official source_keys only skip v2 insert —
+      // they never force Foto+Film back after the user picks another default.
+      const marked = existingActive.find((t) => t.isDefault)
+      if (marked) return marked
+      const photoVideo = official.find(
+        (row) => row.source_key === OFFICIAL_PRESET_SOURCE_KEY_PHOTO_VIDEO,
+      )
+      if (photoVideo) return mapTemplateRow(photoVideo)
+      const photo = official.find((row) => row.source_key === OFFICIAL_PRESET_SOURCE_KEY_PHOTO)
+      if (photo) return mapTemplateRow(photo)
+      return mapTemplateRow(official[0]!)
+    }
+
+    if (decision.action === 'return_current') {
+      if (!existingV2) throw new Error('Nie udało się przygotować domyślnej ankiety.')
+      return mapTemplateRow(existingV2 as Record<string, unknown>)
     }
 
     const { data, error } = await supabase
@@ -218,12 +236,25 @@ export const questionnaireTemplateService = {
         introduction: DEFAULT_TEMPLATE_INTRODUCTION,
         schema_json: DEFAULT_TEMPLATE_SCHEMA,
         type: 'pre_wedding',
-        is_default: true,
+        is_default: decision.isDefault,
         is_archived: false,
       })
       .select()
       .single()
-    if (error) throw error
+
+    if (error) {
+      // Unique (owner_id, source_key) — concurrent seed; return the existing row.
+      if (error.code === '23505') {
+        const { data: raced } = await supabase
+          .from('questionnaire_templates')
+          .select('*')
+          .eq('owner_id', userId)
+          .eq('source_key', DEFAULT_TEMPLATE_SOURCE_KEY)
+          .maybeSingle()
+        if (raced) return mapTemplateRow(raced as Record<string, unknown>)
+      }
+      throw error
+    }
     return mapTemplateRow(data as Record<string, unknown>)
   },
 
@@ -359,6 +390,34 @@ export const questionnaireTemplateService = {
 
   async restore(id: string): Promise<QuestionnaireTemplate> {
     return this.update(id, { isArchived: false })
+  },
+
+  /**
+   * Permanently remove a reusable template from the library.
+   * Issued wedding_questionnaires keep schema_snapshot_json; template_id SET NULL.
+   * Responses are owned by wedding_questionnaires, not templates.
+   */
+  async deletePermanently(id: string): Promise<void> {
+    const current = await this.getById(id)
+    if (!current) throw new Error('Nie znaleziono ankiety.')
+    if (current.type !== 'pre_wedding') {
+      throw new Error('Tej ankiety nie można usunąć z tej biblioteki.')
+    }
+    if (!current.isArchived) {
+      throw new Error('Najpierw zarchiwizuj ankietę, aby usunąć ją na stałe.')
+    }
+
+    const userId = await resolveStudioUserId()
+    const { data, error } = await supabase
+      .from('questionnaire_templates')
+      .delete()
+      .eq('id', id)
+      .eq('owner_id', userId)
+      .select('id')
+    if (error) throw error
+    if (!data?.length) {
+      throw new Error('Nie udało się usunąć ankiety.')
+    }
   },
 
   async setDefault(id: string): Promise<void> {
@@ -506,13 +565,18 @@ export const weddingQuestionnaireService = {
     if (!qRow) throw new Error('Nie znaleziono ankiety po wygenerowaniu tokenu.')
 
     const questionnaire = mapWeddingQuestionnaireRow(qRow as Record<string, unknown>)
+    const digest = await hashPreweddingShareToken(token)
+    if (!shareTokenHashesEqual(digest, questionnaire.publicTokenHash)) {
+      throw new Error('Token generation returned an inconsistent hash.')
+    }
     persistShareToken(id, token)
     return { questionnaire: { ...questionnaire, publicToken: token }, token }
   },
 
   /**
    * Share / generate public link.
-   * - If an active hash exists and session still has plaintext → reuse (no rotation).
+   * - Reuse session plaintext only when it hashes to the CURRENT public_token_hash.
+   * - Stale plaintext is cleared and never returned.
    * - Otherwise generate/rotate token and return plaintext once.
    * - Rotating a link does not clear submitted answers or change submitted status.
    * Plaintext cannot be reconstructed from the stored hash.
@@ -525,7 +589,7 @@ export const weddingQuestionnaireService = {
     const current = await this.getById(id)
     if (!current) throw new Error('Nie znaleziono ankiety.')
 
-    const cached = readShareToken(id)
+    const cached = await readValidShareToken(id, current.publicTokenHash)
     if (
       !options?.rotate &&
       current.hasPublicToken &&

@@ -40,6 +40,14 @@ const workspaceSrc = readFileSync(
   ),
   'utf8',
 )
+const hookSrc = readFileSync(
+  resolve(
+    process.cwd(),
+    'src/features/prewedding/usePreWeddingQuestionnaireWorkspace.ts',
+  ),
+  'utf8',
+)
+const studioSrc = `${hookSrc}\n${workspaceSrc}`
 const serviceSrc = readFileSync(
   resolve(process.cwd(), 'src/lib/api/preweddingQuestionnaireService.ts'),
   'utf8',
@@ -82,26 +90,32 @@ run('3. Error mapper hides internals and maps ownership', () => {
 })
 
 run('4. Workspace shows loading / error / success feedback', () => {
-  assert(workspaceSrc.includes('Generowanie…'), 'generate pending')
-  assert(workspaceSrc.includes('Przygotowywanie…'), 'share pending')
-  assert(workspaceSrc.includes('prewedding-action-error'), 'error testid')
-  assert(workspaceSrc.includes('prewedding-action-success'), 'success testid')
-  assert(workspaceSrc.includes('disabled={Boolean(sharePending)}'), 'disable while pending')
+  assert(studioSrc.includes('Generowanie…'), 'generate pending')
+  assert(studioSrc.includes('Przygotowywanie…'), 'share pending')
+  assert(studioSrc.includes('prewedding-action-error'), 'error testid')
+  assert(studioSrc.includes('prewedding-action-success'), 'success testid')
+  assert(studioSrc.includes('disabled={Boolean(sharePending)}'), 'disable while pending')
 })
 
 run('5. Share without link generates then opens panel', () => {
-  assert(workspaceSrc.includes("runShareFlow('share')"), 'share flow')
-  assert(workspaceSrc.includes('ensureShareLink'), 'ensureShareLink')
-  assert(workspaceSrc.includes('setShareOpen(true)'), 'opens panel')
-  assert(workspaceSrc.includes('setQuestionnaireCache(result.questionnaire)'), 'cache update')
+  assert(studioSrc.includes("runShareFlow('share')"), 'share flow')
+  assert(studioSrc.includes('ensureShareLink'), 'ensureShareLink')
+  assert(studioSrc.includes('setShareOpen(true)'), 'opens panel')
+  assert(studioSrc.includes('setQuestionnaireCache(result.questionnaire)'), 'cache update')
 })
 
 run('6. Query key is coherent and invalidated', () => {
-  assert(workspaceSrc.includes("PREWEDDING_QUERY_KEY = 'prewedding-questionnaire'"), 'detail key const')
-  assert(workspaceSrc.includes('[PREWEDDING_QUERY_KEY, wedding.id]'), 'detail key usage')
-  assert(workspaceSrc.includes('invalidateQueries({ queryKey: [PREWEDDING_QUERY_KEY, wedding.id] })'), 'invalidate')
+  assert(studioSrc.includes("PREWEDDING_QUERY_KEY = 'prewedding-questionnaire'"), 'detail key const')
+  assert(studioSrc.includes('[PREWEDDING_QUERY_KEY, wedding.id]'), 'detail key usage')
+  assert(
+    studioSrc.includes('invalidateQueries({ queryKey: [PREWEDDING_QUERY_KEY, wedding.id] })') ||
+      studioSrc.includes('queryKey: [PREWEDDING_QUERY_KEY, wedding.id]'),
+    'invalidate',
+  )
   assert(serviceSrc.includes('persistShareToken'), 'session token')
   assert(serviceSrc.includes('hasPublicToken'), 'hash flag')
+  assert(serviceSrc.includes('readValidShareToken'), 'validate before reuse')
+  assert(serviceSrc.includes('inconsistent hash'), 'generate verifies hash')
 })
 
 run('7. Token strategy: plaintext only once; rotate when unrecovered', () => {

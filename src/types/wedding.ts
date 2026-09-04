@@ -283,6 +283,12 @@ export interface Wedding {
   deliveryMonths?: number | null
   /** Wedding snapshot — delivery term in days. */
   deliveryDays?: number | null
+  /** Concrete delivery due date (YYYY-MM-DD). Independent of contract generation. */
+  deliveryDueDate?: string | null
+  /** How the concrete due date was set. */
+  deliveryDueSource?: 'package' | 'manual' | null
+  /** When the studio marked materials as delivered. */
+  deliveryCompletedAt?: string | null
   /**
    * Wedding snapshot — structured final payment rule from the package.
    * Independent of later catalog edits; editable per wedding.
@@ -352,6 +358,14 @@ export interface CreateWeddingInput {
   finalPaymentDueDate?: string | null
   phone?: string
   email?: string
+  /** Groom phone — canonical `weddings.groom_phone`. Optional. */
+  partner2Phone?: string
+  /** Contract correspondence street — canonical `weddings.contract_address`. Optional. */
+  partner1Address?: string
+  /** Contract postal code — canonical `weddings.contract_postal_code`. Optional. */
+  partner1PostalCode?: string
+  /** Contract city — canonical `weddings.contract_city`. Optional. */
+  partner1City?: string
   /**
    * Presentation-only title (e.g. imported single client name).
    * Does not replace partner1/partner2 business data.

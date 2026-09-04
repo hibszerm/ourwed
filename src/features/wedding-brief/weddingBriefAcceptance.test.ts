@@ -984,9 +984,14 @@ run('18. Dynamic Brief — orphan fallback + empty snapshot + generator freeze',
     resolve('src/features/wedding-brief/downloadWeddingBriefPdf.ts'),
     'utf8',
   )
+  const workflow = readFileSync(
+    resolve('src/features/wedding-brief/weddingBriefWorkflow.ts'),
+    'utf8',
+  )
   assert(convert.includes('renderProductionHtmlToPdf'), 'PDF path frozen')
-  assert(download.includes('convertWeddingBriefHtmlToPdf'), 'download orchestration')
+  assert(workflow.includes('convertWeddingBriefHtmlToPdf'), 'generate uses converter')
   assert(download.includes('downloadPdfBytes'), 'blob download')
+  assert(download.includes('weddingBriefService.downloadPdf'), 'current uses storage')
 })
 
 run('19. Dynamic Brief — locations omit raw GPS; consumed contacts', () => {
@@ -1656,7 +1661,7 @@ run('29. V1.4 — Plan dnia travel connectors from cached segments only', () => 
   )
 
   const loadSrc = readFileSync(
-    resolve('src/features/wedding-brief/loadWeddingBriefPdfData.ts'),
+    resolve('src/features/wedding-brief/loadWeddingBriefSource.ts'),
     'utf8',
   )
   const renderSrc = readFileSync(

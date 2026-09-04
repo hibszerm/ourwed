@@ -7,6 +7,10 @@ import {
   isStructuredLocationAnswer,
   formatLocationAnswerDisplay,
 } from '@/features/prewedding/preweddingLocation'
+import {
+  normalizeMultipleChoiceAnswer,
+  toggleMultipleChoiceValue,
+} from '@/features/prewedding/multipleChoiceAnswer'
 import { publicPreWeddingService } from '@/lib/api/preweddingQuestionnaireService'
 import { scrollPublicFormToTop } from '@/features/prewedding/scrollPublicFormToTop'
 import type {
@@ -171,6 +175,44 @@ function SingleChoiceField({ question, value, error, onChange }: FieldProps) {
   )
 }
 
+function MultipleChoiceField({ question, value, error, onChange }: FieldProps) {
+  const options = question.options ?? []
+  const selected = normalizeMultipleChoiceAnswer(value)
+  return (
+    <fieldset
+      className={styles.fieldset}
+      data-testid={`prewedding-multi-${question.id}`}
+      aria-describedby={error ? `${question.id}-error` : undefined}
+    >
+      <legend className={styles.label}>
+        {question.label}
+        {question.required && <span className={styles.required} aria-label="wymagane"> *</span>}
+      </legend>
+      {question.helpText && <p className={styles.helpText}>{question.helpText}</p>}
+      <div className={styles.optionsList}>
+        {options.map((opt) => (
+          <label key={opt} className={styles.optionLabel}>
+            <input
+              type="checkbox"
+              name={`${question.id}[]`}
+              value={opt}
+              checked={selected.includes(opt)}
+              onChange={() => onChange(toggleMultipleChoiceValue(selected, opt))}
+              className={styles.optionInput}
+            />
+            <span className={styles.optionText}>{opt}</span>
+          </label>
+        ))}
+      </div>
+      {error && (
+        <p id={`${question.id}-error`} className={styles.error} role="alert">
+          {error}
+        </p>
+      )}
+    </fieldset>
+  )
+}
+
 function YesNoField({ question, value, error, onChange }: FieldProps) {
   const options = question.options ?? ['Tak', 'Nie']
   return (
@@ -320,7 +362,7 @@ function QuestionFieldRouter({
     case 'single_choice':
       return <SingleChoiceField question={question} value={value} error={error} onChange={onChange} prefill={prefill} />
     case 'multiple_choice':
-      return <SingleChoiceField question={question} value={value} error={error} onChange={onChange} prefill={prefill} />
+      return <MultipleChoiceField question={question} value={value} error={error} onChange={onChange} prefill={prefill} />
     case 'yes_no':
       return <YesNoField question={question} value={value} error={error} onChange={onChange} prefill={prefill} />
     case 'address':

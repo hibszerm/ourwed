@@ -12,17 +12,17 @@ export interface CompanyHealthSnapshot {
   companyName?: string | null
   address?: string | null
   city?: string | null
-  bankAccount?: string | null
-  iban?: string | null
-  logoPath?: string | null
-  signaturePath?: string | null
 }
 
 function filled(value: string | null | undefined): boolean {
   return Boolean(value?.trim())
 }
 
-/** Compact setup checklist for Dane firmy — only meaningful document-critical items. */
+/**
+ * Legacy completeness helper. V1 Studio Profile does not surface a
+ * company-health checklist — generating a contract does not require
+ * filling studio_details.
+ */
 export function buildCompanyHealth(
   data: CompanyHealthSnapshot | CompanyDetails | null | undefined,
 ): CompanyHealthItem[] {
@@ -30,9 +30,6 @@ export function buildCompanyHealth(
     return [
       { id: 'company', label: 'Dane firmy', status: 'missing' },
       { id: 'address', label: 'Adres', status: 'missing' },
-      { id: 'bank', label: 'Numer konta', status: 'missing' },
-      { id: 'logo', label: 'Logo', status: 'missing' },
-      { id: 'signature', label: 'Podpis', status: 'missing' },
     ]
   }
 
@@ -47,22 +44,6 @@ export function buildCompanyHealth(
       label: 'Adres',
       status:
         filled(data.address) && filled(data.city) ? 'ok' : 'missing',
-    },
-    {
-      id: 'bank',
-      label: 'Numer konta',
-      status:
-        filled(data.bankAccount) || filled(data.iban) ? 'ok' : 'missing',
-    },
-    {
-      id: 'logo',
-      label: 'Logo',
-      status: filled(data.logoPath) ? 'ok' : 'missing',
-    },
-    {
-      id: 'signature',
-      label: 'Podpis',
-      status: filled(data.signaturePath) ? 'ok' : 'missing',
     },
   ]
 }

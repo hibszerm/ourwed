@@ -23,7 +23,9 @@ function assertNotIncludes(src: string, needle: string, m: string) {
 }
 
 const weddingsPage = read('src/pages/WeddingsPage.tsx')
+const weddingsModernPage = read('src/pages/WeddingsModernPage.tsx')
 const sessionsPage = read('src/pages/SessionsPage.tsx')
+const sessionsModernPage = read('src/pages/SessionsModernPage.tsx')
 const useWeddings = read('src/features/weddings/hooks/useWeddings.ts')
 const useSessions = read('src/features/sessions/hooks/useSessions.ts')
 const weddingLight = read('src/lib/api/weddingListLightService.ts')
@@ -52,6 +54,12 @@ console.log('\nList first-paint performance\n')
     'finalizeWeddingViews',
     'WeddingsPage no finalize',
   )
+  assertIncludes(weddingsModernPage, 'useWeddings', 'Modern Weddings uses list hook')
+  assertNotIncludes(
+    weddingsModernPage,
+    'weddingService.getAll',
+    'Modern Weddings no getAll',
+  )
   console.log('PASS  WeddingsPage wiring')
 }
 
@@ -61,6 +69,17 @@ console.log('\nList first-paint performance\n')
     sessionsPage,
     'sessionService.getAll',
     'SessionsPage no getAll',
+  )
+  assertIncludes(sessionsModernPage, 'useSessions', 'Modern Sessions uses list hook')
+  assertNotIncludes(
+    sessionsModernPage,
+    'sessionService.getAll',
+    'Modern Sessions no getAll',
+  )
+  assertNotIncludes(
+    sessionsModernPage,
+    'sessionService.getById',
+    'Modern Sessions no getById',
   )
   console.log('PASS  SessionsPage wiring')
 }

@@ -62,26 +62,27 @@ function stubCompany(overrides: Partial<CompanyDetails> = {}): CompanyDetails {
   }
 }
 
-const VISIBLE_FIELDS: (keyof UpsertCompanyDetailsInput)[] = [
-  'companyName',
+const VISIBLE_FIELDS: (keyof UpsertCompanyDetailsInput)[] = ['companyName']
+
+const HIDDEN_FROM_AUTOSAVE: (keyof UpsertCompanyDetailsInput)[] = [
   'ownerName',
   'nip',
   'regon',
-  'vatId',
   'address',
   'postalCode',
   'city',
-  'country',
   'phone',
   'email',
+  'bankAccount',
+  'logoPath',
+  'signaturePath',
+  'vatId',
+  'country',
   'website',
   'instagram',
   'facebook',
-  'bankAccount',
   'iban',
   'swift',
-  'logoPath',
-  'signaturePath',
   'stampPath',
 ]
 
@@ -133,9 +134,14 @@ run('4. visible company fields are included in upsert payload builder', () => {
     resolve('src/pages/CompanyDetailsPage.tsx'),
     'utf8',
   )
-  assert(page.includes('formToUpsertInput'), 'payload helper')
+  const start = page.indexOf('function formToUpsertInput')
+  assert(start >= 0, 'payload helper')
+  const block = page.slice(start, page.indexOf('export function CompanyDetailsPage'))
   for (const field of VISIBLE_FIELDS) {
-    assert(page.includes(field), `payload includes ${field}`)
+    assert(block.includes(field), `payload includes ${field}`)
+  }
+  for (const field of HIDDEN_FROM_AUTOSAVE) {
+    assert(!block.includes(`${field}:`), `payload omits hidden ${field}`)
   }
 })
 
@@ -185,9 +191,10 @@ run('6. trimOrNull keeps Polish characters and postal zeroes', () => {
     'utf8',
   )
   assert(src.includes('function trimOrNull'), 'normalizer exists')
-  assert(src.includes('postal_code: trimOrNull(input.postalCode)'), 'postal as text')
-  assert(src.includes('nip: trimOrNull(input.nip)'), 'nip as text')
-  assert(src.includes('phone: trimOrNull(input.phone)'), 'phone as text')
+  assert(src.includes("column: 'postal_code'"), 'postal as text')
+  assert(src.includes("column: 'nip'"), 'nip as text')
+  assert(src.includes("column: 'phone'"), 'phone as text')
+  assert(src.includes('buildStudioDetailsColumnPatch'), 'patch helper')
 })
 
 run('7. success status only after await upsert', () => {
@@ -213,13 +220,69 @@ run('7. success status only after await upsert', () => {
   )
 })
 
-run('8. studio_details remains canonical storage', () => {
+run('8. presentation uses one Settings workspace, not a card stack', () => {
+  const page = readFileSync(
+    resolve('src/pages/CompanyDetailsPage.tsx'),
+    'utf8',
+  )
+  assert(page.includes('SettingsWorkspace'), 'workspace primitive')
+  assert(page.includes('SettingsSection'), 'section primitive')
+  assert(page.includes('SettingsSaveStatus'), 'save status primitive')
+  assert(page.includes('title="Profil studia"'), 'studio profile title')
+  assert(page.includes('label="Nazwa studia"'), 'studio name field')
+  assert(
+    page.includes(
+      'Te informacje identyfikują Twoje studio w OurWed i na wybranych',
+    ),
+    'identity callout',
+  )
+  assert(!page.includes('Konfiguracja firmy'), 'no completeness checklist')
+  assert(!page.includes('Dane do umowy'), 'no contract-data section')
+  assert(!page.includes('Logo i podpis'), 'no logo/signature section')
+  assert(!page.includes('label="VAT ID"'), 'VAT ID hidden')
+  assert(!page.includes('label="Pieczęć"'), 'stamp hidden')
+  assert(!page.includes('sectionCard'), 'no stacked section cards')
+  assert(!page.includes('healthCard'), 'health is not a large card')
+  assert(!page.includes('docHint'), 'info is not a boxed banner')
+  const workspace = readFileSync(
+    resolve('src/features/settings/SettingsWorkspace.tsx'),
+    'utf8',
+  )
+  assert(!workspace.includes('queryKey'), 'workspace has no query keys')
+  assert(!workspace.includes('companyDetailsService'), 'workspace has no company service')
+  assert(
+    !workspace.includes('studioTravelSettingsService'),
+    'workspace has no travel service',
+  )
+})
+
+run('9. studio_details remains canonical storage', () => {
   const src = readFileSync(
     resolve('src/lib/api/companyDetailsService.ts'),
     'utf8',
   )
   assert(src.includes(".from('studio_details')"), 'reads/writes studio_details')
   assert(!src.includes(".from('profiles')"), 'does not write profiles')
+})
+
+run('10. upsert leaves undefined legacy columns untouched', () => {
+  const src = readFileSync(
+    resolve('src/lib/api/companyDetailsService.ts'),
+    'utf8',
+  )
+  assert(src.includes('assignDefinedTextFields'), 'defined-only text patch')
+  assert(src.includes('if (input[key] !== undefined)'), 'skips undefined keys')
+  assert(src.includes("column: 'vat_id'"), 'vat column still mapped')
+  assert(src.includes("column: 'iban'"), 'iban column still mapped')
+  assert(src.includes("column: 'instagram'"), 'instagram column still mapped')
+  assert(
+    src.includes('if (input.country !== undefined)'),
+    'country is not force-written',
+  )
+  assert(
+    src.includes('...buildStudioDetailsColumnPatch(input)'),
+    'upsert uses defined-only patch',
+  )
 })
 
 console.log('Company settings persistence acceptance done.')

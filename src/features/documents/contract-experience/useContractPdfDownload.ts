@@ -1,0 +1,93 @@
+/**
+ * Canonical contract PDF download: exact final DOCX → Cloudmersive via Edge.
+ * Preview and Modern contract card share this hook. Do not fork it.
+ * Not experimental. No Gotenberg / localhost.
+ */
+
+import { useRef, useState } from 'react'
+import { useProAccessGate } from '@/features/billing/ProAccessGate'
+import { convertContractDocxToPdf } from '@/features/documents/pdf/contractPdfAdapter'
+import {
+  ContractPdfError,
+  mapContractPdfErrorForUser,
+} from '@/features/documents/pdf/docxToPdf/errors'
+import { downloadPdfBytes } from '@/features/wedding-brief/convertWeddingBriefHtmlToPdf'
+import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
+
+function pdfFileNameFromDocx(fileName: string): string {
+  const base = fileName.replace(/\.docx$/i, '') || 'umowa'
+  return `${base}.pdf`
+}
+
+export type ContractPdfDownloadInput = {
+  /** Exact final DOCX for this artifact (already generated). */
+  docxBytes: ArrayBuffer | null | undefined
+  fileName: string
+  weddingId?: string
+  documentId?: string
+  /**
+   * Optional lazy loader used when bytes are not already in memory
+   * (e.g. contract card). Preview still passes `docxBytes`.
+   */
+  loadDocxBytes?: () => Promise<ArrayBuffer | null | undefined>
+}
+
+export function useContractPdfDownload(props: ContractPdfDownloadInput) {
+  const { requirePro } = useProAccessGate()
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const inFlightRef = useRef(false)
+
+  async function downloadPdf() {
+    // Double-click / StrictMode: one in-flight conversion max.
+    if (inFlightRef.current || busy) return
+    if (!props.docxBytes) {
+      if (!props.loadDocxBytes) {
+        setError(
+          'Brak pliku DOCX do konwersji. Najpierw wygeneruj lub pobierz dokument.',
+        )
+        return
+      }
+    }
+
+    const allowed = requirePro(undefined, {
+      variant: 'pro_required_action',
+      actionKey: 'generate_contract_pdf',
+    })
+    if (!allowed) return
+
+    inFlightRef.current = true
+    setBusy(true)
+    setError(null)
+    try {
+      const docxBytes = props.docxBytes ?? (await props.loadDocxBytes?.())
+      if (!docxBytes) {
+        setError(
+          'Brak pliku DOCX do konwersji. Najpierw wygeneruj lub pobierz dokument.',
+        )
+        return
+      }
+      const pdfBytes = await convertContractDocxToPdf({
+        docxBytes,
+        filename: props.fileName.endsWith('.docx')
+          ? props.fileName
+          : `${props.fileName}.docx`,
+        weddingId: props.weddingId,
+        documentId: props.documentId,
+      })
+      downloadPdfBytes(pdfBytes, pdfFileNameFromDocx(props.fileName))
+    } catch (e) {
+      if (e instanceof ContractPdfError) {
+        setError(mapContractPdfErrorForUser(e.code))
+      } else {
+        const raw = getUserFacingErrorMessage(e, '')
+        setError(mapContractPdfErrorForUser(raw))
+      }
+    } finally {
+      inFlightRef.current = false
+      setBusy(false)
+    }
+  }
+
+  return { downloadPdf, busy, error }
+}

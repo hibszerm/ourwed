@@ -159,6 +159,8 @@ interface Props {
   weddingCeremonyTime?: string | null
   schema: PreWeddingTemplateSchema
   answers: Record<string, unknown>
+  /** Classic keeps the existing Plan dnia chrome. Modern is TIME → role editorial. */
+  presentation?: 'classic' | 'modern'
 }
 
 export function PreWeddingDayPlan({
@@ -166,6 +168,7 @@ export function PreWeddingDayPlan({
   weddingCeremonyTime,
   schema,
   answers,
+  presentation = 'classic',
 }: Props) {
   const queryClient = useQueryClient()
   const userId = useStudioAuthId()
@@ -649,10 +652,15 @@ export function PreWeddingDayPlan({
   if (renderStops.length === 0) return null
 
   const routeBusy = routeStatus === 'loading' || recalculate.isPending
+  const modern = presentation === 'modern'
 
   return (
-    <section className={styles.plan} data-testid="prewedding-day-timeline">
-      <h3 className={styles.title}>Plan dnia</h3>
+    <section
+      className={modern ? styles.planModern : styles.plan}
+      data-testid="prewedding-day-timeline"
+      data-presentation={presentation}
+    >
+      {modern ? null : <h3 className={styles.title}>Plan dnia</h3>}
       {isLoading ? <p className={styles.muted}>Ładowanie trasy…</p> : null}
 
       <ol className={styles.list}>
@@ -675,6 +683,19 @@ export function PreWeddingDayPlan({
           const mapsUrl = googleMapsPlaceUrl(place)
           const prevPlace = prev ? stopToDisplayPlace(prev) : null
           const sameAsPrevious = prevPlace ? samePlace(prevPlace, place) : false
+          const qSeed =
+            stop.role === 'ceremony'
+              ? qTimes.ceremony
+              : stop.role === 'reception'
+                ? qTimes.reception
+                : undefined
+          const clock = (value?: string | null) =>
+            (value || '').trim().replace('.', ':')
+          const showQuestionnaireHint =
+            modern &&
+            Boolean(qSeed && stop.time) &&
+            clock(qSeed) !== clock(stop.time) &&
+            (stop.timeSource === 'studio' || stop.timeSource === 'wedding')
 
           return (
             <li
@@ -686,7 +707,7 @@ export function PreWeddingDayPlan({
             >
               {index > 0 ? (
                 <div
-                  className={styles.leg}
+                  className={modern ? styles.legModern : styles.leg}
                   data-testid="prewedding-travel-leg"
                   data-route-busy={routeBusy ? 'true' : undefined}
                   aria-label={
@@ -695,20 +716,26 @@ export function PreWeddingDayPlan({
                       : leg?.label || 'Odcinek trasy'
                   }
                 >
-                  <span className={styles.timelineConnector} aria-hidden="true" />
+                  {modern ? null : (
+                    <span className={styles.timelineConnector} aria-hidden="true" />
+                  )}
                   <span
                     className={
                       routeBusy
-                        ? `${styles.legMetrics} ${styles.legMetricsBusy}`
-                        : styles.legMetrics
+                        ? `${modern ? styles.legMetricsModern : styles.legMetrics} ${styles.legMetricsBusy}`
+                        : modern
+                          ? styles.legMetricsModern
+                          : styles.legMetrics
                     }
                   >
-                    <Car
-                      className={styles.legIcon}
-                      aria-hidden="true"
-                      size={14}
-                      strokeWidth={2}
-                    />
+                    {modern ? null : (
+                      <Car
+                        className={styles.legIcon}
+                        aria-hidden="true"
+                        size={14}
+                        strokeWidth={2}
+                      />
+                    )}
                     {metrics}
                   </span>
                   {sameAsPrevious ? (
@@ -717,16 +744,36 @@ export function PreWeddingDayPlan({
                 </div>
               ) : null}
 
-              <div className={styles.row} data-role={stop.role}>
-                <div className={styles.timelineCol} aria-hidden="true">
-                  <span className={styles.timelineDot} />
-                  {index < renderStops.length - 1 ? (
-                    <span className={styles.timelineRail} />
-                  ) : null}
-                </div>
-                <div className={styles.rowIcon} aria-hidden="true">
-                  <Icon size={16} strokeWidth={1.75} />
-                </div>
+              <div
+                className={modern ? styles.rowModern : styles.row}
+                data-role={stop.role}
+              >
+                {modern ? (
+                  <div className={styles.timeCol}>
+                    <OperationalTimeControl
+                      time={stop.time}
+                      disabled={!hasOperationalPlaces && stop.kind !== 'studio'}
+                      onCommit={async (next) => {
+                        await saveTime.mutateAsync({
+                          stopKey: stop.key,
+                          time: next,
+                        })
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <>
+                    <div className={styles.timelineCol} aria-hidden="true">
+                      <span className={styles.timelineDot} />
+                      {index < renderStops.length - 1 ? (
+                        <span className={styles.timelineRail} />
+                      ) : null}
+                    </div>
+                    <div className={styles.rowIcon} aria-hidden="true">
+                      <Icon size={16} strokeWidth={1.75} />
+                    </div>
+                  </>
+                )}
                 <div className={styles.rowBody}>
                   <div className={styles.rowTop}>
                     <div className={styles.stageRow}>
@@ -751,20 +798,27 @@ export function PreWeddingDayPlan({
                       ) : null}
                       <p className={styles.stage}>{stop.title}</p>
                     </div>
-                    <OperationalTimeControl
-                      time={stop.time}
-                      disabled={!hasOperationalPlaces && stop.kind !== 'studio'}
-                      onCommit={async (next) => {
-                        await saveTime.mutateAsync({
-                          stopKey: stop.key,
-                          time: next,
-                        })
-                      }}
-                    />
+                    {modern ? null : (
+                      <OperationalTimeControl
+                        time={stop.time}
+                        disabled={!hasOperationalPlaces && stop.kind !== 'studio'}
+                        onCommit={async (next) => {
+                          await saveTime.mutateAsync({
+                            stopKey: stop.key,
+                            time: next,
+                          })
+                        }}
+                      />
+                    )}
                   </div>
                   <p className={styles.venue}>{display.primary}</p>
                   {display.secondary ? (
                     <p className={styles.address}>{display.secondary}</p>
+                  ) : null}
+                  {showQuestionnaireHint ? (
+                    <p className={styles.questionnaireHint}>
+                      W ankiecie: {qSeed}
+                    </p>
                   ) : null}
                   {mapsUrl ? (
                     <a
@@ -785,12 +839,28 @@ export function PreWeddingDayPlan({
       </ol>
 
       {useTravel || hasOperationalPlaces ? (
-        <TravelRouteTotals
-          summary={routeBusy || routeStatus === 'error' ? null : summary}
-          onRecalculate={() => void recalculate.mutateAsync()}
-          recalculatePending={routeBusy}
-          routeStatus={routeBusy ? 'loading' : routeStatus}
-        />
+        modern ? (
+          <div className={styles.modernTravel}>
+            {routeStatus === 'error' ? (
+              <p className={styles.muted}>Nie udało się przeliczyć trasy.</p>
+            ) : null}
+            <button
+              type="button"
+              className={styles.quietRecalc}
+              disabled={routeBusy}
+              onClick={() => void recalculate.mutateAsync()}
+            >
+              {routeBusy ? 'Przeliczanie…' : 'Przelicz trasę'}
+            </button>
+          </div>
+        ) : (
+          <TravelRouteTotals
+            summary={routeBusy || routeStatus === 'error' ? null : summary}
+            onRecalculate={() => void recalculate.mutateAsync()}
+            recalculatePending={routeBusy}
+            routeStatus={routeBusy ? 'loading' : routeStatus}
+          />
+        )
       ) : null}
     </section>
   )

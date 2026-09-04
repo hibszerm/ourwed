@@ -1,9 +1,6 @@
-import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
-import { downloadWeddingBriefPdf } from '@/features/wedding-brief/downloadWeddingBriefPdf'
-import { mapPdfRenderErrorForUser } from '@/features/documents/pdf/pdfRenderErrors'
+import { useWeddingBriefAction } from '@/features/wedding-brief/useWeddingBriefAction'
 import styles from '@/features/weddings/detail/v2/WeddingDetailV2.module.css'
-import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 type Props = {
   weddingId: string
@@ -11,25 +8,12 @@ type Props = {
 }
 
 /**
- * Wedding Details action — generate offline Wedding Brief PDF.
+ * Shared Brief action — uses persisted PDF when current.
+ * Not currently mounted on production pages; kept aligned so remounting
+ * cannot restore pay-per-click generation.
  */
 export function WeddingBriefDownloadButton({ weddingId, compact }: Props) {
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  async function handleClick() {
-    if (busy) return
-    setBusy(true)
-    setError(null)
-    try {
-      await downloadWeddingBriefPdf(weddingId)
-    } catch (e) {
-      const raw = getUserFacingErrorMessage(e, '')
-      setError(mapPdfRenderErrorForUser(raw))
-    } finally {
-      setBusy(false)
-    }
-  }
+  const brief = useWeddingBriefAction(weddingId)
 
   return (
     <div
@@ -48,21 +32,24 @@ export function WeddingBriefDownloadButton({ weddingId, compact }: Props) {
         type="button"
         variant={compact ? 'secondary' : 'primary'}
         size="sm"
-        disabled={busy}
+        disabled={brief.busy}
         data-testid="wedding-brief-download-button"
-        onClick={() => void handleClick()}
+        onClick={() => {
+          if (brief.busy) return
+          void brief.run()
+        }}
       >
-        {busy ? 'Przygotowywanie briefu…' : 'Pobierz brief PDF'}
+        {brief.label}
       </Button>
-      {error ? (
+      {brief.error ? (
         <div className={styles.briefError} role="alert">
-          <p>{error}</p>
+          <p>{brief.error}</p>
           <Button
             type="button"
             variant="secondary"
             size="sm"
             data-testid="wedding-brief-retry"
-            onClick={() => void handleClick()}
+            onClick={() => void brief.run()}
           >
             Spróbuj ponownie
           </Button>

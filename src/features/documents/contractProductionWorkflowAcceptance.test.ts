@@ -1080,9 +1080,25 @@ await run('AJ', 'saved preview uses exact DOCX via docx-preview', () => {
 
 await run('AK', 'regeneration is variable-only and pinned to template version', () => {
   const preview = source('src/pages/WeddingContractPreviewPage.tsx')
-  assert(preview.includes('Możesz zmienić tylko skonfigurowane pola zmienne'), 'editor boundary missing')
-  assert(preview.includes('templateVersionId: contract.templateVersionId'), 'template version not pinned')
-  assert(preview.includes('variableOnlyEditor: true'), 'variable-only audit missing')
+  const ready = source(
+    'src/features/documents/contract-experience/ContractReadyPreview.tsx',
+  )
+  const service = source(
+    'src/features/documents/template/WeddingContractGenerationService.ts',
+  )
+  // Product decision: no in-page “Edytuj dane umowy” on generated preview.
+  assert(!preview.includes('Edytuj dane umowy'), 'edit CTA must stay hidden')
+  assert(preview.includes('ContractReadyPreview'), 'ready preview wired')
+  assert(
+    preview.includes("navigate(`/sluby/${wedding.id}/umowa/generuj`)"),
+    'regenerate navigates to wizard',
+  )
+  assert(ready.includes('Wygeneruj ponownie'), 'regenerate CTA remains')
+  assert(service.includes('prepareVerification'), 'verification infra retained')
+  assert(
+    service.includes('templateVersionId'),
+    'template version pinning remains in generation service',
+  )
 })
 
 await run('AL', 'previous generated versions remain retained', () => {
@@ -1146,7 +1162,6 @@ await run('AQ', 'contract grids and wizard adapt to narrow screens', () => {
 await run('AR', 'CRM is marked generated only after persistence and never sent or signed', () => {
   for (const path of [
     'src/pages/WeddingContractGenerationPage.tsx',
-    'src/pages/WeddingContractPreviewPage.tsx',
     'src/features/weddings/actions/GenerateContractModal.tsx',
   ]) {
     const ui = source(path)
@@ -1154,6 +1169,13 @@ await run('AR', 'CRM is marked generated only after persistence and never sent o
     const crm = ui.indexOf('await weddingActionsService.markContractGenerated')
     assert(persistence >= 0 && crm > persistence, `${path} updates CRM before persistence`)
   }
+  // Generated preview no longer persists/regenerates in-page (edit CTA removed).
+  const preview = source('src/pages/WeddingContractPreviewPage.tsx')
+  assert(!preview.includes('saveGeneratedContract'), 'preview must not persist')
+  assert(
+    !preview.includes('markContractGenerated'),
+    'preview must not mark CRM generated',
+  )
   const actions = source('src/lib/api/weddingActionsService.ts')
   const start = actions.indexOf('async markContractGenerated(')
   const end = actions.indexOf('/** @deprecated', start)

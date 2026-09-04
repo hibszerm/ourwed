@@ -263,7 +263,12 @@ export async function mergeFormAnswersIntoWedding(
   return {
     ...wedding,
     couple,
-    date: preferForm(weddingDate, wedding.date),
+    // Canonical DB wedding.date must win over older contract submissions.
+    // The contract form is re-hydrated for display, but should never revert a
+    // studio-admin edit like "Edytuj nazwę i datę".
+    date: wedding.date?.trim()
+      ? wedding.date
+      : preferForm(weddingDate, wedding.date),
     packageId: nextPackageId,
     packageName: nextPackageName,
     selectedPackageIds: nextSelected,

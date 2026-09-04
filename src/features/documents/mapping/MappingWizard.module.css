@@ -140,7 +140,7 @@
 .stepperBtnActive .stepperIndex {
   background: var(--color-text-primary);
   border-color: var(--color-text-primary);
-  color: var(--color-surface, #fff);
+  color: var(--color-surface);
 }
 
 .stepperLabel {
@@ -210,7 +210,7 @@
 .errorText {
   margin: 0;
   font-size: var(--text-sm);
-  color: var(--color-danger-text, #b42318);
+  color: var(--color-danger-text);
 }
 
 /* —— Upload document card —— */
@@ -275,18 +275,18 @@
 }
 
 .statusPillSuccess {
-  background: var(--color-success-bg, #ecfdf3);
-  color: var(--color-success-text, var(--color-success-text));
+  background: var(--status-success-soft);
+  color: var(--color-success-text);
 }
 
 .statusPillWarning {
-  background: color-mix(in srgb, #ca8a04 16%, transparent);
-  color: #a16207;
+  background: var(--status-warning-soft);
+  color: var(--status-warning-text);
 }
 
 .statusPillError {
-  background: color-mix(in srgb, #b42318 12%, transparent);
-  color: #b42318;
+  background: var(--status-error-soft);
+  color: var(--status-error-text);
 }
 
 .statusPillNeutral {
@@ -564,22 +564,22 @@
 }
 
 .mappingChip_placeholder {
-  background: color-mix(in srgb, #059669 16%, transparent);
+  background: var(--status-success-soft);
   color: var(--color-success-text);
 }
 
 .mappingChip_manual {
-  background: color-mix(in srgb, var(--color-accent, #0a0a0a) 16%, transparent);
-  color: color-mix(in srgb, var(--color-accent, #0a0a0a) 70%, #1a1a1a);
+  background: color-mix(in srgb, var(--color-accent) 16%, transparent);
+  color: var(--color-accent);
 }
 
 .mappingChip_suggestion {
-  background: color-mix(in srgb, #ca8a04 18%, transparent);
-  color: #a16207;
+  background: var(--status-warning-soft);
+  color: var(--status-warning-text);
 }
 
 .mappingChipActive {
-  outline: 2px solid color-mix(in srgb, var(--color-accent, #0a0a0a) 50%, transparent);
+  outline: 2px solid color-mix(in srgb, var(--color-accent) 50%, transparent);
   outline-offset: 1px;
 }
 
@@ -1114,7 +1114,7 @@
   background:
     linear-gradient(
       165deg,
-      color-mix(in srgb, var(--color-surface) 92%, #e5e5e5 8%),
+      color-mix(in srgb, var(--color-surface) 92%, var(--surface-secondary) 8%),
       var(--color-surface)
     );
   padding: var(--space-5);
@@ -1181,7 +1181,7 @@
   margin-bottom: var(--space-4);
   padding: 4px;
   border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--color-bg-subtle, #f3f1ed) 80%, transparent);
+  background: color-mix(in srgb, var(--color-bg-subtle) 80%, transparent);
   width: fit-content;
   max-width: 100%;
 }
@@ -1202,7 +1202,7 @@
 .reviewTabActive {
   background: var(--color-surface);
   color: var(--color-text-primary);
-  box-shadow: 0 1px 2px rgb(0 0 0 / 6%);
+  box-shadow: var(--shadow-sm);
 }
 
 .fieldCardSelected {
@@ -1364,13 +1364,13 @@
 }
 
 .infoSourceConnected {
-  background: color-mix(in srgb, #2f6b4f 12%, transparent);
-  color: color-mix(in srgb, #2f6b4f 85%, #111);
+  background: var(--status-success-soft);
+  color: var(--status-success-text);
 }
 
 .infoSourceUnconnected {
-  background: color-mix(in srgb, #a67c52 14%, transparent);
-  color: color-mix(in srgb, #8a5a2b 90%, #111);
+  background: var(--status-warning-soft);
+  color: var(--status-warning-text);
 }
 
 .infoCardBody {
@@ -1476,7 +1476,7 @@
   padding: var(--space-4);
   border-radius: var(--radius-lg);
   border: 1px solid color-mix(in srgb, var(--color-border) 70%, transparent);
-  background: color-mix(in srgb, var(--color-surface) 90%, #e5e5e5 10%);
+  background: var(--surface-secondary);
   font-size: var(--text-sm);
   line-height: 1.5;
   color: var(--color-text-secondary);
@@ -1525,13 +1525,13 @@
   border: 1px solid var(--color-border);
   font-size: 11px;
   font-weight: 700;
-  color: color-mix(in srgb, #2f6b4f 85%, #111);
+  color: var(--status-success-text);
   background: var(--color-surface);
 }
 
 .questionEnable input:checked + .questionEnableMark {
-  border-color: color-mix(in srgb, #2f6b4f 45%, var(--color-border));
-  background: color-mix(in srgb, #2f6b4f 12%, transparent);
+  border-color: color-mix(in srgb, var(--status-success) 45%, var(--color-border));
+  background: var(--status-success-soft);
 }
 
 .questionRowMain {

@@ -91,6 +91,10 @@ function stubCompany() {
 }
 
 const page = resolve(process.cwd(), 'src/pages/WeddingDetailPage.tsx')
+const host = resolve(
+  process.cwd(),
+  'src/features/weddings/detail/useWeddingDetailHost.ts',
+)
 const dialog = resolve(
   process.cwd(),
   'src/features/weddings/actions/MissingContractDataDialog.tsx',
@@ -140,12 +144,19 @@ run('4–7. No readiness counts / categories / checklist on detail', () => {
 })
 
 run('8–10. Shared guard: complete opens flow; missing blocks', () => {
-  const pageSrc = readFileSync(page, 'utf8')
-  assert(pageSrc.includes('validateContractGeneration'), 'guard wired')
-  assert(pageSrc.includes('handleGenerateContract'), 'shared handler')
-  assert(pageSrc.includes("case 'generate_contract'"), 'hero action')
+  const hostSrc = readFileSync(host, 'utf8')
+  assert(hostSrc.includes('validateContractGeneration'), 'guard wired')
+  assert(hostSrc.includes('handleGenerateContract'), 'shared handler')
+  assert(hostSrc.includes("case 'generate_contract'"), 'hero action')
   assert(
-    pageSrc.includes('MissingContractDataDialog'),
+    hostSrc.includes('MissingContractDataDialog') ||
+      readFileSync(
+        resolve(
+          process.cwd(),
+          'src/features/weddings/detail/WeddingDetailHostModals.tsx',
+        ),
+        'utf8',
+      ).includes('MissingContractDataDialog'),
     'missing dialog',
   )
 
@@ -239,6 +250,34 @@ run('8–10. Shared guard: complete opens flow; missing blocks', () => {
   assertEq(travelLegacyNull.isReady, false, 'legacy null blocks')
 })
 
+run('company optional fields do not globally block generation', () => {
+  const readyWedding = stubWedding({
+    travelFeeStatus: 'included',
+    couple: {
+      ...stubWedding().couple,
+      partner1Address: 'ul. Test 1, Kraków',
+      partner1Phone: '500100200',
+    },
+  })
+  const sparseCompany = buildReferenceCompany({
+    nip: null,
+    regon: null,
+    phone: null,
+    email: null,
+    bankAccount: null,
+    iban: null,
+    logoPath: null,
+    signaturePath: null,
+    stampPath: null,
+  })
+  const ready = validateContractGeneration(readyWedding, sparseCompany)
+  assertEq(ready.isReady, true, 'ready without nip/regon/phone/bank')
+  assert(
+    !ready.missingGroups.some((g) => g.id === 'company'),
+    'no company blocker group',
+  )
+})
+
 run('11–13. Missing dialog shows only blockers, no counts/percent', () => {
   const src = readFileSync(dialog, 'utf8')
   assert(src.includes('Uzupełnij dane do umowy'), 'title')
@@ -257,31 +296,61 @@ run('11–13. Missing dialog shows only blockers, no counts/percent', () => {
     assert(!g.items.some((i) => i.includes('/')), 'no fraction labels')
   }
   assert(
-    validation.missingGroups.some((g) => g.items.includes('REGON')),
-    'REGON blocker',
+    !validation.missingGroups.some((g) => g.items.includes('REGON')),
+    'REGON is not a global blocker',
   )
   assert(
-    validation.missingGroups.some((g) => g.items.includes('Numer konta')),
-    'account blocker',
+    !validation.missingGroups.some((g) => g.items.includes('Numer konta')),
+    'bank account is not a global blocker',
+  )
+  assert(
+    !validation.missingGroups.some((g) => g.items.includes('NIP')),
+    'NIP is not a global blocker',
+  )
+  assert(
+    !validation.missingGroups.some((g) => g.items.includes('Telefon firmy')),
+    'phone is not a global blocker',
   )
 })
 
-run('14–17. Contextual correction actions', () => {
-  const validation = validateContractGeneration(stubWedding(), stubCompany())
-  const company = validation.missingGroups.find((g) => g.id === 'company')
-  assertEq(company?.contextualAction.kind, 'company_settings', 'company')
+run('14–17. Contextual correction actions do not include company Settings', () => {
+  const validation = validateContractGeneration(
+    stubWedding(),
+    buildReferenceCompany({
+      companyName: null,
+      address: null,
+      city: null,
+    }),
+  )
   assert(
-    Boolean(company?.contextualAction.label.includes('firm')),
-    'company label',
+    !validation.missingGroups.some((g) => g.id === 'company'),
+    'empty company profile is not a generation group',
   )
 
-  const pageSrc = readFileSync(page, 'utf8')
-  assert(pageSrc.includes("navigate('/ustawienia/firma')"), 'company route')
-  assert(pageSrc.includes("openEditor('contacts')"), 'edit couple')
-  assert(pageSrc.includes("openEditor('package')"), 'edit package')
-  assert(pageSrc.includes("asDeposit: true"), 'deposit action')
-  assert(pageSrc.includes("case 'edit_travel_fee'"), 'travel correction')
-  assert(pageSrc.includes('TravelFeeResolveModal'), 'travel modal reused')
+  const readyWedding = stubWedding({
+    travelFeeStatus: 'included',
+    couple: {
+      ...stubWedding().couple,
+      partner1Address: 'ul. Test 1, Kraków',
+      partner1Phone: '500100200',
+    },
+  })
+  const emptyStudio = validateContractGeneration(readyWedding, null)
+  assertEq(emptyStudio.isReady, true, 'ready wedding + empty studio_details')
+
+  const hostSrc = readFileSync(host, 'utf8')
+  const modalsSrc = readFileSync(
+    resolve(
+      process.cwd(),
+      'src/features/weddings/detail/WeddingDetailHostModals.tsx',
+    ),
+    'utf8',
+  )
+  assert(hostSrc.includes("openEditor('contacts')"), 'edit couple')
+  assert(hostSrc.includes("openEditor('package')"), 'edit package')
+  assert(hostSrc.includes("asDeposit: true"), 'deposit action')
+  assert(hostSrc.includes("case 'edit_travel_fee'"), 'travel correction')
+  assert(modalsSrc.includes('TravelFeeResolveModal'), 'travel modal reused')
 })
 
 run('14b. Dialog uses travel title override when travel-only', () => {
@@ -328,36 +397,36 @@ run('19. Validation recomputes each attempt (pure function, no cache)', () => {
   const b = validateContractGeneration(stubWedding(), stubCompany())
   assertEq(a.isReady, b.isReady, 'same input same result')
   assert(a !== b, 'new object each call')
-  const pageSrc = readFileSync(page, 'utf8')
-  assert(pageSrc.includes('setMissingValidation(null)'), 'clears prior')
-  assert(
-    pageSrc.includes('validateContractGeneration(wedding, company)'),
-    'fresh call',
-  )
+  const hostSrc = readFileSync(host, 'utf8')
+  assert(hostSrc.includes('setMissingValidation(null)'), 'clears prior')
+  assert(hostSrc.includes('validateContractGeneration(wedding)'), 'fresh call')
 })
 
 run('20. V2 uses the page-level generation guard', () => {
   const pageSrc = readFileSync(page, 'utf8')
+  const hostSrc = readFileSync(host, 'utf8')
   assert(pageSrc.includes('WeddingDetailV2'), 'v2')
   assert(!pageSrc.includes('WeddingDetailV1'), 'no v1')
-  assert(pageSrc.includes('onHeroAction: handleHeroAction'), 'shared')
+  assert(hostSrc.includes('onHeroAction: handleHeroAction'), 'shared')
   assertEq(
-    (pageSrc.match(/handleGenerateContract/g) ?? []).length >= 2,
+    (hostSrc.match(/handleGenerateContract/g) ?? []).length >= 2,
     true,
     'defined and used',
   )
 })
 
-run('21. Detail load does not fetch company for readiness UI', () => {
+run('21. Detail generate does not fetch company for an artificial gate', () => {
   const shell = readFileSync(v2Shell, 'utf8')
   assert(!shell.includes('companyDetailsService'), 'v2 no company')
   assert(!shell.includes('evaluateWeddingContractReadiness'), 'v2 no eval')
-  const pageSrc = readFileSync(page, 'utf8')
+  const hostSrc = readFileSync(host, 'utf8')
+  assert(!hostSrc.includes('companyDetailsService'), 'generate does not load studio_details')
   assert(
-    pageSrc.includes("queryKey: ['company-details', userId]"),
-    'fetch on generate',
+    !hostSrc.includes("queryKey: ['company-details', userId]"),
+    'no company fetch on generate',
   )
-  assert(pageSrc.includes('handleGenerateContract'), 'lazy path')
+  assert(hostSrc.includes('handleGenerateContract'), 'lazy path')
+  assert(hostSrc.includes("navigate(`/sluby/${wedding.id}/umowy/nowa`)"), 'opens generate route')
 })
 
 run('22. Underlying readiness validator still used by guard', () => {

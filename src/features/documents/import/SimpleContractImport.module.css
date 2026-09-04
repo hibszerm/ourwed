@@ -145,20 +145,20 @@
   min-height: 44px;
   border-radius: 12px;
   border: 1px solid color-mix(in srgb, var(--color-border) 80%, transparent);
-  background: var(--color-bg, #fff);
+  background: var(--input-background);
   box-sizing: border-box;
   width: 100%;
 }
 
 .nameField input:focus {
-  outline: 2px solid color-mix(in srgb, var(--color-primary, #0a0a0a) 35%, transparent);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 1px;
 }
 
 .error {
   margin: 0;
   font-size: var(--text-sm);
-  color: #b42318;
+  color: var(--color-danger-text);
 }
 
 .heroTitle {

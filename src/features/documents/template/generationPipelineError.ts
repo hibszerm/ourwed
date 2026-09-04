@@ -4,6 +4,7 @@
  */
 
 import { devErrorArgs, devInfoArgs } from '@/lib/debug/devConsole'
+import { createBrowserSafeId } from '@/lib/utils/createBrowserSafeId'
 
 export type GenerationPipelineStage =
   | 'review_state_validation'
@@ -105,10 +106,7 @@ export class GenerationPipelineError extends Error {
 }
 
 export function createGenerationCorrelationId(): string {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-    return crypto.randomUUID().slice(0, 8).toUpperCase()
-  }
-  return `G${Date.now().toString(36).toUpperCase()}`
+  return createBrowserSafeId().slice(0, 8).toUpperCase()
 }
 
 const DEV =

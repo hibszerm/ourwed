@@ -13,9 +13,15 @@
   max-height: 85vh;
   overflow: auto;
   padding: 1.25rem 0.75rem 2rem;
-  border: 1px solid var(--border-subtle, #e5e2dc);
+  border: 1px solid var(--border-subtle);
   border-radius: 12px;
-  background: #ebe8e2;
+  background: color-mix(
+    in srgb,
+    var(--color-text-primary) 4%,
+    var(--app-background)
+  );
+  min-width: 0;
+  -webkit-overflow-scrolling: touch;
 }
 
 .paperHost :global(.docx-wrapper) {
@@ -27,6 +33,7 @@
   gap: 1.25rem;
 }
 
+/* Document artifact — white paper; appearance-independent */
 .paperHost :global(.docx-wrapper > section.docx) {
   background: #fff;
   box-shadow: 0 8px 28px rgb(0 0 0 / 10%);
@@ -36,7 +43,7 @@
 
 .muted {
   margin: 0;
-  color: var(--text-muted, #6b6560);
+  color: var(--text-muted);
   font-size: 0.95rem;
 }
 
@@ -44,4 +51,34 @@
   display: grid;
   gap: 0.75rem;
   max-width: 28rem;
+}
+
+/*
+ * Mobile: keep natural A4 page geometry (no reflow / no max-width squeeze).
+ * JS applies transform: scale so the full page width fits the host.
+ * overflow-x is clipped; only vertical scrolling remains for multi-page docs.
+ */
+@media (max-width: 767px) {
+  .paperHost {
+    min-height: 0;
+    max-height: min(70vh, 36rem);
+    padding: 0.75rem;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .paperHost :global(.docx-wrapper) {
+    /* Natural A4 width; JS scales from top-left and translates to center. */
+    align-items: center;
+    width: max-content;
+    max-width: none;
+    margin-inline: 0;
+  }
+
+  .paperHost :global(.docx-wrapper > section.docx) {
+    /* Preserve renderer page width — scale is applied to the wrapper. */
+    max-width: none;
+    flex-shrink: 0;
+  }
 }

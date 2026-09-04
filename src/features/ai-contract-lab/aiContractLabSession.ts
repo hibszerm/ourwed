@@ -2,6 +2,7 @@ import {
   AI_CONTRACT_LAB_WEDDING_STORAGE_KEY,
   getAiContractLabWeddingIdOverride,
 } from '@/features/ai-contract-lab/aiContractLabFlags'
+import { createBrowserSafeId } from '@/lib/utils/createBrowserSafeId'
 
 export function readStoredLabWeddingId(): string | null {
   const envId = getAiContractLabWeddingIdOverride()
@@ -23,7 +24,7 @@ export function writeStoredLabWeddingId(id: string | null) {
 }
 
 export function createLabSessionId(): string {
-  return crypto.randomUUID()
+  return createBrowserSafeId()
 }
 
 export function buildLabDownloadFileName(input: {

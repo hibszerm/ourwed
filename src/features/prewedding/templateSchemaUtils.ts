@@ -3,6 +3,7 @@
  */
 
 import type { PreWeddingTemplateSchema } from '@/types/preweddingQuestionnaire'
+import { createBrowserSafeId } from '@/lib/utils/createBrowserSafeId'
 
 /** Count answerable (non-information) questions in a schema. */
 export function countAnswerableQuestions(schema: PreWeddingTemplateSchema): number {
@@ -22,10 +23,10 @@ export function regenerateSchemaIds(
   return {
     sections: (schema.sections ?? []).map((section) => ({
       ...section,
-      id: `s_${crypto.randomUUID().replace(/-/g, '').slice(0, 12)}`,
+      id: `s_${createBrowserSafeId().replace(/-/g, '').slice(0, 12)}`,
       questions: (section.questions ?? []).map((q) => ({
         ...q,
-        id: `q_${crypto.randomUUID().replace(/-/g, '').slice(0, 12)}`,
+        id: `q_${createBrowserSafeId().replace(/-/g, '').slice(0, 12)}`,
       })),
     })),
   }

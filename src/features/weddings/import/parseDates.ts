@@ -176,19 +176,30 @@ function parsePolishAbbreviatedDate(
   }
 }
 
+/**
+ * Polish day-month-year with an explicit 4-digit year.
+ * Dotted and slashed forms are both day-first (12.06.2027 → 12 June).
+ * Never interpret these as US month-first.
+ */
+export function parseExplicitDayMonthYear(text: string): string | null {
+  const trimmed = text.trim()
+  const dotted = trimmed.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/)
+  if (dotted) {
+    return toIso(Number(dotted[3]), Number(dotted[2]), Number(dotted[1]))
+  }
+  const slashed = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
+  if (slashed) {
+    return toIso(Number(slashed[3]), Number(slashed[2]), Number(slashed[1]))
+  }
+  return null
+}
+
 function parseNumericDateText(text: string): string | null {
   const iso = text.match(/^(\d{4})-(\d{2})-(\d{2})$/)
   if (iso) return toIso(Number(iso[1]), Number(iso[2]), Number(iso[3]))
 
-  const dotted = text.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/)
-  if (dotted) {
-    return toIso(Number(dotted[3]), Number(dotted[2]), Number(dotted[1]))
-  }
-
-  const slashed = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
-  if (slashed) {
-    return toIso(Number(slashed[3]), Number(slashed[2]), Number(slashed[1]))
-  }
+  const explicit = parseExplicitDayMonthYear(text)
+  if (explicit) return explicit
 
   const usShort = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2})$/)
   if (usShort) {
@@ -197,6 +208,17 @@ function parseNumericDateText(text: string): string | null {
   }
 
   return null
+}
+
+function cellTextCandidates(value: SpreadsheetCellValue): string[] {
+  const texts: string[] = []
+  const formatted = value.formatted?.trim()
+  if (formatted) texts.push(formatted)
+  if (typeof value.raw === 'string') {
+    const rawText = value.raw.trim()
+    if (rawText && rawText !== formatted) texts.push(rawText)
+  }
+  return texts
 }
 
 function parsePolishLongTextDate(text: string): string | null {
@@ -295,6 +317,32 @@ export function parseImportDateDetailed(
         ? dateToIsoLocal(value.raw) ?? undefined
         : String(value.raw ?? '').trim()) ||
       undefined
+
+    /**
+     * Prefer explicit DD.MM.YYYY / DD/MM/YYYY text over a SheetJS-coerced Date.
+     * CSV "12.06.2027" must stay 12 June, not 6 December.
+     * Slash text is only trusted when the cell is textual — genuine Excel
+     * date/serial cells keep serial/Date handling (slash formats are locale-ambiguous).
+     */
+    const texts = cellTextCandidates(value)
+    const rawIsCoercedDateOrSerial =
+      value.raw instanceof Date || typeof value.raw === 'number'
+    for (const text of texts) {
+      const dotted = text.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/)
+      if (dotted) {
+        const date = parseExplicitDayMonthYear(text)
+        if (date) return { date, sourceDisplay: text }
+        return {
+          date: null,
+          issueCode: 'IMPORT_DATE_PARSE_FAILED',
+          sourceDisplay: text,
+        }
+      }
+      if (!rawIsCoercedDateOrSerial) {
+        const explicit = parseExplicitDayMonthYear(text)
+        if (explicit) return { date: explicit, sourceDisplay: text }
+      }
+    }
 
     const fromRaw = parseRawValue(value.raw, context)
     if (fromRaw?.date) {

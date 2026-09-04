@@ -2,16 +2,18 @@
 // Default Pre-Wedding Questionnaire Template
 // OurWed built-in — chronological Wedding-day flow (v2)
 // =============================================================================
-// Internal source_key values (pre_wedding_default_v*) are stable identifiers only.
-// v1 key is preserved for upgrade recognition. New seeds use v2.
+// Internal source_key values (pre_wedding_default_v*) mark ORIGIN only.
+// They do NOT mean "keep this owned row synchronized with the latest OurWed definition".
+// Never UPDATE an existing user-owned template's name/schema/source_key because a newer
+// default exists. Future v3 must be a new source_key and a new copied template.
 // Do not mutate submitted questionnaire schema_snapshot_json from the app.
 
 import type { PreWeddingTemplateSchema } from '@/types/preweddingQuestionnaire'
 
-/** Legacy built-in key — existing studio templates / snapshots may still reference it. */
+/** Legacy origin key. Existing studio templates with this key must be left unchanged. */
 export const DEFAULT_TEMPLATE_SOURCE_KEY_V1 = 'pre_wedding_default_v1'
 
-/** Current built-in key for newly seeded default templates. */
+/** Origin key for newly copied OurWed default v2 templates. Not a live-sync pointer. */
 export const DEFAULT_TEMPLATE_SOURCE_KEY = 'pre_wedding_default_v2'
 
 export const DEFAULT_TEMPLATE_NAME = 'Ankieta przedślubna'

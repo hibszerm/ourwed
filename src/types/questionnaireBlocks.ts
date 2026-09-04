@@ -2,6 +2,8 @@
  * Ordered questionnaire block model for the form builder + public renderer.
  */
 
+import { createBrowserSafeId } from '@/lib/utils/createBrowserSafeId'
+
 export type QuestionnaireBlockType =
   | 'heading'
   | 'text'
@@ -156,8 +158,5 @@ export const PROTECTED_SYSTEM_KEYS: SystemFieldKey[] = [
 ]
 
 export function newBlockId(prefix = 'blk'): string {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-    return `${prefix}_${crypto.randomUUID()}`
-  }
-  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+  return `${prefix}_${createBrowserSafeId()}`
 }

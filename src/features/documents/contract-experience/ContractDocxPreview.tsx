@@ -7,6 +7,10 @@ import { useEffect, useRef, useState } from 'react'
 import { renderAsync } from 'docx-preview'
 import { Button } from '@/components/ui/Button'
 import { DOCX_PREVIEW_OPTIONS } from './docxPreviewOptions'
+import {
+  fitMobileDocxPreview,
+  resetDocxPreviewFit,
+} from './docxPreviewMobileFit'
 import styles from './ContractDocxPreview.module.css'
 
 function toArrayBuffer(
@@ -85,6 +89,36 @@ export function ContractDocxPreview(props: {
       styleHost?.replaceChildren()
     }
   }, [props.source])
+
+  // Mobile: scale the full A4 page unit to fit the preview host width.
+  useEffect(() => {
+    if (status !== 'ready') return
+    const host = hostRef.current
+    if (!host) return
+
+    let raf = 0
+    const scheduleFit = () => {
+      cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(() => {
+        fitMobileDocxPreview(host)
+      })
+    }
+
+    scheduleFit()
+    const ro = new ResizeObserver(scheduleFit)
+    ro.observe(host)
+    const mq = window.matchMedia('(max-width: 767px)')
+    mq.addEventListener('change', scheduleFit)
+    window.addEventListener('orientationchange', scheduleFit)
+
+    return () => {
+      cancelAnimationFrame(raf)
+      ro.disconnect()
+      mq.removeEventListener('change', scheduleFit)
+      window.removeEventListener('orientationchange', scheduleFit)
+      resetDocxPreviewFit(host)
+    }
+  }, [status, props.source])
 
   return (
     <div className={`${styles.root} ${props.className ?? ''}`.trim()}>

@@ -114,14 +114,14 @@
   min-height: 44px;
   border-radius: 12px;
   border: 1px solid color-mix(in srgb, var(--color-border) 80%, transparent);
-  background: var(--color-bg, #fff);
+  background: var(--input-background);
   box-sizing: border-box;
   width: 100%;
 }
 
 .field input:focus,
 .field select:focus {
-  outline: 2px solid color-mix(in srgb, var(--color-primary, #0a0a0a) 35%, transparent);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 1px;
 }
 
@@ -211,7 +211,7 @@
   height: 20px;
   margin-top: 2px;
   flex-shrink: 0;
-  accent-color: var(--color-primary, #0a0a0a);
+  accent-color: var(--color-primary);
   transition: transform 140ms ease-out;
 }
 
@@ -295,7 +295,7 @@
 .error {
   margin: 0;
   font-size: var(--text-sm);
-  color: #b42318;
+  color: var(--color-danger-text);
 }
 
 .footer {
@@ -308,7 +308,7 @@
   justify-content: flex-end;
   margin: 0 calc(var(--space-4) * -1);
   padding: 14px var(--space-4) calc(14px + env(safe-area-inset-bottom, 0px));
-  background: color-mix(in srgb, var(--color-bg, #fff) 92%, transparent);
+  background: color-mix(in srgb, var(--app-background) 92%, transparent);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border-top: 1px solid color-mix(in srgb, var(--color-border) 55%, transparent);
@@ -365,7 +365,7 @@
   padding: 10px 12px;
   border-radius: 10px;
   border: 1px solid var(--color-border);
-  background: var(--color-bg, #fff);
+  background: var(--input-background);
   color: var(--color-text-primary);
 }
 

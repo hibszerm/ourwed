@@ -371,9 +371,18 @@ run('15. No user-facing contract-signing-place field in company form module', as
     new URL('../../../pages/CompanyDetailsPage.tsx', import.meta.url),
     'utf8',
   )
+  const service = fs.readFileSync(
+    new URL('../../../lib/api/companyDetailsService.ts', import.meta.url),
+    'utf8',
+  )
+  const provider = fs.readFileSync(
+    new URL('../../../lib/variables/providers/CompanyProvider.ts', import.meta.url),
+    'utf8',
+  )
   assert(!/contractSigningPlace|signingCity|executionPlace|miejsce zawarcia/i.test(page), 'no extra UX')
-  assert(/Miasto/.test(page), 'city field remains')
-  assert(/city/.test(page), 'city binding remains')
+  assert(!/label="Miasto"/.test(page), 'V1 Studio Profile does not edit city')
+  assert(service.includes("column: 'city'"), 'city column remains in studio_details')
+  assert(provider.includes("'company_city'"), 'legacy company_city still resolves')
 })
 
 if (!process.exitCode) {

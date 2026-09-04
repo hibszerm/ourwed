@@ -4,6 +4,7 @@
  */
 
 import { formatDate } from '@/lib/utils/dates'
+import { normalizeMultipleChoiceAnswer } from '@/features/prewedding/multipleChoiceAnswer'
 import {
   formatLocationAnswerDisplay,
   googleMapsUrlForLocationAnswer,
@@ -91,7 +92,7 @@ export function formatAnswerValueForDisplay(
   value: unknown,
 ): string {
   if (question.type === 'acknowledgement') {
-    return Boolean(value)
+    return value
       ? 'Para potwierdziła zapoznanie się ze wskazówkami.'
       : ''
   }
@@ -108,12 +109,11 @@ export function formatAnswerValueForDisplay(
     if (opts.includes(value)) return value
     return value
   }
-  if (question.type === 'multiple_choice' && Array.isArray(value)) {
+  if (question.type === 'multiple_choice') {
+    const normalized = normalizeMultipleChoiceAnswer(value)
     const opts = new Set(question.options ?? [])
-    return value
-      .map((v) => String(v))
-      .filter((v) => opts.size === 0 || opts.has(v))
-      .join(', ')
+    const chosen = normalized.filter((v) => opts.size === 0 || opts.has(v))
+    return (chosen.length > 0 ? chosen : normalized).join(', ')
   }
   if (question.type === 'date' && typeof value === 'string') {
     const trimmed = value.trim()

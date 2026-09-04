@@ -149,6 +149,12 @@ export interface WeddingQuestionnaire {
   status: WeddingQuestionnaireStatus
   /** True when a public_token_hash exists (plaintext is never recoverable from DB). */
   hasPublicToken: boolean
+  /**
+   * SHA-256 hex of the current public token (owner CRM only).
+   * Never display, log, or send to the public form.
+   * Used to reject stale sessionStorage plaintext.
+   */
+  publicTokenHash?: string | null
   /** Plaintext token — only present when freshly generated, never stored in DB */
   publicToken?: string
   preparedAt?: string | null

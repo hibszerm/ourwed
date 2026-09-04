@@ -202,3 +202,11 @@ run('14. first-load extras field still present', () => {
     'extras question',
   )
 })
+
+run('15. questionnaire sync snapshots extra name at insert', () => {
+  const sync = readFileSync(
+    resolve(process.cwd(), 'src/lib/forms/syncWeddingExtrasFromQuestionnaire.ts'),
+    'utf8',
+  )
+  assert(sync.includes('nameSnapshot: snap?.name'), 'writes name snapshot')
+})

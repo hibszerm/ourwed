@@ -23,6 +23,7 @@ function assertNotIncludes(src: string, needle: string, m: string) {
 }
 
 const page = read('src/pages/CalendarPage.tsx')
+const modernPage = read('src/pages/CalendarModernPage.tsx')
 const hooks = read('src/features/calendar/hooks/useCalendarLightQueries.ts')
 const light = read('src/lib/api/calendarLightService.ts')
 const calEvents = read('src/lib/api/calendarEventService.ts')
@@ -82,6 +83,43 @@ const invalidateWedding = read(
 }
 
 {
+  assertIncludes(modernPage, 'useCalendarWeddings', 'Modern Calendar light weddings hook')
+  assertIncludes(modernPage, 'useCalendarSessions', 'Modern Calendar light sessions hook')
+  assertIncludes(modernPage, 'useCalendarEvents', 'Modern Calendar events list hook')
+  assertNotIncludes(
+    modernPage,
+    "from '@/features/weddings/hooks/useWeddings'",
+    'Modern Calendar does not use full useWeddings',
+  )
+  assertNotIncludes(
+    modernPage,
+    "from '@/features/sessions/hooks/useSessions'",
+    'Modern Calendar does not use full useSessions',
+  )
+  assertNotIncludes(
+    modernPage,
+    'weddingService.getAll',
+    'Modern Calendar does not call getAll',
+  )
+  assertNotIncludes(
+    modernPage,
+    'weddingPlaceService',
+    'Modern Calendar does not fetch places',
+  )
+  assertNotIncludes(
+    modernPage,
+    'useCalendarWeddingNextAction',
+    'Modern Calendar does not enrich Next Action on first paint',
+  )
+  assertIncludes(
+    modernPage,
+    'calendarEventService.syncWeddingDayEvents',
+    'Modern Calendar repair still exists deferred',
+  )
+  console.log('PASS  CalendarModernPage first-paint wiring')
+}
+
+{
   assertIncludes(hooks, "['calendar', 'weddings'", 'weddings key under calendar prefix')
   assertIncludes(hooks, "['calendar', 'sessions'", 'sessions key under calendar prefix')
   assertIncludes(hooks, "['calendar', 'events'", 'events key under calendar prefix')
@@ -108,6 +146,17 @@ const invalidateWedding = read(
   assertNotIncludes(light, 'contractService', 'no contracts')
   assertNotIncludes(light, 'galleryService', 'no galleries')
   assertNotIncludes(light, 'form_answers', 'no questionnaire answers')
+  assertIncludes(
+    light,
+    'weddingPlaceService.listByWeddingIds',
+    'one batched places query for compact primaryLocation',
+  )
+  assertNotIncludes(light, 'listByWeddingId(', 'no per-wedding places N+1')
+  assertNotIncludes(
+    light,
+    'applyWeddingPlaces',
+    'does not overwrite Classic ceremony/reception scalars',
+  )
   assertIncludes(light, "withDevPerf('calendar.light-weddings'", 'wedding phase')
   assertIncludes(light, "withDevPerf('calendar.light-sessions'", 'session phase')
   console.log('PASS  calendar light service')

@@ -318,7 +318,8 @@ run('service path conventions exist in source', async () => {
   assert(padCss.includes('touch-action: none'), 'no scroll while drawing')
 
   const page = readFileSync(resolve('src/pages/CompanyDetailsPage.tsx'), 'utf8')
-  assert(page.includes('CompanySignatureSection'), 'integrated')
+  assert(!page.includes('CompanySignatureSection'), 'signature is not on V1 Studio Profile')
+  assert(ui.includes('export function CompanySignatureSection'), 'legacy signature UI remains')
 })
 
 // silence unused import when tree-shaken in some runners

@@ -11,7 +11,7 @@
 }
 
 .required {
-  color: var(--color-danger-600, #b91c1c);
+  color: var(--color-danger-text);
 }
 
 .helpText {
@@ -29,13 +29,13 @@
 }
 
 .inputError :global(input) {
-  border-color: var(--color-danger-500, #ef4444);
+  border-color: var(--color-danger);
 }
 
 .error {
   margin: 0;
   font-size: var(--text-sm);
-  color: var(--color-danger-600, #b91c1c);
+  color: var(--color-danger-text);
 }
 
 .cardBelow {

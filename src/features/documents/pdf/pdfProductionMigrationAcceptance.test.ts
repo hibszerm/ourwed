@@ -72,12 +72,16 @@ assert(
 
 // Double-click / busy guards
 const briefBtn = read('src/features/wedding-brief/WeddingBriefDownloadButton.tsx')
-assert(briefBtn.includes('if (busy) return'), 'brief busy guard')
-assert(briefBtn.includes('disabled={busy}'), 'brief disabled while busy')
-assert(briefBtn.includes('mapPdfRenderErrorForUser'), 'brief maps errors')
+assert(briefBtn.includes('if (brief.busy) return'), 'brief busy guard')
+assert(briefBtn.includes('disabled={brief.busy}'), 'brief disabled while busy')
+assert(briefBtn.includes('useWeddingBriefAction'), 'brief uses shared action')
+
+const briefHook = read('src/features/wedding-brief/useWeddingBriefAction.ts')
+assert(briefHook.includes('inFlightRef'), 'hook in-flight guard')
+assert(briefHook.includes('if (inFlightRef.current) return'), 'hook busy guard')
 
 const header = read('src/features/weddings/detail/v2/WeddingHeaderActions.tsx')
-assert(header.includes('if (busy) return'), 'header brief busy guard')
+assert(header.includes('if (brief.busy) return'), 'header brief busy guard')
 
 // Contract HTML completeness STOP
 const docs = read('docs/pdf-rendering.md')

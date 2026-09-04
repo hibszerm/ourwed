@@ -15,17 +15,17 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  color: var(--color-text-muted, #6b7280);
+  color: var(--color-text-muted);
   font-size: 0.875rem;
 }
 
 .item[data-status='current'] {
-  color: var(--color-text, #111827);
+  color: var(--color-text);
   font-weight: 600;
 }
 
 .item[data-status='done'] {
-  color: var(--color-text-secondary, #374151);
+  color: var(--color-text-secondary);
 }
 
 .indicator {

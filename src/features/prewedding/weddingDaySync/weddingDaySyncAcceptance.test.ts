@@ -592,12 +592,20 @@ run('UI source: no raw technical keys as visible titles', () => {
     ),
     'utf8',
   )
+  const hook = readFileSync(
+    resolve(
+      process.cwd(),
+      'src/features/prewedding/usePreWeddingQuestionnaireWorkspace.ts',
+    ),
+    'utf8',
+  )
+  const studio = `${hook}\n${workspace}`
   assert(workspace.includes('Aktualizacje z ankiety'), 'premium heading')
   assert(!workspace.includes('Dane z ankiety → Dzień ślubu'), 'old debug title gone')
-  assert(workspace.includes('applyWeddingDaySyncCandidates'), 'uses apply service')
-  assert(workspace.includes('buildWeddingDaySyncCandidates'), 'uses candidates')
+  assert(studio.includes('applyWeddingDaySyncCandidates'), 'uses apply service')
+  assert(studio.includes('buildWeddingDaySyncCandidates'), 'uses candidates')
   assert(
-    !workspace.includes('onWeddingDayApply'),
+    !studio.includes('onWeddingDayApply'),
     'no draft-only apply path',
   )
 })

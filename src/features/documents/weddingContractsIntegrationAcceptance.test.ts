@@ -106,23 +106,22 @@ run('draft-only contracts can be distinguished from persisted artifacts', () => 
   )
 })
 
-run('saved preview is variable-only and keeps real downloads', () => {
+run('saved preview hides in-page edit CTA and keeps real downloads', () => {
   const preview = source('src/pages/WeddingContractPreviewPage.tsx')
+  const ready = source(
+    'src/features/documents/contract-experience/ContractReadyPreview.tsx',
+  )
   assert(preview.includes('Gotowa do pobrania') || preview.includes('Umowa · Gotowa'), 'preview chrome missing')
-  assert(preview.includes('Edytuj dane umowy'), 'variable editor missing')
+  assert(!preview.includes('Edytuj dane umowy'), 'edit CTA must stay hidden')
+  assert(!preview.includes('contentEditable'), 'saved route must not expose arbitrary legal text editing')
+  assert(preview.includes('ContractReadyPreview'), 'ready preview missing')
   assert(
-    preview.includes('Treść prawna nie') && !preview.includes('contentEditable'),
-    'saved route must not expose arbitrary legal text editing',
+    preview.includes("navigate(`/sluby/${wedding.id}/umowa/generuj`)"),
+    'regenerate must remain available',
   )
-  assert(
-    preview.includes('templateVersionId: contract.templateVersionId'),
-    'regeneration must pin saved template version',
-  )
-  assert(preview.includes("download('docx')"), 'real DOCX download missing')
-  assert(
-    preview.includes("format: 'docx' | 'pdf'") || preview.includes('onDownloadDocx'),
-    'download surface missing',
-  )
+  assert(preview.includes("download('docx')") || preview.includes('onDownloadDocx'), 'real DOCX download missing')
+  assert(ready.includes('Pobierz DOCX'), 'DOCX label missing')
+  assert(ready.includes('Wygeneruj ponownie'), 'regenerate label missing')
 })
 
 run('wizard warns about an unsaved generated draft', () => {

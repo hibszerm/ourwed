@@ -1,8 +1,12 @@
-import { parseImportDateDetailed, spreadsheetCellDisplay, spreadsheetCellRaw } from './parseDates'
-import { parseImportMoney } from './parseMoney'
+import { parseImportDateDetailed, spreadsheetCellDisplay } from './parseDates'
+import { isImportMoneyCellEmpty, parseImportMoneyFromCell } from './parseMoney'
 import { parseCoupleDisplayName, partner2ForCreate } from './parseNames'
 import { isValidEmailStructure } from './normalizeContact'
-import { detectDuplicateCandidates } from './detectDuplicates'
+import {
+  applyInFileDuplicateFlags,
+  detectDuplicateCandidates,
+  isDuplicateIssueCode,
+} from './detectDuplicates'
 import { isLikelySummaryRow } from './detectSummaryRows'
 import { matchPackageByName } from './packageMatch'
 import { isHeaderLikeDataRow } from './detectHeaderRow'
@@ -12,6 +16,7 @@ import type {
   ImportRowIssue,
   RawImportRow,
   SpreadsheetCellValue,
+  ImportPriceState,
   WeddingImportReviewRow,
   WeddingImportReviewRowStatus,
 } from './types'
@@ -41,11 +46,105 @@ function getMappedValue(
   return row.values[mapping.sourceColumnId]
 }
 
+const MISSING_AMOUNT_MESSAGE =
+  'Brak kwoty — zlecenie zostanie utworzone z wartością 0 zł.'
+const INVALID_AMOUNT_MESSAGE =
+  'Nie udało się odczytać kwoty. Popraw wartość przed importem.'
+
 function deriveStatus(issues: ImportRowIssue[]): WeddingImportReviewRowStatus {
   if (issues.some((i) => i.severity === 'error')) return 'invalid'
-  if (issues.some((i) => i.code === 'POSSIBLE_DUPLICATE')) return 'possible_duplicate'
+  if (issues.some((i) => isDuplicateIssueCode(i.code))) return 'possible_duplicate'
   if (issues.some((i) => i.severity === 'warning')) return 'warning'
   return 'ready'
+}
+
+function resolveMappedPrice(input: {
+  row: RawImportRow
+  mappings: ColumnMapping[]
+}): { contractValue: number | null; priceState: ImportPriceState; issues: ImportRowIssue[] } {
+  const mapping = input.mappings.find((m) => m.targetField === 'contractValue')
+  if (!mapping) {
+    return {
+      contractValue: null,
+      priceState: 'unmapped',
+      issues: [
+        {
+          code: 'MISSING_CONTRACT_VALUE',
+          field: 'contractValue',
+          severity: 'warning',
+          message: MISSING_AMOUNT_MESSAGE,
+        },
+      ],
+    }
+  }
+
+  const cell = input.row.values[mapping.sourceColumnId]
+  if (isImportMoneyCellEmpty(cell)) {
+    return {
+      contractValue: null,
+      priceState: 'empty',
+      issues: [
+        {
+          code: 'MISSING_CONTRACT_VALUE',
+          field: 'contractValue',
+          severity: 'warning',
+          message: MISSING_AMOUNT_MESSAGE,
+        },
+      ],
+    }
+  }
+
+  const contractValue = parseImportMoneyFromCell(cell)
+  if (contractValue == null) {
+    return {
+      contractValue: null,
+      priceState: 'invalid',
+      issues: [
+        {
+          code: 'INVALID_CONTRACT_VALUE',
+          field: 'contractValue',
+          severity: 'error',
+          message: INVALID_AMOUNT_MESSAGE,
+        },
+      ],
+    }
+  }
+
+  if (contractValue === 0) {
+    return { contractValue: 0, priceState: 'explicit_zero', issues: [] }
+  }
+
+  return { contractValue, priceState: 'value', issues: [] }
+}
+
+function priceIssuesFromReviewRow(row: WeddingImportReviewRow): ImportRowIssue[] {
+  const priceState =
+    row.priceState ??
+    (row.contractValue == null ? 'empty' : row.contractValue === 0 ? 'explicit_zero' : 'value')
+
+  if (priceState === 'invalid') {
+    return [
+      {
+        code: 'INVALID_CONTRACT_VALUE',
+        field: 'contractValue',
+        severity: 'error',
+        message: INVALID_AMOUNT_MESSAGE,
+      },
+    ]
+  }
+
+  if (priceState === 'unmapped' || priceState === 'empty') {
+    return [
+      {
+        code: 'MISSING_CONTRACT_VALUE',
+        field: 'contractValue',
+        severity: 'warning',
+        message: MISSING_AMOUNT_MESSAGE,
+      },
+    ]
+  }
+
+  return []
 }
 
 export function buildReviewRow(input: {
@@ -136,17 +235,10 @@ export function buildReviewRow(input: {
     parsedCouple?.displayName ||
     [partner1Name, partner2Name].filter(Boolean).join(' i ')
 
-  const contractValue = parseImportMoney(
-    spreadsheetCellRaw(getMappedValue(input.row, input.mappings, 'contractValue')),
-  )
-  if (contractValue == null) {
-    issues.push({
-      code: 'MISSING_CONTRACT_VALUE',
-      field: 'contractValue',
-      severity: 'warning',
-      message: 'Brak wartości umowy.',
-    })
-  }
+  const priced = resolveMappedPrice({ row: input.row, mappings: input.mappings })
+  const contractValue = priced.contractValue
+  const priceState = priced.priceState
+  issues.push(...priced.issues)
 
   const phone = spreadsheetCellDisplay(
     getMappedValue(input.row, input.mappings, 'phone'),
@@ -183,7 +275,7 @@ export function buildReviewRow(input: {
       code: 'PACKAGE_NOT_MATCHED',
       field: 'packageName',
       severity: 'warning',
-      message: 'Nie znaleziono dokładnego dopasowania pakietu.',
+      message: `Nie znaleziono pakietu „${packageRaw}”. Kwota z pliku zostanie zachowana, a nazwa trafi do notatki.`,
     })
   }
 
@@ -215,9 +307,9 @@ export function buildReviewRow(input: {
 
   if (duplicateCandidates.length) {
     issues.push({
-      code: 'POSSIBLE_DUPLICATE',
+      code: 'DUPLICATE_EXISTING_WEDDING',
       severity: 'warning',
-      message: 'Możliwy duplikat istniejącego ślubu.',
+      message: 'Podobne zlecenie jest już w OurWed.',
     })
   }
 
@@ -234,6 +326,7 @@ export function buildReviewRow(input: {
     partner1Name,
     partner2Name,
     contractValue,
+    priceState,
     phone: phone || undefined,
     email: email || undefined,
     packageName,
@@ -260,25 +353,28 @@ export function buildReviewRows(input: {
   date1904?: boolean
   confirmedHeaderRowIndexZeroBased?: number
 }): WeddingImportReviewRow[] {
-  return input.rows.map((row, index) =>
-    buildReviewRow({
-      row,
-      mappings: input.mappings,
-      existingWeddings: input.existingWeddings,
-      catalog: input.catalog,
-      sheetName: input.sheetName,
-      date1904: input.date1904,
-      confirmedHeaderRowIndexZeroBased: input.confirmedHeaderRowIndexZeroBased,
-      logDateDiagnostics: isDevEnvironment() && index === 0,
-    }),
+  return applyInFileDuplicateFlags(
+    input.rows.map((row, index) =>
+      buildReviewRow({
+        row,
+        mappings: input.mappings,
+        existingWeddings: input.existingWeddings,
+        catalog: input.catalog,
+        sheetName: input.sheetName,
+        date1904: input.date1904,
+        confirmedHeaderRowIndexZeroBased: input.confirmedHeaderRowIndexZeroBased,
+        logDateDiagnostics: isDevEnvironment() && index === 0,
+      }),
+    ),
   )
 }
 
 export function revalidateReviewRow(
   row: WeddingImportReviewRow,
   existingWeddings: Wedding[],
-  _catalog: PackageCatalogEntry[],
+  catalog: PackageCatalogEntry[],
 ): WeddingImportReviewRow {
+  void catalog
   const issues: ImportRowIssue[] = []
 
   if (!row.weddingDate) {
@@ -301,14 +397,7 @@ export function revalidateReviewRow(
     })
   }
 
-  if (row.contractValue == null) {
-    issues.push({
-      code: 'MISSING_CONTRACT_VALUE',
-      field: 'contractValue',
-      severity: 'warning',
-      message: 'Brak wartości umowy.',
-    })
-  }
+  issues.push(...priceIssuesFromReviewRow(row))
 
   if (row.email && !isValidEmailStructure(row.email)) {
     issues.push({
@@ -319,12 +408,21 @@ export function revalidateReviewRow(
     })
   }
 
-  if (row.packageName && !row.matchedPackageId) {
+  const preservedStructural = row.issues.filter(
+    (issue) =>
+      issue.code === 'PACKAGE_NOT_MATCHED' ||
+      issue.code === 'LIKELY_SUMMARY_ROW' ||
+      issue.code === 'IMPORT_HEADER_ROW_DETECTED_AS_DATA',
+  )
+  issues.push(...preservedStructural)
+
+  if (row.packageName && !row.matchedPackageId && !preservedStructural.some((i) => i.code === 'PACKAGE_NOT_MATCHED')) {
     issues.push({
       code: 'PACKAGE_NOT_MATCHED',
       field: 'packageName',
       severity: 'warning',
-      message: 'Nie znaleziono dokładnego dopasowania pakietu.',
+      message:
+        'Nie znaleziono pakietu. Kwota z pliku zostanie zachowana, a nazwa trafi do notatki.',
     })
   }
 
@@ -341,9 +439,9 @@ export function revalidateReviewRow(
 
   if (duplicateCandidates.length) {
     issues.push({
-      code: 'POSSIBLE_DUPLICATE',
+      code: 'DUPLICATE_EXISTING_WEDDING',
       severity: 'warning',
-      message: 'Możliwy duplikat istniejącego ślubu.',
+      message: 'Podobne zlecenie jest już w OurWed.',
     })
   }
 
@@ -362,7 +460,11 @@ export function revalidateReviewRow(
         ? false
         : duplicateBlocked
           ? false
-          : status !== 'invalid' && row.selectedForImport,
+          : status === 'invalid'
+            ? false
+            : row.status === 'invalid'
+              ? true
+              : row.selectedForImport,
   }
 }
 

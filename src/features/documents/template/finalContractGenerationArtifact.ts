@@ -5,6 +5,7 @@
 import type { ContractParagraphInsertion } from '@/features/ai-contract-transform/expandBlocksWithInsertions'
 import type { TransformedBlock } from '@/features/ai-contract-transform/types'
 import { hashBytes, hashDocumentText } from '@/features/documents/ai/hash'
+import { createBrowserSafeId } from '@/lib/utils/createBrowserSafeId'
 import type { DocxParagraph } from './docxParagraphEditor'
 
 export const CONTRACT_ARTIFACT_VERSION_MISMATCH = 'CONTRACT_ARTIFACT_VERSION_MISMATCH'
@@ -30,7 +31,7 @@ export type FinalContractGenerationArtifact = {
 }
 
 export function createGenerationId(): string {
-  return crypto.randomUUID()
+  return createBrowserSafeId()
 }
 
 export async function hashFinalBlocks(

@@ -1,5 +1,6 @@
 /**
- * On-demand contract generation guard — wedding/company business data only.
+ * On-demand contract generation guard — wedding commercial data only.
+ * Studio/company Settings must not block V1 sparse generation.
  * Template-analysis readiness stays in GenerateContractModal / template tools.
  */
 
@@ -95,13 +96,15 @@ function groupOrder(id: MissingContractDataGroupId): number {
 }
 
 /**
- * Validate wedding + company data required before opening contract generation.
+ * Validate wedding data required before opening contract generation.
+ * Studio/company Settings must not block — sparse generation uses the
+ * uploaded DOCX for provider identity.
  * Always recompute — never cache a previous result across attempts.
  * Travel fee must be resolved (included, or charged with valid amount).
  */
 export function validateContractGeneration(
   wedding: Wedding,
-  company: CompanyDetails | null | undefined,
+  company?: CompanyDetails | null,
 ): ContractGenerationValidation {
   const readiness = evaluateWeddingContractReadiness(wedding, company)
   const missing = readiness.items.filter((i) => i.status === 'missing')

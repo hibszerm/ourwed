@@ -31,6 +31,14 @@ const workspace = readFileSync(
   ),
   'utf8',
 )
+const hook = readFileSync(
+  resolve(
+    process.cwd(),
+    'src/features/prewedding/usePreWeddingQuestionnaireWorkspace.ts',
+  ),
+  'utf8',
+)
+const studio = `${hook}\n${workspace}`
 const service = readFileSync(
   resolve(process.cwd(), 'src/lib/api/preweddingQuestionnaireService.ts'),
   'utf8',
@@ -91,9 +99,9 @@ run('RPC allows autosave + resubmit while status is submitted', () => {
 })
 
 run('wedding card / answers view uses submitted helper (not reopen branch)', () => {
-  assert(workspace.includes('isPreWeddingSubmittedStatus'), 'uses helper')
+  assert(studio.includes('isPreWeddingSubmittedStatus'), 'uses helper')
   assert(workspace.includes('AnswersView'), 'answers remain')
-  assert(workspace.includes('buildWeddingDaySyncCandidates'), 'review after submit')
+  assert(studio.includes('buildWeddingDaySyncCandidates'), 'review after submit')
 })
 
 run('generate new link does not reset submitted status (source)', () => {

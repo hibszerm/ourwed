@@ -71,7 +71,7 @@
 
 .templateOption:has(input:checked) {
   border-color: var(--color-text);
-  background: var(--color-surface-muted, rgba(0, 0, 0, 0.03));
+  background: var(--color-surface-muted);
 }
 
 .templateName {
@@ -118,19 +118,19 @@
 .varTable th {
   position: sticky;
   top: 0;
-  background: var(--color-surface, #fff);
+  background: var(--color-surface);
   font-weight: 600;
   color: var(--color-text-secondary);
   z-index: 1;
 }
 
 .statusOk {
-  color: var(--color-success, #1a7f4b);
+  color: var(--status-success);
   font-weight: 700;
 }
 
 .rowMissing td {
-  background: var(--color-warning-bg, rgba(180, 120, 0, 0.08));
+  background: var(--status-warning-soft);
 }
 
 .groupStatus {
@@ -145,7 +145,7 @@
 }
 
 .groupStatus li[data-complete] {
-  color: var(--color-success, #1a7f4b);
+  color: var(--status-success);
   font-weight: 600;
 }
 
@@ -254,7 +254,7 @@
   max-height: min(40vh, 20rem);
   overflow: auto;
   padding: var(--space-3);
-  background: var(--color-surface-muted, rgba(0, 0, 0, 0.04));
+  background: var(--color-surface-muted);
   border-radius: var(--radius-sm);
 }
 
@@ -266,6 +266,6 @@
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.01em;
-  color: var(--color-success, #1a7f4b);
-  background: rgba(26, 127, 75, 0.1);
+  color: var(--status-success);
+  background: var(--status-success-soft);
 }

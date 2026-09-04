@@ -95,10 +95,25 @@ run('cleanup: templates page and module nav removed', () => {
 })
 
 run('cleanup: detail page has no open history / timeline / expiry UI', () => {
-  const src = readFileSync(
-    resolve(process.cwd(), 'src/pages/QuestionnaireDetailPage.tsx'),
-    'utf8',
-  )
+  const src =
+    readFileSync(
+      resolve(process.cwd(), 'src/pages/QuestionnaireDetailPage.tsx'),
+      'utf8',
+    ) +
+    readFileSync(
+      resolve(
+        process.cwd(),
+        'src/features/questionnaires/detail/modern/ModernQuestionnaireDetailWorkspace.tsx',
+      ),
+      'utf8',
+    ) +
+    readFileSync(
+      resolve(
+        process.cwd(),
+        'src/features/questionnaires/detail/modern/questionnaireDetailCopy.ts',
+      ),
+      'utf8',
+    )
   assert(!src.includes('Otwarto'), 'no opened')
   assert(!src.includes('Historia'), 'no history')
   assert(!src.includes('buildTimeline'), 'no timeline')

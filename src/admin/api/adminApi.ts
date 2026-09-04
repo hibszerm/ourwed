@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { createBrowserSafeId } from '@/lib/utils/createBrowserSafeId'
 import type {
   AdminActivationFunnel,
   AdminApiError,
@@ -56,10 +57,7 @@ type RpcLikeError = {
 } | null
 
 function correlationId(): string {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-    return crypto.randomUUID()
-  }
-  return `admin-${Date.now()}`
+  return createBrowserSafeId()
 }
 
 function isDev(): boolean {

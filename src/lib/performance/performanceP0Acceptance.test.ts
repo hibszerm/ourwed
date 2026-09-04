@@ -120,7 +120,9 @@ function assertNotIncludes(src: string, needle: string, m: string) {
     'approve must not await travel recalculate',
   )
 
-  const pending = read('src/pages/PendingWeddingsPage.tsx')
+  const pending = read(
+    'src/features/questionnaires/pending/modern/ModernPendingWorkspace.tsx',
+  )
   assertIncludes(
     pending,
     'afterApprove()',
@@ -141,7 +143,9 @@ function assertNotIncludes(src: string, needle: string, m: string) {
     'handleApprove must not await Promise.all invalidations',
   )
 
-  const detail = read('src/pages/QuestionnaireDetailPage.tsx')
+  const detail = read(
+    'src/features/questionnaires/detail/modern/ModernQuestionnaireDetailWorkspace.tsx',
+  )
   const detailApprove = detail.slice(
     detail.indexOf('async function handleApprove'),
     detail.indexOf('return (', detail.indexOf('async function handleApprove')),

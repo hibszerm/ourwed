@@ -26,6 +26,7 @@ import {
 import { buildQuestionnaireBriefSections } from '@/features/wedding-brief/buildQuestionnaireBriefSections'
 import {
   distinctPlaceAndAddress,
+  isCriticalStudioNote,
   isPresentationNoValue,
   normalizeBriefTime,
   normalizeBriefTimeInText,
@@ -585,16 +586,6 @@ function buildContacts(
     if (!preferredOrder.includes(role)) ordered.push(c)
   }
   return ordered.filter((c) => c.phone || c.email || c.name)
-}
-
-function isCriticalStudioNote(content: string): boolean {
-  const t = content.trim().toLowerCase()
-  return (
-    t.startsWith('ważne') ||
-    t.includes('nie organizować') ||
-    t.includes('nie bierze udziału') ||
-    t.includes('uwaga')
-  )
 }
 
 function isUnusualBlessing(value: string): boolean {

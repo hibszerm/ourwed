@@ -5,6 +5,7 @@ import {
 } from '@/lib/supabase/helpers'
 import { createDefaultQuestionnaires } from '@/lib/utils/questionnaires'
 import { parseFinalPaymentTerms } from '@/lib/utils/finalPaymentTerms'
+import { parseDeliveryDueSource } from '@/lib/utils/weddingDeliveryDeadline'
 import {
   isTravelFeeStatus,
   type TravelFeeStatus,
@@ -25,8 +26,9 @@ export const DEFAULT_WEDDING_CURRENCY = 'PLN'
 
 /**
  * Columns that exist on `public.weddings`.
- * Partner address / first-last split / location detail live in
- * contract `form_answers.answer_json` and are merged at hydrate time.
+ * Partner first/last split still hydrates from contract `form_answers`
+ * when a submitted questionnaire exists. Groom phone and contract address
+ * persist on weddings columns and survive reload without form_answers.
  */
 export interface WeddingRow {
   id: string
@@ -37,6 +39,10 @@ export interface WeddingRow {
   display_name?: string | null
   email: string | null
   phone: string | null
+  groom_phone?: string | null
+  contract_address?: string | null
+  contract_postal_code?: string | null
+  contract_city?: string | null
   wedding_date: string | null
   ceremony_time: string | null
   venue: string | null
@@ -54,6 +60,9 @@ export interface WeddingRow {
   overtime_rate?: number | string | null
   delivery_months?: number | string | null
   delivery_days?: number | string | null
+  delivery_due_date?: string | null
+  delivery_due_source?: string | null
+  delivery_completed_at?: string | null
   final_payment_terms?: unknown
   final_payment_due_date?: string | null
   travel_fee_status?: string | null
@@ -174,6 +183,10 @@ export function mapWeddingRowToModel(row: WeddingRow): Wedding {
   const venue = row.venue ?? ''
   const email = row.email ?? ''
   const phone = row.phone ?? ''
+  const groomPhone = row.groom_phone?.trim() || ''
+  const contractAddress = row.contract_address?.trim() || ''
+  const contractPostal = row.contract_postal_code?.trim() || ''
+  const contractCity = row.contract_city?.trim() || ''
   const brideSplit = splitPersonName(row.bride_name)
   const groomSplit = splitPersonName(row.groom_name)
   const travelFeeStatus = mapTravelFeeStatus(row.travel_fee_status)
@@ -194,10 +207,14 @@ export function mapWeddingRowToModel(row: WeddingRow): Wedding {
       partner2LastName: groomSplit.last || undefined,
       partner1Phone: phone || undefined,
       partner1Email: email || undefined,
+      partner1Address: contractAddress || undefined,
+      partner1PostalCode: contractPostal || undefined,
+      partner1City: contractCity || undefined,
+      partner2Phone: groomPhone || undefined,
       email,
       phone,
       venue,
-      city: '',
+      city: contractCity,
     },
     displayName: row.display_name?.trim() || null,
     correspondence: parseWeddingCorrespondenceCollection({
@@ -230,6 +247,11 @@ export function mapWeddingRowToModel(row: WeddingRow): Wedding {
     overtimeRate: optionalRowNumber(row.overtime_rate),
     deliveryMonths: optionalRowNumber(row.delivery_months),
     deliveryDays: optionalRowNumber(row.delivery_days),
+    deliveryDueDate: row.delivery_due_date
+      ? toDateString(row.delivery_due_date) || row.delivery_due_date
+      : null,
+    deliveryDueSource: parseDeliveryDueSource(row.delivery_due_source),
+    deliveryCompletedAt: row.delivery_completed_at ?? null,
     finalPaymentTerms: parseFinalPaymentTerms(row.final_payment_terms),
     finalPaymentDueDate: row.final_payment_due_date
       ? toDateString(row.final_payment_due_date) || row.final_payment_due_date
@@ -267,6 +289,10 @@ export function mapWeddingModelToRow(
     fullName(c.partner2FirstName, c.partner2LastName, c.partner2) || c.partner2
   const email = c.partner1Email?.trim() || c.email?.trim() || null
   const phone = c.partner1Phone?.trim() || c.phone?.trim() || null
+  const groomPhone = c.partner2Phone?.trim() || null
+  const contractAddress = c.partner1Address?.trim() || null
+  const contractPostal = c.partner1PostalCode?.trim() || null
+  const contractCity = c.partner1City?.trim() || c.city?.trim() || null
   const venue =
     wedding.receptionLocation?.trim() ||
     c.venue?.trim() ||
@@ -292,6 +318,10 @@ export function mapWeddingModelToRow(
     correspondence_value: legacy?.value?.trim() || null,
     email,
     phone,
+    groom_phone: groomPhone,
+    contract_address: contractAddress,
+    contract_postal_code: contractPostal,
+    contract_city: contractCity,
     wedding_date: wedding.date || null,
     ceremony_time: ceremonyTime,
     venue,
@@ -309,6 +339,9 @@ export function mapWeddingModelToRow(
     overtime_rate: wedding.overtimeRate ?? null,
     delivery_months: wedding.deliveryMonths ?? null,
     delivery_days: wedding.deliveryDays ?? null,
+    delivery_due_date: wedding.deliveryDueDate?.trim() || null,
+    delivery_due_source: wedding.deliveryDueSource ?? null,
+    delivery_completed_at: wedding.deliveryCompletedAt ?? null,
     final_payment_terms: wedding.finalPaymentTerms ?? null,
     final_payment_due_date: wedding.finalPaymentDueDate?.trim() || null,
     travel_fee_status: wedding.travelFeeStatus ?? 'unresolved',

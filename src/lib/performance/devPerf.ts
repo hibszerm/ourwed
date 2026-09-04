@@ -12,6 +12,7 @@ export type DevPerfLabel =
   | 'listOwnedWeddingIds'
   | 'dashboard.getDashboardData'
   | 'dashboard.getAssignmentLists'
+  | 'dashboard.getNearestDeliveryDeadline'
   | 'calendar.syncWeddingDayEvents'
   | 'calendar.listAll'
   | 'calendar.light-weddings'

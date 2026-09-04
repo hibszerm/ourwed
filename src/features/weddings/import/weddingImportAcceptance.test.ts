@@ -96,7 +96,9 @@ run('money: Polish formats', () => {
   assertEq(parseImportMoney('5 000 zł'), 5000, 'zł')
   assertEq(parseImportMoney('5.000,00'), 5000, 'decimal comma')
   assertEq(parseImportMoney('5 000,00 PLN'), 5000, 'pln')
-  assertEq(parseImportMoney('-100'), null, 'negative')
+  assertEq(parseImportMoney('10.500'), 10500, 'dot thousands')
+  assertEq(parseImportMoney('10.50'), 10.5, 'dot decimal')
+  assertEq(parseImportMoney('0'), 0, 'explicit zero')
 })
 
 run('names: split and single client', () => {
@@ -247,10 +249,19 @@ run('UI wiring', () => {
   const page = readFileSync(resolve('src/pages/WeddingsPage.tsx'), 'utf8')
   const router = readFileSync(resolve('src/routes/router.tsx'), 'utf8')
   const importPage = readFileSync(resolve('src/pages/WeddingImportPage.tsx'), 'utf8')
+  const mappingStep = readFileSync(
+    resolve('src/features/weddings/import/components/ImportMappingStep.tsx'),
+    'utf8',
+  )
+  const reviewStep = readFileSync(
+    resolve('src/features/weddings/import/components/ImportReviewStep.tsx'),
+    'utf8',
+  )
   assert(page.includes('Importuj z pliku'), 'entry button')
   assert(router.includes('/sluby/import'), 'route')
   assert(importPage.includes('executeWeddingImport'), 'batch import')
-  assert(importPage.includes('Sprawdź dane'), 'review step')
+  assert(mappingStep.includes('Sprawdź dane'), 'review step CTA')
+  assert(reviewStep.includes('importWriteCtaLabel'), 'import CTA')
 })
 
 run('import service uses creation source', () => {

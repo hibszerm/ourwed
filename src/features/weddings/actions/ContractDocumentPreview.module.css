@@ -4,7 +4,7 @@
   flex: 1;
   min-height: 0;
   height: 100%;
-  background: #f4f4f2;
+  background: var(--app-background-subtle);
 }
 
 .toolbar {
@@ -16,7 +16,7 @@
   gap: 10px 16px;
   padding: 10px 20px;
   border-bottom: 1px solid var(--color-border);
-  background: var(--color-surface, #fff);
+  background: var(--color-surface);
 }
 
 .toolbarGroup {
@@ -39,7 +39,7 @@
 
 .toggle input {
   margin: 0;
-  accent-color: var(--color-text, #111);
+  accent-color: var(--color-text-primary);
 }
 
 .findBar {
@@ -49,7 +49,7 @@
   gap: 8px;
   padding: 8px 20px;
   border-bottom: 1px solid var(--color-border);
-  background: var(--color-surface, #fff);
+  background: var(--color-surface);
 }
 
 .findInput {
@@ -57,16 +57,18 @@
   min-width: 0;
   max-width: 360px;
   padding: 8px 12px;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--input-border);
   border-radius: 8px;
   font: inherit;
   font-size: 13px;
-  background: #fff;
+  background: var(--input-background);
+  color: var(--input-text);
 }
 
 .findInput:focus {
-  outline: 2px solid rgba(0, 0, 0, 0.18);
-  outline-offset: 1px;
+  outline: none;
+  box-shadow: var(--focus-ring-strong);
+  border-color: var(--input-border-focus);
 }
 
 .workspace {
@@ -169,7 +171,7 @@
 
 .panel {
   border-left: 1px solid var(--color-border);
-  background: var(--color-surface, #fff);
+  background: var(--color-surface);
   padding: 20px 18px;
   overflow: auto;
   min-width: 0;
@@ -220,7 +222,7 @@
   margin-top: 20px;
   padding: 14px;
   border-radius: 10px;
-  background: var(--color-warning-bg, rgba(180, 120, 0, 0.08));
+  background: var(--status-warning-soft);
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -230,21 +232,21 @@
   margin: 0;
   font-size: 13px;
   line-height: 1.45;
-  color: var(--color-warning-text, #7a5a00);
+  color: var(--status-warning-text);
 }
 
 .statusReady {
   margin: 0 0 8px;
   font-size: 14px;
   line-height: 1.45;
-  color: var(--color-text, #111);
+  color: var(--color-text-primary);
 }
 
 .statusHint {
   margin: 0 0 12px;
   font-size: 12px;
   line-height: 1.4;
-  color: var(--color-text-secondary, #666);
+  color: var(--color-text-secondary);
 }
 
 .pageFromDocx {
@@ -281,7 +283,7 @@
     bottom: 0;
     width: min(320px, 88vw);
     z-index: 2;
-    box-shadow: -8px 0 24px rgba(0, 0, 0, 0.08);
+    box-shadow: var(--shadow-drawer);
   }
 
   .page {

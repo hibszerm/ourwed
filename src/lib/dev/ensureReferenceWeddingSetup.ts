@@ -122,12 +122,7 @@ export async function ensureReferenceWeddingSetup(): Promise<{
   const pkg = await ensureVideoMiniPackage()
   const company = await companyDetailsService.get()
   const companyReady = Boolean(
-    company?.companyName &&
-      company.address &&
-      company.nip &&
-      company.regon &&
-      company.phone &&
-      (company.bankAccount || company.iban),
+    company?.companyName && company.address && company.city,
   )
 
   const packageItems = buildReferencePackageItemsSnapshot(

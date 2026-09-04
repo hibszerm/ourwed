@@ -159,6 +159,17 @@ run('dataset: one / many / none / dedupe / order / no price or quantity', () => 
   assertEq(empty.additionalServices, undefined, 'empty extras omitted')
 })
 
+run('historical name_snapshot wins over live catalog name', () => {
+  const projected = projectContractAdditionalServices([
+    {
+      ...EXTRAS[0]!,
+      name: 'Operator + dron',
+      nameSnapshot: 'Dodatkowy operator',
+    },
+  ])
+  assertEq(projected[0]!.name, 'Dodatkowy operator', 'frozen name')
+})
+
 run('placement: existing section heading detected', () => {
   const blocks = [
     block('para-1', 'Zakres usług pakietu Premium'),

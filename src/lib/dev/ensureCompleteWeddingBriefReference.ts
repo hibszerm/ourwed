@@ -9,6 +9,7 @@ import { extraServiceService } from '@/lib/api/extraServiceService'
 import { noteService } from '@/lib/api/noteService'
 import { packageService } from '@/lib/api/packageService'
 import { paymentService } from '@/lib/api/paymentService'
+import { createBrowserSafeId } from '@/lib/utils/createBrowserSafeId'
 import {
   publicPreWeddingService,
   questionnaireTemplateService,
@@ -516,12 +517,12 @@ async function ensurePreWeddingQuestionnaire(wedding: Wedding): Promise<void> {
 async function ensureCorrespondence(wedding: Wedding): Promise<Wedding> {
   const validated = validateWeddingCorrespondenceEntries([
     {
-      id: crypto.randomUUID(),
+      id: createBrowserSafeId(),
       channel: 'email',
       value: COMPLETE_BRIEF_FICTIONAL.brideEmail,
     },
     {
-      id: crypto.randomUUID(),
+      id: createBrowserSafeId(),
       channel: 'instagram',
       value: '@ola_i_michal_demo',
     },

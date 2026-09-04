@@ -243,8 +243,10 @@ run('12. New wedding flow does not write merged preparation field', () => {
     resolve(process.cwd(), 'src/pages/NewWeddingPage.tsx'),
     'utf8',
   )
-  assert(page.includes('ceremonyLocation'), 'ceremony')
-  assert(page.includes('receptionLocation'), 'reception')
+  assert(page.includes('name="bridePreparation"'), 'bride preparation place')
+  assert(page.includes('name="groomPreparation"'), 'groom preparation place')
+  assert(page.includes('name="ceremony"'), 'ceremony place')
+  assert(page.includes('name="reception"'), 'reception place')
   assert(!page.includes('preparationLocation'), 'no prep write')
   assert(!page.includes('bridePreparationLocation'), 'short wizard ok')
 })

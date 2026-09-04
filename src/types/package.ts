@@ -79,7 +79,9 @@ export interface WeddingExtraService {
   priceSnapshot: number
   quantity: number
   createdAt: string
-  /** Joined catalog name when loaded. */
+  /** Frozen catalog name at selection time (name_snapshot). */
+  nameSnapshot?: string
+  /** Display name — snapshot, with catalog fallback for legacy rows. */
   name?: string
 }
 
@@ -97,12 +99,15 @@ export type Package = {
   currency?: string
 }
 
+/** Default package swatch when catalog row has no custom color. */
+export const DEFAULT_PACKAGE_COLOR = '#0a0a0a'
+
 export function studioPackageToLegacyPackage(pkg: StudioPackage): Package {
   return {
     id: pkg.id,
     name: pkg.name,
     price: pkg.price,
-    color: pkg.color ?? '#0a0a0a',
+    color: pkg.color ?? DEFAULT_PACKAGE_COLOR,
     depositAmount: pkg.depositAmount,
     currency: pkg.currency,
     deliverables: pkg.items.map((item) => ({

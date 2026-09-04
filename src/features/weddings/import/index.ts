@@ -6,6 +6,7 @@ export type {
   ColumnMapping,
   ImportRowIssue,
   ImportDuplicateCandidate,
+  ImportPriceState,
   WeddingImportReviewRowStatus,
   WeddingImportReviewRow,
   ParsedWorkbookSheet,
@@ -13,7 +14,11 @@ export type {
   WeddingImportResultRecord,
   WeddingImportResult,
 } from './types'
-export { IMPORT_FIELD_LABELS, SINGLE_TARGET_FIELDS } from './types'
+export {
+  IMPORT_FIELD_LABELS,
+  SINGLE_TARGET_FIELDS,
+  IMPORT_ISSUE_CODES,
+} from './types'
 
 export {
   MAX_IMPORT_FILE_BYTES,
@@ -34,6 +39,7 @@ export {
   suggestColumnMappings,
   mergeSavedColumnMappings,
   validateColumnMappings,
+  describeColumnMappingBlock,
   suggestColumnMappingsAsync,
 } from './columnMapping'
 
@@ -52,6 +58,7 @@ export {
 export {
   createImportSessionId,
   executeWeddingImport,
+  isWritableImportRow,
 } from './weddingImportService'
 
 export type {
@@ -65,9 +72,10 @@ export {
   spreadsheetCellRaw,
   parseImportDateDetailed,
   parseImportDate,
+  parseExplicitDayMonthYear,
 } from './parseDates'
 
-export { parseImportMoney } from './parseMoney'
+export { parseImportMoney, parseImportMoneyFromCell, isImportMoneyCellEmpty } from './parseMoney'
 
 export type { ParsedCoupleNames } from './parseNames'
 export { parseCoupleDisplayName, partner2ForCreate } from './parseNames'
@@ -79,7 +87,11 @@ export {
   sanitizeCellDisplay,
 } from './normalizeContact'
 
-export { detectDuplicateCandidates } from './detectDuplicates'
+export {
+  detectDuplicateCandidates,
+  applyInFileDuplicateFlags,
+  normalizeCoupleName,
+} from './detectDuplicates'
 
 export { isLikelySummaryRow, isRowCompletelyEmpty } from './detectSummaryRows'
 

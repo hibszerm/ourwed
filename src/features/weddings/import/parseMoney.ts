@@ -1,6 +1,24 @@
 const MAX_CONTRACT_VALUE = 10_000_000
 
+/**
+ * Polish wedding-spreadsheet money rules (V1):
+ * - comma is the decimal separator when it is the last separator
+ * - a single dot followed by exactly 3 digits is a thousands separator (10.500 → 10500)
+ * - a single dot followed by 1–2 digits is a decimal (10.50 → 10.50)
+ * - multiple dots are thousands grouping (1.234.567)
+ * - "10.500,00" / "10,500.00" use the last separator as decimal
+ * Negatives and amounts above 10 000 000 are invalid.
+ */
+function isMoneyCell(
+  value: unknown,
+): value is { raw: unknown; formatted?: string } {
+  return typeof value === 'object' && value !== null && 'raw' in value
+}
+
 export function parseImportMoney(value: unknown): number | null {
+  if (isMoneyCell(value)) {
+    return parseImportMoneyFromCell(value)
+  }
   if (value == null || value === '') return null
 
   if (typeof value === 'number') {
@@ -42,7 +60,19 @@ export function parseImportMoney(value: unknown): number | null {
   } else if (dot >= 0) {
     const parts = num.split('.')
     if (parts.length > 2) {
-      num = parts.join('')
+      const last = parts[parts.length - 1]!
+      if (last.length === 3) {
+        num = parts.join('')
+      } else if (last.length <= 2) {
+        num = `${parts.slice(0, -1).join('')}.${last}`
+      } else {
+        num = parts.join('')
+      }
+    } else if (parts.length === 2) {
+      const frac = parts[1]!
+      if (frac.length === 3) {
+        num = `${parts[0]}${frac}`
+      }
     }
   }
 
@@ -51,4 +81,29 @@ export function parseImportMoney(value: unknown): number | null {
     return null
   }
   return Math.round(parsed * 100) / 100
+}
+
+/**
+ * Prefer the formatted spreadsheet text when it encodes grouping
+ * (e.g. "10.500") that a coerced numeric raw value would lose.
+ */
+export function parseImportMoneyFromCell(value: unknown): number | null {
+  if (!isMoneyCell(value)) return parseImportMoney(value)
+  const formatted = value.formatted?.trim()
+  if (formatted) {
+    const fromFormatted = parseImportMoney(formatted)
+    if (fromFormatted != null) return fromFormatted
+  }
+  return parseImportMoney(value.raw)
+}
+
+export function isImportMoneyCellEmpty(value: unknown): boolean {
+  if (value == null || value === '') return true
+  if (isMoneyCell(value)) {
+    const formatted = value.formatted?.trim() ?? ''
+    const raw = value.raw
+    if (formatted) return false
+    return raw == null || raw === ''
+  }
+  return String(value).trim() === ''
 }

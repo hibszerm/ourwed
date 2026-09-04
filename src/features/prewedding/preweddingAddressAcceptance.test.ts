@@ -299,9 +299,17 @@ run('12. Wedding Day import preserves structured place via weddingPlaceService',
     ),
     'utf8',
   )
+  const hook = readFileSync(
+    resolve(
+      process.cwd(),
+      'src/features/prewedding/usePreWeddingQuestionnaireWorkspace.ts',
+    ),
+    'utf8',
+  )
+  const studio = `${hook}\n${workspace}`
   assert(
-    workspace.includes('applyWeddingDaySyncCandidates') ||
-      workspace.includes('applyLocationAnswersToWeddingPlaces'),
+    studio.includes('applyWeddingDaySyncCandidates') ||
+      studio.includes('applyLocationAnswersToWeddingPlaces'),
     'workspace calls apply',
   )
   assert(workspace.includes('prewedding-summary-cards'), 'summary cards')

@@ -402,6 +402,7 @@
   align-items: flex-start;
   gap: var(--space-3);
   padding: var(--space-4);
+  min-height: var(--touch-target);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   cursor: pointer;

@@ -558,7 +558,10 @@ run('UI — package contract section is template management only', () => {
   assert(!ui.includes('registryKey'), 'no registry keys')
   assert(!ui.includes('slot_map'), 'no slot map')
   assert(!ui.includes('semantic'), 'no semantic jargon')
-  const packagesPage = source('src/pages/PackagesPage.tsx')
+  const packagesPage = [
+    source('src/pages/PackagesPage.tsx'),
+    source('src/features/studio/packages/modern/ModernPackagesWorkspace.tsx'),
+  ].join('\n')
   assert(packagesPage.includes('PackageContractSection'), 'wired')
   assert(
     !/PackageContractSection[\s\S]{0,400}pkg\.description/.test(packagesPage),

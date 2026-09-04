@@ -10,6 +10,7 @@ import {
   resolveWeddingNextAction,
   type WeddingNextActionContext,
 } from '@/lib/workflow/resolveWeddingNextAction'
+import { isClientContractCollectionComplete } from '@/lib/utils/weddingContractReadiness'
 import type { WeddingPlace } from '@/types/travel'
 import type { Couple, Payment, Wedding } from '@/types/wedding'
 
@@ -138,6 +139,45 @@ const corePlaces = () => [
   place('reception', 'Sala'),
 ]
 
+function photographerFullClient(partial: Partial<Wedding> = {}): Wedding {
+  return stub({
+    couple: couple({
+      partner1Address: 'ul. Kwiatowa 8',
+      partner1PostalCode: '00-001',
+      partner1City: 'Warszawa',
+    }),
+    bridePreparationLocation: 'Dom panny',
+    groomPreparationLocation: 'Dom pana',
+    ceremonyLocation: 'Kościół',
+    receptionLocation: 'Sala',
+    questionnaires: {
+      contractData: { status: 'not_sent' },
+      weddingQuestionnaire: { status: 'not_sent' },
+    },
+    contract: { status: 'none' },
+    ...partial,
+  })
+}
+
+function quickCreateWedding(partial: Partial<Wedding> = {}): Wedding {
+  return stub({
+    couple: couple({
+      partner1Phone: '',
+      phone: '',
+      email: '',
+    }),
+    packageName: '',
+    price: 0,
+    depositAmount: 0,
+    questionnaires: {
+      contractData: { status: 'not_sent' },
+      weddingQuestionnaire: { status: 'not_sent' },
+    },
+    contract: { status: 'none' },
+    ...partial,
+  })
+}
+
 run('0. architecture freeze — pure resolver, no task persistence, legacy noted', () => {
   const src = readFileSync(
     resolve(process.cwd(), 'src/lib/workflow/resolveWeddingNextAction.ts'),
@@ -150,6 +190,7 @@ run('0. architecture freeze — pure resolver, no task persistence, legacy noted
   assert(!src.includes('open_prewedding'), 'waiting open_prewedding removed')
   assert(!src.includes('open_cockpit'), 'cockpit next action removed')
   assert(src.includes('resolve_travel_fee'), 'travel gate id')
+  assert(src.includes('isClientContractCollectionComplete'), 'reuses client readiness group')
   assert(src.includes('mark_contract_signed'), 'mark signed id')
   assert(src.includes('PHASE A'), 'lifecycle phases')
   assert(src.includes('PHASE B'), 'deposit phase')
@@ -1076,6 +1117,106 @@ run('B7. resolver never returns open_cockpit', () => {
     },
   )
   assertEq(ready, null, 'runtime null not cockpit')
+})
+
+run('P4-A. Quick Create names+date only + not_sent → send_contract_questionnaire', () => {
+  const w = quickCreateWedding()
+  assertEq(isClientContractCollectionComplete(w), false, 'collection incomplete')
+  assertEq(
+    resolveWeddingNextAction(w, { today: FAR })?.id,
+    'send_contract_questionnaire',
+    'quick still collect via questionnaire',
+  )
+})
+
+run('P4-B. Full photographer data + not_sent + travel unresolved → resolve_travel_fee', () => {
+  const w = photographerFullClient({ travelFeeStatus: 'unresolved' })
+  assertEq(w.questionnaires.contractData.status, 'not_sent', 'status stays not_sent')
+  assertEq(isClientContractCollectionComplete(w), true, 'client collection complete')
+  assertEq(
+    resolveWeddingNextAction(w, { today: FAR })?.id,
+    'resolve_travel_fee',
+    'skips send questionnaire',
+  )
+})
+
+run('P4-C. Full photographer data + not_sent + travel included → generate_contract', () => {
+  assertEq(
+    resolveWeddingNextAction(
+      photographerFullClient({ travelFeeStatus: 'included' }),
+      { today: FAR },
+    )?.id,
+    'generate_contract',
+    'generate after travel resolved',
+  )
+})
+
+run('P4-D. Missing contract address + not_sent → send_contract_questionnaire', () => {
+  const w = photographerFullClient({
+    couple: couple({
+      partner1Address: '',
+      partner1PostalCode: '',
+      partner1City: '',
+    }),
+  })
+  assertEq(isClientContractCollectionComplete(w), false, 'address missing')
+  assertEq(
+    resolveWeddingNextAction(w, { today: FAR })?.id,
+    'send_contract_questionnaire',
+    'still collect via questionnaire',
+  )
+})
+
+run('P4-E. Missing required location + not_sent → send_contract_questionnaire', () => {
+  const w = photographerFullClient({ ceremonyLocation: '' })
+  assertEq(isClientContractCollectionComplete(w), false, 'ceremony missing')
+  assertEq(
+    resolveWeddingNextAction(w, { today: FAR })?.id,
+    'send_contract_questionnaire',
+    'locations are client-collection items',
+  )
+})
+
+run('P4-F. Submitted questionnaire still drives existing completed path', () => {
+  assertEq(
+    resolveWeddingNextAction(
+      stub({
+        questionnaires: {
+          contractData: { status: 'completed' },
+          weddingQuestionnaire: { status: 'not_sent' },
+        },
+        contract: { status: 'none' },
+        travelFeeStatus: 'unresolved',
+      }),
+      { today: FAR },
+    )?.id,
+    'resolve_travel_fee',
+    'completed Q unchanged',
+  )
+})
+
+run('P4-G. Photographer-only Full Create does not mark questionnaire completed', () => {
+  const w = photographerFullClient()
+  assertEq(w.questionnaires.contractData.status, 'not_sent', 'not_sent')
+  assert(
+    resolveWeddingNextAction(w, { today: FAR })?.id !==
+      'send_contract_questionnaire',
+    'Overview skips send CTA',
+  )
+})
+
+run('P5-F. Full photographer data + not_sent + travel charged → generate_contract', () => {
+  assertEq(
+    resolveWeddingNextAction(
+      photographerFullClient({
+        travelFeeStatus: 'charged',
+        travelFeeAmount: 350,
+      }),
+      { today: FAR },
+    )?.id,
+    'generate_contract',
+    'charged travel still generate',
+  )
 })
 
 console.log('\nOK wedding next-action Phase 1B.1 lifecycle acceptance')

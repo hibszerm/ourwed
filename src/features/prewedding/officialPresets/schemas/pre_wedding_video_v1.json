@@ -1,0 +1,302 @@
+{
+  "sourceKey": "pre_wedding_video_v1",
+  "name": "Film",
+  "title": "Ankieta przedślubna",
+  "introduction": "Cześć! Już niedługo się widzimy. Potrzebujemy od Was kilku informacji, które pomogą nam dobrze przygotować się do Waszego dnia.",
+  "schema": {
+    "sections": [
+      {
+        "id": "s1",
+        "title": "O Was i Wasz ślub",
+        "questions": [
+          {
+            "id": "q1",
+            "type": "date",
+            "label": "Data ślubu",
+            "required": true,
+            "weddingDayMapping": "weddingDate"
+          },
+          {
+            "id": "q2",
+            "type": "short_text",
+            "label": "Imię i Nazwisko Panny Młodej",
+            "required": true,
+            "weddingDayMapping": "brideName"
+          },
+          {
+            "id": "q3",
+            "type": "short_text",
+            "label": "Telefon do Panny Młodej",
+            "required": true,
+            "weddingDayMapping": "bridePhone"
+          },
+          {
+            "id": "q5",
+            "type": "short_text",
+            "label": "Imię i Nazwisko Pana Młodego",
+            "required": true,
+            "weddingDayMapping": "groomName"
+          },
+          {
+            "id": "q6",
+            "type": "short_text",
+            "label": "Telefon do Pana Młodego",
+            "required": true,
+            "weddingDayMapping": "groomPhone"
+          }
+        ],
+        "description": "Na początek potwierdźcie podstawowe dane dotyczące Was i dnia ślubu."
+      },
+      {
+        "id": "s2",
+        "title": "Przygotowania Panny Młodej",
+        "questions": [
+          {
+            "id": "q4",
+            "type": "address",
+            "label": "Adres przygotowań Panny Młodej",
+            "required": true,
+            "placeholder": "Wpisz adres lub nazwę miejsca",
+            "weddingDayMapping": "bridePreparationLocation"
+          }
+        ],
+        "description": "Podajcie miejsce, w którym odbędą się przygotowania Panny Młodej."
+      },
+      {
+        "id": "s3",
+        "title": "Przygotowania Pana Młodego",
+        "questions": [
+          {
+            "id": "q7",
+            "type": "address",
+            "label": "Adres przygotowań Pana Młodego",
+            "required": true,
+            "placeholder": "Wpisz adres lub nazwę miejsca",
+            "weddingDayMapping": "groomPreparationLocation"
+          }
+        ],
+        "description": "Podajcie miejsce, w którym odbędą się przygotowania Pana Młodego."
+      },
+      {
+        "id": "s4",
+        "title": "Błogosławieństwo i wyjazd",
+        "questions": [
+          {
+            "id": "q8",
+            "type": "short_text",
+            "label": "Godzina wyjazdu Pana Młodego do Panny Młodej. Jeśli przygotowujecie się pod jednym adresem wpiszcie to też tutaj.",
+            "required": true,
+            "placeholder": "np. 12:00 lub „Nie dotyczy, przygotowujemy się razem\"",
+            "weddingDayMapping": "groomDepartureNote"
+          },
+          {
+            "id": "q9",
+            "type": "single_choice",
+            "label": "Czy i gdzie będzie błogosławieństwo?",
+            "options": [
+              "Tak, jedno wspólne u Pana Młodego",
+              "Tak, jedno wspólne u Panny Młodej",
+              "Tak, osobne błogosławieństwa",
+              "Nie będzie błogosławieństwa / Prosimy nie uwieczniać"
+            ],
+            "required": true,
+            "weddingDayMapping": "blessingPlan"
+          }
+        ],
+        "description": "Opowiedzcie nam, jak będzie wyglądało spotkanie przed ceremonią i wyjazd."
+      },
+      {
+        "id": "s5",
+        "title": "Ceremonia",
+        "questions": [
+          {
+            "id": "q10",
+            "type": "time",
+            "label": "Godzina wyjazdu do Kościoła / USC",
+            "required": true,
+            "weddingDayMapping": "departureToCeremonyTime"
+          },
+          {
+            "id": "q11",
+            "type": "address",
+            "label": "Adres Kościoła / USC / Ślubu plenerowego",
+            "required": true,
+            "placeholder": "Wpisz adres lub nazwę miejsca",
+            "weddingDayMapping": "ceremonyLocation"
+          },
+          {
+            "id": "q12",
+            "type": "time",
+            "label": "Godzina Ślubu",
+            "required": true,
+            "weddingDayMapping": "ceremonyTime"
+          },
+          {
+            "id": "q13",
+            "type": "long_text",
+            "label": "Ważne dodatkowe elementy Ślubu - wpiszcie tutaj proszę na czym szczególnie Wam zależy podczas CEREMONII ŚLUBU co miałoby zostać uwiecznione oprócz przysięgi.",
+            "required": true,
+            "weddingDayMapping": "ceremonyNotes"
+          }
+        ],
+        "description": "Podajcie miejsce, godzinę i najważniejsze informacje dotyczące ceremonii."
+      },
+      {
+        "id": "s6",
+        "title": "Po ceremonii",
+        "questions": [
+          {
+            "id": "q15",
+            "type": "single_choice",
+            "label": "Życzenia od Gości",
+            "options": [
+              "Życzenia odbędą się przed kościołem - bezpośrednio po ceremonii",
+              "Życzenia odbędą się na sali"
+            ],
+            "required": true,
+            "weddingDayMapping": "guestWishesPlan"
+          }
+        ],
+        "description": "Dajcie znać, jak mają wyglądać życzenia i zdjęcie grupowe po ślubie."
+      },
+      {
+        "id": "s7",
+        "title": "Przyjęcie weselne",
+        "questions": [
+          {
+            "id": "q16",
+            "type": "address",
+            "label": "Nazwa i adres sali weselnej",
+            "required": true,
+            "placeholder": "Wpisz nazwę sali lub adres",
+            "weddingDayMapping": "receptionVenue"
+          },
+          {
+            "id": "q17",
+            "type": "time",
+            "label": "Godzina przyjazdu na salę weselną",
+            "required": true,
+            "weddingDayMapping": "receptionArrivalTime"
+          },
+          {
+            "id": "q18",
+            "type": "short_text",
+            "label": "Liczba gości weselnych",
+            "required": true,
+            "placeholder": "np. 80",
+            "weddingDayMapping": "guestCount"
+          },
+          {
+            "id": "q19",
+            "type": "yes_no",
+            "label": "Czy chcecie ujęcia rodzinne / ze znajomymi w mniejszych grupach przy sali?",
+            "options": [
+              "Tak",
+              "Nie"
+            ],
+            "required": true,
+            "weddingDayMapping": "smallGroupPhotosPlan"
+          },
+          {
+            "id": "q20",
+            "type": "short_text",
+            "label": "Jeśli macie harmonogram wesela, wklejcie go poniżej albo napiszcie, gdzie możemy go znaleźć.",
+            "required": true,
+            "placeholder": "np. wklejony poniżej albo link do dokumentu"
+          }
+        ],
+        "description": "Podajcie informacje o sali i najważniejszych punktach przyjęcia."
+      },
+      {
+        "id": "s8",
+        "title": "Film",
+        "questions": [
+          {
+            "id": "q21",
+            "type": "long_text",
+            "label": "Na czym szczególnie zależy Wam na filmie?",
+            "required": true,
+            "weddingDayMapping": "photoVideoPriorities"
+          },
+          {
+            "id": "q22",
+            "type": "single_choice",
+            "label": "Zazwyczaj wybieramy licencjonowaną muzykę do teledysku i filmu. Jeśli jakiś utwór jest dla Was ważny i chcecie, aby został użyty w teledysku lub filmie, podeślijcie go proszę przed dniem wesela.",
+            "options": [
+              "Zdajemy się na Wasz wybór",
+              "Podeślemy własne propozycje"
+            ],
+            "required": true
+          },
+          {
+            "id": "q23",
+            "type": "long_text",
+            "label": "Czy jest coś co Wam się podoba / nie podoba na filmie? (Na przykład czarno białe kadry, rozmazane ujęcia itp.)",
+            "required": true
+          },
+          {
+            "id": "q_speeches",
+            "type": "long_text",
+            "label": "Czy planujecie przemowy podczas Wesela? (Jeśli tak, to powiedzcie proszę kiedy i kto dokładnie będzie przemawiał)",
+            "required": true
+          }
+        ],
+        "description": "Napiszcie nam, co jest dla Was szczególnie ważne i jaki styl najbardziej Wam odpowiada."
+      },
+      {
+        "id": "s9",
+        "title": "Usługodawcy",
+        "questions": [
+          {
+            "id": "q25",
+            "type": "long_text",
+            "label": "Wymieńcie nam proszę wszystkich Waszych usługodawców, z których korzystacie tego dnia (suknie, makijaż, dekoracje, fryzura itp.).",
+            "required": true
+          },
+          {
+            "id": "q26",
+            "type": "long_text",
+            "label": "Podajcie proszę nazwę DJ/Zespołu.",
+            "required": true,
+            "weddingDayMapping": "djBandProvider"
+          }
+        ],
+        "description": "Podajcie osoby i firmy, z którymi będziemy współpracować w dniu ślubu."
+      },
+      {
+        "id": "s10",
+        "title": "Ważne informacje",
+        "questions": [
+          {
+            "id": "q24",
+            "type": "long_text",
+            "label": "Jeśli są jakiekolwiek ważne kwestie rodzinne, które wymagają uwagi lub zrozumienia z naszej strony - prosimy o informację.",
+            "required": false,
+            "weddingDayMapping": "sensitiveFamilyNotes"
+          }
+        ],
+        "description": "Ta część jest widoczna wyłącznie dla fotografa i służy lepszemu przygotowaniu zespołu do dnia ślubu."
+      },
+      {
+        "id": "s11",
+        "title": "Wskazówki",
+        "questions": [
+          {
+            "id": "q27_info",
+            "type": "information",
+            "label": "",
+            "helpText": "Łapcie kilka wskazówek od nas :)\n1. Podczas przysięgi patrzcie na siebie i stójcie do siebie przodem.\n2. Na filmie najlepiej wygląda jednolite (najlepiej białe lub ciepłe) oświetlenie na sali.\n3. Jeśli jakieś detale są dla Was ważne to przygotujcie je proszę na przygotowaniach w jednym miejscu.\n4. Nie stresujcie się za bardzo - na pewno wszystko się uda :)\n5. Jeśli planujecie atrakcje na Weselu, które chcecie mieć na filmie pamiętajcie aby zaplanować je przed końcem naszej pracy.",
+            "required": false
+          },
+          {
+            "id": "q28",
+            "type": "acknowledgement",
+            "label": "Zapoznaliśmy się ze wskazówkami",
+            "required": true
+          }
+        ],
+        "description": "Na koniec kilka krótkich wskazówek, które pomogą nam wspólnie stworzyć najlepsze zdjęcia i film."
+      }
+    ]
+  }
+}

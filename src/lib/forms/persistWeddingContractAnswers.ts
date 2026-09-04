@@ -1,17 +1,21 @@
 import {
-  createFormInstance,
-  getForms,
   getLatestSubmittedFormAnswerRecord,
   updateFormAnswerJson,
 } from '@/lib/api/forms'
 import { FIELD_KEY_TO_CONTRACT_QUESTION_ID } from '@/lib/forms/contractQuestionCatalog'
 import { weddingToContractAnswerFields } from '@/lib/forms/weddingCoupleNameFields'
-import { supabase } from '@/lib/supabase'
-import { throwOnError } from '@/lib/supabase/helpers'
 import type { FormAnswerJson } from '@/types/formEngine'
 import type { Wedding } from '@/types/wedding'
 
 export { weddingToContractAnswerFields } from '@/lib/forms/weddingCoupleNameFields'
+
+export type StudioContractAnswerPersistPlan =
+  | {
+      kind: 'updated_existing_submission'
+      instanceId: string
+      nextAnswerJson: FormAnswerJson
+    }
+  | { kind: 'skipped_no_submission' }
 
 /** Studio block-builder question ids — dual-write with catalog q-* ids. */
 const FIELD_KEY_TO_SYSTEM_QUESTION_ID: Record<string, string> = {
@@ -61,64 +65,43 @@ function mergeFieldsIntoAnswerJson(
   }
 }
 
-async function writeSubmittedAnswers(
-  instanceId: string,
-  answerJson: FormAnswerJson,
-): Promise<void> {
-  const { data: existing, error: findError } = await supabase
-    .from('form_answers')
-    .select('id')
-    .eq('instance_id', instanceId)
-    .maybeSingle()
-  throwOnError(findError)
-
-  if (existing?.id) {
-    await updateFormAnswerJson(instanceId, answerJson)
-  } else {
-    const { error: insertError } = await supabase.from('form_answers').insert({
-      instance_id: instanceId,
-      answer_json: answerJson,
-    })
-    throwOnError(insertError)
+/**
+ * Decide whether studio-entered couple fields may patch an existing
+ * submitted/approved contract questionnaire. Never manufactures a first
+ * submission — photographer data lives on weddings columns.
+ */
+export function planStudioContractAnswerPersist(input: {
+  latest: { instanceId: string; answerJson: FormAnswerJson } | null
+  fields: Record<string, string>
+}): StudioContractAnswerPersistPlan {
+  if (!input.latest?.instanceId) {
+    return { kind: 'skipped_no_submission' }
   }
-
-  const { error: statusError } = await supabase
-    .from('form_instances')
-    .update({
-      status: 'submitted',
-      submitted_at: new Date().toISOString(),
-    })
-    .eq('id', instanceId)
-  throwOnError(statusError)
+  return {
+    kind: 'updated_existing_submission',
+    instanceId: input.latest.instanceId,
+    nextAnswerJson: mergeFieldsIntoAnswerJson(input.latest.answerJson, input.fields),
+  }
 }
 
 /**
- * Persist partner / location detail into contract questionnaire answers —
- * the same source of truth hydrate already uses via mergeFormAnswersIntoWedding.
+ * Sync partner / location detail into an already-submitted contract questionnaire.
+ * If no submitted/approved instance exists, this is a no-op.
  */
 export async function persistWeddingContractAnswerFields(
   wedding: Wedding,
-): Promise<void> {
+): Promise<StudioContractAnswerPersistPlan> {
   const fields = weddingToContractAnswerFields(wedding)
   const latest = await getLatestSubmittedFormAnswerRecord(wedding.id, 'contract')
+  const plan = planStudioContractAnswerPersist({
+    latest: latest
+      ? { instanceId: latest.instanceId, answerJson: latest.answerJson }
+      : null,
+    fields,
+  })
 
-  if (latest?.instanceId) {
-    await updateFormAnswerJson(
-      latest.instanceId,
-      mergeFieldsIntoAnswerJson(latest.answerJson, fields),
-    )
-    return
-  }
+  if (plan.kind === 'skipped_no_submission') return plan
 
-  const forms = await getForms()
-  const contractForm = forms.find(
-    (f) => f.category === 'contract' && f.isActive,
-  )
-  if (!contractForm) return
-
-  const instance = await createFormInstance(contractForm.id, wedding.id)
-  await writeSubmittedAnswers(
-    instance.id,
-    mergeFieldsIntoAnswerJson(null, fields),
-  )
+  await updateFormAnswerJson(plan.instanceId, plan.nextAnswerJson)
+  return plan
 }

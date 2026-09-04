@@ -1,6 +1,7 @@
 /**
- * Deterministic wedding/company completeness for contract readiness.
- * No AI — pure field checks against required / optional rules.
+ * Deterministic wedding completeness for contract readiness.
+ * Studio/company Settings fields are not generation gates — V1 sparse
+ * generation keeps provider identity in the uploaded DOCX.
  */
 
 import type { CompanyDetails } from '@/types/company'
@@ -66,12 +67,15 @@ function optional(
 }
 
 /**
- * Evaluate readiness for contract generation from wedding + company profile.
+ * Evaluate readiness for contract generation from wedding commercial data.
+ * Studio/company Settings fields must not appear here — V1 sparse generation
+ * keeps provider identity in the uploaded DOCX, not studio_details.
  */
 export function evaluateWeddingContractReadiness(
   wedding: Wedding,
-  company: CompanyDetails | null | undefined,
+  company?: CompanyDetails | null,
 ): WeddingContractReadiness {
+  void company
   const commercial = getWeddingCommercialSummary(wedding)
   const c = wedding.couple
   const address =
@@ -121,24 +125,6 @@ export function evaluateWeddingContractReadiness(
       'client',
       'Miejsce przyjęcia',
       present(wedding.receptionLocation),
-    ),
-
-    // Company
-    required(
-      'company_name',
-      'company',
-      'Nazwa firmy',
-      present(company?.companyName),
-    ),
-    required('company_address', 'company', 'Adres firmy', present(company?.address)),
-    required('company_nip', 'company', 'NIP', present(company?.nip)),
-    required('company_regon', 'company', 'REGON', present(company?.regon)),
-    required('company_phone', 'company', 'Telefon firmy', present(company?.phone)),
-    required(
-      'company_bank',
-      'company',
-      'Numer konta',
-      present(company?.bankAccount) || present(company?.iban),
     ),
 
     // Package
@@ -228,4 +214,23 @@ export function evaluateWeddingContractReadiness(
     requiredMissing,
     requiredTotal: requiredItems.length,
   }
+}
+
+/**
+ * True when every required *client* readiness item is present.
+ * Reuses evaluateWeddingContractReadiness — does not duplicate field lists
+ * and does not mean the contract is ready to generate (package/travel
+ * stay on the existing generation path).
+ *
+ * This is the contract-data COLLECTION stage, independent of questionnaire
+ * provenance. A photographer Full Create and an accepted couple questionnaire
+ * can both satisfy this without sharing form_instance / form_answers.
+ *
+ * Expects hydrated location scalars (wedding_places applied to
+ * bridePreparationLocation / ceremonyLocation / …).
+ */
+export function isClientContractCollectionComplete(wedding: Wedding): boolean {
+  return evaluateWeddingContractReadiness(wedding, null)
+    .items.filter((item) => item.group === 'client')
+    .every((item) => item.status !== 'missing')
 }

@@ -258,6 +258,112 @@
   color: var(--color-text-primary);
 }
 
+.planModern {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.legModern {
+  display: block;
+  padding: 2px 0 8px 5.25rem;
+}
+
+.legMetricsModern {
+  font-size: 0.75rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  color: var(--color-text-tertiary, var(--color-text-muted));
+}
+
+.rowModern {
+  display: grid;
+  grid-template-columns: 4.75rem minmax(0, 1fr);
+  column-gap: 16px;
+  align-items: start;
+  padding: 0 0 16px;
+  min-width: 0;
+}
+
+.timeCol {
+  min-width: 0;
+}
+
+.planModern .time,
+.planModern .timeButton {
+  font-size: 1.0625rem;
+  font-weight: 650;
+  letter-spacing: -0.028em;
+  color: var(--color-text-primary);
+}
+
+.planModern .dragHandle {
+  opacity: 1;
+}
+
+.questionnaireHint {
+  margin: 4px 0 0;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--color-text-tertiary, var(--color-text-muted));
+}
+
+.modernTravel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin-top: 4px;
+  padding-top: 12px;
+  border-top: 1px solid
+    color-mix(in srgb, var(--border-subtle, var(--color-border)) 70%, transparent);
+}
+
+.quietRecalc {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: color-mix(
+    in srgb,
+    var(--color-text-primary) 22%,
+    var(--color-text-secondary)
+  );
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 550;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+}
+
+.quietRecalc:hover:not(:disabled) {
+  color: var(--color-text-primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.quietRecalc:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+@media (max-width: 720px) {
+  .rowModern {
+    grid-template-columns: 3.75rem minmax(0, 1fr);
+    column-gap: 12px;
+  }
+
+  .legModern {
+    padding-left: 3.75rem;
+  }
+}
+
 @media (max-width: 480px) {
   .row {
     grid-template-columns: 1.25rem 1.75rem 1fr;

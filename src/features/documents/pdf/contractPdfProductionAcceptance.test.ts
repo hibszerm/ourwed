@@ -61,13 +61,26 @@ assert(ready.includes('Pobierz DOCX'), 'DOCX download unchanged')
 
 const pdfUi = read('src/features/documents/contract-experience/ContractPdfActions.tsx')
 assert(pdfUi.includes('Pobierz PDF'), 'PDF button label')
-assert(pdfUi.includes('convertContractDocxToPdf'), 'uses production convert')
-assert(pdfUi.includes('inFlightRef'), 'double-request guard')
-assert(pdfUi.includes('if (inFlightRef.current || busy) return'), 'busy guard')
-assert(pdfUi.includes('requirePro'), 'client PRO gate')
-assert(pdfUi.includes('generate_contract_pdf'), 'pro action key')
+assert(pdfUi.includes('useContractPdfDownload'), 'preview uses shared hook')
 assert(pdfUi.includes('disabled={busy || !props.docxBytes}'), 'disabled while busy')
 assert(!pdfUi.includes('createGotenbergPdfAdapter'), 'no gotenberg adapter')
+assert(!pdfUi.includes('ExperimentalPdfActions'), 'production UI is not experimental')
+
+const pdfHook = read(
+  'src/features/documents/contract-experience/useContractPdfDownload.ts',
+)
+assert(pdfHook.includes('convertContractDocxToPdf'), 'uses production convert')
+assert(pdfHook.includes('inFlightRef'), 'double-request guard')
+assert(pdfHook.includes('if (inFlightRef.current || busy) return'), 'busy guard')
+assert(pdfHook.includes('requirePro'), 'client PRO gate')
+assert(pdfHook.includes('generate_contract_pdf'), 'pro action key')
+assert(pdfHook.includes('downloadPdfBytes'), 'same browser download helper')
+
+const modernFinance = read(
+  'src/features/weddings/modern-detail/ModernWeddingContractFinanceWorkspace.tsx',
+)
+assert(modernFinance.includes('useContractPdfDownload'), 'modern card reuses Preview PDF')
+assert(modernFinance.includes('Pobierz PDF'), 'modern card PDF label')
 
 // --- DOCX generation unchanged ---
 assert(

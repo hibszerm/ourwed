@@ -2,6 +2,7 @@ import { documentStorage } from '@/lib/api/documents/storage'
 import { weddingService } from '@/lib/api/weddingService'
 import { weddingPlaceService } from '@/lib/api/weddingPlaceService'
 import { persistWeddingContractAnswerFields } from '@/lib/forms/persistWeddingContractAnswers'
+import { createBrowserSafeId } from '@/lib/utils/createBrowserSafeId'
 import { hashBytes } from '@/features/documents/ai/hash'
 import { requireStudioUserId } from '@/lib/api/ownership'
 import { analyzeWeddingContractRecovery } from './analyzeApi'
@@ -40,7 +41,7 @@ export async function uploadAndStartRecovery(
   const contentHash = await hashBytes(bytes)
   const userId = await requireStudioUserId()
 
-  const sourceContractId = crypto.randomUUID()
+  const sourceContractId = createBrowserSafeId()
   const storedFileName = sanitizeStoredFileName(file.name, validation.extension)
   const filePath = documentStorage.paths.sourceContract(
     userId,

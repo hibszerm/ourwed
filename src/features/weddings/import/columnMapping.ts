@@ -120,6 +120,10 @@ export function mergeSavedColumnMappings(input: {
 }
 
 export function validateColumnMappings(mappings: ColumnMapping[]): string | null {
+  return describeColumnMappingBlock(mappings)
+}
+
+export function describeColumnMappingBlock(mappings: ColumnMapping[]): string | null {
   const targets = mappings
     .map((m) => m.targetField)
     .filter((f) => f !== 'ignore')
@@ -129,8 +133,11 @@ export function validateColumnMappings(mappings: ColumnMapping[]): string | null
     targets.includes('coupleDisplayName') ||
     (targets.includes('partner1Name') && targets.includes('partner2Name'))
 
-  if (!hasDate || !hasCouple) {
-    return 'Dopasuj kolumnę z datą ślubu i nazwą pary lub klienta.'
+  if (!hasDate) {
+    return 'Przypisz kolumnę z datą ślubu, aby przejść dalej.'
+  }
+  if (!hasCouple) {
+    return 'Przypisz kolumnę z nazwą pary.'
   }
 
   const singles = new Set<ImportField>()

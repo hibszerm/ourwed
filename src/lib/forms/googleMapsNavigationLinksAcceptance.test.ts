@@ -185,6 +185,7 @@ run('15. UI entry points use shared builder', () => {
   const files = [
     'src/features/weddings/components/detail/WeddingDetailTravel.tsx',
     'src/features/weddings/detail/v2/WeddingDayWorkspace.tsx',
+    'src/features/weddings/modern-detail/ModernWeddingLogisticsWorkspace.tsx',
     'src/features/weddings/detail/v2/WeddingOverviewEssentials.tsx',
     'src/features/travel/travelUi.ts',
   ]

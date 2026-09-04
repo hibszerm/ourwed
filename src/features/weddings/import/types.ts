@@ -36,6 +36,26 @@ export type ColumnMapping = {
   suggestedBy?: 'deterministic' | 'saved_mapping' | 'manual'
 }
 
+export const IMPORT_ISSUE_CODES = {
+  INVALID_DATE: 'IMPORT_DATE_PARSE_FAILED',
+  MISSING_IDENTITY: 'MISSING_COUPLE_NAME',
+  MISSING_AMOUNT: 'MISSING_CONTRACT_VALUE',
+  INVALID_AMOUNT: 'INVALID_CONTRACT_VALUE',
+  INVALID_EMAIL: 'INVALID_EMAIL',
+  UNMATCHED_PACKAGE: 'PACKAGE_NOT_MATCHED',
+  DUPLICATE_EXISTING_WEDDING: 'DUPLICATE_EXISTING_WEDDING',
+  DUPLICATE_IN_FILE: 'DUPLICATE_IN_FILE',
+  SUMMARY_ROW: 'LIKELY_SUMMARY_ROW',
+  HEADER_AS_DATA: 'IMPORT_HEADER_ROW_DETECTED_AS_DATA',
+} as const
+
+export type ImportPriceState =
+  | 'unmapped'
+  | 'empty'
+  | 'invalid'
+  | 'explicit_zero'
+  | 'value'
+
 export type ImportRowIssue = {
   code: string
   field?: string
@@ -44,11 +64,13 @@ export type ImportRowIssue = {
 }
 
 export type ImportDuplicateCandidate = {
-  weddingId: string
+  source?: 'existing_wedding' | 'in_file'
+  weddingId?: string
   displayName: string
   weddingDate: string | null
   contractValue: number | null
   reason: string
+  sourceRowNumber?: number
 }
 
 export type WeddingImportReviewRowStatus =
@@ -67,6 +89,7 @@ export type WeddingImportReviewRow = {
   partner1Name: string
   partner2Name: string
   contractValue: number | null
+  priceState?: ImportPriceState
   phone?: string
   email?: string
   packageName?: string

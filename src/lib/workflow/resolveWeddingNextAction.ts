@@ -8,7 +8,9 @@
  * Waiting on the couple / awareness belongs to status + Attention — not here.
  *
  * Lifecycle gates (proximity never bypasses unfinished commercial work):
- * A. Contract data / contract (send Q → generate → mark signed)
+ * A. Contract data collection (questionnaire only if client data incomplete)
+ *    → travel → generate → mark signed
+ *    Questionnaire `not_sent` is provenance, not an automatic collection CTA.
  * B. Deposit when required
  * C. Pre-wedding prep window (send; waiting ⇒ null)
  * D. Operational completion only after pre-wedding completed
@@ -26,6 +28,7 @@ import { hasPaidDepositPayment } from '@/lib/finance/hasPaidDepositPayment'
 import { getAgreedDeposit } from '@/lib/utils/commercial'
 import { getDaysUntil } from '@/lib/utils/dates'
 import { isTravelFeeResolved } from '@/lib/utils/travelFeeCommercial'
+import { isClientContractCollectionComplete } from '@/lib/utils/weddingContractReadiness'
 import type { WeddingPlace } from '@/types/travel'
 import type { QuestionnaireStatus, Wedding } from '@/types/wedding'
 
@@ -264,8 +267,8 @@ function resolveOperationalAction(args: {
  * Priority is deterministic and independent of workflowStage.
  *
  * Ordering:
- * A. Legal create — send contract Q (not_sent)
- *    → travel resolved (none + party/Q ok)
+ * A. Legal create — send contract Q (not_sent AND client collection incomplete)
+ *    → travel (none + party/Q ok, or photographer already collected client data)
  *    → generate (none + party/Q ok + travel resolved)
  *    Waiting contract Q (`sent` without party) → null (no fake CTA)
  * B. Mark signed / record deposit — always before ops
@@ -279,7 +282,11 @@ export function resolveWeddingNextAction(
 ): WeddingNextAction | null {
   const contractQ = contractQuestionnaireStatus(wedding)
   const contractStatus = wedding.contract?.status ?? 'none'
-  const partyOk = contractQ === 'completed' || hasContractPartyData(wedding)
+  const clientCollectionOk = isClientContractCollectionComplete(wedding)
+  const partyOk =
+    contractQ === 'completed' ||
+    hasContractPartyData(wedding) ||
+    clientCollectionOk
   const agreedDeposit = getAgreedDeposit(wedding)
   const depositPaid = hasPaidDepositPayment(wedding.payments ?? [])
   const preStatus = preweddingStatus(wedding, context)
@@ -293,7 +300,7 @@ export function resolveWeddingNextAction(
 
   // --- PHASE A: Contract data / contract ---
 
-  if (contractQ === 'not_sent') {
+  if (contractQ === 'not_sent' && !clientCollectionOk) {
     return action({
       id: 'send_contract_questionnaire',
       title: 'Wyślij ankietę do umowy',

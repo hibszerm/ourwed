@@ -1,6 +1,10 @@
 import { supabase } from '@/lib/supabase'
 import { nowIso, throwOnError, toNumber } from '@/lib/supabase/helpers'
 import { requireStudioUserId } from '@/lib/api/ownership'
+import {
+  EXTRA_SERVICE_IN_USE_MESSAGE,
+  isExtraServiceInUseError,
+} from '@/lib/api/extraServiceErrors'
 import { slugify, type ExtraService } from '@/types/package'
 
 interface ExtraServiceRow {
@@ -155,9 +159,26 @@ export const extraServiceService = {
     return mapRow(data as ExtraServiceRow)
   },
 
-  async delete(id: string): Promise<void> {
-    const { error } = await supabase.from('extra_services').delete().eq('id', id)
+  async isAssignedToWedding(id: string): Promise<boolean> {
+    const { count, error } = await supabase
+      .from('wedding_extra_services')
+      .select('id', { count: 'exact', head: true })
+      .eq('extra_service_id', id)
     throwOnError(error)
+    return (count ?? 0) > 0
+  },
+
+  async delete(id: string): Promise<void> {
+    if (await extraServiceService.isAssignedToWedding(id)) {
+      throw new Error(EXTRA_SERVICE_IN_USE_MESSAGE)
+    }
+    const { error } = await supabase.from('extra_services').delete().eq('id', id)
+    if (error) {
+      if (isExtraServiceInUseError(error)) {
+        throw new Error(EXTRA_SERVICE_IN_USE_MESSAGE)
+      }
+      throwOnError(error)
+    }
   },
 
   async reorder(orderedIds: string[]): Promise<void> {

@@ -1,8 +1,9 @@
-import { useMemo, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useBlocker, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AppLayout } from '@/layouts/AppLayout'
 import { Button } from '@/components/ui/Button'
+import { Modal } from '@/components/ui/Modal'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { useToast } from '@/components/ui/Toast'
 import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
@@ -11,8 +12,6 @@ import { useProAccessGate } from '@/features/billing/ProAccessGate'
 import { useProMutationPageGuard } from '@/features/billing/useProMutationPageGuard'
 import { useWeddings } from '@/features/weddings/hooks/useWeddings'
 import { packageService } from '@/lib/api/packageService'
-import { formatCurrency } from '@/lib/utils/currency'
-import { formatDate } from '@/lib/utils/dates'
 import {
   WeddingImportStepper,
   type WeddingImportStepId,
@@ -24,12 +23,13 @@ import {
   loadSavedColumnMappings,
   parseImportWorkbook,
   revalidateReviewRow,
+  applyInFileDuplicateFlags,
+  isWritableImportRow,
   saveColumnMappings,
   validateColumnMappings,
   spreadsheetCellDisplay,
   applyHeaderRowSelection,
   detectAndApplyHeaderRow,
-  reviewDateInputValue,
   type ColumnMapping,
   type ImportField,
   type ParsedWorkbook,
@@ -37,21 +37,37 @@ import {
   type RawImportRow,
   type WeddingImportResult,
   type WeddingImportReviewRow,
-  IMPORT_FIELD_LABELS,
-  SINGLE_TARGET_FIELDS,
 } from '@/features/weddings/import'
+import type { ImportReviewFilter } from '@/features/weddings/import/importPresentation'
+import { ImportUploadStep } from '@/features/weddings/import/components/ImportUploadStep'
+import { ImportMappingStep } from '@/features/weddings/import/components/ImportMappingStep'
+import { ImportReviewStep } from '@/features/weddings/import/components/ImportReviewStep'
+import { ImportResultStep } from '@/features/weddings/import/components/ImportResultStep'
 import styles from './WeddingImportPage.module.css'
 import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
-const STATUS_LABELS: Record<WeddingImportReviewRow['status'], string> = {
-  ready: 'Gotowy',
-  warning: 'Wymaga uwagi',
-  invalid: 'Błąd',
-  possible_duplicate: 'Możliwy duplikat',
-  excluded: 'Pominięty',
+function mergeImportResults(
+  previous: WeddingImportResult | null,
+  next: WeddingImportResult,
+): WeddingImportResult {
+  if (!previous) return next
+  const byId = new Map(previous.records.map((record) => [record.reviewRowId, record]))
+  for (const record of next.records) {
+    byId.set(record.reviewRowId, record)
+  }
+  const records = [...byId.values()]
+  return {
+    importSessionId: previous.importSessionId,
+    requestedCount: previous.requestedCount,
+    importedCount: records.filter((record) => record.status === 'imported').length,
+    failedCount: records.filter((record) => record.status === 'failed').length,
+    skippedCount: records.filter((record) => record.status === 'skipped').length,
+    records,
+  }
 }
 
 export function WeddingImportPage() {
+  const navigate = useNavigate()
   const userId = useStudioAuthId()
   const { requirePro } = useProAccessGate()
   useProMutationPageGuard('/sluby')
@@ -64,23 +80,28 @@ export function WeddingImportPage() {
   const [parsing, setParsing] = useState(false)
   const [importing, setImporting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [sourceFile, setSourceFile] = useState<File | null>(null)
   const [workbook, setWorkbook] = useState<ParsedWorkbook | null>(null)
   const [selectedSheetId, setSelectedSheetId] = useState<string | null>(null)
   const [date1904, setDate1904] = useState(false)
   const [sheetName, setSheetName] = useState('')
   const [confirmedHeaderRowIndexZeroBased, setConfirmedHeaderRowIndexZeroBased] =
     useState(0)
+  const [headerAutoDetected, setHeaderAutoDetected] = useState(true)
+  const [leftUpload, setLeftUpload] = useState(false)
   const [headers, setHeaders] = useState<string[]>([])
   const [columnIds, setColumnIds] = useState<string[]>([])
   const [mappings, setMappings] = useState<ColumnMapping[]>([])
   const [rawRows, setRawRows] = useState<RawImportRow[]>([])
   const [reviewRows, setReviewRows] = useState<WeddingImportReviewRow[]>([])
+  const [reviewFilter, setReviewFilter] = useState<ImportReviewFilter>('all')
+  const [editingRowId, setEditingRowId] = useState<string | null>(null)
   const [savedMappingApplied, setSavedMappingApplied] = useState(false)
-  const [importSessionId] = useState(() => createImportSessionId())
-  const [importResult, setImportResult] = useState<WeddingImportResult | null>(
-    null,
-  )
+  const [importSessionId, setImportSessionId] = useState(() => createImportSessionId())
+  const [importResult, setImportResult] = useState<WeddingImportResult | null>(null)
   const [importedRowIds] = useState(() => new Set<string>())
+  const [changeFileOpen, setChangeFileOpen] = useState(false)
+  const [exitPrompt, setExitPrompt] = useState(false)
 
   const { data: packages = [] } = useQuery({
     queryKey: ['packages', userId],
@@ -96,14 +117,74 @@ export function WeddingImportPage() {
   const selectedSheet: ParsedWorkbookSheet | null =
     workbook?.sheets.find((s) => s.id === selectedSheetId) ?? null
 
+  const hasMeaningfulWork = Boolean(workbook) && step !== 'done'
+  const blocker = useBlocker(hasMeaningfulWork)
+  const leaveOpen = blocker.state === 'blocked' || exitPrompt
+
+  useEffect(() => {
+    if (!hasMeaningfulWork) return
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault()
+      event.returnValue = ''
+    }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [hasMeaningfulWork])
+
+  function stayInWizard() {
+    if (blocker.state === 'blocked') blocker.reset()
+    setExitPrompt(false)
+  }
+
+  function leaveWizard() {
+    setExitPrompt(false)
+    if (blocker.state === 'blocked') blocker.proceed()
+    else navigate('/sluby')
+  }
+
+  function resetImportWizard() {
+    setStep('upload')
+    setParsing(false)
+    setImporting(false)
+    setError(null)
+    setSourceFile(null)
+    setWorkbook(null)
+    setSelectedSheetId(null)
+    setDate1904(false)
+    setSheetName('')
+    setConfirmedHeaderRowIndexZeroBased(0)
+    setHeaderAutoDetected(true)
+    setLeftUpload(false)
+    setHeaders([])
+    setColumnIds([])
+    setMappings([])
+    setRawRows([])
+    setReviewRows([])
+    setReviewFilter('all')
+    setEditingRowId(null)
+    setSavedMappingApplied(false)
+    setImportSessionId(createImportSessionId())
+    setImportResult(null)
+    importedRowIds.clear()
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
   async function handleFile(file: File) {
     setError(null)
     setParsing(true)
     try {
       const parsed = await parseImportWorkbook(file)
+      setSourceFile(file)
       setWorkbook(parsed)
       const firstSheet = parsed.sheets[0]!
       applySheet(firstSheet)
+      setReviewRows([])
+      setImportResult(null)
+      setHeaderAutoDetected(true)
+      setLeftUpload(false)
+      if (step === 'mapping' || step === 'review' || step === 'done') {
+        setStep('upload')
+      }
     } catch (err) {
       setError(
         getUserFacingErrorMessage(err, 'Nie udało się odczytać tego pliku. Wybierz plik XLSX lub CSV.'),
@@ -159,6 +240,7 @@ export function WeddingImportPage() {
       headerRowIndexZeroBased,
       savedMappings: null,
     })
+    setHeaderAutoDetected(false)
     if (userId) {
       const saved = loadSavedColumnMappings({ userId, headers: applied.headers })
       if (saved) {
@@ -187,6 +269,8 @@ export function WeddingImportPage() {
       setError('Wybierz arkusz do importu.')
       return
     }
+    setError(null)
+    setLeftUpload(true)
     setStep('mapping')
   }
 
@@ -223,14 +307,13 @@ export function WeddingImportPage() {
       confirmedHeaderRowIndexZeroBased,
     })
     setReviewRows(rows)
+    setReviewFilter('all')
+    setEditingRowId(null)
     setError(null)
     setStep('review')
   }
 
-  function updateMapping(
-    sourceColumnId: string,
-    targetField: ImportField,
-  ) {
+  function updateMapping(sourceColumnId: string, targetField: ImportField) {
     setMappings((prev) =>
       prev.map((mapping) => {
         if (mapping.sourceColumnId !== sourceColumnId) {
@@ -248,16 +331,14 @@ export function WeddingImportPage() {
     )
   }
 
-  function updateReviewRow(
-    rowId: string,
-    patch: Partial<WeddingImportReviewRow>,
-  ) {
+  function updateReviewRow(rowId: string, patch: Partial<WeddingImportReviewRow>) {
     setReviewRows((prev) =>
-      prev.map((row) => {
-        if (row.id !== rowId) return row
-        const next = revalidateReviewRow({ ...row, ...patch }, existingWeddings, catalog)
-        return next
-      }),
+      applyInFileDuplicateFlags(
+        prev.map((row) => {
+          if (row.id !== rowId) return row
+          return revalidateReviewRow({ ...row, ...patch }, existingWeddings, catalog)
+        }),
+      ),
     )
   }
 
@@ -268,7 +349,7 @@ export function WeddingImportPage() {
       setError('Wybierz co najmniej jeden rekord do importu.')
       return
     }
-    if (selected.some((row) => row.status === 'invalid')) {
+    if (selected.some((row) => !isWritableImportRow(row))) {
       setError('Część rekordów wymaga poprawy przed importem.')
       return
     }
@@ -286,7 +367,7 @@ export function WeddingImportPage() {
           importedRowIds.add(record.reviewRowId)
         }
       }
-      setImportResult(result)
+      setImportResult((prev) => mergeImportResults(prev, result))
       await queryClient.invalidateQueries({ queryKey: ['weddings'] })
       await queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       await invalidateFinanceQueries(queryClient)
@@ -296,13 +377,11 @@ export function WeddingImportPage() {
           'Nie udało się zaimportować części ślubów. Pozostałe rekordy zostały zapisane poprawnie.',
           'error',
         )
-      } else {
+      } else if (result.importedCount > 0) {
         showToast(`Zaimportowano ${result.importedCount} ślubów.`, 'success')
       }
     } catch (err) {
-      setError(
-        getUserFacingErrorMessage(err, 'Nie udało się zakończyć importu.'),
-      )
+      setError(getUserFacingErrorMessage(err, 'Nie udało się zakończyć importu.'))
     } finally {
       setImporting(false)
     }
@@ -320,425 +399,141 @@ export function WeddingImportPage() {
     return samples
   }, [columnIds, rawRows])
 
-  const selectedCount = reviewRows.filter((row) => row.selectedForImport).length
+  const confirmChangeFile = leftUpload || step === 'mapping' || step === 'review'
 
   return (
-    <AppLayout
-      title="Import ślubów"
-      subtitle="Przenieś podstawowe dane z Excela lub CSV"
-      action={
-        <Link to="/sluby">
-          <Button variant="secondary">Wróć do listy</Button>
-        </Link>
-      }
-    >
-      <PageContainer width="full">
-        <WeddingImportStepper current={step} />
-
-        {error ? <div className={styles.error}>{error}</div> : null}
-
-        {step === 'upload' ? (
-          <section className={styles.panel}>
-            <h2 className={styles.heading}>Wybierz plik</h2>
-            <p className={styles.lead}>
-              Przenieś podstawowe dane swoich zleceń z Excela lub pliku CSV.
-            </p>
-            <p className={styles.hint}>
-              Plik nie zostanie zaimportowany, dopóki nie sprawdzisz danych.
-            </p>
-
-            <div
-              className={styles.dropzone}
-              onDragOver={(event) => event.preventDefault()}
-              onDrop={(event) => {
-                event.preventDefault()
-                const file = event.dataTransfer.files[0]
-                if (file) void handleFile(file)
+    <AppLayout>
+      <PageContainer width="wide">
+        <div className={styles.workspace}>
+          <header className={styles.pageHeader}>
+            <button
+              type="button"
+              className={styles.exit}
+              onClick={() => {
+                if (hasMeaningfulWork) setExitPrompt(true)
+                else navigate('/sluby')
               }}
             >
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".xlsx,.xls,.csv"
-                className={styles.fileInput}
-                onChange={(event) => {
-                  const file = event.target.files?.[0]
-                  if (file) void handleFile(file)
-                }}
-              />
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={parsing}
-              >
-                {parsing ? 'Odczytywanie pliku…' : 'Wybierz plik XLSX lub CSV'}
-              </Button>
-              {workbook ? (
-                <p className={styles.fileName}>{workbook.fileName}</p>
-              ) : null}
-            </div>
-
-            {workbook && workbook.sheets.length > 1 ? (
-              <div className={styles.sheetList}>
-                <h3 className={styles.subheading}>Wybierz arkusz</h3>
-                {workbook.sheets.map((sheet) => (
-                  <button
-                    key={sheet.id}
-                    type="button"
-                    className={styles.sheetButton}
-                    data-selected={sheet.id === selectedSheetId}
-                    onClick={() => applySheet(sheet)}
-                  >
-                    {sheet.name} — {sheet.rowCount} wierszy
-                  </button>
-                ))}
-              </div>
-            ) : null}
-
-            {selectedSheet ? (
-              <div className={styles.headerPicker}>
-                <label className={styles.label} htmlFor="header-row">
-                  Wiersz nagłówków
-                </label>
-                <select
-                  id="header-row"
-                  className={styles.select}
-                  value={confirmedHeaderRowIndexZeroBased}
-                  onChange={(event) => {
-                    const nextIndex = Number(event.target.value)
-                    if (!selectedSheet) return
-                    rebuildFromConfirmedHeader(selectedSheet, nextIndex)
-                  }}
-                >
-                  {selectedSheet.rows.slice(0, 20).map((row) => (
-                    <option
-                      key={row.sheetRowIndexZeroBased}
-                      value={row.sheetRowIndexZeroBased}
-                    >
-                      Wiersz {row.sheetRowIndexZeroBased + 1}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            ) : null}
-
-            <div className={styles.actions}>
-              <Button
-                type="button"
-                variant="primary"
-                disabled={!selectedSheet || parsing}
-                onClick={continueToMapping}
-              >
-                Dalej
-              </Button>
-            </div>
-          </section>
-        ) : null}
-
-        {step === 'mapping' ? (
-          <section className={styles.panel}>
-            <h2 className={styles.heading}>Dopasuj kolumny</h2>
-            {savedMappingApplied ? (
-              <p className={styles.hint}>
-                Rozpoznano wcześniej używany układ kolumn. Zastosowano zapisane
-                dopasowanie.
-              </p>
-            ) : null}
-            <div className={styles.mappingTableWrap}>
-              <table className={styles.mappingTable}>
-                <thead>
-                  <tr>
-                    <th>Kolumna z pliku</th>
-                    <th>Przykładowe wartości</th>
-                    <th>Pole w OurWed</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {mappings.map((mapping) => (
-                    <tr key={mapping.sourceColumnId}>
-                      <td>{mapping.sourceHeader}</td>
-                      <td className={styles.samples}>
-                        {(sampleValues.get(mapping.sourceColumnId) ?? []).join(
-                          ' · ',
-                        ) || '—'}
-                      </td>
-                      <td>
-                        <select
-                          className={styles.select}
-                          value={mapping.targetField}
-                          onChange={(event) =>
-                            updateMapping(
-                              mapping.sourceColumnId,
-                              event.target.value as ImportField,
-                            )
-                          }
-                        >
-                          {(['ignore', ...SINGLE_TARGET_FIELDS] as ImportField[]).map(
-                            (field) => (
-                              <option key={field} value={field}>
-                                {IMPORT_FIELD_LABELS[field]}
-                              </option>
-                            ),
-                          )}
-                        </select>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div className={styles.actions}>
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => setStep('upload')}
-              >
-                Wstecz
-              </Button>
-              <Button type="button" variant="primary" onClick={continueToReview}>
-                Dalej
-              </Button>
-            </div>
-          </section>
-        ) : null}
-
-        {step === 'review' ? (
-          <section className={styles.panel}>
-            <h2 className={styles.heading}>Sprawdź dane</h2>
-            <p className={styles.hint}>
-              Wybrano {selectedCount} z {reviewRows.length} rekordów.
+              ← Śluby
+            </button>
+            <h1 className={styles.pageTitle}>Importuj śluby</h1>
+            <p className={styles.pageLead}>
+              Przenieś zlecenia z arkusza do OurWed. Przed zapisaniem sprawdzisz wszystkie dane.
             </p>
+          </header>
+          <WeddingImportStepper current={step} />
 
-            <div className={styles.reviewTableWrap}>
-              <table className={styles.reviewTable}>
-                <thead>
-                  <tr>
-                    <th />
-                    <th>Status</th>
-                    <th>Wiersz</th>
-                    <th>Data</th>
-                    <th>Para / klient</th>
-                    <th>Wartość</th>
-                    <th>Kontakt</th>
-                    <th>Pakiet</th>
-                    <th>Uwagi</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {reviewRows.map((row) => (
-                    <tr key={row.id} data-status={row.status}>
-                      <td>
-                        <input
-                          type="checkbox"
-                          checked={row.selectedForImport}
-                          disabled={row.status === 'invalid'}
-                          onChange={(event) =>
-                            updateReviewRow(row.id, {
-                              selectedForImport: event.target.checked,
-                            })
-                          }
-                        />
-                      </td>
-                      <td>
-                        <span className={styles.badge} data-status={row.status}>
-                          {STATUS_LABELS[row.status]}
-                        </span>
-                      </td>
-                      <td>{row.sourceRowNumber}</td>
-                      <td>
-                        <input
-                          className={styles.cellInput}
-                          type="date"
-                          value={reviewDateInputValue(row.weddingDate)}
-                          onChange={(event) =>
-                            updateReviewRow(row.id, {
-                              weddingDate: event.target.value || null,
-                            })
-                          }
-                        />
-                      </td>
-                      <td>
-                        <input
-                          className={styles.cellInput}
-                          value={row.coupleDisplayName}
-                          onChange={(event) =>
-                            updateReviewRow(row.id, {
-                              coupleDisplayName: event.target.value,
-                              partner1Name: event.target.value,
-                            })
-                          }
-                        />
-                      </td>
-                      <td>
-                        <input
-                          className={styles.cellInput}
-                          inputMode="decimal"
-                          value={row.contractValue ?? ''}
-                          onChange={(event) =>
-                            updateReviewRow(row.id, {
-                              contractValue:
-                                event.target.value === ''
-                                  ? null
-                                  : Number(event.target.value),
-                            })
-                          }
-                        />
-                      </td>
-                      <td>
-                        <input
-                          className={styles.cellInput}
-                          value={row.phone ?? ''}
-                          onChange={(event) =>
-                            updateReviewRow(row.id, { phone: event.target.value })
-                          }
-                          placeholder="Telefon"
-                        />
-                        <input
-                          className={styles.cellInput}
-                          value={row.email ?? ''}
-                          onChange={(event) =>
-                            updateReviewRow(row.id, { email: event.target.value })
-                          }
-                          placeholder="E-mail"
-                        />
-                      </td>
-                      <td>{row.packageName ?? '—'}</td>
-                      <td>
-                        {row.issues.map((issue) => (
-                          <div key={issue.code} className={styles.issue}>
-                            {issue.message}
-                          </div>
-                        ))}
-                        {row.status === 'possible_duplicate' ? (
-                          <div className={styles.duplicateActions}>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="secondary"
-                              onClick={() =>
-                                updateReviewRow(row.id, {
-                                  duplicateDecision: 'skip',
-                                  selectedForImport: false,
-                                })
-                              }
-                            >
-                              Pomiń rekord
-                            </Button>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="primary"
-                              onClick={() =>
-                                updateReviewRow(row.id, {
-                                  duplicateDecision: 'import_anyway',
-                                  selectedForImport: true,
-                                })
-                              }
-                            >
-                              Importuj mimo to
-                            </Button>
-                          </div>
-                        ) : null}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+          {error ? <div className={styles.error}>{error}</div> : null}
 
-            <div className={styles.reviewCards}>
-              {reviewRows.map((row) => (
-                <article key={row.id} className={styles.reviewCard}>
-                  <div className={styles.reviewCardHeader}>
-                    <label>
-                      <input
-                        type="checkbox"
-                        checked={row.selectedForImport}
-                        disabled={row.status === 'invalid'}
-                        onChange={(event) =>
-                          updateReviewRow(row.id, {
-                            selectedForImport: event.target.checked,
-                          })
-                        }
-                      />{' '}
-                      Wiersz {row.sourceRowNumber}
-                    </label>
-                    <span className={styles.badge} data-status={row.status}>
-                      {STATUS_LABELS[row.status]}
-                    </span>
-                  </div>
-                  <div className={styles.reviewCardBody}>
-                    <div>{row.coupleDisplayName || '—'}</div>
-                    <div>{row.weddingDate ? formatDate(row.weddingDate) : '—'}</div>
-                    <div>
-                      {row.contractValue != null
-                        ? formatCurrency(row.contractValue)
-                        : '—'}
-                    </div>
-                  </div>
-                </article>
-              ))}
-            </div>
+          {step === 'upload' ? (
+            <ImportUploadStep
+              parsing={parsing}
+              workbook={workbook}
+              sourceFile={sourceFile}
+              selectedSheet={selectedSheet}
+              selectedSheetId={selectedSheetId}
+              confirmedHeaderRowIndexZeroBased={confirmedHeaderRowIndexZeroBased}
+              headerAutoDetected={headerAutoDetected}
+              fileInputRef={fileInputRef}
+              recordCount={rawRows.length}
+              onFileInputChange={(file) => void handleFile(file)}
+              onRequestChangeFile={() => {
+                if (confirmChangeFile) setChangeFileOpen(true)
+                else fileInputRef.current?.click()
+              }}
+              onSelectSheet={applySheet}
+              onHeaderRowChange={(index) => {
+                if (!selectedSheet) return
+                rebuildFromConfirmedHeader(selectedSheet, index)
+              }}
+              onContinue={continueToMapping}
+            />
+          ) : null}
 
-            <div className={styles.actions}>
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => setStep('mapping')}
-              >
-                Wstecz
-              </Button>
-              <Button
-                type="button"
-                variant="primary"
-                disabled={importing || selectedCount === 0}
-                onClick={() => void runImport()}
-              >
-                {importing ? 'Importowanie…' : `Importuj wybrane (${selectedCount})`}
-              </Button>
-            </div>
-          </section>
-        ) : null}
+          {step === 'mapping' ? (
+            <ImportMappingStep
+              mappings={mappings}
+              sampleValues={sampleValues}
+              savedMappingApplied={savedMappingApplied}
+              onChangeMapping={updateMapping}
+              onBack={() => setStep('upload')}
+              onContinue={continueToReview}
+            />
+          ) : null}
 
-        {step === 'done' && importResult ? (
-          <section className={styles.panel}>
-            <h2 className={styles.heading}>Import zakończony</h2>
-            <div className={styles.resultGrid}>
-              <div>Zaimportowano: {importResult.importedCount}</div>
-              <div>Pominięto: {importResult.skippedCount}</div>
-              <div>Nie udało się zaimportować: {importResult.failedCount}</div>
-            </div>
-            {importResult.failedCount > 0 ? (
-              <div className={styles.failedList}>
-                <h3 className={styles.subheading}>Błędy</h3>
-                {importResult.records
-                  .filter((record) => record.status === 'failed')
-                  .map((record) => (
-                    <div key={record.reviewRowId} className={styles.issue}>
-                      Wiersz {record.sourceRowNumber}: {record.message}
-                    </div>
-                  ))}
-              </div>
-            ) : null}
-            <p className={styles.hint}>
-              Zaimportowane śluby możesz sprawdzić na liście ślubów.
-            </p>
-            <div className={styles.actions}>
-              <Link to="/sluby">
-                <Button variant="primary">Przejdź do ślubów</Button>
-              </Link>
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => window.location.reload()}
-              >
-                Importuj kolejny plik
-              </Button>
-            </div>
-          </section>
-        ) : null}
+          {step === 'review' ? (
+            <ImportReviewStep
+              rows={reviewRows}
+              filter={reviewFilter}
+              editingRowId={editingRowId}
+              importing={importing}
+              onFilterChange={setReviewFilter}
+              onToggleRow={(rowId, selected) =>
+                updateReviewRow(rowId, { selectedForImport: selected })
+              }
+              onUpdateRow={updateReviewRow}
+              onEditRow={setEditingRowId}
+              onDuplicateDecision={(rowId, decision) =>
+                updateReviewRow(rowId, {
+                  duplicateDecision: decision,
+                  selectedForImport: decision === 'import_anyway',
+                })
+              }
+              onBack={() => setStep('mapping')}
+              onImport={() => void runImport()}
+            />
+          ) : null}
+
+          {step === 'done' && importResult ? (
+            <ImportResultStep
+              result={importResult}
+              rows={reviewRows}
+              retrying={importing}
+              onRetryFailures={() => void runImport()}
+              onImportAnother={resetImportWizard}
+            />
+          ) : null}
+        </div>
       </PageContainer>
+
+      <Modal
+        open={leaveOpen}
+        title="Przerwać import?"
+        description="Postęp importu nie zostanie zapisany."
+        onClose={stayInWizard}
+        cancelLabel="Zostań"
+        mobilePresentation="center"
+        primaryAction={
+          <Button type="button" variant="danger" onClick={leaveWizard}>
+            Przerwij import
+          </Button>
+        }
+      >
+        <p className={styles.dialogBody}>Możesz wrócić do listy ślubów i zacząć import od nowa później.</p>
+      </Modal>
+
+      <Modal
+        open={changeFileOpen}
+        title="Zmienić plik?"
+        description="Dopasowanie kolumn i poprawki w danych zostaną utracone."
+        onClose={() => setChangeFileOpen(false)}
+        cancelLabel="Zostań"
+        mobilePresentation="center"
+        primaryAction={
+          <Button
+            type="button"
+            variant="danger"
+            onClick={() => {
+              setChangeFileOpen(false)
+              fileInputRef.current?.click()
+            }}
+          >
+            Zmień plik
+          </Button>
+        }
+      >
+        <p className={styles.dialogBody}>Wybierz nowy arkusz tylko wtedy, gdy chcesz zacząć dopasowanie od nowa.</p>
+      </Modal>
     </AppLayout>
   )
 }

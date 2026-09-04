@@ -1,92 +1,43 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
-import { AppLayout } from '@/layouts/AppLayout'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { SettingsLayout } from '@/features/settings/SettingsLayout'
+import {
+  SettingsAlert,
+  SettingsCallout,
+  SettingsHelper,
+  SettingsMuted,
+  SettingsSaveStatus,
+  SettingsSection,
+  SettingsSectionHeader,
+  SettingsWorkspace,
+} from '@/features/settings/SettingsWorkspace'
 import { Button } from '@/components/ui/Button'
-import { EmptyState } from '@/components/ui/EmptyState'
 import { Input } from '@/components/ui/Input'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
 import { useProAccessGate } from '@/features/billing/ProAccessGate'
-import { CompanySignatureSection } from '@/features/company/signature/CompanySignatureSection'
-import { buildCompanyHealth } from '@/features/company/companyHealth'
-import { companyDetailsService, companyDetailsQueryKey } from '@/lib/api/companyDetailsService'
-import type { CompanyDetails, UpsertCompanyDetailsInput } from '@/types/company'
-import catalogStyles from '@/features/studio/StudioCatalog.module.css'
+import {
+  companyDetailsQueryKey,
+  companyDetailsService,
+} from '@/lib/api/companyDetailsService'
 import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
+import type { CompanyDetails, UpsertCompanyDetailsInput } from '@/types/company'
 
 interface FormState {
   companyName: string
-  ownerName: string
-  nip: string
-  regon: string
-  vatId: string
-  address: string
-  postalCode: string
-  city: string
-  country: string
-  phone: string
-  email: string
-  website: string
-  instagram: string
-  facebook: string
-  bankAccount: string
-  iban: string
-  swift: string
-  logoPath: string
-  signaturePath: string
-  stampPath: string
 }
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 
 const emptyForm: FormState = {
   companyName: '',
-  ownerName: '',
-  nip: '',
-  regon: '',
-  vatId: '',
-  address: '',
-  postalCode: '',
-  city: '',
-  country: 'Polska',
-  phone: '',
-  email: '',
-  website: '',
-  instagram: '',
-  facebook: '',
-  bankAccount: '',
-  iban: '',
-  swift: '',
-  logoPath: '',
-  signaturePath: '',
-  stampPath: '',
 }
 
 const AUTOSAVE_MS = 1000
 
 function toForm(data: CompanyDetails | null | undefined): FormState {
-  if (!data) return emptyForm
   return {
-    companyName: data.companyName ?? '',
-    ownerName: data.ownerName ?? '',
-    nip: data.nip ?? '',
-    regon: data.regon ?? '',
-    vatId: data.vatId ?? '',
-    address: data.address ?? '',
-    postalCode: data.postalCode ?? '',
-    city: data.city ?? '',
-    country: data.country || 'Polska',
-    phone: data.phone ?? '',
-    email: data.email ?? '',
-    website: data.website ?? '',
-    instagram: data.instagram ?? '',
-    facebook: data.facebook ?? '',
-    bankAccount: data.bankAccount ?? '',
-    iban: data.iban ?? '',
-    swift: data.swift ?? '',
-    logoPath: data.logoPath ?? '',
-    signaturePath: data.signaturePath ?? '',
-    stampPath: data.stampPath ?? '',
+    companyName: data?.companyName ?? '',
   }
 }
 
@@ -94,29 +45,21 @@ function serializeForm(form: FormState): string {
   return JSON.stringify(form)
 }
 
+/**
+ * V1 Studio Profile writes only the visible identity field.
+ * Hidden studio_details columns stay omitted so autosave cannot null them.
+ */
 function formToUpsertInput(form: FormState): UpsertCompanyDetailsInput {
   return {
     companyName: form.companyName,
-    ownerName: form.ownerName,
-    nip: form.nip,
-    regon: form.regon,
-    vatId: form.vatId,
-    address: form.address,
-    postalCode: form.postalCode,
-    city: form.city,
-    country: form.country,
-    phone: form.phone,
-    email: form.email,
-    website: form.website,
-    instagram: form.instagram,
-    facebook: form.facebook,
-    bankAccount: form.bankAccount,
-    iban: form.iban,
-    swift: form.swift,
-    logoPath: form.logoPath || null,
-    signaturePath: form.signaturePath || null,
-    stampPath: form.stampPath || null,
   }
+}
+
+function persistStatusLabel(status: SaveStatus): string {
+  if (status === 'saving') return 'Zapisywanie…'
+  if (status === 'saved') return 'Zapisano'
+  if (status === 'error') return 'Nie udało się zapisać'
+  return ''
 }
 
 export function CompanyDetailsPage() {
@@ -158,7 +101,6 @@ export function CompanyDetailsPage() {
   }, [])
 
   useEffect(() => {
-    // Studio account switched — clear local form baseline.
     const timer = window.setTimeout(() => {
       dirtyRef.current = false
       savingRef.current = false
@@ -172,7 +114,6 @@ export function CompanyDetailsPage() {
     return () => window.clearTimeout(timer)
   }, [userId])
 
-  // Hydrate from query only when idle — never during dirty/saving edits.
   useEffect(() => {
     if (isLoading) return
     if (dirtyRef.current || savingRef.current) return
@@ -219,7 +160,6 @@ export function CompanyDetailsPage() {
 
       if (gen !== saveGenRef.current) return
 
-      // Canonical cache must match DB so SPA remounts do not restore stale values.
       if (userId) {
         queryClient.setQueryData(companyDetailsQueryKey(userId), saved)
       }
@@ -254,9 +194,7 @@ export function CompanyDetailsPage() {
       if (gen !== saveGenRef.current) return
       if (mountedRef.current) {
         setSaveStatus('error')
-        setSaveError(
-          getUserFacingErrorMessage(err, 'Nie udało się zapisać'),
-        )
+        setSaveError(getUserFacingErrorMessage(err, 'Nie udało się zapisać'))
       }
     } finally {
       if (gen === saveGenRef.current) {
@@ -306,333 +244,64 @@ export function CompanyDetailsPage() {
     setForm((prev) => ({ ...prev, [key]: value }))
   }
 
-  async function onUpload(
-    kind: 'logo' | 'signature' | 'stamp',
-    fileList: FileList | null,
-  ) {
-    if (!requirePro()) return
-    const file = fileList?.[0]
-    if (!file) return
-    try {
-      const path = await companyDetailsService.uploadAsset(kind, file)
-      dirtyRef.current = true
-      setDirty(true)
-      setSaveStatus('idle')
-      setForm((prev) => {
-        if (kind === 'logo') return { ...prev, logoPath: path }
-        if (kind === 'signature') return { ...prev, signaturePath: path }
-        return { ...prev, stampPath: path }
-      })
-    } catch (err) {
-      setSaveStatus('error')
-      setSaveError(
-        getUserFacingErrorMessage(err, 'Nie udało się przesłać pliku.'),
-      )
-    }
-  }
-
-  const health = buildCompanyHealth(form)
-  const missingCopy: Record<string, string> = {
-    company: 'Brak nazwy firmy',
-    address: 'Brak adresu',
-    bank: 'Brak numeru konta',
-    logo: 'Brak logo',
-    signature: 'Brak podpisu',
-  }
-  const saveLabel =
-    saveStatus === 'saving'
-      ? 'Zapisywanie…'
-      : saveStatus === 'saved'
-        ? 'Zapisano'
-        : saveStatus === 'error'
-          ? 'Nie udało się zapisać'
-          : dirty
-            ? 'Niezapisane zmiany'
-            : null
+  const headerAction =
+    saveStatus === 'error' ? (
+      <Button
+        type="button"
+        variant="secondary"
+        size="md"
+        onClick={() => void persistRef.current('retry')}
+      >
+        Spróbuj ponownie
+      </Button>
+    ) : saveStatus !== 'idle' ? (
+      <SettingsSaveStatus status={saveStatus}>
+        {persistStatusLabel(saveStatus)}
+      </SettingsSaveStatus>
+    ) : null
 
   return (
-    <AppLayout
-      title="Dane firmy"
-      subtitle="Źródło danych do umów, dokumentów i CRM"
-      action={
-        saveLabel ? (
-          <span
-            className={catalogStyles.saveStatus}
-            data-status={saveStatus}
-            aria-live="polite"
-          >
-            {saveLabel}
-          </span>
-        ) : null
-      }
+    <SettingsLayout
+      title="Profil studia"
+      subtitle="Podstawowe informacje o Twoim studio używane w OurWed i na wybranych ekranach dla klientów."
+      action={headerAction}
     >
-      <PageContainer width="narrow">
-        {isError ? (
-          <EmptyState
-            title="Nie udało się załadować danych"
-            description={
-              getUserFacingErrorMessage(error, 'Spróbuj ponownie.')
-            }
-          />
-        ) : isLoading ? (
-          <p className={catalogStyles.muted}>Ładowanie…</p>
+      <PageContainer width="full">
+        {isLoading ? (
+          <SettingsMuted>Ładowanie…</SettingsMuted>
+        ) : isError ? (
+          <SettingsAlert>
+            {getUserFacingErrorMessage(error, 'Nie udało się wczytać profilu studia.')}
+          </SettingsAlert>
         ) : (
-          <div className={catalogStyles.companyStack}>
-            <p className={catalogStyles.docHint}>
-              Dane z tej sekcji są automatycznie wykorzystywane podczas
-              generowania umów, dokumentów, formularzy i innych elementów
-              systemu.
-            </p>
+          <SettingsWorkspace testId="studio-profile">
+            <SettingsCallout>
+              Te informacje identyfikują Twoje studio w OurWed i na wybranych
+              ekranach dla klientów.
+            </SettingsCallout>
 
-            <section
-              className={catalogStyles.healthCard}
-              aria-label="Konfiguracja firmy"
-            >
-              <h2 className={catalogStyles.healthTitle}>Konfiguracja firmy</h2>
-              <ul className={catalogStyles.healthList}>
-                {health.map((item) => (
-                  <li
-                    key={item.id}
-                    className={catalogStyles.healthItem}
-                    data-status={item.status}
-                  >
-                    <span className={catalogStyles.healthMark} aria-hidden>
-                      {item.status === 'ok' ? '✓' : '⚠'}
-                    </span>
-                    <span>
-                      {item.status === 'ok'
-                        ? item.label
-                        : (missingCopy[item.id] ?? `Brak: ${item.label}`)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </section>
+            {saveError ? <SettingsAlert>{saveError}</SettingsAlert> : null}
 
-            {saveError ? (
-              <div className={catalogStyles.saveError} role="alert">
-                <p>{saveError}</p>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  data-testid="company-details-retry"
-                  onClick={() => void persistRef.current('retry')}
-                >
-                  Spróbuj ponownie
-                </Button>
-              </div>
-            ) : null}
-
-            <section className={catalogStyles.sectionCard}>
-              <h2 className={catalogStyles.sectionTitle}>Informacje o firmie</h2>
-              <p className={catalogStyles.sectionSubtitle}>
-                Podstawowe dane identyfikacyjne i adres używane w dokumentach.
-              </p>
-              <div className={catalogStyles.sectionBody}>
-                <div className={catalogStyles.row}>
-                  <Input
-                    label="Nazwa firmy"
-                    value={form.companyName}
-                    readOnly={isReadOnly}
-                    onChange={(e) => setField('companyName', e.target.value)}
-                  />
-                  <Input
-                    label="Właściciel / reprezentant"
-                    value={form.ownerName}
-                    readOnly={isReadOnly}
-                    onChange={(e) => setField('ownerName', e.target.value)}
-                  />
-                </div>
-                <div className={catalogStyles.row}>
-                  <Input
-                    label="NIP"
-                    value={form.nip}
-                    readOnly={isReadOnly}
-                    onChange={(e) => setField('nip', e.target.value)}
-                  />
-                  <Input
-                    label="REGON"
-                    value={form.regon}
-                    readOnly={isReadOnly}
-                    onChange={(e) => setField('regon', e.target.value)}
-                  />
-                  <Input
-                    label="VAT ID"
-                    value={form.vatId}
-                    readOnly={isReadOnly}
-                    onChange={(e) => setField('vatId', e.target.value)}
-                  />
-                </div>
-                <Input
-                  label="Adres"
-                  value={form.address}
-                  readOnly={isReadOnly}
-                  onChange={(e) => setField('address', e.target.value)}
-                />
-                <div className={catalogStyles.row}>
-                  <Input
-                    label="Kod pocztowy"
-                    value={form.postalCode}
-                    readOnly={isReadOnly}
-                    onChange={(e) => setField('postalCode', e.target.value)}
-                  />
-                  <Input
-                    label="Miasto"
-                    value={form.city}
-                    readOnly={isReadOnly}
-                    onChange={(e) => setField('city', e.target.value)}
-                  />
-                  <Input
-                    label="Kraj"
-                    value={form.country}
-                    readOnly={isReadOnly}
-                    onChange={(e) => setField('country', e.target.value)}
-                  />
-                </div>
-              </div>
-            </section>
-
-            <section className={catalogStyles.sectionCard}>
-              <h2 className={catalogStyles.sectionTitle}>Rozliczenia</h2>
-              <p className={catalogStyles.sectionSubtitle}>
-                Dane bankowe do faktur, umów i płatności od klientów.
-              </p>
-              <div className={catalogStyles.sectionBody}>
-                <div className={catalogStyles.row}>
-                  <Input
-                    label="Numer konta"
-                    value={form.bankAccount}
-                    readOnly={isReadOnly}
-                    onChange={(e) => setField('bankAccount', e.target.value)}
-                  />
-                  <Input
-                    label="IBAN"
-                    value={form.iban}
-                    readOnly={isReadOnly}
-                    onChange={(e) => setField('iban', e.target.value)}
-                  />
-                  <Input
-                    label="SWIFT"
-                    value={form.swift}
-                    readOnly={isReadOnly}
-                    onChange={(e) => setField('swift', e.target.value)}
-                  />
-                </div>
-              </div>
-            </section>
-
-            <section className={catalogStyles.sectionCard}>
-              <h2 className={catalogStyles.sectionTitle}>Kontakt</h2>
-              <p className={catalogStyles.sectionSubtitle}>
-                Dane kontaktowe widoczne w komunikacji i dokumentach.
-              </p>
-              <div className={catalogStyles.sectionBody}>
-                <div className={catalogStyles.row}>
-                  <Input
-                    label="Telefon"
-                    value={form.phone}
-                    readOnly={isReadOnly}
-                    onChange={(e) => setField('phone', e.target.value)}
-                  />
-                  <Input
-                    label="E-mail"
-                    type="email"
-                    value={form.email}
-                    readOnly={isReadOnly}
-                    onChange={(e) => setField('email', e.target.value)}
-                  />
-                  <Input
-                    label="Strona WWW"
-                    value={form.website}
-                    readOnly={isReadOnly}
-                    onChange={(e) => setField('website', e.target.value)}
-                  />
-                </div>
-                <div className={catalogStyles.row}>
-                  <Input
-                    label="Instagram"
-                    value={form.instagram}
-                    readOnly={isReadOnly}
-                    onChange={(e) => setField('instagram', e.target.value)}
-                  />
-                  <Input
-                    label="Facebook"
-                    value={form.facebook}
-                    readOnly={isReadOnly}
-                    onChange={(e) => setField('facebook', e.target.value)}
-                  />
-                </div>
-              </div>
-            </section>
-
-            <section className={catalogStyles.sectionCard}>
-              <h2 className={catalogStyles.sectionTitle}>Materiały firmowe</h2>
-              <p className={catalogStyles.sectionSubtitle}>
-                Logo, podpis i pieczęć wykorzystywane przy generowaniu
-                dokumentów.
-              </p>
-              <div className={catalogStyles.sectionBody}>
-                <div className={catalogStyles.row}>
-                  <label className={catalogStyles.field}>
-                    Logo
-                    <input
-                      type="file"
-                      accept="image/png,image/jpeg,image/webp,image/svg+xml"
-                      disabled={isReadOnly}
-                      onChange={(e) => void onUpload('logo', e.target.files)}
-                    />
-                    {form.logoPath ? (
-                      <span className={catalogStyles.muted}>{form.logoPath}</span>
-                    ) : null}
-                  </label>
-                  <label className={catalogStyles.field}>
-                    Pieczęć
-                    <input
-                      type="file"
-                      accept="image/png,image/jpeg,image/webp,image/svg+xml"
-                      disabled={isReadOnly}
-                      onChange={(e) => void onUpload('stamp', e.target.files)}
-                    />
-                    {form.stampPath ? (
-                      <span className={catalogStyles.muted}>
-                        {form.stampPath}
-                      </span>
-                    ) : null}
-                  </label>
-                </div>
-                <CompanySignatureSection
-                  signaturePath={form.signaturePath || null}
-                  signatureUpdatedAt={data?.signatureUpdatedAt}
-                  onSignaturePathChange={(path) => {
-                    // Independent save already persisted — sync form without dirty autosave race.
-                    const nextPath = path ?? ''
-                    setForm((prev) => {
-                      const updated = { ...prev, signaturePath: nextPath }
-                      lastSavedRef.current = serializeForm(updated)
-                      return updated
-                    })
-                    dirtyRef.current = false
-                    setDirty(false)
-                    setSaveStatus('saved')
-                    if (userId) {
-                      const current = queryClient.getQueryData<CompanyDetails | null>(
-                        companyDetailsQueryKey(userId),
-                      )
-                      if (current) {
-                        queryClient.setQueryData(companyDetailsQueryKey(userId), {
-                          ...current,
-                          signaturePath: path,
-                        })
-                      }
-                    }
-                  }}
-                />
-              </div>
-            </section>
-          </div>
+            <SettingsSection labelledBy="studio-profile-name">
+              <SettingsSectionHeader
+                id="studio-profile-name"
+                title="Nazwa studia"
+                description="Widoczna dla par na publicznych ankietach przedślubnych."
+              />
+              <Input
+                label="Nazwa studia"
+                value={form.companyName}
+                onChange={(event) => setField('companyName', event.target.value)}
+                autoComplete="organization"
+                disabled={isReadOnly}
+              />
+              <SettingsHelper>
+                Używana jako nazwa studia na wybranych ekranach dla klientów.
+              </SettingsHelper>
+            </SettingsSection>
+          </SettingsWorkspace>
         )}
       </PageContainer>
-    </AppLayout>
+    </SettingsLayout>
   )
 }
