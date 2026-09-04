@@ -105,7 +105,7 @@
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-md);
   background: var(--color-accent);
-  color: #fff;
+  color: var(--brand-primary-text);
   font-size: var(--text-sm);
   font-weight: 550;
   text-decoration: none;
@@ -137,7 +137,7 @@
   padding: 0 var(--space-4);
   border-radius: var(--radius-md);
   background: var(--color-accent);
-  color: #fff;
+  color: var(--brand-primary-text);
   font-size: var(--text-sm);
   font-weight: 550;
   text-decoration: none;
@@ -398,7 +398,7 @@ a.contactChannelValue:hover {
   border-radius: var(--radius-md);
   background: var(--color-surface);
   border: 1px solid var(--color-border-strong);
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--shadow-md);
 }
 
 .moreItem {
@@ -431,14 +431,14 @@ a.contactChannelValue:hover {
 
 .overviewBand {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 0;
   padding: var(--space-4) 0;
   border-bottom: 1px solid var(--color-border);
 }
 
 .bandItem {
-  padding: 0 var(--space-4);
+  padding: 0 var(--space-3);
   border-right: 1px solid var(--color-border);
   min-width: 0;
 }
@@ -478,9 +478,40 @@ a.contactChannelValue:hover {
 }
 
 .bandHint {
+  display: block;
   font-weight: 500;
   font-size: var(--text-2xs);
   color: var(--color-text-tertiary);
+  margin-top: 2px;
+}
+
+.bandHint[data-state='overdue'] {
+  color: var(--color-warning-text);
+}
+
+.bandAction {
+  appearance: none;
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  border-radius: var(--radius-sm, 6px);
+}
+
+.bandAction:hover .bandValue {
+  color: var(--color-text-primary);
+}
+
+.bandAction:focus-visible {
+  outline: 2px solid var(--color-border-focus, var(--color-text-tertiary));
+  outline-offset: 3px;
 }
 
 .readyDot {
@@ -711,7 +742,7 @@ a.contactChannelValue:hover {
 }
 
 .progressItem[data-tone='complete'] .progressMark {
-  color: var(--color-success-text, #1a7f4b);
+  color: var(--status-success-text);
 }
 
 .progressItem[data-tone='current'] .progressMark {
@@ -719,7 +750,7 @@ a.contactChannelValue:hover {
 }
 
 .progressItem[data-tone='attention'] .progressMark {
-  color: var(--color-warning-text, #9a6700);
+  color: var(--status-warning-text);
 }
 
 .progressItem[data-tone='not_started'] .progressMark,
@@ -924,11 +955,11 @@ a.contactChannelValue:hover {
 }
 
 .assignmentStatusItem[data-tone='ok'] .assignmentStatusMark {
-  color: var(--color-success-text, #1a7f4b);
+  color: var(--status-success-text);
 }
 
 .assignmentStatusItem[data-tone='warn'] .assignmentStatusMark {
-  color: var(--color-warning-text, #a15c00);
+  color: var(--status-warning-text);
 }
 
 .sectionHeading {
@@ -1302,7 +1333,7 @@ a.contactChannelValue:hover {
   margin-top: var(--space-2);
   padding: var(--space-2) var(--space-3);
   border-left: 2px solid var(--color-border-strong);
-  background: color-mix(in srgb, var(--color-bg-subtle, #f5f4f1) 88%, transparent);
+  background: color-mix(in srgb, var(--color-bg-subtle) 88%, transparent);
   border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
 }
 
@@ -1347,7 +1378,7 @@ a.contactChannelValue:hover {
   padding: var(--space-3) var(--space-3);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--color-warning-bg, #f8f1e4) 70%, transparent);
+  background: color-mix(in srgb, var(--status-warning-soft) 70%, transparent);
 }
 
 .travelBaseNoticeText {
@@ -1409,7 +1440,7 @@ a.contactChannelValue:hover {
 .persistWarn {
   margin: 0 0 var(--space-3);
   font-size: var(--text-sm);
-  color: color-mix(in srgb, var(--color-text-secondary) 55%, #b7791f);
+  color: color-mix(in srgb, var(--color-text-secondary) 55%, var(--status-warning-text));
 }
 
 /* ── Contract / finance ───────────────────────────── */
@@ -1638,15 +1669,15 @@ a.contactChannelValue:hover {
 .management {
   margin-top: var(--space-8);
   padding-top: var(--space-6);
-  border-top: 1px solid var(--border-subtle, rgba(0, 0, 0, 0.06));
+  border-top: 1px solid var(--border-subtle);
 }
 
 .briefCard {
   margin-bottom: var(--space-5);
   padding: var(--space-4);
-  border: 1px solid var(--border-default, rgba(0, 0, 0, 0.06));
+  border: 1px solid var(--border-default);
   border-radius: var(--radius-md, 8px);
-  background: var(--surface-secondary, #fafafa);
+  background: var(--surface-secondary);
 }
 
 .briefCardTitle {
@@ -1668,7 +1699,7 @@ a.contactChannelValue:hover {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  color: var(--status-error-text, #991b1b);
+  color: var(--status-error-text);
   font-size: var(--text-sm);
 }
 
@@ -1782,6 +1813,12 @@ a.contactChannelValue:hover {
     padding-top: var(--space-3);
   }
 
+  .bandItem:nth-child(5) {
+    grid-column: 1 / -1;
+    border-right: 0;
+    padding-right: 0;
+  }
+
   .milestoneRail {
     flex-direction: column;
     gap: var(--space-3);
@@ -1859,6 +1896,11 @@ a.contactChannelValue:hover {
 
   .bandItem:nth-child(n + 3) {
     border-top: 1px solid var(--color-border);
+  }
+
+  .bandItem:nth-child(5) {
+    grid-column: 1 / -1;
+    border-right: 0;
   }
 
   .bandItem:first-child {

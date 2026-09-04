@@ -1,4 +1,5 @@
 import { Input, Select } from '@/components/ui/Input'
+import { reconcileDeliveryDeadline } from '@/lib/utils/weddingDeliveryDeadline'
 import type { Wedding, WeddingStatus } from '@/types/wedding'
 import styles from '../WeddingEditorFields.module.css'
 
@@ -23,7 +24,15 @@ export function WeddingDateFields({
           label="Data ślubu"
           type="date"
           value={wedding.date}
-          onChange={(e) => onChange({ date: e.target.value })}
+          onChange={(e) =>
+            onChange({
+              date: e.target.value,
+              ...reconcileDeliveryDeadline({
+                previous: wedding,
+                next: { ...wedding, date: e.target.value },
+              }),
+            })
+          }
         />
         <Input
           label="Godzina ceremonii"

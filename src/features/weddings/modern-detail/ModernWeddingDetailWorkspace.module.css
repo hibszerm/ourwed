@@ -1,0 +1,28 @@
+.workspace {
+  --modern-motion-fast: 150ms;
+  --modern-motion-base: 240ms;
+  --modern-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-width: 0;
+}
+
+.body {
+  min-width: 0;
+  padding-top: 18px;
+}
+
+.bridgeBody {
+  min-width: 0;
+}
+
+.bridge {
+  min-width: 0;
+}
+
+@media (max-width: 720px) {
+  .body {
+    padding-top: 18px;
+  }
+}

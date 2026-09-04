@@ -1,0 +1,71 @@
+.chip {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  width: 100%;
+  text-align: left;
+  padding: 5px 8px 5px 9px;
+  border: 0;
+  border-radius: 8px;
+  border-left: 2px solid
+    color-mix(in srgb, var(--color-text-primary) 28%, transparent);
+  background: color-mix(in srgb, var(--color-text-primary) 5.5%, transparent);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  font-family: inherit;
+  overflow: hidden;
+  transition: background var(--modern-motion-fast, 150ms)
+    var(--modern-ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
+}
+
+.chip:hover {
+  background: color-mix(in srgb, var(--color-text-primary) 9%, transparent);
+}
+
+.chip:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+.compact {
+  padding: 4px 6px 4px 8px;
+}
+
+.name {
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.meta {
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.25;
+  color: var(--color-text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+@media (max-width: 767px) {
+  .chip {
+    padding: 4px 4px 4px 6px;
+  }
+
+  .compact {
+    padding: 3px 3px 3px 5px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chip {
+    transition: none;
+  }
+}

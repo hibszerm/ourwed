@@ -4,6 +4,7 @@ import { PageContainer } from '@/components/ui/PageContainer'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { useDashboardAssignments } from '@/features/dashboard/hooks/useDashboardAssignments'
 import { DashboardHero } from '@/features/dashboard/components/DashboardHero'
+import { NearestDeliveryDeadlineCard } from '@/features/dashboard/components/NearestDeliveryDeadlineCard'
 import { NextAssignmentCard } from '@/features/dashboard/components/NextWeddingCard'
 import { NextAssignmentsSection } from '@/features/dashboard/components/NextAssignmentsSection'
 import { TodoTodayCard } from '@/features/dashboard/components/TodoTodayCard'
@@ -93,6 +94,7 @@ export function DashboardPage() {
             <div className={styles.primary}>
               <PendingWeddingsCard />
               <TodoTodayCard weddings={weddings} />
+              <NearestDeliveryDeadlineCard />
             </div>
             <div className={styles.secondary}>
               <NotificationsCard />

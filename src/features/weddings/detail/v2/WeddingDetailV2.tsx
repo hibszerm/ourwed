@@ -10,6 +10,7 @@ import { WeddingPreWeddingQuestionnaireWorkspace } from '@/features/weddings/det
 import { WeddingContractFinanceWorkspace } from '@/features/weddings/detail/v2/WeddingContractFinanceWorkspace'
 import { WeddingDayWorkspace } from '@/features/weddings/detail/v2/WeddingDayWorkspace'
 import { WeddingOverviewBand } from '@/features/weddings/detail/v2/WeddingOverviewBand'
+import { DeliveryDeadlineModal } from '@/features/weddings/detail/v2/DeliveryDeadlineModal'
 import { WeddingOverviewWorkspace } from '@/features/weddings/detail/v2/WeddingOverviewWorkspace'
 import { WeddingWorkspaceEditSurface } from '@/features/weddings/detail/v2/WeddingWorkspaceEditSurface'
 import { WeddingWorkspaceHeader } from '@/features/weddings/detail/v2/WeddingWorkspaceHeader'
@@ -72,6 +73,7 @@ export function WeddingDetailV2(props: WeddingDetailSharedProps) {
   )
   const [packageFocus, setPackageFocus] = useState(false)
   const [travelFeeOpen, setTravelFeeOpen] = useState(false)
+  const [deliveryDeadlineOpen, setDeliveryDeadlineOpen] = useState(false)
 
   const setTab = useCallback((next: WeddingWorkspaceTab) => {
     setTabState(next)
@@ -151,7 +153,10 @@ export function WeddingDetailV2(props: WeddingDetailSharedProps) {
         onDelete={onDelete}
       />
 
-      <WeddingOverviewBand {...band} />
+      <WeddingOverviewBand
+        {...band}
+        onOpenDelivery={() => setDeliveryDeadlineOpen(true)}
+      />
 
       <WeddingWorkspaceTabs value={tab} onChange={setTab} />
 
@@ -280,6 +285,16 @@ export function WeddingDetailV2(props: WeddingDetailSharedProps) {
         onClose={() => setTravelFeeOpen(false)}
         onSaved={(next) => {
           setTravelFeeOpen(false)
+          void handleWeddingUpdated(next)
+        }}
+      />
+
+      <DeliveryDeadlineModal
+        open={deliveryDeadlineOpen}
+        wedding={wedding}
+        onClose={() => setDeliveryDeadlineOpen(false)}
+        onSaved={(next) => {
+          setDeliveryDeadlineOpen(false)
           void handleWeddingUpdated(next)
         }}
       />

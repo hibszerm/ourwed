@@ -7,6 +7,7 @@ import {
 } from '@/lib/utils/commercial'
 import { formatFinalPaymentTerms } from '@/lib/utils/finalPaymentTerms'
 import { formatCurrency } from '@/lib/utils/currency'
+import { getDeliveryDeadlineBand } from '@/lib/utils/weddingDeliveryDeadline'
 import { formatPolishPostalAddress } from '@/lib/utils/formatPolishPostalAddress'
 import { hasPaidDepositPayment } from '@/lib/finance/hasPaidDepositPayment'
 import { locationVerificationStatus } from '@/features/travel/locationVerification'
@@ -428,6 +429,7 @@ export function getPackageSummary(wedding: Wedding) {
 
 export function getOverviewBand(wedding: Wedding) {
   const c = getWeddingCommercialSummary(wedding)
+  const delivery = getDeliveryDeadlineBand(wedding)
   return {
     contractValueLabel: formatCurrency(c.contractValue),
     totalPaidLabel: formatCurrency(c.totalPaid),
@@ -435,6 +437,9 @@ export function getOverviewBand(wedding: Wedding) {
     finalDueLabel: c.finalPaymentDueDate
       ? formatDate(c.finalPaymentDueDate)
       : '—',
+    deliveryDueLabel: delivery.dueLabel,
+    deliveryContextLabel: delivery.contextLabel,
+    deliveryState: delivery.state,
   }
 }
 

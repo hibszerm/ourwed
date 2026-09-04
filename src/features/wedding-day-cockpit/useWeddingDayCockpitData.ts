@@ -191,6 +191,8 @@ export function useWeddingDayCockpitData(weddingId: string) {
   return {
     userId,
     data,
+    wedding: weddingQuery.data ?? null,
+    places: placesQuery.data ?? [],
     isLoading: enabled && corePending && !data,
     isFetching:
       weddingQuery.isFetching ||

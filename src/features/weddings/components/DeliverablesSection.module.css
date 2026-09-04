@@ -27,7 +27,7 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  color: white;
+  color: var(--brand-primary-text);
 }
 
 .checked {

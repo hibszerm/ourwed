@@ -14,7 +14,7 @@
   gap: 0.4rem;
   font-size: var(--text-sm);
   font-weight: 500;
-  color: color-mix(in srgb, var(--color-text-secondary) 75%, #2f6f4e);
+  color: color-mix(in srgb, var(--color-text-secondary) 75%, var(--status-success-text));
 }
 
 .verifyWarn,
@@ -25,7 +25,7 @@
   gap: 0.4rem;
   font-size: var(--text-sm);
   font-weight: 500;
-  color: color-mix(in srgb, var(--color-text-secondary) 55%, #b7791f);
+  color: color-mix(in srgb, var(--color-text-secondary) 55%, var(--status-warning-text));
   text-align: left;
 }
 
@@ -45,7 +45,7 @@
 .persistWarn {
   margin: 0;
   font-size: var(--text-sm);
-  color: color-mix(in srgb, var(--color-text-secondary) 55%, #b7791f);
+  color: color-mix(in srgb, var(--color-text-secondary) 55%, var(--status-warning-text));
 }
 
 .muted {
@@ -102,7 +102,7 @@
 
 .stopNavLink:hover,
 .stopNavLink:focus-visible {
-  background: color-mix(in srgb, var(--color-accent, #3d4f5c) 6%, transparent);
+  background: color-mix(in srgb, var(--color-accent) 6%, transparent);
   outline: none;
 }
 
@@ -134,8 +134,8 @@
   padding: 0 0.35rem;
   margin-top: 1px;
   border-radius: 999px;
-  background: #2f3b46;
-  color: #fff;
+  background: var(--brand-primary);
+  color: var(--brand-primary-text);
   font-size: var(--text-2xs);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -200,8 +200,8 @@
 }
 
 .legMetaError {
-  border-color: color-mix(in srgb, var(--color-danger, #b42318) 30%, var(--color-border));
-  color: var(--color-danger, #b42318);
+  border-color: color-mix(in srgb, var(--status-error) 30%, var(--color-border));
+  color: var(--status-error);
   font-weight: 500;
 }
 

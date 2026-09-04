@@ -120,6 +120,10 @@ const modalDesktop = modalCss.slice(
   )
   assertIncludes(packageFields, 'Uzupełnij z katalogu', '18: catalog autofill kept')
   assertIncludes(packageFields, 'fillWeddingTermsFromCatalogPackage', '18: catalog path')
+  assertIncludes(packageFields, 'Termin oddania', 'delivery term label')
+  assertIncludes(packageFields, 'dni kalendarzowych', 'calendar days unit')
+  assertNotIncludes(packageFields, 'Oddanie (miesiące)', 'old months input removed')
+  assertNotIncludes(packageFields, 'dni roboczych', 'no business days')
 
   const weddingDay: FinalPaymentTerms = { mode: 'wedding_day' }
   const due = resolveFinalPaymentDueDate({

@@ -28,7 +28,7 @@
 }
 
 .paid {
-  color: var(--color-success, #1a7f4b);
+  color: var(--status-success);
 }
 
 .remaining {

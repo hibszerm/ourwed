@@ -32,7 +32,7 @@
 
 .todayHead .dayNum {
   background: var(--color-accent);
-  color: white;
+  color: var(--brand-primary-text);
 }
 
 .weekday {

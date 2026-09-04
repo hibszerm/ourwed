@@ -125,7 +125,7 @@ button.cta {
   padding: 0 18px;
   border-radius: var(--radius-md);
   background: var(--color-accent);
-  color: #fff;
+  color: var(--text-inverse);
   font-size: var(--text-sm);
   font-weight: 600;
 }

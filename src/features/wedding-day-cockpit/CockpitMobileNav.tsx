@@ -1,17 +1,22 @@
 /**
  * Sticky mobile section anchors for long Cockpit pages.
+ * Labels stay honest: hero is first-incomplete, not clock-now.
  */
 
 import styles from './WeddingDayCockpit.module.css'
 
-const ANCHORS = [
-  { id: 'cockpit-teraz', label: 'Teraz' },
-  { id: 'cockpit-plan', label: 'Plan' },
-  { id: 'cockpit-wazne', label: 'Ważne' },
-  { id: 'cockpit-kontakt', label: 'Kontakt' },
-] as const
+type Props = {
+  hasCritical: boolean
+}
 
-export function CockpitMobileNav() {
+export function CockpitMobileNav({ hasCritical }: Props) {
+  const anchors = [
+    { id: 'cockpit-punkt', label: 'Punkt' },
+    { id: 'cockpit-plan', label: 'Plan' },
+    ...(hasCritical ? [{ id: 'cockpit-wazne', label: 'Ważne' }] : []),
+    { id: 'cockpit-kontakt', label: 'Kontakt' },
+  ]
+
   return (
     <nav
       className={styles.mobileNav}
@@ -19,7 +24,7 @@ export function CockpitMobileNav() {
       data-testid="cockpit-mobile-nav"
     >
       <ul className={styles.mobileNavList}>
-        {ANCHORS.map((a) => (
+        {anchors.map((a) => (
           <li key={a.id}>
             <a className={styles.mobileNavLink} href={`#${a.id}`}>
               {a.label}

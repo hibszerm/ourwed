@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/Button'
 import { Card, CardHeader } from '@/components/ui/Card'
 import { Input, Select } from '@/components/ui/Input'
 import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
+import { createBrowserSafeId } from '@/lib/utils/createBrowserSafeId'
 import { extraServiceService } from '@/lib/api/extraServiceService'
 import { packageService } from '@/lib/api/packageService'
 import { weddingExtraServiceService } from '@/lib/api/weddingExtraServiceService'
@@ -15,7 +16,14 @@ import {
 import { formatFinalPaymentTerms } from '@/lib/utils/finalPaymentTerms'
 import { formatCurrency } from '@/lib/utils/currency'
 import { recomposeContractValueForExtrasEdit } from '@/lib/forms/weddingExtraPricing'
+import { resolveWeddingExtraDisplayName } from '@/lib/forms/weddingExtraName'
 import { getEffectiveTravelFeeAmount } from '@/lib/utils/travelFeeCommercial'
+import {
+  applyDeliveryTermFormToWedding,
+  readDeliveryTermForm,
+  reconcileDeliveryDeadline,
+  type DeliveryTermUnit,
+} from '@/lib/utils/weddingDeliveryDeadline'
 import type { StudioPackage, WeddingExtraService } from '@/types/package'
 import type { Wedding, WeddingPackageItemSnapshot } from '@/types/wedding'
 import editStyles from '@/features/weddings/edit/WeddingEdit.module.css'
@@ -116,13 +124,19 @@ export function WeddingDetailPackage({
         ? Math.max(0, wedding.price - extrasTotal - getEffectiveTravelFeeAmount(wedding))
         : pkg.price,
     )
-    onChangeWedding?.(
-      applyCommercialPackageSnapshot(wedding, pkg, {
-        extrasTotal,
-        effectiveTravelFee: getEffectiveTravelFeeAmount(wedding),
-        preserveContractValue,
+    const travel = getEffectiveTravelFeeAmount(wedding)
+    const commercial = applyCommercialPackageSnapshot(wedding, pkg, {
+      extrasTotal,
+      effectiveTravelFee: travel,
+      preserveContractValue,
+    })
+    onChangeWedding?.({
+      ...commercial,
+      ...reconcileDeliveryDeadline({
+        previous: wedding,
+        next: { ...wedding, ...commercial },
       }),
-    )
+    })
     setPendingChange(null)
   }
 
@@ -141,23 +155,24 @@ export function WeddingDetailPackage({
       (sum, e) => sum + e.priceSnapshot * e.quantity,
       0,
     )
+    const travel = getEffectiveTravelFeeAmount(wedding)
     onChangePackageBasePrice?.(
       preserveContractValue
-        ? Math.max(
-            0,
-            wedding.price -
-              extrasTotal -
-              getEffectiveTravelFeeAmount(wedding),
-          )
+        ? Math.max(0, wedding.price - extrasTotal - travel)
         : selected.price,
     )
-    onChangeWedding?.(
-      fillWeddingTermsFromCatalogPackage(wedding, selected, {
-        preserveContractValue,
-        extrasTotal,
-        effectiveTravelFee: getEffectiveTravelFeeAmount(wedding),
+    const filled = fillWeddingTermsFromCatalogPackage(wedding, selected, {
+      preserveContractValue,
+      extrasTotal,
+      effectiveTravelFee: travel,
+    })
+    onChangeWedding?.({
+      ...filled,
+      ...reconcileDeliveryDeadline({
+        previous: wedding,
+        next: { ...wedding, ...filled },
       }),
-    )
+    })
   }
 
   function updateExtra(id: string, patch: Partial<WeddingExtraService>) {
@@ -195,13 +210,14 @@ export function WeddingDetailPackage({
     const service = catalogExtras.find((s) => s.id === extraServiceId)
     if (!service) return
     const created: WeddingExtraService = {
-      id: `temp-${crypto.randomUUID()}`,
+                id: `temp-${createBrowserSafeId()}`,
       weddingId: wedding.id,
       extraServiceId: service.id,
       priceSnapshot: service.price,
       quantity: 1,
       createdAt: new Date().toISOString(),
       name: service.name,
+      nameSnapshot: service.name,
     }
     const next = [...extras, created]
     onChangeExtras(next)
@@ -379,31 +395,46 @@ export function WeddingDetailPackage({
             }
           />
           <Input
-            label="Oddanie (miesiące)"
+            label="Termin oddania"
             type="number"
-            min={0}
-            step="1"
-            value={wedding.deliveryMonths ?? ''}
-            onChange={(e) =>
-              onChangeWedding?.({
-                deliveryMonths: e.target.value
-                  ? Number(e.target.value)
-                  : null,
-              })
+            min={1}
+            step={1}
+            value={
+              readDeliveryTermForm(wedding.deliveryMonths, wedding.deliveryDays)
+                .value
             }
+            onChange={(e) => {
+              const unit = readDeliveryTermForm(
+                wedding.deliveryMonths,
+                wedding.deliveryDays,
+              ).unit
+              onChangeWedding?.(
+                applyDeliveryTermFormToWedding(wedding, unit, e.target.value),
+              )
+            }}
+            data-testid="wedding-delivery-term-value"
           />
-          <Input
-            label="Oddanie (dni)"
-            type="number"
-            min={0}
-            step="1"
-            value={wedding.deliveryDays ?? ''}
-            onChange={(e) =>
-              onChangeWedding?.({
-                deliveryDays: e.target.value ? Number(e.target.value) : null,
-              })
+          <Select
+            label="Jednostka"
+            value={
+              readDeliveryTermForm(wedding.deliveryMonths, wedding.deliveryDays)
+                .unit
             }
-          />
+            onChange={(e) => {
+              const unit = e.target.value as DeliveryTermUnit
+              const value = readDeliveryTermForm(
+                wedding.deliveryMonths,
+                wedding.deliveryDays,
+              ).value
+              onChangeWedding?.(
+                applyDeliveryTermFormToWedding(wedding, unit, value),
+              )
+            }}
+            data-testid="wedding-delivery-term-unit"
+          >
+            <option value="months">miesięcy</option>
+            <option value="calendar_days">dni kalendarzowych</option>
+          </Select>
           <Input
             label="Termin płatności końcowej"
             type="date"
@@ -556,7 +587,7 @@ export function WeddingDetailPackage({
               >
                 {editing ? (
                   <>
-                    <strong>{extra.name ?? 'Usługa'}</strong>
+                    <strong>{resolveWeddingExtraDisplayName(extra)}</strong>
                     <div className={editStyles.fieldRow}>
                       <Input
                         label="Ilość"
@@ -570,7 +601,7 @@ export function WeddingDetailPackage({
                         }
                       />
                       <Input
-                        label="Cena (snapshot)"
+                        label="Cena"
                         type="number"
                         min={0}
                         step="0.01"
@@ -593,7 +624,7 @@ export function WeddingDetailPackage({
                   </>
                 ) : (
                   <span>
-                    {extra.name ?? 'Usługa'} · {extra.quantity} ×{' '}
+                    {resolveWeddingExtraDisplayName(extra)} · {extra.quantity} ×{' '}
                     {formatCurrency(extra.priceSnapshot)}
                   </span>
                 )}

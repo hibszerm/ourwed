@@ -1,0 +1,36 @@
+.page {
+  --modern-motion-fast: 150ms;
+  --modern-motion-base: 240ms;
+  --modern-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+  min-width: 0;
+}
+
+.loading,
+.emptyTitle {
+  margin: 0 0 var(--space-3);
+  color: var(--color-text-tertiary);
+  font-size: var(--type-body-size, 1rem);
+}
+
+.emptyTitle {
+  color: var(--color-text-primary);
+  font-weight: 650;
+  letter-spacing: -0.03em;
+}
+
+.emptyDesc {
+  margin: 0 0 var(--space-4);
+  max-width: 28em;
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+
+@media (max-width: 1100px) {
+  .page {
+    max-width: none;
+  }
+}

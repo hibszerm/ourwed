@@ -8,6 +8,7 @@ import {
   getRemainingToPay,
   getTotalPaid,
 } from '@/lib/utils/finance'
+import { createBrowserSafeId } from '@/lib/utils/createBrowserSafeId'
 import type { Payment, PaymentType, Wedding } from '@/types/wedding'
 import editStyles from '@/features/weddings/edit/WeddingEdit.module.css'
 import styles from './WeddingDetailFinances.module.css'
@@ -73,7 +74,7 @@ export function WeddingDetailFinances({
     onChangePayments?.([
       ...payments,
       {
-        id: `temp-${crypto.randomUUID()}`,
+        id: `temp-${createBrowserSafeId()}`,
         label: TYPE_LABELS.installment,
         amount: 0,
         type: 'installment',

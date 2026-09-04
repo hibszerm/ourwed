@@ -164,6 +164,18 @@ const verifiedPlace: WeddingPlace = {
     '9: verification hint separate from editability',
   )
   assertIncludes(editor, 'weddingPlaceToGeoPlace(saved)', '9: init from saved')
+  const modern = read(
+    'src/features/weddings/modern-detail/ModernWeddingDetailWorkspace.tsx',
+  )
+  assertIncludes(
+    modern,
+    'isLocationEditorSection(editorSection)',
+    '8: modern locations use centered modal',
+  )
+  assert(
+    !v2.includes('overlayPresentation'),
+    '8: classic does not switch overlay presentation',
+  )
   console.log('PASS  6–9  Overview + Wedding Day → shared editor; verify ≠ edit')
 }
 
@@ -185,7 +197,10 @@ const verifiedPlace: WeddingPlace = {
 }
 
 {
-  const page = read('src/pages/WeddingDetailPage.tsx')
+  const page = [
+    read('src/pages/WeddingDetailPage.tsx'),
+    read('src/features/weddings/detail/useWeddingDetailHost.ts'),
+  ].join('\n')
   assertIncludes(page, "beginEdit('locations')", '11: page open locations')
   assertIncludes(page, 'onEditSection: openEditor', '11: shared openEditor')
   assertIncludes(page, 'isLocationEditorSection', '11: location dirty skip')

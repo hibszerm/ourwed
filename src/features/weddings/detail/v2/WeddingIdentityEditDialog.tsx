@@ -5,6 +5,7 @@ import { Modal } from '@/components/ui/Modal'
 import { getWeddingDisplayName } from '@/features/weddings/presentation/getWeddingDisplayName'
 import { useProAccessGate } from '@/features/billing/ProAccessGate'
 import { weddingService } from '@/lib/api/weddingService'
+import { withReconciledDeliveryDeadline } from '@/lib/utils/weddingDeliveryDeadline'
 import formStyles from '@/features/weddings/actions/actionForm.module.css'
 import type { Wedding } from '@/types/wedding'
 import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
@@ -98,11 +99,13 @@ function IdentityForm({
     setBusy(true)
     setError(null)
     try {
-      const updated = await weddingService.update({
-        ...wedding,
-        displayName: displayName.trim() || null,
-        date: nextDate,
-      })
+      const updated = await weddingService.update(
+        withReconciledDeliveryDeadline(wedding, {
+          ...wedding,
+          displayName: displayName.trim() || null,
+          date: nextDate,
+        }),
+      )
       onSaved(updated)
       onClose()
     } catch (e) {

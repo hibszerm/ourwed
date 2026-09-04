@@ -2,6 +2,7 @@ import { Button } from '@/components/ui/Button'
 import { Card, CardHeader } from '@/components/ui/Card'
 import { Input } from '@/components/ui/Input'
 import { IconMail, IconPhone } from '@/components/icons'
+import { createBrowserSafeId } from '@/lib/utils/createBrowserSafeId'
 import type { Couple, WeddingContact } from '@/types/wedding'
 import editStyles from '@/features/weddings/edit/WeddingEdit.module.css'
 import styles from './WeddingDetailContact.module.css'
@@ -116,7 +117,7 @@ export function WeddingDetailContact({
     onChangeContacts?.([
       ...contacts,
       {
-        id: `temp-${crypto.randomUUID()}`,
+        id: `temp-${createBrowserSafeId()}`,
         weddingId,
         name: '',
         role: '',

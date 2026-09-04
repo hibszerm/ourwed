@@ -2,6 +2,7 @@ import { Button } from '@/components/ui/Button'
 import { Card, CardHeader } from '@/components/ui/Card'
 import { Textarea } from '@/components/ui/Input'
 import { formatShortDate } from '@/lib/utils/dates'
+import { createBrowserSafeId } from '@/lib/utils/createBrowserSafeId'
 import type { WeddingNote } from '@/types/wedding'
 import editStyles from '@/features/weddings/edit/WeddingEdit.module.css'
 import styles from './NotesSection.module.css'
@@ -37,7 +38,7 @@ export function NotesSection({
     onChangeNotes?.([
       ...notes,
       {
-        id: `temp-${crypto.randomUUID()}`,
+        id: `temp-${createBrowserSafeId()}`,
         content: '',
         createdAt: new Date().toISOString(),
         author: 'Firma',

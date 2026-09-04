@@ -341,9 +341,9 @@ function sessionFixture(
   assert.ok(router.includes('/ustawienia/integracje'))
   assert.ok(router.includes('CalendarIntegrationsPage'))
 
-  const settings = readFileSync(resolve('src/pages/SettingsPage.tsx'), 'utf8')
-  assert.ok(settings.includes('/ustawienia/integracje'))
-  assert.ok(!settings.includes("title: 'Integracje',\n    description: 'Połączenia z narzędziami zewnętrznymi.',\n    soon: true"))
+  const settingsNav = readFileSync(resolve('src/features/settings/settingsNav.ts'), 'utf8')
+  assert.ok(settingsNav.includes('/ustawienia/integracje'))
+  assert.ok(!settingsNav.includes("title: 'Integracje',\n    description: 'Połączenia z narzędziami zewnętrznymi.',\n    soon: true"))
 
   const page = readFileSync(
     resolve('src/pages/CalendarIntegrationsPage.tsx'),
@@ -351,7 +351,12 @@ function sessionFixture(
   )
   assert.ok(page.includes('Połącz z Google Calendar'))
   assert.ok(page.includes('Aktywuj kalendarz Apple'))
-  assert.ok(page.includes('OurWed jest źródłem prawdy'))
+  assert.ok(page.includes('title="Integracje"'))
+  assert.ok(
+    page.includes('Połącz OurWed z narzędziami, których używasz na co dzień.'),
+  )
+  assert.ok(!page.includes('OurWed jest źródłem prawdy'))
+  assert.ok(!page.includes('subskrypcja ICS'))
   console.log('✓ settings UI wired')
 }
 

@@ -1,10 +1,12 @@
 import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/Button'
 import { IconClock, IconMapPin } from '@/components/icons'
+import { useAppearance } from '@/features/appearance/useAppearance'
 import { useCalendarWeddingNextAction } from '@/features/calendar/hooks/useCalendarWeddingNextAction'
 import { hrefForWeddingNextAction } from '@/features/calendar/utils/hrefForWeddingNextAction'
 import { formatDate, getDaysUntil } from '@/lib/utils/dates'
 import type { CalendarUiEvent } from '../utils/calendarEvents'
+import { resolveCalendarEventColors } from '@/features/theme/calendarEventColors'
 import styles from './CalendarDrawer.module.css'
 
 interface CalendarDrawerProps {
@@ -31,6 +33,8 @@ function WeddingDrawerBody({
   onClose: () => void
   onOpen?: (event: CalendarUiEvent) => void
 }) {
+  const { appearance } = useAppearance()
+  const chipColors = resolveCalendarEventColors(appearance)
   const { action, isLoading } = useCalendarWeddingNextAction(event.entityId, true)
   const nextHref = action
     ? hrefForWeddingNextAction(event.entityId, action)
@@ -55,9 +59,9 @@ function WeddingDrawerBody({
             <div
               className={styles.stagePill}
               style={{
-                background: event.colors.background,
-                color: event.colors.text,
-                borderColor: event.colors.border,
+                background: chipColors.background,
+                color: chipColors.text,
+                borderColor: chipColors.border,
               }}
             >
               <span className={styles.package}>
@@ -148,6 +152,9 @@ function WeddingDrawerBody({
 }
 
 export function CalendarDrawer({ event, onClose, onOpen }: CalendarDrawerProps) {
+  const { appearance } = useAppearance()
+  const chipColors = resolveCalendarEventColors(appearance)
+
   if (!event) return null
 
   if (event.entityType === 'session') {
@@ -174,9 +181,9 @@ export function CalendarDrawer({ event, onClose, onOpen }: CalendarDrawerProps) 
             <div
               className={styles.stagePill}
               style={{
-                background: event.colors.background,
-                color: event.colors.text,
-                borderColor: event.colors.border,
+                background: chipColors.background,
+                color: chipColors.text,
+                borderColor: chipColors.border,
               }}
             >
               {event.sessionTypeLabel}

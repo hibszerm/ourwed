@@ -1,4 +1,9 @@
+import { useAppearance } from '@/features/appearance/useAppearance'
 import type { CalendarUiEvent } from '../utils/calendarEvents'
+import {
+  resolveCalendarEventColors,
+  resolveSessionPackageAccent,
+} from '@/features/theme/calendarEventColors'
 import styles from './CalendarEventChip.module.css'
 
 interface CalendarEventChipProps {
@@ -12,6 +17,13 @@ export function CalendarEventChip({
   compact = false,
   onClick,
 }: CalendarEventChipProps) {
+  const { appearance } = useAppearance()
+  const colors = resolveCalendarEventColors(appearance)
+  const accentColor =
+    event.entityType === 'session'
+      ? resolveSessionPackageAccent(appearance)
+      : event.packageColor
+
   const subtitle =
     event.entityType === 'wedding'
       ? event.packageName || event.timeLabel
@@ -22,10 +34,10 @@ export function CalendarEventChip({
       type="button"
       className={`${styles.chip} ${compact ? styles.compact : ''}`}
       style={{
-        background: event.colors.background,
-        color: event.colors.text,
-        borderColor: event.colors.border,
-        borderLeftColor: event.packageColor,
+        background: colors.background,
+        color: colors.text,
+        borderColor: colors.border,
+        borderLeftColor: accentColor,
       }}
       onClick={(e) => {
         e.stopPropagation()

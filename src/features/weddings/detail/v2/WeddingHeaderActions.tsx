@@ -6,11 +6,9 @@ import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
 import { WeddingIdentityEditDialog } from '@/features/weddings/detail/v2/WeddingIdentityEditDialog'
 import { useProAccessGate } from '@/features/billing/ProAccessGate'
-import { downloadWeddingBriefPdf } from '@/features/wedding-brief/downloadWeddingBriefPdf'
-import { mapPdfRenderErrorForUser } from '@/features/documents/pdf/pdfRenderErrors'
+import { useWeddingBriefAction } from '@/features/wedding-brief/useWeddingBriefAction'
 import type { Wedding } from '@/types/wedding'
 import styles from './WeddingDetailV2.module.css'
-import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 interface Props {
   wedding: Wedding
@@ -37,7 +35,7 @@ export function WeddingHeaderActions({
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [confirmText, setConfirmText] = useState('')
   const [busy, setBusy] = useState(false)
-  const [briefError, setBriefError] = useState<string | null>(null)
+  const brief = useWeddingBriefAction(wedding.id)
 
   useEffect(() => {
     if (!menuOpen) return
@@ -56,18 +54,9 @@ export function WeddingHeaderActions({
   }, [menuOpen])
 
   async function handleBrief() {
-    if (busy) return
+    if (brief.busy) return
+    await brief.run()
     setMenuOpen(false)
-    setBriefError(null)
-    setBusy(true)
-    try {
-      await downloadWeddingBriefPdf(wedding.id)
-    } catch (e) {
-      const raw = getUserFacingErrorMessage(e, '')
-      setBriefError(mapPdfRenderErrorForUser(raw))
-    } finally {
-      setBusy(false)
-    }
   }
 
   async function handleArchive() {
@@ -133,10 +122,10 @@ export function WeddingHeaderActions({
               type="button"
               role="menuitem"
               data-testid="wedding-menu-brief"
-              disabled={busy}
+              disabled={brief.busy}
               onClick={() => void handleBrief()}
             >
-              Pobierz brief PDF
+              {brief.label}
             </button>
             <div className={styles.headerMenuSeparator} role="separator" />
             <button
@@ -171,9 +160,9 @@ export function WeddingHeaderActions({
         ) : null}
       </div>
 
-      {briefError ? (
+      {brief.error ? (
         <p className={styles.briefErrorInline} role="alert">
-          {briefError}
+          {brief.error}
         </p>
       ) : null}
 

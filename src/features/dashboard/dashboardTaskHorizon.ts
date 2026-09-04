@@ -4,9 +4,13 @@
  */
 
 import {
+  addLocalCalendarDays,
+  addLocalCalendarMonths,
   localCalendarDateKey,
   toLocalCalendarDateKey,
 } from '@/lib/utils/localCalendarDate'
+
+export { addLocalCalendarDays, addLocalCalendarMonths }
 
 export type DashboardTaskHorizon = 'today' | '7_days' | '14_days' | 'month'
 
@@ -65,32 +69,6 @@ export function dashboardTaskHorizonEmptyCopy(
         subtitle: 'Brak zadań na najbliższy miesiąc',
       }
   }
-}
-
-function parseLocalDay(key: string): { y: number; m: number; d: number } {
-  const [y, m, d] = key.split('-').map(Number)
-  return { y: y!, m: m!, d: d! }
-}
-
-/** Add calendar days to a local YYYY-MM-DD key. */
-export function addLocalCalendarDays(dayKey: string, days: number): string {
-  const { y, m, d } = parseLocalDay(dayKey)
-  const date = new Date(y, m - 1, d)
-  date.setDate(date.getDate() + days)
-  return localCalendarDateKey(date)
-}
-
-/**
- * Add calendar months to a local YYYY-MM-DD key (safe month-end clamp).
- * Aug 16 → Sep 16; Jan 31 → Feb 28/29.
- */
-export function addLocalCalendarMonths(dayKey: string, months: number): string {
-  const { y, m, d } = parseLocalDay(dayKey)
-  const targetMonthIndex = m - 1 + months
-  const year = y + Math.floor(targetMonthIndex / 12)
-  const month = ((targetMonthIndex % 12) + 12) % 12
-  const lastDay = new Date(year, month + 1, 0).getDate()
-  return localCalendarDateKey(new Date(year, month, Math.min(d, lastDay)))
 }
 
 /** Inclusive end date (local) for the selected horizon. Overdue always included via <= end. */

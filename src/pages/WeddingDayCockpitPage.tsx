@@ -8,7 +8,7 @@ import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 export function WeddingDayCockpitPage() {
   const { weddingId = '' } = useParams<{ weddingId: string }>()
-  const { userId, data, isLoading, isError, error, refetch } =
+  const { userId, data, wedding, places, isLoading, isError, error, refetch } =
     useWeddingDayCockpitData(weddingId)
 
   if (!weddingId) {
@@ -29,7 +29,7 @@ export function WeddingDayCockpitPage() {
     )
   }
 
-  if (isError || !data) {
+  if (isError || !data || !wedding) {
     return (
       <AppLayout title="Dzień ślubu">
         <div className={styles.errorBox} data-testid="cockpit-error">
@@ -49,7 +49,12 @@ export function WeddingDayCockpitPage() {
 
   return (
     <AppLayout>
-      <WeddingDayCockpitView data={data} userId={userId} />
+      <WeddingDayCockpitView
+        data={data}
+        userId={userId}
+        wedding={wedding}
+        places={places}
+      />
     </AppLayout>
   )
 }

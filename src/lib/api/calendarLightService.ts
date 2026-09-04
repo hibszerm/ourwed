@@ -4,6 +4,7 @@
  */
 
 import { resolveStudioUserId } from '@/lib/api/studioUser'
+import { weddingPlaceService } from '@/lib/api/weddingPlaceService'
 import {
   mapWeddingRowToModel,
   type WeddingRow,
@@ -12,6 +13,7 @@ import {
   mapSessionRowToModel,
   type SessionRow,
 } from '@/lib/api/sessionService'
+import { buildWeddingPrimaryLocationFromPlaces } from '@/features/weddings/presentation/getWeddingPrimaryLocationSummary'
 import { withDevPerf } from '@/lib/performance/devPerf'
 import { supabase } from '@/lib/supabase'
 import { throwOnError } from '@/lib/supabase/helpers'
@@ -26,6 +28,26 @@ export const CALENDAR_LIGHT_WEDDING_SELECT =
 export const CALENDAR_LIGHT_SESSION_SELECT =
   'id, user_id, custom_name, primary_first_name, primary_last_name, secondary_first_name, secondary_last_name, session_type, custom_session_type, session_date, start_time, end_time, location_name, location_address, formatted_address, place_id, latitude, longitude, location_source, total_price, deposit_amount, notes, linked_wedding_id, created_at, updated_at'
 
+/**
+ * Attach compact primaryLocation from a single batched wedding_places read.
+ * Does not overwrite ceremony/reception scalars (Classic Calendar freeze).
+ */
+async function attachCalendarPrimaryLocations(
+  weddings: Wedding[],
+): Promise<Wedding[]> {
+  if (weddings.length === 0) return weddings
+  const placesMap = await weddingPlaceService.listByWeddingIds(
+    weddings.map((wedding) => wedding.id),
+  )
+  return weddings.map((wedding) => ({
+    ...wedding,
+    primaryLocation: buildWeddingPrimaryLocationFromPlaces(
+      wedding,
+      placesMap.get(wedding.id) ?? [],
+    ),
+  }))
+}
+
 export const calendarLightService = {
   async listWeddingsForCalendar(): Promise<Wedding[]> {
     return withDevPerf('calendar.light-weddings', async () => {
@@ -37,7 +59,8 @@ export const calendarLightService = {
         .order('wedding_date', { ascending: true, nullsFirst: false })
 
       throwOnError(error)
-      return ((data ?? []) as WeddingRow[]).map(mapWeddingRowToModel)
+      const light = ((data ?? []) as WeddingRow[]).map(mapWeddingRowToModel)
+      return attachCalendarPrimaryLocations(light)
     })
   },
 

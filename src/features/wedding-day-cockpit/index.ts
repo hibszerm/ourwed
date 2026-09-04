@@ -12,6 +12,7 @@ export {
 export { loadWeddingDayCockpitData } from '@/features/wedding-day-cockpit/loadWeddingDayCockpitData'
 export { useWeddingDayCockpitData } from '@/features/wedding-day-cockpit/useWeddingDayCockpitData'
 export {
+  appleMapsPlaceUrl,
   buildFieldNavigationLinks,
   buildSmsHref,
   buildTelHref,

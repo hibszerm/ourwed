@@ -1,0 +1,50 @@
+.date {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+  color: var(--color-text-primary);
+  line-height: 1;
+}
+
+.day {
+  font-weight: 650;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+}
+
+.month {
+  margin-top: 8px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+.weekday {
+  margin-top: 4px;
+  font-weight: 450;
+  letter-spacing: 0.02em;
+  text-transform: lowercase;
+  color: var(--color-text-tertiary);
+}
+
+.card .day {
+  font-size: 2rem;
+}
+
+.card .month {
+  font-size: var(--text-xs);
+}
+
+.card .weekday {
+  font-size: 0.6875rem;
+}
+
+.ledger .day {
+  font-size: 1.375rem;
+}
+
+.ledger .month {
+  font-size: 0.6875rem;
+}

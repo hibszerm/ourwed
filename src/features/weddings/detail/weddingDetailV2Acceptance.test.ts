@@ -169,7 +169,7 @@ run('2–4. Workspace header + tabs; default overview', () => {
   assert(!shell.includes('WEDDING_DETAIL_V2_TAB_KEY'), 'no global tab key usage')
   assert(shell.includes("return 'overview'"), 'defaults to overview')
   assert(shell.includes('searchParams.get(\'tab\')'), 'honors ?tab=')
-  assert(page.includes('key={wedding.id}'), 'remount per wedding id')
+  assert(page.includes('key={host.wedding.id}'), 'remount per wedding id')
 })
 
 run('5. Tab switch does not refetch wedding', () => {
@@ -180,7 +180,12 @@ run('5. Tab switch does not refetch wedding', () => {
     resolve(process.cwd(), 'src/pages/WeddingDetailPage.tsx'),
     'utf8',
   )
-  assert(page.includes('useWedding(id'), 'page owns wedding query')
+  const host = readFileSync(
+    resolve(process.cwd(), 'src/features/weddings/detail/useWeddingDetailHost.ts'),
+    'utf8',
+  )
+  assert(host.includes('useWedding(id'), 'page host owns wedding query')
+  assert(page.includes('useWeddingDetailHost'), 'classic page uses shared host')
 })
 
 run('6–9. Header reception venue + locality; no prep/ceremony preference', () => {
@@ -572,7 +577,8 @@ run('20. Admin actions live in header menu (not Overview footer)', () => {
   assert(actions.includes('wedding-menu-day-cockpit'), 'day mode test id')
   assert(actions.includes('/dzien-slubu'), 'day mode route')
   assert(actions.includes('Edytuj nazwę i datę'), 'identity edit')
-  assert(actions.includes('Pobierz brief PDF'), 'brief')
+  assert(actions.includes('useWeddingBriefAction'), 'shared brief action')
+  assert(actions.includes('brief.label'), 'derived brief label')
   assert(actions.includes('Archiwizuj zlecenie'), 'archive')
   assert(actions.includes('Usuń zlecenie'), 'delete')
   assert(actions.includes('WeddingIdentityEditDialog'), 'identity dialog')
@@ -679,6 +685,7 @@ run('23. Overview band is commercial summary only (no stage cell)', () => {
   assert(band.includes('Wpłacono'), 'paid')
   assert(band.includes('Pozostało'), 'remaining')
   assert(band.includes('Termin płatności'), 'due')
+  assert(band.includes('Termin oddania'), 'delivery due')
 })
 
 console.log('\nwedding workspace v2: done')

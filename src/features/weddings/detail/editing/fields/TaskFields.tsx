@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
+import { createBrowserSafeId } from '@/lib/utils/createBrowserSafeId'
 import type { Task } from '@/types/wedding'
 import styles from '../WeddingEditorFields.module.css'
 
@@ -33,7 +34,7 @@ export function TaskFields({
             onChangeTasks([
               ...tasks,
               {
-                id: `temp-${crypto.randomUUID()}`,
+                id: `temp-${createBrowserSafeId()}`,
                 weddingId,
                 title: '',
                 dueDate: '',

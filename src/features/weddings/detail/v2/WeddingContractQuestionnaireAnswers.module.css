@@ -89,7 +89,7 @@
   padding: var(--space-3);
   border: 0;
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-border) 80%, transparent);
-  background: color-mix(in srgb, var(--color-neutral-50, #fafafa) 70%, var(--color-surface));
+  background: color-mix(in srgb, var(--color-neutral-50) 70%, var(--color-surface));
 }
 
 .muted {

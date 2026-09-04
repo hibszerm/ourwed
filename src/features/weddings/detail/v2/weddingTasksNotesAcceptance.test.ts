@@ -77,7 +77,13 @@ run('2. Opening Tasks uses existing WeddingWorkspaceEditSurface', () => {
     resolve(v2Root, 'WeddingWorkspaceEditSurface.tsx'),
     'utf8',
   )
-  const page = readFileSync(resolve(root, 'src/pages/WeddingDetailPage.tsx'), 'utf8')
+  const page = [
+    readFileSync(resolve(root, 'src/pages/WeddingDetailPage.tsx'), 'utf8'),
+    readFileSync(
+      resolve(root, 'src/features/weddings/detail/useWeddingDetailHost.ts'),
+      'utf8',
+    ),
+  ].join('\n')
   assert(surface.includes("drawerSection === 'tasks'"), 'surface tasks')
   assert(surface.includes('TaskFields'), 'TaskFields')
   assert(page.includes('onEditSection: openEditor'), 'openEditor')
@@ -275,7 +281,13 @@ run('N5. Reachability guard — cannot orphan TaskFields/NoteFields', () => {
 })
 
 run('N6. Page invalidates tasks after save', () => {
-  const page = readFileSync(resolve(root, 'src/pages/WeddingDetailPage.tsx'), 'utf8')
+  const page = [
+    readFileSync(resolve(root, 'src/pages/WeddingDetailPage.tsx'), 'utf8'),
+    readFileSync(
+      resolve(root, 'src/features/weddings/detail/useWeddingDetailHost.ts'),
+      'utf8',
+    ),
+  ].join('\n')
   assert(page.includes("queryKey: ['tasks'"), 'tasks invalidate')
   assert(page.includes("queryKey: ['weddings']"), 'weddings invalidate')
 })

@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/Button'
 import { Input, Select } from '@/components/ui/Input'
+import { createBrowserSafeId } from '@/lib/utils/createBrowserSafeId'
 import type { Payment, PaymentType, Wedding } from '@/types/wedding'
 import styles from '../WeddingEditorFields.module.css'
 
@@ -85,7 +86,7 @@ export function FinanceFields({
             onChangePayments([
               ...payments,
               {
-                id: `temp-${crypto.randomUUID()}`,
+                id: `temp-${createBrowserSafeId()}`,
                 label: TYPE_LABELS.installment,
                 amount: 0,
                 type: 'installment',

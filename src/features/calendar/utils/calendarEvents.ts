@@ -12,32 +12,21 @@ import type { Session } from '@/types/session'
 import type { Wedding } from '@/types/wedding'
 import { compareCalendarUiEvents } from './assignmentMetrics'
 import { parseDateKey, toDateKey } from './calendarDates'
+import {
+  SESSION_CALENDAR_COLORS,
+  WEDDING_CALENDAR_COLORS,
+  type CalendarEventColors,
+} from '@/features/theme/calendarEventColors'
 
 export const UNKNOWN_TIME_LABEL = 'Godzina do ustalenia'
 
-/** Chip / block colors — category identity, not workflow stage. */
-export interface CalendarEventColors {
-  background: string
-  text: string
-  border: string
-}
-
-/** Neutral chip colors for session events. */
-export const SESSION_CALENDAR_COLORS: CalendarEventColors = {
-  background: 'rgba(0, 0, 0, 0.04)',
-  text: '#1a1a1a',
-  border: 'rgba(0, 0, 0, 0.12)',
-}
-
-/**
- * Neutral wedding event treatment.
- * Package accent remains on the left border via `packageColor` — not workflow stage.
- */
-export const WEDDING_CALENDAR_COLORS: CalendarEventColors = {
-  background: 'rgba(0, 0, 0, 0.04)',
-  text: '#1a1a1a',
-  border: 'rgba(0, 0, 0, 0.12)',
-}
+export type { CalendarEventColors } from '@/features/theme/calendarEventColors'
+export {
+  SESSION_CALENDAR_COLORS,
+  WEDDING_CALENDAR_COLORS,
+  resolveCalendarEventColors,
+  resolveSessionPackageAccent,
+} from '@/features/theme/calendarEventColors'
 
 function compactWeddingLocation(wedding: Wedding): string | undefined {
   return getWeddingPrimaryLocationSummary(wedding).displayText ?? undefined

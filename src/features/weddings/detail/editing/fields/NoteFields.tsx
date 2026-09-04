@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/Button'
 import { Textarea } from '@/components/ui/Input'
+import { createBrowserSafeId } from '@/lib/utils/createBrowserSafeId'
 import type { WeddingNote } from '@/types/wedding'
 import styles from '../WeddingEditorFields.module.css'
 
@@ -27,7 +28,7 @@ export function NoteFields({
             onChangeNotes([
               ...notes,
               {
-                id: `temp-${crypto.randomUUID()}`,
+                id: `temp-${createBrowserSafeId()}`,
                 content: '',
                 createdAt: new Date().toISOString(),
                 author: 'Firma',

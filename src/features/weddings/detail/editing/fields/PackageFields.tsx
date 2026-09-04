@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Button } from '@/components/ui/Button'
 import { Input, Select } from '@/components/ui/Input'
 import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
+import { createBrowserSafeId } from '@/lib/utils/createBrowserSafeId'
 import { extraServiceService } from '@/lib/api/extraServiceService'
 import { packageService } from '@/lib/api/packageService'
 import {
@@ -15,7 +16,14 @@ import {
 } from '@/lib/utils/finalPaymentTerms'
 import { formatCurrency } from '@/lib/utils/currency'
 import { recomposeContractValueForExtrasEdit } from '@/lib/forms/weddingExtraPricing'
+import { resolveWeddingExtraDisplayName } from '@/lib/forms/weddingExtraName'
 import { getEffectiveTravelFeeAmount } from '@/lib/utils/travelFeeCommercial'
+import {
+  applyDeliveryTermFormToWedding,
+  readDeliveryTermForm,
+  reconcileDeliveryDeadline,
+  type DeliveryTermUnit,
+} from '@/lib/utils/weddingDeliveryDeadline'
 import type { StudioPackage, WeddingExtraService } from '@/types/package'
 import type { Wedding } from '@/types/wedding'
 import styles from '../WeddingEditorFields.module.css'
@@ -92,13 +100,18 @@ export function PackageFields({
         ? Math.max(0, wedding.price - extrasTotal - travel)
         : pkg.price,
     )
-    onChangeWedding(
-      applyCommercialPackageSnapshot(wedding, pkg, {
-        extrasTotal,
-        effectiveTravelFee: travel,
-        preserveContractValue,
+    const commercial = applyCommercialPackageSnapshot(wedding, pkg, {
+      extrasTotal,
+      effectiveTravelFee: travel,
+      preserveContractValue,
+    })
+    onChangeWedding({
+      ...commercial,
+      ...reconcileDeliveryDeadline({
+        previous: wedding,
+        next: { ...wedding, ...commercial },
       }),
-    )
+    })
     setPendingChange(null)
   }
 
@@ -261,28 +274,41 @@ export function PackageFields({
             })
           }
         />
+      </div>
+      <div className={styles.fieldRow} data-testid="wedding-delivery-term">
         <Input
-          label="Oddanie (miesiące)"
+          label="Termin oddania"
           type="number"
-          min={0}
-          value={wedding.deliveryMonths ?? ''}
-          onChange={(e) =>
-            onChangeWedding({
-              deliveryMonths: e.target.value ? Number(e.target.value) : null,
-            })
-          }
+          min={1}
+          step={1}
+          value={readDeliveryTermForm(wedding.deliveryMonths, wedding.deliveryDays).value}
+          onChange={(e) => {
+            const unit = readDeliveryTermForm(
+              wedding.deliveryMonths,
+              wedding.deliveryDays,
+            ).unit
+            onChangeWedding(
+              applyDeliveryTermFormToWedding(wedding, unit, e.target.value),
+            )
+          }}
+          data-testid="wedding-delivery-term-value"
         />
-        <Input
-          label="Oddanie (dni)"
-          type="number"
-          min={0}
-          value={wedding.deliveryDays ?? ''}
-          onChange={(e) =>
-            onChangeWedding({
-              deliveryDays: e.target.value ? Number(e.target.value) : null,
-            })
-          }
-        />
+        <Select
+          label="Jednostka"
+          value={readDeliveryTermForm(wedding.deliveryMonths, wedding.deliveryDays).unit}
+          onChange={(e) => {
+            const unit = e.target.value as DeliveryTermUnit
+            const value = readDeliveryTermForm(
+              wedding.deliveryMonths,
+              wedding.deliveryDays,
+            ).value
+            onChangeWedding(applyDeliveryTermFormToWedding(wedding, unit, value))
+          }}
+          data-testid="wedding-delivery-term-unit"
+        >
+          <option value="months">miesięcy</option>
+          <option value="calendar_days">dni kalendarzowych</option>
+        </Select>
       </div>
 
       {/*
@@ -402,16 +428,21 @@ export function PackageFields({
               0,
             )
             const travel = getEffectiveTravelFeeAmount(wedding)
+            const filled = fillWeddingTermsFromCatalogPackage(wedding, selected, {
+              preserveContractValue: true,
+              extrasTotal,
+              effectiveTravelFee: travel,
+            })
             onChangePackageBasePrice(
               Math.max(0, wedding.price - extrasTotal - travel),
             )
-            onChangeWedding(
-              fillWeddingTermsFromCatalogPackage(wedding, selected, {
-                preserveContractValue: true,
-                extrasTotal,
-                effectiveTravelFee: travel,
+            onChangeWedding({
+              ...filled,
+              ...reconcileDeliveryDeadline({
+                previous: wedding,
+                next: { ...wedding, ...filled },
               }),
-            )
+            })
           }}
         >
           Uzupełnij z katalogu
@@ -429,10 +460,11 @@ export function PackageFields({
             applyExtrasSelection([
               ...extras,
               {
-                id: `temp-${crypto.randomUUID()}`,
+                id: `temp-${createBrowserSafeId()}`,
                 weddingId: wedding.id,
                 extraServiceId: service.id,
                 name: service.name,
+                nameSnapshot: service.name,
                 priceSnapshot: service.price,
                 quantity: 1,
                 createdAt: new Date().toISOString(),
@@ -456,18 +488,12 @@ export function PackageFields({
           {extras.map((e) => (
             <li key={e.id} className={styles.listItem}>
               <div className={styles.fieldRow}>
-                <Input
-                  label="Nazwa"
-                  value={e.name ?? ''}
-                  onChange={(ev) => {
-                    const next = extras.map((row) =>
-                      row.id === e.id
-                        ? { ...row, name: ev.target.value }
-                        : row,
-                    )
-                    onChangeExtras(next)
-                  }}
-                />
+                <div>
+                  <span className={styles.extraNameLabel}>Usługa</span>
+                  <p className={styles.extraName}>
+                    {resolveWeddingExtraDisplayName(e)}
+                  </p>
+                </div>
                 <Input
                   label="Ilość"
                   type="number"

@@ -21,6 +21,14 @@ function run(name: string, fn: () => void) {
 }
 
 const page = resolve(process.cwd(), 'src/pages/WeddingDetailPage.tsx')
+const host = resolve(
+  process.cwd(),
+  'src/features/weddings/detail/useWeddingDetailHost.ts',
+)
+const hostModals = resolve(
+  process.cwd(),
+  'src/features/weddings/detail/WeddingDetailHostModals.tsx',
+)
 const v1 = resolve(
   process.cwd(),
   'src/features/weddings/detail/v1/WeddingDetailV1.tsx',
@@ -66,7 +74,11 @@ function listTsx(dir: string): string[] {
 }
 
 run('1. Header menu opens identity edit; couple edit still via drawer', () => {
-  const src = readFileSync(page, 'utf8')
+  const src = [
+    readFileSync(page, 'utf8'),
+    readFileSync(host, 'utf8'),
+    readFileSync(hostModals, 'utf8'),
+  ].join('\n')
   assert(!src.includes('Edytuj ślub'), 'no page header edit')
   assert(src.includes('beginEdit('), 'beginEdit')
   assert(src.includes('onEditSection: openEditor'), 'shared openEditor')
@@ -180,7 +192,7 @@ run('7. Overview / day Edytuj call onEditSection (per-role day)', () => {
 })
 
 run('8. Cancel clears editor; save uses persistWeddingEditDraft', () => {
-  const src = readFileSync(page, 'utf8')
+  const src = [readFileSync(page, 'utf8'), readFileSync(host, 'utf8')].join('\n')
   assert(src.includes('cancelEdit'), 'cancel')
   assert(src.includes('requestCancelEdit'), 'request cancel')
   assert(src.includes('persistWeddingEditDraft'), 'persist')
@@ -188,7 +200,7 @@ run('8. Cancel clears editor; save uses persistWeddingEditDraft', () => {
 })
 
 run('9. Missing-data corrections open focused editor', () => {
-  const src = readFileSync(page, 'utf8')
+  const src = [readFileSync(page, 'utf8'), readFileSync(host, 'utf8')].join('\n')
   assert(src.includes("openEditor('contacts')"), 'couple')
   assert(src.includes("openEditor('package')"), 'package')
 })

@@ -45,7 +45,7 @@
 }
 
 .outside {
-  background: #fafafa;
+  background: var(--color-bg-subtle);
 }
 
 .outside .dayNumber {
@@ -54,7 +54,7 @@
 
 .today .dayNumber {
   background: var(--color-accent);
-  color: white;
+  color: var(--brand-primary-text);
 }
 
 .dayHeader {

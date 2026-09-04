@@ -9,6 +9,7 @@ import { validateWeddingCorrespondenceEntries } from '@/features/weddings/corres
 import { persistWeddingContractAnswerFields } from '@/lib/forms/persistWeddingContractAnswers'
 import { isLikelyUuid } from '@/lib/supabase/helpers'
 import { getEffectiveTravelFeeAmount } from '@/lib/utils/travelFeeCommercial'
+import { reconcileDeliveryDeadline } from '@/lib/utils/weddingDeliveryDeadline'
 import type { WeddingExtraService } from '@/types/package'
 import type {
   Payment,
@@ -130,6 +131,10 @@ export async function persistWeddingEditDraft(
     ...draft.wedding,
     correspondence: correspondenceResult.normalized,
     price: draft.wedding.price,
+    ...reconcileDeliveryDeadline({
+      previous: original.wedding,
+      next: draft.wedding,
+    }),
     couple: {
       ...draft.wedding.couple,
       partner1: [
@@ -161,6 +166,8 @@ export async function persistWeddingEditDraft(
   }
 
   await weddingService.update(nextWedding)
+  // Canonical party fields persist on weddings columns via update above.
+  // Existing submitted questionnaire answers may be patched; none are created.
   await persistWeddingContractAnswerFields(nextWedding)
 
   // Travel cache only. Locations are owned by WeddingDetailHero (autosave to
@@ -168,7 +175,7 @@ export async function persistWeddingEditDraft(
   try {
     await travelService.recalculate(weddingId)
   } catch {
-    // Travel/Maps outage — wedding scalars and form answers already saved.
+    // Travel/Maps outage — wedding columns already saved.
   }
 
   // Contacts
@@ -209,6 +216,7 @@ export async function persistWeddingEditDraft(
         extraServiceId: extra.extraServiceId,
         quantity: extra.quantity,
         priceSnapshot: extra.priceSnapshot,
+        nameSnapshot: extra.nameSnapshot ?? extra.name,
       })
     } else {
       await weddingExtraServiceService.update(extra.id, {

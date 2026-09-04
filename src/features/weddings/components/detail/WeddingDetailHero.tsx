@@ -11,6 +11,7 @@ import {
 } from '@/features/travel/weddingLocationModel'
 import { WeddingLocationEditor } from '@/features/weddings/detail/editing/fields/WeddingLocationEditor'
 import { formatDate, getCountdownParts } from '@/lib/utils/dates'
+import { reconcileDeliveryDeadline } from '@/lib/utils/weddingDeliveryDeadline'
 import { getWeddingDisplayName } from '@/features/weddings/presentation/getWeddingDisplayName'
 import { travelService } from '@/lib/api/travelService'
 import { weddingActionsService } from '@/lib/api/weddingActionsService'
@@ -147,7 +148,15 @@ export function WeddingDetailHero({
               label="Data ślubu"
               type="date"
               value={wedding.date}
-              onChange={(e) => onChangeWedding?.({ date: e.target.value })}
+              onChange={(e) =>
+                onChangeWedding?.({
+                  date: e.target.value,
+                  ...reconcileDeliveryDeadline({
+                    previous: wedding,
+                    next: { ...wedding, date: e.target.value },
+                  }),
+                })
+              }
             />
             <Input
               label="Godzina ceremonii"

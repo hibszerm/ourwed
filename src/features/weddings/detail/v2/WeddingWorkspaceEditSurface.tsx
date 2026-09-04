@@ -14,7 +14,10 @@ import {
 } from '@/features/weddings/detail/editing/weddingEditorTypes'
 import fieldStyles from '@/features/weddings/detail/editing/WeddingEditorFields.module.css'
 import type { WeddingDetailSharedProps } from '@/features/weddings/detail/v2/weddingDetailV2Types'
-import { WeddingEditDrawerV2 } from '@/features/weddings/detail/v2/WeddingEditDrawerV2'
+import {
+  WeddingEditDrawerV2,
+  type WeddingEditOverlayPresentation,
+} from '@/features/weddings/detail/v2/WeddingEditDrawerV2'
 
 interface WeddingWorkspaceEditSurfaceProps {
   props: WeddingDetailSharedProps
@@ -23,6 +26,8 @@ interface WeddingWorkspaceEditSurfaceProps {
   saveError?: string | null
   onSave: () => void
   onClose: () => void
+  /** Classic default is the right drawer. Modern locations use a centered modal. */
+  overlayPresentation?: WeddingEditOverlayPresentation
 }
 
 function locationRolesForSection(
@@ -55,24 +60,33 @@ export function WeddingWorkspaceEditSurface({
   saveError = null,
   onSave,
   onClose,
+  overlayPresentation = 'drawer',
 }: WeddingWorkspaceEditSurfaceProps) {
   const drawerSection = resolveDrawerSection(focusSection)
   const meta = getEditorSectionMeta(drawerSection)
   const locationOnly = isLocationEditorSection(focusSection)
+  const centeredLocations =
+    overlayPresentation === 'centered' && locationOnly
+  const title = centeredLocations ? 'Edytuj miejsca' : meta.title
+  const description = centeredLocations
+    ? 'Uzupełnij lokalizacje używane w dniu ślubu.'
+    : meta.description
 
   return (
     <WeddingEditDrawerV2
       open
-      title={meta.title}
-      description={meta.description}
+      title={title}
+      description={description}
       busy={saving}
       hideSave={locationOnly}
+      presentation={overlayPresentation}
       onClose={onClose}
       onSave={onSave}
     >
       <div
         data-testid="wedding-workspace-edit-surface"
         data-section={drawerSection}
+        data-overlay-presentation={overlayPresentation}
       >
         {saveError ? (
           <p role="alert" className={fieldStyles.error}>

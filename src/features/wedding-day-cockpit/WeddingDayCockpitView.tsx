@@ -13,14 +13,15 @@ import type {
   CockpitStop,
   WeddingDayCockpitData,
 } from '@/features/wedding-day-cockpit/types'
-import { downloadWeddingBriefPdf } from '@/features/wedding-brief/downloadWeddingBriefPdf'
-import { mapPdfRenderErrorForUser } from '@/features/documents/pdf/pdfRenderErrors'
+import { useWeddingBriefAction } from '@/features/wedding-brief/useWeddingBriefAction'
 import { operationalCompletionsQueryKey } from '@/features/wedding-day/queryKeys'
+import { ModernWeddingIdentityHero } from '@/features/weddings/modern-detail/ModernWeddingIdentityHero'
 import type { OperationalCompletionMap } from '@/lib/api/weddingOperationalCompletionsService'
 import { weddingOperationalCompletionsService } from '@/lib/api/weddingOperationalCompletionsService'
 import { formatCurrency } from '@/lib/utils/currency'
+import type { WeddingPlace } from '@/types/travel'
+import type { Wedding } from '@/types/wedding'
 import styles from './WeddingDayCockpit.module.css'
-import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 function legLabel(
   leg: CockpitStop['incomingLeg'],
@@ -50,6 +51,7 @@ function StopNavActions({
   const links = buildFieldNavigationLinks({
     label: stop.placeName,
     formattedAddress: stop.address,
+    placeId: stop.placeId,
     latitude: stop.latitude,
     longitude: stop.longitude,
   })
@@ -148,15 +150,38 @@ function ContactActions({ phone, id }: { phone?: string; id: string }) {
   )
 }
 
+function CriticalNotes({ notes }: { notes: WeddingDayCockpitData['criticalNotes'] }) {
+  return (
+    <section
+      id="cockpit-wazne"
+      className={styles.criticalSection}
+      aria-labelledby="cockpit-critical-heading"
+    >
+      <h2 className={styles.criticalHeading} id="cockpit-critical-heading">
+        Nie przegap
+      </h2>
+      <ul className={styles.criticalList} data-testid="cockpit-critical">
+        {notes.map((note, i) => (
+          <li key={`${note.label}-${i}`} className={styles.criticalItem}>
+            <p className={styles.criticalLabel}>{note.label}</p>
+            <p className={styles.criticalContent}>{note.content}</p>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
 type Props = {
   data: WeddingDayCockpitData
   userId: string | null | undefined
+  wedding: Wedding
+  places: WeddingPlace[]
 }
 
-export function WeddingDayCockpitView({ data, userId }: Props) {
+export function WeddingDayCockpitView({ data, userId, wedding, places }: Props) {
   const queryClient = useQueryClient()
-  const [briefBusy, setBriefBusy] = useState(false)
-  const [briefError, setBriefError] = useState<string | null>(null)
+  const brief = useWeddingBriefAction(data.weddingId, 'cockpit')
   const [completionError, setCompletionError] = useState<string | null>(null)
 
   const hero = data.stops.find((s) => s.key === data.heroStopKey) ?? null
@@ -169,8 +194,12 @@ export function WeddingDayCockpitView({ data, userId }: Props) {
   })()
 
   const hasCritical = data.criticalNotes.length > 0
-  const phoneContacts = data.contacts.filter((c) => Boolean(c.phone?.trim()))
+  const fieldContacts = data.contacts.filter((c) =>
+    Boolean(buildTelHref(c.phone ?? '') || buildSmsHref(c.phone ?? '')),
+  )
   const completionsKey = operationalCompletionsQueryKey(userId, data.weddingId)
+  const hasStudioOnly =
+    !hero && !data.dayComplete && data.stops.some((s) => s.kind === 'studio')
 
   const completionMutation = useMutation({
     mutationFn: async (input: { stopKey: string; complete: boolean }) => {
@@ -217,41 +246,35 @@ export function WeddingDayCockpitView({ data, userId }: Props) {
   })
 
   async function handleBrief() {
-    if (briefBusy) return
-    setBriefBusy(true)
-    setBriefError(null)
-    try {
-      await downloadWeddingBriefPdf(data.weddingId)
-    } catch (e) {
-      const raw = getUserFacingErrorMessage(e, '')
-      setBriefError(mapPdfRenderErrorForUser(raw))
-    } finally {
-      setBriefBusy(false)
-    }
+    if (brief.busy) return
+    await brief.run()
   }
 
   return (
     <div className={styles.page} data-testid="wedding-day-cockpit">
-      <div className={styles.topBar}>
-        <div className={styles.identity}>
-          <Link
-            to={`/sluby/${data.weddingId}`}
-            className={styles.backLink}
-            data-testid="cockpit-back"
-          >
-            ← Wróć do zlecenia
-          </Link>
-          <h1 className={styles.couple}>{data.displayName}</h1>
-          <p className={styles.dateLine}>{data.dateLabel}</p>
-          {data.packageName ? (
-            <p className={styles.packageLine}>{data.packageName}</p>
-          ) : null}
-        </div>
+      <div className={styles.identityBlock}>
+        <Link
+          to={`/sluby/${data.weddingId}`}
+          className={styles.backLink}
+          data-testid="cockpit-back"
+        >
+          ← Wróć do zlecenia
+        </Link>
+        <ModernWeddingIdentityHero
+          wedding={wedding}
+          places={places}
+          compact
+          testId="cockpit-wedding-identity"
+        />
       </div>
 
       <div className={styles.layout}>
         <div className={styles.primaryCol}>
-          <section id="cockpit-teraz" aria-labelledby="cockpit-hero-heading">
+          <section
+            id="cockpit-punkt"
+            className={styles.heroSection}
+            aria-labelledby="cockpit-hero-heading"
+          >
             <div className={styles.hero} data-testid="cockpit-hero">
               {hero ? (
                 <>
@@ -306,9 +329,10 @@ export function WeddingDayCockpitView({ data, userId }: Props) {
                   <div className={styles.planActions}>
                     <button
                       type="button"
-                      className={styles.completeBtn}
+                      className={styles.heroCompleteBtn}
                       disabled={completionMutation.isPending}
                       data-testid="cockpit-complete-hero"
+                      aria-label="Oznacz jako zrealizowane"
                       onClick={() =>
                         completionMutation.mutate({
                           stopKey: hero.key,
@@ -316,9 +340,7 @@ export function WeddingDayCockpitView({ data, userId }: Props) {
                         })
                       }
                     >
-                      {completionMutation.isPending
-                        ? 'Zapisywanie…'
-                        : 'Oznacz jako zrealizowane'}
+                      {completionMutation.isPending ? 'Zapisywanie…' : 'Zrobione'}
                     </button>
                   </div>
                 </>
@@ -342,9 +364,13 @@ export function WeddingDayCockpitView({ data, userId }: Props) {
                   <p className={styles.heroEyebrow} id="cockpit-hero-heading">
                     Następny punkt
                   </p>
-                  <h2 className={styles.heroTitle}>Brak punktów operacyjnych</h2>
+                  <h2 className={styles.heroTitle}>
+                    Brak lokalizacji w planie dnia.
+                  </h2>
                   <p className={styles.muted}>
-                    Uzupełnij lokalizacje w planie dnia zlecenia.
+                    {hasStudioOnly
+                      ? 'Uzupełnij lokalizacje w zleceniu. Start dnia poniżej to baza wyjazdu.'
+                      : 'Uzupełnij lokalizacje w planie dnia zlecenia.'}
                   </p>
                 </>
               )}
@@ -356,7 +382,11 @@ export function WeddingDayCockpitView({ data, userId }: Props) {
             </div>
           </section>
 
-          <section id="cockpit-plan" aria-labelledby="cockpit-plan-heading">
+          <section
+            id="cockpit-plan"
+            className={styles.planSection}
+            aria-labelledby="cockpit-plan-heading"
+          >
             <h2 className={styles.sectionTitle} id="cockpit-plan-heading">
               Plan dnia
             </h2>
@@ -370,6 +400,7 @@ export function WeddingDayCockpitView({ data, userId }: Props) {
             ) : (
               <ol className={styles.planList} data-testid="cockpit-plan-list">
                 {data.stops.map((stop, index) => {
+                  const isHero = stop.key === data.heroStopKey
                   const showOutgoing =
                     index < data.stops.length - 1 &&
                     data.stops[index + 1]?.incomingLeg != null
@@ -378,16 +409,17 @@ export function WeddingDayCockpitView({ data, userId }: Props) {
                   const L = showOutgoing
                     ? legLabel(outgoing, data.routeStatus)
                     : null
+                  const showRowActions =
+                    stop.kind === 'wedding_place' && !isHero
                   return (
                     <li key={stop.key} className={styles.planItem}>
                       <div
                         className={styles.planStop}
                         data-completed={stop.completed ? 'true' : 'false'}
-                        data-hero={
-                          stop.key === data.heroStopKey ? 'true' : 'false'
-                        }
+                        data-hero={isHero ? 'true' : 'false'}
                         data-stop-key={stop.key}
                         data-testid={`cockpit-stop-${stop.key}`}
+                        aria-current={isHero ? 'true' : undefined}
                       >
                         <div className={styles.planTimeCol}>
                           <span
@@ -416,7 +448,7 @@ export function WeddingDayCockpitView({ data, userId }: Props) {
                           {stop.address ? (
                             <p className={styles.planAddress}>{stop.address}</p>
                           ) : null}
-                          {stop.kind === 'wedding_place' ? (
+                          {showRowActions ? (
                             <>
                               <StopNavActions stop={stop} />
                               <div className={styles.planActions}>
@@ -425,6 +457,11 @@ export function WeddingDayCockpitView({ data, userId }: Props) {
                                   className={styles.completeBtn}
                                   disabled={completionMutation.isPending}
                                   data-testid={`cockpit-toggle-${stop.key}`}
+                                  aria-label={
+                                    stop.completed
+                                      ? 'Cofnij oznaczenie punktu'
+                                      : 'Oznacz jako zrealizowane'
+                                  }
                                   onClick={() =>
                                     completionMutation.mutate({
                                       stopKey: stop.key,
@@ -432,9 +469,7 @@ export function WeddingDayCockpitView({ data, userId }: Props) {
                                     })
                                   }
                                 >
-                                  {stop.completed
-                                    ? 'Cofnij'
-                                    : 'Oznacz jako zrealizowane'}
+                                  {stop.completed ? 'Cofnij' : 'Zrobione'}
                                 </button>
                               </div>
                             </>
@@ -459,40 +494,21 @@ export function WeddingDayCockpitView({ data, userId }: Props) {
         </div>
 
         <div className={styles.secondaryCol}>
-          {hasCritical ? (
-            <section
-              id="cockpit-wazne"
-              className={styles.criticalSection}
-              aria-labelledby="cockpit-critical-heading"
-            >
-              <h2
-                className={styles.criticalHeading}
-                id="cockpit-critical-heading"
-              >
-                Nie przegap
-              </h2>
-              <ul className={styles.criticalList} data-testid="cockpit-critical">
-                {data.criticalNotes.map((note, i) => (
-                  <li key={`${note.label}-${i}`} className={styles.criticalItem}>
-                    <p className={styles.criticalLabel}>{note.label}</p>
-                    <p className={styles.criticalContent}>{note.content}</p>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ) : (
-            <div id="cockpit-wazne" hidden aria-hidden />
-          )}
+          {hasCritical ? <CriticalNotes notes={data.criticalNotes} /> : null}
 
-          <section id="cockpit-kontakt" aria-labelledby="cockpit-contacts-heading">
+          <section
+            id="cockpit-kontakt"
+            className={styles.contactsSection}
+            aria-labelledby="cockpit-contacts-heading"
+          >
             <h2 className={styles.sectionTitle} id="cockpit-contacts-heading">
               Kontakty
             </h2>
-            {phoneContacts.length === 0 ? (
+            {fieldContacts.length === 0 ? (
               <p className={styles.muted}>Brak numerów telefonu.</p>
             ) : (
               <ul className={styles.contactList} data-testid="cockpit-contacts">
-                {phoneContacts.map((c, i) => (
+                {fieldContacts.map((c, i) => (
                   <li key={`${c.role}-${i}`} className={styles.contactRow}>
                     <div className={styles.contactMeta}>
                       <p className={styles.contactName}>{c.name || c.role}</p>
@@ -508,84 +524,87 @@ export function WeddingDayCockpitView({ data, userId }: Props) {
             )}
           </section>
 
-          {data.settlement ? (
-            <section aria-labelledby="cockpit-settle-heading">
-              <h2 className={styles.sectionTitle} id="cockpit-settle-heading">
-                Rozliczenie
-              </h2>
-              <div
-                className={styles.settlementRows}
+          <div className={styles.utilities}>
+            {data.settlement ? (
+              <details
+                className={styles.settleDisclosure}
                 data-testid="cockpit-settlement"
               >
-                <div className={styles.settleRow}>
-                  <span className={styles.settleLabel}>Wartość umowy</span>
-                  <span className={styles.settleValue}>
-                    {formatCurrency(data.settlement.contractValue)}
+                <summary className={styles.settleSummary}>
+                  <span id="cockpit-settle-heading">Rozliczenie</span>
+                  <span className={styles.settleSummaryValue}>
+                    {data.settlement.settled
+                      ? 'Rozliczono'
+                      : `Pozostało ${formatCurrency(data.settlement.remainingToPay)}`}
                   </span>
-                </div>
-                {data.settlement.travelFeeLabel ? (
+                </summary>
+                <div className={styles.settlementRows}>
                   <div className={styles.settleRow}>
-                    <span className={styles.settleLabel}>Dojazd</span>
+                    <span className={styles.settleLabel}>Wartość umowy</span>
                     <span className={styles.settleValue}>
-                      {data.settlement.travelFeeLabel === 'W cenie'
-                        ? 'W cenie'
-                        : data.settlement.travelFeeLabel}
+                      {formatCurrency(data.settlement.contractValue)}
                     </span>
                   </div>
-                ) : null}
-                <div className={styles.settleRow}>
-                  <span className={styles.settleLabel}>Wpłacono</span>
-                  <span className={styles.settleValue}>
-                    {formatCurrency(data.settlement.totalPaid)}
-                  </span>
+                  {data.settlement.travelFeeLabel ? (
+                    <div className={styles.settleRow}>
+                      <span className={styles.settleLabel}>Dojazd</span>
+                      <span className={styles.settleValue}>
+                        {data.settlement.travelFeeLabel === 'W cenie'
+                          ? 'W cenie'
+                          : data.settlement.travelFeeLabel}
+                      </span>
+                    </div>
+                  ) : null}
+                  <div className={styles.settleRow}>
+                    <span className={styles.settleLabel}>Wpłacono</span>
+                    <span className={styles.settleValue}>
+                      {formatCurrency(data.settlement.totalPaid)}
+                    </span>
+                  </div>
+                  {!data.settlement.settled ? (
+                    <div className={styles.settleRow}>
+                      <span className={styles.settleLabel}>Pozostało</span>
+                      <span className={styles.settleValue}>
+                        {formatCurrency(data.settlement.remainingToPay)}
+                      </span>
+                    </div>
+                  ) : (
+                    <p className={styles.settledBadge}>Rozliczono</p>
+                  )}
                 </div>
-                {!data.settlement.settled ? (
-                  <div
-                    className={`${styles.settleRow} ${styles.settleRemaining}`}
-                  >
-                    <span className={styles.settleLabel}>Pozostało</span>
-                    <span className={styles.settleValue}>
-                      {formatCurrency(data.settlement.remainingToPay)}
-                    </span>
-                  </div>
-                ) : (
-                  <p className={styles.settledBadge}>Rozliczono</p>
-                )}
-              </div>
-            </section>
-          ) : null}
-
-          <section
-            className={styles.briefBlock}
-            aria-labelledby="cockpit-brief-heading"
-          >
-            <h2 className={styles.sectionTitle} id="cockpit-brief-heading">
-              Wedding Brief
-            </h2>
-            <p className={styles.muted}>
-              Offline’owy PDF na telefon — generowany dopiero po kliknięciu.
-            </p>
-            <div className={styles.planActions}>
-              <Button
-                type="button"
-                variant="secondary"
-                disabled={briefBusy}
-                data-testid="cockpit-brief-download"
-                onClick={() => void handleBrief()}
-              >
-                {briefBusy ? 'Przygotowywanie…' : 'Pobierz Wedding Brief'}
-              </Button>
-            </div>
-            {briefError ? (
-              <p className={styles.briefError} role="alert">
-                {briefError}
-              </p>
+              </details>
             ) : null}
-          </section>
+
+            <section
+              className={styles.briefBlock}
+              aria-labelledby="cockpit-brief-heading"
+            >
+              <h2 className={styles.sectionTitle} id="cockpit-brief-heading">
+                Wedding Brief
+              </h2>
+              <p className={styles.muted}>PDF na telefon, bez internetu.</p>
+              <div className={styles.planActions}>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={brief.busy}
+                  data-testid="cockpit-brief-download"
+                  onClick={() => void handleBrief()}
+                >
+                  {brief.label}
+                </Button>
+              </div>
+              {brief.error ? (
+                <p className={styles.briefError} role="alert">
+                  {brief.error}
+                </p>
+              ) : null}
+            </section>
+          </div>
         </div>
       </div>
 
-      <CockpitMobileNav />
+      <CockpitMobileNav hasCritical={hasCritical} />
     </div>
   )
 }

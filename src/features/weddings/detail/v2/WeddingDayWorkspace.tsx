@@ -262,7 +262,7 @@ export function WeddingDayWorkspace({
               className={styles.cockpitBannerLink}
               data-testid="wedding-day-open-cockpit"
             >
-              Dzień ślubu
+              Tryb dnia ślubu
             </Link>
           </div>
           <h2 className={styles.sectionHeading}>Plan dnia</h2>

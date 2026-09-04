@@ -10,6 +10,11 @@ import {
   getWeekHourSlots,
   type CalendarUiEvent,
 } from '../utils/calendarEvents'
+import {
+  resolveCalendarEventColors,
+  resolveSessionPackageAccent,
+} from '@/features/theme/calendarEventColors'
+import { useAppearance } from '@/features/appearance/useAppearance'
 import styles from './CalendarWeekView.module.css'
 
 interface CalendarWeekViewProps {
@@ -19,6 +24,8 @@ interface CalendarWeekViewProps {
 }
 
 export function CalendarWeekView({ anchor, events, onSelectEvent }: CalendarWeekViewProps) {
+  const { appearance } = useAppearance()
+  const chipColors = resolveCalendarEventColors(appearance)
   const days = getWeekDays(anchor)
   const hours = getWeekHourSlots()
   const today = new Date()
@@ -53,9 +60,9 @@ export function CalendarWeekView({ anchor, events, onSelectEvent }: CalendarWeek
                   type="button"
                   className={styles.allDayEvent}
                   style={{
-                    background: event.colors.background,
-                    color: event.colors.text,
-                    borderColor: event.colors.border,
+                    background: chipColors.background,
+                    color: chipColors.text,
+                    borderColor: chipColors.border,
                   }}
                   onClick={() => onSelectEvent(event)}
                 >
@@ -87,6 +94,10 @@ export function CalendarWeekView({ anchor, events, onSelectEvent }: CalendarWeek
                 ))}
                 {timed.map((event) => {
                   const pos = getEventPositionPercent(event.ceremonyTime!)
+                  const accentColor =
+                    event.entityType === 'session'
+                      ? resolveSessionPackageAccent(appearance)
+                      : event.packageColor
                   return (
                     <button
                       key={event.id}
@@ -95,10 +106,10 @@ export function CalendarWeekView({ anchor, events, onSelectEvent }: CalendarWeek
                       style={{
                         top: `${pos.top}%`,
                         height: `${pos.height}%`,
-                        background: event.colors.background,
-                        color: event.colors.text,
-                        borderColor: event.colors.border,
-                        borderLeftColor: event.packageColor,
+                        background: chipColors.background,
+                        color: chipColors.text,
+                        borderColor: chipColors.border,
+                        borderLeftColor: accentColor,
                       }}
                       onClick={() => onSelectEvent(event)}
                     >

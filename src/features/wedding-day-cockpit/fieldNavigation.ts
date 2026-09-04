@@ -1,9 +1,10 @@
 /**
- * Field navigation + phone link helpers for Wedding Day Cockpit.
- * Prefer valid lat/lng for navigation; fall back to encoded address.
+ * Field destination links for Wedding Day Cockpit.
+ * Open the place for inspection and route choice — do not start turn-by-turn.
  */
 
 import {
+  googleMapsPlaceUrl,
   resolveNavigationDestinationAddress,
   type NavigationDestination,
 } from '@/services/googleMapsLinks'
@@ -23,42 +24,38 @@ export type FieldNavigationLinks = {
 }
 
 /**
- * Build Google + Apple Maps navigation URLs for a destination.
- * Priority: valid coordinates → formatted address / label.
+ * Apple Maps destination/place view.
+ * Prefer a named address/place; coordinates only as fallback.
+ * Does not set daddr / dirflg (those start driving directions).
+ */
+export function appleMapsPlaceUrl(dest: NavigationDestination): string | null {
+  const human = resolveNavigationDestinationAddress(dest)
+  if (!human && !hasCoords(dest)) return null
+
+  const url = new URL('https://maps.apple.com/')
+  if (human) {
+    url.searchParams.set('q', human)
+    if (hasCoords(dest)) {
+      url.searchParams.set('ll', `${dest.latitude},${dest.longitude}`)
+    }
+    return url.toString()
+  }
+
+  url.searchParams.set('ll', `${dest.latitude},${dest.longitude}`)
+  return url.toString()
+}
+
+/**
+ * Build Google + Apple Maps destination URLs.
+ * Priority: Google Place ID → human-readable place/address → coordinates.
  */
 export function buildFieldNavigationLinks(
   dest: NavigationDestination,
 ): FieldNavigationLinks {
-  if (hasCoords(dest)) {
-    const lat = dest.latitude!
-    const lng = dest.longitude!
-    const google = new URL('https://www.google.com/maps/dir/')
-    google.searchParams.set('api', '1')
-    google.searchParams.set('destination', `${lat},${lng}`)
-    google.searchParams.set('travelmode', 'driving')
-    google.searchParams.set('dir_action', 'navigate')
-
-    const apple = new URL('https://maps.apple.com/')
-    apple.searchParams.set('daddr', `${lat},${lng}`)
-    apple.searchParams.set('dirflg', 'd')
-
-    return { google: google.toString(), apple: apple.toString() }
+  return {
+    google: googleMapsPlaceUrl(dest),
+    apple: appleMapsPlaceUrl(dest),
   }
-
-  const address = resolveNavigationDestinationAddress(dest)
-  if (!address) return { google: null, apple: null }
-
-  const google = new URL('https://www.google.com/maps/dir/')
-  google.searchParams.set('api', '1')
-  google.searchParams.set('destination', address)
-  google.searchParams.set('travelmode', 'driving')
-  google.searchParams.set('dir_action', 'navigate')
-
-  const apple = new URL('https://maps.apple.com/')
-  apple.searchParams.set('daddr', address)
-  apple.searchParams.set('dirflg', 'd')
-
-  return { google: google.toString(), apple: apple.toString() }
 }
 
 /** Digits / leading + for tel: and sms: — does not mutate stored display values. */

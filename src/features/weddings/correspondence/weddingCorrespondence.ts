@@ -4,6 +4,8 @@
  * Legacy columns correspondence_channel / correspondence_value remain for transition.
  */
 
+import { createBrowserSafeId } from '@/lib/utils/createBrowserSafeId'
+
 export type CorrespondenceChannel = 'email' | 'instagram' | 'facebook'
 
 /** Single saved correspondence row. */
@@ -44,10 +46,7 @@ export function isCorrespondenceChannel(
 }
 
 export function createCorrespondenceEntryId(): string {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-    return crypto.randomUUID()
-  }
-  return `corr-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+  return createBrowserSafeId()
 }
 
 function normalizeEntryValue(

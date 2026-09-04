@@ -3,6 +3,7 @@ import { Card, CardHeader } from '@/components/ui/Card'
 import { Input } from '@/components/ui/Input'
 import { IconCheck } from '@/components/icons'
 import { formatShortDate } from '@/lib/utils/dates'
+import { createBrowserSafeId } from '@/lib/utils/createBrowserSafeId'
 import type { Task } from '@/types/wedding'
 import editStyles from '@/features/weddings/edit/WeddingEdit.module.css'
 import styles from './WeddingDetailTasks.module.css'
@@ -37,7 +38,7 @@ export function WeddingDetailTasks({
     onChangeTasks?.([
       ...tasks,
       {
-        id: `temp-${crypto.randomUUID()}`,
+        id: `temp-${createBrowserSafeId()}`,
         weddingId,
         title: '',
         dueDate: new Date().toISOString().slice(0, 10),

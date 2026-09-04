@@ -7,6 +7,8 @@ import { useOverlay } from '@/components/ui/overlay/useOverlay'
 import { useEffect, useId, useRef, useState } from 'react'
 import styles from './WeddingEditDrawerV2.module.css'
 
+export type WeddingEditOverlayPresentation = 'drawer' | 'centered'
+
 interface WeddingEditDrawerV2Props {
   open: boolean
   title: string
@@ -18,11 +20,18 @@ interface WeddingEditDrawerV2Props {
   /** Hide draft save for location-only editors (save happens on place select). */
   hideSave?: boolean
   saveLabel?: string
+  /**
+   * Classic keeps the right drawer. Modern location editing uses the same
+   * overlay primitives in a centered modal (Calendar Quick Preview language).
+   */
+  presentation?: WeddingEditOverlayPresentation
 }
+
+const CENTERED_CLOSE_MS = 200
 
 /**
  * V2-native edit shell — workspace stays mounted behind the panel.
- * Desktop: wide right drawer. Mobile: full-screen sheet.
+ * Default: wide right drawer. `centered`: Modern modal overlay.
  */
 export function WeddingEditDrawerV2({
   open,
@@ -34,10 +43,12 @@ export function WeddingEditDrawerV2({
   children,
   hideSave = false,
   saveLabel = 'Zapisz zmiany',
+  presentation = 'drawer',
 }: WeddingEditDrawerV2Props) {
   const titleId = useId()
   const descId = useId()
   const panelRef = useRef<HTMLDivElement>(null)
+  const centered = presentation === 'centered'
   /**
    * Opening from a control that sits under the frosted backdrop (Overview /
    * Wedding Day "Edytuj lokalizacje") mounts this drawer in the same click
@@ -50,8 +61,28 @@ export function WeddingEditDrawerV2({
    * each open via fresh mount (no sync setState in an effect).
    */
   const [backdropDismissArmed, setBackdropDismissArmed] = useState(false)
+  const [closing, setClosing] = useState(false)
+  const closeTimerRef = useRef<number | null>(null)
 
-  useOverlay({ open, onClose, busy, panelRef })
+  function requestClose() {
+    if (busy || closing) return
+    if (!centered) {
+      onClose()
+      return
+    }
+    setClosing(true)
+    closeTimerRef.current = window.setTimeout(() => {
+      onClose()
+      setClosing(false)
+    }, CENTERED_CLOSE_MS)
+  }
+
+  useOverlay({
+    open,
+    onClose: requestClose,
+    busy,
+    panelRef,
+  })
 
   useEffect(() => {
     if (!open) return
@@ -61,24 +92,39 @@ export function WeddingEditDrawerV2({
     return () => window.clearTimeout(armId)
   }, [open])
 
+  useEffect(() => {
+    return () => {
+      if (closeTimerRef.current != null) {
+        window.clearTimeout(closeTimerRef.current)
+      }
+    }
+  }, [])
+
   if (!open) return null
 
   return (
     <ModalPortal>
-      <div className={styles.root} role="presentation" data-testid="wedding-edit-drawer-v2">
+      <div
+        className={centered ? `${styles.root} ${styles.rootCentered}` : styles.root}
+        role="presentation"
+        data-testid={centered ? 'modern-places-edit-modal' : 'wedding-edit-drawer-v2'}
+        data-presentation={presentation}
+        data-closing={closing ? 'true' : 'false'}
+      >
         <Backdrop
-          disabled={busy || !backdropDismissArmed}
+          disabled={busy || closing || !backdropDismissArmed}
           onClick={() => {
-            if (!busy && backdropDismissArmed) onClose()
+            if (!busy && !closing && backdropDismissArmed) requestClose()
           }}
         />
         <div
           ref={panelRef}
-          className={styles.panel}
+          className={centered ? `${styles.panel} ${styles.panelCentered}` : styles.panel}
           role="dialog"
           aria-modal="true"
           aria-labelledby={titleId}
           aria-describedby={description ? descId : undefined}
+          tabIndex={centered ? -1 : undefined}
         >
           <header className={styles.header}>
             <div className={styles.headerText}>
@@ -95,8 +141,8 @@ export function WeddingEditDrawerV2({
               type="button"
               className={styles.close}
               aria-label="Zamknij"
-              disabled={busy}
-              onClick={onClose}
+              disabled={busy || closing}
+              onClick={requestClose}
             >
               <IconClose width={18} height={18} />
             </button>
@@ -108,8 +154,8 @@ export function WeddingEditDrawerV2({
             <Button
               type="button"
               variant="ghost"
-              disabled={busy}
-              onClick={onClose}
+              disabled={busy || closing}
+              onClick={requestClose}
             >
               Anuluj
             </Button>
@@ -117,7 +163,7 @@ export function WeddingEditDrawerV2({
               <Button
                 type="button"
                 variant="primary"
-                disabled={busy}
+                disabled={busy || closing}
                 onClick={onSave}
               >
                 {busy ? 'Zapisywanie…' : saveLabel}
@@ -126,8 +172,8 @@ export function WeddingEditDrawerV2({
               <Button
                 type="button"
                 variant="primary"
-                disabled={busy}
-                onClick={onClose}
+                disabled={busy || closing}
+                onClick={requestClose}
               >
                 Gotowe
               </Button>

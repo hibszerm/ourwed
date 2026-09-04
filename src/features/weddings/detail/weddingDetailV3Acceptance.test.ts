@@ -119,7 +119,17 @@ run('4–8. Umowa i finanse is commercial — no readiness checklist', () => {
 })
 
 run('9–12. Generation guard + missing dialog on page', () => {
-  const page = readFileSync(pagePath, 'utf8')
+  const page = [
+    readFileSync(pagePath, 'utf8'),
+    readFileSync(
+      resolve(process.cwd(), 'src/features/weddings/detail/useWeddingDetailHost.ts'),
+      'utf8',
+    ),
+    readFileSync(
+      resolve(process.cwd(), 'src/features/weddings/detail/WeddingDetailHostModals.tsx'),
+      'utf8',
+    ),
+  ].join('\n')
   assert(page.includes('validateContractGeneration'), 'guard')
   assert(page.includes('MissingContractDataDialog'), 'dialog')
   assert(page.includes('handleGenerateContract'), 'handler')

@@ -354,16 +354,59 @@ run('D. Place name + address both survive (Villa Love)', () => {
   )
 })
 
-run('E. Map helper prefers coordinates and falls back to address', () => {
-  const withCoords = buildFieldNavigationLinks({
+run('E. Maps open destination/place, not turn-by-turn navigation', () => {
+  const withPlace = buildFieldNavigationLinks({
+    label: 'Villa Love',
+    formattedAddress: 'Lwowska 78, 34-144 Izdebnik',
+    latitude: 49.88,
+    longitude: 19.76,
+    placeId: 'ChIJ-villa-love',
+  })
+  assert(Boolean(withPlace.google && withPlace.apple), 'both providers')
+  assert(!withPlace.google?.includes('dir_action=navigate'), 'google no auto-nav')
+  assert(!withPlace.google?.includes('/maps/dir/'), 'google is not directions')
+  assert(Boolean(withPlace.google?.includes('maps/search')), 'google place search')
+  assert(Boolean(withPlace.google?.includes('query_place_id')), 'google prefers place id')
+  assert(
+    !withPlace.google?.includes('49.88') || Boolean(withPlace.google?.includes('query_place_id')),
+    'coords are not the primary google identity when place exists',
+  )
+  assert(!withPlace.apple?.includes('dirflg'), 'apple no driving flag')
+  assert(!withPlace.apple?.includes('daddr'), 'apple no directions dest')
+  assert(
+    Boolean(
+      withPlace.apple &&
+        (withPlace.apple.includes('Villa') ||
+          decodeURIComponent(withPlace.apple).includes('Villa Love')),
+    ),
+    'apple human place',
+  )
+
+  const withAddressAndCoords = buildFieldNavigationLinks({
     label: 'Villa Love',
     formattedAddress: 'Lwowska 78, 34-144 Izdebnik',
     latitude: 49.88,
     longitude: 19.76,
   })
-  assert(Boolean(withCoords.google?.includes('49.88')), 'google coords')
-  assert(Boolean(withCoords.apple?.includes('49.88')), 'apple coords')
-  assert(!withCoords.google?.includes('Lwowska'), 'coords win over address')
+  assert(!withAddressAndCoords.google?.includes('dir_action=navigate'), 'no auto-nav')
+  assert(
+    Boolean(
+      withAddressAndCoords.google &&
+        decodeURIComponent(withAddressAndCoords.google).includes('Lwowska'),
+    ),
+    'google prefers address over raw coords',
+  )
+  assert(
+    !withAddressAndCoords.google?.includes('49.88'),
+    'google does not lead with coordinates when address exists',
+  )
+  assert(
+    Boolean(
+      withAddressAndCoords.apple &&
+        decodeURIComponent(withAddressAndCoords.apple).includes('Lwowska'),
+    ),
+    'apple prefers address',
+  )
 
   const addrOnly = buildFieldNavigationLinks({
     label: 'Villa Love',
@@ -371,8 +414,25 @@ run('E. Map helper prefers coordinates and falls back to address', () => {
     latitude: null,
     longitude: null,
   })
-  assert(Boolean(addrOnly.google?.includes(encodeURIComponent('Lwowska').slice(0, 6)) || addrOnly.google?.includes('Lwowska')), 'address google')
+  assert(
+    Boolean(
+      addrOnly.google && decodeURIComponent(addrOnly.google).includes('Lwowska'),
+    ),
+    'address google',
+  )
   assert(Boolean(addrOnly.apple), 'apple address')
+  assert(!addrOnly.apple?.includes('dirflg'), 'address apple is destination view')
+
+  const coordsOnly = buildFieldNavigationLinks({
+    label: null,
+    formattedAddress: null,
+    latitude: 49.88,
+    longitude: 19.76,
+  })
+  assert(Boolean(coordsOnly.google?.includes('49.88')), 'coords google fallback')
+  assert(Boolean(coordsOnly.apple?.includes('49.88')), 'coords apple fallback')
+  assert(!coordsOnly.google?.includes('dir_action=navigate'), 'coords fallback still no auto-nav')
+  assert(!coordsOnly.apple?.includes('dirflg'), 'coords apple still destination view')
 
   const empty = buildFieldNavigationLinks({ label: null, formattedAddress: null })
   assert(empty.google === null && empty.apple === null, 'no destination')
@@ -515,7 +575,7 @@ run('J/K. Wedding Brief not on mount; explicit download path wired', () => {
   assert(!hookSrc.includes('downloadWeddingBriefPdf'), 'hook no PDF')
   assert(!hookSrc.includes('forceRefresh: true'), 'no forced recalc on mount')
   assert(hookSrc.includes('forceRefresh: false'), 'explicit cache-first getPlan')
-  assert(viewSrc.includes('downloadWeddingBriefPdf'), 'view uses production download')
+  assert(viewSrc.includes('useWeddingBriefAction'), 'view uses shared brief action')
   assert(viewSrc.includes('cockpit-brief-download'), 'explicit button test id')
   assert(viewSrc.includes('onClick={() => void handleBrief()}'), 'click handler')
 })
@@ -823,6 +883,113 @@ run('M. Desktop/mobile: no viewport-based feature removal; route + entry wired',
   assert(!viewSrc.includes('matchMedia'), 'no matchMedia gating')
   assert(css.includes('@media (min-width: 900px)'), 'desktop layout media')
   assert(css.includes('display: none') && css.includes('.mobileNav'), 'only sticky nav hidden on desktop')
+})
+
+run('Option B. Presentation hierarchy without domain/clock changes', () => {
+  const viewSrc = readFileSync(
+    resolve(process.cwd(), 'src/features/wedding-day-cockpit/WeddingDayCockpitView.tsx'),
+    'utf8',
+  )
+  const navSrc = readFileSync(
+    resolve(process.cwd(), 'src/features/wedding-day-cockpit/CockpitMobileNav.tsx'),
+    'utf8',
+  )
+  const css = readFileSync(
+    resolve(process.cwd(), 'src/features/wedding-day-cockpit/WeddingDayCockpit.module.css'),
+    'utf8',
+  )
+  const hookSrc = readFileSync(
+    resolve(
+      process.cwd(),
+      'src/features/wedding-day-cockpit/useWeddingDayCockpitData.ts',
+    ),
+    'utf8',
+  )
+  const builderSrc = readFileSync(
+    resolve(
+      process.cwd(),
+      'src/features/wedding-day-cockpit/buildWeddingDayCockpitData.ts',
+    ),
+    'utf8',
+  )
+  const modernHeader = readFileSync(
+    resolve(
+      process.cwd(),
+      'src/features/weddings/modern-detail/ModernWeddingDetailHeader.tsx',
+    ),
+    'utf8',
+  )
+  const identityHero = readFileSync(
+    resolve(
+      process.cwd(),
+      'src/features/weddings/modern-detail/ModernWeddingIdentityHero.tsx',
+    ),
+    'utf8',
+  )
+  const identityCss = readFileSync(
+    resolve(
+      process.cwd(),
+      'src/features/weddings/modern-detail/ModernWeddingDetailHeader.module.css',
+    ),
+    'utf8',
+  )
+  const fieldNav = readFileSync(
+    resolve(process.cwd(), 'src/features/wedding-day-cockpit/fieldNavigation.ts'),
+    'utf8',
+  )
+
+  assert(builderSrc.includes('selectHeroStopKey'), 'first-incomplete hero')
+  assert(!viewSrc.includes('Date.now()'), 'no clock in view')
+  assert(!viewSrc.includes("label: 'Teraz'"), 'no Teraz in view')
+  assert(!navSrc.includes("'Teraz'"), 'nav not Teraz')
+  assert(navSrc.includes("label: 'Punkt'"), 'nav Punkt')
+  assert(navSrc.includes('hasCritical'), 'Ważne only when notes exist')
+  assert(viewSrc.includes("id=\"cockpit-punkt\""), 'hero anchor')
+  assert(viewSrc.includes('showRowActions'), 'hero row skips duplicate actions')
+  assert(viewSrc.includes('stop.kind === \'wedding_place\' && !isHero'), 'hero owns Jedź/complete')
+  assert(viewSrc.includes("? 'Cofnij' : 'Zrobione'"), 'undo preserved on non-hero rows')
+  assert(viewSrc.includes("cockpit-complete-hero"), 'hero complete control')
+  assert(viewSrc.includes("'Zrobione'"), 'short completion copy')
+  assert(viewSrc.includes('aria-label="Oznacz jako zrealizowane"'), 'accessible complete name')
+  assert(viewSrc.includes('onMutate'), 'completion optimistic unchanged')
+  assert(viewSrc.includes('markComplete'), 'same mutation')
+  assert(viewSrc.includes('clearComplete'), 'undo mutation')
+  assert(css.includes('.criticalSection {'), 'critical section')
+  assert(css.includes('order: 2'), 'Nie przegap before plan on mobile')
+  assert(css.includes('.planSection {'), 'plan order class')
+  assert(css.includes('order: 3'), 'plan after critical on mobile')
+  assert(!css.includes('opacity: 0.48'), 'completed not washed out')
+  assert(css.includes("[data-completed='true'] .planTitle"), 'completed readable treatment')
+  assert(viewSrc.includes('settleDisclosure'), 'Rozliczenie demoted disclosure')
+  assert(viewSrc.includes('cockpit-settlement'), 'settlement still present')
+  assert(viewSrc.includes('PDF na telefon, bez internetu.'), 'brief helper copy')
+  assert(viewSrc.includes('useWeddingBriefAction'), 'shared brief hook')
+  assert(viewSrc.includes("variant: 'cockpit'") || viewSrc.includes("'cockpit'"), 'cockpit brief variant')
+  assert(viewSrc.includes('buildTelHref(c.phone'), 'invalid phones omitted from field list')
+  assert(viewSrc.includes('Brak lokalizacji w planie dnia.'), 'studio-only truthful copy')
+  assert(!viewSrc.includes('id="cockpit-wazne" hidden'), 'no dead Ważne stub')
+  assert(!hookSrc.includes("['wedding-day-cockpit'"), 'no mega-cache')
+  assert(identityCss.includes('.heroCompact'), 'compact identity variant')
+  assert(identityCss.includes('font-size: 1.35rem'), 'mobile identity stays compact')
+  assert(identityCss.includes("'date countdown'"), 'compact date and status share one row')
+  assert(viewSrc.includes('ModernWeddingIdentityHero'), 'reuses modern identity hero')
+  assert(viewSrc.includes('compact'), 'cockpit uses compact identity')
+  assert(viewSrc.includes('cockpit-wedding-identity'), 'identity test id')
+  assert(viewSrc.includes('cockpit-hero'), 'operational hero remains')
+  assert(!viewSrc.includes('ModernWeddingDetailTabs'), 'no detail tabs in cockpit')
+  assert(!viewSrc.includes("'Przegląd'"), 'no Przegląd tab')
+  assert(!identityHero.includes('Jedź'), 'identity hero has no Jedź')
+  assert(!identityHero.includes('Zrobione'), 'identity hero has no Zrobione')
+  assert(viewSrc.includes('placeId: stop.placeId'), 'Jedź passes stored place id')
+  assert(viewSrc.includes('Apple Maps'), 'provider chooser apple')
+  assert(viewSrc.includes('Google Maps'), 'provider chooser google')
+  assert(!fieldNav.includes("searchParams.set('dir_action'"), 'field nav has no navigate action')
+  assert(!fieldNav.includes("searchParams.set('dirflg'"), 'field nav has no apple driving flag')
+  assert(!fieldNav.includes("searchParams.set('daddr'"), 'field nav has no apple daddr')
+  assert(fieldNav.includes('googleMapsPlaceUrl'), 'google destination reuse')
+  assert(modernHeader.includes('Tryb dnia ślubu'), 'modern entry copy')
+  assert(viewSrc.includes('aria-current={isHero'), 'hero row status not color-only')
+  assert(!viewSrc.includes('window.innerWidth'), 'still no JS viewport gating')
 })
 
 run('Migration: operational completions owner-only RLS', () => {
