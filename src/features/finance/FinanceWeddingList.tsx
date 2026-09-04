@@ -3,6 +3,7 @@ import { formatCurrency } from '@/lib/utils/currency'
 import { formatDate } from '@/lib/utils/dates'
 import type { FinanceAssignment } from '@/lib/finance/financeSeasonTypes'
 import {
+  FINANCE_TABLE_DEPOSIT_PAID_LABEL,
   financeAssignmentKindLabel,
   financePaymentStatusLabel,
 } from '@/features/finance/financeLabels'
@@ -33,7 +34,7 @@ export function FinanceWeddingTable({
           <col className={styles.colDate} />
           <col className={styles.colName} />
           <col className={styles.colMoney} />
-          <col className={styles.colMoney} />
+          <col className={styles.colDeposit} />
           <col className={styles.colMoney} />
           <col className={styles.colMoney} />
           <col className={styles.colStatus} />
@@ -52,8 +53,8 @@ export function FinanceWeddingTable({
             <th scope="col" className={styles.num}>
               Wartość
             </th>
-            <th scope="col" className={styles.num}>
-              Zaliczka
+            <th scope="col" className={`${styles.num} ${styles.colDeposit}`}>
+              {FINANCE_TABLE_DEPOSIT_PAID_LABEL}
             </th>
             <th scope="col" className={styles.num}>
               Wpłacono

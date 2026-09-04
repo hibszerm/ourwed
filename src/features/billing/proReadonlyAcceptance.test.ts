@@ -64,18 +64,40 @@ assert(hook.includes('focus'), 'refresh on focus')
 assert(hook.includes('60_000') || hook.includes('setInterval'), 'periodic revalidation')
 
 const weddings = read('src/pages/WeddingsPage.tsx')
-assert(weddings.includes('ProGateNavButton'), 'weddings create gated')
+assert(weddings.includes('ProGateNavButton'), 'Classic weddings create gated')
+const weddingsModern = read('src/pages/WeddingsModernPage.tsx')
+assert(weddingsModern.includes('ProGateNavButton'), 'Modern weddings create gated')
 
 const sessions = read('src/pages/SessionsPage.tsx')
-assert(sessions.includes('ProGateNavButton'), 'sessions create gated')
+assert(sessions.includes('ProGateNavButton'), 'Classic sessions create gated')
+const sessionsModern = read('src/pages/SessionsModernPage.tsx')
+assert(sessionsModern.includes('ProGateNavButton'), 'Modern sessions create gated')
 
 const calendar = read('src/pages/CalendarPage.tsx')
-assert(calendar.includes('requirePro'), 'calendar add gated')
+assert(calendar.includes('requirePro'), 'Classic calendar add gated')
+const calendarModern = read('src/pages/CalendarModernPage.tsx')
+assert(calendarModern.includes('requirePro'), 'Modern calendar add gated')
 
-const weddingDetail = read('src/pages/WeddingDetailPage.tsx')
-assert(weddingDetail.includes('requirePro'), 'wedding detail gated')
+/* Classic + Modern Wedding Detail share Pro gates in the host (save/archive/hero). */
+const weddingDetailHost = read('src/features/weddings/detail/useWeddingDetailHost.ts')
+assert(weddingDetailHost.includes('requirePro'), 'shared wedding detail host gated')
+assert(weddingDetailHost.includes('useProAccessGate'), 'shared host uses ProAccessGate')
+const classicDetail = read('src/pages/WeddingDetailPage.tsx')
+const modernDetail = read('src/pages/WeddingDetailModernPage.tsx')
+assert(classicDetail.includes('useWeddingDetailHost'), 'Classic detail uses shared host')
+assert(modernDetail.includes('useWeddingDetailHost'), 'Modern detail uses shared host')
+const modernDetailHeader = read(
+  'src/features/weddings/modern-detail/ModernWeddingDetailHeader.tsx',
+)
+assert(modernDetailHeader.includes('requirePro'), 'Modern detail header actions gated')
+const modernDetailFinance = read(
+  'src/features/weddings/modern-detail/ModernWeddingContractFinanceWorkspace.tsx',
+)
+assert(modernDetailFinance.includes('requirePro'), 'Modern detail payment delete gated')
 
-const library = read('src/pages/QuestionnaireLibraryPage.tsx')
+const library =
+  read('src/pages/QuestionnaireLibraryPage.tsx') +
+  read('src/features/prewedding/modern/ModernQuestionnaireLibrary.tsx')
 assert(library.includes('requirePro'), 'ankiety library gated')
 
 const subPage = read('src/pages/SubscriptionSettingsPage.tsx')

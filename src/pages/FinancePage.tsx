@@ -104,6 +104,12 @@ export function FinancePage() {
     model != null ||
     (seasonQuery.isFetching && seasonQuery.isPlaceholderData)
 
+  const showLoading =
+    !model &&
+    !showBody &&
+    !seasonQuery.isError &&
+    !(yearsQuery.isError && seasonYear == null)
+
   const dataReady = Boolean(model) && !seasonEmpty
   const { phase: reveal, completeEntrance, entranceLocked } =
     useFinanceEntranceReveal(dataReady)
@@ -141,17 +147,27 @@ export function FinancePage() {
   }
 
   function renderSeasonNavigator() {
+    if (seasonYear == null) {
+      return (
+        <div
+          className={styles.seasonControlSkeleton}
+          aria-hidden
+          data-finance-season-skeleton
+        >
+          <span className={styles.skeletonControl} />
+          <span className={styles.skeletonSelect} />
+          <span className={styles.skeletonControl} />
+        </div>
+      )
+    }
+
     return (
       <>
         <button
           type="button"
           className={styles.seasonNav}
           aria-label="Poprzedni sezon"
-          disabled={seasonYear == null}
-          onClick={() => {
-            if (seasonYear == null) return
-            changeSeason(seasonYear - 1)
-          }}
+          onClick={() => changeSeason(seasonYear - 1)}
         >
           ‹
         </button>
@@ -159,8 +175,7 @@ export function FinancePage() {
           <span className={styles.srOnly}>Sezon</span>
           <select
             className={styles.seasonSelect}
-            value={seasonYear ?? ''}
-            disabled={seasonYear == null}
+            value={seasonYear}
             onChange={(e) => changeSeason(Number(e.target.value))}
           >
             {availableYears.map((y) => (
@@ -168,18 +183,13 @@ export function FinancePage() {
                 Sezon {y}
               </option>
             ))}
-            {availableYears.length === 0 ? <option value="">—</option> : null}
           </select>
         </label>
         <button
           type="button"
           className={styles.seasonNav}
           aria-label="Następny sezon"
-          disabled={seasonYear == null}
-          onClick={() => {
-            if (seasonYear == null) return
-            changeSeason(seasonYear + 1)
-          }}
+          onClick={() => changeSeason(seasonYear + 1)}
         >
           ›
         </button>
@@ -189,7 +199,7 @@ export function FinancePage() {
 
   return (
     <AppLayout>
-      <PageContainer width="full" className={styles.pageShell}>
+      <PageContainer width="wide" className={styles.pageShell}>
         <div className={styles.workspace} data-finance-workspace>
           <PageHeader
             className={styles.financeHeader}
@@ -252,15 +262,17 @@ export function FinancePage() {
               />
             </div>
 
-            {seasonQuery.isError && !model ? (
+            {(seasonQuery.isError && !model) ||
+            (yearsQuery.isError && seasonYear == null && !model) ? (
               <EmptyState
                 title="Nie udało się załadować finansów"
-                description={
-                  seasonQuery.error instanceof Error
-                    ? getUserFacingErrorMessage(seasonQuery.error, 'Nie udało się pobrać danych finansowych.')
-                    : 'Spróbuj odświeżyć stronę.'
-                }
+                description={getUserFacingErrorMessage(
+                  seasonQuery.error ?? yearsQuery.error,
+                  'Nie udało się pobrać danych finansowych. Spróbuj odświeżyć stronę.',
+                )}
               />
+            ) : showLoading ? (
+              <FinanceLoadingSkeleton />
             ) : !showBody || !model ? null : (
               <>
                 {seasonEmpty ? (
@@ -425,5 +437,46 @@ export function FinancePage() {
         </div>
       </PageContainer>
     </AppLayout>
+  )
+}
+
+function FinanceLoadingSkeleton() {
+  return (
+    <div
+      className={styles.loadingSkeleton}
+      data-testid="finance-loading"
+      aria-busy="true"
+      aria-live="polite"
+    >
+      <span className={styles.srOnly}>Ładowanie</span>
+      <div className={styles.kpiStrip} aria-hidden>
+        {Array.from({ length: 4 }, (_, index) => (
+          <div
+            key={index}
+            className={`${styles.kpiCard} ${styles.skeletonKpiCard}`}
+          >
+            <span className={styles.skeletonLine} />
+            <span
+              className={`${styles.skeletonLine} ${styles.skeletonLineValue}`}
+            />
+          </div>
+        ))}
+      </div>
+      <div className={styles.skeletonAnalytics} aria-hidden>
+        <div className={styles.skeletonChart} />
+        <div className={styles.skeletonSummary} />
+      </div>
+      <div className={styles.skeletonHealth} aria-hidden>
+        {Array.from({ length: 5 }, (_, index) => (
+          <span key={index} className={styles.skeletonChip} />
+        ))}
+      </div>
+      <div className={styles.skeletonList} aria-hidden>
+        <span className={styles.skeletonHeading} />
+        <span className={styles.skeletonRow} />
+        <span className={styles.skeletonRow} />
+        <span className={styles.skeletonRow} />
+      </div>
+    </div>
   )
 }

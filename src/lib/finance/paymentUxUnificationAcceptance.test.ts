@@ -106,9 +106,12 @@ function assertNotIncludes(src: string, needle: string, m: string) {
 
 {
   const kpi = read('src/features/finance/FinanceKpiStrip.tsx')
-  assertIncludes(kpi, 'Otrzymane zaliczki', 'aggregate KPI retained')
+  const labels = read('src/features/finance/financeLabels.ts')
   const table = read('src/features/finance/FinanceWeddingList.tsx')
-  assertIncludes(table, 'Zaliczka', 'desktop Zaliczka column')
+  assertIncludes(kpi, 'FINANCE_KPI_DEPOSITS_LABEL', 'aggregate KPI retained')
+  assertIncludes(labels, "FINANCE_KPI_DEPOSITS_LABEL = 'Otrzymane zadatki'", 'zadatek KPI')
+  assertIncludes(table, 'FINANCE_TABLE_DEPOSIT_PAID_LABEL', 'desktop received-deposit column')
+  assertIncludes(labels, "FINANCE_TABLE_DEPOSIT_PAID_LABEL = 'Wpłacony zadatek'", 'truthful deposit header')
   console.log('PASS  finance terminology')
 }
 

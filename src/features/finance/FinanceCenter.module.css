@@ -1,9 +1,8 @@
-/* Finance Center — capped ~1360px desktop workspace (Finance-specific). */
+/* Finance Center — occupies the accepted Modern wide shell (PageContainer width=wide). */
 
 .pageShell {
   width: 100%;
-  max-width: 1360px;
-  margin-inline: auto;
+  min-width: 0;
 }
 
 .workspace {
@@ -303,7 +302,7 @@
 .tabActive {
   color: var(--color-text-primary);
   background: var(--color-surface);
-  box-shadow: var(--shadow-xs, 0 1px 2px rgb(0 0 0 / 0.04));
+  box-shadow: var(--shadow-xs);
 }
 
 .seasonControl {
@@ -410,6 +409,149 @@
   color: var(--color-text-secondary);
 }
 
+.seasonControlSkeleton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.skeletonControl,
+.skeletonSelect {
+  display: block;
+  border-radius: var(--control-radius);
+  background: color-mix(in srgb, var(--color-text-primary) 7%, transparent);
+}
+
+.skeletonControl {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+}
+
+.skeletonSelect {
+  width: 7.5rem;
+  height: 40px;
+}
+
+.loadingSkeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-width: 0;
+}
+
+.skeletonKpiCard {
+  min-height: 4.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  justify-content: center;
+}
+
+@media (min-width: 768px) {
+  .skeletonKpiCard {
+    min-height: 5.75rem;
+  }
+}
+
+.skeletonLine,
+.skeletonHeading,
+.skeletonRow,
+.skeletonChip {
+  display: block;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--color-text-primary) 7%, transparent);
+}
+
+.skeletonLine {
+  height: 10px;
+  width: 42%;
+}
+
+.skeletonLineValue {
+  width: 68%;
+  height: 18px;
+}
+
+.skeletonAnalytics {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.skeletonChart {
+  min-height: 180px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: color-mix(
+    in srgb,
+    var(--color-text-primary) 4%,
+    var(--color-surface)
+  );
+}
+
+.skeletonSummary {
+  display: none;
+  min-height: 180px;
+  border-radius: var(--radius-md);
+  border: 1px solid color-mix(in srgb, var(--color-border) 55%, transparent);
+  background: color-mix(in srgb, var(--color-bg-subtle) 50%, transparent);
+}
+
+@media (min-width: 1024px) {
+  .skeletonAnalytics {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) clamp(240px, 28%, 320px);
+    gap: 0;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    background: var(--color-surface);
+  }
+
+  .skeletonChart {
+    min-height: 220px;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .skeletonSummary {
+    display: block;
+    min-height: 220px;
+    border: 0;
+    border-left: 1px solid color-mix(in srgb, var(--color-border) 88%, transparent);
+    border-radius: 0;
+  }
+}
+
+.skeletonHealth {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.skeletonChip {
+  width: 5.5rem;
+  min-height: 44px;
+}
+
+.skeletonList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.skeletonHeading {
+  height: 16px;
+  width: 9rem;
+}
+
+.skeletonRow {
+  height: 44px;
+  width: 100%;
+}
+
 /* —— KPIs —— */
 
 .kpiSection {
@@ -434,7 +576,7 @@
 
 .kpiCard {
   padding: var(--space-3);
-  border: 1px solid var(--color-border);
+  border: var(--card-border, 1px solid var(--color-border));
   border-radius: var(--radius-md);
   background: var(--color-surface);
   min-width: 0;
@@ -636,9 +778,9 @@
 
 .summaryPanel {
   padding: 14px 16px;
-  border: 1px solid var(--color-border);
+  border: 1px solid color-mix(in srgb, var(--color-border) 55%, transparent);
   border-radius: var(--radius-md);
-  background: var(--color-surface);
+  background: color-mix(in srgb, var(--color-bg-subtle) 50%, transparent);
   min-width: 0;
 }
 
@@ -1450,6 +1592,10 @@
   width: 6rem;
 }
 
+.colDeposit {
+  width: 7.25rem;
+}
+
 .colStatus {
   width: 6.5rem;
   white-space: nowrap;
@@ -1458,6 +1604,11 @@
 
 .table th.num {
   white-space: nowrap;
+}
+
+.table th.colDeposit {
+  white-space: normal;
+  line-height: 1.25;
 }
 
 .table tbody tr:last-child td {

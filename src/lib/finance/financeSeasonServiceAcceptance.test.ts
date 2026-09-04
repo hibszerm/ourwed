@@ -204,12 +204,31 @@ const sessionInvalidate = read(
     'src/features/weddings/detail/travel-fee/TravelFeeResolveModal.tsx',
   )
   const create = read('src/features/weddings/hooks/useCreateWedding.ts')
-  const detail = read('src/pages/WeddingDetailPage.tsx')
+  const createFull = read('src/features/weddings/hooks/useCreateFullWedding.ts')
+  /* Classic + Modern Wedding Detail share this host for save / archive / travel fee. */
+  const detailHost = read('src/features/weddings/detail/useWeddingDetailHost.ts')
+  const classicPage = read('src/pages/WeddingDetailPage.tsx')
+  const modernPage = read('src/pages/WeddingDetailModernPage.tsx')
+  const modernWorkspace = read(
+    'src/features/weddings/modern-detail/ModernWeddingDetailWorkspace.tsx',
+  )
   const importPage = read('src/pages/WeddingImportPage.tsx')
   const recovery = read('src/pages/WeddingContractRecoveryPage.tsx')
   assertIncludes(travel, 'invalidateFinanceQueries', 'travel fee')
   assertIncludes(create, 'invalidateFinanceQueries', 'create wedding')
-  assertIncludes(detail, 'invalidateFinanceQueries', 'detail save/archive')
+  assertIncludes(createFull, 'invalidateFinanceQueries', 'create full wedding')
+  assertIncludes(
+    detailHost,
+    'invalidateFinanceQueries',
+    'shared detail host invalidates finance on save/archive',
+  )
+  assertIncludes(classicPage, 'useWeddingDetailHost', 'Classic detail uses shared host')
+  assertIncludes(modernPage, 'useWeddingDetailHost', 'Modern detail uses shared host')
+  assertIncludes(
+    modernWorkspace,
+    'invalidateFinanceQueries',
+    'Modern workspace invalidates finance on commercial edits',
+  )
   assertIncludes(importPage, 'invalidateFinanceQueries', 'import')
   assertIncludes(recovery, 'useInvalidateWedding', 'recovery uses canonical wedding invalidate')
   assertIncludes(recovery, 'invalidateWedding(weddingId)', 'recovery invalidates after apply')

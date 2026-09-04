@@ -31,6 +31,16 @@ export const FINANCE_MONTH_LABELS_FULL = [
 /** Season overview preview — full list lives on Zlecenia. */
 export const FINANCE_SEASON_PREVIEW_LIMIT = 5
 
+/**
+ * Canonical wedding terminology on the global Finance Center.
+ * These labels describe received deposit money (`depositPaid` / KPI deposits),
+ * not the agreed contractual `deposit_amount`.
+ * Session mutation surfaces may still say zaliczka — that copy is out of scope.
+ */
+export const FINANCE_KPI_DEPOSITS_LABEL = 'Otrzymane zadatki'
+export const FINANCE_HEALTH_MISSING_DEPOSIT_LABEL = 'Brak zadatku'
+export const FINANCE_TABLE_DEPOSIT_PAID_LABEL = 'Wpłacony zadatek'
+
 function polishCount(n: number, one: string, few: string, many: string): string {
   const abs = Math.max(0, Math.round(n))
   const mod100 = abs % 100

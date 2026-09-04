@@ -57,6 +57,33 @@ export const PLAN_REASSURANCE = [
   },
 ] as const
 
+/**
+ * Workflow-oriented PRO value — presentation grouping of real capabilities.
+ * Not a purchasable-tier comparison.
+ */
+export const PRO_WORKFLOW_VALUE = [
+  {
+    title: 'Organizacja zleceń',
+    description: 'Śluby, sesje, kalendarz i zadania w jednym miejscu.',
+  },
+  {
+    title: 'Klienci i dokumenty',
+    description: 'Ankiety, umowy i brief bez ręcznego przepisywania.',
+  },
+  {
+    title: 'Finanse',
+    description: 'Wpłaty, pozostałe kwoty i rozliczenia zlecenia.',
+  },
+  {
+    title: 'Dzień ślubu',
+    description: 'Plan dnia i najważniejsze informacje zawsze pod ręką.',
+  },
+  {
+    title: 'Integracje',
+    description: 'Kalendarz OurWed razem z narzędziami, których już używasz.',
+  },
+] as const
+
 export const TRIAL_HIGHLIGHTS = [
   '30 dni pełnego dostępu',
   'Bez karty płatniczej',

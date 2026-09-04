@@ -5,15 +5,16 @@
   display: grid;
   place-items: center;
   padding: 1.25rem;
-  background: rgba(17, 17, 17, 0.35);
+  background: var(--color-overlay);
 }
 
 .dialog {
   width: min(100%, 420px);
   padding: 1.35rem 1.4rem 1.25rem;
   border-radius: 14px;
-  background: #fff;
-  box-shadow: 0 24px 60px rgba(17, 17, 17, 0.2);
+  background: var(--surface-primary);
+  box-shadow: var(--shadow-lg);
+  color: var(--color-text-primary);
 }
 
 .dialog h2 {
@@ -25,7 +26,7 @@
 .dialog p {
   margin: 0;
   line-height: 1.45;
-  color: #4a4540;
+  color: var(--color-text-secondary);
 }
 
 .actions {

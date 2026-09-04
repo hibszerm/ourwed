@@ -5,7 +5,7 @@
   display: grid;
   place-items: center;
   padding: 1rem;
-  background: rgba(17, 17, 17, 0.4);
+  background: var(--color-overlay);
 }
 
 .dialog {
@@ -14,8 +14,9 @@
   overflow: auto;
   padding: 1.35rem 1.35rem 1.2rem;
   border-radius: 16px;
-  background: #fff;
-  box-shadow: 0 24px 60px rgba(17, 17, 17, 0.22);
+  background: var(--surface-primary);
+  box-shadow: var(--shadow-lg);
+  color: var(--color-text-primary);
 }
 
 .dialog h2 {
@@ -27,7 +28,7 @@
 .copy {
   margin: 0;
   line-height: 1.45;
-  color: #4a4540;
+  color: var(--color-text-secondary);
   font-size: 0.95rem;
 }
 
@@ -44,12 +45,12 @@
   gap: 0.25rem;
   padding: 0.95rem 0.9rem;
   border-radius: 12px;
-  border: 1px solid rgba(17, 17, 17, 0.1);
+  border: 1px solid var(--color-border);
+  background: var(--surface-primary);
 }
 
 .planAnnual {
-  border-color: rgba(29, 39, 43, 0.28);
-  background: linear-gradient(180deg, rgba(184, 140, 78, 0.07), transparent 50%);
+  composes: warmPlanAccent from '../theme/billingEditorial.module.css';
 }
 
 .badge {
@@ -57,8 +58,8 @@
   width: fit-content;
   padding: 0.15rem 0.45rem;
   border-radius: 999px;
-  background: #1d272b;
-  color: #f4f1ec;
+  background: var(--surface-inverse);
+  color: var(--text-inverse);
   font-size: 0.62rem;
   font-weight: 650;
   letter-spacing: 0.03em;
@@ -80,7 +81,7 @@
   margin-left: 0.2rem;
   font-size: 0.85rem;
   font-weight: 500;
-  color: #6e6e73;
+  color: var(--color-text-tertiary);
 }
 
 .plan :global(button) {
@@ -92,16 +93,21 @@
   margin: 0.85rem 0 0;
   padding: 0.7rem 0.8rem;
   border-radius: 10px;
-  background: rgba(29, 39, 43, 0.05);
+  background: color-mix(
+    in srgb,
+    var(--color-text-primary) 5%,
+    var(--surface-secondary)
+  );
   font-size: 0.88rem;
   line-height: 1.4;
+  color: var(--color-text-secondary);
 }
 
 .recovery {
   margin: 0.85rem 0 0;
   font-size: 0.82rem;
   line-height: 1.4;
-  color: #5c5348;
+  color: var(--color-text-secondary);
 }
 
 .footer {

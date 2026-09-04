@@ -65,7 +65,8 @@ const migration = read(
     'empty filter',
   )
   assertNotIncludes(page, 'Koszty', 'no Koszty tab')
-  assertIncludes(page, 'width="full"', 'PageContainer full')
+  assertIncludes(page, 'width="wide"', 'PageContainer wide Modern shell')
+  assertNotIncludes(page, 'width="full"', 'not a full-bleed island')
   assertIncludes(page, 'styles.pageShell', 'finance pageShell')
   assertIncludes(page, 'styles.financeHeader', 'finance title hierarchy')
   assertIncludes(page, 'styles.controlStack', 'tabs + kind filters stacked')
@@ -107,14 +108,14 @@ const migration = read(
     css.indexOf('.pageShell {'),
     css.indexOf('.workspace {'),
   )
-  assertIncludes(pageShellBlock, 'max-width: 1360px', 'capped at 1360')
-  assertIncludes(pageShellBlock, 'width: 100%', 'fluid under cap')
-  assertIncludes(pageShellBlock, 'margin-inline: auto', 'centered shell')
-  assertNotIncludes(pageShellBlock, 'max-width: none', 'not full-bleed')
+  assertNotIncludes(pageShellBlock, 'max-width: 1360px', 'no custom 1360 island')
+  assertIncludes(pageShellBlock, 'width: 100%', 'fluid in the wide shell')
+  assertIncludes(pageShellBlock, 'min-width: 0', 'allows shrink in the shell')
+  assertNotIncludes(pageShellBlock, 'margin-inline: auto', 'not independently centered')
   assertNotIncludes(
     pageShellBlock,
     '--content-max-wide',
-    'no global wide token on Finance shell',
+    'no global wide token override on Finance shell',
   )
   assertNotIncludes(
     tokens,
@@ -129,7 +130,8 @@ const migration = read(
   assertIncludes(kpi, 'Wartość zleceń', 'KPI CV')
   assertIncludes(kpi, 'Wpłacono', 'KPI paid')
   assertIncludes(kpi, 'Pozostało', 'KPI remaining')
-  assertIncludes(kpi, 'Otrzymane zaliczki', 'KPI deposits')
+  assertIncludes(kpi, 'FINANCE_KPI_DEPOSITS_LABEL', 'KPI deposits')
+  assertIncludes(labels, "FINANCE_KPI_DEPOSITS_LABEL = 'Otrzymane zadatki'", 'zadatek KPI copy')
   assertNotIncludes(kpi, 'Liczba ślubów', 'count not primary KPI card')
   assertIncludes(kpi, 'assignmentCount', 'secondary assignment count')
   assertIncludes(kpi, 'weddingCount', 'secondary wedding count')
@@ -270,7 +272,8 @@ const migration = read(
 
 {
   assertIncludes(health, 'missing_deposit', 'missing deposit filter')
-  assertIncludes(health, 'Brak zaliczki', 'missing deposit copy')
+  assertIncludes(health, 'FINANCE_HEALTH_MISSING_DEPOSIT_LABEL', 'missing deposit copy')
+  assertIncludes(labels, "FINANCE_HEALTH_MISSING_DEPOSIT_LABEL = 'Brak zadatku'", 'zadatek health copy')
   assertIncludes(health, 'Filtr listy zleceń', 'health is filter copy')
   assertIncludes(health, 'data-finance-health', 'health marker')
   assertIncludes(css, 'healthChip', 'compact health styles')
@@ -293,7 +296,7 @@ const migration = read(
   assertIncludes(list, 'colType', 'Typ column class')
   assertIncludes(list, 'Zlecenie', 'Zlecenie column')
   const thead = list.slice(list.indexOf('<thead>'), list.indexOf('</thead>'))
-  const order = ['Typ', 'Data', 'Zlecenie', 'Wartość', 'Zaliczka', 'Wpłacono', 'Pozostało', 'Status']
+  const order = ['Typ', 'Data', 'Zlecenie', 'Wartość', 'FINANCE_TABLE_DEPOSIT_PAID_LABEL', 'Wpłacono', 'Pozostało', 'Status']
   let cursor = -1
   for (const label of order) {
     const next = thead.indexOf(label, cursor + 1)
@@ -301,7 +304,9 @@ const migration = read(
     cursor = next
   }
   assertNotIncludes(thead, 'Otrzymana zaliczka', 'no long deposit header')
-  assertIncludes(thead, 'Zaliczka', 'concise Zaliczka header')
+  assertNotIncludes(thead, 'Zaliczka', 'no zaliczka table header')
+  assertIncludes(thead, 'FINANCE_TABLE_DEPOSIT_PAID_LABEL', 'received-deposit header')
+  assertIncludes(labels, "FINANCE_TABLE_DEPOSIT_PAID_LABEL = 'Wpłacony zadatek'", 'truthful received deposit copy')
   const typeCellSlice = list.slice(
     list.indexOf('data-finance-type-cell'),
     list.indexOf('data-finance-name-cell'),
@@ -315,7 +320,7 @@ const migration = read(
   )
   assertNotIncludes(nameCellSlice, 'kindBadge', 'name cell has no type badge')
   assertIncludes(list, 'scope="col"', 'column scope on headers')
-  assertIncludes(kpi, 'Otrzymane zaliczki', 'aggregate deposit KPI retained')
+  assertIncludes(kpi, 'FINANCE_KPI_DEPOSITS_LABEL', 'aggregate deposit KPI retained')
   assertIncludes(list, 'Nadpłata', 'overpayment hint')
   assertIncludes(list, 'compact: true', 'compact status labels')
   assertIncludes(list, 'colName', 'flexible name column')
@@ -493,7 +498,7 @@ const migration = read(
 }
 
 {
-  // No visible Finance loading copy — chrome + quiet empty body until dataReady.
+  // Truthful skeleton while season year / model resolve — no fake money, no query redesign.
   assertNotIncludes(page, 'Ładowanie finansów sezonu', 'no Finance loading copy')
   assertNotIncludes(page, 'DelayedFinanceLoadingCopy', 'no delayed loader component')
   assertNotIncludes(page, 'FINANCE_LOADING_COPY_DELAY_MS', 'no loader delay constant')
@@ -501,14 +506,18 @@ const migration = read(
   assertNotIncludes(
     page,
     'seasonQuery.isLoading && !model',
-    'pending season does not drive a loading UI branch',
+    'pending season does not use the retired isLoading gate',
   )
+  assertIncludes(page, 'FinanceLoadingSkeleton', 'skeleton loading presentation')
+  assertIncludes(page, 'data-testid="finance-loading"', 'loading test id')
+  assertIncludes(page, 'aria-busy="true"', 'loading busy semantics')
+  assertIncludes(page, 'const showLoading =', 'loading gate without query-key changes')
   assertIncludes(page, 'useFinanceEntranceReveal(dataReady)', 'entrance still owns dataReady')
   assertIncludes(page, 'const dataReady = Boolean(model) && !seasonEmpty', 'dataReady unchanged')
   const hooks = read('src/features/finance/useFinanceSeason.ts')
   assertIncludes(hooks, 'placeholderData', 'warm season switch placeholder untouched')
   assertIncludes(hooks, 'staleTime: FINANCE_STALE_MS', 'staleTime untouched')
-  console.log('PASS  finance no loading-copy first-paint')
+  console.log('PASS  finance skeleton first-paint')
 }
 
 console.log('\nAll finance UI acceptance tests passed.')

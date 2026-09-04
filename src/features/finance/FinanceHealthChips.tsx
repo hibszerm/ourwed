@@ -1,3 +1,4 @@
+import { FINANCE_HEALTH_MISSING_DEPOSIT_LABEL } from '@/features/finance/financeLabels'
 import type { FinancePaymentFilter } from '@/lib/finance/financeSeasonTypes'
 import type { FinanceSeasonKpis } from '@/lib/finance/financeSeasonTypes'
 import styles from '@/features/finance/FinanceCenter.module.css'
@@ -45,8 +46,8 @@ export function FinanceHealthChips({
     },
     {
       id: 'missing_deposit',
-      label: 'Brak zaliczki',
-      shortLabel: 'Brak zaliczki',
+      label: FINANCE_HEALTH_MISSING_DEPOSIT_LABEL,
+      shortLabel: FINANCE_HEALTH_MISSING_DEPOSIT_LABEL,
       count: kpis.missingDepositCount,
     },
   ]

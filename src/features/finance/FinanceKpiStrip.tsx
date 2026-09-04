@@ -2,7 +2,10 @@ import { formatCurrency } from '@/lib/utils/currency'
 import type { FinanceKindFilter } from '@/lib/finance/financeSeasonTypes'
 import type { FinanceSeasonKpis } from '@/lib/finance/financeSeasonTypes'
 import { AnimatedCurrencyValue } from '@/features/finance/AnimatedCurrencyValue'
-import { getFinanceSecondarySummaryParts } from '@/features/finance/financeLabels'
+import {
+  FINANCE_KPI_DEPOSITS_LABEL,
+  getFinanceSecondarySummaryParts,
+} from '@/features/finance/financeLabels'
 import { FINANCE_KPI_COUNT_DELAYS_MS } from '@/features/finance/financeMotion'
 import type { FinanceRevealPhase } from '@/features/finance/useFinanceEntranceReveal'
 import styles from '@/features/finance/FinanceCenter.module.css'
@@ -36,7 +39,7 @@ export function FinanceKpiStrip({
     },
     {
       key: 'dep',
-      label: 'Otrzymane zaliczki',
+      label: FINANCE_KPI_DEPOSITS_LABEL,
       amount: kpis.depositsReceived,
     },
   ]

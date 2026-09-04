@@ -1,342 +1,331 @@
 import { useState } from 'react'
-import { AppLayout } from '@/layouts/AppLayout'
+import { SettingsLayout } from '@/features/settings/SettingsLayout'
+import { SettingsWorkspace } from '@/features/settings/SettingsWorkspace'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { Button } from '@/components/ui/Button'
 import {
-  IconBell,
-  IconCalendar,
-  IconCheck,
-  IconClipboard,
-  IconClock,
+  IconDashboard,
   IconDocuments,
   IconFinances,
-  IconWeddings,
 } from '@/components/icons'
 import {
   buildSubscriptionHistory,
   formatWarsawDate,
   getTrialTimeRemaining,
-  trialProgressRatio,
   type AccountEntitlement,
   type SubscriptionHistoryItem,
+  type TrialTimeRemaining,
 } from '@/lib/billing/entitlement'
-import {
-  PLAN_REASSURANCE,
-  PRO_CAPABILITIES,
-  PRO_PLAN,
-} from '@/lib/billing/planCatalog'
-import { startCheckout } from '@/lib/billing/provider'
+import { PRO_PLAN, PRO_WORKFLOW_VALUE } from '@/lib/billing/planCatalog'
 import { useMySubscription } from '@/lib/billing/useMySubscription'
 import styles from '@/features/billing/SubscriptionSettingsPage.module.css'
 
-const FEATURE_ICONS = [
-  IconWeddings,
-  IconClipboard,
-  IconDocuments,
-  IconFinances,
-  IconClock,
-  IconDocuments,
-  IconCalendar,
-  IconBell,
+/**
+ * Presentation grouping of catalog workflow value — not new capabilities.
+ * Five equal inventory items become three purchase-reason pillars.
+ */
+const PRO_VALUE_PILLARS = [
+  {
+    title: 'Organizacja pracy',
+    description:
+      'Śluby, sesje, kalendarz, zadania i plan dnia w jednym miejscu.',
+    Icon: IconDashboard,
+  },
+  {
+    title: PRO_WORKFLOW_VALUE[1].title,
+    description: PRO_WORKFLOW_VALUE[1].description,
+    Icon: IconDocuments,
+  },
+  {
+    title: 'Finanse i integracje',
+    description:
+      'Wpłaty, pozostałe kwoty i kalendarze połączone z Twoją pracą.',
+    Icon: IconFinances,
+  },
 ] as const
+
+/** Paid or manually granted PRO — do not lead with a purchase funnel. */
+function canChooseSubscriptionPlan(entitlement: AccountEntitlement): boolean {
+  if (entitlement.accessLevel !== 'pro') return true
+  return entitlement.source === 'trial'
+}
+
+function trialRemainingParts(rem: TrialTimeRemaining): {
+  value: string
+  measure: string | null
+  verb: string
+  spoken: string
+} {
+  if (rem.kind === 'today') {
+    return {
+      value: 'dziś',
+      measure: null,
+      verb: 'kończy się',
+      spoken: 'dziś kończy się',
+    }
+  }
+  if (rem.fullDays === 1) {
+    return {
+      value: '1',
+      measure: 'dzień',
+      verb: 'pozostał',
+      spoken: '1 dzień pozostał',
+    }
+  }
+  return {
+    value: String(rem.fullDays),
+    measure: 'dni',
+    verb: 'pozostało',
+    spoken: `${rem.fullDays} dni pozostało`,
+  }
+}
 
 export function SubscriptionSettingsPage() {
   const { state, refresh } = useMySubscription()
-  const [checkoutNote, setCheckoutNote] = useState<string | null>(null)
-  const [busy, setBusy] = useState(false)
 
-  async function onChoose(interval: 'month' | 'year') {
-    if (state.status !== 'ready') return
-    setBusy(true)
-    setCheckoutNote(null)
-    const accountId = state.data.entitlement.billingAccountId
-    if (!accountId) {
-      setCheckoutNote('Nie udało się ustalić konta rozliczeniowego.')
-      setBusy(false)
-      return
-    }
-    const result = await startCheckout({
-      billingAccountId: accountId,
-      plan: 'pro',
-      interval,
-    })
-    setBusy(false)
-    if (!result.ok) {
-      const ent = state.data.entitlement
-      const ends =
-        ent.source === 'trial' && ent.accessLevel === 'pro'
-          ? formatWarsawDate(ent.trialEndsAt)
-          : null
-      setCheckoutNote(
-        ends
-          ? `${result.message} Twój okres próbny pozostaje aktywny do ${ends}.`
-          : result.message,
-      )
-    }
-  }
+  const entitlement =
+    state.status === 'ready' ? state.data.entitlement : null
+  const showPlanOffer = entitlement
+    ? canChooseSubscriptionPlan(entitlement)
+    : false
 
   return (
-    <AppLayout
+    <SettingsLayout
       title="Subskrypcja"
-      subtitle="Zarządzaj dostępem do OurWed i wybierz plan, który najlepiej pasuje do Twojej pracy."
+      subtitle="Twój plan i dostęp do OurWed."
     >
-      <PageContainer width="wide">
-        <div className={styles.page} data-testid="subscription-settings">
-          {state.status === 'loading' ? (
-            <div className={styles.skeleton} aria-busy>
-              <div className={styles.skelCard} />
-              <div className={styles.skelCard} />
-              <div className={styles.skelCard} />
-            </div>
-          ) : null}
+      <PageContainer width="full">
+        <SettingsWorkspace testId="subscription-settings-workspace">
+          <div
+            className={styles.page}
+            data-testid="subscription-settings"
+            data-flow={showPlanOffer ? 'purchase' : 'current'}
+          >
+            {state.status === 'loading' ? (
+              <div className={styles.skeleton} aria-busy>
+                <div className={styles.skelCard} />
+                <div className={styles.skelCard} />
+              </div>
+            ) : null}
 
-          {state.status === 'error' ? (
-            <div className={styles.notice} role="alert">
-              <p>Nie udało się sprawdzić statusu subskrypcji.</p>
-              <Button type="button" variant="secondary" onClick={() => void refresh()}>
-                Spróbuj ponownie
-              </Button>
-            </div>
-          ) : null}
+            {state.status === 'error' ? (
+              <div className={styles.notice} role="alert">
+                <p>Nie udało się sprawdzić statusu subskrypcji.</p>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => void refresh()}
+                >
+                  Spróbuj ponownie
+                </Button>
+              </div>
+            ) : null}
 
-          {state.status === 'ready' ? (
-            <>
-              <CurrentPlanCard entitlement={state.data.entitlement} />
+            {state.status === 'ready' ? (
+              <>
+                <CurrentPlanCard entitlement={state.data.entitlement} />
 
-              <section className={styles.plansSection} aria-labelledby="plans-title">
-                <h2 id="plans-title" className={styles.sectionTitle}>
-                  Wybierz plan
-                </h2>
-                <div className={styles.plansRow}>
-                  <div className={styles.planCards}>
-                    <article
-                      className={`${styles.planCard} ${styles.planAnnual}`}
-                      data-testid="plan-annual"
-                    >
-                      <p className={styles.badge}>{PRO_PLAN.annual.recommendedBadge}</p>
-                      <h3>PRO Roczny</h3>
-                      <p className={styles.price}>
-                        {PRO_PLAN.annual.label}
-                        <span>{PRO_PLAN.annual.periodLabel}</span>
-                      </p>
-                      <p className={styles.equiv}>
-                        {PRO_PLAN.annual.monthlyEquivalentLabel}
-                      </p>
-                      <div className={styles.savePanel}>
-                        <p className={styles.save}>{PRO_PLAN.annual.savingLabel}</p>
-                        <p className={styles.saveSub}>{PRO_PLAN.annual.discountLabel}</p>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="primary"
-                        disabled={busy}
-                        onClick={() => void onChoose('year')}
-                      >
-                        Wybierz PRO Roczny
-                      </Button>
-                    </article>
-
-                    <article
-                      className={styles.planCard}
-                      data-testid="plan-monthly"
-                    >
-                      <h3>PRO Miesięczny</h3>
-                      <p className={styles.price}>
-                        {PRO_PLAN.monthly.label}
-                        <span>{PRO_PLAN.monthly.periodLabel}</span>
-                      </p>
-                      <p className={styles.planDesc}>
-                        Pełna elastyczność. Rozliczenie miesięczne bez długiego zobowiązania.
-                      </p>
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        disabled={busy}
-                        onClick={() => void onChoose('month')}
-                      >
-                        Wybierz plan miesięczny
-                      </Button>
-                    </article>
-                  </div>
-
-                  <ul className={styles.benefits} data-testid="plan-benefits">
-                    {PLAN_REASSURANCE.map((item) => (
-                      <li key={item.title}>
-                        <span className={styles.benefitIcon} aria-hidden>
-                          <IconCheck width={16} height={16} />
-                        </span>
-                        <div>
-                          <p className={styles.benefitTitle}>{item.title}</p>
-                          <p className={styles.benefitDesc}>{item.description}</p>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-
-                {checkoutNote ? (
-                  <p className={styles.checkoutNote} role="status" data-testid="checkout-note">
-                    {checkoutNote}
-                  </p>
+                {showPlanOffer ? (
+                  <PlanOffer />
                 ) : (
-                  <p className={styles.paymentsHint} data-testid="payments-hint">
-                    {paymentsUnavailableHint(state.data.entitlement)}
-                  </p>
+                  <WorkflowValue heading="Co obejmuje Twój PRO" />
                 )}
-              </section>
 
-              <PlanComparison />
-
-              <HistoryCard entitlement={state.data.entitlement} />
-            </>
-          ) : null}
-        </div>
+                <HistoryCard entitlement={state.data.entitlement} />
+              </>
+            ) : null}
+          </div>
+        </SettingsWorkspace>
       </PageContainer>
-    </AppLayout>
+    </SettingsLayout>
   )
 }
 
-function paymentsUnavailableHint(entitlement: AccountEntitlement): string {
-  const base = 'Płatności online będą dostępne wkrótce.'
-  if (entitlement.source === 'trial' && entitlement.accessLevel === 'pro') {
-    return `${base} Twój okres próbny pozostaje aktywny do ${formatWarsawDate(entitlement.trialEndsAt)}.`
-  }
-  return base
+function paymentsUnavailableHint(): string {
+  return 'Zakup planu online będzie dostępny wkrótce.'
 }
 
-function RemainingDaysRing({
-  progress,
-  daysLabel,
-  daysValue,
-}: {
-  progress: number
-  daysLabel: string
-  daysValue: string
-}) {
-  const size = 120
-  const stroke = 8
-  const r = (size - stroke) / 2
-  const c = 2 * Math.PI * r
-  const remaining = Math.min(1, Math.max(0, 1 - progress))
-  const offset = c * (1 - remaining)
+function PlanOffer() {
+  const [interval, setInterval] = useState<'month' | 'year'>('year')
 
   return (
-    <div
-      className={styles.ring}
-      data-testid="trial-remaining-ring"
-      role="img"
-      aria-label={`${daysValue} ${daysLabel}`}
+    <section
+      className={styles.commercial}
+      aria-labelledby="pro-offer-title"
+      data-testid="pro-offer"
     >
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden>
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={r}
-          fill="none"
-          stroke="rgba(29, 39, 43, 0.08)"
-          strokeWidth={stroke}
-        />
-        <circle
-          className={styles.ringProgress}
-          cx={size / 2}
-          cy={size / 2}
-          r={r}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={stroke}
-          strokeLinecap="round"
-          strokeDasharray={c}
-          strokeDashoffset={offset}
-          transform={`rotate(-90 ${size / 2} ${size / 2})`}
-        />
-      </svg>
-      <div className={styles.ringLabel}>
-        <span className={styles.ringValue}>{daysValue}</span>
-        <span className={styles.ringUnit}>{daysLabel}</span>
+      <header className={styles.commercialHead}>
+        <p className={styles.commercialKicker}>OurWed PRO</p>
+        <h2 id="pro-offer-title">Zostań z OurWed PRO</h2>
+        <p className={styles.commercialLead}>
+          Wszystko, czego potrzebujesz do prowadzenia zleceń — od pierwszego
+          kontaktu po oddanie materiału.
+        </p>
+      </header>
+
+      <ul
+        className={styles.offerValue}
+        data-testid="pro-workflow-value"
+        aria-label="Co zyskujesz z OurWed PRO"
+      >
+        {PRO_VALUE_PILLARS.map((item) => {
+          const Icon = item.Icon
+          return (
+            <li key={item.title} className={styles.offerValueItem}>
+              <span className={styles.offerValueIcon} aria-hidden>
+                <Icon width={16} height={16} />
+              </span>
+              <div className={styles.offerValueCopy}>
+                <p className={styles.offerValueTitle}>{item.title}</p>
+                <p className={styles.offerValueDesc}>{item.description}</p>
+              </div>
+            </li>
+          )
+        })}
+      </ul>
+
+      <p id="pro-cadence-label" className={styles.cadenceLabel}>
+        Wybierz rozliczenie
+      </p>
+      <div
+        className={styles.cadence}
+        role="radiogroup"
+        aria-labelledby="pro-cadence-label"
+      >
+        <button
+          type="button"
+          role="radio"
+          className={`${styles.cadenceOption} ${styles.cadenceAnnual}`}
+          data-testid="plan-annual"
+          aria-checked={interval === 'year'}
+          onClick={() => setInterval('year')}
+        >
+          <span className={styles.cadenceHead}>
+            <span className={styles.cadenceChoice}>
+              <span className={styles.cadenceMark} aria-hidden />
+              <span className={styles.cadenceName}>Rocznie</span>
+            </span>
+            <span className={styles.badge}>{PRO_PLAN.annual.recommendedBadge}</span>
+          </span>
+          <span className={styles.cadenceBody}>
+            <span className={styles.cadencePrice}>
+              <span className={styles.cadenceAmount}>{PRO_PLAN.annual.label}</span>
+              <span className={styles.cadencePeriod}>
+                {PRO_PLAN.annual.periodLabel}
+              </span>
+            </span>
+            <span className={styles.cadenceEquiv}>
+              {PRO_PLAN.annual.monthlyEquivalentLabel}
+            </span>
+            <span className={styles.cadenceMeta}>
+              {PRO_PLAN.annual.savingLabel}
+              {' · '}
+              {PRO_PLAN.annual.savingPercent}% taniej
+            </span>
+          </span>
+        </button>
+
+        <button
+          type="button"
+          role="radio"
+          className={`${styles.cadenceOption} ${styles.cadenceMonthly}`}
+          data-testid="plan-monthly"
+          aria-checked={interval === 'month'}
+          onClick={() => setInterval('month')}
+        >
+          <span className={styles.cadenceHead}>
+            <span className={styles.cadenceChoice}>
+              <span className={styles.cadenceMark} aria-hidden />
+              <span className={styles.cadenceName}>Miesięcznie</span>
+            </span>
+          </span>
+          <span className={styles.cadenceBody}>
+            <span className={styles.cadencePrice}>
+              <span className={styles.cadenceAmount}>{PRO_PLAN.monthly.label}</span>
+              <span className={styles.cadencePeriod}>
+                {PRO_PLAN.monthly.periodLabel}
+              </span>
+            </span>
+            <span className={styles.cadenceMeta}>
+              Pełna elastyczność · Bez długiego zobowiązania
+            </span>
+          </span>
+        </button>
       </div>
-    </div>
+
+      <div className={styles.ctaRow}>
+        <Button
+          type="button"
+          variant="primary"
+          disabled
+          data-testid="pro-purchase-cta"
+        >
+          Zakup PRO wkrótce
+        </Button>
+      </div>
+
+      <p className={styles.paymentsHint} data-testid="payments-hint">
+        {paymentsUnavailableHint()}
+      </p>
+    </section>
   )
 }
 
 function CurrentPlanCard({ entitlement }: { entitlement: AccountEntitlement }) {
   if (entitlement.source === 'trial' && entitlement.accessLevel === 'pro') {
     const rem = getTrialTimeRemaining(entitlement.trialEndsAt)
-    const progress = trialProgressRatio(
-      entitlement.trialStartedAt,
-      entitlement.trialEndsAt,
-    )
-    const daysValue =
-      rem.kind === 'today' ? 'dziś' : rem.fullDays === 1 ? '1' : String(rem.fullDays)
-    const daysLabel =
-      rem.kind === 'today'
-        ? 'kończy się'
-        : rem.fullDays === 1
-          ? 'dzień pozostał'
-          : 'dni pozostało'
+    const remaining = trialRemainingParts(rem)
 
     return (
       <section
-        className={`${styles.current} ${styles.currentTrial}`}
+        className={styles.current}
         data-testid="subscription-current"
         data-state="trial"
+        data-layout="trial"
+        data-tone="quiet"
       >
-        <div className={styles.currentMain}>
-          <div className={styles.currentHead}>
-            <span className={styles.statusIcon} aria-hidden>
-              <IconClock width={18} height={18} />
-            </span>
-            <div>
-              <p className={styles.eyebrow}>Twój plan</p>
-              <h2>Okres próbny PRO</h2>
-            </div>
-          </div>
-          <p className={styles.currentLead}>
-            Pełny dostęp do wszystkich funkcji OurWed.
-          </p>
-          <div
-            className={styles.segmentedRail}
-            aria-hidden
-            data-testid="trial-progress-rail"
+        <div className={styles.currentHead}>
+          <p className={styles.eyebrow}>Twój plan</p>
+          <p className={styles.statusPill}>Aktywny</p>
+        </div>
+        <div className={styles.trialIntro}>
+          <h2>Okres próbny PRO</h2>
+          <aside
+            className={styles.currentAside}
+            data-testid="trial-remaining"
+            aria-label={remaining.spoken}
           >
-            {Array.from({ length: 10 }).map((_, i) => {
-              const filled = progress >= (i + 1) / 10
-              return (
-                <span
-                  key={i}
-                  className={`${styles.segment} ${filled ? styles.segmentFilled : ''}`}
-                />
-              )
-            })}
-          </div>
-          <p className={styles.reassure}>
-            <span className={styles.reassureIcon} aria-hidden>
-              <IconCheck width={14} height={14} />
-            </span>
-            Po zakończeniu okresu próbnego nadal będziesz mieć dostęp do swoich danych. Aby tworzyć
-            nowe zlecenia, aktywuj jeden z planów PRO.
+            <p className={styles.remaining}>{remaining.value}</p>
+            {remaining.measure ? (
+              <p className={styles.remainingMeasure}>{remaining.measure}</p>
+            ) : null}
+            <p className={styles.remainingVerb}>{remaining.verb}</p>
+          </aside>
+          <p className={styles.currentLead}>Pełny dostęp do OurWed</p>
+          <p className={styles.meta} data-testid="trial-ends-at">
+            do {formatWarsawDate(entitlement.trialEndsAt)}
           </p>
         </div>
-        <aside className={styles.currentAside}>
-          <RemainingDaysRing
-            progress={progress}
-            daysValue={daysValue}
-            daysLabel={daysLabel}
-          />
-          <p className={styles.asideMeta} data-testid="trial-ends-at">
-            Okres próbny kończy się {formatWarsawDate(entitlement.trialEndsAt)}.
-          </p>
-          <p className={styles.asideHint}>Płatności online będą dostępne wkrótce.</p>
-        </aside>
       </section>
     )
   }
 
   if (entitlement.source === 'admin_override' && entitlement.accessLevel === 'pro') {
     return (
-      <section className={styles.current} data-testid="subscription-current" data-state="manual">
+      <section
+        className={styles.current}
+        data-testid="subscription-current"
+        data-state="manual"
+        data-tone="premium"
+      >
         <div className={styles.currentMain}>
-          <p className={styles.eyebrow}>Twój plan</p>
-          <h2>PRO</h2>
+          <div className={styles.currentHead}>
+            <div>
+              <p className={styles.eyebrow}>Twój plan</p>
+              <h2>PRO</h2>
+            </div>
+            <p className={styles.statusPill}>Aktywny</p>
+          </div>
           <p className={styles.currentLead}>Pełny dostęp do OurWed.</p>
           <p className={styles.meta}>
             {entitlement.manualAccessIndefinite
@@ -351,10 +340,20 @@ function CurrentPlanCard({ entitlement }: { entitlement: AccountEntitlement }) {
   if (entitlement.source === 'paid_subscription' && entitlement.accessLevel === 'pro') {
     const isAnnual = entitlement.billingInterval === 'year'
     return (
-      <section className={styles.current} data-testid="subscription-current" data-state="paid">
+      <section
+        className={styles.current}
+        data-testid="subscription-current"
+        data-state="paid"
+        data-tone="premium"
+      >
         <div className={styles.currentMain}>
-          <p className={styles.eyebrow}>Twój plan</p>
-          <h2>{isAnnual ? 'PRO Roczny' : 'PRO Miesięczny'}</h2>
+          <div className={styles.currentHead}>
+            <div>
+              <p className={styles.eyebrow}>Twój plan</p>
+              <h2>{isAnnual ? 'PRO Roczny' : 'PRO Miesięczny'}</h2>
+            </div>
+            <p className={styles.statusPill}>Aktywny</p>
+          </div>
           <p className={styles.currentLead}>Pełny dostęp do OurWed.</p>
           <p className={styles.meta}>
             {isAnnual ? 'Plan roczny' : 'Plan miesięczny'}
@@ -367,77 +366,57 @@ function CurrentPlanCard({ entitlement }: { entitlement: AccountEntitlement }) {
   }
 
   return (
-    <section className={styles.current} data-testid="subscription-current" data-state="expired">
+    <section
+      className={styles.current}
+      data-testid="subscription-current"
+      data-state="expired"
+      data-tone="quiet"
+    >
       <div className={styles.currentMain}>
-        <p className={styles.eyebrow}>Twój plan</p>
-        <h2>Okres próbny zakończony</h2>
+        <div className={styles.currentHead}>
+          <div>
+            <p className={styles.eyebrow}>Twój plan</p>
+            <h2>Okres próbny zakończony</h2>
+          </div>
+        </div>
         <p className={styles.currentLead}>
           Twoje dane pozostają dostępne w trybie tylko do odczytu.
         </p>
         <p className={styles.reassure}>
-          <span className={styles.reassureIcon} aria-hidden>
-            <IconCheck width={14} height={14} />
-          </span>
-          Po aktywacji PRO wszystkie funkcje odblokują się automatycznie.
-        </p>
-        <p className={styles.reassure}>
-          <span className={styles.reassureIcon} aria-hidden>
-            <IconCheck width={14} height={14} />
-          </span>
-          Aby tworzyć nowe zlecenia i edytować dane, wybierz plan PRO poniżej.
+          Po aktywacji PRO wszystkie funkcje odblokują się automatycznie. Aby
+          tworzyć nowe zlecenia i edytować dane, wybierz plan PRO poniżej.
         </p>
       </div>
     </section>
   )
 }
 
-function PlanComparison() {
+function WorkflowValue({ heading }: { heading: string }) {
   return (
-    <section className={styles.comparison} aria-labelledby="compare-title" data-testid="plan-comparison">
-      <h2 id="compare-title" className={styles.sectionTitle}>
-        Porównanie planów
+    <section
+      className={styles.value}
+      aria-labelledby="pro-value-title"
+      data-testid="pro-workflow-value"
+    >
+      <h2 id="pro-value-title" className={styles.sectionTitle}>
+        {heading}
       </h2>
-      <div className={styles.tableWrap}>
-        <table className={styles.table}>
-          <thead>
-            <tr>
-              <th scope="col">Funkcja</th>
-              <th scope="col">Okres próbny</th>
-              <th scope="col">PRO</th>
-            </tr>
-          </thead>
-          <tbody>
-            {PRO_CAPABILITIES.map((feature, index) => {
-              const Icon = FEATURE_ICONS[index] ?? IconCheck
-              return (
-                <tr key={feature}>
-                  <th scope="row">
-                    <span className={styles.featureCell}>
-                      <Icon width={16} height={16} aria-hidden />
-                      {feature}
-                    </span>
-                  </th>
-                  <td>
-                    <span className={styles.check} aria-label="Dostępne w okresie próbnym">
-                      <IconCheck width={16} height={16} />
-                    </span>
-                  </td>
-                  <td>
-                    <span className={styles.check} aria-label="Dostępne w PRO">
-                      <IconCheck width={16} height={16} />
-                    </span>
-                  </td>
-                </tr>
-              )
-            })}
-            <tr className={styles.summaryRow}>
-              <th scope="row">Czas dostępu</th>
-              <td>{PRO_PLAN.trialDays} dni</td>
-              <td>Zgodnie z planem</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      <ul className={styles.valueGrid}>
+        {PRO_VALUE_PILLARS.map((item) => {
+          const Icon = item.Icon
+          return (
+            <li key={item.title} className={styles.valueItem}>
+              <span className={styles.valueIcon} aria-hidden>
+                <Icon width={20} height={20} />
+              </span>
+              <div className={styles.valueCopy}>
+                <p className={styles.valueTitle}>{item.title}</p>
+                <p className={styles.valueDesc}>{item.description}</p>
+              </div>
+            </li>
+          )
+        })}
+      </ul>
     </section>
   )
 }
@@ -445,7 +424,11 @@ function PlanComparison() {
 function HistoryCard({ entitlement }: { entitlement: AccountEntitlement }) {
   const items = buildSubscriptionHistory(entitlement)
   return (
-    <section className={styles.history} aria-labelledby="history-title" data-testid="subscription-history">
+    <section
+      className={styles.history}
+      aria-labelledby="history-title"
+      data-testid="subscription-history"
+    >
       <h2 id="history-title" className={styles.sectionTitle}>
         Historia
       </h2>

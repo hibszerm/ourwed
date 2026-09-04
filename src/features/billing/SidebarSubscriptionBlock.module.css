@@ -3,26 +3,42 @@
   margin: 0 0 var(--space-3);
   padding: 0.7rem 0.75rem;
   border-radius: var(--radius-md, 10px);
-  border: 1px solid var(--color-sidebar-border, rgba(255, 255, 255, 0.08));
-  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--color-sidebar-border);
+  background: color-mix(
+    in srgb,
+    var(--color-sidebar-text-active) 4%,
+    transparent
+  );
   text-decoration: none;
   color: inherit;
   transition: background 0.18s ease, border-color 0.18s ease;
 }
 
 .block:hover {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.14);
+  background: var(--color-sidebar-hover);
+  border-color: color-mix(
+    in srgb,
+    var(--color-sidebar-text-active) 18%,
+    var(--color-sidebar-border)
+  );
 }
 
 .tone_warm {
-  border-color: rgba(196, 140, 72, 0.35);
-  background: rgba(196, 140, 72, 0.08);
+  border-color: color-mix(
+    in srgb,
+    var(--status-warning) 45%,
+    var(--color-sidebar-border)
+  );
+  background: color-mix(in srgb, var(--status-warning) 12%, transparent);
 }
 
 .tone_warmStrong {
-  border-color: rgba(196, 140, 72, 0.5);
-  background: rgba(196, 140, 72, 0.14);
+  border-color: color-mix(
+    in srgb,
+    var(--status-warning) 62%,
+    var(--color-sidebar-border)
+  );
+  background: color-mix(in srgb, var(--status-warning) 18%, transparent);
 }
 
 .tone_muted {
@@ -41,21 +57,21 @@
   font-size: 0.78rem;
   font-weight: 650;
   letter-spacing: 0.02em;
-  color: var(--color-sidebar-text-active, #fff);
+  color: var(--color-sidebar-text-active);
 }
 
 .subtitle {
   margin: 0.2rem 0 0;
   font-size: 0.72rem;
   line-height: 1.35;
-  color: var(--color-sidebar-text, rgba(255, 255, 255, 0.65));
+  color: var(--color-sidebar-text);
 }
 
 .cta {
   flex-shrink: 0;
   font-size: 0.68rem;
   font-weight: 600;
-  color: var(--color-sidebar-text-active, #fff);
+  color: var(--color-sidebar-text-active);
   text-decoration: underline;
   text-underline-offset: 2px;
 }
@@ -64,21 +80,33 @@
   margin-top: 0.55rem;
   height: 3px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.1);
+  background: color-mix(
+    in srgb,
+    var(--color-sidebar-text-active) 12%,
+    transparent
+  );
   overflow: hidden;
 }
 
 .railFill {
   height: 100%;
   border-radius: inherit;
-  background: rgba(255, 255, 255, 0.55);
+  background: color-mix(
+    in srgb,
+    var(--color-sidebar-text-active) 55%,
+    transparent
+  );
 }
 
 .skelTitle,
 .skelLine,
 .skelRail {
   border-radius: 4px;
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(
+    in srgb,
+    var(--color-sidebar-text-active) 10%,
+    transparent
+  );
 }
 
 .skelTitle {

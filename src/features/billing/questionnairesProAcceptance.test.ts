@@ -15,10 +15,14 @@ function assert(cond: unknown, msg: string): asserts cond {
   if (!cond) throw new Error(`FAIL questionnaires-pro — ${msg}`)
 }
 
-const library = read('src/pages/QuestionnaireLibraryPage.tsx')
+const library =
+  read('src/pages/QuestionnaireLibraryPage.tsx') +
+  read('src/features/prewedding/modern/ModernQuestionnaireLibrary.tsx')
 assert(library.includes('requirePro'), 'library mutations gated')
 assert(library.includes('create_questionnaire'), 'create action key')
 assert(library.includes('edit_questionnaire'), 'edit action key')
+assert(library.includes('deletePermanently') || library.includes('openPermanentDelete'), 'permanent delete gated path')
+assert(library.includes('Usuń na stałe') || library.includes('QUESTIONNAIRE_LIBRARY_DELETE_CONFIRM'), 'delete action copy')
 assert(library.includes('viewTemplate') || library.includes('onView'), 'view path exists')
 assert(library.includes('ProLockIcon'), 'lock affordance on CTAs')
 
@@ -42,6 +46,8 @@ assert(contractEditor.includes('readOnly'), 'contract editor supports readOnly')
 assert(contractEditor.includes('edit_questionnaire_template'), 'persist gated')
 
 const workspace = read(
+  'src/features/prewedding/usePreWeddingQuestionnaireWorkspace.ts',
+) + read(
   'src/features/weddings/detail/v2/WeddingPreWeddingQuestionnaireWorkspace.tsx',
 )
 assert(workspace.includes('generate_questionnaire_link') || workspace.includes('rotate_questionnaire_token'), 'share/rotate keys')
@@ -52,7 +58,9 @@ const pendingCard = read('src/features/dashboard/components/PendingWeddingsCard.
 assert(pendingCard.includes('requirePro'), 'dashboard pending gated')
 assert(pendingCard.includes('apply_questionnaire_responses'), 'approve key')
 
-const detail = read('src/pages/QuestionnaireDetailPage.tsx')
+const detail = read(
+  'src/features/questionnaires/detail/modern/ModernQuestionnaireDetailWorkspace.tsx',
+)
 assert(detail.includes('requirePro'), 'detail approve gated')
 
 const publicForm = read('src/pages/PublicFormTokenPage.tsx')
