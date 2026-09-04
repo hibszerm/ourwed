@@ -4,8 +4,21 @@ import styles from './HeroTabletFrame.module.css'
 
 type Props = {
   children: ReactNode
-  /** Narrower / simplified hardware for mobile crop. */
+  /**
+   * Simplified / cropped hardware for non-Hero static surfaces (e.g. Product Story).
+   * Never use for the Landing Hero tablet — Hero must stay canonical + outer-scaled.
+   */
   compact?: boolean
+  /**
+   * Lock desktop hardware geometry (aspect, bezel, dashboard scale-into-screen).
+   * Hero always passes this; page viewport must not reflow internals.
+   */
+  canonical?: boolean
+  /**
+   * Freeze device at design width (1420 + outset) so a parent can
+   * transform:scale the whole object for compact viewports.
+   */
+  fitLock?: boolean
   /**
    * 0 = product surface only (no recognizable hardware).
    * 1 = full landscape iPad enclosure.
@@ -30,6 +43,8 @@ type Props = {
 export function HeroTabletFrame({
   children,
   compact = false,
+  canonical = false,
+  fitLock = false,
   hardwareProgress,
   blackout,
   className,
@@ -44,6 +59,8 @@ export function HeroTabletFrame({
       className={[styles.device, className].filter(Boolean).join(' ')}
       data-testid="lv2-hero-tablet"
       data-compact={compact ? 'true' : 'false'}
+      data-canonical={canonical ? 'true' : 'false'}
+      data-fit-lock={fitLock ? 'true' : 'false'}
       data-hardware={
         inherit ? 'inherit' : hw! >= 0.98 ? 'complete' : hw! <= 0.02 ? 'hidden' : 'revealing'
       }

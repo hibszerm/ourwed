@@ -64,6 +64,16 @@
       rgba(24, 20, 16, calc(0.08 * var(--hw)));
 }
 
+/*
+ * Canonical marker — Hero tablets never use compact crop.
+ * Width stays the default fluid formula on desktop.
+ * Mobile fit-lock (data-fit-lock) freezes design width; parent scales uniformly.
+ */
+.device[data-canonical='true'][data-fit-lock='true'] {
+  width: calc(1420px + 2 * var(--outset));
+  max-width: calc(1420px + 2 * (var(--chassis) + var(--bezel)));
+}
+
 /* Near-black anodized aluminum — reads as metal edge, not grey frame */
 .device::before {
   content: '';
@@ -308,54 +318,4 @@
 .device[data-compact='true'] .lens {
   width: 4px;
   height: 4px;
-}
-
-@media (max-width: 1100px) {
-  .device:not([data-compact='true']) {
-    --chassis: 6px;
-    --bezel: 8px;
-    --outer-radius: 28px;
-    --bezel-radius: 24px;
-    --screen-radius: 16px;
-    width: min(100%, calc(100vw - 1.5rem), calc(400px + 2 * var(--outset)));
-    max-width: min(calc(100vw - 1.5rem), calc(400px + 2 * (var(--chassis) + var(--bezel))));
-    margin-inline: auto;
-  }
-
-  .device:not([data-compact='true']) .screen {
-    aspect-ratio: auto;
-    height: auto;
-    min-height: 0;
-    max-height: min(70svh, 640px);
-  }
-
-  .device:not([data-compact='true']) .screen > *:not([data-tablet-blackout]) {
-    width: 100%;
-    max-width: 100%;
-    transform: none;
-  }
-
-  .device:not([data-compact='true']) .powerButton {
-    width: 26px;
-    height: 3px;
-  }
-
-  .device:not([data-compact='true']) .volumeUp,
-  .device:not([data-compact='true']) .volumeDown {
-    width: 3px;
-    height: 20px;
-  }
-}
-
-@media (max-width: 767px) {
-  .device .powerButton {
-    width: 24px;
-    height: 3px;
-  }
-
-  .device .volumeUp,
-  .device .volumeDown {
-    width: 3px;
-    height: 18px;
-  }
 }

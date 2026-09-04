@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import {
   motion,
   useMotionValue,
@@ -25,17 +25,23 @@ import styles from './LandingV2Hero.module.css'
  * Existing reveal keyframes run on assembleProgress (0–1 remapped).
  *
  * Motion policy: prefers-reduced-motion disables the theater.
- * Compact viewport only adapts geometry — it does not disable motion.
+ * Compact viewport only adapts outer geometry / device fit-scale —
+ * never the tablet's internal dashboard composition.
  */
 export function LandingV2Hero() {
   const trackRef = useRef<HTMLElement | null>(null)
   const stickyRef = useRef<HTMLDivElement | null>(null)
   const exitWrapRef = useRef<HTMLDivElement | null>(null)
+  const deviceFitRef = useRef<HTMLDivElement | null>(null)
   const isReducedMotion = Boolean(useReducedMotion())
   const isCompactViewport = useLandingCompactViewport()
   const geom = heroTheaterGeometry(isCompactViewport)
   const [coverScale, setCoverScale] = useState(geom.coverScaleMin)
   const [exitLift, setExitLift] = useState(0)
+  const [deviceFitScale, setDeviceFitScale] = useState(1)
+  const [deviceFitSlot, setDeviceFitSlot] = useState<{ w: number; h: number } | null>(
+    null,
+  )
   const progress = useMotionValue(0)
   const baseScreenRef = useRef<{ w: number; h: number } | null>(null)
 
@@ -73,6 +79,61 @@ export function LandingV2Hero() {
       window.removeEventListener('resize', onScroll)
     }
   }, [skipTheater, progress])
+
+  /* Uniform outer scale — canonical tablet → fit sticky stage */
+  useLayoutEffect(() => {
+    if (!isCompactViewport) {
+      setDeviceFitScale(1)
+      setDeviceFitSlot(null)
+      return
+    }
+
+    const sticky = stickyRef.current
+    const fit = deviceFitRef.current
+    if (!sticky || !fit) return
+
+    let raf = 0
+    const measure = () => {
+      const device = fit.querySelector(
+        '[data-testid="lv2-hero-tablet"]',
+      ) as HTMLElement | null
+      if (!device) return
+
+      /* Measure natural size at scale 1 */
+      fit.style.setProperty('--hero-device-fit-scale', '1')
+      const naturalW = device.offsetWidth
+      const naturalH = device.offsetHeight
+      if (naturalW < 40 || naturalH < 40) return
+
+      const padX = skipTheater ? 32 : 24
+      const padY = skipTheater ? 40 : 28
+      const availW = Math.max(80, sticky.clientWidth - padX)
+      const availH = Math.max(80, sticky.clientHeight - padY)
+      const next = Math.min(1, availW / naturalW, availH / naturalH)
+      const scale = Math.max(0.18, Number(next.toFixed(4)))
+      setDeviceFitScale(scale)
+      setDeviceFitSlot({
+        w: Math.round(naturalW * scale),
+        h: Math.round(naturalH * scale),
+      })
+      fit.style.setProperty('--hero-device-fit-scale', String(scale))
+    }
+
+    const onResize = () => {
+      cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(measure)
+    }
+
+    measure()
+    window.addEventListener('resize', onResize)
+    /* Hardware outset grows during assemble — keep fit scale honest */
+    const unsub = progress.on('change', onResize)
+    return () => {
+      cancelAnimationFrame(raf)
+      window.removeEventListener('resize', onResize)
+      unsub()
+    }
+  }, [isCompactViewport, skipTheater, progress])
 
   useMotionValueEvent(progress, 'change', (v) => {
     const node = trackRef.current
@@ -230,6 +291,47 @@ export function LandingV2Hero() {
         deadlines: { opacity: deadlineOpacity, y: deadlineY },
       }
 
+  const tablet = (
+    <HeroTabletFrame
+      canonical
+      fitLock={isCompactViewport}
+      hardwareProgress={skipTheater ? 1 : undefined}
+    >
+      <HeroModernDashboard
+        revealComplete={skipTheater}
+        reveal={skipTheater ? undefined : reveal}
+        themeProgress={skipTheater ? undefined : themeProgressMv}
+      />
+    </HeroTabletFrame>
+  )
+
+  const fittedTablet = (
+    <div
+      className={styles.deviceFitSlot}
+      data-hero-device-fit={isCompactViewport ? 'scale' : 'none'}
+      style={
+        isCompactViewport && deviceFitSlot
+          ? { width: deviceFitSlot.w, height: deviceFitSlot.h }
+          : undefined
+      }
+    >
+      <div
+        ref={deviceFitRef}
+        className={styles.deviceFit}
+        data-hero-device-fit-scale={deviceFitScale.toFixed(4)}
+        style={
+          {
+            ['--hero-device-fit-scale' as string]: isCompactViewport
+              ? deviceFitScale
+              : 1,
+          } as CSSProperties
+        }
+      >
+        {tablet}
+      </div>
+    </div>
+  )
+
   return (
     <section
       ref={trackRef}
@@ -262,9 +364,7 @@ export function LandingV2Hero() {
               <p className={styles.micro}>Bez karty płatniczej.</p>
             </div>
             <div className={styles.simpleStage} data-testid="lv2-hero-stage">
-              <HeroTabletFrame compact={isCompactViewport} hardwareProgress={1}>
-                <HeroModernDashboard compact={isCompactViewport} revealComplete />
-              </HeroTabletFrame>
+              {fittedTablet}
             </div>
           </div>
         ) : (
@@ -322,6 +422,7 @@ export function LandingV2Hero() {
               {/*
                 Single physical transform wrapper — body, bezel, screen,
                 camera, and buttons scale/translate together.
+                Mobile fit-scale is nested inside so exit morph stays uniform.
               */}
               <motion.div
                 ref={exitWrapRef}
@@ -332,13 +433,7 @@ export function LandingV2Hero() {
                   y: exitYMv,
                 }}
               >
-                <HeroTabletFrame compact={isCompactViewport}>
-                  <HeroModernDashboard
-                    compact={isCompactViewport}
-                    reveal={reveal}
-                    themeProgress={themeProgressMv}
-                  />
-                </HeroTabletFrame>
+                {fittedTablet}
               </motion.div>
             </motion.div>
           </>

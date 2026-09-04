@@ -350,6 +350,26 @@ function walkTs(dir: string, out: string[] = []): string[] {
     "data-hero-theater={skipTheater ? 'simple' : 'scroll'}",
     'theater attr still driven by skipTheater (reduced only)',
   )
+  /* Hero tablet parity — outer scale only, never internal compact crop */
+  assertIncludes(hero, 'canonical', 'Hero tablet uses canonical device')
+  assertIncludes(hero, 'fitLock={isCompactViewport}', 'compact freezes design width for outer scale')
+  assertIncludes(hero, 'deviceFit', 'outer device fit wrapper')
+  assertIncludes(hero, '--hero-device-fit-scale', 'uniform fit scale var')
+  assertNotIncludes(
+    hero,
+    'compact={isCompactViewport}',
+    'Hero must not pass compact viewport into tablet/dashboard',
+  )
+  assertNotIncludes(
+    hero,
+    '<HeroModernDashboard\n                    compact=',
+    'Hero dashboard never compact-prop driven by viewport',
+  )
+  assertNotIncludes(
+    hero,
+    'HeroTabletFrame compact',
+    'Hero tablet never compact mode',
+  )
 
   const heroGeom = read('src/features/landing-v2/hero/heroTheaterGeometry.ts')
   assertIncludes(heroGeom, 'HERO_THEATER_GEOMETRY_DESKTOP', 'desktop geometry frozen')
@@ -1217,9 +1237,17 @@ function walkTs(dir: string, out: string[] = []): string[] {
   assertIncludes(tabletCss, '--screen-ratio', 'canonical screen aspect ratio')
   assertIncludes(tabletCss, 'aspect-ratio: var(--screen-ratio)', 'screen height follows ratio')
   assertIncludes(tabletCss, '142 / 86', 'dashboard design aspect 1420×860')
+  assertIncludes(tabletCss, "data-canonical='true'][data-fit-lock='true']", 'fit-lock freezes design width')
+  assertIncludes(tabletCss, '1420px + 2 * var(--outset)', 'fit-lock uses design canvas width')
   assertNotIncludes(tabletCss, 'min(78svh', 'no independent viewport-height screen sizing')
   assertNotIncludes(tabletCss, '100cqi * 0.68', 'no divergent cqi height vs width')
   assertNotIncludes(tabletCss, '388 / 195', 'no clipped svh laptop ratio')
+  /* Viewport must not reflow non-compact / canonical tablets */
+  assertNotIncludes(
+    tabletCss,
+    ".device:not([data-compact='true']) {\n    --chassis: 6px;",
+    'no viewport media crop of non-compact tablet',
+  )
   assertIncludes(tabletCss, 'screenBlackout', 'screen blackout layer')
   assertIncludes(tabletCss, '#000000', 'blackout true black')
   assertNotIncludes(tabletCss, 'scaleX', 'no non-uniform X scale')
@@ -1252,7 +1280,16 @@ function walkTs(dir: string, out: string[] = []): string[] {
   assertIncludes(modernCss, '--dashboard-design-width: 1420px', 'design width')
   assertIncludes(modernCss, '--sidebar-design-width: 224px', 'sidebar width')
   assertIncludes(modernCss, "minmax(0, 1.72fr) minmax(340px, 0.86fr)", 'modern grid')
-
+  assertIncludes(
+    modernCss,
+    ".root[data-compact='true']",
+    'dashboard crop only via data-compact',
+  )
+  assertNotIncludes(
+    modernCss,
+    '@media (max-width: 1100px)',
+    'dashboard must not reflow from page viewport width',
+  )
   const data = read('src/features/landing-v2/hero/heroModernDemoData.ts')
   assertIncludes(data, 'Julia i Maksymilian', 'demo couple')
   assertIncludes(data, 'Marta', 'greeting name')

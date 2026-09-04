@@ -894,9 +894,11 @@
   flex-shrink: 0;
 }
 
-/* Compact / mobile crop — same Modern language, intentional crop */
-@media (max-width: 1100px) {
-  .root {
+/* Compact crop — ONLY via data-compact.
+ * Page viewport width must NOT reflow the Hero tablet dashboard.
+ * Hero always uses the canonical 1420×860 composition + outer scale.
+ */
+.root[data-compact='true'] {
     display: flex;
     flex-direction: column;
     width: min(100%, 420px);
@@ -906,9 +908,9 @@
     padding: 12px;
     gap: 12px;
     border-radius: 20px;
-  }
+}
 
-  .sidebar {
+.root[data-compact='true'] .sidebar {
     flex-direction: row;
     align-items: center;
     width: 100%;
@@ -917,59 +919,59 @@
     padding: 10px 12px;
     border-radius: 16px;
     gap: 8px;
-  }
+}
 
-  .logo {
+.root[data-compact='true'] .logo {
     padding: 0 8px 0 0;
-  }
+}
 
-  .logoText {
+.root[data-compact='true'] .logoText {
     display: none;
-  }
+}
 
-  .nav {
+.root[data-compact='true'] .nav {
     flex-direction: row;
     overflow: hidden;
     gap: 4px;
     min-width: 0;
-  }
+}
 
-  .navItem {
+.root[data-compact='true'] .navItem {
     display: none;
-  }
+}
 
-  .navActive {
+.root[data-compact='true'] .navActive {
     display: inline-flex;
     min-height: 34px;
     padding: 0 10px;
     font-size: 0.75rem;
-  }
+}
 
-  .main {
+.root[data-compact='true'] .main {
     padding: 0;
     gap: var(--v3-space-4);
-  }
+}
 
-  .greeting {
+.root[data-compact='true'] .greeting {
     display: none;
-  }
+}
 
-  .layout {
+.root[data-compact='true'] .layout {
     display: flex;
     flex-direction: column;
     gap: 14px;
-  }
+}
 
-  .nearest {
+.root[data-compact='true'] .nearest {
     --v3-hero-rail: 4.5rem;
     --v3-hero-rail-gap: 16px;
     grid-template-columns: var(--v3-hero-rail) minmax(0, 1fr);
     min-height: 164px;
     padding: 20px 18px;
     position: relative;
-  }
+}
 
-  .countdown {
+.root[data-compact='true'] .countdown {
     position: absolute;
     top: 18px;
     right: 18px;
@@ -977,68 +979,68 @@
     min-width: 0;
     padding: 0;
     border: 0;
-  }
+}
 
-  .countdownDesktop {
+.root[data-compact='true'] .countdownDesktop {
     display: none;
-  }
+}
 
-  .countdownMobile {
+.root[data-compact='true'] .countdownMobile {
     display: inline-flex;
     font-size: 0.6875rem;
     font-weight: 650;
     color: color-mix(in srgb, var(--brand-primary) 46%, var(--text-secondary));
-  }
+}
 
-  .dateDay {
+.root[data-compact='true'] .dateDay {
     font-size: 2.65rem;
-  }
+}
 
-  .dateBlock .dateWeek {
+.root[data-compact='true'] .dateBlock .dateWeek {
     display: none;
-  }
+}
 
-  .nearestBody {
+.root[data-compact='true'] .nearestBody {
     justify-content: flex-start;
     padding: 0 0 0 var(--v3-hero-rail-gap);
-  }
+}
 
-  .eyebrow {
+.root[data-compact='true'] .eyebrow {
     display: none;
-  }
+}
 
-  .typeRow {
+.root[data-compact='true'] .typeRow {
     margin-top: 0;
     padding-right: 74px;
-  }
+}
 
-  .coupleName {
+.root[data-compact='true'] .coupleName {
     margin-top: 12px;
     font-size: clamp(1.2rem, 5.6vw, 1.45rem);
     font-weight: 610;
-  }
+}
 
-  .chips {
+.root[data-compact='true'] .chips {
     margin-top: auto;
     padding-top: 12px;
-  }
+}
 
-  .chip:first-child {
+.root[data-compact='true'] .chip:first-child {
     display: none;
-  }
+}
 
-  .chip:last-child {
+.root[data-compact='true'] .chip:last-child {
     padding: 0;
     background: transparent;
     border: none;
     color: var(--color-text-tertiary);
-  }
+}
 
-  .cta {
+.root[data-compact='true'] .cta {
     display: none;
-  }
+}
 
-  .upcomingGrid {
+.root[data-compact='true'] .upcomingGrid {
     grid-template-columns: 1fr;
     gap: 0;
     padding: 2px 12px;
@@ -1046,9 +1048,9 @@
     border-radius: 22px;
     background: var(--v3-surface-supporting);
     box-shadow: var(--v3-shadow-contact);
-  }
+}
 
-  .upcomingCard {
+.root[data-compact='true'] .upcomingCard {
     grid-template-columns: 2.5rem minmax(0, 1fr) auto;
     min-height: 72px;
     height: auto;
@@ -1057,30 +1059,29 @@
     border-radius: 0;
     background: transparent;
     box-shadow: none;
-  }
+}
 
-  .upcomingCard + .upcomingCard {
+.root[data-compact='true'] .upcomingCard + .upcomingCard {
     border-top: 1px solid color-mix(in srgb, var(--color-border) 76%, transparent);
-  }
+}
 
-  .upcomingCard:last-child {
+.root[data-compact='true'] .upcomingCard:last-child {
     display: none;
-  }
+}
 
-  .upcomingContent,
-  .upcomingTop {
+.root[data-compact='true'] .upcomingTop {
     display: contents;
-  }
+}
 
-  .upcomingName {
+.root[data-compact='true'] .upcomingName {
     grid-column: 2;
     grid-row: 1;
     margin: 0;
     font-size: 0.9375rem;
     font-weight: 610;
-  }
+}
 
-  .upcomingType {
+.root[data-compact='true'] .upcomingType {
     grid-column: 2;
     grid-row: 2;
     margin-top: 3px;
@@ -1090,84 +1091,34 @@
     text-transform: uppercase;
     letter-spacing: 0.07em;
     font-size: 0.625rem;
-  }
+}
 
-  .upcomingRelative {
+.root[data-compact='true'] .upcomingRelative {
     grid-column: 3;
     grid-row: 1 / span 3;
     align-self: center;
-  }
+}
 
-  .upcomingTime {
+.root[data-compact='true'] .upcomingTime {
     display: none;
-  }
+}
 
-  .upcomingLocation {
+.root[data-compact='true'] .upcomingLocation {
     grid-column: 2;
     grid-row: 3;
     margin: 0;
     padding-top: 4px;
-  }
-
-  .today,
-  .deadlines {
-    display: none;
-  }
-
-  .notifications {
-    padding: 16px;
-  }
-
-  .notifList li:nth-child(n + 3) {
-    display: none;
-  }
 }
 
-/* Forced compact (matchMedia) mirrors media block */
-.root[data-compact='true'] {
-  display: flex;
-  flex-direction: column;
-  width: min(100%, 420px);
-  max-width: 420px;
-  min-height: 0;
-  margin: 0 auto;
-  padding: 12px;
-  gap: 12px;
-  border-radius: 20px;
-}
-
-.root[data-compact='true'] .sidebar {
-  flex-direction: row;
-  align-items: center;
-  width: 100%;
-  min-height: 0;
-  height: auto;
-  padding: 10px 12px;
-  border-radius: 16px;
-  gap: 8px;
-}
-
-.root[data-compact='true'] .logoText,
-.root[data-compact='true'] .greeting,
 .root[data-compact='true'] .today,
-.root[data-compact='true'] .deadlines,
-.root[data-compact='true'] .cta,
-.root[data-compact='true'] .upcomingTime,
-.root[data-compact='true'] .upcomingCard:last-child,
+.root[data-compact='true'] .deadlines {
+    display: none;
+}
+
+.root[data-compact='true'] .notifications {
+    padding: 16px;
+}
+
 .root[data-compact='true'] .notifList li:nth-child(n + 3) {
-  display: none;
-}
-
-.root[data-compact='true'] .layout {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.root[data-compact='true'] .navItem {
-  display: none;
-}
-
-.root[data-compact='true'] .navActive {
-  display: inline-flex;
+    display: none;
 }

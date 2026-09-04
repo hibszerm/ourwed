@@ -138,6 +138,33 @@
   transition-timing-function: var(--lv2-hero-ease);
 }
 
+/*
+ * Mobile outer fit — canonical tablet scaled uniformly.
+ * Slot reserves layout space; inner transform does not reflow internals.
+ */
+.deviceFitSlot[data-hero-device-fit='none'] {
+  display: contents;
+}
+
+.deviceFitSlot[data-hero-device-fit='scale'] {
+  position: relative;
+  flex-shrink: 0;
+  overflow: visible;
+}
+
+.deviceFitSlot[data-hero-device-fit='scale'] .deviceFit {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform: scale(var(--hero-device-fit-scale, 1));
+  transform-origin: top left;
+  will-change: transform;
+}
+
+.deviceFitSlot[data-hero-device-fit='none'] .deviceFit {
+  transform: none;
+}
+
 .simpleStack {
   display: flex;
   flex-direction: column;
