@@ -1,0 +1,111 @@
+/* Studio History — compact/static fallback. Scroll chapter lives in MobileStory. */
+
+.absorbed {
+  display: block;
+  height: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.studioLabel {
+  margin: 0;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--sh-muted);
+}
+
+.historyHeadline {
+  margin: 0;
+  display: grid;
+  gap: 0.08em;
+  font-size: clamp(1.85rem, 2.5vw + 0.55rem, 2.75rem);
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  line-height: 1.08;
+  color: var(--sh-ink);
+}
+
+.historyLine {
+  display: block;
+}
+
+.historySupport {
+  margin: 0.85rem auto 0;
+  max-width: 36rem;
+  font-size: clamp(0.9375rem, 0.3vw + 0.85rem, 1.05rem);
+  line-height: 1.45;
+  color: var(--sh-muted);
+}
+
+.seasons {
+  margin-top: 2.25rem;
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(1.25rem, 3vw, 2.5rem);
+  text-align: left;
+}
+
+.seasonCol {
+  min-width: 0;
+}
+
+.year {
+  margin: 0 0 0.7rem;
+  font-size: clamp(1.5rem, 1.6vw + 0.7rem, 2rem);
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  color: var(--sh-ink);
+}
+
+.records {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.7rem;
+}
+
+.couple {
+  font-size: 0.875rem;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+  color: var(--sh-ink);
+}
+
+.footer {
+  margin: 0.7rem 0 0;
+  font-size: 0.75rem;
+  color: var(--sh-muted);
+}
+
+.static {
+  --sh-ink: #1a1614;
+  --sh-paper: var(--paper, #f3efe8);
+  --sh-muted: color-mix(in srgb, #1a1614 48%, transparent);
+  background: var(--sh-paper);
+  color: var(--sh-ink);
+  padding: 4rem clamp(1.1rem, 4vw, 2.5rem) 5rem;
+}
+
+.staticInner {
+  width: min(1080px, 100%);
+  margin-inline: auto;
+  display: grid;
+  gap: 1.25rem;
+  justify-items: center;
+  text-align: center;
+}
+
+@media (max-width: 900px) {
+  .seasons {
+    grid-template-columns: 1fr;
+    gap: 1.75rem;
+    max-width: 22rem;
+    margin-inline: auto;
+  }
+}

@@ -1,0 +1,88 @@
+/* Landing V2 — complete redesign Phase A tokens.
+   Scoped to [data-landing-v2]. Independent of app Theme / Appearance. */
+
+.page {
+  --lv2-page: #f3efe8;
+  --lv2-surface: #fbf9f5;
+  --lv2-ivory: #fffcf7;
+
+  --lv2-ink: #111110;
+  --lv2-muted: #5c564e;
+  --lv2-muted-soft: #8a8278;
+
+  --lv2-border: color-mix(in srgb, #271f19 11%, transparent);
+  --lv2-accent: #22333b;
+  --lv2-accent-soft: color-mix(in srgb, #22333b 9%, transparent);
+  --lv2-graphite: #1d272b;
+  --lv2-on-graphite: #f3efe8;
+
+  --lv2-editorial-max: 72rem;
+  --lv2-product-max: 82.5rem;
+  --lv2-gutter: clamp(1rem, 2.8vw, 2.75rem);
+  --lv2-nav-h: 3.75rem;
+
+  --lv2-radius-workspace: 1.15rem;
+
+  --lv2-shadow-workspace:
+    0 1px 0 color-mix(in srgb, #ffffff 45%, transparent),
+    0 12px 32px color-mix(in srgb, #14110f 5%, transparent);
+
+  --lv2-motion-fast: 150ms;
+  --lv2-motion-base: 240ms;
+  --lv2-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+
+  --lv2-font: var(
+    --font-sans,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    'Helvetica Neue',
+    Arial,
+    sans-serif
+  );
+
+  box-sizing: border-box;
+  min-height: 100dvh;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  background: var(--lv2-page);
+  color: var(--lv2-ink);
+  font-family: var(--lv2-font);
+  font-size: 1rem;
+  line-height: 1.5;
+  color-scheme: light;
+  overflow-x: clip;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  padding-left: env(safe-area-inset-left, 0);
+  padding-right: env(safe-area-inset-right, 0);
+}
+
+.page *,
+.page *::before,
+.page *::after {
+  box-sizing: border-box;
+}
+
+.main {
+  flex: 1 0 auto;
+  width: 100%;
+}
+
+@media (max-width: 767px) {
+  .page {
+    --lv2-nav-h: 3.5rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page {
+    --lv2-motion-fast: 0ms;
+    --lv2-motion-base: 0ms;
+  }
+}

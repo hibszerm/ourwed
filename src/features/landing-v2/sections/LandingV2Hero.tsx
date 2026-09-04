@@ -1,0 +1,327 @@
+import { useEffect, useRef, useState } from 'react'
+import {
+  motion,
+  useMotionValue,
+  useMotionValueEvent,
+  useReducedMotion,
+  useTransform,
+} from 'framer-motion'
+import { LandingButton } from '@/features/landing-v3/components/LandingButton'
+import {
+  HeroModernDashboard,
+  type HeroModernRevealStyles,
+} from '@/features/landing-v2/hero/HeroModernDashboard'
+import { HeroTabletFrame } from '@/features/landing-v2/hero/HeroTabletFrame'
+import { applyHeroDemoThemeToElement } from '@/features/landing-v2/hero/heroDemoThemeInterpolation'
+import styles from './LandingV2Hero.module.css'
+
+/**
+ * Landing V2 Hero — monumental message → Modern product → late iPad
+ * → physical push-in / screen blackout handoff into the Problem Story.
+ *
+ * Master progress 0–1 spans assemble + hold + exit + black settle.
+ * Existing reveal keyframes run on assembleProgress (0–1 remapped).
+ */
+export function LandingV2Hero() {
+  const trackRef = useRef<HTMLElement | null>(null)
+  const stickyRef = useRef<HTMLDivElement | null>(null)
+  const exitWrapRef = useRef<HTMLDivElement | null>(null)
+  const reduced = useReducedMotion()
+  const [compact, setCompact] = useState(false)
+  const [coverScale, setCoverScale] = useState(1.75)
+  const [exitLift, setExitLift] = useState(0)
+  const progress = useMotionValue(0)
+  const baseScreenRef = useRef<{ w: number; h: number } | null>(null)
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 1100px)')
+    const sync = () => setCompact(mq.matches)
+    sync()
+    mq.addEventListener('change', sync)
+    return () => mq.removeEventListener('change', sync)
+  }, [])
+
+  const skipTheater = Boolean(reduced) || compact
+
+  useEffect(() => {
+    if (skipTheater) {
+      progress.set(1)
+      return
+    }
+
+    const el = trackRef.current
+    if (!el) return
+
+    let raf = 0
+    const measure = () => {
+      const rect = el.getBoundingClientRect()
+      const total = Math.max(1, el.offsetHeight - window.innerHeight)
+      const raw = -rect.top / total
+      progress.set(Math.min(1, Math.max(0, raw)))
+    }
+
+    const onScroll = () => {
+      cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(measure)
+    }
+
+    measure()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('resize', onScroll)
+    return () => {
+      cancelAnimationFrame(raf)
+      window.removeEventListener('scroll', onScroll)
+      window.removeEventListener('resize', onScroll)
+    }
+  }, [skipTheater, progress])
+
+  useMotionValueEvent(progress, 'change', (v) => {
+    const node = trackRef.current
+    if (node) node.style.setProperty('--hero-progress', v.toFixed(4))
+
+    /* Theme interpolation — tied to master progress (same source as scroll theater) */
+    const dash = exitWrapRef.current?.querySelector(
+      '[data-testid="lv2-hero-modern-dashboard"]',
+    ) as HTMLElement | null
+    if (dash) {
+      const themeT = Math.min(1, Math.max(0, (v - 0.54) / 0.1))
+      applyHeroDemoThemeToElement(dash, themeT)
+    }
+  })
+
+  /*
+   * Master progress map (desktop scroll theater):
+   * 0.00–0.50  assemble (existing reveal, remapped)
+   * 0.50–0.54  hold complete Light iPad
+   * 0.54–0.64  theme transition Light → Graphite
+   * 0.64–0.70  hold complete Graphite
+   * 0.70–0.91  exit: scale + blackout (unchanged geometry)
+   * 0.91–0.94  tiny pure-black beat → Problem Story handoff
+   */
+  const assembleProgress = useTransform(progress, [0, 0.5], [0, 1])
+
+  const themeProgressMv = useTransform(progress, [0.54, 0.64], [0, 1])
+
+  /* Hardware resolves AFTER product modules — never an empty iPad around the headline */
+  const hardwareMv = useTransform(assembleProgress, [0.76, 0.92], [0, 1])
+
+  const copyOpacity = useTransform(assembleProgress, [0, 0.18, 0.34], [1, 1, 0])
+  const copyY = useTransform(assembleProgress, [0.18, 0.34], [0, -40])
+  const copyScale = useTransform(assembleProgress, [0.18, 0.34], [1, 0.98])
+
+  const productY = useTransform(assembleProgress, [0.14, 0.22, 0.46, 0.8], [360, 220, 10, 0])
+  const productOpacity = useTransform(
+    assembleProgress,
+    [0.12, 0.2, 0.3, 0.36],
+    [0, 0.55, 0.95, 1],
+  )
+  const productScale = useTransform(assembleProgress, [0.22, 0.42, 0.8], [0.978, 0.992, 1])
+
+  const shellOpacity = useTransform(assembleProgress, [0.18, 0.34], [0, 1])
+  const shellY = useTransform(assembleProgress, [0.18, 0.34], [24, 0])
+  const greetingOpacity = useTransform(assembleProgress, [0.2, 0.36], [0, 1])
+  const greetingY = useTransform(assembleProgress, [0.2, 0.36], [20, 0])
+
+  const nearestOpacity = useTransform(assembleProgress, [0.28, 0.46], [0, 1])
+  const nearestY = useTransform(assembleProgress, [0.28, 0.46], [72, 0])
+  const nearestScale = useTransform(assembleProgress, [0.28, 0.46], [0.97, 1])
+
+  const upcomingLabelOpacity = useTransform(assembleProgress, [0.42, 0.52], [0, 1])
+  const upcomingLabelY = useTransform(assembleProgress, [0.42, 0.52], [18, 0])
+
+  const u0Opacity = useTransform(assembleProgress, [0.42, 0.54], [0, 1])
+  const u0Y = useTransform(assembleProgress, [0.42, 0.54], [22, 0])
+  const u1Opacity = useTransform(assembleProgress, [0.445, 0.56], [0, 1])
+  const u1Y = useTransform(assembleProgress, [0.445, 0.56], [22, 0])
+  const u2Opacity = useTransform(assembleProgress, [0.47, 0.58], [0, 1])
+  const u2Y = useTransform(assembleProgress, [0.47, 0.58], [22, 0])
+
+  const todayOpacity = useTransform(assembleProgress, [0.52, 0.66], [0, 1])
+  const todayY = useTransform(assembleProgress, [0.52, 0.66], [20, 0])
+
+  const notifOpacity = useTransform(assembleProgress, [0.62, 0.76], [0, 1])
+  const notifY = useTransform(assembleProgress, [0.62, 0.76], [22, 0])
+
+  const deadlineOpacity = useTransform(assembleProgress, [0.66, 0.8], [0, 1])
+  const deadlineY = useTransform(assembleProgress, [0.66, 0.8], [22, 0])
+
+  const peekHintOpacity = useTransform(assembleProgress, [0, 0.12, 0.22], [0.7, 0.4, 0])
+
+  /* Exit theater — whole physical device from one wrapper (after Graphite hold) */
+  const exitProgress = useTransform(progress, [0.7, 0.91], [0, 1])
+  const blackoutMv = useTransform(
+    exitProgress,
+    [0, 0.15, 0.35, 0.55, 0.72, 0.84, 1],
+    [0, 0.05, 0.25, 0.65, 0.92, 1, 1],
+  )
+  const exitScaleMv = useTransform(exitProgress, [0, 1], [1, coverScale])
+  const exitYMv = useTransform(exitProgress, [0, 1], [0, exitLift])
+  const blackPlateOpacity = useTransform(exitProgress, [0.5, 0.78, 0.92], [0, 0.55, 1])
+
+  /* Capture screen geometry once assemble is complete — compute cover scale */
+  useMotionValueEvent(assembleProgress, 'change', (v) => {
+    if (skipTheater || v < 0.98) return
+    const sticky = stickyRef.current
+    const screen = exitWrapRef.current?.querySelector(
+      '[data-tablet-screen]',
+    ) as HTMLElement | null
+    if (!sticky || !screen) return
+
+    const sr = screen.getBoundingClientRect()
+    const st = sticky.getBoundingClientRect()
+    if (sr.width < 40 || sr.height < 40) return
+
+    if (!baseScreenRef.current) {
+      baseScreenRef.current = { w: sr.width, h: sr.height }
+    }
+    const base = baseScreenRef.current
+    const needX = st.width / base.w
+    const needY = st.height / base.h
+    /* Safety so SCREEN — not merely body — overshoots viewport; hardware exits */
+    const next = Math.max(needX, needY) * 1.22
+    setCoverScale(Math.min(2.45, Math.max(1.55, next)))
+
+    const screenCenterY = sr.top + sr.height / 2
+    const stickyCenterY = st.top + st.height / 2
+    setExitLift(stickyCenterY - screenCenterY)
+  })
+
+  useEffect(() => {
+    if (skipTheater) return
+    const onResize = () => {
+      baseScreenRef.current = null
+    }
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [skipTheater])
+
+  const reveal: HeroModernRevealStyles | undefined = skipTheater
+    ? undefined
+    : {
+        shell: { opacity: shellOpacity, y: shellY },
+        greeting: { opacity: greetingOpacity, y: greetingY },
+        nearest: {
+          opacity: nearestOpacity,
+          y: nearestY,
+          scale: nearestScale,
+        },
+        upcomingLabel: { opacity: upcomingLabelOpacity, y: upcomingLabelY },
+        upcoming0: { opacity: u0Opacity, y: u0Y },
+        upcoming1: { opacity: u1Opacity, y: u1Y },
+        upcoming2: { opacity: u2Opacity, y: u2Y },
+        today: { opacity: todayOpacity, y: todayY },
+        notifications: { opacity: notifOpacity, y: notifY },
+        deadlines: { opacity: deadlineOpacity, y: deadlineY },
+      }
+
+  return (
+    <section
+      ref={trackRef}
+      className={styles.track}
+      data-testid="lv2-hero"
+      data-landing-v2-hero=""
+      data-hero-theater={skipTheater ? 'simple' : 'scroll'}
+      aria-labelledby="lv2-hero-title"
+      style={{ ['--hero-progress' as string]: 0 }}
+    >
+      <div ref={stickyRef} className={styles.sticky} data-lv2-hero-sticky="">
+        {skipTheater ? (
+          <div className={styles.simpleStack}>
+            <div className={styles.copy}>
+              <h1 id="lv2-hero-title" className={styles.title}>
+                <span className={styles.titleLine}>Obsługa zleceń ślubnych</span>
+                <span className={styles.titleLine}>bez chaosu.</span>
+              </h1>
+              <p className={styles.support}>
+                Śluby, sesje, umowy, ankiety, płatności i plan dnia — w jednym
+                spokojnym miejscu pracy.
+              </p>
+              <div className={styles.ctas}>
+                <LandingButton to="/register" variant="primary">
+                  Załóż bezpłatne konto
+                </LandingButton>
+              </div>
+              <p className={styles.micro}>Bez karty płatniczej.</p>
+            </div>
+            <div className={styles.simpleStage} data-testid="lv2-hero-stage">
+              <HeroTabletFrame compact={compact} hardwareProgress={1}>
+                <HeroModernDashboard compact={compact} revealComplete />
+              </HeroTabletFrame>
+            </div>
+          </div>
+        ) : (
+          <>
+            <motion.div
+              className={styles.copy}
+              style={{
+                opacity: copyOpacity,
+                y: copyY,
+                scale: copyScale,
+              }}
+            >
+              <h1 id="lv2-hero-title" className={styles.title}>
+                <span className={styles.titleLine}>Obsługa zleceń ślubnych</span>
+                <span className={styles.titleLine}>bez chaosu.</span>
+              </h1>
+              <p className={styles.support}>
+                Śluby, sesje, umowy, ankiety, płatności i plan dnia — w jednym
+                spokojnym miejscu pracy.
+              </p>
+              <div className={styles.ctas}>
+                <LandingButton to="/register" variant="primary">
+                  Załóż bezpłatne konto
+                </LandingButton>
+              </div>
+              <p className={styles.micro}>Bez karty płatniczej.</p>
+              <motion.p
+                className={styles.scrollHint}
+                style={{ opacity: peekHintOpacity }}
+                aria-hidden
+              >
+                Przewiń, aby zobaczyć pulpit
+              </motion.p>
+            </motion.div>
+
+            <motion.div
+              className={styles.blackPlate}
+              style={{ opacity: blackPlateOpacity }}
+              aria-hidden
+            />
+
+            <motion.div
+              className={styles.stage}
+              data-testid="lv2-hero-stage"
+              aria-hidden
+              style={{
+                y: productY,
+                opacity: productOpacity,
+                scale: productScale,
+                ['--hardware-progress' as string]: hardwareMv,
+                ['--screen-blackout' as string]: blackoutMv,
+                ['--demo-theme-progress' as string]: themeProgressMv,
+              }}
+            >
+              {/*
+                Single physical transform wrapper — body, bezel, screen,
+                camera, and buttons scale/translate together.
+              */}
+              <motion.div
+                ref={exitWrapRef}
+                className={styles.deviceExit}
+                data-lv2-device-exit=""
+                style={{
+                  scale: exitScaleMv,
+                  y: exitYMv,
+                }}
+              >
+                <HeroTabletFrame>
+                  <HeroModernDashboard reveal={reveal} themeProgress={themeProgressMv} />
+                </HeroTabletFrame>
+              </motion.div>
+            </motion.div>
+          </>
+        )}
+      </div>
+    </section>
+  )
+}

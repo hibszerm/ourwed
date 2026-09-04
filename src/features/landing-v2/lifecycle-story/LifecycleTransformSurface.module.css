@@ -1,0 +1,46 @@
+/* Continuous transform shell — link pill → workflow workspace. */
+
+.shell {
+  --sf-paper: color-mix(in srgb, #ffffff 78%, var(--paper, #f3efe8));
+  --sf-line: color-mix(in srgb, #1a1614 11%, transparent);
+
+  position: relative;
+  box-sizing: border-box;
+  max-width: min(1180px, calc(100vw - 3rem));
+  overflow: hidden;
+  background: var(--sf-paper);
+  border: 1px solid var(--sf-line);
+  box-shadow:
+    0 1px 0 color-mix(in srgb, #1a1614 4%, transparent),
+    0 28px 60px color-mix(in srgb, #1a1614 8%, transparent);
+  transform-origin: 50% 50%;
+  will-change: width, height, opacity, transform;
+}
+
+.layerLink {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.layerLink > * {
+  width: calc(100% - 2px);
+  height: calc(100% - 2px);
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+  border-radius: inherit;
+}
+
+.layerWorkspace {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: stretch;
+  z-index: 4;
+  transform-origin: 50% 50%;
+  min-height: 0;
+}

@@ -1,0 +1,323 @@
+/* Landing V2 Problem Story — pinned black typographic stage */
+
+.problemTrack {
+  --lv2-problem-ink: #f5f1ea;
+  --lv2-problem-muted: rgba(245, 241, 234, 0.6);
+  --lv2-problem-black: #000000;
+  --lv2-nav-h: var(--lv3-nav-h, 68px);
+  --lv2-hero-ease: cubic-bezier(0.22, 1, 0.36, 1);
+
+  position: relative;
+  width: 100%;
+  height: 450svh;
+  /* Overlap hero black tail — Scene 01 begins shortly after full black */
+  margin-top: -335px;
+  background: var(--lv2-problem-black);
+  color: var(--lv2-problem-ink);
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/*
+ * ONE sticky viewport below navbar — all scenes overlay this box.
+ */
+.stickyStage {
+  position: sticky;
+  top: var(--lv2-nav-h);
+  height: calc(100svh - var(--lv2-nav-h));
+  width: 100%;
+  overflow: hidden;
+  background: var(--lv2-problem-black);
+}
+
+/*
+ * Pre-sticky text theater after Scene 01 has settled.
+ * Full sticky rect, fixed — not a rising panel. Black field replaces Hero
+ * blackPlate once the hero section has scrolled away.
+ */
+@media (min-width: 1101px) {
+  .stickyStage[data-early-story-fixed='true'] {
+    position: fixed;
+    top: var(--lv2-nav-h);
+    right: 0;
+    bottom: auto;
+    left: 0;
+    width: auto;
+    height: calc(100svh - var(--lv2-nav-h));
+    z-index: 5;
+    background: var(--lv2-problem-black);
+  }
+}
+
+.stageInner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+/*
+ * Every scene shares identical geometry — opacity/transform only.
+ */
+.sceneLayer {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding-inline: clamp(32px, 5vw, 80px);
+  pointer-events: none;
+  transform-origin: 50% 50%;
+}
+
+/* Scene 01 — text-only fixed overlay during hero exit (Hero blackPlate is the black). */
+@media (min-width: 1101px) {
+  .sceneLayer[data-scene01-handoff-fixed='true'] {
+    position: fixed;
+    /* Explicit longhands — do NOT use inset:auto (it clears top and parks the layer off-screen). */
+    top: var(--lv2-nav-h);
+    right: 0;
+    bottom: auto;
+    left: 0;
+    width: auto;
+    height: calc(100svh - var(--lv2-nav-h));
+    z-index: 5;
+    /* Transparent — do NOT introduce an opaque black panel over Hero */
+    background: transparent;
+  }
+
+  /*
+   * Scene 07 — text-only fixed during Product Story overlap/exit.
+   * Same geometry as sticky scene. Transparent — no rising black panel.
+   */
+  .scene07ExitFixed {
+    --lv2-problem-ink: #f5f1ea;
+    --lv2-problem-muted: rgba(245, 241, 234, 0.6);
+    --lv2-nav-h: var(--lv3-nav-h, 68px);
+    position: fixed;
+    top: var(--lv2-nav-h);
+    right: 0;
+    bottom: auto;
+    left: 0;
+    width: auto;
+    height: calc(100svh - var(--lv2-nav-h));
+    /* Above Product Story sticky; below typical modal layers. */
+    z-index: 40;
+    background: transparent;
+    pointer-events: none;
+    color: var(--lv2-problem-ink);
+  }
+}
+
+.scene01EntryWrap {
+  width: 100%;
+  transform-origin: 50% 50%;
+}
+
+.sceneCopy {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: none;
+  margin-inline: auto;
+  text-align: center;
+}
+
+/*
+ * Scene 07 exit blur — tightly bounded to headline copy only.
+ * Outer .sceneLayer stays full-stage for layout; filter never covers the viewport chrome.
+ */
+.scene07HeadlineBlur {
+  width: 100%;
+  max-width: min(1100px, 100%);
+  margin-inline: auto;
+  transform-origin: 50% 50%;
+}
+
+.scene07ExitFixed .scene07HeadlineBlur {
+  /* Active only while Scene 07 exit portal is mounted. */
+  will-change: filter, opacity, transform;
+}
+
+.linePrimary,
+.lineMuted {
+  margin: 0;
+  font-size: clamp(3.5rem, 7vw, 6.75rem);
+  font-weight: 650;
+  letter-spacing: -0.055em;
+  line-height: 0.96;
+  color: var(--lv2-problem-ink);
+  text-align: center;
+}
+
+.lineMuted {
+  color: var(--lv2-problem-muted);
+}
+
+.line {
+  display: block;
+}
+
+.line + .line {
+  margin-top: 0.12em;
+}
+
+.lineDesktopWide,
+.lineDesktopCompact,
+.lineMobile {
+  display: none;
+}
+
+.lineDesktopWide .line:not(.scene05ActualText),
+.lineDesktopCompact .line {
+  display: block;
+}
+
+.scene07 .linePrimary {
+  font-size: clamp(3.75rem, 7.3vw, 7.1rem);
+}
+
+@media (min-width: 1101px) {
+  .lineDesktopWide {
+    display: block;
+  }
+
+  .lineDesktopWide .line:not(.scene05ActualText),
+  .lineDesktopCompact .line {
+    display: block;
+    width: max-content;
+    max-width: min(94vw, 1420px);
+    margin-inline: auto;
+    text-align: center;
+    white-space: nowrap;
+  }
+}
+
+/* Scene 05 wide — flex-center wrapper + intrinsic-width inner text */
+@media (min-width: 1101px) {
+  .sceneLayer.scene05 {
+    align-items: center;
+    justify-items: stretch;
+  }
+
+  .scene05 .scene05LineCenter {
+    width: 100%;
+    min-width: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .scene05 .scene05ActualText {
+    display: inline-block;
+    box-sizing: content-box;
+    width: fit-content;
+    max-width: none;
+    min-width: 0;
+    flex: 0 0 auto;
+    align-self: center;
+    margin: 0;
+    white-space: nowrap;
+    text-align: center;
+  }
+
+  .scene05 .lineDesktopWide .scene05ActualText {
+    width: fit-content;
+    max-width: none;
+  }
+}
+
+@media (min-width: 1101px) and (max-width: 1280px) {
+  .scene05 .lineDesktopWide {
+    display: none;
+  }
+
+  .scene05 .lineDesktopCompact {
+    display: block;
+  }
+}
+
+/* Scene 05 wide/compact share one grid cell — vertical anchor only */
+@media (min-width: 1101px) {
+  .scene05 .sceneCopy {
+    display: grid;
+    align-items: center;
+    justify-items: stretch;
+    width: 100%;
+    min-width: 0;
+    justify-self: stretch;
+  }
+
+  .scene05 .lineDesktopWide,
+  .scene05 .lineDesktopCompact {
+    grid-area: 1 / 1;
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+.staticStack {
+  display: flex;
+  flex-direction: column;
+  background: var(--lv2-problem-black);
+}
+
+.staticScene {
+  display: grid;
+  place-items: center;
+  min-height: 88svh;
+  padding: 4rem clamp(1.25rem, 5vw, 2rem);
+  text-align: center;
+}
+
+.staticScene .linePrimary,
+.staticScene .lineMuted {
+  font-size: clamp(2.8rem, 12vw, 4rem);
+  letter-spacing: -0.05em;
+  line-height: 0.98;
+  text-align: center;
+}
+
+.staticScene.scene05,
+.staticScene.scene06,
+.staticScene.scene07 {
+  min-height: 100svh;
+}
+
+.staticScene.scene07 .linePrimary {
+  font-size: clamp(3rem, 11vw, 4.2rem);
+}
+
+@media (max-width: 1100px) {
+  .problemTrack {
+    height: auto;
+    margin-top: 0;
+  }
+
+  .sceneCopy {
+    width: min(100%, 22rem);
+    max-width: calc(100vw - 2.5rem);
+  }
+
+  .lineMobile {
+    display: block;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .problemTrack {
+    height: auto;
+    margin-top: 0;
+  }
+
+  .lineMobile {
+    display: block;
+  }
+}

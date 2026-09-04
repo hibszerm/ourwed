@@ -1,0 +1,218 @@
+/* Qualification continues Founder black tokens — no new surface.
+ * Structural paint: LandingV2FounderStory `.story` + this flow-root.
+ * NO viewport-entry motion — static document flow only. */
+
+.root {
+  --q-ink: var(--founder-ink, #f4f0ea);
+  --q-muted: var(--founder-muted, color-mix(in srgb, #f4f0ea 74%, transparent));
+  --q-soft: var(--founder-soft, color-mix(in srgb, #f4f0ea 48%, transparent));
+  --q-faint: var(--founder-faint, color-mix(in srgb, #f4f0ea 34%, transparent));
+  --q-rule: color-mix(in srgb, var(--q-ink) 14%, transparent);
+  --q-marker: color-mix(in srgb, var(--q-ink) 18%, transparent);
+  --q-pad-x: clamp(1.25rem, 4vw, 2.5rem);
+  /*
+   * Chapter reset ~70–75% of prior giant gap.
+   * Semantic reset comes from the chapter marker, not empty black.
+   */
+  --q-chapter-pad-top: clamp(4.75rem, 8.2vw, 8.5rem);
+  --q-chapter-pad-bottom: clamp(5rem, 7vw, 8rem);
+
+  display: flow-root;
+  width: var(--founder-max, min(80rem, calc(100vw - 10rem)));
+  max-width: 100%;
+  margin: 0 auto;
+  padding: var(--q-chapter-pad-top) var(--q-pad-x) var(--q-chapter-pad-bottom);
+  box-sizing: border-box;
+  color: var(--q-ink);
+  pointer-events: none;
+  background: var(--founder-bg, #050505);
+  isolation: isolate;
+  opacity: 1;
+  transform: none;
+  visibility: visible;
+  content-visibility: visible;
+}
+
+.line {
+  display: block;
+}
+
+.opening {
+  max-width: 70rem;
+  margin: 0 auto;
+  text-align: center;
+}
+
+/* Editorial chapter marker — split rules around centered eyebrow */
+.chapterMarker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.15rem;
+  max-width: 42rem;
+  margin: 0 auto 2rem;
+}
+
+.chapterRule {
+  flex: 1 1 0;
+  max-width: 7.5rem;
+  height: 1px;
+  background: var(--q-marker);
+}
+
+.chapterEyebrow {
+  margin: 0;
+  flex: 0 0 auto;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--q-soft);
+  white-space: nowrap;
+}
+
+/* Local fallback — keep in sync with Founder .openingHeadline */
+.headline {
+  margin: 0;
+  max-width: 70rem;
+  margin-inline: auto;
+  color: var(--q-ink);
+  text-align: center;
+}
+
+.support {
+  margin: 1.75rem auto 0;
+  max-width: 40rem;
+  font-size: clamp(1rem, 0.35vw + 0.92rem, 1.125rem);
+  line-height: 1.55;
+  color: var(--q-muted);
+}
+
+.signalGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(2.75rem, 4vw, 4rem) clamp(2.5rem, 4vw, 5rem);
+  margin: clamp(4.5rem, 7vw, 7rem) auto 0;
+  max-width: min(64rem, 100%);
+}
+
+.signal {
+  min-width: 0;
+}
+
+.signalIndex {
+  margin: 0 0 0.85rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: var(--q-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+.signalRule {
+  width: 100%;
+  height: 1px;
+  margin: 0 0 1.15rem;
+  background: var(--q-rule);
+}
+
+.signalHeadline {
+  margin: 0 0 0.75rem;
+  font-size: clamp(1.125rem, 0.4vw + 1rem, 1.35rem);
+  font-weight: 560;
+  line-height: 1.28;
+  letter-spacing: -0.015em;
+  color: var(--q-ink);
+}
+
+.signalSupport {
+  margin: 0;
+  font-size: 0.98rem;
+  line-height: 1.55;
+  color: var(--q-muted);
+}
+
+.audience {
+  margin: clamp(4.5rem, 7vw, 6.5rem) auto 0;
+  max-width: min(56rem, 100%);
+  text-align: center;
+}
+
+.audienceEyebrow {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--q-soft);
+}
+
+.audienceRow {
+  list-style: none;
+  margin: 1.65rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: baseline;
+  gap: 0.85rem 0;
+}
+
+.audienceLabel {
+  margin: 0;
+  padding: 0 1.15rem;
+  font-family: inherit;
+  font-size: clamp(1.15rem, 0.85vw + 0.9rem, 1.65rem);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: var(--q-ink);
+  border-right: 1px solid var(--q-rule);
+}
+
+.audienceLabel:last-child {
+  border-right: none;
+}
+
+.audienceSupport {
+  margin: 1.65rem auto 0;
+  max-width: 36rem;
+  font-size: 0.98rem;
+  line-height: 1.55;
+  color: var(--q-muted);
+}
+
+@media (max-width: 900px) {
+  .root {
+    --q-chapter-pad-top: clamp(4.25rem, 14vw, 6.5rem);
+  }
+
+  .chapterMarker {
+    gap: 0.75rem;
+    max-width: 100%;
+  }
+
+  .chapterRule {
+    max-width: 3.5rem;
+  }
+
+  .chapterEyebrow {
+    white-space: normal;
+    text-align: center;
+  }
+
+  .signalGrid {
+    grid-template-columns: 1fr;
+    gap: 2.5rem;
+  }
+
+  .audienceLabel {
+    border-right: none;
+    width: 100%;
+    padding: 0.55rem 0;
+  }
+
+  .audienceRow {
+    flex-direction: column;
+    gap: 0;
+  }
+}

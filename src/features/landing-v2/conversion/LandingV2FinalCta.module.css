@@ -1,0 +1,110 @@
+.section {
+  --c-bg: #050505;
+  --c-ink: #f4f0ea;
+  --c-muted: color-mix(in srgb, var(--c-ink) 68%, transparent);
+  --c-soft: color-mix(in srgb, var(--c-ink) 42%, transparent);
+
+  background: var(--c-bg);
+  color: var(--c-ink);
+  /* Content-driven close — not a full-viewport story chapter. ~96–128px block pads. */
+  min-height: 0;
+  padding: clamp(6rem, 8vh, 8rem) clamp(1.25rem, 4vw, 2.5rem);
+}
+
+@media (max-width: 700px) {
+  .section {
+    padding-block: clamp(5rem, 10vh, 6.5rem);
+  }
+}
+
+.line {
+  display: block;
+}
+
+.inner {
+  max-width: 48rem;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.eyebrow {
+  margin: 0 0 1.25rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--c-soft);
+}
+
+.headline {
+  margin: 0;
+  font-family: inherit;
+  font-size: clamp(2.35rem, 3.2vw + 1rem, 4.5rem);
+  font-weight: 500;
+  line-height: 1.08;
+  letter-spacing: -0.025em;
+}
+
+.support {
+  margin: 1.5rem auto 0;
+  max-width: 34rem;
+  font-size: clamp(1.02rem, 0.35vw + 0.95rem, 1.15rem);
+  line-height: 1.55;
+  color: var(--c-muted);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem 1.5rem;
+  margin-top: 2.25rem;
+  pointer-events: auto;
+}
+
+.secondary {
+  color: var(--c-ink);
+  font-size: 0.98rem;
+  font-weight: 550;
+  text-decoration: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--c-ink) 35%, transparent);
+  padding-bottom: 0.12rem;
+}
+
+.secondary:hover {
+  border-bottom-color: var(--c-ink);
+}
+
+.trust {
+  list-style: none;
+  margin: 2rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.65rem 1.5rem;
+  color: var(--c-soft);
+  font-size: 0.9rem;
+}
+
+.inner {
+  opacity: 0;
+  transform: translateY(14px);
+  transition:
+    opacity 600ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 600ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.inner.revealed {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .inner {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}

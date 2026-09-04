@@ -1,0 +1,261 @@
+/* Landing V2 Mobile Story — Features underlay reveal → headline → phone settle. */
+
+.track {
+  --lv2-nav-h: var(--lv3-nav-h, 68px);
+  --ms-ink: #1a1614;
+  --ms-paper: var(--paper, #f3efe8);
+  --ms-overlap: calc(100svh - var(--lv2-nav-h));
+  --mobile-track-pre-svh: 260;
+  --mobile-track-dash-svh: 120;
+  --mobile-track-post-svh: 220;
+  --mobile-track-post-brief-svh: 112;
+  --mobile-track-studio-history-svh: 145;
+  --mobile-track-season-import-svh: 150;
+  --mobile-track-import-cover-hold-svh: 100;
+  /*
+   * Shared chapter hero vertical anchors (sticky stage %).
+   * History root top is the source of truth; Import hero top is optically
+   * offset so lock+copy and icon+copy centers share one stage band.
+   */
+  --lv2-chapter-hero-top: 11%;
+  --lv2-chapter-import-hero-top: 14.6%;
+
+  position: relative;
+  width: 100%;
+  z-index: 2;
+  margin-top: calc(-0.78 * var(--ms-overlap));
+  height: calc(
+    (
+        var(--mobile-track-pre-svh) + var(--mobile-track-dash-svh) + var(--mobile-track-post-svh) +
+          var(--mobile-track-post-brief-svh) + var(--mobile-track-studio-history-svh) +
+          var(--mobile-track-season-import-svh) + var(--mobile-track-import-cover-hold-svh)
+      ) *
+      1svh
+  );
+  background: transparent;
+  color: var(--ms-ink);
+  pointer-events: none;
+}
+
+.sticky {
+  position: sticky;
+  top: var(--lv2-nav-h);
+  z-index: 4;
+  height: calc(100svh - var(--lv2-nav-h));
+  height: calc(100dvh - var(--lv2-nav-h));
+  width: 100%;
+  overflow: visible;
+  background: transparent;
+  display: grid;
+  place-items: stretch;
+}
+
+.sticky[data-mobile-owned='false'] {
+  pointer-events: none;
+}
+
+.sticky[data-mobile-owned='true'] {
+  pointer-events: none;
+}
+
+.postBriefPaper {
+  position: absolute;
+  inset: 0;
+  background: var(--ms-paper);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.stage {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+}
+
+.stageCenter {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  transform: translate(-50%, -50%);
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.headlineSystem,
+.phoneSystem {
+  grid-area: 1 / 1;
+  display: grid;
+  place-items: center;
+}
+
+.headline {
+  margin: 0;
+  width: max-content;
+  max-width: calc(100vw - 2.5rem);
+  display: grid;
+  gap: 0.06em;
+  text-align: center;
+}
+
+.headlineLine {
+  display: block;
+  white-space: nowrap;
+  font-size: clamp(3.25rem, 4.6vw, 4.75rem);
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  line-height: 0.98;
+  color: var(--ms-ink);
+}
+
+.phoneSystem {
+  transform-origin: 50% 50%;
+  /* Outer object opacity must remain 1 through morph — never fade this node mid-chapter. */
+}
+
+.sticky[data-mobile-owned='true'][data-mobile-phone-lock-owner='true'] .phoneSystem {
+  will-change: transform;
+}
+
+.securityCopy {
+  /* Anchored under stageCenter (lock @ 46%). Gap ≈ lock-bottom → eyebrow ~48–60px. */
+  --security-lock-copy-gap: clamp(2.5rem, 4vh, 3.25rem);
+  position: absolute;
+  left: 50%;
+  top: calc(46% + clamp(5.5rem, 11vh, 7.25rem) + var(--security-lock-copy-gap));
+  width: min(560px, calc(100vw - 2.5rem));
+  transform: translate(-50%, 0);
+  text-align: center;
+  z-index: 4;
+}
+
+.secEyebrow {
+  margin: 0 0 0.75rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, #1a1614 48%, transparent);
+}
+
+.secHeadline {
+  margin: 0 auto;
+  max-width: 34rem;
+  font-size: clamp(1.75rem, 2.4vw + 0.6rem, 2.5rem);
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  line-height: 1.12;
+  white-space: pre-line;
+  color: var(--ms-ink);
+}
+
+.secSupport {
+  margin: 0.9rem auto 0;
+  max-width: 34rem;
+  font-size: clamp(0.9375rem, 0.35vw + 0.85rem, 1.0625rem);
+  line-height: 1.45;
+  letter-spacing: -0.015em;
+  color: color-mix(in srgb, #1a1614 48%, transparent);
+}
+
+.secMicro {
+  list-style: none;
+  margin: 0.85rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.55rem 1.25rem;
+}
+
+.secMicro li {
+  position: relative;
+  padding-left: 0.85rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: color-mix(in srgb, #1a1614 72%, transparent);
+}
+
+.secMicro li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.45em;
+  width: 0.28rem;
+  height: 0.28rem;
+  border-radius: 50%;
+  background: color-mix(in srgb, #1a1614 35%, transparent);
+}
+
+/* —— Static / reduced-motion —— */
+
+.static {
+  --lv2-nav-h: var(--lv3-nav-h, 68px);
+  position: relative;
+  z-index: 2;
+  margin-top: calc(-0.2 * (100svh - var(--lv2-nav-h)));
+  padding: clamp(3rem, 8vw, 5rem) clamp(1.25rem, 4vw, 3rem)
+    clamp(4rem, 10vw, 6rem);
+  background: var(--paper, #f3efe8);
+  color: #1a1614;
+}
+
+.staticInner {
+  width: min(1480px, calc(100vw - 72px));
+  margin-inline: auto;
+  display: grid;
+  gap: clamp(2.5rem, 6vw, 4rem);
+  justify-items: center;
+}
+
+.staticHeadline {
+  margin: 0;
+  width: max-content;
+  max-width: calc(100vw - 2.5rem);
+  display: grid;
+  gap: 0.06em;
+  text-align: center;
+  font-size: clamp(2.5rem, 4vw, 3.5rem);
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  line-height: 1.02;
+}
+
+.staticDevice {
+  width: min(360px, 72vw);
+}
+
+.staticSecurity {
+  text-align: center;
+  max-width: 34rem;
+  margin-top: clamp(2.5rem, 4vh, 3.25rem);
+}
+
+.staticHeadline .headlineLine {
+  font-size: inherit;
+}
+
+@media (max-width: 1100px) {
+  .track {
+    display: none;
+  }
+
+  .headlineLine {
+    white-space: normal;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .track {
+    display: none;
+  }
+}
+
+@media (max-width: 1280px) and (min-width: 1101px) {
+  .headlineLine {
+    font-size: clamp(2.85rem, 4.2vw, 4.35rem);
+  }
+}

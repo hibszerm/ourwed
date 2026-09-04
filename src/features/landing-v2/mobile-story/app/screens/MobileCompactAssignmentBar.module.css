@@ -1,0 +1,141 @@
+/* Production MobileNextAssignmentBar.module.css — mobile rules always-on inside phone. */
+.sticky {
+  position: absolute;
+  top: 100%;
+  left: 16px;
+  right: 16px;
+  z-index: 3;
+  width: auto;
+  max-width: 620px;
+  margin-inline: auto;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.bar {
+  --compact-glass-base: color-mix(in srgb, var(--ow-surface) 84%, transparent);
+  display: grid;
+  position: relative;
+  grid-template-columns: 34px minmax(0, 1fr) 22px;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 56px;
+  margin-top: 6px;
+  padding: 8px 10px 8px 8px;
+  overflow: hidden;
+  isolation: isolate;
+  contain: paint;
+  border: 1px solid color-mix(in srgb, var(--ow-border-strong) 72%, transparent);
+  border-radius: 16px;
+  background: var(--compact-glass-base);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--ow-border-strong) 55%, transparent),
+    inset 0 -1px 0 color-mix(in srgb, var(--ow-border-subtle) 85%, transparent),
+    0 1px 1px rgba(0, 0, 0, 0.04),
+    0 4px 8px rgba(0, 0, 0, 0.02);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  color: inherit;
+  transform: translate3d(0, 0, 0) scale(1);
+}
+
+.bar::before {
+  content: '';
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    118deg,
+    color-mix(in srgb, var(--ow-border-strong) 35%, transparent) 0%,
+    transparent 28%,
+    transparent 72%,
+    color-mix(in srgb, var(--ow-border-subtle) 55%, transparent) 100%
+  );
+  pointer-events: none;
+}
+
+.bar::after {
+  content: '';
+  position: absolute;
+  z-index: 0;
+  top: -42%;
+  left: 6%;
+  width: 48%;
+  height: 78%;
+  background: radial-gradient(
+    closest-side,
+    color-mix(in srgb, var(--ow-border-strong) 40%, transparent),
+    transparent 74%
+  );
+  pointer-events: none;
+}
+
+.bar > * {
+  position: relative;
+  z-index: 1;
+}
+
+.typeCue {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--ow-text) 9%, transparent);
+  color: var(--ow-text);
+  font-size: var(--ow-text-xs);
+  font-weight: 650;
+}
+
+.identity {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.name {
+  overflow: hidden;
+  color: var(--ow-text);
+  font-size: var(--ow-text-sm);
+  font-weight: 620;
+  letter-spacing: -0.018em;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.meta {
+  overflow: hidden;
+  color: var(--ow-text-3);
+  font-size: var(--ow-text-2xs);
+  font-weight: 520;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chevron {
+  width: 16px;
+  height: 16px;
+  color: var(--ow-text-3);
+  opacity: 0.75;
+}
+
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .bar {
+    --compact-glass-base: color-mix(in srgb, var(--ow-surface) 68%, transparent);
+    backdrop-filter: blur(10px) saturate(1.06);
+    -webkit-backdrop-filter: blur(10px) saturate(1.06);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .bar {
+    --compact-glass-base: color-mix(in srgb, var(--ow-surface) 96%, transparent);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}

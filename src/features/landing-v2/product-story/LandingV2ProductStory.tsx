@@ -1,0 +1,404 @@
+import { useEffect, useRef, useState } from 'react'
+import {
+  motion,
+  useMotionValue,
+  useMotionValueEvent,
+  useReducedMotion,
+  useTransform,
+} from 'framer-motion'
+import { HeroTabletFrame } from '@/features/landing-v2/hero/HeroTabletFrame'
+import { lifecycleExitMv } from '@/features/landing-v2/lifecycle-story/lifecycleExitClock'
+import {
+  PRODUCT_SCREEN_REVEAL,
+  PRODUCT_STORY_COVER_SCALE_FALLBACK,
+  computeProductCoverScale,
+  deviceScaleFromHandoff,
+  productTheaterOwned,
+  productVisualActive,
+  readProductTabletDiagMode,
+  screenBlackoutFromHandoff,
+  screenRevealFromHandoff,
+  stagePaperFromHandoff,
+  stickyTrackProgress,
+  tabFromProgress,
+  tabProgressFromMaster,
+  workspaceDormantFromHandoff,
+  type ProductStoryTabId,
+  type ProductTabletDiagMode,
+} from '@/features/landing-v2/product-story/productStoryProgress'
+import { scene07HandoffMv } from '@/features/landing-v2/product-story/scene07HandoffClock'
+import { ProductStoryWorkspace } from '@/features/landing-v2/product-story/ProductStoryWorkspace'
+import styles from './LandingV2ProductStory.module.css'
+
+/**
+ * Landing V2 Product Story — reverse-Hero camera pull-back.
+ *
+ * Device scale / paper / blackout ride scene07HandoffMv via useTransform
+ * (Hero-parity: scroll→rAF→MotionValue→linear compositor transforms).
+ * Sticky progress only drives tab scrub after screen reveal completes.
+ */
+export function LandingV2ProductStory() {
+  const trackRef = useRef<HTMLElement | null>(null)
+  const stickyRef = useRef<HTMLDivElement | null>(null)
+  const cameraRef = useRef<HTMLDivElement | null>(null)
+  const reduced = useReducedMotion()
+  const [compact, setCompact] = useState(false)
+  const [activeTab, setActiveTab] = useState<ProductStoryTabId>('overview')
+  /* Diagnostic mode — URL only, read once. Production default: full. */
+  const [tabletDiag] = useState<ProductTabletDiagMode>(() =>
+    readProductTabletDiagMode(),
+  )
+  const progress = useMotionValue(0)
+  const coverScaleMv = useMotionValue(PRODUCT_STORY_COVER_SCALE_FALLBACK)
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 1100px)')
+    const sync = () => setCompact(mq.matches)
+    sync()
+    mq.addEventListener('change', sync)
+    return () => mq.removeEventListener('change', sync)
+  }, [])
+
+  const simple = Boolean(reduced) || compact
+
+  /*
+   * Handoff ownership + workspace dormancy — DOM attributes only
+   * (no per-frame React state). Visual transforms use MotionValues below.
+   */
+  useMotionValueEvent(scene07HandoffMv, 'change', (handoffT) => {
+    if (simple) return
+
+    const owned = productTheaterOwned(handoffT)
+    const active = productVisualActive(handoffT)
+    const sticky = stickyRef.current
+    const visual = sticky?.querySelector('[data-ps-visual-stage]') as HTMLElement | null
+    const clip = cameraRef.current?.querySelector(
+      '[data-ps-workspace-clip]',
+    ) as HTMLElement | null
+
+    if (sticky) {
+      const next = owned ? 'true' : 'false'
+      if (sticky.getAttribute('data-ps-theater-owned') !== next) {
+        sticky.setAttribute('data-ps-theater-owned', next)
+      }
+    }
+    if (visual) {
+      const next = active ? 'true' : 'false'
+      if (visual.getAttribute('data-ps-visual-active') !== next) {
+        visual.setAttribute('data-ps-visual-active', next)
+      }
+    }
+    if (clip) {
+      /*
+       * Force-dormant for black/flat diagnostics; otherwise discrete reveal gate.
+       * Blackout opacity alone does not stop WebKit from compositing children.
+       */
+      const forceDormant = tabletDiag === 'black' || tabletDiag === 'flat'
+      const dormant = forceDormant || workspaceDormantFromHandoff(handoffT)
+      const next = dormant ? 'true' : 'false'
+      if (clip.getAttribute('data-ps-workspace-dormant') !== next) {
+        clip.setAttribute('data-ps-workspace-dormant', next)
+      }
+    }
+  })
+
+  useEffect(() => {
+    if (simple) {
+      progress.set(1)
+      scene07HandoffMv.set(1)
+      stickyRef.current?.setAttribute('data-ps-theater-owned', 'true')
+      stickyRef.current
+        ?.querySelector('[data-ps-visual-stage]')
+        ?.setAttribute('data-ps-visual-active', 'true')
+      cameraRef.current
+        ?.querySelector('[data-ps-workspace-clip]')
+        ?.setAttribute('data-ps-workspace-dormant', 'false')
+      return
+    }
+
+    let raf = 0
+    let removed = false
+    let lastTab: ProductStoryTabId | null = null
+    let lastTabProgress = -1
+    let lastCover = -1
+    let coverMeasured = false
+    let navH = 68
+    /**
+     * Sticky progress when screen reveal completes — remaps tab scrub only.
+     * Not used for visual visibility / device / paper / blackout.
+     */
+    let tabOriginP: number | null = null
+
+    const syncNavH = () => {
+      const el = trackRef.current
+      if (!el) return
+      const parsed = parseFloat(getComputedStyle(el).getPropertyValue('--lv2-nav-h'))
+      if (Number.isFinite(parsed) && parsed > 0) navH = parsed
+    }
+
+    const measureCover = () => {
+      const sticky = stickyRef.current
+      const screen = cameraRef.current?.querySelector(
+        '[data-tablet-screen]',
+      ) as HTMLElement | null
+      if (!sticky || !screen) return
+      const next = computeProductCoverScale(sticky, screen)
+      if (Math.abs(next - lastCover) > 0.02) {
+        lastCover = next
+        coverScaleMv.set(next)
+        trackRef.current?.setAttribute('data-cover-scale', next.toFixed(3))
+      }
+      coverMeasured = true
+    }
+
+    /*
+     * Tab scrub only — device scale / ownership / blackout ride scene07HandoffMv.
+     * Hero pattern: scroll → single rAF (no perpetual loop).
+     */
+    const measureTabs = () => {
+      const el = trackRef.current
+      if (!el) return
+
+      const handoffT = scene07HandoffMv.get()
+      if (productTheaterOwned(handoffT) && !coverMeasured) {
+        measureCover()
+      }
+
+      const stickyP = stickyTrackProgress(el, navH, window.innerHeight)
+      const revealT = screenRevealFromHandoff(handoffT)
+
+      /* Diagnostic: freeze workspace internal motion after first reveal. */
+      if (tabletDiag === 'static' && revealT >= 0.99) {
+        progress.set(0)
+        return
+      }
+
+      if (revealT < 0.99) {
+        tabOriginP = null
+        progress.set(0)
+        if (lastTab !== 'overview') {
+          lastTab = 'overview'
+          lastTabProgress = 0
+          setActiveTab('overview')
+        }
+        const workspace = cameraRef.current?.querySelector(
+          '[data-testid="lv2-product-story-workspace"]',
+        ) as HTMLElement | null
+        workspace?.style.setProperty('--ps-tab-progress', '0')
+        return
+      }
+
+      if (tabOriginP === null) {
+        tabOriginP = stickyP
+      }
+      const origin = tabOriginP
+      const p =
+        origin >= 0.999
+          ? 1
+          : Math.min(1, Math.max(0, (stickyP - origin) / (1 - origin)))
+      progress.set(p)
+
+      const tab = tabFromProgress(p)
+      const tabT = tabProgressFromMaster(p)
+      if (tab !== lastTab) {
+        lastTab = tab
+        setActiveTab(tab)
+      }
+      if (Math.abs(tabT - lastTabProgress) > 0.008) {
+        lastTabProgress = tabT
+        const workspace = cameraRef.current?.querySelector(
+          '[data-testid="lv2-product-story-workspace"]',
+        ) as HTMLElement | null
+        workspace?.style.setProperty('--ps-tab-progress', tabT.toFixed(4))
+      }
+    }
+
+    const onScroll = () => {
+      cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(measureTabs)
+    }
+
+    const onResize = () => {
+      syncNavH()
+      lastCover = -1
+      coverMeasured = false
+      onScroll()
+    }
+
+    syncNavH()
+    const boot = scene07HandoffMv.get()
+    const owned = productTheaterOwned(boot)
+    const active = productVisualActive(boot)
+    stickyRef.current?.setAttribute(
+      'data-ps-theater-owned',
+      owned ? 'true' : 'false',
+    )
+    stickyRef.current
+      ?.querySelector('[data-ps-visual-stage]')
+      ?.setAttribute('data-ps-visual-active', active ? 'true' : 'false')
+    const bootClip = cameraRef.current?.querySelector(
+      '[data-ps-workspace-clip]',
+    ) as HTMLElement | null
+    if (bootClip) {
+      const forceDormant = tabletDiag === 'black' || tabletDiag === 'flat'
+      const dormant = forceDormant || workspaceDormantFromHandoff(boot)
+      bootClip.setAttribute('data-ps-workspace-dormant', dormant ? 'true' : 'false')
+    }
+    if (owned) measureCover()
+    measureTabs()
+
+    window.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('resize', onResize)
+
+    return () => {
+      removed = true
+      cancelAnimationFrame(raf)
+      window.removeEventListener('scroll', onScroll)
+      window.removeEventListener('resize', onResize)
+      void removed
+    }
+  }, [simple, progress, coverScaleMv, tabletDiag])
+
+  /* Device scale — linear f(handoffT), Hero exitScale parity. */
+  const deviceScale = useTransform(scene07HandoffMv, (t) =>
+    deviceScaleFromHandoff(t, coverScaleMv.get()),
+  )
+
+  const stagePaperMv = useTransform(scene07HandoffMv, stagePaperFromHandoff)
+  const screenBlackoutMv = useTransform(scene07HandoffMv, (t) => {
+    /* BLACK / FLAT diagnostics: keep screen statically black for full travel. */
+    if (tabletDiag === 'black' || tabletDiag === 'flat') return 1
+    return screenBlackoutFromHandoff(t)
+  })
+
+  /*
+   * Lifecycle exit — NEW post-Product channel only.
+   * Does not alter scene07HandoffMv / entrance / tabs.
+   */
+  const lifecycleExitY = useTransform(lifecycleExitMv, (t) => {
+    const e = Math.min(1, Math.max(0, t))
+    const vh = typeof window !== 'undefined' ? window.innerHeight : 900
+    return e * vh * -1.1
+  })
+  const lifecycleExitScale = useTransform(lifecycleExitMv, (t) => {
+    const e = Math.min(1, Math.max(0, t))
+    return 1 - e * 0.04
+  })
+  const lifecycleExitOpacity = useTransform(lifecycleExitMv, (t) => {
+    const e = Math.min(1, Math.max(0, t))
+    if (e < 0.85) return 1
+    return 1 - ((e - 0.85) / 0.15) * 0.04
+  })
+  const lifecycleExitVeil = useTransform(lifecycleExitMv, (t) =>
+    Math.min(1, Math.max(0, t * 1.35)),
+  )
+
+  useMotionValueEvent(lifecycleExitMv, 'change', (exitT) => {
+    const sticky = stickyRef.current
+    if (!sticky) return
+    const active = exitT > 0.001
+    const done = exitT >= 0.995
+    sticky.setAttribute('data-ps-lifecycle-exit', done ? 'done' : active ? 'active' : 'idle')
+  })
+
+  if (simple) {
+    return (
+      <section
+        className={styles.productTrack}
+        data-testid="lv2-product-story"
+        data-product-theater="static"
+        aria-labelledby="lv2-product-heading"
+      >
+        <h2 id="lv2-product-heading" className={styles.visuallyHidden}>
+          Jedno zlecenie w OurWed
+        </h2>
+        <div className={styles.staticStack}>
+          <HeroTabletFrame compact hardwareProgress={1} blackout={0}>
+            <ProductStoryWorkspace activeTab="overview" wake={1} />
+          </HeroTabletFrame>
+        </div>
+      </section>
+    )
+  }
+
+  return (
+    <section
+      ref={trackRef}
+      className={styles.productTrack}
+      data-testid="lv2-product-story"
+      data-product-theater="scroll"
+      data-cover-scale={PRODUCT_STORY_COVER_SCALE_FALLBACK.toFixed(3)}
+      data-screen-reveal-start={PRODUCT_SCREEN_REVEAL.start}
+      data-screen-reveal-end={PRODUCT_SCREEN_REVEAL.end}
+      data-ps-tablet-diag={tabletDiag}
+      aria-labelledby="lv2-product-heading"
+    >
+      <h2 id="lv2-product-heading" className={styles.visuallyHidden}>
+        Jedno zlecenie w OurWed
+      </h2>
+
+      <div
+        ref={stickyRef}
+        className={styles.stickyStage}
+        data-product-sticky-stage=""
+        data-ps-theater-owned="false"
+        data-ps-tablet-diag={tabletDiag}
+      >
+        <div
+          className={styles.visualStage}
+          data-ps-visual-stage=""
+          data-ps-visual-active="false"
+        >
+          <motion.div
+            className={styles.paperPlate}
+            data-ps-paper-plate=""
+            style={{ opacity: stagePaperMv }}
+            aria-hidden
+          />
+          <div className={styles.stageInner}>
+            <motion.div
+              className={styles.deviceExit}
+              data-ps-device-exit=""
+              style={{
+                y: lifecycleExitY,
+                scale: lifecycleExitScale,
+                opacity: lifecycleExitOpacity,
+              }}
+            >
+              <motion.div
+                ref={cameraRef}
+                className={styles.deviceCamera}
+                data-ps-device-camera=""
+                style={{
+                  scale: deviceScale,
+                  ['--screen-blackout' as string]: screenBlackoutMv,
+                }}
+              >
+                <HeroTabletFrame hardwareProgress={1}>
+                  <div
+                    className={styles.workspaceClip}
+                    data-ps-workspace-clip=""
+                    data-ps-workspace-dormant="true"
+                  >
+                    <ProductStoryWorkspace
+                      activeTab={activeTab}
+                      wake={1}
+                    />
+                  </div>
+                </HeroTabletFrame>
+              </motion.div>
+            </motion.div>
+          </div>
+          <motion.div
+            className={styles.exitVeil}
+            data-ps-exit-veil=""
+            style={{ opacity: lifecycleExitVeil }}
+            aria-hidden
+          />
+        </div>
+      </div>
+    </section>
+  )
+}
+
+export { SCENE07_HANDOFF_CSS_VAR } from '@/features/landing-v2/product-story/productStoryProgress'

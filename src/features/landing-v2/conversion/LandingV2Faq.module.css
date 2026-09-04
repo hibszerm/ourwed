@@ -1,0 +1,131 @@
+.section {
+  --f-paper: var(--paper, #f3efe8);
+  --f-ink: var(--ink, #111111);
+  --f-muted: var(--muted, #756e66);
+  --f-rule: color-mix(in srgb, var(--f-ink) 12%, transparent);
+
+  background: var(--f-paper);
+  color: var(--f-ink);
+  /* Top: cards → FAQ ~72–110px (with pricing bottom pad); bottom: FAQ → black ~80–120px */
+  padding: clamp(2.75rem, 3.6vw, 4.25rem) clamp(1.25rem, 4vw, 2.5rem) clamp(5rem, 6.5vw, 7.5rem);
+  min-height: 0;
+  margin: 0;
+  transform: none;
+}
+
+.line {
+  display: block;
+}
+
+.intro {
+  max-width: 48rem;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.eyebrow {
+  margin: 0 0 1.15rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--f-muted);
+}
+
+/*
+ * Tier-A via Founder .openingHeadline (same as pricing hero).
+ * Color override for warm ivory surface.
+ */
+.headline {
+  margin: 0;
+  color: var(--f-ink);
+  text-align: center;
+}
+
+.section .headline {
+  color: var(--f-ink);
+}
+
+.list {
+  max-width: min(52rem, 100%); /* ~832px */
+  margin: clamp(2.5rem, 4vw, 3.5rem) auto 0;
+  border-top: 1px solid var(--f-rule);
+}
+
+.item {
+  border-bottom: 1px solid var(--f-rule);
+}
+
+.question {
+  margin: 0;
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+.trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 0;
+  padding: 1.2rem 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  font: inherit;
+  font-size: 1.05rem;
+  font-weight: 560;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.trigger:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--f-ink) 40%, transparent);
+  outline-offset: 3px;
+}
+
+.chevron {
+  flex: none;
+  width: 1.25rem;
+  text-align: center;
+  color: var(--f-muted);
+  font-weight: 400;
+}
+
+.panel {
+  padding: 0 0 1.25rem;
+  /* Modest floor: longest verified answer ~2–3 lines; keeps FAQ height stable when switching. */
+  min-height: 4.75rem;
+}
+
+.answer {
+  margin: 0;
+  max-width: 38rem;
+  font-size: 0.98rem;
+  line-height: 1.55;
+  color: var(--f-muted);
+}
+
+.revealInner {
+  opacity: 0;
+  transform: translateY(10px);
+  transition:
+    opacity 520ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 520ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.revealInner.revealed {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .revealInner {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}

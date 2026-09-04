@@ -1,0 +1,221 @@
+/*
+ * Portrait phone — HeroTabletFrame philosophy:
+ * 1) graphite chassis (.chassis)
+ * 2) thin black bezel (.bezel)
+ * 3) clipped screen + Dynamic Island
+ *
+ * Canonical: 430 × 932 (ratio 0.4613733906). Height ALWAYS follows width.
+ */
+
+.deviceRoot {
+  --phone-canon-w: 430;
+  --phone-canon-h: 932;
+  --phone-ratio: 430 / 932;
+  --phone-ratio-num: 0.4613733906;
+  --phone-chassis-inset: calc(10 / 430 * 100cqw);
+  --lv2-nav-h: var(--lv3-nav-h, 68px);
+  --device-avail-h: calc(100svh - var(--lv2-nav-h) - 56px);
+
+  position: relative;
+  box-sizing: border-box;
+  container-type: inline-size;
+  container-name: lv2-mobile-phone;
+  width: min(
+    clamp(315px, 24vw, 430px),
+    calc(var(--device-avail-h) * var(--phone-ratio-num))
+  );
+  /*
+   * Baseline phone aspect for first paint / measure. During post-Brief, Framer
+   * always writes inline aspectRatio from compress (identity→lock). Do NOT gate
+   * that inline style behind a boolean — that CSS↔inline fight causes PHONE↔LOCK
+   * oscillation. Track budgets are also frozen once postBrief begins so RO-driven
+   * maxScroll cannot remap progress when chassis height changes.
+   */
+  aspect-ratio: var(--phone-ratio);
+  height: auto;
+  margin-inline: auto;
+  transform-origin: 50% 50%;
+  /* Shackle may extend above chassis during lock morph. */
+  overflow: visible;
+}
+
+.chassis {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: calc(88 / 430 * 100cqw);
+  padding: var(--phone-chassis-inset);
+  box-sizing: border-box;
+  background: linear-gradient(
+    165deg,
+    #1c1e1d 0%,
+    #111211 45%,
+    #0a0b0a 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    inset 1px 0 0 rgba(255, 255, 255, 0.06),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.55),
+    0 30px 80px rgba(30, 25, 20, 0.12),
+    0 10px 30px rgba(30, 25, 20, 0.08);
+}
+
+.btnSilent,
+.btnVolUp,
+.btnVolDown,
+.btnPower {
+  position: absolute;
+  z-index: 4;
+  background: #2a2c2b;
+  pointer-events: none;
+  box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.07);
+}
+
+.btnSilent {
+  left: -2px;
+  top: 14.5%;
+  width: 3px;
+  height: 3.2%;
+  border-radius: 1px 2px 2px 1px;
+}
+
+.btnVolUp {
+  left: -2px;
+  top: 20.5%;
+  width: 3px;
+  height: 5.8%;
+  border-radius: 1px 2px 2px 1px;
+}
+
+.btnVolDown {
+  left: -2px;
+  top: 28%;
+  width: 3px;
+  height: 5.8%;
+  border-radius: 1px 2px 2px 1px;
+}
+
+.btnPower {
+  right: -2px;
+  top: 22%;
+  width: 3px;
+  height: 8.5%;
+  border-radius: 2px 1px 1px 2px;
+}
+
+.bezel {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  border-radius: calc(74 / 430 * 100cqw);
+  background: #050505;
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.035);
+}
+
+.island {
+  position: absolute;
+  top: calc(24 / 430 * 100cqw);
+  left: 50%;
+  transform: translateX(-50%);
+  width: calc(130 / 430 * 100cqw);
+  height: calc(36 / 430 * 100cqw);
+  border-radius: 999px;
+  background: #000;
+  z-index: 3;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.04);
+  display: grid;
+  place-items: center;
+}
+
+.islandLens {
+  width: calc(10 / 430 * 100cqw);
+  height: calc(10 / 430 * 100cqw);
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #2a3038 0%, #0a0c0e 72%);
+  opacity: 0.45;
+  margin-left: 36%;
+}
+
+.screen {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  overflow: hidden;
+  background: #000;
+}
+
+.screenContent {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+}
+
+.screenMerge {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: #1a1614;
+  pointer-events: none;
+}
+
+.screenPlaceholder {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(180deg, #faf7f2 0%, #f3efe8 100%);
+}
+
+/* Closed shackle — grows from the real chassis top edge. */
+.shackleWrap {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  width: 100%;
+  display: grid;
+  place-items: center;
+  transform-origin: 50% 100%;
+  margin-bottom: -14px;
+  pointer-events: none;
+  color: #1a1614;
+  z-index: 5;
+}
+
+.shackleSvg {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+}
+
+.keyholeWrap {
+  position: absolute;
+  left: 50%;
+  top: 52%;
+  width: 42px;
+  margin-left: -21px;
+  margin-top: -28px;
+  transform-origin: 50% 40%;
+  pointer-events: none;
+  line-height: 0;
+  z-index: 6;
+}
+
+.keyholeSvg {
+  display: block;
+  width: 42px;
+  height: auto;
+}
+
+@media (max-width: 1100px) {
+  .deviceRoot {
+    width: min(clamp(280px, 72vw, 360px), calc(var(--device-avail-h) * var(--phone-ratio-num)));
+  }
+}

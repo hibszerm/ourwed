@@ -1,0 +1,413 @@
+/* Two-card billing for one OurWed Pro — flat paper, no gradients, no stars. */
+
+.section {
+  --p-paper: var(--paper, #f3efe8);
+  --p-card: #fbf9f5;
+  --p-ink: var(--ink, #111111);
+  --p-muted: var(--muted, #756e66);
+  --p-border: color-mix(in srgb, var(--p-ink) 12%, transparent);
+  --p-border-strong: color-mix(in srgb, var(--p-ink) 28%, transparent);
+  --p-rule: color-mix(in srgb, var(--p-ink) 10%, transparent);
+  --p-shadow: 0 10px 28px color-mix(in srgb, #14110f 4.5%, transparent);
+  --p-max: min(72rem, calc(100vw - 4.5rem)); /* ~1040–1152 */
+
+  background: var(--p-paper);
+  color: var(--p-ink);
+  padding: clamp(5rem, 8vw, 8rem) clamp(1.25rem, 4vw, 2.5rem) clamp(1.25rem, 2vw, 2rem);
+  margin: 0;
+  transform: none;
+  opacity: 1;
+}
+
+.line {
+  display: block;
+}
+
+.intro {
+  max-width: 48rem;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.eyebrow {
+  margin: 0 0 1.15rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--p-muted);
+}
+
+.headline {
+  margin: 0;
+  color: var(--p-ink);
+  text-align: center;
+}
+
+.section .headline {
+  color: var(--p-ink);
+}
+
+.support {
+  margin: 1.25rem auto 0;
+  max-width: 34rem;
+  font-size: 1.05rem;
+  line-height: 1.55;
+  color: var(--p-muted);
+}
+
+/* Shared outer width: trial edges == card grid edges. */
+.pricingComposition {
+  width: 100%;
+  max-width: var(--p-max);
+  margin: clamp(3rem, 4.5vw, 4.25rem) auto 0;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(1.75rem, 2.8vw, 2.5rem); /* trial → cards ~28–40px */
+}
+
+.trialBox {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(11rem, 28%);
+  align-items: center;
+  gap: 1.25rem 2rem;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 1.35rem clamp(1.5rem, 2vw, 2rem);
+  background: var(--p-card);
+  border: 1px solid var(--p-border);
+  border-radius: 1.1rem;
+  box-shadow: none;
+  min-height: 7.5rem; /* ~120px */
+  box-sizing: border-box;
+}
+
+.trialCopy {
+  min-width: 0;
+  text-align: left;
+}
+
+.trialEyebrow {
+  margin: 0;
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--p-muted);
+}
+
+.trialHeadline {
+  margin: 0.45rem 0 0;
+  font-size: clamp(1.05rem, 0.35vw + 0.95rem, 1.2rem);
+  font-weight: 560;
+  letter-spacing: -0.015em;
+  line-height: 1.3;
+  color: var(--p-ink);
+}
+
+.trialSupport {
+  margin: 0.35rem 0 0;
+  font-size: 0.92rem;
+  color: var(--p-muted);
+}
+
+.trialCta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  pointer-events: auto;
+}
+
+.trialCta :global(a),
+.trialCta :global(button) {
+  min-width: 10.5rem;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+.cardGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.25rem; /* 20px */
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  align-items: stretch;
+}
+
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 1.5rem 1.45rem 1.3rem;
+  background: var(--p-card);
+  border: 1px solid var(--p-border);
+  border-radius: 1.1rem; /* ~17.6px */
+  box-shadow: var(--p-shadow);
+}
+
+.cardRecommended {
+  border-color: var(--p-border-strong);
+  box-shadow:
+    var(--p-shadow),
+    inset 0 0 0 1px color-mix(in srgb, var(--p-ink) 6%, transparent);
+}
+
+.badge {
+  position: absolute;
+  top: 1.15rem;
+  right: 1.15rem;
+  margin: 0;
+  padding: 0.3rem 0.6rem;
+  font-size: 0.625rem;
+  font-weight: 650;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--p-ink);
+  background: color-mix(in srgb, var(--p-ink) 4%, transparent);
+  border: 1px solid color-mix(in srgb, var(--p-ink) 18%, transparent);
+  border-radius: 999px;
+}
+
+.cardHead {
+  padding-right: 6.5rem;
+}
+
+.productEyebrow {
+  margin: 0;
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--p-muted);
+}
+
+.cardTitle {
+  margin: 0.55rem 0 0;
+  font-family: inherit;
+  font-size: clamp(1.25rem, 0.4vw + 1.1rem, 1.45rem);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: var(--p-ink);
+}
+
+.cardSupport {
+  margin: 0.55rem 0 0;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  color: var(--p-muted);
+}
+
+.priceBlock {
+  margin-top: 1rem;
+}
+
+.priceRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.55rem;
+  margin: 0;
+}
+
+.price {
+  font-family: inherit;
+  font-size: clamp(2.75rem, 1.6vw + 1.7rem, 4.25rem); /* ~44–68 */
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  line-height: 0.95;
+  font-variant-numeric: tabular-nums;
+  color: var(--p-ink);
+}
+
+.period {
+  font-size: 0.98rem;
+  font-weight: 500;
+  color: var(--p-muted);
+}
+
+.hint {
+  margin: 0.45rem 0 0;
+  font-size: 0.95rem;
+  font-weight: 520;
+  color: var(--p-muted);
+}
+
+.saving {
+  display: inline-block;
+  margin: 0.45rem 0 0;
+  padding: 0.26rem 0.5rem;
+  font-size: 0.86rem;
+  font-weight: 560;
+  line-height: 1.3;
+  color: var(--p-ink);
+  background: color-mix(in srgb, var(--p-ink) 5%, transparent);
+  border-radius: 0.4rem;
+}
+
+.rule {
+  width: 100%;
+  height: 1px;
+  margin: 1rem 0 0.9rem;
+  background: var(--p-rule);
+}
+
+.features {
+  flex: 1 1 auto;
+}
+
+.featuresLabel {
+  margin: 0 0 0.6rem;
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--p-muted);
+}
+
+.features ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.features li {
+  position: relative;
+  padding-left: 1.15rem;
+  font-size: 0.9rem;
+  line-height: 1.35;
+  color: var(--p-ink);
+}
+
+.features li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.38em;
+  width: 0.48rem;
+  height: 0.24rem;
+  border-left: 1.5px solid color-mix(in srgb, var(--p-ink) 55%, transparent);
+  border-bottom: 1.5px solid color-mix(in srgb, var(--p-ink) 55%, transparent);
+  transform: rotate(-45deg);
+}
+
+.ctaRegion {
+  margin-top: auto;
+  padding-top: 1.1rem;
+  display: grid;
+  gap: 0.55rem;
+  pointer-events: auto;
+}
+
+.ctaRegion :global(a),
+.ctaRegion :global(button) {
+  width: 100%;
+  justify-content: center;
+  min-height: 3rem;
+}
+
+.ctaTrust {
+  margin: 0;
+  text-align: center;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: var(--p-muted);
+}
+
+.revealInner {
+  opacity: 0;
+  transform: translateY(10px);
+  transition:
+    opacity 500ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 500ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.revealInner.revealed {
+  opacity: 1;
+  transform: none;
+}
+
+.cardGrid.revealed .card {
+  opacity: 1;
+  transform: none;
+  transition-delay: calc(var(--reveal-i, 0) * 60ms);
+}
+
+.cardGrid .card {
+  opacity: 0;
+  transform: translateY(10px);
+  transition:
+    opacity 500ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 500ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 180ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .card:hover {
+    border-color: color-mix(in srgb, var(--p-ink) 22%, transparent);
+  }
+
+  .cardRecommended:hover {
+    border-color: color-mix(in srgb, var(--p-ink) 34%, transparent);
+  }
+}
+
+@media (max-width: 900px) {
+  .pricingComposition {
+    max-width: 26rem;
+  }
+
+  .trialBox {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+    text-align: left;
+    min-height: 0;
+    padding: 1.25rem 1.25rem;
+  }
+
+  .trialCta {
+    justify-content: stretch;
+  }
+
+  .trialCta :global(a),
+  .trialCta :global(button) {
+    width: 100%;
+  }
+
+  .cardGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .card {
+    min-height: 0;
+  }
+
+  .cardHead {
+    padding-right: 0;
+    padding-top: 0.35rem;
+  }
+
+  .badge {
+    position: static;
+    display: inline-flex;
+    margin-bottom: 0.85rem;
+  }
+
+  .price {
+    font-size: clamp(2.75rem, 8vw, 3.5rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .revealInner,
+  .cardGrid .card {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}

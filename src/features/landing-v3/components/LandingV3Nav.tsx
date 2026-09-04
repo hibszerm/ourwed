@@ -6,9 +6,11 @@ import { useScrolled } from '@/features/landing-v3/hooks/useScrolled'
 import styles from '@/features/landing-v3/styles/landingV3.module.css'
 
 const LINKS = [
-  { href: '#produkt', label: 'Produkt' },
   { href: '#jak-dziala', label: 'Jak działa' },
+  { href: '#stworzone-przez', label: 'Stworzone przez' },
+  { href: '#dla-kogo', label: 'Dla kogo' },
   { href: '#cennik', label: 'Cennik' },
+  { href: '#faq', label: 'FAQ' },
 ] as const
 
 export function LandingV3Nav() {

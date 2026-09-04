@@ -1,0 +1,236 @@
+/* Landing V2 Hero — monumental message + tablet-framed Modern Pulpit */
+
+.track {
+  --lv2-hero-ink: var(--ink, #111111);
+  --lv2-hero-muted: var(--muted, #756e66);
+  --lv2-hero-paper: var(--paper, #f3efe8);
+  --lv2-nav-h: var(--lv3-nav-h, 68px);
+  --lv2-hero-ease: cubic-bezier(0.22, 1, 0.36, 1);
+
+  position: relative;
+  /*
+   * Assemble (~50%) + hold + exit + black settle.
+   * 210svh assemble scroll distance preserved via remapped progress.
+   */
+  height: 420svh;
+  width: 100%;
+  background: transparent;
+}
+
+.sticky {
+  position: sticky;
+  top: var(--lv2-nav-h);
+  height: calc(100svh - var(--lv2-nav-h));
+  width: 100%;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+}
+
+/* Exact #000 under the exit so handoff never flashes cream */
+.blackPlate {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: #000000;
+  pointer-events: none;
+}
+
+.copy {
+  position: relative;
+  z-index: 3;
+  /* Match production Act1Hero copy authority width */
+  width: min(1100px, 94vw);
+  max-width: 1100px;
+  padding: 0 1rem;
+  text-align: center;
+  transform-origin: 50% 40%;
+  will-change: transform, opacity;
+  transition-timing-function: var(--lv2-hero-ease);
+}
+
+.title {
+  margin: 0 0 0.85rem;
+  /*
+   * Production `/` Act1Hero: clamp(3.4rem, 7vw, 7.2rem) / weight 600 / lh 0.96 / -0.055em
+   * V2 aims for the same visual authority with slightly stronger optical weight.
+   */
+  font-size: clamp(3.5rem, 7vw, 6.75rem);
+  font-weight: 650;
+  letter-spacing: -0.055em;
+  line-height: 0.96;
+  color: var(--lv2-hero-ink);
+}
+
+.titleLine {
+  display: block;
+  white-space: nowrap;
+}
+
+.support {
+  margin: 0 auto 1.35rem;
+  max-width: 42rem;
+  font-size: clamp(1.05rem, 1.4vw, 1.25rem);
+  line-height: 1.45;
+  color: var(--lv2-hero-muted);
+}
+
+.ctas {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0;
+  margin-bottom: 0.65rem;
+}
+
+.micro {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--lv2-hero-muted);
+  text-align: center;
+}
+
+.scrollHint {
+  margin: 2.4rem 0 0;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--lv2-hero-muted);
+  opacity: 0.55;
+}
+
+.stage {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Initial: product only — motion drives --hardware-progress late */
+  --hardware-progress: 0;
+  --screen-blackout: 0;
+  /*
+   * Overflow visible so the whole-device exit scale can grow;
+   * sticky viewport still clips hardware past the edges.
+   */
+  padding: 16px 20px 24px;
+  overflow: visible;
+  pointer-events: none;
+  will-change: transform, opacity;
+  transform-origin: 50% 50%;
+  transition-timing-function: var(--lv2-hero-ease);
+}
+
+/* Whole physical iPad — sole exit scale/translate target */
+.deviceExit {
+  position: relative;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  transform-origin: 50% 42%;
+  will-change: transform;
+  transition-timing-function: var(--lv2-hero-ease);
+}
+
+.simpleStack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+  width: 100%;
+  height: 100%;
+  padding: 1.25rem 1rem 0;
+  overflow: auto;
+}
+
+.simpleStage {
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  justify-content: center;
+  overflow: clip;
+  padding: 10px 12px 1.25rem;
+}
+
+@media (max-width: 1100px) {
+  .track {
+    height: auto;
+    min-height: 135svh;
+  }
+
+  .sticky {
+    position: relative;
+    top: auto;
+    height: auto;
+    min-height: 0;
+    place-items: stretch;
+  }
+
+  .simpleStack {
+    padding: 1rem 16px 0;
+    gap: 1.25rem;
+    overflow: visible;
+  }
+
+  .copy {
+    text-align: left;
+    width: 100%;
+    max-width: 36rem;
+    padding: 0;
+  }
+
+  .title {
+    font-size: clamp(2.7rem, 12vw, 3.6rem);
+    font-weight: 650;
+    letter-spacing: -0.05em;
+    line-height: 0.96;
+    margin-bottom: 0.75rem;
+  }
+
+  .titleLine {
+    white-space: normal;
+  }
+
+  .support {
+    margin: 0 0 1rem;
+    font-size: 1rem;
+    max-width: none;
+  }
+
+  .ctas {
+    justify-content: center;
+    width: 100%;
+  }
+
+  .micro {
+    text-align: center;
+    width: 100%;
+  }
+
+  .simpleStage {
+    width: 100%;
+    padding-bottom: 1.5rem;
+  }
+}
+
+@media (max-width: 520px) {
+  .title {
+    font-size: clamp(2.6rem, 11.5vw, 3.4rem);
+  }
+
+  .support {
+    font-size: 0.96rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .track {
+    height: auto;
+  }
+
+  .sticky {
+    position: relative;
+    height: auto;
+  }
+}

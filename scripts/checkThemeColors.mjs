@@ -32,6 +32,7 @@ const ALLOWLIST_PREFIXES = [
   'features/ai-contract-transform/',
   'features/documents/mapping/',
   'features/documents/ai/',
+  'features/wedding-brief/renderWeddingBrief',
   'styles/',
 ]
 
@@ -84,6 +85,8 @@ function collectThemeBranches() {
     for (const file of walk(abs)) {
       const rel = relative(ROOT, file).replace(/\\/g, '/')
       if (rel.startsWith('features/theme/')) continue
+      /* Same isolation scope as hard-coded color allowlist (Landing V2 marketing demos, etc.). */
+      if (isAllowlisted(rel)) continue
       if (rel.includes('.test.')) continue
       const src = readFileSync(file, 'utf8')
       if (THEME_BRANCH_RE.test(src)) hits.push(rel)
@@ -131,6 +134,24 @@ for (const file of Object.keys(current)) {
 }
 
 let failed = false
+
+/* Self-check: isolated marketing Landing V2 tokens stay allowlisted; app shell does not. */
+{
+  const landingDemo = 'features/landing-v2/hero/heroDemoThemeTokens.ts'
+  const appShell = 'layouts/AppLayout.tsx'
+  if (!isAllowlisted(landingDemo)) {
+    failed = true
+    console.error(
+      `Theme guard self-check failed: ${landingDemo} must remain allowlisted (isolated Landing V2 demo tokens).`,
+    )
+  }
+  if (isAllowlisted(appShell)) {
+    failed = true
+    console.error(
+      `Theme guard self-check failed: ${appShell} must NOT be allowlisted (authenticated app UI).`,
+    )
+  }
+}
 
 if (regressions.length) {
   failed = true

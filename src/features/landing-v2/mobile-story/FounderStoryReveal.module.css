@@ -1,0 +1,652 @@
+/* Founder / origin — single normal-flow black section. */
+
+.story {
+  --founder-bg: #050505;
+  --founder-ink: #f4f0ea;
+  --founder-muted: color-mix(in srgb, var(--founder-ink) 74%, transparent);
+  --founder-soft: color-mix(in srgb, var(--founder-ink) 48%, transparent);
+  --founder-faint: color-mix(in srgb, var(--founder-ink) 34%, transparent);
+  --founder-portrait-pos: center 18%;
+
+  --founder-max: min(80rem, calc(100vw - 10rem));
+  --founder-pad-top: clamp(4.5rem, 5.2vw, 9.5rem); /* eyebrow ~190–220 @ large */
+  --founder-gap-12: clamp(4.375rem, 4.2vw, 6.25rem); /* 70–100 */
+  --founder-gap-23: clamp(5.625rem, 4.5vw, 6.875rem); /* 90–110, prefer ~100 */
+  --founder-gap-final: clamp(4.375rem, 4vw, 5.625rem);
+  --founder-bottom: clamp(5.625rem, 5.2vw, 9.375rem); /* 90–150 */
+
+  position: relative;
+  z-index: 6;
+  /* flow-root: prevent margin collapse from exposing page paper through the black chapter */
+  display: flow-root;
+  isolation: isolate;
+  width: 100%;
+  /*
+   * Overlap the Import sticky cover-hold runway (100svh on the mobile track).
+   * Browser scroll moves this section — no JS translate cover.
+   */
+  margin-top: calc(-100svh);
+  margin-top: calc(-100dvh);
+  margin-bottom: 0;
+  overflow: visible;
+  background: var(--founder-bg);
+  color: var(--founder-ink);
+  pointer-events: none;
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  will-change: auto;
+  contain: none;
+  content-visibility: visible;
+}
+
+/* Zero-size hash target — lands Founder black flush under sticky nav. */
+.hashAnchor {
+  display: block;
+  width: 0;
+  height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+@media (min-width: 1920px) {
+  .story {
+    --founder-max: min(97.5rem, calc(100vw - 22.5rem));
+  }
+}
+
+@media (min-width: 2400px) {
+  .story {
+    --founder-max: 107.5rem;
+    --founder-pad-top: 8.75rem; /* 140 → eyebrow ≈ 208 with nav offset absorbed */
+    --founder-gap-23: 6.25rem; /* 100px Section 2 → 3 */
+    --founder-bottom: 8.125rem; /* 130px @2560 */
+  }
+}
+
+
+.canvas {
+  width: var(--founder-max);
+  margin: 0 auto;
+  padding: calc(var(--lv2-nav-h, 68px) + var(--founder-pad-top)) 0 var(--founder-bottom);
+  box-sizing: border-box;
+  text-align: left;
+}
+
+.line {
+  display: block;
+}
+
+.eyebrow {
+  margin: 0 0 1.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--founder-soft);
+}
+
+/* ——— SECTION 1 ——— */
+
+.section1 {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  max-width: 70rem;
+  margin-inline: auto;
+}
+
+.openingHeadline {
+  margin: 0;
+  max-width: 70rem;
+  font-size: clamp(3.25rem, 1.7vw + 1.85rem, 4.75rem);
+  font-weight: 600;
+  letter-spacing: -0.048em;
+  line-height: 1;
+  color: var(--founder-ink);
+}
+
+.bridge {
+  margin: 1.75rem 0 0;
+  max-width: 36rem;
+  font-size: clamp(1.2rem, 0.3vw + 1.05rem, 1.5rem); /* ~19–24 */
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+  color: var(--founder-muted);
+}
+
+.fragments {
+  margin: 2.25rem 0 0;
+  max-width: 56rem;
+}
+
+.fragmentsLabel {
+  margin: 0 0 0.7rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--founder-faint);
+}
+
+.fragmentsLine {
+  margin: 0;
+  font-size: clamp(0.9375rem, 0.12vw + 0.88rem, 1rem);
+  line-height: 1.65;
+  color: var(--founder-soft);
+}
+
+.fragmentsFull {
+  display: inline;
+}
+
+.fragmentsWrap {
+  display: none;
+}
+
+.fragmentsWrapAlways {
+  display: block;
+}
+
+/* ——— SECTION 2 ——— */
+
+.section2 {
+  margin-top: var(--founder-gap-12);
+}
+
+.section2Inner {
+  width: min(85rem, 100%); /* 1360 */
+  margin-inline: auto;
+  display: grid;
+  grid-template-columns: 31.25rem minmax(0, 47.5rem); /* 500 + 760 */
+  column-gap: 6.25rem; /* 100 */
+  align-items: start;
+  justify-content: center;
+}
+
+.portraitCol {
+  width: 31.25rem;
+  max-width: 100%;
+}
+
+.portraitBlock {
+  margin: 0;
+}
+
+.portraitFrame {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 3 / 4; /* 667 @500 */
+  overflow: hidden;
+  border-radius: 2px;
+  background: #000;
+}
+
+.portrait {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: var(--founder-portrait-pos);
+}
+
+.identity {
+  margin: 1.375rem 0 0; /* 22px */
+  text-align: left;
+}
+
+.name {
+  margin: 0;
+  font-size: clamp(1.35rem, 0.25vw + 1.2rem, 1.5rem); /* 22–24 */
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  color: var(--founder-ink);
+}
+
+.role {
+  margin: 0.35rem 0 0;
+  font-size: 1rem; /* 16 */
+  line-height: 1.4;
+  color: var(--founder-muted);
+}
+
+.meta {
+  margin: 0.4rem 0 0;
+  font-size: 0.90625rem; /* ~14.5 */
+  line-height: 1.45;
+  color: var(--founder-soft);
+}
+
+.storyCol {
+  max-width: 48rem; /* wide enough for single-line story heading @2560 */
+  padding-top: 3.125rem; /* ~50px */
+  text-align: left;
+}
+
+.originHeading,
+.currentUseHeading {
+  margin: 0;
+  max-width: none;
+  font-size: clamp(1.75rem, 0.55vw + 1.35rem, 2.375rem); /* ~28–38 */
+  font-weight: 600;
+  letter-spacing: -0.038em;
+  line-height: 1.15;
+  color: var(--founder-ink);
+  white-space: normal;
+}
+
+.originHeading {
+  margin: 0 0 1.5rem; /* 24px → paragraph 1 */
+}
+
+.body {
+  margin: 0 0 1.2rem; /* ~19px between body paragraphs */
+  max-width: 42.5rem;
+  font-size: clamp(1.03125rem, 0.1vw + 0.96rem, 1.125rem); /* ~16.5–18 */
+  line-height: 1.55;
+  color: var(--founder-muted);
+}
+
+.bodyLast {
+  margin-bottom: 0;
+}
+
+.currentUseHeading {
+  margin: 2.25rem 0 0; /* 36px after paragraph 2 */
+}
+
+.currentDiff {
+  margin: 1.25rem 0 1.5rem; /* 20px after heading 2, 24px before intent */
+  max-width: 42.5rem;
+  font-size: clamp(1rem, 0.08vw + 0.95rem, 1.125rem); /* 16–18 */
+  line-height: 1.5;
+  color: var(--founder-muted);
+}
+
+.support {
+  margin: 0;
+  max-width: 42.5rem;
+  font-size: clamp(1rem, 0.08vw + 0.95rem, 1.125rem);
+  line-height: 1.55;
+  color: var(--founder-muted);
+}
+
+/* ——— SECTION 3 ——— */
+
+.section3 {
+  margin-top: var(--founder-gap-23);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.closing {
+  max-width: 61.25rem; /* 980 */
+}
+
+.closingHeadline {
+  margin: 0;
+  max-width: 61.25rem;
+  font-size: clamp(2.4rem, 1.25vw + 1.55rem, 3.5rem); /* ~38–56 */
+  font-weight: 600;
+  letter-spacing: -0.045em;
+  line-height: 1.03;
+  color: var(--founder-ink);
+}
+
+.closingSupport {
+  margin: 1.35rem auto 0;
+  max-width: 47.5rem;
+  font-size: clamp(1.03125rem, 0.08vw + 0.96rem, 1.125rem);
+  line-height: 1.55;
+  color: var(--founder-muted);
+}
+
+/* ——— Mid desktop ——— */
+
+@media (max-width: 1680px) and (min-width: 1101px) {
+  .story {
+    --founder-pad-top: clamp(3.5rem, 5.5vh, 4.75rem);
+    --founder-gap-12: 3.75rem;
+    --founder-gap-23: 3.75rem;
+    --founder-gap-final: 3.75rem;
+    --founder-bottom: 5rem;
+  }
+
+  .fragmentsFull {
+    display: none;
+  }
+
+  .fragmentsWrap {
+    display: block;
+  }
+
+  .section2Inner {
+    width: min(72.5rem, 100%);
+    grid-template-columns: 27.5rem minmax(0, 1fr); /* 440 */
+    column-gap: 4.75rem; /* 76 */
+  }
+
+  .portraitCol {
+    width: 27.5rem;
+  }
+
+  .storyCol {
+    padding-top: 2rem;
+  }
+}
+
+@media (max-width: 1280px) and (min-width: 1101px) {
+  .section2Inner {
+    width: 100%;
+    grid-template-columns: 25rem minmax(0, 1fr);
+    column-gap: 3.5rem;
+  }
+
+  .portraitCol {
+    width: 25rem;
+  }
+}
+
+@media (max-height: 1100px) and (min-width: 1101px) {
+  .story {
+    --founder-pad-top: clamp(2.75rem, 4.5vh, 3.75rem);
+    --founder-gap-12: 2.75rem;
+    --founder-gap-23: 2.75rem;
+    --founder-gap-final: 2.75rem;
+    --founder-bottom: 3.75rem;
+  }
+
+  .openingHeadline {
+    font-size: clamp(3rem, 3.4vw + 0.8rem, 3.4rem);
+  }
+
+  .bridge {
+    margin-top: 1rem;
+    font-size: 1.15rem;
+  }
+
+  .fragments {
+    margin-top: 1.25rem;
+  }
+
+  .section2Inner {
+    width: min(78rem, 100%);
+    grid-template-columns: 26.875rem minmax(0, 1fr); /* 430 */
+    column-gap: 4.25rem;
+  }
+
+  .portraitCol {
+    width: 26.875rem;
+  }
+
+  .storyCol {
+    padding-top: 1.25rem;
+  }
+
+  .identity {
+    margin-top: 0.85rem;
+  }
+
+  .originHeading,
+  .currentUseHeading {
+    font-size: 1.85rem;
+  }
+
+  .originHeading {
+    margin-bottom: 1.35rem;
+  }
+
+  .body {
+    font-size: 1.03125rem;
+    margin-bottom: 1rem;
+  }
+
+  .currentUseHeading {
+    margin-top: 1.85rem;
+  }
+
+  .closingHeadline {
+    font-size: clamp(2.2rem, 2.8vw + 0.8rem, 2.75rem);
+  }
+}
+
+/* Extra compression for short laptop viewports — keep need ≤ ~37vh shift */
+@media (max-height: 900px) and (min-width: 1101px) {
+  .story {
+    --founder-pad-top: 1.75rem;
+    --founder-gap-12: 1.5rem;
+    --founder-gap-23: 1.5rem;
+    --founder-gap-final: 1.5rem;
+    --founder-bottom: 3.25rem; /* ~52 → aim 80–100 with remaining */
+  }
+
+  .section2Inner {
+    grid-template-columns: 18.75rem minmax(0, 1fr); /* 300 */
+    column-gap: 2.75rem;
+  }
+
+  .portraitCol {
+    width: 18.75rem;
+  }
+
+  .storyCol {
+    padding-top: 0.35rem;
+  }
+
+  .openingHeadline {
+    font-size: 2.45rem;
+  }
+
+  .bridge {
+    margin-top: 0.75rem;
+    font-size: 1.05rem;
+  }
+
+  .fragments {
+    margin-top: 0.85rem;
+  }
+
+  .identity {
+    margin-top: 0.55rem;
+  }
+
+  .originHeading,
+  .currentUseHeading {
+    font-size: 1.5rem;
+  }
+
+  .originHeading {
+    margin-bottom: 1rem;
+  }
+
+  .body {
+    margin-bottom: 0.75rem;
+    font-size: 0.9375rem;
+    line-height: 1.4;
+  }
+
+  .currentUseHeading {
+    margin-top: 1.5rem;
+  }
+
+  .currentDiff {
+    margin: 0.85rem 0 1.1rem;
+    font-size: 0.875rem;
+  }
+
+  .support {
+    font-size: 0.875rem;
+    line-height: 1.45;
+  }
+
+  .closingHeadline {
+    font-size: 1.85rem;
+  }
+
+  .closingSupport {
+    margin-top: 0.75rem;
+    font-size: 0.9375rem;
+  }
+}
+
+@media (max-height: 800px) and (min-width: 1101px) {
+  .story {
+    --founder-pad-top: 0.85rem;
+    --founder-gap-12: 0.95rem;
+    --founder-gap-23: 0.95rem;
+    --founder-gap-final: 0.95rem;
+    --founder-bottom: 2.5rem;
+  }
+
+  .section2Inner {
+    grid-template-columns: 15rem minmax(0, 1fr); /* 240 */
+    column-gap: 2rem;
+  }
+
+  .portraitCol {
+    width: 15rem;
+  }
+
+  .openingHeadline {
+    font-size: 2rem;
+  }
+
+  .bridge {
+    margin-top: 0.45rem;
+    font-size: 0.9rem;
+  }
+
+  .fragments {
+    margin-top: 0.5rem;
+  }
+
+  .identity {
+    margin-top: 0.35rem;
+  }
+
+  .name {
+    font-size: 1.2rem;
+  }
+
+  .role {
+    font-size: 0.875rem;
+  }
+
+  .meta {
+    font-size: 0.8125rem;
+  }
+
+  .storyCol {
+    padding-top: 0.15rem;
+  }
+
+  .originHeading,
+  .currentUseHeading {
+    font-size: 1.25rem;
+  }
+
+  .originHeading {
+    margin-bottom: 0.75rem;
+  }
+
+  .body {
+    margin-bottom: 0.55rem;
+    font-size: 0.8125rem;
+    line-height: 1.32;
+  }
+
+  .currentUseHeading {
+    margin-top: 1.15rem;
+  }
+
+  .currentDiff {
+    margin: 0.65rem 0 0.85rem;
+    font-size: 0.75rem;
+    line-height: 1.35;
+  }
+
+  .support {
+    margin-bottom: 0;
+    font-size: 0.75rem;
+    line-height: 1.35;
+  }
+
+  .closingHeadline {
+    font-size: 1.5rem;
+  }
+
+  .closingSupport {
+    margin-top: 0.45rem;
+    font-size: 0.8125rem;
+  }
+}
+
+/* ——— Mobile ——— */
+
+@media (max-width: 1100px) {
+  .story {
+    --founder-max: min(40rem, calc(100vw - 2rem));
+    --founder-pad-top: 2.75rem;
+    --founder-gap-12: 4.5rem;
+    --founder-gap-23: 4.5rem;
+    --founder-gap-final: 4rem;
+    --founder-bottom: 4.75rem;
+  }
+
+  .section1 {
+    max-width: none;
+  }
+
+  .openingHeadline {
+    font-size: clamp(1.85rem, 6vw + 0.4rem, 2.45rem);
+    line-height: 1.06;
+  }
+
+  .bridge {
+    margin-top: 1.15rem;
+    font-size: 1.2rem;
+  }
+
+  .fragments {
+    margin-top: 1.75rem;
+  }
+
+  .fragmentsFull {
+    display: none;
+  }
+
+  .fragmentsWrap {
+    display: block;
+  }
+
+  .section2Inner {
+    width: 100%;
+    grid-template-columns: 1fr;
+    row-gap: 1.75rem;
+    column-gap: 0;
+  }
+
+  .portraitCol {
+    width: 100%;
+  }
+
+  .storyCol {
+    padding-top: 0;
+    max-width: none;
+  }
+
+  .closing {
+    max-width: none;
+  }
+
+  .closingHeadline {
+    font-size: clamp(1.7rem, 5.5vw + 0.35rem, 2.25rem);
+  }
+}

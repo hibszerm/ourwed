@@ -50,24 +50,26 @@ function countOccurrences(haystack: string, needle: string): number {
 
 const router = readFileSync(join(ROOT, 'src/routes/router.tsx'), 'utf8')
 assert(router.includes("path: '/'"), 'production / route')
-assert(router.includes("path: '/landing-v3'"), 'legacy /landing-v3 alias')
+assert(router.includes("path: '/landing-v3'"), 'legacy /landing-v3 path retained')
+assert(router.includes('RedirectToRootPreserveHash'), 'legacy landings redirect to /')
 assert(
-  router.includes("path: '/'") &&
-    router.includes('element: <LandingPage />') &&
-    router.includes("path: '/landing-v3'") &&
-    countOccurrences(router, 'element: <LandingPage />') >= 2,
-  '/ and /landing-v3 both render LandingPage',
+  router.includes("path: '/'") && router.includes('element: <LandingPage />'),
+  '/ renders LandingPage',
+)
+assert(
+  countOccurrences(router, 'element: <LandingPage />') === 1,
+  'LandingPage only on public root',
 )
 assert(!router.includes('LandingV3Page'), 'no separate LandingV3Page route import')
 
 const landingEntry = readFileSync(join(ROOT, 'src/pages/LandingPage.tsx'), 'utf8')
-assert(landingEntry.includes('LandingV3Page'), 'LandingPage mounts V3')
-assert(!landingEntry.includes('LandingV2'), 'Landing V2 removed from production')
+assert(landingEntry.includes('LandingV2Page'), 'LandingPage mounts accepted Landing V2')
+assert(!landingEntry.includes('LandingV3Page'), 'Landing V3 retired from public /')
 assert(!landingEntry.includes('LandingPageV1'), 'Landing V1 removed from production')
 assert(!landingEntry.includes('useLandingVersion'), 'version switch removed')
 assert(
-  !existsSync(join(ROOT, 'src/features/landing-v2')),
-  'landing-v2 feature deleted',
+  existsSync(join(ROOT, 'src/features/landing-v2')),
+  'landing-v2 feature exists as production landing',
 )
 assert(
   !existsSync(join(ROOT, 'src/features/landing')),

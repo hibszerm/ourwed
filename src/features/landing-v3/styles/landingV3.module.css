@@ -31,6 +31,40 @@
   overflow-x: clip;
 }
 
+/* Landing V2 hash targets clear sticky nav without per-section height duplication. */
+.page[data-landing-v2] :global(#jak-dziala),
+.page[data-landing-v2] :global(#faq) {
+  scroll-margin-top: calc(var(--lv3-nav-h) + 1rem);
+}
+
+/*
+ * Founder hash lands on a zero-size marker inside the black .story surface.
+ * Use nav height only — no extra 1rem gap (that exposed preceding paper/beige).
+ */
+.page[data-landing-v2] :global(#stworzone-przez) {
+  scroll-margin-top: var(--lv3-nav-h);
+}
+
+/*
+ * Content-level anchors skip large section top padding.
+ * ~2.5rem below nav keeps eyebrow in the 32–56px band on desktop.
+ */
+.page[data-landing-v2] :global(#dla-kogo),
+.page[data-landing-v2] :global(#cennik) {
+  scroll-margin-top: calc(var(--lv3-nav-h) + 2.5rem);
+}
+
+@media (max-width: 1100px) {
+  /*
+   * Compact: keep a modest clearance so headlines are not tucked under nav,
+   * without the deep desktop content offset.
+   */
+  .page[data-landing-v2] :global(#dla-kogo),
+  .page[data-landing-v2] :global(#cennik) {
+    scroll-margin-top: calc(var(--lv3-nav-h) + 1rem);
+  }
+}
+
 .noise {
   pointer-events: none;
   position: fixed;
@@ -98,7 +132,7 @@
   list-style: none;
   margin: 0 auto;
   padding: 0;
-  gap: 1.35rem;
+  gap: 1.05rem;
 }
 
 .navLinks a {
@@ -146,7 +180,8 @@
   border-bottom: 1px solid var(--border);
 }
 
-@media (min-width: 900px) {
+/* Five decision links need more width than the old three-link bar. */
+@media (min-width: 1101px) {
   .navLinks {
     display: flex;
   }
@@ -1820,7 +1855,9 @@
 .footerLinks {
   display: flex;
   flex-wrap: wrap;
-  gap: 1.25rem;
+  justify-content: flex-end;
+  gap: 0.85rem 1.1rem;
+  max-width: min(36rem, 100%);
   list-style: none;
   margin: 0;
   padding: 0;

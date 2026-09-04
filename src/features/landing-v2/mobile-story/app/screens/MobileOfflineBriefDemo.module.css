@@ -1,0 +1,546 @@
+.root {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  box-sizing: border-box;
+  pointer-events: none;
+  background: var(--ow-bg);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  container-type: size;
+  container-name: ow-brief-sheet;
+}
+
+.shell {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: var(--brief-shell-gap) var(--brief-shell-x) 12px;
+  gap: var(--brief-shell-gap);
+  overflow: hidden;
+  /*
+   * Phase 6H.3 — two density tiers only:
+   * NORMAL (default): tall phone / primary desktop landing perception
+   * COMPACT (@container max-height 700px): fluid geometry so short phones still fit
+   */
+  --brief-shell-x: 9px;
+  --brief-shell-gap: 8px;
+  --brief-doc-pad-x: 13px;
+  --brief-doc-pad-t: 12px;
+  --brief-doc-pad-b: 14px;
+  --brief-section-gap: 11px;
+  --brief-grid-gap: 11px;
+  --brief-row-pad: 5px;
+  --brief-title: 16.75px;
+  --brief-body: 12.85px;
+  --brief-value: 12.6px;
+  --brief-name: 11.85px;
+  --brief-muted: 10.35px;
+  --brief-kicker: 8.85px;
+  --brief-time-col: 44px;
+  --brief-crew: 11px;
+  --brief-loc: 10.85px;
+  --brief-tl-min: 41px;
+  --brief-kv-min: 28px;
+  --brief-log-min: 29px;
+  --brief-critical-gap: 7px;
+  --brief-people-gap: 9px;
+  --brief-crew-pad-y: 9px;
+  --brief-crew-pad-x: 10px;
+  --brief-label: 10.35px;
+  --brief-critical-title: 11.4px;
+  --brief-critical-body: 10.15px;
+  --brief-phone: 10.15px;
+  --brief-role: 9px;
+  --brief-log-value: 11.4px;
+}
+
+.status {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  min-height: 16px;
+  padding: 0 1px;
+}
+
+.offline {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--brief-muted);
+  font-weight: 600;
+  color: color-mix(in srgb, var(--ow-success) 82%, var(--ow-text-2));
+  line-height: 1.2;
+}
+
+.offlineDot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--ow-success);
+  flex: 0 0 auto;
+}
+
+.page {
+  margin: 0;
+  flex: 0 0 auto;
+  font-size: var(--brief-muted);
+  font-weight: 550;
+  font-variant-numeric: tabular-nums;
+  color: var(--ow-text-3);
+  line-height: 1.2;
+}
+
+.paper {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transform-origin: 50% 0%;
+  border-radius: 9px;
+  background: #fffcf7;
+  border: 1px solid color-mix(in srgb, var(--ow-border-strong) 70%, #d8d0c4);
+  box-shadow:
+    0 1px 0 color-mix(in srgb, #3a342c 4%, transparent),
+    0 4px 12px color-mix(in srgb, #3a342c 6%, transparent);
+  color: var(--ow-text);
+}
+
+.doc {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: var(--brief-doc-pad-t) var(--brief-doc-pad-x) var(--brief-doc-pad-b);
+  box-sizing: border-box;
+  overflow: hidden;
+  gap: var(--brief-section-gap);
+}
+
+.docHeader {
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+.brand {
+  margin: 0;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--ow-text-3);
+  line-height: 1.2;
+}
+
+.docCouple {
+  margin: 2px 0 0;
+  font-size: var(--brief-title);
+  font-weight: 680;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+}
+
+.docMeta {
+  margin: 2px 0 0;
+  font-size: var(--brief-muted);
+  color: var(--ow-text-2);
+  line-height: 1.25;
+}
+
+.docMetaSep {
+  margin: 0 0.28rem;
+  color: var(--ow-text-3);
+}
+
+.section {
+  margin: 0;
+  flex: 0 0 auto;
+  min-height: 0;
+}
+
+.sectionTitle {
+  margin: 0 0 5px;
+  font-size: var(--brief-kicker);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ow-text-3);
+  line-height: 1.2;
+}
+
+.timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0;
+}
+
+.timeline li {
+  display: grid;
+  grid-template-columns: var(--brief-time-col) minmax(0, 1fr);
+  column-gap: 8px;
+  min-height: var(--brief-tl-min);
+  padding: var(--brief-row-pad) 0;
+  border-bottom: 1px solid var(--ow-border-subtle);
+  box-sizing: border-box;
+}
+
+.timeline li:last-child {
+  border-bottom: none;
+}
+
+.time {
+  font-size: var(--brief-body);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--ow-text);
+  line-height: 1.25;
+  padding-top: 1px;
+}
+
+.tlBody {
+  min-width: 0;
+}
+
+.tlBody strong {
+  display: block;
+  font-size: var(--brief-body);
+  font-weight: 650;
+  letter-spacing: -0.015em;
+  line-height: 1.25;
+}
+
+.tlBody em {
+  display: block;
+  margin-top: 1px;
+  font-style: normal;
+  font-size: var(--brief-loc);
+  font-weight: 450;
+  color: var(--ow-text-2);
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.primaryGrid {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr);
+  gap: var(--brief-grid-gap);
+  min-height: 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--ow-border-subtle);
+}
+
+.peopleGrid {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--brief-grid-gap);
+  min-height: 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--ow-border-subtle);
+}
+
+.col {
+  margin: 0;
+  min-width: 0;
+  position: relative;
+}
+
+.primaryGrid .col + .col,
+.peopleGrid .col + .col {
+  padding-left: 2px;
+}
+
+.primaryGrid .col + .col::before,
+.peopleGrid .col + .col::before {
+  content: '';
+  position: absolute;
+  left: calc(var(--brief-grid-gap) * -0.5 - 1px);
+  top: 2px;
+  bottom: 2px;
+  width: 1px;
+  background: var(--ow-border-subtle);
+}
+
+.kvTable {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.kvTable li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  column-gap: 8px;
+  min-height: var(--brief-kv-min);
+  padding: 3px 0;
+  border-bottom: 1px solid var(--ow-border-subtle);
+  box-sizing: border-box;
+}
+
+.kvTable li:last-child {
+  border-bottom: none;
+}
+
+.kvTable span {
+  font-size: var(--brief-label);
+  color: var(--ow-text-3);
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kvTable strong {
+  font-size: var(--brief-value);
+  font-weight: 680;
+  font-variant-numeric: tabular-nums;
+  color: var(--ow-text);
+  line-height: 1.2;
+}
+
+.critical {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--brief-critical-gap);
+}
+
+.critical li {
+  margin: 0;
+}
+
+.critical strong {
+  display: block;
+  font-size: var(--brief-critical-title);
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.critical span {
+  display: block;
+  margin-top: 1px;
+  font-size: var(--brief-critical-body);
+  color: var(--ow-text-2);
+  line-height: 1.25;
+}
+
+.peopleList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--brief-people-gap);
+}
+
+.peopleList li {
+  margin: 0;
+  min-width: 0;
+}
+
+.peopleList em {
+  display: block;
+  font-style: normal;
+  font-size: var(--brief-role);
+  color: var(--ow-text-3);
+  line-height: 1.15;
+  margin-bottom: 1px;
+}
+
+.peopleList strong {
+  display: block;
+  font-size: var(--brief-name);
+  font-weight: 650;
+  letter-spacing: -0.015em;
+  line-height: 1.15;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.peopleList span {
+  display: block;
+  margin-top: 1px;
+  font-size: var(--brief-phone);
+  font-variant-numeric: tabular-nums;
+  color: var(--ow-text-2);
+  line-height: 1.25;
+}
+
+.logistics {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.logistics li {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  column-gap: 10px;
+  align-items: center;
+  min-height: var(--brief-log-min);
+  padding: var(--brief-row-pad) 0;
+  border-bottom: 1px solid var(--ow-border-subtle);
+  box-sizing: border-box;
+}
+
+.logistics li:last-child {
+  border-bottom: none;
+}
+
+.logistics span {
+  font-size: var(--brief-label);
+  color: var(--ow-text-3);
+  line-height: 1.25;
+}
+
+.logistics strong {
+  font-size: var(--brief-log-value);
+  font-weight: 650;
+  color: var(--ow-text);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.crewPanel {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: var(--brief-crew-pad-y) var(--brief-crew-pad-x);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--ow-bg-subtle) 72%, #fffcf7);
+  border: 1px solid var(--ow-border-subtle);
+  box-sizing: border-box;
+}
+
+.crewPanel .sectionTitle {
+  margin-bottom: 4px;
+}
+
+.crewNote {
+  margin: 0;
+  display: grid;
+  gap: 1px;
+  font-size: var(--brief-crew);
+  color: var(--ow-text-2);
+  line-height: 1.3;
+}
+
+.crewNote span {
+  display: block;
+}
+
+/*
+ * COMPACT — when the Brief overlay cannot hold NORMAL.
+ * Geometry is fluid in cqh; typography stays at acceptance floors.
+ */
+@container ow-brief-sheet (max-height: 700px) {
+  .shell {
+    padding-bottom: clamp(8px, 1.4cqh, 11px);
+    --brief-shell-x: clamp(7px, 1.2cqw, 8px);
+    --brief-shell-gap: clamp(3px, 0.85cqh, 6px);
+    --brief-doc-pad-x: clamp(9px, 1.6cqw, 11px);
+    --brief-doc-pad-t: clamp(5px, 1.2cqh, 9px);
+    --brief-doc-pad-b: clamp(5px, 1.3cqh, 9px);
+    --brief-section-gap: clamp(3px, 1.05cqh, 8px);
+    --brief-grid-gap: clamp(5px, 1.2cqw, 8px);
+    --brief-row-pad: clamp(0px, 0.4cqh, 3px);
+    --brief-title: clamp(15.1px, 2.3cqh, 15.75px);
+    --brief-body: clamp(12.05px, 1.85cqh, 12.35px);
+    --brief-value: clamp(11.6px, 1.8cqh, 12px);
+    --brief-name: clamp(11.1px, 1.7cqh, 11.4px);
+    --brief-muted: 9.75px;
+    --brief-kicker: 8.15px;
+    --brief-time-col: clamp(38px, 5.4cqw, 42px);
+    --brief-crew: 10.5px;
+    --brief-loc: clamp(9.85px, 1.55cqh, 10.25px);
+    --brief-tl-min: clamp(24px, 4.3cqh, 34px);
+    --brief-kv-min: clamp(16px, 2.9cqh, 24px);
+    --brief-log-min: clamp(17px, 3cqh, 25px);
+    --brief-critical-gap: clamp(2px, 0.65cqh, 5px);
+    --brief-people-gap: clamp(2px, 0.95cqh, 6px);
+    --brief-crew-pad-y: clamp(3px, 0.8cqh, 6px);
+    --brief-crew-pad-x: 8px;
+    --brief-label: 9.75px;
+    --brief-critical-title: 11px;
+    --brief-critical-body: 9.75px;
+    --brief-phone: 9.75px;
+    --brief-role: 8.25px;
+    --brief-log-value: 11px;
+  }
+
+  .sectionTitle {
+    margin-bottom: clamp(1px, 0.4cqh, 3px);
+  }
+
+  .primaryGrid,
+  .peopleGrid {
+    padding-top: clamp(2px, 0.7cqh, 5px);
+  }
+
+  .critical strong {
+    letter-spacing: -0.03em;
+  }
+
+  .status {
+    min-height: 14px;
+  }
+
+  .kvTable li {
+    padding: 1px 0;
+  }
+
+  .docCouple {
+    margin-top: 1px;
+  }
+
+  .docMeta {
+    margin-top: 1px;
+  }
+}
+
+/* Shortest phones: collapse schedule to one line (not a third type tier). */
+@container ow-brief-sheet (max-height: 580px) {
+  .shell {
+    --brief-tl-min: clamp(20px, 3.6cqh, 26px);
+    --brief-section-gap: clamp(2px, 0.7cqh, 5px);
+    --brief-kv-min: clamp(14px, 2.4cqh, 20px);
+    --brief-log-min: clamp(15px, 2.5cqh, 20px);
+    --brief-people-gap: clamp(1px, 0.6cqh, 4px);
+  }
+
+  .tlBody strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .tlBody em {
+    display: inline;
+    margin-top: 0;
+    margin-left: 0.35em;
+  }
+
+  .tlBody em::before {
+    content: '· ';
+  }
+}

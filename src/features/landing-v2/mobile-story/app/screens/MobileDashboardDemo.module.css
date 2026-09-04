@@ -1,0 +1,776 @@
+/*
+ * Always-on mobile Dashboard V3 rules (production @media max-width: 767px),
+ * because the phone sits inside a desktop viewport where those media queries would not match.
+ * Token vars inherit from MobileOurWedApp .root (--ow-*).
+ */
+
+.root {
+  --v3-space-1: 8px;
+  --v3-space-2: 12px;
+  --v3-space-3: 16px;
+  --v3-space-4: 20px;
+  --dash-mobile-section-gap: var(--v3-space-4);
+  --dash-mobile-heading-gap: 10px;
+  --v3-radius-hero: 28px;
+  --dash-hero-base: var(--ow-surface);
+  --v3-hero-rail: 4.5rem;
+  --v3-hero-rail-gap: 16px;
+  --v3-hero-divider: 1px solid color-mix(in srgb, var(--ow-border) 80%, transparent);
+  --v3-surface-supporting: color-mix(in srgb, var(--ow-surface) 78%, var(--ow-surface-2));
+  --v3-surface-overlay: color-mix(in srgb, var(--ow-text) 5%, transparent);
+  --v3-shadow-1: 0 1px 2px rgba(0, 0, 0, 0.05), 0 3px 8px rgba(0, 0, 0, 0.04);
+  --v3-shadow-contact: 0 1px 1px rgba(0, 0, 0, 0.04), 0 4px 8px rgba(0, 0, 0, 0.02);
+  --v3-tint-press: color-mix(in srgb, var(--ow-text) 6%, transparent);
+
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--dash-mobile-section-gap);
+  width: 100%;
+  padding: 8px var(--ow-pad-x) 20px;
+  background: var(--ow-bg);
+  color: var(--ow-text);
+}
+
+/* —— Hero (DashboardV3Hero mobile) —— */
+.hero {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--v3-hero-rail) minmax(0, 1fr);
+  align-items: stretch;
+  min-height: 164px;
+  padding: 20px 18px;
+  overflow: hidden;
+  border-radius: var(--v3-radius-hero);
+  background: var(--dash-hero-base);
+  border: 1px solid var(--ow-border);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55), var(--v3-shadow-1);
+  transform-origin: 50% 50%;
+}
+
+.focusRing {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: inherit;
+  border: 1px solid var(--ow-border-strong);
+  pointer-events: none;
+}
+
+.sentinel {
+  position: absolute;
+  right: 0;
+  bottom: -10px;
+  left: 0;
+  height: 10px;
+  pointer-events: none;
+}
+
+.dateBlock {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  padding-right: var(--v3-hero-rail-gap);
+  border-right: var(--v3-hero-divider);
+}
+
+.dateDay {
+  font-size: 2.65rem;
+  font-weight: 420;
+  letter-spacing: -0.06em;
+  line-height: 0.84;
+  font-variant-numeric: tabular-nums;
+  color: color-mix(in srgb, var(--ow-text) 72%, #5c4a3a);
+}
+
+.dateMonth {
+  margin-top: 7px;
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ow-text-2);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  min-width: 0;
+  padding: 0 0 0 var(--v3-hero-rail-gap);
+}
+
+.typeRow {
+  margin-top: 0;
+  padding-right: 74px;
+}
+
+.typeChip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 4px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--ow-border-subtle);
+  background: color-mix(in srgb, var(--ow-text) 4%, var(--dash-hero-base));
+  font-size: 0.625rem;
+  font-weight: 550;
+  line-height: 1.2;
+  color: var(--ow-text-2);
+}
+
+.couple {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 12px 0 0;
+  font-size: clamp(1.2rem, 5.6cqw, 1.45rem);
+  font-weight: 610;
+  letter-spacing: -0.035em;
+  line-height: 1.12;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.chips {
+  display: flex;
+  min-width: 0;
+  margin-top: auto;
+  padding-top: 12px;
+  gap: 0;
+}
+
+.locationChip {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 6px;
+  width: 100%;
+  max-width: 100%;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: var(--ow-text-3);
+  font-size: var(--ow-text-xs);
+  font-weight: 450;
+  line-height: 1.35;
+}
+
+.locationChip span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.locationChip svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+  opacity: 0.7;
+}
+
+.countdown {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  text-align: right;
+}
+
+.countdownMobile {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  font-size: 0.6875rem;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  white-space: nowrap;
+  color: color-mix(in srgb, var(--ow-text) 46%, var(--ow-text-2));
+}
+
+/* —— Upcoming list-shell —— */
+.upcomingBand {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dash-mobile-heading-gap);
+  width: 100%;
+  min-width: 0;
+}
+
+.upcomingLabel {
+  margin: 0;
+  padding-inline: 2px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ow-text-2);
+  line-height: 1.2;
+}
+
+.upcomingGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+  overflow: hidden;
+  padding: 2px 12px;
+  border: 1px solid var(--ow-border-subtle);
+  border-radius: 22px;
+  background: var(--v3-surface-supporting);
+  box-shadow: var(--v3-shadow-contact);
+}
+
+.upcomingCard {
+  display: grid;
+  grid-template-columns: 2.5rem minmax(0, 1fr) auto;
+  column-gap: 10px;
+  align-items: center;
+  min-height: 72px;
+  padding: 10px 2px;
+}
+
+.upcomingCard + .upcomingCard {
+  border-top: 1px solid color-mix(in srgb, var(--ow-border) 76%, transparent);
+}
+
+.upDate {
+  grid-column: 1;
+  grid-row: 1 / span 3;
+  align-self: center;
+  display: flex;
+  flex-direction: column;
+  min-width: 40px;
+}
+
+.upDay {
+  font-size: 1.3rem;
+  font-weight: 470;
+  letter-spacing: -0.05em;
+  line-height: 0.9;
+  font-variant-numeric: tabular-nums;
+}
+
+.upMonth {
+  margin-top: 4px;
+  font-size: 0.625rem;
+  font-weight: 650;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ow-text-3);
+}
+
+.upName {
+  grid-column: 2;
+  grid-row: 1;
+  margin: 0;
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 0.9375rem;
+  font-weight: 610;
+  line-height: 1.2;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.upType {
+  grid-column: 2;
+  grid-row: 2;
+  justify-self: start;
+  margin-top: 3px;
+  font-size: 0.625rem;
+  font-weight: 620;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ow-text-3);
+}
+
+.upRel {
+  grid-column: 3;
+  grid-row: 1 / span 3;
+  align-self: center;
+  font-size: var(--ow-text-2xs);
+  font-weight: 620;
+  color: var(--ow-text-3);
+  white-space: nowrap;
+}
+
+.upLoc {
+  grid-column: 2;
+  grid-row: 3;
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+  margin: 0;
+  padding-top: 4px;
+  font-size: var(--ow-text-2xs);
+  color: var(--ow-text-3);
+  line-height: 1.35;
+  min-width: 0;
+}
+
+.upLoc span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.upLoc svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+  opacity: 0.7;
+}
+
+/* —— Nowe zgłoszenia (DashboardV3InquiriesPanel mobile) —— */
+.secondaryCard {
+  background: var(--v3-surface-supporting);
+  border: 1px solid var(--ow-border-subtle);
+  border-radius: 20px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.inquiriesPanel {
+  min-width: 0;
+  width: 100%;
+  padding: 14px;
+}
+
+.inquiriesHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.inquiriesTitle {
+  margin: 0;
+  font-size: var(--ow-text-xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ow-text-2);
+}
+
+.inquiriesSub {
+  margin: 6px 0 0;
+  font-size: var(--ow-text-xs);
+  color: var(--ow-text-2);
+}
+
+.inquiriesAll {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-size: var(--ow-text-xs);
+  font-weight: 560;
+  color: var(--ow-text-2);
+  white-space: nowrap;
+}
+
+.inquiriesList {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.inquiryItem {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 0;
+}
+
+.inquiriesList li + li {
+  border-top: 1px solid color-mix(in srgb, var(--ow-border) 75%, transparent);
+}
+
+.inquiryMain {
+  min-width: 0;
+}
+
+.inquiryCouple {
+  margin: 0;
+  font-size: var(--ow-text-sm);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--ow-text);
+}
+
+.inquiryMeta,
+.inquirySubmitted {
+  margin: 6px 0 0;
+  font-size: var(--ow-text-xs);
+  color: var(--ow-text-2);
+}
+
+.inquirySubmitted {
+  color: var(--ow-text-3);
+}
+
+.inquiryActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.btnPrimary,
+.btnGhost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: var(--ow-r-md);
+  font-size: var(--ow-text-sm);
+  font-weight: 550;
+  pointer-events: none;
+}
+
+.btnPrimary {
+  border: 1px solid var(--ow-accent);
+  background: var(--ow-accent);
+  color: var(--ow-on-accent);
+}
+
+.btnGhost {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ow-text-2);
+}
+
+/* —— Today operational tray —— */
+.operational {
+  background: var(--v3-surface-supporting);
+  border: 1px solid var(--ow-border-subtle);
+  border-radius: 20px;
+  box-shadow: var(--v3-shadow-contact);
+}
+
+.todayPanel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  width: 100%;
+  padding: 12px 14px;
+}
+
+.todayHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.horizonLabel {
+  margin: 0;
+  font-size: var(--ow-text-xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ow-text);
+}
+
+.count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--v3-surface-overlay);
+  border: 1px solid var(--ow-border);
+  font-size: var(--ow-text-2xs);
+  font-weight: 650;
+  color: var(--ow-text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.taskList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.taskItem {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  align-items: center;
+  min-height: 44px;
+  padding: 3px 0;
+}
+
+.checkbox {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.checkbox::before {
+  content: '';
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--ow-text-3) 45%, transparent);
+  background: var(--v3-surface-overlay);
+}
+
+.taskBody {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.coupleMeta {
+  font-size: var(--ow-text-2xs);
+  font-weight: 550;
+  color: var(--ow-text-3);
+}
+
+.taskTitle {
+  font-size: var(--ow-text-sm);
+  font-weight: 550;
+  letter-spacing: -0.01em;
+  color: var(--ow-text);
+}
+
+.taskDate {
+  font-size: var(--ow-text-2xs);
+  color: var(--ow-text-3);
+}
+
+/* —— Terminy oddania (DashboardV3DeadlinePanel mobile) —— */
+.deadlinesPanel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  width: 100%;
+  padding: 14px;
+  border-radius: 18px;
+}
+
+.deadlinesHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.deadlinesTitle {
+  margin: 0;
+  font-size: var(--ow-text-xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ow-text-2);
+}
+
+.deadlinesCount {
+  font-size: var(--ow-text-2xs);
+  font-weight: 650;
+  color: var(--ow-text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.deadlinesList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  min-width: 0;
+}
+
+.deadlineRow {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  min-height: 44px;
+  padding: 8px 2px;
+}
+
+.deadlinesList li + li .deadlineRow {
+  border-top: 1px solid color-mix(in srgb, var(--ow-border) 75%, transparent);
+}
+
+.deadlineMarker {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--v3-surface-overlay);
+  border: 1px solid var(--ow-border-subtle);
+  color: var(--ow-text);
+  flex-shrink: 0;
+}
+
+.deadlineDay {
+  font-size: var(--ow-text-sm);
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.deadlineMonth {
+  margin-top: 3px;
+  font-size: 0.625rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ow-text-3);
+}
+
+.deadlineBody {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.deadlineName {
+  font-size: var(--ow-text-sm);
+  font-weight: 560;
+  color: var(--ow-text);
+  line-height: 1.3;
+}
+
+.deadlineDue {
+  font-size: var(--ow-text-xs);
+  font-weight: 500;
+  color: var(--ow-text-2);
+}
+
+.deadlineRel {
+  grid-column: 2;
+  font-size: var(--ow-text-xs);
+  font-weight: 500;
+  color: var(--ow-text-2);
+  text-align: left;
+}
+
+.deadlineRel[data-state='due_today'] {
+  color: var(--ow-text);
+}
+
+.deadlineRel[data-state='overdue'] {
+  color: #92400e;
+}
+
+/* —— Notifications supporting —— */
+.supporting {
+  background: var(--v3-surface-supporting);
+  border: 1px solid var(--ow-border-subtle);
+  border-radius: 16px;
+  box-shadow: none;
+}
+
+.notesPanel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  width: 100%;
+  padding: 16px 16px 12px;
+}
+
+.notesHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.notesTitle {
+  margin: 0;
+  font-size: var(--ow-text-xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ow-text-2);
+}
+
+.notesSub {
+  margin: 0;
+  font-size: var(--ow-text-xs);
+  font-weight: 450;
+  color: var(--ow-text-3);
+}
+
+.notesList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.noteItem {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  width: 100%;
+  padding: 12px 4px;
+}
+
+.notesList li + li .noteItem {
+  border-top: 1px solid color-mix(in srgb, var(--ow-border) 75%, transparent);
+}
+
+.noteIcon {
+  width: 28px;
+  height: 28px;
+  margin-top: 1px;
+  border-radius: 10px;
+  background: var(--v3-surface-overlay);
+  flex-shrink: 0;
+}
+
+.noteItem[data-unread='true'] .noteIcon {
+  background: color-mix(in srgb, var(--ow-text) 10%, transparent);
+}
+
+.noteMain {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.noteTitle {
+  font-size: var(--ow-text-sm);
+  font-weight: 550;
+  color: var(--ow-text);
+}
+
+.noteItem[data-unread='true'] .noteTitle {
+  font-weight: 620;
+}
+
+.noteBody,
+.noteTime {
+  font-size: var(--ow-text-2xs);
+  line-height: 1.35;
+  color: var(--ow-text-3);
+}
+
+@container ow-mobile-app (max-width: 320px) {
+  .hero {
+    --v3-hero-rail: 3.75rem;
+    --v3-hero-rail-gap: 12px;
+    padding: 16px 14px;
+    min-height: 148px;
+  }
+
+  .dateDay {
+    font-size: 2.25rem;
+  }
+
+  .countdown {
+    right: 14px;
+    top: 14px;
+  }
+}

@@ -2,11 +2,11 @@ import { useEffect } from 'react'
 import { Navigate } from 'react-router-dom'
 import { AuthLoadingScreen } from '@/features/auth/components/AuthLoadingScreen'
 import { useAuth } from '@/features/auth/AuthProvider'
-import { LandingV3Page } from '@/features/landing-v3/LandingV3Page'
+import { LandingV2Page } from '@/features/landing-v2/LandingV2Page'
 import { clearLogoutRedirectToLanding } from '@/lib/auth/logoutRedirect'
 
 /**
- * Production landing — Landing V3.
+ * Production public landing — accepted Landing V2.
  * Authenticated visitors go to the dashboard.
  */
 export function LandingPage() {
@@ -21,5 +21,5 @@ export function LandingPage() {
     return <Navigate to="/dashboard" replace />
   }
 
-  return <LandingV3Page />
+  return <LandingV2Page />
 }

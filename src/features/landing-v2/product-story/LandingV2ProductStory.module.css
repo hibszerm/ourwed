@@ -1,0 +1,245 @@
+/* Landing V2 Product Story — reverse-Hero iPad theater
+ *
+ * SCROLL GEOMETRY (track / sticky) is always present in document flow.
+ * THEATER OWNERSHIP (data-ps-theater-owned) gates sticky paint, hit-test,
+ * and stacking above Problem Story — pure f(scene07HandoffT).
+ */
+
+.productTrack {
+  --lv2-problem-black: #000000;
+  --lv2-hero-paper: var(--paper, #f3efe8);
+  --lv2-nav-h: var(--lv3-nav-h, 68px);
+  --ps-stage-paper: 0;
+  --lv2-scene07-handoff: 0;
+
+  position: relative;
+  width: 100%;
+  /*
+   * Overlap Problem Story sticky so when Scene 07 exit begins the iPad
+   * sticky geometry is already under the headline. Paint is gated separately.
+   */
+  margin-top: calc(var(--lv2-nav-h) - 170svh);
+  /* 360svh Product scrub + 120svh post-story exit pin budget (lifecycle only) */
+  height: calc(360svh + 120svh);
+  /* Geometry only — never the storytelling black field */
+  background: transparent;
+  color: #1a1614;
+  /* Track must not steal hits while Problem Story owns the theater */
+  pointer-events: none;
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.stickyStage {
+  position: sticky;
+  top: var(--lv2-nav-h);
+  /*
+   * Problem-owned default: still in document flow (may unpin geometrically)
+   * but contributes ZERO paint / hit-test / stacking above Problem Story.
+   */
+  z-index: 0;
+  height: calc(100svh - var(--lv2-nav-h));
+  height: calc(100dvh - var(--lv2-nav-h));
+  width: 100%;
+  overflow: hidden;
+  background: transparent;
+  display: grid;
+  place-items: center;
+  visibility: hidden;
+  pointer-events: none;
+  content-visibility: hidden;
+}
+
+.stickyStage[data-ps-theater-owned='true'] {
+  /* Below Scene 07 portal (z-40); above Problem Story sticky (z-5) */
+  z-index: 6;
+  visibility: visible;
+  pointer-events: auto;
+  content-visibility: visible;
+}
+
+/* Lifecycle exit complete — clear Product shell over paper theater */
+.stickyStage[data-ps-lifecycle-exit='done'] {
+  visibility: hidden;
+  pointer-events: none;
+  z-index: 0;
+  content-visibility: hidden;
+}
+
+/*
+ * Sole Product Story paint owner inside an owned sticky shell.
+ * Descendants cannot override visibility:hidden.
+ */
+.visualStage {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  /* Solid black base — paper/exit use compositor opacity plates (no color-mix). */
+  --ps-exit-veil: 0;
+  background: var(--lv2-problem-black);
+  visibility: hidden;
+  pointer-events: none;
+  isolation: isolate;
+}
+
+.visualStage[data-ps-visual-active='true'] {
+  visibility: visible;
+  pointer-events: auto;
+}
+
+/*
+ * Paper plate — fades in over black via opacity (compositor-friendly).
+ * Replaces per-frame color-mix on --ps-stage-paper.
+ */
+.paperPlate {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: var(--lv2-hero-paper);
+}
+
+.exitVeil {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  background: var(--lv2-hero-paper);
+}
+
+.stageInner {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+}
+
+/*
+ * Post–Product Story exit wrapper — translate/scale only.
+ * Nested outside deviceCamera so entrance scale mapping stays untouched.
+ */
+.deviceExit {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  transform-origin: 50% 50%;
+}
+
+.stickyStage[data-ps-theater-owned='true'] .deviceExit,
+.stickyStage[data-ps-lifecycle-exit='active'] .deviceExit {
+  will-change: transform, opacity;
+}
+
+/*
+ * DeviceCameraLayer — ONLY scale. Center-locked reverse-Hero pull-back.
+ * will-change only while theater-owned (stable compositor hint; not JS-toggled).
+ */
+.deviceCamera {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  transform-origin: 50% 50%;
+  isolation: isolate;
+  /* Do not contain:paint — would clip device contact shadow. */
+  --screen-blackout: 1;
+}
+
+.stickyStage[data-ps-theater-owned='true'] .deviceCamera {
+  will-change: transform;
+}
+
+/*
+ * Workspace must stay clipped to the tablet screen.
+ * No blur / opacity animation here — blackout is the screen overlay only.
+ */
+.workspaceClip {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+/*
+ * During high-amplitude camera travel the workspace must be genuinely cheap.
+ * Opaque blackout alone still leaves ProductStoryWorkspace in the render tree.
+ * Discrete DOM attribute (not per-frame React) — toggled at reveal threshold.
+ */
+.workspaceClip[data-ps-workspace-dormant='true'] {
+  visibility: hidden;
+  content-visibility: hidden;
+  pointer-events: none;
+}
+
+/*
+ * DIAGNOSTIC ONLY — `?lv2TabletDiag=…`
+ * Isolates Tablet #2 paint cost. Default (absent attr / full) is production look.
+ */
+.stickyStage[data-ps-tablet-diag='black'] .workspaceClip,
+.stickyStage[data-ps-tablet-diag='flat'] .workspaceClip {
+  visibility: hidden;
+  content-visibility: hidden;
+  pointer-events: none;
+}
+
+.stickyStage[data-ps-tablet-diag='noshadow'] :global([data-testid='lv2-hero-tablet']),
+.stickyStage[data-ps-tablet-diag='flat'] :global([data-testid='lv2-hero-tablet']) {
+  box-shadow: none !important;
+}
+
+.stickyStage[data-ps-tablet-diag='flat'] :global([data-testid='lv2-hero-tablet'])::before,
+.stickyStage[data-ps-tablet-diag='flat'] :global([data-testid='lv2-hero-tablet'])::after {
+  opacity: 0 !important;
+  box-shadow: none !important;
+}
+
+.stickyStage[data-ps-tablet-diag='flat'] :global([data-tablet-camera]),
+.stickyStage[data-ps-tablet-diag='flat'] :global([data-tablet-btn]) {
+  visibility: hidden;
+}
+
+.staticStack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  padding: 2.5rem clamp(1rem, 4vw, 1.75rem) 3.5rem;
+  background: var(--lv2-hero-paper);
+}
+
+@media (max-width: 1100px) {
+  .productTrack {
+    margin-top: 0;
+    height: auto;
+    background: transparent;
+  }
+
+  .stickyStage {
+    display: none;
+  }
+
+  .visualStage {
+    display: none;
+  }
+}

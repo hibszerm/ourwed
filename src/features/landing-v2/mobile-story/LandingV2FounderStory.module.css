@@ -1,0 +1,8 @@
+/**
+ * Compact/static shell overrides when Founder is not desktop cover-over-import.
+ * Editorial tokens/layout come from FounderStoryReveal.module.css (.story).
+ */
+.staticShell {
+  margin-top: 0;
+  z-index: auto;
+}

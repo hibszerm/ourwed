@@ -1,0 +1,22 @@
+.shell {
+  position: relative;
+  /* Below Lifecycle sticky (5) during handoff; above Mobile Story track (2). */
+  z-index: 4;
+  background: transparent;
+}
+
+/* Section wrapper is layout-only — page background owns the beige. */
+.shell [data-lv2-features] {
+  background: transparent;
+}
+
+.motionLayer {
+  will-change: transform, opacity, filter;
+  transform-origin: 50% 0%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .motionLayer {
+    will-change: auto;
+  }
+}

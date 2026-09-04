@@ -1,19 +1,19 @@
 import { createBrowserRouter, Navigate, useParams } from 'react-router-dom'
 import { AuthCallbackGate } from '@/features/auth/callback/AuthCallbackGate'
 import { ProtectedRoute } from '@/features/auth/ProtectedRoute'
-import { DashboardPage } from '@/pages/DashboardPage'
-import { WeddingsPage } from '@/pages/WeddingsPage'
-import { WeddingDetailPage } from '@/pages/WeddingDetailPage'
+import { DashboardRoutePage } from '@/pages/DashboardRoutePage'
+import { WeddingsRoutePage } from '@/pages/WeddingsRoutePage'
+import { WeddingDetailRoutePage } from '@/pages/WeddingDetailRoutePage'
 import { WeddingDayCockpitPage } from '@/pages/WeddingDayCockpitPage'
 import { WeddingContractGenerationPage } from '@/pages/WeddingContractGenerationPage'
 import { WeddingContractPreviewPage } from '@/pages/WeddingContractPreviewPage'
 import { NewWeddingPage } from '@/pages/NewWeddingPage'
 import { WeddingImportPage } from '@/pages/WeddingImportPage'
 import { WeddingContractRecoveryPage } from '@/pages/WeddingContractRecoveryPage'
-import { CalendarPage } from '@/pages/CalendarPage'
-import { SessionsPage } from '@/pages/SessionsPage'
+import { CalendarRoutePage } from '@/pages/CalendarRoutePage'
+import { SessionsRoutePage } from '@/pages/SessionsRoutePage'
 import { NewSessionPage } from '@/pages/NewSessionPage'
-import { SessionDetailPage } from '@/pages/SessionDetailPage'
+import { SessionDetailRoutePage } from '@/pages/SessionDetailRoutePage'
 import { EditSessionPage } from '@/pages/EditSessionPage'
 import { ContractQuestionnaireEditorPage } from '@/pages/ContractQuestionnaireEditorPage'
 import { QuestionnaireDetailPage } from '@/pages/QuestionnaireDetailPage'
@@ -47,6 +47,7 @@ import { ResetPasswordPage } from '@/pages/ResetPasswordPage'
 import { CheckEmailPage } from '@/pages/CheckEmailPage'
 import { AuthCallbackPage } from '@/pages/AuthCallbackPage'
 import { isAiContractLabEnabled } from '@/features/ai-contract-lab/aiContractLabFlags'
+import { RedirectToRootPreserveHash } from '@/routes/RedirectToRootPreserveHash'
 
 /** Redirect legacy `/umowy/szablony/:id…` URLs while preserving the id param. */
 function RedirectTemplateDeepLink({
@@ -125,11 +126,19 @@ const devRoutes = import.meta.env.DEV
 export const router = createBrowserRouter([
   {
     element: <AuthCallbackGate />,
+    // SPA library mode: silence missing HydrateFallback while lazy modules resolve.
+    hydrateFallbackElement: <></>,
     children: [
       { path: '/', element: <LandingPage /> },
       {
+        // Obsolete Landing V3 preview — retire to the public root.
         path: '/landing-v3',
-        element: <LandingPage />,
+        element: <RedirectToRootPreserveHash />,
+      },
+      {
+        // Former experimental Landing V2 URL — same experience now lives at `/`.
+        path: '/landingv2',
+        element: <RedirectToRootPreserveHash />,
       },
       { path: '/login', element: <LoginPage /> },
       { path: '/register', element: <RegisterPage /> },
@@ -142,12 +151,16 @@ export const router = createBrowserRouter([
       {
         element: <ProtectedRoute />,
         children: [
-          { path: '/dashboard', element: <DashboardPage /> },
+          { path: '/dashboard', element: <DashboardRoutePage /> },
+          {
+            path: '/dashboard-v3',
+            element: <Navigate to="/dashboard" replace />,
+          },
           { path: '/powiadomienia', element: <NotificationsPage /> },
           { path: '/finanse', element: <FinancePage /> },
           // Retired experimental Dashboard V2 — bookmarks redirect to production Pulpit.
           { path: '/dashboard-v2', element: <Navigate to="/dashboard" replace /> },
-          { path: '/sluby', element: <WeddingsPage /> },
+          { path: '/sluby', element: <WeddingsRoutePage /> },
           { path: '/zadania', element: <TasksPage /> },
           { path: '/sluby/nowy', element: <NewWeddingPage /> },
           { path: '/sluby/import', element: <WeddingImportPage /> },
@@ -167,12 +180,12 @@ export const router = createBrowserRouter([
             path: '/sluby/:weddingId/dzien-slubu',
             element: <WeddingDayCockpitPage />,
           },
-          { path: '/sluby/:id', element: <WeddingDetailPage /> },
-          { path: '/sesje', element: <SessionsPage /> },
+          { path: '/sluby/:id', element: <WeddingDetailRoutePage /> },
+          { path: '/sesje', element: <SessionsRoutePage /> },
           { path: '/sesje/nowa', element: <NewSessionPage /> },
           { path: '/sesje/:sessionId/edytuj', element: <EditSessionPage /> },
-          { path: '/sesje/:sessionId', element: <SessionDetailPage /> },
-          { path: '/kalendarz', element: <CalendarPage /> },
+          { path: '/sesje/:sessionId', element: <SessionDetailRoutePage /> },
+          { path: '/kalendarz', element: <CalendarRoutePage /> },
       {
         path: '/ankiety',
         element: <QuestionnaireLibraryPage />,

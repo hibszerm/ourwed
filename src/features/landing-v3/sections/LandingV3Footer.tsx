@@ -8,15 +8,24 @@ export function LandingV3Footer() {
         <div>
           <BrandMark />
           <p className={styles.footerCopy}>
-            CRM dla fotografów, filmowców i content creatorów w branży ślubnej.
+            CRM dla fotografów, filmowców i twórców ślubnych.
           </p>
         </div>
         <ul className={styles.footerLinks}>
           <li>
-            <a href="#produkt">Produkt</a>
+            <a href="#jak-dziala">Jak działa</a>
+          </li>
+          <li>
+            <a href="#stworzone-przez">Stworzone przez</a>
+          </li>
+          <li>
+            <a href="#dla-kogo">Dla kogo</a>
           </li>
           <li>
             <a href="#cennik">Cennik</a>
+          </li>
+          <li>
+            <a href="#faq">FAQ</a>
           </li>
           <li>
             <a href="/login">Logowanie</a>
@@ -29,9 +38,7 @@ export function LandingV3Footer() {
           </li>
         </ul>
       </div>
-      <p className={styles.footerMeta}>
-        © {new Date().getFullYear()} OurWed · Landing V3 (wersja przeglądowa)
-      </p>
+      <p className={styles.footerMeta}>© {new Date().getFullYear()} OurWed</p>
     </footer>
   )
 }

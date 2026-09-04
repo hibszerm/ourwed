@@ -1,0 +1,360 @@
+/*
+ * Landscape iPad — three material levels only:
+ * 1) dark aluminum chassis (.device)
+ * 2) black bezel (.bezel)
+ * 3) screen (.screen)
+ *
+ * --hardware-progress: 0 = product only; 1 = full enclosure (expands outward).
+ * Buttons are absolute children of .device and overlap the chassis edge.
+ */
+
+.device {
+  --tablet-design-width: 1420px;
+  /*
+   * Inherit --hardware-progress from parent stage (scroll theater).
+   * Fallback 1 keeps reduced-motion / simple stack fully enclosed.
+   */
+  --hw: var(--hardware-progress, 1);
+  /* Visible aluminum rim ~6–8px; bezel ~10–12px at desktop */
+  --chassis: 7px;
+  --bezel: 11px;
+  --outer-radius: 38px;
+  --bezel-radius: 32px;
+  --screen-radius: 22px;
+  --outset: calc((var(--chassis) + var(--bezel)) * var(--hw));
+  /*
+   * ONE canonical landscape ratio — dashboard design canvas 1420×860.
+   * Height ALWAYS follows width; never independent vh/cqi sizing.
+   * Taller than the old svh-clipped laptop look (~1.99), still wider than the broken
+   * independent cqi-height square look (~1.47). Screen matches dashboard exactly →
+   * Graphite/blackout fill with no cream lower strip.
+   */
+  --screen-ratio: 142 / 86;
+  --screen-ratio-num: 1.6511627907;
+  /* Sticky stage pad (16+24) + nav — available height for the whole device */
+  --device-avail-h: calc(100svh - var(--lv2-nav-h, 68px) - 40px);
+
+  position: relative;
+  box-sizing: border-box;
+  /*
+   * Width responds to viewport, but never exceeds what available height
+   * allows at the canonical ratio (prevents tall/square iPads on 27").
+   * Aluminum wraps outward — product screen width stays coherent.
+   */
+  width: min(
+    calc(97vw + 2 * var(--outset)),
+    calc(1480px + 2 * var(--outset)),
+    calc(
+      (var(--device-avail-h) - 2 * var(--outset)) * var(--screen-ratio-num) +
+        2 * var(--outset)
+    )
+  );
+  max-width: calc(1480px + 2 * (var(--chassis) + var(--bezel)));
+  margin-inline: auto;
+  padding: calc(var(--chassis) * var(--hw));
+  border-radius: calc(
+    var(--screen-radius) + (var(--outer-radius) - var(--screen-radius)) * var(--hw)
+  );
+  background: transparent;
+  /* Contact shadow — scales with hardware; no grey stroke */
+  box-shadow:
+    0 calc(28px * var(--hw)) calc(55px * var(--hw))
+      rgba(24, 20, 16, calc(0.16 * var(--hw))),
+    0 calc(8px * var(--hw)) calc(18px * var(--hw))
+      rgba(24, 20, 16, calc(0.08 * var(--hw)));
+}
+
+/* Near-black anodized aluminum — reads as metal edge, not grey frame */
+.device::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: var(--hw);
+  background: linear-gradient(
+    160deg,
+    #1a1d1f 0%,
+    #121516 40%,
+    #0c0e10 75%,
+    #080a0b 100%
+  );
+  /* Only a 1px optical lip — no medium-grey band */
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.65);
+}
+
+/* Restrained edge definition */
+.device::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: var(--hw);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+.bezel {
+  position: relative;
+  z-index: 2;
+  box-sizing: border-box;
+  width: 100%;
+  /* Height comes from .screen aspect-ratio — bezel padding wraps it */
+  height: auto;
+  padding: calc(var(--bezel) * var(--hw));
+  border-radius: calc(
+    var(--screen-radius) + (var(--bezel-radius) - var(--screen-radius)) * var(--hw)
+  );
+  background: transparent;
+}
+
+.bezel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: var(--hw);
+  background: #060708;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.035);
+}
+
+.device[data-hardware='hidden'] {
+  box-shadow: none;
+}
+
+.device[data-hardware='hidden']::before,
+.device[data-hardware='hidden']::after,
+.device[data-hardware='hidden'] .bezel::before {
+  opacity: 0;
+  box-shadow: none;
+}
+
+/* Camera — centered on top long edge, sits in bezel band */
+.cameraCluster {
+  position: absolute;
+  top: calc((var(--chassis) + 3px) * var(--hw));
+  left: 50%;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transform: translateX(-50%);
+  opacity: var(--hw);
+  pointer-events: none;
+}
+
+.lens {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 35% 35%,
+    #203b4b 0%,
+    #0a1218 35%,
+    #020303 70%
+  );
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.03);
+}
+
+.sensor {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: #090b0c;
+}
+
+/*
+ * Physical buttons — children of .device, overlap chassis edge.
+ * Settle-in is ≤2px; never push further out as --hw increases.
+ */
+.powerButton,
+.volumeUp,
+.volumeDown {
+  position: absolute;
+  z-index: 4;
+  pointer-events: none;
+  opacity: var(--hw);
+}
+
+.powerButton {
+  /*
+   * Overlap chassis wall: ~1px protrudes, ~3px sits in the metal.
+   */
+  top: -1px;
+  right: 13%;
+  width: 34px;
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(to bottom, #2c3032, #141718 55%, #0c0e10);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 1px 1px rgba(0, 0, 0, 0.35);
+  transform: translateY(calc((1 - var(--hw)) * -2px));
+}
+
+.volumeUp,
+.volumeDown {
+  right: -1px;
+  width: 4px;
+  height: 26px;
+  border-radius: 1px 2px 2px 1px;
+  background: linear-gradient(to right, #0c0e10, #1c2022 55%, #2c3032);
+  box-shadow:
+    inset 1px 0 0 rgba(255, 255, 255, 0.07),
+    1px 0 1px rgba(0, 0, 0, 0.3);
+  transform: translateX(calc((1 - var(--hw)) * 2px));
+}
+
+.volumeUp {
+  top: 24%;
+}
+
+.volumeDown {
+  top: calc(24% + 33px);
+}
+
+.screen {
+  --dashboard-design-width: var(--tablet-design-width);
+  container-type: inline-size;
+  container-name: tablet-screen;
+  position: relative;
+  z-index: 1;
+  box-sizing: border-box;
+  width: 100%;
+  /* Height follows canonical ratio only — never independent svh/cqi height */
+  aspect-ratio: var(--screen-ratio);
+  height: auto;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: var(--screen-radius);
+  /*
+   * Floor matches Light dashboard environment. Graphite/blackout cover the
+   * full opening because screen aspect ≤ scaled dashboard (always clipped).
+   */
+  background: #f2e9de;
+}
+
+/* Display power-down — clipped by .screen only, never blurs the dashboard */
+.screenBlackout {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  pointer-events: none;
+  border-radius: inherit;
+  background: #000000;
+  opacity: var(--screen-blackout, 0);
+}
+
+.screen > *:not([data-tablet-blackout]) {
+  width: var(--dashboard-design-width);
+  transform: scale(calc(100cqi / 1420px));
+  transform-origin: top left;
+  pointer-events: none;
+}
+
+/* Compact / mobile — smaller hardware, buttons stay attached, no page overflow */
+.device[data-compact='true'] {
+  --chassis: 6px;
+  --bezel: 8px;
+  --outer-radius: 28px;
+  --bezel-radius: 24px;
+  --screen-radius: 16px;
+  width: min(100%, calc(400px + 2 * var(--outset)));
+  max-width: calc(400px + 2 * (var(--chassis) + var(--bezel)));
+  margin-inline: auto;
+}
+
+.device[data-compact='true'] .screen {
+  aspect-ratio: auto;
+  height: auto;
+  min-height: 0;
+  max-height: min(70svh, 640px);
+}
+
+.device[data-compact='true'] .screen > *:not([data-tablet-blackout]) {
+  width: 100%;
+  max-width: 100%;
+  transform: none;
+}
+
+.device[data-compact='true'] .powerButton {
+  width: 26px;
+  height: 3px;
+  right: 12%;
+}
+
+.device[data-compact='true'] .volumeUp,
+.device[data-compact='true'] .volumeDown {
+  width: 3px;
+  height: 20px;
+}
+
+.device[data-compact='true'] .volumeDown {
+  top: calc(24% + 26px);
+}
+
+.device[data-compact='true'] .cameraCluster {
+  gap: 4px;
+}
+
+.device[data-compact='true'] .lens {
+  width: 4px;
+  height: 4px;
+}
+
+@media (max-width: 1100px) {
+  .device:not([data-compact='true']) {
+    --chassis: 6px;
+    --bezel: 8px;
+    --outer-radius: 28px;
+    --bezel-radius: 24px;
+    --screen-radius: 16px;
+    width: min(100%, calc(400px + 2 * var(--outset)));
+    max-width: calc(400px + 2 * (var(--chassis) + var(--bezel)));
+    margin-inline: auto;
+  }
+
+  .device:not([data-compact='true']) .screen {
+    aspect-ratio: auto;
+    height: auto;
+    min-height: 0;
+    max-height: min(70svh, 640px);
+  }
+
+  .device:not([data-compact='true']) .screen > *:not([data-tablet-blackout]) {
+    width: 100%;
+    max-width: 100%;
+    transform: none;
+  }
+
+  .device:not([data-compact='true']) .powerButton {
+    width: 26px;
+    height: 3px;
+  }
+
+  .device:not([data-compact='true']) .volumeUp,
+  .device:not([data-compact='true']) .volumeDown {
+    width: 3px;
+    height: 20px;
+  }
+}
+
+@media (max-width: 767px) {
+  .device .powerButton {
+    width: 24px;
+    height: 3px;
+  }
+
+  .device .volumeUp,
+  .device .volumeDown {
+    width: 3px;
+    height: 18px;
+  }
+}
