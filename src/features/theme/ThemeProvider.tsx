@@ -10,6 +10,7 @@ import {
 } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/features/auth/AuthProvider'
+import { readDocumentAppearance } from '@/features/appearance/applyAppearance'
 import { applyThemeToDocument } from '@/features/theme/applyTheme'
 import { listThemes, type ThemeDefinition } from '@/features/theme/themeRegistry'
 import {
@@ -31,7 +32,7 @@ import {
 
 function applyPrivateTheme(themeId: ThemeId) {
   if (isPublicThemeSurfaceActive()) return
-  applyThemeToDocument(themeId)
+  applyThemeToDocument(themeId, readDocumentAppearance())
 }
 
 interface ThemeContextValue {

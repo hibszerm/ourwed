@@ -1,9 +1,14 @@
-import { SHARED_STATUS_TOKENS } from '@/features/theme/statusColors'
+import {
+  DEFAULT_APPEARANCE,
+  type Appearance,
+} from '@/features/appearance/types'
+import { resolveStatusColors } from '@/features/theme/statusColors'
 import {
   buildLegacyColorBridge,
   SEMANTIC_TOKEN_KEYS,
   type ThemeTokenMap,
 } from '@/features/theme/tokenKeys'
+import { resolveDarkThemeTokens } from '@/features/theme/dark/resolveDarkTokens'
 import { CLASSIC_TOKENS } from '@/features/theme/tokens/classic'
 import { GRAPHITE_TOKENS } from '@/features/theme/tokens/graphite'
 import { SAGE_GARDEN_TOKENS } from '@/features/theme/tokens/sageGarden'
@@ -32,7 +37,7 @@ export const THEME_REGISTRY: Record<ThemeId, ThemeDefinition> = {
     id: 'classic',
     name: 'Classic',
     description: 'Obecny, minimalistyczny wygląd OurWed.',
-    referencePalette: ['#0a0a0a', '#f7f7f7', '#ffffff', '#5c5c5c', '#e8e8e8'],
+    referencePalette: ['#0a0a0a', '#f5f2ed', '#ffffff', '#5c5c5c', '#e8e8e8'],
     sortOrder: 0,
     tokens: CLASSIC_TOKENS,
   },
@@ -84,15 +89,26 @@ export function getTheme(id: ThemeId): ThemeDefinition {
   return THEME_REGISTRY[id] ?? THEME_REGISTRY[DEFAULT_THEME_ID]
 }
 
+function resolveThemeTokensForAppearance(
+  lightTokens: ThemeTokenMap,
+  themeId: ThemeId,
+  appearance: Appearance,
+): ThemeTokenMap {
+  if (appearance === 'light') return lightTokens
+  return resolveDarkThemeTokens(themeId)
+}
+
 /** Full CSS custom property map for a theme (semantic + status + legacy bridges). */
 export function resolveThemeCssVariables(
   id: ThemeId,
+  appearance: Appearance = DEFAULT_APPEARANCE,
 ): Record<string, string> {
   const theme = getTheme(id)
+  const tokens = resolveThemeTokensForAppearance(theme.tokens, id, appearance)
   return {
-    ...SHARED_STATUS_TOKENS,
-    ...theme.tokens,
-    ...buildLegacyColorBridge(theme.tokens),
+    ...resolveStatusColors(appearance),
+    ...tokens,
+    ...buildLegacyColorBridge(tokens),
   }
 }
 

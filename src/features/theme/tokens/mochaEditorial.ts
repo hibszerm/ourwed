@@ -131,4 +131,5 @@ export const MOCHA_EDITORIAL_TOKENS: ThemeTokenMap = {
   '--shadow-md': '0 2px 8px rgba(51, 40, 32, 0.035), 0 18px 44px rgba(51, 40, 32, 0.06)',
   '--shadow-lg': '0 10px 28px rgba(51, 40, 32, 0.045), 0 32px 68px rgba(51, 40, 32, 0.075)',
   '--shadow-drawer': '-16px 0 48px rgba(51, 40, 32, 0.16)',
+  '--browser-chrome-color': '#EBE7E2',
 }

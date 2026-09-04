@@ -9,12 +9,12 @@
 
 :root {
   /* ── Surfaces (Classic defaults) ──────────────────── */
-  --color-bg: #f7f7f7;
-  --color-bg-subtle: #efefef;
+  --color-bg: #f5f2ed;
+  --color-bg-subtle: #ebe8e2;
   --color-bg-sunken: #e8e8e8;
   --color-bg-elevated: #ffffff;
   --color-surface: #ffffff;
-  --color-surface-hover: #fafafa;
+  --color-surface-hover: #faf8f4;
   --color-border: rgba(0, 0, 0, 0.06);
   --color-border-strong: rgba(0, 0, 0, 0.1);
   --color-overlay: rgba(0, 0, 0, 0.32);

@@ -5,7 +5,7 @@ export {
   isThemeId,
   validateThemeId,
 } from '@/features/theme/types'
-export { SHARED_STATUS_TOKENS } from '@/features/theme/statusColors'
+export { SHARED_STATUS_TOKENS, resolveStatusColors } from '@/features/theme/statusColors'
 export {
   SEMANTIC_TOKEN_KEYS,
   buildLegacyColorBridge,

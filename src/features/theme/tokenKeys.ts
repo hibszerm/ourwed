@@ -131,6 +131,7 @@ export const SEMANTIC_TOKEN_KEYS = [
   '--shadow-md',
   '--shadow-lg',
   '--shadow-drawer',
+  '--browser-chrome-color',
 ] as const
 
 export type SemanticTokenKey = (typeof SEMANTIC_TOKEN_KEYS)[number]

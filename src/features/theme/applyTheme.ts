@@ -1,3 +1,9 @@
+import { resolveBrowserThemeColor } from '@/features/appearance/browserThemeColor'
+import {
+  DEFAULT_APPEARANCE,
+  validateAppearance,
+  type Appearance,
+} from '@/features/appearance/types'
 import { resolveThemeCssVariables } from '@/features/theme/themeRegistry'
 import {
   DEFAULT_THEME_ID,
@@ -5,16 +11,22 @@ import {
   type ThemeId,
 } from '@/features/theme/types'
 
+const META_SELECTOR = 'meta[name="theme-color"]'
+
 const APPLIED_KEYS_ATTR = 'data-ourwed-theme-vars'
 
 /**
  * Apply theme CSS variables on <html> and set data-theme.
  * Safe to call before React mounts (FOUC prevention).
  */
-export function applyThemeToDocument(themeId: ThemeId | string): ThemeId {
+export function applyThemeToDocument(
+  themeId: ThemeId | string,
+  appearance: Appearance = DEFAULT_APPEARANCE,
+): ThemeId {
   const id = validateThemeId(themeId)
+  const mode = validateAppearance(appearance)
   const root = document.documentElement
-  const vars = resolveThemeCssVariables(id)
+  const vars = resolveThemeCssVariables(id, mode)
 
   root.dataset.theme = id
 
@@ -31,6 +43,15 @@ export function applyThemeToDocument(themeId: ThemeId | string): ThemeId {
     keys.push(key)
   }
   root.setAttribute(APPLIED_KEYS_ATTR, keys.join(' '))
+
+  const themeColor = resolveBrowserThemeColor(id, mode)
+  let meta = document.querySelector<HTMLMetaElement>(META_SELECTOR)
+  if (!meta) {
+    meta = document.createElement('meta')
+    meta.name = 'theme-color'
+    document.head.appendChild(meta)
+  }
+  meta.content = themeColor
 
   return id
 }

@@ -132,4 +132,5 @@ export const SAGE_GARDEN_TOKENS: ThemeTokenMap = {
   '--shadow-md': '0 2px 8px rgba(13, 43, 29, 0.035), 0 16px 40px rgba(13, 43, 29, 0.055)',
   '--shadow-lg': '0 8px 24px rgba(13, 43, 29, 0.045), 0 28px 64px rgba(13, 43, 29, 0.07)',
   '--shadow-drawer': '-16px 0 48px rgba(13, 43, 29, 0.16)',
+  '--browser-chrome-color': '#F5F6F4',
 }

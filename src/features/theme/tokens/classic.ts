@@ -1,20 +1,20 @@
 import type { ThemeTokenMap } from '@/features/theme/tokenKeys'
 
 /**
- * Classic — current OurWed monochrome appearance (exact values from tokens.css).
- * Do not redesign. Reference: existing authenticated CRM UI.
+ * Classic — light monochrome OurWed appearance.
+ * Workspace paper is a warm limestone neutral; surfaces stay clean white.
  */
 export const CLASSIC_TOKENS: ThemeTokenMap = {
-  '--app-background': '#f7f7f7',
-  '--app-background-subtle': '#efefef',
+  '--app-background': '#f5f2ed',
+  '--app-background-subtle': '#ebe8e2',
   '--app-background-raised': '#ffffff',
 
   '--surface-primary': '#ffffff',
-  '--surface-secondary': '#fafafa',
+  '--surface-secondary': '#faf8f4',
   '--surface-tertiary': '#e8e8e8',
   '--surface-elevated': '#ffffff',
   '--surface-inverse': '#0a0a0a',
-  '--surface-hover': '#fafafa',
+  '--surface-hover': '#faf8f4',
   '--surface-selected': '#f0f0f0',
 
   '--sidebar-background': '#0a0a0a',
@@ -56,7 +56,7 @@ export const CLASSIC_TOKENS: ThemeTokenMap = {
   '--button-primary-text': '#ffffff',
   '--button-primary-border': 'transparent',
   '--button-secondary-background': '#ffffff',
-  '--button-secondary-background-hover': '#fafafa',
+  '--button-secondary-background-hover': '#faf8f4',
   '--button-secondary-text': '#0a0a0a',
   '--button-secondary-border': 'rgba(0, 0, 0, 0.1)',
   '--button-ghost-background-hover': 'rgba(0, 0, 0, 0.04)',
@@ -81,7 +81,7 @@ export const CLASSIC_TOKENS: ThemeTokenMap = {
   '--tab-border-active': '#0a0a0a',
 
   '--card-background': '#ffffff',
-  '--card-background-hover': '#fafafa',
+  '--card-background-hover': '#faf8f4',
   '--card-border': 'rgba(0, 0, 0, 0.06)',
   '--card-border-hover': 'rgba(0, 0, 0, 0.1)',
   '--panel-background': '#ffffff',
@@ -104,10 +104,10 @@ export const CLASSIC_TOKENS: ThemeTokenMap = {
   '--popover-border': 'rgba(0, 0, 0, 0.08)',
 
   '--row-background': '#ffffff',
-  '--row-background-hover': '#fafafa',
+  '--row-background-hover': '#faf8f4',
   '--row-background-selected': '#f0f0f0',
   '--row-border': 'rgba(0, 0, 0, 0.06)',
-  '--table-header-background': '#f7f7f7',
+  '--table-header-background': '#f5f2ed',
   '--table-header-text': '#5c5c5c',
 
   '--calendar-today-background': '#f0f0f0',
@@ -119,8 +119,8 @@ export const CLASSIC_TOKENS: ThemeTokenMap = {
   '--timeline-node-active': '#0a0a0a',
 
   '--separator': 'rgba(0, 0, 0, 0.06)',
-  '--skeleton-background': '#efefef',
-  '--skeleton-highlight': '#f7f7f7',
+  '--skeleton-background': '#ebe8e2',
+  '--skeleton-highlight': '#f5f2ed',
   '--selection-background': 'rgba(10, 10, 10, 0.12)',
   '--selection-text': '#0a0a0a',
   '--scrollbar-thumb': 'rgba(0, 0, 0, 0.2)',
@@ -131,4 +131,5 @@ export const CLASSIC_TOKENS: ThemeTokenMap = {
   '--shadow-md': '0 2px 6px rgba(0, 0, 0, 0.04), 0 14px 34px rgba(0, 0, 0, 0.06)',
   '--shadow-lg': '0 8px 20px rgba(0, 0, 0, 0.05), 0 28px 60px rgba(0, 0, 0, 0.08)',
   '--shadow-drawer': '-18px 0 48px rgba(0, 0, 0, 0.18)',
+  '--browser-chrome-color': '#f3efe8',
 }

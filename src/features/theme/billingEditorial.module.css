@@ -1,0 +1,71 @@
+/**
+ * Intentional PRO / billing warm editorial inserts.
+ * These surfaces remain a light cream/gold accent inside Dark workspaces
+ * (premium membership card / notice treatment — not accidental Light leakage).
+ */
+
+.warmBanner {
+  border: 1px solid rgba(184, 140, 78, 0.28);
+  background: rgba(184, 140, 78, 0.08);
+}
+
+.warmBannerLock {
+  color: #8a6a3d;
+}
+
+.warmBannerHeading {
+  color: #2c261e;
+}
+
+.warmBannerBody {
+  color: #3d3428;
+}
+
+.warmBannerCta {
+  color: #1d272b;
+}
+
+.warmBannerMuted {
+  color: #5c5348;
+}
+
+.warmBannerMuted:hover,
+.warmBannerMuted:focus-visible {
+  color: #1d272b;
+}
+
+.warmNotice {
+  border: 1px solid rgba(196, 140, 72, 0.28);
+  background: rgba(196, 140, 72, 0.08);
+}
+
+.warmNoticeCta {
+  color: #1d272b;
+}
+
+.warmNoticeTitle {
+  color: #2c261e;
+}
+
+.warmNoticeCopy {
+  color: #5c5348;
+}
+
+.warmInline {
+  border: 1px solid rgba(184, 140, 78, 0.22);
+  background: rgba(184, 140, 78, 0.07);
+  color: #3d3428;
+}
+
+.warmInlineIcon {
+  color: #8a6a3d;
+}
+
+.warmPlanAccent {
+  border-color: rgba(29, 39, 43, 0.28);
+  background: linear-gradient(
+    180deg,
+    rgba(184, 140, 78, 0.07),
+    transparent 50%
+  );
+}

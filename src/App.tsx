@@ -1,6 +1,8 @@
 import { QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider } from '@/features/auth/AuthProvider'
+import { AppearanceProvider } from '@/features/appearance/AppearanceProvider'
 import { ThemeProvider } from '@/features/theme/ThemeProvider'
+import { InterfaceStyleProvider } from '@/features/interface-style/InterfaceStyleProvider'
 import { ToastProvider } from '@/components/ui/Toast'
 import { queryClient } from '@/lib/queryClient'
 import { AppRouter } from '@/routes'
@@ -21,9 +23,13 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <ThemeProvider>
-          <ToastProvider>
-            <AppRouter />
-          </ToastProvider>
+          <AppearanceProvider>
+            <InterfaceStyleProvider>
+              <ToastProvider>
+                <AppRouter />
+              </ToastProvider>
+            </InterfaceStyleProvider>
+          </AppearanceProvider>
         </ThemeProvider>
       </AuthProvider>
     </QueryClientProvider>

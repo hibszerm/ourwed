@@ -1,12 +1,12 @@
 import type { ThemeTokenMap } from '@/features/theme/tokenKeys'
 
 /**
- * Graphite — luxury graphite navy, champagne paper, walnut neutrals.
+ * Graphite — luxury navy ink on warm editorial paper.
  * Reference: #0A0908, #22333B, #EAE0D5, #C6AC8E, #5E503F
- * Brand = accents only; surfaces stay warm ivory.
+ * Brand = navy accents only; workspace paper is warm ivory / oat.
  */
 export const GRAPHITE_TOKENS: ThemeTokenMap = {
-  '--app-background': '#F3EEE7',
+  '--app-background': '#F2E9DE',
   '--app-background-subtle': '#EBE4DA',
   '--app-background-raised': '#FFFCF8',
 
@@ -57,14 +57,14 @@ export const GRAPHITE_TOKENS: ThemeTokenMap = {
   '--button-primary-text': '#FFFFFF',
   '--button-primary-border': 'transparent',
   '--button-secondary-background': '#FFFBF7',
-  '--button-secondary-background-hover': '#F3EEE7',
+  '--button-secondary-background-hover': '#F2E9DE',
   '--button-secondary-text': '#1A1614',
   '--button-secondary-border': 'rgba(198, 172, 142, 0.4)',
   '--button-ghost-background-hover': 'rgba(34, 51, 59, 0.05)',
   '--button-ghost-text': '#5E503F',
 
   '--input-background': '#FFFFFF',
-  '--input-background-disabled': '#F3EEE7',
+  '--input-background-disabled': '#F2E9DE',
   '--input-border': 'rgba(94, 80, 63, 0.16)',
   '--input-border-hover': 'rgba(94, 80, 63, 0.24)',
   '--input-border-focus': '#22333B',
@@ -108,7 +108,7 @@ export const GRAPHITE_TOKENS: ThemeTokenMap = {
   '--row-background-hover': '#F6F1EA',
   '--row-background-selected': '#EDE6DB',
   '--row-border': 'rgba(198, 172, 142, 0.2)',
-  '--table-header-background': '#F3EEE7',
+  '--table-header-background': '#F2E9DE',
   '--table-header-text': '#5E503F',
 
   '--calendar-today-background': '#EFE8DE',
@@ -132,4 +132,5 @@ export const GRAPHITE_TOKENS: ThemeTokenMap = {
   '--shadow-md': '0 2px 8px rgba(34, 51, 59, 0.04), 0 16px 40px rgba(34, 51, 59, 0.06)',
   '--shadow-lg': '0 8px 24px rgba(34, 51, 59, 0.05), 0 28px 64px rgba(34, 51, 59, 0.08)',
   '--shadow-drawer': '-16px 0 48px rgba(34, 51, 59, 0.16)',
+  '--browser-chrome-color': '#F2E9DE',
 }

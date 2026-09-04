@@ -1,4 +1,6 @@
 import type { CSSProperties } from 'react'
+import { useAppearance } from '@/features/appearance/useAppearance'
+import { resolveThemeCssVariables } from '@/features/theme/themeRegistry'
 import type { ThemeDefinition } from '@/features/theme/themeRegistry'
 import type { ThemeId } from '@/features/theme/types'
 import styles from './ThemePreviewCard.module.css'
@@ -11,7 +13,7 @@ interface Props {
 }
 
 /**
- * Mini UI preview built from the theme's real token values (not screenshots).
+ * Compact theme choice: real token swatches, not a fake dashboard preview.
  */
 export function ThemePreviewCard({
   theme,
@@ -19,7 +21,8 @@ export function ThemePreviewCard({
   disabled,
   onSelect,
 }: Props) {
-  const t = theme.tokens
+  const { appearance } = useAppearance()
+  const t = resolveThemeCssVariables(theme.id, appearance)
   const previewStyle = {
     '--tp-bg': t['--app-background'],
     '--tp-sidebar': t['--sidebar-background'],
@@ -47,11 +50,13 @@ export function ThemePreviewCard({
       <div className={styles.preview} aria-hidden="true">
         <div className={styles.previewSidebar} />
         <div className={styles.previewMain}>
-          <div className={styles.previewCard}>
-            <span className={styles.previewTitle}>Panel</span>
-            <span className={styles.previewBadge}>Status</span>
-            <span className={styles.previewBtn}>Akcja</span>
-          </div>
+          {theme.referencePalette.slice(0, 4).map((color) => (
+            <span
+              key={color}
+              className={styles.swatch}
+              style={{ background: color }}
+            />
+          ))}
         </div>
       </div>
 
@@ -65,15 +70,6 @@ export function ThemePreviewCard({
           ) : null}
         </div>
         <p className={styles.description}>{theme.description}</p>
-        <div className={styles.dots} aria-hidden="true">
-          {theme.referencePalette.slice(0, 5).map((color) => (
-            <span
-              key={color}
-              className={styles.dot}
-              style={{ background: color }}
-            />
-          ))}
-        </div>
       </div>
     </button>
   )

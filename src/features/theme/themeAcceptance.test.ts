@@ -103,7 +103,9 @@ run('5. status colors are shared identically for every theme', () => {
 })
 
 run('6. Classic preserves current OurWed core colors', () => {
-  assertEq(CLASSIC_TOKENS['--app-background'], '#f7f7f7', 'bg')
+  assertEq(CLASSIC_TOKENS['--app-background'], '#f5f2ed', 'bg')
+  assertEq(CLASSIC_TOKENS['--app-background-subtle'], '#ebe8e2', 'bg subtle')
+  assertEq(CLASSIC_TOKENS['--surface-secondary'], '#faf8f4', 'secondary')
   assertEq(CLASSIC_TOKENS['--surface-primary'], '#ffffff', 'surface')
   assertEq(CLASSIC_TOKENS['--text-primary'], '#0a0a0a', 'text')
   assertEq(CLASSIC_TOKENS['--brand-primary'], '#0a0a0a', 'brand')
@@ -112,12 +114,17 @@ run('6. Classic preserves current OurWed core colors', () => {
   assertEq(CLASSIC_TOKENS['--button-primary-text'], '#ffffff', 'btn text')
   assertEq(CLASSIC_TOKENS['--border-default'], 'rgba(0, 0, 0, 0.06)', 'border')
   const legacy = resolveThemeCssVariables('classic')
-  assertEq(legacy['--color-bg'], '#f7f7f7', 'legacy bg')
+  assertEq(legacy['--color-bg'], '#f5f2ed', 'legacy bg')
   assertEq(legacy['--color-accent'], '#0a0a0a', 'legacy accent')
   assertEq(legacy['--color-sidebar-bg'], '#0a0a0a', 'legacy sidebar')
 })
 
 run('7. Graphite / Sage / Burgundy / Mocha use reference accents', () => {
+  assertEq(getTheme('graphite').tokens['--sidebar-background'], '#22333B', 'graphite navy sidebar')
+  assertEq(getTheme('graphite').tokens['--brand-primary'], '#22333B', 'graphite navy brand')
+  assertEq(getTheme('graphite').tokens['--app-background'], '#F2E9DE', 'graphite warm paper')
+  assertEq(getTheme('graphite').tokens['--surface-primary'], '#FFFBF7', 'graphite ivory hero')
+  assertEq(getTheme('graphite').tokens['--surface-secondary'], '#F6F1EA', 'graphite supporting ivory')
   assert(
     getTheme('graphite').tokens['--brand-primary'].toLowerCase().includes('22333b') ||
       getTheme('graphite').tokens['--sidebar-background'].toLowerCase().includes('0a0908'),
@@ -138,8 +145,8 @@ run('7. Graphite / Sage / Burgundy / Mocha use reference accents', () => {
 })
 
 run('8. Settings + Appearance routes wire theme UI', () => {
-  const settings = readFileSync(
-    resolve(process.cwd(), 'src/pages/SettingsPage.tsx'),
+  const settingsNav = readFileSync(
+    resolve(process.cwd(), 'src/features/settings/settingsNav.ts'),
     'utf8',
   )
   const appearance = readFileSync(
@@ -154,8 +161,8 @@ run('8. Settings + Appearance routes wire theme UI', () => {
     resolve(process.cwd(), 'src/features/theme/ThemePreviewCard.tsx'),
     'utf8',
   )
-  assert(settings.includes('Personalizacja'), 'settings section')
-  assert(settings.includes('/ustawienia/wyglad'), 'appearance link')
+  assert(settingsNav.includes("label: 'Wygląd'"), 'settings appearance label')
+  assert(settingsNav.includes('/ustawienia/wyglad'), 'appearance link')
   assert(appearance.includes('Motyw aplikacji'), 'heading')
   assert(appearance.includes('useTheme'), 'hook')
   assert(appearance.includes('radiogroup'), 'a11y')

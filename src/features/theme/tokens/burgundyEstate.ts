@@ -132,4 +132,5 @@ export const BURGUNDY_ESTATE_TOKENS: ThemeTokenMap = {
   '--shadow-md': '0 2px 8px rgba(32, 14, 1, 0.035), 0 16px 40px rgba(32, 14, 1, 0.055)',
   '--shadow-lg': '0 8px 24px rgba(32, 14, 1, 0.045), 0 28px 64px rgba(32, 14, 1, 0.07)',
   '--shadow-drawer': '-16px 0 48px rgba(32, 14, 1, 0.18)',
+  '--browser-chrome-color': '#F7F5EF',
 }
