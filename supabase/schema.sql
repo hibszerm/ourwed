@@ -75,6 +75,8 @@ create table if not exists public.profiles (
   last_name text not null default '',
   profession text not null default '',
   theme_id text not null default 'classic',
+  interface_style text not null default 'classic',
+  appearance text not null default 'light',
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now()),
   constraint profiles_theme_id_check check (
@@ -85,6 +87,18 @@ create table if not exists public.profiles (
       'burgundy_estate',
       'mocha_editorial'
     )
+  ),
+  constraint profiles_interface_style_check check (
+    interface_style in (
+      'classic',
+      'modern'
+    )
+  ),
+  constraint profiles_appearance_check check (
+    appearance in (
+      'light',
+      'dark'
+    )
   )
 );
 
@@ -93,6 +107,12 @@ comment on table public.profiles is
 
 comment on column public.profiles.theme_id is
   'Private CRM UI theme id. Not studio public branding.';
+
+comment on column public.profiles.interface_style is
+  'Private CRM interface style (classic|modern). Independent from theme_id.';
+
+comment on column public.profiles.appearance is
+  'Private CRM appearance (light|dark). Independent from theme_id and interface_style.';
 
 -- =============================================================================
 -- 2. weddings — one wedding = one project
@@ -142,6 +162,8 @@ comment on table public.weddings is
 -- migration 20260729120000_wedding_correspondence.sql
 -- correspondence jsonb array added in
 -- migration 20260729140000_wedding_correspondence_multi.sql
+-- Canonical contract-party fields: see ALTER TABLE block after delivery deadline
+-- columns (migration 20260820140000_wedding_contract_party.sql).
 
 comment on column public.weddings.workflow_stage is
   'Pipeline stage only — workflow engine rules live in application code.';
@@ -772,12 +794,111 @@ create table public.wedding_extra_services (
   wedding_id uuid not null references public.weddings (id) on delete cascade,
   extra_service_id uuid not null references public.extra_services (id) on delete restrict,
   price_snapshot numeric(12, 2) not null check (price_snapshot >= 0),
+  -- Final state after 20260824120000_wedding_extra_name_snapshot.sql
+  -- (historical backfill remains migration-only).
+  name_snapshot text not null default 'Usługa',
   quantity integer not null default 1 check (quantity >= 1),
   created_at timestamptz not null default timezone('utc', now())
 );
 
+comment on column public.wedding_extra_services.name_snapshot is
+  'Frozen catalog name at selection time. Catalog renames never rewrite this.';
+
 create index wedding_extra_services_wedding_id_idx on public.wedding_extra_services (wedding_id);
 create index wedding_extra_services_extra_service_id_idx on public.wedding_extra_services (extra_service_id);
+
+-- Fill name_snapshot on INSERT when the client omits it
+-- (parity with 20260824120000_wedding_extra_name_snapshot.sql).
+create or replace function public.wedding_extra_fill_name_snapshot()
+returns trigger
+language plpgsql
+as $$
+declare
+  live_name text;
+begin
+  if new.name_snapshot is not null and length(btrim(new.name_snapshot)) > 0 then
+    new.name_snapshot := btrim(new.name_snapshot);
+    return new;
+  end if;
+  select e.name into live_name
+  from public.extra_services e
+  where e.id = new.extra_service_id;
+  new.name_snapshot := coalesce(nullif(btrim(coalesce(live_name, '')), ''), 'Usługa');
+  return new;
+end;
+$$;
+
+create trigger wedding_extra_services_fill_name_snapshot
+before insert on public.wedding_extra_services
+for each row
+execute function public.wedding_extra_fill_name_snapshot();
+
+-- =============================================================================
+-- 18b. wedding_briefs — one current Brief PDF pointer per wedding
+-- =============================================================================
+-- Parity with 20260820120000_wedding_briefs.sql.
+-- Historical versions are not retained; the application replaces the pointer
+-- then deletes the previous Storage object.
+
+create table public.wedding_briefs (
+  id uuid primary key default gen_random_uuid(),
+  wedding_id uuid not null unique references public.weddings (id) on delete cascade,
+  file_path text not null,
+  file_name text not null,
+  source_hash text not null,
+  generator_version integer not null,
+  generated_at timestamptz not null default timezone('utc', now()),
+  byte_size bigint,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+create index wedding_briefs_wedding_id_idx
+  on public.wedding_briefs (wedding_id);
+
+comment on table public.wedding_briefs is
+  'One current Wedding Brief PDF per wedding. Replace in place; do not accumulate versions.';
+
+create trigger wedding_briefs_set_updated_at
+  before update on public.wedding_briefs
+  for each row
+  execute function public.set_updated_at();
+
+alter table public.wedding_briefs enable row level security;
+alter table public.wedding_briefs force row level security;
+
+create policy wedding_briefs_select_own
+  on public.wedding_briefs for select to authenticated
+  using (public.is_wedding_owner(wedding_id));
+
+create policy wedding_briefs_insert_own
+  on public.wedding_briefs for insert to authenticated
+  with check (
+    public.is_wedding_owner(wedding_id)
+    and public.account_has_pro_access()
+  );
+
+create policy wedding_briefs_update_own
+  on public.wedding_briefs for update to authenticated
+  using (
+    public.is_wedding_owner(wedding_id)
+    and public.account_has_pro_access()
+  )
+  with check (
+    public.is_wedding_owner(wedding_id)
+    and public.account_has_pro_access()
+  );
+
+create policy wedding_briefs_delete_own
+  on public.wedding_briefs for delete to authenticated
+  using (
+    public.is_wedding_owner(wedding_id)
+    and public.account_has_pro_access()
+  );
+
+revoke all on public.wedding_briefs from public, anon;
+grant select, insert, update, delete on public.wedding_briefs
+  to authenticated;
 
 -- Link weddings to catalog (snapshots remain on weddings.* scalar columns).
 alter table public.weddings
@@ -803,6 +924,61 @@ alter table public.weddings
 
 alter table public.weddings
   add column if not exists delivery_days integer;
+
+alter table public.weddings
+  add column if not exists delivery_due_date date;
+
+alter table public.weddings
+  add column if not exists delivery_due_source text;
+
+alter table public.weddings
+  add column if not exists delivery_completed_at timestamptz;
+
+alter table public.weddings
+  drop constraint if exists weddings_delivery_due_source_check;
+
+alter table public.weddings
+  add constraint weddings_delivery_due_source_check
+  check (
+    delivery_due_source is null
+    or delivery_due_source in ('package', 'manual')
+  );
+
+comment on column public.weddings.delivery_due_date is
+  'Concrete delivery due date (YYYY-MM-DD). Snapshot of wedding date + delivery_months/days, or a manual override.';
+comment on column public.weddings.delivery_due_source is
+  'package = derived from wedding delivery rule; manual = studio override. Null when no due date.';
+comment on column public.weddings.delivery_completed_at is
+  'When the studio marked materials as delivered. Null = not completed. Not workflow_stage.';
+
+create index if not exists weddings_active_delivery_due_idx
+  on public.weddings (delivery_due_date)
+  where delivery_due_date is not null
+    and delivery_completed_at is null;
+
+-- Canonical photographer-entered contract-party fields
+-- (parity with 20260820140000_wedding_contract_party.sql).
+-- Additive nullable columns only — no defaults, no backfill in schema.sql.
+alter table public.weddings
+  add column if not exists groom_phone text;
+
+alter table public.weddings
+  add column if not exists contract_address text;
+
+alter table public.weddings
+  add column if not exists contract_postal_code text;
+
+alter table public.weddings
+  add column if not exists contract_city text;
+
+comment on column public.weddings.groom_phone is
+  'Groom phone. Canonical studio-entered party data; independent of questionnaire submission.';
+comment on column public.weddings.contract_address is
+  'Contract correspondence street address. Canonical studio-entered party data; independent of questionnaire submission.';
+comment on column public.weddings.contract_postal_code is
+  'Contract correspondence postal code. Canonical studio-entered party data; independent of questionnaire submission.';
+comment on column public.weddings.contract_city is
+  'Contract correspondence city. Canonical studio-entered party data; independent of questionnaire submission.';
 
 alter table public.weddings
   add column if not exists final_payment_due_date date;
@@ -1077,6 +1253,7 @@ alter table public.wedding_extra_services enable row level security;
 alter table public.studio_travel_settings enable row level security;
 alter table public.wedding_places enable row level security;
 alter table public.travel_segments enable row level security;
+-- wedding_briefs: RLS + FORCE + policies defined with table (§18b)
 -- wedding_operational_times: supabase/migrations/20260813120000_wedding_operational_times.sql
 -- wedding_operational_completions: supabase/migrations/20260813140000_wedding_operational_completions.sql
 
