@@ -11,6 +11,7 @@ import {
 } from '@/services/googleRoutesProvider'
 import type { RouteResult } from '@/services/googleRoutesNormalize'
 import type { NormalizedAddress } from '@/services/addressAutocompleteProvider'
+import { createBrowserSafeId } from '@/lib/utils/createBrowserSafeId'
 
 export type TravelProviderErrorCode =
   | 'bad_request'
@@ -104,10 +105,7 @@ async function invokePlaces(
 }
 
 function newSessionToken(): string {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-    return crypto.randomUUID()
-  }
-  return `s-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
+  return createBrowserSafeId()
 }
 
 export const travelProvider = {

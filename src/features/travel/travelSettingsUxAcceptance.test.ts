@@ -187,7 +187,12 @@ run('G/H. page source hides coordinates and place_id', () => {
   assert(src.includes('resolveTravelSettingsSaveUi'), 'save ui helper')
   assert(src.includes('isTravelSettingsFormDirty'), 'dirty helper')
   assert(src.includes('travel-settings-saved'), 'saved test id')
-  assert(src.includes('section-gap') || src.includes('styles.sections'), 'spacing')
+  assert(src.includes('SettingsWorkspace'), 'workspace surface')
+  assert(!src.includes('Adres firmy używany'), 'origin is not legal company address')
+  assert(
+    src.includes('od którego OurWed oblicza trasę'),
+    'origin copy describes route start',
+  )
 })
 
 run('I. async init: empty→persisted sets form and baseline together (not dirty)', () => {

@@ -22,7 +22,7 @@ const schemaSrc = readFileSync(
   'utf8',
 )
 const studioUser = readFileSync(join(ROOT, 'src/lib/api/studioUser.ts'), 'utf8')
-const settings = readFileSync(join(ROOT, 'src/pages/SettingsPage.tsx'), 'utf8')
+const settingsNav = readFileSync(join(ROOT, 'src/features/settings/settingsNav.ts'), 'utf8')
 const router = readFileSync(join(ROOT, 'src/routes/router.tsx'), 'utf8')
 const rls = readFileSync(
   join(ROOT, 'supabase/migrations/20260722140000_auth_profiles.sql'),
@@ -36,9 +36,9 @@ const adminIdentity = readFileSync(
 assert(existsSync(join(ROOT, 'src/pages/AccountSettingsPage.tsx')), 'page exists')
 assert(router.includes("/ustawienia/konto"), 'route registered')
 assert(router.includes('AccountSettingsPage'), 'page imported')
-assert(settings.includes("to: '/ustawienia/konto'"), 'settings hub link')
-assert(settings.includes("title: 'Konto'"), 'konto title')
-assert(settings.includes("Imię, nazwisko i dane konta."), 'konto description')
+assert(settingsNav.includes("path: '/ustawienia/konto'"), 'settings hub link')
+assert(settingsNav.includes("label: 'Profil'"), 'profil title')
+assert(settingsNav.includes('Imię, nazwisko i e-mail'), 'konto description')
 
 // Customer account module must not ship service_role
 for (const file of [
@@ -69,16 +69,18 @@ assert(studioUser.includes(".from('profiles')"), 'studioUser reads profiles')
 assert(studioUser.includes('profileName || metadataName'), 'profile priority')
 
 // Page UX
-assert(page.includes('Zapisz zmiany'), 'save label')
-assert(page.includes('Dane konta zostały zapisane.'), 'success copy')
+assert(page.includes('Zapisz'), 'save label')
+assert(page.includes('Zapisano'), 'success copy')
 assert(page.includes('Nie udało się zapisać danych. Spróbuj ponownie.'), 'error copy')
 assert(page.includes('autoComplete="given-name"'), 'given-name')
 assert(page.includes('autoComplete="family-name"'), 'family-name')
-assert(page.includes('autoComplete="email"'), 'email autocomplete')
-assert(page.includes('readOnly'), 'email readonly')
-assert(page.includes('aria-live="polite"'), 'aria-live')
+assert(page.includes('SettingsReadonlyField'), 'email readonly field')
+assert(!page.includes('readOnly'), 'email is not a fake editable input')
+assert(page.includes('SettingsSaveStatus'), 'save status live region')
 assert(page.includes('disabled={!canSave}'), 'dirty save gate')
 assert(!page.includes('Zmień e-mail'), 'no email edit CTA')
+assert(page.includes('SettingsWorkspace'), 'settings workspace grammar')
+assert(page.includes('SettingsFieldGrid'), 'name grid')
 
 // Admin unchanged identity model
 assert(adminIdentity.includes('public.profiles'), 'admin still reads profiles')

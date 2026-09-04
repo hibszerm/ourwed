@@ -9,6 +9,7 @@ import { MobileFieldDialog } from '@/components/ui/MobileFieldDialog'
 import { ResponsiveFieldOverlay } from '@/components/ui/ResponsiveFieldOverlay'
 import { useIsMobileOverlay } from '@/components/ui/useIsMobileOverlay'
 import { blurActiveElement, settleAfterBlur } from '@/components/ui/iosFocus'
+import { createBrowserSafeId } from '@/lib/utils/createBrowserSafeId'
 import {
   type AddressSuggestion,
   type NormalizedAddress,
@@ -183,7 +184,7 @@ export function LocationSearchField({
     const controller = new AbortController()
     abortRef.current = controller
     const sessionToken =
-      provider.getSessionToken?.() ?? provider.beginSession?.() ?? crypto.randomUUID()
+      provider.getSessionToken?.() ?? provider.beginSession?.() ?? createBrowserSafeId()
 
     debounceRef.current = window.setTimeout(() => {
       void (async () => {

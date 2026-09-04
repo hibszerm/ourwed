@@ -6,8 +6,8 @@
   padding: 0;
   padding-top: env(safe-area-inset-top, 0px);
   padding-bottom: env(safe-area-inset-bottom, 0px);
-  background: var(--color-surface, #fff);
-  color: var(--color-text, #18181b);
+  background: var(--color-surface);
+  color: var(--color-text);
   overflow: hidden;
   min-height: 0;
   height: var(--visual-viewport-height, 100dvh);
@@ -20,8 +20,8 @@
   gap: 0.75rem;
   flex-shrink: 0;
   padding: 0.85rem 1rem 0.65rem;
-  border-bottom: 1px solid var(--color-border, #e4e4e7);
-  background: var(--color-surface, #fff);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
   position: sticky;
   top: 0;
   z-index: 2;
@@ -31,13 +31,13 @@
   margin: 0;
   font-size: 1rem;
   font-weight: 650;
-  color: var(--color-text, #18181b);
+  color: var(--color-text);
 }
 
 .close {
   border: none;
   background: transparent;
-  color: var(--color-text-secondary, #52525b);
+  color: var(--color-text-secondary);
   font: inherit;
   font-size: 0.9rem;
   cursor: pointer;
@@ -48,8 +48,8 @@
 .headerExtra {
   flex-shrink: 0;
   padding: 0.65rem 1rem;
-  border-bottom: 1px solid var(--color-border, #e4e4e7);
-  background: var(--color-surface, #fff);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
 }
 
 .body {
@@ -66,6 +66,6 @@
   gap: 0.65rem;
   justify-content: stretch;
   padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom, 0px));
-  border-top: 1px solid var(--color-border, #e4e4e7);
-  background: var(--color-surface, #fff);
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface);
 }

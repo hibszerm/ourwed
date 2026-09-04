@@ -29,6 +29,6 @@
 }
 
 .custom {
-  color: white;
+  color: var(--text-inverse);
   border-color: transparent;
 }

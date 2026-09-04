@@ -1,10 +1,14 @@
 import { useEffect, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AppLayout } from '@/layouts/AppLayout'
+import { SettingsLayout } from '@/features/settings/SettingsLayout'
+import {
+  SettingsAlert,
+  SettingsMuted,
+  SettingsWorkspace,
+} from '@/features/settings/SettingsWorkspace'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { Button } from '@/components/ui/Button'
-import { Card, CardHeader } from '@/components/ui/Card'
 import { Modal } from '@/components/ui/Modal'
 import { useToast } from '@/components/ui/Toast'
 import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
@@ -28,6 +32,17 @@ function formatWhen(iso: string | null): string {
   } catch {
     return iso
   }
+}
+
+function googleStatusLabel(google: {
+  connected: boolean
+  needsReconnect: boolean
+}): { text: string; state: 'connected' | 'idle' | 'warning' } {
+  if (!google.connected) return { text: 'Niepołączono', state: 'idle' }
+  if (google.needsReconnect) {
+    return { text: 'Wymaga ponownego połączenia', state: 'warning' }
+  }
+  return { text: 'Połączono', state: 'connected' }
 }
 
 export function CalendarIntegrationsPage() {
@@ -223,7 +238,7 @@ export function CalendarIntegrationsPage() {
         queryKey: calendarIntegrationQueryKeys.settings(userId),
       })
       showToast(
-        'Zaktualizowano dane feedu. Apple Calendar odświeży subskrypcję według własnego harmonogramu.',
+        'Kalendarz został odświeżony. Apple Calendar zaktualizuje wpisy według własnego harmonogramu.',
         'info',
       )
     },
@@ -234,6 +249,9 @@ export function CalendarIntegrationsPage() {
   const apple = settingsQuery.data?.apple
   const revealedUrl =
     appleReveal?.subscriptionUrl ?? apple?.subscriptionUrl ?? null
+  const googleStatus = google
+    ? googleStatusLabel(google)
+    : { text: 'Niepołączono', state: 'idle' as const }
 
   async function copyLink() {
     if (!revealedUrl) {
@@ -278,430 +296,459 @@ export function CalendarIntegrationsPage() {
   }
 
   return (
-    <AppLayout
+    <SettingsLayout
       title="Integracje"
-      subtitle="Kalendarze zewnętrzne"
+      subtitle="Połącz OurWed z narzędziami, których używasz na co dzień."
     >
-      <PageContainer width="wide">
-        <div className={styles.page}>
-          <p className={styles.back}>
-            <Link to="/ustawienia" className={styles.backLink}>
-              ← Ustawienia
-            </Link>
-          </p>
-
-          <header className={styles.header}>
-            <div>
-              <h2 className={styles.title}>Kalendarze</h2>
-              <p className={styles.lead}>
-                OurWed jest źródłem prawdy. Synchronizacja działa w jedną
-                stronę: OurWed → Google Calendar oraz OurWed → Apple Calendar
-                (subskrypcja ICS). Zmiany wprowadzone bezpośrednio w Google nie
-                aktualizują zleceń w OurWed.
-              </p>
-            </div>
-          </header>
-
+      <PageContainer width="full">
+        <SettingsWorkspace testId="calendar-integrations">
           {settingsQuery.isError ? (
-            <p className={styles.warning} role="alert">
+            <SettingsAlert>
               Nie udało się wczytać ustawień integracji. Odśwież stronę.
-            </p>
+            </SettingsAlert>
           ) : null}
 
-          <div className={styles.cards}>
-            <Card padding="lg" className={styles.card}>
-              <CardHeader
-                title="Google Calendar"
-                subtitle={
-                  google?.connected
-                    ? google.needsReconnect
-                      ? 'Wymaga ponownego połączenia'
-                      : 'Połączono'
-                    : 'Niepołączony'
-                }
-              />
+          {settingsQuery.isPending ? (
+            <SettingsMuted>Ładowanie…</SettingsMuted>
+          ) : null}
 
-              {!google?.connected ? (
-                <>
-                  <p className={styles.body}>
-                    Automatycznie dodawaj śluby i sesje z OurWed do wybranego
+          {!settingsQuery.isPending ? (
+            <>
+          <article className={styles.module} data-testid="integration-google">
+            <header className={styles.head}>
+              <div className={styles.identity}>
+                <span className={`${styles.mark} ${styles.markGoogle}`} aria-hidden>
+                  G
+                </span>
+                <div className={styles.copy}>
+                  <h2 className={styles.name}>Google Calendar</h2>
+                  <p className={styles.lead}>
+                    Automatycznie dodawaj śluby i sesje z OurWed do swojego
                     kalendarza Google.
                   </p>
-                  <div className={styles.field}>
-                    <span className={styles.label}>Pierwsza synchronizacja</span>
-                    <div className={styles.radioGroup} role="radiogroup">
-                      <label className={styles.check}>
-                        <input
-                          type="radio"
-                          name="google-backfill"
-                          checked={backfillDraft === 'future'}
-                          onChange={() => setBackfillDraft('future')}
-                        />
-                        Tylko przyszłe zlecenia
-                      </label>
-                      <label className={styles.check}>
-                        <input
-                          type="radio"
-                          name="google-backfill"
-                          checked={backfillDraft === 'all_active'}
-                          onChange={() => setBackfillDraft('all_active')}
-                        />
-                        Wszystkie aktywne zlecenia
-                      </label>
-                    </div>
+                </div>
+              </div>
+              <p
+                className={styles.status}
+                data-state={googleStatus.state}
+                aria-live="polite"
+              >
+                {googleStatus.text}
+              </p>
+            </header>
+
+            {!google?.connected ? (
+              <>
+                <div className={styles.field}>
+                  <span className={styles.label} id="google-backfill-label">
+                    Pierwsza synchronizacja
+                  </span>
+                  <div
+                    className={styles.choices}
+                    role="radiogroup"
+                    aria-labelledby="google-backfill-label"
+                  >
+                    <label className={styles.choice}>
+                      <input
+                        type="radio"
+                        name="google-backfill"
+                        checked={backfillDraft === 'future'}
+                        onChange={() => setBackfillDraft('future')}
+                      />
+                      Tylko przyszłe zlecenia
+                    </label>
+                    <label className={styles.choice}>
+                      <input
+                        type="radio"
+                        name="google-backfill"
+                        checked={backfillDraft === 'all_active'}
+                        onChange={() => setBackfillDraft('all_active')}
+                      />
+                      Wszystkie aktywne zlecenia
+                    </label>
                   </div>
-                  <div className={styles.actions}>
+                </div>
+                <div className={styles.actions}>
+                  <Button
+                    variant="primary"
+                    disabled={connectMutation.isPending}
+                    onClick={() =>
+                      requirePro(() => {
+                        window.localStorage.setItem(
+                          'ourwed:calendar-backfill-pending',
+                          backfillDraft,
+                        )
+                        connectMutation.mutate(backfillDraft)
+                      })
+                    }
+                  >
+                    {connectMutation.isPending
+                      ? 'Łączenie…'
+                      : 'Połącz z Google Calendar'}
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <dl className={styles.facts}>
+                  <div>
+                    <dt>Konto</dt>
+                    <dd>{google.accountEmail || '—'}</dd>
+                  </div>
+                  <div>
+                    <dt>Ostatnia synchronizacja</dt>
+                    <dd>{formatWhen(google.lastSyncAt)}</dd>
+                  </div>
+                  {google.lastErrorMessage ? (
+                    <div className={styles.errorBlock}>
+                      <dt>Ostatni błąd</dt>
+                      <dd>{google.lastErrorMessage}</dd>
+                    </div>
+                  ) : null}
+                </dl>
+
+                {google.needsReconnect ? (
+                  <p className={styles.warning} role="status">
+                    Połączenie z Google Calendar wygasło. Połącz konto ponownie.
+                  </p>
+                ) : null}
+                {google.needsCalendarAttention ? (
+                  <p className={styles.warning} role="status">
+                    Wybrany kalendarz nie jest już dostępny. Wybierz inny
+                    kalendarz.
+                  </p>
+                ) : null}
+
+                <div className={styles.field}>
+                  <label className={styles.label} htmlFor="google-calendar">
+                    Kalendarz
+                  </label>
+                  <select
+                    id="google-calendar"
+                    className={styles.select}
+                    value={google.calendarId ?? ''}
+                    disabled={updateGoogleMutation.isPending}
+                    onChange={(e) => {
+                      const id = e.target.value
+                      const cal = calendarsQuery.data?.find((c) => c.id === id)
+                      requirePro(() =>
+                        updateGoogleMutation.mutate({
+                          calendarId: id,
+                          calendarName: cal?.summary ?? null,
+                        }),
+                      )
+                    }}
+                  >
+                    {calendarsQuery.data?.length ? (
+                      calendarsQuery.data.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.summary}
+                          {c.primary ? ' (główny)' : ''}
+                        </option>
+                      ))
+                    ) : (
+                      <option value={google.calendarId ?? ''}>
+                        {google.calendarName || google.calendarId || '—'}
+                      </option>
+                    )}
+                  </select>
+                </div>
+
+                <fieldset className={styles.toggles}>
+                  <legend>Dodawaj do kalendarza</legend>
+                  <label className={styles.toggle}>
+                    <input
+                      type="checkbox"
+                      checked={google.syncWeddings}
+                      onChange={(e) =>
+                        requestCategoryToggle(
+                          'google',
+                          'syncWeddings',
+                          e.target.checked,
+                        )
+                      }
+                    />
+                    Śluby
+                  </label>
+                  <label className={styles.toggle}>
+                    <input
+                      type="checkbox"
+                      checked={google.syncSessions}
+                      onChange={(e) =>
+                        requestCategoryToggle(
+                          'google',
+                          'syncSessions',
+                          e.target.checked,
+                        )
+                      }
+                    />
+                    Sesje
+                  </label>
+                </fieldset>
+
+                <div className={styles.field}>
+                  <span className={styles.label} id="google-scope-label">
+                    Zakres synchronizacji
+                  </span>
+                  <div
+                    className={styles.choices}
+                    role="radiogroup"
+                    aria-labelledby="google-scope-label"
+                  >
+                    <label className={styles.choice}>
+                      <input
+                        type="radio"
+                        name="google-backfill-connected"
+                        checked={google.backfillMode === 'future'}
+                        onChange={() =>
+                          requirePro(() =>
+                            updateGoogleMutation.mutate({
+                              backfillMode: 'future',
+                            }),
+                          )
+                        }
+                      />
+                      Tylko przyszłe zlecenia
+                    </label>
+                    <label className={styles.choice}>
+                      <input
+                        type="radio"
+                        name="google-backfill-connected"
+                        checked={google.backfillMode === 'all_active'}
+                        onChange={() =>
+                          requirePro(() =>
+                            updateGoogleMutation.mutate({
+                              backfillMode: 'all_active',
+                            }),
+                          )
+                        }
+                      />
+                      Wszystkie aktywne zlecenia
+                    </label>
+                  </div>
+                </div>
+
+                <div className={styles.actions}>
+                  {google.needsReconnect ? (
                     <Button
                       variant="primary"
                       disabled={connectMutation.isPending}
                       onClick={() =>
-                        requirePro(() => {
-                          window.localStorage.setItem(
-                            'ourwed:calendar-backfill-pending',
-                            backfillDraft,
-                          )
-                          connectMutation.mutate(backfillDraft)
-                        })
+                        requirePro(() =>
+                          connectMutation.mutate(backfillDraft),
+                        )
                       }
                     >
-                      {connectMutation.isPending
-                        ? 'Łączenie…'
-                        : 'Połącz z Google Calendar'}
+                      Połącz ponownie
                     </Button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <dl className={styles.meta}>
-                    <div>
-                      <dt>Konto</dt>
-                      <dd>{google.accountEmail || '—'}</dd>
-                    </div>
-                    <div>
-                      <dt>Ostatnia synchronizacja</dt>
-                      <dd>{formatWhen(google.lastSyncAt)}</dd>
-                    </div>
-                    {google.lastErrorMessage ? (
-                      <div className={styles.errorBlock}>
-                        <dt>Ostatni błąd</dt>
-                        <dd>{google.lastErrorMessage}</dd>
-                      </div>
-                    ) : null}
-                  </dl>
-
-                  {google.needsReconnect ? (
-                    <p className={styles.warning} role="status">
-                      Połączenie z Google Calendar wygasło. Połącz konto
-                      ponownie.
-                    </p>
-                  ) : null}
-                  {google.needsCalendarAttention ? (
-                    <p className={styles.warning} role="status">
-                      Wybrany kalendarz nie jest już dostępny. Wybierz inny
-                      kalendarz.
-                    </p>
-                  ) : null}
-
-                  <div className={styles.field}>
-                    <label className={styles.label} htmlFor="google-calendar">
-                      Kalendarz docelowy
-                    </label>
-                    <select
-                      id="google-calendar"
-                      className={styles.select}
-                      value={google.calendarId ?? ''}
-                      disabled={updateGoogleMutation.isPending}
-                      onChange={(e) => {
-                        const id = e.target.value
-                        const cal = calendarsQuery.data?.find((c) => c.id === id)
-                        requirePro(() =>
-                          updateGoogleMutation.mutate({
-                            calendarId: id,
-                            calendarName: cal?.summary ?? null,
-                          }),
-                        )
-                      }}
-                    >
-                      {calendarsQuery.data?.length ? (
-                        calendarsQuery.data.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.summary}
-                            {c.primary ? ' (główny)' : ''}
-                          </option>
-                        ))
-                      ) : (
-                        <option value={google.calendarId ?? ''}>
-                          {google.calendarName || google.calendarId || '—'}
-                        </option>
-                      )}
-                    </select>
-                  </div>
-
-                  <fieldset className={styles.fieldset}>
-                    <legend>Synchronizuj automatycznie</legend>
-                    <label className={styles.check}>
-                      <input
-                        type="checkbox"
-                        checked={google.syncWeddings}
-                        onChange={(e) =>
-                          requestCategoryToggle(
-                            'google',
-                            'syncWeddings',
-                            e.target.checked,
-                          )
-                        }
-                      />
-                      Śluby
-                    </label>
-                    <label className={styles.check}>
-                      <input
-                        type="checkbox"
-                        checked={google.syncSessions}
-                        onChange={(e) =>
-                          requestCategoryToggle(
-                            'google',
-                            'syncSessions',
-                            e.target.checked,
-                          )
-                        }
-                      />
-                      Sesje
-                    </label>
-                  </fieldset>
-
-                  <div className={styles.field}>
-                    <span className={styles.label}>Zakres synchronizacji</span>
-                    <div className={styles.radioGroup}>
-                      <label className={styles.check}>
-                        <input
-                          type="radio"
-                          checked={google.backfillMode === 'future'}
-                          onChange={() =>
-                            requirePro(() =>
-                              updateGoogleMutation.mutate({
-                                backfillMode: 'future',
-                              }),
-                            )
-                          }
-                        />
-                        Tylko przyszłe zlecenia
-                      </label>
-                      <label className={styles.check}>
-                        <input
-                          type="radio"
-                          checked={google.backfillMode === 'all_active'}
-                          onChange={() =>
-                            requirePro(() =>
-                              updateGoogleMutation.mutate({
-                                backfillMode: 'all_active',
-                              }),
-                            )
-                          }
-                        />
-                        Wszystkie aktywne zlecenia
-                      </label>
-                    </div>
-                  </div>
-
-                  <div className={styles.actions}>
-                    {google.needsReconnect ? (
-                      <Button
-                        variant="primary"
-                        disabled={connectMutation.isPending}
-                        onClick={() =>
-                          requirePro(() =>
-                            connectMutation.mutate(backfillDraft),
-                          )
-                        }
-                      >
-                        Połącz ponownie
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="primary"
-                        disabled={syncNowMutation.isPending}
-                        onClick={() =>
-                          requirePro(() => syncNowMutation.mutate())
-                        }
-                      >
-                        {syncNowMutation.isPending
-                          ? 'Synchronizowanie…'
-                          : 'Synchronizuj teraz'}
-                      </Button>
-                    )}
+                  ) : (
                     <Button
                       variant="secondary"
-                      disabled={reconcileMutation.isPending}
+                      disabled={syncNowMutation.isPending}
                       onClick={() =>
-                        requirePro(() => reconcileMutation.mutate())
+                        requirePro(() => syncNowMutation.mutate())
                       }
                     >
-                      {reconcileMutation.isPending
-                        ? 'Czyszczenie…'
-                        : 'Usuń duplikaty OurWed'}
+                      {syncNowMutation.isPending
+                        ? 'Synchronizowanie…'
+                        : 'Synchronizuj teraz'}
                     </Button>
-                    <Button
-                      variant="danger"
-                      onClick={() => requirePro(() => setDisconnectOpen(true))}
-                    >
-                      Odłącz Google Calendar
-                    </Button>
-                  </div>
-                </>
-              )}
-            </Card>
+                  )}
+                  <Button
+                    variant="ghost"
+                    disabled={reconcileMutation.isPending}
+                    onClick={() =>
+                      requirePro(() => reconcileMutation.mutate())
+                    }
+                  >
+                    {reconcileMutation.isPending
+                      ? 'Czyszczenie…'
+                      : 'Usuń duplikaty OurWed'}
+                  </Button>
+                </div>
+                <div className={styles.secondaryActions}>
+                  <Button
+                    variant="ghost"
+                    className={styles.dangerText}
+                    onClick={() => requirePro(() => setDisconnectOpen(true))}
+                  >
+                    Odłącz Google Calendar
+                  </Button>
+                </div>
+              </>
+            )}
+          </article>
 
-            <Card padding="lg" className={styles.card}>
-              <CardHeader
-                title="Apple Calendar"
-                subtitle={apple?.active ? 'Aktywny' : 'Nieaktywny'}
-              />
-
-              <p className={styles.body}>
-                Dodaj prywatny kalendarz OurWed do aplikacji Kalendarz na
-                iPhonie, iPadzie lub Macu. Subskrypcja jest tylko do odczytu —
-                bez logowania Apple i bez hasła.
+          <article className={styles.module} data-testid="integration-apple">
+            <header className={styles.head}>
+              <div className={styles.identity}>
+                <span className={`${styles.mark} ${styles.markApple}`} aria-hidden>
+                  A
+                </span>
+                <div className={styles.copy}>
+                  <h2 className={styles.name}>Apple Calendar</h2>
+                  <p className={styles.lead}>
+                    Subskrybuj prywatny kalendarz OurWed w aplikacji Kalendarz
+                    na iPhone, iPadzie lub Macu.
+                  </p>
+                </div>
+              </div>
+              <p
+                className={styles.status}
+                data-state={apple?.active ? 'active' : 'idle'}
+                aria-live="polite"
+              >
+                {apple?.active ? 'Aktywny' : 'Nieaktywny'}
               </p>
+            </header>
 
-              {!apple?.active ? (
-                <>
-                  <fieldset className={styles.fieldset}>
-                    <legend>Synchronizuj</legend>
-                    <label className={styles.check}>
-                      <input type="checkbox" defaultChecked disabled />
-                      Śluby
+            {!apple?.active ? (
+              <>
+                <ul className={styles.contents}>
+                  <li>Śluby</li>
+                  <li>Sesje</li>
+                </ul>
+                <div className={styles.field}>
+                  <span className={styles.label} id="apple-backfill-label">
+                    Pierwsza synchronizacja
+                  </span>
+                  <div
+                    className={styles.choices}
+                    role="radiogroup"
+                    aria-labelledby="apple-backfill-label"
+                  >
+                    <label className={styles.choice}>
+                      <input
+                        type="radio"
+                        name="apple-backfill"
+                        checked={backfillDraft === 'future'}
+                        onChange={() => setBackfillDraft('future')}
+                      />
+                      Tylko przyszłe zlecenia
                     </label>
-                    <label className={styles.check}>
-                      <input type="checkbox" defaultChecked disabled />
-                      Sesje
+                    <label className={styles.choice}>
+                      <input
+                        type="radio"
+                        name="apple-backfill"
+                        checked={backfillDraft === 'all_active'}
+                        onChange={() => setBackfillDraft('all_active')}
+                      />
+                      Wszystkie aktywne zlecenia
                     </label>
-                  </fieldset>
-                  <div className={styles.field}>
-                    <span className={styles.label}>Zakres</span>
-                    <div className={styles.radioGroup}>
-                      <label className={styles.check}>
-                        <input
-                          type="radio"
-                          checked={backfillDraft === 'future'}
-                          onChange={() => setBackfillDraft('future')}
-                        />
-                        Tylko przyszłe zlecenia
-                      </label>
-                      <label className={styles.check}>
-                        <input
-                          type="radio"
-                          checked={backfillDraft === 'all_active'}
-                          onChange={() => setBackfillDraft('all_active')}
-                        />
-                        Wszystkie aktywne zlecenia
-                      </label>
-                    </div>
                   </div>
-                  <div className={styles.actions}>
+                </div>
+                <div className={styles.actions}>
+                  <Button
+                    variant="primary"
+                    disabled={activateAppleMutation.isPending}
+                    onClick={() =>
+                      requirePro(() => activateAppleMutation.mutate())
+                    }
+                  >
+                    {activateAppleMutation.isPending
+                      ? 'Aktywowanie…'
+                      : 'Aktywuj kalendarz Apple'}
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className={styles.field}>
+                  <span className={styles.label}>Prywatny link kalendarza</span>
+                  <code className={styles.urlMask}>
+                    {appleReveal?.maskedUrl ||
+                      apple.maskedUrl ||
+                      '••••/kalendarz'}
+                  </code>
+                  <p className={styles.hint}>
+                    Kalendarz odświeża się sam w tle. Zmiany z OurWed mogą
+                    pojawić się z krótkim opóźnieniem.
+                  </p>
+                </div>
+
+                <fieldset className={styles.toggles}>
+                  <legend>Pokazuj w kalendarzu</legend>
+                  <label className={styles.toggle}>
+                    <input
+                      type="checkbox"
+                      checked={apple.syncWeddings}
+                      onChange={(e) =>
+                        requestCategoryToggle(
+                          'apple',
+                          'syncWeddings',
+                          e.target.checked,
+                        )
+                      }
+                    />
+                    Śluby
+                  </label>
+                  <label className={styles.toggle}>
+                    <input
+                      type="checkbox"
+                      checked={apple.syncSessions}
+                      onChange={(e) =>
+                        requestCategoryToggle(
+                          'apple',
+                          'syncSessions',
+                          e.target.checked,
+                        )
+                      }
+                    />
+                    Sesje
+                  </label>
+                </fieldset>
+
+                <div className={styles.actions}>
+                  {revealedUrl ? (
                     <Button
                       variant="primary"
-                      disabled={activateAppleMutation.isPending}
-                      onClick={() =>
-                        requirePro(() => activateAppleMutation.mutate())
-                      }
+                      onClick={() => {
+                        window.location.href = revealedUrl
+                      }}
                     >
-                      {activateAppleMutation.isPending
-                        ? 'Aktywowanie…'
-                        : 'Aktywuj kalendarz Apple'}
+                      Otwórz w Apple Calendar
                     </Button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className={styles.field}>
-                    <span className={styles.label}>Prywatny link</span>
-                    <code className={styles.urlMask}>
-                      {appleReveal?.maskedUrl ||
-                        apple.maskedUrl ||
-                        'webcal://••••/ourwed.ics'}
-                    </code>
-                    <p className={styles.hint}>
-                      Apple Calendar okresowo odświeża subskrybowane kalendarze.
-                      Zmiany mogą pojawić się z opóźnieniem.
-                    </p>
-                  </div>
-
-                  <fieldset className={styles.fieldset}>
-                    <legend>Synchronizuj</legend>
-                    <label className={styles.check}>
-                      <input
-                        type="checkbox"
-                        checked={apple.syncWeddings}
-                        onChange={(e) =>
-                          requestCategoryToggle(
-                            'apple',
-                            'syncWeddings',
-                            e.target.checked,
-                          )
-                        }
-                      />
-                      Śluby
-                    </label>
-                    <label className={styles.check}>
-                      <input
-                        type="checkbox"
-                        checked={apple.syncSessions}
-                        onChange={(e) =>
-                          requestCategoryToggle(
-                            'apple',
-                            'syncSessions',
-                            e.target.checked,
-                          )
-                        }
-                      />
-                      Sesje
-                    </label>
-                  </fieldset>
-
-                  <div className={styles.actions}>
-                    {revealedUrl ? (
-                      <Button
-                        variant="primary"
-                        onClick={() => {
-                          window.location.href = revealedUrl
-                        }}
-                      >
-                        Otwórz w Apple Calendar
-                      </Button>
-                    ) : null}
-                    <Button variant="secondary" onClick={() => void copyLink()}>
-                      Skopiuj link
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      disabled={refreshAppleMutation.isPending}
-                      onClick={() =>
-                        requirePro(() => refreshAppleMutation.mutate())
-                      }
-                    >
-                      Odśwież dane kalendarza
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      onClick={() => requirePro(() => setRotateOpen(true))}
-                    >
-                      Wygeneruj nowy link
-                    </Button>
-                    <Button
-                      variant="danger"
-                      disabled={disableAppleMutation.isPending}
-                      onClick={() =>
-                        requirePro(() => disableAppleMutation.mutate())
-                      }
-                    >
-                      Wyłącz kalendarz
-                    </Button>
-                  </div>
-                </>
-              )}
-            </Card>
-          </div>
-        </div>
+                  ) : null}
+                  <Button
+                    variant={revealedUrl ? 'secondary' : 'primary'}
+                    onClick={() => void copyLink()}
+                  >
+                    Skopiuj link
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    disabled={refreshAppleMutation.isPending}
+                    onClick={() =>
+                      requirePro(() => refreshAppleMutation.mutate())
+                    }
+                  >
+                    Odśwież dane kalendarza
+                  </Button>
+                </div>
+                <div className={styles.secondaryActions}>
+                  <Button
+                    variant="ghost"
+                    onClick={() => requirePro(() => setRotateOpen(true))}
+                  >
+                    Wygeneruj nowy link
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    className={styles.dangerText}
+                    disabled={disableAppleMutation.isPending}
+                    onClick={() =>
+                      requirePro(() => disableAppleMutation.mutate())
+                    }
+                  >
+                    Wyłącz kalendarz
+                  </Button>
+                </div>
+              </>
+            )}
+          </article>
+            </>
+          ) : null}
+        </SettingsWorkspace>
       </PageContainer>
 
       <Modal
@@ -722,18 +769,20 @@ export function CalendarIntegrationsPage() {
           </Button>
         }
       >
-        <div className={styles.radioGroup}>
-          <label className={styles.check}>
+        <div className={styles.choices} role="radiogroup">
+          <label className={styles.choice}>
             <input
               type="radio"
+              name="google-disconnect"
               checked={removeEvents}
               onChange={() => setRemoveEvents(true)}
             />
             Usuń wydarzenia OurWed z Google i odłącz
           </label>
-          <label className={styles.check}>
+          <label className={styles.choice}>
             <input
               type="radio"
+              name="google-disconnect"
               checked={!removeEvents}
               onChange={() => setRemoveEvents(false)}
             />
@@ -761,7 +810,7 @@ export function CalendarIntegrationsPage() {
         }
       >
         <p className={styles.body}>
-          To działanie unieważnia poprzedni prywatny URL. Zlecenia w OurWed
+          To działanie unieważnia poprzedni prywatny link. Zlecenia w OurWed
           pozostają bez zmian.
         </p>
       </Modal>
@@ -791,9 +840,9 @@ export function CalendarIntegrationsPage() {
         }
       >
         <p className={styles.body}>
-          W Apple Calendar wydarzenia znikną po odświeżeniu subskrypcji.
+          W Apple Calendar wydarzenia znikną po odświeżeniu kalendarza.
         </p>
       </Modal>
-    </AppLayout>
+    </SettingsLayout>
   )
 }

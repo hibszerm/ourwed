@@ -35,10 +35,16 @@ export interface ComputeFloatingOptions {
    * Ignored in dialog/mobile mode.
    */
   maxMenuWidth?: number
+  /** Grow the menu beyond a small trigger (e.g. kebab). */
+  minMenuWidth?: number
+  /** Horizontal alignment to the anchor. Default start (left). */
+  align?: 'start' | 'end'
   padding?: number
   /** Force full-viewport dialog mode (mobile). */
   forceSheet?: boolean
   forceDialog?: boolean
+  /** Keep an anchored popover even on narrow viewports. */
+  forceAnchored?: boolean
   /** @deprecated Half-height sheets are no longer used. Ignored. */
   sheetFraction?: number
 }
@@ -86,9 +92,10 @@ export function computeFloatingPlacement(
   const maxMenuHeight = options?.maxMenuHeight ?? 280
   const padding = options?.padding ?? 8
   const useDialog =
-    options?.forceDialog === true ||
-    options?.forceSheet === true ||
-    isMobileOverlayViewport(viewport.width)
+    options?.forceAnchored !== true &&
+    (options?.forceDialog === true ||
+      options?.forceSheet === true ||
+      isMobileOverlayViewport(viewport.width))
 
   if (useDialog) {
     const bounds = readVisualViewportBounds()
@@ -113,15 +120,21 @@ export function computeFloatingPlacement(
     Math.min(maxMenuHeight, placeBelow ? spaceBelow : spaceAbove),
   )
 
-  const targetWidth =
-    options?.maxMenuWidth != null
-      ? Math.min(anchor.width, options.maxMenuWidth)
-      : anchor.width
-  const width = Math.max(
+  let width = anchor.width
+  if (options?.maxMenuWidth != null) {
+    width = Math.min(width, options.maxMenuWidth)
+  }
+  if (options?.minMenuWidth != null) {
+    width = Math.max(width, options.minMenuWidth)
+  }
+  width = Math.max(
     0,
-    Math.min(targetWidth, viewport.width - padding * 2),
+    Math.min(width, viewport.width - padding * 2),
   )
-  let left = anchor.left
+  let left =
+    options?.align === 'end'
+      ? anchor.left + anchor.width - width
+      : anchor.left
   if (left + width > viewport.width - padding) {
     left = Math.max(padding, viewport.width - padding - width)
   }

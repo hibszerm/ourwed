@@ -6,6 +6,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
+import { createBrowserSafeId } from '@/lib/utils/createBrowserSafeId'
 import styles from './Toast.module.css'
 
 export type ToastTone = 'success' | 'error' | 'info'
@@ -26,7 +27,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<ToastItem[]>([])
 
   const showToast = useCallback((message: string, tone: ToastTone = 'success') => {
-    const id = crypto.randomUUID()
+    const id = createBrowserSafeId()
     setItems((prev) => [...prev, { id, message, tone }])
     window.setTimeout(() => {
       setItems((prev) => prev.filter((t) => t.id !== id))

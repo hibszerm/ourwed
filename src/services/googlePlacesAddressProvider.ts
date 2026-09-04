@@ -14,6 +14,7 @@ import {
   GOOGLE_USER_ERROR_PL,
   stripRawGoogleFields,
 } from '@/services/googlePlacesNormalize'
+import { createBrowserSafeId } from '@/lib/utils/createBrowserSafeId'
 
 export const PLACES_PROXY_FUNCTION = 'places-proxy'
 
@@ -48,10 +49,7 @@ interface ProxyErr {
 }
 
 function newSessionToken(): string {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-    return crypto.randomUUID()
-  }
-  return `s-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
+  return createBrowserSafeId()
 }
 
 async function invokeProxy(

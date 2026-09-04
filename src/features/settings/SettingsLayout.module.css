@@ -1,0 +1,312 @@
+.shell {
+  display: block;
+  width: 100%;
+  max-width: 72rem;
+  min-width: 0;
+  margin-inline: auto;
+}
+
+.workspace {
+  min-width: 0;
+  width: 100%;
+}
+
+.intro {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-4);
+}
+
+.introText {
+  min-width: 0;
+  flex: 1 1 16rem;
+}
+
+.workspaceTitle {
+  margin: 0;
+  font-size: 1.0625rem;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  line-height: var(--leading-tight);
+  color: var(--text-primary, var(--color-text-primary));
+}
+
+.purpose {
+  margin: 2px 0 0;
+  max-width: 36rem;
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
+  color: var(--text-muted, var(--color-text-tertiary));
+}
+
+.primaryNav {
+  display: block;
+  margin: 0 0 var(--space-4);
+}
+
+.primaryList {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 1px;
+  margin: 0;
+  padding: 2px;
+  list-style: none;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  scroll-padding-inline: 4px;
+  background: color-mix(
+    in srgb,
+    var(--surface-secondary, var(--color-bg-subtle)) 72%,
+    var(--surface-primary, var(--color-surface))
+  );
+  border: 1px solid var(--border-subtle, var(--color-border));
+  border-radius: 8px;
+}
+
+.primaryList::-webkit-scrollbar {
+  display: none;
+}
+
+.primaryItem {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-height: var(--touch-target);
+  padding: 0 8px;
+  scroll-margin-inline: 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+  color: var(--text-muted, var(--color-text-tertiary));
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.primaryItem:hover {
+  color: var(--text-primary, var(--color-text-primary));
+}
+
+.primaryItem:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring-strong);
+}
+
+.primaryItemActive {
+  background: var(--surface-primary, var(--color-surface));
+  color: var(--text-primary, var(--color-text-primary));
+  font-weight: 650;
+}
+
+.pageHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-3);
+}
+
+.pageText {
+  min-width: 0;
+  flex: 1 1 12rem;
+}
+
+.pageTitle {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: var(--leading-tight);
+  color: var(--text-primary, var(--color-text-primary));
+  overflow-wrap: anywhere;
+}
+
+.pageTitleGroup {
+  display: none;
+}
+
+.pageSubtitle {
+  margin: 4px 0 0;
+  max-width: 42rem;
+  font-size: var(--type-helper-size);
+  line-height: var(--leading-snug);
+  color: var(--text-muted, var(--color-text-tertiary));
+}
+
+.pageAction {
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--touch-target);
+}
+
+.secondaryNav {
+  display: block;
+  margin: 0 0 var(--space-3);
+}
+
+.secondaryList {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: 0 var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  scroll-padding-inline: 4px;
+  border-bottom: 1px solid var(--border-subtle, var(--color-border));
+}
+
+.secondaryList::-webkit-scrollbar {
+  display: none;
+}
+
+.secondaryItem {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  min-height: var(--touch-target);
+  padding: 0 0 8px;
+  margin-bottom: -1px;
+  scroll-margin-inline: 4px;
+  border: 0;
+  border-bottom: 1.5px solid transparent;
+  background: transparent;
+  font-size: var(--text-xs);
+  font-weight: 500;
+  letter-spacing: var(--tracking-snug);
+  color: var(--text-muted, var(--color-text-tertiary));
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.secondaryItem:hover {
+  color: var(--text-secondary, var(--color-text-secondary));
+}
+
+.secondaryItem:focus-visible {
+  outline: none;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--focus-ring-strong);
+}
+
+.secondaryItemActive {
+  color: var(--text-primary, var(--color-text-primary));
+  font-weight: 600;
+  border-bottom-color: var(--text-primary, var(--color-text-primary));
+}
+
+@media (max-width: 767px) {
+  .shell {
+    padding-bottom: var(--space-8);
+  }
+
+  .pageHead[data-mobile-title='group'] .pageTitlePage {
+    display: none;
+  }
+
+  .pageHead[data-mobile-title='group'] .pageTitleGroup {
+    display: inline;
+  }
+}
+
+@media (min-width: 768px) {
+  .shell {
+    box-sizing: border-box;
+    background: var(--surface-primary, var(--color-surface));
+    border: 1px solid var(--border-subtle, var(--color-border));
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-xs);
+    padding: var(--space-7) var(--space-8) var(--space-8);
+  }
+
+  .intro {
+    gap: var(--space-4);
+    margin: 0 0 var(--space-6);
+  }
+
+  .workspaceTitle {
+    font-size: var(--text-xl);
+  }
+
+  .purpose {
+    margin: 6px 0 0;
+    font-size: var(--text-sm);
+  }
+
+  .primaryNav {
+    margin: 0 0 var(--space-6);
+  }
+
+  .primaryList {
+    flex-wrap: wrap;
+    gap: 2px;
+    padding: 3px;
+    overflow: visible;
+    border-radius: 10px;
+  }
+
+  .primaryItem {
+    min-height: 34px;
+    padding: 0 14px;
+    border-radius: 8px;
+    font-size: var(--text-sm);
+    letter-spacing: var(--tracking-snug);
+  }
+
+  .pageHead {
+    gap: var(--space-4);
+    margin: 0 0 var(--space-3);
+  }
+
+  .pageTitle {
+    font-size: var(--text-lg);
+    letter-spacing: -0.025em;
+  }
+
+  .pageTitleGroup {
+    display: none;
+  }
+
+  .pageSubtitle {
+    margin: 6px 0 0;
+    line-height: var(--leading-normal);
+  }
+
+  .pageAction {
+    min-height: 34px;
+  }
+
+  .secondaryNav {
+    margin: 0 0 var(--space-5);
+  }
+
+  .secondaryList {
+    flex-wrap: wrap;
+    overflow: visible;
+    gap: 0 var(--space-5);
+  }
+
+  .secondaryItem {
+    min-height: 2rem;
+    padding: 2px 0 10px;
+  }
+}

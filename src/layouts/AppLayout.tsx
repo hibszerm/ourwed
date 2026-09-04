@@ -1,30 +1,68 @@
-import { useEffect, useId, useState, type ReactNode } from 'react'
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react'
 import { useLocation } from 'react-router-dom'
 import { IconMenu } from '@/components/icons'
 import { PageHeader } from '@/components/ui/PageHeader'
+import {
+  lockBodyScroll,
+  unlockBodyScroll,
+} from '@/components/ui/overlay/bodyLock'
 import { ReadOnlyBanner } from '@/features/billing/ReadOnlyBanner'
 import { useProAccessGate } from '@/features/billing/ProAccessGate'
+import { useInterfaceStyleOptional } from '@/features/interface-style/useInterfaceStyle'
+import { DEFAULT_INTERFACE_STYLE } from '@/features/interface-style/types'
+import { resolveActiveShellPresentation } from './shellPresentation'
 import { Sidebar } from './Sidebar'
 import styles from './AppLayout.module.css'
+import '@/features/dashboard-v3/v3Materials.css'
 
 interface AppLayoutProps {
   children: ReactNode
   title?: string
   subtitle?: string
   action?: ReactNode
+  /** Optional app-like identity shown beside the mobile menu trigger only. */
+  mobileHeader?: ReactNode
 }
 
-export function AppLayout({ children, title, subtitle, action }: AppLayoutProps) {
+export function AppLayout({
+  children,
+  title,
+  subtitle,
+  action,
+  mobileHeader,
+}: AppLayoutProps) {
   const location = useLocation()
+  const interfaceStyle =
+    useInterfaceStyleOptional()?.interfaceStyle ?? DEFAULT_INTERFACE_STYLE
+  const shell = resolveActiveShellPresentation(interfaceStyle)
   const [navOpen, setNavOpen] = useState(false)
+  const [navPath, setNavPath] = useState(location.pathname)
   const navId = useId()
+  const menuButtonRef = useRef<HTMLButtonElement>(null)
   const showPageHeader = Boolean(title || action)
   const { isReadOnly, loading, bannerHiddenForSession, hideReadOnlyBanner } =
     useProAccessGate()
 
-  useEffect(() => {
+  if (location.pathname !== navPath) {
+    setNavPath(location.pathname)
     setNavOpen(false)
-  }, [location.pathname])
+  }
+
+  useEffect(() => {
+    const mobile = window.matchMedia('(max-width: 767px)')
+    const closeWhenDesktop = (event: MediaQueryListEvent) => {
+      if (!event.matches) setNavOpen(false)
+    }
+
+    mobile.addEventListener('change', closeWhenDesktop)
+    return () => mobile.removeEventListener('change', closeWhenDesktop)
+  }, [])
 
   useEffect(() => {
     if (!navOpen) return
@@ -34,36 +72,46 @@ export function AppLayout({ children, title, subtitle, action }: AppLayoutProps)
     }
 
     document.addEventListener('keydown', onKeyDown)
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
+    lockBodyScroll()
 
     return () => {
       document.removeEventListener('keydown', onKeyDown)
-      document.body.style.overflow = previousOverflow
+      unlockBodyScroll()
     }
   }, [navOpen])
 
   return (
-    <div className={styles.layout} data-nav-open={navOpen ? 'true' : 'false'}>
+    <div
+      className={styles.layout}
+      data-nav-open={navOpen ? 'true' : 'false'}
+      data-shell={shell === 'v3' ? 'v3' : undefined}
+      data-mobile-header={mobileHeader ? 'true' : undefined}
+    >
       <button
         type="button"
         className={styles.backdrop}
-        aria-label="Zamknij nawigację"
-        tabIndex={navOpen ? 0 : -1}
+        aria-hidden="true"
+        tabIndex={-1}
         onClick={() => setNavOpen(false)}
       />
 
       <Sidebar
+        id={navId}
         open={navOpen}
         onClose={() => setNavOpen(false)}
         onNavigate={() => setNavOpen(false)}
+        presentation={shell}
+        returnFocusRef={menuButtonRef}
       />
 
-      <div className={styles.main}>
-        <div
-          className={`${styles.shellHeader} ${showPageHeader ? '' : styles.shellHeaderMenuOnly}`}
-        >
+      <div
+        className={styles.main}
+        inert={navOpen ? true : undefined}
+        aria-hidden={navOpen ? true : undefined}
+      >
+        <div className={styles.shellAccess} data-mobile-shell-header>
           <button
+            ref={menuButtonRef}
             type="button"
             className={styles.menuButton}
             aria-label="Otwórz nawigację"
@@ -73,13 +121,16 @@ export function AppLayout({ children, title, subtitle, action }: AppLayoutProps)
           >
             <IconMenu />
           </button>
-          {showPageHeader ? (
-            <div className={styles.headerSlot}>
-              <PageHeader title={title} subtitle={subtitle} action={action} />
-            </div>
+          {mobileHeader ? (
+            <div className={styles.mobileHeader}>{mobileHeader}</div>
           ) : null}
         </div>
-        <main className={styles.content} id={navId}>
+        {showPageHeader ? (
+          <div className={styles.headerSlot}>
+            <PageHeader title={title} subtitle={subtitle} action={action} />
+          </div>
+        ) : null}
+        <main className={styles.content}>
           <ReadOnlyBanner
             visible={!loading && isReadOnly && !bannerHiddenForSession}
             onHide={hideReadOnlyBanner}

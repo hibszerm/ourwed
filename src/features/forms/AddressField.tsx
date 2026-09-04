@@ -23,6 +23,7 @@ import {
   type NormalizedAddress,
 } from '@/services/addressAutocompleteProvider'
 import { createDefaultAddressAutocompleteProvider } from '@/services/addressProviderResolver'
+import { createBrowserSafeId } from '@/lib/utils/createBrowserSafeId'
 import {
   GOOGLE_PLACES_MIN_QUERY_LENGTH,
   GOOGLE_USER_ERROR_PL,
@@ -120,7 +121,7 @@ export function AddressField({
 
   function ensureSearchSession(): string {
     if (sessionRef.current) return sessionRef.current
-    const token = provider.beginSession?.() ?? crypto.randomUUID()
+    const token = provider.beginSession?.() ?? createBrowserSafeId()
     sessionRef.current = token
     return token
   }

@@ -4,6 +4,7 @@
   min-height: 100dvh;
   background: var(--color-bg);
   overflow-x: clip;
+  --mobile-shell-sticky-height: 0px;
 }
 
 .backdrop {
@@ -19,13 +20,12 @@
   background: var(--color-bg);
 }
 
-.shellHeader {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-3);
-  padding: calc(var(--shell-padding-y) + 4px) var(--shell-padding-x) 0;
-  padding-top: calc(var(--shell-padding-y) + var(--safe-top) + 4px);
-  flex-shrink: 0;
+.shellAccess {
+  display: none;
+}
+
+.mobileHeader {
+  display: none;
 }
 
 .menuButton {
@@ -34,7 +34,6 @@
   justify-content: center;
   width: var(--touch-target);
   height: var(--touch-target);
-  margin-top: 2px;
   flex-shrink: 0;
   border: 1px solid var(--color-border);
   border-radius: var(--control-radius);
@@ -57,16 +56,14 @@
 }
 
 .headerSlot {
-  flex: 1;
+  flex-shrink: 0;
   min-width: 0;
+  padding: calc(var(--shell-padding-y) + 4px) var(--shell-padding-x) 0;
+  padding-top: calc(var(--shell-padding-y) + var(--safe-top) + 4px);
 }
 
 .headerSlot :global(header) {
   padding: 0;
-}
-
-.shellHeaderMenuOnly {
-  padding-bottom: 0;
 }
 
 .content {
@@ -92,19 +89,81 @@
 
 /* Tablet: slightly tighter shell, desktop sidebar retained */
 @media (max-width: 1023px) and (min-width: 768px) {
-  .shellHeader {
-    gap: var(--space-2);
+  .headerSlot {
+    padding-top: calc(var(--shell-padding-y) + var(--safe-top) + 2px);
   }
 }
 
-/* Mobile: drawer navigation */
+/*
+ * Mobile: compact sticky hamburger strip over existing window scroll.
+ * .main overflow:hidden (and .layout overflow-x:clip) create a sticky
+ * containing block, so both must be visible on mobile or the strip
+ * scrolls away with the document. Do not change the document scroll root.
+ */
 @media (max-width: 767px) {
+  .layout {
+    --mobile-shell-sticky-height: calc(
+      var(--safe-top) + 8px + var(--touch-target) + 8px
+    );
+    overflow-x: visible;
+  }
+
+  .main {
+    overflow: visible;
+  }
+
+  .content {
+    overflow-x: visible;
+    overflow-y: visible;
+  }
+
+  .shellAccess {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    flex-shrink: 0;
+    width: 100%;
+    min-height: var(--mobile-shell-sticky-height);
+    padding: calc(8px + var(--safe-top)) var(--shell-padding-x) 8px;
+    background: var(--color-bg);
+  }
+
+  .mobileHeader {
+    display: block;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
   .menuButton {
     display: inline-flex;
   }
 
-  .shellHeaderMenuOnly {
-    padding-bottom: 0;
+  .layout[data-mobile-header='true'] .shellAccess {
+    background: var(--v3-environment, var(--app-background));
+    box-shadow: 0 1px 0
+      color-mix(in srgb, var(--color-border) 58%, transparent);
+  }
+
+  .layout[data-mobile-header='true'] .menuButton {
+    border-color: color-mix(
+      in srgb,
+      var(--color-border-strong) 58%,
+      transparent
+    );
+    border-radius: 14px;
+    background: var(--surface-primary, var(--color-surface));
+    box-shadow: var(--v3-shadow-contact, var(--shadow-xs));
+  }
+
+  .layout[data-mobile-header='true'] .content {
+    padding-top: 8px;
+  }
+
+  .headerSlot {
+    padding-top: var(--space-3);
   }
 
   .backdrop {
@@ -117,18 +176,30 @@
     background: var(--color-overlay);
     opacity: 0;
     pointer-events: none;
-    transition: opacity var(--transition-base);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    transition: opacity 280ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  @supports (
+    (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))
+  ) {
+    .backdrop {
+      backdrop-filter: blur(3px);
+      -webkit-backdrop-filter: blur(3px);
+    }
+  }
+
+  @media (prefers-reduced-transparency: reduce) {
+    .backdrop {
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+    }
   }
 
   .layout[data-nav-open='true'] .backdrop {
-    opacity: 1;
+    opacity: 0.82;
     pointer-events: auto;
-  }
-}
-
-@media (min-width: 768px) {
-  .shellHeaderMenuOnly {
-    display: none;
   }
 }
 
@@ -138,6 +209,41 @@
   }
 
   .backdrop {
-    transition: none;
+    transition: opacity 200ms linear;
+  }
+}
+
+/* Modern floating shell — AppLayout when interfaceStyle is modern. */
+.layout[data-shell='v3'] {
+  background: var(--v3-environment, var(--app-background));
+}
+
+.layout[data-shell='v3'] .main {
+  background: transparent;
+}
+
+/*
+ * contentEnter leaves transform: translateY(0) via fill-mode: both.
+ * That transform is a Safari backdrop-root. V3 must not keep it.
+ */
+.layout[data-shell='v3'] .content {
+  animation: none;
+  background: transparent;
+}
+
+@media (max-width: 767px) {
+  .layout[data-shell='v3'] .shellAccess {
+    background: var(--v3-environment, var(--app-background));
+  }
+}
+
+@media (min-width: 768px) {
+  .layout[data-shell='v3'] {
+    padding: 16px;
+    gap: 16px;
+  }
+
+  .layout[data-shell='v3'] .content {
+    padding: 24px 32px 32px 24px;
   }
 }

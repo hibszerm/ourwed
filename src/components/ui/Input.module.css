@@ -3,6 +3,8 @@
   flex-direction: column;
   gap: var(--space-2);
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .label {
@@ -13,7 +15,10 @@
 }
 
 .control {
+  box-sizing: border-box;
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   font-family: inherit;
   font-size: var(--text-form-control, var(--text-sm));
   color: var(--color-text-primary);
@@ -26,6 +31,36 @@
     border-color var(--transition-fast),
     box-shadow var(--transition-fast),
     background var(--transition-fast);
+}
+
+/* Native WebKit date controls have a large intrinsic min-content width.
+   Shrink them to the field axis so they cannot overflow the content column. */
+.control[type='date'] {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.control[type='date']::-webkit-date-and-time-value {
+  text-align: left;
+  margin: 0;
+  padding: 0;
+}
+
+.control[type='date']::-webkit-datetime-edit,
+.control[type='date']::-webkit-datetime-edit-fields-wrapper {
+  padding: 0;
+  margin: 0;
+}
+
+.control[type='date']::-webkit-calendar-picker-indicator {
+  margin-inline-start: auto;
+  flex-shrink: 0;
 }
 
 .sm {

@@ -1,13 +1,22 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { AppLayout } from '@/layouts/AppLayout'
+import { SettingsLayout } from '@/features/settings/SettingsLayout'
+import {
+  SettingsAlert,
+  SettingsConfirmHint,
+  SettingsFieldGrid,
+  SettingsHelper,
+  SettingsMuted,
+  SettingsSaveStatus,
+  SettingsSection,
+  SettingsSectionHeader,
+  SettingsWorkspace,
+} from '@/features/settings/SettingsWorkspace'
 import { Button } from '@/components/ui/Button'
-import { Card, CardHeader } from '@/components/ui/Card'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Input } from '@/components/ui/Input'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { useToast } from '@/components/ui/Toast'
-import { IconCheck } from '@/components/icons'
 import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
 import { useProAccessGate } from '@/features/billing/ProAccessGate'
 import { PlacePicker } from '@/features/travel/PlacePicker'
@@ -21,9 +30,6 @@ import {
 } from '@/features/travel/travelSettingsFormState'
 import { studioTravelSettingsService } from '@/lib/api/studioTravelSettingsService'
 import { TravelProviderError } from '@/services/travelProvider'
-import catalogStyles from '@/features/studio/StudioCatalog.module.css'
-import editStyles from '@/features/weddings/edit/WeddingEdit.module.css'
-import styles from './TravelSettingsPage.module.css'
 import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 export function TravelSettingsPage() {
@@ -121,9 +127,9 @@ export function TravelSettingsPage() {
   const addressConfirmed = hasConfirmedTravelOrigin(form)
 
   return (
-    <AppLayout
+    <SettingsLayout
       title="Rozliczanie dojazdu"
-      subtitle="Punkt startowy i zasady rozliczania dojazdów w projektach"
+      subtitle="Domyślne zasady kosztów dojazdu dla nowych zleceń"
       action={
         saveUi.state === 'loading' ? null : saveUi.showPrimarySave ? (
           <Button
@@ -137,24 +143,18 @@ export function TravelSettingsPage() {
             {saveUi.label}
           </Button>
         ) : (
-          <Button
-            type="button"
-            variant="ghost"
-            disabled
-            className={styles.savedAction}
-            data-testid="travel-settings-saved"
-            data-save-state={saveUi.state}
-            aria-live="polite"
+          <SettingsSaveStatus
+            status={saveUi.state}
+            testId="travel-settings-saved"
           >
-            <IconCheck width={16} height={16} aria-hidden />
             {saveUi.label}
-          </Button>
+          </SettingsSaveStatus>
         )
       }
     >
-      <PageContainer width="narrow">
+      <PageContainer width="full">
         {isLoading ? (
-          <p className={catalogStyles.muted}>Ładowanie…</p>
+          <SettingsMuted>Ładowanie…</SettingsMuted>
         ) : isError ? (
           <EmptyState
             title="Nie udało się załadować ustawień"
@@ -163,125 +163,118 @@ export function TravelSettingsPage() {
             }
           />
         ) : (
-          <div className={styles.sections} data-testid="travel-settings-form">
-            <Card>
-              <CardHeader
+          <SettingsWorkspace testId="travel-settings-form">
+            <SettingsSection labelledBy="travel-origin-heading">
+              <SettingsSectionHeader
+                id="travel-origin-heading"
                 title="Punkt startowy"
-                subtitle="Adres firmy używany jako początek trasy: baza → przygotowania → ceremonia → przyjęcie"
+                description="Adres, od którego OurWed oblicza trasę do zlecenia."
               />
-              <div className={catalogStyles.stack}>
+              <Input
+                label="Nazwa lokalizacji (opcjonalnie)"
+                value={form.studioName}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, studioName: e.target.value }))
+                }
+                data-testid="travel-settings-studio-name"
+              />
+              <SettingsFieldGrid columns="street">
                 <Input
-                  label="Nazwa lokalizacji (opcjonalnie)"
-                  value={form.studioName}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, studioName: e.target.value }))
-                  }
-                  data-testid="travel-settings-studio-name"
-                />
-                <div className={editStyles.fieldRow}>
-                  <Input
-                    label="Ulica"
-                    value={form.street}
-                    onChange={(e) =>
-                      setForm((f) => ({
-                        ...f,
-                        street: e.target.value,
-                        place: null,
-                      }))
-                    }
-                  />
-                  <Input
-                    label="Numer"
-                    value={form.buildingNumber}
-                    onChange={(e) =>
-                      setForm((f) => ({
-                        ...f,
-                        buildingNumber: e.target.value,
-                        place: null,
-                      }))
-                    }
-                  />
-                </div>
-                <div className={editStyles.fieldRow}>
-                  <Input
-                    label="Kod pocztowy"
-                    value={form.postalCode}
-                    onChange={(e) =>
-                      setForm((f) => ({
-                        ...f,
-                        postalCode: e.target.value,
-                        place: null,
-                      }))
-                    }
-                  />
-                  <Input
-                    label="Miasto"
-                    value={form.city}
-                    onChange={(e) =>
-                      setForm((f) => ({
-                        ...f,
-                        city: e.target.value,
-                        place: null,
-                      }))
-                    }
-                  />
-                </div>
-                <Input
-                  label="Kraj"
-                  value={form.country}
+                  label="Ulica"
+                  value={form.street}
                   onChange={(e) =>
                     setForm((f) => ({
                       ...f,
-                      country: e.target.value,
+                      street: e.target.value,
                       place: null,
                     }))
                   }
                 />
-
-                <PlacePicker
-                  label="Wyszukaj / potwierdź adres"
-                  value={form.formattedAddress}
-                  place={form.place}
-                  onChangeText={(text) =>
+                <Input
+                  label="Numer"
+                  value={form.buildingNumber}
+                  onChange={(e) =>
                     setForm((f) => ({
                       ...f,
-                      formattedAddress: text,
+                      buildingNumber: e.target.value,
                       place: null,
                     }))
                   }
-                  onSelectPlace={(place) =>
+                />
+              </SettingsFieldGrid>
+              <SettingsFieldGrid columns={2}>
+                <Input
+                  label="Kod pocztowy"
+                  value={form.postalCode}
+                  onChange={(e) =>
                     setForm((f) => ({
                       ...f,
-                      place,
-                      formattedAddress:
-                        place?.formattedAddress ?? f.formattedAddress,
+                      postalCode: e.target.value,
+                      place: null,
                     }))
                   }
                 />
-
-                {addressConfirmed ? (
-                  <p
-                    className={styles.confirmHint}
-                    data-testid="travel-settings-address-confirmed"
-                  >
-                    Adres potwierdzony
-                  </p>
-                ) : null}
-
-                {saveError ? (
-                  <p className={editStyles.dangerText} role="alert">
-                    {saveError}
-                  </p>
-                ) : null}
-              </div>
-            </Card>
-
-            <Card>
-              <CardHeader
-                title="Rozliczanie dojazdu"
-                subtitle="Polityka studia — tylko podpowiedź przy ustalaniu kosztu dojazdu dla zlecenia"
+                <Input
+                  label="Miasto"
+                  value={form.city}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      city: e.target.value,
+                      place: null,
+                    }))
+                  }
+                />
+              </SettingsFieldGrid>
+              <Input
+                label="Kraj"
+                value={form.country}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    country: e.target.value,
+                    place: null,
+                  }))
+                }
               />
-              <div className={catalogStyles.stack}>
+
+              <PlacePicker
+                label="Wyszukaj / potwierdź adres"
+                value={form.formattedAddress}
+                place={form.place}
+                onChangeText={(text) =>
+                  setForm((f) => ({
+                    ...f,
+                    formattedAddress: text,
+                    place: null,
+                  }))
+                }
+                onSelectPlace={(place) =>
+                  setForm((f) => ({
+                    ...f,
+                    place,
+                    formattedAddress:
+                      place?.formattedAddress ?? f.formattedAddress,
+                  }))
+                }
+              />
+
+              {addressConfirmed ? (
+                <SettingsConfirmHint testId="travel-settings-address-confirmed">
+                  Adres potwierdzony
+                </SettingsConfirmHint>
+              ) : null}
+
+              {saveError ? <SettingsAlert>{saveError}</SettingsAlert> : null}
+            </SettingsSection>
+
+            <SettingsSection labelledBy="travel-distance-heading">
+              <SettingsSectionHeader
+                id="travel-distance-heading"
+                title="Darmowy dystans"
+                description="Określ, ile kilometrów obejmuje cena pakietu."
+              />
+              <SettingsFieldGrid columns="compact">
                 <Input
                   label="Dojazd bezpłatny do (km)"
                   type="number"
@@ -293,16 +286,16 @@ export function TravelSettingsPage() {
                   }
                   data-testid="travel-free-distance-km"
                 />
-                <p className={catalogStyles.muted}>
-                  Ustaw dystans, do którego standardowo nie naliczasz dodatkowej
-                  opłaty za dojazd. Dla każdego zlecenia możesz ustalić inną
-                  kwotę na karcie ślubu.
-                </p>
-              </div>
-            </Card>
-          </div>
+              </SettingsFieldGrid>
+              <SettingsHelper>
+                Ustaw dystans, do którego standardowo nie naliczasz dodatkowej
+                opłaty za dojazd. Dla każdego zlecenia możesz ustalić inną
+                kwotę na karcie ślubu.
+              </SettingsHelper>
+            </SettingsSection>
+          </SettingsWorkspace>
         )}
       </PageContainer>
-    </AppLayout>
+    </SettingsLayout>
   )
 }

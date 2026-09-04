@@ -20,6 +20,11 @@ export interface TravelMapProps {
   stops: TravelStop[]
   /** Optional Google Routes encoded polyline (not recalculated in the browser). */
   encodedPolyline?: string | null
+  /**
+   * Presentation size only. `default` keeps Classic 280px.
+   * `logistics` is the Modern workspace map mass — still markers, no polyline.
+   */
+  size?: 'default' | 'logistics'
 }
 
 type LngLatPoint = {
@@ -70,7 +75,11 @@ function clearOverlays(
 /**
  * Google Maps JavaScript API travel overview.
  */
-export function TravelMap({ stops, encodedPolyline = null }: TravelMapProps) {
+export function TravelMap({
+  stops,
+  encodedPolyline = null,
+  size = 'default',
+}: TravelMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<google.maps.Map | null>(null)
   const markersRef = useRef<google.maps.Marker[]>([])
@@ -273,9 +282,15 @@ export function TravelMap({ stops, encodedPolyline = null }: TravelMapProps) {
     }
   }, [])
 
+  const sizeAttr = size === 'logistics' ? 'logistics' : undefined
+
   if (status === 'empty' || points.length === 0) {
     return (
-      <div className={styles.wrap} data-testid="travel-map-empty">
+      <div
+        className={styles.wrap}
+        data-size={sizeAttr}
+        data-testid="travel-map-empty"
+      >
         <p className={styles.stateMessage}>
           Brak współrzędnych do wyświetlenia mapy.
         </p>
@@ -285,7 +300,11 @@ export function TravelMap({ stops, encodedPolyline = null }: TravelMapProps) {
 
   if (status === 'missing_key') {
     return (
-      <div className={styles.wrap} data-testid="travel-map-missing-key">
+      <div
+        className={styles.wrap}
+        data-size={sizeAttr}
+        data-testid="travel-map-missing-key"
+      >
         <p className={styles.stateMessage}>
           Mapa Google nie została skonfigurowana.
         </p>
@@ -295,7 +314,11 @@ export function TravelMap({ stops, encodedPolyline = null }: TravelMapProps) {
 
   if (status === 'error') {
     return (
-      <div className={styles.wrap} data-testid="travel-map-error">
+      <div
+        className={styles.wrap}
+        data-size={sizeAttr}
+        data-testid="travel-map-error"
+      >
         <p className={styles.stateMessage}>
           Nie udało się wczytać mapy. Spróbuj ponownie.
         </p>
@@ -304,7 +327,7 @@ export function TravelMap({ stops, encodedPolyline = null }: TravelMapProps) {
   }
 
   return (
-    <div className={styles.wrap} data-testid="travel-map">
+    <div className={styles.wrap} data-size={sizeAttr} data-testid="travel-map">
       {status === 'loading' ? (
         <div className={styles.skeleton} aria-hidden data-testid="travel-map-loading" />
       ) : null}

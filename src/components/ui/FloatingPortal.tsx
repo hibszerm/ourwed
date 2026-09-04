@@ -12,6 +12,7 @@ import {
   computeFloatingPlacement,
   rectFromElement,
   viewportSize,
+  type ComputeFloatingOptions,
   type FloatingPlacementResult,
 } from '@/components/ui/floatingPlacement'
 
@@ -22,6 +23,7 @@ interface FloatingPortalProps {
   /** Called when position should refresh (scroll/resize). */
   onReposition?: () => void
   zIndex?: number
+  options?: ComputeFloatingOptions
 }
 
 /**
@@ -34,6 +36,7 @@ export function FloatingPortal({
   children,
   onReposition,
   zIndex = 1200,
+  options,
 }: FloatingPortalProps) {
   const [placement, setPlacement] = useState<FloatingPlacementResult | null>(
     null,
@@ -46,10 +49,10 @@ export function FloatingPortal({
       return
     }
     setPlacement(
-      computeFloatingPlacement(rectFromElement(el), viewportSize()),
+      computeFloatingPlacement(rectFromElement(el), viewportSize(), options),
     )
     onReposition?.()
-  }, [anchorRef, onReposition])
+  }, [anchorRef, onReposition, options])
 
   useLayoutEffect(() => {
     if (!open) {

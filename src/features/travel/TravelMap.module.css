@@ -75,9 +75,45 @@
   }
 }
 
+.wrap[data-size='logistics'] {
+  border-radius: 12px;
+  height: 100%;
+  min-height: 560px;
+}
+
+.wrap[data-size='logistics'] .map {
+  height: 560px;
+}
+
+.wrap[data-size='logistics'] .stateMessage {
+  min-height: 560px;
+}
+
+@media (max-width: 1023px) {
+  .wrap[data-size='logistics'] {
+    min-height: 360px;
+  }
+
+  .wrap[data-size='logistics'] .map,
+  .wrap[data-size='logistics'] .stateMessage {
+    height: min(48vw, 420px);
+    min-height: 320px;
+  }
+}
+
 @media (max-width: 767px) {
   .map {
     height: min(56vw, 240px);
     min-height: 200px;
+  }
+
+  .wrap[data-size='logistics'] {
+    min-height: 220px;
+  }
+
+  .wrap[data-size='logistics'] .map,
+  .wrap[data-size='logistics'] .stateMessage {
+    height: min(56vw, 280px);
+    min-height: 220px;
   }
 }

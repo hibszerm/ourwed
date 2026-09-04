@@ -1,8 +1,17 @@
 import { useEffect, useId, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { AppLayout } from '@/layouts/AppLayout'
+import { SettingsLayout } from '@/features/settings/SettingsLayout'
+import {
+  SettingsAlert,
+  SettingsFieldGrid,
+  SettingsMuted,
+  SettingsReadonlyField,
+  SettingsSaveStatus,
+  SettingsSection,
+  SettingsSectionHeader,
+  SettingsWorkspace,
+} from '@/features/settings/SettingsWorkspace'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { PageContainer } from '@/components/ui/PageContainer'
@@ -15,7 +24,6 @@ import {
   useAccountProfile,
   useUpdateAccountNames,
 } from '@/features/account/useAccountProfile'
-import styles from './AccountSettingsPage.module.css'
 import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 type SaveFlash = 'idle' | 'saved' | 'error'
@@ -70,47 +78,58 @@ export function AccountSettingsPage() {
 
   const saving = isSubmitting || updateMutation.isPending
   const canSave = isDirty && isValid && !saving
+  const saveError =
+    flash === 'error'
+      ? 'Nie udało się zapisać danych. Spróbuj ponownie.'
+      : null
+
+  const headerAction = saving ? (
+    <SettingsSaveStatus status="saving">Zapisywanie…</SettingsSaveStatus>
+  ) : isDirty ? (
+    <Button
+      type="submit"
+      form={formId}
+      variant="primary"
+      size="md"
+      disabled={!canSave}
+    >
+      Zapisz
+    </Button>
+  ) : flash === 'saved' ? (
+    <SettingsSaveStatus status="saved">Zapisano</SettingsSaveStatus>
+  ) : flash === 'error' ? (
+    <SettingsSaveStatus status="error">{saveError}</SettingsSaveStatus>
+  ) : null
 
   return (
-    <AppLayout
-      title="Konto"
+    <SettingsLayout
+      title="Profil"
       subtitle="Zarządzaj podstawowymi danymi swojego profilu."
+      action={headerAction}
     >
-      <PageContainer width="narrow">
-        <div className={styles.page} data-testid="account-settings">
-          <p className={styles.back}>
-            <Link to="/ustawienia" className={styles.backLink}>
-              ← Ustawienia
-            </Link>
-          </p>
-
-          <section className={styles.section} aria-labelledby={`${formId}-names`}>
-            <h2 id={`${formId}-names`} className={styles.sectionTitle}>
-              Dane konta
-            </h2>
-            <p className={styles.sectionLead}>
-              Imię i nazwisko widoczne w panelu OurWed.
-            </p>
+      <PageContainer width="full">
+        <SettingsWorkspace testId="account-settings">
+          <SettingsSection labelledBy={`${formId}-names`}>
+            <SettingsSectionHeader
+              id={`${formId}-names`}
+              title="Dane konta"
+              description="Imię i nazwisko widoczne w panelu OurWed."
+            />
 
             {profileQuery.isPending ? (
-              <div
-                className={styles.skeleton}
-                aria-busy="true"
-                aria-label="Wczytywanie profilu"
-              >
-                <div className={styles.skeletonBar} />
-                <div className={styles.skeletonBar} />
-                <div className={styles.skeletonBar} />
-              </div>
+              <SettingsMuted>Ładowanie…</SettingsMuted>
             ) : profileQuery.isError ? (
-              <p className={styles.status} data-state="error" role="alert">
+              <SettingsAlert>
                 {profileQuery.error instanceof Error
-                  ? getUserFacingErrorMessage(profileQuery.error, 'Nie udało się pobrać profilu.')
+                  ? getUserFacingErrorMessage(
+                      profileQuery.error,
+                      'Nie udało się pobrać profilu.',
+                    )
                   : 'Nie udało się wczytać profilu.'}
-              </p>
+              </SettingsAlert>
             ) : (
               <form
-                className={styles.form}
+                id={formId}
                 onSubmit={(e) => {
                   void handleSubmit(onSubmit, (fieldErrors) => {
                     if (fieldErrors.firstName) setFocus('firstName')
@@ -119,62 +138,42 @@ export function AccountSettingsPage() {
                 }}
                 noValidate
               >
-                <Input
-                  id={`${formId}-first`}
-                  label="Imię"
-                  autoComplete="given-name"
-                  {...register('firstName')}
-                  aria-invalid={errors.firstName ? true : undefined}
-                  error={errors.firstName?.message}
-                />
-                <Input
-                  id={`${formId}-last`}
-                  label="Nazwisko"
-                  autoComplete="family-name"
-                  {...register('lastName')}
-                  aria-invalid={errors.lastName ? true : undefined}
-                  error={errors.lastName?.message}
-                />
-
-                <div className={styles.actions}>
-                  <Button type="submit" variant="primary" disabled={!canSave}>
-                    {saving ? 'Zapisywanie…' : 'Zapisz zmiany'}
-                  </Button>
-                  <p
-                    className={styles.status}
-                    data-state={flash}
-                    role="status"
-                    aria-live="polite"
-                  >
-                    {flash === 'saved'
-                      ? 'Dane konta zostały zapisane.'
-                      : flash === 'error'
-                        ? 'Nie udało się zapisać danych. Spróbuj ponownie.'
-                        : null}
-                  </p>
-                </div>
+                <SettingsFieldGrid columns={2}>
+                  <Input
+                    id={`${formId}-first`}
+                    label="Imię"
+                    autoComplete="given-name"
+                    {...register('firstName')}
+                    aria-invalid={errors.firstName ? true : undefined}
+                    error={errors.firstName?.message}
+                  />
+                  <Input
+                    id={`${formId}-last`}
+                    label="Nazwisko"
+                    autoComplete="family-name"
+                    {...register('lastName')}
+                    aria-invalid={errors.lastName ? true : undefined}
+                    error={errors.lastName?.message}
+                  />
+                </SettingsFieldGrid>
+                {saveError ? <SettingsAlert>{saveError}</SettingsAlert> : null}
               </form>
             )}
-          </section>
+          </SettingsSection>
 
-          <section className={styles.section} aria-labelledby={`${formId}-email`}>
-            <h2 id={`${formId}-email`} className={styles.sectionTitle}>
-              Adres e-mail
-            </h2>
-            <Input
-              id={`${formId}-email-field`}
-              label="Adres e-mail"
-              autoComplete="email"
-              value={sessionEmail}
-              readOnly
-              disabled
+          <SettingsSection labelledBy={`${formId}-email`}>
+            <SettingsSectionHeader
+              id={`${formId}-email`}
+              title="Adres e-mail"
             />
-            <p className={styles.emailNote}>
-              Zmiana adresu e-mail będzie dostępna osobno.
-            </p>
-          </section>
-        </div>
+            <SettingsReadonlyField
+              label="Adres e-mail"
+              value={sessionEmail}
+              helper="Adres używany do logowania i powiadomień e-mail."
+            />
+          </SettingsSection>
+        </SettingsWorkspace>
       </PageContainer>
-    </AppLayout>
+    </SettingsLayout>
   )
 }

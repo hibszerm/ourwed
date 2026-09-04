@@ -80,9 +80,9 @@
 }
 
 .footerConfirm {
-  border: 1px solid var(--color-accent, #18181b);
-  background: var(--color-accent, #18181b);
-  color: var(--color-bg, #fff);
+  border: 1px solid var(--color-accent);
+  background: var(--color-accent);
+  color: var(--text-inverse);
 }
 
 .footerConfirm:disabled {

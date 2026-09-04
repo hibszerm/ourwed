@@ -1,0 +1,174 @@
+/*
+ * V4.1.5 — composition polish on accepted V4.1.4 paper.
+ * Workspace paper is native --app-background.
+ * Loaded by AppLayout; CSS variables apply when data-shell='v3'.
+ * Material classes remain opt-in (Modern dashboard + desktop sidebar).
+ *
+ * Roles:
+ *   ENVIRONMENT — --app-background (nav pigment stays on the rail)
+ *   HERO        — --surface-primary, strongest object     (radius frozen)
+ *   SUPPORTING  — one paper family for Today / Deadlines /
+ *                 Notifications / Upcoming / Inquiries
+ *   NAV         — opaque --sidebar-background             (FROZEN)
+ *   OVERLAY     — small state mixes
+ *
+ * Do not add theme-id branches.
+ * Do not introduce backdrop-filter on information surfaces.
+ */
+
+[data-shell='v3'] {
+  --v3-environment: var(--app-background);
+  --v3-bg-base: var(--v3-environment);
+
+  --v3-surface-hero: var(--surface-primary);
+  --v3-surface-supporting: color-mix(in srgb, var(--surface-primary) 78%, var(--surface-secondary));
+  --v3-surface-satin: var(--v3-surface-supporting);
+  --v3-surface-secondary-card: var(--v3-surface-supporting);
+  --v3-surface-overlay: color-mix(in srgb, var(--text-primary) 5%, transparent);
+  --v3-surface-nav: var(--sidebar-background);
+  --v3-surface-nav-fallback: var(--sidebar-background);
+
+  --v3-radius-secondary-box: 16px;
+  --v3-radius-module: var(--v3-radius-secondary-box);
+  --v3-radius-supporting: var(--v3-radius-secondary-box);
+  --v3-radius-appointment: var(--v3-radius-secondary-box);
+
+  --v3-border: 1px solid var(--border-default);
+  --v3-border-quiet: 1px solid var(--border-subtle);
+  --v3-border-hairline: 1px solid color-mix(in srgb, var(--border-subtle) 85%, transparent);
+  --v3-border-nav: 1px solid color-mix(in srgb, var(--sidebar-item-active-text) 14%, transparent);
+
+  --v3-highlight-top: inset 0 1px 0 color-mix(in srgb, var(--text-inverse) 18%, transparent);
+  --v3-nav-highlight: inset 0 1px 0 color-mix(in srgb, var(--sidebar-item-active-text) 10%, transparent);
+
+  --v3-shadow-color: var(--text-primary);
+  --v3-shadow-contact:
+    0 1px 1px color-mix(in srgb, var(--v3-shadow-color) 6%, transparent),
+    0 4px 8px color-mix(in srgb, var(--v3-shadow-color) 3%, transparent);
+  --v3-shadow-1:
+    0 1px 2px color-mix(in srgb, var(--v3-shadow-color) 5%, transparent),
+    0 3px 8px color-mix(in srgb, var(--v3-shadow-color) 4%, transparent);
+  --v3-shadow-2:
+    0 1px 3px color-mix(in srgb, var(--sidebar-background) 16%, transparent),
+    0 4px 10px color-mix(in srgb, var(--sidebar-background) 10%, transparent);
+
+  --v3-tint-hover: color-mix(in srgb, var(--text-primary) 4%, transparent);
+  --v3-tint-press: color-mix(in srgb, var(--text-primary) 6%, transparent);
+}
+
+/* PRIMARY — opaque hero slab */
+.v3MaterialHero {
+  background: var(--v3-surface-hero, var(--surface-primary));
+  border: var(--v3-border, 1px solid var(--border-default));
+  box-shadow: var(--v3-highlight-top), var(--v3-shadow-1);
+}
+
+/* SATIN — alias of unified supporting paper */
+.v3MaterialSatin {
+  background: var(--v3-surface-supporting, var(--surface-primary));
+  border: var(--v3-border-quiet, 1px solid var(--border-subtle));
+  box-shadow: var(--v3-shadow-contact);
+}
+
+.v3MaterialSatinFlat {
+  background: var(--v3-surface-supporting, var(--surface-primary));
+  border: var(--v3-border-quiet, 1px solid var(--border-subtle));
+  box-shadow: none;
+}
+
+/* OPERATIONAL TRAY — Today + Deadlines */
+.v3MaterialOperational {
+  background: var(--v3-surface-supporting, var(--surface-primary));
+  border: var(--v3-border-quiet, 1px solid var(--border-subtle));
+  border-radius: var(--v3-radius-secondary-box, 16px);
+  box-shadow: var(--v3-shadow-contact);
+}
+
+/* SUPPORTING PAPER — Notifications */
+.v3MaterialSupporting {
+  background: var(--v3-surface-supporting, var(--surface-primary));
+  border: var(--v3-border-quiet, 1px solid var(--border-subtle));
+  border-radius: var(--v3-radius-secondary-box, 16px);
+  box-shadow: none;
+}
+
+/* LIGHT APPOINTMENT CARD — Upcoming, compact Inquiries */
+.v3MaterialSecondaryCard {
+  background: var(--v3-surface-supporting, var(--surface-primary));
+  border: var(--v3-border-quiet, 1px solid var(--border-subtle));
+  border-radius: var(--v3-radius-secondary-box, 16px);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--v3-shadow-color) 4%, transparent);
+}
+
+.v3MaterialSecondaryCardInteractive {
+  transition: background var(--v3-motion, 160ms ease);
+}
+
+.v3MaterialSecondaryCardInteractive:hover {
+  background: color-mix(in srgb, var(--v3-surface-supporting, var(--surface-primary)) 88%, var(--surface-secondary));
+}
+
+.v3MaterialSecondaryCardInteractive:active {
+  background: var(--v3-surface-supporting, var(--surface-primary));
+}
+
+.v3MaterialSatinInteractive {
+  transition:
+    background var(--v3-motion, 160ms ease),
+    border-color var(--v3-motion, 160ms ease);
+}
+
+.v3MaterialSatinInteractive:hover {
+  background: color-mix(in srgb, var(--v3-surface-supporting, var(--surface-primary)) 88%, var(--surface-secondary));
+}
+
+.v3MaterialSatinInteractive:active {
+  background: var(--v3-surface-supporting, var(--surface-primary));
+}
+
+/* OVERLAY — chips, quiet controls (not glass) */
+.v3MaterialOverlay {
+  background: var(--v3-surface-overlay);
+  border: var(--v3-border-quiet, 1px solid var(--border-subtle));
+  box-shadow: none;
+}
+
+/* NAV — dense theme-colored floating rail. No blur. */
+@media (min-width: 768px) {
+  .v3MaterialDarkGlass[data-presentation='v3'] {
+    background: var(--v3-surface-nav, var(--sidebar-background));
+    border: var(--v3-border-nav);
+    box-shadow: var(--v3-nav-highlight), var(--v3-shadow-2);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+/*
+ * Dark appearance — V3 material elevation uses warm rim/shadow logic
+ * instead of light-mode text-primary shadow tinting.
+ */
+[data-appearance='dark'][data-shell='v3'] {
+  --v3-surface-supporting: color-mix(
+    in srgb,
+    var(--surface-primary) 88%,
+    var(--surface-secondary)
+  );
+  --v3-surface-overlay: color-mix(in srgb, var(--text-primary) 6%, transparent);
+  --v3-shadow-color: var(--app-background);
+  --v3-highlight-top: inset 0 1px 0
+    color-mix(in srgb, var(--border-strong) 55%, transparent);
+  --v3-nav-highlight: inset 0 1px 0
+    color-mix(in srgb, var(--sidebar-item-active-text) 8%, transparent);
+  --v3-shadow-contact:
+    0 1px 1px color-mix(in srgb, var(--app-background) 80%, transparent),
+    0 4px 10px color-mix(in srgb, var(--app-background) 65%, transparent);
+  --v3-shadow-1:
+    0 1px 2px color-mix(in srgb, var(--app-background) 75%, transparent),
+    0 4px 12px color-mix(in srgb, var(--app-background) 60%, transparent);
+  --v3-shadow-2:
+    0 1px 3px color-mix(in srgb, var(--sidebar-background) 45%, transparent),
+    0 6px 16px color-mix(in srgb, var(--sidebar-background) 35%, transparent);
+  --v3-tint-hover: color-mix(in srgb, var(--text-primary) 5%, transparent);
+  --v3-tint-press: color-mix(in srgb, var(--text-primary) 8%, transparent);
+}

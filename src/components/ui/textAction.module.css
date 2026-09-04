@@ -1,0 +1,18 @@
+/**
+ * Shared tertiary UI action hit-box.
+ *
+ * Visual treatment (font, color, underline) stays on the feature class.
+ * This only guarantees a 44px mobile interaction height for actual
+ * workspace actions — not prose / inline body links.
+ */
+.textAction {
+  display: inline-flex;
+  align-items: center;
+}
+
+@media (max-width: 767px) {
+  button.textAction,
+  a.textAction {
+    min-height: var(--touch-target);
+  }
+}

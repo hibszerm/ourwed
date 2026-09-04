@@ -16,17 +16,17 @@
   border: 1px solid var(--color-border);
   background: var(--color-surface);
   color: var(--color-text);
-  box-shadow: var(--shadow-md, 0 8px 24px rgb(0 0 0 / 0.08));
+  box-shadow: var(--shadow-md);
   font-size: var(--text-sm);
   pointer-events: auto;
 }
 
 .success {
-  border-color: color-mix(in srgb, var(--color-success, #2f7d4a) 40%, var(--color-border));
+  border-color: color-mix(in srgb, var(--color-success) 40%, var(--color-border));
 }
 
 .error {
-  border-color: color-mix(in srgb, var(--color-danger, #b42318) 45%, var(--color-border));
+  border-color: color-mix(in srgb, var(--color-danger) 45%, var(--color-border));
 }
 
 .info {
