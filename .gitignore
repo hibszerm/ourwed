@@ -28,6 +28,10 @@ dist-ssr
 *.sln
 *.sw?
 
+# Cursor local machine config (keep .cursor/rules/** shareable / reviewable)
+.cursor/mcp.json
+/.cursor/rules.md
+
 # Local benchmark outputs (may contain timing/token metrics)
 tmp/
 
