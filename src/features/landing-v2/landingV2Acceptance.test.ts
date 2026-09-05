@@ -9,6 +9,11 @@ import { WORKFLOW_STAGE_LABELS, WORKFLOW_STAGES } from '@/lib/utils/workflow'
 import { juliaMaksymilian, LANDING_V2_TABS } from '@/features/landing-v2/narrative'
 import { PRO_PLAN } from '@/lib/billing/planCatalog'
 import {
+  compactHeroExitCoverScale,
+  HERO_THEATER_GEOMETRY_COMPACT,
+  HERO_THEATER_GEOMETRY_DESKTOP,
+} from '@/features/landing-v2/hero/heroTheaterGeometry'
+import {
   featuresOpacityAt,
   headlineCompositeOpacityAt,
   headlineSepYAt,
@@ -376,6 +381,55 @@ function walkTs(dir: string, out: string[] = []): string[] {
   assertIncludes(heroGeom, 'HERO_THEATER_GEOMETRY_COMPACT', 'compact geometry table')
   assertIncludes(heroGeom, '[360, 220, 10, 0]', 'desktop productY travel preserved')
   assertIncludes(heroGeom, 'coverScaleMax: 2.45', 'desktop cover scale max preserved')
+  assertIncludes(heroGeom, 'compactHeroExitCoverScale', 'compact vertical overscan helper')
+  assertIncludes(heroGeom, 'exitVerticalOverscan: 1.14', 'compact portrait overscan factor')
+  assertIncludes(heroGeom, 'coverScaleMax: 4.25', 'compact exit max allows portrait clear')
+
+  {
+    assertEq(HERO_THEATER_GEOMETRY_DESKTOP.coverScaleMax, 2.45, 'desktop exit max frozen')
+    assert(HERO_THEATER_GEOMETRY_COMPACT.coverScaleMax > 2.15, 'compact exit stronger than early Phase 1 cap')
+
+    /* 390×844 sticky ≈ 776 after nav; fitted landscape tablet ~240px tall */
+    const s390 = compactHeroExitCoverScale({
+      stickyHeight: 776,
+      fittedTabletHeight: 240,
+      overscan: HERO_THEATER_GEOMETRY_COMPACT.exitVerticalOverscan,
+      min: HERO_THEATER_GEOMETRY_COMPACT.coverScaleMin,
+      max: HERO_THEATER_GEOMETRY_COMPACT.coverScaleMax,
+    })
+    assert(s390 > 1, 'compact exit scale > fitted state')
+    assert(240 * s390 > 776, 'compact exit clears sticky height at 390-class')
+
+    const s375 = compactHeroExitCoverScale({
+      stickyHeight: 744,
+      fittedTabletHeight: 220,
+      overscan: HERO_THEATER_GEOMETRY_COMPACT.exitVerticalOverscan,
+      min: HERO_THEATER_GEOMETRY_COMPACT.coverScaleMin,
+      max: HERO_THEATER_GEOMETRY_COMPACT.coverScaleMax,
+    })
+    assert(220 * s375 > 744, 'compact exit clears sticky height at 375-class')
+
+    const s430 = compactHeroExitCoverScale({
+      stickyHeight: 864,
+      fittedTabletHeight: 255,
+      overscan: HERO_THEATER_GEOMETRY_COMPACT.exitVerticalOverscan,
+      min: HERO_THEATER_GEOMETRY_COMPACT.coverScaleMin,
+      max: HERO_THEATER_GEOMETRY_COMPACT.coverScaleMax,
+    })
+    assert(255 * s430 > 864, 'compact exit clears sticky height at 430-class')
+
+    const s402 = compactHeroExitCoverScale({
+      stickyHeight: 806,
+      fittedTabletHeight: 235,
+      overscan: HERO_THEATER_GEOMETRY_COMPACT.exitVerticalOverscan,
+      min: HERO_THEATER_GEOMETRY_COMPACT.coverScaleMin,
+      max: HERO_THEATER_GEOMETRY_COMPACT.coverScaleMax,
+    })
+    assert(235 * s402 > 806, 'compact exit clears sticky height at 402-class')
+  }
+
+  assertIncludes(hero, 'compactHeroExitCoverScale', 'Hero uses compact overscan helper')
+  assertIncludes(hero, 'isCompactViewport', 'compact exit branch gated')
 
   const heroCss = read('src/features/landing-v2/sections/LandingV2Hero.module.css')
   assertIncludes(heroCss, '420svh', 'desktop scroll track with exit')

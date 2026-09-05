@@ -27,6 +27,11 @@
   height: calc(100svh - var(--lv2-nav-h));
   width: 100%;
   max-width: 100%;
+  /*
+   * Clip at the sticky stage edges (= visible hero viewport under the nav).
+   * Exit overscan must grow past these edges so the viewport crops the device —
+   * do not add extra wrappers that clip earlier than this stage.
+   */
   overflow: hidden;
   display: grid;
   place-items: center;
@@ -241,8 +246,10 @@
   }
 
   .track[data-hero-theater='scroll'] .deviceExit {
+    /* Layout width only — Framer exit scale may paint beyond; sticky crops */
     width: min(100%, calc(100vw - 1.5rem));
     max-width: calc(100vw - 1.5rem);
+    overflow: visible;
   }
 
   /* Static / reduced-motion stack on compact viewports */

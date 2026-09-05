@@ -13,7 +13,7 @@ import {
 } from '@/features/landing-v2/hero/HeroModernDashboard'
 import { HeroTabletFrame } from '@/features/landing-v2/hero/HeroTabletFrame'
 import { applyHeroDemoThemeToElement } from '@/features/landing-v2/hero/heroDemoThemeInterpolation'
-import { heroTheaterGeometry } from '@/features/landing-v2/hero/heroTheaterGeometry'
+import { heroTheaterGeometry, compactHeroExitCoverScale } from '@/features/landing-v2/hero/heroTheaterGeometry'
 import { useLandingCompactViewport } from '@/features/landing-v2/motion/landingViewport'
 import styles from './LandingV2Hero.module.css'
 
@@ -228,17 +228,54 @@ export function LandingV2Hero() {
   const exitYMv = useTransform(exitProgress, [0, 1], [0, exitLift])
   const blackPlateOpacity = useTransform(exitProgress, [0.5, 0.78, 0.92], [0, 0.55, 1])
 
-  /* Capture screen geometry once assemble is complete — compute cover scale */
+  /* Capture geometry once assemble is complete — compute cover scale */
   useMotionValueEvent(assembleProgress, 'change', (v) => {
     if (skipTheater || v < 0.98) return
     const sticky = stickyRef.current
+    if (!sticky) return
+    const st = sticky.getBoundingClientRect()
+
+    if (isCompactViewport) {
+      /*
+       * Portrait: landscape tablet is short vs stage height. Derive exit
+       * scale from fitted device height so chassis clears top + bottom.
+       * Prefer deviceFitSlot (post fit-scale layout) over screen-only math.
+       */
+      const fittedH =
+        deviceFitSlot?.h ??
+        (
+          exitWrapRef.current?.querySelector(
+            '[data-testid="lv2-hero-tablet"]',
+          ) as HTMLElement | null
+        )?.offsetHeight ??
+        0
+      const next = compactHeroExitCoverScale({
+        stickyHeight: st.height,
+        fittedTabletHeight: fittedH,
+        overscan: geom.exitVerticalOverscan,
+        min: geom.coverScaleMin,
+        max: geom.coverScaleMax,
+      })
+      setCoverScale(next)
+
+      const device = exitWrapRef.current?.querySelector(
+        '[data-testid="lv2-hero-tablet"]',
+      ) as HTMLElement | null
+      if (device) {
+        const dr = device.getBoundingClientRect()
+        const deviceCenterY = dr.top + dr.height / 2
+        const stickyCenterY = st.top + st.height / 2
+        setExitLift(stickyCenterY - deviceCenterY)
+      }
+      return
+    }
+
     const screen = exitWrapRef.current?.querySelector(
       '[data-tablet-screen]',
     ) as HTMLElement | null
-    if (!sticky || !screen) return
+    if (!screen) return
 
     const sr = screen.getBoundingClientRect()
-    const st = sticky.getBoundingClientRect()
     if (sr.width < 40 || sr.height < 40) return
 
     if (!baseScreenRef.current) {
@@ -257,6 +294,30 @@ export function LandingV2Hero() {
     const stickyCenterY = st.top + st.height / 2
     setExitLift(stickyCenterY - screenCenterY)
   })
+
+  /* Recompute compact overscan when fit slot settles after hardware growth */
+  useEffect(() => {
+    if (skipTheater || !isCompactViewport || !deviceFitSlot) return
+    if (assembleProgress.get() < 0.98) return
+    const sticky = stickyRef.current
+    if (!sticky) return
+    const next = compactHeroExitCoverScale({
+      stickyHeight: sticky.getBoundingClientRect().height,
+      fittedTabletHeight: deviceFitSlot.h,
+      overscan: geom.exitVerticalOverscan,
+      min: geom.coverScaleMin,
+      max: geom.coverScaleMax,
+    })
+    setCoverScale(next)
+  }, [
+    skipTheater,
+    isCompactViewport,
+    deviceFitSlot,
+    assembleProgress,
+    geom.exitVerticalOverscan,
+    geom.coverScaleMin,
+    geom.coverScaleMax,
+  ])
 
   useEffect(() => {
     if (skipTheater) return

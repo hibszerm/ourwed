@@ -1,6 +1,7 @@
 /**
  * Hero scroll-theater motion ranges.
- * Desktop values are frozen; compact only shortens travel for narrow stages.
+ * Desktop values are frozen; compact only shortens travel for narrow stages
+ * and strengthens late exit overscan for portrait viewports.
  */
 
 export type HeroTheaterGeometry = {
@@ -17,6 +18,11 @@ export type HeroTheaterGeometry = {
   coverScaleMin: number
   coverScaleMax: number
   coverScaleSafety: number
+  /**
+   * Compact portrait only — multiply stickyH / fittedTabletH so chassis
+   * top+bottom clear the stage. Unused on desktop.
+   */
+  exitVerticalOverscan: number
 }
 
 export const HERO_THEATER_GEOMETRY_DESKTOP: HeroTheaterGeometry = {
@@ -31,6 +37,7 @@ export const HERO_THEATER_GEOMETRY_DESKTOP: HeroTheaterGeometry = {
   coverScaleMin: 1.55,
   coverScaleMax: 2.45,
   coverScaleSafety: 1.22,
+  exitVerticalOverscan: 1,
 }
 
 /** Tighter travel for phone sticky stages — same progress map, less px. */
@@ -43,11 +50,30 @@ export const HERO_THEATER_GEOMETRY_COMPACT: HeroTheaterGeometry = {
   moduleY: [14, 0],
   shellY: [14, 0],
   greetingY: [12, 0],
-  coverScaleMin: 1.35,
-  coverScaleMax: 2.15,
+  coverScaleMin: 2.2,
+  /* Portrait phones need ~3.5–4× to clear landscape chassis vertically */
+  coverScaleMax: 4.25,
   coverScaleSafety: 1.18,
+  exitVerticalOverscan: 1.14,
 }
 
 export function heroTheaterGeometry(isCompactViewport: boolean): HeroTheaterGeometry {
   return isCompactViewport ? HERO_THEATER_GEOMETRY_COMPACT : HERO_THEATER_GEOMETRY_DESKTOP
+}
+
+/**
+ * Compact portrait exit target: scale fitted tablet until its height
+ * overshoots the sticky stage (top + bottom chassis leave the viewport).
+ */
+export function compactHeroExitCoverScale(input: {
+  stickyHeight: number
+  fittedTabletHeight: number
+  overscan: number
+  min: number
+  max: number
+}): number {
+  const { stickyHeight, fittedTabletHeight, overscan, min, max } = input
+  if (fittedTabletHeight < 40 || stickyHeight < 40) return min
+  const required = (stickyHeight / fittedTabletHeight) * overscan
+  return Math.min(max, Math.max(min, required))
 }
