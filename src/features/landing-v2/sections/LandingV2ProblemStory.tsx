@@ -21,6 +21,7 @@ import {
   isProblemStoryMutedLine,
   type ProblemStorySceneId,
 } from '@/features/landing-v2/sections/problemStoryCopy'
+import { useLandingCompactViewport } from '@/features/landing-v2/motion/landingViewport'
 import styles from './LandingV2ProblemStory.module.css'
 
 /** Entrance / exit micro-motion — layout position stays fixed in CSS. */
@@ -28,6 +29,14 @@ const SCENE_ENTER_Y = 10
 const SCENE_EXIT_Y = -8
 const SCENE_ENTER_SCALE = 0.995
 const SCENE_EXIT_SCALE = 1.002
+
+/** Compact portrait — shorter travel, softer Scene 07 camera. */
+const SCENE_ENTER_Y_COMPACT = 8
+const SCENE_EXIT_Y_COMPACT = -6
+const SCENE07_EXIT_SCALE_DESKTOP = 2.15
+const SCENE07_EXIT_SCALE_COMPACT = 1.55
+const SCENE07_BLUR_MAX_DESKTOP = 25
+const SCENE07_BLUR_MAX_COMPACT = 14
 
 type SceneMotion = {
   opacity: MotionValue<number>
@@ -145,6 +154,8 @@ function useSceneMotion(
   isLast: boolean,
   enterY = SCENE_ENTER_Y,
   enterScale = SCENE_ENTER_SCALE,
+  exitY = SCENE_EXIT_Y,
+  exitScale = SCENE_EXIT_SCALE,
 ): SceneMotion {
   const opacity = useTransform(
     progress,
@@ -158,14 +169,14 @@ function useSceneMotion(
     isLast
       ? [range.inStart, range.inEnd, 1]
       : [range.inStart, range.inEnd, range.outStart, range.outEnd],
-    isLast ? [enterY, 0, 0] : [enterY, 0, 0, SCENE_EXIT_Y],
+    isLast ? [enterY, 0, 0] : [enterY, 0, 0, exitY],
   )
   const scale = useTransform(
     progress,
     isLast
       ? [range.inStart, range.inEnd, 1]
       : [range.inStart, range.inEnd, range.outStart, range.outEnd],
-    isLast ? [enterScale, 1, 1] : [enterScale, 1, 1, SCENE_EXIT_SCALE],
+    isLast ? [enterScale, 1, 1] : [enterScale, 1, 1, exitScale],
   )
   return { opacity, y, scale }
 }
@@ -175,10 +186,12 @@ function useScene01Motion(
   progress: MotionValue<number>,
   scene01Entry: MotionValue<number>,
   range: (typeof SCENE_RANGES)[number],
+  enterY = SCENE_ENTER_Y,
+  exitY = SCENE_EXIT_Y,
 ): Scene01Motion {
-  /* Same enter envelope as Scene 02: linear opacity, 10px settle, 0.995→1 */
+  /* Same enter envelope as Scene 02: linear opacity, settle, 0.995→1 */
   const entryOpacity = useTransform(scene01Entry, [0, 1], [0, 1])
-  const entryY = useTransform(scene01Entry, [0, 1], [SCENE_ENTER_Y, 0])
+  const entryY = useTransform(scene01Entry, [0, 1], [enterY, 0])
   const entryScale = useTransform(scene01Entry, [0, 1], [SCENE_ENTER_SCALE, 1])
 
   const layerOpacity = useTransform(
@@ -186,7 +199,7 @@ function useScene01Motion(
     [range.outStart, range.outEnd],
     [1, 0],
   )
-  const layerY = useTransform(progress, [range.outStart, range.outEnd], [0, SCENE_EXIT_Y])
+  const layerY = useTransform(progress, [range.outStart, range.outEnd], [0, exitY])
   const layerScale = useTransform(
     progress,
     [range.outStart, range.outEnd],
@@ -284,16 +297,16 @@ function SceneCopy({
 
 /**
  * Black typographic Problem Story — Scenes 01–07.
- * Desktop: one sticky stage, seven absolute overlays, scroll drives opacity only.
- * Mobile / reduced-motion: static stacked flow.
+ * Sticky scroll theater on desktop and compact viewports.
+ * Reduced-motion only: static stacked flow.
  */
 export function LandingV2ProblemStory() {
   const trackRef = useRef<HTMLElement | null>(null)
   const scene01TailOrigin = useRef<number | null>(null)
   /** ScrollY when Scene 01 entry first reaches ~1 — story progress starts here (not at sticky). */
   const scene01SettleOrigin = useRef<number | null>(null)
-  const reduced = useReducedMotion()
-  const [compact, setCompact] = useState(false)
+  const isReducedMotion = Boolean(useReducedMotion())
+  const isCompactViewport = useLandingCompactViewport()
   /**
    * Scene 07 text-only fixed/portal layer — structural (portal mount).
    * Engages BEFORE Scene 07 enter (opacity still 0) so the sticky→portal swap
@@ -309,18 +322,20 @@ export function LandingV2ProblemStory() {
    */
   const scene07Exit = useMotionValue(0)
 
-  useEffect(() => {
-    const mq = window.matchMedia('(max-width: 1100px)')
-    const sync = () => setCompact(mq.matches)
-    sync()
-    mq.addEventListener('change', sync)
-    return () => mq.removeEventListener('change', sync)
-  }, [])
+  /* Theater runs on compact; only accessibility reduces to static. */
+  const skipTheater = isReducedMotion
 
-  const simple = Boolean(reduced) || compact
+  const enterY = isCompactViewport ? SCENE_ENTER_Y_COMPACT : SCENE_ENTER_Y
+  const exitY = isCompactViewport ? SCENE_EXIT_Y_COMPACT : SCENE_EXIT_Y
+  const scene07ExitScaleTo = isCompactViewport
+    ? SCENE07_EXIT_SCALE_COMPACT
+    : SCENE07_EXIT_SCALE_DESKTOP
+  const scene07BlurMax = isCompactViewport
+    ? SCENE07_BLUR_MAX_COMPACT
+    : SCENE07_BLUR_MAX_DESKTOP
 
   useEffect(() => {
-    if (simple) {
+    if (skipTheater) {
       progress.set(1)
       scene01Entry.set(1)
       publishScene07HandoffT(1)
@@ -499,29 +514,77 @@ export function LandingV2ProblemStory() {
       clearPublishedScene07HandoffT()
       document.documentElement.style.removeProperty('--lv2-ps-headline-exit')
     }
-  }, [simple, progress, scene01Entry, scene07Exit])
+  }, [skipTheater, progress, scene01Entry, scene07Exit])
 
   useMotionValueEvent(progress, 'change', (v) => {
     const node = trackRef.current
     if (node) node.style.setProperty('--problem-progress', v.toFixed(4))
   })
 
-  const s0 = useScene01Motion(progress, scene01Entry, SCENE_RANGES[0]!)
-  const s1 = useSceneMotion(progress, SCENE_RANGES[1]!, false)
-  const s2 = useSceneMotion(progress, SCENE_RANGES[2]!, false)
-  const s3 = useSceneMotion(progress, SCENE_RANGES[3]!, false)
-  const s4 = useSceneMotion(progress, SCENE_RANGES[4]!, false)
-  const s5 = useSceneMotion(progress, SCENE_RANGES[5]!, false)
-  const s6Base = useSceneMotion(progress, SCENE_RANGES[6]!, true)
+  const s0 = useScene01Motion(
+    progress,
+    scene01Entry,
+    SCENE_RANGES[0]!,
+    enterY,
+    exitY,
+  )
+  const s1 = useSceneMotion(
+    progress,
+    SCENE_RANGES[1]!,
+    false,
+    enterY,
+    SCENE_ENTER_SCALE,
+    exitY,
+  )
+  const s2 = useSceneMotion(
+    progress,
+    SCENE_RANGES[2]!,
+    false,
+    enterY,
+    SCENE_ENTER_SCALE,
+    exitY,
+  )
+  const s3 = useSceneMotion(
+    progress,
+    SCENE_RANGES[3]!,
+    false,
+    enterY,
+    SCENE_ENTER_SCALE,
+    exitY,
+  )
+  const s4 = useSceneMotion(
+    progress,
+    SCENE_RANGES[4]!,
+    false,
+    enterY,
+    SCENE_ENTER_SCALE,
+    exitY,
+  )
+  const s5 = useSceneMotion(
+    progress,
+    SCENE_RANGES[5]!,
+    false,
+    enterY,
+    SCENE_ENTER_SCALE,
+    exitY,
+  )
+  const s6Base = useSceneMotion(
+    progress,
+    SCENE_RANGES[6]!,
+    true,
+    enterY,
+    SCENE_ENTER_SCALE,
+    exitY,
+  )
   /*
    * Camera-through typography: scale + fade on the stage layer;
    * blur is restored on a tightly bounded headline wrapper only
-   * (not the full-viewport sceneLayer). Max blur 25px — approved look.
+   * (not the full-viewport sceneLayer). Max blur adapted for compact.
    */
   const s6ExitOpacity = useTransform(scene07Exit, [0, 1], [1, 0])
-  const s6ExitScale = useTransform(scene07Exit, [0, 1], [1, 2.15])
+  const s6ExitScale = useTransform(scene07Exit, [0, 1], [1, scene07ExitScaleTo])
   const s6ExitFilter = useTransform(scene07Exit, (t) => {
-    const px = t * 25
+    const px = t * scene07BlurMax
     return px < 0.2 ? 'none' : `blur(${px.toFixed(1)}px)`
   })
   const s6: SceneMotion = {
@@ -551,7 +614,9 @@ export function LandingV2ProblemStory() {
       className={styles.problemTrack}
       data-testid="lv2-problem-story"
       data-landing-v2-problem=""
-      data-problem-theater={simple ? 'static' : 'scroll'}
+      data-problem-theater={skipTheater ? 'static' : 'scroll'}
+      data-problem-compact={isCompactViewport ? 'true' : 'false'}
+      data-problem-reduced-motion={isReducedMotion ? 'true' : 'false'}
       aria-labelledby="lv2-problem-heading"
       style={{ ['--problem-progress' as string]: 0 }}
     >
@@ -559,7 +624,7 @@ export function LandingV2ProblemStory() {
         Fragmentacja jednego zlecenia
       </h2>
 
-      {simple ? (
+      {skipTheater ? (
         <div className={styles.staticStack}>
           {PROBLEM_STORY_SCENES.map((scene) => (
             <div

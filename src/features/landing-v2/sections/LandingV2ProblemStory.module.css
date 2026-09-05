@@ -6,6 +6,9 @@
   --lv2-problem-black: #000000;
   --lv2-nav-h: var(--lv3-nav-h, 68px);
   --lv2-hero-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  /* Compact sticky runway — tighter than desktop, still multi-beat */
+  --lv2-problem-track-compact: 360svh;
+  --lv2-problem-hero-overlap-compact: min(30svh, 240px);
 
   position: relative;
   width: 100%;
@@ -44,19 +47,18 @@
  * Pre-sticky text theater after Scene 01 has settled.
  * Full sticky rect, fixed — not a rising panel. Black field replaces Hero
  * blackPlate once the hero section has scrolled away.
+ * Applies on desktop and compact scroll theater (attribute-gated).
  */
-@media (min-width: 1101px) {
-  .stickyStage[data-early-story-fixed='true'] {
-    position: fixed;
-    top: var(--lv2-nav-h);
-    right: 0;
-    bottom: auto;
-    left: 0;
-    width: auto;
-    height: calc(100svh - var(--lv2-nav-h));
-    z-index: 5;
-    background: var(--lv2-problem-black);
-  }
+.stickyStage[data-early-story-fixed='true'] {
+  position: fixed;
+  top: var(--lv2-nav-h);
+  right: 0;
+  bottom: auto;
+  left: 0;
+  width: auto;
+  height: calc(100svh - var(--lv2-nav-h));
+  z-index: 5;
+  background: var(--lv2-problem-black);
 }
 
 .stageInner {
@@ -79,42 +81,40 @@
 }
 
 /* Scene 01 — text-only fixed overlay during hero exit (Hero blackPlate is the black). */
-@media (min-width: 1101px) {
-  .sceneLayer[data-scene01-handoff-fixed='true'] {
-    position: fixed;
-    /* Explicit longhands — do NOT use inset:auto (it clears top and parks the layer off-screen). */
-    top: var(--lv2-nav-h);
-    right: 0;
-    bottom: auto;
-    left: 0;
-    width: auto;
-    height: calc(100svh - var(--lv2-nav-h));
-    z-index: 5;
-    /* Transparent — do NOT introduce an opaque black panel over Hero */
-    background: transparent;
-  }
+.sceneLayer[data-scene01-handoff-fixed='true'] {
+  position: fixed;
+  /* Explicit longhands — do NOT use inset:auto (it clears top and parks the layer off-screen). */
+  top: var(--lv2-nav-h);
+  right: 0;
+  bottom: auto;
+  left: 0;
+  width: auto;
+  height: calc(100svh - var(--lv2-nav-h));
+  z-index: 5;
+  /* Transparent — do NOT introduce an opaque black panel over Hero */
+  background: transparent;
+}
 
-  /*
-   * Scene 07 — text-only fixed during Product Story overlap/exit.
-   * Same geometry as sticky scene. Transparent — no rising black panel.
-   */
-  .scene07ExitFixed {
-    --lv2-problem-ink: #f5f1ea;
-    --lv2-problem-muted: rgba(245, 241, 234, 0.6);
-    --lv2-nav-h: var(--lv3-nav-h, 68px);
-    position: fixed;
-    top: var(--lv2-nav-h);
-    right: 0;
-    bottom: auto;
-    left: 0;
-    width: auto;
-    height: calc(100svh - var(--lv2-nav-h));
-    /* Above Product Story sticky; below typical modal layers. */
-    z-index: 40;
-    background: transparent;
-    pointer-events: none;
-    color: var(--lv2-problem-ink);
-  }
+/*
+ * Scene 07 — text-only fixed during Product Story overlap/exit.
+ * Same geometry as sticky scene. Transparent — no rising black panel.
+ */
+.scene07ExitFixed {
+  --lv2-problem-ink: #f5f1ea;
+  --lv2-problem-muted: rgba(245, 241, 234, 0.6);
+  --lv2-nav-h: var(--lv3-nav-h, 68px);
+  position: fixed;
+  top: var(--lv2-nav-h);
+  right: 0;
+  bottom: auto;
+  left: 0;
+  width: auto;
+  height: calc(100svh - var(--lv2-nav-h));
+  /* Above Product Story sticky; below typical modal layers. */
+  z-index: 40;
+  background: transparent;
+  pointer-events: none;
+  color: var(--lv2-problem-ink);
 }
 
 .scene01EntryWrap {
@@ -295,19 +295,78 @@
   font-size: clamp(3rem, 11vw, 4.2rem);
 }
 
+/*
+ * Compact viewport — scroll theater keeps sticky stage + shorter runway.
+ * Static / reduced-motion uses stacked scenes below.
+ */
 @media (max-width: 1100px) {
-  .problemTrack {
+  .problemTrack[data-problem-theater='scroll'] {
+    height: var(--lv2-problem-track-compact);
+    /* Overlap Hero blackPlate so zoom→black→Scene 01 has no cream flash */
+    margin-top: calc(-1 * var(--lv2-problem-hero-overlap-compact));
+  }
+
+  .problemTrack[data-problem-theater='scroll'] .stickyStage {
+    position: sticky;
+    top: var(--lv2-nav-h);
+    height: calc(100svh - var(--lv2-nav-h));
+    overflow: hidden;
+    background: var(--lv2-problem-black);
+  }
+
+  .problemTrack[data-problem-theater='scroll'] .sceneLayer {
+    padding-inline: clamp(1.15rem, 5vw, 1.75rem);
+    padding-block: 0.5rem;
+  }
+
+  .problemTrack[data-problem-theater='scroll'] .sceneCopy {
+    width: min(100%, 21.5rem);
+    max-width: calc(100vw - 2.25rem);
+  }
+
+  .problemTrack[data-problem-theater='scroll'] .linePrimary,
+  .problemTrack[data-problem-theater='scroll'] .lineMuted {
+    font-size: clamp(2.55rem, 9.2vw, 3.55rem);
+    letter-spacing: -0.05em;
+    line-height: 1.02;
+  }
+
+  .problemTrack[data-problem-theater='scroll'] .scene07 .linePrimary {
+    font-size: clamp(2.65rem, 9.4vw, 3.75rem);
+  }
+
+  .problemTrack[data-problem-theater='scroll'] .lineMobile {
+    display: block;
+  }
+
+  .problemTrack[data-problem-theater='scroll'] .scene07HeadlineBlur {
+    max-width: min(100%, calc(100vw - 2rem));
+  }
+
+  /* Reduced-motion / static stack on compact */
+  .problemTrack[data-problem-theater='static'] {
     height: auto;
     margin-top: 0;
   }
 
-  .sceneCopy {
+  .problemTrack[data-problem-theater='static'] .sceneCopy {
     width: min(100%, 22rem);
     max-width: calc(100vw - 2.5rem);
   }
 
-  .lineMobile {
+  .problemTrack[data-problem-theater='static'] .lineMobile {
     display: block;
+  }
+}
+
+@media (max-width: 390px) {
+  .problemTrack[data-problem-theater='scroll'] .linePrimary,
+  .problemTrack[data-problem-theater='scroll'] .lineMuted {
+    font-size: clamp(2.35rem, 9.8vw, 3.15rem);
+  }
+
+  .problemTrack[data-problem-theater='scroll'] .scene07 .linePrimary {
+    font-size: clamp(2.45rem, 10vw, 3.3rem);
   }
 }
 

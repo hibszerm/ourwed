@@ -453,7 +453,7 @@ function walkTs(dir: string, out: string[] = []): string[] {
   assertIncludes(hero, '[0.7, 0.91]', 'exit window after graphite hold')
   assertIncludes(hero, '[0.76, 0.92]', 'hardware resolve window')
 
-  /* Phase 1 — other theaters still use compact∨reduced static gate */
+  /* Phase 1/2 — later theaters still use compact∨reduced static gate */
   const productStoryGate = read(
     'src/features/landing-v2/product-story/LandingV2ProductStory.tsx',
   )
@@ -470,27 +470,49 @@ function walkTs(dir: string, out: string[] = []): string[] {
   assertIncludes(
     productStoryGate,
     'Boolean(reduced) || compact',
-    'Product Story still compact∨reduced static (Phase 1)',
+    'Product Story still compact∨reduced static (Phase 2)',
+  )
+  /* Phase 2 — Problem Story: compact no longer forces static */
+  assertIncludes(
+    problemGate,
+    'const skipTheater = isReducedMotion',
+    'Problem Story skips theater only for reduced motion',
+  )
+  assertIncludes(problemGate, 'useLandingCompactViewport', 'Problem uses shared compact hook')
+  assertNotIncludes(
+    problemGate,
+    'Boolean(reduced) || compact',
+    'Problem Story no longer equates compact with reduced motion',
   )
   assertIncludes(
     problemGate,
-    'Boolean(reduced) || compact',
-    'Problem Story still compact∨reduced static (Phase 1)',
+    'SCENE07_BLUR_MAX_DESKTOP = 25',
+    'desktop Scene 07 blur max preserved',
+  )
+  assertIncludes(
+    problemGate,
+    'SCENE07_EXIT_SCALE_DESKTOP = 2.15',
+    'desktop Scene 07 exit scale preserved',
+  )
+  assertIncludes(
+    problemGate,
+    'SCENE07_BLUR_MAX_COMPACT',
+    'compact Scene 07 blur adapted',
   )
   assertIncludes(
     lifecycleGate,
     'Boolean(reduced) || compact',
-    'Lifecycle Story still compact∨reduced static (Phase 1)',
+    'Lifecycle Story still compact∨reduced static (Phase 2)',
   )
   assertIncludes(
     mobileStoryGate,
     'Boolean(reduced) || compact',
-    'Mobile Story still compact∨reduced static (Phase 1)',
+    'Mobile Story still compact∨reduced static (Phase 2)',
   )
   assertIncludes(
     founderGate,
     'Boolean(reduced) || compact',
-    'Founder Story still compact∨reduced static (Phase 1)',
+    'Founder Story still compact∨reduced static (Phase 2)',
   )
 
   const problem = read('src/features/landing-v2/sections/LandingV2ProblemStory.tsx')
@@ -513,7 +535,8 @@ function walkTs(dir: string, out: string[] = []): string[] {
   assertIncludes(problem, 'scene07HeadlineBlur', 'Scene 07 blur on tight headline layer')
   assertIncludes(problem, 'data-scene07-headline-blur', 'Scene 07 headline blur marker')
   assertIncludes(problem, 'blur(${px', 'Scene 07 blur radius from exit progress')
-  assertIncludes(problem, 't * 25', 'Scene 07 max blur 25px (approved)')
+  assertIncludes(problem, 'scene07BlurMax', 'Scene 07 blur uses desktop/compact max')
+  assertIncludes(problem, 't * scene07BlurMax', 'Scene 07 blur driven by adaptive max')
   assertNotIncludes(problem, "from 'gsap'", 'no GSAP in problem story')
 
   const problemCopy = read('src/features/landing-v2/sections/problemStoryCopy.ts')
@@ -535,6 +558,17 @@ function walkTs(dir: string, out: string[] = []): string[] {
   )
 
   assertIncludes(problemCss, '450svh', 'tighter problem story track')
+  assertIncludes(problemCss, '--lv2-problem-track-compact: 360svh', 'compact scroll runway')
+  assertIncludes(
+    problemCss,
+    "data-problem-theater='scroll'",
+    'compact scroll theater CSS',
+  )
+  assertIncludes(
+    problemCss,
+    '--lv2-problem-hero-overlap-compact',
+    'compact Hero→Problem black overlap',
+  )
   assertIncludes(problemCss, 'place-items: center', 'centered scenes')
   assertIncludes(problemCss, '#000000', 'true black background')
   assertIncludes(problemCss, '#f5f1ea', 'warm ivory type')
