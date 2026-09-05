@@ -316,12 +316,21 @@
 
   .problemTrack[data-problem-theater='scroll'] .sceneLayer {
     padding-inline: clamp(1.15rem, 5vw, 1.75rem);
-    padding-block: 0.5rem;
+    /* No padding-block — keep optical center identical across beats */
+    place-items: center;
   }
 
   .problemTrack[data-problem-theater='scroll'] .sceneCopy {
     width: min(100%, 21.5rem);
     max-width: calc(100vw - 2.25rem);
+    /*
+     * Stable editorial anchor: 1-line and 2-line beats share the same
+     * vertical box so dissolve stays in place (not a height-driven jump).
+     */
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-height: 6.4em;
   }
 
   .problemTrack[data-problem-theater='scroll'] .linePrimary,

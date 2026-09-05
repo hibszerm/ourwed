@@ -499,6 +499,20 @@ function walkTs(dir: string, out: string[] = []): string[] {
     'SCENE07_BLUR_MAX_COMPACT',
     'compact Scene 07 blur adapted',
   )
+  assertIncludes(problemGate, 'SCENE_ENTER_Y = 10', 'desktop scene enter Y frozen')
+  assertIncludes(problemGate, 'SCENE_EXIT_Y = -8', 'desktop scene exit Y frozen')
+  assertIncludes(problemGate, 'SCENE_ENTER_Y_COMPACT = 2', 'compact enter Y near-dissolve')
+  assertIncludes(problemGate, 'SCENE_EXIT_Y_COMPACT = -1.5', 'compact exit Y near-dissolve')
+  assert(
+    !problemGate.includes('SCENE_ENTER_Y_COMPACT = 8') &&
+      !problemGate.includes('SCENE_ENTER_Y_COMPACT = 10'),
+    'compact must not use large bottom-up enter Y',
+  )
+  assertIncludes(
+    problemGate,
+    'SCENE07_EXIT_SCALE_COMPACT',
+    'Scene 07 compact exit scale still special-cased',
+  )
   assertIncludes(
     lifecycleGate,
     'Boolean(reduced) || compact',
@@ -569,6 +583,7 @@ function walkTs(dir: string, out: string[] = []): string[] {
     '--lv2-problem-hero-overlap-compact',
     'compact Hero→Problem black overlap',
   )
+  assertIncludes(problemCss, 'min-height: 6.4em', 'compact stable text anchor box')
   assertIncludes(problemCss, 'place-items: center', 'centered scenes')
   assertIncludes(problemCss, '#000000', 'true black background')
   assertIncludes(problemCss, '#f5f1ea', 'warm ivory type')

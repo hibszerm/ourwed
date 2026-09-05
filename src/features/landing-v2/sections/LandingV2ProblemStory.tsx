@@ -30,9 +30,13 @@ const SCENE_EXIT_Y = -8
 const SCENE_ENTER_SCALE = 0.995
 const SCENE_EXIT_SCALE = 1.002
 
-/** Compact portrait — shorter travel, softer Scene 07 camera. */
-const SCENE_ENTER_Y_COMPACT = 8
-const SCENE_EXIT_Y_COMPACT = -6
+/**
+ * Compact portrait — same dissolve language as desktop, but Y travel must
+ * stay near-zero. Desktop's 10px settle reads as a bottom-up slide on phones.
+ */
+const SCENE_ENTER_Y_COMPACT = 2
+const SCENE_EXIT_Y_COMPACT = -1.5
+
 const SCENE07_EXIT_SCALE_DESKTOP = 2.15
 const SCENE07_EXIT_SCALE_COMPACT = 1.55
 const SCENE07_BLUR_MAX_DESKTOP = 25
