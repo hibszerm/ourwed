@@ -2332,15 +2332,17 @@ function walkTs(dir: string, out: string[] = []): string[] {
     "data-feature-reveal={compactMotion ? 'viewport' : 'atlas'}",
     'compact reveal is viewport-local; desktop keeps atlas clock',
   )
+  assertIncludes(features, 'data-features-intro-motion="dom"', 'compact intro uses plain DOM opacity bind')
+  assertIncludes(features, 'compactHeadingRef', 'compact heading DOM ref')
   assertIncludes(
     features,
-    'headingTravel = isCompactViewport ? 10 : 28',
-    'compact heading travel restrained (~10px)',
+    'headingTravel = isCompactViewport ? 0 : 28',
+    'compact heading uses opacity-only (no y travel / soft GPU text)',
   )
   assertIncludes(
     features,
-    'leadTravel = isCompactViewport ? 7 : 22',
-    'compact lead travel restrained (~7px)',
+    'leadTravel = isCompactViewport ? 0 : 22',
+    'compact lead uses opacity-only',
   )
   assertIncludes(features, 'HEADER_OFFSET_COMPACT', 'compact header reveal starts earlier')
   assertIncludes(features, "['start 1.12', 'start 0.72']", 'compact intro offset earlier than desktop')
@@ -2392,6 +2394,55 @@ function walkTs(dir: string, out: string[] = []): string[] {
     'compact module CSS clears inherited/residue blur',
   )
   assertIncludes(featuresCss, 'filter: none !important', 'compact cards resolve to no blur')
+  assertIncludes(
+    features,
+    "filter: 'none'",
+    'compact intro/cards force filter none (not blur(0px))',
+  )
+  assertIncludes(features, 'data-features-heading=', 'features heading marker')
+  assertIncludes(features, 'data-feature-hover-surface="module"', 'whole module is hover ownership surface')
+  assertIncludes(
+    featuresCss,
+    'pointer-events: none',
+    'decorative moduleScene does not steal card hover',
+  )
+  assertIncludes(
+    featuresCss,
+    '@media (hover: hover) and (pointer: fine)',
+    'hover gated by pointer capability not compact width',
+  )
+  assertIncludes(
+    featuresCss,
+    "module[data-feature-hover-surface='module']:hover",
+    'explicit module hover-surface selector',
+  )
+  assert(
+    !/@media \(max-width: 1100px\)[\s\S]{0,400}hover:\s*none/.test(
+      featuresCss.replace(/\/\*[\s\S]*?\*\//g, ''),
+    ),
+    'compact width must not disable hover media',
+  )
+  assertIncludes(featuresCss, 'min-height: 360px', 'Pakiety dedicated compact height token present')
+  assertIncludes(featuresCss, 'min-height: 380px', 'Kalendarz dedicated compact height token present')
+  {
+    const phoneStart = featuresCss.indexOf('@media (max-width: 640px)')
+    const phoneEnd = featuresCss.indexOf('@media (prefers-reduced-motion: reduce)', phoneStart)
+    const phoneBlock = featuresCss.slice(phoneStart, phoneEnd > phoneStart ? phoneEnd : phoneStart + 1)
+    assert(phoneBlock.includes('.calWeek'), 'phone block targets calWeek')
+    assert(
+      /overflow(?:-x|-y)?:\s*hidden/.test(phoneBlock),
+      'Kalendarz compact week preview has no internal scroll (overflow hidden)',
+    )
+    assert(
+      !/\.calWeek\s*\{[^}]*overflow-x:\s*auto/.test(phoneBlock),
+      'Kalendarz compact does not keep overflow-x auto',
+    )
+    assert(
+      phoneBlock.includes(".module[data-feature='pakiety']") &&
+        phoneBlock.includes('min-height: 360px'),
+      'Pakiety taller height is phone-scoped only',
+    )
+  }
   {
     const phoneStart = featuresCss.indexOf('@media (max-width: 640px)')
     const phoneEnd = featuresCss.indexOf('@media (prefers-reduced-motion: reduce)', phoneStart)

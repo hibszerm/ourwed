@@ -82,6 +82,8 @@ export function LandingV2FeaturesGrid() {
   const isCompactViewport = useLandingCompactViewport()
   const sectionRef = useRef<HTMLElement | null>(null)
   const revealRef = useRef<HTMLDivElement | null>(null)
+  const compactHeadingRef = useRef<HTMLHeadingElement | null>(null)
+  const compactLeadRef = useRef<HTMLParagraphElement | null>(null)
   const forced = useMotionValue(reduced ? 1 : 0)
 
   /**
@@ -116,9 +118,9 @@ export function LandingV2FeaturesGrid() {
     Math.max(Number(p), Number(f)),
   )
 
-  /* Compact: subtle settle only — mostly opacity, tiny y, no blur. */
-  const headingTravel = isCompactViewport ? 10 : 28
-  const leadTravel = isCompactViewport ? 7 : 22
+  /* Compact: opacity-only intro — no y/filter (avoids soft GPU text). */
+  const headingTravel = isCompactViewport ? 0 : 28
+  const leadTravel = isCompactViewport ? 0 : 22
 
   const headingOp = useTransform(headerReveal, (t) => easeOut(clamp01(t / 0.3)))
   const headingY = useTransform(
@@ -126,7 +128,6 @@ export function LandingV2FeaturesGrid() {
     (t) => (1 - easeOut(clamp01(t / 0.3))) * headingTravel,
   )
   const headingBlur = useTransform(headerReveal, (t) => {
-    if (isCompactViewport) return 'blur(0px)'
     const b = (1 - easeOut(clamp01(t / 0.3))) * 3
     return b < 0.08 ? 'blur(0px)' : `blur(${b.toFixed(2)}px)`
   })
@@ -137,10 +138,30 @@ export function LandingV2FeaturesGrid() {
     (t) => (1 - easeOut(clamp01((t - 0.06) / 0.28))) * leadTravel,
   )
   const leadBlur = useTransform(headerReveal, (t) => {
-    if (isCompactViewport) return 'blur(0px)'
     const b = (1 - easeOut(clamp01((t - 0.06) / 0.28))) * 3
     return b < 0.08 ? 'blur(0px)' : `blur(${b.toFixed(2)}px)`
   })
+
+  /**
+   * Compact intro: bind opacity onto plain HTML nodes (no motion.* filter layer).
+   * Framer motion headings keep writing filter:blur(0px) which softens type.
+   */
+  useEffect(() => {
+    if (!isCompactViewport) return
+    const apply = () => {
+      const h = compactHeadingRef.current
+      const l = compactLeadRef.current
+      if (h) h.style.opacity = String(headingOp.get())
+      if (l) l.style.opacity = String(leadOp.get())
+    }
+    apply()
+    const offH = headingOp.on('change', apply)
+    const offL = leadOp.on('change', apply)
+    return () => {
+      offH()
+      offL()
+    }
+  }, [isCompactViewport, headingOp, leadOp])
 
   return (
     <section
@@ -153,28 +174,46 @@ export function LandingV2FeaturesGrid() {
     >
       <div className={styles.inner}>
         <div ref={revealRef} className={styles.revealAnchor} data-lv2-features-reveal="">
-          <header className={styles.header}>
-            <motion.h2
-              id="lv2-features-heading"
-              className={styles.heading}
-              style={
-                isCompactViewport
-                  ? { opacity: headingOp, y: headingY }
-                  : { opacity: headingOp, y: headingY, filter: headingBlur }
-              }
-            >
-              Kilka funkcji, które ułatwią Ci pracę
-            </motion.h2>
-            <motion.p
-              className={styles.lead}
-              style={
-                isCompactViewport
-                  ? { opacity: leadOp, y: leadY }
-                  : { opacity: leadOp, y: leadY, filter: leadBlur }
-              }
-            >
-              Wszystko, czego potrzebujesz do prowadzenia zleceń — w jednym miejscu.
-            </motion.p>
+          <header className={styles.header} data-features-intro="">
+            {isCompactViewport ? (
+              <>
+                <h2
+                  ref={compactHeadingRef}
+                  id="lv2-features-heading"
+                  className={styles.heading}
+                  data-features-heading=""
+                  data-features-intro-motion="dom"
+                >
+                  Kilka funkcji, które ułatwią Ci pracę
+                </h2>
+                <p
+                  ref={compactLeadRef}
+                  className={styles.lead}
+                  data-features-lead=""
+                  data-features-intro-motion="dom"
+                >
+                  Wszystko, czego potrzebujesz do prowadzenia zleceń — w jednym miejscu.
+                </p>
+              </>
+            ) : (
+              <>
+                <motion.h2
+                  id="lv2-features-heading"
+                  className={styles.heading}
+                  data-features-heading=""
+                  style={{ opacity: headingOp, y: headingY, filter: headingBlur }}
+                >
+                  Kilka funkcji, które ułatwią Ci pracę
+                </motion.h2>
+                <motion.p
+                  className={styles.lead}
+                  data-features-lead=""
+                  style={{ opacity: leadOp, y: leadY, filter: leadBlur }}
+                >
+                  Wszystko, czego potrzebujesz do prowadzenia zleceń — w jednym miejscu.
+                </motion.p>
+              </>
+            )}
           </header>
         </div>
 
@@ -242,6 +281,7 @@ function AtlasModule({
       className={styles.module}
       data-feature={id}
       data-lv2-feature-module=""
+      data-feature-hover-surface="module"
       data-col-span={colSpan}
       data-feature-reveal={compactMotion ? 'viewport' : 'atlas'}
       /* Compact: never bind atlas blur MotionValues — leftover filter:blur(3px) softens cards. */

@@ -56,7 +56,16 @@
 
 .section[data-features-layout='compact'] .heading,
 .section[data-features-layout='compact'] .lead {
-  will-change: transform, opacity;
+  will-change: auto;
+  filter: none !important;
+  transform: none !important;
+  -webkit-font-smoothing: antialiased;
+}
+
+.section[data-features-layout='compact'] .heading[data-features-intro-motion='dom'],
+.section[data-features-layout='compact'] .lead[data-features-intro-motion='dom'] {
+  /* Opacity driven by MotionValue → DOM; start hidden until first apply. */
+  opacity: 0;
 }
 
 /* Compact cards must never keep a filter compositing blur. */
@@ -104,8 +113,11 @@
 }
 
 @media (hover: hover) and (pointer: fine) {
+  /* Interaction capability — NOT viewport width. Compact pointer devices keep hover. */
   .module:hover,
-  .module:focus-within {
+  .module:focus-within,
+  .module[data-feature-hover-surface='module']:hover,
+  .module[data-feature-hover-surface='module']:focus-within {
     border-color: var(--fg-line-strong);
     box-shadow:
       inset 0 1px 0 color-mix(in srgb, #ffffff 80%, transparent),
@@ -142,6 +154,8 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  /* Whole .module owns hover — decorative scene does not capture the pointer. */
+  pointer-events: none;
 }
 
 /* Editorial spans + protected module heights */
@@ -2517,17 +2531,33 @@
 
   .module[data-feature='finanse'],
   .module[data-feature='powiadomienia'],
-  .module[data-feature='kalendarz'],
   .module[data-feature='ankiety'] {
     min-height: 300px;
   }
 
   .module[data-feature='zadania'],
   .module[data-feature='umowy'],
-  .module[data-feature='pakiety'],
   .module[data-feature='sluby'],
   .module[data-feature='sesje'] {
     min-height: 270px;
+  }
+
+  /* Pakiety — dedicated taller shell so package rows + details breathe */
+  .module[data-feature='pakiety'] {
+    min-height: 360px;
+  }
+
+  .module[data-feature='pakiety'] .moduleScene {
+    min-height: 15.5rem;
+  }
+
+  /* Kalendarz — taller shell; week preview must fit without nested scroll */
+  .module[data-feature='kalendarz'] {
+    min-height: 380px;
+  }
+
+  .module[data-feature='kalendarz'] .moduleScene {
+    min-height: 16.5rem;
   }
 
   .moduleScene {
@@ -2551,7 +2581,17 @@
   }
 
   .calWeek {
-    overflow-x: auto;
+    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: hidden;
+  }
+
+  .calEventSlot {
+    min-height: 3.1rem;
+  }
+
+  .module[data-feature='kalendarz'] .objSurface {
+    min-height: 0;
   }
 }
 
