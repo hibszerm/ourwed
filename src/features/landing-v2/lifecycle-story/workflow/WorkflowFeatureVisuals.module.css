@@ -442,6 +442,8 @@
   --preview-scale-questionnaire: 1;
   --preview-density-logistics: 0.9;
   --preview-density-execution: 0.9;
+  /* Shared width for vertical itinerary / ops stacks (Logistyka, Realizacja). */
+  --workflow-compact-stack-width: min(86%, 21.5rem);
 
   display: grid;
   place-items: center;
@@ -451,8 +453,8 @@
 }
 
 /*
- * Umowa — full-width 3-step horizontal flow (no microscopic global scale).
- * Cards flex within the preview; all three states stay visible.
+ * Umowa — full-width 3-step horizontal flow with asymmetric card weights
+ * so Dokument can hold "Wygeneruj umowę" without squeezing.
  */
 :global([data-workflow-layout='compact']) .visual[data-wf-visual='contract'] .flowRow {
   flex-direction: row;
@@ -462,7 +464,7 @@
   max-width: 100%;
   height: auto;
   max-height: 100%;
-  gap: 0.22rem;
+  gap: 0.2rem;
   transform: none;
   overflow: hidden;
 }
@@ -470,17 +472,23 @@
 :global([data-workflow-layout='compact']) .visual[data-wf-visual='contract'] .arrow {
   transform: none;
   align-self: center;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   flex: 0 0 auto;
-  width: 0.75rem;
+  width: 0.65rem;
   text-align: center;
 }
 
 :global([data-workflow-layout='compact']) .visual[data-wf-visual='contract'] .card {
-  flex: 1 1 0;
+  flex: 0.95 1 0;
   min-width: 0;
-  padding: 0.45rem 0.4rem;
+  padding: 0.5rem 0.45rem;
   overflow: hidden;
+}
+
+:global([data-workflow-layout='compact']) .visual[data-wf-visual='contract'] .cardAction {
+  flex: 1.2 1 0;
+  min-width: 5.5rem;
+  padding: 0.55rem 0.5rem;
 }
 
 :global([data-workflow-layout='compact']) .visual[data-wf-visual='contract'] .cardEyebrow {
@@ -502,14 +510,23 @@
 }
 
 :global([data-workflow-layout='compact']) .visual[data-wf-visual='contract'] .fakeBtn {
-  margin-top: 0.45rem;
-  padding: 0.3rem 0.4rem;
-  font-size: 0.5625rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  margin-top: 0.55rem;
+  padding: 0.42rem 0.45rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1.15;
   white-space: nowrap;
+  border-radius: 999px;
 }
 
 :global([data-workflow-layout='compact']) .visual[data-wf-visual='contract'] .docStack {
-  flex: 1.05 1 0;
+  flex: 1.15 1 0;
   min-width: 0;
   min-height: 118px;
   overflow: hidden;
@@ -698,20 +715,31 @@
 }
 
 /*
- * Logistyka — denser route so all nodes + summary fit without clipping.
+ * Logistyka — wide vertical itinerary (shared stack width token).
  */
+:global([data-workflow-layout='compact']) .visual[data-wf-visual='logistics'] {
+  justify-items: center;
+  align-content: center;
+}
+
 :global([data-workflow-layout='compact']) .visual[data-wf-visual='logistics'] .route {
-  width: 100%;
-  max-width: 100%;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: stretch;
+  width: var(--workflow-compact-stack-width);
+  max-width: 90%;
   height: auto;
   max-height: 100%;
   gap: calc(0.22rem * var(--preview-density-logistics));
-  justify-content: center;
+  align-content: center;
   overflow: hidden;
 }
 
 :global([data-workflow-layout='compact']) .visual[data-wf-visual='logistics'] .card {
-  padding: 0.42rem 0.65rem;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 0.5rem 0.85rem;
 }
 
 :global([data-workflow-layout='compact']) .visual[data-wf-visual='logistics'] .cardEyebrow {
@@ -720,41 +748,57 @@
 }
 
 :global([data-workflow-layout='compact']) .visual[data-wf-visual='logistics'] .cardTitle {
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
 }
 
 :global([data-workflow-layout='compact']) .visual[data-wf-visual='logistics'] .cardMeta {
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   margin-top: 0.1rem;
 }
 
 :global([data-workflow-layout='compact']) .visual[data-wf-visual='logistics'] .routeDist {
   font-size: 0.625rem;
-  padding-left: 0.1rem;
+  padding-left: 0.15rem;
   line-height: 1.1;
 }
 
 :global([data-workflow-layout='compact']) .visual[data-wf-visual='logistics'] .routeSummary {
-  margin-top: 0.35rem;
-  padding: 0.5rem 0.7rem;
-  font-size: 0.75rem;
+  box-sizing: border-box;
+  justify-self: stretch;
+  width: auto;
+  min-width: 0;
+  max-width: none;
+  margin-top: 0.4rem;
+  padding: 0.55rem 0.85rem;
+  font-size: 0.8125rem;
 }
 
 /*
- * Realizacja — denser ops cards; all five blocks must fit.
+ * Realizacja — same wide stack language as Logistyka.
  */
+:global([data-workflow-layout='compact']) .visual[data-wf-visual='execution'] {
+  justify-items: center;
+  align-content: center;
+}
+
 :global([data-workflow-layout='compact']) .visual[data-wf-visual='execution'] .opsStack {
-  width: 100%;
-  max-width: 100%;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: stretch;
+  width: var(--workflow-compact-stack-width);
+  max-width: 90%;
   height: auto;
   max-height: 100%;
   gap: calc(0.28rem * var(--preview-density-execution));
-  justify-content: center;
+  align-content: center;
   overflow: hidden;
 }
 
 :global([data-workflow-layout='compact']) .visual[data-wf-visual='execution'] .card {
-  padding: 0.4rem 0.65rem;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 0.48rem 0.85rem;
 }
 
 :global([data-workflow-layout='compact']) .visual[data-wf-visual='execution'] .cardEyebrow {
@@ -763,7 +807,7 @@
 }
 
 :global([data-workflow-layout='compact']) .visual[data-wf-visual='execution'] .cardTitle {
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
 }
 
 /* Studio — calm, slightly larger hub + orbit */

@@ -1779,8 +1779,8 @@ function walkTs(dir: string, out: string[] = []): string[] {
   assertIncludes(transformSurface, 'compact ?', 'compact morph geometry isolated')
   assertIncludes(transformSurface, 'Math.min(vw - 28, 340)', 'compact pill width fits portrait')
   assertIncludes(transformSurface, 'Math.min(vw - 22, 430)', 'compact workspace nearly full phone width')
-  assertIncludes(transformSurface, 'usable * 0.82', 'compact workspace ~82% of sticky stage')
-  assertIncludes(transformSurface, 'Math.min(720, Math.max(600', 'compact workspace height band 600–720')
+  assertIncludes(transformSurface, 'usable * 0.86', 'compact workspace ~86% of sticky stage')
+  assertIncludes(transformSurface, 'Math.min(750, Math.max(620', 'compact workspace height band 620–750')
   assertIncludes(transformSurface, 'viewportTick', 'compact shell recomputes on viewport resize')
   assertIncludes(transformSurface, 'compact={compact}', 'compact layout passed into WorkflowExplorer')
   assertIncludes(explorer, "data-workflow-layout={compact ? 'compact' : 'desktop'}", 'layout mode flag')
@@ -1817,6 +1817,7 @@ function walkTs(dir: string, out: string[] = []): string[] {
     assertIncludes(visualsCss, '--preview-scale-questionnaire', 'Ankiety compact token')
     assertIncludes(visualsCss, '--preview-density-logistics', 'Logistyka density token')
     assertIncludes(visualsCss, '--preview-density-execution', 'Realizacja density token')
+    assertIncludes(visualsCss, '--workflow-compact-stack-width', 'shared Logistyka/Realizacja stack width')
     assertIncludes(visualsCss, "data-wf-visual='contract'", 'Umowa compact strategy')
     assertIncludes(visualsCss, "data-wf-visual='payments'", 'Płatności compact strategy')
     assertIncludes(visualsCss, "data-wf-visual='questionnaires'", 'Ankiety compact strategy')
@@ -1830,6 +1831,21 @@ function walkTs(dir: string, out: string[] = []): string[] {
       visualsCss,
       "data-wf-visual='contract'] .flowRow",
       'Umowa keeps horizontal 3-step flow on compact',
+    )
+    assertIncludes(visualsCss, '.cardAction', 'Umowa Dokument card gets wider flex weight')
+    {
+      const btnBlock = visualsCss.match(
+        /data-wf-visual='contract'\] \.fakeBtn \{([\s\S]*?)\}/,
+      )
+      assert(Boolean(btnBlock), 'Umowa fakeBtn block present')
+      assertIncludes(btnBlock![1], 'width: 100%', 'Umowa button uses full Dokument card width')
+      assertIncludes(btnBlock![1], 'font-size: 0.6875rem', 'Umowa button readable compact size')
+      assertNotIncludes(btnBlock![1], 'font-size: 0.5625rem', 'Umowa button no longer micro-sized')
+    }
+    assertIncludes(
+      visualsCss,
+      'width: var(--workflow-compact-stack-width)',
+      'Logistyka/Realizacja share stack width token',
     )
     assertNotIncludes(
       visualsCss,

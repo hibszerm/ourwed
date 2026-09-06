@@ -83,8 +83,8 @@ export function LifecycleTransformSurface({
       const vh = typeof window !== 'undefined' ? window.innerHeight : 844
       const navH = 68
       const usable = Math.max(1, vh - navH)
-      /* ~78–82% of sticky stage — immersive, with breathing room. */
-      const workH = Math.min(720, Math.max(600, Math.round(usable * 0.82)))
+      /* ~86% of sticky stage — larger premium surface, still breathing room. */
+      const workH = Math.min(750, Math.max(620, Math.round(usable * 0.86)))
       return linkH + (workH - linkH) * t
     }
     const linkH = 112
