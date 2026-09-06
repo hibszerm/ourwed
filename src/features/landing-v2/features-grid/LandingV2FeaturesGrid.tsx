@@ -56,6 +56,13 @@ const MODULE_WINDOWS: ReadonlyArray<readonly [number, number]> = [
 
 const COMPACT_EASE = [0.22, 1, 0.36, 1] as const
 
+/**
+ * Compact: begin intro while Features is still below the fold / under Lifecycle sticky,
+ * so heading is already readable as the workspace finishes exiting.
+ * Desktop keeps offset: ['start 0.92', 'start 0.5'] (frozen).
+ */
+const HEADER_OFFSET_COMPACT: ['start 1.12', 'start 0.72'] = ['start 1.12', 'start 0.72']
+
 function clamp01(n: number) {
   return Math.min(1, Math.max(0, n))
 }
@@ -90,11 +97,12 @@ export function LandingV2FeaturesGrid() {
   /**
    * Headline / lead only — earlier entry so the next chapter appears while the
    * Workflow Explorer is still leaving (no long beige dead zone).
+   * Compact uses HEADER_OFFSET_COMPACT; desktop keeps HEADER_OFFSET_DESKTOP.
    * Does not drive atlas module motion.
    */
   const { scrollYProgress: headerScrollYProgress } = useScroll({
     target: revealRef,
-    offset: ['start 0.92', 'start 0.5'],
+    offset: isCompactViewport ? HEADER_OFFSET_COMPACT : ['start 0.92', 'start 0.5'],
   })
 
   useEffect(() => {
@@ -108,8 +116,9 @@ export function LandingV2FeaturesGrid() {
     Math.max(Number(p), Number(f)),
   )
 
-  const headingTravel = isCompactViewport ? 16 : 28
-  const leadTravel = isCompactViewport ? 10 : 22
+  /* Compact: subtle settle only — mostly opacity, tiny y, no blur. */
+  const headingTravel = isCompactViewport ? 10 : 28
+  const leadTravel = isCompactViewport ? 7 : 22
 
   const headingOp = useTransform(headerReveal, (t) => easeOut(clamp01(t / 0.3)))
   const headingY = useTransform(
@@ -117,7 +126,8 @@ export function LandingV2FeaturesGrid() {
     (t) => (1 - easeOut(clamp01(t / 0.3))) * headingTravel,
   )
   const headingBlur = useTransform(headerReveal, (t) => {
-    const b = (1 - easeOut(clamp01(t / 0.3))) * (isCompactViewport ? 2 : 3)
+    if (isCompactViewport) return 'blur(0px)'
+    const b = (1 - easeOut(clamp01(t / 0.3))) * 3
     return b < 0.08 ? 'blur(0px)' : `blur(${b.toFixed(2)}px)`
   })
 
@@ -127,7 +137,8 @@ export function LandingV2FeaturesGrid() {
     (t) => (1 - easeOut(clamp01((t - 0.06) / 0.28))) * leadTravel,
   )
   const leadBlur = useTransform(headerReveal, (t) => {
-    const b = (1 - easeOut(clamp01((t - 0.06) / 0.28))) * (isCompactViewport ? 2 : 3)
+    if (isCompactViewport) return 'blur(0px)'
+    const b = (1 - easeOut(clamp01((t - 0.06) / 0.28))) * 3
     return b < 0.08 ? 'blur(0px)' : `blur(${b.toFixed(2)}px)`
   })
 
@@ -146,13 +157,21 @@ export function LandingV2FeaturesGrid() {
             <motion.h2
               id="lv2-features-heading"
               className={styles.heading}
-              style={{ opacity: headingOp, y: headingY, filter: headingBlur }}
+              style={
+                isCompactViewport
+                  ? { opacity: headingOp, y: headingY }
+                  : { opacity: headingOp, y: headingY, filter: headingBlur }
+              }
             >
               Kilka funkcji, które ułatwią Ci pracę
             </motion.h2>
             <motion.p
               className={styles.lead}
-              style={{ opacity: leadOp, y: leadY, filter: leadBlur }}
+              style={
+                isCompactViewport
+                  ? { opacity: leadOp, y: leadY }
+                  : { opacity: leadOp, y: leadY, filter: leadBlur }
+              }
             >
               Wszystko, czego potrzebujesz do prowadzenia zleceń — w jednym miejscu.
             </motion.p>
@@ -225,17 +244,24 @@ function AtlasModule({
       data-lv2-feature-module=""
       data-col-span={colSpan}
       data-feature-reveal={compactMotion ? 'viewport' : 'atlas'}
-      style={compactMotion ? undefined : { opacity, y, filter: blur }}
-      initial={compactMotion ? { opacity: 0, y: 18 } : false}
-      whileInView={compactMotion ? { opacity: 1, y: 0 } : undefined}
+      /* Compact: never bind atlas blur MotionValues — leftover filter:blur(3px) softens cards. */
+      style={
+        compactMotion
+          ? { filter: 'none' }
+          : compact && reduced
+            ? { opacity: 1, y: 0, filter: 'none' }
+            : { opacity, y, filter: blur }
+      }
+      initial={compactMotion ? { opacity: 0, y: 12, filter: 'none' } : false}
+      whileInView={compactMotion ? { opacity: 1, y: 0, filter: 'none' } : undefined}
       viewport={
         compactMotion
-          ? { once: true, amount: 0.22, margin: '0px 0px -10% 0px' }
+          ? { once: true, amount: 0.18, margin: '0px 0px -8% 0px' }
           : undefined
       }
       transition={
         compactMotion
-          ? { duration: 0.55, ease: COMPACT_EASE }
+          ? { duration: 0.5, ease: COMPACT_EASE }
           : undefined
       }
     >

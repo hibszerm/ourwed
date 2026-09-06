@@ -20,13 +20,15 @@ type Props = {
  *
  * Compact / reduced-motion: Mobile Story publishes progress=1 in its static path,
  * which would otherwise force featuresOpacityAt(1)=0 and hide the entire Features
- * section. Bypass exit motion so Features remain a normal readable scroll chapter.
+ * section. Bypass exit motion entirely (no filter/scale MotionValues) so Safari
+ * cannot keep a filter compositing layer over the vertical card stack.
  */
 export function FeaturesExitShell({ children }: Props) {
   const isCompactViewport = useLandingCompactViewport()
   const reduced = useReducedMotion()
-  const bypassExitRef = useRef(false)
-  bypassExitRef.current = Boolean(isCompactViewport) || Boolean(reduced)
+  const bypassExit = Boolean(isCompactViewport) || Boolean(reduced)
+  const bypassExitRef = useRef(bypassExit)
+  bypassExitRef.current = bypassExit
 
   const opacity = useTransform(mobileStoryProgressMv, (p) =>
     bypassExitRef.current ? 1 : featuresOpacityAt(p),
@@ -48,14 +50,33 @@ export function FeaturesExitShell({ children }: Props) {
     mobileStoryProgressMv.set(mobileStoryProgressMv.get())
   }, [isCompactViewport, reduced])
 
+  if (bypassExit) {
+    return (
+      <div
+        className={styles.shell}
+        data-lv2-features-exit=""
+        data-features-exit-bypass="true"
+      >
+        {/*
+          Plain layer — no filter/transform MotionValues.
+          Even filter:blur(0px) + will-change:filter can soften the stack in Safari.
+        */}
+        <div className={styles.motionLayerStatic} data-features-exit-layer="static">
+          {children}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div
       className={styles.shell}
       data-lv2-features-exit=""
-      data-features-exit-bypass={bypassExitRef.current ? 'true' : 'false'}
+      data-features-exit-bypass="false"
     >
       <motion.div
         className={styles.motionLayer}
+        data-features-exit-layer="motion"
         style={{ opacity, y, scale, filter: blur }}
       >
         {children}

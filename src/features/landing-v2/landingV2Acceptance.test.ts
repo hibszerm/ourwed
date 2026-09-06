@@ -2334,13 +2334,21 @@ function walkTs(dir: string, out: string[] = []): string[] {
   )
   assertIncludes(
     features,
-    'headingTravel = isCompactViewport ? 16 : 28',
-    'compact heading travel restrained (~16px)',
+    'headingTravel = isCompactViewport ? 10 : 28',
+    'compact heading travel restrained (~10px)',
   )
   assertIncludes(
     features,
-    'leadTravel = isCompactViewport ? 10 : 22',
-    'compact lead travel restrained (~10px)',
+    'leadTravel = isCompactViewport ? 7 : 22',
+    'compact lead travel restrained (~7px)',
+  )
+  assertIncludes(features, 'HEADER_OFFSET_COMPACT', 'compact header reveal starts earlier')
+  assertIncludes(features, "['start 1.12', 'start 0.72']", 'compact intro offset earlier than desktop')
+  assertIncludes(features, "{ filter: 'none' }", 'compact cards force filter none (no atlas blur residue)')
+  assertIncludes(
+    features,
+    "whileInView={compactMotion ? { opacity: 1, y: 0, filter: 'none' } : undefined}",
+    'compact whileInView resolves without blur',
   )
   assertIncludes(
     features,
@@ -2378,6 +2386,12 @@ function walkTs(dir: string, out: string[] = []): string[] {
     'phone near-full-width cards with ~28px gutters',
   )
   assertIncludes(featuresCss, '--fg-atlas-gap: 1rem', 'shared phone card stack rhythm')
+  assertIncludes(
+    featuresCss,
+    "section[data-features-layout='compact'] .module",
+    'compact module CSS clears inherited/residue blur',
+  )
+  assertIncludes(featuresCss, 'filter: none !important', 'compact cards resolve to no blur')
   {
     const phoneStart = featuresCss.indexOf('@media (max-width: 640px)')
     const phoneEnd = featuresCss.indexOf('@media (prefers-reduced-motion: reduce)', phoneStart)
@@ -2480,6 +2494,15 @@ function testMobileStory() {
     'compact/PRM bypass keeps Features visible when Mobile Story parks progress at 1',
   )
   assertIncludes(exitShell, 'data-features-exit-bypass=', 'explicit exit-bypass marker')
+  assertIncludes(exitShell, 'motionLayerStatic', 'compact uses static layer without filter MotionValues')
+  assertIncludes(exitShell, "data-features-exit-layer=\"static\"", 'static exit layer marker')
+  assertIncludes(
+    exitShellCss,
+    "shell[data-features-exit-bypass='true']",
+    'compact Features pulls under Lifecycle sticky for handoff',
+  )
+  assertIncludes(exitShellCss, '--fg-handoff-overlap', 'documented compact handoff overlap token')
+  assertIncludes(exitShellCss, 'motionLayerStatic', 'static layer CSS clears filter')
   assertNotIncludes(exitShell, 'useState', 'no React state in features exit shell')
   assertIncludes(exitShellCss, 'background: transparent', 'features exit shell transparent')
   assertIncludes(exitShellCss, 'motionLayer', 'inner motion layer')

@@ -54,6 +54,16 @@
   will-change: transform, opacity, filter;
 }
 
+.section[data-features-layout='compact'] .heading,
+.section[data-features-layout='compact'] .lead {
+  will-change: transform, opacity;
+}
+
+/* Compact cards must never keep a filter compositing blur. */
+.section[data-features-layout='compact'] .module {
+  filter: none !important;
+}
+
 .lead {
   margin: 0.75rem 0 0;
   font-size: clamp(0.9375rem, 0.45vw + 0.8rem, 1.0625rem);
@@ -2419,9 +2429,9 @@
 
 @media (max-width: 1100px) {
   .section {
-    --fg-chapter-pad-top: clamp(1.5rem, 4vw, 2.5rem);
+    --fg-chapter-pad-top: clamp(0.65rem, 2.2vw, 1.15rem);
     --fg-chapter-pad-bottom: clamp(5rem, 10vw, 10rem);
-    --fg-header-gap: clamp(1.5rem, 3.5vw, 2.25rem);
+    --fg-header-gap: clamp(1.15rem, 3vw, 1.75rem);
     --fg-atlas-gap: 14px;
     padding-inline: clamp(0.875rem, 3.5vw, 1.5rem);
   }

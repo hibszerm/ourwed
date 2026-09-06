@@ -137,23 +137,26 @@ export function LandingV2LifecycleStory() {
     return 0.99 + i * 0.01 - o * 0.04
   })
 
-  /* Soft paper clear only at track end — Features can read through as sticky unpins. */
-  const stickyPaperOp = useTransform(progress, (p) => {
-    if (p < 0.92) return 1
-    return 1 - easeInOutCubic((p - 0.92) / 0.08)
-  })
-
   /**
-   * Compact-only: fade the settled workspace stage at track end so Features intro
-   * is not trapped under an opaque full-bleed shell. Desktop stage stays opaque
-   * (handoff tests freeze theater opacity on desktop viewports).
+   * Compact-only: fade the settled workspace stage earlier so Features intro
+   * (pulled under sticky via FeaturesExitShell overlap) is readable while the
+   * workspace is ~70–85% gone. Desktop stage stays opaque.
    */
   const compactHandoffRef = useRef(isCompactViewport)
   compactHandoffRef.current = isCompactViewport
   const stickyStageOp = useTransform(progress, (p) => {
     if (!compactHandoffRef.current) return 1
-    if (p < 0.94) return 1
-    return 1 - easeInOutCubic((p - 0.94) / 0.06)
+    if (p < 0.82) return 1
+    return 1 - easeInOutCubic((p - 0.82) / 0.14)
+  })
+  /* Compact paper clears with the stage so beige sticky does not mask Features. */
+  const stickyPaperOp = useTransform(progress, (p) => {
+    if (compactHandoffRef.current) {
+      if (p < 0.8) return 1
+      return 1 - easeInOutCubic((p - 0.8) / 0.14)
+    }
+    if (p < 0.92) return 1
+    return 1 - easeInOutCubic((p - 0.92) / 0.08)
   })
 
   const n = karolinaJan
