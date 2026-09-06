@@ -2359,11 +2359,24 @@ function walkTs(dir: string, out: string[] = []): string[] {
   assertIncludes(features, 'y: 22', 'compact card initial y soft settle')
   assertIncludes(features, 'scale: 0.995', 'compact card tiny initial scale')
   assertIncludes(features, "filter: 'none'", 'compact card reveal never uses blur')
-  assertIncludes(features, 'amount: 0.12', 'compact card reveal starts earlier in viewport')
-  assertIncludes(features, "margin: '0px 0px 12% 0px'", 'compact card IO root expanded for earlier trigger')
+  assertIncludes(features, 'amount: 0.05', 'compact card needs only a small intersecting band once in zone')
+  assertIncludes(
+    features,
+    "margin: '0px 0px -22% 0px'",
+    'compact IO root shrunk from bottom — no offscreen pre-reveal',
+  )
+  assertNotIncludes(
+    features,
+    "margin: '0px 0px 12% 0px'",
+    'must not expand IO root below fold (caused invisible early reveals)',
+  )
   assertIncludes(features, 'once: true', 'compact card reveal plays once')
   assertIncludes(features, 'COMPACT_EASE', 'compact reveal uses premium ease-out token')
   assertIncludes(features, '[0.22, 1, 0.36, 1]', 'COMPACT_EASE matches --fg-ease premium curve')
+  assert(
+    features.includes('-22%') && !features.includes("margin: '0px 0px 12%"),
+    'reveal trigger uses negative bottom margin (lower viewport band), not early expansion',
+  )
   assertIncludes(
     features,
     "key={`${feature.id}-${isCompactViewport ? 'compact' : 'desktop'}`}",

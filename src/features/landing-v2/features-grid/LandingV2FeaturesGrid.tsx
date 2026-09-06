@@ -61,8 +61,12 @@ const COMPACT_CARD_REVEAL = {
   initial: { opacity: 0, y: 22, scale: 0.995, filter: 'none' as const },
   animate: { opacity: 1, y: 0, scale: 1, filter: 'none' as const },
   transition: { duration: 0.82, ease: COMPACT_EASE },
-  /** Start as the card's lower edge enters — earlier than late reading-zone trip. */
-  viewport: { once: true as const, amount: 0.12, margin: '0px 0px 12% 0px' },
+  /**
+   * Start only after the card top has entered the lower reading band.
+   * Negative bottom margin shrinks the IO root so offscreen cards below
+   * the fold do NOT pre-reveal (previous +12% margin fired early/offscreen).
+   */
+  viewport: { once: true as const, amount: 0.05, margin: '0px 0px -22% 0px' },
 } as const
 
 /** Desktop header clock (frozen). */
