@@ -30,7 +30,8 @@
  * sticky so the intro can read while the workspace finishes exiting.
  */
 .shell[data-features-exit-bypass='true'] {
-  --fg-handoff-overlap: calc(0.82 * (100svh - var(--lv3-nav-h, 68px)));
+  /* Slightly less pull-up so workspace exit has room before heading fills the frame */
+  --fg-handoff-overlap: calc(0.72 * (100svh - var(--lv3-nav-h, 68px)));
   margin-top: calc(-1 * var(--fg-handoff-overlap));
 }
 

@@ -58,7 +58,6 @@
 .section[data-features-layout='compact'] .lead {
   will-change: auto;
   filter: none !important;
-  transform: none !important;
   -webkit-font-smoothing: antialiased;
 }
 

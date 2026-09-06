@@ -11,7 +11,9 @@ import { LifecycleLinkObject } from '@/features/landing-v2/lifecycle-story/Lifec
 import { LifecycleTransformSurface } from '@/features/landing-v2/lifecycle-story/LifecycleTransformSurface'
 import {
   clearLifecycleExitT,
+  clearLifecycleProgressT,
   publishLifecycleExitT,
+  publishLifecycleProgressT,
 } from '@/features/landing-v2/lifecycle-story/lifecycleExitClock'
 import {
   LIFECYCLE_RANGES,
@@ -47,12 +49,16 @@ export function LandingV2LifecycleStory() {
   useEffect(() => {
     if (simple) {
       progress.set(1)
+      publishLifecycleProgressT(1)
       /*
        * PRM static — do NOT force Product iPad exit. Product compact theater
        * still needs the settled tablet until the user leaves that chapter.
        */
       publishLifecycleExitT(0)
-      return () => clearLifecycleExitT()
+      return () => {
+        clearLifecycleExitT()
+        clearLifecycleProgressT()
+      }
     }
 
     const el = trackRef.current
@@ -73,6 +79,7 @@ export function LandingV2LifecycleStory() {
           ? 0
           : Math.min(1, Math.max(0, (navH - rect.top) / travel))
       progress.set(raw)
+      publishLifecycleProgressT(raw)
       publishLifecycleExitT(ipadExitFromProgress(raw))
       const sticky = stickyRef.current
       if (sticky) {
@@ -101,6 +108,7 @@ export function LandingV2LifecycleStory() {
       document.removeEventListener('scroll', onScroll, true)
       window.removeEventListener('resize', onResize)
       clearLifecycleExitT()
+      clearLifecycleProgressT()
     }
   }, [simple, progress])
 
@@ -138,22 +146,27 @@ export function LandingV2LifecycleStory() {
   })
 
   /**
-   * Compact-only: fade the settled workspace stage earlier so Features intro
-   * (pulled under sticky via FeaturesExitShell overlap) is readable while the
-   * workspace is ~70–85% gone. Desktop stage stays opaque.
+   * Compact-only handoff — stretched overlap with Features intro.
+   * Stage begins exiting ~0.76 and finishes ~0.98 so workspace and heading coexist.
+   * Desktop stage stays fully opaque.
    */
   const compactHandoffRef = useRef(isCompactViewport)
   compactHandoffRef.current = isCompactViewport
   const stickyStageOp = useTransform(progress, (p) => {
     if (!compactHandoffRef.current) return 1
-    if (p < 0.82) return 1
-    return 1 - easeInOutCubic((p - 0.82) / 0.14)
+    if (p < 0.76) return 1
+    return 1 - easeInOutCubic((p - 0.76) / 0.22)
   })
-  /* Compact paper clears with the stage so beige sticky does not mask Features. */
+  const stickyStageY = useTransform(progress, (p) => {
+    if (!compactHandoffRef.current) return 0
+    if (p < 0.76) return 0
+    return -14 * easeInOutCubic((p - 0.76) / 0.22)
+  })
+  /* Compact paper clears with the stage (slightly earlier lead-in). */
   const stickyPaperOp = useTransform(progress, (p) => {
     if (compactHandoffRef.current) {
-      if (p < 0.8) return 1
-      return 1 - easeInOutCubic((p - 0.8) / 0.14)
+      if (p < 0.74) return 1
+      return 1 - easeInOutCubic((p - 0.74) / 0.22)
     }
     if (p < 0.92) return 1
     return 1 - easeInOutCubic((p - 0.92) / 0.08)
@@ -212,7 +225,7 @@ export function LandingV2LifecycleStory() {
         <motion.div
           className={styles.stage}
           data-lifecycle-stage=""
-          style={{ opacity: stickyStageOp }}
+          style={{ opacity: stickyStageOp, y: stickyStageY }}
         >
           <motion.div
             className={styles.headline}
