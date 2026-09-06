@@ -9,6 +9,7 @@
  * Problem-owned → handoff-owned → Product-owned (handoffT stays 1 past outEnd).
  */
 
+import { HERO_THEATER_GEOMETRY_COMPACT } from '@/features/landing-v2/hero/heroTheaterGeometry'
 import { scene07HandoffMv } from '@/features/landing-v2/product-story/scene07HandoffClock'
 
 /** CSS custom property published by Problem Story Scene 07 exit. */
@@ -39,8 +40,24 @@ export const PRODUCT_STORY_RANGES = {
   questionnaireHold: { start: 0.92, end: 1.0 },
 } as const
 
-/** Fallback cover scale until measured from real screen geometry. */
+/** Fallback cover scale until measured from real screen geometry (desktop). */
 export const PRODUCT_STORY_COVER_SCALE_FALLBACK = 2.15
+
+/**
+ * Compact portrait fallback — pairs with Scene 07 compact exit scale (3.2).
+ * Measured cover replaces this once the fitted slot is known.
+ */
+export const PRODUCT_STORY_COVER_SCALE_FALLBACK_COMPACT = 3.2
+
+/** Desktop cover clamp — frozen (do not widen). */
+export const PRODUCT_COVER_SCALE_DESKTOP = { min: 1.45, max: 2.6, safety: 1.08 } as const
+
+/** Compact cover clamp — shared language with Hero exit overscan. */
+export const PRODUCT_COVER_SCALE_COMPACT = {
+  min: HERO_THEATER_GEOMETRY_COMPACT.coverScaleMin,
+  max: HERO_THEATER_GEOMETRY_COMPACT.coverScaleMax,
+  safety: HERO_THEATER_GEOMETRY_COMPACT.coverScaleSafety,
+} as const
 
 export type ProductStoryTabId =
   | 'overview'
@@ -179,22 +196,40 @@ export function stickyTrackProgress(
 /**
  * Cover scale so the SCREEN (not merely chassis) fills the sticky stage —
  * reverse of Hero exit cover computation.
+ *
+ * Desktop: measure natural screen offset size (fluid tablet, no fitLock).
+ * Compact: pass the fitted slot size (post outer deviceFit) — offsetWidth of a
+ * fitLock 1420 canvas would under-cover portrait stages.
  */
 export function computeProductCoverScale(
   sticky: HTMLElement,
   screen: HTMLElement,
-  safety = 1.08,
+  options?: {
+    isCompactViewport?: boolean
+    /** Settled visual size after outer deviceFit (compact). */
+    fittedSlot?: { w: number; h: number } | null
+    safety?: number
+  },
 ): number {
+  const isCompact = Boolean(options?.isCompactViewport)
+  const clamp = isCompact ? PRODUCT_COVER_SCALE_COMPACT : PRODUCT_COVER_SCALE_DESKTOP
+  const safety = options?.safety ?? clamp.safety
+  const fallback = isCompact
+    ? PRODUCT_STORY_COVER_SCALE_FALLBACK_COMPACT
+    : PRODUCT_STORY_COVER_SCALE_FALLBACK
+
   const stageW = sticky.clientWidth
   const stageH = sticky.clientHeight
-  /* offset* ignores CSS transforms — natural settled geometry */
-  const screenW = screen.offsetWidth
-  const screenH = screen.offsetHeight
+  const fitted = options?.fittedSlot
+  const screenW =
+    fitted && fitted.w > 40 ? fitted.w : screen.offsetWidth
+  const screenH =
+    fitted && fitted.h > 40 ? fitted.h : screen.offsetHeight
   if (stageW < 40 || stageH < 40 || screenW < 40 || screenH < 40) {
-    return PRODUCT_STORY_COVER_SCALE_FALLBACK
+    return fallback
   }
   const next = Math.max(stageW / screenW, stageH / screenH) * safety
-  return Math.min(2.6, Math.max(1.45, next))
+  return Math.min(clamp.max, Math.max(clamp.min, next))
 }
 
 export function readScene07HandoffT(): number {

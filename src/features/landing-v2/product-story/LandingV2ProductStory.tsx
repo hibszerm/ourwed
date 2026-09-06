@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
   motion,
   useMotionValue,
@@ -7,10 +7,13 @@ import {
   useTransform,
 } from 'framer-motion'
 import { HeroTabletFrame } from '@/features/landing-v2/hero/HeroTabletFrame'
+import { measureCanonicalDeviceFit } from '@/features/landing-v2/hero/landingTabletFit'
+import { useLandingCompactViewport } from '@/features/landing-v2/motion/landingViewport'
 import { lifecycleExitMv } from '@/features/landing-v2/lifecycle-story/lifecycleExitClock'
 import {
   PRODUCT_SCREEN_REVEAL,
   PRODUCT_STORY_COVER_SCALE_FALLBACK,
+  PRODUCT_STORY_COVER_SCALE_FALLBACK_COMPACT,
   computeProductCoverScale,
   deviceScaleFromHandoff,
   productTheaterOwned,
@@ -36,30 +39,39 @@ import styles from './LandingV2ProductStory.module.css'
  * Device scale / paper / blackout ride scene07HandoffMv via useTransform
  * (Hero-parity: scroll→rAF→MotionValue→linear compositor transforms).
  * Sticky progress only drives tab scrub after screen reveal completes.
+ *
+ * Compact: same theater + canonical Hero tablet (fitLock + outer fit).
+ * Only prefers-reduced-motion uses the static stack.
  */
 export function LandingV2ProductStory() {
   const trackRef = useRef<HTMLElement | null>(null)
   const stickyRef = useRef<HTMLDivElement | null>(null)
   const cameraRef = useRef<HTMLDivElement | null>(null)
+  const deviceFitRef = useRef<HTMLDivElement | null>(null)
   const reduced = useReducedMotion()
-  const [compact, setCompact] = useState(false)
+  const isCompactViewport = useLandingCompactViewport()
   const [activeTab, setActiveTab] = useState<ProductStoryTabId>('overview')
+  const [deviceFitScale, setDeviceFitScale] = useState(1)
+  const [deviceFitSlot, setDeviceFitSlot] = useState<{ w: number; h: number } | null>(
+    null,
+  )
   /* Diagnostic mode — URL only, read once. Production default: full. */
   const [tabletDiag] = useState<ProductTabletDiagMode>(() =>
     readProductTabletDiagMode(),
   )
   const progress = useMotionValue(0)
-  const coverScaleMv = useMotionValue(PRODUCT_STORY_COVER_SCALE_FALLBACK)
+  const coverFallback = isCompactViewport
+    ? PRODUCT_STORY_COVER_SCALE_FALLBACK_COMPACT
+    : PRODUCT_STORY_COVER_SCALE_FALLBACK
+  const coverScaleMv = useMotionValue(coverFallback)
+
+  /* Theater runs on compact; only accessibility reduces to static. */
+  const simple = Boolean(reduced)
 
   useEffect(() => {
-    const mq = window.matchMedia('(max-width: 1100px)')
-    const sync = () => setCompact(mq.matches)
-    sync()
-    mq.addEventListener('change', sync)
-    return () => mq.removeEventListener('change', sync)
-  }, [])
-
-  const simple = Boolean(reduced) || compact
+    if (simple) return
+    coverScaleMv.set(coverFallback)
+  }, [simple, coverFallback, coverScaleMv])
 
   /*
    * Handoff ownership + workspace dormancy — DOM attributes only
@@ -102,9 +114,52 @@ export function LandingV2ProductStory() {
     }
   })
 
+  /* Uniform outer scale — same canonical fit model as Hero settle. */
+  useLayoutEffect(() => {
+    if (simple || !isCompactViewport) {
+      setDeviceFitScale(1)
+      setDeviceFitSlot(null)
+      return
+    }
+
+    const sticky = stickyRef.current
+    const fit = deviceFitRef.current
+    if (!sticky || !fit) return
+
+    let raf = 0
+    const measure = () => {
+      const next = measureCanonicalDeviceFit({
+        sticky,
+        fit,
+        padX: 24,
+        padY: 28,
+        cssVar: '--ps-device-fit-scale',
+      })
+      if (!next) return
+      setDeviceFitScale(next.scale)
+      setDeviceFitSlot({ w: next.slotW, h: next.slotH })
+    }
+
+    const onResize = () => {
+      cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(measure)
+    }
+
+    measure()
+    window.addEventListener('resize', onResize)
+    return () => {
+      cancelAnimationFrame(raf)
+      window.removeEventListener('resize', onResize)
+    }
+  }, [simple, isCompactViewport])
+
   useEffect(() => {
     if (simple) {
       progress.set(1)
+      /*
+       * PRM only — force completed handoff. Compact scroll must NOT do this
+       * (it was killing Scene 07 portal ownership on mobile).
+       */
       scene07HandoffMv.set(1)
       stickyRef.current?.setAttribute('data-ps-theater-owned', 'true')
       stickyRef.current
@@ -142,7 +197,10 @@ export function LandingV2ProductStory() {
         '[data-tablet-screen]',
       ) as HTMLElement | null
       if (!sticky || !screen) return
-      const next = computeProductCoverScale(sticky, screen)
+      const next = computeProductCoverScale(sticky, screen, {
+        isCompactViewport,
+        fittedSlot: isCompactViewport ? deviceFitSlot : null,
+      })
       if (Math.abs(next - lastCover) > 0.02) {
         lastCover = next
         coverScaleMv.set(next)
@@ -257,7 +315,31 @@ export function LandingV2ProductStory() {
       window.removeEventListener('resize', onResize)
       void removed
     }
-  }, [simple, progress, coverScaleMv, tabletDiag])
+  }, [
+    simple,
+    progress,
+    coverScaleMv,
+    tabletDiag,
+    isCompactViewport,
+    deviceFitSlot,
+  ])
+
+  /* Re-measure cover when compact fit slot resolves. */
+  useEffect(() => {
+    if (simple || !isCompactViewport || !deviceFitSlot) return
+    const sticky = stickyRef.current
+    const screen = cameraRef.current?.querySelector(
+      '[data-tablet-screen]',
+    ) as HTMLElement | null
+    if (!sticky || !screen) return
+    if (!productTheaterOwned(scene07HandoffMv.get())) return
+    const next = computeProductCoverScale(sticky, screen, {
+      isCompactViewport: true,
+      fittedSlot: deviceFitSlot,
+    })
+    coverScaleMv.set(next)
+    trackRef.current?.setAttribute('data-cover-scale', next.toFixed(3))
+  }, [simple, isCompactViewport, deviceFitSlot, coverScaleMv])
 
   /* Device scale — linear f(handoffT), Hero exitScale parity. */
   const deviceScale = useTransform(scene07HandoffMv, (t) =>
@@ -301,6 +383,22 @@ export function LandingV2ProductStory() {
     sticky.setAttribute('data-ps-lifecycle-exit', done ? 'done' : active ? 'active' : 'idle')
   })
 
+  const tabletFrame = (
+    <HeroTabletFrame
+      canonical
+      fitLock={isCompactViewport}
+      hardwareProgress={1}
+    >
+      <div
+        className={styles.workspaceClip}
+        data-ps-workspace-clip=""
+        data-ps-workspace-dormant="true"
+      >
+        <ProductStoryWorkspace activeTab={activeTab} wake={1} />
+      </div>
+    </HeroTabletFrame>
+  )
+
   if (simple) {
     return (
       <section
@@ -313,7 +411,11 @@ export function LandingV2ProductStory() {
           Jedno zlecenie w OurWed
         </h2>
         <div className={styles.staticStack}>
-          <HeroTabletFrame compact hardwareProgress={1} blackout={0}>
+          {/*
+           * PRM static — still canonical geometry (never data-compact reflow).
+           * Outer CSS constrains width; internals stay 1420 design canvas.
+           */}
+          <HeroTabletFrame canonical hardwareProgress={1} blackout={0}>
             <ProductStoryWorkspace activeTab="overview" wake={1} />
           </HeroTabletFrame>
         </div>
@@ -327,7 +429,7 @@ export function LandingV2ProductStory() {
       className={styles.productTrack}
       data-testid="lv2-product-story"
       data-product-theater="scroll"
-      data-cover-scale={PRODUCT_STORY_COVER_SCALE_FALLBACK.toFixed(3)}
+      data-cover-scale={coverFallback.toFixed(3)}
       data-screen-reveal-start={PRODUCT_SCREEN_REVEAL.start}
       data-screen-reveal-end={PRODUCT_SCREEN_REVEAL.end}
       data-ps-tablet-diag={tabletDiag}
@@ -374,18 +476,30 @@ export function LandingV2ProductStory() {
                   ['--screen-blackout' as string]: screenBlackoutMv,
                 }}
               >
-                <HeroTabletFrame hardwareProgress={1}>
+                <div
+                  className={styles.deviceFitSlot}
+                  data-ps-device-fit={isCompactViewport ? 'scale' : 'none'}
+                  style={
+                    isCompactViewport && deviceFitSlot
+                      ? { width: deviceFitSlot.w, height: deviceFitSlot.h }
+                      : undefined
+                  }
+                >
                   <div
-                    className={styles.workspaceClip}
-                    data-ps-workspace-clip=""
-                    data-ps-workspace-dormant="true"
+                    ref={deviceFitRef}
+                    className={styles.deviceFit}
+                    data-ps-device-fit-scale={deviceFitScale.toFixed(4)}
+                    style={
+                      isCompactViewport
+                        ? {
+                            ['--ps-device-fit-scale' as string]: deviceFitScale,
+                          }
+                        : undefined
+                    }
                   >
-                    <ProductStoryWorkspace
-                      activeTab={activeTab}
-                      wake={1}
-                    />
+                    {tabletFrame}
                   </div>
-                </HeroTabletFrame>
+                </div>
               </motion.div>
             </motion.div>
           </div>

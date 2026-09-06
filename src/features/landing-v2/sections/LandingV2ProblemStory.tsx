@@ -39,9 +39,13 @@ const SCENE_ENTER_Y_COMPACT = 0
 const SCENE_EXIT_Y_COMPACT = 0
 
 const SCENE07_EXIT_SCALE_DESKTOP = 2.15
-const SCENE07_EXIT_SCALE_COMPACT = 1.55
+/**
+ * Compact portal scale — must meet Product reverse-Hero cover language
+ * (desktop pairs 2.15↔2.15). Portrait needs a stronger push-through.
+ */
+const SCENE07_EXIT_SCALE_COMPACT = 3.2
 const SCENE07_BLUR_MAX_DESKTOP = 25
-const SCENE07_BLUR_MAX_COMPACT = 14
+const SCENE07_BLUR_MAX_COMPACT = 18
 
 type SceneMotion = {
   opacity: MotionValue<number>

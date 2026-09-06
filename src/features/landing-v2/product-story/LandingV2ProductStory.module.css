@@ -228,18 +228,52 @@
   background: var(--lv2-hero-paper);
 }
 
+/*
+ * Compact outer fit — same model as Hero deviceFit.
+ * Slot reserves layout; inner transform scales the fitLock tablet uniformly.
+ */
+.deviceFitSlot[data-ps-device-fit='none'] {
+  display: contents;
+}
+
+.deviceFitSlot[data-ps-device-fit='scale'] {
+  position: relative;
+  flex-shrink: 0;
+  overflow: visible;
+}
+
+.deviceFitSlot[data-ps-device-fit='scale'] .deviceFit {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform: scale(var(--ps-device-fit-scale, 1));
+  transform-origin: top left;
+  will-change: transform;
+}
+
+.deviceFitSlot[data-ps-device-fit='none'] .deviceFit {
+  transform: none;
+}
+
+/*
+ * Compact: keep scroll theater geometry (overlap + runway).
+ * Only the reduced-motion static track collapses.
+ */
 @media (max-width: 1100px) {
-  .productTrack {
+  .productTrack[data-product-theater='static'] {
     margin-top: 0;
     height: auto;
     background: transparent;
   }
 
-  .stickyStage {
+  .productTrack[data-product-theater='static'] .stickyStage,
+  .productTrack[data-product-theater='static'] .visualStage {
     display: none;
   }
 
-  .visualStage {
-    display: none;
+  .productTrack[data-product-theater='scroll'] {
+    /* Preserve desktop overlap so Scene 07 portal sits over Product sticky */
+    margin-top: calc(var(--lv2-nav-h) - 170svh);
+    height: calc(360svh + 120svh);
   }
 }

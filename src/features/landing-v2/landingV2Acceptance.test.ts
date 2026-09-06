@@ -469,8 +469,38 @@ function walkTs(dir: string, out: string[] = []): string[] {
   )
   assertIncludes(
     productStoryGate,
+    'const simple = Boolean(reduced)',
+    'Product Story skips theater only for reduced motion',
+  )
+  assertNotIncludes(
+    productStoryGate,
     'Boolean(reduced) || compact',
-    'Product Story still compact∨reduced static (Phase 2)',
+    'Product Story no longer equates compact with reduced motion',
+  )
+  assertIncludes(
+    productStoryGate,
+    'useLandingCompactViewport',
+    'Product uses shared compact viewport hook',
+  )
+  assertIncludes(
+    productStoryGate,
+    'measureCanonicalDeviceFit',
+    'Product settle shares Hero canonical fit helper',
+  )
+  assertIncludes(
+    productStoryGate,
+    'fitLock={isCompactViewport}',
+    'Product compact freezes design width for outer scale',
+  )
+  assertIncludes(
+    productStoryGate,
+    'canonical',
+    'Product handoff tablet is canonical Hero geometry',
+  )
+  assertNotIncludes(
+    productStoryGate,
+    '<HeroTabletFrame compact',
+    'Product must not use responsive compact tablet internals',
   )
   /* Phase 2 — Problem Story: compact no longer forces static */
   assertIncludes(
@@ -511,8 +541,33 @@ function walkTs(dir: string, out: string[] = []): string[] {
   )
   assertIncludes(
     problemGate,
-    'SCENE07_EXIT_SCALE_COMPACT',
-    'Scene 07 compact exit scale still special-cased',
+    'SCENE07_EXIT_SCALE_COMPACT = 3.2',
+    'compact Scene 07 portal scale pairs with Product cover',
+  )
+  assertIncludes(
+    problemGate,
+    'SCENE07_BLUR_MAX_COMPACT = 18',
+    'compact Scene 07 blur adapted for portal',
+  )
+  assertIncludes(
+    problemGate,
+    'SCENE07_EXIT_SCALE_DESKTOP = 2.15',
+    'desktop Scene 07 exit scale frozen',
+  )
+  assertIncludes(
+    problemGate,
+    'SCENE07_BLUR_MAX_DESKTOP = 25',
+    'desktop Scene 07 blur frozen',
+  )
+  assertIncludes(
+    problemGate,
+    "scene.id === '07'",
+    'Scene 07 remains in compact normal-motion theater',
+  )
+  assertIncludes(
+    read('src/features/landing-v2/sections/problemStoryCopy.ts'),
+    'Jedno miejsce. Cały sezon. Zero chaosu.',
+    'exact final Problem beat remains in sequence',
   )
   assertIncludes(
     lifecycleGate,
@@ -640,6 +695,16 @@ function walkTs(dir: string, out: string[] = []): string[] {
   )
   assertIncludes(problemCss, '.stageInner {\n  position: relative;', 'stageInner is positioning context')
   assertNotIncludes(problemCss, 'min-height: 6.4em', 'artificial sceneCopy min-height removed')
+  assertIncludes(
+    problemCss,
+    '.scene07ExitFixed .lineMobile',
+    'portaled Scene 07 shows mobile lines on compact',
+  )
+  assertIncludes(
+    problemCss,
+    '.scene07ExitFixed .lineDesktopWide',
+    'portaled Scene 07 hides desktop lines on compact',
+  )
   assertIncludes(problemCss, 'place-items: center', 'centered scenes')
   assertIncludes(problemCss, '#000000', 'true black background')
   assertIncludes(problemCss, '#f5f1ea', 'warm ivory type')
@@ -755,7 +820,59 @@ function walkTs(dir: string, out: string[] = []): string[] {
   assertNotIncludes(productFragments, "id: 'identity'", 'fragment constellation removed')
   assertNotIncludes(productStory, 'LandingV2Hero', 'does not import Hero section')
   assertNotIncludes(productStory, 'LandingV2ProblemStory', 'does not import Problem Story')
-  assertIncludes(productStory, 'data-product-theater="static"', 'compact/mobile static fallback')
+  assertIncludes(productStory, 'data-product-theater="static"', 'reduced-motion static fallback')
+  assertIncludes(
+    productStory,
+    'data-product-theater="scroll"',
+    'compact normal-motion uses scroll theater',
+  )
+  assertIncludes(
+    productStoryCss,
+    "data-product-theater='scroll'",
+    'compact scroll theater preserves Product runway/overlap',
+  )
+  assertIncludes(
+    productStoryCss,
+    "data-product-theater='static'",
+    'only static theater collapses on compact',
+  )
+  assertIncludes(productStoryCss, 'deviceFitSlot', 'Product compact outer fit slot')
+  assertIncludes(productStoryCss, '--ps-device-fit-scale', 'Product compact fit scale var')
+  assertIncludes(
+    productProgress,
+    'PRODUCT_STORY_COVER_SCALE_FALLBACK_COMPACT = 3.2',
+    'compact Product cover fallback pairs Scene 07',
+  )
+  assertIncludes(
+    productProgress,
+    'PRODUCT_STORY_COVER_SCALE_FALLBACK = 2.15',
+    'desktop Product cover fallback frozen',
+  )
+  assertIncludes(
+    productProgress,
+    'PRODUCT_COVER_SCALE_DESKTOP',
+    'desktop cover clamp isolated',
+  )
+  assertIncludes(
+    productProgress,
+    'PRODUCT_COVER_SCALE_COMPACT',
+    'compact cover clamp from Hero geometry',
+  )
+  assertIncludes(
+    productProgress,
+    'HERO_THEATER_GEOMETRY_COMPACT',
+    'Product compact cover shares Hero overscan source',
+  )
+  assertIncludes(
+    read('src/features/landing-v2/hero/landingTabletFit.ts'),
+    'LANDING_TABLET_DESIGN_WIDTH_PX = 1420',
+    'shared canonical tablet design width',
+  )
+  assertIncludes(
+    read('src/features/landing-v2/sections/LandingV2Hero.tsx'),
+    'measureCanonicalDeviceFit',
+    'Hero settle uses shared tablet fit helper',
+  )
   assertNotIncludes(
     productStory,
     '--lv2-ps-headline-exit',
@@ -1371,10 +1488,15 @@ function walkTs(dir: string, out: string[] = []): string[] {
     'data-handoff-clear',
     'no transparent Problem sticky handoffClear',
   )
-  assertIncludes(productStory, 'data-product-theater="static"', 'compact/mobile static fallback')
+  assertIncludes(productStory, 'data-product-theater="static"', 'reduced-motion static fallback remains')
   assertIncludes(productStory, 'data-ps-visual-stage', 'Product visual stage marker')
   assertIncludes(productStory, 'scene07HandoffMv', 'Product Story follows Scene 07 handoff MotionValue')
   assertIncludes(productStory, 'productVisualActive', 'visual stage activation from handoffT')
+  assertIncludes(
+    productStory,
+    'PRODUCT_STORY_COVER_SCALE_FALLBACK_COMPACT',
+    'compact cover fallback wired into Product theater',
+  )
 
   const tablet = read('src/features/landing-v2/hero/HeroTabletFrame.tsx')
   assertIncludes(tablet, 'lv2-hero-tablet', 'tablet testid')

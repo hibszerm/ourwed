@@ -117,6 +117,41 @@
   color: var(--lv2-problem-ink);
 }
 
+/*
+ * Portaled Scene 07 leaves .problemTrack — compact line visibility must
+ * be restated on the fixed owner or the final beat stays display:none.
+ */
+@media (max-width: 1100px) {
+  .scene07ExitFixed .lineDesktopWide,
+  .scene07ExitFixed .lineDesktopCompact {
+    display: none;
+  }
+
+  .scene07ExitFixed .lineMobile {
+    display: block;
+  }
+
+  .scene07ExitFixed .linePrimary,
+  .scene07ExitFixed .lineMuted {
+    font-size: clamp(2.55rem, 9.2vw, 3.55rem);
+    letter-spacing: -0.05em;
+    line-height: 1.02;
+  }
+
+  .scene07ExitFixed.scene07 .linePrimary {
+    font-size: clamp(2.65rem, 9.4vw, 3.75rem);
+  }
+
+  .scene07ExitFixed .sceneCopy {
+    width: min(100%, 21.5rem);
+    max-width: calc(100vw - 2.25rem);
+  }
+
+  .scene07ExitFixed .scene07HeadlineBlur {
+    max-width: min(100%, calc(100vw - 2rem));
+  }
+}
+
 .scene01EntryWrap {
   width: 100%;
   transform-origin: 50% 50%;

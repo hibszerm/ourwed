@@ -14,6 +14,7 @@ import {
 import { HeroTabletFrame } from '@/features/landing-v2/hero/HeroTabletFrame'
 import { applyHeroDemoThemeToElement } from '@/features/landing-v2/hero/heroDemoThemeInterpolation'
 import { heroTheaterGeometry, compactHeroExitCoverScale } from '@/features/landing-v2/hero/heroTheaterGeometry'
+import { measureCanonicalDeviceFit } from '@/features/landing-v2/hero/landingTabletFit'
 import { useLandingCompactViewport } from '@/features/landing-v2/motion/landingViewport'
 import styles from './LandingV2Hero.module.css'
 
@@ -94,29 +95,16 @@ export function LandingV2Hero() {
 
     let raf = 0
     const measure = () => {
-      const device = fit.querySelector(
-        '[data-testid="lv2-hero-tablet"]',
-      ) as HTMLElement | null
-      if (!device) return
-
-      /* Measure natural size at scale 1 */
-      fit.style.setProperty('--hero-device-fit-scale', '1')
-      const naturalW = device.offsetWidth
-      const naturalH = device.offsetHeight
-      if (naturalW < 40 || naturalH < 40) return
-
-      const padX = skipTheater ? 32 : 24
-      const padY = skipTheater ? 40 : 28
-      const availW = Math.max(80, sticky.clientWidth - padX)
-      const availH = Math.max(80, sticky.clientHeight - padY)
-      const next = Math.min(1, availW / naturalW, availH / naturalH)
-      const scale = Math.max(0.18, Number(next.toFixed(4)))
-      setDeviceFitScale(scale)
-      setDeviceFitSlot({
-        w: Math.round(naturalW * scale),
-        h: Math.round(naturalH * scale),
+      const next = measureCanonicalDeviceFit({
+        sticky,
+        fit,
+        padX: skipTheater ? 32 : 24,
+        padY: skipTheater ? 40 : 28,
+        cssVar: '--hero-device-fit-scale',
       })
-      fit.style.setProperty('--hero-device-fit-scale', String(scale))
+      if (!next) return
+      setDeviceFitScale(next.scale)
+      setDeviceFitSlot({ w: next.slotW, h: next.slotH })
     }
 
     const onResize = () => {
