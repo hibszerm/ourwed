@@ -2354,6 +2354,32 @@ function walkTs(dir: string, out: string[] = []): string[] {
     "data-feature-reveal={compactMotion ? 'viewport' : 'atlas'}",
     'compact reveal is viewport-local; desktop keeps atlas clock',
   )
+  assertIncludes(features, 'COMPACT_CARD_REVEAL', 'shared compact card entrance token')
+  assertIncludes(features, 'duration: 0.82', 'compact card reveal duration softened (~0.82s)')
+  assertIncludes(features, 'y: 22', 'compact card initial y soft settle')
+  assertIncludes(features, 'scale: 0.995', 'compact card tiny initial scale')
+  assertIncludes(features, "filter: 'none'", 'compact card reveal never uses blur')
+  assertIncludes(features, 'amount: 0.12', 'compact card reveal starts earlier in viewport')
+  assertIncludes(features, "margin: '0px 0px 12% 0px'", 'compact card IO root expanded for earlier trigger')
+  assertIncludes(features, 'once: true', 'compact card reveal plays once')
+  assertIncludes(features, 'COMPACT_EASE', 'compact reveal uses premium ease-out token')
+  assertIncludes(features, '[0.22, 1, 0.36, 1]', 'COMPACT_EASE matches --fg-ease premium curve')
+  assertIncludes(
+    features,
+    "key={`${feature.id}-${isCompactViewport ? 'compact' : 'desktop'}`}",
+    'compact/desktop remount avoids desktop y MotionValue flash on cards',
+  )
+  const viewportHook = read('src/features/landing-v2/motion/landingViewport.ts')
+  assertIncludes(
+    viewportHook,
+    'window.matchMedia(LANDING_COMPACT_MEDIA_QUERY).matches',
+    'compact viewport initializes from matchMedia (no false→true flash)',
+  )
+  assertIncludes(
+    features,
+    '{ opacity: 1, y: 0, scale: 1, filter: \'none\' }',
+    'reduced-motion compact cards render fully settled',
+  )
   assertIncludes(features, 'COMPACT_HEADING_Y', 'compact heading has subtle y travel token')
   assertIncludes(features, 'COMPACT_LEAD_Y', 'compact lead has subtle y travel token')
   assertIncludes(features, 'HEADER_OFFSET_COMPACT', 'compact header reveal is local scroll clock')
@@ -2369,6 +2395,8 @@ function walkTs(dir: string, out: string[] = []): string[] {
   )
   assertIncludes(features, 'HEADER_OFFSET_DESKTOP', 'desktop header reveal offset frozen')
   assertIncludes(features, "['start 0.92', 'start 0.5']", 'desktop intro clock unchanged')
+  assertIncludes(features, "offset: ['start 0.6', 'start 0.4']", 'desktop atlas module clock frozen')
+  assertIncludes(features, 'MODULE_WINDOWS', 'desktop MODULE_WINDOWS catalog preserved')
   assertNotIncludes(features, 'firstCardLatch', 'Finanse not gated by Lifecycle latch')
   assertNotIncludes(features, 'lifecycle-latch', 'no lifecycle-latch card reveal mode')
   assertIncludes(features, 'data-features-intro-motion="dom"', 'compact intro uses plain DOM opacity bind')
@@ -2377,8 +2405,8 @@ function walkTs(dir: string, out: string[] = []): string[] {
   assertIncludes(features, "{ filter: 'none' }", 'compact cards force filter none (no atlas blur residue)')
   assertIncludes(
     features,
-    "whileInView={compactMotion ? { opacity: 1, y: 0, filter: 'none' } : undefined}",
-    'all compact cards including Finanse use local whileInView',
+    'whileInView={compactMotion ? { ...COMPACT_CARD_REVEAL.animate } : undefined}',
+    'all compact cards share COMPACT_CARD_REVEAL whileInView',
   )
   assertIncludes(featuresCss, '--lv2-mobile-section-gap', 'compact Lifecycle→Features section gap token')
   assertIncludes(

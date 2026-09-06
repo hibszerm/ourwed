@@ -56,6 +56,15 @@ const MODULE_WINDOWS: ReadonlyArray<readonly [number, number]> = [
 
 const COMPACT_EASE = [0.22, 1, 0.36, 1] as const
 
+/** Shared compact card entrance — opacity-led, calm y + tiny scale, no blur. */
+const COMPACT_CARD_REVEAL = {
+  initial: { opacity: 0, y: 22, scale: 0.995, filter: 'none' as const },
+  animate: { opacity: 1, y: 0, scale: 1, filter: 'none' as const },
+  transition: { duration: 0.82, ease: COMPACT_EASE },
+  /** Start as the card's lower edge enters — earlier than late reading-zone trip. */
+  viewport: { once: true as const, amount: 0.12, margin: '0px 0px 12% 0px' },
+} as const
+
 /** Desktop header clock (frozen). */
 const HEADER_OFFSET_DESKTOP: ['start 0.92', 'start 0.5'] = ['start 0.92', 'start 0.5']
 
@@ -269,7 +278,7 @@ export function LandingV2FeaturesGrid() {
             const [start, end] = MODULE_WINDOWS[index] ?? [0.28, 0.58]
             return (
               <AtlasModule
-                key={feature.id}
+                key={`${feature.id}-${isCompactViewport ? 'compact' : 'desktop'}`}
                 id={feature.id}
                 title={feature.title}
                 description={feature.description}
@@ -324,9 +333,7 @@ function AtlasModule({
   })
 
   const compactMotion = compact && !reduced
-  const viewport = compactMotion
-    ? { once: true as const, amount: 0.22, margin: '0px 0px -12% 0px' }
-    : undefined
+  const viewport = compactMotion ? COMPACT_CARD_REVEAL.viewport : undefined
 
   return (
     <motion.li
@@ -337,22 +344,19 @@ function AtlasModule({
       data-col-span={colSpan}
       data-feature-reveal={compactMotion ? 'viewport' : 'atlas'}
       data-feature-card-index={cardIndex}
+      data-feature-reveal-duration={compactMotion ? String(COMPACT_CARD_REVEAL.transition.duration) : undefined}
       /* Compact: never bind atlas blur MotionValues — leftover filter:blur(3px) softens cards. */
       style={
         compactMotion
           ? { filter: 'none' }
           : compact && reduced
-            ? { opacity: 1, y: 0, filter: 'none' }
+            ? { opacity: 1, y: 0, scale: 1, filter: 'none' }
             : { opacity, y, filter: blur }
       }
-      initial={compactMotion ? { opacity: 0, y: 12, filter: 'none' } : false}
-      whileInView={compactMotion ? { opacity: 1, y: 0, filter: 'none' } : undefined}
+      initial={compactMotion ? { ...COMPACT_CARD_REVEAL.initial } : false}
+      whileInView={compactMotion ? { ...COMPACT_CARD_REVEAL.animate } : undefined}
       viewport={viewport}
-      transition={
-        compactMotion
-          ? { duration: cardIndex === 0 ? 0.55 : 0.5, ease: COMPACT_EASE }
-          : undefined
-      }
+      transition={compactMotion ? { ...COMPACT_CARD_REVEAL.transition } : undefined}
     >
       <div className={styles.moduleCopy}>
         <h3 className={styles.moduleTitle}>{title}</h3>
