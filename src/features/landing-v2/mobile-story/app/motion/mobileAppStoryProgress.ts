@@ -22,6 +22,8 @@ import {
 
 /** svh allocated to Features→phone settle (preserves approved physical scroll). */
 export const MOBILE_TRACK_PRE_SVH = 260
+/** Compact Features→headline→split→phone runway — same beats, shorter track. */
+export const MOBILE_TRACK_PRE_SVH_COMPACT = 200
 /** Baseline svh for post-dashboard app story before first day measure. */
 export const MOBILE_TRACK_POST_SVH = 220
 /**

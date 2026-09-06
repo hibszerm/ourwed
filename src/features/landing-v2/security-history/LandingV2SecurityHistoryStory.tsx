@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { useReducedMotion } from 'framer-motion'
 import { clearPhoneSecurityMorph } from '@/features/landing-v2/security-history/mobilePhoneExitClock'
 import {
@@ -8,30 +8,22 @@ import {
 import styles from './LandingV2SecurityHistoryStory.module.css'
 
 /**
- * Compact / reduced-motion fallback only.
+ * Reduced-motion fallback only.
  *
  * Scroll-theater Studio History is owned by LandingV2MobileStory
- * (same HeroPhoneFrame lock). This section must NOT paint a second lock
- * or a competing sticky history scene.
+ * (same HeroPhoneFrame lock) on both desktop and compact normal-motion.
+ * This section must NOT paint a second lock or competing sticky history scene.
  */
 export function LandingV2SecurityHistoryStory() {
   const reduced = useReducedMotion()
-  const [compact, setCompact] = useState(false)
-
-  useEffect(() => {
-    const mq = window.matchMedia('(max-width: 1100px)')
-    const sync = () => setCompact(mq.matches)
-    sync()
-    mq.addEventListener('change', sync)
-    return () => mq.removeEventListener('change', sync)
-  }, [])
 
   useEffect(() => {
     clearPhoneSecurityMorph()
     return () => clearPhoneSecurityMorph()
   }, [])
 
-  const simple = Boolean(reduced) || compact
+  /* Static only for accessibility — compact runs theater inside Mobile Story. */
+  const simple = Boolean(reduced)
 
   if (!simple) {
     return (

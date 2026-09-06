@@ -216,6 +216,14 @@
 
 @media (max-width: 1100px) {
   .deviceRoot {
-    width: min(clamp(280px, 72vw, 360px), calc(var(--device-avail-h) * var(--phone-ratio-num)));
+    /*
+     * Compact page is already a phone viewport — keep clear side margins
+     * and fit inside sticky stage (nav + chrome). Outer scale only.
+     */
+    --device-avail-h: calc(100dvh - var(--lv2-nav-h) - 96px);
+    width: min(
+      clamp(248px, 64vw, 300px),
+      calc(var(--device-avail-h) * var(--phone-ratio-num))
+    );
   }
 }

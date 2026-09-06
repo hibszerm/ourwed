@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useRef, type CSSProperties } from 'react'
 import {
   motion,
   motionValue,
@@ -61,16 +61,22 @@ import {
   MOBILE_TRACK_DASH_SVH_FALLBACK,
   MOBILE_TRACK_POST_SVH,
   MOBILE_TRACK_PRE_SVH,
+  MOBILE_TRACK_PRE_SVH_COMPACT,
   postPhaseBudgetsFromDayMax,
   postTrackSvhFromDayMaxScroll,
   splitMobileMasterProgress,
-  totalTrackSvh,
 } from '@/features/landing-v2/mobile-story/app/motion/mobileAppStoryProgress'
 import { dashboardMaxScrollMv } from '@/features/landing-v2/mobile-story/app/motion/mobileDashboardScrollGeometry'
 import { weddingDayMaxScrollMv } from '@/features/landing-v2/mobile-story/app/motion/mobileWeddingDayScrollGeometry'
+import { useLandingCompactViewport } from '@/features/landing-v2/motion/landingViewport'
 import styles from './LandingV2MobileStory.module.css'
 
 const OWNED_EPS = 0.002
+/** Compact headline split — shorter travel, same desktop relationship. */
+const HEADLINE_SEP_COMPACT_SCALE = 110 / 155
+/** Compact phone enter rise — slightly less than desktop 100px. */
+const PHONE_ENTER_Y_COMPACT = 72
+const PHONE_ENTER_Y_DESKTOP = 100
 
 const IDLE_1 = motionValue(1)
 const IDLE_0 = motionValue(0)
@@ -90,12 +96,15 @@ const STATIC_LOCK_MORPH = {
  * → SAME lock scales/lifts into Studio History (appended chapter)
  * → Season Import (appended after History final)
  * → Import sticky cover-hold runway (Founder is a separate normal-flow sibling).
+ *
+ * Compact + normal motion runs the full scroll theater (same beats as desktop).
+ * Only prefers-reduced-motion uses the static fallback.
  */
 export function LandingV2MobileStory() {
   const trackRef = useRef<HTMLElement | null>(null)
   const stickyRef = useRef<HTMLDivElement | null>(null)
   const reduced = useReducedMotion()
-  const [compact, setCompact] = useState(false)
+  const isCompactViewport = useLandingCompactViewport()
   const progress = useMotionValue(0)
   const appProgress = useMotionValue(0)
   const postBriefProgress = useMotionValue(0)
@@ -104,16 +113,11 @@ export function LandingV2MobileStory() {
   const navHRef = useRef(68)
   const dashSvhRef = useRef(MOBILE_TRACK_DASH_SVH_FALLBACK)
   const postSvhRef = useRef(MOBILE_TRACK_POST_SVH)
+  const compactRef = useRef(isCompactViewport)
+  compactRef.current = isCompactViewport
 
-  useEffect(() => {
-    const mq = window.matchMedia('(max-width: 1100px)')
-    const sync = () => setCompact(mq.matches)
-    sync()
-    mq.addEventListener('change', sync)
-    return () => mq.removeEventListener('change', sync)
-  }, [])
-
-  const simple = Boolean(reduced) || compact
+  /* Theater on compact; only accessibility reduces to static. */
+  const simple = Boolean(reduced)
 
   useEffect(() => {
     if (simple) {
@@ -195,7 +199,9 @@ export function LandingV2MobileStory() {
       const navH = navHRef.current
       const rect = el.getBoundingClientRect()
       const usable = window.innerHeight - navH
-      const contentSvh = totalTrackSvh(dashSvhRef.current, postSvhRef.current)
+      const preSvh = compactRef.current ? MOBILE_TRACK_PRE_SVH_COMPACT : MOBILE_TRACK_PRE_SVH
+      const contentSvh =
+        preSvh + dashSvhRef.current + (postSvhRef.current || MOBILE_TRACK_POST_SVH)
       const mappingSvh = contentSvh + MOBILE_TRACK_POST_BRIEF_SVH
       const legacyChapterSvh = MOBILE_TRACK_STUDIO_HISTORY_SVH + MOBILE_TRACK_SEASON_IMPORT_SVH
       const chapterSvh = legacyChapterSvh + MOBILE_TRACK_IMPORT_COVER_HOLD_SVH
@@ -216,7 +222,7 @@ export function LandingV2MobileStory() {
         liveLegacyChapterTravel * (MOBILE_TRACK_STUDIO_HISTORY_SVH / legacyChapterSvh),
       )
       const liveImportTravel = Math.max(1, liveLegacyChapterTravel - liveStudioTravel)
-      const preHeight = mappingHeight * (MOBILE_TRACK_PRE_SVH / mappingSvh)
+      const preHeight = mappingHeight * (preSvh / mappingSvh)
       const livePreTravel = Math.max(1, preHeight - usable)
 
       const frozen = frozenTravelRef.current
@@ -395,7 +401,10 @@ export function LandingV2MobileStory() {
     return b < 0.08 ? 'blur(0px)' : `blur(${b.toFixed(2)}px)`
   })
   const enterY = useTransform(progress, (p) => headlineEnterYAt(p))
-  const sepOffset = useTransform(progress, (p) => headlineSepYAt(p))
+  const sepOffset = useTransform(progress, (p) => {
+    const sep = headlineSepYAt(p)
+    return compactRef.current ? sep * HEADLINE_SEP_COMPACT_SCALE : sep
+  })
   const line1Y = useTransform([enterY, sepOffset], ([ey, sep]) => Number(ey) - Number(sep))
   const line2Y = useTransform([enterY, sepOffset], ([ey, sep]) => Number(ey) + Number(sep))
 
@@ -416,7 +425,8 @@ export function LandingV2MobileStory() {
       seasonImportLockScaleAt(Number(im)),
   )
   const phoneY = useTransform([phoneIn, studioProgress, importProgress], ([inn, st, im]) => {
-    const enterPx = (1 - Number(inn)) * 100
+    const enterMax = compactRef.current ? PHONE_ENTER_Y_COMPACT : PHONE_ENTER_Y_DESKTOP
+    const enterPx = (1 - Number(inn)) * enterMax
     const studioVh = studioLockYVhAt(Number(st))
     const exitPx = seasonImportLockYAt(Number(im))
     const px = enterPx + exitPx
@@ -451,6 +461,7 @@ export function LandingV2MobileStory() {
         className={styles.static}
         data-testid="lv2-mobile-story"
         data-mobile-theater="static"
+        data-mobile-compact={isCompactViewport ? 'true' : 'false'}
         aria-labelledby="lv2-mobile-heading"
       >
         <div className={styles.staticInner}>
@@ -484,11 +495,14 @@ export function LandingV2MobileStory() {
       className={styles.track}
       data-testid="lv2-mobile-story"
       data-mobile-theater="scroll"
+      data-mobile-compact={isCompactViewport ? 'true' : 'false'}
       data-mobile-phone-lock-owner="true"
       data-mobile-post-brief-owner="true"
       style={
         {
-          '--mobile-track-pre-svh': MOBILE_TRACK_PRE_SVH,
+          '--mobile-track-pre-svh': isCompactViewport
+            ? MOBILE_TRACK_PRE_SVH_COMPACT
+            : MOBILE_TRACK_PRE_SVH,
           '--mobile-track-dash-svh': MOBILE_TRACK_DASH_SVH_FALLBACK,
           '--mobile-track-post-svh': MOBILE_TRACK_POST_SVH,
           '--mobile-track-post-brief-svh': MOBILE_TRACK_POST_BRIEF_SVH,

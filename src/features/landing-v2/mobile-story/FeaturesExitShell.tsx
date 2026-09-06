@@ -18,10 +18,12 @@ type Props = {
  * External exit wrapper for the approved Features Grid composition.
  * Transparent layout owner — motion/filter applies only to the inner content layer.
  *
- * Compact / reduced-motion: Mobile Story publishes progress=1 in its static path,
- * which would otherwise force featuresOpacityAt(1)=0 and hide the entire Features
- * section. Bypass exit motion entirely (no filter/scale MotionValues) so Safari
- * cannot keep a filter compositing layer over the vertical card stack.
+ * Desktop: Mobile Story progress drives Features opacity/y/scale/blur exit.
+ *
+ * Compact / reduced-motion: bypass exit motion so Features stay opaque in
+ * normal document flow (last card leaves upward → Mobile Story headline).
+ * Compact still runs full Mobile Story theater — this bypass is handoff policy,
+ * not a static-theater gate.
  */
 export function FeaturesExitShell({ children }: Props) {
   const isCompactViewport = useLandingCompactViewport()

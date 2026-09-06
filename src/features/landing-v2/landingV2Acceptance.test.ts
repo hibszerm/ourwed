@@ -145,6 +145,7 @@ import {
   MOBILE_TRACK_DASH_SVH_FALLBACK,
   MOBILE_TRACK_POST_SVH,
   MOBILE_TRACK_PRE_SVH,
+  MOBILE_TRACK_PRE_SVH_COMPACT,
   NAV_ARRIVAL_OUTER_PX,
   NAV_ENTER_OUTER_PX,
   NAV_PATH_END,
@@ -453,7 +454,7 @@ function walkTs(dir: string, out: string[] = []): string[] {
   assertIncludes(hero, '[0.7, 0.91]', 'exit window after graphite hold')
   assertIncludes(hero, '[0.76, 0.92]', 'hardware resolve window')
 
-  /* Phase 1/2 — later theaters still use compact∨reduced static gate */
+  /* Phase 1–N — Founder still deferred; Mobile Story theater restored on compact */
   const productStoryGate = read(
     'src/features/landing-v2/product-story/LandingV2ProductStory.tsx',
   )
@@ -607,8 +608,33 @@ function walkTs(dir: string, out: string[] = []): string[] {
   )
   assertIncludes(
     mobileStoryGate,
+    'const simple = Boolean(reduced)',
+    'Mobile Story skips theater only for reduced motion',
+  )
+  assertNotIncludes(
+    mobileStoryGate,
     'Boolean(reduced) || compact',
-    'Mobile Story still compact∨reduced static (deferred)',
+    'Mobile Story no longer equates compact with reduced motion',
+  )
+  assertIncludes(
+    mobileStoryGate,
+    'useLandingCompactViewport',
+    'Mobile Story uses shared compact viewport hook',
+  )
+  assertIncludes(
+    mobileStoryGate,
+    'MOBILE_TRACK_PRE_SVH_COMPACT',
+    'compact track pre runway constant',
+  )
+  assertIncludes(
+    mobileStoryGate,
+    'HEADLINE_SEP_COMPACT_SCALE',
+    'compact headline split distance scale',
+  )
+  assertIncludes(
+    mobileStoryGate,
+    'data-mobile-compact=',
+    'compact viewport marker on Mobile Story',
   )
   assertIncludes(
     founderGate,
@@ -2618,7 +2644,7 @@ function testMobileStory() {
   assertIncludes(
     exitShell,
     'bypassExitRef.current ? 1 : featuresOpacityAt(p)',
-    'compact/PRM bypass keeps Features visible when Mobile Story parks progress at 1',
+    'compact/PRM bypass keeps Features opaque for document-flow handoff',
   )
   assertIncludes(exitShell, 'data-features-exit-bypass=', 'explicit exit-bypass marker')
   assertIncludes(exitShell, 'motionLayerStatic', 'compact uses static layer without filter MotionValues')
@@ -2648,15 +2674,25 @@ function testMobileStory() {
   assertIncludes(mobileCss, '--mobile-track-post-svh', 'dynamic post track budget')
   assertNotIncludes(mobileCss, '700svh', 'no hardcoded 700svh track')
   assertIncludes(mobileCss, '-0.78', 'stronger features overlap')
+  assertIncludes(mobileCss, '-0.16', 'compact light Features underlap for document-flow handoff')
   assertIncludes(mobileCss, 'stageCenter', 'shared stage center wrapper')
   assertIncludes(mobileCss, 'white-space: nowrap', 'headline lines do not wrap on desktop')
   assertNotIncludes(mobileCss, 'max-width: 16ch', 'no narrow headline constraint')
   assertNotIncludes(mobileCss, 'grid-template-rows: repeat(4', 'no viewport atlas fit')
   assertIncludes(mobileCss, 'prefers-reduced-motion', 'reduced motion static fallback')
+  assert(
+    !/@media \(max-width: 1100px\)\s*\{\s*\.track\s*\{\s*display:\s*none/.test(mobileCss),
+    'compact must not hide Mobile Story sticky track',
+  )
   assertIncludes(mobile, 'data-mobile-stage-center', 'stage center QA marker')
   assertIncludes(mobile, 'data-mobile-headline', 'headline QA marker')
   assertIncludes(mobile, 'data-mobile-phone', 'phone QA marker')
   assertIncludes(mobile, 'data-mobile-theater="static"', 'static fallback marker')
+  assertIncludes(mobile, 'data-mobile-theater="scroll"', 'scroll theater marker')
+  assertIncludes(mobile, "const simple = Boolean(reduced)", 'static only for reduced motion')
+  assertIncludes(mobile, 'HEADLINE_SEP_COMPACT_SCALE', 'compact sep scale wired')
+  assertIncludes(mobile, 'PHONE_ENTER_Y_COMPACT', 'compact phone enter Y')
+  assertIncludes(mobile, 'MOBILE_TRACK_PRE_SVH_COMPACT', 'compact pre track wired into style')
 
   assertIncludes(mobileProgress, 'featuresOpacityAt', 'keyframed features opacity')
   assertIncludes(mobileProgress, 'headlineCompositeOpacityAt', 'composite headline opacity')
@@ -2701,6 +2737,7 @@ function testMobileStory() {
   assertEq(MOBILE_APP_RANGES.handoff.end, 0.66, 'handoff completes before day hold')
   assertEq(DASHBOARD_BOTTOM_INSET_PX, 20, 'canonical dashboard bottom inset')
   assertEq(MOBILE_TRACK_PRE_SVH, 260, 'pre track preserves Features→phone settle')
+  assertEq(MOBILE_TRACK_PRE_SVH_COMPACT, 200, 'compact pre track shorter but same beats')
   assertEq(MOBILE_TRACK_POST_SVH, 220, 'post track for Wedding Day→Brief tightened')
   assert(MOBILE_TRACK_DASH_SVH_FALLBACK >= 100, 'dash track fallback before measure')
   assertIncludes(appProgress, 'routeTravel', 'route travel range')
@@ -3282,6 +3319,16 @@ testMobileStory()
     page.indexOf('<LandingV2MobileStory />') <
       page.indexOf('<LandingV2SecurityHistoryStory />'),
     'mobile before history',
+  )
+  assertIncludes(
+    story,
+    'const simple = Boolean(reduced)',
+    'Security History static only for reduced motion',
+  )
+  assertNotIncludes(
+    story,
+    'Boolean(reduced) || compact',
+    'Security History absorbed on compact normal-motion (theater in Mobile Story)',
   )
 
   /* —— Mobile owns phone→lock —— */
@@ -7147,6 +7194,10 @@ await testPostBriefMorphMonotonicity()
   assertIncludes(importCss, 'clamp(36px', 'generous panel gap')
   assertNotIncludes(importCss, 'blur(', 'no CSS blur animation')
   assertNotIncludes(importCss, 'backdrop-filter', 'no glass on import panels')
+  assert(
+    !/@media \(max-width: 1100px\)\s*\{[^}]*\.root\s*\{[^}]*position:\s*relative/.test(importCss),
+    'compact Import reveal must stay absolute inside Mobile Story sticky stage',
+  )
 
   const mobileSrc = read('src/features/landing-v2/mobile-story/LandingV2MobileStory.tsx')
   assertNotIncludes(mobileSrc, 'Season2027Bridge', 'bridge not mounted in MobileStory')
