@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import {
   motion,
   useMotionValue,
@@ -20,6 +20,7 @@ import {
   ipadExitFromProgress,
   rangeT,
 } from '@/features/landing-v2/lifecycle-story/lifecycleStoryProgress'
+import { useLandingCompactViewport } from '@/features/landing-v2/motion/landingViewport'
 import { WorkflowExplorer } from '@/features/landing-v2/lifecycle-story/workflow/WorkflowExplorer'
 import styles from './LandingV2LifecycleStory.module.css'
 
@@ -29,33 +30,26 @@ const OWNED_EPS = 0.002
  * Landing V2 Lifecycle Story.
  * Scroll: Product exit → headline → link pill → pill morphs into workspace.
  * After settle: click-driven WorkflowExplorer (no scroll tabs / no C2 scenes).
+ *
+ * Compact viewport runs the same theater; only prefers-reduced-motion is static.
  */
 export function LandingV2LifecycleStory() {
   const trackRef = useRef<HTMLElement | null>(null)
   const stickyRef = useRef<HTMLDivElement | null>(null)
   const reduced = useReducedMotion()
-  const [compact, setCompact] = useState(false)
+  const isCompactViewport = useLandingCompactViewport()
   const progress = useMotionValue(0)
   const navHRef = useRef(68)
 
-  useEffect(() => {
-    const mq = window.matchMedia('(max-width: 1100px)')
-    const sync = () => setCompact(mq.matches)
-    sync()
-    mq.addEventListener('change', sync)
-    return () => mq.removeEventListener('change', sync)
-  }, [])
-
-  const simple = Boolean(reduced) || compact
+  /* Theater runs on compact; only accessibility reduces to static. */
+  const simple = Boolean(reduced)
 
   useEffect(() => {
     if (simple) {
       progress.set(1)
       /*
-       * Static Lifecycle (compact ∨ reduced-motion) does NOT run the iPad
-       * exit theater. Publishing exit=1 here previously hid Product's
-       * compact scroll tablet (visibility:hidden + translate -1.1vh)
-       * for the entire page — Product theater is unlocked on compact.
+       * PRM static — do NOT force Product iPad exit. Product compact theater
+       * still needs the settled tablet until the user leaves that chapter.
        */
       publishLifecycleExitT(0)
       return () => clearLifecycleExitT()
@@ -132,7 +126,10 @@ export function LandingV2LifecycleStory() {
   const headlineY = useTransform([headlineIn, headlineOut], ([inn, out]) => {
     const i = Number(inn)
     const o = Number(out)
-    return (1 - i) * 16 - o * 10
+    /* Compact: slightly less travel so headline stays optically centered. */
+    const enter = isCompactViewport ? 12 : 16
+    const exit = isCompactViewport ? 8 : 10
+    return (1 - i) * enter - o * exit
   })
   const headlineScale = useTransform([headlineIn, headlineOut], ([inn, out]) => {
     const i = Number(inn)
@@ -180,6 +177,7 @@ export function LandingV2LifecycleStory() {
       data-testid="lv2-lifecycle-story"
       data-lifecycle-theater="scroll"
       data-lifecycle-morph="pill-to-workspace"
+      data-lifecycle-compact={isCompactViewport ? 'true' : 'false'}
       aria-labelledby="lv2-lifecycle-heading"
     >
       <div
@@ -212,7 +210,10 @@ export function LandingV2LifecycleStory() {
           </motion.div>
 
           <div className={styles.theater} data-lifecycle-theater-slot="">
-            <LifecycleTransformSurface progress={progress} />
+            <LifecycleTransformSurface
+              progress={progress}
+              compact={isCompactViewport}
+            />
           </div>
         </div>
       </div>

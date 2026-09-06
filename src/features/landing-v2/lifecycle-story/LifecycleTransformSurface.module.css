@@ -17,6 +17,10 @@
   will-change: width, height, opacity, transform;
 }
 
+.shell[data-lifecycle-surface-compact='true'] {
+  max-width: min(390px, calc(100vw - 1.25rem));
+}
+
 .layerLink {
   position: absolute;
   inset: 0;

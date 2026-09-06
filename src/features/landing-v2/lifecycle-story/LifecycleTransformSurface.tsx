@@ -14,13 +14,18 @@ import styles from './LifecycleTransformSurface.module.css'
 type Props = {
   /** Master lifecycle progress 0→1. */
   progress: MotionValue<number>
+  /** Portrait shell sizes — same morph, compact width/height targets. */
+  compact?: boolean
 }
 
 /**
  * ONE continuous centered surface:
  * link capsule → interactive workflow workspace shell.
  */
-export function LifecycleTransformSurface({ progress }: Props) {
+export function LifecycleTransformSurface({
+  progress,
+  compact = false,
+}: Props) {
   const r = LIFECYCLE_RANGES
   const [interactive, setInteractive] = useState(() =>
     workspaceInteractiveAt(progress.get()),
@@ -47,22 +52,33 @@ export function LifecycleTransformSurface({ progress }: Props) {
     easeOutCubic(rangeT(p, r.linkIn.start, r.linkIn.end)),
   )
   const surfaceOpacity = useTransform(surfaceIn, (t) => t)
-  const surfaceY = useTransform(surfaceIn, (t) => (1 - t) * 14)
+  const surfaceY = useTransform(surfaceIn, (t) => (1 - t) * (compact ? 10 : 14))
 
   const surfaceWidth = useTransform(expand, (e) => {
     const vw = typeof window !== 'undefined' ? window.innerWidth : 1440
+    if (compact) {
+      const linkW = Math.min(vw - 28, 340)
+      const workW = Math.min(vw - 20, 390)
+      return linkW + (workW - linkW) * e
+    }
     const linkW = Math.min(600, Math.max(480, vw * 0.42))
     const workW = Math.min(1180, vw * 0.86)
     return linkW + (workW - linkW) * e
   })
   const surfaceHeight = useTransform(expand, (e) => {
+    if (compact) {
+      const linkH = 96
+      const vh = typeof window !== 'undefined' ? window.innerHeight : 844
+      const workH = Math.min(540, Math.max(420, vh - 160))
+      return linkH + (workH - linkH) * e
+    }
     const linkH = 112
     const workH = 620
     return linkH + (workH - linkH) * e
   })
   const surfaceRadius = useTransform(expand, (e) => {
     const linkR = 999
-    const workR = 28
+    const workR = compact ? 22 : 28
     return linkR + (workR - linkR) * Math.min(1, e * 1.25)
   })
 
@@ -81,6 +97,7 @@ export function LifecycleTransformSurface({ progress }: Props) {
       className={styles.shell}
       data-lifecycle-surface=""
       data-lifecycle-workspace-shell=""
+      data-lifecycle-surface-compact={compact ? 'true' : 'false'}
       style={{
         opacity: surfaceOpacity,
         y: surfaceY,

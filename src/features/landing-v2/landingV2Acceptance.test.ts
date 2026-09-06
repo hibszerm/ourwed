@@ -571,13 +571,23 @@ function walkTs(dir: string, out: string[] = []): string[] {
   )
   assertIncludes(
     lifecycleGate,
+    'const simple = Boolean(reduced)',
+    'Lifecycle Story skips theater only for reduced motion',
+  )
+  assertNotIncludes(
+    lifecycleGate,
     'Boolean(reduced) || compact',
-    'Lifecycle Story still compact∨reduced static (Phase 2)',
+    'Lifecycle Story no longer equates compact with reduced motion',
+  )
+  assertIncludes(
+    lifecycleGate,
+    'useLandingCompactViewport',
+    'Lifecycle uses shared compact viewport hook',
   )
   assertIncludes(
     lifecycleGate,
     'publishLifecycleExitT(0)',
-    'static Lifecycle must not force Product iPad off-screen',
+    'PRM static Lifecycle must not force Product iPad off-screen',
   )
   assert(
     !/if \(simple\) \{[^}]*publishLifecycleExitT\(1\)/.test(
@@ -598,12 +608,12 @@ function walkTs(dir: string, out: string[] = []): string[] {
   assertIncludes(
     mobileStoryGate,
     'Boolean(reduced) || compact',
-    'Mobile Story still compact∨reduced static (Phase 2)',
+    'Mobile Story still compact∨reduced static (deferred)',
   )
   assertIncludes(
     founderGate,
     'Boolean(reduced) || compact',
-    'Founder Story still compact∨reduced static (Phase 2)',
+    'Founder Story still compact∨reduced static (deferred)',
   )
 
   const problem = read('src/features/landing-v2/sections/LandingV2ProblemStory.tsx')
@@ -1722,10 +1732,24 @@ function walkTs(dir: string, out: string[] = []): string[] {
   assertIncludes(lifecycle, 'LifecycleTransformSurface', 'continuous transform surface')
   assertIncludes(lifecycle, 'WorkflowExplorer', 'interactive workspace explorer')
   assertIncludes(lifecycle, 'data-lifecycle-headline', 'centered headline layer')
-  assertIncludes(lifecycle, 'data-lifecycle-theater="static"', 'reduced-motion / compact static')
+  assertIncludes(lifecycle, 'data-lifecycle-theater="static"', 'reduced-motion static fallback')
+  assertIncludes(lifecycle, 'data-lifecycle-theater="scroll"', 'compact normal-motion scroll theater')
   assertIncludes(lifecycle, 'data-lifecycle-owned', 'pure ownership predicate')
   assertIncludes(lifecycle, 'data-lifecycle-morph="pill-to-workspace"', 'pill→workspace morph marker')
-  assertIncludes(lifecycleCss, '320svh', 'morph-only lifecycle scroll track')
+  assertIncludes(lifecycle, 'compact={isCompactViewport}', 'compact shell geometry for pill morph')
+  assertIncludes(lifecycleCss, '320svh', 'desktop morph-only lifecycle scroll track')
+  assertIncludes(lifecycleCss, '280svh', 'compact lifecycle scroll runway')
+  assertIncludes(
+    lifecycleCss,
+    "data-lifecycle-theater='scroll'",
+    'compact scroll theater preserves Lifecycle sticky',
+  )
+  assert(
+    !/@media \(max-width: 1100px\) \{[^}]*\.sticky \{[^}]*display:\s*none/.test(
+      lifecycleCss.replace(/\/\*[\s\S]*?\*\//g, ''),
+    ),
+    'compact must not hide Lifecycle scroll sticky',
+  )
   assertNotIncludes(lifecycleCss, '880svh', 'old C2 scroll budget removed')
   assertIncludes(lifecycleCss, 'stickyPaper', 'sticky paper present')
   assertIncludes(lifecycleCss, '--lv2-hero-paper', 'Hero paper token')
@@ -1733,12 +1757,27 @@ function walkTs(dir: string, out: string[] = []): string[] {
   assertIncludes(lifecycleCss, 'place-items: center', 'viewport-centered stage')
   assertIncludes(lifecycleCss, "data-lifecycle-owned='false'", 'inactive ownership hide')
 
+  assertIncludes(lifecycleProgress, 'ipadExit: { start: 0.0, end: 0.12 }', 'desktop ipad exit range frozen')
+  assertIncludes(lifecycleProgress, 'headlineIn: { start: 0.06, end: 0.18 }', 'desktop headlineIn frozen')
+  assertIncludes(lifecycleProgress, 'linkIn: { start: 0.32, end: 0.44 }', 'desktop linkIn frozen')
+  assertIncludes(
+    lifecycleProgress,
+    'workspaceExpand: { start: 0.48, end: 0.86 }',
+    'desktop pill→workspace expand frozen',
+  )
   assertIncludes(lifecycleProgress, 'ipadExit', 'ipad exit range')
   assertIncludes(lifecycleProgress, 'headlineIn', 'headline entrance range')
   assertIncludes(lifecycleProgress, 'linkIn', 'link entrance range')
   assertIncludes(lifecycleProgress, 'workspaceExpand', 'pill→workspace expand range')
   assertIncludes(lifecycleProgress, 'sourceExit', 'pill content exit range')
   assertIncludes(lifecycleProgress, 'workspaceChromeIn', 'workspace chrome resolve range')
+  const transformSurface = read(
+    'src/features/landing-v2/lifecycle-story/LifecycleTransformSurface.tsx',
+  )
+  assertIncludes(transformSurface, 'Math.min(600, Math.max(480', 'desktop pill width formula frozen')
+  assertIncludes(transformSurface, 'const workH = 620', 'desktop workspace height frozen')
+  assertIncludes(transformSurface, 'compact ?', 'compact morph geometry isolated')
+  assertIncludes(transformSurface, 'Math.min(vw - 28, 340)', 'compact pill width fits portrait')
   assertIncludes(lifecycleProgress, 'workspaceNavIn', 'nav chrome from shared reveal curve')
   assertIncludes(lifecycleProgress, 'workspaceInteractiveAt', 'interactive gate helper')
   assertIncludes(lifecycleProgress, 'WORKSPACE_INTERACTION_READY_AT', 'named interaction threshold')
