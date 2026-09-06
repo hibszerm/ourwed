@@ -2674,7 +2674,10 @@ function testMobileStory() {
   assertIncludes(mobileCss, '--mobile-track-post-svh', 'dynamic post track budget')
   assertNotIncludes(mobileCss, '700svh', 'no hardcoded 700svh track')
   assertIncludes(mobileCss, '-0.78', 'stronger features overlap')
-  assertIncludes(mobileCss, '-0.16', 'compact light Features underlap for document-flow handoff')
+  assertIncludes(mobileCss, '-0.62', 'compact Features underlap for early Mobile Story entry')
+  assertNotIncludes(mobileCss, '-0.16', 'previous weak compact underlap removed')
+  assertIncludes(mobileCss, '9.2vw', 'compact headline fluid size stronger')
+  assertIncludes(mobileCss, 'clamp(2.2rem', 'compact headline floor larger than prior 1.72rem')
   assertIncludes(mobileCss, 'stageCenter', 'shared stage center wrapper')
   assertIncludes(mobileCss, 'white-space: nowrap', 'headline lines do not wrap on desktop')
   assertNotIncludes(mobileCss, 'max-width: 16ch', 'no narrow headline constraint')
@@ -2692,7 +2695,19 @@ function testMobileStory() {
   assertIncludes(mobile, "const simple = Boolean(reduced)", 'static only for reduced motion')
   assertIncludes(mobile, 'HEADLINE_SEP_COMPACT_SCALE', 'compact sep scale wired')
   assertIncludes(mobile, 'PHONE_ENTER_Y_COMPACT', 'compact phone enter Y')
+  assertIncludes(mobile, 'PHONE_SCALE_START_COMPACT', 'compact phone enter scale start')
   assertIncludes(mobile, 'MOBILE_TRACK_PRE_SVH_COMPACT', 'compact pre track wired into style')
+  assertIncludes(mobile, '168 / 155', 'compact sep travel increased for larger phone')
+  assertIncludes(
+    read('src/features/landing-v2/mobile-story/device/HeroPhoneFrame.module.css'),
+    'clamp(292px, 78vw, 322px)',
+    'compact phone targets majority of viewport width',
+  )
+  assertIncludes(
+    read('src/features/landing-v2/features-grid/LandingV2FeaturesGrid.module.css'),
+    '--fg-chapter-pad-bottom: clamp(1.25rem, 3.5vw, 2.25rem)',
+    'compact Features trailing pad tightened for Mobile Story continuity',
+  )
 
   assertIncludes(mobileProgress, 'featuresOpacityAt', 'keyframed features opacity')
   assertIncludes(mobileProgress, 'headlineCompositeOpacityAt', 'composite headline opacity')
@@ -2737,7 +2752,7 @@ function testMobileStory() {
   assertEq(MOBILE_APP_RANGES.handoff.end, 0.66, 'handoff completes before day hold')
   assertEq(DASHBOARD_BOTTOM_INSET_PX, 20, 'canonical dashboard bottom inset')
   assertEq(MOBILE_TRACK_PRE_SVH, 260, 'pre track preserves Features→phone settle')
-  assertEq(MOBILE_TRACK_PRE_SVH_COMPACT, 200, 'compact pre track shorter but same beats')
+  assertEq(MOBILE_TRACK_PRE_SVH_COMPACT, 220, 'compact pre track breathing room for earlier entry')
   assertEq(MOBILE_TRACK_POST_SVH, 220, 'post track for Wedding Day→Brief tightened')
   assert(MOBILE_TRACK_DASH_SVH_FALLBACK >= 100, 'dash track fallback before measure')
   assertIncludes(appProgress, 'routeTravel', 'route travel range')

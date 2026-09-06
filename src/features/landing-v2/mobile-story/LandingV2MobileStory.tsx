@@ -72,11 +72,14 @@ import { useLandingCompactViewport } from '@/features/landing-v2/motion/landingV
 import styles from './LandingV2MobileStory.module.css'
 
 const OWNED_EPS = 0.002
-/** Compact headline split — shorter travel, same desktop relationship. */
-const HEADLINE_SEP_COMPACT_SCALE = 110 / 155
+/** Compact headline split — open enough room for the larger compact phone. */
+const HEADLINE_SEP_COMPACT_SCALE = 168 / 155
 /** Compact phone enter rise — slightly less than desktop 100px. */
-const PHONE_ENTER_Y_COMPACT = 72
+const PHONE_ENTER_Y_COMPACT = 56
 const PHONE_ENTER_Y_DESKTOP = 100
+/** Compact phone enter scale start (desktop remains 0.86 → 1). */
+const PHONE_SCALE_START_COMPACT = 0.93
+const PHONE_SCALE_START_DESKTOP = 0.86
 
 const IDLE_1 = motionValue(1)
 const IDLE_0 = motionValue(0)
@@ -418,11 +421,16 @@ export function LandingV2MobileStory() {
   )
   const phoneScale = useTransform(
     [phoneIn, postBriefProgress, studioProgress, importProgress],
-    ([inn, pb, st, im]) =>
-      (0.86 + Number(inn) * 0.14) *
-      postBriefShrinkScaleAt(Number(pb)) *
-      studioLockScaleAt(Number(st)) *
-      seasonImportLockScaleAt(Number(im)),
+    ([inn, pb, st, im]) => {
+      const start = compactRef.current ? PHONE_SCALE_START_COMPACT : PHONE_SCALE_START_DESKTOP
+      const enterScale = start + Number(inn) * (1 - start)
+      return (
+        enterScale *
+        postBriefShrinkScaleAt(Number(pb)) *
+        studioLockScaleAt(Number(st)) *
+        seasonImportLockScaleAt(Number(im))
+      )
+    },
   )
   const phoneY = useTransform([phoneIn, studioProgress, importProgress], ([inn, st, im]) => {
     const enterMax = compactRef.current ? PHONE_ENTER_Y_COMPACT : PHONE_ENTER_Y_DESKTOP

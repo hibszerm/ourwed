@@ -2445,7 +2445,8 @@
     /* Compact Lifecycle → Features editorial gap (normal document flow). */
     --lv2-mobile-section-gap: clamp(3rem, 7vw, 4.5rem);
     --fg-chapter-pad-top: var(--lv2-mobile-section-gap);
-    --fg-chapter-pad-bottom: clamp(5rem, 10vw, 10rem);
+    /* Tight trailing pad — Mobile Story underlaps the final card; avoid beige dead zone. */
+    --fg-chapter-pad-bottom: clamp(1.25rem, 3.5vw, 2.25rem);
     --fg-header-gap: clamp(1.15rem, 3vw, 1.75rem);
     --fg-atlas-gap: 14px;
     padding-inline: clamp(0.875rem, 3.5vw, 1.5rem);
