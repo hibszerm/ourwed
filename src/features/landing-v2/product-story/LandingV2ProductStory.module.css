@@ -77,6 +77,18 @@
 }
 
 /*
+ * Owned + not-done must beat the done rule above.
+ * Prevents a stale lifecycleExitMv=1 (static Lifecycle) from leaving
+ * Product sticky visibility:hidden during Scene 07 → Product handoff.
+ */
+.stickyStage[data-ps-theater-owned='true']:not([data-ps-lifecycle-exit='done']) {
+  z-index: 6;
+  visibility: visible;
+  pointer-events: auto;
+  content-visibility: visible;
+}
+
+/*
  * Sole Product Story paint owner inside an owned sticky shell.
  * Descendants cannot override visibility:hidden.
  */

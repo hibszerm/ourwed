@@ -356,31 +356,66 @@ export function LandingV2ProductStory() {
   /*
    * Lifecycle exit — NEW post-Product channel only.
    * Does not alter scene07HandoffMv / entrance / tabs.
+   * While Scene 07 handoff is incomplete, ignore exit clock so a stale
+   * lifecycleExitMv=1 (e.g. static Lifecycle) cannot hide the tablet.
    */
-  const lifecycleExitY = useTransform(lifecycleExitMv, (t) => {
-    const e = Math.min(1, Math.max(0, t))
-    const vh = typeof window !== 'undefined' ? window.innerHeight : 900
-    return e * vh * -1.1
-  })
-  const lifecycleExitScale = useTransform(lifecycleExitMv, (t) => {
-    const e = Math.min(1, Math.max(0, t))
-    return 1 - e * 0.04
-  })
-  const lifecycleExitOpacity = useTransform(lifecycleExitMv, (t) => {
-    const e = Math.min(1, Math.max(0, t))
-    if (e < 0.85) return 1
-    return 1 - ((e - 0.85) / 0.15) * 0.04
-  })
-  const lifecycleExitVeil = useTransform(lifecycleExitMv, (t) =>
-    Math.min(1, Math.max(0, t * 1.35)),
+  const lifecycleExitY = useTransform(
+    [lifecycleExitMv, scene07HandoffMv],
+    (values: number[]) => {
+      const exitT = values[0] ?? 0
+      const handoffT = values[1] ?? 0
+      if (handoffT < 0.995) return 0
+      const e = Math.min(1, Math.max(0, exitT))
+      const vh = typeof window !== 'undefined' ? window.innerHeight : 900
+      return e * vh * -1.1
+    },
+  )
+  const lifecycleExitScale = useTransform(
+    [lifecycleExitMv, scene07HandoffMv],
+    (values: number[]) => {
+      const exitT = values[0] ?? 0
+      const handoffT = values[1] ?? 0
+      if (handoffT < 0.995) return 1
+      const e = Math.min(1, Math.max(0, exitT))
+      return 1 - e * 0.04
+    },
+  )
+  const lifecycleExitOpacity = useTransform(
+    [lifecycleExitMv, scene07HandoffMv],
+    (values: number[]) => {
+      const exitT = values[0] ?? 0
+      const handoffT = values[1] ?? 0
+      if (handoffT < 0.995) return 1
+      const e = Math.min(1, Math.max(0, exitT))
+      if (e < 0.85) return 1
+      return 1 - ((e - 0.85) / 0.15) * 0.04
+    },
+  )
+  const lifecycleExitVeil = useTransform(
+    [lifecycleExitMv, scene07HandoffMv],
+    (values: number[]) => {
+      const exitT = values[0] ?? 0
+      const handoffT = values[1] ?? 0
+      if (handoffT < 0.995) return 0
+      return Math.min(1, Math.max(0, exitT * 1.35))
+    },
   )
 
   useMotionValueEvent(lifecycleExitMv, 'change', (exitT) => {
     const sticky = stickyRef.current
     if (!sticky) return
+    /* Entrance still owns the stage — never mark lifecycle-exit done. */
+    if (scene07HandoffMv.get() < 0.995) {
+      sticky.setAttribute('data-ps-lifecycle-exit', 'idle')
+      return
+    }
     const active = exitT > 0.001
     const done = exitT >= 0.995
     sticky.setAttribute('data-ps-lifecycle-exit', done ? 'done' : active ? 'active' : 'idle')
+  })
+  useMotionValueEvent(scene07HandoffMv, 'change', (handoffT) => {
+    if (handoffT >= 0.995) return
+    stickyRef.current?.setAttribute('data-ps-lifecycle-exit', 'idle')
   })
 
   const tabletFrame = (

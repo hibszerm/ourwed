@@ -575,6 +575,27 @@ function walkTs(dir: string, out: string[] = []): string[] {
     'Lifecycle Story still compact∨reduced static (Phase 2)',
   )
   assertIncludes(
+    lifecycleGate,
+    'publishLifecycleExitT(0)',
+    'static Lifecycle must not force Product iPad off-screen',
+  )
+  assert(
+    !/if \(simple\) \{[^}]*publishLifecycleExitT\(1\)/.test(
+      lifecycleGate.replace(/\/\*[\s\S]*?\*\//g, ''),
+    ),
+    'static Lifecycle must not publishLifecycleExitT(1)',
+  )
+  assertIncludes(
+    productStoryGate,
+    'handoffT < 0.995',
+    'Product ignores lifecycle exit until Scene 07 handoff completes',
+  )
+  assertIncludes(
+    read('src/features/landing-v2/product-story/LandingV2ProductStory.module.css'),
+    "[data-ps-theater-owned='true']:not([data-ps-lifecycle-exit='done'])",
+    'owned Product sticky stays visible until real lifecycle exit done',
+  )
+  assertIncludes(
     mobileStoryGate,
     'Boolean(reduced) || compact',
     'Mobile Story still compact∨reduced static (Phase 2)',

@@ -51,7 +51,13 @@ export function LandingV2LifecycleStory() {
   useEffect(() => {
     if (simple) {
       progress.set(1)
-      publishLifecycleExitT(1)
+      /*
+       * Static Lifecycle (compact ∨ reduced-motion) does NOT run the iPad
+       * exit theater. Publishing exit=1 here previously hid Product's
+       * compact scroll tablet (visibility:hidden + translate -1.1vh)
+       * for the entire page — Product theater is unlocked on compact.
+       */
+      publishLifecycleExitT(0)
       return () => clearLifecycleExitT()
     }
 
