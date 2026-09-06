@@ -307,30 +307,50 @@
   }
 
   .problemTrack[data-problem-theater='scroll'] .stickyStage {
-    position: sticky;
+    /*
+     * Do NOT re-declare position:sticky here — it out-specifies
+     * .stickyStage[data-early-story-fixed='true'] { position:fixed }
+     * and leaves the stage scrolling during Scene 02+ fades (reads as
+     * text rising from below). Base .stickyStage already pins sticky.
+     */
     top: var(--lv2-nav-h);
     height: calc(100svh - var(--lv2-nav-h));
     overflow: hidden;
     background: var(--lv2-problem-black);
   }
 
+  /*
+   * Compact must restate early-fixed with enough specificity to beat
+   * any theater scroll rules above.
+   */
+  .problemTrack[data-problem-theater='scroll']
+    .stickyStage[data-early-story-fixed='true'] {
+    position: fixed;
+    top: var(--lv2-nav-h);
+    right: 0;
+    bottom: auto;
+    left: 0;
+    width: auto;
+    height: calc(100svh - var(--lv2-nav-h));
+    z-index: 5;
+    background: var(--lv2-problem-black);
+  }
+
   .problemTrack[data-problem-theater='scroll'] .sceneLayer {
+    position: absolute;
+    inset: 0;
     padding-inline: clamp(1.15rem, 5vw, 1.75rem);
-    /* No padding-block — keep optical center identical across beats */
     place-items: center;
   }
 
   .problemTrack[data-problem-theater='scroll'] .sceneCopy {
     width: min(100%, 21.5rem);
     max-width: calc(100vw - 2.25rem);
-    /*
-     * Stable editorial anchor: 1-line and 2-line beats share the same
-     * vertical box so dissolve stays in place (not a height-driven jump).
-     */
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    min-height: 6.4em;
+  }
+
+  .problemTrack[data-problem-theater='scroll'] .lineDesktopWide,
+  .problemTrack[data-problem-theater='scroll'] .lineDesktopCompact {
+    display: none;
   }
 
   .problemTrack[data-problem-theater='scroll'] .linePrimary,

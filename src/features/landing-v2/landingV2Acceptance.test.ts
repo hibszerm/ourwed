@@ -501,12 +501,13 @@ function walkTs(dir: string, out: string[] = []): string[] {
   )
   assertIncludes(problemGate, 'SCENE_ENTER_Y = 10', 'desktop scene enter Y frozen')
   assertIncludes(problemGate, 'SCENE_EXIT_Y = -8', 'desktop scene exit Y frozen')
-  assertIncludes(problemGate, 'SCENE_ENTER_Y_COMPACT = 2', 'compact enter Y near-dissolve')
-  assertIncludes(problemGate, 'SCENE_EXIT_Y_COMPACT = -1.5', 'compact exit Y near-dissolve')
+  assertIncludes(problemGate, 'SCENE_ENTER_Y_COMPACT = 0', 'compact normal scenes opacity-only enter')
+  assertIncludes(problemGate, 'SCENE_EXIT_Y_COMPACT = 0', 'compact normal scenes opacity-only exit')
   assert(
     !problemGate.includes('SCENE_ENTER_Y_COMPACT = 8') &&
-      !problemGate.includes('SCENE_ENTER_Y_COMPACT = 10'),
-    'compact must not use large bottom-up enter Y',
+      !problemGate.includes('SCENE_ENTER_Y_COMPACT = 10') &&
+      !problemGate.includes('SCENE_ENTER_Y_COMPACT = 2'),
+    'compact must not use bottom-up enter Y',
   )
   assertIncludes(
     problemGate,
@@ -583,7 +584,62 @@ function walkTs(dir: string, out: string[] = []): string[] {
     '--lv2-problem-hero-overlap-compact',
     'compact Hero→Problem black overlap',
   )
-  assertIncludes(problemCss, 'min-height: 6.4em', 'compact stable text anchor box')
+  /* Compact must not force sticky over early-fixed (Scene 02+ scroll-rise bug) */
+  assertIncludes(
+    problemCss,
+    "stickyStage[data-early-story-fixed='true']",
+    'compact restates early-fixed fixed positioning',
+  )
+  assertIncludes(
+    problemCss,
+    'Do NOT re-declare position:sticky here',
+    'compact documents sticky/early-fixed specificity trap',
+  )
+  {
+    const stripCssComments = (css: string) => css.replace(/\/\*[\s\S]*?\*\//g, '')
+    const compactStickyDecl =
+      stripCssComments(problemCss).match(
+        /\.problemTrack\[data-problem-theater='scroll'\]\s+\.stickyStage\s*\{([^}]*)\}/,
+      )?.[1] ?? ''
+    assert(
+      compactStickyDecl.length > 0,
+      'compact scroll theater declares .stickyStage geometry',
+    )
+    assert(
+      !/position\s*:\s*sticky/.test(compactStickyDecl),
+      'compact scroll theater must not force position:sticky on .stickyStage',
+    )
+    assert(
+      /position\s*:\s*fixed/.test(
+        stripCssComments(problemCss).match(
+          /\.problemTrack\[data-problem-theater='scroll'\]\s+\.stickyStage\[data-early-story-fixed='true'\]\s*\{([^}]*)\}/,
+        )?.[1] ?? '',
+      ),
+      'compact early-fixed restates position:fixed with theater specificity',
+    )
+    const compactSceneLayerDecl =
+      stripCssComments(problemCss).match(
+        /\.problemTrack\[data-problem-theater='scroll'\]\s+\.sceneLayer\s*\{([^}]*)\}/,
+      )?.[1] ?? ''
+    assert(
+      /position\s*:\s*absolute/.test(compactSceneLayerDecl) &&
+        /inset\s*:\s*0/.test(compactSceneLayerDecl),
+      'compact scroll theater keeps scene layers absolute overlays (not document flow)',
+    )
+    assert(
+      !/position\s*:\s*relative/.test(compactSceneLayerDecl) &&
+        !/position\s*:\s*static/.test(compactSceneLayerDecl),
+      'compact must not demote scene layers into normal flow stacking',
+    )
+  }
+  /* Shared stage geometry — scenes overlay, they are not vertically stacked in flow */
+  assertIncludes(
+    problemCss,
+    '.sceneLayer {\n  position: absolute;\n  inset: 0;',
+    'desktop scene layers share one absolute stage slot',
+  )
+  assertIncludes(problemCss, '.stageInner {\n  position: relative;', 'stageInner is positioning context')
+  assertNotIncludes(problemCss, 'min-height: 6.4em', 'artificial sceneCopy min-height removed')
   assertIncludes(problemCss, 'place-items: center', 'centered scenes')
   assertIncludes(problemCss, '#000000', 'true black background')
   assertIncludes(problemCss, '#f5f1ea', 'warm ivory type')

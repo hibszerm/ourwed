@@ -31,11 +31,12 @@ const SCENE_ENTER_SCALE = 0.995
 const SCENE_EXIT_SCALE = 1.002
 
 /**
- * Compact portrait — same dissolve language as desktop, but Y travel must
- * stay near-zero. Desktop's 10px settle reads as a bottom-up slide on phones.
+ * Compact portrait — opacity-only dissolve for normal beats.
+ * Desktop's tiny +10px Y is fine on large stages; on phones any enter Y
+ * stacks with sticky/early-fixed timing and reads as a slide from below.
  */
-const SCENE_ENTER_Y_COMPACT = 2
-const SCENE_EXIT_Y_COMPACT = -1.5
+const SCENE_ENTER_Y_COMPACT = 0
+const SCENE_EXIT_Y_COMPACT = 0
 
 const SCENE07_EXIT_SCALE_DESKTOP = 2.15
 const SCENE07_EXIT_SCALE_COMPACT = 1.55
