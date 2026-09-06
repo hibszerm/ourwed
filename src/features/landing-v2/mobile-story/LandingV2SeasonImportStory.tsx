@@ -15,6 +15,7 @@ import {
   LV2_SEASON_IMPORT_SHEET,
   LV2_SEASON_IMPORT_STEPS,
 } from '@/features/landing-v2/mobile-story/seasonImportClaims'
+import { SeasonImportPdfBadge } from '@/features/landing-v2/mobile-story/SeasonImportPdfBadge'
 import styles from './LandingV2SeasonImportStory.module.css'
 
 const COMPACT_EASE = [0.22, 1, 0.36, 1] as const
@@ -167,8 +168,8 @@ export function LandingV2SeasonImportStory() {
             <div className={styles.attachment} data-studio-import-pdf="">
               <p className={styles.attachmentLabel}>Powiązany dokument</p>
               <div className={styles.attachmentBody}>
-                <span className={styles.pdfMark}>{LV2_SEASON_IMPORT_ATTACHMENT.mark}</span>
-                <div>
+                <SeasonImportPdfBadge />
+                <div className={styles.attachmentMeta}>
                   <strong>{LV2_SEASON_IMPORT_ATTACHMENT.filename}</strong>
                   <span>{LV2_SEASON_IMPORT_ATTACHMENT.note}</span>
                 </div>

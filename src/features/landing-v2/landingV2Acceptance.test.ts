@@ -7325,12 +7325,25 @@ await testPostBriefMorphMonotonicity()
     assertIncludes(importFlow, 'LV2_SEASON_IMPORT_ASSIGNMENT.cta', 'ready-card CTA preserved')
     assertIncludes(importFlow, 'data-import-panel="sheet"', 'spreadsheet panel marker')
     assertIncludes(importFlow, 'data-import-panel="result"', 'ready panel marker')
+    assertIncludes(importFlow, 'SeasonImportPdfBadge', 'shared PDF attachment badge on compact')
     assertIncludes(importFlowCss, 'flex-direction: column', 'mobile cards stack vertically')
     assertIncludes(importFlowCss, 'calc(100vw - 2.25rem)', 'near full-width mobile cards')
     assertIncludes(importFlowCss, 'grid-template-columns: 1fr 1fr', 'ready-card 2-col meta preserved')
     assertNotIncludes(importFlowCss, 'overflow-y: auto', 'no nested card scroll')
     assertNotIncludes(importFlowCss, 'position: sticky', 'no sticky import stage')
     assertNotIncludes(importFlowCss, 'position: fixed', 'no fixed import stage')
+    assertNotIncludes(importFlowCss, 'background: #1a1614', 'no solid black PDF placeholder')
+  }
+  {
+    const pdfBadge = read('src/features/landing-v2/mobile-story/SeasonImportPdfBadge.tsx')
+    const pdfBadgeCss = read('src/features/landing-v2/mobile-story/SeasonImportPdfBadge.module.css')
+    assertIncludes(pdfBadge, 'FileText', 'PDF badge uses Lucide FileText')
+    assertIncludes(pdfBadge, 'data-season-import-pdf-badge', 'semantic PDF badge marker')
+    assertIncludes(pdfBadge, 'aria-hidden', 'decorative PDF badge hidden from AT')
+    assertIncludes(pdfBadge, 'LV2_SEASON_IMPORT_ATTACHMENT.mark', 'canonical PDF label')
+    assertIncludes(pdfBadgeCss, 'border:', 'PDF badge has subtle border')
+    assertNotIncludes(pdfBadgeCss, 'background: #1a1614', 'PDF badge not solid black fill')
+    assertNotIncludes(pdfBadgeCss, 'background:#1a1614', 'PDF badge not solid black fill compact')
   }
   assertIncludes(
     read('src/features/landing-v2/mobile-story/LandingV2MobileStory.tsx'),
@@ -7345,7 +7358,9 @@ await testPostBriefMorphMonotonicity()
     assertIncludes(desktopImport, 'LV2_SEASON_IMPORT_STEPS', 'desktop steps unchanged')
     assertIncludes(desktopImport, 'data-import-panel="sheet"', 'desktop sheet panel')
     assertIncludes(desktopImport, 'data-import-panel="result"', 'desktop result panel')
+    assertIncludes(desktopImport, 'SeasonImportPdfBadge', 'desktop shares PDF badge')
     assertIncludes(desktopImportCss, 'grid-template-columns', 'desktop multi-column composition')
+    assertNotIncludes(desktopImportCss, '.pdfMark', 'legacy pdfMark style removed from desktop CSS')
   }
 
   /* Studio history ENTER ranges unchanged */

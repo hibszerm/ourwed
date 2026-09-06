@@ -275,31 +275,17 @@
 
 .attachmentBody {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 0.65rem;
 }
 
-.pdfMark {
-  display: grid;
-  place-items: center;
-  min-width: 2.25rem;
-  height: 1.65rem;
-  padding: 0 0.4rem;
-  border-radius: 6px;
-  background: #1a1614;
-  color: #f7f3ec;
-  font-size: 0.625rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-}
-
-.attachmentBody strong {
+.attachmentMeta strong {
   display: block;
   font-size: 0.8125rem;
   letter-spacing: -0.015em;
 }
 
-.attachmentBody span {
+.attachmentMeta span {
   display: block;
   margin-top: 0.15rem;
   font-size: 0.75rem;

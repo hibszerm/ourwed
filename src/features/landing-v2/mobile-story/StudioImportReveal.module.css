@@ -293,21 +293,7 @@
   align-items: center;
 }
 
-.pdfMark {
-  display: grid;
-  place-items: center;
-  min-width: 2.55rem;
-  height: 2rem;
-  padding: 0 0.4rem;
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--import-ink) 8%, transparent);
-  font-size: 0.625rem;
-  font-weight: 700;
-  letter-spacing: 0.07em;
-  color: color-mix(in srgb, var(--import-ink) 62%, transparent);
-}
-
-.attachment strong {
+.attachmentMeta strong {
   display: block;
   font-size: 0.875rem;
   font-weight: 600;
@@ -315,7 +301,7 @@
   color: var(--import-ink);
 }
 
-.attachment span {
+.attachmentMeta span {
   display: block;
   margin-top: 0.15rem;
   font-size: 0.72rem;
@@ -622,11 +608,6 @@
 
   .attachmentLabel {
     margin-bottom: 0.28rem;
-  }
-
-  .pdfMark {
-    min-width: 2.2rem;
-    height: 1.7rem;
   }
 
   .meta {

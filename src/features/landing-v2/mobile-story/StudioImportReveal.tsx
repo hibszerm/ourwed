@@ -24,6 +24,7 @@ import {
   seasonImportSheetOpAt,
   seasonImportSupportOpAt,
 } from '@/features/landing-v2/mobile-story/seasonImportProgress'
+import { SeasonImportPdfBadge } from '@/features/landing-v2/mobile-story/SeasonImportPdfBadge'
 import styles from './StudioImportReveal.module.css'
 
 type Props = {
@@ -256,8 +257,8 @@ export function StudioImportReveal({ progress }: Props) {
           >
             <p className={styles.attachmentLabel}>Powiązany dokument</p>
             <div className={styles.attachmentBody}>
-              <span className={styles.pdfMark}>{LV2_SEASON_IMPORT_ATTACHMENT.mark}</span>
-              <div>
+              <SeasonImportPdfBadge />
+              <div className={styles.attachmentMeta}>
                 <strong>{LV2_SEASON_IMPORT_ATTACHMENT.filename}</strong>
                 <span>{LV2_SEASON_IMPORT_ATTACHMENT.note}</span>
               </div>

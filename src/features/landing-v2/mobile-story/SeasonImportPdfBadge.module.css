@@ -1,0 +1,36 @@
+/* Shared PDF attachment badge — light neutral, Lucide FileText + PDF label. */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.18rem;
+  box-sizing: border-box;
+  min-width: 2rem;
+  width: max-content;
+  max-width: 2.375rem;
+  height: 1.875rem;
+  padding: 0 0.32rem;
+  border-radius: 7px;
+  border: 1px solid color-mix(in srgb, #1a1614 10%, transparent);
+  background: color-mix(in srgb, #1a1614 6%, #ffffff);
+  color: color-mix(in srgb, #1a1614 64%, transparent);
+  flex-shrink: 0;
+}
+
+.icon {
+  width: 0.875rem;
+  height: 0.875rem;
+  flex-shrink: 0;
+}
+
+.label {
+  display: inline-block;
+  margin: 0;
+  font-size: 0.5625rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  line-height: 1;
+  color: inherit;
+}
