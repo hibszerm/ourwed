@@ -14,7 +14,8 @@
   --sh-paper: var(--paper, #f3efe8);
   --sh-muted: color-mix(in srgb, #1a1614 48%, transparent);
   --studio-history-mobile-year-gap: clamp(3.5rem, 10vw, 4.5rem);
-  --studio-history-mobile-section-end: clamp(4rem, 12vw, 6rem);
+  /* History → Season Import handoff (~72–96px). */
+  --studio-history-mobile-section-end: clamp(4.5rem, 11vw, 6rem);
 
   position: relative;
   z-index: 2;

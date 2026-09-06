@@ -7311,16 +7311,42 @@ await testPostBriefMorphMonotonicity()
   assertNotIncludes(historyReveal, 'data-studio-card-2027', 'no 2027 bridge source marker')
   assertNotIncludes(historyReveal, 'Season2027Bridge', 'history does not reference bridge')
 
-  assertIncludes(
-    read('src/features/landing-v2/mobile-story/LandingV2SeasonImportStory.tsx'),
-    'data-season-import-theater="absorbed"',
-    'desktop import absorbed section still available for compact fallback',
-  )
+  {
+    const importFlow = read('src/features/landing-v2/mobile-story/LandingV2SeasonImportStory.tsx')
+    const importFlowCss = read(
+      'src/features/landing-v2/mobile-story/LandingV2SeasonImportStory.module.css',
+    )
+    assertIncludes(importFlow, 'data-season-import-theater="absorbed"', 'desktop import absorbed')
+    assertIncludes(importFlow, 'data-season-import-flow="document"', 'compact import document flow')
+    assertIncludes(importFlow, 'useLandingCompactViewport', 'import flow uses shared compact hook')
+    assertIncludes(importFlow, 'whileInView', 'local intro/card reveals')
+    assertIncludes(importFlow, 'FileSpreadsheet', 'intro spreadsheet icon')
+    assertIncludes(importFlow, 'LV2_SEASON_IMPORT_ROWS', 'canonical sheet rows preserved')
+    assertIncludes(importFlow, 'LV2_SEASON_IMPORT_ASSIGNMENT.cta', 'ready-card CTA preserved')
+    assertIncludes(importFlow, 'data-import-panel="sheet"', 'spreadsheet panel marker')
+    assertIncludes(importFlow, 'data-import-panel="result"', 'ready panel marker')
+    assertIncludes(importFlowCss, 'flex-direction: column', 'mobile cards stack vertically')
+    assertIncludes(importFlowCss, 'calc(100vw - 2.25rem)', 'near full-width mobile cards')
+    assertIncludes(importFlowCss, 'grid-template-columns: 1fr 1fr', 'ready-card 2-col meta preserved')
+    assertNotIncludes(importFlowCss, 'overflow-y: auto', 'no nested card scroll')
+    assertNotIncludes(importFlowCss, 'position: sticky', 'no sticky import stage')
+    assertNotIncludes(importFlowCss, 'position: fixed', 'no fixed import stage')
+  }
   assertIncludes(
     read('src/features/landing-v2/mobile-story/LandingV2MobileStory.tsx'),
     'StudioImportReveal',
     'import theater owned by MobileStory',
   )
+  {
+    const desktopImport = read('src/features/landing-v2/mobile-story/StudioImportReveal.tsx')
+    const desktopImportCss = read(
+      'src/features/landing-v2/mobile-story/StudioImportReveal.module.css',
+    )
+    assertIncludes(desktopImport, 'LV2_SEASON_IMPORT_STEPS', 'desktop steps unchanged')
+    assertIncludes(desktopImport, 'data-import-panel="sheet"', 'desktop sheet panel')
+    assertIncludes(desktopImport, 'data-import-panel="result"', 'desktop result panel')
+    assertIncludes(desktopImportCss, 'grid-template-columns', 'desktop multi-column composition')
+  }
 
   /* Studio history ENTER ranges unchanged */
   assertEq(STUDIO_HISTORY_RANGES.lockTravel.start, 0.06, 'studio lockTravel start frozen')

@@ -1,5 +1,12 @@
-import { useEffect, useState } from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
+import {
+  CheckCircle2,
+  FileSpreadsheet,
+  FileText,
+  MapPin,
+  UserRound,
+} from 'lucide-react'
+import { useLandingCompactViewport } from '@/features/landing-v2/motion/landingViewport'
 import {
   LV2_SEASON_IMPORT_ASSIGNMENT,
   LV2_SEASON_IMPORT_ATTACHMENT,
@@ -11,7 +18,17 @@ import {
 import styles from './LandingV2SeasonImportStory.module.css'
 
 const COMPACT_EASE = [0.22, 1, 0.36, 1] as const
-const INTRO_VIEWPORT = { once: true as const, amount: 0.35, margin: '0px 0px -12% 0px' }
+
+/** Features / History proven IO band — reveal in lower reading zone. */
+const INTRO_VIEWPORT = { once: true as const, amount: 0.2, margin: '0px 0px -18% 0px' }
+const CARD_VIEWPORT = { once: true as const, amount: 0.05, margin: '0px 0px -22% 0px' }
+
+const GRID_FIELDS = LV2_SEASON_IMPORT_ASSIGNMENT.fields.slice(0, 4)
+const DETAIL_FIELDS = LV2_SEASON_IMPORT_ASSIGNMENT.fields.slice(4)
+
+function ClientMark() {
+  return <UserRound className={styles.mark} aria-hidden strokeWidth={1.4} />
+}
 
 /**
  * Compact / reduced-motion Season Import — natural document flow.
@@ -19,20 +36,11 @@ const INTRO_VIEWPORT = { once: true as const, amount: 0.35, margin: '0px 0px -12
  */
 export function LandingV2SeasonImportStory() {
   const reduced = useReducedMotion()
-  const [compact, setCompact] = useState(false)
-
-  useEffect(() => {
-    const mq = window.matchMedia('(max-width: 1100px)')
-    const sync = () => setCompact(mq.matches)
-    sync()
-    mq.addEventListener('change', sync)
-    return () => mq.removeEventListener('change', sync)
-  }, [])
-
-  const simple = Boolean(reduced) || compact
+  const isCompact = useLandingCompactViewport()
+  const flow = Boolean(reduced) || isCompact
   const motionOff = Boolean(reduced)
 
-  if (!simple) {
+  if (!flow) {
     return (
       <section
         className={styles.absorbed}
@@ -45,75 +53,184 @@ export function LandingV2SeasonImportStory() {
 
   return (
     <section
-      className={styles.static}
+      className={styles.flow}
       data-testid="lv2-season-import-story"
       data-season-import-theater="document-flow"
       data-season-import-flow="document"
+      data-season-import-compact="true"
       aria-labelledby="lv2-studio-import-heading"
     >
-      <motion.div
-        className={styles.staticInner}
-        initial={motionOff ? false : { opacity: 0, y: 16 }}
-        whileInView={motionOff ? undefined : { opacity: 1, y: 0 }}
-        viewport={INTRO_VIEWPORT}
-        transition={{ duration: 0.8, ease: COMPACT_EASE }}
-      >
-        <p className={styles.eyebrow}>{LV2_SEASON_IMPORT_COPY.eyebrow}</p>
-        <h2 id="lv2-studio-import-heading" className={styles.headline}>
-          <span className={styles.line}>{LV2_SEASON_IMPORT_COPY.headlineLine1}</span>
-          <span className={styles.line}>{LV2_SEASON_IMPORT_COPY.headlineLine2}</span>
-        </h2>
-        <p className={styles.support}>{LV2_SEASON_IMPORT_COPY.support}</p>
+      <div className={styles.inner}>
+        <div className={styles.intro} data-studio-import-intro="">
+          <motion.div
+            className={styles.iconWrap}
+            data-studio-import-icon=""
+            initial={motionOff ? false : { opacity: 0, y: 10 }}
+            whileInView={motionOff ? undefined : { opacity: 1, y: 0 }}
+            viewport={INTRO_VIEWPORT}
+            transition={{ duration: 0.75, ease: COMPACT_EASE }}
+            aria-hidden
+          >
+            <FileSpreadsheet className={styles.icon} strokeWidth={1.5} />
+          </motion.div>
 
-        <ol className={styles.process} aria-label="Kroki importu">
-          {LV2_SEASON_IMPORT_STEPS.map((step, i) => (
-            <li key={step}>
-              <span className={styles.stepIndex}>{i + 1}</span>
-              <span>{step}</span>
-              {i < LV2_SEASON_IMPORT_STEPS.length - 1 ? (
-                <span className={styles.stepArrow} aria-hidden>
-                  →
+          <motion.p
+            className={styles.eyebrow}
+            data-studio-import-eyebrow=""
+            initial={motionOff ? false : { opacity: 0, y: 8 }}
+            whileInView={motionOff ? undefined : { opacity: 1, y: 0 }}
+            viewport={INTRO_VIEWPORT}
+            transition={{ duration: 0.75, ease: COMPACT_EASE, delay: 0.04 }}
+          >
+            {LV2_SEASON_IMPORT_COPY.eyebrow}
+          </motion.p>
+
+          <motion.h2
+            id="lv2-studio-import-heading"
+            className={styles.headline}
+            data-studio-import-headline=""
+            initial={motionOff ? false : { opacity: 0, y: 14 }}
+            whileInView={motionOff ? undefined : { opacity: 1, y: 0 }}
+            viewport={INTRO_VIEWPORT}
+            transition={{ duration: 0.8, ease: COMPACT_EASE, delay: 0.08 }}
+          >
+            <span className={styles.line}>{LV2_SEASON_IMPORT_COPY.headlineLine1}</span>
+            <span className={styles.line}>{LV2_SEASON_IMPORT_COPY.headlineLine2}</span>
+          </motion.h2>
+
+          <motion.p
+            className={styles.support}
+            data-studio-import-support=""
+            initial={motionOff ? false : { opacity: 0, y: 10 }}
+            whileInView={motionOff ? undefined : { opacity: 1, y: 0 }}
+            viewport={INTRO_VIEWPORT}
+            transition={{ duration: 0.8, ease: COMPACT_EASE, delay: 0.12 }}
+          >
+            {LV2_SEASON_IMPORT_COPY.support}
+          </motion.p>
+
+          <motion.ol
+            className={styles.process}
+            data-studio-import-process=""
+            aria-label="Kroki importu"
+            initial={motionOff ? false : { opacity: 0, y: 8 }}
+            whileInView={motionOff ? undefined : { opacity: 1, y: 0 }}
+            viewport={INTRO_VIEWPORT}
+            transition={{ duration: 0.8, ease: COMPACT_EASE, delay: 0.16 }}
+          >
+            {LV2_SEASON_IMPORT_STEPS.map((step, i) => (
+              <li key={step}>
+                <span className={styles.stepIndex}>{i + 1}</span>
+                <span className={styles.stepLabel}>{step}</span>
+              </li>
+            ))}
+          </motion.ol>
+        </div>
+
+        <div className={styles.panels} data-studio-import-panels="">
+          <motion.article
+            className={styles.sheet}
+            data-import-panel="sheet"
+            data-studio-import-sheet=""
+            initial={motionOff ? false : { opacity: 0, y: 22, scale: 0.995 }}
+            whileInView={motionOff ? undefined : { opacity: 1, y: 0, scale: 1 }}
+            viewport={CARD_VIEWPORT}
+            transition={{ duration: 0.82, ease: COMPACT_EASE }}
+          >
+            <header className={styles.sheetHead}>
+              <div className={styles.sheetIdentity}>
+                <span className={styles.sheetGlyph} aria-hidden>
+                  <FileSpreadsheet strokeWidth={1.5} />
                 </span>
-              ) : null}
-            </li>
-          ))}
-        </ol>
+                <div>
+                  <p className={styles.surfaceEyebrow}>{LV2_SEASON_IMPORT_SHEET.label}</p>
+                  <p className={styles.sheetTitle}>{LV2_SEASON_IMPORT_SHEET.filename}</p>
+                </div>
+              </div>
+              <p className={styles.sheetStatus}>{LV2_SEASON_IMPORT_SHEET.status}</p>
+            </header>
 
-        <div className={styles.panels}>
-          <article className={styles.sheet}>
-            <p className={styles.surfaceEyebrow}>{LV2_SEASON_IMPORT_SHEET.label}</p>
-            <h3>{LV2_SEASON_IMPORT_SHEET.filename}</h3>
-            <p className={styles.sheetStatus}>{LV2_SEASON_IMPORT_SHEET.status}</p>
-            <ul className={styles.rows}>
+            <ul className={styles.rows} aria-label="Podgląd arkusza">
               {LV2_SEASON_IMPORT_ROWS.map((row) => (
                 <li key={row.id} data-selected={row.selected ? 'true' : 'false'}>
-                  <strong>{row.couple}</strong>
-                  <span>
+                  <strong className={styles.coupleCell}>
+                    <ClientMark />
+                    {row.couple}
+                  </strong>
+                  <span className={styles.rowMeta}>
                     {row.date} · {row.packageName} · {row.value}
                   </span>
                 </li>
               ))}
             </ul>
-            <p className={styles.pdf}>
-              {LV2_SEASON_IMPORT_ATTACHMENT.mark} · {LV2_SEASON_IMPORT_ATTACHMENT.filename}
-            </p>
-          </article>
 
-          <article className={styles.assignment}>
-            <p className={styles.surfaceEyebrow}>{LV2_SEASON_IMPORT_ASSIGNMENT.eyebrow}</p>
-            <h3>{LV2_SEASON_IMPORT_ASSIGNMENT.couple}</h3>
-            <dl>
-              {LV2_SEASON_IMPORT_ASSIGNMENT.fields.map((field) => (
-                <div key={field.label}>
-                  <dt>{field.label}</dt>
-                  <dd>{field.value}</dd>
+            <div className={styles.attachment} data-studio-import-pdf="">
+              <p className={styles.attachmentLabel}>Powiązany dokument</p>
+              <div className={styles.attachmentBody}>
+                <span className={styles.pdfMark}>{LV2_SEASON_IMPORT_ATTACHMENT.mark}</span>
+                <div>
+                  <strong>{LV2_SEASON_IMPORT_ATTACHMENT.filename}</strong>
+                  <span>{LV2_SEASON_IMPORT_ATTACHMENT.note}</span>
                 </div>
-              ))}
-            </dl>
-            <p className={styles.ready}>{LV2_SEASON_IMPORT_ASSIGNMENT.status}</p>
-          </article>
+              </div>
+            </div>
+          </motion.article>
+
+          <motion.article
+            className={styles.assignment}
+            data-import-panel="result"
+            data-studio-import-result=""
+            initial={motionOff ? false : { opacity: 0, y: 22, scale: 0.995 }}
+            whileInView={motionOff ? undefined : { opacity: 1, y: 0, scale: 1 }}
+            viewport={CARD_VIEWPORT}
+            transition={{ duration: 0.82, ease: COMPACT_EASE }}
+          >
+            <header className={styles.assignHead}>
+              <p className={styles.surfaceEyebrow}>{LV2_SEASON_IMPORT_ASSIGNMENT.eyebrow}</p>
+              <p className={styles.assignTitle}>{LV2_SEASON_IMPORT_ASSIGNMENT.couple}</p>
+            </header>
+
+            <div className={styles.fieldsBlock} data-studio-import-fields="">
+              <dl className={styles.meta}>
+                {GRID_FIELDS.map((field) => (
+                  <div key={field.label} className={styles.metaChip}>
+                    <dt>{field.label}</dt>
+                    <dd>{field.value}</dd>
+                  </div>
+                ))}
+              </dl>
+
+              <ul className={styles.details}>
+                {DETAIL_FIELDS.map((field) => (
+                  <li key={field.label}>
+                    <span className={styles.detailIcon} aria-hidden>
+                      {field.label === 'Lokalizacja' ? (
+                        <MapPin strokeWidth={1.5} />
+                      ) : (
+                        <FileText strokeWidth={1.5} />
+                      )}
+                    </span>
+                    <div>
+                      <span className={styles.detailLabel}>{field.label}</span>
+                      <strong className={styles.detailValue}>{field.value}</strong>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div className={styles.readyBlock} data-studio-import-ready="">
+              <p className={styles.readyStatus} data-status="ready">
+                <CheckCircle2 className={styles.readyIcon} aria-hidden strokeWidth={1.6} />
+                {LV2_SEASON_IMPORT_ASSIGNMENT.status}
+              </p>
+              <button type="button" className={styles.cta} tabIndex={-1}>
+                {LV2_SEASON_IMPORT_ASSIGNMENT.cta}
+              </button>
+            </div>
+          </motion.article>
         </div>
-      </motion.div>
+      </div>
     </section>
   )
 }

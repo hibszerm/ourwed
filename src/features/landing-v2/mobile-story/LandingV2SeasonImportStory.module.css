@@ -1,3 +1,5 @@
+/* Compact / PRM Season Import — natural document flow. Desktop sticky is StudioImportReveal. */
+
 .absorbed {
   display: block;
   height: 0;
@@ -7,37 +9,81 @@
   pointer-events: none;
 }
 
-.static {
-  padding: clamp(3rem, 8vw, 5.5rem) 1.25rem;
-  background: var(--paper, #f3efe8);
-  color: #1a1614;
+.flow {
+  --import-ink: #1a1614;
+  --import-paper: var(--paper, #f3efe8);
+  --import-muted: color-mix(in srgb, #1a1614 48%, transparent);
+  --season-import-mobile-card-gap: clamp(1.5rem, 4vw, 2rem);
+  --season-import-mobile-section-pad: clamp(0.25rem, 1vw, 0.75rem);
+  --season-import-mobile-section-end: clamp(4rem, 12vw, 6rem);
+
   position: relative;
   z-index: 2;
+  width: 100%;
+  background: var(--import-paper);
+  color: var(--import-ink);
+  /* History already provides ~72–96px end gap; keep a light top pad only. */
+  padding: var(--season-import-mobile-section-pad) 1.125rem var(--season-import-mobile-section-end);
 }
 
-.staticInner {
-  max-width: 40rem;
-  margin: 0 auto;
+.inner {
+  width: calc(100vw - 2.25rem);
+  max-width: 26rem;
+  margin-inline: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.intro {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
   text-align: center;
+  margin-bottom: clamp(2rem, 5vw, 2.5rem);
+}
+
+.iconWrap {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  margin: 0 0 0.85rem;
+  border-radius: 12px;
+  background: color-mix(in srgb, #ffffff 70%, #f3efe8);
+  border: 1px solid color-mix(in srgb, #1a1614 8%, transparent);
+  color: var(--import-ink);
+  position: relative;
+}
+
+.icon {
+  width: 1.35rem;
+  height: 1.35rem;
 }
 
 .eyebrow {
-  margin: 0 0 0.85rem;
+  margin: 0 0 1rem;
+  width: 100%;
   font-size: 0.6875rem;
   font-weight: 600;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: color-mix(in srgb, #1a1614 48%, transparent);
+  color: var(--import-muted);
 }
 
 .headline {
   margin: 0;
+  width: 100%;
+  max-width: calc(100vw - 2.25rem);
   display: grid;
   gap: 0.08em;
-  font-size: clamp(1.7rem, 4vw + 0.6rem, 2.4rem);
+  font-size: clamp(1.75rem, 7vw, 2.15rem);
   font-weight: 600;
-  letter-spacing: -0.04em;
-  line-height: 1.1;
+  letter-spacing: -0.05em;
+  line-height: 1.05;
+  color: var(--import-ink);
+  text-align: center;
 }
 
 .line {
@@ -45,62 +91,106 @@
 }
 
 .support {
-  margin: 0.85rem auto 0;
-  font-size: 1rem;
-  line-height: 1.45;
-  color: color-mix(in srgb, #1a1614 48%, transparent);
+  margin: 1.05rem auto 0;
+  max-width: min(22.5rem, calc(100vw - 2.5rem));
+  font-size: clamp(0.9375rem, 3.8vw, 1rem);
+  line-height: 1.5;
+  color: var(--import-muted);
 }
 
+/* Vertical steps — readable at 375 without truncation. */
 .process {
   list-style: none;
-  margin: 1.5rem 0 0;
+  margin: 1.35rem 0 0;
   padding: 0;
+  width: 100%;
+  max-width: 18rem;
   display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 0.55rem;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.65rem;
 }
 
 .process li {
-  display: inline-flex;
+  display: grid;
+  grid-template-columns: 1.5rem 1fr;
   align-items: center;
-  gap: 0.4rem;
-  font-size: 0.8125rem;
+  column-gap: 0.7rem;
+  text-align: left;
 }
 
 .stepIndex {
   display: grid;
   place-items: center;
-  width: 1.25rem;
-  height: 1.25rem;
+  width: 1.5rem;
+  height: 1.5rem;
   border-radius: 999px;
   background: #1a1614;
   color: #f7f3ec;
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   font-weight: 600;
 }
 
-.stepArrow {
-  color: color-mix(in srgb, #1a1614 28%, transparent);
+.stepLabel {
+  font-size: 0.9375rem;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+  color: var(--import-ink);
 }
 
 .panels {
-  margin-top: 1.75rem;
-  display: grid;
-  gap: 1rem;
-  text-align: left;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--season-import-mobile-card-gap);
 }
 
 .sheet,
 .assignment {
-  border: 1px solid color-mix(in srgb, #1a1614 10%, transparent);
+  width: 100%;
+  max-width: calc(100vw - 2.25rem);
+  box-sizing: border-box;
+  border: 1px solid color-mix(in srgb, #1a1614 9%, transparent);
   border-radius: 14px;
-  background: color-mix(in srgb, #fbf8f3 88%, transparent);
-  padding: 1rem;
+  background: color-mix(in srgb, #ffffff 88%, #f3efe8);
+  box-shadow: 0 10px 28px rgba(40, 32, 24, 0.05);
+  padding: 1rem 1.05rem 1.1rem;
+  text-align: left;
+  overflow: visible;
+}
+
+.sheetHead {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  margin-bottom: 0.85rem;
+}
+
+.sheetIdentity {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.sheetGlyph {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 10px;
+  background: color-mix(in srgb, #1a1614 5%, transparent);
+  color: var(--import-ink);
+  flex-shrink: 0;
+}
+
+.sheetGlyph svg {
+  width: 1.1rem;
+  height: 1.1rem;
 }
 
 .surfaceEyebrow {
-  margin: 0 0 0.25rem;
+  margin: 0 0 0.15rem;
   font-size: 0.625rem;
   font-weight: 600;
   letter-spacing: 0.12em;
@@ -108,17 +198,18 @@
   color: color-mix(in srgb, #1a1614 42%, transparent);
 }
 
-.sheet h3,
-.assignment h3 {
+.sheetTitle {
   margin: 0;
-  font-size: 1.05rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
   letter-spacing: -0.02em;
+  word-break: break-word;
 }
 
 .sheetStatus {
-  margin: 0.35rem 0 0.85rem;
-  font-size: 0.75rem;
-  color: color-mix(in srgb, #1a1614 46%, transparent);
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--import-muted);
 }
 
 .rows {
@@ -126,43 +217,126 @@
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 0.55rem;
+  gap: 0.35rem;
+  overflow: visible;
 }
 
 .rows li {
   display: grid;
-  gap: 0.15rem;
-  padding: 0.45rem 0.5rem;
-  border-radius: 8px;
+  gap: 0.2rem;
+  padding: 0.55rem 0.6rem;
+  border-radius: 10px;
+  box-sizing: border-box;
 }
 
 .rows li[data-selected='true'] {
-  background: color-mix(in srgb, #1a1614 6%, transparent);
+  background: color-mix(in srgb, #1a1614 5.5%, transparent);
   box-shadow: inset 2px 0 0 color-mix(in srgb, #1a1614 45%, transparent);
 }
 
-.rows strong {
+.coupleCell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
   font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
 }
 
-.rows span {
+.mark {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  color: color-mix(in srgb, #1a1614 42%, transparent);
+}
+
+.rowMeta {
+  padding-left: calc(13px + 0.4rem);
   font-size: 0.75rem;
-  color: color-mix(in srgb, #1a1614 52%, transparent);
+  line-height: 1.35;
+  color: color-mix(in srgb, #1a1614 58%, transparent);
 }
 
-.pdf {
-  margin: 0.85rem 0 0;
-  font-size: 0.75rem;
-  color: color-mix(in srgb, #1a1614 52%, transparent);
+.attachment {
+  margin-top: 0.85rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid color-mix(in srgb, #1a1614 8%, transparent);
 }
 
-.assignment dl {
-  margin: 0.85rem 0 0;
+.attachmentLabel {
+  margin: 0 0 0.45rem;
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, #1a1614 42%, transparent);
+}
+
+.attachmentBody {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+}
+
+.pdfMark {
   display: grid;
-  gap: 0.55rem;
+  place-items: center;
+  min-width: 2.25rem;
+  height: 1.65rem;
+  padding: 0 0.4rem;
+  border-radius: 6px;
+  background: #1a1614;
+  color: #f7f3ec;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
 }
 
-.assignment dt {
+.attachmentBody strong {
+  display: block;
+  font-size: 0.8125rem;
+  letter-spacing: -0.015em;
+}
+
+.attachmentBody span {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.75rem;
+  color: var(--import-muted);
+}
+
+.assignHead {
+  margin-bottom: 0.85rem;
+}
+
+.assignTitle {
+  margin: 0.2rem 0 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+
+.fieldsBlock {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.meta {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.65rem;
+}
+
+.metaChip {
+  padding: 0.55rem 0.65rem;
+  border-radius: 10px;
+  background: color-mix(in srgb, #1a1614 4%, transparent);
+}
+
+.metaChip dt {
+  margin: 0;
   font-size: 0.625rem;
   font-weight: 600;
   letter-spacing: 0.08em;
@@ -170,17 +344,106 @@
   color: color-mix(in srgb, #1a1614 42%, transparent);
 }
 
-.assignment dd {
-  margin: 0.1rem 0 0;
+.metaChip dd {
+  margin: 0.2rem 0 0;
   font-size: 0.875rem;
+  font-weight: 500;
+  letter-spacing: -0.015em;
 }
 
-.ready {
-  margin: 1rem 0 0;
+.details {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.details li {
+  display: grid;
+  grid-template-columns: 1.25rem 1fr;
+  gap: 0.65rem;
+  align-items: start;
+  padding: 0.35rem 0;
+}
+
+.detailIcon {
+  display: grid;
+  place-items: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  color: color-mix(in srgb, #1a1614 48%, transparent);
+}
+
+.detailIcon svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.detailLabel {
+  display: block;
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, #1a1614 42%, transparent);
+}
+
+.detailValue {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+}
+
+.readyBlock {
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.75rem;
+}
+
+.readyStatus {
+  margin: 0;
   display: inline-flex;
-  padding: 0.28rem 0.65rem;
+  align-items: center;
+  gap: 0.4rem;
+  align-self: flex-start;
+  padding: 0.35rem 0.7rem;
   border-radius: 999px;
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
   color: #1f5c3a;
   background: color-mix(in srgb, #2f8f5b 14%, transparent);
+}
+
+.readyIcon {
+  width: 0.95rem;
+  height: 0.95rem;
+  flex-shrink: 0;
+}
+
+.cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.75rem;
+  width: 100%;
+  padding: 0.7rem 1rem;
+  border: none;
+  border-radius: 12px;
+  background: #1a1614;
+  color: #f7f3ec;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flow {
+    scroll-margin-top: 4.5rem;
+  }
 }
