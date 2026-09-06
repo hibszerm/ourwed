@@ -4,7 +4,12 @@ export {
   LV2_SECURITY_MICRO_POINTS,
   LV2_HISTORY_COPY,
   LV2_HISTORY_SEASONS,
+  LV2_HISTORY_COMPACT_VISIBLE_ROWS,
+  LV2_HISTORY_DESKTOP_VISIBLE_ROWS,
   LV2_SECURITY_BANNED,
+  historyFooterRemaining,
+  historySeasonCompactView,
+  historySeasonTotalAssignments,
 } from './securityHistoryClaims'
 export {
   SECURITY_HISTORY_TRACK_SVH,

@@ -1,4 +1,4 @@
-/* Studio History — compact/static fallback. Scroll chapter lives in MobileStory. */
+/* Studio History — compact/PRM document flow. Desktop sticky lives in MobileStory. */
 
 .absorbed {
   display: block;
@@ -9,8 +9,58 @@
   pointer-events: none;
 }
 
+.flow {
+  --sh-ink: #1a1614;
+  --sh-paper: var(--paper, #f3efe8);
+  --sh-muted: color-mix(in srgb, #1a1614 48%, transparent);
+  --studio-history-mobile-year-gap: clamp(3.5rem, 10vw, 4.5rem);
+  --studio-history-mobile-section-end: clamp(4rem, 12vw, 6rem);
+
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  background: var(--sh-paper);
+  color: var(--sh-ink);
+  padding: clamp(2.75rem, 8vw, 4rem) 1.125rem var(--studio-history-mobile-section-end);
+}
+
+.inner {
+  width: calc(100vw - 2.25rem);
+  max-width: 26rem;
+  margin-inline: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.intro {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  text-align: center;
+  margin-bottom: clamp(3rem, 8vw, 4rem);
+}
+
+.lockWrap {
+  display: flex;
+  justify-content: center;
+  margin: 0 0 1rem;
+  /* Lock is normal-flow content — never sticky/fixed. */
+  position: relative;
+}
+
+.lock {
+  width: 32px;
+  height: auto;
+  color: #1a1614;
+  display: block;
+}
+
 .studioLabel {
-  margin: 0;
+  margin: 0 0 1rem;
+  width: 100%;
+  text-align: center;
   font-size: 0.6875rem;
   font-weight: 600;
   letter-spacing: 0.14em;
@@ -20,92 +70,125 @@
 
 .historyHeadline {
   margin: 0;
+  width: 100%;
+  max-width: calc(100vw - 2.25rem);
   display: grid;
-  gap: 0.08em;
-  font-size: clamp(1.85rem, 2.5vw + 0.55rem, 2.75rem);
+  gap: 0.06em;
+  font-size: clamp(2rem, 8.2vw, 2.55rem);
   font-weight: 600;
-  letter-spacing: -0.04em;
-  line-height: 1.08;
+  letter-spacing: -0.045em;
+  line-height: 1.02;
   color: var(--sh-ink);
+  text-align: center;
 }
 
 .historyLine {
   display: block;
+  white-space: nowrap;
 }
 
 .historySupport {
-  margin: 0.85rem auto 0;
-  max-width: 36rem;
-  font-size: clamp(0.9375rem, 0.3vw + 0.85rem, 1.05rem);
-  line-height: 1.45;
+  margin: 0.95rem auto 0;
+  max-width: min(22rem, calc(100vw - 2.5rem));
+  font-size: clamp(0.9375rem, 3.8vw, 1rem);
+  line-height: 1.5;
   color: var(--sh-muted);
+  text-align: center;
 }
 
-.seasons {
-  margin-top: 2.25rem;
+.yearList {
   width: 100%;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: clamp(1.25rem, 3vw, 2.5rem);
-  text-align: left;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--studio-history-mobile-year-gap);
 }
 
-.seasonCol {
-  min-width: 0;
+.yearChapter {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .year {
-  margin: 0 0 0.7rem;
-  font-size: clamp(1.5rem, 1.6vw + 0.7rem, 2rem);
+  margin: 0 0 1.15rem;
+  width: 100%;
+  text-align: center;
+  font-size: clamp(1.75rem, 7.2vw, 2rem);
   font-weight: 600;
-  letter-spacing: -0.04em;
+  letter-spacing: -0.045em;
+  line-height: 1;
   color: var(--sh-ink);
+  /* Centering via layout only — never transform translateX. */
+  transform: none;
+}
+
+.card {
+  width: 100%;
+  max-width: calc(100vw - 2.25rem);
+  height: auto;
+  padding: 0.2rem 1.05rem 0.75rem;
+  border-radius: 14px;
+  background: color-mix(in srgb, #ffffff 88%, #f3efe8);
+  border: 1px solid color-mix(in srgb, #1a1614 9%, transparent);
+  box-shadow: 0 10px 28px rgba(40, 32, 24, 0.05);
+  overflow: visible;
 }
 
 .records {
   list-style: none;
   margin: 0;
   padding: 0;
+}
+
+.row {
   display: grid;
-  gap: 0.7rem;
+  grid-template-columns: 1rem 1fr 1rem;
+  align-items: center;
+  column-gap: 0.55rem;
+  min-height: 48px;
+  padding: 0.7rem 0;
+  box-sizing: border-box;
+  border-bottom: 1px solid color-mix(in srgb, #1a1614 8%, transparent);
+}
+
+.row:last-child {
+  border-bottom: none;
+}
+
+.rowLead,
+.rowTrail {
+  display: grid;
+  place-items: center;
+  width: 1rem;
+}
+
+.mark {
+  width: 14px;
+  height: 14px;
+  color: color-mix(in srgb, #1a1614 42%, transparent);
 }
 
 .couple {
-  font-size: 0.875rem;
+  margin: 0;
+  text-align: center;
+  font-size: 0.9375rem;
   font-weight: 500;
-  letter-spacing: -0.015em;
+  letter-spacing: -0.02em;
   color: var(--sh-ink);
 }
 
 .footer {
-  margin: 0.7rem 0 0;
-  font-size: 0.75rem;
+  margin: 0.15rem 0 0;
+  padding-top: 0.55rem;
+  text-align: center;
+  font-size: 0.8125rem;
   color: var(--sh-muted);
 }
 
-.static {
-  --sh-ink: #1a1614;
-  --sh-paper: var(--paper, #f3efe8);
-  --sh-muted: color-mix(in srgb, #1a1614 48%, transparent);
-  background: var(--sh-paper);
-  color: var(--sh-ink);
-  padding: 4rem clamp(1.1rem, 4vw, 2.5rem) 5rem;
-}
-
-.staticInner {
-  width: min(1080px, 100%);
-  margin-inline: auto;
-  display: grid;
-  gap: 1.25rem;
-  justify-items: center;
-  text-align: center;
-}
-
-@media (max-width: 900px) {
-  .seasons {
-    grid-template-columns: 1fr;
-    gap: 1.75rem;
-    max-width: 22rem;
-    margin-inline: auto;
+@media (prefers-reduced-motion: reduce) {
+  .flow {
+    scroll-margin-top: 4.5rem;
   }
 }

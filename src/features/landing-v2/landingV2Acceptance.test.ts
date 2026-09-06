@@ -66,9 +66,15 @@ import {
 } from '@/features/landing-v2/mobile-story/postBriefSecurityProgress'
 import {
   MOBILE_TRACK_STUDIO_HISTORY_SVH,
+  MOBILE_TRACK_STUDIO_HISTORY_SVH_COMPACT,
   STUDIO_HISTORY_RANGES,
   STUDIO_LOCK_SCALE_END,
+  STUDIO_LOCK_SCALE_END_COMPACT,
+  STUDIO_LOCK_Y_VH_END,
+  STUDIO_LOCK_Y_VH_END_COMPACT,
   studioCardsOpAt,
+  studioCompactLockFadeAt,
+  studioCompactYearStackYAt,
   studioEyebrowOpAt,
   studioHeadlineOpAt,
   studioLockScaleAt,
@@ -122,7 +128,13 @@ import {
   LV2_SEASON_IMPORT_COPY,
   LV2_SEASON_IMPORT_ROWS,
 } from '@/features/landing-v2/mobile-story/seasonImportClaims'
-import { LV2_HISTORY_SEASONS } from '@/features/landing-v2/security-history/securityHistoryClaims'
+import {
+  LV2_HISTORY_COMPACT_VISIBLE_ROWS,
+  LV2_HISTORY_DESKTOP_VISIBLE_ROWS,
+  LV2_HISTORY_SEASONS,
+  historySeasonCompactView,
+  historySeasonTotalAssignments,
+} from '@/features/landing-v2/security-history/securityHistoryClaims'
 import {
   classifyMorph,
   findForwardMorphOscillations,
@@ -802,8 +814,10 @@ function walkTs(dir: string, out: string[] = []): string[] {
       page.indexOf('id="jak-dziala"') < page.indexOf('<LandingV2FeaturesGrid />') &&
       page.indexOf('<LandingV2FeaturesGrid />') < page.indexOf('<LandingV2MobileStory />') &&
       page.indexOf('<LandingV2MobileStory />') < page.indexOf('<LandingV2SecurityHistoryStory />') &&
-      page.indexOf('<LandingV2SecurityHistoryStory />') < page.indexOf('<LandingV2FounderStory />'),
-    'lifecycle → jak-dziala features → mobile → security-history → founder',
+      page.indexOf('<LandingV2SecurityHistoryStory />') <
+        page.indexOf('<LandingV2SeasonImportStory />') &&
+      page.indexOf('<LandingV2SeasonImportStory />') < page.indexOf('<LandingV2FounderStory />'),
+    'lifecycle → jak-dziala features → mobile → history flow → import flow → founder',
   )
   assertIncludes(page, 'LandingV2FeaturesGrid', 'features grid mounted')
   assertIncludes(page, '<LandingV2FeaturesGrid />', 'features grid element')
@@ -812,6 +826,8 @@ function walkTs(dir: string, out: string[] = []): string[] {
   assertIncludes(page, '<LandingV2MobileStory />', 'mobile story element')
   assertIncludes(page, 'LandingV2SecurityHistoryStory', 'security-history story mounted')
   assertIncludes(page, '<LandingV2SecurityHistoryStory />', 'security-history story element')
+  assertIncludes(page, 'LandingV2SeasonImportStory', 'season-import flow mounted')
+  assertIncludes(page, '<LandingV2SeasonImportStory />', 'season-import flow element')
 
   assert(
     page.indexOf('<LandingV2LifecycleStory />') < page.indexOf('id="jak-dziala"'),
@@ -2614,8 +2630,10 @@ function testMobileStory() {
   assert(
     page.indexOf('<LandingV2FeaturesGrid />') < page.indexOf('<LandingV2MobileStory />') &&
       page.indexOf('<LandingV2MobileStory />') < page.indexOf('<LandingV2SecurityHistoryStory />') &&
+      page.indexOf('<LandingV2SecurityHistoryStory />') <
+        page.indexOf('<LandingV2SeasonImportStory />') &&
       page.indexOf('id="jak-dziala"') < page.indexOf('<LandingV2MobileStory />'),
-    'jak-dziala features before mobile; security-history after mobile',
+    'jak-dziala features before mobile; history+import flow after mobile',
   )
 
   assertNotIncludes(lifecycle, 'LandingV2MobileStory', 'lifecycle unchanged by mobile story')
@@ -3340,21 +3358,45 @@ testMobileStory()
   )
 
   assertIncludes(page, '<LandingV2SecurityHistoryStory />', 'history mounted after mobile')
+  assertIncludes(page, '<LandingV2SeasonImportStory />', 'import flow mounted after history')
   assert(
     page.indexOf('<LandingV2MobileStory />') <
-      page.indexOf('<LandingV2SecurityHistoryStory />'),
-    'mobile before history',
+      page.indexOf('<LandingV2SecurityHistoryStory />') &&
+      page.indexOf('<LandingV2SecurityHistoryStory />') <
+        page.indexOf('<LandingV2SeasonImportStory />'),
+    'mobile → history flow → import flow',
   )
   assertIncludes(
     story,
-    'const simple = Boolean(reduced)',
-    'Security History static only for reduced motion',
+    'Boolean(reduced) || isCompact',
+    'Security History document-flow on compact + reduced motion',
   )
-  assertNotIncludes(
-    story,
-    'Boolean(reduced) || compact',
-    'Security History absorbed on compact normal-motion (theater in Mobile Story)',
-  )
+  assertIncludes(story, 'data-studio-history-flow="document"', 'compact history is document flow')
+  assertIncludes(story, 'historySeasonCompactView', 'compact 3-row projection')
+  assertIncludes(story, 'SecurityLockGraphic', 'in-flow compact history lock')
+  assertIncludes(story, 'whileInView', 'local year/intro reveals')
+  assertIncludes(storyCss, 'position: relative', 'history flow not sticky')
+  assertNotIncludes(storyCss, 'position: sticky', 'no sticky history stage')
+  assertNotIncludes(storyCss, 'position: fixed', 'no fixed history lock')
+  assertIncludes(storyCss, '--studio-history-mobile-year-gap', 'shared year gap token')
+  assertIncludes(storyCss, 'grid-template-columns: 1rem 1fr 1rem', 'row optical centering')
+  assertIncludes(claims, 'LV2_HISTORY_COMPACT_VISIBLE_ROWS = 3', 'compact visible rows constant')
+  assertIncludes(claims, 'historySeasonCompactView', 'compact projection helper')
+  assertEq(LV2_HISTORY_COMPACT_VISIBLE_ROWS, 3, 'compact visible rows = 3')
+  assertEq(LV2_HISTORY_DESKTOP_VISIBLE_ROWS, 6, 'desktop visible rows = 6')
+  for (const season of LV2_HISTORY_SEASONS) {
+    const view = historySeasonCompactView(season)
+    assertEq(view.records.length, 3, `${season.year} compact shows 3 rows`)
+    assertEq(
+      view.remaining,
+      historySeasonTotalAssignments(season) - 3,
+      `${season.year} remaining = total - 3`,
+    )
+    assertEq(view.footer, `i ${view.remaining} innych zleceń`, `${season.year} footer matches remaining`)
+  }
+  assertEq(historySeasonTotalAssignments(LV2_HISTORY_SEASONS[0]!), 14, '2026 total 14')
+  assertEq(historySeasonTotalAssignments(LV2_HISTORY_SEASONS[1]!), 15, '2027 total 15')
+  assertEq(historySeasonTotalAssignments(LV2_HISTORY_SEASONS[2]!), 17, '2028 total 17')
 
   /* —— Mobile owns phone→lock —— */
   assertIncludes(mobile, 'data-mobile-post-brief-owner="true"', 'Mobile owns post-Brief morph')
@@ -3397,20 +3439,22 @@ testMobileStory()
   assertNotIncludes(phoneCss, '.frozenScreenCanvas', 'no frozen canvas CSS')
   assertNotIncludes(phone, 'data-phone-frozen-canvas', 'no frozen canvas marker')
 
-  /* —— Security History disconnected from phone; scroll chapter absorbed —— */
-  assertIncludes(story, 'data-security-history-role="studio-history-only"', 'history-only role')
-  assertIncludes(story, 'data-security-theater="absorbed"', 'scroll history absorbed into Mobile')
+  /* —— Desktop sticky History in Mobile; compact History is document-flow sibling —— */
+  assertIncludes(story, 'data-security-history-role="studio-history-only"', 'history-only role on absorbed desktop')
+  assertIncludes(story, 'data-security-theater="absorbed"', 'desktop scroll history absorbed into Mobile')
+  assertIncludes(story, 'data-studio-history-flow="document"', 'compact history document flow')
   assertNotIncludes(story, 'publishPhoneSecurityMorph(', 'history does not publish morph')
   assertNotIncludes(story, 'phoneSecuritySnapshotAt', 'no phone snapshot publish')
   assertNotIncludes(story, 'morphRoot', 'no surrogate morphRoot')
   assertNotIncludes(story, 'LockShackle', 'history does not mount morph shackle')
   assertNotIncludes(story, 'LockKeyhole', 'history does not mount morph keyhole')
   assertNotIncludes(story, 'LV2_SECURITY_COPY', 'security copy moved to Mobile')
-  assertNotIncludes(story, 'SecurityLockGraphic', 'no second lock graphic in history story')
+  assertIncludes(story, 'SecurityLockGraphic', 'compact in-flow lock graphic')
   assertNotIncludes(storyCss, '200svh', 'no competing 200svh history sticky')
   assertNotIncludes(storyCss, '.morphRoot', 'no morphRoot CSS')
-  assertIncludes(mobile, 'StudioHistoryReveal', 'studio history reveal owned by Mobile')
-  assertIncludes(mobile, 'StudioImportReveal', 'season import reveal owned by Mobile')
+  assertIncludes(mobile, 'StudioHistoryReveal', 'desktop studio history reveal owned by Mobile')
+  assertIncludes(mobile, 'StudioImportReveal', 'desktop season import reveal owned by Mobile')
+  assertIncludes(mobile, '!isCompactViewport', 'compact skips sticky History/Import reveals')
   assertNotIncludes(mobile, 'FounderStoryReveal', 'Founder not dual-owned inside Mobile sticky')
   assertNotIncludes(read('src/features/landing-v2/mobile-story/StudioImportReveal.tsx'), 'Season2027Bridge', 'no 2027 FLIP bridge on import path')
   assertNotIncludes(mobile, 'Season2027Bridge', 'MobileStory does not mount Season2027Bridge')
@@ -3421,7 +3465,23 @@ testMobileStory()
   assertIncludes(mobileCss, '--mobile-track-studio-history-svh', 'studio history CSS track budget')
   assertIncludes(mobileCss, '--mobile-track-season-import-svh', 'season import CSS track budget')
   assertIncludes(mobileCss, '--mobile-track-import-cover-hold-svh', 'Import cover-hold runway CSS budget')
-  assertEq(MOBILE_TRACK_STUDIO_HISTORY_SVH, 145, 'studio history 145svh')
+  assertIncludes(mobileCss, '--mobile-track-studio-history-svh: 0', 'compact studio history runway cleared')
+  assertEq(MOBILE_TRACK_STUDIO_HISTORY_SVH, 145, 'desktop studio history 145svh')
+  assertEq(MOBILE_TRACK_STUDIO_HISTORY_SVH_COMPACT, 0, 'compact studio sticky runway removed')
+  assertEq(STUDIO_LOCK_SCALE_END, 0.175, 'desktop studio lock scale end frozen')
+  assertEq(STUDIO_LOCK_Y_VH_END, -30, 'desktop studio lock Y frozen')
+  assertEq(studioCompactYearStackYAt(1), 0, 'compact column scrub disabled')
+  assertEq(studioCompactLockFadeAt(1), 1, 'compact sticky lock fade unused')
+  {
+    const historyReveal = read('src/features/landing-v2/mobile-story/StudioHistoryReveal.tsx')
+    const historyCss = read('src/features/landing-v2/mobile-story/StudioHistoryReveal.module.css')
+    assertIncludes(historyReveal, 'data-studio-year-chapter', 'desktop year chapter markers')
+    assertIncludes(historyReveal, 'data-studio-history-compact="false"', 'desktop history marker')
+    assertNotIncludes(historyReveal, 'studioCompactYearStackYAt', 'no compact scrub in desktop reveal')
+    assertNotIncludes(historyCss, 'overflow-y: auto', 'no nested year-card scroll')
+    assertIncludes(historyCss, 'grid-template-columns: repeat(3, minmax(0, 1fr))', 'desktop 3-col seasons frozen')
+    assertEq(LV2_HISTORY_SEASONS[0]!.records.length, LV2_HISTORY_DESKTOP_VISIBLE_ROWS, 'desktop keeps 6 rows')
+  }
   assertEq(MOBILE_TRACK_SEASON_IMPORT_SVH, 150, 'season import 150svh')
   assertEq(MOBILE_TRACK_IMPORT_COVER_HOLD_SVH, 100, 'Import cover-hold is one viewport')
   assertEq(MOBILE_TRACK_FOUNDER_SVH, MOBILE_TRACK_IMPORT_COVER_HOLD_SVH, 'legacy founder alias = cover hold')

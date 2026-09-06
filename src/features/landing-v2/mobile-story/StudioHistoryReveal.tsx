@@ -40,8 +40,8 @@ function ClientMark() {
 }
 
 /**
- * Approved Studio History final composition.
- * Exit: whole chapter recesses upward as one shell (no 2027 isolation / FLIP).
+ * Desktop Studio History — sticky three-column chronology.
+ * Compact document-flow History lives in LandingV2SecurityHistoryStory.
  */
 export function StudioHistoryReveal({ progress, exitProgress }: Props) {
   const shellOp = useTransform(exitProgress, (p) => seasonImportHistoryShellOpAt(p))
@@ -101,6 +101,7 @@ export function StudioHistoryReveal({ progress, exitProgress }: Props) {
       className={styles.root}
       data-studio-history=""
       data-studio-history-owner="mobile"
+      data-studio-history-compact="false"
       style={{
         x: '-50%',
         y: shellY,
@@ -159,13 +160,25 @@ export function StudioHistoryReveal({ progress, exitProgress }: Props) {
       <motion.div
         className={styles.seasons}
         data-studio-seasons=""
-        style={{ opacity: cardsOp, visibility: cardsVisibility }}
+        data-studio-year-list=""
+        style={{
+          opacity: cardsOp,
+          visibility: cardsVisibility,
+        }}
       >
         {LV2_HISTORY_SEASONS.map((season, i) => (
-          <div key={season.year} className={styles.seasonCol} data-season-year={season.year}>
+          <section
+            key={season.year}
+            className={styles.seasonCol}
+            data-season-year={season.year}
+            data-studio-year-chapter={season.year}
+          >
             <motion.p
               className={styles.year}
-              style={{ opacity: yearOps[i], visibility: yearVisibility[i] }}
+              style={{
+                opacity: yearOps[i],
+                visibility: yearVisibility[i],
+              }}
             >
               {season.year}
             </motion.p>
@@ -180,7 +193,7 @@ export function StudioHistoryReveal({ progress, exitProgress }: Props) {
               </ul>
               <p className={styles.footer}>{season.footer}</p>
             </div>
-          </div>
+          </section>
         ))}
       </motion.div>
     </motion.div>

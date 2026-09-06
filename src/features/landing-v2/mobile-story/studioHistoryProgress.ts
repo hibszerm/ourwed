@@ -12,15 +12,36 @@ import { easeOutCubic, rangeT } from '@/features/landing-v2/mobile-story/postBri
 
 /** Appended AFTER the post-Brief tail. Does not steal from it. */
 export const MOBILE_TRACK_STUDIO_HISTORY_SVH = 145
+/**
+ * Compact: Studio History is natural document flow AFTER Mobile Story releases.
+ * Sticky theater ends at Security — no compact History scrub runway.
+ */
+export const MOBILE_TRACK_STUDIO_HISTORY_SVH_COMPACT = 0
 
 /**
  * Extra lock scale on top of POST_BRIEF_SHRINK_END (0.48).
  * 0.175 × lock visual width ≈ 29–36px across 1440–1920.
  */
 export const STUDIO_LOCK_SCALE_END = 0.175
+/**
+ * @deprecated Compact History no longer uses sticky lock travel.
+ * Kept for desktop-freeze tests / API stability.
+ */
+export const STUDIO_LOCK_SCALE_END_COMPACT = 0.18
 
 /** Upward travel in vh from stage-center (46%) toward studio composition. */
 export const STUDIO_LOCK_Y_VH_END = -30
+/**
+ * @deprecated Compact History no longer uses sticky lock travel.
+ * Kept for desktop-freeze tests / API stability.
+ */
+export const STUDIO_LOCK_Y_VH_END_COMPACT = -39.5
+
+/**
+ * @deprecated Compact History is document-flow; no column scrub.
+ * Kept so older imports do not break mid-refactor.
+ */
+export const STUDIO_COMPACT_YEAR_STACK_PX = 0
 
 export const STUDIO_HISTORY_RANGES = {
   /** Readable Security beat — scales with studio-history svh budget. */
@@ -72,13 +93,29 @@ export function studioLockSettledGateAt(p: number): number {
   )
 }
 
-export function studioLockScaleAt(p: number): number {
+export function studioLockScaleAt(p: number, compact = false): number {
+  const end = compact ? STUDIO_LOCK_SCALE_END_COMPACT : STUDIO_LOCK_SCALE_END
   const t = studioLockTravelT(p)
-  return 1 - t * (1 - STUDIO_LOCK_SCALE_END)
+  return 1 - t * (1 - end)
 }
 
-export function studioLockYVhAt(p: number): number {
-  return STUDIO_LOCK_Y_VH_END * studioLockTravelT(p)
+export function studioLockYVhAt(p: number, compact = false): number {
+  const end = compact ? STUDIO_LOCK_Y_VH_END_COMPACT : STUDIO_LOCK_Y_VH_END
+  return end * studioLockTravelT(p)
+}
+
+/**
+ * @deprecated Compact History is document-flow; scrub always returns 0.
+ */
+export function studioCompactYearStackYAt(_p: number): number {
+  return 0
+}
+
+/**
+ * @deprecated Compact History is document-flow; sticky lock fade unused.
+ */
+export function studioCompactLockFadeAt(_p: number): number {
+  return 1
 }
 
 /** Security copy group opacity. 1 at p=0 (approved frame). */

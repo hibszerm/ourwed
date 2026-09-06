@@ -88,11 +88,49 @@ export type SeasonRecordsSix = readonly [
   SeasonRecord,
 ]
 
-export const LV2_HISTORY_SEASONS: ReadonlyArray<{
+/** Desktop Studio History card always shows six couple rows. */
+export const LV2_HISTORY_DESKTOP_VISIBLE_ROWS = 6
+/** Compact document-flow History shows three representative rows. */
+export const LV2_HISTORY_COMPACT_VISIBLE_ROWS = 3
+
+export type HistorySeason = {
   year: SeasonYear
   footer: string
   records: SeasonRecordsSix
-}> = [
+}
+
+/** Parse remaining count from canonical footer ("i N innych zleceń"). */
+export function historyFooterRemaining(footer: string): number {
+  const match = footer.match(/(\d+)/)
+  return match ? Number(match[1]) : 0
+}
+
+/** Total season assignments implied by visible desktop rows + footer remainder. */
+export function historySeasonTotalAssignments(season: HistorySeason): number {
+  return season.records.length + historyFooterRemaining(season.footer)
+}
+
+/**
+ * Compact projection — first N canonical rows + footer for true remaining.
+ * Does not mutate LV2_HISTORY_SEASONS.
+ */
+export function historySeasonCompactView(season: HistorySeason): {
+  year: SeasonYear
+  records: readonly SeasonRecord[]
+  footer: string
+  remaining: number
+} {
+  const records = season.records.slice(0, LV2_HISTORY_COMPACT_VISIBLE_ROWS)
+  const remaining = historySeasonTotalAssignments(season) - records.length
+  return {
+    year: season.year,
+    records,
+    footer: `i ${remaining} innych zleceń`,
+    remaining,
+  }
+}
+
+export const LV2_HISTORY_SEASONS: ReadonlyArray<HistorySeason> = [
   {
     year: 2026,
     footer: 'i 8 innych zleceń',

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useReducedMotion } from 'framer-motion'
+import { motion, useReducedMotion } from 'framer-motion'
 import {
   LV2_SEASON_IMPORT_ASSIGNMENT,
   LV2_SEASON_IMPORT_ATTACHMENT,
@@ -10,9 +10,12 @@ import {
 } from '@/features/landing-v2/mobile-story/seasonImportClaims'
 import styles from './LandingV2SeasonImportStory.module.css'
 
+const COMPACT_EASE = [0.22, 1, 0.36, 1] as const
+const INTRO_VIEWPORT = { once: true as const, amount: 0.35, margin: '0px 0px -12% 0px' }
+
 /**
- * Compact / reduced-motion fallback for Season Import.
- * Scroll-theater import is owned by LandingV2MobileStory (StudioImportReveal).
+ * Compact / reduced-motion Season Import — natural document flow.
+ * Desktop sticky Import lives in LandingV2MobileStory (StudioImportReveal).
  */
 export function LandingV2SeasonImportStory() {
   const reduced = useReducedMotion()
@@ -27,6 +30,7 @@ export function LandingV2SeasonImportStory() {
   }, [])
 
   const simple = Boolean(reduced) || compact
+  const motionOff = Boolean(reduced)
 
   if (!simple) {
     return (
@@ -43,10 +47,17 @@ export function LandingV2SeasonImportStory() {
     <section
       className={styles.static}
       data-testid="lv2-season-import-story"
-      data-season-import-theater="static"
+      data-season-import-theater="document-flow"
+      data-season-import-flow="document"
       aria-labelledby="lv2-studio-import-heading"
     >
-      <div className={styles.staticInner}>
+      <motion.div
+        className={styles.staticInner}
+        initial={motionOff ? false : { opacity: 0, y: 16 }}
+        whileInView={motionOff ? undefined : { opacity: 1, y: 0 }}
+        viewport={INTRO_VIEWPORT}
+        transition={{ duration: 0.8, ease: COMPACT_EASE }}
+      >
         <p className={styles.eyebrow}>{LV2_SEASON_IMPORT_COPY.eyebrow}</p>
         <h2 id="lv2-studio-import-heading" className={styles.headline}>
           <span className={styles.line}>{LV2_SEASON_IMPORT_COPY.headlineLine1}</span>
@@ -102,7 +113,7 @@ export function LandingV2SeasonImportStory() {
             <p className={styles.ready}>{LV2_SEASON_IMPORT_ASSIGNMENT.status}</p>
           </article>
         </div>
-      </div>
+      </motion.div>
     </section>
   )
 }

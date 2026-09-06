@@ -254,6 +254,10 @@
   .track {
     margin-top: calc(-0.62 * var(--ms-overlap));
     --mobile-track-pre-svh: 220;
+    /* Compact History/Import are document-flow siblings — sticky ends at Security. */
+    --mobile-track-studio-history-svh: 0;
+    --mobile-track-season-import-svh: 0;
+    --mobile-track-import-cover-hold-svh: 0;
   }
 
   .stageCenter {

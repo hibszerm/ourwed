@@ -100,7 +100,8 @@ const STATIC_LOCK_MORPH = {
  * → Season Import (appended after History final)
  * → Import sticky cover-hold runway (Founder is a separate normal-flow sibling).
  *
- * Compact + normal motion runs the full scroll theater (same beats as desktop).
+ * Compact + normal motion: phone → lock → Security, then sticky RELEASES.
+ * Studio History + Season Import continue as document-flow siblings.
  * Only prefers-reduced-motion uses the static fallback.
  */
 export function LandingV2MobileStory() {
@@ -203,28 +204,36 @@ export function LandingV2MobileStory() {
       const rect = el.getBoundingClientRect()
       const usable = window.innerHeight - navH
       const preSvh = compactRef.current ? MOBILE_TRACK_PRE_SVH_COMPACT : MOBILE_TRACK_PRE_SVH
+      /* Compact: History/Import are document-flow — sticky ends after Security. */
+      const studioSvh = compactRef.current ? 0 : MOBILE_TRACK_STUDIO_HISTORY_SVH
       const contentSvh =
         preSvh + dashSvhRef.current + (postSvhRef.current || MOBILE_TRACK_POST_SVH)
       const mappingSvh = contentSvh + MOBILE_TRACK_POST_BRIEF_SVH
-      const legacyChapterSvh = MOBILE_TRACK_STUDIO_HISTORY_SVH + MOBILE_TRACK_SEASON_IMPORT_SVH
-      const chapterSvh = legacyChapterSvh + MOBILE_TRACK_IMPORT_COVER_HOLD_SVH
+      const importSvh = compactRef.current ? 0 : MOBILE_TRACK_SEASON_IMPORT_SVH
+      const coverHoldSvh = compactRef.current ? 0 : MOBILE_TRACK_IMPORT_COVER_HOLD_SVH
+      const legacyChapterSvh = studioSvh + importSvh
+      const chapterSvh = legacyChapterSvh + coverHoldSvh
       const totalSvh = mappingSvh + chapterSvh
       const liveTravel = Math.max(1, el.offsetHeight - usable)
-      const mappingHeight = el.offsetHeight * (mappingSvh / totalSvh)
+      const mappingHeight = el.offsetHeight * (mappingSvh / Math.max(totalSvh, mappingSvh))
       const liveMappingTravel = Math.max(1, mappingHeight - usable)
       const liveContentTravel = Math.max(1, liveMappingTravel * (contentSvh / mappingSvh))
       const livePostBriefTravel = Math.max(1, liveMappingTravel - liveContentTravel)
-      const livePostMappingTravel = Math.max(1, liveTravel - liveMappingTravel)
-      const liveLegacyChapterTravel = Math.max(
-        1,
-        livePostMappingTravel * (legacyChapterSvh / chapterSvh),
-      )
-      const liveCoverHoldTravel = Math.max(1, livePostMappingTravel - liveLegacyChapterTravel)
-      const liveStudioTravel = Math.max(
-        1,
-        liveLegacyChapterTravel * (MOBILE_TRACK_STUDIO_HISTORY_SVH / legacyChapterSvh),
-      )
-      const liveImportTravel = Math.max(1, liveLegacyChapterTravel - liveStudioTravel)
+      const livePostMappingTravel = Math.max(0, liveTravel - liveMappingTravel)
+      const liveLegacyChapterTravel =
+        chapterSvh <= 0
+          ? 0
+          : livePostMappingTravel * (legacyChapterSvh / chapterSvh)
+      const liveCoverHoldTravel =
+        chapterSvh <= 0 ? 0 : Math.max(0, livePostMappingTravel - liveLegacyChapterTravel)
+      const liveStudioTravel =
+        legacyChapterSvh <= 0
+          ? 0
+          : liveLegacyChapterTravel * (studioSvh / legacyChapterSvh)
+      const liveImportTravel =
+        legacyChapterSvh <= 0
+          ? 0
+          : Math.max(0, liveLegacyChapterTravel - liveStudioTravel)
       const preHeight = mappingHeight * (preSvh / mappingSvh)
       const livePreTravel = Math.max(1, preHeight - usable)
 
@@ -263,17 +272,21 @@ export function LandingV2MobileStory() {
             ? 1
             : Math.min(1, Math.max(0, (scrollDist - contentTravel) / postBriefTravel))
       const studio =
-        scrollDist <= mappingEnd
+        studioTravel <= 0
           ? 0
-          : scrollDist >= studioEnd
-            ? 1
-            : Math.min(1, Math.max(0, (scrollDist - mappingEnd) / studioTravel))
+          : scrollDist <= mappingEnd
+            ? 0
+            : scrollDist >= studioEnd
+              ? 1
+              : Math.min(1, Math.max(0, (scrollDist - mappingEnd) / studioTravel))
       const seasonImport =
-        scrollDist <= studioEnd
+        importTravel <= 0
           ? 0
-          : scrollDist >= importEnd
-            ? 1
-            : Math.min(1, Math.max(0, (scrollDist - studioEnd) / importTravel))
+          : scrollDist <= studioEnd
+            ? 0
+            : scrollDist >= importEnd
+              ? 1
+              : Math.min(1, Math.max(0, (scrollDist - studioEnd) / importTravel))
       postBriefProgress.set(pb)
       studioProgress.set(studio)
       importProgress.set(seasonImport)
@@ -414,7 +427,9 @@ export function LandingV2MobileStory() {
   /* ONE transform owner for main scale: .phoneSystem — enter × post-Brief LINEAR shrink × studio lift. */
   const phoneOpacity = useTransform(
     [phoneIn, importProgress],
-    ([inn, im]) => Number(inn) * seasonImportLockOpAt(Number(im)),
+    ([inn, im]) =>
+      Number(inn) *
+      (compactRef.current ? 1 : seasonImportLockOpAt(Number(im))),
   )
   const phoneVisibility = useTransform(phoneOpacity, (o) =>
     Number(o) < 0.02 ? ('hidden' as const) : ('visible' as const),
@@ -424,19 +439,16 @@ export function LandingV2MobileStory() {
     ([inn, pb, st, im]) => {
       const start = compactRef.current ? PHONE_SCALE_START_COMPACT : PHONE_SCALE_START_DESKTOP
       const enterScale = start + Number(inn) * (1 - start)
-      return (
-        enterScale *
-        postBriefShrinkScaleAt(Number(pb)) *
-        studioLockScaleAt(Number(st)) *
-        seasonImportLockScaleAt(Number(im))
-      )
+      const studioScale = compactRef.current ? 1 : studioLockScaleAt(Number(st), false)
+      const importScale = compactRef.current ? 1 : seasonImportLockScaleAt(Number(im))
+      return enterScale * postBriefShrinkScaleAt(Number(pb)) * studioScale * importScale
     },
   )
   const phoneY = useTransform([phoneIn, studioProgress, importProgress], ([inn, st, im]) => {
     const enterMax = compactRef.current ? PHONE_ENTER_Y_COMPACT : PHONE_ENTER_Y_DESKTOP
     const enterPx = (1 - Number(inn)) * enterMax
-    const studioVh = studioLockYVhAt(Number(st))
-    const exitPx = seasonImportLockYAt(Number(im))
+    const studioVh = compactRef.current ? 0 : studioLockYVhAt(Number(st), false)
+    const exitPx = compactRef.current ? 0 : seasonImportLockYAt(Number(im))
     const px = enterPx + exitPx
     if (studioVh === 0) return px
     return `calc(${px}px + ${studioVh}vh)`
@@ -514,9 +526,15 @@ export function LandingV2MobileStory() {
           '--mobile-track-dash-svh': MOBILE_TRACK_DASH_SVH_FALLBACK,
           '--mobile-track-post-svh': MOBILE_TRACK_POST_SVH,
           '--mobile-track-post-brief-svh': MOBILE_TRACK_POST_BRIEF_SVH,
-          '--mobile-track-studio-history-svh': MOBILE_TRACK_STUDIO_HISTORY_SVH,
-          '--mobile-track-season-import-svh': MOBILE_TRACK_SEASON_IMPORT_SVH,
-          '--mobile-track-import-cover-hold-svh': MOBILE_TRACK_IMPORT_COVER_HOLD_SVH,
+          '--mobile-track-studio-history-svh': isCompactViewport
+            ? 0
+            : MOBILE_TRACK_STUDIO_HISTORY_SVH,
+          '--mobile-track-season-import-svh': isCompactViewport
+            ? 0
+            : MOBILE_TRACK_SEASON_IMPORT_SVH,
+          '--mobile-track-import-cover-hold-svh': isCompactViewport
+            ? 0
+            : MOBILE_TRACK_IMPORT_COVER_HOLD_SVH,
         } as CSSProperties
       }
       aria-labelledby="lv2-mobile-heading"
@@ -575,8 +593,12 @@ export function LandingV2MobileStory() {
             </ul>
           </motion.div>
 
-          <StudioHistoryReveal progress={studioProgress} exitProgress={importProgress} />
-          <StudioImportReveal progress={importProgress} />
+          {!isCompactViewport ? (
+            <>
+              <StudioHistoryReveal progress={studioProgress} exitProgress={importProgress} />
+              <StudioImportReveal progress={importProgress} />
+            </>
+          ) : null}
         </div>
       </motion.div>
     </section>

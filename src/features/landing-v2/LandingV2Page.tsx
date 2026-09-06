@@ -17,6 +17,7 @@ import {
   LandingV2MobileStory,
 } from '@/features/landing-v2/mobile-story'
 import { LandingV2FounderStory } from '@/features/landing-v2/mobile-story/LandingV2FounderStory'
+import { LandingV2SeasonImportStory } from '@/features/landing-v2/mobile-story/LandingV2SeasonImportStory'
 import { LandingV2SecurityHistoryStory } from '@/features/landing-v2/security-history'
 
 /**
@@ -55,6 +56,7 @@ export function LandingV2Page() {
         </div>
         <LandingV2MobileStory />
         <LandingV2SecurityHistoryStory />
+        <LandingV2SeasonImportStory />
         <LandingV2FounderStory />
         <LandingV2Pricing />
         <LandingV2Faq />
