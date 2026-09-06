@@ -438,6 +438,11 @@
 /* —— Compact portrait preview strategies —— */
 
 :global([data-workflow-layout='compact']) .visual {
+  --preview-scale-contract: 1;
+  --preview-scale-questionnaire: 1;
+  --preview-density-logistics: 0.9;
+  --preview-density-execution: 0.9;
+
   display: grid;
   place-items: center;
   width: 100%;
@@ -445,124 +450,342 @@
   overflow: hidden;
 }
 
-/* Umowa / Ankiety: keep horizontal composition, scale into stage. */
-:global([data-workflow-layout='compact']) .visual[data-wf-visual='contract'] .flowRow,
-:global([data-workflow-layout='compact']) .visual[data-wf-visual='questionnaires'] .flowSplit {
+/*
+ * Umowa — full-width 3-step horizontal flow (no microscopic global scale).
+ * Cards flex within the preview; all three states stay visible.
+ */
+:global([data-workflow-layout='compact']) .visual[data-wf-visual='contract'] .flowRow {
   flex-direction: row;
-  width: 520px;
-  max-width: none;
-  height: 200px;
-  transform: scale(0.66);
-  transform-origin: center center;
-}
-
-:global([data-workflow-layout='compact']) .visual[data-wf-visual='questionnaires'] .flowSplit {
-  display: grid;
-  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
-  gap: 0.85rem;
-  align-items: center;
+  align-items: stretch;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  max-height: 100%;
+  gap: 0.22rem;
+  transform: none;
+  overflow: hidden;
 }
 
 :global([data-workflow-layout='compact']) .visual[data-wf-visual='contract'] .arrow {
   transform: none;
   align-self: center;
+  font-size: 0.8rem;
+  flex: 0 0 auto;
+  width: 0.75rem;
+  text-align: center;
 }
 
-:global([data-workflow-layout='compact']) .visual[data-wf-visual='contract'] .card,
+:global([data-workflow-layout='compact']) .visual[data-wf-visual='contract'] .card {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0.45rem 0.4rem;
+  overflow: hidden;
+}
+
+:global([data-workflow-layout='compact']) .visual[data-wf-visual='contract'] .cardEyebrow {
+  font-size: 0.5625rem;
+  margin-bottom: 0.25rem;
+}
+
+:global([data-workflow-layout='compact']) .visual[data-wf-visual='contract'] .cardTitle {
+  font-size: 0.8125rem;
+}
+
+:global([data-workflow-layout='compact']) .visual[data-wf-visual='contract'] .cardMeta {
+  font-size: 0.6875rem;
+}
+
+:global([data-workflow-layout='compact']) .visual[data-wf-visual='contract'] .cardStrong {
+  font-size: 0.8125rem;
+  margin-top: 0.3rem;
+}
+
+:global([data-workflow-layout='compact']) .visual[data-wf-visual='contract'] .fakeBtn {
+  margin-top: 0.45rem;
+  padding: 0.3rem 0.4rem;
+  font-size: 0.5625rem;
+  white-space: nowrap;
+}
+
+:global([data-workflow-layout='compact']) .visual[data-wf-visual='contract'] .docStack {
+  flex: 1.05 1 0;
+  min-width: 0;
+  min-height: 118px;
+  overflow: hidden;
+}
+
+:global([data-workflow-layout='compact']) .visual[data-wf-visual='contract'] .docSheet {
+  padding: 0.5rem 0.45rem;
+  overflow: hidden;
+}
+
+:global([data-workflow-layout='compact']) .visual[data-wf-visual='contract'] .docTitle {
+  font-size: 0.625rem;
+  margin-bottom: 0.4rem;
+}
+
+:global([data-workflow-layout='compact']) .visual[data-wf-visual='contract'] .docGhost,
+:global([data-workflow-layout='compact']) .visual[data-wf-visual='contract'] .docGhost2 {
+  /* Decorative only — keep inside the sheet bounds so scrollHeight stays clean. */
+  inset: 6px 5px 4px;
+  opacity: 0.55;
+}
+
+:global([data-workflow-layout='compact']) .visual[data-wf-visual='contract'] .docGhost2 {
+  inset: 10px 8px 2px;
+  opacity: 0.35;
+}
+
+/*
+ * Ankiety — enlarge response → destinations into the preview region.
+ */
+:global([data-workflow-layout='compact']) .visual[data-wf-visual='questionnaires'] {
+  align-content: stretch;
+}
+
+:global([data-workflow-layout='compact']) .visual[data-wf-visual='questionnaires'] .flowSplit {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+  gap: 0.85rem;
+  align-items: stretch;
+  width: 100%;
+  max-width: 100%;
+  height: 100%;
+  max-height: 100%;
+  min-height: min(100%, 220px);
+  transform: none;
+}
+
 :global([data-workflow-layout='compact']) .visual[data-wf-visual='questionnaires'] .card {
-  padding: 0.7rem 0.8rem;
+  padding: 0.85rem 0.9rem;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
-/* Ledger / timeline / task / route / ops: full-width vertical modules. */
-:global([data-workflow-layout='compact']) .visual[data-wf-visual='payments'] .ledger,
-:global([data-workflow-layout='compact']) .visual[data-wf-visual='day-plan'] .timeline,
-:global([data-workflow-layout='compact']) .visual[data-wf-visual='tasks'] .taskStack,
-:global([data-workflow-layout='compact']) .visual[data-wf-visual='logistics'] .route,
-:global([data-workflow-layout='compact']) .visual[data-wf-visual='execution'] .opsStack,
+:global([data-workflow-layout='compact']) .visual[data-wf-visual='questionnaires'] .cardTitle {
+  font-size: 1rem;
+}
+
+:global([data-workflow-layout='compact']) .visual[data-wf-visual='questionnaires'] .cardMeta {
+  font-size: 0.8125rem;
+}
+
+:global([data-workflow-layout='compact']) .visual[data-wf-visual='questionnaires'] .paths {
+  height: 100%;
+  align-items: center;
+}
+
+:global([data-workflow-layout='compact']) .visual[data-wf-visual='questionnaires'] .pathTargets {
+  gap: 0.5rem;
+}
+
+:global([data-workflow-layout='compact']) .visual[data-wf-visual='questionnaires'] .pathTargets span {
+  padding: 0.5rem 0.7rem;
+  font-size: 0.6875rem;
+}
+
+:global([data-workflow-layout='compact']) .visual[data-wf-visual='questionnaires'] .pathLine {
+  height: 82%;
+}
+
+/* Płatności — readable ledger with breathing room */
+:global([data-workflow-layout='compact']) .visual[data-wf-visual='payments'] .ledger {
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  max-height: 100%;
+  gap: 0.65rem;
+  justify-content: center;
+  overflow: hidden;
+}
+
+:global([data-workflow-layout='compact']) .visual[data-wf-visual='payments'] .equation,
+:global([data-workflow-layout='compact']) .visual[data-wf-visual='payments'] .ledgerTop {
+  padding: 0.7rem 0.85rem;
+  font-size: 0.875rem;
+}
+
+:global([data-workflow-layout='compact']) .visual[data-wf-visual='payments'] .ledgerTop strong {
+  font-size: 1.05rem;
+}
+
+:global([data-workflow-layout='compact']) .visual[data-wf-visual='payments'] .payTimeline {
+  gap: 0.38rem;
+}
+
+:global([data-workflow-layout='compact']) .visual[data-wf-visual='payments'] .payTimeline li {
+  padding: 0.55rem 0.75rem;
+  font-size: 0.8125rem;
+}
+
+/* Plan dnia — schedule rhythm with modest breathing room */
+:global([data-workflow-layout='compact']) .visual[data-wf-visual='day-plan'] .timeline {
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  max-height: 100%;
+  gap: 0.55rem;
+  justify-content: center;
+  overflow: hidden;
+}
+
+:global([data-workflow-layout='compact']) .visual[data-wf-visual='day-plan'] .timeline li {
+  padding-bottom: 0.45rem;
+  gap: 0.65rem;
+}
+
+:global([data-workflow-layout='compact']) .visual[data-wf-visual='day-plan'] .time {
+  font-size: 0.8125rem;
+}
+
+:global([data-workflow-layout='compact']) .visual[data-wf-visual='day-plan'] .cardTitle {
+  font-size: 0.875rem;
+}
+
+:global([data-workflow-layout='compact']) .visual[data-wf-visual='day-plan'] .cardMeta {
+  font-size: 0.75rem;
+}
+
+/* Zadania — polished row stack */
+:global([data-workflow-layout='compact']) .visual[data-wf-visual='tasks'] .taskStack {
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  max-height: 100%;
+  gap: 0.42rem;
+  justify-content: center;
+  overflow: hidden;
+}
+
+:global([data-workflow-layout='compact']) .visual[data-wf-visual='tasks'] .taskStack li {
+  padding: 0.58rem 0.75rem;
+  font-size: 0.84375rem;
+}
+
+:global([data-workflow-layout='compact']) .visual[data-wf-visual='tasks'] .due {
+  font-size: 0.6875rem;
+}
+
+/* Kalendarz — balanced 2×2 */
+:global([data-workflow-layout='compact']) .visual[data-wf-visual='calendar'] .calGrid {
+  width: 100%;
+  height: auto;
+  max-height: 100%;
+  gap: 0.65rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: center;
+  overflow: hidden;
+}
+
+:global([data-workflow-layout='compact']) .visual[data-wf-visual='calendar'] .calCell {
+  padding: 0.85rem 0.8rem;
+  min-height: 5.5rem;
+}
+
+:global([data-workflow-layout='compact']) .visual[data-wf-visual='calendar'] .calDay {
+  font-size: 1.1rem;
+}
+
+:global([data-workflow-layout='compact']) .visual[data-wf-visual='calendar'] .cardTitle {
+  font-size: 0.8125rem;
+}
+
+:global([data-workflow-layout='compact']) .visual[data-wf-visual='calendar'] .cardMeta {
+  font-size: 0.6875rem;
+}
+
+/*
+ * Logistyka — denser route so all nodes + summary fit without clipping.
+ */
+:global([data-workflow-layout='compact']) .visual[data-wf-visual='logistics'] .route {
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  max-height: 100%;
+  gap: calc(0.22rem * var(--preview-density-logistics));
+  justify-content: center;
+  overflow: hidden;
+}
+
+:global([data-workflow-layout='compact']) .visual[data-wf-visual='logistics'] .card {
+  padding: 0.42rem 0.65rem;
+}
+
+:global([data-workflow-layout='compact']) .visual[data-wf-visual='logistics'] .cardEyebrow {
+  font-size: 0.5625rem;
+  margin-bottom: 0.15rem;
+}
+
+:global([data-workflow-layout='compact']) .visual[data-wf-visual='logistics'] .cardTitle {
+  font-size: 0.8125rem;
+}
+
+:global([data-workflow-layout='compact']) .visual[data-wf-visual='logistics'] .cardMeta {
+  font-size: 0.6875rem;
+  margin-top: 0.1rem;
+}
+
+:global([data-workflow-layout='compact']) .visual[data-wf-visual='logistics'] .routeDist {
+  font-size: 0.625rem;
+  padding-left: 0.1rem;
+  line-height: 1.1;
+}
+
+:global([data-workflow-layout='compact']) .visual[data-wf-visual='logistics'] .routeSummary {
+  margin-top: 0.35rem;
+  padding: 0.5rem 0.7rem;
+  font-size: 0.75rem;
+}
+
+/*
+ * Realizacja — denser ops cards; all five blocks must fit.
+ */
+:global([data-workflow-layout='compact']) .visual[data-wf-visual='execution'] .opsStack {
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  max-height: 100%;
+  gap: calc(0.28rem * var(--preview-density-execution));
+  justify-content: center;
+  overflow: hidden;
+}
+
+:global([data-workflow-layout='compact']) .visual[data-wf-visual='execution'] .card {
+  padding: 0.4rem 0.65rem;
+}
+
+:global([data-workflow-layout='compact']) .visual[data-wf-visual='execution'] .cardEyebrow {
+  font-size: 0.5625rem;
+  margin-bottom: 0.12rem;
+}
+
+:global([data-workflow-layout='compact']) .visual[data-wf-visual='execution'] .cardTitle {
+  font-size: 0.8125rem;
+}
+
+/* Studio — calm, slightly larger hub + orbit */
 :global([data-workflow-layout='compact']) .visual[data-wf-visual='studio'] .studioMap {
   width: 100%;
   max-width: 100%;
   height: auto;
   max-height: 100%;
+  gap: 0.6rem;
   justify-content: center;
-  align-content: center;
-  overflow: auto;
-  scrollbar-width: none;
-}
-
-:global([data-workflow-layout='compact']) .visual[data-wf-visual='payments'] .ledger::-webkit-scrollbar,
-:global([data-workflow-layout='compact']) .visual[data-wf-visual='day-plan'] .timeline::-webkit-scrollbar,
-:global([data-workflow-layout='compact']) .visual[data-wf-visual='tasks'] .taskStack::-webkit-scrollbar,
-:global([data-workflow-layout='compact']) .visual[data-wf-visual='logistics'] .route::-webkit-scrollbar,
-:global([data-workflow-layout='compact']) .visual[data-wf-visual='execution'] .opsStack::-webkit-scrollbar,
-:global([data-workflow-layout='compact']) .visual[data-wf-visual='studio'] .studioMap::-webkit-scrollbar {
-  display: none;
-}
-
-:global([data-workflow-layout='compact']) .visual[data-wf-visual='payments'] .ledger {
-  gap: 0.55rem;
-}
-
-:global([data-workflow-layout='compact']) .visual[data-wf-visual='payments'] .equation,
-:global([data-workflow-layout='compact']) .visual[data-wf-visual='payments'] .ledgerTop {
-  padding: 0.6rem 0.75rem;
-  font-size: 0.8125rem;
-}
-
-:global([data-workflow-layout='compact']) .visual[data-wf-visual='day-plan'] .timeline {
-  gap: 0.45rem;
-}
-
-:global([data-workflow-layout='compact']) .visual[data-wf-visual='day-plan'] .timeline li {
-  padding-bottom: 0.4rem;
-  gap: 0.55rem;
-}
-
-:global([data-workflow-layout='compact']) .visual[data-wf-visual='tasks'] .taskStack {
-  gap: 0.35rem;
-}
-
-:global([data-workflow-layout='compact']) .visual[data-wf-visual='tasks'] .taskStack li {
-  padding: 0.5rem 0.65rem;
-  font-size: 0.8125rem;
-}
-
-:global([data-workflow-layout='compact']) .visual[data-wf-visual='calendar'] .calGrid {
-  width: 100%;
-  height: auto;
-  gap: 0.5rem;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-:global([data-workflow-layout='compact']) .visual[data-wf-visual='calendar'] .calCell {
-  padding: 0.55rem 0.65rem;
-}
-
-:global([data-workflow-layout='compact']) .visual[data-wf-visual='logistics'] .route {
-  gap: 0.28rem;
-}
-
-:global([data-workflow-layout='compact']) .visual[data-wf-visual='logistics'] .card {
-  padding: 0.55rem 0.7rem;
-}
-
-:global([data-workflow-layout='compact']) .visual[data-wf-visual='execution'] .opsStack {
-  gap: 0.35rem;
-}
-
-:global([data-workflow-layout='compact']) .visual[data-wf-visual='execution'] .card {
-  padding: 0.5rem 0.7rem;
-}
-
-:global([data-workflow-layout='compact']) .visual[data-wf-visual='studio'] .studioMap {
-  gap: 0.55rem;
+  overflow: hidden;
 }
 
 :global([data-workflow-layout='compact']) .visual[data-wf-visual='studio'] .studioOrbit {
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.45rem;
+  gap: 0.5rem;
 }
 
 :global([data-workflow-layout='compact']) .visual[data-wf-visual='studio'] .card {
-  padding: 0.55rem 0.65rem;
+  padding: 0.65rem 0.7rem;
+}
+
+:global([data-workflow-layout='compact']) .visual[data-wf-visual='studio'] .studioHub .cardTitle {
+  font-size: 0.9375rem;
 }

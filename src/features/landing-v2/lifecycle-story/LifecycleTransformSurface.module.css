@@ -18,7 +18,7 @@
 }
 
 .shell[data-lifecycle-surface-compact='true'] {
-  max-width: min(400px, calc(100vw - 1rem));
+  max-width: min(430px, calc(100vw - 1.25rem));
 }
 
 .layerLink {

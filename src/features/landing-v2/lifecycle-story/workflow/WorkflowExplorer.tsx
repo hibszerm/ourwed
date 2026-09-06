@@ -100,7 +100,8 @@ export function WorkflowExplorer({ interactive = true, compact = false }: Props)
     }
     prevActiveRef.current = active
     const el = tabRefs.current[WORKFLOW_FEATURE_ORDER.indexOf(active)]
-    el?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' })
+    /* Keep the active tab fully readable inside the compact rail fade. */
+    el?.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' })
   }, [active, interactive])
 
   const onTabKeyDownGuarded = (e: KeyboardEvent<HTMLDivElement>) => {

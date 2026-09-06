@@ -1778,11 +1778,15 @@ function walkTs(dir: string, out: string[] = []): string[] {
   assertIncludes(transformSurface, 'const workH = 620', 'desktop workspace height frozen')
   assertIncludes(transformSurface, 'compact ?', 'compact morph geometry isolated')
   assertIncludes(transformSurface, 'Math.min(vw - 28, 340)', 'compact pill width fits portrait')
-  assertIncludes(transformSurface, 'Math.min(680, Math.max(560', 'compact workspace height 560–680')
+  assertIncludes(transformSurface, 'Math.min(vw - 22, 430)', 'compact workspace nearly full phone width')
+  assertIncludes(transformSurface, 'usable * 0.82', 'compact workspace ~82% of sticky stage')
+  assertIncludes(transformSurface, 'Math.min(720, Math.max(600', 'compact workspace height band 600–720')
+  assertIncludes(transformSurface, 'viewportTick', 'compact shell recomputes on viewport resize')
   assertIncludes(transformSurface, 'compact={compact}', 'compact layout passed into WorkflowExplorer')
   assertIncludes(explorer, "data-workflow-layout={compact ? 'compact' : 'desktop'}", 'layout mode flag')
   assertIncludes(explorer, 'data-workflow-copy', 'copy block marker')
   assertIncludes(explorer, 'data-workflow-visual', 'visual block marker')
+  assertIncludes(explorer, "inline: 'center'", 'active tab scrolls into rail center')
   assertIncludes(explorerCss, "data-workflow-layout='compact'", 'compact vertical workspace styles')
   assertIncludes(explorer, "'desktop'", 'desktop layout mode token')
   assertIncludes(explorerCss, ":not([data-workflow-layout='compact'])", 'non-compact keeps prior narrow fallback')
@@ -1809,7 +1813,11 @@ function walkTs(dir: string, out: string[] = []): string[] {
       "data-workflow-layout='compact'",
       'compact preview strategies scoped to layout flag',
     )
-    assertIncludes(visualsCss, "data-wf-visual='contract'", 'Umowa compact scale strategy')
+    assertIncludes(visualsCss, '--preview-scale-contract', 'Umowa compact token')
+    assertIncludes(visualsCss, '--preview-scale-questionnaire', 'Ankiety compact token')
+    assertIncludes(visualsCss, '--preview-density-logistics', 'Logistyka density token')
+    assertIncludes(visualsCss, '--preview-density-execution', 'Realizacja density token')
+    assertIncludes(visualsCss, "data-wf-visual='contract'", 'Umowa compact strategy')
     assertIncludes(visualsCss, "data-wf-visual='payments'", 'Płatności compact strategy')
     assertIncludes(visualsCss, "data-wf-visual='questionnaires'", 'Ankiety compact strategy')
     assertIncludes(visualsCss, "data-wf-visual='day-plan'", 'Plan dnia compact strategy')
@@ -1818,7 +1826,16 @@ function walkTs(dir: string, out: string[] = []): string[] {
     assertIncludes(visualsCss, "data-wf-visual='logistics'", 'Logistyka compact strategy')
     assertIncludes(visualsCss, "data-wf-visual='execution'", 'Realizacja compact strategy')
     assertIncludes(visualsCss, "data-wf-visual='studio'", 'Studio compact strategy')
-    assertIncludes(visualsCss, 'transform: scale(0.66)', 'horizontal previews scale-to-fit on compact')
+    assertIncludes(
+      visualsCss,
+      "data-wf-visual='contract'] .flowRow",
+      'Umowa keeps horizontal 3-step flow on compact',
+    )
+    assertNotIncludes(
+      visualsCss,
+      'transform: scale(0.66)',
+      'no microscopic global contract scale',
+    )
   }
   assertIncludes(lifecycleProgress, 'workspaceNavIn', 'nav chrome from shared reveal curve')
   assertIncludes(lifecycleProgress, 'workspaceInteractiveAt', 'interactive gate helper')

@@ -136,7 +136,7 @@
 }
 
 .static[data-lifecycle-compact='true'] .staticWorkspace {
-  min-height: clamp(560px, 72svh, 680px);
+  min-height: clamp(600px, 82svh - 68px, 720px);
 }
 
 /*

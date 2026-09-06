@@ -1,6 +1,6 @@
-import { useMotionValueEvent, useTransform, type MotionValue } from 'framer-motion'
+import { useMotionValueEvent, useTransform, useMotionValue, type MotionValue } from 'framer-motion'
 import { motion } from 'framer-motion'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { LifecycleLinkObject } from '@/features/landing-v2/lifecycle-story/LifecycleLinkObject'
 import {
   LIFECYCLE_RANGES,
@@ -30,6 +30,15 @@ export function LifecycleTransformSurface({
   const [interactive, setInteractive] = useState(() =>
     workspaceInteractiveAt(progress.get()),
   )
+  /* Recompute compact shell geometry on orientation / viewport changes. */
+  const viewportTick = useMotionValue(0)
+  useEffect(() => {
+    if (!compact) return
+    const bump = () => viewportTick.set(performance.now())
+    bump()
+    window.addEventListener('resize', bump)
+    return () => window.removeEventListener('resize', bump)
+  }, [compact, viewportTick])
 
   useMotionValueEvent(progress, 'change', (p) => {
     const next = workspaceInteractiveAt(p)
@@ -54,28 +63,33 @@ export function LifecycleTransformSurface({
   const surfaceOpacity = useTransform(surfaceIn, (t) => t)
   const surfaceY = useTransform(surfaceIn, (t) => (1 - t) * (compact ? 10 : 14))
 
-  const surfaceWidth = useTransform(expand, (e) => {
+  const surfaceWidth = useTransform([expand, viewportTick], ([e]) => {
+    const t = Number(e)
     const vw = typeof window !== 'undefined' ? window.innerWidth : 1440
     if (compact) {
       const linkW = Math.min(vw - 28, 340)
-      const workW = Math.min(vw - 16, 400)
-      return linkW + (workW - linkW) * e
+      /* Nearly full phone width with premium gutters (~20–24px). */
+      const workW = Math.min(vw - 22, 430)
+      return linkW + (workW - linkW) * t
     }
     const linkW = Math.min(600, Math.max(480, vw * 0.42))
     const workW = Math.min(1180, vw * 0.86)
-    return linkW + (workW - linkW) * e
+    return linkW + (workW - linkW) * t
   })
-  const surfaceHeight = useTransform(expand, (e) => {
+  const surfaceHeight = useTransform([expand, viewportTick], ([e]) => {
+    const t = Number(e)
     if (compact) {
       const linkH = 96
       const vh = typeof window !== 'undefined' ? window.innerHeight : 844
-      /* Tall enough for tabs + copy + preview; keep sticky breathing room. */
-      const workH = Math.min(680, Math.max(560, Math.round(vh * 0.74 - 24)))
-      return linkH + (workH - linkH) * e
+      const navH = 68
+      const usable = Math.max(1, vh - navH)
+      /* ~78–82% of sticky stage — immersive, with breathing room. */
+      const workH = Math.min(720, Math.max(600, Math.round(usable * 0.82)))
+      return linkH + (workH - linkH) * t
     }
     const linkH = 112
     const workH = 620
-    return linkH + (workH - linkH) * e
+    return linkH + (workH - linkH) * t
   })
   const surfaceRadius = useTransform(expand, (e) => {
     const linkR = 999
