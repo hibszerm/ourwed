@@ -217,13 +217,14 @@
 @media (max-width: 1100px) {
   .deviceRoot {
     /*
-     * Compact page is already a phone viewport — device must still dominate.
-     * Fit = min(~78–82vw width, height budget inside sticky stage).
-     * Outer uniform scale only; internal UI stays canonical.
+     * Compact settled phone ≈ 87vw (402 → ~350px), canonical aspect preserved.
+     * Height budget only caps when the sticky stage is shorter than ratio needs.
+     * Outer uniform scale only — do not redesign internals.
      */
-    --device-avail-h: calc(100dvh - var(--lv2-nav-h) - 56px);
+    --device-avail-h: calc(100dvh - var(--lv2-nav-h) - 20px);
     width: min(
-      clamp(292px, 78vw, 322px),
+      87vw,
+      calc(100vw - 48px),
       calc(var(--device-avail-h) * var(--phone-ratio-num))
     );
   }

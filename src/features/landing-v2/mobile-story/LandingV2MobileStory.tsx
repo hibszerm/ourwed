@@ -72,13 +72,13 @@ import { useLandingCompactViewport } from '@/features/landing-v2/motion/landingV
 import styles from './LandingV2MobileStory.module.css'
 
 const OWNED_EPS = 0.002
-/** Compact headline split — open enough room for the larger compact phone. */
-const HEADLINE_SEP_COMPACT_SCALE = 168 / 155
+/** Compact headline split — open enough room for the dominant compact phone. */
+const HEADLINE_SEP_COMPACT_SCALE = 188 / 155
 /** Compact phone enter rise — slightly less than desktop 100px. */
-const PHONE_ENTER_Y_COMPACT = 56
+const PHONE_ENTER_Y_COMPACT = 48
 const PHONE_ENTER_Y_DESKTOP = 100
 /** Compact phone enter scale start (desktop remains 0.86 → 1). */
-const PHONE_SCALE_START_COMPACT = 0.93
+const PHONE_SCALE_START_COMPACT = 0.94
 const PHONE_SCALE_START_DESKTOP = 0.86
 
 const IDLE_1 = motionValue(1)

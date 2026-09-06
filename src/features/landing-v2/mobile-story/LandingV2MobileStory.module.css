@@ -257,7 +257,8 @@
   }
 
   .stageCenter {
-    top: 47%;
+    /* Center in sticky stage so the dominant phone stays fully under the nav. */
+    top: 50%;
   }
 
   .headline {

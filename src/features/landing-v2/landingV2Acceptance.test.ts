@@ -2697,18 +2697,28 @@ function testMobileStory() {
   assertIncludes(mobile, 'PHONE_ENTER_Y_COMPACT', 'compact phone enter Y')
   assertIncludes(mobile, 'PHONE_SCALE_START_COMPACT', 'compact phone enter scale start')
   assertIncludes(mobile, 'MOBILE_TRACK_PRE_SVH_COMPACT', 'compact pre track wired into style')
-  assertIncludes(mobile, '168 / 155', 'compact sep travel increased for larger phone')
   assertIncludes(
     read('src/features/landing-v2/mobile-story/device/HeroPhoneFrame.module.css'),
-    'clamp(292px, 78vw, 322px)',
-    'compact phone targets majority of viewport width',
+    '87vw',
+    'compact phone targets ~87% viewport width',
   )
+  assertIncludes(
+    read('src/features/landing-v2/mobile-story/device/HeroPhoneFrame.module.css'),
+    'calc(100vw - 48px)',
+    'compact phone keeps ~24px side breathing room',
+  )
+  assertNotIncludes(
+    read('src/features/landing-v2/mobile-story/device/HeroPhoneFrame.module.css'),
+    '78vw',
+    'previous 78vw compact phone cap removed',
+  )
+  assertIncludes(mobile, '188 / 155', 'compact sep travel fits dominant phone')
+  assertIncludes(mobile, 'PHONE_SCALE_START_COMPACT = 0.94', 'compact phone enter scale start')
   assertIncludes(
     read('src/features/landing-v2/features-grid/LandingV2FeaturesGrid.module.css'),
     '--fg-chapter-pad-bottom: clamp(1.25rem, 3.5vw, 2.25rem)',
     'compact Features trailing pad tightened for Mobile Story continuity',
   )
-
   assertIncludes(mobileProgress, 'featuresOpacityAt', 'keyframed features opacity')
   assertIncludes(mobileProgress, 'headlineCompositeOpacityAt', 'composite headline opacity')
   assertIncludes(mobileProgress, 'headlineExitBlurPxAt', 'headline exit blur')
