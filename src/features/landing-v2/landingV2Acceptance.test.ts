@@ -2319,6 +2319,114 @@ function walkTs(dir: string, out: string[] = []): string[] {
   )
   assertNotIncludes(featuresCss, 'line-through', 'no zadania strikethrough styling')
 
+  /* —— Mobile Features flow (compact) —— */
+  assertIncludes(features, 'useLandingCompactViewport', 'Features uses shared compact viewport hook')
+  assertIncludes(
+    features,
+    "data-features-layout={isCompactViewport ? 'compact' : 'desktop'}",
+    'explicit compact/desktop layout marker',
+  )
+  assertIncludes(features, 'whileInView', 'compact cards use local viewport reveal')
+  assertIncludes(
+    features,
+    "data-feature-reveal={compactMotion ? 'viewport' : 'atlas'}",
+    'compact reveal is viewport-local; desktop keeps atlas clock',
+  )
+  assertIncludes(
+    features,
+    'headingTravel = isCompactViewport ? 16 : 28',
+    'compact heading travel restrained (~16px)',
+  )
+  assertIncludes(
+    features,
+    'leadTravel = isCompactViewport ? 10 : 22',
+    'compact lead travel restrained (~10px)',
+  )
+  assertIncludes(
+    features,
+    'compactMotion = compact && !reduced',
+    'card entrance motion gated off under reduced motion',
+  )
+  assertIncludes(
+    features,
+    'viewport={',
+    'IntersectionObserver-backed whileInView viewport config',
+  )
+  assertNotIncludes(features, 'position: sticky', 'no sticky Features heading in TSX')
+  assert(
+    !/\.header\s*\{[^}]*position:\s*sticky/.test(featuresCss),
+    'Features header is not sticky',
+  )
+  assertIncludes(
+    featuresCss,
+    'grid-template-columns: repeat(2, minmax(0, 1fr))',
+    'tablet keeps intentional 2-column board',
+  )
+  assertIncludes(
+    featuresCss,
+    '@media (max-width: 640px)',
+    'phone single-column Features breakpoint',
+  )
+  assertIncludes(
+    featuresCss,
+    'grid-template-columns: minmax(0, 1fr)',
+    'phone Features is single-column stack',
+  )
+  assertIncludes(
+    featuresCss,
+    'calc(100vw - 1.75rem)',
+    'phone near-full-width cards with ~28px gutters',
+  )
+  assertIncludes(featuresCss, '--fg-atlas-gap: 1rem', 'shared phone card stack rhythm')
+  {
+    const phoneStart = featuresCss.indexOf('@media (max-width: 640px)')
+    const phoneEnd = featuresCss.indexOf('@media (prefers-reduced-motion: reduce)', phoneStart)
+    const phoneBlock = featuresCss.slice(phoneStart, phoneEnd > phoneStart ? phoneEnd : phoneStart + 1)
+    assert(phoneBlock.includes('grid-template-columns: minmax(0, 1fr)'), 'phone block is single-column')
+    assert(
+      !/\.module[^{]*\{[^}]*opacity:\s*0/.test(phoneBlock),
+      'no compact CSS rule hides modules at opacity 0 forever',
+    )
+    const tabletStart = featuresCss.indexOf('@media (max-width: 1100px)')
+    const tabletEnd = featuresCss.indexOf('@media (max-width: 640px)', tabletStart)
+    const tabletBlock = featuresCss.slice(
+      tabletStart,
+      tabletEnd > tabletStart ? tabletEnd : tabletStart + 1,
+    )
+    assert(
+      !/\.module[^{]*\{[^}]*opacity:\s*0/.test(tabletBlock),
+      'no tablet CSS rule hides modules at opacity 0 forever',
+    )
+  }
+  assertIncludes(featuresCss, 'grid-template-columns: repeat(12', 'desktop asymmetric atlas preserved')
+  assertIncludes(featuresCss, "grid-column: span 7", 'desktop asymmetric spans preserved')
+  assertIncludes(features, "offset: ['start 0.6', 'start 0.4']", 'desktop module clock frozen')
+  assertIncludes(features, "offset: ['start 0.92', 'start 0.5']", 'desktop header clock frozen')
+  /* Canonical mobile order = ATLAS_MODULES order */
+  {
+    const order = [
+      'finanse',
+      'powiadomienia',
+      'zadania',
+      'umowy',
+      'pakiety',
+      'sluby',
+      'kalendarz',
+      'sesje',
+      'ankiety',
+    ]
+    let cursor = 0
+    for (const id of order) {
+      const next = featuresData.indexOf(`id: '${id}'`, cursor)
+      assert(next > cursor - 1 && next >= 0, `atlas order includes ${id}`)
+      cursor = next + 1
+    }
+  }
+  assertIncludes(features, 'MODULES.map', 'all atlas modules rendered in catalog order')
+  assertNotIncludes(features, 'swiper', 'no carousel')
+  assertNotIncludes(features, 'embla', 'no swipe carousel lib')
+  assertNotIncludes(featuresCss, 'masonry', 'no masonry on Features')
+
   console.log('PASS  features grid')
 }
 
@@ -2365,6 +2473,13 @@ function testMobileStory() {
   assertIncludes(exitShell, 'mobileStoryProgressMv', 'features exit reads mobile clock')
   assertIncludes(exitShell, 'useTransform', 'features exit compositor transforms')
   assertIncludes(exitShell, 'motionLayer', 'features motion on inner content layer')
+  assertIncludes(exitShell, 'useLandingCompactViewport', 'exit shell knows compact viewport')
+  assertIncludes(
+    exitShell,
+    'bypassExitRef.current ? 1 : featuresOpacityAt(p)',
+    'compact/PRM bypass keeps Features visible when Mobile Story parks progress at 1',
+  )
+  assertIncludes(exitShell, 'data-features-exit-bypass=', 'explicit exit-bypass marker')
   assertNotIncludes(exitShell, 'useState', 'no React state in features exit shell')
   assertIncludes(exitShellCss, 'background: transparent', 'features exit shell transparent')
   assertIncludes(exitShellCss, 'motionLayer', 'inner motion layer')

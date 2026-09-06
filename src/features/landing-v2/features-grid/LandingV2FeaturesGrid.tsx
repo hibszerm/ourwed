@@ -19,9 +19,11 @@ import {
   AtlasZadania,
 } from '@/features/landing-v2/features-grid/FeatureMiniUis'
 import {
+  ATLAS_MODULES,
   FEATURE_CARDS,
   type FeatureId,
 } from '@/features/landing-v2/features-grid/featuresData'
+import { useLandingCompactViewport } from '@/features/landing-v2/motion/landingViewport'
 import styles from './LandingV2FeaturesGrid.module.css'
 
 const SCENES = {
@@ -36,8 +38,8 @@ const SCENES = {
   ankiety: AtlasAnkiety,
 } as const satisfies Record<FeatureId, typeof AtlasFinanse>
 
-// ATLAS_MODULES — asymmetric editorial catalog from featuresData
-const MODULES = FEATURE_CARDS
+/** Canonical atlas order (FEATURE_CARDS ≡ ATLAS_MODULES). */
+const MODULES = ATLAS_MODULES satisfies typeof FEATURE_CARDS
 
 /** Restrained stagger — atlas modules materialize in editorial order. */
 const MODULE_WINDOWS: ReadonlyArray<readonly [number, number]> = [
@@ -52,6 +54,8 @@ const MODULE_WINDOWS: ReadonlyArray<readonly [number, number]> = [
   [0.26, 0.52],
 ]
 
+const COMPACT_EASE = [0.22, 1, 0.36, 1] as const
+
 function clamp01(n: number) {
   return Math.min(1, Math.max(0, n))
 }
@@ -63,10 +67,12 @@ function easeOut(t: number) {
 
 /**
  * Landing V2 — OurWed Product Atlas.
- * Asymmetric 12-column editorial grid; hover micro-motion is CSS-only inside modules.
+ * Desktop: asymmetric 12-column editorial grid; hover micro-motion is CSS-only.
+ * Compact: vertical editorial stack; each card reveals via whileInView (not one parent clock).
  */
 export function LandingV2FeaturesGrid() {
   const reduced = useReducedMotion()
+  const isCompactViewport = useLandingCompactViewport()
   const sectionRef = useRef<HTMLElement | null>(null)
   const revealRef = useRef<HTMLDivElement | null>(null)
   const forced = useMotionValue(reduced ? 1 : 0)
@@ -74,6 +80,7 @@ export function LandingV2FeaturesGrid() {
   /**
    * Grid modules — FROZEN handoff offset (do not change card choreography).
    * Progress 0→1 as the reveal anchor start moves from 60% → 40% of the viewport.
+   * Desktop only; compact cards use per-card whileInView instead.
    */
   const { scrollYProgress } = useScroll({
     target: revealRef,
@@ -101,17 +108,26 @@ export function LandingV2FeaturesGrid() {
     Math.max(Number(p), Number(f)),
   )
 
+  const headingTravel = isCompactViewport ? 16 : 28
+  const leadTravel = isCompactViewport ? 10 : 22
+
   const headingOp = useTransform(headerReveal, (t) => easeOut(clamp01(t / 0.3)))
-  const headingY = useTransform(headerReveal, (t) => (1 - easeOut(clamp01(t / 0.3))) * 28)
+  const headingY = useTransform(
+    headerReveal,
+    (t) => (1 - easeOut(clamp01(t / 0.3))) * headingTravel,
+  )
   const headingBlur = useTransform(headerReveal, (t) => {
-    const b = (1 - easeOut(clamp01(t / 0.3))) * 3
+    const b = (1 - easeOut(clamp01(t / 0.3))) * (isCompactViewport ? 2 : 3)
     return b < 0.08 ? 'blur(0px)' : `blur(${b.toFixed(2)}px)`
   })
 
   const leadOp = useTransform(headerReveal, (t) => easeOut(clamp01((t - 0.06) / 0.28)))
-  const leadY = useTransform(headerReveal, (t) => (1 - easeOut(clamp01((t - 0.06) / 0.28))) * 22)
+  const leadY = useTransform(
+    headerReveal,
+    (t) => (1 - easeOut(clamp01((t - 0.06) / 0.28))) * leadTravel,
+  )
   const leadBlur = useTransform(headerReveal, (t) => {
-    const b = (1 - easeOut(clamp01((t - 0.06) / 0.28))) * 3
+    const b = (1 - easeOut(clamp01((t - 0.06) / 0.28))) * (isCompactViewport ? 2 : 3)
     return b < 0.08 ? 'blur(0px)' : `blur(${b.toFixed(2)}px)`
   })
 
@@ -121,6 +137,7 @@ export function LandingV2FeaturesGrid() {
       className={styles.section}
       data-testid="lv2-features-grid"
       data-lv2-features=""
+      data-features-layout={isCompactViewport ? 'compact' : 'desktop'}
       aria-labelledby="lv2-features-heading"
     >
       <div className={styles.inner}>
@@ -157,6 +174,8 @@ export function LandingV2FeaturesGrid() {
                 start={start}
                 end={end}
                 Scene={Scene}
+                compact={isCompactViewport}
+                reduced={Boolean(reduced)}
               />
             )
           })}
@@ -175,6 +194,8 @@ function AtlasModule({
   start,
   end,
   Scene,
+  compact,
+  reduced,
 }: {
   id: FeatureId
   title: string
@@ -184,6 +205,8 @@ function AtlasModule({
   start: number
   end: number
   Scene: (typeof SCENES)[FeatureId]
+  compact: boolean
+  reduced: boolean
 }) {
   const local = useTransform(reveal, (t) => easeOut(clamp01((t - start) / (end - start))))
   const opacity = useTransform(local, (v) => v)
@@ -193,13 +216,28 @@ function AtlasModule({
     return b < 0.08 ? 'blur(0px)' : `blur(${b.toFixed(2)}px)`
   })
 
+  const compactMotion = compact && !reduced
+
   return (
     <motion.li
       className={styles.module}
       data-feature={id}
       data-lv2-feature-module=""
       data-col-span={colSpan}
-      style={{ opacity, y, filter: blur }}
+      data-feature-reveal={compactMotion ? 'viewport' : 'atlas'}
+      style={compactMotion ? undefined : { opacity, y, filter: blur }}
+      initial={compactMotion ? { opacity: 0, y: 18 } : false}
+      whileInView={compactMotion ? { opacity: 1, y: 0 } : undefined}
+      viewport={
+        compactMotion
+          ? { once: true, amount: 0.22, margin: '0px 0px -10% 0px' }
+          : undefined
+      }
+      transition={
+        compactMotion
+          ? { duration: 0.55, ease: COMPACT_EASE }
+          : undefined
+      }
     >
       <div className={styles.moduleCopy}>
         <h3 className={styles.moduleTitle}>{title}</h3>

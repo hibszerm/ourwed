@@ -2418,28 +2418,131 @@
 }
 
 @media (max-width: 1100px) {
-  .inner { width: min(1480px, calc(100vw - 48px)); }
-  .atlas { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
-  .module[data-feature] { grid-column: span 1 !important; grid-row: auto !important; min-height: 320px; }
+  .section {
+    --fg-chapter-pad-top: clamp(1.5rem, 4vw, 2.5rem);
+    --fg-chapter-pad-bottom: clamp(5rem, 10vw, 10rem);
+    --fg-header-gap: clamp(1.5rem, 3.5vw, 2.25rem);
+    --fg-atlas-gap: 14px;
+    padding-inline: clamp(0.875rem, 3.5vw, 1.5rem);
+  }
+
+  .inner {
+    width: min(1480px, calc(100vw - 48px));
+  }
+
+  /* Tablet: intentional 2-column board (not compressed 12-col atlas). */
+  .atlas {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--fg-atlas-gap);
+  }
+
+  .module[data-feature] {
+    grid-column: span 1 !important;
+    grid-row: auto !important;
+    min-height: 320px;
+  }
+
   .module[data-feature='finanse'],
   .module[data-feature='powiadomienia'],
   .module[data-feature='kalendarz'],
-  .module[data-feature='ankiety'] { min-height: 360px; }
-  .umowySplit { grid-template-columns: 1fr; }
-  .formGroups { grid-template-columns: 1fr; }
+  .module[data-feature='ankiety'] {
+    min-height: 360px;
+  }
+
+  .umowySplit {
+    grid-template-columns: 1fr;
+  }
+
+  .formGroups {
+    grid-template-columns: 1fr;
+  }
 }
 
+/**
+ * Phone: deliberate vertical narrative — one full-width card stack.
+ * Gutters ~24–32px total (calc(100vw − 1.75rem…2rem)).
+ */
 @media (max-width: 640px) {
-  .inner { width: min(1480px, calc(100vw - 2rem)); }
-  .header { margin-bottom: 2.25rem; text-align: left; }
-  .heading { font-size: clamp(2rem, 8vw, 2.75rem); }
-  .atlas { grid-template-columns: minmax(0, 1fr); gap: 12px; }
-  .module { padding: 1.1rem 1.15rem 1rem; }
-  .financeLedgerRow { grid-template-columns: 2.8rem minmax(0, 1fr) auto; }
-  .financeLedgerKind { display: none; }
-  .financeChartPlot { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-  .financeBarCol:nth-child(n + 5) { display: none; }
-  .calWeek { overflow-x: auto; }
+  .section {
+    --fg-atlas-gap: 1rem;
+    --fg-module-pad-y: 1.1rem;
+    --fg-module-pad-x: 1.15rem;
+    --fg-header-gap: 1.75rem;
+    overflow-x: clip;
+  }
+
+  .inner {
+    width: min(1480px, calc(100vw - 1.75rem));
+  }
+
+  .header {
+    margin-bottom: var(--fg-header-gap);
+    text-align: left;
+    max-width: none;
+  }
+
+  .heading {
+    font-size: clamp(2rem, 8vw, 2.75rem);
+  }
+
+  .lead {
+    margin-top: 0.65rem;
+    max-width: 36rem;
+  }
+
+  .atlas {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--fg-atlas-gap);
+  }
+
+  .module {
+    padding: var(--fg-module-pad-y) var(--fg-module-pad-x);
+    width: 100%;
+    min-width: 0;
+  }
+
+  .module[data-feature] {
+    min-height: 280px;
+  }
+
+  .module[data-feature='finanse'],
+  .module[data-feature='powiadomienia'],
+  .module[data-feature='kalendarz'],
+  .module[data-feature='ankiety'] {
+    min-height: 300px;
+  }
+
+  .module[data-feature='zadania'],
+  .module[data-feature='umowy'],
+  .module[data-feature='pakiety'],
+  .module[data-feature='sluby'],
+  .module[data-feature='sesje'] {
+    min-height: 270px;
+  }
+
+  .moduleScene {
+    min-height: 11.5rem;
+  }
+
+  .financeLedgerRow {
+    grid-template-columns: 2.8rem minmax(0, 1fr) auto;
+  }
+
+  .financeLedgerKind {
+    display: none;
+  }
+
+  .financeChartPlot {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .financeBarCol:nth-child(n + 5) {
+    display: none;
+  }
+
+  .calWeek {
+    overflow-x: auto;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

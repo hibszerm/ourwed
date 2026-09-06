@@ -143,6 +143,19 @@ export function LandingV2LifecycleStory() {
     return 1 - easeInOutCubic((p - 0.92) / 0.08)
   })
 
+  /**
+   * Compact-only: fade the settled workspace stage at track end so Features intro
+   * is not trapped under an opaque full-bleed shell. Desktop stage stays opaque
+   * (handoff tests freeze theater opacity on desktop viewports).
+   */
+  const compactHandoffRef = useRef(isCompactViewport)
+  compactHandoffRef.current = isCompactViewport
+  const stickyStageOp = useTransform(progress, (p) => {
+    if (!compactHandoffRef.current) return 1
+    if (p < 0.94) return 1
+    return 1 - easeInOutCubic((p - 0.94) / 0.06)
+  })
+
   const n = karolinaJan
 
   if (simple) {
@@ -193,7 +206,11 @@ export function LandingV2LifecycleStory() {
           style={{ opacity: stickyPaperOp }}
           aria-hidden
         />
-        <div className={styles.stage}>
+        <motion.div
+          className={styles.stage}
+          data-lifecycle-stage=""
+          style={{ opacity: stickyStageOp }}
+        >
           <motion.div
             className={styles.headline}
             data-lifecycle-headline=""
@@ -216,7 +233,7 @@ export function LandingV2LifecycleStory() {
               compact={isCompactViewport}
             />
           </div>
-        </div>
+        </motion.div>
       </div>
     </section>
   )
