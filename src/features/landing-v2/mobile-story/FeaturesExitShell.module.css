@@ -1,6 +1,6 @@
 .shell {
   position: relative;
-  /* Below Lifecycle sticky (5) during handoff; above Mobile Story track (2). */
+  /* Above Mobile Story track (2). Lifecycle sticky (5) owns pin while active. */
   z-index: 4;
   background: transparent;
 }
@@ -24,15 +24,11 @@
 }
 
 /**
- * Compact Lifecycle → Features handoff overlap.
- * At Lifecycle p≈1 Features would otherwise sit at the fold with heading still
- * opacity 0, leaving a full beige viewport. Pull the chapter under the fading
- * sticky so the intro can read while the workspace finishes exiting.
+ * Compact: normal document flow after Lifecycle sticky release.
+ * No negative margin / layered underlap — Features sits below with section gap.
  */
 .shell[data-features-exit-bypass='true'] {
-  /* Slightly less pull-up so workspace exit has room before heading fills the frame */
-  --fg-handoff-overlap: calc(0.72 * (100svh - var(--lv3-nav-h, 68px)));
-  margin-top: calc(-1 * var(--fg-handoff-overlap));
+  margin-top: 0;
 }
 
 @media (prefers-reduced-motion: reduce) {

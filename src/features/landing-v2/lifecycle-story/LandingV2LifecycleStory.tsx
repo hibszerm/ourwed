@@ -11,9 +11,7 @@ import { LifecycleLinkObject } from '@/features/landing-v2/lifecycle-story/Lifec
 import { LifecycleTransformSurface } from '@/features/landing-v2/lifecycle-story/LifecycleTransformSurface'
 import {
   clearLifecycleExitT,
-  clearLifecycleProgressT,
   publishLifecycleExitT,
-  publishLifecycleProgressT,
 } from '@/features/landing-v2/lifecycle-story/lifecycleExitClock'
 import {
   LIFECYCLE_RANGES,
@@ -33,7 +31,8 @@ const OWNED_EPS = 0.002
  * Scroll: Product exit → headline → link pill → pill morphs into workspace.
  * After settle: click-driven WorkflowExplorer (no scroll tabs / no C2 scenes).
  *
- * Compact viewport runs the same theater; only prefers-reduced-motion is static.
+ * Compact: same theater, then short end-hold and sticky release into normal
+ * document flow (no fade/crossfade into Features).
  */
 export function LandingV2LifecycleStory() {
   const trackRef = useRef<HTMLElement | null>(null)
@@ -49,16 +48,12 @@ export function LandingV2LifecycleStory() {
   useEffect(() => {
     if (simple) {
       progress.set(1)
-      publishLifecycleProgressT(1)
       /*
        * PRM static — do NOT force Product iPad exit. Product compact theater
        * still needs the settled tablet until the user leaves that chapter.
        */
       publishLifecycleExitT(0)
-      return () => {
-        clearLifecycleExitT()
-        clearLifecycleProgressT()
-      }
+      return () => clearLifecycleExitT()
     }
 
     const el = trackRef.current
@@ -79,7 +74,6 @@ export function LandingV2LifecycleStory() {
           ? 0
           : Math.min(1, Math.max(0, (navH - rect.top) / travel))
       progress.set(raw)
-      publishLifecycleProgressT(raw)
       publishLifecycleExitT(ipadExitFromProgress(raw))
       const sticky = stickyRef.current
       if (sticky) {
@@ -108,7 +102,6 @@ export function LandingV2LifecycleStory() {
       document.removeEventListener('scroll', onScroll, true)
       window.removeEventListener('resize', onResize)
       clearLifecycleExitT()
-      clearLifecycleProgressT()
     }
   }, [simple, progress])
 
@@ -146,28 +139,14 @@ export function LandingV2LifecycleStory() {
   })
 
   /**
-   * Compact-only handoff — stretched overlap with Features intro.
-   * Stage begins exiting ~0.76 and finishes ~0.98 so workspace and heading coexist.
-   * Desktop stage stays fully opaque.
+   * Compact: stage stays fully opaque — page scroll is the exit after sticky release.
+   * Desktop: paper soft-clears near track end (frozen).
    */
-  const compactHandoffRef = useRef(isCompactViewport)
-  compactHandoffRef.current = isCompactViewport
-  const stickyStageOp = useTransform(progress, (p) => {
-    if (!compactHandoffRef.current) return 1
-    if (p < 0.76) return 1
-    return 1 - easeInOutCubic((p - 0.76) / 0.22)
-  })
-  const stickyStageY = useTransform(progress, (p) => {
-    if (!compactHandoffRef.current) return 0
-    if (p < 0.76) return 0
-    return -14 * easeInOutCubic((p - 0.76) / 0.22)
-  })
-  /* Compact paper clears with the stage (slightly earlier lead-in). */
+  const compactFlowRef = useRef(isCompactViewport)
+  compactFlowRef.current = isCompactViewport
+  const stickyStageOp = useTransform(progress, () => 1)
   const stickyPaperOp = useTransform(progress, (p) => {
-    if (compactHandoffRef.current) {
-      if (p < 0.74) return 1
-      return 1 - easeInOutCubic((p - 0.74) / 0.22)
-    }
+    if (compactFlowRef.current) return 1
     if (p < 0.92) return 1
     return 1 - easeInOutCubic((p - 0.92) / 0.08)
   })
@@ -208,6 +187,7 @@ export function LandingV2LifecycleStory() {
       data-lifecycle-theater="scroll"
       data-lifecycle-morph="pill-to-workspace"
       data-lifecycle-compact={isCompactViewport ? 'true' : 'false'}
+      data-lifecycle-handoff={isCompactViewport ? 'document-flow' : 'desktop'}
       aria-labelledby="lv2-lifecycle-heading"
     >
       <div
@@ -225,7 +205,7 @@ export function LandingV2LifecycleStory() {
         <motion.div
           className={styles.stage}
           data-lifecycle-stage=""
-          style={{ opacity: stickyStageOp, y: stickyStageY }}
+          style={{ opacity: stickyStageOp }}
         >
           <motion.div
             className={styles.headline}

@@ -3,10 +3,8 @@ import type { MotionValue } from 'framer-motion'
 import {
   motion,
   useMotionValue,
-  useMotionValueEvent,
   useReducedMotion,
   useScroll,
-  useSpring,
   useTransform,
 } from 'framer-motion'
 import {
@@ -25,7 +23,6 @@ import {
   FEATURE_CARDS,
   type FeatureId,
 } from '@/features/landing-v2/features-grid/featuresData'
-import { lifecycleProgressMv } from '@/features/landing-v2/lifecycle-story/lifecycleExitClock'
 import { useLandingCompactViewport } from '@/features/landing-v2/motion/landingViewport'
 import styles from './LandingV2FeaturesGrid.module.css'
 
@@ -59,26 +56,21 @@ const MODULE_WINDOWS: ReadonlyArray<readonly [number, number]> = [
 
 const COMPACT_EASE = [0.22, 1, 0.36, 1] as const
 
-/**
- * Desktop header clock only (frozen).
- * Compact intro is keyed to lifecycleProgressMv — not Features scroll —
- * so heading and workspace share one deliberate overlap window.
- */
+/** Desktop header clock (frozen). */
 const HEADER_OFFSET_DESKTOP: ['start 0.92', 'start 0.5'] = ['start 0.92', 'start 0.5']
 
 /**
- * Compact Lifecycle progress → Features intro (synced with workspace exit 0.76→0.98).
- * Heading starts after workspace begins leaving; finishes before track end.
+ * Compact: local viewport clock — reveal early as heading enters from below
+ * after Lifecycle sticky release (normal document flow, no Lifecycle coupling).
  */
-const COMPACT_HEADING_P_START = 0.82
-const COMPACT_HEADING_P_END = 0.98
-/** Lead follows heading — readable after heading is underway. */
-const COMPACT_LEAD_P_START = 0.88
-const COMPACT_LEAD_P_END = 1
-/** First card (Finanse) waits until intro is mostly established. */
-const COMPACT_FIRST_CARD_P = 0.95
-const COMPACT_HEADING_Y = 10
+const HEADER_OFFSET_COMPACT: ['start 0.98', 'start 0.52'] = ['start 0.98', 'start 0.52']
+
+const COMPACT_HEADING_Y = 12
 const COMPACT_LEAD_Y = 8
+/** Lead starts after heading is underway on the local header clock. */
+const COMPACT_LEAD_DELAY = 0.18
+const COMPACT_HEADING_OP_SPAN = 0.42
+const COMPACT_LEAD_OP_SPAN = 0.45
 
 function clamp01(n: number) {
   return Math.min(1, Math.max(0, n))
@@ -89,14 +81,10 @@ function easeOut(t: number) {
   return 1 - (1 - x) ** 3
 }
 
-function rangeEase(p: number, start: number, end: number) {
-  return easeOut(clamp01((p - start) / Math.max(1e-6, end - start)))
-}
-
 /**
  * Landing V2 — OurWed Product Atlas.
  * Desktop: asymmetric 12-column editorial grid; hover micro-motion is CSS-only.
- * Compact: vertical editorial stack; each card reveals via whileInView (not one parent clock).
+ * Compact: vertical editorial stack; intro + cards use local viewport reveal.
  */
 export function LandingV2FeaturesGrid() {
   const reduced = useReducedMotion()
@@ -106,10 +94,6 @@ export function LandingV2FeaturesGrid() {
   const compactHeadingRef = useRef<HTMLHeadingElement | null>(null)
   const compactLeadRef = useRef<HTMLParagraphElement | null>(null)
   const forced = useMotionValue(reduced ? 1 : 0)
-  /** Latch: once Lifecycle intro is established, Finanse may reveal (never re-locks). */
-  const firstCardLatch = useMotionValue(
-    isCompactViewport && lifecycleProgressMv.get() >= COMPACT_FIRST_CARD_P ? 1 : 0,
-  )
 
   /**
    * Grid modules — FROZEN handoff offset (do not change card choreography).
@@ -122,31 +106,18 @@ export function LandingV2FeaturesGrid() {
   })
 
   /**
-   * Headline / lead — desktop only scroll clock (frozen).
-   * Compact binds to lifecycleProgressMv so intro overlaps workspace exit.
+   * Headline / lead — local scroll clock (compact + desktop).
+   * Compact uses HEADER_OFFSET_COMPACT; desktop keeps HEADER_OFFSET_DESKTOP.
+   * Not driven by Lifecycle progress.
    */
   const { scrollYProgress: headerScrollYProgress } = useScroll({
     target: revealRef,
-    offset: HEADER_OFFSET_DESKTOP,
+    offset: isCompactViewport ? HEADER_OFFSET_COMPACT : HEADER_OFFSET_DESKTOP,
   })
 
   useEffect(() => {
     forced.set(reduced ? 1 : 0)
   }, [reduced, forced])
-
-  useEffect(() => {
-    if (!isCompactViewport) {
-      firstCardLatch.set(1)
-      return
-    }
-    /* Fresh compact mount: re-evaluate from live Lifecycle progress (avoid stale HMR latch). */
-    firstCardLatch.set(lifecycleProgressMv.get() >= COMPACT_FIRST_CARD_P ? 1 : 0)
-  }, [isCompactViewport, firstCardLatch])
-
-  useMotionValueEvent(lifecycleProgressMv, 'change', (p) => {
-    if (!isCompactViewport) return
-    if (p >= COMPACT_FIRST_CARD_P) firstCardLatch.set(1)
-  })
 
   const reveal = useTransform([scrollYProgress, forced], ([p, f]) =>
     Math.max(Number(p), Number(f)),
@@ -155,7 +126,6 @@ export function LandingV2FeaturesGrid() {
     Math.max(Number(p), Number(f)),
   )
 
-  /* Compact: calm opacity + tiny y from Lifecycle progress. Desktop unchanged. */
   const compactIntroRef = useRef(isCompactViewport)
   compactIntroRef.current = isCompactViewport
   const headingTravel = isCompactViewport ? COMPACT_HEADING_Y : 28
@@ -165,53 +135,38 @@ export function LandingV2FeaturesGrid() {
   headingTravelRef.current = headingTravel
   leadTravelRef.current = leadTravel
 
-  const headingOp = useTransform(
-    [lifecycleProgressMv, headerReveal],
-    ([lifeP, headerT]) => {
-      if (compactIntroRef.current) {
-        return rangeEase(Number(lifeP), COMPACT_HEADING_P_START, COMPACT_HEADING_P_END)
-      }
-      return easeOut(clamp01(Number(headerT) / 0.3))
-    },
-  )
-  const headingY = useTransform(
-    [lifecycleProgressMv, headerReveal],
-    ([lifeP, headerT]) => {
-      if (compactIntroRef.current) {
-        return (
-          (1 - rangeEase(Number(lifeP), COMPACT_HEADING_P_START, COMPACT_HEADING_P_END)) *
-          headingTravelRef.current
-        )
-      }
-      return (1 - easeOut(clamp01(Number(headerT) / 0.3))) * headingTravelRef.current
-    },
-  )
+  const headingOp = useTransform(headerReveal, (t) => {
+    if (compactIntroRef.current) {
+      return easeOut(clamp01(t / COMPACT_HEADING_OP_SPAN))
+    }
+    return easeOut(clamp01(t / 0.3))
+  })
+  const headingY = useTransform(headerReveal, (t) => {
+    if (compactIntroRef.current) {
+      return (1 - easeOut(clamp01(t / COMPACT_HEADING_OP_SPAN))) * headingTravelRef.current
+    }
+    return (1 - easeOut(clamp01(t / 0.3))) * headingTravelRef.current
+  })
   const headingBlur = useTransform(headerReveal, (t) => {
     const b = (1 - easeOut(clamp01(t / 0.3))) * 3
     return b < 0.08 ? 'blur(0px)' : `blur(${b.toFixed(2)}px)`
   })
 
-  const leadOp = useTransform(
-    [lifecycleProgressMv, headerReveal],
-    ([lifeP, headerT]) => {
-      if (compactIntroRef.current) {
-        return rangeEase(Number(lifeP), COMPACT_LEAD_P_START, COMPACT_LEAD_P_END)
-      }
-      return easeOut(clamp01((Number(headerT) - 0.06) / 0.28))
-    },
-  )
-  const leadY = useTransform(
-    [lifecycleProgressMv, headerReveal],
-    ([lifeP, headerT]) => {
-      if (compactIntroRef.current) {
-        return (
-          (1 - rangeEase(Number(lifeP), COMPACT_LEAD_P_START, COMPACT_LEAD_P_END)) *
-          leadTravelRef.current
-        )
-      }
-      return (1 - easeOut(clamp01((Number(headerT) - 0.06) / 0.28))) * leadTravelRef.current
-    },
-  )
+  const leadOp = useTransform(headerReveal, (t) => {
+    if (compactIntroRef.current) {
+      return easeOut(clamp01((t - COMPACT_LEAD_DELAY) / COMPACT_LEAD_OP_SPAN))
+    }
+    return easeOut(clamp01((t - 0.06) / 0.28))
+  })
+  const leadY = useTransform(headerReveal, (t) => {
+    if (compactIntroRef.current) {
+      return (
+        (1 - easeOut(clamp01((t - COMPACT_LEAD_DELAY) / COMPACT_LEAD_OP_SPAN))) *
+        leadTravelRef.current
+      )
+    }
+    return (1 - easeOut(clamp01((t - 0.06) / 0.28))) * leadTravelRef.current
+  })
   const leadBlur = useTransform(headerReveal, (t) => {
     const b = (1 - easeOut(clamp01((t - 0.06) / 0.28))) * 3
     return b < 0.08 ? 'blur(0px)' : `blur(${b.toFixed(2)}px)`
@@ -258,6 +213,7 @@ export function LandingV2FeaturesGrid() {
       data-testid="lv2-features-grid"
       data-lv2-features=""
       data-features-layout={isCompactViewport ? 'compact' : 'desktop'}
+      data-features-handoff={isCompactViewport ? 'document-flow' : 'desktop'}
       aria-labelledby="lv2-features-heading"
     >
       <div className={styles.inner}>
@@ -325,7 +281,6 @@ export function LandingV2FeaturesGrid() {
                 compact={isCompactViewport}
                 reduced={Boolean(reduced)}
                 cardIndex={index}
-                firstCardLatch={firstCardLatch}
               />
             )
           })}
@@ -347,7 +302,6 @@ function AtlasModule({
   compact,
   reduced,
   cardIndex,
-  firstCardLatch,
 }: {
   id: FeatureId
   title: string
@@ -360,7 +314,6 @@ function AtlasModule({
   compact: boolean
   reduced: boolean
   cardIndex: number
-  firstCardLatch: MotionValue<number>
 }) {
   const local = useTransform(reveal, (t) => easeOut(clamp01((t - start) / (end - start))))
   const opacity = useTransform(local, (v) => v)
@@ -371,23 +324,9 @@ function AtlasModule({
   })
 
   const compactMotion = compact && !reduced
-  /* First card waits until Lifecycle intro threshold; later cards stay local. */
-  const firstCard = cardIndex === 0
-  const firstCardSmooth = useSpring(firstCardLatch, {
-    stiffness: 110,
-    damping: 24,
-    mass: 0.7,
-  })
-  const firstCardOp = useTransform(firstCardSmooth, (v) =>
-    firstCard && compactMotion ? clamp01(Number(v)) : 1,
-  )
-  const firstCardY = useTransform(firstCardSmooth, (v) =>
-    firstCard && compactMotion ? (1 - clamp01(Number(v))) * 12 : 0,
-  )
-  const viewport =
-    compactMotion && !firstCard
-      ? { once: true as const, amount: 0.22, margin: '0px 0px -12% 0px' }
-      : undefined
+  const viewport = compactMotion
+    ? { once: true as const, amount: 0.22, margin: '0px 0px -12% 0px' }
+    : undefined
 
   return (
     <motion.li
@@ -396,28 +335,22 @@ function AtlasModule({
       data-lv2-feature-module=""
       data-feature-hover-surface="module"
       data-col-span={colSpan}
-      data-feature-reveal={compactMotion ? (firstCard ? 'lifecycle-latch' : 'viewport') : 'atlas'}
+      data-feature-reveal={compactMotion ? 'viewport' : 'atlas'}
       data-feature-card-index={cardIndex}
       /* Compact: never bind atlas blur MotionValues — leftover filter:blur(3px) softens cards. */
       style={
-        compactMotion && firstCard
-          ? { opacity: firstCardOp, y: firstCardY, filter: 'none' }
-          : compactMotion
-            ? { filter: 'none' }
-            : compact && reduced
-              ? { opacity: 1, y: 0, filter: 'none' }
-              : { opacity, y, filter: blur }
+        compactMotion
+          ? { filter: 'none' }
+          : compact && reduced
+            ? { opacity: 1, y: 0, filter: 'none' }
+            : { opacity, y, filter: blur }
       }
-      initial={compactMotion && !firstCard ? { opacity: 0, y: 12, filter: 'none' } : false}
-      whileInView={
-        compactMotion && !firstCard
-          ? { opacity: 1, y: 0, filter: 'none' }
-          : undefined
-      }
+      initial={compactMotion ? { opacity: 0, y: 12, filter: 'none' } : false}
+      whileInView={compactMotion ? { opacity: 1, y: 0, filter: 'none' } : undefined}
       viewport={viewport}
       transition={
-        compactMotion && !firstCard
-          ? { duration: 0.5, ease: COMPACT_EASE }
+        compactMotion
+          ? { duration: cardIndex === 0 ? 0.55 : 0.5, ease: COMPACT_EASE }
           : undefined
       }
     >

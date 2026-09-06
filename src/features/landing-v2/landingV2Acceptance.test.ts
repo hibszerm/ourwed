@@ -1738,17 +1738,17 @@ function walkTs(dir: string, out: string[] = []): string[] {
   assertIncludes(lifecycle, 'data-lifecycle-morph="pill-to-workspace"', 'pill→workspace morph marker')
   assertIncludes(lifecycle, 'compact={isCompactViewport}', 'compact shell geometry for pill morph')
   assertIncludes(lifecycleCss, '320svh', 'desktop morph-only lifecycle scroll track')
-  assertIncludes(lifecycleCss, '300svh', 'compact lifecycle scroll runway (handoff overlap room)')
-  assertIncludes(lifecycle, 'stickyStageOp', 'compact stage fade for Features handoff')
-  assertIncludes(lifecycle, 'stickyStageY', 'compact stage subtle exit y')
-  assertIncludes(lifecycle, 'if (p < 0.76) return 1', 'compact workspace exit starts ~0.76')
-  assertIncludes(lifecycle, '(p - 0.76) / 0.22', 'compact workspace exit spans ~0.22 progress')
-  assertIncludes(lifecycle, 'publishLifecycleProgressT', 'publishes Lifecycle progress for Features handoff')
+  assertIncludes(lifecycleCss, '280svh', 'compact lifecycle runway with short end-hold before sticky release')
+  assertIncludes(lifecycle, 'stickyStageOp', 'stage opacity transform present')
+  assertIncludes(lifecycle, 'useTransform(progress, () => 1)', 'compact stage stays fully opaque (no Features fade)')
+  assertNotIncludes(lifecycle, 'stickyStageY', 'no compact artificial stage translate exit')
+  assertNotIncludes(lifecycle, 'publishLifecycleProgressT', 'no Lifecycle progress publish for Features handoff')
   assertIncludes(lifecycle, 'if (p < 0.92) return 1', 'desktop paper clear window frozen at 0.92')
-  assertIncludes(
+  assertIncludes(lifecycle, "data-lifecycle-handoff={isCompactViewport ? 'document-flow' : 'desktop'}", 'compact document-flow handoff marker')
+  assertNotIncludes(
     read('src/features/landing-v2/lifecycle-story/lifecycleExitClock.ts'),
     'lifecycleProgressMv',
-    'shared Lifecycle progress MotionValue for compact Features intro',
+    'no Lifecycle progress MV for Features intro coupling',
   )
   assertIncludes(
     lifecycleCss,
@@ -2082,8 +2082,8 @@ function walkTs(dir: string, out: string[] = []): string[] {
   )
   assertIncludes(
     features,
-    "offset: HEADER_OFFSET_DESKTOP",
-    'desktop headline uses frozen HEADER_OFFSET_DESKTOP clock',
+    'isCompactViewport ? HEADER_OFFSET_COMPACT : HEADER_OFFSET_DESKTOP',
+    'header clock selects compact local vs desktop frozen offset',
   )
   assertIncludes(
     features,
@@ -2091,29 +2091,13 @@ function walkTs(dir: string, out: string[] = []): string[] {
     'desktop headline reveal offset values frozen (handoff continuity)',
   )
   assertIncludes(features, 'headerReveal', 'headline uses separate earlier reveal clock')
-  assertIncludes(features, 'headingOp = useTransform(', 'heading opacity transform present')
-  assertIncludes(
-    features,
-    '[lifecycleProgressMv, headerReveal]',
-    'compact heading combines Lifecycle progress with desktop header clock',
-  )
-  /* Compact handoff overlap guards — conceptual windows, not brittle pixels. */
-  const headingPStart = Number(features.match(/COMPACT_HEADING_P_START = ([0-9.]+)/)?.[1] ?? 1)
-  const headingPEnd = Number(features.match(/COMPACT_HEADING_P_END = ([0-9.]+)/)?.[1] ?? 0)
-  const leadPStart = Number(features.match(/COMPACT_LEAD_P_START = ([0-9.]+)/)?.[1] ?? 0)
-  const firstCardP = Number(features.match(/COMPACT_FIRST_CARD_P = ([0-9.]+)/)?.[1] ?? 0)
-  const lifecycleSrc = read('src/features/landing-v2/lifecycle-story/LandingV2LifecycleStory.tsx')
-  const workspaceExitSpan = Number(
-    lifecycleSrc.match(/\(p - 0\.76\) \/ (0\.[0-9]+)/)?.[1] ?? 0,
-  )
-  assert(headingPStart < headingPEnd, 'heading reveal window has positive span')
-  assert(
-    headingPStart < 0.76 + workspaceExitSpan,
-    'heading starts before workspace exit completes (overlap window)',
-  )
-  assert(leadPStart > headingPStart, 'lead starts after heading begins')
-  assert(firstCardP > headingPStart, 'first card unlock after heading intro threshold')
+  assertIncludes(features, 'headingOp = useTransform(headerReveal', 'heading opacity from local header clock')
+  assertNotIncludes(features, 'lifecycleProgressMv', 'compact Features intro not driven by Lifecycle progress')
+  assertIncludes(features, 'HEADER_OFFSET_COMPACT', 'compact intro uses local viewport clock')
+  assertIncludes(features, "['start 0.98', 'start 0.52']", 'compact heading reveals early in reading approach')
+  assertIncludes(features, 'COMPACT_LEAD_DELAY', 'lead delayed after heading on local clock')
   assertIncludes(features, "h.style.filter = 'none'", 'compact heading never applies blur')
+  assertIncludes(features, "data-features-handoff={isCompactViewport ? 'document-flow' : 'desktop'}", 'compact Features document-flow marker')
   assertIncludes(features, 'reveal={reveal}', 'atlas modules still use grid reveal clock')
   assertIncludes(
     features,
@@ -2367,15 +2351,12 @@ function walkTs(dir: string, out: string[] = []): string[] {
   assertIncludes(features, 'whileInView', 'compact cards use local viewport reveal')
   assertIncludes(
     features,
-    "data-feature-reveal={compactMotion ? (firstCard ? 'lifecycle-latch' : 'viewport') : 'atlas'}",
-    'compact Finanse uses lifecycle latch; other cards viewport; desktop atlas',
+    "data-feature-reveal={compactMotion ? 'viewport' : 'atlas'}",
+    'compact reveal is viewport-local; desktop keeps atlas clock',
   )
   assertIncludes(features, 'COMPACT_HEADING_Y', 'compact heading has subtle y travel token')
-  assertIncludes(features, 'COMPACT_HEADING_P_START', 'compact heading keyed to Lifecycle progress start')
-  assertIncludes(features, 'COMPACT_HEADING_P_END', 'compact heading settles across Lifecycle exit')
-  assertIncludes(features, 'COMPACT_LEAD_P_START', 'lead delayed after heading on Lifecycle clock')
-  assertIncludes(features, 'COMPACT_FIRST_CARD_P', 'first card gated until intro established')
-  assertIncludes(features, 'lifecycleProgressMv', 'compact intro syncs to Lifecycle progress clock')
+  assertIncludes(features, 'COMPACT_LEAD_Y', 'compact lead has subtle y travel token')
+  assertIncludes(features, 'HEADER_OFFSET_COMPACT', 'compact header reveal is local scroll clock')
   assertIncludes(
     features,
     'headingTravel = isCompactViewport ? COMPACT_HEADING_Y : 28',
@@ -2388,22 +2369,22 @@ function walkTs(dir: string, out: string[] = []): string[] {
   )
   assertIncludes(features, 'HEADER_OFFSET_DESKTOP', 'desktop header reveal offset frozen')
   assertIncludes(features, "['start 0.92', 'start 0.5']", 'desktop intro clock unchanged')
-  assertIncludes(features, 'firstCard', 'first feature card reveal delayed vs later cards')
-  assertIncludes(features, 'firstCardLatch', 'Finanse unlock waits for Lifecycle intro threshold')
-  assertIncludes(features, 'lifecycle-latch', 'Finanse reveal driven by Lifecycle latch')
+  assertNotIncludes(features, 'firstCardLatch', 'Finanse not gated by Lifecycle latch')
+  assertNotIncludes(features, 'lifecycle-latch', 'no lifecycle-latch card reveal mode')
   assertIncludes(features, 'data-features-intro-motion="dom"', 'compact intro uses plain DOM opacity bind')
   assertIncludes(features, 'compactHeadingRef', 'compact heading DOM ref')
   assertIncludes(features, "h.style.filter = 'none'", 'compact heading never applies blur')
   assertIncludes(features, "{ filter: 'none' }", 'compact cards force filter none (no atlas blur residue)')
   assertIncludes(
     features,
-    'compactMotion && firstCard',
-    'Finanse uses Lifecycle-gated opacity (not early whileInView)',
+    "whileInView={compactMotion ? { opacity: 1, y: 0, filter: 'none' } : undefined}",
+    'all compact cards including Finanse use local whileInView',
   )
+  assertIncludes(featuresCss, '--lv2-mobile-section-gap', 'compact Lifecycle→Features section gap token')
   assertIncludes(
-    features,
-    'compactMotion && !firstCard',
-    'later compact cards keep whileInView without blur',
+    featuresCss,
+    '--lv2-mobile-section-gap: clamp(3rem, 7vw, 4.5rem)',
+    'compact section gap bounded editorial range',
   )
   assertIncludes(
     features,
@@ -2604,10 +2585,11 @@ function testMobileStory() {
   assertIncludes(
     exitShellCss,
     "shell[data-features-exit-bypass='true']",
-    'compact Features pulls under Lifecycle sticky for handoff',
+    'compact exit-bypass shell selector present',
   )
-  assertIncludes(exitShellCss, '--fg-handoff-overlap', 'documented compact handoff overlap token')
-  assertIncludes(exitShellCss, '0.72 * (100svh', 'handoff overlap sized for stretched exit window')
+  assertIncludes(exitShellCss, 'margin-top: 0', 'compact Features uses normal flow (no negative underlap)')
+  assertNotIncludes(exitShellCss, '--fg-handoff-overlap', 'no compact layered handoff overlap token')
+  assertNotIncludes(exitShellCss, '0.72 * (100svh', 'no synthetic Features pull-under Lifecycle')
   assertIncludes(features, 'HEADER_OFFSET_DESKTOP', 'desktop header clock token present')
   assertIncludes(features, "['start 0.92', 'start 0.5']", 'desktop header offset values frozen')
   assertIncludes(features, "offset: ['start 0.6', 'start 0.4']", 'desktop module clock frozen')

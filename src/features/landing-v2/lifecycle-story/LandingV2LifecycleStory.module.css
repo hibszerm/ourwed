@@ -147,8 +147,11 @@
   .track[data-lifecycle-theater='scroll'] {
     /* Overlap Product exit pin so iPad lift + headline share the stage */
     margin-top: calc(var(--lv2-nav-h) - 100svh);
-    /* Slight runway for Lifecycle→Features overlap handoff (was 280svh) */
-    height: 300svh;
+    /*
+     * Compact runway: morph settles, short end-hold, then sticky releases
+     * into normal document flow (Features follows below — no overlap fade).
+     */
+    height: 280svh;
   }
 
   .track[data-lifecycle-theater='scroll'] .headline h2 {
