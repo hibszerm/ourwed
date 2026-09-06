@@ -135,6 +135,10 @@
   overflow: hidden;
 }
 
+.static[data-lifecycle-compact='true'] .staticWorkspace {
+  min-height: clamp(560px, 72svh, 680px);
+}
+
 /*
  * Compact scroll theater — same ownership model as desktop.
  * Only the reduced-motion static path collapses the track.

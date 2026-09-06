@@ -151,6 +151,7 @@ export function LandingV2LifecycleStory() {
         className={styles.static}
         data-testid="lv2-lifecycle-story"
         data-lifecycle-theater="static"
+        data-lifecycle-compact={isCompactViewport ? 'true' : 'false'}
         aria-labelledby="lv2-lifecycle-heading"
       >
         <h2 id="lv2-lifecycle-heading" className={styles.headlineStatic}>
@@ -163,7 +164,7 @@ export function LandingV2LifecycleStory() {
             <LifecycleLinkObject />
           </div>
           <div className={styles.staticWorkspace} data-lifecycle-workspace-static="">
-            <WorkflowExplorer interactive />
+            <WorkflowExplorer interactive compact={isCompactViewport} />
           </div>
         </div>
       </section>

@@ -58,7 +58,7 @@ export function LifecycleTransformSurface({
     const vw = typeof window !== 'undefined' ? window.innerWidth : 1440
     if (compact) {
       const linkW = Math.min(vw - 28, 340)
-      const workW = Math.min(vw - 20, 390)
+      const workW = Math.min(vw - 16, 400)
       return linkW + (workW - linkW) * e
     }
     const linkW = Math.min(600, Math.max(480, vw * 0.42))
@@ -69,7 +69,8 @@ export function LifecycleTransformSurface({
     if (compact) {
       const linkH = 96
       const vh = typeof window !== 'undefined' ? window.innerHeight : 844
-      const workH = Math.min(540, Math.max(420, vh - 160))
+      /* Tall enough for tabs + copy + preview; keep sticky breathing room. */
+      const workH = Math.min(680, Math.max(560, Math.round(vh * 0.74 - 24)))
       return linkH + (workH - linkH) * e
     }
     const linkH = 112
@@ -122,7 +123,7 @@ export function LifecycleTransformSurface({
           scale: workspaceScale,
         }}
       >
-        <WorkflowExplorer interactive={interactive} />
+        <WorkflowExplorer interactive={interactive} compact={compact} />
       </motion.div>
     </motion.div>
   )

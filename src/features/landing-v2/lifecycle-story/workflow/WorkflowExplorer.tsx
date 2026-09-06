@@ -30,6 +30,8 @@ import styles from './WorkflowExplorer.module.css'
 type Props = {
   /** When false, chrome is visible but pointer events are off (mid-morph). */
   interactive?: boolean
+  /** Portrait vertical composition — tabs → copy → preview. Desktop stays split. */
+  compact?: boolean
 }
 
 const VISUALS: Record<
@@ -51,7 +53,7 @@ const VISUALS: Record<
  * Click-driven feature explorer — NOT scroll-controlled.
  * Default active = Umowa (contract).
  */
-export function WorkflowExplorer({ interactive = true }: Props) {
+export function WorkflowExplorer({ interactive = true, compact = false }: Props) {
   const baseId = useId()
   const [active, setActive] = useState<WorkflowFeatureKey>(DEFAULT_WORKFLOW_FEATURE)
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([])
@@ -111,6 +113,7 @@ export function WorkflowExplorer({ interactive = true }: Props) {
       className={styles.root}
       data-workflow-explorer=""
       data-workflow-interactive={interactive ? 'true' : 'false'}
+      data-workflow-layout={compact ? 'compact' : 'desktop'}
     >
       <div
         className={styles.tablist}
@@ -154,7 +157,7 @@ export function WorkflowExplorer({ interactive = true }: Props) {
         aria-labelledby={`${baseId}-tab-${active}`}
         data-workflow-panel={active}
       >
-        <div className={styles.copy} key={`copy-${active}`}>
+        <div className={styles.copy} key={`copy-${active}`} data-workflow-copy="">
           <p className={styles.eyebrow}>{feature.eyebrow}</p>
           <p className={styles.headline}>{feature.headline}</p>
           <p className={styles.description}>{feature.description}</p>
@@ -164,8 +167,18 @@ export function WorkflowExplorer({ interactive = true }: Props) {
             ))}
           </ul>
         </div>
-        <div className={styles.visualSlot} key={`visual-${active}`}>
-          <Visual active />
+        <div
+          className={[styles.visualSlot, compact ? styles.visualSlotCompact : ''].join(' ')}
+          key={`visual-${active}`}
+          data-workflow-visual=""
+        >
+          {compact ? (
+            <div className={styles.visualStage}>
+              <Visual active />
+            </div>
+          ) : (
+            <Visual active />
+          )}
         </div>
       </div>
     </div>
