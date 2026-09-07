@@ -97,12 +97,14 @@ export function CompactProblemNarrative() {
       const slots = compactNarrativeSlotOffsets(g)
       const scrubClamped = Math.min(slots.scrubBudget, scrollIntoScrub)
 
-      const active = new Set(activeStatementIndicesAtScroll(scrubClamped, g))
+      let activeCount = 0
       for (let i = 0; i < COMPACT_NARRATIVE_STATEMENT_COUNT; i++) {
         const el = statementRefs.current[i]
         if (!el) continue
         const vis = statementVisualAtScroll(scrubClamped, i, g)
-        const isActive = active.has(i) && vis.active
+        /* Paint from visual.active directly — do not gate on a capped index set. */
+        const isActive = vis.active
+        if (isActive) activeCount += 1
         el.setAttribute('data-narrative-active', isActive ? 'true' : 'false')
         if (!isActive) {
           el.style.opacity = '0'
@@ -113,9 +115,10 @@ export function CompactProblemNarrative() {
         el.style.transform = `translate3d(0, ${vis.y}px, 0)`
       }
 
+      sticky.setAttribute('data-narrative-active-count', String(activeCount))
       sticky.setAttribute(
-        'data-narrative-active-count',
-        String(active.size),
+        'data-narrative-active-ids',
+        activeStatementIndicesAtScroll(scrubClamped, g).join(','),
       )
 
       /*
