@@ -1,4 +1,4 @@
-/* Compact Problem Story — stacked statement narrative (Iteration 3B). */
+/* Compact Problem Story — Iteration 3C pixel-coupled narrative. */
 
 .track {
   --lv2-problem-ink: #f5f1ea;
@@ -6,18 +6,28 @@
   --lv2-problem-black: #000000;
   --lv2-nav-h: var(--lv3-nav-h, 68px);
   /*
-   * Pacing reference: Founder cover is ~100svh of calm 1:1 scroll.
-   * Seven statement beats + clear — shorter than the old 360svh camera theater.
+   * Heights are set in px from measured geometry (travel=scroll).
+   * Fallback svh only until first measure.
    */
-  --lv2-narrative-svh: 300;
+  --lv2-narrative-scrub-px: 0;
+  --lv2-narrative-cover-svh: 100;
 
   position: relative;
   width: 100%;
-  height: calc(var(--lv2-narrative-svh) * 1svh);
-  height: calc(var(--lv2-narrative-svh) * 1dvh);
+  /* stickyH + scrub + cover hold — cover hold is Founder-like document reveal */
+  height: calc(
+    (100svh - var(--lv2-nav-h)) + var(--lv2-narrative-scrub-px) * 1px +
+      (var(--lv2-narrative-cover-svh) * 1svh)
+  );
+  height: calc(
+    (100dvh - var(--lv2-nav-h)) + var(--lv2-narrative-scrub-px) * 1px +
+      (var(--lv2-narrative-cover-svh) * 1dvh)
+  );
   margin-top: calc(-1 * min(28svh, 220px));
   background: var(--lv2-problem-black);
   color: var(--lv2-problem-ink);
+  /* No transform on track — sticky descendants stay trustworthy. */
+  transform: none;
 }
 
 .visuallyHidden {
@@ -32,24 +42,31 @@
   border: 0;
 }
 
+/*
+ * ONE sticky reading surface. No nested sticky. No transform on ancestors.
+ * When scrub+cover complete, sticky unpins and black exits 1:1 with document
+ * (Founder cover principle — browser scrolls the surface).
+ */
 .sticky {
   position: sticky;
   top: var(--lv2-nav-h);
+  z-index: 10;
   height: calc(100svh - var(--lv2-nav-h));
   height: calc(100dvh - var(--lv2-nav-h));
   width: 100%;
   overflow: hidden;
   background: var(--lv2-problem-black);
-  /* Stable black — only copy moves. */
+  transform: none;
+  will-change: auto;
 }
 
 .readingZone {
   position: absolute;
   inset: 0;
   display: grid;
+  /* Slightly above true center — editorial. */
   place-items: center;
-  /* Slightly above true center — editorial composition. */
-  padding-bottom: 8vh;
+  padding-bottom: 8svh;
   padding-inline: clamp(1.25rem, 5vw, 2rem);
   pointer-events: none;
 }
@@ -63,15 +80,15 @@
   padding-bottom: inherit;
   text-align: center;
   pointer-events: none;
+  opacity: 0;
+  transform: translate3d(0, 0, 0);
   will-change: auto;
+  visibility: hidden;
 }
 
 .statement[data-narrative-active='true'] {
+  visibility: visible;
   will-change: transform, opacity;
-}
-
-.statement[data-narrative-active='false'] {
-  visibility: hidden;
 }
 
 .copy {
@@ -97,6 +114,25 @@
 
 .lineMuted {
   color: var(--lv2-problem-muted);
+}
+
+/* Real scroll slots — heights applied inline from measured travel/hold. */
+.scrubSpacers {
+  position: relative;
+  width: 100%;
+  pointer-events: none;
+}
+
+.spacer {
+  width: 100%;
+  /* height set inline */
+}
+
+.coverHold {
+  width: 100%;
+  height: calc(var(--lv2-narrative-cover-svh) * 1svh);
+  height: calc(var(--lv2-narrative-cover-svh) * 1dvh);
+  pointer-events: none;
 }
 
 .track[data-problem-theater='static'] {

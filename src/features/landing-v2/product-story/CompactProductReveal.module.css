@@ -1,4 +1,4 @@
-/* Compact Product — stable tablet under Problem narrative clear. */
+/* Compact Product — stable tablet under Founder-style black document cover. */
 
 .track {
   --lv2-hero-paper: var(--paper, #f3efe8);
@@ -7,10 +7,10 @@
   position: relative;
   width: 100%;
   /*
-   * Overlap Problem Story so the narrative clear already sits above this tablet.
-   * Shorter runway: reveal + short hold + lifecycle exit budget.
+   * Overlap Problem cover-hold (100svh) like Founder over Import.
+   * Black narrative exits by native document scroll (sticky unpin) — no curtain.
    */
-  margin-top: calc(var(--lv2-nav-h) - 170svh);
+  margin-top: calc(var(--lv2-nav-h) - 100svh);
   height: calc(200svh + 90svh);
   background: transparent;
   color: #1a1614;

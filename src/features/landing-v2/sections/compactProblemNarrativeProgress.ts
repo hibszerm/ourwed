@@ -1,8 +1,20 @@
 /**
- * Compact Problem Story — stacked statement narrative (Iteration 3B).
+ * Compact Problem Story — Iteration 3C pixel-coupled narrative geometry.
  *
- * Scroll progress is LINEAR (Founder cover-style 1:1 finger coupling).
- * Only translateY + opacity. No timers. Fully reversible.
+ * BEFORE (3B) on ~874× CSS viewport:
+ *   incoming travel ≈ 367px over ≈ 97px scroll → ratio ≈ 3.80 (FAILED)
+ *   outgoing stayed opacity 1 until incoming was ~31px from center (COLLISION)
+ *   black exit = sticky opacity fade (NOT document 1:1)
+ *
+ * AFTER (3C):
+ *   incoming travelPx / scrollPx = 1.0 (hard invariant)
+ *   outgoing fades + drifts before occupancy overlap
+ *   black cover exit = sticky unpin / normal document scroll (Founder pattern)
+ *
+ * CSS scroll-timeline NOT used as the motion source of truth: sticky reading
+ * viewport + dual-layer spatial handoff + Founder document cover are expressed
+ * more reliably as scroll-position → translate3d/opacity with ratio 1.0.
+ * Safari 26+ supports animation-timeline, but we avoid a second parallel engine.
  */
 
 import { PROBLEM_STORY_SCENES } from '@/features/landing-v2/sections/problemStoryCopy'
@@ -15,32 +27,42 @@ export const COMPACT_NARRATIVE_STATEMENTS = PROBLEM_STORY_SCENES.map((s) => ({
 export const COMPACT_NARRATIVE_STATEMENT_COUNT =
   COMPACT_NARRATIVE_STATEMENTS.length
 
-/** Equal scroll weight per statement handoff+hold. */
-export const COMPACT_NARRATIVE_STATEMENT_WEIGHT = 1
+/** Incoming main travel motion ratio (element_px / scroll_px). */
+export const COMPACT_NARRATIVE_INCOMING_RATIO = 1
+
+/** Outgoing drifts upward slower so layers separate spatially. */
+export const COMPACT_NARRATIVE_OUTGOING_RATIO = 0.38
 
 /**
- * Clear / Product handoff weight after the last statement.
- * Shorter than a full statement beat — Founder-like cover release.
+ * Outgoing opacity reaches ≤0.15 by this fraction of incoming travel.
+ * Ensures collision invariant before texts occupy the same zone.
  */
-export const COMPACT_NARRATIVE_CLEAR_WEIGHT = 0.9
+export const COMPACT_NARRATIVE_OUTGOING_FADE_DONE = 0.62
 
-/** Incoming travel occupies this fraction of each statement slot. */
-export const COMPACT_NARRATIVE_ARRIVE_FRACTION = 0.7
+/** Modeled primary text occupancy height (px) for collision tests. */
+export const COMPACT_NARRATIVE_TEXT_OCCUPANCY_PX = 140
 
-/**
- * Previous statement begins fading once incoming local exceeds this
- * (final arrival band).
- */
-export const COMPACT_NARRATIVE_OUTGOING_FADE_START = 0.55
+/** Cover hold after last statement — Founder-like 1:1 document reveal runway (svh). */
+export const COMPACT_NARRATIVE_COVER_HOLD_SVH = 100
 
-/** First statement settle travel as a fraction of enterY (not a full fly-in). */
-export const COMPACT_NARRATIVE_FIRST_Y_FRACTION = 0.14
+export type CompactNarrativeGeometry = {
+  navH: number
+  viewportH: number
+  stickyH: number
+  /** Incoming start offset below reading position (px). */
+  travelPx: number
+  /** Calm hold after arrival (px) — separate from travel. */
+  holdPx: number
+  /** First statement opacity settle scroll (px). */
+  introPx: number
+  /** Estimated statement text block height for collision model. */
+  textOccupancyPx: number
+}
 
 export type CompactStatementVisual = {
   opacity: number
-  /** 0 = reading position; 1 = one enterY below. */
-  yUnit: number
-  /** True when opacity/y need compositor work. */
+  /** translateY in CSS px (0 = reading position). */
+  y: number
   active: boolean
 }
 
@@ -48,149 +70,260 @@ function clamp01(t: number): number {
   return Math.min(1, Math.max(0, t))
 }
 
-function linear(t: number, a: number, b: number): number {
-  return clamp01((t - a) / Math.max(1e-6, b - a))
+/**
+ * Derive physical geometry from viewport — travel distance IS the scroll slot.
+ * travelPx ≈ 42% of sticky height → start below fold, land slightly above center.
+ */
+export function compactNarrativeGeometry(
+  viewportH: number,
+  navH = 68,
+): CompactNarrativeGeometry {
+  const stickyH = Math.max(320, viewportH - navH)
+  const travelPx = Math.round(stickyH * 0.42)
+  const holdPx = Math.round(stickyH * 0.22)
+  const introPx = Math.round(Math.min(56, stickyH * 0.07))
+  return {
+    navH,
+    viewportH,
+    stickyH,
+    travelPx,
+    holdPx,
+    introPx,
+    textOccupancyPx: COMPACT_NARRATIVE_TEXT_OCCUPANCY_PX,
+  }
 }
 
-export function compactNarrativeTotalWeight(
-  count = COMPACT_NARRATIVE_STATEMENT_COUNT,
-  clearWeight = COMPACT_NARRATIVE_CLEAR_WEIGHT,
-): number {
-  return count * COMPACT_NARRATIVE_STATEMENT_WEIGHT + clearWeight
-}
-
-export function compactNarrativeSlotStart(
-  index: number,
-  count = COMPACT_NARRATIVE_STATEMENT_COUNT,
-  clearWeight = COMPACT_NARRATIVE_CLEAR_WEIGHT,
-): number {
-  return (index * COMPACT_NARRATIVE_STATEMENT_WEIGHT) / compactNarrativeTotalWeight(count, clearWeight)
-}
-
-export function compactNarrativeSlotEnd(
-  index: number,
-  count = COMPACT_NARRATIVE_STATEMENT_COUNT,
-  clearWeight = COMPACT_NARRATIVE_CLEAR_WEIGHT,
-): number {
-  return (
-    ((index + 1) * COMPACT_NARRATIVE_STATEMENT_WEIGHT) /
-    compactNarrativeTotalWeight(count, clearWeight)
-  )
-}
-
-export function compactNarrativeClearStart(
-  count = COMPACT_NARRATIVE_STATEMENT_COUNT,
-  clearWeight = COMPACT_NARRATIVE_CLEAR_WEIGHT,
-): number {
-  return (
-    (count * COMPACT_NARRATIVE_STATEMENT_WEIGHT) /
-    compactNarrativeTotalWeight(count, clearWeight)
-  )
-}
-
-/** Linear Product handoff during the clear tail — no easeOut acceleration. */
-export function compactNarrativeHandoffT(
-  p: number,
-  count = COMPACT_NARRATIVE_STATEMENT_COUNT,
-  clearWeight = COMPACT_NARRATIVE_CLEAR_WEIGHT,
-): number {
-  return linear(p, compactNarrativeClearStart(count, clearWeight), 1)
+/** Scroll budget before statement 0 is fully settled (intro only). */
+export function compactNarrativeIntroScroll(g: CompactNarrativeGeometry): number {
+  return g.introPx
 }
 
 /**
- * Sticky stage opacity during clear — fades so the stable Product tablet shows.
- * Linear with handoff (Founder cover release feel).
+ * Scroll distance for statement index handoff (index ≥ 1 arrives).
+ * = travel (1:1) + hold. Never squeeze travel into a shorter segment.
  */
-export function compactNarrativeStageOpacity(handoffT: number): number {
-  return 1 - clamp01(handoffT)
+export function compactNarrativeTransitionScroll(
+  g: CompactNarrativeGeometry,
+): number {
+  return g.travelPx + g.holdPx
 }
 
-export function statementVisualAt(
-  p: number,
+/**
+ * Absolute scroll offsets (px into sticky travel) for each statement's arrival window.
+ * Statement 0: [0, intro]
+ * Statement i (i≥1): arrives during travel of its transition slot.
+ */
+export function compactNarrativeSlotOffsets(g: CompactNarrativeGeometry): {
+  /** ScrollY-into-track where statement i begins arriving (or intro for 0). */
+  arriveStart: number[]
+  /** Scroll where statement i reaches reading position. */
+  arriveEnd: number[]
+  /** Scroll where statement i's hold ends / next begins. */
+  holdEnd: number[]
+  /** Total sticky scrub budget before cover hold. */
+  scrubBudget: number
+} {
+  const arriveStart: number[] = []
+  const arriveEnd: number[] = []
+  const holdEnd: number[] = []
+  let cursor = 0
+
+  arriveStart[0] = 0
+  arriveEnd[0] = g.introPx
+  holdEnd[0] = g.introPx + g.holdPx
+  cursor = holdEnd[0]
+
+  for (let i = 1; i < COMPACT_NARRATIVE_STATEMENT_COUNT; i++) {
+    arriveStart[i] = cursor
+    arriveEnd[i] = cursor + g.travelPx
+    holdEnd[i] = arriveEnd[i] + g.holdPx
+    cursor = holdEnd[i]
+  }
+
+  return {
+    arriveStart,
+    arriveEnd,
+    holdEnd,
+    scrubBudget: cursor,
+  }
+}
+
+/** Total track height extras: cover hold in CSS px for a given svh size. */
+export function compactNarrativeCoverHoldPx(
+  viewportH: number,
+  coverSvh = COMPACT_NARRATIVE_COVER_HOLD_SVH,
+): number {
+  return Math.round((coverSvh / 100) * viewportH)
+}
+
+/**
+ * Pixel-coupled statement visual from absolute scroll-into-scrub (px).
+ * scrollIntoScrub is how far we've scrolled through the sticky scrub budget.
+ */
+export function statementVisualAtScroll(
+  scrollIntoScrub: number,
   index: number,
-  count = COMPACT_NARRATIVE_STATEMENT_COUNT,
-  clearWeight = COMPACT_NARRATIVE_CLEAR_WEIGHT,
+  g: CompactNarrativeGeometry,
 ): CompactStatementVisual {
-  const slotStart = compactNarrativeSlotStart(index, count, clearWeight)
-  const slotEnd = compactNarrativeSlotEnd(index, count, clearWeight)
-  const arriveEnd =
-    slotStart + (slotEnd - slotStart) * COMPACT_NARRATIVE_ARRIVE_FRACTION
-  const incoming = linear(p, slotStart, arriveEnd)
+  const slots = compactNarrativeSlotOffsets(g)
+  const s = Math.max(0, scrollIntoScrub)
 
-  let opacity = 0
-  let yUnit = index === 0 ? COMPACT_NARRATIVE_FIRST_Y_FRACTION : 1
-
-  if (p < slotStart) {
-    return {
-      opacity: 0,
-      yUnit,
-      active: false,
-    }
-  }
-
+  /* ——— Statement 0: gentle opacity settle, tiny Y ——— */
   if (index === 0) {
-    /* Gentle appear near the reading position — no aggressive fly-in. */
-    yUnit = (1 - incoming) * COMPACT_NARRATIVE_FIRST_Y_FRACTION
-    opacity = incoming
-  } else if (incoming <= 0.6) {
-    const travel = incoming / 0.6
-    yUnit = 1 - travel
-    opacity = Math.min(1, travel * 1.2)
-  } else {
-    yUnit = 0
-    opacity = 1
+    if (s < slots.arriveStart[0]!) {
+      return { opacity: 0, y: Math.round(g.travelPx * 0.08), active: false }
+    }
+    if (s < slots.arriveEnd[0]!) {
+      const t = (s - slots.arriveStart[0]!) / Math.max(1, g.introPx)
+      return {
+        opacity: clamp01(t),
+        y: Math.round((1 - t) * g.travelPx * 0.08),
+        active: true,
+      }
+    }
+    /* Hold — until next transition starts driving outgoing */
+    if (s < slots.arriveStart[1]!) {
+      return { opacity: 1, y: 0, active: true }
+    }
+    /* Outgoing during statement 1 arrival */
+    return outgoingDuringIncoming(s, 1, g, slots)
   }
 
-  if (p >= arriveEnd) {
-    opacity = 1
-    yUnit = 0
+  /* ——— Statement i ≥ 1 ——— */
+  const start = slots.arriveStart[index]!
+  const end = slots.arriveEnd[index]!
+
+  if (s < start) {
+    return { opacity: 0, y: g.travelPx, active: false }
   }
 
-  /* Outgoing fade while the next statement finishes arriving. */
-  if (index < count - 1) {
-    const nextStart = slotEnd
-    const nextEnd = compactNarrativeSlotEnd(index + 1, count, clearWeight)
-    const nextArriveEnd =
-      nextStart + (nextEnd - nextStart) * COMPACT_NARRATIVE_ARRIVE_FRACTION
-    const nextIncoming = linear(p, nextStart, nextArriveEnd)
-    if (nextIncoming >= COMPACT_NARRATIVE_OUTGOING_FADE_START) {
-      const fade = linear(
-        nextIncoming,
-        COMPACT_NARRATIVE_OUTGOING_FADE_START,
-        1,
-      )
-      opacity *= 1 - fade
-      yUnit -= fade * 0.06
-    } else if (p >= nextStart) {
-      /* Next is traveling; keep this statement fully readable until fade band. */
-      opacity = 1
-      yUnit = 0
+  if (s < end) {
+    const scrolled = s - start
+    /* Pixel coupling: 1 scroll px → 1 translate px */
+    const y = Math.max(0, g.travelPx - scrolled * COMPACT_NARRATIVE_INCOMING_RATIO)
+    return {
+      opacity: 1,
+      y: Math.round(y),
+      active: true,
     }
   }
 
-  /* Last statement clears linearly into Product. */
-  if (index === count - 1) {
-    const clearT = compactNarrativeHandoffT(p, count, clearWeight)
-    if (clearT > 0) {
-      opacity *= 1 - clearT
-      yUnit -= clearT * 0.1
-    }
+  /* Arrived — hold until next starts */
+  const nextStart =
+    index + 1 < COMPACT_NARRATIVE_STATEMENT_COUNT
+      ? slots.arriveStart[index + 1]!
+      : slots.scrubBudget + 1
+
+  if (s < nextStart) {
+    return { opacity: 1, y: 0, active: true }
   }
 
-  opacity = clamp01(opacity)
-  const active = opacity > 0.008 || (yUnit > 0.01 && opacity > 0)
-  return { opacity, yUnit, active }
+  /* Outgoing while next arrives */
+  if (index + 1 < COMPACT_NARRATIVE_STATEMENT_COUNT) {
+    return outgoingDuringIncoming(s, index + 1, g, slots)
+  }
+
+  /* Last statement holds through scrub end (cover is document, not transform) */
+  return { opacity: 1, y: 0, active: s <= slots.scrubBudget + 1 }
 }
 
-/** Indices that may need transform/opacity work (max two). */
-export function activeStatementIndices(
-  p: number,
-  count = COMPACT_NARRATIVE_STATEMENT_COUNT,
-  clearWeight = COMPACT_NARRATIVE_CLEAR_WEIGHT,
+function outgoingDuringIncoming(
+  s: number,
+  incomingIndex: number,
+  g: CompactNarrativeGeometry,
+  slots: ReturnType<typeof compactNarrativeSlotOffsets>,
+): CompactStatementVisual {
+  const start = slots.arriveStart[incomingIndex]!
+  const scrolled = Math.min(g.travelPx, Math.max(0, s - start))
+  const travelT = scrolled / Math.max(1, g.travelPx)
+
+  const y = Math.round(-scrolled * COMPACT_NARRATIVE_OUTGOING_RATIO)
+  const fadeT = clamp01(travelT / COMPACT_NARRATIVE_OUTGOING_FADE_DONE)
+  const opacity = clamp01(1 - fadeT)
+
+  return {
+    opacity,
+    y,
+    active: opacity > 0.01 || Math.abs(y) > 0.5,
+  }
+}
+
+/**
+ * Collision model: when incoming top enters outgoing occupancy zone,
+ * outgoing opacity must be ≤ 0.15.
+ *
+ * Occupancy zone modeled as ±textOccupancyPx/2 around reading y=0.
+ * Incoming top ≈ incoming.y - textOccupancyPx/2.
+ * Overlap begins when incoming.y - textH/2 <= textH/2
+ *   ⇒ incoming.y <= textOccupancyPx
+ */
+export function collisionInvariantHolds(
+  g: CompactNarrativeGeometry,
+  incomingIndex: number,
+): { ok: boolean; atIncomingY: number; outgoingOpacity: number } {
+  const slots = compactNarrativeSlotOffsets(g)
+  const start = slots.arriveStart[incomingIndex]!
+  /* First scroll position where incoming.y <= textOccupancyPx */
+  const scrolledWhenEnterZone = Math.max(0, g.travelPx - g.textOccupancyPx)
+  const s = start + scrolledWhenEnterZone
+  const outgoing = statementVisualAtScroll(s, incomingIndex - 1, g)
+  const incoming = statementVisualAtScroll(s, incomingIndex, g)
+  return {
+    ok: outgoing.opacity <= 0.15 + 1e-6,
+    atIncomingY: incoming.y,
+    outgoingOpacity: outgoing.opacity,
+  }
+}
+
+/** Active pair indices (max 2). */
+export function activeStatementIndicesAtScroll(
+  scrollIntoScrub: number,
+  g: CompactNarrativeGeometry,
 ): number[] {
   const out: number[] = []
-  for (let i = 0; i < count; i++) {
-    if (statementVisualAt(p, i, count, clearWeight).active) out.push(i)
+  for (let i = 0; i < COMPACT_NARRATIVE_STATEMENT_COUNT; i++) {
+    if (statementVisualAtScroll(scrollIntoScrub, i, g).active) out.push(i)
   }
   return out.slice(0, 2)
+}
+
+/**
+ * Product handoff from sticky unpin geometry (Founder-like).
+ * stickyTop == navH → 0 (still covering)
+ * stickyTop == navH - stickyH → 1 (fully scrolled away)
+ */
+export function compactNarrativeCoverHandoffT(
+  stickyTop: number,
+  navH: number,
+  stickyH: number,
+): number {
+  if (stickyTop > navH + 0.5) return 0
+  const left = navH - stickyTop
+  return clamp01(left / Math.max(1, stickyH))
+}
+
+/**
+ * For tests: element displacement / scroll displacement during incoming travel.
+ * Must be ≈ 1.0 for index ≥ 1.
+ */
+export function incomingMotionRatio(
+  g: CompactNarrativeGeometry,
+  sampleScrollPx = 100,
+): number {
+  const travel = Math.min(sampleScrollPx, g.travelPx)
+  if (travel <= 0) return 1
+  const slots = compactNarrativeSlotOffsets(g)
+  const start = slots.arriveStart[1]!
+  const a = statementVisualAtScroll(start, 1, g)
+  const b = statementVisualAtScroll(start + travel, 1, g)
+  const elementDelta = a.y - b.y
+  return elementDelta / travel
+}
+
+/**
+ * Black cover: once unpinned, sticky moves with document → ratio 1.0.
+ * This helper documents the expected relationship for tests.
+ */
+export function blackCoverDisplacementRatio(): number {
+  return 1
 }
