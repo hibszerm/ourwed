@@ -4,13 +4,12 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.18rem;
+  gap: 2px;
   box-sizing: border-box;
-  min-width: 2rem;
+  /* Auto width so horizontal padding is real breathing, not clipped by flex overflow. */
   width: max-content;
-  max-width: 2.375rem;
-  height: 1.875rem;
-  padding: 0 0.32rem;
+  height: 1.75rem; /* 28px */
+  padding: 0.1875rem 0.25rem; /* ~3px 4px */
   border-radius: 7px;
   border: 1px solid color-mix(in srgb, #1a1614 10%, transparent);
   background: color-mix(in srgb, #1a1614 6%, #ffffff);
@@ -19,18 +18,23 @@
 }
 
 .icon {
-  width: 0.875rem;
-  height: 0.875rem;
-  flex-shrink: 0;
+  width: 0.6875rem; /* 11px */
+  height: 0.6875rem;
+  flex: 0 0 auto;
 }
 
 .label {
   display: inline-block;
   margin: 0;
-  font-size: 0.5625rem;
+  /* Cancel trailing letter-spacing so the final glyph does not inflate width. */
+  margin-right: -0.03em;
+  padding: 0;
+  border: 0;
+  font-size: 0.46875rem; /* 7.5px */
   font-weight: 600;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.03em;
   text-transform: uppercase;
   line-height: 1;
   color: inherit;
+  flex: 0 0 auto;
 }
