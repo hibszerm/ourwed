@@ -40,7 +40,7 @@ export function ResetPasswordForm() {
   }
 
   return (
-    <form className={styles.form} onSubmit={handleSubmit(onSubmit)} noValidate>
+    <form className={`${styles.form} ${styles.authFields}`} onSubmit={handleSubmit(onSubmit)} noValidate>
       <Input
         id="reset-password"
         label="Nowe hasło"
@@ -69,7 +69,7 @@ export function ResetPasswordForm() {
       <Button
         type="submit"
         variant="primary"
-        className={styles.submit}
+        className={`${styles.submit} ${styles.submitPrimary}`}
         disabled={isSubmitting}
       >
         {isSubmitting ? 'Zapisywanie…' : 'Ustaw nowe hasło'}

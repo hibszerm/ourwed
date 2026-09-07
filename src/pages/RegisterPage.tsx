@@ -1,8 +1,9 @@
-import { Link, Navigate } from 'react-router-dom'
+import { Navigate } from 'react-router-dom'
 import { AuthShell } from '@/features/auth/components/AuthShell'
 import { AuthLoadingScreen } from '@/features/auth/components/AuthLoadingScreen'
 import { RegisterForm } from '@/features/auth/components/RegisterForm'
 import { useAuth } from '@/features/auth/AuthProvider'
+import shellStyles from '@/features/auth/components/AuthShell.module.css'
 
 export function RegisterPage() {
   const { isAuthenticated, isLoading } = useAuth()
@@ -12,12 +13,18 @@ export function RegisterPage() {
 
   return (
     <AuthShell
+      layout="split"
       wide
-      title="Utwórz konto"
-      subtitle="Załóż konto firmy i prowadź całą branżę ślubną w jednym miejscu."
-      footer={
+      eyebrow="DOŁĄCZ DO OURWED"
+      title={<span className={shellStyles.titleLine}>Stwórz swoje studio.</span>}
+      subtitle="Zacznij prowadzić zlecenia w jednym miejscu."
+      switchPrompt="Masz już konto?"
+      switchLabel="Zaloguj się"
+      switchTo="/login"
+      legal={
         <>
-          Masz już konto? <Link to="/login">Zaloguj się</Link>
+          Tworząc konto, akceptujesz nasz Regulamin
+          <br />i Politykę prywatności.
         </>
       }
     >

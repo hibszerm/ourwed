@@ -1,8 +1,9 @@
-import { Link, Navigate, useLocation } from 'react-router-dom'
+import { Navigate, useLocation } from 'react-router-dom'
 import { AuthShell } from '@/features/auth/components/AuthShell'
 import { AuthLoadingScreen } from '@/features/auth/components/AuthLoadingScreen'
 import { LoginForm } from '@/features/auth/components/LoginForm'
 import { useAuth } from '@/features/auth/AuthProvider'
+import shellStyles from '@/features/auth/components/AuthShell.module.css'
 import styles from '@/features/auth/components/AuthForms.module.css'
 
 export function LoginPage() {
@@ -22,11 +23,23 @@ export function LoginPage() {
 
   return (
     <AuthShell
-      title="Zaloguj się"
-      subtitle="Wejdź do konta, aby zarządzać projektami, ankietami i finansami."
-      footer={
+      layout="split"
+      align="optical"
+      eyebrow="WITAJ PONOWNIE"
+      title={
         <>
-          Nie masz konta? <Link to="/register">Utwórz konto</Link>
+          <span className={shellStyles.titleLine}>Zaloguj się</span>
+          <span className={shellStyles.titleLine}>do swojego studia.</span>
+        </>
+      }
+      subtitle="Wróć do swoich zleceń, klientów i planu pracy."
+      switchPrompt="Nie masz konta?"
+      switchLabel="Załóż konto"
+      switchTo="/register"
+      legal={
+        <>
+          Logując się, akceptujesz nasz Regulamin
+          <br />i Politykę prywatności.
         </>
       }
     >

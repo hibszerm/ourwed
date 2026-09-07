@@ -57,44 +57,57 @@ export function LoginForm({ onSuccess, onForgotPassword }: LoginFormProps = {}) 
   }
 
   return (
-    <form className={styles.form} onSubmit={handleSubmit(onSubmit)} noValidate>
+    <form
+      className={`${styles.form} ${styles.authFields}`}
+      onSubmit={handleSubmit(onSubmit)}
+      noValidate
+      data-auth-form="login"
+    >
       <Input
         id="login-email"
-        label="E-mail"
+        label="Adres e-mail"
         type="email"
         autoComplete="email"
         disabled={isSubmitting}
         error={errors.email?.message}
         {...register('email')}
       />
-      <Input
-        id="login-password"
-        label="Hasło"
-        type="password"
-        autoComplete="current-password"
-        disabled={isSubmitting}
-        error={errors.password?.message}
-        {...register('password')}
-      />
+
+      <div className={styles.passwordBlock}>
+        <div className={styles.passwordLabelRow}>
+          <label className={styles.passwordLabel} htmlFor="login-password">
+            Hasło
+          </label>
+          {onForgotPassword ? (
+            <button
+              type="button"
+              className={styles.linkButton}
+              onClick={onForgotPassword}
+            >
+              Nie pamiętasz hasła?
+            </button>
+          ) : (
+            <Link to="/forgot-password" className={styles.link}>
+              Nie pamiętasz hasła?
+            </Link>
+          )}
+        </div>
+        <Input
+          id="login-password"
+          type="password"
+          autoComplete="current-password"
+          disabled={isSubmitting}
+          error={errors.password?.message}
+          aria-label="Hasło"
+          {...register('password')}
+        />
+      </div>
 
       <div className={styles.metaRow}>
         <label className={styles.checkbox}>
           <input type="checkbox" disabled={isSubmitting} {...register('rememberMe')} />
-          Zapamiętaj mnie
+          Zapamiętaj mnie na tym urządzeniu
         </label>
-        {onForgotPassword ? (
-          <button
-            type="button"
-            className={styles.linkButton}
-            onClick={onForgotPassword}
-          >
-            Nie pamiętam hasła
-          </button>
-        ) : (
-          <Link to="/forgot-password" className={styles.link}>
-            Nie pamiętam hasła
-          </Link>
-        )}
       </div>
 
       {formError ? (
@@ -106,7 +119,7 @@ export function LoginForm({ onSuccess, onForgotPassword }: LoginFormProps = {}) 
       <Button
         type="submit"
         variant="primary"
-        className={styles.submit}
+        className={`${styles.submit} ${styles.submitPrimary}`}
         disabled={isSubmitting}
       >
         {isSubmitting ? 'Logowanie…' : 'Zaloguj się'}

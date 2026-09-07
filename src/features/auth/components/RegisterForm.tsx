@@ -91,7 +91,12 @@ export function RegisterForm({
   }
 
   return (
-    <form className={styles.form} onSubmit={handleSubmit(onSubmit)} noValidate>
+    <form
+      className={`${styles.form} ${styles.authFields}`}
+      onSubmit={handleSubmit(onSubmit)}
+      noValidate
+      data-auth-form="register"
+    >
       <div className={styles.row}>
         <Input
           id="register-first-name"
@@ -113,7 +118,7 @@ export function RegisterForm({
 
       <Input
         id="register-email"
-        label="E-mail"
+        label="Adres e-mail"
         type="email"
         autoComplete="email"
         disabled={isSubmitting}
@@ -131,7 +136,7 @@ export function RegisterForm({
           error={errors.password?.message}
           {...register('password')}
         />
-        <div style={{ marginTop: 8 }}>
+        <div className={styles.hintWrap}>
           <PasswordHints password={password} />
         </div>
       </div>
@@ -187,7 +192,7 @@ export function RegisterForm({
       <Button
         type="submit"
         variant="primary"
-        className={styles.submit}
+        className={`${styles.submit} ${styles.submitPrimary}`}
         disabled={isSubmitting}
       >
         {isSubmitting ? 'Tworzenie konta…' : 'Utwórz konto'}

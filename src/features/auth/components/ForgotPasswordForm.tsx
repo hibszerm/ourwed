@@ -38,7 +38,7 @@ export function ForgotPasswordForm({
   }
 
   return (
-    <form className={styles.form} onSubmit={handleSubmit(onSubmit)} noValidate>
+    <form className={`${styles.form} ${styles.authFields}`} onSubmit={handleSubmit(onSubmit)} noValidate>
       <Input
         id="forgot-email"
         label="E-mail"
@@ -58,7 +58,7 @@ export function ForgotPasswordForm({
       <Button
         type="submit"
         variant="primary"
-        className={styles.submit}
+        className={`${styles.submit} ${styles.submitPrimary}`}
         disabled={isSubmitting}
       >
         {isSubmitting ? 'Wysyłanie…' : 'Wyślij link resetujący'}

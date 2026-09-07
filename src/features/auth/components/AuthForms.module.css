@@ -1,14 +1,60 @@
+/* Auth form presentation — does not alter validation or submit handlers. */
+
 .form {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: 1.1rem;
 }
 
 .row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: var(--space-3);
+  gap: 0.75rem;
   min-width: 0;
+}
+
+/* Auth-local field skin — targets native controls without editing global Input CSS. */
+.authFields :global(input:not([type='checkbox']):not([type='radio'])),
+.authFields :global(select),
+.authFields :global(textarea) {
+  min-height: 3.125rem;
+  border-radius: 0.5rem;
+  border-color: color-mix(in srgb, #141210 14%, transparent);
+  background: #faf7f2;
+  box-shadow: none;
+  font-size: 1rem;
+}
+
+.authFields :global(input:not([type='checkbox']):not([type='radio']):focus),
+.authFields :global(select:focus),
+.authFields :global(textarea:focus) {
+  outline: none;
+  border-color: color-mix(in srgb, #141210 42%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, #141210 8%, transparent);
+}
+
+.authFields :global(label) {
+  gap: 0.4rem;
+}
+
+.passwordBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.passwordLabelRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.passwordLabel {
+  font-size: var(--type-label-size, 0.8125rem);
+  font-weight: 550;
+  color: var(--color-text-primary, #141210);
 }
 
 .formError {
@@ -33,13 +79,28 @@
 
 .submit {
   width: 100%;
-  margin-top: var(--space-2);
+  margin-top: 0.35rem;
+}
+
+.submitPrimary {
+  min-height: 3.125rem;
+  border-radius: 0.5rem;
+  background: #1a1814 !important;
+  border-color: #1a1814 !important;
+  color: #f7f3ec !important;
+  font-weight: 560;
+  letter-spacing: -0.01em;
+}
+
+.submitPrimary:hover:not(:disabled) {
+  background: #0f0e0c !important;
+  border-color: #0f0e0c !important;
 }
 
 .metaRow {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: var(--space-3);
   flex-wrap: wrap;
 }
@@ -49,7 +110,7 @@
   align-items: flex-start;
   gap: var(--space-2);
   font-size: var(--text-sm);
-  color: var(--color-text-secondary);
+  color: color-mix(in srgb, #141210 62%, transparent);
   line-height: 1.4;
   cursor: pointer;
 }
@@ -58,7 +119,7 @@
   margin-top: 2px;
   width: 16px;
   height: 16px;
-  accent-color: var(--color-accent);
+  accent-color: #1a1814;
   flex-shrink: 0;
 }
 
@@ -67,10 +128,11 @@
 }
 
 .link {
-  font-size: var(--text-sm);
-  color: var(--color-text-primary);
+  font-size: 0.8125rem;
+  color: #141210;
   font-weight: 500;
   text-decoration: none;
+  white-space: nowrap;
 }
 
 .link:hover {
@@ -82,15 +144,20 @@
   background: none;
   padding: 0;
   font: inherit;
-  font-size: var(--text-sm);
-  color: var(--color-text-primary);
+  font-size: 0.8125rem;
+  color: #141210;
   font-weight: 500;
   cursor: pointer;
   text-decoration: none;
+  white-space: nowrap;
 }
 
 .linkButton:hover {
   opacity: 0.65;
+}
+
+.hintWrap {
+  margin-top: 0.5rem;
 }
 
 .hintList {
@@ -148,5 +215,12 @@
 @media (max-width: 480px) {
   .row {
     grid-template-columns: 1fr;
+  }
+
+  .authFields :global(input:not([type='checkbox']):not([type='radio'])),
+  .authFields :global(select),
+  .authFields :global(textarea) {
+    font-size: 1rem;
+    min-height: max(2.75rem, var(--touch-target, 44px));
   }
 }
