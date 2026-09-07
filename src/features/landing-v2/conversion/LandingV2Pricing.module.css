@@ -358,8 +358,13 @@
 }
 
 @media (max-width: 900px) {
+  /*
+   * Compact intro → trial: ~15–20% tighter than shared desktop margin
+   * (desktop keeps clamp(3rem, 4.5vw, 4.25rem) on .pricingComposition).
+   */
   .pricingComposition {
     max-width: 26rem;
+    margin-top: clamp(2.5rem, 3.7vw, 3.5rem); /* ~40–56 vs prior ~48–68 */
   }
 
   .trialBox {
@@ -367,7 +372,16 @@
     align-items: stretch;
     text-align: left;
     min-height: 0;
-    padding: 1.25rem 1.25rem;
+    gap: 1rem;
+    padding: 1.05rem 1.15rem; /* slightly lighter than paid plan cards */
+  }
+
+  .trialHeadline {
+    margin-top: 0.35rem;
+  }
+
+  .trialSupport {
+    margin-top: 0.28rem;
   }
 
   .trialCta {

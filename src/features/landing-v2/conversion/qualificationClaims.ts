@@ -42,7 +42,7 @@ export const LV2_QUALIFICATION_SIGNALS = [
 
 export const LV2_QUALIFICATION_AUDIENCE = {
   eyebrow: 'ZAPROJEKTOWANE DLA TWÓRCÓW ŚLUBNYCH',
-  labels: ['Fotografowie', 'Filmowcy', 'Duety foto + video', 'Twórcy ślubni'] as const,
+  labels: ['Fotografowie', 'Filmowcy', 'Duety foto + video', 'Content creator'] as const,
   support:
     'Niezależnie od tego, czy pracujesz sam czy w duecie — najważniejsze informacje o zleceniu powinny być w jednym miejscu.',
 } as const
