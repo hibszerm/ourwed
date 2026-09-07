@@ -1,16 +1,18 @@
-import { useEffect, useState } from 'react'
 import { useReducedMotion } from 'framer-motion'
 import { FounderQualification } from '@/features/landing-v2/conversion/FounderQualification'
 import { FounderStoryContent } from '@/features/landing-v2/mobile-story/FounderStoryContent'
+import { useLandingCompactViewport } from '@/features/landing-v2/motion/landingViewport'
 import editorial from './FounderStoryReveal.module.css'
 import styles from './LandingV2FounderStory.module.css'
 
 /**
  * Single Founder owner — normal document flow.
  *
- * Desktop: pulled up by one viewport over the Import sticky cover-hold runway
- * so browser scroll is the black-card entrance. Qualification continues on the
- * same black `.story` surface (no new black chapter / handoff).
+ * Desktop + compact (motion): pulled up by one viewport over the Import
+ * cover-hold runway so browser scroll is the black-card entrance.
+ * Qualification continues on the same black `.story` surface.
+ *
+ * PRM: static normal flow — no sticky cover overlap.
  *
  * Hash `#stworzone-przez` targets a zero-size marker on the black Founder surface
  * (not the overlap-leading section border), so sticky-nav landings show Founder
@@ -18,17 +20,7 @@ import styles from './LandingV2FounderStory.module.css'
  */
 export function LandingV2FounderStory() {
   const reduced = useReducedMotion()
-  const [compact, setCompact] = useState(false)
-
-  useEffect(() => {
-    const mq = window.matchMedia('(max-width: 1100px)')
-    const sync = () => setCompact(mq.matches)
-    sync()
-    mq.addEventListener('change', sync)
-    return () => mq.removeEventListener('change', sync)
-  }, [])
-
-  const simple = Boolean(reduced) || compact
+  const compact = useLandingCompactViewport()
 
   const hashAnchor = (
     <span
@@ -39,7 +31,8 @@ export function LandingV2FounderStory() {
     />
   )
 
-  if (simple) {
+  /* Reduced motion: no cover overlap — Import → Founder normal document flow. */
+  if (reduced) {
     return (
       <section
         className={`${editorial.story} ${styles.staticShell}`}
@@ -50,7 +43,7 @@ export function LandingV2FounderStory() {
         aria-labelledby="lv2-founder-opening-heading"
       >
         {hashAnchor}
-        <FounderStoryContent headingId="lv2-founder-opening-heading" compactFragments />
+        <FounderStoryContent headingId="lv2-founder-opening-heading" compactFragments={compact} />
         <FounderQualification />
       </section>
     )
@@ -60,14 +53,19 @@ export function LandingV2FounderStory() {
     <section
       className={editorial.story}
       data-testid="lv2-founder-story"
-      data-founder-theater="flow"
+      data-founder-theater={compact ? 'cover-flow' : 'flow'}
       data-founder-story=""
       data-founder-story-owner="single"
       data-founder-flow-surface=""
+      data-founder-compact={compact ? 'true' : 'false'}
       aria-labelledby="lv2-founder-opening-heading"
     >
       {hashAnchor}
-      <FounderStoryContent headingId="lv2-founder-opening-heading" />
+      <FounderStoryContent
+        headingId="lv2-founder-opening-heading"
+        compactFragments={compact}
+        localReveal={compact}
+      />
       <FounderQualification />
     </section>
   )

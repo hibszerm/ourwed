@@ -650,8 +650,13 @@ function walkTs(dir: string, out: string[] = []): string[] {
   )
   assertIncludes(
     founderGate,
-    'Boolean(reduced) || compact',
-    'Founder Story still compact∨reduced static (deferred)',
+    'if (reduced)',
+    'Founder Story PRM-only static shell (compact uses cover-flow)',
+  )
+  assertIncludes(
+    founderGate,
+    "data-founder-theater={compact ? 'cover-flow' : 'flow'}",
+    'compact Founder uses cover-flow theater',
   )
 
   const problem = read('src/features/landing-v2/sections/LandingV2ProblemStory.tsx')
@@ -7318,6 +7323,9 @@ await testPostBriefMorphMonotonicity()
     )
     assertIncludes(importFlow, 'data-season-import-theater="absorbed"', 'desktop import absorbed')
     assertIncludes(importFlow, 'data-season-import-flow="document"', 'compact import document flow')
+    assertIncludes(importFlow, 'data-season-import-cover="hold"', 'compact import cover-hold marker')
+    assertIncludes(importFlow, 'data-season-import-cover-sticky', 'compact import sticky final frame')
+    assertIncludes(importFlow, 'MOBILE_TRACK_IMPORT_COVER_HOLD_SVH', 'cover-hold uses shared constant')
     assertIncludes(importFlow, 'useLandingCompactViewport', 'import flow uses shared compact hook')
     assertIncludes(importFlow, 'whileInView', 'local intro/card reveals')
     assertIncludes(importFlow, 'FileSpreadsheet', 'intro spreadsheet icon')
@@ -7329,10 +7337,12 @@ await testPostBriefMorphMonotonicity()
     assertIncludes(importFlowCss, 'flex-direction: column', 'mobile cards stack vertically')
     assertIncludes(importFlowCss, 'calc(100vw - 2.25rem)', 'near full-width mobile cards')
     assertIncludes(importFlowCss, 'grid-template-columns: 1fr 1fr', 'ready-card 2-col meta preserved')
+    assertIncludes(importFlowCss, 'holdRunway', 'compact cover-hold runway')
+    assertIncludes(importFlowCss, 'position: sticky', 'compact final-frame sticky')
+    assertIncludes(importFlow, 'data-season-import-cover-runway', 'cover runway marker')
     assertNotIncludes(importFlowCss, 'overflow-y: auto', 'no nested card scroll')
-    assertNotIncludes(importFlowCss, 'position: sticky', 'no sticky import stage')
     assertNotIncludes(importFlowCss, 'position: fixed', 'no fixed import stage')
-    assertNotIncludes(importFlowCss, 'background: #1a1614', 'no solid black PDF placeholder')
+    assertNotIncludes(importFlowCss, '.pdfMark', 'legacy solid PDF mark removed from import CSS')
   }
   {
     const pdfBadge = read('src/features/landing-v2/mobile-story/SeasonImportPdfBadge.tsx')
@@ -8322,6 +8332,10 @@ async function testChapterHeroVerticalAlignment() {
   assertIncludes(founderFlow, 'FounderStoryContent', 'single Founder renders content')
   assertIncludes(founderFlow, 'FounderQualification', 'qualification continues same Founder surface')
   assertIncludes(founderFlow, 'data-founder-story-owner="single"', 'single owner marker')
+  assertIncludes(founderFlow, "data-founder-theater={compact ? 'cover-flow' : 'flow'}", 'compact cover-flow theater')
+  assertIncludes(founderFlow, 'localReveal={compact}', 'compact intro local reveal')
+  assertIncludes(founderFlow, 'data-founder-theater="static"', 'PRM static theater')
+  assertIncludes(founderContent, 'localReveal', 'Founder content accepts localReveal')
   assertIncludes(founderCss, '.story', 'single story surface')
   assertIncludes(founderCss, 'background: var(--founder-bg)', 'opaque black on Founder section')
   assertIncludes(founderCss, 'transform: none', 'no Founder transform layer')
@@ -8329,6 +8343,11 @@ async function testChapterHeroVerticalAlignment() {
   assertIncludes(founderCss, 'margin-top: calc(-100', 'structural overlap of Import cover-hold')
   assertIncludes(founderCss, 'z-index: 6', 'stable Founder stacking above Import sticky')
   assertNotIncludes(founderCss, '.plane', 'no cover plane surface')
+  assertIncludes(
+    read('src/features/landing-v2/mobile-story/LandingV2FounderStory.module.css'),
+    '.staticShell',
+    'PRM staticShell zeros cover margin',
+  )
   assertIncludes(pageSrc, 'LandingV2FounderStory', 'Founder mounted on page')
   assertIncludes(pageSrc, 'LandingV2Pricing', 'conversion pricing on page')
   assertNotIncludes(pageSrc, 'AssignmentOverviewSection', 'no post-founder feature stack')

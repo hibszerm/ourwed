@@ -1,11 +1,14 @@
 /**
  * Import sticky hold + single normal-flow Founder cover.
  *
- * After Season Import reaches its final sticky state, the mobile track keeps a
- * one-viewport hold so Import stays stationary while the ONE Founder section
- * (normal document flow, higher z-index) scrolls over it 1:1.
+ * After Season Import reaches its final state, a one-viewport hold keeps Import
+ * stationary while the ONE Founder section (normal document flow, higher z-index,
+ * margin-top: -100svh) scrolls over it 1:1.
  *
- * No Founder translateY cover. No dual paint owners. No handoff.
+ * Desktop: hold lives on the Mobile Story sticky track.
+ * Compact: hold lives on LandingV2SeasonImportStory coverTrack padding-bottom.
+ *
+ * No Founder translateY cover. No dual paint owners.
  */
 
 /** Sticky hold after Import final ≈ one viewport of cover runway (svh). */

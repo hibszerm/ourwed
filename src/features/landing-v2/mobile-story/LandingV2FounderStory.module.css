@@ -1,6 +1,6 @@
 /**
- * Compact/static shell overrides when Founder is not desktop cover-over-import.
- * Editorial tokens/layout come from FounderStoryReveal.module.css (.story).
+ * PRM-only shell: no negative margin cover overlap.
+ * Compact motion uses the shared `.story` cover-over-import margin.
  */
 .staticShell {
   margin-top: 0;
