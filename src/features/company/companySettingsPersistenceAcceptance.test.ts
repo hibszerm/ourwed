@@ -62,7 +62,10 @@ function stubCompany(overrides: Partial<CompanyDetails> = {}): CompanyDetails {
   }
 }
 
-const VISIBLE_FIELDS: (keyof UpsertCompanyDetailsInput)[] = ['companyName']
+const VISIBLE_FIELDS: (keyof UpsertCompanyDetailsInput)[] = [
+  'companyName',
+  'email',
+]
 
 const HIDDEN_FROM_AUTOSAVE: (keyof UpsertCompanyDetailsInput)[] = [
   'ownerName',
@@ -72,7 +75,6 @@ const HIDDEN_FROM_AUTOSAVE: (keyof UpsertCompanyDetailsInput)[] = [
   'postalCode',
   'city',
   'phone',
-  'email',
   'bankAccount',
   'logoPath',
   'signaturePath',

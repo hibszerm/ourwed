@@ -21,16 +21,20 @@ import {
   companyDetailsService,
 } from '@/lib/api/companyDetailsService'
 import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
+import { getStudioContactEmailError } from '@/features/company/studioContactEmail'
 import type { CompanyDetails, UpsertCompanyDetailsInput } from '@/types/company'
 
 interface FormState {
   companyName: string
+  /** Client-facing contact; maps to studio_details.email (never login email). */
+  contactEmail: string
 }
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 
 const emptyForm: FormState = {
   companyName: '',
+  contactEmail: '',
 }
 
 const AUTOSAVE_MS = 1000
@@ -38,6 +42,7 @@ const AUTOSAVE_MS = 1000
 function toForm(data: CompanyDetails | null | undefined): FormState {
   return {
     companyName: data?.companyName ?? '',
+    contactEmail: data?.email ?? '',
   }
 }
 
@@ -46,12 +51,13 @@ function serializeForm(form: FormState): string {
 }
 
 /**
- * V1 Studio Profile writes only the visible identity field.
+ * V1 Studio Profile writes visible identity fields only.
  * Hidden studio_details columns stay omitted so autosave cannot null them.
  */
 function formToUpsertInput(form: FormState): UpsertCompanyDetailsInput {
   return {
     companyName: form.companyName,
+    email: form.contactEmail,
   }
 }
 
@@ -77,6 +83,7 @@ export function CompanyDetailsPage() {
   const [dirty, setDirty] = useState(false)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [contactEmailError, setContactEmailError] = useState<string | null>(null)
 
   const formRef = useRef(form)
   const dirtyRef = useRef(false)
@@ -110,6 +117,7 @@ export function CompanyDetailsPage() {
       setDirty(false)
       setSaveStatus('idle')
       setSaveError(null)
+      setContactEmailError(null)
     }, 0)
     return () => window.clearTimeout(timer)
   }, [userId])
@@ -129,6 +137,7 @@ export function CompanyDetailsPage() {
       setForm(next)
       setDirty(false)
       dirtyRef.current = false
+      setContactEmailError(null)
       setSaveStatus((prev) => (prev === 'error' ? prev : 'idle'))
       setSaveError(null)
     }, 0)
@@ -143,7 +152,18 @@ export function CompanyDetailsPage() {
       dirtyRef.current = false
       if (mountedRef.current) {
         setDirty(false)
+        setContactEmailError(null)
         if (reason === 'retry') setSaveStatus('saved')
+      }
+      return
+    }
+
+    const emailError = getStudioContactEmailError(snapshot.contactEmail)
+    if (emailError) {
+      if (mountedRef.current) {
+        setContactEmailError(emailError)
+        setSaveStatus('idle')
+        setSaveError(null)
       }
       return
     }
@@ -153,6 +173,7 @@ export function CompanyDetailsPage() {
     if (mountedRef.current) {
       setSaveStatus('saving')
       setSaveError(null)
+      setContactEmailError(null)
     }
 
     try {
@@ -224,6 +245,7 @@ export function CompanyDetailsPage() {
       if (!dirtyRef.current || savingRef.current) return
       const snapshot = formRef.current
       if (serializeForm(snapshot) === lastSavedRef.current) return
+      if (getStudioContactEmailError(snapshot.contactEmail)) return
       void companyDetailsService
         .upsert(formToUpsertInput(snapshot))
         .then((saved) => {
@@ -241,6 +263,9 @@ export function CompanyDetailsPage() {
     dirtyRef.current = true
     setDirty(true)
     setSaveStatus('idle')
+    if (key === 'contactEmail') {
+      setContactEmailError(getStudioContactEmailError(value as string))
+    }
     setForm((prev) => ({ ...prev, [key]: value }))
   }
 
@@ -297,6 +322,24 @@ export function CompanyDetailsPage() {
               />
               <SettingsHelper>
                 Używana jako nazwa studia na wybranych ekranach dla klientów.
+              </SettingsHelper>
+              <Input
+                id="studio-contact-email"
+                label="E-mail kontaktowy"
+                type="email"
+                inputMode="email"
+                autoComplete="email"
+                value={form.contactEmail}
+                onChange={(event) =>
+                  setField('contactEmail', event.target.value)
+                }
+                error={contactEmailError ?? undefined}
+                aria-invalid={contactEmailError ? true : undefined}
+                disabled={isReadOnly}
+              />
+              <SettingsHelper>
+                Widoczny dla klientów m.in. w informacjach o przetwarzaniu danych
+                w publicznych ankietach.
               </SettingsHelper>
             </SettingsSection>
           </SettingsWorkspace>

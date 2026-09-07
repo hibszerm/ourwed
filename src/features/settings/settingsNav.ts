@@ -36,7 +36,7 @@ export const SETTINGS_NAV_GROUPS: readonly SettingsNavGroup[] = [
       {
         path: '/ustawienia/firma',
         label: 'Profil studia',
-        hint: 'Nazwa studia na ekranach dla klientów',
+        hint: 'Nazwa i e-mail kontaktowy dla klientów',
       },
       {
         path: '/ustawienia/podroz',

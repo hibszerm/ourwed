@@ -73,7 +73,7 @@ const publicForm = read('src/features/prewedding/PreWeddingPublicFormPage.tsx')
 const createFull = read('src/features/weddings/createFullWedding.ts')
 const quickPayload = read('src/features/weddings/buildNewWeddingCreatePayload.ts')
 
-const VISIBLE_LABELS = ['Nazwa studia'] as const
+const VISIBLE_LABELS = ['Nazwa studia', 'E-mail kontaktowy'] as const
 
 const HIDDEN_FROM_V1_UI = [
   'Właściciel / reprezentant',
@@ -84,7 +84,6 @@ const HIDDEN_FROM_V1_UI = [
   'Miasto',
   'Numer konta',
   'Telefon',
-  'E-mail',
   'VAT ID',
   'IBAN',
   'SWIFT',
@@ -105,7 +104,6 @@ const HIDDEN_PATCH_COLUMNS = [
   'bank_account',
   'iban',
   'phone',
-  'email',
   'logo_path',
   'signature_path',
   'stamp_path',
@@ -222,12 +220,19 @@ function readyWedding(overrides: Partial<Wedding> = {}): Wedding {
 run('C. Studio Profile only exposes the V1 field set', () => {
   assert(page.includes('title="Profil studia"'), 'page title')
   assert(page.includes('label="Nazwa studia"'), 'studio name control')
+  assert(page.includes('label="E-mail kontaktowy"'), 'contact email control')
+  assert(page.includes('type="email"'), 'contact email input type')
+  assert(
+    page.includes('Widoczny dla klientów m.in. w informacjach o przetwarzaniu'),
+    'contact email helper',
+  )
   for (const label of VISIBLE_LABELS) {
     assert(page.includes(label), label)
   }
   for (const label of HIDDEN_FROM_V1_UI) {
     assert(!page.includes(`label="${label}"`), `${label} hidden`)
   }
+  assert(!page.includes('label="E-mail"'), 'generic E-mail label not used')
   assert(!page.includes('CompanySignatureSection'), 'signature off default UI')
   assert(!page.includes('CompanyLogoSection'), 'logo off default UI')
   assert(!page.includes('Informacje o firmie'), 'no legal identity section')
@@ -235,7 +240,7 @@ run('C. Studio Profile only exposes the V1 field set', () => {
   assert(!page.includes('Logo i podpis'), 'no logo/signature section')
 })
 
-run('D. no NIP / REGON / bank / address / phone / email / signature completeness', () => {
+run('D. no NIP / REGON / bank / address / phone / signature completeness', () => {
   assert(!page.includes('buildCompanyHealth'), 'page does not use health')
   assert(!page.includes('SettingsHealthSummary'), 'no health summary')
   assert(!page.includes('Konfiguracja firmy'), 'no completeness title')
@@ -337,11 +342,14 @@ run('copy does not claim contracts / billing / invoices', () => {
   assert(!page.includes('rozliczeń'), 'no billing claim')
 })
 
-run('F. editing Studio Name preserves hidden legacy DB columns', () => {
-  const patch = buildStudioDetailsColumnPatch(nameOnlyUpsert())
+run('F. editing Studio Profile preserves remaining hidden legacy DB columns', () => {
+  const patch = buildStudioDetailsColumnPatch(
+    nameOnlyUpsert({ email: 'kontakt@studio.example' }),
+  )
   assertEq(patch.company_name, 'Studio Testowe', 'writes visible name')
+  assertEq(patch.email, 'kontakt@studio.example', 'writes contact email')
   for (const column of HIDDEN_PATCH_COLUMNS) {
-    assert(!(column in patch), `${column} not in name-only autosave patch`)
+    assert(!(column in patch), `${column} not in visible-field autosave patch`)
   }
 
   const upsertStart = page.indexOf('function formToUpsertInput')
@@ -350,6 +358,11 @@ run('F. editing Studio Name preserves hidden legacy DB columns', () => {
     page.indexOf('export function CompanyDetailsPage'),
   )
   assert(upsertBlock.includes('companyName:'), 'writes companyName')
+  assert(upsertBlock.includes('email:'), 'writes email')
+  assert(
+    upsertBlock.includes('email: form.contactEmail'),
+    'maps contactEmail → studio_details.email',
+  )
   for (const key of [
     'ownerName',
     'nip',
@@ -359,7 +372,6 @@ run('F. editing Studio Name preserves hidden legacy DB columns', () => {
     'bankAccount',
     'iban',
     'phone',
-    'email',
     'logoPath',
     'signaturePath',
     'stampPath',
@@ -371,6 +383,12 @@ run('F. editing Studio Name preserves hidden legacy DB columns', () => {
     assert(!upsertBlock.includes(`${key}:`), `form omits ${key}`)
   }
   assert(service.includes('if (input[key] !== undefined)'), 'defined-only patch')
+  assert(
+    page.includes("contactEmail: data?.email ?? ''"),
+    'loads studio_details.email into field',
+  )
+  assert(!page.includes('user?.email'), 'no auth email autofill')
+  assert(!page.includes('sessionEmail'), 'no session email autofill')
 })
 
 run('G. public pre-wedding studio name still comes from company_name', () => {
