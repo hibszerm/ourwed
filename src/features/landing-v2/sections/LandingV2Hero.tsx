@@ -16,6 +16,7 @@ import { applyHeroDemoThemeToElement } from '@/features/landing-v2/hero/heroDemo
 import { heroTheaterGeometry, compactHeroExitCoverScale } from '@/features/landing-v2/hero/heroTheaterGeometry'
 import { measureCanonicalDeviceFit } from '@/features/landing-v2/hero/landingTabletFit'
 import { useLandingCompactViewport } from '@/features/landing-v2/motion/landingViewport'
+import { useTheaterScrollGate } from '@/features/landing-v2/motion/useTheaterScrollGate'
 import styles from './LandingV2Hero.module.css'
 
 /**
@@ -48,6 +49,10 @@ export function LandingV2Hero() {
 
   /* Theater runs on compact; only accessibility reduces to static. */
   const skipTheater = isReducedMotion
+  const { activeRef, onBecameActiveRef } = useTheaterScrollGate(
+    trackRef,
+    !skipTheater,
+  )
 
   useEffect(() => {
     if (skipTheater) {
@@ -67,19 +72,22 @@ export function LandingV2Hero() {
     }
 
     const onScroll = () => {
+      if (!activeRef.current) return
       cancelAnimationFrame(raf)
       raf = requestAnimationFrame(measure)
     }
 
+    onBecameActiveRef.current = onScroll
     measure()
     window.addEventListener('scroll', onScroll, { passive: true })
     window.addEventListener('resize', onScroll)
     return () => {
+      onBecameActiveRef.current = null
       cancelAnimationFrame(raf)
       window.removeEventListener('scroll', onScroll)
       window.removeEventListener('resize', onScroll)
     }
-  }, [skipTheater, progress])
+  }, [skipTheater, progress, activeRef, onBecameActiveRef])
 
   /* Uniform outer scale — canonical tablet → fit sticky stage */
   useLayoutEffect(() => {

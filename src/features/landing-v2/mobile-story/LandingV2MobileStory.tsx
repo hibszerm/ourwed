@@ -1,4 +1,4 @@
-import { useEffect, useRef, type CSSProperties } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import {
   motion,
   motionValue,
@@ -69,6 +69,7 @@ import {
 import { dashboardMaxScrollMv } from '@/features/landing-v2/mobile-story/app/motion/mobileDashboardScrollGeometry'
 import { weddingDayMaxScrollMv } from '@/features/landing-v2/mobile-story/app/motion/mobileWeddingDayScrollGeometry'
 import { useLandingCompactViewport } from '@/features/landing-v2/motion/landingViewport'
+import { useTheaterScrollGate } from '@/features/landing-v2/motion/useTheaterScrollGate'
 import styles from './LandingV2MobileStory.module.css'
 
 const OWNED_EPS = 0.002
@@ -122,6 +123,10 @@ export function LandingV2MobileStory() {
 
   /* Theater on compact; only accessibility reduces to static. */
   const simple = Boolean(reduced)
+  const { activeRef, onBecameActiveRef } = useTheaterScrollGate(trackRef, !simple)
+  /** Defer live in-phone app DOM until the phone starts entering. */
+  const [phoneAppMounted, setPhoneAppMounted] = useState(false)
+  const phoneAppMountedRef = useRef(false)
 
   useEffect(() => {
     if (simple) {
@@ -361,6 +366,7 @@ export function LandingV2MobileStory() {
     }
 
     const onScroll = () => {
+      if (!activeRef.current) return
       cancelAnimationFrame(raf)
       raf = requestAnimationFrame(measure)
     }
@@ -384,20 +390,29 @@ export function LandingV2MobileStory() {
       if (applyTrackBudgets(dashboardMaxScrollMv.get(), Number(max))) onScroll()
     })
 
+    onBecameActiveRef.current = onScroll
     measure()
     window.addEventListener('scroll', onScroll, { passive: true })
-    document.addEventListener('scroll', onScroll, { passive: true, capture: true })
     window.addEventListener('resize', onResize)
     return () => {
+      onBecameActiveRef.current = null
       cancelAnimationFrame(raf)
       unsubDash()
       unsubDay()
       window.removeEventListener('scroll', onScroll)
-      document.removeEventListener('scroll', onScroll, true)
       window.removeEventListener('resize', onResize)
       clearMobileStoryProgress()
     }
-  }, [simple, progress, appProgress, postBriefProgress, studioProgress, importProgress])
+  }, [
+    simple,
+    progress,
+    appProgress,
+    postBriefProgress,
+    studioProgress,
+    importProgress,
+    activeRef,
+    onBecameActiveRef,
+  ])
 
   useMotionValueEvent(progress, 'change', (p) => {
     const sticky = stickyRef.current
@@ -407,12 +422,18 @@ export function LandingV2MobileStory() {
       'data-mobile-device-settled',
       phoneSettled(p) ? 'true' : 'false',
     )
+    if (!phoneAppMountedRef.current && phoneInT(p) > 0.02) {
+      phoneAppMountedRef.current = true
+      setPhoneAppMounted(true)
+    }
   })
 
   const phoneIn = useTransform(progress, (p) => phoneInT(p))
 
   const headlineLineOpacity = useTransform(progress, (p) => headlineCompositeOpacityAt(p))
   const headlineBlur = useTransform(progress, (p) => {
+    /* Compact / coarse phones: opacity+y only — filter blur is a known iOS cost. */
+    if (compactRef.current) return 'none'
     const b = Math.max(headlineEnterBlurPxAt(p), headlineExitBlurPxAt(p))
     return b < 0.08 ? 'blur(0px)' : `blur(${b.toFixed(2)}px)`
   })
@@ -573,7 +594,20 @@ export function LandingV2MobileStory() {
               style={{ opacity: phoneOpacity, visibility: phoneVisibility, scale: phoneScale, y: phoneY }}
             >
               <HeroPhoneFrame lockMorph={lockMorph}>
-                <MobileOurWedApp appProgress={appProgress} />
+                {phoneAppMounted ? (
+                  <MobileOurWedApp appProgress={appProgress} />
+                ) : (
+                  <div
+                    aria-hidden
+                    data-mobile-app-placeholder=""
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      background:
+                        'linear-gradient(180deg, #f7f4ef 0%, #efeae3 100%)',
+                    }}
+                  />
+                )}
               </HeroPhoneFrame>
             </motion.div>
           </div>

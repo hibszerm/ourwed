@@ -338,3 +338,10 @@
   transform: translateY(-10px);
   filter: blur(4px);
 }
+
+@media (max-width: 1100px) {
+  .panelLayer,
+  .panelLayer[data-visible='false'] {
+    filter: none;
+  }
+}

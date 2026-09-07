@@ -132,6 +132,15 @@
   }
 }
 
+/* Touch / phone: keep glass look without live backdrop blur under transforms. */
+@media (pointer: coarse) {
+  .bar {
+    --compact-glass-base: color-mix(in srgb, var(--ow-surface) 90%, transparent);
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+}
+
 @media (prefers-reduced-transparency: reduce) {
   .bar {
     --compact-glass-base: color-mix(in srgb, var(--ow-surface) 96%, transparent);

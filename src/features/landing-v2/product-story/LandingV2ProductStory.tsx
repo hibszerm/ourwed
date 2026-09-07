@@ -9,6 +9,7 @@ import {
 import { HeroTabletFrame } from '@/features/landing-v2/hero/HeroTabletFrame'
 import { measureCanonicalDeviceFit } from '@/features/landing-v2/hero/landingTabletFit'
 import { useLandingCompactViewport } from '@/features/landing-v2/motion/landingViewport'
+import { useTheaterScrollGate } from '@/features/landing-v2/motion/useTheaterScrollGate'
 import { lifecycleExitMv } from '@/features/landing-v2/lifecycle-story/lifecycleExitClock'
 import {
   PRODUCT_SCREEN_REVEAL,
@@ -67,6 +68,7 @@ export function LandingV2ProductStory() {
 
   /* Theater runs on compact; only accessibility reduces to static. */
   const simple = Boolean(reduced)
+  const { activeRef, onBecameActiveRef } = useTheaterScrollGate(trackRef, !simple)
 
   useEffect(() => {
     if (simple) return
@@ -272,6 +274,7 @@ export function LandingV2ProductStory() {
     }
 
     const onScroll = () => {
+      if (!activeRef.current) return
       cancelAnimationFrame(raf)
       raf = requestAnimationFrame(measureTabs)
     }
@@ -305,10 +308,12 @@ export function LandingV2ProductStory() {
     if (owned) measureCover()
     measureTabs()
 
+    onBecameActiveRef.current = onScroll
     window.addEventListener('scroll', onScroll, { passive: true })
     window.addEventListener('resize', onResize)
 
     return () => {
+      onBecameActiveRef.current = null
       removed = true
       cancelAnimationFrame(raf)
       window.removeEventListener('scroll', onScroll)
@@ -322,6 +327,8 @@ export function LandingV2ProductStory() {
     tabletDiag,
     isCompactViewport,
     deviceFitSlot,
+    activeRef,
+    onBecameActiveRef,
   ])
 
   /* Re-measure cover when compact fit slot resolves. */

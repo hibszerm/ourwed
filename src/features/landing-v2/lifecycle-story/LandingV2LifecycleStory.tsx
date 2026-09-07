@@ -21,6 +21,7 @@ import {
   rangeT,
 } from '@/features/landing-v2/lifecycle-story/lifecycleStoryProgress'
 import { useLandingCompactViewport } from '@/features/landing-v2/motion/landingViewport'
+import { useTheaterScrollGate } from '@/features/landing-v2/motion/useTheaterScrollGate'
 import { WorkflowExplorer } from '@/features/landing-v2/lifecycle-story/workflow/WorkflowExplorer'
 import styles from './LandingV2LifecycleStory.module.css'
 
@@ -44,6 +45,7 @@ export function LandingV2LifecycleStory() {
 
   /* Theater runs on compact; only accessibility reduces to static. */
   const simple = Boolean(reduced)
+  const { activeRef, onBecameActiveRef } = useTheaterScrollGate(trackRef, !simple)
 
   useEffect(() => {
     if (simple) {
@@ -82,6 +84,7 @@ export function LandingV2LifecycleStory() {
     }
 
     const onScroll = () => {
+      if (!activeRef.current) return
       cancelAnimationFrame(raf)
       raf = requestAnimationFrame(measure)
     }
@@ -92,18 +95,18 @@ export function LandingV2LifecycleStory() {
       onScroll()
     }
 
+    onBecameActiveRef.current = onScroll
     measure()
     window.addEventListener('scroll', onScroll, { passive: true })
-    document.addEventListener('scroll', onScroll, { passive: true, capture: true })
     window.addEventListener('resize', onResize)
     return () => {
+      onBecameActiveRef.current = null
       cancelAnimationFrame(raf)
       window.removeEventListener('scroll', onScroll)
-      document.removeEventListener('scroll', onScroll, true)
       window.removeEventListener('resize', onResize)
       clearLifecycleExitT()
     }
-  }, [simple, progress])
+  }, [simple, progress, activeRef, onBecameActiveRef])
 
   useMotionValueEvent(progress, 'change', (p) => {
     const sticky = stickyRef.current

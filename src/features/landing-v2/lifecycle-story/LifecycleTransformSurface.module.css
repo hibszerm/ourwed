@@ -19,6 +19,8 @@
 
 .shell[data-lifecycle-surface-compact='true'] {
   max-width: min(430px, calc(100vw - 1.25rem));
+  /* Compact morph uses scaleX/Y — avoid layout will-change pressure on iOS. */
+  will-change: transform, opacity;
 }
 
 .layerLink {

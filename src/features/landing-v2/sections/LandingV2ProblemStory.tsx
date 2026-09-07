@@ -22,6 +22,7 @@ import {
   type ProblemStorySceneId,
 } from '@/features/landing-v2/sections/problemStoryCopy'
 import { useLandingCompactViewport } from '@/features/landing-v2/motion/landingViewport'
+import { useTheaterScrollGate } from '@/features/landing-v2/motion/useTheaterScrollGate'
 import styles from './LandingV2ProblemStory.module.css'
 
 /** Entrance / exit micro-motion — layout position stays fixed in CSS. */
@@ -45,7 +46,6 @@ const SCENE07_EXIT_SCALE_DESKTOP = 2.15
  */
 const SCENE07_EXIT_SCALE_COMPACT = 3.2
 const SCENE07_BLUR_MAX_DESKTOP = 25
-const SCENE07_BLUR_MAX_COMPACT = 18
 
 type SceneMotion = {
   opacity: MotionValue<number>
@@ -333,15 +333,18 @@ export function LandingV2ProblemStory() {
 
   /* Theater runs on compact; only accessibility reduces to static. */
   const skipTheater = isReducedMotion
+  const { activeRef, onBecameActiveRef } = useTheaterScrollGate(
+    trackRef,
+    !skipTheater,
+  )
 
   const enterY = isCompactViewport ? SCENE_ENTER_Y_COMPACT : SCENE_ENTER_Y
   const exitY = isCompactViewport ? SCENE_EXIT_Y_COMPACT : SCENE_EXIT_Y
   const scene07ExitScaleTo = isCompactViewport
     ? SCENE07_EXIT_SCALE_COMPACT
     : SCENE07_EXIT_SCALE_DESKTOP
-  const scene07BlurMax = isCompactViewport
-    ? SCENE07_BLUR_MAX_COMPACT
-    : SCENE07_BLUR_MAX_DESKTOP
+  /* Compact: skip scroll-driven filter blur — opacity/scale carry the exit. */
+  const scene07BlurMax = isCompactViewport ? 0 : SCENE07_BLUR_MAX_DESKTOP
 
   useEffect(() => {
     if (skipTheater) {
@@ -503,6 +506,7 @@ export function LandingV2ProblemStory() {
     }
 
     const onScroll = () => {
+      if (!activeRef.current) return
       cancelAnimationFrame(raf)
       raf = requestAnimationFrame(measure)
     }
@@ -513,17 +517,19 @@ export function LandingV2ProblemStory() {
       onScroll()
     }
 
+    onBecameActiveRef.current = onScroll
     measure()
     window.addEventListener('scroll', onScroll, { passive: true })
     window.addEventListener('resize', onResize)
     return () => {
+      onBecameActiveRef.current = null
       cancelAnimationFrame(raf)
       window.removeEventListener('scroll', onScroll)
       window.removeEventListener('resize', onResize)
       clearPublishedScene07HandoffT()
       document.documentElement.style.removeProperty('--lv2-ps-headline-exit')
     }
-  }, [skipTheater, progress, scene01Entry, scene07Exit])
+  }, [skipTheater, progress, scene01Entry, scene07Exit, activeRef, onBecameActiveRef])
 
   useMotionValueEvent(progress, 'change', (v) => {
     const node = trackRef.current
