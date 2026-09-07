@@ -96,6 +96,11 @@ export function LandingV2ProductStory() {
       if (sticky.getAttribute('data-ps-theater-owned') !== next) {
         sticky.setAttribute('data-ps-theater-owned', next)
       }
+      /* Compact entrance: cheaper shell paint while camera is still traveling. */
+      const travel = handoffT < 0.98 ? 'true' : 'false'
+      if (sticky.getAttribute('data-ps-camera-travel') !== travel) {
+        sticky.setAttribute('data-ps-camera-travel', travel)
+      }
     }
     if (visual) {
       const next = active ? 'true' : 'false'
@@ -438,7 +443,7 @@ export function LandingV2ProductStory() {
         data-ps-workspace-dormant="true"
       >
         {isCompactViewport ? (
-          <FlattenedProductTabletContent />
+          <FlattenedProductTabletContent tabProgress={progress} />
         ) : (
           <ProductStoryWorkspace activeTab={activeTab} wake={1} />
         )}
@@ -464,7 +469,7 @@ export function LandingV2ProductStory() {
            */}
           <HeroTabletFrame canonical hardwareProgress={1} blackout={0}>
             {isCompactViewport ? (
-              <FlattenedProductTabletContent />
+              <FlattenedProductTabletContent tabProgress={progress} />
             ) : (
               <ProductStoryWorkspace activeTab="overview" wake={1} />
             )}
@@ -496,6 +501,8 @@ export function LandingV2ProductStory() {
         data-product-sticky-stage=""
         data-ps-theater-owned="false"
         data-ps-tablet-diag={tabletDiag}
+        data-ps-compact={isCompactViewport ? 'true' : 'false'}
+        data-ps-camera-travel="false"
       >
         <div
           className={styles.visualStage}

@@ -25,6 +25,14 @@
       "decodedBytesApprox": 5266560
     },
     {
+      "name": "phone-dashboard",
+      "file": "phone-dashboard.webp",
+      "width": 780,
+      "height": 1688,
+      "encodedBytes": 34982,
+      "decodedBytesApprox": 5266560
+    },
+    {
       "name": "phone-dashboard-end",
       "file": "phone-dashboard-end.webp",
       "width": 780,
@@ -39,14 +47,6 @@
       "height": 2584,
       "encodedBytes": 64232,
       "decodedBytesApprox": 8062080
-    },
-    {
-      "name": "phone-dashboard",
-      "file": "phone-dashboard.webp",
-      "width": 780,
-      "height": 1688,
-      "encodedBytes": 34982,
-      "decodedBytesApprox": 5266560
     },
     {
       "name": "phone-day",
@@ -65,12 +65,36 @@
       "decodedBytesApprox": 5266560
     },
     {
+      "name": "product-tablet-finance",
+      "file": "product-tablet-finance.webp",
+      "width": 1200,
+      "height": 727,
+      "encodedBytes": 32558,
+      "decodedBytesApprox": 3489600
+    },
+    {
+      "name": "product-tablet-logistics",
+      "file": "product-tablet-logistics.webp",
+      "width": 1200,
+      "height": 727,
+      "encodedBytes": 34688,
+      "decodedBytesApprox": 3489600
+    },
+    {
       "name": "product-tablet-overview",
       "file": "product-tablet-overview.webp",
       "width": 1200,
-      "height": 728,
-      "encodedBytes": 34474,
-      "decodedBytesApprox": 3494400
+      "height": 727,
+      "encodedBytes": 34472,
+      "decodedBytesApprox": 3489600
+    },
+    {
+      "name": "product-tablet-questionnaire",
+      "file": "product-tablet-questionnaire.webp",
+      "width": 1200,
+      "height": 727,
+      "encodedBytes": 32056,
+      "decodedBytesApprox": 3489600
     }
   ]
 }

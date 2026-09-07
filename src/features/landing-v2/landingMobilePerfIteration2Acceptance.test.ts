@@ -71,7 +71,7 @@ console.log('\n=== landing mobile performance iteration 2 ===\n')
   assertIncludes(product, 'FlattenedProductTabletContent', 'product flattened')
   assertIncludes(product, 'ProductStoryWorkspace', 'desktop live workspace kept')
   assertNotIncludes(flatProduct, "from '@/features/landing-v2/product-story/ProductStoryWorkspace'", 'flat product no live tree')
-  console.log('PASS  2. compact product tablet flattens overview')
+  console.log('PASS  2. compact product tablet flattens scroll tabs')
 }
 
 {

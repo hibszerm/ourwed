@@ -1,8 +1,18 @@
+import type { ProductStoryTabId } from '@/features/landing-v2/product-story/productStoryProgress'
+import {
+  PRODUCT_STORY_RANGES,
+  rangeT,
+} from '@/features/landing-v2/product-story/productStoryProgress'
+
 /** Public URLs for compact flattened device application surfaces. */
 export const LANDING_DEVICE_ASSETS = {
   heroTabletLight: '/landing-v2/devices/hero-tablet-light.webp',
   heroTabletDark: '/landing-v2/devices/hero-tablet-dark.webp',
   productTabletOverview: '/landing-v2/devices/product-tablet-overview.webp',
+  productTabletLogistics: '/landing-v2/devices/product-tablet-logistics.webp',
+  productTabletFinance: '/landing-v2/devices/product-tablet-finance.webp',
+  productTabletQuestionnaire:
+    '/landing-v2/devices/product-tablet-questionnaire.webp',
   phoneDashboardStrip: '/landing-v2/devices/phone-dashboard-strip.webp',
   phoneDashboard: '/landing-v2/devices/phone-dashboard.webp',
   phoneDashboardEnd: '/landing-v2/devices/phone-dashboard-end.webp',
@@ -10,6 +20,68 @@ export const LANDING_DEVICE_ASSETS = {
   phoneNav: '/landing-v2/devices/phone-nav.webp',
   phoneBrief: '/landing-v2/devices/phone-brief.webp',
 } as const
+
+export type LandingProductLayerId = ProductStoryTabId
+
+export type ProductLayerState = {
+  a: LandingProductLayerId
+  b: LandingProductLayerId
+  /** 0 = only A, 1 = only B during tab handoff windows. */
+  blend: number
+}
+
+/**
+ * Map Product Story tab scrub progress → flattened layers.
+ * Uses the same PRODUCT_STORY_RANGES as live desktop.
+ */
+export function productLayersAt(tabProgress: number): ProductLayerState {
+  const p = Math.min(1, Math.max(0, tabProgress))
+  const r = PRODUCT_STORY_RANGES
+
+  if (p < r.toLogistics.start) {
+    return { a: 'overview', b: 'overview', blend: 0 }
+  }
+  if (p < r.toLogistics.end) {
+    const t = rangeT(p, r.toLogistics.start, r.toLogistics.end)
+    if (t >= 1) return { a: 'logistics', b: 'logistics', blend: 0 }
+    return { a: 'overview', b: 'logistics', blend: t }
+  }
+  if (p < r.toFinance.start) {
+    return { a: 'logistics', b: 'logistics', blend: 0 }
+  }
+  if (p < r.toFinance.end) {
+    const t = rangeT(p, r.toFinance.start, r.toFinance.end)
+    if (t >= 1) return { a: 'finance', b: 'finance', blend: 0 }
+    return { a: 'logistics', b: 'finance', blend: t }
+  }
+  if (p < r.toQuestionnaire.start) {
+    return { a: 'finance', b: 'finance', blend: 0 }
+  }
+  if (p < r.toQuestionnaire.end) {
+    const t = rangeT(p, r.toQuestionnaire.start, r.toQuestionnaire.end)
+    if (t >= 1) return { a: 'questionnaire', b: 'questionnaire', blend: 0 }
+    return { a: 'finance', b: 'questionnaire', blend: t }
+  }
+  return { a: 'questionnaire', b: 'questionnaire', blend: 0 }
+}
+
+export function productLayerSrc(id: LandingProductLayerId): string {
+  switch (id) {
+    case 'overview':
+      return LANDING_DEVICE_ASSETS.productTabletOverview
+    case 'logistics':
+      return LANDING_DEVICE_ASSETS.productTabletLogistics
+    case 'finance':
+      return LANDING_DEVICE_ASSETS.productTabletFinance
+    case 'questionnaire':
+      return LANDING_DEVICE_ASSETS.productTabletQuestionnaire
+  }
+}
+
+export function productAppContentLayerCount(tabProgress: number): number {
+  const { a, b } = productLayersAt(tabProgress)
+  return a === b ? 1 : 2
+}
 
 /**
  * Story stages for compact phone (aligned with MOBILE_APP_RANGES).

@@ -43,6 +43,24 @@ const SHOTS: Shot[] = [
     width: 1200,
   },
   {
+    name: 'product-tablet-logistics',
+    url: `${BASE}/dev/landing-device-capture?board=product-logistics`,
+    selector: '[data-capture-target="product-tablet"]',
+    width: 1200,
+  },
+  {
+    name: 'product-tablet-finance',
+    url: `${BASE}/dev/landing-device-capture?board=product-finance`,
+    selector: '[data-capture-target="product-tablet"]',
+    width: 1200,
+  },
+  {
+    name: 'product-tablet-questionnaire',
+    url: `${BASE}/dev/landing-device-capture?board=product-questionnaire`,
+    selector: '[data-capture-target="product-tablet"]',
+    width: 1200,
+  },
+  {
     name: 'phone-dashboard',
     url: `${BASE}/dev/landing-device-capture?board=phone&p=0.08`,
     selector: '[data-capture-target="phone-app"]',

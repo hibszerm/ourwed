@@ -260,6 +260,42 @@
   left: 0;
   transform: scale(var(--ps-device-fit-scale, 1));
   transform-origin: top left;
+  /* Static fit scale — do not promote a perpetual compositor layer. */
+  will-change: auto;
+}
+
+/*
+ * Compact Product tablet: one cheaper contact shadow (shell entrance cost).
+ * Hero tablet is unaffected — these selectors are Product sticky-only.
+ */
+.stickyStage[data-ps-compact='true'] :global([data-testid='lv2-hero-tablet']) {
+  box-shadow:
+    0 14px 32px rgba(24, 20, 16, 0.12),
+    0 4px 10px rgba(24, 20, 16, 0.06);
+}
+
+.stickyStage[data-ps-compact='true'][data-ps-camera-travel='true']
+  :global([data-testid='lv2-hero-tablet']) {
+  box-shadow: 0 10px 22px rgba(24, 20, 16, 0.1);
+}
+
+.stickyStage[data-ps-compact='true'][data-ps-camera-travel='true']
+  :global([data-testid='lv2-hero-tablet'])::before,
+.stickyStage[data-ps-compact='true'][data-ps-camera-travel='true']
+  :global([data-testid='lv2-hero-tablet'])::after {
+  box-shadow: none;
+}
+
+/*
+ * Compact: only the outer camera scale should will-change during entrance.
+ * Avoid dual nested transform promotions (camera + exit) until exit starts.
+ */
+.stickyStage[data-ps-compact='true'][data-ps-theater-owned='true'][data-ps-lifecycle-exit='idle']
+  .deviceExit {
+  will-change: auto;
+}
+
+.stickyStage[data-ps-compact='true'][data-ps-theater-owned='true'] .deviceCamera {
   will-change: transform;
 }
 

@@ -15,4 +15,5 @@
   object-position: top left;
   pointer-events: none;
   user-select: none;
+  will-change: opacity;
 }

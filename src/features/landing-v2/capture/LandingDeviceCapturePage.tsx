@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, type CSSProperties } from 'react'
 import { motionValue } from 'framer-motion'
 import { HeroModernDashboard } from '@/features/landing-v2/hero/HeroModernDashboard'
 import { applyHeroDemoThemeToElement } from '@/features/landing-v2/hero/heroDemoThemeInterpolation'
@@ -11,7 +11,8 @@ import styles from './LandingDeviceCapturePage.module.css'
  * Marketing demo data only — never real client CRM rows.
  *
  * Query:
- *   ?board=hero-light | hero-dark | product-overview | phone&p=0.2
+ *   ?board=hero-light | hero-dark | product-overview | product-logistics |
+ *          product-finance | product-questionnaire | phone&p=0.2
  */
 export function LandingDeviceCapturePage() {
   const params = useMemo(
@@ -21,6 +22,14 @@ export function LandingDeviceCapturePage() {
   const board = params.get('board') ?? 'hero-light'
   const phoneP = Math.min(1, Math.max(0, Number(params.get('p') ?? '0') || 0))
   const heroTheme = board === 'hero-dark' ? 1 : 0
+  const productTab =
+    board === 'product-logistics'
+      ? 'logistics'
+      : board === 'product-finance'
+        ? 'finance'
+        : board === 'product-questionnaire'
+          ? 'questionnaire'
+          : 'overview'
   const heroRootRef = useRef<HTMLDivElement | null>(null)
   const phoneProgress = useMemo(() => motionValue(phoneP), [phoneP])
 
@@ -54,9 +63,26 @@ export function LandingDeviceCapturePage() {
         </div>
       )}
 
-      {board === 'product-overview' && (
+      {(board === 'product-overview' ||
+        board === 'product-logistics' ||
+        board === 'product-finance' ||
+        board === 'product-questionnaire') && (
         <div className={styles.tabletBoard} data-capture-target="product-tablet">
-          <ProductStoryWorkspace activeTab="overview" />
+          <ProductStoryWorkspace
+            activeTab={productTab}
+            style={
+              {
+                ['--ps-tab-progress' as string]:
+                  productTab === 'overview'
+                    ? 0
+                    : productTab === 'logistics'
+                      ? 1
+                      : productTab === 'finance'
+                        ? 2
+                        : 3,
+              } as CSSProperties
+            }
+          />
         </div>
       )}
 
