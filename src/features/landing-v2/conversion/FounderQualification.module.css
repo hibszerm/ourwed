@@ -184,8 +184,9 @@
 /* Compact editorial — full-width numbered rows + 2×2 audience (not desktop squeezed). */
 @media (max-width: 1100px) {
   .root {
-    --q-chapter-pad-top: clamp(5.5rem, 14vw, 7rem); /* ~88–112 after manifesto */
-    --q-chapter-pad-bottom: clamp(4.5rem, 10vw, 6rem);
+    /* manifesto → Dla kogo: single breath (~70–90), not stacked empty theaters */
+    --q-chapter-pad-top: clamp(4.375rem, 9vw, 5.625rem);
+    --q-chapter-pad-bottom: clamp(4rem, 9vw, 5.25rem);
     --q-pad-x: clamp(1.125rem, 4.5vw, 1.25rem); /* ~18–20 → ~36px gutters @402 */
     width: 100%;
     max-width: none;

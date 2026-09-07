@@ -601,13 +601,14 @@
     --founder-max: min(40rem, calc(100vw - 2rem));
     --founder-pad-x: clamp(1rem, 4.5vw, 1.25rem); /* ~16–20 @375–430 */
     --founder-pad-top: clamp(2.5rem, 7vw, 3.25rem);
-    /* intro → portrait */
-    --founder-gap-12: clamp(3rem, 8vw, 4rem); /* 48–64 */
-    /* story → manifesto */
-    --founder-gap-23: clamp(5.5rem, 12vw, 7rem); /* ~88–112 */
-    --founder-gap-final: 4rem;
-    --founder-bottom: clamp(4.5rem, 10vw, 6rem);
-    --founder-portrait-pos: center 20%;
+    /* intro → horizontal profile */
+    --founder-gap-12: clamp(3rem, 7vw, 3.75rem); /* 48–60 */
+    /* story chapter 2 → manifesto */
+    --founder-gap-23: clamp(4.375rem, 9vw, 5.25rem); /* 70–84 (~25–35% tighter) */
+    --founder-gap-final: 3.25rem;
+    --founder-bottom: clamp(3.75rem, 8vw, 5rem);
+    /* Smaller frame: keep head + shoulders as focus */
+    --founder-portrait-pos: center 16%;
   }
 
   .canvas {
@@ -672,34 +673,56 @@
     justify-items: center;
   }
 
+  /*
+   * Compact horizontal founder profile — editorial author credit.
+   * 375: ~136–142 / gap 16 · 402: ~148–154 / gap 20 · 430: ~154–160 / gap 22
+   */
   .portraitCol {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: clamp(1rem, 3.2vw, 1.375rem); /* 16–22 */
     width: min(92vw, 23.125rem); /* ~364–370 @402 */
     max-width: 100%;
   }
 
+  .portraitBlock {
+    flex: 0 0 auto;
+    width: clamp(8.5rem, 36.5vw, 10rem); /* ~136–160 */
+    margin: 0;
+  }
+
   .portraitFrame {
-    aspect-ratio: 4 / 5; /* ~455–470h @364–370w */
-    border-radius: 3px;
+    width: 100%;
+    aspect-ratio: 4 / 5; /* ~185–200h @148–154w */
+    border-radius: 2px;
+    background: transparent;
   }
 
   .identity {
-    margin: 1.35rem 0 0; /* 20–24 */
+    flex: 1 1 auto;
+    min-width: 0;
+    margin: 0;
     text-align: left;
-    width: 100%;
+    width: auto;
   }
 
   .name {
-    font-size: clamp(1.375rem, 1.2vw + 1.15rem, 1.5rem); /* 22–24 */
+    font-size: clamp(1.25rem, 1.4vw + 1.05rem, 1.375rem); /* 20–22 */
+    font-weight: 600;
+    letter-spacing: -0.028em;
   }
 
   .role {
-    margin-top: 0.3rem;
-    font-size: clamp(0.875rem, 0.4vw + 0.8rem, 0.9375rem); /* 14–15 */
+    margin-top: 0.4rem;
+    font-size: clamp(0.78125rem, 0.55vw + 0.7rem, 0.875rem); /* 12.5–14 */
+    line-height: 1.35;
   }
 
   .meta {
-    margin-top: 0.35rem;
-    font-size: clamp(0.8125rem, 0.3vw + 0.75rem, 0.875rem); /* 13–14 */
+    margin-top: 0.55rem;
+    font-size: clamp(0.75rem, 0.4vw + 0.68rem, 0.8125rem); /* 12–13 */
+    line-height: 1.35;
   }
 
   .storyCol {
@@ -711,15 +734,15 @@
     justify-self: stretch;
   }
 
-  /* Chapter 1 after identity */
+  /* Profile → chapter 1 */
   .storyChapter[data-founder-story-chapter='1'] {
-    margin-top: clamp(4.5rem, 10vw, 5.5rem); /* 72–88 */
+    margin-top: clamp(4rem, 9vw, 4.75rem); /* 64–76 */
   }
 
   /* Chapter 2 as a second beat */
   .storyChapter[data-founder-story-chapter='2'] {
-    margin-top: clamp(3rem, 7vw, 4rem); /* 48–64 */
-    padding-top: clamp(1.75rem, 4vw, 2.25rem);
+    margin-top: clamp(2.75rem, 6vw, 3.5rem); /* 44–56 */
+    padding-top: clamp(1.5rem, 3.5vw, 1.85rem);
     border-top: 1px solid color-mix(in srgb, var(--founder-ink) 10%, transparent);
   }
 
@@ -754,11 +777,12 @@
     width: 100%;
   }
 
+  /* Manifesto breath lives in gap-23 + qualification pad-top — avoid double empty black */
   .closing {
     max-width: none;
     width: min(100%, 22.5rem); /* ~360 */
     margin-inline: auto;
-    padding-bottom: clamp(5.5rem, 12vw, 6.5rem); /* ~88–104 before qualification */
+    padding-bottom: 0;
   }
 
   .closing .eyebrow {

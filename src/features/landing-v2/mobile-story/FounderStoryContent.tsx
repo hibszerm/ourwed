@@ -109,14 +109,17 @@ export function FounderStoryContent({
 
       <section className={styles.section2} data-founder-zone="2" data-founder-act="2" aria-label="Założyciel">
         <div className={styles.section2Inner}>
-          <div className={styles.portraitCol}>
+          <div
+            className={styles.portraitCol}
+            data-founder-profile={compact ? 'horizontal' : 'stacked'}
+          >
             <motion.figure
               className={styles.portraitBlock}
               data-founder-portrait-block=""
-              initial={reveal ? { opacity: 0, y: 20, scale: 0.99 } : false}
+              initial={reveal ? { opacity: 0, y: 16, scale: 0.99 } : false}
               whileInView={reveal ? { opacity: 1, y: 0, scale: 1 } : undefined}
               viewport={PORTRAIT_VIEWPORT}
-              transition={{ duration: 0.9, ease: COMPACT_EASE }}
+              transition={{ duration: 0.8, ease: COMPACT_EASE }}
             >
               <div className={styles.portraitFrame} data-founder-portrait-frame="">
                 <img
@@ -134,14 +137,35 @@ export function FounderStoryContent({
             <motion.div
               className={styles.identity}
               data-founder-identity=""
-              initial={reveal ? { opacity: 0, y: 10 } : false}
-              whileInView={reveal ? { opacity: 1, y: 0 } : undefined}
-              viewport={CHAPTER_VIEWPORT}
-              transition={{ duration: 0.8, ease: COMPACT_EASE, delay: 0.08 }}
+              initial={reveal ? { opacity: 0, x: 10 } : false}
+              whileInView={reveal ? { opacity: 1, x: 0 } : undefined}
+              viewport={PORTRAIT_VIEWPORT}
+              transition={{ duration: 0.8, ease: COMPACT_EASE, delay: 0.1 }}
             >
               <p className={styles.name}>{LV2_FOUNDER_IDENTITY.name}</p>
-              <p className={styles.role}>{LV2_FOUNDER_IDENTITY.role}</p>
-              <p className={styles.meta}>{LV2_FOUNDER_IDENTITY.meta}</p>
+              {compact ? (
+                <>
+                  <p className={styles.role}>
+                    {LV2_FOUNDER_IDENTITY.role.split(' · ').map((line) => (
+                      <span key={line} className={styles.line}>
+                        {line}
+                      </span>
+                    ))}
+                  </p>
+                  <p className={styles.meta}>
+                    {LV2_FOUNDER_IDENTITY.meta.split(' · ').map((line) => (
+                      <span key={line} className={styles.line}>
+                        {line}
+                      </span>
+                    ))}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className={styles.role}>{LV2_FOUNDER_IDENTITY.role}</p>
+                  <p className={styles.meta}>{LV2_FOUNDER_IDENTITY.meta}</p>
+                </>
+              )}
             </motion.div>
           </div>
 
