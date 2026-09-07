@@ -7,8 +7,9 @@
   position: relative;
   width: 100%;
   /*
-   * Overlap Problem cover-hold (100svh) like Founder over Import.
-   * Black narrative exits by native document scroll (sticky unpin) — no curtain.
+   * Overlap narrative sticky height (stickyH ≈ 100svh − nav) so Product pins
+   * as Statement 7 hold ends / black unpins (coverHold = 0 in 3C.2).
+   * Black exits by native document scroll — no curtain transform.
    */
   margin-top: calc(var(--lv2-nav-h) - 100svh);
   height: calc(200svh + 90svh);

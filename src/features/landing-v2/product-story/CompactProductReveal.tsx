@@ -1,16 +1,18 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
-  motion,
   useMotionValue,
   useMotionValueEvent,
   useReducedMotion,
-  useTransform,
 } from 'framer-motion'
 import { HeroTabletFrame } from '@/features/landing-v2/hero/HeroTabletFrame'
 import { measureCanonicalDeviceFit } from '@/features/landing-v2/hero/landingTabletFit'
 import { FlattenedProductAutoplay } from '@/features/landing-v2/devices/FlattenedProductAutoplay'
 import { useTheaterScrollGate } from '@/features/landing-v2/motion/useTheaterScrollGate'
-import { lifecycleExitMv } from '@/features/landing-v2/lifecycle-story/lifecycleExitClock'
+import {
+  compactProductExitPhase,
+  compactProductExitTravelPx,
+  compactProductNativeExitScrollPx,
+} from '@/features/landing-v2/product-story/compactProductExit'
 import {
   productTheaterOwned,
   stickyTrackProgress,
@@ -19,11 +21,10 @@ import { scene07HandoffMv } from '@/features/landing-v2/product-story/scene07Han
 import styles from './CompactProductReveal.module.css'
 
 /**
- * Compact Product Story — Iteration 3A.
+ * Compact Product Story — Iteration 3A + 3C.2.
  *
- * Scene 07 black card (Problem Story) translates upward and reveals a STABLE
- * tablet. Tablet content autoplays flattened tabs — not scroll-driven.
- * No reverse-Hero camera scale.
+ * Stable flattened autoplay tablet. No reverse-Hero camera.
+ * Exit: native sticky unpin (1 scroll px → 1 tablet px). No scale / eased Y.
  */
 export function CompactProductReveal() {
   const trackRef = useRef<HTMLElement | null>(null)
@@ -122,7 +123,8 @@ export function CompactProductReveal() {
     let raf = 0
     const measure = () => {
       const el = trackRef.current
-      if (!el) return
+      const sticky = stickyRef.current
+      if (!el || !sticky) return
       const navH =
         parseFloat(getComputedStyle(el).getPropertyValue('--lv2-nav-h')) || 68
       const p = stickyTrackProgress(el, navH, window.innerHeight)
@@ -130,11 +132,26 @@ export function CompactProductReveal() {
 
       const handoffT = scene07HandoffMv.get()
       const owned = productTheaterOwned(handoffT)
-      /* Local sticky progress only gates breath/exit cues — not tablet camera. */
-      stickyRef.current?.setAttribute(
-        'data-ps-reveal',
-        p > 0.02 ? 'open' : 'closed',
-      )
+      sticky.setAttribute('data-ps-reveal', p > 0.02 ? 'open' : 'closed')
+
+      /*
+       * Pixel-coupled exit (3C.2): sticky unpin → native document scroll.
+       * Do NOT apply eased Lifecycle exit progress × vh × 1.1 (BEFORE ratio ≈ 4).
+       * Fit scale is layout-only; no scroll-driven scale-out.
+       */
+      const stickyH =
+        sticky.clientHeight || Math.max(320, window.innerHeight - navH)
+      const exitTravel = compactProductExitTravelPx(stickyH)
+      const stickyTop = sticky.getBoundingClientRect().top
+      const scrollAway = compactProductNativeExitScrollPx(stickyTop, navH)
+      const phase =
+        handoffT < 0.995
+          ? 'idle'
+          : compactProductExitPhase(stickyTop, navH, exitTravel)
+
+      sticky.setAttribute('data-ps-lifecycle-exit', phase)
+      sticky.setAttribute('data-ps-exit-scroll', String(Math.round(scrollAway)))
+      sticky.setAttribute('data-ps-exit-y', String(Math.round(-scrollAway)))
 
       if (!activeRef.current && !owned) return
     }
@@ -158,45 +175,6 @@ export function CompactProductReveal() {
       window.removeEventListener('resize', onScroll)
     }
   }, [reduced, activeRef, onBecameActiveRef, revealProgress])
-
-  /* Lifecycle exit — same post-product channel; no entrance scale. */
-  const lifecycleExitY = useTransform(
-    [lifecycleExitMv, scene07HandoffMv],
-    (values: number[]) => {
-      const exitT = values[0] ?? 0
-      const handoffT = values[1] ?? 0
-      if (handoffT < 0.995) return 0
-      const e = Math.min(1, Math.max(0, exitT))
-      const vh = typeof window !== 'undefined' ? window.innerHeight : 900
-      return e * vh * -1.1
-    },
-  )
-  const lifecycleExitOpacity = useTransform(
-    [lifecycleExitMv, scene07HandoffMv],
-    (values: number[]) => {
-      const exitT = values[0] ?? 0
-      const handoffT = values[1] ?? 0
-      if (handoffT < 0.995) return 1
-      const e = Math.min(1, Math.max(0, exitT))
-      if (e < 0.85) return 1
-      return 1 - ((e - 0.85) / 0.15) * 0.04
-    },
-  )
-
-  useMotionValueEvent(lifecycleExitMv, 'change', (exitT) => {
-    const sticky = stickyRef.current
-    if (!sticky) return
-    if (scene07HandoffMv.get() < 0.995) {
-      sticky.setAttribute('data-ps-lifecycle-exit', 'idle')
-      return
-    }
-    const active = exitT > 0.001
-    const done = exitT >= 0.995
-    sticky.setAttribute(
-      'data-ps-lifecycle-exit',
-      done ? 'done' : active ? 'active' : 'idle',
-    )
-  })
 
   if (reduced) {
     return (
@@ -226,6 +204,7 @@ export function CompactProductReveal() {
       data-testid="lv2-product-story"
       data-product-theater="compact-reveal"
       data-product-compact-reveal="true"
+      data-product-exit="native-sticky"
       aria-labelledby="lv2-product-heading"
     >
       <h2 id="lv2-product-heading" className={styles.visuallyHidden}>
@@ -239,13 +218,14 @@ export function CompactProductReveal() {
         data-ps-theater-owned={theaterOwned ? 'true' : 'false'}
         data-ps-compact="true"
         data-ps-camera-travel="false"
+        data-ps-exit-scale="false"
         data-ps-lifecycle-exit="idle"
       >
         <div className={styles.stage} data-ps-visual-stage="">
-          <motion.div
+          <div
             className={styles.deviceExit}
             data-ps-device-exit=""
-            style={{ y: lifecycleExitY, opacity: lifecycleExitOpacity }}
+            data-ps-exit-native="true"
           >
             <div
               className={styles.deviceFitSlot}
@@ -277,7 +257,7 @@ export function CompactProductReveal() {
                 </HeroTabletFrame>
               </div>
             </div>
-          </motion.div>
+          </div>
         </div>
       </div>
     </section>

@@ -10,11 +10,11 @@
    * Fallback svh only until first measure.
    */
   --lv2-narrative-scrub-px: 0;
-  --lv2-narrative-cover-svh: 100;
+  --lv2-narrative-cover-svh: 0;
 
   position: relative;
   width: 100%;
-  /* stickyH + scrub + cover hold — cover hold is Founder-like document reveal */
+  /* stickyH + scrub — Statement 7 hold is inside scrub; no extra coverHold dead runway */
   height: calc(
     (100svh - var(--lv2-nav-h)) + var(--lv2-narrative-scrub-px) * 1px +
       (var(--lv2-narrative-cover-svh) * 1svh)
@@ -130,8 +130,7 @@
 
 .coverHold {
   width: 100%;
-  height: calc(var(--lv2-narrative-cover-svh) * 1svh);
-  height: calc(var(--lv2-narrative-cover-svh) * 1dvh);
+  height: 0;
   pointer-events: none;
 }
 

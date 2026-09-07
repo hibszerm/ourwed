@@ -115,8 +115,9 @@ console.log('\n=== landing mobile performance iteration 3C (pixel-coupled) ===\n
   assertIncludes(narrative, 'compactNarrativeCoverHandoffT', 'unpin handoff')
   assertIncludes(narrativeCss, 'transform: none', 'no transform on sticky ancestors')
   assertIncludes(founderCss, 'margin-top: calc(-100svh)', 'Founder reference intact')
-  assertIncludes(productCss, 'margin-top: calc(var(--lv2-nav-h) - 100svh)', 'Product Founder-like overlap')
-  assert(COMPACT_NARRATIVE_COVER_HOLD_SVH === 100, 'cover hold 100svh')
+  assertIncludes(productCss, 'margin-top: calc(var(--lv2-nav-h) - 100svh)', 'Product sticky-height overlap')
+  assert(COMPACT_NARRATIVE_COVER_HOLD_SVH === 0, 'cover hold removed (3C.2)')
+  assertIncludes(narrativeCss, 'height: 0', 'coverHold spacer height 0')
 
   /* 100px unpin ⇒ 100px handoff progress in stickyH units is linear */
   const g = compactNarrativeGeometry(874, 68)

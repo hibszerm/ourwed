@@ -45,8 +45,13 @@ export const COMPACT_NARRATIVE_OUTGOING_FADE_DONE = 0.62
 /** Modeled primary text occupancy height (px) for collision tests. */
 export const COMPACT_NARRATIVE_TEXT_OCCUPANCY_PX = 140
 
-/** Cover hold after last statement — Founder-like 1:1 document reveal runway (svh). */
-export const COMPACT_NARRATIVE_COVER_HOLD_SVH = 100
+/**
+ * Cover hold after last statement (svh).
+ * Iteration 3C.2: 0 — Statement 7 already has normal holdPx in scrubBudget.
+ * Previous 100svh Founder-style spacer created a long dead black scroll
+ * before sticky unpin / Product reveal.
+ */
+export const COMPACT_NARRATIVE_COVER_HOLD_SVH = 0
 
 /**
  * Opening statement is already readable at black-stage ownership (scrub=0).
@@ -324,6 +329,34 @@ export function compactNarrativeCoverHandoffT(
   if (stickyTop > navH + 0.5) return 0
   const left = navH - stickyTop
   return clamp01(left / Math.max(1, stickyH))
+}
+
+/**
+ * Dead scroll after Statement 7 hold ends, before black sticky can unpin.
+ * Must be 0 after Iteration 3C.2 (no coverHold runway).
+ */
+export function compactNarrativeDeadScrollAfterFinalHoldPx(
+  viewportH: number,
+  navH = 68,
+): {
+  normalHoldPx: number
+  finalHoldPx: number
+  coverHoldPx: number
+  deadScrollPx: number
+  finalHoldRatio: number
+} {
+  const g = compactNarrativeGeometry(viewportH, navH)
+  const slots = compactNarrativeSlotOffsets(g)
+  const last = COMPACT_NARRATIVE_STATEMENT_COUNT - 1
+  const finalHoldPx = slots.holdEnd[last]! - slots.arriveEnd[last]!
+  const coverHoldPx = compactNarrativeCoverHoldPx(viewportH)
+  return {
+    normalHoldPx: g.holdPx,
+    finalHoldPx,
+    coverHoldPx,
+    deadScrollPx: coverHoldPx,
+    finalHoldRatio: finalHoldPx / Math.max(1, g.holdPx),
+  }
 }
 
 /**
