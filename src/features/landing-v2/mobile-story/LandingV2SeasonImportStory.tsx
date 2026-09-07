@@ -17,7 +17,7 @@ import {
   LV2_SEASON_IMPORT_STEPS,
 } from '@/features/landing-v2/mobile-story/seasonImportClaims'
 import { SeasonImportPdfBadge } from '@/features/landing-v2/mobile-story/SeasonImportPdfBadge'
-import { MOBILE_TRACK_IMPORT_COVER_HOLD_SVH } from '@/features/landing-v2/mobile-story/founderStoryProgress'
+import { MOBILE_TRACK_IMPORT_COVER_HOLD_SVH, seasonImportCoverBottomGapPx } from '@/features/landing-v2/mobile-story/founderStoryProgress'
 import styles from './LandingV2SeasonImportStory.module.css'
 
 const COMPACT_EASE = [0.22, 1, 0.36, 1] as const
@@ -47,7 +47,7 @@ export function LandingV2SeasonImportStory() {
   const coverHold = isCompact && !motionOff
   const stickyRef = useRef<HTMLDivElement>(null)
 
-  /* Bottom-align sticky: scroll through tall Import, then pin the final frame. */
+  /* Flush sticky pin; beige breathing room is padding below the cards inside the frame. */
   useEffect(() => {
     if (!coverHold) return
     const el = stickyRef.current
@@ -55,6 +55,16 @@ export function LandingV2SeasonImportStory() {
 
     const syncTop = () => {
       const vh = window.visualViewport?.height ?? window.innerHeight
+      const vw = window.visualViewport?.width ?? window.innerWidth
+      const bottomGap = seasonImportCoverBottomGapPx(vw)
+      el.style.setProperty('--season-import-cover-bottom-gap', `${bottomGap}px`)
+      el.dataset.seasonImportCoverBottomGap = String(bottomGap)
+      /*
+       * Flush pin: stickyBottom = vh.
+       * Bottom gap is paper padding below the final card (outside white cards),
+       * which also delays pin activation so the user scrolls farther first.
+       * (A literal stickyBottom = vh - gap would be filled by Founder black.)
+       */
       const top = Math.min(0, vh - el.offsetHeight)
       el.style.top = `${top}px`
     }

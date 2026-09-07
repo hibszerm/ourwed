@@ -116,6 +116,9 @@ import {
   MOBILE_TRACK_FOUNDER_STORY_SVH,
   MOBILE_TRACK_FOUNDER_SVH,
   MOBILE_TRACK_IMPORT_COVER_HOLD_SVH,
+  SEASON_IMPORT_COVER_BOTTOM_GAP_MAX_PX,
+  SEASON_IMPORT_COVER_BOTTOM_GAP_MIN_PX,
+  seasonImportCoverBottomGapPx,
 } from '@/features/landing-v2/mobile-story/founderStoryProgress'
 import {
   LV2_FOUNDER_CLOSING,
@@ -7326,6 +7329,10 @@ await testPostBriefMorphMonotonicity()
     assertIncludes(importFlow, 'data-season-import-cover="hold"', 'compact import cover-hold marker')
     assertIncludes(importFlow, 'data-season-import-cover-sticky', 'compact import sticky final frame')
     assertIncludes(importFlow, 'MOBILE_TRACK_IMPORT_COVER_HOLD_SVH', 'cover-hold uses shared constant')
+    assertIncludes(importFlow, 'seasonImportCoverBottomGapPx', 'final-frame bottom gap helper')
+    assertIncludes(importFlow, '--season-import-cover-bottom-gap', 'writes bottom-gap CSS token')
+    assertIncludes(importFlow, 'vh - el.offsetHeight', 'sticky flush pin after framed height')
+    assertNotIncludes(importFlow, 'vh - bottomGap - el.offsetHeight', 'does not pin above Founder overlap band')
     assertIncludes(importFlow, 'useLandingCompactViewport', 'import flow uses shared compact hook')
     assertIncludes(importFlow, 'whileInView', 'local intro/card reveals')
     assertIncludes(importFlow, 'FileSpreadsheet', 'intro spreadsheet icon')
@@ -7338,11 +7345,28 @@ await testPostBriefMorphMonotonicity()
     assertIncludes(importFlowCss, 'calc(100vw - 2.25rem)', 'near full-width mobile cards')
     assertIncludes(importFlowCss, 'grid-template-columns: 1fr 1fr', 'ready-card 2-col meta preserved')
     assertIncludes(importFlowCss, 'holdRunway', 'compact cover-hold runway')
+    assertIncludes(importFlowCss, '--season-import-cover-bottom-gap', 'named bottom-gap token')
+    assertIncludes(
+      importFlowCss,
+      '--season-import-mobile-section-end: var(--season-import-cover-bottom-gap',
+      'bottom gap applied outside cards as paper padding',
+    )
     assertIncludes(importFlowCss, 'position: sticky', 'compact final-frame sticky')
     assertIncludes(importFlow, 'data-season-import-cover-runway', 'cover runway marker')
     assertNotIncludes(importFlowCss, 'overflow-y: auto', 'no nested card scroll')
     assertNotIncludes(importFlowCss, 'position: fixed', 'no fixed import stage')
     assertNotIncludes(importFlowCss, '.pdfMark', 'legacy solid PDF mark removed from import CSS')
+  }
+  {
+    const progress = read('src/features/landing-v2/mobile-story/founderStoryProgress.ts')
+    assertIncludes(progress, 'SEASON_IMPORT_COVER_BOTTOM_GAP_MIN_PX', 'bottom gap min constant')
+    assertIncludes(progress, 'SEASON_IMPORT_COVER_BOTTOM_GAP_MAX_PX', 'bottom gap max constant')
+    assertIncludes(progress, 'seasonImportCoverBottomGapPx', 'responsive bottom gap helper')
+    assertEq(SEASON_IMPORT_COVER_BOTTOM_GAP_MIN_PX, 48, 'bottom gap min frozen')
+    assertEq(SEASON_IMPORT_COVER_BOTTOM_GAP_MAX_PX, 64, 'bottom gap max frozen')
+    assert(seasonImportCoverBottomGapPx(402) >= 54 && seasonImportCoverBottomGapPx(402) <= 58, '402 gap ~56')
+    assert(seasonImportCoverBottomGapPx(375) >= 48 && seasonImportCoverBottomGapPx(375) <= 52, '375 gap ~48–52')
+    assert(seasonImportCoverBottomGapPx(430) >= 58 && seasonImportCoverBottomGapPx(430) <= 64, '430 gap ~58–64')
   }
   {
     const pdfBadge = read('src/features/landing-v2/mobile-story/SeasonImportPdfBadge.tsx')

@@ -40,6 +40,8 @@
   --import-ink: #1a1614;
   --import-paper: var(--paper, #f3efe8);
   --import-cover-hold-svh: 100;
+  /* Documented token — runtime px set on sticky via seasonImportCoverBottomGapPx. */
+  --season-import-cover-bottom-gap: clamp(3rem, 1.5rem + 5.8vw, 4rem);
 
   position: relative;
   z-index: 2;
@@ -50,7 +52,7 @@
 
 .coverSticky {
   position: sticky;
-  top: 0; /* JS overrides to bottom-align tall content */
+  top: 0; /* JS: vh - frameHeight (flush); gap is padding below cards */
   z-index: 2;
   width: 100%;
   background: var(--import-paper);
@@ -66,8 +68,12 @@
 }
 
 .flowSurface {
-  /* Tighter end pad — cover hold replaces the beige chapter gap. */
-  --season-import-mobile-section-end: clamp(1.25rem, 4vw, 2rem);
+  /*
+   * Beige breathing room OUTSIDE the white cards, inside the sticky paper frame.
+   * Runtime px via --season-import-cover-bottom-gap (seasonImportCoverBottomGapPx).
+   * Increases frame height so pin activates only after the user scrolls farther.
+   */
+  --season-import-mobile-section-end: var(--season-import-cover-bottom-gap, 3.5rem);
   z-index: auto;
 }
 

@@ -17,6 +17,9 @@ export {
   MOBILE_TRACK_FOUNDER_SVH,
   MOBILE_TRACK_FOUNDER_COVER_SVH,
   MOBILE_TRACK_FOUNDER_STORY_SVH,
+  SEASON_IMPORT_COVER_BOTTOM_GAP_MIN_PX,
+  SEASON_IMPORT_COVER_BOTTOM_GAP_MAX_PX,
+  seasonImportCoverBottomGapPx,
 } from './founderStoryProgress'
 export { LandingV2FounderStory } from './LandingV2FounderStory'
 export { mobileOurWedDemo } from './app/data/mobileOurWedDemoData'
