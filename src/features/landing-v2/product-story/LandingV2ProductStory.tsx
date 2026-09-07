@@ -8,14 +8,13 @@ import {
 } from 'framer-motion'
 import { HeroTabletFrame } from '@/features/landing-v2/hero/HeroTabletFrame'
 import { measureCanonicalDeviceFit } from '@/features/landing-v2/hero/landingTabletFit'
-import { FlattenedProductTabletContent } from '@/features/landing-v2/devices/FlattenedProductTabletContent'
+import { CompactProductReveal } from '@/features/landing-v2/product-story/CompactProductReveal'
 import { useLandingCompactViewport } from '@/features/landing-v2/motion/landingViewport'
 import { useTheaterScrollGate } from '@/features/landing-v2/motion/useTheaterScrollGate'
 import { lifecycleExitMv } from '@/features/landing-v2/lifecycle-story/lifecycleExitClock'
 import {
   PRODUCT_SCREEN_REVEAL,
   PRODUCT_STORY_COVER_SCALE_FALLBACK,
-  PRODUCT_STORY_COVER_SCALE_FALLBACK_COMPACT,
   computeProductCoverScale,
   deviceScaleFromHandoff,
   productTheaterOwned,
@@ -36,22 +35,26 @@ import { ProductStoryWorkspace } from '@/features/landing-v2/product-story/Produ
 import styles from './LandingV2ProductStory.module.css'
 
 /**
- * Landing V2 Product Story — reverse-Hero camera pull-back.
- *
- * Device scale / paper / blackout ride scene07HandoffMv via useTransform
- * (Hero-parity: scroll→rAF→MotionValue→linear compositor transforms).
- * Sticky progress only drives tab scrub after screen reveal completes.
- *
- * Compact: same theater + canonical Hero tablet (fitLock + outer fit).
- * Only prefers-reduced-motion uses the static stack.
+ * Landing V2 Product Story — reverse-Hero camera pull-back (desktop).
+ * Compact viewports use CompactProductReveal (Iteration 3A).
  */
 export function LandingV2ProductStory() {
+  const isCompactViewport = useLandingCompactViewport()
+  const reduced = useReducedMotion()
+
+  if (isCompactViewport) {
+    return <CompactProductReveal />
+  }
+
+  return <LandingV2ProductStoryDesktop reduced={Boolean(reduced)} />
+}
+
+function LandingV2ProductStoryDesktop({ reduced }: { reduced: boolean }) {
+  const isCompactViewport = false
   const trackRef = useRef<HTMLElement | null>(null)
   const stickyRef = useRef<HTMLDivElement | null>(null)
   const cameraRef = useRef<HTMLDivElement | null>(null)
   const deviceFitRef = useRef<HTMLDivElement | null>(null)
-  const reduced = useReducedMotion()
-  const isCompactViewport = useLandingCompactViewport()
   const [activeTab, setActiveTab] = useState<ProductStoryTabId>('overview')
   const [deviceFitScale, setDeviceFitScale] = useState(1)
   const [deviceFitSlot, setDeviceFitSlot] = useState<{ w: number; h: number } | null>(
@@ -62,9 +65,7 @@ export function LandingV2ProductStory() {
     readProductTabletDiagMode(),
   )
   const progress = useMotionValue(0)
-  const coverFallback = isCompactViewport
-    ? PRODUCT_STORY_COVER_SCALE_FALLBACK_COMPACT
-    : PRODUCT_STORY_COVER_SCALE_FALLBACK
+  const coverFallback = PRODUCT_STORY_COVER_SCALE_FALLBACK
   const coverScaleMv = useMotionValue(coverFallback)
 
   /* Theater runs on compact; only accessibility reduces to static. */
@@ -442,11 +443,7 @@ export function LandingV2ProductStory() {
         data-ps-workspace-clip=""
         data-ps-workspace-dormant="true"
       >
-        {isCompactViewport ? (
-          <FlattenedProductTabletContent tabProgress={progress} />
-        ) : (
-          <ProductStoryWorkspace activeTab={activeTab} wake={1} />
-        )}
+<ProductStoryWorkspace activeTab={activeTab} wake={1} />
       </div>
     </HeroTabletFrame>
   )
@@ -468,11 +465,7 @@ export function LandingV2ProductStory() {
            * Outer CSS constrains width; internals stay 1420 design canvas.
            */}
           <HeroTabletFrame canonical hardwareProgress={1} blackout={0}>
-            {isCompactViewport ? (
-              <FlattenedProductTabletContent tabProgress={progress} />
-            ) : (
-              <ProductStoryWorkspace activeTab="overview" wake={1} />
-            )}
+<ProductStoryWorkspace activeTab="overview" wake={1} />
           </HeroTabletFrame>
         </div>
       </section>
@@ -501,8 +494,6 @@ export function LandingV2ProductStory() {
         data-product-sticky-stage=""
         data-ps-theater-owned="false"
         data-ps-tablet-diag={tabletDiag}
-        data-ps-compact={isCompactViewport ? 'true' : 'false'}
-        data-ps-camera-travel="false"
       >
         <div
           className={styles.visualStage}

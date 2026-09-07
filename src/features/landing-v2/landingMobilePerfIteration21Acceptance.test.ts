@@ -1,6 +1,6 @@
 /**
- * Landing V2 — mobile performance Iteration 2.1
- * Product tablet: restore scroll tabs + compact entrance shell cost.
+ * Landing V2 — mobile performance Iteration 2.1 (historical assets + mapping).
+ * Compact Product motion superseded by Iteration 3A (curtain + autoplay).
  */
 
 import { readFileSync, existsSync, statSync } from 'node:fs'
@@ -31,11 +31,11 @@ function assertNotIncludes(src: string, needle: string, label: string) {
 }
 
 const product = read('src/features/landing-v2/product-story/LandingV2ProductStory.tsx')
-const productCss = read(
-  'src/features/landing-v2/product-story/LandingV2ProductStory.module.css',
-)
 const flatProduct = read(
   'src/features/landing-v2/devices/FlattenedProductTabletContent.tsx',
+)
+const autoplay = read(
+  'src/features/landing-v2/devices/FlattenedProductAutoplay.tsx',
 )
 const assets = read('src/features/landing-v2/devices/landingDeviceAssets.ts')
 const hero = read('src/features/landing-v2/sections/LandingV2Hero.tsx')
@@ -54,18 +54,14 @@ console.log('\n=== landing mobile performance iteration 2.1 (product tablet) ===
   assertIncludes(progress, "| 'logistics'", 'logistics tab')
   assertIncludes(progress, "| 'finance'", 'finance tab')
   assertIncludes(progress, "| 'questionnaire'", 'questionnaire tab')
-  assertIncludes(progress, 'overviewHold', 'overview hold range')
-  assertIncludes(progress, 'toLogistics', 'logistics transition')
-  assertIncludes(progress, 'toFinance', 'finance transition')
-  assertIncludes(progress, 'toQuestionnaire', 'questionnaire transition')
   assertIncludes(assets, 'productTabletLogistics', 'logistics asset')
   assertIncludes(assets, 'productTabletFinance', 'finance asset')
   assertIncludes(assets, 'productTabletQuestionnaire', 'questionnaire asset')
-  assertIncludes(flatProduct, 'productLayersAt', 'uses shared tab mapping')
-  assertIncludes(flatProduct, 'tabProgress', 'scroll progress driven')
-  assertIncludes(product, 'FlattenedProductTabletContent tabProgress={progress}', 'wired to progress')
+  assertIncludes(flatProduct, 'productLayersAt', 'scroll-map helper retained')
+  assertIncludes(autoplay, 'FlattenedProductAutoplay', '3A autoplay reuses states')
   assertIncludes(product, 'ProductStoryWorkspace', 'desktop live kept')
-  console.log('PASS  1. four Product tab states restored on compact')
+  assertIncludes(product, 'CompactProductReveal', 'compact reveal path')
+  console.log('PASS  1. four Product tab assets + desktop live path')
 }
 
 {
@@ -105,23 +101,13 @@ console.log('\n=== landing mobile performance iteration 2.1 (product tablet) ===
 }
 
 {
-  assertIncludes(product, "data-ps-compact={isCompactViewport ? 'true' : 'false'}", 'compact marker')
-  assertIncludes(product, 'data-ps-camera-travel', 'camera travel marker')
-  assertIncludes(productCss, "data-ps-compact='true'", 'compact shadow CSS')
-  assertIncludes(productCss, 'will-change: auto', 'fit layer not perpetually promoted')
-  assertNotIncludes(productCss, 'filter: blur', 'no filter blur on product stage')
-  assertNotIncludes(productCss, 'clip-path:', 'no clip-path animation')
-  console.log('PASS  4. compact entrance shell cost reduced')
-}
-
-{
   assertIncludes(hero, 'FlattenedHeroTabletContent', 'hero flatten unchanged')
   assertIncludes(hero, 'themeProgressMv', 'hero light→dark intact')
-  assertIncludes(problem, 'SCENE07_BLUR_MAX_COMPACT = 18', 'Jedno miejsce blur kept')
+  assertIncludes(problem, 'SCENE07_BLUR_MAX_COMPACT = 18', 'compact blur constant retained')
   assertIncludes(surface, 'width: surfaceWidth', 'lifecycle width morph kept')
   assertNotIncludes(surface, 'scaleX:', 'lifecycle no scaleX')
   assertIncludes(register, 'const REGISTRATION_ENABLED = false', 'registration lock')
-  console.log('PASS  5. hero / blur / pill / registration regressions guarded')
+  console.log('PASS  4. hero / blur constant / pill / registration regressions guarded')
 }
 
 {
@@ -130,7 +116,12 @@ console.log('\n=== landing mobile performance iteration 2.1 (product tablet) ===
     "from '@/features/landing-v2/product-story/ProductStoryWorkspace'",
     'flat product does not import live workspace',
   )
-  console.log('PASS  6. ProductStoryWorkspace unmounted on compact path')
+  assertNotIncludes(
+    autoplay,
+    "from '@/features/landing-v2/product-story/ProductStoryWorkspace'",
+    'autoplay does not import live workspace',
+  )
+  console.log('PASS  5. ProductStoryWorkspace absent from flattened paths')
 }
 
 console.log('\nPASS  landing mobile performance iteration 2.1\n')

@@ -37,7 +37,7 @@ export const PROBLEM_STORY_SCENES = [
   },
   {
     id: '07',
-    lines: ['Jedno miejsce. Cały sezon. Zero chaosu.'],
+    lines: ['Jedno miejsce.', 'Cały sezon.', 'Zero chaosu.'],
     desktopLines: ['Jedno miejsce. Cały sezon.', 'Zero chaosu.'],
   },
 ] as const

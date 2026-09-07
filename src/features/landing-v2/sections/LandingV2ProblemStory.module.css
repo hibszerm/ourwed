@@ -118,6 +118,22 @@
 }
 
 /*
+ * Compact Iteration 3A — solid black curtain over the stable Product tablet.
+ * Motion is translateY only (see LandingV2ProblemStory.tsx).
+ */
+@media (max-width: 1100px) {
+  .scene07ExitFixed {
+    background: #000000;
+    will-change: transform, opacity;
+  }
+
+  .scene07ExitFixed .scene07HeadlineBlur {
+    will-change: auto;
+    filter: none !important;
+  }
+}
+
+/*
  * Portaled Scene 07 leaves .problemTrack — compact line visibility must
  * be restated on the fixed owner or the final beat stays display:none.
  */

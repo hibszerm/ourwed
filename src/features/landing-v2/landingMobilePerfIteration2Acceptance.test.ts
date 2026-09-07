@@ -68,10 +68,14 @@ console.log('\n=== landing mobile performance iteration 2 ===\n')
 }
 
 {
-  assertIncludes(product, 'FlattenedProductTabletContent', 'product flattened')
+  assertIncludes(product, 'CompactProductReveal', 'product compact reveal')
   assertIncludes(product, 'ProductStoryWorkspace', 'desktop live workspace kept')
-  assertNotIncludes(flatProduct, "from '@/features/landing-v2/product-story/ProductStoryWorkspace'", 'flat product no live tree')
-  console.log('PASS  2. compact product tablet flattens scroll tabs')
+  assertIncludes(
+    read('src/features/landing-v2/devices/FlattenedProductAutoplay.tsx'),
+    'FlattenedProductAutoplay',
+    'autoplay flattened product',
+  )
+  console.log('PASS  2. compact product tablet flattens via reveal/autoplay')
 }
 
 {
@@ -122,9 +126,10 @@ console.log('\n=== landing mobile performance iteration 2 ===\n')
 }
 
 {
-  assertIncludes(problem, 'SCENE07_BLUR_MAX_COMPACT = 18', 'Jedno miejsce blur restored')
-  assertNotIncludes(problem, 'SCENE07_BLUR_MAX_COMPACT = 0', 'blur not zeroed')
-  console.log('PASS  6. Scene07 compact blur restored')
+  assertIncludes(problem, 'SCENE07_BLUR_MAX_COMPACT = 18', 'compact blur constant retained')
+  /* Iteration 3A: curtain uses blur 0; constant kept for desktop/docs. */
+  assertIncludes(problem, 'SCENE07_BLUR_MAX_DESKTOP = 25', 'desktop blur kept')
+  console.log('PASS  6. Scene07 blur constants present')
 }
 
 {

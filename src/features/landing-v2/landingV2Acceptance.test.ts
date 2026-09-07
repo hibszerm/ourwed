@@ -504,8 +504,8 @@ function walkTs(dir: string, out: string[] = []): string[] {
     'Product settle shares Hero canonical fit helper',
   )
   assertIncludes(
-    productStoryGate,
-    'fitLock={isCompactViewport}',
+    read('src/features/landing-v2/product-story/CompactProductReveal.tsx'),
+    'fitLock',
     'Product compact freezes design width for outer scale',
   )
   assertIncludes(
@@ -543,7 +543,7 @@ function walkTs(dir: string, out: string[] = []): string[] {
   assertIncludes(
     problemGate,
     'SCENE07_BLUR_MAX_COMPACT = 18',
-    'compact Scene 07 blur restored',
+    'compact Scene 07 blur constant retained (3A curtain uses 0)',
   )
   assertIncludes(problemGate, 'SCENE_ENTER_Y = 10', 'desktop scene enter Y frozen')
   assertIncludes(problemGate, 'SCENE_EXIT_Y = -8', 'desktop scene exit Y frozen')
@@ -582,8 +582,13 @@ function walkTs(dir: string, out: string[] = []): string[] {
   )
   assertIncludes(
     read('src/features/landing-v2/sections/problemStoryCopy.ts'),
-    'Jedno miejsce. Cały sezon. Zero chaosu.',
+    "'Jedno miejsce.'",
     'exact final Problem beat remains in sequence',
+  )
+  assertIncludes(
+    read('src/features/landing-v2/sections/problemStoryCopy.ts'),
+    "'Zero chaosu.'",
+    'Scene 07 closing line',
   )
   assertIncludes(
     lifecycleGate,
@@ -697,7 +702,9 @@ function walkTs(dir: string, out: string[] = []): string[] {
     'Dlatego w OurWed wszystko masz pod ręką.',
     'scene 06',
   )
-  assertIncludes(problemCopy, 'Jedno miejsce. Cały sezon. Zero chaosu.', 'scene 07')
+  assertIncludes(problemCopy, "'Jedno miejsce.'", 'scene 07 line 1')
+  assertIncludes(problemCopy, "'Cały sezon.'", 'scene 07 line 2')
+  assertIncludes(problemCopy, "'Zero chaosu.'", 'scene 07 line 3')
   assertNotIncludes(
     problemCopy,
     'Dlatego w OurWed wszystko zaczyna się od jednego zlecenia.',
@@ -1339,8 +1346,13 @@ function walkTs(dir: string, out: string[] = []): string[] {
   )
   assertIncludes(
     read('src/features/landing-v2/sections/LandingV2ProblemStory.tsx'),
-    'style={{ filter: s6ExitFilter }}',
-    'filter applied on headline blur layer only',
+    'filter: s6ExitFilter',
+    'filter applied on headline blur layer (desktop)',
+  )
+  assertIncludes(
+    read('src/features/landing-v2/sections/LandingV2ProblemStory.tsx'),
+    'no filter on curtain',
+    'compact Scene 07 omits filter binding',
   )
   assertIncludes(
     read('src/features/landing-v2/sections/LandingV2ProblemStory.tsx'),
@@ -1570,13 +1582,18 @@ function walkTs(dir: string, out: string[] = []): string[] {
     'no transparent Problem sticky handoffClear',
   )
   assertIncludes(productStory, 'data-product-theater="static"', 'reduced-motion static fallback remains')
-  assertIncludes(productStory, 'data-ps-visual-stage', 'Product visual stage marker')
+  assertIncludes(productStory, 'CompactProductReveal', 'compact Product uses simple reveal')
   assertIncludes(productStory, 'scene07HandoffMv', 'Product Story follows Scene 07 handoff MotionValue')
   assertIncludes(productStory, 'productVisualActive', 'visual stage activation from handoffT')
   assertIncludes(
-    productStory,
+    read('src/features/landing-v2/product-story/productStoryProgress.ts'),
     'PRODUCT_STORY_COVER_SCALE_FALLBACK_COMPACT',
-    'compact cover fallback wired into Product theater',
+    'compact cover fallback constant retained in progress SoT',
+  )
+  assertIncludes(
+    read('src/features/landing-v2/product-story/CompactProductReveal.tsx'),
+    'data-product-compact-reveal',
+    'compact reveal marker',
   )
 
   const tablet = read('src/features/landing-v2/hero/HeroTabletFrame.tsx')

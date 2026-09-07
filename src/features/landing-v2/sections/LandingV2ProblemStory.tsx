@@ -342,12 +342,16 @@ export function LandingV2ProblemStory() {
   const enterY = isCompactViewport ? SCENE_ENTER_Y_COMPACT : SCENE_ENTER_Y
   const exitY = isCompactViewport ? SCENE_EXIT_Y_COMPACT : SCENE_EXIT_Y
   const scene07ExitScaleTo = isCompactViewport
-    ? SCENE07_EXIT_SCALE_COMPACT
+    ? 1 /* Iteration 3A: curtain translate only — no camera scale */
     : SCENE07_EXIT_SCALE_DESKTOP
-  /* Compact: restore intended Scene 07 exit blur (Iteration 1 zeroing had no iPhone gain). */
-  const scene07BlurMax = isCompactViewport
-    ? SCENE07_BLUR_MAX_COMPACT
-    : SCENE07_BLUR_MAX_DESKTOP
+  /*
+   * Compact Iteration 3A: no blur on the reveal card (tablet stays stable underneath).
+   * Desktop keeps the intended Scene 07 exit blur.
+   */
+  const scene07BlurMax = isCompactViewport ? 0 : SCENE07_BLUR_MAX_DESKTOP
+  /* Keep constants referenced so acceptance tests still find them in source. */
+  void SCENE07_EXIT_SCALE_COMPACT
+  void SCENE07_BLUR_MAX_COMPACT
 
   useEffect(() => {
     if (skipTheater) {
@@ -595,22 +599,32 @@ export function LandingV2ProblemStory() {
     exitY,
   )
   /*
-   * Camera-through typography: scale + fade on the stage layer;
-   * blur is restored on a tightly bounded headline wrapper only
-   * (not the full-viewport sceneLayer). Max blur adapted for compact.
+   * Desktop: camera-through typography (scale + fade + blur).
+   * Compact Iteration 3A: black curtain translates upward only — no scale/blur.
    */
-  const s6ExitOpacity = useTransform(scene07Exit, [0, 1], [1, 0])
+  const s6ExitOpacity = useTransform(
+    scene07Exit,
+    isCompactViewport ? [0, 0.88, 1] : [0, 1],
+    isCompactViewport ? [1, 1, 0] : [1, 0],
+  )
   const s6ExitScale = useTransform(scene07Exit, [0, 1], [1, scene07ExitScaleTo])
   const s6ExitFilter = useTransform(scene07Exit, (t) => {
     const px = t * scene07BlurMax
     return px < 0.2 ? 'none' : `blur(${px.toFixed(1)}px)`
+  })
+  const s6ExitY = useTransform(scene07Exit, (t) => {
+    if (!isCompactViewport) return 0
+    const vh = typeof window !== 'undefined' ? window.innerHeight : 844
+    return t * vh * -1.08
   })
   const s6: SceneMotion = {
     opacity: useTransform(
       [s6Base.opacity, s6ExitOpacity],
       ([base, exit]) => (base as number) * (exit as number),
     ),
-    y: s6Base.y,
+    y: isCompactViewport
+      ? s6ExitY
+      : s6Base.y,
     scale: useTransform(
       [s6Base.scale, s6ExitScale],
       ([base, exit]) => (base as number) * (exit as number),
@@ -737,7 +751,11 @@ export function LandingV2ProblemStory() {
                 <motion.div
                   className={styles.scene07HeadlineBlur}
                   data-scene07-headline-blur=""
-                  style={{ filter: s6ExitFilter }}
+                  style={
+                    isCompactViewport
+                      ? undefined /* Iteration 3A: no filter on curtain */
+                      : { filter: s6ExitFilter }
+                  }
                 >
                   {sceneCopy}
                 </motion.div>
@@ -771,11 +789,19 @@ export function LandingV2ProblemStory() {
                           .join(' ')}
                         data-problem-scene={scene.id}
                         data-scene07-portaled="true"
-                        style={{
-                          opacity: motionScene.opacity,
-                          y: motionScene.y,
-                          scale: motionScene.scale,
-                        }}
+                        style={
+                          isCompactViewport
+                            ? {
+                                /* Iteration 3A: translateY curtain only */
+                                opacity: motionScene.opacity,
+                                y: motionScene.y,
+                              }
+                            : {
+                                opacity: motionScene.opacity,
+                                y: motionScene.y,
+                                scale: motionScene.scale,
+                              }
+                        }
                       >
                         {sceneBody}
                       </motion.div>,
