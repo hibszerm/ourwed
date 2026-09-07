@@ -206,6 +206,7 @@
     "test:auth-ux": "npx tsx --tsconfig tsconfig.app.json src/features/auth/authUxConsistencyAcceptance.test.ts",
     "test:legal": "npx tsx --tsconfig tsconfig.app.json src/features/legal/legalSurfacesAcceptance.test.ts",
     "test:legal-acceptance": "npx tsx --tsconfig tsconfig.app.json src/features/legal/legalAcceptancePersistenceAcceptance.test.ts",
+    "test:public-questionnaire-privacy": "npx tsx --tsconfig tsconfig.app.json src/features/legal/publicQuestionnairePrivacyAcceptance.test.ts",
     "test:account-erasure": "npx tsx --tsconfig tsconfig.app.json src/features/account-deletion/accountErasureAcceptance.test.ts",
     "test:account-deletion-ui": "npx tsx --tsconfig tsconfig.app.json src/features/account-deletion/accountDeletionUiAcceptance.test.ts",
     "admin:create-owner": "tsx --env-file=.env.local scripts/createAdminOwner.ts",

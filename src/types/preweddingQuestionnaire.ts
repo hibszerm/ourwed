@@ -2,6 +2,8 @@
 // Pre-Wedding Questionnaire — TypeScript types
 // =============================================================================
 
+import type { PublicQuestionnaireController } from '@/features/legal/publicQuestionnaireController'
+
 /** Field types supported by the pre-wedding questionnaire. */
 export type PreWeddingFieldType =
   | 'short_text'
@@ -208,6 +210,8 @@ export interface PublicPreWeddingForm {
   /** Photographer studio branding (from studio_details). */
   studioName?: string | null
   studioLogoUrl?: string | null
+  /** Token-bound privacy controller DTO (whitelisted fields only). */
+  privacyController?: PublicQuestionnaireController | null
 }
 
 // ---------------------------------------------------------------------------

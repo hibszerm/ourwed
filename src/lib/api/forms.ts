@@ -15,6 +15,10 @@ import { recomputeContractValueAfterExtrasSync } from '@/lib/forms/weddingExtraP
 import { getEffectiveTravelFeeAmount } from '@/lib/utils/travelFeeCommercial'
 import { weddingExtraServiceService } from '@/lib/api/weddingExtraServiceService'
 import { weddingService } from '@/lib/api/weddingService'
+import {
+  parsePublicQuestionnaireController,
+  type PublicQuestionnaireController,
+} from '@/features/legal/publicQuestionnaireController'
 import type {
   FormAnswerJson,
   FormAnswerRecord,
@@ -728,6 +732,7 @@ export async function getPublicFormByToken(token: string): Promise<{
   packages: PackageOptionSnapshot[]
   additionalServices: AdditionalServiceOptionSnapshot[]
   optionsSnapshot: FormInstanceOptionsSnapshot | null
+  privacyController: PublicQuestionnaireController | null
 } | null> {
   const { data, error } = await supabase.rpc('public_get_form_by_token', {
     p_token: token,
@@ -741,6 +746,7 @@ export async function getPublicFormByToken(token: string): Promise<{
     packages?: unknown
     additionalServices?: unknown
     optionsSnapshot?: unknown
+    privacy_controller?: unknown
   }
   if (!payload.instance || !payload.form) return null
 
@@ -777,6 +783,9 @@ export async function getPublicFormByToken(token: string): Promise<{
     packages,
     additionalServices,
     optionsSnapshot,
+    privacyController: parsePublicQuestionnaireController(
+      payload.privacy_controller,
+    ),
   }
 }
 

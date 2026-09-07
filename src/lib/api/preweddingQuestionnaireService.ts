@@ -31,6 +31,7 @@ import {
 } from '@/features/travel/weddingLocationModel'
 import { buildPrefill } from '@/lib/api/preweddingPrefill'
 import { weddingPlaceService } from '@/lib/api/weddingPlaceService'
+import { parsePublicQuestionnaireController } from '@/features/legal/publicQuestionnaireController'
 import type { WeddingPlaceRole } from '@/types/travel'
 import type {
   PrefillValue,
@@ -910,6 +911,9 @@ export const publicPreWeddingService = {
       totalRequired: (row.total_required as number) ?? 0,
       studioName: (row.studio_name as string | null) ?? null,
       studioLogoUrl: (row.studio_logo_url as string | null) ?? null,
+      privacyController: parsePublicQuestionnaireController(
+        row.privacy_controller,
+      ),
     }
   },
 

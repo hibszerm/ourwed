@@ -239,24 +239,19 @@ const FORBIDDEN_PSP = ['Stripe', 'Paddle', 'PayU', 'Przelewy24', 'Klarna'] as co
 {
   const contractForm = read('src/features/forms/ProductionContractFormPage.tsx')
   const prewedding = read('src/features/prewedding/PreWeddingPublicFormPage.tsx')
+  const notice = read('src/features/legal/LegalLinks.tsx')
   assertIncludes(contractForm, 'PublicFormPrivacyNotice', 'contract form privacy notice')
   assertIncludes(prewedding, 'PublicFormPrivacyNotice', 'pre-wedding form privacy notice')
+  assertIncludes(contractForm, 'privacyController', 'contract passes controller')
+  assertIncludes(prewedding, 'privacyController', 'prewedding passes controller')
   assertNotIncludes(contractForm, 'type="checkbox"', 'no mandatory privacy checkbox on /form')
-  assertNotIncludes(
-    read('src/features/legal/LegalLinks.tsx'),
-    'type="checkbox"',
-    'privacy notice is not a checkbox',
-  )
-  assertIncludes(
-    read('src/features/legal/LegalLinks.tsx'),
-    'LEGAL_ROUTES.privacy',
-    'public notice links privacy',
-  )
-  assertIncludes(
-    read('src/features/legal/LegalLinks.tsx'),
-    'studio, które udostępniło Ci ten formularz',
-    'studio-as-controller framing',
-  )
+  assertNotIncludes(notice, 'type="checkbox"', 'privacy notice is not a checkbox')
+  assertNotIncludes(notice, 'zgadzam się', 'no consent wording')
+  assertNotIncludes(notice, 'I consent', 'no English consent')
+  assertIncludes(notice, 'LEGAL_ROUTES.privacy', 'public notice links privacy')
+  assertIncludes(notice, 'Administratorem danych', 'controller framing')
+  assertIncludes(notice, 'przetwarza dane na jego polecenie', 'OurWed as processor/platform')
+  assertIncludes(notice, 'Więcej informacji', 'expandable fuller disclosure')
   console.log('PASS  6. questionnaire privacy notice')
 }
 

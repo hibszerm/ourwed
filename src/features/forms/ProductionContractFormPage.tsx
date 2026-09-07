@@ -35,6 +35,7 @@ import type {
 } from '@/types/contractQuestionnaire'
 import { defaultContractQuestionnaireConfig } from '@/types/contractQuestionnaire'
 import { PublicFormPrivacyNotice } from '@/features/legal/LegalLinks'
+import type { PublicQuestionnaireController } from '@/features/legal/publicQuestionnaireController'
 import styles from './FormPublicPage.module.css'
 import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
@@ -51,6 +52,7 @@ type LoadState =
       packages: PackageOptionSnapshot[]
       additionalServices: AdditionalServiceOptionSnapshot[]
       optionsSnapshot: FormInstanceOptionsSnapshot | null
+      privacyController: PublicQuestionnaireController | null
     }
 
 function emptyAnswers(template: FormTemplate): Record<string, AnswerValue> {
@@ -149,6 +151,7 @@ export function ProductionContractFormPage({
           packages: publicForm.packages,
           additionalServices: publicForm.additionalServices,
           optionsSnapshot: publicForm.optionsSnapshot,
+          privacyController: publicForm.privacyController,
         })
       } catch (err) {
         if (cancelled) return
@@ -487,7 +490,11 @@ export function ProductionContractFormPage({
           <Button type="submit" variant="primary" disabled={submitting}>
             {submitting ? 'Wysyłanie…' : template.submitLabel}
           </Button>
-          <PublicFormPrivacyNotice />
+          <PublicFormPrivacyNotice
+            controller={
+              load.status === 'ready' ? load.privacyController : null
+            }
+          />
         </div>
       </form>
 

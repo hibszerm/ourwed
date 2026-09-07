@@ -808,7 +808,7 @@ export function PreWeddingPublicFormPage({ token }: { token: string }) {
           <Button type="submit" variant="primary" disabled={submitting}>
             {submitting ? 'Wysyłanie…' : 'Wyślij ankietę'}
           </Button>
-          <PublicFormPrivacyNotice />
+          <PublicFormPrivacyNotice controller={form.privacyController ?? null} />
         </div>
       </form>
 

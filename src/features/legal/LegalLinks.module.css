@@ -40,6 +40,53 @@
   color: color-mix(in srgb, #141210 55%, transparent);
 }
 
+.publicNoticeLabel {
+  margin: 0 0 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 550;
+  letter-spacing: 0.01em;
+  color: color-mix(in srgb, #141210 68%, transparent);
+}
+
+.publicNoticeBody {
+  margin: 0;
+}
+
+.publicNoticeDetails {
+  margin-top: 0.55rem;
+}
+
+.publicNoticeDetails summary {
+  cursor: pointer;
+  list-style: none;
+  font-size: 0.75rem;
+  font-weight: 550;
+  color: color-mix(in srgb, #141210 62%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+  width: fit-content;
+}
+
+.publicNoticeDetails summary::-webkit-details-marker {
+  display: none;
+}
+
+.publicNoticeDetails summary:hover,
+.publicNoticeDetails summary:focus-visible {
+  color: #141210;
+  border-bottom-color: currentColor;
+  outline: none;
+}
+
+.publicNoticeDetailsBody {
+  margin-top: 0.55rem;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.publicNoticeDetailsBody p {
+  margin: 0;
+}
+
 .settingsNav {
   margin-top: 0.25rem;
 }
