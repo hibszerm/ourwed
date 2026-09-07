@@ -181,14 +181,25 @@
   color: var(--q-muted);
 }
 
-@media (max-width: 900px) {
+/* Compact editorial — full-width numbered rows + 2×2 audience (not desktop squeezed). */
+@media (max-width: 1100px) {
   .root {
-    --q-chapter-pad-top: clamp(4.25rem, 14vw, 6.5rem);
+    --q-chapter-pad-top: clamp(5.5rem, 14vw, 7rem); /* ~88–112 after manifesto */
+    --q-chapter-pad-bottom: clamp(4.5rem, 10vw, 6rem);
+    --q-pad-x: clamp(1.125rem, 4.5vw, 1.25rem); /* ~18–20 → ~36px gutters @402 */
+    width: 100%;
+    max-width: none;
+  }
+
+  .opening {
+    max-width: none;
+    width: min(100%, 22.5rem);
   }
 
   .chapterMarker {
     gap: 0.75rem;
     max-width: 100%;
+    margin-bottom: 1.5rem;
   }
 
   .chapterRule {
@@ -200,19 +211,108 @@
     text-align: center;
   }
 
+  .headline {
+    max-width: 22.5rem;
+    letter-spacing: -0.04em;
+  }
+
+  .support {
+    margin-top: 1.35rem;
+    max-width: 21rem;
+    font-size: clamp(0.9375rem, 0.6vw + 0.85rem, 1rem); /* 15–16 */
+    line-height: 1.55;
+  }
+
+  /* Four premium editorial rows — black surface is the card */
   .signalGrid {
-    grid-template-columns: 1fr;
-    gap: 2.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    margin: clamp(2.75rem, 7vw, 3.5rem) auto 0; /* ~44–56 after dla-kogo */
+    max-width: none;
+    width: min(100%, calc(100vw - 2.25rem)); /* ~36px gutters */
+  }
+
+  .signal {
+    width: 100%;
+    padding: clamp(1.5rem, 4vw, 1.75rem) 0; /* 24–28 */
+    border-top: 1px solid var(--q-rule);
+    box-sizing: border-box;
+  }
+
+  .signal:last-child {
+    border-bottom: 1px solid var(--q-rule);
+  }
+
+  .signalIndex {
+    margin: 0 0 0.65rem;
+    font-size: 0.75rem;
+    letter-spacing: 0.14em;
+  }
+
+  .signalRule {
+    display: none; /* top border on .signal is the editorial rule */
+  }
+
+  .signalHeadline {
+    margin: 0 0 0.65rem;
+    font-size: clamp(1.1875rem, 1.2vw + 1rem, 1.3125rem); /* 19–21 */
+    line-height: 1.25;
+  }
+
+  .signalSupport {
+    font-size: clamp(0.90625rem, 0.4vw + 0.85rem, 0.96875rem); /* ~14.5–15.5 */
+    line-height: 1.55;
+  }
+
+  .audience {
+    margin: clamp(4.5rem, 10vw, 5.5rem) auto 0; /* ~72–88 after 01–04 */
+    max-width: none;
+    width: min(22.75rem, calc(100vw - 2.25rem)); /* ~364 */
+    padding-bottom: 0.5rem;
+  }
+
+  .audienceEyebrow {
+    margin: 0 0 0.25rem;
+  }
+
+  /* Compact 2×2 role grid — subtle borders only */
+  .audienceRow {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.7rem; /* ~11px */
+    margin: 1.35rem 0 0;
+    list-style: none;
+    padding: 0;
   }
 
   .audienceLabel {
-    border-right: none;
-    width: 100%;
-    padding: 0.55rem 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0;
+    padding: 0.85rem 0.65rem;
+    min-height: 4.75rem; /* ~76 */
+    width: auto;
+    border: 1px solid var(--q-rule);
+    border-right: 1px solid var(--q-rule);
+    border-radius: 2px;
+    font-size: clamp(0.9375rem, 1vw + 0.8rem, 1.0625rem);
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    line-height: 1.25;
+    text-align: center;
+    box-sizing: border-box;
   }
 
-  .audienceRow {
-    flex-direction: column;
-    gap: 0;
+  .audienceLabel:last-child {
+    border-right: 1px solid var(--q-rule);
+  }
+
+  .audienceSupport {
+    margin: 1.5rem auto 0;
+    max-width: 22rem;
+    font-size: clamp(0.9375rem, 0.5vw + 0.85rem, 0.98rem);
+    line-height: 1.55;
   }
 }

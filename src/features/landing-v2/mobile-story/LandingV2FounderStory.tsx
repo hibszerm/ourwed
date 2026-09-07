@@ -44,7 +44,7 @@ export function LandingV2FounderStory() {
       >
         {hashAnchor}
         <FounderStoryContent headingId="lv2-founder-opening-heading" compactFragments={compact} />
-        <FounderQualification />
+        <FounderQualification localReveal={false} compactLayout={compact} />
       </section>
     )
   }
@@ -66,7 +66,7 @@ export function LandingV2FounderStory() {
         compactFragments={compact}
         localReveal={compact}
       />
-      <FounderQualification />
+      <FounderQualification localReveal={compact} compactLayout={compact} />
     </section>
   )
 }

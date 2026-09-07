@@ -1,6 +1,7 @@
 /**
  * Founder qualification chapter — continues the same black Founder surface.
- * Editorial self-selection; no feature demos; no sticky choreography; no motion.
+ * Editorial self-selection; no feature demos; no sticky choreography.
+ * Desktop: static. Compact: optional local whileInView only.
  */
 
 export const LV2_QUALIFICATION_OPENING = {
