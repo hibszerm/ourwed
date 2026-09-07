@@ -8,6 +8,7 @@ import {
 } from 'framer-motion'
 import { HeroTabletFrame } from '@/features/landing-v2/hero/HeroTabletFrame'
 import { measureCanonicalDeviceFit } from '@/features/landing-v2/hero/landingTabletFit'
+import { FlattenedProductTabletContent } from '@/features/landing-v2/devices/FlattenedProductTabletContent'
 import { useLandingCompactViewport } from '@/features/landing-v2/motion/landingViewport'
 import { useTheaterScrollGate } from '@/features/landing-v2/motion/useTheaterScrollGate'
 import { lifecycleExitMv } from '@/features/landing-v2/lifecycle-story/lifecycleExitClock'
@@ -436,7 +437,11 @@ export function LandingV2ProductStory() {
         data-ps-workspace-clip=""
         data-ps-workspace-dormant="true"
       >
-        <ProductStoryWorkspace activeTab={activeTab} wake={1} />
+        {isCompactViewport ? (
+          <FlattenedProductTabletContent />
+        ) : (
+          <ProductStoryWorkspace activeTab={activeTab} wake={1} />
+        )}
       </div>
     </HeroTabletFrame>
   )
@@ -458,7 +463,11 @@ export function LandingV2ProductStory() {
            * Outer CSS constrains width; internals stay 1420 design canvas.
            */}
           <HeroTabletFrame canonical hardwareProgress={1} blackout={0}>
-            <ProductStoryWorkspace activeTab="overview" wake={1} />
+            {isCompactViewport ? (
+              <FlattenedProductTabletContent />
+            ) : (
+              <ProductStoryWorkspace activeTab="overview" wake={1} />
+            )}
           </HeroTabletFrame>
         </div>
       </section>

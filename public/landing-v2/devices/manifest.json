@@ -1,0 +1,76 @@
+{
+  "assets": [
+    {
+      "name": "hero-tablet-dark",
+      "file": "hero-tablet-dark.webp",
+      "width": 1200,
+      "height": 728,
+      "encodedBytes": 30850,
+      "decodedBytesApprox": 3494400
+    },
+    {
+      "name": "hero-tablet-light",
+      "file": "hero-tablet-light.webp",
+      "width": 1200,
+      "height": 728,
+      "encodedBytes": 31828,
+      "decodedBytesApprox": 3494400
+    },
+    {
+      "name": "phone-brief",
+      "file": "phone-brief.webp",
+      "width": 780,
+      "height": 1688,
+      "encodedBytes": 57616,
+      "decodedBytesApprox": 5266560
+    },
+    {
+      "name": "phone-dashboard-end",
+      "file": "phone-dashboard-end.webp",
+      "width": 780,
+      "height": 1688,
+      "encodedBytes": 42480,
+      "decodedBytesApprox": 5266560
+    },
+    {
+      "name": "phone-dashboard-strip",
+      "file": "phone-dashboard-strip.webp",
+      "width": 780,
+      "height": 2584,
+      "encodedBytes": 64232,
+      "decodedBytesApprox": 8062080
+    },
+    {
+      "name": "phone-dashboard",
+      "file": "phone-dashboard.webp",
+      "width": 780,
+      "height": 1688,
+      "encodedBytes": 34982,
+      "decodedBytesApprox": 5266560
+    },
+    {
+      "name": "phone-day",
+      "file": "phone-day.webp",
+      "width": 780,
+      "height": 1688,
+      "encodedBytes": 35770,
+      "decodedBytesApprox": 5266560
+    },
+    {
+      "name": "phone-nav",
+      "file": "phone-nav.webp",
+      "width": 780,
+      "height": 1688,
+      "encodedBytes": 50012,
+      "decodedBytesApprox": 5266560
+    },
+    {
+      "name": "product-tablet-overview",
+      "file": "product-tablet-overview.webp",
+      "width": 1200,
+      "height": 728,
+      "encodedBytes": 34474,
+      "decodedBytesApprox": 3494400
+    }
+  ]
+}

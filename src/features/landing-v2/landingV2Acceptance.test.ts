@@ -542,13 +542,8 @@ function walkTs(dir: string, out: string[] = []): string[] {
   )
   assertIncludes(
     problemGate,
-    'isCompactViewport ? 0 : SCENE07_BLUR_MAX_DESKTOP',
-    'compact Scene 07 disables scroll-driven blur',
-  )
-  assertNotIncludes(
-    problemGate,
-    'SCENE07_BLUR_MAX_COMPACT',
-    'compact no longer uses intermediate blur max',
+    'SCENE07_BLUR_MAX_COMPACT = 18',
+    'compact Scene 07 blur restored',
   )
   assertIncludes(problemGate, 'SCENE_ENTER_Y = 10', 'desktop scene enter Y frozen')
   assertIncludes(problemGate, 'SCENE_EXIT_Y = -8', 'desktop scene exit Y frozen')
@@ -567,8 +562,8 @@ function walkTs(dir: string, out: string[] = []): string[] {
   )
   assertIncludes(
     problemGate,
-    'SCENE07_BLUR_MAX_DESKTOP = 25',
-    'desktop Scene 07 blur retained for desktop path',
+    'SCENE07_BLUR_MAX_COMPACT',
+    'compact Scene 07 blur constant present',
   )
   assertIncludes(
     problemGate,

@@ -13,6 +13,7 @@ import {
 } from '@/features/landing-v2/hero/HeroModernDashboard'
 import { HeroTabletFrame } from '@/features/landing-v2/hero/HeroTabletFrame'
 import { applyHeroDemoThemeToElement } from '@/features/landing-v2/hero/heroDemoThemeInterpolation'
+import { FlattenedHeroTabletContent } from '@/features/landing-v2/devices/FlattenedHeroTabletContent'
 import { heroTheaterGeometry, compactHeroExitCoverScale } from '@/features/landing-v2/hero/heroTheaterGeometry'
 import { measureCanonicalDeviceFit } from '@/features/landing-v2/hero/landingTabletFit'
 import { useLandingCompactViewport } from '@/features/landing-v2/motion/landingViewport'
@@ -354,11 +355,18 @@ export function LandingV2Hero() {
       fitLock={isCompactViewport}
       hardwareProgress={skipTheater ? 1 : undefined}
     >
-      <HeroModernDashboard
-        revealComplete={skipTheater}
-        reveal={skipTheater ? undefined : reveal}
-        themeProgress={skipTheater ? undefined : themeProgressMv}
-      />
+      {isCompactViewport ? (
+        <FlattenedHeroTabletContent
+          themeProgress={skipTheater ? undefined : themeProgressMv}
+          themeStatic={skipTheater ? 0 : undefined}
+        />
+      ) : (
+        <HeroModernDashboard
+          revealComplete={skipTheater}
+          reveal={skipTheater ? undefined : reveal}
+          themeProgress={skipTheater ? undefined : themeProgressMv}
+        />
+      )}
     </HeroTabletFrame>
   )
 

@@ -9,6 +9,7 @@ import {
 } from 'framer-motion'
 import { HeroPhoneFrame } from '@/features/landing-v2/mobile-story/device/HeroPhoneFrame'
 import { MobileOurWedApp } from '@/features/landing-v2/mobile-story/app/MobileOurWedApp'
+import { FlattenedPhoneAppContent } from '@/features/landing-v2/devices/FlattenedPhoneAppContent'
 import {
   clearMobileStoryProgress,
   publishMobileAppProgress,
@@ -512,7 +513,11 @@ export function LandingV2MobileStory() {
           </h2>
           <div className={styles.staticDevice} data-mobile-device-settled="true">
             <HeroPhoneFrame lockMorph={STATIC_LOCK_MORPH}>
-              <MobileOurWedApp appProgress={appProgress} staticMode />
+              {isCompactViewport ? (
+                <FlattenedPhoneAppContent appProgress={appProgress} />
+              ) : (
+                <MobileOurWedApp appProgress={appProgress} staticMode />
+              )}
             </HeroPhoneFrame>
           </div>
           <div className={styles.staticSecurity} data-security-copy="">
@@ -594,7 +599,22 @@ export function LandingV2MobileStory() {
               style={{ opacity: phoneOpacity, visibility: phoneVisibility, scale: phoneScale, y: phoneY }}
             >
               <HeroPhoneFrame lockMorph={lockMorph}>
-                {phoneAppMounted ? (
+                {isCompactViewport ? (
+                  phoneAppMounted ? (
+                    <FlattenedPhoneAppContent appProgress={appProgress} />
+                  ) : (
+                    <div
+                      aria-hidden
+                      data-mobile-app-placeholder=""
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        background:
+                          'linear-gradient(180deg, #f7f4ef 0%, #efeae3 100%)',
+                      }}
+                    />
+                  )
+                ) : phoneAppMounted ? (
                   <MobileOurWedApp appProgress={appProgress} />
                 ) : (
                   <div

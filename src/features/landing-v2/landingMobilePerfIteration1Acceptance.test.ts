@@ -94,15 +94,16 @@ console.log('\n=== landing mobile performance iteration 1 ===\n')
 }
 
 {
-  assertIncludes(surface, 'scaleX', 'compact scaleX morph')
-  assertIncludes(surface, 'scaleY', 'compact scaleY morph')
-  assertIncludes(surface, 'compactWorkSize().workW', 'fixed compact width box')
+  assertIncludes(surface, 'width: surfaceWidth', 'width morph restored')
+  assertIncludes(surface, 'height: surfaceHeight', 'height morph restored')
+  assertNotIncludes(surface, 'scaleX:', 'no non-uniform scaleX on shell')
+  assertNotIncludes(surface, 'scaleY:', 'no non-uniform scaleY on shell')
   assertIncludes(
-    surfaceCss,
-    "will-change: transform, opacity",
-    'compact will-change without width/height',
+    surface,
+    'never non-uniform',
+    'documents no text squash',
   )
-  console.log('PASS  5. lifecycle compact avoids width/height thrash')
+  console.log('PASS  5. lifecycle compact avoids non-uniform text scale')
 }
 
 {

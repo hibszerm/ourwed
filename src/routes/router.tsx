@@ -134,6 +134,15 @@ export const router = createBrowserRouter([
     children: [
       { path: '/', element: <LandingPage /> },
       {
+        path: '/dev/landing-device-capture',
+        lazy: async () => {
+          const { LandingDeviceCapturePage } = await import(
+            '@/features/landing-v2/capture/LandingDeviceCapturePage'
+          )
+          return { Component: LandingDeviceCapturePage }
+        },
+      },
+      {
         // Obsolete Landing V3 preview — retire to the public root.
         path: '/landing-v3',
         element: <RedirectToRootPreserveHash />,

@@ -46,6 +46,7 @@ const SCENE07_EXIT_SCALE_DESKTOP = 2.15
  */
 const SCENE07_EXIT_SCALE_COMPACT = 3.2
 const SCENE07_BLUR_MAX_DESKTOP = 25
+const SCENE07_BLUR_MAX_COMPACT = 18
 
 type SceneMotion = {
   opacity: MotionValue<number>
@@ -343,8 +344,10 @@ export function LandingV2ProblemStory() {
   const scene07ExitScaleTo = isCompactViewport
     ? SCENE07_EXIT_SCALE_COMPACT
     : SCENE07_EXIT_SCALE_DESKTOP
-  /* Compact: skip scroll-driven filter blur — opacity/scale carry the exit. */
-  const scene07BlurMax = isCompactViewport ? 0 : SCENE07_BLUR_MAX_DESKTOP
+  /* Compact: restore intended Scene 07 exit blur (Iteration 1 zeroing had no iPhone gain). */
+  const scene07BlurMax = isCompactViewport
+    ? SCENE07_BLUR_MAX_COMPACT
+    : SCENE07_BLUR_MAX_DESKTOP
 
   useEffect(() => {
     if (skipTheater) {

@@ -1,0 +1,28 @@
+.page {
+  min-height: 100vh;
+  margin: 0;
+  padding: 24px;
+  background: #f3efe8;
+}
+
+.tabletBoard {
+  width: 1420px;
+  height: 860px;
+  overflow: hidden;
+  background: #fff;
+  border-radius: 0;
+}
+
+.phoneBoard {
+  width: 390px;
+  padding: 0;
+}
+
+.phoneViewport {
+  position: relative;
+  width: 390px;
+  height: 844px;
+  overflow: hidden;
+  border-radius: 0;
+  background: #f5f2ed;
+}

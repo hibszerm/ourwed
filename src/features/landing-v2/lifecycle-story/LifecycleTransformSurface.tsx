@@ -18,26 +18,12 @@ type Props = {
   compact?: boolean
 }
 
-function compactWorkSize() {
-  const vw = typeof window !== 'undefined' ? window.innerWidth : 390
-  const vh = typeof window !== 'undefined' ? window.innerHeight : 844
-  const navH = 68
-  const usable = Math.max(1, vh - navH)
-  return {
-    linkW: Math.min(vw - 28, 340),
-    linkH: 96,
-    workW: Math.min(vw - 22, 430),
-    workH: Math.min(750, Math.max(620, Math.round(usable * 0.86))),
-  }
-}
-
 /**
  * ONE continuous centered surface:
  * link capsule → interactive workflow workspace shell.
  *
- * Compact: keep final box size fixed and morph via scaleX/scaleY
- * (avoids per-frame width/height layout thrash on iOS).
- * Desktop: unchanged width/height interpolation.
+ * Compact + desktop both interpolate real width/height (never non-uniform
+ * scaleX/scaleY on text — Iteration 1 scale morph crushed glyphs on iPhone).
  */
 export function LifecycleTransformSurface({
   progress,
@@ -84,7 +70,9 @@ export function LifecycleTransformSurface({
     const t = Number(e)
     const vw = typeof window !== 'undefined' ? window.innerWidth : 1440
     if (compact) {
-      return compactWorkSize().workW
+      const linkW = Math.min(vw - 28, 340)
+      const workW = Math.min(vw - 22, 430)
+      return linkW + (workW - linkW) * t
     }
     const linkW = Math.min(600, Math.max(480, vw * 0.42))
     const workW = Math.min(1180, vw * 0.86)
@@ -93,23 +81,16 @@ export function LifecycleTransformSurface({
   const surfaceHeight = useTransform([expand, viewportTick], ([e]) => {
     const t = Number(e)
     if (compact) {
-      return compactWorkSize().workH
+      const linkH = 96
+      const vh = typeof window !== 'undefined' ? window.innerHeight : 844
+      const navH = 68
+      const usable = Math.max(1, vh - navH)
+      const workH = Math.min(750, Math.max(620, Math.round(usable * 0.86)))
+      return linkH + (workH - linkH) * t
     }
     const linkH = 112
     const workH = 620
     return linkH + (workH - linkH) * t
-  })
-  const surfaceScaleX = useTransform([expand, viewportTick], ([e]) => {
-    if (!compact) return 1
-    const t = Number(e)
-    const { linkW, workW } = compactWorkSize()
-    return (linkW + (workW - linkW) * t) / workW
-  })
-  const surfaceScaleY = useTransform([expand, viewportTick], ([e]) => {
-    if (!compact) return 1
-    const t = Number(e)
-    const { linkH, workH } = compactWorkSize()
-    return (linkH + (workH - linkH) * t) / workH
   })
   const surfaceRadius = useTransform(expand, (e) => {
     const linkR = 999
@@ -138,10 +119,7 @@ export function LifecycleTransformSurface({
         y: surfaceY,
         width: surfaceWidth,
         height: surfaceHeight,
-        scaleX: compact ? surfaceScaleX : undefined,
-        scaleY: compact ? surfaceScaleY : undefined,
         borderRadius: surfaceRadius,
-        transformOrigin: 'center center',
       }}
     >
       <motion.div
