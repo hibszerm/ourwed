@@ -606,7 +606,8 @@
     /* story chapter 2 → manifesto */
     --founder-gap-23: clamp(4.375rem, 9vw, 5.25rem); /* 70–84 (~25–35% tighter) */
     --founder-gap-final: 3.25rem;
-    --founder-bottom: clamp(3.75rem, 8vw, 5rem);
+    /* Qualification continues same black surface — chapter breath lives in q-pad-top */
+    --founder-bottom: 0;
     /* Smaller frame: keep head + shoulders as focus */
     --founder-portrait-pos: center 16%;
   }
@@ -681,14 +682,14 @@
     display: flex;
     flex-direction: row;
     align-items: center;
-    gap: clamp(1rem, 3.2vw, 1.375rem); /* 16–22 */
+    gap: clamp(1rem, 5vw, 1.375rem); /* ~16–22 across 375–430 */
     width: min(92vw, 23.125rem); /* ~364–370 @402 */
     max-width: 100%;
   }
 
   .portraitBlock {
     flex: 0 0 auto;
-    width: clamp(8.5rem, 36.5vw, 10rem); /* ~136–160 */
+    width: clamp(8.5rem, 37vw, 9.875rem); /* ~136–158 → 185–198h @4/5 */
     margin: 0;
   }
 
