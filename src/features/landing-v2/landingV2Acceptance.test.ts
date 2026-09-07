@@ -577,8 +577,13 @@ function walkTs(dir: string, out: string[] = []): string[] {
   )
   assertIncludes(
     problemGate,
+    'CompactProblemNarrative',
+    'compact Problem uses stacked narrative (Iteration 3B)',
+  )
+  assertIncludes(
+    problemGate,
     "scene.id === '07'",
-    'Scene 07 remains in compact normal-motion theater',
+    'Scene 07 remains in desktop Problem theater',
   )
   assertIncludes(
     read('src/features/landing-v2/sections/problemStoryCopy.ts'),

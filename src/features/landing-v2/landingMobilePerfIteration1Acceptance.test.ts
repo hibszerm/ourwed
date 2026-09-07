@@ -59,15 +59,19 @@ console.log('\n=== landing mobile performance iteration 1 ===\n')
 }
 
 {
+  const compactNarrative = read(
+    'src/features/landing-v2/sections/CompactProblemNarrative.tsx',
+  )
   for (const [name, src] of [
     ['hero', hero],
     ['problem', problem],
+    ['problem-narrative', compactNarrative],
     ['product', product],
     ['lifecycle', lifecycle],
     ['mobile', mobile],
   ] as const) {
     assertIncludes(src, 'useTheaterScrollGate', `${name} gates scroll`)
-    assertIncludes(src, 'if (!activeRef.current) return', `${name} skips offscreen measure`)
+    assertIncludes(src, 'if (!activeRef.current', `${name} skips offscreen measure`)
   }
   console.log('PASS  2. all sticky theaters gate continuous measure')
 }

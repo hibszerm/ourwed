@@ -61,26 +61,11 @@ console.log('\n=== landing mobile performance iteration 3A (product reveal) ===\
 }
 
 {
-  assertIncludes(
-    problem,
-    'isCompactViewport ? 0 : SCENE07_BLUR_MAX_DESKTOP',
-    'compact curtain no blur',
-  )
-  assertIncludes(
-    problem,
-    'scene07ExitScaleTo = isCompactViewport\n    ? 1',
-    'compact no exit scale',
-  )
-  assertIncludes(problem, 's6ExitY', 'curtain translateY')
-  assertIncludes(problem, 't * vh * -1.08', 'upward curtain travel')
-  assertIncludes(problem, 'Iteration 3A: translateY curtain only', 'compact portal omits scale')
-  assertIncludes(
-    problem,
-    'isCompactViewport\n                      ? undefined /* Iteration 3A: no filter on curtain */',
-    'compact omits filter binding',
-  )
-  assertIncludes(problemCss, 'background: #000000', 'solid black curtain')
-  console.log('PASS  2. Scene 07 compact curtain is translate-only')
+  assertIncludes(problem, 'LandingV2ProblemStoryDesktop', 'desktop Problem theater kept')
+  assertIncludes(problem, 's6ExitY', 'desktop curtain translate helper retained')
+  assertIncludes(problem, 't * vh * -1.08', 'desktop curtain travel retained')
+  assertIncludes(problemCss, 'background: #000000', 'solid black curtain css retained')
+  console.log('PASS  2. desktop Scene 07 curtain retained (compact uses 3B narrative)')
 }
 
 {

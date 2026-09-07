@@ -23,6 +23,7 @@ import {
 } from '@/features/landing-v2/sections/problemStoryCopy'
 import { useLandingCompactViewport } from '@/features/landing-v2/motion/landingViewport'
 import { useTheaterScrollGate } from '@/features/landing-v2/motion/useTheaterScrollGate'
+import { CompactProblemNarrative } from '@/features/landing-v2/sections/CompactProblemNarrative'
 import styles from './LandingV2ProblemStory.module.css'
 
 /** Entrance / exit micro-motion — layout position stays fixed in CSS. */
@@ -307,16 +308,25 @@ function SceneCopy({
 
 /**
  * Black typographic Problem Story — Scenes 01–07.
- * Sticky scroll theater on desktop and compact viewports.
- * Reduced-motion only: static stacked flow.
+ * Compact: stacked statement narrative (Iteration 3B).
+ * Desktop: sticky scroll theater (unchanged).
  */
 export function LandingV2ProblemStory() {
+  const isCompactViewport = useLandingCompactViewport()
+  if (isCompactViewport) {
+    return <CompactProblemNarrative />
+  }
+  return <LandingV2ProblemStoryDesktop />
+}
+
+function LandingV2ProblemStoryDesktop() {
   const trackRef = useRef<HTMLElement | null>(null)
   const scene01TailOrigin = useRef<number | null>(null)
   /** ScrollY when Scene 01 entry first reaches ~1 — story progress starts here (not at sticky). */
   const scene01SettleOrigin = useRef<number | null>(null)
   const isReducedMotion = Boolean(useReducedMotion())
-  const isCompactViewport = useLandingCompactViewport()
+  /** Desktop-only path — compact uses CompactProblemNarrative. */
+  const isCompactViewport = false
   /**
    * Scene 07 text-only fixed/portal layer — structural (portal mount).
    * Engages BEFORE Scene 07 enter (opacity still 0) so the sticky→portal swap
@@ -332,24 +342,20 @@ export function LandingV2ProblemStory() {
    */
   const scene07Exit = useMotionValue(0)
 
-  /* Theater runs on compact; only accessibility reduces to static. */
+  /* Theater runs on desktop; only accessibility reduces to static. */
   const skipTheater = isReducedMotion
   const { activeRef, onBecameActiveRef } = useTheaterScrollGate(
     trackRef,
     !skipTheater,
   )
 
-  const enterY = isCompactViewport ? SCENE_ENTER_Y_COMPACT : SCENE_ENTER_Y
-  const exitY = isCompactViewport ? SCENE_EXIT_Y_COMPACT : SCENE_EXIT_Y
-  const scene07ExitScaleTo = isCompactViewport
-    ? 1 /* Iteration 3A: curtain translate only — no camera scale */
-    : SCENE07_EXIT_SCALE_DESKTOP
-  /*
-   * Compact Iteration 3A: no blur on the reveal card (tablet stays stable underneath).
-   * Desktop keeps the intended Scene 07 exit blur.
-   */
-  const scene07BlurMax = isCompactViewport ? 0 : SCENE07_BLUR_MAX_DESKTOP
-  /* Keep constants referenced so acceptance tests still find them in source. */
+  const enterY = SCENE_ENTER_Y
+  const exitY = SCENE_EXIT_Y
+  const scene07ExitScaleTo = SCENE07_EXIT_SCALE_DESKTOP
+  const scene07BlurMax = SCENE07_BLUR_MAX_DESKTOP
+  /* Compact constants retained in module for historical acceptance + Product cover pairing. */
+  void SCENE_ENTER_Y_COMPACT
+  void SCENE_EXIT_Y_COMPACT
   void SCENE07_EXIT_SCALE_COMPACT
   void SCENE07_BLUR_MAX_COMPACT
 

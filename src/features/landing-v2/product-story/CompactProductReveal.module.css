@@ -1,4 +1,4 @@
-/* Compact Product — stable tablet under Scene 07 black curtain. */
+/* Compact Product — stable tablet under Problem narrative clear. */
 
 .track {
   --lv2-hero-paper: var(--paper, #f3efe8);
@@ -7,7 +7,7 @@
   position: relative;
   width: 100%;
   /*
-   * Overlap Problem Story so Scene 07 curtain already sits above this tablet.
+   * Overlap Problem Story so the narrative clear already sits above this tablet.
    * Shorter runway: reveal + short hold + lifecycle exit budget.
    */
   margin-top: calc(var(--lv2-nav-h) - 170svh);
