@@ -60,6 +60,8 @@ async function assertThrows(
 }
 
 const MIGRATION = 'supabase/migrations/20260907180000_account_erasure_pipeline.sql'
+const LEGAL_ACCEPTANCE_MIGRATION =
+  'supabase/migrations/20260907200000_user_legal_acceptances.sql'
 const EDGE = 'supabase/functions/delete-account/index.ts'
 const STORAGE_MOD = 'supabase/functions/delete-account/storageErasure.ts'
 const CAL_MOD = 'supabase/functions/delete-account/calendarCleanup.ts'
@@ -416,6 +418,27 @@ function createMemoryStorage(initial: string[]): {
     'revoke authenticated',
   )
   console.log('PASS  4. Migration security + ordering + admin + rate limit')
+}
+
+{
+  const legalSql = read(LEGAL_ACCEPTANCE_MIGRATION)
+  assertIncludes(
+    legalSql,
+    'delete from public.user_legal_acceptances',
+    'erase_account_data deletes legal acceptances',
+  )
+  const acceptDel = legalSql.lastIndexOf('delete from public.user_legal_acceptances')
+  const usersDel = legalSql.lastIndexOf('delete from public.users')
+  assert(
+    acceptDel > 0 && acceptDel < usersDel,
+    'legal acceptances deleted before public.users',
+  )
+  assertIncludes(
+    legalSql,
+    'grant execute on function public.erase_account_data(uuid) to service_role',
+    'erasure remains service_role only after legal patch',
+  )
+  console.log('PASS  4b. Legal acceptance erasure integration')
 }
 
 // ---------------------------------------------------------------------------

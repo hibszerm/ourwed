@@ -33,7 +33,7 @@ export const registerSchema = z
     confirmPassword: z.string().min(1, 'Powtórz hasło'),
     profession: z.string().min(1, 'Wybierz zawód'),
     acceptTerms: z.boolean().refine((v) => v === true, {
-      message: 'Zaakceptuj regulamin, aby kontynuować',
+      message: 'Zaakceptuj Regulamin i potwierdź zapoznanie się z Polityką prywatności',
     }),
   })
   .superRefine((data, ctx) => {

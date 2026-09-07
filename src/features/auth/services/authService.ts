@@ -9,6 +9,7 @@ import { authCallbackUrl } from '@/features/auth/callback/authCallback'
 import { mapAuthError } from '@/features/auth/services/authErrors'
 import { clearStudioUserCache } from '@/lib/api/studioUser'
 import { resetTenantClientState } from '@/lib/auth/resetTenantClientState'
+import { LEGAL_VERSION } from '@/features/legal/legalMeta'
 import type {
   AuthResult,
   AuthUser,
@@ -162,6 +163,8 @@ export const authService = {
       const lastName = input.lastName.trim()
       const fullName = `${firstName} ${lastName}`.trim()
 
+      // Legal versions come from canonical LEGAL_VERSION only (not client-chosen).
+      // accepted_at is server-generated in handle_new_user — never sent from browser.
       const { data, error } = await supabase.auth.signUp({
         email,
         password: input.password,
@@ -172,6 +175,9 @@ export const authService = {
             last_name: lastName,
             name: fullName,
             profession: input.profession,
+            legal_registration_accepted: true,
+            terms_version: LEGAL_VERSION,
+            privacy_version: LEGAL_VERSION,
           },
         },
       })

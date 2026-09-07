@@ -198,6 +198,13 @@ const FORBIDDEN_PSP = ['Stripe', 'Paddle', 'PayU', 'Przelewy24', 'Klarna'] as co
   assertIncludes(register, 'to={LEGAL_ROUTES.privacy}', 'privacy Link to')
   assertIncludes(register, 'const REGISTRATION_ENABLED = false', 'registration still disabled')
   assertIncludes(register, 'registerAccount({', 'signup call unchanged')
+  assertIncludes(
+    register,
+    'potwierdzam zapoznanie się z',
+    'privacy acknowledgement wording (not marketing consent)',
+  )
+  assertIncludes(register, 'Regulamin', 'Regulamin link label')
+  assertIncludes(register, 'Polityką prywatności', 'Privacy link label')
 
   const login = read('src/pages/LoginPage.tsx')
   const registerPage = read('src/pages/RegisterPage.tsx')
@@ -205,10 +212,15 @@ const FORBIDDEN_PSP = ['Stripe', 'Paddle', 'PayU', 'Przelewy24', 'Klarna'] as co
   assertIncludes(registerPage, 'AuthLegalRegisterCopy', 'register shell legal links')
 
   assertNotIncludes(read('src/features/auth/AuthProvider.tsx'), 'LEGAL_ROUTES', 'AuthProvider untouched by legal')
+  assertIncludes(
+    read('src/features/auth/services/authService.ts'),
+    'LEGAL_VERSION',
+    'authService uses canonical legal version for signup metadata',
+  )
   assertNotIncludes(
     read('src/features/auth/services/authService.ts'),
     'LEGAL_ROUTES',
-    'authService untouched by legal',
+    'authService does not hardcode legal routes',
   )
   console.log('PASS  4. registration legal links + registration remains disabled')
 }

@@ -45,8 +45,9 @@
  * extend erasure to cancel remote subscriptions, retain legally required
  * invoice/tax records, and coordinate webhook races before Auth delete.
  *
- * P0 LEGAL ACCEPTANCE PERSISTENCE — record accepted_terms_version /
- * accepted_terms_at (and privacy acknowledgement if required) at signup.
+ * P0 LEGAL ACCEPTANCE PERSISTENCE — user_legal_acceptances via handle_new_user
+ * (terms_version + privacy_version + accepted_at + source=registration).
+ * Keep LEGAL_VERSION in sync with public.current_production_legal_version().
  *
  * LEGAL/OWNER FOLLOW-UP BEFORE LAUNCH — operational procedure for Administrator
  * objection to intended subprocessor addition/replacement (timing, channel,
@@ -63,6 +64,13 @@
  * - privacy/subprocessor disclosure accuracy
  */
 
+/**
+ * Canonical displayed legal document version.
+ * WHEN LEGAL VERSION CHANGES:
+ * 1. update this constant + legal page content
+ * 2. update public.current_production_legal_version() in a DB migration
+ * 3. deploy DB + frontend together (signup validates against the DB constant)
+ */
 export const LEGAL_VERSION = '1.1'
 
 /** ISO date shown on legal pages (YYYY-MM-DD). */

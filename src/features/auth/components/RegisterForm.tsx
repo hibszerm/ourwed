@@ -199,17 +199,17 @@ export function RegisterForm({
             className={legalLinkStyles.inlineLink}
             onClick={(event) => event.stopPropagation()}
           >
-            regulamin
+            Regulamin
           </Link>{' '}
-          i{' '}
+          i potwierdzam zapoznanie się z{' '}
           <Link
             to={LEGAL_ROUTES.privacy}
             className={legalLinkStyles.inlineLink}
             onClick={(event) => event.stopPropagation()}
           >
-            politykę prywatności
-          </Link>{' '}
-          OurWed.
+            Polityką prywatności
+          </Link>
+          .
         </span>
       </label>
       {errors.acceptTerms?.message ? (
