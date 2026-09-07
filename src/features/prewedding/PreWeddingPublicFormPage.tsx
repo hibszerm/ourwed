@@ -20,6 +20,7 @@ import type {
   PreWeddingSection,
   PublicPreWeddingForm,
 } from '@/types/preweddingQuestionnaire'
+import { PublicFormPrivacyNotice } from '@/features/legal/LegalLinks'
 import styles from './PreWeddingPublicForm.module.css'
 import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
@@ -807,6 +808,7 @@ export function PreWeddingPublicFormPage({ token }: { token: string }) {
           <Button type="submit" variant="primary" disabled={submitting}>
             {submitting ? 'Wysyłanie…' : 'Wyślij ankietę'}
           </Button>
+          <PublicFormPrivacyNotice />
         </div>
       </form>
 

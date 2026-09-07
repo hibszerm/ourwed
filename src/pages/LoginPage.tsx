@@ -5,6 +5,7 @@ import { LoginForm } from '@/features/auth/components/LoginForm'
 import { useAuth } from '@/features/auth/AuthProvider'
 import shellStyles from '@/features/auth/components/AuthShell.module.css'
 import styles from '@/features/auth/components/AuthForms.module.css'
+import { AuthLegalLoginCopy } from '@/features/legal/LegalLinks'
 
 export function LoginPage() {
   const { isAuthenticated, isLoading } = useAuth()
@@ -24,7 +25,6 @@ export function LoginPage() {
   return (
     <AuthShell
       layout="split"
-      align="optical"
       eyebrow="WITAJ PONOWNIE"
       title={
         <>
@@ -36,12 +36,7 @@ export function LoginPage() {
       switchPrompt="Nie masz konta?"
       switchLabel="Załóż konto"
       switchTo="/register"
-      legal={
-        <>
-          Logując się, akceptujesz nasz Regulamin
-          <br />i Politykę prywatności.
-        </>
-      }
+      legal={<AuthLegalLoginCopy />}
     >
       {passwordReset ? (
         <p className={styles.formSuccess} role="status">

@@ -34,6 +34,7 @@ import type {
   PackageOptionSnapshot,
 } from '@/types/contractQuestionnaire'
 import { defaultContractQuestionnaireConfig } from '@/types/contractQuestionnaire'
+import { PublicFormPrivacyNotice } from '@/features/legal/LegalLinks'
 import styles from './FormPublicPage.module.css'
 import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
@@ -486,6 +487,7 @@ export function ProductionContractFormPage({
           <Button type="submit" variant="primary" disabled={submitting}>
             {submitting ? 'Wysyłanie…' : template.submitLabel}
           </Button>
+          <PublicFormPrivacyNotice />
         </div>
       </form>
 

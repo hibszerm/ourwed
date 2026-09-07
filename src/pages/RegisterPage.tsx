@@ -4,6 +4,7 @@ import { AuthLoadingScreen } from '@/features/auth/components/AuthLoadingScreen'
 import { RegisterForm } from '@/features/auth/components/RegisterForm'
 import { useAuth } from '@/features/auth/AuthProvider'
 import shellStyles from '@/features/auth/components/AuthShell.module.css'
+import { AuthLegalRegisterCopy } from '@/features/legal/LegalLinks'
 
 export function RegisterPage() {
   const { isAuthenticated, isLoading } = useAuth()
@@ -21,14 +22,8 @@ export function RegisterPage() {
       switchPrompt="Masz już konto?"
       switchLabel="Zaloguj się"
       switchTo="/login"
-      legal={
-        <>
-          Tworząc konto, akceptujesz nasz Regulamin
-          <br />i Politykę prywatności.
-        </>
-      }
-    >
-      <RegisterForm />
+      legal={<AuthLegalRegisterCopy />}
+    >      <RegisterForm />
     </AuthShell>
   )
 }

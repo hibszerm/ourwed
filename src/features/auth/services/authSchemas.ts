@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { PROFESSION_VALUES } from '@/features/auth/services/professions'
+import { REGISTRATION_PROFESSION_VALUES } from '@/features/auth/services/professions'
 
 const passwordSchema = z
   .string()
@@ -38,7 +38,9 @@ export const registerSchema = z
   })
   .superRefine((data, ctx) => {
     if (
-      !(PROFESSION_VALUES as readonly string[]).includes(data.profession)
+      !(REGISTRATION_PROFESSION_VALUES as readonly string[]).includes(
+        data.profession,
+      )
     ) {
       ctx.addIssue({
         code: 'custom',

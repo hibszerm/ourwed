@@ -25,6 +25,9 @@ import {
   useUpdateAccountNames,
 } from '@/features/account/useAccountProfile'
 import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
+import { LegalLinksNav } from '@/features/legal/LegalLinks'
+import legalLinkStyles from '@/features/legal/LegalLinks.module.css'
+import { AccountDeletionDangerZone } from '@/features/account-deletion/AccountDeletionDangerZone'
 
 type SaveFlash = 'idle' | 'saved' | 'error'
 
@@ -171,6 +174,24 @@ export function AccountSettingsPage() {
               value={sessionEmail}
               helper="Adres używany do logowania i powiadomień e-mail."
             />
+          </SettingsSection>
+
+          <SettingsSection labelledBy={`${formId}-legal`}>
+            <SettingsSectionHeader
+              id={`${formId}-legal`}
+              title="Dokumenty prawne"
+              description="Regulamin, polityka prywatności i umowa powierzenia danych."
+            />
+            <LegalLinksNav className={legalLinkStyles.settingsNav} />
+          </SettingsSection>
+
+          <SettingsSection labelledBy={`${formId}-danger`}>
+            <SettingsSectionHeader
+              id={`${formId}-danger`}
+              title="Strefa niebezpieczna"
+              description="Trwałe działania dotyczące konta."
+            />
+            <AccountDeletionDangerZone />
           </SettingsSection>
         </SettingsWorkspace>
       </PageContainer>

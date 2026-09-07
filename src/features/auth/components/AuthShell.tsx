@@ -25,14 +25,14 @@ interface AuthShellProps {
   switchPrompt?: string
   switchLabel?: string
   switchTo?: string
-  /** Split only: optical centers short login content; start for long register. */
-  align?: 'optical' | 'start'
+  /** Optional content below the form inside the shared slot (e.g. back link). */
+  afterForm?: ReactNode
 }
 
 /**
  * Public Studio auth canvas.
- * Split: editorial left + product visual right (login/register).
- * Simple: warm single-column for forgot / reset / check-email / callback.
+ * Split: shared editorial content slot + product visual (login/register/forgot/…).
+ * Simple: reserved for minimal callback confirm/error when split is unnecessary.
  */
 export function AuthShell({
   title,
@@ -46,7 +46,7 @@ export function AuthShell({
   switchPrompt,
   switchLabel,
   switchTo,
-  align = 'start',
+  afterForm,
 }: AuthShellProps) {
   const resolvedLayout: AuthShellLayout = layout ?? 'simple'
   const isSplit = resolvedLayout === 'split'
@@ -95,31 +95,39 @@ export function AuthShell({
   }
 
   return (
-    <div
-      className={`${styles.page} ${styles.pageSplit}`}
-      data-auth-shell="split"
-      data-auth-align={align}
-    >
+    <div className={`${styles.page} ${styles.pageSplit}`} data-auth-shell="split">
       <div className={styles.left} data-auth-left="">
         <div className={styles.leftInner}>
-          <div className={styles.topBar}>
+          <div className={styles.topBar} data-auth-top-bar="">
             {brand}
             {switchLink}
           </div>
 
-          <div
-            className={`${styles.contentEnter} ${align === 'optical' ? styles.contentStage : ''}`.trim()}
-          >
-            <div className={styles.contentBlock}>
-              <header className={styles.header}>
-                {eyebrow ? <p className={styles.eyebrow}>{eyebrow}</p> : null}
-                <h1 className={styles.title}>{title}</h1>
-                {subtitle ? <p className={styles.subtitle}>{subtitle}</p> : null}
+          <div className={styles.contentEnter}>
+            <div className={styles.authContentSlot} data-auth-content-slot="">
+              <header className={styles.header} data-auth-editorial="">
+                {eyebrow ? (
+                  <p className={styles.eyebrow} data-auth-eyebrow="">
+                    {eyebrow}
+                  </p>
+                ) : null}
+                <h1 className={styles.title} data-auth-heading="">
+                  {title}
+                </h1>
+                {subtitle ? (
+                  <p className={styles.subtitle} data-auth-support="">
+                    {subtitle}
+                  </p>
+                ) : null}
               </header>
 
-              {children}
+              <div data-auth-form-region="">{children}</div>
+
+              {afterForm}
 
               {legal ? <p className={styles.legal}>{legal}</p> : null}
+
+              {footer ? <div className={styles.slotFooter}>{footer}</div> : null}
             </div>
           </div>
         </div>

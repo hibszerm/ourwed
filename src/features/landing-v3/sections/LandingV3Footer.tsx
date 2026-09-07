@@ -1,4 +1,5 @@
 import { BrandMark } from '@/features/landing-v3/components/BrandMark'
+import { LEGAL_OPERATOR, LEGAL_ROUTES } from '@/features/legal/legalMeta'
 import styles from '@/features/landing-v3/styles/landingV3.module.css'
 
 export function LandingV3Footer() {
@@ -34,7 +35,16 @@ export function LandingV3Footer() {
             <a href="/register">Rejestracja</a>
           </li>
           <li>
-            <a href="mailto:kontakt@ourwed.pl">Kontakt</a>
+            <a href={LEGAL_ROUTES.terms}>Regulamin</a>
+          </li>
+          <li>
+            <a href={LEGAL_ROUTES.privacy}>Polityka prywatności</a>
+          </li>
+          <li>
+            <a href={LEGAL_ROUTES.dpa}>Powierzenie danych</a>
+          </li>
+          <li>
+            <a href={`mailto:${LEGAL_OPERATOR.email}`}>Kontakt</a>
           </li>
         </ul>
       </div>

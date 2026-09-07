@@ -12,6 +12,13 @@
   --auth-control-h: 3.125rem; /* 50 */
   --auth-radius: 0.5rem;
   --auth-form-max: 27.5rem; /* 440 */
+  /*
+   * Shared editorial slot offset after the top bar.
+   * Targets ~32–38% from the top of the left panel on desktop (upper-middle),
+   * identical for login / register / forgot — not optical centering at 50%.
+   */
+  --auth-slot-offset: max(5.5rem, calc(34vh - 5.5rem));
+  --auth-slot-offset: max(5.5rem, calc(34dvh - 5.5rem));
 
   box-sizing: border-box;
   min-height: 100vh;
@@ -21,11 +28,11 @@
   overflow-x: clip;
 }
 
-/* ——— Split (login / register desktop) ——— */
+/* ——— Split (login / register / forgot / reset / check-email) ——— */
 
 .pageSplit {
   display: grid;
-  grid-template-columns: minmax(0, 0.44fr) minmax(0, 0.56fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   align-items: stretch;
 }
 
@@ -49,15 +56,6 @@
     clamp(1.75rem, 3vw, 2.5rem);
 }
 
-.contentStage {
-  flex: 1 1 auto;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  /* Optical lift above geometric center */
-  padding-bottom: clamp(1.5rem, 8vh, 5rem);
-}
-
 .topBar {
   display: flex;
   align-items: center;
@@ -65,7 +63,7 @@
   gap: 1rem;
   flex-wrap: wrap;
   flex-shrink: 0;
-  margin-bottom: clamp(1.25rem, 3vh, 2rem);
+  margin-bottom: 0;
 }
 
 .brand {
@@ -125,15 +123,23 @@
   animation: authEnter 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-.contentBlock {
+@keyframes authEnter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Shared content anchor — identical start Y for login / register / forgot */
+.authContentSlot {
   width: 100%;
   max-width: var(--auth-form-max);
   margin: 0 auto;
-  padding-bottom: clamp(1rem, 3vh, 2rem);
-}
-
-.pageSplit .leftInner {
-  justify-content: flex-start;
+  padding-top: var(--auth-slot-offset);
+  padding-bottom: clamp(1.5rem, 4vh, 2.75rem);
+  box-sizing: border-box;
 }
 
 .header {
@@ -155,6 +161,8 @@
   font-weight: 600;
   letter-spacing: -0.035em;
   line-height: 1.08;
+  /* Reserve two editorial lines so login/register form anchors match */
+  min-height: calc(2 * 1.08em);
   color: var(--auth-ink);
   text-wrap: balance;
 }
@@ -179,6 +187,37 @@
   color: var(--auth-soft);
 }
 
+.legal a {
+  color: var(--auth-ink);
+  font-weight: 550;
+  text-decoration: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--auth-ink) 22%, transparent);
+}
+
+.legal a:hover,
+.legal a:focus-visible {
+  border-bottom-color: var(--auth-ink);
+  outline: none;
+}
+
+.slotFooter {
+  margin-top: 1.35rem;
+  font-size: 0.875rem;
+  color: var(--auth-muted);
+  line-height: 1.5;
+}
+
+.slotFooter a {
+  color: var(--auth-ink);
+  font-weight: 550;
+  text-decoration: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--auth-ink) 18%, transparent);
+}
+
+.slotFooter a:hover {
+  border-bottom-color: var(--auth-ink);
+}
+
 .right {
   position: sticky;
   top: 0;
@@ -188,7 +227,7 @@
   align-self: start;
 }
 
-/* ——— Simple (forgot / reset / check-email / callback) ——— */
+/* ——— Simple (auth callback confirm/error) ——— */
 
 .pageSimple {
   display: flex;
@@ -230,17 +269,6 @@
   border-bottom-color: var(--auth-ink);
 }
 
-@keyframes authEnter {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .contentEnter {
     animation: none;
@@ -249,10 +277,6 @@
 
 /* Intermediate: keep split but compress paddings */
 @media (max-width: 1280px) and (min-width: 1025px) {
-  .pageSplit {
-    grid-template-columns: minmax(0, 0.46fr) minmax(0, 0.54fr);
-  }
-
   .leftInner {
     padding-inline: clamp(1.5rem, 3vw, 2.25rem);
   }
@@ -260,6 +284,10 @@
 
 /* Compact / mobile — single column, no product visual */
 @media (max-width: 1024px) {
+  .page {
+    --auth-slot-offset: clamp(2rem, 6vh, 3rem); /* 32–48px-ish after brand */
+  }
+
   .pageSplit {
     display: block;
   }
@@ -279,20 +307,8 @@
     min-height: auto;
   }
 
-  .topBar {
-    margin-bottom: 2.25rem;
-  }
-
-  .pageSplit[data-auth-shell='split'] .contentBlock {
-    margin-top: 0;
+  .authContentSlot {
     max-width: none;
-  }
-
-  .contentStage {
-    display: block;
-    flex: none;
-    padding-bottom: 0;
-    justify-content: flex-start;
   }
 
   .title {

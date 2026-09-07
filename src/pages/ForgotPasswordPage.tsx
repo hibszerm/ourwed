@@ -4,6 +4,7 @@ import { AuthShell } from '@/features/auth/components/AuthShell'
 import { AuthLoadingScreen } from '@/features/auth/components/AuthLoadingScreen'
 import { ForgotPasswordForm } from '@/features/auth/components/ForgotPasswordForm'
 import { useAuth } from '@/features/auth/AuthProvider'
+import shellStyles from '@/features/auth/components/AuthShell.module.css'
 import styles from '@/features/auth/components/AuthForms.module.css'
 
 export function ForgotPasswordPage() {
@@ -16,12 +17,19 @@ export function ForgotPasswordPage() {
   if (sentTo) {
     return (
       <AuthShell
-        title="Sprawdź swoją skrzynkę e-mail"
-        subtitle={`Wysłaliśmy link do resetu hasła na ${sentTo}.`}
-        footer={
+        layout="split"
+        eyebrow="RESET HASŁA"
+        title={
           <>
-            <Link to="/login">Wróć do logowania</Link>
+            <span className={shellStyles.titleLine}>Sprawdź</span>
+            <span className={shellStyles.titleLine}>swoją skrzynkę.</span>
           </>
+        }
+        subtitle={`Wysłaliśmy link do resetu hasła na ${sentTo}.`}
+        afterForm={
+          <p className={styles.backLink}>
+            <Link to="/login">← Wróć do logowania</Link>
+          </p>
         }
       >
         <div className={styles.successPanel}>
@@ -39,12 +47,19 @@ export function ForgotPasswordPage() {
 
   return (
     <AuthShell
-      title="Reset hasła"
-      subtitle="Podaj adres e-mail powiązany z kontem. Wyślemy link do zmiany hasła."
-      footer={
+      layout="split"
+      eyebrow="RESET HASŁA"
+      title={
         <>
-          <Link to="/login">Wróć do logowania</Link>
+          <span className={shellStyles.titleLine}>Odzyskaj dostęp</span>
+          <span className={shellStyles.titleLine}>do swojego studia.</span>
         </>
+      }
+      subtitle="Podaj adres e-mail używany w OurWed. Wyślemy Ci bezpieczny link do ustawienia nowego hasła."
+      afterForm={
+        <p className={styles.backLink}>
+          <Link to="/login">← Wróć do logowania</Link>
+        </p>
       }
     >
       <ForgotPasswordForm onSent={setSentTo} />

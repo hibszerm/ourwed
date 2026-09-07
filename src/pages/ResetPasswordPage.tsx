@@ -3,6 +3,7 @@ import { AuthShell } from '@/features/auth/components/AuthShell'
 import { AuthLoadingScreen } from '@/features/auth/components/AuthLoadingScreen'
 import { ResetPasswordForm } from '@/features/auth/components/ResetPasswordForm'
 import { useAuth } from '@/features/auth/AuthProvider'
+import shellStyles from '@/features/auth/components/AuthShell.module.css'
 import styles from '@/features/auth/components/AuthForms.module.css'
 
 /**
@@ -22,9 +23,20 @@ export function ResetPasswordPage() {
   if (!isPasswordRecovery) {
     return (
       <AuthShell
-        title="Link wygasł lub jest nieprawidłowy"
+        layout="split"
+        eyebrow="RESET HASŁA"
+        title={
+          <>
+            <span className={shellStyles.titleLine}>Link wygasł</span>
+            <span className={shellStyles.titleLine}>lub jest nieprawidłowy.</span>
+          </>
+        }
         subtitle="Poproś o nowy link resetujący hasło."
-        footer={<Link to="/forgot-password">Wyślij ponownie</Link>}
+        afterForm={
+          <p className={styles.backLink}>
+            <Link to="/forgot-password">← Wyślij ponownie</Link>
+          </p>
+        }
       >
         <div className={styles.successPanel}>
           <p className={styles.successBody}>
@@ -37,9 +49,20 @@ export function ResetPasswordPage() {
 
   return (
     <AuthShell
-      title="Nowe hasło"
-      subtitle="Ustaw nowe hasło do konta OurWed."
-      footer={<Link to="/login">Wróć do logowania</Link>}
+      layout="split"
+      eyebrow="NOWE HASŁO"
+      title={
+        <>
+          <span className={shellStyles.titleLine}>Ustaw nowe hasło</span>
+          <span className={shellStyles.titleLine}>do swojego studia.</span>
+        </>
+      }
+      subtitle="Wybierz silne hasło do konta OurWed."
+      afterForm={
+        <p className={styles.backLink}>
+          <Link to="/login">← Wróć do logowania</Link>
+        </p>
+      }
     >
       <ResetPasswordForm />
     </AuthShell>

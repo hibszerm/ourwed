@@ -1,0 +1,45 @@
+.nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem 1rem;
+  font-size: 0.875rem;
+}
+
+.nav a {
+  color: color-mix(in srgb, #141210 62%, transparent);
+  text-decoration: none;
+  border-bottom: 1px solid color-mix(in srgb, #141210 14%, transparent);
+  padding-bottom: 1px;
+}
+
+.nav a:hover,
+.nav a:focus-visible {
+  color: #141210;
+  border-bottom-color: #141210;
+  outline: none;
+}
+
+.inlineLink {
+  color: inherit;
+  font-weight: 550;
+  text-decoration: none;
+  border-bottom: 1px solid color-mix(in srgb, currentColor 28%, transparent);
+}
+
+.inlineLink:hover,
+.inlineLink:focus-visible {
+  border-bottom-color: currentColor;
+  outline: none;
+}
+
+.publicNotice {
+  margin: 1rem 0 0;
+  max-width: 36rem;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: color-mix(in srgb, #141210 55%, transparent);
+}
+
+.settingsNav {
+  margin-top: 0.25rem;
+}

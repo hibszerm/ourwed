@@ -3,6 +3,7 @@ import { Navigate } from 'react-router-dom'
 import { AuthLoadingScreen } from '@/features/auth/components/AuthLoadingScreen'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { LandingV2Page } from '@/features/landing-v2/LandingV2Page'
+import { AccountDeletedNotice } from '@/features/account-deletion/AccountDeletedNotice'
 import { clearLogoutRedirectToLanding } from '@/lib/auth/logoutRedirect'
 
 /**
@@ -21,5 +22,10 @@ export function LandingPage() {
     return <Navigate to="/dashboard" replace />
   }
 
-  return <LandingV2Page />
+  return (
+    <>
+      <AccountDeletedNotice />
+      <LandingV2Page />
+    </>
+  )
 }

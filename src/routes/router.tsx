@@ -46,6 +46,9 @@ import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage'
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage'
 import { CheckEmailPage } from '@/pages/CheckEmailPage'
 import { AuthCallbackPage } from '@/pages/AuthCallbackPage'
+import { RegulaminPage } from '@/pages/RegulaminPage'
+import { PolitykaPrywatnosciPage } from '@/pages/PolitykaPrywatnosciPage'
+import { PowierzenieDanychPage } from '@/pages/PowierzenieDanychPage'
 import { isAiContractLabEnabled } from '@/features/ai-contract-lab/aiContractLabFlags'
 import { RedirectToRootPreserveHash } from '@/routes/RedirectToRootPreserveHash'
 
@@ -146,6 +149,9 @@ export const router = createBrowserRouter([
       { path: '/forgot-password', element: <ForgotPasswordPage /> },
       { path: '/reset-password', element: <ResetPasswordPage /> },
       { path: '/auth/callback', element: <AuthCallbackPage /> },
+      { path: '/regulamin', element: <RegulaminPage /> },
+      { path: '/polityka-prywatnosci', element: <PolitykaPrywatnosciPage /> },
+      { path: '/powierzenie-danych', element: <PowierzenieDanychPage /> },
       { path: '/form/:token', element: <PublicFormTokenPage /> },
       { path: '/ankieta/:token', element: <PublicPreWeddingQuestionnairePage /> },
       {

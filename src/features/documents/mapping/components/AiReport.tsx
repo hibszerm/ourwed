@@ -63,6 +63,10 @@ export function AiReport({
         OurWed mapuje wykryte pola na zmienne szablonu. Dane studia i ceny nie
         pochodzą z tego kroku.
       </p>
+      <p className={styles.aiReportFootnote} data-ai-transparency="">
+        Ta funkcja wykorzystuje AI. Treść potrzebna do wykonania operacji może
+        zostać przekazana dostawcy usługi AI.
+      </p>
     </section>
   )
 }

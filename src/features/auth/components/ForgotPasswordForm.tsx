@@ -41,7 +41,7 @@ export function ForgotPasswordForm({
     <form className={`${styles.form} ${styles.authFields}`} onSubmit={handleSubmit(onSubmit)} noValidate>
       <Input
         id="forgot-email"
-        label="E-mail"
+        label="Adres e-mail"
         type="email"
         autoComplete="email"
         disabled={isSubmitting}

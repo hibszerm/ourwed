@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Button } from '@/components/ui/Button'
@@ -9,8 +9,17 @@ import {
   registerSchema,
   type RegisterFormValues,
 } from '@/features/auth/services/authSchemas'
-import { PROFESSIONS } from '@/features/auth/services/professions'
+import { REGISTRATION_PROFESSIONS } from '@/features/auth/services/professions'
+import { LEGAL_ROUTES } from '@/features/legal/legalMeta'
+import legalLinkStyles from '@/features/legal/LegalLinks.module.css'
 import styles from './AuthForms.module.css'
+
+/**
+ * Temporary pre-launch registration UI lock.
+ * Flip to `true` to restore account creation from /register.
+ * Does not remove signup logic — presentation-only gate.
+ */
+const REGISTRATION_ENABLED = false
 
 function PasswordHints({ password }: { password: string }) {
   const checks = useMemo(
@@ -65,6 +74,9 @@ export function RegisterForm({
   const password = useWatch({ control, name: 'password' }) ?? ''
 
   async function onSubmit(values: RegisterFormValues) {
+    // Belt-and-suspenders: disabled submit must never reach Supabase signup.
+    if (!REGISTRATION_ENABLED) return
+
     setFormError(null)
     const result = await registerAccount({
       firstName: values.firstName,
@@ -93,9 +105,16 @@ export function RegisterForm({
   return (
     <form
       className={`${styles.form} ${styles.authFields}`}
-      onSubmit={handleSubmit(onSubmit)}
+      onSubmit={
+        REGISTRATION_ENABLED
+          ? handleSubmit(onSubmit)
+          : (event) => {
+              event.preventDefault()
+            }
+      }
       noValidate
       data-auth-form="register"
+      data-registration-enabled={REGISTRATION_ENABLED ? 'true' : 'false'}
     >
       <div className={styles.row}>
         <Input
@@ -162,7 +181,7 @@ export function RegisterForm({
         <option value="" disabled>
           Wybierz zawód
         </option>
-        {PROFESSIONS.map((item) => (
+        {REGISTRATION_PROFESSIONS.map((item) => (
           <option key={item.value} value={item.value}>
             {item.label}
           </option>
@@ -174,7 +193,23 @@ export function RegisterForm({
       >
         <input type="checkbox" disabled={isSubmitting} {...register('acceptTerms')} />
         <span>
-          Akceptuję regulamin i politykę prywatności OurWed.
+          Akceptuję{' '}
+          <Link
+            to={LEGAL_ROUTES.terms}
+            className={legalLinkStyles.inlineLink}
+            onClick={(event) => event.stopPropagation()}
+          >
+            regulamin
+          </Link>{' '}
+          i{' '}
+          <Link
+            to={LEGAL_ROUTES.privacy}
+            className={legalLinkStyles.inlineLink}
+            onClick={(event) => event.stopPropagation()}
+          >
+            politykę prywatności
+          </Link>{' '}
+          OurWed.
         </span>
       </label>
       {errors.acceptTerms?.message ? (
@@ -193,7 +228,8 @@ export function RegisterForm({
         type="submit"
         variant="primary"
         className={`${styles.submit} ${styles.submitPrimary}`}
-        disabled={isSubmitting}
+        disabled={!REGISTRATION_ENABLED || isSubmitting}
+        aria-disabled={!REGISTRATION_ENABLED || isSubmitting}
       >
         {isSubmitting ? 'Tworzenie konta…' : 'Utwórz konto'}
       </Button>
