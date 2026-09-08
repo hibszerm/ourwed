@@ -3186,7 +3186,7 @@ function testMobileStory() {
   assertNotIncludes(appData, 'Pałac Mała Wieś', 'inquiries omit venue (not in production row)')
   assertNotIncludes(appData, 'Film ślubny', 'deadlines omit deliverable type (not in production row)')
   assertIncludes(dashCss, 'countdownMobile', 'V3 mobile countdown placement')
-  assertIncludes(dashCss, 'min-height: 9.5rem', 'landing-demo hero height (density rem)')
+  assertIncludes(dashCss, 'min-height: 164px', 'landing-demo hero matches CRM mobile at canonical width')
   assertIncludes(
     read('src/features/dashboard-v3/DashboardV3Hero.module.css'),
     'min-height: 164px',

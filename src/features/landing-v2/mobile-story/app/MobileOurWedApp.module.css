@@ -1,10 +1,6 @@
 .root {
   /* Production Classic parity — seeded locally (no app theme providers on landing). */
-  /*
-   * Default rem = 16px (desktop Mobile Story phone ≈ full marketing width).
-   * Compact tour sets data-marketing-phone-density on the wrapper so rem tracks
-   * phone content width vs CRM full-bleed (~390) — landing-demo only.
-   */
+  /* rem = document root (16px). Compact density uses MarketingPhoneLogicalViewport. */
   font-size: 16px;
   --ow-density-canon-w: 390;
   --ow-bg: #f5f2ed;
@@ -123,10 +119,10 @@
 .name {
   margin: 0;
   overflow: hidden;
-  font-size: 0.9375rem;
+  font-size: 1rem;
   font-weight: 640;
   letter-spacing: -0.025em;
-  line-height: 1.15;
+  line-height: 1.2;
   color: var(--ow-text);
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -189,13 +185,5 @@
   pointer-events: none;
 }
 
-.root[data-marketing-phone-density] {
-  font-size: calc(16px * min(1, 100cqw / var(--ow-density-canon-w)));
-}
-
-@container ow-mobile-app (max-width: 320px) {
-  .root {
-    --ow-pad-x: 0.7rem;
-    --ow-text-base: 0.9375rem;
-  }
-}
+/* Narrow-container tweaks must not apply inside marketing phone:
+ * app lays out at canonical 390 via MarketingPhoneLogicalViewport. */

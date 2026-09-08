@@ -7,6 +7,7 @@ import {
   type AnimationPlaybackControls,
   type MotionValue,
 } from 'framer-motion'
+import { MarketingPhoneLogicalViewport } from '@/features/landing-v2/devices/MarketingPhoneLogicalViewport'
 import { MobileOurWedApp } from '@/features/landing-v2/mobile-story/app/MobileOurWedApp'
 import { phoneSettled } from '@/features/landing-v2/mobile-story/mobileStoryProgress'
 import {
@@ -30,7 +31,7 @@ type Props = {
 
 /**
  * Compact phone product tour — desktop MobileOurWedApp choreography with
- * segment-remapped autonomous timing (3F.2). One master time MotionValue.
+ * segment-remapped autonomous timing (3F.2 frozen) + canonical logical viewport (3F.3).
  */
 export function CompactPhoneProductTour({
   theaterProgress,
@@ -135,13 +136,15 @@ export function CompactPhoneProductTour({
       data-phone-tour-engine="mobile-ourwed-app"
       data-phone-tour-duration-s={String(COMPACT_PHONE_TOUR_DURATION_S)}
       data-phone-tour-remap="segments"
+      data-phone-logical-viewport="canonical"
       style={{ width: '100%', height: '100%' }}
     >
-      <MobileOurWedApp
-        appProgress={tourProgress}
-        staticMode={reducedMotion}
-        marketingPhoneDensity
-      />
+      <MarketingPhoneLogicalViewport>
+        <MobileOurWedApp
+          appProgress={tourProgress}
+          staticMode={reducedMotion}
+        />
+      </MarketingPhoneLogicalViewport>
     </div>
   )
 }

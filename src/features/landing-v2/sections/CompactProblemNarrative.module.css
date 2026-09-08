@@ -46,15 +46,35 @@
   height: calc(100svh - var(--lv2-nav-h));
   /* Stable svh — do not dual-declare dvh (toolbar thrash). */
   width: 100%;
-  overflow: hidden;
+  overflow: visible;
   background: var(--lv2-problem-black);
   transform: none;
   will-change: auto;
 }
 
+/*
+ * 3F.3 — static black occlusion plate.
+ * Sticky height uses svh; when Safari chrome collapses the visual viewport can
+ * exceed svh and briefly expose Product (z-6) as a bottom strip.
+ * Overscan paint only — no mask animation, no JS ownership, no reveal delay.
+ */
+.sticky::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  /* Cover sticky box + Safari chrome delta (~toolbar height band). */
+  height: calc(100% + max(56px, 7svh));
+  background: var(--lv2-problem-black);
+  z-index: 0;
+  pointer-events: none;
+}
+
 .readingZone {
   position: absolute;
   inset: 0;
+  z-index: 1;
   display: grid;
   place-items: center;
   padding-bottom: 8svh;

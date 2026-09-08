@@ -55,20 +55,23 @@ console.log('\n=== landing mobile story 3F.2 (fidelity + calm day) ===\n')
   const day = compactTourSegmentById('dayScroll')
   const dayIntro = compactTourSegmentById('dayIntroHold')
   const dayEnd = compactTourSegmentById('dayEndHold')
-  assert(!!dash && !!day && !!dayIntro && !!dayEnd, 'core segments present')
+  const route = compactTourSegmentById('routeTravel')
+  assert(!!dash && !!day && !!dayIntro && !!dayEnd && !!route, 'core segments present')
   const priorDay = uniformMappedDurationS(
     MOBILE_APP_RANGES.dayScroll.start,
     MOBILE_APP_RANGES.dayScroll.end,
   )
   assert(priorDay > 1 && priorDay < 1.5, `3F.1 day ~1.27s (got ${priorDay.toFixed(3)})`)
-  assert(day!.durationMs >= 3000, `day scroll >= 3s (got ${day!.durationMs})`)
-  assert(day!.durationMs <= 4200, `day scroll <= 4.2s (got ${day!.durationMs})`)
-  assert(day!.durationMs > priorDay * 1000 * 2, 'day at least 2× prior uniform map')
+  /* 3F.2 perceived day calmness kept via physical px/s; 3F.3 shortens wall-clock. */
+  assert(day!.durationMs >= 1900, `day scroll compensated >= 1.9s (got ${day!.durationMs})`)
+  assert(day!.durationMs <= 2200, `day scroll compensated <= 2.2s (got ${day!.durationMs})`)
+  assert(day!.durationMs > priorDay * 1000 * 1.4, 'day still slower than 3F.1 uniform map')
   assert(dayIntro!.durationMs >= 600 && dayIntro!.durationMs <= 900, 'day intro hold')
   assert(dayEnd!.durationMs >= 500 && dayEnd!.durationMs <= 800, 'day end hold')
-  assert(dash!.durationMs >= 4800 && dash!.durationMs <= 6000, 'dash scroll preserved ~5.4s')
+  assert(dash!.durationMs >= 3000 && dash!.durationMs <= 3400, 'dash scroll 3F.3 phys compensation')
+  assert(route!.durationMs >= 1800 && route!.durationMs <= 2000, 'route 3F.3 phys compensation')
   assert(COMPACT_PHONE_TOUR_DURATION_S > COMPACT_PHONE_TOUR_DURATION_S_3F1, 'tour longer than 3F.1')
-  assert(COMPACT_PHONE_TOUR_DURATION_S >= 14 && COMPACT_PHONE_TOUR_DURATION_S <= 22, 'total band')
+  assert(COMPACT_PHONE_TOUR_DURATION_S >= 13 && COMPACT_PHONE_TOUR_DURATION_S <= 16, 'total band after compensation')
   console.log(
     `PASS  2. day ${day!.durationMs}ms vs prior ~${(priorDay * 1000).toFixed(0)}ms; total ${COMPACT_PHONE_TOUR_DURATION_S.toFixed(2)}s`,
   )
@@ -124,20 +127,12 @@ console.log('\n=== landing mobile story 3F.2 (fidelity + calm day) ===\n')
   const dashCss = read(
     'src/features/landing-v2/mobile-story/app/screens/MobileDashboardDemo.module.css',
   )
-  assertIncludes(appCss, '--ow-density-canon-w: 390', 'density canon')
-  assertIncludes(appCss, 'data-marketing-phone-density', 'compact density gate')
-  assertIncludes(appCss, '100cqw / var(--ow-density-canon-w)', 'cqw rem density')
-  assertIncludes(
-    read('src/features/landing-v2/devices/CompactPhoneProductTour.tsx'),
-    'marketingPhoneDensity',
-    'tour enables density',
-  )
-  assertIncludes(dashCss, 'min-height: 9.5rem', 'hero min-height rem')
-  assertIncludes(dashCss, 'min-height: 3.85rem', 'upcoming row rem')
-  assertNotIncludes(dashCss, 'min-height: 164px', 'fixed 164px hero gone')
+  assertIncludes(dashCss, 'min-height: 164px', 'hero CRM parity at canonical width')
+  assertIncludes(dashCss, 'min-height: 72px', 'upcoming row CRM parity')
+  assertNotIncludes(appCss, '100cqw / var(--ow-density-canon-w)', 'ineffective rem density removed')
   const crmHero = read('src/features/dashboard-v3/DashboardV3Hero.module.css')
   assertIncludes(crmHero, 'min-height: 164px', 'CRM hero unchanged')
-  console.log('PASS  6. landing density tokens; CRM unchanged')
+  console.log('PASS  6. canonical-width CRM parity; no fake rem density')
 }
 
 {

@@ -1,0 +1,25 @@
+.physicalClip {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: inherit;
+}
+
+.logicalScale {
+  position: absolute;
+  top: 0;
+  left: 0;
+  /* Static presentation scale only — never animated. */
+  will-change: auto;
+  transform-origin: top left;
+  pointer-events: none;
+}
+
+.logicalViewport {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  pointer-events: none;
+}

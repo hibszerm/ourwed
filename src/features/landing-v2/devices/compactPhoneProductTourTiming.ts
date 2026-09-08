@@ -1,8 +1,13 @@
 /**
- * Compact phone tour timing — Iteration 3F.2
+ * Compact phone tour timing — Iteration 3F.2 (+ 3F.3 physical-speed compensation)
  *
  * Desktop MOBILE_APP_RANGES remain the visual choreography source of truth.
  * Autonomous playback uses bespoke segment durations (not linear time≡progress).
+ *
+ * 3F.2 wall-clock durations are the approved *perceived* physical speed baseline.
+ * 3F.3 canonical 390 layout + static presentation scale shortens physical travel;
+ * scroll/route segment ms are scaled so physical CSS px/s stays within ±5% of 3F.2.
+ * Event order, holds, and handoff structure are unchanged.
  */
 
 import { MOBILE_APP_RANGES } from '@/features/landing-v2/mobile-story/app/motion/mobileAppStoryProgress'
@@ -12,6 +17,30 @@ export const COMPACT_PHONE_TOUR_SETTLE_DELAY_MS = 500
 
 /** Prior 3F.1 uniform duration (kept for regression assertions). */
 export const COMPACT_PHONE_TOUR_DURATION_S_3F1 = 11
+
+/** Approved 3F.2 wall-clock baselines (before logical-viewport compensation). */
+export const COMPACT_TOUR_3F2_DASH_SCROLL_MS = 5400
+export const COMPACT_TOUR_3F2_DAY_SCROLL_MS = 3600
+export const COMPACT_TOUR_3F2_ROUTE_TRAVEL_MS = 2500
+
+/**
+ * Measured @402×874 compact phone (physical travel AFTER÷BEFORE after 3F.3 viewport).
+ * Durations *= ratio so physical px/s ≈ 3F.2.
+ */
+export const COMPACT_TOUR_3F3_PHYS_TRAVEL_RATIO_DASH = 0.5966
+export const COMPACT_TOUR_3F3_PHYS_TRAVEL_RATIO_DAY = 0.5631
+/** Fixed logical map deltas → physical shrink ≈ presentation scale. */
+export const COMPACT_TOUR_3F3_PHYS_TRAVEL_RATIO_ROUTE = 0.7513
+
+export const COMPACT_TOUR_DASH_SCROLL_MS = Math.round(
+  COMPACT_TOUR_3F2_DASH_SCROLL_MS * COMPACT_TOUR_3F3_PHYS_TRAVEL_RATIO_DASH,
+)
+export const COMPACT_TOUR_DAY_SCROLL_MS = Math.round(
+  COMPACT_TOUR_3F2_DAY_SCROLL_MS * COMPACT_TOUR_3F3_PHYS_TRAVEL_RATIO_DAY,
+)
+export const COMPACT_TOUR_ROUTE_TRAVEL_MS = Math.round(
+  COMPACT_TOUR_3F2_ROUTE_TRAVEL_MS * COMPACT_TOUR_3F3_PHYS_TRAVEL_RATIO_ROUTE,
+)
 
 export type CompactTourEasing = 'linear'
 
@@ -27,8 +56,7 @@ const R = MOBILE_APP_RANGES
 
 /**
  * Temporal segments — event order matches desktop ranges.
- * Dash scroll duration preserved (~5.4s from 3F.1 linear map).
- * Day scroll expanded (~3.6s) + intro/end holds.
+ * Holds/handoffs keep 3F.2 ms. Dash/Day/Route ms compensated for 3F.3 physical speed.
  */
 export const COMPACT_PHONE_TOUR_SEGMENTS: readonly CompactTourSegment[] = [
   {
@@ -40,7 +68,7 @@ export const COMPACT_PHONE_TOUR_SEGMENTS: readonly CompactTourSegment[] = [
   },
   {
     id: 'dashScroll',
-    durationMs: 5400,
+    durationMs: COMPACT_TOUR_DASH_SCROLL_MS,
     fromProgress: R.dashScroll.start,
     toProgress: R.dashScroll.end,
     easing: 'linear',
@@ -68,7 +96,7 @@ export const COMPACT_PHONE_TOUR_SEGMENTS: readonly CompactTourSegment[] = [
   },
   {
     id: 'dayScroll',
-    durationMs: 3600,
+    durationMs: COMPACT_TOUR_DAY_SCROLL_MS,
     fromProgress: R.dayScroll.start,
     toProgress: R.dayScroll.end,
     easing: 'linear',
@@ -96,7 +124,7 @@ export const COMPACT_PHONE_TOUR_SEGMENTS: readonly CompactTourSegment[] = [
   },
   {
     id: 'routeTravel',
-    durationMs: 2500,
+    durationMs: COMPACT_TOUR_ROUTE_TRAVEL_MS,
     fromProgress: R.routeTravel.start,
     toProgress: R.routeTravel.end,
     easing: 'linear',
