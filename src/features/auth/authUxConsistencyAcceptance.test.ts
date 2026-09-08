@@ -36,8 +36,10 @@ function assertNotIncludes(hay: string, needle: string, msg: string) {
   const css = read('src/features/auth/components/AuthShell.module.css')
   assertIncludes(shell, 'authContentSlot', 'shared slot class in shell')
   assertIncludes(shell, 'data-auth-content-slot', 'shared slot marker')
+  assertIncludes(shell, 'mainRegion', 'main region independent of top bar')
   assertIncludes(css, '.authContentSlot', 'shared slot CSS')
   assertIncludes(css, '--auth-slot-offset', 'shared slot offset token')
+  assertIncludes(css, '.mainRegion', 'main region CSS')
   assertNotIncludes(shell, 'align=', 'no optical align prop')
   assertNotIncludes(css, 'contentStage', 'optical stage removed')
   assert(
@@ -176,6 +178,16 @@ function assertNotIncludes(hay: string, needle: string, msg: string) {
   )
   assertNotIncludes(shellCss, '0.44fr', 'old 44/56 split removed')
   assertNotIncludes(shellCss, '0.56fr', 'old 44/56 split removed')
+  assertIncludes(shellCss, '@media (max-width: 1024px)', 'form-only auth mode below desktop')
+  assert(
+    /@media \(max-width: 1024px\)[\s\S]*?\.right\s*\{[^}]*display:\s*none/s.test(shellCss),
+    'mobile/tablet hides auth media panel',
+  )
+  assertIncludes(
+    read('src/features/auth/components/AuthForms.module.css'),
+    'font-size: 1rem',
+    'mobile inputs use ≥16px to avoid iOS auto-zoom',
+  )
   console.log('PASS  7a. desktop auth 50/50 split')
 }
 

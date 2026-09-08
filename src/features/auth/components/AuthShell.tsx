@@ -27,6 +27,11 @@ interface AuthShellProps {
   switchTo?: string
   /** Optional content below the form inside the shared slot (e.g. back link). */
   afterForm?: ReactNode
+  /**
+   * Presentational density hint for shared desktop CSS (login vs taller register).
+   * Does not change auth logic.
+   */
+  variant?: 'login' | 'register' | 'other'
 }
 
 /**
@@ -47,6 +52,7 @@ export function AuthShell({
   switchLabel,
   switchTo,
   afterForm,
+  variant = 'other',
 }: AuthShellProps) {
   const resolvedLayout: AuthShellLayout = layout ?? 'simple'
   const isSplit = resolvedLayout === 'split'
@@ -103,31 +109,37 @@ export function AuthShell({
             {switchLink}
           </div>
 
-          <div className={styles.contentEnter}>
-            <div className={styles.authContentSlot} data-auth-content-slot="">
-              <header className={styles.header} data-auth-editorial="">
-                {eyebrow ? (
-                  <p className={styles.eyebrow} data-auth-eyebrow="">
-                    {eyebrow}
-                  </p>
-                ) : null}
-                <h1 className={styles.title} data-auth-heading="">
-                  {title}
-                </h1>
-                {subtitle ? (
-                  <p className={styles.subtitle} data-auth-support="">
-                    {subtitle}
-                  </p>
-                ) : null}
-              </header>
+          <div className={styles.mainRegion} data-auth-main-region="">
+            <div className={styles.contentEnter}>
+              <div
+                className={styles.authContentSlot}
+                data-auth-content-slot=""
+                data-auth-variant={variant}
+              >
+                <header className={styles.header} data-auth-editorial="">
+                  {eyebrow ? (
+                    <p className={styles.eyebrow} data-auth-eyebrow="">
+                      {eyebrow}
+                    </p>
+                  ) : null}
+                  <h1 className={styles.title} data-auth-heading="">
+                    {title}
+                  </h1>
+                  {subtitle ? (
+                    <p className={styles.subtitle} data-auth-support="">
+                      {subtitle}
+                    </p>
+                  ) : null}
+                </header>
 
-              <div data-auth-form-region="">{children}</div>
+                <div data-auth-form-region="">{children}</div>
 
-              {afterForm}
+                {afterForm}
 
-              {legal ? <p className={styles.legal}>{legal}</p> : null}
+                {legal ? <p className={styles.legal}>{legal}</p> : null}
 
-              {footer ? <div className={styles.slotFooter}>{footer}</div> : null}
+                {footer ? <div className={styles.slotFooter}>{footer}</div> : null}
+              </div>
             </div>
           </div>
         </div>

@@ -15,6 +15,7 @@ export function RegisterPage() {
   return (
     <AuthShell
       layout="split"
+      variant="register"
       wide
       eyebrow="DOŁĄCZ DO OURWED"
       title={<span className={shellStyles.titleLine}>Stwórz swoje studio.</span>}

@@ -104,10 +104,17 @@ export function LoginForm({ onSuccess, onForgotPassword }: LoginFormProps = {}) 
       </div>
 
       <div className={styles.metaRow}>
-        <label className={styles.checkbox}>
-          <input type="checkbox" disabled={isSubmitting} {...register('rememberMe')} />
-          Zapamiętaj mnie na tym urządzeniu
-        </label>
+        <div className={styles.checkbox}>
+          <input
+            id="login-remember-me"
+            type="checkbox"
+            disabled={isSubmitting}
+            {...register('rememberMe')}
+          />
+          <label htmlFor="login-remember-me" className={styles.checkboxCopy}>
+            Zapamiętaj mnie na tym urządzeniu
+          </label>
+        </div>
       </div>
 
       {formError ? (

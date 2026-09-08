@@ -25,6 +25,7 @@ export function LoginPage() {
   return (
     <AuthShell
       layout="split"
+      variant="login"
       eyebrow="WITAJ PONOWNIE"
       title={
         <>

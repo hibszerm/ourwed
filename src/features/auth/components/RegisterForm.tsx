@@ -36,7 +36,8 @@ function PasswordHints({ password }: { password: string }) {
     <ul className={styles.hintList} aria-live="polite">
       {checks.map((item) => (
         <li key={item.label} data-ok={item.ok}>
-          {item.ok ? '✓' : '○'} {item.label}
+          <span className={styles.hintMark} aria-hidden />
+          {item.label}
         </li>
       ))}
     </ul>
@@ -188,11 +189,16 @@ export function RegisterForm({
         ))}
       </Select>
 
-      <label
+      <div
         className={`${styles.checkbox} ${errors.acceptTerms ? styles.checkboxError : ''}`.trim()}
       >
-        <input type="checkbox" disabled={isSubmitting} {...register('acceptTerms')} />
-        <span>
+        <input
+          id="register-accept-terms"
+          type="checkbox"
+          disabled={isSubmitting}
+          {...register('acceptTerms')}
+        />
+        <label htmlFor="register-accept-terms" className={styles.checkboxCopy}>
           Akceptuję{' '}
           <Link
             to={LEGAL_ROUTES.terms}
@@ -210,8 +216,8 @@ export function RegisterForm({
             Polityką prywatności
           </Link>
           .
-        </span>
-      </label>
+        </label>
+      </div>
       {errors.acceptTerms?.message ? (
         <p className={styles.formError} role="alert">
           {errors.acceptTerms.message}
