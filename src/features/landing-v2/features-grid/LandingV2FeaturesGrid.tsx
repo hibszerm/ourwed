@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import type { MotionValue } from 'framer-motion'
 import {
   motion,
@@ -24,6 +24,7 @@ import {
   type FeatureId,
 } from '@/features/landing-v2/features-grid/featuresData'
 import { useLandingCompactViewport } from '@/features/landing-v2/motion/landingViewport'
+import { useMobileFeatureDemo } from '@/features/landing-v2/features-grid/useMobileFeatureDemo'
 import styles from './LandingV2FeaturesGrid.module.css'
 
 const SCENES = {
@@ -63,12 +64,6 @@ const COMPACT_CARD_REVEAL = {
 
 const HEADER_OFFSET_DESKTOP: ['start 0.92', 'start 0.5'] = ['start 0.92', 'start 0.5']
 
-/** One-shot mobile demo — IO band near readable center; never thrash. */
-const FEATURE_DEMO_VIEWPORT = {
-  threshold: [0.55, 0.65],
-  rootMargin: '0px 0px -12% 0px',
-} as const
-
 function clamp01(n: number) {
   return Math.min(1, Math.max(0, n))
 }
@@ -81,7 +76,7 @@ function easeOut(t: number) {
 /**
  * Landing V2 — OurWed Product Atlas.
  * Desktop: scroll reveal + CSS :hover (hover-capable pointers only).
- * Compact: no useScroll; one-shot viewport demos derived from desktop hover.
+ * Compact: no useScroll; reading-zone demos (replayable) from desktop hover language.
  */
 export function LandingV2FeaturesGrid() {
   const isCompactViewport = useLandingCompactViewport()
@@ -173,33 +168,7 @@ function CompactAtlasModule({
   cardIndex: number
 }) {
   const liRef = useRef<HTMLLIElement | null>(null)
-  const [demo, setDemo] = useState<'idle' | 'done'>(reduced ? 'done' : 'idle')
-  const demonstratedRef = useRef(reduced)
-
-  useEffect(() => {
-    if (reduced || demonstratedRef.current) return
-    const el = liRef.current
-    if (!el || typeof IntersectionObserver === 'undefined') return
-
-    const io = new IntersectionObserver(
-      ([entry]) => {
-        if (demonstratedRef.current) return
-        const ratio = entry?.intersectionRatio ?? 0
-        if (ratio >= 0.55) {
-          demonstratedRef.current = true
-          setDemo('done')
-          io.disconnect()
-        }
-      },
-      {
-        root: null,
-        rootMargin: FEATURE_DEMO_VIEWPORT.rootMargin,
-        threshold: [...FEATURE_DEMO_VIEWPORT.threshold],
-      },
-    )
-    io.observe(el)
-    return () => io.disconnect()
-  }, [reduced])
+  const { demoAttr } = useMobileFeatureDemo(liRef, { reducedMotion: reduced })
 
   return (
     <motion.li
@@ -211,7 +180,7 @@ function CompactAtlasModule({
       data-col-span={colSpan}
       data-feature-reveal="viewport"
       data-feature-card-index={cardIndex}
-      data-feature-demo={demo}
+      data-feature-demo={demoAttr}
       data-feature-reveal-duration={String(COMPACT_CARD_REVEAL.transition.duration)}
       style={{ filter: 'none' }}
       initial={reduced ? false : { ...COMPACT_CARD_REVEAL.initial }}
@@ -224,6 +193,11 @@ function CompactAtlasModule({
         <p className={styles.moduleDesc}>{description}</p>
       </div>
       <div className={styles.moduleScene} aria-hidden>
+        <span
+          className={styles.featureDemoAnchor}
+          data-feature-demo-anchor=""
+          aria-hidden
+        />
         <Scene />
       </div>
     </motion.li>

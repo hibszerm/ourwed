@@ -153,8 +153,21 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  position: relative;
   /* Whole .module owns hover — decorative scene does not capture the pointer. */
   pointer-events: none;
+}
+
+/* 1px reading-zone sentinel — vertical center of the illustration (3E.1). */
+.featureDemoAnchor {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  width: 100%;
+  pointer-events: none;
+  visibility: hidden;
 }
 
 /* Editorial spans + protected module heights */
@@ -2369,10 +2382,16 @@
 
 /*
  * Coarse / no-hover: REST = desktop resting visuals (NOT hover end-state).
- * One-shot demo: [data-feature-demo='done'] settles to the desktop-hover end look
- * via transform/opacity transitions only (Iteration 3E).
+ * Replayable demo: [data-feature-demo='done'] settles to the desktop-hover end look
+ * via transform/opacity transitions (Iteration 3E / 3E.1 reading-zone trigger).
+ * Reset to rest happens offscreen — suppress reverse transitions.
  */
 @media (hover: none), (pointer: coarse) {
+  .module[data-feature-demo='rest'] *,
+  .module[data-feature-demo='idle'] * {
+    transition: none !important;
+  }
+
   .inboxInstrument {
     flex: 1 1 0;
     min-height: 0;

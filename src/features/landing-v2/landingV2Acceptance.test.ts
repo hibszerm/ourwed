@@ -2169,7 +2169,8 @@ function walkTs(dir: string, out: string[] = []): string[] {
   assertNotIncludes(features, 'lifecycleProgressMv', 'compact Features intro not driven by Lifecycle progress')
   assertIncludes(features, 'data-features-scroll-engine="none"', 'compact Features no useScroll engine')
   assertIncludes(features, 'data-features-handoff="document-flow"', 'compact Features document-flow marker')
-  assertIncludes(features, 'data-feature-demo={demo}', 'compact one-shot feature demo attr')
+  assertIncludes(features, 'data-feature-demo={demoAttr}', 'compact reading-zone feature demo attr')
+  assertIncludes(features, 'useMobileFeatureDemo', 'shared mobile feature demo hook')
   assertIncludes(features, 'reveal={reveal}', 'atlas modules still use grid reveal clock')
   assertIncludes(
     features,
@@ -2392,7 +2393,7 @@ function walkTs(dir: string, out: string[] = []): string[] {
   assertNotIncludes(features, 'requestAnimationFrame', 'no rAF loops in features')
   assertNotIncludes(features, 'setHovered', 'no React hover state machine')
   assertNotIncludes(features, 'isHovered', 'no React hover boolean')
-  assertIncludes(features, "useState<'idle' | 'done'>", 'one-shot mobile demo latch only')
+  assertIncludes(features, 'useMobileFeatureDemo', 'replayable mobile demo hook')
   assertNotIncludes(mini, 'useState', 'no React state in mini UIs')
   assertIncludes(mini, '4 zadania', 'zadania rest task count header')
   assertNotIncludes(mini, 'Następne', 'no zadania następne block copy')
@@ -2500,8 +2501,8 @@ function walkTs(dir: string, out: string[] = []): string[] {
   )
   assertIncludes(
     features,
-    "useState<'idle' | 'done'>(reduced ? 'done' : 'idle')",
-    'card demo idle→done one-shot state (reduced settles immediately)',
+    'useMobileFeatureDemo(liRef, { reducedMotion: reduced })',
+    'card demo reading-zone controller (reduced settles immediately)',
   )
   assertIncludes(
     features,

@@ -1,5 +1,5 @@
 /**
- * Landing V2 — Iteration 3E Features mobile interaction parity.
+ * Landing V2 — Iteration 3E Features mobile interaction parity (+ 3E.1 replay).
  */
 
 import { readFileSync } from 'node:fs'
@@ -31,9 +31,12 @@ const features = read(
 const featuresCss = read(
   'src/features/landing-v2/features-grid/LandingV2FeaturesGrid.module.css',
 )
+const hook = read(
+  'src/features/landing-v2/features-grid/useMobileFeatureDemo.ts',
+)
 const register = read('src/features/auth/components/RegisterForm.tsx')
 
-console.log('\n=== landing mobile features interaction (3E) ===\n')
+console.log('\n=== landing mobile features interaction (3E / 3E.1) ===\n')
 
 {
   assert(FEATURE_CARDS.length === 9, 'nine feature cards')
@@ -58,7 +61,6 @@ console.log('\n=== landing mobile features interaction (3E) ===\n')
 }
 
 {
-  /* Coarse must NOT force permanent hover end-states at rest */
   const coarse = featuresCss.slice(featuresCss.indexOf('@media (hover: none)'))
   assertIncludes(coarse, "data-feature-demo='done'", 'demo-done settles hover language')
   assertNotIncludes(
@@ -66,23 +68,25 @@ console.log('\n=== landing mobile features interaction (3E) ===\n')
     '.inboxCountHover { opacity: 1',
     'no unconditional hover count at rest',
   )
-  assertIncludes(features, "data-feature-demo={demo}", 'demo attr wired')
-  assertIncludes(features, 'demonstratedRef', 'one-shot latch')
-  assertIncludes(features, 'ratio >= 0.55', 'IO threshold')
-  assertIncludes(features, 'io.disconnect()', 'disconnect after once')
-  console.log('PASS  3. mobile rest + one-shot demo')
+  assertIncludes(features, 'data-feature-demo={demoAttr}', 'demo attr wired')
+  assertIncludes(features, 'useMobileFeatureDemo', 'shared replayable controller')
+  assertIncludes(hook, 'nextMobileFeatureDemoPhase', 'geometry phase machine')
+  assertIncludes(hook, 'landingLayoutViewportSize', 'stable viewport height')
+  assertNotIncludes(features, 'ratio >= 0.55', 'old visibility-ratio trigger gone')
+  assertNotIncludes(features, 'demonstratedRef', 'one-shot disconnect latch gone')
+  console.log('PASS  3. mobile rest + reading-zone replay')
 }
 
 {
   assertIncludes(features, 'data-features-scroll-engine="none"', 'no compact useScroll')
-  /* Permanent will-change on all nine cards is forbidden; only transient reveal. */
   assertNotIncludes(
     featuresCss,
     `.module {\n  will-change: transform`,
     'no permanent will-change on .module',
   )
   assertIncludes(featuresCss, 'prefers-reduced-motion: reduce', 'reduced motion')
-  assertIncludes(features, "reduced ? 'done' : 'idle'", 'PRM settles immediately')
+  assertIncludes(hook, 'reducedMotion', 'PRM option')
+  assertIncludes(hook, "reducedMotion ? 'settled' : 'rest'", 'PRM settles immediately')
   console.log('PASS  4. perf + reduced motion')
 }
 
@@ -95,4 +99,4 @@ console.log('\n=== landing mobile features interaction (3E) ===\n')
   console.log('PASS  5. registration')
 }
 
-console.log('\nPASS  landing mobile features interaction (3E)\n')
+console.log('\nPASS  landing mobile features interaction (3E / 3E.1)\n')
