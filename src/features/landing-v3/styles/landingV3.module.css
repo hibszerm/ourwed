@@ -2049,6 +2049,52 @@
   .paymentList em {
     text-align: left;
   }
+
+  /*
+   * Compact footer — editorial 2-column link grid.
+   * Desktop keeps brand | wrap-links row. No new chrome.
+   */
+  .footer {
+    padding-top: 2.25rem;
+    padding-bottom: calc(2.5rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .footerInner {
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 1.75rem;
+    margin-bottom: 1.75rem;
+  }
+
+  .footerCopy {
+    margin-top: 0.65rem;
+    max-width: 22rem;
+  }
+
+  .footerLinks {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    justify-content: stretch;
+    justify-items: start;
+    align-content: start;
+    column-gap: 1.35rem;
+    row-gap: 0.7rem;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .footerLinks a {
+    display: inline-block;
+    max-width: 100%;
+    font-size: 0.8125rem;
+    line-height: 1.35;
+    letter-spacing: -0.01em;
+  }
+
+  .footerMeta {
+    margin-top: 0;
+  }
 }
 
 @media (max-width: 768px) {
@@ -2242,10 +2288,6 @@
 
   .faqItem button {
     min-height: 3rem;
-  }
-
-  .footer {
-    padding-bottom: calc(2rem + env(safe-area-inset-bottom, 0px));
   }
 }
 
