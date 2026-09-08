@@ -1,27 +1,16 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { useMotionValueEvent, useReducedMotion } from 'framer-motion'
+import { useReducedMotion } from 'framer-motion'
 import { HeroTabletFrame } from '@/features/landing-v2/hero/HeroTabletFrame'
 import { measureCanonicalDeviceFit } from '@/features/landing-v2/hero/landingTabletFit'
 import { FlattenedProductAutoplay } from '@/features/landing-v2/devices/FlattenedProductAutoplay'
-import { useTheaterScrollGate } from '@/features/landing-v2/motion/useTheaterScrollGate'
-import {
-  compactProductExitPhase,
-  compactProductExitTravelPx,
-  compactProductNativeExitScrollPx,
-} from '@/features/landing-v2/product-story/compactProductExit'
-import {
-  productTheaterOwned,
-  stickyTrackProgress,
-} from '@/features/landing-v2/product-story/productStoryProgress'
-import { scene07HandoffMv } from '@/features/landing-v2/product-story/scene07HandoffClock'
 import styles from './CompactProductReveal.module.css'
 
 /**
- * Compact Product Story — Iteration 3A + 3C.2 + 3C.3.
+ * Compact Product Story — Iteration 3A–3D.
  *
- * Visual stacking: transparent sticky under black narrative (geometry only).
- * No JS visibility/z-index ownership latch — fast flicks stay deterministic.
- * Exit: native sticky unpin 1:1. Presentation tablet: pointer-events none.
+ * Visual stacking: transparent sticky under black (geometry only).
+ * Exit: native sticky unpin 1:1 — no scroll/rAF measure loop.
+ * Autoplay: hysteretic IntersectionObserver only (not scene07 handoff Mv).
  */
 export function CompactProductReveal() {
   const trackRef = useRef<HTMLElement | null>(null)
@@ -34,25 +23,42 @@ export function CompactProductReveal() {
     h: number
   } | null>(null)
   const [autoplayActive, setAutoplayActive] = useState(false)
-  const [sectionNear, setSectionNear] = useState(true)
-  const { activeRef, onBecameActiveRef } = useTheaterScrollGate(
-    trackRef,
-    !reduced,
-  )
 
-  /* Coarse resource gate only — never authoritative for black/Product paint. */
+  /*
+   * Hysteretic autoplay gate — coarse resource control only.
+   * Enter when comfortably established; leave when clearly offscreen.
+   * Does not drive black/Product paint ownership.
+   */
   useEffect(() => {
-    if (reduced) return
-    const el = trackRef.current
-    if (!el || typeof IntersectionObserver === 'undefined') return
+    if (reduced) {
+      setAutoplayActive(false)
+      return
+    }
+    const sticky = stickyRef.current
+    if (!sticky || typeof IntersectionObserver === 'undefined') return
+
+    let visible = false
     const io = new IntersectionObserver(
       ([entry]) => {
-        const near = Boolean(entry?.isIntersecting)
-        setSectionNear((prev) => (prev === near ? prev : near))
+        const ratio = entry?.intersectionRatio ?? 0
+        if (!visible && ratio >= 0.62) {
+          visible = true
+          setAutoplayActive(true)
+          sticky.setAttribute('data-ps-autoplay-gate', 'on')
+        } else if (visible && ratio <= 0.18) {
+          visible = false
+          setAutoplayActive(false)
+          sticky.setAttribute('data-ps-autoplay-gate', 'off')
+        }
       },
-      { root: null, rootMargin: '50% 0px 50% 0px', threshold: 0 },
+      {
+        root: null,
+        /* Shrink root so "established" ≈ tablet fully in presentation band. */
+        rootMargin: '-12% 0px -12% 0px',
+        threshold: [0, 0.18, 0.35, 0.62, 0.85, 1],
+      },
     )
-    io.observe(el)
+    io.observe(sticky)
     return () => io.disconnect()
   }, [reduced])
 
@@ -79,89 +85,6 @@ export function CompactProductReveal() {
     ro.observe(sticky)
     return () => ro.disconnect()
   }, [])
-
-  /* Autoplay only — paint/stacking does not subscribe to handoff ownership. */
-  useMotionValueEvent(scene07HandoffMv, 'change', (handoffT) => {
-    if (reduced) return
-    const owned = productTheaterOwned(handoffT)
-    const next = owned && handoffT >= 0.28 && sectionNear
-    setAutoplayActive((prev) => (prev === next ? prev : next))
-    stickyRef.current?.setAttribute(
-      'data-ps-autoplay-gate',
-      next ? 'on' : 'off',
-    )
-  })
-
-  useEffect(() => {
-    if (reduced) {
-      setAutoplayActive(false)
-      return
-    }
-    const handoffT = scene07HandoffMv.get()
-    const owned = productTheaterOwned(handoffT)
-    const next = owned && handoffT >= 0.28 && sectionNear
-    setAutoplayActive((prev) => (prev === next ? prev : next))
-  }, [reduced, sectionNear])
-
-  useEffect(() => {
-    if (reduced) {
-      scene07HandoffMv.set(1)
-      setAutoplayActive(false)
-      return
-    }
-
-    let raf = 0
-    const measure = () => {
-      const el = trackRef.current
-      const sticky = stickyRef.current
-      if (!el || !sticky) return
-      const navH =
-        parseFloat(getComputedStyle(el).getPropertyValue('--lv2-nav-h')) || 68
-      stickyTrackProgress(el, navH, window.innerHeight)
-
-      /*
-       * Exit phase from stickyTop geometry only (no eased Lifecycle clock).
-       * Does not toggle entrance visibility — black covers via z-index.
-       */
-      const stickyH =
-        sticky.clientHeight || Math.max(320, window.innerHeight - navH)
-      const exitTravel = compactProductExitTravelPx(stickyH)
-      const stickyTop = sticky.getBoundingClientRect().top
-      const scrollAway = compactProductNativeExitScrollPx(stickyTop, navH)
-      const phase = compactProductExitPhase(stickyTop, navH, exitTravel)
-
-      sticky.setAttribute('data-ps-lifecycle-exit', phase)
-      sticky.setAttribute('data-ps-exit-scroll', String(Math.round(scrollAway)))
-      sticky.setAttribute('data-ps-exit-y', String(Math.round(-scrollAway)))
-    }
-
-    const onScroll = () => {
-      if (!activeRef.current) {
-        const sticky = stickyRef.current
-        if (!sticky) return
-        /* Still update exit attrs when near/past exit even if gate inactive. */
-        const top = sticky.getBoundingClientRect().top
-        const navH =
-          parseFloat(
-            getComputedStyle(trackRef.current!).getPropertyValue('--lv2-nav-h'),
-          ) || 68
-        if (top > navH + 2 && top > window.innerHeight) return
-      }
-      cancelAnimationFrame(raf)
-      raf = requestAnimationFrame(measure)
-    }
-
-    onBecameActiveRef.current = onScroll
-    measure()
-    window.addEventListener('scroll', onScroll, { passive: true })
-    window.addEventListener('resize', onScroll)
-    return () => {
-      onBecameActiveRef.current = null
-      cancelAnimationFrame(raf)
-      window.removeEventListener('scroll', onScroll)
-      window.removeEventListener('resize', onScroll)
-    }
-  }, [reduced, activeRef, onBecameActiveRef])
 
   if (reduced) {
     return (
@@ -194,6 +117,7 @@ export function CompactProductReveal() {
       data-product-exit="native-sticky"
       data-product-handoff="geometry"
       data-product-pointer="none"
+      data-product-scroll-measure="off"
       aria-labelledby="lv2-product-heading"
     >
       <h2 id="lv2-product-heading" className={styles.visuallyHidden}>
@@ -208,9 +132,13 @@ export function CompactProductReveal() {
         data-ps-camera-travel="false"
         data-ps-exit-scale="false"
         data-ps-paint="geometry"
-        data-ps-lifecycle-exit="idle"
+        data-ps-autoplay-gate="off"
       >
-        <div className={styles.stage} data-ps-visual-stage="" data-ps-stage-bg="transparent">
+        <div
+          className={styles.stage}
+          data-ps-visual-stage=""
+          data-ps-stage-bg="transparent"
+        >
           <div
             className={styles.deviceExit}
             data-ps-device-exit=""

@@ -1,32 +1,30 @@
-import { useEffect, useLayoutEffect, useRef } from 'react'
+import { useLayoutEffect, useRef } from 'react'
 import { useReducedMotion } from 'framer-motion'
-import { useTheaterScrollGate } from '@/features/landing-v2/motion/useTheaterScrollGate'
-import {
-  clearPublishedScene07HandoffT,
-  publishScene07HandoffT,
-} from '@/features/landing-v2/product-story/scene07HandoffClock'
 import {
   COMPACT_NARRATIVE_COVER_HOLD_SVH,
   COMPACT_NARRATIVE_STATEMENTS,
   COMPACT_NARRATIVE_STATEMENT_COUNT,
-  activeStatementIndicesAtScroll,
-  compactNarrativeCoverHandoffT,
   compactNarrativeGeometry,
   compactNarrativeSlotOffsets,
   statementVisualAtScroll,
   type CompactNarrativeGeometry,
 } from '@/features/landing-v2/sections/compactProblemNarrativeProgress'
+import {
+  compactNarrativeCssScrollRanges,
+  compactNarrativeOutgoingTravelPx,
+  compactNarrativePinScrollY,
+  supportsCssScrollTimeline,
+} from '@/features/landing-v2/sections/compactNarrativeCssScroll'
 import { isProblemStoryMutedLine } from '@/features/landing-v2/sections/problemStoryCopy'
 import styles from './CompactProblemNarrative.module.css'
 
 /**
- * Compact Problem Story — Iteration 3C.
+ * Compact Problem Story — Iteration 3D.
  *
- * - Real spacer scroll slots: travelPx scroll ⇒ travelPx translate (ratio 1.0)
- * - Spatial handoff: outgoing fades/drifts before occupancy overlap
- * - Direct DOM transform/opacity (no Framer MotionValue travel)
- * - Black exit: sticky unpin → native document scroll (Founder cover principle)
- * - CSS scroll-timeline NOT used as SoT (sticky + dual-layer handoff); see tests
+ * Preferred: CSS `animation-timeline: scroll()` drives transform/opacity
+ * (compositor-eligible). Real spacer geometry preserved (ratio 1.0).
+ * Black exit: native sticky unpin — not a scroll timeline.
+ * Fallback: deterministic JS scrub when scroll timelines unsupported.
  */
 export function CompactProblemNarrative() {
   const reduced = Boolean(useReducedMotion())
@@ -35,16 +33,17 @@ export function CompactProblemNarrative() {
   const spacerRef = useRef<HTMLDivElement | null>(null)
   const statementRefs = useRef<Array<HTMLDivElement | null>>([])
   const geomRef = useRef<CompactNarrativeGeometry | null>(null)
-  const { activeRef, onBecameActiveRef } = useTheaterScrollGate(
-    trackRef,
-    !reduced,
-  )
+  const engineRef = useRef<'css-scroll' | 'js-scrub'>('js-scrub')
 
   useLayoutEffect(() => {
     if (reduced) return
     const track = trackRef.current
     const spacer = spacerRef.current
     if (!track || !spacer) return
+
+    const cssOk = supportsCssScrollTimeline()
+    engineRef.current = cssOk ? 'css-scroll' : 'js-scrub'
+    track.setAttribute('data-narrative-engine', engineRef.current)
 
     const applyGeometry = () => {
       const navH =
@@ -61,108 +60,82 @@ export function CompactProblemNarrative() {
         '--lv2-narrative-cover-svh',
         String(COMPACT_NARRATIVE_COVER_HOLD_SVH),
       )
+      track.style.setProperty('--lv2-narrative-travel-px', String(g.travelPx))
+      track.style.setProperty(
+        '--lv2-narrative-outgoing-y',
+        String(-compactNarrativeOutgoingTravelPx(g.travelPx)),
+      )
       spacer.style.height = `${slots.scrubBudget}px`
+
+      if (engineRef.current !== 'css-scroll') return
+
+      const trackDocTop = track.getBoundingClientRect().top + window.scrollY
+      const pinY = compactNarrativePinScrollY(trackDocTop, navH)
+      const ranges = compactNarrativeCssScrollRanges(g, pinY)
+
+      for (let i = 0; i < COMPACT_NARRATIVE_STATEMENT_COUNT; i++) {
+        const el = statementRefs.current[i]
+        if (!el) continue
+        const hasIncoming = i >= 1
+        const hasOutgoing = i < COMPACT_NARRATIVE_STATEMENT_COUNT - 1
+        el.setAttribute('data-narrative-has-incoming', hasIncoming ? 'true' : 'false')
+        el.setAttribute('data-narrative-has-outgoing', hasOutgoing ? 'true' : 'false')
+        el.style.setProperty('--narr-in-start', `${ranges.inStart[i]}px`)
+        el.style.setProperty('--narr-in-end', `${ranges.inEnd[i]}px`)
+        el.style.setProperty('--narr-out-start', `${ranges.outStart[i]}px`)
+        el.style.setProperty('--narr-out-end', `${ranges.outEnd[i]}px`)
+      }
     }
 
     applyGeometry()
     const ro = new ResizeObserver(applyGeometry)
     ro.observe(track)
     window.addEventListener('resize', applyGeometry)
-    return () => {
-      ro.disconnect()
-      window.removeEventListener('resize', applyGeometry)
-    }
-  }, [reduced])
 
-  useEffect(() => {
-    if (reduced) {
-      publishScene07HandoffT(1)
-      return () => clearPublishedScene07HandoffT()
-    }
-
+    /* ——— JS fallback scrub (only when CSS scroll timelines unavailable) ——— */
     let raf = 0
-    const measure = () => {
-      const track = trackRef.current
-      const sticky = stickyRef.current
-      const g = geomRef.current
-      if (!track || !sticky || !g) return
-
-      const navH = g.navH
-      const trackTop = track.getBoundingClientRect().top
-      /*
-       * Scroll into scrub: how far past sticky pin we've traveled through spacers.
-       * When trackTop == navH, scrub = 0. Each 1px track moves up → +1px scrub.
-       */
-      const scrollIntoScrub = Math.max(0, navH - trackTop)
-      const slots = compactNarrativeSlotOffsets(g)
-      const scrubClamped = Math.min(slots.scrubBudget, scrollIntoScrub)
-
-      let activeCount = 0
-      for (let i = 0; i < COMPACT_NARRATIVE_STATEMENT_COUNT; i++) {
-        const el = statementRefs.current[i]
-        if (!el) continue
-        const vis = statementVisualAtScroll(scrubClamped, i, g)
-        /* Paint from visual.active directly — do not gate on a capped index set. */
-        const isActive = vis.active
-        if (isActive) activeCount += 1
-        el.setAttribute('data-narrative-active', isActive ? 'true' : 'false')
-        if (!isActive) {
-          el.style.opacity = '0'
-          el.style.transform = 'translate3d(0, 0, 0)'
-          continue
-        }
-        el.style.opacity = String(vis.opacity)
-        el.style.transform = `translate3d(0, ${vis.y}px, 0)`
-      }
-
-      sticky.setAttribute('data-narrative-active-count', String(activeCount))
-      sticky.setAttribute(
-        'data-narrative-active-ids',
-        activeStatementIndicesAtScroll(scrubClamped, g).join(','),
-      )
-
-      /*
-       * Cover handoff: sticky unpin geometry — browser moves black 1:1.
-       * No translateY curtain. handoffT drives Product ownership/autoplay only.
-       */
-      const stickyTop = sticky.getBoundingClientRect().top
-      const handoffT = compactNarrativeCoverHandoffT(
-        stickyTop,
-        navH,
-        g.stickyH,
-      )
-      publishScene07HandoffT(handoffT)
-      sticky.setAttribute('data-narrative-cover-handoff', handoffT.toFixed(3))
-    }
-
-    const onScroll = () => {
-      if (!activeRef.current) {
+    let onScroll: (() => void) | null = null
+    if (engineRef.current === 'js-scrub') {
+      const measure = () => {
         const sticky = stickyRef.current
         const g = geomRef.current
         if (!sticky || !g) return
-        const handoff = compactNarrativeCoverHandoffT(
-          sticky.getBoundingClientRect().top,
-          g.navH,
-          g.stickyH,
+        const navH = g.navH
+        const scrollIntoScrub = Math.max(
+          0,
+          navH - track.getBoundingClientRect().top,
         )
-        if (handoff <= 0.001) return
+        const slots = compactNarrativeSlotOffsets(g)
+        const scrubClamped = Math.min(slots.scrubBudget, scrollIntoScrub)
+        for (let i = 0; i < COMPACT_NARRATIVE_STATEMENT_COUNT; i++) {
+          const el = statementRefs.current[i]
+          if (!el) continue
+          const vis = statementVisualAtScroll(scrubClamped, i, g)
+          el.setAttribute('data-narrative-active', vis.active ? 'true' : 'false')
+          if (!vis.active) {
+            el.style.opacity = '0'
+            el.style.transform = 'translate3d(0, 0, 0)'
+            continue
+          }
+          el.style.opacity = String(vis.opacity)
+          el.style.transform = `translate3d(0, ${vis.y}px, 0)`
+        }
       }
-      cancelAnimationFrame(raf)
-      raf = requestAnimationFrame(measure)
+      onScroll = () => {
+        cancelAnimationFrame(raf)
+        raf = requestAnimationFrame(measure)
+      }
+      measure()
+      window.addEventListener('scroll', onScroll, { passive: true })
     }
 
-    onBecameActiveRef.current = onScroll
-    measure()
-    window.addEventListener('scroll', onScroll, { passive: true })
-    window.addEventListener('resize', onScroll)
     return () => {
-      onBecameActiveRef.current = null
+      ro.disconnect()
+      window.removeEventListener('resize', applyGeometry)
+      if (onScroll) window.removeEventListener('scroll', onScroll)
       cancelAnimationFrame(raf)
-      window.removeEventListener('scroll', onScroll)
-      window.removeEventListener('resize', onScroll)
-      clearPublishedScene07HandoffT()
     }
-  }, [reduced, activeRef, onBecameActiveRef])
+  }, [reduced])
 
   if (reduced) {
     return (
@@ -219,6 +192,7 @@ export function CompactProblemNarrative() {
       data-problem-compact-narrative="true"
       data-problem-pixel-coupled="true"
       data-narrative-cover="document"
+      data-narrative-engine="css-scroll"
       aria-labelledby="lv2-problem-heading"
     >
       <h2 id="lv2-problem-heading" className={styles.visuallyHidden}>
@@ -242,7 +216,10 @@ export function CompactProblemNarrative() {
               className={styles.statement}
               data-problem-scene={stmt.id}
               data-narrative-statement={index}
-              data-narrative-active="false"
+              data-narrative-has-incoming={index >= 1 ? 'true' : 'false'}
+              data-narrative-has-outgoing={
+                index < COMPACT_NARRATIVE_STATEMENT_COUNT - 1 ? 'true' : 'false'
+              }
             >
               <div className={styles.copy}>
                 {stmt.lines.map((line, li) => (
@@ -266,7 +243,6 @@ export function CompactProblemNarrative() {
         </div>
       </div>
 
-      {/* Physical scrub runway — height = Σ(travel+hold); ratio 1.0 */}
       <div
         ref={spacerRef}
         className={styles.scrubSpacers}
@@ -274,7 +250,6 @@ export function CompactProblemNarrative() {
         aria-hidden
       />
 
-      {/* Founder-like cover hold — sticky still pins; then unpins 1:1 */}
       <div
         className={styles.coverHold}
         data-narrative-cover-hold=""

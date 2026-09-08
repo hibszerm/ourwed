@@ -197,7 +197,7 @@ console.log('\n=== landing mobile performance iteration 3C.3 ===\n')
     assert(v.y === 0 && v.opacity >= 0.99, `stmt ${i} settled`)
   }
   assertIncludes(narrativeCss, 'z-index: 10', 'narrative z-10 preserved')
-  assertIncludes(narrative, 'publishScene07HandoffT', 'handoff publish for autoplay')
+  assertIncludes(narrative, 'data-narrative-engine', 'engine attribute')
   console.log('PASS  6. narrative regression frozen')
 }
 

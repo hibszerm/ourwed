@@ -1,20 +1,17 @@
-/* Compact Problem Story — Iteration 3C pixel-coupled narrative. */
+/* Compact Problem Story — Iteration 3D CSS scroll-timeline narrative. */
 
 .track {
   --lv2-problem-ink: #f5f1ea;
   --lv2-problem-muted: rgba(245, 241, 234, 0.6);
   --lv2-problem-black: #000000;
   --lv2-nav-h: var(--lv3-nav-h, 68px);
-  /*
-   * Heights are set in px from measured geometry (travel=scroll).
-   * Fallback svh only until first measure.
-   */
   --lv2-narrative-scrub-px: 0;
   --lv2-narrative-cover-svh: 0;
+  --lv2-narrative-travel-px: 339;
+  --lv2-narrative-outgoing-y: -129;
 
   position: relative;
   width: 100%;
-  /* stickyH + scrub — Statement 7 hold is inside scrub; no extra coverHold dead runway */
   height: calc(
     (100svh - var(--lv2-nav-h)) + var(--lv2-narrative-scrub-px) * 1px +
       (var(--lv2-narrative-cover-svh) * 1svh)
@@ -26,7 +23,6 @@
   margin-top: calc(-1 * min(28svh, 220px));
   background: var(--lv2-problem-black);
   color: var(--lv2-problem-ink);
-  /* No transform on track — sticky descendants stay trustworthy. */
   transform: none;
 }
 
@@ -43,9 +39,8 @@
 }
 
 /*
- * ONE sticky reading surface. No nested sticky. No transform on ancestors.
- * When scrub+cover complete, sticky unpins and black exits 1:1 with document
- * (Founder cover principle — browser scrolls the surface).
+ * ONE sticky reading surface. Black exit = native sticky unpin (document 1:1).
+ * No transform on sticky ancestors.
  */
 .sticky {
   position: sticky;
@@ -64,7 +59,6 @@
   position: absolute;
   inset: 0;
   display: grid;
-  /* Slightly above true center — editorial. */
   place-items: center;
   padding-bottom: 8svh;
   padding-inline: clamp(1.25rem, 5vw, 2rem);
@@ -80,15 +74,17 @@
   padding-bottom: inherit;
   text-align: center;
   pointer-events: none;
+  /* Waiting state before CSS incoming range (no backwards fill). */
   opacity: 0;
-  transform: translate3d(0, 0, 0);
+  transform: translate3d(0, calc(var(--lv2-narrative-travel-px) * 1px), 0);
   will-change: auto;
-  visibility: hidden;
+  visibility: visible;
 }
 
-.statement[data-narrative-active='true'] {
-  visibility: visible;
-  will-change: transform, opacity;
+/* Statement 0: readable immediately — no long scroll entrance. */
+.statement[data-narrative-statement='0'] {
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
 }
 
 .copy {
@@ -116,16 +112,10 @@
   color: var(--lv2-problem-muted);
 }
 
-/* Real scroll slots — heights applied inline from measured travel/hold. */
 .scrubSpacers {
   position: relative;
   width: 100%;
   pointer-events: none;
-}
-
-.spacer {
-  width: 100%;
-  /* height set inline */
 }
 
 .coverHold {
@@ -151,4 +141,73 @@
 .staticStatement .copy {
   width: min(100%, 21.5rem);
   margin-inline: auto;
+}
+
+/* ——— Iteration 3D: compositor-eligible scroll-driven copy ——— */
+@keyframes lv2NarrativeIncoming {
+  from {
+    transform: translate3d(0, calc(var(--lv2-narrative-travel-px) * 1px), 0);
+    opacity: 1;
+  }
+  to {
+    transform: translate3d(0, 0, 0);
+    opacity: 1;
+  }
+}
+
+@keyframes lv2NarrativeOutgoing {
+  from {
+    transform: translate3d(0, 0, 0);
+    opacity: 1;
+  }
+  /* Fade complete by ~62% of travel (collision invariant). */
+  62% {
+    transform: translate3d(0, calc(var(--lv2-narrative-outgoing-y) * 0.62 * 1px), 0);
+    opacity: 0;
+  }
+  to {
+    transform: translate3d(0, calc(var(--lv2-narrative-outgoing-y) * 1px), 0);
+    opacity: 0;
+  }
+}
+
+@supports (animation-timeline: scroll()) {
+  .track[data-narrative-engine='css-scroll']
+    .statement[data-narrative-has-incoming='true'][data-narrative-has-outgoing='false'] {
+    animation-name: lv2NarrativeIncoming;
+    animation-timing-function: linear;
+    animation-fill-mode: forwards;
+    animation-timeline: scroll(root);
+    animation-range: var(--narr-in-start) var(--narr-in-end);
+  }
+
+  .track[data-narrative-engine='css-scroll']
+    .statement[data-narrative-has-incoming='true'][data-narrative-has-outgoing='true'] {
+    animation-name: lv2NarrativeIncoming, lv2NarrativeOutgoing;
+    animation-timing-function: linear, linear;
+    animation-fill-mode: forwards, forwards;
+    animation-timeline: scroll(root), scroll(root);
+    animation-range:
+      var(--narr-in-start) var(--narr-in-end),
+      var(--narr-out-start) var(--narr-out-end);
+  }
+
+  /* Statement 0: static presence + outgoing only when statement 1 arrives. */
+  .track[data-narrative-engine='css-scroll']
+    .statement[data-narrative-statement='0'][data-narrative-has-outgoing='true'] {
+    animation-name: lv2NarrativeOutgoing;
+    animation-timing-function: linear;
+    animation-fill-mode: forwards;
+    animation-timeline: scroll(root);
+    animation-range: var(--narr-out-start) var(--narr-out-end);
+  }
+}
+
+/* JS fallback path — active attrs set by rAF scrub (no permanent will-change). */
+.track[data-narrative-engine='js-scrub'] .statement {
+  visibility: hidden;
+}
+
+.track[data-narrative-engine='js-scrub'] .statement[data-narrative-active='true'] {
+  visibility: visible;
 }

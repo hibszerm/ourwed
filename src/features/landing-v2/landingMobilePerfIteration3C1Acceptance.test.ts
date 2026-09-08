@@ -58,10 +58,11 @@ console.log('\n=== landing mobile performance iteration 3C.1 (sequence bugfix) =
     'documents 3C.1 root cause',
   )
   assertIncludes(
-    narrative,
-    'Paint from visual.active directly',
-    'DOM paint not gated on capped index set',
+    progress,
+    'residual Y alone must NOT keep it active',
+    'active flag not gated on residual Y',
   )
+  assertIncludes(narrative, 'COMPACT_NARRATIVE_STATEMENTS.map', 'all statements in DOM')
   console.log('PASS  1. source array + root-cause documentation')
 }
 

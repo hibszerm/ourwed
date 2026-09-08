@@ -62,12 +62,12 @@ console.log('\n=== landing mobile performance iteration 3C (pixel-coupled) ===\n
 {
   assertIncludes(narrative, 'data-problem-pixel-coupled="true"', 'pixel-coupled marker')
   assertIncludes(narrative, 'data-narrative-cover="document"', 'document cover marker')
-  assertIncludes(narrative, 'translate3d(0, ${vis.y}px, 0)', 'direct DOM translate')
+  assertIncludes(narrative, 'data-narrative-engine', 'engine marker (css-scroll|js-scrub)')
   assertNotIncludes(narrative, 'useMotionValue', 'no Framer travel MotionValue')
   assertNotIncludes(narrative, 'useTransform', 'no Framer travel transform')
   assertIncludes(progress, 'COMPACT_NARRATIVE_INCOMING_RATIO = 1', 'incoming ratio 1.0')
   assertIncludes(progress, 'ratio ≈ 3.80 (FAILED)', 'documents 3B failure ratio')
-  console.log('PASS  1. architecture: pixel-coupled direct DOM, no Framer travel')
+  console.log('PASS  1. architecture: pixel-coupled, no Framer travel')
 }
 
 {
@@ -112,7 +112,8 @@ console.log('\n=== landing mobile performance iteration 3C (pixel-coupled) ===\n
 {
   assert(blackCoverDisplacementRatio() === 1, 'black cover ratio 1.0')
   assertIncludes(narrativeCss, 'coverHold', 'cover hold spacer class')
-  assertIncludes(narrative, 'compactNarrativeCoverHandoffT', 'unpin handoff')
+  assertIncludes(progress, 'compactNarrativeCoverHandoffT', 'unpin handoff helper')
+  assertIncludes(narrative, 'data-narrative-cover="document"', 'document cover black exit')
   assertIncludes(narrativeCss, 'transform: none', 'no transform on sticky ancestors')
   assertIncludes(founderCss, 'margin-top: calc(-100svh)', 'Founder reference intact')
   assertIncludes(productCss, 'margin-top: calc(var(--lv2-nav-h) - 100svh)', 'Product sticky-height overlap')
@@ -144,11 +145,11 @@ console.log('\n=== landing mobile performance iteration 3C (pixel-coupled) ===\n
 }
 
 {
-  assertNotIncludes(narrativeCss, 'animation-timeline', 'no CSS scroll-timeline SoT')
+  assertNotIncludes(narrativeCss, 'animation-timeline: view()', 'ranges use scroll() not view SoT')
   assertIncludes(
     progress,
-    'CSS scroll-timeline NOT used',
-    'documents scroll-timeline decision',
+    'prefers CSS `animation-timeline: scroll()`',
+    'documents 3D CSS scroll timeline preference',
   )
   assertIncludes(problem, 'LandingV2ProblemStoryDesktop', 'desktop preserved')
   assertIncludes(hero, 'FlattenedHeroTabletContent', 'hero intact')

@@ -55,13 +55,6 @@
   contain: none;
 }
 
-/* Fully scrolled away — drop below Lifecycle; still no hit testing. */
-.sticky[data-ps-lifecycle-exit='done'] {
-  visibility: hidden;
-  pointer-events: none;
-  z-index: 0;
-}
-
 .stage {
   position: relative;
   width: 100%;

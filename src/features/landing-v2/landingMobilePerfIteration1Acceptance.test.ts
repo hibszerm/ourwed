@@ -62,10 +62,15 @@ console.log('\n=== landing mobile performance iteration 1 ===\n')
   const compactNarrative = read(
     'src/features/landing-v2/sections/CompactProblemNarrative.tsx',
   )
+  const compactProduct = read(
+    'src/features/landing-v2/product-story/CompactProductReveal.tsx',
+  )
+  /* 3D: compact narrative/product use CSS scroll / IO — no continuous rAF gate. */
+  assertNotIncludes(compactNarrative, 'useTheaterScrollGate', 'narrative no rAF gate')
+  assertNotIncludes(compactProduct, 'useTheaterScrollGate', 'compact product no rAF gate')
   for (const [name, src] of [
     ['hero', hero],
     ['problem', problem],
-    ['problem-narrative', compactNarrative],
     ['product', product],
     ['lifecycle', lifecycle],
     ['mobile', mobile],
@@ -73,7 +78,7 @@ console.log('\n=== landing mobile performance iteration 1 ===\n')
     assertIncludes(src, 'useTheaterScrollGate', `${name} gates scroll`)
     assertIncludes(src, 'if (!activeRef.current', `${name} skips offscreen measure`)
   }
-  console.log('PASS  2. all sticky theaters gate continuous measure')
+  console.log('PASS  2. sticky theaters gate continuous measure (desktop/shared)')
 }
 
 {

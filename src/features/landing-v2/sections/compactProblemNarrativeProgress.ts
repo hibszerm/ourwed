@@ -15,9 +15,9 @@
  * 3C.1 Statement 1 timing:
  *   Opening statement starts readable at scrub=0 (black-stage ownership).
  *
- * CSS scroll-timeline NOT used as the motion source of truth: sticky reading
- * viewport + dual-layer spatial handoff + Founder document cover are expressed
- * more reliably as scroll-position → translate3d/opacity with ratio 1.0.
+ * Iteration 3D: compact narrative motion prefers CSS `animation-timeline: scroll()`
+ * with absolute px ranges (= travel distance) so ratio stays 1.0. Geometry helpers
+ * below remain the SoT for tests + JS fallback. Black exit stays document sticky.
  */
 
 import { PROBLEM_STORY_SCENES } from '@/features/landing-v2/sections/problemStoryCopy'

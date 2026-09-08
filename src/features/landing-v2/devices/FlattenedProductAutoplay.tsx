@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-import { motion } from 'framer-motion'
 import {
   productLayerSrc,
   type LandingProductLayerId,
@@ -23,9 +22,16 @@ type Props = {
   reducedMotion?: boolean
 }
 
+function warmLayer(id: LandingProductLayerId) {
+  const img = new Image()
+  img.decoding = 'async'
+  img.src = productLayerSrc(id)
+}
+
 /**
  * Compact Product tablet content — time-based tab loop (not scroll-driven).
  * Max 2 opacity layers during crossfade; live ProductStoryWorkspace must NOT mount.
+ * Decode budget: warm current + next only while active (not all four at mount).
  */
 export function FlattenedProductAutoplay({
   active,
@@ -40,12 +46,15 @@ export function FlattenedProductAutoplay({
   indexRef.current = index
 
   useEffect(() => {
-    const warm = (id: LandingProductLayerId) => {
-      const img = new Image()
-      img.src = productLayerSrc(id)
-    }
-    for (const id of PRODUCT_AUTOPLAY_ORDER) warm(id)
-  }, [])
+    if (!active || reducedMotion) return
+    const cur = PRODUCT_AUTOPLAY_ORDER[indexRef.current]!
+    const next =
+      PRODUCT_AUTOPLAY_ORDER[
+        (indexRef.current + 1) % PRODUCT_AUTOPLAY_ORDER.length
+      ]!
+    warmLayer(cur)
+    warmLayer(next)
+  }, [active, reducedMotion, index])
 
   useEffect(() => {
     const clearTimers = () => {
@@ -71,10 +80,13 @@ export function FlattenedProductAutoplay({
       timerRef.current = window.setTimeout(() => {
         const from = indexRef.current
         const to = (from + 1) % PRODUCT_AUTOPLAY_ORDER.length
+        warmLayer(PRODUCT_AUTOPLAY_ORDER[to]!)
+        warmLayer(
+          PRODUCT_AUTOPLAY_ORDER[(to + 1) % PRODUCT_AUTOPLAY_ORDER.length]!,
+        )
         setPrevIndex(from)
         setIndex(to)
         setBlend(0)
-        /* rAF then set blend 1 so CSS transition runs */
         requestAnimationFrame(() => {
           requestAnimationFrame(() => setBlend(1))
         })
@@ -104,11 +116,12 @@ export function FlattenedProductAutoplay({
       data-product-layers={dual ? 2 : 1}
       data-product-tab={current}
       data-product-autoplay={active && !reducedMotion ? 'on' : 'off'}
+      data-product-decode-policy="current-next"
       role="img"
       aria-label="OurWed — szczegóły zlecenia (podgląd)"
     >
       {dual && previous ? (
-        <motion.img
+        <img
           className={styles.layer}
           src={productLayerSrc(previous)}
           alt=""
