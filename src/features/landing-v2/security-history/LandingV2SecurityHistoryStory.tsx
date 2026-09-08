@@ -26,12 +26,15 @@ function ClientMark() {
  * Compact / reduced-motion Studio History — natural document flow.
  *
  * Desktop normal motion: absorbed. Sticky 3-column History lives in MobileStory.
- * Compact: cinematic Security releases, then this section scrolls with the page.
+ * Compact normal motion (3G): intro (lock + "Cała historia…") is scroll-scrubbed
+ * inside MobileStory; this sibling continues with year cards only.
+ * Reduced-motion: full intro + years in document flow (no sticky scrub).
  */
 export function LandingV2SecurityHistoryStory() {
   const reduced = useReducedMotion()
   const isCompact = useLandingCompactViewport()
   const flow = Boolean(reduced) || isCompact
+  const yearsOnly = isCompact && !reduced
 
   useEffect(() => {
     clearPhoneSecurityMorph()
@@ -60,57 +63,61 @@ export function LandingV2SecurityHistoryStory() {
       data-security-theater="document-flow"
       data-studio-history-flow="document"
       data-studio-history-compact="true"
+      data-studio-history-years-only={yearsOnly ? 'true' : 'false'}
       data-studio-history-visible-rows={LV2_HISTORY_COMPACT_VISIBLE_ROWS}
-      aria-labelledby="lv2-studio-history-heading"
+      aria-labelledby={yearsOnly ? undefined : 'lv2-studio-history-heading'}
+      aria-label={yearsOnly ? LV2_HISTORY_COPY.studioLabel : undefined}
     >
       <div className={styles.inner}>
-        <div className={styles.intro} data-studio-history-intro="">
-          <motion.div
-            className={styles.lockWrap}
-            data-studio-lock-flow=""
-            initial={motionOff ? false : { opacity: 0, y: 10 }}
-            whileInView={motionOff ? undefined : { opacity: 1, y: 0 }}
-            viewport={INTRO_VIEWPORT}
-            transition={{ duration: 0.75, ease: COMPACT_EASE }}
-          >
-            <SecurityLockGraphic className={styles.lock} />
-          </motion.div>
+        {!yearsOnly ? (
+          <div className={styles.intro} data-studio-history-intro="">
+            <motion.div
+              className={styles.lockWrap}
+              data-studio-lock-flow=""
+              initial={motionOff ? false : { opacity: 0, y: 10 }}
+              whileInView={motionOff ? undefined : { opacity: 1, y: 0 }}
+              viewport={INTRO_VIEWPORT}
+              transition={{ duration: 0.75, ease: COMPACT_EASE }}
+            >
+              <SecurityLockGraphic className={styles.lock} />
+            </motion.div>
 
-          <motion.p
-            className={styles.studioLabel}
-            data-studio-eyebrow=""
-            initial={motionOff ? false : { opacity: 0, y: 8 }}
-            whileInView={motionOff ? undefined : { opacity: 1, y: 0 }}
-            viewport={INTRO_VIEWPORT}
-            transition={{ duration: 0.75, ease: COMPACT_EASE, delay: 0.04 }}
-          >
-            {LV2_HISTORY_COPY.studioLabel}
-          </motion.p>
+            <motion.p
+              className={styles.studioLabel}
+              data-studio-eyebrow=""
+              initial={motionOff ? false : { opacity: 0, y: 8 }}
+              whileInView={motionOff ? undefined : { opacity: 1, y: 0 }}
+              viewport={INTRO_VIEWPORT}
+              transition={{ duration: 0.75, ease: COMPACT_EASE, delay: 0.04 }}
+            >
+              {LV2_HISTORY_COPY.studioLabel}
+            </motion.p>
 
-          <motion.h2
-            id="lv2-studio-history-heading"
-            className={styles.historyHeadline}
-            data-studio-headline=""
-            initial={motionOff ? false : { opacity: 0, y: 14 }}
-            whileInView={motionOff ? undefined : { opacity: 1, y: 0 }}
-            viewport={INTRO_VIEWPORT}
-            transition={{ duration: 0.8, ease: COMPACT_EASE, delay: 0.08 }}
-          >
-            <span className={styles.historyLine}>{LV2_HISTORY_COPY.headlineLine1}</span>
-            <span className={styles.historyLine}>{LV2_HISTORY_COPY.headlineLine2}</span>
-          </motion.h2>
+            <motion.h2
+              id="lv2-studio-history-heading"
+              className={styles.historyHeadline}
+              data-studio-headline=""
+              initial={motionOff ? false : { opacity: 0, y: 14 }}
+              whileInView={motionOff ? undefined : { opacity: 1, y: 0 }}
+              viewport={INTRO_VIEWPORT}
+              transition={{ duration: 0.8, ease: COMPACT_EASE, delay: 0.08 }}
+            >
+              <span className={styles.historyLine}>{LV2_HISTORY_COPY.headlineLine1}</span>
+              <span className={styles.historyLine}>{LV2_HISTORY_COPY.headlineLine2}</span>
+            </motion.h2>
 
-          <motion.p
-            className={styles.historySupport}
-            data-studio-support=""
-            initial={motionOff ? false : { opacity: 0, y: 10 }}
-            whileInView={motionOff ? undefined : { opacity: 1, y: 0 }}
-            viewport={INTRO_VIEWPORT}
-            transition={{ duration: 0.8, ease: COMPACT_EASE, delay: 0.14 }}
-          >
-            {LV2_HISTORY_COPY.support}
-          </motion.p>
-        </div>
+            <motion.p
+              className={styles.historySupport}
+              data-studio-support=""
+              initial={motionOff ? false : { opacity: 0, y: 10 }}
+              whileInView={motionOff ? undefined : { opacity: 1, y: 0 }}
+              viewport={INTRO_VIEWPORT}
+              transition={{ duration: 0.8, ease: COMPACT_EASE, delay: 0.14 }}
+            >
+              {LV2_HISTORY_COPY.support}
+            </motion.p>
+          </div>
+        ) : null}
 
         <div className={styles.yearList} data-studio-year-list="">
           {seasons.map((season) => (

@@ -13,6 +13,7 @@
   --sh-ink: #1a1614;
   --sh-paper: var(--paper, #f3efe8);
   --sh-muted: color-mix(in srgb, #1a1614 48%, transparent);
+  --studio-history-mobile-gutter: 1.125rem;
   --studio-history-mobile-year-gap: clamp(3.5rem, 10vw, 4.5rem);
   /* History → Season Import handoff (~72–96px). */
   --studio-history-mobile-section-end: clamp(4.5rem, 11vw, 6rem);
@@ -20,18 +21,22 @@
   position: relative;
   z-index: 2;
   width: 100%;
+  box-sizing: border-box;
   background: var(--sh-paper);
   color: var(--sh-ink);
-  padding: clamp(2.75rem, 8vw, 4rem) 1.125rem var(--studio-history-mobile-section-end);
+  padding: clamp(2.75rem, 8vw, 4rem) var(--studio-history-mobile-gutter)
+    var(--studio-history-mobile-section-end);
 }
 
 .inner {
-  width: calc(100vw - 2.25rem);
+  /* 3G: width from padded parent — never 100vw (caused right-biased overflow). */
+  width: 100%;
   max-width: 26rem;
   margin-inline: auto;
   display: flex;
   flex-direction: column;
   align-items: center;
+  box-sizing: border-box;
 }
 
 .intro {
@@ -72,25 +77,30 @@
 .historyHeadline {
   margin: 0;
   width: 100%;
-  max-width: calc(100vw - 2.25rem);
+  max-width: 100%;
   display: grid;
   gap: 0.06em;
-  font-size: clamp(2rem, 8.2vw, 2.55rem);
+  font-size: clamp(1.85rem, 7.4vw, 2.4rem);
   font-weight: 600;
   letter-spacing: -0.045em;
-  line-height: 1.02;
+  line-height: 1.05;
   color: var(--sh-ink);
   text-align: center;
+  /* Stable state: no horizontal transform. */
+  transform: none;
 }
 
 .historyLine {
   display: block;
-  white-space: nowrap;
+  /* Allow wrap on very narrow widths so the period never clips. */
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
 }
 
 .historySupport {
   margin: 0.95rem auto 0;
-  max-width: min(22rem, calc(100vw - 2.5rem));
+  max-width: min(22rem, 100%);
   font-size: clamp(0.9375rem, 3.8vw, 1rem);
   line-height: 1.5;
   color: var(--sh-muted);
@@ -127,7 +137,7 @@
 
 .card {
   width: 100%;
-  max-width: calc(100vw - 2.25rem);
+  max-width: 100%;
   height: auto;
   padding: 0.2rem 1.05rem 0.75rem;
   border-radius: 14px;

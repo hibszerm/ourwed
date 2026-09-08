@@ -27,6 +27,11 @@ type Props = {
   progress: MotionValue<number>
   /** Season-import chapter progress. 0 = history final frame unchanged. */
   exitProgress: MotionValue<number>
+  /**
+   * Compact intro-only (3G): lock → History headline handoff inside MobileStory.
+   * Year cards continue in LandingV2SecurityHistoryStory document flow.
+   */
+  compactIntro?: boolean
 }
 
 /** Hard paint kill — opacity:0 alone can leave Safari compositor ghosts. */
@@ -40,16 +45,21 @@ function ClientMark() {
 }
 
 /**
- * Desktop Studio History — sticky three-column chronology.
- * Compact document-flow History lives in LandingV2SecurityHistoryStory.
+ * Studio History — sticky chronology.
+ * Desktop: full three-column chapter.
+ * Compact intro: headline handoff only (years are document-flow).
  */
-export function StudioHistoryReveal({ progress, exitProgress }: Props) {
-  const shellOp = useTransform(exitProgress, (p) => seasonImportHistoryShellOpAt(p))
+export function StudioHistoryReveal({ progress, exitProgress, compactIntro = false }: Props) {
+  const shellOp = useTransform(exitProgress, (p) =>
+    compactIntro ? 1 : seasonImportHistoryShellOpAt(p),
+  )
   const shellY = useTransform(exitProgress, (p) => {
+    if (compactIntro) return 0
     const op = seasonImportHistoryShellOpAt(p)
     return op < 0.02 ? 0 : seasonImportHistoryShellYAt(p)
   })
   const shellScale = useTransform(exitProgress, (p) => {
+    if (compactIntro) return 1
     const op = seasonImportHistoryShellOpAt(p)
     return op < 0.02 ? 1 : seasonImportHistoryShellScaleAt(p)
   })
@@ -79,14 +89,16 @@ export function StudioHistoryReveal({ progress, exitProgress }: Props) {
   })
   const supportVisibility = useTransform(supportOp, (o) => paintVisibility(Number(o)))
 
-  const timelineOp = useTransform(progress, (p) => studioTimelineOpAt(p))
-  const timelineScaleX = useTransform(progress, (p) => 0.12 + studioTimelineOpAt(p) * 0.88)
+  const timelineOp = useTransform(progress, (p) => (compactIntro ? 0 : studioTimelineOpAt(p)))
+  const timelineScaleX = useTransform(progress, (p) =>
+    compactIntro ? 1 : 0.12 + studioTimelineOpAt(p) * 0.88,
+  )
   const timelineVisibility = useTransform(timelineOp, (o) => paintVisibility(Number(o)))
 
-  const y2026 = useTransform(progress, (p) => studioYear2026OpAt(p))
-  const y2027 = useTransform(progress, (p) => studioYear2027OpAt(p))
-  const y2028 = useTransform(progress, (p) => studioYear2028OpAt(p))
-  const cardsOp = useTransform(progress, (p) => studioCardsOpAt(p))
+  const y2026 = useTransform(progress, (p) => (compactIntro ? 0 : studioYear2026OpAt(p)))
+  const y2027 = useTransform(progress, (p) => (compactIntro ? 0 : studioYear2027OpAt(p)))
+  const y2028 = useTransform(progress, (p) => (compactIntro ? 0 : studioYear2028OpAt(p)))
+  const cardsOp = useTransform(progress, (p) => (compactIntro ? 0 : studioCardsOpAt(p)))
   const cardsVisibility = useTransform(cardsOp, (o) => paintVisibility(Number(o)))
 
   const yearOps = [y2026, y2027, y2028]
@@ -98,10 +110,10 @@ export function StudioHistoryReveal({ progress, exitProgress }: Props) {
 
   return (
     <motion.div
-      className={styles.root}
+      className={compactIntro ? `${styles.root} ${styles.rootCompact}` : styles.root}
       data-studio-history=""
       data-studio-history-owner="mobile"
-      data-studio-history-compact="false"
+      data-studio-history-compact={compactIntro ? 'intro' : 'false'}
       style={{
         x: '-50%',
         y: shellY,
@@ -127,7 +139,7 @@ export function StudioHistoryReveal({ progress, exitProgress }: Props) {
           </motion.p>
 
           <motion.h2
-            id="lv2-studio-history-heading"
+            id={compactIntro ? 'lv2-studio-history-heading' : 'lv2-studio-history-heading'}
             className={styles.headline}
             data-studio-headline=""
             style={{ opacity: headlineOp, y: headlineY, visibility: headlineVisibility }}
@@ -145,57 +157,61 @@ export function StudioHistoryReveal({ progress, exitProgress }: Props) {
         </motion.div>
       </div>
 
-      <motion.div
-        className={styles.timeline}
-        data-studio-timeline=""
-        style={{ opacity: timelineOp, scaleX: timelineScaleX, visibility: timelineVisibility }}
-        aria-hidden
-      >
-        <span className={styles.timelineLine} />
-        {LV2_HISTORY_SEASONS.map((season) => (
-          <span key={season.year} className={styles.dot} data-studio-year-dot={season.year} />
-        ))}
-      </motion.div>
-
-      <motion.div
-        className={styles.seasons}
-        data-studio-seasons=""
-        data-studio-year-list=""
-        style={{
-          opacity: cardsOp,
-          visibility: cardsVisibility,
-        }}
-      >
-        {LV2_HISTORY_SEASONS.map((season, i) => (
-          <section
-            key={season.year}
-            className={styles.seasonCol}
-            data-season-year={season.year}
-            data-studio-year-chapter={season.year}
+      {!compactIntro ? (
+        <>
+          <motion.div
+            className={styles.timeline}
+            data-studio-timeline=""
+            style={{ opacity: timelineOp, scaleX: timelineScaleX, visibility: timelineVisibility }}
+            aria-hidden
           >
-            <motion.p
-              className={styles.year}
-              style={{
-                opacity: yearOps[i],
-                visibility: yearVisibility[i],
-              }}
-            >
-              {season.year}
-            </motion.p>
-            <div className={styles.card} data-studio-card="">
-              <ul className={styles.records}>
-                {season.records.map((row) => (
-                  <li key={`${season.year}-${row.couple}`}>
-                    <ClientMark />
-                    <span className={styles.couple}>{row.couple}</span>
-                  </li>
-                ))}
-              </ul>
-              <p className={styles.footer}>{season.footer}</p>
-            </div>
-          </section>
-        ))}
-      </motion.div>
+            <span className={styles.timelineLine} />
+            {LV2_HISTORY_SEASONS.map((season) => (
+              <span key={season.year} className={styles.dot} data-studio-year-dot={season.year} />
+            ))}
+          </motion.div>
+
+          <motion.div
+            className={styles.seasons}
+            data-studio-seasons=""
+            data-studio-year-list=""
+            style={{
+              opacity: cardsOp,
+              visibility: cardsVisibility,
+            }}
+          >
+            {LV2_HISTORY_SEASONS.map((season, i) => (
+              <section
+                key={season.year}
+                className={styles.seasonCol}
+                data-season-year={season.year}
+                data-studio-year-chapter={season.year}
+              >
+                <motion.p
+                  className={styles.year}
+                  style={{
+                    opacity: yearOps[i],
+                    visibility: yearVisibility[i],
+                  }}
+                >
+                  {season.year}
+                </motion.p>
+                <div className={styles.card} data-studio-card="">
+                  <ul className={styles.records}>
+                    {season.records.map((row) => (
+                      <li key={`${season.year}-${row.couple}`}>
+                        <ClientMark />
+                        <span className={styles.couple}>{row.couple}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className={styles.footer}>{season.footer}</p>
+                </div>
+              </section>
+            ))}
+          </motion.div>
+        </>
+      ) : null}
     </motion.div>
   )
 }

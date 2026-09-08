@@ -11,6 +11,41 @@
   z-index: 2;
 }
 
+/* Compact intro: content-box width from sticky stage — no nested 100vw bias. */
+.rootCompact {
+  top: 18%;
+  width: min(26rem, calc(100% - 2.25rem));
+  max-width: calc(100% - 2.25rem);
+}
+
+.rootCompact .headline {
+  width: 100%;
+  max-width: 100%;
+  font-size: clamp(1.85rem, 7.4vw, 2.4rem);
+  letter-spacing: -0.045em;
+  line-height: 1.05;
+  text-align: center;
+  transform: none;
+}
+
+.rootCompact .line {
+  display: block;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+
+.rootCompact .support {
+  max-width: min(22rem, 100%);
+}
+
+.rootCompact .lockSlot {
+  width: 32px;
+  height: 40px;
+  margin-bottom: 0.85rem;
+  padding-bottom: 0;
+}
+
 .heroLead {
   display: flex;
   flex-direction: column;

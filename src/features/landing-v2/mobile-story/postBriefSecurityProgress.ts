@@ -20,11 +20,43 @@ import { LOCK_ASPECT_RATIO, PHONE_ASPECT_RATIO } from '@/features/landing-v2/sec
 export const MOBILE_TRACK_POST_BRIEF_SVH = 112
 
 /**
+ * Compact (3G): ~80% of desktop post-Brief runway.
+ * Dead hold/handoff scroll is compressed; morph physical travel stays ≈ desktop
+ * via compactPostBriefVisualAt remapping (not by accelerating shrink).
+ */
+export const MOBILE_TRACK_POST_BRIEF_SVH_COMPACT = 90
+
+/** Desktop morph→LOCK+COPY threshold (securityCopy.start). Used by compact remap. */
+export const POST_BRIEF_LOCK_ESTABLISHED = 0.58
+
+/**
  * Shared start for shrink + Brief fade + black merge + body morph.
  * Effectively no hold after final Brief — tiny scroll begins the transform.
  */
 export const POST_BRIEF_MORPH_START = 0.001
 
+/**
+ * Map compact postBrief scroll progress → desktop-equivalent visual progress.
+ * Keeps Stage-1/2 morph physical scroll ≈ prior 112svh allocation while the
+ * compact runway is only 90svh (~20% shorter) by compressing post-lock holds.
+ */
+export function compactPostBriefVisualAt(pb: number): number {
+  const p = Math.min(1, Math.max(0, pb))
+  const morphShare =
+    (POST_BRIEF_LOCK_ESTABLISHED * MOBILE_TRACK_POST_BRIEF_SVH) /
+    MOBILE_TRACK_POST_BRIEF_SVH_COMPACT
+  if (p <= morphShare) {
+    return (p / Math.max(morphShare, 1e-6)) * POST_BRIEF_LOCK_ESTABLISHED
+  }
+  return (
+    POST_BRIEF_LOCK_ESTABLISHED +
+    ((p - morphShare) / Math.max(1 - morphShare, 1e-6)) * (1 - POST_BRIEF_LOCK_ESTABLISHED)
+  )
+}
+
+export function postBriefRunwaySvh(compact: boolean): number {
+  return compact ? MOBILE_TRACK_POST_BRIEF_SVH_COMPACT : MOBILE_TRACK_POST_BRIEF_SVH
+}
 /**
  * STAGED MORPH CHOREOGRAPHY:
  *

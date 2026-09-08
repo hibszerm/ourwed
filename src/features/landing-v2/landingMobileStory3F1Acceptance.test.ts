@@ -129,7 +129,7 @@ console.log('\n=== landing mobile story 3F.1 (desktop-parity tour) ===\n')
   const vh = 874
   const nav = 68
   const usable = vh - nav
-  const mappingSvh = preSvh + 36 + 24 + 112
+  const mappingSvh = preSvh + 36 + 24 + 90
   const mappingHeight = mappingSvh * (vh / 100)
   const preTravel = Math.max(1, mappingHeight * (preSvh / mappingSvh) - usable)
   const ratio = compactHeadlineSepRatio(preTravel)

@@ -19,11 +19,12 @@ import { StudioHistoryReveal } from '@/features/landing-v2/mobile-story/StudioHi
 import { StudioImportReveal } from '@/features/landing-v2/mobile-story/StudioImportReveal'
 import { MOBILE_TRACK_IMPORT_COVER_HOLD_SVH } from '@/features/landing-v2/mobile-story/founderStoryProgress'
 import {
-  MOBILE_TRACK_POST_BRIEF_SVH,
+  compactPostBriefVisualAt,
   postBriefChromeOpAt,
   postBriefCompressAt,
   postBriefContentOpAt,
   postBriefKeyholeAt,
+  postBriefRunwaySvh,
   postBriefScreenMergeAt,
   postBriefSecurityCopyAt,
   postBriefShackleAt,
@@ -37,6 +38,7 @@ import {
 } from '@/features/landing-v2/mobile-story/seasonImportProgress'
 import {
   MOBILE_TRACK_STUDIO_HISTORY_SVH,
+  MOBILE_TRACK_STUDIO_HISTORY_SVH_COMPACT,
   studioLockScaleAt,
   studioLockYVhAt,
   studioSecurityCopyOpAt,
@@ -244,11 +246,13 @@ export function LandingV2MobileStory() {
       const rect = el.getBoundingClientRect()
       const usable = window.innerHeight - navH
       const preSvh = compactRef.current ? MOBILE_TRACK_PRE_SVH_COMPACT : MOBILE_TRACK_PRE_SVH
-      /* Compact: History/Import are document-flow — sticky ends after Security. */
-      const studioSvh = compactRef.current ? 0 : MOBILE_TRACK_STUDIO_HISTORY_SVH
+      /* Compact (3G): short studio intro runway; years stay document-flow. */
+      const studioSvh = compactRef.current
+        ? MOBILE_TRACK_STUDIO_HISTORY_SVH_COMPACT
+        : MOBILE_TRACK_STUDIO_HISTORY_SVH
       const contentSvh =
         preSvh + dashSvhRef.current + (postSvhRef.current || MOBILE_TRACK_POST_SVH)
-      const mappingSvh = contentSvh + MOBILE_TRACK_POST_BRIEF_SVH
+      const mappingSvh = contentSvh + postBriefRunwaySvh(compactRef.current)
       const importSvh = compactRef.current ? 0 : MOBILE_TRACK_SEASON_IMPORT_SVH
       const coverHoldSvh = compactRef.current ? 0 : MOBILE_TRACK_IMPORT_COVER_HOLD_SVH
       const legacyChapterSvh = studioSvh + importSvh
@@ -492,6 +496,11 @@ export function LandingV2MobileStory() {
   const line1Y = useTransform([enterY, sepOffset], ([ey, sep]) => Number(ey) - Number(sep))
   const line2Y = useTransform([enterY, sepOffset], ([ey, sep]) => Number(ey) + Number(sep))
 
+  /* Compact postBrief scroll → desktop-equivalent visual (holds compressed, morph pace preserved). */
+  const postBriefVisual = useTransform(postBriefProgress, (p) =>
+    compactRef.current ? compactPostBriefVisualAt(Number(p)) : Number(p),
+  )
+
   /* ONE transform owner for main scale: .phoneSystem — enter × post-Brief LINEAR shrink × studio lift. */
   const phoneOpacity = useTransform(
     [phoneIn, importProgress],
@@ -503,11 +512,11 @@ export function LandingV2MobileStory() {
     Number(o) < 0.02 ? ('hidden' as const) : ('visible' as const),
   )
   const phoneScale = useTransform(
-    [phoneIn, postBriefProgress, studioProgress, importProgress],
+    [phoneIn, postBriefVisual, studioProgress, importProgress],
     ([inn, pb, st, im]) => {
       const start = compactRef.current ? PHONE_SCALE_START_COMPACT : PHONE_SCALE_START_DESKTOP
       const enterScale = start + Number(inn) * (1 - start)
-      const studioScale = compactRef.current ? 1 : studioLockScaleAt(Number(st), false)
+      const studioScale = studioLockScaleAt(Number(st), compactRef.current)
       const importScale = compactRef.current ? 1 : seasonImportLockScaleAt(Number(im))
       return enterScale * postBriefShrinkScaleAt(Number(pb)) * studioScale * importScale
     },
@@ -515,7 +524,7 @@ export function LandingV2MobileStory() {
   const phoneY = useTransform([phoneIn, studioProgress, importProgress], ([inn, st, im]) => {
     const enterMax = compactRef.current ? PHONE_ENTER_Y_COMPACT : PHONE_ENTER_Y_DESKTOP
     const enterPx = (1 - Number(inn)) * enterMax
-    const studioVh = compactRef.current ? 0 : studioLockYVhAt(Number(st), false)
+    const studioVh = studioLockYVhAt(Number(st), compactRef.current)
     const exitPx = compactRef.current ? 0 : seasonImportLockYAt(Number(im))
     const px = enterPx + exitPx
     if (studioVh === 0) return px
@@ -523,22 +532,22 @@ export function LandingV2MobileStory() {
   })
 
   const lockMorph = {
-    compress: useTransform(postBriefProgress, (p) => postBriefCompressAt(p)),
-    chrome: useTransform(postBriefProgress, (p) => postBriefChromeOpAt(p)),
-    brief: useTransform(postBriefProgress, (p) => postBriefContentOpAt(p)),
-    screenMerge: useTransform(postBriefProgress, (p) => postBriefScreenMergeAt(p)),
-    shackle: useTransform(postBriefProgress, (p) => postBriefShackleAt(p)),
-    keyhole: useTransform(postBriefProgress, (p) => postBriefKeyholeAt(p)),
+    compress: useTransform(postBriefVisual, (p) => postBriefCompressAt(p)),
+    chrome: useTransform(postBriefVisual, (p) => postBriefChromeOpAt(p)),
+    brief: useTransform(postBriefVisual, (p) => postBriefContentOpAt(p)),
+    screenMerge: useTransform(postBriefVisual, (p) => postBriefScreenMergeAt(p)),
+    shackle: useTransform(postBriefVisual, (p) => postBriefShackleAt(p)),
+    keyhole: useTransform(postBriefVisual, (p) => postBriefKeyholeAt(p)),
   }
 
   const securityCopyOp = useTransform(
-    [postBriefProgress, studioProgress],
+    [postBriefVisual, studioProgress],
     ([pb, st]) => postBriefSecurityCopyAt(Number(pb)) * studioSecurityCopyOpAt(Number(st)),
   )
-  const securityCopyY = useTransform([postBriefProgress, studioProgress], ([pb, st]) => {
+  const securityCopyY = useTransform([postBriefVisual, studioProgress], ([pb, st]) => {
     return (1 - postBriefSecurityCopyAt(Number(pb))) * 14 + studioSecurityCopyYAt(Number(st))
   })
-  const paperOp = useTransform(postBriefProgress, (p) => {
+  const paperOp = useTransform(postBriefVisual, (p) => {
     if (p <= 0.005) return 0
     return Math.min(1, (p - 0.005) / 0.08)
   })
@@ -562,6 +571,7 @@ export function LandingV2MobileStory() {
               {isCompactViewport ? (
                 <CompactPhoneProductTour
                   theaterProgress={progress}
+                  postBriefProgress={postBriefProgress}
                   reducedMotion={Boolean(reduced)}
                 />
               ) : (
@@ -604,9 +614,9 @@ export function LandingV2MobileStory() {
           '--mobile-track-post-svh': isCompactViewport
             ? MOBILE_TRACK_POST_SVH_COMPACT
             : MOBILE_TRACK_POST_SVH,
-          '--mobile-track-post-brief-svh': MOBILE_TRACK_POST_BRIEF_SVH,
+          '--mobile-track-post-brief-svh': postBriefRunwaySvh(isCompactViewport),
           '--mobile-track-studio-history-svh': isCompactViewport
-            ? 0
+            ? MOBILE_TRACK_STUDIO_HISTORY_SVH_COMPACT
             : MOBILE_TRACK_STUDIO_HISTORY_SVH,
           '--mobile-track-season-import-svh': isCompactViewport
             ? 0
@@ -654,7 +664,10 @@ export function LandingV2MobileStory() {
               <HeroPhoneFrame lockMorph={lockMorph}>
                 {isCompactViewport ? (
                   phoneAppMounted ? (
-                    <CompactPhoneProductTour theaterProgress={progress} />
+                    <CompactPhoneProductTour
+                      theaterProgress={progress}
+                      postBriefProgress={postBriefProgress}
+                    />
                   ) : (
                     <div
                       aria-hidden
@@ -700,12 +713,18 @@ export function LandingV2MobileStory() {
             </ul>
           </motion.div>
 
-          {!isCompactViewport ? (
+          {isCompactViewport ? (
+            <StudioHistoryReveal
+              progress={studioProgress}
+              exitProgress={importProgress}
+              compactIntro
+            />
+          ) : (
             <>
               <StudioHistoryReveal progress={studioProgress} exitProgress={importProgress} />
               <StudioImportReveal progress={importProgress} />
             </>
-          ) : null}
+          )}
         </div>
       </motion.div>
     </section>

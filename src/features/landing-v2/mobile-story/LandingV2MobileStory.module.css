@@ -254,10 +254,16 @@
   .track {
     margin-top: calc(-0.62 * var(--ms-overlap));
     --mobile-track-pre-svh: 220;
-    /* Compact History/Import are document-flow siblings — sticky ends at Security. */
-    --mobile-track-studio-history-svh: 0;
+    /* 3G: studio intro scrub lives in sticky; Import/cover stay document-flow. */
     --mobile-track-season-import-svh: 0;
     --mobile-track-import-cover-hold-svh: 0;
+  }
+
+  .phoneSystem {
+    z-index: 2;
+    /* Compositor-friendly morph — transform/opacity only on this owner. */
+    will-change: transform, opacity;
+    backface-visibility: hidden;
   }
 
   .stageCenter {
@@ -280,10 +286,6 @@
 
   .headlineSystem {
     z-index: 1;
-  }
-
-  .phoneSystem {
-    z-index: 2;
   }
 
   .sticky {
