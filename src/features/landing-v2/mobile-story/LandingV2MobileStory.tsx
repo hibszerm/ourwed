@@ -9,7 +9,7 @@ import {
 } from 'framer-motion'
 import { HeroPhoneFrame } from '@/features/landing-v2/mobile-story/device/HeroPhoneFrame'
 import { MobileOurWedApp } from '@/features/landing-v2/mobile-story/app/MobileOurWedApp'
-import { FlattenedPhoneAutoplay } from '@/features/landing-v2/devices/FlattenedPhoneAutoplay'
+import { CompactPhoneProductTour } from '@/features/landing-v2/devices/CompactPhoneProductTour'
 import {
   clearMobileStoryProgress,
   publishMobileAppProgress,
@@ -301,7 +301,14 @@ export function LandingV2MobileStory() {
         postBudgets,
       )
       progress.set(theater)
-      appProgress.set(app)
+      /* Compact phone tour owns app progress locally — do not scrub MobileOurWedApp via scroll. */
+      if (!compactRef.current) {
+        appProgress.set(app)
+        publishMobileAppProgress(app)
+      } else {
+        appProgress.set(0)
+        publishMobileAppProgress(0)
+      }
       const mappingEnd = contentTravel + postBriefTravel
       const studioEnd = mappingEnd + studioTravel
       const importEnd = studioEnd + importTravel
@@ -331,7 +338,6 @@ export function LandingV2MobileStory() {
       studioProgress.set(studio)
       importProgress.set(seasonImport)
       publishMobileStoryProgress(theater)
-      publishMobileAppProgress(app)
 
       if (!budgetsFrozenRef.current && (scrollDist >= contentTravel - 2 || pb > 0.0005)) {
         budgetsFrozenRef.current = true
@@ -352,7 +358,10 @@ export function LandingV2MobileStory() {
       }
 
       stickyRef.current?.setAttribute('data-mobile-progress', theater.toFixed(4))
-      stickyRef.current?.setAttribute('data-mobile-app-progress', app.toFixed(4))
+      stickyRef.current?.setAttribute(
+        'data-mobile-app-progress',
+        compactRef.current ? 'tour' : app.toFixed(4),
+      )
       stickyRef.current?.setAttribute('data-mobile-post-brief', pb.toFixed(4))
       stickyRef.current?.setAttribute('data-mobile-studio-history', studio.toFixed(4))
       stickyRef.current?.setAttribute('data-mobile-season-import', seasonImport.toFixed(4))
@@ -551,7 +560,7 @@ export function LandingV2MobileStory() {
           <div className={styles.staticDevice} data-mobile-device-settled="true">
             <HeroPhoneFrame lockMorph={STATIC_LOCK_MORPH}>
               {isCompactViewport ? (
-                <FlattenedPhoneAutoplay
+                <CompactPhoneProductTour
                   theaterProgress={progress}
                   reducedMotion={Boolean(reduced)}
                 />
@@ -645,10 +654,7 @@ export function LandingV2MobileStory() {
               <HeroPhoneFrame lockMorph={lockMorph}>
                 {isCompactViewport ? (
                   phoneAppMounted ? (
-                    <FlattenedPhoneAutoplay
-                      theaterProgress={progress}
-                      reducedMotion={false}
-                    />
+                    <CompactPhoneProductTour theaterProgress={progress} />
                   ) : (
                     <div
                       aria-hidden

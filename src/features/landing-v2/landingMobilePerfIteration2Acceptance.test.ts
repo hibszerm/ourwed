@@ -79,20 +79,18 @@ console.log('\n=== landing mobile performance iteration 2 ===\n')
 }
 
 {
-  assertIncludes(mobile, 'FlattenedPhoneAutoplay', 'phone flattened autoplay')
+  assertIncludes(mobile, 'CompactPhoneProductTour', 'compact desktop-parity phone tour')
   assertIncludes(
-    read('src/features/landing-v2/devices/FlattenedPhoneAppContent.tsx'),
-    'phoneLayersAt',
-    'scrub flattened module retained for desktop-era layer map',
+    read('src/features/landing-v2/devices/CompactPhoneProductTour.tsx'),
+    'MobileOurWedApp',
+    'tour uses live MobileOurWedApp choreography',
   )
   assertIncludes(mobile, 'MobileOurWedApp', 'desktop live phone app kept')
-  assertIncludes(flatPhone, 'translate', 'strip uses transform translate path via y')
-  assertIncludes(flatPhone, 'stripY', 'compositor strip scroll')
-  assertIncludes(flatPhone, "data-phone-layers={dual ? 2 : 1}", 'layer count attr')
-  assertNotIncludes(flatPhone, "from '@/features/landing-v2/mobile-story/app/MobileOurWedApp'", 'flat phone no live app import')
-  assertNotIncludes(flatPhone, 'scrollTop', 'no scrollTop animation')
-  assertNotIncludes(flatPhone, 'MobileDashboardDemo', 'no live dashboard screen')
-  console.log('PASS  3. compact phone uses flattened compositor scroll')
+  assertNotIncludes(mobile, 'FlattenedPhoneAutoplay', 'rejected slideshow gone')
+  assertNotIncludes(mobile, 'FlattenedPhoneAppContent', 'compact does not mount strip slideshow')
+  /* FlattenedPhoneAppContent retained as unused asset helper module only — not wired to compact. */
+  assertIncludes(flatPhone, 'stripY', 'legacy strip module still transform-based')
+  console.log('PASS  3. compact phone uses desktop-parity MobileOurWedApp tour')
 }
 
 {

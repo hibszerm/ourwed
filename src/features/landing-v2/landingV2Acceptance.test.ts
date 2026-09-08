@@ -2766,7 +2766,7 @@ function testMobileStory() {
     'compact sep travel soft editorial (~0.45 px/px)',
   )
   assertIncludes(mobile, 'linear: true', 'compact sep is linear (no easeOut catch-up)')
-  assertIncludes(mobile, 'FlattenedPhoneAutoplay', 'compact time-driven phone tour')
+  assertIncludes(mobile, 'CompactPhoneProductTour', 'compact desktop-parity phone tour')
   assertIncludes(mobile, 'PHONE_SCALE_START_COMPACT = 0.94', 'compact phone enter scale start')
   assertIncludes(
     read('src/features/landing-v2/features-grid/LandingV2FeaturesGrid.module.css'),
@@ -8156,9 +8156,9 @@ async function testChapterHeroVerticalAlignment() {
   const browser = await chromium.launch({ headless: true })
   const page = await browser.newPage()
   try {
-    const measureFn = new Function(
-      'chapter',
-      `return (async () => {
+    let historyBaseline: { timelineTop: number; cardTop: number; cardH: number } | null = null
+
+    const pairMeasureFn = new Function(`return (async () => {
       const track = document.querySelector('[data-testid="lv2-mobile-story"]');
       if (!track) return { error: 'no track' };
       const navH = parseFloat(getComputedStyle(track).getPropertyValue('--lv2-nav-h')) || 68;
@@ -8166,7 +8166,7 @@ async function testChapterHeroVerticalAlignment() {
       const mappingSvh =
         (parseFloat(cs.getPropertyValue('--mobile-track-pre-svh')) || 260) +
         (parseFloat(cs.getPropertyValue('--mobile-track-dash-svh')) || 120) +
-        (parseFloat(cs.getPropertyValue('--mobile-track-post-svh')) || 300) +
+        (parseFloat(cs.getPropertyValue('--mobile-track-post-svh')) || 220) +
         (parseFloat(cs.getPropertyValue('--mobile-track-post-brief-svh')) || 112);
       const studioSvh = parseFloat(cs.getPropertyValue('--mobile-track-studio-history-svh')) || 145;
       const importSvh = parseFloat(cs.getPropertyValue('--mobile-track-season-import-svh')) || 150;
@@ -8179,16 +8179,8 @@ async function testChapterHeroVerticalAlignment() {
       const travel = Math.max(1, track.offsetHeight - usable);
       const postMapping = Math.max(1, travel - mappingTravel);
       const legacyTravel = Math.max(1, postMapping * (legacyChapterSvh / chapterSvh));
-      const founderTravel = Math.max(1, postMapping - legacyTravel);
       const studioTravel = Math.max(1, legacyTravel * (studioSvh / legacyChapterSvh));
       const importTravel = Math.max(1, legacyTravel - studioTravel);
-      const desiredTop =
-        chapter === 'import'
-          ? navH - (mappingTravel + studioTravel + importTravel)
-          : navH - (mappingTravel + studioTravel);
-      window.scrollBy(0, track.getBoundingClientRect().top - desiredTop);
-      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-      await new Promise((r) => setTimeout(r, 100));
 
       function union(els) {
         let top = Infinity;
@@ -8206,41 +8198,46 @@ async function testChapterHeroVerticalAlignment() {
         return { top: top, bottom: bottom, centerY: (top + bottom) / 2 };
       }
 
-      if (chapter === 'history') {
-        const lock = document.querySelector('[data-studio-lock]');
-        const eyebrow = document.querySelector('[data-studio-eyebrow]');
-        const hero = union([
-          lock,
-          eyebrow,
-          document.querySelector('[data-studio-headline]'),
-          document.querySelector('[data-studio-support]'),
-        ]);
-        const lockBox = lock ? lock.getBoundingClientRect() : null;
-        const eyeBox = eyebrow ? eyebrow.getBoundingClientRect() : null;
-        const timeline = document.querySelector('[data-studio-timeline]');
-        const card = document.querySelector('[data-studio-card]');
-        return {
-          hero: hero,
-          lockToEyebrow: lockBox && eyeBox ? eyeBox.top - lockBox.bottom : null,
-          timelineTop: timeline ? timeline.getBoundingClientRect().top : null,
-          cardTop: card ? card.getBoundingClientRect().top : null,
-          cardH: card ? card.getBoundingClientRect().height : null,
-          hasHistoryHeroMarker: !!document.querySelector('[data-lv2-history-hero]'),
-        };
+      async function settle(desiredTop) {
+        window.scrollBy(0, track.getBoundingClientRect().top - desiredTop);
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+        await new Promise((r) => setTimeout(r, 120));
       }
 
-      const hero = union([
-        document.querySelector('[data-studio-import-icon]'),
-        document.querySelector('[data-studio-import-eyebrow]'),
-        document.querySelector('[data-studio-import-headline]'),
-        document.querySelector('[data-studio-import-support]'),
+      await settle(navH - (mappingTravel + studioTravel));
+      const lock = document.querySelector('[data-studio-lock]');
+      const eyebrow = document.querySelector('[data-studio-eyebrow]');
+      const histHero = union([
+        lock,
+        eyebrow,
+        document.querySelector('[data-studio-headline]'),
+        document.querySelector('[data-studio-support]'),
       ]);
+      const lockBox = lock ? lock.getBoundingClientRect() : null;
+      const eyeBox = eyebrow ? eyebrow.getBoundingClientRect() : null;
+      const timeline = document.querySelector('[data-studio-timeline]');
+      const card = document.querySelector('[data-studio-card]');
+      const hist = {
+        hero: histHero,
+        lockToEyebrow: lockBox && eyeBox ? eyeBox.top - lockBox.bottom : null,
+        timelineTop: timeline ? timeline.getBoundingClientRect().top : null,
+        cardTop: card ? card.getBoundingClientRect().top : null,
+        cardH: card ? card.getBoundingClientRect().height : null,
+        hasHistoryHeroMarker: !!document.querySelector('[data-lv2-history-hero]'),
+      };
+
+      await settle(navH - (mappingTravel + studioTravel + importTravel));
       const process = document.querySelector('[data-studio-import-process]');
       const panels = document.querySelector('[data-import-workspace]');
       const processBox = process ? process.getBoundingClientRect() : null;
       const panelsBox = panels ? panels.getBoundingClientRect() : null;
-      return {
-        hero: hero,
+      const imp = {
+        hero: union([
+          document.querySelector('[data-studio-import-icon]'),
+          document.querySelector('[data-studio-import-eyebrow]'),
+          document.querySelector('[data-studio-import-headline]'),
+          document.querySelector('[data-studio-import-support]'),
+        ]),
         panelsInView: !!(
           panelsBox &&
           panelsBox.bottom <= window.innerHeight + 6 &&
@@ -8250,10 +8247,9 @@ async function testChapterHeroVerticalAlignment() {
         hasImportHeroMarker: !!document.querySelector('[data-lv2-import-hero]'),
         hasHistoryHeroMarker: !!document.querySelector('[data-lv2-history-hero]'),
       };
-    })()`,
-    )
 
-    let historyBaseline: { timelineTop: number; cardTop: number; cardH: number } | null = null
+      return { hist, imp };
+    })()`)
 
     for (const vp of viewports) {
       await page.setViewportSize({ width: vp.width, height: vp.height })
@@ -8262,48 +8258,46 @@ async function testChapterHeroVerticalAlignment() {
         timeout: 8000,
       })
       await page.waitForSelector('[data-testid="lv2-mobile-story"]', { timeout: 8000 })
+      await page.waitForTimeout(250)
 
-      const hist = (await page.evaluate(
-        measureFn as (chapter: string) => Promise<{
-          error?: string
+      const pair = (await page.evaluate(pairMeasureFn as () => Promise<{
+        error?: string
+        hist: {
           hero: { centerY: number } | null
           lockToEyebrow: number | null
           timelineTop: number | null
           cardTop: number | null
           cardH: number | null
           hasHistoryHeroMarker?: boolean
-        }>,
-        'history',
-      )) as {
-        error?: string
-        hero: { centerY: number } | null
-        lockToEyebrow: number | null
-        timelineTop: number | null
-        cardTop: number | null
-        cardH: number | null
-        hasHistoryHeroMarker?: boolean
-      }
-      if (hist.error) throw new Error(hist.error)
-
-      const imp = (await page.evaluate(
-        measureFn as (chapter: string) => Promise<{
-          error?: string
+        }
+        imp: {
           hero: { centerY: number } | null
           panelsInView: boolean
           processToPanels: number | null
           hasImportHeroMarker: boolean
           hasHistoryHeroMarker: boolean
-        }>,
-        'import',
-      )) as {
+        }
+      }>)) as {
         error?: string
-        hero: { centerY: number } | null
-        panelsInView: boolean
-        processToPanels: number | null
-        hasImportHeroMarker: boolean
-        hasHistoryHeroMarker: boolean
+        hist: {
+          hero: { centerY: number } | null
+          lockToEyebrow: number | null
+          timelineTop: number | null
+          cardTop: number | null
+          cardH: number | null
+          hasHistoryHeroMarker?: boolean
+        }
+        imp: {
+          hero: { centerY: number } | null
+          panelsInView: boolean
+          processToPanels: number | null
+          hasImportHeroMarker: boolean
+          hasHistoryHeroMarker: boolean
+        }
       }
-      if (imp.error) throw new Error(imp.error)
+      if (pair.error) throw new Error(pair.error)
+      const hist = pair.hist
+      const imp = pair.imp
 
       assert(!!hist.hero && !!imp.hero, `hero groups present @${vp.width}x${vp.height}`)
       const delta = Math.abs((imp.hero?.centerY ?? 0) - (hist.hero?.centerY ?? 0))
