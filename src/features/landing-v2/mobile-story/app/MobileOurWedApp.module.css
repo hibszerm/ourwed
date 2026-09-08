@@ -1,5 +1,12 @@
 .root {
   /* Production Classic parity — seeded locally (no app theme providers on landing). */
+  /*
+   * Default rem = 16px (desktop Mobile Story phone ≈ full marketing width).
+   * Compact tour sets data-marketing-phone-density on the wrapper so rem tracks
+   * phone content width vs CRM full-bleed (~390) — landing-demo only.
+   */
+  font-size: 16px;
+  --ow-density-canon-w: 390;
   --ow-bg: #f5f2ed;
   --ow-bg-subtle: #ebe8e2;
   --ow-surface: #ffffff;
@@ -14,18 +21,18 @@
   --ow-on-accent: #ffffff;
   --ow-success: #067647;
   --ow-success-soft: #ecfdf3;
-  --ow-r-sm: 8px;
-  --ow-r-md: 12px;
-  --ow-r-lg: 16px;
-  --ow-r-xl: 20px;
-  --ow-r-hero: 28px;
+  --ow-r-sm: 0.5rem;
+  --ow-r-md: 0.75rem;
+  --ow-r-lg: 1rem;
+  --ow-r-xl: 1.25rem;
+  --ow-r-hero: 1.75rem;
   --ow-shadow-1: 0 1px 2px rgba(0, 0, 0, 0.05), 0 3px 8px rgba(0, 0, 0, 0.04);
-  --ow-space-1: 4px;
-  --ow-space-2: 8px;
-  --ow-space-3: 12px;
-  --ow-space-4: 16px;
-  --ow-space-5: 20px;
-  --ow-space-6: 24px;
+  --ow-space-1: 0.25rem;
+  --ow-space-2: 0.5rem;
+  --ow-space-3: 0.75rem;
+  --ow-space-4: 1rem;
+  --ow-space-5: 1.25rem;
+  --ow-space-6: 1.5rem;
   --ow-text-2xs: 0.6875rem;
   --ow-text-xs: 0.75rem;
   --ow-text-sm: 0.875rem;
@@ -69,8 +76,8 @@
   display: flex;
   align-items: center;
   gap: var(--ow-space-3);
-  min-height: calc(var(--ow-safe-top) + 8px + 44px + 8px);
-  padding: calc(8px + var(--ow-safe-top)) var(--ow-pad-x) 8px;
+  min-height: calc(var(--ow-safe-top) + 0.5rem + 2.75rem + 0.5rem);
+  padding: calc(0.5rem + var(--ow-safe-top)) var(--ow-pad-x) 0.5rem;
   background: var(--v3-environment);
   box-shadow: 0 1px 0 color-mix(in srgb, var(--ow-border) 58%, transparent);
 }
@@ -79,11 +86,11 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 44px;
-  height: 44px;
+  width: 2.75rem;
+  height: 2.75rem;
   flex-shrink: 0;
   border: 1px solid color-mix(in srgb, var(--ow-border-strong) 58%, transparent);
-  border-radius: 14px;
+  border-radius: 0.875rem;
   background: var(--ow-surface);
   color: var(--ow-text);
   box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04), 0 4px 8px rgba(0, 0, 0, 0.02);
@@ -116,10 +123,10 @@
 .name {
   margin: 0;
   overflow: hidden;
-  font-size: 1rem;
+  font-size: 0.9375rem;
   font-weight: 640;
   letter-spacing: -0.025em;
-  line-height: 1.2;
+  line-height: 1.15;
   color: var(--ow-text);
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -154,7 +161,7 @@
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  padding-top: 8px;
+  padding-top: 0.5rem;
 }
 
 .layer {
@@ -180,6 +187,10 @@
   opacity: 0.94;
   transform: translateY(8%);
   pointer-events: none;
+}
+
+.root[data-marketing-phone-density] {
+  font-size: calc(16px * min(1, 100cqw / var(--ow-density-canon-w)));
 }
 
 @container ow-mobile-app (max-width: 320px) {

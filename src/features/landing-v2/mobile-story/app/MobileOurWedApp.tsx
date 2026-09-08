@@ -39,6 +39,8 @@ import styles from './MobileOurWedApp.module.css'
 type Props = {
   appProgress: MotionValue<number>
   staticMode?: boolean
+  /** Landing compact phone: scale rem to phone content width (CRM untouched). */
+  marketingPhoneDensity?: boolean
 }
 
 const STATIC_OPEN = motionValue(1)
@@ -47,10 +49,18 @@ const STATIC_OPEN = motionValue(1)
  * Isolated OurWed mobile app — shared shell + screens.
  * Phase 6G: Dashboard → Wedding Day → Navigation → Brief (no day return).
  */
-export function MobileOurWedApp({ appProgress, staticMode = false }: Props) {
+export function MobileOurWedApp({
+  appProgress,
+  staticMode = false,
+  marketingPhoneDensity = false,
+}: Props) {
   if (staticMode) {
     return (
-      <div className={styles.root} data-mobile-app="static">
+      <div
+        className={styles.root}
+        data-mobile-app="static"
+        data-marketing-phone-density={marketingPhoneDensity ? '' : undefined}
+      >
         <div className={styles.shell} data-mobile-app-shell="">
           <header className={styles.topBar} data-mobile-app-topbar="" data-mobile-shell-header="">
             <span className={styles.menuBtn} aria-hidden>
@@ -74,10 +84,21 @@ export function MobileOurWedApp({ appProgress, staticMode = false }: Props) {
     )
   }
 
-  return <MobileOurWedAppScroll appProgress={appProgress} />
+  return (
+    <MobileOurWedAppScroll
+      appProgress={appProgress}
+      marketingPhoneDensity={marketingPhoneDensity}
+    />
+  )
 }
 
-function MobileOurWedAppScroll({ appProgress }: { appProgress: MotionValue<number> }) {
+function MobileOurWedAppScroll({
+  appProgress,
+  marketingPhoneDensity,
+}: {
+  appProgress: MotionValue<number>
+  marketingPhoneDensity: boolean
+}) {
   const viewportRef = useRef<HTMLDivElement | null>(null)
   const dashOp = useTransform(appProgress, (p) => dashOpacityAt(p))
   const dashScrollY = useTransform(
@@ -174,7 +195,11 @@ function MobileOurWedAppScroll({ appProgress }: { appProgress: MotionValue<numbe
   }, [appProgress])
 
   return (
-    <div className={styles.root} data-mobile-app="scroll">
+    <div
+      className={styles.root}
+      data-mobile-app="scroll"
+      data-marketing-phone-density={marketingPhoneDensity ? '' : undefined}
+    >
       <div className={styles.shell} data-mobile-app-shell="">
         <header className={styles.topBar} data-mobile-app-topbar="" data-mobile-shell-header="">
           <span className={styles.menuBtn} aria-hidden>

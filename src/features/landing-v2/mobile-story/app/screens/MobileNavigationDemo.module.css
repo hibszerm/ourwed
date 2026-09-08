@@ -56,7 +56,7 @@
 
 .dest {
   margin: 1px 0 0;
-  font-size: clamp(0.82rem, 3.5cqw, 0.98rem);
+  font-size: clamp(0.78rem, 3.3cqw, 0.92rem);
   font-weight: 650;
   letter-spacing: -0.03em;
   line-height: 1.15;

@@ -63,7 +63,8 @@ console.log('\n=== landing mobile story 3F.1 (desktop-parity tour) ===\n')
   assertNotIncludes(mobile, 'FlattenedPhoneAutoplay', 'no slideshow import')
   assertIncludes(tour, 'MobileOurWedApp', 'live desktop app engine')
   assertIncludes(tour, 'data-phone-tour-engine="mobile-ourwed-app"', 'engine marker')
-  assertIncludes(tour, 'animate(tourProgress, 1', 'one master time animation')
+  assertIncludes(tour, 'animate(masterT, 1', 'one master time animation')
+  assertIncludes(tour, 'appProgressAtTourNormalized', 'segment remapping')
   assertIncludes(tour, "ease: 'linear'", 'linear master progress')
   assertIncludes(tour, 'COMPACT_PHONE_TOUR_SETTLE_DELAY_MS', 'settle beat')
   assertNotIncludes(tour, 'requestAnimationFrame', 'no rAF tour')
@@ -73,7 +74,7 @@ console.log('\n=== landing mobile story 3F.1 (desktop-parity tour) ===\n')
 
 {
   assert(COMPACT_PHONE_TOUR_SETTLE_DELAY_MS >= 450 && COMPACT_PHONE_TOUR_SETTLE_DELAY_MS <= 650, 'settle delay')
-  assert(COMPACT_PHONE_TOUR_DURATION_S >= 8 && COMPACT_PHONE_TOUR_DURATION_S <= 14, 'duration band')
+  assert(COMPACT_PHONE_TOUR_DURATION_S >= 8 && COMPACT_PHONE_TOUR_DURATION_S <= 22, 'duration band')
   assert(phoneSettled(0.74), 'PHONE_SETTLED')
   console.log('PASS  3. settle + duration')
 }

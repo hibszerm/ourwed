@@ -2,11 +2,11 @@
 .sticky {
   position: absolute;
   top: 100%;
-  left: 16px;
-  right: 16px;
+  left: 1rem;
+  right: 1rem;
   z-index: 3;
   width: auto;
-  max-width: 620px;
+  max-width: 38.75rem;
   margin-inline: auto;
   overflow: hidden;
   pointer-events: none;
@@ -16,18 +16,18 @@
   --compact-glass-base: color-mix(in srgb, var(--ow-surface) 84%, transparent);
   display: grid;
   position: relative;
-  grid-template-columns: 34px minmax(0, 1fr) 22px;
+  grid-template-columns: 2.125rem minmax(0, 1fr) 1.375rem;
   align-items: center;
-  gap: 10px;
+  gap: 0.55rem;
   width: 100%;
-  min-height: 56px;
-  margin-top: 6px;
-  padding: 8px 10px 8px 8px;
+  min-height: 3.15rem;
+  margin-top: 0.35rem;
+  padding: 0.4rem 0.55rem 0.4rem 0.4rem;
   overflow: hidden;
   isolation: isolate;
   contain: paint;
   border: 1px solid color-mix(in srgb, var(--ow-border-strong) 72%, transparent);
-  border-radius: 16px;
+  border-radius: 1rem;
   background: var(--compact-glass-base);
   box-shadow:
     inset 0 1px 0 color-mix(in srgb, var(--ow-border-strong) 55%, transparent),
@@ -81,9 +81,9 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 11px;
+  width: 2.125rem;
+  height: 2.125rem;
+  border-radius: 0.7rem;
   background: color-mix(in srgb, var(--ow-text) 9%, transparent);
   color: var(--ow-text);
   font-size: var(--ow-text-xs);

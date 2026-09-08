@@ -3,6 +3,7 @@ import {
   animate,
   useMotionValue,
   useMotionValueEvent,
+  useTransform,
   type AnimationPlaybackControls,
   type MotionValue,
 } from 'framer-motion'
@@ -11,11 +12,15 @@ import { phoneSettled } from '@/features/landing-v2/mobile-story/mobileStoryProg
 import {
   COMPACT_PHONE_TOUR_DURATION_S,
   COMPACT_PHONE_TOUR_SETTLE_DELAY_MS,
+  appProgressAtTourNormalized,
 } from '@/features/landing-v2/devices/compactPhoneProductTourTiming'
 
 export {
   COMPACT_PHONE_TOUR_DURATION_S,
   COMPACT_PHONE_TOUR_SETTLE_DELAY_MS,
+  COMPACT_PHONE_TOUR_SEGMENTS,
+  appProgressAtTourElapsedMs,
+  appProgressAtTourNormalized,
 } from '@/features/landing-v2/devices/compactPhoneProductTourTiming'
 
 type Props = {
@@ -24,14 +29,15 @@ type Props = {
 }
 
 /**
- * Compact phone product tour — desktop MobileOurWedApp choreography,
- * driven by ONE time-based progress (NOT scroll appProgress, NOT bitmap slideshow).
+ * Compact phone product tour — desktop MobileOurWedApp choreography with
+ * segment-remapped autonomous timing (3F.2). One master time MotionValue.
  */
 export function CompactPhoneProductTour({
   theaterProgress,
   reducedMotion = false,
 }: Props) {
-  const tourProgress = useMotionValue(0)
+  const masterT = useMotionValue(0)
+  const tourProgress = useTransform(masterT, (t) => appProgressAtTourNormalized(Number(t)))
   const controlsRef = useRef<AnimationPlaybackControls | null>(null)
   const delayRef = useRef<number | null>(null)
   const settledRef = useRef(false)
@@ -46,7 +52,7 @@ export function CompactPhoneProductTour({
     controlsRef.current?.stop()
     controlsRef.current = null
     if (reset) {
-      tourProgress.set(0)
+      masterT.set(0)
       settledRef.current = false
     }
   }
@@ -54,10 +60,10 @@ export function CompactPhoneProductTour({
   const startTour = () => {
     stopTour(true)
     settledRef.current = true
-    tourProgress.set(0)
+    masterT.set(0)
     delayRef.current = window.setTimeout(() => {
       delayRef.current = null
-      controlsRef.current = animate(tourProgress, 1, {
+      controlsRef.current = animate(masterT, 1, {
         duration: COMPACT_PHONE_TOUR_DURATION_S,
         ease: 'linear',
       })
@@ -70,7 +76,6 @@ export function CompactPhoneProductTour({
     if (settled && !settledRef.current && nearRef.current) {
       startTour()
     }
-    /* Meaningful reverse past phone entrance — allow clean replay later. */
     if (!settled && settledRef.current && p < 0.55) {
       stopTour(true)
     }
@@ -78,11 +83,10 @@ export function CompactPhoneProductTour({
 
   useEffect(() => {
     if (reducedMotion) {
-      tourProgress.set(1)
+      masterT.set(1)
       return
     }
 
-    /* Bootstrap if phone already settled when this mounts (no change event yet). */
     if (phoneSettled(theaterProgress.get()) && nearRef.current && !settledRef.current) {
       startTour()
     }
@@ -120,7 +124,6 @@ export function CompactPhoneProductTour({
       io.disconnect()
       stopTour(true)
     }
-    // theaterProgress / tourProgress are stable MotionValues
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reducedMotion])
 
@@ -131,11 +134,13 @@ export function CompactPhoneProductTour({
       data-testid="lv2-compact-phone-tour"
       data-phone-tour-engine="mobile-ourwed-app"
       data-phone-tour-duration-s={String(COMPACT_PHONE_TOUR_DURATION_S)}
+      data-phone-tour-remap="segments"
       style={{ width: '100%', height: '100%' }}
     >
       <MobileOurWedApp
         appProgress={tourProgress}
         staticMode={reducedMotion}
+        marketingPhoneDensity
       />
     </div>
   )

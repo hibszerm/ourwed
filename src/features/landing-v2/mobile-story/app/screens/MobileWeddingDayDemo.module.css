@@ -23,10 +23,10 @@
 
 .couple {
   margin: 0;
-  font-size: clamp(1.15rem, 5.5cqw, 1.35rem);
+  font-size: clamp(1.02rem, 5cqw, 1.22rem);
   font-weight: 600;
   letter-spacing: -0.03em;
-  line-height: 1.15;
+  line-height: 1.12;
 }
 
 .date {

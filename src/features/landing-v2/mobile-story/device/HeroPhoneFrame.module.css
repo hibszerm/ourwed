@@ -217,14 +217,14 @@
 @media (max-width: 1100px) {
   .deviceRoot {
     /*
-     * Compact settled phone ≈ 87vw (402 → ~350px), canonical aspect preserved.
-     * Height budget only caps when the sticky stage is shorter than ratio needs.
-     * Outer uniform scale only — do not redesign internals.
+     * 3F.2 — ~0.88 × prior compact width ≈ 76.5vw; width-primary, stable svh height cap.
+     * Do NOT use dvh or transient browser chrome height — toolbar must not rescale the phone.
      */
-    --device-avail-h: calc(100dvh - var(--lv2-nav-h) - 20px);
+    --device-avail-h: calc(100svh - var(--lv2-nav-h) - 24px);
+    --phone-compact-vw: 76.5vw;
     width: min(
-      87vw,
-      calc(100vw - 48px),
+      var(--phone-compact-vw),
+      calc(100vw - 56px),
       calc(var(--device-avail-h) * var(--phone-ratio-num))
     );
   }

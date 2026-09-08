@@ -2747,18 +2747,23 @@ function testMobileStory() {
   assertIncludes(mobile, 'MOBILE_TRACK_PRE_SVH_COMPACT', 'compact pre track wired into style')
   assertIncludes(
     read('src/features/landing-v2/mobile-story/device/HeroPhoneFrame.module.css'),
-    '87vw',
-    'compact phone targets ~87% viewport width',
+    '76.5vw',
+    'compact phone targets ~76.5% viewport width (~0.88× prior 87vw)',
   )
   assertIncludes(
     read('src/features/landing-v2/mobile-story/device/HeroPhoneFrame.module.css'),
-    'calc(100vw - 48px)',
-    'compact phone keeps ~24px side breathing room',
+    'calc(100vw - 56px)',
+    'compact phone keeps side breathing room',
   )
   assertNotIncludes(
     read('src/features/landing-v2/mobile-story/device/HeroPhoneFrame.module.css'),
-    '78vw',
-    'previous 78vw compact phone cap removed',
+    '87vw,',
+    'prior 87vw compact phone width formula removed',
+  )
+  assertNotIncludes(
+    read('src/features/landing-v2/mobile-story/device/HeroPhoneFrame.module.css'),
+    '100dvh',
+    'compact phone no longer uses dvh height budget',
   )
   assertIncludes(
     mobileProgress,
@@ -3181,7 +3186,12 @@ function testMobileStory() {
   assertNotIncludes(appData, 'Pałac Mała Wieś', 'inquiries omit venue (not in production row)')
   assertNotIncludes(appData, 'Film ślubny', 'deadlines omit deliverable type (not in production row)')
   assertIncludes(dashCss, 'countdownMobile', 'V3 mobile countdown placement')
-  assertIncludes(dashCss, 'min-height: 164px', 'production mobile hero height')
+  assertIncludes(dashCss, 'min-height: 9.5rem', 'landing-demo hero height (density rem)')
+  assertIncludes(
+    read('src/features/dashboard-v3/DashboardV3Hero.module.css'),
+    'min-height: 164px',
+    'production CRM mobile hero height unchanged',
+  )
   assertIncludes(compactBar, 'compactAssignmentMonogram', 'reuses production monogram helper')
   assertIncludes(compactCss, 'backdrop-filter: blur(10px) saturate(1.06)', 'production glass blur')
   assertIncludes(compactCss, '-webkit-backdrop-filter: blur(10px) saturate(1.06)', 'safari glass')
