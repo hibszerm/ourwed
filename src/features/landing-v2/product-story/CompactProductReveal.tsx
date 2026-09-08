@@ -1,9 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import {
-  useMotionValue,
-  useMotionValueEvent,
-  useReducedMotion,
-} from 'framer-motion'
+import { useMotionValueEvent, useReducedMotion } from 'framer-motion'
 import { HeroTabletFrame } from '@/features/landing-v2/hero/HeroTabletFrame'
 import { measureCanonicalDeviceFit } from '@/features/landing-v2/hero/landingTabletFit'
 import { FlattenedProductAutoplay } from '@/features/landing-v2/devices/FlattenedProductAutoplay'
@@ -21,10 +17,11 @@ import { scene07HandoffMv } from '@/features/landing-v2/product-story/scene07Han
 import styles from './CompactProductReveal.module.css'
 
 /**
- * Compact Product Story — Iteration 3A + 3C.2.
+ * Compact Product Story — Iteration 3A + 3C.2 + 3C.3.
  *
- * Stable flattened autoplay tablet. No reverse-Hero camera.
- * Exit: native sticky unpin (1 scroll px → 1 tablet px). No scale / eased Y.
+ * Visual stacking: transparent sticky under black narrative (geometry only).
+ * No JS visibility/z-index ownership latch — fast flicks stay deterministic.
+ * Exit: native sticky unpin 1:1. Presentation tablet: pointer-events none.
  */
 export function CompactProductReveal() {
   const trackRef = useRef<HTMLElement | null>(null)
@@ -36,15 +33,14 @@ export function CompactProductReveal() {
     w: number
     h: number
   } | null>(null)
-  const [theaterOwned, setTheaterOwned] = useState(false)
   const [autoplayActive, setAutoplayActive] = useState(false)
   const [sectionNear, setSectionNear] = useState(true)
-  const revealProgress = useMotionValue(0)
   const { activeRef, onBecameActiveRef } = useTheaterScrollGate(
     trackRef,
     !reduced,
   )
 
+  /* Coarse resource gate only — never authoritative for black/Product paint. */
   useEffect(() => {
     if (reduced) return
     const el = trackRef.current
@@ -84,16 +80,18 @@ export function CompactProductReveal() {
     return () => ro.disconnect()
   }, [])
 
+  /* Autoplay only — paint/stacking does not subscribe to handoff ownership. */
   useMotionValueEvent(scene07HandoffMv, 'change', (handoffT) => {
+    if (reduced) return
     const owned = productTheaterOwned(handoffT)
-    setTheaterOwned((prev) => (prev === owned ? prev : owned))
-    const sticky = stickyRef.current
-    if (sticky) {
-      sticky.setAttribute('data-ps-theater-owned', owned ? 'true' : 'false')
-    }
+    const next = owned && handoffT >= 0.28 && sectionNear
+    setAutoplayActive((prev) => (prev === next ? prev : next))
+    stickyRef.current?.setAttribute(
+      'data-ps-autoplay-gate',
+      next ? 'on' : 'off',
+    )
   })
 
-  /* Autoplay: independent of scroll progress; gated by reveal + near-viewport. */
   useEffect(() => {
     if (reduced) {
       setAutoplayActive(false)
@@ -103,19 +101,11 @@ export function CompactProductReveal() {
     const owned = productTheaterOwned(handoffT)
     const next = owned && handoffT >= 0.28 && sectionNear
     setAutoplayActive((prev) => (prev === next ? prev : next))
-
-    const unsub = scene07HandoffMv.on('change', (t) => {
-      const o = productTheaterOwned(t)
-      const n = o && t >= 0.28 && sectionNear
-      setAutoplayActive((prev) => (prev === n ? prev : n))
-    })
-    return unsub
   }, [reduced, sectionNear])
 
   useEffect(() => {
     if (reduced) {
       scene07HandoffMv.set(1)
-      setTheaterOwned(true)
       setAutoplayActive(false)
       return
     }
@@ -127,38 +117,35 @@ export function CompactProductReveal() {
       if (!el || !sticky) return
       const navH =
         parseFloat(getComputedStyle(el).getPropertyValue('--lv2-nav-h')) || 68
-      const p = stickyTrackProgress(el, navH, window.innerHeight)
-      revealProgress.set(p)
-
-      const handoffT = scene07HandoffMv.get()
-      const owned = productTheaterOwned(handoffT)
-      sticky.setAttribute('data-ps-reveal', p > 0.02 ? 'open' : 'closed')
+      stickyTrackProgress(el, navH, window.innerHeight)
 
       /*
-       * Pixel-coupled exit (3C.2): sticky unpin → native document scroll.
-       * Do NOT apply eased Lifecycle exit progress × vh × 1.1 (BEFORE ratio ≈ 4).
-       * Fit scale is layout-only; no scroll-driven scale-out.
+       * Exit phase from stickyTop geometry only (no eased Lifecycle clock).
+       * Does not toggle entrance visibility — black covers via z-index.
        */
       const stickyH =
         sticky.clientHeight || Math.max(320, window.innerHeight - navH)
       const exitTravel = compactProductExitTravelPx(stickyH)
       const stickyTop = sticky.getBoundingClientRect().top
       const scrollAway = compactProductNativeExitScrollPx(stickyTop, navH)
-      const phase =
-        handoffT < 0.995
-          ? 'idle'
-          : compactProductExitPhase(stickyTop, navH, exitTravel)
+      const phase = compactProductExitPhase(stickyTop, navH, exitTravel)
 
       sticky.setAttribute('data-ps-lifecycle-exit', phase)
       sticky.setAttribute('data-ps-exit-scroll', String(Math.round(scrollAway)))
       sticky.setAttribute('data-ps-exit-y', String(Math.round(-scrollAway)))
-
-      if (!activeRef.current && !owned) return
     }
 
     const onScroll = () => {
-      if (!activeRef.current && !productTheaterOwned(scene07HandoffMv.get())) {
-        return
+      if (!activeRef.current) {
+        const sticky = stickyRef.current
+        if (!sticky) return
+        /* Still update exit attrs when near/past exit even if gate inactive. */
+        const top = sticky.getBoundingClientRect().top
+        const navH =
+          parseFloat(
+            getComputedStyle(trackRef.current!).getPropertyValue('--lv2-nav-h'),
+          ) || 68
+        if (top > navH + 2 && top > window.innerHeight) return
       }
       cancelAnimationFrame(raf)
       raf = requestAnimationFrame(measure)
@@ -174,7 +161,7 @@ export function CompactProductReveal() {
       window.removeEventListener('scroll', onScroll)
       window.removeEventListener('resize', onScroll)
     }
-  }, [reduced, activeRef, onBecameActiveRef, revealProgress])
+  }, [reduced, activeRef, onBecameActiveRef])
 
   if (reduced) {
     return (
@@ -205,6 +192,8 @@ export function CompactProductReveal() {
       data-product-theater="compact-reveal"
       data-product-compact-reveal="true"
       data-product-exit="native-sticky"
+      data-product-handoff="geometry"
+      data-product-pointer="none"
       aria-labelledby="lv2-product-heading"
     >
       <h2 id="lv2-product-heading" className={styles.visuallyHidden}>
@@ -215,21 +204,23 @@ export function CompactProductReveal() {
         ref={stickyRef}
         className={styles.sticky}
         data-product-sticky-stage=""
-        data-ps-theater-owned={theaterOwned ? 'true' : 'false'}
         data-ps-compact="true"
         data-ps-camera-travel="false"
         data-ps-exit-scale="false"
+        data-ps-paint="geometry"
         data-ps-lifecycle-exit="idle"
       >
-        <div className={styles.stage} data-ps-visual-stage="">
+        <div className={styles.stage} data-ps-visual-stage="" data-ps-stage-bg="transparent">
           <div
             className={styles.deviceExit}
             data-ps-device-exit=""
             data-ps-exit-native="true"
+            data-ps-device-bg="transparent"
           >
             <div
               className={styles.deviceFitSlot}
               data-ps-device-fit="scale"
+              data-ps-fit-bg="transparent"
               style={
                 deviceFitSlot
                   ? { width: deviceFitSlot.w, height: deviceFitSlot.h }
@@ -248,6 +239,7 @@ export function CompactProductReveal() {
                     className={styles.screenClip}
                     data-ps-workspace-clip=""
                     data-ps-workspace-dormant="false"
+                    data-ps-beige-scope="screen"
                   >
                     <FlattenedProductAutoplay
                       active={autoplayActive}
