@@ -2760,7 +2760,13 @@ function testMobileStory() {
     '78vw',
     'previous 78vw compact phone cap removed',
   )
-  assertIncludes(mobile, '188 / 155', 'compact sep travel fits dominant phone')
+  assertIncludes(
+    mobileProgress,
+    'HEADLINE_SEP_COMPACT_SCALE = 90 / HEADLINE_SEP_PX',
+    'compact sep travel soft editorial (~0.45 px/px)',
+  )
+  assertIncludes(mobile, 'linear: true', 'compact sep is linear (no easeOut catch-up)')
+  assertIncludes(mobile, 'FlattenedPhoneAutoplay', 'compact time-driven phone tour')
   assertIncludes(mobile, 'PHONE_SCALE_START_COMPACT = 0.94', 'compact phone enter scale start')
   assertIncludes(
     read('src/features/landing-v2/features-grid/LandingV2FeaturesGrid.module.css'),

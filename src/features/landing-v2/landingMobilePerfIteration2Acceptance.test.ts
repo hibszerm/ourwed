@@ -79,7 +79,12 @@ console.log('\n=== landing mobile performance iteration 2 ===\n')
 }
 
 {
-  assertIncludes(mobile, 'FlattenedPhoneAppContent', 'phone flattened')
+  assertIncludes(mobile, 'FlattenedPhoneAutoplay', 'phone flattened autoplay')
+  assertIncludes(
+    read('src/features/landing-v2/devices/FlattenedPhoneAppContent.tsx'),
+    'phoneLayersAt',
+    'scrub flattened module retained for desktop-era layer map',
+  )
   assertIncludes(mobile, 'MobileOurWedApp', 'desktop live phone app kept')
   assertIncludes(flatPhone, 'translate', 'strip uses transform translate path via y')
   assertIncludes(flatPhone, 'stripY', 'compositor strip scroll')

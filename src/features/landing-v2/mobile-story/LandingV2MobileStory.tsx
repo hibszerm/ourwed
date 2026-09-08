@@ -9,7 +9,7 @@ import {
 } from 'framer-motion'
 import { HeroPhoneFrame } from '@/features/landing-v2/mobile-story/device/HeroPhoneFrame'
 import { MobileOurWedApp } from '@/features/landing-v2/mobile-story/app/MobileOurWedApp'
-import { FlattenedPhoneAppContent } from '@/features/landing-v2/devices/FlattenedPhoneAppContent'
+import { FlattenedPhoneAutoplay } from '@/features/landing-v2/devices/FlattenedPhoneAutoplay'
 import {
   clearMobileStoryProgress,
   publishMobileAppProgress,
@@ -47,6 +47,7 @@ import {
   LV2_SECURITY_MICRO_POINTS,
 } from '@/features/landing-v2/security-history/securityHistoryClaims'
 import {
+  HEADLINE_SEP_COMPACT_SCALE,
   headlineCompositeOpacityAt,
   headlineEnterBlurPxAt,
   headlineExitBlurPxAt,
@@ -74,14 +75,18 @@ import { useTheaterScrollGate } from '@/features/landing-v2/motion/useTheaterScr
 import styles from './LandingV2MobileStory.module.css'
 
 const OWNED_EPS = 0.002
-/** Compact headline split — open enough room for the dominant compact phone. */
-const HEADLINE_SEP_COMPACT_SCALE = 188 / 155
 /** Compact phone enter rise — slightly less than desktop 100px. */
 const PHONE_ENTER_Y_COMPACT = 48
 const PHONE_ENTER_Y_DESKTOP = 100
 /** Compact phone enter scale start (desktop remains 0.86 → 1). */
 const PHONE_SCALE_START_COMPACT = 0.94
 const PHONE_SCALE_START_DESKTOP = 0.86
+/**
+ * Compact app runway after phone settle — presentation hold only.
+ * Internal demo is time-driven (3F); does not need scrub runway.
+ */
+const MOBILE_TRACK_DASH_SVH_COMPACT = 36
+const MOBILE_TRACK_POST_SVH_COMPACT = 24
 
 const IDLE_1 = motionValue(1)
 const IDLE_0 = motionValue(0)
@@ -117,8 +122,12 @@ export function LandingV2MobileStory() {
   const studioProgress = useMotionValue(0)
   const importProgress = useMotionValue(0)
   const navHRef = useRef(68)
-  const dashSvhRef = useRef(MOBILE_TRACK_DASH_SVH_FALLBACK)
-  const postSvhRef = useRef(MOBILE_TRACK_POST_SVH)
+  const dashSvhRef = useRef(
+    isCompactViewport ? MOBILE_TRACK_DASH_SVH_COMPACT : MOBILE_TRACK_DASH_SVH_FALLBACK,
+  )
+  const postSvhRef = useRef(
+    isCompactViewport ? MOBILE_TRACK_POST_SVH_COMPACT : MOBILE_TRACK_POST_SVH,
+  )
   const compactRef = useRef(isCompactViewport)
   compactRef.current = isCompactViewport
 
@@ -184,6 +193,24 @@ export function LandingV2MobileStory() {
 
     const applyTrackBudgets = (dashMax: number, dayMax: number) => {
       if (budgetsFrozenRef.current) return false
+      /* Compact: fixed short presentation runway — internal demo is time-driven (3F). */
+      if (compactRef.current) {
+        if (dashSvhRef.current !== MOBILE_TRACK_DASH_SVH_COMPACT) {
+          dashSvhRef.current = MOBILE_TRACK_DASH_SVH_COMPACT
+          el.style.setProperty(
+            '--mobile-track-dash-svh',
+            String(MOBILE_TRACK_DASH_SVH_COMPACT),
+          )
+        }
+        if (postSvhRef.current !== MOBILE_TRACK_POST_SVH_COMPACT) {
+          postSvhRef.current = MOBILE_TRACK_POST_SVH_COMPACT
+          el.style.setProperty(
+            '--mobile-track-post-svh',
+            String(MOBILE_TRACK_POST_SVH_COMPACT),
+          )
+        }
+        return false
+      }
       const nextDash = dashTrackSvhFromMaxScroll(dashMax, window.innerHeight)
       const nextPost = postTrackSvhFromDayMaxScroll(dayMax, window.innerHeight)
       let changed = false
@@ -447,8 +474,11 @@ export function LandingV2MobileStory() {
   })
   const enterY = useTransform(progress, (p) => headlineEnterYAt(p))
   const sepOffset = useTransform(progress, (p) => {
-    const sep = headlineSepYAt(p)
-    return compactRef.current ? sep * HEADLINE_SEP_COMPACT_SCALE : sep
+    if (compactRef.current) {
+      /* Linear + reduced travel — editorial micro-motion (~0.45 px/px), not 1:1. */
+      return headlineSepYAt(p, { linear: true, exitDriftPx: 12 }) * HEADLINE_SEP_COMPACT_SCALE
+    }
+    return headlineSepYAt(p)
   })
   const line1Y = useTransform([enterY, sepOffset], ([ey, sep]) => Number(ey) - Number(sep))
   const line2Y = useTransform([enterY, sepOffset], ([ey, sep]) => Number(ey) + Number(sep))
@@ -521,7 +551,10 @@ export function LandingV2MobileStory() {
           <div className={styles.staticDevice} data-mobile-device-settled="true">
             <HeroPhoneFrame lockMorph={STATIC_LOCK_MORPH}>
               {isCompactViewport ? (
-                <FlattenedPhoneAppContent appProgress={appProgress} />
+                <FlattenedPhoneAutoplay
+                  theaterProgress={progress}
+                  reducedMotion={Boolean(reduced)}
+                />
               ) : (
                 <MobileOurWedApp appProgress={appProgress} staticMode />
               )}
@@ -556,8 +589,12 @@ export function LandingV2MobileStory() {
           '--mobile-track-pre-svh': isCompactViewport
             ? MOBILE_TRACK_PRE_SVH_COMPACT
             : MOBILE_TRACK_PRE_SVH,
-          '--mobile-track-dash-svh': MOBILE_TRACK_DASH_SVH_FALLBACK,
-          '--mobile-track-post-svh': MOBILE_TRACK_POST_SVH,
+          '--mobile-track-dash-svh': isCompactViewport
+            ? MOBILE_TRACK_DASH_SVH_COMPACT
+            : MOBILE_TRACK_DASH_SVH_FALLBACK,
+          '--mobile-track-post-svh': isCompactViewport
+            ? MOBILE_TRACK_POST_SVH_COMPACT
+            : MOBILE_TRACK_POST_SVH,
           '--mobile-track-post-brief-svh': MOBILE_TRACK_POST_BRIEF_SVH,
           '--mobile-track-studio-history-svh': isCompactViewport
             ? 0
@@ -608,7 +645,10 @@ export function LandingV2MobileStory() {
               <HeroPhoneFrame lockMorph={lockMorph}>
                 {isCompactViewport ? (
                   phoneAppMounted ? (
-                    <FlattenedPhoneAppContent appProgress={appProgress} />
+                    <FlattenedPhoneAutoplay
+                      theaterProgress={progress}
+                      reducedMotion={false}
+                    />
                   ) : (
                     <div
                       aria-hidden

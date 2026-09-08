@@ -165,15 +165,44 @@ export function headlineSepT(p: number): number {
   return easeOutCubic(rangeT(p, MOBILE_RANGES.headlineSep.start, MOBILE_RANGES.headlineSep.end))
 }
 
-const HEADLINE_SEP_PX = 155
+/** Base desktop sep travel (px per line). Compact applies HEADLINE_SEP_COMPACT_SCALE. */
+export const HEADLINE_SEP_PX = 155
+/** Extra drift through headline exit (desktop). Compact uses a smaller multiplier. */
+export const HEADLINE_SEP_EXIT_DRIFT_PX = 30
 
-export function headlineSepYAt(p: number): number {
+/**
+ * Compact editorial sep — softer than desktop.
+ * Target visual_px / scroll_px ≈ 0.45 on the sep window (see 3F acceptance).
+ */
+export const HEADLINE_SEP_COMPACT_SCALE = 90 / HEADLINE_SEP_PX
+
+export function headlineSepYAt(
+  p: number,
+  opts: { linear?: boolean; exitDriftPx?: number } = {},
+): number {
   const { start, end } = MOBILE_RANGES.headlineSep
-  const sepT = easeOutCubic(rangeT(p, start, end))
+  const raw = rangeT(p, start, end)
+  const sepT = opts.linear ? raw : easeOutCubic(raw)
   const sepEnd = sepT * HEADLINE_SEP_PX
   if (p <= end) return sepEnd
+  const drift = opts.exitDriftPx ?? HEADLINE_SEP_EXIT_DRIFT_PX
   const exitT = rangeT(p, end, MOBILE_RANGES.headlineExit.end)
-  return sepEnd + exitT * 30
+  return sepEnd + exitT * drift
+}
+
+/** Theater progress span of the sep window (for ratio tests). */
+export function headlineSepProgressSpan(): number {
+  return MOBILE_RANGES.headlineSep.end - MOBILE_RANGES.headlineSep.start
+}
+
+/**
+ * visual_px / scroll_px for compact sep peak travel over the sep progress window.
+ * scroll ≈ span * preTravel; visual = HEADLINE_SEP_PX * HEADLINE_SEP_COMPACT_SCALE.
+ */
+export function compactHeadlineSepRatio(preTravelPx: number): number {
+  const scroll = headlineSepProgressSpan() * Math.max(1, preTravelPx)
+  const visual = HEADLINE_SEP_PX * HEADLINE_SEP_COMPACT_SCALE
+  return visual / scroll
 }
 
 /** @deprecated — use headlineCompositeOpacityAt */
