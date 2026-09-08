@@ -82,11 +82,13 @@ const PHONE_ENTER_Y_DESKTOP = 100
 const PHONE_SCALE_START_COMPACT = 0.94
 const PHONE_SCALE_START_DESKTOP = 0.86
 /**
- * Compact app runway after phone settle — presentation hold only.
- * Internal demo is time-driven (3F); does not need scrub runway.
+ * Compact app runway after phone settle — short presentation hold only.
+ * Internal demo is time-driven (3F); sticky must not trap the user for the
+ * full tour duration. 3H.1: ~30% shorter settled→release dead scroll
+ * (was 36+24=60svh → 20+12=32svh).
  */
-const MOBILE_TRACK_DASH_SVH_COMPACT = 36
-const MOBILE_TRACK_POST_SVH_COMPACT = 24
+const MOBILE_TRACK_DASH_SVH_COMPACT = 20
+const MOBILE_TRACK_POST_SVH_COMPACT = 12
 
 const IDLE_1 = motionValue(1)
 const IDLE_0 = motionValue(0)
@@ -628,7 +630,8 @@ export function LandingV2MobileStory() {
       data-mobile-compact={isCompactViewport ? 'true' : 'false'}
       data-mobile-phone-lock-owner={isCompactViewport ? 'false' : 'true'}
       data-mobile-post-brief-owner={isCompactViewport ? 'false' : 'true'}
-      data-compact-native-exit={isCompactViewport ? '3h' : 'false'}
+      data-compact-native-exit={isCompactViewport ? '3h1' : 'false'}
+      data-compact-phone-release-layer={isCompactViewport ? 'above-security' : 'false'}
       style={
         {
           '--mobile-track-pre-svh': isCompactViewport
@@ -686,7 +689,8 @@ export function LandingV2MobileStory() {
               data-security-real-phone=""
               data-phone-transform-owner="phoneSystem"
               data-security-transition={isCompactViewport ? 'native-exit' : 'continuous-morph'}
-              data-compact-native-exit={isCompactViewport ? '3h' : 'false'}
+              data-compact-native-exit={isCompactViewport ? '3h1' : 'false'}
+              data-phone-release-layer={isCompactViewport ? 'above-security' : undefined}
               data-studio-lock={isCompactViewport ? undefined : ''}
               style={{ opacity: phoneOpacity, visibility: phoneVisibility, scale: phoneScale, y: phoneY }}
             >

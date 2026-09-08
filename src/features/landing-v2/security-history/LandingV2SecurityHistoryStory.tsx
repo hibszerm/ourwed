@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { useReducedMotion } from 'framer-motion'
-import { UserRound } from 'lucide-react'
+import { Layers3, UserRound } from 'lucide-react'
 import { useLandingCompactViewport } from '@/features/landing-v2/motion/landingViewport'
 import { clearPhoneSecurityMorph } from '@/features/landing-v2/security-history/mobilePhoneExitClock'
 import {
@@ -22,8 +22,9 @@ function ClientMark() {
  * Compact / reduced-motion Security + Studio History — natural document flow.
  *
  * Desktop normal motion: absorbed. Sticky Security/History live in MobileStory.
- * Compact (3H): Security + History + years are ONE normal-flow sibling after the
- * phone sticky releases. No phone→lock morph. No sticky year preview.
+ * Compact (3H / 3H.1): Security + History + years are ONE normal-flow sibling
+ * after the phone sticky. Phone uncovers Security via document overlap +
+ * stacking — no phone→lock morph, no sticky year preview.
  * Reduced-motion: History intro + years (Security stays in MobileStory static).
  */
 export function LandingV2SecurityHistoryStory() {
@@ -59,7 +60,7 @@ export function LandingV2SecurityHistoryStory() {
       data-security-theater="document-flow"
       data-studio-history-flow="document"
       data-studio-history-compact="true"
-      data-compact-native-security={showSecurity ? '3h' : 'false'}
+      data-compact-native-security={showSecurity ? '3h1' : 'false'}
       data-studio-history-years-only="false"
       data-studio-history-visible-rows={LV2_HISTORY_COMPACT_VISIBLE_ROWS}
       aria-labelledby={
@@ -72,6 +73,7 @@ export function LandingV2SecurityHistoryStory() {
             className={styles.securitySection}
             data-compact-security-section=""
             data-security-sticky="0"
+            data-security-under-phone="true"
             aria-labelledby="lv2-security-heading"
           >
             <div className={styles.securityInner} data-security-inner="">
@@ -101,9 +103,19 @@ export function LandingV2SecurityHistoryStory() {
         ) : null}
 
         <div className={styles.historySection} data-studio-history-intro="">
-          <div className={styles.lockWrap} data-studio-lock-flow="">
-            <SecurityLockGraphic className={styles.lock} />
-          </div>
+          {isCompact ? (
+            <div className={styles.iconWrap} data-studio-history-icon="layers3">
+              <Layers3
+                className={styles.historyIcon}
+                aria-hidden
+                strokeWidth={1.5}
+              />
+            </div>
+          ) : (
+            <div className={styles.iconWrap} data-studio-lock-flow="">
+              <SecurityLockGraphic className={styles.historyIcon} />
+            </div>
+          )}
 
           <p className={styles.studioLabel} data-studio-eyebrow="">
             {LV2_HISTORY_COPY.studioLabel}

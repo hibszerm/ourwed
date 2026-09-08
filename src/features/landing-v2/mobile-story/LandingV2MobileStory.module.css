@@ -264,10 +264,18 @@
   }
 
   .phoneSystem {
-    z-index: 2;
+    /* Above document-flow Security while sticky overlaps (3H.1 uncover). */
+    z-index: 5;
     /* Compositor-friendly morph — transform/opacity only on this owner. */
     will-change: transform, opacity;
     backface-visibility: hidden;
+  }
+
+  .sticky {
+    /* Phone release layer sits above Security/History document flow. */
+    z-index: 6;
+    /* Keep visible overflow so lock shackle / phone scale never clip. */
+    overflow: visible;
   }
 
   .stageCenter {
@@ -294,11 +302,6 @@
 
   .headlineSystem {
     z-index: 1;
-  }
-
-  .sticky {
-    /* Keep visible overflow so lock shackle / phone scale never clip. */
-    overflow: visible;
   }
 }
 

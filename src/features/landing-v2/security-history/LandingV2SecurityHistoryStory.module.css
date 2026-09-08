@@ -16,8 +16,14 @@
   --studio-history-mobile-gutter: 1.125rem;
   --studio-history-mobile-year-gap: clamp(2.75rem, 7vw, 3.75rem);
   --studio-history-mobile-section-end: clamp(4.5rem, 11vw, 6rem);
-  /* History support → 2026: ~110–125px @ 402 (not a vh desert). */
+  /* History support → 2026: ~80–125px @ 402 (not a vh desert). */
   --studio-history-to-year-gap: clamp(5.5rem, 14vw, 7.5rem);
+  /*
+   * 3H.1: pull Security under the phone sticky tail so native phone exit
+   * physically uncovers lock/copy. Stacking: Mobile sticky z-index 6 >
+   * this flow z-index 2. No parallax / no Security translateY theater.
+   */
+  --security-under-phone-overlap: calc(0.52 * (100svh - var(--lv3-nav-h, 68px)));
 
   position: relative;
   z-index: 2;
@@ -26,6 +32,14 @@
   background: var(--sh-paper);
   color: var(--sh-ink);
   padding: 0 var(--studio-history-mobile-gutter) var(--studio-history-mobile-section-end);
+}
+
+.flow[data-compact-native-security='3h1'] {
+  margin-top: calc(-1 * var(--security-under-phone-overlap));
+  /* Transparent lead so phone sticky can occlude Security during overlap. */
+  background: transparent;
+  /* Paper resumes with Security section itself. */
+  padding-top: 0;
 }
 
 .inner {
@@ -38,17 +52,24 @@
   box-sizing: border-box;
 }
 
-/* —— Security (3H): balanced content block, stable svh, no sticky —— */
+/*
+ * —— Security (3H.1): content-driven height, balanced block, stable svh.
+ * Not a full-viewport theater — phone uncovers this block in normal flow.
+ */
 .securitySection {
   width: 100%;
-  /* Stable layout viewport — never dynamic viewport height units. */
-  min-height: calc(100svh - var(--lv3-nav-h, 68px));
+  position: relative;
+  z-index: 1;
+  background: var(--sh-paper);
+  /* Content-driven — do not force one full viewport (was 100svh - nav). */
+  min-height: 0;
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  padding: clamp(2rem, 6svh, 3.5rem) 0;
+  /* Top air accounts for under-phone reveal; bottom → History ~64–100px total. */
+  padding: clamp(3.25rem, 8svh, 4.5rem) 0 clamp(2.5rem, 5.5svh, 3.5rem);
 }
 
 .securityInner {
@@ -142,22 +163,24 @@
   align-items: center;
   width: 100%;
   text-align: center;
-  padding-top: clamp(2.5rem, 7vw, 3.5rem);
+  background: var(--sh-paper);
+  /* Tight Security→History: rhythm + Layers icon, not a desert (~64–100px total). */
+  padding-top: clamp(1.75rem, 4.5vw, 2.5rem);
   margin-bottom: var(--studio-history-to-year-gap);
   opacity: 1;
 }
 
-.lockWrap {
+.iconWrap {
   display: flex;
   justify-content: center;
-  /* Small lock ABOVE "TWOJE STUDIO" — ~20–28px gap @ 402. */
-  margin: 0 0 clamp(1.25rem, 5.5vw, 1.75rem);
+  /* Layers3 ABOVE "TWOJE STUDIO" — ~18–24px gap @ 402. */
+  margin: 0 0 clamp(1.125rem, 4.5vw, 1.5rem);
   position: relative;
 }
 
-.lock {
-  width: 32px;
-  height: auto;
+.historyIcon {
+  width: clamp(30px, 8vw, 36px);
+  height: clamp(30px, 8vw, 36px);
   color: #1a1614;
   display: block;
 }
@@ -210,6 +233,7 @@
   flex-direction: column;
   align-items: center;
   gap: var(--studio-history-mobile-year-gap);
+  background: var(--sh-paper);
 }
 
 .yearChapter {
@@ -236,6 +260,7 @@
 /*
  * Subtle entry ONLY when view timelines work.
  * Base opacity stays 1 — never hide content when timelines fail.
+ * Season reveal (lv2SeasonReveal) is FROZEN from 3H — do not retune.
  */
 @supports (animation-timeline: view()) {
   @media (prefers-reduced-motion: no-preference) {
@@ -265,10 +290,11 @@
   }
 }
 
+/* 3H.1: micro-settle only — uncover is geometry, not travel. */
 @keyframes lv2SecurityReveal {
   from {
-    opacity: 0.55;
-    transform: translate3d(0, 18px, 0);
+    opacity: 0.72;
+    transform: translate3d(0, 12px, 0);
   }
   to {
     opacity: 1;
@@ -278,8 +304,8 @@
 
 @keyframes lv2SecurityLockReveal {
   from {
-    opacity: 0.65;
-    transform: translate3d(0, 16px, 0);
+    opacity: 0.75;
+    transform: translate3d(0, 10px, 0);
   }
   to {
     opacity: 1;
@@ -290,7 +316,7 @@
 @keyframes lv2HistoryIntroReveal {
   from {
     opacity: 0.5;
-    transform: translate3d(0, 16px, 0);
+    transform: translate3d(0, 12px, 0);
   }
   to {
     opacity: 1;
@@ -298,6 +324,7 @@
   }
 }
 
+/* FROZEN 3H season motion — identical constants. */
 @keyframes lv2SeasonReveal {
   from {
     opacity: 0.4;
