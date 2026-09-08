@@ -40,7 +40,7 @@
   top: var(--lv2-nav-h);
   z-index: 6;
   height: calc(100svh - var(--lv2-nav-h));
-  height: calc(100dvh - var(--lv2-nav-h));
+  /* Stable svh — toolbar must not reflow Product sticky mid-scroll. */
   width: 100%;
   overflow: visible;
   background: transparent;

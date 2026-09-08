@@ -2152,10 +2152,12 @@ function walkTs(dir: string, out: string[] = []): string[] {
     "offset: ['start 0.6', 'start 0.4']",
     'grid module reveal offset frozen',
   )
+  assertIncludes(features, 'FeaturesGridCompact', 'compact features path isolated')
+  assertIncludes(features, 'FeaturesGridDesktop', 'desktop features path isolated')
   assertIncludes(
     features,
-    'isCompactViewport ? HEADER_OFFSET_COMPACT : HEADER_OFFSET_DESKTOP',
-    'header clock selects compact local vs desktop frozen offset',
+    'HEADER_OFFSET_DESKTOP',
+    'desktop header clock offset frozen',
   )
   assertIncludes(
     features,
@@ -2165,11 +2167,9 @@ function walkTs(dir: string, out: string[] = []): string[] {
   assertIncludes(features, 'headerReveal', 'headline uses separate earlier reveal clock')
   assertIncludes(features, 'headingOp = useTransform(headerReveal', 'heading opacity from local header clock')
   assertNotIncludes(features, 'lifecycleProgressMv', 'compact Features intro not driven by Lifecycle progress')
-  assertIncludes(features, 'HEADER_OFFSET_COMPACT', 'compact intro uses local viewport clock')
-  assertIncludes(features, "['start 0.98', 'start 0.52']", 'compact heading reveals early in reading approach')
-  assertIncludes(features, 'COMPACT_LEAD_DELAY', 'lead delayed after heading on local clock')
-  assertIncludes(features, "h.style.filter = 'none'", 'compact heading never applies blur')
-  assertIncludes(features, "data-features-handoff={isCompactViewport ? 'document-flow' : 'desktop'}", 'compact Features document-flow marker')
+  assertIncludes(features, 'data-features-scroll-engine="none"', 'compact Features no useScroll engine')
+  assertIncludes(features, 'data-features-handoff="document-flow"', 'compact Features document-flow marker')
+  assertIncludes(features, 'data-feature-demo={demo}', 'compact one-shot feature demo attr')
   assertIncludes(features, 'reveal={reveal}', 'atlas modules still use grid reveal clock')
   assertIncludes(
     features,
@@ -2390,7 +2390,9 @@ function walkTs(dir: string, out: string[] = []): string[] {
   assertIncludes(featuresCss, "grid-column: span 7", 'asymmetric atlas spans')
   assertNotIncludes(features, 'setInterval', 'no timer animation loops')
   assertNotIncludes(features, 'requestAnimationFrame', 'no rAF loops in features')
-  assertNotIncludes(features, 'useState', 'no React hover state')
+  assertNotIncludes(features, 'setHovered', 'no React hover state machine')
+  assertNotIncludes(features, 'isHovered', 'no React hover boolean')
+  assertIncludes(features, "useState<'idle' | 'done'>", 'one-shot mobile demo latch only')
   assertNotIncludes(mini, 'useState', 'no React state in mini UIs')
   assertIncludes(mini, '4 zadania', 'zadania rest task count header')
   assertNotIncludes(mini, 'Następne', 'no zadania następne block copy')
@@ -2417,14 +2419,24 @@ function walkTs(dir: string, out: string[] = []): string[] {
   assertIncludes(features, 'useLandingCompactViewport', 'Features uses shared compact viewport hook')
   assertIncludes(
     features,
-    "data-features-layout={isCompactViewport ? 'compact' : 'desktop'}",
-    'explicit compact/desktop layout marker',
+    "data-features-layout=\"compact\"",
+    'explicit compact layout marker',
+  )
+  assertIncludes(
+    features,
+    "data-features-layout=\"desktop\"",
+    'explicit desktop layout marker',
   )
   assertIncludes(features, 'whileInView', 'compact cards use local viewport reveal')
   assertIncludes(
     features,
-    "data-feature-reveal={compactMotion ? 'viewport' : 'atlas'}",
-    'compact reveal is viewport-local; desktop keeps atlas clock',
+    'data-feature-reveal="viewport"',
+    'compact reveal is viewport-local',
+  )
+  assertIncludes(
+    features,
+    'data-feature-reveal="atlas"',
+    'desktop keeps atlas clock reveal',
   )
   assertIncludes(features, 'COMPACT_CARD_REVEAL', 'shared compact card entrance token')
   assertIncludes(features, 'duration: 0.82', 'compact card reveal duration softened (~0.82s)')
@@ -2451,8 +2463,8 @@ function walkTs(dir: string, out: string[] = []): string[] {
   )
   assertIncludes(
     features,
-    "key={`${feature.id}-${isCompactViewport ? 'compact' : 'desktop'}`}",
-    'compact/desktop remount avoids desktop y MotionValue flash on cards',
+    'if (isCompactViewport) {\n    return <FeaturesGridCompact />\n  }\n  return <FeaturesGridDesktop />',
+    'compact/desktop remount via separate trees (no desktop MotionValue flash)',
   )
   const viewportHook = read('src/features/landing-v2/motion/landingViewport.ts')
   assertIncludes(
@@ -2462,35 +2474,22 @@ function walkTs(dir: string, out: string[] = []): string[] {
   )
   assertIncludes(
     features,
-    '{ opacity: 1, y: 0, scale: 1, filter: \'none\' }',
+    "{ opacity: 1, y: 0, scale: 1, filter: 'none' as const }",
     'reduced-motion compact cards render fully settled',
   )
-  assertIncludes(features, 'COMPACT_HEADING_Y', 'compact heading has subtle y travel token')
-  assertIncludes(features, 'COMPACT_LEAD_Y', 'compact lead has subtle y travel token')
-  assertIncludes(features, 'HEADER_OFFSET_COMPACT', 'compact header reveal is local scroll clock')
-  assertIncludes(
-    features,
-    'headingTravel = isCompactViewport ? COMPACT_HEADING_Y : 28',
-    'compact heading uses calm y travel (not zero / not desktop 28)',
-  )
-  assertIncludes(
-    features,
-    'leadTravel = isCompactViewport ? COMPACT_LEAD_Y : 22',
-    'compact lead uses calm y travel',
-  )
+  assertIncludes(features, 'FeaturesGridCompact', 'compact features isolated from desktop useScroll')
+  assertIncludes(features, 'data-features-scroll-engine="none"', 'compact features no scroll scrub engine')
   assertIncludes(features, 'HEADER_OFFSET_DESKTOP', 'desktop header reveal offset frozen')
   assertIncludes(features, "['start 0.92', 'start 0.5']", 'desktop intro clock unchanged')
   assertIncludes(features, "offset: ['start 0.6', 'start 0.4']", 'desktop atlas module clock frozen')
   assertIncludes(features, 'MODULE_WINDOWS', 'desktop MODULE_WINDOWS catalog preserved')
   assertNotIncludes(features, 'firstCardLatch', 'Finanse not gated by Lifecycle latch')
   assertNotIncludes(features, 'lifecycle-latch', 'no lifecycle-latch card reveal mode')
-  assertIncludes(features, 'data-features-intro-motion="dom"', 'compact intro uses plain DOM opacity bind')
-  assertIncludes(features, 'compactHeadingRef', 'compact heading DOM ref')
-  assertIncludes(features, "h.style.filter = 'none'", 'compact heading never applies blur')
-  assertIncludes(features, "{ filter: 'none' }", 'compact cards force filter none (no atlas blur residue)')
+  assertIncludes(features, "data-features-intro-motion=\"viewport\"", 'compact intro uses whileInView')
+  assertIncludes(features, "style={{ filter: 'none' }}", 'compact cards force filter none (no atlas blur residue)')
   assertIncludes(
     features,
-    'whileInView={compactMotion ? { ...COMPACT_CARD_REVEAL.animate } : undefined}',
+    'whileInView={reduced ? undefined : { ...COMPACT_CARD_REVEAL.animate }}',
     'all compact cards share COMPACT_CARD_REVEAL whileInView',
   )
   assertIncludes(featuresCss, '--lv2-mobile-section-gap', 'compact Lifecycle→Features section gap token')
@@ -2501,8 +2500,8 @@ function walkTs(dir: string, out: string[] = []): string[] {
   )
   assertIncludes(
     features,
-    'compactMotion = compact && !reduced',
-    'card entrance motion gated off under reduced motion',
+    "useState<'idle' | 'done'>(reduced ? 'done' : 'idle')",
+    'card demo idle→done one-shot state (reduced settles immediately)',
   )
   assertIncludes(
     features,
@@ -7353,7 +7352,8 @@ await testPostBriefMorphMonotonicity()
     assertIncludes(importFlow, 'MOBILE_TRACK_IMPORT_COVER_HOLD_SVH', 'cover-hold uses shared constant')
     assertIncludes(importFlow, 'seasonImportCoverBottomGapPx', 'final-frame bottom gap helper')
     assertIncludes(importFlow, '--season-import-cover-bottom-gap', 'writes bottom-gap CSS token')
-    assertIncludes(importFlow, 'vh - el.offsetHeight', 'sticky flush pin after framed height')
+    assertIncludes(importFlow, 'vp.h - el.offsetHeight', 'sticky flush pin after framed height')
+    assertIncludes(importFlow, 'landingViewportGeometryChanged', 'season import ignores toolbar resize noise')
     assertNotIncludes(importFlow, 'vh - bottomGap - el.offsetHeight', 'does not pin above Founder overlap band')
     assertIncludes(importFlow, 'useLandingCompactViewport', 'import flow uses shared compact hook')
     assertIncludes(importFlow, 'whileInView', 'local intro/card reveals')

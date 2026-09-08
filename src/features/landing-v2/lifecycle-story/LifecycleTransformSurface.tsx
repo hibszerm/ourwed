@@ -9,6 +9,10 @@ import {
   workspaceInteractiveAt,
 } from '@/features/landing-v2/lifecycle-story/lifecycleStoryProgress'
 import { WorkflowExplorer } from '@/features/landing-v2/lifecycle-story/workflow/WorkflowExplorer'
+import {
+  landingLayoutViewportSize,
+  landingViewportGeometryChanged,
+} from '@/features/landing-v2/motion/landingStableViewport'
 import styles from './LifecycleTransformSurface.module.css'
 
 type Props = {
@@ -37,10 +41,20 @@ export function LifecycleTransformSurface({
   const viewportTick = useMotionValue(0)
   useEffect(() => {
     if (!compact) return
-    const bump = () => viewportTick.set(performance.now())
+    let last = landingLayoutViewportSize()
+    const bump = () => {
+      const next = landingLayoutViewportSize()
+      if (!landingViewportGeometryChanged(last, next)) return
+      last = next
+      viewportTick.set(performance.now())
+    }
     bump()
     window.addEventListener('resize', bump)
-    return () => window.removeEventListener('resize', bump)
+    window.addEventListener('orientationchange', bump)
+    return () => {
+      window.removeEventListener('resize', bump)
+      window.removeEventListener('orientationchange', bump)
+    }
   }, [compact, viewportTick])
 
   useMotionValueEvent(progress, 'change', (p) => {

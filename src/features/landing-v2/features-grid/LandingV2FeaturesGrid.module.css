@@ -2367,6 +2367,11 @@
   }
 }
 
+/*
+ * Coarse / no-hover: REST = desktop resting visuals (NOT hover end-state).
+ * One-shot demo: [data-feature-demo='done'] settles to the desktop-hover end look
+ * via transform/opacity transitions only (Iteration 3E).
+ */
 @media (hover: none), (pointer: coarse) {
   .inboxInstrument {
     flex: 1 1 0;
@@ -2379,64 +2384,198 @@
     align-self: stretch;
     padding-block: clamp(0.3125rem, 0.5vh, 0.4375rem);
     padding-inline: 0.5rem;
-    transform: none;
   }
-  .inboxItemEnter {
+
+  .module[data-feature-demo='done'] .financeLedger {
+    opacity: 0;
+    transform: translateY(-3px);
+    visibility: hidden;
+    transition:
+      opacity 0.42s var(--fg-ease),
+      transform 0.42s var(--fg-ease),
+      visibility 0s 0.42s;
+  }
+  .module[data-feature-demo='done'] .financeChart {
+    opacity: 1;
+    transition: opacity 0.45s var(--fg-ease);
+  }
+  .module[data-feature-demo='done'] .financeFootRest {
+    opacity: 0;
+    transition: opacity 0.35s var(--fg-ease);
+  }
+  .module[data-feature-demo='done'] .financeMonth {
+    opacity: 1;
+    transition: opacity 0.4s var(--fg-ease);
+  }
+  .module[data-feature-demo='done'] .financeBar {
+    transform: scaleY(var(--bar-scale, 0.5));
+    transition: transform 0.45s var(--fg-ease);
+  }
+  .module[data-feature-demo='done'] .financeBarAccent {
+    background: var(--fg-success);
+    opacity: 0.88;
+  }
+  .module[data-feature-demo='done'] .financeMonthAccent {
+    color: var(--fg-success);
+  }
+
+  .module[data-feature-demo='done'] .inboxItemEnter {
     opacity: 1;
     transform: none;
+    transition:
+      opacity 0.4s var(--fg-ease),
+      transform 0.4s var(--fg-ease);
   }
-  .inboxCountRest { opacity: 0; }
-  .inboxCountHover { opacity: 1; transform: none; }
-  .taskStack li:nth-child(n + 2) .taskMarkRing {
+  .module[data-feature-demo='done'] .inboxCountRest {
+    opacity: 0;
+    transition: opacity 0.35s var(--fg-ease);
+  }
+  .module[data-feature-demo='done'] .inboxCountHover {
+    opacity: 1;
+    transform: none;
+    transition: opacity 0.35s var(--fg-ease);
+  }
+
+  .module[data-feature-demo='done'] .taskStack li:nth-child(n + 2) .taskMarkRing {
     background: var(--fg-success-bg);
     border-color: var(--fg-success-border);
+    transition:
+      background 0.4s var(--fg-ease),
+      border-color 0.4s var(--fg-ease);
   }
-  .taskStack li:nth-child(n + 2) .taskMarkIcon {
+  .module[data-feature-demo='done'] .taskStack li:nth-child(n + 2) .taskMarkIcon {
     opacity: 1;
     transform: translate(-50%, -50%) scale(1);
+    transition:
+      opacity 0.4s var(--fg-ease),
+      transform 0.4s var(--fg-ease);
   }
-  .taskStack li:nth-child(n + 2) .taskMarkIcon path {
+  .module[data-feature-demo='done'] .taskStack li:nth-child(n + 2) .taskMarkIcon path {
     stroke-dashoffset: 0;
+    transition: stroke-dashoffset 0.45s var(--fg-ease);
   }
-  .taskStack li:nth-child(n + 2) .taskTitle,
-  .taskStack li:nth-child(n + 2) .taskCtx,
-  .taskStack li:nth-child(n + 2) .taskDue {
+  .module[data-feature-demo='done'] .taskStack li:nth-child(n + 2) .taskTitle,
+  .module[data-feature-demo='done'] .taskStack li:nth-child(n + 2) .taskCtx,
+  .module[data-feature-demo='done'] .taskStack li:nth-child(n + 2) .taskDue {
     color: color-mix(in srgb, #1a1614 42%, transparent);
+    transition: color 0.4s var(--fg-ease);
   }
-  .pkgDetailLine { opacity: 1; transform: none; }
-  .jobStageRest { opacity: 0; }
-  .jobStageHover, .jobNextHover { opacity: 1; }
-  .jobStepNext { opacity: 1; }
-  .sesSessionRest { transform: translateX(50%); opacity: 0; }
-  .sesSessionHover { opacity: 1; }
-  .sesTimeRest { opacity: 0; transform: none; }
-  .sesTimeHover { opacity: 1; transform: none; }
-  .calHeadSep,
-  .calDayNumSep,
-  .calEventSep { opacity: 1; transform: none; }
-  .calHeadAug,
-  .calDayNumAug,
-  .calEventAug { opacity: 0; transform: none; }
-  .formProgRest,
-  .formMissingRest { opacity: 0; transform: none; }
-  .formProgHover { opacity: 1; transform: none; }
-  .formAnswerSlot { opacity: 1; transform: none; border-color: color-mix(in srgb, #1a1614 5%, transparent); background: color-mix(in srgb, #ffffff 70%, #f3efe8); }
-  .formAnswerSlotInner { transform: none; }
-  .umowyDocIntro,
-  .umowyDocHeaderSkel,
-  .umowyDocHeader .umowySkelW55 { opacity: 0.28; }
-  .umowyDocLine .umowySkel { opacity: 0; }
-  .umowyDocLine .umowyResolved { opacity: 1; transform: none; }
-  .umowySignLine { background: color-mix(in srgb, #1a1614 24%, transparent); }
-  .umowyStatusRest { opacity: 0; }
-  .umowyStatusHover { opacity: 1; }
-  .umowyVar1,
-  .umowyVar2,
-  .umowyVar3,
-  .umowyVar4,
-  .umowyVar5,
-  .umowyVar6 {
+
+  .module[data-feature-demo='done'] .pkgDetailLine {
+    opacity: 1;
+    transform: none;
+    transition:
+      opacity 0.4s var(--fg-ease),
+      transform 0.4s var(--fg-ease);
+  }
+
+  .module[data-feature-demo='done'] .jobStageRest {
+    opacity: 0;
+    transition: opacity 0.35s var(--fg-ease);
+  }
+  .module[data-feature-demo='done'] .jobStageHover,
+  .module[data-feature-demo='done'] .jobNextHover,
+  .module[data-feature-demo='done'] .jobStepNext {
+    opacity: 1;
+    transition: opacity 0.4s var(--fg-ease);
+  }
+
+  .module[data-feature-demo='done'] .sesSessionRest {
+    transform: translateX(50%);
+    opacity: 0;
+    transition:
+      opacity 0.4s var(--fg-ease),
+      transform 0.45s var(--fg-ease);
+  }
+  .module[data-feature-demo='done'] .sesSessionHover {
+    opacity: 1;
+    transition: opacity 0.45s var(--fg-ease);
+  }
+  .module[data-feature-demo='done'] .sesTimeRest {
+    opacity: 0;
+    transition: opacity 0.35s var(--fg-ease);
+  }
+  .module[data-feature-demo='done'] .sesTimeHover {
+    opacity: 1;
+    transition: opacity 0.35s var(--fg-ease);
+  }
+
+  .module[data-feature-demo='done'] .calHeadSep,
+  .module[data-feature-demo='done'] .calDayNumSep,
+  .module[data-feature-demo='done'] .calEventSep {
+    opacity: 1;
+    transform: none;
+    transition:
+      opacity 0.4s var(--fg-ease),
+      transform 0.4s var(--fg-ease);
+  }
+  .module[data-feature-demo='done'] .calHeadAug,
+  .module[data-feature-demo='done'] .calDayNumAug,
+  .module[data-feature-demo='done'] .calEventAug {
+    opacity: 0;
+    transform: none;
+    transition: opacity 0.35s var(--fg-ease);
+  }
+
+  .module[data-feature-demo='done'] .formProgRest,
+  .module[data-feature-demo='done'] .formMissingRest {
+    opacity: 0;
+    transition: opacity 0.35s var(--fg-ease);
+  }
+  .module[data-feature-demo='done'] .formProgHover {
+    opacity: 1;
+    transition: opacity 0.4s var(--fg-ease);
+  }
+  .module[data-feature-demo='done'] .formAnswerSlot {
+    opacity: 1;
+    transform: none;
+    border-color: color-mix(in srgb, #1a1614 5%, transparent);
+    background: color-mix(in srgb, #ffffff 70%, #f3efe8);
+    transition:
+      opacity 0.4s var(--fg-ease),
+      transform 0.4s var(--fg-ease),
+      background 0.4s var(--fg-ease);
+  }
+
+  .module[data-feature-demo='done'] .umowyDocIntro,
+  .module[data-feature-demo='done'] .umowyDocHeaderSkel,
+  .module[data-feature-demo='done'] .umowyDocHeader .umowySkelW55 {
+    opacity: 0.28;
+    transition: opacity 0.4s var(--fg-ease);
+  }
+  .module[data-feature-demo='done'] .umowyDocLine .umowySkel {
+    opacity: 0;
+    transition: opacity 0.35s var(--fg-ease);
+  }
+  .module[data-feature-demo='done'] .umowyDocLine .umowyResolved {
+    opacity: 1;
+    transform: none;
+    transition:
+      opacity 0.4s var(--fg-ease),
+      transform 0.4s var(--fg-ease);
+  }
+  .module[data-feature-demo='done'] .umowyStatusRest {
+    opacity: 0;
+    transition: opacity 0.3s var(--fg-ease);
+  }
+  .module[data-feature-demo='done'] .umowyStatusHover {
+    opacity: 1;
+    transition: opacity 0.4s var(--fg-ease);
+  }
+  .module[data-feature-demo='done'] .umowyVar1,
+  .module[data-feature-demo='done'] .umowyVar2,
+  .module[data-feature-demo='done'] .umowyVar3,
+  .module[data-feature-demo='done'] .umowyVar4,
+  .module[data-feature-demo='done'] .umowyVar5,
+  .module[data-feature-demo='done'] .umowyVar6 {
     background: color-mix(in srgb, var(--fg-success-bg) 58%, transparent);
+    transition: background 0.4s var(--fg-ease);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .module[data-feature-demo='done'] * {
+      transition: none !important;
+    }
   }
 }
 

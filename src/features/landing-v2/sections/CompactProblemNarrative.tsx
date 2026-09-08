@@ -15,16 +15,19 @@ import {
   compactNarrativePinScrollY,
   supportsCssScrollTimeline,
 } from '@/features/landing-v2/sections/compactNarrativeCssScroll'
+import {
+  landingLayoutViewportSize,
+  landingViewportGeometryChanged,
+} from '@/features/landing-v2/motion/landingStableViewport'
 import { isProblemStoryMutedLine } from '@/features/landing-v2/sections/problemStoryCopy'
 import styles from './CompactProblemNarrative.module.css'
 
 /**
- * Compact Problem Story — Iteration 3D.
+ * Compact Problem Story — Iteration 3D / 3E.
  *
- * Preferred: CSS `animation-timeline: scroll()` drives transform/opacity
- * (compositor-eligible). Real spacer geometry preserved (ratio 1.0).
- * Black exit: native sticky unpin — not a scroll timeline.
- * Fallback: deterministic JS scrub when scroll timelines unsupported.
+ * Preferred: CSS `animation-timeline: scroll()` drives transform/opacity.
+ * Geometry uses layout viewport (≈ svh) and ignores Safari toolbar noise.
+ * Black exit: native sticky unpin.
  */
 export function CompactProblemNarrative() {
   const reduced = Boolean(useReducedMotion())
@@ -34,6 +37,7 @@ export function CompactProblemNarrative() {
   const statementRefs = useRef<Array<HTMLDivElement | null>>([])
   const geomRef = useRef<CompactNarrativeGeometry | null>(null)
   const engineRef = useRef<'css-scroll' | 'js-scrub'>('js-scrub')
+  const lastViewportRef = useRef<{ w: number; h: number } | null>(null)
 
   useLayoutEffect(() => {
     if (reduced) return
@@ -45,11 +49,20 @@ export function CompactProblemNarrative() {
     engineRef.current = cssOk ? 'css-scroll' : 'js-scrub'
     track.setAttribute('data-narrative-engine', engineRef.current)
 
-    const applyGeometry = () => {
+    const applyGeometry = (force = false) => {
+      const vp = landingLayoutViewportSize()
+      if (
+        !force &&
+        !landingViewportGeometryChanged(lastViewportRef.current, vp)
+      ) {
+        return
+      }
+      lastViewportRef.current = vp
+
       const navH =
         parseFloat(getComputedStyle(track).getPropertyValue('--lv2-nav-h')) ||
         68
-      const g = compactNarrativeGeometry(window.innerHeight, navH)
+      const g = compactNarrativeGeometry(vp.h, navH)
       geomRef.current = g
       const slots = compactNarrativeSlotOffsets(g)
       track.style.setProperty(
@@ -78,8 +91,14 @@ export function CompactProblemNarrative() {
         if (!el) continue
         const hasIncoming = i >= 1
         const hasOutgoing = i < COMPACT_NARRATIVE_STATEMENT_COUNT - 1
-        el.setAttribute('data-narrative-has-incoming', hasIncoming ? 'true' : 'false')
-        el.setAttribute('data-narrative-has-outgoing', hasOutgoing ? 'true' : 'false')
+        el.setAttribute(
+          'data-narrative-has-incoming',
+          hasIncoming ? 'true' : 'false',
+        )
+        el.setAttribute(
+          'data-narrative-has-outgoing',
+          hasOutgoing ? 'true' : 'false',
+        )
         el.style.setProperty('--narr-in-start', `${ranges.inStart[i]}px`)
         el.style.setProperty('--narr-in-end', `${ranges.inEnd[i]}px`)
         el.style.setProperty('--narr-out-start', `${ranges.outStart[i]}px`)
@@ -87,12 +106,15 @@ export function CompactProblemNarrative() {
       }
     }
 
-    applyGeometry()
-    const ro = new ResizeObserver(applyGeometry)
-    ro.observe(track)
-    window.addEventListener('resize', applyGeometry)
+    const onResize = () => applyGeometry(false)
+    const onOrientation = () => applyGeometry(true)
 
-    /* ——— JS fallback scrub (only when CSS scroll timelines unavailable) ——— */
+    applyGeometry(true)
+    const ro = new ResizeObserver(onResize)
+    ro.observe(track)
+    window.addEventListener('resize', onResize)
+    window.addEventListener('orientationchange', onOrientation)
+
     let raf = 0
     let onScroll: (() => void) | null = null
     if (engineRef.current === 'js-scrub') {
@@ -111,7 +133,10 @@ export function CompactProblemNarrative() {
           const el = statementRefs.current[i]
           if (!el) continue
           const vis = statementVisualAtScroll(scrubClamped, i, g)
-          el.setAttribute('data-narrative-active', vis.active ? 'true' : 'false')
+          el.setAttribute(
+            'data-narrative-active',
+            vis.active ? 'true' : 'false',
+          )
           if (!vis.active) {
             el.style.opacity = '0'
             el.style.transform = 'translate3d(0, 0, 0)'
@@ -131,7 +156,8 @@ export function CompactProblemNarrative() {
 
     return () => {
       ro.disconnect()
-      window.removeEventListener('resize', applyGeometry)
+      window.removeEventListener('resize', onResize)
+      window.removeEventListener('orientationchange', onOrientation)
       if (onScroll) window.removeEventListener('scroll', onScroll)
       cancelAnimationFrame(raf)
     }

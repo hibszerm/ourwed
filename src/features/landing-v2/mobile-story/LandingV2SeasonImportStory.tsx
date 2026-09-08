@@ -9,6 +9,10 @@ import {
 } from 'lucide-react'
 import { useLandingCompactViewport } from '@/features/landing-v2/motion/landingViewport'
 import {
+  landingLayoutViewportSize,
+  landingViewportGeometryChanged,
+} from '@/features/landing-v2/motion/landingStableViewport'
+import {
   LV2_SEASON_IMPORT_ASSIGNMENT,
   LV2_SEASON_IMPORT_ATTACHMENT,
   LV2_SEASON_IMPORT_COPY,
@@ -53,31 +57,32 @@ export function LandingV2SeasonImportStory() {
     const el = stickyRef.current
     if (!el) return
 
-    const syncTop = () => {
-      const vh = window.visualViewport?.height ?? window.innerHeight
-      const vw = window.visualViewport?.width ?? window.innerWidth
-      const bottomGap = seasonImportCoverBottomGapPx(vw)
+    let lastVp: { w: number; h: number } | null = null
+
+    const syncTop = (force = false) => {
+      const vp = landingLayoutViewportSize()
+      /* Prefer layout viewport — ignore Safari toolbar chrome noise (3E). */
+      if (!force && !landingViewportGeometryChanged(lastVp, vp)) return
+      lastVp = vp
+      const bottomGap = seasonImportCoverBottomGapPx(vp.w)
       el.style.setProperty('--season-import-cover-bottom-gap', `${bottomGap}px`)
       el.dataset.seasonImportCoverBottomGap = String(bottomGap)
-      /*
-       * Flush pin: stickyBottom = vh.
-       * Bottom gap is paper padding below the final card (outside white cards),
-       * which also delays pin activation so the user scrolls farther first.
-       * (A literal stickyBottom = vh - gap would be filled by Founder black.)
-       */
-      const top = Math.min(0, vh - el.offsetHeight)
+      const top = Math.min(0, vp.h - el.offsetHeight)
       el.style.top = `${top}px`
     }
 
-    syncTop()
-    const ro = new ResizeObserver(syncTop)
+    const onResize = () => syncTop(false)
+    const onOrientation = () => syncTop(true)
+
+    syncTop(true)
+    const ro = new ResizeObserver(onResize)
     ro.observe(el)
-    window.addEventListener('resize', syncTop)
-    window.visualViewport?.addEventListener('resize', syncTop)
+    window.addEventListener('resize', onResize)
+    window.addEventListener('orientationchange', onOrientation)
     return () => {
       ro.disconnect()
-      window.removeEventListener('resize', syncTop)
-      window.visualViewport?.removeEventListener('resize', syncTop)
+      window.removeEventListener('resize', onResize)
+      window.removeEventListener('orientationchange', onOrientation)
     }
   }, [coverHold])
 

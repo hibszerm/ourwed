@@ -22,6 +22,10 @@ import {
 } from '@/features/landing-v2/lifecycle-story/lifecycleStoryProgress'
 import { useLandingCompactViewport } from '@/features/landing-v2/motion/landingViewport'
 import { useTheaterScrollGate } from '@/features/landing-v2/motion/useTheaterScrollGate'
+import {
+  landingLayoutViewportSize,
+  landingViewportGeometryChanged,
+} from '@/features/landing-v2/motion/landingStableViewport'
 import { WorkflowExplorer } from '@/features/landing-v2/lifecycle-story/workflow/WorkflowExplorer'
 import styles from './LandingV2LifecycleStory.module.css'
 
@@ -62,6 +66,7 @@ export function LandingV2LifecycleStory() {
     if (!el) return
 
     let raf = 0
+    let lastVp: { w: number; h: number } | null = null
 
     const measure = () => {
       if (!navHRef.current || navHRef.current === 68) {
@@ -70,7 +75,8 @@ export function LandingV2LifecycleStory() {
       }
       const navH = navHRef.current
       const rect = el.getBoundingClientRect()
-      const travel = Math.max(1, el.offsetHeight - (window.innerHeight - navH))
+      const layoutH = landingLayoutViewportSize().h
+      const travel = Math.max(1, el.offsetHeight - (layoutH - navH))
       const raw =
         rect.top > navH + 0.5
           ? 0
@@ -90,6 +96,9 @@ export function LandingV2LifecycleStory() {
     }
 
     const onResize = () => {
+      const vp = landingLayoutViewportSize()
+      if (!landingViewportGeometryChanged(lastVp, vp)) return
+      lastVp = vp
       navHRef.current =
         parseFloat(getComputedStyle(el).getPropertyValue('--lv2-nav-h')) || 68
       onScroll()

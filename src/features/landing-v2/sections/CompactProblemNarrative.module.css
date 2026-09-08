@@ -16,10 +16,7 @@
     (100svh - var(--lv2-nav-h)) + var(--lv2-narrative-scrub-px) * 1px +
       (var(--lv2-narrative-cover-svh) * 1svh)
   );
-  height: calc(
-    (100dvh - var(--lv2-nav-h)) + var(--lv2-narrative-scrub-px) * 1px +
-      (var(--lv2-narrative-cover-svh) * 1dvh)
-  );
+  /* Stable svh only — dvh tracks Safari chrome and reflows mid-scroll (3E). */
   margin-top: calc(-1 * min(28svh, 220px));
   background: var(--lv2-problem-black);
   color: var(--lv2-problem-ink);
@@ -47,7 +44,7 @@
   top: var(--lv2-nav-h);
   z-index: 10;
   height: calc(100svh - var(--lv2-nav-h));
-  height: calc(100dvh - var(--lv2-nav-h));
+  /* Stable svh — do not dual-declare dvh (toolbar thrash). */
   width: 100%;
   overflow: hidden;
   background: var(--lv2-problem-black);

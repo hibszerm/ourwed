@@ -19,7 +19,7 @@
   top: var(--lv2-nav-h);
   z-index: 5;
   height: calc(100svh - var(--lv2-nav-h));
-  height: calc(100dvh - var(--lv2-nav-h));
+  /* Stable svh on compact path — avoid dvh toolbar thrash during reverse scroll. */
   width: 100%;
   overflow: hidden;
   background: transparent;

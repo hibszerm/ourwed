@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { MotionValue } from 'framer-motion'
 import {
   motion,
@@ -38,10 +38,8 @@ const SCENES = {
   ankiety: AtlasAnkiety,
 } as const satisfies Record<FeatureId, typeof AtlasFinanse>
 
-/** Canonical atlas order (FEATURE_CARDS ≡ ATLAS_MODULES). */
 const MODULES = ATLAS_MODULES satisfies typeof FEATURE_CARDS
 
-/** Restrained stagger — atlas modules materialize in editorial order. */
 const MODULE_WINDOWS: ReadonlyArray<readonly [number, number]> = [
   [0.1, 0.36],
   [0.12, 0.38],
@@ -56,34 +54,20 @@ const MODULE_WINDOWS: ReadonlyArray<readonly [number, number]> = [
 
 const COMPACT_EASE = [0.22, 1, 0.36, 1] as const
 
-/** Shared compact card entrance — opacity-led, calm y + tiny scale, no blur. */
 const COMPACT_CARD_REVEAL = {
   initial: { opacity: 0, y: 22, scale: 0.995, filter: 'none' as const },
   animate: { opacity: 1, y: 0, scale: 1, filter: 'none' as const },
   transition: { duration: 0.82, ease: COMPACT_EASE },
-  /**
-   * Start only after the card top has entered the lower reading band.
-   * Negative bottom margin shrinks the IO root so offscreen cards below
-   * the fold do NOT pre-reveal (previous +12% margin fired early/offscreen).
-   */
   viewport: { once: true as const, amount: 0.05, margin: '0px 0px -22% 0px' },
 } as const
 
-/** Desktop header clock (frozen). */
 const HEADER_OFFSET_DESKTOP: ['start 0.92', 'start 0.5'] = ['start 0.92', 'start 0.5']
 
-/**
- * Compact: local viewport clock — reveal early as heading enters from below
- * after Lifecycle sticky release (normal document flow, no Lifecycle coupling).
- */
-const HEADER_OFFSET_COMPACT: ['start 0.98', 'start 0.52'] = ['start 0.98', 'start 0.52']
-
-const COMPACT_HEADING_Y = 12
-const COMPACT_LEAD_Y = 8
-/** Lead starts after heading is underway on the local header clock. */
-const COMPACT_LEAD_DELAY = 0.18
-const COMPACT_HEADING_OP_SPAN = 0.42
-const COMPACT_LEAD_OP_SPAN = 0.45
+/** One-shot mobile demo — IO band near readable center; never thrash. */
+const FEATURE_DEMO_VIEWPORT = {
+  threshold: [0.55, 0.65],
+  rootMargin: '0px 0px -12% 0px',
+} as const
 
 function clamp01(n: number) {
   return Math.min(1, Math.max(0, n))
@@ -96,36 +80,170 @@ function easeOut(t: number) {
 
 /**
  * Landing V2 — OurWed Product Atlas.
- * Desktop: asymmetric 12-column editorial grid; hover micro-motion is CSS-only.
- * Compact: vertical editorial stack; intro + cards use local viewport reveal.
+ * Desktop: scroll reveal + CSS :hover (hover-capable pointers only).
+ * Compact: no useScroll; one-shot viewport demos derived from desktop hover.
  */
 export function LandingV2FeaturesGrid() {
-  const reduced = useReducedMotion()
   const isCompactViewport = useLandingCompactViewport()
+  if (isCompactViewport) {
+    return <FeaturesGridCompact />
+  }
+  return <FeaturesGridDesktop />
+}
+
+function FeaturesGridCompact() {
+  const reduced = Boolean(useReducedMotion())
+
+  return (
+    <section
+      className={styles.section}
+      data-testid="lv2-features-grid"
+      data-lv2-features=""
+      data-features-layout="compact"
+      data-features-handoff="document-flow"
+      data-features-scroll-engine="none"
+      aria-labelledby="lv2-features-heading"
+    >
+      <div className={styles.inner}>
+        <div className={styles.revealAnchor} data-lv2-features-reveal="">
+          <header className={styles.header} data-features-intro="">
+            <motion.h2
+              id="lv2-features-heading"
+              className={styles.heading}
+              data-features-heading=""
+              data-features-intro-motion="viewport"
+              initial={reduced ? false : { opacity: 0, y: 12 }}
+              whileInView={reduced ? undefined : { opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.4, margin: '0px 0px -18% 0px' }}
+              transition={{ duration: 0.55, ease: COMPACT_EASE }}
+            >
+              Kilka funkcji, które ułatwią Ci pracę
+            </motion.h2>
+            <motion.p
+              className={styles.lead}
+              data-features-lead=""
+              data-features-intro-motion="viewport"
+              initial={reduced ? false : { opacity: 0, y: 8 }}
+              whileInView={reduced ? undefined : { opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.35, margin: '0px 0px -18% 0px' }}
+              transition={{ duration: 0.55, ease: COMPACT_EASE, delay: 0.06 }}
+            >
+              Wszystko, czego potrzebujesz do prowadzenia zleceń — w jednym miejscu.
+            </motion.p>
+          </header>
+        </div>
+
+        <ul className={styles.atlas} data-lv2-features-atlas="">
+          {MODULES.map((feature, index) => {
+            const Scene = SCENES[feature.id]
+            return (
+              <CompactAtlasModule
+                key={feature.id}
+                id={feature.id}
+                title={feature.title}
+                description={feature.description}
+                colSpan={feature.colSpan}
+                Scene={Scene}
+                reduced={reduced}
+                cardIndex={index}
+              />
+            )
+          })}
+        </ul>
+      </div>
+    </section>
+  )
+}
+
+function CompactAtlasModule({
+  id,
+  title,
+  description,
+  colSpan,
+  Scene,
+  reduced,
+  cardIndex,
+}: {
+  id: FeatureId
+  title: string
+  description: string
+  colSpan: number
+  Scene: (typeof SCENES)[FeatureId]
+  reduced: boolean
+  cardIndex: number
+}) {
+  const liRef = useRef<HTMLLIElement | null>(null)
+  const [demo, setDemo] = useState<'idle' | 'done'>(reduced ? 'done' : 'idle')
+  const demonstratedRef = useRef(reduced)
+
+  useEffect(() => {
+    if (reduced || demonstratedRef.current) return
+    const el = liRef.current
+    if (!el || typeof IntersectionObserver === 'undefined') return
+
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (demonstratedRef.current) return
+        const ratio = entry?.intersectionRatio ?? 0
+        if (ratio >= 0.55) {
+          demonstratedRef.current = true
+          setDemo('done')
+          io.disconnect()
+        }
+      },
+      {
+        root: null,
+        rootMargin: FEATURE_DEMO_VIEWPORT.rootMargin,
+        threshold: [...FEATURE_DEMO_VIEWPORT.threshold],
+      },
+    )
+    io.observe(el)
+    return () => io.disconnect()
+  }, [reduced])
+
+  return (
+    <motion.li
+      ref={liRef}
+      className={styles.module}
+      data-feature={id}
+      data-lv2-feature-module=""
+      data-feature-hover-surface="module"
+      data-col-span={colSpan}
+      data-feature-reveal="viewport"
+      data-feature-card-index={cardIndex}
+      data-feature-demo={demo}
+      data-feature-reveal-duration={String(COMPACT_CARD_REVEAL.transition.duration)}
+      style={{ filter: 'none' }}
+      initial={reduced ? false : { ...COMPACT_CARD_REVEAL.initial }}
+      whileInView={reduced ? undefined : { ...COMPACT_CARD_REVEAL.animate }}
+      viewport={reduced ? undefined : COMPACT_CARD_REVEAL.viewport}
+      transition={COMPACT_CARD_REVEAL.transition}
+    >
+      <div className={styles.moduleCopy}>
+        <h3 className={styles.moduleTitle}>{title}</h3>
+        <p className={styles.moduleDesc}>{description}</p>
+      </div>
+      <div className={styles.moduleScene} aria-hidden>
+        <Scene />
+      </div>
+    </motion.li>
+  )
+}
+
+function FeaturesGridDesktop() {
+  const reduced = useReducedMotion()
   const sectionRef = useRef<HTMLElement | null>(null)
   const revealRef = useRef<HTMLDivElement | null>(null)
-  const compactHeadingRef = useRef<HTMLHeadingElement | null>(null)
-  const compactLeadRef = useRef<HTMLParagraphElement | null>(null)
   const forced = useMotionValue(reduced ? 1 : 0)
 
-  /**
-   * Grid modules — FROZEN handoff offset (do not change card choreography).
-   * Progress 0→1 as the reveal anchor start moves from 60% → 40% of the viewport.
-   * Desktop only; compact cards use per-card whileInView instead.
-   */
   const { scrollYProgress } = useScroll({
     target: revealRef,
     offset: ['start 0.6', 'start 0.4'],
   })
 
-  /**
-   * Headline / lead — local scroll clock (compact + desktop).
-   * Compact uses HEADER_OFFSET_COMPACT; desktop keeps HEADER_OFFSET_DESKTOP.
-   * Not driven by Lifecycle progress.
-   */
   const { scrollYProgress: headerScrollYProgress } = useScroll({
     target: revealRef,
-    offset: isCompactViewport ? HEADER_OFFSET_COMPACT : HEADER_OFFSET_DESKTOP,
+    offset: HEADER_OFFSET_DESKTOP,
   })
 
   useEffect(() => {
@@ -139,85 +257,26 @@ export function LandingV2FeaturesGrid() {
     Math.max(Number(p), Number(f)),
   )
 
-  const compactIntroRef = useRef(isCompactViewport)
-  compactIntroRef.current = isCompactViewport
-  const headingTravel = isCompactViewport ? COMPACT_HEADING_Y : 28
-  const leadTravel = isCompactViewport ? COMPACT_LEAD_Y : 22
-  const headingTravelRef = useRef(headingTravel)
-  const leadTravelRef = useRef(leadTravel)
-  headingTravelRef.current = headingTravel
-  leadTravelRef.current = leadTravel
-
-  const headingOp = useTransform(headerReveal, (t) => {
-    if (compactIntroRef.current) {
-      return easeOut(clamp01(t / COMPACT_HEADING_OP_SPAN))
-    }
-    return easeOut(clamp01(t / 0.3))
-  })
-  const headingY = useTransform(headerReveal, (t) => {
-    if (compactIntroRef.current) {
-      return (1 - easeOut(clamp01(t / COMPACT_HEADING_OP_SPAN))) * headingTravelRef.current
-    }
-    return (1 - easeOut(clamp01(t / 0.3))) * headingTravelRef.current
-  })
+  const headingOp = useTransform(headerReveal, (t) => easeOut(clamp01(t / 0.3)))
+  const headingY = useTransform(
+    headerReveal,
+    (t) => (1 - easeOut(clamp01(t / 0.3))) * 28,
+  )
   const headingBlur = useTransform(headerReveal, (t) => {
     const b = (1 - easeOut(clamp01(t / 0.3))) * 3
     return b < 0.08 ? 'blur(0px)' : `blur(${b.toFixed(2)}px)`
   })
-
-  const leadOp = useTransform(headerReveal, (t) => {
-    if (compactIntroRef.current) {
-      return easeOut(clamp01((t - COMPACT_LEAD_DELAY) / COMPACT_LEAD_OP_SPAN))
-    }
-    return easeOut(clamp01((t - 0.06) / 0.28))
-  })
-  const leadY = useTransform(headerReveal, (t) => {
-    if (compactIntroRef.current) {
-      return (
-        (1 - easeOut(clamp01((t - COMPACT_LEAD_DELAY) / COMPACT_LEAD_OP_SPAN))) *
-        leadTravelRef.current
-      )
-    }
-    return (1 - easeOut(clamp01((t - 0.06) / 0.28))) * leadTravelRef.current
-  })
+  const leadOp = useTransform(headerReveal, (t) =>
+    easeOut(clamp01((t - 0.06) / 0.28)),
+  )
+  const leadY = useTransform(
+    headerReveal,
+    (t) => (1 - easeOut(clamp01((t - 0.06) / 0.28))) * 22,
+  )
   const leadBlur = useTransform(headerReveal, (t) => {
     const b = (1 - easeOut(clamp01((t - 0.06) / 0.28))) * 3
     return b < 0.08 ? 'blur(0px)' : `blur(${b.toFixed(2)}px)`
   })
-
-  /**
-   * Compact intro: bind opacity + subtle y onto plain HTML nodes
-   * (no motion.* filter layer — Framer blur(0px) softens type).
-   */
-  useEffect(() => {
-    if (!isCompactViewport) return
-    const apply = () => {
-      const h = compactHeadingRef.current
-      const l = compactLeadRef.current
-      const hy = headingY.get()
-      const ly = leadY.get()
-      if (h) {
-        h.style.opacity = String(headingOp.get())
-        h.style.transform = Math.abs(hy) < 0.15 ? 'none' : `translateY(${hy.toFixed(2)}px)`
-        h.style.filter = 'none'
-      }
-      if (l) {
-        l.style.opacity = String(leadOp.get())
-        l.style.transform = Math.abs(ly) < 0.15 ? 'none' : `translateY(${ly.toFixed(2)}px)`
-        l.style.filter = 'none'
-      }
-    }
-    apply()
-    const offs = [
-      headingOp.on('change', apply),
-      leadOp.on('change', apply),
-      headingY.on('change', apply),
-      leadY.on('change', apply),
-    ]
-    return () => {
-      offs.forEach((off) => off())
-    }
-  }, [isCompactViewport, headingOp, leadOp, headingY, leadY])
 
   return (
     <section
@@ -225,54 +284,28 @@ export function LandingV2FeaturesGrid() {
       className={styles.section}
       data-testid="lv2-features-grid"
       data-lv2-features=""
-      data-features-layout={isCompactViewport ? 'compact' : 'desktop'}
-      data-features-handoff={isCompactViewport ? 'document-flow' : 'desktop'}
+      data-features-layout="desktop"
+      data-features-handoff="desktop"
       aria-labelledby="lv2-features-heading"
     >
       <div className={styles.inner}>
         <div ref={revealRef} className={styles.revealAnchor} data-lv2-features-reveal="">
           <header className={styles.header} data-features-intro="">
-            {isCompactViewport ? (
-              <>
-                <h2
-                  ref={compactHeadingRef}
-                  id="lv2-features-heading"
-                  className={styles.heading}
-                  data-features-heading=""
-                  data-features-intro-motion="dom"
-                  style={{ opacity: 0 }}
-                >
-                  Kilka funkcji, które ułatwią Ci pracę
-                </h2>
-                <p
-                  ref={compactLeadRef}
-                  className={styles.lead}
-                  data-features-lead=""
-                  data-features-intro-motion="dom"
-                  style={{ opacity: 0 }}
-                >
-                  Wszystko, czego potrzebujesz do prowadzenia zleceń — w jednym miejscu.
-                </p>
-              </>
-            ) : (
-              <>
-                <motion.h2
-                  id="lv2-features-heading"
-                  className={styles.heading}
-                  data-features-heading=""
-                  style={{ opacity: headingOp, y: headingY, filter: headingBlur }}
-                >
-                  Kilka funkcji, które ułatwią Ci pracę
-                </motion.h2>
-                <motion.p
-                  className={styles.lead}
-                  data-features-lead=""
-                  style={{ opacity: leadOp, y: leadY, filter: leadBlur }}
-                >
-                  Wszystko, czego potrzebujesz do prowadzenia zleceń — w jednym miejscu.
-                </motion.p>
-              </>
-            )}
+            <motion.h2
+              id="lv2-features-heading"
+              className={styles.heading}
+              data-features-heading=""
+              style={{ opacity: headingOp, y: headingY, filter: headingBlur }}
+            >
+              Kilka funkcji, które ułatwią Ci pracę
+            </motion.h2>
+            <motion.p
+              className={styles.lead}
+              data-features-lead=""
+              style={{ opacity: leadOp, y: leadY, filter: leadBlur }}
+            >
+              Wszystko, czego potrzebujesz do prowadzenia zleceń — w jednym miejscu.
+            </motion.p>
           </header>
         </div>
 
@@ -281,8 +314,8 @@ export function LandingV2FeaturesGrid() {
             const Scene = SCENES[feature.id]
             const [start, end] = MODULE_WINDOWS[index] ?? [0.28, 0.58]
             return (
-              <AtlasModule
-                key={`${feature.id}-${isCompactViewport ? 'compact' : 'desktop'}`}
+              <DesktopAtlasModule
+                key={feature.id}
                 id={feature.id}
                 title={feature.title}
                 description={feature.description}
@@ -291,7 +324,6 @@ export function LandingV2FeaturesGrid() {
                 start={start}
                 end={end}
                 Scene={Scene}
-                compact={isCompactViewport}
                 reduced={Boolean(reduced)}
                 cardIndex={index}
               />
@@ -303,7 +335,7 @@ export function LandingV2FeaturesGrid() {
   )
 }
 
-function AtlasModule({
+function DesktopAtlasModule({
   id,
   title,
   description,
@@ -312,7 +344,6 @@ function AtlasModule({
   start,
   end,
   Scene,
-  compact,
   reduced,
   cardIndex,
 }: {
@@ -324,20 +355,18 @@ function AtlasModule({
   start: number
   end: number
   Scene: (typeof SCENES)[FeatureId]
-  compact: boolean
   reduced: boolean
   cardIndex: number
 }) {
-  const local = useTransform(reveal, (t) => easeOut(clamp01((t - start) / (end - start))))
+  const local = useTransform(reveal, (t) =>
+    easeOut(clamp01((t - start) / (end - start))),
+  )
   const opacity = useTransform(local, (v) => v)
   const y = useTransform(local, (v) => (1 - v) * 28)
   const blur = useTransform(local, (v) => {
     const b = (1 - v) * 3
     return b < 0.08 ? 'blur(0px)' : `blur(${b.toFixed(2)}px)`
   })
-
-  const compactMotion = compact && !reduced
-  const viewport = compactMotion ? COMPACT_CARD_REVEAL.viewport : undefined
 
   return (
     <motion.li
@@ -346,21 +375,13 @@ function AtlasModule({
       data-lv2-feature-module=""
       data-feature-hover-surface="module"
       data-col-span={colSpan}
-      data-feature-reveal={compactMotion ? 'viewport' : 'atlas'}
+      data-feature-reveal="atlas"
       data-feature-card-index={cardIndex}
-      data-feature-reveal-duration={compactMotion ? String(COMPACT_CARD_REVEAL.transition.duration) : undefined}
-      /* Compact: never bind atlas blur MotionValues — leftover filter:blur(3px) softens cards. */
       style={
-        compactMotion
-          ? { filter: 'none' }
-          : compact && reduced
-            ? { opacity: 1, y: 0, scale: 1, filter: 'none' }
-            : { opacity, y, filter: blur }
+        reduced
+          ? { opacity: 1, y: 0, scale: 1, filter: 'none' }
+          : { opacity, y, filter: blur }
       }
-      initial={compactMotion ? { ...COMPACT_CARD_REVEAL.initial } : false}
-      whileInView={compactMotion ? { ...COMPACT_CARD_REVEAL.animate } : undefined}
-      viewport={viewport}
-      transition={compactMotion ? { ...COMPACT_CARD_REVEAL.transition } : undefined}
     >
       <div className={styles.moduleCopy}>
         <h3 className={styles.moduleTitle}>{title}</h3>
@@ -372,3 +393,6 @@ function AtlasModule({
     </motion.li>
   )
 }
+
+/* Keep FEATURE_CARDS referenced for tests / catalog parity */
+void FEATURE_CARDS

@@ -97,6 +97,15 @@
   box-shadow: 0 1px 0 var(--border);
 }
 
+/* Coarse / touch: opaque fill without live backdrop sampling during scroll (3E). */
+@media (hover: none), (pointer: coarse) {
+  .navScrolled {
+    background: rgba(243, 239, 232, 0.96);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
 .navInner {
   width: var(--lv3-container);
   margin: 0 auto;

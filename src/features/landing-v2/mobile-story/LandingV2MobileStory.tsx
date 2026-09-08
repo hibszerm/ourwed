@@ -124,7 +124,14 @@ export function LandingV2MobileStory() {
 
   /* Theater on compact; only accessibility reduces to static. */
   const simple = Boolean(reduced)
-  const { activeRef, onBecameActiveRef } = useTheaterScrollGate(trackRef, !simple)
+  const { activeRef, onBecameActiveRef } = useTheaterScrollGate(
+    trackRef,
+    !simple,
+    {
+      /* Compact: tighter gate so far-offscreen Mobile Story stays dormant (3E). */
+      rootMargin: isCompactViewport ? '35% 0px 35% 0px' : '100% 0px 100% 0px',
+    },
+  )
   /** Defer live in-phone app DOM until the phone starts entering. */
   const [phoneAppMounted, setPhoneAppMounted] = useState(false)
   const phoneAppMountedRef = useRef(false)
