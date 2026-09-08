@@ -32,7 +32,8 @@ VITE_GOOGLE_MAPS_BROWSER_KEY=
 See `docs/google-places-setup.md` for the two-key model.
 ## Migration
 
-Apply `supabase/migrations/travel_planning.sql`.
+Apply historical bootstrap (archived, not auto-migrated): `supabase/migrations_archive/bootstrap/travel_planning.sql`.
+Prefer `supabase/schema.sql` + timestamped migrations for current environments.
 
 ## Route cache
 

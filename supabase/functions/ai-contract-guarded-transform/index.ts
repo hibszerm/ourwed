@@ -14,6 +14,7 @@ import {
   parseSparseV2FromResponse,
   shouldRetryParseFailure,
 } from '../_shared/parseSparseV2Response.ts'
+import { requireAuthenticatedUser } from '../_shared/requireAuthenticatedUser.ts'
 
 const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -154,11 +155,12 @@ Deno.serve(async (req) => {
     )
   }
 
-  const auth = req.headers.get('Authorization')
-  if (!auth?.startsWith('Bearer ')) {
+  // Real user session required before any body parsing or OpenAI work.
+  const auth = await requireAuthenticatedUser(req)
+  if (!auth.ok) {
     return jsonResponse(
-      { ok: false, error: { code: 'unauthorized', message: 'Missing Authorization' } },
-      401,
+      { ok: false, error: { code: 'unauthorized', message: auth.message } },
+      auth.status,
     )
   }
 

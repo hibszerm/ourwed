@@ -3,9 +3,11 @@
  *
  * Narrow operations only: autocomplete | resolve
  * Key stays server-side (GOOGLE_MAPS_API_KEY).
- * Public questionnaire clients may call with the Supabase anon key.
+ * Requires a real authenticated Supabase user (auth.getUser).
+ * Public publishable/anon credentials alone are not sufficient.
  */
 
+import { requireAuthenticatedUser } from '../_shared/requireAuthenticatedUser.ts'
 import { PLACES_PROXY_CONFIG, type PlacesProxyOperation } from './config.ts'
 import {
   googleAutocomplete,
@@ -89,15 +91,6 @@ function newSessionToken(): string {
   return crypto.randomUUID()
 }
 
-function requireAuth(req: Request): Response | null {
-  const auth = req.headers.get('Authorization')
-  const apikey = req.headers.get('apikey')
-  if (!auth && !apikey) {
-    return errorResponse('unauthorized', 'Missing Authorization', 401)
-  }
-  return null
-}
-
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -107,8 +100,11 @@ Deno.serve(async (req) => {
     return errorResponse('bad_request', 'Method not allowed', 405)
   }
 
-  const authErr = requireAuth(req)
-  if (authErr) return authErr
+  // Real user session required before rate limits, body work, or Google calls.
+  const auth = await requireAuthenticatedUser(req)
+  if (!auth.ok) {
+    return errorResponse('unauthorized', auth.message, auth.status)
+  }
 
   if (!checkRateLimit(clientKey(req))) {
     return errorResponse(

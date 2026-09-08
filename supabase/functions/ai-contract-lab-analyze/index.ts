@@ -16,6 +16,7 @@ import {
   type PhaseAErrorCode,
   type PhaseAStage,
 } from './phaseAValidate.ts'
+import { requireAuthenticatedUser } from '../_shared/requireAuthenticatedUser.ts'
 
 const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -306,16 +307,19 @@ Deno.serve(async (req) => {
     )
   }
 
-  const auth = req.headers.get('Authorization')
-  if (!auth?.startsWith('Bearer ')) {
-    logger.log('request_failed', { errorType: 'unauthorized', httpStatus: 401 })
+  const auth = await requireAuthenticatedUser(req)
+  if (!auth.ok) {
+    logger.log('request_failed', {
+      errorType: 'unauthorized',
+      httpStatus: auth.status,
+    })
     logger.flush()
     return jsonResponse(
       {
         ok: false,
         error: { code: 'unauthorized', message: 'Brak autoryzacji.' },
       },
-      401,
+      auth.status,
     )
   }
   logger.log('auth_completed')

@@ -637,7 +637,7 @@ Single source of truth for live package/extra pricing. Historical weddings never
 | Public package select | `packageService.list({ activeOnly: true })` at form render |
 | Contract PDF / finances | Wedding snapshots only |
 
-Migration: `supabase/migrations/studio_catalog.sql`.
+Migration (archived bootstrap): `supabase/migrations_archive/bootstrap/studio_catalog.sql`.
 
 ---
 
@@ -658,5 +658,5 @@ Migration: `supabase/migrations/studio_catalog.sql`.
 
 - `docs/database.md` — detailed table/column reference
 - `supabase/schema.sql` — canonical DDL
-- `supabase/migrations/questionnaires_crm.sql` — nullable `wedding_id` + CRM statuses (already merged into schema)
-- `supabase/migrations/studio_catalog.sql` — Studio Catalog tables + wedding `package_id` / `accent_color`
+- `supabase/migrations_archive/bootstrap/questionnaires_crm.sql` — nullable `wedding_id` + CRM statuses (already merged into schema)
+- `supabase/migrations_archive/bootstrap/studio_catalog.sql` — Studio Catalog tables + wedding `package_id` / `accent_color`

@@ -84,6 +84,18 @@ const indexHtml = readFileSync(join(ROOT, 'index.html'), 'utf8')
 assert(indexHtml.includes('og:image'), 'OpenGraph image')
 assert(indexHtml.includes('og-image.jpg'), 'OG asset path')
 assert(indexHtml.includes('application/ld+json'), 'JSON-LD')
+assert(
+  indexHtml.includes('src="/ld-json/ourwed-software-application.json"'),
+  'JSON-LD is external (CSP-safe)',
+)
+assert(
+  !/<script\s+type="application\/ld\+json"\s*>/.test(indexHtml),
+  'no inline JSON-LD script body',
+)
+assert(
+  existsSync(join(ROOT, 'public/ld-json/ourwed-software-application.json')),
+  'JSON-LD asset present',
+)
 assert(indexHtml.includes('canonical'), 'canonical link')
 assert(indexHtml.includes('theme-color'), 'theme-color')
 assert(existsSync(join(ROOT, 'public/og-image.jpg')), 'og-image.jpg present')

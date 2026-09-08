@@ -1,0 +1,16 @@
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "OurWed",
+  "applicationCategory": "BusinessApplication",
+  "operatingSystem": "Web",
+  "url": "https://ourwed.pl/",
+  "description": "Obsługa zleceń ślubnych bez chaosu. Śluby, sesje, umowy, ankiety, płatności i plan dnia w jednym miejscu.",
+  "inLanguage": "pl-PL",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "PLN",
+    "description": "Bezpłatne konto startowe"
+  }
+}

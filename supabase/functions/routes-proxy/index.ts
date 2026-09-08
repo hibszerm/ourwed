@@ -3,8 +3,11 @@
  *
  * Narrow operation: computeRoute
  * Key stays server-side (GOOGLE_MAPS_API_KEY).
+ * Requires a real authenticated Supabase user (auth.getUser).
+ * Public publishable/anon credentials alone are not sufficient.
  */
 
+import { requireAuthenticatedUser } from '../_shared/requireAuthenticatedUser.ts'
 import { ROUTES_PROXY_CONFIG, type RoutesProxyOperation } from './config.ts'
 import {
   googleComputeRoute,
@@ -125,10 +128,10 @@ Deno.serve(async (req) => {
     return errorResponse('bad_request', 'Method not allowed', 405)
   }
 
-  const auth = req.headers.get('Authorization')
-  const apikey = req.headers.get('apikey')
-  if (!auth && !apikey) {
-    return errorResponse('unauthorized', 'Missing Authorization', 401)
+  // Real user session required before rate limits, body work, or Google calls.
+  const auth = await requireAuthenticatedUser(req)
+  if (!auth.ok) {
+    return errorResponse('unauthorized', auth.message, auth.status)
   }
 
   if (!checkRateLimit(clientKey(req))) {

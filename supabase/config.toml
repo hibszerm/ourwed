@@ -1,3 +1,22 @@
 # Function JWT settings (Database Webhooks use NOTIFICATION_DISPATCH_SECRET in authorize()).
 [functions.notification-email-dispatcher]
 verify_jwt = false
+
+# P0: user-facing billable AI must verify JWT at the gateway (app still calls getUser()).
+[functions.ai-contract-full-rewrite]
+verify_jwt = true
+
+[functions.ai-contract-guarded-transform]
+verify_jwt = true
+
+[functions.ai-contract-lab-analyze]
+verify_jwt = true
+
+[functions.ai-contract-lab-structured-mapping]
+verify_jwt = true
+
+[functions.places-proxy]
+verify_jwt = true
+
+[functions.routes-proxy]
+verify_jwt = true

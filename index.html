@@ -37,24 +37,11 @@
     />
     <meta name="twitter:image" content="https://ourwed.pl/og-image.jpg" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <script type="application/ld+json">
-      {
-        "@context": "https://schema.org",
-        "@type": "SoftwareApplication",
-        "name": "OurWed",
-        "applicationCategory": "BusinessApplication",
-        "operatingSystem": "Web",
-        "url": "https://ourwed.pl/",
-        "description": "Obsługa zleceń ślubnych bez chaosu. Śluby, sesje, umowy, ankiety, płatności i plan dnia w jednym miejscu.",
-        "inLanguage": "pl-PL",
-        "offers": {
-          "@type": "Offer",
-          "price": "0",
-          "priceCurrency": "PLN",
-          "description": "Bezpłatne konto startowe"
-        }
-      }
-    </script>
+    <!-- External JSON-LD (same-origin) — avoids inline script for CSP script-src 'self' -->
+    <script
+      type="application/ld+json"
+      src="/ld-json/ourwed-software-application.json"
+    ></script>
   </head>
   <body>
     <div id="root"></div>

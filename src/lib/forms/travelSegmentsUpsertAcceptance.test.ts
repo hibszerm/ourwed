@@ -39,7 +39,8 @@ const MIGRATION =
 const SERVICE = 'src/lib/api/travelService.ts'
 const DETAIL = 'src/features/weddings/components/detail/WeddingDetailTravel.tsx'
 const DAY = 'src/features/weddings/detail/v2/WeddingDayWorkspace.tsx'
-const BOOTSTRAP = 'supabase/migrations/travel_planning.sql'
+const BOOTSTRAP =
+  'supabase/migrations_archive/bootstrap/travel_planning.sql'
 
 run('onConflict target is wedding_id,sequence', () => {
   assertEq(TRAVEL_SEGMENTS_ON_CONFLICT, 'wedding_id,sequence', 'const')
@@ -177,14 +178,24 @@ run('syncSegments exact-sync deletes only this wedding then upserts', () => {
 
 run('reducing stop count syncs fewer segment writes (obsolete cleanup)', () => {
   const src = readFileSync(resolve(process.cwd(), SERVICE), 'utf8')
+  // Length mismatch (fewer planned legs than cached) must re-sync.
   assert(
     src.includes('cached.length !== segments.length'),
     'detects obsolete sequences',
   )
+  const mismatchIdx = src.indexOf('cached.length !== segments.length')
+  assert(mismatchIdx >= 0, 'mismatch guard present')
+  const afterMismatch = src.slice(mismatchIdx, mismatchIdx + 450)
   assert(
-    src.includes('Clear obsolete cached legs') ||
-      src.includes('Drop any obsolete cached sequences'),
-    'documents cleanup',
+    afterMismatch.includes('syncSegmentsOrLocal'),
+    'length mismatch triggers sync of reduced legs',
+  )
+  // Zero planned legs with leftover cache clears via empty exact-sync write.
+  assert(
+    /if \(cached\.length > 0\)[\s\S]{0,180}syncSegmentsOrLocal\(\s*weddingId,\s*\[\]/.test(
+      src,
+    ),
+    'empty plan clears obsolete cached segments',
   )
 })
 

@@ -21,6 +21,7 @@ import {
   inspectOpenAiResponse,
 } from './classifyResponse.ts'
 import { mapProviderError, validateIncomingBlocks, type AiMappingApiErrorCode } from './validate.ts'
+import { requireAuthenticatedUser } from '../_shared/requireAuthenticatedUser.ts'
 
 const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -169,8 +170,8 @@ Deno.serve(async (req) => {
     )
   }
 
-  const auth = req.headers.get('Authorization')
-  if (!auth?.startsWith('Bearer ')) {
+  const auth = await requireAuthenticatedUser(req)
+  if (!auth.ok) {
     return jsonResponse(
       {
         ok: false,
@@ -179,7 +180,7 @@ Deno.serve(async (req) => {
           message: 'Brak autoryzacji.',
         },
       },
-      401,
+      auth.status,
     )
   }
 

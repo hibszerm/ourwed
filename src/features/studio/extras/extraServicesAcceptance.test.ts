@@ -129,9 +129,9 @@ run('7. used service cannot disappear', () => {
   assert(extraService.includes("from('extra_services').delete()"), 'hard delete unused')
   assert(
     migration.includes('ON DELETE RESTRICT') ||
-      read('supabase/migrations/studio_catalog.sql').includes(
-        'on delete restrict',
-      ),
+      read(
+        'supabase/migrations_archive/bootstrap/studio_catalog.sql',
+      ).includes('on delete restrict'),
     'FK restrict remains',
   )
   assert(!extraService.includes('is_archived'), 'no archive infra')
