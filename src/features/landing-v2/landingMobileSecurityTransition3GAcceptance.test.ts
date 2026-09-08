@@ -59,7 +59,7 @@ console.log('\n=== landing mobile security transition 3G ===\n')
   assertEq(postBriefRunwaySvh(false), 112, 'desktop runway helper')
   assertEq(postBriefRunwaySvh(true), 90, 'compact runway helper')
   assertEq(MOBILE_TRACK_STUDIO_HISTORY_SVH, 145, 'desktop studio frozen')
-  assertEq(MOBILE_TRACK_STUDIO_HISTORY_SVH_COMPACT, 72, 'compact studio intro')
+  assertEq(MOBILE_TRACK_STUDIO_HISTORY_SVH_COMPACT, 56, 'compact studio intro')
   console.log(
     `PASS  1. phone→lock runway ${MOBILE_TRACK_POST_BRIEF_SVH}→${MOBILE_TRACK_POST_BRIEF_SVH_COMPACT} (${(ratio * 100).toFixed(1)}%)`,
   )
@@ -97,7 +97,8 @@ console.log('\n=== landing mobile security transition 3G ===\n')
   assertIncludes(mobile, 'postBriefProgress={postBriefProgress}', 'tour freeze signal')
   assertIncludes(tour, 'POST_BRIEF_MORPH_START', 'freeze at morph start')
   assertIncludes(tour, 'freezeTourInPlace', 'freeze in place')
-  assertIncludes(css, 'will-change: transform, opacity', 'compositor morph')
+  assertIncludes(css, 'backface-visibility: hidden', 'compositor phone layer')
+  assertIncludes(mobile, 'securityRevealLock', '3G.1 lock layer successor')
   assert(POST_BRIEF_MORPH_START === 0.001, 'morph start unchanged')
   assert(POST_BRIEF_RANGES.phoneShrink.end === 0.26, 'desktop shrink range frozen')
   console.log('PASS  3. smooth morph architecture + tour freeze')
@@ -106,8 +107,8 @@ console.log('\n=== landing mobile security transition 3G ===\n')
 {
   assert(STUDIO_LOCK_Y_VH_END === -30, 'desktop lock Y frozen')
   assert(STUDIO_LOCK_SCALE_END === 0.175, 'desktop lock scale frozen')
-  assert(STUDIO_LOCK_Y_VH_END_COMPACT === -18, 'compact lock Y calmed')
-  assert(STUDIO_LOCK_SCALE_END_COMPACT === 0.28, 'compact lock scale calmed')
+  assert(STUDIO_LOCK_Y_VH_END_COMPACT === -14, 'compact lock Y calmed')
+  assert(STUDIO_LOCK_SCALE_END_COMPACT === 0.22, 'compact lock scale calmed')
   const lockTravelShare =
     STUDIO_HISTORY_RANGES.lockTravel.end - STUDIO_HISTORY_RANGES.lockTravel.start
   const compactLockScrollSvh = lockTravelShare * MOBILE_TRACK_STUDIO_HISTORY_SVH_COMPACT

@@ -14,7 +14,7 @@
   --sh-paper: var(--paper, #f3efe8);
   --sh-muted: color-mix(in srgb, #1a1614 48%, transparent);
   --studio-history-mobile-gutter: 1.125rem;
-  --studio-history-mobile-year-gap: clamp(3.5rem, 10vw, 4.5rem);
+  --studio-history-mobile-year-gap: clamp(2.75rem, 7vw, 3.75rem);
   /* History → Season Import handoff (~72–96px). */
   --studio-history-mobile-section-end: clamp(4.5rem, 11vw, 6rem);
 
@@ -24,8 +24,13 @@
   box-sizing: border-box;
   background: var(--sh-paper);
   color: var(--sh-ink);
-  padding: clamp(2.75rem, 8vw, 4rem) var(--studio-history-mobile-gutter)
+  padding: clamp(1.25rem, 4vw, 2rem) var(--studio-history-mobile-gutter)
     var(--studio-history-mobile-section-end);
+}
+
+.flow[data-studio-history-years-only='true'] {
+  /* Intro lives in sticky — start years soon after History copy. */
+  padding-top: clamp(0.75rem, 3vw, 1.5rem);
 }
 
 .inner {
@@ -115,13 +120,6 @@
   gap: var(--studio-history-mobile-year-gap);
 }
 
-.yearChapter {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
 .year {
   margin: 0 0 1.15rem;
   width: 100%;
@@ -133,6 +131,52 @@
   color: var(--sh-ink);
   /* Centering via layout only — never transform translateX. */
   transform: none;
+}
+
+.yearChapter {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .flow[data-studio-history-compact='true'] .yearChapter {
+      animation: lv2SeasonReveal linear both;
+      animation-timeline: view();
+      /* Enter lower readable band; settle before center — connected to History intro. */
+      animation-range: entry 5% cover 42%;
+    }
+
+    .flow[data-studio-history-compact='true'] .year {
+      animation: lv2SeasonLabelReveal linear both;
+      animation-timeline: view();
+      animation-range: entry 0% cover 38%;
+    }
+  }
+}
+
+@keyframes lv2SeasonReveal {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 20px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes lv2SeasonLabelReveal {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
 }
 
 .card {

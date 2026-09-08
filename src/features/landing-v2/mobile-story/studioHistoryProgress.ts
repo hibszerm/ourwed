@@ -13,24 +13,24 @@ import { easeOutCubic, rangeT } from '@/features/landing-v2/mobile-story/postBri
 /** Appended AFTER the post-Brief tail. Does not steal from it. */
 export const MOBILE_TRACK_STUDIO_HISTORY_SVH = 145
 /**
- * Compact (3G): short sticky runway for lock → History intro handoff
- * (desktop motion language). Year cards remain document-flow afterward.
- * No empty 100svh hold — just enough for lockTravel + headline settle.
+ * Compact (3G): short sticky runway for lock → History intro handoff.
+ * 3G.1: trimmed further (56) so seasons follow History copy without a desert.
  */
-export const MOBILE_TRACK_STUDIO_HISTORY_SVH_COMPACT = 72
+export const MOBILE_TRACK_STUDIO_HISTORY_SVH_COMPACT = 56
 
 /**
  * Extra lock scale on top of POST_BRIEF_SHRINK_END (0.48).
  * 0.175 × lock visual width ≈ 29–36px across 1440–1920.
  */
 export const STUDIO_LOCK_SCALE_END = 0.175
-/** Compact: softer shrink so visual_px/scroll_px stays calm on short runway. */
-export const STUDIO_LOCK_SCALE_END_COMPACT = 0.28
+/** Compact reveal lock: settles above History eyebrow without overlap. */
+export const STUDIO_LOCK_SCALE_END_COMPACT = 0.22
 
 /** Upward travel in vh from stage-center (46%) toward studio composition. */
 export const STUDIO_LOCK_Y_VH_END = -30
-/** Compact: restrained lift (≈0.6–0.85 visual/scroll vs desktop −30vh / 145svh). */
-export const STUDIO_LOCK_Y_VH_END_COMPACT = -18
+/** Compact: lift toward History intro seat (lock clears above TWOJE STUDIO). */
+export const STUDIO_LOCK_Y_VH_END_COMPACT = -14
+
 /**
  * @deprecated Compact History is document-flow; no column scrub.
  * Kept so older imports do not break mid-refactor.

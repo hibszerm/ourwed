@@ -117,10 +117,31 @@
 .phoneSystem {
   transform-origin: 50% 50%;
   /* Outer object opacity must remain 1 through morph — never fade this node mid-chapter. */
+  z-index: 2;
+}
+
+.securityRevealLock {
+  /* Compact 3G.1: lock pre-mounted under phone (static stack). */
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 1;
+  width: min(42vw, 152px);
+  /* Centering via Framer x/y — do not CSS-transform (would fight Motion). */
+  transform-origin: 50% 50%;
+  color: #1a1614;
+  pointer-events: none;
+  will-change: auto;
+}
+
+.securityRevealLockSvg {
+  display: block;
+  width: 100%;
+  height: auto;
 }
 
 .sticky[data-mobile-owned='true'][data-mobile-phone-lock-owner='true'] .phoneSystem {
-  will-change: transform;
+  will-change: auto;
 }
 
 .securityCopy {
@@ -261,14 +282,26 @@
 
   .phoneSystem {
     z-index: 2;
-    /* Compositor-friendly morph — transform/opacity only on this owner. */
-    will-change: transform, opacity;
+    /* Promote only while transitioning — avoid permanent page-wide will-change. */
+    will-change: auto;
     backface-visibility: hidden;
   }
 
   .stageCenter {
-    /* Center in sticky stage so the dominant phone stays fully under the nav. */
+    /* 3G.1: large lock/phone seat ~40% of usable sticky (was 50%). */
+    top: 40%;
+  }
+
+  .securityRevealLock {
+    /* Same optical center as stageCenter phone seat. */
     top: 50%;
+  }
+
+  .securityCopy {
+    /* Anchored under raised lock — more air above, less squeeze at bottom. */
+    --security-lock-copy-gap: clamp(1.75rem, 3.2vh, 2.35rem);
+    top: calc(40% + clamp(4.25rem, 8.5vh, 5.75rem) + var(--security-lock-copy-gap));
+    width: min(22rem, calc(100% - 2.25rem));
   }
 
   .headline {

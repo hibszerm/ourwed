@@ -13,7 +13,7 @@
 
 /* Compact intro: content-box width from sticky stage — no nested 100vw bias. */
 .rootCompact {
-  top: 18%;
+  top: 14%;
   width: min(26rem, calc(100% - 2.25rem));
   max-width: calc(100% - 2.25rem);
 }
@@ -37,12 +37,14 @@
 
 .rootCompact .support {
   max-width: min(22rem, 100%);
+  margin-bottom: 0;
 }
 
 .rootCompact .lockSlot {
-  width: 32px;
-  height: 40px;
-  margin-bottom: 0.85rem;
+  /* Empty optical seat for travelling reveal-lock — must clear ABOVE eyebrow. */
+  width: 36px;
+  height: 44px;
+  margin-bottom: 1.35rem;
   padding-bottom: 0;
 }
 

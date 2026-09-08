@@ -126,42 +126,73 @@ export function LandingV2SecurityHistoryStory() {
               className={styles.yearChapter}
               data-season-year={season.year}
               data-studio-year-chapter={season.year}
+              data-season-reveal={yearsOnly ? 'view-timeline' : 'io'}
             >
-              <motion.p
-                className={styles.year}
-                data-studio-year-label=""
-                initial={motionOff ? false : { opacity: 0, y: 10 }}
-                whileInView={motionOff ? undefined : { opacity: 1, y: 0 }}
-                viewport={YEAR_VIEWPORT}
-                transition={{ duration: 0.8, ease: COMPACT_EASE }}
-              >
-                {season.year}
-              </motion.p>
+              {yearsOnly ? (
+                <>
+                  <p className={styles.year} data-studio-year-label="">
+                    {season.year}
+                  </p>
+                  <div
+                    className={styles.card}
+                    data-studio-card=""
+                    data-studio-card-rows={season.records.length}
+                  >
+                    <ul className={styles.records}>
+                      {season.records.map((row) => (
+                        <li key={`${season.year}-${row.couple}`} className={styles.row}>
+                          <span className={styles.rowLead} aria-hidden>
+                            <ClientMark />
+                          </span>
+                          <span className={styles.couple}>{row.couple}</span>
+                          <span className={styles.rowTrail} aria-hidden />
+                        </li>
+                      ))}
+                    </ul>
+                    <p className={styles.footer} data-studio-card-footer="">
+                      {season.footer}
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <motion.p
+                    className={styles.year}
+                    data-studio-year-label=""
+                    initial={motionOff ? false : { opacity: 0, y: 10 }}
+                    whileInView={motionOff ? undefined : { opacity: 1, y: 0 }}
+                    viewport={YEAR_VIEWPORT}
+                    transition={{ duration: 0.8, ease: COMPACT_EASE }}
+                  >
+                    {season.year}
+                  </motion.p>
 
-              <motion.div
-                className={styles.card}
-                data-studio-card=""
-                data-studio-card-rows={season.records.length}
-                initial={motionOff ? false : { opacity: 0, y: 20, scale: 0.995 }}
-                whileInView={motionOff ? undefined : { opacity: 1, y: 0, scale: 1 }}
-                viewport={YEAR_VIEWPORT}
-                transition={{ duration: 0.82, ease: COMPACT_EASE }}
-              >
-                <ul className={styles.records}>
-                  {season.records.map((row) => (
-                    <li key={`${season.year}-${row.couple}`} className={styles.row}>
-                      <span className={styles.rowLead} aria-hidden>
-                        <ClientMark />
-                      </span>
-                      <span className={styles.couple}>{row.couple}</span>
-                      <span className={styles.rowTrail} aria-hidden />
-                    </li>
-                  ))}
-                </ul>
-                <p className={styles.footer} data-studio-card-footer="">
-                  {season.footer}
-                </p>
-              </motion.div>
+                  <motion.div
+                    className={styles.card}
+                    data-studio-card=""
+                    data-studio-card-rows={season.records.length}
+                    initial={motionOff ? false : { opacity: 0, y: 20, scale: 0.995 }}
+                    whileInView={motionOff ? undefined : { opacity: 1, y: 0, scale: 1 }}
+                    viewport={YEAR_VIEWPORT}
+                    transition={{ duration: 0.82, ease: COMPACT_EASE }}
+                  >
+                    <ul className={styles.records}>
+                      {season.records.map((row) => (
+                        <li key={`${season.year}-${row.couple}`} className={styles.row}>
+                          <span className={styles.rowLead} aria-hidden>
+                            <ClientMark />
+                          </span>
+                          <span className={styles.couple}>{row.couple}</span>
+                          <span className={styles.rowTrail} aria-hidden />
+                        </li>
+                      ))}
+                    </ul>
+                    <p className={styles.footer} data-studio-card-footer="">
+                      {season.footer}
+                    </p>
+                  </motion.div>
+                </>
+              )}
             </section>
           ))}
         </div>
