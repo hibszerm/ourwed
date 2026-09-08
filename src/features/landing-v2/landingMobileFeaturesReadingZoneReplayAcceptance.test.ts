@@ -1,25 +1,23 @@
 /**
- * Landing V2 — Iteration 3E.1 feature reading-zone + replay hysteresis.
+ * Landing V2 — Iteration 3E.2 directional reading-line feature demos.
  */
 
 import {
-  FEATURE_DEMO_ACTIVATE_MAX,
-  FEATURE_DEMO_ACTIVATE_MIN,
-  FEATURE_DEMO_ACTIVATION_RATIO,
-  FEATURE_DEMO_RESET_ABOVE,
+  FEATURE_DEMO_READING_LINE,
   FEATURE_DEMO_RESET_BELOW,
+  createFeatureDemoSample,
+  crossedReadingLineBackward,
+  crossedReadingLineForward,
   featureDemoDataAttr,
-  isFeatureDemoActivationBand,
-  isFeatureDemoResetZone,
-  nextMobileFeatureDemoPhase,
-  type MobileFeatureDemoPhase,
+  shouldIgnoreFeatureDemoSample,
+  stepFeatureDemo,
 } from '@/features/landing-v2/features-grid/mobileFeatureDemoGeometry'
+import { FEATURE_DEMO_COARSE_ROOT_MARGIN } from '@/features/landing-v2/features-grid/useMobileFeatureDemo'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../../..')
-const VH = 844
 
 function read(rel: string) {
   return readFileSync(join(ROOT, rel), 'utf8')
@@ -37,110 +35,166 @@ function assertNotIncludes(src: string, needle: string, label: string) {
   assert(!src.includes(needle), `unexpected ${label}: ${needle}`)
 }
 
-function yAt(ratio: number) {
-  return ratio * VH
-}
-
-console.log('\n=== landing mobile features reading-zone replay (3E.1) ===\n')
-
-{
-  assert(FEATURE_DEMO_ACTIVATION_RATIO === 0.75, 'nominal 0.75')
-  assert(FEATURE_DEMO_ACTIVATE_MIN === 0.72, 'band min')
-  assert(FEATURE_DEMO_ACTIVATE_MAX === 0.78, 'band max')
-  assert(FEATURE_DEMO_RESET_ABOVE === 0.22, 'reset above')
-  assert(FEATURE_DEMO_RESET_BELOW === 1.1, 'reset below')
-  console.log('PASS  1. geometry constants')
-}
-
-{
-  /* Bottom-edge entry must NOT activate */
-  assert(
-    !isFeatureDemoActivationBand(yAt(0.95), VH),
-    'no activate near bottom 95%',
-  )
-  assert(
-    !isFeatureDemoActivationBand(yAt(0.9), VH),
-    'no activate at 90%',
-  )
-  assert(nextMobileFeatureDemoPhase('rest', yAt(0.95), VH) === 'rest', 'rest at 95%')
-  assert(nextMobileFeatureDemoPhase('rest', yAt(1.0), VH) === 'rest', 'rest at 100%')
-  console.log('PASS  2. no early bottom trigger')
-}
-
-{
-  assert(isFeatureDemoActivationBand(yAt(0.75), VH), 'activate at 75%')
-  assert(isFeatureDemoActivationBand(yAt(0.72), VH), 'activate at 72%')
-  assert(isFeatureDemoActivationBand(yAt(0.78), VH), 'activate at 78%')
-  assert(
-    nextMobileFeatureDemoPhase('rest', yAt(0.75), VH) === 'active',
-    'rest→active at reading zone',
-  )
-  console.log('PASS  3. reading-zone activation')
-}
-
-{
-  let phase: MobileFeatureDemoPhase = 'rest'
-  phase = nextMobileFeatureDemoPhase(phase, yAt(0.75), VH)
-  assert(phase === 'active', 'forward activate')
-  phase = nextMobileFeatureDemoPhase(phase, yAt(0.6), VH)
-  assert(phase === 'settled', 'forward settle nearby')
-  phase = nextMobileFeatureDemoPhase(phase, yAt(0.1), VH)
-  assert(phase === 'rest', 'reset far above')
-  phase = nextMobileFeatureDemoPhase(phase, yAt(0.75), VH)
-  assert(phase === 'active', 'replay after reset above')
-  console.log('PASS  4. forward replay')
-}
-
-{
-  let phase: MobileFeatureDemoPhase = 'rest'
-  phase = nextMobileFeatureDemoPhase(phase, yAt(0.75), VH) // active
-  phase = nextMobileFeatureDemoPhase(phase, yAt(0.55), VH) // settled
-  assert(phase === 'settled', 'settled mid')
-  phase = nextMobileFeatureDemoPhase(phase, yAt(1.2), VH)
-  assert(phase === 'rest', 'reset far below')
-  phase = nextMobileFeatureDemoPhase(phase, yAt(0.75), VH)
-  assert(phase === 'active', 'replay approaching from below/above into band')
-  console.log('PASS  5. reverse / below reset replay')
-}
-
-{
-  let phase: MobileFeatureDemoPhase = 'rest'
-  let activations = 0
-  const apply = (ratio: number) => {
-    const next = nextMobileFeatureDemoPhase(phase, yAt(ratio), VH)
-    if (phase === 'rest' && next === 'active') activations += 1
-    phase = next === 'active' ? 'settled' : next
+function run(ratios: number[]) {
+  let sample = createFeatureDemoSample('rest')
+  const plays: number[] = []
+  for (const r of ratios) {
+    const next = stepFeatureDemo(sample, r)
+    if (next.played) plays.push(r)
+    sample = {
+      phase: next.phase,
+      prevRatio: next.prevRatio,
+      playCount: next.playCount,
+    }
   }
-  apply(0.75)
-  assert(activations === 1, 'first activation')
-  apply(0.75 - 10 / VH)
-  apply(0.75 + 10 / VH)
-  apply(0.75 - 5 / VH)
-  apply(0.75 + 8 / VH)
-  assert(activations === 1, 'no thrash around band')
-  assert(phase === 'settled', 'still settled')
-  console.log('PASS  6. threshold thrash')
+  return { sample, plays }
 }
 
+console.log('\n=== landing mobile features reading-line directional (3E.2) ===\n')
+
 {
-  let phase: MobileFeatureDemoPhase = nextMobileFeatureDemoPhase(
-    'rest',
-    yAt(0.75),
-    VH,
+  assert(FEATURE_DEMO_READING_LINE === 0.75, 'reading line 0.75')
+  assert(FEATURE_DEMO_RESET_BELOW === 0.95, 'reset below 0.95')
+  assert(
+    FEATURE_DEMO_COARSE_ROOT_MARGIN === '-40% 0px 5% 0px',
+    'coarse corridor rootMargin',
   )
-  phase = nextMobileFeatureDemoPhase(phase, yAt(0.5), VH)
-  assert(phase === 'settled', 'central screen stays settled')
-  assert(!isFeatureDemoResetZone(yAt(0.5), VH), '0.5 not reset')
-  assert(isFeatureDemoResetZone(yAt(0.15), VH), '0.15 is reset')
-  assert(isFeatureDemoResetZone(yAt(1.15), VH), '1.15 is reset')
-  console.log('PASS  7. reset offscreen only')
+  console.log('PASS  1. constants')
 }
 
 {
-  assert(featureDemoDataAttr('rest') === 'rest', 'attr rest')
-  assert(featureDemoDataAttr('active') === 'done', 'attr active→done')
-  assert(featureDemoDataAttr('settled') === 'done', 'attr settled→done')
-  console.log('PASS  8. CSS data attr mapping')
+  assert(
+    crossedReadingLineForward(0.86, 0.67),
+    'sparse forward 0.86→0.67 crosses',
+  )
+  assert(
+    !crossedReadingLineBackward(0.86, 0.67),
+    '0.86→0.67 is not backward',
+  )
+  assert(
+    crossedReadingLineBackward(0.6, 0.88),
+    'sparse backward 0.60→0.88 crosses',
+  )
+  assert(!crossedReadingLineForward(0.6, 0.88), '0.60→0.88 is not forward')
+  console.log('PASS  2. crossing primitives')
+}
+
+{
+  const { sample, plays } = run([0.95, 0.86, 0.8, 0.76, 0.73, 0.65])
+  assert(plays.length === 1, 'normal forward: exactly 1 play')
+  assert(plays[0] === 0.73, 'play on sample that crossed 0.75')
+  assert(sample.phase === 'settled', 'settled after play')
+  assert(sample.playCount === 1, 'playCount 1')
+  console.log('PASS  3. forward reading-line crossing')
+}
+
+{
+  let sample = createFeatureDemoSample('rest')
+  for (const r of [0.9, 0.7]) {
+    const n = stepFeatureDemo(sample, r)
+    sample = { phase: n.phase, prevRatio: n.prevRatio, playCount: n.playCount }
+  }
+  assert(sample.playCount === 1 && sample.phase === 'settled', 'pre-settled')
+
+  const before = sample.playCount
+  for (const r of [0.6, 0.7, 0.76, 0.85, 0.95]) {
+    const n = stepFeatureDemo(sample, r)
+    assert(!n.played, `backward sample ${r} must not play`)
+    sample = { phase: n.phase, prevRatio: n.prevRatio, playCount: n.playCount }
+  }
+  assert(sample.playCount === before, 'play count unchanged on backward')
+  assert(sample.phase === 'rest', 'reset after safely below')
+  console.log('PASS  4. backward crossing does not play')
+}
+
+{
+  const { sample, plays } = run([0.88, 0.68])
+  assert(plays.length === 1, 'skipped-band forward still plays')
+  assert(sample.playCount === 1, 'playCount after skip')
+  /* Must not require a sample inside 0.72–0.78 */
+  assert(!plays.includes(0.75), 'no exact mid-band sample required')
+  console.log('PASS  5. skipped-band forward crossing')
+}
+
+{
+  const { plays } = run([0.91, 0.64])
+  assert(plays.length === 1, 'momentum sparse forward plays once')
+  console.log('PASS  6. momentum / sparse samples')
+}
+
+{
+  let sample = createFeatureDemoSample('rest')
+  /* pass 1 */
+  for (const r of [0.9, 0.7]) {
+    const n = stepFeatureDemo(sample, r)
+    sample = { phase: n.phase, prevRatio: n.prevRatio, playCount: n.playCount }
+  }
+  assert(sample.playCount === 1, 'pass1')
+  /* backward reset */
+  for (const r of [0.8, 0.96]) {
+    const n = stepFeatureDemo(sample, r)
+    sample = { phase: n.phase, prevRatio: n.prevRatio, playCount: n.playCount }
+  }
+  assert(sample.phase === 'rest', 'reset for pass2')
+  /* pass 2 */
+  for (const r of [0.9, 0.7]) {
+    const n = stepFeatureDemo(sample, r)
+    sample = { phase: n.phase, prevRatio: n.prevRatio, playCount: n.playCount }
+  }
+  assert(sample.playCount === 2, 'pass2')
+  /* reset + pass 3 */
+  for (const r of [0.85, 0.97, 0.9, 0.7]) {
+    const n = stepFeatureDemo(sample, r)
+    sample = { phase: n.phase, prevRatio: n.prevRatio, playCount: n.playCount }
+  }
+  assert(sample.playCount === 3, 'pass3 replay')
+  console.log('PASS  7. replay after backward reset')
+}
+
+{
+  let sample = createFeatureDemoSample('rest')
+  for (const r of [0.9, 0.7]) {
+    const n = stepFeatureDemo(sample, r)
+    sample = { phase: n.phase, prevRatio: n.prevRatio, playCount: n.playCount }
+  }
+  assert(sample.playCount === 1, 'played once')
+  for (const r of [0.73, 0.76, 0.74, 0.77, 0.72]) {
+    const n = stepFeatureDemo(sample, r)
+    assert(!n.played, `wiggle ${r} no play`)
+    sample = { phase: n.phase, prevRatio: n.prevRatio, playCount: n.playCount }
+  }
+  assert(sample.playCount === 1, 'wiggle playCount stays 1')
+  assert(sample.phase !== 'rest', 'not fully reset by wiggle')
+  console.log('PASS  8. no wiggle replay')
+}
+
+{
+  assert(
+    shouldIgnoreFeatureDemoSample({
+      prevY: 600,
+      currY: 601,
+      prevH: 844,
+      currH: 860,
+    }),
+    'toolbar height noise ignored',
+  )
+  assert(
+    !shouldIgnoreFeatureDemoSample({
+      prevY: 700,
+      currY: 580,
+      prevH: 844,
+      currH: 844,
+    }),
+    'real scroll not ignored',
+  )
+  console.log('PASS  9. toolbar / noise filter')
+}
+
+{
+  assert(featureDemoDataAttr('rest') === 'rest', 'rest attr')
+  assert(featureDemoDataAttr('settled') === 'done', 'settled→done')
+  assert(featureDemoDataAttr('reset_armed') === 'done', 'armed keeps done look')
+  console.log('PASS  10. CSS attr mapping')
 }
 
 {
@@ -153,19 +207,24 @@ console.log('\n=== landing mobile features reading-zone replay (3E.1) ===\n')
   const geom = read(
     'src/features/landing-v2/features-grid/mobileFeatureDemoGeometry.ts',
   )
-  assertIncludes(features, 'useMobileFeatureDemo', 'shared hook wired')
+  assertIncludes(features, 'useMobileFeatureDemo', 'shared hook')
   assertIncludes(features, 'data-feature-demo-anchor', 'illustration anchor')
-  assertIncludes(hook, 'landingLayoutViewportSize', 'stable viewport')
+  assertIncludes(hook, 'FEATURE_DEMO_COARSE_ROOT_MARGIN', 'coarse corridor')
+  assertIncludes(hook, 'stepFeatureDemo', 'crossing machine')
+  assertIncludes(hook, 'boundingClientRect', 'IO geometry')
+  assertIncludes(hook, 'rootBounds', 'IO rootBounds')
+  assertIncludes(hook, 'landingLayoutViewportSize', 'stable viewport fallback')
   assertNotIncludes(hook, "addEventListener('scroll'", 'no scroll listener')
   assertNotIncludes(hook, 'requestAnimationFrame', 'no rAF')
   assertNotIncludes(hook, 'useScroll(', 'no Framer useScroll')
-  assertNotIncludes(hook, 'visualViewport', 'no visualViewport')
-  assertIncludes(hook, "rootMargin: '-72% 0px -22% 0px'", 'activation band IO')
-  assertIncludes(hook, "rootMargin: '-22% 0px 10% 0px'", 'presence / reset IO')
-  assertIncludes(geom, 'FEATURE_DEMO_ACTIVATION_RATIO = 0.75', '75% nominal')
-  assertNotIncludes(features, 'ratio >= 0.55', 'old ratio trigger removed')
-  assertNotIncludes(features, 'demonstratedRef', 'one-shot latch removed')
-  console.log('PASS  9. wiring / perf contract')
+  assertNotIncludes(hook, 'visualViewport.', 'no visualViewport API')
+  assertNotIncludes(hook, 'innerHeight', 'no window.innerHeight reading line')
+  assertNotIncludes(hook, "-72% 0px -22% 0px", 'narrow 6% band removed')
+  assertNotIncludes(geom, 'FEATURE_DEMO_ACTIVATE_MIN', 'occupancy band removed')
+  assertIncludes(geom, 'crossedReadingLineForward', 'forward semantic')
+  assertIncludes(geom, 'crossedReadingLineBackward', 'backward semantic')
+  assertNotIncludes(features, 'ratio >= 0.55', 'old ratio gone')
+  console.log('PASS  11. wiring / perf / architecture swap')
 }
 
 {
@@ -175,7 +234,7 @@ console.log('\n=== landing mobile features reading-zone replay (3E.1) ===\n')
     'const REGISTRATION_ENABLED = false',
     'registration',
   )
-  console.log('PASS  10. registration')
+  console.log('PASS  12. registration')
 }
 
-console.log('\nPASS  landing mobile features reading-zone replay (3E.1)\n')
+console.log('\nPASS  landing mobile features reading-line directional (3E.2)\n')

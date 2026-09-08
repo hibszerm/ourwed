@@ -70,11 +70,13 @@ console.log('\n=== landing mobile features interaction (3E / 3E.1) ===\n')
   )
   assertIncludes(features, 'data-feature-demo={demoAttr}', 'demo attr wired')
   assertIncludes(features, 'useMobileFeatureDemo', 'shared replayable controller')
-  assertIncludes(hook, 'nextMobileFeatureDemoPhase', 'geometry phase machine')
+  assertIncludes(hook, 'stepFeatureDemo', 'crossing phase machine')
+  assertIncludes(hook, 'FEATURE_DEMO_COARSE_ROOT_MARGIN', 'coarse track corridor')
   assertIncludes(hook, 'landingLayoutViewportSize', 'stable viewport height')
+  assertNotIncludes(hook, "-72% 0px -22% 0px", 'narrow activation band gone')
   assertNotIncludes(features, 'ratio >= 0.55', 'old visibility-ratio trigger gone')
   assertNotIncludes(features, 'demonstratedRef', 'one-shot disconnect latch gone')
-  console.log('PASS  3. mobile rest + reading-zone replay')
+  console.log('PASS  3. mobile rest + reading-line directional replay')
 }
 
 {

@@ -1,8 +1,12 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import { landingLayoutViewportSize } from '@/features/landing-v2/motion/landingStableViewport'
 import {
+  createFeatureDemoSample,
+  featureDemoCenterRatio,
   featureDemoDataAttr,
-  nextMobileFeatureDemoPhase,
+  shouldIgnoreFeatureDemoSample,
+  stepFeatureDemo,
+  type FeatureDemoSample,
   type MobileFeatureDemoPhase,
 } from '@/features/landing-v2/features-grid/mobileFeatureDemoGeometry'
 
@@ -11,14 +15,24 @@ type Options = {
 }
 
 /**
- * Replayable mobile feature demo controller.
+ * Coarse tracking corridor — NOT the UX trigger.
+ * top -40%, bottom +5% → effective root ≈ 40%–105% of viewport.
+ * Supplies IO callbacks before/through/after the 75% reading line.
+ */
+export const FEATURE_DEMO_COARSE_ROOT_MARGIN = '-40% 0px 5% 0px'
+
+/** Enough thresholds for sparse Safari momentum samples. */
+const COARSE_THRESHOLDS = [
+  0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65,
+  0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1,
+] as const
+
+/**
+ * Replayable mobile feature demo — Iteration 3E.2.
  *
- * Two coarse IntersectionObservers on a 1px center sentinel:
- * - activation band ≈ 72–78% of stable viewport (rootMargin)
- * - presence band ≈ 22–110% for hysteresis reset
- *
- * One getBoundingClientRect per callback. No scroll listeners, rAF loops,
- * or Framer scroll progress.
+ * IntersectionObserver = coarse arming only.
+ * Trigger = reading-line CROSSING (prev→curr), direction-aware.
+ * No scroll listener / rAF / Framer useScroll.
  */
 export function useMobileFeatureDemo(
   cardRef: RefObject<HTMLElement | null>,
@@ -33,8 +47,14 @@ export function useMobileFeatureDemo(
   const phaseRef = useRef<MobileFeatureDemoPhase>(phase)
   phaseRef.current = phase
 
+  const sampleRef = useRef<FeatureDemoSample>(
+    createFeatureDemoSample(reducedMotion ? 'settled' : 'rest'),
+  )
+  const prevAbsRef = useRef<{ y: number; h: number } | null>(null)
+
   useEffect(() => {
     if (reducedMotion) {
+      sampleRef.current = createFeatureDemoSample('settled')
       phaseRef.current = 'settled'
       setPhase('settled')
       return
@@ -47,57 +67,71 @@ export function useMobileFeatureDemo(
       (el.querySelector('[data-feature-demo-anchor]') as HTMLElement | null) ??
       el
 
-    const evaluate = () => {
+    const ingest = (anchorY: number, viewportH: number) => {
+      const prevAbs = prevAbsRef.current
+      if (
+        shouldIgnoreFeatureDemoSample({
+          prevY: prevAbs?.y ?? null,
+          currY: anchorY,
+          prevH: prevAbs?.h ?? null,
+          currH: viewportH,
+        })
+      ) {
+        prevAbsRef.current = { y: anchorY, h: viewportH }
+        return
+      }
+
+      const currRatio = featureDemoCenterRatio(anchorY, viewportH)
+      const next = stepFeatureDemo(sampleRef.current, currRatio)
+      sampleRef.current = {
+        phase: next.phase,
+        prevRatio: next.prevRatio,
+        playCount: next.playCount,
+      }
+      prevAbsRef.current = { y: anchorY, h: viewportH }
+
+      if (next.phase !== phaseRef.current) {
+        phaseRef.current = next.phase
+        setPhase(next.phase)
+      }
+    }
+
+    const onEntries = (entries: IntersectionObserverEntry[]) => {
+      for (const entry of entries) {
+        const root = entry.rootBounds
+        const rect = entry.boundingClientRect
+        const layout = landingLayoutViewportSize()
+        /*
+         * Prefer IO rootBounds height when present; fall back to stable layout
+         * viewport. Never dynamic browser-chrome height for the reading line.
+         */
+        const vh = root && root.height > 0 ? root.height : layout.h
+        const top = root ? root.top : 0
+        const centerY = rect.top + rect.height / 2 - top
+        ingest(centerY, vh)
+      }
+    }
+
+    const io = new IntersectionObserver(onEntries, {
+      root: null,
+      rootMargin: FEATURE_DEMO_COARSE_ROOT_MARGIN,
+      threshold: [...COARSE_THRESHOLDS],
+    })
+    io.observe(sentinel)
+
+    /* Seed prevRatio without playing. */
+    {
       const rect = sentinel.getBoundingClientRect()
-      const centerY = rect.top + rect.height / 2
       const { h } = landingLayoutViewportSize()
-      const next = nextMobileFeatureDemoPhase(phaseRef.current, centerY, h)
-      if (next === phaseRef.current) return
-
-      const applied: MobileFeatureDemoPhase =
-        next === 'active' ? 'settled' : next
-      if (applied === phaseRef.current) return
-      phaseRef.current = applied
-      setPhase(applied)
+      const y = rect.top + rect.height / 2
+      sampleRef.current = {
+        ...sampleRef.current,
+        prevRatio: featureDemoCenterRatio(y, h),
+      }
+      prevAbsRef.current = { y, h }
     }
 
-    /*
-     * Activation band: shrink root to ~72%–78% of viewport.
-     * top -72%, bottom -22% → remaining 6% band.
-     */
-    const activateIo = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((e) => e.isIntersecting)) evaluate()
-      },
-      {
-        root: null,
-        rootMargin: '-72% 0px -22% 0px',
-        threshold: 0,
-      },
-    )
-
-    /*
-     * Presence band: ~22%–110%. Leaving → evaluate (reset if far).
-     * top -22%, bottom +10% → root from 22% to 110% of viewport height.
-     */
-    const presenceIo = new IntersectionObserver(
-      () => {
-        evaluate()
-      },
-      {
-        root: null,
-        rootMargin: '-22% 0px 10% 0px',
-        threshold: 0,
-      },
-    )
-
-    activateIo.observe(sentinel)
-    presenceIo.observe(sentinel)
-    evaluate()
-    return () => {
-      activateIo.disconnect()
-      presenceIo.disconnect()
-    }
+    return () => io.disconnect()
   }, [cardRef, reducedMotion])
 
   return {
