@@ -15,18 +15,23 @@ import {
   shouldRetryParseFailure,
 } from '../_shared/parseSparseV2Response.ts'
 import { requireAuthenticatedUser } from '../_shared/requireAuthenticatedUser.ts'
+import { buildRestrictedCorsHeaders } from '../_shared/security/browserCors.ts'
 
-const corsHeaders: Record<string, string> = {
-  'Access-Control-Allow-Origin': '*',
+function envCors(name: string): string | null {
+  return Deno.env.get(name)?.trim() || null
+}
+
+let activeCorsHeaders: Record<string, string> = {
   'Access-Control-Allow-Headers':
     'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  Vary: 'Origin',
 }
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    headers: { ...activeCorsHeaders, 'Content-Type': 'application/json' },
   })
 }
 
@@ -145,8 +150,9 @@ async function callOpenAi(input: {
 }
 
 Deno.serve(async (req) => {
+  activeCorsHeaders = buildRestrictedCorsHeaders(req, envCors, 'POST, OPTIONS')
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers: activeCorsHeaders })
   }
   if (req.method !== 'POST') {
     return jsonResponse(

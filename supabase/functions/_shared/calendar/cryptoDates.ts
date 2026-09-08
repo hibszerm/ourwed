@@ -214,6 +214,25 @@ export async function decryptSecret(
   return new TextDecoder().decode(plain)
 }
 
+/** Try decrypt candidates in order (dedicated key, then legacy). */
+export async function decryptSecretWithKeys(
+  packedB64: string,
+  keyMaterials: string[],
+): Promise<{ plaintext: string; keyIndex: number }> {
+  let lastError: unknown
+  for (let i = 0; i < keyMaterials.length; i++) {
+    try {
+      const plaintext = await decryptSecret(packedB64, keyMaterials[i]!)
+      return { plaintext, keyIndex: i }
+    } catch (error) {
+      lastError = error
+    }
+  }
+  throw lastError instanceof Error
+    ? lastError
+    : new Error('CALENDAR_TOKEN_DECRYPT_FAILED')
+}
+
 function base64UrlDecode(input: string): Uint8Array {
   const padded = input.replaceAll('-', '+').replaceAll('_', '/')
   const padLen = (4 - (padded.length % 4)) % 4

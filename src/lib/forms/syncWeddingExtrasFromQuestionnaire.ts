@@ -34,17 +34,13 @@ function asIdList(value: unknown): string[] {
     .filter((id) => id.length > 0)
 }
 
+/** Trusted catalog only — never client answerJson.additionalServiceSnapshots prices. */
 function snapshotExtras(
-  answerJson: FormAnswerJson,
   optionsSnapshot?: FormInstanceOptionsSnapshot | null,
 ): AdditionalServiceOptionSnapshot[] {
   const fromOptions = optionsSnapshot?.additionalServiceOptions
   if (Array.isArray(fromOptions) && fromOptions.length > 0) {
     return fromOptions
-  }
-  const fromAnswer = answerJson.additionalServiceSnapshots
-  if (Array.isArray(fromAnswer) && fromAnswer.length > 0) {
-    return fromAnswer as AdditionalServiceOptionSnapshot[]
   }
   return []
 }
@@ -80,17 +76,18 @@ export async function syncWeddingExtrasFromQuestionnaireAnswer(
     }
   }
 
-  const catalog = snapshotExtras(answerJson, optionsSnapshot)
-  const byId = new Map(catalog.map((s) => [s.id, s]))
+  const catalog = snapshotExtras(optionsSnapshot)
+  if (catalog.length === 0) {
+    throw new Error('MISSING_TRUSTED_PRICE')
+  }
 
-  if (catalog.length > 0) {
-    const { invalid } = validateSelectedExtraIdsAgainstSnapshot(
-      selectedIds,
-      catalog,
-    )
-    if (invalid.length > 0) {
-      throw new Error('INVALID_EXTRA_SERVICE_ID')
-    }
+  const byId = new Map(catalog.map((s) => [s.id, s]))
+  const { invalid } = validateSelectedExtraIdsAgainstSnapshot(
+    selectedIds,
+    catalog,
+  )
+  if (invalid.length > 0) {
+    throw new Error('INVALID_EXTRA_SERVICE_ID')
   }
 
   const extrasBefore =
@@ -103,12 +100,15 @@ export async function syncWeddingExtrasFromQuestionnaireAnswer(
   const insertedRows = await Promise.all(
     toInsert.map((id) => {
       const snap = byId.get(id)
+      if (!snap || typeof snap.price !== 'number') {
+        throw new Error('MISSING_TRUSTED_PRICE')
+      }
       return weddingExtraServiceService.add({
         weddingId,
         extraServiceId: id,
         quantity: 1,
-        priceSnapshot: typeof snap?.price === 'number' ? snap.price : 0,
-        nameSnapshot: snap?.name?.trim() || undefined,
+        priceSnapshot: snap.price,
+        nameSnapshot: snap.name?.trim() || undefined,
       })
     }),
   )

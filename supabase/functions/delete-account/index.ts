@@ -31,7 +31,9 @@
  */
 
 import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
-import { decryptSecret } from '../_shared/calendar/cryptoDates.ts'
+import { decryptSecretWithKeys } from '../_shared/calendar/cryptoDates.ts'
+import { buildRestrictedCorsHeaders } from '../_shared/security/browserCors.ts'
+import { resolveCalendarTokenKeyMaterial } from '../_shared/security/calendarTokenKey.ts'
 import {
   cleanupCalendarCredentials,
   CalendarLocalCleanupError,
@@ -45,11 +47,15 @@ import {
   type StorageErasureAdapter,
 } from './storageErasure.ts'
 
-const corsHeaders: Record<string, string> = {
-  'Access-Control-Allow-Origin': '*',
+function env(name: string): string | null {
+  return Deno.env.get(name)?.trim() || null
+}
+
+let activeCorsHeaders: Record<string, string> = {
   'Access-Control-Allow-Headers':
     'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  Vary: 'Origin',
 }
 
 type ErrorCode =
@@ -68,7 +74,7 @@ type ErrorCode =
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    headers: { ...activeCorsHeaders, 'Content-Type': 'application/json' },
   })
 }
 
@@ -84,23 +90,10 @@ function errorResponse(
   )
 }
 
-function env(name: string): string | null {
-  return Deno.env.get(name)?.trim() || null
-}
-
-function googleClientSecret(): string | null {
-  return (
-    env('GOOGLE_CALENDAR_CLIENT_SECRET') ||
-    env('GOOGLE_CALENDR_CLIENT_SECRET')
-  )
-}
-
-function resolveTokenKey(): string {
-  return (
-    env('CALENDAR_TOKEN_ENCRYPTION_KEY') ||
-    googleClientSecret() ||
-    'local-dev-only-calendar-token-key'
-  )
+function resolveDecryptKeys(): string[] {
+  return resolveCalendarTokenKeyMaterial(env, {
+    appPublicUrl: env('APP_PUBLIC_URL') || env('SITE_URL'),
+  }).decryptKeys
 }
 
 function createServiceClient(): SupabaseClient {
@@ -270,8 +263,9 @@ async function revokeGoogleToken(token: string): Promise<void> {
 }
 
 Deno.serve(async (req) => {
+  activeCorsHeaders = buildRestrictedCorsHeaders(req, env, 'POST, OPTIONS')
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers: activeCorsHeaders })
   }
   if (req.method !== 'POST') {
     return errorResponse('BAD_REQUEST', 'POST required', 405)
@@ -387,8 +381,9 @@ Deno.serve(async (req) => {
   try {
     await cleanupCalendarCredentials(userId, {
       db: createCalendarDb(service),
-      decryptSecret,
-      resolveTokenKey,
+      decryptSecretWithKeys: async (enc, keys) =>
+        (await decryptSecretWithKeys(enc, keys)).plaintext,
+      resolveDecryptKeys,
       revokeGoogleToken,
       log: logEvent,
     })

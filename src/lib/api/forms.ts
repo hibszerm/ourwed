@@ -64,7 +64,7 @@ interface FormInstanceRow {
   form_id: string
   wedding_id: string | null
   user_id?: string | null
-  token: string
+  token?: string | null
   status: string
   expires_at: string | null
   opened_at: string | null
@@ -101,7 +101,7 @@ function mapInstance(row: FormInstanceRow): FormInstance {
     id: row.id,
     formId: row.form_id,
     weddingId: row.wedding_id,
-    token: row.token,
+    token: row.token ?? '',
     status: row.status as FormInstanceStatus,
     expiresAt: row.expires_at,
     openedAt: row.opened_at,
@@ -778,7 +778,12 @@ export async function getPublicFormByToken(token: string): Promise<{
   }
 
   return {
-    instance: mapInstance(payload.instance),
+    instance: mapInstance({
+      ...payload.instance,
+      // Public RPC omits token; caller already holds the capability secret.
+      token: payload.instance.token ?? token,
+      wedding_id: payload.instance.wedding_id ?? null,
+    }),
     form: mapForm(payload.form),
     packages,
     additionalServices,

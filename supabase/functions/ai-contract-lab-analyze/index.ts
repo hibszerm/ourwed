@@ -17,12 +17,17 @@ import {
   type PhaseAStage,
 } from './phaseAValidate.ts'
 import { requireAuthenticatedUser } from '../_shared/requireAuthenticatedUser.ts'
+import { buildRestrictedCorsHeaders } from '../_shared/security/browserCors.ts'
 
-const corsHeaders: Record<string, string> = {
-  'Access-Control-Allow-Origin': '*',
+function envCors(name: string): string | null {
+  return Deno.env.get(name)?.trim() || null
+}
+
+let activeCorsHeaders: Record<string, string> = {
   'Access-Control-Allow-Headers':
     'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  Vary: 'Origin',
 }
 
 const CONTEXT_CHARS = AI_CONTRACT_LAB_EDGE_CONFIG.contextChars
@@ -59,7 +64,7 @@ type SafeLog = {
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    headers: { ...activeCorsHeaders, 'Content-Type': 'application/json' },
   })
 }
 
@@ -290,8 +295,9 @@ function isRetryableNetworkError(err: unknown): boolean {
 }
 
 Deno.serve(async (req) => {
+  activeCorsHeaders = buildRestrictedCorsHeaders(req, envCors, 'POST, OPTIONS')
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers: activeCorsHeaders })
   }
 
   const requestId = crypto.randomUUID()

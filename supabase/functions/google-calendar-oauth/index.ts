@@ -6,12 +6,17 @@ import {
   randomToken,
   encryptSecret,
 } from '../_shared/calendar/cryptoDates.ts'
+import { buildRestrictedCorsHeaders } from '../_shared/security/browserCors.ts'
+import { resolveCalendarEncryptKey } from '../_shared/security/calendarTokenKey.ts'
+import { resolveSafeAppRedirectPath } from '../_shared/security/safeAppRedirectPath.ts'
 
-const corsHeaders: Record<string, string> = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers':
-    'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+function envGet(name: string): string | null {
+  const raw = Deno.env.get(name)?.trim()
+  return raw || null
+}
+
+function corsHeadersFor(req: Request): Record<string, string> {
+  return buildRestrictedCorsHeaders(req, envGet, 'GET, POST, OPTIONS')
 }
 
 const GOOGLE_SCOPES = [
@@ -21,20 +26,28 @@ const GOOGLE_SCOPES = [
   'email',
 ].join(' ')
 
-function jsonResponse(body: unknown, status = 200): Response {
+function jsonResponse(
+  corsHeaders: Record<string, string>,
+  body: unknown,
+  status = 200,
+): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   })
 }
 
-function errorResponse(code: string, message: string, status = 400): Response {
-  return jsonResponse({ ok: false, error: { code, message } }, status)
+function errorResponse(
+  corsHeaders: Record<string, string>,
+  code: string,
+  message: string,
+  status = 400,
+): Response {
+  return jsonResponse(corsHeaders, { ok: false, error: { code, message } }, status)
 }
 
 function env(name: string): string | null {
-  const raw = Deno.env.get(name)?.trim()
-  return raw || null
+  return envGet(name)
 }
 
 /**
@@ -58,11 +71,9 @@ function googleClientSecret(): string | null {
 }
 
 function resolveTokenKey(): string {
-  return (
-    env('CALENDAR_TOKEN_ENCRYPTION_KEY') ||
-    googleClientSecret() ||
-    'local-dev-only-calendar-token-key'
-  )
+  return resolveCalendarEncryptKey(envGet, {
+    appPublicUrl: envGet('APP_PUBLIC_URL') || envGet('SITE_URL'),
+  })
 }
 
 function createServiceClient() {
@@ -95,6 +106,12 @@ function oauthRedirectUri(): string {
 }
 
 Deno.serve(async (req) => {
+  const corsHeaders = corsHeadersFor(req)
+  const okJson = (body: unknown, status = 200) =>
+    jsonResponse(corsHeaders, body, status)
+  const fail = (code: string, message: string, status = 400) =>
+    errorResponse(corsHeaders, code, message, status)
+
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
@@ -110,18 +127,18 @@ Deno.serve(async (req) => {
   }
 
   if (req.method !== 'POST') {
-    return errorResponse('METHOD_NOT_ALLOWED', 'Method not allowed', 405)
+    return fail('METHOD_NOT_ALLOWED', 'Method not allowed', 405)
   }
 
   const authHeader = req.headers.get('Authorization')
   if (!authHeader) {
-    return errorResponse('UNAUTHORIZED', 'Unauthorized', 401)
+    return fail('UNAUTHORIZED', 'Unauthorized', 401)
   }
 
   const userClient = createUserClient(authHeader)
   const { data: userData, error: userError } = await userClient.auth.getUser()
   if (userError || !userData.user) {
-    return errorResponse('UNAUTHORIZED', 'Unauthorized', 401)
+    return fail('UNAUTHORIZED', 'Unauthorized', 401)
   }
 
   let body: { action?: string; redirectPath?: string; backfillMode?: string } = {}
@@ -132,12 +149,12 @@ Deno.serve(async (req) => {
   }
 
   if (body.action !== 'start') {
-    return errorResponse('INVALID_ACTION', 'Unknown action')
+    return fail('INVALID_ACTION', 'Unknown action')
   }
 
   const clientId = env('GOOGLE_CALENDAR_CLIENT_ID')
   if (!clientId) {
-    return errorResponse(
+    return fail(
       'GOOGLE_NOT_CONFIGURED',
       'Google Calendar nie jest skonfigurowane. Ustaw GOOGLE_CALENDAR_CLIENT_ID.',
       503,
@@ -147,7 +164,10 @@ Deno.serve(async (req) => {
   const state = randomToken(24)
   const verifier = randomPkceVerifier()
   const challenge = await pkceChallenge(verifier)
-  const redirectPath = body.redirectPath || '/ustawienia/integracje'
+  const redirectPath = resolveSafeAppRedirectPath(
+    body.redirectPath,
+    appPublicUrl(),
+  )
   const backfillMode =
     body.backfillMode === 'all_active' ? 'all_active' : 'future'
   const service = createServiceClient()
@@ -166,7 +186,7 @@ Deno.serve(async (req) => {
       operation: 'start',
       errorCategory: 'db',
     })
-    return errorResponse('OAUTH_STATE_FAILED', 'Nie udało się rozpocząć OAuth.')
+    return fail('OAUTH_STATE_FAILED', 'Nie udało się rozpocząć OAuth.')
   }
 
   const params = new URLSearchParams({
@@ -189,7 +209,7 @@ Deno.serve(async (req) => {
     userId: userData.user.id,
   })
 
-  return jsonResponse({ ok: true, url: authUrl })
+  return okJson({ ok: true, url: authUrl })
 })
 
 async function handleCallback(url: URL): Promise<Response> {
@@ -385,7 +405,20 @@ async function handleCallback(url: URL): Promise<Response> {
     integrationId = inserted.id
   }
 
-  const key = resolveTokenKey()
+  let key: string
+  try {
+    key = resolveTokenKey()
+  } catch {
+    logCalendar('error', 'oauth_token_key_missing', {
+      provider: 'google',
+      operation: 'callback',
+      errorCategory: 'config',
+    })
+    return Response.redirect(
+      `${appUrl}/ustawienia/integracje?google=not_configured`,
+      302,
+    )
+  }
   const accessEnc = await encryptSecret(tokenJson.access_token, key)
   const refreshEnc = tokenJson.refresh_token
     ? await encryptSecret(tokenJson.refresh_token, key)
@@ -466,7 +499,10 @@ async function handleCallback(url: URL): Promise<Response> {
 
   const redirectPathRaw =
     (stateRow.redirect_path as string) || '/ustawienia/integracje'
-  const redirectPath = redirectPathRaw.split('#')[0] || '/ustawienia/integracje'
+  const redirectPath = resolveSafeAppRedirectPath(
+    redirectPathRaw.split('#')[0],
+    appUrl,
+  )
   return Response.redirect(
     `${appUrl}${redirectPath}?google=connected`,
     302,

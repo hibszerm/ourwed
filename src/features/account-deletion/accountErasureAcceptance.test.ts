@@ -290,10 +290,10 @@ function createMemoryStorage(initial: string[]): {
     let remoteTried = false
     const result = await cleanupCalendarCredentials(userId, {
       db: baseDb(),
-      async decryptSecret() {
+      async decryptSecretWithKeys() {
         return 'tok'
       },
-      resolveTokenKey: () => 'k',
+      resolveDecryptKeys: () => ['k'],
       async revokeGoogleToken() {
         remoteTried = true
         throw new Error('network')
@@ -313,10 +313,10 @@ function createMemoryStorage(initial: string[]): {
               return { error: 'db_down' }
             },
           }),
-          async decryptSecret() {
+          async decryptSecretWithKeys() {
             return 'tok'
           },
-          resolveTokenKey: () => 'k',
+          resolveDecryptKeys: () => ['k'],
           async revokeGoogleToken() {},
         }),
       'google_secret_delete_failed',
@@ -334,10 +334,10 @@ function createMemoryStorage(initial: string[]): {
               return { error: 'apple_fail' }
             },
           }),
-          async decryptSecret() {
+          async decryptSecretWithKeys() {
             return 'tok'
           },
-          resolveTokenKey: () => 'k',
+          resolveDecryptKeys: () => ['k'],
           async revokeGoogleToken() {},
         }),
       'apple_integration_clear_failed',

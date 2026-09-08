@@ -39,8 +39,9 @@ export interface CalendarCleanupDb {
 
 export type CalendarCleanupDeps = {
   db: CalendarCleanupDb
-  decryptSecret: (enc: string, key: string) => Promise<string>
-  resolveTokenKey: () => string
+  /** Try decrypt candidates in order (dedicated, then legacy). */
+  decryptSecretWithKeys: (enc: string, keys: string[]) => Promise<string>
+  resolveDecryptKeys: () => string[]
   revokeGoogleToken: (token: string) => Promise<void>
   /** Optional logger — must not log tokens or ciphertext. */
   log?: (event: Record<string, unknown>) => void
@@ -63,11 +64,17 @@ export async function cleanupCalendarCredentials(
     if (secret) {
       let token: string | null = null
       try {
-        const key = deps.resolveTokenKey()
+        const keys = deps.resolveDecryptKeys()
         if (secret.refresh_token_enc) {
-          token = await deps.decryptSecret(secret.refresh_token_enc, key)
+          token = await deps.decryptSecretWithKeys(
+            secret.refresh_token_enc,
+            keys,
+          )
         } else if (secret.access_token_enc) {
-          token = await deps.decryptSecret(secret.access_token_enc, key)
+          token = await deps.decryptSecretWithKeys(
+            secret.access_token_enc,
+            keys,
+          )
         }
       } catch {
         token = null

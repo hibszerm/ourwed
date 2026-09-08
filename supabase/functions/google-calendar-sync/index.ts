@@ -5,7 +5,7 @@ import {
   type CategorySettings,
 } from '../_shared/calendar/canonical.ts'
 import {
-  decryptSecret,
+  decryptSecretWithKeys,
   encryptSecret,
   logCalendar,
   randomToken,
@@ -22,27 +22,36 @@ import {
   reconcileEntityDuplicates,
   reserveMapping,
 } from '../_shared/calendar/syncCore.ts'
+import { buildRestrictedCorsHeaders } from '../_shared/security/browserCors.ts'
+import {
+  resolveCalendarTokenKeyMaterial,
+} from '../_shared/security/calendarTokenKey.ts'
 
-const corsHeaders: Record<string, string> = {
-  'Access-Control-Allow-Origin': '*',
+function env(name: string): string | null {
+  return Deno.env.get(name)?.trim() || null
+}
+
+function corsHeadersFor(req: Request): Record<string, string> {
+  return buildRestrictedCorsHeaders(req, env, 'POST, OPTIONS')
+}
+
+/** Per-request CORS; updated at the start of each Deno.serve invocation. */
+let activeCorsHeaders: Record<string, string> = {
   'Access-Control-Allow-Headers':
     'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  Vary: 'Origin',
 }
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    headers: { ...activeCorsHeaders, 'Content-Type': 'application/json' },
   })
 }
 
 function errorResponse(code: string, message: string, status = 400): Response {
   return jsonResponse({ ok: false, error: { code, message } }, status)
-}
-
-function env(name: string): string | null {
-  return Deno.env.get(name)?.trim() || null
 }
 
 /** Prefer correct name; accept observed typo GOOGLE_CALENDR_CLIENT_SECRET. */
@@ -53,12 +62,10 @@ function googleClientSecret(): string | null {
   )
 }
 
-function resolveTokenKey(): string {
-  return (
-    env('CALENDAR_TOKEN_ENCRYPTION_KEY') ||
-    googleClientSecret() ||
-    'local-dev-only-calendar-token-key'
-  )
+function resolveTokenMaterial() {
+  return resolveCalendarTokenKeyMaterial(env, {
+    appPublicUrl: env('APP_PUBLIC_URL') || env('SITE_URL'),
+  })
 }
 
 function createServiceClient() {
@@ -131,8 +138,15 @@ async function getAccessToken(
     return { error: 'google_revoked' }
   }
 
-  const key = resolveTokenKey()
-  let access = await decryptSecret(secret.access_token_enc, key)
+  let material
+  try {
+    material = resolveTokenMaterial()
+  } catch {
+    return { error: 'google_not_configured' }
+  }
+  const { plaintext: accessPlain, keyIndex: accessKeyIndex } =
+    await decryptSecretWithKeys(secret.access_token_enc, material.decryptKeys)
+  let access = accessPlain
   const expiresAt = secret.raw_expires_at
     ? new Date(secret.raw_expires_at).getTime()
     : 0
@@ -141,7 +155,10 @@ async function getAccessToken(
     if (!secret.refresh_token_enc) {
       return { error: 'google_auth_expired' }
     }
-    const refresh = await decryptSecret(secret.refresh_token_enc, key)
+    const { plaintext: refresh } = await decryptSecretWithKeys(
+      secret.refresh_token_enc,
+      material.decryptKeys,
+    )
     const clientId = env('GOOGLE_CALENDAR_CLIENT_ID')
     const clientSecret = googleClientSecret()
     if (!clientId || !clientSecret) return { error: 'google_not_configured' }
@@ -188,12 +205,13 @@ async function getAccessToken(
     const newExpires = tokenJson.expires_in
       ? new Date(Date.now() + tokenJson.expires_in * 1000).toISOString()
       : null
+    const encryptKey = material.encryptKey
     await service
       .from('calendar_integration_secrets')
       .update({
-        access_token_enc: await encryptSecret(access, key),
+        access_token_enc: await encryptSecret(access, encryptKey),
         refresh_token_enc: tokenJson.refresh_token
-          ? await encryptSecret(tokenJson.refresh_token, key)
+          ? await encryptSecret(tokenJson.refresh_token, encryptKey)
           : secret.refresh_token_enc,
         raw_expires_at: newExpires,
       })
@@ -205,6 +223,27 @@ async function getAccessToken(
         google_revoked_at: null,
       })
       .eq('id', integration.id)
+  } else if (accessKeyIndex > 0) {
+    // Ciphertext was readable only with legacy key — rewrite under dedicated encrypt key.
+    try {
+      const encryptKey = material.encryptKey
+      const patch: Record<string, string> = {
+        access_token_enc: await encryptSecret(access, encryptKey),
+      }
+      if (secret.refresh_token_enc) {
+        const { plaintext: refreshPlain } = await decryptSecretWithKeys(
+          secret.refresh_token_enc,
+          material.decryptKeys,
+        )
+        patch.refresh_token_enc = await encryptSecret(refreshPlain, encryptKey)
+      }
+      await service
+        .from('calendar_integration_secrets')
+        .update(patch)
+        .eq('integration_id', integration.id)
+    } catch {
+      // Non-blocking — next refresh will rewrite.
+    }
   }
 
   return { token: access }
@@ -1049,8 +1088,9 @@ async function ensureAppleToken(
 }
 
 Deno.serve(async (req) => {
+  activeCorsHeaders = corsHeadersFor(req)
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers: activeCorsHeaders })
   }
   if (req.method !== 'POST') {
     return errorResponse('METHOD_NOT_ALLOWED', 'Method not allowed', 405)
@@ -1481,11 +1521,21 @@ Deno.serve(async (req) => {
             .eq('integration_id', integration.id)
             .maybeSingle()
           if (secret) {
-            const key = resolveTokenKey()
+            const material = resolveTokenMaterial()
             const token = secret.refresh_token_enc
-              ? await decryptSecret(secret.refresh_token_enc, key)
+              ? (
+                  await decryptSecretWithKeys(
+                    secret.refresh_token_enc,
+                    material.decryptKeys,
+                  )
+                ).plaintext
               : secret.access_token_enc
-                ? await decryptSecret(secret.access_token_enc, key)
+                ? (
+                    await decryptSecretWithKeys(
+                      secret.access_token_enc,
+                      material.decryptKeys,
+                    )
+                  ).plaintext
                 : null
             if (token) {
               await fetch(
