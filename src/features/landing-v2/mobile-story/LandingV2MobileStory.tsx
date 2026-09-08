@@ -630,8 +630,9 @@ export function LandingV2MobileStory() {
       data-mobile-compact={isCompactViewport ? 'true' : 'false'}
       data-mobile-phone-lock-owner={isCompactViewport ? 'false' : 'true'}
       data-mobile-post-brief-owner={isCompactViewport ? 'false' : 'true'}
-      data-compact-native-exit={isCompactViewport ? '3h1' : 'false'}
+      data-compact-native-exit={isCompactViewport ? '3h2' : 'false'}
       data-compact-phone-release-layer={isCompactViewport ? 'above-security' : 'false'}
+      data-phone-security-stack={isCompactViewport ? 'track-over-flow' : 'false'}
       style={
         {
           '--mobile-track-pre-svh': isCompactViewport
@@ -689,7 +690,7 @@ export function LandingV2MobileStory() {
               data-security-real-phone=""
               data-phone-transform-owner="phoneSystem"
               data-security-transition={isCompactViewport ? 'native-exit' : 'continuous-morph'}
-              data-compact-native-exit={isCompactViewport ? '3h1' : 'false'}
+              data-compact-native-exit={isCompactViewport ? '3h2' : 'false'}
               data-phone-release-layer={isCompactViewport ? 'above-security' : undefined}
               data-studio-lock={isCompactViewport ? undefined : ''}
               style={{ opacity: phoneOpacity, visibility: phoneVisibility, scale: phoneScale, y: phoneY }}

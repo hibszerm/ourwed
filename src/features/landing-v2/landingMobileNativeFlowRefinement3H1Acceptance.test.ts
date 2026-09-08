@@ -71,7 +71,7 @@ console.log('\n=== landing mobile native flow refinement 3H.1 ===\n')
   assert(before > 780 && before < 850, `BEFORE dead px ≈815, got ${before.toFixed(1)}`)
   assert(after > 540 && after < 600, `AFTER dead px ≈570, got ${after.toFixed(1)}`)
   assert(reduction >= 25 && reduction <= 35, `reduction ~30%, got ${reduction.toFixed(1)}%`)
-  assertIncludes(mobile, "data-compact-native-exit={isCompactViewport ? '3h1' : 'false'}", '3h1 marker')
+  assertIncludes(mobile, "data-compact-native-exit={isCompactViewport ? '3h2' : 'false'}", '3h2 marker')
   assertIncludes(mobile, 'above-security', 'phone release layer marker')
   assertIncludes(mobile, 'if (compactRef.current) return enterScale', 'scale=enter only on compact')
   assertIncludes(mobile, 'if (compactRef.current) return enterPx', 'Y=enter only on compact')
@@ -106,36 +106,28 @@ console.log('\n=== landing mobile native flow refinement 3H.1 ===\n')
   const mobileCss = read('src/features/landing-v2/mobile-story/LandingV2MobileStory.module.css')
 
   assertIncludes(hist, 'data-security-under-phone="true"', 'Security under-phone marker')
-  assertIncludes(hist, "data-compact-native-security={showSecurity ? '3h1' : 'false'}", '3h1 security')
+  assertIncludes(hist, "data-compact-native-security={showSecurity ? '3h2' : 'false'}", '3h2 security')
   assertIncludes(histCss, '--security-under-phone-overlap', 'overlap token')
   assertIncludes(histCss, "margin-top: calc(-1 * var(--security-under-phone-overlap))", 'negative margin overlap')
   assertIncludes(histCss, '0.52 * (100svh', 'overlap uses stable svh')
   assertNotIncludes(histCss, '100dvh', 'no dvh')
-  assertIncludes(mobileCss, 'z-index: 6', 'sticky above Security')
-  assertIncludes(histCss, 'z-index: 2', 'Security flow below phone')
+  assertIncludes(mobileCss, 'z-index: 3;', 'track above Security (3H.2)')
+  assertIncludes(histCss, 'z-index: 1;', 'Security flow below phone track')
   assertNotIncludes(histCss, 'min-height: calc(100svh - var(--lv3-nav-h, 68px))', 'no full-svh Security theater')
   assertIncludes(histCss, 'min-height: 0', 'content-driven Security height')
   assertIncludes(histCss, 'padding-top: clamp(1.75rem, 4.5vw, 2.5rem)', 'tight History intro top')
-  /* Micro-settle only — not large theater travel. */
-  assertIncludes(
-    histCss,
-    `@keyframes lv2SecurityReveal {
-  from {
-    opacity: 0.72;
-    transform: translate3d(0, 12px, 0);
-  }`,
-    'Security micro-settle Y≈12',
-  )
+  /* Micro-settle only — uncover is geometry, not travel. */
   assertIncludes(
     histCss,
     `@keyframes lv2SecurityLockReveal {
   from {
-    opacity: 0.75;
-    transform: translate3d(0, 10px, 0);
+    opacity: 0.72;
+    transform: translate3d(0, 8px, 0);
   }`,
-    'lock micro-settle Y≈10',
+    'lock micro-settle Y≤10',
   )
-  assertNotIncludes(histCss, 'opacity: 0.55', 'no prior large Security opacity floor')
+  assertIncludes(histCss, 'lv2SecurityHeadlineReveal', 'headline child reveal')
+  assertNotIncludes(histCss, '@keyframes lv2SecurityReveal', 'no container Security reveal')
   assertNotIncludes(hist, 'useScroll', 'no useScroll')
   assertNotIncludes(hist, 'useMotionValue', 'no MotionValue')
   assertNotIncludes(hist, 'requestAnimationFrame', 'no rAF')

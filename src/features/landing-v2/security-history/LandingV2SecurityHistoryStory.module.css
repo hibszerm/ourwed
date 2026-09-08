@@ -19,9 +19,9 @@
   /* History support → 2026: ~80–125px @ 402 (not a vh desert). */
   --studio-history-to-year-gap: clamp(5.5rem, 14vw, 7.5rem);
   /*
-   * 3H.1: pull Security under the phone sticky tail so native phone exit
-   * physically uncovers lock/copy. Stacking: Mobile sticky z-index 6 >
-   * this flow z-index 2. No parallax / no Security translateY theater.
+   * 3H.1/3H.2: pull Security under the phone sticky tail so native phone exit
+   * physically uncovers lock/copy. True occlusion requires track z-index >
+   * this flow z-index (sibling stacking contexts) — see 3h2 rule below.
    */
   --security-under-phone-overlap: calc(0.52 * (100svh - var(--lv3-nav-h, 68px)));
 
@@ -34,12 +34,17 @@
   padding: 0 var(--studio-history-mobile-gutter) var(--studio-history-mobile-section-end);
 }
 
-.flow[data-compact-native-security='3h1'] {
+.flow[data-compact-native-security='3h2'] {
   margin-top: calc(-1 * var(--security-under-phone-overlap));
   /* Transparent lead so phone sticky can occlude Security during overlap. */
   background: transparent;
   /* Paper resumes with Security section itself. */
   padding-top: 0;
+  /*
+   * 3H.2: must sit BELOW MobileStory .track (compact z-index: 3).
+   * Same z-index as track + later DOM painted Security over the phone.
+   */
+  z-index: 1;
 }
 
 .inner {
@@ -53,13 +58,14 @@
 }
 
 /*
- * —— Security (3H.1): content-driven height, balanced block, stable svh.
+ * —— Security (3H.1/3H.2): content-driven height, balanced block, stable svh.
  * Not a full-viewport theater — phone uncovers this block in normal flow.
+ * Do NOT animate this section / inner with transform (stacking-context trap).
  */
 .securitySection {
   width: 100%;
   position: relative;
-  z-index: 1;
+  /* No z-index — avoid extra stacking context competing with phone track. */
   background: var(--sh-paper);
   /* Content-driven — do not force one full viewport (was 100svh - nav). */
   min-height: 0;
@@ -79,8 +85,10 @@
   flex-direction: column;
   align-items: center;
   text-align: center;
-  /* Base: always visible (progressive enhancement only for motion). */
+  /* Base: always visible (progressive enhancement only for child motion). */
   opacity: 1;
+  /* Explicitly no transform — parent must not create a stacking context. */
+  transform: none;
 }
 
 .securityLockWrap {
@@ -261,19 +269,39 @@
  * Subtle entry ONLY when view timelines work.
  * Base opacity stays 1 — never hide content when timelines fail.
  * Season reveal (lv2SeasonReveal) is FROZEN from 3H — do not retune.
+ * 3H.2: animate Security CHILDREN only — never .securitySection / .securityInner
+ * (container transform creates a stacking context that paints over the phone).
  */
 @supports (animation-timeline: view()) {
   @media (prefers-reduced-motion: no-preference) {
-    .securityInner {
-      animation: lv2SecurityReveal linear both;
-      animation-timeline: view();
-      animation-range: entry 0% cover 38%;
-    }
-
     .securityLockWrap {
       animation: lv2SecurityLockReveal linear both;
       animation-timeline: view();
-      animation-range: entry 0% cover 36%;
+      animation-range: entry 0% cover 42%;
+    }
+
+    .securityEyebrow {
+      animation: lv2SecurityEyebrowReveal linear both;
+      animation-timeline: view();
+      animation-range: entry 8% cover 48%;
+    }
+
+    .securityHeadline {
+      animation: lv2SecurityHeadlineReveal linear both;
+      animation-timeline: view();
+      animation-range: entry 10% cover 52%;
+    }
+
+    .securitySupport {
+      animation: lv2SecurityBodyReveal linear both;
+      animation-timeline: view();
+      animation-range: entry 14% cover 56%;
+    }
+
+    .securityMicro {
+      animation: lv2SecurityBulletsReveal linear both;
+      animation-timeline: view();
+      animation-range: entry 18% cover 58%;
     }
 
     .historySection {
@@ -290,10 +318,32 @@
   }
 }
 
-/* 3H.1: micro-settle only — uncover is geometry, not travel. */
-@keyframes lv2SecurityReveal {
+/* 3H.2: lock micro-settle only — uncover is phone occlusion, not travel. */
+@keyframes lv2SecurityLockReveal {
   from {
     opacity: 0.72;
+    transform: translate3d(0, 8px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes lv2SecurityEyebrowReveal {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes lv2SecurityHeadlineReveal {
+  from {
+    opacity: 0;
     transform: translate3d(0, 12px, 0);
   }
   to {
@@ -302,10 +352,21 @@
   }
 }
 
-@keyframes lv2SecurityLockReveal {
+@keyframes lv2SecurityBodyReveal {
   from {
-    opacity: 0.75;
+    opacity: 0.15;
     transform: translate3d(0, 10px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes lv2SecurityBulletsReveal {
+  from {
+    opacity: 0.15;
+    transform: translate3d(0, 8px, 0);
   }
   to {
     opacity: 1;
@@ -404,8 +465,11 @@
     scroll-margin-top: 4.5rem;
   }
 
-  .securityInner,
   .securityLockWrap,
+  .securityEyebrow,
+  .securityHeadline,
+  .securitySupport,
+  .securityMicro,
   .historySection,
   .yearChapter {
     animation: none !important;

@@ -261,20 +261,26 @@
     /* 3G: studio intro scrub lives in sticky; Import/cover stay document-flow. */
     --mobile-track-season-import-svh: 0;
     --mobile-track-import-cover-hold-svh: 0;
+    /*
+     * 3H.2: track stacking context must sit ABOVE Security flow.
+     * Sibling flow also used z-index:2 — same z + later DOM = Security painted
+     * over the phone. Sticky z-index inside track cannot escape that trap.
+     * FeaturesExitShell remains z-index:4 above this track.
+     */
+    z-index: 3;
   }
 
   .phoneSystem {
-    /* Above document-flow Security while sticky overlaps (3H.1 uncover). */
-    z-index: 5;
+    /* Local order inside sticky stage — true occlusion is track > flow. */
+    z-index: 2;
     /* Compositor-friendly morph — transform/opacity only on this owner. */
     will-change: transform, opacity;
     backface-visibility: hidden;
   }
 
   .sticky {
-    /* Phone release layer sits above Security/History document flow. */
-    z-index: 6;
-    /* Keep visible overflow so lock shackle / phone scale never clip. */
+    /* Local sticky layer inside track; keep visible overflow for phone. */
+    z-index: 1;
     overflow: visible;
   }
 

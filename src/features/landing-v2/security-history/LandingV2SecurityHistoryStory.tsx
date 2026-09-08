@@ -60,7 +60,7 @@ export function LandingV2SecurityHistoryStory() {
       data-security-theater="document-flow"
       data-studio-history-flow="document"
       data-studio-history-compact="true"
-      data-compact-native-security={showSecurity ? '3h1' : 'false'}
+      data-compact-native-security={showSecurity ? '3h2' : 'false'}
       data-studio-history-years-only="false"
       data-studio-history-visible-rows={LV2_HISTORY_COMPACT_VISIBLE_ROWS}
       aria-labelledby={
@@ -74,6 +74,7 @@ export function LandingV2SecurityHistoryStory() {
             data-compact-security-section=""
             data-security-sticky="0"
             data-security-under-phone="true"
+            data-security-stack="below-phone-track"
             aria-labelledby="lv2-security-heading"
           >
             <div className={styles.securityInner} data-security-inner="">
