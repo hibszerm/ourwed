@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   animate,
   useMotionValue,
@@ -8,6 +8,7 @@ import {
   type MotionValue,
 } from 'framer-motion'
 import { MarketingPhoneLogicalViewport } from '@/features/landing-v2/devices/MarketingPhoneLogicalViewport'
+import { LANDING_DEVICE_ASSETS } from '@/features/landing-v2/devices/landingDeviceAssets'
 import { MobileOurWedApp } from '@/features/landing-v2/mobile-story/app/MobileOurWedApp'
 import { phoneSettled } from '@/features/landing-v2/mobile-story/mobileStoryProgress'
 import { POST_BRIEF_MORPH_START } from '@/features/landing-v2/mobile-story/postBriefSecurityProgress'
@@ -16,6 +17,7 @@ import {
   COMPACT_PHONE_TOUR_SETTLE_DELAY_MS,
   appProgressAtTourNormalized,
 } from '@/features/landing-v2/devices/compactPhoneProductTourTiming'
+import styles from './CompactPhoneProductTour.module.css'
 
 export {
   COMPACT_PHONE_TOUR_DURATION_S,
@@ -35,7 +37,10 @@ type Props = {
 /**
  * Compact phone product tour — desktop MobileOurWedApp choreography with
  * segment-remapped autonomous timing (3F.2 frozen) + canonical logical viewport (3F.3).
+ *
  * 3G: freeze tour the instant phone→lock morph starts.
+ * 3G.2: invisible live→static Brief screen handoff at morph start so Stage-2
+ * geometry morph runs against a flat real-UI capture, not the live app DOM.
  */
 export function CompactPhoneProductTour({
   theaterProgress,
@@ -50,6 +55,19 @@ export function CompactPhoneProductTour({
   const nearRef = useRef(true)
   const morphFrozenRef = useRef(false)
   const rootRef = useRef<HTMLDivElement | null>(null)
+  const [screenFlattened, setScreenFlattened] = useState(false)
+
+  const activateFlatten = () => {
+    /* Morph starts after Brief in the intended story — snap to final Brief frame. */
+    masterT.set(1)
+    setScreenFlattened(true)
+    rootRef.current?.setAttribute('data-phone-screen-flattened', 'true')
+  }
+
+  const deactivateFlatten = () => {
+    setScreenFlattened(false)
+    rootRef.current?.setAttribute('data-phone-screen-flattened', 'false')
+  }
 
   const freezeTourInPlace = () => {
     if (delayRef.current != null) {
@@ -58,7 +76,10 @@ export function CompactPhoneProductTour({
     }
     controlsRef.current?.stop()
     controlsRef.current = null
+    const alreadyFrozen = morphFrozenRef.current
     morphFrozenRef.current = true
+    /* Semantic one-time activation — never setState per scroll frame. */
+    if (!alreadyFrozen) activateFlatten()
   }
 
   const stopTour = (reset: boolean) => {
@@ -72,6 +93,7 @@ export function CompactPhoneProductTour({
       masterT.set(0)
       settledRef.current = false
       morphFrozenRef.current = false
+      deactivateFlatten()
     }
   }
 
@@ -79,6 +101,7 @@ export function CompactPhoneProductTour({
     if (morphFrozenRef.current) return
     if (postBriefProgress && postBriefProgress.get() > POST_BRIEF_MORPH_START) {
       morphFrozenRef.current = true
+      activateFlatten()
       return
     }
     stopTour(true)
@@ -116,9 +139,15 @@ export function CompactPhoneProductTour({
     }
     if (pb <= 0 && morphFrozenRef.current) {
       morphFrozenRef.current = false
+      deactivateFlatten()
       rootRef.current?.setAttribute('data-phone-tour-morph-frozen', 'false')
     }
   })
+
+  useEffect(() => {
+    const img = new Image()
+    img.src = LANDING_DEVICE_ASSETS.phoneBrief
+  }, [])
 
   useEffect(() => {
     if (reducedMotion) {
@@ -178,6 +207,7 @@ export function CompactPhoneProductTour({
   return (
     <div
       ref={rootRef}
+      className={styles.root}
       data-compact-phone-tour=""
       data-testid="lv2-compact-phone-tour"
       data-phone-tour-engine="mobile-ourwed-app"
@@ -185,14 +215,28 @@ export function CompactPhoneProductTour({
       data-phone-tour-remap="segments"
       data-phone-logical-viewport="canonical"
       data-phone-tour-morph-frozen={morphFrozenRef.current ? 'true' : 'false'}
-      style={{ width: '100%', height: '100%' }}
+      data-phone-screen-flattened={screenFlattened ? 'true' : 'false'}
+      data-phone-morph-surface={screenFlattened ? 'brief-static' : 'live'}
     >
-      <MarketingPhoneLogicalViewport>
-        <MobileOurWedApp
-          appProgress={tourProgress}
-          staticMode={reducedMotion}
+      <div
+        className={styles.liveLayer}
+        data-phone-live-screen=""
+        aria-hidden={screenFlattened}
+      >
+        <MarketingPhoneLogicalViewport>
+          <MobileOurWedApp appProgress={tourProgress} staticMode={reducedMotion} />
+        </MarketingPhoneLogicalViewport>
+      </div>
+      <div className={styles.flatLayer} data-phone-flat-screen="" aria-hidden={!screenFlattened}>
+        <img
+          className={styles.flatImg}
+          src={LANDING_DEVICE_ASSETS.phoneBrief}
+          alt=""
+          draggable={false}
+          decoding="async"
+          data-phone-flat-asset="phone-brief"
         />
-      </MarketingPhoneLogicalViewport>
+      </div>
     </div>
   )
 }

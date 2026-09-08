@@ -18,6 +18,7 @@ import {
 import { StudioHistoryReveal } from '@/features/landing-v2/mobile-story/StudioHistoryReveal'
 import { StudioImportReveal } from '@/features/landing-v2/mobile-story/StudioImportReveal'
 import { MOBILE_TRACK_IMPORT_COVER_HOLD_SVH } from '@/features/landing-v2/mobile-story/founderStoryProgress'
+import { compactSecurityLockLiftVhAt } from '@/features/landing-v2/mobile-story/compactSecurityRevealProgress'
 import {
   compactPostBriefVisualAt,
   postBriefChromeOpAt,
@@ -44,17 +45,6 @@ import {
   studioSecurityCopyOpAt,
   studioSecurityCopyYAt,
 } from '@/features/landing-v2/mobile-story/studioHistoryProgress'
-import {
-  compactLockRevealOpacityAt,
-  compactLockRevealScaleAt,
-  compactLockRevealYPxAt,
-  compactPhoneExitOpacityAt,
-  compactPhoneExitScaleAt,
-  compactPhoneExitYVhAt,
-  compactSecurityCopyAt,
-  compactStudioVisualAt,
-} from '@/features/landing-v2/mobile-story/compactSecurityRevealProgress'
-import { SecurityLockGraphic } from '@/features/landing-v2/security-history/SecurityLockGraphic'
 import {
   LV2_SECURITY_COPY,
   LV2_SECURITY_MICRO_POINTS,
@@ -511,21 +501,13 @@ export function LandingV2MobileStory() {
   const postBriefVisual = useTransform(postBriefProgress, (p) =>
     compactRef.current ? compactPostBriefVisualAt(Number(p)) : Number(p),
   )
-  const studioVisual = useTransform(studioProgress, (p) =>
-    compactRef.current ? compactStudioVisualAt(Number(p)) : Number(p),
-  )
 
-  /* ONE transform owner for main scale: .phoneSystem — enter × post-Brief × studio (desktop). */
+  /* ONE transform owner for main scale: .phoneSystem — enter × post-Brief LINEAR shrink × studio lift. */
   const phoneOpacity = useTransform(
-    [phoneIn, postBriefVisual, importProgress],
-    ([inn, pb, im]) => {
-      const exit = compactRef.current ? compactPhoneExitOpacityAt(Number(pb)) : 1
-      return (
-        Number(inn) *
-        exit *
-        (compactRef.current ? 1 : seasonImportLockOpAt(Number(im)))
-      )
-    },
+    [phoneIn, importProgress],
+    ([inn, im]) =>
+      Number(inn) *
+      (compactRef.current ? 1 : seasonImportLockOpAt(Number(im))),
   )
   const phoneVisibility = useTransform(phoneOpacity, (o) =>
     Number(o) < 0.02 ? ('hidden' as const) : ('visible' as const),
@@ -535,85 +517,45 @@ export function LandingV2MobileStory() {
     ([inn, pb, st, im]) => {
       const start = compactRef.current ? PHONE_SCALE_START_COMPACT : PHONE_SCALE_START_DESKTOP
       const enterScale = start + Number(inn) * (1 - start)
-      if (compactRef.current) {
-        /* 3G.1: modest exit scale only — no 1→0.48 morph shrink. */
-        return enterScale * compactPhoneExitScaleAt(Number(pb))
-      }
-      const studioScale = studioLockScaleAt(Number(st), false)
-      const importScale = seasonImportLockScaleAt(Number(im))
+      const studioScale = studioLockScaleAt(Number(st), compactRef.current)
+      const importScale = compactRef.current ? 1 : seasonImportLockScaleAt(Number(im))
       return enterScale * postBriefShrinkScaleAt(Number(pb)) * studioScale * importScale
     },
   )
-  const phoneY = useTransform([phoneIn, postBriefVisual, studioProgress, importProgress], ([inn, pb, st, im]) => {
-    const enterMax = compactRef.current ? PHONE_ENTER_Y_COMPACT : PHONE_ENTER_Y_DESKTOP
-    const enterPx = (1 - Number(inn)) * enterMax
-    if (compactRef.current) {
-      const exitVh = compactPhoneExitYVhAt(Number(pb))
-      if (exitVh === 0) return enterPx
-      return `calc(${enterPx}px + ${exitVh}vh)`
-    }
-    const studioVh = studioLockYVhAt(Number(st), false)
-    const exitPx = seasonImportLockYAt(Number(im))
-    const px = enterPx + exitPx
-    if (studioVh === 0) return px
-    return `calc(${px}px + ${studioVh}vh)`
-  })
-
-  /* Compact: pre-mounted lock layer (static stack under phone). Desktop: unused. */
-  const revealLockOpacity = useTransform(postBriefVisual, (p) =>
-    compactRef.current ? compactLockRevealOpacityAt(Number(p)) : 0,
-  )
-  const revealLockScale = useTransform(
-    [postBriefVisual, studioVisual],
-    ([pb, st]) => {
-      if (!compactRef.current) return 1
-      return compactLockRevealScaleAt(Number(pb)) * studioLockScaleAt(Number(st), true)
+  /*
+   * PHONE_SETTLED_Y = stageCenter 50% (CSS) + enterPx.
+   * SECURITY_LOCK_Y = late compact lift after morph (~41%) — never at morph start.
+   * MORPH_INTERMEDIATE / studio travel layer on top via studioLockYVhAt.
+   */
+  const phoneY = useTransform(
+    [phoneIn, postBriefVisual, studioProgress, importProgress],
+    ([inn, pb, st, im]) => {
+      const enterMax = compactRef.current ? PHONE_ENTER_Y_COMPACT : PHONE_ENTER_Y_DESKTOP
+      const enterPx = (1 - Number(inn)) * enterMax
+      const securityLiftVh = compactRef.current ? compactSecurityLockLiftVhAt(Number(pb)) : 0
+      const studioVh = studioLockYVhAt(Number(st), compactRef.current)
+      const exitPx = compactRef.current ? 0 : seasonImportLockYAt(Number(im))
+      const px = enterPx + exitPx
+      const vh = studioVh + securityLiftVh
+      if (vh === 0) return px
+      return `calc(${px}px + ${vh}vh)`
     },
-  )
-  const revealLockY = useTransform([postBriefVisual, studioVisual], ([pb, st]) => {
-    if (!compactRef.current) return '-50%'
-    const revealPx = compactLockRevealYPxAt(Number(pb))
-    const studioVh = studioLockYVhAt(Number(st), true)
-    return `calc(-50% + ${revealPx}px + ${studioVh}vh)`
-  })
-  const revealLockVis = useTransform(revealLockOpacity, (o) =>
-    Number(o) < 0.02 ? ('hidden' as const) : ('visible' as const),
   )
 
   const lockMorph = {
-    compress: useTransform(postBriefVisual, (p) =>
-      compactRef.current ? 0 : postBriefCompressAt(p),
-    ),
-    chrome: useTransform(postBriefVisual, (p) =>
-      compactRef.current ? 1 : postBriefChromeOpAt(p),
-    ),
-    brief: useTransform(postBriefVisual, (p) =>
-      compactRef.current ? 1 : postBriefContentOpAt(p),
-    ),
-    screenMerge: useTransform(postBriefVisual, (p) =>
-      compactRef.current ? 0 : postBriefScreenMergeAt(p),
-    ),
-    shackle: useTransform(postBriefVisual, (p) =>
-      compactRef.current ? 0 : postBriefShackleAt(p),
-    ),
-    keyhole: useTransform(postBriefVisual, (p) =>
-      compactRef.current ? 0 : postBriefKeyholeAt(p),
-    ),
+    compress: useTransform(postBriefVisual, (p) => postBriefCompressAt(p)),
+    chrome: useTransform(postBriefVisual, (p) => postBriefChromeOpAt(p)),
+    brief: useTransform(postBriefVisual, (p) => postBriefContentOpAt(p)),
+    screenMerge: useTransform(postBriefVisual, (p) => postBriefScreenMergeAt(p)),
+    shackle: useTransform(postBriefVisual, (p) => postBriefShackleAt(p)),
+    keyhole: useTransform(postBriefVisual, (p) => postBriefKeyholeAt(p)),
   }
 
   const securityCopyOp = useTransform(
-    [postBriefVisual, studioVisual],
-    ([pb, st]) => {
-      if (compactRef.current) {
-        return compactSecurityCopyAt(Number(pb)) * studioSecurityCopyOpAt(Number(st))
-      }
-      return postBriefSecurityCopyAt(Number(pb)) * studioSecurityCopyOpAt(Number(st))
-    },
+    [postBriefVisual, studioProgress],
+    ([pb, st]) => postBriefSecurityCopyAt(Number(pb)) * studioSecurityCopyOpAt(Number(st)),
   )
-  const securityCopyY = useTransform([postBriefVisual, studioVisual], ([pb, st]) => {
-    if (compactRef.current) {
-      return (1 - compactSecurityCopyAt(Number(pb))) * 14 + studioSecurityCopyYAt(Number(st))
-    }
+  const securityCopyY = useTransform([postBriefVisual, studioProgress], ([pb, st]) => {
     return (1 - postBriefSecurityCopyAt(Number(pb))) * 14 + studioSecurityCopyYAt(Number(st))
   })
   const paperOp = useTransform(postBriefVisual, (p) => {
@@ -727,11 +669,12 @@ export function LandingV2MobileStory() {
               data-mobile-phone-system=""
               data-security-real-phone=""
               data-phone-transform-owner="phoneSystem"
-              data-studio-lock={isCompactViewport ? undefined : ''}
-              data-security-transition="phone-layer"
+              data-security-transition="continuous-morph"
+              data-compact-security-recovery="3g2"
+              data-studio-lock=""
               style={{ opacity: phoneOpacity, visibility: phoneVisibility, scale: phoneScale, y: phoneY }}
             >
-              <HeroPhoneFrame lockMorph={lockMorph} geometryMorph={!isCompactViewport}>
+              <HeroPhoneFrame lockMorph={lockMorph}>
                 {isCompactViewport ? (
                   phoneAppMounted ? (
                     <CompactPhoneProductTour
@@ -766,26 +709,6 @@ export function LandingV2MobileStory() {
                 )}
               </HeroPhoneFrame>
             </motion.div>
-
-            {isCompactViewport ? (
-              <motion.div
-                className={styles.securityRevealLock}
-                data-security-reveal-lock=""
-                data-security-transition="lock-layer"
-                data-studio-lock=""
-                data-phone-transform-owner="securityRevealLock"
-                style={{
-                  x: '-50%',
-                  opacity: revealLockOpacity,
-                  visibility: revealLockVis,
-                  scale: revealLockScale,
-                  y: revealLockY,
-                }}
-                aria-hidden
-              >
-                <SecurityLockGraphic className={styles.securityRevealLockSvg} />
-              </motion.div>
-            ) : null}
           </div>
 
           <motion.div
@@ -805,7 +728,7 @@ export function LandingV2MobileStory() {
 
           {isCompactViewport ? (
             <StudioHistoryReveal
-              progress={studioVisual}
+              progress={studioProgress}
               exitProgress={importProgress}
               compactIntro
             />

@@ -15,7 +15,6 @@ import styles from './LandingV2SecurityHistoryStory.module.css'
 const COMPACT_EASE = [0.22, 1, 0.36, 1] as const
 
 /** Features-proven IO band — reveal once the top enters the lower reading zone. */
-const YEAR_VIEWPORT = { once: true as const, amount: 0.05, margin: '0px 0px -22% 0px' }
 const INTRO_VIEWPORT = { once: true as const, amount: 0.2, margin: '0px 0px -18% 0px' }
 
 function ClientMark() {
@@ -126,73 +125,36 @@ export function LandingV2SecurityHistoryStory() {
               className={styles.yearChapter}
               data-season-year={season.year}
               data-studio-year-chapter={season.year}
-              data-season-reveal={yearsOnly ? 'view-timeline' : 'io'}
             >
-              {yearsOnly ? (
-                <>
-                  <p className={styles.year} data-studio-year-label="">
-                    {season.year}
-                  </p>
-                  <div
-                    className={styles.card}
-                    data-studio-card=""
-                    data-studio-card-rows={season.records.length}
-                  >
-                    <ul className={styles.records}>
-                      {season.records.map((row) => (
-                        <li key={`${season.year}-${row.couple}`} className={styles.row}>
-                          <span className={styles.rowLead} aria-hidden>
-                            <ClientMark />
-                          </span>
-                          <span className={styles.couple}>{row.couple}</span>
-                          <span className={styles.rowTrail} aria-hidden />
-                        </li>
-                      ))}
-                    </ul>
-                    <p className={styles.footer} data-studio-card-footer="">
-                      {season.footer}
-                    </p>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <motion.p
-                    className={styles.year}
-                    data-studio-year-label=""
-                    initial={motionOff ? false : { opacity: 0, y: 10 }}
-                    whileInView={motionOff ? undefined : { opacity: 1, y: 0 }}
-                    viewport={YEAR_VIEWPORT}
-                    transition={{ duration: 0.8, ease: COMPACT_EASE }}
-                  >
-                    {season.year}
-                  </motion.p>
+              {/*
+                Years are always in normal document flow with opacity:1 base CSS.
+                Framer whileInView must NOT gate visibility (animation-timeline / IO
+                failure would hide 2026–2028). Subtle motion is CSS @supports only.
+              */}
+              <p className={styles.year} data-studio-year-label="">
+                {season.year}
+              </p>
 
-                  <motion.div
-                    className={styles.card}
-                    data-studio-card=""
-                    data-studio-card-rows={season.records.length}
-                    initial={motionOff ? false : { opacity: 0, y: 20, scale: 0.995 }}
-                    whileInView={motionOff ? undefined : { opacity: 1, y: 0, scale: 1 }}
-                    viewport={YEAR_VIEWPORT}
-                    transition={{ duration: 0.82, ease: COMPACT_EASE }}
-                  >
-                    <ul className={styles.records}>
-                      {season.records.map((row) => (
-                        <li key={`${season.year}-${row.couple}`} className={styles.row}>
-                          <span className={styles.rowLead} aria-hidden>
-                            <ClientMark />
-                          </span>
-                          <span className={styles.couple}>{row.couple}</span>
-                          <span className={styles.rowTrail} aria-hidden />
-                        </li>
-                      ))}
-                    </ul>
-                    <p className={styles.footer} data-studio-card-footer="">
-                      {season.footer}
-                    </p>
-                  </motion.div>
-                </>
-              )}
+              <div
+                className={styles.card}
+                data-studio-card=""
+                data-studio-card-rows={season.records.length}
+              >
+                <ul className={styles.records}>
+                  {season.records.map((row) => (
+                    <li key={`${season.year}-${row.couple}`} className={styles.row}>
+                      <span className={styles.rowLead} aria-hidden>
+                        <ClientMark />
+                      </span>
+                      <span className={styles.couple}>{row.couple}</span>
+                      <span className={styles.rowTrail} aria-hidden />
+                    </li>
+                  ))}
+                </ul>
+                <p className={styles.footer} data-studio-card-footer="">
+                  {season.footer}
+                </p>
+              </div>
             </section>
           ))}
         </div>

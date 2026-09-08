@@ -24,12 +24,12 @@
   box-sizing: border-box;
   background: var(--sh-paper);
   color: var(--sh-ink);
-  padding: clamp(1.25rem, 4vw, 2rem) var(--studio-history-mobile-gutter)
+  padding: clamp(2.75rem, 8vw, 4rem) var(--studio-history-mobile-gutter)
     var(--studio-history-mobile-section-end);
 }
 
 .flow[data-studio-history-years-only='true'] {
-  /* Intro lives in sticky — start years soon after History copy. */
+  /* Intro lives in sticky — start years soon after History copy (~16–26vh gap). */
   padding-top: clamp(0.75rem, 3vw, 1.5rem);
 }
 
@@ -120,6 +120,15 @@
   gap: var(--studio-history-mobile-year-gap);
 }
 
+.yearChapter {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* Always visible in document flow — motion is progressive enhancement only. */
+  opacity: 1;
+}
+
 .year {
   margin: 0 0 1.15rem;
   width: 100%;
@@ -131,21 +140,18 @@
   color: var(--sh-ink);
   /* Centering via layout only — never transform translateX. */
   transform: none;
+  opacity: 1;
 }
 
-.yearChapter {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
+/*
+ * Season motion ONLY when view timelines work. Never globally opacity:0
+ * that depends on Safari animation-timeline to reveal years.
+ */
 @supports (animation-timeline: view()) {
   @media (prefers-reduced-motion: no-preference) {
     .flow[data-studio-history-compact='true'] .yearChapter {
       animation: lv2SeasonReveal linear both;
       animation-timeline: view();
-      /* Enter lower readable band; settle before center — connected to History intro. */
       animation-range: entry 5% cover 42%;
     }
 
@@ -159,8 +165,8 @@
 
 @keyframes lv2SeasonReveal {
   from {
-    opacity: 0;
-    transform: translate3d(0, 20px, 0);
+    opacity: 0.35;
+    transform: translate3d(0, 18px, 0);
   }
   to {
     opacity: 1;
@@ -170,7 +176,7 @@
 
 @keyframes lv2SeasonLabelReveal {
   from {
-    opacity: 0;
+    opacity: 0.4;
     transform: translate3d(0, 14px, 0);
   }
   to {
