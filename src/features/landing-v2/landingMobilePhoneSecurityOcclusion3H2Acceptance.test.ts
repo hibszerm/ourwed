@@ -60,13 +60,13 @@ console.log('\n=== landing mobile phone→Security occlusion 3H.2 ===\n')
 
   /* Ancestor stacking contract — not child z-index alone. */
   assertIncludes(mobileCss, 'z-index: 3;', 'compact track stacking ancestor z=3')
-  assertIncludes(histCss, "data-compact-native-security='3h2']", '3h2 flow gate')
+  assertIncludes(histCss, "data-compact-native-security='3h3']", '3h3 flow gate')
   assertIncludes(histCss, 'z-index: 1;', 'Security flow z=1 below track')
   assertIncludes(featuresShell, 'z-index: 4;', 'Features shell stays above track')
   assertIncludes(mobile, "data-phone-security-stack={isCompactViewport ? 'track-over-flow' : 'false'}", 'stack marker')
   assertIncludes(hist, 'data-security-stack="below-phone-track"', 'Security below marker')
-  assertIncludes(mobile, "data-compact-native-exit={isCompactViewport ? '3h2' : 'false'}", '3h2 exit')
-  assertIncludes(hist, "data-compact-native-security={showSecurity ? '3h2' : 'false'}", '3h2 security')
+  assertIncludes(mobile, "data-compact-native-exit={isCompactViewport ? '3h3' : 'false'}", '3h3 exit')
+  assertIncludes(hist, "data-compact-native-security={showSecurity ? '3h3' : 'false'}", '3h3 security')
   console.log('PASS  1. sibling stacking: track(3) > flow(1); Features(4) > track')
 }
 
@@ -104,15 +104,12 @@ console.log('\n=== landing mobile phone→Security occlusion 3H.2 ===\n')
   const histCss = read(
     'src/features/landing-v2/security-history/LandingV2SecurityHistoryStory.module.css',
   )
-  /* Overlap amount FROZEN from 3H.1 — stacking was the bug, not the number. */
-  assertIncludes(
-    histCss,
-    '--security-under-phone-overlap: calc(0.52 * (100svh - var(--lv3-nav-h, 68px)));',
-    'overlap 0.52 svh frozen',
-  )
+  /* Overlap amount: 3H.3 RETIRED negative under-phone pull-up; stacking retained. */
+  assertNotIncludes(histCss, '--security-under-phone-overlap', '3H.2 overlap token retired by 3H.3')
+  assertIncludes(histCss, '--security-reveal-delay: calc(0.47 * var(--phone-compact-h))', 'phone-first delay')
   assertNotIncludes(histCss, '100dvh', 'no dvh')
   assertNotIncludes(histCss, 'visualViewport', 'no visualViewport')
-  console.log('PASS  3. overlap amount unchanged; stable svh only')
+  console.log('PASS  3. negative overlap retired; stable svh phone-first delay; stacking kept')
 }
 
 {

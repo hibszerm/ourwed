@@ -19,11 +19,19 @@
   /* History support → 2026: ~80–125px @ 402 (not a vh desert). */
   --studio-history-to-year-gap: clamp(5.5rem, 14vw, 7.5rem);
   /*
-   * 3H.1/3H.2: pull Security under the phone sticky tail so native phone exit
-   * physically uncovers lock/copy. True occlusion requires track z-index >
-   * this flow z-index (sibling stacking contexts) — see 3h2 rule below.
+   * 3H.3 phone-first sequence (compact Security only):
+   * After native phone release, lock should first enter from the viewport
+   * bottom once the phone has moved ~0.47 × displayed phone height.
+   * Phone width formula matches HeroPhoneFrame compact sizing (stable svh).
    */
-  --security-under-phone-overlap: calc(0.52 * (100svh - var(--lv3-nav-h, 68px)));
+  --phone-compact-w: min(
+    76.5vw,
+    calc(100vw - 56px),
+    calc((100svh - var(--lv3-nav-h, 68px) - 24px) * 0.4613733906)
+  );
+  --phone-compact-h: calc(var(--phone-compact-w) / 0.4613733906);
+  --security-reveal-delay: calc(0.47 * var(--phone-compact-h));
+  --security-lock-pad-top: clamp(3.25rem, 8svh, 4.5rem);
 
   position: relative;
   z-index: 2;
@@ -34,17 +42,16 @@
   padding: 0 var(--studio-history-mobile-gutter) var(--studio-history-mobile-section-end);
 }
 
-.flow[data-compact-native-security='3h2'] {
-  margin-top: calc(-1 * var(--security-under-phone-overlap));
-  /* Transparent lead so phone sticky can occlude Security during overlap. */
-  background: transparent;
-  /* Paper resumes with Security section itself. */
-  padding-top: 0;
-  /*
-   * 3H.2: must sit BELOW MobileStory .track (compact z-index: 3).
-   * Same z-index as track + later DOM painted Security over the phone.
-   */
+/*
+ * 3H.3: NO negative overlap. Security sits in normal flow BELOW the phone track.
+ * Spacer = reveal-delay − Security top padding so lock.top @ R0 ≈ V + 0.47P.
+ * Stacking track(3) > flow(1) retained from 3H.2 as safety only.
+ */
+.flow[data-compact-native-security='3h3'] {
+  margin-top: 0;
+  padding-top: max(0px, calc(var(--security-reveal-delay) - var(--security-lock-pad-top)));
   z-index: 1;
+  background: var(--sh-paper);
 }
 
 .inner {
@@ -74,8 +81,9 @@
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  /* Top air accounts for under-phone reveal; bottom → History ~64–100px total. */
-  padding: clamp(3.25rem, 8svh, 4.5rem) 0 clamp(2.5rem, 5.5svh, 3.5rem);
+  /* Top air for balanced composition; phone-first delay lives on .flow spacer (3H.3). */
+  padding: var(--security-lock-pad-top, clamp(3.25rem, 8svh, 4.5rem)) 0
+    clamp(2.5rem, 5.5svh, 3.5rem);
 }
 
 .securityInner {

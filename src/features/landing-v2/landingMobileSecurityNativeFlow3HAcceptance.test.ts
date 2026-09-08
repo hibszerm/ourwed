@@ -68,7 +68,7 @@ console.log('\n=== landing mobile security native flow 3H ===\n')
 
 {
   const mobile = read('src/features/landing-v2/mobile-story/LandingV2MobileStory.tsx')
-  assertIncludes(mobile, "data-compact-native-exit={isCompactViewport ? '3h2' : 'false'}", '3H/3H.2 marker')
+  assertIncludes(mobile, "data-compact-native-exit={isCompactViewport ? '3h3' : 'false'}", '3H/3H.3 marker')
   assertIncludes(mobile, "'native-exit'", 'native exit transition')
   assertIncludes(mobile, "'--mobile-track-post-brief-svh': isCompactViewport ? 0", 'compact postBrief 0')
   assertIncludes(mobile, "'--mobile-track-studio-history-svh': isCompactViewport", 'compact studio gated')

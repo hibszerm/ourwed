@@ -22,9 +22,9 @@ function ClientMark() {
  * Compact / reduced-motion Security + Studio History — natural document flow.
  *
  * Desktop normal motion: absorbed. Sticky Security/History live in MobileStory.
- * Compact (3H / 3H.1): Security + History + years are ONE normal-flow sibling
- * after the phone sticky. Phone uncovers Security via document overlap +
- * stacking — no phone→lock morph, no sticky year preview.
+ * Compact (3H–3H.3): Security + History + years are ONE normal-flow sibling
+ * after the phone sticky. 3H.3: phone releases FIRST; Security enters later
+ * via normal document spacing (no negative under-phone overlap).
  * Reduced-motion: History intro + years (Security stays in MobileStory static).
  */
 export function LandingV2SecurityHistoryStory() {
@@ -60,7 +60,7 @@ export function LandingV2SecurityHistoryStory() {
       data-security-theater="document-flow"
       data-studio-history-flow="document"
       data-studio-history-compact="true"
-      data-compact-native-security={showSecurity ? '3h2' : 'false'}
+      data-compact-native-security={showSecurity ? '3h3' : 'false'}
       data-studio-history-years-only="false"
       data-studio-history-visible-rows={LV2_HISTORY_COMPACT_VISIBLE_ROWS}
       aria-labelledby={
@@ -73,7 +73,7 @@ export function LandingV2SecurityHistoryStory() {
             className={styles.securitySection}
             data-compact-security-section=""
             data-security-sticky="0"
-            data-security-under-phone="true"
+            data-security-phone-first="3h3"
             data-security-stack="below-phone-track"
             aria-labelledby="lv2-security-heading"
           >
