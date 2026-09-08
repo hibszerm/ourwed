@@ -1,36 +1,31 @@
 /**
- * Compact Security recovery (3G.2) — helpers only.
+ * Compact Security recovery (3G.2) + post-lock Y tokens (3G.3).
  *
- * 3G.1 "phone reveals pre-mounted lock" architecture is REJECTED and removed.
- * Visual phone→lock choreography returns to f019 continuous morph language.
- *
- * These tokens separate PHONE settled Y from SECURITY lock established Y so a
- * higher final lock never pulls the phone start position upward.
+ * Phone settled Y and Security lock Y stay SEPARATE.
+ * 3G.3 raises established Security lock only — never phone morph start.
  */
 
 import { rangeT } from '@/features/landing-v2/mobile-story/postBriefSecurityProgress'
+import {
+  COMPACT_PHONE_SETTLED_Y_PCT,
+  COMPACT_SECURITY_LOCK_Y_PCT,
+} from '@/features/landing-v2/mobile-story/compactPostLockContinuity'
 
 /** Keep accepted 3G phone→lock runway (±5%). */
 export const COMPACT_POST_BRIEF_RUNWAY_SVH = 90
 
-/**
- * Sticky stage center for PHONE established / morph start (f019 baseline).
- * Must NOT equal the established Security lock center.
- */
-export const COMPACT_PHONE_SETTLED_STAGE_CENTER_PCT = 50
+/** @deprecated Use COMPACT_PHONE_SETTLED_Y_PCT — kept for 3G.2 test aliases. */
+export const COMPACT_PHONE_SETTLED_STAGE_CENTER_PCT = COMPACT_PHONE_SETTLED_Y_PCT
 
-/**
- * Final large-lock center after morph + late lift (~40–42% usable stage).
- * Applied only after morph is largely complete — never at morph start.
- */
-export const COMPACT_SECURITY_LOCK_CENTER_PCT = 41
+/** Established large-lock center after morph + late lift (3G.3: ~38.5%). */
+export const COMPACT_SECURITY_LOCK_CENTER_PCT = COMPACT_SECURITY_LOCK_Y_PCT
 
-/** Late lift amplitude: 50% → 41% of sticky stage ≈ −9vh. */
+/** Late lift amplitude: PHONE_SETTLED → SECURITY_LOCK (svh-stable). */
 export const COMPACT_SECURITY_LOCK_LIFT_VH =
-  COMPACT_PHONE_SETTLED_STAGE_CENTER_PCT - COMPACT_SECURITY_LOCK_CENTER_PCT
+  COMPACT_PHONE_SETTLED_Y_PCT - COMPACT_SECURITY_LOCK_Y_PCT
 
 /**
- * Visual postBrief ranges for late Security lock lift (desktop visual progress).
+ * Visual postBrief ranges for late Security lock lift.
  * Starts at securityHold so phone settled + early morph stay at stageCenter 50%.
  */
 export const COMPACT_SECURITY_LOCK_LIFT = {
@@ -39,8 +34,8 @@ export const COMPACT_SECURITY_LOCK_LIFT = {
 } as const
 
 /**
- * Extra translateY (vh) on the phoneSystem after morph — identity at morph start.
- * Linear, reverse-deterministic. No spring.
+ * Extra translateY (svh) on the phoneSystem after morph — identity at morph start.
+ * Linear, reverse-deterministic. Completes at LOCK_ESTABLISHED before studio travel.
  */
 export function compactSecurityLockLiftVhAt(visualPb: number): number {
   const t = rangeT(visualPb, COMPACT_SECURITY_LOCK_LIFT.start, COMPACT_SECURITY_LOCK_LIFT.end)
@@ -50,10 +45,6 @@ export function compactSecurityLockLiftVhAt(visualPb: number): number {
 /** Morph-start flatten threshold — same as POST_BRIEF_MORPH_START. */
 export const COMPACT_SCREEN_FLATTEN_START = 0.001
 
-/**
- * Continuity samples around morph start (scroll progress units ≈ px on 90svh).
- * Used by recovery tests — shrink scale must be continuous / monotonic.
- */
 export const COMPACT_MORPH_CONTINUITY_SAMPLES = [
   COMPACT_SCREEN_FLATTEN_START - 0.001,
   COMPACT_SCREEN_FLATTEN_START,

@@ -6,18 +6,29 @@
  * the settled Security composition exactly.
  *
  * Spatial motion is transform-only (scale + translateY). No geometry morph.
+ *
+ * Compact (3G.3): continuous post-lock path lives in compactPostLockContinuity.ts
+ * — no securityHold kink, no lockSettledGate empty frame, linear overlap.
  */
 
 import { easeOutCubic, rangeT } from '@/features/landing-v2/mobile-story/postBriefSecurityProgress'
+import {
+  COMPACT_POST_LOCK_SCALE_END,
+  COMPACT_POST_LOCK_Y_SVH_END,
+  MOBILE_TRACK_STUDIO_HISTORY_SVH_COMPACT_3G3,
+  compactPostLockScaleAt,
+  compactPostLockSecurityCopyOpAt,
+  compactPostLockSecurityCopyYAt,
+  compactPostLockYSvhAt,
+} from '@/features/landing-v2/mobile-story/compactPostLockContinuity'
 
 /** Appended AFTER the post-Brief tail. Does not steal from it. */
 export const MOBILE_TRACK_STUDIO_HISTORY_SVH = 145
 /**
- * Compact (3G): short sticky runway for lock → History intro handoff
- * (desktop motion language). Year cards remain document-flow afterward.
- * No empty 100svh hold — just enough for lockTravel + headline settle.
+ * Compact (3G.3): continuous lock→History runway with short settle.
+ * Year cards remain document-flow; 2026 peeks inside sticky intro.
  */
-export const MOBILE_TRACK_STUDIO_HISTORY_SVH_COMPACT = 72
+export const MOBILE_TRACK_STUDIO_HISTORY_SVH_COMPACT = MOBILE_TRACK_STUDIO_HISTORY_SVH_COMPACT_3G3
 
 /**
  * Extra lock scale on top of POST_BRIEF_SHRINK_END (0.48).
@@ -25,12 +36,13 @@ export const MOBILE_TRACK_STUDIO_HISTORY_SVH_COMPACT = 72
  */
 export const STUDIO_LOCK_SCALE_END = 0.175
 /** Compact: softer shrink so visual_px/scroll_px stays calm on short runway. */
-export const STUDIO_LOCK_SCALE_END_COMPACT = 0.28
+export const STUDIO_LOCK_SCALE_END_COMPACT = COMPACT_POST_LOCK_SCALE_END
 
 /** Upward travel in vh from stage-center (46%) toward studio composition. */
 export const STUDIO_LOCK_Y_VH_END = -30
-/** Compact: restrained lift (≈0.6–0.85 visual/scroll vs desktop −30vh / 145svh). */
-export const STUDIO_LOCK_Y_VH_END_COMPACT = -18
+/** Compact (3G.3): SECURITY_LOCK → HISTORY_LOCK in stable svh. */
+export const STUDIO_LOCK_Y_VH_END_COMPACT = COMPACT_POST_LOCK_Y_SVH_END
+
 /**
  * @deprecated Compact History is document-flow; no column scrub.
  * Kept so older imports do not break mid-refactor.
@@ -67,6 +79,7 @@ export const STUDIO_HISTORY_RANGES = {
  * FORWARD: text cannot show until lock is ~96% settled.
  * REVERSE: text collapses as soon as lock leaves the settled tip — before
  * significant downward travel / growth (≈20–25px physical reverse).
+ * Compact (3G.3): unused — History overlaps lock travel.
  */
 export const STUDIO_LOCK_SETTLED_GATE = { lockTStart: 0.96, lockTEnd: 1.0 } as const
 
@@ -88,14 +101,15 @@ export function studioLockSettledGateAt(p: number): number {
 }
 
 export function studioLockScaleAt(p: number, compact = false): number {
-  const end = compact ? STUDIO_LOCK_SCALE_END_COMPACT : STUDIO_LOCK_SCALE_END
+  if (compact) return compactPostLockScaleAt(p)
+  const end = STUDIO_LOCK_SCALE_END
   const t = studioLockTravelT(p)
   return 1 - t * (1 - end)
 }
 
 export function studioLockYVhAt(p: number, compact = false): number {
-  const end = compact ? STUDIO_LOCK_Y_VH_END_COMPACT : STUDIO_LOCK_Y_VH_END
-  return end * studioLockTravelT(p)
+  if (compact) return compactPostLockYSvhAt(p)
+  return STUDIO_LOCK_Y_VH_END * studioLockTravelT(p)
 }
 
 /**
@@ -113,28 +127,43 @@ export function studioCompactLockFadeAt(_p: number): number {
 }
 
 /** Security copy group opacity. 1 at p=0 (approved frame). */
-export function studioSecurityCopyOpAt(p: number): number {
-  return 1 - easeOutCubic(rangeT(p, STUDIO_HISTORY_RANGES.securityExit.start, STUDIO_HISTORY_RANGES.securityExit.end))
+export function studioSecurityCopyOpAt(p: number, compact = false): number {
+  if (compact) return compactPostLockSecurityCopyOpAt(p)
+  return (
+    1 -
+    easeOutCubic(
+      rangeT(p, STUDIO_HISTORY_RANGES.securityExit.start, STUDIO_HISTORY_RANGES.securityExit.end),
+    )
+  )
 }
 
 /** 0 → -12px. 0 at p=0. */
-export function studioSecurityCopyYAt(p: number): number {
-  const t = easeOutCubic(rangeT(p, STUDIO_HISTORY_RANGES.securityExit.start, STUDIO_HISTORY_RANGES.securityExit.end))
+export function studioSecurityCopyYAt(p: number, compact = false): number {
+  if (compact) return compactPostLockSecurityCopyYAt(p)
+  const t = easeOutCubic(
+    rangeT(p, STUDIO_HISTORY_RANGES.securityExit.start, STUDIO_HISTORY_RANGES.securityExit.end),
+  )
   return t * -12
 }
 
 export function studioEyebrowOpAt(p: number): number {
-  const reveal = easeOutCubic(rangeT(p, STUDIO_HISTORY_RANGES.eyebrow.start, STUDIO_HISTORY_RANGES.eyebrow.end))
+  const reveal = easeOutCubic(
+    rangeT(p, STUDIO_HISTORY_RANGES.eyebrow.start, STUDIO_HISTORY_RANGES.eyebrow.end),
+  )
   return reveal * studioLockSettledGateAt(p)
 }
 
 export function studioHeadlineOpAt(p: number): number {
-  const reveal = easeOutCubic(rangeT(p, STUDIO_HISTORY_RANGES.headline.start, STUDIO_HISTORY_RANGES.headline.end))
+  const reveal = easeOutCubic(
+    rangeT(p, STUDIO_HISTORY_RANGES.headline.start, STUDIO_HISTORY_RANGES.headline.end),
+  )
   return reveal * studioLockSettledGateAt(p)
 }
 
 export function studioSupportOpAt(p: number): number {
-  const reveal = easeOutCubic(rangeT(p, STUDIO_HISTORY_RANGES.support.start, STUDIO_HISTORY_RANGES.support.end))
+  const reveal = easeOutCubic(
+    rangeT(p, STUDIO_HISTORY_RANGES.support.start, STUDIO_HISTORY_RANGES.support.end),
+  )
   return reveal * studioLockSettledGateAt(p)
 }
 

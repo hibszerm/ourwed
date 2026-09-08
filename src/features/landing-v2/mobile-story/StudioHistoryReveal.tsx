@@ -10,6 +10,13 @@ import {
   seasonImportHistoryShellYAt,
 } from '@/features/landing-v2/mobile-story/seasonImportProgress'
 import {
+  compactPostLockEyebrowOpAt,
+  compactPostLockHeadlineOpAt,
+  compactPostLockRevealYAt,
+  compactPostLockSupportOpAt,
+  compactPostLockYearsPeekOpAt,
+} from '@/features/landing-v2/mobile-story/compactPostLockContinuity'
+import {
   studioCardsOpAt,
   studioEyebrowOpAt,
   studioHeadlineOpAt,
@@ -30,6 +37,7 @@ type Props = {
   /**
    * Compact intro-only (3G): lock → History headline handoff inside MobileStory.
    * Year cards continue in LandingV2SecurityHistoryStory document flow.
+   * 3G.3: continuous overlap + 2026 peek at History established.
    */
   compactIntro?: boolean
 }
@@ -47,7 +55,7 @@ function ClientMark() {
 /**
  * Studio History — sticky chronology.
  * Desktop: full three-column chapter.
- * Compact intro: headline handoff only (years are document-flow).
+ * Compact intro: headline handoff + 2026 peek (years cards are document-flow).
  */
 export function StudioHistoryReveal({ progress, exitProgress, compactIntro = false }: Props) {
   const shellOp = useTransform(exitProgress, (p) =>
@@ -65,29 +73,45 @@ export function StudioHistoryReveal({ progress, exitProgress, compactIntro = fal
   })
   const shellVis = useTransform(shellOp, (o) => paintVisibility(Number(o)))
 
-  const introGate = useTransform(progress, (p) => studioLockSettledGateAt(p))
+  const introGate = useTransform(progress, (p) =>
+    compactIntro ? 1 : studioLockSettledGateAt(p),
+  )
   const introVisibility = useTransform(introGate, (g) => paintVisibility(Number(g)))
 
-  const eyebrowOp = useTransform(progress, (p) => studioEyebrowOpAt(p))
+  const eyebrowOp = useTransform(progress, (p) =>
+    compactIntro ? compactPostLockEyebrowOpAt(p) : studioEyebrowOpAt(p),
+  )
   const eyebrowY = useTransform(eyebrowOp, (op) => {
     const o = Number(op)
-    return o < 0.02 ? 0 : studioRevealYAt(Math.min(1, o))
+    if (o < 0.02) return 0
+    return compactIntro ? compactPostLockRevealYAt(Math.min(1, o)) : studioRevealYAt(Math.min(1, o))
   })
   const eyebrowVisibility = useTransform(eyebrowOp, (o) => paintVisibility(Number(o)))
 
-  const headlineOp = useTransform(progress, (p) => studioHeadlineOpAt(p))
+  const headlineOp = useTransform(progress, (p) =>
+    compactIntro ? compactPostLockHeadlineOpAt(p) : studioHeadlineOpAt(p),
+  )
   const headlineY = useTransform(headlineOp, (op) => {
     const o = Number(op)
-    return o < 0.02 ? 0 : studioRevealYAt(Math.min(1, o))
+    if (o < 0.02) return 0
+    return compactIntro ? compactPostLockRevealYAt(Math.min(1, o)) : studioRevealYAt(Math.min(1, o))
   })
   const headlineVisibility = useTransform(headlineOp, (o) => paintVisibility(Number(o)))
 
-  const supportOp = useTransform(progress, (p) => studioSupportOpAt(p))
+  const supportOp = useTransform(progress, (p) =>
+    compactIntro ? compactPostLockSupportOpAt(p) : studioSupportOpAt(p),
+  )
   const supportY = useTransform(supportOp, (op) => {
     const o = Number(op)
-    return o < 0.02 ? 0 : studioRevealYAt(Math.min(1, o))
+    if (o < 0.02) return 0
+    return compactIntro ? compactPostLockRevealYAt(Math.min(1, o)) : studioRevealYAt(Math.min(1, o))
   })
   const supportVisibility = useTransform(supportOp, (o) => paintVisibility(Number(o)))
+
+  const yearsPeekOp = useTransform(progress, (p) =>
+    compactIntro ? compactPostLockYearsPeekOpAt(p) : 0,
+  )
+  const yearsPeekVis = useTransform(yearsPeekOp, (o) => paintVisibility(Number(o)))
 
   const timelineOp = useTransform(progress, (p) => (compactIntro ? 0 : studioTimelineOpAt(p)))
   const timelineScaleX = useTransform(progress, (p) =>
@@ -108,12 +132,15 @@ export function StudioHistoryReveal({ progress, exitProgress, compactIntro = fal
     useTransform(y2028, (o) => paintVisibility(Number(o))),
   ]
 
+  const peekYear = LV2_HISTORY_SEASONS[0]?.year ?? 2026
+
   return (
     <motion.div
       className={compactIntro ? `${styles.root} ${styles.rootCompact}` : styles.root}
       data-studio-history=""
       data-studio-history-owner="mobile"
       data-studio-history-compact={compactIntro ? 'intro' : 'false'}
+      data-post-lock-continuity={compactIntro ? '3g3' : 'desktop'}
       style={{
         x: '-50%',
         y: shellY,
@@ -139,7 +166,7 @@ export function StudioHistoryReveal({ progress, exitProgress, compactIntro = fal
           </motion.p>
 
           <motion.h2
-            id={compactIntro ? 'lv2-studio-history-heading' : 'lv2-studio-history-heading'}
+            id="lv2-studio-history-heading"
             className={styles.headline}
             data-studio-headline=""
             style={{ opacity: headlineOp, y: headlineY, visibility: headlineVisibility }}
@@ -156,6 +183,18 @@ export function StudioHistoryReveal({ progress, exitProgress, compactIntro = fal
           </motion.p>
         </motion.div>
       </div>
+
+      {compactIntro ? (
+        <motion.div
+          className={styles.yearsPeek}
+          data-studio-years-peek=""
+          data-season-year={peekYear}
+          style={{ opacity: yearsPeekOp, visibility: yearsPeekVis }}
+          aria-hidden
+        >
+          <p className={styles.yearPeekLabel}>{peekYear}</p>
+        </motion.div>
+      ) : null}
 
       {!compactIntro ? (
         <>

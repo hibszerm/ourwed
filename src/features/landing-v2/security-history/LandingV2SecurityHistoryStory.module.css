@@ -29,8 +29,12 @@
 }
 
 .flow[data-studio-history-years-only='true'] {
-  /* Intro lives in sticky — start years soon after History copy (~16–26vh gap). */
-  padding-top: clamp(0.75rem, 3vw, 1.5rem);
+  /*
+   * Intro lives in sticky (with 2026 peek). Document-flow years continue
+   * immediately — target support→2026 gap ~110–180px once sticky releases.
+   */
+  padding-top: clamp(0.35rem, 1.5vw, 0.75rem);
+  margin-top: 0;
 }
 
 .inner {
@@ -152,13 +156,14 @@
     .flow[data-studio-history-compact='true'] .yearChapter {
       animation: lv2SeasonReveal linear both;
       animation-timeline: view();
-      animation-range: entry 5% cover 42%;
+      /* Begin near bottom entry — do not wait for center. */
+      animation-range: entry 0% cover 36%;
     }
 
     .flow[data-studio-history-compact='true'] .year {
       animation: lv2SeasonLabelReveal linear both;
       animation-timeline: view();
-      animation-range: entry 0% cover 38%;
+      animation-range: entry 0% cover 32%;
     }
   }
 }

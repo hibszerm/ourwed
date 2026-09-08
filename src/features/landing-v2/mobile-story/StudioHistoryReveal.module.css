@@ -13,7 +13,8 @@
 
 /* Compact intro: content-box width from sticky stage — no nested 100vw bias. */
 .rootCompact {
-  top: 18%;
+  /* Slightly higher band so History + 2026 peek share one established frame. */
+  top: 14%;
   width: min(26rem, calc(100% - 2.25rem));
   max-width: calc(100% - 2.25rem);
 }
@@ -37,6 +38,7 @@
 
 .rootCompact .support {
   max-width: min(22rem, 100%);
+  margin-top: 0.7rem;
 }
 
 .rootCompact .lockSlot {
@@ -46,6 +48,28 @@
   margin-bottom: clamp(1.25rem, 5.5vw, 1.75rem);
   padding-bottom: 0;
   flex-shrink: 0;
+}
+
+/* 2026 peek — lower readable band (~84% usable) at History established. */
+.yearsPeek {
+  position: absolute;
+  left: 50%;
+  bottom: clamp(0.75rem, 8%, 2.5rem);
+  transform: translate3d(-50%, 0, 0);
+  width: 100%;
+  max-width: min(22rem, 100%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.yearPeekLabel {
+  margin: 0;
+  text-align: center;
+  font-size: clamp(1.75rem, 7.2vw, 2rem);
+  font-weight: 600;
+  letter-spacing: -0.045em;
+  line-height: 1;
+  color: #1a1614;
 }
 
 .heroLead {

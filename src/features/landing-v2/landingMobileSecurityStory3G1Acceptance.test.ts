@@ -41,9 +41,10 @@ console.log('\n=== landing mobile security story 3G.1 (rejected) — recovery gu
 {
   assertEq(COMPACT_POST_BRIEF_RUNWAY_SVH, 90, 'runway kept')
   assertEq(MOBILE_TRACK_POST_BRIEF_SVH_COMPACT, 90, 'postBrief compact 90')
-  assertEq(MOBILE_TRACK_STUDIO_HISTORY_SVH_COMPACT, 72, 'studio intro restored to 3G/f019')
+  assertEq(MOBILE_TRACK_STUDIO_HISTORY_SVH_COMPACT, 58, 'compact studio intro')
+  assertEq(COMPACT_SECURITY_LOCK_CENTER_PCT, 38.5, 'large lock ~38.5%')
+  assert(COMPACT_SECURITY_LOCK_CENTER_PCT >= 37 && COMPACT_SECURITY_LOCK_CENTER_PCT <= 40, 'lock 37–40%')
   assertEq(COMPACT_PHONE_SETTLED_STAGE_CENTER_PCT, 50, 'phone settled 50%')
-  assert(COMPACT_SECURITY_LOCK_CENTER_PCT >= 40 && COMPACT_SECURITY_LOCK_CENTER_PCT <= 42, 'lock 40–42%')
   console.log('PASS  1. recovered composition tokens')
 }
 

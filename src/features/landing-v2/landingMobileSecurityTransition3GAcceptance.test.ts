@@ -18,7 +18,6 @@ import {
 import {
   MOBILE_TRACK_STUDIO_HISTORY_SVH,
   MOBILE_TRACK_STUDIO_HISTORY_SVH_COMPACT,
-  STUDIO_HISTORY_RANGES,
   STUDIO_LOCK_SCALE_END,
   STUDIO_LOCK_SCALE_END_COMPACT,
   STUDIO_LOCK_Y_VH_END,
@@ -59,7 +58,7 @@ console.log('\n=== landing mobile security transition 3G ===\n')
   assertEq(postBriefRunwaySvh(false), 112, 'desktop runway helper')
   assertEq(postBriefRunwaySvh(true), 90, 'compact runway helper')
   assertEq(MOBILE_TRACK_STUDIO_HISTORY_SVH, 145, 'desktop studio frozen')
-  assertEq(MOBILE_TRACK_STUDIO_HISTORY_SVH_COMPACT, 72, 'compact studio intro')
+  assertEq(MOBILE_TRACK_STUDIO_HISTORY_SVH_COMPACT, 58, 'compact studio intro')
   console.log(
     `PASS  1. phone→lock runway ${MOBILE_TRACK_POST_BRIEF_SVH}→${MOBILE_TRACK_POST_BRIEF_SVH_COMPACT} (${(ratio * 100).toFixed(1)}%)`,
   )
@@ -106,14 +105,13 @@ console.log('\n=== landing mobile security transition 3G ===\n')
 {
   assert(STUDIO_LOCK_Y_VH_END === -30, 'desktop lock Y frozen')
   assert(STUDIO_LOCK_SCALE_END === 0.175, 'desktop lock scale frozen')
-  assert(STUDIO_LOCK_Y_VH_END_COMPACT === -18, 'compact lock Y calmed')
+  assert(STUDIO_LOCK_Y_VH_END_COMPACT === -20.5, 'compact lock Y 3G.3')
   assert(STUDIO_LOCK_SCALE_END_COMPACT === 0.28, 'compact lock scale calmed')
-  const lockTravelShare =
-    STUDIO_HISTORY_RANGES.lockTravel.end - STUDIO_HISTORY_RANGES.lockTravel.start
-  const compactLockScrollSvh = lockTravelShare * MOBILE_TRACK_STUDIO_HISTORY_SVH_COMPACT
+  /* Compact lock travel is continuous 0→0.7 of studio runway (3G.3). */
+  const compactLockScrollSvh = 0.7 * MOBILE_TRACK_STUDIO_HISTORY_SVH_COMPACT
   const compactLockTravelVh = Math.abs(STUDIO_LOCK_Y_VH_END_COMPACT)
   const ratio = compactLockTravelVh / compactLockScrollSvh
-  assert(ratio >= 0.5 && ratio <= 0.95, `lock visual/scroll ~0.5–0.9 (got ${ratio.toFixed(2)})`)
+  assert(ratio >= 0.4 && ratio <= 0.95, `lock visual/scroll calm (got ${ratio.toFixed(2)})`)
   assert(studioLockScaleAt(0, true) === 1, 'compact lock scale identity at 0')
   assert(studioLockYVhAt(0, true) === 0, 'compact lock Y identity at 0')
   const history = read('src/features/landing-v2/security-history/LandingV2SecurityHistoryStory.tsx')
@@ -123,7 +121,7 @@ console.log('\n=== landing mobile security transition 3G ===\n')
     'compactIntro',
     'intro reveal supports compact',
   )
-  console.log('PASS  4. lock→history desktop-parity compact choreography')
+  console.log('PASS  4. lock→history continuous compact choreography')
 }
 
 {

@@ -41,8 +41,12 @@
   position: sticky;
   top: var(--lv2-nav-h);
   z-index: 4;
+  /*
+   * Stable layout viewport only (3G.3).
+   * Do NOT dual-declare 100dvh — Safari chrome expand/collapse must not
+   * resize the sticky stage and jump post-lock lock coordinates.
+   */
   height: calc(100svh - var(--lv2-nav-h));
-  height: calc(100dvh - var(--lv2-nav-h));
   width: 100%;
   overflow: visible;
   background: transparent;
@@ -269,7 +273,7 @@
   .stageCenter {
     /*
      * PHONE settled / morph start — f019 baseline (50%).
-     * SECURITY large-lock established (~41%) is a SEPARATE late transform lift
+     * SECURITY large-lock established (~38.5%) is a SEPARATE late transform lift
      * (compactSecurityLockLiftVhAt) — never share one stageCenter for both.
      */
     top: 50%;

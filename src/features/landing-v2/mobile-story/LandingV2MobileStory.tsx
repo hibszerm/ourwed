@@ -524,8 +524,9 @@ export function LandingV2MobileStory() {
   )
   /*
    * PHONE_SETTLED_Y = stageCenter 50% (CSS) + enterPx.
-   * SECURITY_LOCK_Y = late compact lift after morph (~41%) — never at morph start.
-   * MORPH_INTERMEDIATE / studio travel layer on top via studioLockYVhAt.
+   * SECURITY_LOCK_Y = late compact lift after morph (~38.5%) — never at morph start.
+   * HISTORY_LOCK_Y = continuous compactPostLockYSvhAt (one post-lock owner).
+   * Compact uses svh — not vh/dvh — so Safari chrome cannot recompute stage Y.
    */
   const phoneY = useTransform(
     [phoneIn, postBriefVisual, studioProgress, importProgress],
@@ -538,7 +539,9 @@ export function LandingV2MobileStory() {
       const px = enterPx + exitPx
       const vh = studioVh + securityLiftVh
       if (vh === 0) return px
-      return `calc(${px}px + ${vh}vh)`
+      /* Compact: stable svh. Desktop keeps vh (frozen desktop path). */
+      const unit = compactRef.current ? 'svh' : 'vh'
+      return `calc(${px}px + ${vh}${unit})`
     },
   )
 
@@ -553,10 +556,15 @@ export function LandingV2MobileStory() {
 
   const securityCopyOp = useTransform(
     [postBriefVisual, studioProgress],
-    ([pb, st]) => postBriefSecurityCopyAt(Number(pb)) * studioSecurityCopyOpAt(Number(st)),
+    ([pb, st]) =>
+      postBriefSecurityCopyAt(Number(pb)) *
+      studioSecurityCopyOpAt(Number(st), compactRef.current),
   )
   const securityCopyY = useTransform([postBriefVisual, studioProgress], ([pb, st]) => {
-    return (1 - postBriefSecurityCopyAt(Number(pb))) * 14 + studioSecurityCopyYAt(Number(st))
+    return (
+      (1 - postBriefSecurityCopyAt(Number(pb))) * 14 +
+      studioSecurityCopyYAt(Number(st), compactRef.current)
+    )
   })
   const paperOp = useTransform(postBriefVisual, (p) => {
     if (p <= 0.005) return 0
