@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { motion, useReducedMotion } from 'framer-motion'
+import { useReducedMotion } from 'framer-motion'
 import { UserRound } from 'lucide-react'
 import { useLandingCompactViewport } from '@/features/landing-v2/motion/landingViewport'
 import { clearPhoneSecurityMorph } from '@/features/landing-v2/security-history/mobilePhoneExitClock'
@@ -7,33 +7,31 @@ import {
   LV2_HISTORY_COMPACT_VISIBLE_ROWS,
   LV2_HISTORY_COPY,
   LV2_HISTORY_SEASONS,
+  LV2_SECURITY_COPY,
+  LV2_SECURITY_MICRO_POINTS,
   historySeasonCompactView,
 } from '@/features/landing-v2/security-history/securityHistoryClaims'
 import { SecurityLockGraphic } from '@/features/landing-v2/security-history/SecurityLockGraphic'
 import styles from './LandingV2SecurityHistoryStory.module.css'
-
-const COMPACT_EASE = [0.22, 1, 0.36, 1] as const
-
-/** Features-proven IO band — reveal once the top enters the lower reading zone. */
-const INTRO_VIEWPORT = { once: true as const, amount: 0.2, margin: '0px 0px -18% 0px' }
 
 function ClientMark() {
   return <UserRound className={styles.mark} aria-hidden strokeWidth={1.4} />
 }
 
 /**
- * Compact / reduced-motion Studio History — natural document flow.
+ * Compact / reduced-motion Security + Studio History — natural document flow.
  *
- * Desktop normal motion: absorbed. Sticky 3-column History lives in MobileStory.
- * Compact normal motion (3G): intro (lock + "Cała historia…") is scroll-scrubbed
- * inside MobileStory; this sibling continues with year cards only.
- * Reduced-motion: full intro + years in document flow (no sticky scrub).
+ * Desktop normal motion: absorbed. Sticky Security/History live in MobileStory.
+ * Compact (3H): Security + History + years are ONE normal-flow sibling after the
+ * phone sticky releases. No phone→lock morph. No sticky year preview.
+ * Reduced-motion: History intro + years (Security stays in MobileStory static).
  */
 export function LandingV2SecurityHistoryStory() {
   const reduced = useReducedMotion()
   const isCompact = useLandingCompactViewport()
   const flow = Boolean(reduced) || isCompact
-  const yearsOnly = isCompact && !reduced
+  /** Compact tour path owns Security here; PRM uses MobileStory static Security. */
+  const showSecurity = isCompact && !reduced
 
   useEffect(() => {
     clearPhoneSecurityMorph()
@@ -53,7 +51,6 @@ export function LandingV2SecurityHistoryStory() {
   }
 
   const seasons = LV2_HISTORY_SEASONS.map((season) => historySeasonCompactView(season))
-  const motionOff = Boolean(reduced)
 
   return (
     <section
@@ -62,61 +59,69 @@ export function LandingV2SecurityHistoryStory() {
       data-security-theater="document-flow"
       data-studio-history-flow="document"
       data-studio-history-compact="true"
-      data-studio-history-years-only={yearsOnly ? 'true' : 'false'}
+      data-compact-native-security={showSecurity ? '3h' : 'false'}
+      data-studio-history-years-only="false"
       data-studio-history-visible-rows={LV2_HISTORY_COMPACT_VISIBLE_ROWS}
-      aria-labelledby={yearsOnly ? undefined : 'lv2-studio-history-heading'}
-      aria-label={yearsOnly ? LV2_HISTORY_COPY.studioLabel : undefined}
+      aria-labelledby={
+        showSecurity ? 'lv2-security-heading' : 'lv2-studio-history-heading'
+      }
     >
       <div className={styles.inner}>
-        {!yearsOnly ? (
-          <div className={styles.intro} data-studio-history-intro="">
-            <motion.div
-              className={styles.lockWrap}
-              data-studio-lock-flow=""
-              initial={motionOff ? false : { opacity: 0, y: 10 }}
-              whileInView={motionOff ? undefined : { opacity: 1, y: 0 }}
-              viewport={INTRO_VIEWPORT}
-              transition={{ duration: 0.75, ease: COMPACT_EASE }}
-            >
-              <SecurityLockGraphic className={styles.lock} />
-            </motion.div>
-
-            <motion.p
-              className={styles.studioLabel}
-              data-studio-eyebrow=""
-              initial={motionOff ? false : { opacity: 0, y: 8 }}
-              whileInView={motionOff ? undefined : { opacity: 1, y: 0 }}
-              viewport={INTRO_VIEWPORT}
-              transition={{ duration: 0.75, ease: COMPACT_EASE, delay: 0.04 }}
-            >
-              {LV2_HISTORY_COPY.studioLabel}
-            </motion.p>
-
-            <motion.h2
-              id="lv2-studio-history-heading"
-              className={styles.historyHeadline}
-              data-studio-headline=""
-              initial={motionOff ? false : { opacity: 0, y: 14 }}
-              whileInView={motionOff ? undefined : { opacity: 1, y: 0 }}
-              viewport={INTRO_VIEWPORT}
-              transition={{ duration: 0.8, ease: COMPACT_EASE, delay: 0.08 }}
-            >
-              <span className={styles.historyLine}>{LV2_HISTORY_COPY.headlineLine1}</span>
-              <span className={styles.historyLine}>{LV2_HISTORY_COPY.headlineLine2}</span>
-            </motion.h2>
-
-            <motion.p
-              className={styles.historySupport}
-              data-studio-support=""
-              initial={motionOff ? false : { opacity: 0, y: 10 }}
-              whileInView={motionOff ? undefined : { opacity: 1, y: 0 }}
-              viewport={INTRO_VIEWPORT}
-              transition={{ duration: 0.8, ease: COMPACT_EASE, delay: 0.14 }}
-            >
-              {LV2_HISTORY_COPY.support}
-            </motion.p>
-          </div>
+        {showSecurity ? (
+          <section
+            className={styles.securitySection}
+            data-compact-security-section=""
+            data-security-sticky="0"
+            aria-labelledby="lv2-security-heading"
+          >
+            <div className={styles.securityInner} data-security-inner="">
+              <div className={styles.securityLockWrap} data-security-lock="">
+                <SecurityLockGraphic className={styles.securityLock} />
+              </div>
+              <p className={styles.securityEyebrow} data-security-eyebrow="">
+                {LV2_SECURITY_COPY.eyebrow}
+              </p>
+              <h2
+                id="lv2-security-heading"
+                className={styles.securityHeadline}
+                data-security-headline=""
+              >
+                {LV2_SECURITY_COPY.headline}
+              </h2>
+              <p className={styles.securitySupport} data-security-support="">
+                {LV2_SECURITY_COPY.support}
+              </p>
+              <ul className={styles.securityMicro} data-security-micro="">
+                {LV2_SECURITY_MICRO_POINTS.map((item) => (
+                  <li key={item.id}>{item.text}</li>
+                ))}
+              </ul>
+            </div>
+          </section>
         ) : null}
+
+        <div className={styles.historySection} data-studio-history-intro="">
+          <div className={styles.lockWrap} data-studio-lock-flow="">
+            <SecurityLockGraphic className={styles.lock} />
+          </div>
+
+          <p className={styles.studioLabel} data-studio-eyebrow="">
+            {LV2_HISTORY_COPY.studioLabel}
+          </p>
+
+          <h2
+            id="lv2-studio-history-heading"
+            className={styles.historyHeadline}
+            data-studio-headline=""
+          >
+            <span className={styles.historyLine}>{LV2_HISTORY_COPY.headlineLine1}</span>
+            <span className={styles.historyLine}>{LV2_HISTORY_COPY.headlineLine2}</span>
+          </h2>
+
+          <p className={styles.historySupport} data-studio-support="">
+            {LV2_HISTORY_COPY.support}
+          </p>
+        </div>
 
         <div className={styles.yearList} data-studio-year-list="">
           {seasons.map((season) => (
@@ -126,11 +131,6 @@ export function LandingV2SecurityHistoryStory() {
               data-season-year={season.year}
               data-studio-year-chapter={season.year}
             >
-              {/*
-                Years are always in normal document flow with opacity:1 base CSS.
-                Framer whileInView must NOT gate visibility (animation-timeline / IO
-                failure would hide 2026–2028). Subtle motion is CSS @supports only.
-              */}
               <p className={styles.year} data-studio-year-label="">
                 {season.year}
               </p>

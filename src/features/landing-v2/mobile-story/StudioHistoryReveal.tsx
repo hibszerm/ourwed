@@ -14,7 +14,6 @@ import {
   compactPostLockHeadlineOpAt,
   compactPostLockRevealYAt,
   compactPostLockSupportOpAt,
-  compactPostLockYearsPeekOpAt,
 } from '@/features/landing-v2/mobile-story/compactPostLockContinuity'
 import {
   studioCardsOpAt,
@@ -108,11 +107,6 @@ export function StudioHistoryReveal({ progress, exitProgress, compactIntro = fal
   })
   const supportVisibility = useTransform(supportOp, (o) => paintVisibility(Number(o)))
 
-  const yearsPeekOp = useTransform(progress, (p) =>
-    compactIntro ? compactPostLockYearsPeekOpAt(p) : 0,
-  )
-  const yearsPeekVis = useTransform(yearsPeekOp, (o) => paintVisibility(Number(o)))
-
   const timelineOp = useTransform(progress, (p) => (compactIntro ? 0 : studioTimelineOpAt(p)))
   const timelineScaleX = useTransform(progress, (p) =>
     compactIntro ? 1 : 0.12 + studioTimelineOpAt(p) * 0.88,
@@ -132,15 +126,12 @@ export function StudioHistoryReveal({ progress, exitProgress, compactIntro = fal
     useTransform(y2028, (o) => paintVisibility(Number(o))),
   ]
 
-  const peekYear = LV2_HISTORY_SEASONS[0]?.year ?? 2026
-
   return (
     <motion.div
       className={compactIntro ? `${styles.root} ${styles.rootCompact}` : styles.root}
       data-studio-history=""
       data-studio-history-owner="mobile"
       data-studio-history-compact={compactIntro ? 'intro' : 'false'}
-      data-post-lock-continuity={compactIntro ? '3g3' : 'desktop'}
       style={{
         x: '-50%',
         y: shellY,
@@ -183,18 +174,6 @@ export function StudioHistoryReveal({ progress, exitProgress, compactIntro = fal
           </motion.p>
         </motion.div>
       </div>
-
-      {compactIntro ? (
-        <motion.div
-          className={styles.yearsPeek}
-          data-studio-years-peek=""
-          data-season-year={peekYear}
-          style={{ opacity: yearsPeekOp, visibility: yearsPeekVis }}
-          aria-hidden
-        >
-          <p className={styles.yearPeekLabel}>{peekYear}</p>
-        </motion.div>
-      ) : null}
 
       {!compactIntro ? (
         <>

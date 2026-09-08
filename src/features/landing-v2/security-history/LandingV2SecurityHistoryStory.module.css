@@ -1,4 +1,4 @@
-/* Studio History — compact/PRM document flow. Desktop sticky lives in MobileStory. */
+/* Compact / PRM Security + History — normal document flow. Desktop sticky lives in MobileStory. */
 
 .absorbed {
   display: block;
@@ -15,8 +15,9 @@
   --sh-muted: color-mix(in srgb, #1a1614 48%, transparent);
   --studio-history-mobile-gutter: 1.125rem;
   --studio-history-mobile-year-gap: clamp(2.75rem, 7vw, 3.75rem);
-  /* History → Season Import handoff (~72–96px). */
   --studio-history-mobile-section-end: clamp(4.5rem, 11vw, 6rem);
+  /* History support → 2026: ~110–125px @ 402 (not a vh desert). */
+  --studio-history-to-year-gap: clamp(5.5rem, 14vw, 7.5rem);
 
   position: relative;
   z-index: 2;
@@ -24,21 +25,10 @@
   box-sizing: border-box;
   background: var(--sh-paper);
   color: var(--sh-ink);
-  padding: clamp(2.75rem, 8vw, 4rem) var(--studio-history-mobile-gutter)
-    var(--studio-history-mobile-section-end);
-}
-
-.flow[data-studio-history-years-only='true'] {
-  /*
-   * Intro lives in sticky (with 2026 peek). Document-flow years continue
-   * immediately — target support→2026 gap ~110–180px once sticky releases.
-   */
-  padding-top: clamp(0.35rem, 1.5vw, 0.75rem);
-  margin-top: 0;
+  padding: 0 var(--studio-history-mobile-gutter) var(--studio-history-mobile-section-end);
 }
 
 .inner {
-  /* 3G: width from padded parent — never 100vw (caused right-biased overflow). */
   width: 100%;
   max-width: 26rem;
   margin-inline: auto;
@@ -48,20 +38,120 @@
   box-sizing: border-box;
 }
 
-.intro {
+/* —— Security (3H): balanced content block, stable svh, no sticky —— */
+.securitySection {
+  width: 100%;
+  /* Stable layout viewport — never dynamic viewport height units. */
+  min-height: calc(100svh - var(--lv3-nav-h, 68px));
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  padding: clamp(2rem, 6svh, 3.5rem) 0;
+}
+
+.securityInner {
+  width: 100%;
+  max-width: 26rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  /* Base: always visible (progressive enhancement only for motion). */
+  opacity: 1;
+}
+
+.securityLockWrap {
+  display: flex;
+  justify-content: center;
+  margin: 0 0 clamp(1.5rem, 4vw, 2.25rem);
+}
+
+.securityLock {
+  width: clamp(72px, 22vw, 96px);
+  height: auto;
+  color: #1a1614;
+  display: block;
+}
+
+.securityEyebrow {
+  margin: 0 0 0.75rem;
+  width: 100%;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--sh-muted);
+}
+
+.securityHeadline {
+  margin: 0;
+  width: 100%;
+  font-size: clamp(1.65rem, 6.5vw, 2.15rem);
+  font-weight: 600;
+  letter-spacing: -0.045em;
+  line-height: 1.12;
+  color: var(--sh-ink);
+  white-space: pre-line;
+  text-wrap: balance;
+}
+
+.securitySupport {
+  margin: 1rem auto 0;
+  max-width: min(22rem, 100%);
+  font-size: clamp(0.9375rem, 3.8vw, 1rem);
+  line-height: 1.5;
+  color: var(--sh-muted);
+}
+
+.securityMicro {
+  list-style: none;
+  margin: 1.25rem 0 0;
+  padding: 0;
+  width: 100%;
+  max-width: min(22rem, 100%);
+  display: grid;
+  gap: 0.65rem;
+  text-align: left;
+}
+
+.securityMicro li {
+  position: relative;
+  padding-left: 1.15rem;
+  font-size: 0.9375rem;
+  line-height: 1.4;
+  color: var(--sh-ink);
+}
+
+.securityMicro li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.55em;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: color-mix(in srgb, #1a1614 42%, transparent);
+}
+
+/* —— History intro —— */
+.historySection {
   display: flex;
   flex-direction: column;
   align-items: center;
   width: 100%;
   text-align: center;
-  margin-bottom: clamp(3rem, 8vw, 4rem);
+  padding-top: clamp(2.5rem, 7vw, 3.5rem);
+  margin-bottom: var(--studio-history-to-year-gap);
+  opacity: 1;
 }
 
 .lockWrap {
   display: flex;
   justify-content: center;
-  margin: 0 0 1rem;
-  /* Lock is normal-flow content — never sticky/fixed. */
+  /* Small lock ABOVE "TWOJE STUDIO" — ~20–28px gap @ 402. */
+  margin: 0 0 clamp(1.25rem, 5.5vw, 1.75rem);
   position: relative;
 }
 
@@ -95,13 +185,11 @@
   line-height: 1.05;
   color: var(--sh-ink);
   text-align: center;
-  /* Stable state: no horizontal transform. */
   transform: none;
 }
 
 .historyLine {
   display: block;
-  /* Allow wrap on very narrow widths so the period never clips. */
   white-space: normal;
   overflow-wrap: anywhere;
   text-wrap: balance;
@@ -129,7 +217,6 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  /* Always visible in document flow — motion is progressive enhancement only. */
   opacity: 1;
 }
 
@@ -142,35 +229,45 @@
   letter-spacing: -0.045em;
   line-height: 1;
   color: var(--sh-ink);
-  /* Centering via layout only — never transform translateX. */
   transform: none;
   opacity: 1;
 }
 
 /*
- * Season motion ONLY when view timelines work. Never globally opacity:0
- * that depends on Safari animation-timeline to reveal years.
+ * Subtle entry ONLY when view timelines work.
+ * Base opacity stays 1 — never hide content when timelines fail.
  */
 @supports (animation-timeline: view()) {
   @media (prefers-reduced-motion: no-preference) {
-    .flow[data-studio-history-compact='true'] .yearChapter {
-      animation: lv2SeasonReveal linear both;
+    .securityInner {
+      animation: lv2SecurityReveal linear both;
       animation-timeline: view();
-      /* Begin near bottom entry — do not wait for center. */
+      animation-range: entry 0% cover 38%;
+    }
+
+    .securityLockWrap {
+      animation: lv2SecurityLockReveal linear both;
+      animation-timeline: view();
       animation-range: entry 0% cover 36%;
     }
 
-    .flow[data-studio-history-compact='true'] .year {
-      animation: lv2SeasonLabelReveal linear both;
+    .historySection {
+      animation: lv2HistoryIntroReveal linear both;
       animation-timeline: view();
-      animation-range: entry 0% cover 32%;
+      animation-range: entry 0% cover 36%;
+    }
+
+    .yearChapter {
+      animation: lv2SeasonReveal linear both;
+      animation-timeline: view();
+      animation-range: entry 0% cover 34%;
     }
   }
 }
 
-@keyframes lv2SeasonReveal {
+@keyframes lv2SecurityReveal {
   from {
-    opacity: 0.35;
+    opacity: 0.55;
     transform: translate3d(0, 18px, 0);
   }
   to {
@@ -179,10 +276,32 @@
   }
 }
 
-@keyframes lv2SeasonLabelReveal {
+@keyframes lv2SecurityLockReveal {
+  from {
+    opacity: 0.65;
+    transform: translate3d(0, 16px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes lv2HistoryIntroReveal {
+  from {
+    opacity: 0.5;
+    transform: translate3d(0, 16px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes lv2SeasonReveal {
   from {
     opacity: 0.4;
-    transform: translate3d(0, 14px, 0);
+    transform: translate3d(0, 16px, 0);
   }
   to {
     opacity: 1;
@@ -256,5 +375,14 @@
 @media (prefers-reduced-motion: reduce) {
   .flow {
     scroll-margin-top: 4.5rem;
+  }
+
+  .securityInner,
+  .securityLockWrap,
+  .historySection,
+  .yearChapter {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
   }
 }
