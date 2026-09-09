@@ -145,12 +145,12 @@ run('3. stale workflowStage cannot alter Calendar CTA (shared resolver)', () => 
     contract: { status: 'generated' },
   })
   const a = resolveWeddingNextAction(base)
-  assertEq(a?.id, 'mark_contract_signed', 'stage ignored — mark signed')
+  assertEq(a?.id, 'mark_contract_sent', 'stage ignored — mark sent')
   const b = resolveWeddingNextAction({
     ...base,
     workflowStage: 'completed',
   })
-  assertEq(b?.id, 'mark_contract_signed', 'completed stage still ignored')
+  assertEq(b?.id, 'mark_contract_sent', 'completed stage still ignored')
 })
 
 run('4. waiting questionnaire produces no fake CTA', () => {

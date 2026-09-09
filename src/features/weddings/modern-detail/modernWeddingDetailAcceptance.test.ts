@@ -655,15 +655,15 @@ run('8. Attention dedupe', () => {
     action,
     applyCount: 0,
   })
-  assertEq(story.kind, 'mark_contract_signed', 'unsigned is the story')
+  assertEq(story.kind, 'mark_contract_sent', 'unsent is the story')
   const attention = composeModernWeddingAttention({
     wedding: w,
     applyCount: 0,
     story,
   })
   assert(
-    !attention.items.some((i) => i.id === 'unsigned_contract'),
-    'does not repeat unsigned',
+    !attention.items.some((i) => i.id === 'unsent_contract'),
+    'does not repeat unsent',
   )
 })
 

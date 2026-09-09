@@ -93,6 +93,7 @@ export function ModernWeddingContractFinanceWorkspace({
   const [travelFeeOpen, setTravelFeeOpen] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<Payment | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [confirmSent, setConfirmSent] = useState(false)
   const [confirmSign, setConfirmSign] = useState(false)
   const [confirmUnsign, setConfirmUnsign] = useState(false)
   const [signBusy, setSignBusy] = useState(false)
@@ -149,10 +150,9 @@ export function ModernWeddingContractFinanceWorkspace({
   const sourceContracts = sourceQuery.data ?? []
   const canRegenerate =
     hasTemplate === true && Boolean(latest) && headline.kind !== 'archived'
-  const canSign =
-    (wedding.contract?.status === 'generated' ||
-      wedding.contract?.status === 'sent') &&
-    hasGenerated
+  const canMarkSent =
+    wedding.contract?.status === 'generated' && hasGenerated
+  const canSign = wedding.contract?.status === 'sent' && hasGenerated
   const isSigned = wedding.contract?.status === 'signed'
   const addDeposit = !hasPaidDepositPayment(payments)
   const deleteCopy = pendingDelete ? deletePaymentCopy(pendingDelete) : null
@@ -213,6 +213,23 @@ export function ModernWeddingContractFinanceWorkspace({
       )
     } finally {
       setDownloading(null)
+    }
+  }
+
+  async function markSent() {
+    setSignBusy(true)
+    try {
+      await contractService.updateStatus(wedding.id, 'sent')
+      showToast('Umowa oznaczona jako wysłana.', 'success')
+      setConfirmSent(false)
+      onContractStatusChanged?.()
+    } catch (err) {
+      showToast(
+        getUserFacingErrorMessage(err, 'Nie udało się oznaczyć wysyłki.'),
+        'error',
+      )
+    } finally {
+      setSignBusy(false)
     }
   }
 
@@ -404,7 +421,7 @@ export function ModernWeddingContractFinanceWorkspace({
                 {pdfDownload.error}
               </p>
             ) : null}
-            {canRegenerate || canSign || isSigned ? (
+            {canRegenerate || canMarkSent || canSign || isSigned ? (
               <div className={styles.manageRow}>
                 {canRegenerate ? (
                   <button
@@ -414,6 +431,16 @@ export function ModernWeddingContractFinanceWorkspace({
                     onClick={() => onAction('generate_contract')}
                   >
                     Generuj ponownie
+                  </button>
+                ) : null}
+                {canMarkSent ? (
+                  <button
+                    type="button"
+                    className={styles.quietLink}
+                    data-testid="contract-mark-sent"
+                    onClick={() => setConfirmSent(true)}
+                  >
+                    Oznacz jako wysłaną
                   </button>
                 ) : null}
                 {canSign ? (
@@ -459,6 +486,19 @@ export function ModernWeddingContractFinanceWorkspace({
             <Link className={styles.quietLink} to="/studio/pakiety">
               Przejdź do pakietu
             </Link>
+          </div>
+        ) : null}
+
+        {!latest && canMarkSent ? (
+          <div className={styles.manageRow}>
+            <button
+              type="button"
+              className={styles.quietLink}
+              data-testid="contract-mark-sent"
+              onClick={() => setConfirmSent(true)}
+            >
+              Oznacz jako wysłaną
+            </button>
           </div>
         ) : null}
 
@@ -922,6 +962,31 @@ export function ModernWeddingContractFinanceWorkspace({
             {pendingDelete.label} · {formatCurrency(pendingDelete.amount)}
           </p>
         ) : null}
+      </Modal>
+
+      <Modal
+        open={confirmSent}
+        title="Oznacz umowę jako wysłaną"
+        description="To zapisuje fakt biznesowy w OurWed. Nie wysyła e-maila i nie zmienia pliku umowy."
+        onClose={() => setConfirmSent(false)}
+        busy={signBusy}
+        primaryAction={
+          <Button
+            type="button"
+            variant="primary"
+            size="sm"
+            disabled={signBusy}
+            data-testid="contract-mark-sent-confirm"
+            onClick={() => void markSent()}
+          >
+            {signBusy ? 'Zapisywanie…' : 'Oznacz jako wysłaną'}
+          </Button>
+        }
+      >
+        <p>
+          Potwierdź, że wysłałeś umowę klientowi poza OurWed (np. e-mailem lub
+          komunikatorem).
+        </p>
       </Modal>
 
       <Modal

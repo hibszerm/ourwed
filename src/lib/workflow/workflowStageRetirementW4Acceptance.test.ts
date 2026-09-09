@@ -142,7 +142,7 @@ run('6–7. Next Action progresses on domain state; stale stage ignored', () => 
       contract: { status: 'generated' },
     }),
   )
-  assertEq(generated?.id, 'mark_contract_signed', 'after generate → mark signed')
+  assertEq(generated?.id, 'mark_contract_sent', 'after generate → mark sent')
 
   const withDeposit = resolveWeddingNextAction(
     wedding({

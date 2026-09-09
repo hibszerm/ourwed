@@ -41,6 +41,7 @@ const ALL_ACTION_IDS: WeddingNextActionId[] = [
   'send_contract_questionnaire',
   'resolve_travel_fee',
   'generate_contract',
+  'mark_contract_sent',
   'mark_contract_signed',
   'record_deposit',
   'send_prewedding',
@@ -130,6 +131,7 @@ run('3. Destination adapter covers every V1 action exhaustively', () => {
     send_contract_questionnaire: 'sendContractQuestionnaire',
     resolve_travel_fee: 'resolveTravelFee',
     generate_contract: 'generateContract',
+    mark_contract_sent: 'openContractFinance',
     mark_contract_signed: 'openContractFinance',
     record_deposit: 'recordDeposit',
     send_prewedding: 'openPreWedding',
@@ -148,7 +150,7 @@ run('3. Destination adapter covers every V1 action exhaustively', () => {
       assertEq(n, 0, `${id} must not call ${k}`)
     }
   }
-  assertEq(ALL_ACTION_IDS.length, 9, 'catalog size')
+  assertEq(ALL_ACTION_IDS.length, 10, 'catalog size')
 })
 
 run('4–12. DetailV2 wires real destinations for each action family', () => {
@@ -164,6 +166,7 @@ run('4–12. DetailV2 wires real destinations for each action family', () => {
   assert(shell.includes('TravelFeeResolveModal'), '4d. existing modal')
   assert(shell.includes("onHeroAction('generate_contract')"), '5. generate')
   assert(shell.includes("setTab('contract_finance')"), '6. mark signed tab')
+  assert(dispatch.includes("case 'mark_contract_sent'"), '6a. mark sent case')
   assert(dispatch.includes("case 'mark_contract_signed'"), '6b. mark signed case')
   assert(shell.includes("onHeroAction('add_deposit')"), '7. deposit')
   assert(

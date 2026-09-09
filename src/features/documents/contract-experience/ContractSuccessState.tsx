@@ -66,9 +66,6 @@ export function ContractSuccessState({
               }
             }}
           />
-          <button type="button" className={styles.ghostLink} disabled>
-            Wyślij klientowi · wkrótce
-          </button>
         </div>
       </motion.div>
     </motion.div>

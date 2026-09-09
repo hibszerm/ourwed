@@ -44,6 +44,7 @@ export type CurrentStoryKind =
   | 'waiting_contract'
   | 'resolve_travel_fee'
   | 'generate_contract'
+  | 'mark_contract_sent'
   | 'mark_contract_signed'
   | 'record_deposit'
   | 'send_prewedding'
@@ -57,6 +58,7 @@ export type CurrentStoryKind =
 
 export type CurrentStoryIssueId =
   | 'apply'
+  | 'unsent_contract'
   | 'unsigned_contract'
   | 'overdue_payment'
   | 'missing_template'
@@ -337,6 +339,16 @@ function mapResolverStory(
           ? ['generate_contract', 'missing_template']
           : ['generate_contract'],
       })
+    case 'mark_contract_sent':
+      return story({
+        kind: 'mark_contract_sent',
+        eyebrow: 'Teraz',
+        title: 'Umowa czeka na oznaczenie wysyłki',
+        support: null,
+        primaryAction: { label: 'Oznacz', id: action.id },
+        quietLink: null,
+        ownsIssueIds: ['unsent_contract'],
+      })
     case 'mark_contract_signed':
       return story({
         kind: 'mark_contract_signed',
@@ -558,10 +570,15 @@ export function composeModernWeddingAttention(input: {
   const overduePay = paymentOverdue(wedding, input.todayKey)
   const delivery = deliveryStateFor(wedding, input.todayKey)
 
-  if (
-    (contractStatus === 'generated' || contractStatus === 'sent') &&
-    !owned.has('unsigned_contract')
-  ) {
+  if (contractStatus === 'generated' && !owned.has('unsent_contract')) {
+    candidates.push({
+      id: 'unsent_contract',
+      label: 'Umowa oczekuje na oznaczenie wysyłki',
+      action: { label: 'Oznacz', id: 'mark_contract_sent' },
+    })
+  }
+
+  if (contractStatus === 'sent' && !owned.has('unsigned_contract')) {
     candidates.push({
       id: 'unsigned_contract',
       label: 'Umowa oczekuje na oznaczenie podpisu',
@@ -675,7 +692,13 @@ export function composeModernWeddingReadiness(input: {
   }
 
   if (contractStatus !== 'signed') {
-    if (contractStatus === 'generated' || contractStatus === 'sent') {
+    if (contractStatus === 'generated') {
+      items.push({
+        id: 'contract',
+        domain: 'Umowa',
+        status: 'Do wysłania',
+      })
+    } else if (contractStatus === 'sent') {
       items.push({
         id: 'contract',
         domain: 'Umowa',

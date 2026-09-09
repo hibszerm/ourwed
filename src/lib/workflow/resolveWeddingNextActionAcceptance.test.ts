@@ -191,6 +191,7 @@ run('0. architecture freeze — pure resolver, no task persistence, legacy noted
   assert(!src.includes('open_cockpit'), 'cockpit next action removed')
   assert(src.includes('resolve_travel_fee'), 'travel gate id')
   assert(src.includes('isClientContractCollectionComplete'), 'reuses client readiness group')
+  assert(src.includes('mark_contract_sent'), 'mark sent id')
   assert(src.includes('mark_contract_signed'), 'mark signed id')
   assert(src.includes('PHASE A'), 'lifecycle phases')
   assert(src.includes('PHASE B'), 'deposit phase')
@@ -299,7 +300,7 @@ run('1B.1-1. Tomorrow + Q completed + no contract + travel included → generate
   )
 })
 
-run('1B.1-2. Tomorrow + generated + unsigned + missing time → mark_contract_signed', () => {
+run('1B.1-2. Tomorrow + generated + unsigned + missing time → mark_contract_sent', () => {
   assertEq(
     resolveWeddingNextAction(
       stub({
@@ -312,7 +313,7 @@ run('1B.1-2. Tomorrow + generated + unsigned + missing time → mark_contract_si
       }),
       { today: IMMINENT, places: corePlaces() },
     )?.id,
-    'mark_contract_signed',
+    'mark_contract_sent',
     'commercial before ops',
   )
 })
@@ -552,7 +553,7 @@ run('1B.1-16. stale workflowStage must not alter result', () => {
       }),
       { today: IMMINENT, places: corePlaces() },
     )?.id,
-    'mark_contract_signed',
+    'mark_contract_sent',
     'stage ignored',
   )
 })
@@ -596,7 +597,7 @@ run('1B.1-18. past + ops gaps only → null', () => {
   )
 })
 
-run('4. contract generated far → mark_contract_signed', () => {
+run('4. contract generated far → mark_contract_sent', () => {
   assertEq(
     resolveWeddingNextAction(
       stub({
@@ -608,7 +609,7 @@ run('4. contract generated far → mark_contract_signed', () => {
       }),
       { today: FAR },
     )?.id,
-    'mark_contract_signed',
+    'mark_contract_sent',
     'generated',
   )
 })
@@ -939,7 +940,7 @@ run('A5. travel charged valid + contract none → generate_contract', () => {
   )
 })
 
-run('A6. travel unresolved + contract generated → mark_contract_signed', () => {
+run('A6. travel unresolved + contract generated → mark_contract_sent', () => {
   assertEq(
     resolveWeddingNextAction(
       stub({
@@ -952,7 +953,7 @@ run('A6. travel unresolved + contract generated → mark_contract_signed', () =>
       }),
       { today: FAR },
     )?.id,
-    'mark_contract_signed',
+    'mark_contract_sent',
     'generated not retro travel',
   )
 })
@@ -1229,6 +1230,89 @@ run('P5-F. Full photographer data + not_sent + travel charged → generate_contr
     )?.id,
     'generate_contract',
     'charged travel still generate',
+  )
+})
+
+run('A6/A7-1. generated → mark_contract_sent', () => {
+  const a = resolveWeddingNextAction(
+    stub({
+      questionnaires: {
+        contractData: { status: 'completed' },
+        weddingQuestionnaire: { status: 'not_sent' },
+      },
+      contract: { status: 'generated' },
+    }),
+    { today: FAR },
+  )
+  assertEq(a?.id, 'mark_contract_sent', 'id')
+  assertEq(a?.title, 'Oznacz umowę jako wysłaną', 'title')
+})
+
+run('A6/A7-2. generated + incomplete client collection → mark_contract_sent (not questionnaire)', () => {
+  const a = resolveWeddingNextAction(
+    stub({
+      couple: {
+        partner1: '',
+        partner2: '',
+        partner1FirstName: '',
+        partner1LastName: '',
+        partner2FirstName: '',
+        partner2LastName: '',
+        partner1Phone: '',
+        partner1Email: '',
+        phone: '',
+        email: '',
+      },
+      receptionLocation: '',
+      ceremonyLocation: '',
+      questionnaires: {
+        contractData: { status: 'not_sent' },
+        weddingQuestionnaire: { status: 'not_sent' },
+      },
+      contract: { status: 'generated' },
+    }),
+    { today: FAR },
+  )
+  assertEq(a?.id, 'mark_contract_sent', 'generated overrides collection CTA')
+  assert(
+    a?.id !== 'send_contract_questionnaire',
+    'not questionnaire CTA',
+  )
+})
+
+run('A6/A7-3. sent → mark_contract_signed', () => {
+  assertEq(
+    resolveWeddingNextAction(
+      stub({
+        questionnaires: {
+          contractData: { status: 'completed' },
+          weddingQuestionnaire: { status: 'not_sent' },
+        },
+        contract: { status: 'sent' },
+      }),
+      { today: FAR },
+    )?.id,
+    'mark_contract_signed',
+    'sent',
+  )
+})
+
+run('A6/A7-4. signed → next business step (deposit)', () => {
+  assertEq(
+    resolveWeddingNextAction(
+      stub({
+        questionnaires: {
+          contractData: { status: 'completed' },
+          weddingQuestionnaire: { status: 'not_sent' },
+        },
+        contract: { status: 'signed' },
+        depositAmount: 2000,
+        payments: [],
+      }),
+      { today: FAR },
+    )?.id,
+    'record_deposit',
+    'signed proceeds to deposit',
   )
 })
 

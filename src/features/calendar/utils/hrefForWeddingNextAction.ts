@@ -15,6 +15,7 @@ export function hrefForWeddingNextAction(
 ): string {
   switch (action.id) {
     case 'send_contract_questionnaire':
+    case 'mark_contract_sent':
     case 'mark_contract_signed':
     case 'record_deposit':
       return `/sluby/${weddingId}?tab=contract_finance`

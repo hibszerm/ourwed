@@ -38,6 +38,7 @@ export function dispatchWeddingNextAction(
     case 'generate_contract':
       handlers.generateContract()
       return
+    case 'mark_contract_sent':
     case 'mark_contract_signed':
       handlers.openContractFinance()
       return

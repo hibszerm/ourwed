@@ -8,9 +8,11 @@
  * Waiting on the couple / awareness belongs to status + Attention — not here.
  *
  * Lifecycle gates (proximity never bypasses unfinished commercial work):
- * A. Contract data collection (questionnaire only if client data incomplete)
- *    → travel → generate → mark signed
+ * A. Contract data collection (questionnaire only if client data incomplete
+ *    AND contract status is still `none`)
+ *    → travel → generate → mark sent → mark signed
  *    Questionnaire `not_sent` is provenance, not an automatic collection CTA.
+ *    Once a contract is generated/sent/signed, collection CTAs never outrank it.
  * B. Deposit when required
  * C. Pre-wedding prep window (send; waiting ⇒ null)
  * D. Operational completion only after pre-wedding completed
@@ -49,6 +51,7 @@ export type WeddingNextActionId =
   | 'send_contract_questionnaire'
   | 'resolve_travel_fee'
   | 'generate_contract'
+  | 'mark_contract_sent'
   | 'mark_contract_signed'
   | 'record_deposit'
   | 'send_prewedding'
@@ -267,11 +270,13 @@ function resolveOperationalAction(args: {
  * Priority is deterministic and independent of workflowStage.
  *
  * Ordering:
- * A. Legal create — send contract Q (not_sent AND client collection incomplete)
+ * A. Legal create — only while contract status is `none`:
+ *    send contract Q (not_sent AND client collection incomplete)
  *    → travel (none + party/Q ok, or photographer already collected client data)
  *    → generate (none + party/Q ok + travel resolved)
  *    Waiting contract Q (`sent` without party) → null (no fake CTA)
- * B. Mark signed / record deposit — always before ops
+ *    Once generated/sent/signed, collection CTAs never outrank contract lifecycle
+ * B. Mark sent → mark signed → record deposit — always before ops
  * C. Prep window — send pre-wedding; sent/waiting → null
  * D. After pre-wedding completed — Apply → locations → time → null
  * Past: only remaining legal/commercial; no invented delivery / Cockpit
@@ -300,45 +305,20 @@ export function resolveWeddingNextAction(
 
   // --- PHASE A: Contract data / contract ---
 
-  if (contractQ === 'not_sent' && !clientCollectionOk) {
+  // Generated → mark sent (overrides stale questionnaire collection CTAs).
+  if (contractStatus === 'generated') {
     return action({
-      id: 'send_contract_questionnaire',
-      title: 'Wyślij ankietę do umowy',
-      description: 'Zbierz dane pary potrzebne do wygenerowania umowy.',
+      id: 'mark_contract_sent',
+      title: 'Oznacz umowę jako wysłaną',
+      description:
+        'Po wysłaniu umowy klientowi poza OurWed oznacz ją jako wysłaną.',
       priority: 'blocker',
-      destination: { kind: 'modal', intent: 'send_contract_questionnaire' },
+      destination: { kind: 'wedding_tab', tab: 'contract_finance' },
     })
   }
 
-  if (partyOk && contractStatus === 'none') {
-    if (!isTravelFeeResolved(wedding)) {
-      return action({
-        id: 'resolve_travel_fee',
-        title: 'Ustal koszt dojazdu',
-        description:
-          'Określ, czy dojazd jest w cenie, czy doliczany osobno.',
-        priority: 'blocker',
-        destination: { kind: 'modal', intent: 'resolve_travel_fee' },
-      })
-    }
-    return action({
-      id: 'generate_contract',
-      title: 'Wygeneruj umowę',
-      description: 'Dane są gotowe — utwórz dokument umowy.',
-      priority: 'blocker',
-      destination: {
-        kind: 'route',
-        path: `/sluby/${wedding.id}/umowy/nowa`,
-      },
-    })
-  }
-
-  // Waiting on couple for contract questionnaire — no invented CTA / no ops leap.
-  if (contractQ === 'sent' && contractStatus === 'none' && !partyOk) {
-    return null
-  }
-
-  if (contractStatus === 'generated' || contractStatus === 'sent') {
+  // Sent → mark signed.
+  if (contractStatus === 'sent') {
     return action({
       id: 'mark_contract_signed',
       title: 'Oznacz umowę jako podpisaną',
@@ -346,6 +326,47 @@ export function resolveWeddingNextAction(
       priority: 'blocker',
       destination: { kind: 'wedding_tab', tab: 'contract_finance' },
     })
+  }
+
+  // Signed → fall through to deposit / prep / ops (no contract lifecycle CTA).
+  if (contractStatus === 'none') {
+    if (contractQ === 'not_sent' && !clientCollectionOk) {
+      return action({
+        id: 'send_contract_questionnaire',
+        title: 'Wyślij ankietę do umowy',
+        description: 'Zbierz dane pary potrzebne do wygenerowania umowy.',
+        priority: 'blocker',
+        destination: { kind: 'modal', intent: 'send_contract_questionnaire' },
+      })
+    }
+
+    if (partyOk) {
+      if (!isTravelFeeResolved(wedding)) {
+        return action({
+          id: 'resolve_travel_fee',
+          title: 'Ustal koszt dojazdu',
+          description:
+            'Określ, czy dojazd jest w cenie, czy doliczany osobno.',
+          priority: 'blocker',
+          destination: { kind: 'modal', intent: 'resolve_travel_fee' },
+        })
+      }
+      return action({
+        id: 'generate_contract',
+        title: 'Wygeneruj umowę',
+        description: 'Dane są gotowe — utwórz dokument umowy.',
+        priority: 'blocker',
+        destination: {
+          kind: 'route',
+          path: `/sluby/${wedding.id}/umowy/nowa`,
+        },
+      })
+    }
+
+    // Waiting on couple for contract questionnaire — no invented CTA / no ops leap.
+    if (contractQ === 'sent' && !partyOk) {
+      return null
+    }
   }
 
   // --- PHASE B: Deposit ---

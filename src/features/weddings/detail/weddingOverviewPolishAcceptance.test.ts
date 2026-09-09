@@ -178,10 +178,13 @@ run('6. Manual contract signing uses canonical status + signed_at', () => {
     ),
     'utf8',
   )
+  assert(controls.includes("updateStatus(wedding.id, 'sent')"), 'persist sent')
   assert(controls.includes("updateStatus(wedding.id, 'signed')"), 'persist signed')
   assert(controls.includes('contract_signed'), 'timeline')
-  assert(controls.includes('Oznacz umowę jako podpisaną'), 'action label')
+  assert(controls.includes('Oznacz umowę jako wysłaną'), 'mark sent label')
+  assert(controls.includes('Oznacz umowę jako podpisaną'), 'mark signed label')
   assert(controls.includes('Cofnij oznaczenie'), 'unsign')
+  assert(controls.includes("'generated'"), 'unsign returns generated')
   assert(!controls.includes('enqueueExternalCalendarSync'), 'no calendar on sign')
   assert(!controls.includes('Generuj'), 'no regenerate')
 

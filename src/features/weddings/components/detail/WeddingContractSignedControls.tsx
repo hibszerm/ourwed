@@ -16,7 +16,7 @@ interface Props {
 }
 
 /**
- * Manual business fact: contract signed outside OurWed.
+ * Manual business facts: contract sent / signed outside OurWed.
  * Does not regenerate documents or touch calendars/payments.
  */
 export function WeddingContractSignedControls({
@@ -24,15 +24,34 @@ export function WeddingContractSignedControls({
   onStatusChanged,
 }: Props) {
   const { showToast } = useToast()
+  const [confirmSent, setConfirmSent] = useState(false)
   const [confirmSign, setConfirmSign] = useState(false)
   const [confirmUnsign, setConfirmUnsign] = useState(false)
   const [busy, setBusy] = useState(false)
 
   const status = wedding.contract?.status ?? 'none'
-  const canSign = status === 'generated' || status === 'sent'
+  const canMarkSent = status === 'generated'
+  const canSign = status === 'sent'
   const isSigned = status === 'signed'
 
   if (status === 'none') return null
+
+  async function markSent() {
+    setBusy(true)
+    try {
+      await contractService.updateStatus(wedding.id, 'sent')
+      showToast('Umowa oznaczona jako wysłana.', 'success')
+      setConfirmSent(false)
+      onStatusChanged?.()
+    } catch (e) {
+      showToast(
+        getUserFacingErrorMessage(e, 'Nie udało się oznaczyć wysyłki.'),
+        'error',
+      )
+    } finally {
+      setBusy(false)
+    }
+  }
 
   async function markSigned() {
     setBusy(true)
@@ -114,6 +133,16 @@ export function WeddingContractSignedControls({
             Cofnij oznaczenie
           </Button>
         </>
+      ) : canMarkSent ? (
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          data-testid="contract-mark-sent"
+          onClick={() => setConfirmSent(true)}
+        >
+          Oznacz umowę jako wysłaną
+        </Button>
       ) : canSign ? (
         <Button
           type="button"
@@ -125,6 +154,31 @@ export function WeddingContractSignedControls({
           Oznacz umowę jako podpisaną
         </Button>
       ) : null}
+
+      <Modal
+        open={confirmSent}
+        title="Oznacz umowę jako wysłaną"
+        description="To zapisuje fakt biznesowy w OurWed. Nie wysyła e-maila i nie zmienia pliku umowy."
+        onClose={() => setConfirmSent(false)}
+        busy={busy}
+        primaryAction={
+          <Button
+            type="button"
+            variant="primary"
+            size="sm"
+            disabled={busy}
+            data-testid="contract-mark-sent-confirm"
+            onClick={() => void markSent()}
+          >
+            {busy ? 'Zapisywanie…' : 'Oznacz jako wysłaną'}
+          </Button>
+        }
+      >
+        <p>
+          Potwierdź, że wysłałeś umowę klientowi poza OurWed (np. e-mailem lub
+          komunikatorem).
+        </p>
+      </Modal>
 
       <Modal
         open={confirmSign}
