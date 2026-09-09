@@ -79,7 +79,6 @@ export function WeddingDetailFinances({
         amount: 0,
         type: 'installment',
         paid: false,
-        dueDate: '',
       },
     ])
   }

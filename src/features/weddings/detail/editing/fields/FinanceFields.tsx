@@ -114,7 +114,6 @@ export function FinanceFields({
                 amount: 0,
                 type: 'installment',
                 paid: false,
-                dueDate: '',
               },
             ])
           }
@@ -157,26 +156,16 @@ export function FinanceFields({
                   }
                 />
               </div>
-              <div className={styles.fieldRow}>
-                <Input
-                  label="Termin"
-                  type="date"
-                  value={p.dueDate ?? ''}
+              <label className={styles.muted}>
+                <input
+                  type="checkbox"
+                  checked={p.paid}
                   onChange={(e) =>
-                    updatePayment(p.id, { dueDate: e.target.value })
+                    updatePayment(p.id, { paid: e.target.checked })
                   }
-                />
-                <label className={styles.muted}>
-                  <input
-                    type="checkbox"
-                    checked={p.paid}
-                    onChange={(e) =>
-                      updatePayment(p.id, { paid: e.target.checked })
-                    }
-                  />{' '}
-                  Opłacone
-                </label>
-              </div>
+                />{' '}
+                Opłacone
+              </label>
               <Button
                 type="button"
                 variant="ghost"

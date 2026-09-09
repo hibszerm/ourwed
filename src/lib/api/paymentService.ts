@@ -63,7 +63,6 @@ export interface CreatePaymentInput {
   type: PaymentType
   amount: number
   paymentDate?: string | null
-  dueDate?: string | null
   method?: PaymentMethod | null
   note?: string
   paid?: boolean
@@ -73,7 +72,6 @@ export interface UpdatePaymentInput {
   type?: PaymentType
   amount?: number
   paymentDate?: string | null
-  dueDate?: string | null
   method?: PaymentMethod | null
   note?: string | null
   paid?: boolean
