@@ -100,7 +100,9 @@ export function evaluateWeddingContractReadiness(
     required('client_address', 'client', 'Adres klienta', present(address)),
     required('client_phone', 'client', 'Telefon klienta', present(phone)),
     required('client_date', 'client', 'Data ślubu', present(wedding.date)),
-    required(
+    // Contract generation (V1): only reception is location-required.
+    // Ceremony / preparations may be unknown at signing time (pre-wedding later).
+    optional(
       'client_prep_bride',
       'client',
       'Przygotowania Panny Młodej',
@@ -108,13 +110,13 @@ export function evaluateWeddingContractReadiness(
         wedding.bridePreparationLocation || wedding.preparationLocation,
       ),
     ),
-    required(
+    optional(
       'client_prep_groom',
       'client',
       'Przygotowania Pana Młodego',
       present(wedding.groomPreparationLocation),
     ),
-    required(
+    optional(
       'client_ceremony',
       'client',
       'Miejsce ceremonii',
@@ -227,7 +229,8 @@ export function evaluateWeddingContractReadiness(
  * can both satisfy this without sharing form_instance / form_answers.
  *
  * Expects hydrated location scalars (wedding_places applied to
- * bridePreparationLocation / ceremonyLocation / …).
+ * receptionLocation / …). For contract collection, only reception is a
+ * required location item — ceremony/prep are optional status.
  */
 export function isClientContractCollectionComplete(wedding: Wedding): boolean {
   return evaluateWeddingContractReadiness(wedding, null)

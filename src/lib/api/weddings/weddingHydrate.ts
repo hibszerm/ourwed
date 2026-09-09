@@ -56,24 +56,30 @@ export function applyWeddingPlaces(
   }
 
   const byRole = new Map(places.map((p) => [p.role, p]))
+  const placeText = (place: WeddingPlace | undefined): string | undefined => {
+    const addr = place?.formattedAddress?.trim()
+    if (addr) return addr
+    const label = place?.label?.trim()
+    return label || undefined
+  }
   const withScalars: Wedding = {
     ...wedding,
     preparationLocation:
-      byRole.get('bride_preparation')?.formattedAddress ||
-      byRole.get('preparation')?.formattedAddress ||
+      placeText(byRole.get('bride_preparation')) ||
+      placeText(byRole.get('preparation')) ||
       wedding.preparationLocation,
     bridePreparationLocation:
-      byRole.get('bride_preparation')?.formattedAddress ||
+      placeText(byRole.get('bride_preparation')) ||
       wedding.bridePreparationLocation ||
-      byRole.get('preparation')?.formattedAddress ||
+      placeText(byRole.get('preparation')) ||
       wedding.preparationLocation,
     groomPreparationLocation:
-      byRole.get('groom_preparation')?.formattedAddress ||
+      placeText(byRole.get('groom_preparation')) ||
       wedding.groomPreparationLocation,
     ceremonyLocation:
-      byRole.get('ceremony')?.formattedAddress || wedding.ceremonyLocation,
+      placeText(byRole.get('ceremony')) || wedding.ceremonyLocation,
     receptionLocation:
-      byRole.get('reception')?.formattedAddress || wedding.receptionLocation,
+      placeText(byRole.get('reception')) || wedding.receptionLocation,
   }
 
   return {

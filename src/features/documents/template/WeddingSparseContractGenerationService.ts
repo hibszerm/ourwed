@@ -1,6 +1,7 @@
 /**
  * Product wedding contract generation via sparse guarded AI.
- * Ignores legacy slot_map / package readiness — only needs source DOCX bytes.
+ * Ignores legacy slot_map / package readiness — only needs source DOCX bytes
+ * after A4 mayGenerateContract passes (reception + non-location readiness).
  */
 
 import { indexDocxForTransform } from '@/features/ai-contract-transform/indexDocxForTransform'
@@ -15,6 +16,10 @@ import { documentStorage } from '@/lib/api/documents/storage'
 import { packageService } from '@/lib/api/packageService'
 import { weddingExtraServiceService } from '@/lib/api/weddingExtraServiceService'
 import { hashDocumentText } from '@/features/documents/ai/hash'
+import {
+  generationBlockedByReadiness,
+  mayGenerateContract,
+} from '@/lib/utils/contractGenerationIntegrity'
 import type { Wedding } from '@/types/wedding'
 import type { TransformContractResult } from './ContractTransformationService'
 import { extractDocxParagraphsIncludingEmpty } from './extractDocxParagraphs'
@@ -117,6 +122,13 @@ export const WeddingSparseContractGenerationService = {
     generationDate?: Date | string
     invoke?: Parameters<typeof runSparseProductTransform>[0]['invoke']
   }): Promise<GenerationAttemptResult> {
+    // A4 — non-bypassable readiness on the wedding payload at call time
+    // (same rule as UI). Fail before AI / DOCX work when reception missing.
+    const readiness = mayGenerateContract(input.wedding)
+    if (!readiness.isReady) {
+      return generationBlockedByReadiness(readiness)
+    }
+
     const correlationId =
       input.correlationId ?? createGenerationCorrelationId()
     const trace = {
@@ -320,11 +332,27 @@ export const WeddingSparseContractGenerationService = {
           contractExecutionCity: '',
         },
         paymentDueRule: null,
-        postGenerationAudit: {
-          ok: true,
-          issues: [],
-          actionableIssues: [],
-        },
+        postGenerationAudit: (() => {
+          const locationIssues = (
+            transform.qualityReport?.blockingIssues ?? []
+          ).filter(
+            (i) =>
+              typeof i.canonicalField === 'string' &&
+              i.canonicalField.includes('Location'),
+          )
+          return {
+            ok: locationIssues.length === 0,
+            issues: locationIssues.map((i) => ({
+              code:
+                i.code === 'stale_source_value_remaining'
+                  ? ('stale_source_location' as const)
+                  : ('unresolved_template_location' as const),
+              severity: 'critical' as const,
+              message: i.safeDescription,
+            })),
+            actionableIssues: [],
+          }
+        })(),
       }
 
       // Attach sparse provenance for save() via mutable extension on resolved

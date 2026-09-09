@@ -181,7 +181,7 @@ export function buildExpectationManifest(input: {
         })
         // Also store short venue tokens (e.g. Pałac Rydzyna)
         const venue = locText.match(
-          /\b((?:Pałac|Hotel|Kościół|Bazylika|Restauracja)\s+[A-ZĄĆĘŁŃÓŚŹŻ][a-ząćęłńóśźż]+(?:\s+[A-ZĄĆĘŁŃÓŚŹŻ][a-ząćęłńóśźż]+)?)/,
+          /\b((?:Pałac|Hotel|Kościół|Bazylika|Restauracja|Zamek|Dworek|Sala)\s+[A-ZĄĆĘŁŃÓŚŹŻ][a-ząćęłńóśźż]+(?:\s+[A-ZĄĆĘŁŃÓŚŹŻ][a-ząćęłńóśźż]+)?)/,
         )
         if (venue?.[1]) {
           pushSourceValue(sourceSpecificValues, {
@@ -198,14 +198,14 @@ export function buildExpectationManifest(input: {
   for (const b of blocks) {
     if (b.kind !== 'paragraph') continue
     const venueRe =
-      /\b((?:Pałac(?:u|em|owi)?|Hotel(?:u|em|owi)?|Kościo(?:ł|le|ła)|Bazylik(?:a|i|ę|ą))\s+[A-ZĄĆĘŁŃÓŚŹŻ][^\s,.]{2,}(?:\s+[A-ZĄĆĘŁŃÓŚŹŻ][^\s,.]{2,})?)/gi
+      /\b((?:Pałac(?:u|em|owi)?|Hotel(?:u|em|owi)?|Kościo(?:ł|le|ła)|Bazylik(?:a|i|ę|ą)|Zam(?:ek|ku|kiem)|Dworek|Dworku|Restauracj(?:a|i|ę)|Sala|Sali)\s+[A-ZĄĆĘŁŃÓŚŹŻ][^\s,.]{2,}(?:\s+(?:[A-ZĄĆĘŁŃÓŚŹŻ][^\s,.]{2,}|w\s+[A-ZĄĆĘŁŃÓŚŹŻ][^\s,.]{2,})){0,3})/gi
     let m: RegExpExecArray | null
     while ((m = venueRe.exec(b.text))) {
       const surface = m[1]!
       pushSourceValue(sourceSpecificValues, {
         field: /przygotowan/i.test(b.text)
           ? 'wedding.preparationLocation'
-          : /ceremoni|kościół|bazylik|zaślubin/i.test(b.text)
+          : /ceremoni|kościół|bazylik|zaślubin|zamek/i.test(b.text)
             ? 'wedding.ceremonyLocation'
             : 'wedding.receptionLocation',
         value: surface,
@@ -217,7 +217,7 @@ export function buildExpectationManifest(input: {
         pushSourceValue(sourceSpecificValues, {
           field: /przygotowan/i.test(b.text)
             ? 'wedding.preparationLocation'
-            : /ceremoni|kościół|bazylik|zaślubin/i.test(b.text)
+            : /ceremoni|kościół|bazylik|zaślubin|zamek/i.test(b.text)
               ? 'wedding.ceremonyLocation'
               : 'wedding.receptionLocation',
           value: place,

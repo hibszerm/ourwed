@@ -143,6 +143,14 @@ export function verifyLocationConsistency(input: {
     }
   }
 
+  // A5: absent optional roles must not inherit another role's venue (role-fact invention).
+  issues.push(
+    ...detectInventedVenuesForAbsentRoles({
+      dataset: input.dataset,
+      transformedBlocks: input.transformedBlocks,
+    }),
+  )
+
   if (
     input.dataset.clients.address &&
     hasDuplicatedPostalCity(input.dataset.clients.address)
@@ -169,6 +177,13 @@ export function verifyLocationConsistency(input: {
     if (!src.canonicalField.includes('Location')) continue
     if (textContainsNormalized(text, src.sourceValue)) {
       staleLocations.push(src.sourceValue.slice(0, 40))
+      // A5: remaining template venue is a client-data integrity defect
+      issues.push({
+        code: 'stale_source_value_remaining',
+        severity: 'blocking',
+        canonicalField: src.canonicalField,
+        safeDescription: `Template example location still present for ${src.canonicalField}`,
+      })
     }
   }
 
@@ -213,4 +228,112 @@ export function verifyLocationConsistency(input: {
       grammarIssues,
     },
   }
+}
+
+const ROLE_CLAUSE_PATTERNS = {
+  ceremony: /ceremoni|zaślubin|zaślubin|kościół|urząd stanu/i,
+  preparation: /przygotowan/i,
+  reception: /przyjęci|powitanie gości|miejsce przyjęcia|weseln/i,
+} as const
+
+function locationVenueCandidates(loc: {
+  displayName?: string
+  fullAddress?: string
+  city?: string
+} | null | undefined): string[] {
+  if (!loc) return []
+  const value = locationFromDatasetEntry(loc)
+  const rendered = value ? renderLocationSummary(value) : ''
+  return [rendered, loc.displayName, loc.fullAddress, loc.city].filter(
+    (v): v is string => Boolean(v && v.trim().length >= 3),
+  )
+}
+
+/**
+ * True when a clause asserts `venue` specifically for the given wedding day role.
+ * Clause-aware (split on ; / newlines) so multi-role paragraphs are handled
+ * without treating a neighboring reception sentence as a ceremony assertion.
+ */
+export function clauseAssertsRoleVenue(
+  text: string,
+  role: keyof typeof ROLE_CLAUSE_PATTERNS,
+  venue: string,
+): boolean {
+  if (!venue.trim()) return false
+  const roleRe = ROLE_CLAUSE_PATTERNS[role]
+  const clauses = text
+    .split(/[;\n]+/)
+    .map((c) => c.trim())
+    .filter(Boolean)
+  for (const clause of clauses) {
+    if (!roleRe.test(clause)) continue
+    if (textContainsNormalized(clause, venue)) return true
+  }
+  return false
+}
+
+/**
+ * Detects Full-AI inventing a venue for an absent optional role by copying
+ * another supplied role's venue (typically reception → ceremony/prep).
+ */
+export function detectInventedVenuesForAbsentRoles(input: {
+  dataset: ContractTransformationDataset
+  transformedBlocks: TransformedBlock[]
+}): QualityIssue[] {
+  const issues: QualityIssue[] = []
+  const text = input.transformedBlocks.map((b) => b.text).join('\n')
+  const locs = input.dataset.locations
+
+  const ceremonyAbsent =
+    !locs.ceremony &&
+    (locs.absentLocationRoles?.includes('ceremony') ?? true)
+  const preparationAbsent =
+    !locs.preparation &&
+    !(locs.preparationLocations && locs.preparationLocations.length > 0) &&
+    (locs.absentLocationRoles?.includes('preparation') ?? true)
+
+  const donorVenues: Array<{ role: string; venue: string }> = []
+  for (const v of locationVenueCandidates(locs.reception)) {
+    donorVenues.push({ role: 'reception', venue: v })
+  }
+  if (!ceremonyAbsent) {
+    for (const v of locationVenueCandidates(locs.ceremony)) {
+      donorVenues.push({ role: 'ceremony', venue: v })
+    }
+  }
+  if (!preparationAbsent) {
+    for (const v of locationVenueCandidates(locs.preparation)) {
+      donorVenues.push({ role: 'preparation', venue: v })
+    }
+    for (const e of locs.preparationLocations ?? []) {
+      if (e.fullAddress?.trim()) {
+        donorVenues.push({ role: `preparation:${e.person}`, venue: e.fullAddress })
+      }
+    }
+  }
+
+  const checkAbsent = (
+    absentRole: 'ceremony' | 'preparation',
+    canonicalField: 'wedding.ceremonyLocation' | 'wedding.preparationLocation',
+  ) => {
+    for (const donor of donorVenues) {
+      if (donor.role === absentRole || donor.role.startsWith(`${absentRole}:`))
+        continue
+      // Only flag when the donor venue is asserted inside the ABSENT role's clause.
+      if (!clauseAssertsRoleVenue(text, absentRole, donor.venue)) continue
+      // If the absent role is ceremony and donor is reception, classic invention.
+      issues.push({
+        code: 'invented_location_for_absent_role',
+        severity: 'blocking',
+        canonicalField,
+        safeDescription: `Document asserts ${absentRole} venue using ${donor.role} data, but ${absentRole} is absent in CRM`,
+      })
+      return
+    }
+  }
+
+  if (ceremonyAbsent) checkAbsent('ceremony', 'wedding.ceremonyLocation')
+  if (preparationAbsent) checkAbsent('preparation', 'wedding.preparationLocation')
+
+  return issues
 }

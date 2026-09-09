@@ -9,7 +9,10 @@ import {
   buildProtectedContractData,
   protectedDataSummary,
 } from './protectedContractData'
-import { runPostReconstructionQualityGate } from './quality/buildQualityReport'
+import {
+  isModeALocationIntegrityBlock,
+  runPostReconstructionQualityGate,
+} from './quality/buildQualityReport'
 import { buildExpectationManifest } from './quality/expectationManifest'
 import { summarizeRequiredReplacementsForPrompt } from './quality/deterministicRepairs'
 import {
@@ -251,8 +254,8 @@ export type SparseProductTransformResult =
  * Product wedding generation — sparse changedBlocks pipeline (Mode A policy).
  *
  * Uses Full AI Edge + post-reconstruction quality gate with Mode A download
- * rules (hard financial blocks only). Does NOT run Comparison Lab Mode B
- * `verifyGuardedTransformation` / completeness-blocking guarded policy.
+ * rules (hard financial + location integrity blocks). Does NOT run Comparison
+ * Lab Mode B `verifyGuardedTransformation` / completeness-blocking guarded policy.
  */
 export async function runSparseProductTransform(input: {
   sourceBytes: ArrayBuffer
@@ -312,11 +315,15 @@ export async function runSparseProductTransform(input: {
   )
 
   if (!gate.downloadAllowed) {
+    const locationBlock = gate.report.blockingIssues.some((i) =>
+      isModeALocationIntegrityBlock(i),
+    )
     return {
       ok: false,
       reason: 'blocked',
-      message:
-        'Nie udało się przygotować umowy z powodu niespójności finansowej. Sprawdź kwoty ślubu i spróbuj ponownie.',
+      message: locationBlock
+        ? 'Nie udało się przygotować umowy — dokument zawiera niepotwierdzone miejsca (np. przeniesione z innego etapu dnia) lub przykłady z szablonu. Uzupełnij miejsca wesela lub popraw szablon.'
+        : 'Nie udało się przygotować umowy z powodu niespójności finansowej. Sprawdź kwoty ślubu i spróbuj ponownie.',
       blockingIssues,
       reviewIssues,
       promptVersion: FULL_AI_PROMPT_VERSION,

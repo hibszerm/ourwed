@@ -1167,13 +1167,26 @@ run('P4-D. Missing contract address + not_sent → send_contract_questionnaire',
   )
 })
 
-run('P4-E. Missing required location + not_sent → send_contract_questionnaire', () => {
-  const w = photographerFullClient({ ceremonyLocation: '' })
-  assertEq(isClientContractCollectionComplete(w), false, 'ceremony missing')
+run('P4-E. Missing reception location + not_sent → send_contract_questionnaire', () => {
+  const w = photographerFullClient({ receptionLocation: '' })
+  assertEq(isClientContractCollectionComplete(w), false, 'reception missing')
   assertEq(
     resolveWeddingNextAction(w, { today: FAR })?.id,
     'send_contract_questionnaire',
-    'locations are client-collection items',
+    'reception is client-collection item',
+  )
+})
+
+run('P4-E2. Missing ceremony only + not_sent + travel included → generate_contract', () => {
+  const w = photographerFullClient({
+    ceremonyLocation: '',
+    travelFeeStatus: 'included',
+  })
+  assertEq(isClientContractCollectionComplete(w), true, 'ceremony optional')
+  assertEq(
+    resolveWeddingNextAction(w, { today: FAR })?.id,
+    'generate_contract',
+    'ceremony optional for collection/generate path',
   )
 })
 

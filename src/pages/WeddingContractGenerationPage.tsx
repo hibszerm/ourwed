@@ -51,6 +51,9 @@ import { weddingActionsService } from '@/lib/api/weddingActionsService'
 import styles from './WeddingContractGenerationPage.module.css'
 import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 import { isTravelFeeResolved } from '@/lib/utils/travelFeeCommercial'
+import { mayGenerateContract } from '@/lib/utils/contractGenerationIntegrity'
+import { MissingContractDataDialog } from '@/features/weddings/actions/MissingContractDataDialog'
+import type { MissingDataCorrectionKind } from '@/lib/utils/validateContractGeneration'
 import { devError, devInfo } from '@/lib/debug/devConsole'
 
 type WizardStep =
@@ -148,6 +151,10 @@ export function WeddingContractGenerationPage() {
   >(null)
   const [paymentWasManual, setPaymentWasManual] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [missingValidation, setMissingValidation] = useState<
+    import('@/lib/utils/validateContractGeneration').ContractGenerationValidation | null
+  >(null)
+  const [showMissingData, setShowMissingData] = useState(false)
   const [generationStartedAt] = useState(() => new Date())
   const [forcedEditableFields, setForcedEditableFields] = useState<
     CompletenessField[]
@@ -462,6 +469,18 @@ export function WeddingContractGenerationPage() {
   async function generate() {
     if (!wedding) {
       setError('Nie można rozpocząć generowania — brak danych ślubu.')
+      return
+    }
+    // A4 — re-check on the current wedding object at click time (stale-state safety)
+    const readiness = mayGenerateContract(wedding)
+    if (!readiness.isReady) {
+      setMissingValidation(readiness)
+      setShowMissingData(true)
+      setError(
+        readiness.missingGroups
+          .flatMap((g) => g.items.map((item) => `Brakuje: ${item}`))
+          .join(' ') || 'Uzupełnij dane do umowy przed wygenerowaniem.',
+      )
       return
     }
     if (!isTravelFeeResolved(wedding)) {
@@ -914,6 +933,70 @@ export function WeddingContractGenerationPage() {
                 onClick={() => navigate(`/sluby/${wedding.id}?tab=overview`)}
               >
                 Ustal koszt dojazdu
+              </Button>
+            </div>
+          </div>
+        </PageContainer>
+      </AppLayout>
+    )
+  }
+
+  const pageReadiness = mayGenerateContract(wedding)
+  if (!pageReadiness.isReady) {
+    const receptionMissing = pageReadiness.missingGroups.some((g) =>
+      g.items.includes('Miejsce przyjęcia'),
+    )
+    return (
+      <AppLayout
+        title="Nowa umowa"
+        subtitle={getWeddingDisplayName(wedding)}
+        action={
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => navigate(`/sluby/${wedding.id}`)}
+          >
+            Wróć do ślubu
+          </Button>
+        }
+      >
+        <PageContainer width="wide">
+          <div
+            className={styles.card}
+            data-testid="contract-readiness-generation-block"
+            role="alert"
+          >
+            <h2>
+              {pageReadiness.title ?? 'Uzupełnij dane do umowy'}
+            </h2>
+            <p className={styles.muted}>
+              {pageReadiness.description ??
+                'Przed wygenerowaniem umowy uzupełnij poniższe informacje.'}
+            </p>
+            {pageReadiness.missingGroups.map((group) => (
+              <div key={group.id}>
+                <strong>{group.label}</strong>
+                <ul>
+                  {group.items.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+            {receptionMissing ? (
+              <p className={styles.muted}>
+                Do wygenerowania umowy wymagane jest miejsce przyjęcia.
+              </p>
+            ) : null}
+            <div className={styles.actions}>
+              <Button
+                type="button"
+                variant="primary"
+                onClick={() =>
+                  navigate(`/sluby/${wedding.id}?tab=overview`)
+                }
+              >
+                {pageReadiness.primaryCorrection?.label ?? 'Uzupełnij dane'}
               </Button>
             </div>
           </div>
@@ -1433,6 +1516,29 @@ export function WeddingContractGenerationPage() {
           </p>
         ) : null}
       </PageContainer>
+      <MissingContractDataDialog
+        open={showMissingData}
+        validation={missingValidation}
+        onClose={() => {
+          setShowMissingData(false)
+          setMissingValidation(null)
+        }}
+        onCorrect={(kind: MissingDataCorrectionKind) => {
+          setShowMissingData(false)
+          setMissingValidation(null)
+          if (kind === 'edit_travel_fee' || kind === 'edit_couple' || kind === 'multi') {
+            navigate(`/sluby/${wedding.id}?tab=overview`)
+            return
+          }
+          if (kind === 'edit_package' || kind === 'edit_payments') {
+            navigate(`/sluby/${wedding.id}?tab=contract_finance`)
+            return
+          }
+          if (kind === 'company_settings') {
+            navigate('/ustawienia/firma')
+          }
+        }}
+      />
     </AppLayout>
   )
 }

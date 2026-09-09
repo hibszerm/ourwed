@@ -2,8 +2,8 @@
  * AI Contract Transformation Comparison Lab — isolated from semantic mapping.
  */
 
-export const FULL_AI_PROMPT_VERSION = '2026-07-full-ai-v2'
-export const FULL_AI_RESPONSE_VERSION = '2026-07-full-ai-v2'
+export const FULL_AI_PROMPT_VERSION = '2026-09-full-ai-v3'
+export const FULL_AI_RESPONSE_VERSION = '2026-09-full-ai-v3'
 export const GUARDED_AI_PROMPT_VERSION = '2026-07-guarded-ai-v2'
 export const GUARDED_AI_RESPONSE_VERSION = '2026-07-guarded-ai-v2'
 
@@ -64,6 +64,21 @@ export type ContractTransformationDataset = {
       displayName?: string
       fullAddress?: string
       city?: string
+    }
+    /**
+     * Roles intentionally absent in CRM (not merely omitted from JSON).
+     * Full-AI must not invent venues for these roles or copy another role's venue.
+     */
+    absentLocationRoles?: Array<'ceremony' | 'preparation'>
+    /**
+     * Explicit integrity policy for the rewrite model (A5 role-fact invention).
+     * Present whenever any optional location role is absent.
+     */
+    locationRoleIntegrity?: {
+      eachRoleIndependent: true
+      neverInferAbsentRoleFromAnother: true
+      sameVenueOnlyWhenExplicitPerRole: true
+      absentMeansDoNotAssertVenue: true
     }
   }
   finances: {

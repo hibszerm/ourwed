@@ -40,6 +40,10 @@ import {
   actionablePayloadToReviewPatch,
   TransformNeedsReviewSignal,
 } from './generationAttemptResult'
+import {
+  generationBlockedByReadiness,
+  mayGenerateContract,
+} from '@/lib/utils/contractGenerationIntegrity'
 import type { TemplateSlot } from './types'
 import { isSlotPhysicallyBound } from './types'
 import {
@@ -1419,6 +1423,12 @@ export async function generateWeddingContract(input: {
   generationDate?: Date | string
   correlationId?: string
 }): Promise<GenerationAttemptResult> {
+  // A4 — same non-bypassable readiness as sparse product path
+  const readiness = mayGenerateContract(input.wedding)
+  if (!readiness.isReady) {
+    return generationBlockedByReadiness(readiness)
+  }
+
   const packageContractMode = Boolean(
     input.packageContractMode ?? input.report.packageContractMode,
   )

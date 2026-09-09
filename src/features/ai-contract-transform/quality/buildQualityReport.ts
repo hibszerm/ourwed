@@ -43,6 +43,30 @@ const MODE_A_FINANCIAL_BLOCK_CODES = new Set([
   'package_scope_mismatch',
 ])
 
+/** Location integrity codes that block Mode A product download (A5). */
+const MODE_A_LOCATION_INTEGRITY_CODES = new Set([
+  'stale_source_value_remaining',
+  'expected_dataset_value_missing',
+  'partial_field_application',
+  'mixed_source_target',
+  'invented_location_for_absent_role',
+])
+
+const LOCATION_CANONICAL_FIELDS = new Set([
+  'wedding.preparationLocation',
+  'wedding.ceremonyLocation',
+  'wedding.receptionLocation',
+])
+
+export function isModeALocationIntegrityBlock(issue: {
+  code: string
+  canonicalField?: string
+}): boolean {
+  if (!issue.canonicalField) return false
+  if (!LOCATION_CANONICAL_FIELDS.has(issue.canonicalField)) return false
+  return MODE_A_LOCATION_INTEGRITY_CODES.has(issue.code)
+}
+
 function extractYear(dateText?: string): string | undefined {
   if (!dateText) return undefined
   const m = dateText.match(/(20\d{2})/)
@@ -253,11 +277,14 @@ export function runPostReconstructionQualityGate(input: {
   if (input.mode === 'guarded') {
     downloadAllowed = report.blockingIssues.length === 0
   } else {
-    // Mode A: allow with review / completeness defects; block hard financial
+    // Mode A: block hard financial + location integrity (A5 stale/missing venues)
     const financialBlock = report.blockingIssues.some((i) =>
       MODE_A_FINANCIAL_BLOCK_CODES.has(i.code),
     )
-    downloadAllowed = !financialBlock
+    const locationBlock = report.blockingIssues.some((i) =>
+      isModeALocationIntegrityBlock(i),
+    )
+    downloadAllowed = !financialBlock && !locationBlock
   }
 
   return {

@@ -31,6 +31,8 @@ export type PostGenerationAuditCode =
   | 'stale_source_client_name'
   | 'stale_source_wedding_date'
   | 'stale_source_client_contact'
+  | 'stale_source_location'
+  | 'unresolved_template_location'
 
 export interface PostGenerationAuditIssue {
   code: PostGenerationAuditCode

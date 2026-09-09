@@ -140,7 +140,12 @@ assert(
 )
 assert(
   qualitySrc.includes('MODE_A_FINANCIAL_BLOCK_CODES'),
-  '4b: Mode A only hard-financial blocks',
+  '4b: Mode A financial block codes exist',
+)
+assert(
+  qualitySrc.includes('isModeALocationIntegrityBlock') ||
+    qualitySrc.includes('MODE_A_LOCATION_INTEGRITY'),
+  '4b: Mode A location integrity blocks exist',
 )
 assert(
   transformService.includes("mode: 'full_ai'"),
