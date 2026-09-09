@@ -6,16 +6,23 @@ import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
 import { createBrowserSafeId } from '@/lib/utils/createBrowserSafeId'
 import { extraServiceService } from '@/lib/api/extraServiceService'
 import { packageService } from '@/lib/api/packageService'
+import { requiresAgreedDepositConfirmOnPackageDefaults } from '@/lib/finance/hasPaidDepositPayment'
 import {
   applyCommercialPackageSnapshot,
   fillWeddingTermsFromCatalogPackage,
+  getAgreedDeposit,
 } from '@/lib/utils/commercial'
 import {
   FINAL_PAYMENT_TERMS_MODE_OPTIONS,
   resolveFinalPaymentDueDate,
 } from '@/lib/utils/finalPaymentTerms'
 import { formatCurrency } from '@/lib/utils/currency'
-import { recomposeContractValueForExtrasEdit } from '@/lib/forms/weddingExtraPricing'
+import { getDepositPaid } from '@/lib/utils/finance'
+import {
+  rebaseEffectivePackageBase,
+  recomposeContractValueForExtrasEdit,
+  sumExtraPriceSnapshots,
+} from '@/lib/forms/weddingExtraPricing'
 import { resolveWeddingExtraDisplayName } from '@/lib/forms/weddingExtraName'
 import { getEffectiveTravelFeeAmount } from '@/lib/utils/travelFeeCommercial'
 import {
@@ -25,13 +32,21 @@ import {
   type DeliveryTermUnit,
 } from '@/lib/utils/weddingDeliveryDeadline'
 import type { StudioPackage, WeddingExtraService } from '@/types/package'
-import type { Wedding } from '@/types/wedding'
+import type { Payment, Wedding } from '@/types/wedding'
 import styles from '../WeddingEditorFields.module.css'
+
+type PendingPackageChange = {
+  pkg: StudioPackage
+  extrasTotal: number
+  /** After choosing apply-defaults when paid deposit conflicts. */
+  depositDecision?: 'choose' | 'keep' | 'use-catalog'
+}
 
 /** Shared package edit fields — no V1 Card / hero wrappers. */
 export function PackageFields({
   wedding,
   extras,
+  payments = [],
   packageBasePrice,
   onChangeWedding,
   onChangeExtras,
@@ -39,16 +54,38 @@ export function PackageFields({
 }: {
   wedding: Wedding
   extras: WeddingExtraService[]
+  payments?: Payment[]
   packageBasePrice?: number
   onChangeWedding: (patch: Partial<Wedding>) => void
   onChangeExtras: (extras: WeddingExtraService[]) => void
   onChangePackageBasePrice: (price: number) => void
 }) {
   const userId = useStudioAuthId()
-  const [pendingChange, setPendingChange] = useState<{
-    pkg: StudioPackage
-    extrasTotal: number
-  } | null>(null)
+  const [pendingChange, setPendingChange] = useState<PendingPackageChange | null>(
+    null,
+  )
+
+  function extrasTotalOf(list: WeddingExtraService[]) {
+    return sumExtraPriceSnapshots(
+      list.map((e) => ({
+        priceSnapshot: e.priceSnapshot,
+        quantity: e.quantity,
+      })),
+    )
+  }
+
+  function applyManualContractValue(enteredCv: number) {
+    const travel = getEffectiveTravelFeeAmount(wedding)
+    const extrasTotal = extrasTotalOf(extras)
+    onChangeWedding({ price: enteredCv })
+    onChangePackageBasePrice(
+      rebaseEffectivePackageBase({
+        contractValue: enteredCv,
+        extrasTotal,
+        effectiveTravel: travel,
+      }),
+    )
+  }
 
   function applyExtrasSelection(next: WeddingExtraService[]) {
     onChangeExtras(next)
@@ -92,18 +129,27 @@ export function PackageFields({
   function commitPackageChange(
     pkg: StudioPackage,
     extrasTotal: number,
-    preserveContractValue: boolean,
+    preserveFinancialAgreement: boolean,
+    preserveDepositOverride?: boolean,
   ) {
     const travel = getEffectiveTravelFeeAmount(wedding)
+    const preserveDeposit = preserveFinancialAgreement
+      ? true
+      : preserveDepositOverride === true
     onChangePackageBasePrice(
-      preserveContractValue
-        ? Math.max(0, wedding.price - extrasTotal - travel)
+      preserveFinancialAgreement
+        ? rebaseEffectivePackageBase({
+            contractValue: wedding.price,
+            extrasTotal,
+            effectiveTravel: travel,
+          })
         : pkg.price,
     )
     const commercial = applyCommercialPackageSnapshot(wedding, pkg, {
       extrasTotal,
       effectiveTravelFee: travel,
-      preserveContractValue,
+      preserveContractValue: preserveFinancialAgreement,
+      preserveDeposit,
     })
     onChangeWedding({
       ...commercial,
@@ -115,13 +161,28 @@ export function PackageFields({
     setPendingChange(null)
   }
 
+  function requestApplyDefaults(pkg: StudioPackage, extrasTotal: number) {
+    if (
+      requiresAgreedDepositConfirmOnPackageDefaults({
+        payments,
+        currentAgreedDeposit: getAgreedDeposit(wedding),
+        catalogDefaultDeposit: Math.max(0, pkg.depositAmount ?? 0),
+      })
+    ) {
+      setPendingChange({
+        pkg,
+        extrasTotal,
+        depositDecision: 'choose',
+      })
+      return
+    }
+    commitPackageChange(pkg, extrasTotal, false, false)
+  }
+
   function requestPackageChange(packageId: string) {
     const selected = packageChoices.find((p) => p.id === packageId)
     if (!selected) return
-    const extrasTotal = extras.reduce(
-      (sum, e) => sum + e.priceSnapshot * e.quantity,
-      0,
-    )
+    const extrasTotal = extrasTotalOf(extras)
     const hasExisting =
       Boolean(wedding.packageId) ||
       Boolean(wedding.packageName) ||
@@ -130,12 +191,78 @@ export function PackageFields({
       setPendingChange({ pkg: selected, extrasTotal })
       return
     }
-    commitPackageChange(selected, extrasTotal, false)
+    commitPackageChange(selected, extrasTotal, false, false)
   }
+
+  const showingDepositDecision = pendingChange?.depositDecision === 'choose'
 
   return (
     <div className={styles.fieldGrid}>
-      {pendingChange ? (
+      {pendingChange && showingDepositDecision ? (
+        <div className={styles.listItem} data-testid="package-deposit-decision">
+          <p className={styles.sectionTitle}>Zmiana zaliczki</p>
+          <p className={styles.muted}>
+            Obecna zaliczka uzgodniona:{' '}
+            <strong>{formatCurrency(getAgreedDeposit(wedding))}</strong>
+          </p>
+          <p className={styles.muted}>
+            Domyślna zaliczka nowego pakietu:{' '}
+            <strong>
+              {formatCurrency(Math.max(0, pendingChange.pkg.depositAmount ?? 0))}
+            </strong>
+          </p>
+          <p className={styles.muted}>
+            Już opłacona zaliczka:{' '}
+            <strong>{formatCurrency(getDepositPaid(payments))}</strong>
+          </p>
+          <p className={styles.muted}>
+            Zmiana zaliczki uzgodnionej nie zmienia zapisanej wpłaty.
+          </p>
+          <div className={styles.rowActions}>
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              onClick={() =>
+                commitPackageChange(
+                  pendingChange.pkg,
+                  pendingChange.extrasTotal,
+                  false,
+                  true,
+                )
+              }
+            >
+              Zachowaj zaliczkę {formatCurrency(getAgreedDeposit(wedding))}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() =>
+                commitPackageChange(
+                  pendingChange.pkg,
+                  pendingChange.extrasTotal,
+                  false,
+                  false,
+                )
+              }
+            >
+              Zmień zaliczkę na{' '}
+              {formatCurrency(Math.max(0, pendingChange.pkg.depositAmount ?? 0))}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setPendingChange(null)}
+            >
+              Anuluj
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
+      {pendingChange && !showingDepositDecision ? (
         <div className={styles.listItem}>
           <p className={styles.sectionTitle}>
             Zmiana pakietu zastąpi zapisane warunki pakietu.
@@ -150,10 +277,9 @@ export function PackageFields({
               variant="primary"
               size="sm"
               onClick={() =>
-                commitPackageChange(
+                requestApplyDefaults(
                   pendingChange.pkg,
                   pendingChange.extrasTotal,
-                  false,
                 )
               }
             >
@@ -189,7 +315,7 @@ export function PackageFields({
         label="Pakiet katalogowy"
         value={selectValue}
         onChange={(e) => requestPackageChange(e.target.value)}
-        disabled={catalogPending}
+        disabled={catalogPending || Boolean(pendingChange)}
         data-testid="package-catalog-select"
       >
         <option value="">
@@ -226,7 +352,7 @@ export function PackageFields({
           min={0}
           value={wedding.price}
           onChange={(e) =>
-            onChangeWedding({ price: Number(e.target.value) || 0 })
+            applyManualContractValue(Number(e.target.value) || 0)
           }
         />
         <Input
@@ -248,12 +374,14 @@ export function PackageFields({
           value={wedding.coverageHours ?? ''}
           onChange={(e) =>
             onChangeWedding({
-              coverageHours: e.target.value ? Number(e.target.value) : null,
+              coverageHours:
+                e.target.value === '' ? null : Number(e.target.value) || 0,
             })
           }
         />
         <Input
           label="Koniec reportażu"
+          type="time"
           value={wedding.coverageEndTime ?? ''}
           onChange={(e) =>
             onChangeWedding({
@@ -281,7 +409,10 @@ export function PackageFields({
           type="number"
           min={1}
           step={1}
-          value={readDeliveryTermForm(wedding.deliveryMonths, wedding.deliveryDays).value}
+          value={
+            readDeliveryTermForm(wedding.deliveryMonths, wedding.deliveryDays)
+              .value
+          }
           onChange={(e) => {
             const unit = readDeliveryTermForm(
               wedding.deliveryMonths,
@@ -295,14 +426,19 @@ export function PackageFields({
         />
         <Select
           label="Jednostka"
-          value={readDeliveryTermForm(wedding.deliveryMonths, wedding.deliveryDays).unit}
+          value={
+            readDeliveryTermForm(wedding.deliveryMonths, wedding.deliveryDays)
+              .unit
+          }
           onChange={(e) => {
             const unit = e.target.value as DeliveryTermUnit
             const value = readDeliveryTermForm(
               wedding.deliveryMonths,
               wedding.deliveryDays,
             ).value
-            onChangeWedding(applyDeliveryTermFormToWedding(wedding, unit, value))
+            onChangeWedding(
+              applyDeliveryTermFormToWedding(wedding, unit, value),
+            )
           }}
           data-testid="wedding-delivery-term-unit"
         >
@@ -331,7 +467,6 @@ export function PackageFields({
             if (!mode) {
               onChangeWedding({
                 finalPaymentTerms: null,
-                // Keep existing due date until user clears/edits legacy field.
                 finalPaymentDueDate: wedding.finalPaymentDueDate ?? null,
               })
               return
@@ -418,23 +553,25 @@ export function PackageFields({
             if (!selected) return
             if (
               !window.confirm(
-                'Uzupełnić brakujące warunki z aktualnego pakietu katalogu?',
+                'Uzupełnić brakujące warunki z aktualnego pakietu katalogu? Wartość umowy, zaliczka, usługi dodatkowe i dojazd pozostaną bez zmian.',
               )
             ) {
               return
             }
-            const extrasTotal = extras.reduce(
-              (sum, e) => sum + e.priceSnapshot * e.quantity,
-              0,
-            )
+            const extrasTotal = extrasTotalOf(extras)
             const travel = getEffectiveTravelFeeAmount(wedding)
             const filled = fillWeddingTermsFromCatalogPackage(wedding, selected, {
               preserveContractValue: true,
+              preserveDeposit: true,
               extrasTotal,
               effectiveTravelFee: travel,
             })
             onChangePackageBasePrice(
-              Math.max(0, wedding.price - extrasTotal - travel),
+              rebaseEffectivePackageBase({
+                contractValue: wedding.price,
+                extrasTotal,
+                effectiveTravel: travel,
+              }),
             )
             onChangeWedding({
               ...filled,

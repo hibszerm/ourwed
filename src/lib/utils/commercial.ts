@@ -171,9 +171,16 @@ export type ApplyPackageSnapshotOptions = {
   effectiveTravelFee?: number
   /**
    * When true, keep wedding.price instead of pkg.price + extras + travel.
-   * Used when the studio confirms “preserve overridden contract price”.
+   * Part of “preserve current financial agreement” (with preserveDeposit).
    */
   preserveContractValue?: boolean
+  /**
+   * When true, keep wedding.depositAmount instead of pkg.depositAmount.
+   * Defaults to true whenever preserveContractValue is true (financial agreement).
+   * Set explicitly false only for apply-defaults (or after operator confirms
+   * replacing agreed deposit with the catalog default).
+   */
+  preserveDeposit?: boolean
   /**
    * When true, keep an existing finalPaymentDueDate / finalPaymentTerms.
    * Otherwise derive from package terms (or legacy rule).
@@ -215,6 +222,13 @@ export function applyCommercialPackageSnapshot(
   const extrasTotal = options.extrasTotal ?? 0
   const effectiveTravelFee = Math.max(0, options.effectiveTravelFee ?? 0)
   const catalogPrice = pkg.price + extrasTotal + effectiveTravelFee
+  const preserveContractValue = options.preserveContractValue === true
+  // Preserve-CV implies preserve agreed deposit unless an apply-defaults path
+  // explicitly opts out (or the operator confirms catalog deposit).
+  const preserveDeposit =
+    options.preserveDeposit !== undefined
+      ? options.preserveDeposit === true
+      : preserveContractValue
 
   const packageTerms =
     parseFinalPaymentTerms(pkg.finalPaymentTerms) ??
@@ -254,8 +268,10 @@ export function applyCommercialPackageSnapshot(
   return {
     packageId: pkg.id,
     packageName: pkg.name,
-    price: options.preserveContractValue ? wedding.price : catalogPrice,
-    depositAmount: pkg.depositAmount,
+    price: preserveContractValue ? wedding.price : catalogPrice,
+    depositAmount: preserveDeposit
+      ? (wedding.depositAmount ?? pkg.depositAmount)
+      : pkg.depositAmount,
     currency: pkg.currency,
     accentColor: pkg.color ?? wedding.accentColor,
     packageItems: snapshotPackageItemsFromStudioPackage(pkg),
@@ -278,14 +294,21 @@ export function fillWeddingTermsFromCatalogPackage(
   pkg: StudioPackage,
   options?: {
     preserveContractValue?: boolean
+    preserveDeposit?: boolean
     extrasTotal?: number
     effectiveTravelFee?: number
   },
 ): WeddingCommercialSnapshotPatch {
+  const preserveContractValue = options?.preserveContractValue === true
   return applyCommercialPackageSnapshot(wedding, pkg, {
     extrasTotal: options?.extrasTotal ?? 0,
     effectiveTravelFee: options?.effectiveTravelFee ?? 0,
-    preserveContractValue: options?.preserveContractValue === true,
+    preserveContractValue,
+    // Filling metadata from catalog must not renegotiate client finances.
+    preserveDeposit:
+      options?.preserveDeposit !== undefined
+        ? options.preserveDeposit === true
+        : preserveContractValue,
     preserveFinalPaymentDueDate: false,
   })
 }

@@ -8,6 +8,7 @@ import { weddingService } from '@/lib/api/weddingService'
 import { validateWeddingCorrespondenceEntries } from '@/features/weddings/correspondence/weddingCorrespondence'
 import { persistWeddingContractAnswerFields } from '@/lib/forms/persistWeddingContractAnswers'
 import { isLikelyUuid } from '@/lib/supabase/helpers'
+import { rebaseEffectivePackageBase } from '@/lib/forms/weddingExtraPricing'
 import { getEffectiveTravelFeeAmount } from '@/lib/utils/travelFeeCommercial'
 import { reconcileDeliveryDeadline } from '@/lib/utils/weddingDeliveryDeadline'
 import type { WeddingExtraService } from '@/types/package'
@@ -54,7 +55,11 @@ export function createWeddingEditDraft(
     notes: structuredClone(snapshot.wedding.notes),
     tasks: structuredClone(snapshot.tasks),
     payments: structuredClone(snapshot.wedding.payments),
-    packageBasePrice: Math.max(0, wedding.price - extrasTotal - travel),
+    packageBasePrice: rebaseEffectivePackageBase({
+      contractValue: wedding.price,
+      extrasTotal,
+      effectiveTravel: travel,
+    }),
   }
 }
 

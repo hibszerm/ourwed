@@ -18,6 +18,7 @@
     "test:packages-page-dev-tooling": "npx tsx --tsconfig tsconfig.app.json src/features/studio/packagesPageDevToolingAcceptance.test.ts",
     "test:packages-presentation": "npx tsx --tsconfig tsconfig.app.json src/features/studio/packages/modern/modernPackagesPresentationAcceptance.test.ts",
     "test:package-setup": "npx tsx --tsconfig tsconfig.app.json src/lib/utils/packageSetupAcceptance.test.ts",
+    "test:commercial-integrity-a1-a2": "npx tsx --tsconfig tsconfig.app.json src/lib/utils/commercialIntegrityA1A2Acceptance.test.ts",
     "test:package-wedding-snapshot": "npx tsx --tsconfig tsconfig.app.json src/lib/utils/packageWeddingSnapshotAcceptance.test.ts",
     "test:reference-contract-values": "npx tsx --tsconfig tsconfig.app.json src/lib/utils/referenceContractValuesAcceptance.test.ts",
     "test:coverage-end-time": "npx tsx --tsconfig tsconfig.app.json src/features/documents/template/coverageEndTimeLocationAcceptance.test.ts",

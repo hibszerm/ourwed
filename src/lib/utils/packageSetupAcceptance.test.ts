@@ -100,16 +100,35 @@ run('2. catalog package mutation does not mutate wedding snapshot', () => {
   assertEq(mutated.name, 'Video MAX', 'catalog changed independently')
 })
 
-run('3. preserveContractValue keeps manual price override', () => {
+run('3. preserve financial agreement keeps CV and agreed deposit', () => {
   const pkg = buildReferenceStudioPackage()
-  const wedding = buildReferenceWedding({ price: 9999 })
+  const wedding = buildReferenceWedding({
+    price: 9999,
+    depositAmount: 2500,
+  })
   const snap = applyCommercialPackageSnapshot(wedding, pkg, {
     extrasTotal: 0,
     preserveContractValue: true,
   })
   assertEq(snap.price, 9999, 'preserved price')
   assertEq(snap.packageName, 'Video Mini', 'package name updated')
-  assertEq(snap.depositAmount, 1000, 'deposit from package')
+  assertEq(snap.depositAmount, 2500, 'preserved agreed deposit')
+})
+
+run('3b. apply defaults replaces CV composition and deposit', () => {
+  const pkg = buildReferenceStudioPackage()
+  const wedding = buildReferenceWedding({
+    price: 13000,
+    depositAmount: 2500,
+  })
+  const snap = applyCommercialPackageSnapshot(wedding, pkg, {
+    extrasTotal: 2000,
+    effectiveTravelFee: 1000,
+    preserveContractValue: false,
+    preserveDeposit: false,
+  })
+  assertEq(snap.price, pkg.price + 2000 + 1000, 'catalog CV recomposed')
+  assertEq(snap.depositAmount, pkg.depositAmount, 'catalog deposit applied')
 })
 
 run('4. wedding-specific edit does not modify catalog package', () => {

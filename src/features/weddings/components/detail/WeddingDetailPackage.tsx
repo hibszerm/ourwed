@@ -15,7 +15,10 @@ import {
 } from '@/lib/utils/commercial'
 import { formatFinalPaymentTerms } from '@/lib/utils/finalPaymentTerms'
 import { formatCurrency } from '@/lib/utils/currency'
-import { recomposeContractValueForExtrasEdit } from '@/lib/forms/weddingExtraPricing'
+import {
+  rebaseEffectivePackageBase,
+  recomposeContractValueForExtrasEdit,
+} from '@/lib/forms/weddingExtraPricing'
 import { resolveWeddingExtraDisplayName } from '@/lib/forms/weddingExtraName'
 import { getEffectiveTravelFeeAmount } from '@/lib/utils/travelFeeCommercial'
 import {
@@ -117,18 +120,23 @@ export function WeddingDetailPackage({
   function commitPackageChange(
     pkg: StudioPackage,
     extrasTotal: number,
-    preserveContractValue: boolean,
+    preserveFinancialAgreement: boolean,
   ) {
+    const travel = getEffectiveTravelFeeAmount(wedding)
     onChangePackageBasePrice?.(
-      preserveContractValue
-        ? Math.max(0, wedding.price - extrasTotal - getEffectiveTravelFeeAmount(wedding))
+      preserveFinancialAgreement
+        ? rebaseEffectivePackageBase({
+            contractValue: wedding.price,
+            extrasTotal,
+            effectiveTravel: travel,
+          })
         : pkg.price,
     )
-    const travel = getEffectiveTravelFeeAmount(wedding)
     const commercial = applyCommercialPackageSnapshot(wedding, pkg, {
       extrasTotal,
       effectiveTravelFee: travel,
-      preserveContractValue,
+      preserveContractValue: preserveFinancialAgreement,
+      preserveDeposit: preserveFinancialAgreement,
     })
     onChangeWedding?.({
       ...commercial,
@@ -140,13 +148,13 @@ export function WeddingDetailPackage({
     setPendingChange(null)
   }
 
-  function fillFromCatalog(preserveContractValue: boolean) {
+  function fillFromCatalog() {
     if (!packageChoices || !wedding.packageId || !onChangeWedding) return
     const selected = packageChoices.find((p) => p.id === wedding.packageId)
     if (!selected) return
     if (
       !window.confirm(
-        'Uzupełnić brakujące warunki z aktualnego pakietu katalogu? Zastąpi to zapisany snapshot zawartości i warunków (poza ewentualnie zachowaną wartością umowy).',
+        'Uzupełnić brakujące warunki z aktualnego pakietu katalogu? Wartość umowy, zaliczka, usługi dodatkowe i dojazd pozostaną bez zmian.',
       )
     ) {
       return
@@ -157,12 +165,15 @@ export function WeddingDetailPackage({
     )
     const travel = getEffectiveTravelFeeAmount(wedding)
     onChangePackageBasePrice?.(
-      preserveContractValue
-        ? Math.max(0, wedding.price - extrasTotal - travel)
-        : selected.price,
+      rebaseEffectivePackageBase({
+        contractValue: wedding.price,
+        extrasTotal,
+        effectiveTravel: travel,
+      }),
     )
     const filled = fillWeddingTermsFromCatalogPackage(wedding, selected, {
-      preserveContractValue,
+      preserveContractValue: true,
+      preserveDeposit: true,
       extrasTotal,
       effectiveTravelFee: travel,
     })
@@ -173,6 +184,21 @@ export function WeddingDetailPackage({
         next: { ...wedding, ...filled },
       }),
     })
+  }
+
+  function applyManualContractValue(enteredCv: number) {
+    const extrasTotal = extras.reduce(
+      (sum, e) => sum + e.priceSnapshot * e.quantity,
+      0,
+    )
+    onChangeWedding?.({ price: enteredCv })
+    onChangePackageBasePrice?.(
+      rebaseEffectivePackageBase({
+        contractValue: enteredCv,
+        extrasTotal,
+        effectiveTravel: getEffectiveTravelFeeAmount(wedding),
+      }),
+    )
   }
 
   function updateExtra(id: string, patch: Partial<WeddingExtraService>) {
@@ -343,7 +369,7 @@ export function WeddingDetailPackage({
             step="0.01"
             value={wedding.price}
             onChange={(e) =>
-              onChangeWedding?.({ price: Number(e.target.value) || 0 })
+              applyManualContractValue(Number(e.target.value) || 0)
             }
           />
           <Input
@@ -549,24 +575,14 @@ export function WeddingDetailPackage({
               Dodaj pozycję snapshotu
             </Button>
             {wedding.packageId ? (
-              <>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => fillFromCatalog(false)}
-                >
-                  Uzupełnij z aktualnego pakietu
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => fillFromCatalog(true)}
-                >
-                  Uzupełnij (zachowaj cenę)
-                </Button>
-              </>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => fillFromCatalog()}
+              >
+                Uzupełnij z katalogu
+              </Button>
             ) : null}
           </div>
         ) : null}

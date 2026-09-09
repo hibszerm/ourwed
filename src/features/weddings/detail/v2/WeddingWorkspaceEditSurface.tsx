@@ -116,6 +116,7 @@ export function WeddingWorkspaceEditSurface({
           <PackageFields
             wedding={p.wedding}
             extras={p.extras}
+            payments={p.payments}
             packageBasePrice={p.packageBasePrice}
             onChangeWedding={p.onChangeWedding}
             onChangeExtras={p.onChangeExtras}
@@ -127,8 +128,10 @@ export function WeddingWorkspaceEditSurface({
           <FinanceFields
             wedding={p.wedding}
             payments={p.payments}
+            extras={p.extras}
             onChangeWedding={p.onChangeWedding}
             onChangePayments={p.onChangePayments}
+            onChangePackageBasePrice={p.onChangePackageBasePrice}
           />
         ) : null}
 

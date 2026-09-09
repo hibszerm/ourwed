@@ -90,8 +90,13 @@ function assertNotIncludes(src: string, needle: string, m: string) {
   const commercial = read('src/lib/utils/commercial.ts')
   assertIncludes(
     commercial,
-    'depositAmount: pkg.depositAmount',
-    'F: package deposit snapshotted onto wedding',
+    'depositAmount: preserveDeposit',
+    'F: package deposit snapshotted onto wedding (preserve-aware)',
+  )
+  assertIncludes(
+    commercial,
+    ': pkg.depositAmount',
+    'F: apply-defaults still copies catalog deposit',
   )
   const pkgType = read('src/types/package.ts')
   assertIncludes(

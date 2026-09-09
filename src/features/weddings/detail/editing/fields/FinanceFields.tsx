@@ -1,6 +1,9 @@
 import { Button } from '@/components/ui/Button'
 import { Input, Select } from '@/components/ui/Input'
+import { rebaseEffectivePackageBase, sumExtraPriceSnapshots } from '@/lib/forms/weddingExtraPricing'
 import { createBrowserSafeId } from '@/lib/utils/createBrowserSafeId'
+import { getEffectiveTravelFeeAmount } from '@/lib/utils/travelFeeCommercial'
+import type { WeddingExtraService } from '@/types/package'
 import type { Payment, PaymentType, Wedding } from '@/types/wedding'
 import styles from '../WeddingEditorFields.module.css'
 
@@ -17,14 +20,34 @@ const TYPE_LABELS: Record<PaymentType, string> = {
 export function FinanceFields({
   wedding,
   payments,
+  extras = [],
   onChangeWedding,
   onChangePayments,
+  onChangePackageBasePrice,
 }: {
   wedding: Wedding
   payments: Payment[]
+  extras?: WeddingExtraService[]
   onChangeWedding: (patch: Partial<Wedding>) => void
   onChangePayments: (payments: Payment[]) => void
+  onChangePackageBasePrice?: (price: number) => void
 }) {
+  function applyManualContractValue(enteredCv: number) {
+    onChangeWedding({ price: enteredCv })
+    onChangePackageBasePrice?.(
+      rebaseEffectivePackageBase({
+        contractValue: enteredCv,
+        extrasTotal: sumExtraPriceSnapshots(
+          extras.map((e) => ({
+            priceSnapshot: e.priceSnapshot,
+            quantity: e.quantity,
+          })),
+        ),
+        effectiveTravel: getEffectiveTravelFeeAmount(wedding),
+      }),
+    )
+  }
+
   function updatePayment(id: string, patch: Partial<Payment>) {
     onChangePayments(
       payments.map((p) => {
@@ -49,7 +72,7 @@ export function FinanceFields({
           min={0}
           value={Number.isFinite(wedding.price) ? wedding.price : 0}
           onChange={(e) =>
-            onChangeWedding({ price: Number(e.target.value) || 0 })
+            applyManualContractValue(Number(e.target.value) || 0)
           }
         />
         <Input

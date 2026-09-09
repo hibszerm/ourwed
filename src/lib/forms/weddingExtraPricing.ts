@@ -34,6 +34,35 @@ export function sumExtraPriceSnapshots(
 }
 
 /**
+ * Rebase the per-wedding effective package base after a manual Contract Value
+ * edit (or when preserving a financial agreement across package change).
+ *
+ * Entered/preserved CV already includes current extras + effective travel.
+ * Do not add those components again — subtract them to recover the base.
+ *
+ * The result is an INTERNAL draft balancing value and MAY be negative when the
+ * agreed CV is below current extras + effective travel. That encodes the
+ * wedding-specific commercial adjustment; it is not the catalog package price.
+ * Do not clamp to 0 — clamping would erase that adjustment on later deltas.
+ */
+export function rebaseEffectivePackageBase(input: {
+  contractValue: number
+  extrasTotal: number
+  effectiveTravel: number
+}): number {
+  const cv = Number.isFinite(input.contractValue) ? input.contractValue : 0
+  const extras = Math.max(
+    0,
+    Number.isFinite(input.extrasTotal) ? input.extrasTotal : 0,
+  )
+  const travel = Math.max(
+    0,
+    Number.isFinite(input.effectiveTravel) ? input.effectiveTravel : 0,
+  )
+  return cv - extras - travel
+}
+
+/**
  * Derive the package base from the current wedding total, extras, and travel.
  * Preserves a manual total adjustment inside the "base" component when
  * an explicit package price is not provided.
@@ -63,7 +92,11 @@ export function resolvePackageBasePrice(input: {
   const current = Number.isFinite(input.currentWeddingPrice)
     ? input.currentWeddingPrice
     : 0
-  return Math.max(0, current - extrasSum - travel)
+  return rebaseEffectivePackageBase({
+    contractValue: current,
+    extrasTotal: extrasSum,
+    effectiveTravel: travel,
+  })
 }
 
 /** Idempotent total: package base + extras + effective travel. */
@@ -78,11 +111,10 @@ export function computeWeddingContractValue(input: {
       ? input.effectiveTravelFee
       : 0,
   )
-  return (
-    Math.max(0, input.packageBasePrice) +
-    sumExtraPriceSnapshots(input.extras) +
-    travel
-  )
+  const base = Number.isFinite(input.packageBasePrice)
+    ? input.packageBasePrice
+    : 0
+  return base + sumExtraPriceSnapshots(input.extras) + travel
 }
 
 /**
@@ -132,7 +164,7 @@ export function recomposeContractValueForExtrasEdit(input: {
 }): number {
   const packageBasePrice =
     input.packageBasePrice != null && Number.isFinite(input.packageBasePrice)
-      ? Math.max(0, input.packageBasePrice)
+      ? input.packageBasePrice
       : resolvePackageBasePrice({
           currentWeddingPrice: input.currentWeddingPrice,
           extrasBeforeOrCurrent: input.extrasBefore,
