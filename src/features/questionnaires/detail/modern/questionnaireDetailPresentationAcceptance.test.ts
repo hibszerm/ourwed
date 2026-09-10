@@ -73,7 +73,11 @@ function assertNotIncludes(src: string, needle: string, m: string) {
     "actionKey: 'apply_questionnaire_responses'",
     'PRO gate preserved',
   )
-  assertIncludes(workspace, 'void Promise.all', 'non-blocking invalidation')
+  assertIncludes(
+    workspace,
+    'invalidateAfterQuestionnaireApproval',
+    'shared approve invalidation incl. notifications',
+  )
   assertNotIncludes(workspace, 'await Promise.all', 'does not await invalidation')
   assertNotIncludes(workspace, 'Odrzuć', 'no reject action')
   assertNotIncludes(workspace, 'questionnaireService.reject', 'does not call reject')

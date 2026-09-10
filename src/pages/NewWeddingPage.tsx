@@ -11,6 +11,7 @@ import { AddressField, type AddressFieldValue } from '@/features/forms/AddressFi
 import { useCreateWedding } from '@/features/weddings/hooks/useCreateWedding'
 import { useCreateFullWedding } from '@/features/weddings/hooks/useCreateFullWedding'
 import { useWeddings } from '@/features/weddings/hooks/useWeddings'
+import { LikelyDuplicateWarningModal } from '@/features/weddings/components/LikelyDuplicateWarningModal'
 import { buildNewWeddingCreatePayload } from '@/features/weddings/buildNewWeddingCreatePayload'
 import { buildFullWeddingCreateInput } from '@/features/weddings/buildFullWeddingCreateInput'
 import {
@@ -29,6 +30,8 @@ import { markGuideDiscoveryEligibleIfFirstBooking } from '@/lib/guideDiscovery/e
 import { extraServiceService } from '@/lib/api/extraServiceService'
 import { packageService } from '@/lib/api/packageService'
 import { weddingListLightService } from '@/lib/api/weddingListLightService'
+import { findLikelyWeddingDuplicates } from '@/lib/weddings/findLikelyWeddingDuplicates'
+import type { LikelyDuplicateWedding } from '@/lib/weddings/findLikelyWeddingDuplicates'
 import { computeWeddingContractValue } from '@/lib/forms/weddingExtraPricing'
 import { coupleName, formatDate } from '@/lib/utils/dates'
 import { formatCurrency } from '@/lib/utils/currency'
@@ -269,6 +272,13 @@ export function NewWeddingPage() {
   const [isSuccess, setIsSuccess] = useState(false)
   const [priceAutoFilledOnce, setPriceAutoFilledOnce] = useState(false)
   const [keyboardOpen, setKeyboardOpen] = useState(false)
+  const [duplicateCandidates, setDuplicateCandidates] = useState<
+    LikelyDuplicateWedding[]
+  >([])
+  const [pendingCreate, setPendingCreate] = useState<{
+    data: FormValues
+    priceIsDirty: boolean
+  } | null>(null)
 
   const {
     register,
@@ -432,49 +442,25 @@ export function NewWeddingPage() {
       if (!isLastStep) return
       const allowed = requirePro()
       if (!allowed) return
-      // Authoritative prior count BEFORE mutation — never trust stale list cache
-      // (e.g. after out-of-band delete) and never infer prior after create.
-      let priorHistoryCount = existingWeddings.length
-      try {
-        priorHistoryCount =
-          await weddingListLightService.countWeddingHistory()
-      } catch {
-        // Fall back to list length if head-count fails (rare).
+
+      const candidates = findLikelyWeddingDuplicates({
+        weddingDate: data.date || null,
+        partner1: data.partner1,
+        partner2: data.partner2,
+        email: data.email || null,
+        phone: data.partner1Phone || data.partner2Phone || null,
+        existingWeddings,
+      })
+      if (candidates.length > 0) {
+        setPendingCreate({
+          data,
+          priceIsDirty: Boolean(dirtyFields.price),
+        })
+        setDuplicateCandidates(candidates)
+        return
       }
-      try {
-        // Quick Create: useCreateWedding + sanitizer. Full Create: useCreateFullWedding.
-        // Do not route Quick through createFullWedding.
-        const wedding = data.completeLater
-          ? await createWedding.mutateAsync(buildNewWeddingCreatePayload(data))
-          : (
-              await createFullWedding.mutateAsync(
-                buildFullWeddingCreateInput(data, {
-                  priceIsDirty: Boolean(dirtyFields.price),
-                }),
-              )
-            ).wedding
-        markGuideDiscoveryEligibleIfFirstBooking(priorHistoryCount)
-        setIsSuccess(true)
-        window.setTimeout(() => {
-          navigate(`/sluby/${wedding.id}`)
-        }, 950)
-      } catch (err) {
-        if (isFullCreatePartialError(err)) {
-          // Wedding exists — first-booking marker still applies from pre-mutation prior.
-          markGuideDiscoveryEligibleIfFirstBooking(priorHistoryCount)
-          window.alert(
-            getUserFacingErrorMessage(
-              err,
-              'Zlecenie zostało utworzone, ale nie udało się zapisać wszystkich danych.',
-            ),
-          )
-          navigate(`/sluby/${err.weddingId}`)
-          return
-        }
-        window.alert(
-          getUserFacingErrorMessage(err, 'Nie udało się utworzyć ślubu.'),
-        )
-      }
+
+      await executeCreate(data, Boolean(dirtyFields.price))
     },
     (errs) => {
       const first = FIELD_ORDER.find((name) => Boolean(errs[name]))
@@ -483,6 +469,55 @@ export function NewWeddingPage() {
       window.requestAnimationFrame(() => revealField(first))
     },
   )
+
+  async function executeCreate(data: FormValues, priceIsDirty: boolean) {
+    // Authoritative prior count BEFORE mutation — never trust stale list cache
+    // (e.g. after out-of-band delete) and never infer prior after create.
+    let priorHistoryCount = existingWeddings.length
+    try {
+      priorHistoryCount = await weddingListLightService.countWeddingHistory()
+    } catch {
+      // Fall back to list length if head-count fails (rare).
+    }
+    try {
+      // Quick Create: useCreateWedding + sanitizer. Full Create: useCreateFullWedding.
+      // Do not route Quick through createFullWedding.
+      const wedding = data.completeLater
+        ? await createWedding.mutateAsync(buildNewWeddingCreatePayload(data))
+        : (
+            await createFullWedding.mutateAsync(
+              buildFullWeddingCreateInput(data, {
+                priceIsDirty,
+              }),
+            )
+          ).wedding
+      markGuideDiscoveryEligibleIfFirstBooking(priorHistoryCount)
+      setPendingCreate(null)
+      setDuplicateCandidates([])
+      setIsSuccess(true)
+      window.setTimeout(() => {
+        navigate(`/sluby/${wedding.id}`)
+      }, 950)
+    } catch (err) {
+      if (isFullCreatePartialError(err)) {
+        // Wedding exists — first-booking marker still applies from pre-mutation prior.
+        markGuideDiscoveryEligibleIfFirstBooking(priorHistoryCount)
+        setPendingCreate(null)
+        setDuplicateCandidates([])
+        window.alert(
+          getUserFacingErrorMessage(
+            err,
+            'Zlecenie zostało utworzone, ale nie udało się zapisać wszystkich danych.',
+          ),
+        )
+        navigate(`/sluby/${err.weddingId}`)
+        return
+      }
+      window.alert(
+        getUserFacingErrorMessage(err, 'Nie udało się utworzyć ślubu.'),
+      )
+    }
+  }
 
   const actionsLocked = isSubmitting || creating || isSuccess
   const identity =
@@ -1112,6 +1147,26 @@ export function NewWeddingPage() {
           </form>
         </div>
       </PageContainer>
+
+      <LikelyDuplicateWarningModal
+        open={Boolean(pendingCreate) && duplicateCandidates.length > 0}
+        candidates={duplicateCandidates}
+        busy={creating}
+        onClose={() => {
+          if (creating) return
+          setPendingCreate(null)
+          setDuplicateCandidates([])
+        }}
+        onContinue={() => {
+          if (!pendingCreate) return
+          void executeCreate(pendingCreate.data, pendingCreate.priceIsDirty)
+        }}
+        onOpenExisting={(weddingId) => {
+          setPendingCreate(null)
+          setDuplicateCandidates([])
+          navigate(`/sluby/${weddingId}`)
+        }}
+      />
     </AppLayout>
   )
 }

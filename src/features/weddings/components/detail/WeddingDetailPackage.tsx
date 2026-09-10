@@ -137,6 +137,7 @@ export function WeddingDetailPackage({
       effectiveTravelFee: travel,
       preserveContractValue: preserveFinancialAgreement,
       preserveDeposit: preserveFinancialAgreement,
+      preserveFinalPaymentDueDate: preserveFinancialAgreement,
     })
     onChangeWedding?.({
       ...commercial,

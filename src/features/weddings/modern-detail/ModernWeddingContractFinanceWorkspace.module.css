@@ -140,6 +140,63 @@
   font-variant-numeric: tabular-nums;
 }
 
+.freshnessNotice {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: color-mix(
+    in srgb,
+    var(--color-bg-elevated) 55%,
+    var(--color-accent, #8b7355) 6%
+  );
+  border: 1px solid
+    color-mix(in srgb, var(--border-subtle, var(--color-border)) 70%, transparent);
+  max-width: 36rem;
+}
+
+.freshnessTitle {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1.35;
+  color: var(--color-text-primary);
+}
+
+.freshnessSupport {
+  margin: 6px 0 0;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--color-text-secondary);
+}
+
+.freshnessAction {
+  margin-top: 10px;
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid
+    color-mix(in srgb, var(--border-subtle, var(--color-border)) 80%, transparent);
+  background: color-mix(in srgb, var(--color-bg-elevated) 88%, transparent);
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 550;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+}
+
+.freshnessAction:hover {
+  background: color-mix(in srgb, var(--color-bg-elevated) 100%, transparent);
+}
+
+.freshnessAction:focus-visible {
+  outline: 2px solid var(--color-accent, #8b7355);
+  outline-offset: 2px;
+}
+
 .docActions {
   display: flex;
   flex-wrap: wrap;

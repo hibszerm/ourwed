@@ -4,12 +4,12 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/Button'
 import { IconArrowLeft } from '@/components/icons'
 import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
-import { invalidateFinanceQueries } from '@/features/finance/invalidateFinanceQueries'
 import { useProAccessGate } from '@/features/billing/ProAccessGate'
 import {
   isProAccessRequiredError,
   toProAccessUserMessage,
 } from '@/features/billing/proAccessError'
+import { LikelyDuplicateWarningModal } from '@/features/weddings/components/LikelyDuplicateWarningModal'
 import { ModernQuestionnaireResponseSections } from '@/features/questionnaires/detail/modern/ModernQuestionnaireResponseSections'
 import {
   DETAIL_COPY_LINK,
@@ -30,11 +30,13 @@ import {
   resolveQuestionnaireDetailBack,
 } from '@/features/questionnaires/detail/modern/questionnaireDetailCopy'
 import { formatPendingSubmittedAt } from '@/features/questionnaires/pending/modern/formatPendingSubmittedAt'
+import { invalidateAfterQuestionnaireApproval } from '@/features/questionnaires/hooks/usePendingQuestionnaires'
 import {
   QUESTIONNAIRE_STATUS_LABELS,
   questionnaireService,
   type QuestionnaireSearchFields,
 } from '@/lib/api/questionnaireService'
+import type { LikelyDuplicateWedding } from '@/lib/weddings/findLikelyWeddingDuplicates'
 import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 import styles from './ModernQuestionnaireDetailWorkspace.module.css'
 
@@ -72,6 +74,10 @@ export function ModernQuestionnaireDetailWorkspace() {
   const userId = useStudioAuthId()
   const { requirePro, openUpgradeDialog } = useProAccessGate()
   const [approving, setApproving] = useState(false)
+  const [duplicateCandidates, setDuplicateCandidates] = useState<
+    LikelyDuplicateWedding[]
+  >([])
+  const [showDuplicateWarning, setShowDuplicateWarning] = useState(false)
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['questionnaires', userId, id],
@@ -85,24 +91,14 @@ export function ModernQuestionnaireDetailWorkspace() {
     enabled: Boolean(userId && id) && Boolean(data),
   })
 
-  async function handleApprove() {
+  async function runApprove() {
     if (!data) return
-    if (!requirePro(undefined, { actionKey: 'apply_questionnaire_responses' })) {
-      return
-    }
-    if (approving) return
     setApproving(true)
     try {
       const { wedding } = await questionnaireService.approve(data.instance.id)
-      void Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['pending-questionnaires'] }),
-        queryClient.invalidateQueries({ queryKey: ['questionnaires'] }),
-        queryClient.invalidateQueries({ queryKey: ['weddings'] }),
-        queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
-        invalidateFinanceQueries(queryClient),
-      ]).catch(() => {
-        /* non-blocking */
-      })
+      invalidateAfterQuestionnaireApproval(queryClient)
+      setShowDuplicateWarning(false)
+      setDuplicateCandidates([])
       navigate(`/sluby/${wedding.id}`)
     } catch (err) {
       if (isProAccessRequiredError(err)) {
@@ -113,6 +109,36 @@ export function ModernQuestionnaireDetailWorkspace() {
       window.alert(getUserFacingErrorMessage(err, 'Nie udało się zatwierdzić.'))
     } finally {
       setApproving(false)
+    }
+  }
+
+  async function handleApprove() {
+    if (!data) return
+    if (!requirePro(undefined, { actionKey: 'apply_questionnaire_responses' })) {
+      return
+    }
+    if (approving) return
+    setApproving(true)
+    try {
+      const candidates = await questionnaireService.findApprovalDuplicates(
+        data.instance.id,
+      )
+      if (candidates.length > 0) {
+        setDuplicateCandidates(candidates)
+        setShowDuplicateWarning(true)
+        setApproving(false)
+        return
+      }
+      setApproving(false)
+      await runApprove()
+    } catch (err) {
+      setApproving(false)
+      if (isProAccessRequiredError(err)) {
+        openUpgradeDialog('pro_required_action', 'apply_questionnaire_responses')
+        window.alert(toProAccessUserMessage())
+        return
+      }
+      window.alert(getUserFacingErrorMessage(err, 'Nie udało się zatwierdzić.'))
     }
   }
 
@@ -304,6 +330,25 @@ export function ModernQuestionnaireDetailWorkspace() {
           )}
         </div>
       </div>
+
+      <LikelyDuplicateWarningModal
+        open={showDuplicateWarning && duplicateCandidates.length > 0}
+        candidates={duplicateCandidates}
+        busy={approving}
+        onClose={() => {
+          if (approving) return
+          setShowDuplicateWarning(false)
+          setDuplicateCandidates([])
+        }}
+        onContinue={() => {
+          void runApprove()
+        }}
+        onOpenExisting={(weddingId) => {
+          setShowDuplicateWarning(false)
+          setDuplicateCandidates([])
+          navigate(`/sluby/${weddingId}`)
+        }}
+      />
     </div>
   )
 }

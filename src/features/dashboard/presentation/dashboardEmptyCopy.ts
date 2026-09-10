@@ -8,8 +8,9 @@ export const DEADLINE_EMPTY_ZERO_HISTORY = {
   body: 'Gdy pojawią się terminy związane z Twoimi zleceniami, zobaczysz je tutaj.',
 } as const
 
+/** Empty active-deadline query ≠ “all deliveries completed”. */
 export const DEADLINE_EMPTY_ESTABLISHED = {
-  title: 'Wszystko oddane',
+  title: 'Brak aktywnych terminów',
   body: 'Brak aktywnych terminów oddania.',
 } as const
 

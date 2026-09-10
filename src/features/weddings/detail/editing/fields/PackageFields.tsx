@@ -150,6 +150,8 @@ export function PackageFields({
       effectiveTravelFee: travel,
       preserveContractValue: preserveFinancialAgreement,
       preserveDeposit,
+      // Preserve-CV / financial agreement keeps wedding-level final payment deadline.
+      preserveFinalPaymentDueDate: preserveFinancialAgreement,
     })
     onChangeWedding({
       ...commercial,

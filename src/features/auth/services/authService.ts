@@ -18,8 +18,6 @@ import type {
   RegisterResultData,
 } from '@/features/auth/types'
 
-const REMEMBER_KEY = 'ourwed_auth_remember'
-
 function deriveInitials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean)
   if (parts.length === 0) return '—'
@@ -65,24 +63,6 @@ function isSessionAuthenticated(session: Session | null): boolean {
   return true
 }
 
-export function getRememberMePreference(): boolean {
-  try {
-    const raw = localStorage.getItem(REMEMBER_KEY)
-    if (raw == null) return true
-    return raw === '1'
-  } catch {
-    return true
-  }
-}
-
-export function setRememberMePreference(remember: boolean): void {
-  try {
-    localStorage.setItem(REMEMBER_KEY, remember ? '1' : '0')
-  } catch {
-    // ignore
-  }
-}
-
 export const authService = {
   async getSession(): Promise<Session | null> {
     const { data, error } = await supabase.auth.getSession()
@@ -112,13 +92,8 @@ export const authService = {
   async login(
     email: string,
     password: string,
-    options?: { rememberMe?: boolean },
   ): Promise<LoginResult> {
     try {
-      if (options?.rememberMe != null) {
-        setRememberMePreference(options.rememberMe)
-      }
-
       const { data, error } = await supabase.auth.signInWithPassword({
         email: email.trim().toLowerCase(),
         password,

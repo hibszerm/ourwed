@@ -318,7 +318,8 @@ function assert(c: boolean, m: string) {
     ),
     'zero-history body',
   )
-  assert(emptyCopy.includes('Wszystko oddane'), 'established completion title retained')
+  assert(emptyCopy.includes('Brak aktywnych terminów'), 'established empty is factual, not false completion')
+  assert(!emptyCopy.includes('Wszystko oddane'), 'no false “everything delivered” for empty deadline query')
   assert(emptyCopy.includes('Brak aktywnych terminów oddania.'), 'established empty body')
   const css = read('src/features/dashboard-v3/DashboardV3DeadlinePanel.module.css')
   assert(css.includes('font-size: var(--text-sm)'), 'name matches compact scale')

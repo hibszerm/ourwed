@@ -3,6 +3,7 @@ import { AuthShell } from '@/features/auth/components/AuthShell'
 import { AuthLoadingScreen } from '@/features/auth/components/AuthLoadingScreen'
 import { LoginForm } from '@/features/auth/components/LoginForm'
 import { useAuth } from '@/features/auth/AuthProvider'
+import { resolvePostLoginPath } from '@/features/auth/postLoginRedirect'
 import shellStyles from '@/features/auth/components/AuthShell.module.css'
 import styles from '@/features/auth/components/AuthForms.module.css'
 import { AuthLegalLoginCopy } from '@/features/legal/LegalLinks'
@@ -11,6 +12,7 @@ export function LoginPage() {
   const { isAuthenticated, isLoading } = useAuth()
   const location = useLocation()
   const state = (location.state as {
+    from?: unknown
     passwordReset?: boolean
     emailConfirmed?: boolean
     emailChanged?: boolean
@@ -20,7 +22,9 @@ export function LoginPage() {
   const emailChanged = Boolean(state?.emailChanged)
 
   if (isLoading) return <AuthLoadingScreen />
-  if (isAuthenticated) return <Navigate to="/dashboard" replace />
+  if (isAuthenticated) {
+    return <Navigate to={resolvePostLoginPath(state?.from)} replace />
+  }
 
   return (
     <AuthShell

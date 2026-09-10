@@ -434,12 +434,11 @@ export function WeddingImportPage() {
               ← Śluby
             </button>
             <h1 className={styles.pageTitle}>
-              {isFirstRunImport ? 'Przenieś swój sezon' : 'Importuj śluby'}
+              {isFirstRunImport ? 'Importuj zlecenia' : 'Importuj śluby'}
             </h1>
             <p className={styles.pageLead}>
-              {isFirstRunImport
-                ? 'Masz zlecenia w Excelu lub CSV? Zaimportuj je jednocześnie. Przed zapisaniem pokażemy Ci wszystkie dane do sprawdzenia.'
-                : 'Przenieś zlecenia z arkusza do OurWed. Przed zapisaniem sprawdzisz wszystkie dane.'}
+              Import przenosi podstawowe dane zleceń. Przed zapisaniem sprawdzisz
+              wszystkie wiersze.
             </p>
           </header>
 
@@ -522,15 +521,26 @@ export function WeddingImportPage() {
 
             <aside className={styles.supportColumn} aria-label="Informacje o imporcie">
               <section className={styles.supportBlock}>
-                <h2 className={styles.supportTitle}>Co możesz zaimportować</h2>
+                <h2 className={styles.supportTitle}>Zakres importu</h2>
+                <p className={styles.supportBody}>
+                  Import przenosi podstawowe dane zleceń.
+                </p>
+                <h3 className={styles.supportSubtitle}>Importujemy</h3>
                 <ul className={styles.supportList}>
-                  <li>Para</li>
-                  <li>Data zlecenia</li>
-                  <li>Telefon</li>
-                  <li>E-mail</li>
-                  <li>Cena</li>
-                  <li>Nazwa pakietu</li>
-                  <li>Notatka</li>
+                  <li>datę ślubu</li>
+                  <li>parę</li>
+                  <li>telefon i e-mail</li>
+                  <li>wartość zlecenia</li>
+                  <li>pakiet, jeśli uda się go dopasować</li>
+                  <li>notatkę</li>
+                </ul>
+                <h3 className={styles.supportSubtitle}>Nie importujemy automatycznie</h3>
+                <ul className={styles.supportList}>
+                  <li>wpłat</li>
+                  <li>miejsc ceremonii i przyjęcia</li>
+                  <li>statusu realizacji</li>
+                  <li>dokumentów i umów</li>
+                  <li>harmonogramu dnia</li>
                 </ul>
               </section>
               <section className={styles.supportBlock}>

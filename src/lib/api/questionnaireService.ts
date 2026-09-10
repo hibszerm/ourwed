@@ -38,6 +38,15 @@ import {
   normalizeSelectedPackageIds,
 } from '@/lib/forms/contractQuestionnaireSnapshot'
 import {
+  canApprovePathBPackage,
+  resolvePathBPackageCommercial,
+} from '@/lib/forms/pathBPackageCommercial'
+import {
+  findLikelyWeddingDuplicates,
+  type LikelyDuplicateWedding,
+} from '@/lib/weddings/findLikelyWeddingDuplicates'
+import type { FormInstanceOptionsSnapshot } from '@/types/contractQuestionnaire'
+import {
   mergeLocationAnswerWithExisting,
   normalizeLocationAnswer,
 } from '@/features/travel/weddingLocationModel'
@@ -50,7 +59,6 @@ import type {
 } from '@/types/formEngine'
 import type { WeddingPlaceRole, GeoPlace } from '@/types/travel'
 import type { Wedding } from '@/types/wedding'
-import type { StudioPackage } from '@/types/package'
 import { devWarnArgs } from '@/lib/debug/devConsole'
 
 export type QuestionnaireExpiration = '7d' | '14d' | '30d' | 'never'
@@ -132,7 +140,10 @@ function publicFormUrl(token: string): string {
   return `${window.location.origin}/form/${token}`
 }
 
-async function summarizeAnswers(answerJson: FormAnswerJson | null) {
+async function summarizeAnswers(
+  answerJson: FormAnswerJson | null,
+  optionsSnapshot?: FormInstanceOptionsSnapshot | null,
+) {
   const fields = answerJson ? extractAnswerFields(answerJson) : {}
   const bride = fullName(
     fieldString(fields, 'partner1.firstName'),
@@ -143,10 +154,18 @@ async function summarizeAnswers(answerJson: FormAnswerJson | null) {
     fieldString(fields, 'partner2.lastName'),
   )
   const selectedPackageIds = normalizeSelectedPackageIds(fields)
-  const packageId = asCatalogPackageId(
+  const requestedPackageId = asCatalogPackageId(
     selectedPackageIds[0] ?? fieldString(fields, 'packageId'),
   )
-  const pkg = packageId ? await packageService.get(packageId) : null
+  const livePackage = requestedPackageId
+    ? await packageService.get(requestedPackageId)
+    : null
+  const commercial = resolvePathBPackageCommercial({
+    selectedPackageIds,
+    legacyPackageId: fieldString(fields, 'packageId') || null,
+    optionsSnapshot,
+    livePackage,
+  })
   const phone = fieldString(fields, 'partner1.phone')
   const partner2Phone = fieldString(fields, 'partner2.phone')
   const bridePrep =
@@ -162,17 +181,18 @@ async function summarizeAnswers(answerJson: FormAnswerJson | null) {
       bride && groom ? `${bride} i ${groom}` : bride || groom || 'Para',
     weddingDate: fieldString(fields, 'weddingDate'),
     selectedPackageIds,
-    requestedPackageId: packageId,
-    packageId: pkg?.id ?? null,
-    packageName: pkg?.name ?? '',
-    packagePrice: pkg?.price ?? 0,
-    depositAmount: pkg?.depositAmount ?? 0,
-    currency: pkg?.currency ?? 'PLN',
-    accentColor: pkg?.color ?? undefined,
-    packageActive: pkg?.isActive ?? false,
-    packageFound: Boolean(pkg),
-    /** Authenticated package row — reuse in create; never trust public form prices. */
-    resolvedPackage: (pkg ?? null) as StudioPackage | null,
+    requestedPackageId: commercial.requestedPackageId,
+    packageId: commercial.packageId,
+    packageName: commercial.packageName,
+    packagePrice: commercial.packagePrice,
+    depositAmount: commercial.depositAmount,
+    currency: commercial.currency,
+    accentColor: commercial.accentColor,
+    packageActive: commercial.packageActive,
+    packageFound: commercial.packageFound,
+    snapshotOptionFound: commercial.snapshotOptionFound,
+    /** Authenticated package row — reuse in create when catalog row still exists. */
+    resolvedPackage: commercial.resolvedPackage,
     ceremonyLocation: formatLocationAnswer(fields.ceremonyLocation),
     receptionLocation: formatLocationAnswer(fields.receptionLocation),
     preparationLocation: bridePrep,
@@ -418,7 +438,12 @@ export const questionnaireService = {
         }
 
         if (answers?.answerJson) {
-          search = searchFromSummary(await summarizeAnswers(answers.answerJson))
+          search = searchFromSummary(
+            await summarizeAnswers(
+              answers.answerJson,
+              instance.optionsSnapshot,
+            ),
+          )
         } else if (instance.weddingId) {
           const wedding = weddingMap.get(instance.weddingId)
           if (wedding) search = searchFromWedding(wedding)
@@ -448,7 +473,9 @@ export const questionnaireService = {
       weddingDate: '',
     }
     if (answers?.answerJson) {
-      search = searchFromSummary(await summarizeAnswers(answers.answerJson))
+      search = searchFromSummary(
+        await summarizeAnswers(answers.answerJson, instance.optionsSnapshot),
+      )
     } else if (instance.weddingId) {
       try {
         const wedding = await weddingService.getById(instance.weddingId)
@@ -599,7 +626,10 @@ export const questionnaireService = {
     for (const instance of instances) {
       const form = await getForm(instance.formId)
       const answers = await getFormAnswersByInstanceId(instance.id)
-      const summary = await summarizeAnswers(answers?.answerJson ?? null)
+      const summary = await summarizeAnswers(
+        answers?.answerJson ?? null,
+        instance.optionsSnapshot,
+      )
       items.push({
         instance,
         form,
@@ -616,6 +646,32 @@ export const questionnaireService = {
     }
 
     return items
+  },
+
+  /**
+   * Soft duplicate candidates for Path B approval — never blocks by itself.
+   */
+  async findApprovalDuplicates(
+    instanceId: string,
+  ): Promise<LikelyDuplicateWedding[]> {
+    const instance = await getFormInstanceById(instanceId)
+    if (!instance) return []
+    const answers = await getFormAnswersByInstanceId(instanceId)
+    if (!answers?.answerJson) return []
+    const summary = await summarizeAnswers(
+      answers.answerJson,
+      instance.optionsSnapshot,
+    )
+    if (!summary.bride || !summary.groom) return []
+    const existingWeddings = await weddingService.getAll()
+    return findLikelyWeddingDuplicates({
+      weddingDate: summary.weddingDate || null,
+      partner1: summary.bride,
+      partner2: summary.groom,
+      email: summary.email || null,
+      phone: summary.phone || summary.partner2Phone || null,
+      existingWeddings,
+    })
   },
 
   async approve(
@@ -638,22 +694,26 @@ export const questionnaireService = {
       if (!answers) throw new Error('Brak odpowiedzi w ankiecie.')
 
       const summary = await withDevPerf('questionnaire.approve.package', () =>
-        summarizeAnswers(answers.answerJson),
+        summarizeAnswers(answers.answerJson, instance.optionsSnapshot),
       )
       if (!summary.bride || !summary.groom) {
         throw new Error('Ankieta nie zawiera imion pary.')
       }
-      if (summary.requestedPackageId) {
-        if (!summary.packageFound) {
-          throw new Error(
-            'Wybrany pakiet nie istnieje lub jest niedostępny. Poproś parę o ponowny wybór pakietu.',
-          )
-        }
-        if (!summary.packageActive) {
-          throw new Error(
-            'Wybrany pakiet jest nieaktywny. Poproś parę o wybór innego pakietu.',
-          )
-        }
+      const packageGate = canApprovePathBPackage({
+        requestedPackageId: summary.requestedPackageId,
+        packageId: summary.packageId,
+        packageName: summary.packageName,
+        packagePrice: summary.packagePrice,
+        depositAmount: summary.depositAmount,
+        currency: summary.currency,
+        accentColor: summary.accentColor,
+        packageFound: summary.packageFound,
+        packageActive: summary.packageActive,
+        resolvedPackage: summary.resolvedPackage,
+        snapshotOptionFound: summary.snapshotOptionFound,
+      })
+      if (!packageGate.ok) {
+        throw new Error(packageGate.message)
       }
 
       // Claim before creating a wedding so a concurrent approve cannot create orphans.
@@ -672,7 +732,7 @@ export const questionnaireService = {
 
       let wedding: Wedding
       try {
-        // create seeds local calendar only; hydrate skipped; package reused.
+        // create seeds local calendar only; hydrate skipped; package reused when present.
         wedding = await withDevPerf('questionnaire.approve.create', () =>
           weddingService.create({
             partner1: summary.bride,
@@ -681,7 +741,10 @@ export const questionnaireService = {
             packageId: summary.packageId,
             packageName: summary.packageName || 'Pakiet',
             price: summary.packagePrice || 0,
-            depositAmount: summary.depositAmount || undefined,
+            depositAmount:
+              summary.depositAmount != null
+                ? summary.depositAmount
+                : undefined,
             currency: summary.currency,
             accentColor: summary.accentColor,
             depositPaid: false,
@@ -691,6 +754,10 @@ export const questionnaireService = {
             creationOptions: {
               hydrate: false,
               seedMode: 'calendar_only',
+              // Keep questionnaire snapshot price when catalog package row exists.
+              preserveImportedPrice: true,
+              // Historical submissions remain approvable if package was deactivated.
+              allowInactivePackage: true,
               ...(summary.resolvedPackage
                 ? { resolvedPackage: summary.resolvedPackage }
                 : {}),

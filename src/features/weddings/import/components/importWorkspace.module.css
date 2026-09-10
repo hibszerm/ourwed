@@ -760,6 +760,14 @@
   font-weight: 650;
 }
 
+.resultNextStep {
+  margin: 0;
+  max-width: 36rem;
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--color-text-secondary);
+}
+
 .failedHeadline {
   margin: 0;
   font-size: var(--text-sm);

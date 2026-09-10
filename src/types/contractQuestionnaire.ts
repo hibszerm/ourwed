@@ -60,6 +60,11 @@ export interface PackageOptionSnapshot {
   description?: string | null
   price?: number | null
   currency?: string | null
+  /**
+   * Optional studio-side deposit frozen at questionnaire link creation.
+   * Older snapshots may omit this field — approval must not invent it.
+   */
+  depositAmount?: number | null
 }
 
 export interface AdditionalServiceOptionSnapshot {

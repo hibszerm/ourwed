@@ -81,9 +81,10 @@ function assertNotIncludes(src: string, needle: string, m: string) {
   assertIncludes(login, 'blurActiveElement', 'B — blur helper')
   assertIncludes(login, 'settleAfterBlur', 'B — settle')
   const blurIdx = login.indexOf('blurActiveElement()')
-  const navIdx = login.indexOf("navigate('/dashboard'")
+  const navIdx = login.indexOf('navigate(resolvePostLoginPath')
   assert(blurIdx >= 0 && navIdx > blurIdx, 'B — blur before navigate')
   assertIncludes(login, 'await settleAfterBlur()', 'B — await settle')
+  assertIncludes(login, 'resolvePostLoginPath', 'B — safe post-login path')
 
   console.log('PASS  B — login blur before navigate')
 }

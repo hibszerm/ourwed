@@ -12,6 +12,12 @@ import {
   GeneratedWeddingContractService,
   type GeneratedWeddingContract,
 } from '@/features/documents/template'
+import {
+  CONTRACT_FRESHNESS_COPY,
+  getLatestContractArtifactSnapshot,
+  isGeneratedContractContentStale,
+} from '@/features/documents/template/contractDocumentFreshness'
+import { resolveContractVariables } from '@/features/documents/template/resolveContractVariables'
 import { resolvePackageContractForWedding } from '@/features/documents/template/packageContractAssignment'
 import { weddingContractRecoveryRepository } from '@/features/wedding-contract-recovery/repository'
 import { documentStorage } from '@/lib/api/documents/storage'
@@ -136,6 +142,69 @@ export function ModernWeddingContractFinanceWorkspace({
     packageQuery.isPending && !packageQuery.data
       ? null
       : packageQuery.data?.status === 'ok'
+
+  const latestSnapshot = useMemo(
+    () => getLatestContractArtifactSnapshot(latest),
+    [latest],
+  )
+  const freshnessQuery = useQuery({
+    queryKey: [
+      'contract-document-freshness',
+      wedding.id,
+      latest?.draft.id ?? null,
+      latest?.generationVersion ?? null,
+      // Re-check when contract-relevant wedding fields change.
+      wedding.price,
+      wedding.depositAmount,
+      wedding.packageId,
+      wedding.packageName,
+      wedding.date,
+      wedding.couple.partner1,
+      wedding.couple.partner2,
+      wedding.couple.email,
+      wedding.couple.phone,
+      wedding.couple.partner1Email,
+      wedding.couple.partner2Email,
+      wedding.couple.partner1Phone,
+      wedding.couple.partner2Phone,
+      wedding.couple.partner1Address,
+      wedding.couple.partner1PostalCode,
+      wedding.couple.partner1City,
+      wedding.ceremonyLocation,
+      wedding.receptionLocation,
+      wedding.preparationLocation,
+      wedding.bridePreparationLocation,
+      wedding.groomPreparationLocation,
+      wedding.travelFeeStatus,
+      wedding.travelFeeAmount,
+      wedding.finalPaymentDueDate,
+      wedding.finalPaymentTerms,
+      wedding.coverageHours,
+      wedding.overtimeRate,
+      wedding.deliveryMonths,
+      wedding.deliveryDays,
+      extras.map((e) => `${e.id}:${e.priceSnapshot}:${e.quantity}`).join('|'),
+    ],
+    enabled: Boolean(latest && latestSnapshot && hasGenerated),
+    staleTime: 15_000,
+    queryFn: async () => {
+      const stored = latestSnapshot?.provenance.replacement.resolvedValues
+      if (!stored) return { stale: false as const }
+      const overrides =
+        latestSnapshot?.sourceDataSnapshot.manualOverrides ?? {}
+      const current = await resolveContractVariables({
+        wedding,
+        overrides,
+      })
+      return {
+        stale: isGeneratedContractContentStale({
+          storedResolvedValues: stored,
+          currentResolvedValues: current.resolved,
+        }),
+      }
+    },
+  })
+  const isContractStale = freshnessQuery.data?.stale === true
 
   const headline = composeModernContractHeadline({
     weddingStatus: wedding.status,
@@ -387,6 +456,32 @@ export function ModernWeddingContractFinanceWorkspace({
               {latestMeta.versionLabel} · {latestMeta.formatsLabel} ·{' '}
               {latestMeta.generatedAtLabel}
             </p>
+            {isContractStale ? (
+              <div
+                className={styles.freshnessNotice}
+                data-testid="contract-freshness-notice"
+                role="status"
+              >
+                <p className={styles.freshnessTitle}>
+                  {CONTRACT_FRESHNESS_COPY.title}
+                </p>
+                <p className={styles.freshnessSupport}>
+                  {isSigned
+                    ? CONTRACT_FRESHNESS_COPY.signedSupport
+                    : CONTRACT_FRESHNESS_COPY.support}
+                </p>
+                {canRegenerate ? (
+                  <button
+                    type="button"
+                    className={styles.freshnessAction}
+                    data-testid="contract-freshness-regenerate"
+                    onClick={() => onAction('generate_contract')}
+                  >
+                    {CONTRACT_FRESHNESS_COPY.action}
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
             <div className={styles.docActions}>
               <Link
                 className={styles.docAction}

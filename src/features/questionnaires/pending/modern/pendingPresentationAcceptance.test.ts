@@ -97,7 +97,13 @@ function assertNotIncludes(src: string, needle: string, m: string) {
   assertNotIncludes(workspace, "queryKey: ['pending-questionnaires'", 'no forked query')
   assertNotIncludes(workspace, 'pendingWeddingService', 'does not revive dead service')
   assertNotIncludes(row, 'confirm(', 'no reject confirmation')
-  assertNotIncludes(workspace, 'Modal', 'no reject confirmation modal')
+  assertIncludes(
+    workspace,
+    'LikelyDuplicateWarningModal',
+    'soft duplicate warn before approve',
+  )
+  assertNotIncludes(workspace, 'Odrzuć mimo to', 'no reject confirmation modal')
+  assertNotIncludes(workspace, 'confirmReject', 'no reject confirm state')
 
   console.log('PASS  pending modern presentation')
 }

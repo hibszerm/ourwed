@@ -379,6 +379,11 @@ export type WeddingCreationOptions = {
   /** Imported contract value must not be replaced by catalog package price. */
   preserveImportedPrice?: boolean
   /**
+   * Path B: allow create when the catalog package row exists but is inactive.
+   * Historical questionnaire submissions must remain approvable.
+   */
+  allowInactivePackage?: boolean
+  /**
    * When false, skip finalizeWeddingView and return the mapped row + input scalars.
    * Default true — approval uses false to avoid multi-hydrate on the critical path.
    */

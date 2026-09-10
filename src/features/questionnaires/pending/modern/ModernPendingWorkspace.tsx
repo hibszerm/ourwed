@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { useProAccessGate } from '@/features/billing/ProAccessGate'
+import { LikelyDuplicateWarningModal } from '@/features/weddings/components/LikelyDuplicateWarningModal'
 import { ModernPendingRow } from '@/features/questionnaires/pending/modern/ModernPendingRow'
 import {
   PENDING_EMPTY_COPY,
@@ -17,6 +18,7 @@ import {
   usePendingQuestionnaires,
 } from '@/features/questionnaires/hooks/usePendingQuestionnaires'
 import { questionnaireService } from '@/lib/api/questionnaireService'
+import type { LikelyDuplicateWedding } from '@/lib/weddings/findLikelyWeddingDuplicates'
 import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 import styles from './ModernPendingWorkspace.module.css'
 
@@ -24,22 +26,46 @@ export function ModernPendingWorkspace() {
   const navigate = useNavigate()
   const { requirePro } = useProAccessGate()
   const [busyId, setBusyId] = useState<string | null>(null)
+  const [duplicateCandidates, setDuplicateCandidates] = useState<
+    LikelyDuplicateWedding[]
+  >([])
+  const [pendingApproveId, setPendingApproveId] = useState<string | null>(null)
   const { data = [], isLoading, isError, refetch } =
     usePendingQuestionnaires()
   const { afterApprove, afterReject } = useInvalidateAfterQuestionnaireMutation()
 
-  async function handleApprove(id: string) {
-    if (!requirePro()) return
-    if (busyId) return
+  async function runApprove(id: string) {
     setBusyId(id)
     try {
       const { wedding } = await questionnaireService.approve(id)
       afterApprove()
+      setPendingApproveId(null)
+      setDuplicateCandidates([])
       navigate(`/sluby/${wedding.id}`)
     } catch (err) {
       window.alert(getUserFacingErrorMessage(err, 'Nie udało się zatwierdzić.'))
     } finally {
       setBusyId(null)
+    }
+  }
+
+  async function handleApproveRequest(id: string) {
+    if (!requirePro()) return
+    if (busyId) return
+    setBusyId(id)
+    try {
+      const candidates = await questionnaireService.findApprovalDuplicates(id)
+      if (candidates.length > 0) {
+        setPendingApproveId(id)
+        setDuplicateCandidates(candidates)
+        setBusyId(null)
+        return
+      }
+      setBusyId(null)
+      await runApprove(id)
+    } catch (err) {
+      setBusyId(null)
+      window.alert(getUserFacingErrorMessage(err, 'Nie udało się zatwierdzić.'))
     }
   }
 
@@ -119,7 +145,7 @@ export function ModernPendingWorkspace() {
                   key={item.instance.id}
                   item={item}
                   busy={busyId === item.instance.id}
-                  onAccept={(id) => void handleApprove(id)}
+                  onAccept={(id) => void handleApproveRequest(id)}
                   onReject={(id) => void handleReject(id)}
                 />
               ))}
@@ -127,6 +153,26 @@ export function ModernPendingWorkspace() {
           </div>
         )}
       </div>
+
+      <LikelyDuplicateWarningModal
+        open={Boolean(pendingApproveId) && duplicateCandidates.length > 0}
+        candidates={duplicateCandidates}
+        busy={Boolean(busyId)}
+        onClose={() => {
+          if (busyId) return
+          setPendingApproveId(null)
+          setDuplicateCandidates([])
+        }}
+        onContinue={() => {
+          if (!pendingApproveId) return
+          void runApprove(pendingApproveId)
+        }}
+        onOpenExisting={(weddingId) => {
+          setPendingApproveId(null)
+          setDuplicateCandidates([])
+          navigate(`/sluby/${weddingId}`)
+        }}
+      />
     </div>
   )
 }

@@ -99,12 +99,12 @@ export const GUIDE_LEARN_CATEGORIES: readonly GuideLearnCategory[] = [
     eyebrow: 'Zlecenia',
     headline: 'Dodaj zlecenie tak, jak jest Ci wygodnie.',
     intro:
-      'OurWed przechowuje potwierdzone zlecenia — nie zapytania. Możesz przenieść istniejący sezon, dodać parę ręcznie albo zebrać dane ankietą.',
+      'OurWed przechowuje potwierdzone zlecenia — nie zapytania. Możesz zaimportować podstawowe dane zleceń, dodać parę ręcznie albo zebrać dane ankietą.',
     composition: 'begin-paths',
     paths: [
       {
-        label: 'Importujesz sezon',
-        body: 'Przenieś istniejące zlecenia z arkusza Excel lub CSV. Przed zapisem widzisz podgląd i ostrzeżenia. Import nie wysyła żadnych wiadomości do par.',
+        label: 'Importujesz zlecenia',
+        body: 'Import przenosi podstawowe dane z arkusza Excel lub CSV — datę, parę, kontakt, wartość i notatkę. Przed zapisem widzisz podgląd i ostrzeżenia. Import nie wysyła żadnych wiadomości do par.',
         outcome: '→ Zlecenie',
       },
       {
@@ -131,7 +131,7 @@ export const GUIDE_LEARN_CATEGORIES: readonly GuideLearnCategory[] = [
         prominence: 'primary',
       },
       {
-        label: 'Importuj sezon',
+        label: 'Importuj zlecenia',
         to: GUIDE_EDUCATION_ROUTES.importSeason,
         proActionKey: 'create_wedding',
         prominence: 'secondary',

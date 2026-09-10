@@ -113,10 +113,9 @@ export function previewTravelFeeContractValue(input: {
   const previous = Math.max(0, input.previousEffectiveTravel)
   const nextTravel =
     input.nextStatus === 'charged' ? Math.max(0, input.nextAmount) : 0
-  const packageBase = Math.max(
-    0,
-    input.currentContractValue - input.extrasTotal - previous,
-  )
+  // Align with resolve_wedding_travel_fee: derived package base may be negative.
+  const packageBase =
+    input.currentContractValue - input.extrasTotal - previous
   return packageBase + input.extrasTotal + nextTravel
 }
 

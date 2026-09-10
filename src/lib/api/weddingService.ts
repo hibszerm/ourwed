@@ -282,7 +282,10 @@ export const weddingService = {
       if (!pkg) {
         throw new Error('Wybrany pakiet nie istnieje lub jest niedostępny.')
       }
-      if (!pkg.isActive) {
+      if (
+        !pkg.isActive &&
+        input.creationOptions?.allowInactivePackage !== true
+      ) {
         throw new Error('Wybrany pakiet jest nieaktywny.')
       }
       const snap = buildCreateWeddingCommercialFromPackage({

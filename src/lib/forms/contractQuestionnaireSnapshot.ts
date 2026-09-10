@@ -132,6 +132,13 @@ export function normalizePackageOptions(
         : typeof row.price === 'string' && row.price.trim()
           ? Number(row.price)
           : null
+    const depositRaw = row.depositAmount ?? row.deposit_amount
+    const depositAmount =
+      typeof depositRaw === 'number'
+        ? depositRaw
+        : typeof depositRaw === 'string' && depositRaw.trim()
+          ? Number(depositRaw)
+          : null
     out.push({
       id,
       name,
@@ -142,6 +149,9 @@ export function normalizePackageOptions(
         typeof row.currency === 'string' && row.currency.trim()
           ? row.currency
           : 'PLN',
+      ...(depositAmount != null && Number.isFinite(depositAmount)
+        ? { depositAmount }
+        : {}),
     })
   }
   return out
@@ -210,6 +220,10 @@ export async function buildFormInstanceOptionsSnapshot(): Promise<FormInstanceOp
       description: p.description,
       price: p.price,
       currency: p.currency || 'PLN',
+      depositAmount:
+        p.depositAmount != null && Number.isFinite(p.depositAmount)
+          ? p.depositAmount
+          : null,
     })),
     additionalServiceOptions: extras.map((e) => ({
       id: e.id,

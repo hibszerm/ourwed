@@ -18,7 +18,7 @@ export type FirstRunHomeProps = {
 const LEARN_STEPS = [
   {
     title: 'Zacznij tak, jak pracujesz',
-    body: 'Przenieś istniejący sezon z pliku, dodaj zlecenie ręcznie albo zbierz dane nowej pary w ankiecie.',
+    body: 'Zaimportuj podstawowe dane zleceń z pliku, dodaj zlecenie ręcznie albo zbierz dane nowej pary w ankiecie.',
   },
   {
     title: 'Przygotuj swoje pakiety',
@@ -85,8 +85,8 @@ export function FirstRunHome({ onPreferOperationalDashboard }: FirstRunHomeProps
                 <h3 className={styles.cardTitle}>Mam już zlecenia</h3>
               </div>
               <p className={styles.cardDesc}>
-                Przenieś obecny sezon z arkusza lub dodaj istniejące zlecenie
-                ręcznie.
+                Zaimportuj podstawowe dane zleceń z arkusza lub dodaj istniejące
+                zlecenie ręcznie.
               </p>
               <p className={styles.reassurance}>
                 <ShieldCheck

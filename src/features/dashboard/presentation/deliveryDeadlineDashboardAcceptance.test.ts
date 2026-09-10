@@ -160,6 +160,19 @@ function pickNearestActiveDeliveryDeadlines(
   assert(card.includes('className={styles.secondaryRow}'), 'secondary rows are Links')
   assert(card.includes('deadlineEmptyCopy'), 'honest empty via shared copy')
   assert(card.includes('hasWeddingHistory'), 'zero-history vs established predicate')
+
+  const emptyCopy = read('src/features/dashboard/presentation/dashboardEmptyCopy.ts')
+  assert(emptyCopy.includes('DEADLINE_EMPTY_ZERO_HISTORY'), 'zero-history empty constant')
+  assert(emptyCopy.includes('DEADLINE_EMPTY_ESTABLISHED'), 'established empty constant')
+  assert(
+    emptyCopy.includes("title: 'Brak aktywnych terminów'"),
+    'established empty title is factual (no false completion)',
+  )
+  assert(!emptyCopy.includes('Wszystko oddane'), 'false “Wszystko oddane” removed from empty state')
+  assert(
+    emptyCopy.includes('Brak aktywnych terminów oddania'),
+    'established empty body stays deadline-scoped',
+  )
   assert(card.includes('getDeliveryDeadlineBand'), 'shared state helper')
   assert(card.includes('deadline.href'), 'detail href')
   assert(card.includes('aria-label={deadlineAriaLabel'), 'row-level navigation label')

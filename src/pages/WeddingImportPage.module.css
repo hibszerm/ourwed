@@ -131,6 +131,19 @@
   color: var(--color-text-secondary);
 }
 
+.supportSubtitle {
+  margin: var(--space-4) 0 0;
+  font-size: 0.6875rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-tertiary);
+}
+
+.supportSubtitle + .supportList {
+  margin-top: var(--space-2);
+}
+
 .error {
   margin: 0;
   font-size: var(--text-sm);

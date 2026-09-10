@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { blurActiveElement, settleAfterBlur } from '@/components/ui/iosFocus'
 import { useAuth } from '@/features/auth/AuthProvider'
+import { resolvePostLoginPath } from '@/features/auth/postLoginRedirect'
 import {
   loginSchema,
   type LoginFormValues,
@@ -22,6 +23,7 @@ interface LoginFormProps {
 export function LoginForm({ onSuccess, onForgotPassword }: LoginFormProps = {}) {
   const { login } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const [formError, setFormError] = useState<string | null>(null)
 
   const {
@@ -33,15 +35,12 @@ export function LoginForm({ onSuccess, onForgotPassword }: LoginFormProps = {}) 
     defaultValues: {
       email: '',
       password: '',
-      rememberMe: true,
     },
   })
 
   async function onSubmit(values: LoginFormValues) {
     setFormError(null)
-    const result = await login(values.email, values.password, {
-      rememberMe: values.rememberMe ?? true,
-    })
+    const result = await login(values.email, values.password)
     if (!result.success) {
       setFormError(result.error)
       return
@@ -53,7 +52,8 @@ export function LoginForm({ onSuccess, onForgotPassword }: LoginFormProps = {}) 
       onSuccess()
       return
     }
-    navigate('/dashboard', { replace: true })
+    const state = (location.state as { from?: unknown } | null) ?? null
+    navigate(resolvePostLoginPath(state?.from), { replace: true })
   }
 
   return (
@@ -101,20 +101,6 @@ export function LoginForm({ onSuccess, onForgotPassword }: LoginFormProps = {}) 
           aria-label="Hasło"
           {...register('password')}
         />
-      </div>
-
-      <div className={styles.metaRow}>
-        <div className={styles.checkbox}>
-          <input
-            id="login-remember-me"
-            type="checkbox"
-            disabled={isSubmitting}
-            {...register('rememberMe')}
-          />
-          <label htmlFor="login-remember-me" className={styles.checkboxCopy}>
-            Zapamiętaj mnie na tym urządzeniu
-          </label>
-        </div>
       </div>
 
       {formError ? (

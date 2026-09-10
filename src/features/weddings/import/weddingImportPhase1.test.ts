@@ -289,8 +289,11 @@ run('trust copy and exit label', () => {
   assert(page.includes('← Śluby'), 'exit')
   assert(!page.includes('Wróć do ślubów'), 'no heavy header exit')
   assert(page.includes('Importuj śluby'), 'established title')
-  assert(page.includes('Przenieś swój sezon'), 'first-run title')
-  assert(page.includes('Co możesz zaimportować'), 'capability list')
+  assert(page.includes('Importuj zlecenia'), 'first-run title')
+  assert(page.includes('Import przenosi podstawowe dane zleceń.'), 'scope line')
+  assert(page.includes('Zakres importu'), 'scope section')
+  assert(page.includes('Importujemy'), 'imported list')
+  assert(page.includes('Nie importujemy automatycznie'), 'not-imported list')
   assert(page.includes('Bezpieczny import'), 'trust section')
   assert(
     page.includes('Import nie wysyła żadnych wiadomości do Twoich klientów.'),
@@ -305,6 +308,20 @@ run('trust copy and exit label', () => {
   assert(page.includes('hideClientCommsTrust={false}'), 'trust always visible')
   assert(!page.includes('Lokalizacja'), 'no false location claim')
   assert(!page.includes('workflow'), 'no workflow claim')
+  assert(page.includes('wpłat'), 'payments excluded from import claim')
+  assert(page.includes('harmonogramu dnia'), 'day schedule excluded')
 })
+
+{
+  const result = read(
+    'src/features/weddings/import/components/ImportResultStep.tsx',
+  )
+  assert(
+    result.includes(
+      'Po imporcie możesz uzupełnić brakujące dane bezpośrednio na karcie',
+    ),
+    'post-import next step',
+  )
+}
 
 console.log('\nWedding import Phase 1 tests finished.')

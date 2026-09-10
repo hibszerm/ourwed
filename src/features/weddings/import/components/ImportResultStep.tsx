@@ -53,6 +53,13 @@ export function ImportResultStep({
         </span>
       </p>
 
+      {result.importedCount > 0 ? (
+        <p className={styles.resultNextStep}>
+          Po imporcie możesz uzupełnić brakujące dane bezpośrednio na karcie
+          zlecenia.
+        </p>
+      ) : null}
+
       {failed.length > 0 ? (
         <div className={styles.failedList}>
           <p className={styles.failedHeadline}>

@@ -30,7 +30,6 @@ interface AuthContextValue {
   login: (
     email: string,
     password: string,
-    options?: { rememberMe?: boolean },
   ) => Promise<LoginResult>
   register: (input: RegisterInput) => Promise<AuthResult<RegisterResultData>>
   requestPasswordReset: (email: string) => Promise<AuthResult>
@@ -183,9 +182,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async (
       email: string,
       password: string,
-      options?: { rememberMe?: boolean },
     ) => {
-      const result = await authService.login(email, password, options)
+      const result = await authService.login(email, password)
       if (result.success) {
         // onAuthStateChange(SIGNED_IN) also runs; identity compare is idempotent.
         lastAuthUserIdRef.current = applyAuthIdentityChange(

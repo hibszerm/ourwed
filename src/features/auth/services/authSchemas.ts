@@ -15,7 +15,6 @@ export const loginSchema = z.object({
     .min(1, 'Podaj adres e-mail')
     .email('Niepoprawny adres e-mail'),
   password: z.string().min(1, 'Podaj hasło'),
-  rememberMe: z.boolean().optional(),
 })
 
 export type LoginFormValues = z.infer<typeof loginSchema>
