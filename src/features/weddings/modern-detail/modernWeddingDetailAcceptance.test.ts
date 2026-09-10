@@ -348,9 +348,9 @@ run('4. Current Story action states + approved null copy', () => {
     action: send,
     applyCount: 0,
   })
-  assertEq(sendStory.eyebrow, 'Teraz', 'send q eyebrow')
-  assertEq(sendStory.title, 'Zbierz dane do umowy', 'send q title')
-  assertEq(sendStory.primaryAction?.label, 'Wyślij ankietę', 'send q cta')
+  assertEq(sendStory.eyebrow, 'Teraz', 'manual eyebrow')
+  assertEq(sendStory.title, 'Uzupełnij dane do umowy', 'manual title')
+  assertEq(sendStory.primaryAction?.label, 'Uzupełnij dane', 'manual cta')
 
   const waiting = wedding({
     questionnaires: {
@@ -369,16 +369,20 @@ run('4. Current Story action states + approved null copy', () => {
     }),
   })
   const waitingAction = resolveWeddingNextAction(waiting)
-  assertEq(waitingAction, null, 'resolver null while waiting')
+  assertEq(
+    waitingAction?.id,
+    'complete_contract_data_manually',
+    'incomplete existing wedding → manual completion (not wait-on-Q)',
+  )
   const waitingStory = composeModernWeddingCurrentStory({
     wedding: waiting,
     action: waitingAction,
     applyCount: 0,
     todayKey: '2026-08-19',
   })
-  assertEq(waitingStory.kind, 'waiting_contract', 'waiting kind')
-  assertEq(waitingStory.title, 'Para uzupełnia dane do umowy', 'waiting title')
-  assertEq(waitingStory.primaryAction, null, 'no fake CTA')
+  assertEq(waitingStory.kind, 'complete_contract_data_manually', 'manual kind')
+  assertEq(waitingStory.title, 'Uzupełnij dane do umowy', 'manual title')
+  assertEq(waitingStory.primaryAction?.label, 'Uzupełnij dane', 'manual cta')
 
   const generate = wedding({
     questionnaires: {

@@ -16,7 +16,7 @@ export const PENDING_BUSY = 'Zapisywanie…'
 export const PENDING_EMPTY_TITLE = 'Brak oczekujących zgłoszeń'
 
 export const PENDING_EMPTY_COPY =
-  'Nie masz teraz żadnych ankiet do umowy wymagających decyzji.'
+  'Gdy para wypełni ankietę do umowy, zgłoszenie pojawi się tutaj do weryfikacji.'
 
 export const PENDING_ERROR_TITLE =
   'Nie udało się załadować oczekujących zgłoszeń'

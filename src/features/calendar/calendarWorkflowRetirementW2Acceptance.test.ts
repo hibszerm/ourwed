@@ -153,7 +153,7 @@ run('3. stale workflowStage cannot alter Calendar CTA (shared resolver)', () => 
   assertEq(b?.id, 'mark_contract_sent', 'completed stage still ignored')
 })
 
-run('4. waiting questionnaire produces no fake CTA', () => {
+run('4. incomplete existing wedding → manual contract-data completion', () => {
   const action = resolveWeddingNextAction(
     wedding({
       questionnaires: {
@@ -170,7 +170,12 @@ run('4. waiting questionnaire produces no fake CTA', () => {
       }),
     }),
   )
-  assertEq(action, null, 'waiting — null')
+  assertEq(action?.id, 'complete_contract_data_manually', 'Path A manual')
+  assertEq(
+    hrefForWeddingNextAction('w1', action!),
+    '/sluby/w1?tab=overview',
+    'calendar navigates to overview (not questionnaire)',
+  )
 })
 
 run('5b. unresolved travel + contract none navigates to Overview (no calendar modal)', () => {
@@ -395,7 +400,7 @@ run('16–21. Calendar first-paint remains light; enrichment is drawer-scoped', 
 
 run('href catalog covers all action ids', () => {
   const ids = [
-    'send_contract_questionnaire',
+    'complete_contract_data_manually',
     'resolve_travel_fee',
     'generate_contract',
     'mark_contract_signed',

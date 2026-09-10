@@ -88,6 +88,7 @@ run('2. copy + CTA preserved', () => {
 
 run('3. architecture preserved — not a ledger', () => {
   assertIncludes(workspace, 'PackageContractSection', 'contract on package')
+  assertIncludes(workspace, 'emphasizeNextStep', 'Phase 3.1 template next-step')
   assertIncludes(workspace, 'Zawartość pakietu', 'items visible')
   assertIncludes(workspace, 'PackageItemsEditor', 'item editor on surface')
   assertIncludes(workspace, 'PackageForm', 'inline create/edit')

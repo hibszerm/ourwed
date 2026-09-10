@@ -155,7 +155,7 @@ export function WeddingNextActionCard({ wedding, places, handlers }: Props) {
           data-action-id={action.id}
           onClick={() => dispatchWeddingNextAction(action, handlers)}
         >
-          {action.title}
+          {action.ctaLabel ?? action.title}
         </Button>
       </div>
     </section>

@@ -105,3 +105,17 @@ export function isLocationEditorSection(
     section === 'reception'
   )
 }
+
+/**
+ * Wedding edit presentation: all section editors use the centered
+ * "Edytuj miejsca" family. Drawer mode is unused for wedding sections.
+ * `options` retained for call-site compatibility; ignored.
+ */
+export function resolveWeddingEditOverlayPresentation(
+  section: WeddingEditorSection,
+  options?: { allowCenteredPackage?: boolean },
+): 'drawer' | 'centered' {
+  void options
+  if (!section) return 'drawer'
+  return 'centered'
+}

@@ -5,6 +5,8 @@ interface BackdropProps {
   disabled?: boolean
   /** Accessible label for the dismiss control. */
   label?: string
+  /** Optional entrance motion: settle = slightly longer fade for premium overlays. */
+  entrance?: 'default' | 'settle'
 }
 
 /**
@@ -14,11 +16,17 @@ export function Backdrop({
   onClick,
   disabled = false,
   label = 'Zamknij',
+  entrance = 'default',
 }: BackdropProps) {
+  const className =
+    entrance === 'settle'
+      ? `${styles.backdrop} ${styles.backdropSettle}`
+      : styles.backdrop
+
   return (
     <button
       type="button"
-      className={styles.backdrop}
+      className={className}
       aria-label={label}
       disabled={disabled || !onClick}
       tabIndex={-1}

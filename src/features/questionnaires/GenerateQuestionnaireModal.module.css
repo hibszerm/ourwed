@@ -1,0 +1,152 @@
+/* Generate questionnaire modal — same family as Guide discovery, smaller functional shell. */
+
+.generatePanel {
+  max-width: min(440px, 100%);
+  border-color: color-mix(in srgb, var(--color-border) 88%, transparent);
+  box-shadow:
+    0 1px 2px color-mix(in srgb, var(--color-text-primary) 4%, transparent),
+    0 18px 40px -28px color-mix(in srgb, var(--color-text-primary) 28%, transparent);
+}
+
+.generatePanel h2 {
+  font-size: 1.25rem; /* ~20px — compact vs Guide ~21px */
+  font-weight: 650;
+  letter-spacing: var(--tracking-tight, -0.02em);
+  line-height: 1.25;
+  color: var(--color-text-primary);
+}
+
+.generatePanel > header {
+  padding-bottom: var(--space-3);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-width: 0;
+}
+
+.lede {
+  margin: 0;
+  padding: 0.875rem 1rem;
+  border-radius: var(--radius-lg, 14px);
+  background: color-mix(
+    in srgb,
+    var(--color-text-primary) 3.25%,
+    var(--color-bg, var(--color-surface))
+  );
+  border: 1px solid color-mix(in srgb, var(--color-border) 92%, transparent);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  line-height: 1.55;
+  color: color-mix(
+    in srgb,
+    var(--color-text-primary) 72%,
+    var(--color-text-secondary)
+  );
+}
+
+.snapshotNote {
+  margin: 0;
+  padding-top: 0.15rem;
+  font-size: 0.8125rem;
+  font-weight: 400;
+  line-height: 1.55;
+  color: var(--color-text-secondary);
+}
+
+.loading {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
+
+.error {
+  margin: 0;
+  color: var(--color-danger-text);
+  font-size: var(--text-sm);
+}
+
+.result {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.resultName {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 550;
+  color: var(--color-text-primary);
+}
+
+.linkRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.linkInput {
+  flex: 1 1 12rem;
+  min-width: 0;
+  font: inherit;
+  font-size: var(--text-sm);
+  min-height: var(--touch-target);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  color: var(--color-text-primary);
+}
+
+@media (max-width: 767px) {
+  .generatePanel {
+    width: 100%;
+    max-width: min(440px, 100%);
+    max-height: min(85dvh, 85vh);
+    border-radius: var(--radius-2xl);
+  }
+
+  .generatePanel > header {
+    padding-top: var(--space-5);
+    padding-bottom: var(--space-3);
+  }
+
+  .lede {
+    padding: 0.75rem 0.875rem;
+  }
+
+  /* One-row footer like Guide discovery — local to this panel only. */
+  .generatePanel > footer {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    width: 100%;
+    padding: var(--space-4) var(--space-5);
+    padding-bottom: max(var(--space-4), env(safe-area-inset-bottom, 0px));
+  }
+
+  .generatePanel > footer > :first-child {
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+
+  .generatePanel > footer > :last-child {
+    display: flex;
+    flex: 0 1 auto;
+    width: auto;
+    min-width: 0;
+    justify-content: flex-end;
+  }
+
+  .generatePanel > footer > :last-child > * {
+    flex: 0 1 auto;
+    width: auto;
+    min-width: 0;
+  }
+}

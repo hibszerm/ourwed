@@ -22,23 +22,25 @@ import { contactService } from '@/lib/api/contactService'
 import { taskService } from '@/lib/api/taskService'
 import { weddingTasksQueryKey } from '@/features/tasks/tasksQueryKeys'
 import { weddingExtraServiceService } from '@/lib/api/weddingExtraServiceService'
+import { weddingPlaceService } from '@/lib/api/weddingPlaceService'
 import { weddingService } from '@/lib/api/weddingService'
+import { applyWeddingPlaces } from '@/lib/api/weddings/weddingHydrate'
+import { isClientContractCollectionComplete } from '@/lib/utils/weddingContractReadiness'
 import {
   validateContractGeneration,
   type ContractGenerationValidation,
   type MissingDataCorrectionKind,
 } from '@/lib/utils/validateContractGeneration'
-import type { QuestionnaireKind } from '@/lib/api/weddingActionsService'
 import { useProAccessGate } from '@/features/billing/ProAccessGate'
 import type { Payment, Wedding } from '@/types/wedding'
 import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 export type WeddingDetailModalState =
-  | { type: 'questionnaire'; kind: QuestionnaireKind }
   | { type: 'payment'; asDeposit: boolean; payment?: Payment }
   | { type: 'note' }
   | { type: 'contract' }
   | { type: 'missing_contract_data' }
+  | { type: 'client_collection' }
   | { type: 'travel_fee' }
   | null
 
@@ -85,6 +87,8 @@ export function useWeddingDetailHost() {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [discardOpen, setDiscardOpen] = useState(false)
+  /** After checklist → section editor, reopen checklist when that editor closes. */
+  const [resumeClientCollection, setResumeClientCollection] = useState(false)
 
   useEffect(() => {
     setModal(null)
@@ -97,6 +101,7 @@ export function useWeddingDetailHost() {
     setSaving(false)
     setSaveError(null)
     setDiscardOpen(false)
+    setResumeClientCollection(false)
   }, [userId, id])
 
   const snapshot = useMemo<WeddingEditSnapshot | null>(() => {
@@ -148,17 +153,67 @@ export function useWeddingDetailHost() {
     beginEdit(section)
   }
 
+  function openClientCollectionChecklist() {
+    requirePro(() => {
+      setResumeClientCollection(false)
+      setModal({ type: 'client_collection' })
+    })
+  }
+
+  function openClientCollectionSection(
+    section: Extract<
+      WeddingEditorSection,
+      'contacts' | 'wedding' | 'locations'
+    >,
+  ) {
+    setModal(null)
+    setResumeClientCollection(true)
+    openEditor(section)
+  }
+
+  async function resumeClientCollectionIfNeeded(
+    weddingId: string,
+    shouldResume: boolean,
+  ) {
+    if (!shouldResume || !userId) return
+    try {
+      const [fresh, places] = await Promise.all([
+        queryClient.fetchQuery({
+          queryKey: ['weddings', userId, weddingId],
+          queryFn: () => weddingService.getById(weddingId),
+        }),
+        queryClient.fetchQuery({
+          queryKey: ['wedding-places', userId, weddingId],
+          queryFn: () => weddingPlaceService.listByWeddingId(weddingId),
+        }),
+      ])
+      if (!fresh) return
+      const hydrated = applyWeddingPlaces(fresh, places)
+      if (!isClientContractCollectionComplete(hydrated)) {
+        setModal({ type: 'client_collection' })
+      }
+    } catch {
+      // Editor already closed; checklist resume is best-effort.
+    }
+  }
+
   function beginEditLocations() {
     beginEdit('locations')
   }
 
   function cancelEdit() {
+    const weddingId = wedding?.id
+    const shouldResume = resumeClientCollection
+    setResumeClientCollection(false)
     setEditing(false)
     setEditorSection(null)
     setDraft(null)
     setBaseline(null)
     setSaveError(null)
     setDiscardOpen(false)
+    if (weddingId) {
+      void resumeClientCollectionIfNeeded(weddingId, shouldResume)
+    }
   }
 
   function requestCancelEdit() {
@@ -185,6 +240,8 @@ export function useWeddingDetailHost() {
     if (!draft || !baseline) return
     const allowed = requirePro()
     if (!allowed) return
+    const weddingId = draft.wedding.id
+    const shouldResume = resumeClientCollection
     setSaving(true)
     setSaveError(null)
     try {
@@ -193,6 +250,7 @@ export function useWeddingDetailHost() {
       setEditorSection(null)
       setDraft(null)
       setBaseline(null)
+      setResumeClientCollection(false)
       await queryClient.invalidateQueries({ queryKey: ['weddings'] })
       await queryClient.invalidateQueries({ queryKey: ['tasks'] })
       await queryClient.invalidateQueries({ queryKey: ['contacts'] })
@@ -201,6 +259,7 @@ export function useWeddingDetailHost() {
       await queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       await invalidateFinanceQueries(queryClient)
       showToast('Zmiany zostały zapisane.', 'success')
+      await resumeClientCollectionIfNeeded(weddingId, shouldResume)
     } catch (err) {
       setSaveError(
         getUserFacingErrorMessage(err, 'Nie udało się zapisać zmian.'),
@@ -272,9 +331,6 @@ export function useWeddingDetailHost() {
     if (editing || !wedding) return
     requirePro(() => {
       switch (action) {
-        case 'send_contract_questionnaire':
-          setModal({ type: 'questionnaire', kind: 'contractData' })
-          break
         case 'generate_contract':
           void handleGenerateContract()
           break
@@ -323,6 +379,7 @@ export function useWeddingDetailHost() {
           onHeroAction: handleHeroAction,
           onRequestVerifyLocations: beginEditLocations,
           onEditSection: openEditor,
+          onOpenClientCollectionChecklist: openClientCollectionChecklist,
           onEditPayment: editing
             ? undefined
             : (payment: Payment) =>
@@ -340,10 +397,6 @@ export function useWeddingDetailHost() {
           onAddNote: editing
             ? undefined
             : () => requirePro(() => setModal({ type: 'note' })),
-          onSendQuestionnaire: editing
-            ? undefined
-            : (kind: QuestionnaireKind) =>
-                requirePro(() => setModal({ type: 'questionnaire', kind })),
           onArchive: async () => {
             const allowed = requirePro()
             if (!allowed) return
@@ -386,5 +439,6 @@ export function useWeddingDetailHost() {
     closeModal,
     handleMissingDataCorrection,
     handleTravelFeeSaved,
+    openClientCollectionSection,
   }
 }

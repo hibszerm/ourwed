@@ -169,12 +169,13 @@ const verifiedPlace: WeddingPlace = {
   )
   assertIncludes(
     modern,
-    'isLocationEditorSection(editorSection)',
+    'resolveWeddingEditOverlayPresentation',
     '8: modern locations use centered modal',
   )
-  assert(
-    !v2.includes('overlayPresentation'),
-    '8: classic does not switch overlay presentation',
+  assertIncludes(
+    v2,
+    'resolveWeddingEditOverlayPresentation',
+    '8: classic locations use centered modal',
   )
   console.log('PASS  6–9  Overview + Wedding Day → shared editor; verify ≠ edit')
 }

@@ -66,4 +66,17 @@ export const weddingListLightService = {
       return enrichWeddingList(light)
     })
   },
+
+  /**
+   * Exact wedding-history head count (no hydrate). Used for first-booking transitions.
+   */
+  async countWeddingHistory(): Promise<number> {
+    const userId = await resolveStudioUserId()
+    const { count, error } = await supabase
+      .from('weddings')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+    throwOnError(error)
+    return count ?? 0
+  },
 }

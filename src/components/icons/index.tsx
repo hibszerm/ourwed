@@ -229,3 +229,16 @@ export function IconSessions(props: IconProps) {
     </svg>
   )
 }
+
+/**
+ * Compass mark for Przewodnik — orientation in the product,
+ * not support/FAQ/docs.
+ */
+export function IconCompass(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="m16.24 7.76-2.12 6.36-6.36 2.12 2.12-6.36z" />
+    </svg>
+  )
+}

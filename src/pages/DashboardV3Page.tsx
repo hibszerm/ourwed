@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { AppLayout } from '@/layouts/AppLayout'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -16,6 +16,10 @@ import { DashboardV3TodayPanel } from '@/features/dashboard-v3/DashboardV3TodayP
 import { DashboardV3UpcomingAssignments } from '@/features/dashboard-v3/DashboardV3UpcomingAssignments'
 import { useDashboardMobileReveals } from '@/features/dashboard-v3/useDashboardMobileReveals'
 import { TrialEndingNotice } from '@/features/billing/TrialEndingNotice'
+import { FirstRunHome } from '@/features/onboarding/FirstRunHome'
+import { GuideDiscoveryModalHost } from '@/features/onboarding/guide/GuideDiscoveryModalHost'
+import { shouldShowFirstRunHome } from '@/features/onboarding/firstRunDiscriminator'
+import { readFirstRunPreferOperationalDashboard } from '@/features/onboarding/firstRunSessionPreference'
 import { buildAssignmentEvents } from '@/features/calendar/utils/calendarEvents'
 import {
   getNearestUpcomingAssignment,
@@ -35,8 +39,15 @@ export function DashboardV3Page() {
     isLoading: assignmentsLoading,
     isError: assignmentsError,
   } = useDashboardAssignments()
+  const [preferOperational, setPreferOperational] = useState(() =>
+    readFirstRunPreferOperationalDashboard(),
+  )
 
   const weddings = assignmentLists?.weddings ?? []
+  const showFirstRun = shouldShowFirstRunHome({
+    totalWeddingHistoryCount: weddings.length,
+    sessionPreferOperationalDashboard: preferOperational,
+  })
 
   const assignments = useMemo(
     () =>
@@ -59,7 +70,7 @@ export function DashboardV3Page() {
 
   useDashboardMobileReveals(
     pageRef,
-    !assignmentsLoading && !assignmentsError,
+    !assignmentsLoading && !assignmentsError && !showFirstRun,
   )
 
   if (assignmentsLoading) {
@@ -105,6 +116,22 @@ export function DashboardV3Page() {
     )
   }
 
+  if (showFirstRun) {
+    return (
+      <AppLayout mobileHeader={<DashboardV3Header compact />}>
+        <PageContainer width="wide">
+          <div className={styles.canvas}>
+            <TrialEndingNotice />
+            {/* No desktop operational greeting — FirstRunHome owns the hero. */}
+            <FirstRunHome
+              onPreferOperationalDashboard={() => setPreferOperational(true)}
+            />
+          </div>
+        </PageContainer>
+      </AppLayout>
+    )
+  }
+
   return (
     <AppLayout
       mobileHeader={
@@ -121,6 +148,7 @@ export function DashboardV3Page() {
         </>
       }
     >
+      <GuideDiscoveryModalHost showingFirstRunHome={false} />
       <PageContainer width="full">
         <div className={styles.canvas}>
           <div
@@ -133,7 +161,10 @@ export function DashboardV3Page() {
               <DashboardV3Header />
             </div>
 
-            <div className={styles.layout}>
+            <div
+              className={styles.layout}
+              data-has-upcoming={nextThree.length > 0 ? 'true' : 'false'}
+            >
               <div className={styles.hero}>
                 <DashboardV3Hero assignment={nearest} />
                 <span
@@ -148,31 +179,32 @@ export function DashboardV3Page() {
               </div>
 
               <div className={styles.deadlines} data-mobile-reveal="pending">
-                <DashboardV3DeadlinePanel />
+                <DashboardV3DeadlinePanel
+                  hasWeddingHistory={weddings.length > 0}
+                />
               </div>
 
-              <div
-                className={styles.upcomingBand}
-                data-mobile-reveal="pending"
-              >
-                {nextThree.length > 0 ? (
+              {nextThree.length > 0 ? (
+                <div
+                  className={styles.upcomingBand}
+                  data-mobile-reveal="pending"
+                  data-testid="dashboard-v3-upcoming-band"
+                >
                   <h2
                     className={styles.upcomingLabel}
                     id="dashboard-v3-upcoming-title"
                   >
                     Kolejne zlecenia
                   </h2>
-                ) : (
-                  <div className={styles.upcomingLabel} aria-hidden />
-                )}
 
-                <div className={styles.upcoming}>
-                  <DashboardV3UpcomingAssignments
-                    assignments={nextThree}
-                    labelledBy="dashboard-v3-upcoming-title"
-                  />
+                  <div className={styles.upcoming}>
+                    <DashboardV3UpcomingAssignments
+                      assignments={nextThree}
+                      labelledBy="dashboard-v3-upcoming-title"
+                    />
+                  </div>
                 </div>
-              </div>
+              ) : null}
 
               <div className={styles.feed}>
                 <div

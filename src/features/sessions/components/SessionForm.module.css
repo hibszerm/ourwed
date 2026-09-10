@@ -5,6 +5,59 @@
   max-width: 44rem;
 }
 
+/* Edit existing session — calm groups matching wedding edit family. */
+.formEdit {
+  max-width: none;
+  gap: 4px;
+  width: 100%;
+}
+
+.formEdit .section {
+  gap: 12px;
+  padding: 0 0 20px;
+  margin: 0 0 4px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--color-text-primary) 8%, transparent);
+}
+
+.formEdit .section:last-of-type {
+  border-bottom: 0;
+  padding-bottom: 0;
+  margin-bottom: 0;
+}
+
+.formEdit .sectionTitle {
+  font-size: 0.6875rem;
+  font-weight: 650;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-text-tertiary);
+}
+
+.formEdit .actions {
+  position: sticky;
+  bottom: 0;
+  margin-top: 12px;
+  padding-top: 16px;
+  border-top: 1px solid
+    color-mix(in srgb, var(--color-text-primary) 8%, transparent);
+  background: var(--color-surface);
+}
+
+/* Inside WeddingEditDrawerV2 centered — footer lives on the shell. */
+.formModal .actions {
+  display: none;
+}
+
+.formModal {
+  max-width: none;
+  width: 100%;
+  gap: 4px;
+}
+
 .section {
   display: flex;
   flex-direction: column;
@@ -26,37 +79,107 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--space-3);
+  min-width: 0;
 }
 
 .grid3 {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-3);
-  align-items: end;
+  align-items: start;
+  min-width: 0;
 }
 
-.remainingBox {
+.grid3 > *,
+.grid2 > *,
+.financeEditGrid > * {
+  min-width: 0;
+}
+
+.financeEditGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+  align-items: start;
+  min-width: 0;
+}
+
+/* One calm read-only surface: Wpłacono | Pozostało */
+.paymentSummary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  margin-top: 4px;
+  min-width: 0;
+  border: 1px solid
+    color-mix(in srgb, var(--color-text-primary) 8%, transparent);
+  border-radius: var(--radius-md, 10px);
+  background: color-mix(in srgb, var(--color-text-primary) 3%, transparent);
+  overflow: hidden;
+}
+
+.paymentSummaryCell {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: var(--space-3);
-  border-radius: var(--radius-md);
-  background: var(--color-surface-muted);
-  min-height: 3.5rem;
-  justify-content: center;
+  min-width: 0;
+  padding: 12px 14px;
 }
 
-.remainingLabel {
-  font-size: var(--text-2xs);
+.paymentSummaryCell + .paymentSummaryCell {
+  border-left: 1px solid
+    color-mix(in srgb, var(--color-text-primary) 8%, transparent);
+}
+
+.paymentSummaryLabel {
+  font-size: 0.625rem;
+  font-weight: 650;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
   color: var(--color-text-tertiary);
 }
 
-.remainingValue {
+.paymentSummaryValue {
   font-size: var(--text-base);
-  font-weight: 700;
+  font-weight: 650;
   font-variant-numeric: tabular-nums;
+  color: var(--color-text-primary);
+  letter-spacing: -0.02em;
+}
+
+/*
+  iOS Safari: native time controls share the same large intrinsic min-content
+  width as date inputs. Input.module.css already fixes type=date globally;
+  keep type=time scoped to SessionForm so wedding/global controls stay untouched.
+*/
+.form :global(input[type='time']) {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.form :global(input[type='time']::-webkit-date-and-time-value) {
+  text-align: left;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.form :global(input[type='time']::-webkit-datetime-edit),
+.form :global(input[type='time']::-webkit-datetime-edit-fields-wrapper) {
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+
+.form :global(input[type='time']::-webkit-calendar-picker-indicator) {
+  margin-inline-start: auto;
+  flex-shrink: 0;
 }
 
 .actions {
@@ -68,11 +191,42 @@
 
 @media (max-width: 720px) {
   .grid2,
-  .grid3 {
+  .grid3,
+  .financeEditGrid {
     grid-template-columns: 1fr;
+  }
+
+  .paymentSummary {
+    grid-template-columns: 1fr 1fr;
   }
 
   .section {
     padding: var(--space-4);
+  }
+
+  .formEdit .section {
+    padding: 0 0 16px;
+  }
+
+  .form :global(input[type='time']),
+  .form :global(input[type='date']) {
+    box-sizing: border-box;
+    min-height: var(--touch-target, 44px);
+    height: 48px;
+    max-height: 48px;
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+}
+
+@media (max-width: 374px) {
+  .paymentSummary {
+    grid-template-columns: 1fr;
+  }
+
+  .paymentSummaryCell + .paymentSummaryCell {
+    border-left: 0;
+    border-top: 1px solid
+      color-mix(in srgb, var(--color-text-primary) 8%, transparent);
   }
 }

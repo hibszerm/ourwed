@@ -26,7 +26,7 @@ interface WeddingWorkspaceEditSurfaceProps {
   saveError?: string | null
   onSave: () => void
   onClose: () => void
-  /** Classic default is the right drawer. Modern locations use a centered modal. */
+  /** Classic default is the right drawer. Low-risk sections use centered. */
   overlayPresentation?: WeddingEditOverlayPresentation
 }
 
@@ -50,8 +50,8 @@ function resolveDrawerSection(
 }
 
 /**
- * V2-native editor host — drawer overlay; does not replace the workspace shell
- * and does not import V1 presentational components.
+ * V2-native editor host — centered modal for contacts / wedding / locations;
+ * drawer retained for package / finances / tasks / notes unless caller overrides.
  */
 export function WeddingWorkspaceEditSurface({
   props: p,
@@ -65,8 +65,8 @@ export function WeddingWorkspaceEditSurface({
   const drawerSection = resolveDrawerSection(focusSection)
   const meta = getEditorSectionMeta(drawerSection)
   const locationOnly = isLocationEditorSection(focusSection)
-  const centeredLocations =
-    overlayPresentation === 'centered' && locationOnly
+  const centered = overlayPresentation === 'centered'
+  const centeredLocations = centered && locationOnly
   const title = centeredLocations ? 'Edytuj miejsca' : meta.title
   const description = centeredLocations
     ? 'Uzupełnij lokalizacje używane w dniu ślubu.'

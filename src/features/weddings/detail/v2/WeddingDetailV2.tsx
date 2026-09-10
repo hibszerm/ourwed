@@ -17,6 +17,7 @@ import { WeddingWorkspaceHeader } from '@/features/weddings/detail/v2/WeddingWor
 import { WeddingWorkspaceTabs } from '@/features/weddings/detail/v2/WeddingWorkspaceTabs'
 import { TravelFeeResolveModal } from '@/features/weddings/detail/travel-fee/TravelFeeResolveModal'
 import type { WeddingNextActionHandlers } from '@/features/weddings/detail/v2/dispatchWeddingNextAction'
+import { resolveWeddingEditOverlayPresentation } from '@/features/weddings/detail/editing/weddingEditorTypes'
 import type {
   WeddingDetailSharedProps,
   WeddingWorkspaceTab,
@@ -56,10 +57,10 @@ export function WeddingDetailV2(props: WeddingDetailSharedProps) {
     onHeroAction,
     onRequestVerifyLocations,
     onEditSection,
+    onOpenClientCollectionChecklist,
     onSaveEdit,
     onCancelEdit,
     saving,
-    onSendQuestionnaire,
     onArchive,
     onDelete,
     onWeddingRefreshed,
@@ -88,8 +89,8 @@ export function WeddingDetailV2(props: WeddingDetailSharedProps) {
 
   const nextActionHandlers = useMemo<WeddingNextActionHandlers>(
     () => ({
-      sendContractQuestionnaire: () => {
-        onSendQuestionnaire?.('contractData')
+      completeContractDataManually: () => {
+        onOpenClientCollectionChecklist?.()
       },
       resolveTravelFee: () => {
         setTravelFeeOpen(true)
@@ -113,9 +114,9 @@ export function WeddingDetailV2(props: WeddingDetailSharedProps) {
     }),
     [
       onEditSection,
+      onOpenClientCollectionChecklist,
       onHeroAction,
       onRequestVerifyLocations,
-      onSendQuestionnaire,
       setTab,
     ],
   )
@@ -273,6 +274,9 @@ export function WeddingDetailV2(props: WeddingDetailSharedProps) {
           focusSection={editorSection}
           saving={saving}
           saveError={props.saveError}
+          overlayPresentation={resolveWeddingEditOverlayPresentation(
+            editorSection,
+          )}
           onSave={() => onSaveEdit?.()}
           onClose={() => onCancelEdit?.()}
         />

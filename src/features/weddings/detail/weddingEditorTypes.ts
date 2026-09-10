@@ -5,4 +5,5 @@ export {
   getEditorSectionMeta,
   isLocationEditorSection,
   normalizeEditorSection,
+  resolveWeddingEditOverlayPresentation,
 } from '@/features/weddings/detail/editing/weddingEditorTypes'

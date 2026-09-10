@@ -41,7 +41,8 @@ export function DeliveryDeadlineModal({
       onClose={onClose}
       showClose
       busy={busy}
-      mobilePresentation="sheet"
+      size="md"
+      mobilePresentation="center"
       initialFocus="panel"
       primaryAction={
         <Button

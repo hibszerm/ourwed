@@ -52,6 +52,11 @@ export interface WeddingDetailSharedProps {
   onRequestVerifyLocations: () => void
   /** Open shared page editor focused on a section. */
   onEditSection?: (section: WeddingEditorSection) => void
+  /**
+   * Path A — open client-collection missing checklist
+   * (complete_contract_data_manually).
+   */
+  onOpenClientCollectionChecklist?: () => void
   /** Edit a single ledger payment from Contract & Finance. */
   onEditPayment?: (payment: Payment) => void
   /** Persist draft (V2 drawer Zapisz). */
@@ -59,7 +64,6 @@ export interface WeddingDetailSharedProps {
   /** Close editor / discard (V2 drawer Anuluj). */
   onCancelEdit?: () => void
   onAddNote?: () => void
-  onSendQuestionnaire?: (kind: 'contractData') => void
   onArchive: () => Promise<void>
   onDelete: () => Promise<void>
   /** Called after identity or other in-workspace wedding mutations. */

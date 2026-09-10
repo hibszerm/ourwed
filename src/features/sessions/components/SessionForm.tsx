@@ -165,6 +165,13 @@ interface SessionFormProps {
   cancelTo: string
   pending?: boolean
   onSubmit: (input: CreateSessionInput) => void | Promise<void>
+  /** Modal shell owns Anuluj / Zapisz — hide in-form actions. */
+  hideActions?: boolean
+  /** Stable form id for external submit (modal footer). */
+  formId?: string
+  /** Visual density: modal matches wedding edit groups. */
+  presentation?: 'page' | 'modal'
+  onDirtyChange?: (dirty: boolean) => void
 }
 
 export function SessionForm({
@@ -175,6 +182,10 @@ export function SessionForm({
   cancelTo,
   pending,
   onSubmit,
+  hideActions = false,
+  formId,
+  presentation = 'page',
+  onDirtyChange,
 }: SessionFormProps) {
   const { data: weddings = [] } = useWeddings()
   const [nameManuallyEdited, setNameManuallyEdited] = useState(false)
@@ -191,12 +202,16 @@ export function SessionForm({
     handleSubmit,
     watch,
     setValue,
-    formState: { errors },
+    formState: { errors, isDirty },
   } = useForm<SessionFormValues>({
     // zod + RHF generics diverge slightly on defaults; values are validated at submit.
     resolver: zodResolver(sessionFormSchema) as never,
     defaultValues: sessionToFormValues(initial, defaultDate),
   })
+
+  useEffect(() => {
+    onDirtyChange?.(isDirty)
+  }, [isDirty, onDirtyChange])
 
   const sessionType = watch('sessionType')
   const totalPrice = watch('totalPrice') || 0
@@ -228,7 +243,11 @@ export function SessionForm({
 
   return (
     <form
-      className={styles.form}
+      id={formId}
+      className={`${styles.form} ${
+        mode === 'edit' || presentation === 'modal' ? styles.formEdit : ''
+      } ${presentation === 'modal' ? styles.formModal : ''}`.trim()}
+      data-testid={mode === 'edit' ? 'session-edit-form' : 'session-create-form'}
       onSubmit={handleSubmit(async (values) => {
         await onSubmit(formValuesToCreateInput(values))
       })}
@@ -380,7 +399,7 @@ export function SessionForm({
         <h2 id="session-finance" className={styles.sectionTitle}>
           Finanse
         </h2>
-        <div className={styles.grid3}>
+        <div className={styles.financeEditGrid}>
           <Input
             type="number"
             min={0}
@@ -398,17 +417,21 @@ export function SessionForm({
             error={errors.depositAmount?.message}
             {...register('depositAmount', { valueAsNumber: true })}
           />
-          {mode === 'edit' ? (
-            <div className={styles.remainingBox}>
-              <span className={styles.remainingLabel}>Wpłacono</span>
-              <span className={styles.remainingValue}>
-                {formatCurrency(totalPaid)}
-              </span>
-            </div>
-          ) : null}
-          <div className={styles.remainingBox}>
-            <span className={styles.remainingLabel}>Pozostało</span>
-            <span className={styles.remainingValue}>
+        </div>
+        <div
+          className={styles.paymentSummary}
+          data-testid="session-finance-summary"
+          aria-label="Podsumowanie wpłat"
+        >
+          <div className={styles.paymentSummaryCell}>
+            <span className={styles.paymentSummaryLabel}>Wpłacono</span>
+            <span className={styles.paymentSummaryValue}>
+              {formatCurrency(totalPaid)}
+            </span>
+          </div>
+          <div className={styles.paymentSummaryCell}>
+            <span className={styles.paymentSummaryLabel}>Pozostało</span>
+            <span className={styles.paymentSummaryValue}>
               {formatCurrency(remaining)}
             </span>
           </div>
@@ -446,20 +469,22 @@ export function SessionForm({
         />
       </section>
 
-      <div className={styles.actions}>
-        <Link to={cancelTo}>
-          <Button type="button" variant="secondary">
-            Anuluj
+      {hideActions ? null : (
+        <div className={styles.actions}>
+          <Link to={cancelTo}>
+            <Button type="button" variant="secondary">
+              Anuluj
+            </Button>
+          </Link>
+          <Button type="submit" variant="primary" disabled={pending}>
+            {pending
+              ? mode === 'create'
+                ? 'Tworzenie…'
+                : 'Zapisywanie…'
+              : submitLabel}
           </Button>
-        </Link>
-        <Button type="submit" variant="primary" disabled={pending}>
-          {pending
-            ? mode === 'create'
-              ? 'Tworzenie…'
-              : 'Zapisywanie…'
-            : submitLabel}
-        </Button>
-      </div>
+        </div>
+      )}
     </form>
   )
 }

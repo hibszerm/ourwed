@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Textarea } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
@@ -17,18 +17,59 @@ interface AddNoteModalProps {
 
 export function AddNoteModal({ open, onClose, wedding }: AddNoteModalProps) {
   const invalidate = useInvalidateWedding()
+  const [busy, setBusy] = useState(false)
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Dodaj notatkę"
+      description="Notatka pojawi się na górze listy — widoczna tylko dla Ciebie."
+      busy={busy}
+      size="md"
+      showClose
+      mobilePresentation="center"
+      primaryAction={
+        <Button
+          type="submit"
+          form="add-note-form"
+          variant="primary"
+          disabled={busy}
+        >
+          {busy ? 'Zapisywanie…' : 'Dodaj notatkę'}
+        </Button>
+      }
+    >
+      {open ? (
+        <AddNoteForm
+          key={wedding.id}
+          wedding={wedding}
+          busy={busy}
+          setBusy={setBusy}
+          onClose={onClose}
+          invalidate={invalidate}
+        />
+      ) : null}
+    </Modal>
+  )
+}
+
+function AddNoteForm({
+  wedding,
+  busy,
+  setBusy,
+  onClose,
+  invalidate,
+}: {
+  wedding: Wedding
+  busy: boolean
+  setBusy: (v: boolean) => void
+  onClose: () => void
+  invalidate: (weddingId: string) => Promise<unknown>
+}) {
   const [content, setContent] = useState('')
   const [pinned, setPinned] = useState(false)
-  const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!open) return
-    setContent('')
-    setPinned(false)
-    setError(null)
-    setBusy(false)
-  }, [open])
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
@@ -55,50 +96,31 @@ export function AddNoteModal({ open, onClose, wedding }: AddNoteModalProps) {
   }
 
   return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      title="Dodaj notatkę"
-      description="Notatka pojawi się na górze listy — widoczna tylko dla Ciebie."
-      busy={busy}
-      size="lg"
-      primaryAction={
-        <Button
-          type="submit"
-          form="add-note-form"
-          variant="primary"
+    <form id="add-note-form" className={formStyles.form} onSubmit={handleSubmit}>
+      <Textarea
+        id="note-content"
+        label="Notatka"
+        value={content}
+        onChange={(e) => setContent(e.target.value)}
+        rows={6}
+        required
+        disabled={busy}
+        placeholder="Np. Ujęcia rodzinne tylko po ceremonii…"
+      />
+      <label className={styles.pin}>
+        <input
+          type="checkbox"
+          checked={pinned}
+          onChange={(e) => setPinned(e.target.checked)}
           disabled={busy}
-        >
-          {busy ? 'Zapisywanie…' : 'Zapisz'}
-        </Button>
-      }
-    >
-      <form id="add-note-form" className={formStyles.form} onSubmit={handleSubmit}>
-        <Textarea
-          id="note-content"
-          label="Notatka"
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          rows={6}
-          required
-          disabled={busy}
-          placeholder="Np. Ujęcia rodzinne tylko po ceremonii…"
         />
-        <label className={styles.pin}>
-          <input
-            type="checkbox"
-            checked={pinned}
-            onChange={(e) => setPinned(e.target.checked)}
-            disabled={busy}
-          />
-          <span>Przypnij notatkę</span>
-        </label>
-        {error && (
-          <p role="alert" className={styles.error}>
-            {error}
-          </p>
-        )}
-      </form>
-    </Modal>
+        <span>Przypnij notatkę</span>
+      </label>
+      {error && (
+        <p role="alert" className={styles.error}>
+          {error}
+        </p>
+      )}
+    </form>
   )
 }

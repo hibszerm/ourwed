@@ -29,6 +29,7 @@ import { NotificationSettingsPage } from '@/pages/NotificationSettingsPage'
 import { NotificationsPage } from '@/pages/NotificationsPage'
 import { FinancePage } from '@/pages/FinancePage'
 import { TasksPage } from '@/pages/TasksPage'
+import { PrzewodnikPage } from '@/pages/PrzewodnikPage'
 import { CalendarIntegrationsPage } from '@/pages/CalendarIntegrationsPage'
 import { CompanyDetailsPage } from '@/pages/CompanyDetailsPage'
 import { DocumentTemplateDetailPage } from '@/pages/DocumentTemplateDetailPage'
@@ -177,6 +178,7 @@ export const router = createBrowserRouter([
           { path: '/dashboard-v2', element: <Navigate to="/dashboard" replace /> },
           { path: '/sluby', element: <WeddingsRoutePage /> },
           { path: '/zadania', element: <TasksPage /> },
+          { path: '/przewodnik', element: <PrzewodnikPage /> },
           { path: '/sluby/nowy', element: <NewWeddingPage /> },
           { path: '/sluby/import', element: <WeddingImportPage /> },
           {

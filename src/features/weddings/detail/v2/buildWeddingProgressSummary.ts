@@ -8,6 +8,7 @@
  * Shared proximity window constant: PRE_WEDDING_PREP_WINDOW_DAYS (21).
  */
 import { getCountdownParts } from '@/lib/utils/dates'
+import { isClientContractCollectionComplete } from '@/lib/utils/weddingContractReadiness'
 import type { WeddingPlace } from '@/types/travel'
 import type { QuestionnaireStatus, Wedding } from '@/types/wedding'
 import { getWeddingLocationItems } from './weddingWorkspaceSelectors'
@@ -40,7 +41,7 @@ export interface ProgressStatusGroup {
 export type ProgressPrimaryActionId =
   | 'send_prewedding'
   | 'open_prewedding'
-  | 'send_contract_questionnaire'
+  | 'complete_contract_data_manually'
 
 export interface WeddingProgressSummary {
   groups: ProgressStatusGroup[]
@@ -82,7 +83,9 @@ function proximityForDate(date: string): 'far' | 'near' | 'past' {
 function buildContractGroup(wedding: Wedding): ProgressStatusGroup {
   const items: ProgressStatusItem[] = []
   const q = wedding.questionnaires?.contractData
-  const partyOk = q?.status === 'completed' || hasContractPartyData(wedding)
+  const clientOk =
+    q?.status === 'completed' || isClientContractCollectionComplete(wedding)
+  const partyOk = clientOk || hasContractPartyData(wedding)
 
   if (q?.status === 'completed') {
     items.push({
@@ -90,17 +93,11 @@ function buildContractGroup(wedding: Wedding): ProgressStatusGroup {
       label: 'Dane do umowy otrzymane',
       tone: 'complete',
     })
-  } else if (partyOk) {
+  } else if (clientOk) {
     items.push({
       id: 'contract-data',
       label: 'Dane do umowy uzupełnione',
       tone: 'complete',
-    })
-  } else if (q?.status === 'sent') {
-    items.push({
-      id: 'contract-data',
-      label: 'Oczekuje na dane do umowy',
-      tone: 'current',
     })
   } else {
     items.push({
@@ -284,10 +281,10 @@ function pickPrimaryAction(
     }
   }
 
-  if (contractQ?.status === 'not_sent') {
+  if (contractQ?.status !== 'completed' && !isClientContractCollectionComplete(wedding)) {
     return {
-      id: 'send_contract_questionnaire',
-      label: 'Wyślij ankietę do umowy',
+      id: 'complete_contract_data_manually',
+      label: 'Uzupełnij dane do umowy',
     }
   }
 

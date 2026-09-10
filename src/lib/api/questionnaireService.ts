@@ -24,7 +24,9 @@ import {
   seedDeferredWeddingShells,
   weddingService,
 } from '@/lib/api/weddingService'
+import { weddingListLightService } from '@/lib/api/weddingListLightService'
 import { packageService } from '@/lib/api/packageService'
+import { markGuideDiscoveryEligibleIfFirstBooking } from '@/lib/guideDiscovery/eligibleSession'
 import { withDevPerf } from '@/lib/performance/devPerf'
 import { asCatalogPackageId } from '@/lib/supabase/helpers'
 import { extractAnswerFields } from '@/lib/forms/mergeFormAnswersIntoWedding'
@@ -659,6 +661,9 @@ export const questionnaireService = {
         claimSubmittedLeadInstance(instanceId),
       )
 
+      const priorWeddingHistoryCount =
+        await weddingListLightService.countWeddingHistory()
+
       const lightWrite = {
         hydrate: false as const,
         ensureCalendarEvent: false as const,
@@ -692,6 +697,8 @@ export const questionnaireService = {
             },
           }),
         )
+
+        markGuideDiscoveryEligibleIfFirstBooking(priorWeddingHistoryCount)
 
         wedding = await withDevPerf('questionnaire.approve.update', () =>
           weddingService.update(
@@ -826,6 +833,16 @@ export const questionnaireService = {
           .catch((err) => {
             devWarnArgs(
               '[questionnaire.approve] notification failed:',
+              err instanceof Error ? err.message : err,
+            )
+          })
+
+        // Resolve the earlier "awaiting verification" notification for this instance.
+        void notificationService
+          .markReadForEntity('form_instance', instanceId)
+          .catch((err) => {
+            devWarnArgs(
+              '[questionnaire.approve] mark awaiting notification read failed:',
               err instanceof Error ? err.message : err,
             )
           })

@@ -1,8 +1,11 @@
 import { SettingsLayout } from '@/features/settings/SettingsLayout'
 import {
+  SettingsPreferenceList,
+  SettingsPreferenceRow,
   SettingsSaveStatus,
   SettingsSection,
   SettingsSectionHeader,
+  SettingsSwitch,
   SettingsWorkspace,
 } from '@/features/settings/SettingsWorkspace'
 import { PageContainer } from '@/components/ui/PageContainer'
@@ -21,6 +24,7 @@ import {
   INTERFACE_STYLE_OPTIONS,
   type InterfaceStyle,
 } from '@/features/interface-style/types'
+import { useGuideIntegrationPreference } from '@/features/onboarding/guide/useGuideIntegrationPreference'
 import styles from './AppearanceSettingsPage.module.css'
 
 export function AppearanceSettingsPage() {
@@ -43,6 +47,8 @@ export function AppearanceSettingsPage() {
     persistStatus: stylePersistStatus,
     persistError: stylePersistError,
   } = useInterfaceStyle()
+  const { preference: guidePreference, setSidebarVisible } =
+    useGuideIntegrationPreference()
 
   async function handleSelectTheme(id: ThemeId) {
     if (id === themeId && persistStatus !== 'error') return
@@ -89,7 +95,7 @@ export function AppearanceSettingsPage() {
   return (
     <SettingsLayout
       title="Wygląd"
-      subtitle="Tryb jasny/ciemny, styl interfejsu i motyw kolorystyczny panelu OurWed."
+      subtitle="Tryb jasny/ciemny, styl interfejsu, motyw kolorystyczny i nawigacja panelu OurWed."
       action={
         statusLabel ? (
           <SettingsSaveStatus status={combinedStatus}>
@@ -148,6 +154,30 @@ export function AppearanceSettingsPage() {
                 />
               ))}
             </div>
+          </SettingsSection>
+
+          <SettingsSection labelledBy="appearance-nav-heading">
+            <SettingsSectionHeader
+              id="appearance-nav-heading"
+              title="Nawigacja"
+              description="Elementy bocznego menu, które możesz dostosować do swojej pracy."
+            />
+            <SettingsPreferenceList>
+              <SettingsPreferenceRow
+                titleId="guide-sidebar-visible-title"
+                title="Pokazuj Przewodnik w menu"
+                description="Przewodnik możesz ukryć z bocznego menu i przywrócić tutaj w dowolnym momencie."
+                control={
+                  <SettingsSwitch
+                    id="guide-sidebar-visible"
+                    checked={guidePreference.sidebarVisible}
+                    labelledBy="guide-sidebar-visible-title"
+                    testId="pref-guide-sidebar-visible"
+                    onCheckedChange={setSidebarVisible}
+                  />
+                }
+              />
+            </SettingsPreferenceList>
           </SettingsSection>
 
           <SettingsSection labelledBy="appearance-theme-heading">

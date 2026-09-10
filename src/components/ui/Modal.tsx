@@ -19,6 +19,8 @@ interface ModalProps {
   primaryAction?: ReactNode
   /** Footer cancel / secondary (left). Defaults to Anuluj. */
   cancelLabel?: string
+  /** Cancel button variant. Default `ghost` preserves existing modals. */
+  cancelVariant?: 'ghost' | 'secondary'
   /** Override cancel button handler (defaults to onClose). */
   onCancel?: () => void
   /** Hide the default footer (cancel + primary). */
@@ -27,8 +29,8 @@ interface ModalProps {
   showClose?: boolean
   /** Disable close + cancel while saving. */
   busy?: boolean
-  /** Wider content for richer forms. `document` = large contract preview shell. */
-  size?: 'md' | 'lg' | 'auth' | 'document'
+  /** Wider content for richer forms. `story` = editorial journey (~700px). `document` = large contract preview shell. */
+  size?: 'md' | 'lg' | 'auth' | 'story' | 'document'
   /** Mobile presentation: bottom sheet (default) or centered. */
   mobilePresentation?: 'sheet' | 'center'
   /** Extra footer actions between cancel and primary (e.g. secondary save). */
@@ -43,6 +45,13 @@ interface ModalProps {
    * Use `panel` for calm mobile sheets (no keyboard on open).
    */
   initialFocus?: OverlayInitialFocus
+  /**
+   * Entrance motion. `settle` = longer premium fade/rise for discovery-style overlays.
+   * Does not change overlay lifecycle — only CSS animation class.
+   */
+  entrance?: 'default' | 'settle'
+  /** Extra classes on the dialog panel (surface polish). */
+  panelClassName?: string
 }
 
 /**
@@ -57,6 +66,7 @@ export function Modal({
   children,
   primaryAction,
   cancelLabel = 'Anuluj',
+  cancelVariant = 'ghost',
   onCancel,
   hideFooter = false,
   showClose = false,
@@ -67,15 +77,27 @@ export function Modal({
   statusBadge,
   headerActions,
   initialFocus = 'first',
+  entrance = 'default',
+  panelClassName,
 }: ModalProps) {
   const titleId = useId()
   const descId = useId()
   const panelRef = useRef<HTMLDivElement>(null)
   const isDocument = size === 'document'
+  const settle = entrance === 'settle'
 
   useOverlay({ open, onClose, busy, panelRef, initialFocus })
 
   if (!open) return null
+
+  const panelClasses = [
+    styles.panel,
+    styles[size],
+    settle ? styles.panelSettle : '',
+    panelClassName,
+  ]
+    .filter(Boolean)
+    .join(' ')
 
   return (
     <ModalPortal>
@@ -84,6 +106,7 @@ export function Modal({
         role="presentation"
       >
         <Backdrop
+          entrance={entrance}
           disabled={busy}
           onClick={() => {
             if (!busy) onClose()
@@ -91,7 +114,7 @@ export function Modal({
         />
         <div
           ref={panelRef}
-          className={`${styles.panel} ${styles[size]}`}
+          className={panelClasses}
           role="dialog"
           aria-modal="true"
           aria-labelledby={titleId}
@@ -141,7 +164,7 @@ export function Modal({
             >
               <Button
                 type="button"
-                variant="ghost"
+                variant={cancelVariant}
                 onClick={onCancel ?? onClose}
                 disabled={busy}
               >

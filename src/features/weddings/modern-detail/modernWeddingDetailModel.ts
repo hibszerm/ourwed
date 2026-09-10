@@ -40,7 +40,7 @@ export type DayModeProminence = 'primary' | 'secondary' | 'tertiary' | 'overflow
 
 export type CurrentStoryKind =
   | 'apply'
-  | 'send_contract_questionnaire'
+  | 'complete_contract_data_manually'
   | 'waiting_contract'
   | 'resolve_travel_fee'
   | 'generate_contract'
@@ -303,13 +303,13 @@ function mapResolverStory(
   missingTemplate: boolean,
 ): CurrentStoryView {
   switch (action.id) {
-    case 'send_contract_questionnaire':
+    case 'complete_contract_data_manually':
       return story({
-        kind: 'send_contract_questionnaire',
+        kind: 'complete_contract_data_manually',
         eyebrow: 'Teraz',
-        title: 'Zbierz dane do umowy',
+        title: 'Uzupełnij dane do umowy',
         support: null,
-        primaryAction: { label: 'Wyślij ankietę', id: action.id },
+        primaryAction: { label: 'Uzupełnij dane', id: action.id },
         quietLink: null,
         ownsIssueIds: ['contract_data'],
       })
@@ -609,7 +609,7 @@ export function composeModernWeddingAttention(input: {
   }
 
   if (!isTravelFeeResolved(wedding) && !owned.has('unresolved_travel')) {
-    if (current.kind !== 'send_contract_questionnaire' && current.kind !== 'waiting_contract') {
+    if (current.kind !== 'complete_contract_data_manually' && current.kind !== 'waiting_contract') {
       candidates.push({
         id: 'unresolved_travel',
         label: 'Koszt dojazdu nieustalony',
@@ -637,7 +637,7 @@ export function composeModernWeddingAttention(input: {
   if (
     !hasCoreLocations(wedding, places) &&
     !owned.has('missing_locations') &&
-    current.kind !== 'send_contract_questionnaire' &&
+    current.kind !== 'complete_contract_data_manually' &&
     current.kind !== 'waiting_contract'
   ) {
     candidates.push({
@@ -674,14 +674,9 @@ export function composeModernWeddingReadiness(input: {
   const agreedDeposit = getWeddingCommercialSummary(wedding).agreedDeposit
   const depositPaid = hasPaidDepositPayment(wedding.payments ?? [])
 
-  if (contractQ === 'sent' && contractStatus === 'none') {
-    items.push({
-      id: 'contract-data',
-      domain: 'Dane do umowy',
-      status: 'Oczekuje na parę',
-    })
-  } else if (
-    contractQ === 'not_sent' &&
+  if (
+    contractStatus === 'none' &&
+    contractQ !== 'completed' &&
     !isClientContractCollectionComplete(wedding)
   ) {
     items.push({

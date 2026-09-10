@@ -102,8 +102,8 @@ function task(id: string, title: string): StageTask {
 
 function statusMessageReservation(wedding: Wedding): string {
   const { status } = wedding.questionnaires.contractData
-  if (status === 'not_sent') return 'Wyślij ankietę do umowy'
-  if (status === 'sent') return 'Czekamy na odpowiedzi pary'
+  if (status === 'not_sent') return 'Uzupełnij dane do umowy'
+  if (status === 'sent') return 'Uzupełnij dane do umowy'
   return 'Gotowe do wygenerowania umowy'
 }
 
@@ -183,11 +183,11 @@ export function getWorkflowStatus(wedding: Wedding): WorkflowStatus {
 
 function stepReservation(wedding: Wedding): WorkflowStep {
   const { status } = wedding.questionnaires.contractData
-  if (status === 'not_sent') {
-    return { id: 'send_contract_questionnaire', label: 'Wysłanie ankiety do umowy' }
-  }
-  if (status === 'sent') {
-    return { id: 'await_contract_questionnaire', label: 'Oczekiwanie na dane do umowy' }
+  if (status !== 'completed') {
+    return {
+      id: 'complete_contract_data_manually',
+      label: 'Uzupełnienie danych do umowy',
+    }
   }
   return { id: 'ready_for_contract', label: 'Gotowość do umowy' }
 }
@@ -273,8 +273,9 @@ export function getCurrentStep(wedding: Wedding): WorkflowStep {
 
 function tasksReservation(wedding: Wedding): StageTask[] {
   const { status } = wedding.questionnaires.contractData
-  if (status === 'not_sent') return [task('send-contract-q', 'Wyślij ankietę do umowy')]
-  if (status === 'sent') return [task('await-contract-q', 'Czekaj na odpowiedzi pary')]
+  if (status !== 'completed') {
+    return [task('complete-contract-data', 'Uzupełnij dane do umowy')]
+  }
   return [task('generate-contract', 'Wygeneruj umowę')]
 }
 

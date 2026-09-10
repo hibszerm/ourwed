@@ -14,7 +14,9 @@ export function hrefForWeddingNextAction(
   action: WeddingNextAction,
 ): string {
   switch (action.id) {
-    case 'send_contract_questionnaire':
+    case 'complete_contract_data_manually':
+      // Calendar cannot open the edit drawer; overview is where manual completion lives.
+      return `/sluby/${weddingId}?tab=overview`
     case 'mark_contract_sent':
     case 'mark_contract_signed':
     case 'record_deposit':

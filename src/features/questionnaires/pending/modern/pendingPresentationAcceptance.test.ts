@@ -71,7 +71,7 @@ function assertNotIncludes(src: string, needle: string, m: string) {
   assertIncludes(copy, 'Brak oczekujących zgłoszeń', 'empty title')
   assertIncludes(
     copy,
-    'Nie masz teraz żadnych ankiet do umowy wymagających decyzji.',
+    'Gdy para wypełni ankietę do umowy, zgłoszenie pojawi się tutaj do weryfikacji.',
     'empty copy',
   )
   assertNotIncludes(copy, 'lead', 'no lead jargon in copy')

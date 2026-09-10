@@ -263,7 +263,12 @@ run('10–11. Overview shows Postęp zlecenia + full-width essentials (no sideba
   assert(shell.includes('TravelFeeResolveModal'), 'travel modal reused')
   assert(shell.includes('setTravelFeeOpen(true)'), 'travel destination')
   assert(!shell.includes('openCockpit'), 'cockpit not a Next Action')
-  assert(shell.includes("onSendQuestionnaire?.('contractData')"), 'contract Q send')
+  assert(
+    shell.includes('onOpenClientCollectionChecklist') ||
+      shell.includes('completeContractDataManually'),
+    'manual contract-data completion',
+  )
+  assert(!shell.includes("onSendQuestionnaire?.('contractData')"), 'no contract Q send')
   assert(!shell.includes('WeddingContextSidebar'), 'sidebar removed from shell')
   assert(!shell.includes('WeddingManagementSection'), 'management removed from shell')
   assert(!shell.includes('overviewLayout'), 'no sidebar layout wrapper')

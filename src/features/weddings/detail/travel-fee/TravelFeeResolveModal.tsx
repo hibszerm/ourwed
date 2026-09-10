@@ -245,6 +245,10 @@ function TravelFeeResolveForm({
       description="Ustal opłatę za dojazd dla tego zlecenia. Trasa operacyjna nie jest źródłem ceny."
       onClose={onClose}
       busy={saveMutation.isPending}
+      size="lg"
+      showClose
+      mobilePresentation="center"
+      cancelLabel="Anuluj"
       primaryAction={
         <Button
           type="button"
@@ -261,7 +265,7 @@ function TravelFeeResolveForm({
           }}
           data-testid="travel-fee-save"
         >
-          {saveMutation.isPending ? 'Zapisywanie…' : 'Zapisz'}
+          {saveMutation.isPending ? 'Zapisywanie…' : 'Ustal koszt'}
         </Button>
       }
     >

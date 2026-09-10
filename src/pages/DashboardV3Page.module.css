@@ -53,6 +53,14 @@
   min-width: 0;
 }
 
+/* Nearest-only: collapse empty upcoming rows so operational content rises. */
+.layout[data-has-upcoming='false'] {
+  grid-template-areas:
+    'hero hero'
+    'feed today'
+    'feed deadlines';
+}
+
 .hero {
   grid-area: hero;
   min-width: 0;
@@ -115,13 +123,13 @@
 }
 
 @media (min-width: 1280px) {
-  .upcoming,
-  .today {
+  .layout[data-has-upcoming='true'] .upcoming,
+  .layout[data-has-upcoming='true'] .today {
     align-self: stretch;
   }
 
-  .upcoming > *,
-  .today > * {
+  .layout[data-has-upcoming='true'] .upcoming > *,
+  .layout[data-has-upcoming='true'] .today > * {
     flex: 1 1 auto;
     width: 100%;
     height: 100%;
@@ -170,6 +178,13 @@
       'feed feed';
     column-gap: var(--v3-space-5);
     row-gap: var(--v3-space-5);
+  }
+
+  .layout[data-has-upcoming='false'] {
+    grid-template-areas:
+      'hero hero'
+      'today deadlines'
+      'feed feed';
   }
 
   .hero,

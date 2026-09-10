@@ -18,7 +18,7 @@ import type {
   WeddingDetailSharedProps,
   WeddingWorkspaceTab,
 } from '@/features/weddings/detail/v2/weddingDetailV2Types'
-import { isLocationEditorSection } from '@/features/weddings/detail/editing/weddingEditorTypes'
+import { resolveWeddingEditOverlayPresentation } from '@/features/weddings/detail/editing/weddingEditorTypes'
 import {
   buildActivityFeed,
   parseWorkspaceTab,
@@ -55,10 +55,10 @@ export function ModernWeddingDetailWorkspace(props: WeddingDetailSharedProps) {
     onHeroAction,
     onRequestVerifyLocations,
     onEditSection,
+    onOpenClientCollectionChecklist,
     onSaveEdit,
     onCancelEdit,
     saving,
-    onSendQuestionnaire,
     onArchive,
     onDelete,
     onWeddingRefreshed,
@@ -83,8 +83,8 @@ export function ModernWeddingDetailWorkspace(props: WeddingDetailSharedProps) {
 
   const nextActionHandlers = useMemo<WeddingNextActionHandlers>(
     () => ({
-      sendContractQuestionnaire: () => {
-        onSendQuestionnaire?.('contractData')
+      completeContractDataManually: () => {
+        onOpenClientCollectionChecklist?.()
       },
       resolveTravelFee: () => {
         setTravelFeeOpen(true)
@@ -108,9 +108,9 @@ export function ModernWeddingDetailWorkspace(props: WeddingDetailSharedProps) {
     }),
     [
       onEditSection,
+      onOpenClientCollectionChecklist,
       onHeroAction,
       onRequestVerifyLocations,
-      onSendQuestionnaire,
       setTab,
     ],
   )
@@ -297,13 +297,9 @@ export function ModernWeddingDetailWorkspace(props: WeddingDetailSharedProps) {
           focusSection={editorSection}
           saving={saving}
           saveError={props.saveError}
-          overlayPresentation={
-            isLocationEditorSection(editorSection) ||
-            (tab === 'contract_finance' &&
-              (editorSection === 'package' || editorSection === 'finances'))
-              ? 'centered'
-              : 'drawer'
-          }
+          overlayPresentation={resolveWeddingEditOverlayPresentation(
+            editorSection,
+          )}
           onSave={() => onSaveEdit?.()}
           onClose={() => onCancelEdit?.()}
         />

@@ -95,6 +95,9 @@ export function ModernPackagesWorkspace({
 
   const ordered = [...packages].sort((a, b) => a.sortOrder - b.sortOrder)
   const showEmpty = !isLoading && !isError && ordered.length === 0 && !creating
+  const studioHasLinkedTemplate = ordered.some((pkg) =>
+    Boolean(pkg.activeContractTemplateId),
+  )
 
   return (
     <div className={styles.page} data-testid="packages-modern">
@@ -177,6 +180,13 @@ export function ModernPackagesWorkspace({
                 } else {
                   await onCreate(values)
                   setCreating(false)
+                  window.setTimeout(() => {
+                    document
+                      .querySelector<HTMLElement>(
+                        '[data-testid="package-contract-next-step"]',
+                      )
+                      ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+                  }, 80)
                 }
               }}
             />
@@ -306,10 +316,18 @@ export function ModernPackagesWorkspace({
 
               <PackageDetailsSummary pkg={pkg} />
 
-              <div className={styles.contractSlot}>
+              <div
+                className={styles.contractSlot}
+                data-has-template={
+                  pkg.activeContractTemplateId ? 'true' : 'false'
+                }
+              >
                 <PackageContractSection
                   pkg={pkg}
                   onPackageUpdated={onPackageUpdated}
+                  emphasizeNextStep={
+                    !pkg.activeContractTemplateId && !studioHasLinkedTemplate
+                  }
                 />
               </div>
 

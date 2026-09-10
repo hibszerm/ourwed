@@ -10,6 +10,7 @@ import { PageContainer } from '@/components/ui/PageContainer'
 import { AddressField, type AddressFieldValue } from '@/features/forms/AddressField'
 import { useCreateWedding } from '@/features/weddings/hooks/useCreateWedding'
 import { useCreateFullWedding } from '@/features/weddings/hooks/useCreateFullWedding'
+import { useWeddings } from '@/features/weddings/hooks/useWeddings'
 import { buildNewWeddingCreatePayload } from '@/features/weddings/buildNewWeddingCreatePayload'
 import { buildFullWeddingCreateInput } from '@/features/weddings/buildFullWeddingCreateInput'
 import {
@@ -24,8 +25,10 @@ import { useProAccessGate } from '@/features/billing/ProAccessGate'
 import { useProMutationPageGuard } from '@/features/billing/useProMutationPageGuard'
 import { useQuery } from '@tanstack/react-query'
 import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
+import { markGuideDiscoveryEligibleIfFirstBooking } from '@/lib/guideDiscovery/eligibleSession'
 import { extraServiceService } from '@/lib/api/extraServiceService'
 import { packageService } from '@/lib/api/packageService'
+import { weddingListLightService } from '@/lib/api/weddingListLightService'
 import { computeWeddingContractValue } from '@/lib/forms/weddingExtraPricing'
 import { coupleName, formatDate } from '@/lib/utils/dates'
 import { formatCurrency } from '@/lib/utils/currency'
@@ -231,8 +234,11 @@ export function NewWeddingPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const prefillDate = searchParams.get('date') ?? ''
+  /** First-run / migration shortcut: start in quick-create path. */
+  const preferQuickCreate = searchParams.get('quick') === '1'
   const createWedding = useCreateWedding()
   const createFullWedding = useCreateFullWedding()
+  const { data: existingWeddings = [] } = useWeddings()
   const { requirePro } = useProAccessGate()
   useProMutationPageGuard('/sluby')
   const userId = useStudioAuthId()
@@ -280,7 +286,7 @@ export function NewWeddingPage() {
       partner1: '',
       partner2: '',
       date: /^\d{4}-\d{2}-\d{2}$/.test(prefillDate) ? prefillDate : '',
-      completeLater: false,
+      completeLater: preferQuickCreate,
       partner1Phone: '',
       partner2Phone: '',
       email: '',
@@ -426,6 +432,15 @@ export function NewWeddingPage() {
       if (!isLastStep) return
       const allowed = requirePro()
       if (!allowed) return
+      // Authoritative prior count BEFORE mutation — never trust stale list cache
+      // (e.g. after out-of-band delete) and never infer prior after create.
+      let priorHistoryCount = existingWeddings.length
+      try {
+        priorHistoryCount =
+          await weddingListLightService.countWeddingHistory()
+      } catch {
+        // Fall back to list length if head-count fails (rare).
+      }
       try {
         // Quick Create: useCreateWedding + sanitizer. Full Create: useCreateFullWedding.
         // Do not route Quick through createFullWedding.
@@ -438,12 +453,15 @@ export function NewWeddingPage() {
                 }),
               )
             ).wedding
+        markGuideDiscoveryEligibleIfFirstBooking(priorHistoryCount)
         setIsSuccess(true)
         window.setTimeout(() => {
           navigate(`/sluby/${wedding.id}`)
         }, 950)
       } catch (err) {
         if (isFullCreatePartialError(err)) {
+          // Wedding exists — first-booking marker still applies from pre-mutation prior.
+          markGuideDiscoveryEligibleIfFirstBooking(priorHistoryCount)
           window.alert(
             getUserFacingErrorMessage(
               err,

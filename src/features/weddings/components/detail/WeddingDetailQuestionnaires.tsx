@@ -1,4 +1,3 @@
-import { Button } from '@/components/ui/Button'
 import { Card, CardHeader } from '@/components/ui/Card'
 import { formatShortDate } from '@/lib/utils/dates'
 import {
@@ -10,6 +9,7 @@ import styles from './WeddingDetailQuestionnaires.module.css'
 
 interface WeddingDetailQuestionnairesProps {
   questionnaires: WeddingQuestionnaires
+  /** @deprecated Existing-wedding contract-data send is retired (Path A). */
   onSend?: (kind: 'contractData') => void
 }
 
@@ -20,11 +20,9 @@ const ITEMS: { key: 'contractData'; label: string }[] = [
 function QuestionnaireRow({
   label,
   item,
-  onSend,
 }: {
   label: string
   item: QuestionnaireItem
-  onSend?: () => void
 }) {
   const statusDate = getQuestionnaireStatusDate(item)
 
@@ -39,18 +37,13 @@ function QuestionnaireRow({
           )}
         </div>
       </div>
-      {item.status === 'not_sent' && onSend ? (
-        <Button type="button" variant="primary" size="sm" onClick={onSend}>
-          Wyślij
-        </Button>
-      ) : null}
     </li>
   )
 }
 
+/** Legacy/orphan status list — no contract-data send CTA (Path A). */
 export function WeddingDetailQuestionnaires({
   questionnaires,
-  onSend,
 }: WeddingDetailQuestionnairesProps) {
   return (
     <Card padding="md" className={styles.card}>
@@ -61,7 +54,6 @@ export function WeddingDetailQuestionnaires({
             key={key}
             label={label}
             item={questionnaires[key]}
-            onSend={onSend ? () => onSend(key) : undefined}
           />
         ))}
       </ul>

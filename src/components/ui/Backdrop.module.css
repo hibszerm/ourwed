@@ -12,6 +12,10 @@
   animation: backdropIn 180ms var(--ease-out, ease) both;
 }
 
+.backdropSettle {
+  animation: backdropIn 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
 .backdrop:disabled {
   cursor: default;
 }
@@ -26,7 +30,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .backdrop {
+  .backdrop,
+  .backdropSettle {
     animation: none;
   }
 }

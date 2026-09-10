@@ -11,6 +11,7 @@ import {
   usePendingQuestionnaires,
 } from '@/features/questionnaires/hooks/usePendingQuestionnaires'
 import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
+import { INQUIRIES_EMPTY } from '@/features/dashboard/presentation/dashboardEmptyCopy'
 import { questionnaireService } from '@/lib/api/questionnaireService'
 import { formatShortDate } from '@/lib/utils/dates'
 import styles from './DashboardV3InquiriesPanel.module.css'
@@ -102,7 +103,10 @@ export function DashboardV3InquiriesPanel() {
       {isLoading ? <p className={styles.loading}>Ładowanie…</p> : null}
 
       {empty ? (
-        <p className={styles.emptyCopy}>Nie ma oczekujących zgłoszeń.</p>
+        <div className={styles.emptyState}>
+          <p className={styles.emptyTitle}>{INQUIRIES_EMPTY.title}</p>
+          <p className={styles.emptyCopy}>{INQUIRIES_EMPTY.body}</p>
+        </div>
       ) : null}
 
       {!isLoading && pending.length > 0 ? (

@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { useNearestDeliveryDeadlines } from '@/features/dashboard/hooks/useNearestDeliveryDeadline'
+import { deadlineEmptyCopy } from '@/features/dashboard/presentation/dashboardEmptyCopy'
 import type { NearestDeliveryDeadline } from '@/lib/api/dashboardService'
 import { getDeliveryDeadlineBand } from '@/lib/utils/weddingDeliveryDeadline'
 import { toLocalCalendarDateKey } from '@/lib/utils/localCalendarDate'
@@ -24,9 +25,15 @@ function dueDateParts(dueDate: string) {
   }
 }
 
-export function DashboardV3DeadlinePanel() {
+export function DashboardV3DeadlinePanel({
+  hasWeddingHistory = false,
+}: {
+  /** True when the studio has any wedding history (not merely active deadlines). */
+  hasWeddingHistory?: boolean
+}) {
   const { data, isLoading } = useNearestDeliveryDeadlines()
   const deadlines = data ?? []
+  const emptyCopy = deadlineEmptyCopy(hasWeddingHistory)
 
   return (
     <section
@@ -55,8 +62,8 @@ export function DashboardV3DeadlinePanel() {
         </ul>
       ) : (
         <div className={styles.empty}>
-          <p className={styles.emptyTitle}>Wszystko oddane</p>
-          <p className={styles.emptyCopy}>Brak aktywnych terminów oddania.</p>
+          <p className={styles.emptyTitle}>{emptyCopy.title}</p>
+          <p className={styles.emptyCopy}>{emptyCopy.body}</p>
         </div>
       )}
     </section>

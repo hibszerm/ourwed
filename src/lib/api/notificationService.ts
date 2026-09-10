@@ -201,6 +201,25 @@ export const notificationService = {
     return mapNotificationRowToModel(data as NotificationRow)
   },
 
+  /** One UPDATE — unread rows for this entity (e.g. form_instance after approve). */
+  async markReadForEntity(
+    entityType: string,
+    entityId: string,
+  ): Promise<number> {
+    const userId = await resolveStudioUserId()
+    const { data, error } = await supabase
+      .from('notifications')
+      .update({ read: true })
+      .eq('user_id', userId)
+      .eq('entity_type', entityType)
+      .eq('entity_id', entityId)
+      .eq('read', false)
+      .select('id')
+
+    throwOnError(error)
+    return (data ?? []).length
+  },
+
   /** One UPDATE — all unread rows for the current owner. */
   async markAllRead(): Promise<number> {
     const userId = await resolveStudioUserId()

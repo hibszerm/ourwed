@@ -39,6 +39,9 @@ export function invalidateAfterQuestionnaireApproval(
     queryClient.invalidateQueries({ queryKey: ['questionnaires'] }),
     queryClient.invalidateQueries({ queryKey: ['weddings'] }),
     queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
+    queryClient.invalidateQueries({ queryKey: ['notifications'] }),
+    queryClient.invalidateQueries({ queryKey: ['notifications-latest'] }),
+    queryClient.invalidateQueries({ queryKey: ['notifications-unread-count'] }),
     invalidateFinanceQueries(queryClient),
   ]).catch((err) => {
     devWarnArgs(

@@ -73,6 +73,9 @@ export function AddPaymentModal({
       title={modalTitle(treatAsDeposit, editing)}
       description={modalDescription(treatAsDeposit, editing, suggested)}
       busy={busy}
+      size="md"
+      showClose
+      mobilePresentation="center"
       primaryAction={
         <Button
           type="submit"
@@ -80,7 +83,13 @@ export function AddPaymentModal({
           variant="primary"
           disabled={busy}
         >
-          {busy ? 'Zapisywanie…' : 'Zapisz'}
+          {busy
+            ? 'Zapisywanie…'
+            : editing
+              ? 'Zapisz'
+              : treatAsDeposit
+                ? 'Dodaj zadatek'
+                : 'Dodaj wpłatę'}
         </Button>
       }
     >

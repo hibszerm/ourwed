@@ -1,8 +1,8 @@
-import { SendQuestionnaireModal } from '@/features/weddings/actions/SendQuestionnaireModal'
 import { AddPaymentModal } from '@/features/weddings/actions/AddPaymentModal'
 import { AddNoteModal } from '@/features/weddings/actions/AddNoteModal'
 import { GenerateContractModal } from '@/features/weddings/actions/GenerateContractModal'
 import { MissingContractDataDialog } from '@/features/weddings/actions/MissingContractDataDialog'
+import { ClientCollectionMissingDialog } from '@/features/weddings/detail/editing/ClientCollectionMissingDialog'
 import { TravelFeeResolveModal } from '@/features/weddings/detail/travel-fee/TravelFeeResolveModal'
 import { DiscardChangesDialog } from '@/features/weddings/detail/editing/DiscardChangesDialog'
 import type { useWeddingDetailHost } from '@/features/weddings/detail/useWeddingDetailHost'
@@ -12,6 +12,10 @@ type Host = ReturnType<typeof useWeddingDetailHost>
 /**
  * Shared Wedding Detail overlay stack. Classic and Modern pages both use it.
  * Does not change Classic V2 chrome.
+ *
+ * Existing-wedding contract-data questionnaire send is intentionally not
+ * exposed here (Path A = manual completion). Lead generate remains on Ankiety.
+ * `weddingActionsService.sendQuestionnaire` stays for compatibility.
  */
 export function WeddingDetailHostModals({ host }: { host: Host }) {
   const {
@@ -25,6 +29,7 @@ export function WeddingDetailHostModals({ host }: { host: Host }) {
     closeModal,
     handleMissingDataCorrection,
     handleTravelFeeSaved,
+    openClientCollectionSection,
   } = host
 
   if (!wedding) return null
@@ -37,12 +42,6 @@ export function WeddingDetailHostModals({ host }: { host: Host }) {
         onDiscard={cancelEdit}
       />
 
-      <SendQuestionnaireModal
-        open={modal?.type === 'questionnaire'}
-        onClose={closeModal}
-        wedding={wedding}
-        kind={modal?.type === 'questionnaire' ? modal.kind : 'contractData'}
-      />
       <AddPaymentModal
         open={modal?.type === 'payment'}
         onClose={closeModal}
@@ -65,6 +64,12 @@ export function WeddingDetailHostModals({ host }: { host: Host }) {
         validation={missingValidation}
         onClose={closeModal}
         onCorrect={handleMissingDataCorrection}
+      />
+      <ClientCollectionMissingDialog
+        open={modal?.type === 'client_collection'}
+        wedding={wedding}
+        onClose={closeModal}
+        onCorrect={openClientCollectionSection}
       />
       <TravelFeeResolveModal
         open={modal?.type === 'travel_fee'}

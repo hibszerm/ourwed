@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { AppLayout } from '@/layouts/AppLayout'
 import { Button } from '@/components/ui/Button'
 import { PageContainer } from '@/components/ui/PageContainer'
@@ -18,13 +19,32 @@ import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
 export function ContractQuestionnaireEditorPage() {
   const userId = useStudioAuthId()
-  const { requirePro, isReadOnly } = useProAccessGate()
+  const { requirePro, isReadOnly, loading: billingLoading } = useProAccessGate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [generateOpen, setGenerateOpen] = useState(false)
+  const autoGenerateHandled = useRef(false)
   const { data, dataUpdatedAt, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['company-details', userId, 'questionnaire-config'],
     queryFn: () => companyDetailsService.get(),
     enabled: Boolean(userId),
   })
+
+  // First-run CTA: /ankiety/dane-do-umowy?generate=1 opens the existing modal.
+  // Wait until billing gate is ready — requirePro returns false while loading and
+  // must not consume the one-shot intent before it can open the modal.
+  useEffect(() => {
+    if (autoGenerateHandled.current) return
+    if (searchParams.get('generate') !== '1') return
+    if (billingLoading) return
+
+    autoGenerateHandled.current = true
+    const next = new URLSearchParams(searchParams)
+    next.delete('generate')
+    setSearchParams(next, { replace: true })
+    requirePro(() => setGenerateOpen(true), {
+      actionKey: 'generate_questionnaire_link',
+    })
+  }, [billingLoading, requirePro, searchParams, setSearchParams])
 
   return (
     <AppLayout>

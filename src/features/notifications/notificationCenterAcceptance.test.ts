@@ -102,10 +102,10 @@ function assertNotIncludes(src: string, needle: string, m: string) {
   assertIncludes(workspace, 'markAll.mutateAsync', 'G — mark all')
   assertIncludes(workspace, 'fetchNextPage', 'H — load more')
   assertIncludes(copy, 'Pokaż więcej', 'H — load more label')
-  assertIncludes(copy, 'Brak powiadomień', 'I — empty all')
+  assertIncludes(copy, 'Brak nowych powiadomień', 'I — empty all')
   assertIncludes(
     copy,
-    'Nowe powiadomienia dotyczące Twojej pracy pojawią się tutaj.',
+    'Gdy para wypełni ankietę do umowy lub ankietę przedślubną, informacja pojawi się tutaj.',
     'I — empty all copy',
   )
   assertIncludes(copy, 'Wszystko przeczytane', 'J — empty unread')

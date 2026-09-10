@@ -11,6 +11,7 @@ import {
   useInvalidateAfterQuestionnaireMutation,
   usePendingQuestionnaires,
 } from '@/features/questionnaires/hooks/usePendingQuestionnaires'
+import { INQUIRIES_EMPTY } from '@/features/dashboard/presentation/dashboardEmptyCopy'
 import { questionnaireService } from '@/lib/api/questionnaireService'
 import { formatShortDate } from '@/lib/utils/dates'
 import styles from './PendingWeddingsCard.module.css'
@@ -79,7 +80,7 @@ export function PendingWeddingsCard() {
         subtitle={
           pending.length > 0
             ? `${pending.length} oczekuje na zatwierdzenie`
-            : 'Brak nowych zgłoszeń'
+            : undefined
         }
         action={
           <Link to="/oczekujace">
@@ -93,7 +94,10 @@ export function PendingWeddingsCard() {
       {isLoading && <p className={styles.empty}>Ładowanie…</p>}
 
       {!isLoading && pending.length === 0 && (
-        <p className={styles.empty}>Nie ma oczekujących zgłoszeń.</p>
+        <div className={styles.emptyState}>
+          <p className={styles.emptyTitle}>{INQUIRIES_EMPTY.title}</p>
+          <p className={styles.empty}>{INQUIRIES_EMPTY.body}</p>
+        </div>
       )}
 
       {!isLoading && pending.length > 0 && (

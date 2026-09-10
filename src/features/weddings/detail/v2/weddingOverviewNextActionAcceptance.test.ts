@@ -38,7 +38,7 @@ const v2Root = resolve(process.cwd(), 'src/features/weddings/detail/v2')
 const libRoot = resolve(process.cwd(), 'src/lib/workflow')
 
 const ALL_ACTION_IDS: WeddingNextActionId[] = [
-  'send_contract_questionnaire',
+  'complete_contract_data_manually',
   'resolve_travel_fee',
   'generate_contract',
   'mark_contract_sent',
@@ -64,7 +64,7 @@ function trackingHandlers(): {
   calls: Record<keyof WeddingNextActionHandlers, number>
 } {
   const calls: Record<keyof WeddingNextActionHandlers, number> = {
-    sendContractQuestionnaire: 0,
+    completeContractDataManually: 0,
     resolveTravelFee: 0,
     generateContract: 0,
     openContractFinance: 0,
@@ -73,8 +73,8 @@ function trackingHandlers(): {
     editLocations: 0,
   }
   const handlers: WeddingNextActionHandlers = {
-    sendContractQuestionnaire: () => {
-      calls.sendContractQuestionnaire += 1
+    completeContractDataManually: () => {
+      calls.completeContractDataManually += 1
     },
     resolveTravelFee: () => {
       calls.resolveTravelFee += 1
@@ -128,7 +128,7 @@ run('2. Overview no longer uses pickPrimaryAction as CTA source', () => {
 
 run('3. Destination adapter covers every V1 action exhaustively', () => {
   const expected: Record<WeddingNextActionId, keyof WeddingNextActionHandlers> = {
-    send_contract_questionnaire: 'sendContractQuestionnaire',
+    complete_contract_data_manually: 'completeContractDataManually',
     resolve_travel_fee: 'resolveTravelFee',
     generate_contract: 'generateContract',
     mark_contract_sent: 'openContractFinance',
@@ -160,7 +160,17 @@ run('4–12. DetailV2 wires real destinations for each action family', () => {
     'utf8',
   )
 
-  assert(shell.includes("onSendQuestionnaire?.('contractData')"), '4. contract Q')
+  assert(
+    shell.includes('onOpenClientCollectionChecklist') ||
+      shell.includes('completeContractDataManually'),
+    '4. manual contract-data completion',
+  )
+  assert(!shell.includes("onSendQuestionnaire?.('contractData')"), '4a. no contract Q send')
+  assert(dispatch.includes("case 'complete_contract_data_manually'"), '4b. manual case')
+  assert(
+    shell.includes('onOpenClientCollectionChecklist?.()'),
+    '4e. opens client-collection checklist',
+  )
   assert(dispatch.includes("case 'resolve_travel_fee'"), '4b. travel case')
   assert(shell.includes('setTravelFeeOpen(true)'), '4c. travel opens modal')
   assert(shell.includes('TravelFeeResolveModal'), '4d. existing modal')

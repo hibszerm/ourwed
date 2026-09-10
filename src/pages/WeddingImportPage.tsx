@@ -12,6 +12,8 @@ import { useProAccessGate } from '@/features/billing/ProAccessGate'
 import { useProMutationPageGuard } from '@/features/billing/useProMutationPageGuard'
 import { useWeddings } from '@/features/weddings/hooks/useWeddings'
 import { packageService } from '@/lib/api/packageService'
+import { weddingListLightService } from '@/lib/api/weddingListLightService'
+import { markGuideDiscoveryEligibleIfFirstBooking } from '@/lib/guideDiscovery/eligibleSession'
 import {
   WeddingImportStepper,
   type WeddingImportStepId,
@@ -356,6 +358,13 @@ export function WeddingImportPage() {
 
     setImporting(true)
     setError(null)
+    // Authoritative prior count BEFORE import mutation — not stale list cache.
+    let priorHistoryCount = existingWeddings.length
+    try {
+      priorHistoryCount = await weddingListLightService.countWeddingHistory()
+    } catch {
+      // Fall back to list length if head-count fails (rare).
+    }
     try {
       const result = await executeWeddingImport({
         importSessionId,
@@ -366,6 +375,9 @@ export function WeddingImportPage() {
         if (record.status === 'imported') {
           importedRowIds.add(record.reviewRowId)
         }
+      }
+      if (result.importedCount > 0) {
+        markGuideDiscoveryEligibleIfFirstBooking(priorHistoryCount)
       }
       setImportResult((prev) => mergeImportResults(prev, result))
       await queryClient.invalidateQueries({ queryKey: ['weddings'] })
@@ -400,11 +412,16 @@ export function WeddingImportPage() {
   }, [columnIds, rawRows])
 
   const confirmChangeFile = leftUpload || step === 'mapping' || step === 'review'
+  /** Zero wedding history → first-run copy; established users keep utility copy. */
+  const isFirstRunImport = existingWeddings.length === 0
 
   return (
     <AppLayout>
       <PageContainer width="wide">
-        <div className={styles.workspace}>
+        <div
+          className={styles.workspace}
+          data-first-run-import={isFirstRunImport ? 'true' : undefined}
+        >
           <header className={styles.pageHeader}>
             <button
               type="button"
@@ -416,83 +433,117 @@ export function WeddingImportPage() {
             >
               ← Śluby
             </button>
-            <h1 className={styles.pageTitle}>Importuj śluby</h1>
+            <h1 className={styles.pageTitle}>
+              {isFirstRunImport ? 'Przenieś swój sezon' : 'Importuj śluby'}
+            </h1>
             <p className={styles.pageLead}>
-              Przenieś zlecenia z arkusza do OurWed. Przed zapisaniem sprawdzisz wszystkie dane.
+              {isFirstRunImport
+                ? 'Masz zlecenia w Excelu lub CSV? Zaimportuj je jednocześnie. Przed zapisaniem pokażemy Ci wszystkie dane do sprawdzenia.'
+                : 'Przenieś zlecenia z arkusza do OurWed. Przed zapisaniem sprawdzisz wszystkie dane.'}
             </p>
           </header>
-          <WeddingImportStepper current={step} />
 
-          {error ? <div className={styles.error}>{error}</div> : null}
+          <div className={styles.layout}>
+            <div className={styles.mainColumn}>
+              <WeddingImportStepper current={step} />
 
-          {step === 'upload' ? (
-            <ImportUploadStep
-              parsing={parsing}
-              workbook={workbook}
-              sourceFile={sourceFile}
-              selectedSheet={selectedSheet}
-              selectedSheetId={selectedSheetId}
-              confirmedHeaderRowIndexZeroBased={confirmedHeaderRowIndexZeroBased}
-              headerAutoDetected={headerAutoDetected}
-              fileInputRef={fileInputRef}
-              recordCount={rawRows.length}
-              onFileInputChange={(file) => void handleFile(file)}
-              onRequestChangeFile={() => {
-                if (confirmChangeFile) setChangeFileOpen(true)
-                else fileInputRef.current?.click()
-              }}
-              onSelectSheet={applySheet}
-              onHeaderRowChange={(index) => {
-                if (!selectedSheet) return
-                rebuildFromConfirmedHeader(selectedSheet, index)
-              }}
-              onContinue={continueToMapping}
-            />
-          ) : null}
+              {error ? <div className={styles.error}>{error}</div> : null}
 
-          {step === 'mapping' ? (
-            <ImportMappingStep
-              mappings={mappings}
-              sampleValues={sampleValues}
-              savedMappingApplied={savedMappingApplied}
-              onChangeMapping={updateMapping}
-              onBack={() => setStep('upload')}
-              onContinue={continueToReview}
-            />
-          ) : null}
+              {step === 'upload' ? (
+                <ImportUploadStep
+                  parsing={parsing}
+                  workbook={workbook}
+                  sourceFile={sourceFile}
+                  selectedSheet={selectedSheet}
+                  selectedSheetId={selectedSheetId}
+                  confirmedHeaderRowIndexZeroBased={confirmedHeaderRowIndexZeroBased}
+                  headerAutoDetected={headerAutoDetected}
+                  fileInputRef={fileInputRef}
+                  recordCount={rawRows.length}
+                  hideClientCommsTrust={false}
+                  onFileInputChange={(file) => void handleFile(file)}
+                  onRequestChangeFile={() => {
+                    if (confirmChangeFile) setChangeFileOpen(true)
+                    else fileInputRef.current?.click()
+                  }}
+                  onSelectSheet={applySheet}
+                  onHeaderRowChange={(index) => {
+                    if (!selectedSheet) return
+                    rebuildFromConfirmedHeader(selectedSheet, index)
+                  }}
+                  onContinue={continueToMapping}
+                />
+              ) : null}
 
-          {step === 'review' ? (
-            <ImportReviewStep
-              rows={reviewRows}
-              filter={reviewFilter}
-              editingRowId={editingRowId}
-              importing={importing}
-              onFilterChange={setReviewFilter}
-              onToggleRow={(rowId, selected) =>
-                updateReviewRow(rowId, { selectedForImport: selected })
-              }
-              onUpdateRow={updateReviewRow}
-              onEditRow={setEditingRowId}
-              onDuplicateDecision={(rowId, decision) =>
-                updateReviewRow(rowId, {
-                  duplicateDecision: decision,
-                  selectedForImport: decision === 'import_anyway',
-                })
-              }
-              onBack={() => setStep('mapping')}
-              onImport={() => void runImport()}
-            />
-          ) : null}
+              {step === 'mapping' ? (
+                <ImportMappingStep
+                  mappings={mappings}
+                  sampleValues={sampleValues}
+                  savedMappingApplied={savedMappingApplied}
+                  onChangeMapping={updateMapping}
+                  onBack={() => setStep('upload')}
+                  onContinue={continueToReview}
+                />
+              ) : null}
 
-          {step === 'done' && importResult ? (
-            <ImportResultStep
-              result={importResult}
-              rows={reviewRows}
-              retrying={importing}
-              onRetryFailures={() => void runImport()}
-              onImportAnother={resetImportWizard}
-            />
-          ) : null}
+              {step === 'review' ? (
+                <ImportReviewStep
+                  rows={reviewRows}
+                  filter={reviewFilter}
+                  editingRowId={editingRowId}
+                  importing={importing}
+                  onFilterChange={setReviewFilter}
+                  onToggleRow={(rowId, selected) =>
+                    updateReviewRow(rowId, { selectedForImport: selected })
+                  }
+                  onUpdateRow={updateReviewRow}
+                  onEditRow={setEditingRowId}
+                  onDuplicateDecision={(rowId, decision) =>
+                    updateReviewRow(rowId, {
+                      duplicateDecision: decision,
+                      selectedForImport: decision === 'import_anyway',
+                    })
+                  }
+                  onBack={() => setStep('mapping')}
+                  onImport={() => void runImport()}
+                />
+              ) : null}
+
+              {step === 'done' && importResult ? (
+                <ImportResultStep
+                  result={importResult}
+                  rows={reviewRows}
+                  retrying={importing}
+                  onRetryFailures={() => void runImport()}
+                  onImportAnother={resetImportWizard}
+                />
+              ) : null}
+            </div>
+
+            <aside className={styles.supportColumn} aria-label="Informacje o imporcie">
+              <section className={styles.supportBlock}>
+                <h2 className={styles.supportTitle}>Co możesz zaimportować</h2>
+                <ul className={styles.supportList}>
+                  <li>Para</li>
+                  <li>Data zlecenia</li>
+                  <li>Telefon</li>
+                  <li>E-mail</li>
+                  <li>Cena</li>
+                  <li>Nazwa pakietu</li>
+                  <li>Notatka</li>
+                </ul>
+              </section>
+              <section className={styles.supportBlock}>
+                <h2 className={styles.supportTitle}>Bezpieczny import</h2>
+                <p className={styles.supportBody}>
+                  Przed zapisaniem zobaczysz dane do sprawdzenia.
+                </p>
+                <p className={styles.supportBody}>
+                  Import nie wysyła żadnych wiadomości do Twoich klientów.
+                </p>
+              </section>
+            </aside>
+          </div>
         </div>
       </PageContainer>
 

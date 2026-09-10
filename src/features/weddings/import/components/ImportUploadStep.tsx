@@ -16,6 +16,8 @@ type ImportUploadStepProps = {
   headerAutoDetected: boolean
   fileInputRef: RefObject<HTMLInputElement | null>
   recordCount: number
+  /** When true, omit client-comms line (shown in first-run support column). */
+  hideClientCommsTrust?: boolean
   onFileInputChange: (file: File) => void
   onRequestChangeFile: () => void
   onSelectSheet: (sheet: ParsedWorkbookSheet) => void
@@ -33,6 +35,7 @@ export function ImportUploadStep({
   headerAutoDetected,
   fileInputRef,
   recordCount,
+  hideClientCommsTrust = false,
   onFileInputChange,
   onRequestChangeFile,
   onSelectSheet,
@@ -60,8 +63,14 @@ export function ImportUploadStep({
           Przenieś dane z arkusza
         </h2>
         <p className={styles.lead}>
-          Wybierz plik Excel lub CSV. Nic nie zostanie zapisane bez Twojego potwierdzenia.
+          Wybierz plik Excel lub CSV. Nic nie zostanie zapisane bez Twojego
+          potwierdzenia.
         </p>
+        {!hideClientCommsTrust ? (
+          <p className={styles.trustLine}>
+            Nic nie zostanie wysłane do Twoich klientów.
+          </p>
+        ) : null}
       </div>
 
       <input

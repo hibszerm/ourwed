@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { AppLayout } from '@/layouts/AppLayout'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -11,6 +11,10 @@ import { TodoTodayCard } from '@/features/dashboard/components/TodoTodayCard'
 import { NotificationsCard } from '@/features/dashboard/components/NotificationsCard'
 import { PendingWeddingsCard } from '@/features/dashboard/components/PendingWeddingsCard'
 import { TrialEndingNotice } from '@/features/billing/TrialEndingNotice'
+import { FirstRunHome } from '@/features/onboarding/FirstRunHome'
+import { GuideDiscoveryModalHost } from '@/features/onboarding/guide/GuideDiscoveryModalHost'
+import { shouldShowFirstRunHome } from '@/features/onboarding/firstRunDiscriminator'
+import { readFirstRunPreferOperationalDashboard } from '@/features/onboarding/firstRunSessionPreference'
 import { buildAssignmentEvents } from '@/features/calendar/utils/calendarEvents'
 import {
   getNearestUpcomingAssignment,
@@ -26,8 +30,15 @@ export function DashboardPage() {
     isError: assignmentsError,
   } = useDashboardAssignments()
   const { data: studioUser } = useCurrentStudioUser()
+  const [preferOperational, setPreferOperational] = useState(() =>
+    readFirstRunPreferOperationalDashboard(),
+  )
 
   const weddings = assignmentLists?.weddings ?? []
+  const showFirstRun = shouldShowFirstRunHome({
+    totalWeddingHistoryCount: weddings.length,
+    sessionPreferOperationalDashboard: preferOperational,
+  })
 
   const assignments = useMemo(
     () =>
@@ -74,8 +85,22 @@ export function DashboardPage() {
     )
   }
 
+  if (showFirstRun) {
+    return (
+      <AppLayout>
+        <PageContainer width="wide">
+          <TrialEndingNotice />
+          <FirstRunHome
+            onPreferOperationalDashboard={() => setPreferOperational(true)}
+          />
+        </PageContainer>
+      </AppLayout>
+    )
+  }
+
   return (
     <AppLayout>
+      <GuideDiscoveryModalHost showingFirstRunHome={false} />
       <PageContainer>
         <div className={styles.dashboard}>
           <TrialEndingNotice />
@@ -94,7 +119,9 @@ export function DashboardPage() {
             <div className={styles.primary}>
               <PendingWeddingsCard />
               <TodoTodayCard weddings={weddings} />
-              <NearestDeliveryDeadlineCard />
+              <NearestDeliveryDeadlineCard
+                hasWeddingHistory={weddings.length > 0}
+              />
             </div>
             <div className={styles.secondary}>
               <NotificationsCard />

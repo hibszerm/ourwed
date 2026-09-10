@@ -185,15 +185,14 @@ run('Modern Edytuj miejsca uses centered modal, not the right drawer', () => {
   const backdrop = read('src/components/ui/Backdrop.module.css')
 
   assert(
-    modernWorkspace.includes('isLocationEditorSection(editorSection)'),
+    modernWorkspace.includes('resolveWeddingEditOverlayPresentation'),
     'modern locations use centered overlay',
   )
   assert(
-    modernWorkspace.includes("tab === 'contract_finance'") &&
-      modernWorkspace.includes("editorSection === 'package'"),
-    'contract tab package/finances reuse the same centered overlay',
+    !modernWorkspace.includes('allowCenteredPackage'),
+    'package/finance no longer gated to contract tab',
   )
-  assert(!classic.includes('overlayPresentation'), 'classic keeps default drawer')
+  assert(classic.includes('resolveWeddingEditOverlayPresentation'), 'classic centered parity')
   assert(surface.includes('LocationRoleFields'), 'same form body')
   assert(surface.includes("centeredLocations ? 'Edytuj miejsca' : meta.title"), 'modern title')
   assert(surface.includes('Uzupełnij lokalizacje używane w dniu ślubu.'), 'modern description')

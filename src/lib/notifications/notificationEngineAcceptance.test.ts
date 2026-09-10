@@ -152,7 +152,25 @@ const notifService = read('src/lib/api/notificationService.ts')
 assert(notifService.includes('link: row.link'), 'maps link field')
 assert(notifService.includes('unreadCount'), 'unread count API')
 assert(notifService.includes('markAllRead'), 'mark all API')
+assert(notifService.includes('markReadForEntity'), 'mark read by entity')
 assert(notifService.includes('listPage'), 'paginated list')
+
+const approveSvc = read('src/lib/api/questionnaireService.ts')
+assert(
+  approveSvc.includes("markReadForEntity('form_instance', instanceId)"),
+  'approve resolves awaiting-verification notification',
+)
+const pendingHooks = read(
+  'src/features/questionnaires/hooks/usePendingQuestionnaires.ts',
+)
+assert(
+  pendingHooks.includes("queryKey: ['notifications-latest']"),
+  'approve invalidates latest notifications',
+)
+assert(
+  pendingHooks.includes("queryKey: ['notifications-unread-count']"),
+  'approve invalidates unread count',
+)
 
 const sidebar = read('src/layouts/Sidebar.tsx')
 assert(sidebar.includes('useUnreadNotificationCount'), 'shared unread hook')

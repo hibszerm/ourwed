@@ -78,6 +78,22 @@
   padding: var(--space-2) 0;
 }
 
+.emptyState {
+  padding: var(--space-2) 0;
+}
+
+.emptyTitle {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-sm);
+  font-weight: 550;
+  color: var(--color-text-secondary);
+}
+
+.emptyState .empty {
+  padding: 0;
+  font-size: var(--text-xs);
+}
+
 @media (max-width: 767px) {
   .panel {
     padding: var(--space-4);

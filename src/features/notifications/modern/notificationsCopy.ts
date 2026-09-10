@@ -18,10 +18,10 @@ export const NOTIFICATIONS_MARK_ALL_PENDING = 'Oznaczanie…'
 export const NOTIFICATIONS_MARK_ALL_ERROR =
   'Nie udało się oznaczyć wszystkich jako przeczytane. Spróbuj ponownie.'
 
-export const NOTIFICATIONS_EMPTY_ALL_TITLE = 'Brak powiadomień'
+export const NOTIFICATIONS_EMPTY_ALL_TITLE = 'Brak nowych powiadomień'
 
 export const NOTIFICATIONS_EMPTY_ALL_COPY =
-  'Nowe powiadomienia dotyczące Twojej pracy pojawią się tutaj.'
+  'Gdy para wypełni ankietę do umowy lub ankietę przedślubną, informacja pojawi się tutaj.'
 
 export const NOTIFICATIONS_EMPTY_UNREAD_TITLE = 'Wszystko przeczytane'
 

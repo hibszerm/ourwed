@@ -2,6 +2,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Card, CardHeader } from '@/components/ui/Card'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { IconBell } from '@/components/icons'
+import { NOTIFICATIONS_EMPTY } from '@/features/dashboard/presentation/dashboardEmptyCopy'
 import {
   useLatestNotifications,
   useMarkNotificationRead,
@@ -55,15 +56,19 @@ export function NotificationsCard({
       <CardHeader
         title="Powiadomienia"
         subtitle={
-          unread > 0 ? `${unread} nieprzeczytane` : 'Wszystko przeczytane'
+          notifications.length === 0
+            ? undefined
+            : unread > 0
+              ? `${unread} nieprzeczytane`
+              : 'Wszystko przeczytane'
         }
       />
       {loading ? (
         <div className={styles.loadingPulse} aria-busy="true" />
       ) : notifications.length === 0 ? (
         <EmptyState
-          title="Brak powiadomień"
-          description="Nowe alerty pojawią się tutaj."
+          title={NOTIFICATIONS_EMPTY.title}
+          description={NOTIFICATIONS_EMPTY.body}
         />
       ) : (
         <ul className={styles.list}>

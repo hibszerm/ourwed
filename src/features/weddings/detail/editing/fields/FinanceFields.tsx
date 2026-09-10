@@ -65,121 +65,132 @@ export function FinanceFields({
 
   return (
     <div className={styles.fieldGrid}>
-      <div className={styles.fieldRow}>
+      <section className={styles.editGroup} aria-labelledby="fin-group-agreement">
+        <h3 id="fin-group-agreement" className={styles.editGroupTitle}>
+          Umowa handlowa
+        </h3>
+        <div className={styles.fieldRow}>
+          <Input
+            label="Wartość umowy"
+            type="number"
+            min={0}
+            value={Number.isFinite(wedding.price) ? wedding.price : 0}
+            onChange={(e) =>
+              applyManualContractValue(Number(e.target.value) || 0)
+            }
+          />
+          <Input
+            label="Zadatek uzgodniony"
+            type="number"
+            min={0}
+            value={wedding.depositAmount ?? ''}
+            onChange={(e) =>
+              onChangeWedding({
+                depositAmount:
+                  e.target.value === ''
+                    ? undefined
+                    : Number(e.target.value) || 0,
+              })
+            }
+          />
+        </div>
         <Input
-          label="Wartość umowy"
-          type="number"
-          min={0}
-          value={Number.isFinite(wedding.price) ? wedding.price : 0}
-          onChange={(e) =>
-            applyManualContractValue(Number(e.target.value) || 0)
-          }
-        />
-        <Input
-          label="Zadatek uzgodniony"
-          type="number"
-          min={0}
-          value={wedding.depositAmount ?? ''}
+          label="Termin płatności końcowej"
+          type="date"
+          value={wedding.finalPaymentDueDate ?? ''}
           onChange={(e) =>
             onChangeWedding({
-              depositAmount:
-                e.target.value === '' ? undefined : Number(e.target.value) || 0,
+              finalPaymentDueDate: e.target.value || undefined,
             })
           }
         />
-      </div>
-      <Input
-        label="Termin płatności końcowej"
-        type="date"
-        value={wedding.finalPaymentDueDate ?? ''}
-        onChange={(e) =>
-          onChangeWedding({
-            finalPaymentDueDate: e.target.value || undefined,
-          })
-        }
-      />
+      </section>
 
-      <div className={styles.rowActions}>
-        <h3 className={styles.sectionTitle}>Wpłaty</h3>
-        <Button
-          type="button"
-          variant="secondary"
-          size="sm"
-          onClick={() =>
-            onChangePayments([
-              ...payments,
-              {
-                id: `temp-${createBrowserSafeId()}`,
-                label: TYPE_LABELS.installment,
-                amount: 0,
-                type: 'installment',
-                paid: false,
-              },
-            ])
-          }
-        >
-          Dodaj wpłatę
-        </Button>
-      </div>
+      <section className={styles.editGroup} aria-labelledby="fin-group-payments">
+        <div className={styles.rowActions}>
+          <h3 id="fin-group-payments" className={styles.editGroupTitle}>
+            Wpłaty
+          </h3>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={() =>
+              onChangePayments([
+                ...payments,
+                {
+                  id: `temp-${createBrowserSafeId()}`,
+                  label: TYPE_LABELS.installment,
+                  amount: 0,
+                  type: 'installment',
+                  paid: false,
+                },
+              ])
+            }
+          >
+            Dodaj wpłatę
+          </Button>
+        </div>
 
-      {payments.length === 0 ? (
-        <p className={styles.muted}>Brak wpłat.</p>
-      ) : (
-        <ul className={styles.list}>
-          {payments.map((p) => (
-            <li key={p.id} className={styles.listItem}>
-              <div className={styles.fieldRow}>
-                <Select
-                  label="Typ"
-                  value={p.type}
-                  onChange={(e) =>
-                    updatePayment(p.id, {
-                      type: e.target.value as PaymentType,
-                    })
+        {payments.length === 0 ? (
+          <p className={styles.muted}>Brak wpłat.</p>
+        ) : (
+          <ul className={styles.list}>
+            {payments.map((p) => (
+              <li key={p.id} className={styles.listItem}>
+                <div className={styles.fieldRow}>
+                  <Select
+                    label="Typ"
+                    value={p.type}
+                    onChange={(e) =>
+                      updatePayment(p.id, {
+                        type: e.target.value as PaymentType,
+                      })
+                    }
+                  >
+                    {PAYMENT_TYPES.map((t) => (
+                      <option key={t} value={t}>
+                        {TYPE_LABELS[t]}
+                      </option>
+                    ))}
+                  </Select>
+                  <Input
+                    label="Kwota"
+                    type="number"
+                    min={0}
+                    value={p.amount}
+                    onChange={(e) =>
+                      updatePayment(p.id, {
+                        amount: Number(e.target.value) || 0,
+                      })
+                    }
+                  />
+                </div>
+                <label className={styles.muted}>
+                  <input
+                    type="checkbox"
+                    checked={p.paid}
+                    onChange={(e) =>
+                      updatePayment(p.id, { paid: e.target.checked })
+                    }
+                  />{' '}
+                  Opłacone
+                </label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() =>
+                    onChangePayments(payments.filter((row) => row.id !== p.id))
                   }
                 >
-                  {PAYMENT_TYPES.map((t) => (
-                    <option key={t} value={t}>
-                      {TYPE_LABELS[t]}
-                    </option>
-                  ))}
-                </Select>
-                <Input
-                  label="Kwota"
-                  type="number"
-                  min={0}
-                  value={p.amount}
-                  onChange={(e) =>
-                    updatePayment(p.id, {
-                      amount: Number(e.target.value) || 0,
-                    })
-                  }
-                />
-              </div>
-              <label className={styles.muted}>
-                <input
-                  type="checkbox"
-                  checked={p.paid}
-                  onChange={(e) =>
-                    updatePayment(p.id, { paid: e.target.checked })
-                  }
-                />{' '}
-                Opłacone
-              </label>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() =>
-                  onChangePayments(payments.filter((row) => row.id !== p.id))
-                }
-              >
-                Usuń
-              </Button>
-            </li>
-          ))}
-        </ul>
-      )}
+                  Usuń
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
   )
 }

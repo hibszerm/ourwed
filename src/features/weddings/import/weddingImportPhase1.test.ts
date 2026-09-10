@@ -288,7 +288,23 @@ run('trust copy and exit label', () => {
   assert(upload.includes('Nic nie zostanie zapisane bez Twojego potwierdzenia.'), 'trust')
   assert(page.includes('← Śluby'), 'exit')
   assert(!page.includes('Wróć do ślubów'), 'no heavy header exit')
-  assert(page.includes('Importuj śluby'), 'title')
+  assert(page.includes('Importuj śluby'), 'established title')
+  assert(page.includes('Przenieś swój sezon'), 'first-run title')
+  assert(page.includes('Co możesz zaimportować'), 'capability list')
+  assert(page.includes('Bezpieczny import'), 'trust section')
+  assert(
+    page.includes('Import nie wysyła żadnych wiadomości do Twoich klientów.'),
+    'first-run no-client-comms trust',
+  )
+  assert(page.includes('existingWeddings.length === 0'), 'first-run discriminator')
+  assert(page.includes('supportColumn'), 'desktop support column')
+  assert(
+    !page.includes('{isFirstRunImport ? ('),
+    'support column not gated by wedding count',
+  )
+  assert(page.includes('hideClientCommsTrust={false}'), 'trust always visible')
+  assert(!page.includes('Lokalizacja'), 'no false location claim')
+  assert(!page.includes('workflow'), 'no workflow claim')
 })
 
 console.log('\nWedding import Phase 1 tests finished.')

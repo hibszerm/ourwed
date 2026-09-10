@@ -70,8 +70,14 @@ function cardFromUploadResult(
 export function PackageContractSection(input: {
   pkg: StudioPackage
   onPackageUpdated: (next: StudioPackage) => void
+  /**
+   * When true and no template is linked: show calm “Następny krok” guidance
+   * (studio still lacks any package↔template pair). Local-only missing templates
+   * after core_ready stay quieter.
+   */
+  emphasizeNextStep?: boolean
 }) {
-  const { pkg, onPackageUpdated } = input
+  const { pkg, onPackageUpdated, emphasizeNextStep = false } = input
   const { requirePro } = useProAccessGate()
   const replaceInputRef = useRef<HTMLInputElement>(null)
   const queryClient = useQueryClient()
@@ -341,20 +347,40 @@ export function PackageContractSection(input: {
 
   const showEmptyHint =
     surface === 'empty' && shouldShowEmptyDropzone(phase)
+  const showActivationNextStep = showEmptyHint && emphasizeNextStep
 
   return (
     <section
-      className={`${styles.experience} ${styles.packageContractBlock}`}
+      className={`${styles.experience} ${styles.packageContractBlock}${
+        showActivationNextStep ? ` ${styles.packageContractNextStep}` : ''
+      }`}
       aria-labelledby={`pkg-contract-${pkg.id}`}
       data-phase={phase}
       data-testid="package-contract-section"
+      data-has-template={hasPersistedTemplate ? 'true' : 'false'}
+      data-emphasize-next-step={emphasizeNextStep ? 'true' : 'false'}
     >
       <h3 className={styles.eyebrow} id={`pkg-contract-${pkg.id}`}>
         Szablon umowy
       </h3>
-      {showEmptyHint ? (
+      {showActivationNextStep ? (
+        <div
+          className={styles.packageContractNextStepPanel}
+          data-testid="package-contract-next-step"
+        >
+          <p className={styles.packageContractNextStepEyebrow}>Następny krok</p>
+          <p className={styles.packageContractNextStepTitle}>
+            Dodaj wzór umowy
+          </p>
+          <p className={styles.packageContractNextStepBody}>
+            Przypisz plik DOCX do tego pakietu, aby OurWed mógł przygotowywać na
+            jego podstawie umowy.
+          </p>
+        </div>
+      ) : showEmptyHint ? (
         <p className={styles.packageContractEmptyHint}>
-          Dodaj wzór umowy dla tego pakietu.
+          Brak przypisanego wzoru umowy. Dodaj plik DOCX, aby OurWed mógł
+          przygotowywać umowy z tego pakietu.
         </p>
       ) : null}
 

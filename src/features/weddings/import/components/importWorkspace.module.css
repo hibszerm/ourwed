@@ -17,10 +17,19 @@
 }
 
 .lead {
-  margin: 0.4rem 0 0;
+  margin: 0.5rem 0 0;
   max-width: 40rem;
   font-size: var(--text-sm);
-  line-height: 1.5;
+  line-height: 1.55;
+  color: var(--color-text-secondary);
+}
+
+.trustLine {
+  margin: 0.75rem 0 0;
+  max-width: 36rem;
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  font-weight: 500;
   color: var(--color-text-secondary);
 }
 
@@ -40,7 +49,7 @@
 .stack {
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
+  gap: var(--space-6);
   min-width: 0;
 }
 
@@ -50,12 +59,13 @@
   align-items: center;
   justify-content: center;
   text-align: center;
-  gap: 0.4rem;
+  gap: 0.45rem;
   width: 100%;
-  min-height: 16rem;
-  padding: 2.25rem 2rem;
+  min-height: 15rem;
+  max-width: none;
+  padding: 2.75rem 2.25rem;
   border: 1px solid var(--border-subtle, var(--color-border));
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
   background: var(--surface-primary, var(--color-surface));
   box-shadow: var(--shadow-xs);
   cursor: pointer;

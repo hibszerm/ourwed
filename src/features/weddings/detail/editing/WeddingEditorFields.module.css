@@ -43,6 +43,32 @@
   color: var(--color-text-primary);
 }
 
+/* Centered-editor calm groups (package / finance / etc.). */
+.editGroup {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 0 0 20px;
+  margin: 0 0 4px;
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--color-text-primary) 8%, transparent);
+}
+
+.editGroup:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+  margin-bottom: 0;
+}
+
+.editGroupTitle {
+  margin: 0;
+  font-size: 0.6875rem;
+  font-weight: 650;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-text-tertiary);
+}
+
 .muted {
   margin: 0;
   font-size: var(--text-xs);
@@ -141,4 +167,16 @@
     padding-top: 0;
     padding-bottom: 0;
   }
+}
+
+/* Local polish: quieter number spinners inside wedding editors only. */
+.fieldGrid :global(input[type='number']) {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.fieldGrid :global(input[type='number']::-webkit-outer-spin-button),
+.fieldGrid :global(input[type='number']::-webkit-inner-spin-button) {
+  -webkit-appearance: none;
+  margin: 0;
 }

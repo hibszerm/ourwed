@@ -37,6 +37,8 @@ export function WeddingIdentityEditDialog({
       onClose={onClose}
       showClose
       busy={busy}
+      size="md"
+      mobilePresentation="center"
       primaryAction={
         <Button
           type="submit"

@@ -1,5 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { IconBell } from '@/components/icons'
+import { NOTIFICATIONS_EMPTY } from '@/features/dashboard/presentation/dashboardEmptyCopy'
 import {
   useLatestNotifications,
   useMarkNotificationRead,
@@ -44,15 +45,20 @@ export function DashboardV3NotificationsPanel() {
         <h2 id="dashboard-v3-notifications-title" className={styles.title}>
           Powiadomienia
         </h2>
-        <p className={styles.subtitle}>
-          {unread > 0 ? `${unread} nieprzeczytane` : 'Wszystko przeczytane'}
-        </p>
+        {notifications.length > 0 ? (
+          <p className={styles.subtitle}>
+            {unread > 0 ? `${unread} nieprzeczytane` : 'Wszystko przeczytane'}
+          </p>
+        ) : null}
       </header>
 
       {loading ? (
         <div className={styles.loadingPulse} aria-busy="true" />
       ) : notifications.length === 0 ? (
-        <p className={styles.empty}>Brak powiadomień</p>
+        <div className={styles.emptyState}>
+          <p className={styles.emptyTitle}>{NOTIFICATIONS_EMPTY.title}</p>
+          <p className={styles.empty}>{NOTIFICATIONS_EMPTY.body}</p>
+        </div>
       ) : (
         <ul className={styles.list}>
           {notifications.slice(0, NOTIFICATION_DASHBOARD_LATEST).map(

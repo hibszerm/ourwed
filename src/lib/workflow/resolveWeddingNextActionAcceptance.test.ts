@@ -206,15 +206,15 @@ run('0. architecture freeze — pure resolver, no task persistence, legacy noted
   assert(engine.includes('LEGACY (Phase 1A)'), 'legacy marker')
 })
 
-run('1. brand-new → send_contract_questionnaire', () => {
+run('1. brand-new → complete_contract_data_manually', () => {
   assertEq(
     resolveWeddingNextAction(stub(), { today: FAR })?.id,
-    'send_contract_questionnaire',
+    'complete_contract_data_manually',
     'id',
   )
 })
 
-run('2. contract Q sent waiting → no fake Next Action from that domain', () => {
+run('2. contract Q sent + incomplete client → manual completion (Path A)', () => {
   const a = resolveWeddingNextAction(
     stub({
       questionnaires: {
@@ -240,10 +240,9 @@ run('2. contract Q sent waiting → no fake Next Action from that domain', () =>
     }),
     { today: IMMINENT, places: corePlaces() },
   )
-  assert(a?.id !== 'send_contract_questionnaire', 'not re-send')
+  assertEq(a?.id, 'complete_contract_data_manually', 'manual Path A')
   assert(a?.id !== 'generate_contract', 'cannot generate without party/Q complete')
-  assert(a?.id !== 'set_ceremony_time', 'no ops leap while waiting')
-  assertEq(a, null, 'waiting on couple → no invented CTA')
+  assert(a?.id !== 'set_ceremony_time', 'no ops leap while incomplete')
 })
 
 run('3. Q completed + contract none + travel unresolved → resolve_travel_fee', () => {
@@ -820,7 +819,7 @@ run('17. deterministic priority multi-true → legal wins', () => {
       }),
       ctx,
     )?.id,
-    'send_contract_questionnaire',
+    'complete_contract_data_manually',
     'priority',
   )
 })
@@ -849,18 +848,18 @@ run('19. send_prewedding title is send copy', () => {
   assertEq(a?.title, 'Wyślij ankietę przedślubną', 'title')
 })
 
-run('A1. contract Q not sent + travel unresolved → send_contract_questionnaire', () => {
+run('A1. incomplete client + travel unresolved → complete_contract_data_manually', () => {
   assertEq(
     resolveWeddingNextAction(
       stub({ travelFeeStatus: 'unresolved' }),
       { today: FAR },
     )?.id,
-    'send_contract_questionnaire',
+    'complete_contract_data_manually',
     'Q outranks travel',
   )
 })
 
-run('A2. contract Q sent/waiting + travel unresolved → no travel action', () => {
+run('A2. contract Q sent + incomplete client → manual before travel', () => {
   const a = resolveWeddingNextAction(
     stub({
       questionnaires: {
@@ -883,8 +882,8 @@ run('A2. contract Q sent/waiting + travel unresolved → no travel action', () =
     }),
     { today: FAR },
   )
-  assert(a?.id !== 'resolve_travel_fee', 'no travel while waiting')
-  assertEq(a, null, 'waiting')
+  assert(a?.id !== 'resolve_travel_fee', 'no travel while incomplete')
+  assertEq(a?.id, 'complete_contract_data_manually', 'manual Path A')
 })
 
 run('A3. contract data ready + none + travel unresolved → resolve_travel_fee', () => {
@@ -1120,12 +1119,12 @@ run('B7. resolver never returns open_cockpit', () => {
   assertEq(ready, null, 'runtime null not cockpit')
 })
 
-run('P4-A. Quick Create names+date only + not_sent → send_contract_questionnaire', () => {
+run('P4-A. Quick Create incomplete → complete_contract_data_manually', () => {
   const w = quickCreateWedding()
   assertEq(isClientContractCollectionComplete(w), false, 'collection incomplete')
   assertEq(
     resolveWeddingNextAction(w, { today: FAR })?.id,
-    'send_contract_questionnaire',
+    'complete_contract_data_manually',
     'quick still collect via questionnaire',
   )
 })
@@ -1152,7 +1151,7 @@ run('P4-C. Full photographer data + not_sent + travel included → generate_cont
   )
 })
 
-run('P4-D. Missing contract address + not_sent → send_contract_questionnaire', () => {
+run('P4-D. Missing contract address + not_sent → complete_contract_data_manually', () => {
   const w = photographerFullClient({
     couple: couple({
       partner1Address: '',
@@ -1163,18 +1162,58 @@ run('P4-D. Missing contract address + not_sent → send_contract_questionnaire',
   assertEq(isClientContractCollectionComplete(w), false, 'address missing')
   assertEq(
     resolveWeddingNextAction(w, { today: FAR })?.id,
-    'send_contract_questionnaire',
+    'complete_contract_data_manually',
     'still collect via questionnaire',
   )
 })
 
-run('P4-E. Missing reception location + not_sent → send_contract_questionnaire', () => {
+run('P4-E. Missing reception location + not_sent → complete_contract_data_manually', () => {
   const w = photographerFullClient({ receptionLocation: '' })
   assertEq(isClientContractCollectionComplete(w), false, 'reception missing')
+  const action = resolveWeddingNextAction(w, { today: FAR })
   assertEq(
-    resolveWeddingNextAction(w, { today: FAR })?.id,
-    'send_contract_questionnaire',
+    action?.id,
+    'complete_contract_data_manually',
     'reception is client-collection item',
+  )
+  assertEq(
+    action?.destination.kind,
+    'modal',
+    'opens checklist modal not contacts editor',
+  )
+  assert(
+    action?.destination.kind === 'modal' &&
+      action.destination.intent === 'complete_client_collection',
+    'complete_client_collection intent',
+  )
+})
+
+run('P4-E1. Reception only on places + not_sent → skips questionnaire', () => {
+  const w = photographerFullClient({
+    receptionLocation: '',
+    travelFeeStatus: 'unresolved',
+  })
+  const receptionPlace = {
+    id: 'place-reception',
+    weddingId: w.id,
+    role: 'reception' as const,
+    label: 'Sala Bankietowa',
+    placeId: null,
+    formattedAddress: 'Sala Bankietowa, Kraków',
+    latitude: null,
+    longitude: null,
+    sortOrder: 0,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+  }
+  assertEq(isClientContractCollectionComplete(w), false, 'scalar incomplete')
+  assertEq(
+    resolveWeddingNextAction(w, {
+      today: FAR,
+      places: [receptionPlace],
+    })?.id,
+    'resolve_travel_fee',
+    'places hydrate collection completeness',
   )
 })
 
@@ -1214,7 +1253,7 @@ run('P4-G. Photographer-only Full Create does not mark questionnaire completed',
   assertEq(w.questionnaires.contractData.status, 'not_sent', 'not_sent')
   assert(
     resolveWeddingNextAction(w, { today: FAR })?.id !==
-      'send_contract_questionnaire',
+      'complete_contract_data_manually',
     'Overview skips send CTA',
   )
 })
@@ -1275,7 +1314,7 @@ run('A6/A7-2. generated + incomplete client collection → mark_contract_sent (n
   )
   assertEq(a?.id, 'mark_contract_sent', 'generated overrides collection CTA')
   assert(
-    a?.id !== 'send_contract_questionnaire',
+    a?.id !== 'complete_contract_data_manually',
     'not questionnaire CTA',
   )
 })

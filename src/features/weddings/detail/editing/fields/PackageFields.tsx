@@ -311,141 +311,212 @@ export function PackageFields({
         </div>
       ) : null}
 
-      <Select
-        label="Pakiet katalogowy"
-        value={selectValue}
-        onChange={(e) => requestPackageChange(e.target.value)}
-        disabled={catalogPending || Boolean(pendingChange)}
-        data-testid="package-catalog-select"
-      >
-        <option value="">
-          {catalogPending
-            ? 'Ładowanie…'
-            : missingCatalogPackage
-              ? 'Wybierz dostępny pakiet…'
-              : 'Wybierz pakiet…'}
-        </option>
-        {packageChoices.map((p) => (
-          <option key={p.id} value={p.id}>
-            {p.name} — {formatCurrency(p.price)}
-          </option>
-        ))}
-      </Select>
-
-      {missingCatalogPackage ? (
-        <p className={styles.muted} data-testid="package-catalog-missing">
-          Powiązany pakiet katalogowy jest niedostępny (usunięty lub nieaktywny).
-          Snapshot „{wedding.packageName || 'bez nazwy'}” pozostaje bez zmian —
-          wybierz pakiet, aby ponownie powiązać katalog.
-        </p>
-      ) : null}
-
-      <p className={styles.muted}>
-        Snapshot: {wedding.packageName || 'brak'} ·{' '}
-        {snapshotItems.length} pozycji
-      </p>
-
-      <div className={styles.fieldRow}>
-        <Input
-          label="Wartość umowy"
-          type="number"
-          min={0}
-          value={wedding.price}
-          onChange={(e) =>
-            applyManualContractValue(Number(e.target.value) || 0)
-          }
-        />
-        <Input
-          label="Zaliczka uzgodniona"
-          type="number"
-          min={0}
-          value={wedding.depositAmount ?? 0}
-          onChange={(e) =>
-            onChangeWedding({ depositAmount: Number(e.target.value) || 0 })
-          }
-        />
-      </div>
-      <div className={styles.fieldRow}>
-        <Input
-          label="Godziny reportażu"
-          type="number"
-          min={0}
-          step="0.5"
-          value={wedding.coverageHours ?? ''}
-          onChange={(e) =>
-            onChangeWedding({
-              coverageHours:
-                e.target.value === '' ? null : Number(e.target.value) || 0,
-            })
-          }
-        />
-        <Input
-          label="Koniec reportażu"
-          type="time"
-          value={wedding.coverageEndTime ?? ''}
-          onChange={(e) =>
-            onChangeWedding({
-              coverageEndTime: e.target.value.trim() || null,
-            })
-          }
-        />
-      </div>
-      <div className={styles.fieldRow}>
-        <Input
-          label="Stawka nadgodzin"
-          type="number"
-          min={0}
-          value={wedding.overtimeRate ?? ''}
-          onChange={(e) =>
-            onChangeWedding({
-              overtimeRate: e.target.value ? Number(e.target.value) : null,
-            })
-          }
-        />
-      </div>
-      <div className={styles.fieldRow} data-testid="wedding-delivery-term">
-        <Input
-          label="Termin oddania"
-          type="number"
-          min={1}
-          step={1}
-          value={
-            readDeliveryTermForm(wedding.deliveryMonths, wedding.deliveryDays)
-              .value
-          }
-          onChange={(e) => {
-            const unit = readDeliveryTermForm(
-              wedding.deliveryMonths,
-              wedding.deliveryDays,
-            ).unit
-            onChangeWedding(
-              applyDeliveryTermFormToWedding(wedding, unit, e.target.value),
-            )
-          }}
-          data-testid="wedding-delivery-term-value"
-        />
+      <section className={styles.editGroup} aria-labelledby="pkg-group-catalog">
+        <h3 id="pkg-group-catalog" className={styles.editGroupTitle}>
+          Pakiet
+        </h3>
         <Select
-          label="Jednostka"
-          value={
-            readDeliveryTermForm(wedding.deliveryMonths, wedding.deliveryDays)
-              .unit
-          }
-          onChange={(e) => {
-            const unit = e.target.value as DeliveryTermUnit
-            const value = readDeliveryTermForm(
-              wedding.deliveryMonths,
-              wedding.deliveryDays,
-            ).value
-            onChangeWedding(
-              applyDeliveryTermFormToWedding(wedding, unit, value),
-            )
-          }}
-          data-testid="wedding-delivery-term-unit"
+          label="Pakiet katalogowy"
+          value={selectValue}
+          onChange={(e) => requestPackageChange(e.target.value)}
+          disabled={catalogPending || Boolean(pendingChange)}
+          data-testid="package-catalog-select"
         >
-          <option value="months">miesięcy</option>
-          <option value="calendar_days">dni kalendarzowych</option>
+          <option value="">
+            {catalogPending
+              ? 'Ładowanie…'
+              : missingCatalogPackage
+                ? 'Wybierz dostępny pakiet…'
+                : 'Wybierz pakiet…'}
+          </option>
+          {packageChoices.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name} — {formatCurrency(p.price)}
+            </option>
+          ))}
         </Select>
-      </div>
+
+        {missingCatalogPackage ? (
+          <p className={styles.muted} data-testid="package-catalog-missing">
+            Powiązany pakiet katalogowy jest niedostępny (usunięty lub nieaktywny).
+            Snapshot „{wedding.packageName || 'bez nazwy'}” pozostaje bez zmian —
+            wybierz pakiet, aby ponownie powiązać katalog.
+          </p>
+        ) : null}
+
+        <p className={styles.muted}>
+          Snapshot: {wedding.packageName || 'brak'} ·{' '}
+          {snapshotItems.length} pozycji
+        </p>
+
+        {wedding.packageId ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              const selected = packageChoices.find(
+                (p) => p.id === wedding.packageId,
+              )
+              if (!selected) return
+              if (
+                !window.confirm(
+                  'Uzupełnić brakujące warunki z aktualnego pakietu katalogu? Wartość umowy, zaliczka, usługi dodatkowe i dojazd pozostaną bez zmian.',
+                )
+              ) {
+                return
+              }
+              const extrasTotal = extrasTotalOf(extras)
+              const travel = getEffectiveTravelFeeAmount(wedding)
+              const filled = fillWeddingTermsFromCatalogPackage(
+                wedding,
+                selected,
+                {
+                  preserveContractValue: true,
+                  preserveDeposit: true,
+                  extrasTotal,
+                  effectiveTravelFee: travel,
+                },
+              )
+              onChangePackageBasePrice(
+                rebaseEffectivePackageBase({
+                  contractValue: wedding.price,
+                  extrasTotal,
+                  effectiveTravel: travel,
+                }),
+              )
+              onChangeWedding({
+                ...filled,
+                ...reconcileDeliveryDeadline({
+                  previous: wedding,
+                  next: { ...wedding, ...filled },
+                }),
+              })
+            }}
+          >
+            Uzupełnij z katalogu
+          </Button>
+        ) : null}
+      </section>
+
+      <section className={styles.editGroup} aria-labelledby="pkg-group-value">
+        <h3 id="pkg-group-value" className={styles.editGroupTitle}>
+          Wartość i zaliczka
+        </h3>
+        <div className={styles.fieldRow}>
+          <Input
+            label="Wartość umowy"
+            type="number"
+            min={0}
+            value={wedding.price}
+            onChange={(e) =>
+              applyManualContractValue(Number(e.target.value) || 0)
+            }
+          />
+          <Input
+            label="Zaliczka uzgodniona"
+            type="number"
+            min={0}
+            value={wedding.depositAmount ?? 0}
+            onChange={(e) =>
+              onChangeWedding({ depositAmount: Number(e.target.value) || 0 })
+            }
+          />
+        </div>
+      </section>
+
+      <section className={styles.editGroup} aria-labelledby="pkg-group-time">
+        <h3 id="pkg-group-time" className={styles.editGroupTitle}>
+          Czas realizacji
+        </h3>
+        <div className={styles.fieldRow}>
+          <Input
+            label="Godziny reportażu"
+            type="number"
+            min={0}
+            step="0.5"
+            value={wedding.coverageHours ?? ''}
+            onChange={(e) =>
+              onChangeWedding({
+                coverageHours:
+                  e.target.value === '' ? null : Number(e.target.value) || 0,
+              })
+            }
+          />
+          <Input
+            label="Koniec reportażu"
+            type="time"
+            value={wedding.coverageEndTime ?? ''}
+            onChange={(e) =>
+              onChangeWedding({
+                coverageEndTime: e.target.value.trim() || null,
+              })
+            }
+          />
+        </div>
+        <div className={styles.fieldRow}>
+          <Input
+            label="Stawka nadgodzin"
+            type="number"
+            min={0}
+            value={wedding.overtimeRate ?? ''}
+            onChange={(e) =>
+              onChangeWedding({
+                overtimeRate: e.target.value ? Number(e.target.value) : null,
+              })
+            }
+          />
+        </div>
+      </section>
+
+      <section className={styles.editGroup} aria-labelledby="pkg-group-delivery">
+        <h3 id="pkg-group-delivery" className={styles.editGroupTitle}>
+          Dostawa
+        </h3>
+        <div className={styles.fieldRow} data-testid="wedding-delivery-term">
+          <Input
+            label="Termin oddania"
+            type="number"
+            min={1}
+            step={1}
+            value={
+              readDeliveryTermForm(wedding.deliveryMonths, wedding.deliveryDays)
+                .value
+            }
+            onChange={(e) => {
+              const unit = readDeliveryTermForm(
+                wedding.deliveryMonths,
+                wedding.deliveryDays,
+              ).unit
+              onChangeWedding(
+                applyDeliveryTermFormToWedding(wedding, unit, e.target.value),
+              )
+            }}
+            data-testid="wedding-delivery-term-value"
+          />
+          <Select
+            label="Jednostka"
+            value={
+              readDeliveryTermForm(wedding.deliveryMonths, wedding.deliveryDays)
+                .unit
+            }
+            onChange={(e) => {
+              const unit = e.target.value as DeliveryTermUnit
+              const value = readDeliveryTermForm(
+                wedding.deliveryMonths,
+                wedding.deliveryDays,
+              ).value
+              onChangeWedding(
+                applyDeliveryTermFormToWedding(wedding, unit, value),
+              )
+            }}
+            data-testid="wedding-delivery-term-unit"
+          >
+            <option value="months">miesięcy</option>
+            <option value="calendar_days">dni kalendarzowych</option>
+          </Select>
+        </div>
+      </section>
 
       {/*
         finalPaymentTerms = rule/mode; finalPaymentDueDate = derived concrete date.
@@ -453,213 +524,177 @@ export function PackageFields({
         Hide duplicate date when mode already defines the deadline.
         Legacy: date-only (no mode) keeps a single date field.
       */}
-      <div className={styles.deadlineBlock} data-testid="final-payment-deadline">
-        <Select
-          label="Termin płatności końcowej"
-          value={wedding.finalPaymentTerms?.mode ?? ''}
-          onChange={(e) => {
-            const mode = e.target.value as
-              | ''
-              | 'wedding_day'
-              | 'days_after_wedding'
-              | 'months_after_wedding'
-              | 'after_delivery'
-            if (!mode) {
-              onChangeWedding({
-                finalPaymentTerms: null,
-                finalPaymentDueDate: wedding.finalPaymentDueDate ?? null,
-              })
-              return
-            }
-            const current = wedding.finalPaymentTerms
-            const value =
-              current &&
-              (current.mode === 'days_after_wedding' ||
-                current.mode === 'months_after_wedding')
-                ? current.value
-                : 14
-            const terms =
-              mode === 'days_after_wedding' || mode === 'months_after_wedding'
-                ? { mode, value }
-                : { mode }
-            const due = resolveFinalPaymentDueDate({
-              terms,
-              weddingDate: wedding.date,
-            })
-            onChangeWedding({
-              finalPaymentTerms: terms,
-              finalPaymentDueDate: due,
-            })
-          }}
-        >
-          <option value="">Nie ustawiono</option>
-          {FINAL_PAYMENT_TERMS_MODE_OPTIONS.map((opt) => (
-            <option key={opt.mode} value={opt.mode}>
-              {opt.label}
-            </option>
-          ))}
-        </Select>
-        {wedding.finalPaymentTerms?.mode === 'days_after_wedding' ||
-        wedding.finalPaymentTerms?.mode === 'months_after_wedding' ? (
-          <Input
-            label={
-              wedding.finalPaymentTerms.mode === 'days_after_wedding'
-                ? 'Liczba dni'
-                : 'Liczba miesięcy'
-            }
-            type="number"
-            min={1}
-            value={wedding.finalPaymentTerms.value}
+      <section className={styles.editGroup} aria-labelledby="pkg-group-settle">
+        <h3 id="pkg-group-settle" className={styles.editGroupTitle}>
+          Rozliczenie
+        </h3>
+        <div className={styles.deadlineBlock} data-testid="final-payment-deadline">
+          <Select
+            label="Termin płatności końcowej"
+            value={wedding.finalPaymentTerms?.mode ?? ''}
             onChange={(e) => {
-              const value = Math.max(1, Number(e.target.value) || 1)
-              const terms = {
-                mode: wedding.finalPaymentTerms!.mode,
-                value,
-              } as const
+              const mode = e.target.value as
+                | ''
+                | 'wedding_day'
+                | 'days_after_wedding'
+                | 'months_after_wedding'
+                | 'after_delivery'
+              if (!mode) {
+                onChangeWedding({
+                  finalPaymentTerms: null,
+                  finalPaymentDueDate: wedding.finalPaymentDueDate ?? null,
+                })
+                return
+              }
+              const current = wedding.finalPaymentTerms
+              const value =
+                current &&
+                (current.mode === 'days_after_wedding' ||
+                  current.mode === 'months_after_wedding')
+                  ? current.value
+                  : 14
+              const terms =
+                mode === 'days_after_wedding' || mode === 'months_after_wedding'
+                  ? { mode, value }
+                  : { mode }
+              const due = resolveFinalPaymentDueDate({
+                terms,
+                weddingDate: wedding.date,
+              })
               onChangeWedding({
                 finalPaymentTerms: terms,
-                finalPaymentDueDate: resolveFinalPaymentDueDate({
-                  terms,
-                  weddingDate: wedding.date,
-                }),
+                finalPaymentDueDate: due,
               })
             }}
-          />
+          >
+            <option value="">Nie ustawiono</option>
+            {FINAL_PAYMENT_TERMS_MODE_OPTIONS.map((opt) => (
+              <option key={opt.mode} value={opt.mode}>
+                {opt.label}
+              </option>
+            ))}
+          </Select>
+          {wedding.finalPaymentTerms?.mode === 'days_after_wedding' ||
+          wedding.finalPaymentTerms?.mode === 'months_after_wedding' ? (
+            <Input
+              label={
+                wedding.finalPaymentTerms.mode === 'days_after_wedding'
+                  ? 'Liczba dni'
+                  : 'Liczba miesięcy'
+              }
+              type="number"
+              min={1}
+              value={wedding.finalPaymentTerms.value}
+              onChange={(e) => {
+                const value = Math.max(1, Number(e.target.value) || 1)
+                const terms = {
+                  mode: wedding.finalPaymentTerms!.mode,
+                  value,
+                } as const
+                onChangeWedding({
+                  finalPaymentTerms: terms,
+                  finalPaymentDueDate: resolveFinalPaymentDueDate({
+                    terms,
+                    weddingDate: wedding.date,
+                  }),
+                })
+              }}
+            />
+          ) : null}
+          {!wedding.finalPaymentTerms?.mode ? (
+            <Input
+              label="Termin płatności (data)"
+              type="date"
+              value={wedding.finalPaymentDueDate ?? ''}
+              onChange={(e) =>
+                onChangeWedding({
+                  finalPaymentDueDate: e.target.value.trim() || null,
+                })
+              }
+              hint="Opcjonalnie, gdy nie wybrano reguły powyżej."
+            />
+          ) : null}
+        </div>
+      </section>
+
+      <section className={styles.editGroup} aria-labelledby="pkg-group-extras">
+        <h3 id="pkg-group-extras" className={styles.editGroupTitle}>
+          Dodatki
+        </h3>
+        {availableExtras.length > 0 ? (
+          <Select
+            label="Dodaj usługę"
+            value=""
+            onChange={(e) => {
+              const service = catalogExtras.find((s) => s.id === e.target.value)
+              if (!service) return
+              applyExtrasSelection([
+                ...extras,
+                {
+                  id: `temp-${createBrowserSafeId()}`,
+                  weddingId: wedding.id,
+                  extraServiceId: service.id,
+                  name: service.name,
+                  nameSnapshot: service.name,
+                  priceSnapshot: service.price,
+                  quantity: 1,
+                  createdAt: new Date().toISOString(),
+                },
+              ])
+            }}
+          >
+            <option value="">Wybierz…</option>
+            {availableExtras.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name} — {formatCurrency(s.price)}
+              </option>
+            ))}
+          </Select>
         ) : null}
-        {!wedding.finalPaymentTerms?.mode ? (
-          <Input
-            label="Termin płatności (data)"
-            type="date"
-            value={wedding.finalPaymentDueDate ?? ''}
-            onChange={(e) =>
-              onChangeWedding({
-                finalPaymentDueDate: e.target.value.trim() || null,
-              })
-            }
-            hint="Opcjonalnie, gdy nie wybrano reguły powyżej."
-          />
-        ) : null}
-      </div>
 
-      {wedding.packageId ? (
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={() => {
-            const selected = packageChoices.find(
-              (p) => p.id === wedding.packageId,
-            )
-            if (!selected) return
-            if (
-              !window.confirm(
-                'Uzupełnić brakujące warunki z aktualnego pakietu katalogu? Wartość umowy, zaliczka, usługi dodatkowe i dojazd pozostaną bez zmian.',
-              )
-            ) {
-              return
-            }
-            const extrasTotal = extrasTotalOf(extras)
-            const travel = getEffectiveTravelFeeAmount(wedding)
-            const filled = fillWeddingTermsFromCatalogPackage(wedding, selected, {
-              preserveContractValue: true,
-              preserveDeposit: true,
-              extrasTotal,
-              effectiveTravelFee: travel,
-            })
-            onChangePackageBasePrice(
-              rebaseEffectivePackageBase({
-                contractValue: wedding.price,
-                extrasTotal,
-                effectiveTravel: travel,
-              }),
-            )
-            onChangeWedding({
-              ...filled,
-              ...reconcileDeliveryDeadline({
-                previous: wedding,
-                next: { ...wedding, ...filled },
-              }),
-            })
-          }}
-        >
-          Uzupełnij z katalogu
-        </Button>
-      ) : null}
-
-      <h3 className={styles.sectionTitle}>Usługi dodatkowe</h3>
-      {availableExtras.length > 0 ? (
-        <Select
-          label="Dodaj usługę"
-          value=""
-          onChange={(e) => {
-            const service = catalogExtras.find((s) => s.id === e.target.value)
-            if (!service) return
-            applyExtrasSelection([
-              ...extras,
-              {
-                id: `temp-${createBrowserSafeId()}`,
-                weddingId: wedding.id,
-                extraServiceId: service.id,
-                name: service.name,
-                nameSnapshot: service.name,
-                priceSnapshot: service.price,
-                quantity: 1,
-                createdAt: new Date().toISOString(),
-              },
-            ])
-          }}
-        >
-          <option value="">Wybierz…</option>
-          {availableExtras.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name} — {formatCurrency(s.price)}
-            </option>
-          ))}
-        </Select>
-      ) : null}
-
-      {extras.length === 0 ? (
-        <p className={styles.muted}>Brak usług dodatkowych.</p>
-      ) : (
-        <ul className={styles.list}>
-          {extras.map((e) => (
-            <li key={e.id} className={styles.listItem}>
-              <div className={styles.fieldRow}>
-                <div>
-                  <span className={styles.extraNameLabel}>Usługa</span>
-                  <p className={styles.extraName}>
-                    {resolveWeddingExtraDisplayName(e)}
-                  </p>
+        {extras.length === 0 ? (
+          <p className={styles.muted}>Brak usług dodatkowych.</p>
+        ) : (
+          <ul className={styles.list}>
+            {extras.map((e) => (
+              <li key={e.id} className={styles.listItem}>
+                <div className={styles.fieldRow}>
+                  <div>
+                    <span className={styles.extraNameLabel}>Usługa</span>
+                    <p className={styles.extraName}>
+                      {resolveWeddingExtraDisplayName(e)}
+                    </p>
+                  </div>
+                  <Input
+                    label="Ilość"
+                    type="number"
+                    min={1}
+                    value={e.quantity}
+                    onChange={(ev) => {
+                      const quantity = Math.max(1, Number(ev.target.value) || 1)
+                      applyExtrasSelection(
+                        extras.map((row) =>
+                          row.id === e.id ? { ...row, quantity } : row,
+                        ),
+                      )
+                    }}
+                  />
                 </div>
-                <Input
-                  label="Ilość"
-                  type="number"
-                  min={1}
-                  value={e.quantity}
-                  onChange={(ev) => {
-                    const quantity = Math.max(1, Number(ev.target.value) || 1)
-                    applyExtrasSelection(
-                      extras.map((row) =>
-                        row.id === e.id ? { ...row, quantity } : row,
-                      ),
-                    )
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    applyExtrasSelection(extras.filter((row) => row.id !== e.id))
                   }}
-                />
-              </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  applyExtrasSelection(extras.filter((row) => row.id !== e.id))
-                }}
-              >
-                Usuń
-              </Button>
-            </li>
-          ))}
-        </ul>
-      )}
+                >
+                  Usuń
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
   )
 }

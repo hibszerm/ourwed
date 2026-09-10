@@ -166,6 +166,43 @@
   line-height: 1.45;
 }
 
+.packageContractNextStep {
+  padding-top: 0.15rem;
+}
+
+.packageContractNextStepPanel {
+  margin: 0 0 0.9rem;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--color-text) 3.5%, var(--color-surface));
+  border: 1px solid color-mix(in srgb, var(--color-border) 88%, transparent);
+}
+
+.packageContractNextStepEyebrow {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--cx-muted);
+}
+
+.packageContractNextStepTitle {
+  margin: 0.35rem 0 0;
+  font-size: 1rem;
+  font-weight: 620;
+  letter-spacing: -0.02em;
+  color: var(--cx-ink);
+}
+
+.packageContractNextStepBody {
+  margin: 0.35rem 0 0;
+  max-width: 38em;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: var(--cx-muted);
+}
+
 .packageContractReadyCard {
   gap: 1rem;
   padding: 1.15rem 1.25rem;

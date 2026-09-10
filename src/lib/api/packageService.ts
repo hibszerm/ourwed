@@ -155,6 +155,13 @@ function commercialPatch(
   return patch
 }
 
+/** Lightweight package row for Dashboard setup guidance — no package items. */
+export type PackageSetupSignal = {
+  id: string
+  name: string
+  activeContractTemplateId: string | null
+}
+
 export const packageService = {
   async list(options?: { activeOnly?: boolean }): Promise<StudioPackage[]> {
     const userId = await requireStudioUserId()
@@ -178,6 +185,30 @@ export const packageService = {
     const itemsByPackage = await packageItemService.listByPackageIds(ids)
 
     return rows.map((row) => mapPackage(row, itemsByPackage.get(row.id) ?? []))
+  },
+
+  /**
+   * Dashboard Phase 2.1 proxy — package count + activeContractTemplateId only.
+   * Avoids package-items N+1 used by `list()`. Same table; invalidated via
+   * `['studio-packages']` prefix.
+   */
+  async listSetupSignals(): Promise<PackageSetupSignal[]> {
+    const userId = await requireStudioUserId()
+    const { data, error } = await supabase
+      .from('packages')
+      .select('id, name, active_contract_template_id')
+      .eq('user_id', userId)
+      .order('sort_order', { ascending: true })
+      .order('created_at', { ascending: true })
+    throwOnError(error)
+    return ((data ?? []) as Pick<
+      PackageRow,
+      'id' | 'name' | 'active_contract_template_id'
+    >[]).map((row) => ({
+      id: row.id,
+      name: row.name,
+      activeContractTemplateId: row.active_contract_template_id ?? null,
+    }))
   },
 
   async get(id: string): Promise<StudioPackage | null> {

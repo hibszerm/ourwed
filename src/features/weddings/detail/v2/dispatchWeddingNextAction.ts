@@ -6,7 +6,8 @@
 import type { WeddingNextAction } from '@/lib/workflow/resolveWeddingNextAction'
 
 export type WeddingNextActionHandlers = {
-  sendContractQuestionnaire: () => void
+  /** Path A — open client-collection missing checklist. */
+  completeContractDataManually: () => void
   resolveTravelFee: () => void
   generateContract: () => void
   /** Contract tab — WeddingContractSignedControls lives there. */
@@ -29,8 +30,8 @@ export function dispatchWeddingNextAction(
   handlers: WeddingNextActionHandlers,
 ): void {
   switch (action.id) {
-    case 'send_contract_questionnaire':
-      handlers.sendContractQuestionnaire()
+    case 'complete_contract_data_manually':
+      handlers.completeContractDataManually()
       return
     case 'resolve_travel_fee':
       handlers.resolveTravelFee()

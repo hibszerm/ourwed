@@ -8,10 +8,10 @@
  * Waiting on the couple / awareness belongs to status + Attention — not here.
  *
  * Lifecycle gates (proximity never bypasses unfinished commercial work):
- * A. Contract data collection (questionnaire only if client data incomplete
- *    AND contract status is still `none`)
- *    → travel → generate → mark sent → mark signed
- *    Questionnaire `not_sent` is provenance, not an automatic collection CTA.
+ * A. Contract client data (existing wedding incomplete → manual editor;
+ *    contract status still `none`) → travel → generate → mark sent → mark signed
+ *    Lead contract questionnaire is Path B (pre-creation acquisition) — never
+ *    recommended once a wedding row exists.
  *    Once a contract is generated/sent/signed, collection CTAs never outrank it.
  * B. Deposit when required
  * C. Pre-wedding prep window (send; waiting ⇒ null)
@@ -26,6 +26,7 @@
 
 import { resolveStopTime } from '@/features/wedding-day/operationalDayPlan'
 import type { OperationalTimeMap } from '@/features/wedding-day/operationalDayPlan'
+import { applyWeddingPlaces } from '@/lib/api/weddings/weddingHydrate'
 import { hasPaidDepositPayment } from '@/lib/finance/hasPaidDepositPayment'
 import { getAgreedDeposit } from '@/lib/utils/commercial'
 import { getDaysUntil } from '@/lib/utils/dates'
@@ -48,7 +49,7 @@ export type WeddingNextActionTab =
   | 'activity'
 
 export type WeddingNextActionId =
-  | 'send_contract_questionnaire'
+  | 'complete_contract_data_manually'
   | 'resolve_travel_fee'
   | 'generate_contract'
   | 'mark_contract_sent'
@@ -70,14 +71,19 @@ export type WeddingNextActionDestination =
   | { kind: 'route'; path: string }
   | {
       kind: 'modal'
-      intent: 'send_contract_questionnaire' | 'add_deposit' | 'resolve_travel_fee'
+      intent: 'add_deposit' | 'resolve_travel_fee' | 'complete_client_collection'
     }
-  | { kind: 'editor'; section: 'locations' | 'wedding' | 'finances' }
+  | {
+      kind: 'editor'
+      section: 'contacts' | 'locations' | 'wedding' | 'finances'
+    }
 
 export type WeddingNextAction = {
   id: WeddingNextActionId
   title: string
   description?: string
+  /** Button label when shorter than `title` (optional). */
+  ctaLabel?: string
   priority: WeddingNextActionPriority
   destination: WeddingNextActionDestination
 }
@@ -287,15 +293,20 @@ export function resolveWeddingNextAction(
 ): WeddingNextAction | null {
   const contractQ = contractQuestionnaireStatus(wedding)
   const contractStatus = wedding.contract?.status ?? 'none'
-  const clientCollectionOk = isClientContractCollectionComplete(wedding)
+  const places = context.places ?? []
+  // Prefer place-hydrated scalars so Full Create (places without wedding scalars)
+  // is not misread as needing a contract questionnaire.
+  const weddingForCollection =
+    places.length > 0 ? applyWeddingPlaces(wedding, places) : wedding
+  const clientCollectionOk =
+    isClientContractCollectionComplete(weddingForCollection)
   const partyOk =
     contractQ === 'completed' ||
-    hasContractPartyData(wedding) ||
+    hasContractPartyData(weddingForCollection) ||
     clientCollectionOk
   const agreedDeposit = getAgreedDeposit(wedding)
   const depositPaid = hasPaidDepositPayment(wedding.payments ?? [])
   const preStatus = preweddingStatus(wedding, context)
-  const places = context.places ?? []
   const days = daysUntilWedding(wedding, context)
   const prepWindow = isInPrepWindow(days)
   const past = isPast(days)
@@ -330,13 +341,18 @@ export function resolveWeddingNextAction(
 
   // Signed → fall through to deposit / prep / ops (no contract lifecycle CTA).
   if (contractStatus === 'none') {
-    if (contractQ === 'not_sent' && !clientCollectionOk) {
+    // Path A: existing wedding with incomplete client data and no completed
+    // contract-data questionnaire → manual editor (never recommend lead Q).
+    // Path B approval sets contractData to completed and proceeds past this gate.
+    if (!clientCollectionOk && contractQ !== 'completed') {
       return action({
-        id: 'send_contract_questionnaire',
-        title: 'Wyślij ankietę do umowy',
-        description: 'Zbierz dane pary potrzebne do wygenerowania umowy.',
+        id: 'complete_contract_data_manually',
+        title: 'Uzupełnij dane do umowy',
+        description:
+          'Uzupełnij brakujące informacje potrzebne do przygotowania umowy.',
+        ctaLabel: 'Uzupełnij dane',
         priority: 'blocker',
-        destination: { kind: 'modal', intent: 'send_contract_questionnaire' },
+        destination: { kind: 'modal', intent: 'complete_client_collection' },
       })
     }
 
@@ -363,7 +379,8 @@ export function resolveWeddingNextAction(
       })
     }
 
-    // Waiting on couple for contract questionnaire — no invented CTA / no ops leap.
+    // Legacy wedding-scoped contract Q still "sent" without party overlay —
+    // no invented CTA / no ops leap.
     if (contractQ === 'sent' && !partyOk) {
       return null
     }

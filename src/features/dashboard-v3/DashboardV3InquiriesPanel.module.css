@@ -48,6 +48,17 @@
   border-radius: 2px;
 }
 
+.emptyState {
+  margin: var(--v3-space-2, 12px) 0 0;
+}
+
+.emptyTitle {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 550;
+  color: var(--color-text-secondary);
+}
+
 .emptyCopy {
   margin: var(--v3-space-1, 8px) 0 0;
   font-size: var(--text-xs);

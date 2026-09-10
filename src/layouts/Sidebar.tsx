@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type RefObject } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore, type RefObject } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { OVERLAY_FOCUSABLE } from '@/components/ui/overlay/useOverlay'
 import { isSettingsNavRoute } from '@/features/settings/settingsNav'
@@ -8,6 +9,7 @@ import {
   IconClipboard,
   IconClose,
   IconCog,
+  IconCompass,
   IconDashboard,
   IconFinances,
   IconInbox,
@@ -18,9 +20,17 @@ import {
 } from '@/components/icons'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { useCurrentStudioUser } from '@/features/auth/useCurrentStudioUser'
+import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
 import { SidebarSubscriptionBlock } from '@/features/billing/SidebarSubscriptionBlock'
 import { useProAccessGate } from '@/features/billing/ProAccessGate'
+import { shouldAnimateGuideCompass } from '@/features/onboarding/guide/guideDiscoveryRules'
+import { useGuideIntegrationPreference } from '@/features/onboarding/guide/useGuideIntegrationPreference'
+import {
+  isGuidePreparationComplete,
+  studioPackagesSetupSignalsQueryKey,
+} from '@/features/onboarding/setup/setupGuidanceReadiness'
 import { useUnreadNotificationCount } from '@/features/notifications/useNotifications'
+import { packageService } from '@/lib/api/packageService'
 import { sidebarSubscriptionCopy } from '@/lib/billing/entitlement'
 import type { AppShellPresentation } from './shellPresentation'
 import styles from './Sidebar.module.css'
@@ -76,10 +86,27 @@ const mobileCurrentItems = [
   const item = navItems.find((candidate) => candidate.to === path)
   return item ? [item] : []
 })
-const mobileStudioItems: SidebarNavItem[] = [
+const mobileStudioBaseItems: SidebarNavItem[] = [
   ...questionnaireItems,
   ...companyItems,
 ]
+
+const przewodnikNavItem: SidebarNavItem = {
+  to: '/przewodnik',
+  label: 'Przewodnik',
+  icon: IconCompass,
+  end: true,
+}
+
+function subscribePrefersReducedMotion(onChange: () => void) {
+  const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
+  mq.addEventListener('change', onChange)
+  return () => mq.removeEventListener('change', onChange)
+}
+
+function getPrefersReducedMotion() {
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches
+}
 
 interface SidebarProps {
   id?: string
@@ -111,6 +138,37 @@ export function Sidebar({
   const closeButtonRef = useRef<HTMLButtonElement>(null)
   const previouslyFocusedRef = useRef<HTMLElement | null>(null)
   const { data: unreadCount = 0 } = useUnreadNotificationCount()
+  const { preference: guidePreference } = useGuideIntegrationPreference()
+  const studioAuthId = useStudioAuthId()
+  const prefersReducedMotion = useSyncExternalStore(
+    subscribePrefersReducedMotion,
+    getPrefersReducedMotion,
+    () => false,
+  )
+  const guideRouteActive =
+    location.pathname === '/przewodnik' ||
+    location.pathname.startsWith('/przewodnik/')
+  const showGuideNav = guidePreference.sidebarVisible
+  // Same setup-signals query as Przewodnik “Przygotuj OurWed” (shared key).
+  const setupSignalsQuery = useQuery({
+    queryKey: studioPackagesSetupSignalsQueryKey(studioAuthId),
+    queryFn: () => packageService.listSetupSignals(),
+    enabled: Boolean(studioAuthId) && showGuideNav,
+    staleTime: 60_000,
+  })
+  const preparationComplete =
+    setupSignalsQuery.isSuccess &&
+    isGuidePreparationComplete(setupSignalsQuery.data)
+  const animateGuideCompass = shouldAnimateGuideCompass({
+    preference: guidePreference,
+    isGuideRouteActive: guideRouteActive,
+    prefersReducedMotion,
+    isGuidePreparationComplete: preparationComplete,
+  })
+  const mobileStudioItems: SidebarNavItem[] = showGuideNav
+    ? [...mobileStudioBaseItems, przewodnikNavItem]
+    : mobileStudioBaseItems
+
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 767px)')
@@ -202,6 +260,7 @@ export function Sidebar({
     className: string,
   ) {
     const Icon = item.icon
+    const isGuide = item.to === '/przewodnik'
     return (
       <NavLink
         key={item.to}
@@ -209,9 +268,17 @@ export function Sidebar({
         end={item.end}
         onClick={onNavigate}
         className={({ isActive }) =>
-          `${styles.mobileNavItem} ${className} ${
-            isActive ? styles.mobileActive : ''
-          }`
+          [
+            styles.mobileNavItem,
+            className,
+            isActive ? styles.mobileActive : '',
+            isGuide && animateGuideCompass ? styles.guideAttention : '',
+          ]
+            .filter(Boolean)
+            .join(' ')
+        }
+        data-guide-attention={
+          isGuide && animateGuideCompass ? 'true' : undefined
         }
       >
         <Icon className={styles.mobileNavIcon} />
@@ -323,6 +390,28 @@ export function Sidebar({
             </NavLink>
           ))}
         </div>
+
+        {showGuideNav ? (
+          <NavLink
+            to="/przewodnik"
+            end
+            onClick={onNavigate}
+            className={({ isActive }) =>
+              [
+                styles.navItem,
+                isActive ? styles.active : '',
+                animateGuideCompass ? styles.guideAttention : '',
+              ]
+                .filter(Boolean)
+                .join(' ')
+            }
+            data-testid="sidebar-przewodnik"
+            data-guide-attention={animateGuideCompass ? 'true' : undefined}
+          >
+            <IconCompass className={styles.navIcon} />
+            <span>Przewodnik</span>
+          </NavLink>
+        ) : null}
 
         <Link
           to="/ustawienia"

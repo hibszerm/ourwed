@@ -129,7 +129,6 @@ export function WeddingDetailHero({
   })
 
   const name = getWeddingDisplayName(wedding)
-  const contractSent = wedding.questionnaires.contractData.status !== 'not_sent'
   const hasPaidDeposit = weddingActionsService.hasDepositPayment(wedding)
 
   return (
@@ -240,15 +239,6 @@ export function WeddingDetailHero({
 
       {!editing && !readOnly ? (
         <div className={styles.actions}>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            disabled={contractSent}
-            onClick={() => onAction('send_contract_questionnaire')}
-          >
-            Wyślij ankietę
-          </Button>
           <Button
             type="button"
             variant="ghost"

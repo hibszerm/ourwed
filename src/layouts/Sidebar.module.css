@@ -170,6 +170,159 @@
   color: var(--color-sidebar-text-active);
 }
 
+/*
+ * Guide preparation attention — one ambient specular sweep per ~10s.
+ * Light travels across the row; nothing jumps / scales / pulses.
+ */
+.guideAttention {
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.guideAttention::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 0;
+  background: transparent;
+  animation: guideAttentionWash 10s linear infinite;
+}
+
+.guideAttention::after {
+  content: '';
+  position: absolute;
+  top: -10%;
+  bottom: -10%;
+  left: 0;
+  width: 54px;
+  pointer-events: none;
+  z-index: 1;
+  border-radius: inherit;
+  background: linear-gradient(
+    105deg,
+    transparent 0%,
+    color-mix(in srgb, var(--color-sidebar-text-active) 0%, transparent) 36%,
+    color-mix(in srgb, var(--color-sidebar-text-active) 22%, transparent) 50%,
+    color-mix(in srgb, var(--color-sidebar-text-active) 0%, transparent) 64%,
+    transparent 100%
+  );
+  opacity: 0;
+  transform: translateX(-140%) skewX(-12deg);
+  animation: guideAttentionSweep 10s linear infinite;
+}
+
+.guideAttention .navIcon,
+.guideAttention .mobileNavIcon,
+.guideAttention span {
+  position: relative;
+  z-index: 2;
+}
+
+.guideAttention .navIcon,
+.guideAttention .mobileNavIcon {
+  animation: guideAttentionGlyph 10s linear infinite;
+}
+
+@keyframes guideAttentionSweep {
+  /*
+   * Keep ~1.7–1.8s physical sweep on a 10s cycle (not a compressed 30s timeline).
+   * Visible ≈ 3%–20% → ~1.7s.
+   */
+  0%,
+  2% {
+    opacity: 0;
+    transform: translateX(-140%) skewX(-12deg);
+  }
+  4% {
+    opacity: 0.5;
+    transform: translateX(-35%) skewX(-12deg);
+  }
+  11% {
+    opacity: 0.46;
+    transform: translateX(55%) skewX(-12deg);
+  }
+  16% {
+    opacity: 0.2;
+    transform: translateX(145%) skewX(-12deg);
+  }
+  20%,
+  100% {
+    opacity: 0;
+    transform: translateX(180%) skewX(-12deg);
+  }
+}
+
+@keyframes guideAttentionWash {
+  0%,
+  2%,
+  20%,
+  100% {
+    background: transparent;
+  }
+  5%,
+  14% {
+    background: color-mix(
+      in srgb,
+      var(--color-sidebar-text-active) 4.75%,
+      transparent
+    );
+  }
+}
+
+@keyframes guideAttentionGlyph {
+  0%,
+  2%,
+  20%,
+  100% {
+    filter: brightness(1);
+  }
+  6%,
+  14% {
+    filter: brightness(1.45);
+  }
+}
+
+.navItem.guideAttention:hover::before,
+.navItem.guideAttention:hover::after,
+.navItem.guideAttention:focus-visible::before,
+.navItem.guideAttention:focus-visible::after,
+.mobileNavItem.guideAttention:hover::before,
+.mobileNavItem.guideAttention:hover::after,
+.mobileNavItem.guideAttention:focus-visible::before,
+.mobileNavItem.guideAttention:focus-visible::after,
+.mobileActive.guideAttention::before,
+.mobileActive.guideAttention::after {
+  animation: none;
+  opacity: 0;
+  background: transparent;
+  transform: translateX(-140%) skewX(-12deg);
+}
+
+.navItem.guideAttention:hover .navIcon,
+.navItem.guideAttention:focus-visible .navIcon,
+.mobileNavItem.guideAttention:hover .mobileNavIcon,
+.mobileNavItem.guideAttention:focus-visible .mobileNavIcon,
+.mobileActive.guideAttention .mobileNavIcon {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .guideAttention::before,
+  .guideAttention::after,
+  .guideAttention .navIcon,
+  .guideAttention .mobileNavIcon {
+    animation: none !important;
+  }
+
+  .guideAttention::before,
+  .guideAttention::after {
+    opacity: 0;
+    background: transparent;
+  }
+}
+
 .experimentBadge {
   margin-left: auto;
   padding: 0.1rem 0.4rem;

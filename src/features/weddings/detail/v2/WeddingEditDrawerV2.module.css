@@ -223,6 +223,33 @@
   color: var(--color-text-tertiary);
 }
 
+/* Contacts / wedding — same calm section rhythm as places. */
+.panelCentered .body :global([data-section='contacts'] h3),
+.panelCentered .body :global([data-section='couple'] h3),
+.panelCentered .body :global([data-section='wedding'] h3) {
+  font-size: 0.6875rem;
+  font-weight: 650;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-text-tertiary);
+}
+
+.panelCentered .body :global([data-section='contacts'] section),
+.panelCentered .body :global([data-section='couple'] section) {
+  gap: 12px;
+  padding: 0 0 20px;
+  margin: 0 0 4px;
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--color-text-primary) 8%, transparent);
+}
+
+.panelCentered .body :global([data-section='contacts'] section:last-of-type),
+.panelCentered .body :global([data-section='couple'] section:last-of-type) {
+  border-bottom: 0;
+  padding-bottom: 0;
+  margin-bottom: 0;
+}
+
 @keyframes centeredIn {
   from {
     opacity: 0;

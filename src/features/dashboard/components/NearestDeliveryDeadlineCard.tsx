@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { useNearestDeliveryDeadlines } from '@/features/dashboard/hooks/useNearestDeliveryDeadline'
+import { deadlineEmptyCopy } from '@/features/dashboard/presentation/dashboardEmptyCopy'
 import { getDeliveryDeadlineBand } from '@/lib/utils/weddingDeliveryDeadline'
 import type { NearestDeliveryDeadline } from '@/lib/api/dashboardService'
 import styles from './NearestDeliveryDeadlineCard.module.css'
@@ -14,11 +15,16 @@ function deadlineAriaLabel(
   }`
 }
 
-export function NearestDeliveryDeadlineCard() {
+export function NearestDeliveryDeadlineCard({
+  hasWeddingHistory = false,
+}: {
+  hasWeddingHistory?: boolean
+}) {
   const { data, isLoading } = useNearestDeliveryDeadlines()
   const deadlines = data ?? []
   const primary = deadlines[0] ?? null
   const secondary = deadlines.slice(1)
+  const emptyCopy = deadlineEmptyCopy(hasWeddingHistory)
 
   return (
     <section
@@ -50,8 +56,8 @@ export function NearestDeliveryDeadlineCard() {
         </>
       ) : (
         <div className={styles.emptyState}>
-          <p className={styles.emptyTitle}>Wszystko oddane</p>
-          <p className={styles.emptyCopy}>Brak aktywnych terminów oddania.</p>
+          <p className={styles.emptyTitle}>{emptyCopy.title}</p>
+          <p className={styles.emptyCopy}>{emptyCopy.body}</p>
         </div>
       )}
     </section>

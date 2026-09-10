@@ -1,13 +1,14 @@
 .stepper {
   margin: 0;
+  padding: var(--space-1) 0 var(--space-2);
 }
 
 .list {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   flex-wrap: wrap;
   gap: 0;
-  row-gap: 0.35rem;
+  row-gap: 0.45rem;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -15,8 +16,8 @@
 
 .item {
   display: inline-flex;
-  align-items: baseline;
-  gap: 0.4rem;
+  align-items: center;
+  gap: 0.45rem;
   min-width: 0;
   color: var(--color-text-tertiary);
 }
@@ -24,25 +25,30 @@
 .item + .item::before {
   content: '';
   display: block;
-  width: 1.5rem;
+  width: 1.75rem;
   height: 1px;
-  margin: 0 0.65rem;
+  margin: 0 0.7rem;
   background: var(--border-subtle, var(--color-border));
   flex-shrink: 0;
-  transform: translateY(-0.35em);
 }
 
 .index {
-  font-size: 0.6875rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.15rem;
+  font-size: 0.75rem;
   font-weight: 650;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.03em;
   font-variant-numeric: tabular-nums;
+  line-height: 1;
 }
 
 .label {
   font-size: var(--text-sm);
   letter-spacing: -0.02em;
   white-space: nowrap;
+  line-height: 1.2;
 }
 
 .item[data-status='current'] {
@@ -51,6 +57,10 @@
 
 .item[data-status='current'] .label {
   font-weight: 650;
+}
+
+.item[data-status='current'] .index {
+  font-weight: 700;
 }
 
 .item[data-status='done'] {
@@ -68,16 +78,21 @@
 @media (max-width: 767px) {
   .stepper {
     margin: 0;
+    padding: 0 0 var(--space-1);
   }
 
   .item + .item::before {
-    width: 0.65rem;
-    margin: 0 0.32rem;
-    opacity: 0.65;
+    width: 0.75rem;
+    margin: 0 0.35rem;
+    opacity: 0.7;
   }
 
   .label {
-    font-size: 0.75rem;
+    font-size: 0.8125rem;
+  }
+
+  .index {
+    font-size: 0.6875rem;
   }
 }
 
@@ -88,7 +103,7 @@
   }
 
   .item + .item::before {
-    width: 0.4rem;
+    width: 0.45rem;
     margin: 0 0.22rem;
   }
 
@@ -97,6 +112,6 @@
   }
 
   .label {
-    font-size: 0.6875rem;
+    font-size: 0.75rem;
   }
 }

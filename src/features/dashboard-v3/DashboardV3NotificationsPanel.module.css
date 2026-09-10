@@ -138,6 +138,22 @@
   color: var(--color-text-tertiary);
 }
 
+.emptyState {
+  margin: var(--v3-space-2, 12px) 0;
+}
+
+.emptyTitle {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 550;
+  color: var(--color-text-secondary);
+}
+
+.emptyState .empty {
+  margin: var(--v3-space-1, 8px) 0 0;
+  font-size: var(--text-xs);
+}
+
 .footer {
   margin-top: var(--v3-space-1, 8px);
   padding-top: var(--v3-space-2, 12px);

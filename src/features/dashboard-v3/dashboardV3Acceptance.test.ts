@@ -19,7 +19,7 @@ function assert(c: boolean, m: string) {
   const page = read('src/pages/DashboardPage.tsx')
   const primaryIdx = page.indexOf('<div className={styles.primary}>')
   const todoIdx = page.indexOf('<TodoTodayCard weddings={weddings} />')
-  const deadlineIdx = page.indexOf('<NearestDeliveryDeadlineCard />')
+  const deadlineIdx = page.indexOf('<NearestDeliveryDeadlineCard')
   const secondaryIdx = page.indexOf('<div className={styles.secondary}>')
   const notificationsIdx = page.indexOf('<NotificationsCard />')
   assert(primaryIdx >= 0 && secondaryIdx > primaryIdx, 'current grid columns')
@@ -120,7 +120,7 @@ function assert(c: boolean, m: string) {
   const upcomingIdx = v3.indexOf('className={styles.upcoming}')
   const feedIdx = v3.indexOf('className={styles.feed}')
   const todayPanelIdx = v3.indexOf('<DashboardV3TodayPanel weddings={weddings} />')
-  const deadlineIdx = v3.indexOf('<DashboardV3DeadlinePanel />')
+  const deadlineIdx = v3.indexOf('<DashboardV3DeadlinePanel')
   const notificationsIdx = v3.indexOf('<DashboardV3NotificationsPanel />')
   const inquiriesIdx = v3.indexOf('<DashboardV3InquiriesPanel />')
   assert(heroIdx >= 0 && todayIdx > heroIdx, 'hero then today in source')
@@ -146,10 +146,16 @@ function assert(c: boolean, m: string) {
   assert(css.includes("'upcomingLabel .'"), 'upcoming title sits above cards only')
   assert(css.includes("'upcoming today'"), 'upcoming cards share a row with Today')
   assert(css.includes("'feed deadlines'"), 'activity beside deadlines')
+  assert(css.includes("'feed today'"), 'nearest-only collapses to feed/today')
+  assert(css.includes(".layout[data-has-upcoming='false']"), 'content-driven nearest-only areas')
   assert(css.includes('align-items: start'), 'feed and deadlines do not equalize height')
   assert(!css.includes('align-items: stretch'), 'page grid does not mosaic every cell to equal height')
   assert(css.includes('@media (min-width: 1280px)'), 'desktop upcoming/today share one row height')
   assert(css.includes('align-self: stretch'), 'upcoming and today fill their shared desktop row')
+  assert(
+    css.includes(".layout[data-has-upcoming='true'] .upcoming"),
+    'desktop stretch gated on upcoming presence',
+  )
   assert(!css.includes('2.2fr'), 'old V3.1 2.2fr grid not preserved')
   assert(!css.includes("'upcoming rail'"), 'old upcoming/rail area retired')
   assert(!css.includes("'lower rail'"), 'old lower/rail area retired')
@@ -294,8 +300,8 @@ function assert(c: boolean, m: string) {
   const panel = read('src/features/dashboard-v3/DashboardV3DeadlinePanel.tsx')
   assert(panel.includes('useNearestDeliveryDeadlines'), 'shared deadline hook')
   assert(panel.includes('Terminy oddania'), 'v3.2 header copy')
-  assert(panel.includes('Wszystko oddane'), 'empty title')
-  assert(panel.includes('Brak aktywnych terminów oddania.'), 'empty copy')
+  assert(panel.includes('deadlineEmptyCopy'), 'honest empty via shared copy')
+  assert(panel.includes('hasWeddingHistory'), 'zero-history vs established predicate')
   assert(panel.includes('getDeliveryDeadlineBand'), 'shared state helper')
   assert(panel.includes('deadline.href'), 'row navigates to detail')
   assert(panel.includes('nearest={index === 0}'), 'nearest row modest priority')
@@ -304,6 +310,16 @@ function assert(c: boolean, m: string) {
   assert(!panel.includes('workflowStage'), 'no workflow stage')
   assert(!panel.includes('deliveryMonths'), 'no months/days recompute')
   assert(!panel.includes('text-xl'), 'no hero-scale names')
+  const emptyCopy = read('src/features/dashboard/presentation/dashboardEmptyCopy.ts')
+  assert(emptyCopy.includes('Brak terminów do pilnowania'), 'zero-history title')
+  assert(
+    emptyCopy.includes(
+      'Gdy pojawią się terminy związane z Twoimi zleceniami, zobaczysz je tutaj.',
+    ),
+    'zero-history body',
+  )
+  assert(emptyCopy.includes('Wszystko oddane'), 'established completion title retained')
+  assert(emptyCopy.includes('Brak aktywnych terminów oddania.'), 'established empty body')
   const css = read('src/features/dashboard-v3/DashboardV3DeadlinePanel.module.css')
   assert(css.includes('font-size: var(--text-sm)'), 'name matches compact scale')
   assert(css.includes('font-size: var(--text-xs)'), 'compact date/relative')
@@ -490,8 +506,14 @@ function assert(c: boolean, m: string) {
   assert(pageCss.includes("'feed deadlines'"), 'layout freeze: lower row')
   assert(pageCss.includes("'hero hero'"), 'layout freeze: full-width hero')
   assert(pageCss.includes("'upcomingLabel .'"), 'upcoming label stays on its own row')
+  assert(pageCss.includes("'feed today'"), 'nearest-only: operational content rises')
+  assert(pageCss.includes(".layout[data-has-upcoming='false']"), 'nearest-only grid state')
   assert(pageCss.includes('align-items: start'), 'feed/deadlines stay start-aligned')
   assert(pageCss.includes('align-self: stretch'), 'desktop upcoming/today share row height')
+  assert(
+    pageCss.includes(".layout[data-has-upcoming='true'] .upcoming"),
+    'stretch only with upcoming cards',
+  )
   console.log('PASS  V4.1.3 stable operational grid bounded')
 }
 
@@ -664,6 +686,9 @@ function assert(c: boolean, m: string) {
   assert(page.includes('styles.upcomingBand'), 'one upcoming band node')
   assert(page.includes('styles.notifications'), 'notifications keep a presentation wrapper')
   assert(page.includes('styles.inquiries'), 'inquiries keep a presentation wrapper')
+  assert(page.includes('data-has-upcoming='), 'layout tracks upcoming presence')
+  assert(page.includes('{nextThree.length > 0 ? ('), 'empty upcoming band is omitted')
+  assert(!page.includes('aria-hidden />\n                )'), 'no empty label placeholder branch')
   assert((page.match(/<DashboardV3InquiriesPanel/g) || []).length === 1, 'inquiries panel is not duplicated')
   assert((page.match(/<DashboardV3NotificationsPanel/g) || []).length === 1, 'notifications panel is not duplicated')
   assert((page.match(/<DashboardV3TodayPanel/g) || []).length === 1, 'today panel is not duplicated')
@@ -675,6 +700,8 @@ function assert(c: boolean, m: string) {
   assert(desktopGrid.includes("'upcomingLabel .'"), 'desktop upcoming label row unchanged')
   assert(desktopGrid.includes("'upcoming today'"), 'desktop upcoming/today row unchanged')
   assert(desktopGrid.includes("'feed deadlines'"), 'desktop feed/deadlines row unchanged')
+  assert(desktopGrid.includes("'feed today'"), 'desktop nearest-only feed/today row')
+  assert(desktopGrid.includes(".layout[data-has-upcoming='false']"), 'desktop nearest-only areas')
   assert(desktopGrid.includes('.upcomingBand {\n  display: contents;'), 'desktop band does not add a grid box')
   assert(!desktopGrid.includes('order: 1'), 'desktop does not use mobile section order')
 

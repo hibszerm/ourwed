@@ -27,6 +27,36 @@ assert(sidebar.includes("to: '/ankiety'"), 'ankiety nav present')
 assert(sidebar.includes('end: false'), 'ankiety active on subroutes')
 assert(sidebar.includes("to: '/zadania'"), 'zadania nav present')
 assert(sidebar.includes('IconTasks'), 'zadania icon')
+assert(sidebar.includes("to: '/przewodnik'"), 'przewodnik nav present')
+assert(sidebar.includes("label: 'Przewodnik'"), 'przewodnik label')
+assert(sidebar.includes('IconCompass'), 'przewodnik compass icon')
+assert(sidebar.includes('showGuideNav'), 'guide visibility preference gate')
+assert(sidebar.includes('isGuidePreparationComplete'), 'compass prep readiness')
+assert(sidebar.includes('studioPackagesSetupSignalsQueryKey'), 'shared setup signals')
+assert(sidebar.includes('guideAttention'), 'guide ambient attention class')
+assert(!sidebar.includes('guideCompassMark'), 'halo mark wrapper removed')
+assert(!sidebar.includes('guideCompassAttention'), 'halo attention class removed')
+{
+  const firma = sidebar.indexOf("studioGroupLabel}>Firma")
+  const przewodnik = sidebar.indexOf('to="/przewodnik"')
+  const ustawienia = sidebar.indexOf('to="/ustawienia"')
+  assert(
+    firma >= 0 && przewodnik > firma && ustawienia > przewodnik,
+    'nav order Firma → Przewodnik → Ustawienia',
+  )
+}
+{
+  const mobileStudio = sidebar.slice(
+    sidebar.indexOf('const mobileStudioBaseItems'),
+    sidebar.indexOf('interface SidebarProps'),
+  )
+  assert(mobileStudio.includes("to: '/przewodnik'"), 'mobile studio has Przewodnik')
+  assert(
+    mobileStudio.indexOf("to: '/studio/uslugi'") <
+      mobileStudio.indexOf("to: '/przewodnik'"),
+    'mobile Przewodnik after Firma items',
+  )
+}
 {
   const sluby = sidebar.indexOf("to: '/sluby'")
   const sesje = sidebar.indexOf("to: '/sesje'")
@@ -46,6 +76,8 @@ assert(sidebar.includes('IconTasks'), 'zadania icon')
 const router = read('src/routes/router.tsx')
 assert(router.includes("path: '/zadania'"), 'zadania route')
 assert(router.includes('TasksPage'), 'TasksPage wired')
+assert(router.includes("path: '/przewodnik'"), 'przewodnik route')
+assert(router.includes('PrzewodnikPage'), 'PrzewodnikPage wired')
 assert(router.includes('/laboratorium-umow-ai'), 'experimental routes retained')
 assert(router.includes('intentionally hidden'), 'hidden comment on experimental routes')
 assert(router.includes('/form/:token'), 'public form route')
