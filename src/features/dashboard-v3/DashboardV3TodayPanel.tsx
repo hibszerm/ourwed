@@ -1,7 +1,8 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { IconCheck, IconChevronDown } from '@/components/icons'
+import { FloatingPortal } from '@/components/ui/FloatingPortal'
 import { useToast } from '@/components/ui/Toast'
 import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
 import {
@@ -34,6 +35,17 @@ import styles from './DashboardV3TodayPanel.module.css'
 
 const TODAY_PREVIEW_LIMIT = 2
 
+const HORIZON_MENU_PLACEMENT = {
+  gap: 8,
+  minMenuWidth: 196,
+  maxMenuWidth: 260,
+  align: 'start' as const,
+  forceAnchored: true,
+  maxMenuHeight: 220,
+  minSpace: 120,
+  padding: 8,
+}
+
 interface DashboardV3TodayPanelProps {
   weddings: Wedding[]
 }
@@ -58,7 +70,6 @@ export function DashboardV3TodayPanel({ weddings }: DashboardV3TodayPanelProps) 
     DEFAULT_DASHBOARD_TASK_HORIZON,
   )
   const [menuOpen, setMenuOpen] = useState(false)
-  const [menuPlacement, setMenuPlacement] = useState<'below' | 'above'>('below')
   const [completingId, setCompletingId] = useState<string | null>(null)
 
   const todayKey = localCalendarDateKey()
@@ -69,26 +80,25 @@ export function DashboardV3TodayPanel({ weddings }: DashboardV3TodayPanelProps) 
   const menuId = useId()
   const rootRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
 
   const weddingById = new Map(weddings.map((w) => [w.id, w]))
   const emptyCopy = dashboardTaskHorizonEmptyCopy(horizon)
   const preview = tasks.slice(0, TODAY_PREVIEW_LIMIT)
   const remaining = Math.max(0, tasks.length - preview.length)
 
-  useLayoutEffect(() => {
-    if (!menuOpen || !triggerRef.current) return
-    const rect = triggerRef.current.getBoundingClientRect()
-    const spaceBelow = window.innerHeight - rect.bottom
-    setMenuPlacement(spaceBelow < 220 ? 'above' : 'below')
-  }, [menuOpen])
-
   useEffect(() => {
     if (!menuOpen) return
 
     function onPointerDown(event: MouseEvent) {
-      if (!rootRef.current?.contains(event.target as Node)) {
-        setMenuOpen(false)
+      const target = event.target as Node
+      if (
+        rootRef.current?.contains(target) ||
+        menuRef.current?.contains(target)
+      ) {
+        return
       }
+      setMenuOpen(false)
     }
 
     function onKeyDown(event: KeyboardEvent) {
@@ -188,35 +198,41 @@ export function DashboardV3TodayPanel({ weddings }: DashboardV3TodayPanelProps) 
               aria-hidden
             />
           </button>
-          {menuOpen ? (
-            <div
-              id={menuId}
-              className={`${styles.horizonMenu} ${
-                menuPlacement === 'above' ? styles.horizonMenuAbove : ''
-              }`}
-              role="menu"
-              aria-label="Zakres zadań"
-            >
-              {DASHBOARD_TASK_HORIZONS.map((option) => {
-                const selected = option === horizon
-                return (
-                  <button
-                    key={option}
-                    type="button"
-                    role="menuitemradio"
-                    aria-checked={selected}
-                    className={`${styles.horizonOption} ${selected ? styles.horizonOptionSelected : ''}`}
-                    onClick={() => selectHorizon(option)}
-                  >
-                    <span>{DASHBOARD_TASK_HORIZON_MENU[option]}</span>
-                    {selected ? (
-                      <IconCheck width={14} height={14} aria-hidden />
-                    ) : null}
-                  </button>
-                )
-              })}
-            </div>
-          ) : null}
+          <FloatingPortal
+            open={menuOpen}
+            anchorRef={triggerRef}
+            options={HORIZON_MENU_PLACEMENT}
+          >
+            {() => (
+              <div
+                ref={menuRef}
+                id={menuId}
+                className={styles.horizonMenu}
+                role="menu"
+                aria-label="Zakres zadań"
+                data-testid="dashboard-v3-horizon-menu"
+              >
+                {DASHBOARD_TASK_HORIZONS.map((option) => {
+                  const selected = option === horizon
+                  return (
+                    <button
+                      key={option}
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={selected}
+                      className={`${styles.horizonOption} ${selected ? styles.horizonOptionSelected : ''}`}
+                      onClick={() => selectHorizon(option)}
+                    >
+                      <span>{DASHBOARD_TASK_HORIZON_MENU[option]}</span>
+                      {selected ? (
+                        <IconCheck width={14} height={14} aria-hidden />
+                      ) : null}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </FloatingPortal>
         </div>
         {tasks.length > 0 ? (
           <span className={styles.count}>{tasks.length}</span>

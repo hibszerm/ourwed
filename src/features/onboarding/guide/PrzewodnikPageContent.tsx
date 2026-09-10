@@ -224,6 +224,21 @@ function StoryCanvas({
 
         {category.note ? <p className={styles.storyNote}>{category.note}</p> : null}
 
+        {isAlternatives && category.inset ? (
+          <div
+            className={`${styles.storyInset} ${styles.storyInsetMobile}`}
+            data-testid="przewodnik-inset-mobile"
+          >
+            <p className={styles.storyInsetTitle}>{category.inset.title}</p>
+            <p className={styles.storyInsetBody}>{category.inset.body}</p>
+            {category.inset.footnote ? (
+              <p className={styles.storyInsetFootnote}>
+                {category.inset.footnote}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+
         <StoryActions actions={category.actions} />
       </div>
 
@@ -240,7 +255,16 @@ function StoryCanvas({
         ) : null}
 
         {category.inset ? (
-          <div className={styles.storyInset}>
+          <div
+            className={
+              isAlternatives
+                ? `${styles.storyInset} ${styles.storyInsetDesktop}`
+                : styles.storyInset
+            }
+            data-testid={
+              isAlternatives ? 'przewodnik-inset-desktop' : undefined
+            }
+          >
             <p className={styles.storyInsetTitle}>{category.inset.title}</p>
             <p className={styles.storyInsetBody}>{category.inset.body}</p>
             {category.inset.footnote ? (

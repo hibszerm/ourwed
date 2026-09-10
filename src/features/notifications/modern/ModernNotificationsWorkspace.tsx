@@ -8,6 +8,7 @@ import {
 import { Button } from '@/components/ui/Button'
 import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
 import { ModernNotificationRow } from '@/features/notifications/modern/ModernNotificationRow'
+import { NotificationDeleteModal } from '@/features/notifications/modern/NotificationDeleteModal'
 import {
   NOTIFICATIONS_EMPTY_ALL_COPY,
   NOTIFICATIONS_EMPTY_ALL_TITLE,
@@ -47,6 +48,7 @@ export function ModernNotificationsWorkspace() {
   const userId = useStudioAuthId()
   const queryClient = useQueryClient()
   const [filter, setFilter] = useState<NotificationListFilter>('all')
+  const [pendingDelete, setPendingDelete] = useState<Notification | null>(null)
   const unreadQuery = useUnreadNotificationCount()
   const listQuery = useNotificationsInfinite(filter)
   const markRead = useMarkNotificationRead()
@@ -193,6 +195,7 @@ export function ModernNotificationsWorkspace() {
                     key={notification.id}
                     notification={notification}
                     onActivate={(item) => void activate(item)}
+                    onDeleteRequest={setPendingDelete}
                   />
                 ))}
               </ul>
@@ -215,6 +218,12 @@ export function ModernNotificationsWorkspace() {
           </>
         )}
       </div>
+
+      <NotificationDeleteModal
+        open={pendingDelete != null}
+        notification={pendingDelete}
+        onClose={() => setPendingDelete(null)}
+      />
     </div>
   )
 }

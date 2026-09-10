@@ -30,8 +30,10 @@ function assertNotIncludes(src: string, needle: string, m: string) {
   assertIncludes(svc, 'async listLatest', 'A — listLatest')
   assertIncludes(svc, 'async markAllRead', 'F — markAllRead')
   assertIncludes(svc, 'async markRead', 'E — markRead')
+  assertIncludes(svc, 'async delete', 'delete own notification')
   assertIncludes(svc, 'async unreadCount', 'unread count')
   assertIncludes(svc, ".eq('user_id', userId)", 'G — owner filter')
+  assertIncludes(svc, ".delete()", 'delete uses supabase delete')
   assertIncludes(svc, 'created_at.lt.', 'D — stable cursor clause')
   assertIncludes(svc, "order('id'", 'D — id tie-break')
   assertIncludes(svc, 'unreadOnly', 'C — unreadOnly')
@@ -60,6 +62,15 @@ function assertNotIncludes(src: string, needle: string, m: string) {
   assertIncludes(hooks, 'useLatestNotifications', 'latest hook')
   assertIncludes(hooks, 'useNotificationsInfinite', 'infinite list')
   assertIncludes(hooks, 'markAllRead', 'mark all mutation')
+  assertIncludes(hooks, 'useDeleteNotification', 'delete mutation hook')
+  assertIncludes(hooks, 'removeItemFromPages', 'optimistic list removal')
+  assertIncludes(hooks, 'removeLatestItem', 'optimistic latest removal')
+  assertIncludes(hooks, 'notificationService.delete', 'delete calls service')
+  assertIncludes(
+    hooks,
+    'invalidateNotificationQueries(queryClient)',
+    'delete settles with shared invalidation',
+  )
 
   const sidebar = read('src/layouts/Sidebar.tsx')
   assertIncludes(sidebar, 'useUnreadNotificationCount', 'Sidebar uses unread hook')
@@ -101,6 +112,12 @@ function assertNotIncludes(src: string, needle: string, m: string) {
   assertIncludes(workspace, 'navigate(notification.link)', 'E — navigate when link')
   assertIncludes(workspace, 'markAll.mutateAsync', 'G — mark all')
   assertIncludes(workspace, 'fetchNextPage', 'H — load more')
+  assertIncludes(workspace, 'NotificationDeleteModal', 'delete confirmation modal')
+  assertIncludes(workspace, 'onDeleteRequest', 'row wires delete request')
+  assertIncludes(row, 'NOTIFICATIONS_DELETE_ARIA', 'delete aria on row')
+  assertIncludes(row, 'data-testid="notification-delete"', 'delete control test id')
+  assertIncludes(row, 'stopPropagation', 'delete does not activate row')
+  assertIncludes(copy, 'Usunąć powiadomienie?', 'delete confirm title')
   assertIncludes(copy, 'Pokaż więcej', 'H — load more label')
   assertIncludes(copy, 'Brak nowych powiadomień', 'I — empty all')
   assertIncludes(
@@ -123,6 +140,29 @@ function assertNotIncludes(src: string, needle: string, m: string) {
   assertIncludes(card, 'Zobacz wszystkie', 'L/M — see all')
   assertIncludes(card, 'to="/powiadomienia"', 'M — see all href')
   assertIncludes(card, 'NOTIFICATION_DASHBOARD_LATEST', 'L — latest 4 constant')
+  assertIncludes(card, 'NotificationDeleteModal', 'dashboard card can delete')
+  assertIncludes(
+    card,
+    'data-testid="dashboard-notification-delete"',
+    'dashboard delete control',
+  )
+
+  const v3Notes = read(
+    'src/features/dashboard-v3/DashboardV3NotificationsPanel.tsx',
+  )
+  assertIncludes(v3Notes, 'NotificationDeleteModal', 'v3 panel can delete')
+  assertIncludes(
+    v3Notes,
+    'data-testid="dashboard-notification-delete"',
+    'v3 delete control',
+  )
+
+  const rls = read('supabase/migrations/20260722150000_multi_tenant_rls.sql')
+  assertIncludes(
+    rls,
+    'notifications_delete_own',
+    'RLS already allows owner delete — no new migration',
+  )
 
   const sidebar = read('src/layouts/Sidebar.tsx')
   assertIncludes(sidebar, "to: '/powiadomienia'", 'N — nav item')
@@ -138,8 +178,25 @@ function assertNotIncludes(src: string, needle: string, m: string) {
   )
   assertIncludes(css, 'overflow-wrap: anywhere', 'K — long text wrap')
   assertIncludes(css, 'min-height: var(--touch-target)', 'K — touch targets')
+  assertIncludes(css, 'width: var(--touch-target, 44px)', 'delete touch width')
   assertIncludes(css, 'max-width: 1080px', 'feed 1080 left axis')
   assertNotIncludes(css, 'margin-inline: auto', 'feed not centered catalog')
+  assertIncludes(
+    css,
+    "grid-template-areas:\n      'leading main'\n      'leading footer'",
+    'mobile inbox uses content + footer areas, not desktop 3-col',
+  )
+  assertIncludes(css, 'grid-area: footer', 'mobile trash/date live in footer area')
+  assertIncludes(
+    css,
+    'grid-template-columns: 1.25rem minmax(0, 1fr) auto',
+    'desktop row keeps content | trailing columns',
+  )
+  assertNotIncludes(
+    read('src/features/dashboard-v3/DashboardV3NotificationsPanel.module.css'),
+    'grid-area: footer',
+    'dashboard notification preview not using inbox mobile areas',
+  )
 
   console.log('PASS  notification center UI')
 }

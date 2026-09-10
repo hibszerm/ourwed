@@ -61,21 +61,17 @@
 }
 
 .horizonMenu {
-  position: absolute;
-  z-index: 8;
-  top: calc(100% + 8px);
-  left: 0;
-  min-width: 196px;
+  width: 100%;
+  min-width: 0;
+  max-height: 100%;
+  overflow-y: auto;
   padding: var(--v3-space-1, 8px);
   border-radius: var(--v3-radius-row, 16px);
   background: var(--v3-surface-hero, var(--surface-primary));
   border: var(--v3-border, 1px solid var(--border-default));
   box-shadow: var(--v3-shadow-2);
-}
-
-.horizonMenuAbove {
-  top: auto;
-  bottom: calc(100% + 8px);
+  display: flex;
+  flex-direction: column;
 }
 
 .horizonOption {

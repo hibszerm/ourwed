@@ -1,6 +1,10 @@
+import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { Trash2 } from 'lucide-react'
 import { IconBell } from '@/components/icons'
 import { NOTIFICATIONS_EMPTY } from '@/features/dashboard/presentation/dashboardEmptyCopy'
+import { NotificationDeleteModal } from '@/features/notifications/modern/NotificationDeleteModal'
+import { NOTIFICATIONS_DELETE_ARIA } from '@/features/notifications/modern/notificationsCopy'
 import {
   useLatestNotifications,
   useMarkNotificationRead,
@@ -16,6 +20,7 @@ export function DashboardV3NotificationsPanel() {
   const latestQuery = useLatestNotifications(NOTIFICATION_DASHBOARD_LATEST)
   const unreadQuery = useUnreadNotificationCount()
   const markRead = useMarkNotificationRead()
+  const [pendingDelete, setPendingDelete] = useState<Notification | null>(null)
 
   const notifications = latestQuery.data ?? []
   const unread =
@@ -69,7 +74,7 @@ export function DashboardV3NotificationsPanel() {
                 ? undefined
                 : 'nieprzeczytane'
               return (
-                <li key={notification.id}>
+                <li key={notification.id} className={styles.row}>
                   {actionable ? (
                     <button
                       type="button"
@@ -87,6 +92,15 @@ export function DashboardV3NotificationsPanel() {
                       <NotificationBody notification={notification} />
                     </div>
                   )}
+                  <button
+                    type="button"
+                    className={styles.deleteBtn}
+                    aria-label={NOTIFICATIONS_DELETE_ARIA}
+                    data-testid="dashboard-notification-delete"
+                    onClick={() => setPendingDelete(notification)}
+                  >
+                    <Trash2 size={15} strokeWidth={1.75} aria-hidden="true" />
+                  </button>
                 </li>
               )
             },
@@ -99,6 +113,12 @@ export function DashboardV3NotificationsPanel() {
           Zobacz wszystkie
         </Link>
       </div>
+
+      <NotificationDeleteModal
+        open={pendingDelete != null}
+        notification={pendingDelete}
+        onClose={() => setPendingDelete(null)}
+      />
     </section>
   )
 }

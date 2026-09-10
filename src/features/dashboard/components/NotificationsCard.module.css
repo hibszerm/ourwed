@@ -4,6 +4,13 @@
   gap: var(--space-3);
 }
 
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 2px;
+}
+
 .item {
   display: flex;
   gap: var(--space-3);
@@ -11,6 +18,7 @@
   border-radius: var(--radius-md);
   transition: background var(--transition-fast);
   width: 100%;
+  min-width: 0;
   text-align: left;
 }
 
@@ -30,6 +38,37 @@
 .item:hover,
 .itemButton:hover {
   background: var(--color-bg-subtle);
+}
+
+.deleteBtn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--touch-target, 44px);
+  height: var(--touch-target, 44px);
+  margin-top: 4px;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--color-text-tertiary, var(--color-text-secondary));
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.deleteBtn:hover {
+  color: var(--color-danger-text, var(--color-error));
+  background: color-mix(
+    in srgb,
+    var(--color-error, #b42318) 8%,
+    transparent
+  );
+}
+
+.deleteBtn:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
 }
 
 .unread {

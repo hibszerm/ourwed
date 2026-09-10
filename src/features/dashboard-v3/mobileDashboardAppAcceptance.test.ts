@@ -292,7 +292,7 @@ const assignmentHook = read(
     excludes(source, 'backdrop-filter', `${name} has no blur`)
   }
   includes(deadlineCss, '.list li + li .row', 'deadline rows use separators')
-  includes(notificationsCss, '.list li + li .item', 'notification rows use separators')
+  includes(notificationsCss, '.list li + li', 'notification rows use separators')
   console.log('PASS  deadline + notification module surfaces restored')
 }
 

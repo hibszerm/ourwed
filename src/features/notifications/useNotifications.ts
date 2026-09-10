@@ -126,6 +126,28 @@ function markLatestRead(
   return items.map((n) => (n.id === id ? { ...n, read: true } : n))
 }
 
+function removeItemFromPages(
+  data: InfiniteData<NotificationListPage> | undefined,
+  id: string,
+): InfiniteData<NotificationListPage> | undefined {
+  if (!data) return data
+  return {
+    ...data,
+    pages: data.pages.map((page) => ({
+      ...page,
+      items: page.items.filter((n) => n.id !== id),
+    })),
+  }
+}
+
+function removeLatestItem(
+  items: Notification[] | undefined,
+  id: string,
+): Notification[] | undefined {
+  if (!items) return items
+  return items.filter((n) => n.id !== id)
+}
+
 export function invalidateNotificationQueries(queryClient: QueryClient): void {
   void Promise.all([
     queryClient.invalidateQueries({ queryKey: [NOTIFICATIONS_KEY] }),
@@ -261,6 +283,88 @@ export function useMarkAllNotificationsRead() {
       return { prevCount, prevAll, prevUnread, prevLatest }
     },
     onError: (_err, _v, ctx) => {
+      if (!ctx) return
+      queryClient.setQueryData(
+        notificationsUnreadCountQueryKey(userId),
+        ctx.prevCount,
+      )
+      queryClient.setQueryData(
+        notificationsListQueryKey(userId, 'all'),
+        ctx.prevAll,
+      )
+      queryClient.setQueryData(
+        notificationsListQueryKey(userId, 'unread'),
+        ctx.prevUnread,
+      )
+      queryClient.setQueryData(
+        notificationsLatestQueryKey(userId, NOTIFICATION_DASHBOARD_LATEST),
+        ctx.prevLatest,
+      )
+    },
+    onSettled: () => {
+      invalidateNotificationQueries(queryClient)
+    },
+  })
+}
+
+export function useDeleteNotification() {
+  const userId = useStudioAuthId()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (id: string) => notificationService.delete(id),
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: [NOTIFICATIONS_KEY] })
+      await queryClient.cancelQueries({
+        queryKey: [NOTIFICATIONS_UNREAD_COUNT_KEY],
+      })
+      await queryClient.cancelQueries({ queryKey: [NOTIFICATIONS_LATEST_KEY] })
+
+      const prevCount = queryClient.getQueryData<number>(
+        notificationsUnreadCountQueryKey(userId),
+      )
+      const prevAll = queryClient.getQueryData<
+        InfiniteData<NotificationListPage>
+      >(notificationsListQueryKey(userId, 'all'))
+      const prevUnread = queryClient.getQueryData<
+        InfiniteData<NotificationListPage>
+      >(notificationsListQueryKey(userId, 'unread'))
+      const prevLatest = queryClient.getQueryData<Notification[]>(
+        notificationsLatestQueryKey(userId, NOTIFICATION_DASHBOARD_LATEST),
+      )
+
+      const wasUnread =
+        prevLatest?.find((n) => n.id === id)?.read === false ||
+        prevAll?.pages.some((p) =>
+          p.items.some((n) => n.id === id && !n.read),
+        ) ||
+        prevUnread?.pages.some((p) =>
+          p.items.some((n) => n.id === id && !n.read),
+        )
+
+      if (wasUnread && typeof prevCount === 'number' && prevCount > 0) {
+        queryClient.setQueryData(
+          notificationsUnreadCountQueryKey(userId),
+          prevCount - 1,
+        )
+      }
+
+      queryClient.setQueryData(
+        notificationsListQueryKey(userId, 'all'),
+        removeItemFromPages(prevAll, id),
+      )
+      queryClient.setQueryData(
+        notificationsListQueryKey(userId, 'unread'),
+        removeItemFromPages(prevUnread, id),
+      )
+      queryClient.setQueryData(
+        notificationsLatestQueryKey(userId, NOTIFICATION_DASHBOARD_LATEST),
+        removeLatestItem(prevLatest, id),
+      )
+
+      return { prevCount, prevAll, prevUnread, prevLatest }
+    },
+    onError: (_err, _id, ctx) => {
       if (!ctx) return
       queryClient.setQueryData(
         notificationsUnreadCountQueryKey(userId),

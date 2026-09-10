@@ -234,6 +234,22 @@ export const notificationService = {
     return (data ?? []).length
   },
 
+  /** Permanent owner delete — RLS: notifications_delete_own. */
+  async delete(id: string): Promise<void> {
+    const userId = await resolveStudioUserId()
+    const { data, error } = await supabase
+      .from('notifications')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', userId)
+      .select('id')
+
+    throwOnError(error)
+    if (!data?.length) {
+      throw new Error('Nie udało się usunąć powiadomienia.')
+    }
+  },
+
   async unreadCount(): Promise<number> {
     const userId = await resolveStudioUserId()
     const { count, error } = await supabase

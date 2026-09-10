@@ -684,13 +684,23 @@
 }
 
 .storyPrimaryAction {
-  border: none;
-  background: var(--color-text-primary);
-  color: var(--color-surface, #fff);
+  border: 1px solid var(--button-primary-border, transparent);
+  background: var(--button-primary-background, var(--color-accent));
+  color: var(--button-primary-text, var(--text-inverse));
+  box-shadow: var(--shadow-xs);
 }
 
 .storyPrimaryAction:hover {
-  opacity: 0.92;
+  background: var(
+    --button-primary-background-hover,
+    var(--color-accent-hover)
+  );
+  box-shadow: var(--shadow-sm);
+  opacity: 1;
+}
+
+.storyPrimaryAction:active {
+  opacity: 0.94;
 }
 
 .storySecondaryAction {
@@ -770,6 +780,14 @@
   border: 1px dashed
     color-mix(in srgb, var(--color-border) 90%, transparent);
   background: color-mix(in srgb, var(--color-text-primary) 2.5%, transparent);
+}
+
+.storyInsetMobile {
+  display: none;
+}
+
+.storyInsetDesktop {
+  display: block;
 }
 
 .storyInsetTitle {
@@ -877,6 +895,12 @@
     padding: var(--space-5);
   }
 
+  /* begin-paths desktop override is more specific than .storyCanvas —
+     force single column or the empty 0.65fr rail remains on tablet/mobile. */
+  .storyCanvas[data-composition='begin-paths'] {
+    grid-template-columns: 1fr;
+  }
+
   .storyMain {
     max-width: none;
   }
@@ -943,10 +967,46 @@
   .pathItem {
     grid-template-columns: 1fr;
     gap: 0.35rem;
+    padding: var(--space-3);
   }
 
   .pathResult {
     margin-top: 0;
+    text-align: left;
+    max-width: none;
+  }
+
+  .pathBoard {
+    gap: var(--space-2);
+    width: 100%;
+    max-width: none;
+  }
+
+  .pathList {
+    width: 100%;
+  }
+
+  .storyCanvas[data-composition='begin-paths'] {
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
+  }
+
+  .storyCanvas[data-composition='begin-paths'] .storyMain {
+    gap: var(--space-3);
+    width: 100%;
+    max-width: none;
+  }
+
+  .storyCanvas[data-composition='begin-paths'] .storySide {
+    display: none;
+  }
+
+  .storyInsetMobile {
+    display: block;
+  }
+
+  .storyInsetDesktop {
+    display: none;
   }
 
   .storyCanvas[data-composition='rhythm'] .factList {

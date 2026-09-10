@@ -313,4 +313,70 @@ run('card-stack reduced: facts + footnote inset', () => {
   assert(css.includes('pathBoard'), 'path board')
 })
 
+run('mobile begin-paths denser + themed primary CTA', () => {
+  const css = read('src/features/onboarding/guide/PrzewodnikPage.module.css')
+  const content = read(
+    'src/features/onboarding/guide/PrzewodnikPageContent.tsx',
+  )
+  assert(content.includes('storyInsetMobile'), 'mobile inset in main column')
+  assert(content.includes('storyInsetDesktop'), 'desktop inset stays in aside')
+  assert(
+    content.includes('data-testid="przewodnik-inset-mobile"'),
+    'mobile inset test id',
+  )
+  assert(
+    css.includes(".storyCanvas[data-composition='begin-paths'] .storySide"),
+    'mobile hides empty begin-paths side',
+  )
+  assert(css.includes('storyInsetMobile'), 'mobile inset class')
+  assert(
+    css.includes(
+      'background: var(--button-primary-background, var(--color-accent))',
+    ),
+    'primary CTA uses appearance theme button token',
+  )
+  assert(
+    !css.includes('background: var(--color-text-primary);'),
+    'primary CTA no longer hard-coded text color fill',
+  )
+  // Desktop begin-paths is 1.35/0.65 — mobile/tablet must override that
+  // higher-specificity rule or an empty right rail remains.
+  const tabletBlock = css.slice(
+    css.indexOf('@media (max-width: 1099px)'),
+    css.indexOf('@media (max-width: 767px)'),
+  )
+  assert(
+    tabletBlock.includes(
+      ".storyCanvas[data-composition='begin-paths'] {\n    grid-template-columns: 1fr;",
+    ),
+    '≤1099px begin-paths collapses to one column',
+  )
+  const mobileBlock = css.slice(css.indexOf('@media (max-width: 767px)'))
+  assert(
+    mobileBlock.includes(
+      ".storyCanvas[data-composition='begin-paths'] {\n    grid-template-columns: 1fr;",
+    ),
+    '≤767px begin-paths stays one column',
+  )
+  assert(mobileBlock.includes('.pathBoard {\n    gap: var(--space-2);\n    width: 100%;'), 'path board full width')
+  assert(
+    css.includes(
+      "grid-template-columns: minmax(0, 1.35fr) minmax(0, 0.65fr)",
+    ),
+    'desktop begin-paths side rail preserved',
+  )
+  for (const id of [
+    'zlecenia',
+    'umowy',
+    'dzien-slubu',
+    'finanse',
+    'organizacja',
+  ] as const) {
+    assert(
+      GUIDE_LEARN_CATEGORIES.some((c) => c.id === id),
+      `theme category present: ${id}`,
+    )
+  }
+})
+
 console.log('\nAll Przewodnik V3.2 acceptance checks passed.')

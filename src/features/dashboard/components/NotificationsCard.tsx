@@ -1,8 +1,12 @@
+import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { Trash2 } from 'lucide-react'
 import { Card, CardHeader } from '@/components/ui/Card'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { IconBell } from '@/components/icons'
 import { NOTIFICATIONS_EMPTY } from '@/features/dashboard/presentation/dashboardEmptyCopy'
+import { NotificationDeleteModal } from '@/features/notifications/modern/NotificationDeleteModal'
+import { NOTIFICATIONS_DELETE_ARIA } from '@/features/notifications/modern/notificationsCopy'
 import {
   useLatestNotifications,
   useMarkNotificationRead,
@@ -27,6 +31,7 @@ export function NotificationsCard({
   const latestQuery = useLatestNotifications(NOTIFICATION_DASHBOARD_LATEST)
   const unreadQuery = useUnreadNotificationCount()
   const markRead = useMarkNotificationRead()
+  const [pendingDelete, setPendingDelete] = useState<Notification | null>(null)
 
   const notifications =
     notificationsProp ?? latestQuery.data ?? []
@@ -37,6 +42,7 @@ export function NotificationsCard({
 
   const loading =
     notificationsProp == null && latestQuery.isLoading && !latestQuery.data
+  const canDelete = notificationsProp == null
 
   async function handleActivate(notification: Notification) {
     if (!notification.read) {
@@ -80,7 +86,7 @@ export function NotificationsCard({
                 ? undefined
                 : 'nieprzeczytane'
               return (
-                <li key={notification.id}>
+                <li key={notification.id} className={styles.row}>
                   {actionable ? (
                     <button
                       type="button"
@@ -98,6 +104,17 @@ export function NotificationsCard({
                       <NotificationBody notification={notification} />
                     </div>
                   )}
+                  {canDelete ? (
+                    <button
+                      type="button"
+                      className={styles.deleteBtn}
+                      aria-label={NOTIFICATIONS_DELETE_ARIA}
+                      data-testid="dashboard-notification-delete"
+                      onClick={() => setPendingDelete(notification)}
+                    >
+                      <Trash2 size={15} strokeWidth={1.75} aria-hidden="true" />
+                    </button>
+                  ) : null}
                 </li>
               )
             },
@@ -109,6 +126,14 @@ export function NotificationsCard({
           Zobacz wszystkie
         </Link>
       </div>
+
+      {canDelete ? (
+        <NotificationDeleteModal
+          open={pendingDelete != null}
+          notification={pendingDelete}
+          onClose={() => setPendingDelete(null)}
+        />
+      ) : null}
     </Card>
   )
 }

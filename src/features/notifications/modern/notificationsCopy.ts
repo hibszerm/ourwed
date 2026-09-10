@@ -37,6 +37,19 @@ export const NOTIFICATIONS_LOAD_MORE_PENDING = 'Ładowanie…'
 
 export const NOTIFICATIONS_UNREAD_ARIA = 'nieprzeczytane'
 
+export const NOTIFICATIONS_DELETE_ARIA = 'Usuń powiadomienie'
+
+export const NOTIFICATIONS_DELETE_TITLE = 'Usunąć powiadomienie?'
+
+export const NOTIFICATIONS_DELETE_CONFIRM = 'Usuń'
+
+export const NOTIFICATIONS_DELETE_PENDING = 'Usuwanie…'
+
+export const NOTIFICATIONS_DELETE_SUCCESS = 'Powiadomienie zostało usunięte.'
+
+export const NOTIFICATIONS_DELETE_ERROR =
+  'Nie udało się usunąć powiadomienia. Spróbuj ponownie.'
+
 /** Inbox feed only — not the page/header shell. */
 export const NOTIFICATIONS_FEED_MAX_PX = 1080
 
