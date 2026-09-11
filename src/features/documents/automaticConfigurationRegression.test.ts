@@ -498,10 +498,15 @@ run('Q — generation calls ensureAutomaticTemplateConfiguration', () => {
   assert(src.includes('ensureAutomaticTemplateConfiguration'), 'generation heals')
 })
 
-run('R — detail page heals on load', () => {
+run('R — detail page quarantines legacy AI heal UI', () => {
   const src = source('src/pages/DocumentTemplateDetailPage.tsx')
-  assert(src.includes('ensureAutomaticTemplateConfiguration'), 'detail heals')
-  assert(src.includes('Przygotowujemy szablon'), 'healing copy')
+  assert(
+    !src.includes('ensureAutomaticTemplateConfiguration'),
+    'detail no longer heals via legacy readiness',
+  )
+  assert(!src.includes('Przygotowujemy szablon'), 'no healing copy')
+  assert(!src.includes('Uruchom analizę'), 'no analysis CTA')
+  assert(src.includes('template-detail-v1'), 'slim V1 surface')
 })
 
 run('S — persistence adapter uses template meta keyed by templateId', () => {
@@ -531,11 +536,13 @@ run('W — advanced settings still show diagnostics', () => {
   assert(adv.includes('Wykryte zmienne'), 'count in advanced')
 })
 
-run('X — retry reruns automatic preparation without re-upload', () => {
+run('X — detail no longer exposes heal retry (quarantined to generation)', () => {
   const detail = source('src/pages/DocumentTemplateDetailPage.tsx')
-  assert(detail.includes('Spróbuj ponownie'), 'retry action')
-  assert(detail.includes('setHealNonce'), 'retry heals')
+  assert(!detail.includes('setHealNonce'), 'no heal retry on detail')
+  assert(!detail.includes('Uruchom analizę'), 'no analysis CTA')
+  assert(!detail.includes('Przygotowujemy szablon'), 'no heal copy')
   assert(!detail.includes('Wgraj ponownie plik DOCX'), 'no reupload CTA')
+  assert(detail.includes('Zamień źródłowy DOCX'), 'replace source remains')
 })
 
 if (!process.exitCode) {

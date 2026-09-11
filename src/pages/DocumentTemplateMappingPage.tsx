@@ -1,80 +1,14 @@
-import { useNavigate, useParams } from 'react-router-dom'
-import { AppLayout } from '@/layouts/AppLayout'
-import { Button } from '@/components/ui/Button'
-import { EmptyState } from '@/components/ui/EmptyState'
-import { PageContainer } from '@/components/ui/PageContainer'
-import {
-  useDocumentTemplate,
-  useDocumentTemplateMutations,
-} from '@/features/documents/hooks/useDocumentTemplates'
-import { SimpleContractImportFlow } from '@/features/documents/import/SimpleContractImportFlow'
-import styles from '@/features/documents/DocumentsTemplates.module.css'
+import { Navigate, useParams } from 'react-router-dom'
 
+/**
+ * Legacy AI analysis wizard route — quarantined from V1 product UI.
+ * Direct visits redirect to the slim template detail page.
+ * Import-flow implementation remains in the codebase for a later cleanup batch.
+ */
 export function DocumentTemplateMappingPage() {
   const { id } = useParams<{ id: string }>()
-  const navigate = useNavigate()
-  const { data: template, isLoading, isError } = useDocumentTemplate(id)
-  const mutations = useDocumentTemplateMutations(id)
-
-  if (isLoading) {
-    return (
-      <AppLayout title="Analiza szablonu">
-        <PageContainer width="wide">
-          <p className={styles.quietHint}>Ładowanie…</p>
-        </PageContainer>
-      </AppLayout>
-    )
+  if (!id) {
+    return <Navigate to="/studio/pakiety" replace />
   }
-
-  if (isError || !template) {
-    return (
-      <AppLayout title="Analiza szablonu">
-        <PageContainer width="wide">
-          <EmptyState
-            title="Nie znaleziono szablonu"
-            description="Szablon mógł zostać usunięty."
-            action={
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => navigate('/studio/pakiety')}
-              >
-                Wróć
-              </Button>
-            }
-          />
-        </PageContainer>
-      </AppLayout>
-    )
-  }
-
-  return (
-    <AppLayout>
-      <PageContainer width="wide">
-        <SimpleContractImportFlow
-          key={template.id}
-          templateId={template.id}
-          templateName={template.name}
-          sourceFileName={template.sourceFileName}
-          sourceDocxPath={template.sourceDocxPath}
-          onRenameTemplate={async (name) => {
-            await mutations.rename.mutateAsync({ id: template.id, name })
-          }}
-          onUploadFile={async (file) => {
-            const sourceBytes = await file.arrayBuffer()
-            const version = await mutations.uploadVersion.mutateAsync({
-              id: template.id,
-              file,
-            })
-            return {
-              templateVersionId: version.id,
-              sourceFileName: version.sourceFileName ?? file.name,
-              sourceDocxPath: version.sourceDocxPath,
-              sourceBytes,
-            }
-          }}
-        />
-      </PageContainer>
-    </AppLayout>
-  )
+  return <Navigate to={`/ustawienia/dokumenty/szablony/${id}`} replace />
 }

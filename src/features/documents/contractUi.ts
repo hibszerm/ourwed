@@ -60,6 +60,9 @@ export function templateServiceTypeLabel(
 export function getContractUiStatus(
   template: DocumentTemplateSummary,
 ): ContractUiStatus {
+  if (template.status === 'archived') return 'archived'
+  // Sparse package templates are generation-ready without AI analysis.
+  if (template.meta.sparseTemplateOnly) return 'ready'
   return automaticStatusFromTemplate(template) as ContractUiStatus
 }
 

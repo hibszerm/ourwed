@@ -8,6 +8,7 @@ import { Link } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { Button } from '@/components/ui/Button'
+import { Modal } from '@/components/ui/Modal'
 import { useToast } from '@/components/ui/Toast'
 import { useProAccessGate } from '@/features/billing/ProAccessGate'
 import {
@@ -93,6 +94,8 @@ export function PackageContractSection(input: {
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [card, setCard] = useState<PackageTemplateCardModel | null>(null)
   const [pipelineDone, setPipelineDone] = useState(false)
+  const [detachOpen, setDetachOpen] = useState(false)
+  const [detachBusy, setDetachBusy] = useState(false)
   const sessionRef = useRef(0)
   const inFlightRef = useRef(false)
 
@@ -256,6 +259,7 @@ export function PackageContractSection(input: {
 
   async function handleClear() {
     if (!requirePro()) return
+    setDetachBusy(true)
     try {
       const next = await clearPackageContractTemplate({ packageId: pkg.id })
       onPackageUpdated(next)
@@ -266,12 +270,15 @@ export function PackageContractSection(input: {
       setUploadError(null)
       setPipelineDone(false)
       setPhase('idle_empty')
+      setDetachOpen(false)
       showToast('Szablon odpięty od pakietu', 'success')
     } catch (e) {
       showToast(
         getUserFacingErrorMessage(e, 'Nie udało się odpiąć szablonu.'),
         'error',
       )
+    } finally {
+      setDetachBusy(false)
     }
   }
 
@@ -317,9 +324,13 @@ export function PackageContractSection(input: {
         type="button"
         size="sm"
         variant="ghost"
-        onClick={() => void handleClear()}
+        data-testid="package-template-detach-trigger"
+        onClick={() => {
+          if (!requirePro()) return
+          setDetachOpen(true)
+        }}
       >
-        Usuń szablon
+        Odepnij szablon
       </Button>
     </>
   )
@@ -502,6 +513,38 @@ export function PackageContractSection(input: {
           ) : null}
         </AnimatePresence>
       </div>
+
+      <Modal
+        open={detachOpen}
+        title="Odpiąć szablon od pakietu?"
+        description={
+          card?.fileName
+            ? `„${card.fileName}” przestanie być przypisany do tego pakietu.`
+            : 'Szablon przestanie być przypisany do tego pakietu.'
+        }
+        onClose={() => {
+          if (!detachBusy) setDetachOpen(false)
+        }}
+        busy={detachBusy}
+        showClose
+        primaryAction={
+          <Button
+            type="button"
+            variant="danger"
+            disabled={detachBusy}
+            data-testid="package-template-detach-confirm"
+            onClick={() => void handleClear()}
+          >
+            {detachBusy ? 'Odpinanie…' : 'Odepnij'}
+          </Button>
+        }
+      >
+        <p>
+          To nie usuwa pliku szablonu ze studia — tylko odłącza go od tego
+          pakietu. Nowe umowy z tego pakietu nie będą mogły korzystać z tego
+          wzoru, dopóki nie przypiszesz szablonu ponownie.
+        </p>
+      </Modal>
     </section>
   )
 }

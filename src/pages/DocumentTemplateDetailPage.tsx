@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, MoreHorizontal } from 'lucide-react'
 import { AppLayout } from '@/layouts/AppLayout'
 import { Button } from '@/components/ui/Button'
@@ -9,31 +9,76 @@ import { PageContainer } from '@/components/ui/PageContainer'
 import { useToast } from '@/components/ui/Toast'
 import { documentStorage } from '@/lib/api/documents/storage'
 import {
-  documentTemplateKeys,
   useDocumentTemplate,
   useDocumentTemplateMutations,
 } from '@/features/documents/hooks/useDocumentTemplates'
-import { ContractStatusBadge } from '@/features/documents/components/ContractStatusBadge'
 import { DeleteContractModal } from '@/features/documents/components/DeleteContractModal'
 import { RenameTemplateModal } from '@/features/documents/components/TemplateModals'
 import { validateContractDocx } from '@/features/documents/import/contractUploadValidation'
 import { GeneratedWeddingContractService } from '@/features/documents/template'
-import { ensureAutomaticTemplateConfiguration } from '@/features/documents/template/ensureAutomaticTemplateConfiguration'
 import {
   fileFormatLabel,
   formatContractDate,
-  getContractUiStatus,
-  templateServiceTypeLabel,
 } from '@/features/documents/contractUi'
-import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
 import styles from '@/features/documents/DocumentsTemplates.module.css'
 import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
+function formatUpdatedMeta(iso: string): string {
+  try {
+    return new Intl.DateTimeFormat('pl-PL', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    }).format(new Date(iso))
+  } catch {
+    return formatContractDate(iso)
+  }
+}
+
+/** Polish count for generated contracts — no i18n framework. */
+function formatGeneratedContractsCount(count: number): string {
+  const n = Math.max(0, Math.floor(count))
+  if (n === 1) return '1 umowę'
+  const mod10 = n % 10
+  const mod100 = n % 100
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
+    return `${n} umowy`
+  }
+  return `${n} umów`
+}
+
+/**
+ * Visual split of existing draft titles like
+ * "Umowa — Video Standard — Julia Kanicka & Maksymilian Ruth".
+ * Does not invent or rename data.
+ */
+function splitGeneratedTitle(title: string): {
+  primary: string
+  secondary: string | null
+} {
+  const parts = title
+    .split(' — ')
+    .map((part) => part.trim())
+    .filter(Boolean)
+  if (parts.length >= 3) {
+    return {
+      primary: parts.slice(0, -1).join(' — '),
+      secondary: parts[parts.length - 1] ?? null,
+    }
+  }
+  if (parts.length === 2) {
+    return { primary: parts[0]!, secondary: parts[1]! }
+  }
+  return { primary: title.trim() || 'Umowa', secondary: null }
+}
+
+/**
+ * Slim V1 template management surface — Packages visual continuity.
+ * Legacy AI analysis wizard is quarantined — not linked from this page.
+ */
 export function DocumentTemplateDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const queryClient = useQueryClient()
-  const userId = useStudioAuthId() ?? null
   const { showToast } = useToast()
   const fileRef = useRef<HTMLInputElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -52,43 +97,6 @@ export function DocumentTemplateDetailPage() {
   const [renameOpen, setRenameOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
-  const [healNonce, setHealNonce] = useState(0)
-
-  const needsHeal = Boolean(
-    template &&
-      (template.aiAnalyzedAt || (template.variableCount ?? 0) > 0) &&
-      (template.meta.fieldConfigurationStatus !== 'ready' ||
-        template.meta.automaticReadinessStatus === 'attention' ||
-        template.meta.automaticReadinessStatus === 'analyzing' ||
-        (template.meta.automaticAttentionIssues ?? []).some(
-          (issue) => issue.code === 'physical_slots',
-        ) ||
-        !template.meta.fieldConfiguration),
-  )
-
-  const healQuery = useQuery({
-    queryKey: ['ensure-automatic-template-configuration', id, healNonce],
-    queryFn: async () => {
-      if (!id) throw new Error('Brak szablonu')
-      const result = await ensureAutomaticTemplateConfiguration(id)
-      await queryClient.invalidateQueries({
-        queryKey: documentTemplateKeys.detail(userId, id),
-      })
-      await queryClient.invalidateQueries({
-        queryKey: documentTemplateKeys.summaries(userId),
-      })
-      return result
-    },
-    enabled: Boolean(id && needsHeal),
-    staleTime: Infinity,
-    retry: false,
-  })
-
-  const healing = healQuery.isFetching
-  const healError =
-    healQuery.isError || (healQuery.data?.failure && !healQuery.data.repaired)
-      ? 'Nie udało się dokończyć przygotowania szablonu. Spróbuj ponownie.'
-      : null
 
   useEffect(() => {
     if (!menuOpen) return
@@ -132,8 +140,11 @@ export function DocumentTemplateDetailPage() {
   }
 
   const doc = template
-  const status = healing ? 'analyzing' : getContractUiStatus(doc)
   const format = fileFormatLabel(doc.sourceFileName)
+  const generatedCount =
+    generatedContracts.length > 0
+      ? generatedContracts.length
+      : doc.usageCount
 
   async function handleDelete() {
     try {
@@ -152,13 +163,18 @@ export function DocumentTemplateDetailPage() {
   async function handleReplace(file: File) {
     const validation = validateContractDocx(file)
     if (!validation.ok) {
-      showToast(getUserFacingErrorMessage(validation, 'Nie udało się wykonać operacji. Spróbuj ponownie.'), 'error')
+      showToast(
+        getUserFacingErrorMessage(
+          validation,
+          'Nie udało się wykonać operacji. Spróbuj ponownie.',
+        ),
+        'error',
+      )
       return
     }
     try {
       await mutations.uploadVersion.mutateAsync({ id: doc.id, file })
-      showToast('Dokument zamieniony. Uruchamiamy analizę…', 'success')
-      navigate(`/ustawienia/dokumenty/szablony/${doc.id}/analiza`)
+      showToast('Źródłowy dokument został zamieniony.', 'success')
     } catch (err) {
       showToast(
         getUserFacingErrorMessage(err, 'Nie udało się zamienić dokumentu.'),
@@ -199,48 +215,41 @@ export function DocumentTemplateDetailPage() {
   return (
     <AppLayout>
       <PageContainer width="wide">
-        <div className={styles.studioPage}>
+        <div
+          className={`${styles.studioPage} ${styles.templateDetailPage}`}
+          data-testid="template-detail-v1"
+          data-sparse={doc.meta.sparseTemplateOnly ? 'true' : undefined}
+        >
           <button
             type="button"
             className={styles.backLink}
             onClick={() => navigate('/studio/pakiety')}
           >
-            <ArrowLeft size={16} aria-hidden />
+            <ArrowLeft size={16} strokeWidth={1.75} aria-hidden />
             Pakiety
           </button>
 
           <header className={styles.detailHeroClean}>
             <div className={styles.detailHeroText}>
-              <div className={styles.detailTitleRow}>
-                <h1 className={styles.detailTitleClean}>{doc.name}</h1>
-                <ContractStatusBadge status={status} />
-              </div>
+              <h1 className={styles.detailTitleClean}>{doc.name}</h1>
               <p className={styles.detailSubtle}>
-                {format}
+                <span>{format}</span>
                 <span aria-hidden>·</span>
-                Aktualizacja {formatContractDate(doc.updatedAt)}
+                <span>zaktualizowano {formatUpdatedMeta(doc.updatedAt)}</span>
               </p>
             </div>
 
             <div className={styles.detailHeroActions} ref={menuRef}>
-              {status === 'analyzing' || status === 'error' ? (
-                <Button
-                  type="button"
-                  variant="primary"
-                  onClick={() =>
-                    navigate(`/ustawienia/dokumenty/szablony/${doc.id}/analiza`)
-                  }
-                >
-                  {status === 'error' ? 'Spróbuj ponownie' : 'Uruchom analizę'}
-                </Button>
-              ) : null}
               <Button
                 type="button"
                 variant="secondary"
                 disabled={mutations.uploadVersion.isPending}
+                data-testid="template-replace-docx"
                 onClick={() => fileRef.current?.click()}
               >
-                Zamień źródłowy DOCX
+                {mutations.uploadVersion.isPending
+                  ? 'Zamienianie…'
+                  : 'Zamień źródłowy DOCX'}
               </Button>
               <div className={styles.overflowMenu}>
                 <button
@@ -293,6 +302,7 @@ export function DocumentTemplateDetailPage() {
                       type="button"
                       role="menuitem"
                       className={`${styles.overflowItem} ${styles.overflowItemDanger}`}
+                      data-testid="template-detail-delete-trigger"
                       onClick={() => {
                         setMenuOpen(false)
                         setDeleteOpen(true)
@@ -306,115 +316,79 @@ export function DocumentTemplateDetailPage() {
             </div>
           </header>
 
-          <section className={styles.detailFacts}>
+          <dl className={styles.detailFacts} data-testid="template-detail-meta">
             <div className={styles.factBlock}>
-              <h2 className={styles.factLabel}>Typ</h2>
-              <p className={styles.factValue}>
-                {templateServiceTypeLabel(
-                  doc.meta.templateServiceType,
-                  doc.category,
-                )}
-              </p>
-            </div>
-            <div className={styles.factBlock}>
-              <h2 className={styles.factLabel}>Dodano</h2>
-              <p className={styles.factValue}>
+              <dt className={styles.factLabel}>Dodano</dt>
+              <dd className={styles.factValue}>
                 {formatContractDate(doc.createdAt)}
-              </p>
+              </dd>
             </div>
             <div className={styles.factBlock}>
-              <h2 className={styles.factLabel}>Wygenerowano</h2>
-              <p className={styles.factValue}>{doc.usageCount}</p>
+              <dt className={styles.factLabel}>Wygenerowano</dt>
+              <dd
+                className={styles.factValue}
+                data-testid="template-generated-count"
+              >
+                {formatGeneratedContractsCount(generatedCount)}
+              </dd>
             </div>
-            {doc.description ? (
-              <div className={styles.factBlock}>
-                <h2 className={styles.factLabel}>Opis</h2>
-                <p className={styles.factValue}>{doc.description}</p>
+            {doc.description?.trim() ? (
+              <div className={`${styles.factBlock} ${styles.factBlockWide}`}>
+                <dt className={styles.factLabel}>Opis</dt>
+                <dd className={styles.factValue}>{doc.description.trim()}</dd>
               </div>
             ) : null}
-          </section>
+          </dl>
 
-          <section className={styles.section}>
-            <div className={styles.sectionHeader}>
-              <div>
-                <h2 className={styles.sectionTitle}>Wygenerowane umowy</h2>
-                <p className={styles.sectionSubtitle}>
-                  Zapisane artefakty utworzone z tego szablonu.
-                </p>
-              </div>
+          <section
+            className={styles.historySection}
+            data-testid="template-generated-history"
+          >
+            <div className={styles.historyHeader}>
+              <h2 className={styles.historyTitle}>Wygenerowane umowy</h2>
+              <p className={styles.historySupport}>
+                Umowy utworzone na podstawie tego szablonu.
+              </p>
             </div>
             {generatedContracts.length === 0 ? (
-              <p className={styles.quietHint}>Brak wygenerowanych umów.</p>
+              <p
+                className={styles.historyEmpty}
+                data-testid="template-history-empty"
+              >
+                Nie wygenerowano jeszcze żadnej umowy z tego szablonu.
+              </p>
             ) : (
               <div className={styles.generatedGrid}>
-                {generatedContracts.map((contract) => (
-                  <Link
-                    key={contract.draft.id}
-                    className={styles.generatedCard}
-                    to={`/sluby/${contract.weddingId}/umowy/${contract.draft.id}`}
-                  >
-                    <div className={styles.generatedCardTop}>
-                      <h3>{contract.draft.title}</h3>
-                      <span>Gotowa</span>
-                    </div>
-                    <p>
-                      Wersja {contract.generationVersion ?? 1} ·{' '}
-                      {formatContractDate(contract.updatedAt)}
-                    </p>
-                  </Link>
-                ))}
+                {generatedContracts.map((contract) => {
+                  const split = splitGeneratedTitle(contract.draft.title)
+                  return (
+                    <Link
+                      key={contract.draft.id}
+                      className={styles.generatedCard}
+                      to={`/sluby/${contract.weddingId}/umowy/${contract.draft.id}`}
+                    >
+                      <div className={styles.generatedCardTop}>
+                        <div className={styles.generatedCardIdentity}>
+                          <h3 className={styles.generatedCardTitle}>
+                            {split.primary}
+                          </h3>
+                          {split.secondary ? (
+                            <p className={styles.generatedCardCouple}>
+                              {split.secondary}
+                            </p>
+                          ) : null}
+                        </div>
+                        <span className={styles.generatedStatus}>Gotowa</span>
+                      </div>
+                      <p className={styles.generatedCardMeta}>
+                        Wersja {contract.generationVersion ?? 1} ·{' '}
+                        {formatContractDate(contract.updatedAt)}
+                      </p>
+                    </Link>
+                  )
+                })}
               </div>
             )}
-          </section>
-
-          <section className={styles.nextStepCard}>
-            <h2 className={styles.factLabel}>Gotowość</h2>
-            {healing || status === 'analyzing' ? (
-              <p className={styles.quietHint}>Przygotowujemy szablon…</p>
-            ) : status === 'ready' ? (
-              <>
-                <p className={styles.factValue}>
-                  Szablon jest gotowy do generowania umów.
-                </p>
-                <p className={styles.quietHint}>
-                  OurWed uzupełni ten szablon danymi ze zlecenia.
-                </p>
-              </>
-            ) : status === 'error' || healError ? (
-              <>
-                <p className={styles.quietHint}>
-                  {healError ??
-                    'Nie udało się dokończyć przygotowania szablonu. Spróbuj ponownie.'}
-                </p>
-                <div className={styles.configSlotActions}>
-                  <Button
-                    type="button"
-                    variant="primary"
-                    onClick={() => setHealNonce((value) => value + 1)}
-                  >
-                    Spróbuj ponownie
-                  </Button>
-                </div>
-              </>
-            ) : (
-              <p className={styles.quietHint}>
-                {(doc.meta.automaticAttentionIssues ?? []).find(
-                  (issue) => issue.code !== 'physical_slots',
-                )?.message ??
-                  'Przy generowaniu poprosimy o uzupełnienie brakujących danych.'}
-              </p>
-            )}
-            <div className={styles.configSlotActions}>
-              {status === 'ready' && !healing ? (
-                <Button
-                  type="button"
-                  variant="primary"
-                  onClick={() => navigate('/sluby')}
-                >
-                  Wygeneruj umowę
-                </Button>
-              ) : null}
-            </div>
           </section>
         </div>
       </PageContainer>
@@ -437,7 +411,10 @@ export function DocumentTemplateDetailPage() {
         busy={mutations.rename.isPending}
         error={
           mutations.rename.error instanceof Error
-            ? getUserFacingErrorMessage(mutations.rename.error, 'Nie udało się zmienić nazwy.')
+            ? getUserFacingErrorMessage(
+                mutations.rename.error,
+                'Nie udało się zmienić nazwy.',
+              )
             : null
         }
         initialName={doc.name}
@@ -455,6 +432,7 @@ export function DocumentTemplateDetailPage() {
       />
 
       <DeleteContractModal
+        key={deleteOpen ? `delete-${doc.id}` : 'delete-closed'}
         open={deleteOpen}
         contractName={doc.name}
         busy={mutations.remove.isPending}

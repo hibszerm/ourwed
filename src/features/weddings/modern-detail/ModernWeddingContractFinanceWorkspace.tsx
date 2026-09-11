@@ -1,6 +1,18 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  ChevronRight,
+  CircleCheck,
+  Download,
+  Eye,
+  FileText,
+  History,
+  Paperclip,
+  RefreshCw,
+  Send,
+  Undo2,
+} from 'lucide-react'
 import { IconCheck } from '@/components/icons'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
@@ -251,12 +263,8 @@ export function ModernWeddingContractFinanceWorkspace({
                 latestContractId,
                 latestDocx.id,
               ],
-              queryFn: () =>
-                GeneratedWeddingContractService.downloadArtifact(
-                  wedding.id,
-                  latestContractId,
-                  'docx',
-                ),
+              // Prefer known filePath — avoids reloading every draft/export for the wedding.
+              queryFn: () => documentStorage.download(latestDocx.filePath),
             })
         : undefined,
   })
@@ -269,11 +277,16 @@ export function ModernWeddingContractFinanceWorkspace({
     const key = `${contract.draft.id}:docx`
     setDownloading(key)
     try {
-      const url = await GeneratedWeddingContractService.getArtifactDownloadUrl(
-        wedding.id,
-        contract.draft.id,
-        'docx',
-      )
+      const docx = [...contract.artifacts]
+        .filter((item) => item.format === 'docx')
+        .sort((a, b) => b.generationVersion - a.generationVersion)[0]
+      const url = docx?.filePath
+        ? await documentStorage.signedUrl(docx.filePath, 3600)
+        : await GeneratedWeddingContractService.getArtifactDownloadUrl(
+            wedding.id,
+            contract.draft.id,
+            'docx',
+          )
       if (url) window.open(url, '_blank', 'noopener,noreferrer')
     } catch (err) {
       showToast(
@@ -414,28 +427,6 @@ export function ModernWeddingContractFinanceWorkspace({
         <div className={styles.sheetHead}>
           <p className={styles.eyebrow}>Umowa</p>
         </div>
-        <div className={styles.statusBlock}>
-          <h2
-            id="modern-contract-title"
-            className={styles.statusTitle}
-            data-kind={headline.kind}
-          >
-            {headline.kind === 'signed' ? (
-              <IconCheck
-                className={styles.signedMark}
-                width={15}
-                height={15}
-                aria-hidden
-              />
-            ) : null}
-            {headline.title}
-          </h2>
-          {headline.kind === 'signed' && headline.support ? (
-            <p className={styles.signedDate}>{headline.support}</p>
-          ) : headline.support ? (
-            <p className={styles.statusSupport}>{headline.support}</p>
-          ) : null}
-        </div>
 
         {contractsQuery.isLoading ? (
           <p className={styles.muted}>Ładowanie umów…</p>
@@ -451,7 +442,40 @@ export function ModernWeddingContractFinanceWorkspace({
             className={styles.document}
             data-testid="modern-contract-current"
           >
-            <p className={styles.documentTitle}>{latestMeta.title}</p>
+            <div className={styles.statusRow}>
+              <p
+                className={styles.statusPill}
+                data-kind={headline.kind}
+                data-testid="modern-contract-status"
+              >
+                {headline.kind === 'signed' ? (
+                  <IconCheck
+                    className={styles.statusIcon}
+                    width={14}
+                    height={14}
+                    aria-hidden
+                  />
+                ) : headline.kind === 'generated' &&
+                  headline.title === 'Wygenerowana' ? (
+                  <CircleCheck
+                    className={styles.statusIcon}
+                    size={14}
+                    strokeWidth={1.85}
+                    aria-hidden
+                  />
+                ) : null}
+                {headline.title}
+              </p>
+              {headline.kind === 'signed' && headline.support ? (
+                <span className={styles.signedDate}>{headline.support}</span>
+              ) : null}
+            </div>
+            <h2
+              id="modern-contract-title"
+              className={styles.documentTitle}
+            >
+              {latestMeta.title}
+            </h2>
             <p className={styles.documentMeta}>
               {latestMeta.versionLabel} · {latestMeta.formatsLabel} ·{' '}
               {latestMeta.generatedAtLabel}
@@ -484,9 +508,15 @@ export function ModernWeddingContractFinanceWorkspace({
             ) : null}
             <div className={styles.docActions}>
               <Link
-                className={styles.docAction}
+                className={`${styles.docAction} ${styles.docActionPrimary}`}
                 to={`/sluby/${wedding.id}/umowy/${latest.draft.id}`}
               >
+                <Eye
+                  className={styles.docActionIcon}
+                  size={16}
+                  strokeWidth={1.75}
+                  aria-hidden
+                />
                 Podgląd
               </Link>
               {latestFormats.includes('docx') ? (
@@ -496,6 +526,12 @@ export function ModernWeddingContractFinanceWorkspace({
                   disabled={downloading === `${latest.draft.id}:docx`}
                   onClick={() => void downloadContract(latest)}
                 >
+                  <Download
+                    className={styles.docActionIcon}
+                    size={16}
+                    strokeWidth={1.75}
+                    aria-hidden
+                  />
                   Pobierz DOCX
                 </button>
               ) : null}
@@ -507,6 +543,12 @@ export function ModernWeddingContractFinanceWorkspace({
                   data-testid="contract-pdf-download-button"
                   onClick={() => void pdfDownload.downloadPdf()}
                 >
+                  <Download
+                    className={styles.docActionIcon}
+                    size={16}
+                    strokeWidth={1.75}
+                    aria-hidden
+                  />
                   {pdfDownload.busy ? 'Przygotowywanie PDF…' : 'Pobierz PDF'}
                 </button>
               ) : null}
@@ -521,47 +563,101 @@ export function ModernWeddingContractFinanceWorkspace({
                 {canRegenerate ? (
                   <button
                     type="button"
-                    className={styles.quietLink}
+                    className={styles.workflowAction}
                     data-testid="contracts-generate"
                     onClick={() => onAction('generate_contract')}
                   >
+                    <RefreshCw
+                      className={styles.workflowIcon}
+                      size={15}
+                      strokeWidth={1.75}
+                      aria-hidden
+                    />
                     Generuj ponownie
                   </button>
                 ) : null}
                 {canMarkSent ? (
                   <button
                     type="button"
-                    className={styles.quietLink}
+                    className={styles.workflowAction}
                     data-testid="contract-mark-sent"
                     onClick={() => setConfirmSent(true)}
                   >
+                    <Send
+                      className={styles.workflowIcon}
+                      size={15}
+                      strokeWidth={1.75}
+                      aria-hidden
+                    />
                     Oznacz jako wysłaną
                   </button>
                 ) : null}
                 {canSign ? (
                   <button
                     type="button"
-                    className={styles.quietLink}
+                    className={styles.workflowAction}
                     data-testid="contract-mark-signed"
                     onClick={() => setConfirmSign(true)}
                   >
+                    <CircleCheck
+                      className={styles.workflowIcon}
+                      size={15}
+                      strokeWidth={1.75}
+                      aria-hidden
+                    />
                     Oznacz jako podpisaną
                   </button>
                 ) : null}
                 {isSigned ? (
                   <button
                     type="button"
-                    className={styles.quietLink}
+                    className={styles.workflowAction}
                     data-testid="contract-unsign"
                     onClick={() => setConfirmUnsign(true)}
                   >
+                    <Undo2
+                      className={styles.workflowIcon}
+                      size={15}
+                      strokeWidth={1.75}
+                      aria-hidden
+                    />
                     Cofnij oznaczenie
                   </button>
                 ) : null}
               </div>
             ) : null}
           </div>
-        ) : null}
+        ) : (
+          <div className={styles.statusBlock}>
+            <h2
+              id="modern-contract-title"
+              className={styles.statusPill}
+              data-kind={headline.kind}
+              data-testid="modern-contract-status"
+            >
+              {headline.kind === 'signed' ? (
+                <IconCheck
+                  className={styles.statusIcon}
+                  width={14}
+                  height={14}
+                  aria-hidden
+                />
+              ) : headline.kind === 'generated' &&
+                headline.title === 'Wygenerowana' ? (
+                <CircleCheck
+                  className={styles.statusIcon}
+                  size={14}
+                  strokeWidth={1.85}
+                  aria-hidden
+                />
+              ) : null}
+              {headline.title}
+            </h2>
+            {headline.support ? (
+              <p className={styles.statusSupport}>{headline.support}</p>
+            ) : null}
+          </div>
+        )}
 
         {headline.kind === 'ready' ? (
           <div className={styles.primaryCta}>
@@ -620,11 +716,27 @@ export function ModernWeddingContractFinanceWorkspace({
               data-testid="wedding-version-history-toggle"
               onClick={() => toggleUtility('history')}
             >
-              <span className={styles.discloseLabel}>Historia wersji</span>
-              <span className={styles.discloseMeta}>
-                {older.length === 1
-                  ? '1 wcześniejsza'
-                  : `${older.length} wcześniejsze`}
+              <span className={styles.discloseLead}>
+                <History
+                  className={styles.discloseIcon}
+                  size={16}
+                  strokeWidth={1.75}
+                  aria-hidden
+                />
+                <span className={styles.discloseLabel}>Historia wersji</span>
+              </span>
+              <span className={styles.discloseTrail}>
+                <span className={styles.discloseMeta}>
+                  {older.length === 1
+                    ? '1 wcześniejsza'
+                    : `${older.length} wcześniejsze`}
+                </span>
+                <ChevronRight
+                  className={styles.discloseChevron}
+                  size={15}
+                  strokeWidth={1.75}
+                  aria-hidden
+                />
               </span>
             </button>
           ) : null}
@@ -687,8 +799,18 @@ export function ModernWeddingContractFinanceWorkspace({
             data-testid="contract-answers-toggle"
             onClick={() => toggleUtility('answers')}
           >
-            <span className={styles.discloseLabel}>Dane z ankiety</span>
-            <span className={styles.discloseMeta}>{answers.line}</span>
+            <span className={styles.discloseLead}>
+              <FileText
+                className={styles.discloseIcon}
+                size={16}
+                strokeWidth={1.75}
+                aria-hidden
+              />
+              <span className={styles.discloseLabel}>Dane z ankiety</span>
+            </span>
+            <span className={styles.discloseTrail}>
+              <span className={styles.discloseMeta}>{answers.line}</span>
+            </span>
           </button>
           {utility === 'answers' ? (
             <div
@@ -724,15 +846,25 @@ export function ModernWeddingContractFinanceWorkspace({
             data-testid="modern-source-contract-toggle"
             onClick={() => toggleUtility('source')}
           >
-            <span className={styles.discloseLabel}>Umowa źródłowa</span>
-            <span className={styles.discloseMeta}>
-              {sourceContracts.length === 0
-                ? 'Brak pliku'
-                : sourceContracts.length === 1
-                  ? '1 plik'
-                  : sourceContracts.length < 5
-                    ? `${sourceContracts.length} pliki`
-                    : `${sourceContracts.length} plików`}
+            <span className={styles.discloseLead}>
+              <Paperclip
+                className={styles.discloseIcon}
+                size={16}
+                strokeWidth={1.75}
+                aria-hidden
+              />
+              <span className={styles.discloseLabel}>Umowa źródłowa</span>
+            </span>
+            <span className={styles.discloseTrail}>
+              <span className={styles.discloseMeta}>
+                {sourceContracts.length === 0
+                  ? 'Brak pliku'
+                  : sourceContracts.length === 1
+                    ? '1 plik'
+                    : sourceContracts.length < 5
+                      ? `${sourceContracts.length} pliki`
+                      : `${sourceContracts.length} plików`}
+              </span>
             </span>
           </button>
           {utility === 'source' ? (

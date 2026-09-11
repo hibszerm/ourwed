@@ -550,7 +550,7 @@ run('UI — package contract section is template management only', () => {
   assert(ui.includes('PackageTemplateUploadProgress'), 'upload progress')
   assert(ui.includes('idle_empty') || ui.includes('PackageTemplateUiPhase') || ui.includes('phase'), 'state machine')
   assert(ui.includes('Podgląd'), 'preview')
-  assert(ui.includes('Usuń szablon') || ui.includes('Odepnij szablon'), 'remove')
+  assert(ui.includes('Odepnij szablon') || ui.includes('Odpiąć szablon'), 'detach')
   assert(ui.includes('inFlightRef') || ui.includes('success_transition'), 'no flicker guard')
   assert(ui.includes('Dodaj wzór umowy dla tego pakietu.'), 'empty-state product copy')
   assert(!ui.includes('Przechowuj DOCX'), 'no technical storage copy')

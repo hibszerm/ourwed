@@ -49,9 +49,14 @@ run('C. document paper surfaces remain appearance-independent', () => {
   assert(preview.includes('.page {'), 'paper class exists')
   assert(preview.includes('background: #fff'), 'paper stays white')
   assert(preview.includes('background: var(--app-background-subtle)'), 'chrome uses tokens')
-  const pagePreview = read('src/pages/WeddingContractPreviewPage.module.css')
-  assert(pagePreview.includes('.paper {'), 'page paper class')
-  assert(pagePreview.includes('background: white'), 'contract page paper white')
+  const docxPreview = read(
+    'src/features/documents/contract-experience/ContractDocxPreview.module.css',
+  )
+  assert(docxPreview.includes('.paperHost'), 'docx paper host')
+  assert(
+    docxPreview.includes('background: #fff'),
+    'saved contract docx paper stays white',
+  )
 })
 
 run('D. wedding portals inherit root appearance (no local override)', () => {

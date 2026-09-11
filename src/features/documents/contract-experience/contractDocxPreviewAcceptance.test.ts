@@ -46,6 +46,7 @@ assert(
 assert(ready.includes('Umowa jest gotowa'), 'ready heading')
 assert(ready.includes('Podgląd dokumentu'), 'preview label')
 assert(ready.includes('Pobierz DOCX'), 'docx download')
+assert(ready.includes("chrome?: 'full' | 'document'"), 'document chrome mode')
 assert(
   ready.includes('nieznacznie różnić się od wyglądu dokumentu'),
   'subtle note',

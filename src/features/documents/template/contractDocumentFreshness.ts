@@ -17,13 +17,21 @@ export const CONTRACT_FRESHNESS_PAYMENT_LEDGER_KEYS = new Set([
   'total_paid',
   'total_paid_formatted',
   'total_paid_words',
+  'totalPaid',
   'totalPaidFormatted',
   'totalPaidWords',
+  'payments.totalPaid',
+  'package.totalPaidFormatted',
+  'package.totalPaidWords',
   'remaining_to_pay',
   'remaining_to_pay_formatted',
   'remaining_to_pay_words',
+  'remainingToPay',
   'remainingToPayFormatted',
   'remainingToPayWords',
+  'package.remainingToPayRaw',
+  'package.remainingToPayFormatted',
+  'package.remainingToPayWords',
 ])
 
 export function shouldExcludeContractFreshnessKey(key: string): boolean {
@@ -75,13 +83,27 @@ export function getLatestContractArtifactSnapshot(
   return null
 }
 
+/**
+ * Company logo/signature/stamp resolves are fresh signed Storage URLs on every
+ * resolve (new JWT token). Comparing the full URL always marks contracts stale
+ * after regenerate+save. Strip the query so we compare object identity; a new
+ * uploaded file (different path) still changes freshness truthfully.
+ */
 export function normalizeContractFreshnessValue(
   value: string | null | undefined,
 ): string {
-  return String(value ?? '')
+  let normalized = String(value ?? '')
     .replace(/\u00a0/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
+  if (
+    normalized.includes('/storage/v1/object/sign/') ||
+    normalized.includes('/storage/v1/object/public/')
+  ) {
+    const q = normalized.indexOf('?')
+    if (q >= 0) normalized = normalized.slice(0, q)
+  }
+  return normalized
 }
 
 /**

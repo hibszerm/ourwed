@@ -19,6 +19,19 @@ function pdfFileNameFromDocx(fileName: string): string {
   return `${base}.pdf`
 }
 
+/** Session cache: same DOCX bytes → reuse PDF (no second Cloudmersive call). */
+const pdfSessionCache = new Map<string, ArrayBuffer>()
+
+function cacheKeyForDocx(docxBytes: ArrayBuffer, documentId?: string): string {
+  const view = new Uint8Array(docxBytes)
+  let hash = view.byteLength
+  const step = Math.max(1, Math.floor(view.byteLength / 32))
+  for (let i = 0; i < view.byteLength; i += step) {
+    hash = (hash * 31 + view[i]!) >>> 0
+  }
+  return `${documentId ?? 'docx'}:${view.byteLength}:${hash}`
+}
+
 export type ContractPdfDownloadInput = {
   /** Exact final DOCX for this artifact (already generated). */
   docxBytes: ArrayBuffer | null | undefined
@@ -67,14 +80,19 @@ export function useContractPdfDownload(props: ContractPdfDownloadInput) {
         )
         return
       }
-      const pdfBytes = await convertContractDocxToPdf({
-        docxBytes,
-        filename: props.fileName.endsWith('.docx')
-          ? props.fileName
-          : `${props.fileName}.docx`,
-        weddingId: props.weddingId,
-        documentId: props.documentId,
-      })
+      const cacheKey = cacheKeyForDocx(docxBytes, props.documentId)
+      let pdfBytes = pdfSessionCache.get(cacheKey)
+      if (!pdfBytes) {
+        pdfBytes = await convertContractDocxToPdf({
+          docxBytes,
+          filename: props.fileName.endsWith('.docx')
+            ? props.fileName
+            : `${props.fileName}.docx`,
+          weddingId: props.weddingId,
+          documentId: props.documentId,
+        })
+        pdfSessionCache.set(cacheKey, pdfBytes)
+      }
       downloadPdfBytes(pdfBytes, pdfFileNameFromDocx(props.fileName))
     } catch (e) {
       if (e instanceof ContractPdfError) {

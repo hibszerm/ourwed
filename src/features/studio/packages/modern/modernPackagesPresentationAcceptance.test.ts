@@ -7,11 +7,14 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import {
   PACKAGES_ADD_LABEL,
-  PACKAGES_DELETE_CONFIRM,
+  PACKAGES_DELETE_CTA,
+  PACKAGES_DELETE_PHRASE,
+  PACKAGES_DELETE_TITLE,
   PACKAGES_EMPTY_COPY,
   PACKAGES_EMPTY_TITLE,
   PACKAGES_ERROR_RETRY,
   PACKAGES_ERROR_TITLE,
+  PACKAGES_ITEM_DELETE_TITLE,
   PACKAGES_SUBTITLE,
   PACKAGES_TITLE,
 } from './packagesCopy'
@@ -92,13 +95,20 @@ run('3. architecture preserved — not a ledger', () => {
   assertIncludes(workspace, 'Zawartość pakietu', 'items visible')
   assertIncludes(workspace, 'PackageItemsEditor', 'item editor on surface')
   assertIncludes(workspace, 'PackageForm', 'inline create/edit')
-  assertNotIncludes(workspace, 'from \'@/components/ui/Modal\'', 'no modal workflow')
+  assertIncludes(workspace, "from '@/components/ui/Modal'", 'delete confirmation Modal')
   assertNotIncludes(workspace, 'Drawer', 'no drawer')
   assertNotIncludes(workspace, 'navigate(`/studio/pakiety/', 'no detail route')
   assertIncludes(workspace, 'Duplikuj', 'duplicate action')
   assertIncludes(workspace, 'Archiwizuj', 'archive action')
-  assertIncludes(workspace, 'window.confirm(PACKAGES_DELETE_CONFIRM)', 'native confirm frozen')
-  assert(PACKAGES_DELETE_CONFIRM === 'Usunąć pakiet na stałe?', 'delete copy')
+  assertNotIncludes(workspace, 'window.confirm', 'native confirm removed')
+  assertIncludes(workspace, 'PACKAGES_DELETE_TITLE', 'package delete modal')
+  assertIncludes(workspace, 'PACKAGES_DELETE_PHRASE', 'typed USUŃ gate')
+  assertIncludes(workspace, 'package-delete-confirm-input', 'typed confirm input')
+  assertIncludes(workspace, 'PACKAGES_ITEM_DELETE_TITLE', 'item delete modal')
+  assert(PACKAGES_DELETE_PHRASE === 'USUŃ', 'delete phrase')
+  assert(PACKAGES_DELETE_TITLE === 'Usuń pakiet?', 'delete title copy')
+  assert(PACKAGES_DELETE_CTA === 'Usuń na zawsze', 'delete CTA copy')
+  assert(PACKAGES_ITEM_DELETE_TITLE === 'Usunąć pozycję pakietu?', 'item delete title')
 })
 
 run('4. price + deposit once; commercial meta anatomy', () => {

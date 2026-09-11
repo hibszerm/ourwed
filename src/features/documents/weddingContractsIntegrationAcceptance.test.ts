@@ -112,6 +112,8 @@ run('saved preview hides in-page edit CTA and keeps real downloads', () => {
     'src/features/documents/contract-experience/ContractReadyPreview.tsx',
   )
   assert(preview.includes('Gotowa do pobrania') || preview.includes('Umowa · Gotowa'), 'preview chrome missing')
+  assert(preview.includes("chrome=\"document\""), 'preview page uses document chrome')
+  assert(!preview.includes('Umowa · Gotowa'), 'compound eyebrow removed from saved preview')
   assert(!preview.includes('Edytuj dane umowy'), 'edit CTA must stay hidden')
   assert(!preview.includes('contentEditable'), 'saved route must not expose arbitrary legal text editing')
   assert(preview.includes('ContractReadyPreview'), 'ready preview missing')
@@ -120,6 +122,8 @@ run('saved preview hides in-page edit CTA and keeps real downloads', () => {
     'regenerate must remain available',
   )
   assert(preview.includes("download('docx')") || preview.includes('onDownloadDocx'), 'real DOCX download missing')
+  assert(preview.includes('Pobierz DOCX'), 'DOCX label on preview shell')
+  assert(preview.includes('Wygeneruj ponownie'), 'regenerate on preview shell')
   assert(ready.includes('Pobierz DOCX'), 'DOCX label missing')
   assert(ready.includes('Wygeneruj ponownie'), 'regenerate label missing')
 })

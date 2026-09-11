@@ -17,7 +17,31 @@ export interface SaveGeneratedContractResult {
 export async function saveGeneratedContract(
   input: SaveGeneratedContractInput,
 ): Promise<SaveGeneratedContractResult> {
-  const saved = await ContractArtifactPersistenceService.persist(input)
+  let resolvedValues = input.resolvedValues
+  // Sparse generation used to persist resolvedValues: {}. Freshness compares that
+  // bag to a live resolveContractVariables run, so empty vs full stayed forever
+  // stale — including after regenerate. Fill from the same resolver used by the
+  // freshness check when the generation bag is empty.
+  if (Object.keys(resolvedValues).length === 0) {
+    const { resolveContractVariables } = await import('./resolveContractVariables')
+    const live = await resolveContractVariables({
+      wedding: input.wedding,
+      overrides: input.manualOverrides,
+      executionSnapshot: input.executionSnapshot
+        ? {
+            contractExecutionDate:
+              input.executionSnapshot.contractExecutionDate ?? '',
+            contractExecutionCity:
+              input.executionSnapshot.contractExecutionCity ?? '',
+          }
+        : null,
+    })
+    resolvedValues = live.resolved
+  }
+  const saved = await ContractArtifactPersistenceService.persist({
+    ...input,
+    resolvedValues,
+  })
   return {
     generationVersion: saved.generationVersion,
     docxPath: saved.docx.document.filePath,

@@ -102,6 +102,111 @@ function read(rel: string): string {
 }
 
 {
+  // Empty generation bag (historical sparse) vs full live resolve is always stale.
+  assert.equal(
+    isGeneratedContractContentStale({
+      storedResolvedValues: {},
+      currentResolvedValues: {
+        partner1_full_name: 'Anna',
+        contract_value: '5000',
+      },
+    }),
+    true,
+    'empty stored vs populated current → stale (sparse bug shape)',
+  )
+  assert.equal(
+    isGeneratedContractContentStale({
+      storedResolvedValues: {
+        partner1_full_name: 'Anna',
+        contract_value: '5000',
+      },
+      currentResolvedValues: {
+        partner1_full_name: 'Anna',
+        contract_value: '5000',
+      },
+    }),
+    false,
+    'matching bags after regenerate → fresh',
+  )
+}
+
+{
+  // Julia / production defect: company signature is a signed Storage URL whose
+  // JWT token rotates on every resolveContractVariables call. Same object path
+  // must remain FRESH after regenerate+save.
+  const objectPath =
+    'https://xyycwllsovpxlcustpcv.supabase.co/storage/v1/object/sign/document-files/user/company/signature-1.png'
+  const sig = diffContractResolvedValuesForFreshness(
+    {
+      company_signature: `${objectPath}?token=aaa.bbb.ccc`,
+      partner1_full_name: 'Julia Kanicka',
+    },
+    {
+      company_signature: `${objectPath}?token=ddd.eee.fff`,
+      partner1_full_name: 'Julia Kanicka',
+    },
+  )
+  assert.equal(sig.stale, false, 'signed signature URL token rotate ≠ stale')
+  assert.equal(
+    diffContractResolvedValuesForFreshness(
+      { company_signature: `${objectPath}?token=aaa` },
+      {
+        company_signature:
+          'https://xyycwllsovpxlcustpcv.supabase.co/storage/v1/object/sign/document-files/user/company/signature-2.png?token=bbb',
+      },
+    ).stale,
+    true,
+    'new signature object path → stale',
+  )
+}
+
+{
+  // Ledger aliases (camelCase / dotted) must stay excluded like snake_case.
+  const aliases = diffContractResolvedValuesForFreshness(
+    {
+      totalPaid: '1000',
+      remainingToPay: '11200',
+      'payments.totalPaid': '1000',
+      'package.totalPaidFormatted': '1 000 zł',
+      'package.remainingToPayFormatted': '11 200 zł',
+      partner1_full_name: 'Julia',
+    },
+    {
+      totalPaid: '0',
+      remainingToPay: '12200',
+      'payments.totalPaid': '0',
+      'package.totalPaidFormatted': '0 zł',
+      'package.remainingToPayFormatted': '12 200 zł',
+      partner1_full_name: 'Julia',
+    },
+  )
+  assert.equal(aliases.stale, false, 'payment ledger aliases excluded')
+  assert.equal(shouldExcludeContractFreshnessKey('totalPaid'), true)
+  assert.equal(shouldExcludeContractFreshnessKey('remainingToPay'), true)
+  assert.equal(shouldExcludeContractFreshnessKey('payments.totalPaid'), true)
+}
+
+
+{
+  const sparse = read(
+    'src/features/documents/template/WeddingSparseContractGenerationService.ts',
+  )
+  const save = read('src/features/documents/template/saveGeneratedContract.ts')
+  assert.ok(
+    sparse.includes('resolveContractVariables'),
+    'sparse generation resolves variables for freshness snapshot',
+  )
+  assert.ok(
+    !sparse.includes('resolved: {}'),
+    'sparse must not persist an empty resolved bag',
+  )
+  assert.ok(
+    save.includes('Object.keys(resolvedValues).length === 0'),
+    'save fills empty resolvedValues before persist',
+  )
+}
+
+{
   const workspace = read(
     'src/features/weddings/modern-detail/ModernWeddingContractFinanceWorkspace.tsx',
   )

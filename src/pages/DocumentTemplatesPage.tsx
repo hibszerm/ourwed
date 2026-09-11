@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useQueryClient } from '@tanstack/react-query'
 import { Plus } from 'lucide-react'
 import { AppLayout } from '@/layouts/AppLayout'
 import { Button } from '@/components/ui/Button'
@@ -19,15 +18,12 @@ import { RenameTemplateModal } from '@/features/documents/components/TemplateMod
 import { setPendingNewImport } from '@/features/documents/import/attachedImportCache'
 import { validateContractDocx } from '@/features/documents/import/contractUploadValidation'
 import { startDocumentsPerf } from '@/features/documents/performance/documentsPerformance'
-import { reanalyzeTemplate } from '@/features/documents/template/reanalyzeTemplate'
 import type { DocumentTemplateSummary } from '@/types/documents'
 import styles from '@/features/documents/DocumentsTemplates.module.css'
 import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
-import { devInfoArgs } from '@/lib/debug/devConsole'
 
 export function DocumentTemplatesPage() {
   const navigate = useNavigate()
-  const queryClient = useQueryClient()
   const { showToast } = useToast()
   const { requirePro } = useProAccessGate()
   const fileRef = useRef<HTMLInputElement>(null)
@@ -41,7 +37,6 @@ export function DocumentTemplatesPage() {
   } = useDocumentTemplates()
   const { remove, rename, duplicate, uploadVersion } =
     useDocumentTemplateMutations()
-  const [reanalyzingId, setReanalyzingId] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'templates' | 'generated'>(
     'templates',
   )
@@ -138,8 +133,7 @@ export function DocumentTemplatesPage() {
     }
     try {
       await uploadVersion.mutateAsync({ id: replaceTarget.id, file })
-      showToast('Źródłowy dokument zamieniony. Uruchamiamy analizę…', 'success')
-      navigate(`/ustawienia/dokumenty/szablony/${replaceTarget.id}/analiza`)
+      showToast('Źródłowy dokument został zamieniony.', 'success')
       setReplaceTarget(null)
     } catch (err) {
       showToast(
@@ -148,48 +142,6 @@ export function DocumentTemplatesPage() {
       )
     } finally {
       if (replaceRef.current) replaceRef.current.value = ''
-    }
-  }
-
-  async function handleReanalyze(template: DocumentTemplateSummary) {
-    if (reanalyzingId) return
-    setReanalyzingId(template.id)
-    try {
-      const result = await reanalyzeTemplate({ templateId: template.id })
-      await queryClient.invalidateQueries({
-        queryKey: ['document-template-summaries'],
-      })
-      await queryClient.invalidateQueries({
-        queryKey: ['document-templates'],
-      })
-      devInfoArgs('[reanalyze-complete]', {
-        templateId: result.templateId,
-        templateVersionId: result.templateVersionId,
-        readinessReady: result.readinessReady,
-        paragraph36: result.slotMap.slots
-          .filter((s) => s.paragraphIndex === 36)
-          .map((s) => ({
-            registryKey: s.registryKey,
-            originalSpan: s.originalText,
-            startOffset: s.startOffset,
-            endOffset: s.endOffset,
-          })),
-      })
-      if (result.readinessReady) {
-        showToast('Szablon przeanalizowany — gotowy do generacji.', 'success')
-      } else {
-        showToast(
-          `Szablon niekompletny. Brak powiązań: ${result.unresolvedKeys.slice(0, 5).join(', ') || 'brak slotów'}.`,
-          'error',
-        )
-      }
-    } catch (err) {
-      showToast(
-        getUserFacingErrorMessage(err, 'Nie udało się ponownie przeanalizować szablonu.'),
-        'error',
-      )
-    } finally {
-      setReanalyzingId(null)
     }
   }
 
@@ -264,7 +216,7 @@ export function DocumentTemplatesPage() {
           ) : sorted.length === 0 ? (
             <EmptyState
               title="Brak szablonów umów"
-              description="Prześlij umowę w formacie DOCX. OurWed przeanalizuje ją i przygotuje szablon automatycznie."
+              description="Prześlij umowę w formacie DOCX z poziomu pakietu, aby OurWed mógł przygotowywać umowy."
               action={
                 <Button
                   type="button"
@@ -289,7 +241,6 @@ export function DocumentTemplatesPage() {
                       replaceRef.current?.click()
                     })
                   }}
-                  onReanalyze={() => void handleReanalyze(t)}
                   onDelete={() => requirePro(() => setDeleteTarget(t))}
                   onUse={() => navigate(`/ustawienia/dokumenty/szablony/${t.id}`)}
                 />
@@ -348,6 +299,7 @@ export function DocumentTemplatesPage() {
       />
 
       <DeleteContractModal
+        key={deleteTarget ? `delete-${deleteTarget.id}` : 'delete-closed'}
         open={Boolean(deleteTarget)}
         contractName={deleteTarget?.name ?? ''}
         busy={remove.isPending}

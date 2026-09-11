@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Archive, Copy, Pencil, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Input, Select, Textarea } from '@/components/ui/Input'
+import { Modal } from '@/components/ui/Modal'
 import { PackageContractSection } from '@/features/studio/PackageContractSection'
 import { PackageItemOverflowMenu } from '@/features/studio/PackageItemOverflowMenu'
 import {
@@ -10,12 +11,19 @@ import {
 } from '@/features/studio/packageItemMenuState'
 import {
   PACKAGES_ADD_LABEL,
-  PACKAGES_DELETE_CONFIRM,
+  PACKAGES_DELETE_BODY,
+  PACKAGES_DELETE_CTA,
+  PACKAGES_DELETE_INPUT_LABEL,
+  PACKAGES_DELETE_PHRASE,
+  PACKAGES_DELETE_TITLE,
   PACKAGES_EMPTY_COPY,
   PACKAGES_EMPTY_TITLE,
   PACKAGES_ERROR_RETRY,
   PACKAGES_ERROR_TITLE,
   PACKAGES_EXTRAS_HINT,
+  PACKAGES_ITEM_DELETE_BODY,
+  PACKAGES_ITEM_DELETE_CTA,
+  PACKAGES_ITEM_DELETE_TITLE,
   PACKAGES_SKELETON_CARDS,
   PACKAGES_SUBTITLE,
   PACKAGES_TITLE,
@@ -92,12 +100,38 @@ export function ModernPackagesWorkspace({
   const [editing, setEditing] = useState<StudioPackage | null>(null)
   const [creating, setCreating] = useState(false)
   const [dragId, setDragId] = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<StudioPackage | null>(null)
+  const [deleteConfirmText, setDeleteConfirmText] = useState('')
+  const [deleteBusy, setDeleteBusy] = useState(false)
 
   const ordered = [...packages].sort((a, b) => a.sortOrder - b.sortOrder)
   const showEmpty = !isLoading && !isError && ordered.length === 0 && !creating
   const studioHasLinkedTemplate = ordered.some((pkg) =>
     Boolean(pkg.activeContractTemplateId),
   )
+
+  function openPackageDelete(pkg: StudioPackage) {
+    setDeleteConfirmText('')
+    setDeleteTarget(pkg)
+  }
+
+  function closePackageDelete() {
+    if (deleteBusy) return
+    setDeleteTarget(null)
+    setDeleteConfirmText('')
+  }
+
+  async function confirmPackageDelete() {
+    if (!deleteTarget || deleteConfirmText !== PACKAGES_DELETE_PHRASE) return
+    setDeleteBusy(true)
+    try {
+      await onDelete(deleteTarget.id)
+      setDeleteTarget(null)
+      setDeleteConfirmText('')
+    } finally {
+      setDeleteBusy(false)
+    }
+  }
 
   return (
     <div className={styles.page} data-testid="packages-modern">
@@ -293,12 +327,10 @@ export function ModernPackagesWorkspace({
                     type="button"
                     variant="ghost"
                     className={styles.actionDanger}
+                    data-testid="package-delete-trigger"
                     onClick={() =>
                       canMutate(() => {
-                        void (async () => {
-                          if (!window.confirm(PACKAGES_DELETE_CONFIRM)) return
-                          await onDelete(pkg.id)
-                        })()
+                        openPackageDelete(pkg)
                       })
                     }
                   >
@@ -341,6 +373,41 @@ export function ModernPackagesWorkspace({
           ))}
         </div>
       )}
+
+      <Modal
+        open={Boolean(deleteTarget)}
+        title={PACKAGES_DELETE_TITLE}
+        description={
+          deleteTarget
+            ? `Pakiet „${deleteTarget.name}” zostanie usunięty z katalogu.`
+            : undefined
+        }
+        onClose={closePackageDelete}
+        busy={deleteBusy}
+        showClose
+        primaryAction={
+          <Button
+            type="button"
+            variant="danger"
+            disabled={deleteBusy || deleteConfirmText !== PACKAGES_DELETE_PHRASE}
+            data-testid="package-delete-confirm"
+            onClick={() => void confirmPackageDelete()}
+          >
+            {deleteBusy ? 'Usuwanie…' : PACKAGES_DELETE_CTA}
+          </Button>
+        }
+      >
+        <p>{PACKAGES_DELETE_BODY}</p>
+        <Input
+          label={PACKAGES_DELETE_INPUT_LABEL}
+          value={deleteConfirmText}
+          autoComplete="off"
+          spellCheck={false}
+          disabled={deleteBusy}
+          onChange={(e) => setDeleteConfirmText(e.target.value)}
+          data-testid="package-delete-confirm-input"
+        />
+      </Modal>
     </div>
   )
 }
@@ -703,10 +770,36 @@ function PackageItemsEditor({
   const [editQuantity, setEditQuantity] = useState('')
   const [editUnit, setEditUnit] = useState('')
   const [editCategory, setEditCategory] = useState('')
+  const [itemDeleteTarget, setItemDeleteTarget] = useState<PackageItem | null>(
+    null,
+  )
+  const [itemDeleteBusy, setItemDeleteBusy] = useState(false)
   const visibleOpenItemId = sanitizeOpenPackageItemId(
     openItemId,
     items.map((item) => item.id),
   )
+
+  function requestItemDelete(item: PackageItem) {
+    setOpenItemId(null)
+    setItemDeleteTarget(item)
+  }
+
+  function closeItemDelete() {
+    if (itemDeleteBusy) return
+    setItemDeleteTarget(null)
+  }
+
+  async function confirmItemDelete() {
+    if (!itemDeleteTarget) return
+    setItemDeleteBusy(true)
+    try {
+      await packageItemService.delete(itemDeleteTarget.id)
+      setItemDeleteTarget(null)
+      onChanged()
+    } finally {
+      setItemDeleteBusy(false)
+    }
+  }
 
   async function handleReorder(fromId: string, toId: string) {
     if (!canMutate()) return
@@ -863,11 +956,10 @@ function PackageItemsEditor({
                     type="button"
                     variant="ghost"
                     className={styles.actionDanger}
+                    data-testid="package-item-delete-trigger"
                     onClick={() =>
                       canMutate(() => {
-                        void packageItemService
-                          .delete(item.id)
-                          .then(() => onChanged())
+                        requestItemDelete(item)
                       })
                     }
                   >
@@ -893,10 +985,7 @@ function PackageItemsEditor({
                   }}
                   onDelete={() => {
                     canMutate(() => {
-                      setOpenItemId(null)
-                      void packageItemService
-                        .delete(item.id)
-                        .then(() => onChanged())
+                      requestItemDelete(item)
                     })
                   }}
                 />
@@ -939,6 +1028,32 @@ function PackageItemsEditor({
         </Button>
       </form>
       <p className={styles.extrasHint}>{PACKAGES_EXTRAS_HINT}</p>
+
+      <Modal
+        open={Boolean(itemDeleteTarget)}
+        title={PACKAGES_ITEM_DELETE_TITLE}
+        description={
+          itemDeleteTarget
+            ? `Pozycja „${itemDeleteTarget.title}” zostanie usunięta.`
+            : undefined
+        }
+        onClose={closeItemDelete}
+        busy={itemDeleteBusy}
+        showClose
+        primaryAction={
+          <Button
+            type="button"
+            variant="danger"
+            disabled={itemDeleteBusy}
+            data-testid="package-item-delete-confirm"
+            onClick={() => void confirmItemDelete()}
+          >
+            {itemDeleteBusy ? 'Usuwanie…' : PACKAGES_ITEM_DELETE_CTA}
+          </Button>
+        }
+      >
+        <p>{PACKAGES_ITEM_DELETE_BODY}</p>
+      </Modal>
     </div>
   )
 }

@@ -4,11 +4,15 @@
  */
 
 import { useState } from 'react'
+import { Download, Info, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import type { FriendlyQualitySummary } from '@/features/documents/template/payment-schedule'
 import { ContractDocxPreview } from './ContractDocxPreview'
 import { ContractPdfActions } from './ContractPdfActions'
 import styles from './ContractReadyPreview.module.css'
+
+const PREVIEW_FIDELITY_NOTE =
+  'Podgląd może nieznacznie różnić się od wyglądu dokumentu otwartego w Wordzie. Pobrany DOCX zachowuje oryginalną strukturę i formatowanie szablonu.'
 
 export function ContractReadyPreview(props: {
   fileName: string
@@ -21,49 +25,76 @@ export function ContractReadyPreview(props: {
   runId?: string
   weddingId?: string
   documentId?: string
+  /**
+   * `full` — identity + actions (generation saved step).
+   * `document` — note + preview only; parent page owns chrome/actions.
+   */
+  chrome?: 'full' | 'document'
 }) {
   const [docxRetryKey, setDocxRetryKey] = useState(0)
+  const chrome = props.chrome ?? 'full'
 
   return (
-    <section className={styles.wrap}>
-      <header className={styles.header}>
-        <div>
-          <p className={styles.eyebrow}>Podgląd dokumentu</p>
-          <h2>Umowa jest gotowa</h2>
-          <p className={styles.fileName}>{props.fileName}</p>
-        </div>
-        <div className={styles.actions}>
-          <Button type="button" variant="primary" onClick={props.onDownloadDocx}>
-            Pobierz DOCX
-          </Button>
-          <ContractPdfActions
-            compact
-            docxBytes={props.docxBytes}
-            fileName={props.fileName}
-            weddingId={props.weddingId}
-            documentId={props.documentId}
-          />
-          {props.onEditPaymentSchedule ? (
+    <section
+      className={styles.wrap}
+      data-chrome={chrome}
+      data-testid="contract-ready-preview"
+    >
+      {chrome === 'full' ? (
+        <header className={styles.header}>
+          <div>
+            <p className={styles.eyebrow}>Podgląd dokumentu</p>
+            <h2>Umowa jest gotowa</h2>
+            <p className={styles.fileName}>{props.fileName}</p>
+          </div>
+          <div className={styles.actions}>
             <Button
               type="button"
-              variant="ghost"
-              onClick={props.onEditPaymentSchedule}
+              variant="primary"
+              onClick={props.onDownloadDocx}
             >
-              Edytuj harmonogram płatności
+              <Download size={16} strokeWidth={1.75} aria-hidden />
+              Pobierz DOCX
             </Button>
-          ) : null}
-          {props.onRegenerate ? (
-            <Button type="button" variant="ghost" onClick={props.onRegenerate}>
-              Wygeneruj ponownie
-            </Button>
-          ) : null}
-        </div>
-      </header>
+            <ContractPdfActions
+              compact
+              withIcon
+              docxBytes={props.docxBytes}
+              fileName={props.fileName}
+              weddingId={props.weddingId}
+              documentId={props.documentId}
+            />
+            {props.onEditPaymentSchedule ? (
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={props.onEditPaymentSchedule}
+              >
+                Edytuj harmonogram płatności
+              </Button>
+            ) : null}
+            {props.onRegenerate ? (
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={props.onRegenerate}
+              >
+                <RefreshCw size={15} strokeWidth={1.75} aria-hidden />
+                Wygeneruj ponownie
+              </Button>
+            ) : null}
+          </div>
+        </header>
+      ) : null}
 
       <p className={styles.note}>
-        Podgląd może nieznacznie różnić się od wyglądu dokumentu otwartego w
-        programie Microsoft Word. Pobrany plik DOCX zachowuje oryginalną
-        strukturę i formatowanie szablonu.
+        <Info
+          className={styles.noteIcon}
+          size={15}
+          strokeWidth={1.75}
+          aria-hidden
+        />
+        <span>{PREVIEW_FIDELITY_NOTE}</span>
       </p>
 
       {props.qualitySummary ? (

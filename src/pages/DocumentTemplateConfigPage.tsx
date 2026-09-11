@@ -438,7 +438,7 @@ export function DocumentTemplateConfigPage() {
                       disabled={busyId === slot.id || slot.paragraphIndex == null}
                       onClick={() =>
                         navigate(
-                          `/ustawienia/dokumenty/szablony/${template.id}/analiza`,
+                          `/ustawienia/dokumenty/szablony/${template.id}`,
                         )
                       }
                     >

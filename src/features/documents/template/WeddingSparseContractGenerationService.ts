@@ -313,13 +313,22 @@ export const WeddingSparseContractGenerationService = {
         },
       })
 
+      const { resolveContractVariables } = await import(
+        './resolveContractVariables'
+      )
+      const resolvedBag = await resolveContractVariables({
+        wedding: input.wedding,
+        generationStartedAt: dataset.dates.contractExecutionDate,
+      })
+
       const artifact: TransformContractResult = {
         draftId: draft.id,
         templateId: source.templateId,
         templateVersionId: source.templateVersionId,
         versionNumber: source.versionNumber,
         title,
-        resolved: {},
+        // Persist the same resolved bag freshness compares against after save.
+        resolved: resolvedBag.resolved,
         omittedKeys: [],
         originalParagraphs,
         paragraphs: extractedParagraphs,
@@ -410,7 +419,7 @@ export const WeddingSparseContractGenerationService = {
             templateVersionId: source.templateVersionId,
             status: 'manual_input_required',
             detectedSchedule: policy.resolvedSchedule,
-            resolvedValues: {},
+            resolvedValues: artifact.resolved,
             totalContractAmount: total,
           })
           generationRunId = run.id

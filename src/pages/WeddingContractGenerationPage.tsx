@@ -805,21 +805,15 @@ export function WeddingContractGenerationPage() {
             : {}),
         },
       })
+      // Durable artifact + CRM lifecycle must finish before success.
       await weddingActionsService.markContractGenerated(wedding.id, {
         missingFields: generated.omittedKeys,
         hadDocument: true,
-      })
-      await invalidateWedding(wedding.id)
-      await queryClient.invalidateQueries({
-        queryKey: ['generated-wedding-contracts'],
       })
       setDocxBytes(bytesToSave)
       setGenerated({
         ...generated,
         docxBytes: bytesToSave,
-        finalArtifact: generated.finalArtifact
-          ? await refreshFinalDocxHash(generated.finalArtifact, bytesToSave)
-          : generated.finalArtifact,
       })
       setDownloadUrl(saved.docxDownloadUrl)
       if (wedding && generated) {
@@ -841,6 +835,26 @@ export function WeddingContractGenerationPage() {
             paymentWasManual,
           }),
         )
+      }
+      // Cache refresh is non-critical for "saved" — do not block the Save spinner
+      // on weddings/calendar/dashboard/finance refetches.
+      void invalidateWedding(wedding.id)
+      void queryClient.invalidateQueries({
+        queryKey: ['generated-wedding-contracts'],
+      })
+      if (generated.finalArtifact) {
+        const artifact = generated.finalArtifact
+        void refreshFinalDocxHash(artifact, bytesToSave).then((finalArtifact) => {
+          setGenerated((current) =>
+            current
+              ? {
+                  ...current,
+                  docxBytes: bytesToSave,
+                  finalArtifact,
+                }
+              : current,
+          )
+        })
       }
       return true
     } catch (err) {

@@ -6,6 +6,8 @@ import { PageContainer } from '@/components/ui/PageContainer'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
+import { Input } from '@/components/ui/Input'
+import { Modal } from '@/components/ui/Modal'
 import { IconArrowLeft, IconMapPin } from '@/components/icons'
 import { useToast } from '@/components/ui/Toast'
 import { useSession } from '@/features/sessions/hooks/useSession'
@@ -49,6 +51,8 @@ export function SessionDetailPage() {
   const [editedPayment, setEditedPayment] = useState<SessionPayment | null>(null)
   const [addAsDeposit, setAddAsDeposit] = useState(true)
   const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(null)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleteConfirmText, setDeleteConfirmText] = useState('')
 
   if (isLoading) {
     return (
@@ -95,18 +99,15 @@ export function SessionDetailPage() {
     session.location?.address?.trim()
   const hasLocation = Boolean(locationName || locationAddress)
 
-  async function handleDelete() {
+  function openDeleteModal() {
+    if (!requirePro()) return
+    setDeleteConfirmText('')
+    setDeleteOpen(true)
+  }
+
+  async function handleDeleteConfirmed() {
     const current = session
-    if (!current) return
-    const allowed = requirePro()
-    if (!allowed) return
-    if (
-      !window.confirm(
-        `Usunąć sesję „${name}"? Tej operacji nie można cofnąć.`,
-      )
-    ) {
-      return
-    }
+    if (!current || deleteConfirmText !== 'USUŃ') return
     try {
       await deleteSession.mutateAsync(current.id)
       showToast('Sesja została usunięta', 'success')
@@ -226,7 +227,7 @@ export function SessionDetailPage() {
                 <Button
                   type="button"
                   variant="secondary"
-                  onClick={() => void handleDelete()}
+                  onClick={openDeleteModal}
                   disabled={deleteSession.isPending}
                 >
                   Usuń
@@ -234,6 +235,41 @@ export function SessionDetailPage() {
               </div>
             </div>
           </header>
+
+          <Modal
+            open={deleteOpen}
+            title="Usuń sesję"
+            description="Usunięcie jest nieodwracalne i usuwa sesję wraz z powiązanymi rekordami."
+            onClose={() => {
+              if (deleteSession.isPending) return
+              setDeleteOpen(false)
+              setDeleteConfirmText('')
+            }}
+            busy={deleteSession.isPending}
+            primaryAction={
+              <Button
+                type="button"
+                variant="danger"
+                size="sm"
+                disabled={
+                  deleteSession.isPending || deleteConfirmText !== 'USUŃ'
+                }
+                onClick={() => void handleDeleteConfirmed()}
+              >
+                {deleteSession.isPending ? 'Usuwanie…' : 'Usuń na zawsze'}
+              </Button>
+            }
+          >
+            <p>
+              Czy na pewno chcesz usunąć sesję „{name}”? Tej operacji nie można
+              cofnąć.
+            </p>
+            <Input
+              label="Wpisz USUŃ, aby potwierdzić"
+              value={deleteConfirmText}
+              onChange={(e) => setDeleteConfirmText(e.target.value)}
+            />
+          </Modal>
 
           <section
             className={styles.overviewBand}

@@ -2,6 +2,9 @@ import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { MoreHorizontal } from 'lucide-react'
 import { FloatingPortal } from '@/components/ui/FloatingPortal'
+import { Button } from '@/components/ui/Button'
+import { Input } from '@/components/ui/Input'
+import { Modal } from '@/components/ui/Modal'
 import { useProAccessGate } from '@/features/billing/ProAccessGate'
 import { getSessionDisplayName } from '@/features/sessions/presentation/getSessionDisplayName'
 import { composeSessionHeroMeta } from '@/features/sessions/modern-detail/sessionDetailPresentation'
@@ -115,6 +118,9 @@ function HeaderOverflow({
   const btnRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [confirmText, setConfirmText] = useState('')
+  const [busy, setBusy] = useState(false)
 
   useEffect(() => {
     if (!menuOpen) return
@@ -145,68 +151,101 @@ function HeaderOverflow({
   function handleDeleteClick() {
     requirePro(() => {
       setMenuOpen(false)
-      if (
-        !window.confirm(
-          `Usunąć sesję „${sessionName}"? Tej operacji nie można cofnąć.`,
-        )
-      ) {
-        return
-      }
-      void onDelete()
+      setConfirmText('')
+      setDeleteOpen(true)
     })
   }
 
   return (
-    <div className={styles.overflowWrap} ref={wrapRef}>
-      <button
-        type="button"
-        ref={btnRef}
-        className={styles.overflowBtn}
-        aria-label="Więcej działań sesji"
-        aria-expanded={menuOpen}
-        aria-controls={menuId}
-        data-testid="modern-session-header-overflow"
-        onKeyDown={onMenuKey}
-        onClick={() => setMenuOpen((v) => !v)}
-      >
-        <MoreHorizontal size={16} strokeWidth={1.75} aria-hidden />
-      </button>
-      <FloatingPortal
-        open={menuOpen}
-        anchorRef={btnRef}
-        options={HERO_OVERFLOW_PLACEMENT}
-      >
-        {() => (
-          <div
-            ref={menuRef}
-            id={menuId}
-            className={styles.menu}
-            role="menu"
-            data-testid="modern-session-header-menu"
+    <>
+      <div className={styles.overflowWrap} ref={wrapRef}>
+        <button
+          type="button"
+          ref={btnRef}
+          className={styles.overflowBtn}
+          aria-label="Więcej działań sesji"
+          aria-expanded={menuOpen}
+          aria-controls={menuId}
+          data-testid="modern-session-header-overflow"
+          onKeyDown={onMenuKey}
+          onClick={() => setMenuOpen((v) => !v)}
+        >
+          <MoreHorizontal size={16} strokeWidth={1.75} aria-hidden />
+        </button>
+        <FloatingPortal
+          open={menuOpen}
+          anchorRef={btnRef}
+          options={HERO_OVERFLOW_PLACEMENT}
+        >
+          {() => (
+            <div
+              ref={menuRef}
+              id={menuId}
+              className={styles.menu}
+              role="menu"
+              data-testid="modern-session-header-menu"
+            >
+              <Link
+                role="menuitem"
+                to={`/sesje/${sessionId}/edytuj`}
+                className={styles.menuLink}
+                data-testid="modern-session-header-edit"
+                onClick={() => setMenuOpen(false)}
+              >
+                Edytuj sesję
+              </Link>
+              <div className={styles.menuSep} role="separator" />
+              <button
+                type="button"
+                role="menuitem"
+                className={styles.menuDanger}
+                data-testid="modern-session-header-delete"
+                disabled={deleting || busy}
+                onClick={handleDeleteClick}
+              >
+                Usuń
+              </button>
+            </div>
+          )}
+        </FloatingPortal>
+      </div>
+      <Modal
+        open={deleteOpen}
+        title="Usuń sesję"
+        description="Usunięcie jest nieodwracalne i usuwa sesję wraz z powiązanymi rekordami."
+        onClose={() => {
+          if (busy) return
+          setDeleteOpen(false)
+          setConfirmText('')
+        }}
+        busy={busy}
+        primaryAction={
+          <Button
+            type="button"
+            variant="danger"
+            size="sm"
+            data-testid="modern-session-delete-confirm"
+            disabled={busy || confirmText !== 'USUŃ'}
+            onClick={() => {
+              setBusy(true)
+              void onDelete().finally(() => setBusy(false))
+            }}
           >
-            <Link
-              role="menuitem"
-              to={`/sesje/${sessionId}/edytuj`}
-              className={styles.menuLink}
-              data-testid="modern-session-header-edit"
-              onClick={() => setMenuOpen(false)}
-            >
-              Edytuj sesję
-            </Link>
-            <div className={styles.menuSep} role="separator" />
-            <button
-              type="button"
-              role="menuitem"
-              className={styles.menuDanger}
-              data-testid="modern-session-header-delete"
-              disabled={deleting}
-              onClick={handleDeleteClick}
-            >
-              Usuń
-            </button>
-          </div>
-        )}
-      </FloatingPortal>
-    </div>
+            {busy ? 'Usuwanie…' : 'Usuń na zawsze'}
+          </Button>
+        }
+      >
+        <p>
+          Czy na pewno chcesz usunąć sesję „{sessionName}”? Tej operacji nie
+          można cofnąć.
+        </p>
+        <Input
+          label="Wpisz USUŃ, aby potwierdzić"
+          value={confirmText}
+          onChange={(e) => setConfirmText(e.target.value)}
+          data-testid="modern-session-delete-confirm-input"
+        />
+      </Modal>
+    </>
   )
 }
