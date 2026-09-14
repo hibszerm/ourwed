@@ -1,14 +1,15 @@
 /**
- * V6-F1 — Edge invoke for one agent step (F1.3 native tools + outcome modes).
+ * V6-F1.4 — Edge invoke for TurnPlan (and legacy native tools).
  */
 
 import type { V6AgentStepRequest, V6AgentStepResponse } from './protocol'
 import { parseV6NativeChatMessage } from './parseNativeStep'
+import { parseTurnPlanWire } from '../turnPlan/parse'
 
 export async function invokeV6AgentStep(
   input: Omit<V6AgentStepRequest, 'mode'> & {
     signal?: AbortSignal
-    transportMode?: 'tools' | 'outcome'
+    transportMode?: 'turn_plan' | 'tools' | 'outcome'
   },
 ): Promise<V6AgentStepResponse> {
   if (input.signal?.aborted) {
@@ -19,6 +20,7 @@ export async function invokeV6AgentStep(
     }
   }
 
+  const transportMode = input.transportMode ?? 'turn_plan'
   const body = {
     mode: 'v6_agent_step' as const,
     utterance: input.utterance,
@@ -27,7 +29,7 @@ export async function invokeV6AgentStep(
     compactConversationContext: input.compactConversationContext,
     collectionSummaries: input.collectionSummaries,
     previousToolResults: input.previousToolResults,
-    transportMode: input.transportMode ?? 'tools',
+    transportMode,
   }
 
   const { supabase } = await import('@/lib/supabase')
@@ -64,8 +66,11 @@ export async function invokeV6AgentStep(
   }
 
   const row = data as Record<string, unknown>
+  const diagnostics =
+    row.diagnostics && typeof row.diagnostics === 'object'
+      ? (row.diagnostics as Record<string, unknown>)
+      : undefined
 
-  // F1.2 native tools: Edge returns raw OpenAI message for client-side mapping.
   if (row.status === 'native_message') {
     const message = row.message
     if (!message || typeof message !== 'object') {
@@ -75,22 +80,58 @@ export async function invokeV6AgentStep(
         message: 'empty_native_message',
       }
     }
+    const msg = message as {
+      content?: string | null
+      tool_calls?: Array<{
+        id: string
+        function: { name: string; arguments: string }
+      }> | null
+    }
+
+    if (transportMode === 'turn_plan') {
+      const content =
+        typeof msg.content === 'string' ? msg.content.trim() : ''
+      if (!content) {
+        return {
+          status: 'error',
+          code: 'INTERPRETATION_ERROR',
+          message: 'TURN_PLAN:empty_content',
+        }
+      }
+      let wire: unknown
+      try {
+        wire = JSON.parse(content)
+      } catch {
+        return {
+          status: 'error',
+          code: 'INTERPRETATION_ERROR',
+          message: 'TURN_PLAN:json_parse_failed',
+        }
+      }
+      const parsed = parseTurnPlanWire(wire)
+      if (!parsed.ok) {
+        return {
+          status: 'error',
+          code: 'PLAN_VALIDATION_ERROR',
+          message: `TURN_PLAN:${parsed.detail}`,
+          diagnostics: { ...diagnostics, turnPlan: wire },
+        }
+      }
+      // Pass plan via diagnostics for loop; also encode as final text JSON for fallback
+      return {
+        status: 'final',
+        text: content,
+        diagnostics: { ...diagnostics, turnPlan: wire, transport: 'turn_plan' },
+      }
+    }
+
     const hasEvidence =
       Array.isArray(input.previousToolResults) &&
       input.previousToolResults.length > 0
-    const parsed = parseV6NativeChatMessage(
-      message as {
-        content?: string | null
-        tool_calls?: Array<{
-          id: string
-          function: { name: string; arguments: string }
-        }> | null
-      },
-      {
-        allowPlainTextFinal:
-          hasEvidence && (input.transportMode ?? 'tools') !== 'outcome',
-      },
-    )
+    const parsed = parseV6NativeChatMessage(msg, {
+      allowPlainTextFinal:
+        hasEvidence && transportMode !== 'outcome',
+    })
     if (!parsed.ok) {
       return {
         status: 'error',
@@ -100,10 +141,7 @@ export async function invokeV6AgentStep(
     }
     return {
       ...parsed.response,
-      diagnostics:
-        row.diagnostics && typeof row.diagnostics === 'object'
-          ? (row.diagnostics as Record<string, unknown>)
-          : undefined,
+      diagnostics,
     } as V6AgentStepResponse
   }
 

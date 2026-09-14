@@ -153,6 +153,101 @@ export const V6_OUTCOME_JSON_SCHEMA = {
   },
 }
 
+const V6_TURN_PLAN_SEARCH_SCHEMA = {
+  type: ['object', 'null'],
+  additionalProperties: false,
+  required: ['source', 'filters', 'exclude_place', 'temporal', 'sort', 'slice'],
+  properties: {
+    source: { type: 'string', enum: ['wedding'] },
+    filters: {
+      type: ['array', 'null'],
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['field', 'op', 'value', 'role'],
+        properties: PLACE_PROPS,
+      },
+    },
+    exclude_place: nullableObject(
+      ['field', 'op', 'value', 'role'],
+      PLACE_PROPS,
+    ),
+    temporal: nullableObject(TEMPORAL_REQUIRED, TEMPORAL_PROPS),
+    sort: nullableObject(['field', 'direction'], SORT_PROPS),
+    slice: nullableObject(['limit', 'offset'], SLICE_PROPS),
+  },
+}
+
+const V6_TURN_PLAN_STEP_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: [
+    'id',
+    'kind',
+    'input_from_step',
+    'input_handle',
+    'search',
+    'transform_ops',
+    'aggregation',
+    'measure',
+  ],
+  properties: {
+    id: { type: 'string' },
+    kind: {
+      type: 'string',
+      enum: [
+        'SEARCH_COLLECTION',
+        'TRANSFORM_COLLECTION',
+        'AGGREGATE_COLLECTION',
+        'RESTORE_COLLECTION',
+      ],
+    },
+    input_from_step: { type: ['string', 'null'] },
+    input_handle: { type: ['string', 'null'] },
+    search: V6_TURN_PLAN_SEARCH_SCHEMA,
+    transform_ops: {
+      type: ['array', 'null'],
+      items: FILTER_OP,
+    },
+    aggregation: {
+      type: ['string', 'null'],
+      enum: ['count', 'sum', null],
+    },
+    measure: {
+      type: ['string', 'null'],
+      enum: ['contract_value', 'paid_amount', 'remaining_amount', null],
+    },
+  },
+}
+
+export const V6_TURN_PLAN_JSON_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['steps', 'output'],
+  properties: {
+    steps: {
+      type: 'array',
+      maxItems: 6,
+      items: V6_TURN_PLAN_STEP_SCHEMA,
+    },
+    output: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['kind', 'from_step', 'reason', 'slot', 'text'],
+      properties: {
+        kind: {
+          type: 'string',
+          enum: ['COLLECTION', 'AGGREGATE', 'CLARIFICATION', 'UNSUPPORTED'],
+        },
+        from_step: { type: ['string', 'null'] },
+        reason: { type: ['string', 'null'] },
+        slot: { type: ['string', 'null'] },
+        text: { type: ['string', 'null'] },
+      },
+    },
+  },
+}
+
 export const V6_NATIVE_OPENAI_TOOLS = [
   fn(
     'query_collection',
@@ -247,15 +342,24 @@ export function buildV6NativeToolsRequestBody(input: {
   model: string
   messages: Array<Record<string, unknown>>
   maxOutputTokens?: number
-  mode?: 'tools' | 'outcome'
+  mode?: 'turn_plan' | 'tools' | 'outcome'
 }): Record<string, unknown> {
-  const maxOutputTokens = input.maxOutputTokens ?? 1200
-  const mode = input.mode ?? 'tools'
+  const maxOutputTokens = input.maxOutputTokens ?? 1600
+  const mode = input.mode ?? 'turn_plan'
   const base: Record<string, unknown> = {
     model: input.model,
     messages: input.messages,
   }
-  if (mode === 'outcome') {
+  if (mode === 'turn_plan') {
+    base.response_format = {
+      type: 'json_schema',
+      json_schema: {
+        name: 'assistant_v6_turn_plan',
+        strict: true,
+        schema: V6_TURN_PLAN_JSON_SCHEMA,
+      },
+    }
+  } else if (mode === 'outcome') {
     // Do NOT set tool_choice without tools — OpenAI rejects it.
     base.response_format = {
       type: 'json_schema',

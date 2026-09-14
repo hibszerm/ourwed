@@ -1,8 +1,10 @@
 /**
- * V6-F1.3 — OpenAI chat.completions builder for native tools / outcomes.
+ * V6-F1.4 — OpenAI chat.completions builder for TurnPlan / outcomes.
+ * Domain tools remain available for diagnostics; live path uses turn_plan mode.
  */
 
 import { V6_NATIVE_OPENAI_TOOLS, V6_OUTCOME_JSON_SCHEMA } from './nativeTools'
+import { V6_TURN_PLAN_JSON_SCHEMA } from '../turnPlan/schema'
 
 function isLunaStyleChatModel(model: string): boolean {
   return model.trim() === 'gpt-5.6-luna'
@@ -13,24 +15,33 @@ export type V6NativeChatRequestInput = {
   messages: Array<Record<string, unknown>>
   maxOutputTokens?: number
   /**
-   * tools — domain tools, tool_choice auto (default)
-   * outcome — no tools; strict final/clarify/unsupported schema
+   * turn_plan — strict TurnPlan json_schema (F1.4 default)
+   * tools — legacy domain tools (F1.3)
+   * outcome — final/clarify/unsupported schema
    */
-  mode?: 'tools' | 'outcome'
+  mode?: 'turn_plan' | 'tools' | 'outcome'
 }
 
 export function buildV6NativeToolsRequestBody(
   input: V6NativeChatRequestInput,
 ): Record<string, unknown> {
-  const maxOutputTokens = input.maxOutputTokens ?? 1200
-  const mode = input.mode ?? 'tools'
+  const maxOutputTokens = input.maxOutputTokens ?? 1600
+  const mode = input.mode ?? 'turn_plan'
   const base: Record<string, unknown> = {
     model: input.model,
     messages: input.messages,
   }
 
-  if (mode === 'outcome') {
-    // Do NOT set tool_choice without tools — OpenAI rejects it.
+  if (mode === 'turn_plan') {
+    base.response_format = {
+      type: 'json_schema',
+      json_schema: {
+        name: 'assistant_v6_turn_plan',
+        strict: true,
+        schema: V6_TURN_PLAN_JSON_SCHEMA,
+      },
+    }
+  } else if (mode === 'outcome') {
     base.response_format = {
       type: 'json_schema',
       json_schema: {

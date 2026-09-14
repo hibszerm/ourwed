@@ -1,0 +1,1590 @@
+{
+  "summary": {
+    "phase": "V6-F1.4",
+    "model": "gpt-5.6-luna",
+    "reasoningEffort": "none",
+    "miniGate": true,
+    "counts": {
+      "single": 60,
+      "multi": 25,
+      "adversarial": 15,
+      "unsupported": 15,
+      "holdout": 10,
+      "novelParaphrases": 84,
+      "total": 125
+    },
+    "ran": 12,
+    "scores": {
+      "single": {
+        "pass": 5,
+        "n": 5,
+        "pct": 100
+      },
+      "multi": {
+        "pass": 4,
+        "n": 6,
+        "pct": 66.66666666666667
+      },
+      "adversarial": {
+        "pass": 0,
+        "n": 0,
+        "pct": 100
+      },
+      "unsupported": {
+        "pass": 1,
+        "n": 1,
+        "pct": 100
+      },
+      "holdout": {
+        "pass": 0,
+        "n": 0,
+        "pct": 100
+      }
+    },
+    "recall": {
+      "goldToPlan": {
+        "hit": 32,
+        "total": 35,
+        "pct": 91.42857142857143
+      },
+      "planToExecution": {
+        "hit": 46,
+        "total": 46,
+        "pct": 100
+      },
+      "goldToExecution": {
+        "hit": 32,
+        "total": 35,
+        "pct": 91.42857142857143
+      },
+      "perOp": {
+        "Temporal": {
+          "goldToPlan": {
+            "hit": 8,
+            "total": 8,
+            "pct": 100
+          },
+          "planToExecution": {
+            "hit": 12,
+            "total": 12,
+            "pct": 100
+          },
+          "goldToExecution": {
+            "hit": 8,
+            "total": 8,
+            "pct": 100
+          }
+        },
+        "Exclude": {
+          "goldToPlan": {
+            "hit": 1,
+            "total": 1,
+            "pct": 100
+          },
+          "planToExecution": {
+            "hit": 1,
+            "total": 1,
+            "pct": 100
+          },
+          "goldToExecution": {
+            "hit": 1,
+            "total": 1,
+            "pct": 100
+          }
+        },
+        "Sort": {
+          "goldToPlan": {
+            "hit": 3,
+            "total": 3,
+            "pct": 100
+          },
+          "planToExecution": {
+            "hit": 6,
+            "total": 6,
+            "pct": 100
+          },
+          "goldToExecution": {
+            "hit": 3,
+            "total": 3,
+            "pct": 100
+          }
+        },
+        "Slice": {
+          "goldToPlan": {
+            "hit": 3,
+            "total": 3,
+            "pct": 100
+          },
+          "planToExecution": {
+            "hit": 6,
+            "total": 6,
+            "pct": 100
+          },
+          "goldToExecution": {
+            "hit": 3,
+            "total": 3,
+            "pct": 100
+          }
+        },
+        "Aggregate": {
+          "goldToPlan": {
+            "hit": 5,
+            "total": 5,
+            "pct": 100
+          },
+          "planToExecution": {
+            "hit": 6,
+            "total": 6,
+            "pct": 100
+          },
+          "goldToExecution": {
+            "hit": 5,
+            "total": 5,
+            "pct": 100
+          }
+        },
+        "Restore": {
+          "goldToPlan": {
+            "hit": 1,
+            "total": 1,
+            "pct": 100
+          },
+          "planToExecution": {
+            "hit": 3,
+            "total": 3,
+            "pct": 100
+          },
+          "goldToExecution": {
+            "hit": 1,
+            "total": 1,
+            "pct": 100
+          }
+        },
+        "Search": {
+          "goldToPlan": {
+            "hit": 11,
+            "total": 13,
+            "pct": 84.61538461538461
+          },
+          "planToExecution": {
+            "hit": 11,
+            "total": 11,
+            "pct": 100
+          },
+          "goldToExecution": {
+            "hit": 11,
+            "total": 13,
+            "pct": 84.61538461538461
+          }
+        },
+        "Filter": {
+          "goldToPlan": {
+            "hit": 0,
+            "total": 1,
+            "pct": 0
+          },
+          "planToExecution": {
+            "hit": 1,
+            "total": 1,
+            "pct": 100
+          },
+          "goldToExecution": {
+            "hit": 0,
+            "total": 1,
+            "pct": 0
+          }
+        }
+      }
+    },
+    "aggregate": {
+      "goldCases": 5,
+      "goldToPlan": 100,
+      "planToExecution": 100,
+      "observationGrounding": 100
+    },
+    "gates": {
+      "schemaValidity": 100,
+      "providerErrors": 0,
+      "schemaErrors": 0,
+      "planIncompleteFinalizations": 0,
+      "partialPlanFinalization": 0,
+      "planCompleteButSemanticallyWrong": 2,
+      "silentSemanticSubstitution": 1,
+      "silentScopeWidening": 0,
+      "collectionContextLoss": 0,
+      "unsupportedFabricated": 0,
+      "financeProvenanceViolations": 0,
+      "unauthorizedAccess": 0,
+      "refResolutionFails": 0,
+      "roundOverflow": 0
+    },
+    "special": {
+      "core8": null,
+      "novel": {
+        "pass": true
+      },
+      "original": null
+    },
+    "sharedPb1Failures": {
+      "s09": {
+        "pass": true,
+        "fails": []
+      },
+      "s13": null,
+      "s24": null,
+      "s27": null,
+      "s47": null,
+      "m09-corr-year": {
+        "pass": false,
+        "fails": [
+          "missing_closed_year_2028"
+        ]
+      },
+      "m10-corr-measure": {
+        "pass": false,
+        "fails": [
+          "wrong_or_changed_measure"
+        ]
+      },
+      "m11-corr-place": null,
+      "m14-place-then-count": null,
+      "m21": null,
+      "a09": null,
+      "a15": null
+    },
+    "latency": {
+      "modelP50": 2431,
+      "modelP95": 3569
+    },
+    "usage": {
+      "prompt": 33673,
+      "completion": 2837,
+      "total": 36510
+    },
+    "failedIds": [
+      "m09-corr-year",
+      "m10-corr-measure"
+    ]
+  },
+  "results": [
+    {
+      "id": "s01",
+      "set": "single",
+      "pass": true,
+      "turns": [
+        {
+          "utterance": "Pokaż 3 najbliższe wesela.",
+          "classification": "PASS",
+          "failures": [],
+          "finalStatus": "final",
+          "goldOps": [
+            "Sort",
+            "Slice",
+            "Temporal",
+            "Search"
+          ],
+          "plannedOps": [
+            "Search",
+            "Temporal",
+            "Sort",
+            "Slice"
+          ],
+          "executedOps": [
+            "Search",
+            "Temporal",
+            "Sort",
+            "Slice"
+          ],
+          "planComplete": true,
+          "aggregateGrounded": null,
+          "plan": {
+            "steps": [
+              {
+                "id": "s1",
+                "kind": "SEARCH_COLLECTION",
+                "search": {
+                  "type": "Search",
+                  "source": "wedding",
+                  "relativeTemporal": {
+                    "kind": "future_from_now",
+                    "inclusive": true
+                  },
+                  "sort": {
+                    "field": "wedding.date",
+                    "direction": "asc"
+                  },
+                  "slice": {
+                    "limit": 3
+                  }
+                }
+              }
+            ],
+            "output": {
+              "kind": "COLLECTION",
+              "fromStep": "s1"
+            }
+          },
+          "tools": [
+            {
+              "name": "query_collection",
+              "ok": true,
+              "args": {
+                "type": "Search",
+                "source": "wedding",
+                "relativeTemporal": {
+                  "kind": "future_from_now",
+                  "inclusive": true
+                },
+                "sort": {
+                  "field": "wedding.date",
+                  "direction": "asc"
+                },
+                "slice": {
+                  "limit": 3
+                }
+              }
+            }
+          ],
+          "modelLatencyMs": [
+            2757
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s05",
+      "set": "single",
+      "pass": true,
+      "turns": [
+        {
+          "utterance": "Wypisz trzy najbliższe terminy.",
+          "classification": "PASS",
+          "failures": [],
+          "finalStatus": "final",
+          "goldOps": [
+            "Sort",
+            "Slice",
+            "Temporal",
+            "Search"
+          ],
+          "plannedOps": [
+            "Search",
+            "Temporal",
+            "Sort",
+            "Slice"
+          ],
+          "executedOps": [
+            "Search",
+            "Temporal",
+            "Sort",
+            "Slice"
+          ],
+          "planComplete": true,
+          "aggregateGrounded": null,
+          "plan": {
+            "steps": [
+              {
+                "id": "step1",
+                "kind": "SEARCH_COLLECTION",
+                "search": {
+                  "type": "Search",
+                  "source": "wedding",
+                  "relativeTemporal": {
+                    "kind": "future_from_now",
+                    "inclusive": true
+                  },
+                  "sort": {
+                    "field": "wedding.date",
+                    "direction": "asc"
+                  },
+                  "slice": {
+                    "limit": 3,
+                    "offset": 0
+                  }
+                }
+              }
+            ],
+            "output": {
+              "kind": "COLLECTION",
+              "fromStep": "step1"
+            }
+          },
+          "tools": [
+            {
+              "name": "query_collection",
+              "ok": true,
+              "args": {
+                "type": "Search",
+                "source": "wedding",
+                "relativeTemporal": {
+                  "kind": "future_from_now",
+                  "inclusive": true
+                },
+                "sort": {
+                  "field": "wedding.date",
+                  "direction": "asc"
+                },
+                "slice": {
+                  "limit": 3,
+                  "offset": 0
+                }
+              }
+            }
+          ],
+          "modelLatencyMs": [
+            3569
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s09",
+      "set": "single",
+      "pass": true,
+      "turns": [
+        {
+          "utterance": "Ile mam wesel w 2028?",
+          "classification": "PASS",
+          "failures": [],
+          "finalStatus": "final",
+          "goldOps": [
+            "Aggregate",
+            "Temporal",
+            "Search"
+          ],
+          "plannedOps": [
+            "Search",
+            "Temporal",
+            "Aggregate"
+          ],
+          "executedOps": [
+            "Search",
+            "Temporal",
+            "Aggregate"
+          ],
+          "planComplete": true,
+          "aggregateGrounded": true,
+          "plan": {
+            "steps": [
+              {
+                "id": "s1",
+                "kind": "SEARCH_COLLECTION",
+                "search": {
+                  "type": "Search",
+                  "source": "wedding",
+                  "relativeTemporal": {
+                    "kind": "closed_calendar_year",
+                    "year": 2028
+                  },
+                  "sort": null,
+                  "slice": null
+                }
+              },
+              {
+                "id": "s2",
+                "kind": "AGGREGATE_COLLECTION",
+                "inputFromStep": "s1",
+                "inputHandle": null,
+                "aggregation": "count",
+                "measure": null
+              }
+            ],
+            "output": {
+              "kind": "AGGREGATE",
+              "fromStep": "s2"
+            }
+          },
+          "tools": [
+            {
+              "name": "query_collection",
+              "ok": true,
+              "args": {
+                "type": "Search",
+                "source": "wedding",
+                "relativeTemporal": {
+                  "kind": "closed_calendar_year",
+                  "year": 2028
+                },
+                "sort": null,
+                "slice": null
+              }
+            },
+            {
+              "name": "aggregate_collection",
+              "ok": true,
+              "args": {
+                "type": "Aggregate",
+                "collection": "col_1",
+                "aggregation": "count",
+                "measure": null
+              }
+            }
+          ],
+          "modelLatencyMs": [
+            2452
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s11",
+      "set": "single",
+      "pass": true,
+      "turns": [
+        {
+          "utterance": "Pokaż wesela z przyszłego roku.",
+          "classification": "PASS",
+          "failures": [],
+          "finalStatus": "final",
+          "goldOps": [
+            "Temporal",
+            "Search"
+          ],
+          "plannedOps": [
+            "Search",
+            "Temporal"
+          ],
+          "executedOps": [
+            "Search",
+            "Temporal"
+          ],
+          "planComplete": true,
+          "aggregateGrounded": null,
+          "plan": {
+            "steps": [
+              {
+                "id": "step1",
+                "kind": "SEARCH_COLLECTION",
+                "search": {
+                  "type": "Search",
+                  "source": "wedding",
+                  "relativeTemporal": {
+                    "kind": "closed_calendar_year",
+                    "year": 2027
+                  },
+                  "sort": null,
+                  "slice": null
+                }
+              }
+            ],
+            "output": {
+              "kind": "COLLECTION",
+              "fromStep": "step1"
+            }
+          },
+          "tools": [
+            {
+              "name": "query_collection",
+              "ok": true,
+              "args": {
+                "type": "Search",
+                "source": "wedding",
+                "relativeTemporal": {
+                  "kind": "closed_calendar_year",
+                  "year": 2027
+                },
+                "sort": null,
+                "slice": null
+              }
+            }
+          ],
+          "modelLatencyMs": [
+            2675
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s21",
+      "set": "single",
+      "pass": true,
+      "turns": [
+        {
+          "utterance": "Jaka jest wartość umów wesel w 2027?",
+          "classification": "PASS",
+          "failures": [],
+          "finalStatus": "final",
+          "goldOps": [
+            "Aggregate",
+            "Temporal",
+            "Search"
+          ],
+          "plannedOps": [
+            "Search",
+            "Temporal",
+            "Aggregate"
+          ],
+          "executedOps": [
+            "Search",
+            "Temporal",
+            "Aggregate"
+          ],
+          "planComplete": true,
+          "aggregateGrounded": true,
+          "plan": {
+            "steps": [
+              {
+                "id": "search_2027",
+                "kind": "SEARCH_COLLECTION",
+                "search": {
+                  "type": "Search",
+                  "source": "wedding",
+                  "relativeTemporal": {
+                    "kind": "closed_calendar_year",
+                    "year": 2027
+                  },
+                  "sort": null,
+                  "slice": null
+                }
+              },
+              {
+                "id": "sum_contract_value",
+                "kind": "AGGREGATE_COLLECTION",
+                "inputFromStep": "search_2027",
+                "inputHandle": null,
+                "aggregation": "sum",
+                "measure": "contract_value"
+              }
+            ],
+            "output": {
+              "kind": "AGGREGATE",
+              "fromStep": "sum_contract_value"
+            }
+          },
+          "tools": [
+            {
+              "name": "query_collection",
+              "ok": true,
+              "args": {
+                "type": "Search",
+                "source": "wedding",
+                "relativeTemporal": {
+                  "kind": "closed_calendar_year",
+                  "year": 2027
+                },
+                "sort": null,
+                "slice": null
+              }
+            },
+            {
+              "name": "aggregate_collection",
+              "ok": true,
+              "args": {
+                "type": "Aggregate",
+                "collection": "col_1",
+                "aggregation": "sum",
+                "measure": "contract_value"
+              }
+            }
+          ],
+          "modelLatencyMs": [
+            3043
+          ]
+        }
+      ]
+    },
+    {
+      "id": "m03-novel",
+      "set": "special",
+      "pass": true,
+      "turns": [
+        {
+          "utterance": "Z przyszłorocznych wesel pokaż pięć najbliższych, pomiń Villa Love i powiedz ile łącznie zostało mi z nich do otrzymania.",
+          "classification": "PASS",
+          "failures": [],
+          "finalStatus": "final",
+          "goldOps": [
+            "Aggregate",
+            "Sort",
+            "Slice",
+            "Exclude",
+            "Temporal",
+            "Search"
+          ],
+          "plannedOps": [
+            "Search",
+            "Temporal",
+            "Exclude",
+            "Sort",
+            "Slice",
+            "Aggregate"
+          ],
+          "executedOps": [
+            "Search",
+            "Temporal",
+            "Exclude",
+            "Sort",
+            "Slice",
+            "Aggregate"
+          ],
+          "planComplete": true,
+          "aggregateGrounded": true,
+          "plan": {
+            "steps": [
+              {
+                "id": "s1",
+                "kind": "SEARCH_COLLECTION",
+                "search": {
+                  "type": "Search",
+                  "source": "wedding",
+                  "excludePlace": {
+                    "field": "place.name",
+                    "op": "contains",
+                    "value": "Villa Love",
+                    "role": "any"
+                  },
+                  "relativeTemporal": {
+                    "kind": "closed_calendar_year",
+                    "year": 2027
+                  },
+                  "sort": {
+                    "field": "wedding.date",
+                    "direction": "asc"
+                  },
+                  "slice": {
+                    "limit": 5
+                  }
+                }
+              },
+              {
+                "id": "s2",
+                "kind": "AGGREGATE_COLLECTION",
+                "inputFromStep": "s1",
+                "inputHandle": null,
+                "aggregation": "sum",
+                "measure": "remaining_amount"
+              }
+            ],
+            "output": {
+              "kind": "AGGREGATE",
+              "fromStep": "s2"
+            }
+          },
+          "tools": [
+            {
+              "name": "query_collection",
+              "ok": true,
+              "args": {
+                "type": "Search",
+                "source": "wedding",
+                "excludePlace": {
+                  "field": "place.name",
+                  "op": "contains",
+                  "value": "Villa Love",
+                  "role": "any"
+                },
+                "relativeTemporal": {
+                  "kind": "closed_calendar_year",
+                  "year": 2027
+                },
+                "sort": {
+                  "field": "wedding.date",
+                  "direction": "asc"
+                },
+                "slice": {
+                  "limit": 5
+                }
+              }
+            },
+            {
+              "name": "aggregate_collection",
+              "ok": true,
+              "args": {
+                "type": "Aggregate",
+                "collection": "col_1",
+                "aggregation": "sum",
+                "measure": "remaining_amount"
+              }
+            }
+          ],
+          "modelLatencyMs": [
+            2732
+          ]
+        }
+      ]
+    },
+    {
+      "id": "m04-ref-te",
+      "set": "multi",
+      "pass": true,
+      "turns": [
+        {
+          "utterance": "Pokaż 3 najbliższe wesela.",
+          "classification": "PASS",
+          "failures": [],
+          "finalStatus": "final",
+          "goldOps": [
+            "Search"
+          ],
+          "plannedOps": [
+            "Search",
+            "Temporal",
+            "Sort",
+            "Slice"
+          ],
+          "executedOps": [
+            "Search",
+            "Temporal",
+            "Sort",
+            "Slice"
+          ],
+          "planComplete": true,
+          "aggregateGrounded": null,
+          "plan": {
+            "steps": [
+              {
+                "id": "step1",
+                "kind": "SEARCH_COLLECTION",
+                "search": {
+                  "type": "Search",
+                  "source": "wedding",
+                  "relativeTemporal": {
+                    "kind": "future_from_now",
+                    "inclusive": true
+                  },
+                  "sort": {
+                    "field": "wedding.date",
+                    "direction": "asc"
+                  },
+                  "slice": {
+                    "limit": 3
+                  }
+                }
+              }
+            ],
+            "output": {
+              "kind": "COLLECTION",
+              "fromStep": "step1"
+            }
+          },
+          "tools": [
+            {
+              "name": "query_collection",
+              "ok": true,
+              "args": {
+                "type": "Search",
+                "source": "wedding",
+                "relativeTemporal": {
+                  "kind": "future_from_now",
+                  "inclusive": true
+                },
+                "sort": {
+                  "field": "wedding.date",
+                  "direction": "asc"
+                },
+                "slice": {
+                  "limit": 3
+                }
+              }
+            }
+          ],
+          "modelLatencyMs": [
+            2361
+          ]
+        },
+        {
+          "utterance": "Pokaż je.",
+          "classification": "PASS",
+          "failures": [],
+          "finalStatus": "final",
+          "goldOps": [
+            "Filter"
+          ],
+          "plannedOps": [
+            "Restore"
+          ],
+          "executedOps": [
+            "Restore"
+          ],
+          "planComplete": true,
+          "aggregateGrounded": null,
+          "plan": {
+            "steps": [
+              {
+                "id": "restore_1",
+                "kind": "RESTORE_COLLECTION",
+                "inputHandle": "col_1"
+              }
+            ],
+            "output": {
+              "kind": "COLLECTION",
+              "fromStep": "restore_1"
+            }
+          },
+          "tools": [
+            {
+              "name": "restore_collection",
+              "ok": true,
+              "args": {
+                "type": "Restore",
+                "collection": "col_1"
+              }
+            }
+          ],
+          "modelLatencyMs": [
+            2431
+          ]
+        }
+      ]
+    },
+    {
+      "id": "m07-ref-tamte",
+      "set": "multi",
+      "pass": true,
+      "turns": [
+        {
+          "utterance": "Pokaż 3 najbliższe wesela.",
+          "classification": "PASS",
+          "failures": [],
+          "finalStatus": "final",
+          "goldOps": [
+            "Search"
+          ],
+          "plannedOps": [
+            "Search",
+            "Temporal",
+            "Sort",
+            "Slice"
+          ],
+          "executedOps": [
+            "Search",
+            "Temporal",
+            "Sort",
+            "Slice"
+          ],
+          "planComplete": true,
+          "aggregateGrounded": null,
+          "plan": {
+            "steps": [
+              {
+                "id": "step1",
+                "kind": "SEARCH_COLLECTION",
+                "search": {
+                  "type": "Search",
+                  "source": "wedding",
+                  "relativeTemporal": {
+                    "kind": "future_from_now",
+                    "inclusive": true
+                  },
+                  "sort": {
+                    "field": "wedding.date",
+                    "direction": "asc"
+                  },
+                  "slice": {
+                    "limit": 3
+                  }
+                }
+              }
+            ],
+            "output": {
+              "kind": "COLLECTION",
+              "fromStep": "step1"
+            }
+          },
+          "tools": [
+            {
+              "name": "query_collection",
+              "ok": true,
+              "args": {
+                "type": "Search",
+                "source": "wedding",
+                "relativeTemporal": {
+                  "kind": "future_from_now",
+                  "inclusive": true
+                },
+                "sort": {
+                  "field": "wedding.date",
+                  "direction": "asc"
+                },
+                "slice": {
+                  "limit": 3
+                }
+              }
+            }
+          ],
+          "modelLatencyMs": [
+            2305
+          ]
+        },
+        {
+          "utterance": "Tylko Villa Love.",
+          "classification": "PASS",
+          "failures": [],
+          "finalStatus": "final",
+          "goldOps": [],
+          "plannedOps": [
+            "Filter"
+          ],
+          "executedOps": [
+            "Filter"
+          ],
+          "planComplete": true,
+          "aggregateGrounded": null,
+          "plan": {
+            "steps": [
+              {
+                "id": "step1",
+                "kind": "TRANSFORM_COLLECTION",
+                "inputFromStep": null,
+                "inputHandle": "col_1",
+                "ops": [
+                  {
+                    "op": "Filter",
+                    "place": {
+                      "field": "place.name",
+                      "op": "eq",
+                      "value": "Villa Love",
+                      "role": "any"
+                    }
+                  }
+                ]
+              }
+            ],
+            "output": {
+              "kind": "COLLECTION",
+              "fromStep": "step1"
+            }
+          },
+          "tools": [
+            {
+              "name": "transform_collection",
+              "ok": true,
+              "args": {
+                "parentHandle": "col_1",
+                "ops": [
+                  {
+                    "op": "Filter",
+                    "place": {
+                      "field": "place.name",
+                      "op": "eq",
+                      "value": "Villa Love",
+                      "role": "any"
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "modelLatencyMs": [
+            2630
+          ]
+        },
+        {
+          "utterance": "Wróć do tamtych trzech.",
+          "classification": "PASS",
+          "failures": [],
+          "finalStatus": "final",
+          "goldOps": [
+            "Restore"
+          ],
+          "plannedOps": [
+            "Restore"
+          ],
+          "executedOps": [
+            "Restore"
+          ],
+          "planComplete": true,
+          "aggregateGrounded": null,
+          "plan": {
+            "steps": [
+              {
+                "id": "restore_1",
+                "kind": "RESTORE_COLLECTION",
+                "inputHandle": "col_1"
+              }
+            ],
+            "output": {
+              "kind": "COLLECTION",
+              "fromStep": "restore_1"
+            }
+          },
+          "tools": [
+            {
+              "name": "restore_collection",
+              "ok": true,
+              "args": {
+                "type": "Restore",
+                "collection": "col_1"
+              }
+            }
+          ],
+          "modelLatencyMs": [
+            1524
+          ]
+        }
+      ]
+    },
+    {
+      "id": "m09-corr-year",
+      "set": "multi",
+      "pass": false,
+      "turns": [
+        {
+          "utterance": "Pokaż wesela w 2027.",
+          "classification": "INTERPRETATION_ERROR",
+          "failures": [
+            "missing_closed_year_2028"
+          ],
+          "finalStatus": "final",
+          "goldOps": [
+            "Temporal",
+            "Search"
+          ],
+          "plannedOps": [
+            "Search",
+            "Temporal"
+          ],
+          "executedOps": [
+            "Search",
+            "Temporal"
+          ],
+          "planComplete": true,
+          "aggregateGrounded": null,
+          "plan": {
+            "steps": [
+              {
+                "id": "step1",
+                "kind": "SEARCH_COLLECTION",
+                "search": {
+                  "type": "Search",
+                  "source": "wedding",
+                  "relativeTemporal": {
+                    "kind": "closed_calendar_year",
+                    "year": 2027
+                  },
+                  "sort": null,
+                  "slice": null
+                }
+              }
+            ],
+            "output": {
+              "kind": "COLLECTION",
+              "fromStep": "step1"
+            }
+          },
+          "tools": [
+            {
+              "name": "query_collection",
+              "ok": true,
+              "args": {
+                "type": "Search",
+                "source": "wedding",
+                "relativeTemporal": {
+                  "kind": "closed_calendar_year",
+                  "year": 2027
+                },
+                "sort": null,
+                "slice": null
+              }
+            }
+          ],
+          "modelLatencyMs": [
+            1992
+          ]
+        },
+        {
+          "utterance": "Nie, chodziło mi o 2028.",
+          "classification": "PASS",
+          "failures": [],
+          "finalStatus": "final",
+          "goldOps": [
+            "Temporal",
+            "Search"
+          ],
+          "plannedOps": [
+            "Temporal"
+          ],
+          "executedOps": [
+            "Temporal"
+          ],
+          "planComplete": true,
+          "aggregateGrounded": null,
+          "plan": {
+            "steps": [
+              {
+                "id": "step1",
+                "kind": "TRANSFORM_COLLECTION",
+                "inputFromStep": null,
+                "inputHandle": "col_1",
+                "ops": [
+                  {
+                    "op": "RelativeTemporal",
+                    "temporal": {
+                      "kind": "closed_calendar_year",
+                      "year": 2028
+                    }
+                  }
+                ]
+              }
+            ],
+            "output": {
+              "kind": "COLLECTION",
+              "fromStep": "step1"
+            }
+          },
+          "tools": [
+            {
+              "name": "transform_collection",
+              "ok": true,
+              "args": {
+                "parentHandle": "col_1",
+                "ops": [
+                  {
+                    "op": "RelativeTemporal",
+                    "temporal": {
+                      "kind": "closed_calendar_year",
+                      "year": 2028
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "modelLatencyMs": [
+            3482
+          ]
+        }
+      ]
+    },
+    {
+      "id": "m10-corr-measure",
+      "set": "multi",
+      "pass": false,
+      "turns": [
+        {
+          "utterance": "Pokaż 3 najbliższe wesela.",
+          "classification": "PASS",
+          "failures": [],
+          "finalStatus": "final",
+          "goldOps": [
+            "Search"
+          ],
+          "plannedOps": [
+            "Search",
+            "Temporal",
+            "Sort",
+            "Slice"
+          ],
+          "executedOps": [
+            "Search",
+            "Temporal",
+            "Sort",
+            "Slice"
+          ],
+          "planComplete": true,
+          "aggregateGrounded": null,
+          "plan": {
+            "steps": [
+              {
+                "id": "step1",
+                "kind": "SEARCH_COLLECTION",
+                "search": {
+                  "type": "Search",
+                  "source": "wedding",
+                  "relativeTemporal": {
+                    "kind": "future_from_now",
+                    "inclusive": true
+                  },
+                  "sort": {
+                    "field": "wedding.date",
+                    "direction": "asc"
+                  },
+                  "slice": {
+                    "limit": 3,
+                    "offset": 0
+                  }
+                }
+              }
+            ],
+            "output": {
+              "kind": "COLLECTION",
+              "fromStep": "step1"
+            }
+          },
+          "tools": [
+            {
+              "name": "query_collection",
+              "ok": true,
+              "args": {
+                "type": "Search",
+                "source": "wedding",
+                "relativeTemporal": {
+                  "kind": "future_from_now",
+                  "inclusive": true
+                },
+                "sort": {
+                  "field": "wedding.date",
+                  "direction": "asc"
+                },
+                "slice": {
+                  "limit": 3,
+                  "offset": 0
+                }
+              }
+            }
+          ],
+          "modelLatencyMs": [
+            1983
+          ]
+        },
+        {
+          "utterance": "Ile są warte?",
+          "classification": "INTERPRETATION_ERROR",
+          "failures": [
+            "wrong_or_changed_measure"
+          ],
+          "finalStatus": "final",
+          "goldOps": [
+            "Aggregate"
+          ],
+          "plannedOps": [
+            "Aggregate"
+          ],
+          "executedOps": [
+            "Aggregate"
+          ],
+          "planComplete": true,
+          "aggregateGrounded": true,
+          "plan": {
+            "steps": [
+              {
+                "id": "step1",
+                "kind": "AGGREGATE_COLLECTION",
+                "inputFromStep": null,
+                "inputHandle": "col_1",
+                "aggregation": "sum",
+                "measure": "contract_value"
+              }
+            ],
+            "output": {
+              "kind": "AGGREGATE",
+              "fromStep": "step1"
+            }
+          },
+          "tools": [
+            {
+              "name": "aggregate_collection",
+              "ok": true,
+              "args": {
+                "type": "Aggregate",
+                "collection": "col_1",
+                "aggregation": "sum",
+                "measure": "contract_value"
+              }
+            }
+          ],
+          "modelLatencyMs": [
+            1786
+          ]
+        },
+        {
+          "utterance": "Nie, ile zostało do zapłaty.",
+          "classification": "PASS",
+          "failures": [],
+          "finalStatus": "final",
+          "goldOps": [
+            "Aggregate"
+          ],
+          "plannedOps": [
+            "Aggregate"
+          ],
+          "executedOps": [
+            "Aggregate"
+          ],
+          "planComplete": true,
+          "aggregateGrounded": true,
+          "plan": {
+            "steps": [
+              {
+                "id": "step_1",
+                "kind": "AGGREGATE_COLLECTION",
+                "inputFromStep": null,
+                "inputHandle": "col_1",
+                "aggregation": "sum",
+                "measure": "remaining_amount"
+              }
+            ],
+            "output": {
+              "kind": "AGGREGATE",
+              "fromStep": "step_1"
+            }
+          },
+          "tools": [
+            {
+              "name": "aggregate_collection",
+              "ok": true,
+              "args": {
+                "type": "Aggregate",
+                "collection": "col_1",
+                "aggregation": "sum",
+                "measure": "remaining_amount"
+              }
+            }
+          ],
+          "modelLatencyMs": [
+            1553
+          ]
+        }
+      ]
+    },
+    {
+      "id": "m12-zero",
+      "set": "multi",
+      "pass": true,
+      "turns": [
+        {
+          "utterance": "Ile mam wesel w 2031?",
+          "classification": "PASS",
+          "failures": [],
+          "finalStatus": "final",
+          "goldOps": [
+            "Search"
+          ],
+          "plannedOps": [
+            "Search",
+            "Temporal",
+            "Aggregate"
+          ],
+          "executedOps": [
+            "Search",
+            "Temporal",
+            "Aggregate"
+          ],
+          "planComplete": true,
+          "aggregateGrounded": true,
+          "plan": {
+            "steps": [
+              {
+                "id": "step1",
+                "kind": "SEARCH_COLLECTION",
+                "search": {
+                  "type": "Search",
+                  "source": "wedding",
+                  "relativeTemporal": {
+                    "kind": "closed_calendar_year",
+                    "year": 2031
+                  },
+                  "sort": null,
+                  "slice": null
+                }
+              },
+              {
+                "id": "step2",
+                "kind": "AGGREGATE_COLLECTION",
+                "inputFromStep": "step1",
+                "inputHandle": null,
+                "aggregation": "count",
+                "measure": null
+              }
+            ],
+            "output": {
+              "kind": "AGGREGATE",
+              "fromStep": "step2"
+            }
+          },
+          "tools": [
+            {
+              "name": "query_collection",
+              "ok": true,
+              "args": {
+                "type": "Search",
+                "source": "wedding",
+                "relativeTemporal": {
+                  "kind": "closed_calendar_year",
+                  "year": 2031
+                },
+                "sort": null,
+                "slice": null
+              }
+            },
+            {
+              "name": "aggregate_collection",
+              "ok": true,
+              "args": {
+                "type": "Aggregate",
+                "collection": "col_1",
+                "aggregation": "count",
+                "measure": null
+              }
+            }
+          ],
+          "modelLatencyMs": [
+            3472
+          ]
+        },
+        {
+          "utterance": "Pokaż je.",
+          "classification": "PASS",
+          "failures": [],
+          "finalStatus": "final",
+          "goldOps": [
+            "Search"
+          ],
+          "plannedOps": [
+            "Restore"
+          ],
+          "executedOps": [
+            "Restore"
+          ],
+          "planComplete": true,
+          "aggregateGrounded": null,
+          "plan": {
+            "steps": [
+              {
+                "id": "restore_1",
+                "kind": "RESTORE_COLLECTION",
+                "inputHandle": "col_1"
+              }
+            ],
+            "output": {
+              "kind": "COLLECTION",
+              "fromStep": "restore_1"
+            }
+          },
+          "tools": [
+            {
+              "name": "restore_collection",
+              "ok": true,
+              "args": {
+                "type": "Restore",
+                "collection": "col_1"
+              }
+            }
+          ],
+          "modelLatencyMs": [
+            1858
+          ]
+        }
+      ]
+    },
+    {
+      "id": "u10",
+      "set": "unsupported",
+      "pass": true,
+      "turns": [
+        {
+          "utterance": "Pogrupuj wesela po miesiącach.",
+          "classification": "PASS",
+          "failures": [],
+          "finalStatus": "unsupported",
+          "goldOps": [],
+          "plannedOps": [],
+          "executedOps": [],
+          "planComplete": true,
+          "aggregateGrounded": null,
+          "plan": {
+            "steps": [],
+            "output": {
+              "kind": "UNSUPPORTED",
+              "reason": "Grupowanie wesel po miesiącach wymaga operacji group-by, która nie jest obsługiwana."
+            }
+          },
+          "tools": [],
+          "modelLatencyMs": [
+            1565
+          ]
+        }
+      ]
+    }
+  ]
+}
