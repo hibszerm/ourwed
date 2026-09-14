@@ -33,10 +33,12 @@ import {
   sanitizeV5SemanticContextSummary,
 } from './v5OpenAITransport.ts'
 import { V6_AGENT_SYSTEM_PROMPT } from './v6Prompt.ts'
+import { buildV6NativeToolsRequestBody } from './v6NativeTransport.ts'
+// F1.1A string agent-step schema retained for diagnostics only — not used on live V6 path.
 import {
-  ASSISTANT_V6_AGENT_STEP_JSON_SCHEMA,
-  parseV6AgentStepPayload,
+  ASSISTANT_V6_AGENT_STEP_JSON_SCHEMA as _DEPRECATED_V6_STRING_STEP_SCHEMA,
 } from './v6Schema.ts'
+void _DEPRECATED_V6_STRING_STEP_SCHEMA
 
 /** Eval-only allowlist — never accept arbitrary client model strings. */
 const V4_EVAL_MODEL_ALLOWLIST = new Set([
@@ -615,15 +617,13 @@ Deno.serve(async (req) => {
     const started = Date.now()
 
     try {
-      const openaiPayload = buildV5ChatCompletionRequestBody({
+      const openaiPayload = buildV6NativeToolsRequestBody({
         model: v6Model,
         maxOutputTokens: 1200,
         messages: [
           { role: 'system', content: V6_AGENT_SYSTEM_PROMPT },
           { role: 'user', content: userPayload },
         ],
-        jsonSchemaName: 'assistant_v6_agent_step',
-        jsonSchema: ASSISTANT_V6_AGENT_STEP_JSON_SCHEMA,
       })
 
       const openaiRes = await fetch(
@@ -647,6 +647,7 @@ Deno.serve(async (req) => {
           durationMs: Date.now() - started,
           status: 'provider_error',
           model: v6Model,
+          error: openaiBody?.error?.message ?? null,
         })
         return jsonResponse(
           {
@@ -659,51 +660,38 @@ Deno.serve(async (req) => {
         )
       }
 
-      const content =
-        openaiBody?.choices?.[0]?.message?.content ??
-        openaiBody?.choices?.[0]?.message?.refusal ??
-        null
-      let parsed: unknown = null
-      if (typeof content === 'string') {
-        try {
-          parsed = JSON.parse(content)
-        } catch {
-          parsed = null
-        }
-      }
-
-      const checked = parseV6AgentStepPayload(parsed)
-      if (!checked.ok) {
-        console.info('[ai-assistant:v6]', {
-          durationMs: Date.now() - started,
-          status: 'schema_error',
-          reason: checked.reason,
-          model: v6Model,
-        })
+      const message = openaiBody?.choices?.[0]?.message ?? null
+      if (!message || typeof message !== 'object') {
         return jsonResponse(
           {
             status: 'error',
             code: 'INTERPRETATION_ERROR',
-            message: checked.reason,
+            message: 'empty_native_message',
             diagnostics: { usage, model: v6Model },
           },
           422,
         )
       }
 
+      // Client maps native tool args → runtime types (parseV6NativeChatMessage).
       console.info('[ai-assistant:v6]', {
         durationMs: Date.now() - started,
-        status: checked.value.status,
+        status: 'native_message',
         model: v6Model,
+        toolCallCount: Array.isArray(message.tool_calls)
+          ? message.tool_calls.length
+          : 0,
         usage,
       })
 
       return jsonResponse({
-        ...checked.value,
+        status: 'native_message',
+        message,
         diagnostics: {
           model: v6Model,
           durationMs: Date.now() - started,
           usage,
+          transport: 'native_tools',
         },
       })
     } catch (e) {

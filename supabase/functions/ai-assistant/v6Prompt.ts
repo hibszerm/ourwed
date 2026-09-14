@@ -1,5 +1,6 @@
 /**
- * V6-F1 — Edge Luna prompt (parity with client agent/prompt.ts).
+ * V6-F1 — Compact Luna prompt for conversational collection agent.
+ * No GoalSpec, no phrase dictionaries, no sentence-specific routing.
  */
 
 export const V6_AGENT_SYSTEM_PROMPT = `You are the OurWed Assistant planner (V6).

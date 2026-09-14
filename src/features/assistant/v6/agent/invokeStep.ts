@@ -1,8 +1,9 @@
 /**
- * V6-F1 — Edge invoke for one agent step.
+ * V6-F1 — Edge invoke for one agent step (F1.2 native tools transport).
  */
 
 import type { V6AgentStepRequest, V6AgentStepResponse } from './protocol'
+import { parseV6NativeChatMessage } from './parseNativeStep'
 
 export async function invokeV6AgentStep(
   input: Omit<V6AgentStepRequest, 'mode'> & { signal?: AbortSignal },
@@ -58,7 +59,44 @@ export async function invokeV6AgentStep(
     }
   }
 
-  const status = (data as { status?: string }).status
+  const row = data as Record<string, unknown>
+
+  // F1.2 native tools: Edge returns raw OpenAI message for client-side mapping.
+  if (row.status === 'native_message') {
+    const message = row.message
+    if (!message || typeof message !== 'object') {
+      return {
+        status: 'error',
+        code: 'INTERPRETATION_ERROR',
+        message: 'empty_native_message',
+      }
+    }
+    const parsed = parseV6NativeChatMessage(
+      message as {
+        content?: string | null
+        tool_calls?: Array<{
+          id: string
+          function: { name: string; arguments: string }
+        }> | null
+      },
+    )
+    if (!parsed.ok) {
+      return {
+        status: 'error',
+        code: 'INTERPRETATION_ERROR',
+        message: parsed.reason,
+      }
+    }
+    return {
+      ...parsed.response,
+      diagnostics:
+        row.diagnostics && typeof row.diagnostics === 'object'
+          ? (row.diagnostics as Record<string, unknown>)
+          : undefined,
+    } as V6AgentStepResponse
+  }
+
+  const status = row.status
   if (
     status === 'tool_calls' ||
     status === 'final' ||

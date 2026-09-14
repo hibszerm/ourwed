@@ -1,6 +1,7 @@
 /**
- * V6-F1 / F1.1A — Structured agent step output schema (OpenAI strict:true).
- * Transport: toolCalls[].arguments is a JSON string; runtime parses + validates.
+ * V6-F1.1A — DEPRECATED string agent-step transport (non-authoritative).
+ * F1.2 live path uses native OpenAI function calling (`nativeTools.ts`).
+ * Kept for rollback diagnostics only — do not use on the native tool path.
  */
 
 import { parseAndValidateToolArguments } from './validateToolArguments'

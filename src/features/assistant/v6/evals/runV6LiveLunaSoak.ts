@@ -13,11 +13,9 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import type { CollectionMoneyRow } from '../../v4/capabilities/collection/executeCollectionQuery'
 import { V6_AGENT_SYSTEM_PROMPT } from '../agent/prompt'
-import {
-  ASSISTANT_V6_AGENT_STEP_JSON_SCHEMA,
-  parseV6AgentStepPayload,
-  type V6ParsedAgentStep,
-} from '../agent/schema'
+import { buildV6NativeToolsRequestBody } from '../agent/v6OpenAITransport'
+import { parseV6NativeChatMessage } from '../agent/parseNativeStep'
+import type { V6AgentStepResponse } from '../agent/protocol'
 import { V6_MAX_TOOL_ROUNDS } from '../agent/protocol'
 import { buildModelCollectionContext } from '../collections/summary'
 import {
@@ -95,7 +93,7 @@ function weddingFixtures() {
 type LunaStep =
   | {
       ok: true
-      payload: V6ParsedAgentStep
+      payload: V6AgentStepResponse
       latencyMs: number
     }
   | { ok: false; kind: 'provider' | 'schema'; error: string; latencyMs: number }
@@ -117,40 +115,33 @@ async function callLunaStep(input: {
     }
   }
   const started = Date.now()
+  const reqBody = buildV6NativeToolsRequestBody({
+    model: MODEL,
+    maxOutputTokens: 1200,
+    messages: [
+      { role: 'system', content: V6_AGENT_SYSTEM_PROMPT },
+      {
+        role: 'user',
+        content: JSON.stringify({
+          utterance: input.utterance,
+          locale: 'pl-PL',
+          round: input.round,
+          collectionSummaries: input.collectionSummaries,
+          compactConversationContext: {
+            recentUtterances: input.recentUtterances,
+          },
+          previousToolResults: input.previousToolResults,
+        }),
+      },
+    ],
+  })
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      model: MODEL,
-      max_completion_tokens: 1200,
-      messages: [
-        { role: 'system', content: V6_AGENT_SYSTEM_PROMPT },
-        {
-          role: 'user',
-          content: JSON.stringify({
-            utterance: input.utterance,
-            locale: 'pl-PL',
-            round: input.round,
-            collectionSummaries: input.collectionSummaries,
-            compactConversationContext: {
-              recentUtterances: input.recentUtterances,
-            },
-            previousToolResults: input.previousToolResults,
-          }),
-        },
-      ],
-      response_format: {
-        type: 'json_schema',
-        json_schema: {
-          name: 'assistant_v6_agent_step',
-          strict: true,
-          schema: ASSISTANT_V6_AGENT_STEP_JSON_SCHEMA,
-        },
-      },
-    }),
+    body: JSON.stringify(reqBody),
   })
   const latencyMs = Date.now() - started
   const body = await res.json().catch(() => null)
@@ -167,21 +158,12 @@ async function callLunaStep(input: {
       latencyMs,
     }
   }
-  const content = body?.choices?.[0]?.message?.content
-  if (typeof content !== 'string') {
-    return { ok: false, kind: 'provider', error: 'empty_content', latencyMs }
-  }
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(content)
-  } catch {
-    return { ok: false, kind: 'schema', error: 'json_parse', latencyMs }
-  }
-  const checked = parseV6AgentStepPayload(parsed)
+  const message = body?.choices?.[0]?.message
+  const checked = parseV6NativeChatMessage(message ?? {})
   if (!checked.ok) {
     return { ok: false, kind: 'schema', error: checked.reason, latencyMs }
   }
-  return { ok: true, payload: checked.value, latencyMs }
+  return { ok: true, payload: checked.response, latencyMs }
 }
 
 async function runOneUtterance(input: {
@@ -586,7 +568,7 @@ async function main() {
     'src/features/assistant/v4/benchmark/artifacts',
   )
   mkdirSync(outDir, { recursive: true })
-  const outPath = resolve(outDir, 'phase-v6-f11a-live-luna-soak.json')
+  const outPath = resolve(outDir, 'phase-v6-f12-live-luna-soak.json')
   writeFileSync(
     outPath,
     JSON.stringify(

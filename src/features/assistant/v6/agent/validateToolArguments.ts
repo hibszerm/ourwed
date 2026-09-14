@@ -1,6 +1,7 @@
 /**
- * V6-F1.1A — Fail-closed parse + structural validation of tool arguments.
- * Transport: JSON string. Runtime: typed object (never trust parse alone).
+ * V6-F1.1A — DEPRECATED string-argument parse + alias normalization.
+ * F1.2 native tool path must NOT call normalizeParsedToolArguments.
+ * Kept for legacy diagnostics / acceptance tests of the retired transport.
  */
 
 export type ToolArgsParseFailure = {
