@@ -386,8 +386,23 @@ export function bindGoalSpec(
         : (inherited?.locationRole ?? null)
 
   // --- Temporal ---
+  // Precedence: current explicit resolvedRange > active DomainQuery date >
+  // page/resource (page temporal is not inherited here; DQ is SoT).
   const explicitRange = goal.temporal?.resolvedRange ?? null
   const inheritedRange = inherited?.dateRange ?? null
+  const explicitTemporalExpression =
+    typeof goal.temporal?.expression === 'string' &&
+    goal.temporal.expression.trim().length > 0
+
+  // Current-turn temporal attempt that failed normalization must not
+  // silently preserve an older activeDomainQuery date range.
+  if (explicitTemporalExpression && !explicitRange) {
+    return {
+      status: 'unsupported',
+      reason: 'temporal_expression_unresolved',
+    }
+  }
+
   const resolvedRange = explicitRange ?? inheritedRange
 
   let dateDimension: 'wedding.date' | null = null

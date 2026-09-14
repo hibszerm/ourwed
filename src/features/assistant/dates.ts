@@ -271,6 +271,7 @@ export function resolveAggregateDateRange(
     .trim()
     .toLowerCase()
     .replace(/[?.!…]+$/g, '')
+    .replace(/\s+/g, ' ')
     .trim()
   if (!q) return null
 
@@ -346,10 +347,16 @@ export function resolveAggregateDateRange(
     return monthRange(Number(isoMonth[1]), Number(isoMonth[2]))
   }
 
-  // Bare calendar year "2027"
-  const bareYear = q.match(/^(\d{4})$/)
-  if (bareYear) {
-    return yearRange(Number(bareYear[1]))
+  // Absolute calendar year as the sole temporal anchor.
+  // Typed temporal.expression may carry light conversational wrappers
+  // around a single YYYY (e.g. "2028", "w 2028", "a w 2028?", "rok 2028").
+  // Month+year and relative year phrases are handled above; ambiguous
+  // multi-year spans are intentionally left unresolved.
+  const absoluteYear = q.match(
+    /^(?:a\s+)?(?:(?:w|we)\s+)?(?:(?:rok|roku)\s+)?(\d{4})(?:\s+(?:rok|roku))?$/,
+  )
+  if (absoluteYear) {
+    return yearRange(Number(absoluteYear[1]))
   }
 
   return null

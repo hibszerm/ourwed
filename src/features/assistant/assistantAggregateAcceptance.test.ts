@@ -65,6 +65,21 @@ assert(
   resolveAggregateDateRange('2027', today)?.to === '2027-12-31',
   'bare year',
 )
+// Absolute calendar year with conversational wrappers (typed temporal.expression)
+for (const [expr, from, to] of [
+  ['a w 2028?', '2028-01-01', '2028-12-31'],
+  ['w 2028', '2028-01-01', '2028-12-31'],
+  ['w 2028 roku', '2028-01-01', '2028-12-31'],
+  ['2028?', '2028-01-01', '2028-12-31'],
+  ['rok 2028', '2028-01-01', '2028-12-31'],
+] as const) {
+  const r = resolveAggregateDateRange(expr, today)
+  assert(r?.from === from && r?.to === to, `absolute year form: ${expr}`)
+}
+assert(
+  resolveAggregateDateRange('a w przyszłym roku?', today)?.from === '2027-01-01',
+  'relative year with wrapper still works',
+)
 
 assert(polishCountUnit('weddings', 1) === 'wesele', '1 wesele')
 assert(polishCountUnit('weddings', 2) === 'wesela', '2 wesela')
