@@ -507,33 +507,34 @@ console.log('  OK finance sums eligible')
   console.log('  OK shadow remains non-owning')
 }
 
-// P0 witness: open/remainder-like expressions that dates.ts over-resolves
-// currently become SC1-complete closed ranges → would be canary-eligible with
-// wrong meaning. CR1 must remain NOT SAFE until this is closed without phrase rules.
+// TR1: open/remainder compounds must not over-resolve into closed authority.
 {
-  const overResolved = runPipeline(
-    emptyGoalSpec({
-      requestKind: 'domain_query',
-      source: 'wedding',
-      aggregation: 'count',
-      temporal: {
-        expression: 'w tym roku od dziś',
-        resolvedRange: null,
-        dateDimension: 'wedding.date',
-        dateDimensionAmbiguous: false,
-      },
-    }),
-  )
-  assert.ok(
-    overResolved.goal.temporal?.resolvedRange != null,
-    'P0 witness: normalize currently closes open-ish expression',
-  )
-  assert.equal(
-    overResolved.reentry.status,
-    'eligible',
-    'P0 witness: currently falsely eligible — blocks canary re-entry',
-  )
-  console.log('  OK P0 open-temporal over-resolution witness (known unsafe)')
+  for (const expr of [
+    'w tym roku od dziś',
+    'Od teraz do grudnia',
+    'do końca tego roku',
+  ] as const) {
+    const open = runPipeline(
+      emptyGoalSpec({
+        requestKind: 'domain_query',
+        source: 'wedding',
+        aggregation: 'count',
+        temporal: {
+          expression: expr,
+          resolvedRange: null,
+          dateDimension: 'wedding.date',
+          dateDimensionAmbiguous: false,
+        },
+      }),
+    )
+    assert.equal(
+      open.goal.temporal?.resolvedRange,
+      null,
+      `TR1: ${expr} must stay unresolved`,
+    )
+    assertIneligible(open, `open-temporal ${expr}`)
+  }
+  console.log('  OK TR1 open-temporal fail-closed (no false authority)')
 }
 
 console.log('CR1 canary re-entry safety: ALL PASSED')

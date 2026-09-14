@@ -143,8 +143,10 @@ Representable analytics operators (emit even when later layers may not execute t
 - avg/min/max: set aggregation accordingly (+ measure when monetary)
 
 Temporal remainder / open bounds:
-Preserve the boundary meaning in temporalExpression (do not invent ISO from/to).
-Do NOT substitute a full calendar year or omit temporal when the utterance asks for remainder / from-now / until-X / after-today / before-X.
+Preserve the FULL boundary meaning in temporalExpression (do not invent ISO from/to).
+When the utterance means a remaining period, from-now, until-X, after-today, or before-X,
+temporalExpression MUST keep that open/remainder boundary intact — never collapse it to a bare closed whole-year or whole-month phrase alone.
+Do NOT substitute a full calendar year/month or omit temporal when remainder / from-now / until-X / after-today / before-X meaning is present.
 If open bounds cannot be expressed as a faithful closed range, keep temporalExpression and leave resolved dates for later layers — do not invent a weaker period.
 
 Comparison between periods/entities and exclusion/negation:
@@ -160,6 +162,8 @@ Simple supported count/list/sum with closed temporal and place filters remain un
 === TEMPORAL ===
 Preserve temporalExpression as said (sierpień, 2028, w przyszłym roku, jutro…).
 Do NOT invent ISO from/to.
+Closed relative periods (this/next/previous month or year as a complete closed span) may use the closed relative expression alone.
+If THIS turn adds remainder / still-remaining / from-now / until-boundary / after-today / before-X meaning on top of a period, temporalExpression MUST include that boundary — emitting only the bare closed relative period is semantic loss.
 If the date DIMENSION is unclear (earnings next week could be wedding.date vs payment due vs task due):
 set dateDimensionAmbiguous=true and add ambiguitySlot=date_dimension.
 Otherwise dateDimension may be wedding.date when clearly about wedding timing, else null.
@@ -303,6 +307,10 @@ utterance intent: list/show the set AND add/change a filter
 
 CONTRAST — filter-only follow-up (no operation restated):
 same prior collection; only a filter changes → aggregation=null, inheritActiveCollection=true, placeName or temporalExpression set, ambiguities empty.
+
+EXEMPLAR D — remainder / from-now temporal (shape only):
+utterance intent: count remaining items in a current period from now (not the whole closed period)
+→ aggregation=count; temporalExpression MUST encode the open/remainder boundary; do not emit only a bare closed this-month/this-year relative.
 
 === topicKey ===
 Opaque snake_case topic for goal_plan / product_help / prepare_action (e.g. change_payment_due_date, create_task, travel_between_weddings).

@@ -21,7 +21,7 @@ const MONTH_LOOKUP: Array<[RegExp, number]> = [
   [/wrze/i, 9],
   [/paździer|pazdzier/i, 10],
   [/listopad/i, 11],
-  [/grudn/i, 12],
+  [/grudzi|grudn/i, 12],
 ]
 
 export function resolveRelativeScheduleDate(
@@ -262,6 +262,14 @@ function extractMonthNumber(text: string): number | null {
  * READ-only year rule for bare month names: use the current local year.
  * Calendar years are closed: next/this/previous year = Jan 1 .. Dec 31 only
  * (never open-ended "from year onward").
+ *
+ * TR1 — whole-expression fidelity:
+ * Resolve ONLY when the entire expression is a closed period whose closed
+ * range is semantically equivalent to the typed intent.
+ * Extra tokens (from-now, remainder, before/after, open bounds, day spans)
+ * must NOT partially match a month/year substring and widen into a full
+ * closed calendar range. Prefer fail-closed (null) over semantic loss.
+ * Does not invent now/today operators from free text.
  */
 export function resolveAggregateDateRange(
   raw: string,
@@ -278,55 +286,56 @@ export function resolveAggregateDateRange(
   const yNow = Number(todayKey.slice(0, 4))
   const mNow = Number(todayKey.slice(5, 7))
 
+  // Light conversational wrapper only — remaining string must still be a
+  // sole closed temporal meaning (no residual open/remainder tokens).
+  const core = q.replace(/^a\s+/, '')
+
   if (
-    /^(ten miesiąc|w tym miesiącu|tego miesiąca|bieżący miesiąc)$/i.test(q) ||
-    /\b(w )?tym miesiącu\b/i.test(q) ||
-    /\bten miesiąc\b/i.test(q)
+    /^(ten miesiąc|w tym miesiącu|tym miesiącu|tego miesiąca|bieżący miesiąc)$/i.test(
+      core,
+    )
   ) {
     return monthRange(yNow, mNow)
   }
 
   if (
-    /^(przyszły miesiąc|w przyszłym miesiącu|następny miesiąc)$/i.test(q) ||
-    /\b(w )?przyszł(ym|y) miesiącu?\b/i.test(q) ||
-    /\bnastępn(y|ym) miesiącu?\b/i.test(q)
+    /^(przyszły miesiąc|w przyszłym miesiącu|przyszłym miesiącu|następny miesiąc|w następnym miesiącu|następnym miesiącu)$/i.test(
+      core,
+    )
   ) {
     const next = mNow === 12 ? { y: yNow + 1, m: 1 } : { y: yNow, m: mNow + 1 }
     return monthRange(next.y, next.m)
   }
 
   // Calendar year relatives — after month relatives so "przyszły miesiąc" wins.
+  // Whole expression only; include locative forms with or without "w ".
   if (
-    /^(ten rok|w tym roku|tego roku|bieżący rok|this year)$/i.test(q) ||
-    /\b(w )?tym roku\b/i.test(q) ||
-    /\bten rok\b/i.test(q) ||
-    /\bthis year\b/i.test(q)
+    /^(ten rok|w tym roku|tego roku|tym roku|bieżący rok|this year)$/i.test(core)
   ) {
     return yearRange(yNow)
   }
 
   if (
-    /^(przyszły rok|w przyszłym roku|następny rok|next year)$/i.test(q) ||
-    /\b(w )?przyszł(ym|y) roku?\b/i.test(q) ||
-    /\bnastępn(y|ym) roku?\b/i.test(q) ||
-    /\bnext year\b/i.test(q)
+    /^(przyszły rok|w przyszłym roku|przyszłym roku|następny rok|w następnym roku|następnym roku|next year)$/i.test(
+      core,
+    )
   ) {
     return yearRange(yNow + 1)
   }
 
   if (
-    /^(zeszły rok|w zeszłym roku|poprzedni rok|w poprzednim roku|ubiegły rok|previous year|last year)$/i.test(
-      q,
-    ) ||
-    /\b(w )?(zeszł|poprzedn|ubiegł)(ym|y) roku?\b/i.test(q) ||
-    /\b(previous|last) year\b/i.test(q)
+    /^(zeszły rok|w zeszłym roku|zeszłym roku|poprzedni rok|w poprzednim roku|poprzednim roku|ubiegły rok|w ubiegłym roku|ubiegłym roku|previous year|last year)$/i.test(
+      core,
+    )
   ) {
     return yearRange(yNow - 1)
   }
 
-  // Explicit year: "sierpień 2026", "we wrześniu 2025"
-  const withYear = q.match(
-    /(?:w|we)?\s*([a-ząćęłńóśźż]+)\s+(\d{4})|(?:w|we)?\s*(\d{4})\s+([a-ząćęłńóśźż]+)/i,
+  // Explicit month+year — must consume the entire expression.
+  // Require a real preposition token ("w "/"we "), never a leading letter of
+  // the month name (e.g. "wrzesień" must not become "rzesień").
+  const withYear = core.match(
+    /^(?:(?:w|we)\s+)?([a-ząćęłńóśźż]+)\s+(\d{4})$|^(?:(?:w|we)\s+)?(\d{4})\s+([a-ząćęłńóśźż]+)$/i,
   )
   if (withYear) {
     const monthToken = withYear[1] ?? withYear[4]
@@ -335,14 +344,16 @@ export function resolveAggregateDateRange(
     if (month && year) return monthRange(year, month)
   }
 
-  // Bare month: "w sierpniu", "sierpień", "we wrześniu"
-  const monthOnly = extractMonthNumber(q)
-  if (monthOnly) {
-    return monthRange(yNow, monthOnly)
+  // Bare month: entire expression is optional "w "/"we " + month token only.
+  // Do not extract a month substring from richer open/remainder phrases.
+  const bareMonth = core.match(/^(?:(?:w|we)\s+)?([a-ząćęłńóśźż]+)$/i)
+  if (bareMonth) {
+    const monthOnly = extractMonthNumber(bareMonth[1]!)
+    if (monthOnly) return monthRange(yNow, monthOnly)
   }
 
   // ISO month "2026-08"
-  const isoMonth = q.match(/^(\d{4})-(\d{2})$/)
+  const isoMonth = core.match(/^(\d{4})-(\d{2})$/)
   if (isoMonth) {
     return monthRange(Number(isoMonth[1]), Number(isoMonth[2]))
   }
@@ -351,9 +362,9 @@ export function resolveAggregateDateRange(
   // Typed temporal.expression may carry light conversational wrappers
   // around a single YYYY (e.g. "2028", "w 2028", "a w 2028?", "rok 2028").
   // Month+year and relative year phrases are handled above; ambiguous
-  // multi-year spans are intentionally left unresolved.
-  const absoluteYear = q.match(
-    /^(?:a\s+)?(?:(?:w|we)\s+)?(?:(?:rok|roku)\s+)?(\d{4})(?:\s+(?:rok|roku))?$/,
+  // multi-year spans / open temporal compounds are intentionally left unresolved.
+  const absoluteYear = core.match(
+    /^(?:(?:w|we)\s+)?(?:(?:rok|roku)\s+)?(\d{4})(?:\s+(?:rok|roku))?$/,
   )
   if (absoluteYear) {
     return yearRange(Number(absoluteYear[1]))
