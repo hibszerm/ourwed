@@ -10,6 +10,7 @@ import { transformCollection } from './transformCollection'
 import type { V6FilterOp } from '../semantics/types'
 import type { V6ToolResult } from './errors'
 import { toolFail } from './errors'
+import { validateV6ToolArguments } from '../agent/validateToolArguments'
 
 export type V6ToolName =
   | 'query_collection'
@@ -31,19 +32,33 @@ export async function executeV6Tool(
     return toolFail('UNSUPPORTED_CAPABILITY', 'prepare_action_disabled_f1')
   }
 
+  if (
+    call.name !== 'query_collection' &&
+    call.name !== 'transform_collection' &&
+    call.name !== 'aggregate_collection' &&
+    call.name !== 'restore_collection'
+  ) {
+    return toolFail('VALIDATION_ERROR', 'unknown_tool')
+  }
+
+  const validated = validateV6ToolArguments(call.name, call.arguments)
+  if (!validated.ok) {
+    return toolFail('VALIDATION_ERROR', validated.detail)
+  }
+  const args = validated.value
+
   if (call.name === 'query_collection') {
-    const search = call.arguments as unknown as SearchAction
+    const search = args as unknown as SearchAction
     if (search?.type !== 'Search') {
-      // Allow bare search payload without type tag from model
       const coerced: SearchAction = {
         type: 'Search',
-        source: (call.arguments.source as SearchAction['source']) ?? 'wedding',
-        filters: call.arguments.filters as SearchAction['filters'],
-        excludePlace: call.arguments.excludePlace as SearchAction['excludePlace'],
+        source: (args.source as SearchAction['source']) ?? 'wedding',
+        filters: args.filters as SearchAction['filters'],
+        excludePlace: args.excludePlace as SearchAction['excludePlace'],
         relativeTemporal:
-          call.arguments.relativeTemporal as SearchAction['relativeTemporal'],
-        sort: call.arguments.sort as SearchAction['sort'],
-        slice: call.arguments.slice as SearchAction['slice'],
+          args.relativeTemporal as SearchAction['relativeTemporal'],
+        sort: args.sort as SearchAction['sort'],
+        slice: args.slice as SearchAction['slice'],
       }
       return queryCollection(coerced, ctx)
     }
@@ -51,8 +66,8 @@ export async function executeV6Tool(
   }
 
   if (call.name === 'transform_collection') {
-    const parentHandle = String(call.arguments.parentHandle ?? '')
-    const ops = call.arguments.ops as V6FilterOp[]
+    const parentHandle = String(args.parentHandle ?? '')
+    const ops = args.ops as V6FilterOp[]
     return transformCollection({
       parentHandle,
       ops,
@@ -64,9 +79,9 @@ export async function executeV6Tool(
   if (call.name === 'aggregate_collection') {
     const action: AggregateAction = {
       type: 'Aggregate',
-      collection: String(call.arguments.collection ?? ''),
-      aggregation: call.arguments.aggregation as AggregateAction['aggregation'],
-      measure: (call.arguments.measure as AggregateAction['measure']) ?? null,
+      collection: String(args.collection ?? ''),
+      aggregation: args.aggregation as AggregateAction['aggregation'],
+      measure: (args.measure as AggregateAction['measure']) ?? null,
     }
     return aggregateCollection(action)
   }
@@ -74,7 +89,7 @@ export async function executeV6Tool(
   if (call.name === 'restore_collection') {
     return restoreCollection({
       type: 'Restore',
-      collection: String(call.arguments.collection ?? ''),
+      collection: String(args.collection ?? ''),
     })
   }
 

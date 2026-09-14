@@ -1,11 +1,14 @@
 /**
- * V6-F1 — Structured agent step output schema (client mirror + Edge).
+ * V6-F1 / F1.1A — Structured agent step output schema (OpenAI strict:true).
+ * Transport: toolCalls[].arguments is a JSON string; runtime parses + validates.
  */
+
+import { parseAndValidateToolArguments } from './validateToolArguments'
 
 export const ASSISTANT_V6_AGENT_STEP_JSON_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['status'],
+  required: ['status', 'toolCalls', 'text', 'slot', 'reason', 'candidates'],
   properties: {
     status: {
       type: 'string',
@@ -28,10 +31,8 @@ export const ASSISTANT_V6_AGENT_STEP_JSON_SCHEMA = {
               'restore_collection',
             ],
           },
-          arguments: {
-            type: 'object',
-            additionalProperties: true,
-          },
+          /** OpenAI strict: open objects forbidden — JSON-serialized tool args. */
+          arguments: { type: 'string' },
         },
       },
     },
@@ -53,21 +54,22 @@ export const ASSISTANT_V6_AGENT_STEP_JSON_SCHEMA = {
   },
 } as const
 
-export function parseV6AgentStepPayload(raw: unknown): {
-  ok: true
-  value: {
-    status: 'tool_calls' | 'final' | 'clarify' | 'unsupported'
-    toolCalls?: Array<{
-      id: string
-      name: string
-      arguments: Record<string, unknown>
-    }>
-    text?: string | null
-    slot?: string | null
-    reason?: string | null
-    candidates?: Array<{ id: string; label: string }> | null
-  }
-} | { ok: false; reason: string } {
+export type V6ParsedAgentStep = {
+  status: 'tool_calls' | 'final' | 'clarify' | 'unsupported'
+  toolCalls?: Array<{
+    id: string
+    name: string
+    arguments: Record<string, unknown>
+  }> | null
+  text?: string | null
+  slot?: string | null
+  reason?: string | null
+  candidates?: Array<{ id: string; label: string }> | null
+}
+
+export function parseV6AgentStepPayload(raw: unknown):
+  | { ok: true; value: V6ParsedAgentStep }
+  | { ok: false; reason: string } {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     return { ok: false, reason: 'not_object' }
   }
@@ -86,23 +88,39 @@ export function parseV6AgentStepPayload(raw: unknown): {
     if (!Array.isArray(row.toolCalls) || row.toolCalls.length < 1) {
       return { ok: false, reason: 'tool_calls_required' }
     }
-    const toolCalls = []
+    const toolCalls: NonNullable<
+      Exclude<V6ParsedAgentStep['toolCalls'], null | undefined>
+    > = []
     for (const c of row.toolCalls) {
       if (!c || typeof c !== 'object') return { ok: false, reason: 'bad_call' }
       const call = c as Record<string, unknown>
       if (typeof call.id !== 'string' || typeof call.name !== 'string') {
         return { ok: false, reason: 'bad_call_fields' }
       }
-      if (!call.arguments || typeof call.arguments !== 'object') {
-        return { ok: false, reason: 'bad_arguments' }
+      const args = parseAndValidateToolArguments(call.name, call.arguments)
+      if (!args.ok) {
+        return {
+          ok: false,
+          reason: `${args.reason}:${args.detail}`,
+        }
       }
       toolCalls.push({
         id: call.id,
         name: call.name,
-        arguments: call.arguments as Record<string, unknown>,
+        arguments: args.value,
       })
     }
-    return { ok: true, value: { status, toolCalls } }
+    return {
+      ok: true,
+      value: {
+        status,
+        toolCalls,
+        text: null,
+        slot: null,
+        reason: null,
+        candidates: null,
+      },
+    }
   }
 
   if (status === 'final') {
@@ -110,21 +128,37 @@ export function parseV6AgentStepPayload(raw: unknown): {
       ok: true,
       value: {
         status,
+        toolCalls: null,
         text: typeof row.text === 'string' ? row.text : null,
+        slot: null,
+        reason: null,
+        candidates: null,
       },
     }
   }
 
   if (status === 'clarify') {
-    if (typeof row.slot !== 'string' || typeof row.reason !== 'string') {
+    const reasonFromText =
+      typeof row.text === 'string' && row.text.trim() ? row.text : null
+    const reason =
+      typeof row.reason === 'string' && row.reason.trim()
+        ? row.reason
+        : reasonFromText
+    if (!reason) {
       return { ok: false, reason: 'clarify_incomplete' }
     }
+    const slot =
+      typeof row.slot === 'string' && row.slot.trim()
+        ? row.slot
+        : 'unspecified'
     return {
       ok: true,
       value: {
         status,
-        slot: row.slot,
-        reason: row.reason,
+        toolCalls: null,
+        text: typeof row.text === 'string' ? row.text : null,
+        slot,
+        reason,
         candidates: Array.isArray(row.candidates)
           ? (row.candidates as Array<{ id: string; label: string }>)
           : null,
@@ -135,5 +169,15 @@ export function parseV6AgentStepPayload(raw: unknown): {
   if (typeof row.reason !== 'string') {
     return { ok: false, reason: 'unsupported_incomplete' }
   }
-  return { ok: true, value: { status, reason: row.reason } }
+  return {
+    ok: true,
+    value: {
+      status,
+      toolCalls: null,
+      text: null,
+      slot: null,
+      reason: row.reason,
+      candidates: null,
+    },
+  }
 }

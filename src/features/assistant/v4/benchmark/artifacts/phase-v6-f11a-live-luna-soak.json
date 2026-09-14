@@ -1,0 +1,892 @@
+{
+  "summary": {
+    "model": "gpt-5.6-luna",
+    "today": "2026-09-14",
+    "promptChanged": false,
+    "codeChanged": false,
+    "counts": {
+      "single": 60,
+      "multi": 25,
+      "adversarial": 15,
+      "unsupported": 15,
+      "holdout": 10,
+      "novelParaphrases": 84,
+      "total": 125
+    },
+    "ran": 3,
+    "scores": {
+      "single": {
+        "pass": 0,
+        "n": 0,
+        "pct": 0
+      },
+      "multi": {
+        "pass": 1,
+        "n": 3,
+        "pct": 33.333333333333336
+      },
+      "adversarial": {
+        "pass": 0,
+        "n": 0,
+        "pct": 0
+      },
+      "unsupported": {
+        "pass": 0,
+        "n": 0,
+        "pct": 0
+      },
+      "holdout": {
+        "pass": 0,
+        "n": 0,
+        "pct": 0
+      }
+    },
+    "gates": {
+      "schemaValidity": 63.63636363636363,
+      "providerErrors": 0,
+      "schemaErrors": 4,
+      "silentSemanticSubstitution": 0,
+      "silentScopeWidening": 0,
+      "collectionContextLoss": 0,
+      "unsupportedFabricated": 0,
+      "financeProvenanceViolations": 0,
+      "unauthorizedAccess": 0
+    },
+    "special": {
+      "originalNearest": {
+        "case": {
+          "id": "m02-original",
+          "set": "special",
+          "family": "nearest",
+          "turns": [
+            "Pokaż mi te najbliższe.",
+            "A które z nich mam w Villa Love?"
+          ],
+          "expect": {
+            "requireFutureFromNow": true,
+            "requireSortDateAsc": true,
+            "requireTransformNotRootSearch": true,
+            "requirePlaceContains": "Villa Love",
+            "allowClarify": true
+          }
+        },
+        "pass": true,
+        "turns": [
+          {
+            "utterance": "Pokaż mi te najbliższe.",
+            "agentStatuses": [
+              "clarify"
+            ],
+            "toolTrace": [],
+            "modelLatencyMs": [
+              2173
+            ],
+            "finalStatus": "clarify",
+            "activeHandleAfter": null,
+            "financeProvenance": null,
+            "classification": "PASS",
+            "failures": []
+          },
+          {
+            "utterance": "A które z nich mam w Villa Love?",
+            "agentStatuses": [
+              "clarify"
+            ],
+            "toolTrace": [],
+            "modelLatencyMs": [
+              3052
+            ],
+            "finalStatus": "clarify",
+            "activeHandleAfter": null,
+            "financeProvenance": null,
+            "classification": "PASS",
+            "failures": []
+          }
+        ]
+      },
+      "core8": {
+        "case": {
+          "id": "m01-core8",
+          "set": "multi",
+          "family": "reference",
+          "turns": [
+            "Pokaż 3 najbliższe wesela.",
+            "A które z nich mam w Villa Love?",
+            "Ile są warte?",
+            "A ile zostało do zapłaty?",
+            "Bez pierwszego.",
+            "Wróć do tych trzech.",
+            "A tylko wrześniowe.",
+            "Ile ich jest?"
+          ],
+          "expect": {
+            "requireTransformNotRootSearch": true
+          }
+        },
+        "pass": false,
+        "turns": [
+          {
+            "utterance": "Pokaż 3 najbliższe wesela.",
+            "agentStatuses": [
+              "tool_calls",
+              "final"
+            ],
+            "toolTrace": [
+              {
+                "round": 1,
+                "name": "query_collection",
+                "args": {
+                  "relativeTemporal": {
+                    "kind": "future_from_now",
+                    "inclusive": true
+                  },
+                  "sort": {
+                    "field": "wedding.date",
+                    "direction": "asc"
+                  },
+                  "slice": {
+                    "limit": 3
+                  }
+                },
+                "ok": true,
+                "result": {
+                  "ok": true,
+                  "data": {
+                    "handle": "col_1",
+                    "totalCount": 3,
+                    "ordering": {
+                      "field": "wedding.date",
+                      "direction": "asc"
+                    },
+                    "preview": [
+                      {
+                        "displayName": "W1",
+                        "date": "2026-10-01",
+                        "ordinal": 1
+                      },
+                      {
+                        "displayName": "W2",
+                        "date": "2026-11-15",
+                        "ordinal": 2
+                      },
+                      {
+                        "displayName": "W3",
+                        "date": "2026-12-20",
+                        "ordinal": 3
+                      }
+                    ],
+                    "semanticSummary": {
+                      "source": "wedding",
+                      "temporal": {
+                        "kind": "future_from_now",
+                        "inclusive": true
+                      },
+                      "sort": {
+                        "field": "wedding.date",
+                        "direction": "asc"
+                      },
+                      "slice": {
+                        "limit": 3
+                      }
+                    },
+                    "domainQueryCompiled": false
+                  }
+                },
+                "outputHandle": "col_1",
+                "latencyMs": 10
+              }
+            ],
+            "modelLatencyMs": [
+              2283,
+              2037
+            ],
+            "finalStatus": "final",
+            "activeHandleAfter": "col_1",
+            "snapshotAfter": [
+              "W1",
+              "W2",
+              "W3"
+            ],
+            "financeProvenance": null,
+            "classification": "PASS",
+            "failures": []
+          },
+          {
+            "utterance": "A które z nich mam w Villa Love?",
+            "agentStatuses": [
+              "tool_calls",
+              "final"
+            ],
+            "toolTrace": [
+              {
+                "round": 1,
+                "name": "transform_collection",
+                "args": {
+                  "parentHandle": "col_1",
+                  "ops": [
+                    {
+                      "field": "place",
+                      "value": "Villa Love",
+                      "op": "Filter",
+                      "place": {
+                        "field": "place.name",
+                        "op": "contains",
+                        "value": "Villa Love"
+                      }
+                    }
+                  ]
+                },
+                "ok": true,
+                "result": {
+                  "ok": true,
+                  "data": {
+                    "handle": "col_2",
+                    "parentHandle": "col_1",
+                    "totalCount": 2,
+                    "ordering": {
+                      "field": "wedding.date",
+                      "direction": "asc"
+                    },
+                    "preview": [
+                      {
+                        "displayName": "W1",
+                        "date": "2026-10-01",
+                        "ordinal": 1
+                      },
+                      {
+                        "displayName": "W3",
+                        "date": "2026-12-20",
+                        "ordinal": 2
+                      }
+                    ],
+                    "semanticSummary": {
+                      "ops": [
+                        {
+                          "field": "place",
+                          "value": "Villa Love",
+                          "op": "Filter",
+                          "place": {
+                            "field": "place.name",
+                            "op": "contains",
+                            "value": "Villa Love"
+                          }
+                        }
+                      ],
+                      "parentHandle": "col_1"
+                    }
+                  }
+                },
+                "inputHandle": "col_1",
+                "outputHandle": "col_2",
+                "latencyMs": 0
+              }
+            ],
+            "modelLatencyMs": [
+              1978,
+              2127
+            ],
+            "finalStatus": "final",
+            "activeHandleAfter": "col_2",
+            "snapshotAfter": [
+              "W1",
+              "W3"
+            ],
+            "parentSnapshot": [
+              "W1",
+              "W2",
+              "W3"
+            ],
+            "financeProvenance": null,
+            "classification": "PASS",
+            "failures": []
+          },
+          {
+            "utterance": "Ile są warte?",
+            "agentStatuses": [],
+            "toolTrace": [],
+            "modelLatencyMs": [
+              2519
+            ],
+            "finalStatus": "error",
+            "classification": "SCHEMA_ERROR",
+            "failures": [
+              "VALIDATION_ERROR:aggregate_collection_sum_requires_measure"
+            ]
+          },
+          {
+            "utterance": "A ile zostało do zapłaty?",
+            "agentStatuses": [],
+            "toolTrace": [],
+            "modelLatencyMs": [
+              2099
+            ],
+            "finalStatus": "error",
+            "classification": "SCHEMA_ERROR",
+            "failures": [
+              "VALIDATION_ERROR:aggregate_collection_sum_requires_measure"
+            ]
+          },
+          {
+            "utterance": "Bez pierwszego.",
+            "agentStatuses": [
+              "tool_calls",
+              "tool_calls",
+              "final"
+            ],
+            "toolTrace": [
+              {
+                "round": 1,
+                "name": "transform_collection",
+                "args": {
+                  "parentHandle": "col_2",
+                  "ops": [
+                    {
+                      "ordinal": 1,
+                      "op": "Exclude",
+                      "by": "ordinal"
+                    }
+                  ]
+                },
+                "ok": true,
+                "result": {
+                  "ok": true,
+                  "data": {
+                    "handle": "col_3",
+                    "parentHandle": "col_2",
+                    "totalCount": 1,
+                    "ordering": {
+                      "field": "wedding.date",
+                      "direction": "asc"
+                    },
+                    "preview": [
+                      {
+                        "displayName": "W3",
+                        "date": "2026-12-20",
+                        "ordinal": 1
+                      }
+                    ],
+                    "semanticSummary": {
+                      "ops": [
+                        {
+                          "ordinal": 1,
+                          "op": "Exclude",
+                          "by": "ordinal"
+                        }
+                      ],
+                      "parentHandle": "col_2"
+                    }
+                  }
+                },
+                "inputHandle": "col_2",
+                "outputHandle": "col_3",
+                "latencyMs": 0
+              },
+              {
+                "round": 2,
+                "name": "transform_collection",
+                "args": {
+                  "handle": "col_3",
+                  "ops": [
+                    {
+                      "ordinal": 1,
+                      "op": "Exclude",
+                      "by": "ordinal"
+                    }
+                  ],
+                  "parentHandle": "col_3"
+                },
+                "ok": true,
+                "result": {
+                  "ok": true,
+                  "data": {
+                    "handle": "col_4",
+                    "parentHandle": "col_3",
+                    "totalCount": 0,
+                    "ordering": {
+                      "field": "wedding.date",
+                      "direction": "asc"
+                    },
+                    "preview": [],
+                    "semanticSummary": {
+                      "ops": [
+                        {
+                          "ordinal": 1,
+                          "op": "Exclude",
+                          "by": "ordinal"
+                        }
+                      ],
+                      "parentHandle": "col_3"
+                    }
+                  }
+                },
+                "inputHandle": "col_3",
+                "outputHandle": "col_4",
+                "latencyMs": 0
+              }
+            ],
+            "modelLatencyMs": [
+              2177,
+              1819,
+              4250
+            ],
+            "finalStatus": "final",
+            "activeHandleAfter": "col_4",
+            "snapshotAfter": [],
+            "parentSnapshot": [
+              "W3"
+            ],
+            "financeProvenance": null,
+            "classification": "PASS",
+            "failures": []
+          },
+          {
+            "utterance": "Wróć do tych trzech.",
+            "agentStatuses": [
+              "tool_calls",
+              "final"
+            ],
+            "toolTrace": [
+              {
+                "round": 1,
+                "name": "restore_collection",
+                "args": {
+                  "handle": "col_1",
+                  "collection": "col_1"
+                },
+                "ok": true,
+                "result": {
+                  "ok": true,
+                  "data": {
+                    "handle": "col_1",
+                    "totalCount": 3,
+                    "preview": [
+                      {
+                        "displayName": "W1",
+                        "date": "2026-10-01",
+                        "ordinal": 1
+                      },
+                      {
+                        "displayName": "W2",
+                        "date": "2026-11-15",
+                        "ordinal": 2
+                      },
+                      {
+                        "displayName": "W3",
+                        "date": "2026-12-20",
+                        "ordinal": 3
+                      }
+                    ],
+                    "restored": true
+                  }
+                },
+                "inputHandle": "col_1",
+                "outputHandle": "col_1",
+                "latencyMs": 0
+              }
+            ],
+            "modelLatencyMs": [
+              1512,
+              2178
+            ],
+            "finalStatus": "final",
+            "activeHandleAfter": "col_1",
+            "snapshotAfter": [
+              "W1",
+              "W2",
+              "W3"
+            ],
+            "financeProvenance": null,
+            "classification": "PASS",
+            "failures": []
+          },
+          {
+            "utterance": "A tylko wrześniowe.",
+            "agentStatuses": [],
+            "toolTrace": [],
+            "modelLatencyMs": [
+              6147
+            ],
+            "finalStatus": "error",
+            "classification": "SCHEMA_ERROR",
+            "failures": [
+              "VALIDATION_ERROR:transform_collection_bad_op"
+            ]
+          },
+          {
+            "utterance": "Ile ich jest?",
+            "agentStatuses": [
+              "tool_calls",
+              "final"
+            ],
+            "toolTrace": [
+              {
+                "round": 1,
+                "name": "aggregate_collection",
+                "args": {
+                  "handle": "col_1",
+                  "metric": "count",
+                  "collection": "col_1",
+                  "measure": null,
+                  "aggregation": "count"
+                },
+                "ok": true,
+                "result": {
+                  "ok": true,
+                  "data": {
+                    "kind": "count_result",
+                    "collectionHandle": "col_1",
+                    "aggregation": "count",
+                    "measure": null,
+                    "value": 3,
+                    "currency": "PLN",
+                    "provenance": "collection_count",
+                    "memberCount": 3
+                  }
+                },
+                "inputHandle": "col_1",
+                "latencyMs": 1
+              }
+            ],
+            "modelLatencyMs": [
+              2031,
+              2527
+            ],
+            "finalStatus": "final",
+            "activeHandleAfter": "col_1",
+            "snapshotAfter": [
+              "W1",
+              "W2",
+              "W3"
+            ],
+            "financeProvenance": "collection_count",
+            "classification": "INTERPRETATION_ERROR",
+            "failures": [
+              "expected_transform_on_prior"
+            ]
+          }
+        ]
+      },
+      "novel": {
+        "case": {
+          "id": "m03-novel",
+          "set": "special",
+          "family": "novel",
+          "turns": [
+            "Z przyszłorocznych wesel pokaż pięć najbliższych, pomiń Villa Love i powiedz ile łącznie zostało mi z nich do otrzymania."
+          ],
+          "expect": {
+            "requireClosedYear": 2027,
+            "requirePlaceExclude": "Villa Love",
+            "requireSortDateAsc": true,
+            "requireSlice": true,
+            "minSlice": 5,
+            "requireAggregate": "sum",
+            "requireMeasure": "remaining_amount",
+            "allowRootSearch": true
+          }
+        },
+        "pass": false,
+        "turns": [
+          {
+            "utterance": "Z przyszłorocznych wesel pokaż pięć najbliższych, pomiń Villa Love i powiedz ile łącznie zostało mi z nich do otrzymania.",
+            "agentStatuses": [],
+            "toolTrace": [],
+            "modelLatencyMs": [
+              1888
+            ],
+            "finalStatus": "error",
+            "classification": "SCHEMA_ERROR",
+            "failures": [
+              "VALIDATION_ERROR:query_collection_bad_relativeTemporal"
+            ]
+          }
+        ]
+      }
+    },
+    "latency": {
+      "modelP50": 2173,
+      "modelP95": 6147,
+      "toolP50": 0,
+      "toolP95": 10
+    },
+    "roundDist": {
+      "1": 6,
+      "2": 4,
+      "3": 1,
+      "4": 0,
+      "overflow": 0
+    },
+    "refResolutionFails": 0
+  },
+  "results": [
+    {
+      "id": "m01-core8",
+      "set": "multi",
+      "pass": false,
+      "turns": [
+        {
+          "utterance": "Pokaż 3 najbliższe wesela.",
+          "classification": "PASS",
+          "failures": [],
+          "finalStatus": "final",
+          "tools": [
+            {
+              "name": "query_collection",
+              "ok": true,
+              "args": {
+                "relativeTemporal": {
+                  "kind": "future_from_now",
+                  "inclusive": true
+                },
+                "sort": {
+                  "field": "wedding.date",
+                  "direction": "asc"
+                },
+                "slice": {
+                  "limit": 3
+                }
+              },
+              "outputHandle": "col_1"
+            }
+          ],
+          "snapshotAfter": [
+            "W1",
+            "W2",
+            "W3"
+          ],
+          "modelLatencyMs": [
+            2283,
+            2037
+          ]
+        },
+        {
+          "utterance": "A które z nich mam w Villa Love?",
+          "classification": "PASS",
+          "failures": [],
+          "finalStatus": "final",
+          "tools": [
+            {
+              "name": "transform_collection",
+              "ok": true,
+              "args": {
+                "parentHandle": "col_1",
+                "ops": [
+                  {
+                    "field": "place",
+                    "value": "Villa Love",
+                    "op": "Filter",
+                    "place": {
+                      "field": "place.name",
+                      "op": "contains",
+                      "value": "Villa Love"
+                    }
+                  }
+                ]
+              },
+              "outputHandle": "col_2"
+            }
+          ],
+          "snapshotAfter": [
+            "W1",
+            "W3"
+          ],
+          "parentSnapshot": [
+            "W1",
+            "W2",
+            "W3"
+          ],
+          "modelLatencyMs": [
+            1978,
+            2127
+          ]
+        },
+        {
+          "utterance": "Ile są warte?",
+          "classification": "SCHEMA_ERROR",
+          "failures": [
+            "VALIDATION_ERROR:aggregate_collection_sum_requires_measure"
+          ],
+          "finalStatus": "error",
+          "tools": [],
+          "modelLatencyMs": [
+            2519
+          ]
+        },
+        {
+          "utterance": "A ile zostało do zapłaty?",
+          "classification": "SCHEMA_ERROR",
+          "failures": [
+            "VALIDATION_ERROR:aggregate_collection_sum_requires_measure"
+          ],
+          "finalStatus": "error",
+          "tools": [],
+          "modelLatencyMs": [
+            2099
+          ]
+        },
+        {
+          "utterance": "Bez pierwszego.",
+          "classification": "PASS",
+          "failures": [],
+          "finalStatus": "final",
+          "tools": [
+            {
+              "name": "transform_collection",
+              "ok": true,
+              "args": {
+                "parentHandle": "col_2",
+                "ops": [
+                  {
+                    "ordinal": 1,
+                    "op": "Exclude",
+                    "by": "ordinal"
+                  }
+                ]
+              },
+              "outputHandle": "col_3"
+            },
+            {
+              "name": "transform_collection",
+              "ok": true,
+              "args": {
+                "handle": "col_3",
+                "ops": [
+                  {
+                    "ordinal": 1,
+                    "op": "Exclude",
+                    "by": "ordinal"
+                  }
+                ],
+                "parentHandle": "col_3"
+              },
+              "outputHandle": "col_4"
+            }
+          ],
+          "snapshotAfter": [],
+          "parentSnapshot": [
+            "W3"
+          ],
+          "modelLatencyMs": [
+            2177,
+            1819,
+            4250
+          ]
+        },
+        {
+          "utterance": "Wróć do tych trzech.",
+          "classification": "PASS",
+          "failures": [],
+          "finalStatus": "final",
+          "tools": [
+            {
+              "name": "restore_collection",
+              "ok": true,
+              "args": {
+                "handle": "col_1",
+                "collection": "col_1"
+              },
+              "outputHandle": "col_1"
+            }
+          ],
+          "snapshotAfter": [
+            "W1",
+            "W2",
+            "W3"
+          ],
+          "modelLatencyMs": [
+            1512,
+            2178
+          ]
+        },
+        {
+          "utterance": "A tylko wrześniowe.",
+          "classification": "SCHEMA_ERROR",
+          "failures": [
+            "VALIDATION_ERROR:transform_collection_bad_op"
+          ],
+          "finalStatus": "error",
+          "tools": [],
+          "modelLatencyMs": [
+            6147
+          ]
+        },
+        {
+          "utterance": "Ile ich jest?",
+          "classification": "INTERPRETATION_ERROR",
+          "failures": [
+            "expected_transform_on_prior"
+          ],
+          "finalStatus": "final",
+          "tools": [
+            {
+              "name": "aggregate_collection",
+              "ok": true,
+              "args": {
+                "handle": "col_1",
+                "metric": "count",
+                "collection": "col_1",
+                "measure": null,
+                "aggregation": "count"
+              }
+            }
+          ],
+          "snapshotAfter": [
+            "W1",
+            "W2",
+            "W3"
+          ],
+          "modelLatencyMs": [
+            2031,
+            2527
+          ]
+        }
+      ]
+    },
+    {
+      "id": "m02-original",
+      "set": "special",
+      "pass": true,
+      "turns": [
+        {
+          "utterance": "Pokaż mi te najbliższe.",
+          "classification": "PASS",
+          "failures": [],
+          "finalStatus": "clarify",
+          "tools": [],
+          "modelLatencyMs": [
+            2173
+          ]
+        },
+        {
+          "utterance": "A które z nich mam w Villa Love?",
+          "classification": "PASS",
+          "failures": [],
+          "finalStatus": "clarify",
+          "tools": [],
+          "modelLatencyMs": [
+            3052
+          ]
+        }
+      ]
+    },
+    {
+      "id": "m03-novel",
+      "set": "special",
+      "pass": false,
+      "turns": [
+        {
+          "utterance": "Z przyszłorocznych wesel pokaż pięć najbliższych, pomiń Villa Love i powiedz ile łącznie zostało mi z nich do otrzymania.",
+          "classification": "SCHEMA_ERROR",
+          "failures": [
+            "VALIDATION_ERROR:query_collection_bad_relativeTemporal"
+          ],
+          "finalStatus": "error",
+          "tools": [],
+          "modelLatencyMs": [
+            1888
+          ]
+        }
+      ]
+    }
+  ]
+}
