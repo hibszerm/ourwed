@@ -53,7 +53,18 @@ import {
   invalidateV5GoalShadowTurn,
   runV5GoalSpecShadow,
   setV5GoalShadowSessionOpen,
+  type V5GoalShadowResult,
 } from './v4/goalSpec/v5GoalSpecShadow'
+import {
+  buildAuthorityDiagnostic,
+  decideAssistantAuthority,
+  emitAssistantAuthorityDiagnostic,
+  fetchAssistantRuntimeMode,
+  getEffectiveAssistantMode,
+  resolveEffectiveAssistantMode,
+  setEffectiveAssistantMode,
+  isV5ShadowDiagnosticsEnabled,
+} from './v4/authority'
 import type {
   AssistantResponse,
   AssistantSemanticRequest,
@@ -188,8 +199,82 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
 
   const openAssistant = useCallback(() => {
     openRef.current = true
-    setV5GoalShadowSessionOpen(true)
+    void (async () => {
+      const runtime = await fetchAssistantRuntimeMode()
+      const effective = resolveEffectiveAssistantMode({ runtimeMode: runtime })
+      setEffectiveAssistantMode(effective)
+      setV5GoalShadowSessionOpen(isV5ShadowDiagnosticsEnabled())
+    })()
     setOpen(true)
+  }, [])
+
+  const recordV5AuthorityDecision = useCallback((shadow: V5GoalShadowResult) => {
+    const requestKind =
+      shadow.status === 'bound' || shadow.status === 'needs_clarification'
+        ? shadow.goalSpec.requestKind
+        : (shadow.diagnostic.requestKind ?? null)
+
+    let interpreterStatus:
+      | 'ok'
+      | 'schema_error'
+      | 'provider_error'
+      | 'invoke_error'
+      | 'skipped'
+      | 'unsupported'
+      | null = 'ok'
+    if (shadow.status === 'interpret_error') {
+      const code = shadow.diagnostic.outcomeCode
+      interpreterStatus =
+        code === 'interpreter_schema_error'
+          ? 'schema_error'
+          : code === 'interpreter_provider_error'
+            ? 'provider_error'
+            : 'invoke_error'
+    } else if (shadow.status === 'skipped') {
+      interpreterStatus = 'skipped'
+    } else if (shadow.status === 'unsupported') {
+      interpreterStatus =
+        requestKind === 'unsupported' ? 'unsupported' : 'ok'
+    }
+
+    const resolverOutcome =
+      shadow.status === 'bound'
+        ? ('bound' as const)
+        : shadow.status === 'needs_clarification'
+          ? ('needs_clarification' as const)
+          : shadow.status === 'unsupported'
+            ? ('unsupported' as const)
+            : shadow.status === 'interpret_error'
+              ? ('interpret_error' as const)
+              : shadow.status === 'discarded'
+                ? ('discarded' as const)
+                : ('skipped' as const)
+
+    const decision = decideAssistantAuthority({
+      effectiveMode: getEffectiveAssistantMode(),
+      requestKind,
+      interpreterStatus,
+      resolverOutcome,
+      clarificationSlot:
+        shadow.status === 'needs_clarification' ? shadow.request.slot : null,
+      domainQueryStatus: shadow.status === 'bound' ? 'valid' : 'not_attempted',
+      canaryEligible: false,
+    })
+
+    emitAssistantAuthorityDiagnostic(
+      buildAuthorityDiagnostic({
+        turnId: shadow.turnId,
+        decision,
+        effectiveMode: getEffectiveAssistantMode(),
+        interpreterStatus,
+        resolverOutcome,
+        domainQueryStatus: shadow.status === 'bound' ? 'valid' : 'not_attempted',
+        latencyMs: shadow.diagnostic.latencyMs,
+        outcomeCode: shadow.diagnostic.outcomeCode,
+      }),
+    )
+
+    return decision
   }, [])
 
   useEffect(() => {
@@ -205,7 +290,14 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
           return false
         }
         openRef.current = true
-        setV5GoalShadowSessionOpen(true)
+        void (async () => {
+          const runtime = await fetchAssistantRuntimeMode()
+          const effective = resolveEffectiveAssistantMode({
+            runtimeMode: runtime,
+          })
+          setEffectiveAssistantMode(effective)
+          setV5GoalShadowSessionOpen(isV5ShadowDiagnosticsEnabled())
+        })()
         return true
       })
     }
@@ -334,6 +426,8 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
           onResult: (shadow) => {
             if (!openRef.current) return
             if (currentTurnIdRef.current !== shadow.turnId) return
+            // PC1: authority router records eligibility; visible owner stays V3.
+            recordV5AuthorityDecision(shadow)
             if (shadow.status === 'needs_clarification') {
               const response = goalClarificationToAssistantResponse(
                 shadow.request,
@@ -419,7 +513,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
         setLoading(false)
       }
     },
-    [pageContext, sessionWeddingId, workingContext, applyResponse],
+    [pageContext, sessionWeddingId, workingContext, applyResponse, recordV5AuthorityDecision],
   )
 
   const continueSemantic = useCallback(

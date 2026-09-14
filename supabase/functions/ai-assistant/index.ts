@@ -311,6 +311,46 @@ Deno.serve(async (req) => {
     )
   }
 
+  let body: Record<string, unknown>
+  try {
+    body = (await req.json()) as Record<string, unknown>
+  } catch {
+    return jsonResponse(
+      { status: 'error', message: 'Invalid JSON', code: 'invalid_json' },
+      400,
+    )
+  }
+
+  // --- PC1 runtime mode kill-switch (no OpenAI, no utterance, no CRM). ---
+  {
+    const cfgMode = typeof body.mode === 'string' ? body.mode.trim() : ''
+    if (cfgMode === 'assistant_runtime_config') {
+      const raw = (Deno.env.get('OURWED_ASSISTANT_V5_MODE') ?? '')
+        .trim()
+        .toLowerCase()
+      let assistantMode:
+        | 'off'
+        | 'shadow'
+        | 'canary'
+        | 'authority_read_query' = 'off'
+      if (raw === 'shadow') assistantMode = 'shadow'
+      else if (raw === 'canary') assistantMode = 'canary'
+      else if (
+        raw === 'authority_read_query' ||
+        raw === 'authority-read-query'
+      ) {
+        assistantMode = 'authority_read_query'
+      } else {
+        // missing/invalid → fail closed to off
+        assistantMode = 'off'
+      }
+      return jsonResponse({
+        status: 'assistant_runtime_config',
+        assistantMode,
+      })
+    }
+  }
+
   const apiKey = resolveApiKey()
   if (!apiKey) {
     return jsonResponse(
@@ -321,16 +361,6 @@ Deno.serve(async (req) => {
         code: 'missing_key',
       },
       500,
-    )
-  }
-
-  let body: Record<string, unknown>
-  try {
-    body = (await req.json()) as Record<string, unknown>
-  } catch {
-    return jsonResponse(
-      { status: 'error', message: 'Invalid JSON', code: 'invalid_json' },
-      400,
     )
   }
 

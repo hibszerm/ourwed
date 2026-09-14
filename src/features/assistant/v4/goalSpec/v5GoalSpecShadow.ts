@@ -39,6 +39,16 @@ export type V5GoalShadowDiagnostic = {
   clarificationSlot?: string
   clarificationId?: string
   reason?: string
+  /** Typed outcome without prose / PII (PC1). */
+  outcomeCode?:
+    | 'unsupported'
+    | 'interpreter_schema_error'
+    | 'interpreter_provider_error'
+    | 'interpreter_invoke_error'
+    | 'interpreter_empty'
+    | 'stale_or_closed'
+    | 'skipped_flag_off'
+  requestKind?: string | null
   model?: string
   latencyMs?: number
 }
@@ -222,10 +232,12 @@ export type RunV5GoalSpecShadowInput = {
  * Caller must invalidate previous turn before starting a new one.
  */
 export function runV5GoalSpecShadow(input: RunV5GoalSpecShadowInput): void {
-  if (!input.force && !isAssistantV5GoalShadowEnabled()) {
+    if (!input.force && !isAssistantV5GoalShadowEnabled()) {
     const diagnostic: V5GoalShadowDiagnostic = {
       turnId: input.turnId,
       outcome: 'skipped_flag_off',
+      outcomeCode: 'skipped_flag_off',
+      requestKind: null,
     }
     emitDiag(diagnostic)
     input.onResult({
@@ -290,10 +302,21 @@ export function runV5GoalSpecShadow(input: RunV5GoalSpecShadowInput): void {
     }
 
     if (!interpreted.ok) {
+      const code = interpreted.code
+      const outcomeCode =
+        code === 'schema_error' || code === 'empty_response'
+          ? 'interpreter_schema_error'
+          : code === 'provider_error'
+            ? 'interpreter_provider_error'
+            : code === 'empty_utterance'
+              ? 'interpreter_empty'
+              : 'interpreter_invoke_error'
       const diagnostic: V5GoalShadowDiagnostic = {
         turnId: input.turnId,
         outcome: 'interpret_error',
         reason: interpreted.code ?? interpreted.error,
+        outcomeCode,
+        requestKind: null,
         latencyMs: interpreted.latencyMs,
         model: undefined,
       }
@@ -387,6 +410,8 @@ export function runV5GoalSpecShadow(input: RunV5GoalSpecShadowInput): void {
       turnId: input.turnId,
       outcome: 'unsupported',
       reason: bound.reason,
+      outcomeCode: 'unsupported',
+      requestKind: goalForBind.requestKind ?? null,
       model: interpreted.model,
       latencyMs: interpreted.latencyMs,
     }

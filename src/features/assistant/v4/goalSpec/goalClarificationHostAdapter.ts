@@ -5,7 +5,7 @@
 
 import { ASSISTANT_CLARIFICATION_STALE } from '../../copy'
 import type { AssistantResponse } from '../../types'
-import { isAssistantV5GoalShadowEnabled } from '../flag'
+import { isV5ShadowDiagnosticsEnabled } from '../authority/effectiveModeState'
 import {
   clarificationLabelCopy,
   clarificationQuestionCopy,
@@ -20,9 +20,9 @@ import {
 } from './resumeGoalClarification'
 import { setPendingGoalClarification } from './goalClarificationSession'
 
-/** DEV/shadow only — never default-on in production. */
+/** DEV/shadow — gated by effective runtime×build mode (PC1). */
 export function isGoalClarificationHostEnabled(): boolean {
-  return isAssistantV5GoalShadowEnabled()
+  return isV5ShadowDiagnosticsEnabled()
 }
 
 export type GoalClarificationViewModel = {

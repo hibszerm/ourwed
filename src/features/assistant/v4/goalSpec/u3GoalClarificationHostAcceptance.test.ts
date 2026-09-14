@@ -407,8 +407,8 @@ function pendingMeasureRequest() {
     'utf8',
   )
   assert(
-    adapter.includes('isAssistantV5GoalShadowEnabled'),
-    'host enable uses V5 flag',
+    adapter.includes('isV5ShadowDiagnosticsEnabled'),
+    'host enable uses effective mode gate',
   )
   console.log('  OK feature flag gate')
 }
