@@ -52,19 +52,27 @@ import { clarificationLabelCopy } from './v4/goalSpec/goalClarificationCopy'
 import {
   invalidateV5GoalShadowTurn,
   runV5GoalSpecShadow,
+  runV5GoalSpecShadowAsync,
   setV5GoalShadowSessionOpen,
   type V5GoalShadowResult,
 } from './v4/goalSpec/v5GoalSpecShadow'
+import { executeDomainQueryShadow } from './v4/domainQuery/executeDomainQuery'
 import {
   buildAuthorityDiagnostic,
   decideAssistantAuthority,
   emitAssistantAuthorityDiagnostic,
-  fetchAssistantRuntimeMode,
+  fetchAssistantRuntimeConfig,
+  getCanaryEligible,
   getEffectiveAssistantMode,
-  resolveEffectiveAssistantMode,
-  setEffectiveAssistantMode,
+  isIc1CanaryDomainQueryEligible,
+  isV5OwnershipPathEnabled,
   isV5ShadowDiagnosticsEnabled,
+  renderDomainQueryObservation,
+  resolveEffectiveAssistantMode,
+  setCanaryEligibleFromRuntime,
+  setEffectiveAssistantMode,
 } from './v4/authority'
+import type { DomainQueryStatusKind } from './v4/authority/types'
 import type {
   AssistantResponse,
   AssistantSemanticRequest,
@@ -197,85 +205,108 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
     clearSession()
   }, [clearSession])
 
+  const refreshAssistantRuntime = useCallback(async () => {
+    const cfg = await fetchAssistantRuntimeConfig()
+    const effective = resolveEffectiveAssistantMode({ runtimeMode: cfg.mode })
+    setEffectiveAssistantMode(effective)
+    setCanaryEligibleFromRuntime(cfg.canaryEligible)
+    setV5GoalShadowSessionOpen(isV5ShadowDiagnosticsEnabled())
+    return cfg
+  }, [])
+
   const openAssistant = useCallback(() => {
     openRef.current = true
-    void (async () => {
-      const runtime = await fetchAssistantRuntimeMode()
-      const effective = resolveEffectiveAssistantMode({ runtimeMode: runtime })
-      setEffectiveAssistantMode(effective)
-      setV5GoalShadowSessionOpen(isV5ShadowDiagnosticsEnabled())
-    })()
+    void refreshAssistantRuntime()
     setOpen(true)
-  }, [])
+  }, [refreshAssistantRuntime])
 
-  const recordV5AuthorityDecision = useCallback((shadow: V5GoalShadowResult) => {
-    const requestKind =
-      shadow.status === 'bound' || shadow.status === 'needs_clarification'
-        ? shadow.goalSpec.requestKind
-        : (shadow.diagnostic.requestKind ?? null)
+  const recordV5AuthorityDecision = useCallback(
+    (
+      shadow: V5GoalShadowResult,
+      domainQueryStatusOverride?: DomainQueryStatusKind,
+    ) => {
+      const requestKind =
+        shadow.status === 'bound' || shadow.status === 'needs_clarification'
+          ? shadow.goalSpec.requestKind
+          : (shadow.diagnostic.requestKind ?? null)
 
-    let interpreterStatus:
-      | 'ok'
-      | 'schema_error'
-      | 'provider_error'
-      | 'invoke_error'
-      | 'skipped'
-      | 'unsupported'
-      | null = 'ok'
-    if (shadow.status === 'interpret_error') {
-      const code = shadow.diagnostic.outcomeCode
-      interpreterStatus =
-        code === 'interpreter_schema_error'
-          ? 'schema_error'
-          : code === 'interpreter_provider_error'
-            ? 'provider_error'
-            : 'invoke_error'
-    } else if (shadow.status === 'skipped') {
-      interpreterStatus = 'skipped'
-    } else if (shadow.status === 'unsupported') {
-      interpreterStatus =
-        requestKind === 'unsupported' ? 'unsupported' : 'ok'
-    }
+      let interpreterStatus:
+        | 'ok'
+        | 'schema_error'
+        | 'provider_error'
+        | 'invoke_error'
+        | 'skipped'
+        | 'unsupported'
+        | null = 'ok'
+      if (shadow.status === 'interpret_error') {
+        const code = shadow.diagnostic.outcomeCode
+        interpreterStatus =
+          code === 'interpreter_schema_error'
+            ? 'schema_error'
+            : code === 'interpreter_provider_error'
+              ? 'provider_error'
+              : 'invoke_error'
+      } else if (shadow.status === 'skipped') {
+        interpreterStatus = 'skipped'
+      } else if (shadow.status === 'unsupported') {
+        interpreterStatus =
+          requestKind === 'unsupported' ? 'unsupported' : 'ok'
+      }
 
-    const resolverOutcome =
-      shadow.status === 'bound'
-        ? ('bound' as const)
-        : shadow.status === 'needs_clarification'
-          ? ('needs_clarification' as const)
-          : shadow.status === 'unsupported'
-            ? ('unsupported' as const)
-            : shadow.status === 'interpret_error'
-              ? ('interpret_error' as const)
-              : shadow.status === 'discarded'
-                ? ('discarded' as const)
-                : ('skipped' as const)
+      const resolverOutcome =
+        shadow.status === 'bound'
+          ? ('bound' as const)
+          : shadow.status === 'needs_clarification'
+            ? ('needs_clarification' as const)
+            : shadow.status === 'unsupported'
+              ? ('unsupported' as const)
+              : shadow.status === 'interpret_error'
+                ? ('interpret_error' as const)
+                : shadow.status === 'discarded'
+                  ? ('discarded' as const)
+                  : ('skipped' as const)
 
-    const decision = decideAssistantAuthority({
-      effectiveMode: getEffectiveAssistantMode(),
-      requestKind,
-      interpreterStatus,
-      resolverOutcome,
-      clarificationSlot:
-        shadow.status === 'needs_clarification' ? shadow.request.slot : null,
-      domainQueryStatus: shadow.status === 'bound' ? 'valid' : 'not_attempted',
-      canaryEligible: false,
-    })
+      let domainQueryStatus: DomainQueryStatusKind =
+        domainQueryStatusOverride ?? 'not_attempted'
+      if (!domainQueryStatusOverride && shadow.status === 'bound') {
+        domainQueryStatus = isIc1CanaryDomainQueryEligible(shadow.query)
+          ? 'valid'
+          : 'slice_ineligible'
+      }
 
-    emitAssistantAuthorityDiagnostic(
-      buildAuthorityDiagnostic({
-        turnId: shadow.turnId,
-        decision,
+      const canaryEligible = getCanaryEligible()
+      const decision = decideAssistantAuthority({
         effectiveMode: getEffectiveAssistantMode(),
+        requestKind,
         interpreterStatus,
         resolverOutcome,
-        domainQueryStatus: shadow.status === 'bound' ? 'valid' : 'not_attempted',
-        latencyMs: shadow.diagnostic.latencyMs,
-        outcomeCode: shadow.diagnostic.outcomeCode,
-      }),
-    )
+        clarificationSlot:
+          shadow.status === 'needs_clarification'
+            ? shadow.request.slot
+            : null,
+        domainQueryStatus,
+        canaryEligible,
+        writeAttemptOnReadPath: requestKind === 'prepare_action',
+      })
 
-    return decision
-  }, [])
+      emitAssistantAuthorityDiagnostic(
+        buildAuthorityDiagnostic({
+          turnId: shadow.turnId,
+          decision,
+          effectiveMode: getEffectiveAssistantMode(),
+          interpreterStatus,
+          resolverOutcome,
+          domainQueryStatus,
+          canaryEligible,
+          latencyMs: shadow.diagnostic.latencyMs,
+          outcomeCode: shadow.diagnostic.outcomeCode,
+        }),
+      )
+
+      return decision
+    },
+    [],
+  )
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -290,20 +321,13 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
           return false
         }
         openRef.current = true
-        void (async () => {
-          const runtime = await fetchAssistantRuntimeMode()
-          const effective = resolveEffectiveAssistantMode({
-            runtimeMode: runtime,
-          })
-          setEffectiveAssistantMode(effective)
-          setV5GoalShadowSessionOpen(isV5ShadowDiagnosticsEnabled())
-        })()
+        void refreshAssistantRuntime()
         return true
       })
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [clearSession])
+  }, [clearSession, refreshAssistantRuntime])
 
   const applyResponse = useCallback((response: AssistantResponse) => {
     if (response.kind === 'confirmation' && response.action === 'create_wedding') {
@@ -414,35 +438,96 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
       setGoalClarificationResolvedLabel(null)
       setV5ShadowClarification(null)
       setV5ShadowResumeNote(null)
+
+      await refreshAssistantRuntime()
+
       // NL turn supersedes pending GoalSpec clarification chips (stale-safe).
       if (isGoalClarificationHostEnabled()) {
         clearPendingGoalClarificationOnly()
         invalidateV5GoalShadowTurn({ reason: 'new_nl_turn' })
         setV5GoalShadowSessionOpen(true)
-        runV5GoalSpecShadow({
-          turnId: id,
-          userText,
-          pageResourceKind: pageContext?.resourceType ?? null,
-          onResult: (shadow) => {
-            if (!openRef.current) return
-            if (currentTurnIdRef.current !== shadow.turnId) return
-            // PC1: authority router records eligibility; visible owner stays V3.
-            recordV5AuthorityDecision(shadow)
-            if (shadow.status === 'needs_clarification') {
-              const response = goalClarificationToAssistantResponse(
-                shadow.request,
-              )
-              setV5ShadowClarification({ turnId: shadow.turnId, response })
+
+        // IC1: allowlisted canary awaits V5 before V3 — one visible owner.
+        if (isV5OwnershipPathEnabled()) {
+          const shadow = await runV5GoalSpecShadowAsync({
+            turnId: id,
+            userText,
+            pageResourceKind: pageContext?.resourceType ?? null,
+          })
+          if (!openRef.current) return
+          if (currentTurnIdRef.current !== id) return
+
+          let decision = recordV5AuthorityDecision(shadow)
+
+          if (
+            decision.kind === 'v5_clarification' &&
+            decision.visibleOwner === 'v5' &&
+            shadow.status === 'needs_clarification'
+          ) {
+            const response = goalClarificationToAssistantResponse(
+              shadow.request,
+            )
+            setTurns([{ id, userText, response, loading: false }])
+            setLoading(false)
+            return
+          }
+
+          if (
+            decision.kind === 'v5_authority' &&
+            decision.visibleOwner === 'v5' &&
+            shadow.status === 'bound'
+          ) {
+            const exec = await executeDomainQueryShadow(shadow.query)
+            if (!openRef.current || currentTurnIdRef.current !== id) return
+            if (exec.ok) {
+              decision = recordV5AuthorityDecision(shadow, 'executed')
+              const response = renderDomainQueryObservation(exec.observation)
+              applyResponse(response)
+              setTurns([{ id, userText, response, loading: false }])
+              setLoading(false)
               return
             }
-            if (shadow.status === 'bound') {
-              // Shadow-only note — never replaces V3 answer.
-              setV5ShadowResumeNote(
-                'V5 GoalSpec (shadow): zapytanie związane bez doprecyzowania.',
-              )
-            }
-          },
-        })
+            decision = recordV5AuthorityDecision(
+              shadow,
+              'execution_unavailable',
+            )
+            // fall through to V3
+          }
+          // Typed V3 fallback for unsupported / ineligible / errors
+        } else {
+          // Shadow diagnostics only (non-allowlisted canary or shadow mode)
+          runV5GoalSpecShadow({
+            turnId: id,
+            userText,
+            pageResourceKind: pageContext?.resourceType ?? null,
+            onResult: (shadow) => {
+              if (!openRef.current) return
+              if (currentTurnIdRef.current !== shadow.turnId) return
+              recordV5AuthorityDecision(shadow)
+              if (
+                getEffectiveAssistantMode() === 'shadow' &&
+                shadow.status === 'needs_clarification'
+              ) {
+                const response = goalClarificationToAssistantResponse(
+                  shadow.request,
+                )
+                setV5ShadowClarification({
+                  turnId: shadow.turnId,
+                  response,
+                })
+                return
+              }
+              if (
+                getEffectiveAssistantMode() === 'shadow' &&
+                shadow.status === 'bound'
+              ) {
+                setV5ShadowResumeNote(
+                  'V5 GoalSpec (shadow): zapytanie związane bez doprecyzowania.',
+                )
+              }
+            },
+          })
+        }
       }
 
       // V4 shadow: fire-and-forget. Never blocks / mutates V3 visible path.
@@ -513,7 +598,14 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
         setLoading(false)
       }
     },
-    [pageContext, sessionWeddingId, workingContext, applyResponse, recordV5AuthorityDecision],
+    [
+      pageContext,
+      sessionWeddingId,
+      workingContext,
+      applyResponse,
+      recordV5AuthorityDecision,
+      refreshAssistantRuntime,
+    ],
   )
 
   const continueSemantic = useCallback(
@@ -789,7 +881,71 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
                 selectedValue: goalOpt.value,
                 selectedLabel,
               })
-            // U4: never replace V3 production answer — shadow surface only.
+
+            // IC1: allowlisted canary — clarification resumes to visible V5 (0 LLM).
+            if (
+              isV5OwnershipPathEnabled() &&
+              result.status === 'bound' &&
+              isIc1CanaryDomainQueryEligible(result.query)
+            ) {
+              const exec = await executeDomainQueryShadow(result.query)
+              if (exec.ok) {
+                const v5Response = renderDomainQueryObservation(
+                  exec.observation,
+                )
+                emitAssistantAuthorityDiagnostic(
+                  buildAuthorityDiagnostic({
+                    turnId: currentTurnIdRef.current ?? goalPending.id,
+                    decision: {
+                      kind: 'v5_authority',
+                      ownershipActive: true,
+                      eligibleForV5Authority: true,
+                      visibleOwner: 'v5',
+                      requestKind: 'domain_query',
+                      resolverOutcome: 'bound',
+                    },
+                    effectiveMode: getEffectiveAssistantMode(),
+                    interpreterStatus: 'skipped',
+                    resolverOutcome: 'bound',
+                    domainQueryStatus: 'executed',
+                    canaryEligible: getCanaryEligible(),
+                    outcomeCode: 'clarification_resume',
+                  }),
+                )
+                setV5ShadowClarification(null)
+                setGoalClarificationResolvedLabel(selectedLabel)
+                setV5ShadowResumeNote(null)
+                applyResponse(v5Response)
+                setTurns([
+                  {
+                    id: createTurnId(),
+                    userText: selectedLabel,
+                    response: v5Response,
+                    loading: false,
+                  },
+                ])
+                return
+              }
+            }
+
+            if (
+              isV5OwnershipPathEnabled() &&
+              result.status === 'needs_clarification' &&
+              response.kind === 'clarification'
+            ) {
+              setGoalClarificationResolvedLabel(null)
+              setTurns([
+                {
+                  id: currentTurnIdRef.current ?? createTurnId(),
+                  userText: selectedLabel,
+                  response,
+                  loading: false,
+                },
+              ])
+              return
+            }
+
+            // Shadow-only path (non-ownership): never replace V3 production answer.
             if (result.status === 'bound') {
               setV5ShadowClarification(null)
               setGoalClarificationResolvedLabel(null)

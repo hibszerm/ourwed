@@ -1,10 +1,10 @@
 /**
- * PC1 — central authority decision (typed state only).
+ * IC1 — central authority decision (typed state only).
  * No utterance / regex / phrase heuristics.
  */
 
 import {
-  PC1_OWNERSHIP_UNLOCKED,
+  IC1_OWNERSHIP_UNLOCKED,
   type AssistantAuthorityDecision,
   type AssistantV5Mode,
   type DomainQueryStatusKind,
@@ -28,7 +28,10 @@ export type DecideAssistantAuthorityInput = {
   resolverOutcome: ResolverOutcomeKind | null
   clarificationSlot?: string | null
   domainQueryStatus: DomainQueryStatusKind
-  /** Future canary allowlist seam — PC1 always false. */
+  /**
+   * Server-attested canary allowlist eligibility.
+   * Never trust client-spoofed values outside fetchAssistantRuntimeConfig.
+   */
   canaryEligible?: boolean
   /** Hard security / write invariant. */
   securityViolation?: boolean
@@ -39,6 +42,16 @@ function familyEligibleForReadQueryAuthority(
   requestKind: string | null,
 ): boolean {
   return requestKind === 'domain_query'
+}
+
+function ownershipGateOpen(input: DecideAssistantAuthorityInput): boolean {
+  if (!IC1_OWNERSHIP_UNLOCKED) return false
+  if (!modeAllowsV5Ownership(input.effectiveMode)) return false
+  if (input.effectiveMode === 'canary') {
+    return Boolean(input.canaryEligible)
+  }
+  // authority_read_query reserved — still require allowlist in IC1
+  return Boolean(input.canaryEligible)
 }
 
 export function decideAssistantAuthority(
@@ -93,7 +106,8 @@ export function decideAssistantAuthority(
     input.requestKind === 'product_help' ||
     input.requestKind === 'prepare_action' ||
     input.requestKind === 'goal_plan' ||
-    input.requestKind === 'clarification'
+    input.requestKind === 'clarification' ||
+    input.requestKind === 'route'
   ) {
     return fallback('REQUEST_FAMILY_NOT_ELIGIBLE', input, false)
   }
@@ -107,23 +121,28 @@ export function decideAssistantAuthority(
 
   if (input.resolverOutcome === 'needs_clarification') {
     const slot = input.clarificationSlot?.trim() || 'unknown'
-    const eligible = true
-    // PC1: clarification is diagnostic/shadow only — visible V3
-    if (!PC1_OWNERSHIP_UNLOCKED || !modeAllowsV5Ownership(input.effectiveMode)) {
+    if (ownershipGateOpen(input)) {
       return {
         kind: 'v5_clarification',
-        ownershipActive: false,
-        eligibleForV5Authority: eligible,
-        visibleOwner: 'v3',
+        ownershipActive: true,
+        eligibleForV5Authority: true,
+        visibleOwner: 'v5',
         requestKind: 'domain_query',
         clarificationSlot: slot,
         resolverOutcome: 'needs_clarification',
       }
     }
+    // Shadow / non-allowlisted canary: diagnostic clarification, V3 visible
+    if (
+      input.effectiveMode === 'canary' &&
+      input.canaryEligible === false
+    ) {
+      return fallback('CANARY_INELIGIBLE', input, true)
+    }
     return {
       kind: 'v5_clarification',
       ownershipActive: false,
-      eligibleForV5Authority: eligible,
+      eligibleForV5Authority: true,
       visibleOwner: 'v3',
       requestKind: 'domain_query',
       clarificationSlot: slot,
@@ -139,42 +158,54 @@ export function decideAssistantAuthority(
     if (input.domainQueryStatus === 'invalid') {
       return fallback('DOMAIN_QUERY_INVALID', input, true)
     }
+    if (input.domainQueryStatus === 'slice_ineligible') {
+      return fallback('DOMAIN_QUERY_SLICE_INELIGIBLE', input, false)
+    }
     if (input.domainQueryStatus === 'execution_unavailable') {
       return fallback('EXECUTION_UNAVAILABLE', input, true)
     }
 
-    const ownershipWouldApply =
-      PC1_OWNERSHIP_UNLOCKED &&
-      modeAllowsV5Ownership(input.effectiveMode) &&
-      (input.effectiveMode === 'authority_read_query' ||
-        (input.effectiveMode === 'canary' && Boolean(input.canaryEligible)))
+    const pipelineEligible =
+      input.domainQueryStatus === 'valid' ||
+      input.domainQueryStatus === 'executed'
 
-    if (!ownershipWouldApply) {
-      // Eligible pipeline, but PC1 / mode keeps V3 visible
-      if (
-        input.effectiveMode === 'canary' ||
-        input.effectiveMode === 'authority_read_query'
-      ) {
-        return fallback(
-          input.canaryEligible === false
-            ? 'CANARY_INELIGIBLE'
-            : 'MODE_NOT_AUTHORITATIVE',
-          input,
-          true,
-        )
-      }
+    if (!pipelineEligible) {
+      return fallback('DOMAIN_QUERY_INVALID', input, true)
+    }
+
+    if (ownershipGateOpen(input)) {
       return {
         kind: 'v5_authority',
-        ownershipActive: false,
+        ownershipActive: true,
         eligibleForV5Authority: true,
-        visibleOwner: 'v3',
+        visibleOwner: 'v5',
         requestKind: 'domain_query',
         resolverOutcome: 'bound',
       }
     }
 
-    // Unreachable while PC1_OWNERSHIP_UNLOCKED is false — keep type-safe fail-closed
-    return fallback('MODE_NOT_AUTHORITATIVE', input, true)
+    if (
+      input.effectiveMode === 'canary' ||
+      input.effectiveMode === 'authority_read_query'
+    ) {
+      return fallback(
+        input.canaryEligible === false
+          ? 'CANARY_INELIGIBLE'
+          : 'MODE_NOT_AUTHORITATIVE',
+        input,
+        true,
+      )
+    }
+
+    // shadow: eligible pipeline, V3 remains visible
+    return {
+      kind: 'v5_authority',
+      ownershipActive: false,
+      eligibleForV5Authority: true,
+      visibleOwner: 'v3',
+      requestKind: 'domain_query',
+      resolverOutcome: 'bound',
+    }
   }
 
   return fallback('MODE_NOT_AUTHORITATIVE', input, false)

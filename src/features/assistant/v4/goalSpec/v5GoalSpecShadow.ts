@@ -228,6 +228,21 @@ export type RunV5GoalSpecShadowInput = {
 }
 
 /**
+ * Awaitable V5 GoalSpec pipeline for IC1 ownership (decide before V3 render).
+ * Same semantics as fire-and-forget runner.
+ */
+export function runV5GoalSpecShadowAsync(
+  input: Omit<RunV5GoalSpecShadowInput, 'onResult'>,
+): Promise<V5GoalShadowResult> {
+  return new Promise((resolve) => {
+    runV5GoalSpecShadow({
+      ...input,
+      onResult: resolve,
+    })
+  })
+}
+
+/**
  * Fire-and-forget V5 GoalSpec shadow for one NL turn.
  * Caller must invalidate previous turn before starting a new one.
  */

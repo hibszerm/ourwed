@@ -1,12 +1,12 @@
 /**
- * PC1 — fail-closed mode precedence.
+ * IC1 — fail-closed mode precedence.
  *
- * effectiveMode = min(buildCapability, runtimeMode, PC1_BUILD_MAX)
- * Missing/invalid runtime → off (V3-safe). Never promotes authority.
+ * effectiveMode = min(buildCapability, runtimeMode)
+ * Missing/invalid runtime → off (V3-safe). Never promotes above build max.
  */
 
 import {
-  PC1_BUILD_MAX_MODE,
+  IC1_BUILD_MAX_MODE,
   type AssistantV5Mode,
 } from './types'
 import { isAssistantV5GoalShadowEnabled } from '../flag'
@@ -37,12 +37,15 @@ export function minAssistantV5Mode(
   return MODE_RANK[a] <= MODE_RANK[b] ? a : b
 }
 
-/** Vite shadow flag → build capability (PC1 max shadow). */
+/**
+ * Vite V5 flag → build capability up to IC1 max (canary).
+ * Flag OFF → off. Never reaches authority_read_query in IC1.
+ */
 export function buildCapabilityMode(): AssistantV5Mode {
   const fromVite: AssistantV5Mode = isAssistantV5GoalShadowEnabled()
-    ? 'shadow'
+    ? 'canary'
     : 'off'
-  return minAssistantV5Mode(fromVite, PC1_BUILD_MAX_MODE)
+  return minAssistantV5Mode(fromVite, IC1_BUILD_MAX_MODE)
 }
 
 /**
@@ -60,7 +63,7 @@ export function modeAllowsV5ShadowDiagnostics(mode: AssistantV5Mode): boolean {
   return MODE_RANK[mode] >= MODE_RANK.shadow
 }
 
-/** PC1: never allows visible V5 ownership. */
-export function modeAllowsV5Ownership(_mode: AssistantV5Mode): boolean {
-  return false
+/** IC1: visible ownership only in canary (or future authority_read_query). */
+export function modeAllowsV5Ownership(mode: AssistantV5Mode): boolean {
+  return mode === 'canary' || mode === 'authority_read_query'
 }

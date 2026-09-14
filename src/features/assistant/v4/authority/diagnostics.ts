@@ -1,5 +1,5 @@
 /**
- * PC1 — compact semantic diagnostics (no PII / CRM rows).
+ * IC1 — compact semantic diagnostics (no PII / CRM rows).
  */
 
 import type {
@@ -17,6 +17,7 @@ export function buildAuthorityDiagnostic(input: {
   interpreterStatus: AssistantAuthorityDiagnostic['interpreterStatus']
   resolverOutcome: ResolverOutcomeKind | null
   domainQueryStatus: DomainQueryStatusKind
+  canaryEligible: boolean
   latencyMs?: number
   outcomeCode?: string
 }): AssistantAuthorityDiagnostic {
@@ -26,6 +27,7 @@ export function buildAuthorityDiagnostic(input: {
     authorityDecision: d.kind,
     visibleOwner: d.visibleOwner,
     eligibleForV5Authority: d.eligibleForV5Authority,
+    canaryEligible: input.canaryEligible,
     requestKind:
       d.kind === 'v5_authority' || d.kind === 'v5_clarification'
         ? d.requestKind

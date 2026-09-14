@@ -321,7 +321,7 @@ Deno.serve(async (req) => {
     )
   }
 
-  // --- PC1 runtime mode kill-switch (no OpenAI, no utterance, no CRM). ---
+  // --- IC1 runtime mode kill-switch + canary allowlist (no OpenAI / CRM). ---
   {
     const cfgMode = typeof body.mode === 'string' ? body.mode.trim() : ''
     if (cfgMode === 'assistant_runtime_config') {
@@ -344,9 +344,20 @@ Deno.serve(async (req) => {
         // missing/invalid → fail closed to off
         assistantMode = 'off'
       }
+      // Allowlist: authenticated user id only. Ignore any client canaryEligible.
+      const allowRaw =
+        Deno.env.get('OURWED_ASSISTANT_V5_CANARY_USER_IDS') ?? ''
+      const allow = new Set(
+        allowRaw
+          .split(/[,;\s]+/)
+          .map((s) => s.trim().toLowerCase())
+          .filter(Boolean),
+      )
+      const canaryEligible = allow.has(auth.userId.toLowerCase())
       return jsonResponse({
         status: 'assistant_runtime_config',
         assistantMode,
+        canaryEligible,
       })
     }
   }

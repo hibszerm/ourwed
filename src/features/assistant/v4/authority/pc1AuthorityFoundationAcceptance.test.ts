@@ -1,15 +1,17 @@
 /**
- * PC1 — authority router + mode fail-closed acceptance.
+ * PC1 — authority router + mode fail-closed acceptance (shadow era).
+ * IC1 unlocks ownership; this suite still proves shadow/off fail-closed paths.
  */
 
 import assert from 'node:assert/strict'
 import {
   decideAssistantAuthority,
 } from './decideAuthority'
-import { PC1_OWNERSHIP_UNLOCKED } from './types'
+import { IC1_OWNERSHIP_UNLOCKED } from './types'
 import {
   buildCapabilityMode,
   minAssistantV5Mode,
+  modeAllowsV5Ownership,
   parseAssistantV5Mode,
   resolveEffectiveAssistantMode,
 } from './resolveEffectiveMode'
@@ -36,7 +38,7 @@ function baseQuery(partial: Partial<DomainQuery> = {}): DomainQuery {
 
 console.log('PC1 authority foundation')
 
-assert.equal(PC1_OWNERSHIP_UNLOCKED, false, 'PC1 ownership locked')
+assert.equal(IC1_OWNERSHIP_UNLOCKED, true, 'IC1 ownership unlocked (successor)')
 
 // --- Runtime mode parse / fail-closed ---
 assert.equal(parseAssistantV5Mode('shadow'), 'shadow')
@@ -59,8 +61,6 @@ assert.equal(
   'undefined runtime → off',
 )
 
-// When Vite shadow is on in test env, buildCapability may be shadow —
-// effective still min with runtime
 {
   const withShadowRuntime = resolveEffectiveAssistantMode({
     runtimeMode: 'shadow',
@@ -74,6 +74,8 @@ assert.equal(
     minAssistantV5Mode(buildCapabilityMode(), 'authority_read_query'),
   )
 }
+
+assert.equal(modeAllowsV5Ownership('shadow'), false)
 
 // --- Router: OFF ---
 {
@@ -99,6 +101,7 @@ assert.equal(
     interpreterStatus: 'ok',
     resolverOutcome: 'bound',
     domainQueryStatus: 'valid',
+    canaryEligible: true,
   })
   assert.equal(d.kind, 'v5_authority')
   assert.equal(d.visibleOwner, 'v3')
@@ -106,25 +109,19 @@ assert.equal(
   assert.equal(d.eligibleForV5Authority, true)
 }
 
-// --- Router: CANARY / AUTHORITY fail-closed in PC1 ---
-for (const mode of ['canary', 'authority_read_query'] as const) {
+// --- Router: CANARY without allowlist → V3 ---
+{
   const d = decideAssistantAuthority({
-    effectiveMode: mode,
+    effectiveMode: 'canary',
     requestKind: 'domain_query',
     interpreterStatus: 'ok',
     resolverOutcome: 'bound',
     domainQueryStatus: 'valid',
-    canaryEligible: true,
+    canaryEligible: false,
   })
-  assert.equal(d.visibleOwner, 'v3', `${mode} visible V3`)
-  assert.equal(d.ownershipActive, false, `${mode} no ownership`)
-  assert.ok(
-    d.kind === 'v3_fallback' || d.kind === 'v5_authority',
-    `${mode} fail-closed kind`,
-  )
-  if (d.kind === 'v5_authority') {
-    assert.equal(d.ownershipActive, false)
-  }
+  assert.equal(d.visibleOwner, 'v3')
+  assert.equal(d.ownershipActive, false)
+  assert.equal(d.kind, 'v3_fallback')
 }
 
 // --- Families ---
@@ -168,7 +165,7 @@ for (const kind of ['unsupported', 'product_help', 'prepare_action', 'goal_plan'
   }
 }
 
-// --- Clarification ---
+// --- Clarification (shadow) ---
 {
   const d = decideAssistantAuthority({
     effectiveMode: 'shadow',
@@ -177,6 +174,7 @@ for (const kind of ['unsupported', 'product_help', 'prepare_action', 'goal_plan'
     resolverOutcome: 'needs_clarification',
     clarificationSlot: 'measure',
     domainQueryStatus: 'not_attempted',
+    canaryEligible: true,
   })
   assert.equal(d.kind, 'v5_clarification')
   assert.equal(d.visibleOwner, 'v3')
