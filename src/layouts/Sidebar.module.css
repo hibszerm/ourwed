@@ -343,6 +343,19 @@
   flex-shrink: 0;
 }
 
+.assistantEntry {
+  margin-bottom: var(--space-3);
+}
+
+.assistantEntry button {
+  color: var(--color-sidebar-text-active);
+}
+
+.assistantEntry button:hover {
+  background: var(--color-sidebar-hover);
+  color: var(--color-sidebar-text-active);
+}
+
 .userMenu {
   display: flex;
   flex-direction: column;

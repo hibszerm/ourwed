@@ -137,6 +137,17 @@
     min-width: 0;
   }
 
+  .mobileAssistantSlot {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    margin-left: auto;
+  }
+
+  .layout[data-mobile-header='true'] .mobileAssistantSlot {
+    margin-left: 0;
+  }
+
   .menuButton {
     display: inline-flex;
   }

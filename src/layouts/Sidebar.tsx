@@ -21,6 +21,7 @@ import {
 import { useAuth } from '@/features/auth/AuthProvider'
 import { useCurrentStudioUser } from '@/features/auth/useCurrentStudioUser'
 import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
+import { useAssistantOptional } from '@/features/assistant/assistantContext'
 import { SidebarSubscriptionBlock } from '@/features/billing/SidebarSubscriptionBlock'
 import { useProAccessGate } from '@/features/billing/ProAccessGate'
 import { shouldAnimateGuideCompass } from '@/features/onboarding/guide/guideDiscoveryRules'
@@ -231,6 +232,7 @@ export function Sidebar({
   const { data: studioUser } = useCurrentStudioUser()
   const { entitlement, loading: subscriptionLoading, error: subscriptionError } =
     useProAccessGate()
+  const assistant = useAssistantOptional()
 
   const displayName = studioUser?.displayName ?? ''
   const displayRole = user?.role ?? ''
@@ -475,6 +477,11 @@ export function Sidebar({
       </nav>
 
       <div className={styles.footer}>
+        {!isMobile && assistant ? (
+          <div className={styles.assistantEntry}>
+            {assistant.SidebarLauncher()}
+          </div>
+        ) : null}
         {!isMobile ? (
           <SidebarSubscriptionBlock
             loading={subscriptionLoading}

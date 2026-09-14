@@ -2,6 +2,7 @@ import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { AuthLoadingScreen } from '@/features/auth/components/AuthLoadingScreen'
 import { captureProtectedFrom } from '@/features/auth/postLoginRedirect'
+import { AssistantProvider } from '@/features/assistant/AssistantHost'
 import { ProAccessGateProvider } from '@/features/billing/ProAccessGate'
 import { shouldRedirectLogoutToLanding } from '@/lib/auth/logoutRedirect'
 
@@ -33,7 +34,9 @@ export function ProtectedRoute() {
 
   return (
     <ProAccessGateProvider>
-      <Outlet />
+      <AssistantProvider>
+        <Outlet />
+      </AssistantProvider>
     </ProAccessGateProvider>
   )
 }

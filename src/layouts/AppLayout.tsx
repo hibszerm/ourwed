@@ -12,6 +12,7 @@ import {
   lockBodyScroll,
   unlockBodyScroll,
 } from '@/components/ui/overlay/bodyLock'
+import { useAssistantOptional } from '@/features/assistant/assistantContext'
 import { ReadOnlyBanner } from '@/features/billing/ReadOnlyBanner'
 import { useProAccessGate } from '@/features/billing/ProAccessGate'
 import { useInterfaceStyleOptional } from '@/features/interface-style/useInterfaceStyle'
@@ -48,6 +49,7 @@ export function AppLayout({
   const showPageHeader = Boolean(title || action)
   const { isReadOnly, loading, bannerHiddenForSession, hideReadOnlyBanner } =
     useProAccessGate()
+  const assistant = useAssistantOptional()
 
   if (location.pathname !== navPath) {
     setNavPath(location.pathname)
@@ -123,6 +125,11 @@ export function AppLayout({
           </button>
           {mobileHeader ? (
             <div className={styles.mobileHeader}>{mobileHeader}</div>
+          ) : null}
+          {assistant ? (
+            <div className={styles.mobileAssistantSlot}>
+              {assistant.MobileLauncher()}
+            </div>
           ) : null}
         </div>
         {showPageHeader ? (
