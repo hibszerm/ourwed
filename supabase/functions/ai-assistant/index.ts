@@ -32,6 +32,11 @@ import {
   buildV5GoalSpecSuccessResponse,
   sanitizeV5SemanticContextSummary,
 } from './v5OpenAITransport.ts'
+import { V6_AGENT_SYSTEM_PROMPT } from './v6Prompt.ts'
+import {
+  ASSISTANT_V6_AGENT_STEP_JSON_SCHEMA,
+  parseV6AgentStepPayload,
+} from './v6Schema.ts'
 
 /** Eval-only allowlist — never accept arbitrary client model strings. */
 const V4_EVAL_MODEL_ALLOWLIST = new Set([
@@ -578,6 +583,139 @@ Deno.serve(async (req) => {
         message: 'Nie udało się teraz wykonać zapytania. Spróbuj ponownie.',
         code: aborted ? 'timeout' : 'exception',
       })
+    } finally {
+      clearTimeout(timeout)
+    }
+  }
+
+  // --- V6 agent step (shadow). Isolated from V3/V4/V5. ---
+  // MUST return inside this branch — never fall through.
+  if (mode === 'v6_agent_step') {
+    const v6Model = resolveGoalSpecInterpreterModel()
+    const locale =
+      typeof body.locale === 'string' && body.locale.trim()
+        ? body.locale.trim().slice(0, 16)
+        : 'pl-PL'
+    const round =
+      typeof body.round === 'number' && Number.isFinite(body.round)
+        ? Math.max(1, Math.floor(body.round))
+        : 1
+
+    const userPayload = JSON.stringify({
+      utterance,
+      locale,
+      round,
+      collectionSummaries: body.collectionSummaries ?? [],
+      compactConversationContext: body.compactConversationContext ?? null,
+      previousToolResults: body.previousToolResults ?? [],
+    })
+
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 28_000)
+    const started = Date.now()
+
+    try {
+      const openaiPayload = buildV5ChatCompletionRequestBody({
+        model: v6Model,
+        maxOutputTokens: 1200,
+        messages: [
+          { role: 'system', content: V6_AGENT_SYSTEM_PROMPT },
+          { role: 'user', content: userPayload },
+        ],
+        jsonSchemaName: 'assistant_v6_agent_step',
+        jsonSchema: ASSISTANT_V6_AGENT_STEP_JSON_SCHEMA,
+      })
+
+      const openaiRes = await fetch(
+        'https://api.openai.com/v1/chat/completions',
+        {
+          method: 'POST',
+          signal: controller.signal,
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(openaiPayload),
+        },
+      )
+
+      const openaiBody = await openaiRes.json().catch(() => null)
+      const usage = extractUsage(openaiBody)
+
+      if (!openaiRes.ok) {
+        console.info('[ai-assistant:v6]', {
+          durationMs: Date.now() - started,
+          status: 'provider_error',
+          model: v6Model,
+        })
+        return jsonResponse(
+          {
+            status: 'error',
+            code: 'PROVIDER_ERROR',
+            message: 'OpenAI provider error',
+            diagnostics: { usage, model: v6Model },
+          },
+          502,
+        )
+      }
+
+      const content =
+        openaiBody?.choices?.[0]?.message?.content ??
+        openaiBody?.choices?.[0]?.message?.refusal ??
+        null
+      let parsed: unknown = null
+      if (typeof content === 'string') {
+        try {
+          parsed = JSON.parse(content)
+        } catch {
+          parsed = null
+        }
+      }
+
+      const checked = parseV6AgentStepPayload(parsed)
+      if (!checked.ok) {
+        console.info('[ai-assistant:v6]', {
+          durationMs: Date.now() - started,
+          status: 'schema_error',
+          reason: checked.reason,
+          model: v6Model,
+        })
+        return jsonResponse(
+          {
+            status: 'error',
+            code: 'INTERPRETATION_ERROR',
+            message: checked.reason,
+            diagnostics: { usage, model: v6Model },
+          },
+          422,
+        )
+      }
+
+      console.info('[ai-assistant:v6]', {
+        durationMs: Date.now() - started,
+        status: checked.value.status,
+        model: v6Model,
+        usage,
+      })
+
+      return jsonResponse({
+        ...checked.value,
+        diagnostics: {
+          model: v6Model,
+          durationMs: Date.now() - started,
+          usage,
+        },
+      })
+    } catch (e) {
+      const aborted = e instanceof Error && e.name === 'AbortError'
+      return jsonResponse(
+        {
+          status: 'error',
+          code: aborted ? 'PROVIDER_ERROR' : 'PROVIDER_ERROR',
+          message: aborted ? 'timeout' : 'v6_step_failed',
+        },
+        aborted ? 504 : 500,
+      )
     } finally {
       clearTimeout(timeout)
     }

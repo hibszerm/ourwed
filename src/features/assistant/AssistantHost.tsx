@@ -57,6 +57,11 @@ import {
   setV5GoalShadowSessionOpen,
   type V5GoalShadowResult,
 } from './v4/goalSpec/v5GoalSpecShadow'
+import {
+  invalidateV6ShadowTurn,
+  runV6AssistantShadow,
+  setV6ShadowSessionOpen,
+} from './v6'
 import { executeDomainQueryShadow } from './v4/domainQuery/executeDomainQuery'
 import { assessSemanticCoverage } from './v4/goalSpec/semanticCoverage'
 import {
@@ -203,6 +208,8 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
     invalidateV5GoalShadowTurn({ wipeAll: true, reason: 'assistant_close' })
     destroyGoalClarificationOnAssistantClose()
     setV5GoalShadowSessionOpen(false)
+    invalidateV6ShadowTurn({ wipeAll: true, reason: 'assistant_close' })
+    setV6ShadowSessionOpen(false)
   }, [])
 
   const closeAssistant = useCallback(() => {
@@ -217,6 +224,8 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
     setEffectiveAssistantMode(effective)
     setCanaryEligibleFromRuntime(cfg.canaryEligible)
     setV5GoalShadowSessionOpen(isV5ShadowDiagnosticsEnabled())
+    // V6-F1: always shadow diagnostics when Assistant opens (never visible authority).
+    setV6ShadowSessionOpen(true)
     return cfg
   }, [])
 
@@ -473,6 +482,14 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
         clearPendingGoalClarificationOnly()
         invalidateV5GoalShadowTurn({ reason: 'new_nl_turn' })
         setV5GoalShadowSessionOpen(true)
+
+        // V6-F1: shadow-only agent diagnostics (isolated SoT; never visible).
+        setV6ShadowSessionOpen(true)
+        runV6AssistantShadow({
+          turnId: id,
+          utterance: userText,
+          recentUtterances: recentUtterancesRef.current.slice(-6),
+        })
 
         // IC1: allowlisted canary awaits V5 before V3 — one visible owner.
         if (isV5OwnershipPathEnabled()) {
