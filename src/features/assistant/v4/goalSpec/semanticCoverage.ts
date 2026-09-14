@@ -108,6 +108,11 @@ export function assessSemanticCoverage(input: {
     pushUnique(codes, 'orderby_not_preserved')
   }
 
+  // Top-N / explicit limit is meaning-only until DomainQuery executes it.
+  if (goal.limit != null) {
+    pushUnique(codes, 'limit_intent_not_executable')
+  }
+
   // Conservative: aspects / targets imply projection not executed by IC1 DQ.
   if (goal.aspects.length > 0) {
     pushUnique(codes, 'aspects_not_executable')

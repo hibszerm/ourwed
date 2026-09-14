@@ -95,6 +95,14 @@ console.log('S4B V5 query-family contract (deterministic)')
     'Do NOT switch requestKind to unsupported or clarification to express incompleteness',
     'ambiguity section',
   )
+  assertIncludes(clientPrompt, 'SEMANTIC COMPLETENESS', 'IC2 semantic completeness')
+  assertIncludes(
+    clientPrompt,
+    'Never simplify a richer request into plain count/list/sum',
+    'IC2 no simplify',
+  )
+  assert(!/najwi[eę]cej/.test(clientPrompt), 'no najwięcej phrase rule')
+  assert(!/\bjeszcze\b/.test(clientPrompt), 'no jeszcze phrase rule')
   assertNotInstructsMissingSlotToWrongFamily(clientPrompt)
   console.log('  OK client prompt contract')
 }
@@ -148,6 +156,14 @@ function assertEqPrompt(a: string, b: string, msg: string) {
     JSON.stringify(ASSISTANT_V5_GOALSPEC_JSON_SCHEMA.properties.requestKind.enum),
     'unsupported',
     'enum keeps unsupported',
+  )
+  assert(
+    (ASSISTANT_V5_GOALSPEC_JSON_SCHEMA.required as string[]).includes('limit'),
+    'schema requires limit (IC2)',
+  )
+  assert(
+    'limit' in ASSISTANT_V5_GOALSPEC_JSON_SCHEMA.properties,
+    'schema has limit property (IC2)',
   )
   console.log('  OK schema contract')
 }

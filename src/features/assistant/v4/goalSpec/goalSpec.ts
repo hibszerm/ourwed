@@ -149,6 +149,11 @@ export type GoalSpec = {
   aggregation: GoalAggregation
   orderBy: GoalOrderBy[]
   groupBy: Array<SemanticFieldId | string>
+  /**
+   * Top-N / result-cardinality bound when the utterance asks for a bounded ranked set.
+   * Meaning-only — IC1 DomainQuery may not execute arbitrary limits.
+   */
+  limit: number | null
   relations: GoalRelationConstraint[]
   /** Requested aspects/fields without enum explosion. */
   aspects: string[]
@@ -181,6 +186,7 @@ export function emptyGoalSpec(partial?: Partial<GoalSpec>): GoalSpec {
     aggregation: null,
     orderBy: [],
     groupBy: [],
+    limit: null,
     relations: [],
     aspects: [],
     ambiguities: [],

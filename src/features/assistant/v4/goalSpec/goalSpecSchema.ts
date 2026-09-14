@@ -37,6 +37,7 @@ export const ASSISTANT_V5_GOALSPEC_JSON_SCHEMA = {
     'orderByField',
     'orderByDirection',
     'groupByField',
+    'limit',
     'aspect0',
     'aspect1',
     'ambiguitySlot0',
@@ -127,6 +128,11 @@ export const ASSISTANT_V5_GOALSPEC_JSON_SCHEMA = {
       enum: ['asc', 'desc', null],
     },
     groupByField: { type: ['string', 'null'] },
+    limit: {
+      type: ['number', 'null'],
+      description:
+        'Top-N / result cardinality when the utterance asks for a bounded ranked set. Meaning-only; null when not asked.',
+    },
     aspect0: { type: ['string', 'null'] },
     aspect1: { type: ['string', 'null'] },
     ambiguitySlot0: {
@@ -327,6 +333,15 @@ export function parseFlatGoalSpecPayload(raw: unknown): GoalSpec | null {
   const groupByField = asStringOrNull(row.groupByField)
   const groupBy = groupByField ? [groupByField] : []
 
+  let limit: number | null = null
+  if (row.limit === null || row.limit === undefined) {
+    limit = null
+  } else if (typeof row.limit === 'number' && Number.isFinite(row.limit) && row.limit > 0) {
+    limit = Math.floor(row.limit)
+  } else {
+    return null
+  }
+
   const correctionSlot = asStringOrNull(row.correctionTargetSlot)
 
   return emptyGoalSpec({
@@ -341,6 +356,7 @@ export function parseFlatGoalSpecPayload(raw: unknown): GoalSpec | null {
     ambiguities,
     orderBy,
     groupBy,
+    limit,
     targets,
     inheritance: asBool(row.inheritActiveCollection, false)
       ? { fromActiveCollection: true, fromPrevious: dialogue === 'inherit' }

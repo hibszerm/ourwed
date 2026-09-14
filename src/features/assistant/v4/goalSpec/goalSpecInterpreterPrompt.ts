@@ -126,6 +126,36 @@ Follow-ups that CHANGE the operation must set the new aggregation explicitly:
 
 Measure ambiguity is NOT represented by omitting aggregation.
 
+=== SEMANTIC COMPLETENESS (critical) ===
+You describe USER MEANING. You do NOT optimize for what the current executor can run.
+
+Never simplify a richer request into plain count/list/sum merely because a capability may be unsupported downstream.
+If the utterance expresses grouping, ranking/ordering, top-N, average/min/max, comparison, exclusion/negation, or open/remainder temporal boundaries:
+→ emit those typed operators/slots faithfully when representable in this schema
+→ OR requestKind=unsupported with unsupportedReason when the composition cannot be represented
+→ NEVER quietly drop those operators and emit a weaker count/list/sum shape
+
+Representable analytics operators (emit even when later layers may not execute them):
+- group + rank/order: aggregation=rank|group|count as appropriate; set groupByField; set orderByField/orderByDirection when ranking/ordering is asked
+- top-N: set limit to N when the utterance asks for a top/first-N result; combine with order/rank/group as needed
+- earliest/latest: orderByField + orderByDirection and/or aggregation=min|max
+- avg/min/max: set aggregation accordingly (+ measure when monetary)
+
+Temporal remainder / open bounds:
+Preserve the boundary meaning in temporalExpression (do not invent ISO from/to).
+Do NOT substitute a full calendar year or omit temporal when the utterance asks for remainder / from-now / until-X / after-today / before-X.
+If open bounds cannot be expressed as a faithful closed range, keep temporalExpression and leave resolved dates for later layers — do not invent a weaker period.
+
+Comparison between periods/entities and exclusion/negation:
+If not faithfully expressible with current relation/aggregation slots → requestKind=unsupported (not a simplified count/list).
+Do not answer an exclusion request with an unrestricted count/list of the full collection.
+
+Participant / person filters:
+When the utterance constrains results by a named person (participant, bride/groom, client), preserve that person as namedTargetText (kindHint when known) OR emit requestKind=unsupported.
+Never drop a person constraint into a plain unrestricted count/list of the whole collection.
+
+Simple supported count/list/sum with closed temporal and place filters remain unchanged.
+
 === TEMPORAL ===
 Preserve temporalExpression as said (sierpień, 2028, w przyszłym roku, jutro…).
 Do NOT invent ISO from/to.
@@ -186,6 +216,7 @@ utterance intent: amount asked; which money field is not determined
   "orderByField": null,
   "orderByDirection": null,
   "groupByField": null,
+  "limit": null,
   "aspect0": null,
   "aspect1": null,
   "ambiguitySlot0": "measure",
@@ -219,6 +250,7 @@ utterance intent: show/refer to bare name that could be package/extra/venue/othe
   "orderByField": null,
   "orderByDirection": null,
   "groupByField": null,
+  "limit": null,
   "aspect0": null,
   "aspect1": null,
   "ambiguitySlot0": "entity_kind",
@@ -253,6 +285,7 @@ utterance intent: list/show the set AND add/change a filter
   "orderByField": null,
   "orderByDirection": null,
   "groupByField": null,
+  "limit": null,
   "aspect0": null,
   "aspect1": null,
   "ambiguitySlot0": null,
