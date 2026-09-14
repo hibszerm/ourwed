@@ -113,11 +113,15 @@ export function assessSemanticCoverage(input: {
     pushUnique(codes, 'limit_intent_not_executable')
   }
 
-  // Conservative: aspects / targets imply projection not executed by IC1 DQ.
+  // Conservative: aspects / non-inheritance targets imply projection not executed by IC1 DQ.
+  // active_collection is the typed inherit signal for IC1 follow-ups — not an unexecuted projection.
   if (goal.aspects.length > 0) {
     pushUnique(codes, 'aspects_not_executable')
   }
-  if (goal.targets.length > 0) {
+  const nonInheritanceTargets = goal.targets.filter(
+    (t) => t.kind !== 'active_collection',
+  )
+  if (nonInheritanceTargets.length > 0) {
     pushUnique(codes, 'targets_not_executable')
   }
 
