@@ -43,6 +43,7 @@ import {
   clearPendingGoalClarificationOnly,
   getPendingGoalClarification,
 } from './v4/goalSpec/goalClarificationSession'
+import { destroyGoalClarificationOnAssistantClose } from './v4/goalSpec/resumeGoalClarification'
 import {
   goalClarificationToAssistantResponse,
   isGoalClarificationHostEnabled,
@@ -197,6 +198,10 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
     resolvingClarificationIdRef.current = null
     currentTurnIdRef.current = null
     clearAssistantV4ShadowSessionAndPending()
+    // IC1: wipe V5 semantic SoT (active DomainQuery + pending clarification).
+    invalidateV5GoalShadowTurn({ wipeAll: true, reason: 'assistant_close' })
+    destroyGoalClarificationOnAssistantClose()
+    setV5GoalShadowSessionOpen(false)
   }, [])
 
   const closeAssistant = useCallback(() => {
