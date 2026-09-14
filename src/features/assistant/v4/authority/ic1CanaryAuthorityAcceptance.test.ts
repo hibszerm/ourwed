@@ -129,6 +129,7 @@ function eligibleBound(input: {
     resolverOutcome: 'bound',
     domainQueryStatus: slice ? 'valid' : 'slice_ineligible',
     canaryEligible: input.canaryEligible,
+    semanticCoverageStatus: slice ? 'complete' : 'not_assessed',
   })
 }
 

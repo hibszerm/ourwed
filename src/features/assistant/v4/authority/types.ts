@@ -23,6 +23,7 @@ export type TypedFallbackReason =
   | 'RUNTIME_MODE_UNAVAILABLE'
   | 'UNSUPPORTED_REQUEST'
   | 'DOMAIN_QUERY_SLICE_INELIGIBLE'
+  | 'SEMANTIC_COVERAGE_INCOMPLETE'
 
 export type TypedSafeErrorReason =
   | 'SECURITY_BOUNDARY_VIOLATION'
@@ -116,6 +117,9 @@ export type AssistantAuthorityDiagnostic = {
   clarificationSlot?: string
   fallbackReason?: TypedFallbackReason
   safeErrorReason?: TypedSafeErrorReason
+  /** SC1 — typed coverage; omitted when not assessed. */
+  semanticCoverageStatus?: 'complete' | 'incomplete' | 'not_assessed'
+  semanticCoverageReasons?: string[]
   outcomeCode?: string
   latencyMs?: number
   effectiveMode: AssistantV5Mode

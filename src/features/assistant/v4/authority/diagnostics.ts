@@ -18,6 +18,8 @@ export function buildAuthorityDiagnostic(input: {
   resolverOutcome: ResolverOutcomeKind | null
   domainQueryStatus: DomainQueryStatusKind
   canaryEligible: boolean
+  semanticCoverageStatus?: AssistantAuthorityDiagnostic['semanticCoverageStatus']
+  semanticCoverageReasons?: string[]
   latencyMs?: number
   outcomeCode?: string
 }): AssistantAuthorityDiagnostic {
@@ -41,6 +43,8 @@ export function buildAuthorityDiagnostic(input: {
       d.kind === 'v5_clarification' ? d.clarificationSlot : undefined,
     fallbackReason: d.kind === 'v3_fallback' ? d.reason : undefined,
     safeErrorReason: d.kind === 'safe_error' ? d.reason : undefined,
+    semanticCoverageStatus: input.semanticCoverageStatus,
+    semanticCoverageReasons: input.semanticCoverageReasons,
     outcomeCode: input.outcomeCode,
     latencyMs: input.latencyMs,
     effectiveMode: input.effectiveMode,

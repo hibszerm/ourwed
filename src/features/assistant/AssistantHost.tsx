@@ -58,6 +58,7 @@ import {
   type V5GoalShadowResult,
 } from './v4/goalSpec/v5GoalSpecShadow'
 import { executeDomainQueryShadow } from './v4/domainQuery/executeDomainQuery'
+import { assessSemanticCoverage } from './v4/goalSpec/semanticCoverage'
 import {
   buildAuthorityDiagnostic,
   decideAssistantAuthority,
@@ -279,6 +280,23 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
           : 'slice_ineligible'
       }
 
+      let semanticCoverageStatus:
+        | 'complete'
+        | 'incomplete'
+        | 'not_assessed' = 'not_assessed'
+      let semanticCoverageReasons: string[] | undefined
+      if (shadow.status === 'bound') {
+        const coverage = assessSemanticCoverage({
+          goalSpec: shadow.goalSpec,
+          boundGoal: shadow.bound,
+          domainQuery: shadow.query,
+        })
+        semanticCoverageStatus = coverage.status
+        if (coverage.status === 'incomplete') {
+          semanticCoverageReasons = coverage.reasonCodes
+        }
+      }
+
       const canaryEligible = getCanaryEligible()
       const decision = decideAssistantAuthority({
         effectiveMode: getEffectiveAssistantMode(),
@@ -291,6 +309,8 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
             : null,
         domainQueryStatus,
         canaryEligible,
+        semanticCoverageStatus,
+        semanticCoverageReasons,
         writeAttemptOnReadPath: requestKind === 'prepare_action',
       })
 
@@ -303,6 +323,8 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
           resolverOutcome,
           domainQueryStatus,
           canaryEligible,
+          semanticCoverageStatus,
+          semanticCoverageReasons,
           latencyMs: shadow.diagnostic.latencyMs,
           outcomeCode: shadow.diagnostic.outcomeCode,
         }),
@@ -887,49 +909,83 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
                 selectedLabel,
               })
 
-            // IC1: allowlisted canary — clarification resumes to visible V5 (0 LLM).
+            // IC1: allowlisted canary — clarification resumes to visible V5 (0 LLM)
+            // only when typed semantic coverage is complete.
             if (
               isV5OwnershipPathEnabled() &&
               result.status === 'bound' &&
               isIc1CanaryDomainQueryEligible(result.query)
             ) {
-              const exec = await executeDomainQueryShadow(result.query)
-              if (exec.ok) {
-                const v5Response = renderDomainQueryObservation(
-                  exec.observation,
-                )
+              const coverage = assessSemanticCoverage({
+                goalSpec: result.patchedGoal,
+                boundGoal: result.goal,
+                domainQuery: result.query,
+              })
+              if (coverage.status === 'complete') {
+                const exec = await executeDomainQueryShadow(result.query)
+                if (exec.ok) {
+                  const v5Response = renderDomainQueryObservation(
+                    exec.observation,
+                  )
+                  emitAssistantAuthorityDiagnostic(
+                    buildAuthorityDiagnostic({
+                      turnId: currentTurnIdRef.current ?? goalPending.id,
+                      decision: {
+                        kind: 'v5_authority',
+                        ownershipActive: true,
+                        eligibleForV5Authority: true,
+                        visibleOwner: 'v5',
+                        requestKind: 'domain_query',
+                        resolverOutcome: 'bound',
+                      },
+                      effectiveMode: getEffectiveAssistantMode(),
+                      interpreterStatus: 'skipped',
+                      resolverOutcome: 'bound',
+                      domainQueryStatus: 'executed',
+                      canaryEligible: getCanaryEligible(),
+                      semanticCoverageStatus: 'complete',
+                      outcomeCode: 'clarification_resume',
+                    }),
+                  )
+                  setV5ShadowClarification(null)
+                  setGoalClarificationResolvedLabel(selectedLabel)
+                  setV5ShadowResumeNote(null)
+                  applyResponse(v5Response)
+                  setTurns([
+                    {
+                      id: createTurnId(),
+                      userText: selectedLabel,
+                      response: v5Response,
+                      loading: false,
+                    },
+                  ])
+                  return
+                }
+              }
+              // incomplete coverage or exec failure → fall through to V3
+              if (coverage.status === 'incomplete') {
                 emitAssistantAuthorityDiagnostic(
                   buildAuthorityDiagnostic({
                     turnId: currentTurnIdRef.current ?? goalPending.id,
                     decision: {
-                      kind: 'v5_authority',
-                      ownershipActive: true,
-                      eligibleForV5Authority: true,
-                      visibleOwner: 'v5',
+                      kind: 'v3_fallback',
+                      visibleOwner: 'v3',
+                      ownershipActive: false,
+                      eligibleForV5Authority: false,
+                      reason: 'SEMANTIC_COVERAGE_INCOMPLETE',
                       requestKind: 'domain_query',
                       resolverOutcome: 'bound',
                     },
                     effectiveMode: getEffectiveAssistantMode(),
                     interpreterStatus: 'skipped',
                     resolverOutcome: 'bound',
-                    domainQueryStatus: 'executed',
+                    domainQueryStatus: 'valid',
                     canaryEligible: getCanaryEligible(),
-                    outcomeCode: 'clarification_resume',
+                    semanticCoverageStatus: 'incomplete',
+                    semanticCoverageReasons: coverage.reasonCodes,
+                    outcomeCode: 'clarification_resume_coverage_incomplete',
                   }),
                 )
-                setV5ShadowClarification(null)
-                setGoalClarificationResolvedLabel(selectedLabel)
-                setV5ShadowResumeNote(null)
-                applyResponse(v5Response)
-                setTurns([
-                  {
-                    id: createTurnId(),
-                    userText: selectedLabel,
-                    response: v5Response,
-                    loading: false,
-                  },
-                ])
-                return
               }
             }
 

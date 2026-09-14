@@ -85,6 +85,7 @@ assert.equal(modeAllowsV5Ownership('shadow'), false)
     interpreterStatus: 'ok',
     resolverOutcome: 'bound',
     domainQueryStatus: 'valid',
+    semanticCoverageStatus: 'complete',
   })
   assert.equal(d.kind, 'v3_fallback')
   assert.equal(d.visibleOwner, 'v3')
@@ -102,6 +103,7 @@ assert.equal(modeAllowsV5Ownership('shadow'), false)
     resolverOutcome: 'bound',
     domainQueryStatus: 'valid',
     canaryEligible: true,
+    semanticCoverageStatus: 'complete',
   })
   assert.equal(d.kind, 'v5_authority')
   assert.equal(d.visibleOwner, 'v3')
@@ -118,6 +120,7 @@ assert.equal(modeAllowsV5Ownership('shadow'), false)
     resolverOutcome: 'bound',
     domainQueryStatus: 'valid',
     canaryEligible: false,
+    semanticCoverageStatus: 'complete',
   })
   assert.equal(d.visibleOwner, 'v3')
   assert.equal(d.ownershipActive, false)

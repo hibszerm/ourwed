@@ -33,6 +33,13 @@ export type DecideAssistantAuthorityInput = {
    * Never trust client-spoofed values outside fetchAssistantRuntimeConfig.
    */
   canaryEligible?: boolean
+  /**
+   * SC1 — typed GoalSpec→DomainQuery semantic coverage.
+   * Bound authority requires `complete`. Incomplete → V3 fallback.
+   * `not_assessed` on a bound path fails closed.
+   */
+  semanticCoverageStatus?: 'complete' | 'incomplete' | 'not_assessed'
+  semanticCoverageReasons?: string[]
   /** Hard security / write invariant. */
   securityViolation?: boolean
   writeAttemptOnReadPath?: boolean
@@ -173,6 +180,12 @@ export function decideAssistantAuthority(
       return fallback('DOMAIN_QUERY_INVALID', input, true)
     }
 
+    // SC1: executable shape alone is insufficient — coverage must be complete.
+    const coverage = input.semanticCoverageStatus ?? 'not_assessed'
+    if (coverage !== 'complete') {
+      return fallback('SEMANTIC_COVERAGE_INCOMPLETE', input, false)
+    }
+
     if (ownershipGateOpen(input)) {
       return {
         kind: 'v5_authority',
@@ -197,7 +210,7 @@ export function decideAssistantAuthority(
       )
     }
 
-    // shadow: eligible pipeline, V3 remains visible
+    // shadow: coverage-complete pipeline, V3 remains visible
     return {
       kind: 'v5_authority',
       ownershipActive: false,
