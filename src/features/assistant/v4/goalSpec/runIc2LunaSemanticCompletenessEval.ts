@@ -210,11 +210,7 @@ function detectFalseSimplification(c: Ic2Case, goal: GoalSpec): boolean {
         goal.aggregation === 'sum') &&
       goal.groupBy.length === 0 &&
       goal.orderBy.length === 0 &&
-      goal.limit == null &&
-      goal.aggregation !== 'avg' &&
-      goal.aggregation !== 'min' &&
-      goal.aggregation !== 'max' &&
-      goal.aggregation !== 'rank'
+      goal.limit == null
     )
   }
   if (
