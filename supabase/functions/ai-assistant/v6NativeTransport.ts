@@ -1,7 +1,8 @@
 /**
- * V6-F1.2 — Edge native tools request builder (Deno).
- * Mirrors client v6OpenAITransport + nativeTools. Mapping happens on the client.
+ * V6-F1.3 — Edge native tools (Deno). Domain tools only; mapping on client.
  */
+
+import { V6_REQUESTED_OPERATIONS_SCHEMA } from './v6RequestedOperations.ts'
 
 function nullableObject(
   required: string[],
@@ -125,14 +126,42 @@ function fn(name: string, description: string, parameters: unknown) {
   }
 }
 
+export const V6_OUTCOME_JSON_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['status', 'text', 'slot', 'reason', 'candidates'],
+  properties: {
+    status: {
+      type: 'string',
+      enum: ['final', 'clarify', 'unsupported'],
+    },
+    text: { type: ['string', 'null'] },
+    slot: { type: ['string', 'null'] },
+    reason: { type: ['string', 'null'] },
+    candidates: {
+      type: ['array', 'null'],
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['id', 'label'],
+        properties: {
+          id: { type: 'string' },
+          label: { type: 'string' },
+        },
+      },
+    },
+  },
+}
+
 export const V6_NATIVE_OPENAI_TOOLS = [
   fn(
     'query_collection',
-    'Create a NEW root wedding collection from typed search criteria (temporal, place filters, sort, slice). Use for a fresh search — not to refine an existing collection handle.',
+    'Create a NEW root wedding collection from typed search criteria. Month/year use temporal, never place Filter.',
     {
       type: 'object',
       additionalProperties: false,
       required: [
+        'requested_operations',
         'source',
         'filters',
         'exclude_place',
@@ -141,6 +170,7 @@ export const V6_NATIVE_OPENAI_TOOLS = [
         'slice',
       ],
       properties: {
+        requested_operations: V6_REQUESTED_OPERATIONS_SCHEMA,
         source: { type: 'string', enum: ['wedding'] },
         filters: {
           type: ['array', 'null'],
@@ -163,12 +193,13 @@ export const V6_NATIVE_OPENAI_TOOLS = [
   ),
   fn(
     'transform_collection',
-    'Derive a child collection from an EXISTING collection handle and preserve membership scope (child ⊆ parent). Use when the user refers to a prior result set. Do not create a new global search when the intended operation is a refinement of that collection.',
+    'Derive a child collection from an EXISTING handle (child ⊆ parent). Place=Filter; month/year=RelativeTemporal.',
     {
       type: 'object',
       additionalProperties: false,
-      required: ['parent_handle', 'ops'],
+      required: ['requested_operations', 'parent_handle', 'ops'],
       properties: {
+        requested_operations: V6_REQUESTED_OPERATIONS_SCHEMA,
         parent_handle: { type: 'string' },
         ops: { type: 'array', minItems: 1, items: FILTER_OP },
       },
@@ -176,12 +207,18 @@ export const V6_NATIVE_OPENAI_TOOLS = [
   ),
   fn(
     'aggregate_collection',
-    'Calculate count or sum over an EXISTING collection handle without changing the active collection. Money measures must use contract_value, paid_amount, or remaining_amount — never invent arithmetic.',
+    'Count or sum over an EXISTING handle without changing active collection.',
     {
       type: 'object',
       additionalProperties: false,
-      required: ['collection', 'aggregation', 'measure'],
+      required: [
+        'requested_operations',
+        'collection',
+        'aggregation',
+        'measure',
+      ],
       properties: {
+        requested_operations: V6_REQUESTED_OPERATIONS_SCHEMA,
         collection: { type: 'string' },
         aggregation: { type: 'string', enum: ['count', 'sum'] },
         measure: {
@@ -193,41 +230,14 @@ export const V6_NATIVE_OPENAI_TOOLS = [
   ),
   fn(
     'restore_collection',
-    'Activate an existing historical collection handle (e.g. return to a prior set). Do not re-query or rebuild the collection from language.',
+    'Activate an existing historical collection handle. Do not re-query.',
     {
       type: 'object',
       additionalProperties: false,
-      required: ['collection'],
-      properties: { collection: { type: 'string' } },
-    },
-  ),
-  fn(
-    'complete_turn',
-    'End this planning turn with a final answer, a clarification question, or an unsupported capability outcome. Use when no further domain tool call is needed, or when the request cannot be satisfied with enabled tools without silent simplification.',
-    {
-      type: 'object',
-      additionalProperties: false,
-      required: ['status', 'text', 'slot', 'reason', 'candidates'],
+      required: ['requested_operations', 'collection'],
       properties: {
-        status: {
-          type: 'string',
-          enum: ['final', 'clarify', 'unsupported'],
-        },
-        text: { type: ['string', 'null'] },
-        slot: { type: ['string', 'null'] },
-        reason: { type: ['string', 'null'] },
-        candidates: {
-          type: ['array', 'null'],
-          items: {
-            type: 'object',
-            additionalProperties: false,
-            required: ['id', 'label'],
-            properties: {
-              id: { type: 'string' },
-              label: { type: 'string' },
-            },
-          },
-        },
+        requested_operations: V6_REQUESTED_OPERATIONS_SCHEMA,
+        collection: { type: 'string' },
       },
     },
   ),
@@ -237,14 +247,28 @@ export function buildV6NativeToolsRequestBody(input: {
   model: string
   messages: Array<Record<string, unknown>>
   maxOutputTokens?: number
+  mode?: 'tools' | 'outcome'
 }): Record<string, unknown> {
   const maxOutputTokens = input.maxOutputTokens ?? 1200
+  const mode = input.mode ?? 'tools'
   const base: Record<string, unknown> = {
     model: input.model,
     messages: input.messages,
-    tools: V6_NATIVE_OPENAI_TOOLS,
-    tool_choice: 'auto',
-    parallel_tool_calls: false,
+  }
+  if (mode === 'outcome') {
+    // Do NOT set tool_choice without tools — OpenAI rejects it.
+    base.response_format = {
+      type: 'json_schema',
+      json_schema: {
+        name: 'assistant_v6_outcome',
+        strict: true,
+        schema: V6_OUTCOME_JSON_SCHEMA,
+      },
+    }
+  } else {
+    base.tools = V6_NATIVE_OPENAI_TOOLS
+    base.tool_choice = 'auto'
+    base.parallel_tool_calls = false
   }
   if (input.model.trim() === 'gpt-5.6-luna') {
     base.max_completion_tokens = maxOutputTokens

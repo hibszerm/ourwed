@@ -1,12 +1,15 @@
 /**
- * V6-F1 — Edge invoke for one agent step (F1.2 native tools transport).
+ * V6-F1 — Edge invoke for one agent step (F1.3 native tools + outcome modes).
  */
 
 import type { V6AgentStepRequest, V6AgentStepResponse } from './protocol'
 import { parseV6NativeChatMessage } from './parseNativeStep'
 
 export async function invokeV6AgentStep(
-  input: Omit<V6AgentStepRequest, 'mode'> & { signal?: AbortSignal },
+  input: Omit<V6AgentStepRequest, 'mode'> & {
+    signal?: AbortSignal
+    transportMode?: 'tools' | 'outcome'
+  },
 ): Promise<V6AgentStepResponse> {
   if (input.signal?.aborted) {
     return {
@@ -16,14 +19,15 @@ export async function invokeV6AgentStep(
     }
   }
 
-  const body: V6AgentStepRequest = {
-    mode: 'v6_agent_step',
+  const body = {
+    mode: 'v6_agent_step' as const,
     utterance: input.utterance,
     locale: input.locale,
     round: input.round,
     compactConversationContext: input.compactConversationContext,
     collectionSummaries: input.collectionSummaries,
     previousToolResults: input.previousToolResults,
+    transportMode: input.transportMode ?? 'tools',
   }
 
   const { supabase } = await import('@/lib/supabase')
@@ -71,6 +75,9 @@ export async function invokeV6AgentStep(
         message: 'empty_native_message',
       }
     }
+    const hasEvidence =
+      Array.isArray(input.previousToolResults) &&
+      input.previousToolResults.length > 0
     const parsed = parseV6NativeChatMessage(
       message as {
         content?: string | null
@@ -78,6 +85,10 @@ export async function invokeV6AgentStep(
           id: string
           function: { name: string; arguments: string }
         }> | null
+      },
+      {
+        allowPlainTextFinal:
+          hasEvidence && (input.transportMode ?? 'tools') !== 'outcome',
       },
     )
     if (!parsed.ok) {

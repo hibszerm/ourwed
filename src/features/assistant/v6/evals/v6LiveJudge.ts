@@ -27,6 +27,17 @@ export type TurnTrace = {
   snapshotAfter?: string[]
   parentSnapshot?: string[]
   financeProvenance?: string | null
+  observability?: {
+    modelDecisionCount: number
+    executedToolCount: number
+    duplicateToolAttemptCount: number
+    duplicateToolExecutionCount: number
+    repairCount: number
+    terminationReason: string | null
+    unsupportedReason: string | null
+    requestedOperationClasses: string[]
+    executedOperationClasses: string[]
+  }
   classification:
     | 'PASS'
     | 'INTERPRETATION_ERROR'

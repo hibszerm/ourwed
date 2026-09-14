@@ -11,8 +11,14 @@ import {
 } from '../agent/mapNativeToolArgs'
 import { V6_NATIVE_OPENAI_TOOLS } from '../agent/nativeTools'
 
-assert.equal(V6_NATIVE_OPENAI_TOOLS.length, 5)
-console.log('  OK native tool count')
+assert.equal(V6_NATIVE_OPENAI_TOOLS.length, 4)
+assert.ok(
+  !V6_NATIVE_OPENAI_TOOLS.some(
+    (t) =>
+      (t as { function?: { name?: string } }).function?.name === 'complete_turn',
+  ),
+)
+console.log('  OK native tool count (no complete_turn)')
 
 const q = mapNativeQueryArgs({
   source: 'wedding',
@@ -62,6 +68,67 @@ const t = mapNativeTransformArgs({
 })
 assert.equal(t.ok, true)
 console.log('  OK map transform_collection')
+
+const monthRefine = mapNativeTransformArgs({
+  parent_handle: 'col_1',
+  ops: [
+    {
+      op: 'RelativeTemporal',
+      place: null,
+      temporal: {
+        kind: 'closed_calendar_month',
+        inclusive: null,
+        year: 2027,
+        month: 6,
+        from_kind: null,
+        from_date: null,
+        from_year: null,
+        from_month: null,
+        to_kind: null,
+        to_date: null,
+        to_year: null,
+        to_month: null,
+      },
+      sort: null,
+      slice: null,
+      exclude: null,
+    },
+  ],
+})
+assert.equal(monthRefine.ok, true)
+if (monthRefine.ok) {
+  assert.equal(monthRefine.value.ops[0]?.op, 'RelativeTemporal')
+}
+console.log('  OK month refine via RelativeTemporal (not place Filter)')
+
+const placeFilterNoPlace = mapNativeTransformArgs({
+  parent_handle: 'col_1',
+  ops: [
+    {
+      op: 'Filter',
+      place: null,
+      temporal: {
+        kind: 'closed_calendar_month',
+        inclusive: null,
+        year: 2027,
+        month: 6,
+        from_kind: null,
+        from_date: null,
+        from_year: null,
+        from_month: null,
+        to_kind: null,
+        to_date: null,
+        to_year: null,
+        to_month: null,
+      },
+      sort: null,
+      slice: null,
+      exclude: null,
+    },
+  ],
+})
+assert.equal(placeFilterNoPlace.ok, false)
+console.log('  OK Filter without place rejected (month must use RelativeTemporal)')
 
 const a = mapNativeAggregateArgs({
   collection: 'col_1',

@@ -1,7 +1,9 @@
 /**
- * V6-F1.2 — Native OpenAI strict function-calling tool schemas.
- * No anyOf (OpenAI strict prefers type: [object, null] for nullable nests).
+ * V6-F1.3 — Native OpenAI strict function-calling tool schemas.
+ * Domain tools only (no model-facing complete_turn).
  */
+
+import { V6_REQUESTED_OPERATIONS_SCHEMA } from './requestedOperations'
 
 function nullableObject(
   required: string[],
@@ -125,6 +127,7 @@ export const QUERY_COLLECTION_PARAMETERS = {
   type: 'object',
   additionalProperties: false,
   required: [
+    'requested_operations',
     'source',
     'filters',
     'exclude_place',
@@ -133,6 +136,7 @@ export const QUERY_COLLECTION_PARAMETERS = {
     'slice',
   ],
   properties: {
+    requested_operations: V6_REQUESTED_OPERATIONS_SCHEMA,
     source: { type: 'string', enum: ['wedding'] },
     filters: {
       type: ['array', 'null'],
@@ -156,8 +160,9 @@ export const QUERY_COLLECTION_PARAMETERS = {
 export const TRANSFORM_COLLECTION_PARAMETERS = {
   type: 'object',
   additionalProperties: false,
-  required: ['parent_handle', 'ops'],
+  required: ['requested_operations', 'parent_handle', 'ops'],
   properties: {
+    requested_operations: V6_REQUESTED_OPERATIONS_SCHEMA,
     parent_handle: { type: 'string' },
     ops: {
       type: 'array',
@@ -170,8 +175,9 @@ export const TRANSFORM_COLLECTION_PARAMETERS = {
 export const AGGREGATE_COLLECTION_PARAMETERS = {
   type: 'object',
   additionalProperties: false,
-  required: ['collection', 'aggregation', 'measure'],
+  required: ['requested_operations', 'collection', 'aggregation', 'measure'],
   properties: {
+    requested_operations: V6_REQUESTED_OPERATIONS_SCHEMA,
     collection: { type: 'string' },
     aggregation: { type: 'string', enum: ['count', 'sum'] },
     measure: {
@@ -184,13 +190,15 @@ export const AGGREGATE_COLLECTION_PARAMETERS = {
 export const RESTORE_COLLECTION_PARAMETERS = {
   type: 'object',
   additionalProperties: false,
-  required: ['collection'],
+  required: ['requested_operations', 'collection'],
   properties: {
+    requested_operations: V6_REQUESTED_OPERATIONS_SCHEMA,
     collection: { type: 'string' },
   },
 } as const
 
-export const COMPLETE_TURN_PARAMETERS = {
+/** Non-tool structured outcome (used with tool_choice none). */
+export const V6_OUTCOME_JSON_SCHEMA = {
   type: 'object',
   additionalProperties: false,
   required: ['status', 'text', 'slot', 'reason', 'candidates'],
@@ -236,28 +244,23 @@ function fn(
 export const V6_NATIVE_OPENAI_TOOLS: Array<Record<string, unknown>> = [
   fn(
     'query_collection',
-    'Create a NEW root wedding collection from typed search criteria (temporal, place filters, sort, slice). Use for a fresh search — not to refine an existing collection handle.',
+    'Create a NEW root wedding collection from typed search criteria (temporal, place filters, sort, slice). Use for a fresh search — not to refine an existing collection handle. Month/year constraints use temporal (closed_calendar_month / closed_calendar_year), never place Filter.',
     QUERY_COLLECTION_PARAMETERS,
   ),
   fn(
     'transform_collection',
-    'Derive a child collection from an EXISTING collection handle and preserve membership scope (child ⊆ parent). Use when the user refers to a prior result set. Do not create a new global search when the intended operation is a refinement of that collection.',
+    'Derive a child collection from an EXISTING collection handle and preserve membership scope (child ⊆ parent). Use when the user refers to a prior result set. Place refine uses Filter; month/year refine uses RelativeTemporal. Do not create a new global search when the intended operation is a refinement of that collection.',
     TRANSFORM_COLLECTION_PARAMETERS,
   ),
   fn(
     'aggregate_collection',
-    'Calculate count or sum over an EXISTING collection handle without changing the active collection. Money measures must use contract_value, paid_amount, or remaining_amount — never invent arithmetic.',
+    'Calculate count or sum over an EXISTING collection handle without changing the active collection. Money measures must use contract_value, paid_amount, or remaining_amount — never invent arithmetic. After a successful aggregate, answer from the observation — do not re-call the same aggregate.',
     AGGREGATE_COLLECTION_PARAMETERS,
   ),
   fn(
     'restore_collection',
-    'Activate an existing historical collection handle (e.g. return to a prior set). Do not re-query or rebuild the collection from language.',
+    'Activate an existing historical collection handle (e.g. return to a prior set). Do not re-query or rebuild the collection from language. After a successful restore, answer from the collection observation — do not restore again.',
     RESTORE_COLLECTION_PARAMETERS,
-  ),
-  fn(
-    'complete_turn',
-    'End this planning turn with a final answer, a clarification question, or an unsupported capability outcome. Use when no further domain tool call is needed, or when the request cannot be satisfied with enabled tools without silent simplification.',
-    COMPLETE_TURN_PARAMETERS,
   ),
 ]
 

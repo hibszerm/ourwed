@@ -15,6 +15,8 @@ export type V6AgentStepRequest = {
   round: number
   compactConversationContext?: {
     recentUtterances?: string[]
+    executionState?: unknown
+    controllerDiagnostic?: string
   }
   collectionSummaries: V6CollectionSummary[]
   previousToolResults?: Array<{

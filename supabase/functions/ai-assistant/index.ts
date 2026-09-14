@@ -612,6 +612,12 @@ Deno.serve(async (req) => {
       previousToolResults: body.previousToolResults ?? [],
     })
 
+    const transportMode =
+      body.transportMode === 'outcome' ||
+      body.compactConversationContext?.forceOutcome === true
+        ? 'outcome'
+        : 'tools'
+
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 28_000)
     const started = Date.now()
@@ -620,6 +626,7 @@ Deno.serve(async (req) => {
       const openaiPayload = buildV6NativeToolsRequestBody({
         model: v6Model,
         maxOutputTokens: 1200,
+        mode: transportMode,
         messages: [
           { role: 'system', content: V6_AGENT_SYSTEM_PROMPT },
           { role: 'user', content: userPayload },

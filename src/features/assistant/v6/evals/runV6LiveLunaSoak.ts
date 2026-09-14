@@ -1,5 +1,5 @@
 /**
- * V6-F1.1 — Live Luna soak (frozen F1 surface).
+ * V6-F1.3 — Live Luna soak (turn controller + unsupported fidelity).
  *
  *   npx tsx --env-file=.env.local --tsconfig tsconfig.app.json \
  *     src/features/assistant/v6/evals/runV6LiveLunaSoak.ts
@@ -7,6 +7,7 @@
  * Optional:
  *   V6_LIVE_LIMIT=20  — run first N cases (smoke)
  *   V6_LIVE_ONLY=m02-original,m01-core8,m03-novel
+ *   V6_LIVE_MINI=1   — focused A–H gate before full soak
  */
 
 import { mkdirSync, writeFileSync } from 'node:fs'
@@ -16,7 +17,20 @@ import { V6_AGENT_SYSTEM_PROMPT } from '../agent/prompt'
 import { buildV6NativeToolsRequestBody } from '../agent/v6OpenAITransport'
 import { parseV6NativeChatMessage } from '../agent/parseNativeStep'
 import type { V6AgentStepResponse } from '../agent/protocol'
-import { V6_MAX_TOOL_ROUNDS } from '../agent/protocol'
+import {
+  V6_MAX_MODEL_DECISIONS,
+  V6_REPAIR_DIAGNOSTIC,
+  V6_STRUCTURED_OUTCOME_DIAGNOSTIC,
+  buildExecutionState,
+  createV6TurnController,
+  decideToolExecution,
+  fingerprintToolCall,
+  markRepairUsed,
+  markTermination,
+  markToolExecuted,
+  noteModelDecision,
+  noteRequestedOps,
+} from '../agent/turnController'
 import { buildModelCollectionContext } from '../collections/summary'
 import {
   destroyV6CollectionSession,
@@ -104,7 +118,14 @@ async function callLunaStep(input: {
   collectionSummaries: unknown
   previousToolResults: unknown
   recentUtterances: string[]
-}): Promise<LunaStep> {
+  executionState?: unknown
+  repairDiagnostic?: string
+  mode?: 'tools' | 'outcome'
+}): Promise<
+  LunaStep & {
+    toolCalls?: import('../agent/parseNativeStep').ParsedNativeToolCall[]
+  }
+> {
   const apiKey = process.env.OPENAI_API_KEY?.trim()
   if (!apiKey) {
     return {
@@ -115,23 +136,27 @@ async function callLunaStep(input: {
     }
   }
   const started = Date.now()
+  const userPayload: Record<string, unknown> = {
+    utterance: input.utterance,
+    locale: 'pl-PL',
+    round: input.round,
+    collectionSummaries: input.collectionSummaries,
+    compactConversationContext: {
+      recentUtterances: input.recentUtterances,
+      executionState: input.executionState ?? null,
+      controllerDiagnostic: input.repairDiagnostic ?? null,
+    },
+    previousToolResults: input.previousToolResults,
+  }
   const reqBody = buildV6NativeToolsRequestBody({
     model: MODEL,
     maxOutputTokens: 1200,
+    mode: input.mode ?? 'tools',
     messages: [
       { role: 'system', content: V6_AGENT_SYSTEM_PROMPT },
       {
         role: 'user',
-        content: JSON.stringify({
-          utterance: input.utterance,
-          locale: 'pl-PL',
-          round: input.round,
-          collectionSummaries: input.collectionSummaries,
-          compactConversationContext: {
-            recentUtterances: input.recentUtterances,
-          },
-          previousToolResults: input.previousToolResults,
-        }),
+        content: JSON.stringify(userPayload),
       },
     ],
   })
@@ -159,11 +184,22 @@ async function callLunaStep(input: {
     }
   }
   const message = body?.choices?.[0]?.message
-  const checked = parseV6NativeChatMessage(message ?? {})
+  const hasEvidence =
+    Array.isArray(input.previousToolResults) &&
+    (input.previousToolResults as unknown[]).length > 0
+  const checked = parseV6NativeChatMessage(message ?? {}, {
+    // Plain text finals only after tool evidence. Outcome mode is always structured.
+    allowPlainTextFinal: hasEvidence && input.mode !== 'outcome',
+  })
   if (!checked.ok) {
     return { ok: false, kind: 'schema', error: checked.reason, latencyMs }
   }
-  return { ok: true, payload: checked.response, latencyMs }
+  return {
+    ok: true,
+    payload: checked.response,
+    toolCalls: checked.toolCalls,
+    latencyMs,
+  }
 }
 
 async function runOneUtterance(input: {
@@ -182,36 +218,59 @@ async function runOneUtterance(input: {
   let finalStatus = 'unknown'
   let unsupportedReason: string | undefined
   let parentSnapshot: string[] | undefined
+  const controller = createV6TurnController()
+  let lastAggregateOk = false
+  let lastRestoreOk = false
+  const observations: string[] = []
+  let pendingRepair: string | null = null
+  let forceOutcome = false
 
-  for (let round = 1; round <= V6_MAX_TOOL_ROUNDS + 1; round++) {
-    if (round > V6_MAX_TOOL_ROUNDS) {
-      return {
-        utterance: input.utterance,
-        agentStatuses,
-        toolTrace,
-        modelLatencyMs,
-        finalStatus: 'error',
-        classification: 'PLAN_ERROR',
-        failures: ['max_tool_rounds_exceeded'],
-      }
-    }
-
+  while (controller.modelDecisionCount < V6_MAX_MODEL_DECISIONS) {
     const active = v6CollectionStore.getActive()
     const summaries = buildModelCollectionContext({
       active,
       recent: v6CollectionStore.listRecent(5),
     })
+    const executionState = buildExecutionState({
+      controller,
+      activeHandle: active?.handle ?? null,
+      observations,
+      lastAggregateOk,
+      lastRestoreOk,
+    })
 
+    noteModelDecision(controller)
     const step = await callLunaStep({
       utterance: input.utterance,
-      round,
+      round: controller.modelDecisionCount,
       collectionSummaries: summaries,
       previousToolResults,
       recentUtterances: input.recentUtterances,
+      executionState,
+      repairDiagnostic: pendingRepair ?? undefined,
+      mode: forceOutcome ? 'outcome' : 'tools',
     })
+    pendingRepair = null
+    forceOutcome = false
     await sleep(SLEEP_MS)
 
     if (!step.ok) {
+      // One forced structured-outcome repair when zero-evidence prose was rejected.
+      if (
+        step.kind === 'schema' &&
+        step.error.includes('structured_outcome_required') &&
+        !controller.repairUsed &&
+        previousToolResults.length === 0 &&
+        observations.length === 0
+      ) {
+        markRepairUsed(controller)
+        pendingRepair = V6_STRUCTURED_OUTCOME_DIAGNOSTIC
+        forceOutcome = true
+        modelLatencyMs.push(step.latencyMs)
+        agentStatuses.push('schema_repair')
+        continue
+      }
+      markTermination(controller, 'safe_error')
       return {
         utterance: input.utterance,
         agentStatuses,
@@ -221,6 +280,7 @@ async function runOneUtterance(input: {
         classification:
           step.kind === 'provider' ? 'PROVIDER_ERROR' : 'SCHEMA_ERROR',
         failures: [step.error],
+        observability: controller.observability,
       }
     }
 
@@ -234,18 +294,74 @@ async function runOneUtterance(input: {
           typeof step.payload.reason === 'string'
             ? step.payload.reason
             : 'unsupported'
+        markTermination(controller, 'unsupported', unsupportedReason)
+      } else if (step.payload.status === 'clarify') {
+        markTermination(controller, 'clarify')
+      } else {
+        markTermination(controller, 'final')
       }
       break
     }
 
-    const calls = step.payload.toolCalls ?? []
+    const parsedCalls = step.toolCalls ?? []
     previousToolResults = []
-    for (let i = 0; i < calls.length; i++) {
-      const call = calls[i]!
-      const args = (call.arguments ?? {}) as Record<string, unknown>
-      if (call.name === 'transform_collection') {
-        const ph = String(args.parentHandle ?? '')
-        const parent = v6CollectionStore.get(ph)
+    let blockedDuplicate = false
+
+    for (const call of parsedCalls) {
+      const opsDecision = noteRequestedOps(controller, call.requestedOperations)
+      if (opsDecision.action === 'UNSUPPORTED') {
+        finalStatus = 'unsupported'
+        unsupportedReason = opsDecision.detail
+        markTermination(controller, 'unsupported', opsDecision.detail)
+        return {
+          utterance: input.utterance,
+          agentStatuses,
+          toolTrace,
+          modelLatencyMs,
+          finalStatus,
+          unsupportedReason,
+          activeHandleAfter: v6CollectionStore.getActive()?.handle ?? null,
+          classification: 'PASS',
+          failures: [],
+          observability: controller.observability,
+        }
+      }
+
+      const args = call.arguments
+      const inputHandle =
+        typeof args.parentHandle === 'string'
+          ? args.parentHandle
+          : typeof args.collection === 'string'
+            ? args.collection
+            : undefined
+      const fp = fingerprintToolCall(call.name, args, inputHandle)
+      const execDecision = decideToolExecution(controller, fp)
+
+      if (execDecision.action === 'BLOCK_DUPLICATE') {
+        blockedDuplicate = true
+        if (execDecision.allowRepair) {
+          markRepairUsed(controller)
+          // One repair model decision — may finalize OR pick a different tool.
+          // Do NOT force outcome-only; do NOT re-execute the duplicate.
+          pendingRepair = V6_REPAIR_DIAGNOSTIC
+        } else {
+          markTermination(controller, 'repeated_tool_call')
+          return {
+            utterance: input.utterance,
+            agentStatuses,
+            toolTrace,
+            modelLatencyMs,
+            finalStatus: 'error',
+            classification: 'PLAN_ERROR',
+            failures: ['REPEATED_TOOL_CALL'],
+            observability: controller.observability,
+          }
+        }
+        break
+      }
+
+      if (call.name === 'transform_collection' && inputHandle) {
+        const parent = v6CollectionStore.get(inputHandle)
         if (parent) parentSnapshot = [...parent.snapshotMemberIds]
       }
 
@@ -311,6 +427,22 @@ async function runOneUtterance(input: {
       }
 
       const latencyMs = Date.now() - t0
+      markToolExecuted(controller, fp, call.name)
+      if (call.name === 'aggregate_collection' && finalResult.ok) {
+        lastAggregateOk = true
+        observations.push('aggregate_scalar')
+      }
+      if (call.name === 'restore_collection' && finalResult.ok) {
+        lastRestoreOk = true
+        observations.push('restored_collection')
+      }
+      if (call.name === 'query_collection' && finalResult.ok) {
+        observations.push('root_collection')
+      }
+      if (call.name === 'transform_collection' && finalResult.ok) {
+        observations.push('refined_collection')
+      }
+
       const outputHandle =
         finalResult.ok &&
         finalResult.data &&
@@ -320,18 +452,13 @@ async function runOneUtterance(input: {
           : undefined
 
       toolTrace.push({
-        round,
+        round: controller.modelDecisionCount,
         name: call.name,
         args,
         ok: finalResult.ok,
         code: finalResult.ok ? undefined : finalResult.code,
         result: finalResult,
-        inputHandle:
-          typeof args.parentHandle === 'string'
-            ? args.parentHandle
-            : typeof args.collection === 'string'
-              ? args.collection
-              : undefined,
+        inputHandle,
         outputHandle,
         latencyMs,
       })
@@ -341,6 +468,34 @@ async function runOneUtterance(input: {
         name: call.name,
         result: finalResult,
       })
+    }
+
+    if (blockedDuplicate && pendingRepair) {
+      continue
+    }
+    if (blockedDuplicate) break
+
+    // After successful tools: prefer next model decision with executionState;
+    // if budget nearly exhausted, force outcome mode next.
+    if (
+      controller.modelDecisionCount >= V6_MAX_MODEL_DECISIONS - 1 &&
+      previousToolResults.length > 0
+    ) {
+      forceOutcome = true
+    }
+  }
+
+  if (finalStatus === 'unknown') {
+    markTermination(controller, 'max_rounds')
+    return {
+      utterance: input.utterance,
+      agentStatuses,
+      toolTrace,
+      modelLatencyMs,
+      finalStatus: 'error',
+      classification: 'PLAN_ERROR',
+      failures: ['max_tool_rounds_exceeded'],
+      observability: controller.observability,
     }
   }
 
@@ -367,6 +522,7 @@ async function runOneUtterance(input: {
     financeProvenance: finance,
     classification: 'PASS',
     failures: [],
+    observability: controller.observability,
   }
 }
 
@@ -403,7 +559,7 @@ async function runCase(c: V6LiveCase) {
                 i > 0 ? c.expect.requirePlaceExclude : undefined,
               requireAggregate: i > 0 ? c.expect.requireAggregate : undefined,
               requireMeasure: i > 0 ? c.expect.requireMeasure : undefined,
-              requireRestore: i > 0 ? c.expect.requireRestore : undefined,
+              // Restore is only graded on the final turn (not intermediate refines).
               requireClosedYear: c.expect.requireClosedYear,
               requireClosedMonth: c.expect.requireClosedMonth,
               requireUnsupported:
@@ -437,11 +593,30 @@ function percentile(sorted: number[], p: number): number {
   return sorted[idx]!
 }
 
+/** Mini gate A–H (must pass before full soak). */
+const V6_MINI_GATE_IDS = [
+  's01', // A nearest
+  'm04-ref-te', // B refine
+  's21', // C aggregate
+  'm07-ref-tamte', // D restore
+  'm12-zero', // E zero
+  'u10', // F unsupported group
+  'u15', // G unsupported revenue ranking
+  'm13-finance-chain', // H multi-step finalize stress (loop risk)
+] as const
+
 async function main() {
   const counts = liveCorpusCounts()
-  console.log('V6-F1.1 live corpus counts', counts)
+  console.log('V6-F1.3 live corpus counts', counts)
 
   let cases = allLiveCases()
+  const mini = process.env.V6_LIVE_MINI === '1'
+  if (mini) {
+    cases = cases.filter((c) =>
+      (V6_MINI_GATE_IDS as readonly string[]).includes(c.id),
+    )
+    console.log('MINI GATE cases', cases.map((c) => c.id))
+  }
   const only = process.env.V6_LIVE_ONLY?.split(',').map((s) => s.trim()).filter(Boolean)
   if (only?.length) {
     cases = cases.filter((c) => only.includes(c.id))
@@ -521,14 +696,31 @@ async function main() {
   const refFails = allTurns.filter(
     (t) => t.classification === 'REFERENCE_RESOLUTION_ERROR',
   ).length
+  const roundOverflow = allTurns.filter((t) =>
+    t.failures.includes('max_tool_rounds_exceeded'),
+  ).length
+  const duplicateAttempts = allTurns.reduce(
+    (n, t) => n + (t.observability?.duplicateToolAttemptCount ?? 0),
+    0,
+  )
+  const duplicateExecutions = allTurns.reduce(
+    (n, t) => n + (t.observability?.duplicateToolExecutionCount ?? 0),
+    0,
+  )
+  const repairCount = allTurns.reduce(
+    (n, t) => n + (t.observability?.repairCount ?? 0),
+    0,
+  )
 
   const special = (id: string) => results.find((r) => r.case.id === id)
 
   const summary = {
+    phase: 'V6-F1.3',
     model: MODEL,
     today: TODAY,
-    promptChanged: false,
-    codeChanged: false,
+    promptChanged: true,
+    codeChanged: true,
+    miniGate: mini,
     counts,
     ran: results.length,
     scores: {
@@ -542,6 +734,10 @@ async function main() {
       schemaValidity: schemaErrors === 0 ? 100 : 100 * (1 - schemaErrors / Math.max(1, allTurns.length)),
       providerErrors,
       schemaErrors,
+      roundOverflow,
+      duplicateToolAttempts: duplicateAttempts,
+      duplicateToolExecutions: duplicateExecutions,
+      repairCount,
       silentSemanticSubstitution: silentSub,
       silentScopeWidening: scopeWiden,
       collectionContextLoss: ctxLoss,
@@ -568,7 +764,7 @@ async function main() {
     'src/features/assistant/v4/benchmark/artifacts',
   )
   mkdirSync(outDir, { recursive: true })
-  const outPath = resolve(outDir, 'phase-v6-f12-live-luna-soak.json')
+  const outPath = resolve(outDir, 'phase-v6-f13-live-luna-soak.json')
   writeFileSync(
     outPath,
     JSON.stringify(
