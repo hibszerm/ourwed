@@ -348,7 +348,7 @@ await run('artifact persistence keeps DOCX when PDF conversion fails', async () 
     },
     generatePdf: async () => {
       events.push('persist-pdf')
-      throw new Error('gotenberg misconfigured')
+      throw new Error('pdf provider misconfigured')
     },
     pdfAvailable: true,
   })
@@ -368,7 +368,7 @@ await run('artifact persistence keeps DOCX when PDF conversion fails', async () 
   assert(result.docx != null, 'docx kept')
   equal(result.pdf, null, 'pdf null')
   equal(result.pdfAvailable, false, 'pdf unavailable')
-  equal(result.pdfError, 'gotenberg misconfigured', 'pdf error surfaced')
+  equal(result.pdfError, 'pdf provider misconfigured', 'pdf error surfaced')
 })
 
 await run('CRM status follows artifact persistence in both UIs', async () => {

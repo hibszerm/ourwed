@@ -30,6 +30,11 @@ function assert(cond: unknown, msg: string): asserts cond {
 assert(resolvePdfRendererProvider('pdfshift') === 'pdfShift', 'select pdfshift')
 assert(resolvePdfRendererProvider('local') === 'localDocker', 'explicit local')
 assert(resolvePdfRendererProvider(undefined) === 'pdfShift', 'default pdfshift')
+assert(resolvePdfRendererProvider('gotenberg') === 'pdfShift', 'gotenberg alias not accepted')
+assert(
+  resolvePdfRendererProvider('gotenberg_chromium') === 'pdfShift',
+  'gotenberg_chromium alias not accepted',
+)
 
 // Option mapping matches Gotenberg Chromium defaults
 const body = buildPdfShiftRequestBody({

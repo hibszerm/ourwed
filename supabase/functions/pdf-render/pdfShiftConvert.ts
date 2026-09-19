@@ -14,12 +14,12 @@ export type PdfRenderDomainError =
   | 'PDF_RENDER_PRO_REQUIRED'
 
 export type PdfRenderHtmlOptions = {
-  /** A4 portrait by default (matches Gotenberg Chromium brief path). */
+  /** A4 portrait by default (Wedding Brief page geometry). */
   format?: 'A4'
   landscape?: boolean
-  /** Print backgrounds (Gotenberg printBackground=true). */
+  /** Print backgrounds. */
   printBackground?: boolean
-  /** Margins in inches (same units as Gotenberg Chromium form fields). */
+  /** Margins in inches. */
   marginTopIn?: number
   marginRightIn?: number
   marginBottomIn?: number
@@ -49,7 +49,7 @@ export class PdfRenderError extends Error {
   }
 }
 
-/** Gotenberg Chromium defaults used by convertHtmlViaGotenberg. */
+/** Default HTML page geometry for pdf-render → PDFShift. Identifier name is historical. */
 export const GOTENBERG_HTML_DEFAULTS = {
   paperWidthIn: 8.27,
   paperHeightIn: 11.7,
@@ -70,7 +70,7 @@ export function inchesToMm(inches: number): number {
 }
 
 /**
- * Map Gotenberg Chromium `.pageNumber` / `.totalPages` placeholders
+ * Map brief footer `.pageNumber` / `.totalPages` placeholders
  * to PDFShift `{{page}}` / `{{total}}`.
  */
 export function adaptFooterHeaderHtmlForPdfShift(html: string): string {

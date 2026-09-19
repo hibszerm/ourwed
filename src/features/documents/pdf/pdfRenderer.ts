@@ -22,7 +22,7 @@ export type RenderHtmlToPdfInput = {
 
 export type RenderHtmlToPdfResult = {
   pdfBytes: Uint8Array
-  provider: PdfRendererProviderId | 'gotenberg_chromium' | 'pdfshift'
+  provider: PdfRendererProviderId | 'pdfshift'
   sandbox?: boolean
 }
 
@@ -40,12 +40,7 @@ export function resolvePdfRendererProvider(
   raw: string | undefined | null,
 ): PdfRendererProviderId {
   const v = (raw ?? '').trim().toLowerCase()
-  if (
-    v === 'local' ||
-    v === 'localdocker' ||
-    v === 'gotenberg' ||
-    v === 'docker'
-  ) {
+  if (v === 'local' || v === 'localdocker' || v === 'docker') {
     return 'localDocker'
   }
   return 'pdfShift'

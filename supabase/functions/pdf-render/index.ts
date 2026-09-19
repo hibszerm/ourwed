@@ -1,5 +1,7 @@
 /**
- * Edge Function: HTML → PDF via PDFShift (POC — not production default).
+ * Edge Function: production HTML → PDF via PDFShift.
+ *
+ * Used by Wedding Brief (`renderProductionHtmlToPdf` → `pdf-render`).
  *
  * Secrets (never VITE_):
  *   PDFSHIFT_API_KEY
@@ -7,7 +9,7 @@
  *   PDF_RENDER_TIMEOUT_MS (default 60000)
  *
  * Auth: authenticated studio session + account_has_pro_access().
- * Accepts HTML from the caller (same tradeoff as existing html-to-pdf).
+ * Accepts HTML from the caller (authenticated document bytes under auth+PRO).
  * Never accepts arbitrary public anonymous use.
  *
  * Deploy:

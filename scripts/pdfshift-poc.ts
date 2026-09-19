@@ -142,7 +142,7 @@ const briefHtml = renderWeddingBriefHtml(briefData)
 const briefFooter = renderWeddingBriefFooterHtml(briefData)
 const briefFilename = buildWeddingBriefFilename(briefData)
 
-/** Contract HTML for Chromium parity POC — NOT the production DOCX→LibreOffice path. */
+/** Contract print-HTML fixture for this PDFShift POC — not the production DOCX→Cloudmersive path. */
 const contractHtml = paragraphsToPrintHtml('Umowa — Aleksandra i Michał', [
   { index: 0, text: 'UMOWA O ŚWIADCZENIE USŁUG FILMOWYCH' },
   {

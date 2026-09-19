@@ -177,7 +177,8 @@ export const ContractArtifactPersistenceService =
     },
     generateDocx: (input) => ContractExportService.generateDocx(input),
     generatePdf: (input) => ContractExportService.generatePdf(input),
-    // DOCX is authoritative; experimental PDF is on-demand and never blocks save.
+    // DOCX is authoritative. Persistence PDF is unavailable here and never blocks save.
+    // User PDF download is on-demand via contract-docx-to-pdf → Cloudmersive.
     pdfAvailable: false,
   })
 

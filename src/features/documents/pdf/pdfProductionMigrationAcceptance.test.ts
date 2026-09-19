@@ -25,6 +25,11 @@ function assert(cond: unknown, msg: string): asserts cond {
 assert(resolvePdfRendererProvider(undefined) === 'pdfShift', 'default pdfshift')
 assert(resolvePdfRendererProvider('pdfshift') === 'pdfShift', 'pdfshift')
 assert(resolvePdfRendererProvider('local') === 'localDocker', 'explicit local')
+assert(resolvePdfRendererProvider('gotenberg') === 'pdfShift', 'gotenberg alias not accepted')
+assert(
+  resolvePdfRendererProvider('gotenberg_chromium') === 'pdfShift',
+  'gotenberg_chromium alias not accepted',
+)
 
 // Brief production path → pdf-render, not html-to-pdf / localhost
 const briefConvert = read('src/features/wedding-brief/convertWeddingBriefHtmlToPdf.ts')
