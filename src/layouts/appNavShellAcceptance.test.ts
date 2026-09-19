@@ -118,6 +118,14 @@ assert(!fieldConfig.includes("navigate('/laboratorium-umow-ai')"), 'no lab CTA i
 
 const docs = read('docs/experimental-tools.md')
 assert(docs.includes('hidden from customer navigation'), 'experimental docs')
-assert(docs.includes('/laboratorium-umow-ai'), 'docs list routes')
+assert(
+  docs.includes('Deleted experimental UI') && docs.includes('not reachable'),
+  'docs mark deleted lab spa as not reachable',
+)
+assert(
+  !/VITE_ENABLE_AI_CONTRACT_LAB\s*=\s*true/.test(docs),
+  'deleted lab flag not documented as enabling live routes',
+)
+assert(docs.includes('/dev/contract-analysis-eval'), 'remaining DEV eval route documented')
 
 console.log('PASS  app-nav-shell acceptance')

@@ -14,7 +14,7 @@ Date: 2026-07-27
 - `document_templates` + `document_template_versions` (DOCX bytes + version pins)
 - `packages.active_contract_template_*` bindings
 - `wedding_document_drafts` / `wedding_documents` persistence (`saveGeneratedContract`)
-- Payment schedule dialog + Gotenberg PDF + `ContractDocxPreview`
+- Payment schedule dialog + `ContractDocxPreview` (PDF was Gotenberg at migration time; current production is `contract-docx-to-pdf` → Cloudmersive)
 - Legacy `assignPackageContractFromDocx` / `ContractTransformationService` (deprecated, not deleted)
 - Legacy `slot_map` / readiness meta on existing templates (ignored by sparse generate)
 

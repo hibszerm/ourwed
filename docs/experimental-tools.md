@@ -1,6 +1,8 @@
 # Experimental tools (internal)
 
-Intentionally **hidden from customer navigation**. Implementation retained for future reuse.
+Intentionally **hidden from customer navigation**.
+
+This document distinguishes **deleted experimental UI** from **protected production modules** that still live under historical directory names. Those directories are not obsolete product engines. Do not rename them as part of experimental-UI cleanup.
 
 ## Visibility policy
 
@@ -8,10 +10,11 @@ Intentionally **hidden from customer navigation**. Implementation retained for f
 |---------|--------|
 | Customer sidebar | Hidden (no „Eksperymentalne” section) |
 | Customer buttons / quick links | No production links |
-| Direct URL | May remain reachable when feature flags enable routes |
+| Deleted Lab SPA direct URLs | Not registered — not reachable |
+| Remaining DEV eval route | `import.meta.env.DEV` only |
 | Public couple forms | Unrelated — stay standalone |
 
-This is not security-through-obscurity. Routes that remain registered still require normal auth (`ProtectedRoute`) where applicable. Separate authorization hardening is out of scope for the nav cleanup.
+This is not security-through-obscurity. Remaining registered routes still require normal auth (`ProtectedRoute`) where applicable. Separate authorization hardening is out of scope for the nav cleanup.
 
 ## Hidden customer-nav entries (removed)
 
@@ -20,14 +23,23 @@ This is not security-through-obscurity. Routes that remain registered still requ
 - Laboratorium porównania umów
 - Dashboard V2 (Beta) sidebar entry
 
-## Retained routes (direct URL / flag)
+## Deleted experimental UI (not reachable)
+
+These surfaces were removed. They are **not** current product routes and are **not** enabled by frontend flags.
+
+| Surface | Status |
+|---------|--------|
+| `/laboratorium-umow-ai` | Deleted SPA — not registered |
+| `/laboratorium-umow-ai/semantic` | Deleted SPA — not registered |
+| `/laboratorium-umow-ai/porownanie` | Deleted SPA — not registered |
+| `/eksperymenty/umowy-ai-transform` | Deleted SPA — not registered |
+| `src/features/ai-contract-experiment/*` | Deleted |
+| `VITE_ENABLE_AI_CONTRACT_LAB` / `VITE_ENABLE_CONTRACT_AI_DEBUG_MODES` / `VITE_AI_CONTRACT_LAB_WEDDING_ID` | Removed frontend flags |
+
+## Remaining internal / DEV surfaces
 
 | Route | Purpose | Flag / notes |
 |-------|---------|--------------|
-| `/laboratorium-umow-ai` | AI contract mapping experiment | `VITE_ENABLE_AI_CONTRACT_LAB=true` |
-| `/laboratorium-umow-ai/semantic` | Semantic lab | same |
-| `/eksperymenty/umowy-ai-transform` | Transform comparison | same |
-| `/laboratorium-umow-ai/porownanie` | Alias → comparison | same |
 | `/dev/contract-analysis-eval` | Contract analysis eval | `import.meta.env.DEV` only |
 
 ## Retired experimental routes
@@ -38,18 +50,15 @@ This is not security-through-obscurity. Routes that remain registered still requ
 
 Source under `src/features/dashboard-v2/` may remain on disk for historical reference until a later cleanup; it is **not** mounted in the production route graph.
 
-## Why retained
+## Protected production modules (historical directory names)
 
-- Prototype contract AI pipelines may feed production later
-- Acceptance tests and edge functions depend on these modules
-- Avoid destructive deletion of research code
+Not Lab SPA. Do not delete or rename these because of the directory name.
 
-## Dependencies
+- `src/features/ai-contract-lab/*` — template-field / semantic helpers used by current product contract work
+- `src/features/ai-contract-transform/*` — sparse Full-AI / Mode A production engine
+- Edge `ai-contract-full-rewrite` — production sparse rewrite
 
-- `src/features/ai-contract-lab/*`
-- `src/features/ai-contract-experiment/*`
-- `src/features/ai-contract-transform/*`
-- Supabase functions such as `ai-contract-lab-analyze`, `ai-contract-full-rewrite`, `ai-contract-guarded-transform`
+Lab-named Edge functions (`ai-contract-lab-analyze`, `ai-contract-lab-structured-mapping`, `ai-contract-guarded-transform`) are outside this documentation cleanup.
 
 ## Candidate future reuse
 
@@ -57,4 +66,4 @@ Source under `src/features/dashboard-v2/` may remain on disk for historical refe
 - Side-by-side AI transform quality tooling
 - Internal eval harnesses
 
-Do not expose this document or these links in customer UI.
+Do not expose this document or deleted Lab SPA links in customer UI.

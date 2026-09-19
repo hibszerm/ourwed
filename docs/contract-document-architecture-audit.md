@@ -5,6 +5,8 @@
 
 **Context:** Brief PDF already uses PDFShift. Contract DOCX remains the editable/legal output. A prior HTML→PDFShift contract POC used incomplete `paragraphsToPrintHtml` and must **not** be treated as production-ready.
 
+**Later note (2026-09-20):** Experimental Gotenberg / LibreOffice PDF and related Lab PDF surfaces described in this dated snapshot were later retired. Current production PDF is Contract → `contract-docx-to-pdf` → Cloudmersive and Wedding Brief → `pdf-render` → PDFShift. Historical tables and diagrams below are unchanged.
+
 ---
 
 ## 1. Contract source of truth

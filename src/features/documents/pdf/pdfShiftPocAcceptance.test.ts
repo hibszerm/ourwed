@@ -142,7 +142,13 @@ assert(!envExample.includes('VITE_PDFSHIFT_API_KEY'), 'never vite pdfshift')
 
 const docs = read('docs/pdf-rendering.md')
 assert(docs.includes('PDFShift'), 'docs exist')
-assert(docs.includes('Gotenberg'), 'docs gotenberg')
+assert(docs.includes('pdf-render'), 'docs brief edge')
+assert(
+  !/docker compose --profile gotenberg|npm run dev:pdf|GOTENBERG_URL|VITE_LOCAL_PDF_FUNCTION_URL|ENABLE_EXPERIMENTAL_PDF_EXPORT/.test(
+    docs,
+  ),
+  'docs do not instruct deleted Gotenberg tooling',
+)
 assert(docs.includes('privacy') || docs.includes('Privacy') || docs.includes('prywat'), 'privacy')
 
 // Local Gotenberg development server removed in C2D.2; html-to-pdf source removed in C2D.4D.
