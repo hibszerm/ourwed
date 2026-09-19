@@ -550,8 +550,6 @@ run('AB — advanced configuration remains accessible but optional', () => {
 })
 
 run('AC — AI Lab SPA routes are physically absent', () => {
-  const flags = source('src/features/ai-contract-lab/aiContractLabFlags.ts')
-  assert(flags.includes('VITE_ENABLE_AI_CONTRACT_LAB'), 'flagged')
   const router = source('src/routes/router.tsx')
   assert(!router.includes('/laboratorium-umow-ai'), 'lab spa routes absent')
   assert(!router.includes('/eksperymenty/umowy-ai-transform'), 'comparison lab spa route absent')
@@ -559,6 +557,12 @@ run('AC — AI Lab SPA routes are physically absent', () => {
   assert(!router.includes('AiContractExperimentPage'), 'experiment page absent')
   assert(!router.includes('AiContractLabPage'), 'semantic lab page absent')
   assert(!router.includes('TransformComparisonPage'), 'comparison page absent')
+  assert(
+    !existsSync(
+      resolve(process.cwd(), 'src/features/ai-contract-lab/aiContractLabFlags.ts'),
+    ),
+    'lab frontend flag module absent',
+  )
 })
 
 run('UI status mapping uses product vocabulary', () => {

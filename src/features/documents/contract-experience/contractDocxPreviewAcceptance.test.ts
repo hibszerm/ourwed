@@ -97,8 +97,19 @@ assert(
   !env.includes('MICROSOFT_GRAPH_'),
   'microsoft graph env gone',
 )
-assert(env.includes('GOTENBERG_URL'), 'gotenberg documented')
-assert(env.includes('VITE_ENABLE_EXPERIMENTAL_PDF_EXPORT'), 'flag documented')
+assert(env.includes('GOTENBERG_URL'), 'gotenberg documented for retained Edge')
+assert(
+  !env.includes('VITE_ENABLE_EXPERIMENTAL_PDF_EXPORT'),
+  'experimental pdf frontend flag undeclared',
+)
+assert(
+  !env.includes('VITE_LOCAL_PDF_FUNCTION_URL'),
+  'local pdf frontend url undeclared',
+)
+assert(
+  !env.includes('VITE_ENABLE_AI_CONTRACT_LAB'),
+  'lab frontend flag undeclared',
+)
 
 // PDF must not rerun AI
 assert(

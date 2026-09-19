@@ -16,13 +16,11 @@ export const K3_LIVE_INVENTORY = {
   },
   notes: [
     'LIVE_CURRENT ≈ user-facing routes/actions from Sidebar, settingsNav, wedding workspace tabs, finance, questionnaires, sessions, calendar, guide.',
-    'EXPERIMENTAL includes AI contract lab / transform / comparison routes — not taught.',
+    'EXPERIMENTAL includes remaining internal/dev surfaces — not taught.',
     'DEAD_LEGACY includes dashboard-v2 redirects and document settings redirects to packages.',
     'PARTIAL includes surfaces with Classic/Modern label variance (documented in notes).',
   ],
   excludedExamples: [
-    '/laboratorium-umow-ai',
-    '/eksperymenty/umowy-ai-transform',
     '/dev/contract-analysis-eval',
     'exact_fact',
     'ResourceQuery',
