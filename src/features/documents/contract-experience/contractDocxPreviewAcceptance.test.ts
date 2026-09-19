@@ -3,7 +3,7 @@
  * Run: npx tsx --tsconfig tsconfig.app.json src/features/documents/contract-experience/contractDocxPreviewAcceptance.test.ts
  */
 
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 function source(rel: string): string {
@@ -79,16 +79,10 @@ assert(ready.includes('Pobierz PDF') || source(
 ).includes('Pobierz PDF'), 'production PDF label')
 assert(!ready.includes('ExperimentalPdfActions'), 'ready no experimental PDF panel')
 assert(
-  source(
-    'src/features/ai-contract-transform/TransformComparisonPage.tsx',
-  ).includes('ExperimentalPdfActions'),
-  'transform lab wires experimental pdf',
-)
-assert(
-  source(
-    'src/features/ai-contract-transform/TransformComparisonPage.tsx',
-  ).includes('modeDocxBytes'),
-  'lab uses stored final docx bytes',
+  !existsSync(
+    resolve(process.cwd(), 'src/features/ai-contract-transform/TransformComparisonPage.tsx'),
+  ),
+  'comparison lab page gone',
 )
 assert(
   !env.includes('MICROSOFT_GRAPH_'),

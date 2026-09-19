@@ -50,7 +50,6 @@ import { AuthCallbackPage } from '@/pages/AuthCallbackPage'
 import { RegulaminPage } from '@/pages/RegulaminPage'
 import { PolitykaPrywatnosciPage } from '@/pages/PolitykaPrywatnosciPage'
 import { PowierzenieDanychPage } from '@/pages/PowierzenieDanychPage'
-import { isAiContractLabEnabled } from '@/features/ai-contract-lab/aiContractLabFlags'
 import { RedirectToRootPreserveHash } from '@/routes/RedirectToRootPreserveHash'
 
 /** Redirect legacy `/umowy/szablony/:id…` URLs while preserving the id param. */
@@ -68,49 +67,6 @@ function RedirectTemplateDeepLink({
     />
   )
 }
-
-const aiContractLabRoutes = isAiContractLabEnabled()
-  ? [
-      // Internal / experimental — intentionally hidden from customer navigation.
-      // Routes remain reachable by direct URL when VITE_ENABLE_AI_CONTRACT_LAB=true.
-      {
-        path: '/laboratorium-umow-ai',
-        lazy: async () => {
-          const mod = await import(
-            '@/features/ai-contract-experiment/AiContractExperimentPage'
-          )
-          return { Component: mod.AiContractExperimentPage }
-        },
-      },
-      {
-        path: '/laboratorium-umow-ai/semantic',
-        lazy: async () => {
-          const mod = await import(
-            '@/features/ai-contract-lab/AiContractLabPage'
-          )
-          return { Component: mod.AiContractLabPage }
-        },
-      },
-      {
-        path: '/eksperymenty/umowy-ai-transform',
-        lazy: async () => {
-          const mod = await import(
-            '@/features/ai-contract-transform/TransformComparisonPage'
-          )
-          return { Component: mod.TransformComparisonPage }
-        },
-      },
-      {
-        path: '/laboratorium-umow-ai/porownanie',
-        lazy: async () => {
-          const mod = await import(
-            '@/features/ai-contract-transform/TransformComparisonPage'
-          )
-          return { Component: mod.TransformComparisonPage }
-        },
-      },
-    ]
-  : []
 
 const devRoutes = import.meta.env.DEV
   ? [
@@ -309,7 +265,6 @@ export const router = createBrowserRouter([
         path: '/ustawienia/dokumenty/szablony/:id/konfiguracja-pol',
         element: <DocumentTemplateFieldConfigPage />,
       },
-      ...aiContractLabRoutes,
       ...devRoutes,
         ],
       },

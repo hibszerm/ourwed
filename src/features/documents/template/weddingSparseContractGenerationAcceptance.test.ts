@@ -100,7 +100,11 @@ assert(
   !sidebar.includes('Laboratorium porównania umów'),
   'comparison lab not in customer sidebar',
 )
-assert(router.includes('/eksperymenty/umowy-ai-transform'), 'comparison route retained')
+assert(
+  !router.includes('/eksperymenty/umowy-ai-transform'),
+  'comparison lab spa route absent',
+)
+assert(!router.includes('/laboratorium-umow-ai'), 'lab spa routes absent')
 assert(flags.includes("raw === 'false'"), 'flag can disable sparse path')
 
 console.log('ok — weddingSparseContractGenerationAcceptance')

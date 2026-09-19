@@ -491,12 +491,6 @@ run('W — DOCX preview is authoritative; production PDF via Cloudmersive', () =
     ).includes('isExperimentalPdfExportEnabled'),
     'lab pdf gated by flag',
   )
-  assert(
-    source(
-      'src/features/ai-contract-transform/TransformComparisonPage.tsx',
-    ).includes('ExperimentalPdfActions'),
-    'lab result card has experimental pdf',
-  )
 })
 
 run('X/Y/Z — saved contract surfaces on wedding/client/global hubs', () => {
@@ -555,20 +549,16 @@ run('AB — advanced configuration remains accessible but optional', () => {
   )
 })
 
-run('AC — AI Lab remains developer/support-only', () => {
+run('AC — AI Lab SPA routes are physically absent', () => {
   const flags = source('src/features/ai-contract-lab/aiContractLabFlags.ts')
   assert(flags.includes('VITE_ENABLE_AI_CONTRACT_LAB'), 'flagged')
-  const sidebar = source('src/layouts/Sidebar.tsx')
-  assert(
-    sidebar.includes('isAiContractLabEnabled'),
-    'lab nav is flag-gated',
-  )
-  assert(
-    sidebar.includes('Laboratorium umów AI'),
-    'lab label exists only behind flag',
-  )
   const router = source('src/routes/router.tsx')
-  assert(router.includes('isAiContractLabEnabled'), 'route still flag-gated')
+  assert(!router.includes('/laboratorium-umow-ai'), 'lab spa routes absent')
+  assert(!router.includes('/eksperymenty/umowy-ai-transform'), 'comparison lab spa route absent')
+  assert(!router.includes('isAiContractLabEnabled'), 'lab routes no longer registered')
+  assert(!router.includes('AiContractExperimentPage'), 'experiment page absent')
+  assert(!router.includes('AiContractLabPage'), 'semantic lab page absent')
+  assert(!router.includes('TransformComparisonPage'), 'comparison page absent')
 })
 
 run('UI status mapping uses product vocabulary', () => {
