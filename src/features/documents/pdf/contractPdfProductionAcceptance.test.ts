@@ -197,7 +197,13 @@ assert(
   'experimental pdf flags module absent',
 )
 
-const gotenbergEdge = read('supabase/functions/docx-to-pdf/index.ts')
-assert(gotenbergEdge.includes('convertDocxViaGotenberg'), 'lab edge kept')
+assert(
+  !existsSync(join(ROOT, 'supabase/functions/docx-to-pdf/index.ts')),
+  'legacy docx-to-pdf entrypoint absent',
+)
+assert(
+  existsSync(join(ROOT, 'supabase/functions/docx-to-pdf/gotenbergConvert.ts')),
+  'gotenberg helper preserved',
+)
 
 console.log('OK contract-pdf-production acceptance')
