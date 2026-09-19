@@ -4,7 +4,6 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import {
-  V6_OWNER_CANARY_USER_ID,
   decideV6CanaryRouting,
   isV6OwnerCanaryVisible,
   setV6OwnerCanaryFlagForTests,
@@ -23,7 +22,7 @@ import type { V6ShadowTurnResult } from '../agent/loop'
 import { decideV6Authority } from '../authority/decide'
 import { destroyV6CollectionSession } from '../collections/store'
 
-const OWNER = V6_OWNER_CANARY_USER_ID
+const AUTH_USER = '11111111-2222-3333-4444-555555555555'
 const OTHER = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
 
 function baseResult(
@@ -52,18 +51,18 @@ describe('V6-CANARY-1 owner routing', () => {
     destroyV6CollectionSession()
   })
 
-  it('C1 — canary owner + flag ON → V6 visible', () => {
+  it('C1 — authenticated user + flag ON → V6 visible', () => {
     setV6OwnerCanaryFlagForTests(true)
-    expect(isV6OwnerCanaryVisible(OWNER)).toBe(true)
-    const r = decideV6CanaryRouting({ authenticatedUserId: OWNER })
+    expect(isV6OwnerCanaryVisible(AUTH_USER)).toBe(true)
+    const r = decideV6CanaryRouting({ authenticatedUserId: AUTH_USER })
     expect(r.v6Visible).toBe(true)
     expect(r.runShadowDiagnostics).toBe(false)
   })
 
-  it('C2 — canary owner + flag OFF → V6 not visible', () => {
+  it('C2 — authenticated user + flag OFF → V6 not visible', () => {
     setV6OwnerCanaryFlagForTests(false)
-    expect(isV6OwnerCanaryVisible(OWNER)).toBe(false)
-    const r = decideV6CanaryRouting({ authenticatedUserId: OWNER })
+    expect(isV6OwnerCanaryVisible(AUTH_USER)).toBe(false)
+    const r = decideV6CanaryRouting({ authenticatedUserId: AUTH_USER })
     expect(r.v6Visible).toBe(false)
     expect(r.runShadowDiagnostics).toBe(true)
   })
@@ -114,7 +113,7 @@ describe('V6-CANARY-1 owner routing', () => {
       })
     })
 
-    const routing = decideV6CanaryRouting({ authenticatedUserId: OWNER })
+    const routing = decideV6CanaryRouting({ authenticatedUserId: AUTH_USER })
     expect(routing.v6Visible).toBe(true)
     expect(routing.runShadowDiagnostics).toBe(false)
 

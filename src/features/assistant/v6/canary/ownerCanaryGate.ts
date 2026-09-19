@@ -13,10 +13,6 @@
  * Host must destroy the other engine's session before switching.
  */
 
-/** @deprecated Historical canary UUID — not used for emergency visibility. */
-export const V6_OWNER_CANARY_USER_ID =
-  'c9636911-7d3f-44bb-ab8f-2836582e71ea'
-
 function envTruthy(name: string): boolean {
   const raw = String(import.meta.env?.[name] ?? '')
     .trim()
@@ -51,13 +47,6 @@ export function isV6EmergencyFlagEnabled(): boolean {
 /** @deprecated Use isV6EmergencyFlagEnabled */
 export function isV6OwnerCanaryFlagEnabled(): boolean {
   return isV6EmergencyFlagEnabled()
-}
-
-export function isExactV6OwnerCanaryUser(
-  userId: string | null | undefined,
-): boolean {
-  if (!userId || typeof userId !== 'string') return false
-  return userId.trim().toLowerCase() === V6_OWNER_CANARY_USER_ID.toLowerCase()
 }
 
 /**

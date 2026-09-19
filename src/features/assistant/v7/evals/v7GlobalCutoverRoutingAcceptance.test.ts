@@ -16,8 +16,8 @@ import {
   setV6EmergencyFlagForTests,
 } from '../../v6/canary/ownerCanaryGate'
 
-const OWNER = 'c9636911-7d3f-44bb-ab8f-2836582e71ea'
-const OTHER = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
+const AUTH_A = '11111111-2222-3333-4444-555555555555'
+const AUTH_B = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
 
 describe('V7 global cutover routing', () => {
   beforeEach(() => {
@@ -29,16 +29,16 @@ describe('V7 global cutover routing', () => {
     setV6EmergencyFlagForTests(null)
   })
 
-  it('A — authenticated owner + V7 global ON → V7', () => {
+  it('A — authenticated user A + V7 global ON → V7', () => {
     setV7GlobalFlagForTests(true)
     setV6EmergencyFlagForTests(false)
-    expect(isV7Visible(OWNER)).toBe(true)
-    expect(isV7OwnerCanaryVisible(OWNER)).toBe(true)
+    expect(isV7Visible(AUTH_A)).toBe(true)
+    expect(isV7OwnerCanaryVisible(AUTH_A)).toBe(true)
   })
 
-  it('B — authenticated non-owner + V7 global ON → V7', () => {
+  it('B — authenticated user B + V7 global ON → V7', () => {
     setV7GlobalFlagForTests(true)
-    expect(isV7Visible(OTHER)).toBe(true)
+    expect(isV7Visible(AUTH_B)).toBe(true)
   })
 
   it('C — unauthenticated → no V7', () => {
@@ -51,25 +51,25 @@ describe('V7 global cutover routing', () => {
   it('D — V7 OFF + V6 emergency ON → V6 for any auth user', () => {
     setV7GlobalFlagForTests(false)
     setV6EmergencyFlagForTests(true)
-    expect(isV7Visible(OWNER)).toBe(false)
-    expect(isV7Visible(OTHER)).toBe(false)
-    expect(isV6EmergencyVisible(OWNER)).toBe(true)
-    expect(isV6EmergencyVisible(OTHER)).toBe(true)
-    expect(isV6OwnerCanaryVisible(OTHER)).toBe(true)
+    expect(isV7Visible(AUTH_A)).toBe(false)
+    expect(isV7Visible(AUTH_B)).toBe(false)
+    expect(isV6EmergencyVisible(AUTH_A)).toBe(true)
+    expect(isV6EmergencyVisible(AUTH_B)).toBe(true)
+    expect(isV6OwnerCanaryVisible(AUTH_B)).toBe(true)
   })
 
   it('E — V7 ON + V6 emergency ON → V7 wins (Host checks V7 first)', () => {
     setV7GlobalFlagForTests(true)
     setV6EmergencyFlagForTests(true)
-    expect(isV7Visible(OTHER)).toBe(true)
+    expect(isV7Visible(AUTH_B)).toBe(true)
     // Host never reaches V6 when V7 visible; both flags may be true in env.
-    expect(isV6EmergencyVisible(OTHER)).toBe(true)
+    expect(isV6EmergencyVisible(AUTH_B)).toBe(true)
   })
 
   it('neither flag → no visible engine for authenticated (Host fail-closed)', () => {
     setV7GlobalFlagForTests(false)
     setV6EmergencyFlagForTests(false)
-    expect(isV7Visible(OTHER)).toBe(false)
-    expect(isV6EmergencyVisible(OTHER)).toBe(false)
+    expect(isV7Visible(AUTH_B)).toBe(false)
+    expect(isV6EmergencyVisible(AUTH_B)).toBe(false)
   })
 })

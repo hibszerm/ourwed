@@ -39,12 +39,10 @@ export {
   isV7Visible,
   isV7OwnerCanaryFlagEnabled,
   isV7OwnerCanaryVisible,
-  isExactV7OwnerCanaryUser,
   isV7OwnerShadowFlagEnabled,
   isV7UserVisible,
   setV7GlobalFlagForTests,
   setV7OwnerCanaryFlagForTests,
-  V7_OWNER_CANARY_USER_ID,
 } from './canary/v7ShadowGate'
 
 export {

@@ -19,7 +19,6 @@ export {
 } from './shadow'
 export { decideV6Authority } from './authority/decide'
 export {
-  V6_OWNER_CANARY_USER_ID,
   isV6OwnerCanaryVisible,
   isV6EmergencyVisible,
   isV6EmergencyFlagEnabled,

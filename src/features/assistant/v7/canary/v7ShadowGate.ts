@@ -12,10 +12,6 @@
  * Tenant identity still comes only from authService.getUser() / session — never the model.
  */
 
-/** @deprecated Historical canary UUID — not used for global V7 visibility. */
-export const V7_OWNER_CANARY_USER_ID =
-  'c9636911-7d3f-44bb-ab8f-2836582e71ea'
-
 function envTruthy(name: string): boolean {
   const raw = String(import.meta.env?.[name] ?? '')
     .trim()
@@ -50,13 +46,6 @@ export function isV7GlobalFlagEnabled(): boolean {
 /** @deprecated Use isV7GlobalFlagEnabled */
 export function isV7OwnerCanaryFlagEnabled(): boolean {
   return isV7GlobalFlagEnabled()
-}
-
-export function isExactV7OwnerCanaryUser(
-  userId: string | null | undefined,
-): boolean {
-  if (!userId || typeof userId !== 'string') return false
-  return userId.trim().toLowerCase() === V7_OWNER_CANARY_USER_ID.toLowerCase()
 }
 
 /**
