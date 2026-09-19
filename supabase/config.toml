@@ -9,12 +9,6 @@ verify_jwt = true
 [functions.ai-contract-guarded-transform]
 verify_jwt = true
 
-[functions.ai-contract-lab-analyze]
-verify_jwt = true
-
-[functions.ai-contract-lab-structured-mapping]
-verify_jwt = true
-
 [functions.places-proxy]
 verify_jwt = true
 

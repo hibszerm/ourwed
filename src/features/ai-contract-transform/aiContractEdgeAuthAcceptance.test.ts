@@ -3,7 +3,7 @@
  * Run: npx tsx --tsconfig tsconfig.app.json src/features/ai-contract-transform/aiContractEdgeAuthAcceptance.test.ts
  */
 
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 function assert(condition: boolean, message: string) {
@@ -34,13 +34,13 @@ const GUARDED = resolve(
   root,
   'supabase/functions/ai-contract-guarded-transform/index.ts',
 )
-const LAB = resolve(
+const RETIRED_LAB_ANALYZE = resolve(
   root,
-  'supabase/functions/ai-contract-lab-analyze/index.ts',
+  'supabase/functions/ai-contract-lab-analyze',
 )
-const MAPPING = resolve(
+const RETIRED_LAB_MAPPING = resolve(
   root,
-  'supabase/functions/ai-contract-lab-structured-mapping/index.ts',
+  'supabase/functions/ai-contract-lab-structured-mapping',
 )
 
 /** Simulates the auth gate before any provider call (unit, no Deno). */
@@ -64,11 +64,23 @@ run('shared requireAuthenticatedUser uses getUser', () => {
   assert(src.includes('if (authError || !user)'), 'rejects missing user')
 })
 
+run('retired lab-analyze and lab-structured-mapping source absent', () => {
+  assert(!existsSync(RETIRED_LAB_ANALYZE), 'lab-analyze Edge source retired')
+  assert(!existsSync(RETIRED_LAB_MAPPING), 'lab-structured-mapping Edge source retired')
+  const toml = readFileSync(resolve(root, 'supabase/config.toml'), 'utf8')
+  assert(
+    !toml.includes('[functions.ai-contract-lab-analyze]'),
+    'lab-analyze config.toml stanza absent',
+  )
+  assert(
+    !toml.includes('[functions.ai-contract-lab-structured-mapping]'),
+    'lab-structured-mapping config.toml stanza absent',
+  )
+})
+
 for (const [label, path] of [
   ['full-rewrite', FULL],
   ['guarded-transform', GUARDED],
-  ['lab-analyze', LAB],
-  ['lab-structured-mapping', MAPPING],
 ] as const) {
   run(`${label}: requireAuthenticatedUser before OpenAI`, () => {
     const src = readFileSync(path, 'utf8')

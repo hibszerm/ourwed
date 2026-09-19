@@ -551,7 +551,7 @@ await run('AJ–AK — PrimePhoto company fixed / client variable', () => {
   assert(field(config, 'bride_name')?.mode === 'variable', 'AK bride variable')
 })
 
-await run('AM–AO — Phase A / production surfaces untouched', () => {
+await run('AM–AO — Phase A Lab Edge absent / production surfaces untouched', () => {
   const prompt = join(
     root,
     'supabase/functions/ai-contract-lab-analyze/prompt.ts',
@@ -564,14 +564,9 @@ await run('AM–AO — Phase A / production surfaces untouched', () => {
     root,
     'src/features/weddings/actions/GenerateContractModal.tsx',
   )
-  assert(existsSync(prompt), 'Phase A prompt exists')
+  assert(!existsSync(prompt), 'AM retired Phase A Lab Edge prompt is absent')
   assert(existsSync(transform), 'renderer exists')
   assert(existsSync(genModal), 'generator modal exists')
-  const promptSrc = readFileSync(prompt, 'utf8')
-  assert(
-    !promptSrc.includes('fieldConfiguration'),
-    'AM Phase A prompt unchanged by field config',
-  )
   const transformSrc = readFileSync(transform, 'utf8')
   assert(
     !transformSrc.includes('templateFieldConfiguration'),
