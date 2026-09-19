@@ -39,10 +39,10 @@ describe('Phase 2K.10-P1 immediate working state', () => {
     const v7TurnIdx = runQuery.indexOf('await runV7OwnerVisibleTurn(')
 
     expect(appendIdx).toBeGreaterThan(-1)
-    expect(runtimeIdx).toBeGreaterThan(appendIdx)
-    expect(authIdx).toBeGreaterThan(runtimeIdx)
+    expect(authIdx).toBeGreaterThan(appendIdx)
+    expect(runtimeIdx).toBeGreaterThan(v7TurnIdx)
     expect(workingMarkIdx).toBeGreaterThan(appendIdx)
-    expect(workingMarkIdx).toBeLessThan(runtimeIdx)
+    expect(workingMarkIdx).toBeLessThan(authIdx)
     expect(v7TurnIdx).toBeGreaterThan(authIdx)
 
     // Optimistic path gated on V7 global flag (not auth) so UI can paint first.

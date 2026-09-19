@@ -251,11 +251,17 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
     return cfg
   }, [])
 
+  /** Golden V7 path does not need V5 runtime-config or V6 shadow arm. */
+  const armLegacyRuntimeIfNeeded = useCallback(() => {
+    if (isV7GlobalFlagEnabled()) return
+    void refreshAssistantRuntime()
+  }, [refreshAssistantRuntime])
+
   const openAssistant = useCallback(() => {
     openRef.current = true
-    void refreshAssistantRuntime()
+    armLegacyRuntimeIfNeeded()
     setOpen(true)
-  }, [refreshAssistantRuntime])
+  }, [armLegacyRuntimeIfNeeded])
 
   const recordV5AuthorityDecision = useCallback(
     (
@@ -379,13 +385,13 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
           return false
         }
         openRef.current = true
-        void refreshAssistantRuntime()
+        armLegacyRuntimeIfNeeded()
         return true
       })
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [clearSession, refreshAssistantRuntime])
+  }, [clearSession, armLegacyRuntimeIfNeeded])
 
   const applyResponse = useCallback((response: AssistantResponse) => {
     if (response.kind === 'confirmation' && response.action === 'create_wedding') {
@@ -512,10 +518,9 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
         latencyTrace?.mark('working_state_visible')
       }
 
-      await refreshAssistantRuntime()
-      latencyTrace?.mark('runtime_config_ready')
-
       // Authenticated identity from session (never client-supplied / never model).
+      // Resolve auth before any historical V5 runtime-config fetch so the Golden
+      // V7 path can skip that Edge call and skip arming V6 shadow state.
       const canaryUser = await authService.getUser().catch(() => null)
       const authUserId = canaryUser?.id ?? null
       latencyTrace?.mark('auth_ready')
@@ -524,6 +529,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
       // Takes precedence over V6 emergency. Mutual exclusivity: never dual-visible.
       if (isV7OwnerCanaryVisible(authUserId)) {
         // Fresh engine boundary — do not mix with V6 ConversationCollection.
+        // Do not fetch assistant_runtime_config; do not arm V6 shadow.
         invalidateV6ShadowTurn({ wipeAll: true, reason: 'v7_visible_engine' })
         setV6ShadowSessionOpen(false)
         setV7OwnerSessionOpen(true)
@@ -588,6 +594,10 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
         }
         return
       }
+
+      // Historical V5 IC1 / V6 shadow arm — only when this turn is not Golden V7.
+      await refreshAssistantRuntime()
+      latencyTrace?.mark('runtime_config_ready')
 
       // Non-V7 engines: legacy single-turn UI; wipe presentation transcript.
       clearActiveV7LatencyTrace()
