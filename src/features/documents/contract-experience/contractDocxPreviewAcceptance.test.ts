@@ -97,7 +97,7 @@ assert(
   !env.includes('MICROSOFT_GRAPH_'),
   'microsoft graph env gone',
 )
-assert(env.includes('GOTENBERG_URL'), 'gotenberg documented for retained Edge')
+assert(!env.includes('GOTENBERG_URL'), 'gotenberg env undeclared')
 assert(
   !env.includes('VITE_ENABLE_EXPERIMENTAL_PDF_EXPORT'),
   'experimental pdf frontend flag undeclared',

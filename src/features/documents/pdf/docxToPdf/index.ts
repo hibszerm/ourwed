@@ -20,4 +20,3 @@ export {
   createCloudmersiveDocxToPdfProvider,
   mapCloudmersiveHttpError,
 } from './cloudmersiveConvert'
-export { createGotenbergDocxToPdfProvider } from './gotenbergProvider'

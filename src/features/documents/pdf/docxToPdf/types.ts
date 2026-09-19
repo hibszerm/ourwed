@@ -3,7 +3,7 @@
  * Separate from HTML → PDFShift (`pdfRenderer`).
  */
 
-export type DocxToPdfProviderId = 'gotenberg' | 'cloudmersive'
+export type DocxToPdfProviderId = 'cloudmersive'
 
 export type { ContractPdfErrorCode } from './errors'
 

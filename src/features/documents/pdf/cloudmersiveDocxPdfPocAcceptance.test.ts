@@ -13,7 +13,6 @@ import {
   buildCloudmersiveAuthHeaders,
   convertDocxViaCloudmersive,
   createCloudmersiveDocxToPdfProvider,
-  createGotenbergDocxToPdfProvider,
   ContractPdfError,
   mapCloudmersiveHttpError,
   contractPdfErrorUserMessage,
@@ -184,45 +183,19 @@ try {
   assert(e instanceof ContractPdfError && e.code === 'CONTRACT_PDF_TIMEOUT', 'timeout mapped')
 }
 
-// --- Gotenberg path unchanged (baseline still LibreOffice convert) ---
-const gotenbergSrc = read('supabase/functions/docx-to-pdf/gotenbergConvert.ts')
-assert(gotenbergSrc.includes('/forms/libreoffice/convert'), 'Gotenberg LibreOffice path intact')
-assert(gotenbergSrc.includes('convertDocxViaGotenberg'), 'convertDocxViaGotenberg intact')
-
+// --- Experimental Gotenberg client remains absent ---
 assert(
   !existsSync(join(ROOT, 'src/features/documents/template/gotenbergPdfAdapter.ts')),
   'experimental gotenberg client adapter absent',
 )
-
-const gProvider = createGotenbergDocxToPdfProvider({
-  config: {
-    ok: true,
-    url: 'http://gotenberg.test',
-    apiKey: null,
-    timeoutMs: 10_000,
-  },
-  fetchImpl: async (url, init) => {
-    assert(String(url).includes('/forms/libreoffice/convert'), 'gotenberg libreoffice URL')
-    const body = init?.body as FormData
-    const file = body.get('files') as File
-    assert(file != null, 'gotenberg files field')
-    const buf = new Uint8Array(await file.arrayBuffer())
-    assert(
-      buf.byteLength === fakeDocx.byteLength && buf.every((b, i) => b === fakeDocx[i]),
-      'gotenberg receives same DOCX bytes',
-    )
-    return new Response(fakePdf, {
-      status: 200,
-      headers: { 'Content-Type': 'application/pdf' },
-    })
-  },
-})
-assert(gProvider.id === 'gotenberg', 'gotenberg provider id')
-const gResult = await gProvider.convertDocxToPdf({
-  docxBytes: fakeDocx,
-  filename: 'umowa-final.docx',
-})
-assert(gResult.provider === 'gotenberg', 'gotenberg result')
+assert(
+  !existsSync(join(ROOT, 'src/features/documents/pdf/docxToPdf/gotenbergProvider.ts')),
+  'gotenberg provider absent',
+)
+assert(
+  !existsSync(join(ROOT, 'supabase/functions/docx-to-pdf/gotenbergConvert.ts')),
+  'gotenberg helper absent',
+)
 
 // POC script exists and requires live flag for API spend
 const poc = read('scripts/cloudmersive-docx-pdf-poc.ts')

@@ -98,6 +98,14 @@ assert(
   !existsSync(join(ROOT, 'src/features/documents/template/gotenbergPdfAdapter.ts')),
   'gotenberg browser adapter absent',
 )
+assert(
+  !existsSync(join(ROOT, 'supabase/functions/html-to-pdf/index.ts')),
+  'html-to-pdf source absent',
+)
+assert(
+  !existsSync(join(ROOT, 'supabase/functions/docx-to-pdf/gotenbergConvert.ts')),
+  'gotenberg helper absent',
+)
 
 const contractReady = read(
   'src/features/documents/contract-experience/ContractReadyPreview.tsx',

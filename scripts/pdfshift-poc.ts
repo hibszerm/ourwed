@@ -1,9 +1,8 @@
 /**
- * PDFShift vs local Gotenberg Chromium POC (DEV only).
+ * PDFShift HTML→PDF POC (DEV only).
  *
- * Builds the SAME fixture HTML for brief + contract print HTML, then renders:
- *   A) localDocker (Gotenberg Chromium) when configured
- *   B) PDFShift when PDFSHIFT_API_KEY is set
+ * Builds the SAME fixture HTML for brief + contract print HTML, then renders
+ * via PDFShift when PDFSHIFT_API_KEY is set.
  *
  * By default PDFShift uses sandbox=true (no credit spend).
  * Set PDFSHIFT_POC_LIVE=1 and PDFSHIFT_POC_SANDBOX=false to spend credits.
@@ -24,10 +23,6 @@ import { renderWeddingBriefFooterHtml } from '../src/features/wedding-brief/rend
 import { DEFAULT_TEMPLATE_SCHEMA } from '../src/features/prewedding/defaultTemplate.ts'
 import { paragraphsToPrintHtml } from '../src/features/documents/template/docxParagraphEditor.ts'
 import { resolvePdfRendererProvider } from '../src/features/documents/pdf/pdfRenderer.ts'
-import {
-  convertHtmlViaGotenberg,
-  readGotenbergConfig,
-} from '../supabase/functions/docx-to-pdf/gotenbergConvert.ts'
 import { convertHtmlViaPdfShift } from '../supabase/functions/pdf-render/pdfShiftConvert.ts'
 import type { Wedding } from '../src/types/wedding.ts'
 import type { WeddingPlace } from '../src/types/travel.ts'
@@ -175,7 +170,7 @@ writeFileSync(resolve(outDir, 'contract-source.html'), contractHtml, 'utf8')
 const comparison: Record<string, unknown> = {
   generatedAt: new Date().toISOString(),
   note:
-    'Production contract PDF remains DOCX→Gotenberg LibreOffice. Contract rows here compare Chromium HTML print path vs PDFShift.',
+    'Production Wedding Brief PDF is Edge pdf-render → PDFShift. Contract rows here use Chromium-style HTML print only for fixture comparison — production contract PDF is DOCX → Cloudmersive.',
   brief: { filename: briefFilename },
   contract: { title: 'Umowa — Aleksandra i Michał' },
   assets: {
@@ -184,48 +179,6 @@ const comparison: Record<string, unknown> = {
     localhost: 'none in HTML source',
   },
   results: {} as Record<string, unknown>,
-}
-
-async function runLocal(
-  name: 'brief' | 'contract',
-  html: string,
-  footerHtml?: string,
-  filename?: string,
-) {
-  const config = readGotenbergConfig({ get: (k) => process.env[k] })
-  if (!config.ok) {
-    ;(comparison.results as Record<string, unknown>)[`${name}-local`] = {
-      error: config.message,
-    }
-    console.warn('SKIP local', name, config.message)
-    return
-  }
-  try {
-    const { pdfBytes, provider } = await convertHtmlViaGotenberg({
-      html,
-      footerHtml,
-      filename,
-      config,
-      maxPdfBytes: 40 * 1024 * 1024,
-    })
-    const out =
-      name === 'brief'
-        ? resolve(outDir, 'brief-local.pdf')
-        : resolve(outDir, 'contract-local.pdf')
-    writeFileSync(out, pdfBytes)
-    ;(comparison.results as Record<string, unknown>)[`${name}-local`] = {
-      path: out,
-      bytes: pdfBytes.byteLength,
-      provider,
-    }
-    console.log('OK local', name, out, pdfBytes.byteLength)
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e)
-    ;(comparison.results as Record<string, unknown>)[`${name}-local`] = {
-      error: msg,
-    }
-    console.warn('SKIP local', name, msg)
-  }
 }
 
 async function runPdfShift(
@@ -298,8 +251,6 @@ const providerHint = resolvePdfRendererProvider(
 console.log('POC provider hint (informational):', providerHint)
 console.log('Artifacts →', outDir)
 
-await runLocal('brief', briefHtml, briefFooter, briefFilename)
-await runLocal('contract', contractHtml, undefined, 'contract-local.pdf')
 await runPdfShift('brief', briefHtml, briefFooter)
 await runPdfShift('contract', contractHtml)
 

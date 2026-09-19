@@ -1,7 +1,7 @@
 /**
- * Cloudmersive vs Gotenberg DOCX→PDF POC (DEV only).
+ * Cloudmersive DOCX→PDF POC (DEV only).
  *
- * Uses ONE real final generated contract DOCX (same bytes → both converters).
+ * Uses ONE real final generated contract DOCX.
  * Does NOT switch production. Does NOT call Cloudmersive unless
  * CLOUDMERSIVE_POC_LIVE=1.
  *
@@ -22,7 +22,6 @@ import {
   CLOUDMERSIVE_FREE_TIER_MAX_BYTES,
   ContractPdfError,
   createCloudmersiveDocxToPdfProvider,
-  createGotenbergDocxToPdfProvider,
 } from '../src/features/documents/pdf/docxToPdf/index.ts'
 import {
   approxA4,
@@ -162,9 +161,8 @@ const report: Record<string, unknown> = {
     withinCloudmersiveFreeTier: withinFreeTier,
     freeTierMaxBytes: CLOUDMERSIVE_FREE_TIER_MAX_BYTES,
   },
-  gotenberg: null as ProviderRun | null,
   cloudmersive: null as ProviderRun | null,
-  comparison: null as Record<string, unknown> | null,
+  diagnostics: null as Record<string, unknown> | null,
   cloudmersiveApiCalls: 0,
   recommendationCriteria: [
     'no missing content',
@@ -180,40 +178,7 @@ const report: Record<string, unknown> = {
   ],
 }
 
-// --- A: Gotenberg baseline (same DOCX bytes) ---
-const gotenbergProvider = createGotenbergDocxToPdfProvider({
-  env: { get: (k) => process.env[k] },
-})
-let gotenbergPdf: Uint8Array | null = null
-try {
-  const g = await gotenbergProvider.convertDocxToPdf({
-    docxBytes,
-    filename,
-  })
-  gotenbergPdf = g.pdfBytes
-  const gPath = resolve(outDir, 'contract-gotenberg.pdf')
-  writeFileSync(gPath, g.pdfBytes)
-  const metrics = await extractPdfMetrics(g.pdfBytes).catch(() => null)
-  report.gotenberg = {
-    ok: true,
-    provider: 'gotenberg',
-    pdfBytes: g.pdfBytes.byteLength,
-    pdfSha: sha256(g.pdfBytes),
-    metrics: metrics ?? undefined,
-  }
-  tryPdftoppm(gPath, 'gotenberg-page')
-  console.log('Gotenberg PDF:', gPath, 'bytes=', g.pdfBytes.byteLength)
-} catch (e) {
-  const code = e instanceof ContractPdfError ? e.code : 'CONTRACT_PDF_CONVERSION_FAILED'
-  const message = e instanceof Error ? e.message : String(e)
-  report.gotenberg = { ok: false, provider: 'gotenberg', errorCode: code, errorMessage: message }
-  console.error('Gotenberg failed:', code, message)
-  console.error(
-    'Start baseline: docker compose --profile gotenberg up gotenberg && ENABLE_EXPERIMENTAL_PDF_EXPORT=true GOTENBERG_URL=http://localhost:3000',
-  )
-}
-
-// --- B: Cloudmersive (opt-in LIVE only; one call max) ---
+// --- Cloudmersive (opt-in LIVE only; one call max) ---
 const live =
   process.env.CLOUDMERSIVE_POC_LIVE?.trim() === '1' ||
   process.env.CLOUDMERSIVE_POC_LIVE?.trim().toLowerCase() === 'true'
@@ -283,44 +248,25 @@ if (!live) {
   }
 }
 
-// --- Comparison ---
-if (gotenbergPdf && cloudmersivePdf) {
-  const gMetrics = await extractPdfMetrics(gotenbergPdf)
+// --- Diagnostics (Cloudmersive output vs source DOCX; no second converter) ---
+if (cloudmersivePdf) {
   const cMetrics = await extractPdfMetrics(cloudmersivePdf)
   const docxText = await extractDocxPlainText(docxBytes)
   const markers = pickSemanticMarkers(docxText)
-  const gMarkers = semanticMarkerPresence(gMetrics.plainText, markers)
   const cMarkers = semanticMarkerPresence(cMetrics.plainText, markers)
   const missingInCloudmersive = cMarkers.filter((m) => !m.present).map((m) => m.marker)
-  const missingInGotenberg = gMarkers.filter((m) => !m.present).map((m) => m.marker)
 
-  report.comparison = {
-    pageCount: {
-      gotenberg: gMetrics.pageCount,
-      cloudmersive: cMetrics.pageCount,
-      equal: gMetrics.pageCount === cMetrics.pageCount,
-    },
+  report.diagnostics = {
+    pageCount: cMetrics.pageCount,
     dimensions: {
-      gotenberg: {
-        widthPt: gMetrics.firstPageWidthPt,
-        heightPt: gMetrics.firstPageHeightPt,
-        approxA4: approxA4(gMetrics.firstPageWidthPt, gMetrics.firstPageHeightPt),
-      },
-      cloudmersive: {
-        widthPt: cMetrics.firstPageWidthPt,
-        heightPt: cMetrics.firstPageHeightPt,
-        approxA4: approxA4(cMetrics.firstPageWidthPt, cMetrics.firstPageHeightPt),
-      },
+      widthPt: cMetrics.firstPageWidthPt,
+      heightPt: cMetrics.firstPageHeightPt,
+      approxA4: approxA4(cMetrics.firstPageWidthPt, cMetrics.firstPageHeightPt),
     },
-    fileSize: {
-      gotenberg: gotenbergPdf.byteLength,
-      cloudmersive: cloudmersivePdf.byteLength,
-    },
+    fileSize: cloudmersivePdf.byteLength,
     semanticMarkersChecked: markers.length,
     markersMissingInCloudmersive: missingInCloudmersive,
-    markersMissingInGotenberg: missingInGotenberg,
-    binaryEqual: sha256(gotenbergPdf) === sha256(cloudmersivePdf),
-    note: 'Binary equality not required. Manually review page PNGs (pdftoppm) for tables, headers, logos, fonts, pagination.',
+    note: 'Manually review page PNGs (pdftoppm) for tables, headers, logos, fonts, pagination.',
     visualChecklist: [
       'margins',
       'paragraph line wrapping',
@@ -334,13 +280,9 @@ if (gotenbergPdf && cloudmersivePdf) {
     ],
   }
 
-  const pageOk = gMetrics.pageCount === cMetrics.pageCount
-  const contentOk = missingInCloudmersive.length === 0
   report.pocVerdict = {
-    pagesMatch: pageOk,
-    noMissingSemanticMarkersInCloudmersive: contentOk,
-    readyForProduction: false,
-    note: 'Production remains on experimental Gotenberg path only when flagged; Cloudmersive is POC. Switch only after manual visual QA against criteria in report.recommendationCriteria.',
+    noMissingSemanticMarkersInCloudmersive: missingInCloudmersive.length === 0,
+    note: 'Production contract PDF is Cloudmersive via Edge contract-docx-to-pdf. This script is diagnostics only.',
   }
 }
 

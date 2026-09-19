@@ -125,7 +125,6 @@
     "test:tasks-center-crud": "npx tsx --tsconfig tsconfig.app.json src/features/tasks/tasksCenterCrudAcceptance.test.ts",
     "test:wedding-brief": "npx tsx --tsconfig tsconfig.app.json src/features/wedding-brief/weddingBriefAcceptance.test.ts",
     "test:persistent-wedding-brief": "npx tsx --tsconfig tsconfig.app.json src/features/wedding-brief/persistentWeddingBriefAcceptance.test.ts",
-    "pdf:wedding-brief-fixture": "npx tsx --tsconfig tsconfig.app.json --env-file=.env.local scripts/generateWeddingBriefFixturePdf.ts",
     "pdf:pdfshift-poc": "npx tsx --tsconfig tsconfig.app.json --env-file=.env.local scripts/pdfshift-poc.ts",
     "pdf:cloudmersive-docx-poc": "npx tsx --tsconfig tsconfig.app.json --env-file=.env.local scripts/cloudmersive-docx-pdf-poc.ts",
     "test:pdfshift-poc": "npx tsx --tsconfig tsconfig.app.json src/features/documents/pdf/pdfShiftPocAcceptance.test.ts && npx tsx --tsconfig tsconfig.app.json src/features/documents/pdf/pdfProductionMigrationAcceptance.test.ts",

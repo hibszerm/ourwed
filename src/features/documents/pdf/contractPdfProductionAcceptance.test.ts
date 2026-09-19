@@ -202,8 +202,16 @@ assert(
   'legacy docx-to-pdf entrypoint absent',
 )
 assert(
-  existsSync(join(ROOT, 'supabase/functions/docx-to-pdf/gotenbergConvert.ts')),
-  'gotenberg helper preserved',
+  !existsSync(join(ROOT, 'supabase/functions/docx-to-pdf/gotenbergConvert.ts')),
+  'gotenberg helper absent',
+)
+assert(
+  !existsSync(join(ROOT, 'supabase/functions/html-to-pdf/index.ts')),
+  'html-to-pdf source absent',
+)
+assert(
+  !existsSync(join(ROOT, 'src/features/documents/pdf/docxToPdf/gotenbergProvider.ts')),
+  'gotenberg provider absent',
 )
 
 console.log('OK contract-pdf-production acceptance')
