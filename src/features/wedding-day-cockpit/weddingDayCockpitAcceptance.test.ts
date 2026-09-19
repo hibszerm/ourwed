@@ -860,11 +860,11 @@ run('M. Desktop/mobile: no viewport-based feature removal; route + entry wired',
     'utf8',
   )
   const header = readFileSync(
-    resolve(process.cwd(), 'src/features/weddings/detail/v2/WeddingWorkspaceHeader.tsx'),
+    /* deleted */ 'src/features/weddings/detail/v2/WeddingWorkspaceHeader.tsx',
     'utf8',
   )
   const dayWs = readFileSync(
-    resolve(process.cwd(), 'src/features/weddings/detail/v2/WeddingDayWorkspace.tsx'),
+    /* deleted */ 'src/features/weddings/detail/v2/WeddingDayWorkspace.tsx',
     'utf8',
   )
   assert(router.includes("path: '/sluby/:weddingId/dzien-slubu'"), 'route')
@@ -872,7 +872,7 @@ run('M. Desktop/mobile: no viewport-based feature removal; route + entry wired',
   assert(header.includes('/dzien-slubu'), 'header entry')
   assert(header.includes('Otwórz tryb dnia ślubu'), 'header copy')
   const headerActions = readFileSync(
-    resolve(process.cwd(), 'src/features/weddings/detail/v2/WeddingHeaderActions.tsx'),
+    /* deleted */ 'src/features/weddings/detail/v2/WeddingHeaderActions.tsx',
     'utf8',
   )
   assert(headerActions.includes('Tryb dnia ślubu'), 'menu day mode')

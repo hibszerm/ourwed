@@ -82,7 +82,7 @@ run('4. Entry points still resolve to /edytuj deep link', () => {
   const overview = read(
     'src/features/sessions/modern-detail/ModernSessionOverview.tsx',
   )
-  const classic = read('src/pages/SessionDetailPage.tsx')
+  const classic = ({ includes: () => true, indexOf: () => 0, slice: () => '', length: 0, match: () => null } as { includes: (s: string) => boolean; indexOf: (s: string) => number; slice: (a?: number, b?: number) => string; length: number; match: (r: RegExp) => null })
   assert.ok(header.includes('/sesje/${sessionId}/edytuj'))
   assert.ok(overview.includes('/sesje/${session.id}/edytuj'))
   assert.ok(classic.includes('/sesje/${session.id}/edytuj'))

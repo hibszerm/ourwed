@@ -34,6 +34,11 @@
     "src/**/*.test.ts",
     "src/**/*.test.tsx",
     "src/**/*.spec.ts",
-    "src/**/*.spec.tsx"
+    "src/**/*.spec.tsx",
+    "src/features/assistant/v6/evals/runV6F14LiveSoak.ts",
+    "src/features/assistant/v7/evals/k3/runK3ProductKnowledgeEval.ts",
+    "src/features/assistant/v7/evals/k2/runK2ProductKnowledgeEval.ts",
+    "src/features/assistant/v7/evals/k2/runK21ContractReadinessEval.ts",
+    "src/features/assistant/v7/evals/k31/runK31EntityResolutionEval.ts"
   ]
 }

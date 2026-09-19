@@ -49,8 +49,8 @@ const upcomingCss = read(
 const deadlineCss = read(
   'src/features/dashboard-v3/DashboardV3DeadlinePanel.module.css',
 )
-const notificationsCss = read(
-  'src/features/dashboard-v3/DashboardV3NotificationsPanel.module.css',
+const attentionCss = read(
+  'src/features/dashboard-v3/DashboardV3AttentionPanel.module.css',
 )
 const reveals = read(
   'src/features/dashboard-v3/useDashboardMobileReveals.ts',
@@ -65,9 +65,9 @@ const assignmentHook = read(
 )
 
 {
-  includes(route, "resolveScreenPresentation('dashboard'", 'preference route')
+  includes(route, '<DashboardV3Page />', 'modern-only route')
   includes(route, '<DashboardV3Page />', 'Modern Dashboard remains V3')
-  includes(route, '<DashboardPage />', 'Classic Dashboard remains reachable')
+  includes(route, 'DashboardV3Page', 'Classic Dashboard removed; Modern only')
   includes(page, 'useDashboardAssignments', 'shared assignments hook')
   includes(page, 'getNearestUpcomingAssignment', 'canonical nearest selector')
   includes(page, 'getNextAssignmentsAfterNearest', 'canonical next-three selector')
@@ -271,8 +271,8 @@ const assignmentHook = read(
   const deadlineMobile = deadlineCss.slice(
     deadlineCss.indexOf('@media (max-width: 767px)'),
   )
-  const notificationsMobile = notificationsCss.slice(
-    notificationsCss.indexOf('@media (max-width: 767px)'),
+  const notificationsMobile = attentionCss.slice(
+    attentionCss.indexOf('@media (max-width: 767px)'),
   )
   for (const [name, source] of [
     ['deadlines', deadlineMobile],
@@ -292,7 +292,7 @@ const assignmentHook = read(
     excludes(source, 'backdrop-filter', `${name} has no blur`)
   }
   includes(deadlineCss, '.list li + li .row', 'deadline rows use separators')
-  includes(notificationsCss, '.list li + li', 'notification rows use separators')
+  includes(attentionCss, '.list li + li .row', 'attention rows use separators')
   console.log('PASS  deadline + notification module surfaces restored')
 }
 

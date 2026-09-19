@@ -53,14 +53,16 @@ export type V6AgentClarifyResponse = {
 
 export type V6AgentUnsupportedResponse = {
   status: 'unsupported'
-  reason: string
+  /** Product-safe reason only; never capability/schema paths. Null → sanitized fallback. */
+  reason: string | null
   diagnostics?: Record<string, unknown>
 }
 
 export type V6AgentErrorResponse = {
   status: 'error'
   code: string
-  message: string
+  /** Product-safe message only; null → sanitized fallback. Internal detail stays in diagnostics. */
+  message: string | null
   diagnostics?: Record<string, unknown>
 }
 

@@ -1,0 +1,62 @@
+{
+  "phase": "k31-correctness-followup",
+  "model": "gpt-5.6-terra",
+  "rows": [
+    {
+      "id": "t1-travel-named",
+      "tools": [
+        "search_product_knowledge"
+      ],
+      "hasCrm": false,
+      "hasKnow": true,
+      "notFound": false,
+      "answer": "Otwórz zlecenie Anny Wiśniewskiej i Piotra Zielińskiego, a potem przejdź do **Umowa i finanse**. W sekcji dojazdu ustaw status „w cenie” albo wpisz płatną kwotę i zapisz zmiany.\n\nNie mogę wykonać tej edycji za Ciebie — zapisy danych nie są jeszcze włączone."
+    },
+    {
+      "id": "t2-payments-named",
+      "tools": [
+        "search_product_knowledge",
+        "search_resources"
+      ],
+      "hasCrm": true,
+      "hasKnow": true,
+      "notFound": false,
+      "answer": "Płatności sprawdzisz w zleceniu Anny Wiśniewskiej i Piotra Zielińskiego, w zakładce **Umowa i finanse**. Zobaczysz tam listę wpłat oraz kwotę pozostałą do rozliczenia."
+    },
+    {
+      "id": "t3-payments-pronoun",
+      "tools": [
+        "list_related"
+      ],
+      "hasCrm": true,
+      "hasKnow": false,
+      "notFound": false,
+      "answer": "Dla tego wesela nie ma jeszcze zapisanych płatności. Możesz je sprawdzić w widoku zlecenia, w sekcji **Umowa i finanse**."
+    },
+    {
+      "id": "payments-genitive-inflected",
+      "tools": [
+        "search_product_knowledge"
+      ],
+      "hasCrm": false,
+      "hasKnow": true,
+      "notFound": false,
+      "answer": "Otwórz zlecenie Anny Wiśniewskiej i Piotra Zielińskiego, a potem przejdź do zakładki **Umowa i finanse**. Tam znajdziesz listę wpłat, zadatek oraz kwotę pozostałą do rozliczenia."
+    },
+    {
+      "id": "payments-genitive-anny-piotra",
+      "tools": [
+        "search_product_knowledge"
+      ],
+      "hasCrm": false,
+      "hasKnow": true,
+      "notFound": false,
+      "answer": "Otwórz zlecenie Anny Wiśniewskiej i Piotra Zielińskiego, a potem przejdź do sekcji **Umowa i finanse**. Tam zobaczysz listę wpłat oraz kwotę pozostałą do rozliczenia."
+    }
+  ],
+  "passGates": {
+    "noNotFound": true,
+    "multiTurnPronounOk": true
+  },
+  "pass": true
+}

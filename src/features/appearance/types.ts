@@ -1,5 +1,5 @@
 /**
- * Application appearance — independent from ThemeId and InterfaceStyle.
+ * Application appearance — independent from ThemeId.
  * Persisted on profiles.appearance.
  * Exactly two explicit modes: light | dark (no system/auto).
  */

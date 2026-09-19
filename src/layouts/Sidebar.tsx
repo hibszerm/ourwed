@@ -123,7 +123,7 @@ export function Sidebar({
   open = false,
   onClose,
   onNavigate,
-  presentation = 'default',
+  presentation = 'v3',
   returnFocusRef,
 }: SidebarProps) {
   const { logout, user } = useAuth()

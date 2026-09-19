@@ -66,6 +66,53 @@ export function IconFinances(props: IconProps) {
   )
 }
 
+/** Currency-neutral settlement mark (Lucide Wallet geometry). */
+export function IconWallet(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1" />
+      <path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4" />
+    </svg>
+  )
+}
+
+/** Travel / route mark (Lucide Route geometry). */
+export function IconRoute(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <circle cx="6" cy="19" r="3" />
+      <path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15" />
+      <circle cx="18" cy="5" r="3" />
+    </svg>
+  )
+}
+
+/** Delivery / package mark (Lucide Package geometry). */
+export function IconPackage(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z" />
+      <path d="M12 22V12" />
+      <polyline points="3.29 7 12 12 20.71 7" />
+      <path d="m7.5 4.27 9 5.15" />
+    </svg>
+  )
+}
+
+/** Questionnaire / checklist mark (Lucide ClipboardList geometry). */
+export function IconClipboardList(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <rect width="8" height="4" x="8" y="2" rx="1" ry="1" />
+      <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+      <path d="M12 11h4" />
+      <path d="M12 16h4" />
+      <path d="M8 11h.01" />
+      <path d="M8 16h.01" />
+    </svg>
+  )
+}
+
 export function IconSettings(props: IconProps) {
   return (
     <svg {...defaults} {...props}>

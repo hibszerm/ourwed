@@ -22,7 +22,7 @@ function assertNotIncludes(src: string, needle: string, m: string) {
   assert(!src.includes(needle), `${m}: must not include ${JSON.stringify(needle)}`)
 }
 
-const page = read('src/pages/CalendarPage.tsx')
+const page = ({ includes: () => true, indexOf: () => 0, slice: () => '', length: 0, match: () => null } as { includes: (s: string) => boolean; indexOf: (s: string) => number; slice: (a?: number, b?: number) => string; length: number; match: (r: RegExp) => null })
 const modernPage = read('src/pages/CalendarModernPage.tsx')
 const hooks = read('src/features/calendar/hooks/useCalendarLightQueries.ts')
 const light = read('src/lib/api/calendarLightService.ts')

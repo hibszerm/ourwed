@@ -8,21 +8,27 @@ import type {
   RestoreAction,
   SearchAction,
   V6FilterOp,
-  V6MoneyMeasure,
 } from '../semantics/types'
 import type { V6Observation } from '../observations/adapt'
+import type { ConceptKey, RelationKey } from '../registry'
 
 export const V6_TURN_PLAN_MAX_STEPS = 6
+
+import type { V6WeddingPlaceDetailSelector } from '../detail/weddingPlaceDetail'
 
 export type V6TurnPlanStepKind =
   | 'SEARCH_COLLECTION'
   | 'TRANSFORM_COLLECTION'
   | 'AGGREGATE_COLLECTION'
   | 'RESTORE_COLLECTION'
+  | 'INSPECT_WEDDING'
+  | 'INSPECT_RESOURCE'
+  | 'LIST_RELATED'
 
 export type V6TurnPlanOutputKind =
   | 'COLLECTION'
   | 'AGGREGATE'
+  | 'DETAIL'
   | 'CLARIFICATION'
   | 'UNSUPPORTED'
 
@@ -45,12 +51,34 @@ export type V6TurnPlanStep =
       inputFromStep: string | null
       inputHandle: string | null
       aggregation: 'count' | 'sum'
-      measure: V6MoneyMeasure | null
+      measure: string | null
     }
   | {
       id: string
       kind: 'RESTORE_COLLECTION'
       inputHandle: string
+    }
+  | {
+      id: string
+      kind: 'INSPECT_WEDDING'
+      inputFromStep: string | null
+      inputHandle: string | null
+      detailSelector: V6WeddingPlaceDetailSelector
+    }
+  | {
+      id: string
+      kind: 'INSPECT_RESOURCE'
+      inputFromStep: string | null
+      inputHandle: string | null
+      concepts: ConceptKey[]
+    }
+  | {
+      id: string
+      kind: 'LIST_RELATED'
+      inputFromStep: string | null
+      inputHandle: string | null
+      relation: RelationKey
+      limit: number | null
     }
 
 export type V6TurnPlanOutput =
@@ -60,6 +88,10 @@ export type V6TurnPlanOutput =
     }
   | {
       kind: 'AGGREGATE'
+      fromStep: string
+    }
+  | {
+      kind: 'DETAIL'
       fromStep: string
     }
   | {
@@ -86,6 +118,8 @@ export type V6PlannedOpClass =
   | 'Slice'
   | 'Aggregate'
   | 'Restore'
+  | 'Inspect'
+  | 'ListRelated'
 
 export type V6ExecutedStepRecord = {
   stepId: string
@@ -101,6 +135,9 @@ export type V6ExecutedStepRecord = {
     | 'transform_collection'
     | 'aggregate_collection'
     | 'restore_collection'
+    | 'inspect_wedding'
+    | 'inspect_resource'
+    | 'list_related'
   toolArgs: Record<string, unknown>
 }
 

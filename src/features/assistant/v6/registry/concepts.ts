@@ -1,0 +1,1241 @@
+/**
+ * CRA1 V1 Business Concept Registry — wedding + first-class session resources.
+ *
+ * This file describes capabilities only. Adapter implementations live elsewhere.
+ */
+import type { BusinessConceptDefinition, ConceptOperation } from './types'
+
+export const V6_INSPECT_MAX_CONCEPTS = 6
+export const V6_LIST_RELATED_HARD_CAP = 20
+export const V6_CROSS_DOMAIN_CANDIDATE_CAP = 200
+
+const ALL_VALUE_REACHES = ['executor', 'observation', 'renderer'] as const
+
+type ConceptInput = Omit<
+  BusinessConceptDefinition<string>,
+  'resource' | 'plannerVisible' | 'valueReaches'
+> & {
+  resource?: BusinessConceptDefinition<string>['resource']
+}
+
+function defineConcept<const T extends ConceptInput>(
+  definition: T,
+): Omit<T, 'resource'> &
+  Pick<
+    BusinessConceptDefinition<string>,
+    'resource' | 'plannerVisible' | 'valueReaches'
+  > {
+  const { resource, ...rest } = definition
+  return {
+    resource: resource ?? 'WEDDING',
+    plannerVisible: true,
+    valueReaches: ALL_VALUE_REACHES,
+    ...rest,
+  }
+}
+
+const TEXT_FILTER = ['eq', 'neq', 'contains'] as const
+const ORDER_FILTER = ['eq', 'neq', 'gt', 'gte', 'lt', 'lte'] as const
+const MONEY_OPERATIONS = [
+  'inspect',
+  'filter',
+  'sort',
+  'aggregate_sum',
+] as const satisfies readonly ConceptOperation[]
+const BOOLEAN_OPERATIONS = [
+  'inspect',
+  'filter',
+  'aggregate_count',
+] as const satisfies readonly ConceptOperation[]
+const ENUM_OPERATIONS = [
+  'inspect',
+  'filter',
+  'aggregate_count',
+] as const satisfies readonly ConceptOperation[]
+
+export const V6_BUSINESS_CONCEPTS = [
+  defineConcept({
+    key: 'WEDDING.DATE',
+    semanticDescription: 'Calendar date of the wedding.',
+    returnType: 'date',
+    privacy: 'BIZ',
+    operations: ['inspect', 'filter', 'sort'],
+    adapterId: 'wedding.date',
+    missingPolicy: 'null',
+    filterShape: ORDER_FILTER,
+    sortKey: true,
+    costClass: 'cheap',
+    polishLabel: 'Data ślubu',
+  }),
+  defineConcept({
+    key: 'WEDDING.DISPLAY_NAME',
+    semanticDescription: 'Human-readable wedding name used in the workspace.',
+    returnType: 'string',
+    privacy: 'PII',
+    operations: ['inspect', 'filter'],
+    adapterId: 'wedding.display_name',
+    missingPolicy: 'null',
+    filterShape: 'contains',
+    costClass: 'cheap',
+    polishLabel: 'Nazwa ślubu',
+  }),
+  defineConcept({
+    key: 'WEDDING.STATUS',
+    semanticDescription: 'Current lifecycle status of the wedding record.',
+    returnType: 'enum',
+    privacy: 'BIZ',
+    operations: ENUM_OPERATIONS,
+    adapterId: 'wedding.status',
+    missingPolicy: 'null',
+    filterShape: ['eq', 'neq'],
+    costClass: 'cheap',
+    polishLabel: 'Status ślubu',
+  }),
+  defineConcept({
+    key: 'WEDDING.PRIMARY_LOCATION',
+    semanticDescription:
+      'Primary locality or location associated with the wedding.',
+    returnType: 'string',
+    privacy: 'BIZ',
+    operations: ['inspect', 'filter'],
+    adapterId: 'wedding.primary_location',
+    missingPolicy: 'null',
+    filterShape: TEXT_FILTER,
+    costClass: 'cheap',
+    polishLabel: 'Główna lokalizacja',
+  }),
+  defineConcept({
+    key: 'WEDDING.CEREMONY_TIME_SCALAR',
+    semanticDescription: 'Ceremony time stored directly on the wedding record.',
+    returnType: 'string',
+    privacy: 'BIZ',
+    operations: ['inspect', 'filter', 'sort'],
+    adapterId: 'wedding.ceremony_time_scalar',
+    missingPolicy: 'null',
+    filterShape: ORDER_FILTER,
+    sortKey: true,
+    costClass: 'cheap',
+    polishLabel: 'Godzina ceremonii',
+  }),
+
+  defineConcept({
+    key: 'CONTACT.BRIDE_NAME',
+    semanticDescription: 'Bride name recorded for the wedding.',
+    returnType: 'string',
+    privacy: 'PII',
+    operations: ['inspect', 'filter'],
+    adapterId: 'contact.bride_name',
+    missingPolicy: 'null',
+    filterShape: 'contains',
+    costClass: 'cheap',
+    polishLabel: 'Panna młoda',
+  }),
+  defineConcept({
+    key: 'CONTACT.GROOM_NAME',
+    semanticDescription: 'Groom name recorded for the wedding.',
+    returnType: 'string',
+    privacy: 'PII',
+    operations: ['inspect', 'filter'],
+    adapterId: 'contact.groom_name',
+    missingPolicy: 'null',
+    filterShape: 'contains',
+    costClass: 'cheap',
+    polishLabel: 'Pan młody',
+  }),
+  defineConcept({
+    key: 'CONTACT.BRIDE_PHONE',
+    semanticDescription: 'Bride phone number.',
+    returnType: 'string',
+    privacy: 'PII',
+    operations: ['inspect'],
+    adapterId: 'contact.bride_phone',
+    missingPolicy: 'null',
+    costClass: 'cheap',
+    polishLabel: 'Telefon panny młodej',
+  }),
+  defineConcept({
+    key: 'CONTACT.GROOM_PHONE',
+    semanticDescription: 'Groom phone number.',
+    returnType: 'string',
+    privacy: 'PII',
+    operations: ['inspect'],
+    adapterId: 'contact.groom_phone',
+    missingPolicy: 'null',
+    costClass: 'cheap',
+    polishLabel: 'Telefon pana młodego',
+  }),
+  defineConcept({
+    key: 'CONTACT.BRIDE_EMAIL',
+    semanticDescription: 'Bride email address.',
+    returnType: 'string',
+    privacy: 'PII',
+    operations: ['inspect'],
+    adapterId: 'contact.bride_email',
+    missingPolicy: 'null',
+    costClass: 'cheap',
+    polishLabel: 'E-mail panny młodej',
+  }),
+  defineConcept({
+    key: 'CONTACT.GROOM_EMAIL',
+    semanticDescription: 'Groom email address.',
+    returnType: 'string',
+    privacy: 'PII',
+    operations: ['inspect'],
+    adapterId: 'contact.groom_email',
+    missingPolicy: 'null',
+    costClass: 'cheap',
+    polishLabel: 'E-mail pana młodego',
+  }),
+  defineConcept({
+    key: 'CONTACT.BRIDE_ADDRESS',
+    semanticDescription: 'Bride postal address.',
+    returnType: 'string',
+    privacy: 'PII',
+    operations: ['inspect'],
+    adapterId: 'contact.bride_address',
+    missingPolicy: 'null',
+    costClass: 'cheap',
+    polishLabel: 'Adres panny młodej',
+  }),
+  defineConcept({
+    key: 'CONTACT.GROOM_ADDRESS',
+    semanticDescription: 'Groom postal address.',
+    returnType: 'string',
+    privacy: 'PII',
+    operations: ['inspect'],
+    adapterId: 'contact.groom_address',
+    missingPolicy: 'null',
+    costClass: 'cheap',
+    polishLabel: 'Adres pana młodego',
+  }),
+  defineConcept({
+    key: 'CONTACT.EXTRA_CONTACTS',
+    semanticDescription: 'Additional contacts related to the wedding.',
+    returnType: 'list',
+    privacy: 'PII',
+    operations: ['list_related'],
+    adapterId: 'contact.extra_contacts',
+    missingPolicy: 'empty_list',
+    relationKey: 'EXTRA_CONTACTS',
+    costClass: 'batch',
+    polishLabel: 'Dodatkowe kontakty',
+  }),
+
+  defineConcept({
+    key: 'PLACE.CEREMONY_PLACE',
+    semanticDescription: 'Name of the ceremony venue.',
+    returnType: 'string',
+    privacy: 'BIZ',
+    operations: ['inspect', 'filter'],
+    adapterId: 'place.ceremony_place',
+    missingPolicy: 'null',
+    filterShape: TEXT_FILTER,
+    costClass: 'cheap',
+    polishLabel: 'Miejsce ceremonii',
+  }),
+  defineConcept({
+    key: 'PLACE.CEREMONY_ADDRESS',
+    semanticDescription: 'Address of the ceremony venue.',
+    returnType: 'string',
+    privacy: 'PII',
+    operations: ['inspect'],
+    adapterId: 'place.ceremony_address',
+    missingPolicy: 'null',
+    costClass: 'cheap',
+    polishLabel: 'Adres ceremonii',
+  }),
+  defineConcept({
+    key: 'PLACE.RECEPTION_PLACE',
+    semanticDescription: 'Name of the reception venue.',
+    returnType: 'string',
+    privacy: 'BIZ',
+    operations: ['inspect', 'filter'],
+    adapterId: 'place.reception_place',
+    missingPolicy: 'null',
+    filterShape: TEXT_FILTER,
+    costClass: 'cheap',
+    polishLabel: 'Miejsce wesela',
+  }),
+  defineConcept({
+    key: 'PLACE.RECEPTION_ADDRESS',
+    semanticDescription: 'Address of the reception venue.',
+    returnType: 'string',
+    privacy: 'PII',
+    operations: ['inspect'],
+    adapterId: 'place.reception_address',
+    missingPolicy: 'null',
+    costClass: 'cheap',
+    polishLabel: 'Adres wesela',
+  }),
+  defineConcept({
+    key: 'PLACE.BRIDE_PREP_PLACE',
+    semanticDescription: 'Name of the bride preparation location.',
+    returnType: 'string',
+    privacy: 'BIZ',
+    operations: ['inspect', 'filter'],
+    adapterId: 'place.bride_prep_place',
+    missingPolicy: 'null',
+    filterShape: TEXT_FILTER,
+    costClass: 'cheap',
+    polishLabel: 'Miejsce przygotowań panny młodej',
+  }),
+  defineConcept({
+    key: 'PLACE.BRIDE_PREP_ADDRESS',
+    semanticDescription: 'Address of the bride preparation location.',
+    returnType: 'string',
+    privacy: 'PII',
+    operations: ['inspect'],
+    adapterId: 'place.bride_prep_address',
+    missingPolicy: 'null',
+    costClass: 'cheap',
+    polishLabel: 'Adres przygotowań panny młodej',
+  }),
+  defineConcept({
+    key: 'PLACE.GROOM_PREP_PLACE',
+    semanticDescription: 'Name of the groom preparation location.',
+    returnType: 'string',
+    privacy: 'BIZ',
+    operations: ['inspect', 'filter'],
+    adapterId: 'place.groom_prep_place',
+    missingPolicy: 'null',
+    filterShape: TEXT_FILTER,
+    costClass: 'cheap',
+    polishLabel: 'Miejsce przygotowań pana młodego',
+  }),
+  defineConcept({
+    key: 'PLACE.GROOM_PREP_ADDRESS',
+    semanticDescription: 'Address of the groom preparation location.',
+    returnType: 'string',
+    privacy: 'PII',
+    operations: ['inspect'],
+    adapterId: 'place.groom_prep_address',
+    missingPolicy: 'null',
+    costClass: 'cheap',
+    polishLabel: 'Adres przygotowań pana młodego',
+  }),
+
+  ...(
+    [
+      [
+        'OPS.CEREMONY_TIME',
+        'ops.ceremony_time',
+        'Ceremony time in the operational day plan.',
+        'Godzina ceremonii',
+      ],
+      [
+        'OPS.BRIDE_PREP_TIME',
+        'ops.bride_prep_time',
+        'Bride preparation time in the operational day plan.',
+        'Godzina przygotowań panny młodej',
+      ],
+      [
+        'OPS.GROOM_PREP_TIME',
+        'ops.groom_prep_time',
+        'Groom preparation time in the operational day plan.',
+        'Godzina przygotowań pana młodego',
+      ],
+      [
+        'OPS.RECEPTION_TIME',
+        'ops.reception_time',
+        'Reception time in the operational day plan.',
+        'Godzina wesela',
+      ],
+    ] as const
+  ).map(([key, adapterId, semanticDescription, polishLabel]) =>
+    defineConcept({
+      key,
+      semanticDescription,
+      returnType: 'string',
+      privacy: 'BIZ',
+      operations: ['inspect'],
+      adapterId,
+      missingPolicy: 'null',
+      costClass: 'cheap',
+      polishLabel,
+    }),
+  ),
+  defineConcept({
+    key: 'OPS.DAY_PLAN_STOPS',
+    semanticDescription: 'Ordered operational stops in the wedding day plan.',
+    returnType: 'list',
+    privacy: 'BIZ',
+    operations: ['list_related'],
+    adapterId: 'ops.day_plan_stops',
+    missingPolicy: 'empty_list',
+    relationKey: 'DAY_PLAN_STOPS',
+    costClass: 'batch',
+    polishLabel: 'Plan dnia',
+  }),
+
+  defineConcept({
+    key: 'PKG.NAME',
+    semanticDescription: 'Name of the selected package.',
+    returnType: 'string',
+    privacy: 'BIZ',
+    operations: ['inspect', 'filter'],
+    adapterId: 'pkg.name',
+    missingPolicy: 'null',
+    filterShape: TEXT_FILTER,
+    costClass: 'cheap',
+    polishLabel: 'Pakiet',
+  }),
+  defineConcept({
+    key: 'PKG.COVERAGE_HOURS',
+    semanticDescription: 'Number of coverage hours included in the package.',
+    returnType: 'number',
+    privacy: 'BIZ',
+    operations: ['inspect', 'filter', 'sort'],
+    adapterId: 'pkg.coverage_hours',
+    missingPolicy: 'null',
+    filterShape: ORDER_FILTER,
+    sortKey: true,
+    costClass: 'cheap',
+    polishLabel: 'Godziny reportażu',
+  }),
+  defineConcept({
+    key: 'PKG.ITEMS',
+    semanticDescription: 'Items included in the selected package.',
+    returnType: 'list',
+    privacy: 'BIZ',
+    operations: ['list_related'],
+    adapterId: 'pkg.items',
+    missingPolicy: 'empty_list',
+    relationKey: 'PACKAGE_ITEMS',
+    costClass: 'batch',
+    polishLabel: 'Elementy pakietu',
+  }),
+  defineConcept({
+    key: 'PKG.EXTRAS',
+    semanticDescription: 'Extras attached to the wedding package.',
+    returnType: 'list',
+    privacy: 'FIN',
+    operations: ['list_related'],
+    adapterId: 'pkg.extras',
+    missingPolicy: 'empty_list',
+    relationKey: 'EXTRAS',
+    costClass: 'batch',
+    polishLabel: 'Dodatki',
+  }),
+  defineConcept({
+    key: 'PKG.EXTRAS_TOTAL',
+    semanticDescription: 'Total monetary value of package extras.',
+    returnType: 'money',
+    privacy: 'FIN',
+    operations: MONEY_OPERATIONS,
+    adapterId: 'pkg.extras_total',
+    missingPolicy: 'zero',
+    filterShape: ORDER_FILTER,
+    sortKey: true,
+    costClass: 'batch',
+    polishLabel: 'Wartość dodatków',
+  }),
+
+  ...(
+    [
+      [
+        'FIN.CONTRACT_VALUE',
+        'fin.contract_value',
+        'Total agreed contract value.',
+        'Wartość umowy',
+        'cheap',
+      ],
+      [
+        'FIN.AGREED_DEPOSIT',
+        'fin.agreed_deposit',
+        'Agreed deposit amount.',
+        'Ustalony zadatek',
+        'cheap',
+      ],
+      [
+        'FIN.TOTAL_PAID',
+        'fin.total_paid',
+        'Total amount paid for the wedding.',
+        'Łącznie wpłacono',
+        'batch',
+      ],
+      [
+        'FIN.REMAINING_TO_PAY',
+        'fin.remaining_to_pay',
+        'Amount currently remaining to be paid.',
+        'Pozostało do zapłaty',
+        'batch',
+      ],
+      [
+        'FIN.REMAINING_AFTER_DEPOSIT',
+        'fin.remaining_after_deposit',
+        'Contract balance after subtracting the agreed deposit.',
+        'Pozostało po zadatku',
+        'cheap',
+      ],
+      [
+        'FIN.DEPOSIT_PAID_AMOUNT',
+        'fin.deposit_paid_amount',
+        'Amount paid toward the deposit.',
+        'Wpłacony zadatek',
+        'batch',
+      ],
+    ] as const
+  ).map(([key, adapterId, semanticDescription, polishLabel, costClass]) =>
+    defineConcept({
+      key,
+      semanticDescription,
+      returnType: 'money',
+      privacy: 'FIN',
+      operations: MONEY_OPERATIONS,
+      adapterId,
+      missingPolicy: 'zero',
+      filterShape: ORDER_FILTER,
+      sortKey: true,
+      costClass,
+      polishLabel,
+    }),
+  ),
+  defineConcept({
+    key: 'FIN.DEPOSIT_PAID',
+    semanticDescription: 'Whether the required deposit has been paid.',
+    returnType: 'boolean',
+    privacy: 'FIN',
+    operations: BOOLEAN_OPERATIONS,
+    adapterId: 'fin.deposit_paid',
+    missingPolicy: 'false',
+    filterShape: ['eq', 'neq'],
+    costClass: 'batch',
+    polishLabel: 'Zadatek opłacony',
+  }),
+  defineConcept({
+    key: 'FIN.DEPOSIT_STATUS',
+    semanticDescription: 'Derived payment status of the required deposit.',
+    returnType: 'enum',
+    privacy: 'FIN',
+    operations: ENUM_OPERATIONS,
+    adapterId: 'fin.deposit_status',
+    missingPolicy: 'null',
+    filterShape: ['eq', 'neq'],
+    costClass: 'batch',
+    polishLabel: 'Status zadatku',
+  }),
+  defineConcept({
+    key: 'FIN.FINAL_PAYMENT_DUE_DATE',
+    semanticDescription: 'Due date of the final wedding payment.',
+    returnType: 'date',
+    privacy: 'FIN',
+    operations: ['inspect', 'filter', 'sort'],
+    adapterId: 'fin.final_payment_due_date',
+    missingPolicy: 'null',
+    filterShape: ORDER_FILTER,
+    sortKey: true,
+    costClass: 'cheap',
+    polishLabel: 'Termin płatności końcowej',
+  }),
+  defineConcept({
+    key: 'FIN.PAYMENT_SCHEDULE',
+    semanticDescription:
+      'Payment schedule and payment records for the wedding.',
+    returnType: 'list',
+    privacy: 'FIN',
+    operations: ['list_related'],
+    adapterId: 'fin.payment_schedule',
+    missingPolicy: 'empty_list',
+    relationKey: 'PAYMENTS',
+    costClass: 'batch',
+    polishLabel: 'Harmonogram płatności',
+  }),
+  defineConcept({
+    key: 'FIN.CURRENCY',
+    semanticDescription: 'Currency used for wedding financial values.',
+    returnType: 'string',
+    privacy: 'FIN',
+    operations: ['inspect', 'filter'],
+    adapterId: 'fin.currency',
+    missingPolicy: 'null',
+    filterShape: ['eq', 'neq'],
+    costClass: 'cheap',
+    polishLabel: 'Waluta',
+  }),
+
+  defineConcept({
+    key: 'CONTRACT.STATUS',
+    semanticDescription: 'Current contract lifecycle status.',
+    returnType: 'enum',
+    privacy: 'BIZ',
+    operations: ENUM_OPERATIONS,
+    adapterId: 'contract.status',
+    missingPolicy: 'null',
+    filterShape: ['eq', 'neq'],
+    costClass: 'batch',
+    polishLabel: 'Status umowy',
+  }),
+  defineConcept({
+    key: 'CONTRACT.GENERATED_AT',
+    semanticDescription: 'Date and time when the contract was generated.',
+    returnType: 'datetime',
+    privacy: 'BIZ',
+    operations: ['inspect', 'filter', 'sort'],
+    adapterId: 'contract.generated_at',
+    missingPolicy: 'null',
+    filterShape: ORDER_FILTER,
+    sortKey: true,
+    costClass: 'batch',
+    polishLabel: 'Wygenerowano umowę',
+  }),
+  defineConcept({
+    key: 'CONTRACT.SIGNED_AT',
+    semanticDescription: 'Date and time when the contract was signed.',
+    returnType: 'datetime',
+    privacy: 'BIZ',
+    operations: ['inspect', 'filter', 'sort'],
+    adapterId: 'contract.signed_at',
+    missingPolicy: 'null',
+    filterShape: ORDER_FILTER,
+    sortKey: true,
+    costClass: 'batch',
+    polishLabel: 'Podpisano umowę',
+  }),
+  defineConcept({
+    key: 'CONTRACT.SIGNED',
+    semanticDescription: 'Whether the contract has been signed.',
+    returnType: 'boolean',
+    privacy: 'BIZ',
+    operations: BOOLEAN_OPERATIONS,
+    adapterId: 'contract.signed',
+    missingPolicy: 'false',
+    filterShape: ['eq', 'neq'],
+    costClass: 'batch',
+    polishLabel: 'Umowa podpisana',
+  }),
+  defineConcept({
+    key: 'CONTRACT.READINESS',
+    semanticDescription:
+      'Canonical contract-generation readiness for this wedding — same gate as the UI generate-contract flow (mayGenerateContract). Value includes ready boolean and blockers (e.g. unresolved travel fee, missing reception, package/payment gaps). Use when asking whether a specific wedding can generate a contract or what still blocks generation.',
+    returnType: 'enum',
+    privacy: 'BIZ',
+    operations: ENUM_OPERATIONS,
+    adapterId: 'contract.readiness',
+    missingPolicy: 'null',
+    filterShape: ['eq', 'neq'],
+    costClass: 'batch',
+    polishLabel: 'Gotowość generowania umowy',
+  }),
+
+  defineConcept({
+    key: 'TASK.OPEN_COUNT',
+    semanticDescription: 'Number of open tasks for the wedding.',
+    returnType: 'number',
+    privacy: 'BIZ',
+    operations: ['inspect', 'filter', 'sort', 'aggregate_sum'],
+    adapterId: 'task.open_count',
+    missingPolicy: 'zero',
+    filterShape: ORDER_FILTER,
+    sortKey: true,
+    costClass: 'batch',
+    polishLabel: 'Otwarte zadania',
+  }),
+  defineConcept({
+    key: 'TASK.HAS_OPEN',
+    semanticDescription: 'Whether the wedding has any open tasks.',
+    returnType: 'boolean',
+    privacy: 'BIZ',
+    operations: BOOLEAN_OPERATIONS,
+    adapterId: 'task.has_open',
+    missingPolicy: 'false',
+    filterShape: ['eq', 'neq'],
+    costClass: 'batch',
+    polishLabel: 'Ma otwarte zadania',
+  }),
+  defineConcept({
+    key: 'TASK.OVERDUE_COUNT',
+    semanticDescription: 'Number of overdue open tasks for the wedding.',
+    returnType: 'number',
+    privacy: 'BIZ',
+    operations: ['inspect', 'filter', 'sort', 'aggregate_sum'],
+    adapterId: 'task.overdue_count',
+    missingPolicy: 'zero',
+    filterShape: ORDER_FILTER,
+    sortKey: true,
+    costClass: 'batch',
+    polishLabel: 'Zaległe zadania',
+  }),
+  defineConcept({
+    key: 'TASK.HAS_OVERDUE',
+    semanticDescription: 'Whether the wedding has any overdue open tasks.',
+    returnType: 'boolean',
+    privacy: 'BIZ',
+    operations: BOOLEAN_OPERATIONS,
+    adapterId: 'task.has_overdue',
+    missingPolicy: 'false',
+    filterShape: ['eq', 'neq'],
+    costClass: 'batch',
+    polishLabel: 'Ma zaległe zadania',
+  }),
+  defineConcept({
+    key: 'TASK.NEXT_DUE_DATE',
+    semanticDescription: 'Nearest due date among open tasks.',
+    returnType: 'date',
+    privacy: 'BIZ',
+    operations: ['inspect', 'filter', 'sort'],
+    adapterId: 'task.next_due_date',
+    missingPolicy: 'null',
+    filterShape: ORDER_FILTER,
+    sortKey: true,
+    costClass: 'batch',
+    polishLabel: 'Najbliższy termin zadania',
+  }),
+  defineConcept({
+    key: 'TASK.OPEN_LIST',
+    semanticDescription: 'Open tasks related to the wedding.',
+    returnType: 'list',
+    privacy: 'BIZ',
+    operations: ['list_related'],
+    adapterId: 'task.open_list',
+    missingPolicy: 'empty_list',
+    relationKey: 'TASKS_OPEN',
+    costClass: 'batch',
+    polishLabel: 'Lista otwartych zadań',
+  }),
+
+  defineConcept({
+    key: 'DELIVERY.DUE_DATE',
+    semanticDescription:
+      'Expected delivery due date for the wedding materials.',
+    returnType: 'date',
+    privacy: 'BIZ',
+    operations: ['inspect', 'filter', 'sort'],
+    adapterId: 'delivery.due_date',
+    missingPolicy: 'null',
+    filterShape: ORDER_FILTER,
+    sortKey: true,
+    costClass: 'cheap',
+    polishLabel: 'Termin oddania',
+  }),
+  defineConcept({
+    key: 'DELIVERY.STATE',
+    semanticDescription: 'Current delivery state for the wedding materials.',
+    returnType: 'enum',
+    privacy: 'BIZ',
+    operations: ENUM_OPERATIONS,
+    adapterId: 'delivery.state',
+    missingPolicy: 'null',
+    filterShape: ['eq', 'neq'],
+    costClass: 'cheap',
+    polishLabel: 'Status oddania',
+  }),
+
+  ...(
+    [
+      [
+        'Q.CONTRACT_STATUS',
+        'q.contract_status',
+        'Completion status of the contract questionnaire.',
+        'Ankieta umowy',
+      ],
+      [
+        'Q.PREWEDDING_STATUS',
+        'q.prewedding_status',
+        'Completion status of the pre-wedding questionnaire.',
+        'Ankieta przedślubna',
+      ],
+    ] as const
+  ).map(([key, adapterId, semanticDescription, polishLabel]) =>
+    defineConcept({
+      key,
+      semanticDescription,
+      returnType: 'enum',
+      privacy: 'BIZ',
+      operations: ENUM_OPERATIONS,
+      adapterId,
+      missingPolicy: 'null',
+      filterShape: ['eq', 'neq'],
+      costClass: 'cheap',
+      polishLabel,
+    }),
+  ),
+  ...(
+    [
+      [
+        'Q.CONTRACT_COMPLETED',
+        'q.contract_completed',
+        'Whether the contract questionnaire is complete.',
+        'Ankieta umowy ukończona',
+      ],
+      [
+        'Q.PREWEDDING_COMPLETED',
+        'q.prewedding_completed',
+        'Whether the pre-wedding questionnaire is complete.',
+        'Ankieta przedślubna ukończona',
+      ],
+    ] as const
+  ).map(([key, adapterId, semanticDescription, polishLabel]) =>
+    defineConcept({
+      key,
+      semanticDescription,
+      returnType: 'boolean',
+      privacy: 'BIZ',
+      operations: BOOLEAN_OPERATIONS,
+      adapterId,
+      missingPolicy: 'false',
+      filterShape: ['eq', 'neq'],
+      costClass: 'cheap',
+      polishLabel,
+    }),
+  ),
+
+  defineConcept({
+    key: 'SESSION.HAS_ANY',
+    semanticDescription: 'Whether the wedding has any related sessions.',
+    returnType: 'boolean',
+    privacy: 'BIZ',
+    operations: BOOLEAN_OPERATIONS,
+    adapterId: 'session.has_any',
+    missingPolicy: 'false',
+    filterShape: ['eq', 'neq'],
+    costClass: 'batch',
+    polishLabel: 'Ma sesje',
+  }),
+  defineConcept({
+    key: 'SESSION.COUNT',
+    semanticDescription: 'Number of sessions related to the wedding.',
+    returnType: 'number',
+    privacy: 'BIZ',
+    operations: ['inspect', 'filter', 'sort', 'aggregate_sum'],
+    adapterId: 'session.count',
+    missingPolicy: 'zero',
+    filterShape: ORDER_FILTER,
+    sortKey: true,
+    costClass: 'batch',
+    polishLabel: 'Liczba sesji',
+  }),
+  defineConcept({
+    key: 'SESSION.LIST',
+    semanticDescription: 'Sessions related to the wedding.',
+    returnType: 'list',
+    privacy: 'BIZ',
+    operations: ['list_related'],
+    adapterId: 'session.list',
+    missingPolicy: 'empty_list',
+    relationKey: 'SESSIONS',
+    costClass: 'batch',
+    polishLabel: 'Sesje',
+  }),
+
+  // --- First-class Session resource (V7) ---
+  defineConcept({
+    resource: 'SESSION',
+    key: 'SESSION.DATE',
+    semanticDescription: 'Calendar date of the photography session.',
+    returnType: 'date',
+    privacy: 'BIZ',
+    operations: ['inspect', 'filter', 'sort'],
+    adapterId: 'session.date',
+    missingPolicy: 'null',
+    filterShape: ORDER_FILTER,
+    sortKey: true,
+    costClass: 'cheap',
+    polishLabel: 'Data sesji',
+  }),
+  defineConcept({
+    resource: 'SESSION',
+    key: 'SESSION.DISPLAY_NAME',
+    semanticDescription: 'Display name of the photography session.',
+    returnType: 'string',
+    privacy: 'PII',
+    operations: ['inspect', 'filter'],
+    adapterId: 'session.display_name',
+    missingPolicy: 'null',
+    filterShape: TEXT_FILTER,
+    costClass: 'cheap',
+    polishLabel: 'Nazwa sesji',
+  }),
+  defineConcept({
+    resource: 'SESSION',
+    key: 'SESSION.TYPE',
+    semanticDescription: 'Session type enum (engagement, postWedding, …).',
+    returnType: 'enum',
+    enumValues: [
+      'engagement',
+      'postWedding',
+      'family',
+      'business',
+      'other',
+    ],
+    privacy: 'BIZ',
+    operations: ['inspect', 'filter', 'aggregate_count'],
+    adapterId: 'session.type',
+    missingPolicy: 'null',
+    filterShape: ['eq', 'neq'],
+    costClass: 'cheap',
+    polishLabel: 'Typ sesji',
+  }),
+  defineConcept({
+    resource: 'SESSION',
+    key: 'SESSION.START_TIME',
+    semanticDescription: 'Optional session start time (HH:MM), if recorded.',
+    returnType: 'string',
+    privacy: 'BIZ',
+    operations: ['inspect'],
+    adapterId: 'session.start_time',
+    missingPolicy: 'null',
+    costClass: 'cheap',
+    polishLabel: 'Godzina rozpoczęcia',
+  }),
+  defineConcept({
+    resource: 'SESSION',
+    key: 'SESSION.END_TIME',
+    semanticDescription: 'Optional session end time (HH:MM), if recorded.',
+    returnType: 'string',
+    privacy: 'BIZ',
+    operations: ['inspect'],
+    adapterId: 'session.end_time',
+    missingPolicy: 'null',
+    costClass: 'cheap',
+    polishLabel: 'Godzina zakończenia',
+  }),
+  defineConcept({
+    resource: 'SESSION',
+    key: 'SESSION.LOCATION_SUMMARY',
+    semanticDescription: 'Safe location summary line for the session.',
+    returnType: 'string',
+    privacy: 'PII',
+    operations: ['inspect', 'filter'],
+    adapterId: 'session.location_summary',
+    missingPolicy: 'null',
+    filterShape: TEXT_FILTER,
+    costClass: 'cheap',
+    polishLabel: 'Miejsce sesji',
+  }),
+  defineConcept({
+    resource: 'SESSION',
+    key: 'SESSION.TOTAL_PRICE',
+    semanticDescription: 'Agreed total price of the session.',
+    returnType: 'money',
+    privacy: 'FIN',
+    operations: MONEY_OPERATIONS,
+    adapterId: 'session.total_price',
+    missingPolicy: 'zero',
+    filterShape: ORDER_FILTER,
+    sortKey: true,
+    costClass: 'cheap',
+    polishLabel: 'Cena sesji',
+  }),
+  defineConcept({
+    resource: 'SESSION',
+    key: 'SESSION.DEPOSIT_AMOUNT',
+    semanticDescription: 'Agreed session deposit (zaliczka), not paid amount.',
+    returnType: 'money',
+    privacy: 'FIN',
+    operations: ['inspect', 'filter', 'sort', 'aggregate_sum'],
+    adapterId: 'session.deposit_amount',
+    missingPolicy: 'zero',
+    filterShape: ORDER_FILTER,
+    sortKey: true,
+    costClass: 'cheap',
+    polishLabel: 'Zaliczka sesji',
+  }),
+  defineConcept({
+    resource: 'SESSION',
+    key: 'SESSION.TOTAL_PAID',
+    semanticDescription: 'Sum of paid session payments (canonical getTotalPaid).',
+    returnType: 'money',
+    privacy: 'FIN',
+    operations: MONEY_OPERATIONS,
+    adapterId: 'session.total_paid',
+    missingPolicy: 'zero',
+    filterShape: ORDER_FILTER,
+    sortKey: true,
+    costClass: 'batch',
+    polishLabel: 'Wpłacono (sesja)',
+  }),
+  defineConcept({
+    resource: 'SESSION',
+    key: 'SESSION.REMAINING_TO_PAY',
+    semanticDescription:
+      'Remaining session amount (canonical getRemainingToPay).',
+    returnType: 'money',
+    privacy: 'FIN',
+    operations: MONEY_OPERATIONS,
+    adapterId: 'session.remaining_to_pay',
+    missingPolicy: 'zero',
+    filterShape: ORDER_FILTER,
+    sortKey: true,
+    costClass: 'batch',
+    polishLabel: 'Pozostało do zapłaty (sesja)',
+  }),
+  defineConcept({
+    resource: 'SESSION',
+    key: 'SESSION.HAS_LINKED_WEDDING',
+    semanticDescription: 'Whether the session is linked to a wedding.',
+    returnType: 'boolean',
+    privacy: 'BIZ',
+    operations: BOOLEAN_OPERATIONS,
+    adapterId: 'session.has_linked_wedding',
+    missingPolicy: 'false',
+    filterShape: ['eq', 'neq'],
+    costClass: 'cheap',
+    polishLabel: 'Powiązana z weselem',
+  }),
+  defineConcept({
+    resource: 'SESSION',
+    key: 'SESSION.LINKED_WEDDING',
+    semanticDescription: 'Wedding linked to this session, if any.',
+    returnType: 'list',
+    privacy: 'BIZ',
+    operations: ['list_related'],
+    adapterId: 'session.linked_wedding',
+    missingPolicy: 'empty_list',
+    relationKey: 'LINKED_WEDDING',
+    costClass: 'batch',
+    polishLabel: 'Powiązane wesele',
+  }),
+
+  defineConcept({
+    key: 'TRAVEL.FEE_STATUS',
+    semanticDescription: 'Resolution status of the wedding travel fee.',
+    returnType: 'enum',
+    privacy: 'FIN',
+    operations: ['inspect'],
+    adapterId: 'travel.fee_status',
+    missingPolicy: 'null',
+    costClass: 'expensive',
+    polishLabel: 'Status kosztu dojazdu',
+  }),
+  defineConcept({
+    key: 'TRAVEL.EFFECTIVE_FEE',
+    semanticDescription: 'Effective travel fee after route resolution.',
+    returnType: 'money',
+    privacy: 'FIN',
+    operations: ['inspect', 'aggregate_sum'],
+    adapterId: 'travel.effective_fee',
+    missingPolicy: 'null',
+    costClass: 'expensive',
+    polishLabel: 'Koszt dojazdu',
+  }),
+  defineConcept({
+    key: 'TRAVEL.RESOLVED',
+    semanticDescription:
+      'Whether the wedding travel route and fee are resolved.',
+    returnType: 'boolean',
+    privacy: 'BIZ',
+    operations: ['inspect'],
+    adapterId: 'travel.resolved',
+    missingPolicy: 'false',
+    costClass: 'expensive',
+    polishLabel: 'Dojazd rozliczony',
+  }),
+
+  defineConcept({
+    key: 'LOGISTICS.ROUTE_COMPLETE',
+    semanticDescription:
+      'Whether every adjacent operational-day route leg has an ok cached segment.',
+    returnType: 'boolean',
+    privacy: 'BIZ',
+    operations: BOOLEAN_OPERATIONS,
+    adapterId: 'logistics.route_complete',
+    missingPolicy: 'false',
+    filterShape: ['eq', 'neq'],
+    costClass: 'batch',
+    polishLabel: 'Trasa kompletna',
+  }),
+  defineConcept({
+    key: 'LOGISTICS.TOTALS_COMPLETE',
+    semanticDescription:
+      'Whether operational day route totals may be shown (all adjacent legs ok).',
+    returnType: 'boolean',
+    privacy: 'BIZ',
+    operations: BOOLEAN_OPERATIONS,
+    adapterId: 'logistics.totals_complete',
+    missingPolicy: 'false',
+    filterShape: ['eq', 'neq'],
+    costClass: 'batch',
+    polishLabel: 'Sumy trasy kompletne',
+  }),
+  defineConcept({
+    key: 'LOGISTICS.TOTAL_DISTANCE_KM',
+    semanticDescription:
+      'Operational day total distance in km (studio→places, no return). Null unless totals complete.',
+    returnType: 'number',
+    privacy: 'BIZ',
+    operations: ['inspect'],
+    adapterId: 'logistics.total_distance_km',
+    missingPolicy: 'null',
+    costClass: 'batch',
+    polishLabel: 'Dystans trasy (km)',
+  }),
+  defineConcept({
+    key: 'LOGISTICS.TOTAL_DRIVE_DURATION_MIN',
+    semanticDescription:
+      'Operational day total drive duration in minutes. Null unless totals complete.',
+    returnType: 'number',
+    privacy: 'BIZ',
+    operations: ['inspect'],
+    adapterId: 'logistics.total_drive_duration_min',
+    missingPolicy: 'null',
+    costClass: 'batch',
+    polishLabel: 'Czas jazdy (min)',
+  }),
+  defineConcept({
+    key: 'LOGISTICS.HAS_STUDIO_START',
+    semanticDescription:
+      'Whether the operational route includes a studio start stop.',
+    returnType: 'boolean',
+    privacy: 'BIZ',
+    operations: ['inspect'],
+    adapterId: 'logistics.has_studio_start',
+    missingPolicy: 'false',
+    costClass: 'batch',
+    polishLabel: 'Start ze studia',
+  }),
+  defineConcept({
+    key: 'LOGISTICS.RETURN_LEG_INCLUDED',
+    semanticDescription:
+      'Whether the operational day route includes return to studio (always false; return is fee-only).',
+    returnType: 'boolean',
+    privacy: 'BIZ',
+    operations: ['inspect'],
+    adapterId: 'logistics.return_leg_included',
+    missingPolicy: 'false',
+    costClass: 'cheap',
+    polishLabel: 'Powrót do studia w trasie dnia',
+  }),
+  defineConcept({
+    key: 'LOGISTICS.LONGEST_LEG',
+    semanticDescription:
+      'Longest ok adjacent operational leg (from/to, distance, duration). Null if none.',
+    returnType: 'string',
+    privacy: 'BIZ',
+    operations: ['inspect'],
+    adapterId: 'logistics.longest_leg',
+    missingPolicy: 'null',
+    costClass: 'batch',
+    polishLabel: 'Najdłuższy odcinek',
+  }),
+  defineConcept({
+    key: 'LOGISTICS.ROUTE_LEGS',
+    semanticDescription:
+      'Adjacent operational-day route legs with cached distance/duration when available.',
+    returnType: 'list',
+    privacy: 'BIZ',
+    operations: ['list_related'],
+    adapterId: 'logistics.route_legs',
+    missingPolicy: 'empty_list',
+    relationKey: 'ROUTE_LEGS',
+    costClass: 'batch',
+    polishLabel: 'Odcinki trasy',
+  }),
+  defineConcept({
+    key: 'LOGISTICS.ROUTE_STOPS',
+    semanticDescription:
+      'Ordered operational-day route stops (studio + verified places).',
+    returnType: 'list',
+    privacy: 'BIZ',
+    operations: ['list_related'],
+    adapterId: 'logistics.route_stops',
+    missingPolicy: 'empty_list',
+    relationKey: 'ROUTE_STOPS',
+    costClass: 'batch',
+    polishLabel: 'Kolejność przystanków',
+  }),
+
+  defineConcept({
+    key: 'WORKFLOW.STAGE',
+    semanticDescription: 'Internal workflow stage identifier for the wedding.',
+    returnType: 'string',
+    privacy: 'META',
+    operations: ['inspect'],
+    adapterId: 'workflow.stage',
+    missingPolicy: 'null',
+    costClass: 'cheap',
+    polishLabel: 'Etap pracy',
+  }),
+  defineConcept({
+    key: 'WORKFLOW.STAGE_LABEL',
+    semanticDescription: 'Human-readable workflow stage label.',
+    returnType: 'string',
+    privacy: 'BIZ',
+    operations: ['inspect'],
+    adapterId: 'workflow.stage_label',
+    missingPolicy: 'null',
+    costClass: 'cheap',
+    polishLabel: 'Nazwa etapu',
+  }),
+] as const satisfies readonly BusinessConceptDefinition<string>[]
+
+export type ConceptKey = (typeof V6_BUSINESS_CONCEPTS)[number]['key']
+export type V6BusinessConcept = (typeof V6_BUSINESS_CONCEPTS)[number]
+
+const CONCEPT_BY_KEY = new Map<ConceptKey, V6BusinessConcept>()
+for (const concept of V6_BUSINESS_CONCEPTS) {
+  const operations = concept.operations as readonly ConceptOperation[]
+  if (CONCEPT_BY_KEY.has(concept.key)) {
+    throw new Error(`Duplicate V6 business concept key: ${concept.key}`)
+  }
+  if (operations.includes('list_related') && !('relationKey' in concept)) {
+    throw new Error(`Related-list concept lacks relationKey: ${concept.key}`)
+  }
+  if (operations.includes('filter') && !('filterShape' in concept)) {
+    throw new Error(`Filterable concept lacks filterShape: ${concept.key}`)
+  }
+  if (
+    operations.includes('sort') &&
+    (!('sortKey' in concept) || concept.sortKey !== true)
+  ) {
+    throw new Error(`Sortable concept lacks sortKey: ${concept.key}`)
+  }
+  CONCEPT_BY_KEY.set(concept.key, concept)
+}
+
+export const ALL_CONCEPT_KEYS = V6_BUSINESS_CONCEPTS.map(
+  (concept) => concept.key,
+) as readonly ConceptKey[]
+
+export function isConceptKey(value: unknown): value is ConceptKey {
+  return typeof value === 'string' && CONCEPT_BY_KEY.has(value as ConceptKey)
+}
+
+export function getConcept(key: ConceptKey): V6BusinessConcept {
+  const concept = CONCEPT_BY_KEY.get(key)
+  if (!concept) {
+    throw new Error(`Unknown V6 business concept: ${key}`)
+  }
+  return concept
+}
+
+export function conceptsByOperation(
+  operation: ConceptOperation,
+): readonly V6BusinessConcept[] {
+  return V6_BUSINESS_CONCEPTS.filter((concept) =>
+    (concept.operations as readonly ConceptOperation[]).includes(operation),
+  )
+}
+
+export const INSPECTABLE_CONCEPT_KEYS = conceptsByOperation('inspect').map(
+  (concept) => concept.key,
+) as readonly ConceptKey[]
+export const FILTERABLE_CONCEPT_KEYS = conceptsByOperation('filter').map(
+  (concept) => concept.key,
+) as readonly ConceptKey[]
+export const SORTABLE_CONCEPT_KEYS = conceptsByOperation('sort').map(
+  (concept) => concept.key,
+) as readonly ConceptKey[]
+export const SUMMABLE_CONCEPT_KEYS = conceptsByOperation('aggregate_sum').map(
+  (concept) => concept.key,
+) as readonly ConceptKey[]
+export const COUNTABLE_CONCEPT_KEYS = conceptsByOperation(
+  'aggregate_count',
+).map((concept) => concept.key) as readonly ConceptKey[]
+export const RELATED_LIST_CONCEPT_KEYS = conceptsByOperation(
+  'list_related',
+).map((concept) => concept.key) as readonly ConceptKey[]
+export const AGGREGATABLE_CONCEPT_KEYS = [
+  ...SUMMABLE_CONCEPT_KEYS,
+  ...COUNTABLE_CONCEPT_KEYS,
+] as readonly ConceptKey[]
+export const LIST_RELATED_CONCEPT_KEYS = RELATED_LIST_CONCEPT_KEYS
+export const ALL_RELATION_KEYS = [
+  ...new Set(
+    V6_BUSINESS_CONCEPTS.flatMap((concept) =>
+      'relationKey' in concept ? [concept.relationKey] : [],
+    ),
+  ),
+] as readonly import('./types').RelationKey[]
+export const PLANNER_VISIBLE_CONCEPT_KEYS = V6_BUSINESS_CONCEPTS.filter(
+  (concept) => concept.plannerVisible,
+).map((concept) => concept.key) as readonly ConceptKey[]

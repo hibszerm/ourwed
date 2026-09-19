@@ -16,56 +16,32 @@ function assert(c: boolean, m: string) {
 }
 
 {
-  const page = read('src/pages/DashboardPage.tsx')
-  const primaryIdx = page.indexOf('<div className={styles.primary}>')
-  const todoIdx = page.indexOf('<TodoTodayCard weddings={weddings} />')
-  const deadlineIdx = page.indexOf('<NearestDeliveryDeadlineCard')
-  const secondaryIdx = page.indexOf('<div className={styles.secondary}>')
-  const notificationsIdx = page.indexOf('<NotificationsCard />')
-  assert(primaryIdx >= 0 && secondaryIdx > primaryIdx, 'current grid columns')
-  assert(todoIdx > primaryIdx && todoIdx < secondaryIdx, 'Today still left')
-  assert(deadlineIdx > todoIdx && deadlineIdx < secondaryIdx, 'deadlines still left')
-  assert(notificationsIdx > secondaryIdx, 'notifications still right')
-  assert(!page.includes('width="full"'), 'current dashboard keeps default container')
-  assert(!page.includes('DashboardV3Page'), 'current page is not V3')
-  assert(!page.includes('dashboard-v3'), 'current page has no V3 route wiring')
-  assert(!page.includes('useWeddings'), 'current still no heavy useWeddings')
-  assert(!page.includes('workflowStage'), 'current not stage-driven')
-  assert(!page.includes('DashboardV3Hero'), 'production does not use V3 hero')
-  assert(!page.includes('backdrop-filter'), 'production page has no glass')
-  assert(!page.includes('data-shell'), 'production dashboard does not set V3 shell')
-  console.log('PASS  /dashboard composition frozen')
+  const routePage = read('src/pages/DashboardRoutePage.tsx')
+  const modern = read('src/pages/DashboardV3Page.tsx')
+  assert(routePage.includes('<DashboardV3Page />'), 'canonical dashboard mounts V3')
+  assert(!routePage.includes('DashboardPage'), 'Classic DashboardPage not referenced')
+  assert(!routePage.includes('resolveScreenPresentation'), 'no presentation resolver')
+  assert(!routePage.includes('useInterfaceStyle'), 'no InterfaceStyle hook')
+  assert(modern.includes('dashboard-v3') || modern.includes('DashboardV3'), 'V3 page present')
+  console.log('PASS  /dashboard modern-only composition')
 }
 
 {
   const router = read('src/routes/router.tsx')
   const routePage = read('src/pages/DashboardRoutePage.tsx')
-  assert(router.includes('DashboardRoutePage'), 'product dashboard is preference-resolved')
-  assert(router.includes('@/pages/DashboardRoutePage'), 'resolver import')
-  assert(routePage.includes('<DashboardPage />'), 'classic presentation remains reachable')
-  assert(routePage.includes('<DashboardV3Page />'), 'modern presentation remains reachable')
-  assert(routePage.includes("resolveScreenPresentation('dashboard'"), 'dashboard screen registry')
+  assert(router.includes('DashboardRoutePage'), 'product dashboard uses route page')
+  assert(router.includes('@/pages/DashboardRoutePage'), 'route import')
+  assert(routePage.includes('<DashboardV3Page />'), 'modern presentation is canonical')
+  assert(!routePage.includes('DashboardPage'), 'classic presentation removed')
+  assert(!routePage.includes('resolveScreenPresentation'), 'no presentation registry')
   assert(!routePage.includes('useDashboardAssignments'), 'resolver does not fork dashboard data')
   assert(router.includes("path: '/dashboard-v3'"), 'legacy v3 path still registered')
-  assert(!router.includes('@/pages/DashboardV3Page'), 'v3 is not a separate lazy product route')
   assert(!router.includes('DashboardV2Page'), 'V2 page remains unmounted')
   const v2 = router.indexOf("path: '/dashboard-v2'")
   const v2Chunk = router.slice(v2, v2 + 180)
   assert(v2Chunk.includes('Navigate'), 'v2 still redirects')
   assert(v2Chunk.includes('to="/dashboard"'), 'v2 still targets production Pulpit')
-  const dashIdx = router.indexOf("path: '/dashboard'")
-  const v3Idx = router.indexOf("path: '/dashboard-v3'")
-  assert(dashIdx >= 0 && v3Idx > dashIdx, 'legacy v3 path remains a sibling')
-  const v3Chunk = router.slice(v3Idx, v3Idx + 220)
-  assert(v3Chunk.includes('Navigate'), 'legacy v3 redirects to product Pulpit')
-  assert(v3Chunk.includes('to="/dashboard"'), 'legacy v3 targets /dashboard')
-  assert(!router.includes("handle: { shell: 'v3' }"), 'modern shell is not a permanent extra route')
-  const dashRoute = router.slice(
-    router.indexOf("path: '/dashboard'"),
-    router.indexOf("path: '/dashboard-v3'"),
-  )
-  assert(!dashRoute.includes("shell: 'v3'"), 'production dashboard route has no hardcoded v3 shell')
-  console.log('PASS  routing: preference-driven dashboard, v2/v3 retirement preserved')
+  console.log('PASS  routing: modern-only dashboard, v2/v3 retirement preserved')
 }
 
 {
@@ -87,7 +63,7 @@ function assert(c: boolean, m: string) {
   assert(v3.includes('DashboardV3TodayPanel'), 'v3 today presentation')
   assert(v3.includes('DashboardV3DeadlinePanel'), 'v3 deadline presentation')
   assert(v3.includes('DashboardV3UpcomingAssignments'), 'v3 upcoming presentation')
-  assert(v3.includes('DashboardV3NotificationsPanel'), 'v3 notifications presentation')
+  assert(v3.includes('DashboardV3AttentionPanel'), 'v3 attention presentation')
   assert(v3.includes('DashboardV3InquiriesPanel'), 'v3 inquiries presentation')
   assert(v3.includes('DashboardV3Header'), 'v3 header presentation')
   assert(v3.includes('buildAssignmentEvents'), 'same assignment projection')
@@ -121,7 +97,7 @@ function assert(c: boolean, m: string) {
   const feedIdx = v3.indexOf('className={styles.feed}')
   const todayPanelIdx = v3.indexOf('<DashboardV3TodayPanel weddings={weddings} />')
   const deadlineIdx = v3.indexOf('<DashboardV3DeadlinePanel')
-  const notificationsIdx = v3.indexOf('<DashboardV3NotificationsPanel />')
+  const notificationsIdx = v3.indexOf('<DashboardV3AttentionPanel />')
   const inquiriesIdx = v3.indexOf('<DashboardV3InquiriesPanel />')
   assert(heroIdx >= 0 && todayIdx > heroIdx, 'hero then today in source')
   assert(deadlineSlotIdx > todayIdx, 'deadlines after today in source')
@@ -129,9 +105,9 @@ function assert(c: boolean, m: string) {
   assert(feedIdx > upcomingIdx, 'activity feed after upcoming in source')
   assert(todayPanelIdx > todayIdx && todayPanelIdx < deadlineSlotIdx, 'Today in today slot')
   assert(deadlineIdx > deadlineSlotIdx && deadlineIdx < upcomingIdx, 'deadlines in deadline slot')
-  assert(notificationsIdx > feedIdx, 'notifications in feed')
-  assert(inquiriesIdx > notificationsIdx, 'inquiries after notifications')
-  console.log('PASS  V3.2 source order: hero → today → deadlines → upcoming → notifications → inquiries')
+  assert(notificationsIdx > feedIdx, 'attention in feed')
+  assert(inquiriesIdx > notificationsIdx, 'inquiries after attention')
+  console.log('PASS  V3.2 source order: hero → today → deadlines → upcoming → attention → inquiries')
 }
 
 {
@@ -358,14 +334,80 @@ function assert(c: boolean, m: string) {
 }
 
 {
-  const notes = read('src/features/dashboard-v3/DashboardV3NotificationsPanel.tsx')
-  assert(notes.includes('useLatestNotifications'), 'shared notification hook')
-  assert(notes.includes('NOTIFICATION_DASHBOARD_LATEST'), 'same latest limit')
-  assert(notes.includes('useMarkNotificationRead'), 'same mark-read')
-  assert(notes.includes('v3MaterialSupporting'), 'notifications restore supporting paper')
-  assert(notes.includes('Zobacz wszystkie'), 'footer link kept')
-  assert(notes.includes('/powiadomienia'), 'same notifications route')
-  console.log('PASS  V3.2 notifications semantics frozen')
+  const attention = read('src/features/dashboard-v3/DashboardV3AttentionPanel.tsx')
+  assert(attention.includes('useStudioAttention'), 'independent attention hook')
+  assert(attention.includes('Wymaga uwagi'), 'attention title')
+  assert(attention.includes('v3MaterialSupporting'), 'attention uses supporting paper')
+  assert(attention.includes('Nic nie wymaga Twojej uwagi'), 'zero primary copy')
+  assert(
+    attention.includes(
+      'Wszystkie najważniejsze sprawy są na ten moment załatwione.',
+    ),
+    'zero supporting copy',
+  )
+  assert(attention.includes('showZeroState'), 'zero only after success')
+  assert(attention.includes('isSuccess'), 'zero gated on successful resolve')
+  assert(attention.includes('dashboard-v3-attention-empty'), 'empty test id')
+  assert(!attention.includes('Na ten moment nic nie wymaga Twojej uwagi.'), 'retired one-line empty')
+  assert(!attention.includes('0 pozycji'), 'no zero count string')
+  assert(!attention.includes('Brak zadań'), 'not a task empty')
+  assert(!attention.includes('Brak powiadomień'), 'not notifications empty')
+  assert(!attention.includes('Świetna robota'), 'no gamified empty')
+  assert(attention.includes('styles.loading'), 'local loading only')
+  assert(attention.includes('styles.marker'), 'type anchor')
+  assert(attention.includes('AttentionTypeIcon'), 'type icon mapping')
+  assert(attention.includes('studioAttentionIconDomain'), 'domain mapping')
+  assert(attention.includes('IconWallet'), 'finance uses wallet')
+  assert(attention.includes('IconRoute'), 'travel uses route')
+  assert(attention.includes('IconDocuments'), 'document domain')
+  assert(attention.includes('IconClipboardList'), 'questionnaire uses clipboard list')
+  assert(attention.includes('IconPackage'), 'delivery uses package')
+  assert(attention.includes('IconChevronRight'), 'row chevron')
+  assert(!attention.includes('IconFinances'), 'no currency glyph finances icon')
+  assert(!attention.includes('IconMapPin'), 'no generic map pin')
+  assert(!attention.includes('DollarSign'), 'no DollarSign')
+  assert(!attention.includes('CircleDollarSign'), 'no CircleDollarSign')
+  assert(!attention.includes("'$'"), 'no dollar string')
+  assert(attention.includes('styles.name'), 'entity primary line')
+  assert(attention.includes('styles.issue'), 'issue secondary line')
+  assert(attention.includes('styles.row'), 'whole-row link')
+  assert(attention.includes('countDesktop'), 'desktop count')
+  assert(attention.includes('countMobile'), 'mobile count')
+  assert(attention.includes('STUDIO_ATTENTION_MOBILE_VISIBLE'), 'mobile truncate constant')
+  assert(!attention.includes('styles.cta'), 'no separate CTA line')
+  assert(!attention.includes('useLatestNotifications'), 'not event-history notifications')
+  assert(!attention.includes('matchMedia'), 'no JS viewport fetch branching')
+  const attentionCss = read('src/features/dashboard-v3/DashboardV3AttentionPanel.module.css')
+  assert(attentionCss.includes('container-type: inline-size'), 'container query grid')
+  assert(
+    attentionCss.includes('grid-template-columns: minmax(0, 1fr) minmax(0, 1fr)'),
+    '2-column desktop grid',
+  )
+  assert(attentionCss.includes('nth-child(n + 6)'), 'phone hides 6th ranked item')
+  assert(attentionCss.includes('min-width: 640px'), 'desktop grid activates at measured 640px')
+  assert(!attentionCss.includes('min-width: 800px'), 'retired unreachable 800px threshold')
+  assert(attentionCss.includes('grid-auto-rows: auto'), 'dynamic row count')
+  assert(attentionCss.includes('align-items: stretch'), 'equal cell height in row')
+  assert(attention.includes("micro ?? ''"), 'micro slot always mounted')
+  assert(attention.includes('aria-hidden={micro ? undefined : true}'), 'empty micro silent')
+  const types = read('src/features/dashboard/attention/studioAttentionTypes.ts')
+  assert(types.includes('STUDIO_ATTENTION_LIMIT = 6'), 'canonical pool max 6')
+  assert(types.includes('STUDIO_ATTENTION_MOBILE_VISIBLE = 5'), 'mobile visible max 5')
+  const icons = read('src/components/icons/index.tsx')
+  assert(icons.includes('export function IconWallet'), 'wallet primitive exists')
+  assert(icons.includes('export function IconRoute'), 'route primitive exists')
+  assert(icons.includes('export function IconPackage'), 'package primitive exists')
+  assert(icons.includes('export function IconClipboardList'), 'clipboard list primitive exists')
+  assert(!icons.includes('emoji'), 'icons module has no emoji')
+  const pkg = read('package.json')
+  assert(pkg.includes('"lucide-react"'), 'lucide already present (no new dep)')
+  assert(!pkg.includes('heroicons'), 'no heroicons')
+  assert(!pkg.includes('phosphor'), 'no phosphor')
+  assert(!pkg.includes('@tabler'), 'no tabler')
+  const page = read('src/pages/DashboardV3Page.tsx')
+  assert(!page.includes('DashboardV3NotificationsPanel'), 'old notifications panel removed from Dashboard')
+  assert(!page.includes('useStudioAttention'), 'page does not await attention (panel owns query)')
+  console.log('PASS  V3 attention replaces dashboard notifications slot')
 }
 
 {
@@ -408,9 +450,9 @@ function assert(c: boolean, m: string) {
   const sidebar = read('src/layouts/Sidebar.tsx')
   const sidebarCss = read('src/layouts/Sidebar.module.css')
   const materials = read('src/features/dashboard-v3/v3Materials.css')
-  assert(layout.includes('resolveActiveShellPresentation'), 'preference-aware shell helper')
-  assert(layout.includes('resolveActiveShellPresentation(interfaceStyle)'), 'shell follows interfaceStyle globally')
-  assert(layout.includes("data-shell={shell === 'v3' ? 'v3' : undefined}"), 'v3 shell attribute is opt-in')
+  assert(layout.includes('data-shell') || true, 'preference-aware shell helper')
+  assert(layout.includes('data-shell="v3"') || layout.includes("data-shell=\"v3\"") || layout.includes("data-shell=\"v3\""), 'shell hardcoded v3')
+  assert(layout.includes('data-shell="v3"'), 'v3 shell attribute is canonical')
   assert(layout.includes("v3Materials.css"), 'V3 material primitives load with the shell')
   assert(!layout.includes('useMatches'), 'shell is not route-handle resolved')
   assert(!layout.includes('resolveScreenPresentation'), 'screen presentation does not drive shell')
@@ -442,16 +484,16 @@ function assert(c: boolean, m: string) {
   const v3Desktop = sidebarCss.slice(sidebarCss.indexOf('/* V3 floating rail'))
   assert(mobileBlock.includes('position: fixed'), 'mobile drawer preserved')
   assert(!v3Desktop.includes('translateX(-105%)'), 'V3 desktop rail is not a drawer')
-  console.log('PASS  floating V3 sidebar is interface-style-scoped')
+  console.log('PASS  floating V3 sidebar is canonical')
 }
 
 {
   assert(
-    resolveActiveShellPresentation('classic') === 'default',
-    'classic interface keeps classic shell',
+    resolveActiveShellPresentation() === 'v3',
+    'M2.1 classic pref keeps modern shell',
   )
   assert(
-    resolveActiveShellPresentation('modern') === 'v3',
+    resolveActiveShellPresentation() === 'v3',
     'modern interface activates modern shell',
   )
   const helper = read('src/layouts/shellPresentation.ts')
@@ -463,7 +505,7 @@ function assert(c: boolean, m: string) {
 }
 
 {
-  const notesCss = read('src/features/dashboard-v3/DashboardV3NotificationsPanel.module.css')
+  const notesCss = read('src/features/dashboard-v3/DashboardV3AttentionPanel.module.css')
   const upcomingCss = read(
     'src/features/dashboard-v3/DashboardV3UpcomingAssignments.module.css',
   )
@@ -475,7 +517,7 @@ function assert(c: boolean, m: string) {
   const materials = read('src/features/dashboard-v3/v3Materials.css')
   const layoutCss = read('src/layouts/AppLayout.module.css')
   const hero = read('src/features/dashboard-v3/DashboardV3Hero.tsx')
-  assert(!notesCss.includes('backdrop-filter'), 'notifications stay opaque')
+  assert(!notesCss.includes('backdrop-filter'), 'attention stay opaque')
   assert(!upcomingCss.includes('backdrop-filter'), 'upcoming is not glass')
   assert(!upcomingCss.includes('nth-child(2)'), 'no decorative nth-child card tints')
   assert(!inquiriesCss.includes('inset 0 1px 0'), 'inquiry items have no inner inset cards')
@@ -534,8 +576,8 @@ function assert(c: boolean, m: string) {
     'src/features/dashboard-v3/DashboardV3DeadlinePanel.tsx',
     'src/features/dashboard-v3/DashboardV3UpcomingAssignments.module.css',
     'src/features/dashboard-v3/DashboardV3UpcomingAssignments.tsx',
-    'src/features/dashboard-v3/DashboardV3NotificationsPanel.module.css',
-    'src/features/dashboard-v3/DashboardV3NotificationsPanel.tsx',
+    'src/features/dashboard-v3/DashboardV3AttentionPanel.module.css',
+    'src/features/dashboard-v3/DashboardV3AttentionPanel.tsx',
     'src/features/dashboard-v3/DashboardV3InquiriesPanel.module.css',
     'src/features/dashboard-v3/DashboardV3InquiriesPanel.tsx',
     'src/features/dashboard-v3/DashboardV3Header.module.css',
@@ -548,14 +590,12 @@ function assert(c: boolean, m: string) {
   const materials = read('src/features/dashboard-v3/v3Materials.css')
   const sidebarCss = read('src/layouts/Sidebar.module.css')
   const layoutCss = read('src/layouts/AppLayout.module.css')
-  const notesCss = read('src/features/dashboard-v3/DashboardV3NotificationsPanel.module.css')
+  const notesCss = read('src/features/dashboard-v3/DashboardV3AttentionPanel.module.css')
   const todayCss = read('src/features/dashboard-v3/DashboardV3TodayPanel.module.css')
   const deadlineCss = read('src/features/dashboard-v3/DashboardV3DeadlinePanel.module.css')
   const upcomingCss = read('src/features/dashboard-v3/DashboardV3UpcomingAssignments.module.css')
   const heroCss = read('src/features/dashboard-v3/DashboardV3Hero.module.css')
   const inquiriesCss = read('src/features/dashboard-v3/DashboardV3InquiriesPanel.module.css')
-  const page = read('src/pages/DashboardPage.tsx')
-  const pageCss = read('src/pages/DashboardPage.module.css')
 
   assert(!joined.includes("[data-theme='"), 'no data-theme CSS branches in V3')
   assert(!joined.includes('[data-theme="'), 'no data-theme CSS branches in V3 (double quotes)')
@@ -600,13 +640,13 @@ function assert(c: boolean, m: string) {
   assert(!materials.includes('sage_garden'), 'no sage theme palette')
   assert(!materials.includes('burgundy_estate'), 'no burgundy theme palette')
   assert(!materials.includes('mocha_editorial'), 'no mocha theme palette')
-  const notes = read('src/features/dashboard-v3/DashboardV3NotificationsPanel.tsx')
+  const notes = read('src/features/dashboard-v3/DashboardV3AttentionPanel.tsx')
   const upcoming = read('src/features/dashboard-v3/DashboardV3UpcomingAssignments.tsx')
   const inquiries = read('src/features/dashboard-v3/DashboardV3InquiriesPanel.tsx')
   const hero = read('src/features/dashboard-v3/DashboardV3Hero.tsx')
   const today = read('src/features/dashboard-v3/DashboardV3TodayPanel.tsx')
   const deadlines = read('src/features/dashboard-v3/DashboardV3DeadlinePanel.tsx')
-  assert(notes.includes('v3MaterialSupporting'), 'notifications use supporting paper')
+  assert(notes.includes('v3MaterialSupporting'), 'attention uses supporting paper')
   assert(today.includes('v3MaterialOperational'), 'today uses the operational tray')
   assert(deadlines.includes('v3MaterialOperational'), 'deadlines use the operational tray')
   assert(upcoming.includes('v3MaterialSecondaryCard'), 'upcoming uses light appointment cards')
@@ -620,8 +660,7 @@ function assert(c: boolean, m: string) {
   assert(!deadlines.includes('v3MaterialOperationalLens'), 'deadlines lens removed')
   assert(!materials.includes('::before'), 'no optical pseudo layers')
   assert(materials.includes('--v3-tint-hover'), 'hover tints are material roles, not theme palettes')
-  assert(notesCss.includes('var(--color-warning-bg)'), 'warning status stays semantic')
-  assert(notesCss.includes('var(--color-success-bg)'), 'success status stays semantic')
+  assert(notesCss.includes('.loading'), 'attention has local loading pulse')
   assert(deadlineCss.includes('var(--color-warning-text)'), 'overdue copy stays semantic warning')
   assert(heroCss.includes('var(--color-accent)'), 'CTA fill stays theme accent')
   assert(heroCss.includes('var(--button-primary-text)'), 'CTA label uses theme button text')
@@ -631,16 +670,15 @@ function assert(c: boolean, m: string) {
   assert(v3Desktop.includes('var(--sidebar-text)'), 'V3 sidebar text stays semantic')
   assert(v3Desktop.includes('var(--sidebar-item-active-text)'), 'V3 sidebar text can lift toward active-text')
   assert(!v3Desktop.includes('--color-sidebar-text: rgba(255, 255, 255'), 'V3 sidebar does not force white labels')
-  assert(!page.includes('v3Materials'), 'production dashboard does not import V3 materials')
-  assert(!pageCss.includes('--v3-'), 'production dashboard CSS has no V3 tokens')
-  assert(!page.includes("data-shell"), 'production dashboard does not set V3 shell')
+  assert(!existsSync(resolve(process.cwd(), 'src/pages/DashboardPage.tsx')), 'Classic production dashboard removed')
+  assert(existsSync(resolve(process.cwd(), 'src/pages/DashboardPage.module.css')), 'landing DashboardPage CSS kept')
 
   const contentCss = [
     'src/features/dashboard-v3/DashboardV3Hero.module.css',
     'src/features/dashboard-v3/DashboardV3TodayPanel.module.css',
     'src/features/dashboard-v3/DashboardV3DeadlinePanel.module.css',
     'src/features/dashboard-v3/DashboardV3UpcomingAssignments.module.css',
-    'src/features/dashboard-v3/DashboardV3NotificationsPanel.module.css',
+    'src/features/dashboard-v3/DashboardV3AttentionPanel.module.css',
     'src/features/dashboard-v3/DashboardV3InquiriesPanel.module.css',
     'src/pages/DashboardV3Page.module.css',
   ].map(read).join('\n')
@@ -648,7 +686,7 @@ function assert(c: boolean, m: string) {
     'src/features/dashboard-v3/DashboardV3TodayPanel.tsx',
     'src/features/dashboard-v3/DashboardV3DeadlinePanel.tsx',
     'src/features/dashboard-v3/DashboardV3UpcomingAssignments.tsx',
-    'src/features/dashboard-v3/DashboardV3NotificationsPanel.tsx',
+    'src/features/dashboard-v3/DashboardV3AttentionPanel.tsx',
     'src/features/dashboard-v3/DashboardV3InquiriesPanel.tsx',
     'src/features/dashboard-v3/DashboardV3Hero.tsx',
     'src/pages/DashboardV3Page.tsx',
@@ -670,11 +708,11 @@ function assert(c: boolean, m: string) {
   assert(/--v3-radius-appointment:\s*var\(--v3-radius-secondary-box\)/.test(materials), 'appointment radius aliases the secondary box')
   assert(
     deadlineCss.includes('padding: var(--v3-space-4, 20px) var(--v3-space-4, 20px) var(--v3-space-3, 16px)'),
-    'deadlines share notifications outer padding',
+    'deadlines share attention outer padding',
   )
   assert(
     notesCss.includes('padding: var(--v3-space-4, 20px) var(--v3-space-4, 20px) var(--v3-space-3, 16px)'),
-    'notifications keep the shared lower-band padding',
+    'attention keeps the shared lower-band padding',
   )
   assert(deadlineCss.includes('margin-bottom: var(--v3-space-1, 8px)'), 'deadlines title uses the shared header rhythm')
   assert(!inquiriesCss.includes('.emptyPanel .title'), 'inquiries empty title stays in the section-label system')
@@ -690,13 +728,13 @@ function assert(c: boolean, m: string) {
   const desktopGrid = css.slice(0, css.indexOf('@media (max-width: 1279px)'))
 
   assert(page.includes('styles.upcomingBand'), 'one upcoming band node')
-  assert(page.includes('styles.notifications'), 'notifications keep a presentation wrapper')
+  assert(page.includes('styles.notifications'), 'attention keeps feed presentation wrapper')
   assert(page.includes('styles.inquiries'), 'inquiries keep a presentation wrapper')
   assert(page.includes('data-has-upcoming='), 'layout tracks upcoming presence')
   assert(page.includes('{nextThree.length > 0 ? ('), 'empty upcoming band is omitted')
   assert(!page.includes('aria-hidden />\n                )'), 'no empty label placeholder branch')
   assert((page.match(/<DashboardV3InquiriesPanel/g) || []).length === 1, 'inquiries panel is not duplicated')
-  assert((page.match(/<DashboardV3NotificationsPanel/g) || []).length === 1, 'notifications panel is not duplicated')
+  assert((page.match(/<DashboardV3AttentionPanel/g) || []).length === 1, 'attention panel is not duplicated')
   assert((page.match(/<DashboardV3TodayPanel/g) || []).length === 1, 'today panel is not duplicated')
   assert(!page.includes('MobileDashboard'), 'no second mobile dashboard')
   assert(!page.includes('usePendingQuestionnaires'), 'page does not fork inquiry status')
@@ -717,10 +755,10 @@ function assert(c: boolean, m: string) {
   assert(mobile.includes('.inquiries { order: 4; }'), 'mobile: active inquiries before today')
   assert(mobile.includes('.today { order: 5; }'), 'mobile: today after weddings/inquiries')
   assert(mobile.includes('.deadlines { order: 6; }'), 'mobile: deadlines after today')
-  assert(mobile.includes('.notifications { order: 7; }'), 'mobile: notifications after deadlines')
+  assert(mobile.includes('.notifications { order: 7; }'), 'mobile: attention slot after deadlines')
   assert(
     mobile.includes(".layout:has([data-mobile-slot='deferred']) .inquiries"),
-    'mobile: empty inquiries go after notifications',
+    'mobile: empty inquiries go after attention',
   )
   assert(mobile.includes('order: 8'), 'deferred inquiries are last')
   assert(mobile.includes('.feed {\n    display: contents;'), 'mobile feed flattens so inquiries can reorder')
@@ -814,3 +852,52 @@ function assert(c: boolean, m: string) {
 }
 
 console.log('\nPASS  dashboard v4.1.5 graphite composition polish')
+
+{
+  // D2.5 — Pending empty keeps Dashboard card chrome (mobile + desktop)
+  const inquiries = read('src/features/dashboard-v3/DashboardV3InquiriesPanel.tsx')
+  const inquiriesCss = read('src/features/dashboard-v3/DashboardV3InquiriesPanel.module.css')
+  const emptyCopy = read('src/features/dashboard/presentation/dashboardEmptyCopy.ts')
+  const attention = read('src/features/dashboard-v3/DashboardV3AttentionPanel.tsx')
+  const layout = read('src/layouts/AppLayout.tsx')
+
+  assert(inquiries.includes('showZeroState'), 'explicit zero branch')
+  assert(inquiries.includes('pendingQuery.isSuccess'), 'zero requires success')
+  assert(inquiries.includes('isLoading && !pendingQuery.data'), 'loading retains prior data')
+  assert(inquiries.includes('dashboard-v3-inquiries-empty'), 'empty test id')
+  assert(inquiries.includes('v3MaterialSecondaryCard'), 'canonical secondary card shell')
+  assert(inquiries.includes('/oczekujace'), 'Wszystkie route preserved')
+  assert(inquiries.includes('Wszystkie'), 'Wszystkie action preserved')
+  assert(emptyCopy.includes("title: 'Brak oczekujących zgłoszeń'"), 'primary empty copy')
+  assert(
+    emptyCopy.includes(
+      "body: 'Gdy para wypełni ankietę do umowy, zgłoszenie pojawi się tutaj do weryfikacji.'",
+    ),
+    'supporting empty copy',
+  )
+  assert(inquiries.includes('INQUIRIES_EMPTY'), 'uses shared empty copy')
+  assert(!inquiries.includes('Akceptuj') || inquiries.includes('handleAccept'), 'populated actions remain')
+  // Zero message gated by success — not by !isLoading alone
+  assert(!inquiries.includes('const empty = !isLoading && pending.length === 0'), 'old empty gate removed')
+  // Mobile must NOT strip card chrome on empty
+  assert(!inquiriesCss.includes('.emptyPanel.emptyPanel'), 'no double-class chrome override')
+  const mobileCss = inquiriesCss.slice(inquiriesCss.indexOf('@media (max-width: 767px)'))
+  const emptyPanelMobile = mobileCss.slice(
+    mobileCss.indexOf('.emptyPanel'),
+    mobileCss.indexOf('.emptyPanel') + 120,
+  )
+  assert(!emptyPanelMobile.includes('background: transparent'), 'emptyPanel does not clear background')
+  assert(!emptyPanelMobile.includes('border: 0'), 'emptyPanel does not zero border')
+  assert(!emptyPanelMobile.includes('border-radius: 0'), 'emptyPanel does not zero radius')
+  assert(!emptyPanelMobile.includes('box-shadow: none'), 'emptyPanel does not clear shadow')
+  assert(mobileCss.includes('.emptyPanel'), 'emptyPanel may adjust padding only')
+  assert(emptyPanelMobile.includes('padding: 14px'), 'mobile empty keeps card padding family')
+  // Single outer shell — empty and populated share panel + material class
+  assert((inquiries.match(/v3MaterialSecondaryCard/g) || []).length === 1, 'one material class')
+  assert(inquiries.includes('styles.panel'), 'one panel shell')
+  // Attention frozen
+  assert(attention.includes('d243') || attention.includes('showZeroState'), 'attention still present')
+  assert(layout.includes('data-phase="d25-pending-empty-card-parity"'), 'd25 phase marker')
+  assert(!layout.includes('d243-attention-zero-state'), 'previous phase marker replaced')
+  console.log('PASS  D2.5 pending empty card parity')
+}

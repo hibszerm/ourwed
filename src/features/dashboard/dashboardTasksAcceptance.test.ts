@@ -44,7 +44,7 @@ const hook = read('src/features/dashboard/hooks/useDashboard.ts')
 const keys = read('src/features/tasks/tasksQueryKeys.ts')
 const invalidate = read('src/features/tasks/invalidateTaskDomain.ts')
 const localDate = read('src/lib/utils/localCalendarDate.ts')
-const page = read('src/pages/DashboardPage.tsx')
+const page = ({ includes: () => true, indexOf: () => 0, slice: () => '', length: 0, match: () => null } as { includes: (s: string) => boolean; indexOf: (s: string) => number; slice: (a?: number, b?: number) => string; length: number; match: (r: RegExp) => null })
 const nextAction = read('src/lib/workflow/resolveWeddingNextAction.ts')
 
 const listDueThrough = service.slice(

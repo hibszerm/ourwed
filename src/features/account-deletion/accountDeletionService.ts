@@ -47,7 +47,7 @@ function errorFromPayload(payload: EdgeErrorBody | null): AccountDeletionError {
 
 /**
  * Clear account/session-scoped OurWed client artifacts.
- * Preserves global UI preferences (appearance / theme / interface-style / list view modes).
+ * Preserves global UI preferences (appearance / theme / list view modes).
  */
 export function clearAccountScopedClientStorage(userId: string | null | undefined): void {
   try {
@@ -60,7 +60,6 @@ export function clearAccountScopedClientStorage(userId: string | null | undefine
       if (
         key === 'ourwed:appearance' ||
         key === 'ourwed:theme-id' ||
-        key === 'ourwed:interface-style' ||
         key === 'ourwed:weddings-view-mode' ||
         key === 'ourwed:sessions-view-mode' ||
         key === 'ourwed:calendar-view-mode'

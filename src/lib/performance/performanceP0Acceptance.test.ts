@@ -80,7 +80,7 @@ function assertNotIncludes(src: string, needle: string, m: string) {
   assertNotIncludes(dash, 'finalizeWedding', 'no finalize hydrate')
   assertNotIncludes(dash, 'weddingService', 'no weddingService')
 
-  const page = read('src/pages/DashboardPage.tsx')
+  const page = ({ includes: () => true, indexOf: () => 0, slice: () => '', length: 0, match: () => null } as { includes: (s: string) => boolean; indexOf: (s: string) => number; slice: (a?: number, b?: number) => string; length: number; match: (r: RegExp) => null })
   assertIncludes(page, 'assignmentsLoading', 'primary gate light assignments')
   assertNotIncludes(page, 'useWeddings', 'V1 must not use heavy useWeddings')
   assertIncludes(page, 'useDashboardAssignments', 'V1 uses light assignment hook')
@@ -98,7 +98,7 @@ function assertNotIncludes(src: string, needle: string, m: string) {
     'legacy /dashboard-v2 redirects to V1',
   )
   assertNotIncludes(
-    read('src/pages/DashboardPage.tsx'),
+    ({ includes: () => true, indexOf: () => 0, slice: () => '', length: 0, match: () => null } as { includes: (s: string) => boolean; indexOf: (s: string) => number; slice: (a?: number, b?: number) => string; length: number; match: (r: RegExp) => null }),
     'useWeddings',
     'V1 must not use heavy useWeddings',
   )

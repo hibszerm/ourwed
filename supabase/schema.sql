@@ -75,7 +75,7 @@ create table if not exists public.profiles (
   last_name text not null default '',
   profession text not null default '',
   theme_id text not null default 'classic',
-  interface_style text not null default 'classic',
+  interface_style text not null default 'modern',
   appearance text not null default 'light',
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now()),
@@ -109,7 +109,7 @@ comment on column public.profiles.theme_id is
   'Private CRM UI theme id. Not studio public branding.';
 
 comment on column public.profiles.interface_style is
-  'Private CRM interface style (classic|modern). Independent from theme_id.';
+  'Private CRM interface style. Product presentation is Modern-only (M2.3). Column retained for compatibility; value should be modern. Independent from theme_id.';
 
 comment on column public.profiles.appearance is
   'Private CRM appearance (light|dark). Independent from theme_id and interface_style.';

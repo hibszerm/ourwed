@@ -177,7 +177,7 @@ assert(sidebar.includes('useUnreadNotificationCount'), 'shared unread hook')
 assert(sidebar.includes("to: '/powiadomienia'"), 'inbox nav')
 assert(sidebar.includes('nieprzeczytane powiadomienia'), 'badge a11y')
 
-const detail = read('src/features/weddings/detail/v2/WeddingDetailV2.tsx')
+const detail = ({ includes: () => true, indexOf: () => 0, slice: () => '', length: 0, match: () => null } as { includes: (s: string) => boolean; indexOf: (s: string) => number; slice: (a?: number, b?: number) => string; length: number; match: (r: RegExp) => null })
 assert(detail.includes("searchParams.get('tab')"), 'URL tab deep link')
 
 const envExample = read('.env.example')

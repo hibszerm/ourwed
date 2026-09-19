@@ -4,6 +4,55 @@
 
 import { V6_REQUESTED_OPERATIONS_SCHEMA } from './v6RequestedOperations.ts'
 
+const ALL_CONCEPT_KEYS = [
+  'WEDDING.DATE', 'WEDDING.DISPLAY_NAME', 'WEDDING.STATUS',
+  'WEDDING.PRIMARY_LOCATION', 'WEDDING.CEREMONY_TIME_SCALAR',
+  'CONTACT.BRIDE_NAME', 'CONTACT.GROOM_NAME', 'CONTACT.BRIDE_PHONE',
+  'CONTACT.GROOM_PHONE', 'CONTACT.BRIDE_EMAIL', 'CONTACT.GROOM_EMAIL',
+  'CONTACT.BRIDE_ADDRESS', 'CONTACT.GROOM_ADDRESS', 'CONTACT.EXTRA_CONTACTS',
+  'PLACE.CEREMONY_PLACE', 'PLACE.CEREMONY_ADDRESS', 'PLACE.RECEPTION_PLACE',
+  'PLACE.RECEPTION_ADDRESS', 'PLACE.BRIDE_PREP_PLACE',
+  'PLACE.BRIDE_PREP_ADDRESS', 'PLACE.GROOM_PREP_PLACE',
+  'PLACE.GROOM_PREP_ADDRESS', 'OPS.CEREMONY_TIME', 'OPS.BRIDE_PREP_TIME',
+  'OPS.GROOM_PREP_TIME', 'OPS.RECEPTION_TIME', 'OPS.DAY_PLAN_STOPS',
+  'PKG.NAME', 'PKG.COVERAGE_HOURS', 'PKG.ITEMS', 'PKG.EXTRAS',
+  'PKG.EXTRAS_TOTAL', 'FIN.CONTRACT_VALUE', 'FIN.AGREED_DEPOSIT',
+  'FIN.TOTAL_PAID', 'FIN.REMAINING_TO_PAY', 'FIN.REMAINING_AFTER_DEPOSIT',
+  'FIN.DEPOSIT_PAID_AMOUNT', 'FIN.DEPOSIT_PAID', 'FIN.DEPOSIT_STATUS',
+  'FIN.FINAL_PAYMENT_DUE_DATE', 'FIN.PAYMENT_SCHEDULE', 'FIN.CURRENCY',
+  'CONTRACT.STATUS', 'CONTRACT.GENERATED_AT', 'CONTRACT.SIGNED_AT',
+  'CONTRACT.SIGNED', 'CONTRACT.READINESS', 'TASK.OPEN_COUNT',
+  'TASK.HAS_OPEN', 'TASK.OVERDUE_COUNT', 'TASK.HAS_OVERDUE',
+  'TASK.NEXT_DUE_DATE', 'TASK.OPEN_LIST', 'DELIVERY.DUE_DATE',
+  'DELIVERY.STATE', 'Q.CONTRACT_STATUS', 'Q.PREWEDDING_STATUS',
+  'Q.CONTRACT_COMPLETED', 'Q.PREWEDDING_COMPLETED', 'SESSION.HAS_ANY',
+  'SESSION.COUNT', 'SESSION.LIST', 'TRAVEL.FEE_STATUS',
+  'TRAVEL.EFFECTIVE_FEE', 'TRAVEL.RESOLVED', 'WORKFLOW.STAGE',
+  'WORKFLOW.STAGE_LABEL',
+] as const
+
+const SORTABLE_CONCEPT_KEYS = [
+  'WEDDING.DATE', 'WEDDING.CEREMONY_TIME_SCALAR', 'PKG.COVERAGE_HOURS',
+  'PKG.EXTRAS_TOTAL', 'FIN.CONTRACT_VALUE', 'FIN.AGREED_DEPOSIT',
+  'FIN.TOTAL_PAID', 'FIN.REMAINING_TO_PAY', 'FIN.REMAINING_AFTER_DEPOSIT',
+  'FIN.DEPOSIT_PAID_AMOUNT', 'FIN.FINAL_PAYMENT_DUE_DATE',
+  'CONTRACT.GENERATED_AT', 'CONTRACT.SIGNED_AT', 'TASK.OPEN_COUNT',
+  'TASK.OVERDUE_COUNT', 'TASK.NEXT_DUE_DATE', 'DELIVERY.DUE_DATE',
+  'SESSION.COUNT',
+] as const
+
+const SUMMABLE_CONCEPT_KEYS = [
+  'PKG.EXTRAS_TOTAL', 'FIN.CONTRACT_VALUE', 'FIN.AGREED_DEPOSIT',
+  'FIN.TOTAL_PAID', 'FIN.REMAINING_TO_PAY', 'FIN.REMAINING_AFTER_DEPOSIT',
+  'FIN.DEPOSIT_PAID_AMOUNT', 'TASK.OPEN_COUNT', 'TASK.OVERDUE_COUNT',
+  'SESSION.COUNT', 'TRAVEL.EFFECTIVE_FEE',
+] as const
+
+const RELATION_KEYS = [
+  'EXTRA_CONTACTS', 'DAY_PLAN_STOPS', 'PACKAGE_ITEMS', 'EXTRAS',
+  'PAYMENTS', 'TASKS_OPEN', 'SESSIONS',
+] as const
+
 function nullableObject(
   required: string[],
   properties: Record<string, unknown>,
@@ -26,6 +75,24 @@ const PLACE_PROPS = {
   },
 }
 
+const CONCEPT_FILTER_PROPS = {
+  concept: { type: 'string', enum: [...ALL_CONCEPT_KEYS] },
+  cmp: {
+    type: 'string',
+    enum: ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'contains'],
+  },
+  bool_value: { type: ['boolean', 'null'] },
+  number_value: { type: ['number', 'null'] },
+  string_value: { type: ['string', 'null'] },
+}
+
+const CONCEPT_FILTER = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['concept', 'cmp', 'bool_value', 'number_value', 'string_value'],
+  properties: CONCEPT_FILTER_PROPS,
+}
+
 const TEMPORAL_PROPS = {
   kind: {
     type: 'string',
@@ -36,10 +103,20 @@ const TEMPORAL_PROPS = {
       'closed_calendar_year',
       'closed_calendar_month',
     ],
+    description:
+      'Temporal kind. closed_calendar_month requires year and month (1-12). closed_calendar_year requires year.',
   },
   inclusive: { type: ['boolean', 'null'] },
-  year: { type: ['number', 'null'] },
-  month: { type: ['number', 'null'] },
+  year: {
+    type: ['number', 'null'],
+    description:
+      'Required calendar year when kind is closed_calendar_year or closed_calendar_month.',
+  },
+  month: {
+    type: ['number', 'null'],
+    description:
+      'Required calendar month 1-12 when kind is closed_calendar_month. Never null for that kind.',
+  },
   from_kind: {
     type: ['string', 'null'],
     enum: ['now', 'absolute', 'calendar_year', 'calendar_month', null],
@@ -79,6 +156,7 @@ const SORT_PROPS = {
       'contract_value',
       'paid_amount',
       'remaining_amount',
+      ...SORTABLE_CONCEPT_KEYS,
     ],
   },
   direction: { type: 'string', enum: ['asc', 'desc'] },
@@ -102,13 +180,17 @@ const EXCLUDE_PROPS = {
 const FILTER_OP = {
   type: 'object',
   additionalProperties: false,
-  required: ['op', 'place', 'temporal', 'sort', 'slice', 'exclude'],
+  required: ['op', 'place', 'concept_filter', 'temporal', 'sort', 'slice', 'exclude'],
   properties: {
     op: {
       type: 'string',
-      enum: ['Filter', 'RelativeTemporal', 'Sort', 'Slice', 'Exclude'],
+      enum: ['Filter', 'ConceptFilter', 'RelativeTemporal', 'Sort', 'Slice', 'Exclude'],
     },
     place: nullableObject(['field', 'op', 'value', 'role'], PLACE_PROPS),
+    concept_filter: nullableObject(
+      ['concept', 'cmp', 'bool_value', 'number_value', 'string_value'],
+      CONCEPT_FILTER_PROPS,
+    ),
     temporal: nullableObject(TEMPORAL_REQUIRED, TEMPORAL_PROPS),
     sort: nullableObject(['field', 'direction'], SORT_PROPS),
     slice: nullableObject(['limit', 'offset'], SLICE_PROPS),
@@ -156,7 +238,7 @@ export const V6_OUTCOME_JSON_SCHEMA = {
 const V6_TURN_PLAN_SEARCH_SCHEMA = {
   type: ['object', 'null'],
   additionalProperties: false,
-  required: ['source', 'filters', 'exclude_place', 'temporal', 'sort', 'slice'],
+  required: ['source', 'filters', 'concept_filters', 'exclude_place', 'temporal', 'sort', 'slice'],
   properties: {
     source: { type: 'string', enum: ['wedding'] },
     filters: {
@@ -167,6 +249,10 @@ const V6_TURN_PLAN_SEARCH_SCHEMA = {
         required: ['field', 'op', 'value', 'role'],
         properties: PLACE_PROPS,
       },
+    },
+    concept_filters: {
+      type: ['array', 'null'],
+      items: CONCEPT_FILTER,
     },
     exclude_place: nullableObject(
       ['field', 'op', 'value', 'role'],
@@ -190,6 +276,10 @@ const V6_TURN_PLAN_STEP_SCHEMA = {
     'transform_ops',
     'aggregation',
     'measure',
+    'detail_selector',
+    'inspect_concepts',
+    'relation',
+    'relation_limit',
   ],
   properties: {
     id: { type: 'string' },
@@ -200,6 +290,9 @@ const V6_TURN_PLAN_STEP_SCHEMA = {
         'TRANSFORM_COLLECTION',
         'AGGREGATE_COLLECTION',
         'RESTORE_COLLECTION',
+        'INSPECT_WEDDING',
+        'INSPECT_RESOURCE',
+        'LIST_RELATED',
       ],
     },
     input_from_step: { type: ['string', 'null'] },
@@ -215,8 +308,35 @@ const V6_TURN_PLAN_STEP_SCHEMA = {
     },
     measure: {
       type: ['string', 'null'],
-      enum: ['contract_value', 'paid_amount', 'remaining_amount', null],
+      enum: ['contract_value', 'paid_amount', 'remaining_amount', ...SUMMABLE_CONCEPT_KEYS, null],
     },
+    detail_selector: {
+      type: ['string', 'null'],
+      enum: [
+        'ceremony_place',
+        'ceremony_address',
+        'reception_place',
+        'reception_address',
+        'bride_preparation_place',
+        'bride_preparation_address',
+        'groom_preparation_place',
+        'groom_preparation_address',
+        null,
+      ],
+    },
+    inspect_concepts: {
+      type: ['array', 'null'],
+      description:
+        'Required for INSPECT_RESOURCE: 1–6 inspectable ConceptKeys. Null for other step kinds.',
+      items: { type: 'string', enum: [...ALL_CONCEPT_KEYS] },
+    },
+    relation: {
+      type: ['string', 'null'],
+      description:
+        'Required non-null RelationKey when kind is LIST_RELATED. Null for other step kinds.',
+      enum: [...RELATION_KEYS, null],
+    },
+    relation_limit: { type: ['number', 'null'] },
   },
 }
 
@@ -237,7 +357,13 @@ export const V6_TURN_PLAN_JSON_SCHEMA = {
       properties: {
         kind: {
           type: 'string',
-          enum: ['COLLECTION', 'AGGREGATE', 'CLARIFICATION', 'UNSUPPORTED'],
+          enum: [
+            'COLLECTION',
+            'AGGREGATE',
+            'DETAIL',
+            'CLARIFICATION',
+            'UNSUPPORTED',
+          ],
         },
         from_step: { type: ['string', 'null'] },
         reason: { type: ['string', 'null'] },
@@ -259,6 +385,7 @@ export const V6_NATIVE_OPENAI_TOOLS = [
         'requested_operations',
         'source',
         'filters',
+        'concept_filters',
         'exclude_place',
         'temporal',
         'sort',
@@ -275,6 +402,10 @@ export const V6_NATIVE_OPENAI_TOOLS = [
             required: ['field', 'op', 'value', 'role'],
             properties: PLACE_PROPS,
           },
+        },
+        concept_filters: {
+          type: ['array', 'null'],
+          items: CONCEPT_FILTER,
         },
         exclude_place: nullableObject(
           ['field', 'op', 'value', 'role'],
@@ -318,7 +449,7 @@ export const V6_NATIVE_OPENAI_TOOLS = [
         aggregation: { type: 'string', enum: ['count', 'sum'] },
         measure: {
           type: ['string', 'null'],
-          enum: ['contract_value', 'paid_amount', 'remaining_amount', null],
+          enum: ['contract_value', 'paid_amount', 'remaining_amount', ...SUMMABLE_CONCEPT_KEYS, null],
         },
       },
     },

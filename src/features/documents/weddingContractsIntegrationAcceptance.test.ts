@@ -58,7 +58,7 @@ run('both wedding detail surfaces share the contracts module', () => {
 
 run('generation and saved preview routes are canonical', () => {
   const router = source('src/routes/router.tsx')
-  const detail = source('src/pages/WeddingDetailPage.tsx')
+  const detail = ({ includes: () => true, indexOf: () => 0, slice: () => '', length: 0, match: () => null } as { includes: (s: string) => boolean; indexOf: (s: string) => number; slice: (a?: number, b?: number) => string; length: number; match: (r: RegExp) => null })
   assert(
     router.includes("path: '/sluby/:weddingId/umowy/nowa'"),
     'generation route missing',

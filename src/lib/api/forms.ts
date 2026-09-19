@@ -1053,6 +1053,70 @@ export async function getLatestSubmittedFormAnswerRecord(
   }
 }
 
+/**
+ * Batch contract-questionnaire status for studio Attention.
+ * One forms lookup + one form_instances query — never N×getLatest.
+ * Maps instance lifecycle → Wedding QuestionnaireStatus:
+ * submitted/approved → completed; pending/opened → sent; else not_sent.
+ */
+export async function listContractQuestionnaireStatusByWeddingIds(
+  weddingIds: string[],
+): Promise<Map<string, import('@/types/wedding').QuestionnaireStatus>> {
+  type QuestionnaireStatus = import('@/types/wedding').QuestionnaireStatus
+  const map = new Map<string, QuestionnaireStatus>()
+  for (const id of weddingIds) map.set(id, 'not_sent')
+  if (weddingIds.length === 0) return map
+
+  const { data: formRows, error: formsError } = await supabase
+    .from('forms')
+    .select('id')
+    .eq('category', 'contract')
+
+  throwOnError(formsError)
+
+  const formIds = ((formRows ?? []) as { id: string }[]).map((row) => row.id)
+  if (formIds.length === 0) return map
+
+  const { data: instances, error: instanceError } = await supabase
+    .from('form_instances')
+    .select('wedding_id, status, created_at, submitted_at')
+    .in('wedding_id', weddingIds)
+    .in('form_id', formIds)
+    .order('created_at', { ascending: false })
+
+  throwOnError(instanceError)
+
+  const rank = (status: string): number => {
+    if (status === 'submitted' || status === 'approved') return 3
+    if (status === 'pending' || status === 'opened') return 2
+    return 1
+  }
+
+  const best = new Map<string, { rank: number; status: QuestionnaireStatus }>()
+  for (const row of (instances ?? []) as {
+    wedding_id: string | null
+    status: string
+  }[]) {
+    if (!row.wedding_id) continue
+    const qStatus: QuestionnaireStatus =
+      row.status === 'submitted' || row.status === 'approved'
+        ? 'completed'
+        : row.status === 'pending' || row.status === 'opened'
+          ? 'sent'
+          : 'not_sent'
+    const r = rank(row.status)
+    const prev = best.get(row.wedding_id)
+    if (!prev || r > prev.rank) {
+      best.set(row.wedding_id, { rank: r, status: qStatus })
+    }
+  }
+
+  for (const [weddingId, entry] of best) {
+    map.set(weddingId, entry.status)
+  }
+  return map
+}
+
 /** Update answer_json for an existing form_answers row (studio edit session). */
 export async function updateFormAnswerJson(
   instanceId: string,

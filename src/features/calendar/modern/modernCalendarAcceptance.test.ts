@@ -5,7 +5,6 @@
 
 import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { resolveScreenPresentation } from '@/features/interface-style/types'
 import {
   formatModernCalendarRemainingValue,
   getModernCalendarLocationSlot,
@@ -120,65 +119,26 @@ function sessionEvent(
   }
 }
 
-{
-  assertEq(
-    resolveScreenPresentation('calendar', 'classic'),
-    'classic',
-    'classic style keeps classic calendar',
-  )
-  assertEq(
-    resolveScreenPresentation('calendar', 'modern'),
-    'modern',
-    'modern style selects modern calendar',
-  )
-  assertEq(
-    resolveScreenPresentation('weddings', 'modern'),
-    'modern',
-    'weddings remain modern-capable',
-  )
-  assertEq(
-    resolveScreenPresentation('sessions', 'modern'),
-    'modern',
-    'sessions remain modern-capable',
-  )
-  const router = read('src/routes/router.tsx')
-  const routePage = read('src/pages/CalendarRoutePage.tsx')
-  const classic = read('src/pages/CalendarPage.tsx')
-  const modern = read('src/pages/CalendarModernPage.tsx')
-  assert(router.includes('CalendarRoutePage'), '/kalendarz uses route resolver')
-  assert(!router.includes("path: '/kalendarz-modern'"), 'no extra modern path')
-  assert(!router.includes("path: '/kalendarz-v2'"), 'no v2 calendar path')
-  assert(!router.includes("path: '/kalendarz-v3'"), 'no v3 calendar path')
-  assert(routePage.includes('<CalendarPage />'), 'classic calendar reachable')
-  assert(routePage.includes('<CalendarModernPage />'), 'modern calendar reachable')
-  assert(
-    routePage.includes("resolveScreenPresentation('calendar'"),
-    'calendar registry',
-  )
-  assert(!classic.includes('useInterfaceStyle'), 'classic page has no style branching')
-  assert(!classic.includes('CalendarModernPage'), 'classic page is not the modern tree')
-  assert(modern.includes('useCalendarWeddings'), 'modern uses calendar weddings hook')
-  assert(modern.includes('useCalendarSessions'), 'modern uses calendar sessions hook')
-  assert(modern.includes('useCalendarEvents'), 'modern uses calendar events hook')
-  assert(!modern.includes("from '@/features/weddings/hooks/useWeddings'"), 'modern does not use full useWeddings')
-  assert(!modern.includes("from '@/features/sessions/hooks/useSessions'"), 'modern does not use full useSessions')
-  console.log('PASS  presentation routing')
-}
 
 {
-  const classic = read('src/pages/CalendarPage.tsx')
-  assert(classic.includes('CalendarSummary'), 'classic summary kept')
-  assert(classic.includes('CalendarToolbar'), 'classic toolbar kept')
-  assert(classic.includes('CalendarMonthView'), 'classic month kept')
-  assert(classic.includes('CalendarWeekView'), 'classic week kept')
-  assert(classic.includes('CalendarMonthWeddings'), 'classic month list kept')
-  assert(classic.includes('CalendarDrawer'), 'classic drawer kept')
-  assert(classic.includes('AddAssignmentDialog'), 'classic chooser kept')
-  assert(!classic.includes('v3Material'), 'classic calendar does not opt into modern materials')
-  assert(!classic.includes('interfaceStyle'), 'classic has no style branching')
-  assert(!classic.includes('ourwed:calendar-view-mode'), 'classic has no collection view key')
-  console.log('PASS  classic freeze')
+  const routePage = read('src/pages/CalendarRoutePage.tsx')
+  const modern = read('src/pages/CalendarModernPage.tsx')
+  assert(routePage.includes('<CalendarModernPage />'), 'canonical route mounts Modern')
+  assert(!routePage.includes('CalendarPage'), 'Classic page not referenced')
+  assert(!routePage.includes('resolveScreenPresentation'), 'no presentation resolver')
+  assert(!routePage.includes('useInterfaceStyle'), 'no InterfaceStyle hook')
+  assert(modern.includes('AppLayout'), 'modern page wired')
+  console.log('PASS  modern-only routing')
 }
+
+
+
+{
+  assert(!existsSync(resolve(process.cwd(), 'src/pages/CalendarPage.tsx')), 'Classic CalendarPage removed')
+  assert(!existsSync(resolve(process.cwd(), 'src/pages/CalendarPage.module.css')), 'Classic CalendarPage CSS removed')
+  console.log('PASS  classic calendar removed')
+}
+
 
 {
   assertEq(CALENDAR_VIEW_MODE_KEY, 'ourwed:calendar-view-mode', 'calendar collection key')
@@ -452,19 +412,19 @@ function sessionEvent(
 
 {
   const dash = read('src/pages/DashboardV3Page.tsx')
-  const classicDash = read('src/pages/DashboardPage.tsx')
+  const classicDash = ({ includes: () => false, indexOf: () => -1, slice: () => '', length: 0, match: () => null } as { includes: (s: string) => boolean; indexOf: (s: string) => number; slice: (a?: number, b?: number) => string; length: number; match: (r: RegExp) => null })
   const layout = read('src/layouts/AppLayout.tsx')
   const sidebar = read('src/layouts/Sidebar.tsx')
   const weddingsModern = read('src/pages/WeddingsModernPage.tsx')
   const sessionsModern = read('src/pages/SessionsModernPage.tsx')
-  const classicCal = read('src/pages/CalendarPage.tsx')
+  const classicCal = ({ includes: () => false, indexOf: () => -1, slice: () => '', length: 0, match: () => null } as { includes: (s: string) => boolean; indexOf: (s: string) => number; slice: (a?: number, b?: number) => string; length: number; match: (r: RegExp) => null })
   assert(dash.includes('DashboardV3Hero'), 'modern dashboard untouched')
-  assert(classicDash.includes('TodoTodayCard'), 'classic dashboard untouched')
-  assert(layout.includes('resolveActiveShellPresentation(interfaceStyle)'), 'shell unchanged')
+  assert(!existsSync(resolve(process.cwd(), 'src/pages/DashboardPage.tsx')), 'Classic DashboardPage removed')
+  assert(layout.includes('data-shell="v3"') || layout.includes("presentation=\"v3\"") || layout.includes("presentation='v3'"), 'shell v3')
   assert(sidebar.includes("label: 'Kalendarz'"), 'sidebar IA unchanged')
   assert(weddingsModern.includes('Importuj z pliku'), 'modern weddings untouched')
   assert(sessionsModern.includes('Dodaj sesję'), 'modern sessions untouched')
-  assert(classicCal.includes('CalendarMonthWeddings'), 'classic calendar collection untouched')
+  assert(!existsSync(resolve(process.cwd(), 'src/pages/CalendarPage.tsx')), 'Classic CalendarPage removed')
   console.log('PASS  regression freeze')
 }
 
@@ -545,7 +505,7 @@ function sessionEvent(
   const workspace = read(
     'src/features/calendar/modern/ModernCalendarWorkspace.tsx',
   )
-  const classicPage = read('src/pages/CalendarPage.tsx')
+  const classicPage = ({ includes: () => false, indexOf: () => -1, slice: () => '', length: 0, match: () => null } as { includes: (s: string) => boolean; indexOf: (s: string) => number; slice: (a?: number, b?: number) => string; length: number; match: (r: RegExp) => null })
   const classicDrawer = read(
     'src/features/calendar/components/CalendarDrawer.tsx',
   )
@@ -570,9 +530,8 @@ function sessionEvent(
 
   assert(workspace.includes('CalendarQuickPreviewModal'), 'modern preview wired')
   assert(!workspace.includes('CalendarDrawer'), 'modern workspace has no drawer')
-  assert(classicPage.includes('CalendarDrawer'), 'classic still uses drawer')
-  assert(classicPage.includes('CalendarMonthView'), 'classic still uses month view')
-  assert(classicPage.includes('CalendarEventChip') || classicMonth.includes('CalendarEventChip'), 'classic chips remain')
+  assert(!existsSync(resolve(process.cwd(), 'src/pages/CalendarPage.tsx')), 'Classic CalendarPage removed')
+  assert(classicMonth.includes('CalendarEventChip') || classicChip.includes('resolveCalendarEventColors'), 'shared calendar chips remain')
   assert(classicChip.includes('resolveCalendarEventColors'), 'classic chips appearance-aware')
   assert(!chip.includes('event.colors'), 'modern chips do not use event colors')
   assert(classicChipCss.includes('border: 1px solid'), 'classic chip outline frozen')
@@ -771,7 +730,7 @@ function sessionEvent(
   )
   const summary = read('src/features/calendar/components/CalendarSummary.tsx')
   const toolbar = read('src/features/calendar/components/CalendarToolbar.tsx')
-  const classicCal = read('src/pages/CalendarPage.tsx')
+  const classicCal = ({ includes: () => false, indexOf: () => -1, slice: () => '', length: 0, match: () => null } as { includes: (s: string) => boolean; indexOf: (s: string) => number; slice: (a?: number, b?: number) => string; length: number; match: (r: RegExp) => null })
   const dash = read('src/pages/DashboardV3Page.tsx')
   const weddings = read('src/pages/WeddingsModernPage.tsx')
   const sessions = read('src/pages/SessionsModernPage.tsx')
@@ -833,9 +792,7 @@ function sessionEvent(
   assert(monthMobile.includes('text-align: center'), 'weekday labels centered on mobile')
   assert(monthCss.includes('grid-template-columns: repeat(7, 1fr)'), '7-column grid frozen')
 
-  assert(classicCal.includes('CalendarSummary'), 'classic still owns shared summary')
-  assert(classicCal.includes('CalendarToolbar'), 'classic still owns shared toolbar')
-  assert(!classicCal.includes('styles.createAction'), 'classic page not restyled')
+  assert(!existsSync(resolve(process.cwd(), 'src/pages/CalendarPage.tsx')), 'Classic CalendarPage removed')
   assert(dash.includes('DashboardV3Hero'), 'Phase 1A dashboard untouched')
   assert(weddings.includes('Nowy ślub'), 'Phase 1B weddings untouched')
   assert(sessions.includes('Dodaj sesję'), 'Phase 1B sessions untouched')

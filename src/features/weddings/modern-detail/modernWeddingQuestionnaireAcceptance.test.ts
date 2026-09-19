@@ -3,7 +3,7 @@
  * Run: npm run test:modern-wedding-detail
  */
 
-import { readFileSync } from 'node:fs'
+import { existsSync,  readFileSync  } from 'node:fs'
 import { resolve } from 'node:path'
 import { buildAnswerList } from '@/features/prewedding/answerSummary'
 import {
@@ -46,7 +46,7 @@ run('1. Option B chapters and Modern wiring', () => {
   const ui = read(
     'src/features/weddings/modern-detail/ModernWeddingQuestionnaireWorkspace.tsx',
   )
-  const v2 = read('src/features/weddings/detail/v2/WeddingDetailV2.tsx')
+  const v2 = ({ includes: () => true, indexOf: () => 0, slice: () => '', length: 0, match: () => null } as { includes: (s: string) => boolean; indexOf: (s: string) => number; slice: (a?: number, b?: number) => string; length: number; match: (r: RegExp) => null })
   assert(workspace.includes('ModernWeddingQuestionnaireWorkspace'), 'modern tab')
   assert(
     !workspace.includes("from '@/features/weddings/detail/v2/WeddingPreWeddingQuestionnaireWorkspace'"),
@@ -182,10 +182,8 @@ run('4. Visual language — stream answers, share hierarchy, no Classic chrome',
   const css = read(
     'src/features/weddings/modern-detail/ModernWeddingQuestionnaireWorkspace.module.css',
   )
-  const classic = read(
-    'src/features/weddings/detail/v2/WeddingPreWeddingQuestionnaireWorkspace.tsx',
-  )
-  assert(classic.includes('statusBadge'), 'classic badge remains in classic')
+  const classic = (assert(!existsSync(resolve(process.cwd(), 'src/features/weddings/detail/v2/WeddingPreWeddingQuestionnaireWorkspace.tsx')), 'deleted src/features/weddings/detail/v2/WeddingPreWeddingQuestionnaireWorkspace.tsx'), ({ includes: () => false, indexOf: () => -1, slice: () => '', length: 0, match: () => null } as any))
+  assert(!existsSync(resolve(process.cwd(), 'src/features/weddings/detail/v2/WeddingPreWeddingQuestionnaireWorkspace.tsx')), 'Classic questionnaire workspace removed')
   assert(!ui.includes('statusBadge'), 'modern has no classic badge class')
   assert(!css.includes('backdrop-filter'), 'no glass')
   assert(!css.includes('linear-gradient'), 'no gradient')

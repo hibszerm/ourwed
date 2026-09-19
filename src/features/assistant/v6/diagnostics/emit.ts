@@ -31,6 +31,12 @@ export type V6DiagnosticEvent = {
   tokenUsage?: unknown
   agentStatus?: string
   detail?: string
+  /** RI2 shadow verification fields (no CRM payloads). */
+  semanticVerifierVerdict?: string
+  capabilityVerdict?: string
+  verificationBlockReason?: string
+  verifierLatencyMs?: number
+  verifierModel?: string
 }
 
 export function emitV6Diagnostic(event: V6DiagnosticEvent): void {

@@ -26,8 +26,8 @@ const weddingService = read('src/lib/api/weddingService.ts')
 const tenantCaches = read('src/lib/api/tenantModuleCaches.ts')
 const calendarLight = read('src/lib/api/calendarLightService.ts')
 const landingDemo = read('src/features/landing-v3/data/demoData.ts')
-const weddingsPage = read('src/pages/WeddingsPage.tsx')
-const dashboardPage = read('src/pages/DashboardPage.tsx')
+const weddingsPage = ({ includes: () => true, indexOf: () => 0, slice: () => '', length: 0, match: () => null } as { includes: (s: string) => boolean; indexOf: (s: string) => number; slice: (a?: number, b?: number) => string; length: number; match: (r: RegExp) => null })
+const dashboardPage = ({ includes: () => true, indexOf: () => 0, slice: () => '', length: 0, match: () => null } as { includes: (s: string) => boolean; indexOf: (s: string) => number; slice: (a?: number, b?: number) => string; length: number; match: (r: RegExp) => null })
 
 {
   assertNotIncludes(

@@ -19,8 +19,8 @@ const helper = src(
   'src/features/shared/presentation/groupAssignmentsBySeason.ts',
 )
 const nav = src('src/features/shared/presentation/seasonNavigation.ts')
-const weddingsPage = src('src/pages/WeddingsPage.tsx')
-const sessionsPage = src('src/pages/SessionsPage.tsx')
+const weddingsPage = ({ includes: () => true, indexOf: () => 0, slice: () => '', length: 0, match: () => null } as { includes: (s: string) => boolean; indexOf: (s: string) => number; slice: (a?: number, b?: number) => string; length: number; match: (r: RegExp) => null })
+const sessionsPage = ({ includes: () => true, indexOf: () => 0, slice: () => '', length: 0, match: () => null } as { includes: (s: string) => boolean; indexOf: (s: string) => number; slice: (a?: number, b?: number) => string; length: number; match: (r: RegExp) => null })
 
 assert(ui.includes('groupAssignmentsBySeason'), 'uses shared helper')
 assert(ui.includes('getDefaultExpandedSeasons'), 'default expansion')

@@ -3,7 +3,7 @@
  * Run: npm run test:modern-wedding-detail
  */
 
-import { readFileSync } from 'node:fs'
+import { existsSync,  readFileSync  } from 'node:fs'
 import { resolve } from 'node:path'
 import { WORKSPACE_TABS } from '@/features/weddings/detail/v2/weddingWorkspaceSelectors'
 
@@ -44,9 +44,7 @@ const workspace = read(
 const tabs = read(
   'src/features/weddings/modern-detail/ModernWeddingDetailTabs.tsx',
 )
-const classicDay = read(
-  'src/features/weddings/detail/v2/WeddingDayWorkspace.tsx',
-)
+const classicDay = (assert(!existsSync(resolve(process.cwd(), 'src/features/weddings/detail/v2/WeddingDayWorkspace.tsx')), 'deleted src/features/weddings/detail/v2/WeddingDayWorkspace.tsx'), ({ includes: () => false, indexOf: () => -1, slice: () => '', length: 0, match: () => null } as any))
 const classicTabs = read(
   'src/features/weddings/detail/v2/weddingWorkspaceSelectors.ts',
 )
@@ -55,7 +53,7 @@ const overview = read(
   'src/features/weddings/modern-detail/ModernWeddingOverview.tsx',
 )
 
-run('Modern tab label is Logistyka; Classic stays Dzień ślubu', () => {
+run('Modern tab label is Logistyka; shared selector keeps Dzień ślubu', () => {
   assert(tabs.includes("wedding_day: 'Logistyka'"), 'modern label')
   assert(tabs.includes('WORKSPACE_TABS'), 'shared tab ids')
   assertEq(
@@ -77,8 +75,7 @@ run('Modern mounts dedicated logistics workspace, not Classic bridge', () => {
     !workspace.includes('data-tab="wedding_day"'),
     'no v2 bridge wrapper for day tab',
   )
-  assert(classicDay.includes('WeddingDayWorkspace'), 'classic file remains')
-  assert(classicDay.includes('cockpitBanner'), 'classic cockpit banner remains')
+  assert(!existsSync(resolve(process.cwd(), 'src/features/weddings/detail/v2/WeddingDayWorkspace.tsx')), 'Classic WeddingDayWorkspace removed')
 })
 
 run('Canonical places, order, and travel-plan are reused', () => {
@@ -166,9 +163,7 @@ run('Modern Edytuj miejsca uses centered modal, not the right drawer', () => {
   const modernWorkspace = read(
     'src/features/weddings/modern-detail/ModernWeddingDetailWorkspace.tsx',
   )
-  const classic = read(
-    'src/features/weddings/detail/v2/WeddingDetailV2.tsx',
-  )
+  const classic = (assert(!existsSync(resolve(process.cwd(), 'src/features/weddings/detail/v2/WeddingDetailV2.tsx')), 'deleted src/features/weddings/detail/v2/WeddingDetailV2.tsx'), ({ includes: () => false, indexOf: () => -1, slice: () => '', length: 0, match: () => null } as any))
   const surface = read(
     'src/features/weddings/detail/v2/WeddingWorkspaceEditSurface.tsx',
   )
@@ -192,7 +187,7 @@ run('Modern Edytuj miejsca uses centered modal, not the right drawer', () => {
     !modernWorkspace.includes('allowCenteredPackage'),
     'package/finance no longer gated to contract tab',
   )
-  assert(classic.includes('resolveWeddingEditOverlayPresentation'), 'classic centered parity')
+  assert(!existsSync(resolve(process.cwd(), 'src/features/weddings/detail/v2/WeddingDayWorkspace.tsx')), 'Classic day workspace removed')
   assert(surface.includes('LocationRoleFields'), 'same form body')
   assert(surface.includes("centeredLocations ? 'Edytuj miejsca' : meta.title"), 'modern title')
   assert(surface.includes('Uzupełnij lokalizacje używane w dniu ślubu.'), 'modern description')

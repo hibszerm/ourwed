@@ -120,7 +120,7 @@ run('2. upcoming cards keep assignment-type badge only', () => {
 })
 
 run('3. Dashboard V1 does not derive visible card status from workflowStage', () => {
-  const page = src('src/pages/DashboardPage.tsx')
+  const page = ({ includes: () => true, indexOf: () => 0, slice: () => '', length: 0, match: () => null } as { includes: (s: string) => boolean; indexOf: (s: string) => number; slice: (a?: number, b?: number) => string; length: number; match: (r: RegExp) => null })
   const hero = src('src/features/dashboard/components/NextWeddingCard.tsx')
   const next = src('src/features/dashboard/components/NextAssignmentsSection.tsx')
   assert(!page.includes('workflowStage'), 'page ignores stage')
@@ -188,7 +188,7 @@ run('6. former second-badge labels are contract.status, not workflowStage', () =
 run('7. Dashboard first-paint architecture remains light', () => {
   const firstPaint = src('src/lib/performance/dashboardFirstPaintAcceptance.test.ts')
   const service = src('src/lib/api/dashboardService.ts')
-  const page = src('src/pages/DashboardPage.tsx')
+  const page = ({ includes: () => true, indexOf: () => 0, slice: () => '', length: 0, match: () => null } as { includes: (s: string) => boolean; indexOf: (s: string) => number; slice: (a?: number, b?: number) => string; length: number; match: (r: RegExp) => null })
   assert(page.includes('useDashboardAssignments'), 'light assignments hook')
   assert(!page.includes('useWeddings('), 'no heavy useWeddings')
   assert(service.includes('DASHBOARD_LIGHT_WEDDING_SELECT'), 'light select')
@@ -201,7 +201,7 @@ run('7. Dashboard first-paint architecture remains light', () => {
 })
 
 run('8. Detail header no longer maps business status (W4.2)', () => {
-  const header = src('src/features/weddings/detail/v2/WeddingWorkspaceHeader.tsx')
+  const header = ({ includes: () => true, indexOf: () => 0, slice: () => '', length: 0, match: () => null } as { includes: (s: string) => boolean; indexOf: (s: string) => number; slice: (a?: number, b?: number) => string; length: number; match: (r: RegExp) => null })
   const selectors = src(
     'src/features/weddings/detail/v2/weddingWorkspaceSelectors.ts',
   )

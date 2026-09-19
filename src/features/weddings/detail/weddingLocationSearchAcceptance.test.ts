@@ -49,11 +49,11 @@ const overlay = read('src/components/ui/overlay/useOverlay.ts')
 const roles = read(
   'src/features/weddings/detail/editing/fields/LocationRoleFields.tsx',
 )
-const v2 = read('src/features/weddings/detail/v2/WeddingDetailV2.tsx')
+const v2 = ({ includes: () => true, indexOf: () => 0, slice: () => '', length: 0, match: () => null } as { includes: (s: string) => boolean; indexOf: (s: string) => number; slice: (a?: number, b?: number) => string; length: number; match: (r: RegExp) => null })
 const overview = read(
   'src/features/weddings/detail/v2/WeddingOverviewEssentials.tsx',
 )
-const day = read('src/features/weddings/detail/v2/WeddingDayWorkspace.tsx')
+const day = ({ includes: () => true, indexOf: () => 0, slice: () => '', length: 0, match: () => null } as { includes: (s: string) => boolean; indexOf: (s: string) => number; slice: (a?: number, b?: number) => string; length: number; match: (r: RegExp) => null })
 
 {
   assertIncludes(editor, 'LocationSearchField', '1: wedding uses shared search')

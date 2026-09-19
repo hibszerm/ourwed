@@ -8,12 +8,18 @@ import type {
   AggregateAction,
   RestoreAction,
   V6FilterOp,
+  V6ConceptPredicate,
   V6PlaceFilter,
   V6RelativeTemporal,
   V6Sort,
   V6Slice,
   V6TemporalAnchor,
 } from '../semantics/types'
+import {
+  isConceptKey,
+  resolveAggregateConcept,
+  resolveSortConcept,
+} from '../registry'
 
 function isPlainObject(v: unknown): v is Record<string, unknown> {
   return !!v && typeof v === 'object' && !Array.isArray(v)
@@ -111,13 +117,24 @@ function mapTemporal(raw: unknown): V6RelativeTemporal | null | NativeMapFailure
     return { kind: 'closed_calendar_year', year: raw.year }
   }
   if (raw.kind === 'closed_calendar_month') {
+    if (typeof raw.year !== 'number' || !Number.isFinite(raw.year)) {
+      return {
+        ok: false,
+        reason: 'VALIDATION_ERROR',
+        detail: 'closed_calendar_month_year_required',
+      }
+    }
     if (
-      typeof raw.year !== 'number' ||
       typeof raw.month !== 'number' ||
-      !Number.isFinite(raw.year) ||
-      !Number.isFinite(raw.month)
+      !Number.isFinite(raw.month) ||
+      raw.month < 1 ||
+      raw.month > 12
     ) {
-      return { ok: false, reason: 'VALIDATION_ERROR', detail: 'month_required' }
+      return {
+        ok: false,
+        reason: 'VALIDATION_ERROR',
+        detail: 'closed_calendar_month_month_required',
+      }
     }
     return {
       kind: 'closed_calendar_month',
@@ -161,18 +178,59 @@ function mapSort(raw: unknown): V6Sort | null | NativeMapFailure {
     return { ok: false, reason: 'VALIDATION_ERROR', detail: 'bad_sort' }
   }
   const field = raw.field
-  if (
-    field !== 'wedding.date' &&
-    field !== 'contract_value' &&
-    field !== 'paid_amount' &&
-    field !== 'remaining_amount'
-  ) {
+  if (typeof field !== 'string' || !resolveSortConcept(field)) {
     return { ok: false, reason: 'VALIDATION_ERROR', detail: 'bad_sort_field' }
   }
   if (raw.direction !== 'asc' && raw.direction !== 'desc') {
     return { ok: false, reason: 'VALIDATION_ERROR', detail: 'bad_sort_direction' }
   }
   return { field, direction: raw.direction }
+}
+
+export function mapConceptFilter(
+  raw: unknown,
+): V6ConceptPredicate | NativeMapFailure {
+  if (!isPlainObject(raw) || !isConceptKey(raw.concept)) {
+    return { ok: false, reason: 'VALIDATION_ERROR', detail: 'bad_concept_filter' }
+  }
+  if (
+    raw.cmp !== 'eq' &&
+    raw.cmp !== 'neq' &&
+    raw.cmp !== 'gt' &&
+    raw.cmp !== 'gte' &&
+    raw.cmp !== 'lt' &&
+    raw.cmp !== 'lte' &&
+    raw.cmp !== 'contains'
+  ) {
+    return { ok: false, reason: 'VALIDATION_ERROR', detail: 'bad_concept_cmp' }
+  }
+  const bag = [raw.bool_value, raw.number_value, raw.string_value]
+  if (
+    bag.some(
+      (value, index) =>
+        value !== null &&
+        (index === 0
+          ? typeof value !== 'boolean'
+          : index === 1
+            ? typeof value !== 'number' || !Number.isFinite(value)
+            : typeof value !== 'string'),
+    )
+  ) {
+    return { ok: false, reason: 'VALIDATION_ERROR', detail: 'bad_concept_value' }
+  }
+  const values = bag.filter((value) => value !== null)
+  if (values.length > 1) {
+    return {
+      ok: false,
+      reason: 'VALIDATION_ERROR',
+      detail: 'concept_value_must_have_one_type',
+    }
+  }
+  return {
+    concept: raw.concept,
+    cmp: raw.cmp,
+    value: (values[0] ?? null) as V6ConceptPredicate['value'],
+  }
 }
 
 function mapSlice(raw: unknown): V6Slice | null | NativeMapFailure {
@@ -210,6 +268,11 @@ function mapFilterOp(raw: unknown): V6FilterOp | NativeMapFailure {
       return { ok: false, reason: 'VALIDATION_ERROR', detail: 'filter_requires_place' }
     }
     return { op: 'Filter', place }
+  }
+  if (raw.op === 'ConceptFilter') {
+    const predicate = mapConceptFilter(raw.concept_filter)
+    if (isFail(predicate)) return predicate
+    return { op: 'ConceptFilter', predicate }
   }
   if (raw.op === 'RelativeTemporal') {
     const temporal = mapTemporal(raw.temporal)
@@ -309,12 +372,29 @@ export function mapNativeQueryArgs(
       filters.push(p)
     }
   }
+  let conceptFilters: V6ConceptPredicate[] | undefined
+  if (args.concept_filters !== null && args.concept_filters !== undefined) {
+    if (!Array.isArray(args.concept_filters)) {
+      return {
+        ok: false,
+        reason: 'VALIDATION_ERROR',
+        detail: 'bad_concept_filters',
+      }
+    }
+    conceptFilters = []
+    for (const raw of args.concept_filters) {
+      const predicate = mapConceptFilter(raw)
+      if (isFail(predicate)) return predicate
+      conceptFilters.push(predicate)
+    }
+  }
   return {
     ok: true,
     value: {
       type: 'Search',
       source: 'wedding',
       filters,
+      conceptFilters,
       excludePlace: excludePlace ?? undefined,
       relativeTemporal: temporal ?? null,
       sort: sort ?? null,
@@ -369,9 +449,8 @@ export function mapNativeAggregateArgs(
   }
   if (args.aggregation === 'sum') {
     if (
-      args.measure !== 'contract_value' &&
-      args.measure !== 'paid_amount' &&
-      args.measure !== 'remaining_amount'
+      typeof args.measure !== 'string' ||
+      !resolveAggregateConcept(args.measure)
     ) {
       return {
         ok: false,

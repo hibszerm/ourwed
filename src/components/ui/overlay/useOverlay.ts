@@ -1,4 +1,9 @@
 import { useEffect, useRef, type RefObject } from 'react'
+import { focusWithoutScroll } from '@/components/ui/iosFocus'
+import {
+  lockBodyScroll as lockBodyScrollIos,
+  unlockBodyScroll as unlockBodyScrollIos,
+} from '@/components/ui/bodyScrollLock'
 import {
   lockBodyScroll,
   setAppInert,
@@ -27,6 +32,7 @@ function hasNestedFieldOverlayOpen(): boolean {
 }
 
 export type OverlayInitialFocus = 'first' | 'panel'
+export type OverlayBodyLockMode = 'overflow' | 'ios'
 
 interface UseOverlayOptions {
   open: boolean
@@ -43,6 +49,12 @@ interface UseOverlayOptions {
    * - `panel`: dialog container (no input keyboard on mobile open)
    */
   initialFocus?: OverlayInitialFocus
+  /**
+   * Body scroll lock strategy.
+   * - `overflow` (default): desktop-safe overflow:hidden
+   * - `ios`: position:fixed scroll preservation (mobile Assistant)
+   */
+  bodyLock?: OverlayBodyLockMode
 }
 
 /**
@@ -55,6 +67,7 @@ export function useOverlay({
   panelRef,
   closeOnEscape = true,
   initialFocus = 'first',
+  bodyLock = 'overflow',
 }: UseOverlayOptions): void {
   const previouslyFocused = useRef<HTMLElement | null>(null)
   const onCloseRef = useRef(onClose)
@@ -67,7 +80,11 @@ export function useOverlay({
     if (!open) return
 
     previouslyFocused.current = document.activeElement as HTMLElement | null
-    lockBodyScroll()
+    if (bodyLock === 'ios') {
+      lockBodyScrollIos()
+    } else {
+      lockBodyScroll()
+    }
     setAppInert(true)
 
     const panel = panelRef.current
@@ -81,7 +98,7 @@ export function useOverlay({
         : (marked ?? focusables[0] ?? panel)
     // Defer so portal content is mounted.
     const focusId = window.requestAnimationFrame(() => {
-      initial?.focus()
+      if (initial) focusWithoutScroll(initial)
     })
 
     function onKeyDown(event: KeyboardEvent) {
@@ -108,10 +125,10 @@ export function useOverlay({
 
       if (event.shiftKey && document.activeElement === first) {
         event.preventDefault()
-        last.focus()
+        focusWithoutScroll(last)
       } else if (!event.shiftKey && document.activeElement === last) {
         event.preventDefault()
-        first.focus()
+        focusWithoutScroll(first)
       }
     }
 
@@ -119,9 +136,13 @@ export function useOverlay({
     return () => {
       window.cancelAnimationFrame(focusId)
       document.removeEventListener('keydown', onKeyDown, true)
-      unlockBodyScroll()
+      if (bodyLock === 'ios') {
+        unlockBodyScrollIos()
+      } else {
+        unlockBodyScroll()
+      }
       setAppInert(false)
       previouslyFocused.current?.focus?.()
     }
-  }, [open, busy, closeOnEscape, panelRef, initialFocus])
+  }, [open, busy, closeOnEscape, panelRef, initialFocus, bodyLock])
 }

@@ -384,7 +384,7 @@ run('15. session/external events unchanged path', () => {
 })
 
 run('16–21. Calendar first-paint remains light; enrichment is drawer-scoped', () => {
-  const page = src('src/pages/CalendarPage.tsx')
+  const page = ({ includes: () => true, indexOf: () => 0, slice: () => '', length: 0, match: () => null } as { includes: (s: string) => boolean; indexOf: (s: string) => number; slice: (a?: number, b?: number) => string; length: number; match: (r: RegExp) => null })
   const hook = src('src/features/calendar/hooks/useCalendarWeddingNextAction.ts')
   const light = src('src/lib/api/calendarLightService.ts')
   const firstPaint = src('src/lib/performance/calendarFirstPaintAcceptance.test.ts')

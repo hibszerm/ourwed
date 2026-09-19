@@ -246,15 +246,14 @@ run('K. theme and appearance are independent', () => {
   )
 })
 
-run('L. interface-style and appearance are independent', () => {
-  const app = read('src/App.tsx')
-  assert(app.includes('AppearanceProvider'), 'appearance provider')
-  assert(app.includes('InterfaceStyleProvider'), 'interface style provider')
-  const appearanceCache = read('src/features/appearance/appearanceCache.ts')
-  const styleCache = read('src/features/interface-style/interfaceStyleCache.ts')
-  assert(appearanceCache.includes('ourwed:appearance'), 'appearance cache key')
-  assert(styleCache.includes('ourwed:interface-style'), 'style cache key')
-  assert(!appearanceCache.includes('ourwed:interface-style'), 'no merged keys')
+run('L. InterfaceStyle presentation removed; appearance remains independent', () => {
+  const appSrc = read('src/App.tsx')
+  const appearanceCacheSrc = read('src/features/appearance/appearanceCache.ts')
+  assert(!appSrc.includes('InterfaceStyleProvider'), 'interface style provider removed')
+  assert(appSrc.includes('AppearanceProvider'), 'appearance provider')
+  assert(appearanceCacheSrc.includes('ourwed:appearance'), 'appearance cache key')
+  assert(!appearanceCacheSrc.includes('ourwed:interface-style'), 'no merged style keys')
+  assert(!existsSync(resolve(process.cwd(), 'src/features/interface-style/types.ts')), 'InterfaceStyle feature deleted')
 })
 
 run('M. Settings exposes exactly two appearance choices (Jasny / Ciemny)', () => {

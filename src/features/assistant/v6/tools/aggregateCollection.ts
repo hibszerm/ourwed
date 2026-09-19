@@ -6,14 +6,23 @@ import { weddingListLightService } from '@/lib/api/weddingListLightService'
 import { getContractValue } from '@/lib/utils/commercial'
 import { getRemainingToPay, getTotalPaid } from '@/lib/utils/finance'
 import { v6CollectionStore } from '../collections/store'
-import type { AggregateAction, V6MoneyMeasure } from '../semantics/types'
+import type { AggregateAction } from '../semantics/types'
+import {
+  getConcept,
+  resolveAggregateConcept,
+} from '../registry'
+import {
+  inspectConcept,
+  WeddingReadContext,
+  V6_CROSS_DOMAIN_CANDIDATE_CAP,
+} from '../adapters'
 import { toolFail, type V6ToolResult } from './errors'
 
 export type AggregateCollectionSuccess = {
   kind: 'money_aggregate' | 'count_result'
   collectionHandle: string
   aggregation: 'count' | 'sum'
-  measure: V6MoneyMeasure | null
+  measure: string | null
   value: number
   currency: 'PLN'
   provenance: 'canonical_finance' | 'collection_count'
@@ -69,12 +78,61 @@ export async function aggregateCollection(
   }
 
   const measure = action.measure
+  const concept = resolveAggregateConcept(measure)
   if (
-    measure !== 'contract_value' &&
-    measure !== 'paid_amount' &&
-    measure !== 'remaining_amount'
+    !concept ||
+    !(getConcept(concept).operations as readonly string[]).includes(
+      'aggregate_sum',
+    )
   ) {
     return toolFail('UNSUPPORTED_CAPABILITY', 'measure_not_supported')
+  }
+
+  const legacyMeasure =
+    concept === 'FIN.CONTRACT_VALUE'
+      ? 'contract_value'
+      : concept === 'FIN.TOTAL_PAID'
+        ? 'paid_amount'
+        : concept === 'FIN.REMAINING_TO_PAY'
+          ? 'remaining_amount'
+          : null
+
+  if (!legacyMeasure) {
+    if (col.snapshotMemberIds.length > V6_CROSS_DOMAIN_CANDIDATE_CAP) {
+      return toolFail(
+        'UNSUPPORTED_CAPABILITY',
+        `CANDIDATE_CAP_EXCEEDED:candidate_count:${col.snapshotMemberIds.length}`,
+      )
+    }
+    try {
+      const values = await Promise.all(
+        col.snapshotMemberIds.map(async (weddingId) => {
+          const inspected = await inspectConcept(
+            new WeddingReadContext(weddingId),
+            concept,
+          )
+          return inspected.value
+        }),
+      )
+      if (!values.every((value) => typeof value === 'number')) {
+        return toolFail('EXECUTION_ERROR', `non_numeric_measure:${concept}`)
+      }
+      return {
+        ok: true,
+        data: {
+          kind: 'money_aggregate',
+          collectionHandle: col.handle,
+          aggregation: 'sum',
+          measure,
+          value: (values as number[]).reduce((sum, value) => sum + value, 0),
+          currency: 'PLN',
+          provenance: 'canonical_finance',
+          memberCount: col.snapshotMemberIds.length,
+        },
+      }
+    } catch {
+      return toolFail('EXECUTION_ERROR', `aggregate_concept_failed:${concept}`)
+    }
   }
 
   let weddings = input?.weddings
@@ -96,9 +154,9 @@ export async function aggregateCollection(
     if (!w) {
       return toolFail('STALE_COLLECTION', 'member_missing_for_aggregate')
     }
-    if (measure === 'contract_value') {
+    if (legacyMeasure === 'contract_value') {
       sum += getContractValue(w)
-    } else if (measure === 'paid_amount') {
+    } else if (legacyMeasure === 'paid_amount') {
       sum += getTotalPaid(w.payments ?? [])
     } else {
       sum += getRemainingToPay(getContractValue(w), w.payments ?? [])

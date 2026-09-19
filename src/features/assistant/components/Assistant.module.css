@@ -1,4 +1,4 @@
-/* Zapytaj OurWed — Premium Spotlight V4 (OurWed Modern tokens). */
+/* Zapytaj OurWed — Phase 2F Premium Minimal × Compact (OurWed tokens). */
 
 .launcher {
   display: inline-flex;
@@ -87,7 +87,7 @@
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding: max(11vh, 44px) var(--space-6) var(--space-6);
+  padding: max(10vh, 40px) var(--space-6) var(--space-6);
 }
 
 .surfaceBackdrop {
@@ -96,9 +96,7 @@
   border: 0;
   padding: 0;
   margin: 0;
-  background: color-mix(in srgb, var(--color-text-primary, var(--color-text)) 26%, transparent);
-  backdrop-filter: blur(5px);
-  -webkit-backdrop-filter: blur(5px);
+  background: color-mix(in srgb, var(--color-text-primary, var(--color-text)) 22%, transparent);
   cursor: pointer;
   opacity: 1;
   transition: opacity var(--assistant-exit) var(--assistant-ease);
@@ -111,28 +109,32 @@
 .panel {
   position: relative;
   z-index: 1;
-  display: flex;
-  flex-direction: column;
-  width: min(760px, 100%);
-  max-height: min(720px, calc(100vh - 12vh));
-  height: fit-content;
+  /* Phase 2H — fixed workspace: header / content / composer */
+  display: grid;
+  grid-template-rows: 64px minmax(0, 1fr) auto;
+  width: min(780px, calc(100vw - 48px));
+  height: min(700px, calc(100dvh - 64px));
+  max-height: min(700px, calc(100dvh - 64px));
   border-radius: 24px;
-  border: 1px solid color-mix(in srgb, var(--color-text-primary, var(--color-text)) 9%, transparent);
-  background: color-mix(
-    in srgb,
-    var(--surface-primary, var(--color-surface)) 92%,
-    var(--app-background, var(--color-bg))
-  );
-  box-shadow:
-    0 1px 0 color-mix(in srgb, #fff 55%, transparent),
-    0 1px 0 color-mix(in srgb, var(--color-text-primary, var(--color-text)) 5%, transparent),
-    0 28px 56px -32px color-mix(in srgb, var(--color-text-primary, var(--color-text)) 28%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-text-primary, var(--color-text)) 6%, transparent);
+  background: var(--surface-primary, var(--color-surface));
+  box-shadow: 0 24px 56px -28px
+    color-mix(in srgb, var(--color-text-primary, var(--color-text)) 32%, transparent);
   overflow: hidden;
   opacity: 1;
   transform: translateY(0) scale(1);
   transition:
     opacity var(--assistant-motion) var(--assistant-ease),
     transform var(--assistant-motion) var(--assistant-ease);
+}
+
+.panel[data-mode='conversation'],
+.panel[data-mode='empty'],
+.panel[data-empty='true'] {
+  /* Same outer geometry in every state — never content-sized */
+  height: min(700px, calc(100dvh - 64px));
+  max-height: min(700px, calc(100dvh - 64px));
+  min-height: 0;
 }
 
 .surfaceRoot[data-motion='enter'] .panel,
@@ -161,10 +163,6 @@
 .surfaceRoot[data-mobile='true'][data-motion='exit'] .panel {
   transform: translateY(6px);
   opacity: 0;
-}
-
-.panel[data-empty='true'] {
-  max-height: none;
 }
 
 @keyframes assistantFadeIn {
@@ -220,6 +218,16 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .composerEmpty,
+  .composerDock,
+  .composer,
+  .emptyHero,
+  .contentRegion,
+  .transcriptScroll,
+  .panelTitle {
+    transition: none !important;
+  }
+
   .surfaceRoot[data-motion='enter'] .panel,
   .surfaceRoot[data-mobile='true'][data-motion='enter'] .panel,
   .answerFrame {
@@ -236,7 +244,10 @@
 
 .panelChrome {
   flex: 0 0 auto;
+  height: 64px;
   background: var(--surface-primary, var(--color-surface));
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--color-text-primary, var(--color-text)) 4%, transparent);
 }
 
 .panelHeader {
@@ -244,36 +255,39 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-4);
-  padding: 20px 22px 0 30px;
+  height: 64px;
+  min-height: 64px;
+  padding: 0 24px 0 32px;
 }
 
 .panelTitle {
   margin: 0;
   padding-right: 8px;
-  font-size: 0.9375rem;
+  font-size: 1rem;
   font-weight: 600;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
   line-height: 1.3;
-  color: var(--color-text-tertiary, var(--color-text-muted));
+  color: var(--color-text-primary, var(--color-text));
 }
 
 .closeButton {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   border: 0;
-  border-radius: 10px;
+  border-radius: 999px;
   background: transparent;
   color: var(--color-text-tertiary, var(--color-text-muted));
   cursor: pointer;
   flex-shrink: 0;
+  transition: background 140ms ease, color 140ms ease;
 }
 
 .closeButton:hover {
   color: var(--color-text-primary, var(--color-text));
-  background: color-mix(in srgb, var(--color-text-primary, var(--color-text)) 6%, transparent);
+  background: color-mix(in srgb, var(--color-text-primary, var(--color-text)) 5%, transparent);
 }
 
 .closeButton:focus-visible {
@@ -281,128 +295,697 @@
   outline-offset: 2px;
 }
 
+.closeButton svg {
+  width: 17px;
+  height: 17px;
+}
+
 /* —— Composer —— */
 
+/* —— Composer — Phase 2G.3: 54px pill, persistent geometry —— */
+
 .composerWrap {
-  padding: 16px 30px 14px;
+  padding: var(--space-4, 16px) var(--space-7, 28px) var(--space-3, 12px);
+}
+
+.composerDock {
+  flex: 0 0 auto;
+  padding: 16px 32px 20px;
+  border-top: 1px solid
+    color-mix(in srgb, var(--color-text-primary, var(--color-text)) 4%, transparent);
+  background: transparent;
+}
+
+/* Empty uses the same dock geometry (permanent Row 3) */
+.composerEmpty {
+  flex: 0 0 auto;
+  padding: 16px 32px 20px;
+  border-top: 1px solid
+    color-mix(in srgb, var(--color-text-primary, var(--color-text)) 4%, transparent);
+  background: transparent;
+}
+
+.composerEmpty .composer,
+.composerDock .composer {
+  width: 100%;
 }
 
 .composer {
-  display: flex;
-  gap: 12px;
+  display: grid;
+  grid-template-columns: 19px minmax(0, 1fr) 42px;
+  column-gap: 14px;
   align-items: center;
+  /* border-box: 5+42+5 + 1px×2 border = 54 outer with 42px send */
   min-height: 54px;
-  padding: 11px 11px 11px 18px;
-  border-radius: 18px;
-  border: 1px solid color-mix(in srgb, var(--color-text-primary, var(--color-text)) 9%, transparent);
+  height: auto;
+  max-height: 126px;
+  padding: 5px 6px 5px 20px;
+  border-radius: 27px;
+  border: 1px solid
+    color-mix(in srgb, var(--color-text-primary, var(--color-text)) 5.5%, transparent);
   background: color-mix(
     in srgb,
-    var(--app-background, var(--color-bg)) 62%,
+    var(--app-background, var(--color-bg)) 48%,
     var(--surface-primary, var(--color-surface))
   );
-  box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 48%, transparent);
-  transition: border-color 120ms ease, box-shadow 120ms ease;
+  box-shadow: 0 6px 22px
+    color-mix(in srgb, var(--color-text-primary, var(--color-text)) 3.5%, transparent);
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    max-height 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.composer[data-composer-align='end'] {
+  align-items: end;
 }
 
 .composer:focus-within {
-  border-color: color-mix(in srgb, var(--color-text-primary, var(--color-text)) 20%, transparent);
-  box-shadow:
-    inset 0 1px 0 color-mix(in srgb, #fff 48%, transparent),
-    0 0 0 3px color-mix(in srgb, var(--color-text-primary, var(--color-text)) 5%, transparent);
+  /* 1px border preserved — color + soft halo only (no layout shift) */
+  border-width: 1px;
+  border-color: color-mix(
+    in srgb,
+    var(--color-accent, var(--color-text-primary, var(--color-text))) 26%,
+    transparent
+  );
+  box-shadow: 0 0 0 2.5px
+    color-mix(
+      in srgb,
+      var(--color-accent, var(--color-text-primary, var(--color-text))) 14%,
+      transparent
+    );
+}
+
+.composerIconSlot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 19px;
+  height: 22px;
+  align-self: center;
+  /* Phase 2J.1 — taps pass through to pill → sync focus textarea */
+  pointer-events: none;
+}
+
+.composer[data-composer-align='end'] .composerIconSlot {
+  align-self: end;
+  margin-bottom: 10px;
 }
 
 .composerSearchIcon {
-  width: 18px;
-  height: 18px;
-  flex-shrink: 0;
+  width: 19px;
+  height: 19px;
+  display: block;
   color: var(--color-text-tertiary, var(--color-text-muted));
-  opacity: 0.85;
+  opacity: 0.8;
 }
 
 .composerInput {
   flex: 1 1 auto;
   min-width: 0;
+  width: 100%;
   border: 0;
+  outline: none;
+  box-shadow: none;
   background: transparent;
   resize: none;
-  overflow: hidden;
+  overflow-y: auto;
   font: inherit;
-  font-size: 1.0625rem;
-  font-weight: 500;
-  letter-spacing: -0.015em;
-  line-height: 1.4;
+  font-size: 0.96875rem; /* 15.5px */
+  font-weight: 400;
+  letter-spacing: -0.012em;
+  line-height: 22px;
   color: var(--color-text-primary, var(--color-text));
-  max-height: 120px;
+  min-height: 22px;
+  max-height: 114px;
   padding: 0;
   margin: 0;
+  align-self: center;
+}
+
+.composer[data-composer-align='end'] .composerInput {
+  align-self: end;
+  margin-bottom: 4px;
 }
 
 .composerInput:focus {
   outline: none;
+  box-shadow: none;
 }
 
 .composerInput::placeholder {
-  color: color-mix(in srgb, var(--color-text-tertiary, var(--color-text-muted)) 88%, transparent);
-  font-weight: 450;
+  color: var(--color-text-tertiary, var(--color-text-muted));
+  opacity: 1;
+  font-weight: 400;
+  font-size: 0.96875rem;
+  line-height: 22px;
+}
+
+.composerTrailing {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 42px;
+  height: 42px;
+  margin: 0;
+  align-self: center;
+}
+
+.composer[data-composer-align='end'] .composerTrailing {
+  align-self: end;
 }
 
 .sendIconButton {
+  --assistant-send-bg: var(--button-primary-background, var(--color-accent));
+  --assistant-send-bg-hover: var(
+    --button-primary-background-hover,
+    var(--color-accent-hover, var(--color-accent))
+  );
+  --assistant-send-fg: var(--button-primary-text, var(--text-inverse, #fff));
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 38px;
-  height: 38px;
+  width: 42px;
+  height: 42px;
+  min-width: 42px;
+  min-height: 42px;
   padding: 0;
   border: 0;
-  border-radius: 999px;
-  background: var(--color-accent, var(--button-primary-bg));
-  color: var(--button-primary-text, var(--text-inverse, #fff));
+  border-radius: 21px;
+  background: var(--assistant-send-bg);
+  color: var(--assistant-send-fg);
   cursor: pointer;
-  transition: opacity 120ms ease, transform 120ms ease;
+  transition: background 140ms ease;
 }
 
 .sendIconButton:disabled {
-  opacity: 0.2;
+  background: color-mix(in srgb, var(--color-text-primary, var(--color-text)) 11%, transparent);
+  color: color-mix(in srgb, var(--surface-primary, #fff) 72%, transparent);
   cursor: default;
+  opacity: 1;
 }
 
 .sendIconButton:not(:disabled):hover {
-  transform: translateY(-0.5px);
+  background: var(--assistant-send-bg-hover);
 }
 
 .sendIconButton:focus-visible {
-  outline: 2px solid var(--color-accent);
+  outline: 2px solid var(--color-accent, var(--color-text-primary));
   outline-offset: 2px;
 }
 
 .sendIcon {
-  width: 16px;
-  height: 16px;
+  width: 17px;
+  height: 17px;
 }
 
-/* —— Body —— */
+/* —— Body / transcript / content region (Phase 2H) —— */
+
+.contentRegion {
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
 
 .body {
   flex: 1 1 auto;
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
-  padding: 6px 30px 32px;
+  padding: 10px 32px 20px;
   -webkit-overflow-scrolling: touch;
 }
 
+.transcriptScroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 14px 32px 18px;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--color-text-primary, var(--color-text)) 18%, transparent)
+    transparent;
+  transition: opacity 180ms ease;
+}
+
+.transcriptScroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.transcriptScroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.transcriptScroll::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--color-text-primary, var(--color-text)) 16%, transparent);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.transcriptList {
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+  width: 100%;
+  max-width: none;
+}
+
+.userTurn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0;
+}
+
+.userUtterance {
+  max-width: 70%;
+  margin: 0;
+  padding: 9px 13px;
+  border-radius: 15px;
+  border: 1px solid
+    color-mix(in srgb, var(--color-text-primary, var(--color-text)) 7%, transparent);
+  background: color-mix(
+    in srgb,
+    var(--app-background, var(--color-bg)) 86%,
+    var(--surface-primary, var(--color-surface))
+  );
+  box-shadow: none;
+  font-size: 0.90625rem;
+  font-weight: 450;
+  letter-spacing: -0.012em;
+  line-height: 1.4;
+  color: var(--color-text-primary, var(--color-text));
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.assistantTurn {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 11px;
+  min-width: 0;
+  max-width: none;
+  margin-top: 0;
+}
+
+/* —— Safe text —— */
+
+.safeText {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8em;
+  min-width: 0;
+  max-width: 42.5rem;
+}
+
+.safeParagraph {
+  margin: 0;
+  font-size: 0.96875rem;
+  font-weight: 400;
+  letter-spacing: -0.014em;
+  line-height: 1.58;
+  color: var(--color-text-primary, var(--color-text));
+}
+
+.safeStrong {
+  font-weight: 650;
+  letter-spacing: -0.016em;
+  color: var(--color-text-primary, var(--color-text));
+}
+
+.safeList,
+.safeListOrdered {
+  margin: 0;
+  padding: 0 0 0 1.1em;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4em;
+  font-size: 0.96875rem;
+  font-weight: 400;
+  letter-spacing: -0.014em;
+  line-height: 1.55;
+  color: var(--color-text-primary, var(--color-text));
+  list-style: disc;
+}
+
+.safeListOrdered {
+  list-style: decimal;
+}
+
+.safeList li::marker,
+.safeListOrdered li::marker {
+  color: var(--color-text-tertiary, var(--color-text-muted));
+}
+
+/* Phase 2F — trusted schedule rows: typography only, no bullets/card */
+.scheduleList {
+  margin: 4px 0 2px;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 42.5rem;
+}
+
+.scheduleRow {
+  display: grid;
+  grid-template-columns: 3.5rem minmax(0, 1fr);
+  gap: 16px;
+  align-items: baseline;
+}
+
+.scheduleTime {
+  font-size: 0.875rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  line-height: 1.45;
+  color: var(--color-text-primary, var(--color-text));
+}
+
+.scheduleTitle {
+  font-size: 0.96875rem;
+  font-weight: 400;
+  letter-spacing: -0.014em;
+  line-height: 1.5;
+  color: color-mix(
+    in srgb,
+    var(--color-text-primary, var(--color-text)) 88%,
+    var(--color-text-secondary, var(--color-text-muted))
+  );
+}
+
+/* —— Context objects (Premium Minimal × Compact) —— */
+
+.contextCardStack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 2px;
+  width: 100%;
+}
+
+.contextCardGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.contextCard {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid
+    color-mix(in srgb, var(--color-text-primary, var(--color-text)) 5.5%, transparent);
+  background: color-mix(
+    in srgb,
+    var(--app-background, var(--color-bg)) 38%,
+    var(--surface-primary, var(--color-surface))
+  );
+  box-shadow: none;
+}
+
+.contextCardHeader {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  min-width: 0;
+}
+
+.contextCardIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  background: color-mix(
+    in srgb,
+    var(--color-text-primary, var(--color-text)) 4%,
+    var(--surface-primary, var(--color-surface))
+  );
+  color: var(--color-text-secondary, var(--color-text-muted));
+}
+
+.contextCardIconSvg {
+  width: 18px;
+  height: 18px;
+}
+
+.contextCardText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding-top: 1px;
+}
+
+.contextCardTitle {
+  margin: 0;
+  font-size: 0.90625rem;
+  font-weight: 600;
+  letter-spacing: -0.016em;
+  line-height: 1.35;
+  color: var(--color-text-primary, var(--color-text));
+}
+
+.contextCardSubtitle {
+  margin: 0;
+  font-size: 0.78125rem;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--color-text-tertiary, var(--color-text-muted));
+}
+
+.contextCardValue {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  line-height: 1.4;
+  color: var(--color-text-secondary, var(--color-text-muted));
+  word-break: break-word;
+}
+
+.contextCardActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.inlineActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 1px;
+}
+
+/* Navigate / in-card actions — quieter */
+.contextAction,
+.contextCardActions .contextActionDirect {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 36px;
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 9px;
+  border: 1px solid
+    color-mix(in srgb, var(--color-text-primary, var(--color-text)) 9%, transparent);
+  background: color-mix(
+    in srgb,
+    var(--app-background, var(--color-bg)) 28%,
+    var(--surface-primary, var(--color-surface))
+  );
+  color: var(--color-text-primary, var(--color-text));
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background 140ms ease,
+    border-color 140ms ease,
+    transform 80ms ease;
+}
+
+/* Direct inline actions — slightly stronger */
+.contextActionDirect {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 38px;
+  min-height: 38px;
+  padding: 0 13px;
+  border-radius: 10px;
+  border: 1px solid
+    color-mix(in srgb, var(--color-text-primary, var(--color-text)) 12%, transparent);
+  background: color-mix(
+    in srgb,
+    var(--color-text-primary, var(--color-text)) 5%,
+    var(--surface-primary, var(--color-surface))
+  );
+  color: var(--color-text-primary, var(--color-text));
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background 140ms ease,
+    border-color 140ms ease,
+    transform 80ms ease;
+}
+
+.contextCardActions .contextAction:first-child,
+.contextCardActions .contextActionDirect:first-child {
+  background: color-mix(
+    in srgb,
+    var(--color-text-primary, var(--color-text)) 4.5%,
+    var(--surface-primary, var(--color-surface))
+  );
+  border-color: color-mix(in srgb, var(--color-text-primary, var(--color-text)) 11%, transparent);
+}
+
+.contextAction:hover,
+.contextActionDirect:hover {
+  background: color-mix(in srgb, var(--color-text-primary, var(--color-text)) 7.5%, transparent);
+  border-color: color-mix(in srgb, var(--color-text-primary, var(--color-text)) 15%, transparent);
+}
+
+.contextAction:active,
+.contextActionDirect:active {
+  background: color-mix(in srgb, var(--color-text-primary, var(--color-text)) 10%, transparent);
+  transform: translateY(0.5px);
+}
+
+.contextAction:focus-visible,
+.contextActionDirect:focus-visible {
+  outline: 2px solid var(--color-text-primary, var(--color-text));
+  outline-offset: 2px;
+}
+
+.contextActionIcon {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  color: color-mix(
+    in srgb,
+    var(--color-text-secondary, var(--color-text-muted)) 90%,
+    transparent
+  );
+}
+
+.contextActionLabel {
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .contextAction,
+  .contextActionDirect,
+  .sendIconButton {
+    transition: none !important;
+  }
+}
+
+/* —— Loading / Phase 2F processing (Thinking Orbs kept) —— */
+
+.loading {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 4px 0 2px;
+  color: var(--color-text-secondary, var(--color-text-muted));
+  font-size: 0.875rem;
+  font-weight: 500;
+  min-height: 28px;
+}
+
+.loadingOrb {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  line-height: 0;
+}
+
+.loadingOrb canvas {
+  display: block;
+  width: 20px !important;
+  height: 20px !important;
+}
+
+.loadingDots {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+}
+
+.loadingDots i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--color-text-primary) 35%, transparent);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .loadingDots i {
+    animation: assistantDot 1.05s ease-in-out infinite;
+  }
+  .loadingDots i:nth-child(2) {
+    animation-delay: 0.14s;
+  }
+  .loadingDots i:nth-child(3) {
+    animation-delay: 0.28s;
+  }
+}
+
+@keyframes assistantDot {
+  0%,
+  80%,
+  100% {
+    opacity: 0.28;
+    transform: translateY(0);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-1.5px);
+  }
+}
+
+
+/* —— Empty / examples / context header (preserved) —— */
+
 .empty {
-  padding: 6px 0 4px;
+  padding: 4px 0 8px;
 }
 
 .emptySupport {
-  margin: 0 0 22px;
+  margin: 0 0 var(--space-5, 20px);
   font-size: 0.9875rem;
   font-weight: 500;
   line-height: 1.5;
   color: var(--color-text-secondary, var(--color-text-muted));
 }
+
 
 .exampleGroup {
   margin-bottom: 18px;
@@ -435,12 +1018,12 @@
   justify-content: space-between;
   gap: 16px;
   width: 100%;
-  min-height: 48px;
-  padding: 12px 2px;
+  min-height: 44px;
+  padding: 11px 10px;
+  margin: 0 -10px;
   border: 0;
-  border-bottom: 1px solid
-    color-mix(in srgb, var(--color-text-primary, var(--color-text)) 7%, transparent);
-  border-radius: 0;
+  border-radius: 12px;
+  border-bottom: 0;
   background: transparent;
   color: var(--color-text-primary, var(--color-text));
   font: inherit;
@@ -449,6 +1032,11 @@
   letter-spacing: -0.015em;
   text-align: left;
   cursor: pointer;
+  transition: background 140ms ease;
+}
+
+.examples li + li .exampleButton {
+  margin-top: 2px;
 }
 
 .examples li:last-child .exampleButton {
@@ -456,7 +1044,12 @@
 }
 
 .exampleButton:hover {
-  background: color-mix(in srgb, var(--color-text-primary, var(--color-text)) 3%, transparent);
+  background: color-mix(in srgb, var(--color-text-primary, var(--color-text)) 4%, transparent);
+}
+
+.exampleButton:focus-visible {
+  outline: 2px solid var(--color-accent, var(--color-text-primary));
+  outline-offset: 2px;
 }
 
 .exampleArrow {
@@ -526,56 +1119,6 @@
   font-weight: 500;
   line-height: 1.4;
   color: var(--color-text-tertiary, var(--color-text-muted));
-}
-
-/* —— Loading —— */
-
-.loading {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 18px 0 8px;
-  color: var(--color-text-secondary, var(--color-text-muted));
-  font-size: 0.875rem;
-  font-weight: 500;
-}
-
-.loadingDots {
-  display: inline-flex;
-  gap: 5px;
-  align-items: center;
-}
-
-.loadingDots i {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--color-text-primary) 35%, transparent);
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .loadingDots i {
-    animation: assistantDot 1.05s ease-in-out infinite;
-  }
-  .loadingDots i:nth-child(2) {
-    animation-delay: 0.14s;
-  }
-  .loadingDots i:nth-child(3) {
-    animation-delay: 0.28s;
-  }
-}
-
-@keyframes assistantDot {
-  0%,
-  80%,
-  100% {
-    opacity: 0.28;
-    transform: translateY(0);
-  }
-  40% {
-    opacity: 1;
-    transform: translateY(-1.5px);
-  }
 }
 
 /* —— Results —— */
@@ -1088,31 +1631,359 @@
   color: var(--color-text-primary, var(--color-text));
 }
 
+
+/* —— Phase 2H empty hero (inside fixed content region) —— */
+
+.emptyHero {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  padding: 24px 32px;
+  /* Optical lift ≈ 45–47% of content region (not full modal) */
+  transform: translateY(-3%);
+  transition: opacity 150ms ease;
+}
+
+.surfaceRoot[data-mode='conversation'] .emptyHero {
+  display: none;
+}
+
+.emptyHeroGroup {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+}
+
+.thinkingOrbHero {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  margin-bottom: 25px;
+  line-height: 0;
+}
+
+.thinkingOrbHero canvas {
+  display: block;
+  width: 64px !important;
+  height: 64px !important;
+  transform: none !important;
+}
+
+.thinkingOrbProcessing {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  line-height: 0;
+}
+
+.thinkingOrbProcessing canvas {
+  display: block;
+  width: 20px !important;
+  height: 20px !important;
+  transform: none !important;
+}
+
+.emptyPrompt {
+  margin: 0;
+  font-size: 2rem; /* 32px */
+  font-weight: 530;
+  letter-spacing: -0.03em;
+  line-height: 1.16;
+  color: var(--color-text-primary, var(--color-text));
+  text-align: center;
+}
+
+.transcriptScroll {
+  transition: opacity 180ms ease;
+}
+
+.panelTitle {
+  transition: opacity 180ms ease;
+}
+
+/* —— Phase 2H.2 collection —— */
+
+.collectionList {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  max-width: 42.5rem;
+  width: 100%;
+  border: 1px solid
+    color-mix(
+      in srgb,
+      var(--color-text-primary, var(--color-text)) 8%,
+      transparent
+    );
+  border-radius: 15px;
+  overflow: hidden;
+  background: transparent;
+}
+
+.collectionRowWrap {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid
+    color-mix(
+      in srgb,
+      var(--color-text-primary, var(--color-text)) 6%,
+      transparent
+    );
+}
+
+.collectionRowWrap:first-child,
+.collectionList > .collectionRow:first-child {
+  border-top: 0;
+}
+
+.collectionList > .collectionRow {
+  border-top: 1px solid
+    color-mix(
+      in srgb,
+      var(--color-text-primary, var(--color-text)) 6%,
+      transparent
+    );
+}
+
+.collectionList > .collectionRow:first-child {
+  border-top: 0;
+}
+
+.collectionRow {
+  display: grid;
+  grid-template-columns: 4.75rem minmax(0, 1fr) auto 16px;
+  align-items: center;
+  gap: 10px 12px;
+  width: 100%;
+  min-height: 70px;
+  margin: 0;
+  padding: 12px 14px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: default;
+  transition: background 140ms ease;
+}
+
+button.collectionRow {
+  cursor: pointer;
+}
+
+button.collectionRow:hover {
+  background: color-mix(
+    in srgb,
+    var(--color-text-primary, var(--color-text)) 3.5%,
+    transparent
+  );
+}
+
+button.collectionRow:hover .collectionChevron {
+  transform: translateX(1.5px);
+}
+
+button.collectionRow:focus-visible {
+  outline: 2px solid var(--color-accent, var(--color-text-primary));
+  outline-offset: -2px;
+}
+
+.collectionDate {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  width: 4.75rem;
+}
+
+.collectionDay {
+  font-size: 1.1875rem; /* 19px */
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  color: var(--color-text-primary, var(--color-text));
+}
+
+.collectionMonth {
+  font-size: 0.6875rem; /* 11px */
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-tertiary, var(--color-text-muted));
+}
+
+.collectionDateEmpty {
+  display: block;
+  width: 1px;
+  height: 1px;
+}
+
+.collectionBody {
+  min-width: 0;
+}
+
+.collectionTitle {
+  display: block;
+  font-size: 0.9375rem; /* 15px */
+  font-weight: 575;
+  letter-spacing: -0.015em;
+  line-height: 1.35;
+  color: var(--color-text-primary, var(--color-text));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.collectionType {
+  font-size: 0.765625rem; /* ~12.25px */
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--color-text-tertiary, var(--color-text-muted));
+  white-space: nowrap;
+  justify-self: end;
+}
+
+.collectionChevron {
+  width: 16px;
+  height: 16px;
+  color: var(--color-text-tertiary, var(--color-text-muted));
+  opacity: 0.75;
+  justify-self: end;
+  transition: transform 140ms ease;
+}
+
+.collectionChevronSpacer {
+  display: block;
+  width: 16px;
+  height: 16px;
+}
+
 /* —— Mobile —— */
 
 @media (max-width: 767px) {
+  /*
+   * Phase 2K.3 — document scroll anchored; VV HEIGHT sizes STAGE only.
+   *
+   * BACKDROP (.surfaceRoot): fixed inset:0 — opaque CRM cover.
+   * STAGE (.mobileViewportFrame): top:0; height = visualViewport.height.
+   * INSIDE STAGE (.panel): grid auto | minmax(0,1fr) | auto — no VV math.
+   * Do NOT position with visualViewport.offsetTop / pageTop.
+   */
   .surfaceRoot {
     padding: 0;
     align-items: stretch;
+    justify-content: stretch;
+  }
+
+  .surfaceRoot[data-mobile='true'] {
+    position: fixed;
+    inset: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: auto;
+    height: auto;
+    max-height: none;
+    box-sizing: border-box;
+    display: block;
+    background: var(--surface-primary, var(--color-surface, #f7f3ec));
+    overflow: hidden;
+    overscroll-behavior: none;
+    touch-action: none;
+    /* 2K.4 — root never fades/moves during keyboard */
+    opacity: 1;
+    transform: none;
+    transition: none;
+    visibility: visible;
   }
 
   .surfaceBackdrop {
     display: none;
   }
 
-  .panel {
+  /* STAGE — top of Assistant; height may shrink to VV height (JS). No CSS height anim. */
+  .mobileViewportFrame {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
     width: 100%;
-    max-height: none;
     height: 100%;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    overscroll-behavior: none;
+    background: var(--surface-primary, var(--color-surface, #f7f3ec));
+    min-height: 0;
+    transform: none;
+    transition: none;
+  }
+
+  .panel,
+  .panel[data-mode='empty'],
+  .panel[data-mode='conversation'],
+  .panel[data-empty='true'] {
+    position: relative;
+    flex: 1 1 auto;
+    align-self: stretch;
+    width: 100%;
+    height: 100%;
+    max-height: 100%;
+    min-height: 0;
     border-radius: 0;
     border: 0;
     box-shadow: none;
-    padding-top: var(--safe-top, env(safe-area-inset-top, 0px));
-    padding-bottom: var(--safe-bottom, env(safe-area-inset-bottom, 0px));
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: 0;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    overflow: hidden;
+    overscroll-behavior: none;
+    background: var(--surface-primary, var(--color-surface, #f7f3ec));
+    transform: none;
+  }
+
+  .contentRegion {
+    min-height: 0;
+    overflow: hidden;
+    overscroll-behavior: none;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .contentRegion[data-content='empty'] {
+    touch-action: none;
+    overflow: hidden;
+  }
+
+  .panelChrome {
+    height: auto;
+    min-height: 64px;
+    flex-shrink: 0;
+    background: var(--surface-primary, var(--color-surface, #f7f3ec));
+    touch-action: none;
   }
 
   .panelHeader {
-    padding: 12px 12px 0 20px;
+    height: 64px;
+    min-height: 64px;
+    padding: 0 12px 0 16px;
   }
 
   .panelTitle {
@@ -1123,17 +1994,46 @@
     padding: 12px 16px 8px;
   }
 
+  .composerDock,
+  .composerEmpty {
+    flex-shrink: 0;
+    padding: 12px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+    background: var(--surface-primary, var(--color-surface, #f7f3ec));
+    touch-action: manipulation;
+  }
+
+  /* 2K.4 — do not yank composer padding on focus (safe-area jump fought keyboard). */
+
   .composer {
-    min-height: 50px;
+    min-height: 54px;
   }
 
   .composerInput {
-    font-size: 1.0625rem;
+    font-size: 1rem;
+  }
+
+  .sendIconButton {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
   }
 
   .body {
     flex: 1 1 auto;
-    padding: 8px 20px 28px;
+    min-height: 0;
+    padding: 8px 18px 18px;
+  }
+
+  .transcriptScroll {
+    padding: 10px 18px 12px;
+    min-height: 0;
+    flex: 1 1 auto;
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+    -webkit-overflow-scrolling: touch;
   }
 
   .contextTitle {
@@ -1173,7 +2073,155 @@
   .secondaryAction {
     width: 100%;
   }
+
+  .exampleButton {
+    min-height: 44px;
+  }
+
+  .contextAction,
+  .contextActionDirect {
+    min-height: 44px;
+    height: 44px;
+    padding: 0 14px;
+    font-size: 0.875rem;
+  }
+
+  .contextCardGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .userUtterance {
+    max-width: 88%;
+    padding: 9px 13px;
+  }
+
+  .scheduleRow {
+    grid-template-columns: 3.15rem minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .panelHeader {
+    min-height: 56px;
+    padding: 0 12px 0 16px;
+  }
+
+  .contextCard {
+    width: 100%;
+  }
+
+  .transcriptList,
+  .assistantTurn {
+    max-width: none;
+  }
+
+  .loading {
+    min-height: 28px;
+    padding: 4px 0 2px;
+  }
+
+  /*
+   * Phase 2K.4 — empty hero: TWO compositions only (rest / compact).
+   * Compact begins at :focus-within (user intent), stays while data-keyboard=open.
+   * Structural sizes snap instantly; only opacity/transform polish animates.
+   * Never CSS-transition stage/root height (Safari owns keyboard motion).
+   */
+  .emptyHero {
+    transform: none;
+    padding: 28px 16px 12px;
+    overflow: hidden;
+    touch-action: none;
+    overscroll-behavior: none;
+    min-height: 0;
+    justify-content: center;
+    transition: none;
+  }
+
+  .emptyHeroGroup {
+    transform-origin: center top;
+    transition:
+      opacity 180ms cubic-bezier(0.22, 1, 0.36, 1),
+      transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+    transform: scale(1);
+    opacity: 1;
+  }
+
+  .thinkingOrbHero {
+    width: 64px;
+    height: 64px;
+    margin-bottom: 22px;
+    /* Instant size on mode switch — no width/height transition (layout thrash). */
+    transition: opacity 180ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .thinkingOrbHero canvas {
+    width: 64px !important;
+    height: 64px !important;
+    transition: none;
+  }
+
+  /* MODE B — compact: focus intent OR keyboard still open after blur */
+  .panel:focus-within .emptyHero,
+  .surfaceRoot[data-keyboard='open'][data-mode='empty'] .emptyHero {
+    transform: none;
+    padding: 10px 16px 6px;
+    justify-content: flex-start;
+  }
+
+  .panel:focus-within .emptyHeroGroup,
+  .surfaceRoot[data-keyboard='open'][data-mode='empty'] .emptyHeroGroup {
+    transform: scale(0.96);
+  }
+
+  .panel:focus-within .thinkingOrbHero,
+  .surfaceRoot[data-keyboard='open'][data-mode='empty'] .thinkingOrbHero {
+    width: 36px;
+    height: 36px;
+    margin-bottom: 8px;
+  }
+
+  .panel:focus-within .thinkingOrbHero canvas,
+  .surfaceRoot[data-keyboard='open'][data-mode='empty'] .thinkingOrbHero canvas {
+    width: 36px !important;
+    height: 36px !important;
+  }
+
+  .emptyPrompt {
+    font-size: 1.625rem;
+    transition: font-size 180ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .panel:focus-within .emptyPrompt,
+  .surfaceRoot[data-keyboard='open'][data-mode='empty'] .emptyPrompt {
+    font-size: 1.125rem;
+  }
+
+  /* Extremely short stage: hide orb only — heading stays. */
+  @media (max-height: 420px) {
+    .panel:focus-within .thinkingOrbHero,
+    .surfaceRoot[data-keyboard='open'][data-mode='empty'] .thinkingOrbHero {
+      display: none;
+    }
+  }
+
+  .composer {
+    min-height: 54px;
+    max-height: 120px;
+    border-radius: 27px;
+    padding: 5px 6px 5px 18px;
+    /* No max-height transition on mobile — avoids dual timelines with keyboard. */
+    transition:
+      border-color 140ms ease,
+      box-shadow 140ms ease;
+  }
+
+  .collectionRow,
+  button.collectionRow {
+    min-height: 52px;
+    padding: 10px 8px;
+  }
+
 }
+
 
 .v5GoalShadow {
   margin-top: 16px;

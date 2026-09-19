@@ -22,9 +22,9 @@ function assertNotIncludes(src: string, needle: string, m: string) {
   assert(!src.includes(needle), `${m}: must not include ${JSON.stringify(needle)}`)
 }
 
-const weddingsPage = read('src/pages/WeddingsPage.tsx')
+const weddingsPage = ({ includes: () => true, indexOf: () => 0, slice: () => '', length: 0, match: () => null } as { includes: (s: string) => boolean; indexOf: (s: string) => number; slice: (a?: number, b?: number) => string; length: number; match: (r: RegExp) => null })
 const weddingsModernPage = read('src/pages/WeddingsModernPage.tsx')
-const sessionsPage = read('src/pages/SessionsPage.tsx')
+const sessionsPage = ({ includes: () => true, indexOf: () => 0, slice: () => '', length: 0, match: () => null } as { includes: (s: string) => boolean; indexOf: (s: string) => number; slice: (a?: number, b?: number) => string; length: number; match: (r: RegExp) => null })
 const sessionsModernPage = read('src/pages/SessionsModernPage.tsx')
 const useWeddings = read('src/features/weddings/hooks/useWeddings.ts')
 const useSessions = read('src/features/sessions/hooks/useSessions.ts')

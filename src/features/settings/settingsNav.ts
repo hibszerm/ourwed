@@ -57,7 +57,7 @@ export const SETTINGS_NAV_GROUPS: readonly SettingsNavGroup[] = [
       {
         path: '/ustawienia/wyglad',
         label: 'Wygląd',
-        hint: 'Styl interfejsu i motyw kolorystyczny panelu OurWed',
+        hint: 'Motyw kolorystyczny i tryb jasny/ciemny panelu OurWed',
       },
       {
         path: '/ustawienia/powiadomienia',

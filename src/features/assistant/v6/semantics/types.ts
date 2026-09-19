@@ -14,7 +14,17 @@ export type V6MoneyMeasure =
 
 export type V6Aggregation = 'count' | 'sum'
 
-export type V6SortField = 'wedding.date' | V6MoneyMeasure
+export type V6ConceptCmp = 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'contains'
+
+export type V6ConceptPredicate = {
+  /** Validated as ConceptKey by the deterministic capability gate. */
+  concept: string
+  cmp: V6ConceptCmp
+  value: boolean | number | string | null
+}
+
+/** Registry-backed concept aliases are validated at the capability boundary. */
+export type V6SortField = 'wedding.date' | V6MoneyMeasure | string
 
 export type V6Sort = {
   field: V6SortField
@@ -66,6 +76,7 @@ export type V6PlaceFilter = {
 
 export type V6FilterOp =
   | { op: 'Filter'; place: V6PlaceFilter }
+  | { op: 'ConceptFilter'; predicate: V6ConceptPredicate }
   | { op: 'RelativeTemporal'; temporal: V6RelativeTemporal }
   | { op: 'Sort'; sort: V6Sort }
   | { op: 'Slice'; slice: V6Slice }
@@ -82,6 +93,7 @@ export type SearchAction = {
   type: 'Search'
   source: V6CollectionSource
   filters?: V6PlaceFilter[]
+  conceptFilters?: V6ConceptPredicate[]
   excludePlace?: V6PlaceFilter
   relativeTemporal?: V6RelativeTemporal | null
   sort?: V6Sort | null
@@ -104,7 +116,7 @@ export type AggregateAction = {
   type: 'Aggregate'
   collection: string
   aggregation: V6Aggregation
-  measure?: V6MoneyMeasure | null
+  measure?: V6MoneyMeasure | string | null
 }
 
 export type RestoreAction = {
@@ -144,6 +156,7 @@ export type SemanticAction =
 export type CollectionSemanticDefinition = {
   source: V6CollectionSource
   filters: V6PlaceFilter[]
+  conceptFilters: V6ConceptPredicate[]
   excludePlaces: V6PlaceFilter[]
   relativeTemporal: V6RelativeTemporal | null
   sort: V6Sort | null

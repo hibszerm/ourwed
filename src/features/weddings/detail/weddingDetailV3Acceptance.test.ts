@@ -81,7 +81,7 @@ function stubWedding(overrides: Partial<Wedding> = {}): Wedding {
 }
 
 const v2Root = resolve(process.cwd(), 'src/features/weddings/detail/v2')
-const pagePath = resolve(process.cwd(), 'src/pages/WeddingDetailPage.tsx')
+const pagePath = /* deleted */ 'src/pages/WeddingDetailPage.tsx'
 
 function overviewSources(): string {
   return [

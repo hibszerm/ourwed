@@ -4,6 +4,12 @@
  */
 
 import { V6_REQUESTED_OPERATIONS_SCHEMA } from './requestedOperations'
+import {
+  ALL_CONCEPT_KEYS,
+  FILTERABLE_CONCEPT_KEYS,
+  SORTABLE_CONCEPT_KEYS,
+  SUMMABLE_CONCEPT_KEYS,
+} from '../registry'
 
 function nullableObject(
   required: string[],
@@ -27,6 +33,27 @@ export const V6_PLACE_FILTER_PROPERTIES = {
   },
 } as const
 
+export const V6_CONCEPT_FILTER_PROPERTIES = {
+  concept: { type: 'string', enum: [...ALL_CONCEPT_KEYS] },
+  cmp: {
+    type: 'string',
+    enum: ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'contains'],
+  },
+  bool_value: { type: ['boolean', 'null'] },
+  number_value: { type: ['number', 'null'] },
+  string_value: { type: ['string', 'null'] },
+} as const
+
+export const V6_CONCEPT_FILTER_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['concept', 'cmp', 'bool_value', 'number_value', 'string_value'],
+  properties: V6_CONCEPT_FILTER_PROPERTIES,
+} as const
+
+// Keep this import exercised at schema construction time so registry drift is visible.
+void FILTERABLE_CONCEPT_KEYS
+
 export const V6_TEMPORAL_PROPERTIES = {
   kind: {
     type: 'string',
@@ -37,10 +64,20 @@ export const V6_TEMPORAL_PROPERTIES = {
       'closed_calendar_year',
       'closed_calendar_month',
     ],
+    description:
+      'Temporal kind. closed_calendar_month requires year and month (1-12). closed_calendar_year requires year.',
   },
   inclusive: { type: ['boolean', 'null'] },
-  year: { type: ['number', 'null'] },
-  month: { type: ['number', 'null'] },
+  year: {
+    type: ['number', 'null'],
+    description:
+      'Required calendar year when kind is closed_calendar_year or closed_calendar_month.',
+  },
+  month: {
+    type: ['number', 'null'],
+    description:
+      'Required calendar month 1-12 when kind is closed_calendar_month. Never null for that kind.',
+  },
   from_kind: {
     type: ['string', 'null'],
     enum: ['now', 'absolute', 'calendar_year', 'calendar_month', null],
@@ -80,6 +117,7 @@ export const V6_SORT_PROPERTIES = {
       'contract_value',
       'paid_amount',
       'remaining_amount',
+      ...SORTABLE_CONCEPT_KEYS,
     ],
   },
   direction: { type: 'string', enum: ['asc', 'desc'] },
@@ -103,15 +141,34 @@ export const V6_EXCLUDE_PROPERTIES = {
 export const V6_FILTER_OP_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['op', 'place', 'temporal', 'sort', 'slice', 'exclude'],
+  required: [
+    'op',
+    'place',
+    'concept_filter',
+    'temporal',
+    'sort',
+    'slice',
+    'exclude',
+  ],
   properties: {
     op: {
       type: 'string',
-      enum: ['Filter', 'RelativeTemporal', 'Sort', 'Slice', 'Exclude'],
+      enum: [
+        'Filter',
+        'ConceptFilter',
+        'RelativeTemporal',
+        'Sort',
+        'Slice',
+        'Exclude',
+      ],
     },
     place: nullableObject(
       ['field', 'op', 'value', 'role'],
       V6_PLACE_FILTER_PROPERTIES,
+    ),
+    concept_filter: nullableObject(
+      ['concept', 'cmp', 'bool_value', 'number_value', 'string_value'],
+      V6_CONCEPT_FILTER_PROPERTIES,
     ),
     temporal: nullableObject(TEMPORAL_REQUIRED, V6_TEMPORAL_PROPERTIES),
     sort: nullableObject(['field', 'direction'], V6_SORT_PROPERTIES),
@@ -130,6 +187,7 @@ export const QUERY_COLLECTION_PARAMETERS = {
     'requested_operations',
     'source',
     'filters',
+    'concept_filters',
     'exclude_place',
     'temporal',
     'sort',
@@ -146,6 +204,10 @@ export const QUERY_COLLECTION_PARAMETERS = {
         required: ['field', 'op', 'value', 'role'],
         properties: V6_PLACE_FILTER_PROPERTIES,
       },
+    },
+    concept_filters: {
+      type: ['array', 'null'],
+      items: V6_CONCEPT_FILTER_SCHEMA,
     },
     exclude_place: nullableObject(
       ['field', 'op', 'value', 'role'],
@@ -182,7 +244,13 @@ export const AGGREGATE_COLLECTION_PARAMETERS = {
     aggregation: { type: 'string', enum: ['count', 'sum'] },
     measure: {
       type: ['string', 'null'],
-      enum: ['contract_value', 'paid_amount', 'remaining_amount', null],
+      enum: [
+        'contract_value',
+        'paid_amount',
+        'remaining_amount',
+        ...SUMMABLE_CONCEPT_KEYS,
+        null,
+      ],
     },
   },
 } as const
@@ -254,7 +322,7 @@ export const V6_NATIVE_OPENAI_TOOLS: Array<Record<string, unknown>> = [
   ),
   fn(
     'aggregate_collection',
-    'Calculate count or sum over an EXISTING collection handle without changing the active collection. Money measures must use contract_value, paid_amount, or remaining_amount — never invent arithmetic. After a successful aggregate, answer from the observation — do not re-call the same aggregate.',
+    'Calculate count or a registry-authorized sum over an EXISTING collection handle without changing the active collection. Use a legacy finance alias or a schema-listed summable ConceptKey; never invent arithmetic. After success, answer from the observation.',
     AGGREGATE_COLLECTION_PARAMETERS,
   ),
   fn(

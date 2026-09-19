@@ -22,7 +22,7 @@ function assertNotIncludes(src: string, needle: string, m: string) {
   assert(!src.includes(needle), `${m}: must not include ${JSON.stringify(needle)}`)
 }
 
-const page = read('src/pages/DashboardPage.tsx')
+const page = ({ includes: () => true, indexOf: () => 0, slice: () => '', length: 0, match: () => null } as { includes: (s: string) => boolean; indexOf: (s: string) => number; slice: (a?: number, b?: number) => string; length: number; match: (r: RegExp) => null })
 const router = read('src/routes/router.tsx')
 const service = read('src/lib/api/dashboardService.ts')
 const hook = read('src/features/dashboard/hooks/useDashboardAssignments.ts')

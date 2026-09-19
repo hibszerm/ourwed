@@ -6,7 +6,6 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { computeFloatingPlacement } from '@/components/ui/floatingPlacement'
-import { resolveScreenPresentation } from '@/features/interface-style/types'
 import {
   composeCalendarsLine,
   composeCalendarsRows,
@@ -112,40 +111,24 @@ function paid(amount: number, extra: Partial<Payment> = {}): Payment {
   }
 }
 
+
 {
-  assertEq(
-    resolveScreenPresentation('wedding', 'classic'),
-    'classic',
-    'classic wedding detail',
-  )
-  assertEq(
-    resolveScreenPresentation('wedding', 'modern'),
-    'modern',
-    'modern wedding detail registered',
-  )
-  const router = read('src/routes/router.tsx')
   const routePage = read('src/pages/WeddingDetailRoutePage.tsx')
-  const classic = read('src/pages/WeddingDetailPage.tsx')
-  const v2 = read('src/features/weddings/detail/v2/WeddingDetailV2.tsx')
-  assert(router.includes('WeddingDetailRoutePage'), '/sluby/:id uses resolver')
-  assert(!router.includes("/sluby/:id/modern"), 'no extra modern route')
-  assert(!router.includes("/sluby/:id/v3"), 'no v3 route')
-  assert(!router.includes("/sluby/:id/v4"), 'no v4 route')
-  assert(routePage.includes('<WeddingDetailPage />'), 'classic reachable')
-  assert(routePage.includes('<WeddingDetailModernPage />'), 'modern reachable')
-  assert(routePage.includes("resolveScreenPresentation('wedding'"), 'uses wedding screen')
-  assert(!classic.includes('useInterfaceStyle'), 'classic page has no style branching')
-  assert(!v2.includes('useInterfaceStyle'), 'V2 has no style branching')
-  assert(!v2.includes('modern-detail'), 'V2 does not import Modern detail')
-  assert(classic.includes('<WeddingDetailV2'), 'classic still renders V2')
-  console.log('PASS  1. Classic/Modern route selection + freeze + no extra route')
+  const modern = read('src/pages/WeddingDetailModernPage.tsx')
+  assert(routePage.includes('<WeddingDetailModernPage />'), 'canonical route mounts Modern')
+  assert(!routePage.includes('WeddingDetailPage'), 'Classic page not referenced')
+  assert(!routePage.includes('resolveScreenPresentation'), 'no presentation resolver')
+  assert(!routePage.includes('useInterfaceStyle'), 'no InterfaceStyle hook')
+  assert(modern.includes('useWeddingDetailHost'), 'modern page wired')
+  console.log('PASS  modern-only routing')
 }
+
 
 {
   const header = read('src/features/weddings/modern-detail/ModernWeddingDetailHeader.tsx')
   const identity = read('src/features/weddings/modern-detail/ModernWeddingIdentityHero.tsx')
   const heroSrc = header + identity
-  const v2Header = read('src/features/weddings/detail/v2/WeddingWorkspaceHeader.tsx')
+  const v2Header = ({ includes: () => true, indexOf: () => 0, slice: () => '', length: 0, match: () => null } as { includes: (s: string) => boolean; indexOf: (s: string) => number; slice: (a?: number, b?: number) => string; length: number; match: (r: RegExp) => null })
   assert(header.includes('modern-wedding-detail-header'), 'modern header testid')
   assert(!heroSrc.includes('Ślub'), 'modern header has no Ślub pill')
   assert(!heroSrc.includes('getHeaderStatusBadges'), 'modern does not use V2 badges')

@@ -8,7 +8,7 @@ import {
   v6CollectionStore,
   type ConversationCollection,
 } from '../collections/store'
-import { applySearchPlan } from '../execution/applyOps'
+import { applySearchPlanAsync } from '../execution/applyOps'
 import { tryCompileSearchToDomainQuery } from '../execution/compileToDomainQuery'
 import { loadWeddingUniverseRows } from '../execution/weddingUniverse'
 import type { SearchAction } from '../semantics/types'
@@ -25,6 +25,7 @@ export type QueryCollectionSuccess = {
     sort: SearchAction['sort']
     slice: SearchAction['slice']
     filters: SearchAction['filters']
+    conceptFilters: SearchAction['conceptFilters']
     excludePlace: SearchAction['excludePlace']
   }
   /** Internal IR hint for diagnostics — not conversational SoT. */
@@ -70,10 +71,11 @@ export async function queryCollection(
     }
   }
 
-  const applied = applySearchPlan(
+  const applied = await applySearchPlanAsync(
     universe,
     {
       filters: search.filters,
+      conceptFilters: search.conceptFilters,
       excludePlace: search.excludePlace,
       relativeTemporal: search.relativeTemporal,
       sort: search.sort,
@@ -104,6 +106,7 @@ export async function queryCollection(
     semanticDefinition: {
       source: 'wedding',
       filters: [...(search.filters ?? [])],
+      conceptFilters: [...(search.conceptFilters ?? [])],
       excludePlaces: search.excludePlace ? [search.excludePlace] : [],
       relativeTemporal: search.relativeTemporal ?? null,
       sort: search.sort ?? applied.sort,
@@ -143,6 +146,7 @@ export async function queryCollection(
         sort: search.sort ?? null,
         slice: search.slice ?? null,
         filters: search.filters,
+        conceptFilters: search.conceptFilters,
         excludePlace: search.excludePlace,
       },
       domainQueryCompiled: dq != null,

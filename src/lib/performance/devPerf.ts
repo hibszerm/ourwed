@@ -13,6 +13,7 @@ export type DevPerfLabel =
   | 'dashboard.getDashboardData'
   | 'dashboard.getAssignmentLists'
   | 'dashboard.getNearestDeliveryDeadline'
+  | 'dashboard.studioAttention'
   | 'calendar.syncWeddingDayEvents'
   | 'calendar.listAll'
   | 'calendar.light-weddings'

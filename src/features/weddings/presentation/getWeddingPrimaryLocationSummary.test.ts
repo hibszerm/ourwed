@@ -219,14 +219,14 @@ run('8. Precomputed primaryLocation used without places', () => {
 
 run('9. Surfaces use shared helper (source)', () => {
   const card = readFileSync(
-    resolve(process.cwd(), 'src/features/weddings/components/WeddingCard.tsx'),
+    /* deleted */ 'src/features/weddings/components/WeddingCard.tsx',
     'utf8',
   )
   assert(card.includes('getWeddingPrimaryLocationSummary'), 'card')
   assert(!card.includes('ceremonyLocation ??'), 'no ceremony prefer')
 
   const list = readFileSync(
-    resolve(process.cwd(), 'src/features/weddings/components/WeddingList.tsx'),
+    /* deleted */ 'src/features/weddings/components/WeddingList.tsx',
     'utf8',
   )
   assert(list.includes('getWeddingPrimaryLocationSummary'), 'list')

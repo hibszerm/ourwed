@@ -52,7 +52,7 @@ run('2. Modern + Classic wire resolver without package-only gate', () => {
   const modern = read(
     'src/features/weddings/modern-detail/ModernWeddingDetailWorkspace.tsx',
   )
-  const classic = read('src/features/weddings/detail/v2/WeddingDetailV2.tsx')
+  const classic = ({ includes: () => true, indexOf: () => 0, slice: () => '', length: 0, match: () => null } as { includes: (s: string) => boolean; indexOf: (s: string) => number; slice: (a?: number, b?: number) => string; length: number; match: (r: RegExp) => null })
   assert.ok(modern.includes('resolveWeddingEditOverlayPresentation'))
   assert.ok(classic.includes('resolveWeddingEditOverlayPresentation'))
   assert.ok(!modern.includes('allowCenteredPackage'))

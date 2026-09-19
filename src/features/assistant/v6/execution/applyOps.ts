@@ -20,6 +20,16 @@ import type {
   V6Sort,
 } from '../semantics/types'
 import { localCalendarDateKey } from '@/lib/utils/localCalendarDate'
+import {
+  evaluateConceptPredicates,
+  getConceptSortValue,
+  V6_CROSS_DOMAIN_CANDIDATE_CAP,
+} from '../adapters'
+import {
+  CONCEPT_TO_MONEY_MEASURE,
+  isConceptKey,
+  resolveSortConcept,
+} from '../registry'
 
 export type ApplyOpsResult =
   | { ok: true; rows: CollectionMoneyRow[]; sort: V6Sort | null }
@@ -87,6 +97,66 @@ function sortRows(rows: CollectionMoneyRow[], sort: V6Sort): CollectionMoneyRow[
     return sort.direction === 'asc' ? d : -d
   })
   return out
+}
+
+async function sortRowsAsync(
+  rows: CollectionMoneyRow[],
+  sort: V6Sort,
+): Promise<ApplyOpsResult> {
+  const concept = resolveSortConcept(sort.field)
+  if (!concept) {
+    return {
+      ok: false,
+      code: 'UNSUPPORTED_CAPABILITY',
+      detail: `sort_concept_unsupported:${sort.field}`,
+    }
+  }
+  const legacy =
+    concept === 'WEDDING.DATE'
+      ? 'wedding.date'
+      : CONCEPT_TO_MONEY_MEASURE[
+          concept as keyof typeof CONCEPT_TO_MONEY_MEASURE
+        ]
+  if (legacy) {
+    return {
+      ok: true,
+      rows: sortRows(rows, { ...sort, field: legacy }),
+      sort,
+    }
+  }
+  if (rows.length > V6_CROSS_DOMAIN_CANDIDATE_CAP) {
+    return {
+      ok: false,
+      code: 'UNSUPPORTED_CAPABILITY',
+      detail: `CANDIDATE_CAP_EXCEEDED:candidate_count:${rows.length}`,
+    }
+  }
+  try {
+    const entries = await Promise.all(
+      rows.map(async (row, index) => ({
+        row,
+        index,
+        value: await getConceptSortValue(row.id, concept),
+      })),
+    )
+    entries.sort((a, b) => {
+      if (a.value == null && b.value == null) return a.index - b.index
+      if (a.value == null) return 1
+      if (b.value == null) return -1
+      const cmp =
+        typeof a.value === 'number' && typeof b.value === 'number'
+          ? a.value - b.value
+          : String(a.value).localeCompare(String(b.value), 'pl-PL')
+      return (sort.direction === 'asc' ? cmp : -cmp) || a.index - b.index
+    })
+    return { ok: true, rows: entries.map((entry) => entry.row), sort }
+  } catch {
+    return {
+      ok: false,
+      code: 'UNSUPPORTED_CAPABILITY',
+      detail: `sort_concept_failed:${concept}`,
+    }
+  }
 }
 
 function applySlice(
@@ -234,4 +304,128 @@ export function applySearchPlan(
     ops.push({ op: 'Slice', slice: input.slice })
   }
   return applyTransformOps(universe, ops, todayKey)
+}
+
+/**
+ * Registry-backed async execution path. Concept filters are applied exactly
+ * where they appear, preserving order and candidate bounds.
+ */
+export async function applyTransformOpsAsync(
+  rows: CollectionMoneyRow[],
+  ops: readonly V6FilterOp[],
+  todayKey: string = localCalendarDateKey(),
+): Promise<ApplyOpsResult> {
+  let current = [...rows]
+  let currentSort: V6Sort | null = null
+  for (const op of ops) {
+    if (op.op === 'ConceptFilter') {
+      if (
+        current.length > V6_CROSS_DOMAIN_CANDIDATE_CAP ||
+        !isConceptKey(op.predicate.concept)
+      ) {
+        return {
+          ok: false,
+          code: 'UNSUPPORTED_CAPABILITY',
+          detail:
+            current.length > V6_CROSS_DOMAIN_CANDIDATE_CAP
+              ? `CANDIDATE_CAP_EXCEEDED:candidate_count:${current.length}`
+              : `unknown_concept:${op.predicate.concept}`,
+        }
+      }
+      const evaluated = await evaluateConceptPredicates(
+        current.map((row) => row.id),
+        [{ ...op.predicate, concept: op.predicate.concept }],
+      )
+      if (!evaluated.ok) {
+        return {
+          ok: false,
+          code: 'UNSUPPORTED_CAPABILITY',
+          detail: `${evaluated.code}:${evaluated.detail}`,
+        }
+      }
+      const matched = new Set(evaluated.matchedIds)
+      current = current.filter((row) => matched.has(row.id))
+      continue
+    }
+    if (op.op === 'Sort') {
+      const sorted = await sortRowsAsync(current, op.sort)
+      if (!sorted.ok) return sorted
+      current = sorted.rows
+      currentSort = op.sort
+      continue
+    }
+    const applied = applyTransformOps(current, [op], todayKey)
+    if (!applied.ok) return applied
+    current = applied.rows
+  }
+  return { ok: true, rows: current, sort: currentSort }
+}
+
+export async function applySearchPlanAsync(
+  universe: CollectionMoneyRow[],
+  input: {
+    filters?: V6PlaceFilter[]
+    conceptFilters?: import('../semantics/types').V6ConceptPredicate[]
+    excludePlace?: V6PlaceFilter
+    relativeTemporal?: V6RelativeTemporal | null
+    sort?: V6Sort | null
+    slice?: V6Slice | null
+  },
+  todayKey: string = localCalendarDateKey(),
+): Promise<ApplyOpsResult> {
+  const cheapOps: V6FilterOp[] = []
+  if (input.relativeTemporal) {
+    cheapOps.push({ op: 'RelativeTemporal', temporal: input.relativeTemporal })
+  }
+  for (const place of input.filters ?? []) cheapOps.push({ op: 'Filter', place })
+  if (input.excludePlace) {
+    cheapOps.push({
+      op: 'Exclude',
+      by: 'place_contains',
+      placeValue: input.excludePlace.value,
+      placeRole: input.excludePlace.role ?? 'any',
+    })
+  }
+  const cheap = applyTransformOps(universe, cheapOps, todayKey)
+  if (!cheap.ok) return cheap
+
+  let rows = cheap.rows
+  const predicates = input.conceptFilters ?? []
+  if (predicates.length) {
+    if (
+      rows.length > V6_CROSS_DOMAIN_CANDIDATE_CAP ||
+      predicates.some((predicate) => !isConceptKey(predicate.concept))
+    ) {
+      return {
+        ok: false,
+        code: 'UNSUPPORTED_CAPABILITY',
+        detail:
+          rows.length > V6_CROSS_DOMAIN_CANDIDATE_CAP
+            ? `CANDIDATE_CAP_EXCEEDED:candidate_count:${rows.length}`
+            : 'unknown_concept_filter',
+      }
+    }
+    const evaluated = await evaluateConceptPredicates(
+      rows.map((row) => row.id),
+      predicates as Array<
+        Omit<(typeof predicates)[number], 'concept'> & {
+          concept: import('../registry').ConceptKey
+        }
+      >,
+    )
+    if (!evaluated.ok) {
+      return {
+        ok: false,
+        code: 'UNSUPPORTED_CAPABILITY',
+        detail: `${evaluated.code}:${evaluated.detail}`,
+      }
+    }
+    const matched = new Set(evaluated.matchedIds)
+    rows = rows.filter((row) => matched.has(row.id))
+  }
+
+  const finishingOps: V6FilterOp[] = []
+  if (input.sort) finishingOps.push({ op: 'Sort', sort: input.sort })
+  if (input.slice) finishingOps.push({ op: 'Slice', slice: input.slice })
+  return applyTransformOpsAsync(rows, finishingOps, todayKey)
 }

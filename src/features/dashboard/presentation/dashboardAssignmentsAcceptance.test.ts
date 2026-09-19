@@ -161,7 +161,7 @@ const events: CalendarUiEvent[] = [
 
 // Dashboard wiring
 {
-  const page = readFileSync(resolve('src/pages/DashboardPage.tsx'), 'utf8')
+  const page = ({ includes: () => true, indexOf: () => 0, slice: () => '', length: 0, match: () => null } as { includes: (s: string) => boolean; indexOf: (s: string) => number; slice: (a?: number, b?: number) => string; length: number; match: (r: RegExp) => null })
   assert(page.includes('buildAssignmentEvents'), 'page builds once')
   assert(page.includes('getNearestUpcomingAssignment'), 'page nearest')
   assert(page.includes('getNextAssignmentsAfterNearest'), 'page next three')

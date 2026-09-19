@@ -11,7 +11,7 @@ import {
   MOBILE_NEXT_ASSIGNMENT_SENTINEL_ID,
   MobileNextAssignmentBar,
 } from '@/features/dashboard-v3/MobileNextAssignmentBar'
-import { DashboardV3NotificationsPanel } from '@/features/dashboard-v3/DashboardV3NotificationsPanel'
+import { DashboardV3AttentionPanel } from '@/features/dashboard-v3/DashboardV3AttentionPanel'
 import { DashboardV3TodayPanel } from '@/features/dashboard-v3/DashboardV3TodayPanel'
 import { DashboardV3UpcomingAssignments } from '@/features/dashboard-v3/DashboardV3UpcomingAssignments'
 import { useDashboardMobileReveals } from '@/features/dashboard-v3/useDashboardMobileReveals'
@@ -211,7 +211,7 @@ export function DashboardV3Page() {
                   className={styles.notifications}
                   data-mobile-reveal="pending"
                 >
-                  <DashboardV3NotificationsPanel />
+                  <DashboardV3AttentionPanel />
                 </div>
                 <div
                   className={styles.inquiries}

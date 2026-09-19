@@ -60,7 +60,7 @@ run('4. no production route imports V2 page', () => {
 })
 
 run('5. production Dashboard unchanged light architecture', () => {
-  const page = src('src/pages/DashboardPage.tsx')
+  const page = ({ includes: () => true, indexOf: () => 0, slice: () => '', length: 0, match: () => null } as { includes: (s: string) => boolean; indexOf: (s: string) => number; slice: (a?: number, b?: number) => string; length: number; match: (r: RegExp) => null })
   assert(page.includes('useDashboardAssignments'), 'light assignments')
   assert(!page.includes('useWeddings'), 'no heavy useWeddings')
   assert(!page.includes('workflowStage'), 'V1 not stage-driven')

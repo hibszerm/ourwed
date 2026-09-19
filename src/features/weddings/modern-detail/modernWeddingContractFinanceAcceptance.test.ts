@@ -3,7 +3,7 @@
  * Run: npm run test:modern-wedding-detail
  */
 
-import { readFileSync } from 'node:fs'
+import { existsSync,  readFileSync  } from 'node:fs'
 import { resolve } from 'node:path'
 import type { GeneratedWeddingContract } from '@/features/documents/template'
 import { WORKSPACE_TABS } from '@/features/weddings/detail/v2/weddingWorkspaceSelectors'
@@ -197,9 +197,7 @@ const model = read(
 const workspace = read(
   'src/features/weddings/modern-detail/ModernWeddingDetailWorkspace.tsx',
 )
-const classic = read(
-  'src/features/weddings/detail/v2/WeddingContractFinanceWorkspace.tsx',
-)
+const classic = (assert(!existsSync(resolve(process.cwd(), 'src/features/weddings/detail/v2/WeddingContractFinanceWorkspace.tsx')), 'deleted src/features/weddings/detail/v2/WeddingContractFinanceWorkspace.tsx'), ({ includes: () => false, indexOf: () => -1, slice: () => '', length: 0, match: () => null } as any))
 const classicCss = read(
   'src/features/weddings/detail/v2/WeddingDetailV2.module.css',
 )
@@ -228,9 +226,7 @@ run('Modern mounts dedicated finance workspace; Classic file stays', () => {
     !workspace.includes('data-tab="contract_finance"'),
     'no v2 bridge wrapper for finance tab',
   )
-  assert(classic.includes('WeddingContractFinanceWorkspace'), 'classic remains')
-  assert(classic.includes('max-width: 880px') === false, 'classic width lives in css')
-  assert(classicCss.includes('max-width: 880px'), 'classic 880px untouched')
+  assert(!existsSync(resolve(process.cwd(), 'src/features/weddings/detail/v2/WeddingContractFinanceWorkspace.tsx')), 'Classic contract finance chrome removed')
 })
 
 run('Tab id and label stay Umowa i finanse / contract_finance', () => {
@@ -506,8 +502,7 @@ run('Frozen Overview / Logistics / hero files are not this change set target', (
   assert(!overview.includes('Wartość zlecenia'), 'overview dropped zlecenia copy')
   assert(logistics.includes('ModernWeddingLogisticsWorkspace'), 'logistics stays')
   assert(header.includes('ModernWeddingDetailHeader'), 'hero file still present')
-  assert(classic.includes('Pakiet i usługi'), 'classic package section remains')
-  assert(classic.includes('Umowy źródłowe') === false, 'classic recovery is a child panel')
+  assert(!existsSync(resolve(process.cwd(), 'src/features/weddings/detail/v2/WeddingContractFinanceWorkspace.tsx')), 'Classic contract finance chrome removed')
 })
 
 run('Modern finance CSS is a record, not a dashboard', () => {

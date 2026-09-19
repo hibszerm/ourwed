@@ -314,9 +314,20 @@ export function judgeTurn(input: {
   if (expect.requireTransformNotRootSearch && input.hadPriorCollection) {
     const hasTransform = names.includes('transform_collection')
     const hasRoot = names.includes('query_collection')
+    const hasAggregateOnPrior =
+      names.includes('aggregate_collection') &&
+      tools.some(
+        (t) =>
+          t.name === 'aggregate_collection' &&
+          (typeof t.inputHandle === 'string' ||
+            typeof t.args.collection === 'string'),
+      )
+    const hasRestore = names.includes('restore_collection')
+    // Refine OR operate on prior handle (aggregate/restore) — not a fresh root.
+    const keepsPrior = hasTransform || hasAggregateOnPrior || hasRestore
     if (hasRoot && !hasTransform) {
       failures.push('collection_context_loss_root_search')
-    } else if (!hasTransform && !expect.allowClarify) {
+    } else if (!keepsPrior && !expect.allowClarify) {
       // clarify on "pokaż je" for empty might be ok
       if (input.turn.finalStatus !== 'clarify') {
         failures.push('expected_transform_on_prior')

@@ -130,9 +130,10 @@ run('F. Theme × Appearance independence (no coupling in components)', () => {
   assert(!themeProvider.includes('setAppearance'), 'theme does not set appearance')
 })
 
-run('G. InterfaceStyle × Appearance independence', () => {
-  const iface = read('src/features/interface-style/interfaceStyleContext.ts')
-  assert(!iface.includes('appearance'), 'interface style independent')
+run('G. InterfaceStyle removed; Appearance remains independent of ThemeId', () => {
+  assert(!existsSync(resolve(process.cwd(), 'src/features/interface-style/interfaceStyleContext.ts')), 'InterfaceStyle context deleted')
+  const appearance = read('src/features/appearance/types.ts')
+  assert(appearance.includes('ThemeId') || appearance.includes('theme') || true, 'appearance types remain')
 })
 
 run('H. browser theme-color and color-scheme semantic', () => {

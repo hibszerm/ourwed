@@ -85,7 +85,7 @@ assert(
 )
 
 const calPage = readFileSync(
-  resolve(process.cwd(), 'src/pages/CalendarPage.tsx'),
+  /* deleted */ 'src/pages/CalendarPage.tsx',
   'utf8',
 )
 assert(calPage.includes('useCalendarSessions'), 'loads light sessions')

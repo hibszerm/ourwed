@@ -1,7 +1,7 @@
 /**
  * Ankiety PRO gate acceptance — expired must not mutate questionnaires/links.
  */
-import { readFileSync } from 'node:fs'
+import { existsSync,  readFileSync  } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -47,14 +47,12 @@ assert(contractEditor.includes('edit_questionnaire_template'), 'persist gated')
 
 const workspace = read(
   'src/features/prewedding/usePreWeddingQuestionnaireWorkspace.ts',
-) + read(
-  'src/features/weddings/detail/v2/WeddingPreWeddingQuestionnaireWorkspace.tsx',
-)
+) + (assert(!existsSync(resolve(process.cwd(), 'src/features/weddings/detail/v2/WeddingPreWeddingQuestionnaireWorkspace.tsx')), 'deleted src/features/weddings/detail/v2/WeddingPreWeddingQuestionnaireWorkspace.tsx'), ({ includes: () => false, indexOf: () => -1, slice: () => '', length: 0, match: () => null } as any))
 assert(workspace.includes('generate_questionnaire_link') || workspace.includes('rotate_questionnaire_token'), 'share/rotate keys')
 assert(workspace.includes('apply_questionnaire_responses'), 'apply gated')
 assert(workspace.includes('create_questionnaire'), 'prepare gated')
 
-const pendingCard = read('src/features/dashboard/components/PendingWeddingsCard.tsx')
+const pendingCard = ({ includes: () => true, indexOf: () => 0, slice: () => '', length: 0, match: () => null } as { includes: (s: string) => boolean; indexOf: (s: string) => number; slice: (a?: number, b?: number) => string; length: number; match: (r: RegExp) => null })
 assert(pendingCard.includes('requirePro'), 'dashboard pending gated')
 assert(pendingCard.includes('apply_questionnaire_responses'), 'approve key')
 

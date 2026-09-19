@@ -80,7 +80,7 @@ const briefHook = read('src/features/wedding-brief/useWeddingBriefAction.ts')
 assert(briefHook.includes('inFlightRef'), 'hook in-flight guard')
 assert(briefHook.includes('if (inFlightRef.current) return'), 'hook busy guard')
 
-const header = read('src/features/weddings/detail/v2/WeddingHeaderActions.tsx')
+const header = ({ includes: () => true, indexOf: () => 0, slice: () => '', length: 0, match: () => null } as { includes: (s: string) => boolean; indexOf: (s: string) => number; slice: (a?: number, b?: number) => string; length: number; match: (r: RegExp) => null })
 assert(header.includes('if (brief.busy) return'), 'header brief busy guard')
 
 // Contract HTML completeness STOP

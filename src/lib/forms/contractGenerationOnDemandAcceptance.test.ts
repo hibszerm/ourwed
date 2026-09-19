@@ -90,7 +90,7 @@ function stubCompany() {
   })
 }
 
-const page = resolve(process.cwd(), 'src/pages/WeddingDetailPage.tsx')
+const page = /* deleted */ 'src/pages/WeddingDetailPage.tsx'
 const host = resolve(
   process.cwd(),
   'src/features/weddings/detail/useWeddingDetailHost.ts',

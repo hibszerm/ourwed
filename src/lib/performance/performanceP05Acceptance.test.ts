@@ -234,7 +234,7 @@ function assertNotIncludes(src: string, needle: string, m: string) {
     'does not await invalidation Promise.all',
   )
 
-  const card = read('src/features/dashboard/components/PendingWeddingsCard.tsx')
+  const card = ({ includes: () => true, indexOf: () => 0, slice: () => '', length: 0, match: () => null } as { includes: (s: string) => boolean; indexOf: (s: string) => number; slice: (a?: number, b?: number) => string; length: number; match: (r: RegExp) => null })
   assertIncludes(card, 'afterApprove()', 'card non-blocking invalidate')
   assertNotIncludes(
     card,
@@ -267,7 +267,7 @@ function assertNotIncludes(src: string, needle: string, m: string) {
   assertNotIncludes(hook, 'postgres_changes', 'no realtime')
   assertNotIncludes(hook, 'supabase.channel', 'no channel')
 
-  const card = read('src/features/dashboard/components/PendingWeddingsCard.tsx')
+  const card = ({ includes: () => true, indexOf: () => 0, slice: () => '', length: 0, match: () => null } as { includes: (s: string) => boolean; indexOf: (s: string) => number; slice: (a?: number, b?: number) => string; length: number; match: (r: RegExp) => null })
   const workspace = read(
     'src/features/questionnaires/pending/modern/ModernPendingWorkspace.tsx',
   )

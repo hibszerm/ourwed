@@ -20,7 +20,7 @@ function run(name: string, fn: () => void) {
   }
 }
 
-const page = resolve(process.cwd(), 'src/pages/WeddingDetailPage.tsx')
+const page = /* deleted */ 'src/pages/WeddingDetailPage.tsx'
 const host = resolve(
   process.cwd(),
   'src/features/weddings/detail/useWeddingDetailHost.ts',
@@ -86,7 +86,7 @@ run('1. Header menu opens identity edit; couple edit still via drawer', () => {
   assert(src.includes('DiscardChangesDialog'), 'dirty confirm')
   assert(src.includes('Porzucić zmiany') || src.includes('discardOpen'), 'discard state')
   const headerActions = readFileSync(
-    resolve(process.cwd(), 'src/features/weddings/detail/v2/WeddingHeaderActions.tsx'),
+    /* deleted */ 'src/features/weddings/detail/v2/WeddingHeaderActions.tsx',
     'utf8',
   )
   assert(headerActions.includes('Edytuj nazwę i datę'), 'identity edit in menu')

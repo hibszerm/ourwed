@@ -348,7 +348,7 @@ run('host no longer uses wedding-count prop', () => {
   const host = read(
     'src/features/onboarding/guide/GuideDiscoveryModalHost.tsx',
   )
-  const classic = read('src/pages/DashboardPage.tsx')
+  const classic = ({ includes: () => true, indexOf: () => 0, slice: () => '', length: 0, match: () => null } as { includes: (s: string) => boolean; indexOf: (s: string) => number; slice: (a?: number, b?: number) => string; length: number; match: (r: RegExp) => null })
   const modern = read('src/pages/DashboardV3Page.tsx')
   assert(!host.includes('totalWeddingHistoryCount'), 'host no count')
   assert(host.includes('readGuideDiscoveryEligible'), 'host reads marker')

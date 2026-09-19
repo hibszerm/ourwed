@@ -1,0 +1,1627 @@
+{
+  "phase": "k2-product-knowledge-v1",
+  "model": "gpt-5.6-terra",
+  "timestamp": "2026-09-19T10:06:52.615Z",
+  "productHelp": {
+    "turns": 61,
+    "supported": 57,
+    "top1Accuracy": 0.8596491228070176,
+    "topKRecall": 0.9824561403508771,
+    "semanticAccuracy": 0.9672131147540983,
+    "criticalHallucinations": 0,
+    "rows": [
+      {
+        "id": "pay-direct",
+        "user": "Jak dodać wpłatę?",
+        "expected": [
+          "payments.add"
+        ],
+        "returned": [
+          "payments.add",
+          "weddings.tab.contract_finance",
+          "contracts.generate"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": true,
+        "top1": true,
+        "answerGrounded": true,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "Otwórz zlecenie i przejdź do zakładki **Umowa i finanse**. W bloku płatności wybierz dodanie wpłaty lub zadatku, wpisz kwotę oraz dane i zapisz. System zaktualizuje pozostałą kwotę do rozliczenia.",
+        "latencyMs": 2994
+      },
+      {
+        "id": "pay-colloquial",
+        "user": "Klient właśnie mi zapłacił, gdzie mam to wpisać?",
+        "expected": [
+          "payments.add"
+        ],
+        "returned": [
+          "payments.add",
+          "contracts.generate"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": true,
+        "top1": true,
+        "answerGrounded": true,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "Otwórz dane zlecenie i przejdź do zakładki **Umowa i finanse**. W bloku płatności wybierz dodanie wpłaty lub zadatku, wpisz kwotę i zapisz.\n\nNie mogę jednak zapisać jej za Ciebie — edycja danych nie jest jeszcze dostępna.",
+        "latencyMs": 3191
+      },
+      {
+        "id": "pay-location",
+        "user": "Gdzie w OurWed zapisuje się zaliczkę od pary?",
+        "expected": [
+          "payments.add"
+        ],
+        "returned": [
+          "payments.add",
+          "questionnaires.contract.send",
+          "questionnaires.contract.pending",
+          "contracts.generate",
+          "weddings.create"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": true,
+        "top1": true,
+        "answerGrounded": true,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "Zaliczkę zapiszesz w konkretnym zleceniu, w zakładce **Umowa i finanse**. W bloku płatności wybierz dodanie wpłaty lub zadatku, uzupełnij kwotę i zapisz.",
+        "latencyMs": 2573
+      },
+      {
+        "id": "pay-procedural",
+        "user": "Co mam zrobić, żeby odnotować płatność w zleceniu?",
+        "expected": [
+          "payments.add"
+        ],
+        "returned": [
+          "weddings.create",
+          "travel.resolve_fee",
+          "weddings.open",
+          "payments.add",
+          "questionnaires.contract.pending"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": true,
+        "top1": false,
+        "answerGrounded": true,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "Otwórz dane zlecenie i przejdź do zakładki **Umowa i finanse**. W sekcji płatności wybierz dodanie wpłaty lub zadatku, wpisz kwotę oraz pozostałe dane i zapisz. System zaktualizuje kwotę pozostałą do rozliczenia.",
+        "latencyMs": 3183
+      },
+      {
+        "id": "wed-create-direct",
+        "user": "Jak dodać nowe zlecenie?",
+        "expected": [
+          "weddings.create"
+        ],
+        "returned": [
+          "weddings.create",
+          "weddings.open",
+          "sessions.create",
+          "questionnaires.contract.pending",
+          "tasks.create"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": true,
+        "top1": true,
+        "answerGrounded": true,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "Nowe zlecenie dodasz w sekcji **Śluby**:\n\n1. Otwórz listę Śluby. \n2. Wybierz **Dodaj zlecenie**. \n3. Uzupełnij dane pary i zapisz.\n\nMożesz też zaimportować zlecenia z arkusza albo utworzyć je po zaakceptowaniu wypełnionej ankiety do umowy.",
+        "latencyMs": 3469
+      },
+      {
+        "id": "wed-create-colloquial",
+        "user": "Mam nową parę — jak wprowadzić ich do systemu?",
+        "expected": [
+          "weddings.create",
+          "questionnaires.contract.send"
+        ],
+        "returned": [
+          "sessions.create",
+          "weddings.create",
+          "q.prewedding.send",
+          "contracts.generate",
+          "day.places.edit"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": true,
+        "top1": false,
+        "answerGrounded": true,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "Jeśli to potwierdzone zlecenie, otwórz listę **Śluby** i wybierz **Dodaj zlecenie**. Uzupełnij dane pary oraz podstawy zlecenia i zapisz.\n\nMożesz też zaimportować zlecenia z arkusza. OurWed przechowuje potwierdzone zlecenia, a nie same zapytania. \nNie mogę jednak utworzyć wpisu za Ciebie — zapisy w tej wersji asystenta nie są włączone.",
+        "latencyMs": 3945
+      },
+      {
+        "id": "wed-create-location",
+        "user": "Gdzie dodaje się ślub / zlecenie?",
+        "expected": [
+          "weddings.create"
+        ],
+        "returned": [
+          "weddings.create",
+          "weddings.open",
+          "day.places.edit",
+          "weddings.tab.wedding_day",
+          "questionnaires.contract.pending"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": true,
+        "top1": true,
+        "answerGrounded": true,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "Wejdź w **Śluby** i wybierz **Dodaj zlecenie**. Możesz też zaimportować zlecenia z arkusza albo utworzyć je na podstawie wypełnionej ankiety do umowy w sekcji **Oczekujące**.",
+        "latencyMs": 2961
+      },
+      {
+        "id": "wed-create-procedural",
+        "user": "Jakie mam sposoby na dodanie potwierdzonego zlecenia?",
+        "expected": [
+          "weddings.create"
+        ],
+        "returned": [
+          "weddings.create",
+          "payments.add",
+          "contracts.generate",
+          "travel.resolve_fee",
+          "day.places.edit"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": true,
+        "top1": true,
+        "answerGrounded": true,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "Potwierdzone zlecenie możesz dodać na 3 sposoby:\n\n- **Ręcznie** — w liście Śluby wybierz dodanie zlecenia i uzupełnij dane pary.\n- **Importem z arkusza** — jeśli masz już listę klientów w pliku.\n- **Przez ankietę do umowy** — zbierasz dane od pary, a następnie tworzysz zlecenie w CRM.\n\nOurWed przechowuje potwierdzone zlecenia, a nie same zapytania. Nie mogę jednak dodać go za Ciebie, bo zapisy w tym trybie nie są jeszcze dostępne.",
+        "latencyMs": 3531
+      },
+      {
+        "id": "wed-open-direct",
+        "user": "Jak otworzyć kartę zlecenia?",
+        "expected": [
+          "weddings.open"
+        ],
+        "returned": [
+          "weddings.open",
+          "contracts.generate",
+          "payments.add",
+          "questionnaires.contract.send",
+          "day.places.edit"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": true,
+        "top1": true,
+        "answerGrounded": true,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "Wejdź do sekcji **Śluby**, a następnie wybierz dane zlecenie z listy. Otworzy się jego karta z zakładkami m.in. **Przegląd**, **Dzień ślubu**, **Umowa i finanse**, **Ankieta przedślubna** i **Historia**.",
+        "latencyMs": 3428
+      },
+      {
+        "id": "wed-open-location",
+        "user": "Gdzie znajdę szczegóły konkretnego ślubu?",
+        "expected": [
+          "weddings.open",
+          "weddings.create"
+        ],
+        "returned": [
+          "day.places.edit",
+          "weddings.tab.wedding_day",
+          "q.prewedding.send",
+          "guide.open",
+          "weddings.open"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": true,
+        "top1": false,
+        "answerGrounded": true,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "Wejdź w **Śluby**, wybierz dane zlecenie z listy i otwórz jego kartę. Szczegóły znajdziesz w zakładkach m.in.: **Przegląd**, **Dzień ślubu**, **Umowa i finanse**, **Ankieta przedślubna** oraz **Historia**.",
+        "latencyMs": 3179
+      },
+      {
+        "id": "wed-open-vague",
+        "user": "Jak wejść w zlecenie pary z listy?",
+        "expected": [
+          "weddings.open"
+        ],
+        "returned": [
+          "weddings.open",
+          "weddings.create",
+          "questionnaires.contract.pending",
+          "guide.open",
+          "questionnaires.contract.send"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": true,
+        "top1": true,
+        "answerGrounded": true,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "Wejdź w **Śluby**, a następnie wybierz zlecenie danej pary z listy. Otworzy się jego karta z zakładkami m.in. **Przegląd**, **Dzień ślubu**, **Umowa i finanse** oraz **Historia**.",
+        "latencyMs": 3171
+      },
+      {
+        "id": "tab-finance-direct",
+        "user": "Gdzie jest zakładka Umowa i finanse?",
+        "expected": [
+          "weddings.tab.contract_finance"
+        ],
+        "returned": [
+          "weddings.tab.contract_finance",
+          "contracts.generate",
+          "payments.add",
+          "weddings.tab.wedding_day",
+          "weddings.open"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": true,
+        "top1": true,
+        "answerGrounded": true,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "Wejdź w **Śluby**, otwórz wybrane zlecenie i wybierz zakładkę **Umowa i finanse**. Znajdziesz tam m.in. umowę, pakiet, wpłaty i ustalenia finansowe.",
+        "latencyMs": 3019
+      },
+      {
+        "id": "tab-finance-procedural",
+        "user": "Jak przejść do finansów w zleceniu?",
+        "expected": [
+          "weddings.tab.contract_finance",
+          "payments.add"
+        ],
+        "returned": [
+          "weddings.tab.contract_finance",
+          "travel.resolve_fee",
+          "weddings.create",
+          "weddings.open",
+          "contracts.generate"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": true,
+        "top1": true,
+        "answerGrounded": true,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "Otwórz dane zlecenie i wybierz zakładkę **„Umowa i finanse”**. Znajdziesz tam pakiet, umowę, wpłaty oraz ustalenia finansowe.",
+        "latencyMs": 2619
+      },
+      {
+        "id": "tab-day-direct",
+        "user": "Gdzie jest zakładka Dzień ślubu?",
+        "expected": [
+          "weddings.tab.wedding_day"
+        ],
+        "returned": [
+          "weddings.tab.wedding_day",
+          "day.places.edit",
+          "weddings.tab.contract_finance",
+          "q.prewedding.send",
+          "weddings.open"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": true,
+        "top1": true,
+        "answerGrounded": true,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "Otwórz wybrane zlecenie na liście **Śluby**, a następnie wybierz zakładkę **Dzień ślubu**. Znajdziesz tam harmonogram, miejsca i ustalenia dotyczące realizacji.",
+        "latencyMs": 2961
+      },
+      {
+        "id": "tab-day-vague",
+        "user": "Gdzie w zleceniu ogarniam plan dnia realizacji?",
+        "expected": [
+          "weddings.tab.wedding_day",
+          "day.places.edit"
+        ],
+        "returned": [
+          "day.places.edit",
+          "weddings.tab.wedding_day",
+          "q.prewedding.send",
+          "contracts.generate",
+          "payments.add"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": true,
+        "top1": true,
+        "answerGrounded": true,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "Na karcie zlecenia, w zakładce **Dzień ślubu**. Tam ogarniesz harmonogram, miejsca i ustalenia dotyczące realizacji.",
+        "latencyMs": 2776
+      },
+      {
+        "id": "contract-direct",
+        "user": "Jak wygenerować umowę?",
+        "expected": [
+          "contracts.generate"
+        ],
+        "returned": [
+          "contracts.generate",
+          "weddings.tab.contract_finance",
+          "questionnaires.contract.send",
+          "questionnaires.contract.pending",
+          "travel.resolve_fee"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": true,
+        "top1": true,
+        "answerGrounded": true,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "Aby wygenerować umowę:\n\n1. Upewnij się, że wybrany pakiet ma przypisany wzór DOCX.\n2. Uzupełnij dane zlecenia: dane pary, miejsce przyjęcia, pakiet, dojazd i płatności.\n3. Otwórz zlecenie i przejdź do zakładki **Umowa i finanse**.\n4. Uruchom generowanie umowy.\n5. Poza systemem wyślij dokument parze, a następnie oznacz go jako wysłany i podpisany.\n\nOurWed nie wysyła umów e-mailem ani nie obsługuje podpisu elektronicznego. Możesz też dodać istniejącą umowę w PDF lub DOCX.",
+        "latencyMs": 3420
+      },
+      {
+        "id": "contract-prereq",
+        "user": "Co jest potrzebne do wygenerowania umowy?",
+        "expected": [
+          "contracts.generate"
+        ],
+        "returned": [
+          "questionnaires.contract.send",
+          "questionnaires.contract.pending",
+          "weddings.create",
+          "travel.resolve_fee",
+          "contracts.generate"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": true,
+        "top1": false,
+        "answerGrounded": true,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "Do wygenerowania umowy potrzebujesz:\n\n- pakietu z przypisanym wzorem DOCX,\n- kompletnych danych pary,\n- miejsca przyjęcia,\n- wybranego pakietu,\n- ustalonego dojazdu,\n- ustaleń płatności.\n\nNastępnie w zleceniu, w sekcji „Umowa i finanse”, uruchamiasz generowanie. OurWed nie wysyła umowy e‑mailem ani nie obsługuje podpisu elektronicznego — te etapy oznaczasz na podstawie działań poza systemem.",
+        "latencyMs": 3418
+      },
+      {
+        "id": "contract-colloquial",
+        "user": "Chcę zrobić umowę DOCX dla pary — od czego zacząć?",
+        "expected": [
+          "contracts.generate",
+          "packages.manage"
+        ],
+        "returned": [
+          "contracts.generate",
+          "questionnaires.contract.send",
+          "questionnaires.contract.pending",
+          "weddings.tab.contract_finance",
+          "packages.manage"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": true,
+        "top1": true,
+        "answerGrounded": true,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "Zacznij od przygotowania pakietu z przypisanym wzorem umowy DOCX. Następnie uzupełnij w zleceniu dane wymagane do umowy: dane pary, miejsce przyjęcia, pakiet, dojazd i płatności.\n\nPotem na karcie zlecenia, w sekcji **Umowa i finanse**, możesz wygenerować dokument. OurWed nie wysyła umowy e-mailem ani nie obsługuje podpisu elektronicznego — po wygenerowaniu oznaczasz ją ręcznie jako wysłaną i podpisaną.\n\nJeśli nie masz jeszcze zlecenia, możesz najpierw wysłać parze ankietę do zebrania danych do umowy.",
+        "latencyMs": 4196
+      },
+      {
+        "id": "contract-location",
+        "user": "Gdzie w OurWed generuje się umowę?",
+        "expected": [
+          "contracts.generate"
+        ],
+        "returned": [
+          "contracts.generate",
+          "weddings.tab.contract_finance",
+          "questionnaires.contract.send",
+          "questionnaires.contract.pending",
+          "travel.resolve_fee"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": true,
+        "top1": true,
+        "answerGrounded": true,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "Umowę generujesz na karcie zlecenia, w zakładce **„Umowa i finanse”**.\n\nWcześniej pakiet musi mieć przypisany wzór DOCX, a dane zlecenia powinny być kompletne (m.in. para, miejsce przyjęcia, pakiet, dojazd i płatności).",
+        "latencyMs": 3436
+      },
+      {
+        "id": "contract-send-note",
+        "user": "Czy OurWed wysyła umowę mailem do pary?",
+        "expected": [
+          "contracts.generate"
+        ],
+        "returned": [
+          "contracts.generate",
+          "questionnaires.contract.send",
+          "weddings.tab.contract_finance",
+          "q.prewedding.send",
+          "questionnaires.contract.pending"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": true,
+        "top1": true,
+        "answerGrounded": true,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "Nie. OurWed nie wysyła umów e-mailem ani nie obsługuje podpisu elektronicznego. Możesz wygenerować umowę w zleceniu, a następnie wysłać ją parze poza systemem i ręcznie oznaczyć jej status.",
+        "latencyMs": 3378
+      },
+      {
+        "id": "cq-send-direct",
+        "user": "Jak wysłać ankietę do umowy?",
+        "expected": [
+          "questionnaires.contract.send"
+        ],
+        "returned": [
+          "questionnaires.contract.send",
+          "q.prewedding.send",
+          "questionnaires.contract.pending",
+          "weddings.tab.contract_finance",
+          "weddings.create"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": true,
+        "top1": true,
+        "answerGrounded": true,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "Aby wysłać ankietę do umowy:\n\n1. Otwórz **Ankiety → Dane do umowy**. \n2. Wygeneruj link do ankiety. \n3. Wyślij go parze własnym kanałem, np. w wiadomości lub e-mailu. \n4. Po wypełnieniu ankieta pojawi się w sekcji **Oczekujące**.\n\nOurWed nie wysyła tej wiadomości automatycznie. Pakiety wybierasz przy tworzeniu linku — późniejsze zmiany pakietów nie zaktualizują już wysłanej ankiety.",
+        "latencyMs": 3753
+      },
+      {
+        "id": "cq-send-colloquial",
+        "user": "Chcę zebrać dane od pary linkiem przed założeniem zlecenia — jak?",
+        "expected": [
+          "questionnaires.contract.send",
+          "weddings.create"
+        ],
+        "returned": [
+          "questionnaires.contract.send",
+          "q.prewedding.send",
+          "weddings.create",
+          "contracts.generate",
+          "day.places.edit"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": true,
+        "top1": true,
+        "answerGrounded": true,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "Użyj **Ankiety do umowy** — działa jeszcze przed utworzeniem zlecenia.\n\n1. Wejdź w **Ankiety → Dane do umowy**. \n2. Wygeneruj link do ankiety. \n3. Wyślij go parze np. w wiadomości lub e-mailu. \n4. Po uzupełnieniu odpowiedź trafi do sekcji **Oczekujące**, gdzie zdecydujesz, czy utworzyć z niej zlecenie.\n\nPakiety wybierane są przy tworzeniu linku, więc późniejsze zmiany pakietów nie zaktualizują już wysłanej ankiety. OurWed nie wysyła linku automatycznie — trzeba przekazać go parze samodzielnie.",
+        "latencyMs": 3895
+      },
+      {
+        "id": "cq-send-location",
+        "user": "Gdzie generuje się link ankiety dane do umowy?",
+        "expected": [
+          "questionnaires.contract.send"
+        ],
+        "returned": [
+          "questionnaires.contract.send",
+          "questionnaires.contract.pending",
+          "weddings.create",
+          "contracts.generate",
+          "travel.resolve_fee"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": true,
+        "top1": true,
+        "answerGrounded": true,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "Link do ankiety „Dane do umowy” wygenerujesz w **Ankiety → Dane do umowy**. Następnie udostępniasz go parze poza OurWed.\n\nWypełnione ankiety trafiają do sekcji **Oczekujące**.",
+        "latencyMs": 2692
+      },
+      {
+        "id": "cq-send-procedural",
+        "user": "Jak utworzyć link do ankiety kontraktowej?",
+        "expected": [
+          "questionnaires.contract.send"
+        ],
+        "returned": [
+          "questionnaires.contract.send",
+          "questionnaires.contract.pending",
+          "weddings.tab.contract_finance",
+          "q.prewedding.send",
+          "payments.add"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": true,
+        "top1": true,
+        "answerGrounded": true,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "Wejdź w **Ankiety → Dane do umowy** i wybierz opcję wygenerowania linku. Następnie skopiuj go i wyślij parze np. w wiadomości.\n\nPo wypełnieniu ankieta trafi do sekcji **Oczekujące**, gdzie możesz ją przejrzeć i zaakceptować. Pamiętaj: pakiety wybierasz podczas tworzenia linku — późniejsze zmiany pakietów nie zaktualizują już ankiety automatycznie.",
+        "latencyMs": 3703
+      },
+      {
+        "id": "cq-pending-direct",
+        "user": "Gdzie są oczekujące odpowiedzi z ankiety do umowy?",
+        "expected": [
+          "questionnaires.contract.pending"
+        ],
+        "returned": [
+          "questionnaires.contract.pending",
+          "questionnaires.contract.send",
+          "q.prewedding.send",
+          "weddings.create",
+          "travel.resolve_fee"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": true,
+        "top1": true,
+        "answerGrounded": true,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "Wypełnione ankiety do umowy znajdziesz w sekcji **Oczekujące**. Tam możesz je przejrzeć i zaakceptować lub odrzucić; po akceptacji powstaje zlecenie.",
+        "latencyMs": 3104
+      },
+      {
+        "id": "cq-pending-colloquial",
+        "user": "Para wypełniła ankietę — gdzie to zaakceptować, żeby powstało zlecenie?",
+        "expected": [
+          "questionnaires.contract.pending"
+        ],
+        "returned": [
+          "questionnaires.contract.pending",
+          "questionnaires.contract.send",
+          "weddings.create",
+          "weddings.open",
+          "q.prewedding.send"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": true,
+        "top1": true,
+        "answerGrounded": true,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "Wejdź do sekcji **Oczekujące**, otwórz wypełnioną ankietę i wybierz **Akceptuj**. Po akceptacji OurWed utworzy zlecenie; para nie dostanie przy tym automatycznej wiadomości.",
+        "latencyMs": 3227
+      },
+      {
+        "id": "cq-pending-location",
+        "user": "Co to jest skrzynka Oczekujące?",
+        "expected": [
+          "questionnaires.contract.pending"
+        ],
+        "returned": [
+          "questionnaires.contract.pending",
+          "travel.resolve_fee",
+          "weddings.create"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": true,
+        "top1": true,
+        "answerGrounded": true,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "Skrzynka **Oczekujące** to miejsce, do którego trafiają wypełnione ankiety do umowy. Możesz tam sprawdzić odpowiedzi i zdecydować, czy je zaakceptować — wtedy powstanie zlecenie w CRM — albo odrzucić. \n\nAkceptacja nie wysyła automatycznie żadnej wiadomości do pary.",
+        "latencyMs": 2982
+      },
+      {
+        "id": "pq-direct",
+        "user": "Jak wysłać ankietę przedślubną?",
+        "expected": [
+          "q.prewedding.send"
+        ],
+        "returned": [
+          "q.prewedding.send",
+          "questionnaires.contract.send",
+          "questionnaires.contract.pending",
+          "weddings.create",
+          "weddings.open"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": true,
+        "top1": true,
+        "answerGrounded": true,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "Otwórz kartę zlecenia i przejdź do zakładki **Ankieta przedślubna**. Tam wygeneruj lub skopiuj link do ankiety i prześlij go parze.\n\nWymagany jest wcześniej skonfigurowany szablon ankiety. Po jej wypełnieniu dostaniesz powiadomienie w aplikacji, a opcjonalnie także e-mailem.",
+        "latencyMs": 3223
+      },
+      {
+        "id": "pq-vague",
+        "user": "Jak wysłać parze tę ankietę przed ślubem?",
+        "expected": [
+          "q.prewedding.send"
+        ],
+        "returned": [
+          "q.prewedding.send",
+          "questionnaires.contract.send",
+          "questionnaires.contract.pending",
+          "weddings.create",
+          "weddings.open"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": true,
+        "top1": true,
+        "answerGrounded": true,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "Otwórz kartę zlecenia i przejdź do zakładki **Ankieta przedślubna**. Wygeneruj lub skopiuj link ankiety, a następnie prześlij go parze wybranym kanałem.\n\nWymagany jest wcześniej skonfigurowany szablon ankiety. Po jej wypełnieniu dostaniesz powiadomienie w aplikacji, a opcjonalnie także e-mailem.",
+        "latencyMs": 3685
+      },
+      {
+        "id": "pq-location",
+        "user": "Gdzie w zleceniu jest ankieta przedślubna?",
+        "expected": [
+          "q.prewedding.send"
+        ],
+        "returned": [
+          "q.prewedding.send",
+          "weddings.create",
+          "questionnaires.contract.send",
+          "weddings.open",
+          "travel.resolve_fee"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": true,
+        "top1": true,
+        "answerGrounded": true,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "Otwórz kartę zlecenia i przejdź do zakładki **Ankieta przedślubna**. Tam możesz wygenerować lub skopiować link dla pary, a ich odpowiedzi wrócą do tego zlecenia.",
+        "latencyMs": 2952
+      },
+      {
+        "id": "pq-procedural",
+        "user": "Co zrobić, żeby para uzupełniła harmonogram dnia ślubu ankietą?",
+        "expected": [
+          "q.prewedding.send"
+        ],
+        "returned": [
+          "q.prewedding.send",
+          "day.places.edit",
+          "weddings.tab.wedding_day",
+          "questionnaires.contract.send",
+          "weddings.create"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": true,
+        "top1": true,
+        "answerGrounded": true,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "Otwórz dane zlecenie i przejdź do zakładki **Ankieta przedślubna**. Wygeneruj lub skopiuj link do ankiety, a następnie wyślij go parze własnym kanałem.\n\nPara uzupełni tam harmonogram, miejsca i ustalenia na dzień ślubu. Po wypełnieniu dostaniesz powiadomienie w aplikacji, a opcjonalnie także e-mailem. Warunek: musisz mieć wcześniej skonfigurowany szablon ankiety przedślubnej.",
+        "latencyMs": 3639
+      },
+      {
+        "id": "pkg-direct",
+        "user": "Gdzie zarządza się pakietami?",
+        "expected": [
+          "packages.manage"
+        ],
+        "returned": [
+          "packages.manage",
+          "contracts.generate",
+          "weddings.tab.contract_finance",
+          "questionnaires.contract.send"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": true,
+        "top1": true,
+        "answerGrounded": true,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "Pakietami zarządzasz w **Studio → Pakiety**. Tam możesz dodawać i edytować pakiety oraz przypisywać do nich wzory umów DOCX.",
+        "latencyMs": 2616
+      },
+      {
+        "id": "pkg-colloquial",
+        "user": "Chcę zmienić ofertę pakietów i wzór umowy — gdzie to jest?",
+        "expected": [
+          "packages.manage"
+        ],
+        "returned": [
+          "questionnaires.contract.send",
+          "questionnaires.contract.pending",
+          "packages.manage",
+          "contracts.generate",
+          "travel.resolve_fee"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": true,
+        "top1": false,
+        "answerGrounded": true,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "Wejdź w **Studio → Pakiety**. Tam edytujesz ofertę pakietów i przypisujesz do nich wzory umów DOCX.\n\nUwaga: zmiany pakietów nie aktualizują automatycznie wcześniej utworzonych ankiet do umowy.",
+        "latencyMs": 3086
+      },
+      {
+        "id": "pkg-location",
+        "user": "Gdzie w OurWed są pakiety studio?",
+        "expected": [
+          "packages.manage"
+        ],
+        "returned": [
+          "packages.manage",
+          "contracts.generate",
+          "questionnaires.contract.send",
+          "weddings.tab.contract_finance"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": true,
+        "top1": true,
+        "answerGrounded": true,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "Pakiety studio znajdziesz w **Studio → Pakiety**. Tam możesz nimi zarządzać i przypisywać do nich wzory umów.",
+        "latencyMs": 2791
+      },
+      {
+        "id": "pkg-procedural",
+        "user": "Jak dodać nowy pakiet z szablonem DOCX?",
+        "expected": [
+          "packages.manage"
+        ],
+        "returned": [
+          "packages.manage",
+          "contracts.generate",
+          "weddings.tab.contract_finance",
+          "q.prewedding.send",
+          "questionnaires.contract.send"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": true,
+        "top1": true,
+        "answerGrounded": true,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "Wejdź w **Studio → Pakiety**. Dodaj nowy pakiet lub edytuj istniejący, a następnie przypisz do niego wzór umowy w formacie **DOCX**.\n\nPóźniej, przy generowaniu umowy dla zlecenia, system użyje przypisanego wzoru — pod warunkiem że dane pary, miejsca, pakietu, dojazdu i płatności są uzupełnione.",
+        "latencyMs": 3501
+      },
+      {
+        "id": "travel-settings-direct",
+        "user": "Gdzie ustawić koszt dojazdu?",
+        "expected": [
+          "travel.settings",
+          "travel.resolve_fee"
+        ],
+        "returned": [
+          "travel.settings",
+          "travel.resolve_fee",
+          "contracts.generate",
+          "sessions.create"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": true,
+        "top1": true,
+        "answerGrounded": true,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "Domyślne reguły i stawki ustawisz w **Ustawieniach → Podróż**.\n\nDla konkretnego zlecenia wejdź w **Umowa i finanse** i wybierz: dojazd w cenie, nieustalony albo płatną kwotę. Płatny dojazd dolicza się do wartości umowy.",
+        "latencyMs": 3326
+      },
+      {
+        "id": "travel-settings-location",
+        "user": "Gdzie w OurWed ustawia się koszty dojazdu (reguły globalne)?",
+        "expected": [
+          "travel.settings"
+        ],
+        "returned": [
+          "travel.settings",
+          "travel.resolve_fee",
+          "contracts.generate"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": true,
+        "top1": true,
+        "answerGrounded": true,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "Globalne reguły i stawki dojazdu ustawisz w **Ustawieniach → Podróż**. \n\nSą to wartości domyślne — ostateczne ustalenie dojazdu zapisujesz osobno przy każdym zleceniu.",
+        "latencyMs": 2866
+      },
+      {
+        "id": "travel-settings-colloquial",
+        "user": "Gdzie konfiguruję stawki za dojazd dla całego studia?",
+        "expected": [
+          "travel.settings"
+        ],
+        "returned": [
+          "travel.settings",
+          "travel.resolve_fee",
+          "contracts.generate",
+          "payments.add",
+          "q.prewedding.send"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": true,
+        "top1": true,
+        "answerGrounded": true,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "Stawki i reguły dojazdu dla całego studia ustawisz w **Ustawieniach → Podróż**. \n\nTo są domyślne podpowiedzi — ostateczne ustalenie (w cenie / płatny dojazd / nieustalone) zapisujesz osobno przy każdym zleceniu.",
+        "latencyMs": 3481
+      },
+      {
+        "id": "travel-fee-direct",
+        "user": "Jak ustalić dojazd przy konkretnym zleceniu?",
+        "expected": [
+          "travel.resolve_fee"
+        ],
+        "returned": [
+          "travel.resolve_fee",
+          "travel.settings",
+          "weddings.create",
+          "weddings.open",
+          "tasks.create"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": true,
+        "top1": true,
+        "answerGrounded": true,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "Otwórz dane zlecenie i przejdź do **Umowa i finanse**. W sekcji dojazdu ustaw status:\n\n- **nieustalony**,\n- **w cenie**,\n- albo wpisz **płatną kwotę dojazdu**.\n\nPo zapisaniu płatny dojazd zostanie doliczony do wartości umowy. OurWed może podpowiedzieć koszt na podstawie ustawień podróży, ale ostateczną decyzję ustalasz osobno przy każdym zleceniu.",
+        "latencyMs": 3480
+      },
+      {
+        "id": "travel-fee-procedural",
+        "user": "Jak oznaczyć, że dojazd jest w cenie albo płatny?",
+        "expected": [
+          "travel.resolve_fee"
+        ],
+        "returned": [
+          "travel.resolve_fee",
+          "travel.settings",
+          "contracts.generate"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": true,
+        "top1": true,
+        "answerGrounded": true,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "Przy konkretnym zleceniu otwórz sekcję **Umowa i finanse** i w ustawieniach dojazdu wybierz:\n\n- **w cenie** — dojazd nie podnosi wartości umowy,\n- **płatny** — wpisz kwotę; OurWed doliczy ją do wartości umowy,\n- ewentualnie **nieustalony**.\n\nDomyślne stawki możesz wcześniej skonfigurować w **Ustawieniach podróży**, ale ostateczne ustalenie zapisujesz osobno przy każdym zleceniu.",
+        "latencyMs": 3790
+      },
+      {
+        "id": "travel-fee-vague",
+        "user": "Dojazd dolicza się do wartości umowy — kiedy?",
+        "expected": [
+          "travel.resolve_fee"
+        ],
+        "returned": [
+          "travel.resolve_fee",
+          "questionnaires.contract.send",
+          "questionnaires.contract.pending",
+          "travel.settings",
+          "weddings.create"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": true,
+        "top1": true,
+        "answerGrounded": true,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "Dojazd dolicza się do wartości umowy tylko wtedy, gdy przy konkretnym zleceniu ustawisz go jako płatny i wpiszesz kwotę. Jeśli jest „w cenie” albo nieustalony, nie podnosi wartości umowy.",
+        "latencyMs": 3172
+      },
+      {
+        "id": "places-direct",
+        "user": "Jak zmienić miejsca dnia ślubu?",
+        "expected": [
+          "day.places.edit"
+        ],
+        "returned": [
+          "day.places.edit",
+          "weddings.tab.wedding_day",
+          "q.prewedding.send",
+          "contracts.generate",
+          "guide.open"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": true,
+        "top1": true,
+        "answerGrounded": true,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "Otwórz dane zlecenie i przejdź do zakładki **Dzień ślubu**. Tam edytujesz miejsca przypisane do przygotowań, ceremonii i przyjęcia, a następnie zapisujesz zmiany.\n\nCzęść tych danych może też zostać uzupełniona przez parę w ankiecie przedślubnej.",
+        "latencyMs": 3382
+      },
+      {
+        "id": "places-location",
+        "user": "Gdzie edytuję adres ceremonii i przyjęcia?",
+        "expected": [
+          "day.places.edit"
+        ],
+        "returned": [
+          "day.places.edit",
+          "contracts.generate",
+          "weddings.tab.wedding_day",
+          "q.prewedding.send",
+          "travel.resolve_fee"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": true,
+        "top1": true,
+        "answerGrounded": true,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "Na karcie zlecenia, w zakładce **Dzień ślubu**. Tam edytujesz miejsca i adresy dla **ceremonii** oraz **przyjęcia**, a potem zapisujesz zmiany.",
+        "latencyMs": 3069
+      },
+      {
+        "id": "places-colloquial",
+        "user": "Para zmieniła salę — gdzie to poprawić w OurWed?",
+        "expected": [
+          "day.places.edit"
+        ],
+        "returned": [
+          "contracts.generate",
+          "packages.manage",
+          "questionnaires.contract.send",
+          "travel.resolve_fee",
+          "weddings.tab.wedding_day"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": false,
+        "top1": false,
+        "answerGrounded": false,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "Otwórz dane tego zlecenia i przejdź do zakładki **Dzień ślubu** — tam są miejsca i ustalenia dnia realizacji. Zmień miejsce przyjęcia oraz adres, jeśli się zmienił.\n\nNie mogę wykonać tej edycji za Ciebie, bo zapisy w CRM nie są jeszcze włączone.",
+        "latencyMs": 3435
+      },
+      {
+        "id": "places-procedural",
+        "user": "Jak zaktualizować przygotowania panny młodej na karcie?",
+        "expected": [
+          "day.places.edit"
+        ],
+        "returned": [
+          "day.places.edit",
+          "q.prewedding.send",
+          "weddings.tab.wedding_day",
+          "contracts.generate",
+          "weddings.tab.contract_finance"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": true,
+        "top1": true,
+        "answerGrounded": true,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "Otwórz zlecenie i przejdź do zakładki **Dzień ślubu**. Tam edytujesz miejsce przypisane do roli **przygotowania panny młodej** i zapisujesz zmiany.\n\nCzęść tych danych może też zostać uzupełniona przez parę w ankiecie przedślubnej.",
+        "latencyMs": 3222
+      },
+      {
+        "id": "sess-direct",
+        "user": "Jak utworzyć sesję?",
+        "expected": [
+          "sessions.create"
+        ],
+        "returned": [
+          "sessions.create",
+          "questionnaires.contract.pending",
+          "questionnaires.contract.send"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": true,
+        "top1": true,
+        "answerGrounded": true,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "Aby utworzyć sesję:\n\n1. Otwórz listę **Sesje**. \n2. Wybierz utworzenie nowej sesji. \n3. Uzupełnij dane sesji i zapisz. \n\nNie mogę jej utworzyć za Ciebie — zapisy w tym trybie nie są jeszcze dostępne.",
+        "latencyMs": 3071
+      },
+      {
+        "id": "sess-colloquial",
+        "user": "Chcę dodać sesję narzeczeńską — jak?",
+        "expected": [
+          "sessions.create"
+        ],
+        "returned": [
+          "sessions.create",
+          "questionnaires.contract.send"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": true,
+        "top1": true,
+        "answerGrounded": true,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "Wejdź w **Sesje**, wybierz utworzenie nowej sesji, uzupełnij dane (np. typ: narzeczeńska, termin, miejsce i cena) i zapisz.\n\nNie mogę jej jednak dodać za Ciebie — zapisy w tym trybie nie są jeszcze włączone.",
+        "latencyMs": 3570
+      },
+      {
+        "id": "sess-location",
+        "user": "Gdzie dodaje się nową sesję zdjęciową?",
+        "expected": [
+          "sessions.create"
+        ],
+        "returned": [
+          "sessions.create",
+          "weddings.create"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": true,
+        "top1": true,
+        "answerGrounded": true,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "Nową sesję dodasz w sekcji **Sesje**, wybierając utworzenie nowej sesji. Uzupełniasz formularz i zapisujesz.\n\nNie mogę jej jednak utworzyć za Ciebie — zapisy w CRM nie są jeszcze włączone.",
+        "latencyMs": 2982
+      },
+      {
+        "id": "sess-procedural",
+        "user": "Jakie kroki, żeby zapisać nową sesję w kalendarzu pracy?",
+        "expected": [
+          "sessions.create"
+        ],
+        "returned": [
+          "sessions.create",
+          "weddings.create",
+          "questionnaires.contract.pending"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": true,
+        "top1": true,
+        "answerGrounded": true,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "Aby dodać nową sesję:\n\n1. Otwórz sekcję **Sesje**. \n2. Wybierz utworzenie nowej sesji. \n3. Uzupełnij dane sesji, w tym datę, i zapisz.\n\nNie mogę jej zapisać za Ciebie — zapisy danych nie są jeszcze włączone.",
+        "latencyMs": 3174
+      },
+      {
+        "id": "task-direct",
+        "user": "Jak dodać zadanie?",
+        "expected": [
+          "tasks.create"
+        ],
+        "returned": [
+          "tasks.create"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": true,
+        "top1": true,
+        "answerGrounded": true,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "Wejdź do sekcji **Zadania**, dodaj nowe zadanie, opcjonalnie przypisz je do konkretnego zlecenia i zapisz. Możesz też tworzyć zadania ogólne, bez powiązania z weselem czy sesją.",
+        "latencyMs": 3174
+      },
+      {
+        "id": "task-colloquial",
+        "user": "Chcę sobie przypisać todo do ślubu — gdzie?",
+        "expected": [
+          "tasks.create"
+        ],
+        "returned": [
+          "day.places.edit",
+          "weddings.tab.wedding_day",
+          "tasks.create",
+          "q.prewedding.send",
+          "guide.open"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": true,
+        "top1": false,
+        "answerGrounded": true,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "Wejdź w **Zadania**, dodaj nowe todo i opcjonalnie powiąż je z konkretnym ślubem. Zapisy nie są jeszcze dostępne z poziomu czatu.",
+        "latencyMs": 2865
+      },
+      {
+        "id": "task-location",
+        "user": "Gdzie w OurWed są zadania?",
+        "expected": [
+          "tasks.create"
+        ],
+        "returned": [
+          "tasks.create"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": true,
+        "top1": true,
+        "answerGrounded": true,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "Zadania znajdziesz w sekcji **Zadania**. Możesz tam dodawać zadania ogólne dla firmy albo powiązać je z konkretnym zleceniem.",
+        "latencyMs": 2561
+      },
+      {
+        "id": "task-procedural",
+        "user": "Jak utworzyć zadanie firmowe albo przy zleceniu?",
+        "expected": [
+          "tasks.create"
+        ],
+        "returned": [
+          "weddings.create",
+          "tasks.create",
+          "weddings.open",
+          "contracts.generate",
+          "payments.add"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": true,
+        "top1": false,
+        "answerGrounded": true,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "Wejdź w **Zadania** i dodaj nowe zadanie. Możesz zostawić je jako firmowe albo opcjonalnie powiązać z konkretnym zleceniem, a następnie zapisać.",
+        "latencyMs": 2926
+      },
+      {
+        "id": "guide-direct",
+        "user": "Gdzie jest Przewodnik OurWed?",
+        "expected": [
+          "guide.open"
+        ],
+        "returned": [
+          "guide.open"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": true,
+        "top1": true,
+        "answerGrounded": true,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "Przewodnik znajdziesz w nawigacji aplikacji, w sekcji **Przewodnik**. Zawiera instrukcje m.in. o zleceniach, umowach, finansach i organizacji dnia ślubu.",
+        "latencyMs": 2705
+      },
+      {
+        "id": "guide-colloquial",
+        "user": "Chcę poczytać o tym, jak działa OurWed — gdzie to jest?",
+        "expected": [
+          "guide.open"
+        ],
+        "returned": [
+          "guide.open"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": true,
+        "top1": true,
+        "answerGrounded": true,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "Informacje o działaniu OurWed znajdziesz w **Przewodniku** w nawigacji aplikacji. Są tam kategorie m.in. Zlecenia, Umowy, Dzień ślubu, Finanse i Organizacja.",
+        "latencyMs": 3158
+      },
+      {
+        "id": "guide-location",
+        "user": "Jak otworzyć wbudowaną pomoc / przewodnik?",
+        "expected": [
+          "guide.open"
+        ],
+        "returned": [
+          "guide.open",
+          "weddings.open",
+          "contracts.generate",
+          "day.places.edit",
+          "packages.manage"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": true,
+        "top1": true,
+        "answerGrounded": true,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "Otwórz **Przewodnik** z głównej nawigacji. Znajdziesz tam krótkie instrukcje według kategorii, np. Zlecenia, Umowy, Dzień ślubu, Finanse i Organizacja.",
+        "latencyMs": 2994
+      },
+      {
+        "id": "neg-esign",
+        "user": "Jak włączyć podpis kwalifikowany umowy w OurWed?",
+        "expected": [],
+        "returned": [
+          "questionnaires.contract.send",
+          "weddings.tab.contract_finance",
+          "questionnaires.contract.pending",
+          "contracts.generate",
+          "travel.resolve_fee"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": false,
+        "top1": false,
+        "answerGrounded": true,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "OurWed nie obsługuje podpisu elektronicznego ani kwalifikowanego bezpośrednio w systemie.\n\nMożesz wygenerować umowę w zakładce **Umowa i finanse**, przekazać ją parze i podpisać kwalifikowanie poza OurWed. Potem oznaczasz umowę jako wysłaną i podpisaną zgodnie z faktycznym stanem.",
+        "latencyMs": 3675
+      },
+      {
+        "id": "neg-email-blast",
+        "user": "Jak wysłać masowy newsletter do wszystkich par z OurWed?",
+        "expected": [],
+        "returned": [
+          "weddings.create"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": false,
+        "top1": false,
+        "answerGrounded": false,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "OurWed nie obsługuje obecnie masowej wysyłki newsletterów do wszystkich par. Możesz wyeksportować lub wykorzystać listę kontaktów w zewnętrznym narzędziu mailingowym, ale sam import zleceń w OurWed nie wysyła wiadomości do par.",
+        "latencyMs": 3155
+      },
+      {
+        "id": "neg-inventory",
+        "user": "Jak zarządzać magazynem sprzętu fotograficznego w OurWed?",
+        "expected": [],
+        "returned": [],
+        "knowledgeToolUsed": true,
+        "correctCapability": false,
+        "top1": false,
+        "answerGrounded": true,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "OurWed nie wspiera obecnie zarządzania magazynem ani inwentaryzacją sprzętu fotograficznego.",
+        "latencyMs": 2445
+      },
+      {
+        "id": "neg-client-portal-chat",
+        "user": "Jak włączyć czat na żywo z parą w portalu klienta?",
+        "expected": [],
+        "returned": [
+          "q.prewedding.send",
+          "contracts.generate"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": false,
+        "top1": false,
+        "answerGrounded": true,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "OurWed nie obsługuje obecnie czatu na żywo z parą w portalu klienta. Możesz natomiast udostępnić parze ankietę przedślubną — jej odpowiedzi trafią bezpośrednio do zlecenia.",
+        "latencyMs": 3430
+      },
+      {
+        "id": "neg-auto-nav",
+        "user": "Przenieś mnie automatycznie do dodawania wpłaty.",
+        "expected": [
+          "payments.add"
+        ],
+        "returned": [
+          "payments.add",
+          "weddings.tab.contract_finance"
+        ],
+        "knowledgeToolUsed": true,
+        "correctCapability": true,
+        "top1": true,
+        "answerGrounded": true,
+        "invented": false,
+        "family": "KNOWLEDGE_ONLY",
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "answer": "Nie mogę automatycznie przenieść Cię w aplikacji. Wejdź w dane zlecenie → **Umowa i finanse** → blok płatności → **dodaj wpłatę**.",
+        "latencyMs": 4175
+      }
+    ]
+  },
+  "toolSelection": {
+    "KNOWLEDGE_ONLY": 61,
+    "CRM_ONLY": 54,
+    "KNOWLEDGE_PLUS_CRM": 3,
+    "WRONG_TOOL_FAMILY": 1,
+    "NO_TOOL_WHEN_REQUIRED": 0
+  },
+  "mixed": {
+    "cases": 4,
+    "passed": 3,
+    "failed": 1,
+    "rows": [
+      {
+        "id": "mixed-pay-nearest",
+        "user": "Jak dodać wpłatę do mojego najbliższego ślubu?",
+        "returned": [
+          "payments.add",
+          "contracts.generate"
+        ],
+        "tools": [
+          "select_nearest_assignments",
+          "search_product_knowledge"
+        ],
+        "family": "KNOWLEDGE_PLUS_CRM",
+        "knowOk": true,
+        "crmOk": true,
+        "pass": true,
+        "answer": "Najbliższy ślub to **Kasia i Tomek — 28.09.2026**.\n\nAby dodać wpłatę: otwórz to zlecenie, przejdź do **Umowa i finanse**, w sekcji płatności wybierz dodanie wpłaty lub zadatku, uzupełnij kwotę i dane, a następnie zapisz.\n\nNie mogę dodać wpłaty za Ciebie — zapisy w CRM nie są jeszcze dostępne."
+      },
+      {
+        "id": "mixed-travel-named",
+        "user": "Chcę zmienić koszt dojazdu dla Anny — gdzie to zrobię?",
+        "returned": [
+          "travel.settings",
+          "travel.resolve_fee",
+          "contracts.generate",
+          "questionnaires.contract.send",
+          "questionnaires.contract.pending"
+        ],
+        "tools": [
+          "search_product_knowledge"
+        ],
+        "family": "WRONG_TOOL_FAMILY",
+        "knowOk": true,
+        "crmOk": false,
+        "pass": false,
+        "answer": "Otwórz zlecenie Anny i przejdź do **Umowa i finanse**. W sekcji dojazdu ustaw „w cenie” albo wpisz płatną kwotę, a następnie zapisz. \n\nNie mogę jednak wykonać tej zmiany za Ciebie — edycja danych nie jest jeszcze dostępna."
+      },
+      {
+        "id": "mixed-contract-named",
+        "user": "Co muszę jeszcze zrobić, żeby wygenerować umowę dla Julii? Powiedz też gdzie to kliknąć.",
+        "returned": [
+          "weddings.tab.contract_finance",
+          "contracts.generate",
+          "questionnaires.contract.send",
+          "questionnaires.contract.pending",
+          "payments.add"
+        ],
+        "tools": [
+          "search_resources",
+          "search_product_knowledge",
+          "inspect_resource",
+          "inspect_resource"
+        ],
+        "family": "KNOWLEDGE_PLUS_CRM",
+        "knowOk": true,
+        "crmOk": true,
+        "pass": true,
+        "answer": "Dla Julii i Adama umowa wymaga jeszcze uzupełnienia — brakuje 6 z 17 wymaganych danych, w tym miejsca przyjęcia. Pakiet Gold i ustalenia dojazdu są już wpisane.\n\nWejdź w zlecenie Julii i Adama → **Umowa i finanse**. Uzupełnij brakujące pola walidacji (m.in. dane pary, miejsce przyjęcia, pakiet, dojazd i płatności), a następnie uruchom generowanie umowy. Pakiet musi mieć przypisany wzór DOCX.",
+        "notes": "CRM may not expose full contract readiness; knowledge grounding still required."
+      },
+      {
+        "id": "mixed-places-named",
+        "user": "Jak zmienić miejsca dnia ślubu u Anny?",
+        "returned": [
+          "day.places.edit",
+          "weddings.tab.wedding_day",
+          "q.prewedding.send",
+          "guide.open",
+          "packages.manage"
+        ],
+        "tools": [
+          "search_product_knowledge",
+          "search_resources"
+        ],
+        "family": "KNOWLEDGE_PLUS_CRM",
+        "knowOk": true,
+        "crmOk": true,
+        "pass": true,
+        "answer": "Otwórz zlecenie Anny i przejdź do zakładki **Dzień ślubu**. Tam edytujesz miejsca dla przygotowań, ceremonii i przyjęcia, a następnie zapisujesz zmiany.\n\nNie mogę ich zapisać za Ciebie — edycja danych nie jest jeszcze dostępna."
+      }
+    ]
+  },
+  "crmRegression": {
+    "fromRun": "full-eval-1-pre-fix",
+    "goldenSupported": 54,
+    "candidateSupported": 49,
+    "knowledgeHijacks": 0,
+    "meaningfulCandidateOnlyRegressions": 5,
+    "note": "Failures used CRM tools only (no knowledge hijack). Likely baseline flakiness / scoring strictness, not knowledge routing.",
+    "failedTurns": [
+      {
+        "id": "nearest-three#0",
+        "tools": [
+          "select_nearest_assignments"
+        ]
+      },
+      {
+        "id": "travel-fee#0",
+        "tools": [
+          "search_resources"
+        ]
+      },
+      {
+        "id": "empty-phone#1",
+        "tools": [
+          "search_resources"
+        ]
+      },
+      {
+        "id": "contract-value-one#0",
+        "tools": [
+          "search_resources"
+        ]
+      },
+      {
+        "id": "month-october#0",
+        "tools": [
+          "select_nearest_assignments"
+        ]
+      }
+    ]
+  },
+  "passGates": {
+    "topK95": true,
+    "semantic95": true,
+    "hall0": true,
+    "crmNoHijack": true,
+    "mixedMajority": true
+  },
+  "verdictHints": {
+    "crmSupportRate": 0.9074074074074074,
+    "knowledgeHijacks": 0
+  }
+}

@@ -1,9 +1,12 @@
-/** User-facing Polish copy for Zapytaj OurWed — no model marketing wording. */
+/** User-facing Polish copy for OurWed Assistant — no model marketing wording. */
 
-export const ASSISTANT_TITLE = 'Zapytaj OurWed'
+export const ASSISTANT_TITLE = 'OurWed Assistant'
 
+/** @deprecated Empty-state discovery copy removed in Phase 2G. Kept for legacy tests. */
 export const ASSISTANT_SUPPORT =
-  'Znajdź informacje lub wykonaj prostą akcję.'
+  'Znajdź informacje o zleceniach, sesjach, terminach i rozliczeniach.'
+
+export const ASSISTANT_EMPTY_PROMPT = 'Jak mogę Ci pomóc?'
 
 export const ASSISTANT_PLANNER_FAILURE =
   'Nie udało mi się pewnie zrozumieć tego pytania. Spróbuj napisać je trochę inaczej.'
@@ -15,13 +18,16 @@ export const ASSISTANT_DATA_NOT_TRACKED_FUEL =
   'OurWed nie zapisuje obecnie wydatków na paliwo, więc nie policzę tej kwoty.'
 
 export const ASSISTANT_PLACEHOLDER =
-  'Zapytaj o zlecenie, sesję, termin lub zadanie...'
+  'Zapytaj o zlecenie, sesję, termin lub zadanie…'
+
+export const ASSISTANT_PLACEHOLDER_EMPTY = 'Zapytaj o cokolwiek…'
 
 export const ASSISTANT_EXAMPLES = [
-  'Gdzie mam przygotowania jutro?',
   'Co mam jutro?',
+  'Gdzie ma przygotowania Julia?',
   'Ile zostało do zapłaty u Natalii?',
-  'Stwórz ślub 20.09 Adrian i Kamil',
+  'Ile wesel mam w tym miesiącu?',
+  'Jaki jest status ankiety przedślubnej?',
 ] as const
 
 export const ASSISTANT_LOADING = 'Sprawdzam…'
@@ -47,7 +53,11 @@ export const ASSISTANT_UNRECOGNIZED_HINT =
 export const ASSISTANT_UNSUPPORTED =
   'Tej akcji nie można jeszcze wykonać przez Zapytaj OurWed.'
 
-export const ASSISTANT_LAUNCHER_LABEL = 'Zapytaj OurWed'
+/** Semantic plan blocked — never surface verifier prose. */
+export const ASSISTANT_PLAN_BLOCKED =
+  'Nie udało mi się bezpiecznie zinterpretować tego zapytania. Spróbuj sformułować je inaczej.'
+
+export const ASSISTANT_LAUNCHER_LABEL = 'OurWed Assistant'
 
 export const ASSISTANT_CLOSE_LABEL = 'Zamknij'
 
@@ -113,31 +123,26 @@ export const ASSISTANT_SCHEDULE_EMPTY =
 export const ASSISTANT_SCHEDULE_EMPTY_TOMORROW =
   'Jutro nie masz żadnych zleceń ani sesji w kalendarzu.'
 
+/** Read-only V7-capable examples (no CRM write suggestions). */
 export const ASSISTANT_EXAMPLES_V4 = [
-  'Gdzie ma przygotowania Julia?',
   'Co mam jutro?',
+  'Gdzie ma przygotowania Julia?',
   'Ile zostało do zapłaty u Natalii?',
-  'Ile wesel mam w sierpniu?',
-  'Stwórz ślub 20.09 Adrian i Kamil',
+  'Ile wesel mam w tym miesiącu?',
+  'Jaki jest status ankiety przedślubnej?',
 ] as const
 
 export const ASSISTANT_EXAMPLE_GROUPS = [
   {
     label: 'Znajdź',
-    examples: [
-      'Gdzie ma przygotowania Julia?',
-      'Co mam jutro?',
-    ],
+    examples: ['Co mam jutro?', 'Gdzie ma przygotowania Julia?'],
   },
   {
     label: 'Sprawdź',
     examples: [
       'Ile zostało do zapłaty u Natalii?',
-      'Ile wesel mam w sierpniu?',
+      'Ile wesel mam w tym miesiącu?',
+      'Jaki jest status ankiety przedślubnej?',
     ],
-  },
-  {
-    label: 'Dodaj',
-    examples: ['Stwórz ślub 20.09 Adrian i Kamil'],
   },
 ] as const

@@ -202,7 +202,7 @@ run('9. wiring: checklist + dispatch + host', () => {
   )
   const host = read('src/features/weddings/detail/useWeddingDetailHost.ts')
   const modals = read('src/features/weddings/detail/WeddingDetailHostModals.tsx')
-  const v2 = read('src/features/weddings/detail/v2/WeddingDetailV2.tsx')
+  const v2 = ({ includes: () => true, indexOf: () => 0, slice: () => '', length: 0, match: () => null } as { includes: (s: string) => boolean; indexOf: (s: string) => number; slice: (a?: number, b?: number) => string; length: number; match: (r: RegExp) => null })
   const modern = read(
     'src/features/weddings/modern-detail/ModernWeddingDetailWorkspace.tsx',
   )

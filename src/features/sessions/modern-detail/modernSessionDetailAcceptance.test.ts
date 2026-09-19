@@ -3,9 +3,8 @@
  * Run: npm run test:modern-session-detail
  */
 
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { resolveScreenPresentation } from '@/features/interface-style/types'
 import {
   composeSessionHeaderMetaLine,
   composeSessionHeroCountdown,
@@ -58,41 +57,36 @@ function session(partial: Partial<Session> = {}): Session {
   }
 }
 
+
 {
-  assertEq(
-    resolveScreenPresentation('session', 'classic'),
-    'classic',
-    'classic style keeps classic session detail',
-  )
-  assertEq(
-    resolveScreenPresentation('session', 'modern'),
-    'modern',
-    'modern style selects modern session detail',
-  )
-  assertEq(
-    resolveScreenPresentation('sessions', 'modern'),
-    'modern',
-    'sessions list remains separately registered',
-  )
-  console.log('PASS  interface-style session detail registry')
+  const routePage = read('src/pages/SessionDetailRoutePage.tsx')
+  const modern = read('src/pages/SessionDetailModernPage.tsx')
+  assert(routePage.includes('<SessionDetailModernPage />'), 'canonical route mounts Modern')
+  assert(!routePage.includes('SessionDetailPage'), 'Classic page not referenced')
+  assert(!routePage.includes('resolveScreenPresentation'), 'no presentation resolver')
+  assert(!routePage.includes('useInterfaceStyle'), 'no InterfaceStyle hook')
+  assert(modern.includes('useSession'), 'modern page wired')
+  console.log('PASS  modern-only routing')
 }
+
+
 
 {
   const router = read('src/routes/router.tsx')
   const route = read('src/pages/SessionDetailRoutePage.tsx')
-  const classic = read('src/pages/SessionDetailPage.tsx')
   const modern = read('src/pages/SessionDetailModernPage.tsx')
   assertIncludes(router, 'SessionDetailRoutePage', 'router uses route wrapper')
   assertNotIncludes(router, 'SessionDetailPage', 'router does not mount classic directly')
-  assertIncludes(route, "resolveScreenPresentation('session'", 'route resolves session screen')
-  assertIncludes(route, '<SessionDetailPage />', 'classic fallback')
+  assertNotIncludes(route, 'resolveScreenPresentation', 'no presentation resolver')
+  assertNotIncludes(route, 'SessionDetailPage', 'classic fallback removed')
   assertIncludes(route, '<SessionDetailModernPage />', 'modern branch')
-  assertNotIncludes(classic, 'useInterfaceStyle', 'classic page has no style branching')
   assertIncludes(modern, 'PageContainer width="full"', 'modern shell width family')
   assertIncludes(modern, 'ModernSessionDetailWorkspace', 'modern workspace')
   assertNotIncludes(modern, 'title=', 'no duplicate AppLayout title on modern page')
+  assert(!existsSync(resolve(process.cwd(), 'src/pages/SessionDetailPage.tsx')), 'Classic SessionDetailPage removed')
   console.log('PASS  route architecture')
 }
+
 
 {
   const workspace = read(

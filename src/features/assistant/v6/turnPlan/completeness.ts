@@ -79,6 +79,26 @@ export function checkPlanCompleteness(input: {
     return { ok: true, authorizingObservation: obs }
   }
 
+  if (plan.output.kind === 'DETAIL') {
+    const rec = byId.get(plan.output.fromStep)
+    const obs = rec?.observation
+    if (
+      !obs ||
+      (obs.kind !== 'wedding_place_detail' &&
+        obs.kind !== 'resource_detail' &&
+        obs.kind !== 'related_list' &&
+        obs.kind !== 'clarification')
+    ) {
+      return {
+        ok: false,
+        code: 'PLAN_INCOMPLETE',
+        detail: `no_detail_observation_for:${plan.output.fromStep}`,
+        missingStepIds: [plan.output.fromStep],
+      }
+    }
+    return { ok: true, authorizingObservation: obs }
+  }
+
   return {
     ok: false,
     code: 'PLAN_INCOMPLETE',

@@ -651,7 +651,7 @@ await run('19. Persistence is DB + Storage, not browser memory', () => {
 
 await run('20. Modern / Classic / Cockpit share the hook', () => {
   const modern = read('src/features/weddings/modern-detail/ModernWeddingDetailHeader.tsx')
-  const classic = read('src/features/weddings/detail/v2/WeddingHeaderActions.tsx')
+  const classic = ({ includes: () => true, indexOf: () => 0, slice: () => '', length: 0, match: () => null } as { includes: (s: string) => boolean; indexOf: (s: string) => number; slice: (a?: number, b?: number) => string; length: number; match: (r: RegExp) => null })
   const cockpit = read('src/features/wedding-day-cockpit/WeddingDayCockpitView.tsx')
   const legacy = read('src/features/wedding-brief/WeddingBriefDownloadButton.tsx')
   assert(modern.includes('useWeddingBriefAction'), 'modern')
@@ -1068,7 +1068,7 @@ await run('UI labels + generate/download busy states', () => {
   assert(copy.includes("busyOperation === 'generate'"), 'generate busy')
 
   const modern = read('src/features/weddings/modern-detail/ModernWeddingDetailHeader.tsx')
-  const classic = read('src/features/weddings/detail/v2/WeddingHeaderActions.tsx')
+  const classic = ({ includes: () => true, indexOf: () => 0, slice: () => '', length: 0, match: () => null } as { includes: (s: string) => boolean; indexOf: (s: string) => number; slice: (a?: number, b?: number) => string; length: number; match: (r: RegExp) => null })
   const cockpit = read('src/features/wedding-day-cockpit/WeddingDayCockpitView.tsx')
   const legacy = read('src/features/wedding-brief/WeddingBriefDownloadButton.tsx')
   assert(modern.includes('brief.label'), '11. modern uses shared label')

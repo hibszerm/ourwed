@@ -129,12 +129,12 @@
     border-radius: 20px;
   }
 
-  .emptyPanel.emptyPanel {
-    padding: 4px 2px 8px;
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-    box-shadow: none;
+  /*
+   * D2.5 — empty Pending keeps the same secondary-card chrome as populated.
+   * Compact padding only; never strip border/radius/background/shadow.
+   */
+  .emptyPanel {
+    padding: 14px;
   }
 
   .allLink {

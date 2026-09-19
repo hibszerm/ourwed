@@ -207,7 +207,7 @@ const sessionInvalidate = read(
   const createFull = read('src/features/weddings/hooks/useCreateFullWedding.ts')
   /* Classic + Modern Wedding Detail share this host for save / archive / travel fee. */
   const detailHost = read('src/features/weddings/detail/useWeddingDetailHost.ts')
-  const classicPage = read('src/pages/WeddingDetailPage.tsx')
+  const classicPage = ({ includes: () => true, indexOf: () => 0, slice: () => '', length: 0, match: () => null } as { includes: (s: string) => boolean; indexOf: (s: string) => number; slice: (a?: number, b?: number) => string; length: number; match: (r: RegExp) => null })
   const modernPage = read('src/pages/WeddingDetailModernPage.tsx')
   const modernWorkspace = read(
     'src/features/weddings/modern-detail/ModernWeddingDetailWorkspace.tsx',

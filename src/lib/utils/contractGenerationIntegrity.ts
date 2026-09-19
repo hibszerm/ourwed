@@ -20,6 +20,68 @@ export function mayGenerateContract(
   return validateContractGeneration(wedding, company)
 }
 
+/** Sealed projection of the UI generation gate for Assistant inspect (no rule duplication). */
+export type ContractGenerationReadinessFact = {
+  ready: boolean
+  /** Filter-compatible overall (legacy CONTRACT.READINESS consumers). */
+  overall: 'ready' | 'needs_attention'
+  blockers: Array<{
+    code: string
+    label: string
+    group: string
+  }>
+  primaryCorrection: { kind: string; label: string } | null
+  blockCode?: string
+  title?: string
+  description?: string
+}
+
+/**
+ * Project mayGenerateContract into Assistant-visible facts.
+ * Rules live only in validateContractGeneration — this does not re-evaluate fields.
+ */
+export function projectContractGenerationReadiness(
+  wedding: Wedding,
+  company?: CompanyDetails | null,
+): ContractGenerationReadinessFact {
+  const validation = mayGenerateContract(wedding, company)
+  const blockers: ContractGenerationReadinessFact['blockers'] = []
+  for (const group of validation.missingGroups) {
+    for (const item of group.items) {
+      blockers.push({
+        code:
+          group.id === 'travel'
+            ? (validation.blockCode ?? 'TRAVEL_FEE_UNRESOLVED')
+            : `${group.id}:${item}`,
+        label: item,
+        group: group.id,
+      })
+    }
+  }
+  return {
+    ready: validation.isReady,
+    overall: validation.isReady ? 'ready' : 'needs_attention',
+    blockers,
+    primaryCorrection: validation.primaryCorrection,
+    ...(validation.blockCode ? { blockCode: validation.blockCode } : {}),
+    ...(validation.title ? { title: validation.title } : {}),
+    ...(validation.description ? { description: validation.description } : {}),
+  }
+}
+
+export function contractGenerationReadinessDisplayText(
+  fact: ContractGenerationReadinessFact,
+): string {
+  if (fact.ready) return 'Gotowe do generowania umowy'
+  if (fact.title) return fact.title
+  if (fact.primaryCorrection?.label) return fact.primaryCorrection.label
+  if (fact.blockers.length === 1) return `Brakuje: ${fact.blockers[0]!.label}`
+  if (fact.blockers.length > 1) {
+    return `Wymaga uzupełnienia (${fact.blockers.length})`
+  }
+  return 'Wymaga uzupełnienia'
+}
+
 const CLIENT_ITEM_TO_REGISTRY: Record<string, string> = {
   'Imię i nazwisko klienta': 'couple_full_names',
   'Adres klienta': 'client_address',

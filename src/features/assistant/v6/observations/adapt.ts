@@ -31,6 +31,40 @@ export type V6Observation =
   | { kind: 'clarification'; slot: string; reason: string }
   | { kind: 'unsupported'; reason: string }
   | { kind: 'safe_error'; code: string; detail: string }
+  | {
+      kind: 'wedding_place_detail'
+      selector: import('../detail/weddingPlaceDetail').V6WeddingPlaceDetailSelector
+      titleLabel: string
+      weddingDisplayName: string | null
+      value: string | null
+      filled: boolean
+    }
+  | {
+      kind: 'resource_detail'
+      resource: 'WEDDING'
+      weddingDisplayName: string | null
+      values: Array<{
+        concept: string
+        label: string
+        value: string | number | boolean | null
+        filled: boolean
+        valueType: string
+        displayText?: string | null
+      }>
+    }
+  | {
+      kind: 'related_list'
+      relation: string
+      relationLabel: string
+      weddingDisplayName: string | null
+      items: Array<{
+        title: string
+        subtitle?: string | null
+        meta?: string | null
+      }>
+      totalCount: number
+      truncated: boolean
+    }
 
 export function observationFromQuery(
   data: QueryCollectionSuccess,

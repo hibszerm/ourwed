@@ -9,10 +9,22 @@ export {
   assertSnapshotSubset,
 } from './collections/store'
 export { queryCollection, transformCollection, aggregateCollection } from './tools'
+export * from './registry'
 export { runV6ShadowTurn } from './agent/loop'
 export {
   runV6AssistantShadow,
+  enqueueAndAwaitV6ShadowTurn,
   setV6ShadowSessionOpen,
   invalidateV6ShadowTurn,
 } from './shadow'
 export { decideV6Authority } from './authority/decide'
+export {
+  V6_OWNER_CANARY_USER_ID,
+  isV6OwnerCanaryVisible,
+  isV6EmergencyVisible,
+  isV6EmergencyFlagEnabled,
+  decideV6CanaryRouting,
+  setV6EmergencyFlagForTests,
+  setV6OwnerCanaryFlagForTests,
+} from './canary/ownerCanaryGate'
+export { renderV6TurnResult } from './render/renderV6TurnResult'

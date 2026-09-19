@@ -1,0 +1,194 @@
+{
+  "phase": "k2-1-contract-readiness-parity",
+  "model": "gpt-5.6-terra",
+  "contextual": {
+    "cases": 5,
+    "passed": 5,
+    "failed": 0,
+    "falseReady": 0,
+    "falseBlocked": 0,
+    "rows": [
+      {
+        "id": "joanna-travel",
+        "user": "Co muszę jeszcze zrobić, żeby wygenerować umowę dla Joanny Chowaka / Karol Nowak?",
+        "expectReady": false,
+        "ok": true,
+        "failure": null,
+        "tools": [
+          "search_resources",
+          "inspect_resource",
+          "search_product_knowledge"
+        ],
+        "usedContractReadiness": true,
+        "answer": "Dla Joanny Chowaki i Karola Nowaka brakuje tylko ustalenia kosztu dojazdu: oznacz go jako **w cenie** albo wpisz **płatną kwotę**.\n\nPotem, jeśli pakiet ma przypisany wzór DOCX, możesz wygenerować umowę w zakładce **Umowa i finanse**."
+      },
+      {
+        "id": "joanna-travel-nominative",
+        "user": "Czego brakuje do wygenerowania umowy dla pary Joanna Chowaka?",
+        "expectReady": false,
+        "ok": true,
+        "failure": null,
+        "tools": [
+          "search_resources",
+          "inspect_resource"
+        ],
+        "usedContractReadiness": true,
+        "answer": "Brakuje ustalenia kosztu dojazdu — czy jest wliczony w cenę, czy doliczany osobno. Po uzupełnieniu tej informacji umowa będzie gotowa do wygenerowania."
+      },
+      {
+        "id": "iza-ready",
+        "user": "Czy mogę już wygenerować umowę dla Izy Karczewskiej?",
+        "expectReady": true,
+        "ok": true,
+        "failure": null,
+        "tools": [
+          "search_resources",
+          "inspect_resource",
+          "search_product_knowledge"
+        ],
+        "usedContractReadiness": true,
+        "answer": "Tak — dla Izy Karczewskiej i Jana Kulewskiego dane są kompletne, więc umowa jest gotowa do wygenerowania. Nie mogę jej jednak wygenerować za Ciebie, bo zapisy w CRM nie są jeszcze włączone."
+      },
+      {
+        "id": "ola-reception",
+        "user": "Czego brakuje do umowy dla Oli Zielińskiej?",
+        "expectReady": false,
+        "ok": true,
+        "failure": null,
+        "tools": [
+          "search_resources",
+          "inspect_resource",
+          "inspect_resource"
+        ],
+        "usedContractReadiness": true,
+        "answer": "Brakuje tylko **miejsca przyjęcia**. Pozostałe wymagane dane do umowy są uzupełnione, a umowa ma status podpisanej."
+      },
+      {
+        "id": "ewa-multi",
+        "user": "Co blokuje wygenerowanie umowy dla Ewy Kamińskiej?",
+        "expectReady": false,
+        "ok": true,
+        "failure": null,
+        "tools": [
+          "search_resources",
+          "inspect_resource"
+        ],
+        "usedContractReadiness": true,
+        "answer": "Dla Ewy Kamińskiej umowy nie da się teraz wygenerować, bo brakuje:\n\n- ustalonego kosztu dojazdu,\n- miejsca przyjęcia.\n\nMimo że obecna umowa ma status podpisanej, generator wymaga uzupełnienia tych danych."
+      }
+    ]
+  },
+  "staticKnowledge": {
+    "pass": true,
+    "rows": [
+      {
+        "id": "static-contract",
+        "q": "Co jest potrzebne do wygenerowania umowy?",
+        "expectCap": "contracts.generate",
+        "ok": true,
+        "returned": [
+          "questionnaires.contract.send",
+          "questionnaires.contract.pending",
+          "travel.resolve_fee",
+          "weddings.create",
+          "contracts.generate"
+        ]
+      },
+      {
+        "id": "static-pay",
+        "q": "Jak dodać wpłatę?",
+        "expectCap": "payments.add",
+        "ok": true,
+        "returned": [
+          "payments.add"
+        ]
+      },
+      {
+        "id": "static-wed",
+        "q": "Jak dodać nowe zlecenie?",
+        "expectCap": "weddings.create",
+        "ok": true,
+        "returned": [
+          "weddings.create",
+          "weddings.open",
+          "questionnaires.contract.pending",
+          "tasks.create",
+          "contracts.generate"
+        ]
+      },
+      {
+        "id": "static-pkg",
+        "q": "Gdzie zarządza się pakietami?",
+        "expectCap": "packages.manage",
+        "ok": true,
+        "returned": [
+          "packages.manage",
+          "contracts.generate",
+          "travel.resolve_fee",
+          "payments.add",
+          "q.prewedding.send"
+        ]
+      },
+      {
+        "id": "static-travel",
+        "q": "Gdzie ustawić koszt dojazdu?",
+        "expectCap": "travel.settings",
+        "ok": true,
+        "returned": [
+          "travel.settings",
+          "travel.resolve_fee",
+          "contracts.generate"
+        ]
+      },
+      {
+        "id": "static-places",
+        "q": "Jak zmienić miejsca dnia ślubu?",
+        "expectCap": "day.places.edit",
+        "ok": true,
+        "returned": [
+          "day.places.edit",
+          "weddings.tab.wedding_day",
+          "q.prewedding.send",
+          "guide.open",
+          "weddings.open"
+        ]
+      },
+      {
+        "id": "static-sess",
+        "q": "Jak utworzyć sesję?",
+        "expectCap": "sessions.create",
+        "ok": true,
+        "returned": [
+          "sessions.create",
+          "questionnaires.contract.pending"
+        ]
+      },
+      {
+        "id": "static-q",
+        "q": "Jak wysłać ankietę przedślubną?",
+        "expectCap": "q.prewedding.send",
+        "ok": true,
+        "returned": [
+          "q.prewedding.send",
+          "questionnaires.contract.pending",
+          "questionnaires.contract.send",
+          "weddings.open",
+          "packages.manage"
+        ]
+      }
+    ]
+  },
+  "crmSmoke": {
+    "hijack": false,
+    "tools": [
+      "search_resources",
+      "inspect_resource"
+    ],
+    "answer": "U Julii i Adama zostało do zapłaty **8 400 PLN**."
+  },
+  "passGates": {
+    "contextualAll": true,
+    "staticOk": true,
+    "noCrmHijack": true
+  }
+}

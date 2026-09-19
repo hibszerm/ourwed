@@ -18,6 +18,7 @@ import {
 } from '../copy'
 import { formatPolishLongDate } from '../dates'
 import type { AssistantResponse } from '../types'
+import { polishCountUnit } from '../tools/aggregateRange'
 import { AssistantGoalClarification } from './AssistantGoalClarification'
 import styles from './Assistant.module.css'
 import {
@@ -754,10 +755,10 @@ export function AssistantResponseRenderer({
             <p className={styles.stateHint}>
               Znalazłem {response.resultCount}{' '}
               {response.resource === 'sessions'
-                ? 'sesji'
+                ? polishCountUnit('sessions', response.resultCount)
                 : response.resource === 'assignments'
-                  ? 'zleceń'
-                  : 'wesel'}
+                  ? polishCountUnit('assignments', response.resultCount)
+                  : polishCountUnit('weddings', response.resultCount)}
               . Pokazuję pierwsze {response.shownCount}.
             </p>
           ) : (
@@ -766,10 +767,10 @@ export function AssistantResponseRenderer({
           {!response.truncated ? (
             <p className={styles.heroMoneyLabel}>
               {response.resource === 'sessions'
-                ? 'sesji'
+                ? polishCountUnit('sessions', response.resultCount)
                 : response.resource === 'assignments'
-                  ? 'zleceń'
-                  : 'wesel'}
+                  ? polishCountUnit('assignments', response.resultCount)
+                  : polishCountUnit('weddings', response.resultCount)}
             </p>
           ) : null}
           {response.rangeLabel ? (

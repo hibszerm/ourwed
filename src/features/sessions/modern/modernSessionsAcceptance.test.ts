@@ -5,7 +5,6 @@
 
 import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { resolveScreenPresentation } from '@/features/interface-style/types'
 import {
   formatLedgerFullDate,
   getEditorialDateParts,
@@ -60,70 +59,19 @@ function session(partial: Partial<Session> = {}): Session {
 }
 
 {
-  assertEq(
-    resolveScreenPresentation('sessions', 'classic'),
-    'classic',
-    'classic style keeps classic sessions',
-  )
-  assertEq(
-    resolveScreenPresentation('sessions', 'modern'),
-    'modern',
-    'modern style selects modern sessions',
-  )
-  assertEq(
-    resolveScreenPresentation('weddings', 'modern'),
-    'modern',
-    'weddings remain modern-capable',
-  )
-  assertEq(
-    resolveScreenPresentation('dashboard', 'modern'),
-    'modern',
-    'dashboard remains modern-capable',
-  )
-  assertEq(
-    resolveScreenPresentation('finance', 'modern'),
-    'classic',
-    'finance still classic content',
-  )
   const router = read('src/routes/router.tsx')
   const routePage = read('src/pages/SessionsRoutePage.tsx')
-  const classic = read('src/pages/SessionsPage.tsx')
   const modern = read('src/pages/SessionsModernPage.tsx')
-  assert(router.includes('SessionsRoutePage'), '/sesje uses route resolver')
-  assert(!router.includes("path: '/sesje-modern'"), 'no extra modern path')
-  assert(!router.includes("path: '/sesje-v2'"), 'no v2 sessions path')
-  assert(!router.includes("path: '/sesje-v3'"), 'no v3 sessions path')
-  assert(routePage.includes('<SessionsPage />'), 'classic sessions reachable')
-  assert(routePage.includes('<SessionsModernPage />'), 'modern sessions reachable')
-  assert(
-    routePage.includes("resolveScreenPresentation('sessions'"),
-    'sessions registry',
-  )
-  assert(!classic.includes('useInterfaceStyle'), 'classic page has no style branching')
-  assert(!classic.includes('SessionsModernPage'), 'classic page is not the modern tree')
+  assert(router.includes('SessionsRoutePage'), '/sesje uses route page')
+  assert(routePage.includes('<SessionsModernPage />'), 'canonical route mounts Modern')
+  assert(!routePage.includes('SessionsPage'), 'Classic sessions page not referenced')
+  assert(!routePage.includes('resolveScreenPresentation'), 'no presentation resolver')
+  assert(!routePage.includes('useInterfaceStyle'), 'no InterfaceStyle hook')
   assert(modern.includes('useSessions'), 'modern uses shared list hook')
-  assert(!modern.includes('sessionService.getById'), 'modern has no getById')
-  assert(!modern.includes('sessionListLightService'), 'modern does not fork the light service')
-  console.log('PASS  presentation routing')
+  assert(!existsSync(/* deleted */ 'src/pages/SessionsPage.tsx'), 'Classic SessionsPage deleted')
+  console.log('PASS  modern-only routing')
 }
 
-{
-  const classic = read('src/pages/SessionsPage.tsx')
-  const card = read('src/features/sessions/components/SessionCard.tsx')
-  const list = read('src/features/sessions/components/SessionList.tsx')
-  assert(classic.includes('SessionCard'), 'classic grid kept')
-  assert(classic.includes('SessionList'), 'classic list kept')
-  assert(classic.includes('SessionsViewSwitch'), 'classic switch kept')
-  assert(classic.includes('SeasonGroupedList'), 'classic season chrome kept')
-  assert(classic.includes('ProGateNavButton'), 'classic create action kept')
-  assert(classic.includes('/sesje/nowa'), 'classic create route kept')
-  assert(card.includes('getSessionRemainingAmount'), 'classic card still shows remaining')
-  assert(list.includes('Pozostało'), 'classic list still shows remaining')
-  assert(list.includes('formatCurrency(session.totalPrice)'), 'classic list still shows price')
-  assert(!classic.includes('v3Material'), 'classic sessions do not opt into modern materials')
-  assert(!classic.includes('interfaceStyle'), 'classic has no style branching')
-  console.log('PASS  classic freeze')
-}
 
 {
   assertEq(SESSIONS_VIEW_MODE_KEY, 'ourwed:sessions-view-mode', 'sessions key')
@@ -131,16 +79,14 @@ function session(partial: Partial<Session> = {}): Session {
     String(SESSIONS_VIEW_MODE_KEY) !== String(WEDDINGS_VIEW_MODE_KEY),
     'sessions do not reuse weddings view-mode key',
   )
-  const classic = read('src/pages/SessionsPage.tsx')
   const modern = read('src/pages/SessionsModernPage.tsx')
-  assert(classic.includes('readSessionsViewMode'), 'classic reads shared pref')
-  assert(classic.includes('writeSessionsViewMode'), 'classic writes shared pref')
   assert(modern.includes('readSessionsViewMode'), 'modern reads shared pref')
   assert(modern.includes('writeSessionsViewMode'), 'modern writes shared pref')
   assert(!modern.includes('ourwed:weddings-view-mode'), 'modern does not use weddings key')
   assert(!modern.includes('ourwed:sessions-view-mode-modern'), 'no modern-only key')
   console.log('PASS  view-mode persistence shared')
 }
+
 
 {
   const search = getModernSessionSearchText(
@@ -508,22 +454,22 @@ function session(partial: Partial<Session> = {}): Session {
   console.log('PASS  glass / theme / performance source')
 }
 
+
 {
   const dash = read('src/pages/DashboardV3Page.tsx')
-  const classicDash = read('src/pages/DashboardPage.tsx')
   const layout = read('src/layouts/AppLayout.tsx')
   const sidebar = read('src/layouts/Sidebar.tsx')
   const weddingsModern = read('src/pages/WeddingsModernPage.tsx')
-  const weddingsClassic = read('src/pages/WeddingsPage.tsx')
   assert(dash.includes('DashboardV3Hero'), 'modern dashboard untouched')
-  assert(classicDash.includes('TodoTodayCard'), 'classic dashboard untouched')
-  assert(layout.includes('resolveActiveShellPresentation(interfaceStyle)'), 'shell unchanged')
+  assert(!existsSync(resolve(process.cwd(), 'src/pages/DashboardPage.tsx')), 'Classic DashboardPage removed')
+  assert(!existsSync(resolve(process.cwd(), 'src/pages/WeddingsPage.tsx')), 'Classic WeddingsPage removed')
+  assert(layout.includes("data-shell=\"v3\"") || layout.includes('data-shell="v3"') || layout.includes("presentation='v3'"), 'shell v3')
   assert(sidebar.includes("label: 'Śluby'"), 'sidebar IA unchanged')
   assert(sidebar.includes("label: 'Sesje'"), 'sessions nav label unchanged')
   assert(weddingsModern.includes('Importuj z pliku'), 'modern weddings import kept')
-  assert(weddingsClassic.includes('WeddingCard'), 'classic weddings untouched')
   console.log('PASS  dashboard / shell / weddings regression')
 }
+
 
 {
   const page = read('src/pages/SessionsModernPage.tsx')
@@ -539,7 +485,8 @@ function session(partial: Partial<Session> = {}): Session {
   const switchCss = read(
     'src/features/sessions/modern/ModernSessionsViewSwitch.module.css',
   )
-  const classic = read('src/pages/SessionsPage.tsx')
+  assert(!existsSync(resolve(process.cwd(), 'src/pages/SessionsPage.tsx')), 'Classic SessionsPage removed')
+  const classic = ''
   const weddingsPageCss = read('src/pages/WeddingsModernPage.module.css')
   const weddingsWorkspaceCss = read(
     'src/features/weddings/modern/ModernWeddingsWorkspace.module.css',
@@ -580,8 +527,7 @@ function session(partial: Partial<Session> = {}): Session {
   assert(!ledgerCss.includes('translateY'), 'no row translate')
   assert(!ledgerCss.includes('box-shadow'), 'no row shadow')
   assert(cardCss.includes('.card {'), 'kafelki card layout frozen')
-  assert(!classic.includes('modernWeddingsEnter'), 'classic has no modern motion')
-  assert(!classic.includes('--modern-motion-'), 'classic has no modern tokens')
+  assert(!existsSync(resolve(process.cwd(), 'src/pages/SessionsPage.tsx')), 'Classic SessionsPage removed')
   assert(switchCss.includes('transition:'), 'view switch selected state transitions')
   console.log('PASS  modern sessions motion system')
 }
@@ -603,7 +549,8 @@ function session(partial: Partial<Session> = {}): Session {
   const weddingsPage = read('src/pages/WeddingsModernPage.tsx')
   const dash = read('src/pages/DashboardV3Page.tsx')
   const layout = read('src/layouts/AppLayout.tsx')
-  const classic = read('src/pages/SessionsPage.tsx')
+  assert(!existsSync(resolve(process.cwd(), 'src/pages/SessionsPage.tsx')), 'Classic SessionsPage removed')
+  const classic = ''
 
   assert(page.includes('Dodaj sesję'), 'primary create preserved')
   assert(page.includes('styles.createAction'), 'create is the primary class')
@@ -649,7 +596,7 @@ function session(partial: Partial<Session> = {}): Session {
   assert(weddingsPage.includes('styles.importAction'), 'weddings import remains available')
   assert(dash.includes('DashboardV3Hero'), 'Phase 1A dashboard untouched')
   assert(layout.includes('styles.shellAccess'), 'Phase 0 shell preserved')
-  assert(!classic.includes('createAction'), 'classic sessions untouched')
+  assert(!existsSync(resolve(process.cwd(), 'src/pages/SessionsPage.tsx')), 'Classic SessionsPage removed')
   console.log('PASS  mobile list chrome + desktop freeze')
 }
 

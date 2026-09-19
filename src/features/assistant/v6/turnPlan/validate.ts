@@ -91,6 +91,29 @@ export function validateTurnPlan(plan: V6TurnPlan): ValidateTurnPlanResult {
     }
   }
 
+  if (plan.output.kind === 'DETAIL') {
+    const fromStep = plan.output.fromStep
+    const target = plan.steps.find((s) => s.id === fromStep)
+    if (!target) {
+      return {
+        ok: false,
+        code: 'PLAN_VALIDATION_ERROR',
+        detail: `output_from_step_unknown:${fromStep}`,
+      }
+    }
+    if (
+      target.kind !== 'INSPECT_WEDDING' &&
+      target.kind !== 'INSPECT_RESOURCE' &&
+      target.kind !== 'LIST_RELATED'
+    ) {
+      return {
+        ok: false,
+        code: 'PLAN_VALIDATION_ERROR',
+        detail: 'detail_output_requires_inspect_step',
+      }
+    }
+  }
+
   return { ok: true }
 }
 
@@ -109,6 +132,29 @@ function validateStepRefs(
       }
     }
     return { ok: true }
+  }
+
+  if (
+    step.kind === 'INSPECT_WEDDING' ||
+    step.kind === 'INSPECT_RESOURCE' ||
+    step.kind === 'LIST_RELATED'
+  ) {
+    if (step.inputFromStep) {
+      if (!priorIds.has(step.inputFromStep)) {
+        return {
+          ok: false,
+          code: 'PLAN_VALIDATION_ERROR',
+          detail: `bad_step_ref:${step.id}->${step.inputFromStep}`,
+        }
+      }
+      return { ok: true }
+    }
+    if (step.inputHandle) return { ok: true }
+    return {
+      ok: false,
+      code: 'PLAN_VALIDATION_ERROR',
+      detail: `missing_input:${step.id}`,
+    }
   }
 
   if (step.inputFromStep) {

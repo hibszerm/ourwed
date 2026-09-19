@@ -144,7 +144,7 @@ const REGISTER = 'src/features/auth/components/RegisterForm.tsx'
   const store: Record<string, string> = {
     'ourwed:appearance': 'keep',
     'ourwed:theme-id': 'keep',
-    'ourwed:interface-style': 'keep',
+    'ourwed:interface-style': 'remove',
     'ourwed:weddings-view-mode': 'keep',
     [`ourwed:appearance:u:${uid}`]: 'drop',
     [`ourwed:theme-id:u:${uid}`]: 'drop',

@@ -31,8 +31,9 @@ function assert(cond: boolean, msg: string) {
 
 console.log('Assistant security acceptance')
 
-assert(ASSISTANT_TITLE === 'Zapytaj OurWed', 'product name')
+assert(ASSISTANT_TITLE === 'OurWed Assistant', 'product name')
 assert(!ASSISTANT_TITLE.toLowerCase().includes('ai'), 'no AI in title')
+assert(!ASSISTANT_TITLE.toLowerCase().includes('zapytaj'), 'active title is product identity')
 assert(
   ASSISTANT_EXAMPLES.every((e) => !/ai|sparkle|magi/i.test(e)),
   'examples clean',
@@ -142,13 +143,22 @@ assert(intent.includes('weddingMatchesDateHint'), 'date hint')
 assert(intent.includes('open_resource'), 'generic open')
 
 const surface = read('src/features/assistant/components/AssistantSurface.tsx')
-assert(surface.includes('ArrowUp'), 'icon send')
-assert(surface.includes('ArrowRight'), 'suggestion arrows')
+assert(surface.includes('AssistantComposer'), 'shared composer')
+assert(surface.includes('assistant-empty-welcome'), 'empty welcome')
+assert(surface.includes('AssistantThinkingOrb'), 'empty orb identity')
+assert(!surface.includes('ArrowRight'), 'no suggestion arrows')
+assert(!surface.includes('ASSISTANT_EXAMPLE_GROUPS'), 'no discovery groups in surface')
 assert(!surface.includes('userBubble'), 'no chat bubbles')
 assert(surface.includes('queryRef'), 'muted query ref')
-assert(surface.includes('ASSISTANT_EXAMPLE_GROUPS'), 'grouped examples')
 assert(surface.includes('data-motion'), 'open/close motion state')
-assert(!/Sparkles|Wand|Bot|Brain|Star/.test(surface), 'no magic icons in surface')
+assert(surface.includes('useOverlay'), 'overlay a11y pattern')
+assert(surface.includes('transcriptScroll'), 'active transcript scroll')
+assert(!/\b(Sparkles|Wand|Bot|Brain|Star)\b/.test(surface), 'no magic icons in surface')
+
+const composer = read('src/features/assistant/components/AssistantComposer.tsx')
+assert(composer.includes('ArrowUp'), 'icon send')
+assert(composer.includes('data-assistant-composer-trailing'), 'voice extension slot')
+assert(!/Mic|Microphone|Sparkles/.test(composer), 'no mic/magic in composer yet')
 
 const css = read('src/features/assistant/components/Assistant.module.css')
 assert(css.includes('sendIconButton'), 'icon send style')
@@ -162,6 +172,9 @@ assert(css.includes('contextHeader'), 'context header')
 assert(css.includes('confirmCard'), 'confirm containment')
 assert(css.includes('prefers-reduced-motion'), 'reduced motion')
 assert(css.includes('assistantPanelIn'), 'panel enter motion')
+assert(css.includes('composerDock'), 'active bottom composer')
+assert(css.includes('transcriptScroll'), 'transcript scroll region')
+assert(css.includes('100dvh') || css.includes('safe-area-inset'), 'mobile safe viewport')
 
 const host = read('src/features/assistant/AssistantHost.tsx')
 assert(host.includes('contextHeader'), 'context header state')

@@ -34,6 +34,11 @@ import {
 } from './v5OpenAITransport.ts'
 import { V6_AGENT_SYSTEM_PROMPT } from './v6Prompt.ts'
 import { buildV6NativeToolsRequestBody } from './v6NativeTransport.ts'
+import {
+  V6_SEMANTIC_VERIFIER_MODEL,
+  V6_SEMANTIC_VERIFIER_SYSTEM_PROMPT,
+  buildV6SemanticVerifyRequestBody,
+} from './v6SemanticVerifier.ts'
 // F1.1A string agent-step schema retained for diagnostics only — not used on live V6 path.
 import {
   ASSISTANT_V6_AGENT_STEP_JSON_SCHEMA as _DEPRECATED_V6_STRING_STEP_SCHEMA,
@@ -230,17 +235,34 @@ function extractMessageContent(body: unknown): string | null {
 function extractUsage(body: unknown): {
   prompt_tokens?: number
   completion_tokens?: number
+  /** Present only when OpenAI returns prompt_tokens_details.cached_tokens (incl. 0). */
+  cached_tokens?: number
+  /** Present only when OpenAI returns prompt_tokens_details.cache_write_tokens (incl. 0). */
+  cache_write_tokens?: number
 } | null {
   if (!body || typeof body !== 'object') return null
   const usage = (body as Record<string, unknown>).usage
   if (!usage || typeof usage !== 'object') return null
   const u = usage as Record<string, unknown>
-  return {
-    prompt_tokens:
-      typeof u.prompt_tokens === 'number' ? u.prompt_tokens : undefined,
-    completion_tokens:
-      typeof u.completion_tokens === 'number' ? u.completion_tokens : undefined,
+  const out: {
+    prompt_tokens?: number
+    completion_tokens?: number
+    cached_tokens?: number
+    cache_write_tokens?: number
+  } = {}
+  if (typeof u.prompt_tokens === 'number') out.prompt_tokens = u.prompt_tokens
+  if (typeof u.completion_tokens === 'number') {
+    out.completion_tokens = u.completion_tokens
   }
+  const details = u.prompt_tokens_details
+  if (details && typeof details === 'object') {
+    const d = details as Record<string, unknown>
+    if (typeof d.cached_tokens === 'number') out.cached_tokens = d.cached_tokens
+    if (typeof d.cache_write_tokens === 'number') {
+      out.cache_write_tokens = d.cache_write_tokens
+    }
+  }
+  return Object.keys(out).length > 0 ? out : null
 }
 
 /** Sanitize OpenAI error payload for eval-only diagnostics. Never log secrets. */
@@ -710,6 +732,290 @@ Deno.serve(async (req) => {
           status: 'error',
           code: aborted ? 'PROVIDER_ERROR' : 'PROVIDER_ERROR',
           message: aborted ? 'timeout' : 'v6_step_failed',
+        },
+        aborted ? 504 : 500,
+      )
+    } finally {
+      clearTimeout(timeout)
+    }
+  }
+
+  // --- V7 agent step (owner-canary). LLM proxy only — tools execute client-side under RLS. ---
+  // Server forces gpt-5.6-terra + bake-off-compatible chat.completions config (temporary owner trial).
+  // MUST return inside this branch — never fall through. V6 modes untouched.
+  if (mode === 'v7_agent_step') {
+    const V7_MODEL = 'gpt-5.6-terra'
+    const messages = Array.isArray(body.messages) ? body.messages : null
+    if (!messages || messages.length === 0) {
+      return jsonResponse(
+        {
+          status: 'error',
+          code: 'INVALID_REQUEST',
+          message: 'messages_required',
+        },
+        422,
+      )
+    }
+    // Cap message count / rough size to bound Edge payload abuse.
+    if (messages.length > 40) {
+      return jsonResponse(
+        {
+          status: 'error',
+          code: 'INVALID_REQUEST',
+          message: 'messages_too_many',
+        },
+        422,
+      )
+    }
+    const allowTools = body.allowTools !== false
+    const tools = allowTools && Array.isArray(body.tools) ? body.tools : undefined
+    if (allowTools && (!tools || tools.length === 0)) {
+      return jsonResponse(
+        {
+          status: 'error',
+          code: 'INVALID_REQUEST',
+          message: 'tools_required_when_allowTools',
+        },
+        422,
+      )
+    }
+
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 28_000)
+    const started = Date.now()
+
+    try {
+      // 2K.9-L3 — stable non-PII cache routing key only. Does not change messages/tools/model.
+      const V7_PROMPT_CACHE_KEY = 'ourwed-v7-golden-2k9-tools-v1'
+      const openaiPayload: Record<string, unknown> = {
+        model: V7_MODEL,
+        messages,
+        max_completion_tokens: 1200,
+        reasoning_effort: 'none',
+        prompt_cache_key: V7_PROMPT_CACHE_KEY,
+      }
+      if (allowTools && tools) {
+        openaiPayload.tools = tools
+        openaiPayload.tool_choice = 'auto'
+      }
+
+      const openaiRes = await fetch(
+        'https://api.openai.com/v1/chat/completions',
+        {
+          method: 'POST',
+          signal: controller.signal,
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(openaiPayload),
+        },
+      )
+
+      const openaiBody = await openaiRes.json().catch(() => null)
+      const usage = extractUsage(openaiBody)
+
+      if (!openaiRes.ok) {
+        console.info('[ai-assistant:v7]', {
+          durationMs: Date.now() - started,
+          status: 'provider_error',
+          model: V7_MODEL,
+          error: openaiBody?.error?.message ?? null,
+        })
+        return jsonResponse(
+          {
+            status: 'error',
+            code: 'PROVIDER_ERROR',
+            message: 'OpenAI provider error',
+            model: V7_MODEL,
+            diagnostics: { usage, model: V7_MODEL },
+          },
+          502,
+        )
+      }
+
+      const message = openaiBody?.choices?.[0]?.message ?? null
+      if (!message || typeof message !== 'object') {
+        return jsonResponse(
+          {
+            status: 'error',
+            code: 'INTERPRETATION_ERROR',
+            message: 'empty_native_message',
+            model: V7_MODEL,
+            diagnostics: { usage, model: V7_MODEL },
+          },
+          422,
+        )
+      }
+
+      console.info('[ai-assistant:v7]', {
+        durationMs: Date.now() - started,
+        status: 'native_message',
+        model: V7_MODEL,
+        toolCallCount: Array.isArray(message.tool_calls)
+          ? message.tool_calls.length
+          : 0,
+        usage,
+      })
+
+      return jsonResponse({
+        status: 'native_message',
+        message,
+        model: V7_MODEL,
+        diagnostics: {
+          model: V7_MODEL,
+          durationMs: Date.now() - started,
+          usage,
+          transport: 'chat.completions',
+          reasoning_effort: 'none',
+          prompt_cache_key: V7_PROMPT_CACHE_KEY,
+        },
+      })
+    } catch (e) {
+      const aborted = e instanceof Error && e.name === 'AbortError'
+      return jsonResponse(
+        {
+          status: 'error',
+          code: 'PROVIDER_ERROR',
+          message: aborted ? 'timeout' : 'v7_step_failed',
+          model: V7_MODEL,
+        },
+        aborted ? 504 : 500,
+      )
+    } finally {
+      clearTimeout(timeout)
+    }
+  }
+
+  // --- V6-RI2 semantic-only verifier (shadow). No CRM. Fail closed on errors. ---
+  if (mode === 'v6_semantic_verify') {
+    const verifierModel = V6_SEMANTIC_VERIFIER_MODEL
+    const priorUtterances = Array.isArray(body.priorUtterances)
+      ? body.priorUtterances
+          .filter((u: unknown) => typeof u === 'string')
+          .map((u: string) => u.slice(0, 500))
+          .slice(0, 12)
+      : []
+    const draftTurnPlan = body.draftTurnPlan
+    if (!draftTurnPlan || typeof draftTurnPlan !== 'object') {
+      return jsonResponse(
+        {
+          status: 'error',
+          code: 'VERIFICATION_SCHEMA_ERROR',
+          message: 'draft_turn_plan_required',
+        },
+        422,
+      )
+    }
+
+    const userPayload = JSON.stringify({
+      task: 'Semantic-only: does draft_turn_plan faithfully represent user meaning?',
+      user_utterance: utterance,
+      prior_utterances: priorUtterances,
+      collection_summaries: body.collectionSummaries ?? [],
+      draft_turn_plan: draftTurnPlan,
+    })
+
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 28_000)
+    const started = Date.now()
+
+    try {
+      const openaiPayload = buildV6SemanticVerifyRequestBody({
+        model: verifierModel,
+        maxOutputTokens: 1400,
+        messages: [
+          { role: 'system', content: V6_SEMANTIC_VERIFIER_SYSTEM_PROMPT },
+          { role: 'user', content: userPayload },
+        ],
+      })
+
+      const openaiRes = await fetch(
+        'https://api.openai.com/v1/chat/completions',
+        {
+          method: 'POST',
+          signal: controller.signal,
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(openaiPayload),
+        },
+      )
+
+      const openaiBody = await openaiRes.json().catch(() => null)
+      const usage = extractUsage(openaiBody)
+
+      if (!openaiRes.ok) {
+        console.info('[ai-assistant:v6-verify]', {
+          durationMs: Date.now() - started,
+          status: 'provider_error',
+          model: verifierModel,
+          error: openaiBody?.error?.message ?? null,
+        })
+        return jsonResponse(
+          {
+            status: 'error',
+            code: 'VERIFICATION_TRANSPORT_ERROR',
+            message: 'OpenAI provider error',
+            diagnostics: { usage, model: verifierModel },
+          },
+          502,
+        )
+      }
+
+      const content = openaiBody?.choices?.[0]?.message?.content
+      if (typeof content !== 'string' || !content.trim()) {
+        return jsonResponse(
+          {
+            status: 'error',
+            code: 'VERIFICATION_TRANSPORT_ERROR',
+            message: 'empty_verifier_content',
+            diagnostics: { usage, model: verifierModel },
+          },
+          422,
+        )
+      }
+
+      let verdict: unknown
+      try {
+        verdict = JSON.parse(content)
+      } catch {
+        return jsonResponse(
+          {
+            status: 'error',
+            code: 'VERIFICATION_SCHEMA_ERROR',
+            message: 'verifier_json_parse_failed',
+            diagnostics: { usage, model: verifierModel },
+          },
+          422,
+        )
+      }
+
+      console.info('[ai-assistant:v6-verify]', {
+        durationMs: Date.now() - started,
+        status: 'semantic_verdict',
+        model: verifierModel,
+        usage,
+      })
+
+      return jsonResponse({
+        status: 'semantic_verdict',
+        verdict,
+        diagnostics: {
+          model: verifierModel,
+          durationMs: Date.now() - started,
+          usage,
+        },
+      })
+    } catch (e) {
+      const aborted = e instanceof Error && e.name === 'AbortError'
+      return jsonResponse(
+        {
+          status: 'error',
+          code: 'VERIFICATION_TRANSPORT_ERROR',
+          message: aborted ? 'timeout' : 'v6_verify_failed',
+          diagnostics: { model: verifierModel },
         },
         aborted ? 504 : 500,
       )

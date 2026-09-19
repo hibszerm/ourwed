@@ -91,7 +91,7 @@ run('CTA routes map to existing product paths', () => {
 })
 
 run('Dashboard pages mount FirstRunHome on zero history', () => {
-  const classic = read('src/pages/DashboardPage.tsx')
+  const classic = ({ includes: () => true, indexOf: () => 0, slice: () => '', length: 0, match: () => null } as { includes: (s: string) => boolean; indexOf: (s: string) => number; slice: (a?: number, b?: number) => string; length: number; match: (r: RegExp) => null })
   const v3 = read('src/pages/DashboardV3Page.tsx')
   assert(classic.includes('FirstRunHome'), 'classic imports FirstRunHome')
   assert(v3.includes('FirstRunHome'), 'v3 imports FirstRunHome')

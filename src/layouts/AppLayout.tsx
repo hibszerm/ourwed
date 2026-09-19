@@ -15,9 +15,6 @@ import {
 import { useAssistantOptional } from '@/features/assistant/assistantContext'
 import { ReadOnlyBanner } from '@/features/billing/ReadOnlyBanner'
 import { useProAccessGate } from '@/features/billing/ProAccessGate'
-import { useInterfaceStyleOptional } from '@/features/interface-style/useInterfaceStyle'
-import { DEFAULT_INTERFACE_STYLE } from '@/features/interface-style/types'
-import { resolveActiveShellPresentation } from './shellPresentation'
 import { Sidebar } from './Sidebar'
 import styles from './AppLayout.module.css'
 import '@/features/dashboard-v3/v3Materials.css'
@@ -39,9 +36,6 @@ export function AppLayout({
   mobileHeader,
 }: AppLayoutProps) {
   const location = useLocation()
-  const interfaceStyle =
-    useInterfaceStyleOptional()?.interfaceStyle ?? DEFAULT_INTERFACE_STYLE
-  const shell = resolveActiveShellPresentation(interfaceStyle)
   const [navOpen, setNavOpen] = useState(false)
   const [navPath, setNavPath] = useState(location.pathname)
   const navId = useId()
@@ -85,8 +79,9 @@ export function AppLayout({
   return (
     <div
       className={styles.layout}
+      data-phase="d25-pending-empty-card-parity"
       data-nav-open={navOpen ? 'true' : 'false'}
-      data-shell={shell === 'v3' ? 'v3' : undefined}
+      data-shell="v3"
       data-mobile-header={mobileHeader ? 'true' : undefined}
     >
       <button
@@ -102,7 +97,7 @@ export function AppLayout({
         open={navOpen}
         onClose={() => setNavOpen(false)}
         onNavigate={() => setNavOpen(false)}
-        presentation={shell}
+        presentation="v3"
         returnFocusRef={menuButtonRef}
       />
 

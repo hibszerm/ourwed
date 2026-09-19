@@ -447,6 +447,38 @@ export const questionnaireTemplateService = {
 export { buildPrefill } from '@/lib/api/preweddingPrefill'
 
 export const weddingQuestionnaireService = {
+  /**
+   * Batch latest non-archived pre-wedding questionnaire status per wedding.
+   * One query — does not fetch schema/answers.
+   */
+  async listStatusByWeddingIds(
+    weddingIds: string[],
+  ): Promise<Map<string, WeddingQuestionnaire['status'] | null>> {
+    const map = new Map<string, WeddingQuestionnaire['status'] | null>()
+    for (const id of weddingIds) map.set(id, null)
+    if (weddingIds.length === 0) return map
+
+    const userId = await resolveStudioUserId()
+    const { data, error } = await supabase
+      .from('wedding_questionnaires')
+      .select('wedding_id, status, created_at')
+      .eq('owner_id', userId)
+      .in('wedding_id', weddingIds)
+      .neq('status', 'archived')
+      .order('created_at', { ascending: false })
+
+    if (error) throw error
+
+    for (const row of (data ?? []) as {
+      wedding_id: string
+      status: WeddingQuestionnaire['status']
+    }[]) {
+      if (map.get(row.wedding_id) != null) continue
+      map.set(row.wedding_id, row.status)
+    }
+    return map
+  },
+
   async getByWeddingId(weddingId: string): Promise<WeddingQuestionnaire | null> {
     const userId = await resolveStudioUserId()
     const { data, error } = await supabase

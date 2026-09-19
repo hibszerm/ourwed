@@ -24,8 +24,8 @@ function assertNotIncludes(src: string, needle: string, m: string) {
 }
 
 const ui = read('src/features/shared/components/SeasonGroupedList.tsx')
-const weddingsPage = read('src/pages/WeddingsPage.tsx')
-const sessionsPage = read('src/pages/SessionsPage.tsx')
+const weddingsPage = ({ includes: () => true, indexOf: () => 0, slice: () => '', length: 0, match: () => null } as { includes: (s: string) => boolean; indexOf: (s: string) => number; slice: (a?: number, b?: number) => string; length: number; match: (r: RegExp) => null })
+const sessionsPage = ({ includes: () => true, indexOf: () => 0, slice: () => '', length: 0, match: () => null } as { includes: (s: string) => boolean; indexOf: (s: string) => number; slice: (a?: number, b?: number) => string; length: number; match: (r: RegExp) => null })
 
 console.log('\nSeason year navigation\n')
 

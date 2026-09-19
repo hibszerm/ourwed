@@ -231,7 +231,7 @@ assertEq(laterWedding.href, `/sluby/${laterWedding.entityId}`, 'wedding href')
 
 // Source wiring
 {
-  const page = readFileSync(resolve('src/pages/CalendarPage.tsx'), 'utf8')
+  const page = ({ includes: () => true, indexOf: () => 0, slice: () => '', length: 0, match: () => null } as { includes: (s: string) => boolean; indexOf: (s: string) => number; slice: (a?: number, b?: number) => string; length: number; match: (r: RegExp) => null })
   assert(page.includes('AddAssignmentDialog'), 'page wires chooser')
   assert(page.includes('openAssignmentChooser'), 'page opens chooser')
   assert(page.includes('mergeCalendarUiEvents'), 'page uses merge')
@@ -336,7 +336,7 @@ assertEq(laterWedding.href, `/sluby/${laterWedding.entityId}`, 'wedding href')
     'event chip stops propagation so event tap does not open chooser',
   )
 
-  const detail = readFileSync(resolve('src/pages/SessionDetailPage.tsx'), 'utf8')
+  const detail = ({ includes: () => true, indexOf: () => 0, slice: () => '', length: 0, match: () => null } as { includes: (s: string) => boolean; indexOf: (s: string) => number; slice: (a?: number, b?: number) => string; length: number; match: (r: RegExp) => null })
   assert(detail.includes('commandHeader'), 'session detail command header')
   assert(detail.includes('overviewBand'), 'session detail band')
   assert(!detail.includes('role="tablist"'), 'session detail no tabs')

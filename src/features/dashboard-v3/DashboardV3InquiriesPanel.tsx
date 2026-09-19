@@ -19,7 +19,12 @@ import styles from './DashboardV3InquiriesPanel.module.css'
 export function DashboardV3InquiriesPanel() {
   const { requirePro, openUpgradeDialog } = useProAccessGate()
   const [busyId, setBusyId] = useState<string | null>(null)
-  const { data: pending = [], isLoading } = usePendingQuestionnaires()
+  const pendingQuery = usePendingQuestionnaires()
+  const pending = pendingQuery.data ?? []
+  /** Initial load only — retain prior data while refetching. */
+  const isLoading = pendingQuery.isLoading && !pendingQuery.data
+  /** Positive zero only after successful resolve — never from error/idle. */
+  const showZeroState = pendingQuery.isSuccess && pending.length === 0
   const { afterApprove, afterReject } = useInvalidateAfterQuestionnaireMutation()
 
   async function handleAccept(id: string) {
@@ -72,14 +77,12 @@ export function DashboardV3InquiriesPanel() {
     }
   }
 
-  const empty = !isLoading && pending.length === 0
-
   return (
     <section
-      className={`${styles.panel} v3MaterialSecondaryCard${empty ? ` ${styles.emptyPanel}` : ''}`}
+      className={`${styles.panel} v3MaterialSecondaryCard${showZeroState ? ` ${styles.emptyPanel}` : ''}`}
       aria-labelledby="dashboard-v3-inquiries-title"
       data-testid="dashboard-v3-inquiries"
-      data-empty={empty ? 'true' : 'false'}
+      data-empty={showZeroState ? 'true' : 'false'}
       data-mobile-slot={pending.length > 0 ? 'priority' : 'deferred'}
     >
       <header className={styles.header}>
@@ -87,11 +90,9 @@ export function DashboardV3InquiriesPanel() {
           <h2 id="dashboard-v3-inquiries-title" className={styles.title}>
             Nowe zgłoszenia
           </h2>
-          {!empty ? (
+          {!showZeroState && pending.length > 0 ? (
             <p className={styles.subtitle}>
-              {pending.length > 0
-                ? `${pending.length} oczekuje na zatwierdzenie`
-                : 'Brak nowych zgłoszeń'}
+              {`${pending.length} oczekuje na zatwierdzenie`}
             </p>
           ) : null}
         </div>
@@ -102,8 +103,11 @@ export function DashboardV3InquiriesPanel() {
 
       {isLoading ? <p className={styles.loading}>Ładowanie…</p> : null}
 
-      {empty ? (
-        <div className={styles.emptyState}>
+      {showZeroState ? (
+        <div
+          className={styles.emptyState}
+          data-testid="dashboard-v3-inquiries-empty"
+        >
           <p className={styles.emptyTitle}>{INQUIRIES_EMPTY.title}</p>
           <p className={styles.emptyCopy}>{INQUIRIES_EMPTY.body}</p>
         </div>

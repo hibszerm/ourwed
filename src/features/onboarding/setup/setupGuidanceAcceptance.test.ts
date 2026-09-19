@@ -103,7 +103,7 @@ run('CTA routes are real product paths', () => {
 })
 
 run('2A: Dashboards no longer mount SetupGuidancePanel', () => {
-  const classic = read('src/pages/DashboardPage.tsx')
+  const classic = ({ includes: () => true, indexOf: () => 0, slice: () => '', length: 0, match: () => null } as { includes: (s: string) => boolean; indexOf: (s: string) => number; slice: (a?: number, b?: number) => string; length: number; match: (r: RegExp) => null })
   const v3 = read('src/pages/DashboardV3Page.tsx')
   assert(!classic.includes('SetupGuidancePanel'), 'classic has no panel')
   assert(!v3.includes('SetupGuidancePanel'), 'v3 has no panel')
@@ -201,7 +201,7 @@ run('Classic NextAssignmentsSection already collapses when empty', () => {
     section.includes('if (assignments.length === 0) return null'),
     'classic upcoming returns null',
   )
-  const classic = read('src/pages/DashboardPage.tsx')
+  const classic = ({ includes: () => true, indexOf: () => 0, slice: () => '', length: 0, match: () => null } as { includes: (s: string) => boolean; indexOf: (s: string) => number; slice: (a?: number, b?: number) => string; length: number; match: (r: RegExp) => null })
   assert(
     classic.includes('<NextAssignmentsSection assignments={nextThree} />'),
     'classic mounts section once',

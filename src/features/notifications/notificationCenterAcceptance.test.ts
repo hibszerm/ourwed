@@ -147,14 +147,12 @@ function assertNotIncludes(src: string, needle: string, m: string) {
     'dashboard delete control',
   )
 
-  const v3Notes = read(
-    'src/features/dashboard-v3/DashboardV3NotificationsPanel.tsx',
-  )
-  assertIncludes(v3Notes, 'NotificationDeleteModal', 'v3 panel can delete')
+  // D2: Dashboard feed uses Attention; /powiadomienia + NotificationsCard remain.
+  assertIncludes(card, 'NotificationDeleteModal', 'NotificationsCard delete intact')
   assertIncludes(
-    v3Notes,
+    card,
     'data-testid="dashboard-notification-delete"',
-    'v3 delete control',
+    'NotificationsCard delete control intact',
   )
 
   const rls = read('supabase/migrations/20260722150000_multi_tenant_rls.sql')
@@ -193,9 +191,9 @@ function assertNotIncludes(src: string, needle: string, m: string) {
     'desktop row keeps content | trailing columns',
   )
   assertNotIncludes(
-    read('src/features/dashboard-v3/DashboardV3NotificationsPanel.module.css'),
+    read('src/features/dashboard-v3/DashboardV3AttentionPanel.module.css'),
     'grid-area: footer',
-    'dashboard notification preview not using inbox mobile areas',
+    'dashboard attention preview not using inbox mobile areas',
   )
 
   console.log('PASS  notification center UI')

@@ -9,7 +9,7 @@ import {
   v6CollectionStore,
   type ConversationCollection,
 } from '../collections/store'
-import { applyTransformOps } from '../execution/applyOps'
+import { applyTransformOpsAsync } from '../execution/applyOps'
 import {
   loadWeddingUniverseRows,
   rowsByIds,
@@ -79,7 +79,7 @@ export async function transformCollection(
     return toolFail('STALE_COLLECTION', 'parent_members_missing_from_universe')
   }
 
-  const applied = applyTransformOps(baseRows, input.ops, todayKey)
+  const applied = await applyTransformOpsAsync(baseRows, input.ops, todayKey)
   if (!applied.ok) {
     return toolFail(applied.code, applied.detail)
   }
@@ -91,6 +91,7 @@ export async function transformCollection(
 
   const def = parent.semanticDefinition
   const nextFilters = [...def.filters]
+  const nextConceptFilters = [...(def.conceptFilters ?? [])]
   const nextExcludes = [...def.excludePlaces]
   let nextTemporal = def.relativeTemporal
   let nextSort = applied.sort ?? def.sort
@@ -98,6 +99,7 @@ export async function transformCollection(
 
   for (const op of input.ops) {
     if (op.op === 'Filter') nextFilters.push(op.place)
+    if (op.op === 'ConceptFilter') nextConceptFilters.push(op.predicate)
     if (op.op === 'Exclude' && op.by === 'place_contains' && op.placeValue) {
       nextExcludes.push({
         field: 'place.name',
@@ -116,6 +118,7 @@ export async function transformCollection(
     semanticDefinition: {
       source: parent.source,
       filters: nextFilters,
+      conceptFilters: nextConceptFilters,
       excludePlaces: nextExcludes,
       relativeTemporal: nextTemporal,
       sort: nextSort,

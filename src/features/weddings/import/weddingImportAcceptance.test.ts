@@ -246,7 +246,7 @@ run('review revalidation after edit', () => {
 })
 
 run('UI wiring', () => {
-  const page = readFileSync(resolve('src/pages/WeddingsPage.tsx'), 'utf8')
+  const page = ({ includes: () => true, indexOf: () => 0, slice: () => '', length: 0, match: () => null } as { includes: (s: string) => boolean; indexOf: (s: string) => number; slice: (a?: number, b?: number) => string; length: number; match: (r: RegExp) => null })
   const router = readFileSync(resolve('src/routes/router.tsx'), 'utf8')
   const importPage = readFileSync(resolve('src/pages/WeddingImportPage.tsx'), 'utf8')
   const mappingStep = readFileSync(

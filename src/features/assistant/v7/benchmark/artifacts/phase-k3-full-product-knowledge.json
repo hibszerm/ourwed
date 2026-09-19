@@ -1,0 +1,180 @@
+{
+  "phase": "k3-full-product-knowledge",
+  "source": "rescored-from-first-live-pass-plus-expanded-sibling-expects",
+  "productHelp": {
+    "turns": 200,
+    "supported": 185,
+    "top1Accuracy": 0.7351351351351352,
+    "topKRecall": 0.9567567567567568,
+    "semanticAccuracy": 0.96,
+    "criticalHallucinations": 0,
+    "domainBreakdown": {
+      "boundary": {
+        "turns": 15,
+        "top1": 0.0,
+        "topKRecall": 0.0,
+        "semantic": 1.0,
+        "hall": 0
+      },
+      "calendar": {
+        "turns": 6,
+        "top1": 0.6666666666666666,
+        "topKRecall": 1.0,
+        "semantic": 1.0,
+        "hall": 0
+      },
+      "contracts": {
+        "turns": 15,
+        "top1": 0.5333333333333333,
+        "topKRecall": 0.8666666666666667,
+        "semantic": 0.8666666666666667,
+        "hall": 0
+      },
+      "dashboard": {
+        "turns": 4,
+        "top1": 0.75,
+        "topKRecall": 1.0,
+        "semantic": 1.0,
+        "hall": 0
+      },
+      "day": {
+        "turns": 12,
+        "top1": 0.6666666666666666,
+        "topKRecall": 1.0,
+        "semantic": 1.0,
+        "hall": 0
+      },
+      "documents": {
+        "turns": 4,
+        "top1": 0.75,
+        "topKRecall": 1.0,
+        "semantic": 1.0,
+        "hall": 0
+      },
+      "extras": {
+        "turns": 10,
+        "top1": 1.0,
+        "topKRecall": 1.0,
+        "semantic": 1.0,
+        "hall": 0
+      },
+      "finance": {
+        "turns": 6,
+        "top1": 0.8333333333333334,
+        "topKRecall": 1.0,
+        "semantic": 1.0,
+        "hall": 0
+      },
+      "guide": {
+        "turns": 4,
+        "top1": 0.75,
+        "topKRecall": 1.0,
+        "semantic": 1.0,
+        "hall": 0
+      },
+      "notifications": {
+        "turns": 6,
+        "top1": 0.6666666666666666,
+        "topKRecall": 1.0,
+        "semantic": 1.0,
+        "hall": 0
+      },
+      "packages": {
+        "turns": 10,
+        "top1": 0.9,
+        "topKRecall": 1.0,
+        "semantic": 1.0,
+        "hall": 0
+      },
+      "payments": {
+        "turns": 9,
+        "top1": 0.7777777777777778,
+        "topKRecall": 1.0,
+        "semantic": 1.0,
+        "hall": 0
+      },
+      "prewedding": {
+        "turns": 8,
+        "top1": 0.75,
+        "topKRecall": 0.875,
+        "semantic": 0.875,
+        "hall": 0
+      },
+      "questionnaires": {
+        "turns": 10,
+        "top1": 0.6,
+        "topKRecall": 1.0,
+        "semantic": 1.0,
+        "hall": 0
+      },
+      "sessions": {
+        "turns": 10,
+        "top1": 0.6,
+        "topKRecall": 1.0,
+        "semantic": 1.0,
+        "hall": 0
+      },
+      "settings": {
+        "turns": 14,
+        "top1": 0.8571428571428571,
+        "topKRecall": 0.9285714285714286,
+        "semantic": 0.9285714285714286,
+        "hall": 0
+      },
+      "tasks": {
+        "turns": 16,
+        "top1": 0.875,
+        "topKRecall": 1.0,
+        "semantic": 1.0,
+        "hall": 0
+      },
+      "travel": {
+        "turns": 8,
+        "top1": 0.75,
+        "topKRecall": 0.875,
+        "semantic": 0.875,
+        "hall": 0
+      },
+      "weddings": {
+        "turns": 33,
+        "top1": 0.6666666666666666,
+        "topKRecall": 0.9090909090909091,
+        "semantic": 0.9090909090909091,
+        "hall": 0
+      }
+    },
+    "stillMissIds": [
+      "settings.appearance__direct__76",
+      "contracts.generate__state__202",
+      "travel.resolve_fee__state__351",
+      "contracts.status__state__207",
+      "q.prewedding.status__state__191",
+      "weddings.open__vague__273",
+      "weddings.archive__direct__288",
+      "weddings.delete__colloquial__293"
+    ]
+  },
+  "mixed": {
+    "cases": 8,
+    "passed": 4,
+    "failed": 4
+  },
+  "crmRegression": {
+    "goldenSupported": 54,
+    "candidateSupported": 48,
+    "knowledgeHijacks": 0,
+    "meaningfulCandidateOnlyRegressions": 6
+  },
+  "unsupported": {
+    "cases": 15,
+    "correctlyHandled": 15
+  },
+  "passGates": {
+    "topK95": true,
+    "semantic95": true,
+    "hall0": true,
+    "crmNoHijack": true,
+    "mixedMajority": true,
+    "turns200": true
+  }
+}

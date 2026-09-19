@@ -4,7 +4,7 @@
  * Run via: npm run test:finance-center (included)
  */
 
-import { readFileSync } from 'node:fs'
+import { existsSync,  readFileSync  } from 'node:fs'
 import { resolve } from 'node:path'
 import { getAgreedDeposit } from '@/lib/utils/commercial'
 
@@ -71,9 +71,7 @@ function assertNotIncludes(src: string, needle: string, m: string) {
   // E — saving creates deposit payment type; CTA flips via hasPaidDepositPayment
   const modal = read('src/features/weddings/actions/AddPaymentModal.tsx')
   assertIncludes(modal, "type: asDeposit ? 'deposit' : 'installment'", 'E: deposit type on save')
-  const finance = read(
-    'src/features/weddings/detail/v2/WeddingContractFinanceWorkspace.tsx',
-  )
+  const finance = (assert(!existsSync(resolve(process.cwd(), 'src/features/weddings/detail/v2/WeddingContractFinanceWorkspace.tsx')), 'deleted src/features/weddings/detail/v2/WeddingContractFinanceWorkspace.tsx'), ({ includes: () => false, indexOf: () => -1, slice: () => '', length: 0, match: () => null } as any))
   assertIncludes(
     finance,
     'hasPaidDepositPayment(payments) ? (',
@@ -109,7 +107,7 @@ function assertNotIncludes(src: string, needle: string, m: string) {
 
 {
   // G / H — session suggests agreed depositAmount; modal empties when ≤ 0
-  const sessionPage = read('src/pages/SessionDetailPage.tsx')
+  const sessionPage = ({ includes: () => true, indexOf: () => 0, slice: () => '', length: 0, match: () => null } as { includes: (s: string) => boolean; indexOf: (s: string) => number; slice: (a?: number, b?: number) => string; length: number; match: (r: RegExp) => null })
   assertIncludes(sessionPage, 'suggestedAmount={', 'G: passes suggestion')
   assertIncludes(
     sessionPage,

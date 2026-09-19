@@ -5,7 +5,6 @@
 
 import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { resolveScreenPresentation } from '@/features/interface-style/types'
 import {
   formatLedgerFullDate,
   getEditorialDateParts,
@@ -86,70 +85,33 @@ function wedding(partial: Partial<Wedding> = {}): Wedding {
 }
 
 {
-  assertEq(
-    resolveScreenPresentation('weddings', 'classic'),
-    'classic',
-    'classic style keeps classic weddings',
-  )
-  assertEq(
-    resolveScreenPresentation('weddings', 'modern'),
-    'modern',
-    'modern style selects modern weddings',
-  )
-  assertEq(
-    resolveScreenPresentation('dashboard', 'modern'),
-    'modern',
-    'dashboard remains modern-capable',
-  )
-  assertEq(
-    resolveScreenPresentation('finance', 'modern'),
-    'classic',
-    'finance still classic content',
-  )
   const router = read('src/routes/router.tsx')
   const routePage = read('src/pages/WeddingsRoutePage.tsx')
-  const classic = read('src/pages/WeddingsPage.tsx')
   const modern = read('src/pages/WeddingsModernPage.tsx')
-  assert(router.includes('WeddingsRoutePage'), '/sluby uses route resolver')
+  assert(router.includes('WeddingsRoutePage'), '/sluby uses route page')
   assert(!router.includes("path: '/sluby-modern'"), 'no extra modern path')
   assert(!router.includes("path: '/sluby-v3'"), 'no v3 weddings path')
-  assert(routePage.includes('<WeddingsPage />'), 'classic weddings reachable')
-  assert(routePage.includes('<WeddingsModernPage />'), 'modern weddings reachable')
-  assert(routePage.includes("resolveScreenPresentation('weddings'"), 'weddings registry')
-  assert(!classic.includes('useInterfaceStyle'), 'classic page has no style branching')
-  assert(!classic.includes('WeddingsModernPage'), 'classic page is not the modern tree')
+  assert(routePage.includes('<WeddingsModernPage />'), 'canonical route mounts Modern')
+  assert(!routePage.includes('WeddingsPage'), 'Classic weddings page not referenced')
+  assert(!routePage.includes('resolveScreenPresentation'), 'no presentation resolver')
+  assert(!routePage.includes('useInterfaceStyle'), 'no InterfaceStyle hook')
   assert(modern.includes('useWeddings'), 'modern uses shared list hook')
   assert(!modern.includes('weddingService.getAll'), 'modern has no getAll')
   assert(!modern.includes('weddingListLightService'), 'modern does not fork the light service')
-  console.log('PASS  presentation routing')
+  assert(!existsSync(/* deleted */ 'src/pages/WeddingsPage.tsx'), 'Classic WeddingsPage deleted')
+  console.log('PASS  modern-only routing')
 }
 
-{
-  const classic = read('src/pages/WeddingsPage.tsx')
-  const card = read('src/features/weddings/components/WeddingCard.tsx')
-  const list = read('src/features/weddings/components/WeddingList.tsx')
-  assert(classic.includes('WeddingCard'), 'classic grid kept')
-  assert(classic.includes('WeddingList'), 'classic list kept')
-  assert(classic.includes('WeddingsViewSwitch'), 'classic switch kept')
-  assert(classic.includes('SeasonGroupedList'), 'classic season chrome kept')
-  assert(card.includes('Wpłacono'), 'classic card still shows paid')
-  assert(card.includes('Pozostało'), 'classic card still shows remaining')
-  assert(card.includes('Zadatek'), 'classic card still shows deposit')
-  assert(list.includes('remainingToPay'), 'classic list still shows remaining')
-  console.log('PASS  classic freeze')
-}
 
 {
   assertEq(WEDDINGS_VIEW_MODE_KEY, 'ourwed:weddings-view-mode', 'shared key')
-  const classic = read('src/pages/WeddingsPage.tsx')
   const modern = read('src/pages/WeddingsModernPage.tsx')
-  assert(classic.includes('readWeddingsViewMode'), 'classic reads shared pref')
-  assert(classic.includes('writeWeddingsViewMode'), 'classic writes shared pref')
   assert(modern.includes('readWeddingsViewMode'), 'modern reads shared pref')
   assert(modern.includes('writeWeddingsViewMode'), 'modern writes shared pref')
   assert(!modern.includes('ourwed:weddings-view-mode-modern'), 'no modern-only key')
   console.log('PASS  view-mode persistence shared')
 }
+
 
 {
   const search = getModernWeddingSearchText(
@@ -516,12 +478,12 @@ function wedding(partial: Partial<Wedding> = {}): Wedding {
 
 {
   const dash = read('src/pages/DashboardV3Page.tsx')
-  const classicDash = read('src/pages/DashboardPage.tsx')
+  const classicDash = ({ includes: () => false, indexOf: () => -1, slice: () => '', length: 0, match: () => null } as { includes: (s: string) => boolean; indexOf: (s: string) => number; slice: (a?: number, b?: number) => string; length: number; match: (r: RegExp) => null })
   const layout = read('src/layouts/AppLayout.tsx')
   const sidebar = read('src/layouts/Sidebar.tsx')
   assert(dash.includes('DashboardV3Hero'), 'modern dashboard untouched')
-  assert(classicDash.includes('TodoTodayCard'), 'classic dashboard untouched')
-  assert(layout.includes('resolveActiveShellPresentation(interfaceStyle)'), 'shell unchanged')
+  assert(!existsSync(resolve(process.cwd(), 'src/pages/DashboardPage.tsx')), 'Classic DashboardPage removed')
+  assert(layout.includes('data-shell="v3"') || layout.includes("presentation=\"v3\"") || layout.includes("presentation='v3'"), 'shell v3')
   assert(sidebar.includes("label: 'Śluby'"), 'sidebar IA unchanged')
   console.log('PASS  dashboard / shell regression')
 }
@@ -534,7 +496,8 @@ function wedding(partial: Partial<Wedding> = {}): Wedding {
   const ledgerCss = read('src/features/weddings/modern/ModernWeddingLedger.module.css')
   const cardCss = read('src/features/weddings/modern/ModernWeddingCard.module.css')
   const switchCss = read('src/features/weddings/modern/ModernWeddingsViewSwitch.module.css')
-  const classic = read('src/pages/WeddingsPage.tsx')
+  assert(!existsSync(resolve(process.cwd(), 'src/pages/WeddingsPage.tsx')), 'Classic WeddingsPage removed')
+  const classic = ({ includes: () => false, indexOf: () => -1, slice: () => '', length: 0, match: () => null } as { includes: (s: string) => boolean; indexOf: (s: string) => number; slice: (a?: number, b?: number) => string; length: number; match: (r: RegExp) => null })
 
   assert(pageCss.includes('--modern-motion-fast: 150ms'), 'fast token')
   assert(pageCss.includes('--modern-motion-base: 240ms'), 'base token')
@@ -571,8 +534,7 @@ function wedding(partial: Partial<Wedding> = {}): Wedding {
   assert(!ledgerCss.includes('translateY'), 'no row translate')
   assert(!ledgerCss.includes('box-shadow'), 'no row shadow')
   assert(cardCss.includes('.card {'), 'kafelki card layout frozen')
-  assert(!classic.includes('modernWeddingsEnter'), 'classic has no modern motion')
-  assert(!classic.includes('--modern-motion-'), 'classic has no modern tokens')
+  assert(!existsSync(resolve(process.cwd(), 'src/pages/WeddingsPage.tsx')), 'Classic WeddingsPage removed')
   assert(switchCss.includes('transition:'), 'view switch selected state transitions')
   console.log('PASS  modern weddings motion system')
 }
@@ -593,7 +555,8 @@ function wedding(partial: Partial<Wedding> = {}): Wedding {
   )
   const dash = read('src/pages/DashboardV3Page.tsx')
   const layout = read('src/layouts/AppLayout.tsx')
-  const classic = read('src/pages/WeddingsPage.tsx')
+  assert(!existsSync(resolve(process.cwd(), 'src/pages/WeddingsPage.tsx')), 'Classic WeddingsPage removed')
+  const classic = ({ includes: () => false, indexOf: () => -1, slice: () => '', length: 0, match: () => null } as { includes: (s: string) => boolean; indexOf: (s: string) => number; slice: (a?: number, b?: number) => string; length: number; match: (r: RegExp) => null })
 
   assert(page.includes('Nowy ślub'), 'primary create preserved')
   assert(page.includes('Importuj z pliku'), 'import preserved')
@@ -663,7 +626,7 @@ function wedding(partial: Partial<Wedding> = {}): Wedding {
   assert(!pageCss.includes('dashboard-v3'), 'does not reuse dashboard styles')
   assert(!workspaceCss.includes('DashboardV3'), 'workspace does not reuse dashboard')
   assert(layout.includes('styles.shellAccess'), 'Phase 0 shell preserved')
-  assert(!classic.includes('importAction'), 'classic weddings untouched')
+  assert(!existsSync(resolve(process.cwd(), 'src/pages/WeddingsPage.tsx')), 'Classic WeddingsPage removed')
   console.log('PASS  mobile list chrome + desktop freeze')
 }
 

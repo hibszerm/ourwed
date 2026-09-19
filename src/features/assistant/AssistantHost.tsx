@@ -60,8 +60,25 @@ import {
 import {
   invalidateV6ShadowTurn,
   runV6AssistantShadow,
+  enqueueAndAwaitV6ShadowTurn,
   setV6ShadowSessionOpen,
+  isV6OwnerCanaryVisible,
+  renderV6TurnResult,
 } from './v6'
+import {
+  appendImmediatePendingUser,
+  completePendingUserWithApiFailure,
+  completePendingUserWithPresentation,
+  destroyV7OwnerSession,
+  isV7GlobalFlagEnabled,
+  isV7OwnerCanaryVisible,
+  runV7OwnerVisibleTurn,
+  setV7OwnerSessionOpen,
+  beginV7LatencyTrace,
+  clearActiveV7LatencyTrace,
+  type TranscriptEntry,
+} from './v7'
+import { authService } from '@/features/auth/services/authService'
 import { executeDomainQueryShadow } from './v4/domainQuery/executeDomainQuery'
 import { assessSemanticCoverage } from './v4/goalSpec/semanticCoverage'
 import {
@@ -133,6 +150,8 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
 
   const [open, setOpen] = useState(false)
   const [turns, setTurns] = useState<AssistantTurn[]>([])
+  /** V7 presentation transcript — ephemeral memory only; never fed into V7. */
+  const [transcript, setTranscript] = useState<TranscriptEntry[]>([])
   const [loading, setLoading] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const [preparedWedding, setPreparedWedding] =
@@ -189,6 +208,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
 
   const clearSession = useCallback(() => {
     setTurns([])
+    setTranscript([])
     setLoading(false)
     setConfirming(false)
     setPreparedWedding(null)
@@ -210,6 +230,8 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
     setV5GoalShadowSessionOpen(false)
     invalidateV6ShadowTurn({ wipeAll: true, reason: 'assistant_close' })
     setV6ShadowSessionOpen(false)
+    setV7OwnerSessionOpen(false)
+    destroyV7OwnerSession()
   }, [])
 
   const closeAssistant = useCallback(() => {
@@ -468,14 +490,163 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
     async (userText: string) => {
       const id = createTurnId()
       currentTurnIdRef.current = id
-      // Presentation: replace prior answer — do not stack a transcript
-      setTurns([{ id, userText, response: null, loading: true }])
       setLoading(true)
       setGoalClarificationResolvedLabel(null)
       setV5ShadowClarification(null)
       setV5ShadowResumeNote(null)
 
+      // 2K.9-L — optional latency measurement (no-op unless audit flag enabled).
+      const latencyTrace = beginV7LatencyTrace(id)
+      latencyTrace?.mark('frontend_start')
+
+      // 2K.10-P1 — immediate working state (perceived latency only).
+      // When V7 global flag is ON, show user pending + processing indicator
+      // BEFORE runtime/auth/V7 awaits. Auth still gates real V7 execution.
+      const optimisticV7WorkingState = isV7GlobalFlagEnabled()
+      if (optimisticV7WorkingState) {
+        setTurns([])
+        setTranscript((prev) =>
+          appendImmediatePendingUser(prev, id, userText),
+        )
+        // Closest practical commit mark — Host loading + pending user row.
+        latencyTrace?.mark('working_state_visible')
+      }
+
       await refreshAssistantRuntime()
+      latencyTrace?.mark('runtime_config_ready')
+
+      // Authenticated identity from session (never client-supplied / never model).
+      const canaryUser = await authService.getUser().catch(() => null)
+      const authUserId = canaryUser?.id ?? null
+      latencyTrace?.mark('auth_ready')
+
+      // V7 GLOBAL: any authenticated user → V7 Hybrid Direct Tool Agent (Terra).
+      // Takes precedence over V6 emergency. Mutual exclusivity: never dual-visible.
+      if (isV7OwnerCanaryVisible(authUserId)) {
+        // Fresh engine boundary — do not mix with V6 ConversationCollection.
+        invalidateV6ShadowTurn({ wipeAll: true, reason: 'v7_visible_engine' })
+        setV6ShadowSessionOpen(false)
+        setV7OwnerSessionOpen(true)
+        // V7 uses ephemeral presentation transcript (not legacy turns).
+        setTurns([])
+        if (!optimisticV7WorkingState) {
+          setTranscript((prev) =>
+            appendImmediatePendingUser(prev, id, userText),
+          )
+          latencyTrace?.mark('working_state_visible')
+        }
+        try {
+          const { result, presentation } = await runV7OwnerVisibleTurn({
+            turnId: id,
+            utterance: userText,
+          })
+          latencyTrace?.mark('frontend_received', {
+            ok: result.ok,
+            stoppedReason: result.stoppedReason,
+          })
+          if (!openRef.current) {
+            clearActiveV7LatencyTrace()
+            return
+          }
+          if (currentTurnIdRef.current !== id) {
+            clearActiveV7LatencyTrace()
+            return
+          }
+          recentUtterancesRef.current = [
+            ...recentUtterancesRef.current,
+            userText.trim(),
+          ].slice(-4)
+          setTranscript((prev) =>
+            completePendingUserWithPresentation(prev, id, presentation),
+          )
+          latencyTrace?.mark('ui_visible')
+          latencyTrace?.finish({
+            ok: result.ok,
+            stoppedReason: result.stoppedReason,
+            model: result.model,
+            toolCallCount: result.toolCallCount,
+            toolNames: result.toolCalls.map((t) => t.name),
+            llmCallCount:
+              (result.latency.firstModelMs != null ? 1 : 0) +
+              result.latency.subsequentModelMs.length,
+          })
+        } catch {
+          latencyTrace?.mark('frontend_error')
+          latencyTrace?.finish({ ok: false, stoppedReason: 'frontend_error' })
+          if (!openRef.current) return
+          if (currentTurnIdRef.current !== id) return
+          setTranscript((prev) =>
+            completePendingUserWithApiFailure(
+              prev,
+              id,
+              userText,
+              ASSISTANT_API_FAILURE,
+            ),
+          )
+        } finally {
+          setLoading(false)
+        }
+        return
+      }
+
+      // Non-V7 engines: legacy single-turn UI; wipe presentation transcript.
+      clearActiveV7LatencyTrace()
+      setTranscript([])
+      setTurns([{ id, userText, response: null, loading: true }])
+
+      // V6 EMERGENCY rollback: only when V7 global is OFF.
+      // Requires fresh session vs prior V7 ResourceSet (destroy V7 first).
+      if (isV6OwnerCanaryVisible(authUserId)) {
+        setV7OwnerSessionOpen(false)
+        destroyV7OwnerSession()
+        setV6ShadowSessionOpen(true)
+        try {
+          const v6Result = await enqueueAndAwaitV6ShadowTurn({
+            turnId: id,
+            utterance: userText,
+            recentUtterances: recentUtterancesRef.current.slice(-6),
+          })
+          if (!openRef.current) return
+          if (currentTurnIdRef.current !== id) return
+          recentUtterancesRef.current = [
+            ...recentUtterancesRef.current,
+            userText.trim(),
+          ].slice(-4)
+          const response = renderV6TurnResult(v6Result)
+          applyResponse(response)
+          setTurns([{ id, userText, response, loading: false }])
+        } catch {
+          if (!openRef.current) return
+          if (currentTurnIdRef.current !== id) return
+          // Fail closed — do not substitute legacy as V6.
+          setTurns([
+            {
+              id,
+              userText,
+              loading: false,
+              response: { kind: 'error', message: ASSISTANT_API_FAILURE },
+            },
+          ])
+        } finally {
+          setLoading(false)
+        }
+        return
+      }
+
+      // Authenticated but neither V7 global nor V6 emergency → fail closed.
+      // Do not fall through to pre-V7 GoalSpec/V5/V3 as a normal visible path.
+      if (authUserId) {
+        setTurns([
+          {
+            id,
+            userText,
+            loading: false,
+            response: { kind: 'error', message: ASSISTANT_API_FAILURE },
+          },
+        ])
+        setLoading(false)
+        return
+      }
 
       // NL turn supersedes pending GoalSpec clarification chips (stale-safe).
       if (isGoalClarificationHostEnabled()) {
@@ -1297,6 +1468,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
         open={open}
         isMobile={isMobile}
         turns={turns}
+        transcript={transcript}
         loading={loading}
         confirming={confirming}
         contextHeader={contextHeader}
