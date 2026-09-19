@@ -107,7 +107,6 @@ run('F. document preview paper remains white', () => {
   const files = [
     'src/features/documents/contract-experience/ContractDocxPreview.module.css',
     'src/features/documents/contract-experience/ContractReadyPreview.module.css',
-    'src/features/documents/contract-experience/ExperimentalPdfActions.module.css',
     'src/features/weddings/actions/ContractDocumentPreview.module.css',
   ]
   for (const f of files) {

@@ -33,7 +33,6 @@ export {
   useContractPdfDownload,
 } from './useContractPdfDownload'
 export type { ContractPdfDownloadInput } from './useContractPdfDownload'
-export { ExperimentalPdfActions } from './ExperimentalPdfActions'
 export {
   packageHealthRecommendation,
   packageHealthRecommendations,

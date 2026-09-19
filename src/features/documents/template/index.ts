@@ -198,8 +198,6 @@ export type {
   PdfConversionAdapter,
   PersistedContractArtifact,
 } from './ContractExportService'
-export { createGotenbergPdfAdapter } from './gotenbergPdfAdapter'
-export { isExperimentalPdfExportEnabled } from './experimentalPdfFlags'
 export {
   ContractArtifactPersistenceService,
   GeneratedWeddingContractService,

@@ -22,9 +22,6 @@ const ready = source(
 )
 const gen = source('src/pages/WeddingContractGenerationPage.tsx')
 const saved = source('src/pages/WeddingContractPreviewPage.tsx')
-const flags = source(
-  'src/features/documents/template/experimentalPdfFlags.ts',
-)
 const env = source('.env.example')
 
 assert(preview.includes("from 'docx-preview'"), 'uses docx-preview')
@@ -64,15 +61,27 @@ assert(!gen.includes('ContractPdfPreview'), 'old pdf preview removed')
 assert(!saved.includes('Uproszczony podgląd DOCX'), 'no paragraph paper preview')
 assert(saved.includes('ContractReadyPreview'), 'preview page ready component')
 
-assert(flags.includes('VITE_ENABLE_EXPERIMENTAL_PDF_EXPORT'), 'pdf flag')
-const pdfActions = source(
-  'src/features/documents/contract-experience/ExperimentalPdfActions.tsx',
+assert(
+  !existsSync(
+    resolve(process.cwd(), 'src/features/documents/template/experimentalPdfFlags.ts'),
+  ),
+  'experimental pdf client flags absent',
 )
 assert(
-  pdfActions.includes('isExperimentalPdfExportEnabled'),
-  'lab pdf UI gated by flag',
+  !existsSync(
+    resolve(
+      process.cwd(),
+      'src/features/documents/contract-experience/ExperimentalPdfActions.tsx',
+    ),
+  ),
+  'experimental pdf client absent',
 )
-assert(pdfActions.includes('Utwórz testowy PDF'), 'lab explicit pdf action')
+assert(
+  !existsSync(
+    resolve(process.cwd(), 'src/features/documents/template/gotenbergPdfAdapter.ts'),
+  ),
+  'gotenberg browser adapter absent',
+)
 assert(ready.includes('ContractPdfActions'), 'ready uses production PDF actions')
 assert(ready.includes('Pobierz PDF') || source(
   'src/features/documents/contract-experience/ContractPdfActions.tsx',
@@ -92,8 +101,12 @@ assert(env.includes('GOTENBERG_URL'), 'gotenberg documented')
 assert(env.includes('VITE_ENABLE_EXPERIMENTAL_PDF_EXPORT'), 'flag documented')
 
 // PDF must not rerun AI
-assert(pdfActions.includes('createGotenbergPdfAdapter'), 'shared adapter')
+assert(
+  !source(
+    'src/features/documents/contract-experience/ContractPdfActions.tsx',
+  ).includes('runFullAiRewrite'),
+  'no AI rewrite in pdf',
+)
 assert(!ready.includes('WeddingContractGenerationService'), 'no AI on pdf')
-assert(!pdfActions.includes('runFullAiRewrite'), 'no AI rewrite in pdf')
 
 console.log('ok — contract DOCX preview acceptance')

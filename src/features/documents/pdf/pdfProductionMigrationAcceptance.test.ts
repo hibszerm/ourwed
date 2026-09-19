@@ -90,14 +90,13 @@ assert(docs.includes('paragraphsToPrintHtml'), 'docs names incomplete renderer')
 assert(docs.includes('pdf-render'), 'docs production edge')
 assert(docs.includes('sandbox=false') || docs.includes('sandbox: false') || docs.includes('sandbox=false'), 'docs sandbox')
 
-const experimental = read(
-  'src/features/documents/contract-experience/ExperimentalPdfActions.tsx',
-)
-assert(experimental.includes('if (busy || !props.docxBytes)'), 'experimental busy guard')
-assert(experimental.includes('createGotenbergPdfAdapter'), 'lab still DOCX→Gotenberg')
 assert(
-  experimental.includes('Lab-only') || experimental.includes('experimental'),
-  'lab labeled non-production',
+  !existsSync(join(ROOT, 'src/features/documents/contract-experience/ExperimentalPdfActions.tsx')),
+  'experimental pdf client absent',
+)
+assert(
+  !existsSync(join(ROOT, 'src/features/documents/template/gotenbergPdfAdapter.ts')),
+  'gotenberg browser adapter absent',
 )
 
 const contractReady = read(

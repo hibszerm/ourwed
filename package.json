@@ -5,7 +5,6 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:pdf": "tsx --env-file=.env.local scripts/dev-pdf-server.ts",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
@@ -265,7 +264,7 @@
     "test:ai-contract-transform-location-rendering": "npx tsx --tsconfig tsconfig.app.json src/features/ai-contract-transform/quality/locationRendering.test.ts",
     "test:ai-contract-transform-business-consistency": "npx tsx --tsconfig tsconfig.app.json src/features/ai-contract-transform/quality/businessConsistency.test.ts",
     "test:payment-schedule": "npx tsx --tsconfig tsconfig.app.json src/features/documents/template/payment-schedule/paymentSchedule.test.ts && npx tsx --tsconfig tsconfig.app.json src/features/documents/template/payment-schedule/applyManualPaymentSchedule.test.ts",
-    "test:contract-docx-preview": "npx tsx --tsconfig tsconfig.app.json src/features/documents/contract-experience/contractDocxPreviewAcceptance.test.ts && npx tsx --tsconfig tsconfig.app.json src/features/documents/template/gotenbergPdfAdapter.test.ts && npx tsx --tsconfig tsconfig.app.json src/features/documents/template/pdfExportTransport.test.ts",
+    "test:contract-docx-preview": "npx tsx --tsconfig tsconfig.app.json src/features/documents/contract-experience/contractDocxPreviewAcceptance.test.ts",
     "test:ai-contract-full-rewrite-live": "npx tsx --tsconfig tsconfig.app.json src/features/ai-contract-transform/fullRewriteLive.smoke.ts",
     "test:ai-contract-guarded-transform-live": "npx tsx --tsconfig tsconfig.app.json src/features/ai-contract-transform/guardedTransformLive.smoke.ts",
     "test:ai-contract-structure": "npx tsx --tsconfig tsconfig.app.json src/features/ai-contract-lab/phaseCStructuralCompatibility.test.ts",

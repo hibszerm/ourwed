@@ -21,7 +21,7 @@ import {
 } from '@/features/documents/template/WeddingContractGenerationService'
 import { splitRecommended } from '@/features/documents/template/contractTemplatePicker'
 import { migrateLegacyTemplateConfiguration } from '@/features/documents/template/automaticTemplateReadiness'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 function assert(cond: boolean, msg: string) {
@@ -486,10 +486,10 @@ run('W — DOCX preview is authoritative; production PDF via Cloudmersive', () =
     'production adapter uses Cloudmersive Edge',
   )
   assert(
-    source(
-      'src/features/documents/contract-experience/ExperimentalPdfActions.tsx',
-    ).includes('isExperimentalPdfExportEnabled'),
-    'lab pdf gated by flag',
+    !existsSync(
+      resolve(process.cwd(), 'src/features/documents/contract-experience/ExperimentalPdfActions.tsx'),
+    ),
+    'experimental pdf client absent',
   )
 })
 

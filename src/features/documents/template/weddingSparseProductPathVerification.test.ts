@@ -3,7 +3,7 @@
  * Run: npx tsx --tsconfig tsconfig.app.json src/features/documents/template/weddingSparseProductPathVerification.test.ts
  */
 
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { detectPaymentSchedule } from './payment-schedule/detectPaymentSchedule'
 import { evaluatePaymentSchedulePolicy } from './payment-schedule/paymentSchedulePolicy'
@@ -29,9 +29,6 @@ const transformService = source(
 )
 const preview = source(
   'src/features/documents/contract-experience/ContractDocxPreview.tsx',
-)
-const pdfActions = source(
-  'src/features/documents/contract-experience/ExperimentalPdfActions.tsx',
 )
 const flags = source(
   'src/features/documents/template/sparseWeddingContractFlags.ts',
@@ -180,7 +177,12 @@ assert(
   source('src/features/documents/pdf/contractPdfAdapter.ts').includes('contract-docx-to-pdf'),
   '6: Edge contract-docx-to-pdf',
 )
-assert(pdfActions.includes('createGotenbergPdfAdapter'), '6: lab Gotenberg adapter kept')
+assert(
+  !existsSync(
+    resolve(process.cwd(), 'src/features/documents/template/gotenbergPdfAdapter.ts'),
+  ),
+  '6: experimental Gotenberg client adapter absent',
+)
 
 // 7. Rollback flag false → legacy slot path
 assert(flags.includes("raw === 'false'"), '7: flag can disable sparse')

@@ -189,9 +189,10 @@ const gotenbergSrc = read('supabase/functions/docx-to-pdf/gotenbergConvert.ts')
 assert(gotenbergSrc.includes('/forms/libreoffice/convert'), 'Gotenberg LibreOffice path intact')
 assert(gotenbergSrc.includes('convertDocxViaGotenberg'), 'convertDocxViaGotenberg intact')
 
-const adapterSrc = read('src/features/documents/template/gotenbergPdfAdapter.ts')
-assert(adapterSrc.includes('docx-to-pdf'), 'client still uses docx-to-pdf')
-assert(!adapterSrc.includes('cloudmersive'), 'adapter not switched to Cloudmersive')
+assert(
+  !existsSync(join(ROOT, 'src/features/documents/template/gotenbergPdfAdapter.ts')),
+  'experimental gotenberg client adapter absent',
+)
 
 const gProvider = createGotenbergDocxToPdfProvider({
   config: {

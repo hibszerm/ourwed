@@ -145,8 +145,11 @@ assert(docs.includes('PDFShift'), 'docs exist')
 assert(docs.includes('Gotenberg'), 'docs gotenberg')
 assert(docs.includes('privacy') || docs.includes('Privacy') || docs.includes('prywat'), 'privacy')
 
-// Existing local path retained as DEV tooling
-assert(existsSync(join(ROOT, 'scripts/dev-pdf-server.ts')), 'dev pdf server kept')
+// Local Gotenberg development server removed in C2D.2; html-to-pdf Edge remains.
+assert(
+  !existsSync(join(ROOT, 'scripts/dev-pdf-server.ts')),
+  'local gotenberg server absent',
+)
 assert(existsSync(join(ROOT, 'supabase/functions/html-to-pdf/index.ts')), 'html-to-pdf kept for legacy/dev')
 assert(
   read('src/features/wedding-brief/convertWeddingBriefHtmlToPdf.ts').includes(

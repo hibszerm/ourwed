@@ -183,12 +183,19 @@ assert(!brief.includes('CLOUDMERSIVE'), 'brief no cloudmersive')
 const pdfRender = read('supabase/functions/pdf-render/index.ts')
 assert(pdfRender.includes('PDFSHIFT_API_KEY'), 'brief edge still pdfshift')
 
-// --- Lab Gotenberg remains non-production ---
-const experimental = read(
-  'src/features/documents/contract-experience/ExperimentalPdfActions.tsx',
+// --- Experimental PDF client is absent; production remains Cloudmersive ---
+assert(
+  !existsSync(join(ROOT, 'src/features/documents/contract-experience/ExperimentalPdfActions.tsx')),
+  'experimental pdf client absent',
 )
-assert(experimental.includes('createGotenbergPdfAdapter'), 'lab still gotenberg')
-assert(experimental.includes('Lab-only') || experimental.includes('experimental'), 'lab labeled')
+assert(
+  !existsSync(join(ROOT, 'src/features/documents/template/gotenbergPdfAdapter.ts')),
+  'gotenberg browser adapter absent',
+)
+assert(
+  !existsSync(join(ROOT, 'src/features/documents/template/experimentalPdfFlags.ts')),
+  'experimental pdf flags module absent',
+)
 
 const gotenbergEdge = read('supabase/functions/docx-to-pdf/index.ts')
 assert(gotenbergEdge.includes('convertDocxViaGotenberg'), 'lab edge kept')
