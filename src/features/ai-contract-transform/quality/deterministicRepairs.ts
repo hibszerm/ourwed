@@ -9,6 +9,7 @@ import type {
   TransformedBlock,
 } from '../types'
 import { fingerprintText, sanitizeDuplicatedLocationWrappers } from './normalize'
+import { repairCanonicalPaymentAmounts } from './paymentAmountRepair'
 import type {
   DeterministicRepair,
   RequiredReplacement,
@@ -151,7 +152,15 @@ export function applyDeterministicRepairs(input: {
     }
   }
 
-  void input.sourceBlocks
+  // 4. Canonical deposit + remaining amounts (CG3) — system knows financial truth
+  const payment = repairCanonicalPaymentAmounts({
+    blocks,
+    sourceBlocks: input.sourceBlocks,
+    dataset: input.dataset,
+  })
+  blocks = payment.blocks
+  repairs.push(...payment.repairs)
+
   return { blocks, repairs }
 }
 

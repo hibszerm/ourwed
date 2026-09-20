@@ -417,9 +417,13 @@ export function buildExpectationManifest(input: {
     'must_appear_in_relevant_context',
   )
   if (dataset.finances.depositFormatted) {
+    const depositSources = [
+      'PLACEHOLDER_ZADATEK',
+      'PLACEHOLDER_ZADATEK zł',
+    ].filter((v) => blocks.some((b) => b.text.includes(v.replace(' zł', '')) || b.text.includes(v)))
     addRequired(
       'contract.depositAmount',
-      [],
+      depositSources,
       [
         dataset.finances.depositFormatted,
         dataset.finances.depositWords ?? '',
@@ -428,9 +432,17 @@ export function buildExpectationManifest(input: {
     )
   }
   if (dataset.finances.remainingFormatted) {
+    const remainingSources = [
+      'PLACEHOLDER_RESTA',
+      'PLACEHOLDER_RESTA zł',
+    ].filter((v) =>
+      blocks.some(
+        (b) => b.text.includes('PLACEHOLDER_RESTA') || b.text.includes(v),
+      ),
+    )
     addRequired(
       'contract.remainingAmount',
-      [],
+      remainingSources,
       [
         dataset.finances.remainingFormatted,
         dataset.finances.remainingWords ?? '',
