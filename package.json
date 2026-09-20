@@ -265,7 +265,6 @@
     "test:payment-schedule": "npx tsx --tsconfig tsconfig.app.json src/features/documents/template/payment-schedule/paymentSchedule.test.ts && npx tsx --tsconfig tsconfig.app.json src/features/documents/template/payment-schedule/applyManualPaymentSchedule.test.ts",
     "test:contract-docx-preview": "npx tsx --tsconfig tsconfig.app.json src/features/documents/contract-experience/contractDocxPreviewAcceptance.test.ts",
     "test:ai-contract-full-rewrite-live": "npx tsx --tsconfig tsconfig.app.json src/features/ai-contract-transform/fullRewriteLive.smoke.ts",
-    "test:ai-contract-guarded-transform-live": "npx tsx --tsconfig tsconfig.app.json src/features/ai-contract-transform/guardedTransformLive.smoke.ts",
     "test:ai-contract-structure": "npx tsx --tsconfig tsconfig.app.json src/features/ai-contract-lab/phaseCStructuralCompatibility.test.ts",
     "test:ai-contract-policy": "npx tsx --tsconfig tsconfig.app.json src/features/ai-contract-lab/templateFieldPolicy.test.ts",
     "test:ai-contract-field-config": "npx tsx --tsconfig tsconfig.app.json src/features/ai-contract-lab/templateFieldConfiguration.test.ts",

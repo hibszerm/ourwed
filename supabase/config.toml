@@ -6,9 +6,6 @@ verify_jwt = false
 [functions.ai-contract-full-rewrite]
 verify_jwt = true
 
-[functions.ai-contract-guarded-transform]
-verify_jwt = true
-
 [functions.places-proxy]
 verify_jwt = true
 

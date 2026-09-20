@@ -30,9 +30,9 @@ const FULL = resolve(
   root,
   'supabase/functions/ai-contract-full-rewrite/index.ts',
 )
-const GUARDED = resolve(
+const RETIRED_GUARDED = resolve(
   root,
-  'supabase/functions/ai-contract-guarded-transform/index.ts',
+  'supabase/functions/ai-contract-guarded-transform',
 )
 const RETIRED_LAB_ANALYZE = resolve(
   root,
@@ -78,9 +78,17 @@ run('retired lab-analyze and lab-structured-mapping source absent', () => {
   )
 })
 
+run('retired guarded-transform source and config absent', () => {
+  assert(!existsSync(RETIRED_GUARDED), 'guarded-transform Edge source retired')
+  const toml = readFileSync(resolve(root, 'supabase/config.toml'), 'utf8')
+  assert(
+    !toml.includes('[functions.ai-contract-guarded-transform]'),
+    'guarded-transform config.toml stanza absent',
+  )
+})
+
 for (const [label, path] of [
   ['full-rewrite', FULL],
-  ['guarded-transform', GUARDED],
 ] as const) {
   run(`${label}: requireAuthenticatedUser before OpenAI`, () => {
     const src = readFileSync(path, 'utf8')
