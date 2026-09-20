@@ -614,8 +614,37 @@ function projectSelectedAssignments(
       emitted += 1
       if (emitted >= 12) break
     }
-    // One authoritative selection tool per turn is enough.
-    if (emitted > 0) break
+    // Day-anchored selection (single calendar day): expose structured day so
+    // calendar display policy can reduce open-ended nearest dumps to that day.
+    // Open-ended nearest (date_end null) still emits all result members above —
+    // collection intent keeps them; calendar intent filters by this date.
+    if (emitted > 0) {
+      const dateStart =
+        typeof result.date_start === 'string' &&
+        isValidCalendarDate(result.date_start)
+          ? result.date_start
+          : null
+      const dateEndRaw =
+        typeof result.date_end === 'string' && result.date_end
+          ? result.date_end
+          : null
+      const dateEnd =
+        dateEndRaw && isValidCalendarDate(dateEndRaw) ? dateEndRaw : null
+      const dayAnchored =
+        Boolean(dateStart) && (dateEnd == null || dateEnd === dateStart)
+      if (dayAnchored && dateStart) {
+        pushRef(
+          refs,
+          {
+            kind: 'calendar',
+            label: dateStart,
+            actions: [{ type: 'open_calendar', date: dateStart }],
+          },
+          seq,
+        )
+      }
+      break
+    }
   }
   return emitted
 }

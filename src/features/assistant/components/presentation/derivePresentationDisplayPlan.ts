@@ -507,10 +507,48 @@ export function derivePresentationDisplayPlan(input: {
     }
 
     case 'calendar': {
-      // Schedule / "co mam jutro" — wedding/session cards with open + calendar
-      const weddings = refsOf(turn, 'wedding')
-      const sessions = refsOf(turn, 'session')
+      // Schedule / "co mam jutro" — wedding/session cards with open + calendar.
+      // Prefer authoritative result refs; never promote describe evidence dumps.
+      // When a single structured calendar day is present (from day-anchored
+      // select_nearest date_start), keep only entities on that day — so an
+      // open-ended nearest tool result cannot leak future rows under a day ask.
       const calendars = refsOf(turn, 'calendar')
+      const dayDates = [
+        ...new Set(
+          calendars.flatMap((c) =>
+            c.actions
+              .filter(
+                (a): a is Extract<AssistantAction, { type: 'open_calendar' }> =>
+                  a.type === 'open_calendar' &&
+                  typeof a.date === 'string' &&
+                  /^\d{4}-\d{2}-\d{2}$/.test(a.date),
+              )
+              .map((a) => a.date as string),
+          ),
+        ),
+      ]
+      const dayScope = dayDates.length === 1 ? dayDates[0]! : null
+
+      const allEntities = [
+        ...refsOf(turn, 'wedding'),
+        ...refsOf(turn, 'session'),
+      ]
+      const resultEntities = allEntities.filter((r) => r.role === 'result')
+      const nonEvidenceEntities = allEntities.filter(
+        (r) => r.role !== 'evidence',
+      )
+      let entityPool =
+        resultEntities.length > 0
+          ? resultEntities
+          : nonEvidenceEntities.length > 0
+            ? nonEvidenceEntities
+            : []
+      if (dayScope && entityPool.some((r) => Boolean(r.detail))) {
+        entityPool = entityPool.filter((r) => r.detail === dayScope)
+      }
+
+      const weddings = entityPool.filter((r) => r.kind === 'wedding')
+      const sessions = entityPool.filter((r) => r.kind === 'session')
       const display: AssistantReference[] = []
       for (const w of weddings) {
         const acts = [

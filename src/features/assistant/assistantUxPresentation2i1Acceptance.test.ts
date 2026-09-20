@@ -391,14 +391,19 @@ describe('Assistant UX 2I.1 mixed assignments + result membership', () => {
       utterance: 'jakie mam 3 najbliższe zlecenia?',
     })
 
-    expect(p.references).toHaveLength(3)
-    expect(p.references?.every((r) => r.role === 'result')).toBe(true)
-    expect(p.references?.map((r) => r.entityId)).toEqual([W1, W2, S1])
-    expect(p.references?.map((r) => r.actions[0]?.type)).toEqual([
-      'open_wedding',
-      'open_wedding',
-      'open_session',
-    ])
+    expect(p.references?.filter((r) => r.role === 'result')).toHaveLength(3)
+    expect(p.references?.filter((r) => r.kind === 'calendar')).toHaveLength(1)
+    expect(
+      p.references?.find((r) => r.kind === 'calendar')?.actions[0],
+    ).toEqual({ type: 'open_calendar', date: '2026-09-16' })
+    expect(
+      p.references?.filter((r) => r.role === 'result').map((r) => r.entityId),
+    ).toEqual([W1, W2, S1])
+    expect(
+      p.references
+        ?.filter((r) => r.role === 'result')
+        .map((r) => r.actions[0]?.type),
+    ).toEqual(['open_wedding', 'open_wedding', 'open_session'])
 
     const plan = derivePresentationDisplayPlan({
       utterance: 'jakie mam 3 najbliższe zlecenia?',
@@ -407,6 +412,94 @@ describe('Assistant UX 2I.1 mixed assignments + result membership', () => {
     expect(plan.mode).toBe('collection')
     expect(plan.displayReferences).toHaveLength(3)
     expect(plan.displayReferences.some((r) => r.entityId === W3)).toBe(false)
+  })
+
+  it('TEST 9b — calendar day ask does not leak open-ended nearest future rows', () => {
+    const store = new V7ResourceSetStore({
+      sessionId: 'v7-test-session-day',
+      tenantKey: 'tenant-test',
+    })
+    const today = '2026-09-20'
+    const weddings = store.create({
+      resourceType: 'wedding',
+      memberIds: [W1, W2, W3],
+      description: 'weddings',
+    })
+    const sessions = store.create({
+      resourceType: 'session',
+      memberIds: [S1],
+      description: 'sessions',
+    })
+
+    const p = projectV7PresentationTurn({
+      result: baseResult({
+        userText:
+          'Dzisiaj masz wesele: Martyna Napieralska i Damian Urbański.',
+        toolCalls: [
+          {
+            name: 'select_nearest_assignments',
+            args: { limit: 4, date_start: today },
+            result: {
+              ok: true,
+              count: 4,
+              limit: 4,
+              date_start: today,
+              date_end: null,
+              wedding_handle: weddings.handle,
+              session_handle: sessions.handle,
+              selected: [
+                {
+                  ordinal: 1,
+                  resource_type: 'wedding',
+                  display_name: 'Martyna Napieralska i Damian Urbański',
+                  date: today,
+                  set_ordinal: 1,
+                },
+                {
+                  ordinal: 2,
+                  resource_type: 'session',
+                  display_name: 'Sesja produktowa — katalog Jesień',
+                  date: '2026-10-05',
+                  set_ordinal: 1,
+                },
+                {
+                  ordinal: 3,
+                  resource_type: 'wedding',
+                  display_name: 'Joanna Chowaka i Karol Nowak',
+                  date: '2026-11-26',
+                  set_ordinal: 2,
+                },
+                {
+                  ordinal: 4,
+                  resource_type: 'wedding',
+                  display_name: 'Zuzanna Nowak i Adam Kowalewski',
+                  date: '2026-11-30',
+                  set_ordinal: 3,
+                },
+              ],
+            },
+          },
+        ],
+      }),
+      store,
+      binding: store.binding,
+      utterance: 'co mam dzisiaj?',
+    })
+
+    const plan = derivePresentationDisplayPlan({
+      utterance: 'co mam dzisiaj?',
+      presentationTurn: p,
+    })
+    expect(plan.intent).toBe('calendar')
+    expect(plan.displayReferences).toHaveLength(1)
+    expect(plan.displayReferences[0]?.entityId).toBe(W1)
+    expect(plan.displayReferences[0]?.detail).toBe(today)
+    expect(
+      plan.displayReferences.some((r) => r.detail === '2026-10-05'),
+    ).toBe(false)
+    expect(
+      plan.displayReferences.some((r) => r.detail === '2026-11-26'),
+    ).toBe(false)
   })
 
   it('TEST 10 — najdroższe single winner; no evidence leak', () => {
