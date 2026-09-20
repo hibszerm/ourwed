@@ -28,6 +28,7 @@ export async function writeTransformedDocx(input: {
   const insertions = (input.paragraphInsertions ?? []).map((ins) => ({
     afterIndex: ins.afterParagraphIndex,
     paragraphs: ins.paragraphs,
+    listNumbering: ins.listNumbering ?? 'detach',
   }))
 
   return applyDocxParagraphEditsAndInsertions(

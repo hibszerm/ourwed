@@ -7,6 +7,12 @@ import type { TransformDocumentBlock, TransformedBlock } from './types'
 export type ContractParagraphInsertion = {
   afterParagraphIndex: number
   paragraphs: string[]
+  /**
+   * CG7: when inserting new paragraphs after a numbered anchor, detach
+   * Word list numbering (numPr) so extras do not continue outer clause numbers.
+   * Default for additional-services path: 'detach'.
+   */
+  listNumbering?: 'detach' | 'inherit'
 }
 
 export function expandBlocksWithParagraphInsertions(input: {

@@ -184,6 +184,7 @@ function replaceRunText(runXml: string, nextText: string): string {
 function replaceParagraphTextWhole(
   paragraphXml: string,
   nextText: string,
+  opts?: { stripListNumbering?: boolean },
 ): string {
   const firstRunMatch = paragraphXml.match(/<w:r\b[\s\S]*?<\/w:r>/)
   let rPr = ''
@@ -193,17 +194,39 @@ function replaceParagraphTextWhole(
   }
 
   const pPrMatch = paragraphXml.match(/<w:pPr\b[\s\S]*?<\/w:pPr>/)
-  const pPr = pPrMatch ? pPrMatch[0] : ''
+  let pPr = pPrMatch ? pPrMatch[0] : ''
+  if (opts?.stripListNumbering && pPr) {
+    pPr = stripParagraphListNumbering(pPr)
+  }
 
   const escaped = escapeXml(nextText)
   const run = `<w:r>${rPr}<w:t xml:space="preserve">${escaped}</w:t></w:r>`
   return `<w:p>${pPr}${run}</w:p>`
 }
 
+/**
+ * Remove Word numbering properties from paragraph properties so cloned
+ * insertions do not continue an outer numbered list (CG7 extras integrity).
+ */
+export function stripParagraphListNumbering(pPrXml: string): string {
+  let next = pPrXml.replace(/<w:numPr\b[\s\S]*?<\/w:numPr>/g, '')
+  next = next.replace(/<w:numPr\b[^]*?\/>/g, '')
+  // Empty <w:pPr></w:pPr> → drop entirely
+  if (/^<w:pPr\b[^>]*\/>$/.test(next.trim()) || /^<w:pPr\b[^>]*>\s*<\/w:pPr>$/.test(next.trim())) {
+    return ''
+  }
+  return next
+}
+
 export type DocxParagraphInsertion = {
   /** Insert new paragraphs immediately after this document paragraph index. */
   afterIndex: number
   paragraphs: string[]
+  /**
+   * 'detach' (default for contract extras): strip numPr from cloned pPr.
+   * 'inherit': keep anchor list numbering (rare; existing list continuity).
+   */
+  listNumbering?: 'detach' | 'inherit'
 }
 
 export type DocxParagraphEdit = {
@@ -282,6 +305,8 @@ export async function applyDocxParagraphEdits(
 /**
  * Insert new paragraphs after specific document indices (sorted internally).
  * Clones paragraph properties from the anchor paragraph for consistent styling.
+ * By default detaches Word list numbering (numPr) so inserted extras do not
+ * continue outer legal-clause numbers (CG7).
  */
 export async function applyDocxParagraphInsertions(
   bytes: ArrayBuffer,
@@ -301,10 +326,15 @@ export async function applyDocxParagraphInsertions(
     paragraphs.push(m[0]!)
   }
 
-  const byAfter = new Map<number, string[]>()
+  type Pending = { text: string; listNumbering: 'detach' | 'inherit' }
+  const byAfter = new Map<number, Pending[]>()
   for (const ins of insertions) {
     const existing = byAfter.get(ins.afterIndex) ?? []
-    byAfter.set(ins.afterIndex, [...existing, ...ins.paragraphs])
+    const mode = ins.listNumbering ?? 'detach'
+    byAfter.set(ins.afterIndex, [
+      ...existing,
+      ...ins.paragraphs.map((text) => ({ text, listNumbering: mode })),
+    ])
   }
 
   const nextParagraphs: string[] = []
@@ -313,8 +343,12 @@ export async function applyDocxParagraphInsertions(
     const toInsert = byAfter.get(i)
     if (!toInsert?.length) continue
     const template = paragraphs[i]!
-    for (const text of toInsert) {
-      nextParagraphs.push(replaceParagraphTextWhole(template, canonicalizeParagraphText(text)))
+    for (const item of toInsert) {
+      nextParagraphs.push(
+        replaceParagraphTextWhole(template, canonicalizeParagraphText(item.text), {
+          stripListNumbering: item.listNumbering !== 'inherit',
+        }),
+      )
     }
   }
 

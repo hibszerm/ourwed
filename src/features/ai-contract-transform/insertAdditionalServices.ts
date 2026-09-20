@@ -18,7 +18,6 @@ import {
 } from './additionalServicesPlacement'
 import type { ContractParagraphInsertion } from './expandBlocksWithInsertions'
 import { findSignatureStartIndex } from './packageDeliverablesDetection'
-import { normalizeForMatch } from './quality/normalize'
 import type {
   ContractTransformationDataset,
   TransformDocumentBlock,
@@ -254,6 +253,7 @@ export function insertAdditionalServicesIntoBlocks(input: {
         {
           afterParagraphIndex: anchor.paragraphIndex,
           paragraphs: renderSeparateAdditionalServicesParagraphs(names),
+          listNumbering: 'detach',
         },
       ]
       break
@@ -270,19 +270,13 @@ export function insertAdditionalServicesIntoBlocks(input: {
       const anchor = input.sourceBlocks.find((b) => b.blockId === targetId)
       if (!anchor) break
       const fallbackParagraphs = renderSeparateAdditionalServicesParagraphs(names)
-      const isEmpty = normalizeForMatch(anchor.text).length < 3
-      if (isEmpty) {
-        paragraphInsertions = [
-          { afterParagraphIndex: anchor.paragraphIndex, paragraphs: fallbackParagraphs },
-        ]
-      } else {
-        paragraphInsertions = [
-          {
-            afterParagraphIndex: anchor.paragraphIndex,
-            paragraphs: fallbackParagraphs,
-          },
-        ]
-      }
+      paragraphInsertions = [
+        {
+          afterParagraphIndex: anchor.paragraphIndex,
+          paragraphs: fallbackParagraphs,
+          listNumbering: 'detach',
+        },
+      ]
       break
     }
     default:
