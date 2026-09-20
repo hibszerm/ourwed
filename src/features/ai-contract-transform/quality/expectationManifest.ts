@@ -21,6 +21,10 @@ import {
   renderReceptionLocationClause,
 } from './locationRendering'
 import { normalizeForMatch, textContainsNormalized } from './normalize'
+import {
+  discoverFilledPartyEvidence,
+  type SourcePartyEvidence as PartyEvidenceRuntime,
+} from './partyFilledIdentity'
 import type {
   CanonicalTransformField,
   ConsistencyRule,
@@ -28,6 +32,7 @@ import type {
   ProtectedFieldExpectation,
   RequiredFieldExpectation,
   RequiredReplacement,
+  SourcePartyEvidence,
   SourceSpecificValue,
   TransformationExpectationManifest,
 } from './types'
@@ -129,6 +134,45 @@ export function buildExpectationManifest(input: {
   const sourceSpecificValues: SourceSpecificValue[] = []
   const requiredFields: RequiredFieldExpectation[] = []
   const requiredReplacements: RequiredReplacement[] = []
+
+  // CG7.1 — discover filled (non-placeholder) contracting-party blocks structurally
+  const filledPartyEvidence: SourcePartyEvidence[] = discoverFilledPartyEvidence(
+    blocks,
+  ).map((e: PartyEvidenceRuntime) => ({
+    blockId: e.blockId,
+    sourceText: e.sourceText,
+    identitySurfaces: e.identitySurfaces,
+  }))
+  for (const ev of filledPartyEvidence) {
+    for (const surface of ev.identitySurfaces) {
+      pushSourceValue(sourceSpecificValues, {
+        field: 'customer.names',
+        value: surface,
+        blocks,
+      })
+    }
+    // Also inventory phone/address surfaces that live in the same party clause
+    const phone = ev.sourceText.match(
+      /(?:tel\.?\s*)?((?:\+48[\s-]?)?(?:\d{3}[\s-]?\d{3}[\s-]?\d{3}|\d{9}))/i,
+    )
+    if (phone?.[1]) {
+      pushSourceValue(sourceSpecificValues, {
+        field: 'customer.phone',
+        value: phone[1],
+        blocks,
+      })
+    }
+    const addr = ev.sourceText.match(
+      /zam\.\s*([^,]+(?:,\s*\d{2}-\d{3}\s+[A-ZĄĆĘŁŃÓŚŹŻ][a-ząćęłńóśźż]+)?)/i,
+    )
+    if (addr?.[1]) {
+      pushSourceValue(sourceSpecificValues, {
+        field: 'customer.address',
+        value: addr[1].trim(),
+        blocks,
+      })
+    }
+  }
 
   // --- inventory old customer/wedding values from party / location rows & body ---
   for (const b of blocks) {
@@ -261,26 +305,53 @@ export function buildExpectationManifest(input: {
     })
   }
 
-  const nameBlocks = findBlocksContaining(
-    blocks,
-    sourceSpecificValues
+  const nameSourceValues = [
+    ...sourceSpecificValues
       .filter((s) => s.canonicalField === 'customer.names')
       .map((s) => s.sourceValue),
-  )
+    ...(blocks.some((b) => b.text.includes('PLACEHOLDER_STRONY'))
+      ? ['PLACEHOLDER_STRONY']
+      : []),
+  ]
+  const nameBlocks = [
+    ...new Set([
+      ...findBlocksContaining(blocks, nameSourceValues),
+      ...filledPartyEvidence.map((e) => e.blockId),
+    ]),
+  ]
   addRequired(
     'customer.names',
-    [
-      ...sourceSpecificValues
-        .filter((s) => s.canonicalField === 'customer.names')
-        .map((s) => s.sourceValue),
-      ...(blocks.some((b) => b.text.includes('PLACEHOLDER_STRONY'))
-        ? ['PLACEHOLDER_STRONY']
-        : []),
-    ],
+    nameSourceValues,
     [dataset.clients.displayNames],
     'must_replace_source',
-    [{ kind: 'party_table', blockIds: nameBlocks }],
+    [
+      {
+        kind:
+          filledPartyEvidence.length > 0 &&
+          !blocks.some((b) => b.tableContext?.ownershipFamily === 'customer')
+            ? 'opening_paragraph'
+            : 'party_table',
+        blockIds: nameBlocks,
+      },
+    ],
   )
+
+  // Explicit requiredReplacement for filled party blocks so the model sees
+  // sourceBlockIds even when sourceValues alone would miss declined forms.
+  if (filledPartyEvidence.length > 0 && dataset.clients.displayNames) {
+    const partySourceValues = [
+      ...new Set(filledPartyEvidence.flatMap((e) => e.identitySurfaces)),
+    ]
+    const partyBlockIds = filledPartyEvidence.map((e) => e.blockId)
+    requiredReplacements.push({
+      canonicalField: 'customer.names',
+      sourceValues: partySourceValues,
+      targetRenderedValues: [dataset.clients.displayNames],
+      sourceBlockIds: partyBlockIds,
+      requiredContextBlockIds: partyBlockIds,
+      replacementPolicy: 'replace_in_contexts',
+    })
+  }
 
   if (dataset.clients.address) {
     const addrBlocks = findBlocksContaining(
@@ -559,5 +630,8 @@ export function buildExpectationManifest(input: {
     sourceSpecificValues,
     requiredReplacements,
     ...(additionalServices ? { additionalServices } : {}),
+    ...(filledPartyEvidence.length > 0
+      ? { sourcePartyEvidence: filledPartyEvidence }
+      : {}),
   }
 }

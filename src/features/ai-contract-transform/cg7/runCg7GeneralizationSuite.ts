@@ -138,6 +138,13 @@ function languageCheck(texts: string[], scenario: Cg7Scenario): {
   ) {
     return { grade: 'BAD', detail: 'invented_partner_grammar' }
   }
+  // Provider-role case damage in legal clauses (U01 regression evidence)
+  if (
+    /portfolio\s+Filmowiec\b/i.test(blob) ||
+    /przysługują\s+Filmowiec\b/i.test(blob)
+  ) {
+    return { grade: 'BAD', detail: 'provider_role_case_damage' }
+  }
   return { grade: 'GOOD', detail: 'ok' }
 }
 

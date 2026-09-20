@@ -100,18 +100,22 @@ async function pack(body: string): Promise<ArrayBuffer> {
   return zip.generateAsync({ type: 'arraybuffer', compression: 'DEFLATE' })
 }
 
-const LEGAL_TAIL_COMMON = (provider: string) => [
+const LEGAL_TAIL_COMMON = (provider: {
+  nom: string
+  gen: string
+  dat: string
+}) => [
   p(
-    `W przypadku rozwiązania Umowy z przyczyn leżących po stronie Zamawiającego, ${provider} ma prawo zatrzymać otrzymaną wpłatę wstępną.`,
+    `W przypadku rozwiązania Umowy z przyczyn leżących po stronie Zamawiającego, ${provider.nom} ma prawo zatrzymać otrzymaną wpłatę wstępną.`,
   ),
   p(
-    `Zamawiający wyraża zgodę na publikację wybranych ujęć w portfolio ${provider}, na stronie internetowej oraz w mediach społecznościowych, o ile nie zgłosi sprzeciwu na piśmie przed przekazaniem materiałów.`,
+    `Zamawiający wyraża zgodę na publikację wybranych ujęć w portfolio ${provider.gen}, na stronie internetowej oraz w mediach społecznościowych, o ile nie zgłosi sprzeciwu na piśmie przed przekazaniem materiałów.`,
   ),
   p(
-    `Prawa autorskie do utworów powstałych w ramach Umowy przysługują ${provider}. Zamawiający otrzymuje niewyłączną licencję na prywatne korzystanie z materiałów.`,
+    `Prawa autorskie do utworów powstałych w ramach Umowy przysługują ${provider.dat}. Zamawiający otrzymuje niewyłączną licencję na prywatne korzystanie z materiałów.`,
   ),
   p(
-    `${provider} nie wyraża zgody na ingerencję w przekazany materiał zmieniającą jego charakter artystyczny bez uzgodnienia.`,
+    `${provider.nom} nie wyraża zgody na ingerencję w przekazany materiał zmieniającą jego charakter artystyczny bez uzgodnienia.`,
   ),
   p(
     'Zamawiający oświadcza, że zapoznał się z portfolio i akceptuje styl realizacji oraz sposób obróbki cyfrowej.',
@@ -176,7 +180,11 @@ function bodyU01(): string {
       '4. Każda dodatkowa godzina pracy powyżej 10 godzin w dniu ślubu kosztuje 450 zł.',
     ),
     p('§ 4 Postanowienia końcowe', { bold: true }),
-    ...LEGAL_TAIL_COMMON('Filmowiec'),
+    ...LEGAL_TAIL_COMMON({
+      nom: 'Filmowiec',
+      gen: 'Filmowca',
+      dat: 'Filmowcowi',
+    }),
   ].join('')
 }
 

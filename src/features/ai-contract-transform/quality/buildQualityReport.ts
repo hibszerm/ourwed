@@ -28,6 +28,10 @@ import {
   verifyReferenceNumberConsistency,
 } from './locationAndReferenceConsistency'
 import { documentHasUnresolvedPartyPlaceholder } from './partyPlaceholderRepair'
+import {
+  verifyFilledPartyIdentity,
+  verifyProviderRoleSparseScope,
+} from './partyFilledIdentity'
 import type {
   DocumentQualityReport,
   QualityIssue,
@@ -47,6 +51,15 @@ const MODE_A_FINANCIAL_BLOCK_CODES = new Set([
 /** Party placeholder integrity — known structural slots must not remain unresolved. */
 const MODE_A_PARTY_PLACEHOLDER_CODES = new Set([
   'unresolved_party_placeholder',
+])
+
+/** CG7.1 — filled-party identity / stale contracting-client identity. */
+const MODE_A_PARTY_IDENTITY_CODES = new Set([
+  'stale_party_identity_remaining',
+  'party_identity_canonical_missing',
+  'party_identity_block_empty',
+  'invented_second_party',
+  'unnecessary_provider_role_rewrite',
 ])
 
 /** Location integrity codes that block Mode A product download (A5). */
@@ -200,6 +213,19 @@ export function buildQualityReport(input: {
     }
   }
 
+  const partyEvidence = manifest.sourcePartyEvidence ?? []
+  const filledPartyIssues = verifyFilledPartyIdentity({
+    evidence: partyEvidence,
+    sourceBlocks: input.sourceBlocks,
+    transformedBlocks: input.transformedBlocks,
+    dataset: input.dataset,
+  })
+  const providerScopeIssues = verifyProviderRoleSparseScope({
+    sourceBlocks: input.sourceBlocks,
+    transformedBlocks: input.transformedBlocks,
+    partyEvidence,
+  })
+
   const allIssues: QualityIssue[] = [
     ...completeness.issues,
     ...financial.issues,
@@ -209,6 +235,8 @@ export function buildQualityReport(input: {
     ...protectionIssues,
     ...additionalServicesIssues,
     ...partyPlaceholderIssues,
+    ...filledPartyIssues,
+    ...providerScopeIssues,
   ]
 
   // Deduplicate by code+field+block
@@ -312,7 +340,14 @@ export function runPostReconstructionQualityGate(input: {
     const partyPlaceholderBlock = report.blockingIssues.some((i) =>
       MODE_A_PARTY_PLACEHOLDER_CODES.has(i.code),
     )
-    downloadAllowed = !financialBlock && !locationBlock && !partyPlaceholderBlock
+    const partyIdentityBlock = report.blockingIssues.some((i) =>
+      MODE_A_PARTY_IDENTITY_CODES.has(i.code),
+    )
+    downloadAllowed =
+      !financialBlock &&
+      !locationBlock &&
+      !partyPlaceholderBlock &&
+      !partyIdentityBlock
   }
 
   return {
@@ -324,4 +359,8 @@ export function runPostReconstructionQualityGate(input: {
   }
 }
 
-export { MODE_A_FINANCIAL_BLOCK_CODES, MODE_A_PARTY_PLACEHOLDER_CODES }
+export {
+  MODE_A_FINANCIAL_BLOCK_CODES,
+  MODE_A_PARTY_PLACEHOLDER_CODES,
+  MODE_A_PARTY_IDENTITY_CODES,
+}

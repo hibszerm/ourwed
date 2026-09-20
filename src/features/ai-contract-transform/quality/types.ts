@@ -85,6 +85,13 @@ export type AdditionalServicesExpectation = {
   quantitiesMustNotAppear: true
 }
 
+/** Structurally identified contracting-client identity clause (CG7.1). */
+export type SourcePartyEvidence = {
+  blockId: string
+  sourceText: string
+  identitySurfaces: string[]
+}
+
 export type TransformationExpectationManifest = {
   requiredFields: RequiredFieldExpectation[]
   protectedFields: ProtectedFieldExpectation[]
@@ -92,6 +99,8 @@ export type TransformationExpectationManifest = {
   sourceSpecificValues: SourceSpecificValue[]
   requiredReplacements: RequiredReplacement[]
   additionalServices?: AdditionalServicesExpectation
+  /** Filled-template party blocks discovered structurally (not placeholders). */
+  sourcePartyEvidence?: SourcePartyEvidence[]
 }
 
 export type RequiredReplacement = {

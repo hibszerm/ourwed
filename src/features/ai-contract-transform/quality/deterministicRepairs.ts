@@ -138,6 +138,23 @@ export function applyDeterministicRepairs(input: {
       if (idx < 0) continue
       const b = blocks[idx]!
       if (!b.text.includes(sourceVal)) continue
+
+      // CG7.1: filled party *clauses* need a complete model rewrite (Polish grammar).
+      // Do not token-swap nominative displayNames into declined instrumental/dative prose.
+      // Short table cells where the whole block IS the name remain eligible.
+      if (rep.canonicalField === 'customer.names') {
+        const evidence = input.manifest.sourcePartyEvidence?.find(
+          (e) => e.blockId === blockId,
+        )
+        if (
+          evidence &&
+          evidence.sourceText.trim() !== sourceVal.trim() &&
+          evidence.sourceText.trim().length > sourceVal.trim().length + 8
+        ) {
+          continue
+        }
+      }
+
       // Exact one occurrence preferred
       const count = b.text.split(sourceVal).length - 1
       if (count !== 1) continue
