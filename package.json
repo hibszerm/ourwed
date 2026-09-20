@@ -137,7 +137,6 @@
     "test:wedding-correspondence": "npx tsx --tsconfig tsconfig.app.json src/features/weddings/correspondence/weddingCorrespondenceAcceptance.test.ts",
     "test:wedding-detail-v3": "npx tsx --tsconfig tsconfig.app.json src/features/weddings/detail/weddingDetailV3Acceptance.test.ts",
     "test:contract-production-workflow": "npx tsx --tsconfig tsconfig.app.json src/features/documents/contractProductionWorkflowAcceptance.test.ts",
-    "test:ai-contract-transform": "npx tsx --tsconfig tsconfig.app.json src/features/ai-contract-transform/transformComparisonAcceptance.test.ts",
     "test:ai-contract-transform-errors": "npx tsx --tsconfig tsconfig.app.json src/features/ai-contract-transform/transformErrorHandling.test.ts",
     "test:ai-contract-transform-sparse": "npx tsx --tsconfig tsconfig.app.json src/features/ai-contract-transform/sparseReconstruction.test.ts",
     "test:ai-contract-transform-quality": "npx tsx --tsconfig tsconfig.app.json src/features/ai-contract-transform/transformQualityFixes.test.ts",

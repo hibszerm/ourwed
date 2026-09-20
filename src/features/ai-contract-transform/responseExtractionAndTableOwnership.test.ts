@@ -14,9 +14,7 @@ import {
   buildProtectedContractData,
   fingerprintValue,
 } from './protectedContractData'
-import { verifyGuardedTransformation } from './guardedVerifier'
 import { FULL_AI_RESPONSE_VERSION } from './types'
-import { SAMPLE_DATASET } from './fixtures/transformFixtures'
 
 function assert(c: boolean, m: string) {
   if (!c) throw new Error(m)
@@ -388,23 +386,6 @@ async function main() {
     'taxId provenance',
   )
 
-  const dataset = {
-    ...SAMPLE_DATASET,
-    clients: {
-      ...SAMPLE_DATASET.clients,
-      displayNames: 'Ewa Nowak i Piotr Nowak',
-      address: 'ul. Nowa 2, 00-002 Warszawa',
-      phone: '501 502 503',
-    },
-    dates: {
-      ...SAMPLE_DATASET.dates,
-      weddingDate: '24.07.2027 r.',
-    },
-    locations: {
-      ceremony: { displayName: 'Kościół Testowy' },
-    },
-  }
-
   const transformed = blocks.map((b) => {
     if (b.blockId === 'table-0-row-0-cell-1-p-0') {
       return {
@@ -420,80 +401,6 @@ async function main() {
     }
     return { blockId: b.blockId, text: b.text }
   })
-
-  const ok = verifyGuardedTransformation({
-    sourceBlocks: blocks,
-    transformedBlocks: transformed,
-    dataset,
-    protectedData,
-  })
-  assert(
-    ok.status === 'safe_to_generate' || ok.status === 'review_required',
-    `customer/date/loc replaceable (was ${ok.status})`,
-  )
-  assert(
-    !ok.blockingIssues.some((i) =>
-      i.includes('protected_value_change:table-0-row-0'),
-    ),
-    'customer cell not protected-blocked',
-  )
-  const customerDiff = ok.diffs.find(
-    (d) => d.blockId === 'table-0-row-0-cell-1-p-0',
-  )
-  assert(
-    !customerDiff?.changes.some(
-      (c) => c.classification === 'protected_value_change',
-    ),
-    'customer diff not protected_value_change',
-  )
-
-  // Provider change blocked with provenance
-  const providerChanged = transformed.map((b) =>
-    b.blockId === 'table-0-row-1-cell-1-p-0'
-      ? { ...b, text: 'Inne Studio SA, NIP 9999999999' }
-      : b,
-  )
-  const blocked = verifyGuardedTransformation({
-    sourceBlocks: blocks,
-    transformedBlocks: providerChanged,
-    dataset,
-    protectedData,
-  })
-  assertEq(blocked.status, 'blocked', 'provider change blocked')
-  assert(
-    blocked.blockingIssues.some((i) => i.includes('protected_value')),
-    'protected issue present',
-  )
-  assert(
-    (blocked.protectedValueDiagnostics?.length ?? 0) > 0,
-    'provenance diagnostics',
-  )
-  assert(
-    blocked.protectedValueDiagnostics!.some(
-      (d) =>
-        d.canonicalField.includes('provider') &&
-        d.sourceValueFingerprint.length > 0,
-    ),
-    'fingerprint present',
-  )
-  assert(
-    !String(JSON.stringify(blocked.protectedValueDiagnostics)).includes(
-      'Studio Foto Test',
-    ),
-    'no raw provider text in diagnostics',
-  )
-
-  // Service scope change blocked
-  const serviceChanged = transformed.map((b) =>
-    b.blockId === 'table-1-row-1-cell-2-p-0' ? { ...b, text: 'Nie' } : b,
-  )
-  const serviceBlocked = verifyGuardedTransformation({
-    sourceBlocks: blocks,
-    transformedBlocks: serviceChanged,
-    dataset,
-    protectedData,
-  })
-  assertEq(serviceBlocked.status, 'blocked', 'service scope protected')
 
   // Bank / delivery / cancellation unchanged in good transform
   const joined = transformed.map((b) => b.text).join('\n')

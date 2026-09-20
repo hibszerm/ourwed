@@ -12,13 +12,11 @@ import {
 import {
   parseSparseV2ModelPayload,
   type FullAiSparseResponseV2,
-  type GuardedAiSparseResponseV2,
 } from './sparseResponseSchema'
 import { applySparseBlockChanges } from './applySparseBlockChanges'
 import { blocksFromPlainParagraphs } from './indexDocxForTransform'
 import {
   FULL_AI_RESPONSE_VERSION,
-  GUARDED_AI_RESPONSE_VERSION,
 } from './types'
 
 function assert(c: boolean, m: string) {
@@ -63,20 +61,6 @@ async function main() {
       'full injects version',
     )
     assertEq(full.modelSchemaVersion, MODEL_SCHEMA_VERSION, 'model schema v')
-  }
-
-  const guarded = parseSparseV2FromResponse({
-    body: completedMessage(onlyChanged),
-    applicationResponseVersion: GUARDED_AI_RESPONSE_VERSION,
-  })
-  assert(guarded.ok, 'guarded model-only ok')
-  if (guarded.ok) {
-    // 4 inject guarded version
-    assertEq(
-      guarded.applicationResponseVersion,
-      GUARDED_AI_RESPONSE_VERSION,
-      'guarded injects version',
-    )
   }
 
   // 5 model cannot control final version
@@ -156,23 +140,6 @@ async function main() {
       changedBlocks: clientFull.changedBlocks,
     }
     assertEq(envelope.responseVersion, FULL_AI_RESPONSE_VERSION, 'typed full')
-  }
-  const clientGuarded = parseSparseV2ModelPayload('guarded_ai_transform', {
-    changedBlocks: [{ blockId: 'para-0', text: 'Z' }],
-    responseVersion: 'wrong',
-  })
-  assert(clientGuarded.ok, 'client guarded ignores wrong')
-  if (clientGuarded.ok) {
-    const envelope: GuardedAiSparseResponseV2 = {
-      responseVersion: GUARDED_AI_RESPONSE_VERSION,
-      changedBlocks: clientGuarded.changedBlocks,
-    }
-    assertEq(
-      envelope.responseVersion,
-      GUARDED_AI_RESPONSE_VERSION,
-      'typed guarded',
-    )
-    assertEq(clientGuarded.responseVersion, GUARDED_AI_RESPONSE_VERSION, 'inject')
   }
 
   // No retry for schema-invalid (would include old version mismatch — now ignored)

@@ -13,9 +13,6 @@ import {
   shouldRetryIncomplete,
 } from './incompleteResponsePolicy'
 import { blocksFromPlainParagraphs } from './indexDocxForTransform'
-import { buildModeADiagnostics } from './modeADiagnostics'
-import { buildProtectedContractData } from './protectedContractData'
-import { verifyGuardedTransformation } from './guardedVerifier'
 import {
   assertSparseOutputContract,
   parseSparseV2ModelPayload,
@@ -131,29 +128,6 @@ async function main() {
     'empty text rejected',
   )
 
-  // 8 Mode A diagnostics on reconstructed
-  const protectedData = buildProtectedContractData({
-    blockTexts: source.map((b) => b.text),
-  })
-  const modeA = buildModeADiagnostics({
-    sourceBlocks: source,
-    transformedBlocks: rebuilt.blocks,
-    dataset: SAMPLE_DATASET,
-    protectedData,
-  })
-  assert(modeA.diagnostics.changedBlockCount >= 1, 'mode A sees changes')
-  assertEq(modeA.diagnostics.unchangedBlockCount, 45, 'mode A unchanged count')
-
-  // 9 Guarded verifier on reconstructed
-  const modeB = verifyGuardedTransformation({
-    sourceBlocks: source,
-    transformedBlocks: rebuilt.blocks,
-    dataset: SAMPLE_DATASET,
-    protectedData,
-  })
-  assert(Array.isArray(modeB.diffs), 'guarded diffs')
-  assert(modeB.structureOk, 'structure ok after reconstruct')
-
   // 10 DOCX writer receives full reconstructed length (mock contract)
   const docxInputBlocks: TransformedBlock[] = rebuilt.blocks
   assertEq(docxInputBlocks.length, source.length, 'docx gets full blocks')
@@ -169,7 +143,7 @@ async function main() {
     reasoning: 'nope',
   })
   assert(!verbose.ok && verbose.code === 'unexpected_fields', 'rejects verbose')
-  const blockNotes = parseSparseV2ModelPayload('guarded_ai_transform', {
+  const blockNotes = parseSparseV2ModelPayload('full_ai_trusted_rewrite', {
     changedBlocks: [{ blockId: 'para-1', text: 'x', explanation: 'no' }],
   })
   assert(

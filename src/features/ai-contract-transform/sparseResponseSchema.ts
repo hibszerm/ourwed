@@ -4,7 +4,6 @@
 
 import {
   FULL_AI_RESPONSE_VERSION,
-  GUARDED_AI_RESPONSE_VERSION,
   type TransformMode,
   type TransformedBlock,
 } from './types'
@@ -25,11 +24,6 @@ export type FullAiSparseResponseV2 = {
   changedBlocks: SparseChangedBlock[]
 }
 
-export type GuardedAiSparseResponseV2 = {
-  responseVersion: typeof GUARDED_AI_RESPONSE_VERSION
-  changedBlocks: SparseChangedBlock[]
-}
-
 export type SparseV2ParseResult =
   | {
       ok: true
@@ -42,18 +36,12 @@ export type SparseV2ParseResult =
 
 const ALLOWED_BLOCK_KEYS = new Set(['blockId', 'text'])
 
-function trustedVersion(mode: TransformMode): string {
-  return mode === 'full_ai_trusted_rewrite'
-    ? FULL_AI_RESPONSE_VERSION
-    : GUARDED_AI_RESPONSE_VERSION
-}
-
 /**
  * Validate raw model / Edge-returned changedBlocks payload.
  * Ignores legacy responseVersion; injects trusted application version.
  */
 export function parseSparseV2ModelPayload(
-  mode: TransformMode,
+  _mode: TransformMode,
   payload: unknown,
 ): SparseV2ParseResult {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
@@ -127,7 +115,7 @@ export function parseSparseV2ModelPayload(
 
   return {
     ok: true,
-    responseVersion: trustedVersion(mode),
+    responseVersion: FULL_AI_RESPONSE_VERSION,
     changedBlocks,
     modelSchemaVersion: MODEL_SCHEMA_VERSION,
     ignoredModelResponseVersion,
@@ -148,9 +136,7 @@ export function assertSparseOutputContract(promptText: string): boolean {
 }
 
 export function isLegacyV1ResponseVersion(version: string): boolean {
-  return (
-    version === '2026-07-full-ai-v1' || version === '2026-07-guarded-ai-v1'
-  )
+  return version === '2026-07-full-ai-v1'
 }
 
 export function parseLegacyV1TransformedBlocks(
