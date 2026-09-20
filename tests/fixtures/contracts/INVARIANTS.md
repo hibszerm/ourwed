@@ -31,3 +31,4 @@ I26. Extras prices/quantities must not appear as invented commercial lines in th
 I27. Prefer fail-safe / skip insert over unsafe placement (`safe_placement_not_found`).
 I28. Headers/footers must remain untouched (body-only mutation).
 I29. Production artifact guard (`validate:production-supabase-artifact`) must remain intact.
+I30. Additional-services listing shows NAMES only — never individual extras prices next to each service. Total contract/commercial value must still reflect canonical OurWed commercial truth.
