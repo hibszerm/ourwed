@@ -16,6 +16,15 @@ import { V7_NATIVE_TOOLS } from './nativeTools'
 import type { V7ProviderUsage } from './invokeStep'
 import { buildV7SystemPrompt } from './prompt'
 import { getActiveV7LatencyTrace } from '../diagnostics/latencyTrace'
+import {
+  copyForBlockedDisposition,
+  isV7AllowedDisposition,
+  isV7BlockedDisposition,
+  parseV7TurnDisposition,
+  V7_REPORT_TURN_SCOPE_TOOL,
+  wrapV7ToolResultAsUntrustedData,
+  type V7TurnDisposition,
+} from './domainDisposition'
 
 export const V7_DEFAULT_MODEL = 'gpt-5.6-terra'
 export const V7_MAX_TOOL_CALLS_PER_TURN = 6
@@ -50,6 +59,9 @@ export type V7TurnResult = {
     | 'tool_loop_exceeded'
     | 'provider_error'
     | 'empty'
+    | 'domain_blocked'
+  /** A1 — accepted turn disposition when known (null/absent = unknown). */
+  disposition?: V7TurnDisposition | null
   latency: V7LatencyMarks
   model: string
 }
@@ -155,7 +167,7 @@ async function callModel(input: {
     body.max_completion_tokens = 1200
     body.reasoning_effort = 'none'
     // 2K.9-L3 — same stable key as Edge v7_agent_step (routing only).
-    body.prompt_cache_key = 'ourwed-v7-golden-2k9-tools-v1'
+    body.prompt_cache_key = 'ourwed-v7-golden-a1-domain-v1'
   } else {
     body.temperature = 0
     body.max_tokens = 1200
@@ -277,6 +289,32 @@ function parseArgs(raw: string): unknown {
   }
 }
 
+function finishBlockedTurn(input: {
+  session: V7AgentSession
+  userUtterance: string
+  disposition: V7TurnDisposition | null
+  recorded: V7TurnResult['toolCalls']
+  toolCallCount: number
+  latency: V7LatencyMarks
+  model: string
+  totalStart: number
+}): V7TurnResult {
+  const userText = copyForBlockedDisposition(input.disposition)
+  input.session.history.push({ role: 'user', content: input.userUtterance })
+  input.session.history.push({ role: 'assistant', content: userText })
+  input.latency.totalMs = Date.now() - input.totalStart
+  return {
+    ok: true,
+    userText,
+    toolCalls: input.recorded,
+    toolCallCount: input.toolCallCount,
+    stoppedReason: 'domain_blocked',
+    disposition: input.disposition,
+    latency: input.latency,
+    model: input.model,
+  }
+}
+
 /**
  * Run one user turn through the V7 hybrid direct-tool agent.
  */
@@ -306,6 +344,7 @@ export async function runV7Turn(
       ...(session.deps ?? {}),
       todayKey,
     },
+    blockBusinessTools: false,
   }
 
   const system = buildV7SystemPrompt({
@@ -325,6 +364,9 @@ export async function runV7Turn(
   const recorded: V7TurnResult['toolCalls'] = []
   let toolCallCount = 0
   let firstModel = true
+  /** A1 — disposition accepted for this turn (null = unknown → fail closed). */
+  let acceptedDisposition: V7TurnDisposition | null = null
+  let scopeNudgeUsed = false
   const trace = getActiveV7LatencyTrace()
   trace?.mark('agent_loop_start')
 
@@ -369,6 +411,7 @@ export async function runV7Turn(
         toolCalls: recorded,
         toolCallCount,
         stoppedReason: 'provider_error',
+        disposition: acceptedDisposition,
         latency,
         model,
       }
@@ -378,6 +421,57 @@ export async function runV7Turn(
     const toolCalls = msg.tool_calls ?? []
 
     if (toolCalls.length === 0) {
+      // A1 — free prose without an allowed disposition is a domain backdoor.
+      if (!isV7AllowedDisposition(acceptedDisposition)) {
+        if (!scopeNudgeUsed && toolCallCount === 0) {
+          scopeNudgeUsed = true
+          if (trace && llmIdx > 0) {
+            trace.markLlmEnd(llmIdx, {
+              roundtripMs: call.latencyMs,
+              edgeOpenaiMs: call.edgeOpenaiMs,
+              ...usageAuditFields(call.usage),
+              kind: 'grounding_retry_continue',
+              toolNames: null,
+              toolCount: 0,
+            })
+          }
+          messages.push({
+            role: 'assistant',
+            content: msg.content ?? null,
+          })
+          messages.push({
+            role: 'user',
+            content:
+              'Wymagane: wywołaj report_turn_scope(domain=…) w tej turze. Bez tego nie wolno odpowiadać merytorycznie. Dla pytań poza OurWed użyj domain=off_topic i nic więcej.',
+          })
+          trace?.mark('llm_grounding_retry', {
+            continueReason: 'scope_disposition_required',
+          })
+          continue
+        }
+        if (trace && llmIdx > 0) {
+          trace.markLlmEnd(llmIdx, {
+            roundtripMs: call.latencyMs,
+            edgeOpenaiMs: call.edgeOpenaiMs,
+            ...usageAuditFields(call.usage),
+            kind: 'final_content',
+            toolNames: null,
+            toolCount: 0,
+          })
+        }
+        latency.finalResponseMs = call.latencyMs
+        return finishBlockedTurn({
+          session,
+          userUtterance,
+          disposition: acceptedDisposition,
+          recorded,
+          toolCallCount,
+          latency,
+          model,
+          totalStart,
+        })
+      }
+
       const alreadyRetried = messages.some(
         (m) =>
           m.role === 'user' &&
@@ -432,6 +526,7 @@ export async function runV7Turn(
         toolCalls: recorded,
         toolCallCount,
         stoppedReason: 'final',
+        disposition: acceptedDisposition,
         latency,
         model,
       }
@@ -447,6 +542,32 @@ export async function runV7Turn(
         toolNames: names.join(','),
         toolCount: names.length,
       })
+    }
+
+    // A1 — resolve disposition from this batch before executing business tools.
+    let batchDisposition: V7TurnDisposition | null = null
+    let sawScopeTool = false
+    for (const tc of toolCalls) {
+      if (tc.function.name !== V7_REPORT_TURN_SCOPE_TOOL) continue
+      sawScopeTool = true
+      batchDisposition = parseV7TurnDisposition(parseArgs(tc.function.arguments))
+      break
+    }
+
+    if (sawScopeTool && batchDisposition === null) {
+      // Malformed disposition → fail closed, no business tools.
+      toolCtx.blockBusinessTools = true
+      acceptedDisposition = null
+    } else if (isV7BlockedDisposition(batchDisposition)) {
+      toolCtx.blockBusinessTools = true
+      acceptedDisposition = batchDisposition
+    } else if (isV7AllowedDisposition(batchDisposition)) {
+      toolCtx.blockBusinessTools = false
+      acceptedDisposition = batchDisposition
+    } else if (!isV7AllowedDisposition(acceptedDisposition)) {
+      // Business tools without an allowed disposition this turn → block them.
+      // Still execute report_turn_scope if somehow ordered later (already handled).
+      toolCtx.blockBusinessTools = true
     }
 
     messages.push({
@@ -473,9 +594,53 @@ export async function runV7Turn(
         role: 'tool',
         tool_call_id: tc.id,
         name,
-        content: JSON.stringify(result),
+        content: wrapV7ToolResultAsUntrustedData(result),
       })
     }
+
+    if (isV7BlockedDisposition(acceptedDisposition) || (sawScopeTool && batchDisposition === null)) {
+      return finishBlockedTurn({
+        session,
+        userUtterance,
+        disposition: acceptedDisposition,
+        recorded,
+        toolCallCount,
+        latency,
+        model,
+        totalStart,
+      })
+    }
+
+    // Business tools proposed without any allowed disposition → fail closed.
+    const businessAttempted = toolCalls.some(
+      (t) => t.function.name !== V7_REPORT_TURN_SCOPE_TOOL,
+    )
+    if (businessAttempted && !isV7AllowedDisposition(acceptedDisposition)) {
+      return finishBlockedTurn({
+        session,
+        userUtterance,
+        disposition: acceptedDisposition,
+        recorded,
+        toolCallCount,
+        latency,
+        model,
+        totalStart,
+      })
+    }
+  }
+
+  // Tool-loop exceeded: only allow model summary if disposition was allowed.
+  if (!isV7AllowedDisposition(acceptedDisposition)) {
+    return finishBlockedTurn({
+      session,
+      userUtterance,
+      disposition: acceptedDisposition,
+      recorded,
+      toolCallCount,
+      latency,
+      model,
+      totalStart,
+    })
   }
 
   const llmFinalIdx = trace?.markLlmStart() ?? 0
@@ -521,7 +686,9 @@ export async function runV7Turn(
     toolCalls: recorded,
     toolCallCount,
     stoppedReason: 'tool_loop_exceeded',
+    disposition: acceptedDisposition,
     latency,
     model: finalCall.model || model,
   }
 }
+

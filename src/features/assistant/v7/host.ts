@@ -87,6 +87,7 @@ function unavailableResult(): V7TurnResult {
     toolCalls: [],
     toolCallCount: 0,
     stoppedReason: 'provider_error',
+    disposition: null,
     latency: {
       firstModelMs: null,
       toolExecutionMs: [],

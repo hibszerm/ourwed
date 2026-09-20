@@ -44,6 +44,10 @@ export const ASSISTANT_NO_SESSION_MATCH =
 export const ASSISTANT_API_FAILURE =
   'Nie udało się teraz wykonać zapytania. Spróbuj ponownie za chwilę.'
 
+/** A1 — deterministic OurWed domain boundary (off-topic / unsafe). */
+export const ASSISTANT_OFF_TOPIC =
+  'Mogę pomóc w sprawach związanych z OurWed i Twoją pracą w studiu.'
+
 export const ASSISTANT_UNRECOGNIZED =
   'Nie udało mi się rozpoznać tego polecenia.'
 

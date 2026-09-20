@@ -67,6 +67,11 @@ import {
   type CombinedAssignmentCandidate,
 } from '../assignments/selectCombinedAssignments'
 import { searchProductKnowledge } from '../knowledge/search'
+import {
+  isV7BlockedDisposition,
+  parseV7TurnDisposition,
+  V7_REPORT_TURN_SCOPE_TOOL,
+} from '../agent/domainDisposition'
 
 export type V7ToolDeps = PredicateBatchOptions & {
   loadUniverseRows?: () => Promise<CollectionMoneyRow[]>
@@ -81,6 +86,11 @@ export type V7ToolContext = {
   store: V7ResourceSetStore
   binding: V7SessionBinding
   deps?: V7ToolDeps
+  /**
+   * A1 — when true, business tools must not execute (blocked disposition).
+   * report_turn_scope still records the disposition result.
+   */
+  blockBusinessTools?: boolean
 }
 
 const DESCRIBE_PREVIEW_CAP = 12
@@ -1315,6 +1325,7 @@ export async function selectNearestAssignments(
 }
 
 export const V7_TOOL_NAMES = [
+  'report_turn_scope',
   'search_resources',
   'refine_resources',
   'sort_resources',
@@ -1359,6 +1370,20 @@ function searchProductKnowledgeTool(
 
 export type V7ToolName = (typeof V7_TOOL_NAMES)[number]
 
+function reportTurnScopeTool(
+  rawArgs: unknown,
+): V7ToolResult<Record<string, unknown>> {
+  const disposition = parseV7TurnDisposition(rawArgs)
+  if (!disposition) {
+    return toolErr('VALIDATION_ERROR', 'invalid_turn_disposition')
+  }
+  return {
+    ok: true,
+    domain: disposition,
+    blocked: isV7BlockedDisposition(disposition),
+  }
+}
+
 export async function executeV7Tool(
   ctx: V7ToolContext,
   name: string,
@@ -1369,6 +1394,18 @@ export async function executeV7Tool(
     rawArgs && typeof rawArgs === 'object'
       ? (rawArgs as Record<string, unknown>)
       : {}
+
+  if (name === V7_REPORT_TURN_SCOPE_TOOL) {
+    return reportTurnScopeTool(rawArgs)
+  }
+
+  if (!(V7_TOOL_NAMES as readonly string[]).includes(name)) {
+    return toolErr('VALIDATION_ERROR', 'unknown_tool')
+  }
+
+  if (ctx.blockBusinessTools) {
+    return toolErr('OPERATION_NOT_ALLOWED', 'turn_scope_blocked')
+  }
 
   switch (name as V7ToolName) {
     case 'search_resources':
