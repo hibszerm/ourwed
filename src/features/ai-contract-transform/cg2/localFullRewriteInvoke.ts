@@ -18,9 +18,12 @@ import {
 } from '../fullAiRewritePromptShared'
 import {
   buildFullAiJsonSchemaForBlockIds,
-  buildProtocolBlockIdRetryHint,
-  partitionChangedBlocksBySourceIds,
 } from '../blockIdIntegrity'
+import {
+  buildProtocolIntegrityRetryHint,
+  collectProtocolIntegrityViolations,
+  findDestructiveEmptyReplacements,
+} from '../sparseProtocolIntegrity'
 import { parseSparseV2FromResponse } from '../parseSparseV2Response'
 import type { TransformFunctionsInvoke } from '../transformApi'
 
@@ -273,25 +276,29 @@ export function createLocalFullRewriteInvoke(input: {
     }
 
     let protocolRetryUsed = false
+    let protocolRetryKinds: string[] = []
     let changedBlocks = parse.ok ? parse.changedBlocks : []
     if (parse.ok) {
-      let partition = partitionChangedBlocksBySourceIds({
+      let integrity = collectProtocolIntegrityViolations({
         changedBlocks: parse.changedBlocks,
-        sourceBlockIds: validBlockIds,
+        sourceBlocks: slim,
       })
-      // CG4: at most ONE protocol retry for invalid blockIds
-      if (partition.invalid.length > 0) {
+      // CG4 + CG6.1: at most ONE shared protocol-integrity retry
+      if (integrity.needsProtocolRetry) {
         usage.retries += 1
         usage.calls += 1
         protocolRetryUsed = true
+        protocolRetryKinds = [
+          ...new Set(integrity.violations.map((v) => v.kind)),
+        ]
         const second = await callOpenAi({
           apiKey,
           model,
           maxOutputTokens: configuredMaxOutputTokens,
           userPayload,
           validBlockIds,
-          extraUserHint: buildProtocolBlockIdRetryHint({
-            invalidBlockIds: partition.invalid.map((b) => b.blockId),
+          extraUserHint: buildProtocolIntegrityRetryHint({
+            violations: integrity.violations,
             allowedBlockIds: validBlockIds,
           }),
         })
@@ -306,15 +313,39 @@ export function createLocalFullRewriteInvoke(input: {
           })
           if (reparse.ok) {
             parse = reparse
-            partition = partitionChangedBlocksBySourceIds({
+            integrity = collectProtocolIntegrityViolations({
               changedBlocks: reparse.changedBlocks,
-              sourceBlockIds: validBlockIds,
+              sourceBlocks: slim,
             })
           }
         }
       }
+
       // Never apply invented IDs — keep valid only (may be empty)
-      changedBlocks = partition.valid
+      changedBlocks = integrity.partition.valid
+
+      // CG6.1: never auto-restore-and-pass empty clears — fail closed if still present
+      const stillEmpty = findDestructiveEmptyReplacements({
+        changedBlocks,
+        sourceBlocks: slim,
+      })
+      if (stillEmpty.length > 0) {
+        usage.latenciesMs.push(Date.now() - t0)
+        return {
+          data: {
+            ok: false,
+            error: {
+              code: 'destructive_empty_replacement',
+              message: `empty replacement for non-empty source block: ${stillEmpty.map((e) => e.blockId).join(', ')}`,
+              retryable: false,
+              protocolRetryUsed,
+              protocolRetryKinds,
+              offendingBlockIds: stillEmpty.map((e) => e.blockId),
+            },
+          },
+          error: null,
+        }
+      }
     }
 
     usage.latenciesMs.push(Date.now() - t0)
@@ -350,6 +381,8 @@ export function createLocalFullRewriteInvoke(input: {
           inputTokens: u.input,
           outputTokens: u.output,
           protocolBlockIdRetryUsed: protocolRetryUsed,
+          protocolIntegrityRetryUsed: protocolRetryUsed,
+          protocolRetryKinds,
         },
       },
       error: null,

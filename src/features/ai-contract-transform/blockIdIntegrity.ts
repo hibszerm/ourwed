@@ -80,7 +80,8 @@ export function buildFullAiJsonSchemaForBlockIds(validBlockIds: readonly string[
             required: ['blockId', 'text'],
             properties: {
               blockId: blockIdSchema,
-              text: { type: 'string' },
+              // CG6.1: empty string is schema-invalid; whitespace still needs runtime trim check.
+              text: { type: 'string', minLength: 1 },
             },
           },
         },

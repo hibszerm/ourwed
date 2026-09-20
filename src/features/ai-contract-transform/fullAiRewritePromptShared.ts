@@ -52,6 +52,7 @@ Output rules (critical):
 - Return ONLY blocks whose text must change.
 - Do NOT return unchanged blocks.
 - For every changed block, return the COMPLETE final text of that block.
+- Never set changedBlocks[].text to an empty string or whitespace. If a block must change, return its complete non-empty final text. To leave a block unchanged, omit it from changedBlocks.
 - Preserve each changed block's blockId exactly.
 - Do not explain changes.
 - Do not return markdown.
@@ -128,7 +129,7 @@ export const FULL_AI_JSON_SCHEMA = {
           required: ['blockId', 'text'],
           properties: {
             blockId: { type: 'string' },
-            text: { type: 'string' },
+            text: { type: 'string', minLength: 1 },
           },
         },
       },

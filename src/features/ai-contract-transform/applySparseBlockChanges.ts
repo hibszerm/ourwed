@@ -67,7 +67,8 @@ export function applySparseBlockChanges(
     }
 
     const source = sourceById.get(change.blockId)!
-    if (source.text.length > 0 && change.text.length === 0) {
+    // CG6.1: whitespace-only is equivalent to empty — never clear meaningful source.
+    if (source.text.trim().length > 0 && change.text.trim().length === 0) {
       return {
         ok: false,
         error: {
