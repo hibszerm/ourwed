@@ -292,7 +292,7 @@ export function repairCanonicalPaymentAmounts(input: {
     return { blocks: input.blocks, repairs }
   }
 
-  let blocks = input.blocks.map((b) => ({ ...b }))
+  const blocks = input.blocks.map((b) => ({ ...b }))
   const candidateIds = pickFinanceBlockIds(blocks, input.sourceBlocks)
   if (candidateIds.length === 0) {
     return { blocks, repairs }
