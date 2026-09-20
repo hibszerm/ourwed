@@ -8,6 +8,7 @@
  * Transport-only: same request/response shape as transformApi expects.
  */
 
+import { existsSync, readFileSync } from 'node:fs'
 import type { TransformFunctionsInvoke } from '../transformApi'
 
 export type Cg21EdgeUsage = {
@@ -52,12 +53,29 @@ function resolveAnonKey(): string {
   return key
 }
 
+/**
+ * Resolve user JWT for Edge invoke.
+ * Prefer process env; fall back to owner bridge file (outside repo) so the
+ * agent shell can authenticate without echoing JWTs through stdout (which
+ * security filters may strip). Never log the token value.
+ */
 function resolveAccessToken(): string | null {
-  const t =
+  const fromEnv =
     process.env.CG21_SUPABASE_ACCESS_TOKEN?.trim() ||
     process.env.SUPABASE_ACCESS_TOKEN?.trim() ||
     ''
-  return t || null
+  if (fromEnv) return fromEnv
+
+  const bridge =
+    process.env.CG21_TOKEN_BRIDGE_PATH?.trim() ||
+    '/tmp/cg21_supabase_access_token'
+  try {
+    if (!existsSync(bridge)) return null
+    const raw = readFileSync(bridge, 'utf8').trim()
+    return raw || null
+  } catch {
+    return null
+  }
 }
 
 export function hasCg21EdgeAuth(): boolean {

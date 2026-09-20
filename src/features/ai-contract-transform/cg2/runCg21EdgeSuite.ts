@@ -137,8 +137,10 @@ async function main() {
     }),
   )
 
-  if (canaryRow.overall === 'FAIL') {
-    console.log('CG21_STOPPED_SAFELY canary FAIL — no further paid calls')
+  if (canaryRow.overall !== 'PASS') {
+    console.log(
+      `CG21_STOPPED_SAFELY canary ${canaryRow.overall} — no further paid calls`,
+    )
     process.exitCode = 1
     return
   }
