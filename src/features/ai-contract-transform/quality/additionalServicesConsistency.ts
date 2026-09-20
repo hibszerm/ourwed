@@ -307,6 +307,34 @@ export function verifyAdditionalServicesConsistency(input: {
     }
   }
 
+  // Forbidden legal neighborhoods (I11): extras must not sit inside boilerplate clauses.
+  const FORBIDDEN_NEIGHBORHOOD =
+    /rodo|dane\s+osobowe|odstapienie|prawa\s+autorsk|odpowiedzialnosc|sila\s+wyzsza|spory|rekojmia|force\s+majeure/i
+  for (const name of expected) {
+    const serviceIdx = firstBlockContaining(input.transformedBlocks, name)
+    if (serviceIdx < 0) continue
+    const window = [
+      input.transformedBlocks[serviceIdx - 1]?.text ?? '',
+      input.transformedBlocks[serviceIdx]!.text,
+      input.transformedBlocks[serviceIdx + 1]?.text ?? '',
+    ]
+      .map((t) => normalizeForMatch(t))
+      .join('\n')
+    // Allow when the hit is the dedicated extras heading itself.
+    const onExtrasHeading =
+      /uslugi\s+dodatkowe|dodatkowe\s+uslugi|opcje\s+dodatkowe|zakres\s+dodatkowy/.test(
+        normalizeForMatch(input.transformedBlocks[serviceIdx]!.text),
+      )
+    if (!onExtrasHeading && FORBIDDEN_NEIGHBORHOOD.test(window)) {
+      issues.push({
+        code: 'ADDITIONAL_SERVICES_IN_FORBIDDEN_LEGAL_SECTION',
+        severity: 'blocking',
+        canonicalField: 'contract.additionalServices',
+        safeDescription: `Additional service "${name}" appears in or adjacent to unrelated legal boilerplate`,
+      })
+    }
+  }
+
   const paymentStart = findPaymentStartIndex(input.sourceBlocks)
   for (const name of expected) {
     const serviceIdx = firstBlockContaining(input.transformedBlocks, name)

@@ -1,0 +1,70 @@
+{
+  "suite": "CG1_CONTRACT_TORTURE",
+  "recoverySha": "086ac1626731ec42ce5210b49b5c636e1ca802e1",
+  "templates": [
+    {
+      "id": "T01",
+      "file": "T01_CLEAN_SEMANTIC.docx",
+      "partiesDefault": 2,
+      "hasExplicitExtrasSection": true
+    },
+    {
+      "id": "T02",
+      "file": "T02_NO_EXTRAS_SECTION.docx",
+      "partiesDefault": 1,
+      "hasExplicitExtrasSection": false
+    },
+    {
+      "id": "T03",
+      "file": "T03_TABLE_HEAVY.docx",
+      "partiesDefault": 2,
+      "hasExplicitExtrasSection": false
+    },
+    {
+      "id": "T04",
+      "file": "T04_HYBRID.docx",
+      "partiesDefault": 1,
+      "hasExplicitExtrasSection": false
+    },
+    {
+      "id": "T05",
+      "file": "T05_MINIMAL.docx",
+      "partiesDefault": 1,
+      "hasExplicitExtrasSection": false
+    },
+    {
+      "id": "T06",
+      "file": "T06_LONG_LEGAL.docx",
+      "partiesDefault": 2,
+      "hasExplicitExtrasSection": true
+    },
+    {
+      "id": "T07",
+      "file": "T07_EXTRAS_PLACEHOLDER.docx",
+      "partiesDefault": 2,
+      "hasExplicitExtrasSection": true
+    },
+    {
+      "id": "T08",
+      "file": "T08_MULTI_COMMERCIAL.docx",
+      "partiesDefault": 1,
+      "hasExplicitExtrasSection": false
+    },
+    {
+      "id": "T09",
+      "file": "T09_MESSY_VALID.docx",
+      "partiesDefault": 2,
+      "hasExplicitExtrasSection": false
+    },
+    {
+      "id": "T10",
+      "file": "T10_ADVERSARIAL.docx",
+      "partiesDefault": 2,
+      "hasExplicitExtrasSection": false
+    }
+  ],
+  "scenariosPerTemplate": ["BASE", "EXTRAS"],
+  "deterministicCommand": "npm run test:cg1-contract-torture",
+  "paidCommand": "CG1_PAID_EVAL=1 OPENAI_API_KEY=… npm run test:cg1-contract-paid-eval",
+  "ciMakesPaidCalls": false
+}
