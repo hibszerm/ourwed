@@ -63,8 +63,17 @@ export function extractIdentitySurfaces(text: string): string[] {
   const push = (s: string) => {
     const t = s.trim()
     if (t.length < 5) return
+    // Role / party-status labels are NOT contracting-client identity.
     if (
-      /Studio|Sp\.|Poznań|Kraków|Warszawa|Gdańsk|Wrocław|Katowice|Lipowa|Kwiatowa|Garbary|Filmowc|Fotograf|Kamerzyst|Wykonawc|Usługodawc|Zamawiając/i.test(
+      /^Par[aą]\s+Młod/i.test(t) ||
+      /^Zamawiając/i.test(t) ||
+      /^Klient(?:ami|em|ka)?$/i.test(t) ||
+      /^Wykonawc/i.test(t)
+    ) {
+      return
+    }
+    if (
+      /Studio|Sp\.|Poznań|Kraków|Warszawa|Gdańsk|Wrocław|Katowice|Lipowa|Kwiatowa|Garbary|Filmowc|Fotograf|Kamerzyst|Wykonawc|Usługodawc|Zamawiając|Par[aą]\s+Młod/i.test(
         t,
       )
     ) {
@@ -232,8 +241,8 @@ export function verifyFilledPartyIdentity(input: {
 }
 
 /**
- * Reject unnecessary rewrites of provider-role / copyright blocks that do not
- * carry contracting-client identity (sparse scope protection).
+ * Reject unnecessary rewrites of provider-role / copyright / legal blocks that
+ * do not carry contracting-client identity needing change (sparse scope).
  */
 export function verifyProviderRoleSparseScope(input: {
   sourceBlocks: TransformDocumentBlock[]
@@ -251,23 +260,38 @@ export function verifyProviderRoleSparseScope(input: {
     const next = input.transformedBlocks.find((b) => b.blockId === src.blockId)
     if (!next || next.text === src.text) continue
 
-    const looksProviderLegal =
-      /portfolio|prawa\s+autorsk|przysługuj|nie\s+wyraża\s+zgody\s+na\s+jak[aą]kolwiek\s+ingerenc/i.test(
+    // Authorized wedding-fact blocks (locations / money / dates / party address)
+    if (
+      /miejsce\s+przygotowa|miejsce\s+ceremoni|miejsce\s+wesel|przygotowań\s|:\s*ul\.\s|zł\b|słownie:|data\s+ślub|zawarta\s+w\s|zam\.\s/i.test(
         src.text,
-      ) && /Filmowc|Fotograf|Kamerzyst|Wykonawc/i.test(src.text)
+      )
+    ) {
+      continue
+    }
 
-    if (!looksProviderLegal) continue
-
-    // If source already contained a party identity surface, change may be required
+    // If source already contained a real party identity surface, change may be required
     const touchesParty = [...partySurfaces].some((s) => src.text.includes(s))
     if (touchesParty) continue
+
+    const looksProviderLegal =
+      /portfolio|prawa\s+autorsk|przysługuj|nie\s+wyraża\s+zgody\s+na\s+jak[aą]kolwiek\s+ingerenc|odpowiedzialno[sś][cć]|odst[aą]pien|anulowa|rezygnacj|ochron[ay]\s+danych|\bRODO\b|publikacj\w*\s+materia/i.test(
+        src.text,
+      )
+
+    const hasProviderRoleNoun =
+      /Fotograf|Filmowc|Kamerzyst|Wykonawc|Usługodawc|Par[aą]\s+Młod/i.test(
+        src.text,
+      )
+
+    // Role-noun / legal prose with no canonical wedding fact → must stay sparse
+    if (!looksProviderLegal && !hasProviderRoleNoun) continue
 
     issues.push({
       code: 'unnecessary_provider_role_rewrite',
       severity: 'blocking',
       blockId: src.blockId,
       safeDescription:
-        'Provider-role / copyright clause was rewritten without contracting-client identity needing change',
+        'Provider-role / copyright / legal clause was rewritten without contracting-client identity needing change',
     })
   }
 

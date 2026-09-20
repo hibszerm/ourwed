@@ -122,7 +122,7 @@ const SIGNATURE_LABEL_ONLY = [
 ]
 
 const PAYMENT_PATTERNS =
-  /wynagrodzen|platnosc|platne|przelew|zadatek|pozostal|termin.*zaplat|rachunek\s+bankowy|z\s+tytulu\s+wykonania/i
+  /wynagrodzen|platnosc|platne|przelew|zadatek|pozostal|termin.*zaplat|rachunek\s+bankowy|z\s+tytulu\s+wykonania|pierwsza\s+wplata|kwota\s+pozostal|platnosci\s+na\s+rachunek|laczna\s+wartosc.*wynosi/i
 
 function norm(text: string): string {
   return normalizeLabel(text)
@@ -227,6 +227,48 @@ export function findPaymentStartIndex(
     if (isPaymentBlock(blocks[i]!.text)) return i
   }
   return blocks.length
+}
+
+/**
+ * Contiguous commercial payment group: total / deposit / remaining / bank.
+ * Extras must not be inserted inside this span.
+ */
+export function findAtomicPaymentRegion(
+  blocks: TransformDocumentBlock[],
+): { startIndex: number; endIndex: number; startBlockId: string; endBlockId: string } | null {
+  const start = findPaymentStartIndex(blocks)
+  if (start >= blocks.length) return null
+  let end = start
+  for (let i = start + 1; i < blocks.length; i++) {
+    const t = blocks[i]!.text.trim()
+    if (!t) continue
+    if (/^§\s*\d+/i.test(t)) break
+    if (isSignatureBlock(blocks[i]!)) break
+    if (
+      isPaymentBlock(t) ||
+      /rachunek|przelew|tytule|iban|nr\s+konta|płatności\s+na/i.test(t) ||
+      /\d[\d\s]*\s*zł/.test(t)
+    ) {
+      end = i
+      continue
+    }
+    // Stop at clearly non-payment legal content
+    if (
+      /odpowiedzialn|prawa\s+autorsk|RODO|dane\s+osobowe|postanowienia\s+końcowe|portfolio/i.test(
+        t,
+      )
+    ) {
+      break
+    }
+    // Keep one soft trailing bank/title line already handled; otherwise stop
+    break
+  }
+  return {
+    startIndex: start,
+    endIndex: end,
+    startBlockId: blocks[start]!.blockId,
+    endBlockId: blocks[end]!.blockId,
+  }
 }
 
 function scorePackageIntroduction(text: string): {

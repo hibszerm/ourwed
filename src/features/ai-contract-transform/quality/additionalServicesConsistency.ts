@@ -12,6 +12,7 @@ import {
 } from '../contractAdditionalServices'
 import {
   detectPackageDeliverablesAnchor,
+  findAtomicPaymentRegion,
   findPaymentStartIndex,
   findPostDeliverablesBoundaryIndex,
   findSignatureStartIndex,
@@ -354,16 +355,77 @@ export function verifyAdditionalServicesConsistency(input: {
     }
   }
 
-  const paymentStart = findPaymentStartIndex(input.sourceBlocks)
+  // Compare extras position against the payment clause in the *transformed*
+  // document (insertions shift indices; source paymentStart is not comparable).
+  // Prefer package_deliverables / existing_section placements — only flag when
+  // an extra truly lands at or after the payment region's first block AND is
+  // not under an extras heading.
+  const paymentStartSource = findPaymentStartIndex(input.sourceBlocks)
+  const paymentSourceBlock =
+    paymentStartSource < input.sourceBlocks.length
+      ? input.sourceBlocks[paymentStartSource]
+      : undefined
+  const paymentStartTransformed = paymentSourceBlock
+    ? input.transformedBlocks.findIndex(
+        (b) => b.blockId === paymentSourceBlock.blockId,
+      )
+    : findPaymentStartIndex(
+        input.transformedBlocks.map((b, i) => ({
+          blockId: b.blockId,
+          text: b.text,
+          kind: 'paragraph' as const,
+          paragraphIndex: i,
+        })),
+      )
+  const paymentAtomic = findAtomicPaymentRegion(input.sourceBlocks)
+  const paymentAtomicTransformed = paymentAtomic
+    ? {
+        start: input.transformedBlocks.findIndex(
+          (b) => b.blockId === paymentAtomic.startBlockId,
+        ),
+        end: input.transformedBlocks.findIndex(
+          (b) => b.blockId === paymentAtomic.endBlockId,
+        ),
+      }
+    : null
+
   if (diag?.additionalServicesAnchorType !== 'existing_section') {
     for (const name of expected) {
       const serviceIdx = firstBlockContaining(input.transformedBlocks, name)
-      if (serviceIdx >= 0 && serviceIdx >= paymentStart) {
+      if (serviceIdx < 0) continue
+
+      // Never allow extras to split an atomic payment group
+      if (
+        paymentAtomicTransformed &&
+        paymentAtomicTransformed.start >= 0 &&
+        paymentAtomicTransformed.end >= 0 &&
+        serviceIdx > paymentAtomicTransformed.start &&
+        serviceIdx < paymentAtomicTransformed.end
+      ) {
+        issues.push({
+          code: 'ADDITIONAL_SERVICES_SPLITS_PAYMENT_REGION',
+          severity: 'blocking',
+          canonicalField: 'contract.additionalServices',
+          safeDescription: `Additional service "${name}" was inserted inside an atomic payment region`,
+        })
+        continue
+      }
+
+      // After payment is only illegal when placement is not package-adjacent
+      // and the extra sits at/after the payment clause without a better commercial home.
+      const packageAdjacent =
+        diag?.additionalServicesAnchorType === 'package_deliverables' ||
+        diag?.additionalServicesAnchorType === 'package_scope'
+      if (
+        !packageAdjacent &&
+        paymentStartTransformed >= 0 &&
+        serviceIdx >= paymentStartTransformed
+      ) {
         issues.push({
           code: 'ADDITIONAL_SERVICES_AFTER_PAYMENT',
           severity: 'blocking',
           canonicalField: 'contract.additionalServices',
-          safeDescription: `Additional service "${name}" appears after payment clause`,
+          safeDescription: `Additional service "${name}" appears after payment clause in a non-defensible region`,
         })
       }
     }

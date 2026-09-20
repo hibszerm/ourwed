@@ -12,11 +12,25 @@ import { fingerprintText, sanitizeDuplicatedLocationWrappers } from './normalize
 import { repairCanonicalPaymentAmounts } from './paymentAmountRepair'
 import { repairCanonicalPartyPlaceholders } from './partyPlaceholderRepair'
 import { applyCanonicalExecutionDate } from './dateFieldEvidence'
+import {
+  applyIntraParagraphLocationTargets,
+  extractIntraParagraphLocationSlots,
+} from './locationFieldEvidence'
 import type {
   DeterministicRepair,
   RequiredReplacement,
   TransformationExpectationManifest,
 } from './types'
+
+function extractNeedsMultiSlot(
+  text: string,
+  evs: Array<{ role: string; sourceText: string }>,
+): boolean {
+  if (evs.some((e) => e.sourceText.includes(':') && text.includes(e.sourceText.split(':')[0]!.slice(0, 20)))) {
+    return extractIntraParagraphLocationSlots(text).length >= 2
+  }
+  return extractIntraParagraphLocationSlots(text).length >= 2
+}
 
 function parsePlnAmount(raw: string): number | null {
   const digits = raw.replace(/[^\d]/g, '')
@@ -203,98 +217,173 @@ export function applyDeterministicRepairs(input: {
   blocks = party.blocks
   repairs.push(...party.repairs)
 
-  // 6. CG7.2/CG7.4 — location value cells + form lines: grammar-free rewrite.
-  for (const ev of input.manifest.sourceLocationEvidence ?? []) {
-    const idx = blocks.findIndex((b) => b.blockId === ev.blockId)
+  // 6. CG7.2/CG7.4/CG7.5 — location value cells + form lines / multi-slot prose.
+  // Group dual-prep evidence that shares a blockId for in-place slot repair.
+  const locationEvidence = input.manifest.sourceLocationEvidence ?? []
+  const locationByBlock = new Map<string, typeof locationEvidence>()
+  for (const ev of locationEvidence) {
+    const list = locationByBlock.get(ev.blockId) ?? []
+    list.push(ev)
+    locationByBlock.set(ev.blockId, list)
+  }
+
+  for (const [blockId, evs] of locationByBlock) {
+    const idx = blocks.findIndex((b) => b.blockId === blockId)
     if (idx < 0) continue
     const b = blocks[idx]!
-
-    let target = '—'
     const locs = input.dataset.locations
-    if (
-      (ev.role === 'preparation' ||
-        ev.role === 'preparation_partner1' ||
-        ev.role === 'preparation_partner2') &&
-      (locs.preparationDisplayText ||
-        locs.preparation ||
-        locs.preparationLocations?.length)
-    ) {
-      if (ev.role === 'preparation_partner1') {
-        target =
-          locs.preparationLocations?.find((e) => e.person === 'bride')
-            ?.fullAddress ??
-          locs.preparationDisplayText ??
-          '—'
-      } else if (ev.role === 'preparation_partner2') {
-        target =
-          locs.preparationLocations?.find((e) => e.person === 'groom')
-            ?.fullAddress ??
-          locs.preparationDisplayText ??
-          '—'
-      } else {
-        target =
-          locs.preparationDisplayText ??
-          locs.preparation?.fullAddress ??
-          locs.preparation?.displayName ??
-          '—'
+
+    const resolveTarget = (ev: (typeof evs)[number]): string => {
+      let target = '—'
+      if (
+        (ev.role === 'preparation' ||
+          ev.role === 'preparation_partner1' ||
+          ev.role === 'preparation_partner2') &&
+        (locs.preparationDisplayText ||
+          locs.preparation ||
+          locs.preparationLocations?.length)
+      ) {
+        if (ev.role === 'preparation_partner1') {
+          target =
+            locs.preparationLocations?.find((e) => e.person === 'bride')
+              ?.fullAddress ?? '—'
+        } else if (ev.role === 'preparation_partner2') {
+          target =
+            locs.preparationLocations?.find((e) => e.person === 'groom')
+              ?.fullAddress ?? '—'
+        } else {
+          // Generic prep field + two CRM addresses → combined display when available
+          const bride = locs.preparationLocations?.find(
+            (e) => e.person === 'bride',
+          )?.fullAddress
+          const groom = locs.preparationLocations?.find(
+            (e) => e.person === 'groom',
+          )?.fullAddress
+          if (bride && groom && locs.preparationDisplayText) {
+            target = locs.preparationDisplayText
+          } else {
+            target =
+              locs.preparationDisplayText ??
+              locs.preparation?.fullAddress ??
+              locs.preparation?.displayName ??
+              bride ??
+              groom ??
+              '—'
+          }
+        }
+      } else if (ev.role === 'ceremony' && locs.ceremony) {
+        target = locs.ceremony.fullAddress ?? locs.ceremony.displayName ?? '—'
+      } else if (ev.role === 'reception' && locs.reception) {
+        target = locs.reception.fullAddress ?? locs.reception.displayName ?? '—'
       }
-    } else if (ev.role === 'ceremony' && locs.ceremony) {
-      target = locs.ceremony.fullAddress ?? locs.ceremony.displayName ?? '—'
-    } else if (ev.role === 'reception' && locs.reception) {
-      target = locs.reception.fullAddress ?? locs.reception.displayName ?? '—'
-    } else if (
-      ev.role === 'unknown' &&
-      (locs.reception || locs.ceremony || locs.preparation)
-    ) {
-      continue
+      return target
     }
 
-    // Form lines need a compact venue/address — not a prose "przygotowań, które…" clause.
-    if (ev.representation !== 'table_cell') {
+    // Multi-slot dual-prep prose: replace each label:value in place.
+    if (evs.length >= 2 || extractNeedsMultiSlot(b.text, evs)) {
+      const slots = extractIntraParagraphLocationSlots(b.text)
+      if (slots.length >= 2) {
+        const replacements: Array<{ label: string; target: string }> = []
+        for (const ev of evs) {
+          const target = resolveTarget(ev)
+          if (target === '—' && ev.role !== 'unknown') {
+            // Absent CRM for this partner: leave sentinel / neutralize later
+            if (
+              ev.role === 'preparation_partner1' ||
+              ev.role === 'preparation_partner2'
+            ) {
+              const hasPartner =
+                ev.role === 'preparation_partner1'
+                  ? locs.preparationLocations?.some(
+                      (e) => e.person === 'bride' && e.fullAddress,
+                    )
+                  : locs.preparationLocations?.some(
+                      (e) => e.person === 'groom' && e.fullAddress,
+                    )
+              if (!hasPartner) continue
+            }
+          }
+          const slot =
+            slots.find((s) => s.role === ev.role) ??
+            slots.find((s) =>
+              s.sourceText
+                .toLowerCase()
+                .includes(
+                  (ev.sourceText.split(':')[0] ?? '')
+                    .toLowerCase()
+                    .slice(0, 24),
+                ),
+            )
+          if (!slot) continue
+          if (target === '—') continue
+          replacements.push({ label: slot.label, target })
+        }
+        if (replacements.length > 0) {
+          const next = applyIntraParagraphLocationTargets(b.text, replacements)
+          if (next !== b.text) {
+            repairs.push({
+              repairCode: 'exact_location_multi_slot_to_canonical',
+              blockId,
+              canonicalField: 'wedding.preparationLocation',
+              beforeFingerprint: fingerprintText(b.text),
+              afterFingerprint: fingerprintText(next),
+            })
+            blocks[idx] = { ...b, text: next }
+          }
+          continue
+        }
+      }
+    }
+
+    // Single evidence path (table cell / single form line)
+    for (const ev of evs) {
+      if (ev.role === 'unknown') continue
+      let target = resolveTarget(ev)
+
+      // Form lines need compact address — but never overwrite partner-specific targets.
       if (
-        ev.role === 'preparation' ||
-        ev.role === 'preparation_partner1' ||
-        ev.role === 'preparation_partner2'
+        ev.representation !== 'table_cell' &&
+        ev.role === 'preparation'
       ) {
         target =
+          locs.preparationDisplayText ??
           locs.preparation?.fullAddress ??
           locs.preparation?.displayName ??
           locs.preparationLocations?.[0]?.fullAddress ??
           target
       }
-    }
 
-    let next: string
-    if (ev.representation === 'table_cell') {
-      if (b.text.trim() !== ev.sourceText.trim()) continue
-      next = target
-    } else {
-      // Form line "label: value" — replace value only (CG7.4).
-      const form = b.text.match(/^([^:\n]{2,80}):\s*(.*)$/)
-      if (form) {
-        next = `${form[1]}: ${target}`
-      } else if (
-        b.text.trim() === ev.sourceText.trim() &&
-        b.text.trim().length <= 120
-      ) {
+      let next: string
+      if (ev.representation === 'table_cell') {
+        if (b.text.trim() !== ev.sourceText.trim()) continue
         next = target
       } else {
-        continue
+        const form = b.text.match(/^([^:\n]{2,80}):\s*(.*)$/)
+        if (form) {
+          next = `${form[1]}: ${target}`
+        } else if (
+          b.text.trim() === ev.sourceText.trim() &&
+          b.text.trim().length <= 120
+        ) {
+          next = target
+        } else {
+          continue
+        }
       }
-    }
 
-    if (next === b.text) continue
-    repairs.push({
-      repairCode:
-        ev.representation === 'table_cell'
-          ? 'exact_location_table_cell_to_canonical'
-          : 'exact_location_form_line_to_canonical',
-      blockId: ev.blockId,
-      canonicalField: ev.canonicalField,
-      beforeFingerprint: fingerprintText(b.text),
-      afterFingerprint: fingerprintText(next),
-    })
-    blocks[idx] = { ...b, text: next }
+      if (next === b.text || target === '—') continue
+      repairs.push({
+        repairCode:
+          ev.representation === 'table_cell'
+            ? 'exact_location_table_cell_to_canonical'
+            : 'exact_location_form_line_to_canonical',
+        blockId: ev.blockId,
+        canonicalField: ev.canonicalField,
+        beforeFingerprint: fingerprintText(b.text),
+        afterFingerprint: fingerprintText(next),
+      })
+      blocks[idx] = { ...b, text: next }
+    }
   }
 
   // 7. CG7.4 — contract execution / signing date form lines

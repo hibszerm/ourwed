@@ -74,14 +74,13 @@ export function inferLocationRoleFromContext(text: string): LocationSemanticRole
     }
     return 'preparation'
   }
-  if (/ceremoni|zaślubin|kościół|urząd stanu/i.test(t)) return 'ceremony'
-  if (
-    /przyjęci|powitanie gości|miejsce przyjęcia|wesel|imprezy|bankiet/i.test(
-      t,
-    )
-  ) {
-    return 'reception'
-  }
+  const hasCeremony = /ceremoni|zaślubin|kościół|urząd stanu|uroczystoś/i.test(t)
+  const hasReception =
+    /przyjęci|powitanie gości|miejsce przyjęcia|wesel|imprezy|bankiet/i.test(t)
+  // Combined ceremony+reception fields are not a single fillable role.
+  if (hasCeremony && hasReception) return 'unknown'
+  if (hasCeremony) return 'ceremony'
+  if (hasReception) return 'reception'
   return 'unknown'
 }
 
@@ -154,7 +153,11 @@ function assignRolesToFormCluster(
 
   for (const item of items) {
     const role = inferLocationRoleFromContext(item.label)
-    if (role !== 'unknown') {
+    // Generic "preparation" (no partner marker) is deferred so two prep fields
+    // can be assigned partner1/partner2 structurally.
+    if (role === 'preparation' || role === 'unknown') {
+      pending.push(item)
+    } else {
       used.add(role)
       out.push({
         blockId: item.blockId,
@@ -162,8 +165,6 @@ function assignRolesToFormCluster(
         sourceText: item.text,
         text: item.text,
       })
-    } else {
-      pending.push(item)
     }
   }
 
@@ -172,6 +173,35 @@ function assignRolesToFormCluster(
     'ceremony',
     'reception',
   ]
+  // When two+ pending items look like preparation (label has przygotowa) and no
+  // partner roles used yet, assign partner1 then partner2 structurally.
+  const prepPending = pending.filter((item) =>
+    /przygotowa/i.test(item.label),
+  )
+  if (
+    prepPending.length >= 2 &&
+    !used.has('preparation_partner1') &&
+    !used.has('preparation_partner2')
+  ) {
+    for (let i = 0; i < prepPending.length; i++) {
+      const item = prepPending[i]!
+      const role: LocationSemanticRole =
+        i === 0
+          ? 'preparation_partner1'
+          : i === 1
+            ? 'preparation_partner2'
+            : 'preparation'
+      used.add(role)
+      out.push({
+        blockId: item.blockId,
+        role,
+        sourceText: item.text,
+        text: item.text,
+      })
+      const pIdx = pending.indexOf(item)
+      if (pIdx >= 0) pending.splice(pIdx, 1)
+    }
+  }
   for (const item of pending) {
     const next = order.find((r) => !used.has(r)) ?? 'unknown'
     if (next !== 'unknown') used.add(next)
@@ -188,7 +218,9 @@ function assignRolesToFormCluster(
 function isPromptLikeLocationValue(value: string): boolean {
   return (
     isNonSemanticLocationSurface(value) ||
-    /wskazan[yae]|do uzup|uzupełn|podadzą|podaje klient/i.test(value)
+    /wskazan[yae]|do uzup|uzupełn|podadzą|podaje klient|zgodnie z danymi|przekazanymi|do ustalenia|do uzgodnienia|najpóźniej\s+\d+\s+dni/i.test(
+      value,
+    )
   )
 }
 
@@ -199,8 +231,10 @@ export function discoverFilledLocationEvidence(
   const seen = new Set<string>()
 
   const push = (ev: SourceLocationEvidence) => {
-    if (seen.has(ev.blockId)) return
-    seen.add(ev.blockId)
+    // Allow multiple semantic slots in one block (dual prep, etc.).
+    const key = `${ev.blockId}::${ev.role}::${ev.sourceText.slice(0, 48)}`
+    if (seen.has(key)) return
+    seen.add(key)
     out.push(ev)
   }
 
@@ -275,6 +309,29 @@ export function discoverFilledLocationEvidence(
     }
   }
 
+  // Intra-paragraph multi-slot form segments (CG7.5 dual-prep prose).
+  // Example: "Miejsce przygotowań A: … . Miejsce przygotowań B: … ."
+  for (const b of blocks) {
+    if (b.kind !== 'paragraph' || b.tableContext?.ownershipFamily === 'provider') {
+      continue
+    }
+    const text = (b.text ?? '').trim()
+    if (!text.includes(':')) continue
+    const slots = extractIntraParagraphLocationSlots(text)
+    if (slots.length < 2) continue
+    for (const slot of slots) {
+      if (slot.role === 'unknown') continue
+      push({
+        blockId: b.blockId,
+        role: slot.role,
+        sourceText: slot.sourceText,
+        nonSemanticSurface: isPromptLikeLocationValue(slot.value),
+        representation: 'prose',
+        canonicalField: canonicalFieldForLocationRole(slot.role),
+      })
+    }
+  }
+
   // Standalone form lines / tight prose slots (not already captured)
   for (const b of blocks) {
     if (b.kind !== 'paragraph' || b.tableContext?.ownershipFamily === 'provider') {
@@ -282,6 +339,9 @@ export function discoverFilledLocationEvidence(
     }
     const text = (b.text ?? '').trim()
     if (!isLocationFormOrSlotAssertion(text)) continue
+    // Prefer multi-slot extraction when a single form line isn't the whole block
+    const slots = extractIntraParagraphLocationSlots(text)
+    if (slots.length >= 2) continue
     const form = parseLocationFormLine(text)
     const role = inferLocationRoleFromContext(form?.label ?? text)
     if (role === 'unknown') continue
@@ -296,6 +356,49 @@ export function discoverFilledLocationEvidence(
     })
   }
 
+  return out
+}
+
+/**
+ * Split a prose paragraph into label:value location slots without a synonym list.
+ * Role comes from existing inferLocationRoleFromContext on each label.
+ * Values may contain "ul." / abbreviations — boundaries are next location labels.
+ */
+export function extractIntraParagraphLocationSlots(text: string): Array<{
+  label: string
+  value: string
+  sourceText: string
+  role: LocationSemanticRole
+}> {
+  const out: Array<{
+    label: string
+    value: string
+    sourceText: string
+    role: LocationSemanticRole
+  }> = []
+  // Split on ". " / start before a location-ish label ending with ":"
+  const parts = text.split(/(?<=\.)\s+(?=(?:\d+\.\s*)?(?:Miejsce|Przygotowania|Ceremonia|Przyjęcie)\b)/i)
+  for (const part of parts) {
+    const m = part.trim().match(/^(?:\d+\.\s*)?([^:\n]{3,90}?):\s*(.+)$/s)
+    if (!m) continue
+    const label = m[1]!.trim()
+    let value = m[2]!.trim().replace(/\.\s*$/, '').trim()
+    if (
+      !/miejsce|sala\b|adres\b|lokalizacj|przygotowa|ceremoni|wesel|przyjęci|uroczyst/i.test(
+        label,
+      )
+    ) {
+      continue
+    }
+    if (!value) continue
+    const role = inferLocationRoleFromContext(label)
+    out.push({
+      label,
+      value,
+      sourceText: `${label}: ${value}`,
+      role,
+    })
+  }
   return out
 }
 
@@ -344,18 +447,46 @@ function roleIsAbsentInCrm(
   if (role === 'ceremony') {
     return !dataset.locations.ceremony
   }
-  if (
-    role === 'preparation' ||
-    role === 'preparation_partner1' ||
-    role === 'preparation_partner2'
-  ) {
-    const entries = dataset.locations.preparationLocations ?? []
-    return entries.length === 0 && !dataset.locations.preparation
-  }
   if (role === 'reception') {
     return !dataset.locations.reception
   }
+  const entries = dataset.locations.preparationLocations ?? []
+  if (role === 'preparation_partner1') {
+    return !entries.some((e) => e.person === 'bride' && e.fullAddress) &&
+      !dataset.locations.preparation
+  }
+  if (role === 'preparation_partner2') {
+    return !entries.some((e) => e.person === 'groom' && e.fullAddress) &&
+      !dataset.locations.preparation
+  }
+  if (role === 'preparation') {
+    return entries.length === 0 && !dataset.locations.preparation
+  }
   return true
+}
+
+/** Replace label:value slots in-place for multi-slot location paragraphs. */
+export function applyIntraParagraphLocationTargets(
+  text: string,
+  replacements: Array<{ label: string; target: string }>,
+): string {
+  let next = text
+  for (const rep of replacements) {
+    const label = rep.label.trim()
+    if (!label || !rep.target) continue
+    const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    // Value runs until ". Miejsce|Przygotowania|..." or end — allows "ul." inside.
+    const re = new RegExp(
+      `(${escaped}):\\s*(.+?)(?=\\.\\s+(?:\\d+\\.\\s*)?(?:Miejsce|Przygotowania|Ceremonia|Przyjęcie)\\b|$)`,
+      'is',
+    )
+    if (!re.test(next)) continue
+    next = next.replace(re, (_full, lab: string, oldVal: string) => {
+      const trailing = /\.\s*$/.test(oldVal) ? '.' : ''
+      return `${lab}: ${rep.target}${trailing}`
+    })
+  }
+  return next
 }
 
 /**
@@ -387,8 +518,25 @@ export function verifyFilledLocationIdentity(input: {
     const targets = targetForRole(input.dataset, ev.role)
     const absent = roleIsAbsentInCrm(input.dataset, ev.role)
 
+    // Multi-slot prose: validate the matching label:value segment when present.
+    const slots = extractIntraParagraphLocationSlots(block.text)
+    const matchingSlot =
+      slots.length >= 2
+        ? slots.find((s) => s.role === ev.role) ??
+          slots.find((s) =>
+            normalizeForMatch(s.label).includes(
+              normalizeForMatch(ev.sourceText.split(':')[0] ?? ''),
+            ),
+          )
+        : null
+    const surfaceText = matchingSlot
+      ? `${matchingSlot.label}: ${matchingSlot.value}`
+      : block.text
+
     if (targets.length > 0) {
-      const hasCanonical = targets.some((t) => textContainsNormalized(block.text, t))
+      const hasCanonical = targets.some((t) =>
+        textContainsNormalized(surfaceText, t),
+      )
       if (!hasCanonical) {
         issues.push({
           code: 'location_identity_canonical_missing',
@@ -400,6 +548,35 @@ export function verifyFilledLocationIdentity(input: {
         })
       }
 
+      // Cross-role swap: partner1/partner2 addresses must not land in the wrong slot
+      if (
+        matchingSlot &&
+        (ev.role === 'preparation_partner1' ||
+          ev.role === 'preparation_partner2')
+      ) {
+        const otherRole =
+          ev.role === 'preparation_partner1'
+            ? 'preparation_partner2'
+            : 'preparation_partner1'
+        const otherTargets = targetForRole(input.dataset, otherRole)
+        const ownHit = targets.some((t) =>
+          textContainsNormalized(matchingSlot.value, t),
+        )
+        const otherHit = otherTargets.some((t) =>
+          textContainsNormalized(matchingSlot.value, t),
+        )
+        if (otherHit && !ownHit) {
+          issues.push({
+            code: 'location_role_swap',
+            severity: 'blocking',
+            canonicalField: ev.canonicalField,
+            blockId: ev.blockId,
+            safeDescription:
+              'Preparation partner address appears in the wrong dual-prep slot',
+          })
+        }
+      }
+
       // Stale filled source (not sentinel) must leave this grounded block
       if (
         !ev.nonSemanticSurface &&
@@ -409,7 +586,11 @@ export function verifyFilledLocationIdentity(input: {
             normalizeForMatch(ev.sourceText).includes(normalizeForMatch(t)) ||
             normalizeForMatch(t).includes(normalizeForMatch(ev.sourceText)),
         ) &&
-        block.text.includes(ev.sourceText)
+        (matchingSlot
+          ? matchingSlot.value.includes(
+              ev.sourceText.split(':').slice(1).join(':').trim(),
+            ) || surfaceText.includes(ev.sourceText)
+          : block.text.includes(ev.sourceText))
       ) {
         issues.push({
           code: 'stale_location_identity_remaining',
@@ -422,21 +603,33 @@ export function verifyFilledLocationIdentity(input: {
       }
 
       // Sentinel must not survive when we have canonical truth
-      if (ev.nonSemanticSurface && isNonSemanticLocationSurface(block.text)) {
-        issues.push({
-          code: 'location_sentinel_unresolved',
-          severity: 'blocking',
-          canonicalField: ev.canonicalField,
-          blockId: ev.blockId,
-          safeDescription:
-            'Location field still contains a non-semantic sentinel despite canonical CRM location',
-        })
+      if (ev.nonSemanticSurface) {
+        const val = matchingSlot ? matchingSlot.value : block.text
+        if (
+          isNonSemanticLocationSurface(val) ||
+          isPromptLikeLocationValue(val)
+        ) {
+          issues.push({
+            code: 'location_sentinel_unresolved',
+            severity: 'blocking',
+            canonicalField: ev.canonicalField,
+            blockId: ev.blockId,
+            safeDescription:
+              'Location field still contains a non-semantic sentinel despite canonical CRM location',
+          })
+        }
       }
     } else if (absent) {
       // CRM missing: do not invent. Sentinel may remain OR be cleared.
       // Filled old venue in grounded field must be neutralized (not left as old wedding).
       if (!ev.nonSemanticSurface && ev.sourceText.trim().length >= 4) {
-        if (block.text.includes(ev.sourceText)) {
+        if (
+          matchingSlot
+            ? matchingSlot.value.includes(
+                ev.sourceText.split(':').slice(1).join(':').trim(),
+              ) || surfaceText.includes(ev.sourceText)
+            : block.text.includes(ev.sourceText)
+        ) {
           issues.push({
             code: 'stale_location_identity_remaining',
             severity: 'blocking',
