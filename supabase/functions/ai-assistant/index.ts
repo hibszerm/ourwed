@@ -9,7 +9,6 @@ import { buildRestrictedCorsHeaders } from '../_shared/security/browserCors.ts'
 import {
   SYSTEM_PROMPT,
   resolveAssistantModel,
-  resolveGoalSpecInterpreterModel,
   resolveV4InterpreterModel,
 } from './prompt.ts'
 import {
@@ -21,29 +20,6 @@ import {
   ASSISTANT_V4_TASKSPEC_JSON_SCHEMA,
   parseFlatV4TaskSpecPayload,
 } from './v4Schema.ts'
-import { V5_GOALSPEC_INTERPRETER_SYSTEM_PROMPT } from './v5Prompt.ts'
-import {
-  ASSISTANT_V5_GOALSPEC_JSON_SCHEMA,
-  parseFlatV5GoalSpecPayload,
-} from './v5Schema.ts'
-import {
-  buildV5ChatCompletionRequestBody,
-  buildV5GoalSpecErrorResponse,
-  buildV5GoalSpecSuccessResponse,
-  sanitizeV5SemanticContextSummary,
-} from './v5OpenAITransport.ts'
-import { V6_AGENT_SYSTEM_PROMPT } from './v6Prompt.ts'
-import { buildV6NativeToolsRequestBody } from './v6NativeTransport.ts'
-import {
-  V6_SEMANTIC_VERIFIER_MODEL,
-  V6_SEMANTIC_VERIFIER_SYSTEM_PROMPT,
-  buildV6SemanticVerifyRequestBody,
-} from './v6SemanticVerifier.ts'
-// F1.1A string agent-step schema retained for diagnostics only — not used on live V6 path.
-import {
-  ASSISTANT_V6_AGENT_STEP_JSON_SCHEMA as _DEPRECATED_V6_STRING_STEP_SCHEMA,
-} from './v6Schema.ts'
-void _DEPRECATED_V6_STRING_STEP_SCHEMA
 
 /** Eval-only allowlist — never accept arbitrary client model strings. */
 const V4_EVAL_MODEL_ALLOWLIST = new Set([
@@ -51,16 +27,6 @@ const V4_EVAL_MODEL_ALLOWLIST = new Set([
   'gpt-4.1',
   'gpt-4.1-nano',
   'gpt-5-mini',
-])
-
-/**
- * V5 GoalSpec eval-only allowlist (secret-gated).
- * Includes Luna for authorized harnesses. Browser UI never sends evalModel.
- */
-const V5_EVAL_MODEL_ALLOWLIST = new Set([
-  'gpt-5.6-luna',
-  'gpt-4.1',
-  'gpt-4.1-mini',
 ])
 
 /**
@@ -93,47 +59,6 @@ function resolveV4InterpretModel(
     }
   }
   if (!V4_EVAL_MODEL_ALLOWLIST.has(requested)) {
-    return {
-      model: defaultModel,
-      evalOverride: false,
-      error: 'eval_model_not_allowlisted',
-    }
-  }
-  return { model: requested, evalOverride: true }
-}
-
-/**
- * Resolve model for V5 GoalSpec interpret.
- * Server owns selection (resolveGoalSpecInterpreterModel). body.model is ignored.
- * Eval override only when secret matches AND model is on V5 allowlist.
- */
-function resolveV5InterpretModel(
-  body: Record<string, unknown>,
-  defaultModel: string,
-  evalAuthHeader: string | null,
-): { model: string; evalOverride: boolean; error?: string } {
-  // Hard invariant: browser/client must not choose the model via `model`.
-  void body.model
-
-  const requested =
-    typeof body.evalModel === 'string' ? body.evalModel.trim() : ''
-  if (!requested) return { model: defaultModel, evalOverride: false }
-
-  const expected =
-    Deno.env.get('OURWED_V4_EVAL_SECRET')?.trim() ||
-    Deno.env.get('BENCHMARK_TOKEN')?.trim() ||
-    ''
-  const providedBody =
-    typeof body.evalAuth === 'string' ? body.evalAuth.trim() : ''
-  const provided = (evalAuthHeader?.trim() || providedBody)
-  if (!expected || !provided || provided !== expected) {
-    return {
-      model: defaultModel,
-      evalOverride: false,
-      error: 'eval_auth_rejected',
-    }
-  }
-  if (!V5_EVAL_MODEL_ALLOWLIST.has(requested)) {
     return {
       model: defaultModel,
       evalOverride: false,
@@ -350,44 +275,24 @@ Deno.serve(async (req) => {
     )
   }
 
-  // --- IC1 runtime mode kill-switch + canary allowlist (no OpenAI / CRM). ---
+  // --- C2G: retired historical modes (no production callers). ---
   {
     const cfgMode = typeof body.mode === 'string' ? body.mode.trim() : ''
-    if (cfgMode === 'assistant_runtime_config') {
-      const raw = (Deno.env.get('OURWED_ASSISTANT_V5_MODE') ?? '')
-        .trim()
-        .toLowerCase()
-      let assistantMode:
-        | 'off'
-        | 'shadow'
-        | 'canary'
-        | 'authority_read_query' = 'off'
-      if (raw === 'shadow') assistantMode = 'shadow'
-      else if (raw === 'canary') assistantMode = 'canary'
-      else if (
-        raw === 'authority_read_query' ||
-        raw === 'authority-read-query'
-      ) {
-        assistantMode = 'authority_read_query'
-      } else {
-        // missing/invalid → fail closed to off
-        assistantMode = 'off'
-      }
-      // Allowlist: authenticated user id only. Ignore any client canaryEligible.
-      const allowRaw =
-        Deno.env.get('OURWED_ASSISTANT_V5_CANARY_USER_IDS') ?? ''
-      const allow = new Set(
-        allowRaw
-          .split(/[,;\s]+/)
-          .map((s) => s.trim().toLowerCase())
-          .filter(Boolean),
+    if (
+      cfgMode === 'assistant_runtime_config' ||
+      cfgMode === 'v5_goal_interpret' ||
+      cfgMode === 'v6_agent_step' ||
+      cfgMode === 'v6_semantic_verify'
+    ) {
+      return jsonResponse(
+        {
+          status: 'error',
+          message: 'Mode retired',
+          code: 'mode_retired',
+          mode: cfgMode,
+        },
+        400,
       )
-      const canaryEligible = allow.has(auth.userId.toLowerCase())
-      return jsonResponse({
-        status: 'assistant_runtime_config',
-        assistantMode,
-        canaryEligible,
-      })
     }
   }
 
@@ -612,137 +517,9 @@ Deno.serve(async (req) => {
     }
   }
 
-  // --- V6 agent step (shadow). Isolated from V3/V4/V5. ---
-  // MUST return inside this branch — never fall through.
-  if (mode === 'v6_agent_step') {
-    const v6Model = resolveGoalSpecInterpreterModel()
-    const locale =
-      typeof body.locale === 'string' && body.locale.trim()
-        ? body.locale.trim().slice(0, 16)
-        : 'pl-PL'
-    const round =
-      typeof body.round === 'number' && Number.isFinite(body.round)
-        ? Math.max(1, Math.floor(body.round))
-        : 1
-
-    const userPayload = JSON.stringify({
-      utterance,
-      locale,
-      round,
-      collectionSummaries: body.collectionSummaries ?? [],
-      compactConversationContext: body.compactConversationContext ?? null,
-      previousToolResults: body.previousToolResults ?? [],
-    })
-
-    const transportMode =
-      body.transportMode === 'outcome' ||
-      body.compactConversationContext?.forceOutcome === true
-        ? 'outcome'
-        : body.transportMode === 'tools'
-          ? 'tools'
-          : 'turn_plan'
-
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 28_000)
-    const started = Date.now()
-
-    try {
-      const openaiPayload = buildV6NativeToolsRequestBody({
-        model: v6Model,
-        maxOutputTokens: 1600,
-        mode: transportMode,
-        messages: [
-          { role: 'system', content: V6_AGENT_SYSTEM_PROMPT },
-          { role: 'user', content: userPayload },
-        ],
-      })
-
-      const openaiRes = await fetch(
-        'https://api.openai.com/v1/chat/completions',
-        {
-          method: 'POST',
-          signal: controller.signal,
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(openaiPayload),
-        },
-      )
-
-      const openaiBody = await openaiRes.json().catch(() => null)
-      const usage = extractUsage(openaiBody)
-
-      if (!openaiRes.ok) {
-        console.info('[ai-assistant:v6]', {
-          durationMs: Date.now() - started,
-          status: 'provider_error',
-          model: v6Model,
-          error: openaiBody?.error?.message ?? null,
-        })
-        return jsonResponse(
-          {
-            status: 'error',
-            code: 'PROVIDER_ERROR',
-            message: 'OpenAI provider error',
-            diagnostics: { usage, model: v6Model },
-          },
-          502,
-        )
-      }
-
-      const message = openaiBody?.choices?.[0]?.message ?? null
-      if (!message || typeof message !== 'object') {
-        return jsonResponse(
-          {
-            status: 'error',
-            code: 'INTERPRETATION_ERROR',
-            message: 'empty_native_message',
-            diagnostics: { usage, model: v6Model },
-          },
-          422,
-        )
-      }
-
-      // Client maps native tool args → runtime types (parseV6NativeChatMessage).
-      console.info('[ai-assistant:v6]', {
-        durationMs: Date.now() - started,
-        status: 'native_message',
-        model: v6Model,
-        toolCallCount: Array.isArray(message.tool_calls)
-          ? message.tool_calls.length
-          : 0,
-        usage,
-      })
-
-      return jsonResponse({
-        status: 'native_message',
-        message,
-        diagnostics: {
-          model: v6Model,
-          durationMs: Date.now() - started,
-          usage,
-          transport: transportMode,
-        },
-      })
-    } catch (e) {
-      const aborted = e instanceof Error && e.name === 'AbortError'
-      return jsonResponse(
-        {
-          status: 'error',
-          code: aborted ? 'PROVIDER_ERROR' : 'PROVIDER_ERROR',
-          message: aborted ? 'timeout' : 'v6_step_failed',
-        },
-        aborted ? 504 : 500,
-      )
-    } finally {
-      clearTimeout(timeout)
-    }
-  }
-
   // --- V7 agent step (owner-canary). LLM proxy only — tools execute client-side under RLS. ---
   // Server forces gpt-5.6-terra + bake-off-compatible chat.completions config (temporary owner trial).
-  // MUST return inside this branch — never fall through. V6 modes untouched.
+  // MUST return inside this branch — never fall through.
   if (mode === 'v7_agent_step') {
     const V7_MODEL = 'gpt-5.6-terra'
     const messages = Array.isArray(body.messages) ? body.messages : null
@@ -881,314 +658,6 @@ Deno.serve(async (req) => {
           model: V7_MODEL,
         },
         aborted ? 504 : 500,
-      )
-    } finally {
-      clearTimeout(timeout)
-    }
-  }
-
-  // --- V6-RI2 semantic-only verifier (shadow). No CRM. Fail closed on errors. ---
-  if (mode === 'v6_semantic_verify') {
-    const verifierModel = V6_SEMANTIC_VERIFIER_MODEL
-    const priorUtterances = Array.isArray(body.priorUtterances)
-      ? body.priorUtterances
-          .filter((u: unknown) => typeof u === 'string')
-          .map((u: string) => u.slice(0, 500))
-          .slice(0, 12)
-      : []
-    const draftTurnPlan = body.draftTurnPlan
-    if (!draftTurnPlan || typeof draftTurnPlan !== 'object') {
-      return jsonResponse(
-        {
-          status: 'error',
-          code: 'VERIFICATION_SCHEMA_ERROR',
-          message: 'draft_turn_plan_required',
-        },
-        422,
-      )
-    }
-
-    const userPayload = JSON.stringify({
-      task: 'Semantic-only: does draft_turn_plan faithfully represent user meaning?',
-      user_utterance: utterance,
-      prior_utterances: priorUtterances,
-      collection_summaries: body.collectionSummaries ?? [],
-      draft_turn_plan: draftTurnPlan,
-    })
-
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 28_000)
-    const started = Date.now()
-
-    try {
-      const openaiPayload = buildV6SemanticVerifyRequestBody({
-        model: verifierModel,
-        maxOutputTokens: 1400,
-        messages: [
-          { role: 'system', content: V6_SEMANTIC_VERIFIER_SYSTEM_PROMPT },
-          { role: 'user', content: userPayload },
-        ],
-      })
-
-      const openaiRes = await fetch(
-        'https://api.openai.com/v1/chat/completions',
-        {
-          method: 'POST',
-          signal: controller.signal,
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(openaiPayload),
-        },
-      )
-
-      const openaiBody = await openaiRes.json().catch(() => null)
-      const usage = extractUsage(openaiBody)
-
-      if (!openaiRes.ok) {
-        console.info('[ai-assistant:v6-verify]', {
-          durationMs: Date.now() - started,
-          status: 'provider_error',
-          model: verifierModel,
-          error: openaiBody?.error?.message ?? null,
-        })
-        return jsonResponse(
-          {
-            status: 'error',
-            code: 'VERIFICATION_TRANSPORT_ERROR',
-            message: 'OpenAI provider error',
-            diagnostics: { usage, model: verifierModel },
-          },
-          502,
-        )
-      }
-
-      const content = openaiBody?.choices?.[0]?.message?.content
-      if (typeof content !== 'string' || !content.trim()) {
-        return jsonResponse(
-          {
-            status: 'error',
-            code: 'VERIFICATION_TRANSPORT_ERROR',
-            message: 'empty_verifier_content',
-            diagnostics: { usage, model: verifierModel },
-          },
-          422,
-        )
-      }
-
-      let verdict: unknown
-      try {
-        verdict = JSON.parse(content)
-      } catch {
-        return jsonResponse(
-          {
-            status: 'error',
-            code: 'VERIFICATION_SCHEMA_ERROR',
-            message: 'verifier_json_parse_failed',
-            diagnostics: { usage, model: verifierModel },
-          },
-          422,
-        )
-      }
-
-      console.info('[ai-assistant:v6-verify]', {
-        durationMs: Date.now() - started,
-        status: 'semantic_verdict',
-        model: verifierModel,
-        usage,
-      })
-
-      return jsonResponse({
-        status: 'semantic_verdict',
-        verdict,
-        diagnostics: {
-          model: verifierModel,
-          durationMs: Date.now() - started,
-          usage,
-        },
-      })
-    } catch (e) {
-      const aborted = e instanceof Error && e.name === 'AbortError'
-      return jsonResponse(
-        {
-          status: 'error',
-          code: 'VERIFICATION_TRANSPORT_ERROR',
-          message: aborted ? 'timeout' : 'v6_verify_failed',
-          diagnostics: { model: verifierModel },
-        },
-        aborted ? 504 : 500,
-      )
-    } finally {
-      clearTimeout(timeout)
-    }
-  }
-
-  // --- V5 GoalSpec interpret (shadow / eval). Isolated from V3 + V4 TaskSpec. ---
-  // MUST return inside this branch — never fall through to V3.
-  if (mode === 'v5_goal_interpret') {
-    const evalAuthHeader = req.headers.get('x-ourwed-v4-eval')
-    const modelResolved = resolveV5InterpretModel(
-      body,
-      resolveGoalSpecInterpreterModel(),
-      evalAuthHeader,
-    )
-    if (
-      typeof body.evalModel === 'string' &&
-      body.evalModel.trim() &&
-      modelResolved.error
-    ) {
-      return jsonResponse(
-        buildV5GoalSpecErrorResponse({
-          code: modelResolved.error as
-            | 'eval_auth_rejected'
-            | 'eval_model_not_allowlisted',
-          message: 'Eval model override rejected',
-        }),
-        403,
-      )
-    }
-    const v5Model = modelResolved.model
-
-    const semanticContextSummary = sanitizeV5SemanticContextSummary(
-      body.semanticContextSummary,
-    )
-    const locale =
-      typeof body.locale === 'string' && body.locale.trim()
-        ? body.locale.trim().slice(0, 16)
-        : 'pl-PL'
-
-    const userPayload = JSON.stringify({
-      utterance,
-      semanticContextSummary,
-      locale,
-    })
-
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 28_000)
-    const started = Date.now()
-
-    try {
-      const openaiPayload = buildV5ChatCompletionRequestBody({
-        model: v5Model,
-        maxOutputTokens: 900,
-        messages: [
-          { role: 'system', content: V5_GOALSPEC_INTERPRETER_SYSTEM_PROMPT },
-          { role: 'user', content: userPayload },
-        ],
-        jsonSchemaName: 'assistant_v5_goal_spec',
-        jsonSchema: ASSISTANT_V5_GOALSPEC_JSON_SCHEMA,
-      })
-
-      const openaiRes = await fetch(
-        'https://api.openai.com/v1/chat/completions',
-        {
-          method: 'POST',
-          signal: controller.signal,
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(openaiPayload),
-        },
-      )
-
-      const openaiBody = await openaiRes.json().catch(() => null)
-      const usage = extractUsage(openaiBody)
-
-      if (!openaiRes.ok) {
-        const providerDiag = extractProviderErrorDiagnostics(
-          openaiRes,
-          openaiBody,
-        )
-        console.info('[ai-assistant:v5]', {
-          durationMs: Date.now() - started,
-          status: 'provider_error',
-          http: openaiRes.status,
-          model: v5Model,
-          evalOverride: modelResolved.evalOverride,
-          usage,
-          ...providerDiag,
-        })
-        const code =
-          openaiRes.status === 429 ? 'provider_rate_limit' : 'provider_error'
-        const evalAuthorized = isV4EvalAuthorized(body, evalAuthHeader)
-        return jsonResponse(
-          buildV5GoalSpecErrorResponse({
-            code,
-            diagnostics: evalAuthorized
-              ? {
-                  model: v5Model,
-                  evalOverride: modelResolved.evalOverride,
-                  ...providerDiag,
-                }
-              : undefined,
-          }),
-          200,
-        )
-      }
-
-      const text = extractMessageContent(openaiBody)
-      let parsedJson: unknown = null
-      if (text) {
-        try {
-          parsedJson = JSON.parse(text)
-        } catch {
-          parsedJson = null
-        }
-      }
-
-      const goalSpec = parseFlatV5GoalSpecPayload(parsedJson)
-      if (!goalSpec) {
-        console.info('[ai-assistant:v5]', {
-          durationMs: Date.now() - started,
-          status: 'malformed_model',
-          model: v5Model,
-          hasText: Boolean(text),
-          usage,
-        })
-        return jsonResponse(
-          buildV5GoalSpecErrorResponse({ code: 'malformed_model' }),
-          200,
-        )
-      }
-
-      console.info('[ai-assistant:v5]', {
-        durationMs: Date.now() - started,
-        status: 'goal_spec',
-        requestKind: goalSpec.requestKind,
-        model: v5Model,
-        evalOverride: modelResolved.evalOverride,
-        usage,
-      })
-
-      return jsonResponse(
-        buildV5GoalSpecSuccessResponse({
-          goalSpec,
-          model: v5Model,
-          evalOverride: modelResolved.evalOverride,
-          diagnosticsExtra:
-            Deno.env.get('OURWED_ASSISTANT_DIAGNOSTICS') === '1' ||
-            modelResolved.evalOverride
-              ? {
-                  durationMs: Date.now() - started,
-                  usage,
-                }
-              : undefined,
-        }),
-      )
-    } catch (err) {
-      const aborted = err instanceof DOMException && err.name === 'AbortError'
-      console.info('[ai-assistant:v5]', {
-        durationMs: Date.now() - started,
-        status: aborted ? 'timeout' : 'exception',
-        model: v5Model,
-      })
-      return jsonResponse(
-        buildV5GoalSpecErrorResponse({
-          code: aborted ? 'timeout' : 'exception',
-        }),
-        200,
       )
     } finally {
       clearTimeout(timeout)

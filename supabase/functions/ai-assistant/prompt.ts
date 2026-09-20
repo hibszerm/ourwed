@@ -24,18 +24,6 @@ export function resolveV4InterpreterModel(): string {
   )
 }
 
-/**
- * V5 GoalSpec interpreter model (mode=v5_goal_interpret only).
- * Isolated from V3 planner and V4 TaskSpec. Default: gpt-5.6-luna.
- * Optional env: OURWED_ASSISTANT_V5_MODEL (server-side only; never from browser body).
- */
-export function resolveGoalSpecInterpreterModel(): string {
-  return (
-    Deno.env.get('OURWED_ASSISTANT_V5_MODEL')?.trim() ||
-    'gpt-5.6-luna'
-  )
-}
-
 export const SYSTEM_PROMPT = `You are the language planner for Zapytaj OurWed (wedding photographer CRM for photographers/filmmakers).
 
 GOAL-FIRST planning (critical):
