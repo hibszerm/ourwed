@@ -36,6 +36,11 @@ function weddingBase(input: {
   date: string
   partner1: string
   partner2?: string
+  preparationLocation?: string
+  bridePreparationLocation?: string
+  groomPreparationLocation?: string
+  ceremonyLocation?: string
+  receptionLocation?: string
 }): Wedding {
   const couple = {
     partner1: input.partner1,
@@ -62,6 +67,21 @@ function weddingBase(input: {
     packageId: `cg7-pkg-${input.id}`,
     packageName: input.packageName,
     couple,
+    ...(input.preparationLocation
+      ? { preparationLocation: input.preparationLocation }
+      : {}),
+    ...(input.bridePreparationLocation
+      ? { bridePreparationLocation: input.bridePreparationLocation }
+      : {}),
+    ...(input.groomPreparationLocation
+      ? { groomPreparationLocation: input.groomPreparationLocation }
+      : {}),
+    ...(input.ceremonyLocation
+      ? { ceremonyLocation: input.ceremonyLocation }
+      : {}),
+    ...(input.receptionLocation
+      ? { receptionLocation: input.receptionLocation }
+      : {}),
   } as unknown as Wedding
 }
 
@@ -94,6 +114,11 @@ const DATASETS: Record<
     partner1: string
     partner2?: string
     preserveMoney: string[]
+    preparationLocation?: string
+    bridePreparationLocation?: string
+    groomPreparationLocation?: string
+    ceremonyLocation?: string
+    receptionLocation?: string
   }
 > = {
   U01: {
@@ -105,6 +130,9 @@ const DATASETS: Record<
     date: '2027-08-14',
     partner1: 'Anna Testowa',
     preserveMoney: ['450 zł', '450zł'],
+    preparationLocation: 'ul. Floriańska 4, 31-019 Kraków',
+    ceremonyLocation: 'Bazylika Mariacka, Kraków',
+    receptionLocation: 'Hotel Pod Różą, Floriańska 14, Kraków',
   },
   U02: {
     partyMode: 'two',
@@ -116,6 +144,9 @@ const DATASETS: Record<
     partner1: 'Anna Testowa',
     partner2: 'Jan Próbny',
     preserveMoney: [],
+    preparationLocation: 'ul. Długa 1, 30-001 Kraków',
+    ceremonyLocation: 'Kościół św. Anny, Kraków',
+    receptionLocation: 'Pałac Pod Baranami, Kraków',
   },
   U03: {
     partyMode: 'two',
@@ -127,6 +158,10 @@ const DATASETS: Record<
     partner1: 'Anna Testowa',
     partner2: 'Jan Próbny',
     preserveMoney: ['800 zł', '800zł'],
+    bridePreparationLocation: 'ul. Słoneczna 2, 30-001 Kraków',
+    groomPreparationLocation: 'ul. Wiosenna 8, 30-002 Kraków',
+    ceremonyLocation: 'USC Kraków Stare Miasto',
+    receptionLocation: 'Dworek Białoprądnicki, Kraków',
   },
   U04: {
     partyMode: 'two',
@@ -138,6 +173,9 @@ const DATASETS: Record<
     partner1: 'Anna Testowa',
     partner2: 'Jan Próbny',
     preserveMoney: [],
+    preparationLocation: 'ul. Marszałkowska 10, 00-001 Warszawa',
+    ceremonyLocation: 'Kościół Świętego Krzyża, Warszawa',
+    receptionLocation: 'Hotel Bristol, Krakowskie Przedmieście 42/44, Warszawa',
   },
   U05: {
     partyMode: 'one',
@@ -148,6 +186,9 @@ const DATASETS: Record<
     date: '2027-06-30',
     partner1: 'Anna Testowa',
     preserveMoney: [],
+    preparationLocation: 'ul. Legnicka 5, 50-001 Wrocław',
+    ceremonyLocation: 'Katedra św. Jana, Wrocław',
+    receptionLocation: 'Hala Stulecia — sala bankietowa, Wrocław',
   },
   U06: {
     partyMode: 'two',
@@ -159,6 +200,9 @@ const DATASETS: Record<
     partner1: 'Anna Testowa',
     partner2: 'Jan Próbny',
     preserveMoney: [],
+    preparationLocation: 'ul. Piotrkowska 100, 90-001 Łódź',
+    ceremonyLocation: 'Kościół Wniebowzięcia NMP, Łódź',
+    receptionLocation: 'Pałac Poznańskiego, Łódź',
   },
   U07: {
     partyMode: 'two',
@@ -170,6 +214,9 @@ const DATASETS: Record<
     partner1: 'Anna Testowa',
     partner2: 'Jan Próbny',
     preserveMoney: [],
+    preparationLocation: 'ul. Dworcowa 3, 80-001 Gdańsk',
+    ceremonyLocation: 'Bazylika Mariacka, Gdańsk',
+    receptionLocation: 'Dwór Artusa, Gdańsk',
   },
   U08: {
     partyMode: 'two',
@@ -181,6 +228,9 @@ const DATASETS: Record<
     partner1: 'Anna Testowa',
     partner2: 'Jan Próbny',
     preserveMoney: [],
+    preparationLocation: 'ul. Mickiewicza 7, 15-001 Białystok',
+    ceremonyLocation: 'Katedra, Białystok',
+    receptionLocation: 'Hotel Gołębiewski, Białystok',
   },
   U09: {
     partyMode: 'one',
@@ -191,6 +241,9 @@ const DATASETS: Record<
     date: '2027-09-25',
     partner1: 'Anna Testowa',
     preserveMoney: ['550 zł', '550zł', '120 zł', '1,80 zł'],
+    preparationLocation: 'ul. Warszawska 12, 40-001 Katowice',
+    ceremonyLocation: 'Katedra Chrystusa Króla, Katowice',
+    receptionLocation: 'Spodek — strefa bankietowa, Katowice',
   },
   U10: {
     partyMode: 'two',
@@ -202,6 +255,10 @@ const DATASETS: Record<
     partner1: 'Anna Testowa',
     partner2: 'Jan Próbny',
     preserveMoney: ['750 zł', '750zł'],
+    bridePreparationLocation: 'ul. Lipowa 2, 20-001 Lublin',
+    groomPreparationLocation: 'ul. Narutowicza 9, 20-002 Lublin',
+    ceremonyLocation: 'Archikatedra, Lublin',
+    receptionLocation: 'Hotel Mercure, Lublin',
   },
 }
 
@@ -222,6 +279,11 @@ export function buildCg7Scenarios(): Cg7Scenario[] {
       date: d.date,
       partner1: d.partner1,
       partner2: d.partner2,
+      preparationLocation: d.preparationLocation,
+      bridePreparationLocation: d.bridePreparationLocation,
+      groomPreparationLocation: d.groomPreparationLocation,
+      ceremonyLocation: d.ceremonyLocation,
+      receptionLocation: d.receptionLocation,
     })
     void extrasSum
     return {

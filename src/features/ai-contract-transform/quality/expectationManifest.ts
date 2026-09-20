@@ -25,6 +25,12 @@ import {
   discoverFilledPartyEvidence,
   type SourcePartyEvidence as PartyEvidenceRuntime,
 } from './partyFilledIdentity'
+import {
+  discoverFilledLocationEvidence,
+  isNonSemanticLocationSurface,
+  weddingDatesSemanticallyEqual,
+  type SourceLocationEvidence as LocationEvidenceRuntime,
+} from './locationFieldEvidence'
 import type {
   CanonicalTransformField,
   ConsistencyRule,
@@ -32,6 +38,7 @@ import type {
   ProtectedFieldExpectation,
   RequiredFieldExpectation,
   RequiredReplacement,
+  SourceLocationEvidence,
   SourcePartyEvidence,
   SourceSpecificValue,
   TransformationExpectationManifest,
@@ -174,6 +181,48 @@ export function buildExpectationManifest(input: {
     }
   }
 
+  // CG7.2 — discover grounded event-location fields (table/prose)
+  const filledLocationEvidence: SourceLocationEvidence[] =
+    discoverFilledLocationEvidence(blocks).map((e: LocationEvidenceRuntime) => ({
+      blockId: e.blockId,
+      role: e.role,
+      sourceText: e.sourceText,
+      nonSemanticSurface: e.nonSemanticSurface,
+      representation: e.representation,
+      rowLabelText: e.rowLabelText,
+      canonicalField: e.canonicalField,
+    }))
+  for (const ev of filledLocationEvidence) {
+    // Sentinels are structural fields, not stale venue inventory
+    if (ev.nonSemanticSurface || isNonSemanticLocationSurface(ev.sourceText)) {
+      continue
+    }
+    if (ev.sourceText.trim().length < 4) continue
+    // Table value cells: inventory the cell text as the old surface.
+    // Prose clauses: inventory only distinctive venue tokens (not the whole sentence),
+    // otherwise completeness treats legal sentence stems as mustDisappear.
+    if (ev.representation === 'table_cell') {
+      pushSourceValue(sourceSpecificValues, {
+        field: ev.canonicalField,
+        value: ev.sourceText,
+        blocks: [blocks.find((b) => b.blockId === ev.blockId)!].filter(Boolean),
+        mustDisappear: true,
+      })
+      continue
+    }
+    const venueTok = ev.sourceText.match(
+      /\b((?:Pałac(?:u|em)?|Hotel(?:u|em)?|Kościo(?:ł|le|ła)|Bazylik(?:a|i|ę)|Zam(?:ek|ku)|Dworek|Dworku|Restauracj(?:a|i)|Sala|Sali)\s+[A-ZĄĆĘŁŃÓŚŹŻ][^\s,.]{2,}(?:\s+[A-ZĄĆĘŁŃÓŚŹŻ][^\s,.]{2,}){0,3})/i,
+    )
+    if (venueTok?.[1]) {
+      pushSourceValue(sourceSpecificValues, {
+        field: ev.canonicalField,
+        value: venueTok[1],
+        blocks: [blocks.find((b) => b.blockId === ev.blockId)!].filter(Boolean),
+        mustDisappear: true,
+      })
+    }
+  }
+
   // --- inventory old customer/wedding values from party / location rows & body ---
   for (const b of blocks) {
     // Row labels are not customer/wedding values
@@ -208,34 +257,22 @@ export function buildExpectationManifest(input: {
     if (family === 'wedding_date' || /data wydarzenia|ślubu/i.test(b.tableContext?.rowLabelText ?? '')) {
       const date = b.text.match(/\d{1,2}[./-]\d{1,2}[./-]\d{2,4}/)
       if (date?.[0] && family !== 'provider') {
+        // Date inventory is independent of location. If the calendar day already
+        // matches canonical weddingDate, do not force a cosmetic "must disappear".
+        const sameDay = weddingDatesSemanticallyEqual(
+          date[0],
+          dataset.dates.weddingDate,
+        )
         pushSourceValue(sourceSpecificValues, {
           field: 'wedding.date',
           value: date[0],
           blocks,
+          mustDisappear: !sameDay,
         })
       }
     }
-    if (family === 'wedding_location') {
-      const locText = b.text.trim()
-      if (locText.length >= 4) {
-        pushSourceValue(sourceSpecificValues, {
-          field: 'wedding.receptionLocation',
-          value: locText,
-          blocks,
-        })
-        // Also store short venue tokens (e.g. Pałac Rydzyna)
-        const venue = locText.match(
-          /\b((?:Pałac|Hotel|Kościół|Bazylika|Restauracja|Zamek|Dworek|Sala)\s+[A-ZĄĆĘŁŃÓŚŹŻ][a-ząćęłńóśźż]+(?:\s+[A-ZĄĆĘŁŃÓŚŹŻ][a-ząćęłńóśźż]+)?)/,
-        )
-        if (venue?.[1]) {
-          pushSourceValue(sourceSpecificValues, {
-            field: 'wedding.receptionLocation',
-            value: venue[1],
-            blocks,
-          })
-        }
-      }
-    }
+    // wedding_location value inventory is handled via filledLocationEvidence above
+    // (role-correct + sentinel-aware). Do not dump every cell into receptionLocation.
   }
 
   // Body location mentions of known venues from location cells
@@ -379,13 +416,19 @@ export function buildExpectationManifest(input: {
     )
   }
 
+  const dateAlreadyMatches = sourceSpecificValues.some(
+    (s) =>
+      s.canonicalField === 'wedding.date' &&
+      !s.mustDisappear &&
+      weddingDatesSemanticallyEqual(s.sourceValue, dataset.dates.weddingDate),
+  )
   addRequired(
     'wedding.date',
     sourceSpecificValues
-      .filter((s) => s.canonicalField === 'wedding.date')
+      .filter((s) => s.canonicalField === 'wedding.date' && s.mustDisappear)
       .map((s) => s.sourceValue),
     [dataset.dates.weddingDate],
-    'must_replace_source',
+    dateAlreadyMatches ? 'must_appear' : 'must_replace_source',
   )
 
   addRequired(
@@ -399,6 +442,9 @@ export function buildExpectationManifest(input: {
   const ceremony = locationFromDatasetEntry(dataset.locations.ceremony)
   const reception = locationFromDatasetEntry(dataset.locations.reception)
 
+  const locationEvidenceByRole = (roles: SourceLocationEvidence['role'][]) =>
+    filledLocationEvidence.filter((e) => roles.includes(e.role))
+
   if (prep) {
     const prepEntries = dataset.locations.preparationLocations ?? []
     const targets = [
@@ -410,6 +456,19 @@ export function buildExpectationManifest(input: {
         ? `pod adresem ${prep.fullAddress ?? prep.displayName}`
         : '',
     ].filter(Boolean)
+    const prepEvidence = locationEvidenceByRole([
+      'preparation',
+      'preparation_partner1',
+      'preparation_partner2',
+    ])
+    const prepBlockIds = [
+      ...new Set([
+        ...prepEvidence.map((e) => e.blockId),
+        ...blocks
+          .filter((b) => inferContext(b) === 'preparation_clause')
+          .map((b) => b.blockId),
+      ]),
+    ]
     addRequired(
       'wedding.preparationLocation',
       sourceSpecificValues
@@ -417,17 +476,31 @@ export function buildExpectationManifest(input: {
         .map((s) => s.sourceValue),
       targets,
       'must_appear_in_relevant_context',
-      [
-        {
-          kind: 'preparation_clause',
-          blockIds: blocks
-            .filter((b) => inferContext(b) === 'preparation_clause')
-            .map((b) => b.blockId),
-        },
-      ],
+      [{ kind: 'preparation_clause', blockIds: prepBlockIds }],
     )
+    if (prepEvidence.length > 0) {
+      requiredReplacements.push({
+        canonicalField: 'wedding.preparationLocation',
+        sourceValues: prepEvidence
+          .filter((e) => !e.nonSemanticSurface)
+          .map((e) => e.sourceText),
+        targetRenderedValues: targets,
+        sourceBlockIds: prepEvidence.map((e) => e.blockId),
+        requiredContextBlockIds: prepEvidence.map((e) => e.blockId),
+        replacementPolicy: 'replace_in_contexts',
+      })
+    }
   }
   if (ceremony) {
+    const ceremonyEvidence = locationEvidenceByRole(['ceremony'])
+    const ceremonyBlockIds = [
+      ...new Set([
+        ...ceremonyEvidence.map((e) => e.blockId),
+        ...blocks
+          .filter((b) => inferContext(b) === 'ceremony_clause')
+          .map((b) => b.blockId),
+      ]),
+    ]
     addRequired(
       'wedding.ceremonyLocation',
       sourceSpecificValues
@@ -435,20 +508,38 @@ export function buildExpectationManifest(input: {
         .map((s) => s.sourceValue),
       [renderLocationSummary(ceremony)],
       'must_appear_in_relevant_context',
-      [
-        {
-          kind: 'ceremony_clause',
-          blockIds: blocks
-            .filter((b) => inferContext(b) === 'ceremony_clause')
-            .map((b) => b.blockId),
-        },
-      ],
+      [{ kind: 'ceremony_clause', blockIds: ceremonyBlockIds }],
     )
+    if (ceremonyEvidence.length > 0) {
+      requiredReplacements.push({
+        canonicalField: 'wedding.ceremonyLocation',
+        sourceValues: ceremonyEvidence
+          .filter((e) => !e.nonSemanticSurface)
+          .map((e) => e.sourceText),
+        targetRenderedValues: [renderLocationSummary(ceremony)],
+        sourceBlockIds: ceremonyEvidence.map((e) => e.blockId),
+        requiredContextBlockIds: ceremonyEvidence.map((e) => e.blockId),
+        replacementPolicy: 'replace_in_contexts',
+      })
+    }
   }
   if (reception) {
     const stale = sourceSpecificValues
       .filter((s) => s.canonicalField === 'wedding.receptionLocation')
       .map((s) => s.sourceValue)
+    const receptionEvidence = locationEvidenceByRole(['reception'])
+    const receptionBlockIds = [
+      ...new Set([
+        ...receptionEvidence.map((e) => e.blockId),
+        ...blocks
+          .filter(
+            (b) =>
+              b.tableContext?.ownershipFamily === 'wedding_location' ||
+              inferContext(b) === 'reception_clause',
+          )
+          .map((b) => b.blockId),
+      ]),
+    ]
     addRequired(
       'wedding.receptionLocation',
       stale,
@@ -458,18 +549,9 @@ export function buildExpectationManifest(input: {
         reception.displayName ?? '',
         reception.city ?? '',
       ].filter(Boolean),
-      'must_replace_source',
+      'must_appear_in_relevant_context',
       [
-        {
-          kind: 'location_table',
-          blockIds: blocks
-            .filter(
-              (b) =>
-                b.tableContext?.ownershipFamily === 'wedding_location' ||
-                inferContext(b) === 'reception_clause',
-            )
-            .map((b) => b.blockId),
-        },
+        { kind: 'location_table', blockIds: receptionBlockIds },
         {
           kind: 'reception_clause',
           blockIds: blocks
@@ -478,6 +560,43 @@ export function buildExpectationManifest(input: {
         },
       ],
     )
+    if (receptionEvidence.length > 0) {
+      requiredReplacements.push({
+        canonicalField: 'wedding.receptionLocation',
+        sourceValues: receptionEvidence
+          .filter((e) => !e.nonSemanticSurface)
+          .map((e) => e.sourceText),
+        targetRenderedValues: [
+          renderLocationSummary(reception),
+          reception.fullAddress ?? '',
+          reception.displayName ?? '',
+        ].filter(Boolean),
+        sourceBlockIds: receptionEvidence.map((e) => e.blockId),
+        requiredContextBlockIds: receptionEvidence.map((e) => e.blockId),
+        replacementPolicy: 'replace_in_contexts',
+      })
+    }
+  }
+
+  // Absent CRM roles: neutralize grounded fields without inventing venues.
+  for (const ev of filledLocationEvidence) {
+    const hasTarget =
+      (ev.role === 'ceremony' && Boolean(ceremony)) ||
+      (ev.role === 'reception' && Boolean(reception)) ||
+      ((ev.role === 'preparation' ||
+        ev.role === 'preparation_partner1' ||
+        ev.role === 'preparation_partner2') &&
+        Boolean(prep))
+    if (hasTarget) continue
+    if (!ev.sourceText.trim()) continue
+    requiredReplacements.push({
+      canonicalField: ev.canonicalField,
+      sourceValues: [ev.sourceText],
+      targetRenderedValues: ['—'],
+      sourceBlockIds: [ev.blockId],
+      requiredContextBlockIds: [ev.blockId],
+      replacementPolicy: 'replace_in_contexts',
+    })
   }
 
   addRequired(
@@ -555,26 +674,29 @@ export function buildExpectationManifest(input: {
     })
   }
 
-  // multi-location summary target when template has generic location row
-  if ((prep || ceremony || reception) && blocks.some((b) => b.tableContext?.ownershipFamily === 'wedding_location')) {
+  // multi-location summary only for generic (role-unknown) location rows —
+  // never overwrite role-specific prep/ceremony/reception evidence blocks.
+  if (
+    (prep || ceremony || reception) &&
+    filledLocationEvidence.some((e) => e.role === 'unknown')
+  ) {
     const summary = renderMultiLocationSummary({
       preparation: prep,
       ceremony,
       reception,
     })
-    if (summary) {
+    const unknownIds = filledLocationEvidence
+      .filter((e) => e.role === 'unknown')
+      .map((e) => e.blockId)
+    if (summary && unknownIds.length > 0) {
       requiredReplacements.push({
         canonicalField: 'wedding.receptionLocation',
-        sourceValues: sourceSpecificValues
-          .filter((s) => s.canonicalField.startsWith('wedding.'))
-          .map((s) => s.sourceValue),
+        sourceValues: filledLocationEvidence
+          .filter((e) => e.role === 'unknown' && !e.nonSemanticSurface)
+          .map((e) => e.sourceText),
         targetRenderedValues: [summary],
-        sourceBlockIds: blocks
-          .filter((b) => b.tableContext?.ownershipFamily === 'wedding_location')
-          .map((b) => b.blockId),
-        requiredContextBlockIds: blocks
-          .filter((b) => b.tableContext?.ownershipFamily === 'wedding_location')
-          .map((b) => b.blockId),
+        sourceBlockIds: unknownIds,
+        requiredContextBlockIds: unknownIds,
         replacementPolicy: 'replace_in_contexts',
       })
     }
@@ -632,6 +754,9 @@ export function buildExpectationManifest(input: {
     ...(additionalServices ? { additionalServices } : {}),
     ...(filledPartyEvidence.length > 0
       ? { sourcePartyEvidence: filledPartyEvidence }
+      : {}),
+    ...(filledLocationEvidence.length > 0
+      ? { sourceLocationEvidence: filledLocationEvidence }
       : {}),
   }
 }

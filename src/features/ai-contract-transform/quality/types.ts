@@ -92,6 +92,23 @@ export type SourcePartyEvidence = {
   identitySurfaces: string[]
 }
 
+/** Structurally identified event-location field (CG7.2). */
+export type SourceLocationEvidence = {
+  blockId: string
+  role:
+    | 'preparation'
+    | 'preparation_partner1'
+    | 'preparation_partner2'
+    | 'ceremony'
+    | 'reception'
+    | 'unknown'
+  sourceText: string
+  nonSemanticSurface: boolean
+  representation: 'table_cell' | 'prose'
+  rowLabelText?: string
+  canonicalField: CanonicalTransformField
+}
+
 export type TransformationExpectationManifest = {
   requiredFields: RequiredFieldExpectation[]
   protectedFields: ProtectedFieldExpectation[]
@@ -101,6 +118,8 @@ export type TransformationExpectationManifest = {
   additionalServices?: AdditionalServicesExpectation
   /** Filled-template party blocks discovered structurally (not placeholders). */
   sourcePartyEvidence?: SourcePartyEvidence[]
+  /** Event-location fields discovered structurally (table/prose). */
+  sourceLocationEvidence?: SourceLocationEvidence[]
 }
 
 export type RequiredReplacement = {

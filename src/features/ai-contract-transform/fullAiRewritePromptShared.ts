@@ -77,6 +77,7 @@ Content rules:
 - Change only client/wedding-specific data (names, address, phone, dates, locations, contract finances supplied in the dataset).
 - Every occurrence of an old customer-specific or wedding-specific value listed in requiredReplacements must be removed or replaced in all relevant source contexts (requiredContextBlockIds / sourceBlockIds).
 - When requiredReplacements lists customer.names with sourceBlockIds, those blocks are the contracting-client identity clause(s). Rewrite EACH listed block as a COMPLETE grammatically coherent Polish clause using clients.displayNames / address / phone and clients.personCount. Do not leave any source party identity surface from that block. Do not invent a second partner when personCount is 1.
+- When requiredReplacements lists wedding.*Location with sourceBlockIds, those blocks/cells are grounded event-location fields (preparations / ceremony / reception). Put the matching canonical location into EACH listed block. Do not swap ceremony/reception/preparation. Do not invent a venue when targetRenderedValues is "—" — neutralize the field only. Preserve table value cells as value-only text (do not overwrite row labels).
 - Do NOT globally rewrite provider-role nouns (Filmowiec, Fotograf, Fotografowie, Kamerzysta, Wykonawca, Usługodawca) or copyright/portfolio/liability clauses merely because client identity changed. Preserve local inflection and wording unless a listed requiredReplacement explicitly targets that block.
 - Use targetRenderedValues from requiredReplacements when provided; do not invent alternate location grammar.
 - Preserve business meaning and clauses.
@@ -107,7 +108,7 @@ export function buildUserPayload(input: {
     mode: 'full_ai_trusted_rewrite',
     promptVersion: FULL_AI_PROMPT_VERSION,
     instructions:
-      'Return sparse changedBlocks only. Omit unchanged blocks. Apply every requiredReplacements entry in all listed contexts. When customer.names lists sourceBlockIds, rewrite those entire contracting-party blocks with canonical clients.displayNames (correct Polish grammar for personCount); do not leave stale party identity. Do not rewrite provider-role/copyright/portfolio clauses unless they are listed. Protected values must remain unchanged. Honor locations.absentLocationRoles and locations.locationRoleIntegrity: never invent or copy venues into absent roles.',
+      'Return sparse changedBlocks only. Omit unchanged blocks. Apply every requiredReplacements entry in all listed contexts. When customer.names lists sourceBlockIds, rewrite those entire contracting-party blocks with canonical clients.displayNames (correct Polish grammar for personCount); do not leave stale party identity. When wedding.*Location lists sourceBlockIds, fill those grounded location fields/cells with the matching canonical location (no role swap; neutralize with — when that is the target). Do not rewrite provider-role/copyright/portfolio clauses unless they are listed. Protected values must remain unchanged. Honor locations.absentLocationRoles and locations.locationRoleIntegrity: never invent or copy venues into absent roles.',
     protectedDataSummary: input.protectedDataSummary,
     transformationDataset: input.transformationDataset,
     requiredReplacements: input.requiredReplacements ?? [],

@@ -207,9 +207,10 @@ export function buildContractTransformationDataset(input: {
 
   // A5: empty optional roles must be explicit unknowns — omission alone lets Full-AI
   // invent ceremony/prep by copying reception.
-  const absentLocationRoles: Array<'ceremony' | 'preparation'> = []
+  const absentLocationRoles: Array<'ceremony' | 'preparation' | 'reception'> = []
   if (!ceremony) absentLocationRoles.push('ceremony')
   if (prepEntries.length === 0) absentLocationRoles.push('preparation')
+  if (!reception) absentLocationRoles.push('reception')
   if (absentLocationRoles.length > 0) {
     locations.absentLocationRoles = absentLocationRoles
     locations.locationRoleIntegrity = {

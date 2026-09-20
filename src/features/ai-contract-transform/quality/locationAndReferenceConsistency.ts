@@ -175,6 +175,31 @@ export function verifyLocationConsistency(input: {
 
   for (const src of input.manifest.sourceSpecificValues) {
     if (!src.canonicalField.includes('Location')) continue
+    // CG7.2: scope stale location checks to grounded evidence blocks when available.
+    // Do not require global absence of an address that may legitimately appear elsewhere.
+    const evidence = input.manifest.sourceLocationEvidence ?? []
+    if (evidence.length > 0) {
+      const groundedIds = new Set(
+        evidence
+          .filter((e) => !e.nonSemanticSurface && e.canonicalField === src.canonicalField)
+          .map((e) => e.blockId),
+      )
+      const stillInGrounded = src.sourceBlockIds.some((id) => {
+        if (!groundedIds.has(id)) return false
+        const block = input.transformedBlocks.find((b) => b.blockId === id)
+        return block ? textContainsNormalized(block.text, src.sourceValue) || block.text.includes(src.sourceValue) : false
+      })
+      if (!stillInGrounded) continue
+      staleLocations.push(src.sourceValue.slice(0, 40))
+      issues.push({
+        code: 'stale_source_value_remaining',
+        severity: 'blocking',
+        canonicalField: src.canonicalField,
+        blockId: src.sourceBlockIds.find((id) => groundedIds.has(id)),
+        safeDescription: `Template example location still present for ${src.canonicalField}`,
+      })
+      continue
+    }
     if (textContainsNormalized(text, src.sourceValue)) {
       staleLocations.push(src.sourceValue.slice(0, 40))
       // A5: remaining template venue is a client-data integrity defect

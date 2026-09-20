@@ -32,6 +32,7 @@ import {
   verifyFilledPartyIdentity,
   verifyProviderRoleSparseScope,
 } from './partyFilledIdentity'
+import { verifyFilledLocationIdentity } from './locationFieldEvidence'
 import type {
   DocumentQualityReport,
   QualityIssue,
@@ -69,6 +70,10 @@ const MODE_A_LOCATION_INTEGRITY_CODES = new Set([
   'partial_field_application',
   'mixed_source_target',
   'invented_location_for_absent_role',
+  'stale_location_identity_remaining',
+  'location_identity_canonical_missing',
+  'location_identity_block_missing',
+  'location_sentinel_unresolved',
 ])
 
 const LOCATION_CANONICAL_FIELDS = new Set([
@@ -225,6 +230,13 @@ export function buildQualityReport(input: {
     transformedBlocks: input.transformedBlocks,
     partyEvidence,
   })
+  const locationEvidence = manifest.sourceLocationEvidence ?? []
+  const filledLocationIssues = verifyFilledLocationIdentity({
+    evidence: locationEvidence,
+    sourceBlocks: input.sourceBlocks,
+    transformedBlocks: input.transformedBlocks,
+    dataset: input.dataset,
+  })
 
   const allIssues: QualityIssue[] = [
     ...completeness.issues,
@@ -237,6 +249,7 @@ export function buildQualityReport(input: {
     ...partyPlaceholderIssues,
     ...filledPartyIssues,
     ...providerScopeIssues,
+    ...filledLocationIssues,
   ]
 
   // Deduplicate by code+field+block

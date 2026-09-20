@@ -67,7 +67,7 @@ export type ContractTransformationDataset = {
      * Roles intentionally absent in CRM (not merely omitted from JSON).
      * Full-AI must not invent venues for these roles or copy another role's venue.
      */
-    absentLocationRoles?: Array<'ceremony' | 'preparation'>
+    absentLocationRoles?: Array<'ceremony' | 'preparation' | 'reception'>
     /**
      * Explicit integrity policy for the rewrite model (A5 role-fact invention).
      * Present whenever any optional location role is absent.

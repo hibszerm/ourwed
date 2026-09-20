@@ -187,6 +187,65 @@ export function applyDeterministicRepairs(input: {
   blocks = party.blocks
   repairs.push(...party.repairs)
 
+  // 6. CG7.2 — table location value cells: exact cell rewrite when the whole
+  // cell text is the source surface (sentinel or old filled). No prose grammar.
+  for (const ev of input.manifest.sourceLocationEvidence ?? []) {
+    if (ev.representation !== 'table_cell') continue
+    const idx = blocks.findIndex((b) => b.blockId === ev.blockId)
+    if (idx < 0) continue
+    const b = blocks[idx]!
+    if (b.text.trim() !== ev.sourceText.trim()) continue
+
+    let target = '—'
+    const locs = input.dataset.locations
+    if (
+      (ev.role === 'preparation' ||
+        ev.role === 'preparation_partner1' ||
+        ev.role === 'preparation_partner2') &&
+      (locs.preparationDisplayText || locs.preparation || locs.preparationLocations?.length)
+    ) {
+      if (ev.role === 'preparation_partner1') {
+        target =
+          locs.preparationLocations?.find((e) => e.person === 'bride')
+            ?.fullAddress ??
+          locs.preparationDisplayText ??
+          '—'
+      } else if (ev.role === 'preparation_partner2') {
+        target =
+          locs.preparationLocations?.find((e) => e.person === 'groom')
+            ?.fullAddress ??
+          locs.preparationDisplayText ??
+          '—'
+      } else {
+        target =
+          locs.preparationDisplayText ??
+          locs.preparation?.fullAddress ??
+          locs.preparation?.displayName ??
+          '—'
+      }
+    } else if (ev.role === 'ceremony' && locs.ceremony) {
+      target = locs.ceremony.fullAddress ?? locs.ceremony.displayName ?? '—'
+    } else if (ev.role === 'reception' && locs.reception) {
+      target = locs.reception.fullAddress ?? locs.reception.displayName ?? '—'
+    } else if (
+      ev.role === 'unknown' &&
+      (locs.reception || locs.ceremony || locs.preparation)
+    ) {
+      // Ambiguous generic field with multiple CRM roles — do not invent mapping
+      continue
+    }
+
+    if (b.text === target) continue
+    repairs.push({
+      repairCode: 'exact_location_table_cell_to_canonical',
+      blockId: ev.blockId,
+      canonicalField: ev.canonicalField,
+      beforeFingerprint: fingerprintText(b.text),
+      afterFingerprint: fingerprintText(target),
+    })
+    blocks[idx] = { ...b, text: target }
+  }
+
   return { blocks, repairs }
 }
 
