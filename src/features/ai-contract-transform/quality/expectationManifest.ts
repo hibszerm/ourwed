@@ -23,6 +23,7 @@ import {
 import { normalizeForMatch, textContainsNormalized } from './normalize'
 import {
   discoverFilledPartyEvidence,
+  extractCustomerAddressSurface,
   type SourcePartyEvidence as PartyEvidenceRuntime,
 } from './partyFilledIdentity'
 import {
@@ -164,7 +165,8 @@ export function buildExpectationManifest(input: {
       })
     }
     // Also inventory phone/address surfaces that live in the same party clause
-    const phone = ev.sourceText.match(
+    const phoneSource = ev.customerHalfText ?? ev.sourceText
+    const phone = phoneSource.match(
       /(?:tel\.?\s*)?((?:\+48[\s-]?)?(?:\d{3}[\s-]?\d{3}[\s-]?\d{3}|\d{9}))/i,
     )
     if (phone?.[1]) {
@@ -174,14 +176,13 @@ export function buildExpectationManifest(input: {
         blocks,
       })
     }
-    const addr = ev.sourceText.match(
-      /zam\.\s*([^,]+(?:,\s*\d{2}-\d{3}\s+[A-ZĄĆĘŁŃÓŚŹŻ][a-ząćęłńóśźż]+)?)/i,
-    )
-    if (addr?.[1]) {
+    const addrSurface = extractCustomerAddressSurface(phoneSource)
+    if (addrSurface) {
       pushSourceValue(sourceSpecificValues, {
         field: 'customer.address',
-        value: addr[1].trim(),
-        blocks,
+        value: addrSurface,
+        blocks: blocks.filter((b) => b.blockId === ev.blockId),
+        mustDisappear: true,
       })
     }
   }
@@ -389,19 +390,35 @@ export function buildExpectationManifest(input: {
   }
 
   if (dataset.clients.address && represented.customerAddress) {
-    const addrBlocks = findBlocksContaining(
-      blocks,
-      sourceSpecificValues
-        .filter((s) => s.canonicalField === 'customer.address')
-        .map((s) => s.sourceValue),
-    )
+    const addrSources = sourceSpecificValues
+      .filter((s) => s.canonicalField === 'customer.address')
+      .map((s) => s.sourceValue)
+    const addrBlocks = [
+      ...new Set([
+        ...findBlocksContaining(blocks, addrSources),
+        ...filledPartyEvidence
+          .filter((e) => extractCustomerAddressSurface(e.customerHalfText ?? e.sourceText))
+          .map((e) => e.blockId),
+      ]),
+    ]
+    const targetAddr = renderCustomerAddress(dataset.clients.address)
     addRequired(
       'customer.address',
-      [],
-      [renderCustomerAddress(dataset.clients.address)],
-      'must_appear_in_relevant_context',
-      [{ kind: 'party_table', blockIds: addrBlocks.length ? addrBlocks : nameBlocks }],
+      addrSources,
+      [targetAddr],
+      addrSources.length > 0 ? 'must_replace_source' : 'must_appear_in_relevant_context',
+      [{ kind: 'opening_paragraph', blockIds: addrBlocks.length ? addrBlocks : nameBlocks }],
     )
+    if (addrBlocks.length > 0) {
+      requiredReplacements.push({
+        canonicalField: 'customer.address',
+        sourceValues: addrSources,
+        targetRenderedValues: [targetAddr],
+        sourceBlockIds: addrBlocks,
+        requiredContextBlockIds: addrBlocks,
+        replacementPolicy: 'replace_in_contexts',
+      })
+    }
   }
   if (dataset.clients.phone && represented.customerPhone) {
     addRequired(

@@ -28,7 +28,8 @@ export function stripLocationPrefixes(s: string): string {
       .replace(/\bpod\s+adresem:?\s*/gi, ' ')
       .replace(/\bprzy\s+ul\.?\s*/gi, ' ')
       .replace(/\bw\s+miejscu\s+(przyjęcia|ceremonii|przygotowań)[:\s]*/gi, ' ')
-      .replace(/\b(ul\.|aleja|al\.|os\.|pl\.)\s*/gi, ' ')
+      // Match ul/al/os/pl with or without period — punctuation may already be stripped
+      .replace(/\b(ul\.?|aleja|al\.?|os\.?|pl\.?)\s+/gi, ' ')
       .replace(/^w\s+/i, ' ')
       .replace(/^we\s+/i, ' '),
   )

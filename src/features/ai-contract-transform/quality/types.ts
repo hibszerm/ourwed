@@ -90,6 +90,9 @@ export type SourcePartyEvidence = {
   blockId: string
   sourceText: string
   identitySurfaces: string[]
+  /** Customer-owned half of a MIXED provider+customer opening clause. */
+  customerHalfText?: string
+  owner?: 'CUSTOMER' | 'MIXED'
 }
 
 /** Structurally identified event-location field (CG7.2). */

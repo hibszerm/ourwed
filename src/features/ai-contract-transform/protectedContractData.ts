@@ -9,6 +9,7 @@ import {
   type TableRowOwnershipFamily,
 } from './tableRowOwnership'
 import type { ProtectedContractData, ProtectedPattern, TransformDocumentBlock } from './types'
+import { classifyFactOwner, splitMixedPartyClause } from './quality/partyOwnership'
 
 const NIP_RE = /\b(?:NIP[:\s]*)?(\d{3}[-\s]?\d{3}[-\s]?\d{2}[-\s]?\d{2}|\d{10})\b/gi
 const REGON_RE = /\b(?:REGON[:\s]*)?(\d{9}|\d{14})\b/gi
@@ -145,8 +146,12 @@ export function buildProtectedContractData(input: {
 
     const text = block.text
     const ctx = block.tableContext
+    const owner = classifyFactOwner(text)
+    const mixed = owner === 'MIXED' ? splitMixedPartyClause(text) : null
+    // In MIXED clauses, only the provider half may seed protected identity values.
+    const protectText = mixed?.providerHalf ?? text
 
-    for (const nip of collectMatches(text, NIP_RE)) {
+    for (const nip of collectMatches(protectText, NIP_RE)) {
       pushEntry(entries, exact, {
         value: nip,
         canonicalField: 'provider.taxId',
@@ -154,11 +159,13 @@ export function buildProtectedContractData(input: {
         ownershipReason:
           family === 'provider'
             ? 'provider_row_nip'
-            : 'provider_context_nip',
+            : mixed
+              ? 'mixed_provider_half_nip'
+              : 'provider_context_nip',
         tableContext: ctx,
       })
     }
-    for (const regon of collectMatches(text, REGON_RE)) {
+    for (const regon of collectMatches(protectText, REGON_RE)) {
       pushEntry(entries, exact, {
         value: regon,
         canonicalField: 'provider.regon',
@@ -166,11 +173,13 @@ export function buildProtectedContractData(input: {
         ownershipReason:
           family === 'provider'
             ? 'provider_row_regon'
-            : 'provider_context_regon',
+            : mixed
+              ? 'mixed_provider_half_regon'
+              : 'provider_context_regon',
         tableContext: ctx,
       })
     }
-    for (const iban of collectMatches(text, IBAN_PL)) {
+    for (const iban of collectMatches(protectText, IBAN_PL)) {
       pushEntry(entries, exact, {
         value: iban,
         canonicalField: 'provider.bankAccount',
@@ -179,8 +188,11 @@ export function buildProtectedContractData(input: {
         tableContext: ctx,
       })
     }
-    for (const email of collectMatches(text, EMAIL_RE)) {
-      // Emails only from provider rows / known body — not customer rows
+    const regonSet = new Set(
+      collectMatches(protectText, REGON_RE).map((v) => v.replace(/\D/g, '')),
+    )
+    for (const email of collectMatches(protectText, EMAIL_RE)) {
+      // Emails only from provider rows / provider half / known body — not customer half
       if (family === 'provider' || family === undefined || family === 'unknown') {
         if (family === 'unknown' && block.kind === 'tableCell') continue
         pushEntry(entries, exact, {
@@ -188,12 +200,18 @@ export function buildProtectedContractData(input: {
           canonicalField: 'provider.email',
           sourceBlockId: block.blockId,
           ownershipReason:
-            family === 'provider' ? 'provider_row_email' : 'body_email',
+            family === 'provider'
+              ? 'provider_row_email'
+              : mixed
+                ? 'mixed_provider_half_email'
+                : 'body_email',
           tableContext: ctx,
         })
       }
     }
-    for (const phone of collectMatches(text, PHONE_RE)) {
+    for (const phone of collectMatches(protectText, PHONE_RE)) {
+      // Do not treat REGON digit groups as phones
+      if (regonSet.has(phone.replace(/\D/g, ''))) continue
       if (family === 'provider') {
         pushEntry(entries, exact, {
           value: phone,
@@ -205,13 +223,15 @@ export function buildProtectedContractData(input: {
       } else if (
         (family === undefined || family === 'unknown') &&
         block.kind === 'paragraph' &&
-        /\b(?:Wykonawc|Usługodawc|Studio|NIP)\b/i.test(text)
+        /\b(?:Wykonawc|Usługodawc|Studio|NIP)\b/i.test(protectText)
       ) {
         pushEntry(entries, exact, {
           value: phone,
           canonicalField: 'provider.phone',
           sourceBlockId: block.blockId,
-          ownershipReason: 'provider_paragraph_phone',
+          ownershipReason: mixed
+            ? 'mixed_provider_half_phone'
+            : 'provider_paragraph_phone',
           tableContext: ctx,
         })
       }

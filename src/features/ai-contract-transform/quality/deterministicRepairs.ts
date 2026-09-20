@@ -16,6 +16,12 @@ import {
   applyIntraParagraphLocationTargets,
   extractIntraParagraphLocationSlots,
 } from './locationFieldEvidence'
+import { renderCustomerAddress } from './locationRendering'
+import {
+  classifyFactOwner,
+  extractCustomerAddressSurface,
+  splitMixedPartyClause,
+} from './partyOwnership'
 import type {
   DeterministicRepair,
   RequiredReplacement,
@@ -64,6 +70,163 @@ function wordsForAmount(
 }
 
 /**
+ * MIXED party clause: keep SOURCE provider half byte-stable; rewrite only the
+ * customer half with canonical name/address when the model mutated provider identity.
+ */
+export function repairMixedPartyProviderPreservation(input: {
+  blocks: TransformedBlock[]
+  sourceBlocks: TransformDocumentBlock[]
+  dataset: ContractTransformationDataset
+}): { blocks: TransformedBlock[]; repairs: DeterministicRepair[] } {
+  const repairs: DeterministicRepair[] = []
+  const blocks = input.blocks.map((b) => ({ ...b }))
+  const display = input.dataset.clients.displayNames?.trim() ?? ''
+  const address = input.dataset.clients.address
+    ? renderCustomerAddress(input.dataset.clients.address)
+    : ''
+
+  for (let i = 0; i < blocks.length; i++) {
+    const block = blocks[i]!
+    const src = input.sourceBlocks.find((s) => s.blockId === block.blockId)
+    if (!src) continue
+    if (classifyFactOwner(src.text) !== 'MIXED') continue
+    const split = splitMixedPartyClause(src.text)
+    if (!split) continue
+
+    const modelSplit = splitMixedPartyClause(block.text)
+    const providerPreserved =
+      modelSplit != null && modelSplit.providerHalf === split.providerHalf
+
+    if (providerPreserved && modelSplit) {
+      // Provider half intact — ensure canonical address in customer half if needed
+      let customerHalf = modelSplit.customerHalf
+      const staleAddr = extractCustomerAddressSurface(customerHalf)
+      if (address && staleAddr && staleAddr !== address) {
+        customerHalf = customerHalf.replace(staleAddr, address)
+      } else if (
+        address &&
+        !customerHalf.includes(address) &&
+        staleAddr
+      ) {
+        customerHalf = customerHalf.replace(staleAddr, address)
+      }
+      const next = `${split.providerHalf}${split.separator}${customerHalf}`.trim()
+      if (next !== block.text) {
+        repairs.push({
+          repairCode: 'preserve_mixed_party_provider_half',
+          blockId: block.blockId,
+          canonicalField: 'customer.address',
+          beforeFingerprint: fingerprintText(block.text),
+          afterFingerprint: fingerprintText(next),
+        })
+        blocks[i] = { ...block, text: next }
+      }
+      continue
+    }
+
+    // Provider half corrupted / role-swapped — rebuild from SOURCE provider + repaired customer
+    let customerHalf = split.customerHalf
+    const staleAddr = extractCustomerAddressSurface(customerHalf)
+    if (staleAddr && address) {
+      customerHalf = customerHalf.replace(staleAddr, address)
+    }
+    const namePairs = customerHalf.match(
+      /[A-ZĄĆĘŁŃÓŚŹŻ][a-ząćęłńóśźż]+\s+[A-ZĄĆĘŁŃÓŚŹŻ][a-ząćęłńóśźż]+/g,
+    )
+    if (display && namePairs?.[0] && !customerHalf.includes(display)) {
+      customerHalf = customerHalf.replace(namePairs[0], display)
+    }
+    // Strip customer e-mail when local-part embeds the OLD given name (stale identity)
+    if (namePairs?.[0]) {
+      const given = namePairs[0].split(/\s+/)[0] ?? ''
+      if (given.length >= 4) {
+        const stem = given
+          .normalize('NFD')
+          .replace(/\p{M}/gu, '')
+          .slice(0, 5)
+          .toLowerCase()
+        customerHalf = customerHalf.replace(
+          /,\s*e-mail\s+[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi,
+          (clause) =>
+            clause.toLowerCase().includes(stem) ? '' : clause,
+        )
+      }
+    }
+    // Ensure single customer role close
+    if (!/zwan[a-ząćęłńóśźż]*\s+dalej\s+[„"]?Klient/i.test(customerHalf)) {
+      customerHalf = `${customerHalf.replace(/\.\s*$/, '')}, zwaną dalej Klientką.`
+    }
+    customerHalf = customerHalf.replace(
+      /(zwan[a-ząćęłńóśźż]*\s+dalej\s+[„"]?Klient[a-ząćęłńóśźż]*)(?:\s*,\s*zwan[a-ząćęłńóśźż]*\s+dalej\s+[„"]?Klient[a-ząćęłńóśźż]*)+/gi,
+      '$1',
+    )
+
+    const next = `${split.providerHalf}${split.separator}${customerHalf}`
+      .replace(/\s+/g, ' ')
+      .trim()
+    if (next === block.text) continue
+    repairs.push({
+      repairCode: 'preserve_mixed_party_provider_half',
+      blockId: block.blockId,
+      canonicalField: 'customer.names',
+      beforeFingerprint: fingerprintText(block.text),
+      afterFingerprint: fingerprintText(next),
+    })
+    blocks[i] = { ...block, text: next }
+  }
+
+  // Restore corrupted signature / closing labels (never customer-writable)
+  for (let i = 0; i < blocks.length; i++) {
+    const block = blocks[i]!
+    const src = input.sourceBlocks.find((s) => s.blockId === block.blockId)
+    if (!src || src.text === block.text) continue
+    if (!/data i czytelny podpis|—\s*data i czytelny/i.test(src.text)) continue
+    repairs.push({
+      repairCode: 'restore_signature_label',
+      blockId: block.blockId,
+      beforeFingerprint: fingerprintText(block.text),
+      afterFingerprint: fingerprintText(src.text),
+    })
+    blocks[i] = { ...block, text: src.text }
+  }
+
+  // Signature name cells above Klient/Para labels: replace stale printed name
+  if (display) {
+    for (const src of input.sourceBlocks) {
+      if (src.kind !== 'tableCell') continue
+      if (/data i czytelny podpis|Fotograf|Wykonawc|Usługodawc|Realizatork/i.test(src.text)) {
+        continue
+      }
+      if (src.text.trim().split(/\s+/).length > 5) continue
+      const below = input.sourceBlocks.find(
+        (b) =>
+          b.tableContext?.tableIndex === src.tableContext?.tableIndex &&
+          b.tableContext?.cellIndex === src.tableContext?.cellIndex &&
+          b.tableContext?.rowIndex === (src.tableContext?.rowIndex ?? -1) + 1 &&
+          /Klient|Zamawiając|Para/i.test(b.text) &&
+          !/Fotograf|Wykonawc|Usługodawc|Realizatork/i.test(b.text),
+      )
+      if (!below) continue
+      const idx = blocks.findIndex((b) => b.blockId === src.blockId)
+      if (idx < 0) continue
+      const cur = blocks[idx]!
+      if (cur.text.includes(display)) continue
+      if (!/[A-ZĄĆĘŁŃÓŚŹŻ][a-ząćęłńóśźż]+/.test(cur.text)) continue
+      repairs.push({
+        repairCode: 'exact_stale_to_target_in_context',
+        blockId: cur.blockId,
+        canonicalField: 'customer.names',
+        beforeFingerprint: fingerprintText(cur.text),
+        afterFingerprint: fingerprintText(display),
+      })
+      blocks[idx] = { ...cur, text: display }
+    }
+  }
+
+  return { blocks, repairs }
+}
+
+/**
  * Pair each "(słownie: …)" clause with the nearest preceding PLN amount
  * and insert the matching deterministic words — never reuse total for all.
  */
@@ -96,6 +259,17 @@ export function applyDeterministicRepairs(input: {
 }): { blocks: TransformedBlock[]; repairs: DeterministicRepair[] } {
   const repairs: DeterministicRepair[] = []
   let blocks = input.blocks.map((b) => ({ ...b }))
+
+  // 0. MIXED party clauses — restore provider half before other repairs
+  if (input.sourceBlocks && input.sourceBlocks.length > 0) {
+    const mixed = repairMixedPartyProviderPreservation({
+      blocks,
+      sourceBlocks: input.sourceBlocks,
+      dataset: input.dataset,
+    })
+    blocks = mixed.blocks
+    repairs.push(...mixed.repairs)
+  }
 
   // 1. Sanitize duplicated location wrappers everywhere
   blocks = blocks.map((b) => {

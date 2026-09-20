@@ -2,7 +2,8 @@
  * CG7.1 — filled (non-placeholder) contracting-party identity discovery + gate.
  *
  * Structural discovery only — not a Polish declension engine and not a global
- * name scrubber. Provider-role blocks are excluded.
+ * name scrubber. Pure provider-role blocks are excluded; MIXED provider+customer
+ * paragraphs remain customer-grounded for the client half.
  */
 
 import type {
@@ -11,6 +12,13 @@ import type {
   TransformedBlock,
 } from '../types'
 import { normalizeForMatch, textContainsNormalized } from './normalize'
+import {
+  classifyFactOwner,
+  extractCustomerAddressSurface,
+  hasCustomerPartyMarkers,
+  isSignatureOrClosingLabel,
+  splitMixedPartyClause,
+} from './partyOwnership'
 import type { QualityIssue } from './types'
 
 export type SourcePartyEvidence = {
@@ -18,19 +26,25 @@ export type SourcePartyEvidence = {
   sourceText: string
   /** Exact surface strings from the source party clause (scoped stale identity). */
   identitySurfaces: string[]
+  /** When set, only this span is the customer-owned half of a MIXED clause. */
+  customerHalfText?: string
+  owner?: 'CUSTOMER' | 'MIXED'
 }
 
 const PROVIDER_BLOCK =
   /\b(NIP|REGON|firm[aą]|Studio|Photography|Productions|zwan\w*\s+dalej\s+[„"]?(Filmowc|Fotograf|Kamerzyst|Wykonawc|Usługodawc))/i
 
 const CLIENT_PARTY_MARKER =
-  /zwan\w*\s+dalej\s+[„"]?(Zamawiając|Parą\s+Młod|Klient)|Klientami\s+są|Klientem\s+jest|Klient:\s|Zamawiający:\s|Zamawiając\w*\s+są|Pomiędzy:\s*[A-ZĄĆĘŁŃÓŚŹŻ]|,\s*zam\./i
+  /zwan[a-ząćęłńóśźż]*\s+dalej\s+[„"]?(Zamawiając|Parą\s+Młod|Klient)|Klientami\s+są|Klientem\s+jest|Klient:\s|Zamawiający:\s|Zamawiając[a-ząćęłńóśźż]*\s+są|Pomiędzy:\s*[A-ZĄĆĘŁŃÓŚŹŻ]|,\s*zam\./i
 
 /** Provider / studio identity clause — must not be treated as contracting client. */
 export function isProviderIdentityBlock(text: string): boolean {
   const t = text.trim()
   if (!t) return false
-  if (PROVIDER_BLOCK.test(t) && !/Zamawiając|Parą\s+Młod|Klientami\s+są/i.test(t)) {
+  // MIXED opening clauses contain both sides — not pure provider.
+  if (classifyFactOwner(t) === 'MIXED') return false
+  if (hasCustomerPartyMarkers(t)) return false
+  if (PROVIDER_BLOCK.test(t) && !/Zamawiając|Parą\s+Młod|Klientami\s+są|Klient/i.test(t)) {
     return true
   }
   // Explicit provider-role closing label without client markers
@@ -43,15 +57,19 @@ export function isProviderIdentityBlock(text: string): boolean {
   return false
 }
 
-/** Structurally likely contracting-client identity clause. */
+/** Structurally likely contracting-client identity clause (includes MIXED). */
 export function isClientPartyIdentityBlock(text: string): boolean {
   const t = text.trim()
   if (!t || t.length < 12) return false
+  if (isSignatureOrClosingLabel(t)) return false
+  if (classifyFactOwner(t) === 'MIXED') return true
   if (isProviderIdentityBlock(t)) return false
   if (CLIENT_PARTY_MARKER.test(t)) return true
   // Table-ish short party rows often lack "zwaną dalej" but sit under customer ownership
   return false
 }
+
+export { extractCustomerAddressSurface }
 
 /**
  * Extract name-like surfaces from a party clause (including declined forms).
@@ -68,7 +86,8 @@ export function extractIdentitySurfaces(text: string): string[] {
       /^Par[aą]\s+Młod/i.test(t) ||
       /^Zamawiając/i.test(t) ||
       /^Klient(?:ami|em|ka)?$/i.test(t) ||
-      /^Wykonawc/i.test(t)
+      /^Wykonawc/i.test(t) ||
+      /^Fotograf/i.test(t)
     ) {
       return
     }
@@ -110,6 +129,8 @@ export function discoverFilledPartyEvidence(
 
   for (const b of blocks) {
     const text = b.text ?? ''
+    if (isSignatureOrClosingLabel(text)) continue
+
     if (b.tableContext?.ownershipFamily === 'customer') {
       // Skip pure labels
       if (
@@ -124,16 +145,23 @@ export function discoverFilledPartyEvidence(
       evidence.push({
         blockId: b.blockId,
         sourceText: text,
-        identitySurfaces: surfaces.length > 0 ? surfaces : [text.trim()].filter((s) => s.length >= 3),
+        identitySurfaces:
+          surfaces.length > 0 ? surfaces : [text.trim()].filter((s) => s.length >= 3),
+        owner: 'CUSTOMER',
       })
       continue
     }
 
     if (isClientPartyIdentityBlock(text)) {
+      const owner = classifyFactOwner(text) === 'MIXED' ? 'MIXED' : 'CUSTOMER'
+      const split = owner === 'MIXED' ? splitMixedPartyClause(text) : null
+      const surfaceSource = split?.customerHalf ?? text
       evidence.push({
         blockId: b.blockId,
         sourceText: text,
-        identitySurfaces: extractIdentitySurfaces(text),
+        identitySurfaces: extractIdentitySurfaces(surfaceSource),
+        ...(split ? { customerHalfText: split.customerHalf } : {}),
+        owner,
       })
     }
   }
@@ -206,7 +234,21 @@ export function verifyFilledPartyIdentity(input: {
       if (nameTokens.some((t) => normalizeForMatch(surface).includes(normalizeForMatch(t)))) {
         continue
       }
-      if (block.text.includes(surface)) {
+      // Scope stale check to customer half when MIXED
+      const scopeText = ev.customerHalfText
+        ? (() => {
+            const split = block.text.includes(', a ')
+              ? block.text.split(/,\s*a\s+/).slice(1).join(', a ')
+              : block.text
+            return split
+          })()
+        : block.text
+      // Ignore email local-parts / URLs
+      const scopeNoEmail = scopeText.replace(
+        /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi,
+        ' ',
+      )
+      if (scopeNoEmail.includes(surface)) {
         issues.push({
           code: 'stale_party_identity_remaining',
           severity: 'blocking',
@@ -260,14 +302,20 @@ export function verifyProviderRoleSparseScope(input: {
     const next = input.transformedBlocks.find((b) => b.blockId === src.blockId)
     if (!next || next.text === src.text) continue
 
+    // Signature labels are restored deterministically — never flag as role rewrite
+    if (/data i czytelny podpis|—\s*data i czytelny/i.test(src.text)) continue
+
     // Authorized wedding-fact blocks (locations / money / dates / party address)
     if (
-      /miejsce\s+przygotowa|miejsce\s+ceremoni|miejsce\s+wesel|przygotowań\s|:\s*ul\.\s|zł\b|słownie:|data\s+ślub|zawarta\s+w\s|zam\.\s/i.test(
+      /miejsce\s+przygotowa|miejsce\s+ceremoni|miejsce\s+wesel|przygotowań\s|:\s*ul\.\s|zł|słownie:|data\s+ślub|zawarta\s+w\s|zam\.\s|zamieszkał/i.test(
         src.text,
       )
     ) {
       continue
     }
+
+    // MIXED / customer party clauses may legitimately change
+    if (classifyFactOwner(src.text) === 'MIXED') continue
 
     // If source already contained a real party identity surface, change may be required
     const touchesParty = [...partySurfaces].some((s) => src.text.includes(s))
