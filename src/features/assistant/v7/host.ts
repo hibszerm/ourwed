@@ -1,5 +1,5 @@
 /**
- * V7-CANARY — Owner-visible session host (ResourceSet + history).
+ * V7 session host (ResourceSet + history).
  * Tools execute client-side under RLS; LLM steps via Edge.
  * Presentation projection is additive — does not change V7 intelligence.
  */
@@ -7,14 +7,14 @@
 import { authService } from '@/lib/api/authService'
 import { V7ResourceSetStore } from './resourceSet/store'
 import {
-  runV7Turn,
+  runV7Turn as runV7AgentLoop,
   V7_DEFAULT_MODEL,
   type V7AgentSession,
   type V7TurnResult,
 } from './agent/loop'
 import { emitV7Diagnostic } from './diagnostics/emit'
 import { getActiveV7LatencyTrace } from './diagnostics/latencyTrace'
-import { isV7OwnerCanaryVisible } from './canary/v7ShadowGate'
+import { isV7Enabled } from './canary/v7Gate'
 import { projectV7PresentationTurn } from './presentation/projectV7Presentation'
 import type { AssistantPresentationTurn } from './presentation/types'
 import { ASSISTANT_API_FAILURE } from '../copy'
@@ -31,34 +31,34 @@ const host: HostSession = {
   userId: null,
 }
 
-export function setV7OwnerSessionOpen(open: boolean): void {
+export function setV7SessionOpen(open: boolean): void {
   host.open = open
   if (!open) {
-    destroyV7OwnerSession()
+    destroyV7Session()
   }
 }
 
-export function destroyV7OwnerSession(): void {
+export function destroyV7Session(): void {
   host.agent?.store.close()
   host.agent = null
   host.userId = null
 }
 
-/** Test/helper: whether an owner-visible V7 agent session is live. */
-export function isV7OwnerSessionActive(): boolean {
+/** Whether a V7 agent session is live. */
+export function isV7SessionActive(): boolean {
   return Boolean(host.agent && !host.agent.store.isClosed)
 }
 
 async function ensureSession(
   userId: string,
 ): Promise<V7AgentSession | null> {
-  if (!isV7OwnerCanaryVisible(userId)) return null
+  if (!isV7Enabled(userId)) return null
   if (host.agent && host.userId === userId && !host.agent.store.isClosed) {
     return host.agent
   }
-  destroyV7OwnerSession()
+  destroyV7Session()
   const store = new V7ResourceSetStore({
-    sessionId: `v7-owner-${userId.slice(0, 8)}-${Date.now()}`,
+    sessionId: `v7-${userId.slice(0, 8)}-${Date.now()}`,
     tenantKey: userId,
   })
   host.userId = userId
@@ -98,26 +98,26 @@ function unavailableResult(): V7TurnResult {
   }
 }
 
-export type V7OwnerVisibleTurnOutput = {
+export type V7TurnOutput = {
   result: V7TurnResult
   presentation: AssistantPresentationTurn
 }
 
 /**
- * Run one owner-visible V7 turn + deterministic presentation projection.
- * Caller must have verified canary/global visibility.
+ * Run one V7 turn + deterministic presentation projection.
+ * Caller must have verified V7 visibility.
  */
-export async function runV7OwnerVisibleTurn(input: {
+export async function runV7Turn(input: {
   turnId: string
   utterance: string
-}): Promise<V7OwnerVisibleTurnOutput> {
+}): Promise<V7TurnOutput> {
   const trace = getActiveV7LatencyTrace()
   trace?.mark('v7_host_enter')
 
   const user = await authService.getUser().catch(() => null)
   const userId = user?.id ?? null
   trace?.mark('host_auth_ready')
-  if (!userId || !isV7OwnerCanaryVisible(userId)) {
+  if (!userId || !isV7Enabled(userId)) {
     const result = unavailableResult()
     return {
       result,
@@ -141,7 +141,7 @@ export async function runV7OwnerVisibleTurn(input: {
   }
 
   host.open = true
-  const result = await runV7Turn(session, input.utterance)
+  const result = await runV7AgentLoop(session, input.utterance)
   // Diagnostics: counts/reasons only — never presentation refs/PII/UUIDs.
   emitV7Diagnostic({
     turnId: input.turnId,

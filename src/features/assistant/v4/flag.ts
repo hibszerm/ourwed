@@ -24,14 +24,6 @@ export function isAssistantV4ShadowEnabled(): boolean {
 }
 
 /**
- * G8 DEV-only: ephemeral GoalSpec direct-interpreter shadow diagnostics.
- * Does NOT change visible Assistant authority. Default OFF.
- */
-export function isAssistantV5GoalShadowEnabled(): boolean {
-  return envTruthy('VITE_ASSISTANT_V5_GOAL_SHADOW')
-}
-
-/**
  * Legacy Phase 3A finance-only gate.
  * Still honored when CAPABILITIES allowlist is unset.
  */

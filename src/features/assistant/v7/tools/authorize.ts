@@ -9,7 +9,7 @@ import {
   type ConceptKey,
   type ConceptOperation,
   type RelationKey,
-} from '../../v6/registry'
+} from '../../shared/registry'
 import { toolErr, type V7ToolError } from './errors'
 import {
   V7_FORBIDDEN_IDENTITY_KEYS,

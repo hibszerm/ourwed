@@ -11,7 +11,7 @@ import type {
   TravelSegment,
   WeddingPlace,
 } from '@/types/travel'
-import type { WeddingLogisticsSnapshot } from '../../v6/adapters/logisticsAuthority'
+import type { WeddingLogisticsSnapshot } from '../../shared/adapters/logisticsAuthority'
 
 const WEDDING_ID = 'w-julia-adam'
 

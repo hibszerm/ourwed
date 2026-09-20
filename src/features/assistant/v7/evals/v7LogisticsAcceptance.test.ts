@@ -26,8 +26,8 @@ import {
 import {
   completeRouteTotalsKmMin,
   longestOkLeg,
-} from '../../v6/adapters/logisticsAuthority'
-import { getEffectiveTravelFeeAmount } from '../../v6/adapters/financeAuthority'
+} from '../../shared/adapters/logisticsAuthority'
+import { getEffectiveTravelFeeAmount } from '../../shared/adapters/financeAuthority'
 
 const binding = { sessionId: 'sess-log', tenantKey: 'tenant-a' }
 const otherTenant = { sessionId: 'sess-log', tenantKey: 'tenant-b' }
@@ -289,7 +289,7 @@ describe('V7 Logistics read-only', () => {
 
   it('24: finance authority unchanged (source still uses getEffectiveTravelFeeAmount)', () => {
     const src = readFileSync(
-      join(dirname(fileURLToPath(import.meta.url)), '../../v6/adapters/inspectAdapters.ts'),
+      join(dirname(fileURLToPath(import.meta.url)), '../../shared/adapters/inspectAdapters.ts'),
       'utf8',
     )
     expect(src).toMatch(/getEffectiveTravelFeeAmount/)
@@ -299,12 +299,12 @@ describe('V7 Logistics read-only', () => {
 
   it('25-28: feasibility unsupported (no feasibility helper / concept)', () => {
     const conceptsSrc = readFileSync(
-      join(dirname(fileURLToPath(import.meta.url)), '../../v6/registry/concepts.ts'),
+      join(dirname(fileURLToPath(import.meta.url)), '../../shared/registry/concepts.ts'),
       'utf8',
     )
     expect(conceptsSrc).not.toMatch(/LOGISTICS\.CAN_MAKE|FEASIBIL/)
     const authSrc = readFileSync(
-      join(dirname(fileURLToPath(import.meta.url)), '../../v6/adapters/logisticsAuthority.ts'),
+      join(dirname(fileURLToPath(import.meta.url)), '../../shared/adapters/logisticsAuthority.ts'),
       'utf8',
     )
     expect(authSrc).not.toMatch(/getPlan|recalculate/)

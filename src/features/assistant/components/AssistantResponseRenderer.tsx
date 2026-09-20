@@ -19,13 +19,7 @@ import {
 import { formatPolishLongDate } from '../dates'
 import type { AssistantResponse } from '../types'
 import { polishCountUnit } from '../tools/aggregateRange'
-import { AssistantGoalClarification } from './AssistantGoalClarification'
 import styles from './Assistant.module.css'
-import {
-  isGoalClarificationHostEnabled,
-  toGoalClarificationViewModel,
-} from '../v4/goalSpec/goalClarificationHostAdapter'
-import { getPendingGoalClarification } from '../v4/goalSpec/goalClarificationSession'
 
 function displayDate(raw: string | null | undefined): string | null {
   if (!raw) return null
@@ -77,7 +71,6 @@ export function AssistantResponseRenderer({
   onConfirmCreateTask,
   onNavigate,
   onCancelConfirm,
-  goalClarificationResolvedLabel = null,
 }: {
   response: AssistantResponse
   busy: boolean
@@ -89,8 +82,6 @@ export function AssistantResponseRenderer({
   onConfirmCreateTask: () => void
   onNavigate: (path: string) => void
   onCancelConfirm: () => void
-  /** U3: presentation-only resolved label for GoalSpec clarification. */
-  goalClarificationResolvedLabel?: string | null
 }) {
   switch (response.kind) {
     case 'text':
@@ -820,19 +811,6 @@ export function AssistantResponseRenderer({
       )
 
     case 'clarification': {
-      const pendingGoal =
-        isGoalClarificationHostEnabled() ? getPendingGoalClarification() : null
-      if (pendingGoal) {
-        const view = toGoalClarificationViewModel(pendingGoal)
-        return (
-          <AssistantGoalClarification
-            view={view}
-            busy={busy}
-            resolvedLabel={goalClarificationResolvedLabel}
-            onSelect={(selectedValue) => onSelectClarification?.(selectedValue)}
-          />
-        )
-      }
       return (
         <div className={styles.result}>
           <p className={styles.choicePrompt}>{response.question}</p>

@@ -75,9 +75,6 @@ export function AssistantSurface({
   confirming,
   showChangeWedding,
   contextHeader,
-  goalClarificationResolvedLabel = null,
-  v5ShadowClarification = null,
-  v5ShadowResumeNote = null,
 }: {
   open: boolean
   isMobile: boolean
@@ -97,13 +94,6 @@ export function AssistantSurface({
   confirming: boolean
   showChangeWedding?: boolean
   contextHeader?: AssistantContextHeader | null
-  goalClarificationResolvedLabel?: string | null
-  /** U4 DEV: V5 GoalSpec clarification alongside V3 answer. */
-  v5ShadowClarification?: Extract<
-    AssistantResponse,
-    { kind: 'clarification' }
-  > | null
-  v5ShadowResumeNote?: string | null
 }) {
   const titleId = useId()
   const shellRef = useRef<HTMLDivElement>(null)
@@ -393,40 +383,8 @@ export function AssistantSurface({
                   onConfirmCreateTask={onConfirmCreateTask}
                   onNavigate={onNavigate}
                   onCancelConfirm={onCancelConfirm}
-                  goalClarificationResolvedLabel={goalClarificationResolvedLabel}
                 />
               </div>
-            ) : null}
-
-            {v5ShadowClarification ? (
-              <div
-                className={styles.v5GoalShadow}
-                data-testid="v5-goal-shadow-clarification"
-                data-shadow="v5-goal"
-              >
-                <p className={styles.v5GoalShadowMark}>V5 GoalSpec · shadow</p>
-                <AssistantResponseRenderer
-                  response={v5ShadowClarification}
-                  busy={confirming || loading}
-                  hideResourceIdentity
-                  onSelectChoice={onSelectChoice}
-                  onSelectClarification={onSelectClarification}
-                  onConfirmCreateWedding={onConfirmCreateWedding}
-                  onConfirmCreateTask={onConfirmCreateTask}
-                  onNavigate={onNavigate}
-                  onCancelConfirm={onCancelConfirm}
-                  goalClarificationResolvedLabel={goalClarificationResolvedLabel}
-                />
-              </div>
-            ) : null}
-
-            {v5ShadowResumeNote ? (
-              <p
-                className={styles.v5GoalShadowNote}
-                data-testid="v5-goal-shadow-note"
-              >
-                {v5ShadowResumeNote}
-              </p>
             ) : null}
           </div>
         ) : (

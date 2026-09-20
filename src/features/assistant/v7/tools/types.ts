@@ -2,7 +2,7 @@
  * V7 tool argument types — no tenant/user/owner IDs, no raw UUIDs from model.
  */
 
-import type { ConceptKey } from '../../v6/registry'
+import type { ConceptKey } from '../../shared/registry'
 
 export type V7Predicate = {
   concept: string

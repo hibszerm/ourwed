@@ -7,7 +7,7 @@ import {
   compareConceptValue,
   evaluateConceptPredicates,
   stringContainsMatch,
-} from '@/features/assistant/v6/adapters/predicateBatch'
+} from '@/features/assistant/shared/adapters/predicateBatch'
 import { executeV7Tool } from '@/features/assistant/v7/tools/execute'
 import { V7ResourceSetStore } from '@/features/assistant/v7/resourceSet/store'
 import { buildV7FixtureDeps } from '@/features/assistant/v7/evals/v7FixtureUniverse'
@@ -227,7 +227,7 @@ console.log('k31 anti-sprawl — no name/NL routers added')
 {
   const host = readFileSync(join(SRC, 'features/assistant/AssistantHost.tsx'), 'utf8')
   const pred = readFileSync(
-    join(SRC, 'features/assistant/v6/adapters/predicateBatch.ts'),
+    join(SRC, 'features/assistant/shared/adapters/predicateBatch.ts'),
     'utf8',
   )
   assert.ok(!/SYNONYM_MAP|polishIntentMap|Joanna|Chowaka/.test(host))

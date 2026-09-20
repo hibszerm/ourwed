@@ -393,11 +393,6 @@ assert(
 
   // --- Architecture wiring ---
   {
-    const shadowSrc = read('src/features/assistant/v4/shadow.ts')
-    assert(
-      shadowSrc.includes('runV4CapabilityExecution'),
-      'shadow uses registry runtime',
-    )
     const dispatchSrc = read(
       'src/features/assistant/v4/capabilities/dispatchFinance.ts',
     )

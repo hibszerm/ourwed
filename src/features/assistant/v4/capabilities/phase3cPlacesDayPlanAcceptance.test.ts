@@ -355,20 +355,6 @@ assert(
     'capabilities allowlist flag',
   )
 
-  const shadowSrc = read('src/features/assistant/v4/shadow.ts')
-  assert(
-    shadowSrc.includes('runV4CapabilityExecution'),
-    'shadow uses registry runtime',
-  )
-  assert(
-    shadowSrc.includes('isAnyV4CapabilityExecutionEnabled'),
-    'any-capability gate',
-  )
-  assert(
-    shadowSrc.includes('completeAssistantV4FinanceShadowComparison'),
-    'finance compare compat kept',
-  )
-
   const stateSrc = read(
     'src/features/assistant/v4/resolver/shadowState.ts',
   )

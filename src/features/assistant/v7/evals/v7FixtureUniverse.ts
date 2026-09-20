@@ -11,10 +11,10 @@ import {
   getTotalPaid,
   hasPaidDepositPayment,
   getEffectiveTravelFeeAmount,
-} from '../../v6/adapters/financeAuthority'
-import type { WeddingReadContextOverrides } from '../../v6/adapters/WeddingReadContext'
-import type { SessionReadContextOverrides } from '../../v6/adapters/SessionReadContext'
-import { sessionToCollectionRow } from '../../v6/execution/sessionUniverse'
+} from '../../shared/adapters/financeAuthority'
+import type { WeddingReadContextOverrides } from '../../shared/adapters/WeddingReadContext'
+import type { SessionReadContextOverrides } from '../../shared/adapters/SessionReadContext'
+import { sessionToCollectionRow } from '../../shared/execution/sessionUniverse'
 import type { V7ToolDeps } from '../tools/execute'
 import { buildLogisticsSnapshot } from './v7LogisticsFixture'
 

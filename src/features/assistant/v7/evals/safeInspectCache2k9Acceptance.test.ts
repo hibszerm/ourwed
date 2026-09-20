@@ -15,14 +15,14 @@ import {
 import {
   WeddingReadContext,
   type WeddingReadContextOverrides,
-} from '../../v6/adapters/WeddingReadContext'
+} from '../../shared/adapters/WeddingReadContext'
 import {
   SessionReadContext,
   type SessionReadContextOverrides,
-} from '../../v6/adapters/SessionReadContext'
-import { inspectConcept } from '../../v6/adapters/inspectAdapters'
-import { inspectSessionConcept } from '../../v6/adapters/sessionInspectAdapters'
-import { getConcept, isConceptKey } from '../../v6/registry'
+} from '../../shared/adapters/SessionReadContext'
+import { inspectConcept } from '../../shared/adapters/inspectAdapters'
+import { inspectSessionConcept } from '../../shared/adapters/sessionInspectAdapters'
+import { getConcept, isConceptKey } from '../../shared/registry'
 import {
   assertConceptMatchesResource,
   assertInspectProjection,

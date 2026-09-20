@@ -849,13 +849,14 @@ describe('V7 presentation foundation — privacy / wiring', () => {
     // utterance into V7 is raw userText only — not transcript dump
     expect(host).toMatch(/utterance: userText/)
     expect(host).not.toMatch(/utterance:.*transcript/)
-    expect(host).toMatch(/destroyV7OwnerSession/)
+    expect(host).toMatch(/destroyV7Session/)
   })
 
-  it('26. V6 emergency path still present; transcript wiped on non-V7', () => {
+  it('26. V6 emergency path removed; fail-closed when V7 off', () => {
     const host = readSrc('src/features/assistant/AssistantHost.tsx')
-    expect(host).toMatch(/isV6OwnerCanaryVisible/)
-    expect(host).toMatch(/Non-V7 engines: legacy single-turn UI/)
+    expect(host).not.toMatch(/isV6OwnerCanaryVisible/)
+    expect(host).not.toMatch(/enqueueAndAwaitV6ShadowTurn/)
+    expect(host).toMatch(/fail closed/)
     expect(host).toMatch(/setTranscript\(\[\]\)/)
   })
 

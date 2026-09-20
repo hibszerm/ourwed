@@ -2,7 +2,7 @@
  * V7 conversational system prompt — LLM owns meaning; runtime owns authority.
  */
 
-import { PLANNER_VISIBLE_CONCEPT_KEYS } from '../../v6/registry'
+import { PLANNER_VISIBLE_CONCEPT_KEYS } from '../../shared/registry'
 
 export function buildV7SystemPrompt(input: {
   todayKey: string

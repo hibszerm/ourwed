@@ -8,33 +8,33 @@ import type { CollectionMoneyRow } from '../../v4/capabilities/collection/execut
 import {
   evaluateConceptPredicates,
   type PredicateBatchOptions,
-} from '../../v6/adapters/predicateBatch'
-import { inspectConcept } from '../../v6/adapters/inspectAdapters'
-import { getConceptSortValue } from '../../v6/adapters/sortValues'
-import { listRelation } from '../../v6/adapters/relationAdapters'
+} from '../../shared/adapters/predicateBatch'
+import { inspectConcept } from '../../shared/adapters/inspectAdapters'
+import { getConceptSortValue } from '../../shared/adapters/sortValues'
+import { listRelation } from '../../shared/adapters/relationAdapters'
 import {
   WeddingReadContext,
   type WeddingReadContextOverrides,
-} from '../../v6/adapters/WeddingReadContext'
+} from '../../shared/adapters/WeddingReadContext'
 import {
   SessionReadContext,
   type SessionReadContextOverrides,
-} from '../../v6/adapters/SessionReadContext'
+} from '../../shared/adapters/SessionReadContext'
 import {
   inspectSessionConcept,
   linkedWeddingRelatedItems,
-} from '../../v6/adapters/sessionInspectAdapters'
-import { evaluateSessionConceptPredicates } from '../../v6/adapters/sessionPredicateBatch'
-import { loadWeddingUniverseRows } from '../../v6/execution/weddingUniverse'
+} from '../../shared/adapters/sessionInspectAdapters'
+import { evaluateSessionConceptPredicates } from '../../shared/adapters/sessionPredicateBatch'
+import { loadWeddingUniverseRows } from '../../shared/execution/weddingUniverse'
 import {
   loadSessionUniverseRows,
   type SessionCollectionRow,
-} from '../../v6/execution/sessionUniverse'
+} from '../../shared/execution/sessionUniverse'
 import {
   V6_LIST_RELATED_HARD_CAP,
   getConcept,
   type ConceptKey,
-} from '../../v6/registry'
+} from '../../shared/registry'
 import type { V7ResourceSetStore } from '../resourceSet/store'
 import type { V7ResourceType, V7SessionBinding } from '../resourceSet/types'
 import { getActiveV7LatencyTrace } from '../diagnostics/latencyTrace'

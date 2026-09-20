@@ -26,8 +26,8 @@ import {
   getRemainingToPay,
   getTotalPaid,
   hasPaidDepositPayment,
-} from '../../v6/adapters/financeAuthority'
-import { ALL_CONCEPT_KEYS } from '../../v6/registry'
+} from '../../shared/adapters/financeAuthority'
+import { ALL_CONCEPT_KEYS } from '../../shared/registry'
 import {
   buildV7FixtureDeps,
   buildV7FixtureUniverse,

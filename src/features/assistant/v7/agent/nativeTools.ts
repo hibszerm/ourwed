@@ -5,7 +5,7 @@
  * Do NOT embed the full 68-concept enum in every tool (TPM blow-up).
  */
 
-import { ALL_RELATION_KEYS } from '../../v6/registry'
+import { ALL_RELATION_KEYS } from '../../shared/registry'
 import { V7_TOOL_NAMES } from '../tools/execute'
 
 const relationEnum = [...ALL_RELATION_KEYS]

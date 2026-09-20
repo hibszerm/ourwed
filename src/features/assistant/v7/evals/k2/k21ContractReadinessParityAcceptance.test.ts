@@ -10,8 +10,8 @@ import { fileURLToPath } from 'node:url'
 import { mayGenerateContract } from '@/lib/utils/contractGenerationIntegrity'
 import { validateContractGeneration } from '@/lib/utils/validateContractGeneration'
 import { evaluateWeddingContractReadiness } from '@/lib/utils/weddingContractReadiness'
-import { inspectConcept } from '@/features/assistant/v6/adapters/inspectAdapters'
-import { WeddingReadContext } from '@/features/assistant/v6/adapters/WeddingReadContext'
+import { inspectConcept } from '@/features/assistant/shared/adapters/inspectAdapters'
+import { WeddingReadContext } from '@/features/assistant/shared/adapters/WeddingReadContext'
 import type { Wedding } from '@/types/wedding'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -176,7 +176,7 @@ console.log('k2.1 E — contract status none vs generated does not invent ready'
 console.log('k2.1 — adapter reuses mayGenerateContract (no duplicate rule body)')
 {
   const adapter = readFileSync(
-    join(SRC, 'features/assistant/v6/adapters/inspectAdapters.ts'),
+    join(SRC, 'features/assistant/shared/adapters/inspectAdapters.ts'),
     'utf8',
   )
   const block = adapter.slice(

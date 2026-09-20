@@ -36,11 +36,12 @@ describe('Phase 2K.10-P1 immediate working state', () => {
     const runtimeIdx = runQuery.indexOf('await refreshAssistantRuntime()')
     const authIdx = runQuery.indexOf('await authService.getUser()')
     const workingMarkIdx = runQuery.indexOf("mark('working_state_visible')")
-    const v7TurnIdx = runQuery.indexOf('await runV7OwnerVisibleTurn(')
+    const v7TurnIdx = runQuery.indexOf('await runV7Turn(')
 
     expect(appendIdx).toBeGreaterThan(-1)
     expect(authIdx).toBeGreaterThan(appendIdx)
-    expect(runtimeIdx).toBeGreaterThan(v7TurnIdx)
+    // C2F: Golden V7 path never arms historical runtime-config.
+    expect(runtimeIdx).toBe(-1)
     expect(workingMarkIdx).toBeGreaterThan(appendIdx)
     expect(workingMarkIdx).toBeLessThan(authIdx)
     expect(v7TurnIdx).toBeGreaterThan(authIdx)
