@@ -7,7 +7,7 @@
  * CRM-clean: synthetic fixtures only. No Edge auth / no production DB.
  */
 
-import { mkdirSync, writeFileSync, copyFileSync } from 'node:fs'
+import { mkdirSync, writeFileSync, copyFileSync, existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { runSparseProductTransform } from '../transformService'
 import { indexDocxForTransform } from '../indexDocxForTransform'
@@ -458,11 +458,29 @@ function estimatePlan() {
   }
 }
 
+async function resolveOpenAiKey(): Promise<string | null> {
+  const fromEnv = process.env.OPENAI_API_KEY?.trim()
+  if (fromEnv) return fromEnv
+  const bridge =
+    process.env.CG2_OPENAI_KEY_BRIDGE_PATH?.trim() ||
+    '/tmp/ourwed_cg2_openai_key'
+  try {
+    if (!existsSync(bridge)) return null
+    const raw = readFileSync(bridge, 'utf8').trim()
+    return raw || null
+  } catch {
+    return null
+  }
+}
+
 async function main() {
   const paid = process.env.CG2_PAID_EVAL === '1'
-  const key = process.env.OPENAI_API_KEY?.trim()
+  const key = await resolveOpenAiKey()
 
   console.log('CG2_PLAN', JSON.stringify(estimatePlan(), null, 2))
+  console.log(
+    'OPENAI_API_KEY_AVAILABLE=' + (key ? 'YES' : 'NO'),
+  )
 
   if (!paid) {
     console.log(
@@ -481,17 +499,72 @@ async function main() {
     console.log(
       JSON.stringify({
         status: 'BLOCKED',
-        reason: 'OPENAI_API_KEY absent',
+        reason: 'OPENAI_API_KEY absent (env and /tmp/ourwed_cg2_openai_key)',
         command:
           'CG2_PAID_EVAL=1 OPENAI_API_KEY=sk-… npm run test:cg2-contract-paid-eval',
-        note: 'Inject key via environment only. Do not commit. Do not pull Edge secrets automatically.',
+        note: 'Inject key via environment or bridge file only. Do not commit.',
       }),
     )
     process.exitCode = 2
     return
   }
 
-  const { results, usage, summary } = await runCg2PaidSuite({ apiKey: key })
+  // Canary first — stop before remaining paid calls unless PASS
+  console.log('CG2_CANARY_START T01_EXTRAS')
+  const canary = await runCg2PaidSuite({
+    apiKey: key,
+    caseIds: ['T01_EXTRAS'],
+    artifactDir: 'tmp/cg2-artifacts/canary',
+    reviewDir: 'tmp/cg2-owner-review',
+  })
+  const canaryRow = canary.results[0]!
+  console.log(
+    'CG2_CANARY_RESULT',
+    JSON.stringify({
+      scenarioId: canaryRow.scenarioId,
+      overall: canaryRow.overall,
+      model: canaryRow.model,
+      durationMs: canaryRow.durationMs,
+      why: canaryRow.why,
+      blocksChanged: `${canaryRow.blocksChanged}/${canaryRow.blocksTotal}`,
+    }),
+  )
+  if (canaryRow.overall !== 'PASS') {
+    console.log(
+      `CG2_STOPPED_SAFELY canary ${canaryRow.overall} — no further paid calls`,
+    )
+    process.exitCode = 1
+    return
+  }
+
+  const rest = PAID_CASE_IDS.filter((id) => id !== 'T01_EXTRAS')
+  const batch = await runCg2PaidSuite({
+    apiKey: key,
+    caseIds: rest,
+    artifactDir: 'tmp/cg2-artifacts/current-model',
+    reviewDir: 'tmp/cg2-owner-review',
+  })
+
+  const results = [...canary.results, ...batch.results]
+  const usage = {
+    model: canary.usage.model || batch.usage.model,
+    calls: canary.usage.calls + batch.usage.calls,
+    retries: canary.usage.retries + batch.usage.retries,
+    inputTokens: canary.usage.inputTokens + batch.usage.inputTokens,
+    outputTokens: canary.usage.outputTokens + batch.usage.outputTokens,
+    latenciesMs: [
+      ...canary.usage.latenciesMs,
+      ...batch.usage.latenciesMs,
+    ],
+    promptVersion: canary.usage.promptVersion,
+  }
+  const summary = {
+    total: results.length,
+    pass: results.filter((r) => r.overall === 'PASS').length,
+    partial: results.filter((r) => r.overall === 'PARTIAL').length,
+    fail: results.filter((r) => r.overall === 'FAIL').length,
+  }
+
   console.log('\nCG2 PAID MATRIX')
   for (const r of results) {
     console.log(
@@ -525,6 +598,28 @@ async function main() {
     maxLatencyMs:
       usage.latenciesMs.length === 0 ? null : Math.max(...usage.latenciesMs),
   })
+
+  // Combined owner README (canary + batch)
+  const readme = [
+    '# CG2 Owner review — current model outputs',
+    '',
+    `Model: ${usage.model}`,
+    `Prompt: ${usage.promptVersion}`,
+    '',
+    'Synthetic QA documents only. No real customer data.',
+    '',
+    'Product rule: extras show NAMES only — no individual prices. Correct total YES.',
+    '',
+    '| File | Case | Parties | Extras | Result | Inspect |',
+    '|------|------|---------|--------|--------|---------|',
+    ...results.map((r) => {
+      const meta = TORTURE_TEMPLATE_META.find((m) => m.id === r.templateId)!
+      return `| ${r.reviewName ?? ''} | ${r.scenarioId} | ${r.parties} | ${r.extrasMode} | ${r.overall} | ${meta.structure}; ${r.why} |`
+    }),
+    '',
+  ].join('\n')
+  writeFileSync(join('tmp/cg2-owner-review', 'README.md'), readme)
+
   if (summary.fail > 0) process.exitCode = 1
 }
 
