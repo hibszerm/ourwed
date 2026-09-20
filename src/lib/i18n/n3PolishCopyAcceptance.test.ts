@@ -40,9 +40,11 @@ const sub = read('src/pages/SubscriptionSettingsPage.tsx')
 assert(sub.includes('Okres próbny PRO'), 'subscription page trial Polish')
 assert(!sub.includes('>PRO Trial<'), 'no PRO Trial heading')
 
-const docsHub = read('src/pages/DocumentsHubPage.tsx')
-assert(docsHub.includes('Szablony umów'), 'documents hub Polish')
-assert(!docsHub.includes('Contract Templates'), 'no Contract Templates UI')
+const packagesPolish = read(
+  'src/features/studio/packages/modern/ModernPackagesWorkspace.tsx',
+)
+assert(packagesPolish.includes('Pakiet'), 'packages hub Polish')
+assert(!packagesPolish.includes('Contract Templates'), 'no Contract Templates UI')
 
 const travel = read('src/features/weddings/components/detail/WeddingDetailTravel.tsx')
 assert(travel.includes('title="Dojazd"'), 'travel section Polish')
@@ -62,11 +64,9 @@ const header = ({ includes: () => true, indexOf: () => 0, slice: () => '', lengt
 assert(header.includes("!== 'USUŃ'"), 'header delete confirm USUŃ')
 assert(!header.includes("!== 'DELETE'"), 'header no DELETE')
 
-const v2 = read('src/pages/DashboardV2Page.tsx')
-assert(v2.includes('Pulpit V2 · Beta'), 'v2 chrome Polish (source retained)')
-assert(!v2.includes('Dashboard V2 · Beta'), 'no English Dashboard V2 chrome')
 const router = read('src/routes/router.tsx')
 assert(!router.includes('DashboardV2Page'), 'V2 not mounted in production router')
+assert(!router.includes('@/features/dashboard-v2'), 'dashboard-v2 island absent from router')
 
 // Founder brand runtime/defaults (N1 purge) — exclude migration SQL
 const defaultTpl = read('src/features/prewedding/defaultTemplate.ts')
