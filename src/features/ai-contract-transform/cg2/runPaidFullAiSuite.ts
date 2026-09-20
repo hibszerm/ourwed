@@ -25,11 +25,12 @@ import {
   createUsageTracker,
   type Cg2InvokeUsage,
 } from './localFullRewriteInvoke'
+import type { TransformFunctionsInvoke } from '../transformApi'
 import { expandBlocksWithParagraphInsertions } from '../expandBlocksWithInsertions'
 import { textLooksLikeServicePriceOrQuantity } from '../contractAdditionalServices'
 
 /** Prioritized paid cases — max structural coverage, ~10–12 calls. */
-const PAID_CASE_IDS = [
+export const PAID_CASE_IDS = [
   'T01_EXTRAS',
   'T02_EXTRAS',
   'T03_EXTRAS',
@@ -156,9 +157,12 @@ function reviewFileName(scenario: Cg1Scenario, index: number): string {
 }
 
 export async function runCg2PaidSuite(input: {
-  apiKey: string
+  apiKey?: string
+  invoke?: TransformFunctionsInvoke
+  usage?: Cg2InvokeUsage
   artifactDir?: string
   reviewDir?: string
+  caseIds?: readonly string[]
 }): Promise<{
   results: Cg2CaseResult[]
   usage: Cg2InvokeUsage
@@ -169,14 +173,17 @@ export async function runCg2PaidSuite(input: {
   mkdirSync(artifactDir, { recursive: true })
   mkdirSync(reviewDir, { recursive: true })
 
-  const usage = createUsageTracker()
-  const invoke = createLocalFullRewriteInvoke({
-    apiKey: input.apiKey,
-    usage,
-  })
+  const usage = input.usage ?? createUsageTracker()
+  const invoke: TransformFunctionsInvoke =
+    input.invoke ??
+    createLocalFullRewriteInvoke({
+      apiKey: input.apiKey ?? '',
+      usage,
+    })
 
+  const wanted = input.caseIds ?? PAID_CASE_IDS
   const all = buildCg1ScenarioMatrix().map(withCommercialTruth)
-  const selected = PAID_CASE_IDS.map((id) => {
+  const selected = wanted.map((id) => {
     const s = all.find((x) => x.scenarioId === id)
     if (!s) throw new Error(`missing scenario ${id}`)
     return s
