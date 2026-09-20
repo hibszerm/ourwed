@@ -17,15 +17,9 @@ import {
 import { applySparseBlockChanges } from './applySparseBlockChanges'
 import { blocksFromPlainParagraphs } from './indexDocxForTransform'
 import {
-  createComparisonRunShell,
-  runBothTransformModes,
-} from './transformService'
-import type { TransformFunctionsInvoke } from './transformApi'
-import {
   FULL_AI_RESPONSE_VERSION,
   GUARDED_AI_RESPONSE_VERSION,
 } from './types'
-import { SAMPLE_DATASET } from './fixtures/transformFixtures'
 
 function assert(c: boolean, m: string) {
   if (!c) throw new Error(m)
@@ -34,21 +28,6 @@ function assertEq<T>(a: T, b: T, m: string) {
   if (a !== b) throw new Error(`${m}: ${String(a)} !== ${String(b)}`)
 }
 
-function installLocalStorage() {
-  const store = new Map<string, string>()
-  ;(globalThis as { localStorage?: Storage }).localStorage = {
-    getItem: (k) => store.get(k) ?? null,
-    setItem: (k, v) => {
-      store.set(k, String(v))
-    },
-    removeItem: (k) => {
-      store.delete(k)
-    },
-    clear: () => store.clear(),
-    key: () => null,
-    length: 0,
-  } as Storage
-}
 
 function completedMessage(text: string) {
   return {
@@ -66,8 +45,6 @@ function completedMessage(text: string) {
 }
 
 async function main() {
-  installLocalStorage()
-
   const onlyChanged = JSON.stringify({
     changedBlocks: [{ blockId: 'para-0', text: 'Nowa treść' }],
   })
@@ -212,66 +189,6 @@ async function main() {
     'no retry schema',
   )
 
-  // 12–14 / 15–16 persistence via runBoth
-  const invoke: TransformFunctionsInvoke = async (name) => {
-    if (name === 'ai-contract-full-rewrite') {
-      return {
-        data: {
-          ok: true,
-          changedBlocks: [{ blockId: 'para-0', text: 'Full out' }],
-          model: 'mock',
-          promptVersion: '2026-07-full-ai-v2',
-          responseVersion: FULL_AI_RESPONSE_VERSION,
-          diagnostics: {
-            modelSchemaVersion: MODEL_SCHEMA_VERSION,
-            applicationResponseVersion: FULL_AI_RESPONSE_VERSION,
-            changedBlockCount: 1,
-          },
-        },
-        error: null,
-      }
-    }
-    return {
-      data: {
-        ok: true,
-        changedBlocks: [{ blockId: 'para-0', text: 'Guarded out' }],
-        model: 'mock',
-        promptVersion: '2026-07-guarded-ai-v2',
-        responseVersion: GUARDED_AI_RESPONSE_VERSION,
-        diagnostics: {
-          modelSchemaVersion: MODEL_SCHEMA_VERSION,
-          applicationResponseVersion: GUARDED_AI_RESPONSE_VERSION,
-          changedBlockCount: 1,
-        },
-      },
-      error: null,
-    }
-  }
-
-  const finished = await runBothTransformModes({
-    run: createComparisonRunShell({
-      runId: 'ver-inject',
-      sourceFileName: 't.docx',
-      blocks: source,
-      dataset: SAMPLE_DATASET,
-    }),
-    sourceBytes: new ArrayBuffer(8),
-    sourceBlocks: source,
-    dataset: SAMPLE_DATASET,
-    invoke,
-  })
-  assertEq(finished.modeA.status, 'success', 'A success')
-  assertEq(finished.modeB.status, 'success', 'B success')
-  assertEq(
-    finished.modeA.responseVersion,
-    FULL_AI_RESPONSE_VERSION,
-    'persisted full version',
-  )
-  assertEq(
-    finished.modeB.responseVersion,
-    GUARDED_AI_RESPONSE_VERSION,
-    'persisted guarded version',
-  )
 
   console.log('ok — ai-contract-transform-response-version')
 }

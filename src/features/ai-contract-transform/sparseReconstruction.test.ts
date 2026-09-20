@@ -21,15 +21,10 @@ import {
   parseSparseV2ModelPayload,
 } from './sparseResponseSchema'
 import { SAMPLE_DATASET } from './fixtures/transformFixtures'
-import { invokeTransform, type TransformFunctionsInvoke } from './transformApi'
-import {
-  createComparisonRunShell,
-  runBothTransformModes,
-} from './transformService'
+import { invokeTransform } from './transformApi'
 import {
   FULL_AI_PROMPT_VERSION,
   FULL_AI_RESPONSE_VERSION,
-  GUARDED_AI_RESPONSE_VERSION,
   type TransformDocumentBlock,
   type TransformedBlock,
 } from './types'
@@ -40,22 +35,6 @@ function assert(c: boolean, m: string) {
 
 function assertEq<T>(a: T, b: T, m: string) {
   if (a !== b) throw new Error(`${m}: ${String(a)} !== ${String(b)}`)
-}
-
-function installLocalStorage() {
-  const store = new Map<string, string>()
-  ;(globalThis as { localStorage?: Storage }).localStorage = {
-    getItem: (k) => store.get(k) ?? null,
-    setItem: (k, v) => {
-      store.set(k, String(v))
-    },
-    removeItem: (k) => {
-      store.delete(k)
-    },
-    clear: () => store.clear(),
-    key: () => null,
-    length: 0,
-  } as Storage
 }
 
 function make47Blocks(): TransformDocumentBlock[] {
@@ -93,7 +72,6 @@ function sparseSuccessPayload(
 }
 
 async function main() {
-  installLocalStorage()
   const source = make47Blocks()
   assertEq(source.length, 47, '47-block fixture')
 
@@ -284,7 +262,7 @@ async function main() {
     })
     return { status, incompleteReason: reason, parsed: null as null }
   }
-  let first = simulateProvider('incomplete', 'max_output_tokens')
+  const first = simulateProvider('incomplete', 'max_output_tokens')
   assert(first.parsed == null, 'first incomplete')
   if (
     shouldRetryIncomplete({
@@ -304,66 +282,6 @@ async function main() {
     )
   }
   assert(lastLimit === 16_384, 'retry used larger limit')
-
-  // 17 independent mode failures with sparse payloads
-  const sourceBytes = new ArrayBuffer(8)
-  const finished = await runBothTransformModes({
-    run: createComparisonRunShell({
-      runId: 'sparse-indep',
-      sourceFileName: 't.docx',
-      blocks: source,
-      dataset: SAMPLE_DATASET,
-    }),
-    sourceBytes,
-    sourceBlocks: source,
-    dataset: SAMPLE_DATASET,
-    invoke: (async (functionName) => {
-      if (functionName === 'ai-contract-full-rewrite') {
-        return {
-          data: null,
-          error: {
-            message: 'Edge Function returned a non-2xx status code',
-            context: {
-              status: 422,
-              text: async () =>
-                JSON.stringify({
-                  ok: false,
-                  error: {
-                    code: 'incomplete_response',
-                    message: 'Model returned an incomplete response',
-                    reason: 'max_output_tokens',
-                    retryable: true,
-                    configuredMaxOutputTokens: 16384,
-                  },
-                  diagnostics: {
-                    attemptCount: 2,
-                    incompleteReason: 'max_output_tokens',
-                    responseStatus: 'incomplete',
-                    configuredMaxOutputTokens: 16384,
-                  },
-                }),
-            },
-          },
-        }
-      }
-      return {
-        data: sparseSuccessPayload(
-          [{ blockId: 'para-2', text: 'Umowa zawarta w dniu 02.02.2027 r.' }],
-          GUARDED_AI_RESPONSE_VERSION,
-        ),
-        error: null,
-      }
-    }) as TransformFunctionsInvoke,
-  })
-  assertEq(finished.modeA.status, 'error', 'A incomplete error')
-  assertEq(finished.modeA.errorCode, 'incomplete_response', 'A code')
-  assertEq(
-    finished.modeA.responseSizeDiagnostics?.incompleteReason,
-    'max_output_tokens',
-    'A reason stored',
-  )
-  assertEq(finished.modeB.status, 'success', 'B independent success')
-  assertEq(finished.modeB.transformedBlocks?.length, 47, 'B reconstructed')
 
   // invokeTransform reconstructs sparse
   const api = await invokeTransform({

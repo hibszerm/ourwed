@@ -12,34 +12,12 @@ import {
   completenessPartialUnsafe,
   completenessSourceBlocks,
 } from '../fixtures/completenessFixture'
-import {
-  applyLocalModeA,
-  applyLocalModeB,
-  createComparisonRunShell,
-} from '../transformService'
 
 function assert(c: boolean, m: string) {
   if (!c) throw new Error(m)
 }
 
-function installLocalStorage() {
-  const store = new Map<string, string>()
-  ;(globalThis as { localStorage?: Storage }).localStorage = {
-    getItem: (k) => store.get(k) ?? null,
-    setItem: (k, v) => {
-      store.set(k, String(v))
-    },
-    removeItem: (k) => {
-      store.delete(k)
-    },
-    clear: () => store.clear(),
-    key: () => null,
-    length: 0,
-  } as Storage
-}
-
 async function main() {
-  installLocalStorage()
   const source = completenessSourceBlocks()
   const protectedData = buildProtectedContractData({
     blocks: source,
@@ -174,34 +152,6 @@ async function main() {
     'reference year review',
   )
 
-  const runShell = createComparisonRunShell({
-    runId: 'completeness-local',
-    sourceFileName: 'fixture.docx',
-    blocks: source,
-    dataset,
-  })
-  const modeA = await applyLocalModeA({
-    run: runShell,
-    sourceBytes: new ArrayBuffer(8),
-    sourceBlocks: source,
-    transformedBlocks: good,
-    dataset,
-  })
-  assert(modeA.modeA.qualityReport != null, 'Mode A quality report attached')
-  assert(
-    modeA.modeA.qualityReport!.blockingIssues.filter((i) =>
-      [
-        'money_words_mismatch',
-        'payment_structure_mismatch',
-        'payment_arithmetic_mismatch',
-        'deposit_missing',
-        'remaining_payment_missing',
-        'package_scope_mismatch',
-      ].includes(i.code),
-    ).length === 0,
-    'Mode A has no financial blockers on clean doc',
-  )
-  // Fake ArrayBuffer is not a DOCX — download may fail write; quality gate still allows
   assert(
     runPostReconstructionQualityGate({
       sourceBlocks: source,
@@ -213,21 +163,16 @@ async function main() {
     'Mode A quality gate allows download on clean',
   )
 
-  const modeB = await applyLocalModeB({
-    run: modeA,
-    sourceBytes: new ArrayBuffer(8),
-    sourceBlocks: source,
-    transformedBlocks: unsafe,
-    dataset,
-  })
-  assert(!modeB.modeB.downloadAvailable, 'Mode B blocked on unsafe')
   assert(
-    modeB.modeB.modeBVerification?.status === 'blocked',
-    'Mode B verification blocked',
+    !runPostReconstructionQualityGate({
+      sourceBlocks: source,
+      transformedBlocks: unsafe,
+      dataset,
+      protectedData,
+      mode: 'full_ai',
+    }).downloadAllowed,
+    'Mode A quality gate blocks unsafe',
   )
-
-  // Independent lifecycle: Mode A error does not prevent Mode B shell
-  assert(modeA.modeA.status === 'success', 'A success independent')
 
   console.log('ok — ai-contract-transform-completeness')
 }

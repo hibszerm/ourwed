@@ -15,12 +15,7 @@ import {
   fingerprintValue,
 } from './protectedContractData'
 import { verifyGuardedTransformation } from './guardedVerifier'
-import {
-  createComparisonRunShell,
-  runBothTransformModes,
-} from './transformService'
-import type { TransformFunctionsInvoke } from './transformApi'
-import { FULL_AI_RESPONSE_VERSION, GUARDED_AI_RESPONSE_VERSION } from './types'
+import { FULL_AI_RESPONSE_VERSION } from './types'
 import { SAMPLE_DATASET } from './fixtures/transformFixtures'
 
 function assert(c: boolean, m: string) {
@@ -30,21 +25,6 @@ function assertEq<T>(a: T, b: T, m: string) {
   if (a !== b) throw new Error(`${m}: ${String(a)} !== ${String(b)}`)
 }
 
-function installLocalStorage() {
-  const store = new Map<string, string>()
-  ;(globalThis as { localStorage?: Storage }).localStorage = {
-    getItem: (k) => store.get(k) ?? null,
-    setItem: (k, v) => {
-      store.set(k, String(v))
-    },
-    removeItem: (k) => {
-      store.delete(k)
-    },
-    clear: () => store.clear(),
-    key: () => null,
-    length: 0,
-  } as Storage
-}
 
 const VALID_JSON = JSON.stringify({
   changedBlocks: [{ blockId: 'para-0', text: 'Hello' }],
@@ -106,8 +86,6 @@ function tableFixtureBlocks() {
 }
 
 async function main() {
-  installLocalStorage()
-
   // 1 reasoning then message
   {
     const body = makeResponse({
@@ -524,57 +502,6 @@ async function main() {
   assert(joined.includes('30%'), 'cancellation kept')
   assert(fingerprintValue('abc') !== fingerprintValue('abcd'), 'fp differs')
 
-  // 20 independent modes
-  const invoke: TransformFunctionsInvoke = async (functionName) => {
-    if (functionName === 'ai-contract-full-rewrite') {
-      return {
-        data: null,
-        error: {
-          message: 'Edge Function returned a non-2xx status code',
-          context: {
-            status: 422,
-            text: async () =>
-              JSON.stringify({
-                ok: false,
-                error: {
-                  code: 'structured_output_json_invalid',
-                  message: 'Structured output JSON could not be parsed',
-                },
-              }),
-          },
-        },
-      }
-    }
-    return {
-      data: {
-        ok: true,
-        changedBlocks: [
-          {
-            blockId: 'table-0-row-0-cell-1-p-0',
-            text: 'Ewa Nowak i Piotr Nowak, ul. Nowa 2, 00-002 Warszawa, tel. 501 502 503',
-          },
-        ],
-        model: 'mock',
-        promptVersion: '2026-07-guarded-ai-v2',
-        responseVersion: GUARDED_AI_RESPONSE_VERSION,
-      },
-      error: null,
-    }
-  }
-  const finished = await runBothTransformModes({
-    run: createComparisonRunShell({
-      runId: 'extract-indep',
-      sourceFileName: 't.docx',
-      blocks,
-      dataset,
-    }),
-    sourceBytes: new ArrayBuffer(8),
-    sourceBlocks: blocks,
-    dataset,
-    invoke,
-  })
-  assertEq(finished.modeA.status, 'error', 'A independent error')
-  assertEq(finished.modeB.status, 'success', 'B independent success')
 
   console.log('ok — ai-contract-transform-extraction')
 }

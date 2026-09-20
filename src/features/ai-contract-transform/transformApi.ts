@@ -23,8 +23,6 @@ import type {
 import {
   FULL_AI_PROMPT_VERSION,
   FULL_AI_RESPONSE_VERSION,
-  GUARDED_AI_PROMPT_VERSION,
-  GUARDED_AI_RESPONSE_VERSION,
 } from './types'
 
 export type TransformApiError = {
@@ -307,11 +305,9 @@ export async function invokeTransform(input: {
       )
     }
 
-    // Prefer Edge-injected version when present and trusted; else parser injection
-    const trusted =
-      input.mode === 'full_ai_trusted_rewrite'
-        ? FULL_AI_RESPONSE_VERSION
-        : GUARDED_AI_RESPONSE_VERSION
+    // Prefer Edge-injected version when present and trusted; else parser injection.
+    // Production invoke path is full-rewrite only after Mode B wrapper retirement.
+    const trusted = FULL_AI_RESPONSE_VERSION
     const edgeVersion =
       typeof body.responseVersion === 'string' ? body.responseVersion : ''
     const responseVersion =
@@ -379,28 +375,4 @@ export function runFullAiRewrite(input: {
     promptVersion: FULL_AI_PROMPT_VERSION,
     ...input,
   })
-}
-
-export function runGuardedAiTransform(input: {
-  runId: string
-  documentBlocks: TransformDocumentBlock[]
-  transformationDataset: ContractTransformationDataset
-  protectedDataSummary: { exactCount: number; patternCount: number }
-  requiredReplacements?: unknown
-  invoke?: TransformFunctionsInvoke
-}): Promise<TransformApiResult> {
-  return invokeTransform({
-    functionName: 'ai-contract-guarded-transform',
-    mode: 'guarded_ai_transform',
-    promptVersion: GUARDED_AI_PROMPT_VERSION,
-    ...input,
-  })
-}
-
-/** Offline / test helper — apply a local transform result without edge. */
-export function validateResponseVersions(mode: TransformMode, version: string): boolean {
-  if (mode === 'full_ai_trusted_rewrite') {
-    return version === FULL_AI_RESPONSE_VERSION
-  }
-  return version === GUARDED_AI_RESPONSE_VERSION
 }
