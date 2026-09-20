@@ -145,16 +145,18 @@ export function classifyAdditionalServicesPlacement(
 
   const signatureStart = findSignatureStartIndex(blocks)
   const paymentStart = findPaymentStartIndex(blocks)
-  const safeCeiling = Math.min(signatureStart, paymentStart)
+  // Fallback anchors stay before payment when possible; existing extras sections
+  // may legitimately sit AFTER payment but must still be BEFORE signatures.
+  const fallbackCeiling = Math.min(signatureStart, paymentStart)
 
-  // A. Existing dedicated extras section (before signatures)
+  // A. Existing dedicated extras section (before signatures — may follow payment)
   let bestHeading: {
     blockIndex: number
     score: number
     label: string
   } | null = null
 
-  for (let i = 0; i < safeCeiling; i++) {
+  for (let i = 0; i < signatureStart; i++) {
     const hit = scoreExistingSectionHeading(blocks[i]!.text)
     if (!hit) continue
     if (!bestHeading || hit.score > bestHeading.score) {
@@ -165,13 +167,25 @@ export function classifyAdditionalServicesPlacement(
   if (bestHeading && bestHeading.score >= 0.75) {
     const sectionStart = bestHeading.blockIndex
     let targetIndex = sectionStart
-    for (let j = sectionStart + 1; j < safeCeiling; j++) {
+    for (let j = sectionStart + 1; j < signatureStart; j++) {
       const b = blocks[j]!
       if (isStopBoundaryBlock(b.text) || isSignatureBlock(b)) break
       const nextHeading = scoreExistingSectionHeading(b.text)
       if (nextHeading && nextHeading.score >= 0.75) break
+      // Next document section heading (ALL CAPS / short title) ends the extras body.
+      const trimmed = b.text.trim()
+      if (
+        trimmed.length > 0 &&
+        trimmed.length <= 48 &&
+        /^[A-ZĄĆĘŁŃÓŚŹŻ0-9][A-ZĄĆĘŁŃÓŚŹŻ0-9\s/&-]{1,46}$/.test(trimmed) &&
+        !/usługi|dodatk|opcje|zakres/i.test(trimmed)
+      ) {
+        break
+      }
       if (b.text.trim().length > 0) targetIndex = j
     }
+    // Prefer a body line inside the section over rewriting the bare heading when
+    // a placeholder/body line exists.
     const boundary =
       targetIndex + 1 < blocks.length ? blocks[targetIndex + 1] : undefined
     return {
@@ -185,7 +199,7 @@ export function classifyAdditionalServicesPlacement(
   }
 
   // B. Package deliverables list
-  const deliverables = detectPackageDeliverablesAnchor(blocks, safeCeiling)
+  const deliverables = detectPackageDeliverablesAnchor(blocks, fallbackCeiling)
   if (deliverables) {
     return {
       mode: 'package_deliverables',
@@ -200,13 +214,13 @@ export function classifyAdditionalServicesPlacement(
   }
 
   // C. Narrow package/scope paragraph or table row (insert after, not inside table)
-  const packageEnd = findNarrowPackageScopeEndIndex(blocks, safeCeiling)
+  const packageEnd = findNarrowPackageScopeEndIndex(blocks, fallbackCeiling)
   if (packageEnd >= 0) {
     let targetIndex = packageEnd
     if (isServiceScopeBlock(blocks[targetIndex]!)) {
-      targetIndex = Math.min(targetIndex + 1, safeCeiling - 1)
+      targetIndex = Math.min(targetIndex + 1, fallbackCeiling - 1)
     }
-    if (targetIndex >= 0 && targetIndex < safeCeiling) {
+    if (targetIndex >= 0 && targetIndex < fallbackCeiling) {
       const boundary =
         targetIndex + 1 < blocks.length ? blocks[targetIndex + 1] : undefined
       return {
@@ -221,14 +235,14 @@ export function classifyAdditionalServicesPlacement(
   }
 
   // D. Before payment (still before signature, never on signature block)
-  if (safeCeiling > 0) {
-    let insertIndex = safeCeiling - 1
+  if (fallbackCeiling > 0) {
+    let insertIndex = fallbackCeiling - 1
     while (insertIndex >= 0 && isSignatureBlock(blocks[insertIndex]!)) {
       insertIndex -= 1
     }
     if (insertIndex >= 0) {
       const boundary =
-        safeCeiling < blocks.length ? blocks[safeCeiling] : undefined
+        fallbackCeiling < blocks.length ? blocks[fallbackCeiling] : undefined
       return {
         mode: 'before_payment',
         anchorType: 'before_payment',

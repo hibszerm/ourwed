@@ -163,9 +163,28 @@ export function isSignatureBlock(block: TransformDocumentBlock): boolean {
   const t = block.text.trim()
   const n = norm(t)
   if (!t) return false
+  // Contract execution / signing DATE lines are content, not the signature region.
+  // "Data podpisania: …" must not collapse the document ceiling to the header.
+  if (
+    /data\s+(podpisania|zawarcia|sporzadzenia)|zawarta\s+w\s+dniu|sporzadzono\s+dnia|podpisano\s+dnia/i.test(
+      n,
+    )
+  ) {
+    return false
+  }
   if (SIGNATURE_LABEL_ONLY.some((re) => re.test(n))) return true
-  if (/^\.{4,}$/.test(t) || /^_{4,}$/.test(t)) return true
-  if (/podpis/i.test(n) && t.length < 80) return true
+  if (/^\.{4,}$/.test(t) || /^_{4,}$/.test(t) || /^[.…·•\-–—_\s]{6,}$/.test(t))
+    return true
+  // Signature labels / headings — not any incidental "podpis" in legal prose.
+  if (
+    (/^podpis(y|y\s+stron)?\.?$/i.test(t) ||
+      /^podpisy\s+stron\.?$/i.test(t) ||
+      (/podpis/i.test(n) &&
+        t.length < 40 &&
+        !/data|dnia|termin|umow/i.test(n)))
+  ) {
+    return true
+  }
   if (/miejscowosc\s+i\s+data/i.test(n) && t.length < 120) return true
   if (
     block.kind === 'tableCell' &&
@@ -268,7 +287,7 @@ function isDeliverableItem(text: string, prevWasDeliverable: boolean): boolean {
     return false
   }
   if (scorePackageIntroduction(t)) return false
-  if (/^[\-–•]/.test(t)) return true
+  if (/^[-–•]/.test(t)) return true
   if (DELIVERABLE_KEYWORDS.test(norm(t))) return true
   if (/;\s*$/.test(t) && (DELIVERABLE_KEYWORDS.test(norm(t)) || prevWasDeliverable)) {
     return true

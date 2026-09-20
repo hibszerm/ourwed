@@ -212,7 +212,12 @@ export function verifyAdditionalServicesConsistency(input: {
           'Additional services were placed after or inside a signature block',
       })
     }
-    if (!isBlockBeforePayment(input.sourceBlocks, placementTarget)) {
+    // Existing dedicated extras sections may sit after payment (still before
+    // signatures). Only flag AFTER_PAYMENT for fallback anchors.
+    if (
+      diag?.additionalServicesAnchorType !== 'existing_section' &&
+      !isBlockBeforePayment(input.sourceBlocks, placementTarget)
+    ) {
       issues.push({
         code: 'ADDITIONAL_SERVICES_AFTER_PAYMENT',
         severity: 'blocking',
@@ -325,7 +330,21 @@ export function verifyAdditionalServicesConsistency(input: {
       /uslugi\s+dodatkowe|dodatkowe\s+uslugi|opcje\s+dodatkowe|zakres\s+dodatkowy/.test(
         normalizeForMatch(input.transformedBlocks[serviceIdx]!.text),
       )
-    if (!onExtrasHeading && FORBIDDEN_NEIGHBORHOOD.test(window)) {
+    // Allow extras body lines sitting under an extras heading even when the
+    // following block is a later legal section (copyright/RODO).
+    const underExtrasSection =
+      onExtrasHeading ||
+      (serviceIdx > 0 &&
+        /uslugi\s+dodatkowe|dodatkowe\s+uslugi|opcje\s+dodatkowe|zakres\s+dodatkowy|brak wybranych|lista wybranych/i.test(
+          normalizeForMatch(
+            [
+              input.transformedBlocks[serviceIdx - 2]?.text ?? '',
+              input.transformedBlocks[serviceIdx - 1]?.text ?? '',
+              input.transformedBlocks[serviceIdx]!.text,
+            ].join('\n'),
+          ),
+        ))
+    if (!underExtrasSection && FORBIDDEN_NEIGHBORHOOD.test(window)) {
       issues.push({
         code: 'ADDITIONAL_SERVICES_IN_FORBIDDEN_LEGAL_SECTION',
         severity: 'blocking',
@@ -336,15 +355,17 @@ export function verifyAdditionalServicesConsistency(input: {
   }
 
   const paymentStart = findPaymentStartIndex(input.sourceBlocks)
-  for (const name of expected) {
-    const serviceIdx = firstBlockContaining(input.transformedBlocks, name)
-    if (serviceIdx >= 0 && serviceIdx >= paymentStart) {
-      issues.push({
-        code: 'ADDITIONAL_SERVICES_AFTER_PAYMENT',
-        severity: 'blocking',
-        canonicalField: 'contract.additionalServices',
-        safeDescription: `Additional service "${name}" appears after payment clause`,
-      })
+  if (diag?.additionalServicesAnchorType !== 'existing_section') {
+    for (const name of expected) {
+      const serviceIdx = firstBlockContaining(input.transformedBlocks, name)
+      if (serviceIdx >= 0 && serviceIdx >= paymentStart) {
+        issues.push({
+          code: 'ADDITIONAL_SERVICES_AFTER_PAYMENT',
+          severity: 'blocking',
+          canonicalField: 'contract.additionalServices',
+          safeDescription: `Additional service "${name}" appears after payment clause`,
+        })
+      }
     }
   }
 

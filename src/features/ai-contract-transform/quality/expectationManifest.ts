@@ -31,6 +31,9 @@ import {
   weddingDatesSemanticallyEqual,
   type SourceLocationEvidence as LocationEvidenceRuntime,
 } from './locationFieldEvidence'
+import {
+  discoverExecutionDateEvidence,
+} from './dateFieldEvidence'
 import { detectRepresentedConcepts } from './representationPolicy'
 import type {
   CanonicalTransformField,
@@ -194,6 +197,8 @@ export function buildExpectationManifest(input: {
       canonicalField: e.canonicalField,
     }))
 
+  const executionDateEvidence = discoverExecutionDateEvidence(blocks)
+
   const represented = detectRepresentedConcepts(blocks, {
     hasPartyEvidence: filledPartyEvidence.length > 0,
     hasPrepEvidence: filledLocationEvidence.some((e) =>
@@ -204,6 +209,10 @@ export function buildExpectationManifest(input: {
     hasCeremonyEvidence: filledLocationEvidence.some((e) => e.role === 'ceremony'),
     hasReceptionEvidence: filledLocationEvidence.some((e) => e.role === 'reception'),
   })
+  // Grounded execution-date evidence overrides heuristic representation.
+  if (executionDateEvidence.length > 0) {
+    represented.contractExecutionDate = true
+  }
 
   for (const ev of filledLocationEvidence) {
     // Sentinels are structural fields, not stale venue inventory
@@ -288,38 +297,10 @@ export function buildExpectationManifest(input: {
     // (role-correct + sentinel-aware). Do not dump every cell into receptionLocation.
   }
 
-  // Body location mentions of known venues from location cells
-  for (const b of blocks) {
-    if (b.kind !== 'paragraph') continue
-    const venueRe =
-      /\b((?:Pałac(?:u|em|owi)?|Hotel(?:u|em|owi)?|Kościo(?:ł|le|ła)|Bazylik(?:a|i|ę|ą)|Zam(?:ek|ku|kiem)|Dworek|Dworku|Restauracj(?:a|i|ę)|Sala|Sali)\s+[A-ZĄĆĘŁŃÓŚŹŻ][^\s,.]{2,}(?:\s+(?:[A-ZĄĆĘŁŃÓŚŹŻ][^\s,.]{2,}|w\s+[A-ZĄĆĘŁŃÓŚŹŻ][^\s,.]{2,})){0,3})/gi
-    let m: RegExpExecArray | null
-    while ((m = venueRe.exec(b.text))) {
-      const surface = m[1]!
-      pushSourceValue(sourceSpecificValues, {
-        field: /przygotowan/i.test(b.text)
-          ? 'wedding.preparationLocation'
-          : /ceremoni|kościół|bazylik|zaślubin|zamek/i.test(b.text)
-            ? 'wedding.ceremonyLocation'
-            : 'wedding.receptionLocation',
-        value: surface,
-        blocks,
-      })
-      // Also store nominative-ish head + place for matching
-      const place = surface.split(/\s+/).slice(1).join(' ')
-      if (place.length >= 4) {
-        pushSourceValue(sourceSpecificValues, {
-          field: /przygotowan/i.test(b.text)
-            ? 'wedding.preparationLocation'
-            : /ceremoni|kościół|bazylik|zaślubin|zamek/i.test(b.text)
-              ? 'wedding.ceremonyLocation'
-              : 'wedding.receptionLocation',
-          value: place,
-          blocks,
-        })
-      }
-    }
-  }
+  // Body venue inventory is representation-gated: ONLY grounded location evidence
+  // may contribute mustDisappear surfaces. Arbitrary "Sala …" matches in legal
+  // prose must not invent receptionLocation stale failures (CG7.3/CG7.4).
+  // (Intentionally no ungated paragraph venue regex here.)
 
   // Old prices in finance paragraphs
   for (const b of blocks) {
@@ -450,12 +431,29 @@ export function buildExpectationManifest(input: {
   }
 
   if (represented.contractExecutionDate) {
+    const execSources = executionDateEvidence
+      .map((e) => e.sourceDate)
+      .filter((v): v is string => Boolean(v))
+    const execBlocks = executionDateEvidence.map((e) => e.blockId)
     addRequired(
       'contract.executionDate',
-      [],
+      execSources,
       [dataset.dates.contractExecutionDate],
-      'must_appear',
+      execSources.length > 0 ? 'must_replace_source' : 'must_appear',
+      execBlocks.length
+        ? [{ kind: 'opening_paragraph', blockIds: execBlocks }]
+        : undefined,
     )
+    for (const ev of executionDateEvidence) {
+      requiredReplacements.push({
+        canonicalField: 'contract.executionDate',
+        sourceValues: ev.sourceDate ? [ev.sourceDate] : [],
+        targetRenderedValues: [dataset.dates.contractExecutionDate],
+        sourceBlockIds: [ev.blockId],
+        requiredContextBlockIds: [ev.blockId],
+        replacementPolicy: 'replace_in_contexts',
+      })
+    }
   }
 
   const prep = locationFromDatasetEntry(dataset.locations.preparation)

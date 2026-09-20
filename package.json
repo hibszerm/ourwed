@@ -156,6 +156,7 @@
     "test:cg71-filled-party": "npx tsx --tsconfig tsconfig.app.json src/features/ai-contract-transform/cg71FilledPartyIdentityAcceptance.test.ts",
     "test:cg72-location": "npx tsx --tsconfig tsconfig.app.json src/features/ai-contract-transform/cg72LocationGeneralizationAcceptance.test.ts",
     "test:cg73-representation": "npx tsx --tsconfig tsconfig.app.json src/features/ai-contract-transform/cg73RepresentationPolicyAcceptance.test.ts",
+    "test:cg74-hardening": "npx tsx --tsconfig tsconfig.app.json src/features/ai-contract-transform/cg74HardeningAcceptance.test.ts",
     "test:cg7-contract-generalization-paid": "npx tsx --tsconfig tsconfig.app.json src/features/ai-contract-transform/cg7/runCg7GeneralizationSuite.ts",
     "test:cg61-empty-change-integrity": "npx tsx --tsconfig tsconfig.app.json src/features/ai-contract-transform/cg61EmptyChangeIntegrityAcceptance.test.ts",
     "test:contract-artifact-consistency": "npx tsx --tsconfig tsconfig.app.json src/features/documents/template/contractArtifactConsistency.test.ts",

@@ -58,11 +58,13 @@ export function isNonSemanticLocationSurface(text: string): boolean {
 /**
  * Infer location role from structural context (row label / clause text).
  * Reuses the same role stems already used by clause-aware location QA.
+ *
+ * Unknown vocabulary is NOT solved by growing this list — form-line clusters
+ * under a locations section use structural positional assignment instead.
  */
 export function inferLocationRoleFromContext(text: string): LocationSemanticRole {
   const t = text.trim()
   if (!t) return 'unknown'
-  // Stem matches: przygotowań / przygotowania / przygotowanie
   if (/przygotowa/i.test(t)) {
     if (/panny|partner\s*1|partnerki|narzeczonej|bride/i.test(t)) {
       return 'preparation_partner1'
@@ -74,7 +76,9 @@ export function inferLocationRoleFromContext(text: string): LocationSemanticRole
   }
   if (/ceremoni|zaślubin|kościół|urząd stanu/i.test(t)) return 'ceremony'
   if (
-    /przyjęci|powitanie gości|miejsce przyjęcia|wesel|imprezy|bankiet/i.test(t)
+    /przyjęci|powitanie gości|miejsce przyjęcia|wesel|imprezy|bankiet/i.test(
+      t,
+    )
   ) {
     return 'reception'
   }
@@ -98,25 +102,121 @@ export function canonicalFieldForLocationRole(
   }
 }
 
+/** Structural locations-section heading (not a field-label synonym dictionary). */
+export function isLocationsSectionHeading(text: string): boolean {
+  const t = text.trim()
+  if (!t || t.length > 48) return false
+  return /^(lokalizacj|miejsca|miejsce\s+uroczyst)/i.test(t)
+}
+
+/** Form-like "label: value" location field (grammar-free structured surface). */
+export function parseLocationFormLine(
+  text: string,
+): { label: string; value: string } | null {
+  const m = text.trim().match(/^([^:\n]{2,80}):\s*(.*)$/)
+  if (!m) return null
+  const label = m[1]!.trim()
+  const value = (m[2] ?? '').trim()
+  if (!/miejsce|sala\b|adres\b|lokalizacj/i.test(label)) return null
+  return { label, value }
+}
+
+function isLocationFormOrSlotAssertion(text: string): boolean {
+  if (parseLocationFormLine(text)) return true
+  // Tight prose must LEAD with a location assertion — not a long scope sentence
+  // that merely mentions "miejsce ceremonii" among other roles.
+  return /^(miejsce\s+|ceremonia\s+odbędzie|przyjęcie\s+(weselne\s+)?odbędzie|przygotowania\s+odbęd)/i.test(
+    text.trim(),
+  )
+}
+
+/**
+ * Assign roles to form-line location fields in a section.
+ * Known lexical roles win; remaining unknowns are filled structurally in order
+ * preparation → ceremony → reception (no per-phrase synonym list).
+ */
+function assignRolesToFormCluster(
+  items: Array<{ blockId: string; label: string; value: string; text: string }>,
+): Array<{
+  blockId: string
+  role: LocationSemanticRole
+  sourceText: string
+  text: string
+}> {
+  const used = new Set<LocationSemanticRole>()
+  const out: Array<{
+    blockId: string
+    role: LocationSemanticRole
+    sourceText: string
+    text: string
+  }> = []
+  const pending: typeof items = []
+
+  for (const item of items) {
+    const role = inferLocationRoleFromContext(item.label)
+    if (role !== 'unknown') {
+      used.add(role)
+      out.push({
+        blockId: item.blockId,
+        role,
+        sourceText: item.text,
+        text: item.text,
+      })
+    } else {
+      pending.push(item)
+    }
+  }
+
+  const order: LocationSemanticRole[] = [
+    'preparation',
+    'ceremony',
+    'reception',
+  ]
+  for (const item of pending) {
+    const next = order.find((r) => !used.has(r)) ?? 'unknown'
+    if (next !== 'unknown') used.add(next)
+    out.push({
+      blockId: item.blockId,
+      role: next,
+      sourceText: item.text,
+      text: item.text,
+    })
+  }
+  return out
+}
+
+function isPromptLikeLocationValue(value: string): boolean {
+  return (
+    isNonSemanticLocationSurface(value) ||
+    /wskazan[yae]|do uzup|uzupełn|podadzą|podaje klient/i.test(value)
+  )
+}
+
 export function discoverFilledLocationEvidence(
   blocks: TransformDocumentBlock[],
 ): SourceLocationEvidence[] {
   const out: SourceLocationEvidence[] = []
+  const seen = new Set<string>()
+
+  const push = (ev: SourceLocationEvidence) => {
+    if (seen.has(ev.blockId)) return
+    seen.add(ev.blockId)
+    out.push(ev)
+  }
 
   for (const b of blocks) {
     const text = (b.text ?? '').trim()
     const fam = b.tableContext?.ownershipFamily
     const label = b.tableContext?.rowLabelText?.trim() ?? ''
 
-    // Table value cells under wedding_location ownership
     if (fam === 'wedding_location' && b.kind === 'tableCell') {
-      // Skip pure label cells
       if (label && text === label) continue
       if (b.tableContext?.cellIndex === 0 && text === label) continue
 
-      const roleCtx = label || b.tableContext?.neighboringCellTexts?.join(' ') || text
+      const roleCtx =
+        label || b.tableContext?.neighboringCellTexts?.join(' ') || text
       const role = inferLocationRoleFromContext(roleCtx)
-      out.push({
+      push({
         blockId: b.blockId,
         role,
         sourceText: text,
@@ -125,29 +225,75 @@ export function discoverFilledLocationEvidence(
         rowLabelText: label || undefined,
         canonicalField: canonicalFieldForLocationRole(role),
       })
-      continue
     }
+  }
 
-    // Prose location clauses (not provider)
-    if (b.kind === 'paragraph' && fam !== 'provider') {
-      const role = inferLocationRoleFromContext(text)
-      if (role === 'unknown') continue
-      // Must look like a location *field assertion*, not a tangential mention
-      // (e.g. "przygotowaniem stołu" is not an event-location slot).
-      const assertsLocationSlot =
-        /miejsce\s+(przygotowa|ceremoni|wesel|przyjęci)|odbędzie się|odbędą się|pod adresem|lokalizacj|ceremonia\s+odbędzie|przyjęcie\s+(weselne\s+)?odbędzie|przygotowania\s+odbęd/i.test(
-          text,
-        )
-      if (!assertsLocationSlot) continue
-      out.push({
+  // Structural form-line clusters under a locations section heading.
+  for (let i = 0; i < blocks.length; i++) {
+    const heading = blocks[i]!
+    if (heading.kind !== 'paragraph') continue
+    if (!isLocationsSectionHeading(heading.text)) continue
+    const cluster: Array<{
+      blockId: string
+      label: string
+      value: string
+      text: string
+    }> = []
+    for (let j = i + 1; j < blocks.length; j++) {
+      const b = blocks[j]!
+      if (b.kind !== 'paragraph') break
+      if (isLocationsSectionHeading(b.text)) break
+      const trimmed = b.text.trim()
+      if (
+        /^[A-ZĄĆĘŁŃÓŚŹŻ][A-ZĄĆĘŁŃÓŚŹŻ\s]{2,40}$/.test(trimmed) &&
+        trimmed.length < 40
+      ) {
+        break
+      }
+      const parsed = parseLocationFormLine(b.text)
+      if (!parsed) {
+        if (cluster.length > 0) break
+        continue
+      }
+      cluster.push({
         blockId: b.blockId,
-        role,
-        sourceText: text,
-        nonSemanticSurface: isNonSemanticLocationSurface(text),
-        representation: 'prose',
-        canonicalField: canonicalFieldForLocationRole(role),
+        label: parsed.label,
+        value: parsed.value,
+        text: trimmed,
       })
     }
+    for (const item of assignRolesToFormCluster(cluster)) {
+      const valuePart = parseLocationFormLine(item.text)?.value ?? item.text
+      push({
+        blockId: item.blockId,
+        role: item.role,
+        sourceText: item.text,
+        nonSemanticSurface: isPromptLikeLocationValue(valuePart),
+        representation: 'prose',
+        canonicalField: canonicalFieldForLocationRole(item.role),
+      })
+    }
+  }
+
+  // Standalone form lines / tight prose slots (not already captured)
+  for (const b of blocks) {
+    if (b.kind !== 'paragraph' || b.tableContext?.ownershipFamily === 'provider') {
+      continue
+    }
+    const text = (b.text ?? '').trim()
+    if (!isLocationFormOrSlotAssertion(text)) continue
+    const form = parseLocationFormLine(text)
+    const role = inferLocationRoleFromContext(form?.label ?? text)
+    if (role === 'unknown') continue
+    const valuePart = form?.value ?? text
+    push({
+      blockId: b.blockId,
+      role,
+      sourceText: text,
+      nonSemanticSurface: isPromptLikeLocationValue(valuePart),
+      representation: 'prose',
+      canonicalField: canonicalFieldForLocationRole(role),
+    })
   }
 
   return out

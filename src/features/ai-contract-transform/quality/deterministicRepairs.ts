@@ -11,6 +11,7 @@ import type {
 import { fingerprintText, sanitizeDuplicatedLocationWrappers } from './normalize'
 import { repairCanonicalPaymentAmounts } from './paymentAmountRepair'
 import { repairCanonicalPartyPlaceholders } from './partyPlaceholderRepair'
+import { applyCanonicalExecutionDate } from './dateFieldEvidence'
 import type {
   DeterministicRepair,
   RequiredReplacement,
@@ -59,7 +60,7 @@ export function repairMoneyWordsInText(
   if (!/słownie/i.test(text)) return text
   return text.replace(
     /(\d[\d\s\u00a0]*\s*zł(?:otych|ote|oty)?)([\s\S]{0,100}?)\(\s*słownie:\s*([^).]+)\)/gi,
-    (full, amountWithCurrency: string, between: string, _oldWords: string) => {
+    (full, amountWithCurrency: string, between: string) => {
       const amount = parsePlnAmount(amountWithCurrency)
       if (amount == null) return full
       const expected = wordsForAmount(amount, finances)
@@ -202,14 +203,11 @@ export function applyDeterministicRepairs(input: {
   blocks = party.blocks
   repairs.push(...party.repairs)
 
-  // 6. CG7.2 — table location value cells: exact cell rewrite when the whole
-  // cell text is the source surface (sentinel or old filled). No prose grammar.
+  // 6. CG7.2/CG7.4 — location value cells + form lines: grammar-free rewrite.
   for (const ev of input.manifest.sourceLocationEvidence ?? []) {
-    if (ev.representation !== 'table_cell') continue
     const idx = blocks.findIndex((b) => b.blockId === ev.blockId)
     if (idx < 0) continue
     const b = blocks[idx]!
-    if (b.text.trim() !== ev.sourceText.trim()) continue
 
     let target = '—'
     const locs = input.dataset.locations
@@ -217,7 +215,9 @@ export function applyDeterministicRepairs(input: {
       (ev.role === 'preparation' ||
         ev.role === 'preparation_partner1' ||
         ev.role === 'preparation_partner2') &&
-      (locs.preparationDisplayText || locs.preparation || locs.preparationLocations?.length)
+      (locs.preparationDisplayText ||
+        locs.preparation ||
+        locs.preparationLocations?.length)
     ) {
       if (ev.role === 'preparation_partner1') {
         target =
@@ -246,19 +246,77 @@ export function applyDeterministicRepairs(input: {
       ev.role === 'unknown' &&
       (locs.reception || locs.ceremony || locs.preparation)
     ) {
-      // Ambiguous generic field with multiple CRM roles — do not invent mapping
       continue
     }
 
-    if (b.text === target) continue
+    // Form lines need a compact venue/address — not a prose "przygotowań, które…" clause.
+    if (ev.representation !== 'table_cell') {
+      if (
+        ev.role === 'preparation' ||
+        ev.role === 'preparation_partner1' ||
+        ev.role === 'preparation_partner2'
+      ) {
+        target =
+          locs.preparation?.fullAddress ??
+          locs.preparation?.displayName ??
+          locs.preparationLocations?.[0]?.fullAddress ??
+          target
+      }
+    }
+
+    let next: string
+    if (ev.representation === 'table_cell') {
+      if (b.text.trim() !== ev.sourceText.trim()) continue
+      next = target
+    } else {
+      // Form line "label: value" — replace value only (CG7.4).
+      const form = b.text.match(/^([^:\n]{2,80}):\s*(.*)$/)
+      if (form) {
+        next = `${form[1]}: ${target}`
+      } else if (
+        b.text.trim() === ev.sourceText.trim() &&
+        b.text.trim().length <= 120
+      ) {
+        next = target
+      } else {
+        continue
+      }
+    }
+
+    if (next === b.text) continue
     repairs.push({
-      repairCode: 'exact_location_table_cell_to_canonical',
+      repairCode:
+        ev.representation === 'table_cell'
+          ? 'exact_location_table_cell_to_canonical'
+          : 'exact_location_form_line_to_canonical',
       blockId: ev.blockId,
       canonicalField: ev.canonicalField,
       beforeFingerprint: fingerprintText(b.text),
-      afterFingerprint: fingerprintText(target),
+      afterFingerprint: fingerprintText(next),
     })
-    blocks[idx] = { ...b, text: target }
+    blocks[idx] = { ...b, text: next }
+  }
+
+  // 7. CG7.4 — contract execution / signing date form lines
+  for (const rep of input.manifest.requiredReplacements) {
+    if (rep.canonicalField !== 'contract.executionDate') continue
+    const target = rep.targetRenderedValues[0]
+    if (!target) continue
+    for (const blockId of rep.requiredContextBlockIds) {
+      const idx = blocks.findIndex((b) => b.blockId === blockId)
+      if (idx < 0) continue
+      const b = blocks[idx]!
+      const next = applyCanonicalExecutionDate(b.text, target)
+      if (next === b.text) continue
+      repairs.push({
+        repairCode: 'exact_execution_date_to_canonical',
+        blockId,
+        canonicalField: 'contract.executionDate',
+        beforeFingerprint: fingerprintText(b.text),
+        afterFingerprint: fingerprintText(next),
+      })
+      blocks[idx] = { ...b, text: next }
+    }
   }
 
   return { blocks, repairs }
