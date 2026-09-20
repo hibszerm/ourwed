@@ -3,7 +3,7 @@
 OurWed is a **contract reproduction system**, not a contract builder.
 
 The studio uploads its own legal contract once. From then on, OurWed recreates
-that same document for each wedding by **transforming** the original text —
+that same document for each wedding by transforming the original text —
 substituting only dynamic values.
 
 ## Official user journey
@@ -16,34 +16,46 @@ substituting only dynamic values.
 6. VariableResolver fills Company / Package / Wedding / Couple / Questionnaire automatically  
 7. If nothing missing → generate immediately  
 8. If missing → show ONLY unresolved fields (fill or omit)  
-9. AI transforms the **original** contract (values only)  
-10. Quality check (retry if non-value edits detected; punctuation/spacing ignored)  
-11. Preview / minor edits  
-12. Save DOCX + print/PDF  
+9. Sparse Full-AI rewrite transforms the **original** contract (values / structure via quality gate)  
+10. Preview / minor edits  
+11. Save DOCX + print/PDF  
 
 ## Generation strategy (important)
 
-Generation does **not** fill `{{placeholders}}` and does **not** rebuild legal text.
+Generation does **not** fill `{{placeholders}}` and does **not** rebuild legal text from scratch.
+
+### Current primary contract generation
 
 ```
-Choose template
-  → Load original uploaded contract (master)
-  → Collect variables (Company / Package / Wedding / Couple / System)
-  → AI document transformer (Edge: document-ai-transform)
-  → Quality gate (paragraph order + only allowed value inserts)
-  → Retry once if needed
-  → Write paragraph texts back into original DOCX structure
-  → Preview → edit → export
+WeddingContractGenerationPage
+  → WeddingSparseContractGenerationService.generate
+  → indexDocxForTransform
+  → buildContractTransformationDataset
+  → runSparseProductTransform
+  → runFullAiRewrite
+  → ai-contract-full-rewrite
+  → runPostReconstructionQualityGate(mode: 'full_ai')
+  → writeTransformedDocx
+  → persist / preview / save
 ```
 
-### AI rules
+### Legacy emergency fallback
 
-Allowed: substitute names, dates, locations, prices, company details, etc.
+```
+VITE_USE_SPARSE_WEDDING_CONTRACT_GENERATION=false
+  → WeddingContractGenerationService.generate
+  → prepareVerification
+  → transformContract
+```
 
-Forbidden: rewrite clauses, reorder, merge/split paragraphs, invent values,
-change legal meaning, translate, summarize.
+`transformContract` is **deterministic slot rendering** on the uploaded DOCX.
+It does **not** invoke any AI transform Edge function.
 
-Missing values → `__________` (never invent).
+### Historical note (retired)
+
+An earlier experimental path used Edge `document-ai-transform` for whole-document
+value substitution. That client adapter and repository Edge source are retired.
+It is **not** part of current production generation.
 
 ### Master document
 
@@ -56,17 +68,16 @@ The fillable `template_docx_path` (placeholders) is **not** used for generation.
 | --- | --- |
 | `/ustawienia/dokumenty/szablony` | Contract Templates |
 | `/ankiety` | Manual questionnaires |
-| Wedding → Generate Contract | Transform + export |
+| Wedding → Generate Contract | Sparse Full-AI generate + export |
 
 ## Key code
 
-- `ContractTransformationService` — orchestration  
-- `supabase/functions/document-ai-transform` — OpenAI transform (server-only)  
-- `contractQualityCheck.ts` — fail if more than values changed  
-- `VariableResolver` — structured values  
-- Import AI (`document-ai-analysis`) — variable detection only  
+- `WeddingSparseContractGenerationService` — current wedding generation orchestration  
+- `runSparseProductTransform` / `runFullAiRewrite` → `ai-contract-full-rewrite`  
+- `ContractTransformationService.transformContract` — legacy deterministic slots  
+- Import / reanalyze AI (`document-ai-analysis`) — variable detection only  
 
 ## Mock / offline
 
 `VITE_DOCUMENT_AI_USE_MOCK=true` uses deterministic example→value replacement
-from the import slot map (no LLM).
+from the import slot map for **document analysis** (no LLM).
