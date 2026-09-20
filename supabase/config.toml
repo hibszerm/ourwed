@@ -11,3 +11,6 @@ verify_jwt = true
 
 [functions.routes-proxy]
 verify_jwt = true
+
+[functions.maps]
+verify_jwt = true
