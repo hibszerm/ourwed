@@ -35,6 +35,7 @@ import {
   discoverExecutionDateEvidence,
 } from './dateFieldEvidence'
 import { detectRepresentedConcepts } from './representationPolicy'
+import { discoverFilledTotalEvidence } from './totalFieldEvidence'
 import type {
   CanonicalTransformField,
   ConsistencyRule,
@@ -588,18 +589,48 @@ export function buildExpectationManifest(input: {
   }
 
   if (represented.totalPrice) {
+    const totalEvidence = discoverFilledTotalEvidence(blocks)
+    const totalBlockIds = totalEvidence.map((e) => e.blockId)
+    // must_appear (not must_replace_source): old total digits may legitimately
+    // equal an unrelated fee elsewhere (TP12) — never global digit scrub.
     addRequired(
       'contract.totalPrice',
       [],
       [dataset.finances.contractValueFormatted],
       'must_appear',
+      totalBlockIds.length > 0
+        ? [{ kind: 'payment_clause', blockIds: totalBlockIds }]
+        : undefined,
     )
     addRequired(
       'contract.totalPriceWords',
       [],
       [dataset.finances.contractValueWords],
       'must_appear_in_relevant_context',
+      totalBlockIds.length > 0
+        ? [{ kind: 'payment_clause', blockIds: totalBlockIds }]
+        : undefined,
     )
+    if (totalEvidence.length > 0) {
+      requiredReplacements.push({
+        canonicalField: 'contract.totalPrice',
+        sourceValues: totalEvidence.map((e) => e.sourceAmount),
+        targetRenderedValues: [dataset.finances.contractValueFormatted],
+        sourceBlockIds: totalBlockIds,
+        requiredContextBlockIds: totalBlockIds,
+        replacementPolicy: 'replace_in_contexts',
+      })
+      if (totalEvidence.some((e) => e.hasWords)) {
+        requiredReplacements.push({
+          canonicalField: 'contract.totalPriceWords',
+          sourceValues: [],
+          targetRenderedValues: [dataset.finances.contractValueWords],
+          sourceBlockIds: totalBlockIds,
+          requiredContextBlockIds: totalBlockIds,
+          replacementPolicy: 'replace_in_contexts',
+        })
+      }
+    }
   }
   if (dataset.finances.depositFormatted && represented.deposit) {
     const depositSources = [

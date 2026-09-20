@@ -292,7 +292,8 @@
     "test:landing-mobile-phone-security-occlusion-3h2": "npx tsx --tsconfig tsconfig.app.json src/features/landing-v2/landingMobilePhoneSecurityOcclusion3H2Acceptance.test.ts",
     "test:landing-mobile-phone-security-sequence-3h3": "npx tsx --tsconfig tsconfig.app.json src/features/landing-v2/landingMobilePhoneSecuritySequence3H3Acceptance.test.ts",
     "test:pending-empty-card": "npx tsx --tsconfig tsconfig.app.json src/features/dashboard-v3/pendingEmptyCardParityAcceptance.test.ts",
-    "test:cg75-dual-prep": "npx tsx --tsconfig tsconfig.app.json src/features/ai-contract-transform/cg75DualPrepPartyExtrasAcceptance.test.ts"
+    "test:cg75-dual-prep": "npx tsx --tsconfig tsconfig.app.json src/features/ai-contract-transform/cg75DualPrepPartyExtrasAcceptance.test.ts",
+    "test:cg76-total-price": "npx tsx --tsconfig tsconfig.app.json src/features/ai-contract-transform/cg76TotalPriceCompletenessAcceptance.test.ts"
   },
   "dependencies": {
     "@googlemaps/js-api-loader": "^2.1.1",

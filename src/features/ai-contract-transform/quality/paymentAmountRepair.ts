@@ -20,6 +20,7 @@ import {
   detectRepresentedConcepts,
   financeBlockHasExistingPaymentStructure,
 } from './representationPolicy'
+import { discoverFilledTotalEvidence } from './totalFieldEvidence'
 import type { DeterministicRepair } from './types'
 
 const FORBIDDEN_NEIGHBORHOOD =
@@ -260,30 +261,90 @@ function tryReplaceTotalInPlace(input: {
   candidateIds: string[]
   totalFormatted: string
   repairs: DeterministicRepair[]
+  /** Grounded total surfaces from SOURCE (CG7.6). */
+  totalEvidenceBlockIds?: string[]
 }): boolean {
   const { blocks, candidateIds, totalFormatted, repairs } = input
-  const TOTAL_MARKER = /honorarium|wynagrodzen|wartość zlecenia|cena|PLACEHOLDER_CENA/i
-  for (const id of candidateIds) {
+  const evidenceIds = new Set(input.totalEvidenceBlockIds ?? [])
+
+  // Prefer grounded total evidence blocks; fall back to ranked finance candidates.
+  const orderedIds = [
+    ...[...evidenceIds].filter((id) => candidateIds.includes(id) || blocks.some((b) => b.blockId === id)),
+    ...candidateIds.filter((id) => !evidenceIds.has(id)),
+  ]
+
+  const LEGACY_TOTAL_MARKER =
+    /honorarium|wynagrodzen|wartość zlecenia|cena|PLACEHOLDER_CENA/i
+
+  let any = false
+  for (const id of orderedIds) {
     const b = blocks.find((x) => x.blockId === id)
-    if (!b || !TOTAL_MARKER.test(b.text)) continue
-    // Prefer sentences that lead with total vocabulary before any deposit marker.
-    const head = b.text.split(/zadatek|zaliczk|rezerwacyjn|pozostał/i)[0] ?? b.text
-    if (!TOTAL_MARKER.test(head)) continue
-    const next = replaceAmountNearMarker(head, TOTAL_MARKER, totalFormatted)
-    if (!next || next === head) continue
-    const rebuilt = next + b.text.slice(head.length)
-    if (rebuilt !== b.text) {
-      return updateBlock(
+    if (!b) continue
+    if (textContainsNormalized(b.text, totalFormatted)) continue
+
+    const grounded = evidenceIds.has(id)
+    const legacy = LEGACY_TOTAL_MARKER.test(b.text)
+    if (!grounded && !legacy) continue
+
+    // Do not mutate deposit/remaining-only or unrelated fee blocks even if listed.
+    if (
+      !grounded &&
+      /zadatek|zaliczk|rezerwacj|pozostał|saldo|PLACEHOLDER_(ZADATEK|RESTA)/i.test(
+        b.text,
+      ) &&
+      !LEGACY_TOTAL_MARKER.test(
+        b.text.split(/zadatek|zaliczk|rezerwacj|pozostał/i)[0] ?? '',
+      )
+    ) {
+      continue
+    }
+
+    let next: string | null = null
+    if (grounded || /słownie/i.test(b.text)) {
+      // Grammar-free: replace the primary PLN amount in the grounded total surface.
+      const re = /(\d[\d\s\u00a0]*\s*zł(?:otych|ote|oty)?)/i
+      const m = b.text.match(re)
+      if (m && m.index != null) {
+        const existing = normalizePlnDigits(m[1] ?? '')
+        const target = normalizePlnDigits(totalFormatted)
+        if (existing && target && existing !== target) {
+          next =
+            b.text.slice(0, m.index) +
+            totalFormatted +
+            b.text.slice(m.index + m[0].length)
+        }
+      }
+    } else {
+      const head =
+        b.text.split(/zadatek|zaliczk|rezerwacyjn|pozostał/i)[0] ?? b.text
+      if (!LEGACY_TOTAL_MARKER.test(head)) continue
+      const replaced = replaceAmountNearMarker(
+        head,
+        LEGACY_TOTAL_MARKER,
+        totalFormatted,
+      )
+      if (replaced && replaced !== head) {
+        next = replaced + b.text.slice(head.length)
+      }
+    }
+
+    if (!next || next === b.text) continue
+    if (
+      updateBlock(
         blocks,
         id,
-        rebuilt,
+        next,
         repairs,
         'replace_canonical_total_in_place',
         'contract.totalPrice',
       )
+    ) {
+      any = true
+      // Continue so every grounded total surface is updated (TP07).
+      if (!grounded) return true
     }
   }
-  return false
+  return any
 }
 
 function ensureDeposit(input: {
@@ -533,6 +594,7 @@ export function repairCanonicalPaymentAmounts(input: {
   }
 
   const sourceRep = detectRepresentedConcepts(input.sourceBlocks)
+  const totalEvidence = discoverFilledTotalEvidence(input.sourceBlocks)
   // Authoring deposit/remaining onto a finance block is allowed ONLY when the
   // source template already represented that concept (empty clause / placeholder)
   // OR legacy CG3 fixtures that use PLACEHOLDER_* (handled above).
@@ -552,6 +614,7 @@ export function repairCanonicalPaymentAmounts(input: {
       candidateIds,
       totalFormatted: total,
       repairs,
+      totalEvidenceBlockIds: totalEvidence.map((e) => e.blockId),
     })
   }
 

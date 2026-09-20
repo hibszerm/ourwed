@@ -31,7 +31,10 @@ async function main() {
     package: scenario.package,
     extras: scenario.extras,
   } as any)
-  const protectedData = { exactProtectedValues: [] as string[], protectedPatterns: [] as string[] }
+  const protectedData = {
+    exactProtectedValues: [] as string[],
+    protectedPatterns: [] as import('../types').ProtectedPattern[],
+  }
 
   const locEv = discoverFilledLocationEvidence(sourceBlocks)
   const partyEv = discoverFilledPartyEvidence(sourceBlocks)
@@ -88,7 +91,7 @@ async function main() {
     party,
     providerRole,
     extrasPlacement,
-    downloadAllowed: gate.report.downloadAllowed,
+    downloadAllowed: gate.downloadAllowed,
     blocking,
     locEv: locEv.map((e) => ({
       blockId: e.blockId,
