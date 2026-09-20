@@ -9,7 +9,6 @@
 
 import {
   SYSTEM_PROMPT,
-  FULL_AI_JSON_SCHEMA,
   buildUserPayload,
   computeMaxOutputTokens,
   shouldRetryIncomplete,
@@ -17,6 +16,11 @@ import {
   FULL_AI_PROMPT_VERSION,
   FULL_AI_RESPONSE_VERSION,
 } from '../fullAiRewritePromptShared'
+import {
+  buildFullAiJsonSchemaForBlockIds,
+  buildProtocolBlockIdRetryHint,
+  partitionChangedBlocksBySourceIds,
+} from '../blockIdIntegrity'
 import { parseSparseV2FromResponse } from '../parseSparseV2Response'
 import type { TransformFunctionsInvoke } from '../transformApi'
 
@@ -72,11 +76,13 @@ async function callOpenAi(input: {
   model: string
   maxOutputTokens: number
   userPayload: string
+  validBlockIds: readonly string[]
   extraUserHint?: string
 }): Promise<{ ok: true; body: unknown } | { ok: false; httpStatus: number; body: unknown }> {
   const userContent = input.extraUserHint
     ? `${input.userPayload}\n\n${input.extraUserHint}`
     : input.userPayload
+  const schema = buildFullAiJsonSchemaForBlockIds(input.validBlockIds)
   const openaiRes = await fetch('https://api.openai.com/v1/responses', {
     method: 'POST',
     headers: {
@@ -93,9 +99,9 @@ async function callOpenAi(input: {
       text: {
         format: {
           type: 'json_schema',
-          name: FULL_AI_JSON_SCHEMA.name,
+          name: schema.name,
           strict: true,
-          schema: FULL_AI_JSON_SCHEMA.schema,
+          schema: schema.schema,
         },
       },
     }),
@@ -159,6 +165,7 @@ export function createLocalFullRewriteInvoke(input: {
     })
 
     const sourceCharacterCount = slim.reduce((n, b) => n + b.text.length, 0)
+    const validBlockIds = slim.map((b) => b.blockId)
     let configuredMaxOutputTokens = computeMaxOutputTokens({
       blockCount: slim.length,
       characterCount: sourceCharacterCount,
@@ -167,11 +174,12 @@ export function createLocalFullRewriteInvoke(input: {
 
     const t0 = Date.now()
     usage.calls += 1
-    let first = await callOpenAi({
+    const first = await callOpenAi({
       apiKey,
       model,
       maxOutputTokens: configuredMaxOutputTokens,
       userPayload,
+      validBlockIds,
     })
     if (!first.ok) {
       usage.latenciesMs.push(Date.now() - t0)
@@ -227,6 +235,7 @@ export function createLocalFullRewriteInvoke(input: {
         model,
         maxOutputTokens: configuredMaxOutputTokens,
         userPayload,
+        validBlockIds,
       })
       if (second.ok) {
         openaiBody = second.body
@@ -248,6 +257,7 @@ export function createLocalFullRewriteInvoke(input: {
         model,
         maxOutputTokens: configuredMaxOutputTokens,
         userPayload,
+        validBlockIds,
         extraUserHint: PARSE_RETRY_HINT,
       })
       if (second.ok) {
@@ -260,6 +270,51 @@ export function createLocalFullRewriteInvoke(input: {
           applicationResponseVersion: FULL_AI_RESPONSE_VERSION,
         })
       }
+    }
+
+    let protocolRetryUsed = false
+    let changedBlocks = parse.ok ? parse.changedBlocks : []
+    if (parse.ok) {
+      let partition = partitionChangedBlocksBySourceIds({
+        changedBlocks: parse.changedBlocks,
+        sourceBlockIds: validBlockIds,
+      })
+      // CG4: at most ONE protocol retry for invalid blockIds
+      if (partition.invalid.length > 0) {
+        usage.retries += 1
+        usage.calls += 1
+        protocolRetryUsed = true
+        const second = await callOpenAi({
+          apiKey,
+          model,
+          maxOutputTokens: configuredMaxOutputTokens,
+          userPayload,
+          validBlockIds,
+          extraUserHint: buildProtocolBlockIdRetryHint({
+            invalidBlockIds: partition.invalid.map((b) => b.blockId),
+            allowedBlockIds: validBlockIds,
+          }),
+        })
+        if (second.ok) {
+          openaiBody = second.body
+          const u2 = readUsage(openaiBody)
+          if (u2.input) usage.inputTokens += u2.input
+          if (u2.output) usage.outputTokens += u2.output
+          const reparse = parseSparseV2FromResponse({
+            body: openaiBody,
+            applicationResponseVersion: FULL_AI_RESPONSE_VERSION,
+          })
+          if (reparse.ok) {
+            parse = reparse
+            partition = partitionChangedBlocksBySourceIds({
+              changedBlocks: reparse.changedBlocks,
+              sourceBlockIds: validBlockIds,
+            })
+          }
+        }
+      }
+      // Never apply invented IDs — keep valid only (may be empty)
+      changedBlocks = partition.valid
     }
 
     usage.latenciesMs.push(Date.now() - t0)
@@ -282,7 +337,7 @@ export function createLocalFullRewriteInvoke(input: {
     return {
       data: {
         ok: true,
-        changedBlocks: parse.changedBlocks,
+        changedBlocks,
         model,
         promptVersion: FULL_AI_PROMPT_VERSION,
         responseVersion: FULL_AI_RESPONSE_VERSION,
@@ -291,9 +346,10 @@ export function createLocalFullRewriteInvoke(input: {
           configuredMaxOutputTokens,
           sourceBlockCount: slim.length,
           sourceCharacterCount,
-          changedBlockCount: parse.changedBlocks.length,
+          changedBlockCount: changedBlocks.length,
           inputTokens: u.input,
           outputTokens: u.output,
+          protocolBlockIdRetryUsed: protocolRetryUsed,
         },
       },
       error: null,

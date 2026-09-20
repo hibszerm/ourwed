@@ -10,6 +10,7 @@ import type {
 } from '../types'
 import { fingerprintText, sanitizeDuplicatedLocationWrappers } from './normalize'
 import { repairCanonicalPaymentAmounts } from './paymentAmountRepair'
+import { repairCanonicalPartyPlaceholders } from './partyPlaceholderRepair'
 import type {
   DeterministicRepair,
   RequiredReplacement,
@@ -160,6 +161,14 @@ export function applyDeterministicRepairs(input: {
   })
   blocks = payment.blocks
   repairs.push(...payment.repairs)
+
+  // 5. Canonical party placeholders (CG4) — system knows party display names
+  const party = repairCanonicalPartyPlaceholders({
+    blocks,
+    dataset: input.dataset,
+  })
+  blocks = party.blocks
+  repairs.push(...party.repairs)
 
   return { blocks, repairs }
 }

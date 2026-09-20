@@ -27,6 +27,7 @@ import {
   verifyLocationConsistency,
   verifyReferenceNumberConsistency,
 } from './locationAndReferenceConsistency'
+import { documentHasUnresolvedPartyPlaceholder } from './partyPlaceholderRepair'
 import type {
   DocumentQualityReport,
   QualityIssue,
@@ -41,6 +42,11 @@ const MODE_A_FINANCIAL_BLOCK_CODES = new Set([
   'deposit_missing',
   'remaining_payment_missing',
   'package_scope_mismatch',
+])
+
+/** Party placeholder integrity — known structural slots must not remain unresolved. */
+const MODE_A_PARTY_PLACEHOLDER_CODES = new Set([
+  'unresolved_party_placeholder',
 ])
 
 /** Location integrity codes that block Mode A product download (A5). */
@@ -176,6 +182,24 @@ export function buildQualityReport(input: {
     }),
   ]
 
+  const partyPlaceholderIssues: QualityIssue[] = []
+  for (const b of input.transformedBlocks) {
+    if (!documentHasUnresolvedPartyPlaceholder(b.text)) continue
+    // Only block when source also had the placeholder (structural slot),
+    // not when arbitrary prose coincidentally matches.
+    const src = input.sourceBlocks.find((s) => s.blockId === b.blockId)
+    if (src && documentHasUnresolvedPartyPlaceholder(src.text)) {
+      partyPlaceholderIssues.push({
+        code: 'unresolved_party_placeholder',
+        severity: 'blocking',
+        canonicalField: 'customer.names',
+        blockId: b.blockId,
+        safeDescription:
+          'Known party placeholder remains unresolved after transformation',
+      })
+    }
+  }
+
   const allIssues: QualityIssue[] = [
     ...completeness.issues,
     ...financial.issues,
@@ -184,6 +208,7 @@ export function buildQualityReport(input: {
     ...referenceIssues,
     ...protectionIssues,
     ...additionalServicesIssues,
+    ...partyPlaceholderIssues,
   ]
 
   // Deduplicate by code+field+block
@@ -284,7 +309,10 @@ export function runPostReconstructionQualityGate(input: {
     const locationBlock = report.blockingIssues.some((i) =>
       isModeALocationIntegrityBlock(i),
     )
-    downloadAllowed = !financialBlock && !locationBlock
+    const partyPlaceholderBlock = report.blockingIssues.some((i) =>
+      MODE_A_PARTY_PLACEHOLDER_CODES.has(i.code),
+    )
+    downloadAllowed = !financialBlock && !locationBlock && !partyPlaceholderBlock
   }
 
   return {
@@ -296,4 +324,4 @@ export function runPostReconstructionQualityGate(input: {
   }
 }
 
-export { MODE_A_FINANCIAL_BLOCK_CODES }
+export { MODE_A_FINANCIAL_BLOCK_CODES, MODE_A_PARTY_PLACEHOLDER_CODES }

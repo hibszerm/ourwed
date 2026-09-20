@@ -4,6 +4,7 @@
  */
 
 import { applySparseBlockChanges } from './applySparseBlockChanges'
+import { partitionChangedBlocksBySourceIds } from './blockIdIntegrity'
 import {
   buildTransformEdgeErrorDetail,
   edgeErrorFromThrown,
@@ -291,9 +292,14 @@ export async function invokeTransform(input: {
       )
     }
 
+    // CG4: never apply invented blockIds; keep valid only (no fuzzy remap).
+    const partition = partitionChangedBlocksBySourceIds({
+      changedBlocks: parsed.changedBlocks,
+      sourceBlockIds: input.documentBlocks.map((b) => b.blockId),
+    })
     const reconstructed = applySparseBlockChanges(
       input.documentBlocks,
-      parsed.changedBlocks,
+      partition.valid,
     )
     if (!reconstructed.ok) {
       return fail(

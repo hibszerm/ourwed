@@ -269,9 +269,14 @@ export function buildExpectationManifest(input: {
   )
   addRequired(
     'customer.names',
-    sourceSpecificValues
-      .filter((s) => s.canonicalField === 'customer.names')
-      .map((s) => s.sourceValue),
+    [
+      ...sourceSpecificValues
+        .filter((s) => s.canonicalField === 'customer.names')
+        .map((s) => s.sourceValue),
+      ...(blocks.some((b) => b.text.includes('PLACEHOLDER_STRONY'))
+        ? ['PLACEHOLDER_STRONY']
+        : []),
+    ],
     [dataset.clients.displayNames],
     'must_replace_source',
     [{ kind: 'party_table', blockIds: nameBlocks }],

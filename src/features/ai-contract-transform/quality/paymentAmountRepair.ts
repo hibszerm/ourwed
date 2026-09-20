@@ -27,6 +27,33 @@ function isForbiddenBlock(text: string): boolean {
   return FORBIDDEN_NEIGHBORHOOD.test(text) && !FINANCE_NEIGHBORHOOD.test(text)
 }
 
+/**
+ * Pure section heading establishing a finance/payment neighborhood without
+ * carrying payment body content (e.g. "§6 Płatności").
+ */
+export function isFinanceSectionHeading(text: string): boolean {
+  const t = text.replace(/\u00a0/g, ' ').trim()
+  if (!t || t.length > 96) return false
+  if (/\d[\d\s\u00a0]*\s*zł/i.test(t)) return false
+  if (/PLACEHOLDER_(CENA|ZADATEK|RESTA)/i.test(t)) return false
+  if (/zadatek|zaliczk|pozostał/i.test(t) && t.length > 40) return false
+  // §N Title / §N Title.
+  if (/^§\s*\d+[a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻ0-9\s./-]*\.?$/u.test(t)) return true
+  // Bare finance titles
+  if (/^(płatności|wynagrodzenie|rozliczenia|płatność)\.?$/i.test(t)) return true
+  return false
+}
+
+function financeTargetRank(text: string): number {
+  if (/PLACEHOLDER_(ZADATEK|RESTA|CENA)/i.test(text)) return 100
+  if (isFinanceSectionHeading(text)) return 5
+  if (/zadatek|zaliczk/i.test(text)) return 90
+  if (/pozostał/i.test(text)) return 85
+  if (/\d[\d\s\u00a0]*\s*zł/i.test(text)) return 70
+  if (isFinanceNeighborhood(text)) return 40
+  return 0
+}
+
 function isFinanceNeighborhood(text: string): boolean {
   if (isForbiddenBlock(text)) return false
   return (
@@ -64,15 +91,29 @@ function pickFinanceBlockIds(
   sourceBlocks: TransformDocumentBlock[],
 ): string[] {
   const byId = new Map(sourceBlocks.map((b) => [b.blockId, b]))
-  const ids: string[] = []
+  const scored: Array<{ id: string; rank: number }> = []
   for (const b of blocks) {
     const src = byId.get(b.blockId)
     const text = b.text || src?.text || ''
     if (!text.trim()) continue
     if (isForbiddenBlock(text)) continue
-    if (isFinanceNeighborhood(text)) ids.push(b.blockId)
+    if (!isFinanceNeighborhood(text)) continue
+    scored.push({ id: b.blockId, rank: financeTargetRank(text) })
   }
-  return ids
+  scored.sort((a, b) => b.rank - a.rank)
+  return scored.map((s) => s.id)
+}
+
+/** Prefer content/body finance targets; never mutate pure headings when a body exists. */
+function pickMutableFinanceTargets(
+  blocks: TransformedBlock[],
+  candidateIds: string[],
+): string[] {
+  const body = candidateIds.filter((id) => {
+    const t = blocks.find((b) => b.blockId === id)?.text ?? ''
+    return !isFinanceSectionHeading(t)
+  })
+  return body.length > 0 ? body : []
 }
 
 function updateBlock(
@@ -165,8 +206,9 @@ function ensureDeposit(input: {
     }
   }
 
-  // 3) Append into best finance block (price/remuneration neighborhood)
-  const targetId = candidateIds[0]
+  // 3) Append into best finance BODY block (never pure heading when body exists)
+  const mutable = pickMutableFinanceTargets(blocks, candidateIds)
+  const targetId = mutable[0]
   if (!targetId) return false
   const b = blocks.find((x) => x.blockId === targetId)
   if (!b) return false
@@ -253,12 +295,18 @@ function ensureRemaining(input: {
     }
   }
 
-  // 3) Append into payment/deposit neighborhood (prefer block that already has deposit)
+  // 3) Append into payment/deposit BODY neighborhood (never pure heading)
+  const mutable = pickMutableFinanceTargets(blocks, candidateIds)
   const depositish =
-    candidateIds.find((id) => {
+    mutable.find((id) => {
       const t = blocks.find((b) => b.blockId === id)?.text ?? ''
-      return /zadatek|zaliczk|płatn/i.test(t)
-    }) ?? candidateIds[0]
+      return /zadatek|zaliczk/i.test(t)
+    }) ??
+    mutable.find((id) => {
+      const t = blocks.find((b) => b.blockId === id)?.text ?? ''
+      return /płatn|wynagrodzen|cena|zł/i.test(t)
+    }) ??
+    mutable[0]
   if (!depositish) return false
   const b = blocks.find((x) => x.blockId === depositish)
   if (!b) return false
@@ -293,7 +341,9 @@ export function repairCanonicalPaymentAmounts(input: {
   }
 
   const blocks = input.blocks.map((b) => ({ ...b }))
-  const candidateIds = pickFinanceBlockIds(blocks, input.sourceBlocks)
+  const rankedIds = pickFinanceBlockIds(blocks, input.sourceBlocks)
+  const candidateIds = pickMutableFinanceTargets(blocks, rankedIds)
+  // If only headings exist in the neighborhood, fail closed (Mode A will block).
   if (candidateIds.length === 0) {
     return { blocks, repairs }
   }
@@ -303,8 +353,8 @@ export function repairCanonicalPaymentAmounts(input: {
     ensureDeposit({ blocks, candidateIds, depositFormatted: deposit, repairs })
   }
   if (!textContainsNormalized(joined(), remaining)) {
-    // refresh candidates after deposit may have changed texts
-    const ids = pickFinanceBlockIds(blocks, input.sourceBlocks)
+    const rankedAgain = pickFinanceBlockIds(blocks, input.sourceBlocks)
+    const ids = pickMutableFinanceTargets(blocks, rankedAgain)
     ensureRemaining({
       blocks,
       candidateIds: ids.length > 0 ? ids : candidateIds,
