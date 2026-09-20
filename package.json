@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "validate:production-supabase-artifact": "node scripts/validateProductionSupabaseArtifact.mjs",
     "lint": "eslint .",
     "preview": "vite preview",
     "test:travel-fee": "npx tsx --tsconfig tsconfig.app.json src/lib/utils/travelFeeCommercialAcceptance.test.ts",
