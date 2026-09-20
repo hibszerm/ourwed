@@ -2,11 +2,12 @@
  * CG3 — deterministic canonical payment amount repair.
  *
  * MODEL INTERPRETS. SYSTEM KNOWS.
- * After sparse AI rewrite, ensure deposit + remaining (when present in the
- * dataset) appear in a defensible financial/payment neighborhood.
  *
- * Does NOT author legal clauses. Prefer placeholder substitution and
- * in-place injection into existing payment wording.
+ * CG7.3 authorship boundary:
+ * - Update amounts for concepts the SOURCE template already represents.
+ * - Prefer in-place substitution (including synonym stems: rezerwacyjna, …).
+ * - Do NOT invent new deposit/remaining obligations on total-only contracts.
+ * - Do NOT append "Zadatek …" onto a block that already carries a payment split.
  */
 
 import type {
@@ -15,13 +16,22 @@ import type {
   TransformedBlock,
 } from '../types'
 import { fingerprintText, textContainsNormalized } from './normalize'
+import {
+  detectRepresentedConcepts,
+  financeBlockHasExistingPaymentStructure,
+} from './representationPolicy'
 import type { DeterministicRepair } from './types'
 
 const FORBIDDEN_NEIGHBORHOOD =
   /rodo|gdpr|dane\s+osobowe|prywatno|prawa\s+autorsk|copyright|odpowiedzialn|odstapienie|rezygnacj|sila\s+wyzsza|force\s+majeure|spory|sąd|podpis|rekojmia|postanowienia\s+ko[nń]cowe/i
 
 const FINANCE_NEIGHBORHOOD =
-  /wynagrodzen|zadatek|zaliczk|pozostał|cena|kwot|płatn|płatno|rozliczen|rat[ay]|fee|deposit|balance|installment|settlement|brutto|netto|zł/i
+  /wynagrodzen|honorarium|zadatek|zaliczk|rezerwacyjn|pozostał|cena|kwot|płatn|płatno|rozliczen|rat[ay]|fee|deposit|balance|installment|settlement|brutto|netto|zł|wartość|wpłacono|do zapłaty/i
+
+const DEPOSIT_MARKER =
+  /zadatek|zaliczk|rezerwacyjn|PLACEHOLDER_ZADATEK|wpłacono/i
+const REMAINING_MARKER =
+  /pozostał|PLACEHOLDER_RESTA|do zapłaty|saldo/i
 
 function isForbiddenBlock(text: string): boolean {
   return FORBIDDEN_NEIGHBORHOOD.test(text) && !FINANCE_NEIGHBORHOOD.test(text)
@@ -37,9 +47,7 @@ export function isFinanceSectionHeading(text: string): boolean {
   if (/\d[\d\s\u00a0]*\s*zł/i.test(t)) return false
   if (/PLACEHOLDER_(CENA|ZADATEK|RESTA)/i.test(t)) return false
   if (/zadatek|zaliczk|pozostał/i.test(t) && t.length > 40) return false
-  // §N Title / §N Title.
   if (/^§\s*\d+[a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻ0-9\s./-]*\.?$/u.test(t)) return true
-  // Bare finance titles
   if (/^(płatności|wynagrodzenie|rozliczenia|płatność)\.?$/i.test(t)) return true
   return false
 }
@@ -47,8 +55,8 @@ export function isFinanceSectionHeading(text: string): boolean {
 function financeTargetRank(text: string): number {
   if (/PLACEHOLDER_(ZADATEK|RESTA|CENA)/i.test(text)) return 100
   if (isFinanceSectionHeading(text)) return 5
-  if (/zadatek|zaliczk/i.test(text)) return 90
-  if (/pozostał/i.test(text)) return 85
+  if (DEPOSIT_MARKER.test(text)) return 90
+  if (REMAINING_MARKER.test(text)) return 85
   if (/\d[\d\s\u00a0]*\s*zł/i.test(text)) return 70
   if (isFinanceNeighborhood(text)) return 40
   return 0
@@ -64,6 +72,10 @@ function isFinanceNeighborhood(text: string): boolean {
 
 function amountDigits(formatted: string): string {
   return formatted.replace(/\s*zł(?:otych|ote|oty)?\s*$/i, '').trim()
+}
+
+function normalizePlnDigits(formatted: string): string {
+  return formatted.replace(/[^\d]/g, '')
 }
 
 /** Replace PLACEHOLDER_* money tokens without producing "… zł zł". */
@@ -84,6 +96,41 @@ function replaceMoneyPlaceholder(
     return text.split(placeholder).join(digits)
   }
   return text
+}
+
+/**
+ * Replace the PLN amount nearest a deposit/remaining marker.
+ * Preserves intervening legal wording (deadlines, methods).
+ */
+function replaceAmountNearMarker(
+  text: string,
+  marker: RegExp,
+  formattedAmount: string,
+): string | null {
+  if (!marker.test(text)) return null
+  if (textContainsNormalized(text, formattedAmount)) return text
+  const targetDigits = normalizePlnDigits(formattedAmount)
+  if (!targetDigits) return null
+
+  // Marker … amount (within ~80 chars)
+  const re = new RegExp(
+    `(${marker.source})([\\s\\S]{0,80}?)(\\d[\\d\\s\\u00a0]*\\s*zł(?:otych|ote|oty)?)`,
+    'i',
+  )
+  const m = text.match(re)
+  if (!m || m.index == null) return null
+  const existingDigits = normalizePlnDigits(m[3] ?? '')
+  if (!existingDigits || existingDigits === targetDigits) return null
+  // Avoid touching unrelated nearby fees when marker is far from amount.
+  const between = m[2] ?? ''
+  if ((between.match(/\d[\d\s\u00a0]*\s*zł/gi) ?? []).length > 0) return null
+  return (
+    text.slice(0, m.index) +
+    m[1] +
+    between +
+    formattedAmount +
+    text.slice(m.index + m[0].length)
+  )
 }
 
 function pickFinanceBlockIds(
@@ -139,15 +186,123 @@ function updateBlock(
   return true
 }
 
-function ensureDeposit(input: {
+function documentRepresentsDeposit(blocks: TransformedBlock[]): boolean {
+  return blocks.some((b) => DEPOSIT_MARKER.test(b.text))
+}
+
+function documentRepresentsRemaining(blocks: TransformedBlock[]): boolean {
+  return blocks.some((b) => REMAINING_MARKER.test(b.text))
+}
+
+function tryReplaceDepositInPlace(input: {
   blocks: TransformedBlock[]
   candidateIds: string[]
   depositFormatted: string
   repairs: DeterministicRepair[]
 }): boolean {
   const { blocks, candidateIds, depositFormatted, repairs } = input
+  for (const id of candidateIds) {
+    const b = blocks.find((x) => x.blockId === id)
+    if (!b || !DEPOSIT_MARKER.test(b.text)) continue
+    // Skip pure cancellation/refund prose with no payment amount after marker.
+    if (
+      /zatrzyman|zwrot|rezygnacj|odstąpien/i.test(b.text) &&
+      !/\d[\d\s\u00a0]*\s*zł/i.test(b.text)
+    ) {
+      continue
+    }
+    const next = replaceAmountNearMarker(b.text, DEPOSIT_MARKER, depositFormatted)
+    if (next && next !== b.text) {
+      return updateBlock(
+        blocks,
+        id,
+        next,
+        repairs,
+        'replace_canonical_deposit_in_place',
+        'contract.depositAmount',
+      )
+    }
+  }
+  return false
+}
+
+function tryReplaceRemainingInPlace(input: {
+  blocks: TransformedBlock[]
+  candidateIds: string[]
+  remainingFormatted: string
+  repairs: DeterministicRepair[]
+}): boolean {
+  const { blocks, candidateIds, remainingFormatted, repairs } = input
+  for (const id of candidateIds) {
+    const b = blocks.find((x) => x.blockId === id)
+    if (!b || !REMAINING_MARKER.test(b.text)) continue
+    const next = replaceAmountNearMarker(
+      b.text,
+      REMAINING_MARKER,
+      remainingFormatted,
+    )
+    if (next && next !== b.text) {
+      return updateBlock(
+        blocks,
+        id,
+        next,
+        repairs,
+        'replace_canonical_remaining_in_place',
+        'contract.remainingAmount',
+      )
+    }
+  }
+  return false
+}
+
+function tryReplaceTotalInPlace(input: {
+  blocks: TransformedBlock[]
+  candidateIds: string[]
+  totalFormatted: string
+  repairs: DeterministicRepair[]
+}): boolean {
+  const { blocks, candidateIds, totalFormatted, repairs } = input
+  const TOTAL_MARKER = /honorarium|wynagrodzen|wartość zlecenia|cena|PLACEHOLDER_CENA/i
+  for (const id of candidateIds) {
+    const b = blocks.find((x) => x.blockId === id)
+    if (!b || !TOTAL_MARKER.test(b.text)) continue
+    // Prefer sentences that lead with total vocabulary before any deposit marker.
+    const head = b.text.split(/zadatek|zaliczk|rezerwacyjn|pozostał/i)[0] ?? b.text
+    if (!TOTAL_MARKER.test(head)) continue
+    const next = replaceAmountNearMarker(head, TOTAL_MARKER, totalFormatted)
+    if (!next || next === head) continue
+    const rebuilt = next + b.text.slice(head.length)
+    if (rebuilt !== b.text) {
+      return updateBlock(
+        blocks,
+        id,
+        rebuilt,
+        repairs,
+        'replace_canonical_total_in_place',
+        'contract.totalPrice',
+      )
+    }
+  }
+  return false
+}
+
+function ensureDeposit(input: {
+  blocks: TransformedBlock[]
+  candidateIds: string[]
+  depositFormatted: string
+  repairs: DeterministicRepair[]
+  /** When false, never invent deposit obligations. */
+  mayAuthorInsert: boolean
+}): boolean {
+  const { blocks, candidateIds, depositFormatted, repairs, mayAuthorInsert } =
+    input
   const joined = blocks.map((b) => b.text).join('\n')
   if (textContainsNormalized(joined, depositFormatted)) return true
+
+  // 0) In-place replace for existing deposit synonyms (rezerwacyjna / zadatek / …)
+  if (tryReplaceDepositInPlace({ blocks, candidateIds, depositFormatted, repairs })) {
+    return true
+  }
 
   // 1) Explicit deposit placeholders
   for (const id of candidateIds) {
@@ -206,12 +361,20 @@ function ensureDeposit(input: {
     }
   }
 
-  // 3) Append into best finance BODY block (never pure heading when body exists)
+  // 3) Append ONLY when template already represents deposit but amount is missing
+  // AND the chosen block does not already carry a multi-amount split.
+  // Never invent deposit onto a total-only contract (mayAuthorInsert=false).
+  if (!mayAuthorInsert) return false
+  if (documentRepresentsDeposit(blocks)) return false
   const mutable = pickMutableFinanceTargets(blocks, candidateIds)
-  const targetId = mutable[0]
+  const targetId = mutable.find((id) => {
+    const t = blocks.find((b) => b.blockId === id)?.text ?? ''
+    return !financeBlockHasExistingPaymentStructure(t)
+  })
   if (!targetId) return false
   const b = blocks.find((x) => x.blockId === targetId)
   if (!b) return false
+  if (financeBlockHasExistingPaymentStructure(b.text)) return false
   const suffix = /[.!?…]\s*$/.test(b.text.trim())
     ? ` Zadatek ${depositFormatted}.`
     : `. Zadatek ${depositFormatted}.`
@@ -230,10 +393,28 @@ function ensureRemaining(input: {
   candidateIds: string[]
   remainingFormatted: string
   repairs: DeterministicRepair[]
+  mayAuthorInsert: boolean
 }): boolean {
-  const { blocks, candidateIds, remainingFormatted, repairs } = input
+  const {
+    blocks,
+    candidateIds,
+    remainingFormatted,
+    repairs,
+    mayAuthorInsert,
+  } = input
   const joined = blocks.map((b) => b.text).join('\n')
   if (textContainsNormalized(joined, remainingFormatted)) return true
+
+  if (
+    tryReplaceRemainingInPlace({
+      blocks,
+      candidateIds,
+      remainingFormatted,
+      repairs,
+    })
+  ) {
+    return true
+  }
 
   // 1) Explicit remaining placeholders
   for (const id of candidateIds) {
@@ -266,9 +447,7 @@ function ensureRemaining(input: {
     if (!/pozostał/i.test(b.text)) continue
     if (textContainsNormalized(b.text, remainingFormatted)) continue
     let next = b.text
-    if (
-      /pozostał[aey]\s+kwot[ayę]\b(?!\s*[\d])/i.test(next)
-    ) {
+    if (/pozostał[aey]\s+kwot[ayę]\b(?!\s*[\d])/i.test(next)) {
       next = next.replace(
         /(pozostał[aey]\s+kwot[ayę])\b(?!\s*[\d])/i,
         `$1 ${remainingFormatted}`,
@@ -295,21 +474,29 @@ function ensureRemaining(input: {
     }
   }
 
-  // 3) Append into payment/deposit BODY neighborhood (never pure heading)
+  // 3) Append only when remaining is represented via empty clause path and
+  // mayAuthorInsert — never invent onto total-only / deposit-only contracts.
+  if (!mayAuthorInsert) return false
+  if (documentRepresentsRemaining(blocks)) return false
   const mutable = pickMutableFinanceTargets(blocks, candidateIds)
   const depositish =
     mutable.find((id) => {
       const t = blocks.find((b) => b.blockId === id)?.text ?? ''
-      return /zadatek|zaliczk/i.test(t)
+      return (
+        /zadatek|zaliczk/i.test(t) && !financeBlockHasExistingPaymentStructure(t)
+      )
     }) ??
     mutable.find((id) => {
       const t = blocks.find((b) => b.blockId === id)?.text ?? ''
-      return /płatn|wynagrodzen|cena|zł/i.test(t)
-    }) ??
-    mutable[0]
+      return (
+        /płatn|wynagrodzen|cena|zł/i.test(t) &&
+        !financeBlockHasExistingPaymentStructure(t)
+      )
+    })
   if (!depositish) return false
   const b = blocks.find((x) => x.blockId === depositish)
   if (!b) return false
+  if (financeBlockHasExistingPaymentStructure(b.text)) return false
   const suffix = /[.!?…]\s*$/.test(b.text.trim())
     ? ` Pozostała kwota ${remainingFormatted}.`
     : `. Pozostała kwota ${remainingFormatted}.`
@@ -324,8 +511,8 @@ function ensureRemaining(input: {
 }
 
 /**
- * Ensure dataset deposit + remaining amounts are present in finance/payment
- * neighborhoods when the dataset defines both.
+ * Ensure represented payment amounts match canonical dataset values.
+ * Does not author new legal payment obligations for unrepresented concepts.
  */
 export function repairCanonicalPaymentAmounts(input: {
   blocks: TransformedBlock[]
@@ -336,31 +523,64 @@ export function repairCanonicalPaymentAmounts(input: {
   const finances = input.dataset.finances
   const deposit = finances.depositFormatted?.trim()
   const remaining = finances.remainingFormatted?.trim()
-  if (!deposit || !remaining) {
-    return { blocks: input.blocks, repairs }
-  }
+  const total = finances.contractValueFormatted?.trim()
 
   const blocks = input.blocks.map((b) => ({ ...b }))
   const rankedIds = pickFinanceBlockIds(blocks, input.sourceBlocks)
   const candidateIds = pickMutableFinanceTargets(blocks, rankedIds)
-  // If only headings exist in the neighborhood, fail closed (Mode A will block).
   if (candidateIds.length === 0) {
     return { blocks, repairs }
   }
 
+  const sourceRep = detectRepresentedConcepts(input.sourceBlocks)
+  // Authoring deposit/remaining onto a finance block is allowed ONLY when the
+  // source template already represented that concept (empty clause / placeholder)
+  // OR legacy CG3 fixtures that use PLACEHOLDER_* (handled above).
+  // Total-only contracts: never invent split obligations.
+  const mayAuthorDeposit =
+    sourceRep.deposit ||
+    input.sourceBlocks.some((b) => /PLACEHOLDER_ZADATEK/i.test(b.text))
+  const mayAuthorRemaining =
+    sourceRep.remaining ||
+    input.sourceBlocks.some((b) => /PLACEHOLDER_RESTA/i.test(b.text))
+
   const joined = () => blocks.map((b) => b.text).join('\n')
-  if (!textContainsNormalized(joined(), deposit)) {
-    ensureDeposit({ blocks, candidateIds, depositFormatted: deposit, repairs })
-  }
-  if (!textContainsNormalized(joined(), remaining)) {
-    const rankedAgain = pickFinanceBlockIds(blocks, input.sourceBlocks)
-    const ids = pickMutableFinanceTargets(blocks, rankedAgain)
-    ensureRemaining({
+
+  if (total && !textContainsNormalized(joined(), total) && sourceRep.totalPrice) {
+    tryReplaceTotalInPlace({
       blocks,
-      candidateIds: ids.length > 0 ? ids : candidateIds,
-      remainingFormatted: remaining,
+      candidateIds,
+      totalFormatted: total,
       repairs,
     })
+  }
+
+  if (deposit && !textContainsNormalized(joined(), deposit)) {
+    if (sourceRep.deposit || mayAuthorDeposit) {
+      ensureDeposit({
+        blocks,
+        candidateIds,
+        depositFormatted: deposit,
+        repairs,
+        // Append path only for templates that already had a deposit slot but
+        // lack amount — never for pure total-only (mayAuthorDeposit false).
+        mayAuthorInsert: mayAuthorDeposit && !documentRepresentsDeposit(blocks),
+      })
+    }
+  }
+  if (remaining && !textContainsNormalized(joined(), remaining)) {
+    if (sourceRep.remaining || mayAuthorRemaining) {
+      const rankedAgain = pickFinanceBlockIds(blocks, input.sourceBlocks)
+      const ids = pickMutableFinanceTargets(blocks, rankedAgain)
+      ensureRemaining({
+        blocks,
+        candidateIds: ids.length > 0 ? ids : candidateIds,
+        remainingFormatted: remaining,
+        repairs,
+        mayAuthorInsert:
+          mayAuthorRemaining && !documentRepresentsRemaining(blocks),
+      })
+    }
   }
 
   return { blocks, repairs }

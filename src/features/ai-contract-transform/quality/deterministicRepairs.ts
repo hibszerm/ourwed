@@ -179,6 +179,21 @@ export function applyDeterministicRepairs(input: {
   blocks = payment.blocks
   repairs.push(...payment.repairs)
 
+  // 4b. Re-normalize money words AFTER amount swaps (CG7.3 multi-block payment)
+  blocks = blocks.map((b) => {
+    if (!/słownie/i.test(b.text)) return b
+    const replaced = repairMoneyWordsInText(b.text, input.dataset.finances)
+    if (replaced === b.text) return b
+    repairs.push({
+      repairCode: 'insert_deterministic_money_words_after_amount_repair',
+      blockId: b.blockId,
+      canonicalField: 'contract.totalPriceWords',
+      beforeFingerprint: fingerprintText(b.text),
+      afterFingerprint: fingerprintText(replaced),
+    })
+    return { ...b, text: replaced }
+  })
+
   // 5. Canonical party placeholders (CG4) — system knows party display names
   const party = repairCanonicalPartyPlaceholders({
     blocks,

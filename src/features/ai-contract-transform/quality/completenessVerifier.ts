@@ -30,14 +30,22 @@ function sourceValueRemains(text: string, sourceValue: string): boolean {
   if (textContainsNormalized(text, sourceValue) || text.includes(sourceValue)) {
     return true
   }
-  const tokens = sourceValue
+  // Multi-word phrases: require a substantial contiguous match — do not stem-match
+  // short common tokens like "płatne" from "płatne jednorazowo".
+  const words = sourceValue
     .split(/[\s,/]+/)
     .map((t) => t.trim())
-    .filter((t) => t.length >= 5 && !/^(hotel|palac|kosciol|bazylika|ulica)$/i.test(normalizeForMatch(t)))
+    .filter(Boolean)
+  if (words.length >= 2) {
+    return false
+  }
+  const tokens = words.filter(
+    (t) => t.length >= 8 && !/^(hotel|palac|kosciol|bazylika|ulica)$/i.test(normalizeForMatch(t)),
+  )
   for (const token of tokens) {
     if (text.includes(token)) return true
     const stem = token.replace(/(?:u|em|owi|ie|ią|ę|ą|a|y)$/i, '')
-    if (stem.length >= 4) {
+    if (stem.length >= 6) {
       const re = new RegExp(`\\b${stem}[a-ząćęłńóśźż]{0,3}\\b`, 'i')
       if (re.test(text)) return true
     }

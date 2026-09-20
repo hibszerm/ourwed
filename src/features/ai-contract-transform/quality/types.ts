@@ -120,6 +120,8 @@ export type TransformationExpectationManifest = {
   sourcePartyEvidence?: SourcePartyEvidence[]
   /** Event-location fields discovered structurally (table/prose). */
   sourceLocationEvidence?: SourceLocationEvidence[]
+  /** CG7.3 — which concepts the source template represents. */
+  representedConcepts?: import('./representationPolicy').RepresentedConcepts
 }
 
 export type RequiredReplacement = {

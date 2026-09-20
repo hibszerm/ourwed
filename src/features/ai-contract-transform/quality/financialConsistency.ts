@@ -36,6 +36,8 @@ function extractMoneyWordsNearAmount(
 export function verifyFinancialConsistency(input: {
   dataset: ContractTransformationDataset
   transformedBlocks: TransformedBlock[]
+  /** When false, do not Mode-A-require deposit/remaining presence. */
+  paymentRepresentation?: { deposit: boolean; remaining: boolean; total: boolean }
 }): {
   issues: QualityIssue[]
   summary: {
@@ -51,6 +53,11 @@ export function verifyFinancialConsistency(input: {
   const issues: QualityIssue[] = []
   const text = input.transformedBlocks.map((b) => b.text).join('\n')
   const f = input.dataset.finances
+  const rep = input.paymentRepresentation ?? {
+    deposit: true,
+    remaining: true,
+    total: true,
+  }
 
   const total = parsePln(f.contractValueFormatted)
   const expectedWords =
@@ -59,7 +66,7 @@ export function verifyFinancialConsistency(input: {
     text,
     f.contractValueFormatted,
   )
-  if (!totalPriceMatches) {
+  if (!totalPriceMatches && rep.total) {
     issues.push({
       code: 'expected_dataset_value_missing',
       severity: 'blocking',
@@ -71,7 +78,7 @@ export function verifyFinancialConsistency(input: {
   const moneyWordsMatch =
     textContainsNormalized(text, expectedWords) ||
     textContainsNormalized(text, f.contractValueWords)
-  if (!moneyWordsMatch && /słownie/i.test(text)) {
+  if (!moneyWordsMatch && /słownie/i.test(text) && rep.total) {
     issues.push({
       code: 'money_words_mismatch',
       severity: 'blocking',
@@ -116,7 +123,7 @@ export function verifyFinancialConsistency(input: {
     depositMatches = textContainsNormalized(text, f.depositFormatted!)
     remainingMatches = textContainsNormalized(text, f.remainingFormatted!)
 
-    if (!depositMatches) {
+    if (!depositMatches && rep.deposit) {
       issues.push({
         code: 'deposit_missing',
         severity: 'blocking',
@@ -124,7 +131,7 @@ export function verifyFinancialConsistency(input: {
         safeDescription: 'Dataset deposit amount is missing from the contract',
       })
     }
-    if (!remainingMatches) {
+    if (!remainingMatches && rep.remaining) {
       issues.push({
         code: 'remaining_payment_missing',
         severity: 'blocking',
@@ -193,9 +200,12 @@ export function verifyFinancialConsistency(input: {
       }
     }
 
-    const oneTime = /płatne\s+jednorazowo|jednorazowo/i.test(text)
-    paymentStructureMatches = !oneTime && Boolean(depositMatches && remainingMatches)
-    if (oneTime) {
+    const oneTime = /płatne\s+jednorazowo/i.test(text)
+    paymentStructureMatches =
+      !oneTime &&
+      (!rep.deposit || Boolean(depositMatches)) &&
+      (!rep.remaining || Boolean(remainingMatches))
+    if (oneTime && rep.deposit && rep.remaining) {
       issues.push({
         code: 'payment_structure_mismatch',
         severity: 'blocking',

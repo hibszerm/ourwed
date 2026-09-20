@@ -24,6 +24,9 @@ import { expandBlocksWithParagraphInsertions } from '../expandBlocksWithInsertio
 import { indexDocxForTransform } from '../indexDocxForTransform'
 import { polishContractMoneyWords } from '../polishContractMoneyWords'
 import { normalizeForMatch } from '../quality/normalize'
+import { detectRepresentedConcepts } from '../quality/representationPolicy'
+import { discoverFilledLocationEvidence } from '../quality/locationFieldEvidence'
+import { discoverFilledPartyEvidence } from '../quality/partyFilledIdentity'
 import { buildContractTransformationDataset } from '../transformationDataset'
 import { runSparseProductTransform } from '../transformService'
 import type { TransformFunctionsInvoke } from '../transformApi'
@@ -86,17 +89,28 @@ function hasSlownieNear(texts: string[], amount: number): boolean {
   ).test(blob)
 }
 
+export type Cg7RepresentationMatrix = {
+  party: boolean
+  preparationLocation: boolean
+  ceremonyLocation: boolean
+  receptionLocation: boolean
+  totalPrice: boolean
+  deposit: boolean
+  remaining: boolean
+  extrasDestination: boolean
+}
+
 export type Cg7Result = {
   caseId: UnknownStudioId
   people: 1 | 2
   extrasMode: string
   tables: boolean
   docx: 'PASS' | 'FAIL'
-  party: 'PASS' | 'FAIL'
+  party: 'PASS' | 'FAIL' | 'N/A'
   packageOk: 'PASS' | 'FAIL' | 'PARTIAL'
-  total: 'PASS' | 'FAIL'
-  initialPayment: 'PASS' | 'FAIL'
-  remaining: 'PASS' | 'FAIL'
+  total: 'PASS' | 'FAIL' | 'N/A'
+  initialPayment: 'PASS' | 'FAIL' | 'N/A'
+  remaining: 'PASS' | 'FAIL' | 'N/A'
   totalWords: 'PASS' | 'FAIL' | 'N/A'
   initialWords: 'PASS' | 'FAIL' | 'N/A'
   remainingWords: 'PASS' | 'FAIL' | 'N/A'
@@ -111,6 +125,8 @@ export type Cg7Result = {
   sparse: 'PASS' | 'PARTIAL' | 'FAIL'
   hallucination: 'PASS' | 'FAIL'
   overall: 'PASS' | 'PARTIAL' | 'FAIL'
+  representation: Cg7RepresentationMatrix
+  intentionalNonInsertions: string[]
   modelCalls: number
   protocolRetry: boolean
   blocksChanged: number
@@ -227,6 +243,28 @@ export async function runCg7Suite(input: {
     const protocolRetry = usage.retries > retriesBefore
 
     if (!transform.ok) {
+      const locEv = discoverFilledLocationEvidence(sourceBlocks)
+      const partyEv = discoverFilledPartyEvidence(sourceBlocks)
+      const rep = detectRepresentedConcepts(sourceBlocks, {
+        hasPartyEvidence: partyEv.length > 0,
+        hasPrepEvidence: locEv.some((e) =>
+          e.role === 'preparation' ||
+          e.role === 'preparation_partner1' ||
+          e.role === 'preparation_partner2',
+        ),
+        hasCeremonyEvidence: locEv.some((e) => e.role === 'ceremony'),
+        hasReceptionEvidence: locEv.some((e) => e.role === 'reception'),
+      })
+      const representation: Cg7RepresentationMatrix = {
+        party: rep.party,
+        preparationLocation: rep.preparationLocation,
+        ceremonyLocation: rep.ceremonyLocation,
+        receptionLocation: rep.receptionLocation,
+        totalPrice: rep.totalPrice,
+        deposit: rep.deposit,
+        remaining: rep.remaining,
+        extrasDestination: scenario.extrasMode !== 'none',
+      }
       results.push({
         caseId: scenario.caseId,
         people: scenario.partyMode === 'one' ? 1 : 2,
@@ -252,6 +290,8 @@ export async function runCg7Suite(input: {
         sparse: 'FAIL',
         hallucination: 'FAIL',
         overall: 'FAIL',
+        representation,
+        intentionalNonInsertions: [],
         modelCalls,
         protocolRetry,
         blocksChanged: 0,
@@ -262,7 +302,7 @@ export async function runCg7Suite(input: {
       })
       writeFileSync(
         join(artifactDir, `${scenario.caseId}.FAIL.json`),
-        JSON.stringify({ scenario: scenario.caseId, transform }, null, 2),
+        JSON.stringify({ scenario: scenario.caseId, transform, representation }, null, 2),
       )
       break
     }
@@ -306,33 +346,66 @@ export async function runCg7Suite(input: {
     const total = scenario.wedding.price ?? 0
     const deposit = scenario.wedding.depositAmount ?? 0
     const remaining = total - deposit
-    const totalOk = amountPresent(snap.texts, total)
-    const depositOk = amountPresent(snap.texts, deposit)
-    const remainingOk = amountPresent(snap.texts, remaining)
+
+    const locEv = discoverFilledLocationEvidence(sourceBlocks)
+    const partyEv = discoverFilledPartyEvidence(sourceBlocks)
+    const rep = detectRepresentedConcepts(sourceBlocks, {
+      hasPartyEvidence: partyEv.length > 0,
+      hasPrepEvidence: locEv.some((e) =>
+        e.role === 'preparation' ||
+        e.role === 'preparation_partner1' ||
+        e.role === 'preparation_partner2',
+      ),
+      hasCeremonyEvidence: locEv.some((e) => e.role === 'ceremony'),
+      hasReceptionEvidence: locEv.some((e) => e.role === 'reception'),
+    })
+    const representation: Cg7RepresentationMatrix = {
+      party: rep.party,
+      preparationLocation: rep.preparationLocation,
+      ceremonyLocation: rep.ceremonyLocation,
+      receptionLocation: rep.receptionLocation,
+      totalPrice: rep.totalPrice,
+      deposit: rep.deposit,
+      remaining: rep.remaining,
+      extrasDestination: scenario.extrasMode !== 'none',
+    }
+    const intentionalNonInsertions: string[] = []
+    if (!rep.preparationLocation) intentionalNonInsertions.push('preparationLocation')
+    if (!rep.ceremonyLocation) intentionalNonInsertions.push('ceremonyLocation')
+    if (!rep.receptionLocation) intentionalNonInsertions.push('receptionLocation')
+    if (!rep.deposit) intentionalNonInsertions.push('deposit')
+    if (!rep.remaining) intentionalNonInsertions.push('remaining')
+    if (!rep.customerPhone) intentionalNonInsertions.push('customerPhone')
+    if (!rep.customerAddress) intentionalNonInsertions.push('customerAddress')
+    if (!rep.contractExecutionDate) intentionalNonInsertions.push('contractExecutionDate')
+
+    const totalOk = !rep.totalPrice || amountPresent(snap.texts, total)
+    const depositOk = !rep.deposit || amountPresent(snap.texts, deposit)
+    const remainingOk = !rep.remaining || amountPresent(snap.texts, remaining)
     const tw = polishContractMoneyWords(total)
     const dw = polishContractMoneyWords(deposit)
     const rw = polishContractMoneyWords(remaining)
-    const totalWords: Cg7Result['totalWords'] = hasSlownieNear(snap.texts, total)
-      ? wordsNearAmount(snap.texts, total, tw)
-        ? 'PASS'
-        : 'FAIL'
-      : 'N/A'
-    const initialWords: Cg7Result['initialWords'] = hasSlownieNear(
-      snap.texts,
-      deposit,
-    )
-      ? wordsNearAmount(snap.texts, deposit, dw)
-        ? 'PASS'
-        : 'FAIL'
-      : 'N/A'
-    const remainingWords: Cg7Result['remainingWords'] = hasSlownieNear(
-      snap.texts,
-      remaining,
-    )
-      ? wordsNearAmount(snap.texts, remaining, rw)
-        ? 'PASS'
-        : 'FAIL'
-      : 'N/A'
+    const totalWords: Cg7Result['totalWords'] = !rep.totalPrice
+      ? 'N/A'
+      : hasSlownieNear(snap.texts, total)
+        ? wordsNearAmount(snap.texts, total, tw)
+          ? 'PASS'
+          : 'FAIL'
+        : 'N/A'
+    const initialWords: Cg7Result['initialWords'] = !rep.deposit
+      ? 'N/A'
+      : hasSlownieNear(snap.texts, deposit)
+        ? wordsNearAmount(snap.texts, deposit, dw)
+          ? 'PASS'
+          : 'FAIL'
+        : 'N/A'
+    const remainingWords: Cg7Result['remainingWords'] = !rep.remaining
+      ? 'N/A'
+      : hasSlownieNear(snap.texts, remaining)
+        ? wordsNearAmount(snap.texts, remaining, rw)
+          ? 'PASS'
+          : 'FAIL'
+        : 'N/A'
 
     const blob = snap.texts.join('\n')
     let otherMoney: Cg7Result['otherMoney'] = 'N/A'
@@ -359,8 +432,11 @@ export async function runCg7Suite(input: {
       : true
     const invented =
       scenario.partyMode === 'one' && /jan\s+pr[oó]bn/i.test(blob)
-    const party: Cg7Result['party'] =
-      hasP1 && hasP2 && !invented ? 'PASS' : 'FAIL'
+    const party: Cg7Result['party'] = !rep.party
+      ? 'N/A'
+      : hasP1 && hasP2 && !invented
+        ? 'PASS'
+        : 'FAIL'
 
     const pkgName = scenario.package.name
     const packageOk: Cg7Result['packageOk'] = snap.texts.some((t) =>
@@ -369,8 +445,14 @@ export async function runCg7Suite(input: {
       ? 'PASS'
       : 'PARTIAL'
 
-    // Location: if template had venue placeholders / form fields, expect some CRM location signal OR neutralized template — soft check
-    const locations: Cg7Result['locations'] = 'PASS'
+    // Locations: only require CRM values when template represented that role.
+    // Absence of unrepresented locations is intentional — not a FAIL.
+    const locations: Cg7Result['locations'] =
+      !rep.preparationLocation &&
+      !rep.ceremonyLocation &&
+      !rep.receptionLocation
+        ? 'N/A'
+        : 'PASS'
 
     const pricesPresent =
       expectedNames.length > 0 &&
@@ -420,7 +502,7 @@ export async function runCg7Suite(input: {
 
     const flags: Array<'PASS' | 'FAIL' | 'PARTIAL'> = [
       reopenOk ? 'PASS' : 'FAIL',
-      party,
+      party === 'N/A' ? 'PASS' : party,
       totalOk ? 'PASS' : 'FAIL',
       depositOk ? 'PASS' : 'FAIL',
       remainingOk ? 'PASS' : 'FAIL',
@@ -451,9 +533,9 @@ export async function runCg7Suite(input: {
       docx: reopenOk ? 'PASS' : 'FAIL',
       party,
       packageOk,
-      total: totalOk ? 'PASS' : 'FAIL',
-      initialPayment: depositOk ? 'PASS' : 'FAIL',
-      remaining: remainingOk ? 'PASS' : 'FAIL',
+      total: !rep.totalPrice ? 'N/A' : totalOk ? 'PASS' : 'FAIL',
+      initialPayment: !rep.deposit ? 'N/A' : depositOk ? 'PASS' : 'FAIL',
+      remaining: !rep.remaining ? 'N/A' : remainingOk ? 'PASS' : 'FAIL',
       totalWords,
       initialWords,
       remainingWords,
@@ -468,6 +550,8 @@ export async function runCg7Suite(input: {
       sparse,
       hallucination: hallu,
       overall,
+      representation,
+      intentionalNonInsertions,
       modelCalls,
       protocolRetry,
       blocksChanged,
@@ -481,6 +565,9 @@ export async function runCg7Suite(input: {
         `changed=${blocksChanged}/${sourceBlocks.length}`,
         `calls=${modelCalls}`,
         protocolRetry ? 'protocol_retry' : null,
+        intentionalNonInsertions.length
+          ? `non_insert=${intentionalNonInsertions.join(',')}`
+          : null,
       ]
         .filter(Boolean)
         .join(';'),
@@ -525,6 +612,11 @@ function writeReadme(reviewDir: string, results: Cg7Result[]) {
     '',
     'Independent realistic templates (not GP clones). Synthetic CRM only.',
     '',
+    '## Product principle',
+    '',
+    'CRM truth ≠ mandatory contract content. Only concepts the SOURCE template',
+    'represents are required. Absence of unrepresented CRM facts is intentional.',
+    '',
     '| Source | Final | Studio | Style | People | Extras | Retry | Changed | Verdict | Inspect |',
     '|--------|-------|--------|-------|--------|--------|-------|---------|---------|---------|',
   ]
@@ -535,13 +627,38 @@ function writeReadme(reviewDir: string, results: Cg7Result[]) {
       `| ${r.caseId}_SOURCE.docx | ${r.caseId}_FINAL.docx | ${m.studioType} | ${m.style} | ${r.people} | ${r.extrasMode} | ${r.protocolRetry ? 'YES' : 'NO'} | ${r.blocksChanged}/${r.blocksTotal} | ${r.overall} | ${m.paymentTerms}; ${m.locationTerms}; numbering; language; 900zł-class fees if any | T/D/R=${s.wedding.price}/${s.wedding.depositAmount} |`,
     )
   }
+  lines.push('', '## Per-case representation', '')
+  for (const r of results) {
+    const rep = r.representation
+    const represented = Object.entries(rep)
+      .filter(([, v]) => v)
+      .map(([k]) => k)
+    const nonRep = Object.entries(rep)
+      .filter(([, v]) => !v)
+      .map(([k]) => k)
+    lines.push(`### ${r.caseId} — ${r.overall}`)
+    lines.push('')
+    lines.push('REPRESENTED CONCEPTS')
+    lines.push(represented.length ? represented.map((x) => `- ${x}`).join('\n') : '- (none)')
+    lines.push('')
+    lines.push('NON-REPRESENTED CRM CONCEPTS')
+    lines.push(nonRep.length ? nonRep.map((x) => `- ${x}`).join('\n') : '- (none)')
+    lines.push('')
+    lines.push('INTENTIONAL NON-INSERTIONS')
+    lines.push(
+      r.intentionalNonInsertions.length
+        ? r.intentionalNonInsertions.map((x) => `- ${x}`).join('\n')
+        : '- (none)',
+    )
+    lines.push('')
+  }
   lines.push(
-    '',
     '## Visual checklist',
     '- Side-by-side SOURCE vs FINAL for each family',
     '- Extras bullets must NOT continue outer legal numbering',
     '- Unrelated fees preserved (hour/travel/media)',
     '- Grammar of one vs two clients',
+    '- Unrepresented CRM facts must remain absent (not invented)',
     '',
   )
   writeFileSync(join(reviewDir, 'README.md'), lines.join('\n'))

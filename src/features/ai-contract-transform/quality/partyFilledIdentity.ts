@@ -24,7 +24,7 @@ const PROVIDER_BLOCK =
   /\b(NIP|REGON|firm[aą]|Studio|Photography|Productions|zwan\w*\s+dalej\s+[„"]?(Filmowc|Fotograf|Kamerzyst|Wykonawc|Usługodawc))/i
 
 const CLIENT_PARTY_MARKER =
-  /zwan\w*\s+dalej\s+[„"]?(Zamawiając|Parą\s+Młod|Klient)|Klientami\s+są|Klientem\s+jest|Klient:\s|Zamawiający:\s|Pomiędzy:\s*[A-ZĄĆĘŁŃÓŚŹŻ]|,\s*zam\./i
+  /zwan\w*\s+dalej\s+[„"]?(Zamawiając|Parą\s+Młod|Klient)|Klientami\s+są|Klientem\s+jest|Klient:\s|Zamawiający:\s|Zamawiając\w*\s+są|Pomiędzy:\s*[A-ZĄĆĘŁŃÓŚŹŻ]|,\s*zam\./i
 
 /** Provider / studio identity clause — must not be treated as contracting client. */
 export function isProviderIdentityBlock(text: string): boolean {

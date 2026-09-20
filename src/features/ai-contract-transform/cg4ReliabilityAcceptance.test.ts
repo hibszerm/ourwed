@@ -283,9 +283,10 @@ function runGate(
   const body = repaired.blocks.find((b) => b.blockId === 'body')!.text
   assert(heading === '§6 Płatności', 'C1: heading unmodified')
   assert(body.includes('3 780 zł'), 'C1: deposit in body')
-  assert(body.includes('9 720 zł'), 'C1: remaining in body not heading')
+  // CG7.3: remaining not represented → do not invent onto body/heading
+  assert(!body.includes('9 720 zł'), 'C1: remaining not invented')
   assert(!heading.includes('9 720'), 'C1: remaining not on heading')
-  console.log('PASS  C1: T06 shape — remaining lands in body, not § heading')
+  console.log('PASS  C1: T06 shape — deposit in body; remaining not invented')
 }
 
 {

@@ -133,6 +133,11 @@ export function buildQualityReport(input: {
   const financial = verifyFinancialConsistency({
     dataset: input.dataset,
     transformedBlocks: input.transformedBlocks,
+    paymentRepresentation: {
+      deposit: manifest.representedConcepts?.deposit ?? true,
+      remaining: manifest.representedConcepts?.remaining ?? true,
+      total: manifest.representedConcepts?.totalPrice ?? true,
+    },
   })
 
   const sourceTotal = (() => {

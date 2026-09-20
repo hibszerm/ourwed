@@ -86,6 +86,25 @@ export function verifyLocationConsistency(input: {
   for (const [role, loc] of roles) {
     if (!loc) continue
     suppliedRoles.push(role)
+    const conceptKey =
+      role === 'preparation'
+        ? 'preparationLocation'
+        : role === 'ceremony'
+          ? 'ceremonyLocation'
+          : 'receptionLocation'
+    const templateRepresents = input.manifest.representedConcepts
+      ? Boolean(input.manifest.representedConcepts[conceptKey])
+      : input.manifest.requiredFields.some(
+          (f) =>
+            f.canonicalField ===
+            (role === 'preparation'
+              ? 'wedding.preparationLocation'
+              : role === 'ceremony'
+                ? 'wedding.ceremonyLocation'
+                : 'wedding.receptionLocation'),
+        )
+    if (!templateRepresents) continue
+
     const value = locationFromDatasetEntry(loc)
     const rendered = value ? renderLocationSummary(value) : ''
     const candidates = [
@@ -98,36 +117,28 @@ export function verifyLocationConsistency(input: {
     if (represented) representedRoles.push(role)
     else {
       missingRoles.push(role)
-      const hasSlot = input.manifest.requiredFields.some(
-        (f) =>
-          f.canonicalField ===
-            (role === 'preparation'
-              ? 'wedding.preparationLocation'
-              : role === 'ceremony'
-                ? 'wedding.ceremonyLocation'
-                : 'wedding.receptionLocation') &&
-          (f.expectedContexts?.some((c) => c.blockIds.length > 0) ?? false),
-      )
       issues.push({
-        code: hasSlot
-          ? 'expected_dataset_value_missing'
-          : 'location_role_not_represented_in_template',
-        severity: hasSlot ? 'blocking' : 'review_required',
+        code: 'expected_dataset_value_missing',
+        severity: 'blocking',
         canonicalField:
           role === 'preparation'
             ? 'wedding.preparationLocation'
             : role === 'ceremony'
               ? 'wedding.ceremonyLocation'
               : 'wedding.receptionLocation',
-        safeDescription: hasSlot
-          ? `Supplied ${role} location is missing from the transformed document`
-          : `Supplied ${role} location has no matching template slot`,
+        safeDescription: `Supplied ${role} location is missing from the transformed document`,
       })
     }
   }
 
   const prepEntries = input.dataset.locations.preparationLocations ?? []
-  if (prepEntries.length >= 2) {
+  if (
+    prepEntries.length >= 2 &&
+    (input.manifest.representedConcepts?.preparationLocation ??
+      input.manifest.requiredFields.some(
+        (f) => f.canonicalField === 'wedding.preparationLocation',
+      ))
+  ) {
     for (const entry of prepEntries) {
       if (!textContainsNormalized(text, entry.fullAddress)) {
         missingRoles.push(`preparation:${entry.person}`)

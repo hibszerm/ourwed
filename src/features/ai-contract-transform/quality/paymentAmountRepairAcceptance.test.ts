@@ -105,9 +105,10 @@ function joined(blocks: TransformedBlock[]): string {
     gate.blocks.some((b) => b.text.includes('3 780 zł')),
     'A: deposit present',
   )
+  // CG7.3: remaining not represented in source → do not invent remaining clause
   assert(
-    gate.blocks.some((b) => b.text.includes('9 720 zł')),
-    'A: remaining present',
+    !gate.blocks.some((b) => /Pozostała kwota 9 720/i.test(b.text)),
+    'A: remaining not invented when template has no remaining slot',
   )
   assert(
     !gate.blocks.some((b) => /PLACEHOLDER_ZADATEK/i.test(b.text)),
@@ -119,7 +120,7 @@ function joined(blocks: TransformedBlock[]): string {
     ),
     'A: RODO untouched',
   )
-  console.log('PASS  A: deposit placeholder + missing remaining repaired')
+  console.log('PASS  A: deposit placeholder filled; remaining not invented')
 }
 
 // --- Shape B: "Pozostała kwota" without amount (T01/T10-like after partial AI) ---
@@ -172,18 +173,20 @@ function joined(blocks: TransformedBlock[]): string {
     { id: 'sig', text: 'Podpis Zamawiającego' },
   ])
   const gate = runGate(source, transformed)
-  assert(gate.downloadAllowed, 'D: price-only finance block gains deposit+remaining')
+  assert(
+    gate.downloadAllowed,
+    'D: total-only download allowed without inventing split',
+  )
   const finance = gate.blocks.find((b) => b.blockId === 'p1')!.text
   assert(/13 500 zł/.test(finance), 'D: total preserved')
-  assert(/3 780 zł/.test(finance), 'D: deposit in finance block')
-  assert(/9 720 zł/.test(finance), 'D: remaining in finance block')
+  assert(!/Zadatek|Pozostała kwota/i.test(finance), 'D: no authored deposit/remaining')
   assert(
     !/3 780|9 720/.test(
       gate.blocks.find((b) => b.blockId === 'sig')?.text ?? '',
     ),
     'D: signature untouched',
   )
-  console.log('PASS  D: minimal price block receives canonical payment amounts')
+  console.log('PASS  D: total-only template preserves design (no invented split)')
 }
 
 // --- Shape E: already correct — no duplicate repairs ---
@@ -222,9 +225,13 @@ function joined(blocks: TransformedBlock[]): string {
   ])
   const gate = runGate(source, transformed)
   assert(gate.downloadAllowed, 'F: download allowed')
-  assert(/3 780 zł/.test(joined(gate.blocks)), 'F: deposit')
-  assert(/9 720 zł/.test(joined(gate.blocks)), 'F: remaining appended nearby')
-  console.log('PASS  F: combined remuneration line repaired')
+  assert(/3 780 zł/.test(joined(gate.blocks)), 'F: deposit from placeholder')
+  // CG7.3: remaining not represented → do not invent remaining obligation
+  assert(
+    !/Pozostała kwota 9 720/i.test(joined(gate.blocks)),
+    'F: no authored remaining when template lacks remaining slot',
+  )
+  console.log('PASS  F: deposit placeholder filled; remaining not invented')
 }
 
 // --- Shape G: extras names stay without individual prices after gate ---
@@ -260,6 +267,12 @@ function joined(blocks: TransformedBlock[]): string {
     'H: party clause untouched',
   )
   assert(!/Jan Próbny/.test(joined(gate.blocks)), 'H: no invented partner2')
+  assert(
+    !/Zadatek|Pozostała kwota/i.test(
+      gate.blocks.find((b) => b.blockId === 'p1')?.text ?? '',
+    ),
+    'H: total-only line does not gain invented payment split',
+  )
   console.log('PASS  H: one-person party clause preserved')
 }
 

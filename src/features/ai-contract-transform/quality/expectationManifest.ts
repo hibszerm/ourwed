@@ -31,6 +31,7 @@ import {
   weddingDatesSemanticallyEqual,
   type SourceLocationEvidence as LocationEvidenceRuntime,
 } from './locationFieldEvidence'
+import { detectRepresentedConcepts } from './representationPolicy'
 import type {
   CanonicalTransformField,
   ConsistencyRule,
@@ -192,6 +193,18 @@ export function buildExpectationManifest(input: {
       rowLabelText: e.rowLabelText,
       canonicalField: e.canonicalField,
     }))
+
+  const represented = detectRepresentedConcepts(blocks, {
+    hasPartyEvidence: filledPartyEvidence.length > 0,
+    hasPrepEvidence: filledLocationEvidence.some((e) =>
+      e.role === 'preparation' ||
+      e.role === 'preparation_partner1' ||
+      e.role === 'preparation_partner2',
+    ),
+    hasCeremonyEvidence: filledLocationEvidence.some((e) => e.role === 'ceremony'),
+    hasReceptionEvidence: filledLocationEvidence.some((e) => e.role === 'reception'),
+  })
+
   for (const ev of filledLocationEvidence) {
     // Sentinels are structural fields, not stale venue inventory
     if (ev.nonSemanticSurface || isNonSemanticLocationSurface(ev.sourceText)) {
@@ -356,22 +369,25 @@ export function buildExpectationManifest(input: {
       ...filledPartyEvidence.map((e) => e.blockId),
     ]),
   ]
-  addRequired(
-    'customer.names',
-    nameSourceValues,
-    [dataset.clients.displayNames],
-    'must_replace_source',
-    [
-      {
-        kind:
-          filledPartyEvidence.length > 0 &&
-          !blocks.some((b) => b.tableContext?.ownershipFamily === 'customer')
-            ? 'opening_paragraph'
-            : 'party_table',
-        blockIds: nameBlocks,
-      },
-    ],
-  )
+  // CG7.3 — party identity is required only when the template represents parties.
+  if (represented.party) {
+    addRequired(
+      'customer.names',
+      nameSourceValues,
+      [dataset.clients.displayNames],
+      'must_replace_source',
+      [
+        {
+          kind:
+            filledPartyEvidence.length > 0 &&
+            !blocks.some((b) => b.tableContext?.ownershipFamily === 'customer')
+              ? 'opening_paragraph'
+              : 'party_table',
+          blockIds: nameBlocks,
+        },
+      ],
+    )
+  }
 
   // Explicit requiredReplacement for filled party blocks so the model sees
   // sourceBlockIds even when sourceValues alone would miss declined forms.
@@ -390,7 +406,7 @@ export function buildExpectationManifest(input: {
     })
   }
 
-  if (dataset.clients.address) {
+  if (dataset.clients.address && represented.customerAddress) {
     const addrBlocks = findBlocksContaining(
       blocks,
       sourceSpecificValues
@@ -405,7 +421,7 @@ export function buildExpectationManifest(input: {
       [{ kind: 'party_table', blockIds: addrBlocks.length ? addrBlocks : nameBlocks }],
     )
   }
-  if (dataset.clients.phone) {
+  if (dataset.clients.phone && represented.customerPhone) {
     addRequired(
       'customer.phone',
       sourceSpecificValues
@@ -422,21 +438,25 @@ export function buildExpectationManifest(input: {
       !s.mustDisappear &&
       weddingDatesSemanticallyEqual(s.sourceValue, dataset.dates.weddingDate),
   )
-  addRequired(
-    'wedding.date',
-    sourceSpecificValues
-      .filter((s) => s.canonicalField === 'wedding.date' && s.mustDisappear)
-      .map((s) => s.sourceValue),
-    [dataset.dates.weddingDate],
-    dateAlreadyMatches ? 'must_appear' : 'must_replace_source',
-  )
+  if (represented.weddingDate) {
+    addRequired(
+      'wedding.date',
+      sourceSpecificValues
+        .filter((s) => s.canonicalField === 'wedding.date' && s.mustDisappear)
+        .map((s) => s.sourceValue),
+      [dataset.dates.weddingDate],
+      dateAlreadyMatches ? 'must_appear' : 'must_replace_source',
+    )
+  }
 
-  addRequired(
-    'contract.executionDate',
-    [],
-    [dataset.dates.contractExecutionDate],
-    'must_appear',
-  )
+  if (represented.contractExecutionDate) {
+    addRequired(
+      'contract.executionDate',
+      [],
+      [dataset.dates.contractExecutionDate],
+      'must_appear',
+    )
+  }
 
   const prep = locationFromDatasetEntry(dataset.locations.preparation)
   const ceremony = locationFromDatasetEntry(dataset.locations.ceremony)
@@ -445,7 +465,7 @@ export function buildExpectationManifest(input: {
   const locationEvidenceByRole = (roles: SourceLocationEvidence['role'][]) =>
     filledLocationEvidence.filter((e) => roles.includes(e.role))
 
-  if (prep) {
+  if (prep && represented.preparationLocation) {
     const prepEntries = dataset.locations.preparationLocations ?? []
     const targets = [
       dataset.locations.preparationDisplayText ?? '',
@@ -461,14 +481,7 @@ export function buildExpectationManifest(input: {
       'preparation_partner1',
       'preparation_partner2',
     ])
-    const prepBlockIds = [
-      ...new Set([
-        ...prepEvidence.map((e) => e.blockId),
-        ...blocks
-          .filter((b) => inferContext(b) === 'preparation_clause')
-          .map((b) => b.blockId),
-      ]),
-    ]
+    const prepBlockIds = prepEvidence.map((e) => e.blockId)
     addRequired(
       'wedding.preparationLocation',
       sourceSpecificValues
@@ -491,16 +504,9 @@ export function buildExpectationManifest(input: {
       })
     }
   }
-  if (ceremony) {
+  if (ceremony && represented.ceremonyLocation) {
     const ceremonyEvidence = locationEvidenceByRole(['ceremony'])
-    const ceremonyBlockIds = [
-      ...new Set([
-        ...ceremonyEvidence.map((e) => e.blockId),
-        ...blocks
-          .filter((b) => inferContext(b) === 'ceremony_clause')
-          .map((b) => b.blockId),
-      ]),
-    ]
+    const ceremonyBlockIds = ceremonyEvidence.map((e) => e.blockId)
     addRequired(
       'wedding.ceremonyLocation',
       sourceSpecificValues
@@ -523,23 +529,12 @@ export function buildExpectationManifest(input: {
       })
     }
   }
-  if (reception) {
+  if (reception && represented.receptionLocation) {
     const stale = sourceSpecificValues
       .filter((s) => s.canonicalField === 'wedding.receptionLocation')
       .map((s) => s.sourceValue)
     const receptionEvidence = locationEvidenceByRole(['reception'])
-    const receptionBlockIds = [
-      ...new Set([
-        ...receptionEvidence.map((e) => e.blockId),
-        ...blocks
-          .filter(
-            (b) =>
-              b.tableContext?.ownershipFamily === 'wedding_location' ||
-              inferContext(b) === 'reception_clause',
-          )
-          .map((b) => b.blockId),
-      ]),
-    ]
+    const receptionBlockIds = receptionEvidence.map((e) => e.blockId)
     addRequired(
       'wedding.receptionLocation',
       stale,
@@ -552,12 +547,7 @@ export function buildExpectationManifest(input: {
       'must_appear_in_relevant_context',
       [
         { kind: 'location_table', blockIds: receptionBlockIds },
-        {
-          kind: 'reception_clause',
-          blockIds: blocks
-            .filter((b) => inferContext(b) === 'reception_clause')
-            .map((b) => b.blockId),
-        },
+        { kind: 'reception_clause', blockIds: receptionBlockIds },
       ],
     )
     if (receptionEvidence.length > 0) {
@@ -578,7 +568,7 @@ export function buildExpectationManifest(input: {
     }
   }
 
-  // Absent CRM roles: neutralize grounded fields without inventing venues.
+  // Absent CRM roles with grounded fields: neutralize without inventing.
   for (const ev of filledLocationEvidence) {
     const hasTarget =
       (ev.role === 'ceremony' && Boolean(ceremony)) ||
@@ -599,19 +589,21 @@ export function buildExpectationManifest(input: {
     })
   }
 
-  addRequired(
-    'contract.totalPrice',
-    [],
-    [dataset.finances.contractValueFormatted],
-    'must_appear',
-  )
-  addRequired(
-    'contract.totalPriceWords',
-    [],
-    [dataset.finances.contractValueWords],
-    'must_appear_in_relevant_context',
-  )
-  if (dataset.finances.depositFormatted) {
+  if (represented.totalPrice) {
+    addRequired(
+      'contract.totalPrice',
+      [],
+      [dataset.finances.contractValueFormatted],
+      'must_appear',
+    )
+    addRequired(
+      'contract.totalPriceWords',
+      [],
+      [dataset.finances.contractValueWords],
+      'must_appear_in_relevant_context',
+    )
+  }
+  if (dataset.finances.depositFormatted && represented.deposit) {
     const depositSources = [
       'PLACEHOLDER_ZADATEK',
       'PLACEHOLDER_ZADATEK zł',
@@ -626,7 +618,7 @@ export function buildExpectationManifest(input: {
       'must_appear',
     )
   }
-  if (dataset.finances.remainingFormatted) {
+  if (dataset.finances.remainingFormatted && represented.remaining) {
     const remainingSources = [
       'PLACEHOLDER_RESTA',
       'PLACEHOLDER_RESTA zł',
@@ -645,10 +637,16 @@ export function buildExpectationManifest(input: {
       'must_appear',
     )
   }
-  if (dataset.finances.depositFormatted && dataset.finances.remainingFormatted) {
+  if (
+    dataset.finances.depositFormatted &&
+    dataset.finances.remainingFormatted &&
+    represented.deposit &&
+    represented.remaining
+  ) {
+    // Exact one-time-payment phrases only — do not stem-match bare "płatne".
     addRequired(
       'contract.paymentStructure',
-      ['płatne jednorazowo', 'jednorazowo'],
+      ['płatne jednorazowo'],
       [dataset.finances.depositFormatted, dataset.finances.remainingFormatted],
       'must_appear',
     )
@@ -721,7 +719,12 @@ export function buildExpectationManifest(input: {
     'no_mixed_source_target',
     'package_scope_stable_without_explicit_scope',
   ]
-  if (dataset.finances.depositFormatted && dataset.finances.remainingFormatted) {
+  if (
+    dataset.finances.depositFormatted &&
+    dataset.finances.remainingFormatted &&
+    represented.deposit &&
+    represented.remaining
+  ) {
     consistencyRules.push(
       'deposit_plus_remaining_equals_total',
       'payment_structure_matches_dataset',
@@ -758,5 +761,6 @@ export function buildExpectationManifest(input: {
     ...(filledLocationEvidence.length > 0
       ? { sourceLocationEvidence: filledLocationEvidence }
       : {}),
+    representedConcepts: represented,
   }
 }
