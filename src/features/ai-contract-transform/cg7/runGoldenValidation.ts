@@ -755,6 +755,7 @@ export async function runGoldenValidation(input: {
           blockingIssues: transform.blockingIssues,
           reviewIssues: transform.reviewIssues,
           changedBlockIds: row.changedBlockIds,
+          diagnostics: transform.diagnostics,
           datasetFinances: dataset.finances,
           extrasNames: dataset.additionalServices?.map((s) => s.name) ?? [],
         },

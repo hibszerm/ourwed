@@ -4,7 +4,7 @@
  */
 
 import { applySparseBlockChanges } from './applySparseBlockChanges'
-import { partitionChangedBlocksBySourceIds, validateGroundedFinanceEvidence } from './blockIdIntegrity'
+import { inspectGroundedFinanceEvidence, partitionChangedBlocksBySourceIds } from './blockIdIntegrity'
 import {
   buildTransformEdgeErrorDetail,
   edgeErrorFromThrown,
@@ -21,6 +21,7 @@ import type {
   TransformedBlock,
   TransformMode,
   GroundedFinanceEvidence,
+  GroundedFinanceEvidenceOutcome,
 } from './types'
 import {
   FULL_AI_PROMPT_VERSION,
@@ -42,6 +43,7 @@ export type TransformApiSuccess = {
   transformedBlocks: TransformedBlock[]
   changedBlockCount: number
   financeEvidence: GroundedFinanceEvidence[]
+  financeEvidenceDiagnostics: GroundedFinanceEvidenceOutcome[]
   model: string
   promptVersion: string
   responseVersion: string
@@ -309,10 +311,13 @@ export async function invokeTransform(input: {
       changedBlocks: parsed.changedBlocks,
       sourceBlockIds: input.documentBlocks.map((b) => b.blockId),
     })
-    const financeEvidence = validateGroundedFinanceEvidence({
+    const financeEvidenceDiagnostics = inspectGroundedFinanceEvidence({
       financeEvidence: parsed.financeEvidence,
       sourceBlockIds: input.documentBlocks.map((b) => b.blockId),
     })
+    const financeEvidence = financeEvidenceDiagnostics
+      .filter((item) => item.outcome === 'accepted')
+      .map(({ outcome: _outcome, ...item }) => item)
     const reconstructed = applySparseBlockChanges(
       input.documentBlocks,
       partition.valid,
@@ -340,6 +345,7 @@ export async function invokeTransform(input: {
       transformedBlocks: reconstructed.blocks,
       changedBlockCount: reconstructed.changedBlockCount,
       financeEvidence,
+      financeEvidenceDiagnostics,
       model: String(body.model ?? 'unknown'),
       promptVersion: String(body.promptVersion ?? input.promptVersion),
       responseVersion,
@@ -361,6 +367,7 @@ export async function invokeTransform(input: {
       transformedBlocks: legacy,
       changedBlockCount: legacy.length,
       financeEvidence: [],
+      financeEvidenceDiagnostics: [],
       model: String(body.model ?? 'unknown'),
       promptVersion: String(body.promptVersion ?? input.promptVersion),
       responseVersion: String(body.responseVersion ?? ''),

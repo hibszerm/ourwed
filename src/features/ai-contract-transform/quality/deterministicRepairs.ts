@@ -8,6 +8,9 @@ import type {
   TransformDocumentBlock,
   TransformedBlock,
   GroundedFinanceEvidence,
+  CrossSurfaceFinanceDiagnostic,
+  FinanceSurfaceDiagnostic,
+  TotalWordsDiagnostic,
 } from '../types'
 import { fingerprintText, sanitizeDuplicatedLocationWrappers } from './normalize'
 import { repairCanonicalPaymentAmounts } from './paymentAmountRepair'
@@ -32,6 +35,7 @@ import {
   repairRepeatedFactSurfaces,
   type SourceRepeatedFactEvidence,
 } from './repeatedFactEvidence'
+import { discoverFilledTotalEvidence } from './totalFieldEvidence'
 import type {
   DeterministicRepair,
   RequiredReplacement,
@@ -357,9 +361,11 @@ export function applyDeterministicRepairs(input: {
   manifest: TransformationExpectationManifest
   sourceBlocks: TransformDocumentBlock[]
   financeEvidence?: GroundedFinanceEvidence[]
-}): { blocks: TransformedBlock[]; repairs: DeterministicRepair[] } {
+}): { blocks: TransformedBlock[]; repairs: DeterministicRepair[]; crossSurfaceFinance: CrossSurfaceFinanceDiagnostic[]; financeDiagnostics: FinanceSurfaceDiagnostic[]; totalWords?: TotalWordsDiagnostic } {
   const repairs: DeterministicRepair[] = []
   let blocks = input.blocks.map((b) => ({ ...b }))
+  let crossSurfaceFinance: CrossSurfaceFinanceDiagnostic[] = []
+  let financeDiagnostics: FinanceSurfaceDiagnostic[] = []
 
   // 0. MIXED party clauses — restore provider half before other repairs
   if (input.sourceBlocks && input.sourceBlocks.length > 0) {
@@ -407,6 +413,21 @@ export function applyDeterministicRepairs(input: {
   const totalWordsReplacement = input.manifest.requiredReplacements.find(
     (r) => r.canonicalField === 'contract.totalPriceWords',
   )
+  let totalWords: TotalWordsDiagnostic | undefined
+  {
+    const fallbackWordsEvidence = discoverFilledTotalEvidence(input.sourceBlocks).find((item) => item.hasWords)
+    const sourceWordIds = totalWordsReplacement?.requiredContextBlockIds ?? (fallbackWordsEvidence ? [fallbackWordsEvidence.blockId] : [])
+    if (sourceWordIds.length > 0) {
+    const sourceWordsBlock = sourceWordIds
+      .map((blockId) => input.sourceBlocks.find((block) => block.blockId === blockId))
+      .find((block) => /słownie/i.test(block?.text ?? ''))
+      ?? input.sourceBlocks.find((block) => block.blockId === sourceWordIds[0])
+    const sourceWordsBlockId = sourceWordsBlock?.blockId
+    const sourceWords = sourceWordsBlock?.text
+    const sourceFractionalSuffixDetected = Boolean(sourceWords && /\b\d{2}\/\d{2}\b/.test(sourceWords))
+    totalWords = { sourceWordsBlockId, sourceFractionalSuffixDetected }
+    }
+  }
   if (totalWordsReplacement) {
     const expected = wordsForAmount(
       parsePlnAmount(input.dataset.finances.contractValueFormatted) ?? 0,
@@ -432,6 +453,10 @@ export function applyDeterministicRepairs(input: {
             afterFingerprint: fingerprintText(next),
           })
           blocks[index] = { ...current, text: next }
+          if (totalWords) {
+            totalWords.repairedWordsValue = next
+            totalWords.suffixPreserved = !totalWords.sourceFractionalSuffixDetected || /\b\d{2}\/\d{2}\b/.test(next)
+          }
         }
       }
     }
@@ -548,6 +573,8 @@ export function applyDeterministicRepairs(input: {
   })
   blocks = payment.blocks
   repairs.push(...payment.repairs)
+  crossSurfaceFinance = payment.crossSurfaceFinance
+  financeDiagnostics = payment.financeDiagnostics
 
   // 4a2. Headline / summary repeated party+date surfaces
   const repeatedEvidence = (input.manifest.sourceRepeatedFactEvidence ??
@@ -776,7 +803,15 @@ export function applyDeterministicRepairs(input: {
     }
   }
 
-  return { blocks, repairs }
+  if (totalWords?.sourceWordsBlockId) {
+    const finalBlock = blocks.find((block) => block.blockId === totalWords!.sourceWordsBlockId)
+    if (finalBlock) {
+      totalWords.repairedWordsValue = finalBlock.text
+      totalWords.suffixPreserved = !totalWords.sourceFractionalSuffixDetected || /\b\d{2}\/\d{2}\b/.test(finalBlock.text)
+    }
+  }
+
+  return { blocks, repairs, crossSurfaceFinance, financeDiagnostics, totalWords }
 }
 
 export function summarizeRequiredReplacementsForPrompt(

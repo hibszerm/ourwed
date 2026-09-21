@@ -155,3 +155,37 @@ export type GroundedFinanceEvidence = {
   sourceBlockId: string
   financeConcept: FinanceSemanticConcept
 }
+
+export type GroundedFinanceEvidenceOutcome = GroundedFinanceEvidence & {
+  outcome: 'accepted' | 'rejected_unknown_source' | 'rejected_contradiction' | 'rejected_invalid'
+}
+
+export type FinanceSurfaceDiagnostic = {
+  canonicalRole: FinanceSemanticConcept
+  originSourceBlockId?: string
+  targetBlockId?: string
+  applied: boolean
+  reason?: string
+}
+
+export type CrossSurfaceFinanceDiagnostic = {
+  canonicalRole: FinanceSemanticConcept
+  semanticSourceBlockIds: string[]
+  structuralCandidateSourceBlockIds: string[]
+  ownershipEstablished: boolean
+  reason?: string
+}
+
+export type TotalWordsDiagnostic = {
+  sourceWordsBlockId?: string
+  sourceFractionalSuffixDetected: boolean
+  repairedWordsValue?: string
+  suffixPreserved?: boolean
+}
+
+export type ContractTransformDiagnostics = {
+  groundedFinanceEvidence: GroundedFinanceEvidenceOutcome[]
+  crossSurfaceFinance: CrossSurfaceFinanceDiagnostic[]
+  financeRepairs: FinanceSurfaceDiagnostic[]
+  totalWords?: TotalWordsDiagnostic
+}

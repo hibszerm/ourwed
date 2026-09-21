@@ -51,9 +51,14 @@ const gate = runPostReconstructionQualityGate({
   protectedData,
   mode: 'full_ai',
   financeEvidence: model.financeEvidence,
+  financeEvidenceDiagnostics: model.financeEvidenceDiagnostics,
 })
 const deposit = gate.blocks.find((block) => block.originSourceBlockId === 'table-5-row-2-cell-2-p-0')
 assert(deposit?.text.includes('4 800') === true, 'G03 deposit repaired from canonical CRM value')
+assert(gate.diagnostics.groundedFinanceEvidence.some((item) => item.outcome === 'accepted' && item.financeConcept === 'deposit'), 'G03 accepted semantic evidence diagnostic')
+assert(gate.diagnostics.crossSurfaceFinance.some((item) => item.ownershipEstablished && item.canonicalRole === 'deposit'), 'G03 cross-surface diagnostic')
+assert(gate.diagnostics.financeRepairs.some((item) => item.canonicalRole === 'deposit' && item.applied && item.originSourceBlockId === 'table-5-row-2-cell-2-p-0'), 'G03 deposit repair diagnostic')
+assert(gate.diagnostics.totalWords !== undefined && typeof gate.diagnostics.totalWords.sourceFractionalSuffixDetected === 'boolean', 'G03 total words suffix diagnostic observable')
 assert(!gate.blocks.some((block) => /3\s*500,00\s*zł/.test(block.text)), 'G03 stale deposit removed')
 assert(gate.blocks.some((block) => /21\s*400/.test(block.text)), 'G03 total preserved canonical')
 assert(gate.blocks.some((block) => /16\s*600/.test(block.text)), 'G03 remaining preserved canonical')

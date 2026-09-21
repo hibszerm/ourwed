@@ -43,6 +43,7 @@ export type SparseProductTransformSuccess = {
   blockingIssues: string[]
   reviewIssues: string[]
   qualityReport: ReturnType<typeof runPostReconstructionQualityGate>['report']
+  diagnostics: ReturnType<typeof runPostReconstructionQualityGate>['diagnostics']
   engine: 'sparse_full_ai'
 }
 
@@ -57,6 +58,7 @@ export type SparseProductTransformFailure = {
   model?: string
   durationMs?: number
   engine: 'sparse_full_ai'
+  diagnostics?: ReturnType<typeof runPostReconstructionQualityGate>['diagnostics']
 }
 
 export type SparseProductTransformResult =
@@ -202,6 +204,7 @@ export async function runSparseProductTransform(input: {
     dataset: input.dataset,
     protectedData,
     financeEvidence: edge.financeEvidence,
+    financeEvidenceDiagnostics: edge.financeEvidenceDiagnostics,
     mode: 'full_ai',
   })
 
@@ -228,6 +231,7 @@ export async function runSparseProductTransform(input: {
       responseVersion: edge.responseVersion,
       model: edge.model,
       durationMs: edge.durationMs,
+      diagnostics: gate.diagnostics,
       engine: 'sparse_full_ai',
     }
   }
@@ -256,6 +260,7 @@ export async function runSparseProductTransform(input: {
       blockingIssues,
       reviewIssues,
       qualityReport: gate.report,
+      diagnostics: gate.diagnostics,
       engine: 'sparse_full_ai',
     }
   } catch (e) {
@@ -272,6 +277,7 @@ export async function runSparseProductTransform(input: {
       responseVersion: edge.responseVersion,
       model: edge.model,
       durationMs: edge.durationMs,
+      diagnostics: gate.diagnostics,
       engine: 'sparse_full_ai',
     }
   }

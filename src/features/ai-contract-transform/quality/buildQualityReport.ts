@@ -9,6 +9,8 @@ import type {
   TransformDocumentBlock,
   TransformedBlock,
   GroundedFinanceEvidence,
+  GroundedFinanceEvidenceOutcome,
+  ContractTransformDiagnostics,
 } from '../types'
 import { verifyTransformationCompleteness } from './completenessVerifier'
 import { applyDeterministicRepairs } from './deterministicRepairs'
@@ -302,12 +304,14 @@ export function runPostReconstructionQualityGate(input: {
   protectedData: ProtectedContractData
   mode: 'full_ai' | 'guarded'
   financeEvidence?: GroundedFinanceEvidence[]
+  financeEvidenceDiagnostics?: GroundedFinanceEvidenceOutcome[]
 }): {
   blocks: TransformedBlock[]
   manifest: TransformationExpectationManifest
   report: DocumentQualityReport
   downloadAllowed: boolean
   paragraphInsertions: ContractParagraphInsertion[]
+  diagnostics: ContractTransformDiagnostics
 } {
   const manifest = buildExpectationManifest({
     sourceBlocks: input.sourceBlocks,
@@ -346,6 +350,12 @@ export function runPostReconstructionQualityGate(input: {
     paragraphInsertions: additionalServices.paragraphInsertions,
     additionalServicesBlocksBeforeExpansion: additionalServices.blocks,
   })
+  const diagnostics: ContractTransformDiagnostics = {
+    groundedFinanceEvidence: input.financeEvidenceDiagnostics ?? [],
+    crossSurfaceFinance: repaired.crossSurfaceFinance,
+    financeRepairs: repaired.financeDiagnostics,
+    totalWords: repaired.totalWords,
+  }
 
   let downloadAllowed: boolean
   if (input.mode === 'guarded') {
@@ -377,6 +387,7 @@ export function runPostReconstructionQualityGate(input: {
     report,
     downloadAllowed,
     paragraphInsertions: additionalServices.paragraphInsertions,
+    diagnostics,
   }
 }
 

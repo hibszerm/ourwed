@@ -6,7 +6,7 @@
  */
 
 import type { SparseChangedBlock } from './parseSparseV2Response'
-import type { GroundedFinanceEvidence } from './types'
+import type { GroundedFinanceEvidence, GroundedFinanceEvidenceOutcome } from './types'
 
 export type BlockIdPartition = {
   valid: SparseChangedBlock[]
@@ -19,20 +19,33 @@ export function validateGroundedFinanceEvidence(input: {
   financeEvidence: GroundedFinanceEvidence[]
   sourceBlockIds: readonly string[]
 }): GroundedFinanceEvidence[] {
+  return inspectGroundedFinanceEvidence(input).filter((item) => item.outcome === 'accepted')
+    .map(({ outcome: _outcome, ...item }) => item)
+}
+
+export function inspectGroundedFinanceEvidence(input: {
+  financeEvidence: GroundedFinanceEvidence[]
+  sourceBlockIds: readonly string[]
+}): GroundedFinanceEvidenceOutcome[] {
   const allowed = new Set(input.sourceBlockIds)
   const conceptsById = new Map<string, Set<string>>()
+  const unknown: GroundedFinanceEvidenceOutcome[] = []
   for (const evidence of input.financeEvidence) {
-    if (!allowed.has(evidence.sourceBlockId)) continue
+    if (!allowed.has(evidence.sourceBlockId)) {
+      unknown.push({ ...evidence, outcome: 'rejected_unknown_source' })
+      continue
+    }
     const concepts = conceptsById.get(evidence.sourceBlockId) ?? new Set<string>()
     concepts.add(evidence.financeConcept)
     conceptsById.set(evidence.sourceBlockId, concepts)
   }
   // Any conflicting claim for a source surface fails closed; identical duplicates coalesce.
-  return [...conceptsById.entries()].flatMap(([sourceBlockId, concepts]) =>
+  const results: GroundedFinanceEvidenceOutcome[] = [...conceptsById.entries()].flatMap<GroundedFinanceEvidenceOutcome>(([sourceBlockId, concepts]) =>
     concepts.size === 1
-      ? [{ sourceBlockId, financeConcept: [...concepts][0]! as GroundedFinanceEvidence['financeConcept'] }]
-      : [],
+      ? [{ sourceBlockId, financeConcept: [...concepts][0]! as GroundedFinanceEvidence['financeConcept'], outcome: 'accepted' as const }]
+      : [...concepts].map((financeConcept) => ({ sourceBlockId, financeConcept: financeConcept as GroundedFinanceEvidence['financeConcept'], outcome: 'rejected_contradiction' as const })),
   )
+  return [...unknown, ...results]
 }
 
 export function partitionChangedBlocksBySourceIds(input: {

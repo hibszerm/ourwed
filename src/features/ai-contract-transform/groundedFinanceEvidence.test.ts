@@ -1,4 +1,4 @@
-import { validateGroundedFinanceEvidence } from './blockIdIntegrity'
+import { inspectGroundedFinanceEvidence, validateGroundedFinanceEvidence } from './blockIdIntegrity'
 import { parseSparseV2ModelPayload } from './sparseResponseSchema'
 import { runPostReconstructionQualityGate } from './quality/buildQualityReport'
 import { runFullAiRewrite } from './transformApi'
@@ -76,6 +76,7 @@ async function runModelStylePipeline(blocks: TransformDocumentBlock[], financeEv
     protectedData,
     mode: 'full_ai',
     financeEvidence: result.financeEvidence,
+    financeEvidenceDiagnostics: result.financeEvidenceDiagnostics,
   })
 }
 
@@ -87,6 +88,11 @@ async function runModelStylePipeline(blocks: TransformDocumentBlock[], financeEv
   assert(gate.blocks.some((b) => b.blockId === 'total-value' && /21 400/.test(b.text)), 'total remains canonical')
   assert(gate.blocks.some((b) => b.blockId === 'remaining-value' && /16 600/.test(b.text)), 'remaining remains canonical')
   assert(gate.blocks.find((b) => b.blockId === 'payment-value')?.originSourceBlockId === 'payment-value', 'provenance reaches repair')
+  assert(gate.diagnostics.groundedFinanceEvidence[0]?.outcome === 'accepted', 'accepted grounding diagnostic retained')
+  assert(gate.diagnostics.crossSurfaceFinance[0]?.ownershipEstablished === true, 'cross-surface decision retained')
+  assert(gate.diagnostics.financeRepairs.some((item) => item.canonicalRole === 'deposit' && item.applied), 'repair diagnostic retained')
+  const diagnosticText = JSON.stringify(gate.diagnostics)
+  assert(!/authorization|api[_-]?key|bearer|secret|token/i.test(diagnosticText), 'diagnostics contain no secret material')
 }
 
 {
@@ -108,6 +114,7 @@ async function runModelStylePipeline(blocks: TransformDocumentBlock[], financeEv
     financeEvidence: [{ sourceBlockId: 'unknown', financeConcept: 'deposit' }],
   })
   assert(unknown.length === 0, 'unknown source fails closed')
+  assert(inspectGroundedFinanceEvidence({ sourceBlockIds: ['source-a'], financeEvidence: [{ sourceBlockId: 'unknown', financeConcept: 'deposit' }] })[0]?.outcome === 'rejected_unknown_source', 'rejected grounding diagnostic retained')
   const contradictory = validateGroundedFinanceEvidence({
     sourceBlockIds: ['source-a'],
     financeEvidence: [

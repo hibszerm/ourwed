@@ -14,6 +14,8 @@ import type {
   ContractTransformationDataset,
   TransformDocumentBlock,
   TransformedBlock,
+  CrossSurfaceFinanceDiagnostic,
+  FinanceSurfaceDiagnostic,
 } from '../types'
 import { fingerprintText } from './normalize'
 import {
@@ -550,7 +552,7 @@ export function repairCanonicalPaymentAmounts(input: {
   dataset: ContractTransformationDataset
   depositRepresented?: boolean
   depositSemanticSourceBlockIds?: string[]
-}): { blocks: TransformedBlock[]; repairs: DeterministicRepair[] } {
+}): { blocks: TransformedBlock[]; repairs: DeterministicRepair[]; crossSurfaceFinance: CrossSurfaceFinanceDiagnostic[]; financeDiagnostics: FinanceSurfaceDiagnostic[] } {
   const repairs: DeterministicRepair[] = []
   const finances = input.dataset.finances
   const deposit = finances.depositFormatted?.trim()
@@ -561,12 +563,13 @@ export function repairCanonicalPaymentAmounts(input: {
   const rankedIds = pickFinanceBlockIds(blocks, input.sourceBlocks)
   const candidateIds = pickMutableFinanceTargets(blocks, rankedIds)
   if (candidateIds.length === 0) {
-    return { blocks, repairs }
+    return { blocks, repairs, crossSurfaceFinance: [], financeDiagnostics: [] }
   }
 
   const sourceRep = detectRepresentedConcepts(input.sourceBlocks)
   const totalEvidence = discoverFilledTotalEvidence(input.sourceBlocks)
   const paymentEvidence = discoverFilledPaymentAmountEvidence(input.sourceBlocks)
+  const crossSurfaceFinance: CrossSurfaceFinanceDiagnostic[] = []
   // Authoring deposit/remaining onto a finance block is allowed ONLY when the
   // source template already represented that concept (empty clause / placeholder)
   // OR legacy CG3 fixtures that use PLACEHOLDER_* (handled above).
@@ -596,6 +599,13 @@ export function repairCanonicalPaymentAmounts(input: {
       return b.kind === 'tableCell' && tc && tableIds.has(tc.tableIndex) &&
         !knownIds.has(b.blockId) && countPlnAmountSurfaces(b.text) === 1 &&
         !isForbiddenBlock(b.text)
+    })
+    crossSurfaceFinance.push({
+      canonicalRole: 'deposit',
+      semanticSourceBlockIds: input.depositSemanticSourceBlockIds ?? [],
+      structuralCandidateSourceBlockIds: candidates.map((candidate) => candidate.blockId),
+      ownershipEstablished: candidates.length === 1,
+      reason: candidates.length === 1 ? undefined : `expected one structural candidate, found ${candidates.length}`,
     })
     if (candidates.length === 1) {
       const b = candidates[0]!
@@ -676,5 +686,19 @@ export function repairCanonicalPaymentAmounts(input: {
     }
   }
 
-  return { blocks, repairs }
+  const financeDiagnostics: FinanceSurfaceDiagnostic[] = paymentEvidence.map((evidence) => {
+    const targetBlock = blocks.find((block) => block.blockId === evidence.blockId || block.originSourceBlockId === evidence.blockId)
+    const canonicalRole = evidence.role
+    const repair = repairs.find((item) => item.blockId === targetBlock?.blockId && item.canonicalField === (
+      canonicalRole === 'total' ? 'contract.totalPrice' : canonicalRole === 'deposit' ? 'contract.depositAmount' : 'contract.remainingAmount'
+    ))
+    return {
+      canonicalRole,
+      originSourceBlockId: evidence.blockId,
+      targetBlockId: targetBlock?.blockId,
+      applied: Boolean(repair),
+      reason: targetBlock ? (repair ? undefined : 'already canonical or no safe replacement') : 'transformed origin not found',
+    }
+  })
+  return { blocks, repairs, crossSurfaceFinance, financeDiagnostics }
 }
