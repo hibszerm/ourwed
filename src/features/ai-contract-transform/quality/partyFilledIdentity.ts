@@ -31,6 +31,37 @@ export type SourcePartyEvidence = {
   owner?: 'CUSTOMER' | 'MIXED'
 }
 
+/** Render canonical names in the grounded grammatical surface when the change is deterministic. */
+export function renderCanonicalIdentityLikeSource(sourceSurface: string, canonicalDisplay: string): string | null {
+  const sourcePeople = sourceSurface.split(/\s+i\s+|\s+oraz\s+/i).map((s) => s.trim()).filter(Boolean)
+  const canonicalPeople = canonicalDisplay.split(/\s+i\s+|\s+oraz\s+/i).map((s) => s.trim()).filter(Boolean)
+  if (sourcePeople.length !== canonicalPeople.length) return null
+  const rendered = sourcePeople.map((source, index) => {
+    const sourceTokens = source.split(/\s+/)
+    const targetTokens = canonicalPeople[index]!.split(/\s+/)
+    if (sourceTokens.length !== targetTokens.length) return null
+    return sourceTokens.map((token, i) => {
+      const target = targetTokens[i]!
+      if (token === target) return target
+      if (token.endsWith('ą') && target.endsWith('a')) return `${target.slice(0, -1)}${i === 0 ? 'ę' : 'ą'}` // feminine accusative
+      if (token.endsWith('ę') && target.endsWith('a')) return `${target.slice(0, -1)}ę`
+      if (token.endsWith('ego') && target.endsWith('y')) return `${target.slice(0, -1)}ego` // masculine genitive/accusative
+      if (token.endsWith('a') && !target.endsWith('a') && /^[A-ZĄĆĘŁŃÓŚŹŻ]/.test(token)) return `${target}a`
+      return null
+    }).every((value): value is string => value !== null)
+      ? sourceTokens.map((token, i) => {
+          const target = targetTokens[i]!
+          if (token === target) return target
+          if (token.endsWith('ą') && target.endsWith('a')) return `${target.slice(0, -1)}${i === 0 ? 'ę' : 'ą'}`
+          if (token.endsWith('ę') && target.endsWith('a')) return `${target.slice(0, -1)}ę`
+          if (token.endsWith('ego') && target.endsWith('y')) return `${target.slice(0, -1)}ego`
+          return `${target}a`
+        }).join(' ')
+      : null
+  })
+  return rendered.every((value): value is string => value !== null) ? rendered.join(' i ') : null
+}
+
 const PROVIDER_BLOCK =
   /\b(NIP|REGON|firm[aą]|Studio|Photography|Productions|zwan\w*\s+dalej\s+[„"]?(Filmowc|Fotograf|Kamerzyst|Wykonawc|Usługodawc))/i
 

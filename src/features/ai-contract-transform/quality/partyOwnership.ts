@@ -17,7 +17,7 @@ const CUSTOMER_ROLE_CLOSE =
   /zwan[a-ząćęłńóśźż]*\s+dalej\s+[„"]?(Zamawiając|Klient|Parą\s+Młod)[a-ząćęłńóśźż]*/i
 
 const CUSTOMER_PARTY_MARKERS =
-  /Klientami\s+są|Klientem\s+jest|Klient:\s|Zamawiający:\s|Zamawiając[a-ząćęłńóśźż]*\s+są|,\s*zam\./i
+  /Klientami\s+są|Klientem\s+jest|Klient:\s|Zamawiający:\s|Zamawiając[a-ząćęłńóśźż]*\s+są|\bZamawiając[a-ząćęłńóśźż]*\b|,\s*zam\./i
 
 const PROVIDER_IDENTITY_MARKERS =
   /\b(NIP|REGON)\b|prowadząc[a-ząćęłńóśźż]*\s+działalność|pod\s+firmą/i

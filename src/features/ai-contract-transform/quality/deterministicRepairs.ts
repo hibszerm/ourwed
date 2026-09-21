@@ -26,7 +26,7 @@ import {
   extractCustomerAddressSurface,
   splitMixedPartyClause,
 } from './partyOwnership'
-import { canonicalPartyIdentityTargets } from './partyFilledIdentity'
+import { canonicalPartyIdentityTargets, discoverFilledPartyEvidence, renderCanonicalIdentityLikeSource } from './partyFilledIdentity'
 import {
   PLN_AMOUNT_SURFACE_RE_ONCE,
   parsePlnAmountInteger,
@@ -117,8 +117,21 @@ export function repairMixedPartyProviderPreservation(input: {
       modelSplit != null && modelSplit.providerHalf === split.providerHalf
 
     if (providerPreserved && modelSplit) {
-      // Provider half intact — ensure canonical address in customer half if needed
+      // Provider half intact — repair only the grounded customer identity span.
       let customerHalf = modelSplit.customerHalf
+      const evidence = discoverFilledPartyEvidence([src]).find((item) => item.blockId === src.blockId)
+      const canonical = input.dataset.clients.displayNames?.trim() ?? ''
+      if (evidence?.customerHalfText && canonical) {
+        const canonicalPeople = canonical.split(/\s+i\s+|\s+oraz\s+/i).map((s) => s.trim()).filter(Boolean)
+        let identitySafe = true
+        for (const [index, surface] of (evidence.identitySurfaces ?? []).entries()) {
+          const target = canonicalPeople.length === evidence.identitySurfaces.length ? canonicalPeople[index] : canonical
+          const rendered = target ? renderCanonicalIdentityLikeSource(surface, target) : null
+          if (!rendered || customerHalf.split(surface).length - 1 !== 1) { identitySafe = false; break }
+          customerHalf = customerHalf.replace(surface, rendered)
+        }
+        if (!identitySafe) customerHalf = modelSplit.customerHalf
+      }
       const staleAddr = extractCustomerAddressSurface(customerHalf)
       if (address && staleAddr && staleAddr !== address) {
         customerHalf = customerHalf.replace(staleAddr, address)
