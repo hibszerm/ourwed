@@ -173,6 +173,37 @@ export function discoverFilledTotalEvidence(
       hasWords,
       representation,
     })
+
+    // Table totals may split the numeric amount and its words across cells.
+    // The numeric cell is the authority; only cells in that same structural
+    // row can contribute the represented words surface. Multiple candidates
+    // are intentionally ignored to avoid guessing ownership.
+    if (b.kind === 'tableCell' && b.tableContext) {
+      const rowWords = blocks.filter((candidate) => {
+        const tc = candidate.tableContext
+        return (
+          candidate.blockId !== b.blockId &&
+          candidate.kind === 'tableCell' &&
+          tc?.tableIndex === b.tableContext?.tableIndex &&
+          tc?.rowIndex === b.tableContext?.rowIndex &&
+          /słownie\s*:/i.test(candidate.text)
+        )
+      })
+      if (rowWords.length === 1) {
+        const wordsBlock = rowWords[0]!
+        const wordsKey = `${wordsBlock.blockId}::${sourceAmount}`
+        if (!seen.has(wordsKey)) {
+          seen.add(wordsKey)
+          out.push({
+            blockId: wordsBlock.blockId,
+            sourceText: wordsBlock.text,
+            sourceAmount,
+            hasWords: true,
+            representation: 'table_cell',
+          })
+        }
+      }
+    }
   }
 
   return out
