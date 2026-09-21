@@ -12,6 +12,10 @@ import {
   runPostReconstructionQualityGate,
 } from './quality/buildQualityReport'
 import { buildExpectationManifest } from './quality/expectationManifest'
+import { classifyFactOwner } from './quality/partyOwnership'
+import { isProviderIdentityBlock } from './quality/partyFilledIdentity'
+import { classifyAdditionalServicesPlacement } from './additionalServicesPlacement'
+import { findSignatureStartIndex } from './packageDeliverablesDetection'
 import { summarizeRequiredReplacementsForPrompt } from './quality/deterministicRepairs'
 import {
   FULL_AI_PROMPT_VERSION,
@@ -82,13 +86,56 @@ export async function runSparseProductTransform(input: {
   const requiredReplacements = summarizeRequiredReplacementsForPrompt(
     manifest.requiredReplacements,
   )
+  const roleByBlock = new Map<string, Set<string>>()
+  for (const replacement of manifest.requiredReplacements) {
+    for (const blockId of replacement.sourceBlockIds) {
+      const roles = roleByBlock.get(blockId) ?? new Set<string>()
+      roles.add(replacement.canonicalField)
+      roleByBlock.set(blockId, roles)
+    }
+  }
+  const signatureStart = findSignatureStartIndex(input.sourceBlocks)
+  const placement = classifyAdditionalServicesPlacement(input.sourceBlocks)
+  const sourceBlocksWithContext = input.sourceBlocks.map((block, index) => {
+    const owner = block.tableContext?.ownershipFamily
+      ? block.tableContext.ownershipFamily === 'customer'
+        ? 'customer'
+        : block.tableContext.ownershipFamily === 'provider'
+          ? 'provider'
+          : 'unknown'
+      : classifyFactOwner(block.text) === 'MIXED'
+        ? 'mixed'
+        : isProviderIdentityBlock(block.text)
+          ? 'provider'
+          : 'unknown'
+    const protectedBlock = owner === 'provider' && isProviderIdentityBlock(block.text)
+    return {
+      ...block,
+      modelContext: {
+        semanticRoles: [...(roleByBlock.get(block.blockId) ?? [])],
+        ownership: owner as 'customer' | 'provider' | 'mixed' | 'unknown',
+        modelEditable: !protectedBlock,
+        signatureRegion:
+          (index < signatureStart ? 'before' : index === signatureStart ? 'signature' : 'after') as
+            'before' | 'signature' | 'after',
+      },
+    }
+  })
 
   const edge = await runFullAiRewrite({
     runId: `product-${Date.now().toString(36)}`,
-    documentBlocks: input.sourceBlocks,
+    documentBlocks: sourceBlocksWithContext,
     transformationDataset: input.dataset,
     protectedDataSummary: summary,
     requiredReplacements,
+    structuralContext: {
+      extras: {
+        deterministicOnly: true,
+        destinationBlockId: placement.targetBlockId,
+        anchorType: placement.anchorType,
+      },
+      signatureStartIndex: signatureStart,
+    },
     invoke: input.invoke,
   })
 

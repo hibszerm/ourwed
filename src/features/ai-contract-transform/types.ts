@@ -129,6 +129,13 @@ export type TransformDocumentBlock = {
   cellIndex?: number
   /** Present for table cells — row-local ownership. */
   tableContext?: import('./tableRowOwnership').TableCellContext
+  /** Compact structural context passed to the rewrite model; never inferred client-side. */
+  modelContext?: {
+    semanticRoles?: string[]
+    ownership?: 'customer' | 'provider' | 'mixed' | 'unknown'
+    modelEditable?: boolean
+    signatureRegion?: 'before' | 'signature' | 'after'
+  }
 }
 
 export type TransformedBlock = {

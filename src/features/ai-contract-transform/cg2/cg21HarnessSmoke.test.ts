@@ -5,7 +5,7 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { cg21AuthStatus } from './deployedEdgeInvoke'
-import { SYSTEM_PROMPT } from '../fullAiRewritePromptShared'
+import { buildUserPayload, SYSTEM_PROMPT } from '../fullAiRewritePromptShared'
 
 function assert(c: boolean, m: string) {
   if (!c) throw new Error(m)
@@ -26,6 +26,21 @@ assert(
 )
 
 assert(SYSTEM_PROMPT.includes('Do NOT insert, list, price or quantity them'))
+assert(SYSTEM_PROMPT.includes('modelEditable=false'), 'protected model scope rule')
+assert(SYSTEM_PROMPT.includes('Extras placement is deterministic-only'), 'extras deterministic ownership rule')
+const payload = JSON.parse(
+  buildUserPayload({
+    documentBlocks: [{
+      blockId: 'para-1', text: 'Data zawarcia', kind: 'paragraph', paragraphIndex: 1,
+      modelContext: { semanticRoles: ['contract.executionDate'], ownership: 'unknown', modelEditable: true, signatureRegion: 'before' },
+    }],
+    transformationDataset: {},
+    protectedDataSummary: { exactCount: 0, patternCount: 0 },
+    structuralContext: { extras: { deterministicOnly: true }, signatureStartIndex: 9 },
+  }),
+)
+assert(payload.documentBlocks[0].modelContext.semanticRoles[0] === 'contract.executionDate', 'date role passed through')
+assert(payload.structuralContext.extras.deterministicOnly === true, 'extras context passed through')
 
 const auth = cg21AuthStatus()
 console.log(

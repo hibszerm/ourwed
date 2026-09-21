@@ -84,6 +84,8 @@ Content rules:
 - Use targetRenderedValues from requiredReplacements when provided; do not invent alternate location grammar.
 - Preserve business meaning and clauses.
 - Do not add or remove blocks.
+- Each document block may include structural metadata. Treat it as read-only evidence: preserve block kind/order, honor semantic roles and ownership when present, and do not assign meaning to unknown metadata.
+- Blocks marked modelEditable=false are protected context and must never be returned in changedBlocks. Extras placement is deterministic-only; do not insert or move extras or edit signature-region blocks for extras.
 - Do not change provider identity, provider contacts, NIP, REGON, bank account.
 - Do not change package inclusions, delivery times, working hours, extra fees, legal/copyright/cancellation clauses.
 - Do not rewrite package/service scope tables (e.g. Materiał / Długość / W cenie) unless the dataset supplies an explicit structured package scope replacement. A package name alone is not enough.
@@ -101,10 +103,11 @@ Content rules:
 - Return JSON matching the schema only.`
 
 export function buildUserPayload(input: {
-  documentBlocks: Array<{ blockId: string; text: string }>
+  documentBlocks: Array<Record<string, unknown>>
   transformationDataset: unknown
   protectedDataSummary: { exactCount: number; patternCount: number }
   requiredReplacements?: unknown
+  structuralContext?: unknown
 }): string {
   return JSON.stringify({
     mode: 'full_ai_trusted_rewrite',
@@ -114,6 +117,7 @@ export function buildUserPayload(input: {
     protectedDataSummary: input.protectedDataSummary,
     transformationDataset: input.transformationDataset,
     requiredReplacements: input.requiredReplacements ?? [],
+    structuralContext: input.structuralContext ?? {},
     documentBlocks: input.documentBlocks,
   })
 }

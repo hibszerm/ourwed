@@ -60,6 +60,13 @@ function slimBlocks(blocks: TransformDocumentBlock[]) {
   return blocks.map((b) => ({
     blockId: b.blockId,
     text: b.text,
+    kind: b.kind,
+    paragraphIndex: b.paragraphIndex,
+    tableIndex: b.tableIndex,
+    rowIndex: b.rowIndex,
+    cellIndex: b.cellIndex,
+    tableContext: b.tableContext,
+    modelContext: b.modelContext,
   }))
 }
 
@@ -154,6 +161,7 @@ export async function invokeTransform(input: {
   transformationDataset: ContractTransformationDataset
   protectedDataSummary: { exactCount: number; patternCount: number }
   requiredReplacements?: unknown
+  structuralContext?: unknown
   invoke?: TransformFunctionsInvoke
 }): Promise<TransformApiResult> {
   const started = performance.now()
@@ -171,6 +179,7 @@ export async function invokeTransform(input: {
         transformationDataset: input.transformationDataset,
         protectedDataSummary: input.protectedDataSummary,
         requiredReplacements: input.requiredReplacements ?? [],
+        structuralContext: input.structuralContext ?? {},
       },
     })
     data = result.data
@@ -373,6 +382,7 @@ export function runFullAiRewrite(input: {
   transformationDataset: ContractTransformationDataset
   protectedDataSummary: { exactCount: number; patternCount: number }
   requiredReplacements?: unknown
+  structuralContext?: unknown
   invoke?: TransformFunctionsInvoke
 }): Promise<TransformApiResult> {
   return invokeTransform({

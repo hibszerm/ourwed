@@ -138,7 +138,7 @@ export function createLocalFullRewriteInvoke(input: {
 
     const body = options.body
     const documentBlocks = Array.isArray(body.documentBlocks)
-      ? (body.documentBlocks as Array<{ blockId: string; text: string }>)
+      ? (body.documentBlocks as Array<Record<string, unknown>>)
       : []
     if (documentBlocks.length === 0) {
       return {
@@ -153,6 +153,13 @@ export function createLocalFullRewriteInvoke(input: {
     const slim = documentBlocks.map((b) => ({
       blockId: String(b.blockId),
       text: String(b.text ?? ''),
+      kind: b.kind,
+      paragraphIndex: b.paragraphIndex,
+      tableIndex: b.tableIndex,
+      rowIndex: b.rowIndex,
+      cellIndex: b.cellIndex,
+      tableContext: b.tableContext,
+      modelContext: b.modelContext,
     }))
     const userPayload = buildUserPayload({
       documentBlocks: slim,
@@ -165,10 +172,13 @@ export function createLocalFullRewriteInvoke(input: {
             })
           : { exactCount: 0, patternCount: 0 },
       requiredReplacements: body.requiredReplacements ?? [],
+      structuralContext: body.structuralContext,
     })
 
     const sourceCharacterCount = slim.reduce((n, b) => n + b.text.length, 0)
-    const validBlockIds = slim.map((b) => b.blockId)
+    const validBlockIds = slim
+      .filter((b) => (b.modelContext as { modelEditable?: boolean } | undefined)?.modelEditable !== false)
+      .map((b) => b.blockId)
     let configuredMaxOutputTokens = computeMaxOutputTokens({
       blockCount: slim.length,
       characterCount: sourceCharacterCount,
