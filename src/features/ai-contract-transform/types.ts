@@ -183,9 +183,17 @@ export type TotalWordsDiagnostic = {
   suffixPreserved?: boolean
 }
 
+export type QualityGateEvidenceTrace = {
+  party: Array<Record<string, unknown>>
+  dates: Array<Record<string, unknown>>
+  provider: Array<Record<string, unknown>>
+  violations: Array<{ code: string; blockId?: string; canonicalField?: string; dimension: string }>
+}
+
 export type ContractTransformDiagnostics = {
   groundedFinanceEvidence: GroundedFinanceEvidenceOutcome[]
   crossSurfaceFinance: CrossSurfaceFinanceDiagnostic[]
   financeRepairs: FinanceSurfaceDiagnostic[]
   totalWords?: TotalWordsDiagnostic
+  qualityGateEvidence?: QualityGateEvidenceTrace
 }

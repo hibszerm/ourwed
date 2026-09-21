@@ -36,11 +36,56 @@ import {
   verifyProviderRoleSparseScope,
 } from './partyFilledIdentity'
 import { verifyFilledLocationIdentity } from './locationFieldEvidence'
+import { discoverExecutionDateEvidence } from './dateFieldEvidence'
+import { fingerprintText, normalizeForMatch } from './normalize'
 import type {
   DocumentQualityReport,
   QualityIssue,
   TransformationExpectationManifest,
+  QualityGateEvidenceTrace,
 } from './types'
+
+function classifyTraceValue(text: string, source: string, canonical: string): string {
+  if (!text.trim()) return 'missing'
+  if (canonical && normalizeForMatch(text).includes(normalizeForMatch(canonical))) return 'canonical'
+  if (source && normalizeForMatch(text).includes(normalizeForMatch(source))) return 'stale'
+  return 'ambiguous'
+}
+
+/** Safe structural RCA trace; deliberately excludes document prose. */
+export function buildQualityGateEvidenceTrace(input: {
+  sourceBlocks: TransformDocumentBlock[]
+  transformedBlocks: TransformedBlock[]
+  dataset: ContractTransformationDataset
+  manifest: TransformationExpectationManifest
+  report: DocumentQualityReport
+  repairs: DocumentQualityReport['repairs']
+}): QualityGateEvidenceTrace {
+  const byId = new Map(input.transformedBlocks.map((b) => [b.blockId, b]))
+  const byOrigin = new Map<string, TransformedBlock[]>()
+  for (const b of input.transformedBlocks) if (b.originSourceBlockId) byOrigin.set(b.originSourceBlockId, [...(byOrigin.get(b.originSourceBlockId) ?? []), b])
+  const repairFor = (id: string) => input.repairs.filter((r) => r.blockId === id)
+  const sourceFor = (id: string) => input.sourceBlocks.find((b) => b.blockId === id)
+  const transformedFor = (id: string) => byId.get(id) ?? byOrigin.get(id)?.[0]
+  const violations = input.report.blockingIssues.map((i) => ({
+    code: i.code,
+    ...(i.blockId ? { blockId: i.blockId } : {}),
+    ...(i.canonicalField ? { canonicalField: i.canonicalField } : {}),
+    dimension: i.canonicalField?.startsWith('customer.') ? 'party' : i.canonicalField?.startsWith('wedding.') || i.canonicalField === 'contract.executionDate' ? 'date' : i.code.includes('provider') ? 'provider' : 'other',
+  }))
+  const party = (input.manifest.sourcePartyEvidence ?? []).map((e) => {
+    const src = sourceFor(e.blockId); const t = transformedFor(e.blockId); const repairs = repairFor(t?.blockId ?? e.blockId)
+    const issues = input.report.blockingIssues.filter((i) => i.blockId === e.blockId && i.canonicalField === 'customer.names')
+    return { sourceBlockId: e.blockId, ...(t?.originSourceBlockId ? { originSourceBlockId: t.originSourceBlockId } : {}), transformedBlockId: t?.blockId, ownership: e.owner === 'MIXED' ? 'mixed' : 'party', identitySurfaceCount: e.identitySurfaces.length, modelChanged: Boolean(src && t && src.text !== t.text), deterministicRepairAttempted: repairs.length > 0, deterministicRepairApplied: repairs.some((r) => r.repairCode.includes('party') || r.repairCode.includes('mixed')), repairSkipReason: repairs.length === 0 ? 'no_recorded_repair' : undefined, finalClassification: classifyTraceValue(t?.text ?? '', e.sourceText, input.dataset.clients.displayNames), groundedSpanExists: Boolean(e.customerHalfText), targetSpanUniquelyLocated: undefined, spanRepairApplied: repairs.some((r) => r.repairCode === 'preserve_mixed_party_provider_half'), qualityViolationCodes: issues.map((i) => i.code), sourceFingerprint: src ? fingerprintText(src.text) : undefined, transformedFingerprint: t ? fingerprintText(t.text) : undefined }
+  })
+  const dateEvidence = [
+    ...input.manifest.requiredReplacements.filter((r) => r.canonicalField === 'wedding.date' || r.canonicalField === 'contract.executionDate').map((r) => ({ field: r.canonicalField, ids: r.sourceBlockIds, sourceValues: r.sourceValues })),
+    ...discoverExecutionDateEvidence(input.sourceBlocks).map((e) => ({ field: e.canonicalField, ids: [e.blockId], sourceValues: e.sourceDate ? [e.sourceDate] : [] })),
+  ]
+  const dates = dateEvidence.flatMap((e) => e.ids.map((id) => { const src = sourceFor(id); const t = transformedFor(id); const repairs = repairFor(t?.blockId ?? id); const canonical = e.field === 'wedding.date' ? input.dataset.dates.weddingDate : input.dataset.dates.contractExecutionDate; const issues = input.report.blockingIssues.filter((i) => i.blockId === id && i.canonicalField === e.field); return { semanticRole: e.field, sourceBlockId: id, ...(t?.originSourceBlockId ? { originSourceBlockId: t.originSourceBlockId } : {}), transformedBlockId: t?.blockId, sourceRepresentationPresent: Boolean(src?.text.trim()), modelChanged: Boolean(src && t && src.text !== t.text), postModelClassification: classifyTraceValue(t?.text ?? '', e.sourceValues[0] ?? '', canonical), deterministicRepairAttempted: repairs.length > 0, deterministicRepairApplied: repairs.some((r) => r.canonicalField === e.field), repairSkipReason: repairs.length === 0 ? 'no_recorded_repair' : undefined, postRepairClassification: classifyTraceValue(t?.text ?? '', e.sourceValues[0] ?? '', canonical), qualityViolationCodes: issues.map((i) => i.code), sourceFingerprint: src ? fingerprintText(src.text) : undefined, transformedFingerprint: t ? fingerprintText(t.text) : undefined } }))
+  const provider = input.report.blockingIssues.filter((i) => i.code === 'unnecessary_provider_role_rewrite').map((i) => { const src = i.blockId ? sourceFor(i.blockId) : undefined; const t = i.blockId ? transformedFor(i.blockId) : undefined; const protectedByEvidence = Boolean(src && input.manifest.protectedFields.some((p) => p.sourceValues.some((v) => v.length > 0 && src.text.includes(v)))); return { sourceBlockId: i.blockId, transformedBlockId: t?.blockId, sourceOwnership: 'provider_or_legal', protected: protectedByEvidence, modelChanged: Boolean(src && t && src.text !== t.text), deterministicRestorationAttempted: Boolean(i.blockId && repairFor(t?.blockId ?? i.blockId).length), deterministicRestorationApplied: false, qualityViolationCode: i.code, structuralReason: 'provider-role/legal surface changed without customer-party evidence', sourceFingerprint: src ? fingerprintText(src.text) : undefined, transformedFingerprint: t ? fingerprintText(t.text) : undefined } })
+  return { party, dates, provider, violations }
+}
 
 /** Financial codes that block Mode A download (legal obligation / money integrity). */
 const MODE_A_FINANCIAL_BLOCK_CODES = new Set([
@@ -350,11 +395,20 @@ export function runPostReconstructionQualityGate(input: {
     paragraphInsertions: additionalServices.paragraphInsertions,
     additionalServicesBlocksBeforeExpansion: additionalServices.blocks,
   })
+  const qualityGateEvidence = buildQualityGateEvidenceTrace({
+    sourceBlocks: input.sourceBlocks,
+    transformedBlocks: expandedBlocks,
+    dataset: input.dataset,
+    manifest,
+    report,
+    repairs: repaired.repairs,
+  })
   const diagnostics: ContractTransformDiagnostics = {
     groundedFinanceEvidence: input.financeEvidenceDiagnostics ?? [],
     crossSurfaceFinance: repaired.crossSurfaceFinance,
     financeRepairs: repaired.financeDiagnostics,
     totalWords: repaired.totalWords,
+    qualityGateEvidence,
   }
 
   let downloadAllowed: boolean
