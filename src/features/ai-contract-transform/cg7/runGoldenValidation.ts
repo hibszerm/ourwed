@@ -74,6 +74,38 @@ function wordsNearAmount(
   return false
 }
 
+/** Validate words on the bounded transformed block(s) that represented the source surface. */
+export function wordsNearAmountOnStructuredSurface(input: {
+  sourceBlocks: Array<{ blockId: string; text: string; kind?: string; tableContext?: { tableIndex?: number; rowIndex?: number; neighboringCellTexts?: string[] } }>
+  transformedBlocks: Array<{ blockId: string; text: string }>
+  amount: number
+  expectedWords: string
+}): boolean | null {
+  const sourceCandidates = input.sourceBlocks.filter((block) => {
+    if (/słownie\s*:/i.test(block.text)) return true
+    const neighbors = block.tableContext?.neighboringCellTexts ?? []
+    return neighbors.some((text) => /słownie\s*:/i.test(text))
+  })
+  const bounded = sourceCandidates
+    .flatMap((source) => {
+      const exact = input.transformedBlocks.find((block) => block.blockId === source.blockId)?.text
+      if (exact && /słownie\s*:/i.test(exact)) return [exact]
+      // Sparse/table reconstruction may renumber a replaced cell; retain the
+      // source table identity and select only its own words-bearing surface.
+      return input.transformedBlocks
+        .filter((block) => /słownie\s*:/i.test(block.text))
+        .filter((block: any) => block.tableContext?.tableIndex === source.tableContext?.tableIndex)
+        .map((block) => block.text)
+    })
+    .filter((text): text is string => Boolean(text))
+  if (bounded.length === 0) return null
+  const expected = normalizeForMatch(input.expectedWords)
+  return bounded.some((text) => {
+    const normalized = normalizeForMatch(text)
+    return normalized.includes(expected)
+  })
+}
+
 function hasSlownieNear(texts: string[], amount: number): boolean {
   const spaced = normalizeMoneyBlob(amount.toLocaleString('pl-PL'))
   const grouped = String(amount).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
@@ -386,11 +418,13 @@ function evaluateCase(input: {
     !rep.remaining || amountPresent(input.finalTexts, remaining)
   let wordsOk = true
   if (rep.moneyInWords && rep.total && hasSlownieNear(input.finalTexts, total)) {
-    wordsOk = wordsNearAmount(
-      input.finalTexts,
-      total,
-      polishContractMoneyWords(total),
-    )
+    const structuredWords = wordsNearAmountOnStructuredSurface({
+      sourceBlocks: input.sourceBlocks,
+      transformedBlocks: input.transform.ok ? input.transform.transformedBlocks : [],
+      amount: total,
+      expectedWords: polishContractMoneyWords(total),
+    })
+    wordsOk = structuredWords ?? wordsNearAmount(input.finalTexts, total, polishContractMoneyWords(total))
   } else if (
     rep.moneyInWords &&
     rep.total &&
@@ -398,11 +432,13 @@ function evaluateCase(input: {
     /słownie:/i.test(blob)
   ) {
     // Source had words — require correct words near new total if any słownie remains
-    wordsOk = wordsNearAmount(
-      input.finalTexts,
-      total,
-      polishContractMoneyWords(total),
-    )
+    const structuredWords = wordsNearAmountOnStructuredSurface({
+      sourceBlocks: input.sourceBlocks,
+      transformedBlocks: input.transform.ok ? input.transform.transformedBlocks : [],
+      amount: total,
+      expectedWords: polishContractMoneyWords(total),
+    })
+    wordsOk = structuredWords ?? wordsNearAmount(input.finalTexts, total, polishContractMoneyWords(total))
   }
   // Old grounded totals must not coexist
   const oldTotals: Record<GoldenCaseId, number[]> = {
