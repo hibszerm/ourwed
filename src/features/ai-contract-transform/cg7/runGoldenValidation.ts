@@ -213,6 +213,7 @@ export type GoldenCaseResult = {
   visual: 'EXCELLENT' | 'ACCEPTABLE' | 'MATERIAL_FAIL' | 'UNRENDERED'
   overall: 'PASS' | 'FAIL'
   modelCalls: number
+  protocolDiagnostics?: Cg2InvokeUsage['protocolDiagnostics']
   protocolRetry: boolean
   blocksChanged: number
   blocksTotal: number
@@ -732,6 +733,7 @@ export async function runGoldenValidation(input: {
         visual: 'UNRENDERED',
         overall: 'FAIL',
         modelCalls,
+        protocolDiagnostics: usage.protocolDiagnostics,
         protocolRetry,
         blocksChanged: 0,
         blocksTotal: sourceBlocks.length,

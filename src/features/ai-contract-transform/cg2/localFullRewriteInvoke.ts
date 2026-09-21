@@ -39,6 +39,16 @@ export type Cg2InvokeUsage = {
   latenciesMs: number[]
   model: string
   promptVersion: string
+  protocolDiagnostics?: Array<{
+    responseAttempt: number
+    needsProtocolRetry: boolean
+    violationKinds: string[]
+    affectedBlockIds: Array<{ blockId: string; sourceExists: boolean; replacementEmpty: boolean; replacementLength: number; protected: boolean }>
+    changedBlocksCount: number
+    financeEvidenceCount: number
+    retryRequested: boolean
+    financeEvidence: Array<{ sourceBlockId: string; financeConcept: string }>
+  }>
 }
 
 export function createUsageTracker(): Cg2InvokeUsage {
@@ -50,6 +60,7 @@ export function createUsageTracker(): Cg2InvokeUsage {
     latenciesMs: [],
     model: resolveModel(),
     promptVersion: FULL_AI_PROMPT_VERSION,
+    protocolDiagnostics: [],
   }
 }
 
@@ -309,6 +320,19 @@ export function createLocalFullRewriteInvoke(input: {
       let integrity = collectProtocolIntegrityViolations({
         changedBlocks: parse.changedBlocks,
         sourceBlocks: slim,
+      })
+      usage.protocolDiagnostics!.push({
+        responseAttempt: 1,
+        needsProtocolRetry: integrity.needsProtocolRetry,
+        violationKinds: integrity.violations.map((v) => v.kind),
+        affectedBlockIds: integrity.violations.map((v) => {
+          const row = parse.changedBlocks.find((b) => b.blockId === v.blockId)
+          return { blockId: v.blockId, sourceExists: slim.some((b) => b.blockId === v.blockId), replacementEmpty: row?.text.trim().length === 0, replacementLength: row?.text.length ?? 0, protected: Boolean(slim.find((b) => b.blockId === v.blockId)?.modelContext && (slim.find((b) => b.blockId === v.blockId)!.modelContext as { modelEditable?: boolean }).modelEditable === false) }
+        }),
+        changedBlocksCount: parse.changedBlocks.length,
+        financeEvidenceCount: parse.financeEvidence.length,
+        retryRequested: integrity.needsProtocolRetry,
+        financeEvidence: parse.financeEvidence.map((e) => ({ sourceBlockId: e.sourceBlockId, financeConcept: e.financeConcept })),
       })
       // CG4 + CG6.1: at most ONE shared protocol-integrity retry
       if (integrity.needsProtocolRetry) {

@@ -21,7 +21,7 @@ const invalidId = { changedBlocks: [{ blockId: 'not-source', text: 'x' }], finan
 
 {
   const r = await run(1, [valid]); assert(r.calls === 1 && r.usage.calls === 1, 'budget 1 valid uses one call')
-  const blocked = await run(1, [invalidId, valid]); assert(blocked.calls === 1 && blocked.usage.calls === 1, 'budget 1 blocks protocol retry')
+  const blocked = await run(1, [invalidId, valid]); assert(blocked.calls === 1 && blocked.usage.calls === 1, 'budget 1 blocks protocol retry'); assert(blocked.usage.protocolDiagnostics?.[0]?.violationKinds.includes('INVALID_BLOCK_ID') === true, 'first protocol violation retained'); assert(blocked.usage.protocolDiagnostics?.[0]?.financeEvidence.length === 0, 'safe finance diagnostics retained')
   const recovered = await run(2, [invalidId, valid]); assert(recovered.calls === 2 && recovered.usage.calls === 2, 'budget 2 permits protocol recovery')
   const unchanged = await run(undefined, [invalidId, valid]); assert(unchanged.calls === 2 && unchanged.usage.calls === 2, 'default retry behavior unchanged')
   console.log('PASS provider call budget regressions')
