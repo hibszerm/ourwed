@@ -336,9 +336,10 @@ export function repairMoneyWordsInText(
 function repairRepresentedTotalWordsBlock(
   text: string,
   expected: string,
+  sourceText: string,
 ): string {
   if (!/słownie\s*:/i.test(text)) return text
-  const suffix = /00\/100/.test(text) ? ' 00/100' : ''
+  const suffix = /00\/100/.test(sourceText) ? ' 00/100' : ''
   return text.replace(
     /(słownie\s*:\s*)([^.;\n]*?złotych)(\s*00\/100)?/gi,
     (_full, prefix: string) => `${prefix}${expected}${suffix}`,
@@ -414,7 +415,12 @@ export function applyDeterministicRepairs(input: {
         const index = blocks.findIndex((b) => b.blockId === blockId)
         if (index < 0) continue
         const current = blocks[index]!
-        const next = repairRepresentedTotalWordsBlock(current.text, expected)
+        const source = input.sourceBlocks.find((b) => b.blockId === blockId)
+        const next = repairRepresentedTotalWordsBlock(
+          current.text,
+          expected,
+          source?.text ?? current.text,
+        )
         if (next !== current.text) {
           repairs.push({
             repairCode: 'insert_deterministic_total_words_from_manifest',
