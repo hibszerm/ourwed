@@ -36,11 +36,12 @@ const payload = JSON.parse(
     }],
     transformationDataset: {},
     protectedDataSummary: { exactCount: 0, patternCount: 0 },
-    structuralContext: { extras: { deterministicOnly: true }, signatureStartIndex: 9 },
+    structuralContext: { extras: { deterministicOnly: true }, signatureStartIndex: 9, editableBlockIds: ['para-1'] },
   }),
 )
 assert(payload.documentBlocks[0].modelContext.semanticRoles[0] === 'contract.executionDate', 'date role passed through')
 assert(payload.structuralContext.extras.deterministicOnly === true, 'extras context passed through')
+assert(payload.structuralContext.editableBlockIds.length === 1, 'editable scope passed through')
 
 const auth = cg21AuthStatus()
 console.log(

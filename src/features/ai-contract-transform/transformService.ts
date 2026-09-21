@@ -16,6 +16,8 @@ import { classifyFactOwner } from './quality/partyOwnership'
 import { isProviderIdentityBlock } from './quality/partyFilledIdentity'
 import { classifyAdditionalServicesPlacement } from './additionalServicesPlacement'
 import { findSignatureStartIndex } from './packageDeliverablesDetection'
+import { assertsContractExecutionDate } from './quality/dateFieldEvidence'
+import { classifyRowLabel } from './tableRowOwnership'
 import { summarizeRequiredReplacementsForPrompt } from './quality/deterministicRepairs'
 import {
   FULL_AI_PROMPT_VERSION,
@@ -94,8 +96,41 @@ export async function runSparseProductTransform(input: {
       roleByBlock.set(blockId, roles)
     }
   }
+  for (const field of manifest.requiredFields) {
+    if (field.canonicalField !== 'wedding.date' && field.canonicalField !== 'contract.executionDate') continue
+    for (const context of field.expectedContexts ?? []) {
+      for (const blockId of context.blockIds) {
+        const roles = roleByBlock.get(blockId) ?? new Set<string>()
+        roles.add(field.canonicalField)
+        roleByBlock.set(blockId, roles)
+      }
+    }
+  }
+  for (const evidence of manifest.sourceSpecificValues) {
+    if (evidence.canonicalField !== 'wedding.date' && evidence.canonicalField !== 'contract.executionDate') continue
+    for (const blockId of evidence.sourceBlockIds) {
+      const roles = roleByBlock.get(blockId) ?? new Set<string>()
+      roles.add(evidence.canonicalField)
+      roleByBlock.set(blockId, roles)
+    }
+  }
+  for (const block of input.sourceBlocks) {
+    const header = block.tableContext?.columnHeaderText?.trim() ?? ''
+    if (!header) continue
+    const role = assertsContractExecutionDate(header)
+      ? 'contract.executionDate'
+      : classifyRowLabel(header) === 'wedding_date'
+        ? 'wedding.date'
+        : null
+    if (!role) continue
+    const roles = roleByBlock.get(block.blockId) ?? new Set<string>()
+    roles.add(role)
+    roleByBlock.set(block.blockId, roles)
+  }
   const signatureStart = findSignatureStartIndex(input.sourceBlocks)
   const placement = classifyAdditionalServicesPlacement(input.sourceBlocks)
+  const extrasTarget = placement.targetBlockId
+  const protectedSourceValues = manifest.protectedFields.flatMap((field) => field.sourceValues)
   const sourceBlocksWithContext = input.sourceBlocks.map((block, index) => {
     const owner = block.tableContext?.ownershipFamily
       ? block.tableContext.ownershipFamily === 'customer'
@@ -108,14 +143,20 @@ export async function runSparseProductTransform(input: {
         : isProviderIdentityBlock(block.text)
           ? 'provider'
           : 'unknown'
-    const protectedBlock = owner === 'provider' && isProviderIdentityBlock(block.text)
+    const protectedByEvidence = protectedSourceValues.some((value) =>
+      value.trim().length > 0 && block.text.includes(value),
+    )
+    const protectedBlock =
+      (owner === 'provider' && isProviderIdentityBlock(block.text)) ||
+      protectedByEvidence ||
+      block.blockId === extrasTarget
     return {
       ...block,
       modelContext: {
         semanticRoles: [...(roleByBlock.get(block.blockId) ?? [])],
         ownership: owner as 'customer' | 'provider' | 'mixed' | 'unknown',
         modelEditable: !protectedBlock,
-        signatureRegion:
+      signatureRegion:
           (index < signatureStart ? 'before' : index === signatureStart ? 'signature' : 'after') as
             'before' | 'signature' | 'after',
       },
@@ -135,6 +176,9 @@ export async function runSparseProductTransform(input: {
         anchorType: placement.anchorType,
       },
       signatureStartIndex: signatureStart,
+      editableBlockIds: sourceBlocksWithContext
+        .filter((block) => block.modelContext?.modelEditable !== false)
+        .map((block) => block.blockId),
     },
     invoke: input.invoke,
   })
