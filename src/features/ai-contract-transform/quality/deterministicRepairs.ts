@@ -333,6 +333,18 @@ export function repairMoneyWordsInText(
   return out
 }
 
+function repairRepresentedTotalWordsBlock(
+  text: string,
+  expected: string,
+): string {
+  if (!/słownie\s*:/i.test(text)) return text
+  const suffix = /00\/100/.test(text) ? ' 00/100' : ''
+  return text.replace(
+    /(słownie\s*:\s*)([^.;\n]*?złotych)(\s*00\/100)?/gi,
+    (_full, prefix: string) => `${prefix}${expected}${suffix}`,
+  )
+}
+
 /**
  * Apply only unambiguous, one-to-one repairs.
  * Does not rewrite legal sentences, package scope, or payment obligations.
@@ -384,6 +396,38 @@ export function applyDeterministicRepairs(input: {
     }
     return b
   })
+
+  // A table may place the numeric total and its words in separate cells, so
+  // the amount/words pair cannot be repaired from one block alone. The
+  // manifest is the evidence gate: only confidently represented total-words
+  // contexts are eligible here.
+  const totalWordsReplacement = input.manifest.requiredReplacements.find(
+    (r) => r.canonicalField === 'contract.totalPriceWords',
+  )
+  if (totalWordsReplacement) {
+    const expected = wordsForAmount(
+      parsePlnAmount(input.dataset.finances.contractValueFormatted) ?? 0,
+      input.dataset.finances,
+    )
+    if (expected) {
+      for (const blockId of totalWordsReplacement.requiredContextBlockIds) {
+        const index = blocks.findIndex((b) => b.blockId === blockId)
+        if (index < 0) continue
+        const current = blocks[index]!
+        const next = repairRepresentedTotalWordsBlock(current.text, expected)
+        if (next !== current.text) {
+          repairs.push({
+            repairCode: 'insert_deterministic_total_words_from_manifest',
+            blockId,
+            canonicalField: 'contract.totalPriceWords',
+            beforeFingerprint: fingerprintText(current.text),
+            afterFingerprint: fingerprintText(next),
+          })
+          blocks[index] = { ...current, text: next }
+        }
+      }
+    }
+  }
 
   // 2. Normalize money words — each amount owns its own words
   blocks = blocks.map((b) => {

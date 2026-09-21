@@ -300,10 +300,18 @@ export function verifyAdditionalServicesConsistency(input: {
   }
 
   // Signature safety: any service block must be before signature start
-  const signatureStart = findSignatureStartIndex(input.sourceBlocks)
+  // Compare in the transformed coordinate system. Inserted extra paragraphs
+  // shift signature indices, so the numeric source index is not valid after
+  // expansion. Preserve identity by locating the source signature anchor in
+  // the transformed blocks.
+  const sourceSignatureStart = findSignatureStartIndex(input.sourceBlocks)
+  const sourceSignatureId = input.sourceBlocks[sourceSignatureStart]?.blockId
+  const signatureStart = sourceSignatureId
+    ? input.transformedBlocks.findIndex((b) => b.blockId === sourceSignatureId)
+    : -1
   for (const name of expected) {
     const serviceIdx = firstBlockContaining(input.transformedBlocks, name)
-    if (serviceIdx >= 0 && serviceIdx >= signatureStart) {
+    if (serviceIdx >= 0 && signatureStart >= 0 && serviceIdx >= signatureStart) {
       issues.push({
         code: 'ADDITIONAL_SERVICES_AFTER_SIGNATURE_BLOCK',
         severity: 'blocking',
