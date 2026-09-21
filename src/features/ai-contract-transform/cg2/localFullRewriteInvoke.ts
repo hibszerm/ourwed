@@ -133,8 +133,9 @@ const PARSE_RETRY_HINT =
 export function createLocalFullRewriteInvoke(input: {
   apiKey: string
   usage: Cg2InvokeUsage
+  maxPaidCalls?: number
 }): TransformFunctionsInvoke {
-  const { apiKey, usage } = input
+  const { apiKey, usage, maxPaidCalls } = input
   const model = resolveModel()
   usage.model = model
 
@@ -189,6 +190,15 @@ export function createLocalFullRewriteInvoke(input: {
     const validBlockIds = slim
       .filter((b) => (b.modelContext as { modelEditable?: boolean } | undefined)?.modelEditable !== false)
       .map((b) => b.blockId)
+    let budgetExhausted = false
+    const invokeProvider = async (args: Parameters<typeof callOpenAi>[0]) => {
+      if (maxPaidCalls !== undefined && usage.calls >= maxPaidCalls) {
+        budgetExhausted = true
+        return { ok: false as const, budgetExhausted: true as const, httpStatus: 0, body: null }
+      }
+      usage.calls += 1
+      return { ...(await callOpenAi(args)), budgetExhausted: false as const }
+    }
     let configuredMaxOutputTokens = computeMaxOutputTokens({
       blockCount: slim.length,
       characterCount: sourceCharacterCount,
@@ -196,8 +206,7 @@ export function createLocalFullRewriteInvoke(input: {
     })
 
     const t0 = Date.now()
-    usage.calls += 1
-    const first = await callOpenAi({
+    const first = await invokeProvider({
       apiKey,
       model,
       maxOutputTokens: configuredMaxOutputTokens,
@@ -210,8 +219,8 @@ export function createLocalFullRewriteInvoke(input: {
         data: {
           ok: false,
           error: {
-            code: 'provider_api_error',
-            message: safeProviderDiagnostic(first.httpStatus, first.body),
+            code: first.budgetExhausted ? 'paid_call_budget_exhausted' : 'provider_api_error',
+            message: first.budgetExhausted ? 'Paid provider-call budget exhausted' : safeProviderDiagnostic(first.httpStatus, first.body),
             retryable: first.httpStatus >= 500,
           },
         },
@@ -247,13 +256,12 @@ export function createLocalFullRewriteInvoke(input: {
       })
     ) {
       usage.retries += 1
-      usage.calls += 1
       configuredMaxOutputTokens = computeMaxOutputTokens({
         blockCount: slim.length,
         characterCount: sourceCharacterCount,
         attempt: 2,
       })
-      const second = await callOpenAi({
+      const second = await invokeProvider({
         apiKey,
         model,
         maxOutputTokens: configuredMaxOutputTokens,
@@ -274,8 +282,7 @@ export function createLocalFullRewriteInvoke(input: {
 
     if (!parse.ok && parse.code !== 'incomplete_response') {
       usage.retries += 1
-      usage.calls += 1
-      const second = await callOpenAi({
+      const second = await invokeProvider({
         apiKey,
         model,
         maxOutputTokens: configuredMaxOutputTokens,
@@ -306,12 +313,11 @@ export function createLocalFullRewriteInvoke(input: {
       // CG4 + CG6.1: at most ONE shared protocol-integrity retry
       if (integrity.needsProtocolRetry) {
         usage.retries += 1
-        usage.calls += 1
         protocolRetryUsed = true
         protocolRetryKinds = [
           ...new Set(integrity.violations.map((v) => v.kind)),
         ]
-        const second = await callOpenAi({
+        const second = await invokeProvider({
           apiKey,
           model,
           maxOutputTokens: configuredMaxOutputTokens,
@@ -338,10 +344,25 @@ export function createLocalFullRewriteInvoke(input: {
               sourceBlocks: slim,
             })
           }
-        }
       }
+    }
 
-      // Never apply invented IDs — keep valid only (may be empty)
+    if (budgetExhausted) {
+      usage.latenciesMs.push(Date.now() - t0)
+      return {
+        data: {
+          ok: false,
+          error: {
+            code: 'paid_call_budget_exhausted',
+            message: 'Paid provider-call budget exhausted before retry',
+            retryable: false,
+          },
+        },
+        error: null,
+      }
+    }
+
+    // Never apply invented IDs — keep valid only (may be empty)
       changedBlocks = integrity.partition.valid
 
       // CG6.1: never auto-restore-and-pass empty clears — fail closed if still present

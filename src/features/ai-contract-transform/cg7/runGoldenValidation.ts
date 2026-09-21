@@ -623,6 +623,7 @@ export async function runGoldenValidation(input: {
   caseIds?: readonly GoldenCaseId[]
   rootDir?: string
   usage?: Cg2InvokeUsage
+  maxPaidCalls?: number
 }): Promise<{
   results: GoldenCaseResult[]
   usage: Cg2InvokeUsage
@@ -644,6 +645,7 @@ export async function runGoldenValidation(input: {
   const invoke: TransformFunctionsInvoke = createLocalFullRewriteInvoke({
     apiKey: input.apiKey,
     usage,
+    maxPaidCalls: input.maxPaidCalls,
   })
 
   const all = buildGoldenScenarios()
@@ -863,6 +865,7 @@ async function main() {
   const { results, stoppedOn, allPass, usage } = await runGoldenValidation({
     apiKey,
     caseIds: filter,
+    maxPaidCalls: 1,
   })
 
   console.log('\n=== GOLDEN MATRIX ===')
