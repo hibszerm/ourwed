@@ -19,6 +19,7 @@ export type DestructiveEmptyReplacement = {
 
 export type ProtocolIntegrityViolation =
   | { kind: 'INVALID_BLOCK_ID'; blockId: string }
+  | { kind: 'DUPLICATE_BLOCK_ID'; blockId: string }
   | {
       kind: 'DESTRUCTIVE_EMPTY_REPLACEMENT'
       blockId: string
@@ -79,9 +80,13 @@ export function collectProtocolIntegrityViolations(input: {
     sourceBlocks: input.sourceBlocks,
   })
   const violations: ProtocolIntegrityViolation[] = [
-    ...partition.invalid.map((row) => ({
+    ...partition.invalid.filter((row) => !partition.duplicates.includes(row)).map((row) => ({
       kind: 'INVALID_BLOCK_ID' as const,
       blockId: typeof row?.blockId === 'string' ? row.blockId : '(invalid)',
+    })),
+    ...partition.duplicates.map((row) => ({
+      kind: 'DUPLICATE_BLOCK_ID' as const,
+      blockId: row.blockId,
     })),
     ...emptyReplacements.map((e) => ({
       kind: 'DESTRUCTIVE_EMPTY_REPLACEMENT' as const,

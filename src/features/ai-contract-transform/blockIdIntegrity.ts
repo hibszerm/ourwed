@@ -7,11 +7,35 @@
 
 import type { SparseChangedBlock } from './parseSparseV2Response'
 import type { GroundedFinanceEvidence, GroundedFinanceEvidenceOutcome } from './types'
+import { createHash } from 'node:crypto'
 
 export type BlockIdPartition = {
   valid: SparseChangedBlock[]
   invalid: SparseChangedBlock[]
   validIdSet: Set<string>
+  duplicates: SparseChangedBlock[]
+}
+
+export type DuplicateChangedBlockOccurrence = {
+  blockId: string
+  occurrenceIndex: number
+  replacementLength: number
+  fingerprint: string
+  sourceExists: boolean
+  protected?: boolean
+  replacementEmpty: boolean
+}
+
+export type DuplicateChangedBlockDiagnostic = {
+  blockId: string
+  occurrenceCount: number
+  duplicateClassification: 'IDENTICAL' | 'CONFLICTING'
+  allFingerprintsEqual: boolean
+  occurrences: DuplicateChangedBlockOccurrence[]
+}
+
+export function fingerprintChangedBlockText(text: string): string {
+  return createHash('sha256').update(text, 'utf8').digest('hex')
 }
 
 /** Validate model semantic metadata against immutable source identity. */
@@ -56,6 +80,7 @@ export function partitionChangedBlocksBySourceIds(input: {
   const valid: SparseChangedBlock[] = []
   const invalid: SparseChangedBlock[] = []
   const seen = new Set<string>()
+  const duplicates: SparseChangedBlock[] = []
 
   for (const row of input.changedBlocks) {
     if (!row || typeof row.blockId !== 'string') {
@@ -65,6 +90,7 @@ export function partitionChangedBlocksBySourceIds(input: {
     // Duplicate IDs in the payload: keep first valid occurrence only
     if (seen.has(row.blockId)) {
       invalid.push(row)
+      duplicates.push(row)
       continue
     }
     seen.add(row.blockId)
@@ -72,7 +98,44 @@ export function partitionChangedBlocksBySourceIds(input: {
     else invalid.push(row)
   }
 
-  return { valid, invalid, validIdSet }
+  return { valid, invalid, validIdSet, duplicates }
+}
+
+export function collectDuplicateChangedBlockDiagnostics(input: {
+  changedBlocks: SparseChangedBlock[]
+  sourceBlockIds: readonly string[]
+  protectedBlockIds?: ReadonlySet<string>
+}): DuplicateChangedBlockDiagnostic[] {
+  const sourceIds = new Set(input.sourceBlockIds)
+  const rows = new Map<string, SparseChangedBlock[]>()
+  for (const row of input.changedBlocks) {
+    if (!row || typeof row.blockId !== 'string') continue
+    const list = rows.get(row.blockId) ?? []
+    list.push(row)
+    rows.set(row.blockId, list)
+  }
+  return [...rows.entries()]
+    .filter(([, list]) => list.length > 1)
+    .map(([blockId, list]) => {
+      const occurrences = list.map((row, occurrenceIndex) => ({
+        blockId,
+        occurrenceIndex,
+        replacementLength: row.text.length,
+        fingerprint: fingerprintChangedBlockText(row.text),
+        sourceExists: sourceIds.has(blockId),
+        ...(input.protectedBlockIds ? { protected: input.protectedBlockIds.has(blockId) } : {}),
+        replacementEmpty: row.text.trim().length === 0,
+      }))
+      const fingerprints = occurrences.map((item) => item.fingerprint)
+      const allFingerprintsEqual = fingerprints.every((value) => value === fingerprints[0])
+      return {
+        blockId,
+        occurrenceCount: occurrences.length,
+        duplicateClassification: allFingerprintsEqual ? 'IDENTICAL' : 'CONFLICTING',
+        allFingerprintsEqual,
+        occurrences,
+      }
+    })
 }
 
 export function buildProtocolBlockIdRetryHint(input: {

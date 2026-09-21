@@ -18,6 +18,7 @@ import {
 } from '../fullAiRewritePromptShared'
 import {
   buildFullAiJsonSchemaForBlockIds,
+  collectDuplicateChangedBlockDiagnostics,
 } from '../blockIdIntegrity'
 import {
   buildProtocolIntegrityRetryHint,
@@ -48,6 +49,13 @@ export type Cg2InvokeUsage = {
     financeEvidenceCount: number
     retryRequested: boolean
     financeEvidence: Array<{ sourceBlockId: string; financeConcept: string }>
+    duplicateChangedBlocks?: Array<{
+      blockId: string
+      occurrenceCount: number
+      duplicateClassification: 'IDENTICAL' | 'CONFLICTING'
+      allFingerprintsEqual: boolean
+      occurrences: Array<{ blockId: string; occurrenceIndex: number; replacementLength: number; fingerprint: string; sourceExists: boolean; protected?: boolean; replacementEmpty: boolean }>
+    }>
   }>
 }
 
@@ -333,6 +341,11 @@ export function createLocalFullRewriteInvoke(input: {
         financeEvidenceCount: parse.financeEvidence.length,
         retryRequested: integrity.needsProtocolRetry,
         financeEvidence: parse.financeEvidence.map((e) => ({ sourceBlockId: e.sourceBlockId, financeConcept: e.financeConcept })),
+        duplicateChangedBlocks: collectDuplicateChangedBlockDiagnostics({
+          changedBlocks: parse.changedBlocks,
+          sourceBlockIds: slim.map((b) => b.blockId),
+          protectedBlockIds: new Set(slim.filter((b) => b.modelContext?.modelEditable === false).map((b) => b.blockId)),
+        }),
       })
       // CG4 + CG6.1: at most ONE shared protocol-integrity retry
       if (integrity.needsProtocolRetry) {
