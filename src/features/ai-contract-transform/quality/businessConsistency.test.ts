@@ -46,6 +46,7 @@ function main() {
   })
   assert(noWarn.length === 0, 'explicit ref suppresses warning')
 
+  // Case A: repairable input finishes clean while business review warnings remain.
   const modeA = runPostReconstructionQualityGate({
     sourceBlocks: source,
     transformedBlocks: completenessPartialUnsafe(source),
@@ -61,11 +62,88 @@ function main() {
     mode: 'guarded',
   })
   assert(
-    modeA.report.blockingIssues.length > 0,
-    'Mode A still lists blocking issues',
+    modeA.report.blockingIssues.length === 0 && modeA.downloadAllowed,
+    'Mode A allows safely repaired review-only document',
   )
-  assert(!modeA.downloadAllowed, 'Mode A financial block')
-  assert(!modeB.downloadAllowed, 'Mode B blocks all blocking')
+  assert(
+    modeB.report.blockingIssues.length === 0 && modeB.downloadAllowed,
+    'Mode B allows safely repaired review-only document',
+  )
+  for (const gate of [modeA, modeB]) {
+    assert(
+      gate.report.reviewIssues.some(
+        (i) => i.code === 'price_changed_without_explicit_service_scope',
+      ) &&
+        gate.report.reviewIssues.some(
+          (i) => i.code === 'reference_year_mismatch',
+        ),
+      'business review issues remain visible after safe repair',
+    )
+  }
+
+  // Case B: represented deposit + remaining obligations contradict a one-time
+  // transformed payment clause and cannot be repaired from that output.
+  const splitSource = source.map((b) =>
+    /płatne jednorazowo/i.test(b.text)
+      ? {
+          ...b,
+          text: 'Zadatek 1 500 zł. Pozostała kwota 6 500 zł płatna przed wydarzeniem.',
+        }
+      : b,
+  )
+  const splitTransformed = completenessPartialUnsafe(splitSource).map((b) =>
+    /Zadatek 1 500 zł/i.test(b.text)
+      ? {
+          ...b,
+          text: 'Wynagrodzenie płatne jednorazowo przelewem na rachunek Wykonawcy.',
+        }
+      : b,
+  )
+  const splitProtectedData = buildProtectedContractData({
+    blocks: splitSource,
+    knownProviderValues: ['Studio Foto Test Sp. z o.o.'],
+  })
+  const hardA = runPostReconstructionQualityGate({
+    sourceBlocks: splitSource,
+    transformedBlocks: splitTransformed,
+    dataset: COMPLETENESS_DATASET,
+    protectedData: splitProtectedData,
+    mode: 'full_ai',
+  })
+  const hardB = runPostReconstructionQualityGate({
+    sourceBlocks: splitSource,
+    transformedBlocks: splitTransformed,
+    dataset: COMPLETENESS_DATASET,
+    protectedData: splitProtectedData,
+    mode: 'guarded',
+  })
+  assert(
+    hardA.manifest.representedConcepts?.deposit === true &&
+      hardA.manifest.representedConcepts.remaining === true,
+    'hard financial case represents deposit and remaining',
+  )
+  for (const gate of [hardA, hardB]) {
+    assert(
+      gate.blocks.some((b) => /płatne jednorazowo/i.test(b.text)),
+      'contradictory one-time payment remains after deterministic repair',
+    )
+    assert(
+      gate.report.blockingIssues.some(
+        (i) =>
+          i.code === 'payment_structure_mismatch' &&
+          i.severity === 'blocking',
+      ),
+      'represented financial contradiction remains blocking',
+    )
+  }
+  assert(
+    !hardA.downloadAllowed,
+    'Mode A blocks unresolved hard financial defect',
+  )
+  assert(
+    !hardB.downloadAllowed,
+    'Mode B blocks unresolved hard financial defect',
+  )
 
   const cleanA = runPostReconstructionQualityGate({
     sourceBlocks: source,

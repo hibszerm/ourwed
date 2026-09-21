@@ -22,6 +22,7 @@ import {
   completenessSourceBlocks,
 } from '../fixtures/completenessFixture'
 import { blocksFromPlainParagraphs } from '../indexDocxForTransform'
+import { discoverFilledLocationEvidence } from './locationFieldEvidence'
 
 function assert(c: boolean, m: string) {
   if (!c) throw new Error(m)
@@ -97,7 +98,7 @@ function main() {
   )
   assert(!/pod adresem:\s*pod adresem/i.test(sanitized), 'sanitizer')
 
-  // Missing role when no template slot — review issue
+  // CRM locations do not become requirements when the template has no slots.
   const plain = blocksFromPlainParagraphs([
     'Umowa bez lokalizacji.',
     'Wynagrodzenie 10 500 zł (słownie: dziesięć tysięcy pięćset złotych).',
@@ -112,14 +113,60 @@ function main() {
     mode: 'full_ai',
   })
   assert(
-    gate.report.locationConsistency.missingRoles.length > 0 ||
-      gate.report.reviewIssues.some(
+    gate.manifest.representedConcepts?.preparationLocation === false &&
+      gate.manifest.representedConcepts.ceremonyLocation === false &&
+      gate.manifest.representedConcepts.receptionLocation === false,
+    'slotless template does not represent CRM location roles',
+  )
+  assert(
+    gate.report.locationConsistency.missingRoles.length === 0,
+    'CRM-only locations do not create missing location requirements',
+  )
+  assert(
+    !gate.report.reviewIssues.some(
         (i) => i.code === 'location_role_not_represented_in_template',
-      ) ||
-      gate.report.blockingIssues.some(
-        (i) => i.code === 'expected_dataset_value_missing',
       ),
-    'missing location role surfaced',
+    'slotless template has no unrepresented-location review issue',
+  )
+  assert(
+    !gate.report.blockingIssues.some(
+      (i) =>
+        i.code === 'expected_dataset_value_missing' &&
+        /Location$/.test(i.canonicalField ?? ''),
+    ),
+    'slotless template has no location-driven missing-value issue',
+  )
+
+  const groundedProse = blocksFromPlainParagraphs([
+    'Przygotowania odbędą się w Pałacu Rydzyna.',
+    'Ceremonia zaślubin odbędzie się w Kościele pw. św. Stanisława w Rydzynie.',
+    'Powitanie gości i przyjęcie weselne odbędzie się w Pałacu Rydzyna.',
+    'Uroczystość ślubna będzie miała miejsce w Dworku pod Lipami.',
+    'Wieczorne przyjęcie weselne zostanie zorganizowane w Hotelu Panorama.',
+  ])
+  const groundedEvidence = discoverFilledLocationEvidence(groundedProse)
+  assert(
+    groundedEvidence.filter((e) => e.role === 'preparation').length === 1,
+    'natural preparation prose is grounded',
+  )
+  assert(
+    groundedEvidence.filter((e) => e.role === 'ceremony').length === 2,
+    'natural ceremony prose variants are grounded',
+  )
+  assert(
+    groundedEvidence.filter((e) => e.role === 'reception').length === 2,
+    'natural reception prose variants are grounded',
+  )
+
+  const ungroundedProse = blocksFromPlainParagraphs([
+    'Fotograf zarejestruje ceremonię zgodnie z ustalonym harmonogramem.',
+    'Pakiet obejmuje reportaż z powitania gości i przyjęcia weselnego.',
+    'Materiał z ceremonii zostanie przekazany w terminie 60 dni.',
+    'Adres korespondencyjny Wykonawcy: ul. Testowa 1, Warszawa.',
+  ])
+  assert(
+    discoverFilledLocationEvidence(ungroundedProse).length === 0,
+    'role mentions and generic addresses are not location evidence',
   )
 
   const source = completenessSourceBlocks()

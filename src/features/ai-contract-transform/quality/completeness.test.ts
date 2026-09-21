@@ -45,7 +45,8 @@ async function main() {
     'provider not in source-specific inventory',
   )
 
-  // Partial / mixed document
+  // Case A: safely repairable partial input. Deterministic repairs complete all
+  // represented facts, including the total-only / one-time payment structure.
   const unsafe = completenessPartialUnsafe(source)
   const unsafeGate = runPostReconstructionQualityGate({
     sourceBlocks: source,
@@ -54,30 +55,32 @@ async function main() {
     protectedData,
     mode: 'guarded',
   })
-  assert(!unsafeGate.downloadAllowed, 'Mode B blocks mixed/partial')
+  assert(unsafeGate.downloadAllowed, 'repairable partial input becomes downloadable')
   assert(
-    unsafeGate.report.blockingIssues.some(
-      (i) =>
-        i.code === 'stale_source_value_remaining' ||
-        i.code === 'mixed_source_and_target_values' ||
-        i.code === 'partial_field_application',
-    ),
-    'stale/mixed/partial detected',
+    unsafeGate.report.blockingIssues.length === 0,
+    'repairable partial input has no final blocking issues',
   )
   assert(
-    unsafeGate.report.blockingIssues.some(
+    unsafeGate.report.completeness.status === 'pass' &&
+      unsafeGate.report.completeness.missingFields.length === 0 &&
+      unsafeGate.report.completeness.staleSourceValues.length === 0 &&
+      unsafeGate.report.completeness.partialApplications.length === 0 &&
+      unsafeGate.report.completeness.mixedSourceTargetFields.length === 0,
+    'deterministic repairs satisfy every represented canonical fact',
+  )
+  assert(
+    !unsafeGate.report.blockingIssues.some(
       (i) => i.code === 'payment_structure_mismatch',
     ),
-    'one-time payment vs deposit blocked',
+    'total-only one-time source does not force split-payment mismatch',
   )
+  const caseABlob = unsafeGate.blocks.map((b) => b.text).join('\n')
   assert(
-    unsafeGate.report.completeness.staleSourceValues.length > 0 ||
-      unsafeGate.report.completeness.mixedSourceTargetFields.length > 0,
-    'completeness summary populated',
+    !caseABlob.includes(dataset.finances.depositFormatted!) &&
+      !caseABlob.includes(dataset.finances.remainingFormatted!),
+    'total-only one-time source does not gain deposit/remaining obligations',
   )
-
-  // Mode A still reports same defects; may download unless financial block
-  const unsafeA = runPostReconstructionQualityGate({
+  const repairedA = runPostReconstructionQualityGate({
     sourceBlocks: source,
     transformedBlocks: unsafe,
     dataset,
@@ -85,14 +88,104 @@ async function main() {
     mode: 'full_ai',
   })
   assert(
-    unsafeA.report.blockingIssues.some((i) =>
-      /stale|mixed|partial|payment_structure/i.test(i.code),
-    ),
-    'Mode A report exposes defects',
+    repairedA.report.blockingIssues.length === 0 && repairedA.downloadAllowed,
+    'Mode A also accepts the completely repaired document',
   )
   assert(
-    !unsafeA.downloadAllowed,
-    'Mode A blocks on payment_structure_mismatch',
+    !repairedA.report.blockingIssues.some(
+      (i) => i.code === 'payment_structure_mismatch',
+    ),
+    'Mode A respects total-only payment representation',
+  )
+
+  // Case B: the SOURCE represents ceremony location, but an empty transformed
+  // ceremony cannot be recovered from an exact stale source surface.
+  assert(
+    manifest.representedConcepts?.ceremonyLocation === true,
+    'unresolved ceremony source concept is represented',
+  )
+  assert(
+    manifest.requiredFields.some(
+      (f) => f.canonicalField === 'wedding.ceremonyLocation',
+    ),
+    'represented ceremony has a canonical requirement',
+  )
+  const unresolved = unsafe.map((b) =>
+    b.blockId === 'para-22' ? { ...b, text: '' } : b,
+  )
+  const unresolvedGate = runPostReconstructionQualityGate({
+    sourceBlocks: source,
+    transformedBlocks: unresolved,
+    dataset,
+    protectedData,
+    mode: 'guarded',
+  })
+  assert(
+    unresolvedGate.report.completeness.status === 'fail' &&
+      unresolvedGate.report.completeness.missingFields.includes(
+        'wedding.ceremonyLocation',
+      ),
+    'represented ceremony remains materially unresolved',
+  )
+  assert(
+    unresolvedGate.report.blockingIssues.some(
+      (i) =>
+        i.severity === 'blocking' &&
+        i.canonicalField === 'wedding.ceremonyLocation',
+    ),
+    'unresolved represented ceremony remains blocking',
+  )
+  assert(
+    !unresolvedGate.downloadAllowed,
+    'Mode B blocks genuinely unresolved represented facts',
+  )
+
+  // Payment case: the SOURCE genuinely represents deposit + remaining. A transformed
+  // one-time-payment clause contradicts that represented split structure.
+  const splitSource = source.map((b) =>
+    /płatne jednorazowo/i.test(b.text)
+      ? {
+          ...b,
+          text: 'Zadatek 1 500 zł. Pozostała kwota 6 500 zł płatna przed wydarzeniem.',
+        }
+      : b,
+  )
+  const splitUnsafe = completenessPartialUnsafe(splitSource).map((b) =>
+    /Zadatek 1 500 zł/i.test(b.text)
+      ? {
+          ...b,
+          text: 'Wynagrodzenie płatne jednorazowo przelewem na rachunek Wykonawcy.',
+        }
+      : b,
+  )
+  const splitProtectedData = buildProtectedContractData({
+    blocks: splitSource,
+    knownProviderValues: ['Studio Foto Test Sp. z o.o.'],
+  })
+  const splitManifest = buildExpectationManifest({
+    sourceBlocks: splitSource,
+    dataset,
+    protectedData: splitProtectedData,
+  })
+  assert(
+    splitManifest.representedConcepts?.deposit === true &&
+      splitManifest.representedConcepts.remaining === true,
+    'split-payment source represents deposit and remaining',
+  )
+  const splitGate = runPostReconstructionQualityGate({
+    sourceBlocks: splitSource,
+    transformedBlocks: splitUnsafe,
+    dataset,
+    protectedData: splitProtectedData,
+    mode: 'guarded',
+  })
+  assert(
+    splitGate.report.blockingIssues.some(
+      (i) =>
+        i.code === 'payment_structure_mismatch' &&
+        i.severity === 'blocking',
+    ),
+    'represented split payment blocks contradictory one-time structure',
   )
 
   // Fully corrected
@@ -116,8 +209,8 @@ async function main() {
   assert(/Grażyńskiego|przygotowania/i.test(joined), 'preparation represented')
   assert(/Bazylika|ceremon/i.test(joined), 'ceremony represented')
   assert(/10 500 zł/.test(joined), 'total price')
-  assert(/1 000 zł/.test(joined) && /9 500 zł/.test(joined), 'deposit+remaining')
-  assert(!/płatne jednorazowo/i.test(joined), 'no one-time wording')
+  assert(!/1 000 zł/.test(joined) && !/9 500 zł/.test(joined), 'no unrepresented deposit+remaining')
+  assert(/płatne jednorazowo/i.test(joined), 'one-time payment preserved')
   assert(/Studio Foto Test/.test(joined), 'provider preserved')
   assert(/1234567890/.test(joined), 'NIP preserved')
   assert(/12 3456 7890/.test(joined), 'bank preserved')
@@ -166,12 +259,12 @@ async function main() {
   assert(
     !runPostReconstructionQualityGate({
       sourceBlocks: source,
-      transformedBlocks: unsafe,
+      transformedBlocks: unresolved,
       dataset,
       protectedData,
       mode: 'full_ai',
     }).downloadAllowed,
-    'Mode A quality gate blocks unsafe',
+    'Mode A quality gate blocks unresolved represented location',
   )
 
   console.log('ok — ai-contract-transform-completeness')

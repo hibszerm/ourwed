@@ -122,11 +122,27 @@ export function parseLocationFormLine(
 
 function isLocationFormOrSlotAssertion(text: string): boolean {
   if (parseLocationFormLine(text)) return true
-  // Tight prose must LEAD with a location assertion — not a long scope sentence
-  // that merely mentions "miejsce ceremonii" among other roles.
-  return /^(miejsce\s+|ceremonia\s+odbędzie|przyjęcie\s+(weselne\s+)?odbędzie|przygotowania\s+odbęd)/i.test(
-    text.trim(),
-  )
+  const t = text.trim()
+  if (inferLocationRoleFromContext(t) === 'unknown') return false
+
+  // A role mention alone is not location evidence. Admit prose only when the
+  // same sentence structurally assigns the event to a place. Role semantics
+  // remain centralized in inferLocationRoleFromContext.
+  const assignment =
+    t.match(
+      /\b(?:odbędzie|odbędą)\s+się\s+(?:pod\s+adresem\s+|w\s+|we\s+|na\s+)([^.!?]+)/i,
+    ) ??
+    t.match(
+      /\b(?:będzie|będą)\s+(?:miał|miała|miało|miały)\s+miejsce\s+(?:pod\s+adresem\s+|w\s+|we\s+|na\s+)([^.!?]+)/i,
+    ) ??
+    t.match(
+      /\bzostanie\s+zorganizowan[aye]\s+(?:pod\s+adresem\s+|w\s+|we\s+|na\s+)([^.!?]+)/i,
+    )
+
+  const target = assignment?.[1]?.trim() ?? ''
+  if (!target) return false
+  // Temporal/scope complements are not venue assignments.
+  return !/^(?:dniu|terminie|godzinie|czasie|ramach|trakcie)\b/i.test(target)
 }
 
 /**

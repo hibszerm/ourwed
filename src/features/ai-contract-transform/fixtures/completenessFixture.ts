@@ -186,12 +186,8 @@ export function completenessFullyCorrected(
         text: `Wynagrodzenie wynosi ${ds.finances.contractValueFormatted} (słownie: ${ds.finances.contractValueWords}).`,
       }
     }
-    if (/płatne jednorazowo/i.test(b.text)) {
-      return {
-        blockId: b.blockId,
-        text: `Zadatek ${ds.finances.depositFormatted} płatny w terminie 7 dni. Pozostała kwota ${ds.finances.remainingFormatted} płatna najpóźniej w dniu wydarzenia.`,
-      }
-    }
+    // The SOURCE represents full one-time payment, not deposit/remaining.
+    // Preserve that obligation even when CRM contains split-payment facts.
     return { blockId: b.blockId, text: b.text }
   })
 }

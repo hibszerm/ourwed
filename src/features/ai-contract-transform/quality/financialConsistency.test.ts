@@ -35,19 +35,48 @@ function main() {
     knownProviderValues: ['Studio Foto Test Sp. z o.o.'],
   })
 
-  const bad = verifyFinancialConsistency({
+  const totalOnly = verifyFinancialConsistency({
     dataset: COMPLETENESS_DATASET,
     transformedBlocks: completenessPartialUnsafe(source),
+    paymentRepresentation: { total: true, deposit: false, remaining: false },
   })
   assert(
-    bad.issues.some((i) => i.code === 'payment_structure_mismatch'),
-    'one-time vs deposit',
+    !totalOnly.issues.some((i) => i.code === 'payment_structure_mismatch'),
+    'total-only one-time source does not require CRM split payment',
   )
-  assert(bad.summary.status === 'fail', 'financial fail')
+  assert(totalOnly.summary.status === 'pass', 'total-only financial pass')
+
+  const representedSplit = blocksFromPlainParagraphs([
+    'Wynagrodzenie 10 500 zł (słownie: dziesięć tysięcy pięćset złotych).',
+    'Zadatek 1 000 zł (słownie: tysiąc złotych).',
+    'Pozostała kwota 9 500 zł (słownie: dziewięć tysięcy pięćset złotych).',
+  ]).map((b) => ({ blockId: b.blockId, text: b.text }))
+
+  const bad = verifyFinancialConsistency({
+    dataset: COMPLETENESS_DATASET,
+    transformedBlocks: [
+      ...representedSplit,
+      {
+        blockId: 'contradictory-one-time',
+        text: 'Wynagrodzenie płatne jednorazowo przelewem.',
+      },
+    ],
+    paymentRepresentation: { total: true, deposit: true, remaining: true },
+  })
+  assert(
+    bad.issues.some(
+      (i) =>
+        i.code === 'payment_structure_mismatch' &&
+        i.severity === 'blocking',
+    ),
+    'represented split payment blocks contradictory one-time structure',
+  )
+  assert(bad.summary.status === 'fail', 'represented split financial fail')
 
   const good = verifyFinancialConsistency({
     dataset: COMPLETENESS_DATASET,
-    transformedBlocks: completenessFullyCorrected(source),
+    transformedBlocks: representedSplit,
+    paymentRepresentation: { total: true, deposit: true, remaining: true },
   })
   assert(good.summary.totalPriceMatches, 'total matches')
   assert(good.summary.moneyWordsMatch, 'words match')
