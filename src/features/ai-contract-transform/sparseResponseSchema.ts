@@ -6,6 +6,7 @@ import {
   FULL_AI_RESPONSE_VERSION,
   type TransformMode,
   type TransformedBlock,
+  type GroundedFinanceEvidence,
 } from './types'
 
 export const MODEL_SCHEMA_VERSION = 'sparse-changed-blocks-v1' as const
@@ -17,6 +18,7 @@ export type SparseChangedBlock = {
 
 export type SparseChangedBlocksModelResult = {
   changedBlocks: SparseChangedBlock[]
+  financeEvidence?: GroundedFinanceEvidence[]
 }
 
 export type FullAiSparseResponseV2 = {
@@ -29,12 +31,15 @@ export type SparseV2ParseResult =
       ok: true
       responseVersion: string
       changedBlocks: SparseChangedBlock[]
+      financeEvidence: GroundedFinanceEvidence[]
       modelSchemaVersion: typeof MODEL_SCHEMA_VERSION
       ignoredModelResponseVersion?: string | null
     }
   | { ok: false; code: string; message: string }
 
 const ALLOWED_BLOCK_KEYS = new Set(['blockId', 'text'])
+const ALLOWED_FINANCE_EVIDENCE_KEYS = new Set(['sourceBlockId', 'financeConcept'])
+const FINANCE_CONCEPTS = new Set(['total', 'deposit', 'remaining'])
 
 /**
  * Validate raw model / Edge-returned changedBlocks payload.
@@ -51,7 +56,7 @@ export function parseSparseV2ModelPayload(
   let ignoredModelResponseVersion: string | null = null
 
   for (const key of Object.keys(obj)) {
-    if (key === 'changedBlocks') continue
+    if (key === 'changedBlocks' || key === 'financeEvidence') continue
     if (key === 'responseVersion') {
       ignoredModelResponseVersion =
         typeof obj.responseVersion === 'string' ? obj.responseVersion : null
@@ -113,10 +118,33 @@ export function parseSparseV2ModelPayload(
     changedBlocks.push({ blockId: block.blockId, text: block.text })
   }
 
+  const financeEvidence: GroundedFinanceEvidence[] = []
+  if (obj.financeEvidence !== undefined) {
+    if (!Array.isArray(obj.financeEvidence)) {
+      return { ok: false, code: 'invalid_structured_output', message: 'financeEvidence must be an array' }
+    }
+    for (const row of obj.financeEvidence) {
+      if (!row || typeof row !== 'object' || Array.isArray(row)) {
+        return { ok: false, code: 'invalid_structured_output', message: 'Invalid finance evidence' }
+      }
+      const evidence = row as Record<string, unknown>
+      for (const key of Object.keys(evidence)) {
+        if (!ALLOWED_FINANCE_EVIDENCE_KEYS.has(key)) {
+          return { ok: false, code: 'unexpected_fields', message: `Unexpected finance evidence field: ${key}` }
+        }
+      }
+      if (typeof evidence.sourceBlockId !== 'string' || typeof evidence.financeConcept !== 'string' || !FINANCE_CONCEPTS.has(evidence.financeConcept)) {
+        return { ok: false, code: 'invalid_structured_output', message: 'sourceBlockId and supported financeConcept required' }
+      }
+      financeEvidence.push({ sourceBlockId: evidence.sourceBlockId, financeConcept: evidence.financeConcept as GroundedFinanceEvidence['financeConcept'] })
+    }
+  }
+
   return {
     ok: true,
     responseVersion: FULL_AI_RESPONSE_VERSION,
     changedBlocks,
+    financeEvidence,
     modelSchemaVersion: MODEL_SCHEMA_VERSION,
     ignoredModelResponseVersion,
   }

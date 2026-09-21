@@ -144,3 +144,14 @@ export type TransformedBlock = {
   /** System-attached SOURCE identity; never inferred from transformed text. */
   originSourceBlockId?: string
 }
+
+/**
+ * A narrowly-scoped semantic interpretation supplied by the rewrite model.
+ * It is grounded to an immutable SOURCE block and never contains a value.
+ */
+export type FinanceSemanticConcept = 'total' | 'deposit' | 'remaining'
+
+export type GroundedFinanceEvidence = {
+  sourceBlockId: string
+  financeConcept: FinanceSemanticConcept
+}

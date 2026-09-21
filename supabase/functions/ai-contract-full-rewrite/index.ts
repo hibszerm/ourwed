@@ -465,6 +465,7 @@ Deno.serve(async (req) => {
     return jsonResponse({
       ok: true,
       changedBlocks: parse.changedBlocks,
+      financeEvidence: parse.financeEvidence,
       model,
       promptVersion: FULL_AI_PROMPT_VERSION,
       responseVersion: FULL_AI_RESPONSE_VERSION,

@@ -4,7 +4,7 @@
  */
 
 import { applySparseBlockChanges } from './applySparseBlockChanges'
-import { partitionChangedBlocksBySourceIds } from './blockIdIntegrity'
+import { partitionChangedBlocksBySourceIds, validateGroundedFinanceEvidence } from './blockIdIntegrity'
 import {
   buildTransformEdgeErrorDetail,
   edgeErrorFromThrown,
@@ -20,6 +20,7 @@ import type {
   TransformDocumentBlock,
   TransformedBlock,
   TransformMode,
+  GroundedFinanceEvidence,
 } from './types'
 import {
   FULL_AI_PROMPT_VERSION,
@@ -40,6 +41,7 @@ export type TransformApiSuccess = {
   /** Fully reconstructed document blocks. */
   transformedBlocks: TransformedBlock[]
   changedBlockCount: number
+  financeEvidence: GroundedFinanceEvidence[]
   model: string
   promptVersion: string
   responseVersion: string
@@ -289,6 +291,7 @@ export async function invokeTransform(input: {
   if (Array.isArray(body.changedBlocks)) {
     const parsed = parseSparseV2ModelPayload(input.mode, {
       changedBlocks: body.changedBlocks,
+      ...(body.financeEvidence !== undefined ? { financeEvidence: body.financeEvidence } : {}),
       // Legacy Edge/fixture may still include responseVersion; ignored by parser
       ...(typeof body.responseVersion === 'string'
         ? { responseVersion: body.responseVersion }
@@ -304,6 +307,10 @@ export async function invokeTransform(input: {
     // CG4: never apply invented blockIds; keep valid only (no fuzzy remap).
     const partition = partitionChangedBlocksBySourceIds({
       changedBlocks: parsed.changedBlocks,
+      sourceBlockIds: input.documentBlocks.map((b) => b.blockId),
+    })
+    const financeEvidence = validateGroundedFinanceEvidence({
+      financeEvidence: parsed.financeEvidence,
       sourceBlockIds: input.documentBlocks.map((b) => b.blockId),
     })
     const reconstructed = applySparseBlockChanges(
@@ -332,6 +339,7 @@ export async function invokeTransform(input: {
       ok: true,
       transformedBlocks: reconstructed.blocks,
       changedBlockCount: reconstructed.changedBlockCount,
+      financeEvidence,
       model: String(body.model ?? 'unknown'),
       promptVersion: String(body.promptVersion ?? input.promptVersion),
       responseVersion,
@@ -352,6 +360,7 @@ export async function invokeTransform(input: {
       ok: true,
       transformedBlocks: legacy,
       changedBlockCount: legacy.length,
+      financeEvidence: [],
       model: String(body.model ?? 'unknown'),
       promptVersion: String(body.promptVersion ?? input.promptVersion),
       responseVersion: String(body.responseVersion ?? ''),

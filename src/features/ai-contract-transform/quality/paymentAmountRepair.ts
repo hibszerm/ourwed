@@ -548,6 +548,8 @@ export function repairCanonicalPaymentAmounts(input: {
   blocks: TransformedBlock[]
   sourceBlocks: TransformDocumentBlock[]
   dataset: ContractTransformationDataset
+  depositRepresented?: boolean
+  depositSemanticSourceBlockIds?: string[]
 }): { blocks: TransformedBlock[]; repairs: DeterministicRepair[] } {
   const repairs: DeterministicRepair[] = []
   const finances = input.dataset.finances
@@ -576,6 +578,32 @@ export function repairCanonicalPaymentAmounts(input: {
     sourceRep.remaining ||
     input.sourceBlocks.some((b) => /PLACEHOLDER_RESTA/i.test(b.text))
 
+  // Cross-surface finance link: existing representation evidence may establish
+  // a deposit in prose while the payment table's value cell is semantically
+  // sparse. Only propagate when the same payment table has exactly one
+  // otherwise-unassigned monetary cell after total/remaining roles are known.
+  const depositSignal = (input.depositSemanticSourceBlockIds?.length ?? 0) > 0 || input.depositRepresented || sourceRep.deposit
+  if (depositSignal && !paymentEvidence.some((e) => e.role === 'deposit')) {
+    const knownIds = new Set(paymentEvidence.map((e) => e.blockId))
+    const tableIds = new Set(
+      paymentEvidence
+        .filter((e) => e.role === 'total' || e.role === 'remaining')
+        .map((e) => input.sourceBlocks.find((b) => b.blockId === e.blockId)?.tableContext?.tableIndex)
+        .filter((x): x is number => x != null),
+    )
+    const candidates = input.sourceBlocks.filter((b) => {
+      const tc = b.tableContext
+      return b.kind === 'tableCell' && tc && tableIds.has(tc.tableIndex) &&
+        !knownIds.has(b.blockId) && countPlnAmountSurfaces(b.text) === 1 &&
+        !isForbiddenBlock(b.text)
+    })
+    if (candidates.length === 1) {
+      const b = candidates[0]!
+      const amount = b.text.match(/\d[\d\s,.]*\s*zł/i)?.[0]
+      if (amount) paymentEvidence.push({ blockId: b.blockId, sourceText: b.text, sourceAmount: amount, hasWords: false, representation: 'table_cell', role: 'deposit' })
+    }
+  }
+
   // Structured payment tables keep labels and amounts in separate cells. Apply
   // canonical values only to source-grounded cells of the matching role.
   for (const evidence of paymentEvidence) {
@@ -586,13 +614,15 @@ export function repairCanonicalPaymentAmounts(input: {
           ? deposit
           : remaining
     if (!target) continue
-    const block = blocks.find((b) => b.blockId === evidence.blockId)
+    const block = blocks.find(
+      (b) => b.blockId === evidence.blockId || b.originSourceBlockId === evidence.blockId,
+    )
     if (!block || textHasCanonicalPlnAmount(block.text, target)) continue
     const next = replacePlnAmountSurface(block.text, target)
     if (!next || next === block.text) continue
     updateBlock(
       blocks,
-      evidence.blockId,
+      block.blockId,
       next,
       repairs,
       `replace_canonical_${evidence.role}_in_structured_table`,

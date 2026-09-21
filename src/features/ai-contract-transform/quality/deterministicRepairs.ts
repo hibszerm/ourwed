@@ -7,6 +7,7 @@ import type {
   ContractTransformationDataset,
   TransformDocumentBlock,
   TransformedBlock,
+  GroundedFinanceEvidence,
 } from '../types'
 import { fingerprintText, sanitizeDuplicatedLocationWrappers } from './normalize'
 import { repairCanonicalPaymentAmounts } from './paymentAmountRepair'
@@ -355,6 +356,7 @@ export function applyDeterministicRepairs(input: {
   dataset: ContractTransformationDataset
   manifest: TransformationExpectationManifest
   sourceBlocks: TransformDocumentBlock[]
+  financeEvidence?: GroundedFinanceEvidence[]
 }): { blocks: TransformedBlock[]; repairs: DeterministicRepair[] } {
   const repairs: DeterministicRepair[] = []
   let blocks = input.blocks.map((b) => ({ ...b }))
@@ -539,6 +541,10 @@ export function applyDeterministicRepairs(input: {
     blocks,
     sourceBlocks: input.sourceBlocks,
     dataset: input.dataset,
+    depositRepresented: input.manifest.representedConcepts?.deposit,
+    depositSemanticSourceBlockIds: input.financeEvidence
+      ?.filter((e) => e.financeConcept === 'deposit')
+      .map((e) => e.sourceBlockId),
   })
   blocks = payment.blocks
   repairs.push(...payment.repairs)

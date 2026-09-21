@@ -201,6 +201,7 @@ export async function runSparseProductTransform(input: {
     transformedBlocks: edge.transformedBlocks,
     dataset: input.dataset,
     protectedData,
+    financeEvidence: edge.financeEvidence,
     mode: 'full_ai',
   })
 

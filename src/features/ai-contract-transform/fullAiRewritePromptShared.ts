@@ -58,7 +58,8 @@ Output rules (critical):
 - Do not return markdown.
 - Do not add notes, reasoning, field mappings, change descriptions, or responseVersion.
 - An empty changedBlocks array means no changes were needed.
-- Output JSON must contain only the changedBlocks array.
+- Output JSON may contain changedBlocks and optional financeEvidence only.
+- financeEvidence is optional metadata for a SOURCE block that clearly expresses a total, deposit/upfront payment, or remaining payment. Use its exact sourceBlockId and financeConcept (total, deposit, remaining); never include amounts, calculations, or rewritten text.
 
 Your responsibility is ONLY:
 - which existing blocks need changes,
@@ -113,7 +114,7 @@ export function buildUserPayload(input: {
     mode: 'full_ai_trusted_rewrite',
     promptVersion: FULL_AI_PROMPT_VERSION,
     instructions:
-      'Return sparse changedBlocks only. Omit unchanged blocks. Apply every requiredReplacements entry in all listed contexts. When customer.names lists sourceBlockIds, rewrite those entire contracting-party blocks with canonical clients.displayNames (correct Polish grammar for personCount); do not leave stale party identity. When wedding.*Location lists sourceBlockIds, fill those grounded location fields/cells with the matching canonical location (no role swap; neutralize with — when that is the target). Do not rewrite provider-role/copyright/portfolio clauses unless they are listed. Protected values must remain unchanged. Honor locations.absentLocationRoles and locations.locationRoleIntegrity: never invent or copy venues into absent roles.',
+      'Return sparse changedBlocks only. Omit unchanged blocks. Optionally return grounded financeEvidence for clearly expressed source payment concepts; it is metadata only and never includes amounts. Apply every requiredReplacements entry in all listed contexts. When customer.names lists sourceBlockIds, rewrite those entire contracting-party blocks with canonical clients.displayNames (correct Polish grammar for personCount); do not leave stale party identity. When wedding.*Location lists sourceBlockIds, fill those grounded location fields/cells with the matching canonical location (no role swap; neutralize with — when that is the target). Do not rewrite provider-role/copyright/portfolio clauses unless they are listed. Protected values must remain unchanged. Honor locations.absentLocationRoles and locations.locationRoleIntegrity: never invent or copy venues into absent roles.',
     protectedDataSummary: input.protectedDataSummary,
     transformationDataset: input.transformationDataset,
     requiredReplacements: input.requiredReplacements ?? [],
@@ -139,6 +140,18 @@ export const FULL_AI_JSON_SCHEMA = {
           properties: {
             blockId: { type: 'string' },
             text: { type: 'string', minLength: 1 },
+          },
+        },
+      },
+      financeEvidence: {
+        type: 'array',
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['sourceBlockId', 'financeConcept'],
+          properties: {
+            sourceBlockId: { type: 'string' },
+            financeConcept: { type: 'string', enum: ['total', 'deposit', 'remaining'] },
           },
         },
       },

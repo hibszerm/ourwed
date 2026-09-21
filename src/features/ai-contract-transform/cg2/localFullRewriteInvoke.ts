@@ -115,7 +115,7 @@ async function callOpenAi(input: {
 }
 
 const PARSE_RETRY_HINT =
-  'Return ONLY valid JSON matching the schema: { "changedBlocks": [ { "blockId": string, "text": string } ] }. No markdown.'
+  'Return ONLY valid JSON matching the schema. Use changedBlocks for sparse edits and optional grounded financeEvidence only. No markdown.'
 
 /**
  * Factory: returns an invoke compatible with runSparseProductTransform / runFullAiRewrite.
@@ -379,6 +379,7 @@ export function createLocalFullRewriteInvoke(input: {
       data: {
         ok: true,
         changedBlocks,
+        financeEvidence: parse.financeEvidence,
         model,
         promptVersion: FULL_AI_PROMPT_VERSION,
         responseVersion: FULL_AI_RESPONSE_VERSION,

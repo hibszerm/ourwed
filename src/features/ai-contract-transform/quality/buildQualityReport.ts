@@ -8,6 +8,7 @@ import type {
   ProtectedContractData,
   TransformDocumentBlock,
   TransformedBlock,
+  GroundedFinanceEvidence,
 } from '../types'
 import { verifyTransformationCompleteness } from './completenessVerifier'
 import { applyDeterministicRepairs } from './deterministicRepairs'
@@ -300,6 +301,7 @@ export function runPostReconstructionQualityGate(input: {
   dataset: ContractTransformationDataset
   protectedData: ProtectedContractData
   mode: 'full_ai' | 'guarded'
+  financeEvidence?: GroundedFinanceEvidence[]
 }): {
   blocks: TransformedBlock[]
   manifest: TransformationExpectationManifest
@@ -318,6 +320,7 @@ export function runPostReconstructionQualityGate(input: {
     dataset: input.dataset,
     manifest,
     sourceBlocks: input.sourceBlocks,
+    financeEvidence: input.financeEvidence,
   })
 
   const additionalServices = insertAdditionalServicesIntoBlocks({

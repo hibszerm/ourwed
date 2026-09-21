@@ -6,11 +6,33 @@
  */
 
 import type { SparseChangedBlock } from './parseSparseV2Response'
+import type { GroundedFinanceEvidence } from './types'
 
 export type BlockIdPartition = {
   valid: SparseChangedBlock[]
   invalid: SparseChangedBlock[]
   validIdSet: Set<string>
+}
+
+/** Validate model semantic metadata against immutable source identity. */
+export function validateGroundedFinanceEvidence(input: {
+  financeEvidence: GroundedFinanceEvidence[]
+  sourceBlockIds: readonly string[]
+}): GroundedFinanceEvidence[] {
+  const allowed = new Set(input.sourceBlockIds)
+  const conceptsById = new Map<string, Set<string>>()
+  for (const evidence of input.financeEvidence) {
+    if (!allowed.has(evidence.sourceBlockId)) continue
+    const concepts = conceptsById.get(evidence.sourceBlockId) ?? new Set<string>()
+    concepts.add(evidence.financeConcept)
+    conceptsById.set(evidence.sourceBlockId, concepts)
+  }
+  // Any conflicting claim for a source surface fails closed; identical duplicates coalesce.
+  return [...conceptsById.entries()].flatMap(([sourceBlockId, concepts]) =>
+    concepts.size === 1
+      ? [{ sourceBlockId, financeConcept: [...concepts][0]! as GroundedFinanceEvidence['financeConcept'] }]
+      : [],
+  )
 }
 
 export function partitionChangedBlocksBySourceIds(input: {
@@ -82,6 +104,18 @@ export function buildFullAiJsonSchemaForBlockIds(validBlockIds: readonly string[
               blockId: blockIdSchema,
               // CG6.1: empty string is schema-invalid; whitespace still needs runtime trim check.
               text: { type: 'string', minLength: 1 },
+            },
+          },
+        },
+        financeEvidence: {
+          type: 'array',
+          items: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['sourceBlockId', 'financeConcept'],
+            properties: {
+              sourceBlockId: blockIdSchema,
+              financeConcept: { type: 'string', enum: ['total', 'deposit', 'remaining'] },
             },
           },
         },

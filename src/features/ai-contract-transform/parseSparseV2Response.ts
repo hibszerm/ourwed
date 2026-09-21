@@ -10,6 +10,7 @@ import {
   type JsonParseDiagnostics,
   type ResponseTextExtractionResult,
 } from './extractResponseText'
+import type { GroundedFinanceEvidence } from './types'
 
 export const MODEL_SCHEMA_VERSION = 'sparse-changed-blocks-v1'
 
@@ -18,11 +19,13 @@ export type SparseChangedBlock = { blockId: string; text: string }
 /** Raw model result — no responseVersion. */
 export type SparseChangedBlocksModelResult = {
   changedBlocks: SparseChangedBlock[]
+  financeEvidence?: GroundedFinanceEvidence[]
 }
 
 export type SparseParseSuccess = {
   ok: true
   changedBlocks: SparseChangedBlock[]
+  financeEvidence: GroundedFinanceEvidence[]
   /** Trusted version injected by application code. */
   applicationResponseVersion: string
   modelSchemaVersion: typeof MODEL_SCHEMA_VERSION
@@ -61,6 +64,7 @@ export function validateSparseChangedBlocksModelResult(
   | {
       ok: true
       changedBlocks: SparseChangedBlock[]
+      financeEvidence: GroundedFinanceEvidence[]
       ignoredModelResponseVersion: string | null
     }
   | { ok: false; message: string; ignoredModelResponseVersion?: string | null } {
@@ -71,7 +75,7 @@ export function validateSparseChangedBlocksModelResult(
   let ignoredModelResponseVersion: string | null = null
 
   for (const key of Object.keys(obj)) {
-    if (key === 'changedBlocks') continue
+    if (key === 'changedBlocks' || key === 'financeEvidence') continue
     if (key === 'responseVersion') {
       // Legacy model field — ignore; never trust for application envelope
       ignoredModelResponseVersion =
@@ -106,7 +110,23 @@ export function validateSparseChangedBlocksModelResult(
     changedBlocks.push({ blockId: b.blockId, text: b.text })
   }
 
-  return { ok: true, changedBlocks, ignoredModelResponseVersion }
+  const financeEvidence: GroundedFinanceEvidence[] = []
+  if (obj.financeEvidence !== undefined) {
+    if (!Array.isArray(obj.financeEvidence)) return { ok: false, message: 'financeEvidence must be an array' }
+    for (const row of obj.financeEvidence) {
+      if (!row || typeof row !== 'object' || Array.isArray(row)) return { ok: false, message: 'Invalid finance evidence' }
+      const evidence = row as Record<string, unknown>
+      if (Object.keys(evidence).some((key) => key !== 'sourceBlockId' && key !== 'financeConcept')) {
+        return { ok: false, message: 'Unexpected finance evidence field' }
+      }
+      if (typeof evidence.sourceBlockId !== 'string' || !['total', 'deposit', 'remaining'].includes(String(evidence.financeConcept))) {
+        return { ok: false, message: 'sourceBlockId and supported financeConcept required' }
+      }
+      financeEvidence.push({ sourceBlockId: evidence.sourceBlockId, financeConcept: evidence.financeConcept as GroundedFinanceEvidence['financeConcept'] })
+    }
+  }
+
+  return { ok: true, changedBlocks, financeEvidence, ignoredModelResponseVersion }
 }
 
 function readIncompleteReason(body: unknown): string | undefined {
@@ -197,6 +217,7 @@ export function parseSparseV2FromResponse(input: {
   return {
     ok: true,
     changedBlocks: schema.changedBlocks,
+    financeEvidence: schema.financeEvidence,
     applicationResponseVersion: input.applicationResponseVersion,
     modelSchemaVersion: MODEL_SCHEMA_VERSION,
     extraction,
