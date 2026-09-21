@@ -105,7 +105,7 @@ export function buildFullAiJsonSchemaForBlockIds(validBlockIds: readonly string[
     schema: {
       type: 'object',
       additionalProperties: false,
-      required: ['changedBlocks'],
+      required: ['changedBlocks', 'financeEvidence'],
       properties: {
         changedBlocks: {
           type: 'array',
@@ -121,7 +121,7 @@ export function buildFullAiJsonSchemaForBlockIds(validBlockIds: readonly string[
           },
         },
         financeEvidence: {
-          type: 'array',
+          type: ['array', 'null'],
           items: {
             type: 'object',
             additionalProperties: false,

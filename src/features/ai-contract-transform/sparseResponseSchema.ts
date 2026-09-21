@@ -119,7 +119,7 @@ export function parseSparseV2ModelPayload(
   }
 
   const financeEvidence: GroundedFinanceEvidence[] = []
-  if (obj.financeEvidence !== undefined) {
+  if (obj.financeEvidence !== undefined && obj.financeEvidence !== null) {
     if (!Array.isArray(obj.financeEvidence)) {
       return { ok: false, code: 'invalid_structured_output', message: 'financeEvidence must be an array' }
     }

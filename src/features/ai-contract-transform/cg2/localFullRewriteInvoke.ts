@@ -114,8 +114,18 @@ async function callOpenAi(input: {
   return { ok: true, body }
 }
 
+export function safeProviderDiagnostic(httpStatus: number, body: unknown): string {
+  const root = body && typeof body === 'object' ? body as Record<string, unknown> : {}
+  const error = root.error && typeof root.error === 'object' ? root.error as Record<string, unknown> : root
+  const type = typeof error.type === 'string' ? error.type : typeof error.code === 'string' ? error.code : 'provider_error'
+  const message = typeof error.message === 'string'
+    ? error.message.replace(/[\r\n]+/g, ' ').replace(/(?:authorization|bearer|api[_-]?key|secret|token)\s*[:=]?\s*\S+/gi, '[redacted]').slice(0, 500)
+    : 'request rejected'
+  return `OpenAI HTTP ${httpStatus} ${type}: ${message}`
+}
+
 const PARSE_RETRY_HINT =
-  'Return ONLY valid JSON matching the schema. Use changedBlocks for sparse edits and optional grounded financeEvidence only. No markdown.'
+  'Return ONLY valid JSON matching the schema. Use changedBlocks for sparse edits and always include financeEvidence (null when none). No markdown.'
 
 /**
  * Factory: returns an invoke compatible with runSparseProductTransform / runFullAiRewrite.
@@ -201,7 +211,7 @@ export function createLocalFullRewriteInvoke(input: {
           ok: false,
           error: {
             code: 'provider_api_error',
-            message: 'OpenAI request failed',
+            message: safeProviderDiagnostic(first.httpStatus, first.body),
             retryable: first.httpStatus >= 500,
           },
         },

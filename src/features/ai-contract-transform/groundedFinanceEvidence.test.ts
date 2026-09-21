@@ -1,7 +1,8 @@
-import { inspectGroundedFinanceEvidence, validateGroundedFinanceEvidence } from './blockIdIntegrity'
+import { buildFullAiJsonSchemaForBlockIds, inspectGroundedFinanceEvidence, validateGroundedFinanceEvidence } from './blockIdIntegrity'
 import { parseSparseV2ModelPayload } from './sparseResponseSchema'
 import { runPostReconstructionQualityGate } from './quality/buildQualityReport'
 import { runFullAiRewrite } from './transformApi'
+import { safeProviderDiagnostic } from './cg2/localFullRewriteInvoke'
 import type {
   ContractTransformationDataset,
   ProtectedContractData,
@@ -81,6 +82,23 @@ async function runModelStylePipeline(blocks: TransformDocumentBlock[], financeEv
 }
 
 // A–F: parser/schema and grounding are independent from sparse mutations.
+{
+  const strictSchema = buildFullAiJsonSchemaForBlockIds(['source-a']).schema as Record<string, any>
+  assert(strictSchema.required.includes('financeEvidence'), 'financeEvidence is top-level required')
+  assert(Array.isArray(strictSchema.properties.financeEvidence.type) && strictSchema.properties.financeEvidence.type.includes('null'), 'financeEvidence accepts null')
+  const validArray = parseSparseV2ModelPayload('full_ai_trusted_rewrite', { changedBlocks: [], financeEvidence: [{ sourceBlockId: 'source-a', financeConcept: 'deposit' }] })
+  assert(validArray.ok && validArray.financeEvidence.length === 1, 'valid finance evidence array accepted')
+  const nullEvidence = parseSparseV2ModelPayload('full_ai_trusted_rewrite', { changedBlocks: [], financeEvidence: null })
+  assert(nullEvidence.ok && nullEvidence.financeEvidence.length === 0, 'null finance evidence normalizes to empty')
+  const extraField = parseSparseV2ModelPayload('full_ai_trusted_rewrite', { changedBlocks: [], financeEvidence: [{ sourceBlockId: 'source-a', financeConcept: 'deposit', amount: 4800 }] })
+  assert(!extraField.ok, 'finance evidence amount is rejected')
+  const badConcept = parseSparseV2ModelPayload('full_ai_trusted_rewrite', { changedBlocks: [], financeEvidence: [{ sourceBlockId: 'source-a', financeConcept: 'installment' }] })
+  assert(!badConcept.ok, 'unsupported finance concept is rejected')
+  const diagnostic = safeProviderDiagnostic(400, { error: { type: 'invalid_request_error', message: 'schema rejected; Authorization: secret' }, request: 'document text' })
+  assert(diagnostic.includes('400') && diagnostic.includes('invalid_request_error'), 'safe 4xx diagnostic retains status/type')
+  assert(!diagnostic.includes('Authorization') && !diagnostic.includes('document text'), 'safe 4xx diagnostic excludes secrets and payload')
+}
+
 {
   const blocks = source()
   const gate = await runModelStylePipeline(blocks, [{ sourceBlockId: 'para-semantic', financeConcept: 'deposit' }])

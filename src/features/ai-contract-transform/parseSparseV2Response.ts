@@ -111,7 +111,7 @@ export function validateSparseChangedBlocksModelResult(
   }
 
   const financeEvidence: GroundedFinanceEvidence[] = []
-  if (obj.financeEvidence !== undefined) {
+  if (obj.financeEvidence !== undefined && obj.financeEvidence !== null) {
     if (!Array.isArray(obj.financeEvidence)) return { ok: false, message: 'financeEvidence must be an array' }
     for (const row of obj.financeEvidence) {
       if (!row || typeof row !== 'object' || Array.isArray(row)) return { ok: false, message: 'Invalid finance evidence' }
