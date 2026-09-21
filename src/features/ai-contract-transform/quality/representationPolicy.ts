@@ -7,6 +7,7 @@
 
 import type { TransformDocumentBlock } from '../types'
 import { countPlnAmountSurfaces } from './plnAmountSurface'
+import { classifyPaymentAmountRole } from './totalFieldEvidence'
 
 export type RepresentedConcepts = {
   party: boolean
@@ -78,11 +79,15 @@ export function detectRepresentedConcepts(
 
   const totalPrice = financeBlocks.some((b) => countPlnAmounts(b.text) >= 1)
 
-  const deposit = financeBlocks.some((b) =>
-    /zadatek|zaliczk|rezerwacyjn|PLACEHOLDER_ZADATEK|wpłacono/i.test(b.text),
+  const deposit = financeBlocks.some(
+    (b) =>
+      /zadatek|zaliczk|rezerwacyjn|PLACEHOLDER_ZADATEK|wpłacono/i.test(b.text) ||
+      classifyPaymentAmountRole(b) === 'deposit',
   )
-  const remaining = financeBlocks.some((b) =>
-    /pozostał|PLACEHOLDER_RESTA|do zapłaty|saldo/i.test(b.text),
+  const remaining = financeBlocks.some(
+    (b) =>
+      /pozostał|PLACEHOLDER_RESTA|do zapłaty|saldo|dopłat/i.test(b.text) ||
+      classifyPaymentAmountRole(b) === 'remaining',
   )
 
   const customerAddress =

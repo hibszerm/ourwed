@@ -26,6 +26,7 @@ import {
   applyCanonicalPackageName,
   type SourcePackageEvidence,
 } from './packageFieldEvidence'
+import { canonicalPartyIdentityTargets } from './partyFilledIdentity'
 import {
   PLN_AMOUNT_SURFACE_RE_ONCE,
   parsePlnAmountInteger,
@@ -244,6 +245,53 @@ export function repairMixedPartyProviderPreservation(input: {
 }
 
 /**
+ * Repair separate, represented customer table identity cells as one atomic
+ * surface set. Contact/address cells are intentionally absent from party
+ * evidence and are never rewritten as names.
+ */
+function repairStructuredPartyIdentityCells(input: {
+  blocks: TransformedBlock[]
+  sourceBlocks: TransformDocumentBlock[]
+  manifest: TransformationExpectationManifest
+  dataset: ContractTransformationDataset
+}): { blocks: TransformedBlock[]; repairs: DeterministicRepair[] } {
+  const evidence = input.manifest.sourcePartyEvidence ?? []
+  const targets = canonicalPartyIdentityTargets({
+    evidence,
+    sourceBlocks: input.sourceBlocks,
+    dataset: input.dataset,
+  })
+  const blocks = input.blocks.map((b) => ({ ...b }))
+  const repairs: DeterministicRepair[] = []
+
+  for (const ev of evidence) {
+    const source = input.sourceBlocks.find((b) => b.blockId === ev.blockId)
+    if (!source?.tableContext || source.kind !== 'tableCell') continue
+    const target = targets.get(ev.blockId)
+    if (!target) continue
+    const index = blocks.findIndex((b) => b.blockId === ev.blockId)
+    if (index < 0) continue
+    const current = blocks[index]!
+    if (current.text.includes(target)) continue
+    const sourceName = ev.identitySurfaces.find(
+      (surface) => current.text.includes(surface),
+    )
+    if (!sourceName || current.text.split(sourceName).length !== 2) continue
+    const next = current.text.replace(sourceName, target)
+    repairs.push({
+      repairCode: 'repair_structured_party_identity_cell',
+      blockId: current.blockId,
+      canonicalField: 'customer.names',
+      beforeFingerprint: fingerprintText(current.text),
+      afterFingerprint: fingerprintText(next),
+    })
+    blocks[index] = { ...current, text: next }
+  }
+
+  return { blocks, repairs }
+}
+
+/**
  * Pair each "(słownie: …)" clause with the nearest preceding PLN amount
  * and insert the matching deterministic words — never reuse total for all.
  */
@@ -311,6 +359,19 @@ export function applyDeterministicRepairs(input: {
     })
     blocks = mixed.blocks
     repairs.push(...mixed.repairs)
+  }
+
+  // 0a. Separate table rows are independently represented identities, but are
+  // repaired as one deterministic set rather than broad text replacement.
+  if (input.sourceBlocks && input.sourceBlocks.length > 0) {
+    const party = repairStructuredPartyIdentityCells({
+      blocks,
+      sourceBlocks: input.sourceBlocks,
+      manifest: input.manifest,
+      dataset: input.dataset,
+    })
+    blocks = party.blocks
+    repairs.push(...party.repairs)
   }
 
   // 1. Sanitize duplicated location wrappers everywhere

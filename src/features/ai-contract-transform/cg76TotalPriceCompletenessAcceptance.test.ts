@@ -8,6 +8,7 @@ import { buildExpectationManifest } from './quality/expectationManifest'
 import { repairCanonicalPaymentAmounts } from './quality/paymentAmountRepair'
 import { detectRepresentedConcepts } from './quality/representationPolicy'
 import {
+  discoverFilledPaymentAmountEvidence,
   discoverFilledTotalEvidence,
   isUnrelatedFeeAmountBlock,
 } from './quality/totalFieldEvidence'
@@ -19,6 +20,40 @@ import type {
 
 function assert(cond: boolean, msg: string) {
   if (!cond) throw new Error(msg)
+}
+
+// TP16 numeric-only total: words are not represented or required
+{
+  const source = [para('t', 'Wartość: 6 900 zł')]
+  const manifest = buildExpectationManifest({ sourceBlocks: source, dataset: ds(), protectedData: emptyProtected() })
+  assert(!manifest.requiredFields.some((f) => f.canonicalField === 'contract.totalPriceWords'), 'TP16 no words requirement')
+  const gate = run(source)
+  assert(/8 200 zł/.test(gate.blocks[0]!.text), 'TP16 total repaired')
+  assert(!/słownie/i.test(gate.blocks[0]!.text), 'TP16 words not invented')
+  console.log('PASS  TP16: numeric-only total has no words requirement')
+}
+
+// TP17 separate table rows: labels, not bare PLN cells, determine payment role
+{
+  const tableAmount = (id: string, rowIndex: number, label: string, amount: string): TransformDocumentBlock => ({
+    blockId: id, paragraphIndex: rowIndex, kind: 'tableCell', text: amount,
+    tableContext: { tableIndex: 0, rowIndex, cellIndex: 2, rowLabelText: label, columnHeaderText: 'Kwota', neighboringCellTexts: [label, 'termin płatności'], ownershipFamily: 'unknown' },
+  })
+  const source = [
+    tableAmount('total', 1, 'Wynagrodzenie ryczałtowe', '6 900 zł'),
+    tableAmount('deposit', 2, 'Wpłata potwierdzająca termin', '1 800 zł'),
+    tableAmount('remaining', 3, 'Kwota do dopłaty', '5 100 zł'),
+  ]
+  const evidence = discoverFilledPaymentAmountEvidence(source)
+  assert(JSON.stringify(evidence.map((e) => [e.blockId, e.role])) === JSON.stringify([['total', 'total'], ['deposit', 'deposit'], ['remaining', 'remaining']]), 'TP17 roles')
+  assert(JSON.stringify(discoverFilledTotalEvidence(source).map((e) => e.blockId)) === JSON.stringify(['total']), 'TP17 only total evidence')
+  const gate = run(source)
+  const byId = new Map(gate.blocks.map((b) => [b.blockId, b.text]))
+  assert(byId.get('total') === '8 200 zł', 'TP17 total preserved by role')
+  assert(byId.get('deposit') === '2 296 zł', 'TP17 deposit preserved by role')
+  assert(byId.get('remaining') === '5 904 zł', 'TP17 remaining preserved by role')
+  assert(financeBlocking(gate).length === 0, 'TP17 finance clean')
+  console.log('PASS  TP17: structured payment roles')
 }
 
 function para(id: string, text: string): TransformDocumentBlock {

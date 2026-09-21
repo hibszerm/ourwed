@@ -122,6 +122,27 @@ export function extractIdentitySurfaces(text: string): string[] {
   return out
 }
 
+function tableIdentityPrefix(text: string): string {
+  // DOCX runs in one table cell may be concatenated by extraction. Names are
+  // the leading identity surface; address, PESEL, email and phone data are not.
+  const boundary = text.search(
+    /(?:ul\.|al\.|os\.|pl\.|PESEL|NIP|REGON|@|\+48|\b\d{2}-\d{3}\b)/i,
+  )
+  const prefix = boundary >= 0 ? text.slice(0, boundary) : text
+  return prefix.replace(/([a-ząćęłńóśźż])(?=(?:ul\.|al\.|os\.|pl\.))/i, '$1 ')
+}
+
+function isTableIdentityCell(block: TransformDocumentBlock): boolean {
+  if (block.kind !== 'tableCell' || block.tableContext?.ownershipFamily !== 'customer') {
+    return false
+  }
+  if (block.cellIndex === 0) return false
+  const header = block.tableContext.columnHeaderText ?? ''
+  if (/kontakt|e-?mail|telefon/i.test(header)) return false
+  if (/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i.test(block.text)) return false
+  return extractIdentitySurfaces(tableIdentityPrefix(block.text)).length > 0
+}
+
 export function discoverFilledPartyEvidence(
   blocks: TransformDocumentBlock[],
 ): SourcePartyEvidence[] {
@@ -140,13 +161,13 @@ export function discoverFilledPartyEvidence(
       ) {
         continue
       }
-      const surfaces = extractIdentitySurfaces(text)
-      if (surfaces.length === 0 && text.trim().length < 3) continue
+      if (!isTableIdentityCell(b)) continue
+      const surfaces = extractIdentitySurfaces(tableIdentityPrefix(text))
+      if (surfaces.length === 0) continue
       evidence.push({
         blockId: b.blockId,
         sourceText: text,
-        identitySurfaces:
-          surfaces.length > 0 ? surfaces : [text.trim()].filter((s) => s.length >= 3),
+        identitySurfaces: surfaces,
         owner: 'CUSTOMER',
       })
       continue
@@ -177,6 +198,41 @@ function canonicalNameTokens(displayNames: string): string[] {
 }
 
 /**
+ * Separate customer table rows represent separate people. Assign canonical
+ * identities in structural row order when their count matches the dataset;
+ * prose and combined slots retain the complete display identity.
+ */
+export function canonicalPartyIdentityTargets(input: {
+  evidence: SourcePartyEvidence[]
+  sourceBlocks: TransformDocumentBlock[]
+  dataset: ContractTransformationDataset
+}): Map<string, string> {
+  const display = input.dataset.clients.displayNames?.trim() ?? ''
+  const targets = new Map(input.evidence.map((e) => [e.blockId, display]))
+  const tableEvidence = input.evidence
+    .map((e) => ({ e, block: input.sourceBlocks.find((b) => b.blockId === e.blockId) }))
+    .filter(
+      (item): item is { e: SourcePartyEvidence; block: TransformDocumentBlock } =>
+        Boolean(item.block?.tableContext && item.block.kind === 'tableCell'),
+    )
+    .sort(
+      (a, b) =>
+        (a.block.tableContext!.tableIndex - b.block.tableContext!.tableIndex) ||
+        (a.block.tableContext!.rowIndex - b.block.tableContext!.rowIndex) ||
+        (a.block.tableContext!.cellIndex - b.block.tableContext!.cellIndex),
+    )
+  const names = canonicalNameTokens(display)
+  if (
+    input.dataset.clients.personCount === 2 &&
+    tableEvidence.length === 2 &&
+    names.length === 2
+  ) {
+    tableEvidence.forEach(({ e }, index) => targets.set(e.blockId, names[index]!))
+  }
+  return targets
+}
+
+/**
  * Mode A / quality: identified party blocks must carry canonical clients and
  * must not retain scoped stale identity surfaces.
  */
@@ -193,6 +249,11 @@ export function verifyFilledPartyIdentity(input: {
   const personCount = input.dataset.clients.personCount ?? 1
   const nameTokens = canonicalNameTokens(display)
   const byId = new Map(input.transformedBlocks.map((b) => [b.blockId, b]))
+  const targets = canonicalPartyIdentityTargets({
+    evidence: input.evidence,
+    sourceBlocks: input.sourceBlocks,
+    dataset: input.dataset,
+  })
 
   for (const ev of input.evidence) {
     const src = input.sourceBlocks.find((s) => s.blockId === ev.blockId)
@@ -212,11 +273,14 @@ export function verifyFilledPartyIdentity(input: {
     }
 
     // Canonical client presence (any primary name token)
-    const hasCanonical =
-      display.length > 0 &&
-      (textContainsNormalized(block.text, display) ||
-        nameTokens.some((t) => textContainsNormalized(block.text, t)))
-    if (display && !hasCanonical) {
+    const target = targets.get(ev.blockId) ?? display
+    const isStructuredTableCell = src?.kind === 'tableCell' && Boolean(src.tableContext)
+    const hasCanonical = isStructuredTableCell
+      ? target.length > 0 && textContainsNormalized(block.text, target)
+      : display.length > 0 &&
+        (textContainsNormalized(block.text, display) ||
+          nameTokens.some((name) => textContainsNormalized(block.text, name)))
+    if (target && !hasCanonical) {
       issues.push({
         code: 'party_identity_canonical_missing',
         severity: 'blocking',
@@ -327,7 +391,7 @@ export function verifyProviderRoleSparseScope(input: {
       )
 
     const hasProviderRoleNoun =
-      /Fotograf|Filmowc|Kamerzyst|Wykonawc|Usługodawc|Par[aą]\s+Młod/i.test(
+      /\b(?:Fotograf(?:em|owi|a|ie|u|owie)?|Filmowc(?:em|owi|a|ie|u|owie)?|Kamerzyst(?:ą|a|e|y|ce|ą)?|Wykonawc(?:a|ą|y|owi|ę|o)?|Usługodawc(?:a|ą|y|owi|ę|o)?)\b|\bPar[aą]\s+Młod[aą]\b/i.test(
         src.text,
       )
 

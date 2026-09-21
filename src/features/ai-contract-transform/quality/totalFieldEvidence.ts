@@ -21,6 +21,12 @@ export type SourceTotalEvidence = {
   representation: 'table_cell' | 'prose' | 'form_line'
 }
 
+export type PaymentAmountRole = 'total' | 'deposit' | 'remaining' | 'unknown'
+
+export type SourcePaymentAmountEvidence = SourceTotalEvidence & {
+  role: Exclude<PaymentAmountRole, 'unknown'>
+}
+
 const FINANCE_NEIGHBORHOOD =
   /wynagrodzen|honorarium|zadatek|zaliczk|rezerwacj|pozostał|cena|kwot|płatn|rozliczen|rat[ay]|fee|deposit|balance|brutto|netto|zł|wartość|wpłacono|do zapłaty|inwestycj|saldo/i
 
@@ -28,7 +34,42 @@ const FINANCE_NEIGHBORHOOD =
 const DEPOSIT_PRIMARY =
   /zadatek|zaliczk|rezerwacj|PLACEHOLDER_ZADATEK|wpłacono/i
 const REMAINING_PRIMARY =
-  /pozostał|PLACEHOLDER_RESTA|do zapłaty|saldo/i
+  /pozostał|PLACEHOLDER_RESTA|do zapłaty|saldo|dopłat/i
+
+const TOTAL_PRIMARY = /wynagrodzen|honorarium|wartość|cena|inwestycj/i
+const DEPOSIT_PRIMARY_TABLE =
+  /zadatek|zaliczk|rezerwacj|wpłat\w*\s+potwierdz|wpłacono/i
+
+function paymentContext(block: TransformDocumentBlock): string {
+  return [
+    block.text,
+    block.tableContext?.rowLabelText ?? '',
+    ...(block.tableContext?.neighboringCellTexts ?? []),
+  ]
+    .filter(Boolean)
+    .join(' ')
+}
+
+/**
+ * Classify a PLN surface from the source structure. Table amount cells inherit
+ * their semantic role from the row label and neighboring cells; bare digits do
+ * not become totals merely because they contain "zł".
+ */
+export function classifyPaymentAmountRole(
+  block: TransformDocumentBlock,
+): PaymentAmountRole {
+  const text = (block.text ?? '').trim()
+  if (!text || countPlnAmounts(text) < 1) return 'unknown'
+  // A prose paragraph can describe several obligations at once. Its first
+  // amount is not structurally attributable to whichever payment label occurs
+  // first, so leave it to the existing prose-specific repair path.
+  if (block.kind !== 'tableCell' && countPlnAmounts(text) > 1) return 'unknown'
+  const context = paymentContext(block)
+  if (DEPOSIT_PRIMARY_TABLE.test(context)) return 'deposit'
+  if (REMAINING_PRIMARY.test(context)) return 'remaining'
+  if (TOTAL_PRIMARY.test(context)) return 'total'
+  return 'unknown'
+}
 
 /** Unrelated commercial fees that must not be treated as contract total. */
 const UNRELATED_FEE =
@@ -74,9 +115,17 @@ export function discoverFilledTotalEvidence(
 
   for (const b of blocks) {
     const text = (b.text ?? '').trim()
-    if (!text || !isFinanceNeighborhood(text)) continue
+    const context = paymentContext(b)
+    if (!text || !isFinanceNeighborhood(context)) continue
     if (countPlnAmounts(text) < 1) continue
-    if (isUnrelatedFeeAmountBlock(text)) continue
+    if (isUnrelatedFeeAmountBlock(context)) continue
+
+    // A value-only table cell has no self-describing finance role. Its row
+    // context must identify it as total; deposit and remaining cells are never
+    // promoted to total evidence.
+    if (b.kind === 'tableCell') {
+      if (classifyPaymentAmountRole(b) !== 'total') continue
+    }
 
     const hasWords = /słownie/i.test(text)
     const depositPrimary =
@@ -126,5 +175,40 @@ export function discoverFilledTotalEvidence(
     })
   }
 
+  return out
+}
+
+/** Discover all structurally represented payment amount roles in the source. */
+export function discoverFilledPaymentAmountEvidence(
+  blocks: TransformDocumentBlock[],
+): SourcePaymentAmountEvidence[] {
+  const out: SourcePaymentAmountEvidence[] = []
+  const seen = new Set<string>()
+  for (const block of blocks) {
+    const text = (block.text ?? '').trim()
+    if (!text || countPlnAmounts(text) < 1) continue
+    const role = classifyPaymentAmountRole(block)
+    if (role === 'unknown' || isUnrelatedFeeAmountBlock(paymentContext(block))) {
+      continue
+    }
+    const sourceAmount = extractPrimaryPlnAmount(text)
+    if (!sourceAmount || isTrivialPlnAmountSurface(sourceAmount)) continue
+    const key = `${block.blockId}:${role}:${sourceAmount}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push({
+      blockId: block.blockId,
+      sourceText: text,
+      sourceAmount,
+      hasWords: /słownie/i.test(text),
+      representation:
+        block.kind === 'tableCell'
+          ? 'table_cell'
+          : /^[^.\n]{2,60}:\s*\d/.test(text)
+            ? 'form_line'
+            : 'prose',
+      role,
+    })
+  }
   return out
 }

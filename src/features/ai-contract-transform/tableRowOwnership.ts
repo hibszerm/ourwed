@@ -28,7 +28,7 @@ const CUSTOMER_LABELS = [
   'malzonkowie',
   'malzonki',
   'narzeczeni',
-  'zleceniodawca',
+  'zleceniodawc',
 ]
 
 const PROVIDER_LABELS = [

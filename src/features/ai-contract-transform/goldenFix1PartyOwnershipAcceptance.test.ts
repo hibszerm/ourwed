@@ -217,6 +217,21 @@ pass('C05 covered via C06/C07 dual shapes')
   pass('P05/P06 provider role legal rewrite blocked')
 }
 {
+  const src = para(
+    'summary',
+    'Umowę zawarto 4 marca 2027 roku. Reportażu fotograficznego z udziałem Anny Starej dotyczy termin 21 sierpnia 2027 roku.',
+  )
+  const changed = [
+    {
+      blockId: 'summary',
+      text: 'Umowę zawarto 5 listopada 2026 roku. Reportażu fotograficznego z udziałem Anny Nowej dotyczy termin 9 października 2027 roku.',
+    },
+  ]
+  const issues = verifyProviderRoleSparseScope({ sourceBlocks: [src], transformedBlocks: changed, partyEvidence: [] })
+  assert.equal(issues.length, 0, 'event summary with fotograficznego is not provider role prose')
+  pass('P11 bounded provider-role noun detection')
+}
+{
   const finance = para(
     'f1',
     'Pozostała kwota 1 000,00 zł jest płatna na rachunek Fotografa.',

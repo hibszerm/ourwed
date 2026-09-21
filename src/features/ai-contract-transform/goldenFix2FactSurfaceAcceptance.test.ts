@@ -263,6 +263,14 @@ function main() {
       {
         ...blk('tc', '8 400,00 zł'),
         kind: 'tableCell' as const,
+        tableContext: {
+          tableIndex: 0,
+          rowIndex: 1,
+          cellIndex: 1,
+          rowLabelText: 'Wynagrodzenie całkowite',
+          neighboringCellTexts: ['Wynagrodzenie całkowite', '8 400,00 zł'],
+          ownershipFamily: 'unknown',
+        },
       },
       blk('d', 'Zadatek 1 500,00 zł.'),
     ]

@@ -26,7 +26,10 @@ import {
   detectRepresentedConcepts,
   financeBlockHasExistingPaymentStructure,
 } from './representationPolicy'
-import { discoverFilledTotalEvidence } from './totalFieldEvidence'
+import {
+  discoverFilledPaymentAmountEvidence,
+  discoverFilledTotalEvidence,
+} from './totalFieldEvidence'
 import type { DeterministicRepair } from './types'
 
 const FORBIDDEN_NEIGHBORHOOD =
@@ -561,6 +564,7 @@ export function repairCanonicalPaymentAmounts(input: {
 
   const sourceRep = detectRepresentedConcepts(input.sourceBlocks)
   const totalEvidence = discoverFilledTotalEvidence(input.sourceBlocks)
+  const paymentEvidence = discoverFilledPaymentAmountEvidence(input.sourceBlocks)
   // Authoring deposit/remaining onto a finance block is allowed ONLY when the
   // source template already represented that concept (empty clause / placeholder)
   // OR legacy CG3 fixtures that use PLACEHOLDER_* (handled above).
@@ -571,6 +575,34 @@ export function repairCanonicalPaymentAmounts(input: {
   const mayAuthorRemaining =
     sourceRep.remaining ||
     input.sourceBlocks.some((b) => /PLACEHOLDER_RESTA/i.test(b.text))
+
+  // Structured payment tables keep labels and amounts in separate cells. Apply
+  // canonical values only to source-grounded cells of the matching role.
+  for (const evidence of paymentEvidence) {
+    const target =
+      evidence.role === 'total'
+        ? total
+        : evidence.role === 'deposit'
+          ? deposit
+          : remaining
+    if (!target) continue
+    const block = blocks.find((b) => b.blockId === evidence.blockId)
+    if (!block || textHasCanonicalPlnAmount(block.text, target)) continue
+    const next = replacePlnAmountSurface(block.text, target)
+    if (!next || next === block.text) continue
+    updateBlock(
+      blocks,
+      evidence.blockId,
+      next,
+      repairs,
+      `replace_canonical_${evidence.role}_in_structured_table`,
+      evidence.role === 'total'
+        ? 'contract.totalPrice'
+        : evidence.role === 'deposit'
+          ? 'contract.depositAmount'
+          : 'contract.remainingAmount',
+    )
+  }
 
   if (
     total &&

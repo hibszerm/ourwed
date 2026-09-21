@@ -22,6 +22,7 @@ import {
 } from './locationRendering'
 import { normalizeForMatch, textContainsNormalized } from './normalize'
 import {
+  canonicalPartyIdentityTargets,
   discoverFilledPartyEvidence,
   extractCustomerAddressSurface,
   type SourcePartyEvidence as PartyEvidenceRuntime,
@@ -166,6 +167,11 @@ export function buildExpectationManifest(input: {
     sourceText: e.sourceText,
     identitySurfaces: e.identitySurfaces,
   }))
+  const partyIdentityTargets = canonicalPartyIdentityTargets({
+    evidence: filledPartyEvidence,
+    sourceBlocks: blocks,
+    dataset,
+  })
   for (const ev of filledPartyEvidence) {
     for (const surface of ev.identitySurfaces) {
       pushSourceValue(sourceSpecificValues, {
@@ -448,7 +454,14 @@ export function buildExpectationManifest(input: {
     addRequired(
       'customer.names',
       nameSourceValues,
-      [dataset.clients.displayNames],
+      [
+        dataset.clients.displayNames,
+        ...dataset.clients.displayNames
+          .split(/\s+i\s+|\s+oraz\s+|,/i)
+          .map((value) => value.trim())
+          .filter(Boolean),
+        ...new Set([...partyIdentityTargets.values()]),
+      ],
       'must_replace_source',
       [
         {
@@ -466,18 +479,17 @@ export function buildExpectationManifest(input: {
   // Explicit requiredReplacement for filled party blocks so the model sees
   // sourceBlockIds even when sourceValues alone would miss declined forms.
   if (filledPartyEvidence.length > 0 && dataset.clients.displayNames) {
-    const partySourceValues = [
-      ...new Set(filledPartyEvidence.flatMap((e) => e.identitySurfaces)),
-    ]
-    const partyBlockIds = filledPartyEvidence.map((e) => e.blockId)
-    requiredReplacements.push({
-      canonicalField: 'customer.names',
-      sourceValues: partySourceValues,
-      targetRenderedValues: [dataset.clients.displayNames],
-      sourceBlockIds: partyBlockIds,
-      requiredContextBlockIds: partyBlockIds,
-      replacementPolicy: 'replace_in_contexts',
-    })
+    for (const evidence of filledPartyEvidence) {
+      const target = partyIdentityTargets.get(evidence.blockId) ?? dataset.clients.displayNames
+      requiredReplacements.push({
+        canonicalField: 'customer.names',
+        sourceValues: evidence.identitySurfaces,
+        targetRenderedValues: [target],
+        sourceBlockIds: [evidence.blockId],
+        requiredContextBlockIds: [evidence.blockId],
+        replacementPolicy: 'replace_in_contexts',
+      })
+    }
   }
 
   if (dataset.clients.address && represented.customerAddress) {
@@ -710,15 +722,19 @@ export function buildExpectationManifest(input: {
         ? [{ kind: 'payment_clause', blockIds: totalBlockIds }]
         : undefined,
     )
-    addRequired(
-      'contract.totalPriceWords',
-      [],
-      [dataset.finances.contractValueWords],
-      'must_appear_in_relevant_context',
-      totalBlockIds.length > 0
-        ? [{ kind: 'payment_clause', blockIds: totalBlockIds }]
-        : undefined,
-    )
+    // Amount-in-words is contractual content only when the SOURCE contains a
+    // grounded words surface. Numeric-only templates must stay numeric-only.
+    if (totalEvidence.some((e) => e.hasWords)) {
+      addRequired(
+        'contract.totalPriceWords',
+        [],
+        [dataset.finances.contractValueWords],
+        'must_appear_in_relevant_context',
+        totalBlockIds.length > 0
+          ? [{ kind: 'payment_clause', blockIds: totalBlockIds }]
+          : undefined,
+      )
+    }
     if (totalEvidence.length > 0) {
       requiredReplacements.push({
         canonicalField: 'contract.totalPrice',

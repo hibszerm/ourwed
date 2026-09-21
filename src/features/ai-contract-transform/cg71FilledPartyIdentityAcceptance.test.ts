@@ -8,12 +8,16 @@
 import { runPostReconstructionQualityGate } from './quality/buildQualityReport'
 import { buildExpectationManifest } from './quality/expectationManifest'
 import {
+  applyDeterministicRepairs,
+} from './quality/deterministicRepairs'
+import {
   discoverFilledPartyEvidence,
   isClientPartyIdentityBlock,
   isProviderIdentityBlock,
   verifyFilledPartyIdentity,
   verifyProviderRoleSparseScope,
 } from './quality/partyFilledIdentity'
+import { classifyRowLabel } from './tableRowOwnership'
 import type {
   ContractTransformationDataset,
   TransformDocumentBlock,
@@ -23,6 +27,51 @@ import type { ProtectedContractData } from './types'
 
 function assert(cond: boolean, msg: string) {
   if (!cond) throw new Error(msg)
+}
+
+// ---- Structured two-client table: identity cells only, atomic row repair ----
+{
+  assert(classifyRowLabel('Zleceniodawczyni') === 'customer', 'structured: inflected customer label classified')
+  const source: TransformDocumentBlock[] = [
+    {
+      blockId: 'client-a-name', paragraphIndex: 0, kind: 'tableCell',
+      text: 'Marta Staraul. Wspólna 4, 00-001 Miasto WspólnePESEL 00000000001',
+      tableContext: { tableIndex: 0, rowIndex: 1, cellIndex: 1, rowLabelText: 'Zleceniodawczyni', columnHeaderText: 'Dane identyfikacyjne', neighboringCellTexts: ['Zleceniodawczyni', 'marta@example.test+48 500 000 001'], ownershipFamily: 'customer' },
+    },
+    {
+      blockId: 'client-a-contact', paragraphIndex: 1, kind: 'tableCell',
+      text: 'marta@example.test+48 500 000 001',
+      tableContext: { tableIndex: 0, rowIndex: 1, cellIndex: 2, rowLabelText: 'Zleceniodawczyni', columnHeaderText: 'Kontakt', neighboringCellTexts: ['Zleceniodawczyni'], ownershipFamily: 'customer' },
+    },
+    {
+      blockId: 'client-b-name', paragraphIndex: 2, kind: 'tableCell',
+      text: 'Jan Staryul. Wspólna 4, 00-001 Miasto WspólnePESEL 00000000002',
+      tableContext: { tableIndex: 0, rowIndex: 2, cellIndex: 1, rowLabelText: 'Zleceniodawca', columnHeaderText: 'Dane identyfikacyjne', neighboringCellTexts: ['Zleceniodawca', 'jan@example.test+48 500 000 002'], ownershipFamily: 'customer' },
+    },
+    {
+      blockId: 'client-b-contact', paragraphIndex: 3, kind: 'tableCell',
+      text: 'jan@example.test+48 500 000 002',
+      tableContext: { tableIndex: 0, rowIndex: 2, cellIndex: 2, rowLabelText: 'Zleceniodawca', columnHeaderText: 'Kontakt', neighboringCellTexts: ['Zleceniodawca'], ownershipFamily: 'customer' },
+    },
+    {
+      blockId: 'provider-city', paragraphIndex: 4, kind: 'tableCell',
+      text: 'Studio Przykład, ul. Firmowa 1, 00-001 Miasto Wspólne, NIP 111-111-11-11',
+      tableContext: { tableIndex: 0, rowIndex: 3, cellIndex: 1, rowLabelText: 'Wykonawca', columnHeaderText: 'Dane identyfikacyjne', neighboringCellTexts: ['Wykonawca'], ownershipFamily: 'provider' },
+    },
+    { blockId: 'venue-city', paragraphIndex: 5, kind: 'paragraph', text: 'Ceremonia odbędzie się przy ul. Parkowej 1, 00-001 Miasto Wspólne.' },
+  ]
+  const evidence = discoverFilledPartyEvidence(source)
+  assert(JSON.stringify(evidence.map((e) => e.blockId)) === JSON.stringify(['client-a-name', 'client-b-name']), 'structured: only identity cells')
+  assert(!evidence.flatMap((e) => e.identitySurfaces).some((s) => /Miasto|example/i.test(s)), 'structured: city/contact are not names')
+  const manifest = buildExpectationManifest({ sourceBlocks: source, dataset: dataset(2), protectedData: emptyProtected() })
+  const repaired = applyDeterministicRepairs({ blocks: source.map((b) => ({ blockId: b.blockId, text: b.text })), sourceBlocks: source, dataset: dataset(2), manifest })
+  const byId = new Map(repaired.blocks.map((b) => [b.blockId, b.text]))
+  assert(byId.get('client-a-name')?.includes('Anna Testowa'), 'structured: first client repaired')
+  assert(byId.get('client-b-name')?.includes('Jan Próbny'), 'structured: second client repaired')
+  assert(byId.get('client-a-contact') === source[1]!.text, 'structured: contact preserved')
+  assert(byId.get('provider-city') === source[4]!.text, 'structured: provider city preserved')
+  assert(byId.get('venue-city') === source[5]!.text, 'structured: venue city preserved')
+  console.log('PASS  structured two-client identity/contact evidence')
 }
 
 function dataset(personCount: 1 | 2): ContractTransformationDataset {
