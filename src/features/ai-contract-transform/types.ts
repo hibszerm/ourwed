@@ -141,4 +141,6 @@ export type TransformDocumentBlock = {
 export type TransformedBlock = {
   blockId: string
   text: string
+  /** System-attached SOURCE identity; never inferred from transformed text. */
+  originSourceBlockId?: string
 }

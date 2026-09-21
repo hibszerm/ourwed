@@ -84,6 +84,7 @@ export function applySparseBlockChanges(
   const blocks: TransformedBlock[] = sourceBlocks.map((src) => ({
     blockId: src.blockId,
     text: changeMap.has(src.blockId) ? changeMap.get(src.blockId)! : src.text,
+    originSourceBlockId: src.blockId,
   }))
 
   return {
