@@ -26,6 +26,7 @@ import { textLooksLikeServicePriceOrQuantity } from '../contractAdditionalServic
 import { expandBlocksWithParagraphInsertions } from '../expandBlocksWithInsertions'
 import { indexDocxForTransform } from '../indexDocxForTransform'
 import { polishContractMoneyWords } from '../polishContractMoneyWords'
+import { discoverFilledPackageEvidence } from '../quality/packageFieldEvidence'
 import { normalizeForMatch } from '../quality/normalize'
 import { buildContractTransformationDataset } from '../transformationDataset'
 import { runSparseProductTransform } from '../transformService'
@@ -367,12 +368,14 @@ function evaluateCase(input: {
       : 'FAIL'
 
   // Package
-  const pkgName = scenario.package.name
+  const sourcePackageNames = discoverFilledPackageEvidence(input.sourceBlocks)
+    .map((e) => normalizeForMatch(e.sourcePackageName))
+    .filter(Boolean)
   const packageOk: GoldenVerdict = !rep.package
     ? 'N/A'
-    : input.finalTexts.some((t) =>
-          normalizeForMatch(t).includes(normalizeForMatch(pkgName)),
-        )
+    : sourcePackageNames.length === 0 || sourcePackageNames.every((name) =>
+        input.finalTexts.some((t) => normalizeForMatch(t).includes(name)),
+      )
       ? 'PASS'
       : 'FAIL'
 

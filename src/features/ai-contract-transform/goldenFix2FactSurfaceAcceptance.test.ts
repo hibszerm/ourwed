@@ -22,6 +22,8 @@ import {
   textHasCanonicalPlnAmount,
 } from './quality/plnAmountSurface'
 import { repairMoneyWordsInText } from './quality/deterministicRepairs'
+import { applyDeterministicRepairs } from './quality/deterministicRepairs'
+import { buildExpectationManifest } from './quality/expectationManifest'
 import { discoverFilledPartyEvidence } from './quality/partyFilledIdentity'
 import type {
   ContractTransformationDataset,
@@ -459,6 +461,30 @@ function main() {
   }
 
   // ---- PKT01–PKT10 ----
+  {
+    const source = [
+      blk(
+        'owned-package',
+        'Wynagrodzenie za pakiet Pakiet Północny obejmuje 12 godzin fotografowania, 600 zdjęć i 80 odbitek.',
+      ),
+    ]
+    const manifest = buildExpectationManifest({
+      sourceBlocks: source,
+      dataset: ds(),
+      protectedData: { exactProtectedValues: [], protectedPatterns: [] },
+    })
+    const repaired = applyDeterministicRepairs({
+      blocks: source.map((b) => ({ blockId: b.blockId, text: b.text })),
+      sourceBlocks: source,
+      dataset: ds(),
+      manifest,
+    })
+    const text = repaired.blocks[0]!.text
+    assert(/Pakiet Północny/.test(text), 'PKT00 source package name preserved')
+    assert(/12 godzin/.test(text) && /600 zdjęć/.test(text) && /80 odbitek/.test(text), 'PKT00 package terms preserved')
+    assert(!/Reportaż Wieczorny/.test(text), 'PKT00 CRM package name not required')
+  }
+
   {
     assert(
       extractPackageNameAfterMarker('obejmuje pakiet Klasyczny Reportaż: do 10') ===

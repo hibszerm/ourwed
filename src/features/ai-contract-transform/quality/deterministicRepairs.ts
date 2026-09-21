@@ -22,10 +22,6 @@ import {
   extractCustomerAddressSurface,
   splitMixedPartyClause,
 } from './partyOwnership'
-import {
-  applyCanonicalPackageName,
-  type SourcePackageEvidence,
-} from './packageFieldEvidence'
 import { canonicalPartyIdentityTargets } from './partyFilledIdentity'
 import {
   PLN_AMOUNT_SURFACE_RE_ONCE,
@@ -496,32 +492,6 @@ export function applyDeterministicRepairs(input: {
   })
   blocks = payment.blocks
   repairs.push(...payment.repairs)
-
-  // 4a. Canonical package name on grounded selected-package surfaces only
-  const packageEvidence = (input.manifest.sourcePackageEvidence ??
-    []) as SourcePackageEvidence[]
-  const canonicalPackage = input.dataset.package?.name?.trim() ?? ''
-  if (canonicalPackage && packageEvidence.length > 0) {
-    for (const ev of packageEvidence) {
-      const idx = blocks.findIndex((b) => b.blockId === ev.blockId)
-      if (idx < 0) continue
-      const prev = blocks[idx]!
-      const next = applyCanonicalPackageName(
-        prev.text,
-        ev.sourcePackageName,
-        canonicalPackage,
-      )
-      if (next === prev.text) continue
-      repairs.push({
-        repairCode: 'replace_canonical_package_name_in_place',
-        blockId: ev.blockId,
-        canonicalField: 'package.name',
-        beforeFingerprint: fingerprintText(prev.text),
-        afterFingerprint: fingerprintText(next),
-      })
-      blocks[idx] = { ...prev, text: next }
-    }
-  }
 
   // 4a2. Headline / summary repeated party+date surfaces
   const repeatedEvidence = (input.manifest.sourceRepeatedFactEvidence ??

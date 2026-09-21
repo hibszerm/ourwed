@@ -234,16 +234,6 @@ export function buildExpectationManifest(input: {
     }
   }
 
-  // Package source names must disappear from grounded surfaces
-  for (const ev of packageEvidence) {
-    pushSourceValue(sourceSpecificValues, {
-      field: 'package.name',
-      value: ev.sourcePackageName,
-      blocks: blocks.filter((b) => b.blockId === ev.blockId),
-      mustDisappear: true,
-    })
-  }
-
   const represented = detectRepresentedConcepts(blocks, {
     hasPartyEvidence: filledPartyEvidence.length > 0,
     hasPrepEvidence: filledLocationEvidence.some((e) =>
@@ -756,31 +746,6 @@ export function buildExpectationManifest(input: {
           replacementPolicy: 'replace_in_contexts',
         })
       }
-    }
-  }
-
-  // Golden Fix 2 — represented package name (not service-scope rewrite)
-  if (represented.packageName && dataset.package?.name) {
-    const pkgBlocks = packageEvidence.map((e) => e.blockId)
-    const pkgSources = packageEvidence.map((e) => e.sourcePackageName)
-    addRequired(
-      'package.name',
-      pkgSources,
-      [dataset.package.name],
-      pkgSources.length > 0 ? 'must_replace_source' : 'must_appear',
-      pkgBlocks.length
-        ? [{ kind: 'generic_body', blockIds: pkgBlocks }]
-        : undefined,
-    )
-    for (const ev of packageEvidence) {
-      requiredReplacements.push({
-        canonicalField: 'package.name',
-        sourceValues: [ev.sourcePackageName],
-        targetRenderedValues: [dataset.package.name],
-        sourceBlockIds: [ev.blockId],
-        requiredContextBlockIds: [ev.blockId],
-        replacementPolicy: 'replace_in_contexts',
-      })
     }
   }
 
