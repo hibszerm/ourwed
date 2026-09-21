@@ -22,6 +22,18 @@ import {
   extractCustomerAddressSurface,
   splitMixedPartyClause,
 } from './partyOwnership'
+import {
+  applyCanonicalPackageName,
+  type SourcePackageEvidence,
+} from './packageFieldEvidence'
+import {
+  PLN_AMOUNT_SURFACE_RE_ONCE,
+  parsePlnAmountInteger,
+} from './plnAmountSurface'
+import {
+  repairRepeatedFactSurfaces,
+  type SourceRepeatedFactEvidence,
+} from './repeatedFactEvidence'
 import type {
   DeterministicRepair,
   RequiredReplacement,
@@ -39,10 +51,15 @@ function extractNeedsMultiSlot(
 }
 
 function parsePlnAmount(raw: string): number | null {
-  const digits = raw.replace(/[^\d]/g, '')
-  if (!digits) return null
-  return Number(digits)
+  return parsePlnAmountInteger(raw)
 }
+
+const MONEY_AMOUNT_FIELDS = new Set([
+  'contract.totalPrice',
+  'contract.totalPriceWords',
+  'contract.depositAmount',
+  'contract.remainingAmount',
+])
 
 function wordsForAmount(
   amount: number,
@@ -235,8 +252,13 @@ export function repairMoneyWordsInText(
   finances: ContractTransformationDataset['finances'],
 ): string {
   if (!/słownie/i.test(text)) return text
-  return text.replace(
-    /(\d[\d\s\u00a0]*\s*zł(?:otych|ote|oty)?)([\s\S]{0,100}?)\(\s*słownie:\s*([^).]+)\)/gi,
+  // Parenthesized form: (słownie: …)
+  const pairRe = new RegExp(
+    `(${PLN_AMOUNT_SURFACE_RE_ONCE.source})([\\s\\S]{0,100}?)\\(\\s*słownie:\\s*([^).]+)\\)`,
+    'gi',
+  )
+  let out = text.replace(
+    pairRe,
     (full, amountWithCurrency: string, between: string) => {
       const amount = parsePlnAmount(amountWithCurrency)
       if (amount == null) return full
@@ -245,6 +267,26 @@ export function repairMoneyWordsInText(
       return `${amountWithCurrency}${between}(słownie: ${expected})`
     },
   )
+  // Bare form: słownie: … (optionally with trailing 00/100) — common in Polish contracts
+  if (/słownie:/i.test(out)) {
+    const bareRe = new RegExp(
+      `(${PLN_AMOUNT_SURFACE_RE_ONCE.source})([\\s\\S]{0,80}?)słownie:\\s*([^.;\\n]+?)(\\s*00\\/100)?(?=[.;\\n]|$)`,
+      'gi',
+    )
+    out = out.replace(
+      bareRe,
+      (full, amountWithCurrency: string, between: string, _words: string, cents: string) => {
+        // Skip if this amount was already handled as parenthesized nearby
+        if (/\(\s*$/.test(between)) return full
+        const amount = parsePlnAmount(amountWithCurrency)
+        if (amount == null) return full
+        const expected = wordsForAmount(amount, finances)
+        if (!expected) return full
+        return `${amountWithCurrency}${between}słownie: ${expected}${cents ?? ''}`
+      },
+    )
+  }
+  return out
 }
 
 /**
@@ -302,12 +344,15 @@ export function applyDeterministicRepairs(input: {
   })
 
   // 3. One-to-one exact stale → target in required contexts (unambiguous only)
+  // Money amounts are repaired via exact PLN surface replacement — never substring
+  // exact_stale (e.g. "00 zł" inside "11 200 zł" → "11 211 200").
   for (const rep of input.manifest.requiredReplacements) {
     if (rep.sourceValues.length !== 1 || rep.targetRenderedValues.length !== 1)
       continue
     if (
       rep.canonicalField === 'contract.paymentStructure' ||
-      rep.canonicalField === 'package.serviceScope'
+      rep.canonicalField === 'package.serviceScope' ||
+      MONEY_AMOUNT_FIELDS.has(rep.canonicalField)
     ) {
       continue
     }
@@ -327,6 +372,29 @@ export function applyDeterministicRepairs(input: {
       if (idx < 0) continue
       const b = blocks[idx]!
       if (!b.text.includes(sourceVal)) continue
+      // Idempotence: never replace a fragment of an already-canonical target
+      if (targetVal.includes(sourceVal) && b.text.includes(targetVal)) continue
+
+      // Headline/summary dates: dedicated style-preserving repair owns these surfaces
+      if (
+        rep.canonicalField === 'wedding.date' &&
+        input.manifest.sourceRepeatedFactEvidence?.some((e) => e.blockId === blockId)
+      ) {
+        continue
+      }
+
+      // Package names: dedicated exact-surface package repair owns these
+      if (rep.canonicalField === 'package.name') {
+        continue
+      }
+
+      // Headline party names: dedicated repeated-fact repair owns these surfaces
+      if (
+        rep.canonicalField === 'customer.names' &&
+        input.manifest.sourceRepeatedFactEvidence?.some((e) => e.blockId === blockId)
+      ) {
+        continue
+      }
 
       // CG7.1: filled party *clauses* need a complete model rewrite (Polish grammar).
       // Do not token-swap nominative displayNames into declined instrumental/dative prose.
@@ -367,6 +435,45 @@ export function applyDeterministicRepairs(input: {
   })
   blocks = payment.blocks
   repairs.push(...payment.repairs)
+
+  // 4a. Canonical package name on grounded selected-package surfaces only
+  const packageEvidence = (input.manifest.sourcePackageEvidence ??
+    []) as SourcePackageEvidence[]
+  const canonicalPackage = input.dataset.package?.name?.trim() ?? ''
+  if (canonicalPackage && packageEvidence.length > 0) {
+    for (const ev of packageEvidence) {
+      const idx = blocks.findIndex((b) => b.blockId === ev.blockId)
+      if (idx < 0) continue
+      const prev = blocks[idx]!
+      const next = applyCanonicalPackageName(
+        prev.text,
+        ev.sourcePackageName,
+        canonicalPackage,
+      )
+      if (next === prev.text) continue
+      repairs.push({
+        repairCode: 'replace_canonical_package_name_in_place',
+        blockId: ev.blockId,
+        canonicalField: 'package.name',
+        beforeFingerprint: fingerprintText(prev.text),
+        afterFingerprint: fingerprintText(next),
+      })
+      blocks[idx] = { ...prev, text: next }
+    }
+  }
+
+  // 4a2. Headline / summary repeated party+date surfaces
+  const repeatedEvidence = (input.manifest.sourceRepeatedFactEvidence ??
+    []) as SourceRepeatedFactEvidence[]
+  if (repeatedEvidence.length > 0) {
+    const repeated = repairRepeatedFactSurfaces({
+      blocks,
+      evidence: repeatedEvidence,
+      dataset: input.dataset,
+    })
+    blocks = repeated.blocks
+    repairs.push(...repeated.repairs)
+  }
 
   // 4b. Re-normalize money words AFTER amount swaps (CG7.3 multi-block payment)
   blocks = blocks.map((b) => {

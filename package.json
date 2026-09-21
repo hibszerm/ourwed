@@ -295,7 +295,8 @@
     "test:cg75-dual-prep": "npx tsx --tsconfig tsconfig.app.json src/features/ai-contract-transform/cg75DualPrepPartyExtrasAcceptance.test.ts",
     "test:cg76-total-price": "npx tsx --tsconfig tsconfig.app.json src/features/ai-contract-transform/cg76TotalPriceCompletenessAcceptance.test.ts",
     "test:golden-contract-validation": "npx tsx --tsconfig tsconfig.app.json src/features/ai-contract-transform/cg7/runGoldenValidation.ts",
-    "test:golden-fix1-party-ownership": "npx tsx --tsconfig tsconfig.app.json src/features/ai-contract-transform/goldenFix1PartyOwnershipAcceptance.test.ts"
+    "test:golden-fix1-party-ownership": "npx tsx --tsconfig tsconfig.app.json src/features/ai-contract-transform/goldenFix1PartyOwnershipAcceptance.test.ts",
+    "test:golden-fix2-fact-surface": "npx tsx --tsconfig tsconfig.app.json src/features/ai-contract-transform/goldenFix2FactSurfaceAcceptance.test.ts"
   },
   "dependencies": {
     "@googlemaps/js-api-loader": "^2.1.1",

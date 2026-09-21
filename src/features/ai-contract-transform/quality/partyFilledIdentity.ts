@@ -305,9 +305,9 @@ export function verifyProviderRoleSparseScope(input: {
     // Signature labels are restored deterministically — never flag as role rewrite
     if (/data i czytelny podpis|—\s*data i czytelny/i.test(src.text)) continue
 
-    // Authorized wedding-fact blocks (locations / money / dates / party address)
+    // Authorized wedding-fact blocks (locations / money / dates / party address / package)
     if (
-      /miejsce\s+przygotowa|miejsce\s+ceremoni|miejsce\s+wesel|przygotowań\s|:\s*ul\.\s|zł|słownie:|data\s+ślub|zawarta\s+w\s|zam\.\s|zamieszkał/i.test(
+      /miejsce\s+przygotowa|miejsce\s+ceremoni|miejsce\s+wesel|przygotowań\s|:\s*ul\.\s|zł|słownie:|data\s+ślub|zawarta\s+w\s|zam\.\s|zamieszkał|pakiet\s+[A-ZĄĆĘŁŃÓŚŹŻ]/i.test(
         src.text,
       )
     ) {

@@ -15,7 +15,13 @@ import type {
   TransformDocumentBlock,
   TransformedBlock,
 } from '../types'
-import { fingerprintText, textContainsNormalized } from './normalize'
+import { fingerprintText } from './normalize'
+import {
+  countPlnAmountSurfaces,
+  replacePlnAmountNearMarker,
+  replacePlnAmountSurface,
+  textHasCanonicalPlnAmount,
+} from './plnAmountSurface'
 import {
   detectRepresentedConcepts,
   financeBlockHasExistingPaymentStructure,
@@ -45,7 +51,7 @@ function isForbiddenBlock(text: string): boolean {
 export function isFinanceSectionHeading(text: string): boolean {
   const t = text.replace(/\u00a0/g, ' ').trim()
   if (!t || t.length > 96) return false
-  if (/\d[\d\s\u00a0]*\s*zł/i.test(t)) return false
+  if (countPlnAmountSurfaces(t) > 0) return false
   if (/PLACEHOLDER_(CENA|ZADATEK|RESTA)/i.test(t)) return false
   if (/zadatek|zaliczk|pozostał/i.test(t) && t.length > 40) return false
   if (/^§\s*\d+[a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻ0-9\s./-]*\.?$/u.test(t)) return true
@@ -58,7 +64,7 @@ function financeTargetRank(text: string): number {
   if (isFinanceSectionHeading(text)) return 5
   if (DEPOSIT_MARKER.test(text)) return 90
   if (REMAINING_MARKER.test(text)) return 85
-  if (/\d[\d\s\u00a0]*\s*zł/i.test(text)) return 70
+  if (countPlnAmountSurfaces(text) > 0) return 70
   if (isFinanceNeighborhood(text)) return 40
   return 0
 }
@@ -73,10 +79,6 @@ function isFinanceNeighborhood(text: string): boolean {
 
 function amountDigits(formatted: string): string {
   return formatted.replace(/\s*zł(?:otych|ote|oty)?\s*$/i, '').trim()
-}
-
-function normalizePlnDigits(formatted: string): string {
-  return formatted.replace(/[^\d]/g, '')
 }
 
 /** Replace PLACEHOLDER_* money tokens without producing "… zł zł". */
@@ -99,39 +101,11 @@ function replaceMoneyPlaceholder(
   return text
 }
 
-/**
- * Replace the PLN amount nearest a deposit/remaining marker.
- * Preserves intervening legal wording (deadlines, methods).
- */
-function replaceAmountNearMarker(
-  text: string,
-  marker: RegExp,
-  formattedAmount: string,
-): string | null {
-  if (!marker.test(text)) return null
-  if (textContainsNormalized(text, formattedAmount)) return text
-  const targetDigits = normalizePlnDigits(formattedAmount)
-  if (!targetDigits) return null
-
-  // Marker … amount (within ~80 chars)
-  const re = new RegExp(
-    `(${marker.source})([\\s\\S]{0,80}?)(\\d[\\d\\s\\u00a0]*\\s*zł(?:otych|ote|oty)?)`,
-    'i',
-  )
-  const m = text.match(re)
-  if (!m || m.index == null) return null
-  const existingDigits = normalizePlnDigits(m[3] ?? '')
-  if (!existingDigits || existingDigits === targetDigits) return null
-  // Avoid touching unrelated nearby fees when marker is far from amount.
-  const between = m[2] ?? ''
-  if ((between.match(/\d[\d\s\u00a0]*\s*zł/gi) ?? []).length > 0) return null
-  return (
-    text.slice(0, m.index) +
-    m[1] +
-    between +
-    formattedAmount +
-    text.slice(m.index + m[0].length)
-  )
+function documentHasCanonicalAmount(
+  blocks: TransformedBlock[],
+  formatted: string,
+): boolean {
+  return blocks.some((b) => textHasCanonicalPlnAmount(b.text, formatted))
 }
 
 function pickFinanceBlockIds(
@@ -208,11 +182,15 @@ function tryReplaceDepositInPlace(input: {
     // Skip pure cancellation/refund prose with no payment amount after marker.
     if (
       /zatrzyman|zwrot|rezygnacj|odstąpien/i.test(b.text) &&
-      !/\d[\d\s\u00a0]*\s*zł/i.test(b.text)
+      countPlnAmountSurfaces(b.text) === 0
     ) {
       continue
     }
-    const next = replaceAmountNearMarker(b.text, DEPOSIT_MARKER, depositFormatted)
+    const next = replacePlnAmountNearMarker(
+      b.text,
+      DEPOSIT_MARKER,
+      depositFormatted,
+    )
     if (next && next !== b.text) {
       return updateBlock(
         blocks,
@@ -237,7 +215,7 @@ function tryReplaceRemainingInPlace(input: {
   for (const id of candidateIds) {
     const b = blocks.find((x) => x.blockId === id)
     if (!b || !REMAINING_MARKER.test(b.text)) continue
-    const next = replaceAmountNearMarker(
+    const next = replacePlnAmountNearMarker(
       b.text,
       REMAINING_MARKER,
       remainingFormatted,
@@ -269,7 +247,9 @@ function tryReplaceTotalInPlace(input: {
 
   // Prefer grounded total evidence blocks; fall back to ranked finance candidates.
   const orderedIds = [
-    ...[...evidenceIds].filter((id) => candidateIds.includes(id) || blocks.some((b) => b.blockId === id)),
+    ...[...evidenceIds].filter(
+      (id) => candidateIds.includes(id) || blocks.some((b) => b.blockId === id),
+    ),
     ...candidateIds.filter((id) => !evidenceIds.has(id)),
   ]
 
@@ -280,7 +260,7 @@ function tryReplaceTotalInPlace(input: {
   for (const id of orderedIds) {
     const b = blocks.find((x) => x.blockId === id)
     if (!b) continue
-    if (textContainsNormalized(b.text, totalFormatted)) continue
+    if (textHasCanonicalPlnAmount(b.text, totalFormatted)) continue
 
     const grounded = evidenceIds.has(id)
     const legacy = LEGACY_TOTAL_MARKER.test(b.text)
@@ -301,24 +281,12 @@ function tryReplaceTotalInPlace(input: {
 
     let next: string | null = null
     if (grounded || /słownie/i.test(b.text)) {
-      // Grammar-free: replace the primary PLN amount in the grounded total surface.
-      const re = /(\d[\d\s\u00a0]*\s*zł(?:otych|ote|oty)?)/i
-      const m = b.text.match(re)
-      if (m && m.index != null) {
-        const existing = normalizePlnDigits(m[1] ?? '')
-        const target = normalizePlnDigits(totalFormatted)
-        if (existing && target && existing !== target) {
-          next =
-            b.text.slice(0, m.index) +
-            totalFormatted +
-            b.text.slice(m.index + m[0].length)
-        }
-      }
+      next = replacePlnAmountSurface(b.text, totalFormatted)
     } else {
       const head =
         b.text.split(/zadatek|zaliczk|rezerwacyjn|pozostał/i)[0] ?? b.text
       if (!LEGACY_TOTAL_MARKER.test(head)) continue
-      const replaced = replaceAmountNearMarker(
+      const replaced = replacePlnAmountNearMarker(
         head,
         LEGACY_TOTAL_MARKER,
         totalFormatted,
@@ -357,8 +325,7 @@ function ensureDeposit(input: {
 }): boolean {
   const { blocks, candidateIds, depositFormatted, repairs, mayAuthorInsert } =
     input
-  const joined = blocks.map((b) => b.text).join('\n')
-  if (textContainsNormalized(joined, depositFormatted)) return true
+  if (documentHasCanonicalAmount(blocks, depositFormatted)) return true
 
   // 0) In-place replace for existing deposit synonyms (rezerwacyjna / zadatek / …)
   if (tryReplaceDepositInPlace({ blocks, candidateIds, depositFormatted, repairs })) {
@@ -394,7 +361,7 @@ function ensureDeposit(input: {
     const b = blocks.find((x) => x.blockId === id)
     if (!b) continue
     if (!/zadatek|zaliczk/i.test(b.text)) continue
-    if (textContainsNormalized(b.text, depositFormatted)) continue
+    if (textHasCanonicalPlnAmount(b.text, depositFormatted)) continue
     let next = b.text
     if (/zadatek\s+zł\b/i.test(next)) {
       next = next.replace(/zadatek\s+zł\b/i, `Zadatek ${depositFormatted}`)
@@ -463,8 +430,7 @@ function ensureRemaining(input: {
     repairs,
     mayAuthorInsert,
   } = input
-  const joined = blocks.map((b) => b.text).join('\n')
-  if (textContainsNormalized(joined, remainingFormatted)) return true
+  if (documentHasCanonicalAmount(blocks, remainingFormatted)) return true
 
   if (
     tryReplaceRemainingInPlace({
@@ -506,7 +472,7 @@ function ensureRemaining(input: {
     const b = blocks.find((x) => x.blockId === id)
     if (!b) continue
     if (!/pozostał/i.test(b.text)) continue
-    if (textContainsNormalized(b.text, remainingFormatted)) continue
+    if (textHasCanonicalPlnAmount(b.text, remainingFormatted)) continue
     let next = b.text
     if (/pozostał[aey]\s+kwot[ayę]\b(?!\s*[\d])/i.test(next)) {
       next = next.replace(
@@ -606,9 +572,11 @@ export function repairCanonicalPaymentAmounts(input: {
     sourceRep.remaining ||
     input.sourceBlocks.some((b) => /PLACEHOLDER_RESTA/i.test(b.text))
 
-  const joined = () => blocks.map((b) => b.text).join('\n')
-
-  if (total && !textContainsNormalized(joined(), total) && sourceRep.totalPrice) {
+  if (
+    total &&
+    !documentHasCanonicalAmount(blocks, total) &&
+    sourceRep.totalPrice
+  ) {
     tryReplaceTotalInPlace({
       blocks,
       candidateIds,
@@ -618,7 +586,7 @@ export function repairCanonicalPaymentAmounts(input: {
     })
   }
 
-  if (deposit && !textContainsNormalized(joined(), deposit)) {
+  if (deposit && !documentHasCanonicalAmount(blocks, deposit)) {
     if (sourceRep.deposit || mayAuthorDeposit) {
       ensureDeposit({
         blocks,
@@ -631,7 +599,7 @@ export function repairCanonicalPaymentAmounts(input: {
       })
     }
   }
-  if (remaining && !textContainsNormalized(joined(), remaining)) {
+  if (remaining && !documentHasCanonicalAmount(blocks, remaining)) {
     if (sourceRep.remaining || mayAuthorRemaining) {
       const rankedAgain = pickFinanceBlockIds(blocks, input.sourceBlocks)
       const ids = pickMutableFinanceTargets(blocks, rankedAgain)

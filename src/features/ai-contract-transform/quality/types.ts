@@ -23,6 +23,7 @@ export type CanonicalTransformField =
   | 'contract.remainingAmount'
   | 'contract.paymentStructure'
   | 'contract.referenceNumber'
+  | 'package.name'
   | 'package.serviceScope'
 
 export type FieldRequirement =
@@ -123,6 +124,21 @@ export type TransformationExpectationManifest = {
   sourcePartyEvidence?: SourcePartyEvidence[]
   /** Event-location fields discovered structurally (table/prose). */
   sourceLocationEvidence?: SourceLocationEvidence[]
+  /** Selected package name surfaces (Golden Fix 2). */
+  sourcePackageEvidence?: Array<{
+    blockId: string
+    sourceText: string
+    sourcePackageName: string
+    representation: 'table_cell' | 'prose' | 'form_line'
+  }>
+  /** Headline/summary repeated party/date surfaces (Golden Fix 2). */
+  sourceRepeatedFactEvidence?: Array<{
+    blockId: string
+    sourceText: string
+    partySurfaces: string[]
+    weddingDateSurface: string | null
+    kind: 'headline_summary'
+  }>
   /** CG7.3 — which concepts the source template represents. */
   representedConcepts?: import('./representationPolicy').RepresentedConcepts
 }

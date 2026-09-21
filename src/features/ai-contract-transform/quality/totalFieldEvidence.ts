@@ -6,11 +6,16 @@
  */
 
 import type { TransformDocumentBlock } from '../types'
+import {
+  countPlnAmountSurfaces,
+  extractPrimaryPlnAmount,
+  isTrivialPlnAmountSurface,
+} from './plnAmountSurface'
 
 export type SourceTotalEvidence = {
   blockId: string
   sourceText: string
-  /** Exact source PLN surface (e.g. "6 900 zł"). */
+  /** Exact source PLN surface (e.g. "6 900 zł" or "8 400,00 zł"). */
   sourceAmount: string
   hasWords: boolean
   representation: 'table_cell' | 'prose' | 'form_line'
@@ -30,12 +35,7 @@ const UNRELATED_FEE =
   /godzin|dojazd|travel|album|operator|kar[ay]|odstąpien|rezygnacj|sprzęt|equipment|dron|pendrive|instax|odbitk|kilometr/i
 
 function countPlnAmounts(text: string): number {
-  return (text.match(/\d[\d\s\u00a0]*\s*zł/gi) ?? []).length
-}
-
-function extractPrimaryPlnAmount(text: string): string | null {
-  const m = text.match(/\d[\d\s\u00a0]*\s*zł(?:otych|ote|oty)?/i)
-  return m ? m[0]!.replace(/\s+/g, ' ').trim() : null
+  return countPlnAmountSurfaces(text)
 }
 
 function isFinanceNeighborhood(text: string): boolean {
@@ -52,7 +52,11 @@ export function isUnrelatedFeeAmountBlock(text: string): boolean {
   // Explicit fee framing in the leading clause
   if (UNRELATED_FEE.test(t.slice(0, 120))) return true
   // "Nie wchodzi do wartości" / overtime riders
-  if (/nie\s+wchodzi\s+do\s+warto[sś]ci|ponad\s+limit|każda\s+dodatkowa\s+godzina/i.test(t)) {
+  if (
+    /nie\s+wchodzi\s+do\s+warto[sś]ci|ponad\s+limit|każda\s+dodatkowa\s+godzina/i.test(
+      t,
+    )
+  ) {
     return true
   }
   return false
@@ -100,7 +104,7 @@ export function discoverFilledTotalEvidence(
     if (!hasWords && !singleClean) continue
 
     const sourceAmount = extractPrimaryPlnAmount(text)
-    if (!sourceAmount) continue
+    if (!sourceAmount || isTrivialPlnAmountSurface(sourceAmount)) continue
 
     const key = `${b.blockId}::${sourceAmount}`
     if (seen.has(key)) continue

@@ -6,6 +6,7 @@
  */
 
 import type { TransformDocumentBlock } from '../types'
+import { countPlnAmountSurfaces } from './plnAmountSurface'
 
 export type RepresentedConcepts = {
   party: boolean
@@ -19,6 +20,8 @@ export type RepresentedConcepts = {
   customerAddress: boolean
   customerPhone: boolean
   contractExecutionDate: boolean
+  /** Selected package / service variant name when template represents it. */
+  packageName: boolean
 }
 
 const FINANCE_NEIGHBORHOOD =
@@ -29,7 +32,7 @@ function isFinanceNeighborhood(text: string): boolean {
 }
 
 function countPlnAmounts(text: string): number {
-  return (text.match(/\d[\d\s\u00a0]*\s*zł/gi) ?? []).length
+  return countPlnAmountSurfaces(text)
 }
 
 /**
@@ -43,6 +46,7 @@ export function detectRepresentedConcepts(
     hasPrepEvidence?: boolean
     hasCeremonyEvidence?: boolean
     hasReceptionEvidence?: boolean
+    hasPackageEvidence?: boolean
   },
 ): RepresentedConcepts {
   const joined = blocks.map((b) => b.text).join('\n')
@@ -66,7 +70,11 @@ export function detectRepresentedConcepts(
         /data wydarzenia|data ślubu|termin wydarzenia/i.test(
           b.tableContext?.rowLabelText ?? '',
         ),
-    ) || /\b\d{1,2}[./-]\d{1,2}[./-]\d{2,4}\b/.test(joined)
+    ) ||
+    /\b\d{1,2}[./-]\d{1,2}[./-]\d{2,4}\b/.test(joined) ||
+    /\b\d{1,2}\s+(stycznia|lutego|marca|kwietnia|maja|czerwca|lipca|sierpnia|września|października|listopada|grudnia)\s+\d{4}\b/i.test(
+      joined,
+    )
 
   const totalPrice = financeBlocks.some((b) => countPlnAmounts(b.text) >= 1)
 
@@ -98,6 +106,16 @@ export function detectRepresentedConcepts(
       joined,
     )
 
+  const packageName =
+    Boolean(input?.hasPackageEvidence) ||
+    /pakiet\s+[A-ZĄĆĘŁŃÓŚŹŻ]/.test(joined) ||
+    blocks.some(
+      (b) =>
+        /nazwa\s+pakietu|wybrany\s+pakiet|pakiet\s*:/i.test(
+          b.tableContext?.rowLabelText ?? '',
+        ) || /nazwa\s+pakietu|wybrany\s+pakiet|^pakiet\s*:/i.test(b.text),
+    )
+
   return {
     party,
     preparationLocation,
@@ -110,6 +128,7 @@ export function detectRepresentedConcepts(
     customerAddress,
     customerPhone,
     contractExecutionDate,
+    packageName,
   }
 }
 

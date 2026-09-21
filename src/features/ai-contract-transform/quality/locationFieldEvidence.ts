@@ -647,16 +647,38 @@ export function verifyFilledLocationIdentity(input: {
   return issues
 }
 
-/** Calendar-day equality for wedding.date vs bare table dates. */
+/** Calendar-day equality for wedding.date vs bare table dates / Polish long form. */
 export function weddingDatesSemanticallyEqual(a: string, b: string): boolean {
+  const MONTH: Record<string, string> = {
+    stycznia: '01',
+    lutego: '02',
+    marca: '03',
+    kwietnia: '04',
+    maja: '05',
+    czerwca: '06',
+    lipca: '07',
+    sierpnia: '08',
+    września: '09',
+    października: '10',
+    listopada: '11',
+    grudnia: '12',
+  }
   const parse = (s: string): string | null => {
     const m = s.match(/(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})/)
-    if (!m) return null
-    const d = m[1]!.padStart(2, '0')
-    const mo = m[2]!.padStart(2, '0')
-    let y = m[3]!
-    if (y.length === 2) y = `20${y}`
-    return `${y}-${mo}-${d}`
+    if (m) {
+      const d = m[1]!.padStart(2, '0')
+      const mo = m[2]!.padStart(2, '0')
+      let y = m[3]!
+      if (y.length === 2) y = `20${y}`
+      return `${y}-${mo}-${d}`
+    }
+    const long = s.match(
+      /(\d{1,2})\s+(stycznia|lutego|marca|kwietnia|maja|czerwca|lipca|sierpnia|września|października|listopada|grudnia)\s+(\d{4})/i,
+    )
+    if (!long) return null
+    const month = MONTH[long[2]!.toLowerCase()]
+    if (!month) return null
+    return `${long[3]}-${month}-${long[1]!.padStart(2, '0')}`
   }
   const pa = parse(a)
   const pb = parse(b)

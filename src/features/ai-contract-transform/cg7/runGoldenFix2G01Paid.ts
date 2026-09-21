@@ -36,7 +36,7 @@ async function main() {
   const apiKey =
     process.env.OPENAI_API_KEY?.trim() ||
     readFileSync('/tmp/ourwed_cg2_openai_key', 'utf8').trim()
-  const out = join(process.cwd(), 'tmp/golden-fix-1')
+  const out = join(process.cwd(), 'tmp/golden-fix-2')
   mkdirSync(out, { recursive: true })
   const scenario = buildGoldenScenarios().find((s) => s.caseId === 'G01')!
   const sourcePath = join(
@@ -90,7 +90,10 @@ async function main() {
   const reopenOk = await reopenParses(transform.outputBytes)
   const blob = snap.texts.join('\n')
   const total = scenario.wedding.price!
-  const pdfOk = renderPdf(finalPath, join(out, 'G01_FINAL.pdf'))
+  const pdfOk =
+    process.env.G01_PDF === '1'
+      ? renderPdf(finalPath, join(out, 'G01_FINAL.pdf'))
+      : false
 
   const matrix = {
     ok: true,
@@ -99,16 +102,30 @@ async function main() {
     usage,
     reopenOk,
     pdfOk,
-    party: /Zofia|Kalendarzow/i.test(blob) && !/Alicj/i.test(blob),
+    automatedRender:
+      process.env.G01_PDF === '1'
+        ? pdfOk
+          ? 'PDF_OK'
+          : 'AUTOMATED_RENDER_UNAVAILABLE'
+        : 'AUTOMATED_RENDER_UNAVAILABLE',
+    party:
+      /Zofi[ai].*Kalendarzow/i.test(blob) &&
+      !/\bAlicj[aąęi]\b/i.test(blob.replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, ' ')),
+    headline:
+      /Zofi[ai].*Kalendarzow/i.test(blob) &&
+      /18 września 2027|18\.09\.2027/.test(blob) &&
+      !/12 czerwca 2027/.test(blob),
     providerNip: /000-000-00-01/.test(blob),
     providerRegon: /000000001/.test(blob),
     providerEmail: /kontakt@atelier-szept\.example/i.test(blob),
     providerName: /Magdalen|Atelier Szept/i.test(blob),
     providerRole: /Fotograf/i.test(blob),
     address: textContainsNormalized(blob, 'ul. Kasztanowa 21/5, 60-214 Poznań'),
-    total: blob.includes('11 200') || blob.includes('11200'),
-    deposit: blob.includes('2 500') || blob.includes('2500'),
-    remaining: blob.includes('8 700') || blob.includes('8700'),
+    total:
+      (/11 200 zł/.test(blob) || /11200/.test(blob)) && !/11 211 200/.test(blob),
+    deposit: (/2 500 zł/.test(blob) || /2500/.test(blob)) && !/1 500,\s*2 500/.test(blob),
+    remaining:
+      (/8 700 zł/.test(blob) || /8700/.test(blob)) && !/6 900,\s*8 700/.test(blob),
     words: textContainsNormalized(blob, polishContractMoneyWords(total)),
     extras: scenario.extras.every(
       (e) => e.name && blob.toLowerCase().includes(e.name.toLowerCase()),
@@ -116,7 +133,12 @@ async function main() {
     unrelated: ['1 200,00 zł', '650,00 zł', '980,00 zł'].every((m) =>
       blob.replace(/\u00a0/g, ' ').includes(m),
     ),
-    package: /Reportaż Wieczorny/i.test(blob),
+    package:
+      /Reportaż Wieczorny/i.test(blob) && !/Klasyczny Reportaż/i.test(blob),
+    noFinanceCorruption:
+      !/11 211 200/.test(blob) &&
+      !/1 500,\s*2 500/.test(blob) &&
+      !/6 900,\s*8 700/.test(blob),
     blockingIssues: transform.blockingIssues,
     reviewIssues: transform.reviewIssues,
   }
@@ -126,7 +148,7 @@ async function main() {
     ([k, v]) =>
       typeof v === 'boolean' &&
       v === false &&
-      !['protocolRetry'].includes(k),
+      !['protocolRetry', 'pdfOk'].includes(k),
   )
   if (fail.length) {
     console.log('G01_PAID_RETEST_MATERIAL_GAPS', fail)

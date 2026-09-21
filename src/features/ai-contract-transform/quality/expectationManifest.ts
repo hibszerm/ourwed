@@ -37,6 +37,16 @@ import {
 } from './dateFieldEvidence'
 import { detectRepresentedConcepts } from './representationPolicy'
 import { discoverFilledTotalEvidence } from './totalFieldEvidence'
+import {
+  discoverFilledPackageEvidence,
+} from './packageFieldEvidence'
+import {
+  discoverRepeatedFactEvidence,
+} from './repeatedFactEvidence'
+import {
+  extractPlnAmountSurfaces,
+  isTrivialPlnAmountSurface,
+} from './plnAmountSurface'
 import type {
   CanonicalTransformField,
   ConsistencyRule,
@@ -200,6 +210,33 @@ export function buildExpectationManifest(input: {
     }))
 
   const executionDateEvidence = discoverExecutionDateEvidence(blocks)
+  const packageEvidence = discoverFilledPackageEvidence(blocks)
+  const repeatedFactEvidence = discoverRepeatedFactEvidence({
+    blocks,
+    partyEvidence: filledPartyEvidence,
+  })
+
+  // Headline identity surfaces (repeated party representation)
+  for (const ev of repeatedFactEvidence) {
+    for (const surface of ev.partySurfaces) {
+      pushSourceValue(sourceSpecificValues, {
+        field: 'customer.names',
+        value: surface,
+        blocks: blocks.filter((b) => b.blockId === ev.blockId),
+        mustDisappear: true,
+      })
+    }
+  }
+
+  // Package source names must disappear from grounded surfaces
+  for (const ev of packageEvidence) {
+    pushSourceValue(sourceSpecificValues, {
+      field: 'package.name',
+      value: ev.sourcePackageName,
+      blocks: blocks.filter((b) => b.blockId === ev.blockId),
+      mustDisappear: true,
+    })
+  }
 
   const represented = detectRepresentedConcepts(blocks, {
     hasPartyEvidence: filledPartyEvidence.length > 0,
@@ -210,10 +247,14 @@ export function buildExpectationManifest(input: {
     ),
     hasCeremonyEvidence: filledLocationEvidence.some((e) => e.role === 'ceremony'),
     hasReceptionEvidence: filledLocationEvidence.some((e) => e.role === 'reception'),
+    hasPackageEvidence: packageEvidence.length > 0,
   })
   // Grounded execution-date evidence overrides heuristic representation.
   if (executionDateEvidence.length > 0) {
     represented.contractExecutionDate = true
+  }
+  if (packageEvidence.length > 0) {
+    represented.packageName = true
   }
 
   for (const ev of filledLocationEvidence) {
@@ -304,12 +345,12 @@ export function buildExpectationManifest(input: {
   // prose must not invent receptionLocation stale failures (CG7.3/CG7.4).
   // (Intentionally no ungated paragraph venue regex here.)
 
-  // Old prices in finance paragraphs
+  // Old prices in finance paragraphs — full semantic PLN surfaces only
   for (const b of blocks) {
     if (!/zł/i.test(b.text)) continue
     if (b.tableContext?.ownershipFamily === 'provider') continue
-    const amounts = b.text.match(/\d[\d\s]*\s*zł/gi) ?? []
-    for (const a of amounts) {
+    for (const a of extractPlnAmountSurfaces(b.text)) {
+      if (isTrivialPlnAmountSurface(a)) continue
       // Skip tiny rates like hour rates if labelled as such
       if (/godzin/i.test(b.text) && /stawk/i.test(b.text)) continue
       pushSourceValue(sourceSpecificValues, {
@@ -317,6 +358,53 @@ export function buildExpectationManifest(input: {
         value: a,
         blocks: [b],
         mustDisappear: false, // may be deposit; completeness checks carefully
+      })
+    }
+  }
+
+  // Written Polish wedding dates — only grounded event/headline surfaces
+  // (never signing / execution dates like "zawarta … 15 lutego").
+  for (const ev of repeatedFactEvidence) {
+    if (!ev.weddingDateSurface) continue
+    const sameDay = weddingDatesSemanticallyEqual(
+      ev.weddingDateSurface,
+      dataset.dates.weddingDate,
+    )
+    pushSourceValue(sourceSpecificValues, {
+      field: 'wedding.date',
+      value: ev.weddingDateSurface,
+      blocks: blocks.filter((b) => b.blockId === ev.blockId),
+      mustDisappear: !sameDay,
+    })
+  }
+  for (const b of blocks) {
+    if (b.tableContext?.ownershipFamily === 'provider') continue
+    if (
+      /zawarta\s|podpis|sporządz|data\s+zawarcia|data\s+podpisania/i.test(b.text)
+    ) {
+      continue
+    }
+    if (
+      !/dat[aą]\s+uroczystości|dat[aą]\s+ślubu|termin\s+uroczystości|dzień\s+ślubu|uroczystość/i.test(
+        b.text,
+      )
+    ) {
+      continue
+    }
+    const longDates =
+      b.text.match(
+        /\b\d{1,2}\s+(stycznia|lutego|marca|kwietnia|maja|czerwca|lipca|sierpnia|września|października|listopada|grudnia)\s+\d{4}(?:\s*r\.)?/gi,
+      ) ?? []
+    for (const d of longDates) {
+      const sameDay = weddingDatesSemanticallyEqual(
+        d,
+        dataset.dates.weddingDate,
+      )
+      pushSourceValue(sourceSpecificValues, {
+        field: 'wedding.date',
+        value: d.trim(),
+        blocks: [b],
+        mustDisappear: !sameDay,
       })
     }
   }
@@ -350,6 +438,9 @@ export function buildExpectationManifest(input: {
     ...new Set([
       ...findBlocksContaining(blocks, nameSourceValues),
       ...filledPartyEvidence.map((e) => e.blockId),
+      ...repeatedFactEvidence
+        .filter((e) => e.partySurfaces.length > 0)
+        .map((e) => e.blockId),
     ]),
   ]
   // CG7.3 — party identity is required only when the template represents parties.
@@ -631,7 +722,9 @@ export function buildExpectationManifest(input: {
     if (totalEvidence.length > 0) {
       requiredReplacements.push({
         canonicalField: 'contract.totalPrice',
-        sourceValues: totalEvidence.map((e) => e.sourceAmount),
+        sourceValues: totalEvidence
+          .map((e) => e.sourceAmount)
+          .filter((a) => !isTrivialPlnAmountSurface(a)),
         targetRenderedValues: [dataset.finances.contractValueFormatted],
         sourceBlockIds: totalBlockIds,
         requiredContextBlockIds: totalBlockIds,
@@ -649,6 +742,47 @@ export function buildExpectationManifest(input: {
       }
     }
   }
+
+  // Golden Fix 2 — represented package name (not service-scope rewrite)
+  if (represented.packageName && dataset.package?.name) {
+    const pkgBlocks = packageEvidence.map((e) => e.blockId)
+    const pkgSources = packageEvidence.map((e) => e.sourcePackageName)
+    addRequired(
+      'package.name',
+      pkgSources,
+      [dataset.package.name],
+      pkgSources.length > 0 ? 'must_replace_source' : 'must_appear',
+      pkgBlocks.length
+        ? [{ kind: 'generic_body', blockIds: pkgBlocks }]
+        : undefined,
+    )
+    for (const ev of packageEvidence) {
+      requiredReplacements.push({
+        canonicalField: 'package.name',
+        sourceValues: [ev.sourcePackageName],
+        targetRenderedValues: [dataset.package.name],
+        sourceBlockIds: [ev.blockId],
+        requiredContextBlockIds: [ev.blockId],
+        replacementPolicy: 'replace_in_contexts',
+      })
+    }
+  }
+
+  // Headline repeated-fact date contexts
+  if (represented.weddingDate && repeatedFactEvidence.some((e) => e.weddingDateSurface)) {
+    for (const ev of repeatedFactEvidence) {
+      if (!ev.weddingDateSurface) continue
+      requiredReplacements.push({
+        canonicalField: 'wedding.date',
+        sourceValues: [ev.weddingDateSurface],
+        targetRenderedValues: [dataset.dates.weddingDate],
+        sourceBlockIds: [ev.blockId],
+        requiredContextBlockIds: [ev.blockId],
+        replacementPolicy: 'replace_in_contexts',
+      })
+    }
+  }
+
   if (dataset.finances.depositFormatted && represented.deposit) {
     const depositSources = [
       'PLACEHOLDER_ZADATEK',
@@ -806,6 +940,12 @@ export function buildExpectationManifest(input: {
       : {}),
     ...(filledLocationEvidence.length > 0
       ? { sourceLocationEvidence: filledLocationEvidence }
+      : {}),
+    ...(packageEvidence.length > 0
+      ? { sourcePackageEvidence: packageEvidence }
+      : {}),
+    ...(repeatedFactEvidence.length > 0
+      ? { sourceRepeatedFactEvidence: repeatedFactEvidence }
       : {}),
     representedConcepts: represented,
   }

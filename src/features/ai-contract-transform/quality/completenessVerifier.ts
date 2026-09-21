@@ -8,6 +8,7 @@ import type {
   TransformedBlock,
 } from '../types'
 import { textContainsNormalized, normalizeForMatch } from './normalize'
+import { weddingDatesSemanticallyEqual } from './locationFieldEvidence'
 import type {
   DocumentQualityReport,
   QualityIssue,
@@ -21,13 +22,32 @@ function joinedText(blocks: Array<{ text: string }>): string {
 function fieldAppears(
   text: string,
   values: string[],
+  canonicalField?: string,
 ): boolean {
-  return values.some((v) => v && textContainsNormalized(text, v))
+  if (values.some((v) => v && textContainsNormalized(text, v))) return true
+  if (canonicalField === 'wedding.date') {
+    const long =
+      text.match(
+        /\b\d{1,2}\s+(stycznia|lutego|marca|kwietnia|maja|czerwca|lipca|sierpnia|września|października|listopada|grudnia)\s+\d{4}(?:\s*r\.)?/gi,
+      ) ?? []
+    const numeric =
+      text.match(/\b\d{1,2}[./-]\d{1,2}[./-]\d{2,4}(?:\s*r\.)?/gi) ?? []
+    const found = [...long, ...numeric]
+    return values.some((v) =>
+      found.some((f) => weddingDatesSemanticallyEqual(f, v)),
+    )
+  }
+  return false
 }
 
 /** Location stale check: also match distinctive place tokens / light inflection. */
 function sourceValueRemains(text: string, sourceValue: string): boolean {
-  if (textContainsNormalized(text, sourceValue) || text.includes(sourceValue)) {
+  // Emails/URLs must not satisfy party-name stale checks (e.g. alicja.przykladowa@…).
+  const scope = text.replace(
+    /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi,
+    ' ',
+  )
+  if (textContainsNormalized(scope, sourceValue) || scope.includes(sourceValue)) {
     return true
   }
   // Multi-word phrases: require a substantial contiguous match — do not stem-match
@@ -43,11 +63,11 @@ function sourceValueRemains(text: string, sourceValue: string): boolean {
     (t) => t.length >= 8 && !/^(hotel|palac|kosciol|bazylika|ulica)$/i.test(normalizeForMatch(t)),
   )
   for (const token of tokens) {
-    if (text.includes(token)) return true
+    if (scope.includes(token)) return true
     const stem = token.replace(/(?:u|em|owi|ie|ią|ę|ą|a|y)$/i, '')
     if (stem.length >= 6) {
       const re = new RegExp(`\\b${stem}[a-ząćęłńóśźż]{0,3}\\b`, 'i')
-      if (re.test(text)) return true
+      if (re.test(scope)) return true
     }
   }
   return false
@@ -108,7 +128,11 @@ export function verifyTransformationCompleteness(input: {
       }
     }
 
-    const appears = fieldAppears(transformedText, req.expectedValues)
+    const appears = fieldAppears(
+      transformedText,
+      req.expectedValues,
+      req.canonicalField,
+    )
     if (!appears && req.expectedValues.length > 0) {
       missingFields.push(req.canonicalField)
       issues.push({
@@ -137,7 +161,7 @@ export function verifyTransformationCompleteness(input: {
         for (const id of contextIds) {
           const t = byId.get(id)
           if (!t) continue
-          if (fieldAppears(t, req.expectedValues)) withNew += 1
+          if (fieldAppears(t, req.expectedValues, req.canonicalField)) withNew += 1
           if (req.sourceValues.some((v) => sourceValueRemains(t, v))) withOld += 1
         }
         if (withNew > 0 && withOld > 0) {
@@ -159,7 +183,11 @@ export function verifyTransformationCompleteness(input: {
   for (const req of input.manifest.requiredFields) {
     if (req.sourceValues.length === 0 || req.expectedValues.length === 0) continue
     const hasOld = req.sourceValues.some((v) => sourceValueRemains(transformedText, v))
-    const hasNew = fieldAppears(transformedText, req.expectedValues)
+    const hasNew = fieldAppears(
+      transformedText,
+      req.expectedValues,
+      req.canonicalField,
+    )
     if (hasOld && hasNew) {
       mixedSourceTargetFields.push(req.canonicalField)
       if (
