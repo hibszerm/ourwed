@@ -40,6 +40,7 @@ export type ContractTransformationDataset = {
     weddingDate: string
     depositDueDate?: string
     finalPaymentDueDate?: string
+    deliveryDueDate?: string
   }
   locations: {
     preparation?: {
@@ -165,6 +166,15 @@ export type GroundedFinanceEvidenceOutcome = GroundedFinanceEvidence & {
 }
 
 export type DateSemanticConcept = 'wedding_date' | 'execution_date'
+
+export type RequiresUserInputDate = {
+  sourceBlockId: string
+  anchor: string
+  span: { start: number; end: number }
+  role?: string
+  label?: string
+  reason: string
+}
 
 export type GroundedDateEvidence = {
   sourceBlockId: string

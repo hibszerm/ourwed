@@ -10,7 +10,7 @@ export const SEMANTIC_MAP_MODEL_IDS = {
 export type SemanticMapCandidate = keyof typeof SEMANTIC_MAP_MODEL_IDS
 export const SEMANTIC_MAP_REASONING_EFFORT = 'medium' as const
 export const SEMANTIC_MAP_MAX_OUTPUT_TOKENS = 8192
-export const SEMANTIC_MAP_PROMPT_VERSION = 'semantic-map-v4'
+export const SEMANTIC_MAP_PROMPT_VERSION = 'semantic-map-v5'
 
 export const SEMANTIC_MAP_SYSTEM_PROMPT = `You identify semantic facts in a wedding contract. Return only exact source mappings; do not edit or rewrite the contract.
 
@@ -33,16 +33,16 @@ ANCHOR RULES
 - Repeated semantic surfaces across the document require separate mappings.
 - Map every distinct source span that represents a supported semantic concept, even when another span already maps to the same concept or customer. Emit a separate mapping for each occurrence. Omit only spans whose meaning, ownership, role, or exact anchor is genuinely uncertain.
 - If the same literal occurs multiple times in one block, set occurrence to its zero-based exact-match order. If it occurs exactly once, set occurrence to null.
-- If meaning, ownership, role, or exact span is uncertain, omit the mapping rather than guess.
+- If meaning, ownership, role, or exact span is uncertain, omit the mapping rather than guess. Relevant concrete contractual dates are the exception: include each grounded date and use ambiguous_date when its role cannot be identified safely.
 
 PARTY AND MIXED TEXT
 Customer concepts refer only to contracting customers/clients, never provider or company identity. For customer_email, map only email addresses that semantically belong to a contracting customer; preserve provider, studio, business, and legal contact emails as template-authoritative content. Determine ownership from document meaning and structure, not domains, keywords, regexes, or whether a value looks synthetic. A source block marked modelEditable=false is protected context and must never receive a mapping. In a block mixing customer identity/contact with provider/company or legal text, map only the exact customer-owned value anchor. Do not map provider identity or surrounding legal text.
 
 DATE AND FINANCE ROLES
-wedding_date is the actual wedding/event date; execution_date is when the agreement is executed, signed, or concluded. total is the complete contract/commercial value; deposit is the deposit/advance amount; remaining is the amount still payable. The *_words concepts are the written-out textual representation of their corresponding numeric amount. Do not calculate, infer, or invent financial obligations.
+wedding_date is the actual wedding/event date; execution_date is when the agreement is executed, signed, or concluded; deposit_due_date is the deposit/advance deadline; final_payment_due_date is the final/remaining-payment deadline; delivery_due_date is the generic material-delivery deadline. The system supplies canonical wedding, execution, final-payment, and delivery dates. total is the complete contract/commercial value; deposit is the deposit/advance amount; remaining is the amount still payable. The *_words concepts are the written-out textual representation of their corresponding numeric amount. Do not calculate, infer, or invent financial obligations.
 
 DATE COVERAGE
-Inspect every relevant concrete calendar date. Use dependent_date only when explicit source semantics prove a relation to wedding_date or execution_date; numeric proximity alone is not evidence. Use fixed_date only when the source positively establishes intentional independence from canonical dates; absence of dependency evidence does not imply fixed. Use ambiguous_date when a relevant concrete date cannot safely be classified; do not omit it. Fixed and ambiguous dates may have a null dateRole, with null baseDateConcept and relation. Dependent dates require non-null dateRole, baseDateConcept, and a calendar_days or calendar_weeks relation. The system calculates the final date.
+Inspect every relevant concrete contractual date. Map wedding_date and execution_date directly when those roles are established. Map final_payment_due_date and delivery_due_date when the template surface represents those OurWed-owned roles; the system supplies their values. Map deposit_due_date for the deposit/advance deadline and also map its source execution_date when present; the system derives the calendar-day difference from those two grounded source literals. Never provide a numeric offset. If deposit timing uses business days, months, approximate language, or another unsupported relation, use ambiguous_date with the appropriate dateRole so the system requests user input. Use ambiguous_date with the known dateRole for unsupported dates such as brief_due_date or album_due_date; use other_contractual_date or null when the date role is unknown. Do not use fixed_date; it is retained for compatibility and routes to user input. Do not omit relevant concrete dates. Never use dependent_date to calculate a date; it is retained for compatibility only and routes to user input. Ambiguous dates may have a null dateRole, with null baseDateConcept and relation.
 
 LOCATION ROLES
 preparation_location is the preparation location generally; bride_preparation_location, groom_preparation_location, and shared_preparation_location identify those distinct preparation roles; ceremony_location is the ceremony location; reception_location is the reception venue/location. Keep roles distinct and map only source values that actually represent that role.
@@ -67,6 +67,12 @@ function conceptDescription(concept: (typeof SEMANTIC_CONCEPTS)[number]): string
     customer_email: 'email address belonging to a contracting customer.',
     wedding_date: 'actual wedding or event date.',
     execution_date: 'date when the agreement is executed, signed, or concluded.',
+    deposit_due_date: 'date by which the deposit or advance is due.',
+    final_payment_due_date: 'date by which the final or remaining payment is due.',
+    delivery_due_date: 'generic material delivery deadline owned by OurWed.',
+    dependent_date: 'legacy compatibility concept; do not use to calculate dates.',
+    fixed_date: 'legacy compatibility concept; do not use.',
+    ambiguous_date: 'contractual date not safely resolvable by a canonical role or supported relation; include its dateRole when known and let the system request user input.',
     total: 'complete contract or commercial value.',
     deposit: 'deposit or advance amount payable.',
     remaining: 'amount still payable after the deposit.',
@@ -166,6 +172,8 @@ function buildSemanticMapUserContext(input: {
       dates: {
         weddingDate: input.dataset.dates.weddingDate,
         executionDate: input.dataset.dates.contractExecutionDate,
+        ...(input.dataset.dates.finalPaymentDueDate ? { finalPaymentDueDate: input.dataset.dates.finalPaymentDueDate } : {}),
+        ...(input.dataset.dates.deliveryDueDate ? { deliveryDueDate: input.dataset.dates.deliveryDueDate } : {}),
       },
       finances: {
         total: { formatted: input.dataset.finances.contractValueFormatted, words: input.dataset.finances.contractValueWords },
@@ -234,7 +242,7 @@ export function parseSemanticMapResponse(payload: unknown):
     const validConcept = typeof row.concept === 'string' && (SEMANTIC_CONCEPTS as readonly string[]).includes(row.concept)
     const validOccurrence = row.occurrence === null || (Number.isInteger(row.occurrence) && (row.occurrence as number) >= 0)
     const isContact = row.concept === 'customer_address' || row.concept === 'customer_phone' || row.concept === 'customer_email'
-    const isDate = row.concept === 'dependent_date' || row.concept === 'fixed_date' || row.concept === 'ambiguous_date'
+    const isDate = row.concept === 'dependent_date' || row.concept === 'fixed_date' || row.concept === 'ambiguous_date' || row.concept === 'deposit_due_date' || row.concept === 'final_payment_due_date' || row.concept === 'delivery_due_date'
     const isCustomerName = row.concept === 'customer_1_name' || row.concept === 'customer_2_name'
     const validSingleOwner = (row.customerIndex === 0 || row.customerIndex === 1) && row.customerIndexes === null
     const validSharedOwners = row.customerIndex === null && Array.isArray(row.customerIndexes) &&
@@ -270,6 +278,8 @@ export function parseSemanticMapResponse(payload: unknown):
         concept: row.concept as 'customer_1_name' | 'customer_2_name',
         nameForm: row.nameForm as SemanticMapping['nameForm'] & {},
       })
+    } else if (row.concept === 'deposit_due_date' || row.concept === 'final_payment_due_date' || row.concept === 'delivery_due_date') {
+      semanticMappings.push({ ...base, concept: row.concept, dateRole: null })
     } else if (isDate) {
       semanticMappings.push({ ...base, concept: row.concept as 'dependent_date' | 'fixed_date' | 'ambiguous_date', dateRole: row.dateRole as any, ...(row.concept === 'dependent_date' ? { baseDateConcept: row.baseDateConcept as any, relation: row.relation as any } : {}) } as SemanticMapping)
     } else if (isContact) {

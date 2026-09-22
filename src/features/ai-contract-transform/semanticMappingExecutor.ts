@@ -2,6 +2,7 @@ import { canonicalizeParagraphText, extractCanonicalParagraphText } from '../doc
 import { replaceGroundedTextSpan } from '../documents/template/docxParagraphEditor'
 import { formatDateLikeSource, formatMoneyLikeSource } from '@/features/ai-contract-lab/resolveTypedSourceSpan'
 import type { ContractTransformationDataset } from './types'
+import type { RequiresUserInputDate } from './types'
 import { polishContractMoneyWords } from './polishContractMoneyWords'
 import { parsePlnAmountInteger } from './quality/plnAmountSurface'
 import {
@@ -11,6 +12,7 @@ import {
 import { renderExactCanonicalIdentity } from './quality/partyFilledIdentity'
 import { normalizeForMatch } from './quality/normalize'
 import type { ResolvedSemanticMapping } from './semanticMapping'
+import { parseFlexibleDate } from '@/features/ai-contract-lab/semanticValueEquality'
 
 export type SemanticMappingExecutionFailureCode =
   | 'source_missing'
@@ -34,6 +36,7 @@ export type SemanticMappingExecutionResult =
       spanEdits: Array<{ blockId: string; span: { start: number; end: number }; replacement: string }>
     }
   | { ok: false; code: SemanticMappingExecutionFailureCode; mappingIndex?: number }
+  | { ok: false; code: 'requires_user_input'; mappingIndex?: number; requiresUserInputDates: RequiresUserInputDate[] }
 
 export type EvaluationNameFormResolver = (input: {
   canonicalIdentity: string
@@ -57,6 +60,8 @@ export function executeSemanticMappings(input: {
   }
 
   const prepared: Array<ResolvedSemanticMapping & { replacement: string; inputIndex: number }> = []
+  const requiresUserInputDates: RequiresUserInputDate[] = []
+  const executionDateMappings = input.resolvedMappings.filter((mapping) => mapping.concept === 'execution_date')
   for (let index = 0; index < input.resolvedMappings.length; index++) {
     const mapping = input.resolvedMappings[index]!
     const xml = sourceById.get(mapping.sourceBlockId)
@@ -65,10 +70,19 @@ export function executeSemanticMappings(input: {
     if (visible.slice(mapping.span.start, mapping.span.end) !== canonicalizeParagraphText(mapping.anchor)) {
       return { ok: false, code: 'grounded_span_stale', mappingIndex: index }
     }
-    const rendered = renderCanonicalValue(mapping, input.canonicalDataset, input.sourceCustomerIdentities, input.evaluationNameFormResolver)
-    if (!rendered.ok) return { ok: false, code: rendered.code, mappingIndex: index }
+    const rendered = renderCanonicalValue(mapping, input.canonicalDataset, input.sourceCustomerIdentities, input.evaluationNameFormResolver, executionDateMappings)
+    if (!rendered.ok) {
+      if (rendered.code === 'requires_user_input') {
+        const role = dateRoleForMapping(mapping)
+        requiresUserInputDates.push({ sourceBlockId: mapping.sourceBlockId, anchor: mapping.anchor, span: { start: mapping.span.start, end: mapping.span.end }, ...(role ? { role, label: dateRoleLabel(role) } : {}), reason: rendered.reason })
+        continue
+      }
+      return { ok: false, code: rendered.code, mappingIndex: index }
+    }
     prepared.push({ ...mapping, replacement: rendered.value, inputIndex: index })
   }
+
+  if (requiresUserInputDates.length > 0) return { ok: false, code: 'requires_user_input', requiresUserInputDates }
 
   const byBlock = new Map<string, typeof prepared>()
   for (const mapping of prepared) {
@@ -110,12 +124,14 @@ export function executeSemanticMappings(input: {
 type RenderResult =
   | { ok: true; value: string }
   | { ok: false; code: 'invalid_customer_index' | 'missing_canonical_value' | 'unsupported_concept' | 'unsupported_name_form' | 'unrenderable_surface' | 'shared_canonical_values_mismatch' | 'unsupported_shared_ownership' | 'ambiguous_date' }
+  | { ok: false; code: 'requires_user_input'; reason: string }
 
 function renderCanonicalValue(
   mapping: ResolvedSemanticMapping,
   dataset: ContractTransformationDataset,
   sourceCustomerIdentities?: readonly (string | undefined)[],
   evaluationNameFormResolver?: EvaluationNameFormResolver,
+  executionDateMappings: readonly ResolvedSemanticMapping[] = [],
 ): RenderResult {
   const source = mapping.anchor
   switch (mapping.concept) {
@@ -203,22 +219,21 @@ function renderCanonicalValue(
       const value = formatDateLikeSource({ canonicalDate: date, sourceText: source })
       return value ? { ok: true, value } : { ok: false, code: 'unrenderable_surface' }
     }
-    case 'fixed_date':
-      return { ok: true, value: source }
-    case 'ambiguous_date':
-      return { ok: false, code: 'ambiguous_date' }
-    case 'dependent_date': {
-      if (!mapping.baseDateConcept || !mapping.relation || mapping.relation.amount < 0) return { ok: false, code: 'unsupported_concept' }
-      if (mapping.relation.unit !== 'calendar_days' && mapping.relation.unit !== 'calendar_weeks') return { ok: false, code: 'unsupported_concept' }
-      const baseText = mapping.baseDateConcept === 'wedding_date' ? dataset.dates.weddingDate : dataset.dates.contractExecutionDate
-      const base = new Date(`${baseText}T00:00:00Z`)
-      if (Number.isNaN(base.getTime())) return { ok: false, code: 'unrenderable_surface' }
-      const days = mapping.relation.amount * (mapping.relation.unit === 'calendar_weeks' ? 7 : 1) * (mapping.relation.direction === 'before' ? -1 : 1)
-      base.setUTCDate(base.getUTCDate() + days)
-      const iso = base.toISOString().slice(0, 10)
-      const value = formatDateLikeSource({ canonicalDate: iso, sourceText: source })
+    case 'final_payment_due_date':
+    case 'delivery_due_date': {
+      const date = mapping.concept === 'final_payment_due_date' ? dataset.dates.finalPaymentDueDate : dataset.dates.deliveryDueDate
+      if (!date?.trim()) return { ok: false, code: 'requires_user_input', reason: `No authoritative ${mapping.concept} is available` }
+      const value = formatDateLikeSource({ canonicalDate: date, sourceText: source })
       return value ? { ok: true, value } : { ok: false, code: 'unrenderable_surface' }
     }
+    case 'deposit_due_date':
+      return resolveDepositDueDate({ mapping, executionDateMappings, currentExecutionDate: dataset.dates.contractExecutionDate })
+    case 'fixed_date':
+      return { ok: false, code: 'requires_user_input', reason: 'No authoritative value or supported relation is available' }
+    case 'ambiguous_date':
+      return { ok: false, code: 'requires_user_input', reason: 'Date role or authority is unresolved' }
+    case 'dependent_date':
+      return { ok: false, code: 'requires_user_input', reason: 'A model-supplied date offset is not an authoritative source' }
     case 'total':
     case 'deposit':
     case 'remaining':
@@ -269,6 +284,66 @@ function renderCanonicalValue(
     default:
       return { ok: false, code: 'unsupported_concept' }
   }
+}
+
+function resolveDepositDueDate(input: {
+  mapping: ResolvedSemanticMapping
+  executionDateMappings: readonly ResolvedSemanticMapping[]
+  currentExecutionDate: string
+}): RenderResult {
+  if (input.executionDateMappings.length === 0) {
+    return { ok: false, code: 'requires_user_input', reason: 'A grounded source execution date is required to derive the deposit deadline' }
+  }
+  const parsedExecutionValues = input.executionDateMappings.map((mapping) => parseValidDate(mapping.anchor)?.toISOString().slice(0, 10) ?? null)
+  if (parsedExecutionValues.some((value) => value === null)) {
+    return { ok: false, code: 'requires_user_input', reason: 'A grounded source execution date cannot be parsed safely' }
+  }
+  const sourceExecutionValues = new Set(parsedExecutionValues)
+  if (sourceExecutionValues.size !== 1) {
+    return { ok: false, code: 'requires_user_input', reason: 'Grounded source execution dates do not establish one value for the deposit deadline' }
+  }
+  const sourceExecution = parseValidDate([...sourceExecutionValues][0]!)
+  const sourceDeposit = parseValidDate(input.mapping.anchor)
+  const currentExecution = parseValidDate(input.currentExecutionDate)
+  if (!sourceExecution || !sourceDeposit || !currentExecution) {
+    return { ok: false, code: 'requires_user_input', reason: 'Source dates do not establish a supported calendar-day offset' }
+  }
+  const offsetDays = Math.round((sourceDeposit.getTime() - sourceExecution.getTime()) / 86_400_000)
+  currentExecution.setUTCDate(currentExecution.getUTCDate() + offsetDays)
+  const canonical = currentExecution.toISOString().slice(0, 10)
+  const value = formatDateLikeSource({ canonicalDate: canonical, sourceText: input.mapping.anchor })
+  return value ? { ok: true, value } : { ok: false, code: 'unrenderable_surface' }
+}
+
+function parseValidDate(value: string): Date | null {
+  const iso = parseFlexibleDate(value)
+  if (!iso) return null
+  const match = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (!match) return null
+  const date = new Date(`${iso}T00:00:00.000Z`)
+  if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== iso) return null
+  return date
+}
+
+function dateRoleForMapping(mapping: ResolvedSemanticMapping): string | undefined {
+  if (mapping.concept === 'fixed_date' || mapping.concept === 'ambiguous_date' || mapping.concept === 'dependent_date') return mapping.dateRole ?? undefined
+  if (mapping.concept === 'deposit_due_date' || mapping.concept === 'final_payment_due_date' || mapping.concept === 'delivery_due_date') return mapping.concept
+  return undefined
+}
+
+function dateRoleLabel(role: string): string {
+  const labels: Record<string, string> = {
+    payment_due_date: 'Termin płatności',
+    brief_due_date: 'Termin przekazania briefu',
+    schedule_confirmation_date: 'Termin potwierdzenia harmonogramu',
+    delivery_due_date: 'Termin przekazania materiału',
+    album_due_date: 'Termin albumu',
+    preview_due_date: 'Termin podglądu',
+    other_contractual_date: 'Termin umowny',
+    deposit_due_date: 'Termin zadatku',
+    final_payment_due_date: 'Termin płatności końcowej',
+  }
+  return labels[role] ?? 'Termin umowny'
 }
 
 function isSharedCustomerOwnership(value: readonly number[]): value is readonly [0, 1] {

@@ -20,6 +20,8 @@ import type { StudioPackage, WeddingExtraService } from '@/types/package'
 import type { Wedding } from '@/types/wedding'
 import { buildDatasetAdditionalServices } from './insertAdditionalServices'
 import type { ContractTransformationDataset } from './types'
+import { resolveFinalPaymentDueDate } from '@/lib/utils/finalPaymentTerms'
+import { snapshotDeliveryDeadlineFromRule } from '@/lib/utils/weddingDeliveryDeadline'
 
 function plDate(isoOrDisplay: string | null | undefined): string | undefined {
   if (!isoOrDisplay?.trim()) return undefined
@@ -180,6 +182,16 @@ export function buildContractTransformationDataset(input: {
     (() => {
       throw new Error('weddingDate required')
     })()
+  const deliveryDueDate = wedding.deliveryDueDate?.trim() || snapshotDeliveryDeadlineFromRule({
+    weddingDate: wedding.date,
+    deliveryMonths: wedding.deliveryMonths,
+    deliveryDays: wedding.deliveryDays,
+  }).deliveryDueDate
+  const finalPaymentDueDate = wedding.finalPaymentDueDate?.trim() || resolveFinalPaymentDueDate({
+    terms: wedding.finalPaymentTerms,
+    weddingDate: wedding.date,
+    deliveryDate: deliveryDueDate,
+  })
 
   const finances: ContractTransformationDataset['finances'] = {
     contractValueFormatted: moneyFormatted(contractValue),
@@ -248,6 +260,8 @@ export function buildContractTransformationDataset(input: {
     dates: {
       contractExecutionDate: execution,
       weddingDate,
+      ...(finalPaymentDueDate ? { finalPaymentDueDate: plDate(finalPaymentDueDate) } : {}),
+      ...(deliveryDueDate ? { deliveryDueDate: plDate(deliveryDueDate) } : {}),
     },
     locations,
     finances,

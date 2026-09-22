@@ -10,6 +10,9 @@ export const SEMANTIC_CONCEPTS = [
   'customer_email',
   'wedding_date',
   'execution_date',
+  'deposit_due_date',
+  'final_payment_due_date',
+  'delivery_due_date',
   'dependent_date',
   'fixed_date',
   'ambiguous_date',
@@ -48,12 +51,22 @@ type SemanticMappingBase = {
 }
 
 type CustomerContactConcept = 'customer_address' | 'customer_phone' | 'customer_email'
-export type NonContactConcept = Exclude<SemanticConcept, 'customer_1_name' | 'customer_2_name' | CustomerContactConcept | 'dependent_date' | 'fixed_date' | 'ambiguous_date'>
+export type NonContactConcept = Exclude<SemanticConcept, 'customer_1_name' | 'customer_2_name' | CustomerContactConcept | 'dependent_date' | 'fixed_date' | 'ambiguous_date' | 'deposit_due_date' | 'final_payment_due_date' | 'delivery_due_date'>
 export type DateSemanticMapping = SemanticMappingBase & {
   concept: 'dependent_date' | 'fixed_date' | 'ambiguous_date'
-  dateRole: DateRole
+  dateRole: DateRole | null
   baseDateConcept?: DateBaseConcept
   relation?: { direction: DateRelationDirection; amount: number; unit: DateRelationUnit }
+  customerIndex?: never
+  customerIndexes?: never
+  nameForm?: never
+}
+export type AuthoritativeDateMapping = SemanticMappingBase & {
+  concept: 'deposit_due_date' | 'final_payment_due_date' | 'delivery_due_date'
+  dateRole?: null
+  customerIndex?: never
+  customerIndexes?: never
+  nameForm?: never
 }
 
 /** Future model contract only: semantic source anchor, never a value or edit. */
@@ -85,6 +98,7 @@ export type SemanticMapping =
       nameForm?: never
     })
   | DateSemanticMapping
+  | AuthoritativeDateMapping
 
 export type IndexedSourceParagraph = {
   blockId: string
@@ -122,14 +136,17 @@ function isMapping(value: unknown): value is SemanticMapping {
   const keys = Object.keys(row)
   const contactConcept = row.concept === 'customer_address' || row.concept === 'customer_phone' || row.concept === 'customer_email'
   const customerNameConcept = row.concept === 'customer_1_name' || row.concept === 'customer_2_name'
-  const dateConcept = row.concept === 'dependent_date' || row.concept === 'fixed_date' || row.concept === 'ambiguous_date'
+  const dateConcept = row.concept === 'dependent_date' || row.concept === 'fixed_date' || row.concept === 'ambiguous_date' || row.concept === 'deposit_due_date' || row.concept === 'final_payment_due_date' || row.concept === 'delivery_due_date'
+  const authoritativeDateConcept = row.concept === 'deposit_due_date' || row.concept === 'final_payment_due_date' || row.concept === 'delivery_due_date'
   const validNameForm = (CUSTOMER_NAME_FORMS as readonly unknown[]).includes(row.nameForm)
   const hasNameForm = Object.hasOwn(row, 'nameForm')
   const allowedKeys = ['sourceBlockId', 'concept', 'anchor', 'occurrence', 'customerIndex', 'customerIndexes', 'nameForm', 'dateRole', 'baseDateConcept', 'relation']
   const singleOwner = Number.isInteger(row.customerIndex) && (row.customerIndex === 0 || row.customerIndex === 1) && row.customerIndexes === undefined
   const sharedOwners = row.customerIndex === undefined && Array.isArray(row.customerIndexes) &&
     row.customerIndexes.length === 2 && row.customerIndexes[0] === 0 && row.customerIndexes[1] === 1
-  const validDateClaim = !dateConcept || (
+  const validDateClaim = authoritativeDateConcept
+    ? (row.dateRole === undefined || row.dateRole === null) && row.baseDateConcept === undefined && row.relation === undefined
+    : !dateConcept || (
     Object.hasOwn(row, 'dateRole') &&
     (row.dateRole === null || (typeof row.dateRole === 'string' && (DATE_ROLES as readonly string[]).includes(row.dateRole))) &&
     row.customerIndex === undefined && row.customerIndexes === undefined && row.nameForm === undefined &&

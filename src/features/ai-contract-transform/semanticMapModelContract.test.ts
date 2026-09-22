@@ -101,6 +101,13 @@ run('prompt defines semantic-only work, exact anchors, and protected product bou
     'set nameForm to BASE, GENITIVE, or INSTRUMENTAL',
     'For every non-name concept, set nameForm to null',
     'never provide or generate a customer-name replacement',
+    'Map final_payment_due_date and delivery_due_date',
+    'the system derives the calendar-day difference',
+    'Never provide a numeric offset',
+    'use ambiguous_date with the appropriate dateRole',
+    'Do not omit relevant concrete dates',
+    'Use ambiguous_date with the known dateRole for unsupported dates',
+    'Do not use fixed_date',
   ]) assert.ok(SEMANTIC_MAP_SYSTEM_PROMPT.includes(instruction), `prompt has ${instruction}`)
   for (const forbidden of ['synonym dictionary', 'changedBlocks[].text', 'write a replacement paragraph']) {
     assert.equal(SEMANTIC_MAP_SYSTEM_PROMPT.includes(forbidden), false, `prompt excludes ${forbidden}`)

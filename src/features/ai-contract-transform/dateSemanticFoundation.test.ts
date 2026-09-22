@@ -5,10 +5,21 @@ const base = { sourceBlockId: 'p-1', anchor: '14 sierpnia 2027', occurrence: nul
 const dependent = { ...base, concept: 'dependent_date', baseDateConcept: 'wedding_date', relation: { direction: 'before', amount: 7, unit: 'calendar_days' } }
 const fixed = { ...base, concept: 'fixed_date', anchor: '02.09.2027', baseDateConcept: null, relation: null }
 const ambiguous = { ...base, concept: 'ambiguous_date', anchor: '22.09.2027', baseDateConcept: null, relation: null }
+const authoritative = (concept: 'deposit_due_date' | 'final_payment_due_date' | 'delivery_due_date') => ({
+  ...base,
+  concept,
+  dateRole: null,
+  baseDateConcept: null,
+  relation: null,
+})
 
 for (const mapping of [dependent, fixed, ambiguous]) {
   const result = parseSemanticMapResponse({ semanticMappings: [mapping] })
   assert.equal(result.ok, true)
+}
+for (const concept of ['deposit_due_date', 'final_payment_due_date', 'delivery_due_date'] as const) {
+  const parsed = parseSemanticMapResponse({ semanticMappings: [authoritative(concept)] })
+  assert.equal(parsed.ok, true, `${concept} is a valid semantic date role`)
 }
 
 const unsupported = parseSemanticMapResponse({ semanticMappings: [{ ...dependent, relation: { direction: 'before', amount: 1, unit: 'business_days' } }] })

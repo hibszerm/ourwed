@@ -213,7 +213,7 @@ async function executeCase(caseId: GoldenCaseId, scenario: ReturnType<typeof bui
     sourceCustomerIdentities: sourceCustomerIdentities[caseId],
     evaluationNameFormResolver: resolveGoldenEvaluationNameForm,
   })
-  if (!execution.ok) throw new Error(`${caseId} execution failed: ${execution.code} at mapping ${execution.mappingIndex}`)
+  if (!execution.ok) throw new Error(`${caseId} execution failed: ${execution.code} at mapping ${('mappingIndex' in execution ? execution.mappingIndex : undefined)}`)
 
   const mappedIds = new Set(execution.paragraphs.map((row) => row.blockId))
   const sourceById = new Map(sourceParagraphs.map((row) => [row.blockId, row.paragraphXml]))
