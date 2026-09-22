@@ -42,7 +42,7 @@ DATE AND FINANCE ROLES
 wedding_date is the actual wedding/event date; execution_date is when the agreement is executed, signed, or concluded. total is the complete contract/commercial value; deposit is the deposit/advance amount; remaining is the amount still payable. The *_words concepts are the written-out textual representation of their corresponding numeric amount. Do not calculate, infer, or invent financial obligations.
 
 DATE COVERAGE
-Inspect every relevant concrete calendar date. Use dependent_date only when explicit source semantics prove a relation to wedding_date or execution_date; numeric proximity alone is not evidence. Use fixed_date for a concrete contractual date with no proven derivation. Use ambiguous_date when a relevant concrete date cannot safely be classified; do not omit it. Dependent dates require dateRole, baseDateConcept, and a calendar_days or calendar_weeks relation. The system calculates the final date.
+Inspect every relevant concrete calendar date. Use dependent_date only when explicit source semantics prove a relation to wedding_date or execution_date; numeric proximity alone is not evidence. Use fixed_date only when the source positively establishes intentional independence from canonical dates; absence of dependency evidence does not imply fixed. Use ambiguous_date when a relevant concrete date cannot safely be classified; do not omit it. Fixed and ambiguous dates may have a null dateRole, with null baseDateConcept and relation. Dependent dates require non-null dateRole, baseDateConcept, and a calendar_days or calendar_weeks relation. The system calculates the final date.
 
 LOCATION ROLES
 preparation_location is the preparation location generally; bride_preparation_location, groom_preparation_location, and shared_preparation_location identify those distinct preparation roles; ceremony_location is the ceremony location; reception_location is the reception venue/location. Keep roles distinct and map only source values that actually represent that role.
@@ -243,7 +243,7 @@ export function parseSemanticMapResponse(payload: unknown):
       ? validSingleOwner || validSharedOwners
       : row.customerIndex === null && row.customerIndexes === null
     const validDateMetadata = isDate
-      ? typeof row.dateRole === 'string' && (DATE_ROLES as readonly string[]).includes(row.dateRole)
+      ? ((typeof row.dateRole === 'string' && (DATE_ROLES as readonly string[]).includes(row.dateRole)) || row.dateRole === null)
       : (row.dateRole === null && row.baseDateConcept === null && row.relation === null) ||
         (!Object.hasOwn(row, 'dateRole') && !Object.hasOwn(row, 'baseDateConcept') && !Object.hasOwn(row, 'relation'))
     const validNameForm = isCustomerName
@@ -257,7 +257,8 @@ export function parseSemanticMapResponse(payload: unknown):
       typeof row.anchor !== 'string' || !row.anchor.trim() || !validOccurrence || !validCustomerOwnership || !validNameForm || !validDateMetadata) {
       return { ok: false, code: 'invalid_mapping' }
     }
-    if (isDate && row.concept === 'dependent_date' && (!row.baseDateConcept || !row.relation || typeof row.relation !== 'object' || !(DATE_BASE_CONCEPTS as readonly string[]).includes(String(row.baseDateConcept)) || !(DATE_RELATION_DIRECTIONS as readonly string[]).includes(String((row.relation as any).direction)) || !(DATE_RELATION_UNITS as readonly string[]).includes(String((row.relation as any).unit)) || !Number.isInteger((row.relation as any).amount) || (row.relation as any).amount < 0)) return { ok: false, code: 'invalid_mapping' }
+    if (isDate && row.concept === 'dependent_date' && (!row.baseDateConcept || !row.relation || typeof row.relation !== 'object' || !(DATE_BASE_CONCEPTS as readonly string[]).includes(String(row.baseDateConcept)) || !(DATE_RELATION_DIRECTIONS as readonly string[]).includes(String((row.relation as any).direction)) || !(DATE_RELATION_UNITS as readonly string[]).includes(String((row.relation as any).unit)) || !Number.isInteger((row.relation as any).amount) || (row.relation as any).amount < 0 || row.dateRole === null)) return { ok: false, code: 'invalid_mapping' }
+    if (isDate && row.concept !== 'dependent_date' && (row.baseDateConcept !== null || row.relation !== null)) return { ok: false, code: 'invalid_mapping' }
     const base = {
       sourceBlockId: row.sourceBlockId,
       anchor: row.anchor,

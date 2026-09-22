@@ -129,14 +129,23 @@ function isMapping(value: unknown): value is SemanticMapping {
   const singleOwner = Number.isInteger(row.customerIndex) && (row.customerIndex === 0 || row.customerIndex === 1) && row.customerIndexes === undefined
   const sharedOwners = row.customerIndex === undefined && Array.isArray(row.customerIndexes) &&
     row.customerIndexes.length === 2 && row.customerIndexes[0] === 0 && row.customerIndexes[1] === 1
+  const validDateClaim = !dateConcept || (
+    Object.hasOwn(row, 'dateRole') &&
+    (row.dateRole === null || (typeof row.dateRole === 'string' && (DATE_ROLES as readonly string[]).includes(row.dateRole))) &&
+    row.customerIndex === undefined && row.customerIndexes === undefined && row.nameForm === undefined &&
+    (row.concept !== 'dependent_date'
+      ? row.baseDateConcept === undefined && row.relation === undefined
+      : typeof row.baseDateConcept === 'string' && (DATE_BASE_CONCEPTS as readonly string[]).includes(row.baseDateConcept) &&
+        !!row.relation && typeof row.relation === 'object' && Number.isInteger((row.relation as any).amount) &&
+        (row.relation as any).amount >= 0 && (DATE_RELATION_DIRECTIONS as readonly string[]).includes((row.relation as any).direction) &&
+        (DATE_RELATION_UNITS as readonly string[]).includes((row.relation as any).unit) && row.dateRole !== null)
+  )
   return keys.every((key) => allowedKeys.includes(key)) &&
     typeof row.sourceBlockId === 'string' && row.sourceBlockId.trim().length > 0 &&
     isSemanticConcept(row.concept) &&
     typeof row.anchor === 'string' && row.anchor.trim().length > 0 &&
     (row.occurrence === undefined || (Number.isInteger(row.occurrence) && (row.occurrence as number) >= 0)) &&
-    (dateConcept
-      ? Object.hasOwn(row, 'dateRole') && typeof row.dateRole === 'string' && (DATE_ROLES as readonly string[]).includes(row.dateRole) && row.customerIndex === undefined && row.customerIndexes === undefined && row.nameForm === undefined && (row.concept !== 'dependent_date' ? row.baseDateConcept === undefined && row.relation === undefined : typeof row.baseDateConcept === 'string' && (DATE_BASE_CONCEPTS as readonly string[]).includes(row.baseDateConcept) && !!row.relation && typeof row.relation === 'object' && Number.isInteger((row.relation as any).amount) && (row.relation as any).amount >= 0 && (DATE_RELATION_DIRECTIONS as readonly string[]).includes((row.relation as any).direction) && (DATE_RELATION_UNITS as readonly string[]).includes((row.relation as any).unit))
-      : customerNameConcept
+    validDateClaim && (customerNameConcept
       ? hasNameForm && validNameForm && row.customerIndex === undefined && row.customerIndexes === undefined
       : !hasNameForm && (contactConcept ? singleOwner || sharedOwners : row.customerIndex === undefined && row.customerIndexes === undefined))
 }
