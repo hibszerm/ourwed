@@ -34,17 +34,35 @@ type SemanticMappingBase = {
   occurrence?: number
 }
 
+type CustomerContactConcept = 'customer_address' | 'customer_phone'
+export type NonContactConcept = Exclude<SemanticConcept, 'customer_1_name' | 'customer_2_name' | CustomerContactConcept>
+
 /** Future model contract only: semantic source anchor, never a value or edit. */
 export type SemanticMapping =
   | (SemanticMappingBase & {
       concept: 'customer_1_name' | 'customer_2_name'
       nameForm: CustomerNameForm
       customerIndex?: never
+      customerIndexes?: never
     })
   | (SemanticMappingBase & {
-      concept: Exclude<SemanticConcept, 'customer_1_name' | 'customer_2_name'>
-      /** Zero-based customer ownership for customer_address/customer_phone only. */
-      customerIndex?: number
+      concept: CustomerContactConcept
+      /** Zero-based sole owner for a contact source span. */
+      customerIndex: 0 | 1
+      customerIndexes?: never
+      nameForm?: never
+    })
+  | (SemanticMappingBase & {
+      concept: CustomerContactConcept
+      /** Both customers jointly own the same contact source span. */
+      customerIndexes: readonly [0, 1]
+      customerIndex?: never
+      nameForm?: never
+    })
+  | (SemanticMappingBase & {
+      concept: NonContactConcept
+      customerIndex?: never
+      customerIndexes?: never
       nameForm?: never
     })
 
@@ -86,15 +104,18 @@ function isMapping(value: unknown): value is SemanticMapping {
   const customerNameConcept = row.concept === 'customer_1_name' || row.concept === 'customer_2_name'
   const validNameForm = (CUSTOMER_NAME_FORMS as readonly unknown[]).includes(row.nameForm)
   const hasNameForm = Object.hasOwn(row, 'nameForm')
-  return keys.every((key) => ['sourceBlockId', 'concept', 'anchor', 'occurrence', 'customerIndex', 'nameForm'].includes(key)) &&
+  const allowedKeys = ['sourceBlockId', 'concept', 'anchor', 'occurrence', 'customerIndex', 'customerIndexes', 'nameForm']
+  const singleOwner = Number.isInteger(row.customerIndex) && (row.customerIndex === 0 || row.customerIndex === 1) && row.customerIndexes === undefined
+  const sharedOwners = row.customerIndex === undefined && Array.isArray(row.customerIndexes) &&
+    row.customerIndexes.length === 2 && row.customerIndexes[0] === 0 && row.customerIndexes[1] === 1
+  return keys.every((key) => allowedKeys.includes(key)) &&
     typeof row.sourceBlockId === 'string' && row.sourceBlockId.trim().length > 0 &&
     isSemanticConcept(row.concept) &&
     typeof row.anchor === 'string' && row.anchor.trim().length > 0 &&
     (row.occurrence === undefined || (Number.isInteger(row.occurrence) && (row.occurrence as number) >= 0)) &&
-    (customerNameConcept ? hasNameForm && validNameForm : !hasNameForm) &&
-    (contactConcept
-      ? Number.isInteger(row.customerIndex) && (row.customerIndex as number) >= 0
-      : row.customerIndex === undefined || row.customerIndex === null)
+    (customerNameConcept
+      ? hasNameForm && validNameForm && row.customerIndex === undefined && row.customerIndexes === undefined
+      : !hasNameForm && (contactConcept ? singleOwner || sharedOwners : row.customerIndex === undefined && row.customerIndexes === undefined))
 }
 
 /**
@@ -147,7 +168,7 @@ export function resolveSemanticMappings(input: {
     const current = resolved[index]!
     const duplicate = normalized.find((prior) => sameSpan(prior, current))
     if (duplicate) {
-      if (duplicate.concept !== current.concept || duplicate.customerIndex !== current.customerIndex || duplicate.nameForm !== current.nameForm) return { ok: false, code: 'span_conflict', mappingIndex: index }
+      if (duplicate.concept !== current.concept || !sameOwnership(duplicate, current) || duplicate.nameForm !== current.nameForm) return { ok: false, code: 'span_conflict', mappingIndex: index }
       // Exact-identical claims coalesce so an executor can perform one mutation.
       continue
     }
@@ -175,4 +196,11 @@ export function resolveSemanticMappings(input: {
 
 function sameSpan(a: ResolvedSemanticMapping, b: ResolvedSemanticMapping): boolean {
   return a.sourceBlockId === b.sourceBlockId && a.span.start === b.span.start && a.span.end === b.span.end
+}
+
+function sameOwnership(a: ResolvedSemanticMapping, b: ResolvedSemanticMapping): boolean {
+  if (a.customerIndex !== b.customerIndex) return false
+  const left = a.customerIndexes
+  const right = b.customerIndexes
+  return left === undefined ? right === undefined : right !== undefined && left[0] === right[0] && left[1] === right[1]
 }

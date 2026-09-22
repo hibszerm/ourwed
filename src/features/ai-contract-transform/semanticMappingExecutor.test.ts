@@ -14,7 +14,7 @@ function run(name: string, fn: () => void) {
 const p = (text: string) => `<w:p><w:r><w:t>${text}</w:t></w:r></w:p>`
 const map = (sourceBlockId: string, concept: SemanticMapping['concept'], anchor: string, occurrence?: number, nameForm: SemanticMapping['nameForm'] = 'BASE'): SemanticMapping => ({
   sourceBlockId, concept, anchor, ...(occurrence === undefined ? {} : { occurrence }),
-  ...(concept === 'customer_address' || concept === 'customer_phone' ? { customerIndex: 0 } : {}),
+  ...(concept === 'customer_address' || concept === 'customer_phone' ? { customerIndex: 0 as const } : {}),
   ...(concept === 'customer_1_name' || concept === 'customer_2_name' ? { nameForm } : {}),
 })
 const dataset: ContractTransformationDataset = {
@@ -210,14 +210,46 @@ run('contact mappings use the indexed canonical customer without cross-customer 
   assert(visible(result, 'c2-phone') === '+48 555 666 888', 'customer 2 phone applied')
   assert(!visible(result, 'c2-address').includes('Kwiatowa') && !visible(result, 'c2-phone').includes('777'), 'customer 2 never receives customer 1 contacts')
 
-  const outOfRange = execute([{ ...map('c2-phone', 'customer_phone', 'Old phone two'), customerIndex: 2 }], sources)
-  assert(!outOfRange.ok && outOfRange.code === 'invalid_customer_index', 'out-of-range customer fails closed')
+  const outOfRange = resolveSemanticMappings({ mappings: [{ ...map('c2-phone', 'customer_phone', 'Old phone two'), customerIndex: 2 }], sourceBlocks: sources })
+  assert(!outOfRange.ok && outOfRange.code === 'invalid_mapping', 'out-of-range customer fails closed at grounding')
   const missingAddressDataset = { ...dataset, clients: { ...dataset.clients, customers: [dataset.clients.customers![0]!, { displayName: 'Ewa Nowak', phone: '+48 555 666 888' }] } }
   const missingAddress = execute([{ ...map('c2-address', 'customer_address', 'Old address two'), customerIndex: 1 }], sources, missingAddressDataset)
   assert(!missingAddress.ok && missingAddress.code === 'missing_canonical_value', 'missing address fails closed without customer 1 fallback')
   const missingPhoneDataset = { ...dataset, clients: { ...dataset.clients, customers: [dataset.clients.customers![0]!, { displayName: 'Ewa Nowak', address: 'ul. Leśna 3' }] } }
   const missingPhone = execute([{ ...map('c2-phone', 'customer_phone', 'Old phone two'), customerIndex: 1 }], sources, missingPhoneDataset)
   assert(!missingPhone.ok && missingPhone.code === 'missing_canonical_value', 'missing phone fails closed without customer 1 fallback')
+})
+
+run('shared addresses render once only when both customers have the same canonical value', () => {
+  const sharedDataset: ContractTransformationDataset = {
+    ...dataset,
+    clients: {
+      ...dataset.clients,
+      customers: [
+        { displayName: 'Maria Kowalska', address: 'ul. Kwiatowa 8, 00-001 Warszawa' },
+        { displayName: 'Ewa Nowak', address: 'Kwiatowa 8, 00-001 Warszawa' },
+      ],
+    },
+  }
+  const sharedMap = { sourceBlockId: 'shared-address', concept: 'customer_address', anchor: 'Old shared address', customerIndexes: [0, 1] as const }
+  const source = [{ blockId: 'shared-address', paragraphXml: p('Old shared address') }]
+  const result = execute([sharedMap], source, sharedDataset)
+  assert(visible(result, 'shared-address') === 'ul. Kwiatowa 8, 00-001 Warszawa', 'equal canonical addresses replace the common surface')
+  assert(result.ok && result.spanEdits.length === 1, 'common address is rendered with one span edit')
+
+  const mismatch = execute([sharedMap], source, dataset)
+  assert(!mismatch.ok && mismatch.code === 'shared_canonical_values_mismatch', 'different addresses fail closed')
+  const missingSecond = { ...sharedDataset, clients: { ...sharedDataset.clients, customers: [sharedDataset.clients.customers![0]!, { displayName: 'Ewa Nowak' }] } }
+  const missing = execute([sharedMap], source, missingSecond)
+  assert(!missing.ok && missing.code === 'missing_canonical_value', 'missing value for either owner fails closed')
+  const invalidTuple = resolveSemanticMappings({ mappings: [{ ...sharedMap, customerIndexes: [1, 0] }], sourceBlocks: source })
+  assert(!invalidTuple.ok && invalidTuple.code === 'invalid_mapping', 'invalid owner tuple fails closed at grounding')
+  const sharedPhone = executeSemanticMappings({
+    resolvedMappings: [{ ...sharedMap, concept: 'customer_phone', anchor: 'Old shared phone', occurrence: 0, span: { start: 0, end: 'Old shared phone'.length } } as never],
+    canonicalDataset: sharedDataset,
+    sourceParagraphs: [{ blockId: 'shared-address', paragraphXml: p('Old shared phone') }],
+  })
+  assert(!sharedPhone.ok && sharedPhone.code === 'unsupported_shared_ownership', 'shared phone remains unsupported')
 })
 
 run('repeated concept across blocks and same-block occurrences are all replaced', () => {

@@ -1,5 +1,5 @@
 import type { TransformDocumentBlock, ContractTransformationDataset } from './types'
-import { CUSTOMER_NAME_FORMS, SEMANTIC_CONCEPTS, type SemanticMapping } from './semanticMapping'
+import { CUSTOMER_NAME_FORMS, SEMANTIC_CONCEPTS, type NonContactConcept, type SemanticMapping } from './semanticMapping'
 import { resolveSemanticMappings, type IndexedSourceParagraph, type SemanticMappingResolution } from './semanticMapping'
 
 export const SEMANTIC_MAP_MODEL_IDS = {
@@ -10,7 +10,7 @@ export const SEMANTIC_MAP_MODEL_IDS = {
 export type SemanticMapCandidate = keyof typeof SEMANTIC_MAP_MODEL_IDS
 export const SEMANTIC_MAP_REASONING_EFFORT = 'medium' as const
 export const SEMANTIC_MAP_MAX_OUTPUT_TOKENS = 8192
-export const SEMANTIC_MAP_PROMPT_VERSION = 'semantic-map-v2'
+export const SEMANTIC_MAP_PROMPT_VERSION = 'semantic-map-v3'
 
 export const SEMANTIC_MAP_SYSTEM_PROMPT = `You identify semantic facts in a wedding contract. Return only exact source mappings; do not edit or rewrite the contract.
 
@@ -31,6 +31,7 @@ ANCHOR RULES
 - Use the smallest exact substring that represents the semantic value. Exclude a label when only its value is the target, and exclude surrounding legal prose.
 - Do not combine multiple values into one anchor. If one block contains distinct concepts, return separate mappings for their separate anchors.
 - Repeated semantic surfaces across the document require separate mappings.
+- Map every distinct source span that represents a supported semantic concept, even when another span already maps to the same concept or customer. Emit a separate mapping for each occurrence. Omit only spans whose meaning, ownership, role, or exact anchor is genuinely uncertain.
 - If the same literal occurs multiple times in one block, set occurrence to its zero-based exact-match order. If it occurs exactly once, set occurrence to null.
 - If meaning, ownership, role, or exact span is uncertain, omit the mapping rather than guess.
 
@@ -46,7 +47,7 @@ preparation_location is the preparation location generally; bride_preparation_lo
 ONE EXACT SOURCE OCCURRENCE → ONE SEMANTIC CONCEPT. Never assign one exact occurrence to multiple concepts, including total+deposit, total+remaining, deposit+remaining, wedding_date+execution_date, or customer_1_name+customer_2_name. Distinct source occurrences may share a concept. The system validates conflicts.
 
 CUSTOMER CONTACT OWNERSHIP
-For customer_address and customer_phone, identify which customer owns the exact source value and return that customer's zero-based customerIndex from the ordered CRM customers in the request (0 is first, 1 is second). Use the explicit customer ordering and supplied customer reference facts together with document structure. Do not infer customer order from gender, bride/groom labels, or lexical rules unless those roles are explicitly represented by the canonical customer context. For every other concept, set customerIndex to null.
+For customer_address and customer_phone, represent exactly one ownership mode using the required customerIndex and customerIndexes fields. For a single owner, set customerIndex to that customer's zero-based index (0 is first, 1 is second) and customerIndexes to null. If the source value is explicitly owned jointly by both customers, set customerIndex to null and customerIndexes to [0,1]. Use ordered CRM customers, supplied customer facts, and document structure; do not infer ownership from CRM value equality. Do not infer customer order from gender, bride/groom labels, or lexical rules unless those roles are explicitly represented by the canonical customer context. For customer-name and all other non-contact concepts, set both ownership fields to null.
 
 CUSTOMER NAME FORM
 For customer_1_name and customer_2_name, set nameForm to BASE, GENITIVE, or INSTRUMENTAL according to the grammatical form required by the exact source context. Use BASE for a full name in its base form, GENITIVE for a genitive name surface, and INSTRUMENTAL for an instrumental name surface. Determine form from meaning and grammar in context, not from a phrase list. If the required form is unclear, omit the mapping. For every non-name concept, set nameForm to null. nameForm is only a form selection; never provide or generate a customer-name replacement.
@@ -80,7 +81,7 @@ function conceptDescription(concept: (typeof SEMANTIC_CONCEPTS)[number]): string
 
 export function buildSemanticMapResponseSchema() {
   return {
-    name: 'contract_semantic_mappings_v2',
+    name: 'contract_semantic_mappings_v3',
     strict: true,
     schema: {
       type: 'object',
@@ -92,13 +93,14 @@ export function buildSemanticMapResponseSchema() {
           items: {
             type: 'object',
             additionalProperties: false,
-            required: ['sourceBlockId', 'concept', 'anchor', 'occurrence', 'customerIndex', 'nameForm'],
+            required: ['sourceBlockId', 'concept', 'anchor', 'occurrence', 'customerIndex', 'customerIndexes', 'nameForm'],
             properties: {
               sourceBlockId: { type: 'string', minLength: 1 },
               concept: { type: 'string', enum: [...SEMANTIC_CONCEPTS] },
               anchor: { type: 'string', minLength: 1 },
               occurrence: { type: ['integer', 'null'], minimum: 0 },
-              customerIndex: { type: ['integer', 'null'], minimum: 0 },
+              customerIndex: { type: ['integer', 'null'], enum: [0, 1, null] },
+              customerIndexes: { type: ['array', 'null'], items: { type: 'integer', enum: [0, 1] } },
               nameForm: { type: ['string', 'null'], enum: [...CUSTOMER_NAME_FORMS, null] },
             },
           },
@@ -224,13 +226,18 @@ export function parseSemanticMapResponse(payload: unknown):
     const keys = Object.keys(row)
     const validConcept = typeof row.concept === 'string' && (SEMANTIC_CONCEPTS as readonly string[]).includes(row.concept)
     const validOccurrence = row.occurrence === null || (Number.isInteger(row.occurrence) && (row.occurrence as number) >= 0)
-    const validCustomerIndex = row.customerIndex === null || (Number.isInteger(row.customerIndex) && (row.customerIndex as number) >= 0)
+    const isContact = row.concept === 'customer_address' || row.concept === 'customer_phone'
     const isCustomerName = row.concept === 'customer_1_name' || row.concept === 'customer_2_name'
-    const validCustomerOwnership = validCustomerIndex && (!isCustomerName || row.customerIndex === null)
+    const validSingleOwner = (row.customerIndex === 0 || row.customerIndex === 1) && row.customerIndexes === null
+    const validSharedOwners = row.customerIndex === null && Array.isArray(row.customerIndexes) &&
+      row.customerIndexes.length === 2 && row.customerIndexes[0] === 0 && row.customerIndexes[1] === 1
+    const validCustomerOwnership = isContact
+      ? validSingleOwner || validSharedOwners
+      : row.customerIndex === null && row.customerIndexes === null
     const validNameForm = isCustomerName
       ? (CUSTOMER_NAME_FORMS as readonly unknown[]).includes(row.nameForm)
       : row.nameForm === null
-    if (keys.length !== 6 || !['sourceBlockId', 'concept', 'anchor', 'occurrence', 'customerIndex', 'nameForm'].every((key) => keys.includes(key)) ||
+    if (keys.length !== 7 || !['sourceBlockId', 'concept', 'anchor', 'occurrence', 'customerIndex', 'customerIndexes', 'nameForm'].every((key) => keys.includes(key)) ||
       typeof row.sourceBlockId !== 'string' || !row.sourceBlockId.trim() || !validConcept ||
       typeof row.anchor !== 'string' || !row.anchor.trim() || !validOccurrence || !validCustomerOwnership || !validNameForm) {
       return { ok: false, code: 'invalid_mapping' }
@@ -246,11 +253,18 @@ export function parseSemanticMapResponse(payload: unknown):
         concept: row.concept as 'customer_1_name' | 'customer_2_name',
         nameForm: row.nameForm as SemanticMapping['nameForm'] & {},
       })
+    } else if (isContact) {
+      semanticMappings.push({
+        ...base,
+        concept: row.concept as 'customer_address' | 'customer_phone',
+        ...(row.customerIndex === null
+          ? { customerIndexes: [0, 1] as const }
+          : { customerIndex: row.customerIndex as 0 | 1 }),
+      })
     } else {
       semanticMappings.push({
         ...base,
-        concept: row.concept as Exclude<SemanticMapping['concept'], 'customer_1_name' | 'customer_2_name'>,
-        ...(row.customerIndex === null ? {} : { customerIndex: row.customerIndex as number }),
+        concept: row.concept as NonContactConcept,
       })
     }
   }

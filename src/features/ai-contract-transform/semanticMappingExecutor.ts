@@ -18,6 +18,8 @@ export type SemanticMappingExecutionFailureCode =
   | 'overlapping_spans'
   | 'missing_canonical_value'
   | 'invalid_customer_index'
+  | 'shared_canonical_values_mismatch'
+  | 'unsupported_shared_ownership'
   | 'unsupported_concept'
   | 'unsupported_name_form'
   | 'unrenderable_surface'
@@ -99,7 +101,7 @@ export function executeSemanticMappings(input: {
 
 type RenderResult =
   | { ok: true; value: string }
-  | { ok: false; code: 'invalid_customer_index' | 'missing_canonical_value' | 'unsupported_concept' | 'unsupported_name_form' | 'unrenderable_surface' }
+  | { ok: false; code: 'invalid_customer_index' | 'missing_canonical_value' | 'unsupported_concept' | 'unsupported_name_form' | 'unrenderable_surface' | 'shared_canonical_values_mismatch' | 'unsupported_shared_ownership' }
 
 function renderCanonicalValue(
   mapping: ResolvedSemanticMapping,
@@ -124,6 +126,19 @@ function renderCanonicalValue(
         : { ok: false, code: 'unrenderable_surface' }
     }
     case 'customer_address': {
+      if (mapping.customerIndexes !== undefined) {
+        if (!isSharedCustomerOwnership(mapping.customerIndexes) || dataset.clients.personCount !== 2) {
+          return { ok: false, code: 'invalid_customer_index' }
+        }
+        const first = dataset.clients.customers?.[0]?.address?.trim()
+        const second = dataset.clients.customers?.[1]?.address?.trim()
+        if (!first || !second) return { ok: false, code: 'missing_canonical_value' }
+        const firstRendered = renderCustomerAddress(first)
+        const secondRendered = renderCustomerAddress(second)
+        if (!firstRendered || !secondRendered) return { ok: false, code: 'unrenderable_surface' }
+        if (firstRendered !== secondRendered) return { ok: false, code: 'shared_canonical_values_mismatch' }
+        return { ok: true, value: firstRendered }
+      }
       const customer = getOwnedCustomer(mapping, dataset)
       if (!customer.ok) return customer
       const address = customer.customer.address?.trim()
@@ -132,6 +147,7 @@ function renderCanonicalValue(
       return value ? { ok: true, value } : { ok: false, code: 'unrenderable_surface' }
     }
     case 'customer_phone': {
+      if (mapping.customerIndexes !== undefined) return { ok: false, code: 'unsupported_shared_ownership' }
       const customer = getOwnedCustomer(mapping, dataset)
       if (!customer.ok) return customer
       const phone = customer.customer.phone?.trim()
@@ -194,6 +210,10 @@ function renderCanonicalValue(
     default:
       return { ok: false, code: 'unsupported_concept' }
   }
+}
+
+function isSharedCustomerOwnership(value: readonly number[]): value is readonly [0, 1] {
+  return Array.isArray(value) && value.length === 2 && value[0] === 0 && value[1] === 1
 }
 
 function getOwnedCustomer(

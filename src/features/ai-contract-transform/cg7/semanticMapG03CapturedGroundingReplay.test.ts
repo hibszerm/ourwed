@@ -15,7 +15,7 @@ const root = process.cwd()
 const evidencePath = join(root, 'tmp/golden-contract-validation-run2/EVIDENCE/G03_SEMANTIC_AB/TERRA.json')
 const sourcePath = join(root, 'tmp/golden-contract-validation-run2/SOURCE/Golden_03_Long_Photo_Video.docx')
 const evidence = JSON.parse(readFileSync(evidencePath, 'utf8')) as {
-  semanticMappings: Array<{ sourceBlockId: string; concept: string; anchor: string; occurrence?: number | null; customerIndex?: number }>
+  semanticMappings: Array<{ sourceBlockId: string; concept: string; anchor: string; occurrence?: number | null; customerIndex?: number; customerIndexes?: number[] | null }>
   mappingGrounding: Array<{ index: number; grounded: boolean; failure?: string }>
 }
 const previousFailures = evidence.mappingGrounding.filter((entry) => !entry.grounded)
@@ -46,6 +46,7 @@ const ownershipAugmentedOfflineFixture = {
     customerIndex: Object.hasOwn(ownerByContactBlock, mapping.sourceBlockId)
       ? ownerByContactBlock[mapping.sourceBlockId]!
       : null,
+    customerIndexes: null,
     nameForm: mapping.concept === 'customer_1_name' || mapping.concept === 'customer_2_name'
       ? (mapping.anchor === 'Maja Przykładowa' || mapping.anchor === 'Kacper Modelowy' ? 'BASE' : 'INSTRUMENTAL')
       : null,

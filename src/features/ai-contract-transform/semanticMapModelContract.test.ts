@@ -65,10 +65,11 @@ run('strict semanticMappings schema derives closed concepts and has no legacy fi
   const schema = buildSemanticMapResponseSchema()
   assert.equal(schema.strict, true)
   assert.deepEqual(schema.schema.required, ['semanticMappings'])
-  assert.deepEqual(schema.schema.properties.semanticMappings.items.required, ['sourceBlockId', 'concept', 'anchor', 'occurrence', 'customerIndex', 'nameForm'])
+  assert.deepEqual(schema.schema.properties.semanticMappings.items.required, ['sourceBlockId', 'concept', 'anchor', 'occurrence', 'customerIndex', 'customerIndexes', 'nameForm'])
   assert.deepEqual(schema.schema.properties.semanticMappings.items.properties.concept.enum, [...SEMANTIC_CONCEPTS])
   assert.deepEqual(schema.schema.properties.semanticMappings.items.properties.occurrence.type, ['integer', 'null'])
   assert.deepEqual(schema.schema.properties.semanticMappings.items.properties.customerIndex.type, ['integer', 'null'])
+  assert.deepEqual(schema.schema.properties.semanticMappings.items.properties.customerIndexes.type, ['array', 'null'])
   assert.deepEqual(schema.schema.properties.semanticMappings.items.properties.nameForm.type, ['string', 'null'])
   assert.deepEqual(schema.schema.properties.semanticMappings.items.properties.nameForm.enum, [...CUSTOMER_NAME_FORMS, null])
   assert.equal(schema.schema.additionalProperties, false)
@@ -89,8 +90,10 @@ run('prompt defines semantic-only work, exact anchors, and protected product bou
     'CRM facts are reference context only',
     'This task is one semantic-localization model call',
     'If meaning, ownership, role, or exact span is uncertain, omit',
-    'zero-based customerIndex from the ordered CRM customers',
-    'For every other concept, set customerIndex to null',
+    'zero-based index (0 is first, 1 is second)',
+    'customerIndexes to [0,1]',
+    'Map every distinct source span that represents a supported semantic concept',
+    'For customer-name and all other non-contact concepts, set both ownership fields to null',
     'CUSTOMER NAME FORM',
     'set nameForm to BASE, GENITIVE, or INSTRUMENTAL',
     'For every non-name concept, set nameForm to null',
@@ -137,43 +140,47 @@ run('Terra and Sol requests differ only by explicit model identifier', () => {
 
 run('provider null occurrence normalizes to omitted internal property and grounds', () => {
   const parsed = parseSemanticMapResponse({ semanticMappings: [
-    { sourceBlockId: 'p1', concept: 'total', anchor: '1200 zł', occurrence: null, customerIndex: null, nameForm: null },
+    { sourceBlockId: 'p1', concept: 'total', anchor: '1200 zł', occurrence: null, customerIndex: null, customerIndexes: null, nameForm: null },
   ] })
   assert.ok(parsed.ok)
   assert.equal(Object.prototype.hasOwnProperty.call(parsed.semanticMappings[0]!, 'occurrence'), false)
   assert.equal(Object.prototype.hasOwnProperty.call(parsed.semanticMappings[0]!, 'nameForm'), false)
   const grounded = groundSemanticMapResponse({ semanticMappings: [
-    { sourceBlockId: 'p1', concept: 'total', anchor: '1200 zł', occurrence: null, customerIndex: null, nameForm: null },
+    { sourceBlockId: 'p1', concept: 'total', anchor: '1200 zł', occurrence: null, customerIndex: null, customerIndexes: null, nameForm: null },
   ] }, [{ blockId: 'p1', paragraphXml: '<w:p><w:r><w:t>1200 zł</w:t></w:r></w:p>' }])
   assert.ok(grounded.ok)
   if (grounded.ok) assert.equal(grounded.mappings[0]?.occurrence, 0)
-  const contactParsed = parseSemanticMapResponse({ semanticMappings: [{ sourceBlockId: 'p1', concept: 'customer_address', anchor: 'ul. Leśna 1', occurrence: null, customerIndex: 1, nameForm: null }] })
+  const contactParsed = parseSemanticMapResponse({ semanticMappings: [{ sourceBlockId: 'p1', concept: 'customer_address', anchor: 'ul. Leśna 1', occurrence: null, customerIndex: 1, customerIndexes: null, nameForm: null }] })
   assert.ok(contactParsed.ok)
   if (contactParsed.ok) assert.equal(contactParsed.semanticMappings[0]?.customerIndex, 1)
-  const nullContactParsed = parseSemanticMapResponse({ semanticMappings: [{ sourceBlockId: 'p1', concept: 'customer_phone', anchor: '+48 555 000 111', occurrence: null, customerIndex: null, nameForm: null }] })
-  assert.ok(nullContactParsed.ok)
-  if (nullContactParsed.ok) {
-    assert.equal(Object.hasOwn(nullContactParsed.semanticMappings[0]!, 'customerIndex'), false, 'provider null ownership normalizes to omitted')
-    assert.equal(Object.hasOwn(nullContactParsed.semanticMappings[0]!, 'nameForm'), false, 'non-name null form normalizes to omitted')
+  const sharedContact = parseSemanticMapResponse({ semanticMappings: [{ sourceBlockId: 'p1', concept: 'customer_address', anchor: 'ul. Leśna 1', occurrence: null, customerIndex: null, customerIndexes: [0, 1], nameForm: null }] })
+  assert.ok(sharedContact.ok)
+  if (sharedContact.ok) {
+    assert.deepEqual(sharedContact.semanticMappings[0]?.customerIndexes, [0, 1])
+    assert.equal(Object.hasOwn(sharedContact.semanticMappings[0]!, 'customerIndex'), false)
   }
-  const nullContactGrounding = groundSemanticMapResponse({ semanticMappings: [{ sourceBlockId: 'p1', concept: 'customer_phone', anchor: '+48 555 000 111', occurrence: null, customerIndex: null, nameForm: null }] }, [{ blockId: 'p1', paragraphXml: '<w:p><w:r><w:t>+48 555 000 111</w:t></w:r></w:p>' }])
-  assert.equal(nullContactGrounding.ok, false, 'contact still requires non-null ownership after normalization')
+  const sharedGrounding = groundSemanticMapResponse({ semanticMappings: [{ sourceBlockId: 'p1', concept: 'customer_address', anchor: 'ul. Leśna 1', occurrence: null, customerIndex: null, customerIndexes: [0, 1], nameForm: null }] }, [{ blockId: 'p1', paragraphXml: '<w:p><w:r><w:t>ul. Leśna 1</w:t></w:r></w:p>' }])
+  assert.equal(sharedGrounding.ok, true, 'shared contact owner grounds as a tuple')
+  assert.equal(parseSemanticMapResponse({ semanticMappings: [{ sourceBlockId: 'p1', concept: 'customer_phone', anchor: '+48 555 000 111', occurrence: null, customerIndex: null, customerIndexes: null, nameForm: null }] }).ok, false, 'contact with no owner is rejected')
+  for (const invalidOwners of [[0], [1], [0, 0], [1, 1], [1, 0], [0, 1, 0]] as number[][]) {
+    assert.equal(parseSemanticMapResponse({ semanticMappings: [{ sourceBlockId: 'p1', concept: 'customer_address', anchor: 'ul. Leśna 1', occurrence: null, customerIndex: null, customerIndexes: invalidOwners, nameForm: null }] }).ok, false, `invalid shared owner tuple ${invalidOwners}`)
+  }
 })
 
 run('normalization preserves explicit occurrences and rejects prohibited properties', () => {
   const parsed = parseSemanticMapResponse(JSON.stringify({ semanticMappings: [
-    { sourceBlockId: 'p1', concept: 'customer_1_name', anchor: 'Name', occurrence: 1, customerIndex: null, nameForm: 'BASE' },
+    { sourceBlockId: 'p1', concept: 'customer_1_name', anchor: 'Name', occurrence: 1, customerIndex: null, customerIndexes: null, nameForm: 'BASE' },
   ] }))
   assert.ok(parsed.ok)
   if (parsed.ok) assert.equal(parsed.semanticMappings[0]?.occurrence, 1)
   if (parsed.ok) assert.equal(parsed.semanticMappings[0]?.nameForm, 'BASE')
-  const nullName = parseSemanticMapResponse({ semanticMappings: [{ sourceBlockId: 'p1', concept: 'customer_1_name', anchor: 'Name', occurrence: null, customerIndex: null, nameForm: null }] })
+  const nullName = parseSemanticMapResponse({ semanticMappings: [{ sourceBlockId: 'p1', concept: 'customer_1_name', anchor: 'Name', occurrence: null, customerIndex: null, customerIndexes: null, nameForm: null }] })
   assert.equal(nullName.ok, false, 'customer name requires non-null form')
-  const missingNameForm = parseSemanticMapResponse({ semanticMappings: [{ sourceBlockId: 'p1', concept: 'customer_2_name', anchor: 'Name', occurrence: null, customerIndex: null }] })
+  const missingNameForm = parseSemanticMapResponse({ semanticMappings: [{ sourceBlockId: 'p1', concept: 'customer_2_name', anchor: 'Name', occurrence: null, customerIndex: null, customerIndexes: null }] })
   assert.equal(missingNameForm.ok, false, 'missing nameForm rejected')
-  const nonNameForm = parseSemanticMapResponse({ semanticMappings: [{ sourceBlockId: 'p1', concept: 'total', anchor: '1200', occurrence: null, customerIndex: null, nameForm: 'BASE' }] })
+  const nonNameForm = parseSemanticMapResponse({ semanticMappings: [{ sourceBlockId: 'p1', concept: 'total', anchor: '1200', occurrence: null, customerIndex: null, customerIndexes: null, nameForm: 'BASE' }] })
   assert.equal(nonNameForm.ok, false, 'nameForm forbidden for other concepts')
-  const invalidForm = parseSemanticMapResponse({ semanticMappings: [{ sourceBlockId: 'p1', concept: 'customer_2_name', anchor: 'Name', occurrence: null, customerIndex: null, nameForm: 'LOCATIVE' }] })
+  const invalidForm = parseSemanticMapResponse({ semanticMappings: [{ sourceBlockId: 'p1', concept: 'customer_2_name', anchor: 'Name', occurrence: null, customerIndex: null, customerIndexes: null, nameForm: 'LOCATIVE' }] })
   assert.equal(invalidForm.ok, false, 'unsupported nameForm rejected')
   assert.equal(parseSemanticMapResponse({ semanticMappings: [], changedBlocks: [] }).ok, false)
   assert.equal(parseSemanticMapResponse({ semanticMappings: [{ sourceBlockId: 'p', concept: 'total', anchor: '1200', occurrence: null, customerIndex: null, replacement: '900' }] }).ok, false)
