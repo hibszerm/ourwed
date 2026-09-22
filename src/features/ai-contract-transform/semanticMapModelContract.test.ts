@@ -65,7 +65,7 @@ run('strict semanticMappings schema derives closed concepts and has no legacy fi
   const schema = buildSemanticMapResponseSchema()
   assert.equal(schema.strict, true)
   assert.deepEqual(schema.schema.required, ['semanticMappings'])
-  assert.deepEqual(schema.schema.properties.semanticMappings.items.required, ['sourceBlockId', 'concept', 'anchor', 'occurrence', 'customerIndex', 'customerIndexes', 'nameForm'])
+  assert.deepEqual(schema.schema.properties.semanticMappings.items.required, ['sourceBlockId', 'concept', 'anchor', 'occurrence', 'customerIndex', 'customerIndexes', 'nameForm', 'dateRole', 'baseDateConcept', 'relation'])
   assert.deepEqual(schema.schema.properties.semanticMappings.items.properties.concept.enum, [...SEMANTIC_CONCEPTS])
   assert.deepEqual(schema.schema.properties.semanticMappings.items.properties.occurrence.type, ['integer', 'null'])
   assert.deepEqual(schema.schema.properties.semanticMappings.items.properties.customerIndex.type, ['integer', 'null'])

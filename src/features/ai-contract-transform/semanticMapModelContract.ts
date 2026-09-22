@@ -97,7 +97,7 @@ export function buildSemanticMapResponseSchema() {
           items: {
             type: 'object',
             additionalProperties: false,
-            required: ['sourceBlockId', 'concept', 'anchor', 'occurrence', 'customerIndex', 'customerIndexes', 'nameForm'],
+            required: ['sourceBlockId', 'concept', 'anchor', 'occurrence', 'customerIndex', 'customerIndexes', 'nameForm', 'dateRole', 'baseDateConcept', 'relation'],
             properties: {
               sourceBlockId: { type: 'string', minLength: 1 },
               concept: { type: 'string', enum: [...SEMANTIC_CONCEPTS] },
@@ -242,15 +242,19 @@ export function parseSemanticMapResponse(payload: unknown):
     const validCustomerOwnership = isContact
       ? validSingleOwner || validSharedOwners
       : row.customerIndex === null && row.customerIndexes === null
+    const validDateMetadata = isDate
+      ? typeof row.dateRole === 'string' && (DATE_ROLES as readonly string[]).includes(row.dateRole)
+      : (row.dateRole === null && row.baseDateConcept === null && row.relation === null) ||
+        (!Object.hasOwn(row, 'dateRole') && !Object.hasOwn(row, 'baseDateConcept') && !Object.hasOwn(row, 'relation'))
     const validNameForm = isCustomerName
       ? (CUSTOMER_NAME_FORMS as readonly unknown[]).includes(row.nameForm)
       : row.nameForm === null
-    const requiredKeys = isDate
+    const requiredKeys = isDate || Object.hasOwn(row, 'dateRole')
       ? ['sourceBlockId', 'concept', 'anchor', 'occurrence', 'customerIndex', 'customerIndexes', 'nameForm', 'dateRole', 'baseDateConcept', 'relation']
       : ['sourceBlockId', 'concept', 'anchor', 'occurrence', 'customerIndex', 'customerIndexes', 'nameForm']
     if (keys.length !== requiredKeys.length || !requiredKeys.every((key) => keys.includes(key)) ||
       typeof row.sourceBlockId !== 'string' || !row.sourceBlockId.trim() || !validConcept ||
-      typeof row.anchor !== 'string' || !row.anchor.trim() || !validOccurrence || !validCustomerOwnership || !validNameForm) {
+      typeof row.anchor !== 'string' || !row.anchor.trim() || !validOccurrence || !validCustomerOwnership || !validNameForm || !validDateMetadata) {
       return { ok: false, code: 'invalid_mapping' }
     }
     if (isDate && row.concept === 'dependent_date' && (!row.baseDateConcept || !row.relation || typeof row.relation !== 'object' || !(DATE_BASE_CONCEPTS as readonly string[]).includes(String(row.baseDateConcept)) || !(DATE_RELATION_DIRECTIONS as readonly string[]).includes(String((row.relation as any).direction)) || !(DATE_RELATION_UNITS as readonly string[]).includes(String((row.relation as any).unit)) || !Number.isInteger((row.relation as any).amount) || (row.relation as any).amount < 0)) return { ok: false, code: 'invalid_mapping' }
