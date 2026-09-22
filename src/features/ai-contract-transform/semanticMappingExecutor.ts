@@ -24,6 +24,7 @@ export type SemanticMappingExecutionFailureCode =
   | 'unsupported_name_form'
   | 'unrenderable_surface'
   | 'unsafe_ooxml_mutation'
+  | 'ambiguous_date'
 
 export type SemanticMappingExecutionResult =
   | {
@@ -108,7 +109,7 @@ export function executeSemanticMappings(input: {
 
 type RenderResult =
   | { ok: true; value: string }
-  | { ok: false; code: 'invalid_customer_index' | 'missing_canonical_value' | 'unsupported_concept' | 'unsupported_name_form' | 'unrenderable_surface' | 'shared_canonical_values_mismatch' | 'unsupported_shared_ownership' }
+  | { ok: false; code: 'invalid_customer_index' | 'missing_canonical_value' | 'unsupported_concept' | 'unsupported_name_form' | 'unrenderable_surface' | 'shared_canonical_values_mismatch' | 'unsupported_shared_ownership' | 'ambiguous_date' }
 
 function renderCanonicalValue(
   mapping: ResolvedSemanticMapping,
@@ -200,6 +201,22 @@ function renderCanonicalValue(
       const date = (mapping.concept === 'wedding_date' ? dataset.dates.weddingDate : dataset.dates.contractExecutionDate).trim()
       if (!date) return { ok: false, code: 'missing_canonical_value' }
       const value = formatDateLikeSource({ canonicalDate: date, sourceText: source })
+      return value ? { ok: true, value } : { ok: false, code: 'unrenderable_surface' }
+    }
+    case 'fixed_date':
+      return { ok: true, value: source }
+    case 'ambiguous_date':
+      return { ok: false, code: 'ambiguous_date' }
+    case 'dependent_date': {
+      if (!mapping.baseDateConcept || !mapping.relation || mapping.relation.amount < 0) return { ok: false, code: 'unsupported_concept' }
+      if (mapping.relation.unit !== 'calendar_days' && mapping.relation.unit !== 'calendar_weeks') return { ok: false, code: 'unsupported_concept' }
+      const baseText = mapping.baseDateConcept === 'wedding_date' ? dataset.dates.weddingDate : dataset.dates.contractExecutionDate
+      const base = new Date(`${baseText}T00:00:00Z`)
+      if (Number.isNaN(base.getTime())) return { ok: false, code: 'unrenderable_surface' }
+      const days = mapping.relation.amount * (mapping.relation.unit === 'calendar_weeks' ? 7 : 1) * (mapping.relation.direction === 'before' ? -1 : 1)
+      base.setUTCDate(base.getUTCDate() + days)
+      const iso = base.toISOString().slice(0, 10)
+      const value = formatDateLikeSource({ canonicalDate: iso, sourceText: source })
       return value ? { ok: true, value } : { ok: false, code: 'unrenderable_surface' }
     }
     case 'total':

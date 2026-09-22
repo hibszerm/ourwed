@@ -1,5 +1,5 @@
 import type { TransformDocumentBlock, ContractTransformationDataset } from './types'
-import { CUSTOMER_NAME_FORMS, SEMANTIC_CONCEPTS, type NonContactConcept, type SemanticMapping } from './semanticMapping'
+import { CUSTOMER_NAME_FORMS, DATE_BASE_CONCEPTS, DATE_RELATION_DIRECTIONS, DATE_RELATION_UNITS, DATE_ROLES, SEMANTIC_CONCEPTS, type NonContactConcept, type SemanticMapping } from './semanticMapping'
 import { resolveSemanticMappings, type IndexedSourceParagraph, type SemanticMappingResolution } from './semanticMapping'
 
 export const SEMANTIC_MAP_MODEL_IDS = {
@@ -40,6 +40,9 @@ Customer concepts refer only to contracting customers/clients, never provider or
 
 DATE AND FINANCE ROLES
 wedding_date is the actual wedding/event date; execution_date is when the agreement is executed, signed, or concluded. total is the complete contract/commercial value; deposit is the deposit/advance amount; remaining is the amount still payable. The *_words concepts are the written-out textual representation of their corresponding numeric amount. Do not calculate, infer, or invent financial obligations.
+
+DATE COVERAGE
+Inspect every relevant concrete calendar date. Use dependent_date only when explicit source semantics prove a relation to wedding_date or execution_date; numeric proximity alone is not evidence. Use fixed_date for a concrete contractual date with no proven derivation. Use ambiguous_date when a relevant concrete date cannot safely be classified; do not omit it. Dependent dates require dateRole, baseDateConcept, and a calendar_days or calendar_weeks relation. The system calculates the final date.
 
 LOCATION ROLES
 preparation_location is the preparation location generally; bride_preparation_location, groom_preparation_location, and shared_preparation_location identify those distinct preparation roles; ceremony_location is the ceremony location; reception_location is the reception venue/location. Keep roles distinct and map only source values that actually represent that role.
@@ -103,6 +106,9 @@ export function buildSemanticMapResponseSchema() {
               customerIndex: { type: ['integer', 'null'], enum: [0, 1, null] },
               customerIndexes: { type: ['array', 'null'], items: { type: 'integer', enum: [0, 1] } },
               nameForm: { type: ['string', 'null'], enum: [...CUSTOMER_NAME_FORMS, null] },
+              dateRole: { type: ['string', 'null'], enum: [...DATE_ROLES, null] },
+              baseDateConcept: { type: ['string', 'null'], enum: [...DATE_BASE_CONCEPTS, null] },
+              relation: { type: ['object', 'null'], additionalProperties: false, properties: { direction: { type: 'string', enum: [...DATE_RELATION_DIRECTIONS] }, amount: { type: 'integer', minimum: 0 }, unit: { type: 'string', enum: [...DATE_RELATION_UNITS] } }, required: ['direction', 'amount', 'unit'] },
             },
           },
         },
@@ -228,6 +234,7 @@ export function parseSemanticMapResponse(payload: unknown):
     const validConcept = typeof row.concept === 'string' && (SEMANTIC_CONCEPTS as readonly string[]).includes(row.concept)
     const validOccurrence = row.occurrence === null || (Number.isInteger(row.occurrence) && (row.occurrence as number) >= 0)
     const isContact = row.concept === 'customer_address' || row.concept === 'customer_phone' || row.concept === 'customer_email'
+    const isDate = row.concept === 'dependent_date' || row.concept === 'fixed_date' || row.concept === 'ambiguous_date'
     const isCustomerName = row.concept === 'customer_1_name' || row.concept === 'customer_2_name'
     const validSingleOwner = (row.customerIndex === 0 || row.customerIndex === 1) && row.customerIndexes === null
     const validSharedOwners = row.customerIndex === null && Array.isArray(row.customerIndexes) &&
@@ -238,11 +245,15 @@ export function parseSemanticMapResponse(payload: unknown):
     const validNameForm = isCustomerName
       ? (CUSTOMER_NAME_FORMS as readonly unknown[]).includes(row.nameForm)
       : row.nameForm === null
-    if (keys.length !== 7 || !['sourceBlockId', 'concept', 'anchor', 'occurrence', 'customerIndex', 'customerIndexes', 'nameForm'].every((key) => keys.includes(key)) ||
+    const requiredKeys = isDate
+      ? ['sourceBlockId', 'concept', 'anchor', 'occurrence', 'customerIndex', 'customerIndexes', 'nameForm', 'dateRole', 'baseDateConcept', 'relation']
+      : ['sourceBlockId', 'concept', 'anchor', 'occurrence', 'customerIndex', 'customerIndexes', 'nameForm']
+    if (keys.length !== requiredKeys.length || !requiredKeys.every((key) => keys.includes(key)) ||
       typeof row.sourceBlockId !== 'string' || !row.sourceBlockId.trim() || !validConcept ||
       typeof row.anchor !== 'string' || !row.anchor.trim() || !validOccurrence || !validCustomerOwnership || !validNameForm) {
       return { ok: false, code: 'invalid_mapping' }
     }
+    if (isDate && row.concept === 'dependent_date' && (!row.baseDateConcept || !row.relation || typeof row.relation !== 'object' || !(DATE_BASE_CONCEPTS as readonly string[]).includes(String(row.baseDateConcept)) || !(DATE_RELATION_DIRECTIONS as readonly string[]).includes(String((row.relation as any).direction)) || !(DATE_RELATION_UNITS as readonly string[]).includes(String((row.relation as any).unit)) || !Number.isInteger((row.relation as any).amount) || (row.relation as any).amount < 0)) return { ok: false, code: 'invalid_mapping' }
     const base = {
       sourceBlockId: row.sourceBlockId,
       anchor: row.anchor,
@@ -254,6 +265,8 @@ export function parseSemanticMapResponse(payload: unknown):
         concept: row.concept as 'customer_1_name' | 'customer_2_name',
         nameForm: row.nameForm as SemanticMapping['nameForm'] & {},
       })
+    } else if (isDate) {
+      semanticMappings.push({ ...base, concept: row.concept as 'dependent_date' | 'fixed_date' | 'ambiguous_date', dateRole: row.dateRole as any, ...(row.concept === 'dependent_date' ? { baseDateConcept: row.baseDateConcept as any, relation: row.relation as any } : {}) } as SemanticMapping)
     } else if (isContact) {
       semanticMappings.push({
         ...base,
