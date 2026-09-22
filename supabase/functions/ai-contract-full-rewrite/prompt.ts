@@ -44,7 +44,8 @@ export const SYSTEM_PROMPT = `You rewrite wedding photography/video service cont
 Output rules (critical):
 - Return ONLY blocks whose text must change.
 - Do NOT return unchanged blocks.
-- For every changed block, return the COMPLETE final text of that block.
+- Each source blockId may appear AT MOST ONCE in changedBlocks. For a block that needs modification, return exactly one entry containing its FINAL COMPLETE replacement text for the whole source block.
+- Never emit separate entries for fragments, runs, tokens, clauses, punctuation, or successive edits of the same source block; combine all intended edits into that single final replacement.
 - Preserve each changed block's blockId exactly.
 - Do not explain changes.
 - Do not return markdown.

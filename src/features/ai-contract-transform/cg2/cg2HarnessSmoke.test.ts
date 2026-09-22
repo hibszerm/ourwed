@@ -16,6 +16,10 @@ assert(
   'prompt forbids LLM extras pricing',
 )
 assert(SYSTEM_PROMPT.includes('changedBlocks'), 'sparse rewrite')
+assert(SYSTEM_PROMPT.includes('Each source blockId may appear AT MOST ONCE in changedBlocks'), 'one entry per source block')
+assert(SYSTEM_PROMPT.includes('FINAL COMPLETE replacement text for the whole source block'), 'whole-block final replacement')
+assert(SYSTEM_PROMPT.includes('Never emit separate entries for fragments, runs, tokens, clauses, punctuation, or successive edits'), 'fragment-level duplicates forbidden')
+assert(SYSTEM_PROMPT.includes('Do NOT return unchanged blocks'), 'unchanged blocks omitted')
 
 console.log('CG2_HARNESS_SMOKE_PASS')
 console.log(

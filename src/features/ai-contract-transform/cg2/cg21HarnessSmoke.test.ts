@@ -16,6 +16,10 @@ const edgeSrc = readFileSync(
   resolve('supabase/functions/ai-contract-full-rewrite/index.ts'),
   'utf8',
 )
+const edgePrompt = readFileSync(
+  resolve('supabase/functions/ai-contract-full-rewrite/prompt.ts'),
+  'utf8',
+)
 assert(!edgeSrc.includes('.from('), 'no supabase.from')
 assert(!edgeSrc.includes('storage.from'), 'no storage')
 assert(edgeSrc.includes('requireAuthenticatedUser'), 'auth required')
@@ -28,6 +32,11 @@ assert(
 assert(SYSTEM_PROMPT.includes('Do NOT insert, list, price or quantity them'))
 assert(SYSTEM_PROMPT.includes('modelEditable=false'), 'protected model scope rule')
 assert(SYSTEM_PROMPT.includes('Extras placement is deterministic-only'), 'extras deterministic ownership rule')
+assert(SYSTEM_PROMPT.includes('Each source blockId may appear AT MOST ONCE in changedBlocks'), 'local prompt has block uniqueness contract')
+assert(edgePrompt.includes('Each source blockId may appear AT MOST ONCE in changedBlocks'), 'Edge prompt has block uniqueness contract')
+assert(edgePrompt.includes('FINAL COMPLETE replacement text for the whole source block'), 'Edge prompt requires complete whole-block replacement')
+assert(edgePrompt.includes('Never emit separate entries for fragments, runs, tokens, clauses, punctuation, or successive edits'), 'Edge prompt forbids fragment-level duplicate entries')
+assert(edgePrompt.includes('Do NOT return unchanged blocks'), 'Edge prompt omits unchanged blocks')
 const payload = JSON.parse(
   buildUserPayload({
     documentBlocks: [{
