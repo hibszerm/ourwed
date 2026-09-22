@@ -21,8 +21,8 @@ const dataset: ContractTransformationDataset = {
   clients: {
     displayNames: 'Maria Kowalska i Ewa Nowak', personCount: 2, address: 'Kwiatowa 8, 00-001 Warszawa', phone: '+48 555 666 777',
     customers: [
-      { displayName: 'Maria Kowalska', address: 'ul. Kwiatowa 8, 00-001 Warszawa', phone: '+48 555 666 777' },
-      { displayName: 'Ewa Nowak', address: 'ul. Leśna 3, 90-001 Łódź', phone: '+48 555 666 888' },
+      { displayName: 'Maria Kowalska', address: 'ul. Kwiatowa 8, 00-001 Warszawa', phone: '+48 555 666 777', email: 'maria@example.com' },
+      { displayName: 'Ewa Nowak', address: 'ul. Leśna 3, 90-001 Łódź', phone: '+48 555 666 888', email: 'ewa@example.com' },
     ],
   },
   dates: { weddingDate: '2026-08-14', contractExecutionDate: '2026-07-01' },
@@ -299,6 +299,41 @@ run('shared addresses render once only when both customers have the same canonic
 
   const sharedAddressStillWorks = execute([sharedMap], source, sharedDataset)
   assert(sharedAddressStillWorks.ok && visible(sharedAddressStillWorks, 'shared-address') === 'ul. Kwiatowa 8, 00-001 Warszawa', 'shared address equality behavior remains unchanged')
+})
+
+run('customer email ownership renders deterministically without cross-owner fallback', () => {
+  const source = [{ blockId: 'email', paragraphXml: p('old@example.com') }]
+  const singular = execute([{ ...map('email', 'customer_email', 'old@example.com'), customerIndex: 0 }], source)
+  assert(visible(singular, 'email') === 'maria@example.com', 'customer 0 email rendered')
+  const singularTwo = execute([{ ...map('email', 'customer_email', 'old@example.com'), customerIndex: 1 }], source)
+  assert(visible(singularTwo, 'email') === 'ewa@example.com', 'customer 1 email rendered')
+  const missingOwner = execute([{ ...map('email', 'customer_email', 'old@example.com'), customerIndex: 1 }], source, {
+    ...dataset, clients: { ...dataset.clients, customers: [{ ...dataset.clients.customers![0]! }, { displayName: 'Ewa Nowak', phone: '+48 555 666 888' }] },
+  })
+  assert(!missingOwner.ok && missingOwner.code === 'missing_canonical_value', 'singular email does not cross-owner fallback')
+  const shared = executeSemanticMappings({
+    resolvedMappings: [{ ...map('email', 'customer_email', 'old@example.com'), customerIndexes: [0, 1], customerIndex: undefined, occurrence: 0, span: { start: 0, end: 'old@example.com'.length } } as never],
+    canonicalDataset: dataset,
+    sourceParagraphs: source,
+  })
+  assert(shared.ok && visible(shared, 'email') === 'maria@example.com', 'shared email selects customer 0 once')
+  const firstMissing = executeSemanticMappings({
+    resolvedMappings: [{ ...map('email', 'customer_email', 'old@example.com'), customerIndexes: [0, 1], customerIndex: undefined, occurrence: 0, span: { start: 0, end: 'old@example.com'.length } } as never],
+    canonicalDataset: { ...dataset, clients: { ...dataset.clients, customers: [{ displayName: 'Maria Kowalska' }, dataset.clients.customers![1]!] } },
+    sourceParagraphs: source,
+  })
+  assert(firstMissing.ok && visible(firstMissing, 'email') === 'ewa@example.com', 'shared email falls through to customer 1')
+  const bothMissing = executeSemanticMappings({
+    resolvedMappings: [{ ...map('email', 'customer_email', 'old@example.com'), customerIndexes: [0, 1], customerIndex: undefined, occurrence: 0, span: { start: 0, end: 'old@example.com'.length } } as never],
+    canonicalDataset: { ...dataset, clients: { ...dataset.clients, customers: [{ displayName: 'Maria Kowalska' }, { displayName: 'Ewa Nowak' }] } },
+    sourceParagraphs: source,
+  })
+  assert(!bothMissing.ok && bothMissing.code === 'missing_canonical_value', 'shared email fails closed when both are missing')
+  const invalid = executeSemanticMappings({
+    resolvedMappings: [{ ...map('email', 'customer_email', 'old@example.com'), customerIndexes: [1, 0], customerIndex: undefined, occurrence: 0, span: { start: 0, end: 'old@example.com'.length } } as never],
+    canonicalDataset: dataset, sourceParagraphs: source,
+  })
+  assert(!invalid.ok && invalid.code === 'invalid_customer_index', 'invalid shared email ownership fails closed')
 })
 
 run('repeated concept across blocks and same-block occurrences are all replaced', () => {

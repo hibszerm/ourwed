@@ -7,6 +7,7 @@ export const SEMANTIC_CONCEPTS = [
   'customer_2_name',
   'customer_address',
   'customer_phone',
+  'customer_email',
   'wedding_date',
   'execution_date',
   'total',
@@ -34,7 +35,7 @@ type SemanticMappingBase = {
   occurrence?: number
 }
 
-type CustomerContactConcept = 'customer_address' | 'customer_phone'
+type CustomerContactConcept = 'customer_address' | 'customer_phone' | 'customer_email'
 export type NonContactConcept = Exclude<SemanticConcept, 'customer_1_name' | 'customer_2_name' | CustomerContactConcept>
 
 /** Future model contract only: semantic source anchor, never a value or edit. */
@@ -100,7 +101,7 @@ function isMapping(value: unknown): value is SemanticMapping {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const row = value as Record<string, unknown>
   const keys = Object.keys(row)
-  const contactConcept = row.concept === 'customer_address' || row.concept === 'customer_phone'
+  const contactConcept = row.concept === 'customer_address' || row.concept === 'customer_phone' || row.concept === 'customer_email'
   const customerNameConcept = row.concept === 'customer_1_name' || row.concept === 'customer_2_name'
   const validNameForm = (CUSTOMER_NAME_FORMS as readonly unknown[]).includes(row.nameForm)
   const hasNameForm = Object.hasOwn(row, 'nameForm')

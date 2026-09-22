@@ -13,7 +13,7 @@ const block = (blockId: string, text: string) => ({
 })
 const mapping = (sourceBlockId: string, concept: string, anchor: string, occurrence?: number, customerIndex?: number, shared = false) => ({
   sourceBlockId, concept, anchor, ...(occurrence === undefined ? {} : { occurrence }),
-  ...(concept === 'customer_address' || concept === 'customer_phone' ? (shared ? { customerIndexes: [0, 1] as const } : { customerIndex: customerIndex ?? 0 }) : {}),
+  ...(concept === 'customer_address' || concept === 'customer_phone' || concept === 'customer_email' ? (shared ? { customerIndexes: [0, 1] as const } : { customerIndex: customerIndex ?? 0 }) : {}),
   ...(concept === 'customer_1_name' || concept === 'customer_2_name' ? { nameForm: 'BASE' } : {}),
 })
 const resolve = (mappings: unknown, sourceBlocks: ReturnType<typeof block>[]) =>
@@ -91,9 +91,9 @@ run('customer names require a closed nameForm and non-name concepts forbid it', 
 })
 
 run('generic contact concepts require zero-based customer ownership and reject invalid ownership', () => {
-  const source = [block('contact', 'ul. Leśna 1 +48 555 000 111')]
-  for (const concept of ['customer_address', 'customer_phone']) {
-    const anchor = concept === 'customer_address' ? 'ul. Leśna 1' : '+48 555 000 111'
+  const source = [block('contact', 'ul. Leśna 1 +48 555 000 111 anna@example.com')]
+  for (const concept of ['customer_address', 'customer_phone', 'customer_email'] as const) {
+    const anchor = concept === 'customer_address' ? 'ul. Leśna 1' : concept === 'customer_phone' ? '+48 555 000 111' : 'anna@example.com'
     assert(!resolve([{ sourceBlockId: 'contact', concept, anchor }], source).ok, `${concept} requires customerIndex`)
     assert(!resolve([mapping('contact', concept, anchor, undefined, -1)], source).ok, `${concept} rejects negative customerIndex`)
   }
@@ -104,6 +104,8 @@ run('generic contact concepts require zero-based customer ownership and reject i
   assert(!ownerConflict.ok && ownerConflict.code === 'span_conflict', 'same span assigned to different customers conflicts')
   const shared = resolve([mapping('contact', 'customer_address', 'ul. Leśna 1', undefined, undefined, true)], source)
   assert(shared.ok && shared.mappings[0]?.customerIndexes?.[1] === 1, 'explicit shared ownership resolves')
+  const sharedEmail = resolve([mapping('contact', 'customer_email', 'anna@example.com', undefined, undefined, true)], source)
+  assert(sharedEmail.ok && sharedEmail.mappings[0]?.customerIndexes?.[1] === 1, 'shared email ownership resolves')
   assert(!resolve([{ ...mapping('contact', 'customer_address', 'ul. Leśna 1', undefined, undefined, true), customerIndex: 0 }], source).ok, 'mixed single and shared ownership is invalid')
   for (const owners of [[0], [1], [0, 0], [1, 0], [0, 1, 0]]) {
     assert(!resolve([{ sourceBlockId: 'contact', concept: 'customer_address', anchor: 'ul. Leśna 1', customerIndexes: owners }], source).ok, `invalid tuple ${owners} rejected`)

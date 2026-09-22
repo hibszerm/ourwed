@@ -22,8 +22,8 @@ const dataset: ContractTransformationDataset = {
   clients: {
     displayNames: 'Anna Nowak i Jan Kowalski', personCount: 2, address: 'ul. Leśna 1', phone: '+48 555 000 111',
     customers: [
-      { displayName: 'Anna Nowak', address: 'ul. Leśna 1', phone: '+48 555 000 111' },
-      { displayName: 'Jan Kowalski', address: 'ul. Długa 2', phone: '+48 555 000 222' },
+      { displayName: 'Anna Nowak', address: 'ul. Leśna 1', phone: '+48 555 000 111', email: 'anna@example.com' },
+      { displayName: 'Jan Kowalski', address: 'ul. Długa 2', phone: '+48 555 000 222', email: 'jan@example.com' },
     ],
   },
   dates: { weddingDate: '2027-06-12', contractExecutionDate: '2026-09-22' },
@@ -94,6 +94,9 @@ run('prompt defines semantic-only work, exact anchors, and protected product bou
     'customerIndexes to [0,1]',
     'Map every distinct source span that represents a supported semantic concept',
     'For customer-name and all other non-contact concepts, set both ownership fields to null',
+    'customer_email',
+    'provider, studio, business, and legal contact emails as template-authoritative content',
+    'not domains, keywords, regexes, or whether a value looks synthetic',
     'CUSTOMER NAME FORM',
     'set nameForm to BASE, GENITIVE, or INSTRUMENTAL',
     'For every non-name concept, set nameForm to null',
@@ -119,6 +122,7 @@ run('Terra and Sol requests differ only by explicit model identifier', () => {
   const user = JSON.parse(terra.input[1]!.content) as Record<string, any>
   assert.equal(user.crmReferenceOnly.clients.displayNames, dataset.clients.displayNames)
   assert.deepEqual(user.crmReferenceOnly.clients.customers.map((customer: { customerIndex: number }) => customer.customerIndex), [0, 1])
+  assert.deepEqual(user.crmReferenceOnly.clients.customers.map((customer: { email?: string }) => customer.email), ['anna@example.com', 'jan@example.com'])
   const withoutPerCustomerContacts = buildSemanticMapRequest({
     candidate: 'terra', sourceBlocks, dataset: { ...dataset, clients: { ...dataset.clients, customers: undefined } },
   })
@@ -126,6 +130,7 @@ run('Terra and Sol requests differ only by explicit model identifier', () => {
   assert.deepEqual(fallbackClients.customers.map((customer: { customerIndex: number }) => customer.customerIndex), [0, 1], 'ordered identities remain explicit if contact details are unavailable')
   assert.equal('address' in fallbackClients, false, 'ambiguous generic address is not exposed as customer ownership evidence')
   assert.equal('phone' in fallbackClients, false, 'ambiguous generic phone is not exposed as customer ownership evidence')
+  assert.equal(fallbackClients.customers.some((customer: { email?: string }) => customer.email), false, 'missing emails are not invented')
   assert.equal('package' in user.crmReferenceOnly, false)
   assert.equal('additionalServices' in user.crmReferenceOnly, false)
   assert.equal(JSON.stringify(user).includes('Internal package data must not be sent'), false)

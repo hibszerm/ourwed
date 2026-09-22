@@ -158,10 +158,14 @@ export function buildContractTransformationDataset(input: {
     const partnerIndex: 1 | 2 = index === 0 ? 1 : 2
     const address = partnerAddress(wedding, partnerIndex)
     const customerPhone = (partnerIndex === 1 ? c.partner1Phone : c.partner2Phone)?.trim()
+    const customerEmail = (partnerIndex === 1
+      ? c.partner1Email?.trim() || c.email?.trim()
+      : c.partner2Email?.trim())
     return {
       displayName,
       ...(address ? { address } : {}),
       ...(customerPhone ? { phone: customerPhone } : {}),
+      ...(customerEmail ? { email: customerEmail } : {}),
     }
   })
 

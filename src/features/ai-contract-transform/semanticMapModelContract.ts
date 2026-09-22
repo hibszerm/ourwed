@@ -10,7 +10,7 @@ export const SEMANTIC_MAP_MODEL_IDS = {
 export type SemanticMapCandidate = keyof typeof SEMANTIC_MAP_MODEL_IDS
 export const SEMANTIC_MAP_REASONING_EFFORT = 'medium' as const
 export const SEMANTIC_MAP_MAX_OUTPUT_TOKENS = 8192
-export const SEMANTIC_MAP_PROMPT_VERSION = 'semantic-map-v3'
+export const SEMANTIC_MAP_PROMPT_VERSION = 'semantic-map-v4'
 
 export const SEMANTIC_MAP_SYSTEM_PROMPT = `You identify semantic facts in a wedding contract. Return only exact source mappings; do not edit or rewrite the contract.
 
@@ -36,7 +36,7 @@ ANCHOR RULES
 - If meaning, ownership, role, or exact span is uncertain, omit the mapping rather than guess.
 
 PARTY AND MIXED TEXT
-Customer concepts refer only to contracting customers/clients, never provider or company identity. A source block marked modelEditable=false is protected context and must never receive a mapping. In a block mixing customer identity with provider/company or legal text, map only the exact customer-owned value anchor. Do not map provider identity or surrounding legal text.
+Customer concepts refer only to contracting customers/clients, never provider or company identity. For customer_email, map only email addresses that semantically belong to a contracting customer; preserve provider, studio, business, and legal contact emails as template-authoritative content. Determine ownership from document meaning and structure, not domains, keywords, regexes, or whether a value looks synthetic. A source block marked modelEditable=false is protected context and must never receive a mapping. In a block mixing customer identity/contact with provider/company or legal text, map only the exact customer-owned value anchor. Do not map provider identity or surrounding legal text.
 
 DATE AND FINANCE ROLES
 wedding_date is the actual wedding/event date; execution_date is when the agreement is executed, signed, or concluded. total is the complete contract/commercial value; deposit is the deposit/advance amount; remaining is the amount still payable. The *_words concepts are the written-out textual representation of their corresponding numeric amount. Do not calculate, infer, or invent financial obligations.
@@ -47,7 +47,7 @@ preparation_location is the preparation location generally; bride_preparation_lo
 ONE EXACT SOURCE OCCURRENCE → ONE SEMANTIC CONCEPT. Never assign one exact occurrence to multiple concepts, including total+deposit, total+remaining, deposit+remaining, wedding_date+execution_date, or customer_1_name+customer_2_name. Distinct source occurrences may share a concept. The system validates conflicts.
 
 CUSTOMER CONTACT OWNERSHIP
-For customer_address and customer_phone, represent exactly one ownership mode using the required customerIndex and customerIndexes fields. For a single owner, set customerIndex to that customer's zero-based index (0 is first, 1 is second) and customerIndexes to null. If the source value is explicitly owned jointly by both customers, set customerIndex to null and customerIndexes to [0,1]. Use ordered CRM customers, supplied customer facts, and document structure; do not infer ownership from CRM value equality. Do not infer customer order from gender, bride/groom labels, or lexical rules unless those roles are explicitly represented by the canonical customer context. For customer-name and all other non-contact concepts, set both ownership fields to null.
+For customer_address, customer_phone, and customer_email, represent exactly one ownership mode using the required customerIndex and customerIndexes fields. For a single owner, set customerIndex to that customer's zero-based index (0 is first, 1 is second) and customerIndexes to null. If the source value is explicitly owned jointly by both customers, set customerIndex to null and customerIndexes to [0,1]. Use ordered CRM customers, supplied customer facts, and document structure; do not infer ownership from CRM value equality. Do not infer customer order from gender, bride/groom labels, or lexical rules unless those roles are explicitly represented by the canonical customer context. For customer-name and all other non-contact concepts, set both ownership fields to null.
 
 CUSTOMER NAME FORM
 For customer_1_name and customer_2_name, set nameForm to BASE, GENITIVE, or INSTRUMENTAL according to the grammatical form required by the exact source context. Use BASE for a full name in its base form, GENITIVE for a genitive name surface, and INSTRUMENTAL for an instrumental name surface. Determine form from meaning and grammar in context, not from a phrase list. If the required form is unclear, omit the mapping. For every non-name concept, set nameForm to null. nameForm is only a form selection; never provide or generate a customer-name replacement.
@@ -61,6 +61,7 @@ function conceptDescription(concept: (typeof SEMANTIC_CONCEPTS)[number]): string
     customer_2_name: 'identity/name of the second contracting customer represented in the source.',
     customer_address: 'address belonging to a contracting customer.',
     customer_phone: 'phone number belonging to a contracting customer.',
+    customer_email: 'email address belonging to a contracting customer.',
     wedding_date: 'actual wedding or event date.',
     execution_date: 'date when the agreement is executed, signed, or concluded.',
     total: 'complete contract or commercial value.',
@@ -226,7 +227,7 @@ export function parseSemanticMapResponse(payload: unknown):
     const keys = Object.keys(row)
     const validConcept = typeof row.concept === 'string' && (SEMANTIC_CONCEPTS as readonly string[]).includes(row.concept)
     const validOccurrence = row.occurrence === null || (Number.isInteger(row.occurrence) && (row.occurrence as number) >= 0)
-    const isContact = row.concept === 'customer_address' || row.concept === 'customer_phone'
+    const isContact = row.concept === 'customer_address' || row.concept === 'customer_phone' || row.concept === 'customer_email'
     const isCustomerName = row.concept === 'customer_1_name' || row.concept === 'customer_2_name'
     const validSingleOwner = (row.customerIndex === 0 || row.customerIndex === 1) && row.customerIndexes === null
     const validSharedOwners = row.customerIndex === null && Array.isArray(row.customerIndexes) &&
@@ -256,7 +257,7 @@ export function parseSemanticMapResponse(payload: unknown):
     } else if (isContact) {
       semanticMappings.push({
         ...base,
-        concept: row.concept as 'customer_address' | 'customer_phone',
+        concept: row.concept as 'customer_address' | 'customer_phone' | 'customer_email',
         ...(row.customerIndex === null
           ? { customerIndexes: [0, 1] as const }
           : { customerIndex: row.customerIndex as 0 | 1 }),

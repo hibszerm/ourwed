@@ -33,7 +33,7 @@ export type ContractTransformationDataset = {
     address?: string
     phone?: string
     /** Ordered CRM ownership slots: index 0 is partner1, index 1 is partner2. */
-    customers?: Array<{ displayName: string; address?: string; phone?: string }>
+    customers?: Array<{ displayName: string; address?: string; phone?: string; email?: string }>
   }
   dates: {
     contractExecutionDate: string

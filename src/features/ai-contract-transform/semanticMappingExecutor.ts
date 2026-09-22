@@ -179,6 +179,22 @@ function renderCanonicalValue(
       const phone = customer.customer.phone?.trim()
       return phone ? { ok: true, value: phone } : { ok: false, code: 'missing_canonical_value' }
     }
+    case 'customer_email': {
+      if (mapping.customerIndexes !== undefined) {
+        if (!isSharedCustomerOwnership(mapping.customerIndexes) || dataset.clients.personCount !== 2) {
+          return { ok: false, code: 'invalid_customer_index' }
+        }
+        for (const customerIndex of mapping.customerIndexes) {
+          const email = dataset.clients.customers?.[customerIndex]?.email?.trim()
+          if (email) return { ok: true, value: email }
+        }
+        return { ok: false, code: 'missing_canonical_value' }
+      }
+      const customer = getOwnedCustomer(mapping, dataset)
+      if (!customer.ok) return customer
+      const email = customer.customer.email?.trim()
+      return email ? { ok: true, value: email } : { ok: false, code: 'missing_canonical_value' }
+    }
     case 'wedding_date':
     case 'execution_date': {
       const date = (mapping.concept === 'wedding_date' ? dataset.dates.weddingDate : dataset.dates.contractExecutionDate).trim()
