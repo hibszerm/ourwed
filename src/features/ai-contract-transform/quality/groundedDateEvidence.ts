@@ -101,7 +101,7 @@ function attachTargetToManifest(input: {
   }
 }
 
-/** Merge model semantic roles with existing lexical discovery without overriding conflicts. */
+/** Resolve model semantic roles; lexical evidence cannot veto a same-role model target. */
 export function resolveGroundedDateEvidence(input: {
   evidence: GroundedDateEvidenceOutcome[]
   sourceBlocks: TransformDocumentBlock[]
@@ -169,18 +169,6 @@ export function resolveGroundedDateEvidence(input: {
     const source = sourceById.get(sourceBlockId)
     if (!source) continue
     const sameRoleLexicalIds = lexicalIds(input.manifest, concept)
-    if (sameRoleLexicalIds.size > 0 && !sameRoleLexicalIds.has(sourceBlockId)) {
-      // Existing role evidence and model evidence point at different surfaces.
-      // Keep both immutable and require quality validation to resolve the conflict.
-      for (const row of rows) {
-        row.outcome = 'rejected_contradiction'
-        row.rejectionReason = 'conflicts_with_existing_lexical_target'
-      }
-      for (const id of sameRoleLexicalIds) blockedRepairTargets.push({ sourceBlockId: id, dateConcept: concept })
-      blockedRepairTargets.push({ sourceBlockId, dateConcept: concept })
-      issues.push({ code: 'date_evidence_conflict', severity: 'blocking', canonicalField: fieldFor(concept), blockId: sourceBlockId, safeDescription: 'Grounded semantic date target conflicts with existing source date target' })
-      continue
-    }
 
     input.manifest.groundedDateTargets = [...(input.manifest.groundedDateTargets ?? []), { sourceBlockId, dateConcept: concept }]
     if (!sameRoleLexicalIds.has(sourceBlockId)) attachTargetToManifest({ manifest: input.manifest, source, concept, dataset: input.dataset })

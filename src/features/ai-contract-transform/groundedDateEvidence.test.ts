@@ -104,6 +104,14 @@ assert(disagreement.gate.diagnostics.dateEvidence[0]?.outcome === 'rejected_cont
 assert(disagreement.gate.report.blockingIssues.some((issue) => issue.code === 'date_evidence_conflict'), 'lexical/semantic conflict is fail-closed')
 assert(disagreement.gate.blocks[0]?.text === lexicalExecution[0]?.text, 'conflicting date role is not deterministically repaired')
 
+const sameRoleDifferentTarget = await invoke([
+  cell('lexical-wedding', '03.03.2025', 1, 'wedding_date'),
+  cell('model-wedding', '04.04.2025', 2),
+], { changedBlocks: [], financeEvidence: null, dateEvidence: [{ sourceBlockId: 'model-wedding', dateConcept: 'wedding_date' }] })
+assert(sameRoleDifferentTarget.gate.manifest.sourceSpecificValues.some((item) => item.canonicalField === 'wedding.date' && item.sourceBlockIds.includes('lexical-wedding')), 'legacy manifest independently identifies a same-role lexical candidate')
+assert(sameRoleDifferentTarget.gate.diagnostics.dateEvidence.some((item) => item.sourceBlockId === 'model-wedding' && item.outcome === 'accepted'), 'valid model target remains accepted despite a different same-role lexical target')
+assert(sameRoleDifferentTarget.gate.manifest.groundedDateTargets?.some((item) => item.sourceBlockId === 'model-wedding' && item.dateConcept === 'wedding_date'), 'accepted model target is attached to the canonical repair manifest')
+
 const removed = await invoke([cell('removed-wedding', '04.04.2025', 1)], {
   changedBlocks: [{ blockId: 'removed-wedding', text: '—' }], financeEvidence: null,
   dateEvidence: [{ sourceBlockId: 'removed-wedding', dateConcept: 'wedding_date' }],
