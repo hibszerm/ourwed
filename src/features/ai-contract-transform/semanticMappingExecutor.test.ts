@@ -1,0 +1,201 @@
+import { extractCanonicalParagraphText } from '../documents/template/canonicalParagraph'
+import type { ContractTransformationDataset } from './types'
+import { resolveSemanticMappings, type SemanticMapping } from './semanticMapping'
+import { executeSemanticMappings } from './semanticMappingExecutor'
+import { polishContractMoneyWords } from './polishContractMoneyWords'
+
+function assert(ok: unknown, message: string): asserts ok {
+  if (!ok) throw new Error(message)
+}
+function run(name: string, fn: () => void) {
+  fn()
+  console.log(`PASS ${name}`)
+}
+const p = (text: string) => `<w:p><w:r><w:t>${text}</w:t></w:r></w:p>`
+const map = (sourceBlockId: string, concept: SemanticMapping['concept'], anchor: string, occurrence?: number): SemanticMapping => ({
+  sourceBlockId, concept, anchor, ...(occurrence === undefined ? {} : { occurrence }),
+})
+const dataset: ContractTransformationDataset = {
+  clients: { displayNames: 'Maria Kowalska i Ewa Nowak', personCount: 2, address: 'Kwiatowa 8, 00-001 Warszawa', phone: '+48 555 666 777' },
+  dates: { weddingDate: '2026-08-14', contractExecutionDate: '2026-07-01' },
+  finances: {
+    contractValueFormatted: '4 800 zł',
+    contractValueWords: 'ignored because words derive from numeric total',
+    depositFormatted: '1 200 zł',
+    depositWords: 'ignored because words derive from numeric deposit',
+    remainingFormatted: '3 600 zł',
+    remainingWords: 'ignored because words derive from numeric remaining',
+  },
+  locations: {
+    preparation: { displayName: 'New Preparation House', city: 'Warszawa' },
+    preparationLocations: [
+      { person: 'bride', label: 'Panny Młodej', fullAddress: 'ul. Brzozowa 2, Warszawa' },
+      { person: 'groom', label: 'Pana Młodego', fullAddress: 'ul. Leśna 3, Łódź' },
+      { person: 'shared', label: 'wspólne', fullAddress: 'ul. Polna 4, Gdańsk' },
+    ],
+    ceremony: { displayName: 'New Ceremony Hall', city: 'Gdańsk' },
+    reception: { fullAddress: 'ul. Radosna 10, Gdańsk' },
+  },
+}
+
+function execute(mappings: SemanticMapping[], sourceParagraphs: Array<{ blockId: string; paragraphXml: string }>, canonicalDataset = dataset) {
+  const grounded = resolveSemanticMappings({ mappings, sourceBlocks: sourceParagraphs })
+  assert(grounded.ok, grounded.ok ? '' : `grounding failed: ${grounded.code}`)
+  return executeSemanticMappings({ resolvedMappings: grounded.mappings, canonicalDataset, sourceParagraphs })
+}
+function visible(result: ReturnType<typeof executeSemanticMappings>, id: string): string {
+  assert(result.ok, result.ok ? '' : `execution failed: ${result.code}`)
+  const block = result.paragraphs.find((row) => row.blockId === id)
+  assert(block, `output block ${id} exists`)
+  return extractCanonicalParagraphText(block.paragraphXml)
+}
+
+run('customer one and two use canonical identities with safe source inflection', () => {
+  const sources = [{ blockId: 'party', paragraphXml: p('Anną Kowalską oraz Anną Nowak') }]
+  const result = execute([
+    map('party', 'customer_1_name', 'Anną Kowalską'),
+    map('party', 'customer_2_name', 'Anną Nowak'),
+  ], sources)
+  assert(visible(result, 'party') === 'Marię Kowalską oraz Ewę Nowak', 'both party names replaced deterministically')
+})
+
+run('mixed customer/provider paragraph changes only grounded customer text', () => {
+  const paragraphXml = '<w:p><w:r><w:rPr><w:b/></w:rPr><w:t>Anną</w:t></w:r><w:r><w:rPr><w:i/></w:rPr><w:t> Kowalską</w:t></w:r><w:r><w:t>, klientką, Video Productions Marcin Hibszer — provider/legal text.</w:t></w:r></w:p>'
+  const sources = [{ blockId: 'mixed', paragraphXml }]
+  const result = execute([map('mixed', 'customer_1_name', 'Anną Kowalską')], sources)
+  const output = result.ok ? result.paragraphs[0]!.paragraphXml : ''
+  assert(extractCanonicalParagraphText(output) === 'Marię Kowalską, klientką, Video Productions Marcin Hibszer — provider/legal text.', 'surrounding provider/legal text stays unchanged')
+  assert(output.includes('<w:rPr><w:b/></w:rPr><w:t>Marię Kowalską</w:t>'), 'multi-run anchor replacement inherits first run formatting')
+  assert(output.includes('<w:rPr><w:i/></w:rPr><w:t></w:t>'), 'covered styled run remains structurally intact')
+  assert(output.includes('Video Productions Marcin Hibszer — provider/legal text.'), 'provider text retained in XML')
+})
+
+run('wedding and execution dates preserve supported source formats', () => {
+  const sources = [
+    { blockId: 'wedding', paragraphXml: p('12.07.2025') },
+    { blockId: 'execution', paragraphXml: p('12 lipca 2025 r.') },
+  ]
+  const result = execute([
+    map('wedding', 'wedding_date', '12.07.2025'),
+    map('execution', 'execution_date', '12 lipca 2025 r.'),
+  ], sources)
+  assert(visible(result, 'wedding') === '14.08.2026', 'wedding date uses dotted style')
+  assert(visible(result, 'execution') === '1 lipca 2026 r.', 'execution date uses long Polish style')
+})
+
+run('total, deposit, remaining, and words derive from canonical numeric amounts', () => {
+  const sources = [
+    { blockId: 'total', paragraphXml: p('3 500,00 zł (słownie: old words)') },
+    { blockId: 'deposit', paragraphXml: p('800 zł (słownie: old deposit words)') },
+    { blockId: 'remaining', paragraphXml: p('2 700 zł (słownie: old remaining words)') },
+  ]
+  const result = execute([
+    map('total', 'total', '3 500,00 zł'),
+    map('total', 'total_words', 'old words'),
+    map('deposit', 'deposit', '800 zł'),
+    map('deposit', 'deposit_words', 'old deposit words'),
+    map('remaining', 'remaining', '2 700 zł'),
+    map('remaining', 'remaining_words', 'old remaining words'),
+  ], sources)
+  const total = visible(result, 'total')
+  assert(total === `4 800,00 zł (słownie: ${polishContractMoneyWords(4800)})`, 'numeric and words total share canonical amount')
+  assert(visible(result, 'deposit') === `1 200 zł (słownie: ${polishContractMoneyWords(1200)})`, 'deposit and words use canonical deposit')
+  assert(visible(result, 'remaining') === `3 600 zł (słownie: ${polishContractMoneyWords(3600)})`, 'remaining and words use canonical remaining')
+})
+
+run('table-cell finance, locations, phone, and address inject available canonical data', () => {
+  const sources = [
+    { blockId: 'cell', paragraphXml: p('900 zł') },
+    { blockId: 'prep', paragraphXml: p('Old Preparation') },
+    { blockId: 'bride-prep', paragraphXml: p('Old Bride Address') },
+    { blockId: 'groom-prep', paragraphXml: p('Old Groom Address') },
+    { blockId: 'shared-prep', paragraphXml: p('Old Shared Address') },
+    { blockId: 'ceremony', paragraphXml: p('Old Ceremony') },
+    { blockId: 'reception', paragraphXml: p('Old Reception') },
+    { blockId: 'phone', paragraphXml: p('000') },
+    { blockId: 'address', paragraphXml: p('Old Street') },
+  ]
+  const result = execute([
+    map('cell', 'total', '900 zł'),
+    map('prep', 'preparation_location', 'Old Preparation'),
+    map('bride-prep', 'bride_preparation_location', 'Old Bride Address'),
+    map('groom-prep', 'groom_preparation_location', 'Old Groom Address'),
+    map('shared-prep', 'shared_preparation_location', 'Old Shared Address'),
+    map('ceremony', 'ceremony_location', 'Old Ceremony'),
+    map('reception', 'reception_location', 'Old Reception'),
+    map('phone', 'customer_phone', '000'),
+    map('address', 'customer_address', 'Old Street'),
+  ], sources)
+  assert(visible(result, 'cell') === '4 800 zł', 'table-cell numeric amount rendered')
+  assert(visible(result, 'prep') === 'New Preparation House, Warszawa', 'preparation summary rendered')
+  assert(visible(result, 'bride-prep') === 'ul. Brzozowa 2, Warszawa', 'bride preparation value rendered')
+  assert(visible(result, 'groom-prep') === 'ul. Leśna 3, Łódź', 'groom preparation value rendered')
+  assert(visible(result, 'shared-prep') === 'ul. Polna 4, Gdańsk', 'shared preparation value rendered')
+  assert(visible(result, 'ceremony') === 'New Ceremony Hall, Gdańsk', 'ceremony summary rendered')
+  assert(visible(result, 'reception') === 'ul. Radosna 10, Gdańsk', 'reception address rendered')
+  assert(visible(result, 'phone') === '+48 555 666 777', 'canonical phone rendered')
+  assert(visible(result, 'address') === 'ul. Kwiatowa 8, 00-001 Warszawa', 'canonical address rendered')
+})
+
+run('repeated concept across blocks and same-block occurrences are all replaced', () => {
+  const sources = [
+    { blockId: 'date-a', paragraphXml: p('Wedding 10.06.2025') },
+    { blockId: 'date-b', paragraphXml: p('Again 11/06/2025') },
+    { blockId: 'amounts', paragraphXml: p('1200 zł / 1300 zł') },
+  ]
+  const result = execute([
+    map('date-a', 'wedding_date', '10.06.2025'),
+    map('date-b', 'wedding_date', '11/06/2025'),
+    map('amounts', 'total', '1200 zł'),
+    map('amounts', 'total', '1300 zł'),
+  ], sources)
+  assert(visible(result, 'date-a') === 'Wedding 14.08.2026', 'first wedding surface changed')
+  assert(visible(result, 'date-b') === 'Again 14/08/2026', 'second wedding surface preserves slash style')
+  assert(visible(result, 'amounts') === '4 800 zł / 4 800 zł', 'both total occurrences changed')
+})
+
+run('different-length edits in one paragraph keep source-coordinate spans stable', () => {
+  const source = [{ blockId: 'mixed-facts', paragraphXml: '<w:p><w:r><w:rPr><w:b/></w:rPr><w:t>Anną Kowalską / 12.07.2025 / 800 zł</w:t></w:r><w:r><w:rPr><w:i/></w:rPr><w:t> / provider terms</w:t></w:r></w:p>' }]
+  const result = execute([
+    map('mixed-facts', 'customer_1_name', 'Anną Kowalską'),
+    map('mixed-facts', 'wedding_date', '12.07.2025'),
+    map('mixed-facts', 'deposit', '800 zł'),
+  ], source)
+  assert(visible(result, 'mixed-facts') === 'Marię Kowalską / 14.08.2026 / 1 200 zł / provider terms', 'all original spans replaced despite length shifts')
+  assert(result.ok && result.paragraphs[0]!.paragraphXml.includes('<w:rPr><w:i/></w:rPr><w:t> / provider terms</w:t>'), 'unaffected run formatting retained')
+})
+
+run('missing canonical data and unrenderable party forms fail closed', () => {
+  const source = [{ blockId: 'deposit', paragraphXml: p('800 zł') }]
+  const missingDataset = { ...dataset, finances: { ...dataset.finances, depositFormatted: undefined } }
+  const missing = execute([map('deposit', 'deposit', '800 zł')], source, missingDataset)
+  assert(!missing.ok && missing.code === 'missing_canonical_value', 'missing deposit rejected')
+  const unrenderable = execute([map('deposit', 'customer_1_name', 'Anna Nowak')], [
+    { blockId: 'deposit', paragraphXml: p('Anna Nowak') },
+  ])
+  assert(!unrenderable.ok && unrenderable.code === 'unrenderable_surface', 'unsupported name inflection rejected')
+})
+
+run('stale spans, overlap, and unsupported concepts fail closed without fallback', () => {
+  const stale = executeSemanticMappings({
+    resolvedMappings: [{ ...map('p', 'total', '1200 zł'), occurrence: 0, span: { start: 0, end: 6 } }],
+    canonicalDataset: dataset,
+    sourceParagraphs: [{ blockId: 'p', paragraphXml: p('900 zł') }],
+  })
+  assert(!stale.ok && stale.code === 'grounded_span_stale', 'stale source span rejected')
+  const overlap = executeSemanticMappings({
+    resolvedMappings: [
+      { ...map('p', 'total', '1200'), occurrence: 0, span: { start: 0, end: 4 } },
+      { ...map('p', 'deposit', '1200 zł'), occurrence: 0, span: { start: 0, end: 7 } },
+    ],
+    canonicalDataset: dataset,
+    sourceParagraphs: [{ blockId: 'p', paragraphXml: p('1200 zł') }],
+  })
+  assert(!overlap.ok && overlap.code === 'overlapping_spans', 'overlap rejected')
+  const unsupported = executeSemanticMappings({
+    resolvedMappings: [{ sourceBlockId: 'p', concept: 'future_concept', anchor: '1200 zł', occurrence: 0, span: { start: 0, end: 7 } } as never],
+    canonicalDataset: dataset,
+    sourceParagraphs: [{ blockId: 'p', paragraphXml: p('1200 zł') }],
+  })
+  assert(!unsupported.ok && unsupported.code === 'unsupported_concept', `unsupported concept rejected (${unsupported.ok ? 'ok' : unsupported.code})`)
+})
