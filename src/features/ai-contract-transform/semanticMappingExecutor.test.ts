@@ -226,8 +226,8 @@ run('shared addresses render once only when both customers have the same canonic
     clients: {
       ...dataset.clients,
       customers: [
-        { displayName: 'Maria Kowalska', address: 'ul. Kwiatowa 8, 00-001 Warszawa' },
-        { displayName: 'Ewa Nowak', address: 'Kwiatowa 8, 00-001 Warszawa' },
+        { displayName: 'Maria Kowalska', address: 'ul. Kwiatowa 8, 00-001 Warszawa', phone: '+48 555 666 777' },
+        { displayName: 'Ewa Nowak', address: 'Kwiatowa 8, 00-001 Warszawa', phone: '+48 555 666 888' },
       ],
     },
   }
@@ -249,7 +249,56 @@ run('shared addresses render once only when both customers have the same canonic
     canonicalDataset: sharedDataset,
     sourceParagraphs: [{ blockId: 'shared-address', paragraphXml: p('Old shared phone') }],
   })
-  assert(!sharedPhone.ok && sharedPhone.code === 'unsupported_shared_ownership', 'shared phone remains unsupported')
+  assert(sharedPhone.ok && visible(sharedPhone, 'shared-address') === '+48 555 666 777', 'shared phone chooses first available owner in stable customer order')
+  assert(sharedPhone.ok && sharedPhone.spanEdits.length === 1, 'shared phone renders once into the single source surface')
+
+  const sharedPhoneMapping = { ...sharedMap, concept: 'customer_phone', anchor: 'Old shared phone', occurrence: 0, span: { start: 0, end: 'Old shared phone'.length } } as never
+  const renderSharedPhone = (customers: ContractTransformationDataset['clients']['customers']) => executeSemanticMappings({
+    resolvedMappings: [sharedPhoneMapping],
+    canonicalDataset: { ...sharedDataset, clients: { ...sharedDataset.clients, customers } },
+    sourceParagraphs: [{ blockId: 'shared-address', paragraphXml: p('Old shared phone') }],
+  })
+  const firstMissing = renderSharedPhone([
+    { displayName: 'Maria Kowalska' },
+    { displayName: 'Ewa Nowak', phone: '+48 555 666 888' },
+  ])
+  assert(firstMissing.ok && visible(firstMissing, 'shared-address') === '+48 555 666 888', 'shared phone falls through to the next owner only when the first is absent')
+  const bothMissing = renderSharedPhone([{ displayName: 'Maria Kowalska' }, { displayName: 'Ewa Nowak' }])
+  assert(!bothMissing.ok && bothMissing.code === 'missing_canonical_value', 'shared phone fails closed when all owners lack a phone')
+
+  const singularMissingOwner = execute([
+    { ...map('singular-phone', 'customer_phone', 'Old phone'), customerIndex: 1 },
+  ], [{ blockId: 'singular-phone', paragraphXml: p('Old phone') }], {
+    ...dataset,
+    clients: { ...dataset.clients, customers: [{ displayName: 'Maria Kowalska', phone: '+48 555 666 777' }, { displayName: 'Ewa Nowak' }] },
+  })
+  assert(!singularMissingOwner.ok && singularMissingOwner.code === 'missing_canonical_value', 'singular owner never falls back across customers')
+
+  const invalidSharedTuple = executeSemanticMappings({
+    resolvedMappings: [{ ...sharedPhoneMapping, customerIndexes: [1, 0] }],
+    canonicalDataset: sharedDataset,
+    sourceParagraphs: [{ blockId: 'shared-address', paragraphXml: p('Old shared phone') }],
+  })
+  assert(!invalidSharedTuple.ok && invalidSharedTuple.code === 'invalid_customer_index', 'invalid shared phone ownership fails closed')
+
+  const g06Phone = executeSemanticMappings({
+    resolvedMappings: [{ ...sharedPhoneMapping, sourceBlockId: 'g06-phone', anchor: '+48 000 600 601', span: { start: 0, end: '+48 000 600 601'.length } }],
+    canonicalDataset: {
+      ...sharedDataset,
+      clients: {
+        ...sharedDataset.clients,
+        customers: [
+          { displayName: 'Nina Robocza', phone: '+48 511 700 101' },
+          { displayName: 'Kajetan Testowy', phone: '+48 511 700 102' },
+        ],
+      },
+    },
+    sourceParagraphs: [{ blockId: 'g06-phone', paragraphXml: p('+48 000 600 601') }],
+  })
+  assert(g06Phone.ok && visible(g06Phone, 'g06-phone') === '+48 511 700 101', 'captured G06 shared phone renders the first canonical phone once')
+
+  const sharedAddressStillWorks = execute([sharedMap], source, sharedDataset)
+  assert(sharedAddressStillWorks.ok && visible(sharedAddressStillWorks, 'shared-address') === 'ul. Kwiatowa 8, 00-001 Warszawa', 'shared address equality behavior remains unchanged')
 })
 
 run('repeated concept across blocks and same-block occurrences are all replaced', () => {

@@ -147,7 +147,16 @@ function renderCanonicalValue(
       return value ? { ok: true, value } : { ok: false, code: 'unrenderable_surface' }
     }
     case 'customer_phone': {
-      if (mapping.customerIndexes !== undefined) return { ok: false, code: 'unsupported_shared_ownership' }
+      if (mapping.customerIndexes !== undefined) {
+        if (!isSharedCustomerOwnership(mapping.customerIndexes) || dataset.clients.personCount !== 2) {
+          return { ok: false, code: 'invalid_customer_index' }
+        }
+        for (const customerIndex of mapping.customerIndexes) {
+          const phone = dataset.clients.customers?.[customerIndex]?.phone?.trim()
+          if (phone) return { ok: true, value: phone }
+        }
+        return { ok: false, code: 'missing_canonical_value' }
+      }
       const customer = getOwnedCustomer(mapping, dataset)
       if (!customer.ok) return customer
       const phone = customer.customer.phone?.trim()
