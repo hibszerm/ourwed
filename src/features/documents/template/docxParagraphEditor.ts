@@ -12,8 +12,8 @@ import {
   canonicalizeParagraphText,
   escapeXml,
   extractCanonicalParagraphText,
+  unescapeXml,
 } from './canonicalParagraph'
-import { devInfoArgs, devWarnArgs } from '@/lib/debug/devConsole'
 
 export interface DocxParagraph {
   index: number
@@ -41,37 +41,6 @@ export async function extractDocxParagraphs(
   return paragraphs
 }
 
-function rebuildParagraphText(
-  canonicalText: string,
-  start: number,
-  end: number,
-  replacement: string,
-): {
-  beforeText: string
-  slotText: string
-  afterText: string
-  rebuiltParagraph: string
-} {
-  const safeStart = Math.max(0, Math.min(start, canonicalText.length))
-  const safeEnd = Math.max(safeStart, Math.min(end, canonicalText.length))
-  const beforeText = canonicalText.slice(0, safeStart)
-  const slotText = canonicalText.slice(safeStart, safeEnd)
-  const afterText = canonicalText.slice(safeEnd)
-  const rebuiltParagraph = beforeText + replacement + afterText
-  devInfoArgs('[contract-paragraph-rebuild]', {
-    beforeText,
-    slotText,
-    afterText,
-    rebuiltParagraph,
-    start,
-    end,
-    safeStart,
-    safeEnd,
-    replacement,
-  })
-  return { beforeText, slotText, afterText, rebuiltParagraph }
-}
-
 /**
  * Replace a canonical character span inside a paragraph XML, preserving
  * unaffected runs and the formatting of the first overlapped run.
@@ -83,99 +52,132 @@ export function replaceCanonicalSpanInParagraphXml(
   replacement: string,
 ): string {
   const model = buildParagraphRunModel(paragraphXml)
-  const { rebuiltParagraph } = rebuildParagraphText(
-    model.canonicalText,
-    start,
-    end,
-    replacement,
-  )
-
-  // Out-of-range spans: always rebuild full paragraph from before+repl+after.
-  // Never write only `replacement` as the paragraph body.
-  if (start < 0 || end < start || end > model.canonicalText.length) {
-    return replaceParagraphTextWhole(paragraphXml, rebuiltParagraph)
+  if (start < 0 || end <= start || end > model.canonicalText.length) {
+    throw new Error('Grounded DOCX span is out of range')
   }
-
-  // Identify overlapped runs via charMap
-  const overlapped = new Set<number>()
-  for (let i = start; i < end; i++) {
-    const entry = model.charMap[i]
-    if (entry) overlapped.add(entry.runIndex)
-  }
-
-  if (overlapped.size === 0) {
-    return replaceParagraphTextWhole(paragraphXml, rebuiltParagraph)
-  }
-
-  // Prefer whole-paragraph rewrite when charMap collapsed to synthetic run,
-  // or when many runs are affected — still preserves pPr + first rPr.
-  if (
-    model.charMap.length > 0 &&
-    model.charMap.every((c) => c.runIndex === 0) &&
-    model.runs.length > 1
-  ) {
-    return replaceParagraphTextWhole(paragraphXml, rebuiltParagraph)
-  }
-
-  // Multi-run precise replace: clear overlapped runs, put replacement in first.
-  const runRe = /<w:r\b[\s\S]*?<\/w:r>/g
-  const runXmls: string[] = []
-  let rm: RegExpExecArray | null
-  while ((rm = runRe.exec(paragraphXml))) {
-    runXmls.push(rm[0]!)
-  }
-
-  const firstOverlapped = Math.min(...overlapped)
-  const lastOverlapped = Math.max(...overlapped)
-
-  // Span crosses runs — rewrite whole paragraph text into one run.
-  if (lastOverlapped !== firstOverlapped) {
-    return replaceParagraphTextWhole(paragraphXml, rebuiltParagraph)
-  }
-
-  // Span is inside a single run — rewrite only that run's text, keep siblings.
-  const runIdx = firstOverlapped
-  const runCanonical = model.runs[runIdx]?.canonicalText ?? ''
-  const entryStart = model.charMap[start]
-  const entryEnd = model.charMap[Math.max(start, end - 1)]
-  if (!entryStart || !entryEnd || entryStart.runIndex !== runIdx) {
-    return replaceParagraphTextWhole(paragraphXml, rebuiltParagraph)
-  }
-
-  const localStart = entryStart.localOffset
-  const localEnd = entryEnd.localOffset + (end > start ? 1 : 0)
-  const nextRunText =
-    runCanonical.slice(0, localStart) +
-    replacement +
-    runCanonical.slice(localEnd)
-
-  // Guard: single-run rewrite must equal full before+repl+after when this
-  // run is the only text-bearing run; otherwise verify via siblings.
-  const nextRuns = runXmls.map((rx, i) => {
-    if (i !== runIdx) return rx
-    return replaceRunText(rx, nextRunText)
-  })
-
-  const pPrMatch = paragraphXml.match(/<w:pPr\b[\s\S]*?<\/w:pPr>/)
-  const pPr = pPrMatch ? pPrMatch[0] : ''
-  const nextXml = `<w:p>${pPr}${nextRuns.join('')}</w:p>`
-
-  const actual = extractCanonicalParagraphText(nextXml)
-  if (actual !== rebuiltParagraph) {
-    devWarnArgs(
-      '[contract-paragraph-rebuild] single-run rewrite mismatch — falling back to whole paragraph',
-      { expected: rebuiltParagraph, actual },
-    )
-    return replaceParagraphTextWhole(paragraphXml, rebuiltParagraph)
-  }
-  return nextXml
+  const mapped = mapCanonicalRangeToTextNodes(paragraphXml, start, end)
+  if (!mapped) throw new Error('Grounded DOCX span cannot be mapped safely')
+  return spliceTextNodes(paragraphXml, mapped, replacement)
 }
 
-function replaceRunText(runXml: string, nextText: string): string {
-  const rPrMatch = runXml.match(/<w:rPr\b[\s\S]*?<\/w:rPr>/)
-  const rPr = rPrMatch ? rPrMatch[0] : ''
-  const escaped = escapeXml(nextText)
-  return `<w:r>${rPr}<w:t xml:space="preserve">${escaped}</w:t></w:r>`
+export type GroundedTextSpan = { start: number; end: number }
+export type GroundedSpanResult =
+  | { ok: true; span: GroundedTextSpan }
+  | { ok: false; reason: 'missing' | 'ambiguous' | 'invalid_occurrence' | 'unmappable' }
+
+/** Locate literal canonical visible text. occurrenceIndex is zero-based among exact matches. */
+export function locateGroundedTextSpan(
+  paragraphXml: string,
+  literalAnchor: string,
+  occurrenceIndex?: number,
+): GroundedSpanResult {
+  const anchor = canonicalizeParagraphText(literalAnchor)
+  if (!anchor) return { ok: false, reason: 'missing' }
+  const text = extractCanonicalParagraphText(paragraphXml)
+  const matches: number[] = []
+  let from = 0
+  while (from <= text.length - anchor.length) {
+    const at = text.indexOf(anchor, from)
+    if (at < 0) break
+    matches.push(at)
+    from = at + 1
+  }
+  if (!matches.length) return { ok: false, reason: 'missing' }
+  if (occurrenceIndex === undefined && matches.length !== 1) {
+    return { ok: false, reason: 'ambiguous' }
+  }
+  if (occurrenceIndex !== undefined && (!Number.isInteger(occurrenceIndex) || occurrenceIndex < 0 || occurrenceIndex >= matches.length)) {
+    return { ok: false, reason: 'invalid_occurrence' }
+  }
+  const start = matches[occurrenceIndex ?? 0]!
+  const end = start + anchor.length
+  if (!mapCanonicalRangeToTextNodes(paragraphXml, start, end)) return { ok: false, reason: 'unmappable' }
+  return { ok: true, span: { start, end } }
+}
+
+/** Replacement inherits the first source character's run/text-node formatting. */
+export function replaceGroundedTextSpan(
+  paragraphXml: string,
+  span: GroundedTextSpan,
+  replacement: string,
+): string {
+  return replaceCanonicalSpanInParagraphXml(paragraphXml, span.start, span.end, replacement)
+}
+
+type TextNode = { start: number; end: number; decoded: string; raw: string; charStarts: number[]; charEnds: number[] }
+type MappedRange = { firstNode: number; firstOffset: number; lastNode: number; lastOffset: number }
+
+function mapCanonicalRangeToTextNodes(xml: string, start: number, end: number): MappedRange | null {
+  const nodes: TextNode[] = []
+  const re = /<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/g
+  let m: RegExpExecArray | null
+  let canonical = ''
+  while ((m = re.exec(xml))) {
+    const raw = m[1] ?? ''
+    const decoded = unescapeXml(raw)
+    const charStarts: number[] = []
+    const charEnds: number[] = []
+    let rawOffset = 0
+    for (let i = 0; i < decoded.length; i++) {
+      charStarts.push(rawOffset)
+      const entity = raw.slice(rawOffset).match(/^&(?:lt|gt|quot|apos|amp);/)
+      rawOffset += entity ? entity[0].length : 1
+      charEnds.push(rawOffset)
+    }
+    const node = { start: m.index + m[0].indexOf('>') + 1, end: m.index + m[0].lastIndexOf('</w:t>'), decoded, raw, charStarts, charEnds }
+    nodes.push(node)
+    canonical += decoded
+  }
+  const normalized = canonicalizeParagraphText(canonical)
+  if (normalized.length !== canonical.length || normalized !== extractCanonicalParagraphText(xml)) return null
+  if (end > normalized.length) return null
+  let offset = 0
+  let firstNode = -1, firstOffset = -1, lastNode = -1, lastOffset = -1
+  for (let ni = 0; ni < nodes.length; ni++) {
+    const node = nodes[ni]!
+    for (let ci = 0; ci < node.decoded.length; ci++, offset++) {
+      if (offset === start) { firstNode = ni; firstOffset = ci }
+      if (offset === end - 1) { lastNode = ni; lastOffset = ci + 1 }
+    }
+  }
+  if (firstNode < 0 || lastNode < 0) return null
+  // Reject hidden OOXML content between the first and last text nodes.
+  const first = nodes[firstNode]!, last = nodes[lastNode]!
+  const between = xml.slice(first.end, last.start)
+    .replace(/<w:rPr\b[\s\S]*?<\/w:rPr>/g, '')
+    .replace(/<\/?w:r\b[^>]*>/g, '')
+    .replace(/<\/?w:t\b[^>]*>/g, '')
+    .replace(/<\/?w:hyperlink\b[^>]*>/g, '')
+  if (/<w:|<\//.test(between)) return null
+  return { firstNode, firstOffset, lastNode, lastOffset }
+}
+
+function spliceTextNodes(xml: string, range: MappedRange, replacement: string): string {
+  const nodes = [...xml.matchAll(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/g)]
+  const edits: Array<{ start: number; end: number; value: string }> = []
+  for (let i = range.firstNode; i <= range.lastNode; i++) {
+    const m = nodes[i]!
+    const contentStart = m.index! + m[0].indexOf('>') + 1
+    const contentEnd = m.index! + m[0].lastIndexOf('</w:t>')
+    const raw = m[1] ?? ''
+    const decoded = unescapeXml(raw)
+    const charStarts: number[] = []
+    const charEnds: number[] = []
+    let rawOffset = 0
+    for (let ci = 0; ci < decoded.length; ci++) {
+      charStarts.push(rawOffset)
+      const entity = raw.slice(rawOffset).match(/^&(?:lt|gt|quot|apos|amp);/)
+      rawOffset += entity ? entity[0].length : 1
+      charEnds.push(rawOffset)
+    }
+    const from = i === range.firstNode ? (charStarts[range.firstOffset] ?? raw.length) : 0
+    const to = i === range.lastNode ? (range.lastOffset > 0 ? charEnds[range.lastOffset - 1]! : 0) : raw.length
+    const value = raw.slice(0, from) + (i === range.firstNode ? escapeXml(replacement) : '') + raw.slice(to)
+    edits.push({ start: contentStart, end: contentEnd, value })
+  }
+  let result = xml
+  for (const edit of edits.reverse()) result = result.slice(0, edit.start) + edit.value + result.slice(edit.end)
+  return result
 }
 
 /**
