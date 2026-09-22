@@ -13,7 +13,7 @@ import {
 } from './quality/buildQualityReport'
 import { buildExpectationManifest } from './quality/expectationManifest'
 import { classifyFactOwner } from './quality/partyOwnership'
-import { isProviderIdentityBlock } from './quality/partyFilledIdentity'
+import { classifyProviderLegalSurface, isProviderIdentityBlock } from './quality/partyFilledIdentity'
 import { classifyAdditionalServicesPlacement } from './additionalServicesPlacement'
 import { findSignatureStartIndex } from './packageDeliverablesDetection'
 import { assertsContractExecutionDate } from './quality/dateFieldEvidence'
@@ -134,6 +134,12 @@ export async function runSparseProductTransform(input: {
   const extrasTarget = placement.targetBlockId
   const protectedSourceValues = manifest.protectedFields.flatMap((field) => field.sourceValues)
   const sourceBlocksWithContext = input.sourceBlocks.map((block, index) => {
+    const providerLegalDecision = classifyProviderLegalSurface({
+      sourceBlock: block,
+      partyEvidence: manifest.sourcePartyEvidence ?? [],
+      canonicalRoles: [...(roleByBlock.get(block.blockId) ?? [])],
+    })
+    const semanticRoles = [...(roleByBlock.get(block.blockId) ?? [])]
     const owner = block.tableContext?.ownershipFamily
       ? block.tableContext.ownershipFamily === 'customer'
         ? 'customer'
@@ -142,23 +148,44 @@ export async function runSparseProductTransform(input: {
           : 'unknown'
       : classifyFactOwner(block.text) === 'MIXED'
         ? 'mixed'
-        : isProviderIdentityBlock(block.text)
+        : providerLegalDecision.classification === 'provider_legal_only' || isProviderIdentityBlock(block.text)
           ? 'provider'
           : 'unknown'
     const protectedByEvidence = protectedSourceValues.some((value) =>
       value.trim().length > 0 && block.text.includes(value),
     )
+    const providerLegalOnly = providerLegalDecision.classification === 'provider_legal_only'
+    const providerIdentityOnly =
+      owner === 'provider' && isProviderIdentityBlock(block.text) && semanticRoles.length === 0
     const protectedBlock =
-      (owner === 'provider' && isProviderIdentityBlock(block.text)) ||
+      providerLegalOnly ||
+      providerIdentityOnly ||
       protectedByEvidence ||
       block.blockId === extrasTarget
+    const protectionReason = providerLegalOnly
+      ? 'provider_legal_only'
+      : block.blockId === extrasTarget
+        ? 'deterministic_extras_destination'
+        : protectedByEvidence
+          ? 'protected_source_value'
+          : providerIdentityOnly
+            ? 'provider_identity'
+            : undefined
     return {
       ...block,
       modelContext: {
-        semanticRoles: [...(roleByBlock.get(block.blockId) ?? [])],
+        semanticRoles,
         ownership: owner as 'customer' | 'provider' | 'mixed' | 'unknown',
         modelEditable: !protectedBlock,
-      signatureRegion:
+        ownershipReason: providerLegalDecision.classification === 'provider_legal_only'
+          ? providerLegalDecision.reasonCode
+          : owner === 'mixed'
+            ? 'mixed_fact_ownership'
+            : block.tableContext?.ownershipFamily
+              ? 'structural_table_ownership'
+              : 'existing_block_ownership',
+        ...(protectionReason ? { protectionReason } : {}),
+        signatureRegion:
           (index < signatureStart ? 'before' : index === signatureStart ? 'signature' : 'after') as
             'before' | 'signature' | 'after',
       },
@@ -199,7 +226,7 @@ export async function runSparseProductTransform(input: {
   }
 
   const gate = runPostReconstructionQualityGate({
-    sourceBlocks: input.sourceBlocks,
+    sourceBlocks: sourceBlocksWithContext,
     transformedBlocks: edge.transformedBlocks,
     dataset: input.dataset,
     protectedData,

@@ -387,47 +387,12 @@ export function verifyProviderRoleSparseScope(input: {
   partyEvidence: SourcePartyEvidence[]
 }): QualityIssue[] {
   const issues: QualityIssue[] = []
-  const partyIds = new Set(input.partyEvidence.map((e) => e.blockId))
-  const partySurfaces = new Set(
-    input.partyEvidence.flatMap((e) => e.identitySurfaces),
-  )
 
   for (const src of input.sourceBlocks) {
-    if (partyIds.has(src.blockId)) continue
     const next = input.transformedBlocks.find((b) => b.blockId === src.blockId)
     if (!next || next.text === src.text) continue
-
-    // Signature labels are restored deterministically — never flag as role rewrite
-    if (/data i czytelny podpis|—\s*data i czytelny/i.test(src.text)) continue
-
-    // Authorized wedding-fact blocks (locations / money / dates / party address / package)
-    if (
-      /miejsce\s+przygotowa|miejsce\s+ceremoni|miejsce\s+wesel|przygotowań\s|:\s*ul\.\s|zł|słownie:|data\s+ślub|zawarta\s+w\s|zam\.\s|zamieszkał|pakiet\s+[A-ZĄĆĘŁŃÓŚŹŻ]/i.test(
-        src.text,
-      )
-    ) {
-      continue
-    }
-
-    // MIXED / customer party clauses may legitimately change
-    if (classifyFactOwner(src.text) === 'MIXED') continue
-
-    // If source already contained a real party identity surface, change may be required
-    const touchesParty = [...partySurfaces].some((s) => src.text.includes(s))
-    if (touchesParty) continue
-
-    const looksProviderLegal =
-      /portfolio|prawa\s+autorsk|przysługuj|nie\s+wyraża\s+zgody\s+na\s+jak[aą]kolwiek\s+ingerenc|odpowiedzialno[sś][cć]|odst[aą]pien|anulowa|rezygnacj|ochron[ay]\s+danych|\bRODO\b|publikacj\w*\s+materia/i.test(
-        src.text,
-      )
-
-    const hasProviderRoleNoun =
-      /\b(?:Fotograf(?:em|owi|a|ie|u|owie)?|Filmowc(?:em|owi|a|ie|u|owie)?|Kamerzyst(?:ą|a|e|y|ce|ą)?|Wykonawc(?:a|ą|y|owi|ę|o)?|Usługodawc(?:a|ą|y|owi|ę|o)?)\b|\bPar[aą]\s+Młod[aą]\b/i.test(
-        src.text,
-      )
-
-    // Role-noun / legal prose with no canonical wedding fact → must stay sparse
-    if (!looksProviderLegal && !hasProviderRoleNoun) continue
+    const decision = classifyProviderLegalSurface({ sourceBlock: src, partyEvidence: input.partyEvidence })
+    if (decision.classification !== 'provider_legal_only') continue
 
     issues.push({
       code: 'unnecessary_provider_role_rewrite',
@@ -439,4 +404,69 @@ export function verifyProviderRoleSparseScope(input: {
   }
 
   return issues
+}
+
+export type ProviderLegalSurfaceDecision = {
+  classification:
+    | 'provider_legal_only'
+    | 'mixed_or_party_owned'
+    | 'canonical_fact_surface'
+    | 'other'
+  reasonCode: string
+}
+
+/** Shared ownership decision for pre-model protection and the final quality invariant. */
+export function classifyProviderLegalSurface(input: {
+  sourceBlock: TransformDocumentBlock
+  partyEvidence: Pick<SourcePartyEvidence, 'blockId' | 'identitySurfaces'>[]
+  canonicalRoles?: readonly string[]
+}): ProviderLegalSurfaceDecision {
+  const src = input.sourceBlock
+  const partyIds = new Set(input.partyEvidence.map((e) => e.blockId))
+  if (partyIds.has(src.blockId)) {
+    return { classification: 'mixed_or_party_owned', reasonCode: 'grounded_party_surface' }
+  }
+
+  if (/data i czytelny podpis|—\s*data i czytelny/i.test(src.text)) {
+    return { classification: 'canonical_fact_surface', reasonCode: 'signature_label' }
+  }
+
+  const hasTrustedRole = Boolean(
+    input.canonicalRoles?.length || src.modelContext?.semanticRoles?.length ||
+    (src.tableContext?.ownershipFamily && src.tableContext.ownershipFamily !== 'unknown' && src.tableContext.ownershipFamily !== 'provider'),
+  )
+  if (hasTrustedRole) {
+    return { classification: 'canonical_fact_surface', reasonCode: 'grounded_canonical_role' }
+  }
+
+  // These are the quality gate's existing exceptions for represented CRM facts.
+  if (
+    /miejsce\s+przygotowa|miejsce\s+ceremoni|miejsce\s+wesel|przygotowań\s|:\s*ul\.\s|zł|słownie:|data\s+ślub|zawarta\s+w\s|zam\.\s|zamieszkał|pakiet\s+[A-ZĄĆĘŁŃÓŚŹŻ]/i.test(
+      src.text,
+    )
+  ) {
+    return { classification: 'canonical_fact_surface', reasonCode: 'represented_fact_surface' }
+  }
+
+  if (classifyFactOwner(src.text) === 'MIXED') {
+    return { classification: 'mixed_or_party_owned', reasonCode: 'mixed_fact_ownership' }
+  }
+
+  const partySurfaces = input.partyEvidence.flatMap((e) => e.identitySurfaces)
+  if (partySurfaces.some((surface) => src.text.includes(surface))) {
+    return { classification: 'mixed_or_party_owned', reasonCode: 'contains_grounded_party_identity' }
+  }
+
+  const looksProviderLegal =
+    /portfolio|prawa\s+autorsk|przysługuj|nie\s+wyraża\s+zgody\s+na\s+jak[aą]kolwiek\s+ingerenc|odpowiedzialno[sś][cć]|odst[aą]pien|anulowa|rezygnacj|ochron[ay]\s+danych|\bRODO\b|publikacj\w*\s+materia/i.test(
+      src.text,
+    )
+  const hasProviderRoleNoun =
+    /\b(?:Fotograf(?:em|owi|a|ie|u|owie)?|Filmowc(?:em|owi|a|ie|u|owie)?|Kamerzyst(?:ą|a|e|y|ce|ą)?|Wykonawc(?:a|ą|y|owi|ę|o)?|Usługodawc(?:a|ą|y|owi|ę|o)?)\b|\bPar[aą]\s+Młod[aą]\b/i.test(
+      src.text,
+    )
+
+  return looksProviderLegal || hasProviderRoleNoun
+    ? { classification: 'provider_legal_only', reasonCode: 'provider_legal_without_customer_fact' }
+    : { classification: 'other', reasonCode: 'no_provider_legal_quality_evidence' }
 }

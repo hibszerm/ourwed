@@ -134,6 +134,8 @@ export type TransformDocumentBlock = {
     semanticRoles?: string[]
     ownership?: 'customer' | 'provider' | 'mixed' | 'unknown'
     modelEditable?: boolean
+    ownershipReason?: string
+    protectionReason?: string
     signatureRegion?: 'before' | 'signature' | 'after'
   }
 }

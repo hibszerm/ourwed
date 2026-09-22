@@ -7,7 +7,7 @@ const body = { documentBlocks: [{ blockId: 'source', text: 'Original', kind: 'pa
 async function run(maxPaidCalls: number | undefined, outputs: unknown[]) {
   let calls = 0
   const original = globalThis.fetch
-  globalThis.fetch = (async () => { calls += 1; return response(outputs[Math.min(calls - 1, outputs.length - 1)] ?? { changedBlocks: [], financeEvidence: null }) }) as typeof fetch
+  globalThis.fetch = (async () => { calls += 1; return response(outputs[Math.min(calls - 1, outputs.length - 1)] ?? { changedBlocks: [], financeEvidence: null, dateEvidence: null }) }) as typeof fetch
   try {
     const usage = createUsageTracker()
     const invoke = createLocalFullRewriteInvoke({ apiKey: 'test', usage, ...(maxPaidCalls === undefined ? {} : { maxPaidCalls }) })
@@ -16,8 +16,8 @@ async function run(maxPaidCalls: number | undefined, outputs: unknown[]) {
   } finally { globalThis.fetch = original }
 }
 
-const valid = { changedBlocks: [], financeEvidence: null }
-const invalidId = { changedBlocks: [{ blockId: 'not-source', text: 'x' }], financeEvidence: null }
+const valid = { changedBlocks: [], financeEvidence: null, dateEvidence: null }
+const invalidId = { changedBlocks: [{ blockId: 'not-source', text: 'x' }], financeEvidence: null, dateEvidence: null }
 
 {
   const r = await run(1, [valid]); assert(r.calls === 1 && r.usage.calls === 1, 'budget 1 valid uses one call')

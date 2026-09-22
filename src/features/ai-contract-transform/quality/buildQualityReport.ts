@@ -36,6 +36,7 @@ import {
 import { documentHasUnresolvedPartyPlaceholder } from './partyPlaceholderRepair'
 import {
   verifyFilledPartyIdentity,
+  classifyProviderLegalSurface,
   verifyProviderRoleSparseScope,
 } from './partyFilledIdentity'
 import { verifyFilledLocationIdentity } from './locationFieldEvidence'
@@ -94,7 +95,34 @@ export function buildQualityGateEvidenceTrace(input: {
     ...discoverExecutionDateEvidence(input.sourceBlocks).map((e) => ({ field: e.canonicalField, ids: [e.blockId], sourceValues: e.sourceDate ? [e.sourceDate] : [] })),
   ]
   const dates = dateEvidence.flatMap((e) => e.ids.map((id) => { const src = sourceFor(id); const t = transformedFor(id); const repairs = repairFor(t?.blockId ?? id); const canonical = e.field === 'wedding.date' ? input.dataset.dates.weddingDate : input.dataset.dates.contractExecutionDate; const issues = input.report.blockingIssues.filter((i) => i.blockId === id && i.canonicalField === e.field); return { semanticRole: e.field, sourceBlockId: id, ...(t?.originSourceBlockId ? { originSourceBlockId: t.originSourceBlockId } : {}), transformedBlockId: t?.blockId, sourceRepresentationPresent: Boolean(src?.text.trim()), modelChanged: Boolean(src && t && src.text !== t.text), postModelClassification: classifyTraceValue(t?.text ?? '', e.sourceValues[0] ?? '', canonical), deterministicRepairAttempted: repairs.length > 0, deterministicRepairApplied: repairs.some((r) => r.canonicalField === e.field), repairSkipReason: repairs.length === 0 ? 'no_recorded_repair' : undefined, postRepairClassification: classifyTraceValue(t?.text ?? '', e.sourceValues[0] ?? '', canonical), qualityViolationCodes: issues.map((i) => i.code), sourceFingerprint: src ? fingerprintText(src.text) : undefined, transformedFingerprint: t ? fingerprintText(t.text) : undefined } }))
-  const provider = input.report.blockingIssues.filter((i) => i.code === 'unnecessary_provider_role_rewrite').map((i) => { const src = i.blockId ? sourceFor(i.blockId) : undefined; const t = i.blockId ? transformedFor(i.blockId) : undefined; const protectedByEvidence = Boolean(src && input.manifest.protectedFields.some((p) => p.sourceValues.some((v) => v.length > 0 && src.text.includes(v)))); return { sourceBlockId: i.blockId, transformedBlockId: t?.blockId, sourceOwnership: 'provider_or_legal', protected: protectedByEvidence, modelChanged: Boolean(src && t && src.text !== t.text), deterministicRestorationAttempted: Boolean(i.blockId && repairFor(t?.blockId ?? i.blockId).length), deterministicRestorationApplied: false, qualityViolationCode: i.code, structuralReason: 'provider-role/legal surface changed without customer-party evidence', sourceFingerprint: src ? fingerprintText(src.text) : undefined, transformedFingerprint: t ? fingerprintText(t.text) : undefined } })
+  const provider = input.sourceBlocks.flatMap((src) => {
+    const ownership = classifyProviderLegalSurface({
+      sourceBlock: src,
+      partyEvidence: input.manifest.sourcePartyEvidence ?? [],
+    })
+    if (ownership.classification !== 'provider_legal_only') return []
+    const t = transformedFor(src.blockId)
+    const issue = input.report.blockingIssues.find(
+      (item) => item.code === 'unnecessary_provider_role_rewrite' && item.blockId === src.blockId,
+    )
+    return [{
+      sourceBlockId: src.blockId,
+      transformedBlockId: t?.blockId,
+      sourceOwnership: ownership.classification,
+      ownershipReason: ownership.reasonCode,
+      protectionDecision: src.modelContext?.modelEditable === false ? 'protected' : 'editable',
+      protectionReason: src.modelContext?.protectionReason ?? 'none',
+      modelVisible: true,
+      modelEditable: src.modelContext?.modelEditable !== false,
+      modelChanged: Boolean(t && src.text !== t.text),
+      deterministicRestorationAttempted: false,
+      deterministicRestorationApplied: false,
+      finalQualityResult: issue ? 'fail' : 'pass',
+      qualityViolationCode: issue?.code,
+      sourceFingerprint: fingerprintText(src.text),
+      transformedFingerprint: t ? fingerprintText(t.text) : undefined,
+    }]
+  })
   return { party, dates, provider, violations }
 }
 
