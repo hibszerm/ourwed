@@ -72,11 +72,31 @@ const canonicalDataset = buildContractTransformationDataset({
 assert.deepEqual(canonicalDataset.clients.customers?.map((customer) => customer.displayName), ['Natalia Brzegowa', 'Filip Brzegowy'])
 assert.equal(resolved.mappings[3]?.concept, 'customer_2_name')
 assert.equal(resolved.mappings[3]?.anchor, 'Kacprem Modelowym')
-const fullExecution = executeSemanticMappings({ resolvedMappings: resolved.mappings, canonicalDataset, sourceParagraphs })
+const sourceCustomerIdentities = ['Maja Przykładowa', 'Kacper Modelowy']
+const fullExecution = executeSemanticMappings({ resolvedMappings: resolved.mappings, canonicalDataset, sourceParagraphs, sourceCustomerIdentities })
 assert.equal(fullExecution.ok, false, 'full G03 remains fail-closed at the unrelated known name limitation')
 if (!fullExecution.ok) {
   assert.equal(fullExecution.code, 'unrenderable_surface')
   assert.equal(fullExecution.mappingIndex, 3)
+}
+
+const exactNameMappings = resolved.mappings.filter((mapping) =>
+  (mapping.concept === 'customer_1_name' || mapping.concept === 'customer_2_name') &&
+  sourceCustomerIdentities.includes(mapping.anchor),
+)
+assert.equal(exactNameMappings.length, 4, 'the four exact G03 table/signature names are selected')
+const exactNameExecution = executeSemanticMappings({
+  resolvedMappings: exactNameMappings,
+  canonicalDataset,
+  sourceParagraphs,
+  sourceCustomerIdentities,
+})
+assert.equal(exactNameExecution.ok, true, 'the four exact G03 customer names render deterministically')
+if (!exactNameExecution.ok) throw new Error(`G03 exact names failed: ${exactNameExecution.code}`)
+for (const edit of exactNameExecution.spanEdits) {
+  const mapping = exactNameMappings.find((item) => item.sourceBlockId === edit.blockId && item.span.start === edit.span.start)!
+  const expected = mapping.concept === 'customer_1_name' ? 'Natalia Brzegowa' : 'Filip Brzegowy'
+  assert.equal(edit.replacement, expected, 'exact G03 name uses its CRM-owned identity')
 }
 
 // Scoped ownership proof: keep the historical capture unchanged and execute only the
@@ -131,4 +151,4 @@ for (const tag of ['w:tbl', 'w:tr', 'w:tc']) {
   const countTags = (xml: string) => [...xml.matchAll(new RegExp(`<${tag}(?:\\s|>)`, 'g'))].length
   assert.equal(countTags(outputXml), countTags(documentXml), `${tag} structure preserved`)
 }
-console.log('PASS G03 scoped contact ownership replay; full G03 remains blocked by the known name surface')
+console.log('PASS G03 scoped contact ownership and exact-name replay; full G03 remains blocked by the known inflected name surface')

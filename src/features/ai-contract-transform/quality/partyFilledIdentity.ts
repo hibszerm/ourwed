@@ -62,6 +62,21 @@ export function renderCanonicalIdentityLikeSource(sourceSurface: string, canonic
   return rendered.every((value): value is string => value !== null) ? rendered.join(' i ') : null
 }
 
+/**
+ * Replace an exact, independently established source identity with the CRM
+ * identity. The caller must provide the source identity for the mapped
+ * customer slot; this function never derives identity from the CRM value.
+ */
+export function renderExactCanonicalIdentity(
+  sourceSurface: string,
+  sourceIdentity: string | undefined,
+  canonicalDisplay: string,
+): string | null {
+  if (!sourceIdentity || sourceIdentity.trim().split(/\s+/).length < 2) return null
+  if (normalizeForMatch(sourceSurface) !== normalizeForMatch(sourceIdentity)) return null
+  return canonicalDisplay.trim() || null
+}
+
 const PROVIDER_BLOCK =
   /\b(NIP|REGON|firm[aą]|Studio|Photography|Productions|zwan\w*\s+dalej\s+[„"]?(Filmowc|Fotograf|Kamerzyst|Wykonawc|Usługodawc))/i
 

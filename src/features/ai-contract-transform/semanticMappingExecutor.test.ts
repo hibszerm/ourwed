@@ -45,10 +45,15 @@ const dataset: ContractTransformationDataset = {
   },
 }
 
-function execute(mappings: SemanticMapping[], sourceParagraphs: Array<{ blockId: string; paragraphXml: string }>, canonicalDataset = dataset) {
+function execute(
+  mappings: SemanticMapping[],
+  sourceParagraphs: Array<{ blockId: string; paragraphXml: string }>,
+  canonicalDataset = dataset,
+  sourceCustomerIdentities?: readonly (string | undefined)[],
+) {
   const grounded = resolveSemanticMappings({ mappings, sourceBlocks: sourceParagraphs })
   assert(grounded.ok, grounded.ok ? '' : `grounding failed: ${grounded.code}`)
-  return executeSemanticMappings({ resolvedMappings: grounded.mappings, canonicalDataset, sourceParagraphs })
+  return executeSemanticMappings({ resolvedMappings: grounded.mappings, canonicalDataset, sourceParagraphs, sourceCustomerIdentities })
 }
 function visible(result: ReturnType<typeof executeSemanticMappings>, id: string): string {
   assert(result.ok, result.ok ? '' : `execution failed: ${result.code}`)
@@ -64,6 +69,49 @@ run('customer one and two use canonical identities with safe source inflection',
     map('party', 'customer_2_name', 'Anną Nowak'),
   ], sources)
   assert(visible(result, 'party') === 'Marię Kowalską oraz Ewę Nowak', 'both party names replaced deterministically')
+})
+
+run('exact source identities use the mapped canonical customer without cross-customer replacement', () => {
+  const sources = [
+    { blockId: 'c1-exact', paragraphXml: p('Kacper Modelowy') },
+    { blockId: 'c2-exact', paragraphXml: p('Iga Makieta') },
+  ]
+  const twoCustomerDataset = {
+    ...dataset,
+    clients: {
+      ...dataset.clients,
+      displayNames: 'Filip Brzegowy i Julia Siatkowa',
+      customers: [
+        { displayName: 'Filip Brzegowy' },
+        { displayName: 'Julia Siatkowa' },
+      ],
+    },
+  }
+  const result = execute([
+    map('c1-exact', 'customer_1_name', 'Kacper Modelowy'),
+    map('c2-exact', 'customer_2_name', 'Iga Makieta'),
+  ], sources, twoCustomerDataset, ['Kacper Modelowy', 'Iga Makieta'])
+  assert(visible(result, 'c1-exact') === 'Filip Brzegowy', 'customer 1 receives its CRM identity')
+  assert(visible(result, 'c2-exact') === 'Julia Siatkowa', 'customer 2 receives its CRM identity')
+  assert(!visible(result, 'c1-exact').includes('Julia') && !visible(result, 'c2-exact').includes('Filip'), 'customer identities never cross')
+})
+
+run('exact path requires a proven complete source identity and leaves inflected forms fail-closed', () => {
+  const exactSource = [{ blockId: 'exact', paragraphXml: p('Kacper Modelowy') }]
+  const twoCustomerDataset = {
+    ...dataset,
+    clients: { ...dataset.clients, displayNames: 'Filip Brzegowy i Julia Siatkowa', customers: [{ displayName: 'Filip Brzegowy' }, { displayName: 'Julia Siatkowa' }] },
+  }
+  const exact = execute([map('exact', 'customer_1_name', 'Kacper Modelowy')], exactSource, twoCustomerDataset, ['Kacper Modelowy', 'Iga Makieta'])
+  assert(visible(exact, 'exact') === 'Filip Brzegowy', 'both first and surname may differ')
+
+  for (const unproven of ['Kacper', 'Modelowy', 'Kacper Modelov', 'Kacprem Modelowym']) {
+    const xml = [{ blockId: 'unproven', paragraphXml: p(unproven) }]
+    const result = execute([map('unproven', 'customer_2_name', unproven)], xml, twoCustomerDataset, ['Kacper Modelowy', 'Kacper Modelowy'])
+    assert(!result.ok && result.code === 'unrenderable_surface', `${unproven} is not accepted as an exact customer identity`)
+  }
+  const noReference = execute([map('exact', 'customer_1_name', 'Kacper Modelowy')], exactSource, twoCustomerDataset)
+  assert(!noReference.ok && noReference.code === 'unrenderable_surface', 'unknown source identity fails closed')
 })
 
 run('mixed customer/provider paragraph changes only grounded customer text', () => {

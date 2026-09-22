@@ -8,7 +8,7 @@ import {
   renderCustomerAddress,
   renderLocationSummary,
 } from './quality/locationRendering'
-import { renderCanonicalIdentityLikeSource } from './quality/partyFilledIdentity'
+import { renderCanonicalIdentityLikeSource, renderExactCanonicalIdentity } from './quality/partyFilledIdentity'
 import type { ResolvedSemanticMapping } from './semanticMapping'
 
 export type SemanticMappingExecutionFailureCode =
@@ -35,6 +35,8 @@ export function executeSemanticMappings(input: {
   resolvedMappings: readonly ResolvedSemanticMapping[]
   canonicalDataset: ContractTransformationDataset
   sourceParagraphs: readonly { blockId: string; paragraphXml: string }[]
+  /** Source/example identities ordered to match customer_1_name/customer_2_name. */
+  sourceCustomerIdentities?: readonly (string | undefined)[]
 }): SemanticMappingExecutionResult {
   const sourceById = new Map<string, string>()
   for (const source of input.sourceParagraphs) {
@@ -51,7 +53,7 @@ export function executeSemanticMappings(input: {
     if (visible.slice(mapping.span.start, mapping.span.end) !== canonicalizeParagraphText(mapping.anchor)) {
       return { ok: false, code: 'grounded_span_stale', mappingIndex: index }
     }
-    const rendered = renderCanonicalValue(mapping, input.canonicalDataset)
+    const rendered = renderCanonicalValue(mapping, input.canonicalDataset, input.sourceCustomerIdentities)
     if (!rendered.ok) return { ok: false, code: rendered.code, mappingIndex: index }
     prepared.push({ ...mapping, replacement: rendered.value, inputIndex: index })
   }
@@ -100,6 +102,7 @@ type RenderResult =
 function renderCanonicalValue(
   mapping: ResolvedSemanticMapping,
   dataset: ContractTransformationDataset,
+  sourceCustomerIdentities?: readonly (string | undefined)[],
 ): RenderResult {
   const source = mapping.anchor
   switch (mapping.concept) {
@@ -111,6 +114,8 @@ function renderCanonicalValue(
       if (!canonicalName || names.length !== dataset.clients.personCount || (personIndex === 1 && dataset.clients.personCount !== 2)) {
         return { ok: false, code: 'missing_canonical_value' }
       }
+      const exactName = renderExactCanonicalIdentity(source, sourceCustomerIdentities?.[personIndex], canonicalName)
+      if (exactName) return { ok: true, value: exactName }
       const value = renderCanonicalIdentityLikeSource(source, canonicalName)
       return value && identityRenderingUsesSupportedForms(source, canonicalName, value)
         ? { ok: true, value }
