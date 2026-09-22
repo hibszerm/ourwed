@@ -105,7 +105,7 @@ export function replaceGroundedTextSpan(
 }
 
 type TextNode = { start: number; end: number; decoded: string; raw: string; charStarts: number[]; charEnds: number[] }
-type MappedRange = { firstNode: number; firstOffset: number; lastNode: number; lastOffset: number }
+type MappedRange = { firstNode: number; firstOffset: number; lastNode: number; lastOffset: number; internalBreaks: Array<{ start: number; end: number }> }
 
 function mapCanonicalRangeToTextNodes(xml: string, start: number, end: number): MappedRange | null {
   const nodes: TextNode[] = []
@@ -143,13 +143,31 @@ function mapCanonicalRangeToTextNodes(xml: string, start: number, end: number): 
   if (firstNode < 0 || lastNode < 0) return null
   // Reject hidden OOXML content between the first and last text nodes.
   const first = nodes[firstNode]!, last = nodes[lastNode]!
-  const between = xml.slice(first.end, last.start)
+  const rangeStart = first.start + (first.charStarts[start - nodeCanonicalStart(nodes, firstNode)] ?? 0)
+  const rangeEnd = last.start + (last.charEnds[lastOffset - 1] ?? last.raw.length)
+  const rawBetween = xml.slice(first.end, last.start)
+  const internalBreaks: Array<{ start: number; end: number }> = []
+  const breakRe = /<w:br\s*\/>/g
+  let breakMatch: RegExpExecArray | null
+  while ((breakMatch = breakRe.exec(rawBetween))) {
+    const absoluteStart = first.end + breakMatch.index
+    internalBreaks.push({ start: absoluteStart, end: absoluteStart + breakMatch[0].length })
+  }
+  const withoutBreaks = rawBetween.replace(breakRe, '')
     .replace(/<w:rPr\b[\s\S]*?<\/w:rPr>/g, '')
     .replace(/<\/?w:r\b[^>]*>/g, '')
     .replace(/<\/?w:t\b[^>]*>/g, '')
     .replace(/<\/?w:hyperlink\b[^>]*>/g, '')
-  if (/<w:|<\//.test(between)) return null
-  return { firstNode, firstOffset, lastNode, lastOffset }
+  const internalBreaksOnly = internalBreaks.filter((item) => item.start >= rangeStart && item.end <= rangeEnd)
+  if (internalBreaksOnly.length !== internalBreaks.length) return null
+  if (/<w:|<\//.test(withoutBreaks)) return null
+  return { firstNode, firstOffset, lastNode, lastOffset, internalBreaks: internalBreaksOnly }
+}
+
+function nodeCanonicalStart(nodes: TextNode[], nodeIndex: number): number {
+  let offset = 0
+  for (let index = 0; index < nodeIndex; index++) offset += nodes[index]!.decoded.length
+  return offset
 }
 
 function spliceTextNodes(xml: string, range: MappedRange, replacement: string): string {
@@ -175,8 +193,9 @@ function spliceTextNodes(xml: string, range: MappedRange, replacement: string): 
     const value = raw.slice(0, from) + (i === range.firstNode ? escapeXml(replacement) : '') + raw.slice(to)
     edits.push({ start: contentStart, end: contentEnd, value })
   }
+  edits.push(...range.internalBreaks.map((item) => ({ ...item, value: '' })))
   let result = xml
-  for (const edit of edits.reverse()) result = result.slice(0, edit.start) + edit.value + result.slice(edit.end)
+  for (const edit of edits.sort((a, b) => b.start - a.start)) result = result.slice(0, edit.start) + edit.value + result.slice(edit.end)
   return result
 }
 
