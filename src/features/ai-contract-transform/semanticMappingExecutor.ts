@@ -34,6 +34,11 @@ export type SemanticMappingExecutionResult =
     }
   | { ok: false; code: SemanticMappingExecutionFailureCode; mappingIndex?: number }
 
+export type EvaluationNameFormResolver = (input: {
+  canonicalIdentity: string
+  nameForm: 'GENITIVE' | 'INSTRUMENTAL'
+}) => string | undefined
+
 /** Apply only canonical dataset values to already-grounded source spans. */
 export function executeSemanticMappings(input: {
   resolvedMappings: readonly ResolvedSemanticMapping[]
@@ -41,6 +46,8 @@ export function executeSemanticMappings(input: {
   sourceParagraphs: readonly { blockId: string; paragraphXml: string }[]
   /** Source/example identities ordered to match customer_1_name/customer_2_name. */
   sourceCustomerIdentities?: readonly (string | undefined)[]
+  /** Explicit offline-evaluation seam; production callers leave this unset. */
+  evaluationNameFormResolver?: EvaluationNameFormResolver
 }): SemanticMappingExecutionResult {
   const sourceById = new Map<string, string>()
   for (const source of input.sourceParagraphs) {
@@ -57,7 +64,7 @@ export function executeSemanticMappings(input: {
     if (visible.slice(mapping.span.start, mapping.span.end) !== canonicalizeParagraphText(mapping.anchor)) {
       return { ok: false, code: 'grounded_span_stale', mappingIndex: index }
     }
-    const rendered = renderCanonicalValue(mapping, input.canonicalDataset, input.sourceCustomerIdentities)
+    const rendered = renderCanonicalValue(mapping, input.canonicalDataset, input.sourceCustomerIdentities, input.evaluationNameFormResolver)
     if (!rendered.ok) return { ok: false, code: rendered.code, mappingIndex: index }
     prepared.push({ ...mapping, replacement: rendered.value, inputIndex: index })
   }
@@ -107,6 +114,7 @@ function renderCanonicalValue(
   mapping: ResolvedSemanticMapping,
   dataset: ContractTransformationDataset,
   sourceCustomerIdentities?: readonly (string | undefined)[],
+  evaluationNameFormResolver?: EvaluationNameFormResolver,
 ): RenderResult {
   const source = mapping.anchor
   switch (mapping.concept) {
@@ -118,7 +126,16 @@ function renderCanonicalValue(
       if (!canonicalName || names.length !== dataset.clients.personCount || (personIndex === 1 && dataset.clients.personCount !== 2)) {
         return { ok: false, code: 'missing_canonical_value' }
       }
-      if (mapping.nameForm !== 'BASE') return { ok: false, code: 'unsupported_name_form' }
+      if (mapping.nameForm !== 'BASE') {
+        if (!evaluationNameFormResolver) return { ok: false, code: 'unsupported_name_form' }
+        const evaluatedValue = evaluationNameFormResolver({
+          canonicalIdentity: canonicalName,
+          nameForm: mapping.nameForm,
+        })
+        return evaluatedValue?.trim()
+          ? { ok: true, value: evaluatedValue }
+          : { ok: false, code: 'unsupported_name_form' }
+      }
       const exactName = renderExactCanonicalIdentity(source, sourceCustomerIdentities?.[personIndex], canonicalName)
       if (exactName) return { ok: true, value: exactName }
       return normalizeForMatch(source) === normalizeForMatch(canonicalName)
