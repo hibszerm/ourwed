@@ -1,6 +1,6 @@
 /**
  * Parse sparse changedBlocks from Responses API text.
- * Model schema is changedBlocks-only; application responseVersion is injected.
+ * Model schema is sparse changedBlocks plus grounded semantic evidence; application responseVersion is injected.
  */
 
 import {
@@ -14,15 +14,19 @@ import {
 export const MODEL_SCHEMA_VERSION = 'sparse-changed-blocks-v1'
 
 export type SparseChangedBlock = { blockId: string; text: string }
+export type SparseDateEvidence = { sourceBlockId: string; dateConcept: 'wedding_date' | 'execution_date' }
 
 /** Raw model result — no responseVersion. */
 export type SparseChangedBlocksModelResult = {
   changedBlocks: SparseChangedBlock[]
+  financeEvidence: Array<{ sourceBlockId: string; financeConcept: 'total' | 'deposit' | 'remaining' }> | null
+  dateEvidence: SparseDateEvidence[] | null
 }
 
 export type SparseParseSuccess = {
   ok: true
   changedBlocks: SparseChangedBlock[]
+  dateEvidence: SparseDateEvidence[]
   /** Trusted version injected by application code. */
   applicationResponseVersion: string
   modelSchemaVersion: typeof MODEL_SCHEMA_VERSION
@@ -61,6 +65,7 @@ export function validateSparseChangedBlocksModelResult(
   | {
       ok: true
       changedBlocks: SparseChangedBlock[]
+      dateEvidence: SparseDateEvidence[]
       ignoredModelResponseVersion: string | null
     }
   | { ok: false; message: string; ignoredModelResponseVersion?: string | null } {
@@ -71,7 +76,7 @@ export function validateSparseChangedBlocksModelResult(
   let ignoredModelResponseVersion: string | null = null
 
   for (const key of Object.keys(obj)) {
-    if (key === 'changedBlocks') continue
+    if (key === 'changedBlocks' || key === 'financeEvidence' || key === 'dateEvidence') continue
     if (key === 'responseVersion') {
       // Legacy model field — ignore; never trust for application envelope
       ignoredModelResponseVersion =
@@ -106,7 +111,38 @@ export function validateSparseChangedBlocksModelResult(
     changedBlocks.push({ blockId: b.blockId, text: b.text })
   }
 
-  return { ok: true, changedBlocks, ignoredModelResponseVersion }
+  if (!Object.prototype.hasOwnProperty.call(obj, 'financeEvidence')) {
+    return { ok: false, message: 'Missing financeEvidence', ignoredModelResponseVersion }
+  }
+  if (obj.financeEvidence !== null && !Array.isArray(obj.financeEvidence)) {
+    return { ok: false, message: 'financeEvidence must be an array or null', ignoredModelResponseVersion }
+  }
+  if (Array.isArray(obj.financeEvidence)) {
+    for (const row of obj.financeEvidence) {
+      if (!row || typeof row !== 'object' || Array.isArray(row)) return { ok: false, message: 'Invalid finance evidence', ignoredModelResponseVersion }
+      const item = row as Record<string, unknown>
+      if (Object.keys(item).some((key) => key !== 'sourceBlockId' && key !== 'financeConcept') || typeof item.sourceBlockId !== 'string' || !['total', 'deposit', 'remaining'].includes(String(item.financeConcept))) {
+        return { ok: false, message: 'Invalid finance evidence fields', ignoredModelResponseVersion }
+      }
+    }
+  }
+  if (!Object.prototype.hasOwnProperty.call(obj, 'dateEvidence')) {
+    return { ok: false, message: 'Missing dateEvidence', ignoredModelResponseVersion }
+  }
+  const dateEvidence: SparseDateEvidence[] = []
+  if (obj.dateEvidence !== null) {
+    if (!Array.isArray(obj.dateEvidence)) return { ok: false, message: 'dateEvidence must be an array or null', ignoredModelResponseVersion }
+    for (const row of obj.dateEvidence) {
+      if (!row || typeof row !== 'object' || Array.isArray(row)) return { ok: false, message: 'Invalid date evidence', ignoredModelResponseVersion }
+      const item = row as Record<string, unknown>
+      if (Object.keys(item).some((key) => key !== 'sourceBlockId' && key !== 'dateConcept') || typeof item.sourceBlockId !== 'string' || !['wedding_date', 'execution_date'].includes(String(item.dateConcept))) {
+        return { ok: false, message: 'Invalid date evidence fields', ignoredModelResponseVersion }
+      }
+      dateEvidence.push({ sourceBlockId: item.sourceBlockId, dateConcept: item.dateConcept as SparseDateEvidence['dateConcept'] })
+    }
+  }
+
+  return { ok: true, changedBlocks, dateEvidence, ignoredModelResponseVersion }
 }
 
 function readIncompleteReason(body: unknown): string | undefined {
@@ -197,6 +233,7 @@ export function parseSparseV2FromResponse(input: {
   return {
     ok: true,
     changedBlocks: schema.changedBlocks,
+    dateEvidence: schema.dateEvidence,
     applicationResponseVersion: input.applicationResponseVersion,
     modelSchemaVersion: MODEL_SCHEMA_VERSION,
     extraction,

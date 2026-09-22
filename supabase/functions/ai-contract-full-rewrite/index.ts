@@ -466,6 +466,7 @@ Deno.serve(async (req) => {
       ok: true,
       changedBlocks: parse.changedBlocks,
       financeEvidence: parse.financeEvidence,
+      dateEvidence: parse.dateEvidence,
       model,
       promptVersion: FULL_AI_PROMPT_VERSION,
       responseVersion: FULL_AI_RESPONSE_VERSION,

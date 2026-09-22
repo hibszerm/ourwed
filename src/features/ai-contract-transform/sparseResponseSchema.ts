@@ -7,6 +7,7 @@ import {
   type TransformMode,
   type TransformedBlock,
   type GroundedFinanceEvidence,
+  type GroundedDateEvidence,
 } from './types'
 
 export const MODEL_SCHEMA_VERSION = 'sparse-changed-blocks-v1' as const
@@ -19,11 +20,14 @@ export type SparseChangedBlock = {
 export type SparseChangedBlocksModelResult = {
   changedBlocks: SparseChangedBlock[]
   financeEvidence?: GroundedFinanceEvidence[]
+  dateEvidence: GroundedDateEvidence[] | null
 }
 
 export type FullAiSparseResponseV2 = {
   responseVersion: typeof FULL_AI_RESPONSE_VERSION
   changedBlocks: SparseChangedBlock[]
+  financeEvidence?: GroundedFinanceEvidence[]
+  dateEvidence: GroundedDateEvidence[]
 }
 
 export type SparseV2ParseResult =
@@ -32,6 +36,7 @@ export type SparseV2ParseResult =
       responseVersion: string
       changedBlocks: SparseChangedBlock[]
       financeEvidence: GroundedFinanceEvidence[]
+      dateEvidence: GroundedDateEvidence[]
       modelSchemaVersion: typeof MODEL_SCHEMA_VERSION
       ignoredModelResponseVersion?: string | null
     }
@@ -40,6 +45,8 @@ export type SparseV2ParseResult =
 const ALLOWED_BLOCK_KEYS = new Set(['blockId', 'text'])
 const ALLOWED_FINANCE_EVIDENCE_KEYS = new Set(['sourceBlockId', 'financeConcept'])
 const FINANCE_CONCEPTS = new Set(['total', 'deposit', 'remaining'])
+const ALLOWED_DATE_EVIDENCE_KEYS = new Set(['sourceBlockId', 'dateConcept'])
+const DATE_CONCEPTS = new Set(['wedding_date', 'execution_date'])
 
 /**
  * Validate raw model / Edge-returned changedBlocks payload.
@@ -56,7 +63,7 @@ export function parseSparseV2ModelPayload(
   let ignoredModelResponseVersion: string | null = null
 
   for (const key of Object.keys(obj)) {
-    if (key === 'changedBlocks' || key === 'financeEvidence') continue
+    if (key === 'changedBlocks' || key === 'financeEvidence' || key === 'dateEvidence') continue
     if (key === 'responseVersion') {
       ignoredModelResponseVersion =
         typeof obj.responseVersion === 'string' ? obj.responseVersion : null
@@ -140,11 +147,34 @@ export function parseSparseV2ModelPayload(
     }
   }
 
+  const dateEvidence: GroundedDateEvidence[] = []
+  if (obj.dateEvidence !== undefined && obj.dateEvidence !== null) {
+    if (!Array.isArray(obj.dateEvidence)) {
+      return { ok: false, code: 'invalid_structured_output', message: 'dateEvidence must be an array' }
+    }
+    for (const row of obj.dateEvidence) {
+      if (!row || typeof row !== 'object' || Array.isArray(row)) {
+        return { ok: false, code: 'invalid_structured_output', message: 'Invalid date evidence' }
+      }
+      const evidence = row as Record<string, unknown>
+      for (const key of Object.keys(evidence)) {
+        if (!ALLOWED_DATE_EVIDENCE_KEYS.has(key)) {
+          return { ok: false, code: 'unexpected_fields', message: `Unexpected date evidence field: ${key}` }
+        }
+      }
+      if (typeof evidence.sourceBlockId !== 'string' || typeof evidence.dateConcept !== 'string' || !DATE_CONCEPTS.has(evidence.dateConcept)) {
+        return { ok: false, code: 'invalid_structured_output', message: 'sourceBlockId and supported dateConcept required' }
+      }
+      dateEvidence.push({ sourceBlockId: evidence.sourceBlockId, dateConcept: evidence.dateConcept as GroundedDateEvidence['dateConcept'] })
+    }
+  }
+
   return {
     ok: true,
     responseVersion: FULL_AI_RESPONSE_VERSION,
     changedBlocks,
     financeEvidence,
+    dateEvidence,
     modelSchemaVersion: MODEL_SCHEMA_VERSION,
     ignoredModelResponseVersion,
   }

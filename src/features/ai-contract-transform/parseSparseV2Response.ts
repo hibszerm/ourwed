@@ -10,7 +10,7 @@ import {
   type JsonParseDiagnostics,
   type ResponseTextExtractionResult,
 } from './extractResponseText'
-import type { GroundedFinanceEvidence } from './types'
+import type { GroundedDateEvidence, GroundedFinanceEvidence } from './types'
 
 export const MODEL_SCHEMA_VERSION = 'sparse-changed-blocks-v1'
 
@@ -20,12 +20,14 @@ export type SparseChangedBlock = { blockId: string; text: string }
 export type SparseChangedBlocksModelResult = {
   changedBlocks: SparseChangedBlock[]
   financeEvidence?: GroundedFinanceEvidence[]
+  dateEvidence: GroundedDateEvidence[] | null
 }
 
 export type SparseParseSuccess = {
   ok: true
   changedBlocks: SparseChangedBlock[]
   financeEvidence: GroundedFinanceEvidence[]
+  dateEvidence: GroundedDateEvidence[]
   /** Trusted version injected by application code. */
   applicationResponseVersion: string
   modelSchemaVersion: typeof MODEL_SCHEMA_VERSION
@@ -65,6 +67,7 @@ export function validateSparseChangedBlocksModelResult(
       ok: true
       changedBlocks: SparseChangedBlock[]
       financeEvidence: GroundedFinanceEvidence[]
+      dateEvidence: GroundedDateEvidence[]
       ignoredModelResponseVersion: string | null
     }
   | { ok: false; message: string; ignoredModelResponseVersion?: string | null } {
@@ -75,7 +78,7 @@ export function validateSparseChangedBlocksModelResult(
   let ignoredModelResponseVersion: string | null = null
 
   for (const key of Object.keys(obj)) {
-    if (key === 'changedBlocks' || key === 'financeEvidence') continue
+    if (key === 'changedBlocks' || key === 'financeEvidence' || key === 'dateEvidence') continue
     if (key === 'responseVersion') {
       // Legacy model field — ignore; never trust for application envelope
       ignoredModelResponseVersion =
@@ -126,7 +129,22 @@ export function validateSparseChangedBlocksModelResult(
     }
   }
 
-  return { ok: true, changedBlocks, financeEvidence, ignoredModelResponseVersion }
+  if (!Object.prototype.hasOwnProperty.call(obj, 'dateEvidence')) {
+    return { ok: false, message: 'Missing dateEvidence', ignoredModelResponseVersion }
+  }
+  const dateEvidence: GroundedDateEvidence[] = []
+  if (obj.dateEvidence !== null) {
+    if (!Array.isArray(obj.dateEvidence)) return { ok: false, message: 'dateEvidence must be an array or null', ignoredModelResponseVersion }
+    for (const row of obj.dateEvidence) {
+      if (!row || typeof row !== 'object' || Array.isArray(row)) return { ok: false, message: 'Invalid date evidence', ignoredModelResponseVersion }
+      const evidence = row as Record<string, unknown>
+      if (Object.keys(evidence).some((key) => key !== 'sourceBlockId' && key !== 'dateConcept')) return { ok: false, message: 'Unexpected date evidence field', ignoredModelResponseVersion }
+      if (typeof evidence.sourceBlockId !== 'string' || !['wedding_date', 'execution_date'].includes(String(evidence.dateConcept))) return { ok: false, message: 'sourceBlockId and supported dateConcept required', ignoredModelResponseVersion }
+      dateEvidence.push({ sourceBlockId: evidence.sourceBlockId, dateConcept: evidence.dateConcept as GroundedDateEvidence['dateConcept'] })
+    }
+  }
+
+  return { ok: true, changedBlocks, financeEvidence, dateEvidence, ignoredModelResponseVersion }
 }
 
 function readIncompleteReason(body: unknown): string | undefined {
@@ -218,6 +236,7 @@ export function parseSparseV2FromResponse(input: {
     ok: true,
     changedBlocks: schema.changedBlocks,
     financeEvidence: schema.financeEvidence,
+    dateEvidence: schema.dateEvidence,
     applicationResponseVersion: input.applicationResponseVersion,
     modelSchemaVersion: MODEL_SCHEMA_VERSION,
     extraction,

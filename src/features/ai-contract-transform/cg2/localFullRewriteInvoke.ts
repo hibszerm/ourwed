@@ -49,6 +49,8 @@ export type Cg2InvokeUsage = {
     financeEvidenceCount: number
     retryRequested: boolean
     financeEvidence: Array<{ sourceBlockId: string; financeConcept: string }>
+    dateEvidenceCount: number
+    dateEvidence: Array<{ sourceBlockId: string; dateConcept: string }>
     duplicateChangedBlocks?: Array<{
       blockId: string
       occurrenceCount: number
@@ -144,7 +146,7 @@ export function safeProviderDiagnostic(httpStatus: number, body: unknown): strin
 }
 
 const PARSE_RETRY_HINT =
-  'Return ONLY valid JSON matching the schema. Use changedBlocks for sparse edits and always include financeEvidence (null when none). No markdown.'
+  'Return ONLY valid JSON matching the schema. Use changedBlocks for sparse edits and always include financeEvidence and dateEvidence (null when none). No markdown.'
 
 /**
  * Factory: returns an invoke compatible with runSparseProductTransform / runFullAiRewrite.
@@ -334,17 +336,19 @@ export function createLocalFullRewriteInvoke(input: {
         needsProtocolRetry: integrity.needsProtocolRetry,
         violationKinds: integrity.violations.map((v) => v.kind),
         affectedBlockIds: integrity.violations.map((v) => {
-          const row = parse.changedBlocks.find((b) => b.blockId === v.blockId)
+          const row = changedBlocks.find((b) => b.blockId === v.blockId)
           return { blockId: v.blockId, sourceExists: slim.some((b) => b.blockId === v.blockId), replacementEmpty: row?.text.trim().length === 0, replacementLength: row?.text.length ?? 0, protected: Boolean(slim.find((b) => b.blockId === v.blockId)?.modelContext && (slim.find((b) => b.blockId === v.blockId)!.modelContext as { modelEditable?: boolean }).modelEditable === false) }
         }),
         changedBlocksCount: parse.changedBlocks.length,
         financeEvidenceCount: parse.financeEvidence.length,
         retryRequested: integrity.needsProtocolRetry,
         financeEvidence: parse.financeEvidence.map((e) => ({ sourceBlockId: e.sourceBlockId, financeConcept: e.financeConcept })),
+        dateEvidenceCount: parse.dateEvidence.length,
+        dateEvidence: parse.dateEvidence.map((e) => ({ sourceBlockId: e.sourceBlockId, dateConcept: e.dateConcept })),
         duplicateChangedBlocks: collectDuplicateChangedBlockDiagnostics({
           changedBlocks: parse.changedBlocks,
           sourceBlockIds: slim.map((b) => b.blockId),
-          protectedBlockIds: new Set(slim.filter((b) => b.modelContext?.modelEditable === false).map((b) => b.blockId)),
+          protectedBlockIds: new Set(slim.filter((b) => (b.modelContext as { modelEditable?: boolean } | undefined)?.modelEditable === false).map((b) => b.blockId)),
         }),
       })
       // CG4 + CG6.1: at most ONE shared protocol-integrity retry
@@ -448,6 +452,7 @@ export function createLocalFullRewriteInvoke(input: {
         ok: true,
         changedBlocks,
         financeEvidence: parse.financeEvidence,
+        dateEvidence: parse.dateEvidence,
         model,
         promptVersion: FULL_AI_PROMPT_VERSION,
         responseVersion: FULL_AI_RESPONSE_VERSION,

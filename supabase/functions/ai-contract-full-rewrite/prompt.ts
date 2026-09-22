@@ -1,5 +1,5 @@
-export const FULL_AI_PROMPT_VERSION = '2026-09-full-ai-v3'
-export const FULL_AI_RESPONSE_VERSION = '2026-09-full-ai-v3'
+export const FULL_AI_PROMPT_VERSION = '2026-09-full-ai-v4'
+export const FULL_AI_RESPONSE_VERSION = '2026-09-full-ai-v4'
 
 export const HARD_MAX_OUTPUT_TOKENS = 16_384
 export const NORMAL_MAX_OUTPUT_TOKENS = 8_192
@@ -50,7 +50,7 @@ Output rules (critical):
 - Do not return markdown.
 - Do not add notes, reasoning, field mappings, change descriptions, or responseVersion.
 - An empty changedBlocks array means no changes were needed.
-- Output JSON must contain changedBlocks and financeEvidence. Use null when no grounded finance evidence exists; otherwise return only metadata for SOURCE blocks that clearly express a total, deposit/upfront payment, or remaining payment. Use exact sourceBlockId and financeConcept (total, deposit, remaining); never include amounts, calculations, or rewritten text.
+- Output JSON must contain changedBlocks, financeEvidence, and dateEvidence. Use null when no grounded finance evidence or date evidence exists; otherwise return only metadata for SOURCE blocks that clearly express the relevant fact. financeEvidence uses exact sourceBlockId + financeConcept (total, deposit, remaining). dateEvidence uses exact sourceBlockId + dateConcept (wedding_date, execution_date) for the block containing the actual wedding/event date value or execution/signing/agreement date value. Interpret supplied source structure, including table headers and neighboring cells. Point to the value block, not a header. Never include canonical date values, amounts, calculations, or rewritten text in either evidence array.
 
 Your responsibility is ONLY:
 - which existing blocks need changes,
@@ -102,7 +102,7 @@ export function buildUserPayload(input: {
     mode: 'full_ai_trusted_rewrite',
     promptVersion: FULL_AI_PROMPT_VERSION,
     instructions:
-      'Return sparse changedBlocks only and always include financeEvidence: use null when none exists, otherwise return grounded sourceBlockId + financeConcept metadata only. Apply every requiredReplacements entry in all listed contexts. When customer.names lists sourceBlockIds, rewrite those entire contracting-party blocks with canonical clients.displayNames (correct Polish grammar for personCount); do not leave stale party identity. When wedding.*Location lists sourceBlockIds, fill those grounded location fields/cells with the matching canonical location (no role swap; neutralize with — when that is the target). Do not rewrite provider-role/copyright/portfolio clauses unless they are listed. Protected values must remain unchanged. Honor locations.absentLocationRoles and locations.locationRoleIntegrity: never invent or copy venues into absent roles.',
+      'Return sparse changedBlocks only and always include financeEvidence and dateEvidence: use null for either when no grounded evidence exists; otherwise return only sourceBlockId + financeConcept or sourceBlockId + dateConcept metadata, never values. Date concepts are wedding_date and execution_date. Apply every requiredReplacements entry in all listed contexts. When customer.names lists sourceBlockIds, rewrite those entire contracting-party blocks with canonical clients.displayNames (correct Polish grammar for personCount); do not leave stale party identity. When wedding.*Location lists sourceBlockIds, fill those grounded location fields/cells with the matching canonical location (no role swap; neutralize with — when that is the target). Do not rewrite provider-role/copyright/portfolio clauses unless they are listed. Protected values must remain unchanged. Honor locations.absentLocationRoles and locations.locationRoleIntegrity: never invent or copy venues into absent roles.',
     protectedDataSummary: input.protectedDataSummary,
     transformationDataset: input.transformationDataset,
     requiredReplacements: input.requiredReplacements ?? [],
@@ -116,7 +116,7 @@ export const FULL_AI_JSON_SCHEMA = {
   schema: {
     type: 'object',
     additionalProperties: false,
-    required: ['changedBlocks', 'financeEvidence'],
+    required: ['changedBlocks', 'financeEvidence', 'dateEvidence'],
     properties: {
       changedBlocks: {
         type: 'array',
@@ -139,6 +139,18 @@ export const FULL_AI_JSON_SCHEMA = {
           properties: {
             sourceBlockId: { type: 'string' },
             financeConcept: { type: 'string', enum: ['total', 'deposit', 'remaining'] },
+          },
+        },
+      },
+      dateEvidence: {
+        type: ['array', 'null'],
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['sourceBlockId', 'dateConcept'],
+          properties: {
+            sourceBlockId: { type: 'string' },
+            dateConcept: { type: 'string', enum: ['wedding_date', 'execution_date'] },
           },
         },
       },

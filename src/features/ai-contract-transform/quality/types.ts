@@ -42,6 +42,7 @@ export type DocumentContextKind =
   | 'finance_clause'
   | 'payment_clause'
   | 'generic_body'
+  | 'date_surface'
 
 export type DocumentContextExpectation = {
   kind: DocumentContextKind
@@ -141,6 +142,11 @@ export type TransformationExpectationManifest = {
   }>
   /** CG7.3 — which concepts the source template represents. */
   representedConcepts?: import('./representationPolicy').RepresentedConcepts
+  /** Grounded semantic date roles accepted from the sparse model response. */
+  groundedDateTargets?: Array<{
+    sourceBlockId: string
+    dateConcept: import('../types').DateSemanticConcept
+  }>
 }
 
 export type RequiredReplacement = {

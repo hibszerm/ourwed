@@ -7,6 +7,7 @@
 
 import type { TransformDocumentBlock } from '../types'
 import type { CanonicalTransformField } from './types'
+import { formatDateLikeSource } from '@/features/ai-contract-lab/resolveTypedSourceSpan'
 
 export type SourceExecutionDateEvidence = {
   blockId: string
@@ -106,4 +107,55 @@ export function applyCanonicalExecutionDate(
     return sourceText.replace(/PLACEHOLDER_DATA/gi, canon)
   }
   return sourceText
+}
+
+const DATE_VALUE_RE = /(?:\b\d{1,2}[./-]\d{1,2}[./-]\d{2,4}(?:\s*r\.)?\b|\b\d{1,2}\s+(?:stycznia|lutego|marca|kwietnia|maja|czerwca|lipca|sierpnia|września|października|listopada|grudnia)\s+\d{4}(?:\s*r\.)?\b)/i
+
+function formattedDateLike(canonical: string, sourceText: string): string {
+  return formatDateLikeSource({ canonicalDate: canonical, sourceText })
+}
+
+/** Replace only the date value in a system-grounded wedding-date surface. */
+export function applyCanonicalWeddingDateSurface(input: {
+  currentText: string
+  sourceText: string
+  canonicalFormatted: string
+  kind: TransformDocumentBlock['kind']
+}): string {
+  const currentDate = input.currentText.match(DATE_VALUE_RE)?.[0]
+  const sourceDate = input.sourceText.match(DATE_VALUE_RE)?.[0]
+  const styleDate = sourceDate ?? currentDate
+  const target = styleDate ? formattedDateLike(input.canonicalFormatted, styleDate) : input.canonicalFormatted
+  if (currentDate) return input.currentText.replace(DATE_VALUE_RE, target)
+  if (sourceDate) {
+    if (input.kind === 'tableCell') return target
+    const sourceWithoutValue = input.sourceText.replace(DATE_VALUE_RE, '').trim()
+    if (input.currentText.trim() === sourceWithoutValue) return input.sourceText.replace(DATE_VALUE_RE, target)
+  }
+  if (input.kind === 'tableCell') return target
+  const form = input.currentText.match(/^([^:\n]{2,80}):\s*(.*)$/)
+  if (form) return `${form[1]}: ${target}`
+  return input.currentText
+}
+
+/** Restore/replace a system-grounded execution-date value without editing its label. */
+export function applyCanonicalExecutionDateSurface(input: {
+  currentText: string
+  sourceText: string
+  canonicalFormatted: string
+  kind: TransformDocumentBlock['kind']
+}): string {
+  const currentDate = input.currentText.match(DATE_VALUE_RE)?.[0]
+  const sourceDate = input.sourceText.match(DATE_VALUE_RE)?.[0]
+  const styleDate = sourceDate ?? currentDate
+  const target = styleDate ? formattedDateLike(input.canonicalFormatted, styleDate) : input.canonicalFormatted
+  if (currentDate) return applyCanonicalExecutionDate(input.currentText, target)
+  if (sourceDate) {
+    if (input.kind === 'tableCell') return target
+    const sourceWithoutValue = input.sourceText.replace(DATE_VALUE_RE, '').trim()
+    if (input.currentText.trim() === sourceWithoutValue) return input.sourceText.replace(DATE_VALUE_RE, target)
+  }
+  if (input.kind === 'tableCell') return target
+  const form = input.currentText.match(/^([^:\n]{2,80}):\s*(.*)$/)
+  return form ? `${form[1]}: ${target}` : input.currentText
 }

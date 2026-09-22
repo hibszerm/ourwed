@@ -26,6 +26,8 @@ function assertEq<T>(a: T, b: T, m: string) {
 
 const VALID_JSON = JSON.stringify({
   changedBlocks: [{ blockId: 'para-0', text: 'Hello' }],
+  financeEvidence: null,
+  dateEvidence: null,
 })
 
 function makeResponse(input: {
@@ -128,7 +130,7 @@ async function main() {
   {
     const part1 = '{"changedBlocks":[{"blockId":"para-0","text":"'
     const part2 = 'Hi'
-    const part3 = '"}]}'
+    const part3 = '"}],"financeEvidence":null,"dateEvidence":null}'
     const body = makeResponse({
       output: [
         {

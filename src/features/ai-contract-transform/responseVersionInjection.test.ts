@@ -1,5 +1,5 @@
 /**
- * Server-side responseVersion injection — model schema is changedBlocks-only.
+ * Server-side responseVersion injection — model response carries sparse edits + evidence.
  * Run: npm run test:ai-contract-transform-response-version
  */
 
@@ -45,6 +45,8 @@ function completedMessage(text: string) {
 async function main() {
   const onlyChanged = JSON.stringify({
     changedBlocks: [{ blockId: 'para-0', text: 'Nowa treść' }],
+    financeEvidence: null,
+    dateEvidence: null,
   })
 
   // 1–2 model-only output succeeds
@@ -67,6 +69,8 @@ async function main() {
   const wrongVersion = JSON.stringify({
     responseVersion: 'model-made-this-up',
     changedBlocks: [{ blockId: 'para-0', text: 'X' }],
+    financeEvidence: null,
+    dateEvidence: null,
   })
   const hijack = parseSparseV2FromResponse({
     body: completedMessage(wrongVersion),
@@ -90,6 +94,8 @@ async function main() {
   const legacyOk = validateSparseChangedBlocksModelResult({
     responseVersion: FULL_AI_RESPONSE_VERSION,
     changedBlocks: [{ blockId: 'para-0', text: 'A' }],
+    financeEvidence: null,
+    dateEvidence: null,
   })
   assert(legacyOk.ok, 'legacy correct ok')
 
@@ -97,6 +103,8 @@ async function main() {
   const legacyWrong = validateSparseChangedBlocksModelResult({
     responseVersion: 'garbage',
     changedBlocks: [{ blockId: 'para-0', text: 'A' }],
+    financeEvidence: null,
+    dateEvidence: null,
   })
   assert(legacyWrong.ok, 'legacy wrong still ok')
   if (legacyWrong.ok) {
@@ -138,6 +146,8 @@ async function main() {
     const envelope: FullAiSparseResponseV2 = {
       responseVersion: FULL_AI_RESPONSE_VERSION,
       changedBlocks: clientFull.changedBlocks,
+      financeEvidence: clientFull.financeEvidence,
+      dateEvidence: clientFull.dateEvidence,
     }
     assertEq(envelope.responseVersion, FULL_AI_RESPONSE_VERSION, 'typed full')
   }

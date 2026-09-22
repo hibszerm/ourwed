@@ -9,7 +9,7 @@ function assert(c: boolean, m: string) {
   if (!c) throw new Error(m)
 }
 
-assert(FULL_AI_PROMPT_VERSION === '2026-09-full-ai-v3', 'prompt version')
+assert(FULL_AI_PROMPT_VERSION === '2026-09-full-ai-v4', 'prompt version')
 assert(SYSTEM_PROMPT.includes('Additional services'), 'prompt mentions extras')
 assert(
   SYSTEM_PROMPT.includes('Do NOT insert, list, price or quantity them'),

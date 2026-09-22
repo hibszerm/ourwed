@@ -7,6 +7,7 @@ import { discoverFilledPackageEvidence } from '../quality/packageFieldEvidence'
 import { buildContractTransformationDataset } from '../transformationDataset'
 import { runFullAiRewrite } from '../transformApi'
 import { buildGoldenScenarios } from './goldenScenarios'
+import { weddingDatesSemanticallyEqual } from '../quality/locationFieldEvidence'
 
 const assert = (value: boolean, message: string) => { if (!value) throw new Error(message) }
 
@@ -22,7 +23,11 @@ const dataset = buildContractTransformationDataset({
   currentDate: '2026-11-05',
 })
 const semanticSourceBlockId = 'para-112'
+const weddingDateSourceBlockId = 'table-0-row-1-cell-1-p-0'
+const executionDateSourceBlockId = 'table-0-row-1-cell-0-p-0'
 assert(sourceBlocks.some((block) => block.blockId === semanticSourceBlockId), 'G03 semantic source exists')
+assert(sourceBlocks.some((block) => block.blockId === weddingDateSourceBlockId), 'G03 wedding date value source exists')
+assert(sourceBlocks.some((block) => block.blockId === executionDateSourceBlockId), 'G03 execution date value source exists')
 
 const model = await runFullAiRewrite({
   runId: 'g03-grounded-finance-free-replay',
@@ -34,6 +39,10 @@ const model = await runFullAiRewrite({
       ok: true,
       changedBlocks: [],
       financeEvidence: [{ sourceBlockId: semanticSourceBlockId, financeConcept: 'deposit' }],
+      dateEvidence: [
+        { sourceBlockId: weddingDateSourceBlockId, dateConcept: 'wedding_date' },
+        { sourceBlockId: executionDateSourceBlockId, dateConcept: 'execution_date' },
+      ],
       model: 'simulated-no-network',
     },
     error: null,
@@ -50,15 +59,25 @@ const gate = runPostReconstructionQualityGate({
   dataset,
   protectedData,
   mode: 'full_ai',
-  financeEvidence: model.financeEvidence,
-  financeEvidenceDiagnostics: model.financeEvidenceDiagnostics,
-})
+    financeEvidence: model.financeEvidence,
+    financeEvidenceDiagnostics: model.financeEvidenceDiagnostics,
+    dateEvidence: model.dateEvidence,
+    dateEvidenceDiagnostics: model.dateEvidenceDiagnostics,
+  })
 const deposit = gate.blocks.find((block) => block.originSourceBlockId === 'table-5-row-2-cell-2-p-0')
 assert(deposit?.text.includes('4 800') === true, 'G03 deposit repaired from canonical CRM value')
 assert(gate.diagnostics.groundedFinanceEvidence.some((item) => item.outcome === 'accepted' && item.financeConcept === 'deposit'), 'G03 accepted semantic evidence diagnostic')
 assert(gate.diagnostics.crossSurfaceFinance.some((item) => item.ownershipEstablished && item.canonicalRole === 'deposit'), 'G03 cross-surface diagnostic')
 assert(gate.diagnostics.financeRepairs.some((item) => item.canonicalRole === 'deposit' && item.applied && item.originSourceBlockId === 'table-5-row-2-cell-2-p-0'), 'G03 deposit repair diagnostic')
 assert(gate.diagnostics.totalWords !== undefined && typeof gate.diagnostics.totalWords.sourceFractionalSuffixDetected === 'boolean', 'G03 total words suffix diagnostic observable')
+assert(Boolean(gate.manifest.groundedDateTargets?.some((item) => item.sourceBlockId === weddingDateSourceBlockId && item.dateConcept === 'wedding_date')), 'G03 wedding semantic target resolved')
+assert(Boolean(gate.manifest.groundedDateTargets?.some((item) => item.sourceBlockId === executionDateSourceBlockId && item.dateConcept === 'execution_date')), 'G03 execution semantic target resolved')
+assert(gate.diagnostics.dateEvidence.some((item) => item.sourceBlockId === weddingDateSourceBlockId && item.outcome === 'accepted' && item.repairApplied && item.postRepairClassification === 'canonical'), 'G03 wedding date evidence and repair traced')
+assert(gate.diagnostics.dateEvidence.some((item) => item.sourceBlockId === executionDateSourceBlockId && item.outcome === 'accepted' && item.repairApplied && item.postRepairClassification === 'canonical'), 'G03 execution date evidence and repair traced')
+const weddingDateFinal = gate.blocks.find((block) => block.originSourceBlockId === weddingDateSourceBlockId)?.text ?? ''
+const executionDateFinal = gate.blocks.find((block) => block.originSourceBlockId === executionDateSourceBlockId)?.text ?? ''
+assert(weddingDatesSemanticallyEqual(weddingDateFinal, dataset.dates.weddingDate), 'G03 canonical wedding date passes')
+assert(weddingDatesSemanticallyEqual(executionDateFinal, dataset.dates.contractExecutionDate), 'G03 canonical execution date passes')
 assert(!gate.blocks.some((block) => /3\s*500,00\s*zł/.test(block.text)), 'G03 stale deposit removed')
 assert(gate.blocks.some((block) => /21\s*400/.test(block.text)), 'G03 total preserved canonical')
 assert(gate.blocks.some((block) => /16\s*600/.test(block.text)), 'G03 remaining preserved canonical')
@@ -66,4 +85,4 @@ assert(gate.blocks.some((block) => /dwadzieścia jeden tysięcy czterysta złoty
 assert(!gate.report.blockingIssues.some((issue) => issue.code.includes('ADDITIONAL_SERVICES')), 'G03 extras remain valid')
 const packageEvidence = discoverFilledPackageEvidence(sourceBlocks)
 assert(packageEvidence.every((evidence) => gate.blocks.find((block) => block.originSourceBlockId === evidence.blockId)?.text === evidence.sourceText), 'G03 template package content retained')
-console.log('PASS G03 grounded finance evidence replay')
+console.log('PASS G03 grounded finance + date evidence replay')

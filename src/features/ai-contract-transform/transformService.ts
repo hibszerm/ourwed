@@ -205,6 +205,8 @@ export async function runSparseProductTransform(input: {
     protectedData,
     financeEvidence: edge.financeEvidence,
     financeEvidenceDiagnostics: edge.financeEvidenceDiagnostics,
+    dateEvidence: edge.dateEvidence,
+    dateEvidenceDiagnostics: edge.dateEvidenceDiagnostics,
     mode: 'full_ai',
   })
 

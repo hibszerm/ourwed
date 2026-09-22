@@ -11,11 +11,12 @@ import type {
   CrossSurfaceFinanceDiagnostic,
   FinanceSurfaceDiagnostic,
   TotalWordsDiagnostic,
+  DateSemanticConcept,
 } from '../types'
 import { fingerprintText, sanitizeDuplicatedLocationWrappers } from './normalize'
 import { repairCanonicalPaymentAmounts } from './paymentAmountRepair'
 import { repairCanonicalPartyPlaceholders } from './partyPlaceholderRepair'
-import { applyCanonicalExecutionDate } from './dateFieldEvidence'
+import { applyCanonicalExecutionDateSurface, applyCanonicalWeddingDateSurface } from './dateFieldEvidence'
 import {
   applyIntraParagraphLocationTargets,
   extractIntraParagraphLocationSlots,
@@ -374,6 +375,8 @@ export function applyDeterministicRepairs(input: {
   manifest: TransformationExpectationManifest
   sourceBlocks: TransformDocumentBlock[]
   financeEvidence?: GroundedFinanceEvidence[]
+  groundedDateTargets?: Array<{ sourceBlockId: string; dateConcept: DateSemanticConcept }>
+  blockedDateRepairTargets?: Array<{ sourceBlockId: string; dateConcept: DateSemanticConcept }>
 }): { blocks: TransformedBlock[]; repairs: DeterministicRepair[]; crossSurfaceFinance: CrossSurfaceFinanceDiagnostic[]; financeDiagnostics: FinanceSurfaceDiagnostic[]; totalWords?: TotalWordsDiagnostic } {
   const repairs: DeterministicRepair[] = []
   let blocks = input.blocks.map((b) => ({ ...b }))
@@ -515,6 +518,12 @@ export function applyDeterministicRepairs(input: {
     if (otherUses.length > 0) continue
 
     for (const blockId of rep.requiredContextBlockIds) {
+      const dateConcept = rep.canonicalField === 'wedding.date'
+        ? 'wedding_date'
+        : rep.canonicalField === 'contract.executionDate'
+          ? 'execution_date'
+          : null
+      if (dateConcept && input.blockedDateRepairTargets?.some((target) => target.sourceBlockId === blockId && target.dateConcept === dateConcept)) continue
       const idx = blocks.findIndex((b) => b.blockId === blockId)
       if (idx < 0) continue
       const b = blocks[idx]!
@@ -572,6 +581,31 @@ export function applyDeterministicRepairs(input: {
       })
       blocks[idx] = { ...b, text: next }
     }
+  }
+
+  // Grounded date roles locate SOURCE value surfaces; canonical values still come
+  // exclusively from CRM. Provenance connects sparse transformed block IDs.
+  for (const target of input.groundedDateTargets ?? []) {
+    const source = input.sourceBlocks.find((block) => block.blockId === target.sourceBlockId)
+    const index = blocks.findIndex((block) => block.blockId === target.sourceBlockId || block.originSourceBlockId === target.sourceBlockId)
+    if (!source || index < 0) continue
+    const current = blocks[index]!
+    const canonical = target.dateConcept === 'wedding_date'
+      ? input.dataset.dates.weddingDate
+      : input.dataset.dates.contractExecutionDate
+    const next = target.dateConcept === 'wedding_date'
+      ? applyCanonicalWeddingDateSurface({ currentText: current.text, sourceText: source.text, canonicalFormatted: canonical, kind: source.kind })
+      : applyCanonicalExecutionDateSurface({ currentText: current.text, sourceText: source.text, canonicalFormatted: canonical, kind: source.kind })
+    if (next === current.text) continue
+    const canonicalField = target.dateConcept === 'wedding_date' ? 'wedding.date' : 'contract.executionDate'
+    repairs.push({
+      repairCode: `grounded_${target.dateConcept}_to_canonical`,
+      blockId: current.blockId,
+      canonicalField,
+      beforeFingerprint: fingerprintText(current.text),
+      afterFingerprint: fingerprintText(next),
+    })
+    blocks[index] = { ...current, text: next }
   }
 
   // 4. Canonical deposit + remaining amounts (CG3) — system knows financial truth
@@ -800,10 +834,12 @@ export function applyDeterministicRepairs(input: {
     const target = rep.targetRenderedValues[0]
     if (!target) continue
     for (const blockId of rep.requiredContextBlockIds) {
-      const idx = blocks.findIndex((b) => b.blockId === blockId)
+      if (input.blockedDateRepairTargets?.some((target) => target.sourceBlockId === blockId && target.dateConcept === 'execution_date')) continue
+      const idx = blocks.findIndex((b) => b.blockId === blockId || b.originSourceBlockId === blockId)
       if (idx < 0) continue
       const b = blocks[idx]!
-      const next = applyCanonicalExecutionDate(b.text, target)
+      const source = input.sourceBlocks.find((block) => block.blockId === blockId)
+      const next = applyCanonicalExecutionDateSurface({ currentText: b.text, sourceText: source?.text ?? b.text, canonicalFormatted: target, kind: source?.kind ?? 'paragraph' })
       if (next === b.text) continue
       repairs.push({
         repairCode: 'exact_execution_date_to_canonical',

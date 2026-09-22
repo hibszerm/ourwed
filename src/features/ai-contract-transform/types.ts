@@ -2,8 +2,8 @@
  * AI Contract Transformation — production sparse / full-rewrite types.
  */
 
-export const FULL_AI_PROMPT_VERSION = '2026-09-full-ai-v3'
-export const FULL_AI_RESPONSE_VERSION = '2026-09-full-ai-v3'
+export const FULL_AI_PROMPT_VERSION = '2026-09-full-ai-v4'
+export const FULL_AI_RESPONSE_VERSION = '2026-09-full-ai-v4'
 
 /** Schema version for persisted sparse wedding generation artifacts. */
 export const TRANSFORM_PIPELINE_SCHEMA_VERSION = '2026-07-transform-v2'
@@ -160,6 +160,24 @@ export type GroundedFinanceEvidenceOutcome = GroundedFinanceEvidence & {
   outcome: 'accepted' | 'rejected_unknown_source' | 'rejected_contradiction' | 'rejected_invalid'
 }
 
+export type DateSemanticConcept = 'wedding_date' | 'execution_date'
+
+export type GroundedDateEvidence = {
+  sourceBlockId: string
+  dateConcept: DateSemanticConcept
+}
+
+export type GroundedDateEvidenceOutcome = GroundedDateEvidence & {
+  outcome: 'accepted' | 'rejected_unknown_source' | 'rejected_contradiction' | 'rejected_invalid' | 'rejected_ambiguous'
+  rejectionReason?: string
+  resolvedTransformedBlockId?: string
+  evidenceSource: 'model_semantic'
+  repairAttempted?: boolean
+  repairApplied?: boolean
+  repairSkipReason?: string
+  postRepairClassification?: string
+}
+
 export type FinanceSurfaceDiagnostic = {
   canonicalRole: FinanceSemanticConcept
   originSourceBlockId?: string
@@ -192,6 +210,7 @@ export type QualityGateEvidenceTrace = {
 
 export type ContractTransformDiagnostics = {
   groundedFinanceEvidence: GroundedFinanceEvidenceOutcome[]
+  dateEvidence: GroundedDateEvidenceOutcome[]
   crossSurfaceFinance: CrossSurfaceFinanceDiagnostic[]
   financeRepairs: FinanceSurfaceDiagnostic[]
   totalWords?: TotalWordsDiagnostic

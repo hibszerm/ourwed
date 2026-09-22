@@ -6,7 +6,7 @@
  */
 
 import type { SparseChangedBlock } from './parseSparseV2Response'
-import type { GroundedFinanceEvidence, GroundedFinanceEvidenceOutcome } from './types'
+import type { GroundedDateEvidence, GroundedDateEvidenceOutcome, GroundedFinanceEvidence, GroundedFinanceEvidenceOutcome, TransformDocumentBlock } from './types'
 import { createHash } from 'node:crypto'
 
 export type BlockIdPartition = {
@@ -70,6 +70,58 @@ export function inspectGroundedFinanceEvidence(input: {
       : [...concepts].map((financeConcept) => ({ sourceBlockId, financeConcept: financeConcept as GroundedFinanceEvidence['financeConcept'], outcome: 'rejected_contradiction' as const })),
   )
   return [...unknown, ...results]
+}
+
+const DATE_VALUE_RE = /(?:\b\d{1,2}[./-]\d{1,2}[./-]\d{2,4}(?:\s*r\.)?\b|\b\d{1,2}\s+(?:stycznia|lutego|marca|kwietnia|maja|czerwca|lipca|sierpnia|września|października|listopada|grudnia)\s+\d{4}(?:\s*r\.)?\b)/i
+
+/** Ground semantic date roles only to source date values (never to model text). */
+export function inspectGroundedDateEvidence(input: {
+  dateEvidence: GroundedDateEvidence[]
+  sourceBlocks: readonly TransformDocumentBlock[]
+}): GroundedDateEvidenceOutcome[] {
+  const sourceById = new Map(input.sourceBlocks.map((block) => [block.blockId, block]))
+  const grouped = new Map<string, Set<GroundedDateEvidence['dateConcept']>>()
+  const outcomes: GroundedDateEvidenceOutcome[] = []
+
+  for (const item of input.dateEvidence) {
+    const source = sourceById.get(item.sourceBlockId)
+    if (!source) {
+      outcomes.push({ ...item, outcome: 'rejected_unknown_source', rejectionReason: 'source_block_not_found', evidenceSource: 'model_semantic' })
+      continue
+    }
+    // The semantic claim must point at a date-bearing value, or a structurally
+    // positioned empty table value cell. The model—not a lexical router—assigns role.
+    const sourceDateValues = source.text.match(new RegExp(DATE_VALUE_RE.source, 'gi')) ?? []
+    if (sourceDateValues.length > 1) {
+      outcomes.push({ ...item, outcome: 'rejected_ambiguous', rejectionReason: 'multiple_date_values_in_source_block', evidenceSource: 'model_semantic' })
+      continue
+    }
+    const hasDateValue = sourceDateValues.length === 1
+    const isEmptyTableValueSurface = !source.text.trim() && source.kind === 'tableCell' &&
+      (source.cellIndex == null || source.cellIndex > 0 || Boolean(source.tableContext?.columnHeaderText?.trim()))
+    if (!hasDateValue && !isEmptyTableValueSurface) {
+      outcomes.push({ ...item, outcome: 'rejected_invalid', rejectionReason: 'not_a_date_value_surface', evidenceSource: 'model_semantic' })
+      continue
+    }
+    const concepts = grouped.get(item.sourceBlockId) ?? new Set<GroundedDateEvidence['dateConcept']>()
+    concepts.add(item.dateConcept)
+    grouped.set(item.sourceBlockId, concepts)
+  }
+
+  for (const [sourceBlockId, concepts] of grouped) {
+    if (concepts.size === 1) {
+      outcomes.push({ sourceBlockId, dateConcept: [...concepts][0]!, outcome: 'accepted', evidenceSource: 'model_semantic' })
+    } else {
+      for (const dateConcept of concepts) outcomes.push({
+        sourceBlockId,
+        dateConcept,
+        outcome: 'rejected_contradiction',
+        rejectionReason: 'one_source_block_claimed_multiple_date_concepts',
+        evidenceSource: 'model_semantic',
+      })
+    }
+  }
+  return outcomes
 }
 
 export function partitionChangedBlocksBySourceIds(input: {
@@ -168,7 +220,7 @@ export function buildFullAiJsonSchemaForBlockIds(validBlockIds: readonly string[
     schema: {
       type: 'object',
       additionalProperties: false,
-      required: ['changedBlocks', 'financeEvidence'],
+      required: ['changedBlocks', 'financeEvidence', 'dateEvidence'],
       properties: {
         changedBlocks: {
           type: 'array',
@@ -192,6 +244,18 @@ export function buildFullAiJsonSchemaForBlockIds(validBlockIds: readonly string[
             properties: {
               sourceBlockId: blockIdSchema,
               financeConcept: { type: 'string', enum: ['total', 'deposit', 'remaining'] },
+            },
+          },
+        },
+        dateEvidence: {
+          type: ['array', 'null'],
+          items: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['sourceBlockId', 'dateConcept'],
+            properties: {
+              sourceBlockId: blockIdSchema,
+              dateConcept: { type: 'string', enum: ['wedding_date', 'execution_date'] },
             },
           },
         },

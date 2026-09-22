@@ -10,7 +10,10 @@ import type {
   TransformedBlock,
   GroundedFinanceEvidence,
   GroundedFinanceEvidenceOutcome,
+  GroundedDateEvidence,
+  GroundedDateEvidenceOutcome,
   ContractTransformDiagnostics,
+  QualityGateEvidenceTrace,
 } from '../types'
 import { verifyTransformationCompleteness } from './completenessVerifier'
 import { applyDeterministicRepairs } from './deterministicRepairs'
@@ -37,18 +40,26 @@ import {
 } from './partyFilledIdentity'
 import { verifyFilledLocationIdentity } from './locationFieldEvidence'
 import { discoverExecutionDateEvidence } from './dateFieldEvidence'
+import { resolveGroundedDateEvidence } from './groundedDateEvidence'
+import { weddingDatesSemanticallyEqual } from './locationFieldEvidence'
 import { fingerprintText, normalizeForMatch } from './normalize'
 import type {
   DocumentQualityReport,
   QualityIssue,
   TransformationExpectationManifest,
-  QualityGateEvidenceTrace,
 } from './types'
 
 function classifyTraceValue(text: string, source: string, canonical: string): string {
   if (!text.trim()) return 'missing'
   if (canonical && normalizeForMatch(text).includes(normalizeForMatch(canonical))) return 'canonical'
   if (source && normalizeForMatch(text).includes(normalizeForMatch(source))) return 'stale'
+  return 'ambiguous'
+}
+
+function classifyDateTraceValue(text: string, source: string, canonical: string): string {
+  if (!text.trim()) return 'missing'
+  if (weddingDatesSemanticallyEqual(text, canonical)) return 'canonical'
+  if (source && weddingDatesSemanticallyEqual(text, source)) return 'stale'
   return 'ambiguous'
 }
 
@@ -162,6 +173,7 @@ export function buildQualityReport(input: {
   paragraphInsertions?: ContractParagraphInsertion[]
   /** Transformed blocks before virtual paragraph expansion (for anchor integrity). */
   additionalServicesBlocksBeforeExpansion?: TransformedBlock[]
+  dateEvidenceIssues?: QualityIssue[]
 }): DocumentQualityReport {
   const manifest =
     input.manifest ??
@@ -303,6 +315,7 @@ export function buildQualityReport(input: {
     ...filledPartyIssues,
     ...providerScopeIssues,
     ...filledLocationIssues,
+    ...(input.dateEvidenceIssues ?? []),
   ]
 
   // Deduplicate by code+field+block
@@ -350,6 +363,8 @@ export function runPostReconstructionQualityGate(input: {
   mode: 'full_ai' | 'guarded'
   financeEvidence?: GroundedFinanceEvidence[]
   financeEvidenceDiagnostics?: GroundedFinanceEvidenceOutcome[]
+  dateEvidence?: GroundedDateEvidence[]
+  dateEvidenceDiagnostics?: GroundedDateEvidenceOutcome[]
 }): {
   blocks: TransformedBlock[]
   manifest: TransformationExpectationManifest
@@ -364,12 +379,21 @@ export function runPostReconstructionQualityGate(input: {
     protectedData: input.protectedData,
   })
 
+  const resolvedDateEvidence = resolveGroundedDateEvidence({
+    evidence: input.dateEvidenceDiagnostics ?? (input.dateEvidence ?? []).map((item) => ({ ...item, outcome: 'accepted' as const, evidenceSource: 'model_semantic' as const })),
+    sourceBlocks: input.sourceBlocks,
+    dataset: input.dataset,
+    manifest,
+  })
+
   const repaired = applyDeterministicRepairs({
     blocks: input.transformedBlocks,
     dataset: input.dataset,
     manifest,
     sourceBlocks: input.sourceBlocks,
     financeEvidence: input.financeEvidence,
+    groundedDateTargets: resolvedDateEvidence.targets,
+    blockedDateRepairTargets: resolvedDateEvidence.blockedRepairTargets,
   })
 
   const additionalServices = insertAdditionalServicesIntoBlocks({
@@ -394,6 +418,7 @@ export function runPostReconstructionQualityGate(input: {
     additionalServicesDiagnostics: additionalServices.diagnostics,
     paragraphInsertions: additionalServices.paragraphInsertions,
     additionalServicesBlocksBeforeExpansion: additionalServices.blocks,
+    dateEvidenceIssues: resolvedDateEvidence.issues,
   })
   const qualityGateEvidence = buildQualityGateEvidenceTrace({
     sourceBlocks: input.sourceBlocks,
@@ -405,6 +430,25 @@ export function runPostReconstructionQualityGate(input: {
   })
   const diagnostics: ContractTransformDiagnostics = {
     groundedFinanceEvidence: input.financeEvidenceDiagnostics ?? [],
+    dateEvidence: resolvedDateEvidence.diagnostics.map((item) => {
+      const target = resolvedDateEvidence.targets.find((entry) => entry.sourceBlockId === item.sourceBlockId && entry.dateConcept === item.dateConcept)
+      if (!target) return item
+      const source = input.sourceBlocks.find((block) => block.blockId === item.sourceBlockId)
+      const transformed = expandedBlocks.find((block) => block.blockId === item.sourceBlockId || block.originSourceBlockId === item.sourceBlockId)
+      const field = item.dateConcept === 'wedding_date' ? 'wedding.date' : 'contract.executionDate'
+      const repair = repaired.repairs.find((entry) => entry.canonicalField === field && entry.blockId === transformed?.blockId)
+      const canonical = item.dateConcept === 'wedding_date' ? input.dataset.dates.weddingDate : input.dataset.dates.contractExecutionDate
+      const sourceDate = source?.text.match(/(?:\b\d{1,2}[./-]\d{1,2}[./-]\d{2,4}(?:\s*r\.)?\b|\b\d{1,2}\s+(?:stycznia|lutego|marca|kwietnia|maja|czerwca|lipca|sierpnia|września|października|listopada|grudnia)\s+\d{4}(?:\s*r\.)?\b)/i)?.[0] ?? ''
+      const postRepairClassification = classifyDateTraceValue(transformed?.text ?? '', sourceDate, canonical)
+      return {
+        ...item,
+        resolvedTransformedBlockId: transformed?.blockId,
+        repairAttempted: true,
+        repairApplied: Boolean(repair),
+        repairSkipReason: repair ? undefined : transformed ? postRepairClassification === 'canonical' ? 'already_canonical' : 'surface_not_repairable' : 'transformed_target_not_found',
+        postRepairClassification,
+      }
+    }),
     crossSurfaceFinance: repaired.crossSurfaceFinance,
     financeRepairs: repaired.financeDiagnostics,
     totalWords: repaired.totalWords,
@@ -428,11 +472,15 @@ export function runPostReconstructionQualityGate(input: {
     const partyIdentityBlock = report.blockingIssues.some((i) =>
       MODE_A_PARTY_IDENTITY_CODES.has(i.code),
     )
+    const groundedDateConflict = report.blockingIssues.some((i) =>
+      i.code === 'date_evidence_conflict' || i.code === 'date_evidence_ambiguous',
+    )
     downloadAllowed =
       !financialBlock &&
       !locationBlock &&
       !partyPlaceholderBlock &&
-      !partyIdentityBlock
+      !partyIdentityBlock &&
+      !groundedDateConflict
   }
 
   return {

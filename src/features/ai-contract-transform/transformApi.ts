@@ -4,7 +4,7 @@
  */
 
 import { applySparseBlockChanges } from './applySparseBlockChanges'
-import { inspectGroundedFinanceEvidence, partitionChangedBlocksBySourceIds } from './blockIdIntegrity'
+import { inspectGroundedDateEvidence, inspectGroundedFinanceEvidence, partitionChangedBlocksBySourceIds } from './blockIdIntegrity'
 import {
   buildTransformEdgeErrorDetail,
   edgeErrorFromThrown,
@@ -22,6 +22,8 @@ import type {
   TransformMode,
   GroundedFinanceEvidence,
   GroundedFinanceEvidenceOutcome,
+  GroundedDateEvidence,
+  GroundedDateEvidenceOutcome,
 } from './types'
 import {
   FULL_AI_PROMPT_VERSION,
@@ -44,6 +46,8 @@ export type TransformApiSuccess = {
   changedBlockCount: number
   financeEvidence: GroundedFinanceEvidence[]
   financeEvidenceDiagnostics: GroundedFinanceEvidenceOutcome[]
+  dateEvidence: GroundedDateEvidence[]
+  dateEvidenceDiagnostics: GroundedDateEvidenceOutcome[]
   model: string
   promptVersion: string
   responseVersion: string
@@ -294,6 +298,7 @@ export async function invokeTransform(input: {
     const parsed = parseSparseV2ModelPayload(input.mode, {
       changedBlocks: body.changedBlocks,
       ...(body.financeEvidence !== undefined ? { financeEvidence: body.financeEvidence } : {}),
+      ...(body.dateEvidence !== undefined ? { dateEvidence: body.dateEvidence } : {}),
       // Legacy Edge/fixture may still include responseVersion; ignored by parser
       ...(typeof body.responseVersion === 'string'
         ? { responseVersion: body.responseVersion }
@@ -318,6 +323,13 @@ export async function invokeTransform(input: {
     const financeEvidence = financeEvidenceDiagnostics
       .filter((item) => item.outcome === 'accepted')
       .map(({ outcome: _outcome, ...item }) => item)
+    const dateEvidenceDiagnostics = inspectGroundedDateEvidence({
+      dateEvidence: parsed.dateEvidence,
+      sourceBlocks: input.documentBlocks,
+    })
+    const dateEvidence = dateEvidenceDiagnostics
+      .filter((item) => item.outcome === 'accepted')
+      .map(({ outcome: _outcome, evidenceSource: _evidenceSource, ...item }) => item)
     const reconstructed = applySparseBlockChanges(
       input.documentBlocks,
       partition.valid,
@@ -346,6 +358,8 @@ export async function invokeTransform(input: {
       changedBlockCount: reconstructed.changedBlockCount,
       financeEvidence,
       financeEvidenceDiagnostics,
+      dateEvidence,
+      dateEvidenceDiagnostics,
       model: String(body.model ?? 'unknown'),
       promptVersion: String(body.promptVersion ?? input.promptVersion),
       responseVersion,
@@ -368,6 +382,8 @@ export async function invokeTransform(input: {
       changedBlockCount: legacy.length,
       financeEvidence: [],
       financeEvidenceDiagnostics: [],
+      dateEvidence: [],
+      dateEvidenceDiagnostics: [],
       model: String(body.model ?? 'unknown'),
       promptVersion: String(body.promptVersion ?? input.promptVersion),
       responseVersion: String(body.responseVersion ?? ''),
