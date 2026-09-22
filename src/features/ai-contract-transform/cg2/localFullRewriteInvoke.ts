@@ -18,7 +18,7 @@ import {
 } from '../fullAiRewritePromptShared'
 import {
   buildFullAiJsonSchemaForBlockIds,
-  collectDuplicateChangedBlockDiagnostics,
+  normalizeIdenticalChangedBlockDuplicates,
 } from '../blockIdIntegrity'
 import {
   buildProtocolIntegrityRetryHint,
@@ -48,6 +48,7 @@ export type Cg2InvokeUsage = {
     violationKinds: string[]
     affectedBlockIds: Array<{ blockId: string; sourceExists: boolean; replacementEmpty: boolean; replacementLength: number; protected: boolean }>
     changedBlocksCount: number
+    normalizedChangedBlocksCount: number
     financeEvidenceCount: number
     retryRequested: boolean
     financeEvidence: Array<{ sourceBlockId: string; financeConcept: string }>
@@ -58,6 +59,8 @@ export type Cg2InvokeUsage = {
       occurrenceCount: number
       duplicateClassification: 'IDENTICAL' | 'CONFLICTING'
       allFingerprintsEqual: boolean
+      identicalNormalizationApplied: boolean
+      normalizedOccurrenceCount: number
       occurrences: Array<{ blockId: string; occurrenceIndex: number; replacementLength: number; fingerprint: string; sourceExists: boolean; protected?: boolean; replacementEmpty: boolean }>
     }>
   }>
@@ -339,8 +342,13 @@ export function createLocalFullRewriteInvoke(input: {
     let protocolRetryKinds: string[] = []
     let changedBlocks = parse.ok ? parse.changedBlocks : []
     if (parse.ok) {
-      let integrity = collectProtocolIntegrityViolations({
+      const normalized = normalizeIdenticalChangedBlockDuplicates({
         changedBlocks: parse.changedBlocks,
+        sourceBlocks: slim,
+      })
+      changedBlocks = normalized.changedBlocks
+      let integrity = collectProtocolIntegrityViolations({
+        changedBlocks,
         sourceBlocks: slim,
       })
       usage.protocolDiagnostics!.push({
@@ -352,16 +360,13 @@ export function createLocalFullRewriteInvoke(input: {
           return { blockId: v.blockId, sourceExists: slim.some((b) => b.blockId === v.blockId), replacementEmpty: row?.text.trim().length === 0, replacementLength: row?.text.length ?? 0, protected: Boolean(slim.find((b) => b.blockId === v.blockId)?.modelContext && (slim.find((b) => b.blockId === v.blockId)!.modelContext as { modelEditable?: boolean }).modelEditable === false) }
         }),
         changedBlocksCount: parse.changedBlocks.length,
+        normalizedChangedBlocksCount: changedBlocks.length,
         financeEvidenceCount: parse.financeEvidence.length,
         retryRequested: integrity.needsProtocolRetry,
         financeEvidence: parse.financeEvidence.map((e) => ({ sourceBlockId: e.sourceBlockId, financeConcept: e.financeConcept })),
         dateEvidenceCount: parse.dateEvidence.length,
         dateEvidence: parse.dateEvidence.map((e) => ({ sourceBlockId: e.sourceBlockId, dateConcept: e.dateConcept })),
-        duplicateChangedBlocks: collectDuplicateChangedBlockDiagnostics({
-          changedBlocks: parse.changedBlocks,
-          sourceBlockIds: slim.map((b) => b.blockId),
-          protectedBlockIds: new Set(slim.filter((b) => (b.modelContext as { modelEditable?: boolean } | undefined)?.modelEditable === false).map((b) => b.blockId)),
-        }),
+        duplicateChangedBlocks: normalized.duplicateDiagnostics,
       })
       // CG4 + CG6.1: at most ONE shared protocol-integrity retry
       if (integrity.needsProtocolRetry) {
@@ -392,8 +397,13 @@ export function createLocalFullRewriteInvoke(input: {
           })
           if (reparse.ok) {
             parse = reparse
-            integrity = collectProtocolIntegrityViolations({
+            const retryNormalized = normalizeIdenticalChangedBlockDuplicates({
               changedBlocks: reparse.changedBlocks,
+              sourceBlocks: slim,
+            })
+            changedBlocks = retryNormalized.changedBlocks
+            integrity = collectProtocolIntegrityViolations({
+              changedBlocks,
               sourceBlocks: slim,
             })
           }

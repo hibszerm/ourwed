@@ -31,7 +31,58 @@ export type DuplicateChangedBlockDiagnostic = {
   occurrenceCount: number
   duplicateClassification: 'IDENTICAL' | 'CONFLICTING'
   allFingerprintsEqual: boolean
+  identicalNormalizationApplied: boolean
+  normalizedOccurrenceCount: number
   occurrences: DuplicateChangedBlockOccurrence[]
+}
+
+/** Coalesce only exact-identical duplicates for one unique, editable source target. */
+export function normalizeIdenticalChangedBlockDuplicates(input: {
+  changedBlocks: SparseChangedBlock[]
+  sourceBlocks: ReadonlyArray<{ blockId: string; text: string; modelContext?: unknown }>
+}): { changedBlocks: SparseChangedBlock[]; duplicateDiagnostics: DuplicateChangedBlockDiagnostic[] } {
+  const sourceRows = new Map<string, (typeof input.sourceBlocks)[number][]>()
+  for (const block of input.sourceBlocks) {
+    const rows = sourceRows.get(block.blockId) ?? []
+    rows.push(block)
+    sourceRows.set(block.blockId, rows)
+  }
+  const groups = new Map<string, SparseChangedBlock[]>()
+  for (const row of input.changedBlocks) {
+    if (!row || typeof row.blockId !== 'string') continue
+    const rows = groups.get(row.blockId) ?? []
+    rows.push(row)
+    groups.set(row.blockId, rows)
+  }
+  const coalescibleIds = new Set<string>()
+  for (const [blockId, rows] of groups) {
+    if (rows.length < 2 || !rows.every((row) => row.text === rows[0]!.text)) continue
+    const source = sourceRows.get(blockId) ?? []
+    if (source.length !== 1) continue
+    const modelContext = source[0]!.modelContext
+    if (modelContext && typeof modelContext === 'object' && (modelContext as { modelEditable?: unknown }).modelEditable === false) continue
+    coalescibleIds.add(blockId)
+  }
+  const emitted = new Set<string>()
+  const changedBlocks = input.changedBlocks.filter((row) => {
+    if (!row || typeof row.blockId !== 'string' || !coalescibleIds.has(row.blockId)) return true
+    if (emitted.has(row.blockId)) return false
+    emitted.add(row.blockId)
+    return true
+  })
+  const protectedBlockIds = new Set<string>()
+  for (const [blockId, rows] of sourceRows) {
+    if (rows.some((row) => row.modelContext && typeof row.modelContext === 'object' && (row.modelContext as { modelEditable?: unknown }).modelEditable === false)) {
+      protectedBlockIds.add(blockId)
+    }
+  }
+  const duplicateDiagnostics = collectDuplicateChangedBlockDiagnostics({
+    changedBlocks: input.changedBlocks,
+    sourceBlockIds: input.sourceBlocks.map((block) => block.blockId),
+    protectedBlockIds,
+    normalizedBlockIds: coalescibleIds,
+  })
+  return { changedBlocks, duplicateDiagnostics }
 }
 
 export function fingerprintChangedBlockText(text: string): string {
@@ -157,6 +208,7 @@ export function collectDuplicateChangedBlockDiagnostics(input: {
   changedBlocks: SparseChangedBlock[]
   sourceBlockIds: readonly string[]
   protectedBlockIds?: ReadonlySet<string>
+  normalizedBlockIds?: ReadonlySet<string>
 }): DuplicateChangedBlockDiagnostic[] {
   const sourceIds = new Set(input.sourceBlockIds)
   const rows = new Map<string, SparseChangedBlock[]>()
@@ -180,11 +232,15 @@ export function collectDuplicateChangedBlockDiagnostics(input: {
       }))
       const fingerprints = occurrences.map((item) => item.fingerprint)
       const allFingerprintsEqual = fingerprints.every((value) => value === fingerprints[0])
+      const identical = list.every((row) => row.text === list[0]!.text)
+      const normalized = input.normalizedBlockIds?.has(blockId) === true
       return {
         blockId,
         occurrenceCount: occurrences.length,
-        duplicateClassification: allFingerprintsEqual ? 'IDENTICAL' : 'CONFLICTING',
+        duplicateClassification: identical ? 'IDENTICAL' : 'CONFLICTING',
         allFingerprintsEqual,
+        identicalNormalizationApplied: normalized,
+        normalizedOccurrenceCount: normalized ? 1 : occurrences.length,
         occurrences,
       }
     })
