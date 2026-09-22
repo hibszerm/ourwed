@@ -113,7 +113,7 @@ const g02Deposit = execute([
   source('g02-deposit', 'Zadatek należy wpłacić do 7 marca 2027.'),
 ], g02TargetDataset)
 assert.equal(g02Deposit.execution?.ok, true)
-assert.equal(outputText(g02Deposit, 'g02-deposit'), 'Zadatek należy wpłacić 8 listopada 2026.')
+assert.equal(outputText(g02Deposit, 'g02-deposit'), 'Zadatek należy wpłacić do 8 listopada 2026.')
 assert.equal(parseFlexibleDate('8 listopada 2026'), '2026-11-08')
 if (g02Deposit.execution?.ok) {
   assert.equal('requiresUserInputDates' in g02Deposit.execution, false)

@@ -168,12 +168,28 @@ export type GroundedFinanceEvidenceOutcome = GroundedFinanceEvidence & {
 export type DateSemanticConcept = 'wedding_date' | 'execution_date'
 
 export type RequiresUserInputDate = {
+  /** Stable identity derived from the grounded source mapping. */
+  unresolvedDateId: string
+  /** Fingerprint of the complete grounded source paragraph set for stale-resume protection. */
+  documentStateId: string
   sourceBlockId: string
   anchor: string
   span: { start: number; end: number }
   role?: string
   label?: string
   reason: string
+}
+
+/** Canonical ISO date supplied for a currently unresolved grounded mapping. */
+export type SuppliedDateValue = {
+  unresolvedDateId: string
+  value: string
+}
+
+/** Resume inputs are bound to the exact source state that produced the requests. */
+export type SuppliedDateValues = {
+  documentStateId: string
+  values: readonly SuppliedDateValue[]
 }
 
 export type GroundedDateEvidence = {

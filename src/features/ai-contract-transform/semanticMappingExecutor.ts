@@ -2,7 +2,7 @@ import { canonicalizeParagraphText, extractCanonicalParagraphText } from '../doc
 import { replaceGroundedTextSpan } from '../documents/template/docxParagraphEditor'
 import { formatDateLikeSource, formatMoneyLikeSource } from '@/features/ai-contract-lab/resolveTypedSourceSpan'
 import type { ContractTransformationDataset } from './types'
-import type { RequiresUserInputDate } from './types'
+import type { RequiresUserInputDate, SuppliedDateValues } from './types'
 import { polishContractMoneyWords } from './polishContractMoneyWords'
 import { parsePlnAmountInteger } from './quality/plnAmountSurface'
 import {
@@ -36,7 +36,8 @@ export type SemanticMappingExecutionResult =
       spanEdits: Array<{ blockId: string; span: { start: number; end: number }; replacement: string }>
     }
   | { ok: false; code: SemanticMappingExecutionFailureCode; mappingIndex?: number }
-  | { ok: false; code: 'requires_user_input'; mappingIndex?: number; requiresUserInputDates: RequiresUserInputDate[] }
+  | { ok: false; code: 'requires_user_input'; mappingIndex?: number; documentStateId: string; requiresUserInputDates: RequiresUserInputDate[] }
+  | { ok: false; code: 'invalid_supplied_date_values' | 'stale_supplied_date_values' | 'duplicate_supplied_date_id' | 'unknown_supplied_date_id' | 'invalid_supplied_date_value' }
 
 export type EvaluationNameFormResolver = (input: {
   canonicalIdentity: string
@@ -52,6 +53,8 @@ export function executeSemanticMappings(input: {
   sourceCustomerIdentities?: readonly (string | undefined)[]
   /** Explicit offline-evaluation seam; production callers leave this unset. */
   evaluationNameFormResolver?: EvaluationNameFormResolver
+  /** Values for unresolved grounded mappings, bound to the original source state. */
+  suppliedDateValues?: SuppliedDateValues
 }): SemanticMappingExecutionResult {
   const sourceById = new Map<string, string>()
   for (const source of input.sourceParagraphs) {
@@ -61,6 +64,21 @@ export function executeSemanticMappings(input: {
 
   const prepared: Array<ResolvedSemanticMapping & { replacement: string; inputIndex: number }> = []
   const requiresUserInputDates: RequiresUserInputDate[] = []
+  const documentStateId = fingerprintSourceState(input.sourceParagraphs)
+  const suppliedById = new Map<string, string>()
+  if (input.suppliedDateValues) {
+    if (input.suppliedDateValues.documentStateId !== documentStateId || !Array.isArray(input.suppliedDateValues.values)) {
+      return { ok: false, code: 'stale_supplied_date_values' }
+    }
+    for (const supplied of input.suppliedDateValues.values) {
+      if (!supplied || typeof supplied.unresolvedDateId !== 'string' || typeof supplied.value !== 'string') {
+        return { ok: false, code: 'invalid_supplied_date_values' }
+      }
+      if (suppliedById.has(supplied.unresolvedDateId)) return { ok: false, code: 'duplicate_supplied_date_id' }
+      if (!isCanonicalIsoDate(supplied.value)) return { ok: false, code: 'invalid_supplied_date_value' }
+      suppliedById.set(supplied.unresolvedDateId, supplied.value)
+    }
+  }
   const executionDateMappings = input.resolvedMappings.filter((mapping) => mapping.concept === 'execution_date')
   for (let index = 0; index < input.resolvedMappings.length; index++) {
     const mapping = input.resolvedMappings[index]!
@@ -74,7 +92,14 @@ export function executeSemanticMappings(input: {
     if (!rendered.ok) {
       if (rendered.code === 'requires_user_input') {
         const role = dateRoleForMapping(mapping)
-        requiresUserInputDates.push({ sourceBlockId: mapping.sourceBlockId, anchor: mapping.anchor, span: { start: mapping.span.start, end: mapping.span.end }, ...(role ? { role, label: dateRoleLabel(role) } : {}), reason: rendered.reason })
+        const unresolvedDateId = stableUnresolvedDateId(mapping, role)
+        requiresUserInputDates.push({ unresolvedDateId, documentStateId, sourceBlockId: mapping.sourceBlockId, anchor: mapping.anchor, span: { start: mapping.span.start, end: mapping.span.end }, ...(role ? { role, label: dateRoleLabel(role) } : {}), reason: rendered.reason })
+        const suppliedValue = suppliedById.get(unresolvedDateId)
+        if (suppliedValue !== undefined) {
+          const replacement = formatDatePreservingDuePrefix(suppliedValue, mapping.anchor)
+          if (!replacement) return { ok: false, code: 'invalid_supplied_date_value' }
+          prepared.push({ ...mapping, replacement, inputIndex: index })
+        }
         continue
       }
       return { ok: false, code: rendered.code, mappingIndex: index }
@@ -82,7 +107,13 @@ export function executeSemanticMappings(input: {
     prepared.push({ ...mapping, replacement: rendered.value, inputIndex: index })
   }
 
-  if (requiresUserInputDates.length > 0) return { ok: false, code: 'requires_user_input', requiresUserInputDates }
+  for (const suppliedId of suppliedById.keys()) {
+    if (!requiresUserInputDates.some((item) => item.unresolvedDateId === suppliedId)) {
+      return { ok: false, code: 'unknown_supplied_date_id' }
+    }
+  }
+  const stillUnresolved = requiresUserInputDates.filter((item) => !suppliedById.has(item.unresolvedDateId))
+  if (stillUnresolved.length > 0) return { ok: false, code: 'requires_user_input', documentStateId, requiresUserInputDates: stillUnresolved }
 
   const byBlock = new Map<string, typeof prepared>()
   for (const mapping of prepared) {
@@ -216,14 +247,14 @@ function renderCanonicalValue(
     case 'execution_date': {
       const date = (mapping.concept === 'wedding_date' ? dataset.dates.weddingDate : dataset.dates.contractExecutionDate).trim()
       if (!date) return { ok: false, code: 'missing_canonical_value' }
-      const value = formatDateLikeSource({ canonicalDate: date, sourceText: source })
+      const value = formatDatePreservingDuePrefix(date, mapping.anchor)
       return value ? { ok: true, value } : { ok: false, code: 'unrenderable_surface' }
     }
     case 'final_payment_due_date':
     case 'delivery_due_date': {
       const date = mapping.concept === 'final_payment_due_date' ? dataset.dates.finalPaymentDueDate : dataset.dates.deliveryDueDate
       if (!date?.trim()) return { ok: false, code: 'requires_user_input', reason: `No authoritative ${mapping.concept} is available` }
-      const value = formatDateLikeSource({ canonicalDate: date, sourceText: source })
+      const value = formatDatePreservingDuePrefix(date, mapping.anchor)
       return value ? { ok: true, value } : { ok: false, code: 'unrenderable_surface' }
     }
     case 'deposit_due_date':
@@ -311,8 +342,51 @@ function resolveDepositDueDate(input: {
   const offsetDays = Math.round((sourceDeposit.getTime() - sourceExecution.getTime()) / 86_400_000)
   currentExecution.setUTCDate(currentExecution.getUTCDate() + offsetDays)
   const canonical = currentExecution.toISOString().slice(0, 10)
-  const value = formatDateLikeSource({ canonicalDate: canonical, sourceText: input.mapping.anchor })
+  const value = formatDatePreservingDuePrefix(canonical, input.mapping.anchor)
   return value ? { ok: true, value } : { ok: false, code: 'unrenderable_surface' }
+}
+
+function stableUnresolvedDateId(mapping: ResolvedSemanticMapping, role?: string): string {
+  const baseDateConcept = 'baseDateConcept' in mapping ? mapping.baseDateConcept ?? '' : ''
+  const relation = 'relation' in mapping ? JSON.stringify(mapping.relation ?? null) : ''
+  return [
+    'unresolved-date-v1',
+    encodeURIComponent(mapping.sourceBlockId),
+    `${mapping.span.start}-${mapping.span.end}`,
+    encodeURIComponent(mapping.concept),
+    encodeURIComponent(role ?? ''),
+    encodeURIComponent(baseDateConcept),
+    encodeURIComponent(relation),
+    String(mapping.occurrence ?? 0),
+  ].join(':')
+}
+
+function fingerprintSourceState(sourceParagraphs: readonly { blockId: string; paragraphXml: string }[]): string {
+  const serialized = JSON.stringify([...sourceParagraphs]
+    .map(({ blockId, paragraphXml }) => [blockId, paragraphXml])
+    .sort(([a], [b]) => String(a) < String(b) ? -1 : String(a) > String(b) ? 1 : 0))
+  // A 128-bit FNV-1a fingerprint makes the resume token deterministic without
+  // retaining source prose or introducing a Node-only crypto dependency.
+  let fingerprint = 0x6c62272e07bb014262b821756295c58dn
+  const prime = 0x0000000001000000000000000000013bn
+  for (let index = 0; index < serialized.length; index++) {
+    fingerprint ^= BigInt(serialized.charCodeAt(index))
+    fingerprint = BigInt.asUintN(128, fingerprint * prime)
+  }
+  return `source-state-v1:${fingerprint.toString(16).padStart(32, '0')}`
+}
+
+function isCanonicalIsoDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+  return parseFlexibleDate(value) === value
+}
+
+function formatDatePreservingDuePrefix(canonicalDate: string, sourceText: string): string | null {
+  const formatted = formatDateLikeSource({ canonicalDate, sourceText })
+  if (!formatted) return null
+  const duePrefix = sourceText.match(/^\s*(do)\s+/i)?.[1]
+  const yearSuffix = /\s+roku\s*$/i.test(sourceText) ? ' roku' : ''
+  return `${duePrefix ? `${duePrefix} ` : ''}${formatted}${yearSuffix}`
 }
 
 function parseValidDate(value: string): Date | null {
