@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { buildSemanticMapResponseSchema, buildSemanticMapRequest } from './semanticMapModelContract'
+import { DATE_ROLES } from './semanticMapping'
 import { buildGoldenScenarios } from './cg7/goldenScenarios'
 import { buildContractTransformationDataset } from './transformationDataset'
 
@@ -17,15 +18,23 @@ function check(value: unknown, path = '$') {
 const schema = buildSemanticMapResponseSchema()
 check(schema)
 const item = schema.schema.properties.semanticMappings.items
-assert.ok(item.properties.dateRole)
-assert.ok(item.properties.baseDateConcept)
-assert.ok(item.properties.relation)
-assert.ok(item.required.includes('dateRole') && item.required.includes('baseDateConcept') && item.required.includes('relation'))
-assert.deepEqual(item.properties.relation.properties && Object.keys(item.properties.relation.properties).sort(), ['amount', 'direction', 'unit'])
-assert.deepEqual(item.properties.relation.required, ['direction', 'amount', 'unit'])
-assert.deepEqual(item.properties.dateRole.type, ['string', 'null'])
-assert.deepEqual(item.properties.baseDateConcept.type, ['string', 'null'])
-assert.deepEqual(item.properties.relation.type, ['object', 'null'])
+assert.equal(item.anyOf.length, 3)
+for (const variant of item.anyOf) {
+  assert.ok(variant.properties.dateRole)
+  assert.ok(variant.properties.baseDateConcept)
+  assert.ok(variant.properties.relation)
+  assert.ok(variant.required.includes('dateRole') && variant.required.includes('baseDateConcept') && variant.required.includes('relation'))
+}
+const canonicalDateVariant = item.anyOf.find((variant) => variant.properties.concept.enum.includes('deposit_due_date'))!
+assert.deepEqual(canonicalDateVariant.properties.dateRole.enum, [null])
+assert.deepEqual(canonicalDateVariant.properties.baseDateConcept.enum, [null])
+assert.deepEqual(canonicalDateVariant.properties.relation.enum, [null])
+const ambiguousDateVariant = item.anyOf.find((variant) => variant.properties.concept.enum.includes('ambiguous_date'))!
+assert.deepEqual(ambiguousDateVariant.properties.dateRole.enum, [...DATE_ROLES, null])
+assert.deepEqual(ambiguousDateVariant.properties.baseDateConcept.enum, [null])
+assert.deepEqual(ambiguousDateVariant.properties.relation.enum, [null])
+assert.equal(item.anyOf.some((variant) => variant.properties.concept.enum.includes('dependent_date')), false)
+assert.equal(item.anyOf.some((variant) => variant.properties.concept.enum.includes('fixed_date')), false)
 
 const scenario = buildGoldenScenarios().find((entry) => entry.caseId === 'G02')!
 const dataset = buildContractTransformationDataset({ wedding: scenario.wedding, package: scenario.package, extras: scenario.extras, currentDate: '2026-09-22' })

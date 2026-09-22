@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { resolveModelFromEnv } from './fullAiRewritePromptShared'
-import { CUSTOMER_NAME_FORMS, SEMANTIC_CONCEPTS } from './semanticMapping'
+import { CUSTOMER_NAME_FORMS, DATE_ROLES, SEMANTIC_CONCEPTS } from './semanticMapping'
 import {
   SEMANTIC_MAP_MAX_OUTPUT_TOKENS,
   SEMANTIC_MAP_MODEL_IDS,
@@ -65,15 +65,28 @@ run('strict semanticMappings schema derives closed concepts and has no legacy fi
   const schema = buildSemanticMapResponseSchema()
   assert.equal(schema.strict, true)
   assert.deepEqual(schema.schema.required, ['semanticMappings'])
-  assert.deepEqual(schema.schema.properties.semanticMappings.items.required, ['sourceBlockId', 'concept', 'anchor', 'occurrence', 'customerIndex', 'customerIndexes', 'nameForm', 'dateRole', 'baseDateConcept', 'relation'])
-  assert.deepEqual(schema.schema.properties.semanticMappings.items.properties.concept.enum, [...SEMANTIC_CONCEPTS])
-  assert.deepEqual(schema.schema.properties.semanticMappings.items.properties.occurrence.type, ['integer', 'null'])
-  assert.deepEqual(schema.schema.properties.semanticMappings.items.properties.customerIndex.type, ['integer', 'null'])
-  assert.deepEqual(schema.schema.properties.semanticMappings.items.properties.customerIndexes.type, ['array', 'null'])
-  assert.deepEqual(schema.schema.properties.semanticMappings.items.properties.nameForm.type, ['string', 'null'])
-  assert.deepEqual(schema.schema.properties.semanticMappings.items.properties.nameForm.enum, [...CUSTOMER_NAME_FORMS, null])
+  const variants = schema.schema.properties.semanticMappings.items.anyOf
+  const allConcepts = variants.flatMap((variant) => [...variant.properties.concept.enum]).sort()
+  assert.deepEqual(allConcepts, SEMANTIC_CONCEPTS.filter((concept) => concept !== 'dependent_date' && concept !== 'fixed_date').sort())
+  for (const variant of variants) {
+    assert.deepEqual(variant.required, ['sourceBlockId', 'concept', 'anchor', 'occurrence', 'customerIndex', 'customerIndexes', 'nameForm', 'dateRole', 'baseDateConcept', 'relation'])
+    assert.deepEqual(Object.keys(variant.properties).sort(), [...variant.required].sort())
+    assert.deepEqual(variant.properties.occurrence.type, ['integer', 'null'])
+    assert.deepEqual(variant.properties.customerIndex.type, ['integer', 'null'])
+    assert.deepEqual(variant.properties.customerIndexes.type, ['array', 'null'])
+    assert.deepEqual(variant.properties.nameForm.type, ['string', 'null'])
+    assert.deepEqual(variant.properties.nameForm.enum, [...CUSTOMER_NAME_FORMS, null])
+  }
+  const canonicalDates = variants.find((variant) => variant.properties.concept.enum.includes('deposit_due_date'))!
+  assert.deepEqual(canonicalDates.properties.dateRole.enum, [null])
+  assert.deepEqual(canonicalDates.properties.baseDateConcept.enum, [null])
+  assert.deepEqual(canonicalDates.properties.relation.enum, [null])
+  const ambiguousDates = variants.find((variant) => variant.properties.concept.enum.includes('ambiguous_date'))!
+  assert.deepEqual(ambiguousDates.properties.dateRole.enum, [...DATE_ROLES, null])
+  assert.deepEqual(ambiguousDates.properties.baseDateConcept.enum, [null])
+  assert.deepEqual(ambiguousDates.properties.relation.enum, [null])
   assert.equal(schema.schema.additionalProperties, false)
-  assert.equal(schema.schema.properties.semanticMappings.items.additionalProperties, false)
+  for (const variant of variants) assert.equal(variant.additionalProperties, false)
   for (const forbidden of ['changedBlocks', 'replacement', 'financeEvidence', 'dateEvidence', 'confidence', 'explanation', 'start', 'end', 'notes']) {
     assert.equal(forbidden in schema.schema.properties, false, `${forbidden} absent`)
   }
@@ -103,10 +116,15 @@ run('prompt defines semantic-only work, exact anchors, and protected product bou
     'never provide or generate a customer-name replacement',
     'Map final_payment_due_date and delivery_due_date',
     'the system derives the calendar-day difference',
-    'Never provide a numeric offset',
-    'use ambiguous_date with the appropriate dateRole',
-    'Do not omit relevant concrete dates',
-    'Use ambiguous_date with the known dateRole for unsupported dates',
+    'Exhaustively map every relevant CONCRETE DATE LITERAL',
+    'A date/deadline mapping anchor must contain a concrete date literal',
+    'Do not map relative contractual timing or deadline clauses that contain no concrete date literal',
+    'remain authoritative source text, are not rewritten, and must not create user-input requirements',
+    'For wedding_date, execution_date, deposit_due_date, final_payment_due_date, and delivery_due_date, set dateRole, baseDateConcept, and relation to null',
+    'For ambiguous_date, set the known dateRole or null, and set baseDateConcept and relation to null',
+    'The model identifies roles only and never calculates replacement dates or authors numeric offsets',
+    'Exhaustively map every relevant CONCRETE DATE LITERAL',
+    'If a concrete date literal is present but its date role cannot be safely resolved, use ambiguous_date',
     'Do not use fixed_date',
   ]) assert.ok(SEMANTIC_MAP_SYSTEM_PROMPT.includes(instruction), `prompt has ${instruction}`)
   for (const forbidden of ['synonym dictionary', 'changedBlocks[].text', 'write a replacement paragraph']) {

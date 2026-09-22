@@ -42,7 +42,7 @@ DATE AND FINANCE ROLES
 wedding_date is the actual wedding/event date; execution_date is when the agreement is executed, signed, or concluded; deposit_due_date is the deposit/advance deadline; final_payment_due_date is the final/remaining-payment deadline; delivery_due_date is the generic material-delivery deadline. The system supplies canonical wedding, execution, final-payment, and delivery dates. total is the complete contract/commercial value; deposit is the deposit/advance amount; remaining is the amount still payable. The *_words concepts are the written-out textual representation of their corresponding numeric amount. Do not calculate, infer, or invent financial obligations.
 
 DATE COVERAGE
-Inspect every relevant concrete contractual date. Map wedding_date and execution_date directly when those roles are established. Map final_payment_due_date and delivery_due_date when the template surface represents those OurWed-owned roles; the system supplies their values. Map deposit_due_date for the deposit/advance deadline and also map its source execution_date when present; the system derives the calendar-day difference from those two grounded source literals. Never provide a numeric offset. If deposit timing uses business days, months, approximate language, or another unsupported relation, use ambiguous_date with the appropriate dateRole so the system requests user input. Use ambiguous_date with the known dateRole for unsupported dates such as brief_due_date or album_due_date; use other_contractual_date or null when the date role is unknown. Do not use fixed_date; it is retained for compatibility and routes to user input. Do not omit relevant concrete dates. Never use dependent_date to calculate a date; it is retained for compatibility only and routes to user input. Ambiguous dates may have a null dateRole, with null baseDateConcept and relation.
+Exhaustively map every relevant CONCRETE DATE LITERAL that may need deterministic replacement, not every textual timing rule. A date/deadline mapping anchor must contain a concrete date literal. Do not map relative contractual timing or deadline clauses that contain no concrete date literal; they remain authoritative source text, are not rewritten, and must not create user-input requirements. Map wedding_date and execution_date directly when those roles are established. Map final_payment_due_date and delivery_due_date when a concrete date literal represents those OurWed-owned roles; the system supplies their canonical values. Map deposit_due_date only when the source contains a concrete deposit due-date literal, and also map its concrete source execution_date when present; the system derives the calendar-day difference from those two grounded source dates. The model identifies roles only and never calculates replacement dates or authors numeric offsets. For wedding_date, execution_date, deposit_due_date, final_payment_due_date, and delivery_due_date, set dateRole, baseDateConcept, and relation to null. For ambiguous_date, set the known dateRole or null, and set baseDateConcept and relation to null. If a concrete date literal is present but its date role cannot be safely resolved, use ambiguous_date so the system requests user input. Do not use fixed_date or dependent_date; they are retained for compatibility only. Never provide a numeric offset.
 
 LOCATION ROLES
 preparation_location is the preparation location generally; bride_preparation_location, groom_preparation_location, and shared_preparation_location identify those distinct preparation roles; ceremony_location is the ceremony location; reception_location is the reception venue/location. Keep roles distinct and map only source values that actually represent that role.
@@ -101,26 +101,53 @@ export function buildSemanticMapResponseSchema() {
         semanticMappings: {
           type: 'array',
           items: {
-            type: 'object',
-            additionalProperties: false,
-            required: ['sourceBlockId', 'concept', 'anchor', 'occurrence', 'customerIndex', 'customerIndexes', 'nameForm', 'dateRole', 'baseDateConcept', 'relation'],
-            properties: {
-              sourceBlockId: { type: 'string', minLength: 1 },
-              concept: { type: 'string', enum: [...SEMANTIC_CONCEPTS] },
-              anchor: { type: 'string', minLength: 1 },
-              occurrence: { type: ['integer', 'null'], minimum: 0 },
-              customerIndex: { type: ['integer', 'null'], enum: [0, 1, null] },
-              customerIndexes: { type: ['array', 'null'], items: { type: 'integer', enum: [0, 1] } },
-              nameForm: { type: ['string', 'null'], enum: [...CUSTOMER_NAME_FORMS, null] },
-              dateRole: { type: ['string', 'null'], enum: [...DATE_ROLES, null] },
-              baseDateConcept: { type: ['string', 'null'], enum: [...DATE_BASE_CONCEPTS, null] },
-              relation: { type: ['object', 'null'], additionalProperties: false, properties: { direction: { type: 'string', enum: [...DATE_RELATION_DIRECTIONS] }, amount: { type: 'integer', minimum: 0 }, unit: { type: 'string', enum: [...DATE_RELATION_UNITS] } }, required: ['direction', 'amount', 'unit'] },
-            },
+            // Strict Structured Outputs supports nested anyOf when each branch is
+            // a closed object with all fields required. Branches encode the parser's
+            // date-field invariants without changing the response envelope.
+            anyOf: buildSemanticMappingItemVariants(),
           },
         },
       },
     },
   } as const
+}
+
+function buildSemanticMappingItemVariants() {
+  const providerConcepts = SEMANTIC_CONCEPTS.filter((concept) => concept !== 'dependent_date' && concept !== 'fixed_date')
+  const dateConcepts = new Set(['ambiguous_date', 'deposit_due_date', 'final_payment_due_date', 'delivery_due_date', 'wedding_date', 'execution_date', 'dependent_date', 'fixed_date'])
+  const ordinaryConcepts = providerConcepts.filter((concept) => !dateConcepts.has(concept))
+  const commonRequired = ['sourceBlockId', 'concept', 'anchor', 'occurrence', 'customerIndex', 'customerIndexes', 'nameForm', 'dateRole', 'baseDateConcept', 'relation']
+  const commonProperties = {
+    sourceBlockId: { type: 'string', minLength: 1 },
+    anchor: { type: 'string', minLength: 1 },
+    occurrence: { type: ['integer', 'null'], minimum: 0 },
+    customerIndex: { type: ['integer', 'null'], enum: [0, 1, null] },
+    customerIndexes: { type: ['array', 'null'], items: { type: 'integer', enum: [0, 1] } },
+    nameForm: { type: ['string', 'null'], enum: [...CUSTOMER_NAME_FORMS, null] },
+  } as const
+  const closedObject = (input: {
+    concepts: readonly string[]
+    dateRole: unknown
+    baseDateConcept: unknown
+    relation: unknown
+  }) => ({
+    type: 'object',
+    additionalProperties: false,
+    required: commonRequired,
+    properties: {
+      ...commonProperties,
+      concept: { type: 'string', enum: [...input.concepts] },
+      dateRole: input.dateRole,
+      baseDateConcept: input.baseDateConcept,
+      relation: input.relation,
+    },
+  })
+  const nullField = { type: 'null', enum: [null] } as const
+  return [
+    closedObject({ concepts: ordinaryConcepts, dateRole: nullField, baseDateConcept: nullField, relation: nullField }),
+    closedObject({ concepts: ['deposit_due_date', 'final_payment_due_date', 'delivery_due_date', 'wedding_date', 'execution_date'], dateRole: nullField, baseDateConcept: nullField, relation: nullField }),
+    closedObject({ concepts: ['ambiguous_date'], dateRole: { type: ['string', 'null'], enum: [...DATE_ROLES, null] }, baseDateConcept: nullField, relation: nullField }),
+  ] as const
 }
 
 export type SemanticMapProviderRequest = {
