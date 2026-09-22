@@ -31,6 +31,8 @@ export type SemanticMapping = {
   concept: SemanticConcept
   anchor: string
   occurrence?: number
+  /** Zero-based customer ownership for customer_address/customer_phone only. */
+  customerIndex?: number
 }
 
 export type IndexedSourceParagraph = {
@@ -67,11 +69,15 @@ function isMapping(value: unknown): value is SemanticMapping {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const row = value as Record<string, unknown>
   const keys = Object.keys(row)
-  return keys.every((key) => ['sourceBlockId', 'concept', 'anchor', 'occurrence'].includes(key)) &&
+  const contactConcept = row.concept === 'customer_address' || row.concept === 'customer_phone'
+  return keys.every((key) => ['sourceBlockId', 'concept', 'anchor', 'occurrence', 'customerIndex'].includes(key)) &&
     typeof row.sourceBlockId === 'string' && row.sourceBlockId.trim().length > 0 &&
     isSemanticConcept(row.concept) &&
     typeof row.anchor === 'string' && row.anchor.trim().length > 0 &&
-    (row.occurrence === undefined || (Number.isInteger(row.occurrence) && (row.occurrence as number) >= 0))
+    (row.occurrence === undefined || (Number.isInteger(row.occurrence) && (row.occurrence as number) >= 0)) &&
+    (contactConcept
+      ? Number.isInteger(row.customerIndex) && (row.customerIndex as number) >= 0
+      : row.customerIndex === undefined || row.customerIndex === null)
 }
 
 /**
@@ -124,7 +130,7 @@ export function resolveSemanticMappings(input: {
     const current = resolved[index]!
     const duplicate = normalized.find((prior) => sameSpan(prior, current))
     if (duplicate) {
-      if (duplicate.concept !== current.concept) return { ok: false, code: 'span_conflict', mappingIndex: index }
+      if (duplicate.concept !== current.concept || duplicate.customerIndex !== current.customerIndex) return { ok: false, code: 'span_conflict', mappingIndex: index }
       // Exact-identical claims coalesce so an executor can perform one mutation.
       continue
     }

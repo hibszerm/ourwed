@@ -16,6 +16,7 @@ export type SemanticMappingExecutionFailureCode =
   | 'grounded_span_stale'
   | 'overlapping_spans'
   | 'missing_canonical_value'
+  | 'invalid_customer_index'
   | 'unsupported_concept'
   | 'unrenderable_surface'
   | 'unsafe_ooxml_mutation'
@@ -94,7 +95,7 @@ export function executeSemanticMappings(input: {
 
 type RenderResult =
   | { ok: true; value: string }
-  | { ok: false; code: 'missing_canonical_value' | 'unsupported_concept' | 'unrenderable_surface' }
+  | { ok: false; code: 'invalid_customer_index' | 'missing_canonical_value' | 'unsupported_concept' | 'unrenderable_surface' }
 
 function renderCanonicalValue(
   mapping: ResolvedSemanticMapping,
@@ -116,13 +117,17 @@ function renderCanonicalValue(
         : { ok: false, code: 'unrenderable_surface' }
     }
     case 'customer_address': {
-      const address = dataset.clients.address?.trim()
+      const customer = getOwnedCustomer(mapping, dataset)
+      if (!customer.ok) return customer
+      const address = customer.customer.address?.trim()
       if (!address) return { ok: false, code: 'missing_canonical_value' }
       const value = renderCustomerAddress(address)
       return value ? { ok: true, value } : { ok: false, code: 'unrenderable_surface' }
     }
     case 'customer_phone': {
-      const phone = dataset.clients.phone?.trim()
+      const customer = getOwnedCustomer(mapping, dataset)
+      if (!customer.ok) return customer
+      const phone = customer.customer.phone?.trim()
       return phone ? { ok: true, value: phone } : { ok: false, code: 'missing_canonical_value' }
     }
     case 'wedding_date':
@@ -182,6 +187,17 @@ function renderCanonicalValue(
     default:
       return { ok: false, code: 'unsupported_concept' }
   }
+}
+
+function getOwnedCustomer(
+  mapping: ResolvedSemanticMapping,
+  dataset: ContractTransformationDataset,
+): { ok: true; customer: NonNullable<ContractTransformationDataset['clients']['customers']>[number] } | { ok: false; code: 'invalid_customer_index' } {
+  if (!Number.isInteger(mapping.customerIndex) || (mapping.customerIndex ?? -1) < 0) {
+    return { ok: false, code: 'invalid_customer_index' }
+  }
+  const customer = dataset.clients.customers?.[mapping.customerIndex!]
+  return customer ? { ok: true, customer } : { ok: false, code: 'invalid_customer_index' }
 }
 
 /** The shared renderer has a broader legacy rule; accept only its proven forms here. */

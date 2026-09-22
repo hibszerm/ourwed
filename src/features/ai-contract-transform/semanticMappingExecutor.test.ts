@@ -14,9 +14,16 @@ function run(name: string, fn: () => void) {
 const p = (text: string) => `<w:p><w:r><w:t>${text}</w:t></w:r></w:p>`
 const map = (sourceBlockId: string, concept: SemanticMapping['concept'], anchor: string, occurrence?: number): SemanticMapping => ({
   sourceBlockId, concept, anchor, ...(occurrence === undefined ? {} : { occurrence }),
+  ...(concept === 'customer_address' || concept === 'customer_phone' ? { customerIndex: 0 } : {}),
 })
 const dataset: ContractTransformationDataset = {
-  clients: { displayNames: 'Maria Kowalska i Ewa Nowak', personCount: 2, address: 'Kwiatowa 8, 00-001 Warszawa', phone: '+48 555 666 777' },
+  clients: {
+    displayNames: 'Maria Kowalska i Ewa Nowak', personCount: 2, address: 'Kwiatowa 8, 00-001 Warszawa', phone: '+48 555 666 777',
+    customers: [
+      { displayName: 'Maria Kowalska', address: 'ul. Kwiatowa 8, 00-001 Warszawa', phone: '+48 555 666 777' },
+      { displayName: 'Ewa Nowak', address: 'ul. Leśna 3, 90-001 Łódź', phone: '+48 555 666 888' },
+    ],
+  },
   dates: { weddingDate: '2026-08-14', contractExecutionDate: '2026-07-01' },
   finances: {
     contractValueFormatted: '4 800 zł',
@@ -135,6 +142,35 @@ run('table-cell finance, locations, phone, and address inject available canonica
   assert(visible(result, 'reception') === 'ul. Radosna 10, Gdańsk', 'reception address rendered')
   assert(visible(result, 'phone') === '+48 555 666 777', 'canonical phone rendered')
   assert(visible(result, 'address') === 'ul. Kwiatowa 8, 00-001 Warszawa', 'canonical address rendered')
+})
+
+run('contact mappings use the indexed canonical customer without cross-customer fallback', () => {
+  const sources = [
+    { blockId: 'c1-address', paragraphXml: p('Old address one') },
+    { blockId: 'c1-phone', paragraphXml: p('Old phone one') },
+    { blockId: 'c2-address', paragraphXml: p('Old address two') },
+    { blockId: 'c2-phone', paragraphXml: p('Old phone two') },
+  ]
+  const result = execute([
+    map('c1-address', 'customer_address', 'Old address one'),
+    map('c1-phone', 'customer_phone', 'Old phone one'),
+    { ...map('c2-address', 'customer_address', 'Old address two'), customerIndex: 1 },
+    { ...map('c2-phone', 'customer_phone', 'Old phone two'), customerIndex: 1 },
+  ], sources)
+  assert(visible(result, 'c1-address') === 'ul. Kwiatowa 8, 00-001 Warszawa', 'customer 1 address applied')
+  assert(visible(result, 'c1-phone') === '+48 555 666 777', 'customer 1 phone applied')
+  assert(visible(result, 'c2-address') === 'ul. Leśna 3, 90-001 Łódź', 'customer 2 address applied')
+  assert(visible(result, 'c2-phone') === '+48 555 666 888', 'customer 2 phone applied')
+  assert(!visible(result, 'c2-address').includes('Kwiatowa') && !visible(result, 'c2-phone').includes('777'), 'customer 2 never receives customer 1 contacts')
+
+  const outOfRange = execute([{ ...map('c2-phone', 'customer_phone', 'Old phone two'), customerIndex: 2 }], sources)
+  assert(!outOfRange.ok && outOfRange.code === 'invalid_customer_index', 'out-of-range customer fails closed')
+  const missingAddressDataset = { ...dataset, clients: { ...dataset.clients, customers: [dataset.clients.customers![0]!, { displayName: 'Ewa Nowak', phone: '+48 555 666 888' }] } }
+  const missingAddress = execute([{ ...map('c2-address', 'customer_address', 'Old address two'), customerIndex: 1 }], sources, missingAddressDataset)
+  assert(!missingAddress.ok && missingAddress.code === 'missing_canonical_value', 'missing address fails closed without customer 1 fallback')
+  const missingPhoneDataset = { ...dataset, clients: { ...dataset.clients, customers: [dataset.clients.customers![0]!, { displayName: 'Ewa Nowak', address: 'ul. Leśna 3' }] } }
+  const missingPhone = execute([{ ...map('c2-phone', 'customer_phone', 'Old phone two'), customerIndex: 1 }], sources, missingPhoneDataset)
+  assert(!missingPhone.ok && missingPhone.code === 'missing_canonical_value', 'missing phone fails closed without customer 1 fallback')
 })
 
 run('repeated concept across blocks and same-block occurrences are all replaced', () => {

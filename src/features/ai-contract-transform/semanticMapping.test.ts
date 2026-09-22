@@ -11,8 +11,9 @@ const block = (blockId: string, text: string) => ({
   blockId,
   paragraphXml: `<w:p><w:r><w:t>${text}</w:t></w:r></w:p>`,
 })
-const mapping = (sourceBlockId: string, concept: string, anchor: string, occurrence?: number) => ({
+const mapping = (sourceBlockId: string, concept: string, anchor: string, occurrence?: number, customerIndex?: number) => ({
   sourceBlockId, concept, anchor, ...(occurrence === undefined ? {} : { occurrence }),
+  ...(concept === 'customer_address' || concept === 'customer_phone' ? { customerIndex: customerIndex ?? 0 } : {}),
 })
 const resolve = (mappings: unknown, sourceBlocks: ReturnType<typeof block>[]) =>
   resolveSemanticMappings({ mappings, sourceBlocks })
@@ -73,6 +74,23 @@ run('one span cannot have multiple semantic owners', () => {
     mapping('p1', 'customer_2_name', 'Jan Kowalski'),
   ], [block('p1', 'Jan Kowalski')])
   assert(!partyConflict.ok && partyConflict.code === 'span_conflict', 'party identity conflict rejected')
+})
+
+run('generic contact concepts require zero-based customer ownership and reject invalid ownership', () => {
+  const source = [block('contact', 'ul. Leśna 1 +48 555 000 111')]
+  for (const concept of ['customer_address', 'customer_phone']) {
+    const anchor = concept === 'customer_address' ? 'ul. Leśna 1' : '+48 555 000 111'
+    assert(!resolve([{ sourceBlockId: 'contact', concept, anchor }], source).ok, `${concept} requires customerIndex`)
+    assert(!resolve([mapping('contact', concept, anchor, undefined, -1)], source).ok, `${concept} rejects negative customerIndex`)
+  }
+  const ownerConflict = resolve([
+    mapping('contact', 'customer_address', 'ul. Leśna 1', undefined, 0),
+    mapping('contact', 'customer_address', 'ul. Leśna 1', undefined, 1),
+  ], source)
+  assert(!ownerConflict.ok && ownerConflict.code === 'span_conflict', 'same span assigned to different customers conflicts')
+  for (const concept of ['customer_1_name', 'wedding_date', 'total', 'reception_location']) {
+    assert(!resolve([{ ...mapping('contact', concept, 'ul. Leśna 1'), customerIndex: 0 }], source).ok, `${concept} rejects customer ownership`)
+  }
 })
 
 run('different non-overlapping concepts in one source block are allowed', () => {

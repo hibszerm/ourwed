@@ -32,6 +32,8 @@ export type ContractTransformationDataset = {
     personCount: 1 | 2
     address?: string
     phone?: string
+    /** Ordered CRM ownership slots: index 0 is partner1, index 1 is partner2. */
+    customers?: Array<{ displayName: string; address?: string; phone?: string }>
   }
   dates: {
     contractExecutionDate: string

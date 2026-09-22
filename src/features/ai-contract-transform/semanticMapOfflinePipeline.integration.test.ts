@@ -67,15 +67,15 @@ async function sourceBlocks(): Promise<{ blocks: TransformDocumentBlock[]; parag
 }
 
 const mappings = [
-  { sourceBlockId: 'party-mixed', concept: 'customer_1_name', anchor: 'Anną Kowalską', occurrence: null },
-  { sourceBlockId: 'wedding-date', concept: 'wedding_date', anchor: '12.07.2025', occurrence: null },
-  { sourceBlockId: 'execution-date', concept: 'execution_date', anchor: '03.06.2025', occurrence: null },
-  { sourceBlockId: 'total', concept: 'total', anchor: '3500 zł', occurrence: null },
-  { sourceBlockId: 'deposit', concept: 'deposit', anchor: '800 zł', occurrence: null },
-  { sourceBlockId: 'remaining', concept: 'remaining', anchor: '2700 zł', occurrence: null },
-  { sourceBlockId: 'remaining', concept: 'remaining_words', anchor: 'dwa tysiące siedemset złotych', occurrence: null },
-  { sourceBlockId: 'reception', concept: 'reception_location', anchor: 'Stara Sala, Warszawa', occurrence: null },
-  { sourceBlockId: 'table-total', concept: 'total', anchor: '900 zł', occurrence: null },
+  { sourceBlockId: 'party-mixed', concept: 'customer_1_name', anchor: 'Anną Kowalską', occurrence: null, customerIndex: null },
+  { sourceBlockId: 'wedding-date', concept: 'wedding_date', anchor: '12.07.2025', occurrence: null, customerIndex: null },
+  { sourceBlockId: 'execution-date', concept: 'execution_date', anchor: '03.06.2025', occurrence: null, customerIndex: null },
+  { sourceBlockId: 'total', concept: 'total', anchor: '3500 zł', occurrence: null, customerIndex: null },
+  { sourceBlockId: 'deposit', concept: 'deposit', anchor: '800 zł', occurrence: null, customerIndex: null },
+  { sourceBlockId: 'remaining', concept: 'remaining', anchor: '2700 zł', occurrence: null, customerIndex: null },
+  { sourceBlockId: 'remaining', concept: 'remaining_words', anchor: 'dwa tysiące siedemset złotych', occurrence: null, customerIndex: null },
+  { sourceBlockId: 'reception', concept: 'reception_location', anchor: 'Stara Sala, Warszawa', occurrence: null, customerIndex: null },
+  { sourceBlockId: 'table-total', concept: 'total', anchor: '900 zł', occurrence: null, customerIndex: null },
 ]
 
 async function runPositiveReplay() {
@@ -131,7 +131,7 @@ async function main() {
   }
 
   const negativePayload = { semanticMappings: [
-    { sourceBlockId: 'wedding-date', concept: 'wedding_date', anchor: 'not in source', occurrence: null },
+    { sourceBlockId: 'wedding-date', concept: 'wedding_date', anchor: 'not in source', occurrence: null, customerIndex: null },
   ] }
   const negativeParsed = parseSemanticMapResponse(negativePayload)
   assertThat(negativeParsed.ok, 'negative case still has strict provider shape')

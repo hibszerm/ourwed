@@ -19,7 +19,13 @@ function run(name: string, fn: () => void) {
 }
 
 const dataset: ContractTransformationDataset = {
-  clients: { displayNames: 'Anna Nowak i Jan Kowalski', personCount: 2, address: 'ul. Leśna 1', phone: '+48 555 000 111' },
+  clients: {
+    displayNames: 'Anna Nowak i Jan Kowalski', personCount: 2, address: 'ul. Leśna 1', phone: '+48 555 000 111',
+    customers: [
+      { displayName: 'Anna Nowak', address: 'ul. Leśna 1', phone: '+48 555 000 111' },
+      { displayName: 'Jan Kowalski', address: 'ul. Długa 2', phone: '+48 555 000 222' },
+    ],
+  },
   dates: { weddingDate: '2027-06-12', contractExecutionDate: '2026-09-22' },
   finances: {
     contractValueFormatted: '12 000 zł', contractValueWords: 'dwanaście tysięcy złotych',
@@ -59,9 +65,10 @@ run('strict semanticMappings schema derives closed concepts and has no legacy fi
   const schema = buildSemanticMapResponseSchema()
   assert.equal(schema.strict, true)
   assert.deepEqual(schema.schema.required, ['semanticMappings'])
-  assert.deepEqual(schema.schema.properties.semanticMappings.items.required, ['sourceBlockId', 'concept', 'anchor', 'occurrence'])
+  assert.deepEqual(schema.schema.properties.semanticMappings.items.required, ['sourceBlockId', 'concept', 'anchor', 'occurrence', 'customerIndex'])
   assert.deepEqual(schema.schema.properties.semanticMappings.items.properties.concept.enum, [...SEMANTIC_CONCEPTS])
   assert.deepEqual(schema.schema.properties.semanticMappings.items.properties.occurrence.type, ['integer', 'null'])
+  assert.deepEqual(schema.schema.properties.semanticMappings.items.properties.customerIndex.type, ['integer', 'null'])
   assert.equal(schema.schema.additionalProperties, false)
   assert.equal(schema.schema.properties.semanticMappings.items.additionalProperties, false)
   for (const forbidden of ['changedBlocks', 'replacement', 'financeEvidence', 'dateEvidence', 'confidence', 'explanation', 'start', 'end', 'notes']) {
@@ -80,6 +87,8 @@ run('prompt defines semantic-only work, exact anchors, and protected product bou
     'CRM facts are reference context only',
     'This task is one semantic-localization model call',
     'If meaning, ownership, role, or exact span is uncertain, omit',
+    'zero-based customerIndex from the ordered CRM customers',
+    'For every other concept, set customerIndex to null',
   ]) assert.ok(SEMANTIC_MAP_SYSTEM_PROMPT.includes(instruction), `prompt has ${instruction}`)
   for (const forbidden of ['synonym dictionary', 'changedBlocks[].text', 'write a replacement paragraph']) {
     assert.equal(SEMANTIC_MAP_SYSTEM_PROMPT.includes(forbidden), false, `prompt excludes ${forbidden}`)
@@ -100,6 +109,14 @@ run('Terra and Sol requests differ only by explicit model identifier', () => {
   assert.deepEqual(terraSemanticRequest, solSemanticRequest)
   const user = JSON.parse(terra.input[1]!.content) as Record<string, any>
   assert.equal(user.crmReferenceOnly.clients.displayNames, dataset.clients.displayNames)
+  assert.deepEqual(user.crmReferenceOnly.clients.customers.map((customer: { customerIndex: number }) => customer.customerIndex), [0, 1])
+  const withoutPerCustomerContacts = buildSemanticMapRequest({
+    candidate: 'terra', sourceBlocks, dataset: { ...dataset, clients: { ...dataset.clients, customers: undefined } },
+  })
+  const fallbackClients = JSON.parse(withoutPerCustomerContacts.input[1]!.content).crmReferenceOnly.clients
+  assert.deepEqual(fallbackClients.customers.map((customer: { customerIndex: number }) => customer.customerIndex), [0, 1], 'ordered identities remain explicit if contact details are unavailable')
+  assert.equal('address' in fallbackClients, false, 'ambiguous generic address is not exposed as customer ownership evidence')
+  assert.equal('phone' in fallbackClients, false, 'ambiguous generic phone is not exposed as customer ownership evidence')
   assert.equal('package' in user.crmReferenceOnly, false)
   assert.equal('additionalServices' in user.crmReferenceOnly, false)
   assert.equal(JSON.stringify(user).includes('Internal package data must not be sent'), false)
@@ -114,28 +131,36 @@ run('Terra and Sol requests differ only by explicit model identifier', () => {
 
 run('provider null occurrence normalizes to omitted internal property and grounds', () => {
   const parsed = parseSemanticMapResponse({ semanticMappings: [
-    { sourceBlockId: 'p1', concept: 'total', anchor: '1200 zł', occurrence: null },
+    { sourceBlockId: 'p1', concept: 'total', anchor: '1200 zł', occurrence: null, customerIndex: null },
   ] })
   assert.ok(parsed.ok)
   assert.equal(Object.prototype.hasOwnProperty.call(parsed.semanticMappings[0]!, 'occurrence'), false)
   const grounded = groundSemanticMapResponse({ semanticMappings: [
-    { sourceBlockId: 'p1', concept: 'total', anchor: '1200 zł', occurrence: null },
+    { sourceBlockId: 'p1', concept: 'total', anchor: '1200 zł', occurrence: null, customerIndex: null },
   ] }, [{ blockId: 'p1', paragraphXml: '<w:p><w:r><w:t>1200 zł</w:t></w:r></w:p>' }])
   assert.ok(grounded.ok)
   if (grounded.ok) assert.equal(grounded.mappings[0]?.occurrence, 0)
+  const contactParsed = parseSemanticMapResponse({ semanticMappings: [{ sourceBlockId: 'p1', concept: 'customer_address', anchor: 'ul. Leśna 1', occurrence: null, customerIndex: 1 }] })
+  assert.ok(contactParsed.ok)
+  if (contactParsed.ok) assert.equal(contactParsed.semanticMappings[0]?.customerIndex, 1)
+  const nullContactParsed = parseSemanticMapResponse({ semanticMappings: [{ sourceBlockId: 'p1', concept: 'customer_phone', anchor: '+48 555 000 111', occurrence: null, customerIndex: null }] })
+  assert.ok(nullContactParsed.ok)
+  if (nullContactParsed.ok) assert.equal(Object.hasOwn(nullContactParsed.semanticMappings[0]!, 'customerIndex'), false, 'provider null ownership normalizes to omitted')
+  const nullContactGrounding = groundSemanticMapResponse({ semanticMappings: [{ sourceBlockId: 'p1', concept: 'customer_phone', anchor: '+48 555 000 111', occurrence: null, customerIndex: null }] }, [{ blockId: 'p1', paragraphXml: '<w:p><w:r><w:t>+48 555 000 111</w:t></w:r></w:p>' }])
+  assert.equal(nullContactGrounding.ok, false, 'contact still requires non-null ownership after normalization')
 })
 
 run('normalization preserves explicit occurrences and rejects prohibited properties', () => {
   const parsed = parseSemanticMapResponse(JSON.stringify({ semanticMappings: [
-    { sourceBlockId: 'p1', concept: 'customer_1_name', anchor: 'Name', occurrence: 1 },
+    { sourceBlockId: 'p1', concept: 'customer_1_name', anchor: 'Name', occurrence: 1, customerIndex: null },
   ] }))
   assert.ok(parsed.ok)
   if (parsed.ok) assert.equal(parsed.semanticMappings[0]?.occurrence, 1)
   assert.equal(parseSemanticMapResponse({ semanticMappings: [], changedBlocks: [] }).ok, false)
-  assert.equal(parseSemanticMapResponse({ semanticMappings: [{ sourceBlockId: 'p', concept: 'total', anchor: '1200', occurrence: null, replacement: '900' }] }).ok, false)
-  assert.equal(parseSemanticMapResponse({ semanticMappings: [{ sourceBlockId: 'p', concept: 'total', anchor: '1200', occurrence: -1 }] }).ok, false)
-  assert.equal(parseSemanticMapResponse({ semanticMappings: [{ sourceBlockId: 'p', concept: 'extras', anchor: 'Photo booth', occurrence: null }] }).ok, false)
-  assert.equal(parseSemanticMapResponse({ semanticMappings: [{ sourceBlockId: 'p', concept: 'total', anchor: '1200' }] }).ok, false)
+  assert.equal(parseSemanticMapResponse({ semanticMappings: [{ sourceBlockId: 'p', concept: 'total', anchor: '1200', occurrence: null, customerIndex: null, replacement: '900' }] }).ok, false)
+  assert.equal(parseSemanticMapResponse({ semanticMappings: [{ sourceBlockId: 'p', concept: 'total', anchor: '1200', occurrence: -1, customerIndex: null }] }).ok, false)
+  assert.equal(parseSemanticMapResponse({ semanticMappings: [{ sourceBlockId: 'p', concept: 'extras', anchor: 'Photo booth', occurrence: null, customerIndex: null }] }).ok, false)
+  assert.equal(parseSemanticMapResponse({ semanticMappings: [{ sourceBlockId: 'p', concept: 'total', anchor: '1200', occurrence: null }] }).ok, false)
 })
 
 run('legacy production model default is unchanged and builder has no implicit candidate', () => {

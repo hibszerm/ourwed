@@ -154,6 +154,16 @@ export function buildContractTransformationDataset(input: {
     (c as { partner2Phone?: string }).partner2Phone?.trim() ||
     (c as { phone?: string }).phone?.trim() ||
     undefined
+  const customers = names.map((displayName, index) => {
+    const partnerIndex: 1 | 2 = index === 0 ? 1 : 2
+    const address = partnerAddress(wedding, partnerIndex)
+    const customerPhone = (partnerIndex === 1 ? c.partner1Phone : c.partner2Phone)?.trim()
+    return {
+      displayName,
+      ...(address ? { address } : {}),
+      ...(customerPhone ? { phone: customerPhone } : {}),
+    }
+  })
 
   const execution =
     plDate(input.currentDate) ??
@@ -229,6 +239,7 @@ export function buildContractTransformationDataset(input: {
       personCount,
       ...(address ? { address } : {}),
       ...(phone ? { phone } : {}),
+      customers,
     },
     dates: {
       contractExecutionDate: execution,
