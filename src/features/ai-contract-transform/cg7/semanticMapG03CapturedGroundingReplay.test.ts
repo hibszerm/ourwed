@@ -46,6 +46,9 @@ const ownershipAugmentedOfflineFixture = {
     customerIndex: Object.hasOwn(ownerByContactBlock, mapping.sourceBlockId)
       ? ownerByContactBlock[mapping.sourceBlockId]!
       : null,
+    nameForm: mapping.concept === 'customer_1_name' || mapping.concept === 'customer_2_name'
+      ? (mapping.anchor === 'Maja Przykładowa' || mapping.anchor === 'Kacper Modelowy' ? 'BASE' : 'INSTRUMENTAL')
+      : null,
   })),
 }
 const response = ownershipAugmentedOfflineFixture
@@ -72,17 +75,27 @@ const canonicalDataset = buildContractTransformationDataset({
 assert.deepEqual(canonicalDataset.clients.customers?.map((customer) => customer.displayName), ['Natalia Brzegowa', 'Filip Brzegowy'])
 assert.equal(resolved.mappings[3]?.concept, 'customer_2_name')
 assert.equal(resolved.mappings[3]?.anchor, 'Kacprem Modelowym')
+assert.equal(resolved.mappings[2]?.nameForm, 'INSTRUMENTAL')
+assert.equal(resolved.mappings[3]?.nameForm, 'INSTRUMENTAL')
 const sourceCustomerIdentities = ['Maja Przykładowa', 'Kacper Modelowy']
+const knownKacperExecution = executeSemanticMappings({
+  resolvedMappings: [resolved.mappings[3]!],
+  canonicalDataset,
+  sourceParagraphs,
+  sourceCustomerIdentities,
+})
+assert.equal(knownKacperExecution.ok, false)
+if (!knownKacperExecution.ok) assert.equal(knownKacperExecution.code, 'unsupported_name_form', 'Kacprem Modelowym remains blocked without an approved instrumental variant')
 const fullExecution = executeSemanticMappings({ resolvedMappings: resolved.mappings, canonicalDataset, sourceParagraphs, sourceCustomerIdentities })
 assert.equal(fullExecution.ok, false, 'full G03 remains fail-closed at the unrelated known name limitation')
 if (!fullExecution.ok) {
-  assert.equal(fullExecution.code, 'unrenderable_surface')
-  assert.equal(fullExecution.mappingIndex, 3)
+  assert.equal(fullExecution.code, 'unsupported_name_form')
+  assert.equal(fullExecution.mappingIndex, 2)
 }
 
 const exactNameMappings = resolved.mappings.filter((mapping) =>
   (mapping.concept === 'customer_1_name' || mapping.concept === 'customer_2_name') &&
-  sourceCustomerIdentities.includes(mapping.anchor),
+  mapping.nameForm === 'BASE' && sourceCustomerIdentities.includes(mapping.anchor),
 )
 assert.equal(exactNameMappings.length, 4, 'the four exact G03 table/signature names are selected')
 const exactNameExecution = executeSemanticMappings({
@@ -151,4 +164,4 @@ for (const tag of ['w:tbl', 'w:tr', 'w:tc']) {
   const countTags = (xml: string) => [...xml.matchAll(new RegExp(`<${tag}(?:\\s|>)`, 'g'))].length
   assert.equal(countTags(outputXml), countTags(documentXml), `${tag} structure preserved`)
 }
-console.log('PASS G03 scoped contact ownership and exact-name replay; full G03 remains blocked by the known inflected name surface')
+console.log('PASS G03 scoped contact ownership and exact-name replay; full G03 remains blocked by unresolved instrumental name forms')

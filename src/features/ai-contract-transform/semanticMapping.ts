@@ -25,15 +25,28 @@ export const SEMANTIC_CONCEPTS = [
 
 export type SemanticConcept = (typeof SEMANTIC_CONCEPTS)[number]
 
-/** Future model contract only: semantic source anchor, never a value or edit. */
-export type SemanticMapping = {
+export const CUSTOMER_NAME_FORMS = ['BASE', 'GENITIVE', 'INSTRUMENTAL'] as const
+export type CustomerNameForm = (typeof CUSTOMER_NAME_FORMS)[number]
+
+type SemanticMappingBase = {
   sourceBlockId: string
-  concept: SemanticConcept
   anchor: string
   occurrence?: number
-  /** Zero-based customer ownership for customer_address/customer_phone only. */
-  customerIndex?: number
 }
+
+/** Future model contract only: semantic source anchor, never a value or edit. */
+export type SemanticMapping =
+  | (SemanticMappingBase & {
+      concept: 'customer_1_name' | 'customer_2_name'
+      nameForm: CustomerNameForm
+      customerIndex?: never
+    })
+  | (SemanticMappingBase & {
+      concept: Exclude<SemanticConcept, 'customer_1_name' | 'customer_2_name'>
+      /** Zero-based customer ownership for customer_address/customer_phone only. */
+      customerIndex?: number
+      nameForm?: never
+    })
 
 export type IndexedSourceParagraph = {
   blockId: string
@@ -70,11 +83,15 @@ function isMapping(value: unknown): value is SemanticMapping {
   const row = value as Record<string, unknown>
   const keys = Object.keys(row)
   const contactConcept = row.concept === 'customer_address' || row.concept === 'customer_phone'
-  return keys.every((key) => ['sourceBlockId', 'concept', 'anchor', 'occurrence', 'customerIndex'].includes(key)) &&
+  const customerNameConcept = row.concept === 'customer_1_name' || row.concept === 'customer_2_name'
+  const validNameForm = (CUSTOMER_NAME_FORMS as readonly unknown[]).includes(row.nameForm)
+  const hasNameForm = Object.hasOwn(row, 'nameForm')
+  return keys.every((key) => ['sourceBlockId', 'concept', 'anchor', 'occurrence', 'customerIndex', 'nameForm'].includes(key)) &&
     typeof row.sourceBlockId === 'string' && row.sourceBlockId.trim().length > 0 &&
     isSemanticConcept(row.concept) &&
     typeof row.anchor === 'string' && row.anchor.trim().length > 0 &&
     (row.occurrence === undefined || (Number.isInteger(row.occurrence) && (row.occurrence as number) >= 0)) &&
+    (customerNameConcept ? hasNameForm && validNameForm : !hasNameForm) &&
     (contactConcept
       ? Number.isInteger(row.customerIndex) && (row.customerIndex as number) >= 0
       : row.customerIndex === undefined || row.customerIndex === null)
@@ -130,7 +147,7 @@ export function resolveSemanticMappings(input: {
     const current = resolved[index]!
     const duplicate = normalized.find((prior) => sameSpan(prior, current))
     if (duplicate) {
-      if (duplicate.concept !== current.concept || duplicate.customerIndex !== current.customerIndex) return { ok: false, code: 'span_conflict', mappingIndex: index }
+      if (duplicate.concept !== current.concept || duplicate.customerIndex !== current.customerIndex || duplicate.nameForm !== current.nameForm) return { ok: false, code: 'span_conflict', mappingIndex: index }
       // Exact-identical claims coalesce so an executor can perform one mutation.
       continue
     }

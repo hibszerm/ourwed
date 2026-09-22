@@ -14,6 +14,7 @@ const block = (blockId: string, text: string) => ({
 const mapping = (sourceBlockId: string, concept: string, anchor: string, occurrence?: number, customerIndex?: number) => ({
   sourceBlockId, concept, anchor, ...(occurrence === undefined ? {} : { occurrence }),
   ...(concept === 'customer_address' || concept === 'customer_phone' ? { customerIndex: customerIndex ?? 0 } : {}),
+  ...(concept === 'customer_1_name' || concept === 'customer_2_name' ? { nameForm: 'BASE' } : {}),
 })
 const resolve = (mappings: unknown, sourceBlocks: ReturnType<typeof block>[]) =>
   resolveSemanticMappings({ mappings, sourceBlocks })
@@ -74,6 +75,19 @@ run('one span cannot have multiple semantic owners', () => {
     mapping('p1', 'customer_2_name', 'Jan Kowalski'),
   ], [block('p1', 'Jan Kowalski')])
   assert(!partyConflict.ok && partyConflict.code === 'span_conflict', 'party identity conflict rejected')
+  const nameFormConflict = resolve([
+    { ...mapping('p1', 'customer_1_name', 'Anna Nowak'), nameForm: 'BASE' },
+    { ...mapping('p1', 'customer_1_name', 'Anna Nowak'), nameForm: 'GENITIVE' },
+  ], [block('p1', 'Anna Nowak')])
+  assert(!nameFormConflict.ok && nameFormConflict.code === 'span_conflict', 'conflicting name forms on one span rejected')
+})
+
+run('customer names require a closed nameForm and non-name concepts forbid it', () => {
+  const source = [block('p1', 'Anna Nowak')]
+  assert(!resolve([{ sourceBlockId: 'p1', concept: 'customer_1_name', anchor: 'Anna Nowak' }], source).ok, 'customer name requires nameForm')
+  assert(!resolve([{ ...mapping('p1', 'customer_1_name', 'Anna Nowak'), nameForm: 'LOCATIVE' }], source).ok, 'unsupported form rejected')
+  assert(!resolve([{ ...mapping('p1', 'total', 'Anna Nowak'), nameForm: 'BASE' }], source).ok, 'non-name form rejected')
+  assert(!resolve([{ ...mapping('p1', 'customer_phone', 'Anna Nowak'), nameForm: 'BASE' }], source).ok, 'contact concept rejects nameForm')
 })
 
 run('generic contact concepts require zero-based customer ownership and reject invalid ownership', () => {

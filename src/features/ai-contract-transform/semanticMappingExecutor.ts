@@ -8,7 +8,8 @@ import {
   renderCustomerAddress,
   renderLocationSummary,
 } from './quality/locationRendering'
-import { renderCanonicalIdentityLikeSource, renderExactCanonicalIdentity } from './quality/partyFilledIdentity'
+import { renderExactCanonicalIdentity } from './quality/partyFilledIdentity'
+import { normalizeForMatch } from './quality/normalize'
 import type { ResolvedSemanticMapping } from './semanticMapping'
 
 export type SemanticMappingExecutionFailureCode =
@@ -18,6 +19,7 @@ export type SemanticMappingExecutionFailureCode =
   | 'missing_canonical_value'
   | 'invalid_customer_index'
   | 'unsupported_concept'
+  | 'unsupported_name_form'
   | 'unrenderable_surface'
   | 'unsafe_ooxml_mutation'
 
@@ -97,7 +99,7 @@ export function executeSemanticMappings(input: {
 
 type RenderResult =
   | { ok: true; value: string }
-  | { ok: false; code: 'invalid_customer_index' | 'missing_canonical_value' | 'unsupported_concept' | 'unrenderable_surface' }
+  | { ok: false; code: 'invalid_customer_index' | 'missing_canonical_value' | 'unsupported_concept' | 'unsupported_name_form' | 'unrenderable_surface' }
 
 function renderCanonicalValue(
   mapping: ResolvedSemanticMapping,
@@ -114,11 +116,11 @@ function renderCanonicalValue(
       if (!canonicalName || names.length !== dataset.clients.personCount || (personIndex === 1 && dataset.clients.personCount !== 2)) {
         return { ok: false, code: 'missing_canonical_value' }
       }
+      if (mapping.nameForm !== 'BASE') return { ok: false, code: 'unsupported_name_form' }
       const exactName = renderExactCanonicalIdentity(source, sourceCustomerIdentities?.[personIndex], canonicalName)
       if (exactName) return { ok: true, value: exactName }
-      const value = renderCanonicalIdentityLikeSource(source, canonicalName)
-      return value && identityRenderingUsesSupportedForms(source, canonicalName, value)
-        ? { ok: true, value }
+      return normalizeForMatch(source) === normalizeForMatch(canonicalName)
+        ? { ok: true, value: canonicalName }
         : { ok: false, code: 'unrenderable_surface' }
     }
     case 'customer_address': {
@@ -203,27 +205,4 @@ function getOwnedCustomer(
   }
   const customer = dataset.clients.customers?.[mapping.customerIndex!]
   return customer ? { ok: true, customer } : { ok: false, code: 'invalid_customer_index' }
-}
-
-/** The shared renderer has a broader legacy rule; accept only its proven forms here. */
-function identityRenderingUsesSupportedForms(source: string, canonical: string, rendered: string): boolean {
-  const split = (value: string) => value.split(/\s+i\s+|\s+oraz\s+/i).map((part) => part.trim().split(/\s+/))
-  const sourcePeople = split(source)
-  const canonicalPeople = split(canonical)
-  const renderedPeople = split(rendered)
-  if (sourcePeople.length !== canonicalPeople.length || sourcePeople.length !== renderedPeople.length) return false
-  return sourcePeople.every((sourceTokens, personIndex) => {
-    const canonicalTokens = canonicalPeople[personIndex]!
-    const renderedTokens = renderedPeople[personIndex]!
-    if (sourceTokens.length !== canonicalTokens.length || sourceTokens.length !== renderedTokens.length) return false
-    return sourceTokens.every((sourceToken, tokenIndex) => {
-      const canonicalToken = canonicalTokens[tokenIndex]!
-      const renderedToken = renderedTokens[tokenIndex]!
-      return sourceToken === canonicalToken
-        ? renderedToken === canonicalToken
-        : (sourceToken.endsWith('ą') || sourceToken.endsWith('ę')) && canonicalToken.endsWith('a') &&
-          renderedToken === `${canonicalToken.slice(0, -1)}${tokenIndex === 0 ? 'ę' : 'ą'}` ||
-          sourceToken.endsWith('ego') && canonicalToken.endsWith('y') && renderedToken === `${canonicalToken.slice(0, -1)}ego`
-    })
-  })
 }

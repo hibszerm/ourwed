@@ -47,9 +47,12 @@ const surfaces: Array<{
   { caseId: 'G06', blockId: 'table-2-row-0-cell-1-p-0', customer: 2, anchor: 'Kajetan Testowy', sourceIdentities: ['Nina Robocza', 'Kajetan Testowy'] },
 ]
 
+const GENITIVE_SURFACES = new Set(['Alicji Przykładowej', 'Leny Fikcyjnej', 'Oskara Umownego'])
+const INSTRUMENTAL_SURFACES = new Set(['Alicją Przykładową', 'Mają Przykładową', 'Heleną Wzorcową', 'Kacprem Modelowym'])
+
 async function main() {
   const scenarios = buildGoldenScenarios()
-  const counts = { safe: 0, unrenderable: 0, exactSafe: 0, inflectedSafe: 0 }
+  const counts = { safe: 0, unresolved: 0, base: 0, genitive: 0, instrumental: 0 }
   const byCase = new Map<GoldenCaseId, { safe: number; unrenderable: number }>()
   for (const surface of surfaces) {
     const scenario = scenarios.find((item) => item.caseId === surface.caseId)!
@@ -66,8 +69,18 @@ async function main() {
     assert.ok(block, `${surface.caseId} ${surface.blockId} exists`)
     const sourceParagraphs = [{ blockId: block.blockId, paragraphXml: paragraphXmls[block.paragraphIndex]! }]
     const concept: SemanticMapping['concept'] = surface.customer === 1 ? 'customer_1_name' : 'customer_2_name'
+    const nameForm = surface.anchor === surface.sourceIdentities[surface.customer - 1]
+      ? 'BASE'
+      : GENITIVE_SURFACES.has(surface.anchor)
+        ? 'GENITIVE'
+        : INSTRUMENTAL_SURFACES.has(surface.anchor)
+          ? 'INSTRUMENTAL'
+          : undefined
+    assert.ok(nameForm, `${surface.caseId} ${surface.anchor} has a closed name form`)
+    if (!nameForm) throw new Error(`missing form classification: ${surface.anchor}`)
+    counts[nameForm === 'BASE' ? 'base' : nameForm === 'GENITIVE' ? 'genitive' : 'instrumental']++
     const grounded = resolveSemanticMappings({
-      mappings: [{ sourceBlockId: block.blockId, concept, anchor: surface.anchor }],
+      mappings: [{ sourceBlockId: block.blockId, concept, anchor: surface.anchor, nameForm }],
       sourceBlocks: sourceParagraphs,
     })
     assert.ok(grounded.ok, `${surface.caseId} ${surface.anchor} grounds`)
@@ -87,18 +100,17 @@ async function main() {
       const visible = extractCanonicalParagraphText(output.paragraphXml)
       const target = dataset.clients.displayNames.split(/\s+i\s+/)[surface.customer - 1]!
       assert.ok(visible.includes(target), `${surface.caseId} canonical customer value rendered`)
-      if (surface.anchor === surface.sourceIdentities[surface.customer - 1]) counts.exactSafe++
-      else counts.inflectedSafe++
     } else {
-      assert.equal(execution.code, 'unrenderable_surface', `${surface.caseId} only unsupported name forms remain blocked`)
-      counts.unrenderable++
+      assert.equal(execution.code, 'unsupported_name_form', `${surface.caseId} unsupported form fails closed`)
+      counts.unresolved++
       result.unrenderable++
     }
+    assert.equal(execution.ok, nameForm === 'BASE', `${surface.caseId} BASE executes; non-base awaits a variant resolver`)
     byCase.set(surface.caseId, result)
   }
   assert.equal(surfaces.length, 27)
-  assert.deepEqual(counts, { safe: 23, unrenderable: 4, exactSafe: 20, inflectedSafe: 3 })
-  console.log(`PASS G01-G06 customer-name surface replay; total=${surfaces.length}; safe=${counts.safe}; unrenderable=${counts.unrenderable}; exactSafe=${counts.exactSafe}; inflectedSafe=${counts.inflectedSafe}`)
+  assert.deepEqual(counts, { safe: 20, unresolved: 7, base: 20, genitive: 3, instrumental: 4 })
+  console.log(`PASS G01-G06 customer-name surface replay; total=${surfaces.length}; forms=${JSON.stringify(counts)}`)
   console.log(`GOLDENS_WITH_UNRENDERABLE=${[...byCase].filter(([, value]) => value.unrenderable > 0).map(([id]) => id).join(',')}`)
 }
 

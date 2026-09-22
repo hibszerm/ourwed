@@ -12,9 +12,10 @@ function run(name: string, fn: () => void) {
   console.log(`PASS ${name}`)
 }
 const p = (text: string) => `<w:p><w:r><w:t>${text}</w:t></w:r></w:p>`
-const map = (sourceBlockId: string, concept: SemanticMapping['concept'], anchor: string, occurrence?: number): SemanticMapping => ({
+const map = (sourceBlockId: string, concept: SemanticMapping['concept'], anchor: string, occurrence?: number, nameForm: SemanticMapping['nameForm'] = 'BASE'): SemanticMapping => ({
   sourceBlockId, concept, anchor, ...(occurrence === undefined ? {} : { occurrence }),
   ...(concept === 'customer_address' || concept === 'customer_phone' ? { customerIndex: 0 } : {}),
+  ...(concept === 'customer_1_name' || concept === 'customer_2_name' ? { nameForm } : {}),
 })
 const dataset: ContractTransformationDataset = {
   clients: {
@@ -62,13 +63,11 @@ function visible(result: ReturnType<typeof executeSemanticMappings>, id: string)
   return extractCanonicalParagraphText(block.paragraphXml)
 }
 
-run('customer one and two use canonical identities with safe source inflection', () => {
-  const sources = [{ blockId: 'party', paragraphXml: p('Anną Kowalską oraz Anną Nowak') }]
-  const result = execute([
-    map('party', 'customer_1_name', 'Anną Kowalską'),
-    map('party', 'customer_2_name', 'Anną Nowak'),
-  ], sources)
-  assert(visible(result, 'party') === 'Marię Kowalską oraz Ewę Nowak', 'both party names replaced deterministically')
+run('requested non-base customer name forms fail closed without authoritative variants', () => {
+  for (const [anchor, form] of [['Leny Fikcyjnej', 'GENITIVE'], ['Kacprem Modelowym', 'INSTRUMENTAL']] as const) {
+    const result = execute([map('party', 'customer_1_name', anchor, undefined, form)], [{ blockId: 'party', paragraphXml: p(anchor) }])
+    assert(!result.ok && result.code === 'unsupported_name_form', `${form} never falls back to BASE or inferred text`)
+  }
 })
 
 run('exact source identities use the mapped canonical customer without cross-customer replacement', () => {
@@ -115,13 +114,13 @@ run('exact path requires a proven complete source identity and leaves inflected 
 })
 
 run('mixed customer/provider paragraph changes only grounded customer text', () => {
-  const paragraphXml = '<w:p><w:r><w:rPr><w:b/></w:rPr><w:t>Anną</w:t></w:r><w:r><w:rPr><w:i/></w:rPr><w:t> Kowalską</w:t></w:r><w:r><w:t>, klientką, Video Productions Marcin Hibszer — provider/legal text.</w:t></w:r></w:p>'
+  const paragraphXml = '<w:p><w:r><w:rPr><w:b/></w:rPr><w:t>Anna</w:t></w:r><w:r><w:rPr><w:i/></w:rPr><w:t xml:space="preserve"> Nowak</w:t></w:r><w:r><w:t>, client, Video Productions Marcin Hibszer — provider/legal text.</w:t></w:r></w:p>'
   const sources = [{ blockId: 'mixed', paragraphXml }]
-  const result = execute([map('mixed', 'customer_1_name', 'Anną Kowalską')], sources)
+  const result = execute([map('mixed', 'customer_1_name', 'Anna Nowak')], sources, dataset, ['Anna Nowak'])
   const output = result.ok ? result.paragraphs[0]!.paragraphXml : ''
-  assert(extractCanonicalParagraphText(output) === 'Marię Kowalską, klientką, Video Productions Marcin Hibszer — provider/legal text.', 'surrounding provider/legal text stays unchanged')
-  assert(output.includes('<w:rPr><w:b/></w:rPr><w:t>Marię Kowalską</w:t>'), 'multi-run anchor replacement inherits first run formatting')
-  assert(output.includes('<w:rPr><w:i/></w:rPr><w:t></w:t>'), 'covered styled run remains structurally intact')
+  assert(extractCanonicalParagraphText(output) === 'Maria Kowalska, client, Video Productions Marcin Hibszer — provider/legal text.', 'surrounding provider/legal text stays unchanged')
+  assert(output.includes('<w:rPr><w:b/></w:rPr><w:t>Maria Kowalska</w:t>'), 'multi-run anchor replacement inherits first run formatting')
+  assert(output.includes('<w:rPr><w:i/></w:rPr>'), 'covered styled run formatting remains structurally intact')
   assert(output.includes('Video Productions Marcin Hibszer — provider/legal text.'), 'provider text retained in XML')
 })
 
@@ -239,13 +238,13 @@ run('repeated concept across blocks and same-block occurrences are all replaced'
 })
 
 run('different-length edits in one paragraph keep source-coordinate spans stable', () => {
-  const source = [{ blockId: 'mixed-facts', paragraphXml: '<w:p><w:r><w:rPr><w:b/></w:rPr><w:t>Anną Kowalską / 12.07.2025 / 800 zł</w:t></w:r><w:r><w:rPr><w:i/></w:rPr><w:t> / provider terms</w:t></w:r></w:p>' }]
+  const source = [{ blockId: 'mixed-facts', paragraphXml: '<w:p><w:r><w:rPr><w:b/></w:rPr><w:t>Anna Nowak / 12.07.2025 / 800 zł</w:t></w:r><w:r><w:rPr><w:i/></w:rPr><w:t> / provider terms</w:t></w:r></w:p>' }]
   const result = execute([
-    map('mixed-facts', 'customer_1_name', 'Anną Kowalską'),
+    map('mixed-facts', 'customer_1_name', 'Anna Nowak'),
     map('mixed-facts', 'wedding_date', '12.07.2025'),
     map('mixed-facts', 'deposit', '800 zł'),
-  ], source)
-  assert(visible(result, 'mixed-facts') === 'Marię Kowalską / 14.08.2026 / 1 200 zł / provider terms', 'all original spans replaced despite length shifts')
+  ], source, dataset, ['Anna Nowak'])
+  assert(visible(result, 'mixed-facts') === 'Maria Kowalska / 14.08.2026 / 1 200 zł / provider terms', 'all original spans replaced despite length shifts')
   assert(result.ok && result.paragraphs[0]!.paragraphXml.includes('<w:rPr><w:i/></w:rPr><w:t> / provider terms</w:t>'), 'unaffected run formatting retained')
 })
 

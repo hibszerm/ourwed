@@ -13,7 +13,7 @@ function assertThat(value: unknown, message: string): asserts value {
 }
 
 const paragraphXml = [
-  '<w:p><w:r><w:rPr><w:b/></w:rPr><w:t>Anną</w:t></w:r><w:r><w:rPr><w:i/></w:rPr><w:t xml:space="preserve"> Kowalską</w:t></w:r><w:r><w:t xml:space="preserve"> (klientką) zawiera umowę z Video Productions Marcin Hibszer; postanowienia pozostają w mocy.</w:t></w:r></w:p>',
+  '<w:p><w:r><w:rPr><w:b/></w:rPr><w:t>Anna</w:t></w:r><w:r><w:rPr><w:i/></w:rPr><w:t xml:space="preserve"> Nowak</w:t></w:r><w:r><w:t xml:space="preserve"> (client) signs with Video Productions Marcin Hibszer; other terms remain in force.</w:t></w:r></w:p>',
   '<w:p><w:r><w:t>Wydarzenie: 12.07.2025</w:t></w:r></w:p>',
   '<w:p><w:r><w:t>Umowę zawarto: 03.06.2025</w:t></w:r></w:p>',
   '<w:p><w:r><w:t>Wartość umowy: 3500 zł</w:t></w:r></w:p>',
@@ -67,15 +67,15 @@ async function sourceBlocks(): Promise<{ blocks: TransformDocumentBlock[]; parag
 }
 
 const mappings = [
-  { sourceBlockId: 'party-mixed', concept: 'customer_1_name', anchor: 'Anną Kowalską', occurrence: null, customerIndex: null },
-  { sourceBlockId: 'wedding-date', concept: 'wedding_date', anchor: '12.07.2025', occurrence: null, customerIndex: null },
-  { sourceBlockId: 'execution-date', concept: 'execution_date', anchor: '03.06.2025', occurrence: null, customerIndex: null },
-  { sourceBlockId: 'total', concept: 'total', anchor: '3500 zł', occurrence: null, customerIndex: null },
-  { sourceBlockId: 'deposit', concept: 'deposit', anchor: '800 zł', occurrence: null, customerIndex: null },
-  { sourceBlockId: 'remaining', concept: 'remaining', anchor: '2700 zł', occurrence: null, customerIndex: null },
-  { sourceBlockId: 'remaining', concept: 'remaining_words', anchor: 'dwa tysiące siedemset złotych', occurrence: null, customerIndex: null },
-  { sourceBlockId: 'reception', concept: 'reception_location', anchor: 'Stara Sala, Warszawa', occurrence: null, customerIndex: null },
-  { sourceBlockId: 'table-total', concept: 'total', anchor: '900 zł', occurrence: null, customerIndex: null },
+  { sourceBlockId: 'party-mixed', concept: 'customer_1_name', anchor: 'Anna Nowak', occurrence: null, customerIndex: null, nameForm: 'BASE' },
+  { sourceBlockId: 'wedding-date', concept: 'wedding_date', anchor: '12.07.2025', occurrence: null, customerIndex: null, nameForm: null },
+  { sourceBlockId: 'execution-date', concept: 'execution_date', anchor: '03.06.2025', occurrence: null, customerIndex: null, nameForm: null },
+  { sourceBlockId: 'total', concept: 'total', anchor: '3500 zł', occurrence: null, customerIndex: null, nameForm: null },
+  { sourceBlockId: 'deposit', concept: 'deposit', anchor: '800 zł', occurrence: null, customerIndex: null, nameForm: null },
+  { sourceBlockId: 'remaining', concept: 'remaining', anchor: '2700 zł', occurrence: null, customerIndex: null, nameForm: null },
+  { sourceBlockId: 'remaining', concept: 'remaining_words', anchor: 'dwa tysiące siedemset złotych', occurrence: null, customerIndex: null, nameForm: null },
+  { sourceBlockId: 'reception', concept: 'reception_location', anchor: 'Stara Sala, Warszawa', occurrence: null, customerIndex: null, nameForm: null },
+  { sourceBlockId: 'table-total', concept: 'total', anchor: '900 zł', occurrence: null, customerIndex: null, nameForm: null },
 ]
 
 async function runPositiveReplay() {
@@ -89,6 +89,7 @@ async function runPositiveReplay() {
     resolvedMappings: grounded.mappings,
     canonicalDataset: dataset,
     sourceParagraphs: source.paragraphs,
+    sourceCustomerIdentities: ['Anna Nowak'],
   })
   assertThat(executed.ok, 'deterministic executor accepts grounded mappings')
   const outputBytes = await writeSemanticMappingDocx({ sourceBytes: await makeSourceDocx(), sourceBlocks: source.blocks, execution: executed })
@@ -101,11 +102,11 @@ async function main() {
   const after = extractXmlParagraphs(result.outputXml)
   const text = after.map(extractCanonicalParagraphText)
 
-  assertThat(!text[0]!.includes('Anną Kowalską') && text[0]!.includes('Marię Kowalską'), 'customer surface contains canonical name')
-  assertThat(text[0]!.includes('Video Productions Marcin Hibszer; postanowienia pozostają w mocy.'), 'provider and legal words remain unchanged')
-  assertThat(result.outputXml.includes('<w:rPr><w:b/></w:rPr><w:t>Marię Kowalską</w:t>'), 'replacement keeps first overlapped run formatting')
+  assertThat(!text[0]!.includes('Anna Nowak') && text[0]!.includes('Maria Kowalska'), 'customer surface contains canonical name')
+  assertThat(text[0]!.includes('Video Productions Marcin Hibszer; other terms remain in force.'), 'provider and legal words remain unchanged')
+  assertThat(result.outputXml.includes('<w:rPr><w:b/></w:rPr><w:t>Maria Kowalska</w:t>'), 'replacement keeps first overlapped run formatting')
   assertThat(/<w:rPr><w:i\/><\/w:rPr><w:t(?:\s[^>]*)?><\/w:t>/.test(result.outputXml), 'covered styled run remains intact')
-  assertThat(after[0]!.includes('Video Productions Marcin Hibszer; postanowienia pozostają w mocy.'), 'mixed paragraph remainder is unchanged')
+  assertThat(after[0]!.includes('Video Productions Marcin Hibszer; other terms remain in force.'), 'mixed paragraph remainder is unchanged')
 
   assertThat(!text[1]!.includes('12.07.2025') && text[1]!.includes('14.08.2026'), 'wedding date uses wedding CRM value')
   assertThat(!text[2]!.includes('03.06.2025') && text[2]!.includes('01.07.2026'), 'execution date uses execution CRM value')
@@ -131,7 +132,7 @@ async function main() {
   }
 
   const negativePayload = { semanticMappings: [
-    { sourceBlockId: 'wedding-date', concept: 'wedding_date', anchor: 'not in source', occurrence: null, customerIndex: null },
+    { sourceBlockId: 'wedding-date', concept: 'wedding_date', anchor: 'not in source', occurrence: null, customerIndex: null, nameForm: null },
   ] }
   const negativeParsed = parseSemanticMapResponse(negativePayload)
   assertThat(negativeParsed.ok, 'negative case still has strict provider shape')
