@@ -3,9 +3,10 @@
  * Preserves structure via production applyDocxParagraphEdits.
  */
 
-import { applyDocxParagraphEditsAndInsertions } from '@/features/documents/template/docxParagraphEditor'
+import { applyDocxParagraphEdits, applyDocxParagraphEditsAndInsertions } from '@/features/documents/template/docxParagraphEditor'
 import type { TransformDocumentBlock, TransformedBlock } from './types'
 import type { ContractParagraphInsertion } from './expandBlocksWithInsertions'
+import type { SemanticMappingExecutionResult } from './semanticMappingExecutor'
 
 export async function writeTransformedDocx(input: {
   sourceBytes: ArrayBuffer
@@ -36,6 +37,21 @@ export async function writeTransformedDocx(input: {
     edits,
     insertions,
   )
+}
+
+/** Thin offline-capable adapter from executed semantic spans to the existing DOCX span writer. */
+export async function writeSemanticMappingDocx(input: {
+  sourceBytes: ArrayBuffer
+  sourceBlocks: readonly TransformDocumentBlock[]
+  execution: Extract<SemanticMappingExecutionResult, { ok: true }>
+}): Promise<ArrayBuffer> {
+  const indexById = new Map(input.sourceBlocks.map((block) => [block.blockId, block.paragraphIndex]))
+  const edits = input.execution.spanEdits.map((edit) => {
+    const index = indexById.get(edit.blockId)
+    if (index === undefined) throw new Error(`Unknown semantic mapping source block: ${edit.blockId}`)
+    return { index, text: '', span: { ...edit.span, replacement: edit.replacement } }
+  })
+  return applyDocxParagraphEdits(input.sourceBytes, edits)
 }
 
 export function downloadFileName(originalName: string, mode: 'full-ai' | 'guarded-ai'): string {

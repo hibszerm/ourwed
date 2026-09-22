@@ -21,7 +21,12 @@ export type SemanticMappingExecutionFailureCode =
   | 'unsafe_ooxml_mutation'
 
 export type SemanticMappingExecutionResult =
-  | { ok: true; paragraphs: Array<{ blockId: string; paragraphXml: string }> }
+  | {
+      ok: true
+      paragraphs: Array<{ blockId: string; paragraphXml: string }>
+      /** Exact deterministic edits, for adapters that write the result to a DOCX package. */
+      spanEdits: Array<{ blockId: string; span: { start: number; end: number }; replacement: string }>
+    }
   | { ok: false; code: SemanticMappingExecutionFailureCode; mappingIndex?: number }
 
 /** Apply only canonical dataset values to already-grounded source spans. */
@@ -58,6 +63,7 @@ export function executeSemanticMappings(input: {
   }
 
   const paragraphs: Array<{ blockId: string; paragraphXml: string }> = []
+  const spanEdits: Array<{ blockId: string; span: { start: number; end: number }; replacement: string }> = []
   try {
     for (const [blockId, mappings] of byBlock) {
       const ascending = [...mappings].sort((a, b) => a.span.start - b.span.start)
@@ -74,11 +80,16 @@ export function executeSemanticMappings(input: {
         paragraphXml = replaceGroundedTextSpan(paragraphXml, mapping.span, mapping.replacement)
       }
       paragraphs.push({ blockId, paragraphXml })
+      spanEdits.push(...mappings.map(({ span, replacement }) => ({
+        blockId,
+        span: { start: span.start, end: span.end },
+        replacement,
+      })))
     }
   } catch {
     return { ok: false, code: 'unsafe_ooxml_mutation' }
   }
-  return { ok: true, paragraphs }
+  return { ok: true, paragraphs, spanEdits }
 }
 
 type RenderResult =
