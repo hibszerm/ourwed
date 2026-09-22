@@ -102,22 +102,33 @@ function digitsOnly(value: string): string {
 /** Parse common PL / ISO date forms → YYYY-MM-DD or null. */
 export function parseFlexibleDate(value: string): string | null {
   const raw = collapseWs(value)
-    .replace(/\s*r\.?\s*$/i, '')
-    .replace(/\br\.?\b/gi, '')
     .replace(/,/g, ' ')
+    .trim()
+    // These are syntactic wrappers around a concrete date literal, not date
+    // inference: contract wording commonly prefixes a due date with "do" and
+    // spells out the year with "roku".
+    .replace(/^do\s+/i, '')
+    .replace(/\s+roku$/i, '')
+    .replace(/\s+r\.?$/i, '')
+    .replace(/\br\.?\b/gi, '')
     .trim()
   if (!raw) return null
 
+  const validIso = (iso: string): string | null => {
+    const date = new Date(`${iso}T00:00:00.000Z`)
+    return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === iso ? iso : null
+  }
+
   // ISO YYYY-MM-DD
   let m = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/)
-  if (m) return `${m[1]}-${m[2]}-${m[3]}`
+  if (m) return validIso(`${m[1]}-${m[2]}-${m[3]}`)
 
   // DD.MM.YYYY or DD/MM/YYYY or DD-MM-YYYY
   m = raw.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/)
   if (m) {
     const dd = m[1]!.padStart(2, '0')
     const mm = m[2]!.padStart(2, '0')
-    return `${m[3]}-${mm}-${dd}`
+    return validIso(`${m[3]}-${mm}-${dd}`)
   }
 
   // "19 czerwca 2025"
@@ -130,7 +141,7 @@ export function parseFlexibleDate(value: string): string | null {
     if (month) {
       const dd = m[1]!.padStart(2, '0')
       const mm = String(month).padStart(2, '0')
-      return `${m[3]}-${mm}-${dd}`
+      return validIso(`${m[3]}-${mm}-${dd}`)
     }
   }
 

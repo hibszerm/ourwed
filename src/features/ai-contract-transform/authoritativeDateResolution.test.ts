@@ -5,6 +5,7 @@ import { buildContractTransformationDataset } from './transformationDataset'
 import { parseSemanticMapResponse } from './semanticMapModelContract'
 import { resolveSemanticMappings, type SemanticMapping } from './semanticMapping'
 import { executeSemanticMappings } from './semanticMappingExecutor'
+import { parseFlexibleDate } from '@/features/ai-contract-lab/semanticValueEquality'
 
 const p = (text: string) => `<w:p><w:r><w:t>${text}</w:t></w:r></w:p>`
 const source = (blockId: string, text: string) => ({ blockId, paragraphXml: p(text) })
@@ -97,6 +98,26 @@ const depositDate = execute([
   dateMapping('source-deposit', 'deposit_due_date', '27.09.2026'),
 ], [source('source-execution', '20.09.2026'), source('source-execution-repeat', '20.09.2026'), source('source-deposit', '27.09.2026')])
 assert.equal(outputText(depositDate, 'source-deposit'), '17.05.2027')
+
+const g02TargetDataset = buildContractTransformationDataset({
+  wedding: scenario.wedding,
+  package: scenario.package,
+  extras: scenario.extras,
+  currentDate: '2026-11-05',
+})
+const g02Deposit = execute([
+  dateMapping('g02-execution', 'execution_date', '4 marca 2027 roku'),
+  dateMapping('g02-deposit', 'deposit_due_date', 'do 7 marca 2027'),
+], [
+  source('g02-execution', 'Umowę zawarto 4 marca 2027 roku.'),
+  source('g02-deposit', 'Zadatek należy wpłacić do 7 marca 2027.'),
+], g02TargetDataset)
+assert.equal(g02Deposit.execution?.ok, true)
+assert.equal(outputText(g02Deposit, 'g02-deposit'), 'Zadatek należy wpłacić 8 listopada 2026.')
+assert.equal(parseFlexibleDate('8 listopada 2026'), '2026-11-08')
+if (g02Deposit.execution?.ok) {
+  assert.equal('requiresUserInputDates' in g02Deposit.execution, false)
+}
 
 for (const [role, anchor] of [['brief_due_date', '02.09.2027'], ['album_due_date', '22.12.2027']] as const) {
   const unresolved = execute([dateMapping('unresolved', 'ambiguous_date', anchor, role)], [source('unresolved', anchor)])
