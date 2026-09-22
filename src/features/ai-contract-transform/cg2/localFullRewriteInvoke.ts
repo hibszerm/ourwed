@@ -27,6 +27,7 @@ import {
 } from '../sparseProtocolIntegrity'
 import { parseSparseV2FromResponse } from '../parseSparseV2Response'
 import type { TransformFunctionsInvoke } from '../transformApi'
+import { buildProviderRequestIdentityDiagnostics, type ProviderRequestIdentityDiagnostics } from '../providerRequestIdentityDiagnostics'
 
 function resolveModel(): string {
   return resolveModelFromEnv((name) => process.env[name])
@@ -40,6 +41,7 @@ export type Cg2InvokeUsage = {
   latenciesMs: number[]
   model: string
   promptVersion: string
+  providerRequestIdentityDiagnostics?: ProviderRequestIdentityDiagnostics
   protocolDiagnostics?: Array<{
     responseAttempt: number
     needsProtocolRetry: boolean
@@ -211,6 +213,16 @@ export function createLocalFullRewriteInvoke(input: {
     const validBlockIds = slim
       .filter((b) => (b.modelContext as { modelEditable?: boolean } | undefined)?.modelEditable !== false)
       .map((b) => b.blockId)
+    // Structural-only snapshot immediately before the provider call. Never persist the payload or text.
+    usage.providerRequestIdentityDiagnostics = buildProviderRequestIdentityDiagnostics({
+      sourceBlocks: slim,
+      editableBlockIds: validBlockIds,
+      otherContext: {
+        structuralContext: body.structuralContext,
+        requiredReplacements: body.requiredReplacements,
+        transformationDataset: body.transformationDataset,
+      },
+    })
     let budgetExhausted = false
     const invokeProvider = async (args: Parameters<typeof callOpenAi>[0]) => {
       if (maxPaidCalls !== undefined && usage.calls >= maxPaidCalls) {
