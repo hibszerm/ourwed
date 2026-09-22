@@ -56,11 +56,13 @@ function weddingBase(input: {
   partner1City?: string
   partner1PostalCode?: string
   partner1Phone?: string
+  partner1Email?: string
   partner2?: string
   partner2Address?: string
   partner2City?: string
   partner2PostalCode?: string
   partner2Phone?: string
+  partner2Email?: string
   preparationLocation?: string
   bridePreparationLocation?: string
   groomPreparationLocation?: string
@@ -73,6 +75,7 @@ function weddingBase(input: {
     partner1City: input.partner1City ?? 'Poznań',
     partner1PostalCode: input.partner1PostalCode ?? '60-001',
     partner1Phone: input.partner1Phone ?? '+48 511 700 101',
+    ...(input.partner1Email ? { partner1Email: input.partner1Email, email: input.partner1Email } : {}),
     ...(input.partyMode === 'two' && input.partner2
       ? {
           partner2: input.partner2,
@@ -80,6 +83,7 @@ function weddingBase(input: {
           partner2City: input.partner2City ?? 'Poznań',
           partner2PostalCode: input.partner2PostalCode ?? '60-001',
           partner2Phone: input.partner2Phone ?? '+48 511 700 102',
+          ...(input.partner2Email ? { partner2Email: input.partner2Email } : {}),
         }
       : {}),
   }
@@ -168,6 +172,7 @@ export function buildGoldenScenarios(): GoldenScenario[] {
         packageName: 'Reportaż Wieczorny',
         date: '2027-09-18',
         partner1: 'Zofia Kalendarzowa',
+        partner1Email: 'zofia.kalendarzowa@example.com',
         partner1Address: 'ul. Kasztanowa 21/5',
         partner1City: 'Poznań',
         partner1PostalCode: '60-214',
@@ -239,7 +244,9 @@ export function buildGoldenScenarios(): GoldenScenario[] {
         packageName: 'Reportaż Amber',
         date: '2027-10-09',
         partner1: 'Helena Mostowa',
+        partner1Email: 'helena.mostowa@example.com',
         partner2: 'Adam Mostowy',
+        partner2Email: 'adam.mostowy@example.com',
         partner1Address: 'ul. Portowa 4/12',
         partner1City: 'Gdańsk',
         partner1PostalCode: '80-246',
@@ -313,7 +320,9 @@ export function buildGoldenScenarios(): GoldenScenario[] {
         packageName: 'Foto+Film Harmonia',
         date: '2027-07-24',
         partner1: 'Natalia Brzegowa',
+        partner1Email: 'natalia.brzegowa@example.com',
         partner2: 'Filip Brzegowy',
+        partner2Email: 'filip.brzegowy@example.com',
         partner1Address: 'ul. Morska 16/3',
         partner1City: 'Sopot',
         partner1PostalCode: '81-701',
@@ -388,6 +397,7 @@ export function buildGoldenScenarios(): GoldenScenario[] {
         packageName: 'Produkcja Dokument 550',
         date: '2027-11-13',
         partner1: 'Julia Siatkowa',
+        partner1Email: 'julia.siatkowa@example.com',
         partner1Address: 'ul. Modułowa 7/9',
         partner1City: 'Wrocław',
         partner1PostalCode: '50-001',
@@ -450,6 +460,7 @@ export function buildGoldenScenarios(): GoldenScenario[] {
         packageName: 'Archiwum 480',
         date: '2027-08-21',
         partner1: 'Barbara Atramentowa',
+        partner1Email: 'barbara.atramentowa@example.com',
         partner1Address: 'ul. Perłowa 3/2',
         partner1City: 'Lublin',
         partner1PostalCode: '20-001',
@@ -524,7 +535,9 @@ export function buildGoldenScenarios(): GoldenScenario[] {
         packageName: 'Film Obserwacyjny',
         date: '2027-12-04',
         partner1: 'Olga Widokowa',
+        partner1Email: 'olga.widokowa@example.com',
         partner2: 'Marek Widokowy',
+        partner2Email: 'marek.widokowy@example.com',
         partner1Address: 'ul. Jasna 11/4',
         partner1City: 'Kraków',
         partner1PostalCode: '30-001',
