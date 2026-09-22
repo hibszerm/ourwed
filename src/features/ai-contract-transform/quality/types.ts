@@ -97,6 +97,28 @@ export type SourcePartyEvidence = {
   owner?: 'CUSTOMER' | 'MIXED'
 }
 
+/** Text-free execution trace for the mixed-party deterministic repair. */
+export type MixedPartyRepairDiagnostic = {
+  sourceBlockId: string
+  transformedBlockId?: string
+  sourceOwnership: 'MIXED'
+  manifestOwnership?: 'CUSTOMER' | 'MIXED'
+  modelChanged: boolean
+  provenanceAvailable: boolean
+  sourceMixedSplitAvailable: boolean
+  groundedCustomerSpanAvailable: boolean
+  targetCandidateCount: number
+  targetUnique: boolean
+  canonicalRenderingAvailable: boolean
+  providerLegalPreservationCheck?: boolean
+  customerSpanRepairApplied: boolean
+  repairAttempted: boolean
+  repairApplied: boolean
+  reasonCode: string
+  guardReasonCodes: string[]
+  postRepairPartyClassification: string
+}
+
 /** Structurally identified event-location field (CG7.2). */
 export type SourceLocationEvidence = {
   blockId: string
@@ -123,6 +145,8 @@ export type TransformationExpectationManifest = {
   additionalServices?: AdditionalServicesExpectation
   /** Filled-template party blocks discovered structurally (not placeholders). */
   sourcePartyEvidence?: SourcePartyEvidence[]
+  /** Full party discovery metadata retained only for safe diagnostics. */
+  sourcePartyDiagnosticEvidence?: SourcePartyEvidence[]
   /** Event-location fields discovered structurally (table/prose). */
   sourceLocationEvidence?: SourceLocationEvidence[]
   /** Selected package name surfaces (Golden Fix 2). */

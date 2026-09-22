@@ -39,6 +39,7 @@ import {
 import { discoverFilledTotalEvidence } from './totalFieldEvidence'
 import type {
   DeterministicRepair,
+  MixedPartyRepairDiagnostic,
   RequiredReplacement,
   TransformationExpectationManifest,
 } from './types'
@@ -97,8 +98,10 @@ export function repairMixedPartyProviderPreservation(input: {
   blocks: TransformedBlock[]
   sourceBlocks: TransformDocumentBlock[]
   dataset: ContractTransformationDataset
-}): { blocks: TransformedBlock[]; repairs: DeterministicRepair[] } {
+  manifest?: TransformationExpectationManifest
+}): { blocks: TransformedBlock[]; repairs: DeterministicRepair[]; diagnostics: MixedPartyRepairDiagnostic[] } {
   const repairs: DeterministicRepair[] = []
+  const diagnostics: MixedPartyRepairDiagnostic[] = []
   const blocks = input.blocks.map((b) => ({ ...b }))
   const display = input.dataset.clients.displayNames?.trim() ?? ''
   const address = input.dataset.clients.address
@@ -111,17 +114,39 @@ export function repairMixedPartyProviderPreservation(input: {
     if (!src) continue
     if (classifyFactOwner(src.text) !== 'MIXED') continue
     const split = splitMixedPartyClause(src.text)
-    if (!split) continue
+    const manifestEvidence = (input.manifest?.sourcePartyDiagnosticEvidence ?? input.manifest?.sourcePartyEvidence)?.find((item) => item.blockId === src.blockId)
+    if (!split) {
+      diagnostics.push({ sourceBlockId: src.blockId, transformedBlockId: block.blockId, sourceOwnership: 'MIXED', manifestOwnership: manifestEvidence?.owner, modelChanged: src.text !== block.text, provenanceAvailable: Boolean(block.originSourceBlockId), sourceMixedSplitAvailable: false, groundedCustomerSpanAvailable: false, targetCandidateCount: 0, targetUnique: false, canonicalRenderingAvailable: false, customerSpanRepairApplied: false, repairAttempted: false, repairApplied: false, reasonCode: 'source_mixed_split_unavailable', guardReasonCodes: ['source_mixed_split_unavailable'], postRepairPartyClassification: 'unknown' })
+      continue
+    }
 
     const modelSplit = splitMixedPartyClause(block.text)
     const providerPreserved =
       modelSplit != null && modelSplit.providerHalf === split.providerHalf
+    const evidence = discoverFilledPartyEvidence([src]).find((item) => item.blockId === src.blockId)
+    const identitySurfaces = evidence?.identitySurfaces ?? []
+    const canonicalPeopleForTrace = display.split(/\s+i\s+|\s+oraz\s+/i).map((s) => s.trim()).filter(Boolean)
+    const targetCandidateCount = modelSplit
+      ? identitySurfaces.reduce((count, surface) => count + modelSplit.customerHalf.split(surface).length - 1, 0)
+      : 0
+    const canonicalRenderingAvailable = identitySurfaces.length > 0 && identitySurfaces.every((surface, index) => {
+      const target = canonicalPeopleForTrace.length === identitySurfaces.length ? canonicalPeopleForTrace[index] : display
+      return Boolean(target && renderCanonicalIdentityLikeSource(surface, target))
+    })
+    const guardReasonCodes: string[] = []
+    if (providerPreserved && modelSplit) {
+      if (!evidence?.customerHalfText || identitySurfaces.length === 0) guardReasonCodes.push('grounded_customer_span_unavailable')
+      if (identitySurfaces.length > 0 && targetCandidateCount === 0) guardReasonCodes.push('target_span_missing')
+      else if (identitySurfaces.length > 0 && targetCandidateCount !== identitySurfaces.length) guardReasonCodes.push('target_span_not_unique')
+      if (identitySurfaces.length > 0 && !canonicalRenderingAvailable) guardReasonCodes.push('canonical_party_rendering_unavailable')
+    }
+    const repairsBefore = repairs.length
 
     if (providerPreserved && modelSplit) {
       // Provider half intact — repair only the grounded customer identity span.
       let customerHalf = modelSplit.customerHalf
-      const evidence = discoverFilledPartyEvidence([src]).find((item) => item.blockId === src.blockId)
       const canonical = input.dataset.clients.displayNames?.trim() ?? ''
+      let customerSpanRepairApplied = false
       if (evidence?.customerHalfText && canonical) {
         const canonicalPeople = canonical.split(/\s+i\s+|\s+oraz\s+/i).map((s) => s.trim()).filter(Boolean)
         let identitySafe = true
@@ -132,6 +157,7 @@ export function repairMixedPartyProviderPreservation(input: {
           customerHalf = customerHalf.replace(surface, rendered)
         }
         if (!identitySafe) customerHalf = modelSplit.customerHalf
+        else customerSpanRepairApplied = customerHalf !== modelSplit.customerHalf
       }
       const staleAddr = extractCustomerAddressSurface(customerHalf)
       if (address && staleAddr && staleAddr !== address) {
@@ -154,6 +180,8 @@ export function repairMixedPartyProviderPreservation(input: {
         })
         blocks[i] = { ...block, text: next }
       }
+      const repairApplied = repairs.length > repairsBefore
+      diagnostics.push({ sourceBlockId: src.blockId, transformedBlockId: block.blockId, sourceOwnership: 'MIXED', manifestOwnership: manifestEvidence?.owner, modelChanged: src.text !== block.text, provenanceAvailable: block.originSourceBlockId === src.blockId, sourceMixedSplitAvailable: true, groundedCustomerSpanAvailable: Boolean(evidence?.customerHalfText && identitySurfaces.length), targetCandidateCount, targetUnique: identitySurfaces.length > 0 && targetCandidateCount === identitySurfaces.length, canonicalRenderingAvailable, providerLegalPreservationCheck: providerPreserved, customerSpanRepairApplied, repairAttempted: true, repairApplied, reasonCode: repairApplied ? 'repair_applied' : guardReasonCodes[0] ?? 'no_change_needed', guardReasonCodes: guardReasonCodes.length ? guardReasonCodes : repairApplied ? [] : ['no_change_needed'], postRepairPartyClassification: 'pending' })
       continue
     }
 
@@ -197,7 +225,10 @@ export function repairMixedPartyProviderPreservation(input: {
     const next = `${split.providerHalf}${split.separator}${customerHalf}`
       .replace(/\s+/g, ' ')
       .trim()
-    if (next === block.text) continue
+    if (next === block.text) {
+      diagnostics.push({ sourceBlockId: src.blockId, transformedBlockId: block.blockId, sourceOwnership: 'MIXED', manifestOwnership: manifestEvidence?.owner, modelChanged: src.text !== block.text, provenanceAvailable: block.originSourceBlockId === src.blockId, sourceMixedSplitAvailable: true, groundedCustomerSpanAvailable: Boolean(evidence?.customerHalfText && identitySurfaces.length), targetCandidateCount, targetUnique: identitySurfaces.length > 0 && targetCandidateCount === identitySurfaces.length, canonicalRenderingAvailable, providerLegalPreservationCheck: providerPreserved, customerSpanRepairApplied: false, repairAttempted: true, repairApplied: false, reasonCode: 'source_based_rebuild_no_change', guardReasonCodes: ['source_based_rebuild_no_change'], postRepairPartyClassification: 'pending' })
+      continue
+    }
     repairs.push({
       repairCode: 'preserve_mixed_party_provider_half',
       blockId: block.blockId,
@@ -206,6 +237,17 @@ export function repairMixedPartyProviderPreservation(input: {
       afterFingerprint: fingerprintText(next),
     })
     blocks[i] = { ...block, text: next }
+    diagnostics.push({ sourceBlockId: src.blockId, transformedBlockId: block.blockId, sourceOwnership: 'MIXED', manifestOwnership: manifestEvidence?.owner, modelChanged: src.text !== block.text, provenanceAvailable: block.originSourceBlockId === src.blockId, sourceMixedSplitAvailable: true, groundedCustomerSpanAvailable: Boolean(evidence?.customerHalfText && identitySurfaces.length), targetCandidateCount, targetUnique: identitySurfaces.length > 0 && targetCandidateCount === identitySurfaces.length, canonicalRenderingAvailable, providerLegalPreservationCheck: providerPreserved, customerSpanRepairApplied: false, repairAttempted: true, repairApplied: true, reasonCode: 'provider_half_changed_rebuilt_from_source', guardReasonCodes: [], postRepairPartyClassification: 'pending' })
+  }
+
+  // Report mixed SOURCE clauses that had no same-ID transformed target. The repair
+  // still uses its existing exact-ID matching rule; this is observation only.
+  for (const src of input.sourceBlocks) {
+    if (classifyFactOwner(src.text) !== 'MIXED' || diagnostics.some((item) => item.sourceBlockId === src.blockId)) continue
+    if (blocks.some((block) => block.blockId === src.blockId)) continue
+    const manifestEvidence = (input.manifest?.sourcePartyDiagnosticEvidence ?? input.manifest?.sourcePartyEvidence)?.find((item) => item.blockId === src.blockId)
+    const provenanceTarget = blocks.find((block) => block.originSourceBlockId === src.blockId)
+    diagnostics.push({ sourceBlockId: src.blockId, transformedBlockId: provenanceTarget?.blockId, manifestOwnership: manifestEvidence?.owner, sourceOwnership: 'MIXED', modelChanged: provenanceTarget ? provenanceTarget.text !== src.text : false, provenanceAvailable: Boolean(provenanceTarget?.originSourceBlockId), sourceMixedSplitAvailable: Boolean(splitMixedPartyClause(src.text)), groundedCustomerSpanAvailable: Boolean(discoverFilledPartyEvidence([src]).find((item) => item.blockId === src.blockId)?.customerHalfText), targetCandidateCount: 0, targetUnique: false, canonicalRenderingAvailable: false, customerSpanRepairApplied: false, repairAttempted: false, repairApplied: false, reasonCode: provenanceTarget ? 'source_provenance_target_not_matched_by_repair' : 'transformed_target_not_found', guardReasonCodes: [provenanceTarget ? 'source_provenance_target_not_matched_by_repair' : 'transformed_target_not_found'], postRepairPartyClassification: 'pending' })
   }
 
   // Restore corrupted signature / closing labels (never customer-writable)
@@ -256,7 +298,7 @@ export function repairMixedPartyProviderPreservation(input: {
     }
   }
 
-  return { blocks, repairs }
+  return { blocks, repairs, diagnostics }
 }
 
 /**
@@ -377,11 +419,12 @@ export function applyDeterministicRepairs(input: {
   financeEvidence?: GroundedFinanceEvidence[]
   groundedDateTargets?: Array<{ sourceBlockId: string; dateConcept: DateSemanticConcept }>
   blockedDateRepairTargets?: Array<{ sourceBlockId: string; dateConcept: DateSemanticConcept }>
-}): { blocks: TransformedBlock[]; repairs: DeterministicRepair[]; crossSurfaceFinance: CrossSurfaceFinanceDiagnostic[]; financeDiagnostics: FinanceSurfaceDiagnostic[]; totalWords?: TotalWordsDiagnostic } {
+}): { blocks: TransformedBlock[]; repairs: DeterministicRepair[]; crossSurfaceFinance: CrossSurfaceFinanceDiagnostic[]; financeDiagnostics: FinanceSurfaceDiagnostic[]; mixedPartyDiagnostics: MixedPartyRepairDiagnostic[]; totalWords?: TotalWordsDiagnostic } {
   const repairs: DeterministicRepair[] = []
   let blocks = input.blocks.map((b) => ({ ...b }))
   let crossSurfaceFinance: CrossSurfaceFinanceDiagnostic[] = []
   let financeDiagnostics: FinanceSurfaceDiagnostic[] = []
+  let mixedPartyDiagnostics: MixedPartyRepairDiagnostic[] = []
 
   // 0. MIXED party clauses — restore provider half before other repairs
   if (input.sourceBlocks && input.sourceBlocks.length > 0) {
@@ -389,9 +432,11 @@ export function applyDeterministicRepairs(input: {
       blocks,
       sourceBlocks: input.sourceBlocks,
       dataset: input.dataset,
+      manifest: input.manifest,
     })
     blocks = mixed.blocks
     repairs.push(...mixed.repairs)
+    mixedPartyDiagnostics = mixed.diagnostics
   }
 
   // 0a. Separate table rows are independently represented identities, but are
@@ -860,7 +905,7 @@ export function applyDeterministicRepairs(input: {
     }
   }
 
-  return { blocks, repairs, crossSurfaceFinance, financeDiagnostics, totalWords }
+  return { blocks, repairs, crossSurfaceFinance, financeDiagnostics, mixedPartyDiagnostics, totalWords }
 }
 
 export function summarizeRequiredReplacementsForPrompt(

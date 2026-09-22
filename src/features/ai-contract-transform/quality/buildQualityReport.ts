@@ -72,6 +72,7 @@ export function buildQualityGateEvidenceTrace(input: {
   manifest: TransformationExpectationManifest
   report: DocumentQualityReport
   repairs: DocumentQualityReport['repairs']
+  mixedPartyDiagnostics?: import('./types').MixedPartyRepairDiagnostic[]
 }): QualityGateEvidenceTrace {
   const byId = new Map(input.transformedBlocks.map((b) => [b.blockId, b]))
   const byOrigin = new Map<string, TransformedBlock[]>()
@@ -89,6 +90,20 @@ export function buildQualityGateEvidenceTrace(input: {
     const src = sourceFor(e.blockId); const t = transformedFor(e.blockId); const repairs = repairFor(t?.blockId ?? e.blockId)
     const issues = input.report.blockingIssues.filter((i) => i.blockId === e.blockId && i.canonicalField === 'customer.names')
     return { sourceBlockId: e.blockId, ...(t?.originSourceBlockId ? { originSourceBlockId: t.originSourceBlockId } : {}), transformedBlockId: t?.blockId, ownership: e.owner === 'MIXED' ? 'mixed' : 'party', identitySurfaceCount: e.identitySurfaces.length, modelChanged: Boolean(src && t && src.text !== t.text), deterministicRepairAttempted: repairs.length > 0, deterministicRepairApplied: repairs.some((r) => r.repairCode.includes('party') || r.repairCode.includes('mixed')), repairSkipReason: repairs.length === 0 ? 'no_recorded_repair' : undefined, finalClassification: classifyTraceValue(t?.text ?? '', e.sourceText, input.dataset.clients.displayNames), groundedSpanExists: Boolean(e.customerHalfText), targetSpanUniquelyLocated: undefined, spanRepairApplied: repairs.some((r) => r.repairCode === 'preserve_mixed_party_provider_half'), qualityViolationCodes: issues.map((i) => i.code), sourceFingerprint: src ? fingerprintText(src.text) : undefined, transformedFingerprint: t ? fingerprintText(t.text) : undefined }
+  })
+  const mixedPartyRepairs = (input.mixedPartyDiagnostics ?? []).map((item) => {
+    const transformed = item.transformedBlockId
+      ? byId.get(item.transformedBlockId)
+      : transformedFor(item.sourceBlockId)
+    const source = sourceFor(item.sourceBlockId)
+    return {
+      ...item,
+      postRepairPartyClassification: classifyTraceValue(
+        transformed?.text ?? '',
+        source?.text ?? '',
+        input.dataset.clients.displayNames,
+      ),
+    }
   })
   const dateEvidence = [
     ...input.manifest.requiredReplacements.filter((r) => r.canonicalField === 'wedding.date' || r.canonicalField === 'contract.executionDate').map((r) => ({ field: r.canonicalField, ids: r.sourceBlockIds, sourceValues: r.sourceValues })),
@@ -123,7 +138,7 @@ export function buildQualityGateEvidenceTrace(input: {
       transformedFingerprint: t ? fingerprintText(t.text) : undefined,
     }]
   })
-  return { party, dates, provider, violations }
+  return { party, mixedPartyRepairs, dates, provider, violations }
 }
 
 /** Financial codes that block Mode A download (legal obligation / money integrity). */
@@ -455,6 +470,7 @@ export function runPostReconstructionQualityGate(input: {
     manifest,
     report,
     repairs: repaired.repairs,
+    mixedPartyDiagnostics: repaired.mixedPartyDiagnostics,
   })
   const diagnostics: ContractTransformDiagnostics = {
     groundedFinanceEvidence: input.financeEvidenceDiagnostics ?? [],

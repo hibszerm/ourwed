@@ -160,9 +160,11 @@ export function buildExpectationManifest(input: {
   const requiredReplacements: RequiredReplacement[] = []
 
   // CG7.1 — discover filled (non-placeholder) contracting-party blocks structurally
-  const filledPartyEvidence: SourcePartyEvidence[] = discoverFilledPartyEvidence(
-    blocks,
-  ).map((e: PartyEvidenceRuntime) => ({
+  const discoveredPartyEvidence: PartyEvidenceRuntime[] = discoverFilledPartyEvidence(blocks)
+  // Keep the legacy behavior-driving evidence projection unchanged. Consumers
+  // of owner/customerHalfText historically did not receive those fields; the
+  // full discovery record is carried separately for diagnostics only.
+  const filledPartyEvidence: SourcePartyEvidence[] = discoveredPartyEvidence.map((e: PartyEvidenceRuntime) => ({
     blockId: e.blockId,
     sourceText: e.sourceText,
     identitySurfaces: e.identitySurfaces,
@@ -918,6 +920,9 @@ export function buildExpectationManifest(input: {
     ...(additionalServices ? { additionalServices } : {}),
     ...(filledPartyEvidence.length > 0
       ? { sourcePartyEvidence: filledPartyEvidence }
+      : {}),
+    ...(discoveredPartyEvidence.length > 0
+      ? { sourcePartyDiagnosticEvidence: discoveredPartyEvidence }
       : {}),
     ...(filledLocationEvidence.length > 0
       ? { sourceLocationEvidence: filledLocationEvidence }

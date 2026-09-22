@@ -205,6 +205,7 @@ export type TotalWordsDiagnostic = {
 
 export type QualityGateEvidenceTrace = {
   party: Array<Record<string, unknown>>
+  mixedPartyRepairs?: import('./quality/types').MixedPartyRepairDiagnostic[]
   dates: Array<Record<string, unknown>>
   provider: Array<Record<string, unknown>>
   violations: Array<{ code: string; blockId?: string; canonicalField?: string; dimension: string }>
