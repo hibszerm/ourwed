@@ -193,8 +193,14 @@ function buildSemanticMapUserContext(input: {
           .split(/\s+i\s+|\s+oraz\s+|,\s*/i)
           .map((displayName) => displayName.trim())
           .filter(Boolean)
-          .map((displayName) => ({ displayName })))
-          .map((customer, customerIndex) => ({ customerIndex, ...customer })),
+          .map((displayName) => ({ displayName } as { displayName: string; address?: string; phone?: string; email?: string })))
+          .map((customer, customerIndex) => ({
+            customerIndex,
+            displayName: customer.displayName,
+            ...(customer.address ? { address: customer.address } : {}),
+            ...(customer.phone ? { phone: customer.phone } : {}),
+            ...(customer.email ? { email: customer.email } : {}),
+          })),
       },
       dates: {
         weddingDate: input.dataset.dates.weddingDate,

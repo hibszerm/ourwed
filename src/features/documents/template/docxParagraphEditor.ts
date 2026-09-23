@@ -49,7 +49,7 @@ export function replaceCanonicalSpanInParagraphXml(
   paragraphXml: string,
   start: number,
   end: number,
-  replacement: string,
+  replacement: string | readonly string[],
 ): string {
   const model = buildParagraphRunModel(paragraphXml)
   if (start < 0 || end <= start || end > model.canonicalText.length) {
@@ -57,10 +57,25 @@ export function replaceCanonicalSpanInParagraphXml(
   }
   const mapped = mapCanonicalRangeToTextNodes(paragraphXml, start, end)
   if (!mapped) throw new Error('Grounded DOCX span cannot be mapped safely')
+  if (typeof replacement !== 'string') {
+    if (replacement.length !== mapped.segments.length || replacement.some((part) => !part.trim())) {
+      throw new Error('Grounded DOCX span replacement structure is incompatible')
+    }
+    let next = paragraphXml
+    for (let index = mapped.segments.length - 1; index >= 0; index--) {
+      const segment = mapped.segments[index]!
+      const local = mapCanonicalRangeToTextNodes(next, segment.start, segment.end)
+      if (!local || local.segments.length !== 1) throw new Error('Grounded DOCX segment cannot be mapped safely')
+      next = spliceTextNodes(next, local, replacement[index]!)
+    }
+    return next
+  }
+  if (mapped.segments.length !== 1) throw new Error('Cross-break replacement requires explicit target segments')
   return spliceTextNodes(paragraphXml, mapped, replacement)
 }
 
-export type GroundedTextSpan = { start: number; end: number }
+export type GroundedTextSegment = { start: number; end: number }
+export type GroundedTextSpan = { start: number; end: number; segments?: GroundedTextSegment[] }
 export type GroundedSpanResult =
   | { ok: true; span: GroundedTextSpan }
   | { ok: false; reason: 'missing' | 'ambiguous' | 'invalid_occurrence' | 'unmappable' }
@@ -91,21 +106,22 @@ export function locateGroundedTextSpan(
   }
   const start = matches[occurrenceIndex ?? 0]!
   const end = start + anchor.length
-  if (!mapCanonicalRangeToTextNodes(paragraphXml, start, end)) return { ok: false, reason: 'unmappable' }
-  return { ok: true, span: { start, end } }
+  const mapped = mapCanonicalRangeToTextNodes(paragraphXml, start, end)
+  if (!mapped) return { ok: false, reason: 'unmappable' }
+  return { ok: true, span: { start, end, ...(mapped.segments.length > 1 ? { segments: mapped.segments } : {}) } }
 }
 
 /** Replacement inherits the first source character's run/text-node formatting. */
 export function replaceGroundedTextSpan(
   paragraphXml: string,
   span: GroundedTextSpan,
-  replacement: string,
+  replacement: string | readonly string[],
 ): string {
   return replaceCanonicalSpanInParagraphXml(paragraphXml, span.start, span.end, replacement)
 }
 
 type TextNode = { start: number; end: number; decoded: string; raw: string; charStarts: number[]; charEnds: number[] }
-type MappedRange = { firstNode: number; firstOffset: number; lastNode: number; lastOffset: number }
+type MappedRange = { firstNode: number; firstOffset: number; lastNode: number; lastOffset: number; segments: GroundedTextSegment[] }
 
 function mapCanonicalRangeToTextNodes(xml: string, start: number, end: number): MappedRange | null {
   const nodes: TextNode[] = []
@@ -141,20 +157,32 @@ function mapCanonicalRangeToTextNodes(xml: string, start: number, end: number): 
     }
   }
   if (firstNode < 0 || lastNode < 0) return null
-  // Reject hidden OOXML content between the first and last text nodes.
+  // Only ordinary line breaks may occur inside a grounded canonical range.
   const first = nodes[firstNode]!, last = nodes[lastNode]!
   const rawBetween = xml.slice(first.end, last.start)
-  const breakRe = /<w:br\b[^>]*\/>/g
-  // Canonical text omits structural line breaks. Never let a grounded span
-  // consume one implicitly; the caller must ground a value within one segment.
-  if (breakRe.test(rawBetween)) return null
+  const breakRe = /<w:br\b([^>]*)\/>/g
+  const breaks = [...rawBetween.matchAll(breakRe)]
+  if (breaks.some((item) => /w:type\s*=\s*["'](?!textWrapping)[^"']+["']/.test(item[1] ?? ''))) return null
   const withoutBreaks = rawBetween.replace(breakRe, '')
     .replace(/<w:rPr\b[\s\S]*?<\/w:rPr>/g, '')
     .replace(/<\/?w:r\b[^>]*>/g, '')
     .replace(/<\/?w:t\b[^>]*>/g, '')
     .replace(/<\/?w:hyperlink\b[^>]*>/g, '')
   if (/<w:|<\//.test(withoutBreaks)) return null
-  return { firstNode, firstOffset, lastNode, lastOffset }
+  const breakOffsets = breaks.map((item) => {
+    const absolute = first.end + item.index!
+    return nodes.reduce((total, node) => total + (node.start < absolute ? node.decoded.length : 0), 0)
+  }).filter((position) => position > start && position < end)
+  if (breakOffsets.some((position, index) => index > 0 && position <= breakOffsets[index - 1]!)) return null
+  const boundaries = [start, ...breakOffsets, end]
+  const segments: GroundedTextSegment[] = []
+  for (let index = 0; index < boundaries.length - 1; index++) {
+    const segmentStart = boundaries[index]!
+    const segmentEnd = boundaries[index + 1]!
+    if (segmentEnd <= segmentStart) return null
+    segments.push({ start: segmentStart, end: segmentEnd })
+  }
+  return { firstNode, firstOffset, lastNode, lastOffset, segments }
 }
 
 function spliceTextNodes(xml: string, range: MappedRange, replacement: string): string {
@@ -240,7 +268,7 @@ export type DocxParagraphEdit = {
   index: number
   text: string
   /** Optional: replace only this canonical span instead of whole paragraph. */
-  span?: { start: number; end: number; replacement: string }
+  span?: { start: number; end: number; replacement: string | readonly string[] }
 }
 
 /**

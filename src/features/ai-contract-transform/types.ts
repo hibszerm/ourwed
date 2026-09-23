@@ -33,7 +33,14 @@ export type ContractTransformationDataset = {
     address?: string
     phone?: string
     /** Ordered CRM ownership slots: index 0 is partner1, index 1 is partner2. */
-    customers?: Array<{ displayName: string; address?: string; phone?: string; email?: string }>
+    customers?: Array<{
+      displayName: string
+      address?: string
+      /** Authoritative CRM address components retained before flat rendering. */
+      addressTarget?: { text: string; segments: string[] }
+      phone?: string
+      email?: string
+    }>
   }
   dates: {
     contractExecutionDate: string
@@ -47,12 +54,14 @@ export type ContractTransformationDataset = {
       displayName?: string
       fullAddress?: string
       city?: string
+      target?: { text: string; segments: string[] }
     }
     /** Structured bride/groom/shared preparation addresses (authoritative). */
     preparationLocations?: Array<{
       person: 'bride' | 'groom' | 'shared'
       label: string
       fullAddress: string
+      target?: { text: string; segments: string[] }
     }>
     /** Deterministic Polish display fragment for preparation clauses. */
     preparationDisplayText?: string
@@ -60,11 +69,13 @@ export type ContractTransformationDataset = {
       displayName?: string
       fullAddress?: string
       city?: string
+      target?: { text: string; segments: string[] }
     }
     reception?: {
       displayName?: string
       fullAddress?: string
       city?: string
+      target?: { text: string; segments: string[] }
     }
     /**
      * Roles intentionally absent in CRM (not merely omitted from JSON).

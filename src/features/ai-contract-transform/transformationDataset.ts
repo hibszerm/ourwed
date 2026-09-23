@@ -18,6 +18,7 @@ import {
 import { polishContractMoneyWords } from './polishContractMoneyWords'
 import type { StudioPackage, WeddingExtraService } from '@/types/package'
 import type { Wedding } from '@/types/wedding'
+import type { WeddingPlaceRole } from '@/types/travel'
 import { buildDatasetAdditionalServices } from './insertAdditionalServices'
 import type { ContractTransformationDataset } from './types'
 import { resolveFinalPaymentDueDate } from '@/lib/utils/finalPaymentTerms'
@@ -56,6 +57,22 @@ function partnerAddress(wedding: Wedding, which: 1 | 2): string | undefined {
           city: c.partner2City,
         })
   return formatted || undefined
+}
+
+function partnerAddressTarget(wedding: Wedding, which: 1 | 2, text: string): { text: string; segments: string[] } | undefined {
+  const couple = wedding.couple
+  const addressLine = (which === 1 ? couple.partner1Address : couple.partner2Address)?.trim()
+  const postalCode = (which === 1 ? couple.partner1PostalCode : couple.partner2PostalCode)?.trim()
+  const city = (which === 1 ? couple.partner1City : couple.partner2City)?.trim()
+  const locality = [postalCode, city].filter(Boolean).join(' ')
+  const segments = [addressLine, locality].filter((part): part is string => Boolean(part))
+  return segments.length ? { text, segments } : undefined
+}
+
+function locationTarget(label?: string | null, formattedAddress?: string | null): { text: string; segments: string[] } | undefined {
+  const segments = [label?.trim(), formattedAddress?.trim()].filter((part): part is string => Boolean(part))
+  if (!segments.length) return undefined
+  return { text: segments.join(', '), segments }
 }
 
 function locationFromString(
@@ -130,6 +147,8 @@ export function buildContractTransformationDataset(input: {
   currentDate?: string
   /** Wedding extra services from wedding_extra_services (joined catalog names). */
   extras?: WeddingExtraService[]
+  /** Authoritative WeddingPlace records, retained as target components. */
+  weddingPlaces?: readonly { role: WeddingPlaceRole; label?: string | null; formattedAddress?: string | null }[]
 }): ContractTransformationDataset {
   const { wedding, package: pkg } = input
   const commercial = getWeddingCommercialSummary(wedding)
@@ -163,9 +182,11 @@ export function buildContractTransformationDataset(input: {
     const customerEmail = (partnerIndex === 1
       ? c.partner1Email?.trim() || c.email?.trim()
       : c.partner2Email?.trim())
+    const addressTarget = address ? partnerAddressTarget(wedding, partnerIndex, address) : undefined
     return {
       displayName,
       ...(address ? { address } : {}),
+      ...(addressTarget ? { addressTarget } : {}),
       ...(customerPhone ? { phone: customerPhone } : {}),
       ...(customerEmail ? { email: customerEmail } : {}),
     }
@@ -230,6 +251,35 @@ export function buildContractTransformationDataset(input: {
   const reception = locationFromString(wedding.receptionLocation)
   if (ceremony) locations.ceremony = ceremony
   if (reception) locations.reception = reception
+
+  type StructuredPlace = { role: WeddingPlaceRole; label?: string | null; formattedAddress?: string | null }
+  const placeFor = (...roles: WeddingPlaceRole[]) => input.weddingPlaces?.find((place) => roles.includes(place.role))
+  const structuredLocation = (place: StructuredPlace | undefined) => {
+    if (!place) return undefined
+    const target = locationTarget(place.label, place.formattedAddress)
+    if (!target) return undefined
+    return target
+  }
+  const preparationPlace = placeFor('bride_preparation', 'preparation')
+  const bridePlace = placeFor('bride_preparation')
+  const groomPlace = placeFor('groom_preparation')
+  const ceremonyPlace = placeFor('ceremony')
+  const receptionPlace = placeFor('reception')
+  const structuredPreparation = structuredLocation(preparationPlace)
+  const structuredCeremony = structuredLocation(ceremonyPlace)
+  const structuredReception = structuredLocation(receptionPlace)
+  if (structuredPreparation && locations.preparation) locations.preparation = { ...locations.preparation, target: structuredPreparation }
+  if (structuredCeremony && locations.ceremony) locations.ceremony = { ...locations.ceremony, target: structuredCeremony }
+  if (structuredReception && locations.reception) locations.reception = { ...locations.reception, target: structuredReception }
+  if (bridePlace || groomPlace) {
+    locations.preparationLocations = (locations.preparationLocations ?? []).map((entry) => {
+      const place = entry.person === 'bride' ? bridePlace : entry.person === 'groom' ? groomPlace : undefined
+      const target = structuredLocation(place)
+      return target ? { ...entry, target } : entry
+    })
+  } else if (preparationPlace && locations.preparationLocations?.length === 1 && structuredPreparation) {
+    locations.preparationLocations = locations.preparationLocations.map((entry) => ({ ...entry, target: structuredPreparation }))
+  }
 
   // A5: empty optional roles must be explicit unknowns — omission alone lets Full-AI
   // invent ceremony/prep by copying reception.

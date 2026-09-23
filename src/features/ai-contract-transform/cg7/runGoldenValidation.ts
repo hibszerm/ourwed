@@ -36,6 +36,7 @@ import {
   type GoldenCaseId,
   type GoldenScenario,
 } from './goldenScenarios'
+import { hasStaleMappedCustomerToken } from './staleCustomerAudit'
 
 function normalizeMoneyBlob(s: string): string {
   return s.replace(/[\u00a0\u202f\u2007\u2009]/g, ' ')
@@ -267,7 +268,11 @@ function evaluateCase(input: {
   const p2 = scenario.wedding.couple?.partner2
   const hasP1 = partyPresent(input.finalTexts, p1)
   const hasP2 = p2 ? partyPresent(input.finalTexts, p2) : true
-  const staleParty = anyTokenPresent(blob, scenario.stalePartyTokens)
+  const staleParty = hasStaleMappedCustomerToken({
+    staleTokens: scenario.stalePartyTokens,
+    sourceBlocks: input.sourceBlocks,
+    finalBlocks: input.transform.ok ? input.transform.transformedBlocks : [],
+  })
   const inventedSecond =
     scenario.partyMode === 'one' &&
     /jan\s+pr[oó]bn|adam\s+mostow|filip\s+brzeg|marek\s+widok/i.test(blob) &&
@@ -676,6 +681,7 @@ export async function runGoldenValidation(input: {
       package: scenario.package,
       extras: scenario.extras,
       currentDate: '2026-11-05',
+      weddingPlaces: scenario.structuredPlaces,
     })
 
     // Representation map evidence BEFORE paid call

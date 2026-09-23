@@ -15,6 +15,7 @@ import { documentDraftService, documentTemplateService } from '@/lib/api/documen
 import { documentStorage } from '@/lib/api/documents/storage'
 import { packageService } from '@/lib/api/packageService'
 import { weddingExtraServiceService } from '@/lib/api/weddingExtraServiceService'
+import { weddingPlaceService } from '@/lib/api/weddingPlaceService'
 import { hashDocumentText } from '@/features/documents/ai/hash'
 import {
   generationBlockedByReadiness,
@@ -207,12 +208,14 @@ export const WeddingSparseContractGenerationService = {
       const extras = await weddingExtraServiceService.listByWeddingId(
         input.wedding.id,
       )
+      const weddingPlaces = await weddingPlaceService.listByWeddingId(input.wedding.id)
 
       const dataset = buildContractTransformationDataset({
         wedding: input.wedding,
         package: { id: pkg.id, name: pkg.name },
         currentDate,
         extras,
+        weddingPlaces,
       })
       logGenerationStage(trace, 'generation_input_build', 'succeeded', {
         blockCount: blocks.length,

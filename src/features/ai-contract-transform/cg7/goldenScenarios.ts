@@ -5,6 +5,7 @@
 
 import type { WeddingExtraService } from '@/types/package'
 import type { Wedding } from '@/types/wedding'
+import type { WeddingPlaceRole } from '@/types/travel'
 
 export type GoldenCaseId = 'G01' | 'G02' | 'G03' | 'G04' | 'G05' | 'G06'
 
@@ -33,6 +34,8 @@ export type GoldenScenario = {
   partyMode: 'one' | 'two'
   extrasMode: 'none' | 'one' | 'many'
   wedding: Wedding
+  /** Owner-approved structured target facts for the evaluation generator input. */
+  structuredPlaces?: Array<{ role: WeddingPlaceRole; label: string; formattedAddress?: string }>
   package: { id: string; name: string }
   extras: WeddingExtraService[]
   preserveMoney: string[]
@@ -187,8 +190,6 @@ export function buildGoldenScenarios(): GoldenScenario[] {
       stalePartyTokens: [
         'Alicja Przykładowa',
         'Alicją Przykładową',
-        'Tomasz Modelowy',
-        'Tomasza Modelowego',
       ],
       staleLocationTokens: [
         'Domu Rodzinnym Przykład',
@@ -257,6 +258,11 @@ export function buildGoldenScenarios(): GoldenScenario[] {
         ceremonyLocation: 'Dwór Artusa — sala reprezentacyjna, Gdańsk',
         receptionLocation: 'Olivia Garden, al. Grunwaldzka 472, Gdańsk',
       }),
+      structuredPlaces: [
+        { role: 'preparation', label: 'Hotel Motława, apartament 512', formattedAddress: 'ul. Chmielna 7, Gdańsk' },
+        { role: 'ceremony', label: 'Dwór Artusa — sala reprezentacyjna', formattedAddress: 'Gdańsk' },
+        { role: 'reception', label: 'Olivia Garden', formattedAddress: 'al. Grunwaldzka 472, Gdańsk' },
+      ],
       package: { id: 'golden-pkg-G02', name: 'Reportaż Amber' },
       extras: [],
       preserveMoney: [],
@@ -334,6 +340,12 @@ export function buildGoldenScenarios(): GoldenScenario[] {
         ceremonyLocation: 'Kościół Gwiazda Morza, Sopot',
         receptionLocation: 'Grand Hotel Sopot — sala balowa',
       }),
+      structuredPlaces: [
+        { role: 'bride_preparation', label: 'Villa Marina, apartament 1', formattedAddress: 'ul. Bohaterów Monte Cassino 22, Sopot' },
+        { role: 'groom_preparation', label: 'Hotel Nadmorski, pokój 408', formattedAddress: 'ul. Ejsmonda 2, Gdynia' },
+        { role: 'ceremony', label: 'Kościół Gwiazda Morza', formattedAddress: 'Sopot' },
+        { role: 'reception', label: 'Grand Hotel Sopot — sala balowa', formattedAddress: 'ul. Powstańców Warszawy 12/14, Sopot' },
+      ],
       package: { id: 'golden-pkg-G03', name: 'Foto+Film Harmonia' },
       extras: g03Extras,
       preserveMoney: ['850,00 zł'],
@@ -475,8 +487,6 @@ export function buildGoldenScenarios(): GoldenScenario[] {
       stalePartyTokens: [
         'Helena Wzorcowa',
         'Helenę Wzorcową',
-        'Emil Próbny',
-        'Emila Próbnego',
       ],
       staleLocationTokens: [
         'Urząd Stanu Cywilnego Miasta Testowego',

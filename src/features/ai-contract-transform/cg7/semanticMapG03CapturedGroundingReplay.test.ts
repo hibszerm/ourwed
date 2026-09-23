@@ -141,8 +141,8 @@ const c1Address = canonicalDataset.clients.customers![0]!.address!
 const c1Phone = canonicalDataset.clients.customers![0]!.phone!
 const c2Address = canonicalDataset.clients.customers![1]!.address!
 const c2Phone = canonicalDataset.clients.customers![1]!.phone!
-assert.equal(visibleBlock('table-1-row-1-cell-1-p-0'), c1Address, 'customer 1 address comes only from customerIndex 0')
-assert.equal(visibleBlock('table-1-row-2-cell-1-p-0'), c2Address, 'customer 2 address comes only from customerIndex 1')
+assert.equal(visibleBlock('table-1-row-1-cell-1-p-0'), canonicalDataset.clients.customers![0]!.addressTarget!.segments.join(''), 'customer 1 address components occupy the source slots')
+assert.equal(visibleBlock('table-1-row-2-cell-1-p-0'), canonicalDataset.clients.customers![1]!.addressTarget!.segments.join(''), 'customer 2 address components occupy the source slots')
 const expectedSurfaceReplacement = (blockId: string, canonicalValue: string) => {
   const mapping = contactGrounding.mappings.find((item) => item.sourceBlockId === blockId)!
   const sourceText = indexed.find((block) => block.blockId === blockId)!.text
@@ -155,7 +155,7 @@ assert(!visibleBlock('table-1-row-2-cell-1-p-0').includes(c1Address) && !visible
 for (const mapping of contactGrounding.mappings.filter((item) => item.concept === 'customer_address')) {
   const paragraphIndex = indexed.find((block) => block.blockId === mapping.sourceBlockId)!.paragraphIndex
   assert(paragraphXmls[paragraphIndex]!.includes('<w:br/>'), 'G03 source address crosses internal w:br')
-  assert(!outputParagraphs[paragraphIndex]!.includes('<w:br/>'), 'grounded internal address w:br consumed')
+  assert(outputParagraphs[paragraphIndex]!.includes('<w:br/>'), 'grounded internal address w:br preserved')
   assert(!visibleBlock(mapping.sourceBlockId).includes(mapping.anchor), 'old source address removed')
 }
 for (const mapping of contactGrounding.mappings.filter((item) => item.concept === 'customer_phone')) {

@@ -33,7 +33,7 @@ export type SemanticMappingExecutionResult =
       ok: true
       paragraphs: Array<{ blockId: string; paragraphXml: string }>
       /** Exact deterministic edits, for adapters that write the result to a DOCX package. */
-      spanEdits: Array<{ blockId: string; span: { start: number; end: number }; replacement: string }>
+      spanEdits: Array<{ blockId: string; span: { start: number; end: number }; replacement: string; replacementSegments?: string[] }>
     }
   | { ok: false; code: SemanticMappingExecutionFailureCode; mappingIndex?: number }
   | { ok: false; code: 'requires_user_input'; mappingIndex?: number; documentStateId: string; requiresUserInputDates: RequiresUserInputDate[] }
@@ -62,7 +62,7 @@ export function executeSemanticMappings(input: {
     sourceById.set(source.blockId, source.paragraphXml)
   }
 
-  const prepared: Array<ResolvedSemanticMapping & { replacement: string; inputIndex: number }> = []
+  const prepared: Array<ResolvedSemanticMapping & { replacement: string; replacementSegments?: string[]; inputIndex: number }> = []
   const requiresUserInputDates: RequiresUserInputDate[] = []
   const documentStateId = fingerprintSourceState(input.sourceParagraphs)
   const suppliedById = new Map<string, string>()
@@ -104,7 +104,14 @@ export function executeSemanticMappings(input: {
       }
       return { ok: false, code: rendered.code, mappingIndex: index }
     }
-    prepared.push({ ...mapping, replacement: rendered.value, inputIndex: index })
+    if (mapping.span.segments && mapping.span.segments.length > 1) {
+      if (!rendered.segments || rendered.segments.length !== mapping.span.segments.length || rendered.segments.some((part) => !part.trim())) {
+        return { ok: false, code: 'unrenderable_surface', mappingIndex: index }
+      }
+      prepared.push({ ...mapping, replacement: rendered.value, replacementSegments: rendered.segments, inputIndex: index })
+    } else {
+      prepared.push({ ...mapping, replacement: rendered.value, inputIndex: index })
+    }
   }
 
   for (const suppliedId of suppliedById.keys()) {
@@ -137,13 +144,14 @@ export function executeSemanticMappings(input: {
       const ordered = [...ascending].reverse()
       let paragraphXml = sourceById.get(blockId)!
       for (const mapping of ordered) {
-        paragraphXml = replaceGroundedTextSpan(paragraphXml, mapping.span, mapping.replacement)
+        paragraphXml = replaceGroundedTextSpan(paragraphXml, mapping.span, mapping.replacementSegments ?? mapping.replacement)
       }
       paragraphs.push({ blockId, paragraphXml })
-      spanEdits.push(...mappings.map(({ span, replacement }) => ({
+      spanEdits.push(...mappings.map(({ span, replacement, replacementSegments }) => ({
         blockId,
         span: { start: span.start, end: span.end },
         replacement,
+        ...(replacementSegments ? { replacementSegments } : {}),
       })))
     }
   } catch {
@@ -153,7 +161,7 @@ export function executeSemanticMappings(input: {
 }
 
 type RenderResult =
-  | { ok: true; value: string }
+  | { ok: true; value: string; segments?: string[] }
   | { ok: false; code: 'invalid_customer_index' | 'missing_canonical_value' | 'unsupported_concept' | 'unsupported_name_form' | 'unrenderable_surface' | 'shared_canonical_values_mismatch' | 'unsupported_shared_ownership' | 'ambiguous_date' }
   | { ok: false; code: 'requires_user_input'; reason: string }
 
@@ -198,18 +206,21 @@ function renderCanonicalValue(
         const first = dataset.clients.customers?.[0]?.address?.trim()
         const second = dataset.clients.customers?.[1]?.address?.trim()
         if (!first || !second) return { ok: false, code: 'missing_canonical_value' }
-        const firstRendered = renderCustomerAddress(first)
-        const secondRendered = renderCustomerAddress(second)
+        const firstCustomer = dataset.clients.customers?.[0]
+        const secondCustomer = dataset.clients.customers?.[1]
+        const firstRendered = firstCustomer?.addressTarget?.text ?? renderCustomerAddress(first)
+        const secondRendered = secondCustomer?.addressTarget?.text ?? renderCustomerAddress(second)
         if (!firstRendered || !secondRendered) return { ok: false, code: 'unrenderable_surface' }
         if (firstRendered !== secondRendered) return { ok: false, code: 'shared_canonical_values_mismatch' }
-        return { ok: true, value: firstRendered }
+        return { ok: true, value: firstRendered, ...(firstCustomer?.addressTarget ? { segments: firstCustomer.addressTarget.segments } : {}) }
       }
       const customer = getOwnedCustomer(mapping, dataset)
       if (!customer.ok) return customer
       const address = customer.customer.address?.trim()
       if (!address) return { ok: false, code: 'missing_canonical_value' }
-      const value = renderCustomerAddress(address)
-      return value ? { ok: true, value } : { ok: false, code: 'unrenderable_surface' }
+      const target = customer.customer.addressTarget
+      const value = target?.text ?? renderCustomerAddress(address)
+      return value ? { ok: true, value, ...(target ? { segments: target.segments } : {}) } : { ok: false, code: 'unrenderable_surface' }
     }
     case 'customer_phone': {
       if (mapping.customerIndexes !== undefined) {
@@ -289,8 +300,8 @@ function renderCanonicalValue(
     case 'preparation_location': {
       const location = dataset.locations.preparation
       if (!location) return { ok: false, code: 'missing_canonical_value' }
-      const value = renderLocationSummary(location)
-      return value ? { ok: true, value } : { ok: false, code: 'unrenderable_surface' }
+      const value = location.target?.text ?? renderLocationSummary(location)
+      return value ? { ok: true, value, ...(location.target ? { segments: location.target.segments } : {}) } : { ok: false, code: 'unrenderable_surface' }
     }
     case 'bride_preparation_location':
     case 'groom_preparation_location':
@@ -302,15 +313,15 @@ function renderCanonicalValue(
           : 'shared'
       const location = dataset.locations.preparationLocations?.find((entry) => entry.person === person)
       if (!location) return { ok: false, code: 'missing_canonical_value' }
-      const value = renderLocationSummary({ fullAddress: location.fullAddress })
-      return value ? { ok: true, value } : { ok: false, code: 'unrenderable_surface' }
+      const value = location.target?.text ?? renderLocationSummary({ fullAddress: location.fullAddress })
+      return value ? { ok: true, value, ...(location.target ? { segments: location.target.segments } : {}) } : { ok: false, code: 'unrenderable_surface' }
     }
     case 'ceremony_location':
     case 'reception_location': {
       const location = mapping.concept === 'ceremony_location' ? dataset.locations.ceremony : dataset.locations.reception
       if (!location) return { ok: false, code: 'missing_canonical_value' }
-      const value = renderLocationSummary(location)
-      return value ? { ok: true, value } : { ok: false, code: 'unrenderable_surface' }
+      const value = location.target?.text ?? renderLocationSummary(location)
+      return value ? { ok: true, value, ...(location.target ? { segments: location.target.segments } : {}) } : { ok: false, code: 'unrenderable_surface' }
     }
     default:
       return { ok: false, code: 'unsupported_concept' }

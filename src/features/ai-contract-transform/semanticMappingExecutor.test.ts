@@ -191,6 +191,48 @@ run('table-cell finance, locations, phone, and address inject available canonica
   assert(visible(result, 'address') === 'ul. Kwiatowa 8, 00-001 Warszawa', 'canonical address rendered')
 })
 
+run('structured CRM targets fill cross-break address and location slots without consuming breaks', () => {
+  const structured = {
+    ...dataset,
+    clients: {
+      ...dataset.clients,
+      customers: [
+        { ...dataset.clients.customers![0]!, addressTarget: { text: 'ul. Nowa 1, 00-001 Warszawa', segments: ['ul. Nowa 1', '00-001 Warszawa'] } },
+        dataset.clients.customers![1]!,
+      ],
+    },
+    locations: {
+      ...dataset.locations,
+      ceremony: { displayName: 'Pałac Goetz, ul. Brzeska 7, Brzesko', fullAddress: 'Pałac Goetz, ul. Brzeska 7, Brzesko', target: { text: 'Pałac Goetz, ul. Brzeska 7, Brzesko', segments: ['Pałac Goetz', 'ul. Brzeska 7, Brzesko'] } },
+    },
+  }
+  const sources = [
+    { blockId: 'address-lines', paragraphXml: '<w:p><w:r><w:t>Old Name</w:t><w:br/><w:t>ul. Old 1</w:t><w:br/><w:t>90-001 Łódź</w:t><w:br/><w:t>PESEL 123</w:t></w:r></w:p>' },
+    { blockId: 'location-lines', paragraphXml: '<w:p><w:r><w:t>Old Venue</w:t><w:br/><w:t>Old Address</w:t></w:r></w:p>' },
+  ]
+  const result = execute([
+    map('address-lines', 'customer_address', 'ul. Old 190-001 Łódź'),
+    map('location-lines', 'ceremony_location', 'Old VenueOld Address'),
+  ], sources, structured)
+  assert(result.ok, result.ok ? '' : `structured replacement failed: ${result.code}`)
+  const addressXml = result.paragraphs.find((row) => row.blockId === 'address-lines')!.paragraphXml
+  const locationXml = result.paragraphs.find((row) => row.blockId === 'location-lines')!.paragraphXml
+  assert(addressXml.includes('<w:t>Old Name</w:t><w:br/><w:t>ul. Nowa 1</w:t><w:br/><w:t>00-001 Warszawa</w:t><w:br/><w:t>PESEL 123</w:t>'), 'customer components fill corresponding slots while name and PESEL survive')
+  assert(locationXml.includes('<w:t>Pałac Goetz</w:t><w:br/><w:t>ul. Brzeska 7, Brzesko</w:t>'), 'location label and address fill same existing slots')
+  assert((addressXml.match(/<w:br\b/g) ?? []).length === 3, 'customer structural separators survive')
+  assert((locationXml.match(/<w:br\b/g) ?? []).length === 1, 'location structural separator survives')
+})
+
+run('cross-break targets with absent or incompatible authoritative components fail closed', () => {
+  const source = [{ blockId: 'multi-slot', paragraphXml: '<w:p><w:r><w:t>Old label</w:t><w:br/><w:t>Old address</w:t></w:r></w:p>' }]
+  const oneComponent = {
+    ...dataset,
+    locations: { ...dataset.locations, reception: { displayName: 'Grand Hotel Sopot — sala balowa', fullAddress: 'Grand Hotel Sopot — sala balowa', target: { text: 'Grand Hotel Sopot — sala balowa', segments: ['Grand Hotel Sopot — sala balowa'] } } },
+  }
+  const result = execute([map('multi-slot', 'reception_location', 'Old labelOld address')], source, oneComponent)
+  assert(!result.ok && result.code === 'unrenderable_surface', 'missing second target component cannot be guessed')
+})
+
 run('contact mappings use the indexed canonical customer without cross-customer fallback', () => {
   const sources = [
     { blockId: 'c1-address', paragraphXml: p('Old address one') },

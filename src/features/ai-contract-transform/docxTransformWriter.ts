@@ -56,7 +56,7 @@ export async function writeSemanticMappingDocx(input: {
   const edits = input.execution.spanEdits.map((edit) => {
     const index = indexById.get(edit.blockId)
     if (index === undefined) throw new Error(`Unknown semantic mapping source block: ${edit.blockId}`)
-    return { index, text: '', span: { ...edit.span, replacement: edit.replacement } }
+    return { index, text: '', span: { ...edit.span, replacement: edit.replacementSegments ?? edit.replacement } }
   })
   const semanticBytes = await applyDocxParagraphEdits(input.sourceBytes, edits)
   const insertions = (input.paragraphInsertions ?? []).map((ins) => ({

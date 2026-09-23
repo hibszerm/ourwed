@@ -205,6 +205,7 @@ async function executeCase(caseId: GoldenCaseId, scenario: ReturnType<typeof bui
     package: scenario.package,
     extras: scenario.extras,
     currentDate: '2026-09-22',
+    weddingPlaces: scenario.structuredPlaces,
   })
   const execution = executeSemanticMappings({
     resolvedMappings: grounded.mappings,

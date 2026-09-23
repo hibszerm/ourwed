@@ -119,16 +119,25 @@ run('logical-value breaks outside grounded spans survive multiline replacements'
   assert(tabbedNext.includes('<w:br/>') && tabbedNext.includes('<w:tab/>'), 'unmapped break and tab retained')
 })
 
-run('a grounded span crossing a structural break fails closed without removing it', () => {
+run('a grounded span crossing structural breaks retains ordered segment coordinates', () => {
   const full = '<w:p><w:pPr><w:jc w:val="both"/></w:pPr><w:r><w:rPr><w:b/></w:rPr><w:t>A</w:t><w:br/><w:t>B</w:t></w:r></w:p>'
   const found = locateGroundedTextSpan(full, 'AB')
-  assert(!found.ok && found.reason === 'unmappable', 'anchor spanning internal break is rejected')
-  assert(full.includes('<w:br/>'), 'source structural break remains untouched')
+  assert(found.ok, 'exact anchor spanning a line break grounds')
+  assert(JSON.stringify(found.span.segments) === JSON.stringify([{ start: 0, end: 1 }, { start: 1, end: 2 }]), 'grounded span records ordered editable segments')
+  let rejectedFlat = false
+  try { replaceGroundedTextSpan(full, found.span, 'XY') } catch { rejectedFlat = true }
+  assert(rejectedFlat, 'flat replacement cannot guess target segmentation')
+  const replaced = replaceGroundedTextSpan(full, found.span, ['X', 'Y'])
+  assert(replaced.includes('<w:t>X</w:t><w:br/><w:t>Y</w:t>'), 'target components occupy corresponding slots')
+  assert((replaced.match(/<w:br\b/g) ?? []).length === 1, 'same source break survives')
+  assertXmlWellFormed(replaced)
   assertXmlWellFormed(full)
 
   const multiple = '<w:p><w:r><w:t>A</w:t><w:br/><w:t>B</w:t><w:br/><w:t>C</w:t></w:r></w:p>'
   const multipleSpan = locateGroundedTextSpan(multiple, 'ABC')
-  assert(!multipleSpan.ok && multipleSpan.reason === 'unmappable', 'multiple internal breaks fail closed')
+  assert(multipleSpan.ok && multipleSpan.span.segments?.length === 3, 'multiple line breaks produce three ordered slots')
+  const multiResult = replaceGroundedTextSpan(multiple, multipleSpan.span, ['X', 'Y', 'Z'])
+  assert(multiResult.includes('<w:t>X</w:t><w:br/><w:t>Y</w:t><w:br/><w:t>Z</w:t>'), 'multiple existing breaks remain ordered')
 
   for (const [xml, anchor, expectedBreaks] of [
     ['<w:p><w:r><w:br/><w:t>TARGET</w:t></w:r></w:p>', 'TARGET', 1],
@@ -143,14 +152,17 @@ run('a grounded span crossing a structural break fails closed without removing i
 
   const surrounded = '<w:p><w:r><w:t>prefix A</w:t><w:br/><w:t>B suffix</w:t></w:r></w:p>'
   const surroundedSpan = locateGroundedTextSpan(surrounded, 'AB')
-  assert(!surroundedSpan.ok && surroundedSpan.reason === 'unmappable', 'interior anchor crossing break rejected')
-  assert(surrounded.includes('<w:br/>'), 'interior source break remains')
+  assert(surroundedSpan.ok, 'interior anchor crossing supported break grounds')
+  const surroundedResult = replaceGroundedTextSpan(surrounded, surroundedSpan.span, ['X', 'Y'])
+  assert(extractCanonicalParagraphText(surroundedResult) === 'prefix XY suffix', 'surrounding text remains outside mapped segments')
+  assert(surroundedResult.includes('<w:br/>'), 'interior source break remains')
 
   const tableParagraph = '<w:p><w:r><w:t>A</w:t><w:br/><w:t>B</w:t></w:r></w:p>'
   const cell = `<w:tc><w:tcPr><w:shd w:fill="FFFF00"/></w:tcPr>${tableParagraph}</w:tc>`
   const cellSpan = locateGroundedTextSpan(tableParagraph, 'AB')
-  assert(!cellSpan.ok && cellSpan.reason === 'unmappable', 'table cell span crossing break rejected')
-  assert(cell.includes('<w:tcPr><w:shd w:fill="FFFF00"/></w:tcPr>') && cell.includes('<w:br/>'), 'table-cell context and separator remain')
+  assert(cellSpan.ok, 'same-paragraph anchor in a table cell grounds')
+  const cellNext = replaceGroundedTextSpan(tableParagraph, cellSpan.span, ['X', 'Y'])
+  assert(cell.replace(tableParagraph, cellNext).includes('<w:tcPr><w:shd w:fill="FFFF00"/></w:tcPr>') && cellNext.includes('<w:br/>'), 'table-cell context and separator remain')
 })
 
 run('G03-style mixed party paragraph leaves provider/legal content unchanged', () => {
