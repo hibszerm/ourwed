@@ -146,9 +146,11 @@ async function run() {
   assert.equal(failed.code, 'canonical_data_missing')
 
   const nonBase = await makeProviderRows(blocks, [{ paragraph: 0, start: 'Anna Kowalska', concept: 'customer_1_name', nameForm: 'GENITIVE' }], null)
-  const nonBaseResult = await startSemanticContractGeneration({ ...input, canonicalDataset: noExtraDataset }, async () => nonBase)
-  assertState(nonBaseResult, 'TECHNICAL_FAILURE')
-  assert.equal(nonBaseResult.code, 'unsupported_name_form')
+  const nonBaseResult = await startSemanticContractGeneration(input, async () => nonBase)
+  assertState(nonBaseResult, 'COMPLETED')
+  const nonBaseZip = await JSZip.loadAsync(nonBaseResult.artifact.docxBytes)
+  const nonBaseXml = await nonBaseZip.file('word/document.xml')!.async('string')
+  assert.ok(nonBaseXml.includes('Anna Kowalska'), 'unsupported name morphology completes using the canonical CRM name')
 
   const providerFailure = await startSemanticContractGeneration(input, async () => { throw new Error('not exposed') })
   assertState(providerFailure, 'PROVIDER_FAILURE')

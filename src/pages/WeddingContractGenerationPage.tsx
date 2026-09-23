@@ -801,7 +801,6 @@ export function WeddingContractGenerationPage() {
   }
 
   function semanticFailureMessage(code: string): string {
-    if (code === 'unsupported_name_form') return 'Nie można bezpiecznie odmienić danych klienta w umowie. Umowa nie została utworzona.'
     if (code.startsWith('provider_')) return 'Nie udało się bezpiecznie przeanalizować umowy. Spróbuj ponownie później.'
     return 'Nie udało się bezpiecznie przygotować umowy. Sprawdź dane i spróbuj ponownie.'
   }

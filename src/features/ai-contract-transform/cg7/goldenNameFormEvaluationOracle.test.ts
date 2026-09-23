@@ -37,8 +37,8 @@ const grounded = resolveSemanticMappings({
 assert.equal(grounded.ok, true)
 if (!grounded.ok) throw new Error(`test mapping failed to ground: ${grounded.code}`)
 const defaultExecution = executeSemanticMappings({ resolvedMappings: grounded.mappings, canonicalDataset: dataset, sourceParagraphs })
-assert.equal(defaultExecution.ok, false)
-if (!defaultExecution.ok) assert.equal(defaultExecution.code, 'unsupported_name_form', 'production/default execution remains fail-closed')
+assert.equal(defaultExecution.ok, true, 'production/default execution safely uses the canonical CRM name when morphology is unavailable')
+if (defaultExecution.ok) assert.equal(defaultExecution.paragraphs[0]?.paragraphXml, '<w:p><w:r><w:t>Zofia Kalendarzowa</w:t></w:r></w:p>')
 const injectedExecution = executeSemanticMappings({
   resolvedMappings: grounded.mappings,
   canonicalDataset: dataset,

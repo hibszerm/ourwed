@@ -85,13 +85,13 @@ const knownKacperExecution = executeSemanticMappings({
   sourceParagraphs,
   sourceCustomerIdentities,
 })
-assert.equal(knownKacperExecution.ok, false)
-if (!knownKacperExecution.ok) assert.equal(knownKacperExecution.code, 'unsupported_name_form', 'Kacprem Modelowym remains blocked without an approved instrumental variant')
+assert.equal(knownKacperExecution.ok, true, 'unresolved instrumental morphology uses canonical CRM identity')
+if (knownKacperExecution.ok) assert.ok(knownKacperExecution.paragraphs.some((paragraph) => paragraph.paragraphXml.includes('Filip Brzegowy')))
 const fullExecution = executeSemanticMappings({ resolvedMappings: resolved.mappings, canonicalDataset, sourceParagraphs, sourceCustomerIdentities })
-assert.equal(fullExecution.ok, false, 'full G03 remains fail-closed at the unrelated known name limitation')
+assert.equal(fullExecution.ok, false, 'full G03 continues past name morphology and retains its independent unsafe-surface guard')
 if (!fullExecution.ok) {
-  assert.equal(fullExecution.code, 'unsupported_name_form')
-  assert.equal(fullExecution.mappingIndex, 2)
+  assert.equal(fullExecution.code, 'unrenderable_surface')
+  assert.equal(fullExecution.mappingIndex, 10)
 }
 
 const exactNameMappings = resolved.mappings.filter((mapping) =>
@@ -165,4 +165,4 @@ for (const tag of ['w:tbl', 'w:tr', 'w:tc']) {
   const countTags = (xml: string) => [...xml.matchAll(new RegExp(`<${tag}(?:\\s|>)`, 'g'))].length
   assert.equal(countTags(outputXml), countTags(documentXml), `${tag} structure preserved`)
 }
-console.log('PASS G03 scoped contact ownership and exact-name replay; full G03 remains blocked by unresolved instrumental name forms')
+console.log('PASS G03 scoped contact ownership and exact-name replay; morphology fallback works and unrelated unsafe surface still fails closed')

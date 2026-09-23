@@ -1,7 +1,7 @@
 import { extractCanonicalParagraphText } from '../documents/template/canonicalParagraph'
 import type { ContractTransformationDataset } from './types'
 import { resolveSemanticMappings, type SemanticMapping } from './semanticMapping'
-import { executeSemanticMappings } from './semanticMappingExecutor'
+import { executeSemanticMappings, type CustomerNameFormResolver } from './semanticMappingExecutor'
 import { polishContractMoneyWords } from './polishContractMoneyWords'
 import { applyDeterministicRepairs, repairMoneyWordsInText } from './quality/deterministicRepairs'
 
@@ -64,11 +64,55 @@ function visible(result: ReturnType<typeof executeSemanticMappings>, id: string)
   return extractCanonicalParagraphText(block.paragraphXml)
 }
 
-run('requested non-base customer name forms fail closed without authoritative variants', () => {
+run('unavailable customer morphology falls back to the exact canonical CRM name', () => {
   for (const [anchor, form] of [['Leny Fikcyjnej', 'GENITIVE'], ['Kacprem Modelowym', 'INSTRUMENTAL']] as const) {
     const result = execute([map('party', 'customer_1_name', anchor, undefined, form)], [{ blockId: 'party', paragraphXml: p(anchor) }])
-    assert(!result.ok && result.code === 'unsupported_name_form', `${form} never falls back to BASE or inferred text`)
+    assert(result.ok, `${form} without a morphology engine continues safely`)
+    assert(visible(result, 'party') === 'Maria Kowalska', `${form} uses the exact canonical CRM value`)
   }
+})
+
+run('production morphology uses only resolved forms and falls back on ambiguous, unsupported, or blank results', () => {
+  const resolve = (form: 'GENITIVE' | 'INSTRUMENTAL', resolver: CustomerNameFormResolver) => {
+    const anchor = form === 'GENITIVE' ? 'Old genitive' : 'Old instrumental'
+    const sourceParagraphs = [{ blockId: form, paragraphXml: p(anchor) }]
+    const grounded = resolveSemanticMappings({ mappings: [map(form, 'customer_1_name', anchor, undefined, form)], sourceBlocks: sourceParagraphs })
+    assert(grounded.ok, 'name mapping grounds')
+    if (!grounded.ok) throw new Error('name mapping grounding failed')
+    return executeSemanticMappings({ resolvedMappings: grounded.mappings, canonicalDataset: dataset, sourceParagraphs, customerNameFormResolver: resolver })
+  }
+  const genitive = resolve('GENITIVE', () => ({ status: 'RESOLVED', value: 'Marii Kowalskiej' }))
+  assert(visible(genitive, 'GENITIVE') === 'Marii Kowalskiej', 'resolved GENITIVE is used')
+  const instrumental = resolve('INSTRUMENTAL', () => ({ status: 'RESOLVED', value: 'Marią Kowalską' }))
+  assert(visible(instrumental, 'INSTRUMENTAL') === 'Marią Kowalską', 'resolved INSTRUMENTAL is used')
+  for (const result of [
+    resolve('GENITIVE', () => ({ status: 'AMBIGUOUS' })),
+    resolve('INSTRUMENTAL', () => ({ status: 'UNSUPPORTED' })),
+    resolve('GENITIVE', () => ({ status: 'RESOLVED', value: '  ' })),
+    resolve('INSTRUMENTAL', () => { throw new Error('morphology unavailable') }),
+  ]) {
+    assert(result.ok, 'unresolved morphology never blocks generation')
+    if (result.ok) assert(extractCanonicalParagraphText(result.paragraphs[0]!.paragraphXml) === 'Maria Kowalska', 'unresolved morphology falls back to BASE')
+  }
+})
+
+run('name-form fallback does not mutate CRM data or cross customer ownership', () => {
+  const canonicalDataset = structuredClone(dataset)
+  const before = structuredClone(canonicalDataset.clients)
+  const sourceParagraphs = [
+    { blockId: 'customer-1', paragraphXml: p('Old first name') },
+    { blockId: 'customer-2', paragraphXml: p('Old second name') },
+  ]
+  const grounded = resolveSemanticMappings({ mappings: [
+    map('customer-1', 'customer_1_name', 'Old first name', undefined, 'GENITIVE'),
+    map('customer-2', 'customer_2_name', 'Old second name', undefined, 'INSTRUMENTAL'),
+  ], sourceBlocks: sourceParagraphs })
+  assert(grounded.ok, 'both customer mappings ground')
+  if (!grounded.ok) throw new Error('customer mappings failed to ground')
+  const result = executeSemanticMappings({ resolvedMappings: grounded.mappings, canonicalDataset, sourceParagraphs })
+  assert(visible(result, 'customer-1') === 'Maria Kowalska', 'first customer gets first canonical name')
+  assert(visible(result, 'customer-2') === 'Ewa Nowak', 'second customer gets second canonical name')
+  assert(JSON.stringify(canonicalDataset.clients) === JSON.stringify(before), 'canonical CRM customer data remains unchanged')
 })
 
 run('exact source identities use the mapped canonical customer without cross-customer replacement', () => {
@@ -96,7 +140,7 @@ run('exact source identities use the mapped canonical customer without cross-cus
   assert(!visible(result, 'c1-exact').includes('Julia') && !visible(result, 'c2-exact').includes('Filip'), 'customer identities never cross')
 })
 
-run('exact path requires a proven complete source identity and leaves inflected forms fail-closed', () => {
+run('exact path rejects source-name surfaces without a proven complete identity', () => {
   const exactSource = [{ blockId: 'exact', paragraphXml: p('Kacper Modelowy') }]
   const twoCustomerDataset = {
     ...dataset,

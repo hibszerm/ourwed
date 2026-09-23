@@ -24,7 +24,6 @@ export type SemanticMappingExecutionFailureCode =
   | 'shared_canonical_values_mismatch'
   | 'unsupported_shared_ownership'
   | 'unsupported_concept'
-  | 'unsupported_name_form'
   | 'unrenderable_surface'
   | 'unsafe_ooxml_mutation'
   | 'ambiguous_date'
@@ -45,6 +44,16 @@ export type EvaluationNameFormResolver = (input: {
   nameForm: 'GENITIVE' | 'INSTRUMENTAL'
 }) => string | undefined
 
+export type CustomerNameFormResolution =
+  | { status: 'RESOLVED'; value: string }
+  | { status: 'AMBIGUOUS' | 'UNSUPPORTED' }
+
+/** Optional deterministic morphology engine. Unresolved results use the approved canonical-name fallback. */
+export type CustomerNameFormResolver = (input: {
+  canonicalIdentity: string
+  nameForm: 'GENITIVE' | 'INSTRUMENTAL'
+}) => CustomerNameFormResolution
+
 /** Apply only canonical dataset values to already-grounded source spans. */
 export function executeSemanticMappings(input: {
   resolvedMappings: readonly ResolvedSemanticMapping[]
@@ -54,6 +63,8 @@ export function executeSemanticMappings(input: {
   sourceCustomerIdentities?: readonly (string | undefined)[]
   /** Explicit offline-evaluation seam; production callers leave this unset. */
   evaluationNameFormResolver?: EvaluationNameFormResolver
+  /** Optional production morphology engine. An absent or unresolved result safely falls back to the CRM name. */
+  customerNameFormResolver?: CustomerNameFormResolver
   /** Values for unresolved grounded mappings, bound to the original source state. */
   suppliedDateValues?: SuppliedDateValues
 }): SemanticMappingExecutionResult {
@@ -100,7 +111,7 @@ export function executeSemanticMappings(input: {
         }
       }
     }
-    const rendered = renderCanonicalValue(executionMapping, input.canonicalDataset, input.sourceCustomerIdentities, input.evaluationNameFormResolver, executionDateMappings)
+    const rendered = renderCanonicalValue(executionMapping, input.canonicalDataset, input.sourceCustomerIdentities, input.evaluationNameFormResolver, input.customerNameFormResolver, executionDateMappings)
     if (!rendered.ok) {
       if (rendered.code === 'requires_user_input') {
         const role = dateRoleForMapping(mapping)
@@ -172,13 +183,26 @@ export function executeSemanticMappings(input: {
   return { ok: true, paragraphs, spanEdits }
 }
 
+function resolveCustomerNameFormSafely(
+  resolver: CustomerNameFormResolver | undefined,
+  input: Parameters<CustomerNameFormResolver>[0],
+): CustomerNameFormResolution {
+  if (!resolver) return { status: 'UNSUPPORTED' }
+  try {
+    return resolver(input)
+  } catch {
+    // A failed optional morphology engine is an unresolved form, not a generation failure.
+    return { status: 'UNSUPPORTED' }
+  }
+}
+
 function isMoneyWordsConcept(concept: ResolvedSemanticMapping['concept']): boolean {
   return concept === 'total_words' || concept === 'deposit_words' || concept === 'remaining_words'
 }
 
 type RenderResult =
   | { ok: true; value: string; segments?: string[] }
-  | { ok: false; code: 'invalid_customer_index' | 'missing_canonical_value' | 'unsupported_concept' | 'unsupported_name_form' | 'unrenderable_surface' | 'shared_canonical_values_mismatch' | 'unsupported_shared_ownership' | 'ambiguous_date' }
+  | { ok: false; code: 'invalid_customer_index' | 'missing_canonical_value' | 'unsupported_concept' | 'unrenderable_surface' | 'shared_canonical_values_mismatch' | 'unsupported_shared_ownership' | 'ambiguous_date' }
   | { ok: false; code: 'requires_user_input'; reason: string }
 
 function renderCanonicalValue(
@@ -186,6 +210,7 @@ function renderCanonicalValue(
   dataset: ContractTransformationDataset,
   sourceCustomerIdentities?: readonly (string | undefined)[],
   evaluationNameFormResolver?: EvaluationNameFormResolver,
+  customerNameFormResolver?: CustomerNameFormResolver,
   executionDateMappings: readonly ResolvedSemanticMapping[] = [],
 ): RenderResult {
   const source = mapping.anchor
@@ -196,22 +221,24 @@ function renderCanonicalValue(
       // records. Prefer that authority; the joined display string is only a
       // compatibility fallback for older fixtures/callers without customers[].
       const names = dataset.clients.customers
-        ? dataset.clients.customers.map((customer) => customer.displayName.trim())
+        ? dataset.clients.customers.map((customer) => customer.displayName)
         : dataset.clients.displayNames.trim().split(/\s+i\s+|\s+oraz\s+|,\s*/i).filter(Boolean)
       const personIndex = mapping.concept === 'customer_1_name' ? 0 : 1
       const canonicalName = names[personIndex]
-      if (!canonicalName || names.length !== dataset.clients.personCount || (personIndex === 1 && dataset.clients.personCount !== 2)) {
+      if (!canonicalName?.trim() || names.length !== dataset.clients.personCount || (personIndex === 1 && dataset.clients.personCount !== 2)) {
         return { ok: false, code: 'missing_canonical_value' }
       }
       if (mapping.nameForm !== 'BASE') {
-        if (!evaluationNameFormResolver) return { ok: false, code: 'unsupported_name_form' }
-        const evaluatedValue = evaluationNameFormResolver({
+        const resolverInput = {
           canonicalIdentity: canonicalName,
           nameForm: mapping.nameForm,
-        })
-        return evaluatedValue?.trim()
-          ? { ok: true, value: evaluatedValue }
-          : { ok: false, code: 'unsupported_name_form' }
+        }
+        const productionResult = resolveCustomerNameFormSafely(customerNameFormResolver, resolverInput)
+        if (productionResult?.status === 'RESOLVED' && productionResult.value.trim()) {
+          return { ok: true, value: productionResult.value }
+        }
+        const evaluatedValue = evaluationNameFormResolver?.(resolverInput)
+        return { ok: true, value: evaluatedValue?.trim() ? evaluatedValue : canonicalName }
       }
       const exactName = renderExactCanonicalIdentity(source, sourceCustomerIdentities?.[personIndex], canonicalName)
       if (exactName) return { ok: true, value: exactName }

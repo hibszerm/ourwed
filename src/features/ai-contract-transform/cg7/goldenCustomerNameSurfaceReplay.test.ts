@@ -98,18 +98,16 @@ async function main() {
       result.safe++
       const output = execution.paragraphs[0]!
       const visible = extractCanonicalParagraphText(output.paragraphXml)
-      const target = dataset.clients.displayNames.split(/\s+i\s+/)[surface.customer - 1]!
-      assert.ok(visible.includes(target), `${surface.caseId} canonical customer value rendered`)
+      const target = dataset.clients.customers?.[surface.customer - 1]?.displayName
+      assert.ok(target && visible.includes(target), `${surface.caseId} canonical customer value rendered`)
     } else {
-      assert.equal(execution.code, 'unsupported_name_form', `${surface.caseId} unsupported form fails closed`)
-      counts.unresolved++
-      result.unrenderable++
+      assert.fail(`${surface.caseId} unresolved name form should use canonical fallback, got ${execution.code}`)
     }
-    assert.equal(execution.ok, nameForm === 'BASE', `${surface.caseId} BASE executes; non-base awaits a variant resolver`)
+    assert.equal(execution.ok, true, `${surface.caseId} all closed name forms execute with safe canonical fallback`)
     byCase.set(surface.caseId, result)
   }
   assert.equal(surfaces.length, 27)
-  assert.deepEqual(counts, { safe: 20, unresolved: 7, base: 20, genitive: 3, instrumental: 4 })
+  assert.deepEqual(counts, { safe: 27, unresolved: 0, base: 20, genitive: 3, instrumental: 4 })
   console.log(`PASS G01-G06 customer-name surface replay; total=${surfaces.length}; forms=${JSON.stringify(counts)}`)
   console.log(`GOLDENS_WITH_UNRENDERABLE=${[...byCase].filter(([, value]) => value.unrenderable > 0).map(([id]) => id).join(',')}`)
 }

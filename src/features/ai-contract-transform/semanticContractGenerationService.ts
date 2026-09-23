@@ -68,7 +68,6 @@ export type SemanticGenerationFailureCode =
   | 'provider_timeout'
   | 'semantic_grounding_failed'
   | 'canonical_data_missing'
-  | 'unsupported_name_form'
   | 'execution_failed'
   | 'resume_values_invalid'
   | 'extras_quality_failed'
@@ -268,7 +267,6 @@ async function resolveAndRender(state: SemanticContractGenerationPendingState): 
       active = active.filter((candidate) => candidate.originalIndex !== entry.originalIndex)
       continue
     }
-    if (execution.code === 'unsupported_name_form') return failure('TECHNICAL_FAILURE', 'unsupported_name_form', 'This customer name form cannot be rendered safely yet.')
     return failure('TECHNICAL_FAILURE', 'execution_failed', 'The grounded semantic mappings could not be applied safely.')
   }
 

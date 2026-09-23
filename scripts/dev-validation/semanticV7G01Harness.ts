@@ -436,9 +436,7 @@ export async function runSemanticV7G01Harness(args: string[], dependencies: Harn
       return result.parsed
     }
     const generation = await startSemanticContractGeneration(prepared.input, provider)
-    const executionResult = generation.status === 'TECHNICAL_FAILURE' && generation.code === 'unsupported_name_form'
-      ? 'EXPECTED_FAIL_CLOSED_UNSUPPORTED_NAME_FORM'
-      : generation.status
+    const executionResult = generation.status
     if (generation.status === 'COMPLETED') writeBinary(join(evidenceDirectory, 'G01_FINAL.docx'), generation.artifact.docxBytes)
     const validationSummary = {
       providerHttp,
