@@ -10,6 +10,12 @@ const DEFAULT_DEV_ORIGINS = [
   'http://127.0.0.1:3000',
 ] as const
 
+// Vercel's canonical deployment URLs for the OurWed project use:
+// ourwed-<9-character-deployment-id>-our-wed.vercel.app
+// Requiring this complete hostname shape avoids admitting unrelated Vercel
+// projects or attacker-controlled suffixes.
+const OURWED_VERCEL_PREVIEW_HOST = /^ourwed-[a-z0-9]{9}-our-wed\.vercel\.app$/
+
 export type EnvGet = (name: string) => string | null
 
 function parseOriginList(raw: string | null | undefined): string[] {
@@ -45,6 +51,22 @@ export function resolveAllowedCorsOrigins(env: EnvGet): string[] {
   return [...origins]
 }
 
+function isOurWedPreviewOrigin(origin: string): boolean {
+  try {
+    const parsed = new URL(origin)
+    return (
+      parsed.protocol === 'https:' &&
+      parsed.origin === origin &&
+      parsed.username === '' &&
+      parsed.password === '' &&
+      parsed.port === '' &&
+      OURWED_VERCEL_PREVIEW_HOST.test(parsed.hostname)
+    )
+  } catch {
+    return false
+  }
+}
+
 export function buildRestrictedCorsHeaders(
   req: Request,
   env: EnvGet,
@@ -58,7 +80,7 @@ export function buildRestrictedCorsHeaders(
     'Access-Control-Allow-Methods': methods,
     Vary: 'Origin',
   }
-  if (origin && allowed.has(origin)) {
+  if (origin && (allowed.has(origin) || isOurWedPreviewOrigin(origin))) {
     headers['Access-Control-Allow-Origin'] = origin
   }
   // Disallowed / missing Origin: do not emit permissive ACAO.
