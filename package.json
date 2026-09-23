@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "validate:semantic-v7-g01": "npx tsx --tsconfig tsconfig.app.json scripts/dev-validation/runSemanticV7G01.ts",
     "build": "tsc -b && vite build",
     "validate:production-supabase-artifact": "node scripts/validateProductionSupabaseArtifact.mjs",
     "lint": "eslint .",
