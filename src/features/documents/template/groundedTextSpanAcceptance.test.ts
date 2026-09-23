@@ -5,6 +5,10 @@ import {
   locateGroundedTextSpan,
   replaceGroundedTextSpan,
 } from './docxParagraphEditor'
+import {
+  extractSemanticParagraphTextSlots,
+  reconstructSemanticSpanAuditText,
+} from '@/features/ai-contract-transform/cg7/semanticSpanReplayAudit'
 
 function assert(ok: unknown, message: string): asserts ok {
   if (!ok) throw new Error(message)
@@ -163,6 +167,28 @@ run('a grounded span crossing structural breaks retains ordered segment coordina
   assert(cellSpan.ok, 'same-paragraph anchor in a table cell grounds')
   const cellNext = replaceGroundedTextSpan(tableParagraph, cellSpan.span, ['X', 'Y'])
   assert(cell.replace(tableParagraph, cellNext).includes('<w:tcPr><w:shd w:fill="FFFF00"/></w:tcPr>') && cellNext.includes('<w:br/>'), 'table-cell context and separator remain')
+})
+
+run('structured cross-break targets preserve exact components and the source break', () => {
+  const source = '<w:p><w:r><w:t xml:space="preserve">prefix Old Venue</w:t><w:br/><w:t xml:space="preserve">Old Street 1, Old City suffix</w:t></w:r></w:p>'
+  const found = locateGroundedTextSpan(source, 'Old VenueOld Street 1, Old City')
+  assert(found.ok, 'complete two-slot source location grounds')
+  assert(JSON.stringify(found.span.segments) === JSON.stringify([{ start: 7, end: 16 }, { start: 16, end: 38 }]), 'grounded span identifies the two ordered source slots')
+
+  const targetSegments = ['Hotel Motława, apartament 512', 'ul. Chmielna 7, Gdańsk']
+  const next = replaceGroundedTextSpan(source, found.span, targetSegments)
+  assert(next.includes('<w:t xml:space="preserve">prefix Hotel Motława, apartament 512</w:t><w:br/><w:t xml:space="preserve">ul. Chmielna 7, Gdańsk suffix</w:t>'), 'each structured target component occupies its corresponding source slot')
+  assert((next.match(/<w:br\b/g) ?? []).length === 1, 'the existing structural break remains exactly once')
+  const expectedFlat = reconstructSemanticSpanAuditText(extractCanonicalParagraphText(source), [{
+    span: found.span,
+    replacement: targetSegments.join(', '),
+    replacementSegments: targetSegments,
+  }])
+  assert(extractCanonicalParagraphText(next) === expectedFlat, 'segment-aware audit does not expect a flattened delimiter at the structural break')
+  assert(JSON.stringify(extractSemanticParagraphTextSlots(next)) === JSON.stringify(['prefix Hotel Motława, apartament 512', 'ul. Chmielna 7, Gdańsk suffix']), 'each exact component remains in its ordered structural slot')
+  assert(next.includes('Hotel Motława, apartament 512'), 'punctuation inside the first target component is exact')
+  assert(next.includes('ul. Chmielna 7, Gdańsk'), 'punctuation inside the second target component is exact')
+  assertXmlWellFormed(next)
 })
 
 run('G03-style mixed party paragraph leaves provider/legal content unchanged', () => {

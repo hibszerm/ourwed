@@ -75,17 +75,11 @@ run('strict semanticMappings schema derives closed concepts and has no legacy fi
     assert.deepEqual(variant.properties.nameForm.type, ['string', 'null'])
     assert.deepEqual(variant.properties.nameForm.enum, [...CUSTOMER_NAME_FORMS, null])
   }
-  for (const concept of SEMANTIC_CONCEPTS.filter((value) => !['customer_address', 'customer_phone', 'customer_email', 'dependent_date', 'fixed_date'].includes(value))) {
-    const variant = variants.find((candidate) => candidate.properties.concept.enum.includes(concept))!
-    assert.deepEqual(variant.properties.customerIndex, { type: 'null', enum: [null] }, `${concept} index is null-only`)
-    assert.deepEqual(variant.properties.customerIndexes, { type: 'null', enum: [null] }, `${concept} indexes are null-only`)
+  assert.equal(variants.length, 3, 'keep the provider-compatible three-branch schema topology')
+  for (const variant of variants) {
+    assert.deepEqual(variant.properties.customerIndex, { type: ['integer', 'null'], enum: [0, 1, null] })
+    assert.deepEqual(variant.properties.customerIndexes, { type: ['array', 'null'], items: { type: 'integer', enum: [0, 1] } })
   }
-  const singleContact = variants.find((variant) => variant.properties.customerIndex.type === 'integer')!
-  assert.deepEqual(singleContact.properties.customerIndex, { type: 'integer', enum: [0, 1] })
-  assert.deepEqual(singleContact.properties.customerIndexes, { type: 'null', enum: [null] })
-  const sharedContact = variants.find((variant) => variant.properties.customerIndexes.type === 'array')!
-  assert.deepEqual(sharedContact.properties.customerIndex, { type: 'null', enum: [null] })
-  assert.deepEqual(sharedContact.properties.customerIndexes.enum, [[0, 1]])
   const canonicalDates = variants.find((variant) => variant.properties.concept.enum.includes('deposit_due_date'))!
   assert.deepEqual(canonicalDates.properties.dateRole.enum, [null])
   assert.deepEqual(canonicalDates.properties.baseDateConcept.enum, [null])
@@ -108,10 +102,8 @@ function schemaAcceptsOwnership(concept: string, customerIndex: unknown, custome
     if (!properties.concept.enum?.includes(concept)) return false
     const matches = (rule: { type: unknown; enum?: readonly unknown[] }, value: unknown) => {
       if (rule.enum && !rule.enum.some((candidate) => JSON.stringify(candidate) === JSON.stringify(value))) return false
-      if (rule.type === 'null') return value === null
-      if (rule.type === 'integer') return Number.isInteger(value)
-      if (rule.type === 'array') return Array.isArray(value)
-      return false
+      const types = Array.isArray(rule.type) ? rule.type : [rule.type]
+      return types.some((type) => type === 'null' ? value === null : type === 'integer' ? Number.isInteger(value) : type === 'array' ? Array.isArray(value) : false)
     }
     return matches(properties.customerIndex, customerIndex) && matches(properties.customerIndexes, customerIndexes)
   })
@@ -125,22 +117,32 @@ function ownershipMapping(concept: string, customerIndex: number | null, custome
   }
 }
 
-run('provider ownership schema is concept-dependent and aligned with strict parsing', () => {
+run('provider schema keeps compatible ownership topology while parser canonicalizes name indexes', () => {
   for (const concept of ['customer_1_name', 'customer_2_name']) {
-    for (const customerIndex of [0, 1]) {
-      assert.equal(schemaAcceptsOwnership(concept, customerIndex, null), false, `${concept} index ${customerIndex} excluded`)
-    }
-    for (const customerIndexes of [[0], [1]]) {
-      assert.equal(schemaAcceptsOwnership(concept, null, customerIndexes), false, `${concept} shared/index tuple excluded`)
-    }
     assert.equal(schemaAcceptsOwnership(concept, null, null), true, `${concept} null ownership accepted`)
+    assert.equal(schemaAcceptsOwnership(concept, concept === 'customer_1_name' ? 0 : 1, null), true, `${concept} matching redundant owner is schema-compatible`)
+    assert.equal(schemaAcceptsOwnership(concept, concept === 'customer_1_name' ? 1 : 0, null), true, `${concept} contradictory owner reaches authoritative parser rejection`)
+    assert.equal(schemaAcceptsOwnership(concept, null, [0, 1]), true, `${concept} arrays remain schema-compatible and parser-rejected`)
+    assert.equal(schemaAcceptsOwnership(concept, null, null), true, `${concept} null ownership accepted`)
+    const matchingIndex = concept === 'customer_1_name' ? 0 : 1
+    const normalized = parseSemanticMapResponse({ semanticMappings: [ownershipMapping(concept, matchingIndex, null)] })
+    assert.equal(normalized.ok, true)
+    if (normalized.ok) {
+      assert.equal(Object.hasOwn(normalized.semanticMappings[0]!, 'customerIndex'), false)
+      assert.equal(Object.hasOwn(normalized.semanticMappings[0]!, 'customerIndexes'), false)
+    }
+    for (const contradictoryIndex of [concept === 'customer_1_name' ? 1 : 0]) {
+      assert.equal(parseSemanticMapResponse({ semanticMappings: [ownershipMapping(concept, contradictoryIndex, null)] }).ok, false)
+    }
+    for (const customerIndexes of [[0, 1], [0], [1]]) {
+      assert.equal(parseSemanticMapResponse({ semanticMappings: [ownershipMapping(concept, null, customerIndexes)] }).ok, false)
+    }
     assert.equal(parseSemanticMapResponse({ semanticMappings: [ownershipMapping(concept, null, null)] }).ok, true)
   }
 
-  for (const [concept, customerIndex, customerIndexes] of [
-    ['total', 0, null], ['total', null, [0, 1]],
-  ] as const) {
-    assert.equal(schemaAcceptsOwnership(concept, customerIndex, customerIndexes), false)
+  for (const [concept, customerIndex, customerIndexes] of [ ['total', 0, null], ['total', null, [0, 1]] ] as const) {
+    assert.equal(schemaAcceptsOwnership(concept, customerIndex, customerIndexes), true)
+    assert.equal(parseSemanticMapResponse({ semanticMappings: [ownershipMapping(concept, customerIndex, customerIndexes)] }).ok, false)
   }
   assert.equal(schemaAcceptsOwnership('total', null, null), true)
   assert.equal(parseSemanticMapResponse({ semanticMappings: [ownershipMapping('total', null, null)] }).ok, true)
@@ -153,10 +155,10 @@ run('provider ownership schema is concept-dependent and aligned with strict pars
     assert.equal(schemaAcceptsOwnership(concept, null, [0, 1]), true, `${concept} shared owner`)
     assert.equal(parseSemanticMapResponse({ semanticMappings: [ownershipMapping(concept, null, [0, 1])] }).ok, true)
     for (const invalidIndexes of [[0], [1], [0, 0], [1, 1], [1, 0], [0, 1, 0]]) {
-      assert.equal(schemaAcceptsOwnership(concept, null, invalidIndexes), false, `${concept} rejects invalid shared owners ${invalidIndexes}`)
+      assert.equal(parseSemanticMapResponse({ semanticMappings: [ownershipMapping(concept, null, invalidIndexes)] }).ok, false, `${concept} rejects invalid shared owners ${invalidIndexes}`)
     }
-    assert.equal(schemaAcceptsOwnership(concept, 0, [0, 1]), false, `${concept} rejects mixed single/shared ownership`)
-    assert.equal(schemaAcceptsOwnership(concept, null, null), false, `${concept} rejects missing owner`)
+    assert.equal(parseSemanticMapResponse({ semanticMappings: [ownershipMapping(concept, 0, [0, 1])] }).ok, false, `${concept} rejects mixed single/shared ownership`)
+    assert.equal(parseSemanticMapResponse({ semanticMappings: [ownershipMapping(concept, null, null)] }).ok, false, `${concept} rejects missing owner`)
   }
 
   const representative = [
@@ -169,7 +171,7 @@ run('provider ownership schema is concept-dependent and aligned with strict pars
   ]
   for (const mapping of representative) {
     assert.equal(schemaAcceptsOwnership(mapping.concept, mapping.customerIndex, mapping.customerIndexes), true)
-    assert.equal(parseSemanticMapResponse({ semanticMappings: [mapping] }).ok, true, `${mapping.concept} schema-accepted ownership parses`)
+    assert.equal(parseSemanticMapResponse({ semanticMappings: [mapping] }).ok, true, `${mapping.concept} valid ownership parses`)
   }
 })
 

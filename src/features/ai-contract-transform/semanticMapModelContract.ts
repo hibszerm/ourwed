@@ -102,8 +102,8 @@ export function buildSemanticMapResponseSchema() {
           type: 'array',
           items: {
             // Strict Structured Outputs supports nested anyOf when each branch is
-            // a closed object with all fields required. Branches encode the parser's
-            // ownership and date-field invariants without changing the response envelope.
+            // a closed object with all fields required. Branches encode the date-field
+            // invariants while preserving provider-compatible ownership fields.
             anyOf: buildSemanticMappingItemVariants(),
           },
         },
@@ -115,13 +115,14 @@ export function buildSemanticMapResponseSchema() {
 function buildSemanticMappingItemVariants() {
   const providerConcepts = SEMANTIC_CONCEPTS.filter((concept) => concept !== 'dependent_date' && concept !== 'fixed_date')
   const dateConcepts = new Set(['ambiguous_date', 'deposit_due_date', 'final_payment_due_date', 'delivery_due_date', 'wedding_date', 'execution_date', 'dependent_date', 'fixed_date'])
-  const contactConcepts = ['customer_address', 'customer_phone', 'customer_email'] as const
-  const ordinaryNonContactConcepts = providerConcepts.filter((concept) => !dateConcepts.has(concept) && !contactConcepts.includes(concept as typeof contactConcepts[number]))
+  const ordinaryConcepts = providerConcepts.filter((concept) => !dateConcepts.has(concept))
   const commonRequired = ['sourceBlockId', 'concept', 'anchor', 'occurrence', 'customerIndex', 'customerIndexes', 'nameForm', 'dateRole', 'baseDateConcept', 'relation']
   const commonProperties = {
     sourceBlockId: { type: 'string', minLength: 1 },
     anchor: { type: 'string', minLength: 1 },
     occurrence: { type: ['integer', 'null'], minimum: 0 },
+    customerIndex: { type: ['integer', 'null'], enum: [0, 1, null] },
+    customerIndexes: { type: ['array', 'null'], items: { type: 'integer', enum: [0, 1] } },
     nameForm: { type: ['string', 'null'], enum: [...CUSTOMER_NAME_FORMS, null] },
   } as const
   const nullField = { type: 'null', enum: [null] } as const
@@ -130,43 +131,22 @@ function buildSemanticMappingItemVariants() {
     dateRole: unknown
     baseDateConcept: unknown
     relation: unknown
-    customerIndex: unknown
-    customerIndexes: unknown
   }) => ({
     type: 'object',
     additionalProperties: false,
     required: commonRequired,
     properties: {
       ...commonProperties,
-      customerIndex: input.customerIndex,
-      customerIndexes: input.customerIndexes,
       concept: { type: 'string', enum: [...input.concepts] },
       dateRole: input.dateRole,
       baseDateConcept: input.baseDateConcept,
       relation: input.relation,
     },
   })
-  const nonContactOwnership = { customerIndex: nullField, customerIndexes: nullField }
   return [
-    closedObject({ concepts: ordinaryNonContactConcepts, ...nonContactOwnership, dateRole: nullField, baseDateConcept: nullField, relation: nullField }),
-    closedObject({
-      concepts: contactConcepts,
-      customerIndex: { type: 'integer', enum: [0, 1] },
-      customerIndexes: nullField,
-      dateRole: nullField,
-      baseDateConcept: nullField,
-      relation: nullField,
-    }),
-    closedObject({
-      concepts: contactConcepts,
-      customerIndex: nullField,
-      customerIndexes: { type: 'array', enum: [[0, 1]], items: { type: 'integer', enum: [0, 1] } },
-      dateRole: nullField,
-      baseDateConcept: nullField,
-      relation: nullField,
-    }),
-    closedObject({ concepts: ['deposit_due_date', 'final_payment_due_date', 'delivery_due_date', 'wedding_date', 'execution_date'], ...nonContactOwnership, dateRole: nullField, baseDateConcept: nullField, relation: nullField }),
-    closedObject({ concepts: ['ambiguous_date'], ...nonContactOwnership, dateRole: { type: ['string', 'null'], enum: [...DATE_ROLES, null] }, baseDateConcept: nullField, relation: nullField }),
+    closedObject({ concepts: ordinaryConcepts, dateRole: nullField, baseDateConcept: nullField, relation: nullField }),
+    closedObject({ concepts: ['deposit_due_date', 'final_payment_due_date', 'delivery_due_date', 'wedding_date', 'execution_date'], dateRole: nullField, baseDateConcept: nullField, relation: nullField }),
+    closedObject({ concepts: ['ambiguous_date'], dateRole: { type: ['string', 'null'], enum: [...DATE_ROLES, null] }, baseDateConcept: nullField, relation: nullField }),
   ] as const
 }
 
@@ -300,9 +280,18 @@ export function parseSemanticMapResponse(payload: unknown):
     const validSingleOwner = (row.customerIndex === 0 || row.customerIndex === 1) && row.customerIndexes === null
     const validSharedOwners = row.customerIndex === null && Array.isArray(row.customerIndexes) &&
       row.customerIndexes.length === 2 && row.customerIndexes[0] === 0 && row.customerIndexes[1] === 1
+    const validNameOwnership = isCustomerName
+      ? row.customerIndexes === null && (
+        row.customerIndex === null ||
+        (row.concept === 'customer_1_name' && row.customerIndex === 0) ||
+        (row.concept === 'customer_2_name' && row.customerIndex === 1)
+      )
+      : false
     const validCustomerOwnership = isContact
       ? validSingleOwner || validSharedOwners
-      : row.customerIndex === null && row.customerIndexes === null
+      : isCustomerName
+        ? validNameOwnership
+        : row.customerIndex === null && row.customerIndexes === null
     const validDateMetadata = isDate
       ? ((typeof row.dateRole === 'string' && (DATE_ROLES as readonly string[]).includes(row.dateRole)) || row.dateRole === null)
       : (row.dateRole === null && row.baseDateConcept === null && row.relation === null) ||
