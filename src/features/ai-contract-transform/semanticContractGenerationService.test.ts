@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises'
 import JSZip from 'jszip'
 import { extractCanonicalParagraphText } from '@/features/documents/template/canonicalParagraph'
 import { parseSemanticMapResponse } from './semanticMapModelContract'
+import { SemanticMapTransportError } from './semanticMapTransportTypes'
 import { startSemanticContractGeneration, resumeSemanticContractGeneration, type SemanticContractGenerationResult, type SemanticMapProviderResult } from './semanticContractGenerationService'
 import type { ContractTransformationDataset } from './types'
 
@@ -149,6 +150,13 @@ async function run() {
 
   const providerFailure = await startSemanticContractGeneration(input, async () => { throw new Error('not exposed') })
   assertState(providerFailure, 'PROVIDER_FAILURE')
+
+  const typedTransportFailure = await startSemanticContractGeneration(input, async () => { throw new SemanticMapTransportError('PROVIDER_TIMEOUT', 'provider_timeout') })
+  assertState(typedTransportFailure, 'PROVIDER_FAILURE')
+  assert.equal(typedTransportFailure.code, 'provider_timeout', 'P0 preserves typed timeout classification')
+  const typedConfigurationFailure = await startSemanticContractGeneration(input, async () => { throw new SemanticMapTransportError('PROVIDER_CONFIGURATION_FAILURE', 'provider_configuration') })
+  assertState(typedConfigurationFailure, 'TECHNICAL_FAILURE')
+  assert.equal(typedConfigurationFailure.code, 'provider_configuration_failed', 'configuration failure is technical and fail closed')
 
   const qualityDataset = { ...noExtraDataset, additionalServices: [{ name: 'Unsafe 900 zł extra' }] }
   const qualityResult = await startSemanticContractGeneration({ ...input, canonicalDataset: qualityDataset }, async () => makeProviderRows(blocks, [], null))

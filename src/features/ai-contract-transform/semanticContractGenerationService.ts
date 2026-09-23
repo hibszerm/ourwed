@@ -9,6 +9,7 @@ import type { SemanticExtrasPlacement } from './semanticExtrasPlacement'
 import { writeSemanticMappingDocx } from './docxTransformWriter'
 import type { ContractTransformationDataset, RequiresUserInputDate, TransformDocumentBlock } from './types'
 import type { ResolvedSemanticMapping } from './semanticMapping'
+import { SemanticMapTransportError } from './semanticMapTransportTypes'
 
 export type SemanticMapProviderResult = Extract<ReturnType<typeof parseSemanticMapResponse>, { ok: true }>
 export type SemanticMapProvider = (request: SemanticMapProviderRequest) => Promise<SemanticMapProviderResult>
@@ -60,6 +61,11 @@ export type SemanticGenerationFailureCode =
   | 'source_index_failed'
   | 'provider_invocation_failed'
   | 'provider_protocol_invalid'
+  | 'provider_auth_failed'
+  | 'provider_transport_failed'
+  | 'provider_configuration_failed'
+  | 'provider_failed'
+  | 'provider_timeout'
   | 'semantic_grounding_failed'
   | 'canonical_data_missing'
   | 'unsupported_name_form'
@@ -121,7 +127,17 @@ export async function startSemanticContractGeneration(
   try {
     const request = buildSemanticMapRequest({ candidate: input.modelCandidate, sourceBlocks: source.blocks, dataset: input.canonicalDataset })
     providerResult = await invokeSemanticMap(request)
-  } catch {
+  } catch (error) {
+    if (error instanceof SemanticMapTransportError) {
+      const providerFailure = error.failure !== 'PROVIDER_CONFIGURATION_FAILURE'
+      const code: SemanticGenerationFailureCode = error.failure === 'AUTH_FAILURE' ? 'provider_auth_failed'
+        : error.failure === 'TRANSPORT_FAILURE' ? 'provider_transport_failed'
+          : error.failure === 'PROVIDER_CONFIGURATION_FAILURE' ? 'provider_configuration_failed'
+            : error.failure === 'PROVIDER_TIMEOUT' ? 'provider_timeout'
+              : error.failure === 'PROTOCOL_FAILURE' ? 'provider_protocol_invalid' : 'provider_failed'
+      return failure(providerFailure ? 'PROVIDER_FAILURE' : 'TECHNICAL_FAILURE', code,
+        providerFailure ? 'Semantic contract analysis did not complete.' : 'Semantic contract analysis is not configured.')
+    }
     return failure('PROVIDER_FAILURE', 'provider_invocation_failed', 'Semantic contract analysis did not complete.')
   }
 
