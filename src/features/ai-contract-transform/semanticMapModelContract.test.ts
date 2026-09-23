@@ -66,17 +66,26 @@ run('strict semanticMappings schema derives closed concepts and has no legacy fi
   assert.equal(schema.strict, true)
   assert.deepEqual(schema.schema.required, ['semanticMappings'])
   const variants = schema.schema.properties.semanticMappings.items.anyOf
-  const allConcepts = variants.flatMap((variant) => [...variant.properties.concept.enum]).sort()
+  const allConcepts = [...new Set(variants.flatMap((variant) => [...variant.properties.concept.enum]))].sort()
   assert.deepEqual(allConcepts, SEMANTIC_CONCEPTS.filter((concept) => concept !== 'dependent_date' && concept !== 'fixed_date').sort())
   for (const variant of variants) {
     assert.deepEqual(variant.required, ['sourceBlockId', 'concept', 'anchor', 'occurrence', 'customerIndex', 'customerIndexes', 'nameForm', 'dateRole', 'baseDateConcept', 'relation'])
     assert.deepEqual(Object.keys(variant.properties).sort(), [...variant.required].sort())
     assert.deepEqual(variant.properties.occurrence.type, ['integer', 'null'])
-    assert.deepEqual(variant.properties.customerIndex.type, ['integer', 'null'])
-    assert.deepEqual(variant.properties.customerIndexes.type, ['array', 'null'])
     assert.deepEqual(variant.properties.nameForm.type, ['string', 'null'])
     assert.deepEqual(variant.properties.nameForm.enum, [...CUSTOMER_NAME_FORMS, null])
   }
+  for (const concept of SEMANTIC_CONCEPTS.filter((value) => !['customer_address', 'customer_phone', 'customer_email', 'dependent_date', 'fixed_date'].includes(value))) {
+    const variant = variants.find((candidate) => candidate.properties.concept.enum.includes(concept))!
+    assert.deepEqual(variant.properties.customerIndex, { type: 'null', enum: [null] }, `${concept} index is null-only`)
+    assert.deepEqual(variant.properties.customerIndexes, { type: 'null', enum: [null] }, `${concept} indexes are null-only`)
+  }
+  const singleContact = variants.find((variant) => variant.properties.customerIndex.type === 'integer')!
+  assert.deepEqual(singleContact.properties.customerIndex, { type: 'integer', enum: [0, 1] })
+  assert.deepEqual(singleContact.properties.customerIndexes, { type: 'null', enum: [null] })
+  const sharedContact = variants.find((variant) => variant.properties.customerIndexes.type === 'array')!
+  assert.deepEqual(sharedContact.properties.customerIndex, { type: 'null', enum: [null] })
+  assert.deepEqual(sharedContact.properties.customerIndexes.enum, [[0, 1]])
   const canonicalDates = variants.find((variant) => variant.properties.concept.enum.includes('deposit_due_date'))!
   assert.deepEqual(canonicalDates.properties.dateRole.enum, [null])
   assert.deepEqual(canonicalDates.properties.baseDateConcept.enum, [null])
@@ -89,6 +98,78 @@ run('strict semanticMappings schema derives closed concepts and has no legacy fi
   for (const variant of variants) assert.equal(variant.additionalProperties, false)
   for (const forbidden of ['changedBlocks', 'replacement', 'financeEvidence', 'dateEvidence', 'confidence', 'explanation', 'start', 'end', 'notes']) {
     assert.equal(forbidden in schema.schema.properties, false, `${forbidden} absent`)
+  }
+})
+
+function schemaAcceptsOwnership(concept: string, customerIndex: unknown, customerIndexes: unknown) {
+  const variants = buildSemanticMapResponseSchema().schema.properties.semanticMappings.items.anyOf
+  return variants.some((variant) => {
+    const properties = variant.properties as Record<string, { type: unknown; enum?: readonly unknown[] }>
+    if (!properties.concept.enum?.includes(concept)) return false
+    const matches = (rule: { type: unknown; enum?: readonly unknown[] }, value: unknown) => {
+      if (rule.enum && !rule.enum.some((candidate) => JSON.stringify(candidate) === JSON.stringify(value))) return false
+      if (rule.type === 'null') return value === null
+      if (rule.type === 'integer') return Number.isInteger(value)
+      if (rule.type === 'array') return Array.isArray(value)
+      return false
+    }
+    return matches(properties.customerIndex, customerIndex) && matches(properties.customerIndexes, customerIndexes)
+  })
+}
+
+function ownershipMapping(concept: string, customerIndex: number | null, customerIndexes: number[] | null) {
+  return {
+    sourceBlockId: 'p1', concept, anchor: concept.includes('_name') ? 'Anna Nowak' : 'value', occurrence: null,
+    customerIndex, customerIndexes,
+    nameForm: concept === 'customer_1_name' || concept === 'customer_2_name' ? 'BASE' : null,
+  }
+}
+
+run('provider ownership schema is concept-dependent and aligned with strict parsing', () => {
+  for (const concept of ['customer_1_name', 'customer_2_name']) {
+    for (const customerIndex of [0, 1]) {
+      assert.equal(schemaAcceptsOwnership(concept, customerIndex, null), false, `${concept} index ${customerIndex} excluded`)
+    }
+    for (const customerIndexes of [[0], [1]]) {
+      assert.equal(schemaAcceptsOwnership(concept, null, customerIndexes), false, `${concept} shared/index tuple excluded`)
+    }
+    assert.equal(schemaAcceptsOwnership(concept, null, null), true, `${concept} null ownership accepted`)
+    assert.equal(parseSemanticMapResponse({ semanticMappings: [ownershipMapping(concept, null, null)] }).ok, true)
+  }
+
+  for (const [concept, customerIndex, customerIndexes] of [
+    ['total', 0, null], ['total', null, [0, 1]],
+  ] as const) {
+    assert.equal(schemaAcceptsOwnership(concept, customerIndex, customerIndexes), false)
+  }
+  assert.equal(schemaAcceptsOwnership('total', null, null), true)
+  assert.equal(parseSemanticMapResponse({ semanticMappings: [ownershipMapping('total', null, null)] }).ok, true)
+
+  for (const concept of ['customer_address', 'customer_phone', 'customer_email']) {
+    for (const customerIndex of [0, 1]) {
+      assert.equal(schemaAcceptsOwnership(concept, customerIndex, null), true, `${concept} single owner ${customerIndex}`)
+      assert.equal(parseSemanticMapResponse({ semanticMappings: [ownershipMapping(concept, customerIndex, null)] }).ok, true)
+    }
+    assert.equal(schemaAcceptsOwnership(concept, null, [0, 1]), true, `${concept} shared owner`)
+    assert.equal(parseSemanticMapResponse({ semanticMappings: [ownershipMapping(concept, null, [0, 1])] }).ok, true)
+    for (const invalidIndexes of [[0], [1], [0, 0], [1, 1], [1, 0], [0, 1, 0]]) {
+      assert.equal(schemaAcceptsOwnership(concept, null, invalidIndexes), false, `${concept} rejects invalid shared owners ${invalidIndexes}`)
+    }
+    assert.equal(schemaAcceptsOwnership(concept, 0, [0, 1]), false, `${concept} rejects mixed single/shared ownership`)
+    assert.equal(schemaAcceptsOwnership(concept, null, null), false, `${concept} rejects missing owner`)
+  }
+
+  const representative = [
+    ownershipMapping('customer_1_name', null, null),
+    ownershipMapping('customer_2_name', null, null),
+    ownershipMapping('total', null, null),
+    ownershipMapping('customer_address', 0, null),
+    ownershipMapping('customer_phone', 1, null),
+    ownershipMapping('customer_email', null, [0, 1]),
+  ]
+  for (const mapping of representative) {
+    assert.equal(schemaAcceptsOwnership(mapping.concept, mapping.customerIndex, mapping.customerIndexes), true)
+    assert.equal(parseSemanticMapResponse({ semanticMappings: [mapping] }).ok, true, `${mapping.concept} schema-accepted ownership parses`)
   }
 })
 

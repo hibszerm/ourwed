@@ -103,7 +103,7 @@ export function buildSemanticMapResponseSchema() {
           items: {
             // Strict Structured Outputs supports nested anyOf when each branch is
             // a closed object with all fields required. Branches encode the parser's
-            // date-field invariants without changing the response envelope.
+            // ownership and date-field invariants without changing the response envelope.
             anyOf: buildSemanticMappingItemVariants(),
           },
         },
@@ -115,38 +115,58 @@ export function buildSemanticMapResponseSchema() {
 function buildSemanticMappingItemVariants() {
   const providerConcepts = SEMANTIC_CONCEPTS.filter((concept) => concept !== 'dependent_date' && concept !== 'fixed_date')
   const dateConcepts = new Set(['ambiguous_date', 'deposit_due_date', 'final_payment_due_date', 'delivery_due_date', 'wedding_date', 'execution_date', 'dependent_date', 'fixed_date'])
-  const ordinaryConcepts = providerConcepts.filter((concept) => !dateConcepts.has(concept))
+  const contactConcepts = ['customer_address', 'customer_phone', 'customer_email'] as const
+  const ordinaryNonContactConcepts = providerConcepts.filter((concept) => !dateConcepts.has(concept) && !contactConcepts.includes(concept as typeof contactConcepts[number]))
   const commonRequired = ['sourceBlockId', 'concept', 'anchor', 'occurrence', 'customerIndex', 'customerIndexes', 'nameForm', 'dateRole', 'baseDateConcept', 'relation']
   const commonProperties = {
     sourceBlockId: { type: 'string', minLength: 1 },
     anchor: { type: 'string', minLength: 1 },
     occurrence: { type: ['integer', 'null'], minimum: 0 },
-    customerIndex: { type: ['integer', 'null'], enum: [0, 1, null] },
-    customerIndexes: { type: ['array', 'null'], items: { type: 'integer', enum: [0, 1] } },
     nameForm: { type: ['string', 'null'], enum: [...CUSTOMER_NAME_FORMS, null] },
   } as const
+  const nullField = { type: 'null', enum: [null] } as const
   const closedObject = (input: {
     concepts: readonly string[]
     dateRole: unknown
     baseDateConcept: unknown
     relation: unknown
+    customerIndex: unknown
+    customerIndexes: unknown
   }) => ({
     type: 'object',
     additionalProperties: false,
     required: commonRequired,
     properties: {
       ...commonProperties,
+      customerIndex: input.customerIndex,
+      customerIndexes: input.customerIndexes,
       concept: { type: 'string', enum: [...input.concepts] },
       dateRole: input.dateRole,
       baseDateConcept: input.baseDateConcept,
       relation: input.relation,
     },
   })
-  const nullField = { type: 'null', enum: [null] } as const
+  const nonContactOwnership = { customerIndex: nullField, customerIndexes: nullField }
   return [
-    closedObject({ concepts: ordinaryConcepts, dateRole: nullField, baseDateConcept: nullField, relation: nullField }),
-    closedObject({ concepts: ['deposit_due_date', 'final_payment_due_date', 'delivery_due_date', 'wedding_date', 'execution_date'], dateRole: nullField, baseDateConcept: nullField, relation: nullField }),
-    closedObject({ concepts: ['ambiguous_date'], dateRole: { type: ['string', 'null'], enum: [...DATE_ROLES, null] }, baseDateConcept: nullField, relation: nullField }),
+    closedObject({ concepts: ordinaryNonContactConcepts, ...nonContactOwnership, dateRole: nullField, baseDateConcept: nullField, relation: nullField }),
+    closedObject({
+      concepts: contactConcepts,
+      customerIndex: { type: 'integer', enum: [0, 1] },
+      customerIndexes: nullField,
+      dateRole: nullField,
+      baseDateConcept: nullField,
+      relation: nullField,
+    }),
+    closedObject({
+      concepts: contactConcepts,
+      customerIndex: nullField,
+      customerIndexes: { type: 'array', enum: [[0, 1]], items: { type: 'integer', enum: [0, 1] } },
+      dateRole: nullField,
+      baseDateConcept: nullField,
+      relation: nullField,
+    }),
+    closedObject({ concepts: ['deposit_due_date', 'final_payment_due_date', 'delivery_due_date', 'wedding_date', 'execution_date'], ...nonContactOwnership, dateRole: nullField, baseDateConcept: nullField, relation: nullField }),
+    closedObject({ concepts: ['ambiguous_date'], ...nonContactOwnership, dateRole: { type: ['string', 'null'], enum: [...DATE_ROLES, null] }, baseDateConcept: nullField, relation: nullField }),
   ] as const
 }
 
