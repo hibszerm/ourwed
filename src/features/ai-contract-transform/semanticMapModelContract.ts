@@ -292,9 +292,9 @@ function parseExtrasPlacement(value: unknown): SemanticExtrasPlacement | null {
 }
 
 /** Strict V2 provider parser. Internal anchor text is never accepted from the model. */
-export function parseSemanticMapResponse(payload: unknown):
-  | { ok: true; semanticMappings: SemanticMapV2Mapping[]; extrasPlacement?: SemanticExtrasPlacement | null }
-  | { ok: false; code: SemanticMapParseFailure } {
+export type ParsedSemanticMapResponse = { ok: true; semanticMappings: SemanticMapV2Mapping[]; extrasPlacement?: SemanticExtrasPlacement | null }
+
+export function parseSemanticMapResponse(payload: unknown): ParsedSemanticMapResponse | { ok: false; code: SemanticMapParseFailure } {
   let parsed = payload
   if (typeof payload === 'string') {
     try { parsed = JSON.parse(payload) as unknown } catch { return { ok: false, code: 'invalid_response' } }
@@ -422,6 +422,15 @@ export function groundSemanticMapResponse(
 ): SemanticMappingResolution | { ok: false; code: SemanticMapParseFailure | 'protected_source' | 'stale_source' | 'invalid_token_range'; mappingIndex?: number } {
   const parsed = parseSemanticMapResponse(payload)
   if (!parsed.ok) return parsed
+  return groundParsedSemanticMapResponse(parsed, sourceParagraphs, sourceBlocks)
+}
+
+/** Ground a response already accepted by the strict V7 parser. */
+export function groundParsedSemanticMapResponse(
+  parsed: ParsedSemanticMapResponse,
+  sourceParagraphs: readonly IndexedSourceParagraph[],
+  sourceBlocks: readonly TransformDocumentBlock[],
+): SemanticMappingResolution | { ok: false; code: 'protected_source' | 'stale_source' | 'invalid_token_range' | 'duplicate_source_block_id' | 'unknown_source'; mappingIndex?: number } {
   const byId = new Map(sourceParagraphs.map((source) => [source.blockId, source]))
   const blocksById = new Map(sourceBlocks.map((block) => [block.blockId, block]))
   if (byId.size !== sourceParagraphs.length || blocksById.size !== sourceBlocks.length) return { ok: false, code: 'duplicate_source_block_id' }

@@ -192,7 +192,12 @@ function renderCanonicalValue(
   switch (mapping.concept) {
     case 'customer_1_name':
     case 'customer_2_name': {
-      const names = dataset.clients.displayNames.trim().split(/\s+i\s+|\s+oraz\s+|,\s*/i).filter(Boolean)
+      // Production datasets retain customer ownership in ordered structured
+      // records. Prefer that authority; the joined display string is only a
+      // compatibility fallback for older fixtures/callers without customers[].
+      const names = dataset.clients.customers
+        ? dataset.clients.customers.map((customer) => customer.displayName.trim())
+        : dataset.clients.displayNames.trim().split(/\s+i\s+|\s+oraz\s+|,\s*/i).filter(Boolean)
       const personIndex = mapping.concept === 'customer_1_name' ? 0 : 1
       const canonicalName = names[personIndex]
       if (!canonicalName || names.length !== dataset.clients.personCount || (personIndex === 1 && dataset.clients.personCount !== 2)) {
