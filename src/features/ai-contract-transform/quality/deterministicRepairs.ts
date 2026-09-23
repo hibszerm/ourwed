@@ -3,6 +3,7 @@
  */
 
 import { polishContractMoneyWords } from '../polishContractMoneyWords'
+import { hasSourceHundredthsSuffix } from '../moneyWordSourcePresentation'
 import type {
   ContractTransformationDataset,
   TransformDocumentBlock,
@@ -372,10 +373,10 @@ export function repairMoneyWordsInText(
       return `${amountWithCurrency}${between}(słownie: ${expected})`
     },
   )
-  // Bare form: słownie: … (optionally with trailing 00/100) — common in Polish contracts
+  // Bare form: słownie: … (optionally with trailing NN/100) — common in Polish contracts
   if (/słownie:/i.test(out)) {
     const bareRe = new RegExp(
-      `(${PLN_AMOUNT_SURFACE_RE_ONCE.source})([\\s\\S]{0,80}?)słownie:\\s*([^.;\\n]+?)(\\s*00\\/100)?(?=[.;\\n]|$)`,
+      `(${PLN_AMOUNT_SURFACE_RE_ONCE.source})([\\s\\S]{0,80}?)słownie:\\s*([^.;\\n]+?)(\\s*\\d{2}\\/100)?(?=[.;\\n]|$)`,
       'gi',
     )
     out = out.replace(
@@ -400,7 +401,7 @@ function repairRepresentedTotalWordsBlock(
   sourceText: string,
 ): string {
   if (!/słownie\s*:/i.test(text)) return text
-  const suffix = /00\/100/.test(sourceText) ? ' 00/100' : ''
+  const suffix = hasSourceHundredthsSuffix(sourceText) ? ' 00/100' : ''
   return text.replace(
     /(słownie\s*:\s*)([^.;\n]*?złotych)(\s*00\/100)?/gi,
     (_full, prefix: string) => `${prefix}${expected}${suffix}`,

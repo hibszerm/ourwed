@@ -4,6 +4,7 @@ import { formatDateLikeSource, formatMoneyLikeSource } from '@/features/ai-contr
 import type { ContractTransformationDataset } from './types'
 import type { RequiresUserInputDate, SuppliedDateValues } from './types'
 import { polishContractMoneyWords } from './polishContractMoneyWords'
+import { inspectMoneyWordSourcePresentation } from './moneyWordSourcePresentation'
 import { parsePlnAmountInteger } from './quality/plnAmountSurface'
 import {
   renderCustomerAddress,
@@ -88,7 +89,18 @@ export function executeSemanticMappings(input: {
     if (visible.slice(mapping.span.start, mapping.span.end) !== canonicalizeParagraphText(mapping.anchor)) {
       return { ok: false, code: 'grounded_span_stale', mappingIndex: index }
     }
-    const rendered = renderCanonicalValue(mapping, input.canonicalDataset, input.sourceCustomerIdentities, input.evaluationNameFormResolver, executionDateMappings)
+    let executionMapping = mapping
+    if (isMoneyWordsConcept(mapping.concept)) {
+      const presentation = inspectMoneyWordSourcePresentation({ sourceText: visible, span: mapping.span })
+      if (presentation.hundredthsSuffix && presentation.replacementSpan.end < mapping.span.end) {
+        executionMapping = {
+          ...mapping,
+          anchor: visible.slice(mapping.span.start, presentation.replacementSpan.end),
+          span: presentation.replacementSpan,
+        }
+      }
+    }
+    const rendered = renderCanonicalValue(executionMapping, input.canonicalDataset, input.sourceCustomerIdentities, input.evaluationNameFormResolver, executionDateMappings)
     if (!rendered.ok) {
       if (rendered.code === 'requires_user_input') {
         const role = dateRoleForMapping(mapping)
@@ -104,13 +116,13 @@ export function executeSemanticMappings(input: {
       }
       return { ok: false, code: rendered.code, mappingIndex: index }
     }
-    if (mapping.span.segments && mapping.span.segments.length > 1) {
-      if (!rendered.segments || rendered.segments.length !== mapping.span.segments.length || rendered.segments.some((part) => !part.trim())) {
+    if (executionMapping.span.segments && executionMapping.span.segments.length > 1) {
+      if (!rendered.segments || rendered.segments.length !== executionMapping.span.segments.length || rendered.segments.some((part) => !part.trim())) {
         return { ok: false, code: 'unrenderable_surface', mappingIndex: index }
       }
-      prepared.push({ ...mapping, replacement: rendered.value, replacementSegments: rendered.segments, inputIndex: index })
+      prepared.push({ ...executionMapping, replacement: rendered.value, replacementSegments: rendered.segments, inputIndex: index })
     } else {
-      prepared.push({ ...mapping, replacement: rendered.value, inputIndex: index })
+      prepared.push({ ...executionMapping, replacement: rendered.value, inputIndex: index })
     }
   }
 
@@ -158,6 +170,10 @@ export function executeSemanticMappings(input: {
     return { ok: false, code: 'unsafe_ooxml_mutation' }
   }
   return { ok: true, paragraphs, spanEdits }
+}
+
+function isMoneyWordsConcept(concept: ResolvedSemanticMapping['concept']): boolean {
+  return concept === 'total_words' || concept === 'deposit_words' || concept === 'remaining_words'
 }
 
 type RenderResult =

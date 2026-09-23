@@ -39,9 +39,14 @@ export function auditSemanticReplayParagraph(input: {
   const sourceText = extractCanonicalParagraphText(sourceParagraphXml)
   const auditEdits = input.edits.map((edit) => {
     const mapping = input.mappings.find((item) => item.sourceBlockId === blockId
-      && item.span.start === edit.span.start && item.span.end === edit.span.end)
+      && item.span.start <= edit.span.start && item.span.end >= edit.span.end)
     assert.ok(mapping, `${blockId}: every edit has a grounded source span`)
-    return { ...edit, span: { ...edit.span, segments: mapping.span.segments } }
+    const segments = mapping.span.segments?.flatMap((segment) => {
+      const start = Math.max(segment.start, edit.span.start)
+      const end = Math.min(segment.end, edit.span.end)
+      return end > start ? [{ start, end }] : []
+    })
+    return { ...edit, span: { ...edit.span, ...(segments?.length ? { segments } : {}) } }
   })
   assert.equal(
     extractCanonicalParagraphText(outputParagraphXml),

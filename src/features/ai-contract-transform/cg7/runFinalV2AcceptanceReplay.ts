@@ -25,9 +25,11 @@ import { polishContractMoneyWords } from '@/features/ai-contract-transform/polis
 const root = process.cwd()
 const base = join(root, 'tmp/golden-contract-validation-run2')
 const sourceDir = join(base, 'SOURCE')
-const outDir = join(base, 'FINAL_SEMANTIC_EXTRAS_V1_OFFLINE_AUDITED_20260923')
+const replayTag = process.env.OURWED_GOLDEN_REPLAY_TAG?.trim()
+if (replayTag && !/^[A-Za-z0-9_-]+$/.test(replayTag)) throw new Error('OURWED_GOLDEN_REPLAY_TAG must be a simple path-safe tag')
+const outDir = join(base, replayTag ? `FINAL_MONEY_WORD_PRESENTATION_${replayTag}` : 'FINAL_SEMANTIC_EXTRAS_V1_OFFLINE_AUDITED_20260923')
 const evidenceDir = join(base, 'EVIDENCE/SEMANTIC_SOURCE_IDENTITY_V2_SIX_GOLDEN_ACCEPTANCE_20260923')
-const replayEvidenceDir = join(base, 'EVIDENCE/SEMANTIC_EXTRAS_V1_OFFLINE_AUDITED_20260923')
+const replayEvidenceDir = join(base, replayTag ? `EVIDENCE/MONEY_WORD_PRESENTATION_${replayTag}` : 'EVIDENCE/SEMANTIC_EXTRAS_V1_OFFLINE_AUDITED_20260923')
 // Executor fixtures only. Captured provider output predates the placement field.
 const placementFixtures: Partial<Record<GoldenCaseId, { sourceBlockId: string; side: 'before' | 'after' }>> = {
   G01: { sourceBlockId: 'para-30', side: 'after' },
@@ -150,6 +152,10 @@ function dateInventory(blocks: Array<{ blockId: string; text: string }>) {
   return blocks.flatMap((block) => [...block.text.matchAll(dateToken)].map((match) => ({ blockId: block.blockId, dateLiteral: match[0], start: match.index ?? 0 })))
 }
 
+if (replayTag) {
+  assert.equal(existsSync(outDir), false, `new replay output directory does not exist: ${outDir}`)
+  assert.equal(existsSync(replayEvidenceDir), false, `new replay evidence directory does not exist: ${replayEvidenceDir}`)
+}
 mkdirSync(outDir, { recursive: true })
 mkdirSync(replayEvidenceDir, { recursive: true })
 for (const scenario of cases) {

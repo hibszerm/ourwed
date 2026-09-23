@@ -3,6 +3,7 @@ import type { ContractTransformationDataset } from './types'
 import { resolveSemanticMappings, type SemanticMapping } from './semanticMapping'
 import { executeSemanticMappings } from './semanticMappingExecutor'
 import { polishContractMoneyWords } from './polishContractMoneyWords'
+import { applyDeterministicRepairs, repairMoneyWordsInText } from './quality/deterministicRepairs'
 
 function assert(ok: unknown, message: string): asserts ok {
   if (!ok) throw new Error(message)
@@ -155,6 +156,104 @@ run('total, deposit, remaining, and words derive from canonical numeric amounts'
   assert(total === `4 800,00 zł (słownie: ${polishContractMoneyWords(4800)})`, 'numeric and words total share canonical amount')
   assert(visible(result, 'deposit') === `1 200 zł (słownie: ${polishContractMoneyWords(1200)})`, 'deposit and words use canonical deposit')
   assert(visible(result, 'remaining') === `3 600 zł (słownie: ${polishContractMoneyWords(3600)})`, 'remaining and words use canonical remaining')
+})
+
+run('money-word suffix inside the mapped span stays outside the replacement with punctuation intact', () => {
+  const sourceText = 'osiem tysięcy czterysta złotych 00/100.'
+  const source = [{ blockId: 'money-inside', paragraphXml: p(sourceText) }]
+  const target = {
+    ...dataset,
+    finances: {
+      ...dataset.finances,
+      contractValueFormatted: '11 200 zł',
+      contractValueWords: 'ignored',
+    },
+  }
+  const result = execute([map('money-inside', 'total_words', 'osiem tysięcy czterysta złotych 00/100')], source, target)
+  assert(visible(result, 'money-inside') === 'jedenaście tysięcy dwieście złotych 00/100.', 'source suffix and terminal punctuation remain exactly once')
+  assert(result.ok && result.spanEdits[0]!.span.end < sourceText.indexOf('00/100'), 'effective replacement boundary stops before source suffix')
+})
+
+run('money-word suffix adjacent to the mapped span remains exactly once', () => {
+  const source = [{ blockId: 'money-adjacent', paragraphXml: p('osiem tysięcy czterysta złotych 00/100.') }]
+  const target = { ...dataset, finances: { ...dataset.finances, contractValueFormatted: '11 200 zł' } }
+  const result = execute([map('money-adjacent', 'total_words', 'osiem tysięcy czterysta złotych')], source, target)
+  assert(visible(result, 'money-adjacent') === 'jedenaście tysięcy dwieście złotych 00/100.', 'adjacent suffix remains in its source position')
+  assert((visible(result, 'money-adjacent').match(/00\/100/g) ?? []).length === 1, 'adjacent suffix is not duplicated')
+})
+
+run('money words do not introduce a source-absent fraction suffix', () => {
+  const source = [{ blockId: 'money-no-suffix', paragraphXml: p('osiem tysięcy czterysta złotych.') }]
+  const target = { ...dataset, finances: { ...dataset.finances, contractValueFormatted: '11 200 zł' } }
+  const result = execute([map('money-no-suffix', 'total_words', 'osiem tysięcy czterysta złotych')], source, target)
+  assert(visible(result, 'money-no-suffix') === 'jedenaście tysięcy dwieście złotych.', 'source without convention stays without it')
+  assert(!visible(result, 'money-no-suffix').includes('/100'), 'no suffix invented')
+})
+
+run('suffix in a separate DOCX run retains its original run formatting', () => {
+  const suffixRun = '<w:r><w:rPr><w:b/></w:rPr><w:t xml:space="preserve"> 00/100.</w:t></w:r>'
+  const source = [{ blockId: 'money-runs', paragraphXml: `<w:p><w:r><w:t>osiem tysięcy czterysta złotych</w:t></w:r>${suffixRun}</w:p>` }]
+  const target = { ...dataset, finances: { ...dataset.finances, contractValueFormatted: '11 200 zł' } }
+  const result = execute([map('money-runs', 'total_words', 'osiem tysięcy czterysta złotych 00/100')], source, target)
+  assert(visible(result, 'money-runs') === 'jedenaście tysięcy dwieście złotych 00/100.', 'split-run suffix survives')
+  assert(result.ok && result.paragraphs[0]!.paragraphXml.includes(suffixRun), 'separate suffix run and its bold formatting are byte-preserved')
+})
+
+run('table-cell total, deposit, and remaining words independently preserve source convention', () => {
+  const sources = [
+    { blockId: 'table-5-row-1-cell-1-p-0', paragraphXml: p('osiem tysięcy czterysta złotych 00/100') },
+    { blockId: 'table-5-row-2-cell-1-p-0', paragraphXml: p('tysiąc pięćset złotych') },
+    { blockId: 'table-5-row-3-cell-1-p-0', paragraphXml: p('sześć tysięcy dziewięćset złotych 00/100') },
+  ]
+  const target = {
+    ...dataset,
+    finances: {
+      ...dataset.finances,
+      contractValueFormatted: '11 200 zł',
+      depositFormatted: '1 500 zł',
+      remainingFormatted: '9 700 zł',
+    },
+  }
+  const result = execute([
+    map(sources[0]!.blockId, 'total_words', 'osiem tysięcy czterysta złotych 00/100'),
+    map(sources[1]!.blockId, 'deposit_words', 'tysiąc pięćset złotych'),
+    map(sources[2]!.blockId, 'remaining_words', 'sześć tysięcy dziewięćset złotych 00/100'),
+  ], sources, target)
+  assert(visible(result, sources[0]!.blockId) === 'jedenaście tysięcy dwieście złotych 00/100', 'G03-shaped table total retains suffix in its own cell')
+  assert(visible(result, sources[1]!.blockId) === 'tysiąc pięćset złotych', 'deposit keeps absent suffix absent')
+  assert(visible(result, sources[2]!.blockId) === 'dziewięć tysięcy siedemset złotych 00/100', 'remaining independently retains suffix')
+  assert(result.ok && result.paragraphs.length === 3 && result.paragraphs.every((row, index) => row.blockId === sources[index]!.blockId), 'no table-cell movement')
+})
+
+run('legacy money-word repair is idempotent and cannot duplicate a preserved suffix', () => {
+  const target = { ...dataset, finances: { ...dataset.finances, contractValueFormatted: '11 200 zł', contractValueWords: polishContractMoneyWords(11_200) } }
+  const once = repairMoneyWordsInText('11 200 zł brutto, słownie: stare słowa 00/100.', target.finances)
+  const twice = repairMoneyWordsInText(once, target.finances)
+  assert(once === twice, 'legacy normalizer is idempotent')
+  assert(once.includes('jedenaście tysięcy dwieście złotych 00/100.'), 'legacy normalizer preserves source fraction')
+  assert((once.match(/00\/100/g) ?? []).length === 1, 'legacy normalizer leaves exactly one suffix')
+
+  const blockId = 'legacy-total-words'
+  const sourceText = '11 200 zł brutto, słownie: stare słowa 00/100.'
+  const sourceBlocks = [{ blockId, paragraphIndex: 0, kind: 'paragraph' as const, text: sourceText }]
+  const manifest = {
+    requiredFields: [],
+    protectedFields: [],
+    consistencyRules: [],
+    sourceSpecificValues: [],
+    requiredReplacements: [{
+      canonicalField: 'contract.totalPriceWords' as const,
+      sourceValues: ['stare słowa'],
+      targetRenderedValues: [polishContractMoneyWords(11_200)],
+      sourceBlockIds: [blockId],
+      requiredContextBlockIds: [blockId],
+      replacementPolicy: 'replace_in_contexts' as const,
+    }],
+  }
+  const legacyOnce = applyDeterministicRepairs({ blocks: [{ blockId, text: sourceText }], dataset: target, manifest, sourceBlocks })
+  const legacyTwice = applyDeterministicRepairs({ blocks: legacyOnce.blocks, dataset: target, manifest, sourceBlocks })
+  assert(legacyOnce.blocks[0]!.text === legacyTwice.blocks[0]!.text, 'total-word source repair remains idempotent')
+  assert((legacyOnce.blocks[0]!.text.match(/00\/100/g) ?? []).length === 1, 'source-aware total repair emits exactly one suffix')
 })
 
 run('table-cell finance, locations, phone, and address inject available canonical data', () => {
