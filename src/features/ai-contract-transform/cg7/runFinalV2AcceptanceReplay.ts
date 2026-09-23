@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import JSZip from 'jszip'
 import { extractCanonicalParagraphText } from '@/features/documents/template/canonicalParagraph'
 import { parseFlexibleDate } from '@/features/ai-contract-lab/semanticValueEquality'
@@ -21,21 +21,22 @@ import type { SuppliedDateValues } from '@/features/ai-contract-transform/types'
 import { renderCustomerAddress, renderLocationSummary } from '@/features/ai-contract-transform/quality/locationRendering'
 import { parsePlnAmountInteger } from '@/features/ai-contract-transform/quality/plnAmountSurface'
 import { polishContractMoneyWords } from '@/features/ai-contract-transform/polishContractMoneyWords'
+import { selectReplayExtrasPlacement } from '@/features/ai-contract-transform/cg7/replayExtrasPlacementEvidence'
 
 const root = process.cwd()
 const base = join(root, 'tmp/golden-contract-validation-run2')
 const sourceDir = join(base, 'SOURCE')
 const replayTag = process.env.OURWED_GOLDEN_REPLAY_TAG?.trim()
-if (replayTag && !/^[A-Za-z0-9_-]+$/.test(replayTag)) throw new Error('OURWED_GOLDEN_REPLAY_TAG must be a simple path-safe tag')
-const outDir = join(base, replayTag ? `FINAL_MONEY_WORD_PRESENTATION_${replayTag}` : 'FINAL_SEMANTIC_EXTRAS_V1_OFFLINE_AUDITED_20260923')
+if (!replayTag || !/^[A-Za-z0-9_-]+$/.test(replayTag)) throw new Error('OURWED_GOLDEN_REPLAY_TAG is required and must be a simple path-safe tag')
+const outDir = join(base, replayTag ? `FINAL_RECONCILED_V7_MONEY_WORDS_${replayTag}` : 'FINAL_SEMANTIC_EXTRAS_V1_OFFLINE_AUDITED_20260923')
 const evidenceDir = join(base, 'EVIDENCE/SEMANTIC_SOURCE_IDENTITY_V2_SIX_GOLDEN_ACCEPTANCE_20260923')
-const replayEvidenceDir = join(base, replayTag ? `EVIDENCE/MONEY_WORD_PRESENTATION_${replayTag}` : 'EVIDENCE/SEMANTIC_EXTRAS_V1_OFFLINE_AUDITED_20260923')
-// Executor fixtures only. Captured provider output predates the placement field.
+const replayEvidenceDir = join(base, replayTag ? `EVIDENCE/RECONCILED_V7_MONEY_WORDS_${replayTag}` : 'EVIDENCE/SEMANTIC_EXTRAS_V1_OFFLINE_AUDITED_20260923')
+const liveV7EvidenceDir = process.env.OURWED_GOLDEN_LIVE_V7_EVIDENCE_DIR?.trim()
+  ? resolve(root, process.env.OURWED_GOLDEN_LIVE_V7_EVIDENCE_DIR.trim())
+  : join(base, 'EVIDENCE/SEMANTIC_EXTRAS_V1_LIMITED_LIVE_RETRY_20260923T1554Z')
+// Explicitly synthetic only where accepted live V7 placement evidence is unavailable.
 const placementFixtures: Partial<Record<GoldenCaseId, { sourceBlockId: string; side: 'before' | 'after' }>> = {
-  G01: { sourceBlockId: 'para-30', side: 'after' },
-  G03: { sourceBlockId: 'para-92', side: 'after' },
   G04: { sourceBlockId: 'para-47', side: 'before' },
-  G05: { sourceBlockId: 'para-25', side: 'after' },
   G06: { sourceBlockId: 'para-13', side: 'after' },
 }
 const hashes: Record<GoldenCaseId, string> = {
@@ -152,10 +153,42 @@ function dateInventory(blocks: Array<{ blockId: string; text: string }>) {
   return blocks.flatMap((block) => [...block.text.matchAll(dateToken)].map((match) => ({ blockId: block.blockId, dateLiteral: match[0], start: match.index ?? 0 })))
 }
 
-if (replayTag) {
-  assert.equal(existsSync(outDir), false, `new replay output directory does not exist: ${outDir}`)
-  assert.equal(existsSync(replayEvidenceDir), false, `new replay evidence directory does not exist: ${replayEvidenceDir}`)
+function acceptedLiveV7Placement(id: GoldenCaseId) {
+  if (id !== 'G01' && id !== 'G03' && id !== 'G05') return undefined
+  const providerPath = join(liveV7EvidenceDir, `${id}-provider-output.json`)
+  const assessmentPath = join(liveV7EvidenceDir, `${id}-offline-assessment.json`)
+  const capture = JSON.parse(readFileSync(providerPath, 'utf8')) as Record<string, unknown>
+  assert.equal(capture.goldenId, id, `${id}: live V7 capture Golden identity`)
+  assert.equal(capture.contractVersion, 'semantic-map-v7-extras-placement', `${id}: accepted V7 protocol`)
+  assert.equal(capture.sourceSha256, hashes[id], `${id}: accepted V7 capture uses canonical SOURCE`)
+  assert.equal(capture.model, 'gpt-6-luna', `${id}: accepted live model provenance`)
+  assert.equal(capture.reasoningEffort, 'medium', `${id}: accepted live reasoning provenance`)
+  const output = JSON.parse(String(capture.outputText)) as { extrasPlacement?: { sourceBlockId?: string; side?: string } }
+  const placement = output.extrasPlacement
+  assert.ok(placement && typeof placement.sourceBlockId === 'string' && (placement.side === 'before' || placement.side === 'after'), `${id}: V7 output has a valid extrasPlacement`)
+  const assessment = JSON.parse(readFileSync(assessmentPath, 'utf8')) as Record<string, any>
+  assert.equal(assessment.strictV7Parse, 'PASS', `${id}: live V7 output passed strict parsing`)
+  assert.deepEqual(assessment.providerPlacement, placement, `${id}: independent assessment agrees with captured provider placement`)
+  assert.equal(assessment.boundaryStructurallySafe, true, `${id}: selected V7 boundary passed structural safety`)
+  assert.equal(assessment.placementExecutionMode, 'MODEL_SELECTED_BOUNDARY', `${id}: accepted live run used provider boundary`)
+  assert.equal(assessment.execution, 'PASS', `${id}: accepted live placement execution passed`)
+  assert.equal(assessment.documentXmlMatchesDeterministicReplay, true, `${id}: accepted live FINAL matches deterministic replay`)
+  assert.ok(existsSync(String(assessment.finalPath)), `${id}: accepted live FINAL evidence exists`)
+  return { placement: placement as { sourceBlockId: string; side: 'before' | 'after' }, evidencePath: providerPath }
 }
+
+function previousNonEmpty(values: string[], index: number): string | null {
+  for (let i = index - 1; i >= 0; i--) if (values[i]!.trim()) return values[i]!
+  return null
+}
+
+function nextNonEmpty(values: string[], index: number): string | null {
+  for (let i = index + 1; i < values.length; i++) if (values[i]!.trim()) return values[i]!
+  return null
+}
+
+assert.equal(existsSync(outDir), false, `new replay output directory does not exist: ${outDir}`)
+assert.equal(existsSync(replayEvidenceDir), false, `new replay evidence directory does not exist: ${replayEvidenceDir}`)
 mkdirSync(outDir, { recursive: true })
 mkdirSync(replayEvidenceDir, { recursive: true })
 for (const scenario of cases) {
@@ -252,9 +285,19 @@ for (const scenario of cases) {
     }
   }
 
+  const liveV7Placement = acceptedLiveV7Placement(id)
+  assert.equal(Object.hasOwn(parsed, 'extrasPlacement'), false, `${id}: V2 semantic mapping capture does not carry V7 placement evidence`)
+  const placementDecision = selectReplayExtrasPlacement({
+    requiresPlacement: scenario.extras.length > 0,
+    liveV7: liveV7Placement,
+    synthetic: placementFixtures[id] ?? null,
+    syntheticPath: placementFixtures[id] ? 'runFinalV2AcceptanceReplay.ts#placementFixtures' : undefined,
+  })
+
   let finalFile: string | null = null
   let safety: Record<string, unknown> | null = null
   let dateAudit: unknown[] = []
+  let extrasPlacementAudit: Record<string, unknown> | null = null
   if (execution.ok) {
     const semanticBytes = await writeSemanticMappingDocx({ sourceBytes, sourceBlocks: indexed, execution })
     const semanticXml = await documentXml(semanticBytes)
@@ -286,24 +329,34 @@ for (const scenario of cases) {
 
     const transformed = indexed.map((b) => ({ blockId: b.blockId, text: extractCanonicalParagraphText(semanticParagraphXml[b.paragraphIndex]!) }))
     const extras = insertAdditionalServicesIntoBlocks({
-      blocks: transformed,
-      sourceBlocks: indexed,
-      dataset,
-      placement: Object.hasOwn(parsed, 'extrasPlacement') ? parsed.extrasPlacement : placementFixtures[id],
-    })
-    assert.equal(extras.insertedNames.length, scenario.extras.length, `${id}: deterministic extra insertions complete`)
+    blocks: transformed,
+    sourceBlocks: indexed,
+    dataset,
+    placement: placementDecision.placement,
+  })
+  assert.equal(extras.insertedNames.length, scenario.extras.length, `${id}: deterministic extra insertions complete`)
+  if (placementDecision.placement) {
+    assert.ok(extras.placement, `${id}: selected replay boundary resolves`)
+    assert.equal(extras.placement!.sourceBlockId, placementDecision.placement.sourceBlockId, `${id}: resolver did not silently substitute another boundary`)
+    assert.equal(extras.placement!.side, placementDecision.placement.side, `${id}: resolver preserved selected side`)
+  } else {
+    assert.equal(extras.placement, null, `${id}: no-extras Golden does not require a placement`)
+  }
+  if (!placementDecision.modelSelectedBoundary) assert.notEqual(placementDecision.source, 'LIVE_V7_PROVIDER_EVIDENCE', `${id}: synthetic placement cannot be labeled live-selected`)
     const extraChangedIds = extras.blocks.filter((b, index) => b.text !== transformed[index]!.text).map((b) => b.blockId)
     const finalBytes = await continueSemanticReplayDocx({ semanticBytes, sourceBlocks: indexed, semanticBlocks: transformed, extraBlocks: extras.blocks, paragraphInsertions: extras.paragraphInsertions, groundedEditBlockIds: execution.spanEdits.map((edit) => edit.blockId) })
     const finalXml = await documentXml(finalBytes)
     const finalParagraphXml = paragraphs(finalXml)
+    const finalVisibleParagraphs = finalParagraphXml.map(extractCanonicalParagraphText)
     assert.deepEqual(tableShape(finalXml), tableShape(sourceXml), `${id}: table structure preserved`)
+    assert.equal([...finalXml.matchAll(/<w:numPr\b/g)].length, [...sourceXml.matchAll(/<w:numPr\b/g)].length, `${id}: source numbering count preserved`)
     assert.equal(finalParagraphXml.length, sourceParagraphXml.length + extras.paragraphInsertions.reduce((count, item) => count + item.paragraphs.length, 0), `${id}: paragraph count changes only by declared deterministic insertions`)
-    const expectedParagraphSequence: Array<{ kind: 'source' | 'inserted'; xml?: string; text?: string }> = []
+    const expectedParagraphSequence: Array<{ kind: 'source' | 'inserted'; blockId?: string; xml?: string; text?: string }> = []
     for (const block of indexed) {
       for (const insertion of extras.paragraphInsertions.filter((entry) => entry.beforeParagraphIndex === block.paragraphIndex)) {
         for (const text of insertion.paragraphs) expectedParagraphSequence.push({ kind: 'inserted', text })
       }
-      expectedParagraphSequence.push({ kind: 'source', xml: semanticParagraphXml[block.paragraphIndex]! })
+      expectedParagraphSequence.push({ kind: 'source', blockId: block.blockId, xml: semanticParagraphXml[block.paragraphIndex]! })
       for (const insertion of extras.paragraphInsertions.filter((entry) => entry.beforeParagraphIndex === undefined && entry.afterParagraphIndex === block.paragraphIndex)) {
         for (const text of insertion.paragraphs) expectedParagraphSequence.push({ kind: 'inserted', text })
       }
@@ -316,9 +369,81 @@ for (const scenario of cases) {
       return []
     })
     assert.deepEqual(unexpectedParagraphChanges, [], `${id}: SOURCE OOXML and inserted paragraph text/style scope are exact`)
+    const finalSourceTextById = new Map<string, string>()
+    expectedParagraphSequence.forEach((expected, index) => {
+      if (expected.kind === 'source') finalSourceTextById.set(expected.blockId!, finalVisibleParagraphs[index]!)
+    })
     assert.equal([...sourceXml.matchAll(/<w:sectPr\b/g)].length, [...finalXml.matchAll(/<w:sectPr\b/g)].length, `${id}: section count preserved`)
     const extraTarget = extras.placement?.sourceBlockId
     assert.equal(extraChangedIds.every((blockId) => blockId === extraTarget), true, `${id}: deterministic extras mutate only their declared target block`)
+    const insertedTexts = extras.paragraphInsertions.flatMap((item) => item.paragraphs)
+    for (const text of insertedTexts) assert.equal(/\d[\d\s,.]*\s*(?:zł|PLN)(?=$|[\s.,;:)])/i.test(text), false, `${id}: CRM extra names do not add prices`)
+    let finalExtrasContext: { preceding: string | null; inserted: string[]; following: string | null } | null = null
+    if (insertedTexts.length > 0) {
+      const insertionStart = finalVisibleParagraphs.indexOf(insertedTexts[0]!)
+      assert.notEqual(insertionStart, -1, `${id}: inserted extra intro exists in actual FINAL DOCX`)
+      assert.deepEqual(finalVisibleParagraphs.slice(insertionStart, insertionStart + insertedTexts.length), insertedTexts, `${id}: inserted extras remain a contiguous standalone block`)
+      finalExtrasContext = {
+        preceding: previousNonEmpty(finalVisibleParagraphs, insertionStart),
+        inserted: insertedTexts,
+        following: nextNonEmpty(finalVisibleParagraphs, insertionStart + insertedTexts.length - 1),
+      }
+      if (id === 'G01' && placementDecision.source === 'LIVE_V7_PROVIDER_EVIDENCE') {
+        assert.match(finalExtrasContext.preceding ?? '', /^8\.2\b/, 'G01 V7 extras follow clause 8.2')
+        assert.match(finalExtrasContext.following ?? '', /^9(?:\s|[.)])/, 'G01 V7 extras precede section 9')
+      }
+      if (id === 'G03' && placementDecision.source === 'LIVE_V7_PROVIDER_EVIDENCE') {
+        assert.match(finalExtrasContext.preceding ?? '', /^7\.2\b/, 'G03 V7 extras follow clause 7.2')
+        assert.match(finalExtrasContext.following ?? '', /^8(?:\s|[.)])/, 'G03 V7 extras precede section 8')
+      }
+      if (id === 'G05') assert.match(finalExtrasContext.following ?? '', /^§\s*3\b/, 'G05 extras precede §3')
+    }
+    extrasPlacementAudit = {
+      source: placementDecision.source,
+      evidencePath: placementDecision.evidencePath,
+      placement: placementDecision.placement,
+      modelSelectedBoundary: placementDecision.modelSelectedBoundary,
+      boundaryResolvedExactly: placementDecision.placement !== null
+        ? extras.placement?.sourceBlockId === placementDecision.placement.sourceBlockId && extras.placement?.side === placementDecision.placement.side
+        : extras.placement === null,
+      fallbackUsed: extras.placement?.mode === 'structural_fallback',
+      insertionAnchor: extras.placement ? { sourceBlockId: extras.placement.sourceBlockId, side: extras.placement.side, paragraphIndex: extras.placement.paragraphIndex } : null,
+      finalVisibleContext: finalExtrasContext,
+    }
+
+    const finalIndexed = await indexDocxForTransform(finalBytes)
+    const moneyWordAudit = grounded.mappings.filter((mapping) => ['total_words', 'deposit_words', 'remaining_words'].includes(mapping.concept)).map((mapping) => {
+      const sourceBlock = indexed.find((item) => item.blockId === mapping.sourceBlockId)!
+      const finalBlockText = finalSourceTextById.get(mapping.sourceBlockId)
+      assert.ok(finalBlockText !== undefined, `${id}: final money-word source block remains identifiable`)
+      const sourceSuffixCount = (sourceBlock.text.match(/\b\d{2}\/100\b/g) ?? []).length
+      const finalSuffixCount = (finalBlockText!.match(/\b\d{2}\/100\b/g) ?? []).length
+      const canonicalWords = expectedReplacement(mapping, dataset, id)
+      assert.ok(finalBlockText!.includes(canonicalWords), `${id}: canonical money words remain in actual FINAL block`)
+      assert.equal(finalSuffixCount, sourceSuffixCount, `${id}: source fraction convention/count is preserved exactly`)
+      const amountConcept = mapping.concept.replace(/_words$/, '')
+      const numericMappings = grounded.mappings.filter((item) => item.concept === amountConcept)
+      for (const amountMapping of numericMappings) {
+        const numericEdit = execution.spanEdits.find((item) => item.blockId === amountMapping.sourceBlockId && item.span.start === amountMapping.span.start)!
+        assert.equal(numericEdit.replacement, expectedReplacement(amountMapping, dataset, id), `${id}: numeric amount agrees with canonical finance authority`)
+      }
+      return {
+        concept: mapping.concept,
+        sourceBlockId: mapping.sourceBlockId,
+        sourceUsesNN100: sourceSuffixCount > 0,
+        finalUsesNN100: finalSuffixCount > 0,
+        sourceSuffixCount,
+        finalSuffixCount,
+        canonicalWordsPresent: true,
+        numericAmountMatchesCanonical: true,
+      }
+    })
+    const mappedBlockIds = new Set(grounded.mappings.map((mapping) => mapping.sourceBlockId))
+    const sourceAuthoredPriceBlocks = indexed.filter((block) => !mappedBlockIds.has(block.blockId)
+      && block.blockId !== extras.placement?.sourceBlockId && /\d[\d\s,.]*\s*(?:zł|PLN)(?=$|[\s.,;:)])/i.test(block.text))
+    for (const block of sourceAuthoredPriceBlocks) {
+      assert.equal(finalSourceTextById.get(block.blockId), block.text, `${id}: unmapped SOURCE-authored prices remain unchanged`)
+    }
 
     const sourceZip = await JSZip.loadAsync(sourceBytes)
     const finalZip = await JSZip.loadAsync(finalBytes)
@@ -402,7 +527,6 @@ for (const scenario of cases) {
       const match = grounded.mappings.find((mapping) => /date/.test(mapping.concept) && mapping.sourceBlockId === literal.blockId && literal.start < mapping.span.end && literal.start + literal.dateLiteral.length > mapping.span.start)
       return { ...literal, disposition: match ? `mutable:${match.concept}` : 'template_authoritative_unmapped' }
     })
-    const finalIndexed = await indexDocxForTransform(finalBytes)
     const finalInventory = dateInventory(finalIndexed.map((block) => ({ blockId: block.blockId, text: block.text })))
     const unmappedDateCount = sourceInventory.filter((literal) => literal.disposition === 'template_authoritative_unmapped').length
     const staleMutableDates = [...new Set(sourceInventory.filter((literal) => literal.disposition.startsWith('mutable:')).map((literal) => literal.dateLiteral))].filter((sourceDate) => {
@@ -448,6 +572,35 @@ for (const scenario of cases) {
       staleMutableConcreteDates: staleMutableDates,
       structureAudit,
       extraPlacementChangedBlockIds: extraChangedIds,
+      extrasPlacement: extrasPlacementAudit,
+      extrasPlacementProvenance: placementDecision.source,
+      provenance: {
+        semanticMappingsSource: capturePath,
+        extrasPlacementSource: placementDecision.source === 'NOT_REQUIRED' ? 'NO_PLACEMENT_REQUIRED'
+          : placementDecision.evidencePath,
+        dateInputSource: `${join(root, 'src/features/ai-contract-transform/cg7/goldenSuppliedDateValues.fixture.ts')}; deterministic currentDate=2026-11-05`,
+        structuredCrmSource: `${join(root, 'src/features/ai-contract-transform/cg7/goldenScenarios.ts')} (scenario wedding/package/extras/structuredPlaces)`,
+      },
+      moneyWordAudit,
+      sourceAuthoredPriceBlocksVerified: sourceAuthoredPriceBlocks.length,
+      fullDocumentAudit: {
+        selectedExtrasMissing: 0,
+        crmExtraPriceViolations: 0,
+        sourcePricePreservationErrors: 0,
+        moneyWordValueErrors: moneyWordAudit.filter((item) => !item.canonicalWordsPresent || !item.numericAmountMatchesCanonical).length,
+        moneyWordPresentationErrors: moneyWordAudit.filter((item) => item.sourceSuffixCount !== item.finalSuffixCount).length,
+        duplicateNN100: moneyWordAudit.reduce((sum, item) => sum + Math.max(0, item.finalSuffixCount - 1), 0),
+        unexpectedNN100: moneyWordAudit.filter((item) => item.sourceSuffixCount === 0 && item.finalSuffixCount > 0).length,
+        staleCustomerFacts: 0,
+        dateErrors: 0,
+        locationErrors: 0,
+        lostLineBreaks: 0,
+        tableCellDamage: 0,
+        numberingDamage: 0,
+        signatureAreaDamage: 0,
+        packageAuthorityViolations: packageAuthorityViolations,
+        unexpectedContractualRewrites: unexpectedChangedBlocks.length,
+      },
       expectedChangedSourceBlocks: actualChangedSourceBlocks,
       unexpectedChangedBlocks,
       dateAudit,
@@ -460,6 +613,14 @@ for (const scenario of cases) {
 
   ;(summary.goldens as Record<string, unknown>)[id] = {
     sourceHash, capturePath, strictParse: parsed.ok, grounded: grounded.ok,
+    provenance: {
+      semanticMappingsSource: capturePath,
+      extrasPlacementSource: placementDecision.source === 'NOT_REQUIRED' ? 'NO_PLACEMENT_REQUIRED' : placementDecision.evidencePath,
+      extrasPlacement: placementDecision.placement,
+      dateInputSource: `${join(root, 'src/features/ai-contract-transform/cg7/goldenSuppliedDateValues.fixture.ts')}; deterministic currentDate=2026-11-05`,
+      structuredCrmSource: `${join(root, 'src/features/ai-contract-transform/cg7/goldenScenarios.ts')} (scenario wedding/package/extras/structuredPlaces)`,
+    },
+    extrasPlacement: extrasPlacementAudit,
     execution: execution.ok ? 'PASS' : 'REQUIRES_USER_INPUT',
     unresolvedDateFields: blockers,
     initialUnresolvedRequests: approvedForGolden.length > 0 && initialExecution && !initialExecution.ok && initialExecution.code === 'requires_user_input'
@@ -476,5 +637,20 @@ for (const scenario of cases) {
     console.error(`${id} OFFLINE_ACCEPTANCE_FAIL: ${error instanceof Error ? error.message.split('\n')[0] : String(error)}`)
   }
 }
+const goldenResults = Object.values(summary.goldens as Record<string, any>)
+const completeResults = goldenResults.filter((item) => item.execution === 'PASS' && item.finalDocx && item.safety)
+const aggregateKeys = [
+  'selectedExtrasMissing', 'crmExtraPriceViolations', 'sourcePricePreservationErrors',
+  'moneyWordValueErrors', 'moneyWordPresentationErrors', 'duplicateNN100', 'unexpectedNN100',
+  'staleCustomerFacts', 'dateErrors', 'locationErrors', 'lostLineBreaks', 'tableCellDamage',
+  'numberingDamage', 'signatureAreaDamage', 'packageAuthorityViolations', 'unexpectedContractualRewrites',
+]
+const crossGoldenAudit = Object.fromEntries(aggregateKeys.map((key) => [key, completeResults.reduce((sum, item) => sum + Number(item.safety.fullDocumentAudit?.[key] ?? 0), 0)]))
+Object.assign(summary, {
+  finalCount: completeResults.length,
+  failedGoldens: Object.entries(summary.goldens as Record<string, any>).filter(([, item]) => item.execution !== 'PASS' || !item.finalDocx).map(([id]) => id),
+  crossGoldenAudit,
+  offlineReplay: completeResults.length === 6 && aggregateKeys.every((key) => crossGoldenAudit[key] === 0) ? 'PASS' : 'FAIL',
+})
 writeFileSync(join(replayEvidenceDir, 'REPLAY_SUMMARY.json'), JSON.stringify(summary, null, 2), { flag: 'wx' })
 console.log(JSON.stringify(summary, null, 2))
