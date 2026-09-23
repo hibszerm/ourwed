@@ -70,12 +70,13 @@ run('strict semanticMappings schema derives closed concepts and has no legacy fi
   const allConcepts = [...new Set(variants.flatMap((variant) => [...variant.properties.concept.enum]))].sort()
   assert.deepEqual(allConcepts, SEMANTIC_CONCEPTS.filter((concept) => concept !== 'dependent_date' && concept !== 'fixed_date').sort())
   for (const variant of variants) {
-    assert.deepEqual(variant.required, ['sourceBlockId', 'startTokenId', 'endTokenId', 'concept', 'customerIndex', 'customerIndexes', 'nameForm', 'dateRole', 'baseDateConcept', 'relation'])
+    assert.deepEqual(variant.required, ['sourceBlockId', 'startTokenId', 'endTokenId', 'concept', 'customerIndex', 'customerIndexes', 'nameForm', 'dateRole', 'baseDateConcept', 'relation', 'rendering'])
     assert.deepEqual(Object.keys(variant.properties).sort(), [...variant.required].sort())
     assert.deepEqual(variant.properties.startTokenId.type, 'string')
     assert.deepEqual(variant.properties.endTokenId.type, 'string')
     assert.deepEqual(variant.properties.nameForm.type, ['string', 'null'])
     assert.deepEqual(variant.properties.nameForm.enum, [...CUSTOMER_NAME_FORMS, null])
+    assert.deepEqual(variant.properties.rendering.type, ['string', 'null'])
   }
   assert.equal(variants.length, 3, 'keep the provider-compatible three-branch schema topology')
   for (const variant of variants) {
@@ -113,7 +114,7 @@ function schemaAcceptsOwnership(concept: string, customerIndex: unknown, custome
 
 function ownershipMapping(concept: string, customerIndex: number | null, customerIndexes: number[] | null) {
   return {
-    sourceBlockId: 'p1', concept, anchor: concept.includes('_name') ? 'Anna Nowak' : 'value', occurrence: null,
+    sourceBlockId: 'p1', concept, anchor: concept.includes('_name') ? 'Anna Nowak' : 'value', occurrence: null, rendering: null,
     customerIndex, customerIndexes,
     nameForm: concept === 'customer_1_name' || concept === 'customer_2_name' ? 'BASE' : null,
   }
@@ -200,7 +201,9 @@ run('prompt defines semantic-only work, source boundaries, and protected product
     'CUSTOMER NAME FORM',
     'set nameForm to BASE, GENITIVE, or INSTRUMENTAL',
     'For every non-name concept, set nameForm to null',
-    'never provide or generate a customer-name replacement',
+    'must preserve the already-grounded customer\'s identity exactly',
+    'LINGUISTIC RENDERING',
+    'Never change, calculate, complete, or invent a name',
     'Map final_payment_due_date and delivery_due_date',
     'the system derives the calendar-day difference',
     'Exhaustively map every relevant CONCRETE DATE LITERAL',

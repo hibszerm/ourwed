@@ -159,7 +159,7 @@ async function main() {
       const after = await extractDocxParagraphsIncludingEmpty(corrupted)
       const joined = after.map((p) => p.text).join('\n')
       assert(
-        !joined.includes('Ponadto Zamawiający wybrał następującą usługę dodatkową'),
+        !joined.includes('Ponadto zakres umowy obejmuje następującą usługę dodatkową'),
         'blind re-edit removes additional-services intro',
       )
     },

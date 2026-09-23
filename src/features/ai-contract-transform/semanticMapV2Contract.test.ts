@@ -9,7 +9,7 @@ assert.equal(variants.length, 3)
 for (const variant of variants) {
   assert.equal(variant.additionalProperties, false)
   assert.deepEqual(Object.keys(variant.properties).sort(), [...variant.required].sort())
-  for (const required of ['sourceBlockId', 'startTokenId', 'endTokenId', 'concept', 'customerIndex', 'customerIndexes', 'nameForm', 'dateRole', 'baseDateConcept', 'relation']) {
+  for (const required of ['sourceBlockId', 'startTokenId', 'endTokenId', 'concept', 'customerIndex', 'customerIndexes', 'nameForm', 'dateRole', 'baseDateConcept', 'relation', 'rendering']) {
     assert(variant.required.includes(required))
   }
   assert.equal('anchor' in variant.properties, false)
@@ -25,19 +25,26 @@ assert.equal(GOLDEN_SUPPLIED_DATE_VALUES.find((item) => item.goldenId === 'G04' 
 
 const base = {
   sourceBlockId: 'p', startTokenId: 't0', endTokenId: 't1', concept: 'customer_1_name',
-  customerIndex: 0, customerIndexes: null, nameForm: 'BASE', dateRole: null, baseDateConcept: null, relation: null,
+  customerIndex: 0, customerIndexes: null, nameForm: 'BASE', dateRole: null, baseDateConcept: null, relation: null, rendering: null,
 }
 const parsed = parseSemanticMapResponse({ semanticMappings: [base] })
 assert(parsed.ok)
 assert.equal(Object.hasOwn(parsed.semanticMappings[0]!, 'anchor'), false)
 assert.equal(Object.hasOwn(parsed.semanticMappings[0]!, 'occurrence'), false)
 assert.equal(Object.hasOwn(parsed.semanticMappings[0]!, 'customerIndex'), false, 'redundant matching name index normalizes')
+assert.equal(parsed.semanticMappings[0]!.rendering, null, 'optional model rendering survives strict parsing')
 assert.equal(parseSemanticMapResponse({ semanticMappings: [{ ...base, customerIndex: 1 }] }).ok, false, 'contradictory name index rejects')
 assert.equal(parseSemanticMapResponse({ semanticMappings: [{ ...base, customerIndexes: [0, 1], customerIndex: null }] }).ok, false)
 assert.equal(parseSemanticMapResponse({ semanticMappings: [{ ...base, anchor: 'source text' }] }).ok, false)
 assert.equal(parseSemanticMapResponse({ semanticMappings: [{ ...base, occurrence: 0 }] }).ok, false)
 assert.equal(parseSemanticMapResponse({ semanticMappings: [{ ...base, endTokenId: undefined }] }).ok, false)
 assert.equal(parseSemanticMapResponse({ semanticMappings: [{ ...base, dateRole: 'album_due_date' }] }).ok, false, 'name date metadata rejects')
+const invalidRenderingType = parseSemanticMapResponse({ semanticMappings: [{ ...base, rendering: 42 }] })
+assert(invalidRenderingType.ok)
+assert.equal(invalidRenderingType.semanticMappings[0]!.rendering, null, 'invalid rendering falls back to canonical')
+const multilineRendering = parseSemanticMapResponse({ semanticMappings: [{ ...base, rendering: 'line one\nline two' }] })
+assert(multilineRendering.ok)
+assert.equal(multilineRendering.semanticMappings[0]!.rendering, null, 'multiline rendering falls back to canonical')
 
 const date = { ...base, concept: 'ambiguous_date', customerIndex: null, nameForm: null, dateRole: 'album_due_date' }
 assert.equal(parseSemanticMapResponse({ semanticMappings: [date] }).ok, true)

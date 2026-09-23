@@ -4,6 +4,7 @@ import { blocksFromPlainParagraphs } from './indexDocxForTransform'
 import { insertAdditionalServicesIntoBlocks } from './insertAdditionalServices'
 import { expandBlocksWithParagraphInsertions } from './expandBlocksWithInsertions'
 import { resolveSemanticExtrasPlacement } from './semanticExtrasPlacement'
+import { getApprovedSemanticExtrasTemplateMetadataForTest, resolveSemanticExtrasTemplateMetadata } from './semanticExtrasTemplateMetadata'
 import { writeTransformedDocx } from './docxTransformWriter'
 import { buildSemanticMapResponseSchema, parseSemanticMapResponse, SEMANTIC_MAP_SYSTEM_PROMPT } from './semanticMapModelContract'
 import type { ContractTransformationDataset, TransformDocumentBlock } from './types'
@@ -16,6 +17,7 @@ const insert = (blocks: TransformDocumentBlock[], placement?: { sourceBlockId: s
 
 const schema = buildSemanticMapResponseSchema()
 assert.deepEqual(schema.schema.required, ['semanticMappings', 'extrasPlacement'])
+for (const variant of schema.schema.properties.semanticMappings.items.anyOf) assert(variant.required.includes('rendering'))
 assert.match(SEMANTIC_MAP_SYSTEM_PROMPT, /standalone additional-services block/)
 assert.deepEqual(parseSemanticMapResponse({ semanticMappings: [], extrasPlacement: { sourceBlockId: 'para-0', side: 'after' } }), {
   ok: true, semanticMappings: [], extrasPlacement: { sourceBlockId: 'para-0', side: 'after' },
@@ -29,6 +31,8 @@ assert.equal(selected.placement?.sourceBlockId, 'para-0')
 assert.deepEqual(selected.blocks, identity(source), 'heading and SOURCE catalog remain untouched')
 assert.equal(selected.paragraphInsertions[0]?.afterParagraphIndex, 0)
 assert.equal(selected.paragraphInsertions[0]?.paragraphs.length, 3)
+assert.ok(selected.paragraphInsertions[0]!.paragraphs[0]!.includes('zakres umowy obejmuje'))
+assert.equal(selected.paragraphInsertions[0]!.paragraphs.join(' ').includes('Zamawiający'), false, 'neutral intro does not invent a party role')
 assert.equal(selected.paragraphInsertions[0]?.paragraphs.join('\n').includes('1200 zł'), false)
 assert.equal(selected.paragraphInsertions[0]?.paragraphs.join('\n').includes('unselected extra'), false)
 for (const name of dataset.additionalServices!) {
@@ -58,6 +62,51 @@ assert.equal(insert(source, { sourceBlockId: 'absent', side: 'after' }).inserted
 assert.throws(() => insert([{ blockId: 'table-0-row-0-cell-0-p-0', paragraphIndex: 0, kind: 'tableCell', text: 'Only table' }]), /SAFE_PLACEMENT_NOT_FOUND/)
 assert.throws(() => insertAdditionalServicesIntoBlocks({ blocks: identity(source), sourceBlocks: source, dataset: { additionalServices: [{ name: 'Dron 800 zł' }] } as ContractTransformationDataset }), /UNSAFE_CRM_NAME/)
 
+const bounded = blocksFromPlainParagraphs(['Package description', 'Body section', 'Second body section', 'Signature'])
+const metadata = {
+  packageDescriptionRegion: { startParagraphIndex: 0, endParagraphIndex: 0 },
+  mainContractualBodyRegion: { startParagraphIndex: 0, endParagraphIndex: 2 },
+  signatureBoundaryParagraphIndex: 3,
+  fallbackBoundaryParagraphIndex: 1,
+}
+assert.equal(resolveSemanticExtrasPlacement(bounded, { sourceBlockId: 'para-1', side: 'after' }, metadata).mode, 'model')
+for (const invalid of [
+  { sourceBlockId: 'para-3', side: 'after' as const },
+  { sourceBlockId: 'para-0', side: 'before' as const },
+  { sourceBlockId: 'unknown', side: 'after' as const },
+]) {
+  const fallback = resolveSemanticExtrasPlacement(bounded, invalid, metadata)
+  assert.equal(fallback.mode, 'structural_fallback', 'invalid model boundary uses fixed metadata fallback')
+  assert.equal(fallback.paragraphIndex, 1)
+}
+const metadataInsertion = insertAdditionalServicesIntoBlocks({
+  blocks: identity(bounded),
+  sourceBlocks: bounded,
+  dataset,
+  placement: { sourceBlockId: 'para-3', side: 'after' },
+  templateMetadata: metadata,
+})
+assert.equal(metadataInsertion.placement?.mode, 'structural_fallback')
+assert.equal(metadataInsertion.placement?.paragraphIndex, 1, 'fallback stays after package details and inside the contractual body')
+assert.equal(metadataInsertion.diagnostics.additionalServicesInsertedCount, 2)
+const metadataExpanded = expandBlocksWithParagraphInsertions({ sourceBlocks: bounded, blocks: metadataInsertion.blocks, insertions: metadataInsertion.paragraphInsertions })
+const signatureIndex = metadataExpanded.findIndex((block) => block.text === 'Signature')
+const extrasIndexes = metadataExpanded.flatMap((block, index) => block.text.includes('sesja narzeczeńska') || block.text.includes('album rodzinny') ? [index] : [])
+assert.equal(extrasIndexes.length, 2, 'each selected CRM extra appears once')
+assert.ok(extrasIndexes.every((index) => index < signatureIndex), 'extras stay before the signature section')
+assert.ok(metadataInsertion.paragraphInsertions[0]!.paragraphs.every((paragraph) => !/\d[\d\s]*\s*zł|\bPLN\b/i.test(paragraph)), 'inserted CRM text contains no extra prices')
+const approvedHashes = [
+  'd8f5b95eae9586adc5c37b681f2ba108ab2464fcc78f2ab8214a6d57a6710fee',
+  '617275318f49790e9b2ba3faa4093b96486f0bf1b2b72a2082f0eed94cb9a6ae',
+  '1d4035dafdde597b308af923a1061ba3409141420d8dd6d699df1578ae5d6637',
+  '63358621714ef99f88392be4174e2e498dcaf4555749a698ec94904c0925feb4',
+  '6feb4a760e42d1a8ef6e61d4721e3c021d5eb8df9278e4cf188a76db2fafb91c',
+  '14b917a31e67eab720bc94df91db84611ee5da3bb68ef0bb49cfc1102466a012',
+]
+for (const hash of approvedHashes) assert.ok(getApprovedSemanticExtrasTemplateMetadataForTest(hash), 'approved template has structural metadata')
+assert.equal(getApprovedSemanticExtrasTemplateMetadataForTest('0'.repeat(64)), null, 'unknown template has no inferred metadata')
+assert.equal(await resolveSemanticExtrasTemplateMetadata(new ArrayBuffer(4)), null, 'unknown source digest fails closed')
+
 const zip = new JSZip()
 zip.file('word/document.xml', `<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:pPr><w:pStyle w:val="Heading1"/><w:numPr><w:numId w:val="3"/></w:numPr></w:pPr><w:r><w:t>8 Usługi dodatkowe</w:t></w:r></w:p><w:p><w:r><w:t>8.1 SOURCE catalog: 1200 zł</w:t></w:r></w:p><w:p><w:r><w:t>8.2 SOURCE clause</w:t></w:r></w:p></w:body></w:document>`)
 const bytes = await zip.generateAsync({ type: 'arraybuffer' })
@@ -79,4 +128,4 @@ const beforeOutput = await writeTransformedDocx({ sourceBytes: bytes, sourceBloc
 const beforeXml = await (await JSZip.loadAsync(beforeOutput)).file('word/document.xml')!.async('string')
 assert.ok(beforeXml.indexOf('sesja narzeczeńska') < beforeXml.indexOf('8.2 SOURCE clause'))
 
-console.log('semantic extras placement V1: PASS')
+console.log('semantic extras placement metadata: PASS')

@@ -1,6 +1,6 @@
 /** Insert exact CRM extra names at a validated SOURCE paragraph boundary. */
 import { projectContractAdditionalServices, renderSeparateAdditionalServicesParagraphs, type ContractAdditionalService } from './contractAdditionalServices'
-import { resolveSemanticExtrasPlacement, type SemanticExtrasPlacement } from './semanticExtrasPlacement'
+import { resolveSemanticExtrasPlacement, type SemanticExtrasPlacement, type SemanticExtrasTemplateMetadata } from './semanticExtrasPlacement'
 import type { ContractParagraphInsertion } from './expandBlocksWithInsertions'
 import type { ContractTransformationDataset, TransformDocumentBlock, TransformedBlock } from './types'
 import type { WeddingExtraService } from '@/types/package'
@@ -23,6 +23,7 @@ export function insertAdditionalServicesIntoBlocks(input: {
   sourceBlocks: TransformDocumentBlock[]
   dataset: ContractTransformationDataset
   placement?: SemanticExtrasPlacement | null
+  templateMetadata?: SemanticExtrasTemplateMetadata
 }): {
   blocks: TransformedBlock[]
   placement: ReturnType<typeof resolveSemanticExtrasPlacement> | null
@@ -38,7 +39,7 @@ export function insertAdditionalServicesIntoBlocks(input: {
     diagnostics: { additionalServicesPlacementMode: 'skipped', additionalServicesExpectedCount: 0, additionalServicesInsertedCount: 0, additionalServicesUsedFallback: false },
     insertedNames: [],
   }
-  const placement = resolveSemanticExtrasPlacement(input.sourceBlocks, input.placement)
+  const placement = resolveSemanticExtrasPlacement(input.sourceBlocks, input.placement, input.templateMetadata)
   const names = services.map((service) => service.name)
   if (names.some((name) => !name.trim() || /\d[\d\s]*\s*zł|\bPLN\b/i.test(name))) {
     throw new Error('ADDITIONAL_SERVICES_UNSAFE_CRM_NAME')

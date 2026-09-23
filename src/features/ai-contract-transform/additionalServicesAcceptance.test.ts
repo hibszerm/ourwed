@@ -448,7 +448,7 @@ run('real contract fixture with overtime: VHS in separate paragraphs after pendr
   assert(result.paragraphInsertions.length === 1, 'one insertion batch')
   assert(
     result.paragraphInsertions[0]!.paragraphs.some((p) =>
-      p.includes('Ponadto Zamawiający wybrał następującą usługę dodatkową'),
+      p.includes('Ponadto zakres umowy obejmuje następującą usługę dodatkową'),
     ),
     'intro paragraph',
   )

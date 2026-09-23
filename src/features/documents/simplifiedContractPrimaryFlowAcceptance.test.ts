@@ -338,25 +338,21 @@ run('M — best package template is preselected', () => {
   assert(selection.recommended.some((r) => r.template.id === 'pkg'), 'recommended')
 })
 
-run('N — data collection priority remains wedding/client/questionnaire/package', () => {
+run('N — Semantic V7 uses authoritative wedding readiness and post-map requirements', () => {
   const src = source(
     'src/features/documents/template/resolveContractVariables.ts',
   )
   assert(src.includes('sourceLabel') || src.length > 0, 'resolver present')
   const gen = source('src/pages/WeddingContractGenerationPage.tsx')
-  assert(gen.includes('Uzupełnione ze zlecenia'), 'resolved values in review')
-  assert(
-    gen.includes('Wymagane uzupełnienie') || gen.includes('Brakuje'),
-    'missing block in review',
-  )
-  assert(!gen.includes('Źródło:'), 'source labels are not primary review chrome')
+  assert(gen.includes('mayGenerateContract'), 'wedding readiness check remains')
+  assert(gen.includes('SemanticMissingDataModal'), 'semantic-only required data is requested after mapping')
 })
 
-run('O — missing data is editable inline', () => {
+run('O — legacy slot review step is removed from Semantic V7 page', () => {
   const gen = source('src/pages/WeddingContractGenerationPage.tsx')
-  assert(gen.includes('overrides'), 'inline overrides')
-  assert(gen.includes('<input'), 'inputs present')
-  assert(gen.includes('reviewState.editableMissingFields'), 'only review missing fields are editable')
+  assert(!gen.includes('reviewState'), 'no slot review dependency')
+  assert(!gen.includes('prepareVerification'), 'no prepare review transition')
+  assert(gen.includes('data-testid="generate-contract-button"'), 'direct create action remains')
 })
 
 run('photographer review never shows semantic diagnostics', () => {
@@ -383,21 +379,18 @@ run('photographer review never shows semantic diagnostics', () => {
   assert(advanced.includes('Diagnostyka AI'), 'diagnostics live in advanced settings')
 })
 
-run('review empty-fields message never appears without editable fields', () => {
+run('slot review empty-fields message is absent from the Semantic V7 flow', () => {
   const gen = source('src/pages/WeddingContractGenerationPage.tsx')
-  assert(
-    gen.includes('visibleEditableFields.length > 0'),
-    'missing section gated on visible editable fields',
-  )
-  assert(gen.includes('Wymagane uzupełnienie'), 'required section label')
+  assert(!gen.includes('visibleEditableFields'), 'legacy slot review fields are removed')
+  assert(!gen.includes('Wymagane uzupełnienie'), 'no intermediate review section')
 })
 
 run('P — package-contract generation does not show Zakres poprawek', () => {
   const gen = source('src/pages/WeddingContractGenerationPage.tsx')
   assert(!gen.includes('Zakres poprawek'), 'no scope block')
   assert(!gen.includes('Zapisz również w danych klienta'), 'no CRM opt-in')
-  assert(gen.includes("packageContractMode: true"), 'explicit package mode')
-  assert(gen.includes("scope: 'local_only'"), 'local-only generate')
+  assert(gen.includes('startSemanticContractGeneration'), 'package route invokes Semantic V7')
+  assert(gen.includes('canonicalDataset'), 'authoritative snapshot drives generation')
 })
 
 run('Q — user can explicitly update CRM data', () => {
@@ -409,10 +402,12 @@ run('Q — user can explicitly update CRM data', () => {
   )
 })
 
-run('R — shared location decision happens in generation flow', () => {
+run('R — Semantic V7 resolves shared locations from structured wedding facts', () => {
   const gen = source('src/pages/WeddingContractGenerationPage.tsx')
-  assert(gen.includes('Które miejsce wpisać w umowie?'), 'question copy')
-  assert(gen.includes('contextualQuestions'), 'review-state gated')
+  assert(!gen.includes('contextualQuestions'), 'legacy review question is absent')
+  assert(gen.includes('weddingPlaces'), 'structured locations enter the authoritative dataset')
+  const prompt = source('src/features/ai-contract-transform/semanticMapModelContract.ts')
+  assert(prompt.includes('shared_preparation_location'), 'semantic contract distinguishes shared location')
 })
 
 run('S — optional unresolved package field preserves template value (fixed)', () => {
@@ -432,10 +427,10 @@ run('T — generated contract can be previewed', () => {
   )
 })
 
-run('U — edited values regenerate via verify step', () => {
+run('U — generated contract returns to the direct generator entry', () => {
   const gen = source('src/pages/WeddingContractGenerationPage.tsx')
-  assert(gen.includes("setStep('verify')"), 'edit data returns to verify')
-  assert(gen.includes('Edytuj dane'), 'edit action')
+  assert(!gen.includes("setStep('verify')"), 'verify step is removed')
+  assert(gen.includes('Wróć do generatora'), 'preview can return to the generator entry')
 })
 
 run('V — DOCX artifact is real and downloadable', () => {

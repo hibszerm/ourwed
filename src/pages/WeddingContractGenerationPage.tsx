@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useBlocker, useNavigate, useParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AppLayout } from '@/layouts/AppLayout'
@@ -16,17 +16,9 @@ import {
   refreshFinalDocxHash,
 } from '@/features/documents/template/finalContractGenerationArtifact'
 import { extractDocxParagraphsIncludingEmpty } from '@/features/documents/template/extractDocxParagraphs'
-import {
-  WeddingContractGenerationService,
-  buildGenerationReviewState,
-  createGenerationCorrelationId,
-  type ConfiguredContractCompletenessReport,
-  type SharedLocationDecision,
-} from '@/features/documents/template/WeddingContractGenerationService'
-import { validateContractFieldValue } from '@/features/documents/template/contractFieldValidation'
+import { createGenerationCorrelationId } from '@/features/documents/template/WeddingContractGenerationService'
 import { resolvePackageContractForWedding } from '@/features/documents/template/packageContractAssignment'
-import { isPackageContractAllowedDynamicKey } from '@/features/documents/template/packageContractAllowlist'
-import type { CompletenessField } from '@/features/documents/template/buildContractCompleteness'
+import { packageSnapshotFromWedding } from '@/features/documents/template/resolveContractVariables'
 import {
   ContractGenerationOverlay,
   ContractSuccessState,
@@ -62,7 +54,6 @@ import type { WeddingExtraService } from '@/types/package'
 
 type WizardStep =
   | 'resolve'
-  | 'verify'
   | 'generating'
   | 'waiting_for_user_input'
   | 'resuming'
@@ -148,25 +139,6 @@ export function WeddingContractGenerationPage() {
     && !weddingPlacesQuery.isError && !extrasQuery.isError
 
   const [step, setStep] = useState<WizardStep>('resolve')
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(
-    null,
-  )
-  const [selectedVersionId, setSelectedVersionId] = useState<string | null>(
-    null,
-  )
-  const [report, setReport] =
-    useState<ConfiguredContractCompletenessReport | null>(null)
-  /** Keystroke draft — never drives field visibility / generationAllowed. */
-  const [draftOverrides, setDraftOverrides] = useState<Record<string, string>>(
-    {},
-  )
-  /** Committed after “Uzupełnij dane” validation — drives review + generate. */
-  const [committedOverrides, setCommittedOverrides] = useState<
-    Record<string, string>
-  >({})
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
-  const [locationDecision, setLocationDecision] =
-    useState<SharedLocationDecision | null>(null)
   const [generated, setGenerated] = useState<PageGeneratedContract | null>(
     null,
   )
@@ -194,17 +166,9 @@ export function WeddingContractGenerationPage() {
   >(null)
   const [showMissingData, setShowMissingData] = useState(false)
   const [generationStartedAt] = useState(() => new Date())
-  const [forcedEditableFields, setForcedEditableFields] = useState<
-    CompletenessField[]
-  >([])
-  /** Survives review recomputation — merged by stable registryKey. */
-  const [runtimeReviewIssues, setRuntimeReviewIssues] = useState<
-    CompletenessField[]
-  >([])
   const [generatePending, setGeneratePending] = useState(false)
   const [busy, setBusy] = useState(false)
   const generateInFlightRef = useRef(false)
-  const autoVerifyStarted = useRef(false)
   /** Survives success — query refetch must not wipe a completed generation. */
   const generationSuccessRef = useRef(false)
   /** Presentation-only — backend finished; stages may still animate. */
@@ -212,101 +176,7 @@ export function WeddingContractGenerationPage() {
   /** Presentation-only — cinematic success before preview. */
   const [showGenerationSuccess, setShowGenerationSuccess] = useState(false)
 
-  const reviewState = useMemo(
-    () =>
-      report
-        ? buildGenerationReviewState({
-            report,
-            overrides: committedOverrides,
-            sharedLocationDecision: locationDecision,
-            forcedEditableFields,
-            runtimeReviewIssues,
-            packageContractMode: true,
-          })
-        : null,
-    [
-      report,
-      committedOverrides,
-      locationDecision,
-      forcedEditableFields,
-      runtimeReviewIssues,
-    ],
-  )
-
-  /** Fields kept visible while the photographer is still editing a draft. */
-  const visibleEditableFields = useMemo(() => {
-    if (!reviewState) return []
-    const byKey = new Map(
-      reviewState.editableMissingFields.map((f) => [f.registryKey, f]),
-    )
-    // Keep any field that has an uncommitted draft or a validation error visible.
-    for (const [key, draft] of Object.entries(draftOverrides)) {
-      if (byKey.has(key)) continue
-      if (!draft.trim() && !fieldErrors[key]) continue
-      const committed = committedOverrides[key]?.trim()
-      if (committed && draft === committed && !fieldErrors[key]) continue
-      const fromReport = report?.fields.find((f) => f.registryKey === key)
-      byKey.set(key, {
-        slotId: fromReport?.slotId ?? `draft-${key}`,
-        registryKey: key,
-        label: fromReport?.label ?? key,
-        group: fromReport?.group ?? 'wedding',
-        value: draft,
-        missing: true,
-        source: 'manual',
-        sourceLabel: fromReport?.sourceLabel ?? 'Tylko w tej umowie',
-        placeholder: fromReport?.placeholder,
-      })
-    }
-    for (const key of Object.keys(fieldErrors)) {
-      if (byKey.has(key)) continue
-      const fromReport = report?.fields.find((f) => f.registryKey === key)
-      byKey.set(key, {
-        slotId: fromReport?.slotId ?? `error-${key}`,
-        registryKey: key,
-        label: fromReport?.label ?? key,
-        group: fromReport?.group ?? 'wedding',
-        value: draftOverrides[key] ?? committedOverrides[key] ?? '',
-        missing: true,
-        source: 'manual',
-        sourceLabel: fromReport?.sourceLabel ?? 'Tylko w tej umowie',
-        placeholder: fromReport?.placeholder,
-      })
-    }
-    return [...byKey.values()]
-  }, [
-    reviewState,
-    draftOverrides,
-    committedOverrides,
-    fieldErrors,
-    report,
-  ])
-
-  const hasUncommittedDrafts = useMemo(() => {
-    for (const field of visibleEditableFields) {
-      const draft = draftOverrides[field.registryKey]
-      if (draft === undefined) continue
-      const committed = committedOverrides[field.registryKey] ?? ''
-      if (draft !== committed) return true
-    }
-    return Object.keys(fieldErrors).length > 0
-  }, [
-    visibleEditableFields,
-    draftOverrides,
-    committedOverrides,
-    fieldErrors,
-  ])
-
-  const canGenerate = Boolean(reviewState?.generationAllowed) && !hasUncommittedDrafts && semanticInputsReady
-
-  const effectiveTemplateId =
-    selectedTemplateId ??
-    (packageResolution?.status === 'ok' ? packageResolution.templateId : null)
-  const effectiveVersionId =
-    selectedVersionId ??
-    (packageResolution?.status === 'ok'
-      ? packageResolution.templateVersionId
-      : null)
+  const canGenerate = packageResolution?.status === 'ok' && semanticInputsReady && !generatePending
 
   const hasUnsavedGeneratedDraft = step === 'preview' && Boolean(generated)
   const blocker = useBlocker(hasUnsavedGeneratedDraft)
@@ -342,7 +212,6 @@ export function WeddingContractGenerationPage() {
     }
     if (packageResolution.status !== 'ok') {
       setStep('resolve')
-      autoVerifyStarted.current = false
       return
     }
     devInfo('[package-contract-page-load]', {
@@ -354,128 +223,8 @@ export function WeddingContractGenerationPage() {
       generationSourceType: 'package_active_contract',
       persistedOnlyMode: true,
     })
-    setSelectedTemplateId(packageResolution.templateId)
-    setSelectedVersionId(packageResolution.templateVersionId)
-    if (autoVerifyStarted.current) return
-    if (step !== 'resolve') return
-    autoVerifyStarted.current = true
-    void prepareVerification(
-      packageResolution.templateId,
-      packageResolution.templateVersionId,
-    )
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- auto-start once per resolution
+    // The user starts generation directly from this package-ready screen.
   }, [wedding, packageResolution, packageContractQuery.isLoading, step])
-
-  function focusField(registryKey: string) {
-    const el = document.querySelector<HTMLInputElement>(
-      `[data-review-field="${registryKey}"]`,
-    )
-    el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    el?.focus()
-  }
-
-  /**
-   * Validate drafts and commit them into review overrides.
-   * Field visibility is driven by committedOverrides only — drafts never hide inputs.
-   */
-  function commitDraftOverrides(): boolean {
-    const nextCommitted = { ...committedOverrides }
-    const nextErrors: Record<string, string> = {}
-    const keys = new Set<string>([
-      ...visibleEditableFields.map((f) => f.registryKey),
-      ...Object.keys(draftOverrides),
-    ])
-
-    for (const key of keys) {
-      const draft =
-        draftOverrides[key] !== undefined
-          ? draftOverrides[key]!
-          : committedOverrides[key] ?? ''
-      // Skip keys that are already resolved in review and have no draft edit.
-      const stillMissing = reviewState?.editableMissingFields.some(
-        (f) => f.registryKey === key,
-      )
-      const draftChanged =
-        draftOverrides[key] !== undefined &&
-        draftOverrides[key] !== (committedOverrides[key] ?? '')
-      if (!stillMissing && !draftChanged && !fieldErrors[key]) continue
-
-      const result = validateContractFieldValue(key, draft)
-      if (!result.ok) {
-        nextErrors[key] = result.message
-        continue
-      }
-      nextCommitted[key] = draft.trim()
-    }
-
-    setFieldErrors(nextErrors)
-    if (Object.keys(nextErrors).length > 0) {
-      const firstKey = Object.keys(nextErrors)[0]!
-      setError(nextErrors[firstKey]!)
-      queueMicrotask(() => focusField(firstKey))
-      return false
-    }
-
-    setCommittedOverrides(nextCommitted)
-    setDraftOverrides((current) => {
-      const merged = { ...current }
-      for (const [key, value] of Object.entries(nextCommitted)) {
-        merged[key] = value
-      }
-      return merged
-    })
-    setError(null)
-    return true
-  }
-
-  async function prepareVerification(
-    templateIdOverride?: string,
-    versionIdOverride?: string | null,
-  ) {
-    if (generationSuccessRef.current) {
-      devInfo('[contract-generate-early-return]', {
-        reason: 'prepare_verification_skipped_after_success',
-      })
-      return
-    }
-    const templateId = templateIdOverride ?? effectiveTemplateId
-    const templateVersionId = versionIdOverride ?? effectiveVersionId
-    if (!wedding || !templateId) return
-    setError(null)
-    setForcedEditableFields([])
-    setRuntimeReviewIssues([])
-    try {
-      const next = await WeddingContractGenerationService.prepareVerification({
-        wedding,
-        templateId,
-        templateVersionId,
-        packageContractMode: true,
-        packageId: wedding.packageId,
-        overrides: committedOverrides,
-        generationStartedAt,
-      })
-      // Defense: allowlist + one row per logical key (service already filters).
-      next.fields = next.fields.filter((f) =>
-        isPackageContractAllowedDynamicKey(f.registryKey),
-      )
-      next.missing = next.missing.filter((f) =>
-        isPackageContractAllowedDynamicKey(f.registryKey),
-      )
-      const byKey = new Map(next.fields.map((f) => [f.registryKey, f]))
-      next.fields = [...byKey.values()]
-      next.missing = next.fields.filter((f) => f.missing)
-      next.packageContractMode = true
-      if (generationSuccessRef.current) return
-      setReport(next)
-      setStep('verify')
-    } catch (err) {
-      setError(
-        getUserFacingErrorMessage(err, 'Nie udało się przygotować danych umowy.'),
-      )
-      setStep('resolve')
-      autoVerifyStarted.current = false
-    }
-  }
 
   async function generate() {
     if (!wedding) {
@@ -499,16 +248,6 @@ export function WeddingContractGenerationPage() {
       return
     }
 
-    if (!report || !reviewState) {
-      devInfo('[contract-generate-early-return]', {
-        reason: 'missing_wedding_report_or_review_state',
-        hasWedding: Boolean(wedding),
-        hasReport: Boolean(report),
-        hasReviewState: Boolean(reviewState),
-      })
-      setError('Nie można rozpocząć generowania — brak gotowych danych umowy.')
-      return
-    }
     if (generatePending || generateInFlightRef.current) {
       devInfo('[contract-generate-early-return]', {
         reason: 'duplicate_submit_guard',
@@ -519,26 +258,8 @@ export function WeddingContractGenerationPage() {
     }
     setError(null)
 
-    // Commit drafts first when the photographer clicks “Uzupełnij dane”
-    // or when there are uncommitted edits before generate.
-    if (!canGenerate || hasUncommittedDrafts) {
-      devInfo('[contract-generate-early-return]', {
-        reason: hasUncommittedDrafts
-          ? 'commit_drafts_before_generate'
-          : 'generation_not_allowed',
-        reviewIssueKeys: reviewState.editableMissingFields.map(
-          (f) => f.registryKey,
-        ),
-      })
-      const committed = commitDraftOverrides()
-      if (!committed) return
-      // After commit, React state updates are async — if fields remain missing,
-      // stop here; the next click can generate once review allows it.
-      document
-        .querySelector('[data-review-section="required"]')
-        ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      // If commit succeeded but generation still needs another pass after
-      // reviewState recomputes, leave the user on verify with no silent fail.
+    if (!canGenerate) {
+      setError('Poczekaj, aż przygotujemy dane umowy.')
       return
     }
 
@@ -562,14 +283,14 @@ export function WeddingContractGenerationPage() {
     devInfo('[contract-generate-start]', {
       weddingId: wedding.id,
       packageId: wedding.packageId ?? null,
-      templateId: report.templateId,
-      templateVersionId: effectiveVersionId,
+      templateId: packageResolution.templateId,
+      templateVersionId: packageResolution.templateVersionId,
       correlationId,
     })
     try {
       const source = await downloadPackageContractTemplateSource({
         templateId: packageResolution.templateId,
-        templateVersionId: effectiveVersionId,
+        templateVersionId: packageResolution.templateVersionId,
       })
       const currentDate = generationStartedAt.toISOString()
       const canonicalDataset = buildSemanticContractProductionDataset({
@@ -616,8 +337,6 @@ export function WeddingContractGenerationPage() {
         return
       }
       generationSuccessRef.current = true
-      setForcedEditableFields([])
-      setRuntimeReviewIssues([])
       setGenerationPipelineDone(true)
       devInfo('[contract-generate-success]', {
         generator: 'semantic-map-v7',
@@ -652,12 +371,7 @@ export function WeddingContractGenerationPage() {
     if (!templateId || !templateVersionId) throw new Error('semantic_template_identity_missing')
     const title = `${packageResolution.packageName} — ${wedding.couple.partner1} & ${wedding.couple.partner2}`
     const summary = getWeddingCommercialSummary(wedding)
-    const packageSnapshot = report?.packageSnapshot ?? {
-      packageId: wedding.packageId ?? null,
-      name: packageResolution.packageName,
-      currency: summary.currency,
-      items: [],
-    }
+    const packageSnapshot = packageSnapshotFromWedding(wedding)
     const extracted = await extractDocxParagraphsIncludingEmpty(artifact.docxBytes)
     const draft = await documentDraftService.create({
       weddingId: wedding.id,
@@ -699,7 +413,7 @@ export function WeddingContractGenerationPage() {
       remainingAmount: Math.round(summary.remainingAfterDeposit),
     }
     const detected = detectPaymentSchedule({
-      slots: report?.slotMap.slots ?? [],
+      slots: [],
       paragraphs: extracted.map(({ index, text }) => ({ index, text })),
       finances,
     })
@@ -737,7 +451,7 @@ export function WeddingContractGenerationPage() {
     setSemanticRequirementErrors({})
     setSemanticCanonicalDataset(null)
     setSemanticFailureCode(null)
-    setStep('verify')
+    setStep('resolve')
   }
 
   async function resumeSemanticGeneration() {
@@ -802,7 +516,7 @@ export function WeddingContractGenerationPage() {
 
   function semanticFailureMessage(code: string): string {
     if (code.startsWith('provider_')) return 'Nie udało się bezpiecznie przeanalizować umowy. Spróbuj ponownie później.'
-    return 'Nie udało się bezpiecznie przygotować umowy. Sprawdź dane i spróbuj ponownie.'
+    return 'Nie udało się bezpiecznie przygotować umowy. Spróbuj ponownie później.'
   }
 
   async function save(): Promise<boolean> {
@@ -821,13 +535,8 @@ export function WeddingContractGenerationPage() {
         templateVersionId: generated.templateVersionId,
         title: generated.title,
         docxBytes: bytesToSave,
-        packageSnapshot: report?.packageSnapshot ?? {
-          packageId: wedding.packageId ?? null,
-          name: wedding.packageName ?? '',
-          currency: wedding.currency || 'PLN',
-          items: [],
-        },
-        manualOverrides: committedOverrides,
+        packageSnapshot: packageSnapshotFromWedding(wedding),
+        manualOverrides: {},
         resolvedValues: generated.resolved,
         resolveEmptyValuesFromWedding: false,
         omittedKeys: generated.omittedKeys,
@@ -1078,8 +787,8 @@ export function WeddingContractGenerationPage() {
   }
 
   const visibleStep = step === 'saved' ? 'preview'
-    : step === 'waiting_for_user_input' ? 'verify'
-      : step === 'resuming' ? 'generating' : step
+    : step === 'resuming' ? 'generating'
+      : step === 'waiting_for_user_input' ? 'resolve' : step
 
   return (
     <AppLayout
@@ -1099,7 +808,6 @@ export function WeddingContractGenerationPage() {
         <ol className={styles.steps} aria-label="Etapy tworzenia umowy">
           {[
             ['resolve', 'Umowa pakietu'],
-            ['verify', 'Sprawdź dane'],
             ['generating', 'Tworzenie'],
             ['preview', 'Podgląd'],
           ].map(([id, label], index) => (
@@ -1107,9 +815,7 @@ export function WeddingContractGenerationPage() {
               key={id}
               data-active={visibleStep === id}
               data-complete={
-                ['resolve', 'verify', 'generating', 'preview'].indexOf(
-                  visibleStep,
-                ) > index
+                ['resolve', 'generating', 'preview'].indexOf(visibleStep) > index
               }
             >
               <span>{index + 1}</span>
@@ -1118,7 +824,7 @@ export function WeddingContractGenerationPage() {
           ))}
         </ol>
 
-        {step === 'resolve' ? (
+        {step === 'resolve' && packageResolution?.status !== 'ok' ? (
           <section className={styles.card}>
             <div>
               <p className={styles.eyebrow}>Umowa z pakietu</p>
@@ -1161,143 +867,29 @@ export function WeddingContractGenerationPage() {
                 </div>
               </>
             ) : null}
-            {packageResolution?.status === 'ok' && error ? (
-              <p className={styles.error} role="alert">
-                {error}
-              </p>
-            ) : null}
-            {packageResolution?.status === 'ok' && !error ? (
-              <p className={styles.muted}>
-                Używamy umowy pakietu {packageResolution.packageName}.
-              </p>
-            ) : null}
           </section>
         ) : null}
 
-        {step === 'verify' && report && reviewState ? (
+        {step === 'resolve' && packageResolution?.status === 'ok' ? (
           <section className={styles.card}>
             <div>
-              <p className={styles.eyebrow}>Przed wygenerowaniem</p>
-              <h2>Sprawdź dane</h2>
+              <p className={styles.eyebrow}>Umowa z pakietu</p>
+              <h2>Gotowa do utworzenia</h2>
               <p className={styles.muted}>
-                Sprawdź dane uzupełnione ze zlecenia. Brakujące wartości
-                uzupełnisz poniżej.
+                Użyjemy umowy pakietu {packageResolution.packageName} i aktualnych danych ślubu.
               </p>
             </div>
-
-            {error ? (
-              <p role="alert" className={styles.error} data-testid="generation-review-error">
-                {error}
-              </p>
-            ) : null}
-
             {!semanticInputsReady ? (
-              <p role="status" className={styles.muted}>
+              <p className={styles.muted} role="status">
                 Pobieramy dane lokalizacji i usług dodatkowych…
               </p>
             ) : null}
             {(weddingPlacesQuery.isError || extrasQuery.isError) ? (
-              <p role="alert" className={styles.error}>
+              <p className={styles.error} role="alert">
                 Nie udało się pobrać danych lokalizacji lub usług dodatkowych.
               </p>
             ) : null}
-
-            {reviewState.resolvedValues.length > 0 ? (
-              <div className={styles.resolvedBlock}>
-                <h3 className={styles.sectionTitle}>Uzupełnione ze zlecenia</h3>
-                <ul className={styles.resolvedList}>
-                  {reviewState.resolvedValues.map((field) => (
-                    <li key={field.registryKey}>
-                      <span>{field.label}</span>
-                      <strong>
-                        {committedOverrides[field.registryKey]?.trim() ||
-                          field.value}
-                      </strong>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
-
-            {visibleEditableFields.length > 0 ? (
-              <fieldset
-                className={styles.missingBlock}
-                data-review-section="required"
-              >
-                <legend>Wymagane uzupełnienie</legend>
-                {reviewState.blockingUserInputs
-                  .filter((item) => item.kind === 'semantic_collision')
-                  .map((item) => (
-                    <p key={item.issueId} className={styles.muted}>
-                      {item.message}
-                    </p>
-                  ))}
-                {visibleEditableFields.map((field) => (
-                  <label key={field.registryKey} className={styles.field}>
-                    <span>{field.label}</span>
-                    <input
-                      data-review-field={field.registryKey}
-                      aria-invalid={Boolean(fieldErrors[field.registryKey])}
-                      value={
-                        draftOverrides[field.registryKey] !== undefined
-                          ? draftOverrides[field.registryKey]!
-                          : (committedOverrides[field.registryKey] ?? '')
-                      }
-                      placeholder={field.placeholder ?? field.label}
-                      onChange={(event) => {
-                        const nextValue = event.target.value
-                        setDraftOverrides((current) => ({
-                          ...current,
-                          [field.registryKey]: nextValue,
-                        }))
-                        setFieldErrors((current) => {
-                          if (!current[field.registryKey]) return current
-                          const next = { ...current }
-                          delete next[field.registryKey]
-                          return next
-                        })
-                      }}
-                    />
-                    {fieldErrors[field.registryKey] ? (
-                      <span
-                        className={styles.error}
-                        role="alert"
-                        data-testid={`field-error-${field.registryKey}`}
-                      >
-                        {fieldErrors[field.registryKey]}
-                      </span>
-                    ) : (
-                      <span className={styles.muted}>{field.sourceLabel}</span>
-                    )}
-                  </label>
-                ))}
-              </fieldset>
-            ) : null}
-
-            {reviewState.contextualQuestions.some(
-              (question) => question.id === 'shared_location',
-            ) ? (
-              <fieldset className={styles.scope}>
-                <legend>Które miejsce wpisać w umowie?</legend>
-                <label>
-                  <input
-                    type="radio"
-                    checked={locationDecision === 'use_single'}
-                    onChange={() => setLocationDecision('use_single')}
-                  />
-                  Jedno wybrane miejsce
-                </label>
-                <label>
-                  <input
-                    type="radio"
-                    checked={locationDecision === 'combine'}
-                    onChange={() => setLocationDecision('combine')}
-                  />
-                  Wpisz wszystkie miejsca
-                </label>
-              </fieldset>
-            ) : null}
-
+            {error ? <p className={styles.error} role="alert">{error}</p> : null}
             <div className={styles.actions}>
               <Button
                 type="button"
@@ -1309,7 +901,7 @@ export function WeddingContractGenerationPage() {
               <Button
                 type="button"
                 variant="primary"
-                disabled={!canGenerate || generatePending}
+                disabled={!canGenerate}
                 data-testid="generate-contract-button"
                 onClick={(event) => {
                   event.preventDefault()
@@ -1317,11 +909,7 @@ export function WeddingContractGenerationPage() {
                   void generate()
                 }}
               >
-                {generatePending
-                  ? 'Tworzymy umowę'
-                  : canGenerate
-                    ? 'Utwórz umowę'
-                    : 'Uzupełnij dane'}
+                {generatePending ? 'Tworzymy umowę' : 'Utwórz umowę'}
               </Button>
             </div>
           </section>
@@ -1333,7 +921,7 @@ export function WeddingContractGenerationPage() {
             busy={busy}
             onCancel={() => {
               setPaymentSchedule(null)
-              setStep('verify')
+              setStep('resolve')
             }}
             onSubmit={async (submitted) => {
               if (!generated || !docxBytes) return
@@ -1455,7 +1043,7 @@ export function WeddingContractGenerationPage() {
                 variant="primary"
                 onClick={() => {
                   setError(null)
-                  setStep('verify')
+                  setStep('resolve')
                 }}
               >
                 Spróbuj ponownie
@@ -1518,9 +1106,9 @@ export function WeddingContractGenerationPage() {
                 <Button
                   type="button"
                   variant="secondary"
-                  onClick={() => setStep('verify')}
+                  onClick={() => setStep('resolve')}
                 >
-                  Edytuj dane
+                  Wróć do generatora
                 </Button>
                 <DocxActionButton
                   idleLabel="Zapisz umowę"
@@ -1551,7 +1139,7 @@ export function WeddingContractGenerationPage() {
             }}
             onRegenerate={() => {
               generationSuccessRef.current = false
-              setStep('verify')
+              setStep('resolve')
             }}
             onEditPaymentSchedule={
               paymentWasManual && paymentSchedule

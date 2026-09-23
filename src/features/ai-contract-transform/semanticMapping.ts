@@ -48,6 +48,7 @@ type SemanticMappingBase = {
   sourceBlockId: string
   anchor: string
   occurrence?: number
+  rendering?: string | null
 }
 
 type CustomerContactConcept = 'customer_address' | 'customer_phone' | 'customer_email'
@@ -140,7 +141,9 @@ function isMapping(value: unknown): value is SemanticMapping {
   const authoritativeDateConcept = row.concept === 'deposit_due_date' || row.concept === 'final_payment_due_date' || row.concept === 'delivery_due_date'
   const validNameForm = (CUSTOMER_NAME_FORMS as readonly unknown[]).includes(row.nameForm)
   const hasNameForm = Object.hasOwn(row, 'nameForm')
-  const allowedKeys = ['sourceBlockId', 'concept', 'anchor', 'occurrence', 'customerIndex', 'customerIndexes', 'nameForm', 'dateRole', 'baseDateConcept', 'relation']
+  const allowedKeys = ['sourceBlockId', 'concept', 'anchor', 'occurrence', 'customerIndex', 'customerIndexes', 'nameForm', 'dateRole', 'baseDateConcept', 'relation', 'rendering']
+  const validRendering = row.rendering === undefined || row.rendering === null ||
+    (typeof row.rendering === 'string' && row.rendering.trim().length > 0 && row.rendering.length <= 500 && !/[\r\n\u0000-\u0008\u000B\u000C\u000E-\u001F]/.test(row.rendering))
   const singleOwner = Number.isInteger(row.customerIndex) && (row.customerIndex === 0 || row.customerIndex === 1) && row.customerIndexes === undefined
   const sharedOwners = row.customerIndex === undefined && Array.isArray(row.customerIndexes) &&
     row.customerIndexes.length === 2 && row.customerIndexes[0] === 0 && row.customerIndexes[1] === 1
@@ -162,6 +165,7 @@ function isMapping(value: unknown): value is SemanticMapping {
     isSemanticConcept(row.concept) &&
     typeof row.anchor === 'string' && row.anchor.trim().length > 0 &&
     (row.occurrence === undefined || (Number.isInteger(row.occurrence) && (row.occurrence as number) >= 0)) &&
+    validRendering &&
     validDateClaim && (customerNameConcept
       ? hasNameForm && validNameForm && row.customerIndex === undefined && row.customerIndexes === undefined
       : !hasNameForm && (contactConcept ? singleOwner || sharedOwners : row.customerIndex === undefined && row.customerIndexes === undefined))
@@ -186,7 +190,10 @@ export function resolveSemanticMappings(input: {
 
   const resolved: ResolvedSemanticMapping[] = []
   for (let index = 0; index < input.mappings.length; index++) {
-    const candidate: unknown = input.mappings[index]
+    const incoming: unknown = input.mappings[index]
+    const candidate: unknown = incoming && typeof incoming === 'object' && !Array.isArray(incoming)
+      ? sanitizeMappingRendering(incoming as Record<string, unknown>)
+      : incoming
     if (!isMapping(candidate)) return { ok: false, code: 'invalid_mapping', mappingIndex: index }
     const source = sourceById.get(candidate.sourceBlockId)
     if (!source) return { ok: false, code: 'unknown_source', mappingIndex: index }
@@ -218,6 +225,7 @@ export function resolveSemanticMappings(input: {
     const duplicate = normalized.find((prior) => sameSpan(prior, current))
     if (duplicate) {
       if (duplicate.concept !== current.concept || !sameOwnership(duplicate, current) || duplicate.nameForm !== current.nameForm) return { ok: false, code: 'span_conflict', mappingIndex: index }
+      if (duplicate.rendering !== current.rendering) duplicate.rendering = null
       // Exact-identical claims coalesce so an executor can perform one mutation.
       continue
     }
@@ -241,6 +249,13 @@ export function resolveSemanticMappings(input: {
   }
 
   return { ok: true, mappings: normalized }
+}
+
+function sanitizeMappingRendering(row: Record<string, unknown>): Record<string, unknown> {
+  if (!Object.hasOwn(row, 'rendering')) return row
+  const value = row.rendering
+  const valid = value === null || (typeof value === 'string' && value.trim().length > 0 && value.length <= 500 && !/[\r\n\u0000-\u0008\u000B\u000C\u000E-\u001F]/.test(value))
+  return valid ? row : { ...row, rendering: null }
 }
 
 function sameSpan(a: ResolvedSemanticMapping, b: ResolvedSemanticMapping): boolean {

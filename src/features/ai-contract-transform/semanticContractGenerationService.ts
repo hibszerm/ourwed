@@ -10,6 +10,8 @@ import { writeSemanticMappingDocx } from './docxTransformWriter'
 import type { ContractTransformationDataset, RequiresUserInputDate, TransformDocumentBlock } from './types'
 import type { ResolvedSemanticMapping } from './semanticMapping'
 import { SemanticMapTransportError } from './semanticMapTransportTypes'
+import { resolveSemanticExtrasTemplateMetadata } from './semanticExtrasTemplateMetadata'
+import type { SemanticExtrasTemplateMetadata } from './semanticExtrasPlacement'
 
 export type SemanticMapProviderResult = Extract<ReturnType<typeof parseSemanticMapResponse>, { ok: true }>
 export type SemanticMapProvider = (request: SemanticMapProviderRequest) => Promise<SemanticMapProviderResult>
@@ -47,6 +49,7 @@ export type SemanticContractGenerationPendingState = {
   sourceParagraphs: Array<{ blockId: string; paragraphXml: string }>
   semanticMappings: ResolvedSemanticMapping[]
   extrasPlacement: SemanticExtrasPlacement | null
+  extrasTemplateMetadata: SemanticExtrasTemplateMetadata | null
   requirements: SemanticGenerationRequirement[]
   suppliedValues: Record<string, string>
   documentStateId?: string
@@ -122,9 +125,21 @@ export async function startSemanticContractGeneration(
     return failure('TECHNICAL_FAILURE', 'source_index_failed', 'The source contract could not be indexed safely.')
   }
 
+  let extrasTemplateMetadata: SemanticExtrasTemplateMetadata | null = null
+  if ((input.canonicalDataset.additionalServices?.length ?? 0) > 0) {
+    try {
+      extrasTemplateMetadata = await resolveSemanticExtrasTemplateMetadata(input.sourceDocxBytes)
+    } catch {
+      return failure('QUALITY_FAILURE', 'extras_quality_failed', 'Selected additional services could not be placed safely.')
+    }
+    if (!extrasTemplateMetadata) {
+      return failure('QUALITY_FAILURE', 'extras_quality_failed', 'Selected additional services could not be placed safely.')
+    }
+  }
+
   let providerResult: SemanticMapProviderResult
   try {
-    const request = buildSemanticMapRequest({ candidate: input.modelCandidate, sourceBlocks: source.blocks, dataset: input.canonicalDataset })
+    const request = buildSemanticMapRequest({ candidate: input.modelCandidate, sourceBlocks: source.blocks, dataset: input.canonicalDataset, extrasAdmissibleRegion: extrasTemplateMetadata })
     providerResult = await invokeSemanticMap(request)
   } catch (error) {
     if (error instanceof SemanticMapTransportError) {
@@ -158,6 +173,7 @@ export async function startSemanticContractGeneration(
     sourceParagraphs: source.paragraphs,
     semanticMappings: grounded.mappings,
     extrasPlacement: providerResult.extrasPlacement ?? null,
+    extrasTemplateMetadata,
     requirements: [],
     suppliedValues: {},
   })
@@ -289,6 +305,7 @@ async function resolveAndRender(state: SemanticContractGenerationPendingState): 
       sourceBlocks: state.sourceBlocks,
       dataset,
       placement: state.extrasPlacement,
+      ...(state.extrasTemplateMetadata ? { templateMetadata: state.extrasTemplateMetadata } : {}),
     })
   } catch {
     return failure('QUALITY_FAILURE', 'extras_quality_failed', 'Selected additional services could not be placed safely.')

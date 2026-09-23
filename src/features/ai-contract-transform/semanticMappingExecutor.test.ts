@@ -72,6 +72,57 @@ run('unavailable customer morphology falls back to the exact canonical CRM name'
   }
 })
 
+run('model linguistic rendering cannot replace canonical facts and safe locations retain them exactly', () => {
+  const address = 'ul. Radosna 10, Gdańsk'
+  const sources = [
+    { blockId: 'location-safe', paragraphXml: p('Old address') },
+    { blockId: 'location-unsafe', paragraphXml: p('Old address') },
+    { blockId: 'date-render', paragraphXml: p('12.07.2025') },
+    { blockId: 'name-render', paragraphXml: p('Old name') },
+  ]
+  const mappings = [
+    { ...map('location-safe', 'reception_location', 'Old address'), rendering: `pod adresem ${address}` },
+    { ...map('location-unsafe', 'reception_location', 'Old address'), rendering: 'pod adresem ul. Radosna 11, Gdańsk' },
+    { ...map('date-render', 'wedding_date', '12.07.2025'), rendering: '14.08.2027' },
+    { ...map('name-render', 'customer_1_name', 'Old name', undefined, 'GENITIVE'), rendering: 'Krzysztof Krawczyk' },
+  ]
+  const target = { ...dataset, locations: { ...dataset.locations, reception: { fullAddress: address } }, dates: { ...dataset.dates, weddingDate: '2026-08-14' } }
+  const result = execute(mappings, sources, target)
+  assert(visible(result, 'location-safe') === `pod adresem ${address}`, 'linguistic wrapper keeps the complete canonical address')
+  assert(visible(result, 'location-unsafe') === address, 'changed address falls back to canonical rendering')
+  assert(visible(result, 'date-render') === '14.08.2026', 'model cannot change an authoritative date')
+  assert(visible(result, 'name-render') === 'Maria Kowalska', 'model cannot change customer identity')
+})
+
+run('model name rendering is used only when an existing deterministic resolver confirms it', () => {
+  const sourceParagraphs = [{ blockId: 'trusted-name-form', paragraphXml: p('Old genitive') }]
+  const mapping = { ...map('trusted-name-form', 'customer_1_name', 'Old genitive', undefined, 'GENITIVE'), rendering: 'Marii Kowalskiej' }
+  const grounded = resolveSemanticMappings({ mappings: [mapping], sourceBlocks: sourceParagraphs })
+  assert(grounded.ok, 'name mapping grounds')
+  if (!grounded.ok) return
+  const result = executeSemanticMappings({
+    resolvedMappings: grounded.mappings,
+    canonicalDataset: dataset,
+    sourceParagraphs,
+    customerNameFormResolver: () => ({ status: 'RESOLVED', value: 'Marii Kowalskiej' }),
+  })
+  assert(visible(result, 'trusted-name-form') === 'Marii Kowalskiej', 'confirmed natural name form is accepted')
+})
+
+run('conflicting duplicate renderings become a canonical fallback without rejecting grounded mapping', () => {
+  const sourceParagraphs = [{ blockId: 'dup-render', paragraphXml: p('Old address') }]
+  const base = map('dup-render', 'reception_location', 'Old address')
+  const grounded = resolveSemanticMappings({
+    mappings: [
+      { ...base, rendering: 'w miejscu: ul. Radosna 10, Gdańsk' },
+      { ...base, rendering: 'w miejscu: ul. Polna 1, Gdańsk' },
+    ],
+    sourceBlocks: sourceParagraphs,
+  })
+  assert(grounded.ok, 'rendering disagreement does not invalidate the grounded semantic value')
+  if (grounded.ok) assert(grounded.mappings[0]!.rendering === null, 'disagreement clears only optional rendering')
+})
+
 run('production morphology uses only resolved forms and falls back on ambiguous, unsupported, or blank results', () => {
   const resolve = (form: 'GENITIVE' | 'INSTRUMENTAL', resolver: CustomerNameFormResolver) => {
     const anchor = form === 'GENITIVE' ? 'Old genitive' : 'Old instrumental'

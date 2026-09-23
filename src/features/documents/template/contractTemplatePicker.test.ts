@@ -464,10 +464,12 @@ run('R — Umowa GP scenario returns at least one selectable template', () => {
   assert(c.selectable.length >= 1, 'at least one selectable')
 })
 
-run('S — package contract proceeds to Sprawdź dane (page wiring)', () => {
+run('S — package contract starts directly from the ready page', () => {
   const page = pageSource()
-  assert(page.includes('Sprawdź dane'), 'verify step present')
-  assert(page.includes('prepareVerification'), 'auto verify from package contract')
+  assert(!page.includes('Sprawdź dane'), 'intermediate review step removed')
+  assert(!page.includes('prepareVerification'), 'legacy pre-generation review is not on the page path')
+  assert(page.includes('Gotowa do utworzenia'), 'package-ready state is presented')
+  assert(page.includes('Utwórz umowę'), 'generation can start directly')
   assert(page.includes('packageResolution.templateId'), 'uses package template')
   const t = umowaGpAleksandraB()
   const selection = selectGenerationTemplates([t], 'Video Mini')

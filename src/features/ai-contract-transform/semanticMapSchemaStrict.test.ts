@@ -40,4 +40,22 @@ const scenario = buildGoldenScenarios().find((entry) => entry.caseId === 'G02')!
 const dataset = buildContractTransformationDataset({ wedding: scenario.wedding, package: scenario.package, extras: scenario.extras, currentDate: '2026-09-22' })
 const request = buildSemanticMapRequest({ candidate: 'terra', sourceBlocks: [], dataset })
 check(request.text.format.schema)
+const extrasRequest = buildSemanticMapRequest({
+  candidate: 'terra',
+  sourceBlocks: [],
+  dataset: { ...dataset, additionalServices: [{ name: 'opaque test service' }] },
+  extrasAdmissibleRegion: {
+    packageDescriptionRegion: { startParagraphIndex: 10, endParagraphIndex: 12 },
+    mainContractualBodyRegion: { startParagraphIndex: 10, endParagraphIndex: 40 },
+    signatureBoundaryParagraphIndex: 41,
+    fallbackBoundaryParagraphIndex: 13,
+  },
+})
+const userContext = JSON.parse(extrasRequest.input[1]!.content) as Record<string, unknown>
+assert.deepEqual(userContext.extrasAdmissibleRegion, {
+  packageDescriptionRegion: { startParagraphIndex: 10, endParagraphIndex: 12 },
+  mainContractualBodyRegion: { startParagraphIndex: 10, endParagraphIndex: 40 },
+  signatureBoundaryParagraphIndex: 41,
+  fallbackBoundaryParagraphIndex: 13,
+}, 'model receives only the explicit structural region metadata')
 console.log('strict semantic-map schema tests: PASS')

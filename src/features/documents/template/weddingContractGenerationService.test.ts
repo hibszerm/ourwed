@@ -660,20 +660,15 @@ await run('GenerationReviewState — contextual question blocks only until answe
   )
 })
 
-await run('GenerationReviewState — UI and validation share the same object', () => {
+await run('GenerationReviewState — legacy review service remains isolated from Semantic V7 page', () => {
   const page = readFileSync(
     resolve(process.cwd(), 'src/pages/WeddingContractGenerationPage.tsx'),
     'utf8',
   )
-  assert(page.includes('buildGenerationReviewState'), 'page builds review state')
-  assert(page.includes('reviewState.editableMissingFields'), 'UI uses review fields')
-  assert(page.includes('reviewState.generationAllowed'), 'Generate uses review gate')
-  assert(
-    page.includes('Wymagane uzupełnienie') &&
-      page.includes('generatePending') &&
-      page.includes('Uzupełnij dane'),
-    'review UI shows required completion + pending guard',
-  )
+  assert(!page.includes('buildGenerationReviewState'), 'legacy review is removed from page')
+  assert(!page.includes("'verify'"), 'no intermediate verify state')
+  assert(page.includes('generatePending'), 'direct generation still has pending guard')
+  assert(page.includes('mayGenerateContract'), 'existing wedding readiness gate remains')
   assert(!page.includes('photographerFacingGenerationErrors'), 'no fallback filter path')
 })
 
@@ -779,7 +774,7 @@ await run('legacy incomplete status is no longer a transform hard-gate', () => {
   )
 })
 
-await run('typed generation errors preserve stage and correlation id', () => {
+await run('Semantic V7 generation failures keep their safe failure classification', () => {
   const err = new GenerationPipelineError({
     code: 'docx_render_failed',
     stage: 'docx_render',
@@ -797,8 +792,8 @@ await run('typed generation errors preserve stage and correlation id', () => {
     resolve(process.cwd(), 'src/pages/WeddingContractGenerationPage.tsx'),
     'utf8',
   )
-  assert(page.includes('userFacingGenerationErrorMessage'), 'UI maps typed errors')
-  assert(page.includes('err.toJSON()'), 'UI logs full diagnostic')
+  assert(page.includes('semanticFailureMessage'), 'UI maps Semantic V7 failures to safe copy')
+  assert(page.includes('semanticCode'), 'UI retains the internal failure code')
   assert(
     typeof userFacingGenerationErrorMessage(err) === 'string',
     'friendly message available',

@@ -45,7 +45,7 @@ function dataset(): ContractTransformationDataset {
     finances: { contractValueFormatted: '5 000 zł', contractValueWords: 'pięć tysięcy złotych' },
     locations: {},
     package: { name: 'Źródłowy pakiet' },
-    additionalServices: [{ name: 'Dodatkowe ujęcia' }],
+    additionalServices: [],
   }
 }
 
@@ -107,7 +107,7 @@ async function run() {
   }
   const result = await startSemanticContractGeneration(input, async (request) => {
     providerCalls++
-    assert.equal(request.text.format.name, 'contract_semantic_mappings_v5_extras_placement')
+    assert.equal(request.text.format.name, 'contract_semantic_mappings_v6_extras_placement_rendering')
     return providerResult
   })
   assertState(result, 'REQUIRES_USER_INPUT')
@@ -135,8 +135,6 @@ async function run() {
   assert.ok(visible[2]!.includes('04.10.2026'), 'first supplied date resumes deterministically')
   assert.ok(visible[3]!.includes('04.10.2026'), 'second supplied date resumes deterministically')
   assert.equal(visible[4]!.match(/00\/100/g)?.length, 1, 'SOURCE money presentation suffix remains exactly once')
-  assert.ok(visible.some((paragraph) => paragraph.includes('Dodatkowe ujęcia')))
-  assert.ok(!visible.some((paragraph) => paragraph.includes('zł') && paragraph.includes('Dodatkowe ujęcia')), 'extras insertion has names only, no CRM extra price')
 
   // A missing canonical location is not promoted to a user-editable requirement.
   const noExtraDataset = { ...dataset(), additionalServices: undefined }
@@ -162,20 +160,14 @@ async function run() {
   assertState(typedConfigurationFailure, 'TECHNICAL_FAILURE')
   assert.equal(typedConfigurationFailure.code, 'provider_configuration_failed', 'configuration failure is technical and fail closed')
 
-  const qualityDataset = { ...noExtraDataset, additionalServices: [{ name: 'Unsafe 900 zł extra' }] }
-  const qualityResult = await startSemanticContractGeneration({ ...input, canonicalDataset: qualityDataset }, async () => makeProviderRows(blocks, [], null))
-  assertState(qualityResult, 'QUALITY_FAILURE')
-
-  // Invalid requested placement safely takes the accepted physical fallback.
-  const fallbackDataset = { ...dataset(), clients: { ...dataset().clients, customers: [{ displayName: 'Anna Kowalska', email: 'anna@example.test' }, { displayName: 'Jan Nowak', email: 'jan@example.test' }] } }
-  const fallbackResult = await startSemanticContractGeneration({ ...input, canonicalDataset: fallbackDataset }, async () => {
-    return makeProviderRows(blocks, [], { sourceBlockId: 'not-a-source-block', side: 'after' })
+  const qualityDataset = { ...noExtraDataset, additionalServices: [{ name: 'Dodatkowe ujęcia' }] }
+  let unknownTemplateProviderCalls = 0
+  const qualityResult = await startSemanticContractGeneration({ ...input, canonicalDataset: qualityDataset }, async () => {
+    unknownTemplateProviderCalls++
+    return makeProviderRows(blocks, [], null)
   })
-  assertState(fallbackResult, 'COMPLETED')
-  const fallbackZip = await JSZip.loadAsync(fallbackResult.artifact.docxBytes)
-  const fallbackXml = await fallbackZip.file('word/document.xml')!.async('string')
-  const fallbackVisible = [...fallbackXml.matchAll(/<w:p\b[\s\S]*?<\/w:p>/g)].map((match) => extractCanonicalParagraphText(match[0]!))
-  assert.ok(fallbackVisible.slice(-2).some((paragraph) => paragraph.includes('Dodatkowe ujęcia')), 'invalid semantic boundary uses the accepted structural fallback')
+  assertState(qualityResult, 'QUALITY_FAILURE')
+  assert.equal(unknownTemplateProviderCalls, 0, 'extras fail closed before a provider call when source structure has no approved metadata')
 
   const implementation = await readFile(new URL('./semanticContractGenerationService.ts', import.meta.url), 'utf8')
   for (const forbidden of ['applyDeterministicRepairs', 'WeddingSparseContractGenerationService', 'runSparseProductTransform', 'changedBlocks', 'evaluationNameFormResolver']) {

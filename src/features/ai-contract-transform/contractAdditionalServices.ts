@@ -53,8 +53,8 @@ export function renderSeparateAdditionalServicesParagraphs(
   if (names.length === 0) return []
   const intro =
     names.length === 1
-      ? 'Ponadto Zamawiający wybrał następującą usługę dodatkową:'
-      : 'Ponadto Zamawiający wybrał następujące usługi dodatkowe:'
+      ? 'Ponadto zakres umowy obejmuje następującą usługę dodatkową:'
+      : 'Ponadto zakres umowy obejmuje następujące usługi dodatkowe:'
   const items =
     names.length === 1
       ? [`– ${names[0]}.`]

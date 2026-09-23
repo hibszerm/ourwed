@@ -127,13 +127,14 @@ export function executeSemanticMappings(input: {
       }
       return { ok: false, code: rendered.code, mappingIndex: index }
     }
+    const replacement = selectSafeModelRendering(executionMapping, rendered.value, rendered.segments)
     if (executionMapping.span.segments && executionMapping.span.segments.length > 1) {
       if (!rendered.segments || rendered.segments.length !== executionMapping.span.segments.length || rendered.segments.some((part) => !part.trim())) {
         return { ok: false, code: 'unrenderable_surface', mappingIndex: index }
       }
-      prepared.push({ ...executionMapping, replacement: rendered.value, replacementSegments: rendered.segments, inputIndex: index })
+      prepared.push({ ...executionMapping, replacement, replacementSegments: rendered.segments, inputIndex: index })
     } else {
-      prepared.push({ ...executionMapping, replacement: rendered.value, inputIndex: index })
+      prepared.push({ ...executionMapping, replacement, inputIndex: index })
     }
   }
 
@@ -181,6 +182,29 @@ export function executeSemanticMappings(input: {
     return { ok: false, code: 'unsafe_ooxml_mutation' }
   }
   return { ok: true, paragraphs, spanEdits }
+}
+
+/** Model text can shape presentation only when the authoritative value remains verifiable. */
+function selectSafeModelRendering(
+  mapping: ResolvedSemanticMapping,
+  canonicalRendering: string,
+  canonicalSegments?: readonly string[],
+): string {
+  const candidate = mapping.rendering?.trim()
+  if (!candidate || candidate === canonicalRendering || canonicalSegments?.length || /[\r\n\u0000-\u001F]/.test(candidate)) return canonicalRendering
+
+  if (mapping.concept === 'customer_1_name' || mapping.concept === 'customer_2_name') {
+    // A name-form resolver, when configured, has already supplied the trusted
+    // canonicalRendering. The model must agree exactly with that result.
+    return candidate === canonicalRendering ? candidate : canonicalRendering
+  }
+
+  const isLocation = mapping.concept === 'customer_address' || mapping.concept.endsWith('_location')
+  if (!isLocation || !candidate.includes(canonicalRendering)) return canonicalRendering
+  const digits = (value: string) => value.match(/\d+/g)?.join('|') ?? ''
+  if (digits(candidate) !== digits(canonicalRendering)) return canonicalRendering
+  if (candidate.length > canonicalRendering.length + 100) return canonicalRendering
+  return candidate
 }
 
 function resolveCustomerNameFormSafely(

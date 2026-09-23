@@ -240,7 +240,7 @@ async function docXml(bytes: ArrayBuffer): Promise<string> {
       {
         afterParagraphIndex: anchor.paragraphIndex,
         paragraphs: [
-          'Ponadto Zamawiający wybrał następujące usługi dodatkowe:',
+          'Ponadto zakres umowy obejmuje następujące usługi dodatkowe:',
           '– VHS;',
         ],
         listNumbering: 'detach',
