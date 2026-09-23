@@ -105,7 +105,7 @@ export function replaceGroundedTextSpan(
 }
 
 type TextNode = { start: number; end: number; decoded: string; raw: string; charStarts: number[]; charEnds: number[] }
-type MappedRange = { firstNode: number; firstOffset: number; lastNode: number; lastOffset: number; internalBreaks: Array<{ start: number; end: number }> }
+type MappedRange = { firstNode: number; firstOffset: number; lastNode: number; lastOffset: number }
 
 function mapCanonicalRangeToTextNodes(xml: string, start: number, end: number): MappedRange | null {
   const nodes: TextNode[] = []
@@ -143,31 +143,18 @@ function mapCanonicalRangeToTextNodes(xml: string, start: number, end: number): 
   if (firstNode < 0 || lastNode < 0) return null
   // Reject hidden OOXML content between the first and last text nodes.
   const first = nodes[firstNode]!, last = nodes[lastNode]!
-  const rangeStart = first.start + (first.charStarts[start - nodeCanonicalStart(nodes, firstNode)] ?? 0)
-  const rangeEnd = last.start + (last.charEnds[lastOffset - 1] ?? last.raw.length)
   const rawBetween = xml.slice(first.end, last.start)
-  const internalBreaks: Array<{ start: number; end: number }> = []
-  const breakRe = /<w:br\s*\/>/g
-  let breakMatch: RegExpExecArray | null
-  while ((breakMatch = breakRe.exec(rawBetween))) {
-    const absoluteStart = first.end + breakMatch.index
-    internalBreaks.push({ start: absoluteStart, end: absoluteStart + breakMatch[0].length })
-  }
+  const breakRe = /<w:br\b[^>]*\/>/g
+  // Canonical text omits structural line breaks. Never let a grounded span
+  // consume one implicitly; the caller must ground a value within one segment.
+  if (breakRe.test(rawBetween)) return null
   const withoutBreaks = rawBetween.replace(breakRe, '')
     .replace(/<w:rPr\b[\s\S]*?<\/w:rPr>/g, '')
     .replace(/<\/?w:r\b[^>]*>/g, '')
     .replace(/<\/?w:t\b[^>]*>/g, '')
     .replace(/<\/?w:hyperlink\b[^>]*>/g, '')
-  const internalBreaksOnly = internalBreaks.filter((item) => item.start >= rangeStart && item.end <= rangeEnd)
-  if (internalBreaksOnly.length !== internalBreaks.length) return null
   if (/<w:|<\//.test(withoutBreaks)) return null
-  return { firstNode, firstOffset, lastNode, lastOffset, internalBreaks: internalBreaksOnly }
-}
-
-function nodeCanonicalStart(nodes: TextNode[], nodeIndex: number): number {
-  let offset = 0
-  for (let index = 0; index < nodeIndex; index++) offset += nodes[index]!.decoded.length
-  return offset
+  return { firstNode, firstOffset, lastNode, lastOffset }
 }
 
 function spliceTextNodes(xml: string, range: MappedRange, replacement: string): string {
@@ -193,7 +180,6 @@ function spliceTextNodes(xml: string, range: MappedRange, replacement: string): 
     const value = raw.slice(0, from) + (i === range.firstNode ? escapeXml(replacement) : '') + raw.slice(to)
     edits.push({ start: contentStart, end: contentEnd, value })
   }
-  edits.push(...range.internalBreaks.map((item) => ({ ...item, value: '' })))
   let result = xml
   for (const edit of edits.sort((a, b) => b.start - a.start)) result = result.slice(0, edit.start) + edit.value + result.slice(edit.end)
   return result
@@ -340,13 +326,6 @@ export async function applyDocxParagraphInsertions(
   if (!docFile) return cloneArrayBuffer(bytes)
 
   const xml = await docFile.async('string')
-  const paragraphRe = /<w:p\b[\s\S]*?<\/w:p>/g
-  const paragraphs: string[] = []
-  let m: RegExpExecArray | null
-  while ((m = paragraphRe.exec(xml))) {
-    paragraphs.push(m[0]!)
-  }
-
   type Pending = { text: string; listNumbering: 'detach' | 'inherit' }
   const byAfter = new Map<number, Pending[]>()
   for (const ins of insertions) {
@@ -358,35 +337,22 @@ export async function applyDocxParagraphInsertions(
     ])
   }
 
-  const nextParagraphs: string[] = []
-  for (let i = 0; i < paragraphs.length; i++) {
-    nextParagraphs.push(paragraphs[i]!)
-    const toInsert = byAfter.get(i)
-    if (!toInsert?.length) continue
-    const template = paragraphs[i]!
-    for (const item of toInsert) {
-      nextParagraphs.push(
-        replaceParagraphTextWhole(template, canonicalizeParagraphText(item.text), {
-          stripListNumbering: item.listNumbering !== 'inherit',
-        }),
-      )
-    }
+  const paragraphs = locateParagraphElements(xml)
+  const insertAt = new Map<number, string[]>()
+  for (const [afterIndex, items] of byAfter) {
+    const anchor = paragraphs[afterIndex]
+    if (!anchor) throw new Error(`DOCX insertion anchor is missing: ${afterIndex}`)
+    const additions = items.map((item) =>
+      replaceParagraphTextWhole(anchor.xml, canonicalizeParagraphText(item.text), {
+        stripListNumbering: item.listNumbering !== 'inherit',
+      }),
+    )
+    insertAt.set(anchor.end, additions)
   }
 
-  let idx = 0
-  let nextXml = xml.replace(/<w:p\b[\s\S]*?<\/w:p>/g, () => {
-    const next = nextParagraphs[idx] ?? paragraphs[idx]!
-    idx += 1
-    return next
-  })
-
-  if (idx < nextParagraphs.length) {
-    const tail = nextParagraphs.slice(idx).join('')
-    const closeBody = nextXml.indexOf('</w:body>')
-    if (closeBody >= 0) {
-      nextXml =
-        nextXml.slice(0, closeBody) + tail + nextXml.slice(closeBody)
-    }
+  let nextXml = xml
+  for (const [offset, additions] of [...insertAt.entries()].sort((a, b) => b[0] - a[0])) {
+    nextXml = nextXml.slice(0, offset) + additions.join('') + nextXml.slice(offset)
   }
 
   zip.file('word/document.xml', nextXml)
@@ -394,6 +360,71 @@ export async function applyDocxParagraphInsertions(
     type: 'arraybuffer',
     compression: 'DEFLATE',
   })
+}
+
+type ParagraphXmlLocation = { start: number; end: number; xml: string }
+
+/** Locate complete paragraph elements without ever rebuilding their parents or siblings. */
+function locateParagraphElements(xml: string): ParagraphXmlLocation[] {
+  const result: ParagraphXmlLocation[] = []
+  const stack: string[] = []
+  let paragraphStart: number | null = null
+  let cursor = 0
+  while (cursor < xml.length) {
+    const open = xml.indexOf('<', cursor)
+    if (open < 0) break
+    if (xml.startsWith('<!--', open)) {
+      const close = xml.indexOf('-->', open + 4)
+      if (close < 0) throw new Error('Malformed DOCX XML comment')
+      cursor = close + 3
+      continue
+    }
+    if (xml.startsWith('<![CDATA[', open)) {
+      const close = xml.indexOf(']]>', open + 9)
+      if (close < 0) throw new Error('Malformed DOCX XML CDATA')
+      cursor = close + 3
+      continue
+    }
+    const close = findXmlTagEnd(xml, open)
+    if (close < 0) throw new Error('Malformed DOCX XML tag')
+    const token = xml.slice(open, close + 1)
+    if (/^<\?|^<!/.test(token)) {
+      cursor = close + 1
+      continue
+    }
+    const closing = /^<\//.test(token)
+    const name = token.match(/^<\/?\s*([^\s/>]+)/)?.[1]
+    if (!name) throw new Error('Malformed DOCX XML element')
+    if (closing) {
+      const actual = stack.pop()
+      if (actual !== name) throw new Error(`Malformed DOCX XML nesting at ${name}`)
+      if (name === 'w:p' && paragraphStart !== null) {
+        result.push({ start: paragraphStart, end: close + 1, xml: xml.slice(paragraphStart, close + 1) })
+        paragraphStart = null
+      }
+    } else if (!/\/\s*>$/.test(token)) {
+      if (name === 'w:p') paragraphStart = open
+      stack.push(name)
+    }
+    cursor = close + 1
+  }
+  if (paragraphStart !== null || stack.length) throw new Error('Unclosed DOCX XML element')
+  return result
+}
+
+function findXmlTagEnd(xml: string, start: number): number {
+  let quote = ''
+  for (let index = start + 1; index < xml.length; index++) {
+    const char = xml[index]!
+    if (quote) {
+      if (char === quote) quote = ''
+    } else if (char === '"' || char === "'") {
+      quote = char
+    } else if (char === '>') {
+      return index
+    }
+  }
+  return -1
 }
 
 /** Apply paragraph text edits, then optional insertions after specific indices. */

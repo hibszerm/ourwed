@@ -3,7 +3,7 @@
  * Preserves structure via production applyDocxParagraphEdits.
  */
 
-import { applyDocxParagraphEdits, applyDocxParagraphEditsAndInsertions } from '@/features/documents/template/docxParagraphEditor'
+import { applyDocxParagraphEdits, applyDocxParagraphEditsAndInsertions, applyDocxParagraphInsertions } from '@/features/documents/template/docxParagraphEditor'
 import type { TransformDocumentBlock, TransformedBlock } from './types'
 import type { ContractParagraphInsertion } from './expandBlocksWithInsertions'
 import type { SemanticMappingExecutionResult } from './semanticMappingExecutor'
@@ -13,6 +13,8 @@ export async function writeTransformedDocx(input: {
   sourceBlocks: TransformDocumentBlock[]
   transformedBlocks: TransformedBlock[]
   paragraphInsertions?: ContractParagraphInsertion[]
+  /** Source bytes already contain authoritative grounded semantic span edits. */
+  sourceAlreadyContainsGroundedEdits?: boolean
 }): Promise<ArrayBuffer> {
   const byId = new Map(input.transformedBlocks.map((b) => [b.blockId, b.text]))
   const edits = input.sourceBlocks
@@ -32,6 +34,10 @@ export async function writeTransformedDocx(input: {
     listNumbering: ins.listNumbering ?? 'detach',
   }))
 
+  if (input.sourceAlreadyContainsGroundedEdits) {
+    return applyDocxParagraphInsertions(input.sourceBytes, insertions)
+  }
+
   return applyDocxParagraphEditsAndInsertions(
     input.sourceBytes,
     edits,
@@ -44,6 +50,7 @@ export async function writeSemanticMappingDocx(input: {
   sourceBytes: ArrayBuffer
   sourceBlocks: readonly TransformDocumentBlock[]
   execution: Extract<SemanticMappingExecutionResult, { ok: true }>
+  paragraphInsertions?: ContractParagraphInsertion[]
 }): Promise<ArrayBuffer> {
   const indexById = new Map(input.sourceBlocks.map((block) => [block.blockId, block.paragraphIndex]))
   const edits = input.execution.spanEdits.map((edit) => {
@@ -51,7 +58,13 @@ export async function writeSemanticMappingDocx(input: {
     if (index === undefined) throw new Error(`Unknown semantic mapping source block: ${edit.blockId}`)
     return { index, text: '', span: { ...edit.span, replacement: edit.replacement } }
   })
-  return applyDocxParagraphEdits(input.sourceBytes, edits)
+  const semanticBytes = await applyDocxParagraphEdits(input.sourceBytes, edits)
+  const insertions = (input.paragraphInsertions ?? []).map((ins) => ({
+    afterIndex: ins.afterParagraphIndex,
+    paragraphs: ins.paragraphs,
+    listNumbering: ins.listNumbering ?? 'detach',
+  }))
+  return applyDocxParagraphInsertions(semanticBytes, insertions)
 }
 
 export function downloadFileName(originalName: string, mode: 'full-ai' | 'guarded-ai'): string {

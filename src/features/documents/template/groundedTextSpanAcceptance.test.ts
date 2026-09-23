@@ -92,22 +92,43 @@ run('missing, invalid, and unsupported canonical mapping fail closed', () => {
   assert(!unsupportedResult.ok && unsupportedResult.reason === 'unmappable', 'w:tab remains unsupported')
 })
 
-run('internal w:br is consumed only when enclosed by the grounded span', () => {
+run('logical-value breaks outside grounded spans survive multiline replacements', () => {
+  const cell = '<w:p><w:r><w:t>Alice</w:t><w:br/><w:t>Street 1</w:t><w:br/><w:t>PESEL 123</w:t></w:r></w:p>'
+  const alice = locateGroundedTextSpan(cell, 'Alice')
+  assert(alice.ok, 'name anchor found')
+  const afterName = replaceGroundedTextSpan(cell, alice.span, 'Helena')
+  assert(extractCanonicalParagraphText(afterName) === 'HelenaStreet 1PESEL 123', 'text values replaced/preserved')
+  assert((afterName.match(/<w:br\/>/g) ?? []).length === 2, 'name/address and address/PESEL breaks preserved')
+  assert(afterName.includes('<w:t>Helena</w:t><w:br/><w:t>Street 1</w:t><w:br/><w:t>PESEL 123</w:t>'), 'separator locality preserved')
+  const address = locateGroundedTextSpan(afterName, 'Street 1')
+  assert(address.ok, 'address anchor found')
+  const afterAddress = replaceGroundedTextSpan(afterName, address.span, 'New Street 2')
+  assert(afterAddress.includes('Helena</w:t><w:br/><w:t>New Street 2</w:t><w:br/><w:t>PESEL 123'), 'address replacement keeps both surrounding separators')
+  assert((afterAddress.match(/<w:br\/>/g) ?? []).length === 2, 'both breaks remain after name and address replacement')
+
+  const emailPhone = '<w:p><w:r><w:t>old@example.test</w:t><w:br/><w:t>+48 500 000 001</w:t></w:r></w:p>'
+  const email = locateGroundedTextSpan(emailPhone, 'old@example.test')
+  assert(email.ok, 'email anchor found')
+  const next = replaceGroundedTextSpan(emailPhone, email.span, 'new@example.test')
+  assert(next.includes('new@example.test</w:t><w:br/><w:t>+48 500 000 001'), 'email/phone separation remains')
+
+  const tabbed = '<w:p><w:r><w:t>old@example.test</w:t><w:br/><w:t>+48 500 000 001</w:t><w:tab/><w:t>tail</w:t></w:r></w:p>'
+  const tabAnchor = locateGroundedTextSpan(tabbed, 'old@example.test')
+  assert(tabAnchor.ok, 'tabbed paragraph email anchor found')
+  const tabbedNext = replaceGroundedTextSpan(tabbed, tabAnchor.span, 'new@example.test')
+  assert(tabbedNext.includes('<w:br/>') && tabbedNext.includes('<w:tab/>'), 'unmapped break and tab retained')
+})
+
+run('a grounded span crossing a structural break fails closed without removing it', () => {
   const full = '<w:p><w:pPr><w:jc w:val="both"/></w:pPr><w:r><w:rPr><w:b/></w:rPr><w:t>A</w:t><w:br/><w:t>B</w:t></w:r></w:p>'
   const found = locateGroundedTextSpan(full, 'AB')
-  assert(found.ok, 'anchor spanning internal break found')
-  const next = replaceGroundedTextSpan(full, found.span, 'NEW VALUE')
-  assert(extractCanonicalParagraphText(next) === 'NEW VALUE', 'replacement is one canonical string')
-  assert(!next.includes('<w:br/>'), 'internal break consumed')
-  assert(next.includes('<w:rPr><w:b/></w:rPr>'), 'run properties retained')
-  assert(next.includes('<w:pPr><w:jc w:val="both"/></w:pPr>'), 'paragraph properties retained')
-  assertXmlWellFormed(next)
+  assert(!found.ok && found.reason === 'unmappable', 'anchor spanning internal break is rejected')
+  assert(full.includes('<w:br/>'), 'source structural break remains untouched')
+  assertXmlWellFormed(full)
 
   const multiple = '<w:p><w:r><w:t>A</w:t><w:br/><w:t>B</w:t><w:br/><w:t>C</w:t></w:r></w:p>'
   const multipleSpan = locateGroundedTextSpan(multiple, 'ABC')
-  assert(multipleSpan.ok, 'multiple internal breaks map')
-  const multipleNext = replaceGroundedTextSpan(multiple, multipleSpan.span, 'XYZ')
-  assert(extractCanonicalParagraphText(multipleNext) === 'XYZ' && !multipleNext.includes('<w:br/>'), 'all enclosed breaks consumed')
+  assert(!multipleSpan.ok && multipleSpan.reason === 'unmappable', 'multiple internal breaks fail closed')
 
   for (const [xml, anchor, expectedBreaks] of [
     ['<w:p><w:r><w:br/><w:t>TARGET</w:t></w:r></w:p>', 'TARGET', 1],
@@ -122,17 +143,14 @@ run('internal w:br is consumed only when enclosed by the grounded span', () => {
 
   const surrounded = '<w:p><w:r><w:t>prefix A</w:t><w:br/><w:t>B suffix</w:t></w:r></w:p>'
   const surroundedSpan = locateGroundedTextSpan(surrounded, 'AB')
-  assert(surroundedSpan.ok, 'interior anchor found across break')
-  const surroundedNext = replaceGroundedTextSpan(surrounded, surroundedSpan.span, 'X')
-  assert(extractCanonicalParagraphText(surroundedNext) === 'prefix X suffix', 'outside text preserved')
-  assert(!surroundedNext.includes('<w:br/>'), 'only break inside target consumed')
+  assert(!surroundedSpan.ok && surroundedSpan.reason === 'unmappable', 'interior anchor crossing break rejected')
+  assert(surrounded.includes('<w:br/>'), 'interior source break remains')
 
   const tableParagraph = '<w:p><w:r><w:t>A</w:t><w:br/><w:t>B</w:t></w:r></w:p>'
   const cell = `<w:tc><w:tcPr><w:shd w:fill="FFFF00"/></w:tcPr>${tableParagraph}</w:tc>`
   const cellSpan = locateGroundedTextSpan(tableParagraph, 'AB')
-  assert(cellSpan.ok, 'table cell paragraph anchor found')
-  const tableNext = cell.replace(tableParagraph, replaceGroundedTextSpan(tableParagraph, cellSpan.span, 'X'))
-  assert(tableNext.includes('<w:tcPr><w:shd w:fill="FFFF00"/></w:tcPr>'), 'table-cell properties retained')
+  assert(!cellSpan.ok && cellSpan.reason === 'unmappable', 'table cell span crossing break rejected')
+  assert(cell.includes('<w:tcPr><w:shd w:fill="FFFF00"/></w:tcPr>') && cell.includes('<w:br/>'), 'table-cell context and separator remain')
 })
 
 run('G03-style mixed party paragraph leaves provider/legal content unchanged', () => {

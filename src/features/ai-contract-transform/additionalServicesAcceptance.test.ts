@@ -467,6 +467,48 @@ run('real contract fixture with overtime: VHS in separate paragraphs after pendr
   assert(result.diagnostics.additionalServicesInsertedAsSeparateBlocks === true, 'separate blocks')
 })
 
+run('table-cell package target moves to the next safe body boundary or fails closed', () => {
+  const sourceBlocks: TransformDocumentBlock[] = [
+    block('table-2-row-0-cell-3-p-0', 'Sposób przekazania', {
+      kind: 'tableCell', tableIndex: 2, rowIndex: 0, cellIndex: 3,
+    }),
+    block('para-10', 'Zakres usług dodatkowych', { paragraphIndex: 10 }),
+    block('para-11', '§ Wynagrodzenie', { paragraphIndex: 11 }),
+    block('para-12', 'Podpisy', { paragraphIndex: 12 }),
+  ]
+  const dataset: ContractTransformationDataset = {
+    clients: { displayNames: 'A i B', personCount: 2 },
+    dates: { contractExecutionDate: '01.01.2026', weddingDate: '15.08.2026' },
+    locations: {},
+    finances: { contractValueFormatted: '100 zł', contractValueWords: 'sto złotych' },
+    package: {},
+    additionalServices: [{ id: 'x', name: 'Dron' }],
+  }
+  const result = insertAdditionalServicesIntoBlocks({
+    sourceBlocks,
+    blocks: sourceBlocks.map(({ blockId, text }) => ({ blockId, text })),
+    dataset,
+    placement: {
+      mode: 'before_payment', anchorType: 'before_payment',
+      targetBlockId: 'table-2-row-0-cell-3-p-0', confidence: 0.5,
+    },
+  })
+  assertEq(result.placement?.targetBlockId, 'para-10', 'body boundary chosen after table')
+  assertEq(result.paragraphInsertions[0]?.afterParagraphIndex, 10, 'insertion uses body paragraph index')
+
+  const noBoundary = insertAdditionalServicesIntoBlocks({
+    sourceBlocks: [sourceBlocks[0]!, sourceBlocks[2]!, sourceBlocks[3]!],
+    blocks: [sourceBlocks[0]!, sourceBlocks[2]!, sourceBlocks[3]!].map(({ blockId, text }) => ({ blockId, text })),
+    dataset,
+    placement: {
+      mode: 'before_payment', anchorType: 'before_payment',
+      targetBlockId: 'table-2-row-0-cell-3-p-0', confidence: 0.5,
+    },
+  })
+  assertEq(noBoundary.placement?.mode, 'safe_placement_not_found', 'missing body boundary fails closed')
+  assertEq(noBoundary.paragraphInsertions.length, 0, 'unsafe cell insertion omitted')
+})
+
 run('real contract fixture: VHS after pendrive item, before staffing clause', () => {
   const sourceBlocks = [
     block('para-1', '§ 1'),

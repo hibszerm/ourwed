@@ -13,6 +13,7 @@ import {
 import {
   classifyAdditionalServicesPlacement,
   collectAdditionalServicesSectionBlockIds,
+  isBlockBeforePayment,
   isBlockBeforeSignature,
   type AdditionalServicesPlacement,
 } from './additionalServicesPlacement'
@@ -60,6 +61,37 @@ export type AdditionalServicesInsertionDiagnostics = {
 
 function isProtectedPackageTableBlock(block: TransformDocumentBlock): boolean {
   return block.tableContext?.ownershipFamily === 'service_scope'
+}
+
+function movePlacementToSafeBodyAnchor(
+  placement: AdditionalServicesPlacement,
+  sourceBlocks: TransformDocumentBlock[],
+): AdditionalServicesPlacement {
+  if (
+    placement.mode === 'safe_placement_not_found' ||
+    placement.mode === 'existing_section'
+  ) return placement
+  const index = sourceBlocks.findIndex((block) => block.blockId === placement.targetBlockId)
+  if (index < 0 || sourceBlocks[index]!.kind !== 'tableCell') return placement
+
+  // A paragraph after the table preserves placement intent without making a cell
+  // carry free-form extras. Never fall backward across the table into unrelated text.
+  const isSafeBodyBoundary = (block: TransformDocumentBlock) =>
+    block.kind === 'paragraph' &&
+    isBlockBeforePayment(sourceBlocks, block.blockId) &&
+    isBlockBeforeSignature(sourceBlocks, block.blockId)
+  const safe =
+    sourceBlocks.slice(index + 1).find(isSafeBodyBoundary) ??
+    [...sourceBlocks.slice(0, index)].reverse().find(isSafeBodyBoundary)
+  if (!safe) {
+    return {
+      mode: 'safe_placement_not_found',
+      anchorType: 'before_payment',
+      confidence: 0,
+      rationale: 'no_safe_body_boundary_after_table_anchor',
+    }
+  }
+  return { ...placement, targetBlockId: safe.blockId, rationale: `${placement.rationale ?? placement.mode}:safe_body_boundary` }
 }
 
 function filterServicesNotYetPresent(
@@ -160,8 +192,9 @@ export function insertAdditionalServicesIntoBlocks(input: {
     }
   }
 
-  const placement =
+  const requestedPlacement =
     input.placement ?? classifyAdditionalServicesPlacement(input.sourceBlocks)
+  const placement = movePlacementToSafeBodyAnchor(requestedPlacement, input.sourceBlocks)
 
   if (placement.mode === 'safe_placement_not_found') {
     return {
@@ -175,7 +208,7 @@ export function insertAdditionalServicesIntoBlocks(input: {
 
   const sectionIds = collectAdditionalServicesSectionBlockIds(
     input.sourceBlocks,
-    placement,
+    requestedPlacement,
   )
   const sectionTexts = input.blocks
     .filter((b) => sectionIds.includes(b.blockId))
@@ -229,6 +262,32 @@ export function insertAdditionalServicesIntoBlocks(input: {
   }
 
   const sourceTarget = input.sourceBlocks.find((b) => b.blockId === targetId)
+  if (
+    sourceTarget?.kind === 'tableCell' &&
+    (placement.mode === 'before_payment' || placement.mode === 'package_scope')
+  ) {
+    return {
+      blocks: input.blocks,
+      placement: {
+        mode: 'safe_placement_not_found',
+        anchorType: 'before_payment',
+        confidence: 0,
+        rationale: 'unsafe_table_cell_anchor_rejected',
+      },
+      paragraphInsertions: [],
+      diagnostics: buildDiagnostics(
+        {
+          mode: 'safe_placement_not_found',
+          anchorType: 'before_payment',
+          confidence: 0,
+          rationale: 'unsafe_table_cell_anchor_rejected',
+        },
+        services,
+        0,
+      ),
+      insertedNames: [],
+    }
+  }
   if (sourceTarget && isProtectedPackageTableBlock(sourceTarget)) {
     return {
       blocks: input.blocks,
