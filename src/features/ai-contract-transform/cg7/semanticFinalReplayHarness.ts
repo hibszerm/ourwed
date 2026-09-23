@@ -17,6 +17,17 @@ type GroundedSpan = {
   span: { start: number; end: number; segments?: readonly { start: number; end: number }[] }
 }
 
+/** Mirror the executor's structured-target precedence in offline expectations. */
+export function expectedReplayLocationTarget(
+  location: { displayName?: string; target?: { text: string; segments: readonly string[] } },
+  fallback: () => string | undefined,
+): { text: string; segments?: readonly string[] } {
+  if (location.target) return { text: location.target.text, segments: location.target.segments }
+  const text = fallback()
+  assert.ok(text, 'Replay location has no renderable target')
+  return { text }
+}
+
 export function auditSemanticReplayParagraph(input: {
   sourceParagraphXml: string
   outputParagraphXml: string

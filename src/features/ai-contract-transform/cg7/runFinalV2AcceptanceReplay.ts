@@ -8,7 +8,7 @@ import { parseFlexibleDate } from '@/features/ai-contract-lab/semanticValueEqual
 import { formatDateLikeSource, formatMoneyLikeSource } from '@/features/ai-contract-lab/resolveTypedSourceSpan'
 import { buildContractTransformationDataset } from '@/features/ai-contract-transform/transformationDataset'
 import { writeSemanticMappingDocx } from '@/features/ai-contract-transform/docxTransformWriter'
-import { auditSemanticReplayParagraph, continueSemanticReplayDocx } from '@/features/ai-contract-transform/cg7/semanticFinalReplayHarness'
+import { auditSemanticReplayParagraph, continueSemanticReplayDocx, expectedReplayLocationTarget } from '@/features/ai-contract-transform/cg7/semanticFinalReplayHarness'
 import { executeSemanticMappings } from '@/features/ai-contract-transform/semanticMappingExecutor'
 import { indexDocxForTransform } from '@/features/ai-contract-transform/indexDocxForTransform'
 import { insertAdditionalServicesIntoBlocks } from '@/features/ai-contract-transform/insertAdditionalServices'
@@ -57,6 +57,15 @@ function formatDate(canonicalDate: string, anchor: string): string {
   const due = anchor.match(/^\s*(do)\s+/i)?.[1]
   const roku = /\s+roku\s*$/i.test(anchor) ? ' roku' : ''
   return `${due ? `${due} ` : ''}${formatted}${roku}`
+}
+
+function mappedLocation(mapping: { concept: string }, dataset: ReturnType<typeof buildContractTransformationDataset>) {
+  return mapping.concept === 'preparation_location' ? dataset.locations.preparation
+    : mapping.concept === 'bride_preparation_location' ? dataset.locations.preparationLocations?.find((item) => item.person === 'bride')
+      : mapping.concept === 'groom_preparation_location' ? dataset.locations.preparationLocations?.find((item) => item.person === 'groom')
+        : mapping.concept === 'shared_preparation_location' ? dataset.locations.preparationLocations?.find((item) => item.person === 'shared')
+          : mapping.concept === 'ceremony_location' ? dataset.locations.ceremony
+            : mapping.concept === 'reception_location' ? dataset.locations.reception : undefined
 }
 
 function expectedReplacement(mapping: any, dataset: ReturnType<typeof buildContractTransformationDataset>, id: GoldenCaseId): string {
@@ -119,14 +128,11 @@ function expectedReplacement(mapping: any, dataset: ReturnType<typeof buildContr
     if (mapping.concept.endsWith('_words')) return polishContractMoneyWords(amount!)!
     return formatMoneyLikeSource({ canonicalAmount: amount!, sourceText: mapping.anchor })!
   }
-  const location = mapping.concept === 'preparation_location' ? dataset.locations.preparation
-    : mapping.concept === 'bride_preparation_location' ? dataset.locations.preparationLocations?.find((item) => item.person === 'bride')
-      : mapping.concept === 'groom_preparation_location' ? dataset.locations.preparationLocations?.find((item) => item.person === 'groom')
-        : mapping.concept === 'shared_preparation_location' ? dataset.locations.preparationLocations?.find((item) => item.person === 'shared')
-          : mapping.concept === 'ceremony_location' ? dataset.locations.ceremony
-            : mapping.concept === 'reception_location' ? dataset.locations.reception : undefined
+  const location = mappedLocation(mapping, dataset)
   assert.ok(location, `${id}: canonical location exists for ${mapping.concept}`)
-  return 'fullAddress' in location! ? renderLocationSummary({ fullAddress: location!.fullAddress })! : renderLocationSummary(location!)!
+  return expectedReplayLocationTarget(location, () => 'fullAddress' in location
+    ? renderLocationSummary({ fullAddress: location.fullAddress })
+    : renderLocationSummary(location)).text
 }
 
 let mappingsForCurrent: any[] = []
@@ -255,6 +261,11 @@ for (const scenario of cases) {
       const edit = execution.spanEdits.find((item) => item.blockId === mapping.sourceBlockId && item.span.start === mapping.span.start)
       assert.ok(edit, `${id}: grounded mapping has one output edit`)
       assert.equal(edit!.replacement, expectedReplacement(mapping, dataset, id), `${id}: canonical target correct for ${mapping.concept}`)
+      const location = mappedLocation(mapping, dataset)
+      if (location?.target) {
+        assert.deepEqual(edit!.replacementSegments, location.target.segments,
+          `${id}: structured target components occupy the grounded source slots for ${mapping.concept}`)
+      }
     }
     const packageScopeIds = indexed.filter((block) => block.tableContext?.ownershipFamily === 'service_scope').map((block) => block.blockId)
     assert.equal(grounded.mappings.some((mapping) => packageScopeIds.includes(mapping.sourceBlockId)), false, `${id}: base package service-scope content is not semantically rewritten`)

@@ -5,7 +5,7 @@ import { extractCanonicalParagraphText } from '@/features/documents/template/can
 import { indexDocxForTransform } from '@/features/ai-contract-transform/indexDocxForTransform'
 import { writeSemanticMappingDocx } from '@/features/ai-contract-transform/docxTransformWriter'
 import { extractSemanticParagraphTextSlots } from './semanticSpanReplayAudit'
-import { auditSemanticReplayParagraph, continueSemanticReplayDocx } from './semanticFinalReplayHarness'
+import { auditSemanticReplayParagraph, continueSemanticReplayDocx, expectedReplayLocationTarget } from './semanticFinalReplayHarness'
 
 const paragraphXmls = (xml: string) => [...xml.matchAll(/<w:p\b[\s\S]*?<\/w:p>/g)].map((match) => match[0]!)
 async function documentXml(bytes: ArrayBuffer): Promise<string> {
@@ -18,6 +18,21 @@ const cases = [
   { name: 'street and city', prefix: '', newPrefix: '', street: 'Old Street 1', city: 'Old City', newStreet: 'New Street 2', newCity: 'New City', suffix: '', breaks: 1 },
   { name: 'name, street, city', prefix: 'Old Name', newPrefix: 'New Name', street: 'Old Street 1', city: 'Old City', newStreet: 'New Street 2', newCity: 'New City', suffix: '', breaks: 2 },
 ] as const
+
+const structuredLocation = {
+  displayName: 'New Venue',
+  target: { text: 'New Venue, New Street 2', segments: ['New Venue', 'New Street 2'] },
+}
+assert.deepEqual(
+  expectedReplayLocationTarget(structuredLocation, () => { throw new Error('displayName fallback must not run') }),
+  structuredLocation.target,
+  'structured location expectation uses both authoritative components',
+)
+assert.deepEqual(
+  expectedReplayLocationTarget({ displayName: 'Unstructured Venue' }, () => 'Unstructured Venue'),
+  { text: 'Unstructured Venue' },
+  'displayName fallback remains available only without a structured target',
+)
 
 for (const fixture of cases) {
   const sourceSlots = [fixture.prefix, fixture.street, fixture.city, fixture.suffix].filter(Boolean)
