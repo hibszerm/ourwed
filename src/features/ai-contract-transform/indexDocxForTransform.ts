@@ -14,6 +14,7 @@ import {
   type TableGrid,
 } from './tableRowOwnership'
 import type { TransformDocumentBlock } from './types'
+import JSZip from 'jszip'
 
 function tablesToGrids(tables: DocxExtractedTable[]): TableGrid[] {
   return tables.map((t) => ({
@@ -31,6 +32,7 @@ function tablesToGrids(tables: DocxExtractedTable[]): TableGrid[] {
 function buildBlocks(input: {
   paragraphs: IndexedParagraph[]
   tables: DocxExtractedTable[]
+  numberingKeys?: readonly (string | undefined)[]
 }): TransformDocumentBlock[] {
   const grids = tablesToGrids(input.tables)
   const serviceTables = detectServiceScopeTables(grids)
@@ -53,6 +55,7 @@ function buildBlocks(input: {
         paragraphIndex: p.index,
         text: p.text,
         kind: 'tableCell',
+        ...(input.numberingKeys?.[p.index] ? { numberingKey: input.numberingKeys[p.index] } : {}),
         breakOffsets: p.breakOffsets,
         tableIndex: p.origin.tableIndex,
         rowIndex: p.origin.rowIndex,
@@ -65,6 +68,7 @@ function buildBlocks(input: {
         paragraphIndex: p.index,
         text: p.text,
         kind: 'paragraph',
+        ...(input.numberingKeys?.[p.index] ? { numberingKey: input.numberingKeys[p.index] } : {}),
         breakOffsets: p.breakOffsets,
       })
     }
@@ -76,7 +80,18 @@ export async function indexDocxForTransform(
   bytes: ArrayBuffer,
 ): Promise<TransformDocumentBlock[]> {
   const model = await extractDocxDocumentModel(bytes)
-  return buildBlocks(model)
+  const zip = await JSZip.loadAsync(bytes)
+  const xml = await zip.file('word/document.xml')?.async('string')
+  const numberingKeys = xml
+    ? [...xml.matchAll(/<w:p\b[\s\S]*?<\/w:p>/g)].map(([paragraph]) => {
+        const properties = paragraph.match(/<w:pPr\b[\s\S]*?<\/w:pPr>/)?.[0]
+        const numbering = properties?.match(/<w:numPr\b[\s\S]*?<\/w:numPr>/)?.[0]
+        const id = numbering?.match(/<w:numId\b[^>]*w:val="([^"]+)"/)?.[1]
+        const level = numbering?.match(/<w:ilvl\b[^>]*w:val="([^"]+)"/)?.[1] ?? '0'
+        return id ? `${id}:${level}` : undefined
+      })
+    : []
+  return buildBlocks({ ...model, numberingKeys })
 }
 
 export function blocksFromPlainParagraphs(

@@ -7,6 +7,7 @@ import {
   isBlockBeforePayment,
 } from '../additionalServicesPlacement'
 import {
+  renderSeparateAdditionalServicesParagraphs,
   serviceNamePresentInText,
   textLooksLikeServicePriceOrQuantity,
 } from '../contractAdditionalServices'
@@ -85,6 +86,21 @@ export function verifyAdditionalServicesConsistency(input: {
   const diag = input.diagnostics
   const fullText = input.transformedBlocks.map((b) => b.text).join('\n')
   const expected = expectation.expectedNames
+
+  // V1 extras are standalone system-authored paragraphs. Validate those
+  // paragraphs directly; SOURCE catalogs may legitimately mention the same
+  // name and retain their own prices.
+  if (diag?.additionalServicesPlacementMode === 'semantic_boundary' ||
+      diag?.additionalServicesPlacementMode === 'structural_fallback') {
+    const inserted = (input.paragraphInsertions ?? []).flatMap((entry) => entry.paragraphs)
+    if (diag.additionalServicesInsertedCount !== expected.length ||
+        (input.paragraphInsertions ?? []).length !== 1 ||
+        JSON.stringify(inserted) !== JSON.stringify(renderSeparateAdditionalServicesParagraphs(expected)) ||
+        inserted.some((line) => /\d[\d\s]*\s*zł|\bPLN\b/i.test(line))) {
+      return [{ code: 'ADDITIONAL_SERVICES_INCOMPLETE', severity: 'blocking', canonicalField: 'contract.additionalServices', safeDescription: 'Selected extras were not inserted exactly once without CRM prices' }]
+    }
+    return []
+  }
 
   if (diag?.additionalServicesPlacementFailed) {
     issues.push({

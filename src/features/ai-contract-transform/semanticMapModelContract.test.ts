@@ -64,7 +64,8 @@ const sourceBlocks: TransformDocumentBlock[] = [{
 run('strict semanticMappings schema derives closed concepts and has no legacy fields', () => {
   const schema = buildSemanticMapResponseSchema()
   assert.equal(schema.strict, true)
-  assert.deepEqual(schema.schema.required, ['semanticMappings'])
+  assert.deepEqual(schema.schema.required, ['semanticMappings', 'extrasPlacement'])
+  assert.deepEqual(schema.schema.properties.extrasPlacement.anyOf[1]?.required, ['sourceBlockId', 'side'])
   const variants = schema.schema.properties.semanticMappings.items.anyOf
   const allConcepts = [...new Set(variants.flatMap((variant) => [...variant.properties.concept.enum]))].sort()
   assert.deepEqual(allConcepts, SEMANTIC_CONCEPTS.filter((concept) => concept !== 'dependent_date' && concept !== 'fixed_date').sort())
@@ -244,6 +245,9 @@ run('Terra and Sol requests differ only by explicit model identifier', () => {
   assert.equal(fallbackClients.customers.some((customer: { email?: string }) => customer.email), false, 'missing emails are not invented')
   assert.equal('package' in user.crmReferenceOnly, false)
   assert.equal('additionalServices' in user.crmReferenceOnly, false)
+  assert.equal(user.selectedExtrasPresent, true)
+  const noExtrasRequest = buildSemanticMapRequest({ candidate: 'terra', sourceBlocks, dataset: { ...dataset, additionalServices: [] } })
+  assert.equal(JSON.parse(noExtrasRequest.input[1]!.content).selectedExtrasPresent, false)
   assert.equal(JSON.stringify(user).includes('Internal package data must not be sent'), false)
   assert.equal(JSON.stringify(user).includes('Extras must not be sent to map path'), false)
   assert.equal(JSON.stringify(user).includes('semanticRoles'), false)

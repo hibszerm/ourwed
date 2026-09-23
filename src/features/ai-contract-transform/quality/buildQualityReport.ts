@@ -19,6 +19,7 @@ import { verifyTransformationCompleteness } from './completenessVerifier'
 import { applyDeterministicRepairs } from './deterministicRepairs'
 import { buildExpectationManifest } from './expectationManifest'
 import { insertAdditionalServicesIntoBlocks } from '../insertAdditionalServices'
+import type { SemanticExtrasPlacement } from '../semanticExtrasPlacement'
 import { expandBlocksWithParagraphInsertions } from '../expandBlocksWithInsertions'
 import type { ContractParagraphInsertion } from '../expandBlocksWithInsertions'
 import {
@@ -408,6 +409,7 @@ export function runPostReconstructionQualityGate(input: {
   financeEvidenceDiagnostics?: GroundedFinanceEvidenceOutcome[]
   dateEvidence?: GroundedDateEvidence[]
   dateEvidenceDiagnostics?: GroundedDateEvidenceOutcome[]
+  additionalServicesPlacement?: SemanticExtrasPlacement | null
 }): {
   blocks: TransformedBlock[]
   manifest: TransformationExpectationManifest
@@ -443,6 +445,7 @@ export function runPostReconstructionQualityGate(input: {
     blocks: repaired.blocks,
     sourceBlocks: input.sourceBlocks,
     dataset: input.dataset,
+    placement: input.additionalServicesPlacement,
   })
 
   const expandedBlocks = expandBlocksWithParagraphInsertions({

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import JSZip from 'jszip'
 import { extractCanonicalParagraphText } from '@/features/documents/template/canonicalParagraph'
@@ -25,9 +25,17 @@ import { polishContractMoneyWords } from '@/features/ai-contract-transform/polis
 const root = process.cwd()
 const base = join(root, 'tmp/golden-contract-validation-run2')
 const sourceDir = join(base, 'SOURCE')
-const outDir = join(base, 'FINAL_SEMANTIC_SOURCE_IDENTITY_V2_OFFLINE_REPLAY_20260923')
+const outDir = join(base, 'FINAL_SEMANTIC_EXTRAS_V1_OFFLINE_AUDITED_20260923')
 const evidenceDir = join(base, 'EVIDENCE/SEMANTIC_SOURCE_IDENTITY_V2_SIX_GOLDEN_ACCEPTANCE_20260923')
-const replayEvidenceDir = join(base, 'EVIDENCE/SEMANTIC_SOURCE_IDENTITY_V2_OFFLINE_REPLAY_20260923')
+const replayEvidenceDir = join(base, 'EVIDENCE/SEMANTIC_EXTRAS_V1_OFFLINE_AUDITED_20260923')
+// Executor fixtures only. Captured provider output predates the placement field.
+const placementFixtures: Partial<Record<GoldenCaseId, { sourceBlockId: string; side: 'before' | 'after' }>> = {
+  G01: { sourceBlockId: 'para-30', side: 'after' },
+  G03: { sourceBlockId: 'para-92', side: 'after' },
+  G04: { sourceBlockId: 'para-47', side: 'before' },
+  G05: { sourceBlockId: 'para-25', side: 'after' },
+  G06: { sourceBlockId: 'para-13', side: 'after' },
+}
 const hashes: Record<GoldenCaseId, string> = {
   G01: 'd8f5b95eae9586adc5c37b681f2ba108ab2464fcc78f2ab8214a6d57a6710fee',
   G02: '617275318f49790e9b2ba3faa4093b96486f0bf1b2b72a2082f0eed94cb9a6ae',
@@ -142,8 +150,8 @@ function dateInventory(blocks: Array<{ blockId: string; text: string }>) {
   return blocks.flatMap((block) => [...block.text.matchAll(dateToken)].map((match) => ({ blockId: block.blockId, dateLiteral: match[0], start: match.index ?? 0 })))
 }
 
-assert.ok(existsSync(outDir), 'dedicated output directory exists')
-assert.ok(existsSync(replayEvidenceDir), 'dedicated replay evidence directory exists')
+mkdirSync(outDir, { recursive: true })
+mkdirSync(replayEvidenceDir, { recursive: true })
 for (const scenario of cases) {
   const id = scenario.caseId
   try {
@@ -271,7 +279,12 @@ for (const scenario of cases) {
     assert.equal(grounded.mappings.some((mapping) => packageScopeIds.includes(mapping.sourceBlockId)), false, `${id}: base package service-scope content is not semantically rewritten`)
 
     const transformed = indexed.map((b) => ({ blockId: b.blockId, text: extractCanonicalParagraphText(semanticParagraphXml[b.paragraphIndex]!) }))
-    const extras = insertAdditionalServicesIntoBlocks({ blocks: transformed, sourceBlocks: indexed, dataset })
+    const extras = insertAdditionalServicesIntoBlocks({
+      blocks: transformed,
+      sourceBlocks: indexed,
+      dataset,
+      placement: Object.hasOwn(parsed, 'extrasPlacement') ? parsed.extrasPlacement : placementFixtures[id],
+    })
     assert.equal(extras.insertedNames.length, scenario.extras.length, `${id}: deterministic extra insertions complete`)
     const extraChangedIds = extras.blocks.filter((b, index) => b.text !== transformed[index]!.text).map((b) => b.blockId)
     const finalBytes = await continueSemanticReplayDocx({ semanticBytes, sourceBlocks: indexed, semanticBlocks: transformed, extraBlocks: extras.blocks, paragraphInsertions: extras.paragraphInsertions, groundedEditBlockIds: execution.spanEdits.map((edit) => edit.blockId) })
@@ -279,8 +292,26 @@ for (const scenario of cases) {
     const finalParagraphXml = paragraphs(finalXml)
     assert.deepEqual(tableShape(finalXml), tableShape(sourceXml), `${id}: table structure preserved`)
     assert.equal(finalParagraphXml.length, sourceParagraphXml.length + extras.paragraphInsertions.reduce((count, item) => count + item.paragraphs.length, 0), `${id}: paragraph count changes only by declared deterministic insertions`)
+    const expectedParagraphSequence: Array<{ kind: 'source' | 'inserted'; xml?: string; text?: string }> = []
+    for (const block of indexed) {
+      for (const insertion of extras.paragraphInsertions.filter((entry) => entry.beforeParagraphIndex === block.paragraphIndex)) {
+        for (const text of insertion.paragraphs) expectedParagraphSequence.push({ kind: 'inserted', text })
+      }
+      expectedParagraphSequence.push({ kind: 'source', xml: semanticParagraphXml[block.paragraphIndex]! })
+      for (const insertion of extras.paragraphInsertions.filter((entry) => entry.beforeParagraphIndex === undefined && entry.afterParagraphIndex === block.paragraphIndex)) {
+        for (const text of insertion.paragraphs) expectedParagraphSequence.push({ kind: 'inserted', text })
+      }
+    }
+    assert.equal(expectedParagraphSequence.length, finalParagraphXml.length, `${id}: all final paragraphs accounted for`)
+    const unexpectedParagraphChanges = expectedParagraphSequence.flatMap((expected, index) => {
+      const actual = finalParagraphXml[index]!
+      if (expected.kind === 'source') return actual === expected.xml ? [] : [index]
+      if (extractCanonicalParagraphText(actual) !== expected.text || /<w:numPr\b/.test(actual) || /<w:pStyle\b/.test(actual)) return [index]
+      return []
+    })
+    assert.deepEqual(unexpectedParagraphChanges, [], `${id}: SOURCE OOXML and inserted paragraph text/style scope are exact`)
     assert.equal([...sourceXml.matchAll(/<w:sectPr\b/g)].length, [...finalXml.matchAll(/<w:sectPr\b/g)].length, `${id}: section count preserved`)
-    const extraTarget = extras.placement?.targetBlockId
+    const extraTarget = extras.placement?.sourceBlockId
     assert.equal(extraChangedIds.every((blockId) => blockId === extraTarget), true, `${id}: deterministic extras mutate only their declared target block`)
 
     const sourceZip = await JSZip.loadAsync(sourceBytes)
@@ -396,7 +427,7 @@ for (const scenario of cases) {
     const packageAuthorityViolations = grounded.mappings.filter((mapping) => ['package_name', 'extra_service', 'extras', 'coverage', 'operator_count', 'overtime', 'delivery_terms'].includes(mapping.concept)).length
     assert.equal(packageAuthorityViolations, 0, `${id}: base package authority has zero semantic mapping writes`)
     const actualChangedSourceBlocks = [...new Set([...grounded.mappings.map((mapping) => mapping.sourceBlockId), ...extraChangedIds])].sort()
-    const unexpectedChangedBlocks: string[] = []
+    const unexpectedChangedBlocks = unexpectedParagraphChanges.map(String)
     assert.deepEqual(unexpectedChangedBlocks, [], `${id}: no source block changed outside mappings or deterministic extras`)
     finalFile = join(outDir, `${id}_FINAL.docx`)
     if (existsSync(finalFile)) assert.equal(await documentXml(asArrayBuffer(readFileSync(finalFile))), finalXml, `${id}: existing artifact must have identical document XML`)

@@ -6,6 +6,8 @@ import type { TransformDocumentBlock, TransformedBlock } from './types'
 
 export type ContractParagraphInsertion = {
   afterParagraphIndex: number
+  /** Set for a direct insertion before a SOURCE body paragraph. */
+  beforeParagraphIndex?: number
   paragraphs: string[]
   /**
    * CG7: when inserting new paragraphs after a numbered anchor, detach
@@ -13,6 +15,7 @@ export type ContractParagraphInsertion = {
    * Default for additional-services path: 'detach'.
    */
   listNumbering?: 'detach' | 'inherit'
+  presentation?: 'plain' | 'inherit'
 }
 
 export function expandBlocksWithParagraphInsertions(input: {
@@ -24,9 +27,12 @@ export function expandBlocksWithParagraphInsertions(input: {
 
   const byId = new Map(input.blocks.map((b) => [b.blockId, b.text]))
   const insertionsByAfter = new Map<number, string[]>()
+  const insertionsByBefore = new Map<number, string[]>()
   for (const ins of input.insertions) {
-    const existing = insertionsByAfter.get(ins.afterParagraphIndex) ?? []
-    insertionsByAfter.set(ins.afterParagraphIndex, [
+    const target = ins.beforeParagraphIndex === undefined ? insertionsByAfter : insertionsByBefore
+    const key = ins.beforeParagraphIndex ?? ins.afterParagraphIndex
+    const existing = target.get(key) ?? []
+    target.set(key, [
       ...existing,
       ...ins.paragraphs,
     ])
@@ -34,6 +40,9 @@ export function expandBlocksWithParagraphInsertions(input: {
 
   const result: TransformedBlock[] = []
   for (const src of input.sourceBlocks) {
+    for (const [i, text] of (insertionsByBefore.get(src.paragraphIndex) ?? []).entries()) {
+      result.push({ blockId: `inserted-before-${src.paragraphIndex}-${i}`, text })
+    }
     result.push({
       blockId: src.blockId,
       text: byId.get(src.blockId) ?? src.text,

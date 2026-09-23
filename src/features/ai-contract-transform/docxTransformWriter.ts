@@ -30,8 +30,10 @@ export async function writeTransformedDocx(input: {
 
   const insertions = (input.paragraphInsertions ?? []).map((ins) => ({
     afterIndex: ins.afterParagraphIndex,
+    beforeIndex: ins.beforeParagraphIndex,
     paragraphs: ins.paragraphs,
     listNumbering: ins.listNumbering ?? 'detach',
+    presentation: ins.presentation ?? 'inherit',
   }))
 
   if (input.sourceAlreadyContainsGroundedEdits) {
@@ -61,8 +63,10 @@ export async function writeSemanticMappingDocx(input: {
   const semanticBytes = await applyDocxParagraphEdits(input.sourceBytes, edits)
   const insertions = (input.paragraphInsertions ?? []).map((ins) => ({
     afterIndex: ins.afterParagraphIndex,
+    beforeIndex: ins.beforeParagraphIndex,
     paragraphs: ins.paragraphs,
     listNumbering: ins.listNumbering ?? 'detach',
+    presentation: ins.presentation ?? 'inherit',
   }))
   return applyDocxParagraphInsertions(semanticBytes, insertions)
 }

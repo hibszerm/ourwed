@@ -256,12 +256,14 @@ export function stripParagraphListNumbering(pPrXml: string): string {
 export type DocxParagraphInsertion = {
   /** Insert new paragraphs immediately after this document paragraph index. */
   afterIndex: number
+  beforeIndex?: number
   paragraphs: string[]
   /**
    * 'detach' (default for contract extras): strip numPr from cloned pPr.
    * 'inherit': keep anchor list numbering (rare; existing list continuity).
    */
   listNumbering?: 'detach' | 'inherit'
+  presentation?: 'plain' | 'inherit'
 }
 
 export type DocxParagraphEdit = {
@@ -354,28 +356,33 @@ export async function applyDocxParagraphInsertions(
   if (!docFile) return cloneArrayBuffer(bytes)
 
   const xml = await docFile.async('string')
-  type Pending = { text: string; listNumbering: 'detach' | 'inherit' }
-  const byAfter = new Map<number, Pending[]>()
+  type Pending = { text: string; listNumbering: 'detach' | 'inherit'; presentation: 'plain' | 'inherit' }
+  const byPosition = new Map<string, Pending[]>()
   for (const ins of insertions) {
-    const existing = byAfter.get(ins.afterIndex) ?? []
+    const key = ins.beforeIndex === undefined ? `after:${ins.afterIndex}` : `before:${ins.beforeIndex}`
+    const existing = byPosition.get(key) ?? []
     const mode = ins.listNumbering ?? 'detach'
-    byAfter.set(ins.afterIndex, [
+    byPosition.set(key, [
       ...existing,
-      ...ins.paragraphs.map((text) => ({ text, listNumbering: mode })),
+      ...ins.paragraphs.map((text) => ({ text, listNumbering: mode, presentation: ins.presentation ?? 'inherit' as const })),
     ])
   }
 
   const paragraphs = locateParagraphElements(xml)
   const insertAt = new Map<number, string[]>()
-  for (const [afterIndex, items] of byAfter) {
-    const anchor = paragraphs[afterIndex]
-    if (!anchor) throw new Error(`DOCX insertion anchor is missing: ${afterIndex}`)
-    const additions = items.map((item) =>
-      replaceParagraphTextWhole(anchor.xml, canonicalizeParagraphText(item.text), {
-        stripListNumbering: item.listNumbering !== 'inherit',
-      }),
+  for (const [position, items] of byPosition) {
+    const [side, indexText] = position.split(':')
+    const index = Number(indexText)
+    const anchor = paragraphs[index]
+    if (!anchor) throw new Error(`DOCX insertion anchor is missing: ${index}`)
+    const additions = items.map((item) => item.presentation === 'plain'
+      ? `<w:p><w:r><w:t xml:space="preserve">${escapeXml(canonicalizeParagraphText(item.text))}</w:t></w:r></w:p>`
+      : replaceParagraphTextWhole(anchor.xml, canonicalizeParagraphText(item.text), {
+          stripListNumbering: item.listNumbering !== 'inherit',
+        }),
     )
-    insertAt.set(anchor.end, additions)
+    const offset = side === 'before' ? anchor.start : anchor.end
+    insertAt.set(offset, [...(insertAt.get(offset) ?? []), ...additions])
   }
 
   let nextXml = xml

@@ -205,7 +205,7 @@ run('placement: package scope before payment when no deliverables list', () => {
   assert(placement.targetBlockId === 'para-3', 'after table scope')
 })
 
-run('insertion: existing section appends names only', () => {
+run('insertion: existing section keeps heading and SOURCE catalog untouched', () => {
   const sourceBlocks = [
     block('para-1', 'Usługi dodatkowe'),
     block('para-2', '– Teledysk'),
@@ -242,14 +242,16 @@ run('insertion: existing section appends names only', () => {
     blocks: transformed,
     sourceBlocks,
     dataset,
+    placement: { sourceBlockId: 'para-1', side: 'after' },
   })
   const target = result.blocks.find((b) => b.blockId === 'para-2')!
-  assert(serviceNamePresentInText(target.text, 'Dron'), 'dron')
-  assert(serviceNamePresentInText(target.text, 'Album 30×30'), 'album')
+  assert(!serviceNamePresentInText(target.text, 'Dron'), 'dron not appended')
+  assert(!serviceNamePresentInText(target.text, 'Album 30×30'), 'album not appended')
   assert(!target.text.includes('800'), 'no price')
   assert(!target.text.includes('szt'), 'no quantity')
   assert(serviceNamePresentInText(target.text, 'Teledysk'), 'keeps existing')
-  assertEq(result.diagnostics.additionalServicesPlacementMode, 'existing_section', 'mode')
+  assertEq(result.paragraphInsertions[0]?.afterParagraphIndex, 1, 'new paragraphs after heading')
+  assertEq(result.diagnostics.additionalServicesPlacementMode, 'semantic_boundary', 'mode')
 })
 
 run('insertion: unnumbered fallback after package table (no §2 heading)', () => {
@@ -304,7 +306,7 @@ run('insertion: unnumbered fallback after package table (no §2 heading)', () =>
   const full = expanded.map((b) => b.text).join('\n')
   assert(serviceNamePresentInText(full, 'Dron'), 'dron')
   assert(serviceNamePresentInText(full, 'Instagram Reel'), 'reel')
-  assertEq(result.diagnostics.additionalServicesAnchorType, 'package_scope', 'anchor')
+  assertEq(result.diagnostics.additionalServicesAnchorType, 'structural_fallback', 'anchor')
 })
 
 run('insertion: empty list changes nothing', () => {
@@ -335,7 +337,7 @@ run('insertion: empty list changes nothing', () => {
   assertEq(result.diagnostics.additionalServicesPlacementMode, 'skipped', 'skipped')
 })
 
-run('insertion: does not duplicate services already in section', () => {
+run('insertion: SOURCE catalog remains and selected CRM extra is inserted once', () => {
   const sourceBlocks = [
     block('para-1', 'Usługi dodatkowe'),
     block('para-2', '– Dron'),
@@ -364,9 +366,10 @@ run('insertion: does not duplicate services already in section', () => {
     dataset,
   })
   const text = result.blocks.map((b) => b.text).join('\n')
-  const dronCount = (text.match(/dron/gi) ?? []).length
-  assert(dronCount === 1, 'dron once')
-  assert(serviceNamePresentInText(text, 'Album 30×30'), 'album added')
+  assertEq(text, sourceBlocks.map((b) => b.text).join('\n'), 'SOURCE unchanged')
+  const inserted = result.paragraphInsertions[0]!.paragraphs.join('\n')
+  assertEq((inserted.match(/dron/gi) ?? []).length, 1, 'selected dron inserted once')
+  assert(serviceNamePresentInText(inserted, 'Album 30×30'), 'selected album inserted')
 })
 
 run('real contract fixture with overtime: VHS in separate paragraphs after pendrive', () => {
@@ -427,6 +430,7 @@ run('real contract fixture with overtime: VHS in separate paragraphs after pendr
     blocks: transformed,
     sourceBlocks,
     dataset,
+    placement: { sourceBlockId: 'para-8', side: 'after' },
   })
 
   const overtime = result.blocks.find((b) => b.blockId === 'para-3')!
@@ -467,7 +471,7 @@ run('real contract fixture with overtime: VHS in separate paragraphs after pendr
   assert(result.diagnostics.additionalServicesInsertedAsSeparateBlocks === true, 'separate blocks')
 })
 
-run('table-cell package target moves to the next safe body boundary or fails closed', () => {
+run('table-cell model target falls back structurally or fails closed', () => {
   const sourceBlocks: TransformDocumentBlock[] = [
     block('table-2-row-0-cell-3-p-0', 'Sposób przekazania', {
       kind: 'tableCell', tableIndex: 2, rowIndex: 0, cellIndex: 3,
@@ -488,25 +492,23 @@ run('table-cell package target moves to the next safe body boundary or fails clo
     sourceBlocks,
     blocks: sourceBlocks.map(({ blockId, text }) => ({ blockId, text })),
     dataset,
-    placement: {
-      mode: 'before_payment', anchorType: 'before_payment',
-      targetBlockId: 'table-2-row-0-cell-3-p-0', confidence: 0.5,
-    },
+    placement: { sourceBlockId: 'table-2-row-0-cell-3-p-0', side: 'after' },
   })
-  assertEq(result.placement?.targetBlockId, 'para-10', 'body boundary chosen after table')
-  assertEq(result.paragraphInsertions[0]?.afterParagraphIndex, 10, 'insertion uses body paragraph index')
+  assertEq(result.placement?.mode, 'structural_fallback', 'invalid table anchor rejected')
+  assertEq(result.paragraphInsertions.length, 1, 'structural fallback inserts')
 
-  const noBoundary = insertAdditionalServicesIntoBlocks({
-    sourceBlocks: [sourceBlocks[0]!, sourceBlocks[2]!, sourceBlocks[3]!],
-    blocks: [sourceBlocks[0]!, sourceBlocks[2]!, sourceBlocks[3]!].map(({ blockId, text }) => ({ blockId, text })),
-    dataset,
-    placement: {
-      mode: 'before_payment', anchorType: 'before_payment',
-      targetBlockId: 'table-2-row-0-cell-3-p-0', confidence: 0.5,
-    },
-  })
-  assertEq(noBoundary.placement?.mode, 'safe_placement_not_found', 'missing body boundary fails closed')
-  assertEq(noBoundary.paragraphInsertions.length, 0, 'unsafe cell insertion omitted')
+  let failedClosed = false
+  try {
+    insertAdditionalServicesIntoBlocks({
+      sourceBlocks: [sourceBlocks[0]!],
+      blocks: [{ blockId: sourceBlocks[0]!.blockId, text: sourceBlocks[0]!.text }],
+      dataset,
+      placement: { sourceBlockId: 'table-2-row-0-cell-3-p-0', side: 'after' },
+    })
+  } catch (error) {
+    failedClosed = error instanceof Error && error.message.includes('SAFE_PLACEMENT_NOT_FOUND')
+  }
+  assert(failedClosed, 'no body boundary fails closed')
 })
 
 run('real contract fixture: VHS after pendrive item, before staffing clause', () => {
@@ -588,6 +590,7 @@ run('real contract fixture: VHS after pendrive item, before staffing clause', ()
     blocks: transformed,
     sourceBlocks,
     dataset,
+    placement: { sourceBlockId: 'para-7', side: 'after' },
   })
 
   const pendrive = result.blocks.find((b) => b.blockId === 'para-7')!
@@ -793,6 +796,7 @@ run('shared path: runPostReconstructionQualityGate inserts services', () => {
     dataset,
     protectedData,
     mode: 'full_ai',
+    additionalServicesPlacement: { sourceBlockId: 'para-4', side: 'before' },
   })
   const expanded = expandBlocksWithParagraphInsertions({
     sourceBlocks,
@@ -801,6 +805,7 @@ run('shared path: runPostReconstructionQualityGate inserts services', () => {
   })
   const full = expanded.map((b) => b.text).join('\n')
   assert(serviceNamePresentInText(full, 'Dron'), 'dron in final blocks')
+  assertEq(gate.paragraphInsertions[0]?.beforeParagraphIndex, 4, 'provider boundary reaches production quality gate')
   assert(
     !gate.report.blockingIssues.some((i) =>
       i.code.startsWith('ADDITIONAL_SERVICE_PRICE'),

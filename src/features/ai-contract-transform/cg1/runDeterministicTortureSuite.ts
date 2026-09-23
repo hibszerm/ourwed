@@ -7,7 +7,6 @@
 
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { classifyAdditionalServicesPlacement } from '../additionalServicesPlacement'
 import { insertAdditionalServicesIntoBlocks } from '../insertAdditionalServices'
 import { writeTransformedDocx } from '../docxTransformWriter'
 import { indexDocxForTransform } from '../indexDocxForTransform'
@@ -84,7 +83,6 @@ export async function runDeterministicTortureSuite(opts?: {
       extras: scenario.extras,
     })
 
-    const placement = classifyAdditionalServicesPlacement(sourceBlocks)
     const identityBlocks: TransformedBlock[] = sourceBlocks.map((b) => ({
       blockId: b.blockId,
       text: b.text,
@@ -94,8 +92,8 @@ export async function runDeterministicTortureSuite(opts?: {
       blocks: identityBlocks,
       sourceBlocks,
       dataset,
-      placement,
     })
+    const placement = inserted.placement
 
     const expanded = expandBlocksWithParagraphInsertions({
       blocks: inserted.blocks,
@@ -129,7 +127,7 @@ export async function runDeterministicTortureSuite(opts?: {
         data: 'FAIL',
         structureResult: 'FAIL',
         overall: 'FAIL',
-        placementMode: placement.mode,
+        placementMode: placement?.mode ?? 'skipped',
         extrasLocation: 'unknown',
         why: `docx_write_failed:${err instanceof Error ? err.message : String(err)}`,
         reopenOk: false,
@@ -145,18 +143,8 @@ export async function runDeterministicTortureSuite(opts?: {
       targetBlockId: inserted.diagnostics.additionalServicesTargetBlockId,
     })
 
-    // Mode expectation check
-    let placementResult: 'PASS' | 'FAIL' | 'PARTIAL' | 'N/A' = 'N/A'
-    if (scenario.extrasMode === 'none') {
-      placementResult = analysis.placementValid ? 'PASS' : 'FAIL'
-    } else if (placement.mode === 'safe_placement_not_found') {
-      // Safe skip is acceptable for weak anchors (I27) — PARTIAL if no insert
-      placementResult = analysis.extrasComplete ? 'PASS' : 'PARTIAL'
-    } else if (!meta.expectedPlacementModes.includes(placement.mode as never)) {
-      placementResult = analysis.placementValid ? 'PARTIAL' : 'FAIL'
-    } else {
-      placementResult = analysis.placementValid && analysis.extrasComplete ? 'PASS' : 'FAIL'
-    }
+    const placementResult: 'PASS' | 'FAIL' =
+      analysis.placementValid && analysis.extrasComplete ? 'PASS' : 'FAIL'
 
     const partyOk =
       scenario.partyMode === 'one'
@@ -182,12 +170,7 @@ export async function runDeterministicTortureSuite(opts?: {
       ),
     )
 
-    const placementForOverall: 'PASS' | 'FAIL' | 'PARTIAL' =
-      placementResult === 'FAIL'
-        ? 'FAIL'
-        : placementResult === 'PARTIAL'
-          ? 'PARTIAL'
-          : 'PASS'
+    const placementForOverall: 'PASS' | 'FAIL' = placementResult
     const overall = overallOf([
       generation,
       placementForOverall,
@@ -207,7 +190,7 @@ export async function runDeterministicTortureSuite(opts?: {
       data: dataResult,
       structureResult,
       overall,
-      placementMode: placement.mode,
+      placementMode: placement?.mode ?? 'skipped',
       extrasLocation: analysis.extrasLocation,
       why: analysis.why,
       reopenOk,

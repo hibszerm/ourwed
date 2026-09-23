@@ -171,7 +171,7 @@ async function docXml(bytes: ArrayBuffer): Promise<string> {
   console.log('PASS  A/B: outer numbered list — extras detached; following clause preserved')
 }
 
-// C: existing bullet extras list → inserted extras follow bullets (text append, no new num cascade)
+// C: existing bullet extras list remains SOURCE-authored; selected extras are separate.
 {
   const body = [
     plainPara('Umowa'),
@@ -185,15 +185,16 @@ async function docXml(bytes: ArrayBuffer): Promise<string> {
     blocks: sourceBlocks.map((b) => ({ blockId: b.blockId, text: b.text })),
     sourceBlocks,
     dataset: datasetWithExtras(['ujęcie z drona']),
+    placement: { sourceBlockId: sourceBlocks[2]!.blockId, side: 'after' },
   })
   const blob = inserted.blocks.map((b) => b.text).join('\n')
-  assert(blob.includes('ujęcie z drona'), `C: name appended got=${JSON.stringify(blob)}`)
-  assert(blob.includes('– ujęcie z drona') || blob.includes('–ujęcie'), 'C: bullet form')
-  assert(inserted.paragraphInsertions.length === 0, 'C: in-place section edit, no new paras')
+  assert(!blob.includes('ujęcie z drona'), `C: SOURCE untouched got=${JSON.stringify(blob)}`)
+  assert(inserted.paragraphInsertions[0]?.paragraphs.some((p) => p.includes('– ujęcie z drona')), 'C: separate bullet')
+  assert(inserted.paragraphInsertions.length === 1, 'C: new paragraphs')
   console.log('PASS  C: existing bullet extras list')
 }
 
-// D: existing numbered extras list — preserve LOCAL list when mutating section text
+// D: existing numbered extras list remains SOURCE-authored.
 {
   const body = [
     plainPara('Usługi dodatkowe wybrane przez Zamawiającego:'),
@@ -206,9 +207,11 @@ async function docXml(bytes: ArrayBuffer): Promise<string> {
     blocks: sourceBlocks.map((b) => ({ blockId: b.blockId, text: b.text })),
     sourceBlocks,
     dataset: datasetWithExtras(['ekspresowy montaż']),
+    placement: { sourceBlockId: sourceBlocks[1]!.blockId, side: 'after' },
   })
   const blob = inserted.blocks.map((b) => b.text).join('\n')
-  assert(blob.includes('ekspresowy montaż'), 'D: inserted into section')
+  assert(!blob.includes('ekspresowy montaż'), 'D: SOURCE untouched')
+  assert(inserted.paragraphInsertions[0]?.paragraphs.some((p) => p.includes('ekspresowy montaż')), 'D: selected extra separate')
   console.log('PASS  D: existing numbered extras section local semantics')
 }
 

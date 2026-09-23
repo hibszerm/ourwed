@@ -14,7 +14,6 @@ import {
 import { buildExpectationManifest } from './quality/expectationManifest'
 import { classifyFactOwner } from './quality/partyOwnership'
 import { classifyProviderLegalSurface, isProviderIdentityBlock } from './quality/partyFilledIdentity'
-import { classifyAdditionalServicesPlacement } from './additionalServicesPlacement'
 import { findSignatureStartIndex } from './packageDeliverablesDetection'
 import { assertsContractExecutionDate } from './quality/dateFieldEvidence'
 import { classifyRowLabel } from './tableRowOwnership'
@@ -27,6 +26,7 @@ import {
   type TransformedBlock,
 } from './types'
 import { runFullAiRewrite } from './transformApi'
+import type { SemanticExtrasPlacement } from './semanticExtrasPlacement'
 
 export type SparseProductTransformSuccess = {
   ok: true
@@ -75,6 +75,8 @@ export async function runSparseProductTransform(input: {
   sourceBytes: ArrayBuffer
   sourceBlocks: TransformDocumentBlock[]
   dataset: ContractTransformationDataset
+  /** Semantic boundary from the current semantic-map response, when available. */
+  additionalServicesPlacement?: SemanticExtrasPlacement | null
   invoke?: Parameters<typeof runFullAiRewrite>[0]['invoke']
 }): Promise<SparseProductTransformResult> {
   const protectedData = buildProtectedContractData({
@@ -130,8 +132,7 @@ export async function runSparseProductTransform(input: {
     roleByBlock.set(block.blockId, roles)
   }
   const signatureStart = findSignatureStartIndex(input.sourceBlocks)
-  const placement = classifyAdditionalServicesPlacement(input.sourceBlocks)
-  const extrasTarget = placement.targetBlockId
+  const extrasTarget = input.additionalServicesPlacement?.sourceBlockId
   const protectedSourceValues = manifest.protectedFields.flatMap((field) => field.sourceValues)
   const sourceBlocksWithContext = input.sourceBlocks.map((block, index) => {
     const providerLegalDecision = classifyProviderLegalSurface({
@@ -201,8 +202,10 @@ export async function runSparseProductTransform(input: {
     structuralContext: {
       extras: {
         deterministicOnly: true,
-        destinationBlockId: placement.targetBlockId,
-        anchorType: placement.anchorType,
+        ...(input.additionalServicesPlacement ? {
+          destinationBlockId: input.additionalServicesPlacement.sourceBlockId,
+          side: input.additionalServicesPlacement.side,
+        } : {}),
       },
       signatureStartIndex: signatureStart,
       editableBlockIds: sourceBlocksWithContext
@@ -234,6 +237,7 @@ export async function runSparseProductTransform(input: {
     financeEvidenceDiagnostics: edge.financeEvidenceDiagnostics,
     dateEvidence: edge.dateEvidence,
     dateEvidenceDiagnostics: edge.dateEvidenceDiagnostics,
+    additionalServicesPlacement: input.additionalServicesPlacement,
     mode: 'full_ai',
   })
 
