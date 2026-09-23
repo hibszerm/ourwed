@@ -31,6 +31,21 @@ export function extractCanonicalParagraphText(paragraphXml: string): string {
   return canonicalizeParagraphText(parts.join(''))
 }
 
+/** Canonical offsets at ordinary OOXML line breaks, independent of run splits. */
+export function extractCanonicalBreakOffsets(paragraphXml: string): number[] {
+  const text = extractCanonicalParagraphText(paragraphXml)
+  const offsets: number[] = []
+  let rawBefore = ''
+  for (const part of paragraphXml.matchAll(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>|<w:br\b([^>]*)\/>/g)) {
+    if (part[1] !== undefined) rawBefore += unescapeXml(part[1])
+    else if (!/w:type\s*=\s*["'](?!textWrapping)[^"']+["']/.test(part[2] ?? '')) {
+      const offset = canonicalizeParagraphText(rawBefore).length
+      if (offset > 0 && offset < text.length) offsets.push(offset)
+    }
+  }
+  return offsets
+}
+
 export function unescapeXml(text: string): string {
   return text
     .replace(/&lt;/g, '<')

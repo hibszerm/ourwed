@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { parseSemanticMapResponse } from './semanticMapModelContract'
+import { parseLegacySemanticMapResponse as parseSemanticMapResponse } from './semanticMapModelContract'
 
 const base = { sourceBlockId: 'p-1', anchor: '14 sierpnia 2027', occurrence: null, customerIndex: null, customerIndexes: null, nameForm: null, dateRole: 'payment_due_date' }
 const dependent = { ...base, concept: 'dependent_date', baseDateConcept: 'wedding_date', relation: { direction: 'before', amount: 7, unit: 'calendar_days' } }

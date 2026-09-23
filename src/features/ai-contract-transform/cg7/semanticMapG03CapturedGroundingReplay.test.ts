@@ -9,7 +9,7 @@ import { writeSemanticMappingDocx } from '../docxTransformWriter'
 import { extractCanonicalParagraphText } from '../../documents/template/canonicalParagraph'
 import { buildGoldenScenarios } from './goldenScenarios'
 import { resolveSemanticMappings } from '../semanticMapping'
-import { parseSemanticMapResponse } from '../semanticMapModelContract'
+import { parseLegacySemanticMapResponse as parseSemanticMapResponse } from '../semanticMapModelContract'
 
 const root = process.cwd()
 const evidencePath = join(root, 'tmp/golden-contract-validation-run2/EVIDENCE/G03_SEMANTIC_AB/TERRA.json')

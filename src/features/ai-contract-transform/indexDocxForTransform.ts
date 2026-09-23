@@ -53,6 +53,7 @@ function buildBlocks(input: {
         paragraphIndex: p.index,
         text: p.text,
         kind: 'tableCell',
+        breakOffsets: p.breakOffsets,
         tableIndex: p.origin.tableIndex,
         rowIndex: p.origin.rowIndex,
         cellIndex: p.origin.cellIndex,
@@ -64,6 +65,7 @@ function buildBlocks(input: {
         paragraphIndex: p.index,
         text: p.text,
         kind: 'paragraph',
+        breakOffsets: p.breakOffsets,
       })
     }
   }

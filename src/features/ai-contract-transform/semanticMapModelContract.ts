@@ -1,6 +1,8 @@
 import type { TransformDocumentBlock, ContractTransformationDataset } from './types'
 import { CUSTOMER_NAME_FORMS, DATE_BASE_CONCEPTS, DATE_RELATION_DIRECTIONS, DATE_RELATION_UNITS, DATE_ROLES, SEMANTIC_CONCEPTS, type NonContactConcept, type SemanticMapping } from './semanticMapping'
 import { resolveSemanticMappings, type IndexedSourceParagraph, type SemanticMappingResolution } from './semanticMapping'
+import { indexSemanticSourceTokens, sourceTokenRange } from './semanticSourceTokens'
+import { extractCanonicalBreakOffsets, extractCanonicalParagraphText } from '../documents/template/canonicalParagraph'
 
 export const SEMANTIC_MAP_MODEL_IDS = {
   terra: 'gpt-5.6-terra',
@@ -10,12 +12,12 @@ export const SEMANTIC_MAP_MODEL_IDS = {
 export type SemanticMapCandidate = keyof typeof SEMANTIC_MAP_MODEL_IDS
 export const SEMANTIC_MAP_REASONING_EFFORT = 'medium' as const
 export const SEMANTIC_MAP_MAX_OUTPUT_TOKENS = 8192
-export const SEMANTIC_MAP_PROMPT_VERSION = 'semantic-map-v5'
+export const SEMANTIC_MAP_PROMPT_VERSION = 'semantic-map-v6'
 
 export const SEMANTIC_MAP_SYSTEM_PROMPT = `You identify semantic facts in a wedding contract. Return only exact source mappings; do not edit or rewrite the contract.
 
 MODEL JOB
-For each mapping, use the exact supplied sourceBlockId, one closed concept, and an anchor copied EXACTLY from that block's visible source text. CRM facts are reference context only to help identify the meaning of source facts; they are not replacement output.
+For each mapping, use the exact supplied sourceBlockId, one closed concept, and the startTokenId/endTokenId of an existing source range. Never transcribe source text into the response. CRM facts are reference context only to help identify the meaning of source facts; they are not replacement output.
 
 CONCEPTS
 ${SEMANTIC_CONCEPTS.map((concept) => `- ${concept}: ${conceptDescription(concept)}`).join('\n')}
@@ -26,23 +28,23 @@ The SOURCE DOCX is authoritative for base package contractual content. Do not ma
 EXTRAS
 Extras are outside semanticMappings. Do not classify or rewrite extras; deterministic system logic handles selected extra names and insertion, omits individual extra prices and quantities, prevents pricing leakage, omits the section when none are selected, and preserves the correct total commercial value.
 
-ANCHOR RULES
-- Copy anchor exactly from the supplied visible source text: no spelling, punctuation, or other normalization; no paraphrase. A CRM value may appear as an anchor only when those exact characters already occur in that source block.
-- Use the smallest exact substring that represents the semantic value. Exclude a label when only its value is the target, and exclude surrounding legal prose.
-- Do not combine multiple values into one anchor. If one block contains distinct concepts, return separate mappings for their separate anchors.
+SOURCE RANGE RULES
+- Select only token IDs from the same source block. sourceTokens entries are [id, text] or [id, text, true] when an ordinary source line break precedes the token. startTokenId and endTokenId are inclusive and must occur in source order. Tokens omit whitespace; a selected range includes the exact intervening source characters. The system owns exact source text and offsets; do not count characters or return an anchor or occurrence.
+- Use the smallest token range that represents the semantic value. Exclude a label when only its value is the target, and exclude surrounding legal prose.
+- Do not combine multiple values into one range. If one block contains distinct concepts, return separate mappings for their separate ranges.
 - Repeated semantic surfaces across the document require separate mappings.
-- Map every distinct source span that represents a supported semantic concept, even when another span already maps to the same concept or customer. Emit a separate mapping for each occurrence. Omit only spans whose meaning, ownership, role, or exact anchor is genuinely uncertain.
-- If the same literal occurs multiple times in one block, set occurrence to its zero-based exact-match order. If it occurs exactly once, set occurrence to null.
+- Map every distinct source span that represents a supported semantic concept, even when another span already maps to the same concept or customer. Emit a separate mapping for each source position. Omit only spans whose meaning, ownership, role, or exact range is genuinely uncertain.
+- If the same literal occurs multiple times in one block, select the token IDs at the intended position.
 - If meaning, ownership, role, or exact span is uncertain, omit the mapping rather than guess. Relevant concrete contractual dates are the exception: include each grounded date and use ambiguous_date when its role cannot be identified safely.
 
 PARTY AND MIXED TEXT
-Customer concepts refer only to contracting customers/clients, never provider or company identity. For customer_email, map only email addresses that semantically belong to a contracting customer; preserve provider, studio, business, and legal contact emails as template-authoritative content. Determine ownership from document meaning and structure, not domains, keywords, regexes, or whether a value looks synthetic. A source block marked modelEditable=false is protected context and must never receive a mapping. In a block mixing customer identity/contact with provider/company or legal text, map only the exact customer-owned value anchor. Do not map provider identity or surrounding legal text.
+Customer concepts refer only to contracting customers/clients, never provider or company identity. For customer_email, map only email addresses that semantically belong to a contracting customer; preserve provider, studio, business, and legal contact emails as template-authoritative content. Determine ownership from document meaning and structure, not domains, keywords, regexes, or whether a value looks synthetic. A source block marked modelEditable=false is protected context and must never receive a mapping. In a block mixing customer identity/contact with provider/company or legal text, select only the exact customer-owned source range. Do not map provider identity or surrounding legal text.
 
 DATE AND FINANCE ROLES
 wedding_date is the actual wedding/event date; execution_date is when the agreement is executed, signed, or concluded; deposit_due_date is the deposit/advance deadline; final_payment_due_date is the final/remaining-payment deadline; delivery_due_date is the generic material-delivery deadline. The system supplies canonical wedding, execution, final-payment, and delivery dates. total is the complete contract/commercial value; deposit is the deposit/advance amount; remaining is the amount still payable. The *_words concepts are the written-out textual representation of their corresponding numeric amount. Do not calculate, infer, or invent financial obligations.
 
 DATE COVERAGE
-Exhaustively map every relevant CONCRETE DATE LITERAL that may need deterministic replacement, not every textual timing rule. A date/deadline mapping anchor must contain a concrete date literal. Do not map relative contractual timing or deadline clauses that contain no concrete date literal; they remain authoritative source text, are not rewritten, and must not create user-input requirements. Map wedding_date and execution_date directly when those roles are established. Map final_payment_due_date and delivery_due_date when a concrete date literal represents those OurWed-owned roles; the system supplies their canonical values. Map deposit_due_date only when the source contains a concrete deposit due-date literal, and also map its concrete source execution_date when present; the system derives the calendar-day difference from those two grounded source dates. The model identifies roles only and never calculates replacement dates or authors numeric offsets. For wedding_date, execution_date, deposit_due_date, final_payment_due_date, and delivery_due_date, set dateRole, baseDateConcept, and relation to null. For ambiguous_date, set the known dateRole or null, and set baseDateConcept and relation to null. If a concrete date literal is present but its date role cannot be safely resolved, use ambiguous_date so the system requests user input. Do not use fixed_date or dependent_date; they are retained for compatibility only. Never provide a numeric offset.
+Exhaustively map every relevant CONCRETE DATE LITERAL that may need deterministic replacement, not every textual timing rule. A date/deadline mapping range must contain a concrete date literal. Do not map relative contractual timing or deadline clauses that contain no concrete date literal; they remain authoritative source text, are not rewritten, and must not create user-input requirements. Map wedding_date and execution_date directly when those roles are established. Map final_payment_due_date and delivery_due_date when a concrete date literal represents those OurWed-owned roles; the system supplies their canonical values. Map deposit_due_date only when the source contains a concrete deposit due-date literal, and also map its concrete source execution_date when present; the system derives the calendar-day difference from those two grounded source dates. The model identifies roles only and never calculates replacement dates or authors numeric offsets. For wedding_date, execution_date, deposit_due_date, final_payment_due_date, and delivery_due_date, set dateRole, baseDateConcept, and relation to null. For ambiguous_date, set the known dateRole or null, and set baseDateConcept and relation to null. If a concrete date literal is present but its date role cannot be safely resolved, use ambiguous_date so the system requests user input. When source context clearly establishes a supported specific dateRole, use that role; use other_contractual_date only when no supported specific role fits. Do not use fixed_date or dependent_date; they are retained for compatibility only. Never provide a numeric offset.
 
 LOCATION ROLES
 preparation_location is the preparation location generally; bride_preparation_location, groom_preparation_location, and shared_preparation_location identify those distinct preparation roles; ceremony_location is the ceremony location; reception_location is the reception venue/location. Keep roles distinct and map only source values that actually represent that role.
@@ -91,7 +93,7 @@ function conceptDescription(concept: (typeof SEMANTIC_CONCEPTS)[number]): string
 
 export function buildSemanticMapResponseSchema() {
   return {
-    name: 'contract_semantic_mappings_v3',
+    name: 'contract_semantic_mappings_v4',
     strict: true,
     schema: {
       type: 'object',
@@ -116,11 +118,11 @@ function buildSemanticMappingItemVariants() {
   const providerConcepts = SEMANTIC_CONCEPTS.filter((concept) => concept !== 'dependent_date' && concept !== 'fixed_date')
   const dateConcepts = new Set(['ambiguous_date', 'deposit_due_date', 'final_payment_due_date', 'delivery_due_date', 'wedding_date', 'execution_date', 'dependent_date', 'fixed_date'])
   const ordinaryConcepts = providerConcepts.filter((concept) => !dateConcepts.has(concept))
-  const commonRequired = ['sourceBlockId', 'concept', 'anchor', 'occurrence', 'customerIndex', 'customerIndexes', 'nameForm', 'dateRole', 'baseDateConcept', 'relation']
+  const commonRequired = ['sourceBlockId', 'startTokenId', 'endTokenId', 'concept', 'customerIndex', 'customerIndexes', 'nameForm', 'dateRole', 'baseDateConcept', 'relation']
   const commonProperties = {
     sourceBlockId: { type: 'string', minLength: 1 },
-    anchor: { type: 'string', minLength: 1 },
-    occurrence: { type: ['integer', 'null'], minimum: 0 },
+    startTokenId: { type: 'string', minLength: 1 },
+    endTokenId: { type: 'string', minLength: 1 },
     customerIndex: { type: ['integer', 'null'], enum: [0, 1, null] },
     customerIndexes: { type: ['array', 'null'], items: { type: 'integer', enum: [0, 1] } },
     nameForm: { type: ['string', 'null'], enum: [...CUSTOMER_NAME_FORMS, null] },
@@ -225,6 +227,10 @@ function buildSemanticMapUserContext(input: {
     sourceBlocks: input.sourceBlocks.map((block) => ({
       sourceBlockId: block.blockId,
       visibleText: block.text,
+      sourceTokens: indexSemanticSourceTokens(block).map((token) =>
+        (block.breakOffsets ?? []).includes(token.start)
+          ? [token.id, token.text, true]
+          : [token.id, token.text]),
       kind: block.kind,
       paragraphIndex: block.paragraphIndex,
       ...(block.tableIndex !== undefined ? { tableIndex: block.tableIndex } : {}),
@@ -255,9 +261,48 @@ function locationReference(location: { displayName?: string; fullAddress?: strin
 }
 
 export type SemanticMapParseFailure = 'invalid_response' | 'invalid_mapping'
+export type SemanticMapV2Mapping = Omit<SemanticMapping, 'anchor' | 'occurrence'> & {
+  startTokenId: string
+  endTokenId: string
+}
 
-/** Parse strict provider shape; provider null occurrence becomes internal omission. */
+/** Strict V2 provider parser. Internal anchor text is never accepted from the model. */
 export function parseSemanticMapResponse(payload: unknown):
+  | { ok: true; semanticMappings: SemanticMapV2Mapping[] }
+  | { ok: false; code: SemanticMapParseFailure } {
+  let parsed = payload
+  if (typeof payload === 'string') {
+    try { parsed = JSON.parse(payload) as unknown } catch { return { ok: false, code: 'invalid_response' } }
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return { ok: false, code: 'invalid_response' }
+  const response = parsed as Record<string, unknown>
+  if (Object.keys(response).length !== 1 || !Array.isArray(response.semanticMappings)) return { ok: false, code: 'invalid_response' }
+  const converted: Record<string, unknown>[] = []
+  const requiredKeys = ['sourceBlockId', 'startTokenId', 'endTokenId', 'concept', 'customerIndex', 'customerIndexes', 'nameForm', 'dateRole', 'baseDateConcept', 'relation']
+  for (const item of response.semanticMappings) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return { ok: false, code: 'invalid_mapping' }
+    const row = item as Record<string, unknown>
+    if (Object.keys(row).length !== requiredKeys.length || !requiredKeys.every((key) => Object.hasOwn(row, key)) ||
+      typeof row.startTokenId !== 'string' || !row.startTokenId ||
+      typeof row.endTokenId !== 'string' || !row.endTokenId ||
+      Object.hasOwn(row, 'anchor') || Object.hasOwn(row, 'occurrence')) return { ok: false, code: 'invalid_mapping' }
+    const { startTokenId: _start, endTokenId: _end, ...rest } = row
+    converted.push({ ...rest, anchor: 'V2_BOUNDARY_ONLY', occurrence: null })
+  }
+  const legacy = parseLegacySemanticMapResponse({ semanticMappings: converted })
+  if (!legacy.ok) return legacy
+  return { ok: true, semanticMappings: legacy.semanticMappings.map((mapping, index) => {
+    const { anchor: _anchor, occurrence: _occurrence, ...semantic } = mapping
+    return {
+      ...semantic,
+      startTokenId: (response.semanticMappings as Record<string, unknown>[])[index]!.startTokenId as string,
+      endTokenId: (response.semanticMappings as Record<string, unknown>[])[index]!.endTokenId as string,
+    }
+  }) }
+}
+
+/** Historical V1 parser retained for offline capture compatibility only. */
+export function parseLegacySemanticMapResponse(payload: unknown):
   | { ok: true; semanticMappings: SemanticMapping[] }
   | { ok: false; code: SemanticMapParseFailure } {
   let parsed = payload
@@ -346,8 +391,50 @@ export function parseSemanticMapResponse(payload: unknown):
 export function groundSemanticMapResponse(
   payload: unknown,
   sourceParagraphs: readonly IndexedSourceParagraph[],
-): SemanticMappingResolution | { ok: false; code: SemanticMapParseFailure } {
+  sourceBlocks: readonly TransformDocumentBlock[],
+): SemanticMappingResolution | { ok: false; code: SemanticMapParseFailure | 'protected_source' | 'stale_source' | 'invalid_token_range'; mappingIndex?: number } {
   const parsed = parseSemanticMapResponse(payload)
+  if (!parsed.ok) return parsed
+  const byId = new Map(sourceParagraphs.map((source) => [source.blockId, source]))
+  const blocksById = new Map(sourceBlocks.map((block) => [block.blockId, block]))
+  if (byId.size !== sourceParagraphs.length || blocksById.size !== sourceBlocks.length) return { ok: false, code: 'duplicate_source_block_id' }
+  const mappings: SemanticMapping[] = []
+  const expectedRanges: Array<{ sourceBlockId: string; start: number; end: number }> = []
+  for (let index = 0; index < parsed.semanticMappings.length; index++) {
+    const { startTokenId, endTokenId, ...semantic } = parsed.semanticMappings[index]!
+    const source = byId.get(semantic.sourceBlockId)
+    if (!source) return { ok: false, code: 'unknown_source', mappingIndex: index }
+    const block = blocksById.get(semantic.sourceBlockId)
+    if (!block) return { ok: false, code: 'unknown_source', mappingIndex: index }
+    if (block.modelContext?.modelEditable === false) return { ok: false, code: 'protected_source', mappingIndex: index }
+    if (block.text !== extractCanonicalParagraphText(source.paragraphXml) ||
+      JSON.stringify(block.breakOffsets ?? []) !== JSON.stringify(extractCanonicalBreakOffsets(source.paragraphXml))) {
+      return { ok: false, code: 'stale_source', mappingIndex: index }
+    }
+    const range = sourceTokenRange({ block, startTokenId, endTokenId })
+    if (!range) return { ok: false, code: 'invalid_token_range', mappingIndex: index }
+    let occurrence = 0
+    for (let at = block.text.indexOf(range.anchor); at >= 0 && at < range.start; at = block.text.indexOf(range.anchor, at + 1)) occurrence++
+    mappings.push({ ...semantic, anchor: range.anchor, occurrence } as SemanticMapping)
+    expectedRanges.push({ sourceBlockId: source.blockId, start: range.start, end: range.end })
+  }
+  const grounded = resolveSemanticMappings({ mappings, sourceBlocks: sourceParagraphs })
+  if (!grounded.ok) return grounded
+  for (let index = 0; index < expectedRanges.length; index++) {
+    const range = expectedRanges[index]!
+    if (!grounded.mappings.some((mapping) => mapping.sourceBlockId === range.sourceBlockId && mapping.span.start === range.start && mapping.span.end === range.end)) {
+      return { ok: false, code: 'invalid_token_range', mappingIndex: index }
+    }
+  }
+  return grounded
+}
+
+/** Offline compatibility for preserved V1 captures; never used for V2 provider output. */
+export function groundLegacySemanticMapResponse(
+  payload: unknown,
+  sourceParagraphs: readonly IndexedSourceParagraph[],
+): SemanticMappingResolution | { ok: false; code: SemanticMapParseFailure } {
+  const parsed = parseLegacySemanticMapResponse(payload)
   return parsed.ok
     ? resolveSemanticMappings({ mappings: parsed.semanticMappings, sourceBlocks: sourceParagraphs })
     : parsed

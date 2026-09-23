@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { extractCanonicalParagraphText } from '../documents/template/canonicalParagraph'
 import { buildGoldenScenarios } from './cg7/goldenScenarios'
 import { buildContractTransformationDataset } from './transformationDataset'
-import { parseSemanticMapResponse } from './semanticMapModelContract'
+import { parseLegacySemanticMapResponse as parseSemanticMapResponse } from './semanticMapModelContract'
 import { resolveSemanticMappings } from './semanticMapping'
 import { executeSemanticMappings } from './semanticMappingExecutor'
 

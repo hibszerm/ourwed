@@ -12,7 +12,7 @@
 
 import JSZip from 'jszip'
 import { cloneArrayBuffer } from '@/features/documents/mapping/extraction/sourceKind'
-import { extractCanonicalParagraphText } from './canonicalParagraph'
+import { extractCanonicalBreakOffsets, extractCanonicalParagraphText } from './canonicalParagraph'
 import type { DocxParagraphOrigin } from './docxPhysicalLocator'
 import { devInfoArgs } from '@/lib/debug/devConsole'
 
@@ -22,6 +22,8 @@ export interface IndexedParagraph {
   text: string
   /** Where this paragraph lives in the DOCX body / table structure. */
   origin?: DocxParagraphOrigin
+  /** Canonical character positions of ordinary OOXML line breaks. */
+  breakOffsets?: number[]
 }
 
 export interface DocxExtractedCellParagraph {
@@ -118,7 +120,8 @@ export function extractDocxParagraphsFromXml(xml: string): DocxExtractionResult 
   const pushParagraph = (paragraphXml: string, origin: DocxParagraphOrigin) => {
     const text = extractCanonicalParagraphText(paragraphXml)
     const runs = extractRuns(paragraphXml)
-    const para: IndexedParagraph = { index: globalIndex, text, origin }
+    const breakOffsets = extractCanonicalBreakOffsets(paragraphXml)
+    const para: IndexedParagraph = { index: globalIndex, text, origin, breakOffsets }
     paragraphs.push(para)
 
     if (origin.kind === 'tableCell' && currentRow) {

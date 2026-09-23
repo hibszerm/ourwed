@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { parseSemanticMapResponse } from '../semanticMapModelContract'
+import { parseLegacySemanticMapResponse as parseSemanticMapResponse } from '../semanticMapModelContract'
 import { captureProviderOutputText, readCapturedProviderOutput } from './providerOutputCapture'
 
 const directory = mkdtempSync(join(tmpdir(), 'ourwed-provider-output-'))

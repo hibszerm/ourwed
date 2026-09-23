@@ -138,6 +138,8 @@ export type TransformDocumentBlock = {
   paragraphIndex: number
   text: string
   kind: 'paragraph' | 'tableCell'
+  /** Canonical text boundaries created by ordinary OOXML line breaks. */
+  breakOffsets?: readonly number[]
   tableIndex?: number
   rowIndex?: number
   cellIndex?: number

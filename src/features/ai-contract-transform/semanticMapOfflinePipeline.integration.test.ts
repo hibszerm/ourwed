@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict'
 import JSZip from 'jszip'
 import { extractCanonicalParagraphText } from '../documents/template/canonicalParagraph'
-import { parseSemanticMapResponse } from './semanticMapModelContract'
+import { groundSemanticMapResponse, parseLegacySemanticMapResponse as parseSemanticMapResponse } from './semanticMapModelContract'
 import { resolveSemanticMappings, type IndexedSourceParagraph } from './semanticMapping'
+import { indexSemanticSourceTokens } from './semanticSourceTokens'
 import { executeSemanticMappings } from './semanticMappingExecutor'
 import { writeSemanticMappingDocx } from './docxTransformWriter'
 import { polishContractMoneyWords } from './polishContractMoneyWords'
@@ -85,6 +86,20 @@ async function runPositiveReplay() {
   const source = await sourceBlocks()
   const grounded = resolveSemanticMappings({ mappings: parsed.semanticMappings, sourceBlocks: source.paragraphs })
   assertThat(grounded.ok, 'all literal source anchors ground without legacy discovery')
+  const v2Rows = mappings.map((mapping) => {
+    const block = source.blocks.find((item) => item.blockId === mapping.sourceBlockId)!
+    const start = block.text.indexOf(mapping.anchor)
+    const end = start + mapping.anchor.length
+    const tokens = indexSemanticSourceTokens(block)
+    const first = tokens.find((token) => token.start === start)
+    const last = tokens.find((token) => token.end === end)
+    assertThat(first && last, 'synthetic source anchor has structural token boundaries')
+    const { anchor: _anchor, occurrence: _occurrence, ...semantic } = mapping
+    return { ...semantic, startTokenId: first.id, endTokenId: last.id, dateRole: null, baseDateConcept: null, relation: null }
+  })
+  const v2Grounded = groundSemanticMapResponse({ semanticMappings: v2Rows }, source.paragraphs, source.blocks)
+  assertThat(v2Grounded.ok, 'V2 boundary adapter grounds the same synthetic source spans')
+  assert.deepEqual(v2Grounded.mappings, grounded.mappings, 'V2 grounder feeds the unchanged resolved mapping shape')
   const executed = executeSemanticMappings({
     resolvedMappings: grounded.mappings,
     canonicalDataset: dataset,
@@ -93,6 +108,13 @@ async function runPositiveReplay() {
   })
   assertThat(executed.ok, 'deterministic executor accepts grounded mappings')
   const outputBytes = await writeSemanticMappingDocx({ sourceBytes: await makeSourceDocx(), sourceBlocks: source.blocks, execution: executed })
+  const v2Executed = executeSemanticMappings({
+    resolvedMappings: v2Grounded.mappings, canonicalDataset: dataset,
+    sourceParagraphs: source.paragraphs, sourceCustomerIdentities: ['Anna Nowak'],
+  })
+  assertThat(v2Executed.ok, 'unchanged executor accepts V2 grounded mappings')
+  const v2Bytes = await writeSemanticMappingDocx({ sourceBytes: await makeSourceDocx(), sourceBlocks: source.blocks, execution: v2Executed })
+  assert.equal(await readDocumentXml(v2Bytes), await readDocumentXml(outputBytes), 'V2 writes identical OOXML through unchanged writer')
   return { outputBytes, executed, outputXml: await readDocumentXml(outputBytes), source }
 }
 

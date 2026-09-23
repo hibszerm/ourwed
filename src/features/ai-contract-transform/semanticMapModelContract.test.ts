@@ -8,8 +8,8 @@ import {
   SEMANTIC_MAP_SYSTEM_PROMPT,
   buildSemanticMapRequest,
   buildSemanticMapResponseSchema,
-  groundSemanticMapResponse,
-  parseSemanticMapResponse,
+  groundLegacySemanticMapResponse as groundSemanticMapResponse,
+  parseLegacySemanticMapResponse as parseSemanticMapResponse,
 } from './semanticMapModelContract'
 import type { ContractTransformationDataset, TransformDocumentBlock } from './types'
 
@@ -69,9 +69,10 @@ run('strict semanticMappings schema derives closed concepts and has no legacy fi
   const allConcepts = [...new Set(variants.flatMap((variant) => [...variant.properties.concept.enum]))].sort()
   assert.deepEqual(allConcepts, SEMANTIC_CONCEPTS.filter((concept) => concept !== 'dependent_date' && concept !== 'fixed_date').sort())
   for (const variant of variants) {
-    assert.deepEqual(variant.required, ['sourceBlockId', 'concept', 'anchor', 'occurrence', 'customerIndex', 'customerIndexes', 'nameForm', 'dateRole', 'baseDateConcept', 'relation'])
+    assert.deepEqual(variant.required, ['sourceBlockId', 'startTokenId', 'endTokenId', 'concept', 'customerIndex', 'customerIndexes', 'nameForm', 'dateRole', 'baseDateConcept', 'relation'])
     assert.deepEqual(Object.keys(variant.properties).sort(), [...variant.required].sort())
-    assert.deepEqual(variant.properties.occurrence.type, ['integer', 'null'])
+    assert.deepEqual(variant.properties.startTokenId.type, 'string')
+    assert.deepEqual(variant.properties.endTokenId.type, 'string')
     assert.deepEqual(variant.properties.nameForm.type, ['string', 'null'])
     assert.deepEqual(variant.properties.nameForm.enum, [...CUSTOMER_NAME_FORMS, null])
   }
@@ -175,9 +176,11 @@ run('provider schema keeps compatible ownership topology while parser canonicali
   }
 })
 
-run('prompt defines semantic-only work, exact anchors, and protected product boundaries', () => {
+run('prompt defines semantic-only work, source boundaries, and protected product boundaries', () => {
   for (const instruction of [
-    'anchor copied EXACTLY',
+    'Never transcribe source text into the response',
+    'startTokenId and endTokenId are inclusive',
+    'use other_contractual_date only when no supported specific role fits',
     'SOURCE DOCX is authoritative for base package contractual content',
     'Do not map provider identity or surrounding legal text',
     'modelEditable=false is protected context',
@@ -200,7 +203,7 @@ run('prompt defines semantic-only work, exact anchors, and protected product bou
     'Map final_payment_due_date and delivery_due_date',
     'the system derives the calendar-day difference',
     'Exhaustively map every relevant CONCRETE DATE LITERAL',
-    'A date/deadline mapping anchor must contain a concrete date literal',
+    'A date/deadline mapping range must contain a concrete date literal',
     'Do not map relative contractual timing or deadline clauses that contain no concrete date literal',
     'remain authoritative source text, are not rewritten, and must not create user-input requirements',
     'For wedding_date, execution_date, deposit_due_date, final_payment_due_date, and delivery_due_date, set dateRole, baseDateConcept, and relation to null',
@@ -247,6 +250,8 @@ run('Terra and Sol requests differ only by explicit model identifier', () => {
   assert.equal(JSON.stringify(user).includes('ownershipReason'), false)
   assert.equal(user.sourceBlocks[0].sourceBlockId, sourceBlocks[0]!.blockId)
   assert.equal(user.sourceBlocks[0].visibleText, sourceBlocks[0]!.text)
+  assert.ok(user.sourceBlocks[0].sourceTokens.length > 0)
+  assert.ok(user.sourceBlocks[0].sourceTokens.every((token: [string, string]) => token[0] && token[1]))
   assert.deepEqual(user.sourceBlocks[0].tableContext.neighboringCellTexts, ['Data wydarzenia'])
   assert.equal(user.sourceBlocks[0].modelEditable, true)
 })
