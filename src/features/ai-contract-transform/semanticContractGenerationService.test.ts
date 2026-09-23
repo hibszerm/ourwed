@@ -97,11 +97,12 @@ async function run() {
   ]
   let providerCalls = 0
   const providerResult = await makeProviderRows(blocks, allConcepts, { sourceBlockId: 'para-5', side: 'after' })
+  const canonicalDataset = dataset()
   const input = {
     sourceDocxBytes: bytes,
     sourceIdentity: { templateId: 'template-a', version: 'v1', fileName: 'contract.docx' },
     currentDate: '2026-09-23',
-    canonicalDataset: dataset(),
+    canonicalDataset,
     modelCandidate: 'terra' as const,
   }
   const result = await startSemanticContractGeneration(input, async (request) => {
@@ -124,7 +125,8 @@ async function run() {
   const resumed = await resumeSemanticContractGeneration({ pendingState: result.pendingState, suppliedValues })
   assertState(resumed, 'COMPLETED')
   assert.equal(providerCalls, 1, 'resume has no provider dependency or second call')
-  assert.equal(dataset().clients.customers?.[0]?.email, undefined, 'generation-only email does not mutate canonical CRM snapshot')
+  assert.equal(canonicalDataset.clients.customers?.[0]?.email, undefined, 'generation-only email does not mutate canonical CRM snapshot')
+  assert.equal(canonicalDataset.dates.weddingDate, '2027-06-19', 'generation-only dates do not mutate canonical wedding snapshot')
   const zip = await JSZip.loadAsync(resumed.artifact.docxBytes)
   const xml = await zip.file('word/document.xml')!.async('string')
   const visible = [...xml.matchAll(/<w:p\b[\s\S]*?<\/w:p>/g)].map((match) => extractCanonicalParagraphText(match[0]!))

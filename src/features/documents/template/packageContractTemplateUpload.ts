@@ -105,7 +105,7 @@ export async function uploadPackageContractTemplate(input: {
 export async function downloadPackageContractTemplateSource(input: {
   templateId: string
   templateVersionId?: string | null
-}): Promise<{ fileName: string; bytes: ArrayBuffer }> {
+}): Promise<{ fileName: string; bytes: ArrayBuffer; templateVersionId: string }> {
   const template = await documentTemplateService.get(input.templateId)
   if (!template) throw new Error('Nie znaleziono szablonu.')
   const versionId =
@@ -120,6 +120,7 @@ export async function downloadPackageContractTemplateSource(input: {
   return {
     fileName: version.sourceFileName || `${template.name}.docx`,
     bytes,
+    templateVersionId: versionId,
   }
 }
 

@@ -1,7 +1,10 @@
 import type { PersistGeneratedWeddingContractInput } from './ContractArtifactPersistenceService'
 import { ContractArtifactPersistenceService } from './ContractArtifactPersistenceService'
 
-export type SaveGeneratedContractInput = PersistGeneratedWeddingContractInput
+export type SaveGeneratedContractInput = PersistGeneratedWeddingContractInput & {
+  /** Semantic V7 already owns the DOCX contents; do not reconstruct legacy slot values. */
+  resolveEmptyValuesFromWedding?: boolean
+}
 
 export interface SaveGeneratedContractResult {
   generationVersion: number
@@ -17,12 +20,13 @@ export interface SaveGeneratedContractResult {
 export async function saveGeneratedContract(
   input: SaveGeneratedContractInput,
 ): Promise<SaveGeneratedContractResult> {
+  const { resolveEmptyValuesFromWedding = true, ...persistInput } = input
   let resolvedValues = input.resolvedValues
   // Sparse generation used to persist resolvedValues: {}. Freshness compares that
   // bag to a live resolveContractVariables run, so empty vs full stayed forever
   // stale — including after regenerate. Fill from the same resolver used by the
   // freshness check when the generation bag is empty.
-  if (Object.keys(resolvedValues).length === 0) {
+  if (resolveEmptyValuesFromWedding && Object.keys(resolvedValues).length === 0) {
     const { resolveContractVariables } = await import('./resolveContractVariables')
     const live = await resolveContractVariables({
       wedding: input.wedding,
@@ -39,7 +43,7 @@ export async function saveGeneratedContract(
     resolvedValues = live.resolved
   }
   const saved = await ContractArtifactPersistenceService.persist({
-    ...input,
+    ...persistInput,
     resolvedValues,
   })
   return {

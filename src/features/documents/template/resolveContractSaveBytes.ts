@@ -18,7 +18,7 @@ export type ResolveContractSaveBytesResult = {
 
 export async function resolveContractSaveBytes(input: {
   docxBytes: ArrayBuffer | null
-  generated: TransformContractResult
+  generated: Pick<TransformContractResult, 'paragraphs' | 'finalArtifact'>
   currentParagraphs: DocxParagraph[]
 }): Promise<ResolveContractSaveBytesResult> {
   if (!input.docxBytes || input.docxBytes.byteLength === 0) {
