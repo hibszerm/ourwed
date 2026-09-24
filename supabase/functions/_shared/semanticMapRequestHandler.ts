@@ -2,6 +2,24 @@ export const SEMANTIC_MAP_MODEL = 'gpt-6-luna'
 export const SEMANTIC_MAP_REASONING_EFFORT = 'medium'
 export const SEMANTIC_MAP_TIMEOUT_MS = 45_000
 
+const ACCEPTED_CONTRACTS = [
+  {
+    promptVersion: 'semantic-map-v7-version-scoped-extras-structure',
+    formatName: 'contract_semantic_mappings_v7_version_scoped_extras_structure',
+    required: ['semanticMappings', 'extrasPlacement', 'extrasStructure'],
+  },
+  {
+    promptVersion: 'semantic-map-v7-extras-placement-rendering',
+    formatName: 'contract_semantic_mappings_v6_extras_placement_rendering',
+    required: ['semanticMappings', 'extrasPlacement'],
+  },
+  {
+    promptVersion: 'semantic-map-v7-extras-placement',
+    formatName: 'contract_semantic_mappings_v5_extras_placement',
+    required: ['semanticMappings', 'extrasPlacement'],
+  },
+] as const
+
 type SemanticRequest = {
   model?: unknown
   reasoning?: unknown
@@ -32,16 +50,16 @@ function validRequest(value: unknown): value is SemanticRequest {
   const format = (request.text as { format?: Record<string, unknown> } | undefined)?.format
   const schema = format?.schema as Record<string, unknown> | undefined
   const required = schema?.required
-  let hasAcceptedVersion = false
+  let acceptedContract: (typeof ACCEPTED_CONTRACTS)[number] | undefined
   try {
     const userContent = (request.input[1] as { content: string }).content
     const context = JSON.parse(userContent) as { promptVersion?: unknown }
-    hasAcceptedVersion = context.promptVersion === 'semantic-map-v7-extras-placement'
+    acceptedContract = ACCEPTED_CONTRACTS.find((contract) => contract.promptVersion === context.promptVersion)
   } catch { /* rejected below */ }
-  return hasAcceptedVersion && format?.type === 'json_schema' && format.strict === true
-    && format.name === 'contract_semantic_mappings_v5_extras_placement' && Boolean(schema)
+  return Boolean(acceptedContract) && format?.type === 'json_schema' && format.strict === true
+    && format.name === acceptedContract?.formatName && Boolean(schema)
     && schema?.type === 'object' && schema.additionalProperties === false
-    && Array.isArray(required) && required.includes('semanticMappings') && required.includes('extrasPlacement')
+    && Array.isArray(required) && acceptedContract!.required.every((key) => required.includes(key))
 }
 
 function extractOutputText(body: unknown): string | null {

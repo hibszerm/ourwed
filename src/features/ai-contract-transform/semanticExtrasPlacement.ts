@@ -19,6 +19,14 @@ export type SemanticExtrasTemplateMetadata = {
   fallbackBoundaryParagraphIndex: number
 }
 
+/** Model-interpreted region anchors, expressed only as existing source block IDs. */
+export type SemanticExtrasStructure = {
+  packageDescriptionRegion: { startBlockId: string; endBlockId: string }
+  mainContractualBodyRegion: { startBlockId: string; endBlockId: string }
+  signatureBoundaryBlockId: string
+  fallbackBoundary: SemanticExtrasPlacement
+}
+
 function visibleClauseNumber(text: string): number | null {
   const match = text.trimStart().match(/^(\d{1,3})[.)]\s/)
   return match ? Number(match[1]) : null

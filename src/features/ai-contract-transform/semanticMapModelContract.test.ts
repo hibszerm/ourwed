@@ -64,7 +64,7 @@ const sourceBlocks: TransformDocumentBlock[] = [{
 run('strict semanticMappings schema derives closed concepts and has no legacy fields', () => {
   const schema = buildSemanticMapResponseSchema()
   assert.equal(schema.strict, true)
-  assert.deepEqual(schema.schema.required, ['semanticMappings', 'extrasPlacement'])
+  assert.deepEqual(schema.schema.required, ['semanticMappings', 'extrasPlacement', 'extrasStructure'])
   assert.deepEqual(schema.schema.properties.extrasPlacement.anyOf[1]?.required, ['sourceBlockId', 'side'])
   const variants = schema.schema.properties.semanticMappings.items.anyOf
   const allConcepts = [...new Set(variants.flatMap((variant) => [...variant.properties.concept.enum]))].sort()

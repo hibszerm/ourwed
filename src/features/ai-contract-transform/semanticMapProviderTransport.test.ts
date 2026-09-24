@@ -4,7 +4,7 @@ import { createSemanticMapProvider } from './semanticMapProviderTransport'
 import { SemanticMapTransportError } from './semanticMapTransportTypes'
 import { buildSemanticMapResponseSchema, SEMANTIC_MAP_MAX_OUTPUT_TOKENS, SEMANTIC_MAP_MODEL_IDS } from './semanticMapModelContract'
 
-const outputText = '{"semanticMappings":[],"extrasPlacement":null}'
+const outputText = '{"semanticMappings":[],"extrasPlacement":null,"extrasStructure":null}'
 const request = {
   model: SEMANTIC_MAP_MODEL_IDS.terra,
   reasoning: { effort: 'medium' as const },

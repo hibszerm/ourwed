@@ -10,7 +10,7 @@ import { writeSemanticMappingDocx } from './docxTransformWriter'
 import type { ContractTransformationDataset, RequiresUserInputDate, TransformDocumentBlock } from './types'
 import type { ResolvedSemanticMapping } from './semanticMapping'
 import { SemanticMapTransportError } from './semanticMapTransportTypes'
-import { isValidSemanticExtrasTemplateMetadata } from './semanticExtrasTemplateMetadata'
+import { isValidSemanticExtrasTemplateMetadata, resolveSemanticExtrasMetadataFromModel } from './semanticExtrasTemplateMetadata'
 import type { SemanticExtrasTemplateMetadata } from './semanticExtrasPlacement'
 
 export type SemanticMapProviderResult = Extract<ReturnType<typeof parseSemanticMapResponse>, { ok: true }>
@@ -82,6 +82,7 @@ export type SemanticGenerationArtifact = {
   docxBytes: ArrayBuffer
   sourceIdentity: SemanticContractGenerationInput['sourceIdentity']
   generatedAt: string
+  extrasTemplateMetadata: SemanticExtrasTemplateMetadata | null
 }
 
 export type SemanticContractGenerationResult =
@@ -127,17 +128,15 @@ export async function startSemanticContractGeneration(
     return failure('TECHNICAL_FAILURE', 'source_index_failed', 'The source contract could not be indexed safely.')
   }
 
-  let extrasTemplateMetadata: SemanticExtrasTemplateMetadata | null = null
-  if ((input.canonicalDataset.additionalServices?.length ?? 0) > 0) {
-    extrasTemplateMetadata = input.extrasTemplateMetadata ?? null
-    if (!extrasTemplateMetadata || !isValidSemanticExtrasTemplateMetadata(extrasTemplateMetadata)) {
-      return failure('QUALITY_FAILURE', 'extras_quality_failed', 'Selected additional services could not be placed safely.')
-    }
-  }
+  const extrasSelected = (input.canonicalDataset.additionalServices?.length ?? 0) > 0
+  const storedExtrasTemplateMetadata = input.extrasTemplateMetadata
+    && isValidSemanticExtrasTemplateMetadata(input.extrasTemplateMetadata)
+    ? input.extrasTemplateMetadata
+    : null
 
   let providerResult: SemanticMapProviderResult
   try {
-    const request = buildSemanticMapRequest({ candidate: input.modelCandidate, sourceBlocks: source.blocks, dataset: input.canonicalDataset, extrasAdmissibleRegion: extrasTemplateMetadata })
+    const request = buildSemanticMapRequest({ candidate: input.modelCandidate, sourceBlocks: source.blocks, dataset: input.canonicalDataset, extrasAdmissibleRegion: storedExtrasTemplateMetadata })
     providerResult = await invokeSemanticMap(request)
   } catch (error) {
     if (error instanceof SemanticMapTransportError) {
@@ -161,6 +160,14 @@ export async function startSemanticContractGeneration(
   }
   const grounded = groundParsedSemanticMapResponse(providerResult, source.paragraphs, source.blocks)
   if (!grounded.ok) return failure('TECHNICAL_FAILURE', 'semantic_grounding_failed', 'The semantic response did not ground safely to this source contract.')
+
+  let extrasTemplateMetadata = storedExtrasTemplateMetadata
+  if (extrasSelected && !extrasTemplateMetadata) {
+    extrasTemplateMetadata = resolveSemanticExtrasMetadataFromModel(source.blocks, providerResult.extrasStructure)
+    if (!extrasTemplateMetadata) {
+      return failure('QUALITY_FAILURE', 'extras_quality_failed', 'Selected additional services could not be placed safely.')
+    }
+  }
 
   return resolveAndRender({
     sourceDocxBytes: input.sourceDocxBytes,
@@ -321,7 +328,12 @@ async function resolveAndRender(state: SemanticContractGenerationPendingState): 
     if (!await validateSemanticOutput({ state, execution: finalExecution, insertions: extras.paragraphInsertions, outputBytes: docxBytes })) {
       return failure('QUALITY_FAILURE', 'docx_quality_failed', 'The generated document failed structural safety checks.')
     }
-    return { status: 'COMPLETED', artifact: { docxBytes, sourceIdentity: state.sourceIdentity, generatedAt: state.currentDate } }
+    return { status: 'COMPLETED', artifact: {
+      docxBytes,
+      sourceIdentity: state.sourceIdentity,
+      generatedAt: state.currentDate,
+      extrasTemplateMetadata: state.extrasTemplateMetadata,
+    } }
   } catch {
     return failure('QUALITY_FAILURE', 'docx_quality_failed', 'The generated document failed structural safety checks.')
   }

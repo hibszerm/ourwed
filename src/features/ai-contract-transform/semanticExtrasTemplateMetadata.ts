@@ -1,4 +1,5 @@
-import type { SemanticExtrasTemplateMetadata } from './semanticExtrasPlacement'
+import { resolveSemanticExtrasPlacement, type SemanticExtrasStructure, type SemanticExtrasTemplateMetadata } from './semanticExtrasPlacement'
+import type { TransformDocumentBlock } from './types'
 
 /** Golden-only structural seeds. Production resolves metadata from a template version. */
 const GOLDEN_TEMPLATE_METADATA_SEEDS: Readonly<Record<string, SemanticExtrasTemplateMetadata>> = {
@@ -51,6 +52,40 @@ export function withStoredSemanticExtrasTemplateMetadata(
   metadata: StoredSemanticExtrasTemplateMetadata,
 ): Record<string, unknown> {
   return { ...slotMap, semanticExtrasMetadata: metadata }
+}
+
+/** Turn model-interpreted semantic regions into verified source paragraph ranges. */
+export function resolveSemanticExtrasMetadataFromModel(
+  blocks: readonly TransformDocumentBlock[],
+  structure: SemanticExtrasStructure | null | undefined,
+): SemanticExtrasTemplateMetadata | null {
+  if (!structure) return null
+  const uniqueParagraphIndex = (blockId: string): number | null => {
+    const matches = blocks.filter((block) => block.blockId === blockId)
+    if (matches.length !== 1 || !Number.isSafeInteger(matches[0]?.paragraphIndex)) return null
+    return matches[0]!.paragraphIndex
+  }
+  const packageStart = uniqueParagraphIndex(structure.packageDescriptionRegion.startBlockId)
+  const packageEnd = uniqueParagraphIndex(structure.packageDescriptionRegion.endBlockId)
+  const bodyStart = uniqueParagraphIndex(structure.mainContractualBodyRegion.startBlockId)
+  const bodyEnd = uniqueParagraphIndex(structure.mainContractualBodyRegion.endBlockId)
+  const signatureBoundary = uniqueParagraphIndex(structure.signatureBoundaryBlockId)
+  const fallbackAnchorIndex = uniqueParagraphIndex(structure.fallbackBoundary.sourceBlockId)
+  if ([packageStart, packageEnd, bodyStart, bodyEnd, signatureBoundary, fallbackAnchorIndex].some((value) => value === null)) return null
+  const fallbackBoundaryParagraphIndex = fallbackAnchorIndex! + (structure.fallbackBoundary.side === 'after' ? 1 : 0)
+  const metadata: SemanticExtrasTemplateMetadata = {
+    packageDescriptionRegion: { startParagraphIndex: packageStart!, endParagraphIndex: packageEnd! },
+    mainContractualBodyRegion: { startParagraphIndex: bodyStart!, endParagraphIndex: bodyEnd! },
+    signatureBoundaryParagraphIndex: signatureBoundary!,
+    fallbackBoundaryParagraphIndex,
+  }
+  if (!isValidSemanticExtrasTemplateMetadata(metadata)) return null
+  try {
+    resolveSemanticExtrasPlacement(blocks, structure.fallbackBoundary, metadata)
+  } catch {
+    return null
+  }
+  return metadata
 }
 
 export async function sha256Source(sourceDocxBytes: ArrayBuffer): Promise<string> {

@@ -44,7 +44,7 @@ import { invokeSemanticMapProvider } from '@/features/ai-contract-transform/sema
 import { buildSemanticContractProductionDataset } from '@/features/ai-contract-transform/semanticContractProductionInput'
 import { validateSemanticMissingData } from '@/features/ai-contract-transform/semanticMissingDataForm'
 import { SemanticMissingDataModal } from '@/features/weddings/actions/SemanticMissingDataModal'
-import { downloadPackageContractTemplateSource } from '@/features/documents/template/packageContractTemplateUpload'
+import { downloadPackageContractTemplateSource, persistPackageContractTemplateExtrasMetadata } from '@/features/documents/template/packageContractTemplateUpload'
 import { documentDraftService } from '@/lib/api/documents'
 import { weddingPlaceService } from '@/lib/api/weddingPlaceService'
 import { weddingExtraServiceService } from '@/lib/api/weddingExtraServiceService'
@@ -313,6 +313,18 @@ export function WeddingContractGenerationPage() {
         canonicalDataset,
         modelCandidate: 'terra',
       }, invokeSemanticMapProvider)
+      const resolvedExtrasMetadata = result.status === 'COMPLETED'
+        ? result.artifact.extrasTemplateMetadata
+        : result.status === 'REQUIRES_USER_INPUT'
+          ? result.pendingState.extrasTemplateMetadata
+          : null
+      if (!source.extrasTemplateMetadata && resolvedExtrasMetadata) {
+        await persistPackageContractTemplateExtrasMetadata({
+          templateVersionId: source.templateVersionId,
+          sourceDocxBytes: source.bytes,
+          metadata: resolvedExtrasMetadata,
+        })
+      }
       if (result.status === 'REQUIRES_USER_INPUT') {
         generationSuccessRef.current = false
         setSemanticPendingState(result.pendingState)

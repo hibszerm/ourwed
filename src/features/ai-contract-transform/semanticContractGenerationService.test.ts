@@ -21,6 +21,7 @@ const sourceParagraphs = [
   'Potwierdzenie harmonogramu do 01.08.2025',
   'Kwota słownie: pięć tysięcy złotych 00/100',
   'Postanowienia umowy pozostają bez zmian.',
+  'Podpisy stron',
 ]
 
 async function sourceDocx(): Promise<ArrayBuffer> {
@@ -53,6 +54,12 @@ async function makeProviderRows(
   blocks: Awaited<ReturnType<typeof import('./indexDocxForTransform').indexDocxForTransform>>,
   concepts: Array<{ paragraph: number; start: string; end?: string; concept: string; customerIndex?: number; dateRole?: string | null; nameForm?: string | null }>,
   extrasPlacement: { sourceBlockId: string; side: 'before' | 'after' } | null,
+  extrasStructure: {
+    packageDescriptionRegion: { startBlockId: string; endBlockId: string }
+    mainContractualBodyRegion: { startBlockId: string; endBlockId: string }
+    signatureBoundaryBlockId: string
+    fallbackBoundary: { sourceBlockId: string; side: 'before' | 'after' }
+  } | null = null,
 ): Promise<SemanticMapProviderResult> {
   const { indexSemanticSourceTokens } = await import('./semanticSourceTokens')
   const semanticMappings = concepts.map((item) => {
@@ -79,7 +86,7 @@ async function makeProviderRows(
       relation: null,
     }
   })
-  const parsed = parseSemanticMapResponse({ semanticMappings, extrasPlacement })
+  const parsed = parseSemanticMapResponse({ semanticMappings, extrasPlacement, extrasStructure })
   assert.ok(parsed.ok, 'strict accepted semantic-map-v7 parser accepts fixture provider result')
   return parsed
 }
@@ -113,7 +120,7 @@ async function run() {
   }
   const result = await startSemanticContractGeneration(input, async (request) => {
     providerCalls++
-    assert.equal(request.text.format.name, 'contract_semantic_mappings_v6_extras_placement_rendering')
+    assert.equal(request.text.format.name, 'contract_semantic_mappings_v7_version_scoped_extras_structure')
     return providerResult
   })
   assertState(result, 'REQUIRES_USER_INPUT')
@@ -167,19 +174,53 @@ async function run() {
   assert.equal(typedConfigurationFailure.code, 'provider_configuration_failed', 'configuration failure is technical and fail closed')
 
   const qualityDataset = { ...noExtraDataset, additionalServices: [{ name: 'Dodatkowe ujęcia' }] }
-  let unknownTemplateProviderCalls = 0
+  let noStructureProviderCalls = 0
   const qualityResult = await startSemanticContractGeneration({ ...input, canonicalDataset: qualityDataset, extrasTemplateMetadata: null }, async () => {
-    unknownTemplateProviderCalls++
+    noStructureProviderCalls++
     return makeProviderRows(blocks, [], null)
   })
   assertState(qualityResult, 'QUALITY_FAILURE')
-  assert.equal(unknownTemplateProviderCalls, 0, 'extras fail closed before a provider call when this template version has no verified metadata')
-  const customVersionResult = await startSemanticContractGeneration({ ...input, canonicalDataset: qualityDataset }, async () => {
-    unknownTemplateProviderCalls++
-    return makeProviderRows(blocks, [], null)
+  assert.equal(noStructureProviderCalls, 1, 'missing stored metadata triggers one existing V7 call and then fails closed if no structure is established')
+  const customStructure = {
+    packageDescriptionRegion: { startBlockId: 'para-0', endBlockId: 'para-0' },
+    mainContractualBodyRegion: { startBlockId: 'para-0', endBlockId: 'para-5' },
+    signatureBoundaryBlockId: 'para-6',
+    fallbackBoundary: { sourceBlockId: 'para-1', side: 'after' as const },
+  }
+  let customVersionProviderCalls = 0
+  const customVersionResult = await startSemanticContractGeneration({ ...input, canonicalDataset: qualityDataset, extrasTemplateMetadata: null }, async (request) => {
+    customVersionProviderCalls++
+    const userContext = JSON.parse(request.input[1]!.content) as { extrasStructureRequired?: boolean; extrasAdmissibleRegion?: unknown }
+    assert.equal(userContext.extrasStructureRequired, true, 'unknown custom version requests model-interpreted structural boundaries')
+    assert.equal(userContext.extrasAdmissibleRegion, undefined, 'no Golden or other version region is substituted for a custom version')
+    return makeProviderRows(blocks, [], { sourceBlockId: 'para-4', side: 'after' }, customStructure)
   })
   assertState(customVersionResult, 'COMPLETED')
-  assert.equal(unknownTemplateProviderCalls, 1, 'custom template with version-scoped verified metadata reaches normal provider execution')
+  assert.equal(customVersionProviderCalls, 1, 'custom template establishes its own version-scoped metadata in the existing provider call')
+  assert.deepEqual(customVersionResult.artifact.extrasTemplateMetadata, {
+    packageDescriptionRegion: { startParagraphIndex: 0, endParagraphIndex: 0 },
+    mainContractualBodyRegion: { startParagraphIndex: 0, endParagraphIndex: 5 },
+    signatureBoundaryParagraphIndex: 6,
+    fallbackBoundaryParagraphIndex: 2,
+  })
+  const customZip = await JSZip.loadAsync(customVersionResult.artifact.docxBytes)
+  const customXml = await customZip.file('word/document.xml')!.async('string')
+  assert.equal((customXml.match(/Dodatkowe ujęcia/g) ?? []).length, 1, 'selected custom-template extra is inserted exactly once')
+  assert.ok(customXml.indexOf('Dodatkowe ujęcia') > customXml.indexOf('Kwota słownie'), 'valid custom Semantic V7 boundary controls placement')
+  assert.ok(customXml.indexOf('Dodatkowe ujęcia') < customXml.indexOf('Podpisy stron'), 'custom-template extras remain before the signature boundary')
+  assert.equal(/Dodatkowe ujęcia[^<]*(?:\d[\d\s]*zł|PLN)/i.test(customXml), false, 'no CRM extra price is added')
+
+  let unsafeStructureCalls = 0
+  const unsafeStructureResult = await startSemanticContractGeneration({ ...input, canonicalDataset: qualityDataset, extrasTemplateMetadata: null }, async () => {
+    unsafeStructureCalls++
+    return makeProviderRows(blocks, [], null, {
+      ...customStructure,
+      signatureBoundaryBlockId: 'para-2',
+    })
+  })
+  assertState(unsafeStructureResult, 'QUALITY_FAILURE')
+  assert.equal(unsafeStructureResult.code, 'extras_quality_failed', 'unsafe model region is rejected deterministically')
+  assert.equal(unsafeStructureCalls, 1, 'unsafe region fails after the single existing provider call without retry')
 
   const implementation = await readFile(new URL('./semanticContractGenerationService.ts', import.meta.url), 'utf8')
   for (const forbidden of ['applyDeterministicRepairs', 'WeddingSparseContractGenerationService', 'runSparseProductTransform', 'changedBlocks', 'evaluationNameFormResolver']) {

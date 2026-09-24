@@ -9,6 +9,7 @@ import {
   getGoldenSemanticExtrasTemplateMetadataSeedForTest,
   isValidSemanticExtrasTemplateMetadata,
   resolveGoldenSemanticExtrasTemplateMetadataSeed,
+  resolveSemanticExtrasMetadataFromModel,
   resolveStoredSemanticExtrasTemplateMetadata,
   withStoredSemanticExtrasTemplateMetadata,
 } from './semanticExtrasTemplateMetadata'
@@ -23,12 +24,22 @@ const insert = (blocks: TransformDocumentBlock[], placement?: { sourceBlockId: s
   insertAdditionalServicesIntoBlocks({ blocks: identity(blocks), sourceBlocks: blocks, dataset, placement })
 
 const schema = buildSemanticMapResponseSchema()
-assert.deepEqual(schema.schema.required, ['semanticMappings', 'extrasPlacement'])
+assert.deepEqual(schema.schema.required, ['semanticMappings', 'extrasPlacement', 'extrasStructure'])
 for (const variant of schema.schema.properties.semanticMappings.items.anyOf) assert(variant.required.includes('rendering'))
-assert.match(SEMANTIC_MAP_SYSTEM_PROMPT, /standalone additional-services block/)
+assert.match(SEMANTIC_MAP_SYSTEM_PROMPT, /extrasPlacement as the best semantic SOURCE boundary/)
 assert.deepEqual(parseSemanticMapResponse({ semanticMappings: [], extrasPlacement: { sourceBlockId: 'para-0', side: 'after' } }), {
   ok: true, semanticMappings: [], extrasPlacement: { sourceBlockId: 'para-0', side: 'after' },
 })
+const modelStructure = {
+  packageDescriptionRegion: { startBlockId: 'para-0', endBlockId: 'para-0' },
+  mainContractualBodyRegion: { startBlockId: 'para-0', endBlockId: 'para-2' },
+  signatureBoundaryBlockId: 'para-3',
+  fallbackBoundary: { sourceBlockId: 'para-1', side: 'after' as const },
+}
+assert.deepEqual(parseSemanticMapResponse({ semanticMappings: [], extrasPlacement: null, extrasStructure: modelStructure }), {
+  ok: true, semanticMappings: [], extrasPlacement: null, extrasStructure: modelStructure,
+})
+assert.equal(parseSemanticMapResponse({ semanticMappings: [], extrasPlacement: null, extrasStructure: { ...modelStructure, extra: true } }).ok, false, 'provider structure rejects unknown fields')
 assert.deepEqual(parseSemanticMapResponse({ semanticMappings: [], extrasPlacement: { sourceBlockId: 'para-0', side: 'inside' } }), { ok: true, semanticMappings: [], extrasPlacement: null })
 assert.deepEqual(parseSemanticMapResponse({ semanticMappings: [], extrasPlacement: { sourceBlockId: 'para-0', side: 'after', text: 'secret' } }), { ok: true, semanticMappings: [], extrasPlacement: null })
 
@@ -70,6 +81,13 @@ assert.throws(() => insert([{ blockId: 'table-0-row-0-cell-0-p-0', paragraphInde
 assert.throws(() => insertAdditionalServicesIntoBlocks({ blocks: identity(source), sourceBlocks: source, dataset: { additionalServices: [{ name: 'Dron 800 zł' }] } as ContractTransformationDataset }), /UNSAFE_CRM_NAME/)
 
 const bounded = blocksFromPlainParagraphs(['Package description', 'Body section', 'Second body section', 'Signature'])
+assert.deepEqual(resolveSemanticExtrasMetadataFromModel(bounded, modelStructure), {
+  packageDescriptionRegion: { startParagraphIndex: 0, endParagraphIndex: 0 },
+  mainContractualBodyRegion: { startParagraphIndex: 0, endParagraphIndex: 2 },
+  signatureBoundaryParagraphIndex: 3,
+  fallbackBoundaryParagraphIndex: 2,
+})
+assert.equal(resolveSemanticExtrasMetadataFromModel(bounded, { ...modelStructure, signatureBoundaryBlockId: 'absent' }), null, 'unknown signature block fails closed')
 const metadata = {
   packageDescriptionRegion: { startParagraphIndex: 0, endParagraphIndex: 0 },
   mainContractualBodyRegion: { startParagraphIndex: 0, endParagraphIndex: 2 },

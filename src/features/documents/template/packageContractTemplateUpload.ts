@@ -148,6 +148,24 @@ export async function downloadPackageContractTemplateSource(input: {
   }
 }
 
+/** Persist Semantic V7's first safe structural analysis onto the selected version. */
+export async function persistPackageContractTemplateExtrasMetadata(input: {
+  templateVersionId: string
+  sourceDocxBytes: ArrayBuffer
+  metadata: SemanticExtrasTemplateMetadata
+}): Promise<void> {
+  const version = await documentTemplateService.getVersion(input.templateVersionId)
+  if (!version) throw new Error('Nie znaleziono wersji szablonu.')
+  const stored = await createStoredSemanticExtrasTemplateMetadata(input.sourceDocxBytes, input.metadata)
+  if (!stored) throw new Error('Nie udało się zweryfikować struktury szablonu.')
+  const current = await resolveStoredSemanticExtrasTemplateMetadata(version.slotMap, input.sourceDocxBytes)
+  if (current && JSON.stringify(current) === JSON.stringify(input.metadata)) return
+  await documentTemplateService.updateVersionSlotMap(
+    input.templateVersionId,
+    withStoredSemanticExtrasTemplateMetadata(version.slotMap, stored),
+  )
+}
+
 export async function clearPackageContractTemplate(input: {
   packageId: string
 }): Promise<StudioPackage> {

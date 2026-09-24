@@ -2,11 +2,11 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { handleSemanticMapRequest, SEMANTIC_MAP_MODEL, SEMANTIC_MAP_REASONING_EFFORT } from './semanticMapRequestHandler'
 
-const schema = { type: 'object', additionalProperties: false, required: ['semanticMappings', 'extrasPlacement'], properties: {} }
+const schema = { type: 'object', additionalProperties: false, required: ['semanticMappings', 'extrasPlacement', 'extrasStructure'], properties: {} }
 const providerRequest = {
   model: 'gpt-5.6-terra', reasoning: { effort: 'medium' }, max_output_tokens: 8192,
-  input: [{ role: 'system', content: 'accepted V7 prompt' }, { role: 'user', content: JSON.stringify({ promptVersion: 'semantic-map-v7-extras-placement', sourceBlocks: [], crmReferenceOnly: { clients: [] } }) }],
-  text: { format: { type: 'json_schema', name: 'contract_semantic_mappings_v5_extras_placement', strict: true, schema } },
+  input: [{ role: 'system', content: 'accepted V7 prompt' }, { role: 'user', content: JSON.stringify({ promptVersion: 'semantic-map-v7-version-scoped-extras-structure', sourceBlocks: [], crmReferenceOnly: { clients: [] } }) }],
+  text: { format: { type: 'json_schema', name: 'contract_semantic_mappings_v7_version_scoped_extras_structure', strict: true, schema } },
 }
 const makeRequest = (body: unknown = { request: providerRequest }) => new Request('https://local.test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
 const env = (overrides: Record<string, string> = {}) => (name: string) => ({ OPENAI_API_KEY: 'unit-test-only', ...overrides }[name])
@@ -24,12 +24,12 @@ async function run() {
     fetch: async (_url, init) => {
       authHeader = new Headers(init?.headers).get('Authorization') ?? ''
       sent = JSON.parse(String(init?.body)) as Record<string, unknown>
-      return Response.json({ status: 'completed', output_text: '{"semanticMappings":[],"extrasPlacement":null}' })
+      return Response.json({ status: 'completed', output_text: '{"semanticMappings":[],"extrasPlacement":null,"extrasStructure":null}' })
     },
   }))
   assert.equal(success.status, 200, 'valid semantic V7 request reaches mocked provider')
   const successBody = await success.json() as Record<string, unknown>
-  assert.deepEqual(successBody, { ok: true, outputText: '{"semanticMappings":[],"extrasPlacement":null}' })
+  assert.deepEqual(successBody, { ok: true, outputText: '{"semanticMappings":[],"extrasPlacement":null,"extrasStructure":null}' })
   assert.equal(sent?.model, SEMANTIC_MAP_MODEL, 'semantic model configuration is used')
   assert.equal(sent?.reasoning && (sent.reasoning as { effort?: string }).effort, SEMANTIC_MAP_REASONING_EFFORT, 'medium reasoning is explicit')
   assert.deepEqual(sent?.input, providerRequest.input, 'accepted V7 prompt and context are reused unchanged')
