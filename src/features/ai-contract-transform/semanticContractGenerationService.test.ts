@@ -104,6 +104,12 @@ async function run() {
     currentDate: '2026-09-23',
     canonicalDataset,
     modelCandidate: 'terra' as const,
+    extrasTemplateMetadata: {
+      packageDescriptionRegion: { startParagraphIndex: 0, endParagraphIndex: 0 },
+      mainContractualBodyRegion: { startParagraphIndex: 0, endParagraphIndex: 5 },
+      signatureBoundaryParagraphIndex: 6,
+      fallbackBoundaryParagraphIndex: 1,
+    },
   }
   const result = await startSemanticContractGeneration(input, async (request) => {
     providerCalls++
@@ -162,12 +168,18 @@ async function run() {
 
   const qualityDataset = { ...noExtraDataset, additionalServices: [{ name: 'Dodatkowe ujęcia' }] }
   let unknownTemplateProviderCalls = 0
-  const qualityResult = await startSemanticContractGeneration({ ...input, canonicalDataset: qualityDataset }, async () => {
+  const qualityResult = await startSemanticContractGeneration({ ...input, canonicalDataset: qualityDataset, extrasTemplateMetadata: null }, async () => {
     unknownTemplateProviderCalls++
     return makeProviderRows(blocks, [], null)
   })
   assertState(qualityResult, 'QUALITY_FAILURE')
-  assert.equal(unknownTemplateProviderCalls, 0, 'extras fail closed before a provider call when source structure has no approved metadata')
+  assert.equal(unknownTemplateProviderCalls, 0, 'extras fail closed before a provider call when this template version has no verified metadata')
+  const customVersionResult = await startSemanticContractGeneration({ ...input, canonicalDataset: qualityDataset }, async () => {
+    unknownTemplateProviderCalls++
+    return makeProviderRows(blocks, [], null)
+  })
+  assertState(customVersionResult, 'COMPLETED')
+  assert.equal(unknownTemplateProviderCalls, 1, 'custom template with version-scoped verified metadata reaches normal provider execution')
 
   const implementation = await readFile(new URL('./semanticContractGenerationService.ts', import.meta.url), 'utf8')
   for (const forbidden of ['applyDeterministicRepairs', 'WeddingSparseContractGenerationService', 'runSparseProductTransform', 'changedBlocks', 'evaluationNameFormResolver']) {

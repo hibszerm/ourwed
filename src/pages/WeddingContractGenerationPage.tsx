@@ -308,6 +308,7 @@ export function WeddingContractGenerationPage() {
           version: source.templateVersionId,
           fileName: source.fileName,
         },
+        extrasTemplateMetadata: source.extrasTemplateMetadata,
         currentDate,
         canonicalDataset,
         modelCandidate: 'terra',

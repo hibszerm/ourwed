@@ -64,6 +64,9 @@ const upload = source(
   'src/features/documents/template/packageContractTemplateUpload.ts',
 )
 assert(upload.includes('assessPackageTemplatePaymentNotice'), 'assess helper')
+assert(upload.includes('resolveGoldenSemanticExtrasTemplateMetadataSeed'), 'Golden metadata is used only as upload seed data')
+assert(upload.includes('updateVersionSlotMap'), 'version-scoped metadata is persisted with its template version')
+assert(upload.includes('resolveStoredSemanticExtrasTemplateMetadata'), 'download resolves metadata from the selected version')
 assert(
   source(
     'src/features/documents/template/packageTemplatePaymentNotice.ts',

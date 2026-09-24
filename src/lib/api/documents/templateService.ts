@@ -567,6 +567,21 @@ async function getVersion(
   return data ? mapTemplateVersion(data as TemplateVersionRow) : null
 }
 
+async function updateVersionSlotMap(
+  id: string,
+  slotMap: Record<string, unknown>,
+): Promise<DocumentTemplateVersion> {
+  await requireStudioUserId()
+  const { data, error } = await supabase
+    .from('document_template_versions')
+    .update({ slot_map: slotMap })
+    .eq('id', id)
+    .select('*')
+    .single()
+  throwOnError(error)
+  return mapTemplateVersion(data as TemplateVersionRow)
+}
+
 /** Explicit function module — no `this` / method binding. */
 export const documentTemplateService: DocumentTemplateService = {
   list: listTemplates,
@@ -695,6 +710,7 @@ export const documentTemplateService: DocumentTemplateService = {
   listVersions,
   createVersion,
   getVersion,
+  updateVersionSlotMap,
 
   async setCurrentVersion(templateId, versionId) {
     const version = await getVersion(versionId)

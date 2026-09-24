@@ -12,6 +12,13 @@ import { packageService } from '@/lib/api/packageService'
 import type { StudioPackage } from '@/types/package'
 import { extractDocxDocumentModel } from './extractDocxParagraphs'
 import { assessPackageTemplatePaymentNotice } from './packageTemplatePaymentNotice'
+import type { SemanticExtrasTemplateMetadata } from '@/features/ai-contract-transform/semanticExtrasPlacement'
+import {
+  createStoredSemanticExtrasTemplateMetadata,
+  resolveGoldenSemanticExtrasTemplateMetadataSeed,
+  resolveStoredSemanticExtrasTemplateMetadata,
+  withStoredSemanticExtrasTemplateMetadata,
+} from '@/features/ai-contract-transform/semanticExtrasTemplateMetadata'
 
 export type PackageContractTemplateUploadResult = {
   package: StudioPackage
@@ -67,7 +74,17 @@ export async function uploadPackageContractTemplate(input: {
     throw new Error('Nie udało się utworzyć wersji szablonu umowy.')
   }
 
-  const version = await documentTemplateService.getVersion(templateVersionId)
+  let version = await documentTemplateService.getVersion(templateVersionId)
+  const goldenSeed = await resolveGoldenSemanticExtrasTemplateMetadataSeed(bytes)
+  if (version && goldenSeed) {
+    const stored = await createStoredSemanticExtrasTemplateMetadata(bytes, goldenSeed)
+    if (stored) {
+      version = await documentTemplateService.updateVersionSlotMap(
+        templateVersionId,
+        withStoredSemanticExtrasTemplateMetadata(version.slotMap, stored),
+      )
+    }
+  }
   const versionNumber = version?.versionNumber ?? 1
 
   await documentTemplateService.update(templateId, {
@@ -105,7 +122,12 @@ export async function uploadPackageContractTemplate(input: {
 export async function downloadPackageContractTemplateSource(input: {
   templateId: string
   templateVersionId?: string | null
-}): Promise<{ fileName: string; bytes: ArrayBuffer; templateVersionId: string }> {
+}): Promise<{
+  fileName: string
+  bytes: ArrayBuffer
+  templateVersionId: string
+  extrasTemplateMetadata: SemanticExtrasTemplateMetadata | null
+}> {
   const template = await documentTemplateService.get(input.templateId)
   if (!template) throw new Error('Nie znaleziono szablonu.')
   const versionId =
@@ -117,10 +139,12 @@ export async function downloadPackageContractTemplateSource(input: {
   }
   const { documentStorage } = await import('@/lib/api/documents/storage')
   const bytes = await documentStorage.download(version.sourceDocxPath)
+  const extrasTemplateMetadata = await resolveStoredSemanticExtrasTemplateMetadata(version.slotMap, bytes)
   return {
     fileName: version.sourceFileName || `${template.name}.docx`,
     bytes,
     templateVersionId: versionId,
+    extrasTemplateMetadata,
   }
 }
 

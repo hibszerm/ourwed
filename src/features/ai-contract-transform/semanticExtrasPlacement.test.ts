@@ -4,7 +4,14 @@ import { blocksFromPlainParagraphs } from './indexDocxForTransform'
 import { insertAdditionalServicesIntoBlocks } from './insertAdditionalServices'
 import { expandBlocksWithParagraphInsertions } from './expandBlocksWithInsertions'
 import { resolveSemanticExtrasPlacement } from './semanticExtrasPlacement'
-import { getApprovedSemanticExtrasTemplateMetadataForTest, resolveSemanticExtrasTemplateMetadata } from './semanticExtrasTemplateMetadata'
+import {
+  createStoredSemanticExtrasTemplateMetadata,
+  getGoldenSemanticExtrasTemplateMetadataSeedForTest,
+  isValidSemanticExtrasTemplateMetadata,
+  resolveGoldenSemanticExtrasTemplateMetadataSeed,
+  resolveStoredSemanticExtrasTemplateMetadata,
+  withStoredSemanticExtrasTemplateMetadata,
+} from './semanticExtrasTemplateMetadata'
 import { writeTransformedDocx } from './docxTransformWriter'
 import { buildSemanticMapResponseSchema, parseSemanticMapResponse, SEMANTIC_MAP_SYSTEM_PROMPT } from './semanticMapModelContract'
 import type { ContractTransformationDataset, TransformDocumentBlock } from './types'
@@ -95,7 +102,7 @@ const extrasIndexes = metadataExpanded.flatMap((block, index) => block.text.incl
 assert.equal(extrasIndexes.length, 2, 'each selected CRM extra appears once')
 assert.ok(extrasIndexes.every((index) => index < signatureIndex), 'extras stay before the signature section')
 assert.ok(metadataInsertion.paragraphInsertions[0]!.paragraphs.every((paragraph) => !/\d[\d\s]*\s*zł|\bPLN\b/i.test(paragraph)), 'inserted CRM text contains no extra prices')
-const approvedHashes = [
+const goldenHashes = [
   'd8f5b95eae9586adc5c37b681f2ba108ab2464fcc78f2ab8214a6d57a6710fee',
   '617275318f49790e9b2ba3faa4093b96486f0bf1b2b72a2082f0eed94cb9a6ae',
   '1d4035dafdde597b308af923a1061ba3409141420d8dd6d699df1578ae5d6637',
@@ -103,9 +110,19 @@ const approvedHashes = [
   '6feb4a760e42d1a8ef6e61d4721e3c021d5eb8df9278e4cf188a76db2fafb91c',
   '14b917a31e67eab720bc94df91db84611ee5da3bb68ef0bb49cfc1102466a012',
 ]
-for (const hash of approvedHashes) assert.ok(getApprovedSemanticExtrasTemplateMetadataForTest(hash), 'approved template has structural metadata')
-assert.equal(getApprovedSemanticExtrasTemplateMetadataForTest('0'.repeat(64)), null, 'unknown template has no inferred metadata')
-assert.equal(await resolveSemanticExtrasTemplateMetadata(new ArrayBuffer(4)), null, 'unknown source digest fails closed')
+for (const hash of goldenHashes) assert.ok(getGoldenSemanticExtrasTemplateMetadataSeedForTest(hash), 'Golden seed metadata remains available')
+assert.equal(getGoldenSemanticExtrasTemplateMetadataSeedForTest('0'.repeat(64)), null, 'custom templates do not get inferred metadata')
+assert.equal(await resolveGoldenSemanticExtrasTemplateMetadataSeed(new ArrayBuffer(4)), null, 'custom source hash is not an eligibility failure or metadata source')
+assert.equal(isValidSemanticExtrasTemplateMetadata(metadata), true)
+assert.equal(isValidSemanticExtrasTemplateMetadata({ ...metadata, fallbackBoundaryParagraphIndex: 4 }), false, 'fallback after signature is invalid')
+const customVersionSource = new ArrayBuffer(5)
+const customVersionMetadata = await createStoredSemanticExtrasTemplateMetadata(customVersionSource, metadata)
+assert.ok(customVersionMetadata, 'verified structural metadata can be stored on a version')
+const versionSlotMap = withStoredSemanticExtrasTemplateMetadata({ version: 1, slots: [], unrelated: true }, customVersionMetadata)
+assert.equal(versionSlotMap.unrelated, true, 'existing version slot map fields are preserved')
+assert.deepEqual(await resolveStoredSemanticExtrasTemplateMetadata(versionSlotMap, customVersionSource), metadata, 'custom version resolves metadata from its own slot map')
+assert.equal(await resolveStoredSemanticExtrasTemplateMetadata({}, customVersionSource), null, 'custom version without trusted metadata fails closed')
+assert.equal(await resolveStoredSemanticExtrasTemplateMetadata(versionSlotMap, new ArrayBuffer(6)), null, 'version metadata does not apply to different source bytes')
 
 const zip = new JSZip()
 zip.file('word/document.xml', `<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:pPr><w:pStyle w:val="Heading1"/><w:numPr><w:numId w:val="3"/></w:numPr></w:pPr><w:r><w:t>8 Usługi dodatkowe</w:t></w:r></w:p><w:p><w:r><w:t>8.1 SOURCE catalog: 1200 zł</w:t></w:r></w:p><w:p><w:r><w:t>8.2 SOURCE clause</w:t></w:r></w:p></w:body></w:document>`)

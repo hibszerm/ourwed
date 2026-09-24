@@ -10,7 +10,7 @@ import { writeSemanticMappingDocx } from './docxTransformWriter'
 import type { ContractTransformationDataset, RequiresUserInputDate, TransformDocumentBlock } from './types'
 import type { ResolvedSemanticMapping } from './semanticMapping'
 import { SemanticMapTransportError } from './semanticMapTransportTypes'
-import { resolveSemanticExtrasTemplateMetadata } from './semanticExtrasTemplateMetadata'
+import { isValidSemanticExtrasTemplateMetadata } from './semanticExtrasTemplateMetadata'
 import type { SemanticExtrasTemplateMetadata } from './semanticExtrasPlacement'
 
 export type SemanticMapProviderResult = Extract<ReturnType<typeof parseSemanticMapResponse>, { ok: true }>
@@ -29,6 +29,8 @@ export type SemanticContractGenerationInput = {
   currentDate: string
   /** Build with buildContractTransformationDataset; structured values remain intact. */
   canonicalDataset: SemanticContractCanonicalDataset
+  /** Verified structure loaded from this exact template version; never source-hash catalog lookup. */
+  extrasTemplateMetadata?: SemanticExtrasTemplateMetadata | null
   /** Model selection is explicit at the future transport boundary. */
   modelCandidate: SemanticMapCandidate
 }
@@ -127,12 +129,8 @@ export async function startSemanticContractGeneration(
 
   let extrasTemplateMetadata: SemanticExtrasTemplateMetadata | null = null
   if ((input.canonicalDataset.additionalServices?.length ?? 0) > 0) {
-    try {
-      extrasTemplateMetadata = await resolveSemanticExtrasTemplateMetadata(input.sourceDocxBytes)
-    } catch {
-      return failure('QUALITY_FAILURE', 'extras_quality_failed', 'Selected additional services could not be placed safely.')
-    }
-    if (!extrasTemplateMetadata) {
+    extrasTemplateMetadata = input.extrasTemplateMetadata ?? null
+    if (!extrasTemplateMetadata || !isValidSemanticExtrasTemplateMetadata(extrasTemplateMetadata)) {
       return failure('QUALITY_FAILURE', 'extras_quality_failed', 'Selected additional services could not be placed safely.')
     }
   }

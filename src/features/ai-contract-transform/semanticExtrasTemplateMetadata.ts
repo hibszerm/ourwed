@@ -1,7 +1,7 @@
 import type { SemanticExtrasTemplateMetadata } from './semanticExtrasPlacement'
 
-/** Allowlisted source-template structure for the six approved contract files. */
-const APPROVED_TEMPLATE_METADATA: Readonly<Record<string, SemanticExtrasTemplateMetadata>> = {
+/** Golden-only structural seeds. Production resolves metadata from a template version. */
+const GOLDEN_TEMPLATE_METADATA_SEEDS: Readonly<Record<string, SemanticExtrasTemplateMetadata>> = {
   "d8f5b95eae9586adc5c37b681f2ba108ab2464fcc78f2ab8214a6d57a6710fee": {
     packageDescriptionRegion: { startParagraphIndex: 3, endParagraphIndex: 6 },
     mainContractualBodyRegion: { startParagraphIndex: 3, endParagraphIndex: 40 },
@@ -40,14 +40,74 @@ const APPROVED_TEMPLATE_METADATA: Readonly<Record<string, SemanticExtrasTemplate
   },
 }
 
-export async function resolveSemanticExtrasTemplateMetadata(
-  sourceDocxBytes: ArrayBuffer,
-): Promise<SemanticExtrasTemplateMetadata | null> {
-  const digest = await crypto.subtle.digest('SHA-256', sourceDocxBytes)
-  const sha256 = [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('')
-  return APPROVED_TEMPLATE_METADATA[sha256] ?? null
+export type StoredSemanticExtrasTemplateMetadata = {
+  schemaVersion: 1
+  sourceSha256: string
+  metadata: SemanticExtrasTemplateMetadata
 }
 
-export function getApprovedSemanticExtrasTemplateMetadataForTest(sha256: string): SemanticExtrasTemplateMetadata | null {
-  return APPROVED_TEMPLATE_METADATA[sha256] ?? null
+export function withStoredSemanticExtrasTemplateMetadata(
+  slotMap: Record<string, unknown>,
+  metadata: StoredSemanticExtrasTemplateMetadata,
+): Record<string, unknown> {
+  return { ...slotMap, semanticExtrasMetadata: metadata }
+}
+
+export async function sha256Source(sourceDocxBytes: ArrayBuffer): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', sourceDocxBytes)
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('')
+}
+
+export function isValidSemanticExtrasTemplateMetadata(
+  value: unknown,
+): value is SemanticExtrasTemplateMetadata {
+  if (!value || typeof value !== 'object') return false
+  const metadata = value as Partial<SemanticExtrasTemplateMetadata>
+  const regions = [metadata.packageDescriptionRegion, metadata.mainContractualBodyRegion]
+  if (regions.some((region) => !region || !Number.isSafeInteger(region.startParagraphIndex)
+    || !Number.isSafeInteger(region.endParagraphIndex) || region.startParagraphIndex! < 0
+    || region.endParagraphIndex! < region.startParagraphIndex!)) return false
+  const packageRegion = metadata.packageDescriptionRegion!
+  const bodyRegion = metadata.mainContractualBodyRegion!
+  const signature = metadata.signatureBoundaryParagraphIndex
+  const fallback = metadata.fallbackBoundaryParagraphIndex
+  if (!Number.isSafeInteger(signature) || !Number.isSafeInteger(fallback)) return false
+  const firstAdmissible = Math.max(packageRegion.endParagraphIndex + 1, bodyRegion.startParagraphIndex)
+  const lastAdmissible = Math.min(bodyRegion.endParagraphIndex + 1, signature!)
+  return packageRegion.startParagraphIndex >= bodyRegion.startParagraphIndex
+    && packageRegion.endParagraphIndex <= bodyRegion.endParagraphIndex
+    && signature! > bodyRegion.endParagraphIndex
+    && fallback! >= firstAdmissible
+    && fallback! <= lastAdmissible
+}
+
+/** Only exact Golden fixtures seed metadata during ingestion; this is not a production lookup. */
+export async function resolveGoldenSemanticExtrasTemplateMetadataSeed(
+  sourceDocxBytes: ArrayBuffer,
+): Promise<SemanticExtrasTemplateMetadata | null> {
+  const sha256 = await sha256Source(sourceDocxBytes)
+  return GOLDEN_TEMPLATE_METADATA_SEEDS[sha256] ?? null
+}
+
+export async function createStoredSemanticExtrasTemplateMetadata(
+  sourceDocxBytes: ArrayBuffer,
+  metadata: SemanticExtrasTemplateMetadata,
+): Promise<StoredSemanticExtrasTemplateMetadata | null> {
+  if (!isValidSemanticExtrasTemplateMetadata(metadata)) return null
+  return { schemaVersion: 1, sourceSha256: await sha256Source(sourceDocxBytes), metadata }
+}
+
+export async function resolveStoredSemanticExtrasTemplateMetadata(
+  slotMap: Record<string, unknown>,
+  sourceDocxBytes: ArrayBuffer,
+): Promise<SemanticExtrasTemplateMetadata | null> {
+  const stored = slotMap.semanticExtrasMetadata as Partial<StoredSemanticExtrasTemplateMetadata> | undefined
+  if (!stored || stored.schemaVersion !== 1 || typeof stored.sourceSha256 !== 'string'
+    || !isValidSemanticExtrasTemplateMetadata(stored.metadata)) return null
+  if (stored.sourceSha256 !== await sha256Source(sourceDocxBytes)) return null
+  return stored.metadata
+}
+
+export function getGoldenSemanticExtrasTemplateMetadataSeedForTest(sha256: string): SemanticExtrasTemplateMetadata | null {
+  return GOLDEN_TEMPLATE_METADATA_SEEDS[sha256] ?? null
 }

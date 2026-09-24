@@ -182,6 +182,7 @@ export interface DocumentTemplateService {
   listVersions(templateId: string): Promise<DocumentTemplateVersion[]>
   createVersion(input: CreateTemplateVersionInput): Promise<DocumentTemplateVersion>
   getVersion(id: string): Promise<DocumentTemplateVersion | null>
+  updateVersionSlotMap(id: string, slotMap: Record<string, unknown>): Promise<DocumentTemplateVersion>
   setCurrentVersion(
     templateId: string,
     versionId: string,
