@@ -264,6 +264,8 @@ export type DocxParagraphInsertion = {
    */
   listNumbering?: 'detach' | 'inherit'
   presentation?: 'plain' | 'inherit'
+  /** Optional source paragraph whose pPr/rPr should style inserted paragraphs. */
+  styleExemplarIndex?: number
 }
 
 export type DocxParagraphEdit = {
@@ -357,29 +359,37 @@ export async function applyDocxParagraphInsertions(
 
   const xml = await docFile.async('string')
   type Pending = { text: string; listNumbering: 'detach' | 'inherit'; presentation: 'plain' | 'inherit' }
-  const byPosition = new Map<string, Pending[]>()
+  type PositionBatch = { items: Pending[]; styleExemplarIndex?: number }
+  const byPosition = new Map<string, PositionBatch>()
   for (const ins of insertions) {
     const key = ins.beforeIndex === undefined ? `after:${ins.afterIndex}` : `before:${ins.beforeIndex}`
-    const existing = byPosition.get(key) ?? []
+    const batch = byPosition.get(key) ?? { items: [] }
+    if (batch.styleExemplarIndex !== undefined && ins.styleExemplarIndex !== undefined
+      && batch.styleExemplarIndex !== ins.styleExemplarIndex) {
+      throw new Error(`DOCX insertion position has conflicting style exemplars: ${key}`)
+    }
+    if (ins.styleExemplarIndex !== undefined) batch.styleExemplarIndex = ins.styleExemplarIndex
     const mode = ins.listNumbering ?? 'detach'
-    byPosition.set(key, [
-      ...existing,
-      ...ins.paragraphs.map((text) => ({ text, listNumbering: mode, presentation: ins.presentation ?? 'inherit' as const })),
-    ])
+    batch.items.push(...ins.paragraphs.map((text) => ({ text, listNumbering: mode, presentation: ins.presentation ?? 'inherit' as const })))
+    byPosition.set(key, batch)
   }
 
   const paragraphs = locateParagraphElements(xml)
   const insertAt = new Map<number, string[]>()
-  for (const [position, items] of byPosition) {
+  for (const [position, batch] of byPosition) {
     const [side, indexText] = position.split(':')
     const index = Number(indexText)
     const anchor = paragraphs[index]
     if (!anchor) throw new Error(`DOCX insertion anchor is missing: ${index}`)
-    const additions = items.map((item) => item.presentation === 'plain'
+    const exemplar = batch.styleExemplarIndex === undefined ? anchor : paragraphs[batch.styleExemplarIndex]
+    if (!exemplar) throw new Error(`DOCX insertion style exemplar is missing: ${batch.styleExemplarIndex}`)
+    const additions = batch.items.map((item) => item.presentation === 'plain'
       ? `<w:p><w:r><w:t xml:space="preserve">${escapeXml(canonicalizeParagraphText(item.text))}</w:t></w:r></w:p>`
-      : replaceParagraphTextWhole(anchor.xml, canonicalizeParagraphText(item.text), {
-          stripListNumbering: item.listNumbering !== 'inherit',
-        }),
+      : replaceParagraphTextWhole(
+          exemplar.xml,
+          canonicalizeParagraphText(item.text),
+          { stripListNumbering: item.listNumbering !== 'inherit' },
+        ),
     )
     const offset = side === 'before' ? anchor.start : anchor.end
     insertAt.set(offset, [...(insertAt.get(offset) ?? []), ...additions])
