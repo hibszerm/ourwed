@@ -2,11 +2,11 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { handleSemanticMapRequest, SEMANTIC_MAP_MODEL, SEMANTIC_MAP_REASONING_EFFORT } from './semanticMapRequestHandler'
 
-const schema = { type: 'object', additionalProperties: false, required: ['semanticMappings', 'extrasPlacement', 'extrasStructure'], properties: {} }
+const schema = { type: 'object', additionalProperties: false, required: ['semanticMappings', 'customerCoverage', 'extrasPlacement', 'extrasStructure'], properties: {} }
 const providerRequest = {
   model: 'gpt-5.6-terra', reasoning: { effort: 'medium' }, max_output_tokens: 8192,
-  input: [{ role: 'system', content: 'accepted V7 prompt' }, { role: 'user', content: JSON.stringify({ promptVersion: 'semantic-map-v7-version-scoped-extras-structure', sourceBlocks: [], crmReferenceOnly: { clients: [] } }) }],
-  text: { format: { type: 'json_schema', name: 'contract_semantic_mappings_v7_version_scoped_extras_structure', strict: true, schema } },
+  input: [{ role: 'system', content: 'accepted V8 prompt' }, { role: 'user', content: JSON.stringify({ promptVersion: 'semantic-map-v8-customer-coverage', sourceBlocks: [], crmReferenceOnly: { clients: [] } }) }],
+  text: { format: { type: 'json_schema', name: 'contract_semantic_mappings_v8_customer_coverage', strict: true, schema } },
 }
 const makeRequest = (body: unknown = { request: providerRequest }) => new Request('https://local.test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
 const env = (overrides: Record<string, string> = {}) => (name: string) => ({ OPENAI_API_KEY: 'unit-test-only', ...overrides }[name])
@@ -24,15 +24,15 @@ async function run() {
     fetch: async (_url, init) => {
       authHeader = new Headers(init?.headers).get('Authorization') ?? ''
       sent = JSON.parse(String(init?.body)) as Record<string, unknown>
-      return Response.json({ status: 'completed', output_text: '{"semanticMappings":[],"extrasPlacement":null,"extrasStructure":null}' })
+      return Response.json({ status: 'completed', output_text: '{"semanticMappings":[],"customerCoverage":[],"extrasPlacement":null,"extrasStructure":null}' })
     },
   }))
   assert.equal(success.status, 200, 'valid semantic V7 request reaches mocked provider')
   const successBody = await success.json() as Record<string, unknown>
-  assert.deepEqual(successBody, { ok: true, outputText: '{"semanticMappings":[],"extrasPlacement":null,"extrasStructure":null}' })
+  assert.deepEqual(successBody, { ok: true, outputText: '{"semanticMappings":[],"customerCoverage":[],"extrasPlacement":null,"extrasStructure":null}' })
   assert.equal(sent?.model, SEMANTIC_MAP_MODEL, 'semantic model configuration is used')
   assert.equal(sent?.reasoning && (sent.reasoning as { effort?: string }).effort, SEMANTIC_MAP_REASONING_EFFORT, 'medium reasoning is explicit')
-  assert.deepEqual(sent?.input, providerRequest.input, 'accepted V7 prompt and context are reused unchanged')
+  assert.deepEqual(sent?.input, providerRequest.input, 'accepted V8 prompt and context are reused unchanged')
   assert.deepEqual(sent?.text, providerRequest.text, 'accepted strict schema is reused unchanged')
   assert.equal(authHeader, 'Bearer unit-test-only', 'server secret authenticates provider request')
   assert.equal('Authorization' in successBody, false, 'provider credentials are not returned')
@@ -68,7 +68,7 @@ async function run() {
   assert(edge.includes('buildRestrictedCorsHeaders'), 'Edge uses restricted CORS')
   assert(!/console\.(?:log|info|debug)\([^)]*(?:payload|Authorization|OPENAI_API_KEY)/i.test(edge), 'Edge does not log payloads or credentials')
   assert(!edge.includes('ai-contract-full-rewrite'), 'semantic Edge is isolated from legacy Edge')
-  console.log('PASS semantic-map Edge handler: auth, strict V7 forwarding, config, timeout, failures, privacy, legacy isolation')
+  console.log('PASS semantic-map Edge handler: auth, strict V8 forwarding, config, timeout, failures, privacy, legacy isolation')
 }
 
 await run()

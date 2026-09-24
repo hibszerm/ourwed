@@ -4,7 +4,7 @@ import { insertAdditionalServicesIntoBlocks } from './insertAdditionalServices'
 import { executeSemanticMappings } from './semanticMappingExecutor'
 import { indexDocxForTransform } from './indexDocxForTransform'
 import { expandBlocksWithParagraphInsertions } from './expandBlocksWithInsertions'
-import { groundParsedSemanticMapResponse, parseSemanticMapResponse, buildSemanticMapRequest, type SemanticMapCandidate, type SemanticMapProviderRequest } from './semanticMapModelContract'
+import { groundParsedSemanticMapResponse, parseSemanticMapResponse, buildSemanticMapRequest, validateSemanticCustomerCoverage, type SemanticMapCandidate, type SemanticMapProviderRequest } from './semanticMapModelContract'
 import type { SemanticExtrasPlacement } from './semanticExtrasPlacement'
 import { writeSemanticMappingDocx } from './docxTransformWriter'
 import type { ContractTransformationDataset, RequiresUserInputDate, TransformDocumentBlock } from './types'
@@ -72,6 +72,7 @@ export type SemanticGenerationFailureCode =
   | 'provider_failed'
   | 'provider_timeout'
   | 'semantic_grounding_failed'
+  | 'customer_coverage_failed'
   | 'canonical_data_missing'
   | 'execution_failed'
   | 'resume_values_invalid'
@@ -160,6 +161,13 @@ export async function startSemanticContractGeneration(
   }
   const grounded = groundParsedSemanticMapResponse(providerResult, source.paragraphs, source.blocks)
   if (!grounded.ok) return failure('TECHNICAL_FAILURE', 'semantic_grounding_failed', 'The semantic response did not ground safely to this source contract.')
+  const customerCoverage = validateSemanticCustomerCoverage({
+    parsed: providerResult,
+    groundedMappings: grounded.mappings,
+    sourceBlocks: source.blocks,
+    personCount: input.canonicalDataset.clients.personCount,
+  })
+  if (!customerCoverage.ok) return failure('QUALITY_FAILURE', customerCoverage.code, 'Customer identity or contact coverage could not be established safely.')
 
   let extrasTemplateMetadata = storedExtrasTemplateMetadata
   if (extrasSelected && !extrasTemplateMetadata) {
@@ -368,7 +376,13 @@ async function validateSemanticOutput(input: {
     insertions: input.insertions,
   }).map((block) => block.text)
   const actual = [...outputXml.matchAll(/<w:p\b[\s\S]*?<\/w:p>/g)].map((match) => extractCanonicalParagraphText(match[0]!))
-  return actual.length === expected.length && actual.every((text, index) => text === expected[index])
+  const customerMappings = input.state.semanticMappings.filter((mapping) =>
+    mapping.concept === 'customer_1_name' || mapping.concept === 'customer_2_name' || mapping.concept === 'customer_address' || mapping.concept === 'customer_phone' || mapping.concept === 'customer_email')
+  const customerEdits = input.execution.spanEdits.filter((edit) => customerMappings.some((mapping) =>
+    mapping.sourceBlockId === edit.blockId && mapping.span.start === edit.span.start && mapping.span.end === edit.span.end))
+  const everyCustomerMappingHasEdit = customerEdits.length === customerMappings.length && customerMappings.every((mapping) =>
+    customerEdits.some((edit) => edit.blockId === mapping.sourceBlockId && edit.span.start === mapping.span.start && edit.span.end === mapping.span.end))
+  return everyCustomerMappingHasEdit && actual.length === expected.length && actual.every((text, index) => text === expected[index])
 }
 
 function applyGenerationOnlyEmailValues(

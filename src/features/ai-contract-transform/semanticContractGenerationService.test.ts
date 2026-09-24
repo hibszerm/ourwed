@@ -15,7 +15,7 @@ function assertState<T extends SemanticContractGenerationResult['status']>(
 }
 
 const sourceParagraphs = [
-  'Klient: Anna Kowalska',
+  'Klienci: Anna Kowalska i Jan Nowak',
   'E-mail: sample@example.test',
   'Termin albumu do 12.07.2025',
   'Potwierdzenie harmonogramu do 01.08.2025',
@@ -62,7 +62,11 @@ async function makeProviderRows(
   } | null = null,
 ): Promise<SemanticMapProviderResult> {
   const { indexSemanticSourceTokens } = await import('./semanticSourceTokens')
-  const semanticMappings = concepts.map((item) => {
+  const effectiveConcepts = [...concepts]
+  for (const [name, concept] of [['Anna Kowalska', 'customer_1_name'], ['Jan Nowak', 'customer_2_name']] as const) {
+    if (!effectiveConcepts.some((item) => item.concept === concept)) effectiveConcepts.unshift({ paragraph: 0, start: name, concept })
+  }
+  const semanticMappings = effectiveConcepts.map((item) => {
     const block = blocks[item.paragraph]!
     const text = block.text
     const start = text.indexOf(item.start)
@@ -86,8 +90,17 @@ async function makeProviderRows(
       relation: null,
     }
   })
-  const parsed = parseSemanticMapResponse({ semanticMappings, extrasPlacement, extrasStructure })
-  assert.ok(parsed.ok, 'strict accepted semantic-map-v7 parser accepts fixture provider result')
+  const coverageConcepts = ['customer_1_name', 'customer_2_name', 'customer_address', 'customer_phone', 'customer_email']
+  const customerCoverage = coverageConcepts.map((concept) => {
+    const surfaces = semanticMappings.filter((mapping) => mapping.concept === concept).map((mapping) => ({
+      sourceBlockId: mapping.sourceBlockId,
+      startTokenId: mapping.startTokenId,
+      endTokenId: mapping.endTokenId,
+    }))
+    return { concept, status: surfaces.length ? 'complete' : 'absent', surfaces }
+  })
+  const parsed = parseSemanticMapResponse({ semanticMappings, customerCoverage, extrasPlacement, extrasStructure })
+  assert.ok(parsed.ok, 'strict accepted semantic-map-v8 parser accepts fixture provider result')
   return parsed
 }
 
@@ -120,7 +133,7 @@ async function run() {
   }
   const result = await startSemanticContractGeneration(input, async (request) => {
     providerCalls++
-    assert.equal(request.text.format.name, 'contract_semantic_mappings_v7_version_scoped_extras_structure')
+    assert.equal(request.text.format.name, 'contract_semantic_mappings_v8_customer_coverage')
     return providerResult
   })
   assertState(result, 'REQUIRES_USER_INPUT')
@@ -162,6 +175,36 @@ async function run() {
   const nonBaseZip = await JSZip.loadAsync(nonBaseResult.artifact.docxBytes)
   const nonBaseXml = await nonBaseZip.file('word/document.xml')!.async('string')
   assert.ok(nonBaseXml.includes('Anna Kowalska'), 'unsupported name morphology completes using the canonical CRM name')
+
+  const identityOnly = await makeProviderRows(blocks, [], null)
+  const differentCrmIdentity = {
+    ...dataset(),
+    clients: { ...dataset().clients, customers: [{ displayName: 'Maria Zielińska' }, { displayName: 'Piotr Wiśniewski' }] },
+  }
+  const identityResult = await startSemanticContractGeneration({ ...input, canonicalDataset: differentCrmIdentity }, async () => identityOnly)
+  assert.equal(identityResult.status, 'COMPLETED', identityResult.status === 'COMPLETED' ? '' : `${identityResult.status}:${identityResult.code}`)
+  const identityZip = await JSZip.loadAsync(identityResult.artifact.docxBytes)
+  const identityXml = await identityZip.file('word/document.xml')!.async('string')
+  assert.ok(identityXml.includes('Maria Zielińska') && identityXml.includes('Piotr Wiśniewski'), 'complete customer surfaces use authoritative CRM identities')
+  assert.equal(identityXml.includes('Anna Kowalska'), false, 'source sample identity is not preserved after accepted coverage')
+  assert.equal(identityXml.includes('Jan Nowak'), false, 'second source sample identity is not preserved after accepted coverage')
+
+  const omittedIdentity = {
+    ...identityOnly,
+    semanticMappings: identityOnly.semanticMappings.filter((mapping) => mapping.concept !== 'customer_1_name'),
+  }
+  const omittedIdentityResult = await startSemanticContractGeneration(input, async () => omittedIdentity)
+  assertState(omittedIdentityResult, 'QUALITY_FAILURE')
+  assert.equal(omittedIdentityResult.code, 'customer_coverage_failed', 'declared complete identity with no mapping fails before output')
+
+  const mappedEmail = await makeProviderRows(blocks, [{ paragraph: 1, start: 'sample@example.test', concept: 'customer_email', customerIndex: 0 }], null)
+  const omittedEmail = {
+    ...mappedEmail,
+    semanticMappings: mappedEmail.semanticMappings.filter((mapping) => mapping.concept !== 'customer_email'),
+  }
+  const omittedEmailResult = await startSemanticContractGeneration(input, async () => omittedEmail)
+  assertState(omittedEmailResult, 'QUALITY_FAILURE')
+  assert.equal(omittedEmailResult.code, 'customer_coverage_failed', 'present optional contact declared complete but unmapped fails closed')
 
   const providerFailure = await startSemanticContractGeneration(input, async () => { throw new Error('not exposed') })
   assertState(providerFailure, 'PROVIDER_FAILURE')

@@ -24,7 +24,7 @@ const insert = (blocks: TransformDocumentBlock[], placement?: { sourceBlockId: s
   insertAdditionalServicesIntoBlocks({ blocks: identity(blocks), sourceBlocks: blocks, dataset, placement })
 
 const schema = buildSemanticMapResponseSchema()
-assert.deepEqual(schema.schema.required, ['semanticMappings', 'extrasPlacement', 'extrasStructure'])
+assert.deepEqual(schema.schema.required, ['semanticMappings', 'customerCoverage', 'extrasPlacement', 'extrasStructure'])
 for (const variant of schema.schema.properties.semanticMappings.items.anyOf) assert(variant.required.includes('rendering'))
 assert.match(SEMANTIC_MAP_SYSTEM_PROMPT, /extrasPlacement as the best semantic SOURCE boundary/)
 assert.deepEqual(parseSemanticMapResponse({ semanticMappings: [], extrasPlacement: { sourceBlockId: 'para-0', side: 'after' } }), {

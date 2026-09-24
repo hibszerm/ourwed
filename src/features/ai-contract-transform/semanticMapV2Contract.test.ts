@@ -4,6 +4,9 @@ import { SEMANTIC_MAP_SYSTEM_PROMPT, buildSemanticMapResponseSchema, parseSemant
 import { GOLDEN_SUPPLIED_DATE_VALUES } from './cg7/goldenSuppliedDateValues.fixture'
 
 const schema = buildSemanticMapResponseSchema()
+assert.equal(schema.name, 'contract_semantic_mappings_v8_customer_coverage')
+assert(schema.schema.required.includes('customerCoverage'))
+assert.equal(schema.schema.properties.customerCoverage.items.additionalProperties, false)
 const variants = schema.schema.properties.semanticMappings.items.anyOf
 assert.equal(variants.length, 3)
 for (const variant of variants) {
@@ -19,6 +22,7 @@ const ambiguous = variants.find((variant) => variant.properties.concept.enum.inc
 assert.deepEqual(ambiguous.properties.dateRole.enum, [...DATE_ROLES, null])
 assert(SEMANTIC_MAP_SYSTEM_PROMPT.includes('startTokenId and endTokenId are inclusive'))
 assert(SEMANTIC_MAP_SYSTEM_PROMPT.includes('Never transcribe source text into the response'))
+assert(SEMANTIC_MAP_SYSTEM_PROMPT.includes('CUSTOMER COVERAGE'))
 assert(SEMANTIC_MAP_SYSTEM_PROMPT.includes('use other_contractual_date only when no supported specific role fits'))
 assert(DATE_ROLES.includes('album_due_date'))
 assert.equal(GOLDEN_SUPPLIED_DATE_VALUES.find((item) => item.goldenId === 'G04' && item.sourceBlockId === 'table-4-row-5-cell-3-p-0')?.role, 'album_due_date')

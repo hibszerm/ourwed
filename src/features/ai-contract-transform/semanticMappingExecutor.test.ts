@@ -191,7 +191,7 @@ run('exact source identities use the mapped canonical customer without cross-cus
   assert(!visible(result, 'c1-exact').includes('Julia') && !visible(result, 'c2-exact').includes('Filip'), 'customer identities never cross')
 })
 
-run('exact path rejects source-name surfaces without a proven complete identity', () => {
+run('grounded name surfaces always use the authoritative CRM identity', () => {
   const exactSource = [{ blockId: 'exact', paragraphXml: p('Kacper Modelowy') }]
   const twoCustomerDataset = {
     ...dataset,
@@ -203,10 +203,10 @@ run('exact path rejects source-name surfaces without a proven complete identity'
   for (const unproven of ['Kacper', 'Modelowy', 'Kacper Modelov', 'Kacprem Modelowym']) {
     const xml = [{ blockId: 'unproven', paragraphXml: p(unproven) }]
     const result = execute([map('unproven', 'customer_2_name', unproven)], xml, twoCustomerDataset, ['Kacper Modelowy', 'Kacper Modelowy'])
-    assert(!result.ok && result.code === 'unrenderable_surface', `${unproven} is not accepted as an exact customer identity`)
+    assert(result.ok && visible(result, 'unproven') === 'Julia Siatkowa', `${unproven} is replaced by the authoritative CRM identity`)
   }
   const noReference = execute([map('exact', 'customer_1_name', 'Kacper Modelowy')], exactSource, twoCustomerDataset)
-  assert(!noReference.ok && noReference.code === 'unrenderable_surface', 'unknown source identity fails closed')
+  assert(noReference.ok && visible(noReference, 'exact') === 'Filip Brzegowy', 'source identity reference is not needed after structural grounding')
 })
 
 run('mixed customer/provider paragraph changes only grounded customer text', () => {
@@ -605,10 +605,10 @@ run('missing canonical data and unrenderable party forms fail closed', () => {
   const missingDataset = { ...dataset, finances: { ...dataset.finances, depositFormatted: undefined } }
   const missing = execute([map('deposit', 'deposit', '800 zł')], source, missingDataset)
   assert(!missing.ok && missing.code === 'missing_canonical_value', 'missing deposit rejected')
-  const unrenderable = execute([map('deposit', 'customer_1_name', 'Anna Nowak')], [
+  const unrenderable = execute([{ ...map('deposit', 'customer_1_name', 'Anna Nowak'), nameForm: 'GENITIVE' }], [
     { blockId: 'deposit', paragraphXml: p('Anna Nowak') },
   ])
-  assert(!unrenderable.ok && unrenderable.code === 'unrenderable_surface', 'unsupported name inflection rejected')
+  assert(visible(unrenderable, 'deposit') === 'Maria Kowalska', 'unsupported name inflection falls back to canonical CRM identity')
 })
 
 run('stale spans, overlap, and unsupported concepts fail closed without fallback', () => {

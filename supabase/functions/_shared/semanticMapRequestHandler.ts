@@ -4,6 +4,11 @@ export const SEMANTIC_MAP_TIMEOUT_MS = 45_000
 
 const ACCEPTED_CONTRACTS = [
   {
+    promptVersion: 'semantic-map-v8-customer-coverage',
+    formatName: 'contract_semantic_mappings_v8_customer_coverage',
+    required: ['semanticMappings', 'customerCoverage', 'extrasPlacement', 'extrasStructure'],
+  },
+  {
     promptVersion: 'semantic-map-v7-version-scoped-extras-structure',
     formatName: 'contract_semantic_mappings_v7_version_scoped_extras_structure',
     required: ['semanticMappings', 'extrasPlacement', 'extrasStructure'],

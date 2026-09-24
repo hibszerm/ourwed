@@ -10,8 +10,6 @@ import {
   renderCustomerAddress,
   renderLocationSummary,
 } from './quality/locationRendering'
-import { renderExactCanonicalIdentity } from './quality/partyFilledIdentity'
-import { normalizeForMatch } from './quality/normalize'
 import type { ResolvedSemanticMapping } from './semanticMapping'
 import { parseFlexibleDate } from '@/features/ai-contract-lab/semanticValueEquality'
 
@@ -59,7 +57,7 @@ export function executeSemanticMappings(input: {
   resolvedMappings: readonly ResolvedSemanticMapping[]
   canonicalDataset: ContractTransformationDataset
   sourceParagraphs: readonly { blockId: string; paragraphXml: string }[]
-  /** Source/example identities ordered to match customer_1_name/customer_2_name. */
+  /** Legacy compatibility input; semantic replacement authority is the canonical CRM dataset. */
   sourceCustomerIdentities?: readonly (string | undefined)[]
   /** Explicit offline-evaluation seam; production callers leave this unset. */
   evaluationNameFormResolver?: EvaluationNameFormResolver
@@ -111,7 +109,7 @@ export function executeSemanticMappings(input: {
         }
       }
     }
-    const rendered = renderCanonicalValue(executionMapping, input.canonicalDataset, input.sourceCustomerIdentities, input.evaluationNameFormResolver, input.customerNameFormResolver, executionDateMappings)
+    const rendered = renderCanonicalValue(executionMapping, input.canonicalDataset, input.evaluationNameFormResolver, input.customerNameFormResolver, executionDateMappings)
     if (!rendered.ok) {
       if (rendered.code === 'requires_user_input') {
         const role = dateRoleForMapping(mapping)
@@ -232,7 +230,6 @@ type RenderResult =
 function renderCanonicalValue(
   mapping: ResolvedSemanticMapping,
   dataset: ContractTransformationDataset,
-  sourceCustomerIdentities?: readonly (string | undefined)[],
   evaluationNameFormResolver?: EvaluationNameFormResolver,
   customerNameFormResolver?: CustomerNameFormResolver,
   executionDateMappings: readonly ResolvedSemanticMapping[] = [],
@@ -264,11 +261,9 @@ function renderCanonicalValue(
         const evaluatedValue = evaluationNameFormResolver?.(resolverInput)
         return { ok: true, value: evaluatedValue?.trim() ? evaluatedValue : canonicalName }
       }
-      const exactName = renderExactCanonicalIdentity(source, sourceCustomerIdentities?.[personIndex], canonicalName)
-      if (exactName) return { ok: true, value: exactName }
-      return normalizeForMatch(source) === normalizeForMatch(canonicalName)
-        ? { ok: true, value: canonicalName }
-        : { ok: false, code: 'unrenderable_surface' }
+      // A grounded name mapping authorizes replacement of this source identity.
+      // BASE and unresolved morphology always use the CRM value, never the sample text.
+      return { ok: true, value: canonicalName }
     }
     case 'customer_address': {
       if (mapping.customerIndexes !== undefined) {
