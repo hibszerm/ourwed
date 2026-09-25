@@ -45,11 +45,11 @@ assert.match(breakResult, /<w:br\/>/)
 const prefixSuffix = '<w:p><w:r><w:t>pre:ab</w:t></w:r><w:r><w:t>cd:suf</w:t></w:r></w:p>'
 assert.equal(visible(replace(prefixSuffix, 4, 8, 'Z')), 'pre:Z:suf')
 
-// Tabs inside a replaced span are removed with that replaced text; outside tabs remain.
+// Structural tab between a preserved numbered prefix and body remains; outside tabs remain.
 const selectedTab = '<w:p><w:r><w:t>1)</w:t><w:tab/></w:r><w:r><w:t>word</w:t></w:r></w:p>'
 const selectedTabResult = replace(selectedTab, 0, 6, '1)new')
 assert.equal(visible(selectedTabResult), '1)new')
-assert.doesNotMatch(selectedTabResult, /<w:tab\/>/)
+assert.match(selectedTabResult, /<w:tab\/>/)
 const outsideTab = '<w:p><w:r><w:t>before</w:t><w:tab/><w:t>after</w:t></w:r></w:p>'
 const outsideTabResult = replace(outsideTab, 0, 6, 'prior')
 assert.match(outsideTabResult, /<w:tab\/>/)

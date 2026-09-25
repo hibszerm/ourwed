@@ -65,14 +65,12 @@ export function replaceCanonicalSpanInParagraphXml(
     let next = paragraphXml
     for (let index = mapped.segments.length - 1; index >= 0; index--) {
       const segment = mapped.segments[index]!
-      const local = mapCanonicalRangeToTextNodes(next, segment.start, segment.end)
-      if (!local || local.segments.length !== 1) throw new Error('Grounded DOCX segment cannot be mapped safely')
-      next = spliceTextNodes(next, local, replacement[index]!)
+      next = replaceSingleGroundedSegment(next, segment.start, segment.end, replacement[index]!)
     }
     return next
   }
   if (mapped.segments.length !== 1) throw new Error('Cross-break replacement requires explicit target segments')
-  return spliceTextNodes(paragraphXml, mapped, replacement)
+  return replaceSingleGroundedSegment(paragraphXml, start, end, replacement)
 }
 
 export type GroundedTextSegment = { start: number; end: number }
@@ -123,6 +121,125 @@ export function replaceGroundedTextSpan(
 
 type TextNode = { start: number; end: number; decoded: string; raw: string; charStarts: number[]; charEnds: number[] }
 type MappedRange = { firstNode: number; firstOffset: number; lastNode: number; lastOffset: number; segments: GroundedTextSegment[] }
+type ReplacementTextPart = { nodeIndex: number; text: string }
+type ReplacementStylePlan = { parts: ReplacementTextPart[]; preserveInternalTabs: boolean }
+
+function replaceSingleGroundedSegment(xml: string, start: number, end: number, replacement: string): string {
+  const mapped = mapCanonicalRangeToTextNodes(xml, start, end)
+  if (!mapped || mapped.segments.length !== 1) throw new Error('Grounded DOCX segment cannot be mapped safely')
+  const stylePlan = chooseReplacementStylePlan(xml, start, end, replacement, mapped)
+  return spliceTextNodes(xml, mapped, stylePlan)
+}
+
+function visualRunSignature(runXml: string): string {
+  const properties = runXml.match(/<w:rPr\b[\s\S]*?<\/w:rPr>/)?.[0] ?? ''
+  return properties
+    .replace(/<w:lang\b[^>]*\/>/g, '')
+    .replace(/\s+w:hint=(?:"[^"]*"|'[^']*')/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function structuralPrefix(text: string): { kind: 'number' | 'bullet' | 'label'; value: string } | null {
+  const number = text.match(/^\s*(§\s*\d+(?:\.\d+)*(?:[.)])?|\d+(?:\.\d+)*[.)])\s*$/u)
+  if (number) return { kind: 'number', value: number[1]! }
+  const bullet = text.match(/^\s*([•*–—-])\s*$/u)
+  if (bullet) return { kind: 'bullet', value: bullet[1]! }
+  const label = text.match(/^\s*([\p{L}\p{N}][\p{L}\p{N}\s.-]{0,22}:)\s*$/u)
+  if (label) return { kind: 'label', value: label[1]! }
+  return null
+}
+
+function replacementStructuralPrefix(text: string): { kind: 'number' | 'bullet' | 'label'; value: string; end: number } | null {
+  const number = text.match(/^\s*(§\s*\d+(?:\.\d+)*(?:[.)])?|\d+(?:\.\d+)*[.)])/u)
+  if (number) return { kind: 'number', value: number[1]!, end: number[0].length }
+  const bullet = text.match(/^\s*([•*–—-])/u)
+  if (bullet) return { kind: 'bullet', value: bullet[1]!, end: bullet[0].length }
+  const label = text.match(/^\s*([\p{L}\p{N}][\p{L}\p{N}\s.-]{0,22}:)/u)
+  if (label) return { kind: 'label', value: label[1]!, end: label[0].length }
+  return null
+}
+
+function chooseReplacementStylePlan(xml: string, start: number, end: number, replacement: string, mapped: MappedRange): ReplacementStylePlan {
+  const model = buildParagraphRunModel(xml)
+  const runXmls = [...xml.matchAll(/<w:r\b[\s\S]*?<\/w:r>/g)].map((match) => match[0])
+  if (runXmls.length !== model.runs.length) throw new Error('Cannot preserve formatting: OOXML run map is inconsistent')
+  const textNodes = [...xml.matchAll(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/g)]
+  const runNodeIndexes: number[][] = runXmls.map(() => [])
+  let nodeIndex = 0
+  for (let runIndex = 0; runIndex < runXmls.length; runIndex++) {
+    const count = [...runXmls[runIndex]!.matchAll(/<w:t(?:\s[^>]*)?>[\s\S]*?<\/w:t>/g)].length
+    for (let offset = 0; offset < count; offset++) runNodeIndexes[runIndex]!.push(nodeIndex++)
+  }
+  if (nodeIndex !== textNodes.length) throw new Error('Cannot preserve formatting: text nodes do not belong to a unique run')
+
+  const charRuns = model.charMap.slice(start, end).map((entry) => entry.runIndex)
+  if (charRuns.length !== end - start || charRuns.some((runIndex) => !runXmls[runIndex])) {
+    throw new Error(`Cannot preserve formatting: grounded range [${start}, ${end}) has no unique run map`)
+  }
+  const runBounds = new Map<number, { start: number; end: number }>()
+  model.charMap.forEach((entry, offset) => {
+    const bounds = runBounds.get(entry.runIndex)
+    if (bounds) bounds.end = offset + 1
+    else runBounds.set(entry.runIndex, { start: offset, end: offset + 1 })
+  })
+  const selectedCounts = new Map<number, number>()
+  for (const runIndex of charRuns) selectedCounts.set(runIndex, (selectedCounts.get(runIndex) ?? 0) + 1)
+
+  const leadingRunIndex = charRuns[0]!
+  const leadingRunBounds = runBounds.get(leadingRunIndex)!
+  const leadingRunText = model.runs[leadingRunIndex]!.canonicalText
+  const sourcePrefix = structuralPrefix(leadingRunText)
+  const newPrefix = replacementStructuralPrefix(replacement)
+  const canKeepPrefix = sourcePrefix && newPrefix && sourcePrefix.kind === newPrefix.kind
+    && start === leadingRunBounds.start && end > leadingRunBounds.end
+    && leadingRunText.trim().length <= 24
+  const styleCounts = new Map<string, { count: number; runs: number[] }>()
+  for (const [runIndex, count] of selectedCounts) {
+    if (canKeepPrefix && runIndex === leadingRunIndex) continue
+    const signature = visualRunSignature(runXmls[runIndex]!)
+    const entry = styleCounts.get(signature) ?? { count: 0, runs: [] }
+    entry.count += count
+    entry.runs.push(runIndex)
+    styleCounts.set(signature, entry)
+  }
+
+  if (canKeepPrefix && newPrefix.end < replacement.length) {
+    const dominant = selectDominantStyle(styleCounts, start, end)
+    const bodyRun = dominant.runs.sort((a, b) => a - b).find((runIndex) => runNodeIndexes[runIndex]!.some((index) => index >= mapped.firstNode && index <= mapped.lastNode))
+    if (bodyRun === undefined || !runNodeIndexes[leadingRunIndex]!.length) {
+      throw new Error(`Cannot preserve formatting: structural prefix in grounded range [${start}, ${end}) has no body run`)
+    }
+    return {
+      parts: [
+        { nodeIndex: runNodeIndexes[leadingRunIndex]![0]!, text: newPrefix.value },
+        { nodeIndex: runNodeIndexes[bodyRun]!.find((index) => index >= mapped.firstNode && index <= mapped.lastNode)!, text: replacement.slice(newPrefix.end) },
+      ],
+      preserveInternalTabs: true,
+    }
+  }
+
+  if (styleCounts.size === 0) return { parts: [{ nodeIndex: mapped.firstNode, text: replacement }], preserveInternalTabs: false }
+  const dominant = selectDominantStyle(styleCounts, start, end)
+  const targetRun = dominant.runs.sort((a, b) => a - b).find((runIndex) => runNodeIndexes[runIndex]!.some((index) => index >= mapped.firstNode && index <= mapped.lastNode))
+  if (targetRun === undefined) throw new Error(`Cannot preserve formatting: no text run for grounded range [${start}, ${end})`)
+  const targetNode = runNodeIndexes[targetRun]!.find((index) => index >= mapped.firstNode && index <= mapped.lastNode)!
+  const hasInternalTab = /<w:tab\b[^>]*\/>/.test(xml.slice(textNodes[mapped.firstNode]!.index! + textNodes[mapped.firstNode]![0].length, textNodes[mapped.lastNode]!.index!))
+  if (hasInternalTab && targetRun === leadingRunIndex) {
+    throw new Error(`Cannot preserve formatting safely: structural tab overlaps grounded range [${start}, ${end})`)
+  }
+  return { parts: [{ nodeIndex: targetNode, text: replacement }], preserveInternalTabs: true }
+}
+
+function selectDominantStyle(
+  counts: Map<string, { count: number; runs: number[] }>, start: number, end: number,
+): { count: number; runs: number[] } {
+  const ordered = [...counts.values()].sort((a, b) => b.count - a.count)
+  if (!ordered.length || (ordered[1] && ordered[0]!.count === ordered[1]!.count)) {
+    throw new Error(`Cannot preserve formatting safely: no dominant run style for grounded range [${start}, ${end})`)
+  }
+  return ordered[0]!
+}
 
 function mapCanonicalRangeToTextNodes(xml: string, start: number, end: number): MappedRange | null {
   const nodes: TextNode[] = []
@@ -204,8 +321,10 @@ function mapCanonicalRangeToTextNodes(xml: string, start: number, end: number): 
   return { firstNode, firstOffset, lastNode, lastOffset, segments }
 }
 
-function spliceTextNodes(xml: string, range: MappedRange, replacement: string): string {
+function spliceTextNodes(xml: string, range: MappedRange, stylePlan: ReplacementStylePlan): string {
   const nodes = [...xml.matchAll(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/g)]
+  const insertions = new Map<number, string>()
+  for (const part of stylePlan.parts) insertions.set(part.nodeIndex, (insertions.get(part.nodeIndex) ?? '') + part.text)
   const edits: Array<{ start: number; end: number; value: string }> = []
   for (let i = range.firstNode; i <= range.lastNode; i++) {
     const m = nodes[i]!
@@ -224,7 +343,7 @@ function spliceTextNodes(xml: string, range: MappedRange, replacement: string): 
     }
     const from = i === range.firstNode ? (charStarts[range.firstOffset] ?? raw.length) : 0
     const to = i === range.lastNode ? (range.lastOffset > 0 ? charEnds[range.lastOffset - 1]! : 0) : raw.length
-    const value = raw.slice(0, from) + (i === range.firstNode ? escapeXml(replacement) : '') + raw.slice(to)
+    const value = raw.slice(0, from) + escapeXml(insertions.get(i) ?? '') + raw.slice(to)
     edits.push({ start: contentStart, end: contentEnd, value })
   }
   let result = xml
@@ -233,7 +352,7 @@ function spliceTextNodes(xml: string, range: MappedRange, replacement: string): 
   // the shared paragraph text model intentionally treats it as layout control,
   // not a character. Remove only tabs bracketed by the replaced text nodes.
   const refreshedNodes = [...result.matchAll(/<w:t(?:\s[^>]*)?>[\s\S]*?<\/w:t>/g)]
-  if (range.lastNode > range.firstNode) {
+  if (!stylePlan.preserveInternalTabs && range.lastNode > range.firstNode) {
     const first = refreshedNodes[range.firstNode]!
     const last = refreshedNodes[range.lastNode]!
     const betweenStart = first.index! + first[0].length
