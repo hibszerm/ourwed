@@ -1,12 +1,14 @@
 # Contract generation spike
 
-This isolated experiment accepts an existing DOCX, current structured wedding facts, extras, financial inputs, a controlled generation date, and user answers. `ContractAi` is the provider boundary: a planner returns either Polish missing-input requirements or a grounded paragraph edit plan; a separate reviewer audits the candidate; on FAIL the orchestrator permits one repair and one final review. No model client, API key, production entry point, or UI is included.
+This offline experiment accepts an existing DOCX and current wedding facts. `buildBlockIndex` exposes stable `part#pN` IDs for body paragraphs, table-cell paragraphs, headers, and footers, with neighboring text context. The model boundary returns final Polish text as block operations; it does not return character offsets. The original DOCX package remains the physical base.
 
-`readSource` reads body paragraphs (including table cells), tables via their paragraphs, and header/footer paragraphs from the DOCX package. Edits are applied to the original package with the existing DOCX paragraph editor, which preserves the package and formatting around changed paragraphs. Deterministic checks then validate required facts, known stale fixture facts, amounts, selected extras, signature tables, unchanged header/footer/styles, package text, and conclusion date/place rules.
+Supported operations are `REPLACE_BLOCK_TEXT`, `INSERT_BLOCK_BEFORE`, `INSERT_BLOCK_AFTER`, and sparse `DELETE_BLOCK`. Replacements preserve paragraph properties and use a dominant source body run style, retaining a short structural prefix separately where applicable. Insertions require an explicit same-part `styleSourceBlockId`; inserted paragraph properties and default run style are copied from that source, with numbering, section properties, page breaks, and keep-next removed.
+
+Missing-input detection remains a planning result before operations are applied. The contract date and place rules are supplied as authoritative input: replace a source conclusion date with the generation date, preserve an existing place, and do not invent an absent place. For the Julia/Maksymilian fixture, preserve source Video Standard package wording exactly. A separate reviewer sees source facts, source text, and candidate text. A single repair returns block operations constrained to IDs cited in review findings, followed by final review.
 
 Fixtures:
 
-- `fixtures/source-video-standard.docx` is the actual uploaded source template.
-- `fixtures/work-generated-reference.docx` is the supplied successful Work output reference. It demonstrates the wedding data, unchanged package, two extras, and adjusted §1 references. Its conclusion fields are blank dotted fields, so it does not demonstrate the new generation-date rule.
+- `fixtures/source-video-standard.docx` is the uploaded source template.
+- `fixtures/work-generated-reference.docx` is the supplied successful Work output reference.
 
-The offline acceptance test verifies fixture ingestion, arithmetic, generic missing-input stop, answer propagation into a second attempt, conclusion-date/place input rules, and reference output facts. It does not make an AI call or claim that this spike has transformed the real fixture. The next acceptance step needs two provider calls in the no-repair case: transformation/planning (including missing-input detection) and independent review. A failing review adds one repair and a final review, for four calls total.
+The synthetic acceptance test exercises full paragraph rewrites (including contextual payment/date, Polish locations, and internal-reference examples), insertion style selection, package preservation, and unchanged tables/signatures/header/footer. This remains an isolated spike with no provider client, API key, production UI, or deployment path.

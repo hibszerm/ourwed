@@ -1,13 +1,13 @@
 import JSZip from 'jszip'
-import { applyDocxParagraphEditsAndInsertions } from '@/features/documents/template/docxParagraphEditor'
-import { extractDocxParagraphsFromXml } from '@/features/documents/template/extractDocxParagraphs'
+import { applyBlockOperations, remapOperationsToCurrentBlocks, type BlockOperation, type EditableBlock } from './blockDocxEditor'
 
 export type MissingInput = { id: string; label: string; explanation: string; inputType: 'text' | 'date' | 'number'; required: true; sourceContext: string }
-export type SourceBlock = { part: string; index: number; text: string }
+export type SourceBlock = EditableBlock
 export type WeddingFacts = {
   bride: { name: string; phone: string; email: string }
   groom: { name: string; phone: string }
   weddingDate: string
+  contractAddress: string
   contractValuePln: number
   depositPln: number
   remainingDueDate: string
@@ -23,32 +23,19 @@ export type GenerationInput = {
   financials: { contractValuePln: number; depositPln: number; remainingPln: number }
   userProvidedAnswers: Array<{ id: string; value: string }>
 }
-export type EditPlan = { edits: Array<{ index: number; text: string; span?: { start: number; end: number; replacement: string | string[] } }>; insertions: Array<{ afterIndex: number; paragraphs: string[] }> }
+export type EditPlan = { operations: BlockOperation[] }
 export type ReviewResult = { status: 'PASS' } | { status: 'FAIL'; issues: string[] }
 export type GenerationResult = { status: 'MISSING_INPUT'; missingInputs: MissingInput[] } | { status: 'FAILED'; issues: string[] } | { status: 'COMPLETED'; docxBytes: ArrayBuffer; review: ReviewResult }
 export interface ContractAi {
-  plan(input: GenerationInput): Promise<{ missingInputs: MissingInput[]; editPlan?: EditPlan }>
+  plan(input: GenerationInput): Promise<{ missingInputs: MissingInput[]; blockOperations?: BlockOperation[] }>
   review(args: { source: GenerationInput['sourceDocument']; input: GenerationInput; candidate: SourceBlock[] }): Promise<ReviewResult>
-  repair(args: { input: GenerationInput; candidate: SourceBlock[]; issues: string[] }): Promise<EditPlan>
+  repair(args: { input: GenerationInput; source: SourceBlock[]; candidate: SourceBlock[]; issues: string[] }): Promise<BlockOperation[]>
 }
 
 export async function readSource(bytes: ArrayBuffer, fileName: string): Promise<GenerationInput['sourceDocument']> {
-  const zip = await JSZip.loadAsync(bytes)
-  const blocks: SourceBlock[] = []
-  for (const path of Object.keys(zip.files).filter((p) => /^word\/(document|header\d+|footer\d+)\.xml$/.test(p)).sort()) {
-    const xml = await zip.file(path)!.async('string')
-    if (path === 'word/document.xml') {
-      const parsed = extractDocxParagraphsFromXml(xml)
-      parsed.paragraphs.forEach((p) => blocks.push({ part: path, index: p.index, text: p.text }))
-    } else {
-      const paras = [...xml.matchAll(/<w:p\b[\s\S]*?<\/w:p>/g)]
-      paras.forEach((m, index) => blocks.push({ part: path, index, text: [...m[0].matchAll(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/g)].map((x) => decodeXml(x[1]!)).join('') }))
-    }
-  }
+  const blocks = await (await import('./blockDocxEditor')).buildBlockIndex(bytes)
   return { fileName, blocks }
 }
-
-function decodeXml(value: string): string { return value.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'") }
 
 export function makeInput(args: Omit<GenerationInput, 'financials' | 'conclusion'>): GenerationInput {
   const remainingPln = args.wedding.contractValuePln - args.wedding.depositPln
@@ -69,13 +56,16 @@ function normalize(text: string): string { return text.normalize('NFC').replace(
 export async function runGeneration(sourceBytes: ArrayBuffer, input: GenerationInput, ai: ContractAi): Promise<GenerationResult> {
   const planned = await ai.plan(input)
   if (planned.missingInputs.some((x) => x.required)) return { status: 'MISSING_INPUT', missingInputs: planned.missingInputs }
-  if (!planned.editPlan) return { status: 'FAILED', issues: ['Plan nie zawiera zmian dokumentu'] }
-  let candidateBytes = await applyDocxParagraphEditsAndInsertions(sourceBytes, planned.editPlan.edits, planned.editPlan.insertions)
+  if (!planned.blockOperations) return { status: 'FAILED', issues: ['Plan nie zawiera operacji blokowych'] }
+  let candidateBytes = await applyBlockOperations(sourceBytes, planned.blockOperations)
   let blocks = (await readSource(candidateBytes, input.sourceDocument.fileName)).blocks
   let review = await ai.review({ source: input.sourceDocument, input, candidate: blocks })
   if (review.status === 'FAIL') {
-    const repair = await ai.repair({ input, candidate: blocks, issues: review.issues })
-    candidateBytes = await applyDocxParagraphEditsAndInsertions(candidateBytes, repair.edits, repair.insertions)
+    const repair = await ai.repair({ input, source: input.sourceDocument.blocks, candidate: blocks, issues: review.issues })
+    const implicated = new Set(review.issues.flatMap((issue) => input.sourceDocument.blocks.filter((block) => issue.includes(block.blockId)).map((block) => block.blockId)))
+    if (repair.some((operation) => !implicated.has('blockId' in operation ? operation.blockId : operation.anchorBlockId))) return { status: 'FAILED', issues: ['Naprawa wskazała bloki spoza ustaleń recenzji'] }
+    const remappedRepair = remapOperationsToCurrentBlocks(repair, input.sourceDocument.blocks, blocks, planned.blockOperations)
+    candidateBytes = await applyBlockOperations(candidateBytes, remappedRepair)
     blocks = (await readSource(candidateBytes, input.sourceDocument.fileName)).blocks
     review = await ai.review({ source: input.sourceDocument, input, candidate: blocks })
   }

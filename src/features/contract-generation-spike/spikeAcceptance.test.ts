@@ -12,7 +12,7 @@ const source = await readSource(sourceBuffer, 'source-video-standard.docx')
 const wedding: GenerationInput['wedding'] = {
   bride: { name: 'Julia Kanicka', phone: '555666898', email: 'kanickaj7@wp.pl' },
   groom: { name: 'Maksymilian Ruth', phone: '675264927' },
-  weddingDate: '20.09.2026', contractValuePln: 14200, depositPln: 1000, remainingDueDate: '20.09.2026',
+  weddingDate: '20.09.2026', contractAddress: 'Juliusza Słowackiego 6/17, 41-800 Zabrze', contractValuePln: 14200, depositPln: 1000, remainingDueDate: '20.09.2026',
   locations: {
     groomPreparations: 'Wolności 110, 30-661 Kraków', bridePreparations: 'Marii Konopnickiej 6, 04-218 Kraków',
     ceremony: 'Zamek Królewski na Wawelu – Państwowe Zbiory Sztuki, Wawel 5, 31-001 Kraków',
@@ -42,7 +42,7 @@ const supplied = makeInput({ generationDate: input.generationDate, sourceDocumen
 assert.equal(supplied.userProvidedAnswers[0]?.value, '90010112345', 'user answer enters the next authoritative generation input')
 let answeredReviewCalls = 0
 const answeredAi: ContractAi = {
-  async plan(nextInput) { assert.equal(nextInput.userProvidedAnswers[0]?.value, '90010112345'); return { missingInputs: [], editPlan: { edits: [], insertions: [] } } },
+  async plan(nextInput) { assert.equal(nextInput.userProvidedAnswers[0]?.value, '90010112345'); return { missingInputs: [], blockOperations: [] } },
   async review() { answeredReviewCalls++; return { status: 'PASS' } },
   async repair() { throw new Error('repair must not run') },
 }
