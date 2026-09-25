@@ -10,6 +10,7 @@ import { cloneArrayBuffer } from '@/features/documents/mapping/extraction/source
 import {
   buildParagraphRunModel,
   canonicalizeParagraphText,
+  extractCanonicalBreakOffsets,
   escapeXml,
   extractCanonicalParagraphText,
   unescapeXml,
@@ -127,7 +128,8 @@ function mapCanonicalRangeToTextNodes(xml: string, start: number, end: number): 
   const nodes: TextNode[] = []
   const re = /<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/g
   let m: RegExpExecArray | null
-  let canonical = ''
+  let rawVisible = ''
+  const rawOwners: Array<{ node: number; offset: number; rawStart: number; rawEnd: number }> = []
   while ((m = re.exec(xml))) {
     const raw = m[1] ?? ''
     const decoded = unescapeXml(raw)
@@ -141,22 +143,41 @@ function mapCanonicalRangeToTextNodes(xml: string, start: number, end: number): 
       charEnds.push(rawOffset)
     }
     const node = { start: m.index + m[0].indexOf('>') + 1, end: m.index + m[0].lastIndexOf('</w:t>'), decoded, raw, charStarts, charEnds }
+    const nodeIndex = nodes.length
+    const nodeRawStart = rawVisible.length
     nodes.push(node)
-    canonical += decoded
+    for (let offset = 0; offset < decoded.length; offset++) {
+      rawOwners.push({ node: nodeIndex, offset, rawStart: nodeRawStart + offset, rawEnd: nodeRawStart + offset + 1 })
+    }
+    rawVisible += decoded
   }
-  const normalized = canonicalizeParagraphText(canonical)
-  if (normalized.length !== canonical.length || normalized !== extractCanonicalParagraphText(xml)) return null
-  if (end > normalized.length) return null
-  let offset = 0
-  let firstNode = -1, firstOffset = -1, lastNode = -1, lastOffset = -1
-  for (let ni = 0; ni < nodes.length; ni++) {
-    const node = nodes[ni]!
-    for (let ci = 0; ci < node.decoded.length; ci++, offset++) {
-      if (offset === start) { firstNode = ni; firstOffset = ci }
-      if (offset === end - 1) { lastNode = ni; lastOffset = ci + 1 }
+  const normalized = canonicalizeParagraphText(rawVisible)
+  if (normalized !== extractCanonicalParagraphText(xml) || start < 0 || end <= start || end > normalized.length) return null
+
+  // Normalize one grapheme cluster at a time so a composed character maps back
+  // to every source code unit, even when its base and combining mark are in
+  // different w:t nodes. Each canonical UTF-16 unit retains its raw interval.
+  const canonicalOwners: Array<{ rawStart: number; rawEnd: number; clusterStart: number; clusterEnd: number }> = []
+  const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
+  for (const cluster of segmenter.segment(rawVisible)) {
+    const clusterStart = cluster.index
+    const clusterEnd = clusterStart + cluster.segment.length
+    const normalizedCluster = canonicalizeParagraphText(cluster.segment)
+    for (let offset = 0; offset < normalizedCluster.length; offset++) {
+      canonicalOwners.push({ rawStart: clusterStart, rawEnd: clusterEnd, clusterStart, clusterEnd })
     }
   }
-  if (firstNode < 0 || lastNode < 0) return null
+  if (canonicalOwners.length !== normalized.length) return null
+  const firstOwner = canonicalOwners[start]!
+  const lastOwner = canonicalOwners[end - 1]!
+  // Never permit a span to cut through a normalized grapheme cluster.
+  if (start > 0 && canonicalOwners[start - 1]!.clusterStart === firstOwner.clusterStart
+    || end < normalized.length && canonicalOwners[end]!.clusterStart === lastOwner.clusterStart) return null
+  const firstRawOwner = rawOwners[firstOwner.rawStart]
+  const lastRawOwner = rawOwners[lastOwner.rawEnd - 1]
+  if (!firstRawOwner || !lastRawOwner) return null
+  const firstNode = firstRawOwner.node, firstOffset = firstRawOwner.offset
+  const lastNode = lastRawOwner.node, lastOffset = lastRawOwner.offset + 1
   // Only ordinary line breaks may occur inside a grounded canonical range.
   const first = nodes[firstNode]!, last = nodes[lastNode]!
   const rawBetween = xml.slice(first.end, last.start)
@@ -168,11 +189,9 @@ function mapCanonicalRangeToTextNodes(xml: string, start: number, end: number): 
     .replace(/<\/?w:r\b[^>]*>/g, '')
     .replace(/<\/?w:t\b[^>]*>/g, '')
     .replace(/<\/?w:hyperlink\b[^>]*>/g, '')
+    .replace(/<w:tab\b[^>]*\/>/g, '')
   if (/<w:|<\//.test(withoutBreaks)) return null
-  const breakOffsets = breaks.map((item) => {
-    const absolute = first.end + item.index!
-    return nodes.reduce((total, node) => total + (node.start < absolute ? node.decoded.length : 0), 0)
-  }).filter((position) => position > start && position < end)
+  const breakOffsets = extractCanonicalBreakOffsets(xml).filter((position) => position > start && position < end)
   if (breakOffsets.some((position, index) => index > 0 && position <= breakOffsets[index - 1]!)) return null
   const boundaries = [start, ...breakOffsets, end]
   const segments: GroundedTextSegment[] = []
@@ -210,6 +229,18 @@ function spliceTextNodes(xml: string, range: MappedRange, replacement: string): 
   }
   let result = xml
   for (const edit of edits.sort((a, b) => b.start - a.start)) result = result.slice(0, edit.start) + edit.value + result.slice(edit.end)
+  // A w:tab between affected text nodes falls inside the grounded span because
+  // the shared paragraph text model intentionally treats it as layout control,
+  // not a character. Remove only tabs bracketed by the replaced text nodes.
+  const refreshedNodes = [...result.matchAll(/<w:t(?:\s[^>]*)?>[\s\S]*?<\/w:t>/g)]
+  if (range.lastNode > range.firstNode) {
+    const first = refreshedNodes[range.firstNode]!
+    const last = refreshedNodes[range.lastNode]!
+    const betweenStart = first.index! + first[0].length
+    const betweenEnd = last.index!
+    const between = result.slice(betweenStart, betweenEnd).replace(/<w:tab\b[^>]*\/>/g, '')
+    result = result.slice(0, betweenStart) + between + result.slice(betweenEnd)
+  }
   return result
 }
 
