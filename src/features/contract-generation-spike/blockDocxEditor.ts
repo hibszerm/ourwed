@@ -182,7 +182,55 @@ export async function applyBlockOperations(bytes: ArrayBuffer, operations: Block
     })
     let cursor = 0
     xml = xml.replace(/<w:p\b[\s\S]*?<\/w:p>/g, () => changed[cursor++] ?? '')
+    if (part === 'word/document.xml') xml = collapseRedundantEmptyParagraphsBeforePageBreak(xml)
     zip.file(part, xml)
   }
   return zip.generateAsync({ type: 'arraybuffer', compression: 'DEFLATE' })
+}
+
+/** Keep one authored spacer before a hard page-break heading, but remove any
+ * redundant trailing empty paragraphs that can spill onto a page by themselves. */
+function collapseRedundantEmptyParagraphsBeforePageBreak(xml: string): string {
+  const bodyStart = xml.match(/<w:body\b[^>]*>/)
+  const bodyClose = xml.lastIndexOf('</w:body>')
+  if (!bodyStart || bodyClose < bodyStart.index! + bodyStart[0].length) return xml
+  const contentStart = bodyStart.index! + bodyStart[0].length
+  const body = xml.slice(contentStart, bodyClose)
+  const paragraphs: Array<{ start: number; end: number; xml: string; inTableCell: boolean }> = []
+  const paragraphPattern = /<w:p\b[\s\S]*?<\/w:p>/g
+  let match: RegExpExecArray | null
+  while ((match = paragraphPattern.exec(body))) {
+    const prefix = body.slice(0, match.index)
+    const tableCellDepth = [...prefix.matchAll(/<w:tc\b[^>]*>/g)].length - [...prefix.matchAll(/<\/w:tc\s*>/g)].length
+    paragraphs.push({ start: match.index, end: match.index + match[0].length, xml: match[0], inTableCell: tableCellDepth > 0 })
+  }
+  const emptySafe = (paragraph: string) => {
+    if (extractCanonicalParagraphText(paragraph) !== '') return false
+    if (/<w:sectPr\b/.test(paragraph)) return false
+    const content = paragraph.replace(/<w:pPr\b[\s\S]*?<\/w:pPr>/, '')
+    if (/<w:(?:br|tab|drawing|object|pict|fldChar|instrText|bookmarkStart|bookmarkEnd|hyperlink|footnoteReference|endnoteReference)\b/.test(content)) return false
+    return [...content.matchAll(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/g)].every((text) => text[1] === '')
+  }
+  const remove: Array<{ start: number; end: number }> = []
+  for (let index = 0; index < paragraphs.length; index++) {
+    const current = paragraphs[index]!
+    if (current.inTableCell || !/<w:pageBreakBefore\b(?:[^>]*\bw:val\s*=\s*["'](?:1|true|on)["'][^>]*)?\s*\/>/.test(current.xml)) continue
+    let previousIndex = index - 1
+    let redundant = 0
+    while (previousIndex >= 0) {
+      const previous = paragraphs[previousIndex]!
+      if (previous.inTableCell || body.slice(previous.end, previousIndex === index - 1 ? current.start : paragraphs[previousIndex + 1]!.start).trim() !== '' || !emptySafe(previous.xml)) break
+      redundant++
+      previousIndex--
+    }
+    if (redundant > 1) {
+      // Remove only the empty spacer closest to the page-break paragraph.
+      const previous = paragraphs[index - 1]!
+      remove.push({ start: previous.start, end: previous.end })
+    }
+  }
+  if (!remove.length) return xml
+  let updated = body
+  for (const range of remove.sort((a, b) => b.start - a.start)) updated = updated.slice(0, range.start) + updated.slice(range.end)
+  return xml.slice(0, contentStart) + updated + xml.slice(bodyClose)
 }

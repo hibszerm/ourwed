@@ -74,4 +74,17 @@ for (const part of Object.keys(fixtureZip.files).filter((path) => /^word\/(heade
   assert.equal(await fixtureEditedZip.file(part)!.async('string'), await fixtureZip.file(part)!.async('string'))
 }
 
+// Focused pagination regression: retain the authored page break and one spacer,
+// while removing only the redundant empty paragraph that can occupy a page alone.
+const layoutZip = new JSZip()
+layoutZip.file('word/document.xml', '<w:document xmlns:w="urn:w"><w:body><w:p><w:r><w:t>Edited clause</w:t></w:r></w:p><w:p><w:pPr><w:tabs><w:tab w:val="left" w:pos="522"/></w:tabs></w:pPr><w:r><w:t></w:t></w:r></w:p><w:p><w:r><w:t></w:t></w:r></w:p><w:p><w:pPr><w:pageBreakBefore w:val="1"/></w:pPr><w:r><w:t>§ 2</w:t></w:r></w:p><w:sectPr/></w:body></w:document>')
+const layoutBytes = await layoutZip.generateAsync({ type: 'arraybuffer' })
+const layoutBlocks = await buildBlockIndex(layoutBytes)
+const layoutEdited = await applyBlockOperations(layoutBytes, [{ blockId: layoutBlocks[0]!.blockId, operation: 'REPLACE_BLOCK_TEXT', finalText: 'Edited clause updated' }])
+const layoutEditedZip = await JSZip.loadAsync(layoutEdited)
+const layoutXml = await layoutEditedZip.file('word/document.xml')!.async('string')
+const beforeSectionBreak = layoutXml.slice(0, layoutXml.indexOf('<w:pageBreakBefore'))
+assert.equal((beforeSectionBreak.match(/<w:p\b/g) ?? []).length - 1, 2, 'only one empty spacer remains before the explicit page break')
+assert.match(layoutXml, /<w:pageBreakBefore w:val="1"\/>/, 'the authored §2 page break is preserved')
+
 console.log('PASS block DOCX editor: whole contextual edits, package preservation, explicit insertion style, tables, signatures, header/footer')
