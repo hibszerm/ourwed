@@ -328,7 +328,7 @@ export async function runMultiTemplateAcceptance(caseId: string, options: Harnes
     await writeReports(result, outputDirectory); return result
   }
 
-  const validation = await validateCandidate(sourceArrayBuffer, candidateArrayBuffer, input)
+  const validation = await validateCandidate(sourceArrayBuffer, candidateArrayBuffer, input, allOperations)
   result.deterministicFindings = validation
   result.deterministicValidation = validation.length ? 'FAIL' : 'PASS'
   result.protectedLegalWording = result.reviewResult === 'PASS' ? 'PASS' : 'FAIL'

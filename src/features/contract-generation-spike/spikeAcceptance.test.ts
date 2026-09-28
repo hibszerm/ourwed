@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { applyBlockOperations } from './blockDocxEditor'
-import { runGeneration, makeInput, readSource, conclusionRule, validatePlannedConclusion, KNOWN_OLD_VALUES, findInputConflicts, applyConflictOverrides, AUTHORITATIVE_FIELD_SEMANTICS, TRANSFORMATION_INSTRUCTIONS, REVIEW_INSTRUCTIONS, classifyBlock, type ContractAi, type GenerationInput, type SourceBlock } from './generator'
+import { runGeneration, makeInput, readSource, conclusionRule, validatePlannedConclusion, findInputConflicts, applyConflictOverrides, AUTHORITATIVE_FIELD_SEMANTICS, TRANSFORMATION_INSTRUCTIONS, REVIEW_INSTRUCTIONS, classifyBlock, type ContractAi, type GenerationInput, type SourceBlock } from './generator'
 
 const here = fileURLToPath(new URL('.', import.meta.url))
 const sourceBytes = await readFile(`${here}fixtures/source-video-standard.docx`)
@@ -167,5 +167,4 @@ assert.match(refText, /Video Standard/)
 
 const noPlace = conclusionRule([{ part: 'word/document.xml', index: 0, text: 'Zawarta w dniu 22.09.2026 r., zwana dalej umową' }], '25.09.2026')
 assert.deepEqual(noPlace, { replaceDate: true, sourceDate: '22.09.2026', replacementDate: '25.09.2026' }, 'absence of source conclusion place does not authorize city insertion')
-assert.ok(KNOWN_OLD_VALUES.every((value) => source.blocks.some((b: SourceBlock) => b.text.includes(value))), 'old-data guard fixture values come from actual source')
 console.log('PASS contract-generation-spike offline acceptance (fixture preparation, missing input, supplied answer, dates, place rule, finance, extras, package)')

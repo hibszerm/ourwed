@@ -1,5 +1,6 @@
 import JSZip from 'jszip'
 import { applyBlockOperations, remapOperationsToCurrentBlocks, type BlockOperation, type EditableBlock } from './blockDocxEditor'
+import { unescapeXml } from '@/features/documents/template/canonicalParagraph'
 
 export type MissingInput = { id: string; label: string; explanation: string; inputType: 'text' | 'date' | 'number'; required: true; sourceContext: string }
 export type SourceBlock = EditableBlock & { contentClass: 'factual_dynamic' | 'package_service' | 'protected_legal_static' }
@@ -58,13 +59,27 @@ function validDateTimestamp(day: number, month: number, year: number): number | 
   return date.getUTCFullYear() === fullYear && date.getUTCMonth() === month - 1 && date.getUTCDate() === day ? timestamp : undefined
 }
 
-function parsePolishDate(value: string): number | undefined {
+export function parsePolishDate(value: string): number | undefined {
   const match = value.trim().match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/)
   if (match) return validDateTimestamp(Number(match[1]), Number(match[2]), Number(match[3]))
   const written = value.trim().match(/^(\d{1,2})\s+(stycznia|lutego|marca|kwietnia|maja|czerwca|lipca|sierpnia|września|października|listopada|grudnia)\s+(\d{4})(?:\s+roku)?$/i)
   if (!written) return undefined
   const month = polishMonths[written[2]!.toLocaleLowerCase('pl-PL')]
   return month ? validDateTimestamp(Number(written[1]), month, Number(written[3])) : undefined
+}
+
+const polishDateOccurrences = /(?:\d{1,2}[./-]\d{1,2}[./-]\d{4}|\b\d{1,2}\s+(?:stycznia|lutego|marca|kwietnia|maja|czerwca|lipca|sierpnia|września|października|listopada|grudnia)\s+\d{4}(?:\s+roku)?)/gi
+
+export function dateTimestampsInText(text: string): number[] {
+  return [...text.matchAll(polishDateOccurrences)].flatMap((match) => {
+    const timestamp = parsePolishDate(match[0])
+    return timestamp === undefined ? [] : [timestamp]
+  })
+}
+
+export function hasSemanticDate(text: string, authoritativeDate: string): boolean {
+  const expected = parsePolishDate(authoritativeDate)
+  return expected !== undefined && dateTimestampsInText(text).includes(expected)
 }
 
 const conclusionDateToken = /(?:\d{1,2}[./-]\d{1,2}[./-]\d{2,4}|\b\d{1,2}\s+(?:stycznia|lutego|marca|kwietnia|maja|czerwca|lipca|sierpnia|września|października|listopada|grudnia)\s+\d{4}\b|\.{3,})/i
@@ -189,6 +204,23 @@ export function formatPlnInteger(amount: number): string {
   return `${String(amount).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} zł`
 }
 
+export function moneyAmountsInGrosz(text: string): number[] {
+  const amounts: number[] = []
+  const pattern = /(?<![\p{L}\p{N}])((?:\d{1,3}(?:[ \u00a0\u202f]\d{3})+|\d+)(?:[,.]\d{2})?)\s*zł(?![\p{L}\p{N}])/giu
+  for (const match of text.matchAll(pattern)) {
+    const value = match[1]!.replace(/[\s\u00a0\u202f]/g, '')
+    const [whole, fractional = '00'] = value.split(/[,.]/)
+    const integer = Number(whole)
+    const cents = Number(fractional)
+    if (Number.isSafeInteger(integer) && Number.isInteger(cents)) amounts.push(integer * 100 + cents)
+  }
+  return amounts
+}
+
+export function hasMoneyAmount(text: string, authoritativePln: number): boolean {
+  return Number.isSafeInteger(authoritativePln) && authoritativePln >= 0 && moneyAmountsInGrosz(text).includes(authoritativePln * 100)
+}
+
 export function normalizeAuthoritativePlnText(text: string, amounts: number[]): string {
   const authoritative = new Set(amounts)
   return text.replace(/(^|[^\p{L}\p{N}])(\d[\d\s\u00a0\u202f]*)\s*zł(?![\p{L}\p{N}])/giu, (token, boundary: string, digits: string) => {
@@ -214,6 +246,18 @@ export function hasExactFact(candidateText: string, authoritativeValue: string):
   return normalize(candidateText).includes(normalize(authoritativeValue))
 }
 
+export function hasPolishNameFacts(candidateText: string, authoritativeName: string): boolean {
+  if (hasExactFact(candidateText, authoritativeName)) return true
+  const words = (value: string) => value.normalize('NFC').toLocaleLowerCase('pl-PL').match(/[\p{L}]+/gu) ?? []
+  const expectedWords = words(authoritativeName)
+  const candidateWords = words(candidateText)
+  return expectedWords.length > 0 && expectedWords.every((expected) => {
+    const prefixLength = expected.length <= 4 ? expected.length : Math.max(4, expected.length - 2)
+    const prefix = expected.slice(0, prefixLength)
+    return candidateWords.some((candidate) => candidate.startsWith(prefix) && Math.abs(candidate.length - expected.length) <= 3)
+  })
+}
+
 export function hasNaturalLocationFacts(candidateText: string, authoritativeLocation: string): boolean {
   const postalCode = authoritativeLocation.match(/\b\d{2}-\d{3}\b/)?.[0]
   if (!postalCode || !candidateText.includes(postalCode)) return false
@@ -222,7 +266,12 @@ export function hasNaturalLocationFacts(candidateText: string, authoritativeLoca
   if (!streetNumber) return false
   const escapedPostal = postalCode.replace('-', '\\-')
   const escapedNumber = streetNumber.replace('/', '\\/')
-  return new RegExp(`\\b${escapedNumber}\\b.{0,120}\\b${escapedPostal}\\b`).test(candidateText)
+  const addressPattern = new RegExp(`\\b${escapedNumber}\\b.{0,120}\\b${escapedPostal}\\b`)
+  const addressMatch = addressPattern.exec(candidateText)
+  if (!addressMatch) return false
+  const streetName = authoritativeLocation.match(/\bul\.?\s+(.+?)\s+\d+(?:\/\d+)?/i)?.[1]
+  const start = Math.max(0, addressMatch.index - 100)
+  return !streetName || hasPolishNameFacts(candidateText.slice(start, addressMatch.index + addressMatch[0].length), streetName)
 }
 
 export function findStaleValues(candidateText: string, staleValues: string[]): string[] {
@@ -275,6 +324,7 @@ export async function runGeneration(sourceBytes: ArrayBuffer, input: GenerationI
     .filter(({ block }) => !plannedBlockIds.has(block.blockId))
     .map(({ block, text }) => ({ blockId: block.blockId, operation: 'REPLACE_BLOCK_TEXT', finalText: text }))
   const completeOperations = [...normalizedOperations, ...financialBlockOperations]
+  let validationOperations = completeOperations
   let candidateBytes = await applyBlockOperations(sourceBytes, completeOperations)
   let blocks = (await readSource(candidateBytes, input.sourceDocument.fileName)).blocks
   let review = await ai.review({ source: input.sourceDocument, input, candidate: blocks })
@@ -284,36 +334,175 @@ export async function runGeneration(sourceBytes: ArrayBuffer, input: GenerationI
     if (repair.some((operation) => !implicated.has('blockId' in operation ? operation.blockId : operation.anchorBlockId))) return { status: 'FAILED', issues: ['Naprawa wskazała bloki spoza ustaleń recenzji'] }
     const remappedRepair = remapOperationsToCurrentBlocks(repair, input.sourceDocument.blocks, blocks, completeOperations)
     candidateBytes = await applyBlockOperations(candidateBytes, remappedRepair)
+    validationOperations = [...validationOperations, ...remappedRepair]
     blocks = (await readSource(candidateBytes, input.sourceDocument.fileName)).blocks
     review = await ai.review({ source: input.sourceDocument, input, candidate: blocks })
   }
   if (review.status === 'FAIL') return { status: 'FAILED', issues: review.issues }
-  const safety = await validateCandidate(sourceBytes, candidateBytes, input)
+  const safety = await validateCandidate(sourceBytes, candidateBytes, input, validationOperations)
   return safety.length ? { status: 'FAILED', issues: safety } : { status: 'COMPLETED', docxBytes: candidateBytes, review }
 }
 
-export const KNOWN_OLD_VALUES = ['Adelą Światłowską', '533 962 003', '30.07.2027', 'Willi Berlińskiej', '10 500 zł', '9 500 zł']
+function xmlWithTextValuesMasked(xml: string): string {
+  return xml.replace(/(<w:t\b[^>]*>)[\s\S]*?(<\/w:t>)/g, '$1__TEXT__$2')
+}
 
-export async function validateCandidate(sourceBytes: ArrayBuffer, candidateBytes: ArrayBuffer, input: GenerationInput): Promise<string[]> {
+function wordFieldInstructions(xml: string): string[] {
+  const instructions = [
+    ...[...xml.matchAll(/<w:instrText(?:\s[^>]*)?>([\s\S]*?)<\/w:instrText>/g)].map((match) => unescapeXml(match[1]!).trim().replace(/\s+/g, ' ').toUpperCase()),
+    ...[...xml.matchAll(/<w:fldSimple\b[^>]*\bw:instr\s*=\s*["']([^"']*)["']/g)].map((match) => unescapeXml(match[1]!).trim().replace(/\s+/g, ' ').toUpperCase()),
+  ]
+  return instructions
+}
+
+const eventCue = /\b(?:uroczysto\p{L}*|ślub\p{L}*|wesel\p{L}*|wydarzeni\p{L}*)\b/iu
+
+function datesFollowingEventCue(text: string): number[] {
+  const cue = eventCue.exec(text)
+  return cue ? dateTimestampsInText(text.slice(cue.index + cue[0].length)) : []
+}
+
+function sourceEventBlocks(blocks: SourceBlock[]): SourceBlock[] {
+  return blocks.filter((block) => datesFollowingEventCue(block.text).length > 0)
+}
+
+function sourceContainsPartyPhone(blocks: SourceBlock[], person: 'bride' | 'groom'): boolean {
+  const rolePattern = person === 'bride'
+    ? /\b(?:zleceniodawczyni|klientka|panna młoda|par\p{L}*\s+młod\p{L}*)\b/iu
+    : /\b(?:zleceniodawca|klient\b|pan młody|par\p{L}*\s+młod\p{L}*)\b/iu
+  const phonePattern = /(?:\+?\d[\d\s()-]{6,}\d)/u
+  if (blocks.some((block) => rolePattern.test(`${block.text} ${block.context}`) && /\b(?:tel\.?|telefon|phone)\b/i.test(`${block.text} ${block.context}`) && phonePattern.test(block.text))) return true
+
+  const tableCell = (block: SourceBlock) => block.context.match(/Table (\d+), row (\d+), cell (\d+)/)
+  const headerContactColumns = new Set<string>()
+  for (const block of blocks) {
+    const coordinates = tableCell(block)
+    if (coordinates?.[2] === '0' && /\b(?:kontakt|contact)\b/i.test(block.text)) headerContactColumns.add(`${coordinates[1]}:${coordinates[3]}`)
+  }
+  const rows = new Map<string, SourceBlock[]>()
+  for (const block of blocks) {
+    const coordinates = tableCell(block)
+    if (!coordinates) continue
+    const key = `${coordinates[1]}:${coordinates[2]}`
+    rows.set(key, [...(rows.get(key) ?? []), block])
+  }
+  return [...rows.values()].some((row) => {
+    if (!row.some((block) => rolePattern.test(block.text))) return false
+    return row.some((block) => {
+      const coordinates = tableCell(block)
+      return !!coordinates && headerContactColumns.has(`${coordinates[1]}:${coordinates[3]}`) && phonePattern.test(block.text)
+    })
+  })
+}
+
+function sourcePackageDefinitionBlocks(blocks: SourceBlock[]): SourceBlock[] {
+  const packageAnchor = /\bpak(?:iet(?:u|em)?|iecie)\s+[\p{L}\d-]+/iu
+  const packageScope = /\b(?:obejmuje|obejmują|obejmującej|zapewnia|składa się|zakres(?:ie)?)\b|:\s*$/iu
+  const serviceDetail = /(?:fotograf|zdję|fotografii|galeri|odbit|teledysk|film ślubny|album|godzin|minut|ujęć|wydruk)/iu
+  const financialText = /\b(?:wynagrodzen|kwot[ay]|zapłac|wpłat|płatn|zł|pln)\b/iu
+  const selected = new Set<string>()
+  for (let index = 0; index < blocks.length; index++) {
+    const block = blocks[index]!
+    if (!packageAnchor.test(block.text) || !packageScope.test(block.text) || !serviceDetail.test(block.text) || financialText.test(block.text)) continue
+    selected.add(block.blockId)
+    for (let next = index + 1; next < blocks.length; next++) {
+      const item = blocks[next]!
+      if (!/^\s*\d+[.)]\s+/.test(item.text)) break
+      if (serviceDetail.test(item.text) && !financialText.test(item.text)) selected.add(item.blockId)
+    }
+  }
+  return blocks.filter((block) => selected.has(block.blockId))
+}
+
+function tableCellCoordinates(block: EditableBlock): string | undefined {
+  const match = block.context.match(/Table (\d+), row (\d+), cell (\d+)/)
+  return match ? `${match[1]}:${match[2]}:${match[3]}` : undefined
+}
+
+function approvedReplacementMatchesCandidate(
+  operation: Extract<BlockOperation, { operation: 'REPLACE_BLOCK_TEXT' }>,
+  sourceBlocks: SourceBlock[],
+  candidateBlocks: SourceBlock[],
+): boolean {
+  const sourceBlock = sourceBlocks.find((block) => block.blockId === operation.blockId)
+  if (!sourceBlock) return false
+  const expected = normalize(operation.finalText)
+  if (candidateBlocks.some((block) => block.blockId === operation.blockId && normalize(block.text) === expected)) return true
+  const coordinates = tableCellCoordinates(sourceBlock)
+  return !!coordinates && candidateBlocks.some((block) => block.part === sourceBlock.part && tableCellCoordinates(block) === coordinates && normalize(block.text) === expected)
+}
+
+export async function validateCandidate(
+  sourceBytes: ArrayBuffer,
+  candidateBytes: ArrayBuffer,
+  input: GenerationInput,
+  approvedOperations: BlockOperation[] = [],
+): Promise<string[]> {
   const issues: string[] = []
   let sourceZip: JSZip; let candidateZip: JSZip
   try { sourceZip = await JSZip.loadAsync(sourceBytes); candidateZip = await JSZip.loadAsync(candidateBytes) } catch { return ['Nie można otworzyć pakietu DOCX'] }
-  const text = candidateText((await readSource(candidateBytes, input.sourceDocument.fileName)).blocks)
+  const sourceDocument = await readSource(sourceBytes, input.sourceDocument.fileName)
+  const candidateDocument = await readSource(candidateBytes, input.sourceDocument.fileName)
+  const text = candidateText(candidateDocument.blocks)
   const flat = normalize(text)
-  for (const expected of [input.wedding.bride.name, input.wedding.groom.name, input.wedding.bride.email, input.wedding.weddingDate, input.wedding.contractAddress, formatPlnInteger(input.financials.contractValuePln), formatPlnInteger(input.financials.depositPln), formatPlnInteger(input.financials.remainingPln), ...input.extras]) {
+  for (const expectedName of [input.wedding.bride.name, input.wedding.groom.name]) {
+    if (!hasPolishNameFacts(flat, expectedName)) issues.push(`Brak wymaganej wartości: ${expectedName}`)
+  }
+  for (const expected of [input.wedding.bride.email, ...input.extras]) {
     if (!hasExactFact(flat, expected)) issues.push(`Brak wymaganej wartości: ${expected}`)
   }
-  for (const stale of findStaleValues(flat, KNOWN_OLD_VALUES)) issues.push(`Pozostała stara wartość: ${stale}`)
+  if (!hasNaturalLocationFacts(flat, input.wedding.contractAddress)) {
+    issues.push(`Brak prawidłowego adresu umownego: ${input.wedding.contractAddress}`)
+  }
+  for (const answer of input.userProvidedAnswers) {
+    if (answer.id === 'contract.number' && !hasExactFact(flat, answer.value)) issues.push(`Brak wymaganego numeru umowy: ${answer.value}`)
+  }
+  const eventBlocks = sourceEventBlocks(sourceDocument.blocks)
+  if (eventBlocks.length) {
+    const candidateById = new Map(candidateDocument.blocks.map((block) => [block.blockId, block]))
+    const expectedWeddingDate = parsePolishDate(input.wedding.weddingDate)
+    const sourceConclusionDate = input.conclusion.sourceDate ? parsePolishDate(input.conclusion.sourceDate) : undefined
+    let weddingDateFound = false
+    for (const sourceBlock of eventBlocks) {
+      const cue = eventCue.exec(sourceBlock.text)
+      const suffixStart = cue ? cue.index + cue[0].length : 0
+      const sourceEventDates = dateTimestampsInText(sourceBlock.text.slice(suffixStart)).filter((date) => date !== sourceConclusionDate)
+      const candidateBlock = candidateById.get(sourceBlock.blockId)
+      if (!candidateBlock) continue
+      const candidateCue = eventCue.exec(candidateBlock.text)
+      const candidateSuffix = candidateCue ? candidateBlock.text.slice(candidateCue.index + candidateCue[0].length) : candidateBlock.text
+      const candidateEventDates = dateTimestampsInText(candidateSuffix)
+      if (expectedWeddingDate !== undefined && candidateEventDates.includes(expectedWeddingDate)) weddingDateFound = true
+      if (expectedWeddingDate !== undefined) {
+        for (const staleDate of sourceEventDates) {
+          if (staleDate !== expectedWeddingDate && candidateEventDates.includes(staleDate)) {
+            issues.push(`Pozostała stara data wydarzenia w ${sourceBlock.blockId}: ${numericDate(staleDate)}`)
+          }
+        }
+      }
+    }
+    if (!weddingDateFound) issues.push(`Brak prawidłowej daty wydarzenia: ${input.wedding.weddingDate}`)
+  }
+  for (const [label, amount] of [
+    ['wynagrodzenia', input.financials.contractValuePln],
+    ['wpłaty', input.financials.depositPln],
+    ['pozostałej kwoty', input.financials.remainingPln],
+  ] as const) {
+    if (!hasMoneyAmount(flat, amount)) issues.push(`Brak prawidłowej kwoty ${label}: ${formatPlnInteger(amount)}`)
+  }
   const candidateDigits = flat.replace(/[\s()\-]/g, '')
-  for (const phone of [input.wedding.bride.phone, input.wedding.groom.phone]) {
-    if (!candidateDigits.includes(phone.replace(/[\s()\-]/g, ''))) issues.push(`Nieprawidłowy numer telefonu: ${phone}`)
+  for (const person of ['bride', 'groom'] as const) {
+    const phone = input.wedding[person].phone
+    if (sourceContainsPartyPhone(sourceDocument.blocks, person) && !candidateDigits.includes(phone.replace(/[\s()\-]/g, ''))) {
+      issues.push(`Nieprawidłowy numer telefonu: ${phone}`)
+    }
   }
   for (const location of Object.values(input.wedding.locations)) {
     if (!hasNaturalLocationFacts(flat, location)) issues.push(`Brak numeru adresowego lub kodu pocztowego lokalizacji: ${location}`)
   }
   const originalDoc = await sourceZip.file('word/document.xml')!.async('string')
   const candidateDoc = await candidateZip.file('word/document.xml')!.async('string')
-  const candidateBlocks = (await readSource(candidateBytes, input.sourceDocument.fileName)).blocks
+  const candidateBlocks = candidateDocument.blocks
   const candidateOpeningBlock = input.conclusion.sourceBlockId
     ? candidateBlocks.find((block) => block.blockId === input.conclusion.sourceBlockId)
     : candidateBlocks.find((block) => conclusionVerb.test(block.text))
@@ -329,14 +518,55 @@ export async function validateCandidate(sourceBytes: ArrayBuffer, candidateBytes
   }
   if (input.conclusion.preservePlace && !candidateOpening.includes(input.conclusion.preservePlace)) issues.push('Zmieniono miejscowość zawarcia umowy ze źródła')
   if (!input.conclusion.preservePlace && /\br\.\s*w\s+(?!\.{3})[\p{L}]/u.test(candidateOpening)) issues.push('Dodano miejscowość zawarcia umowy, której brakowało w źródle')
-  if ((candidateDoc.match(/<w:tbl\b/g) ?? []).length < (originalDoc.match(/<w:tbl\b/g) ?? []).length) issues.push('Zniknęła tabela lub struktura podpisów')
-  for (const path of Object.keys(sourceZip.files).filter((p) => /^(word\/(header|footer|styles)\w*\.xml)$/.test(p))) {
-    const a = await sourceZip.file(path)!.async('string'); const b = await candidateZip.file(path)?.async('string')
-    if (a !== b) issues.push(`Nieoczekiwana zmiana struktury: ${path}`)
+  for (const element of ['tbl', 'tr', 'tc'] as const) {
+    const sourceCount = originalDoc.match(new RegExp(`<w:${element}\\b`, 'g'))?.length ?? 0
+    const candidateCount = candidateDoc.match(new RegExp(`<w:${element}\\b`, 'g'))?.length ?? 0
+    if (candidateCount !== sourceCount) issues.push(`Zmieniono strukturę tabel DOCX (${element}: ${sourceCount} → ${candidateCount})`)
   }
-  if (!originalDoc.includes('Video Standard')) issues.push('Źródłowy pakiet nie zawiera oczekiwanej nazwy pakietu')
-  for (const sourceBlock of input.sourceDocument.blocks.filter((b) => /Video Standard|teledysku ślubnego o długości|filmy ślubnego o długości/.test(b.text))) {
-    if (!flat.includes(normalize(sourceBlock.text))) issues.push('Treść pakietu różni się od źródła')
+
+  const candidateById = new Map(candidateDocument.blocks.map((block) => [block.blockId, block]))
+  for (const sourceBlock of sourcePackageDefinitionBlocks(sourceDocument.blocks)) {
+    if (candidateById.get(sourceBlock.blockId)?.text !== sourceBlock.text) issues.push(`Treść pakietu różni się od źródła: ${sourceBlock.blockId}`)
+  }
+
+  const latestReplacementById = new Map<string, Extract<BlockOperation, { operation: 'REPLACE_BLOCK_TEXT' }>>()
+  for (const operation of approvedOperations) if (operation.operation === 'REPLACE_BLOCK_TEXT') latestReplacementById.set(operation.blockId, operation)
+  for (const operation of latestReplacementById.values()) {
+    if (!approvedReplacementMatchesCandidate(operation, sourceDocument.blocks, candidateDocument.blocks)) {
+      issues.push(`Pozostała stara wartość lub zmieniono zatwierdzony tekst w ${operation.blockId}`)
+    }
+  }
+
+  const sourcePartPaths = Object.keys(sourceZip.files).filter((part) => /^word\/(header\d+|footer\d+|styles)\.xml$/.test(part)).sort()
+  const candidatePartPaths = Object.keys(candidateZip.files).filter((part) => /^word\/(header\d+|footer\d+|styles)\.xml$/.test(part)).sort()
+  if (JSON.stringify(candidatePartPaths) !== JSON.stringify(sourcePartPaths)) issues.push('Zmieniono zestaw części DOCX nagłówków, stopek lub stylów')
+  for (const part of sourcePartPaths) {
+    const sourcePart = await sourceZip.file(part)!.async('string')
+    const candidatePart = await candidateZip.file(part)?.async('string')
+    if (!candidatePart) continue
+    if (part === 'word/styles.xml') {
+      if (candidatePart !== sourcePart) issues.push(`Nieoczekiwana zmiana stylów: ${part}`)
+      continue
+    }
+    if (xmlWithTextValuesMasked(candidatePart) !== xmlWithTextValuesMasked(sourcePart)) issues.push(`Nieoczekiwana zmiana struktury lub formatowania: ${part}`)
+    const sourceInstructions = wordFieldInstructions(sourcePart)
+    const candidateInstructions = wordFieldInstructions(candidatePart)
+    if (JSON.stringify(candidateInstructions) !== JSON.stringify(sourceInstructions)) issues.push(`Zmieniono strukturę pól Word: ${part}`)
+    for (const field of ['PAGE', 'NUMPAGES']) {
+      const count = (instructions: string[]) => instructions.reduce((total, instruction) => total + (instruction.match(new RegExp(`\\b${field}\\b`, 'g'))?.length ?? 0), 0)
+      if (count(sourceInstructions) > count(candidateInstructions)) issues.push(`Utracono dynamiczne pole Word ${field}: ${part}`)
+    }
+    const sourceBlocks = sourceDocument.blocks.filter((block) => block.part === part)
+    for (const sourceBlock of sourceBlocks) {
+      const candidateBlock = candidateById.get(sourceBlock.blockId)
+      if (!candidateBlock || candidateBlock.text === sourceBlock.text) continue
+      const approved = latestReplacementById.get(sourceBlock.blockId)
+      const authorizedContractNumber = part.startsWith('word/footer') && input.userProvidedAnswers.find((answer) => answer.id === 'contract.number')?.value
+      const matchesAuthoritativeFooterNumber = !!authorizedContractNumber && candidateBlock.text.includes(authorizedContractNumber)
+      if ((!approved || normalize(candidateBlock.text) !== normalize(approved.finalText)) && !matchesAuthoritativeFooterNumber) {
+        issues.push(`Nieautoryzowana zmiana treści w ${sourceBlock.blockId}`)
+      }
+    }
   }
   return issues
 }
