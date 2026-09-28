@@ -145,10 +145,10 @@ try {
       return {
         missingInputs: [],
         blockOperations: opening && input.conclusion.replacementDate ? [{ blockId: opening.blockId, operation: 'REPLACE_BLOCK_TEXT', finalText: opening.text.replace(/\d{1,2}[./-]\d{1,2}[./-]\d{4}|\d{1,2}\s+(?:stycznia|lutego|marca|kwietnia|maja|czerwca|lipca|sierpnia|września|października|listopada|grudnia)\s+\d{4}|\.{3,}/i, input.conclusion.replacementDate) }] : [],
-        providerMetadata: { requestedModel: 'gpt-6-luna', responseModel: 'gpt-6-luna', requestedPricingMode: 'standard', serviceTier: 'default', usage: { input_tokens: 20, input_tokens_details: { cached_tokens: 5 }, output_tokens: 10, output_tokens_details: { reasoning_tokens: 4 } } },
+        providerMetadata: { requestedModel: 'gpt-6-luna', responseModel: 'gpt-6-luna', requestedPricingMode: 'standard', serviceTier: 'default', processingRegion: 'GLOBAL', usage: { input_tokens: 20, input_tokens_details: { cached_tokens: 5 }, output_tokens: 10, output_tokens_details: { reasoning_tokens: 4 } } },
       }
     },
-    async review() { return { status: 'PASS', providerMetadata: { requestedModel: 'gpt-6-luna', responseModel: 'gpt-6-luna', requestedPricingMode: 'standard', serviceTier: 'default', usage: { input_tokens: 10, input_tokens_details: { cached_tokens: 2 }, output_tokens: 5, output_tokens_details: { reasoning_tokens: 1 } } } } },
+    async review() { return { status: 'PASS', providerMetadata: { requestedModel: 'gpt-6-luna', responseModel: 'gpt-6-luna', requestedPricingMode: 'standard', serviceTier: 'default', processingRegion: 'GLOBAL', usage: { input_tokens: 10, input_tokens_details: { cached_tokens: 2 }, output_tokens: 5, output_tokens_details: { reasoning_tokens: 1 } } } } },
   }
   const measuredRun = await runMultiTemplateAcceptance('ready-case', { casesRoot, outputRoot, provider: metricsPassProvider, runId: 'metrics-wiring' })
   assert.equal(measuredRun.reviewResult, 'PASS')

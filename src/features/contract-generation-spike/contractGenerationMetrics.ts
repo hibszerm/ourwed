@@ -18,7 +18,7 @@ export const systemMetricsClock: MetricsClock = {
 
 export type OpenAIResponsesUsage = Record<string, unknown> & {
   input_tokens?: number
-  input_tokens_details?: Record<string, unknown> & { cached_tokens?: number }
+  input_tokens_details?: Record<string, unknown> & { cached_tokens?: number; cache_write_tokens?: number }
   cached_input_tokens?: number
   output_tokens?: number
   output_tokens_details?: Record<string, unknown> & { reasoning_tokens?: number }
@@ -31,15 +31,18 @@ export type ProviderResponseMetadata = {
   responseModel?: string
   requestedPricingMode?: string
   serviceTier?: string
+  /** Set only from provider/runtime metadata or request configuration; never inferred locally. */
+  processingRegion?: 'GLOBAL' | `REGIONAL:${string}` | 'UNKNOWN'
   usage?: OpenAIResponsesUsage
 }
 
 export type ProviderCost = {
-  inputCostUsd: number | null
+  ordinaryInputCostUsd: number | null
   cachedInputCostUsd: number | null
+  cacheWriteCostUsd: number | null
   outputCostUsd: number | null
   totalCostUsd: number | null
-  pricingStatus: 'PRICED_STANDARD' | 'USAGE_MISSING' | 'USAGE_INCOMPLETE' | 'UNSUPPORTED_MODEL' | 'UNSUPPORTED_PRICING_MODE'
+  pricingStatus: 'PRICED_STANDARD' | 'USAGE_MISSING' | 'USAGE_INCOMPLETE' | 'USAGE_INCONSISTENT' | 'UNPRICED_UNKNOWN_REGION' | 'UNPRICED_REGIONAL' | 'UNSUPPORTED_MODEL' | 'UNSUPPORTED_PRICING_MODE'
 }
 
 export type ProviderCallMeasurement = {
@@ -49,14 +52,19 @@ export type ProviderCallMeasurement = {
   serviceTier: string | null
   requestedPricingMode: string | null
   effectivePricingMode: string | null
+  processingRegion: 'GLOBAL' | `REGIONAL:${string}` | 'UNKNOWN'
   latencyMs: number
   startedAt: string
   endedAt: string
   inputTokens: number | null
+  ordinaryInputTokens: number | null
   cachedInputTokens: number | null
+  cacheWriteTokens: number | null
+  /** @deprecated Use ordinaryInputTokens. Retained for existing report consumers. */
   uncachedInputTokens: number | null
   outputTokens: number | null
   reasoningTokens: number | null
+  contextPricingBand: 'SHORT' | 'LONG' | 'UNKNOWN'
   reasoningTokensIncludedInOutput: boolean | null
   usage: OpenAIResponsesUsage | null
   cost: ProviderCost
@@ -85,14 +93,28 @@ export type GenerationMeasurements = {
     output: number | null
     reasoning: number | null
   }
+  totals: {
+    totalInputTokens: number | null
+    totalOrdinaryInputTokens: number | null
+    totalCachedInputTokens: number | null
+    totalCacheWriteTokens: number | null
+    totalOutputTokens: number | null
+    totalReasoningTokens: number | null
+    totalOrdinaryInputCostUsd: number | null
+    totalCachedInputCostUsd: number | null
+    totalCacheWriteCostUsd: number | null
+    totalOutputCostUsd: number | null
+    totalCostUsd: number | null
+  }
   totalCostUsd: number | null
 }
 
 export const GPT6_LUNA_STANDARD_RATES = Object.freeze({
-  inputUsdPerMillion: 0.10,
-  cachedInputUsdPerMillion: 0.01,
-  outputUsdPerMillion: 0.50,
+  short: Object.freeze({ ordinaryInputUsdPerMillion: 0.10, cachedInputUsdPerMillion: 0.01, cacheWriteUsdPerMillion: 0.125, outputUsdPerMillion: 0.50 }),
+  long: Object.freeze({ ordinaryInputUsdPerMillion: 0.20, cachedInputUsdPerMillion: 0.02, cacheWriteUsdPerMillion: 0.25, outputUsdPerMillion: 0.75 }),
 })
+
+const LONG_CONTEXT_INPUT_TOKENS = 272_000
 
 function nonNegativeInteger(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? Math.floor(value) : null
@@ -119,34 +141,52 @@ export function normalizeProviderCall(
 ): ProviderCallMeasurement {
   const usage = metadata?.usage ?? null
   const inputTokens = nonNegativeInteger(usage?.input_tokens)
-  const cachedInputTokens = nonNegativeInteger(usage?.input_tokens_details?.cached_tokens ?? usage?.cached_input_tokens)
+  const rawCachedInputTokens = usage?.input_tokens_details?.cached_tokens ?? usage?.cached_input_tokens
+  const rawCacheWriteTokens = usage?.input_tokens_details?.cache_write_tokens
+  // Responses usage omits zero-valued optional cache categories. Treat absence as zero,
+  // while retaining null for malformed values and for a missing input_tokens total.
+  const cachedInputTokens = inputTokens === null ? null : rawCachedInputTokens === undefined ? 0 : nonNegativeInteger(rawCachedInputTokens)
+  const cacheWriteTokens = inputTokens === null ? null : rawCacheWriteTokens === undefined ? 0 : nonNegativeInteger(rawCacheWriteTokens)
   const outputTokens = nonNegativeInteger(usage?.output_tokens)
   const reasoningTokens = nonNegativeInteger(usage?.output_tokens_details?.reasoning_tokens ?? usage?.reasoning_tokens)
-  const uncachedInputTokens = inputTokens !== null && cachedInputTokens !== null
-    ? Math.max(0, inputTokens - cachedInputTokens)
+  const categoryTotal = cachedInputTokens !== null && cacheWriteTokens !== null ? cachedInputTokens + cacheWriteTokens : null
+  const inconsistentUsage = inputTokens !== null && categoryTotal !== null && categoryTotal > inputTokens
+  const ordinaryInputTokens = inputTokens !== null && categoryTotal !== null
+    ? Math.max(0, inputTokens - categoryTotal)
     : null
+  const contextPricingBand = inputTokens === null ? 'UNKNOWN' : inputTokens > LONG_CONTEXT_INPUT_TOKENS ? 'LONG' : 'SHORT'
   const model = metadata?.responseModel ?? metadata?.requestedModel ?? null
   const serviceTier = metadata?.serviceTier ?? null
   const requestedPricingMode = metadata?.requestedPricingMode ?? null
   const effectivePricingMode = serviceTier ?? requestedPricingMode
+  const processingRegion = metadata?.processingRegion ?? 'UNKNOWN'
   let cost: ProviderCost
   if (!usage) {
-    cost = { inputCostUsd: null, cachedInputCostUsd: null, outputCostUsd: null, totalCostUsd: null, pricingStatus: 'USAGE_MISSING' }
+    cost = { ordinaryInputCostUsd: null, cachedInputCostUsd: null, cacheWriteCostUsd: null, outputCostUsd: null, totalCostUsd: null, pricingStatus: 'USAGE_MISSING' }
   } else if (!isGpt6Luna(model)) {
-    cost = { inputCostUsd: null, cachedInputCostUsd: null, outputCostUsd: null, totalCostUsd: null, pricingStatus: 'UNSUPPORTED_MODEL' }
+    cost = { ordinaryInputCostUsd: null, cachedInputCostUsd: null, cacheWriteCostUsd: null, outputCostUsd: null, totalCostUsd: null, pricingStatus: 'UNSUPPORTED_MODEL' }
   } else if (!isStandardPricingMode(effectivePricingMode)) {
-    cost = { inputCostUsd: null, cachedInputCostUsd: null, outputCostUsd: null, totalCostUsd: null, pricingStatus: 'UNSUPPORTED_PRICING_MODE' }
-  } else if (uncachedInputTokens === null || cachedInputTokens === null || outputTokens === null) {
-    cost = { inputCostUsd: null, cachedInputCostUsd: null, outputCostUsd: null, totalCostUsd: null, pricingStatus: 'USAGE_INCOMPLETE' }
+    cost = { ordinaryInputCostUsd: null, cachedInputCostUsd: null, cacheWriteCostUsd: null, outputCostUsd: null, totalCostUsd: null, pricingStatus: 'UNSUPPORTED_PRICING_MODE' }
+  } else if (inconsistentUsage) {
+    cost = { ordinaryInputCostUsd: null, cachedInputCostUsd: null, cacheWriteCostUsd: null, outputCostUsd: null, totalCostUsd: null, pricingStatus: 'USAGE_INCONSISTENT' }
+  } else if (processingRegion === 'UNKNOWN') {
+    cost = { ordinaryInputCostUsd: null, cachedInputCostUsd: null, cacheWriteCostUsd: null, outputCostUsd: null, totalCostUsd: null, pricingStatus: 'UNPRICED_UNKNOWN_REGION' }
+  } else if (processingRegion.startsWith('REGIONAL:')) {
+    cost = { ordinaryInputCostUsd: null, cachedInputCostUsd: null, cacheWriteCostUsd: null, outputCostUsd: null, totalCostUsd: null, pricingStatus: 'UNPRICED_REGIONAL' }
+  } else if (ordinaryInputTokens === null || cachedInputTokens === null || cacheWriteTokens === null || outputTokens === null || contextPricingBand === 'UNKNOWN') {
+    cost = { ordinaryInputCostUsd: null, cachedInputCostUsd: null, cacheWriteCostUsd: null, outputCostUsd: null, totalCostUsd: null, pricingStatus: 'USAGE_INCOMPLETE' }
   } else {
-    const inputCostUsd = roundUsd(uncachedInputTokens * GPT6_LUNA_STANDARD_RATES.inputUsdPerMillion / 1_000_000)
-    const cachedInputCostUsd = roundUsd(cachedInputTokens * GPT6_LUNA_STANDARD_RATES.cachedInputUsdPerMillion / 1_000_000)
-    const outputCostUsd = roundUsd(outputTokens * GPT6_LUNA_STANDARD_RATES.outputUsdPerMillion / 1_000_000)
+    const rates = contextPricingBand === 'LONG' ? GPT6_LUNA_STANDARD_RATES.long : GPT6_LUNA_STANDARD_RATES.short
+    const ordinaryInputCostUsd = roundUsd(ordinaryInputTokens * rates.ordinaryInputUsdPerMillion / 1_000_000)
+    const cachedInputCostUsd = roundUsd(cachedInputTokens * rates.cachedInputUsdPerMillion / 1_000_000)
+    const cacheWriteCostUsd = roundUsd(cacheWriteTokens * rates.cacheWriteUsdPerMillion / 1_000_000)
+    const outputCostUsd = roundUsd(outputTokens * rates.outputUsdPerMillion / 1_000_000)
     cost = {
-      inputCostUsd,
+      ordinaryInputCostUsd,
       cachedInputCostUsd,
+      cacheWriteCostUsd,
       outputCostUsd,
-      totalCostUsd: roundUsd(inputCostUsd + cachedInputCostUsd + outputCostUsd),
+      totalCostUsd: roundUsd(ordinaryInputCostUsd + cachedInputCostUsd + cacheWriteCostUsd + outputCostUsd),
       pricingStatus: 'PRICED_STANDARD',
     }
   }
@@ -157,14 +197,18 @@ export function normalizeProviderCall(
     serviceTier,
     requestedPricingMode,
     effectivePricingMode,
+    processingRegion,
     latencyMs: Math.max(0, latencyMs),
     startedAt,
     endedAt,
     inputTokens,
+    ordinaryInputTokens,
     cachedInputTokens,
-    uncachedInputTokens,
+    cacheWriteTokens,
+    uncachedInputTokens: ordinaryInputTokens,
     outputTokens,
     reasoningTokens,
+    contextPricingBand,
     reasoningTokensIncludedInOutput: reasoningTokens === null ? null : true,
     usage,
     cost,
@@ -241,8 +285,20 @@ export class ContractGenerationMetrics {
 
   snapshot(): GenerationMeasurements {
     const calls = [...this.calls]
-    const costs = calls.map((call) => call.cost.totalCostUsd)
-    const totalCostUsd = sumComplete(costs)
+    const totalCostUsd = sumComplete(calls.map((call) => call.cost.totalCostUsd))
+    const totals = {
+      totalInputTokens: sumComplete(calls.map((call) => call.inputTokens)),
+      totalOrdinaryInputTokens: sumComplete(calls.map((call) => call.ordinaryInputTokens)),
+      totalCachedInputTokens: sumComplete(calls.map((call) => call.cachedInputTokens)),
+      totalCacheWriteTokens: sumComplete(calls.map((call) => call.cacheWriteTokens)),
+      totalOutputTokens: sumComplete(calls.map((call) => call.outputTokens)),
+      totalReasoningTokens: sumComplete(calls.map((call) => call.reasoningTokens)),
+      totalOrdinaryInputCostUsd: sumComplete(calls.map((call) => call.cost.ordinaryInputCostUsd)),
+      totalCachedInputCostUsd: sumComplete(calls.map((call) => call.cost.cachedInputCostUsd)),
+      totalCacheWriteCostUsd: sumComplete(calls.map((call) => call.cost.cacheWriteCostUsd)),
+      totalOutputCostUsd: sumComplete(calls.map((call) => call.cost.outputCostUsd)),
+      totalCostUsd: totalCostUsd === null ? null : roundUsd(totalCostUsd),
+    }
     return {
       timestamps: {
         generationStartedAt: this.generationStartedAt,
@@ -265,7 +321,8 @@ export class ContractGenerationMetrics {
         output: sumComplete(calls.map((call) => call.outputTokens)),
         reasoning: sumComplete(calls.map((call) => call.reasoningTokens)),
       },
-      totalCostUsd: totalCostUsd === null ? null : roundUsd(totalCostUsd),
+      totals,
+      totalCostUsd: totals.totalCostUsd,
     }
   }
 }
