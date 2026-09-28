@@ -139,6 +139,31 @@ try {
   assert.match(formatAcceptanceReport(stopped), /Provider calls: 2/)
   assert.match(await readFile(path.join(outputRoot, 'ready-case', 'review-stop', 'result.md'), 'utf8'), /offline review stub failure/)
 
+  const metricsPassProvider: AcceptanceProvider = {
+    async transform({ input }) {
+      const opening = input.sourceDocument.blocks.find((block) => block.blockId === input.conclusion.sourceBlockId)
+      return {
+        missingInputs: [],
+        blockOperations: opening && input.conclusion.replacementDate ? [{ blockId: opening.blockId, operation: 'REPLACE_BLOCK_TEXT', finalText: opening.text.replace(/\d{1,2}[./-]\d{1,2}[./-]\d{4}|\d{1,2}\s+(?:stycznia|lutego|marca|kwietnia|maja|czerwca|lipca|sierpnia|września|października|listopada|grudnia)\s+\d{4}|\.{3,}/i, input.conclusion.replacementDate) }] : [],
+        providerMetadata: { requestedModel: 'gpt-6-luna', responseModel: 'gpt-6-luna', requestedPricingMode: 'standard', serviceTier: 'default', usage: { input_tokens: 20, input_tokens_details: { cached_tokens: 5 }, output_tokens: 10, output_tokens_details: { reasoning_tokens: 4 } } },
+      }
+    },
+    async review() { return { status: 'PASS', providerMetadata: { requestedModel: 'gpt-6-luna', responseModel: 'gpt-6-luna', requestedPricingMode: 'standard', serviceTier: 'default', usage: { input_tokens: 10, input_tokens_details: { cached_tokens: 2 }, output_tokens: 5, output_tokens_details: { reasoning_tokens: 1 } } } } },
+  }
+  const measuredRun = await runMultiTemplateAcceptance('ready-case', { casesRoot, outputRoot, provider: metricsPassProvider, runId: 'metrics-wiring' })
+  assert.equal(measuredRun.reviewResult, 'PASS')
+  assert.ok(measuredRun.measurements)
+  assert.ok(measuredRun.measurements.totalGenerationMs !== null)
+  for (const stage of ['preflightMs', 'planningProviderMs', 'planValidationMs', 'docxApplyMs', 'candidateValidationMs', 'reviewProviderMs'] as const) assert.ok(measuredRun.measurements.stages[stage] !== null, `${stage} is measured in the harness`)
+  assert.equal(measuredRun.measurements.providerCalls.length, 2)
+  assert.equal(measuredRun.measurements.providerCalls[0]?.purpose, 'planning')
+  assert.equal(measuredRun.measurements.providerCalls[1]?.purpose, 'review')
+  assert.equal(measuredRun.measurements.providerCalls[0]?.usage?.output_tokens, 10)
+  assert.equal(measuredRun.measurements.totalTokens.input, 30)
+  assert.equal(measuredRun.measurements.totalTokens.cachedInput, 7)
+  assert.equal(measuredRun.measurements.totalCostUsd, 0.00000987)
+  assert.match(formatAcceptanceReport(measuredRun), /Generation timing:/)
+
   const caseId = 'case-01-elegant-photographer'
   const realCasesRoot = path.resolve(process.cwd(), 'src/features/contract-generation-spike/multi-template-acceptance/cases')
   const realCaseDir = path.join(realCasesRoot, caseId)

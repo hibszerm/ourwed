@@ -3,6 +3,7 @@ import path from 'node:path'
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { applyBlockOperations, type BlockOperation } from '../blockDocxEditor'
+import { ContractGenerationMetrics, type GenerationMeasurements, type MetricsClock, type ProviderResponseMetadata } from '../contractGenerationMetrics'
 import {
   findInputConflicts,
   makeInput,
@@ -51,8 +52,8 @@ export type MultiTemplateCaseDefinition = {
 }
 
 export type AcceptanceProvider = {
-  transform(args: { input: GenerationInput; sourceDocx: ArrayBuffer; paymentTiming: CasePaymentTiming; productRules: AcceptanceProductRules }): Promise<{ missingInputs: MissingInput[]; blockOperations?: BlockOperation[] }>
-  review(args: { source: GenerationInput['sourceDocument']; input: GenerationInput; candidate: SourceBlock[]; paymentTiming: CasePaymentTiming; productRules: AcceptanceProductRules }): Promise<ReviewResult>
+  transform(args: { input: GenerationInput; sourceDocx: ArrayBuffer; paymentTiming: CasePaymentTiming; productRules: AcceptanceProductRules }): Promise<{ missingInputs: MissingInput[]; blockOperations?: BlockOperation[]; providerMetadata?: ProviderResponseMetadata }>
+  review(args: { source: GenerationInput['sourceDocument']; input: GenerationInput; candidate: SourceBlock[]; paymentTiming: CasePaymentTiming; productRules: AcceptanceProductRules }): Promise<ReviewResult & { providerMetadata?: ProviderResponseMetadata }>
 }
 
 export type AcceptanceResult = {
@@ -80,6 +81,7 @@ export type AcceptanceResult = {
   inventedFactStatus: 'MANUAL_REVIEW_REQUIRED'
   visualInspection: 'PENDING' | 'REQUIRED'
   providerCalls: { transformation: number; review: number; total: number; retries: number; repair: number }
+  measurements: GenerationMeasurements | null
   overall: 'READY' | 'PASS' | 'FAIL' | 'MISSING_INPUT' | 'CONFLICT_INPUT'
 }
 
@@ -94,6 +96,7 @@ export type HarnessOptions = {
   outputRoot?: string
   provider?: AcceptanceProvider
   runId?: string
+  metricsClock?: MetricsClock
 }
 
 const defaultCasesRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), 'cases')
@@ -112,7 +115,7 @@ function resultBase(caseId: string, sourceFilename = 'source.docx'): AcceptanceR
     deterministicValidation: 'NOT_RUN', deterministicFindings: [], pageCount: null, blankPagePresence: 'NOT_RENDERED',
     protectedLegalWording: 'NOT_CHECKED', packageServicePreservation: 'NOT_CHECKED', oldDataStatus: 'NOT_CHECKED',
     inventedFactStatus: 'MANUAL_REVIEW_REQUIRED', visualInspection: 'PENDING',
-    providerCalls: { transformation: 0, review: 0, total: 0, retries: 0, repair: 0 }, overall: 'FAIL',
+    providerCalls: { transformation: 0, review: 0, total: 0, retries: 0, repair: 0 }, measurements: null, overall: 'FAIL',
   }
 }
 
@@ -187,11 +190,13 @@ export function formatAcceptanceReport(result: AcceptanceResult): string {
     `- Protected legal wording: ${result.protectedLegalWording}; package/service: ${result.packageServicePreservation}; old data: ${result.oldDataStatus}`,
     `- Invented facts: ${result.inventedFactStatus}; visual inspection: ${result.visualInspection}`,
     `- Provider calls: ${result.providerCalls.total} (transform ${result.providerCalls.transformation}, review ${result.providerCalls.review}, retries ${result.providerCalls.retries}, repair ${result.providerCalls.repair})`,
+    `- Generation timing: ${result.measurements?.totalGenerationMs ?? 'not measured'} ms total; planning ${result.measurements?.stages.planningProviderMs ?? 'not run'} ms; review ${result.measurements?.stages.reviewProviderMs ?? 'not run'} ms`,
     '',
   ].join('\n')
 }
 
-async function writeReports(result: AcceptanceResult, outputDirectory: string): Promise<void> {
+async function writeReports(result: AcceptanceResult, outputDirectory: string, metrics?: ContractGenerationMetrics): Promise<void> {
+  if (metrics) result.measurements = metrics.finish()
   await mkdir(outputDirectory, { recursive: true })
   await writeFile(path.join(outputDirectory, 'result.json'), `${JSON.stringify(result, null, 2)}\n`)
   await writeFile(path.join(outputDirectory, 'result.md'), formatAcceptanceReport(result))
@@ -200,6 +205,8 @@ async function writeReports(result: AcceptanceResult, outputDirectory: string): 
 /** Loads and preflights one case. Provider execution is disabled unless an explicit local adapter is supplied. */
 export async function runMultiTemplateAcceptance(caseId: string, options: HarnessOptions = {}): Promise<AcceptanceResult> {
   if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(caseId)) throw new Error('Invalid case ID')
+  const metrics = new ContractGenerationMetrics(options.metricsClock)
+  metrics.startStage('preflight')
   const casesRoot = options.casesRoot ?? defaultCasesRoot
   const caseDirectory = path.resolve(casesRoot, caseId)
   const outputDirectory = path.resolve(options.outputRoot ?? path.join(process.cwd(), '.multi-template-acceptance-results'), caseId, options.runId ?? new Date().toISOString().replace(/[:.]/g, '-'))
@@ -211,7 +218,8 @@ export async function runMultiTemplateAcceptance(caseId: string, options: Harnes
   } catch (error) {
     const result = resultBase(caseId)
     result.deterministicFindings = [error instanceof Error ? error.message : String(error)]
-    await writeReports(result, outputDirectory)
+    metrics.endStage('preflight')
+    await writeReports(result, outputDirectory, metrics)
     return result
   }
 
@@ -219,13 +227,15 @@ export async function runMultiTemplateAcceptance(caseId: string, options: Harnes
   const sourcePath = path.resolve(caseDirectory, definition.sourceDocx)
   if (!sourcePath.startsWith(`${caseDirectory}${path.sep}`)) {
     result.deterministicFindings = ['Source DOCX must remain inside its case directory']
-    await writeReports(result, outputDirectory)
+    metrics.endStage('preflight')
+    await writeReports(result, outputDirectory, metrics)
     return result
   }
   let sourceBytes: Buffer
   try { sourceBytes = await readFile(sourcePath) } catch (error) {
     result.deterministicFindings = [error instanceof Error ? error.message : String(error)]
-    await writeReports(result, outputDirectory)
+    metrics.endStage('preflight')
+    await writeReports(result, outputDirectory, metrics)
     return result
   }
   const sourceArrayBuffer = ownedArrayBuffer(sourceBytes.buffer.slice(sourceBytes.byteOffset, sourceBytes.byteOffset + sourceBytes.byteLength))
@@ -236,8 +246,9 @@ export async function runMultiTemplateAcceptance(caseId: string, options: Harnes
   if (!caseWeddingFacts.remainingDueDate && definition.paymentTiming?.remaining) caseWeddingFacts.remainingDueDate = definition.paymentTiming.remaining.sourceMeaning
   const missing = missingFacts(caseWeddingFacts)
   if (missing.length) {
+    metrics.endStage('preflight')
     result.preflight = 'MISSING_INPUT'; result.missingInputs = missing; result.transformationStatus = 'MISSING_INPUT'; result.overall = 'MISSING_INPUT'
-    await writeReports(result, outputDirectory)
+    await writeReports(result, outputDirectory, metrics)
     return result
   }
 
@@ -254,9 +265,10 @@ export async function runMultiTemplateAcceptance(caseId: string, options: Harnes
     input.conclusion = { ...input.conclusion, preservePlace: definition.expectedProductRules.preserveSourceConclusionPlace }
   }
   const conflicts = findInputConflicts(input)
+  metrics.endStage('preflight')
   if (conflicts.length) {
     result.preflight = 'CONFLICT_INPUT'; result.conflictFindings = conflicts; result.overall = 'CONFLICT_INPUT'
-    await writeReports(result, outputDirectory)
+    await writeReports(result, outputDirectory, metrics)
     return result
   }
   result.preflight = 'READY'
@@ -264,29 +276,41 @@ export async function runMultiTemplateAcceptance(caseId: string, options: Harnes
   if (!options.provider) {
     result.overall = 'READY'
     result.deterministicFindings = ['Provider execution disabled; transformation request prepared but not executed.']
-    await writeReports(result, outputDirectory)
+    await writeReports(result, outputDirectory, metrics)
     return result
   }
 
   result.providerCalls.transformation = 1; result.providerCalls.total = 1
   let planned: Awaited<ReturnType<AcceptanceProvider['transform']>>
-  try { planned = await options.provider.transform({ input, sourceDocx: sourceArrayBuffer, paymentTiming: definition.paymentTiming ?? {}, productRules: definition.expectedProductRules ?? {} }) } catch (error) {
+  metrics.startStage('planningProvider')
+  try {
+    planned = await options.provider.transform({ input, sourceDocx: sourceArrayBuffer, paymentTiming: definition.paymentTiming ?? {}, productRules: definition.expectedProductRules ?? {} })
+    const latencyMs = metrics.endStage('planningProvider')
+    const timestamps = metrics.snapshot().timestamps.stages.planningProvider!
+    metrics.recordProviderCall('planning', latencyMs, timestamps.startedAt, timestamps.endedAt, planned.providerMetadata)
+  } catch (error) {
+    const latencyMs = metrics.endStage('planningProvider')
+    const timestamps = metrics.snapshot().timestamps.stages.planningProvider!
+    metrics.recordProviderCall('planning', latencyMs, timestamps.startedAt, timestamps.endedAt)
     result.transformationStatus = 'FAILED'; result.deterministicFindings = [error instanceof Error ? error.message : String(error)]; result.overall = 'FAIL'
-    await writeReports(result, outputDirectory); return result
+    await writeReports(result, outputDirectory, metrics); return result
   }
   if (planned.missingInputs.some((item) => item.required)) {
     result.transformationStatus = 'MISSING_INPUT'; result.missingInputs = planned.missingInputs; result.overall = 'MISSING_INPUT'
-    await writeReports(result, outputDirectory); return result
+    await writeReports(result, outputDirectory, metrics); return result
   }
+  metrics.startStage('planValidation')
   if (!planned.blockOperations) {
+    metrics.endStage('planValidation')
     result.transformationStatus = 'FAILED'; result.deterministicFindings = ['Transformation result has no block operations']; result.overall = 'FAIL'
-    await writeReports(result, outputDirectory); return result
+    await writeReports(result, outputDirectory, metrics); return result
   }
 
   const conclusionPlanIssues = validatePlannedConclusion(input, planned.blockOperations)
+  metrics.endStage('planValidation')
   if (conclusionPlanIssues.length) {
     result.transformationStatus = 'FAILED'; result.deterministicValidation = 'FAIL'; result.deterministicFindings = conclusionPlanIssues; result.overall = 'FAIL'
-    await writeReports(result, outputDirectory); return result
+    await writeReports(result, outputDirectory, metrics); return result
   }
 
   result.blockOperationCounts.transformation = planned.blockOperations.length
@@ -297,9 +321,14 @@ export async function runMultiTemplateAcceptance(caseId: string, options: Harnes
   const allOperations: BlockOperation[] = [...operations, ...canonical.map(({ block, text }) => ({ blockId: block.blockId, operation: 'REPLACE_BLOCK_TEXT' as const, finalText: text }))]
   result.blockOperationCounts.canonicalMoney = canonical.length
   let candidateBytes: ArrayBufferLike
-  try { candidateBytes = await applyBlockOperations(sourceArrayBuffer, allOperations) } catch (error) {
+  metrics.startStage('docxApply')
+  try {
+    candidateBytes = await applyBlockOperations(sourceArrayBuffer, allOperations)
+    metrics.endStage('docxApply')
+  } catch (error) {
+    metrics.endStage('docxApply')
     result.transformationStatus = 'FAILED'; result.deterministicFindings = [error instanceof Error ? error.message : String(error)]; result.overall = 'FAIL'
-    await writeReports(result, outputDirectory); return result
+    await writeReports(result, outputDirectory, metrics); return result
   }
   const candidateArrayBuffer = ownedArrayBuffer(candidateBytes)
   const candidateBlocks = await readSource(candidateArrayBuffer, definition.sourceDocx)
@@ -314,27 +343,36 @@ export async function runMultiTemplateAcceptance(caseId: string, options: Harnes
     result.pageCount = render.pageCount; result.blankPagePresence = 'UNKNOWN'; result.visualInspection = 'REQUIRED'
   } catch (error) {
     result.transformationStatus = 'FAILED'; result.deterministicFindings = [error instanceof Error ? error.message : String(error)]; result.overall = 'FAIL'
-    await writeReports(result, outputDirectory); return result
+    await writeReports(result, outputDirectory, metrics); return result
   }
 
   result.providerCalls.review = 1; result.providerCalls.total = 2
+  metrics.startStage('reviewProvider')
   try {
     const review = await options.provider.review({ source: sourceDocument, input, candidate: candidateBlocks.blocks, paymentTiming: definition.paymentTiming ?? {}, productRules: definition.expectedProductRules ?? {} })
+    const latencyMs = metrics.endStage('reviewProvider')
+    const timestamps = metrics.snapshot().timestamps.stages.reviewProvider!
+    metrics.recordProviderCall('review', latencyMs, timestamps.startedAt, timestamps.endedAt, review.providerMetadata)
     result.reviewResult = review.status
     result.reviewFindings = review.status === 'FAIL' ? review.issues : []
-    if (review.status === 'FAIL') { result.overall = 'FAIL'; await writeReports(result, outputDirectory); return result }
+    if (review.status === 'FAIL') { result.overall = 'FAIL'; await writeReports(result, outputDirectory, metrics); return result }
   } catch (error) {
+    const latencyMs = metrics.endStage('reviewProvider')
+    const timestamps = metrics.snapshot().timestamps.stages.reviewProvider!
+    metrics.recordProviderCall('review', latencyMs, timestamps.startedAt, timestamps.endedAt)
     result.reviewResult = 'FAIL'; result.reviewFindings = [error instanceof Error ? error.message : String(error)]; result.overall = 'FAIL'
-    await writeReports(result, outputDirectory); return result
+    await writeReports(result, outputDirectory, metrics); return result
   }
 
+  metrics.startStage('candidateValidation')
   const validation = await validateCandidate(sourceArrayBuffer, candidateArrayBuffer, input, allOperations)
+  metrics.endStage('candidateValidation')
   result.deterministicFindings = validation
   result.deterministicValidation = validation.length ? 'FAIL' : 'PASS'
   result.protectedLegalWording = result.reviewResult === 'PASS' ? 'PASS' : 'FAIL'
   result.packageServicePreservation = packageStatus(sourceDocument.blocks, candidateBlocks.blocks)
   result.oldDataStatus = oldDataStatus(validation)
   result.overall = validation.length || result.protectedLegalWording === 'FAIL' || result.packageServicePreservation === 'FAIL' ? 'FAIL' : 'PASS'
-  await writeReports(result, outputDirectory)
+  await writeReports(result, outputDirectory, metrics)
   return result
 }
