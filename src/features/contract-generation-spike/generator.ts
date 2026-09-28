@@ -97,6 +97,52 @@ export function applyConflictOverrides(input: GenerationInput, overrides: Confli
   return next
 }
 
+export function formatPlnInteger(amount: number): string {
+  if (!Number.isSafeInteger(amount) || amount < 0) throw new Error('PLN amount must be a non-negative safe integer')
+  return `${String(amount).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} zł`
+}
+
+export function normalizeAuthoritativePlnText(text: string, amounts: number[]): string {
+  const authoritative = new Set(amounts)
+  return text.replace(/(^|[^\p{L}\p{N}])(\d[\d\s\u00a0\u202f]*)\s*zł(?![\p{L}\p{N}])/giu, (token, boundary: string, digits: string) => {
+    const amount = Number(digits.replace(/[\s\u00a0\u202f]/g, ''))
+    return authoritative.has(amount) ? `${boundary}${formatPlnInteger(amount)}` : token
+  })
+}
+
+export function normalizeAuthoritativeFinancialBlocks<T extends { text: string }>(blocks: T[], amounts: number[]): Array<{ block: T; text: string }> {
+  const uniqueAmounts = [...new Set(amounts)]
+  return blocks.flatMap((block) => {
+    const text = normalizeAuthoritativePlnText(block.text, uniqueAmounts)
+    return text === block.text ? [] : [{ block, text }]
+  })
+}
+
+export function comparePhoneDigits(authoritative: string, candidate: string): boolean {
+  const normalized = (value: string) => value.replace(/[\s()\-]/g, '')
+  return normalized(authoritative) === normalized(candidate)
+}
+
+export function hasExactFact(candidateText: string, authoritativeValue: string): boolean {
+  return normalize(candidateText).includes(normalize(authoritativeValue))
+}
+
+export function hasNaturalLocationFacts(candidateText: string, authoritativeLocation: string): boolean {
+  const postalCode = authoritativeLocation.match(/\b\d{2}-\d{3}\b/)?.[0]
+  if (!postalCode || !candidateText.includes(postalCode)) return false
+  const beforePostal = authoritativeLocation.slice(0, authoritativeLocation.indexOf(postalCode))
+  const streetNumber = [...beforePostal.matchAll(/\b\d+(?:\/\d+)?\b/g)].at(-1)?.[0]
+  if (!streetNumber) return false
+  const escapedPostal = postalCode.replace('-', '\\-')
+  const escapedNumber = streetNumber.replace('/', '\\/')
+  return new RegExp(`\\b${escapedNumber}\\b.{0,120}\\b${escapedPostal}\\b`).test(candidateText)
+}
+
+export function findStaleValues(candidateText: string, staleValues: string[]): string[] {
+  const flat = normalize(candidateText)
+  return staleValues.filter((value) => flat.includes(normalize(value)))
+}
+
 export async function readSource(bytes: ArrayBuffer, fileName: string): Promise<GenerationInput['sourceDocument']> {
   const blocks = await (await import('./blockDocxEditor')).buildBlockIndex(bytes)
   return { fileName, blocks: blocks.map((block) => ({ ...block, contentClass: classifyBlock(block.text) })) }
@@ -124,14 +170,23 @@ export async function runGeneration(sourceBytes: ArrayBuffer, input: GenerationI
   const planned = await ai.plan(input)
   if (planned.missingInputs.some((x) => x.required)) return { status: 'MISSING_INPUT', missingInputs: planned.missingInputs }
   if (!planned.blockOperations) return { status: 'FAILED', issues: ['Plan nie zawiera operacji blokowych'] }
-  let candidateBytes = await applyBlockOperations(sourceBytes, planned.blockOperations)
+  const authoritativeAmounts = [input.financials.contractValuePln, input.financials.depositPln, input.financials.remainingPln]
+  const normalizedOperations = planned.blockOperations.map((operation) => 'finalText' in operation
+    ? { ...operation, finalText: normalizeAuthoritativePlnText(operation.finalText, authoritativeAmounts) }
+    : operation)
+  const plannedBlockIds = new Set(normalizedOperations.flatMap((operation) => 'blockId' in operation ? [operation.blockId] : []))
+  const financialBlockOperations: BlockOperation[] = normalizeAuthoritativeFinancialBlocks(input.sourceDocument.blocks, authoritativeAmounts)
+    .filter(({ block }) => !plannedBlockIds.has(block.blockId))
+    .map(({ block, text }) => ({ blockId: block.blockId, operation: 'REPLACE_BLOCK_TEXT', finalText: text }))
+  const completeOperations = [...normalizedOperations, ...financialBlockOperations]
+  let candidateBytes = await applyBlockOperations(sourceBytes, completeOperations)
   let blocks = (await readSource(candidateBytes, input.sourceDocument.fileName)).blocks
   let review = await ai.review({ source: input.sourceDocument, input, candidate: blocks })
   if (review.status === 'FAIL') {
     const repair = await ai.repair({ input, source: input.sourceDocument.blocks, candidate: blocks, issues: review.issues })
     const implicated = new Set(review.issues.flatMap((issue) => input.sourceDocument.blocks.filter((block) => issue.includes(block.blockId)).map((block) => block.blockId)))
     if (repair.some((operation) => !implicated.has('blockId' in operation ? operation.blockId : operation.anchorBlockId))) return { status: 'FAILED', issues: ['Naprawa wskazała bloki spoza ustaleń recenzji'] }
-    const remappedRepair = remapOperationsToCurrentBlocks(repair, input.sourceDocument.blocks, blocks, planned.blockOperations)
+    const remappedRepair = remapOperationsToCurrentBlocks(repair, input.sourceDocument.blocks, blocks, completeOperations)
     candidateBytes = await applyBlockOperations(candidateBytes, remappedRepair)
     blocks = (await readSource(candidateBytes, input.sourceDocument.fileName)).blocks
     review = await ai.review({ source: input.sourceDocument, input, candidate: blocks })
@@ -149,11 +204,17 @@ export async function validateCandidate(sourceBytes: ArrayBuffer, candidateBytes
   try { sourceZip = await JSZip.loadAsync(sourceBytes); candidateZip = await JSZip.loadAsync(candidateBytes) } catch { return ['Nie można otworzyć pakietu DOCX'] }
   const text = candidateText((await readSource(candidateBytes, input.sourceDocument.fileName)).blocks)
   const flat = normalize(text)
-  const locationNeedles = Object.values(input.wedding.locations).map((location) => location.split(',').find((part) => /\d/.test(part))?.trim() ?? location)
-  for (const expected of [input.wedding.bride.name, input.wedding.groom.name, input.wedding.bride.phone, input.wedding.bride.email, input.wedding.groom.phone, input.wedding.weddingDate, `${input.financials.contractValuePln.toLocaleString('pl-PL')} zł`, `${input.financials.depositPln} zł`, `${input.financials.remainingPln.toLocaleString('pl-PL')} zł`, ...locationNeedles, ...input.extras]) {
-    if (!flat.includes(normalize(expected))) issues.push(`Brak wymaganej wartości: ${expected}`)
+  for (const expected of [input.wedding.bride.name, input.wedding.groom.name, input.wedding.bride.email, input.wedding.weddingDate, input.wedding.contractAddress, formatPlnInteger(input.financials.contractValuePln), formatPlnInteger(input.financials.depositPln), formatPlnInteger(input.financials.remainingPln), ...input.extras]) {
+    if (!hasExactFact(flat, expected)) issues.push(`Brak wymaganej wartości: ${expected}`)
   }
-  for (const stale of KNOWN_OLD_VALUES) if (flat.includes(normalize(stale))) issues.push(`Pozostała stara wartość: ${stale}`)
+  for (const stale of findStaleValues(flat, KNOWN_OLD_VALUES)) issues.push(`Pozostała stara wartość: ${stale}`)
+  const candidateDigits = flat.replace(/[\s()\-]/g, '')
+  for (const phone of [input.wedding.bride.phone, input.wedding.groom.phone]) {
+    if (!candidateDigits.includes(phone.replace(/[\s()\-]/g, ''))) issues.push(`Nieprawidłowy numer telefonu: ${phone}`)
+  }
+  for (const location of Object.values(input.wedding.locations)) {
+    if (!hasNaturalLocationFacts(flat, location)) issues.push(`Brak numeru adresowego lub kodu pocztowego lokalizacji: ${location}`)
+  }
   const originalDoc = await sourceZip.file('word/document.xml')!.async('string')
   const candidateDoc = await candidateZip.file('word/document.xml')!.async('string')
   const candidateBlocks = (await readSource(candidateBytes, input.sourceDocument.fileName)).blocks
