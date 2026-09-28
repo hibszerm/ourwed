@@ -67,6 +67,7 @@ export type AcceptanceResult = {
   conflictFindings: ConflictInput[]
   transformationStatus: 'NOT_RUN_PROVIDER_DISABLED' | 'MISSING_INPUT' | 'COMPLETED' | 'FAILED'
   blockOperationCounts: { transformation: number; canonicalMoney: number }
+  planningResultPath: string | null
   candidatePath: string | null
   candidateOpens: boolean | null
   reviewResult: 'NOT_RUN' | 'PASS' | 'FAIL'
@@ -99,6 +100,18 @@ export type HarnessOptions = {
   metricsClock?: MetricsClock
 }
 
+type PersistedPlanningResult = {
+  status: 'READY' | 'MISSING_INPUT' | 'FAILED'
+  missingInputs: MissingInput[]
+  conflicts: ConflictInput[]
+  operations: BlockOperation[] | null
+  operationCount: number | null
+  model?: string
+  responseModel?: string
+  planValidation: 'NOT_RUN' | 'PASS' | 'FAIL'
+  planValidationFindings: string[]
+}
+
 const defaultCasesRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), 'cases')
 
 function ownedArrayBuffer(value: ArrayBufferLike): ArrayBuffer {
@@ -111,12 +124,19 @@ function resultBase(caseId: string, sourceFilename = 'source.docx'): AcceptanceR
   return {
     caseId, sourceFilename, paymentTiming: {}, productRules: {}, transformationRequestPrepared: false, preflight: 'INVALID_CASE', missingInputs: [], conflictFindings: [],
     transformationStatus: 'NOT_RUN_PROVIDER_DISABLED', blockOperationCounts: { transformation: 0, canonicalMoney: 0 },
-    candidatePath: null, candidateOpens: null, reviewResult: 'NOT_RUN', reviewFindings: [],
+    planningResultPath: null, candidatePath: null, candidateOpens: null, reviewResult: 'NOT_RUN', reviewFindings: [],
     deterministicValidation: 'NOT_RUN', deterministicFindings: [], pageCount: null, blankPagePresence: 'NOT_RENDERED',
     protectedLegalWording: 'NOT_CHECKED', packageServicePreservation: 'NOT_CHECKED', oldDataStatus: 'NOT_CHECKED',
     inventedFactStatus: 'MANUAL_REVIEW_REQUIRED', visualInspection: 'PENDING',
     providerCalls: { transformation: 0, review: 0, total: 0, retries: 0, repair: 0 }, measurements: null, overall: 'FAIL',
   }
+}
+
+async function persistPlanningResult(outputDirectory: string, result: PersistedPlanningResult): Promise<string> {
+  await mkdir(outputDirectory, { recursive: true })
+  const artifactPath = path.join(outputDirectory, 'planning-result.json')
+  await writeFile(artifactPath, `${JSON.stringify(result, null, 2)}\n`)
+  return artifactPath
 }
 
 function missingFacts(facts: DeepPartial<WeddingFacts>): MissingInput[] {
@@ -285,10 +305,25 @@ export async function runMultiTemplateAcceptance(caseId: string, options: Harnes
   metrics.startStage('planningProvider')
   try {
     planned = await options.provider.transform({ input, sourceDocx: sourceArrayBuffer, paymentTiming: definition.paymentTiming ?? {}, productRules: definition.expectedProductRules ?? {} })
+    result.planningResultPath = await persistPlanningResult(outputDirectory, {
+      status: planned.missingInputs.some((item) => item.required) ? 'MISSING_INPUT' : 'READY',
+      missingInputs: planned.missingInputs,
+      conflicts: [],
+      operations: planned.blockOperations ?? null,
+      operationCount: planned.blockOperations?.length ?? null,
+      ...(planned.providerMetadata?.requestedModel ? { model: planned.providerMetadata.requestedModel } : {}),
+      ...(planned.providerMetadata?.responseModel ? { responseModel: planned.providerMetadata.responseModel } : {}),
+      planValidation: 'NOT_RUN',
+      planValidationFindings: [],
+    })
     const latencyMs = metrics.endStage('planningProvider')
     const timestamps = metrics.snapshot().timestamps.stages.planningProvider!
     metrics.recordProviderCall('planning', latencyMs, timestamps.startedAt, timestamps.endedAt, planned.providerMetadata)
   } catch (error) {
+    result.planningResultPath = await persistPlanningResult(outputDirectory, {
+      status: 'FAILED', missingInputs: [], conflicts: [], operations: null, operationCount: null,
+      planValidation: 'NOT_RUN', planValidationFindings: [],
+    })
     const latencyMs = metrics.endStage('planningProvider')
     const timestamps = metrics.snapshot().timestamps.stages.planningProvider!
     metrics.recordProviderCall('planning', latencyMs, timestamps.startedAt, timestamps.endedAt)
@@ -296,18 +331,42 @@ export async function runMultiTemplateAcceptance(caseId: string, options: Harnes
     await writeReports(result, outputDirectory, metrics); return result
   }
   if (planned.missingInputs.some((item) => item.required)) {
+    await persistPlanningResult(outputDirectory, {
+      status: 'MISSING_INPUT', missingInputs: planned.missingInputs, conflicts: [], operations: planned.blockOperations ?? null,
+      operationCount: planned.blockOperations?.length ?? null,
+      ...(planned.providerMetadata?.requestedModel ? { model: planned.providerMetadata.requestedModel } : {}),
+      ...(planned.providerMetadata?.responseModel ? { responseModel: planned.providerMetadata.responseModel } : {}),
+      planValidation: 'NOT_RUN', planValidationFindings: [],
+    })
     result.transformationStatus = 'MISSING_INPUT'; result.missingInputs = planned.missingInputs; result.overall = 'MISSING_INPUT'
     await writeReports(result, outputDirectory, metrics); return result
   }
   metrics.startStage('planValidation')
   if (!planned.blockOperations) {
     metrics.endStage('planValidation')
+    await persistPlanningResult(outputDirectory, {
+      status: 'FAILED', missingInputs: planned.missingInputs, conflicts: [], operations: null, operationCount: null,
+      ...(planned.providerMetadata?.requestedModel ? { model: planned.providerMetadata.requestedModel } : {}),
+      ...(planned.providerMetadata?.responseModel ? { responseModel: planned.providerMetadata.responseModel } : {}),
+      planValidation: 'FAIL', planValidationFindings: ['Transformation result has no block operations'],
+    })
     result.transformationStatus = 'FAILED'; result.deterministicFindings = ['Transformation result has no block operations']; result.overall = 'FAIL'
     await writeReports(result, outputDirectory, metrics); return result
   }
 
   const conclusionPlanIssues = validatePlannedConclusion(input, planned.blockOperations)
   metrics.endStage('planValidation')
+  await persistPlanningResult(outputDirectory, {
+    status: conclusionPlanIssues.length ? 'FAILED' : 'READY',
+    missingInputs: planned.missingInputs,
+    conflicts: [],
+    operations: planned.blockOperations,
+    operationCount: planned.blockOperations.length,
+    ...(planned.providerMetadata?.requestedModel ? { model: planned.providerMetadata.requestedModel } : {}),
+    ...(planned.providerMetadata?.responseModel ? { responseModel: planned.providerMetadata.responseModel } : {}),
+    planValidation: conclusionPlanIssues.length ? 'FAIL' : 'PASS',
+    planValidationFindings: conclusionPlanIssues,
+  })
   if (conclusionPlanIssues.length) {
     result.transformationStatus = 'FAILED'; result.deterministicValidation = 'FAIL'; result.deterministicFindings = conclusionPlanIssues; result.overall = 'FAIL'
     await writeReports(result, outputDirectory, metrics); return result

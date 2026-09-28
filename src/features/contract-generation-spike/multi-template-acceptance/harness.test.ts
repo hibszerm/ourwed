@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { mkdtemp, mkdir, readFile, rm, writeFile, copyFile } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { createHash } from 'node:crypto'
@@ -163,6 +164,63 @@ try {
   assert.equal(measuredRun.measurements.totalTokens.cachedInput, 7)
   assert.equal(measuredRun.measurements.totalCostUsd, 0.00000987)
   assert.match(formatAcceptanceReport(measuredRun), /Generation timing:/)
+
+  const planArtifactPath = path.join(outputRoot, 'ready-case', 'plan-persistence', 'planning-result.json')
+  let planProviderReturned = false
+  let providerCallsAfterPlanning = 0
+  let planExistsBeforeApply = false
+  let planProviderTransformCalls = 0
+  let planProviderReviewCalls = 0
+  const planProviderCallOrder: string[] = []
+  let fakeMonotonic = 0
+  let expectedPlanningOperations: Array<{ blockId: string; operation: 'REPLACE_BLOCK_TEXT'; finalText: string }> = []
+  const planPersistenceProvider: AcceptanceProvider = {
+    async transform({ input }) {
+      planProviderTransformCalls++
+      planProviderCallOrder.push('planning')
+      const opening = input.sourceDocument.blocks.find((block) => block.blockId === input.conclusion.sourceBlockId)!
+      expectedPlanningOperations = [{ blockId: opening.blockId, operation: 'REPLACE_BLOCK_TEXT', finalText: opening.text.replace(input.conclusion.sourceDate!, input.conclusion.replacementDate!) }]
+      planProviderReturned = true
+      return {
+        missingInputs: [],
+        blockOperations: expectedPlanningOperations,
+        providerMetadata: { requestedModel: 'gpt-6-luna', responseModel: 'gpt-6-luna' },
+      }
+    },
+    async review() {
+      planProviderReviewCalls++
+      planProviderCallOrder.push('review')
+      const artifact = JSON.parse(await readFile(planArtifactPath, 'utf8'))
+      assert.equal(artifact.status, 'READY')
+      assert.equal(artifact.planValidation, 'PASS')
+      assert.deepEqual(artifact.operations, expectedPlanningOperations)
+      assert.equal(artifact.operationCount, 1)
+      assert.equal(artifact.model, 'gpt-6-luna')
+      assert.equal(artifact.responseModel, 'gpt-6-luna')
+      return { status: 'PASS' }
+    },
+  }
+  const planPersistenceRun = await runMultiTemplateAcceptance('ready-case', {
+    casesRoot, outputRoot, provider: planPersistenceProvider, runId: 'plan-persistence',
+    metricsClock: {
+      monotonicNow() {
+        if (planProviderReturned) {
+          providerCallsAfterPlanning++
+          if (providerCallsAfterPlanning === 4) planExistsBeforeApply = existsSync(planArtifactPath)
+        }
+        return fakeMonotonic++
+      },
+      wallNow() { return new Date(fakeMonotonic) },
+    },
+  })
+  assert.ok(planPersistenceRun.candidatePath, 'the persisted plan proceeds to candidate application')
+  assert.equal(planPersistenceRun.reviewResult, 'PASS')
+  assert.equal(planExistsBeforeApply, true, 'planning result is persisted before DOCX application')
+  assert.equal(planPersistenceRun.planningResultPath, planArtifactPath)
+  const planPersistenceReport = JSON.parse(await readFile(path.join(outputRoot, 'ready-case', 'plan-persistence', 'result.json'), 'utf8'))
+  assert.equal(planPersistenceReport.planningResultPath, planArtifactPath, 'benchmark JSON references the persisted planning artifact')
+  assert.deepEqual({ planProviderTransformCalls, planProviderReviewCalls }, { planProviderTransformCalls: 1, planProviderReviewCalls: 1 }, 'provider call count/order remains one planning call then one review call')
+  assert.deepEqual(planProviderCallOrder, ['planning', 'review'], 'provider order remains planning followed by review')
 
   const caseId = 'case-01-elegant-photographer'
   const realCasesRoot = path.resolve(process.cwd(), 'src/features/contract-generation-spike/multi-template-acceptance/cases')

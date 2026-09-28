@@ -432,6 +432,84 @@ function approvedReplacementMatchesCandidate(
   return !!coordinates && candidateBlocks.some((block) => block.part === sourceBlock.part && tableCellCoordinates(block) === coordinates && normalize(block.text) === expected)
 }
 
+const partyRoleLabel = /^(?:zleceniodawczyni|zleceniodawca|klientka|klient|zamawiająca|zamawiający)$/iu
+const partyNamePair = /^\s*([\p{Lu}][\p{L}'’.-]*)\s+([\p{Lu}][\p{L}'’.-]*)/u
+type PartyOwner = 'bride' | 'groom' | null
+type SourceCustomerName = { name: string; owner: PartyOwner }
+
+function customerOwner(label: string): PartyOwner {
+  if (/zleceniodawczyn|klientk|zamawiająca/iu.test(label)) return 'bride'
+  if (/zleceniodawca|zamawiający/iu.test(label)) return 'groom'
+  return null
+}
+
+function partyNameFingerprint(value: string): string[] {
+  return value.normalize('NFC').toLocaleLowerCase('pl-PL').match(/[\p{L}]+/gu)?.map((word) => word.replace(/ą$/u, '')) ?? []
+}
+
+function partyNamesMatch(text: string, name: string): boolean {
+  const expected = partyNameFingerprint(name)
+  const words = text.normalize('NFC').toLocaleLowerCase('pl-PL').match(/[\p{L}]+/gu) ?? []
+  if (expected.length < 2) return false
+  return words.some((_, index) => expected.every((part, offset) => {
+    const candidate = words[index + offset]
+    return !!candidate && candidate.startsWith(part) && candidate.length - part.length <= 2
+  }))
+}
+
+function firstNamePair(value: string): string | undefined {
+  const match = partyNamePair.exec(value)
+  return match ? `${match[1]} ${match[2]}` : undefined
+}
+
+function customerPartyNames(sourceBlocks: SourceBlock[], documentXml: string): SourceCustomerName[] {
+  const names = new Map<string, SourceCustomerName>()
+  const addName = (name: string, owner: PartyOwner) => names.set(`${owner ?? 'unknown'}:${name}`, { name, owner })
+  const paragraphXml = [...documentXml.matchAll(/<w:p\b[\s\S]*?<\/w:p>/g)].map((match) => match[0])
+  const byTableRow = new Map<string, SourceBlock[]>()
+  for (const block of sourceBlocks) {
+    const coordinates = block.context.match(/Table (\d+), row (\d+), cell (\d+)/)
+    if (!coordinates) continue
+    const rowKey = `${coordinates[1]}:${coordinates[2]}`
+    byTableRow.set(rowKey, [...(byTableRow.get(rowKey) ?? []), block])
+  }
+  const firstXmlText = (block: SourceBlock): string | undefined => {
+    const xml = paragraphXml[block.index]
+    const raw = xml?.match(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/)?.[1]
+    return raw ? unescapeXml(raw).trim() : undefined
+  }
+
+  for (const block of sourceBlocks) {
+    const role = block.text.trim().replace(/[:\-–—]$/, '').trim()
+    if (partyRoleLabel.test(role)) {
+      const coordinates = block.context.match(/Table (\d+), row (\d+), cell (\d+)/)
+      if (coordinates) {
+        const rowKey = `${coordinates[1]}:${coordinates[2]}`
+        for (const related of byTableRow.get(rowKey) ?? []) {
+          if (related.blockId === block.blockId || related.contentClass === 'package_service') continue
+          const name = firstNamePair(firstXmlText(related) ?? '')
+          if (name) addName(name, customerOwner(role))
+        }
+      }
+    }
+
+    const inlineLabel = block.text.match(/\b(zleceniodawczyni|zleceniodawca|klientka|klient|zamawiająca|zamawiający)\s*[:\-–—]\s*(.*)$/iu)
+    const inlineName = inlineLabel?.[2] ? firstNamePair(inlineLabel[2]) : undefined
+    if (inlineName && inlineLabel?.[1]) addName(inlineName, customerOwner(inlineLabel[1]))
+
+    const customerAlias = /\b(?:zwaną|zwany|zwane)\s+(?:dalej\s+)?[„"']?(klient\p{L}*|parą\s+młodą|zleceniodawczyni|zleceniodawca)\b/giu
+    const aliases = [...block.text.matchAll(customerAlias)]
+    const alias = aliases.at(-1)
+    if (!alias || alias.index === undefined) continue
+    const prefix = block.text.slice(0, alias.index)
+    const lastJoin = [...prefix.matchAll(/(?:\bpomiędzy\s+|,\s*a\s+)/giu)].at(-1)
+    if (!lastJoin || lastJoin.index === undefined) continue
+    const name = firstNamePair(prefix.slice(lastJoin.index + lastJoin[0].length))
+    if (name) addName(name, customerOwner(alias[1] ?? ''))
+  }
+  return [...names.values()]
+}
+
 export async function validateCandidate(
   sourceBytes: ArrayBuffer,
   candidateBytes: ArrayBuffer,
@@ -447,6 +525,12 @@ export async function validateCandidate(
   const flat = normalize(text)
   for (const expectedName of [input.wedding.bride.name, input.wedding.groom.name]) {
     if (!hasPolishNameFacts(flat, expectedName)) issues.push(`Brak wymaganej wartości: ${expectedName}`)
+  }
+  const authoritativePartyNames = [input.wedding.bride.name, input.wedding.groom.name]
+  for (const staleParty of customerPartyNames(sourceDocument.blocks, await sourceZip.file('word/document.xml')!.async('string'))) {
+    const authoritativeNames = staleParty.owner ? [input.wedding[staleParty.owner].name] : authoritativePartyNames
+    if (authoritativeNames.some((name) => partyNamesMatch(name, staleParty.name))) continue
+    if (partyNamesMatch(flat, staleParty.name)) issues.push(`Pozostała stara wartość strony umowy: ${staleParty.name}`)
   }
   for (const expected of [input.wedding.bride.email, ...input.extras]) {
     if (!hasExactFact(flat, expected)) issues.push(`Brak wymaganej wartości: ${expected}`)
