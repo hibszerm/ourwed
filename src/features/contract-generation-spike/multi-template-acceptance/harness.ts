@@ -20,6 +20,24 @@ import {
 
 type DeepPartial<T> = { [K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K] }
 
+export type RelativePaymentTiming = {
+  type: 'relative'
+  relativeTo: 'contract_conclusion' | 'wedding'
+  offsetDays: number
+  sourceMeaning: string
+}
+
+export type CasePaymentTiming = {
+  reservation?: RelativePaymentTiming
+  remaining?: RelativePaymentTiming
+}
+
+export type AcceptanceProductRules = {
+  preserveSourcePackageExactly?: true
+  preserveSourceConclusionPlace?: string
+  preserveSourceContractingPartyStructure?: true
+}
+
 export type MultiTemplateCaseDefinition = {
   id: string
   sourceDocx: 'source.docx'
@@ -27,17 +45,20 @@ export type MultiTemplateCaseDefinition = {
   weddingFacts: DeepPartial<WeddingFacts>
   extras?: string[]
   userProvidedAnswers?: GenerationInput['userProvidedAnswers']
-  expectedProductRules?: { preserveSourcePackageExactly?: true }
+  paymentTiming?: CasePaymentTiming
+  expectedProductRules?: AcceptanceProductRules
 }
 
 export type AcceptanceProvider = {
-  transform(args: { input: GenerationInput; sourceDocx: ArrayBuffer }): Promise<{ missingInputs: MissingInput[]; blockOperations?: BlockOperation[] }>
-  review(args: { source: GenerationInput['sourceDocument']; input: GenerationInput; candidate: SourceBlock[] }): Promise<ReviewResult>
+  transform(args: { input: GenerationInput; sourceDocx: ArrayBuffer; paymentTiming: CasePaymentTiming; productRules: AcceptanceProductRules }): Promise<{ missingInputs: MissingInput[]; blockOperations?: BlockOperation[] }>
+  review(args: { source: GenerationInput['sourceDocument']; input: GenerationInput; candidate: SourceBlock[]; paymentTiming: CasePaymentTiming; productRules: AcceptanceProductRules }): Promise<ReviewResult>
 }
 
 export type AcceptanceResult = {
   caseId: string
   sourceFilename: string
+  paymentTiming: CasePaymentTiming
+  productRules: AcceptanceProductRules
   transformationRequestPrepared: boolean
   preflight: 'READY' | 'MISSING_INPUT' | 'CONFLICT_INPUT' | 'INVALID_CASE'
   missingInputs: MissingInput[]
@@ -84,7 +105,7 @@ function ownedArrayBuffer(value: ArrayBufferLike): ArrayBuffer {
 
 function resultBase(caseId: string, sourceFilename = 'source.docx'): AcceptanceResult {
   return {
-    caseId, sourceFilename, transformationRequestPrepared: false, preflight: 'INVALID_CASE', missingInputs: [], conflictFindings: [],
+    caseId, sourceFilename, paymentTiming: {}, productRules: {}, transformationRequestPrepared: false, preflight: 'INVALID_CASE', missingInputs: [], conflictFindings: [],
     transformationStatus: 'NOT_RUN_PROVIDER_DISABLED', blockOperationCounts: { transformation: 0, canonicalMoney: 0 },
     candidatePath: null, candidateOpens: null, reviewResult: 'NOT_RUN', reviewFindings: [],
     deterministicValidation: 'NOT_RUN', deterministicFindings: [], pageCount: null, blankPagePresence: 'NOT_RENDERED',
@@ -105,7 +126,13 @@ function missingFacts(facts: DeepPartial<WeddingFacts>): MissingInput[] {
 function isCaseDefinition(value: unknown, caseId: string): value is MultiTemplateCaseDefinition {
   if (!value || typeof value !== 'object') return false
   const item = value as Partial<MultiTemplateCaseDefinition>
-  return item.id === caseId && item.sourceDocx === 'source.docx' && typeof item.generationDate === 'string' && !!item.weddingFacts && typeof item.weddingFacts === 'object'
+  const validTiming = (timing: RelativePaymentTiming | undefined) => timing === undefined || (
+    timing.type === 'relative' && (timing.relativeTo === 'contract_conclusion' || timing.relativeTo === 'wedding') &&
+    Number.isInteger(timing.offsetDays) && typeof timing.sourceMeaning === 'string' && timing.sourceMeaning.trim().length > 0
+  )
+  const paymentTiming = item.paymentTiming
+  return item.id === caseId && item.sourceDocx === 'source.docx' && typeof item.generationDate === 'string' && !!item.weddingFacts && typeof item.weddingFacts === 'object' &&
+    (!paymentTiming || (validTiming(paymentTiming.reservation) && validTiming(paymentTiming.remaining)))
 }
 
 async function runCommand(command: string, args: string[]): Promise<string> {
@@ -144,6 +171,9 @@ export function formatAcceptanceReport(result: AcceptanceResult): string {
     `- Overall: ${result.overall}`,
     `- Source: ${result.sourceFilename}`,
     `- Preflight: ${result.preflight}`,
+    `- Reservation timing: ${result.paymentTiming.reservation?.sourceMeaning ?? 'not specified'}`,
+    `- Remaining timing: ${result.paymentTiming.remaining?.sourceMeaning ?? 'not specified'}`,
+    `- Product rules: package preservation ${result.productRules.preserveSourcePackageExactly ? 'required' : 'unspecified'}; source conclusion place ${result.productRules.preserveSourceConclusionPlace ?? 'unspecified'}; source party structure ${result.productRules.preserveSourceContractingPartyStructure ? 'authoritative' : 'unspecified'}`,
     `- Transformation request prepared: ${result.transformationRequestPrepared ? 'yes' : 'no'}`,
     `- Missing input fields: ${result.missingInputs.map((item) => item.label).join(', ') || 'none'}`,
     `- Conflict findings: ${result.conflictFindings.map((item) => item.id).join(', ') || 'none'}`,
@@ -199,14 +229,18 @@ export async function runMultiTemplateAcceptance(caseId: string, options: Harnes
   }
   const sourceArrayBuffer = ownedArrayBuffer(sourceBytes.buffer.slice(sourceBytes.byteOffset, sourceBytes.byteOffset + sourceBytes.byteLength))
   const sourceDocument = await readSource(sourceArrayBuffer, definition.sourceDocx)
-  const missing = missingFacts(definition.weddingFacts)
+  result.paymentTiming = definition.paymentTiming ?? {}
+  result.productRules = definition.expectedProductRules ?? {}
+  const caseWeddingFacts: DeepPartial<WeddingFacts> = { ...definition.weddingFacts }
+  if (!caseWeddingFacts.remainingDueDate && definition.paymentTiming?.remaining) caseWeddingFacts.remainingDueDate = definition.paymentTiming.remaining.sourceMeaning
+  const missing = missingFacts(caseWeddingFacts)
   if (missing.length) {
     result.preflight = 'MISSING_INPUT'; result.missingInputs = missing; result.transformationStatus = 'MISSING_INPUT'; result.overall = 'MISSING_INPUT'
     await writeReports(result, outputDirectory)
     return result
   }
 
-  const wedding = definition.weddingFacts as WeddingFacts
+  const wedding = caseWeddingFacts as WeddingFacts
   const input = makeInput({
     generationDate: definition.generationDate,
     sourceDocument,
@@ -215,6 +249,9 @@ export async function runMultiTemplateAcceptance(caseId: string, options: Harnes
     extras: definition.extras ?? [],
     userProvidedAnswers: definition.userProvidedAnswers ?? [],
   })
+  if (definition.expectedProductRules?.preserveSourceConclusionPlace) {
+    input.conclusion = { ...input.conclusion, preservePlace: definition.expectedProductRules.preserveSourceConclusionPlace }
+  }
   const conflicts = findInputConflicts(input)
   if (conflicts.length) {
     result.preflight = 'CONFLICT_INPUT'; result.conflictFindings = conflicts; result.overall = 'CONFLICT_INPUT'
@@ -232,7 +269,7 @@ export async function runMultiTemplateAcceptance(caseId: string, options: Harnes
 
   result.providerCalls.transformation = 1; result.providerCalls.total = 1
   let planned: Awaited<ReturnType<AcceptanceProvider['transform']>>
-  try { planned = await options.provider.transform({ input, sourceDocx: sourceArrayBuffer }) } catch (error) {
+  try { planned = await options.provider.transform({ input, sourceDocx: sourceArrayBuffer, paymentTiming: definition.paymentTiming ?? {}, productRules: definition.expectedProductRules ?? {} }) } catch (error) {
     result.transformationStatus = 'FAILED'; result.deterministicFindings = [error instanceof Error ? error.message : String(error)]; result.overall = 'FAIL'
     await writeReports(result, outputDirectory); return result
   }
@@ -275,7 +312,7 @@ export async function runMultiTemplateAcceptance(caseId: string, options: Harnes
 
   result.providerCalls.review = 1; result.providerCalls.total = 2
   try {
-    const review = await options.provider.review({ source: sourceDocument, input, candidate: candidateBlocks.blocks })
+    const review = await options.provider.review({ source: sourceDocument, input, candidate: candidateBlocks.blocks, paymentTiming: definition.paymentTiming ?? {}, productRules: definition.expectedProductRules ?? {} })
     result.reviewResult = review.status
     result.reviewFindings = review.status === 'FAIL' ? review.issues : []
     if (review.status === 'FAIL') { result.overall = 'FAIL'; await writeReports(result, outputDirectory); return result }

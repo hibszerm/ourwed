@@ -1,0 +1,48 @@
+{
+  "id": "case-01-elegant-photographer",
+  "sourceDocx": "source.docx",
+  "generationDate": "10.02.2027",
+  "weddingFacts": {
+    "bride": {
+      "name": "Natalia Krawczyk",
+      "phone": "502714883",
+      "email": "natalia.krawczyk@example.com"
+    },
+    "groom": {
+      "name": "Mateusz Wilk",
+      "phone": "601928447",
+      "email": "mateusz.wilk@example.com"
+    },
+    "weddingDate": "18.07.2027",
+    "contractAddress": "ul. Słoneczna 24/7, 40-135 Katowice",
+    "contractValuePln": 9600,
+    "depositPln": 1800,
+    "locations": {
+      "groomPreparations": "Hotel Monopol Katowice, ul. Dworcowa 5, 40-012 Katowice",
+      "bridePreparations": "Hotel Monopol Katowice, ul. Dworcowa 5, 40-012 Katowice",
+      "ceremony": "Kościół Mariacki w Katowicach, pl. ks. Emila Szramka 1, 40-014 Katowice",
+      "reception": "Restauracja Villa Gardena, ul. Słowackiego 2, 43-190 Mikołów"
+    }
+  },
+  "extras": [],
+  "userProvidedAnswers": [],
+  "paymentTiming": {
+    "reservation": {
+      "type": "relative",
+      "relativeTo": "contract_conclusion",
+      "offsetDays": 3,
+      "sourceMeaning": "w terminie 3 dni od zawarcia umowy"
+    },
+    "remaining": {
+      "type": "relative",
+      "relativeTo": "wedding",
+      "offsetDays": -7,
+      "sourceMeaning": "najpóźniej 7 dni przed uroczystością"
+    }
+  },
+  "expectedProductRules": {
+    "preserveSourcePackageExactly": true,
+    "preserveSourceConclusionPlace": "Warszawa",
+    "preserveSourceContractingPartyStructure": true
+  }
+}

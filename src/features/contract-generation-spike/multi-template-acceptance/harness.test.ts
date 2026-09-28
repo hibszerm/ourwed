@@ -2,8 +2,10 @@ import assert from 'node:assert/strict'
 import { mkdtemp, mkdir, readFile, rm, writeFile, copyFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import { createHash } from 'node:crypto'
 import type { AcceptanceProvider, MultiTemplateCaseDefinition } from './harness'
 import { ACCEPTANCE_PROVIDER_BUDGET, formatAcceptanceReport, runMultiTemplateAcceptance } from './harness'
+import { readSource } from '../generator'
 
 const sourceFixture = path.resolve(process.cwd(), 'src/features/contract-generation-spike/fixtures/source-video-standard.docx')
 const root = await mkdtemp(path.join(os.tmpdir(), 'ourwed-multi-template-'))
@@ -58,6 +60,31 @@ try {
   assert.equal(ready.transformationStatus, 'NOT_RUN_PROVIDER_DISABLED')
   assert.equal(ready.providerCalls.total, 0)
 
+  await addCase('relative-timing-case', {
+    weddingFacts: { ...structuredClone(completeWedding), remainingDueDate: undefined },
+    paymentTiming: {
+      reservation: { type: 'relative', relativeTo: 'contract_conclusion', offsetDays: 3, sourceMeaning: 'w terminie 3 dni od zawarcia umowy' },
+      remaining: { type: 'relative', relativeTo: 'wedding', offsetDays: -7, sourceMeaning: 'najpóźniej 7 dni przed uroczystością' },
+    },
+  })
+  let timingObserved: unknown
+  const timingBoundaryProbe: AcceptanceProvider = {
+    async transform({ input, paymentTiming }) {
+      timingObserved = { inputDueRule: input.wedding.remainingDueDate, paymentTiming }
+      throw new Error('offline schema probe')
+    },
+    async review() { throw new Error('review must not run during schema probe') },
+  }
+  const relativeTiming = await runMultiTemplateAcceptance('relative-timing-case', { casesRoot, outputRoot, provider: timingBoundaryProbe, runId: 'schema-probe' })
+  assert.equal(relativeTiming.preflight, 'READY', 'a relative source rule satisfies case input without a derived date')
+  assert.deepEqual(timingObserved, {
+    inputDueRule: 'najpóźniej 7 dni przed uroczystością',
+    paymentTiming: {
+      reservation: { type: 'relative', relativeTo: 'contract_conclusion', offsetDays: 3, sourceMeaning: 'w terminie 3 dni od zawarcia umowy' },
+      remaining: { type: 'relative', relativeTo: 'wedding', offsetDays: -7, sourceMeaning: 'najpóźniej 7 dni przed uroczystością' },
+    },
+  }, 'future transformation request carries both source-relative payment rules')
+
   assert.deepEqual(ACCEPTANCE_PROVIDER_BUDGET, { transformation: 1, review: 1, total: 2, retries: 0, repair: 0 })
   assert.deepEqual(Object.keys(spyProvider).sort(), ['review', 'transform'], 'provider contract has no repair operation')
 
@@ -90,9 +117,32 @@ try {
 
   const report = await readFile(path.join(outputRoot, 'ready-case', 'review-stop', 'result.json'), 'utf8')
   const parsedReport = JSON.parse(report)
-  for (const field of ['caseId', 'sourceFilename', 'preflight', 'missingInputs', 'conflictFindings', 'transformationStatus', 'blockOperationCounts', 'candidatePath', 'candidateOpens', 'reviewResult', 'reviewFindings', 'deterministicValidation', 'pageCount', 'blankPagePresence', 'protectedLegalWording', 'packageServicePreservation', 'oldDataStatus', 'inventedFactStatus', 'visualInspection', 'providerCalls', 'overall']) assert.ok(field in parsedReport, `report contains ${field}`)
+  for (const field of ['caseId', 'sourceFilename', 'paymentTiming', 'preflight', 'missingInputs', 'conflictFindings', 'transformationStatus', 'blockOperationCounts', 'candidatePath', 'candidateOpens', 'reviewResult', 'reviewFindings', 'deterministicValidation', 'pageCount', 'blankPagePresence', 'protectedLegalWording', 'packageServicePreservation', 'oldDataStatus', 'inventedFactStatus', 'visualInspection', 'providerCalls', 'overall']) assert.ok(field in parsedReport, `report contains ${field}`)
   assert.match(formatAcceptanceReport(stopped), /Provider calls: 2/)
   assert.match(await readFile(path.join(outputRoot, 'ready-case', 'review-stop', 'result.md'), 'utf8'), /offline review stub failure/)
+
+  const caseId = 'case-01-elegant-photographer'
+  const realCasesRoot = path.resolve(process.cwd(), 'src/features/contract-generation-spike/multi-template-acceptance/cases')
+  const realCaseDir = path.join(realCasesRoot, caseId)
+  const realCase = JSON.parse(await readFile(path.join(realCaseDir, 'input.json'), 'utf8'))
+  const caseSourceBytes = await readFile(path.join(realCaseDir, 'source.docx'))
+  assert.equal(createHash('sha256').update(caseSourceBytes).digest('hex'), 'd8f5b95eae9586adc5c37b681f2ba108ab2464fcc78f2ab8214a6d57a6710fee', 'case source remains byte-identical to the supplied source fixture')
+  assert.equal(realCase.weddingFacts.clientPesel, undefined, 'PESEL is absent from authoritative facts')
+  assert.equal(realCase.userProvidedAnswers.some((answer: { id: string }) => /pesel/i.test(answer.id)), false, 'no PESEL answer is supplied')
+  assert.equal(realCase.weddingFacts.remainingDueDate, undefined, 'case does not store a derived calendar due date')
+  assert.deepEqual(realCase.paymentTiming.remaining, { type: 'relative', relativeTo: 'wedding', offsetDays: -7, sourceMeaning: 'najpóźniej 7 dni przed uroczystością' })
+  assert.deepEqual(realCase.paymentTiming.reservation, { type: 'relative', relativeTo: 'contract_conclusion', offsetDays: 3, sourceMeaning: 'w terminie 3 dni od zawarcia umowy' })
+  assert.deepEqual(realCase.extras, [], 'optional service catalogue entries are not selected extras')
+  assert.equal(realCase.expectedProductRules.preserveSourcePackageExactly, true)
+  const caseSourceBuffer = caseSourceBytes.buffer.slice(caseSourceBytes.byteOffset, caseSourceBytes.byteOffset + caseSourceBytes.byteLength) as ArrayBuffer
+  const openedCaseSource = await readSource(caseSourceBuffer, 'source.docx')
+  assert.ok(openedCaseSource.blocks.some((block) => block.text.includes('Klasyczny Reportaż')), 'package is present in the source DOCX')
+  const actualCase = await runMultiTemplateAcceptance(caseId, { casesRoot: realCasesRoot, outputRoot, runId: 'offline-preflight' })
+  assert.equal(actualCase.preflight, 'READY', 'offline preflight does not attempt arbitrary source-field discovery')
+  assert.deepEqual(actualCase.conflictFindings, [])
+  assert.equal(actualCase.providerCalls.total, 0)
+  assert.equal(actualCase.candidatePath, null, 'preflight-only run does not generate a candidate')
+  assert.equal(9600 - 1800, 7800)
 
   console.log('PASS multi-template acceptance harness mechanics')
 } finally {
