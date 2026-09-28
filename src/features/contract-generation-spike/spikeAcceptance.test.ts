@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { applyBlockOperations } from './blockDocxEditor'
-import { runGeneration, makeInput, readSource, conclusionRule, KNOWN_OLD_VALUES, findInputConflicts, applyConflictOverrides, TRANSFORMATION_INSTRUCTIONS, REVIEW_INSTRUCTIONS, classifyBlock, type ContractAi, type GenerationInput, type SourceBlock } from './generator'
+import { runGeneration, makeInput, readSource, conclusionRule, KNOWN_OLD_VALUES, findInputConflicts, applyConflictOverrides, AUTHORITATIVE_FIELD_SEMANTICS, TRANSFORMATION_INSTRUCTIONS, REVIEW_INSTRUCTIONS, classifyBlock, type ContractAi, type GenerationInput, type SourceBlock } from './generator'
 
 const here = fileURLToPath(new URL('.', import.meta.url))
 const sourceBytes = await readFile(`${here}fixtures/source-video-standard.docx`)
@@ -56,6 +56,15 @@ assert.match(TRANSFORMATION_INSTRUCTIONS, /do not rewrite the full identificatio
 assert.match(TRANSFORMATION_INSTRUCTIONS, /Input conflicts must be stopped before transformation/i)
 assert.match(TRANSFORMATION_INSTRUCTIONS, /complete final paragraph text/i)
 assert.match(TRANSFORMATION_INSTRUCTIONS, /return no operation for a protected block/i)
+assert.match(AUTHORITATIVE_FIELD_SEMANTICS, /wedding\.contractAddress.*authoritative contract\/residential address.*same entity/i, 'the CRM contract address maps to equivalent source wording for its owning entity')
+assert.match(AUTHORITATIVE_FIELD_SEMANTICS, /not by exact label matching/i, 'semantic equivalence is independent of the source label')
+assert.match(AUTHORITATIVE_FIELD_SEMANTICS, /not a universal address for every person/i, 'one party address cannot satisfy another party')
+assert.match(AUTHORITATIVE_FIELD_SEMANTICS, /userProvidedAnswers as authoritative.*each answer id.*entity\/path scope/i, 'answer IDs preserve value ownership')
+assert.match(AUTHORITATIVE_FIELD_SEMANTICS, /Distinct entities require their own authoritative address values/i, 'distinct clients require distinct owned values')
+assert.match(AUTHORITATIVE_FIELD_SEMANTICS, /only when the authoritative input explicitly identifies it as shared/i, 'shared residence must be explicit')
+assert.match(AUTHORITATIVE_FIELD_SEMANTICS, /check all structured authoritative fields, userProvidedAnswers, and applicable generation rules.*only when that concept has no authoritative value/i, 'missing input is reported only after all authoritative sources are checked')
+assert.doesNotMatch(AUTHORITATIVE_FIELD_SEMANTICS, /Anna|Piotr|bride|groom|case.?02/i, 'shared semantics contain no person- or template-specific rules')
+assert.ok(TRANSFORMATION_INSTRUCTIONS.startsWith(AUTHORITATIVE_FIELD_SEMANTICS), 'the planner receives the shared field semantics')
 assert.match(REVIEW_INSTRUCTIONS, /allowed minimal, unambiguous editorial/i)
 assert.match(REVIEW_INSTRUCTIONS, /unauthorized substantive legal rewrite/i)
 assert.match(REVIEW_INSTRUCTIONS, /source contract defines which factual concepts belong/i)
