@@ -5,7 +5,7 @@ import path from 'node:path'
 import { createHash } from 'node:crypto'
 import type { AcceptanceProvider, MultiTemplateCaseDefinition } from './harness'
 import { ACCEPTANCE_PROVIDER_BUDGET, formatAcceptanceReport, runMultiTemplateAcceptance } from './harness'
-import { makeInput, readSource } from '../generator'
+import { makeInput, readSource, type GenerationInput } from '../generator'
 
 const sourceFixture = path.resolve(process.cwd(), 'src/features/contract-generation-spike/fixtures/source-video-standard.docx')
 const root = await mkdtemp(path.join(os.tmpdir(), 'ourwed-multi-template-'))
@@ -60,6 +60,21 @@ try {
   assert.equal(ready.transformationStatus, 'NOT_RUN_PROVIDER_DISABLED')
   assert.equal(ready.providerCalls.total, 0)
 
+  let staleConclusionReviewCalls = 0
+  const staleConclusionProvider: AcceptanceProvider = {
+    async transform({ input }) {
+      const opening = input.sourceDocument.blocks.find((block) => block.blockId === input.conclusion.sourceBlockId)!
+      return { missingInputs: [], blockOperations: [{ blockId: opening.blockId, operation: 'REPLACE_BLOCK_TEXT', finalText: opening.text }] }
+    },
+    async review() { staleConclusionReviewCalls++; return { status: 'PASS' } },
+  }
+  const staleConclusion = await runMultiTemplateAcceptance('ready-case', { casesRoot, outputRoot, provider: staleConclusionProvider, runId: 'stale-conclusion' })
+  assert.equal(staleConclusion.overall, 'FAIL')
+  assert.equal(staleConclusion.deterministicValidation, 'FAIL')
+  assert.equal(staleConclusion.candidatePath, null, 'invalid plan is rejected before candidate generation')
+  assert.equal(staleConclusionReviewCalls, 0, 'invalid plan is rejected before review')
+  assert.match(staleConclusion.deterministicFindings.join(' '), /authoritative conclusion date/i)
+
   await addCase('relative-timing-case', {
     weddingFacts: { ...structuredClone(completeWedding), remainingDueDate: undefined },
     paymentTiming: {
@@ -103,7 +118,10 @@ try {
   assert.deepEqual(observed, [{ name: 'Julia Kanicka', originalDocx: true }, { name: 'Another Client', originalDocx: true }], 'each case independently starts from its own source DOCX and facts')
 
   const reviewFailureProvider: AcceptanceProvider = {
-    async transform() { return { missingInputs: [], blockOperations: [] } },
+    async transform({ input }) {
+      const opening = input.sourceDocument.blocks.find((block) => block.blockId === input.conclusion.sourceBlockId)
+      return { missingInputs: [], blockOperations: opening && input.conclusion.replacementDate ? [{ blockId: opening.blockId, operation: 'REPLACE_BLOCK_TEXT', finalText: opening.text.replace(/\d{1,2}[./-]\d{1,2}[./-]\d{4}|\d{1,2}\s+(?:stycznia|lutego|marca|kwietnia|maja|czerwca|lipca|sierpnia|września|października|listopada|grudnia)\s+\d{4}|\.{3,}/i, input.conclusion.replacementDate) }] : [] }
+    },
     async review() { return { status: 'FAIL', issues: ['offline review stub failure'] } },
   }
   const stopped = await runMultiTemplateAcceptance('ready-case', { casesRoot, outputRoot, provider: reviewFailureProvider, runId: 'review-stop' })
@@ -139,10 +157,12 @@ try {
   assert.ok(openedCaseSource.blocks.some((block) => block.text.includes('Klasyczny Reportaż')), 'package is present in the source DOCX')
   const caseWedding = { ...realCase.weddingFacts, remainingDueDate: realCase.paymentTiming.remaining.sourceMeaning }
   const caseInput = makeInput({ generationDate: realCase.generationDate, sourceDocument: openedCaseSource, wedding: caseWedding, packagePolicy: { preserveSourcePackageExactly: true }, extras: realCase.extras, userProvidedAnswers: realCase.userProvidedAnswers })
-  caseInput.conclusion = { ...caseInput.conclusion, preservePlace: realCase.expectedProductRules.preserveSourceConclusionPlace }
+  if (!caseInput.conclusion.preservePlace) caseInput.conclusion = { ...caseInput.conclusion, preservePlace: realCase.expectedProductRules.preserveSourceConclusionPlace }
   assert.equal(caseInput.conclusion.replaceDate, true)
+  assert.equal(caseInput.conclusion.sourceDate, '15.02.2027')
+  assert.equal(caseInput.conclusion.sourceBlockId, 'word/document.xml#p2')
   assert.equal(caseInput.conclusion.replacementDate, '10.02.2027')
-  assert.equal(caseInput.conclusion.preservePlace, 'Warszawa')
+  assert.equal(caseInput.conclusion.preservePlace, 'Warszawie')
   assert.equal(caseInput.wedding.weddingDate, '18.07.2027')
   assert.equal(JSON.stringify(realCase).toLowerCase().includes('pesel'), false, 'no personal identifier is present in Case 01 input')
   const actualCase = await runMultiTemplateAcceptance(caseId, { casesRoot: realCasesRoot, outputRoot, runId: 'offline-preflight' })
@@ -151,6 +171,30 @@ try {
   assert.equal(actualCase.providerCalls.total, 0)
   assert.equal(actualCase.candidatePath, null, 'preflight-only run does not generate a candidate')
   assert.equal(9600 - 1800, 7800)
+
+  const capturedPlanningInputs: Record<string, GenerationInput['conclusion']> = {}
+  const conclusionCaptureProvider: AcceptanceProvider = {
+    async transform({ input }) {
+      capturedPlanningInputs[input.conclusion.sourceDate ?? 'no-source-date'] = input.conclusion
+      return { missingInputs: [{ id: 'offline-stop', label: 'offline stop', explanation: 'Stop after capturing deterministic context.', inputType: 'text', required: true, sourceContext: 'test' }] }
+    },
+    async review() { throw new Error('review must not run in conclusion context handoff test') },
+  }
+  await runMultiTemplateAcceptance(caseId, { casesRoot: realCasesRoot, outputRoot, provider: conclusionCaptureProvider, runId: 'conclusion-context' })
+  const case02Id = 'case-02-structured-two-client-photographer'
+  const case02Dir = path.join(realCasesRoot, case02Id)
+  const continuationProbeId = 'case-02-continuation-handoff-probe'
+  const continuationProbeDir = path.join(casesRoot, continuationProbeId)
+  const case02Definition = JSON.parse(await readFile(path.join(case02Dir, 'input.json'), 'utf8'))
+  case02Definition.userProvidedAnswers.push({ id: 'wedding.groom.pesel', value: '90010112346' })
+  await mkdir(continuationProbeDir, { recursive: true })
+  await copyFile(path.join(case02Dir, 'source.docx'), path.join(continuationProbeDir, 'source.docx'))
+  await writeFile(path.join(continuationProbeDir, 'input.json'), JSON.stringify({ ...case02Definition, id: continuationProbeId }, null, 2))
+  await runMultiTemplateAcceptance(continuationProbeId, { casesRoot, outputRoot, provider: conclusionCaptureProvider, runId: 'conclusion-context' })
+  const case01Conclusion = Object.values(capturedPlanningInputs).find((conclusion) => conclusion.sourceDate === '15.02.2027')
+  const case02Conclusion = Object.values(capturedPlanningInputs).find((conclusion) => conclusion.sourceDate === '04.03.2027')
+  assert.deepEqual(case01Conclusion, { replaceDate: true, sourceDate: '15.02.2027', sourceBlockId: 'word/document.xml#p2', replacementDate: '10.02.2027', preservePlace: 'Warszawie' }, 'initial planning receives explicit source and target conclusion date state')
+  assert.deepEqual(case02Conclusion, { replaceDate: true, sourceDate: '04.03.2027', sourceBlockId: 'word/document.xml#p2', replacementDate: '22.03.2027', preservePlace: 'Mieście Próbny Brzeg' }, 'continuation planning receives the same derived conclusion state shape, distinct from wedding date')
 
   console.log('PASS multi-template acceptance harness mechanics')
 } finally {

@@ -15,7 +15,7 @@ export type WeddingFacts = {
 }
 export type GenerationInput = {
   generationDate: string
-  conclusion: { replaceDate: boolean; replacementDate?: string; preservePlace?: string }
+  conclusion: { replaceDate: boolean; sourceDate?: string; sourceBlockId?: string; replacementDate?: string; preservePlace?: string }
   sourceDocument: { fileName: string; blocks: SourceBlock[] }
   wedding: WeddingFacts
   packagePolicy: { preserveSourcePackageExactly: true }
@@ -36,7 +36,7 @@ export interface ContractAi {
 
 export const AUTHORITATIVE_FIELD_SEMANTICS = `Resolve authoritative values by semantic concept and owning entity, not by exact label matching. The structured wedding.contractAddress field is the authoritative contract/residential address for the CRM client entity associated with that contract record. It satisfies equivalent source wording for that same entity, including an address or a clause such as “zamieszkała przy” or “zamieszkały przy”. It is not a universal address for every person named in the contract and must not satisfy a different entity's address requirement. Treat userProvidedAnswers as authoritative too; use each answer id to respect its entity/path scope. Distinct entities require their own authoritative address values. One address may satisfy multiple entities only when the authoritative input explicitly identifies it as shared. Before returning MISSING_INPUT for a source-required concept, check all structured authoritative fields, userProvidedAnswers, and applicable generation rules; return MISSING_INPUT only when that concept has no authoritative value for the relevant entity.`
 
-export const TRANSFORMATION_INSTRUCTIONS = `${AUTHORITATIVE_FIELD_SEMANTICS} Transform only the supplied source blocks and authoritative inputs. Preserve legal wording: do not paraphrase legal clauses or change their legal subject, obligations, rights, scope, consent, cancellation, liability, copyright, publication, or delivery terms. Make only mechanical factual updates explicitly required by authoritative facts (names, dates, amounts, locations, package references, selected extras, internal references, and required grammatical inflection). You may make an obvious, unambiguous, minimal local editorial correction such as a duplicated token, typo, missing space, or punctuation error only when legal meaning does not change. For example, “tel. 668 698 892, tel. zwanego dalej” may become “tel. 668 698 892, zwanego dalej”; do not rewrite the full identification clause. Input conflicts must be stopped before transformation. Return complete final paragraph text for changed blocks. Leave unrelated protected legal/static blocks unchanged; return no operation for a protected block unless an explicit authoritative fact mechanically requires a change. Each source block includes a contentClass: factual_dynamic, package_service, or protected_legal_static. Preserve the Video Standard package exactly when required by packagePolicy.`
+export const TRANSFORMATION_INSTRUCTIONS = `${AUTHORITATIVE_FIELD_SEMANTICS} Transform only the supplied source blocks and authoritative inputs. Preserve legal wording: do not paraphrase legal clauses or change their legal subject, obligations, rights, scope, consent, cancellation, liability, copyright, publication, or delivery terms. Make only mechanical factual updates explicitly required by authoritative facts (names, dates, amounts, locations, package references, selected extras, internal references, and required grammatical inflection). You may make an obvious, unambiguous, minimal local editorial correction such as a duplicated token, typo, missing space, or punctuation error only when legal meaning does not change. For example, “tel. 668 698 892, tel. zwanego dalej” may become “tel. 668 698 892, zwanego dalej”; do not rewrite the full identification clause. Input conflicts must be stopped before transformation. Return complete final paragraph text for changed blocks. Leave unrelated protected legal/static blocks unchanged; return no operation for a protected block unless an explicit authoritative fact mechanically requires a change. Each source block includes a contentClass: factual_dynamic, package_service, or protected_legal_static. Preserve the Video Standard package exactly when required by packagePolicy. Follow structured input.conclusion deterministically: sourceDate/sourceBlockId identify the source conclusion, and when replaceDate is true, replacementDate is the required conclusion date for that block. Preserve preservePlace using the source's natural grammatical form. Keep this distinct from wedding.weddingDate; do not substitute the wedding/event date for the conclusion date. When replaceDate is false, do not introduce a conclusion date merely because generationDate is present.`
 
 export const REVIEW_INSTRUCTIONS = `Review source and candidate blocks, including each source block's contentClass (factual_dynamic, package_service, or protected_legal_static). The source contract defines which factual concepts belong in the contract; authoritative input supplies the new value only for a concept the source contains or requires. Do not require every available CRM/input fact to appear in the candidate, and do not add an input fact when the source has no corresponding concept; doing so may be semantic drift. For each factual concept, distinguish: (A) source-required and input value available: candidate must preserve the concept with the authoritative updated value; (B) source-required but authoritative input value missing: generation should stop with MISSING_INPUT; (C) authoritative input value available but concept unused by the source: omission is allowed and is not MISSING_INPUT or a review failure. Use the source-vs-candidate context to decide whether the source contains or requires the concept; do not infer that requirement from CRM/input availability alone. Classify differences as: (D) substantive legal rewrite, which fails if a protected legal clause changes subject, obligations, rights, scope, consent, cancellation, liability, copyright, publication, or delivery without an explicit authoritative mechanical reason; (E) allowed mechanical factual adaptation; (F) allowed minimal, unambiguous editorial typo/token/spacing/punctuation fix that does not change legal meaning; or (G) unchanged source issue, which is not introduced by the transformation. Do not fail merely because a harmless editorial error was corrected. Do fail on an unauthorized substantive legal rewrite.`
 
@@ -46,13 +46,98 @@ export function classifyBlock(text: string): SourceBlock['contentClass'] {
   return 'factual_dynamic'
 }
 
+const polishMonths: Record<string, number> = {
+  stycznia: 1, lutego: 2, marca: 3, kwietnia: 4, maja: 5, czerwca: 6,
+  lipca: 7, sierpnia: 8, września: 9, października: 10, listopada: 11, grudnia: 12,
+}
+
+function validDateTimestamp(day: number, month: number, year: number): number | undefined {
+  const fullYear = year < 100 ? 2000 + year : year
+  const timestamp = Date.UTC(fullYear, month - 1, day)
+  const date = new Date(timestamp)
+  return date.getUTCFullYear() === fullYear && date.getUTCMonth() === month - 1 && date.getUTCDate() === day ? timestamp : undefined
+}
+
 function parsePolishDate(value: string): number | undefined {
   const match = value.trim().match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/)
+  if (match) return validDateTimestamp(Number(match[1]), Number(match[2]), Number(match[3]))
+  const written = value.trim().match(/^(\d{1,2})\s+(stycznia|lutego|marca|kwietnia|maja|czerwca|lipca|sierpnia|września|października|listopada|grudnia)\s+(\d{4})(?:\s+roku)?$/i)
+  if (!written) return undefined
+  const month = polishMonths[written[2]!.toLocaleLowerCase('pl-PL')]
+  return month ? validDateTimestamp(Number(written[1]), month, Number(written[3])) : undefined
+}
+
+const conclusionDateToken = /(?:\d{1,2}[./-]\d{1,2}[./-]\d{2,4}|\b\d{1,2}\s+(?:stycznia|lutego|marca|kwietnia|maja|czerwca|lipca|sierpnia|września|października|listopada|grudnia)\s+\d{4}\b|\.{3,})/i
+const conclusionVerb = /\bzawar(?:ta|ty|te|to)\b/i
+
+function firstSentenceAfter(text: string, offset: number): string {
+  const rest = text.slice(offset)
+  const boundary = /[.!?](?=\s|$)/.exec(rest)
+  return boundary ? rest.slice(0, boundary.index) : rest
+}
+
+function conclusionDateInText(text: string): { raw: string; timestamp?: number } | undefined {
+  const verb = conclusionVerb.exec(text)
+  if (!verb) return undefined
+  const sentence = firstSentenceAfter(text, verb.index + verb[0].length)
+  const match = conclusionDateToken.exec(sentence)
   if (!match) return undefined
-  const day = Number(match[1]); const month = Number(match[2]); const year = Number(match[3])
-  const timestamp = Date.UTC(year, month - 1, day)
+  return { raw: match[0], timestamp: parsePolishDate(match[0]) }
+}
+
+function conclusionDateTimestampsInText(text: string): number[] {
+  const verb = conclusionVerb.exec(text)
+  if (!verb) return []
+  const sentence = firstSentenceAfter(text, verb.index + verb[0].length)
+  const pattern = new RegExp(conclusionDateToken.source, 'gi')
+  return [...sentence.matchAll(pattern)].flatMap((match) => {
+    const timestamp = parsePolishDate(match[0])
+    return timestamp === undefined ? [] : [timestamp]
+  })
+}
+
+function numericDate(timestamp: number): string {
   const date = new Date(timestamp)
-  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day ? timestamp : undefined
+  return `${String(date.getUTCDate()).padStart(2, '0')}.${String(date.getUTCMonth() + 1).padStart(2, '0')}.${date.getUTCFullYear()}`
+}
+
+function conclusionPlaceInText(text: string): string | undefined {
+  const match = text.match(/(?:\br\.|\b\d{4}\s+(?:r\.|roku))\s+w\s+(.+?)(?=,?\s+(?:zwana|zwany|zwane|pomiędzy|między)\b|[,;.!?]|$)/i)
+  const place = match?.[1]?.trim()
+  return place && /[\p{L}]/u.test(place) && !/\.{3,}/.test(place) ? place : undefined
+}
+
+export function validatePlannedConclusion(input: GenerationInput, operations: BlockOperation[]): string[] {
+  const rule = input.conclusion
+  if (!rule.sourceBlockId) return []
+  const sourceBlock = input.sourceDocument.blocks.find((block) => block.blockId === rule.sourceBlockId)
+  if (!sourceBlock) return [`Conclusion-date plan validation failed: source conclusion block ${rule.sourceBlockId} is unavailable.`]
+  const operation = operations.find((item) => 'blockId' in item && item.blockId === rule.sourceBlockId)
+  const plannedText = operation?.operation === 'REPLACE_BLOCK_TEXT' ? operation.finalText : operation ? '' : sourceBlock.text
+  const sourceDate = conclusionDateInText(sourceBlock.text)
+  const plannedDate = conclusionDateInText(plannedText)
+
+  if (rule.replaceDate) {
+    const targetTimestamp = rule.replacementDate ? parsePolishDate(rule.replacementDate) : undefined
+    if (targetTimestamp === undefined) return ['Conclusion-date plan validation failed: replacementDate is missing or invalid.']
+    if (plannedDate?.timestamp !== targetTimestamp) {
+      const actual = plannedDate?.raw ?? 'no conclusion date'
+      const oldDate = sourceDate?.timestamp !== undefined && sourceDate.timestamp !== targetTimestamp && plannedDate?.timestamp === sourceDate.timestamp
+        ? ` Source conclusion date ${rule.sourceDate ?? sourceDate.raw} remains unchanged.`
+        : ''
+      return [`Conclusion-date plan validation failed: block ${rule.sourceBlockId} must use authoritative conclusion date ${numericDate(targetTimestamp)}; planned ${actual}.${oldDate} Wedding/event date ${input.wedding.weddingDate} is a separate fact.`]
+    }
+    const sourceTimestamp = sourceDate?.timestamp
+    if (sourceTimestamp !== undefined && sourceTimestamp !== targetTimestamp && conclusionDateTimestampsInText(plannedText).includes(sourceTimestamp)) {
+      return [`Conclusion-date plan validation failed: original source conclusion date ${rule.sourceDate ?? sourceDate?.raw ?? 'unknown'} remains in block ${rule.sourceBlockId} alongside the target date.`]
+    }
+    if (rule.preservePlace && !plannedText.normalize('NFC').includes(rule.preservePlace.normalize('NFC'))) {
+      return [`Conclusion-date plan validation failed: source conclusion place “${rule.preservePlace}” is not preserved in block ${rule.sourceBlockId}.`]
+    }
+  } else if (!sourceDate && plannedDate) {
+    return [`Conclusion-date plan validation failed: block ${rule.sourceBlockId} introduces conclusion date ${plannedDate.raw} although the source has no conclusion date.`]
+  }
+  return []
 }
 
 export function findInputConflicts(input: GenerationInput): ConflictInput[] {
@@ -157,11 +242,17 @@ export function makeInput(args: Omit<GenerationInput, 'financials' | 'conclusion
 }
 
 export function conclusionRule(sourceBlocks: SourceBlock[], generationDate: string): GenerationInput['conclusion'] {
-  const datePattern = /\d{1,2}[./-]\d{1,2}[./-]\d{2,4}|\.{3,}|\b\d{1,2}\s+(?:stycznia|lutego|marca|kwietnia|maja|czerwca|lipca|sierpnia|września|października|listopada|grudnia)\s+\d{4}\b/i
-  const opening = sourceBlocks.find((block) => /\bzawarta\b/i.test(block.text) && datePattern.test(block.text))?.text ?? ''
-  const hasDate = Boolean(generationDate.trim()) && datePattern.test(opening)
-  const place = opening.match(/(?:\br\.|\b\d{4}\s+(?:r\.|roku))\s+w\s+([^,;]+?)(?=,?\s+(?:zwana|zwany|zwane|pomiędzy|między)\b|[,;]|$)/i)?.[1]?.trim()
-  return { replaceDate: hasDate, ...(hasDate ? { replacementDate: generationDate } : {}), ...(place && !/\.{3,}/.test(place) ? { preservePlace: place } : {}) }
+  const openingBlock = sourceBlocks.find((block) => conclusionVerb.test(block.text))
+  const opening = openingBlock?.text ?? ''
+  const sourceDateMatch = conclusionDateInText(opening)
+  const hasDate = Boolean(generationDate.trim()) && Boolean(sourceDateMatch)
+  return {
+    replaceDate: hasDate,
+    ...(sourceDateMatch?.timestamp !== undefined ? { sourceDate: numericDate(sourceDateMatch.timestamp) } : {}),
+    ...(openingBlock?.blockId ? { sourceBlockId: openingBlock.blockId } : {}),
+    ...(hasDate ? { replacementDate: generationDate } : {}),
+    ...(conclusionPlaceInText(opening) ? { preservePlace: conclusionPlaceInText(opening) } : {}),
+  }
 }
 
 function candidateText(blocks: SourceBlock[]): string { return blocks.map((b) => b.text).join('\n') }
@@ -173,6 +264,8 @@ export async function runGeneration(sourceBytes: ArrayBuffer, input: GenerationI
   const planned = await ai.plan(input)
   if (planned.missingInputs.some((x) => x.required)) return { status: 'MISSING_INPUT', missingInputs: planned.missingInputs }
   if (!planned.blockOperations) return { status: 'FAILED', issues: ['Plan nie zawiera operacji blokowych'] }
+  const conclusionPlanIssues = validatePlannedConclusion(input, planned.blockOperations)
+  if (conclusionPlanIssues.length) return { status: 'FAILED', issues: conclusionPlanIssues }
   const authoritativeAmounts = [input.financials.contractValuePln, input.financials.depositPln, input.financials.remainingPln]
   const normalizedOperations = planned.blockOperations.map((operation) => 'finalText' in operation
     ? { ...operation, finalText: normalizeAuthoritativePlnText(operation.finalText, authoritativeAmounts) }
@@ -221,8 +314,19 @@ export async function validateCandidate(sourceBytes: ArrayBuffer, candidateBytes
   const originalDoc = await sourceZip.file('word/document.xml')!.async('string')
   const candidateDoc = await candidateZip.file('word/document.xml')!.async('string')
   const candidateBlocks = (await readSource(candidateBytes, input.sourceDocument.fileName)).blocks
-  const candidateOpening = candidateBlocks.find((block) => /Zawarta w dniu|zawarta dnia/i.test(block.text))?.text ?? ''
-  if (input.conclusion.replaceDate && input.conclusion.replacementDate && !candidateOpening.includes(input.conclusion.replacementDate)) issues.push('Nie ustawiono daty zawarcia umowy zgodnej z datą generowania')
+  const candidateOpeningBlock = input.conclusion.sourceBlockId
+    ? candidateBlocks.find((block) => block.blockId === input.conclusion.sourceBlockId)
+    : candidateBlocks.find((block) => conclusionVerb.test(block.text))
+  const candidateOpening = candidateOpeningBlock?.text ?? ''
+  if (input.conclusion.replaceDate) {
+    const targetDate = input.conclusion.replacementDate ? parsePolishDate(input.conclusion.replacementDate) : undefined
+    const actualDate = conclusionDateInText(candidateOpening)?.timestamp
+    if (targetDate === undefined || actualDate !== targetDate) issues.push('Nie ustawiono daty zawarcia umowy zgodnej z datą generowania')
+    const originalDate = input.conclusion.sourceDate ? parsePolishDate(input.conclusion.sourceDate) : undefined
+    if (originalDate !== undefined && originalDate !== targetDate && conclusionDateTimestampsInText(candidateOpening).includes(originalDate)) issues.push(`Pozostawiono pierwotną datę zawarcia umowy: ${input.conclusion.sourceDate}`)
+  } else if (!input.conclusion.sourceDate && conclusionDateInText(candidateOpening)) {
+    issues.push('Dodano datę zawarcia umowy, której brakowało w źródle')
+  }
   if (input.conclusion.preservePlace && !candidateOpening.includes(input.conclusion.preservePlace)) issues.push('Zmieniono miejscowość zawarcia umowy ze źródła')
   if (!input.conclusion.preservePlace && /\br\.\s*w\s+(?!\.{3})[\p{L}]/u.test(candidateOpening)) issues.push('Dodano miejscowość zawarcia umowy, której brakowało w źródle')
   if ((candidateDoc.match(/<w:tbl\b/g) ?? []).length < (originalDoc.match(/<w:tbl\b/g) ?? []).length) issues.push('Zniknęła tabela lub struktura podpisów')

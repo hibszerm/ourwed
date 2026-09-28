@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { applyBlockOperations } from './blockDocxEditor'
-import { runGeneration, makeInput, readSource, conclusionRule, KNOWN_OLD_VALUES, findInputConflicts, applyConflictOverrides, AUTHORITATIVE_FIELD_SEMANTICS, TRANSFORMATION_INSTRUCTIONS, REVIEW_INSTRUCTIONS, classifyBlock, type ContractAi, type GenerationInput, type SourceBlock } from './generator'
+import { runGeneration, makeInput, readSource, conclusionRule, validatePlannedConclusion, KNOWN_OLD_VALUES, findInputConflicts, applyConflictOverrides, AUTHORITATIVE_FIELD_SEMANTICS, TRANSFORMATION_INSTRUCTIONS, REVIEW_INSTRUCTIONS, classifyBlock, type ContractAi, type GenerationInput, type SourceBlock } from './generator'
 
 const here = fileURLToPath(new URL('.', import.meta.url))
 const sourceBytes = await readFile(`${here}fixtures/source-video-standard.docx`)
@@ -26,13 +26,35 @@ assert.equal(input.conclusion.replaceDate, true)
 assert.equal(input.conclusion.preservePlace, 'Zabrzu')
 assert.deepEqual(conclusionRule([{ part: 'word/document.xml', index: 0, text: 'Zawarta w dniu .................... r. w ........................, zwana dalej umową' }], '15.09.2026'), { replaceDate: true, replacementDate: '15.09.2026' })
 const writtenMonthOpening = [{ part: 'word/document.xml', index: 0, text: 'Zawarta w dniu 15 lutego 2027 r. w Warszawie, zwana dalej umową' }] as SourceBlock[]
-assert.deepEqual(conclusionRule(writtenMonthOpening, '10.02.2027'), { replaceDate: true, replacementDate: '10.02.2027', preservePlace: 'Warszawie' }, 'a written Polish conclusion date is replaced with generation date while preserving place')
+assert.deepEqual(conclusionRule(writtenMonthOpening, '10.02.2027'), { replaceDate: true, sourceDate: '15.02.2027', replacementDate: '10.02.2027', preservePlace: 'Warszawie' }, 'a written Polish conclusion date is replaced with generation date while preserving place')
 const laterWeddingFacts = { ...wedding, weddingDate: '18.07.2027', remainingDueDate: '11.07.2027' }
 assert.deepEqual(findInputConflicts(makeInput({ generationDate: '10.02.2027', sourceDocument: { fileName: 'test.docx', blocks: writtenMonthOpening }, wedding: laterWeddingFacts, packagePolicy: { preserveSourcePackageExactly: true }, extras: [], userProvidedAnswers: [] })), [], 'a conclusion date differing from the wedding date does not conflict')
 const conclusionMatchesWedding = [{ part: 'word/document.xml', index: 0, text: 'Zawarta w dniu 18.07.2027 r. w Warszawie, zwana dalej umową o uroczystości, która odbędzie się 18.07.2027' }] as SourceBlock[]
-assert.deepEqual(conclusionRule(conclusionMatchesWedding, '10.02.2027'), { replaceDate: true, replacementDate: '10.02.2027', preservePlace: 'Warszawie' }, 'a source conclusion date remains a conclusion date even when it matches the wedding date')
+assert.deepEqual(conclusionRule(conclusionMatchesWedding, '10.02.2027'), { replaceDate: true, sourceDate: '18.07.2027', replacementDate: '10.02.2027', preservePlace: 'Warszawie' }, 'a source conclusion date remains a conclusion date even when it matches the wedding date')
 assert.deepEqual(findInputConflicts(makeInput({ generationDate: '10.02.2027', sourceDocument: { fileName: 'test.docx', blocks: conclusionMatchesWedding }, wedding: laterWeddingFacts, packagePolicy: { preserveSourcePackageExactly: true }, extras: [], userProvidedAnswers: [] })), [], 'conclusion and wedding dates remain independent')
-assert.deepEqual(conclusionRule(writtenMonthOpening, ''), { replaceDate: false, preservePlace: 'Warszawie' }, 'without a generation date the source date is not targeted for replacement')
+assert.deepEqual(conclusionRule(writtenMonthOpening, ''), { replaceDate: false, sourceDate: '15.02.2027', preservePlace: 'Warszawie' }, 'without a generation date the source date is not targeted for replacement')
+const datePlanSourceBlock: SourceBlock = {
+  blockId: 'word/document.xml#p-conclusion', part: 'word/document.xml', index: 0, kind: 'body', context: '',
+  text: 'Umowę zawarto 4 marca 2027 roku w Mieście Próbny Brzeg. Uroczystość odbędzie się 11 września 2027 roku.',
+  contentClass: 'factual_dynamic',
+}
+const datePlanInput = makeInput({ generationDate: '22.03.2027', sourceDocument: { fileName: 'date-test.docx', blocks: [datePlanSourceBlock] }, wedding, packagePolicy: { preserveSourcePackageExactly: true }, extras: [], userProvidedAnswers: [] })
+assert.deepEqual(datePlanInput.conclusion, { replaceDate: true, sourceDate: '04.03.2027', sourceBlockId: datePlanSourceBlock.blockId, replacementDate: '22.03.2027', preservePlace: 'Mieście Próbny Brzeg' }, 'source and target conclusion dates plus source place are explicit planning state')
+const correctDatePlan = [{ blockId: datePlanSourceBlock.blockId, operation: 'REPLACE_BLOCK_TEXT' as const, finalText: 'Umowę zawarto 22 marca 2027 roku w Mieście Próbny Brzeg. Uroczystość odbędzie się 20 września 2026 roku.' }]
+assert.deepEqual(validatePlannedConclusion(datePlanInput, correctDatePlan), [], 'target date in natural Polish form and source place pass plan validation')
+const oldDatePlan = [{ blockId: datePlanSourceBlock.blockId, operation: 'REPLACE_BLOCK_TEXT' as const, finalText: datePlanSourceBlock.text }]
+assert.match(validatePlannedConclusion(datePlanInput, oldDatePlan)[0] ?? '', /04\.03\.2027 remains unchanged/i, 'plan that retains old source conclusion date is rejected')
+const bothDatesPlan = [{ blockId: datePlanSourceBlock.blockId, operation: 'REPLACE_BLOCK_TEXT' as const, finalText: 'Umowę zawarto 22 marca 2027 roku; pierwotna data 4 marca 2027 roku w Mieście Próbny Brzeg.' }]
+assert.match(validatePlannedConclusion(datePlanInput, bothDatesPlan)[0] ?? '', /original source conclusion date 04\.03\.2027 remains/i, 'old source date is rejected even if target date is also present')
+const weddingDatePlan = [{ blockId: datePlanSourceBlock.blockId, operation: 'REPLACE_BLOCK_TEXT' as const, finalText: 'Umowę zawarto 20 września 2026 roku w Mieście Próbny Brzeg.' }]
+assert.match(validatePlannedConclusion(datePlanInput, weddingDatePlan)[0] ?? '', /authoritative conclusion date 22\.03\.2027/i, 'wedding date cannot substitute for the conclusion date')
+const changedPlacePlan = [{ blockId: datePlanSourceBlock.blockId, operation: 'REPLACE_BLOCK_TEXT' as const, finalText: 'Umowę zawarto 22 marca 2027 roku w Katowicach.' }]
+assert.match(validatePlannedConclusion(datePlanInput, changedPlacePlan)[0] ?? '', /source conclusion place.*not preserved/i, 'changed conclusion place is rejected')
+const noDateBlock: SourceBlock = { ...datePlanSourceBlock, text: 'Umowę zawarto w Mieście Próbny Brzeg. Uroczystość odbędzie się 11 września 2027 roku.' }
+const noDateInput = makeInput({ generationDate: '22.03.2027', sourceDocument: { fileName: 'no-date.docx', blocks: [noDateBlock] }, wedding, packagePolicy: { preserveSourcePackageExactly: true }, extras: [], userProvidedAnswers: [] })
+assert.equal(noDateInput.conclusion.replaceDate, false, 'source without a conclusion date has no replacement instruction')
+assert.deepEqual(validatePlannedConclusion(noDateInput, []), [], 'no-date source remains valid without an invented conclusion date')
+assert.match(validatePlannedConclusion(noDateInput, [{ blockId: noDateBlock.blockId, operation: 'REPLACE_BLOCK_TEXT', finalText: 'Umowę zawarto 22 marca 2027 roku w Mieście Próbny Brzeg.' }])[0] ?? '', /introduces conclusion date/i, 'planner may not insert generation date when source has no conclusion date')
 assert.deepEqual(findInputConflicts(input), [], 'realistic dates allow generation to proceed')
 const conflictingInput = makeInput({ generationDate: '27.09.2026', sourceDocument: source, wedding, packagePolicy: { preserveSourcePackageExactly: true }, extras: input.extras, userProvidedAnswers: [] })
 assert.equal(findInputConflicts(conflictingInput)[0]?.id, 'remaining-payment-before-conclusion')
@@ -101,6 +123,20 @@ const conflictAi: ContractAi = {
 const conflictResult = await runGeneration(sourceBuffer, conflictingInput, conflictAi)
 assert.equal(conflictResult.status, 'CONFLICT_INPUT')
 assert.equal(conflictPlanCalls, 0, 'conflicts stop before provider planning')
+
+let invalidConclusionReviewCalls = 0
+const invalidConclusionAi: ContractAi = {
+  async plan(nextInput) {
+    const opening = nextInput.sourceDocument.blocks.find((block) => block.blockId === nextInput.conclusion.sourceBlockId)!
+    return { missingInputs: [], blockOperations: [{ blockId: opening.blockId, operation: 'REPLACE_BLOCK_TEXT', finalText: opening.text }] }
+  },
+  async review() { invalidConclusionReviewCalls++; return { status: 'PASS' } },
+  async repair() { throw new Error('repair must not run for invalid conclusion plan') },
+}
+const invalidConclusionResult = await runGeneration(sourceBuffer, input, invalidConclusionAi)
+assert.equal(invalidConclusionResult.status, 'FAILED')
+if (invalidConclusionResult.status === 'FAILED') assert.match(invalidConclusionResult.issues.join(' '), /authoritative conclusion date 15\.09\.2026/i)
+assert.equal(invalidConclusionReviewCalls, 0, 'invalid conclusion plan is rejected before candidate review')
 await runGeneration(sourceBuffer, overridden, conflictAi)
 assert.equal(conflictPlanCalls, 1, 'manual override clears the conflict and resumes generation planning')
 
@@ -108,7 +144,11 @@ const supplied = makeInput({ generationDate: input.generationDate, sourceDocumen
 assert.equal(supplied.userProvidedAnswers[0]?.value, '90010112345', 'user answer enters the next authoritative generation input')
 let answeredReviewCalls = 0
 const answeredAi: ContractAi = {
-  async plan(nextInput) { assert.equal(nextInput.userProvidedAnswers[0]?.value, '90010112345'); return { missingInputs: [], blockOperations: [] } },
+  async plan(nextInput) {
+    assert.equal(nextInput.userProvidedAnswers[0]?.value, '90010112345')
+    const opening = nextInput.sourceDocument.blocks.find((block) => block.blockId === nextInput.conclusion.sourceBlockId)
+    return { missingInputs: [], blockOperations: opening && nextInput.conclusion.replacementDate ? [{ blockId: opening.blockId, operation: 'REPLACE_BLOCK_TEXT', finalText: opening.text.replace(/\d{1,2}[./-]\d{1,2}[./-]\d{4}|\d{1,2}\s+(?:stycznia|lutego|marca|kwietnia|maja|czerwca|lipca|sierpnia|września|października|listopada|grudnia)\s+\d{4}|\.{3,}/i, nextInput.conclusion.replacementDate) }] : [] }
+  },
   async review() { answeredReviewCalls++; return { status: 'PASS' } },
   async repair() { throw new Error('repair must not run') },
 }
@@ -126,6 +166,6 @@ assert.match(refText, /ujęć VHS oraz ujęć z drona/)
 assert.match(refText, /Video Standard/)
 
 const noPlace = conclusionRule([{ part: 'word/document.xml', index: 0, text: 'Zawarta w dniu 22.09.2026 r., zwana dalej umową' }], '25.09.2026')
-assert.deepEqual(noPlace, { replaceDate: true, replacementDate: '25.09.2026' }, 'absence of source conclusion place does not authorize city insertion')
+assert.deepEqual(noPlace, { replaceDate: true, sourceDate: '22.09.2026', replacementDate: '25.09.2026' }, 'absence of source conclusion place does not authorize city insertion')
 assert.ok(KNOWN_OLD_VALUES.every((value) => source.blocks.some((b: SourceBlock) => b.text.includes(value))), 'old-data guard fixture values come from actual source')
 console.log('PASS contract-generation-spike offline acceptance (fixture preparation, missing input, supplied answer, dates, place rule, finance, extras, package)')

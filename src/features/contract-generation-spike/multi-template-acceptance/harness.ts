@@ -9,6 +9,7 @@ import {
   normalizeAuthoritativeFinancialBlocks,
   normalizeAuthoritativePlnText,
   readSource,
+  validatePlannedConclusion,
   validateCandidate,
   type ConflictInput,
   type GenerationInput,
@@ -249,7 +250,7 @@ export async function runMultiTemplateAcceptance(caseId: string, options: Harnes
     extras: definition.extras ?? [],
     userProvidedAnswers: definition.userProvidedAnswers ?? [],
   })
-  if (definition.expectedProductRules?.preserveSourceConclusionPlace) {
+  if (definition.expectedProductRules?.preserveSourceConclusionPlace && !input.conclusion.preservePlace) {
     input.conclusion = { ...input.conclusion, preservePlace: definition.expectedProductRules.preserveSourceConclusionPlace }
   }
   const conflicts = findInputConflicts(input)
@@ -279,6 +280,12 @@ export async function runMultiTemplateAcceptance(caseId: string, options: Harnes
   }
   if (!planned.blockOperations) {
     result.transformationStatus = 'FAILED'; result.deterministicFindings = ['Transformation result has no block operations']; result.overall = 'FAIL'
+    await writeReports(result, outputDirectory); return result
+  }
+
+  const conclusionPlanIssues = validatePlannedConclusion(input, planned.blockOperations)
+  if (conclusionPlanIssues.length) {
+    result.transformationStatus = 'FAILED'; result.deterministicValidation = 'FAIL'; result.deterministicFindings = conclusionPlanIssues; result.overall = 'FAIL'
     await writeReports(result, outputDirectory); return result
   }
 
