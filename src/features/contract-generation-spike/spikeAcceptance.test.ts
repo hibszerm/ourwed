@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
-import { runGeneration, makeInput, readSource, conclusionRule, KNOWN_OLD_VALUES, type ContractAi, type GenerationInput, type SourceBlock } from './generator'
+import { applyBlockOperations } from './blockDocxEditor'
+import { runGeneration, makeInput, readSource, conclusionRule, KNOWN_OLD_VALUES, findInputConflicts, applyConflictOverrides, TRANSFORMATION_INSTRUCTIONS, REVIEW_INSTRUCTIONS, classifyBlock, type ContractAi, type GenerationInput, type SourceBlock } from './generator'
 
 const here = fileURLToPath(new URL('.', import.meta.url))
 const sourceBytes = await readFile(`${here}fixtures/source-video-standard.docx`)
@@ -19,11 +20,41 @@ const wedding: GenerationInput['wedding'] = {
     reception: 'Hotel Stary, Szczepańska 5, 31-011 Kraków',
   },
 }
-const input = makeInput({ generationDate: '25.09.2026', sourceDocument: source, wedding, packagePolicy: { preserveSourcePackageExactly: true }, extras: ['ujęcia VHS', 'ujęcia z drona'], userProvidedAnswers: [] })
+const input = makeInput({ generationDate: '15.09.2026', sourceDocument: source, wedding, packagePolicy: { preserveSourcePackageExactly: true }, extras: ['ujęcia VHS', 'ujęcia z drona'], userProvidedAnswers: [] })
 assert.equal(input.financials.remainingPln, 13200)
 assert.equal(input.conclusion.replaceDate, true)
 assert.equal(input.conclusion.preservePlace, 'Zabrzu')
-assert.deepEqual(conclusionRule([{ part: 'word/document.xml', index: 0, text: 'Zawarta w dniu .................... r. w ........................, zwana dalej umową' }], '25.09.2026'), { replaceDate: true, replacementDate: '25.09.2026' })
+assert.deepEqual(conclusionRule([{ part: 'word/document.xml', index: 0, text: 'Zawarta w dniu .................... r. w ........................, zwana dalej umową' }], '15.09.2026'), { replaceDate: true, replacementDate: '15.09.2026' })
+assert.deepEqual(findInputConflicts(input), [], 'realistic dates allow generation to proceed')
+const conflictingInput = makeInput({ generationDate: '27.09.2026', sourceDocument: source, wedding, packagePolicy: { preserveSourcePackageExactly: true }, extras: input.extras, userProvidedAnswers: [] })
+assert.equal(findInputConflicts(conflictingInput)[0]?.id, 'remaining-payment-before-conclusion')
+assert.ok(findInputConflicts(conflictingInput).some((conflict) => conflict.id === 'wedding-before-conclusion'))
+const overridden = applyConflictOverrides(conflictingInput, [
+  { id: 'remaining-payment-before-conclusion', value: '20.09.2026' },
+  { id: 'wedding-before-conclusion', value: '15.09.2026' },
+])
+assert.equal(overridden.wedding.remainingDueDate, '20.09.2026')
+assert.equal(overridden.generationDate, '15.09.2026')
+assert.deepEqual(findInputConflicts(overridden), [], 'manual override replaces conflicting due date')
+
+const legalSource = '1.Para młoda oświadcza, iż wyraża zgodę na przetwarzanie jej danych osobowych.'
+const prohibitedLegalRewrite = '1.Osoby tworzące Parę Młodą oświadczają, iż wyrażają zgodę na przetwarzanie swoich danych osobowych.'
+assert.equal(classifyBlock(legalSource), 'protected_legal_static')
+assert.ok(source.blocks.some((block) => block.contentClass === 'protected_legal_static'))
+assert.match(TRANSFORMATION_INSTRUCTIONS, /do not paraphrase legal clauses/i)
+assert.match(TRANSFORMATION_INSTRUCTIONS, /duplicated token, typo, missing space/i)
+assert.match(TRANSFORMATION_INSTRUCTIONS, /tel\. 668 698 892, tel\. zwanego dalej.*may become.*tel\. 668 698 892, zwanego dalej/)
+assert.match(TRANSFORMATION_INSTRUCTIONS, /do not rewrite the full identification clause/i)
+assert.match(TRANSFORMATION_INSTRUCTIONS, /Input conflicts must be stopped before transformation/i)
+assert.match(TRANSFORMATION_INSTRUCTIONS, /complete final paragraph text/i)
+assert.match(TRANSFORMATION_INSTRUCTIONS, /return no operation for a protected block/i)
+assert.match(REVIEW_INSTRUCTIONS, /allowed minimal, unambiguous editorial/i)
+assert.match(REVIEW_INSTRUCTIONS, /unauthorized substantive legal rewrite/i)
+assert.notEqual(legalSource, prohibitedLegalRewrite, 'the prohibited legal rewrite is detectably different')
+const consentSourceBlock = source.blocks.find((block) => block.text.includes('wyraża zgodę na przetwarzanie'))!
+const noOpCandidate = await applyBlockOperations(sourceBuffer, [])
+const consentNoOpCandidate = await readSource(noOpCandidate, source.fileName)
+assert.equal(consentNoOpCandidate.blocks.find((block) => block.blockId === consentSourceBlock.blockId)?.text, consentSourceBlock.text, 'protected consent wording remains unchanged when no factual update requires an edit')
 
 let transformCalls = 0
 let reviewCalls = 0
@@ -37,6 +68,18 @@ assert.equal(missing.status, 'MISSING_INPUT')
 assert.equal(transformCalls, 1)
 assert.equal(reviewCalls, 0)
 if (missing.status === 'MISSING_INPUT') assert.equal(missing.missingInputs[0]?.label, 'PESEL Julii Kanickiej')
+
+let conflictPlanCalls = 0
+const conflictAi: ContractAi = {
+  async plan() { conflictPlanCalls++; return { missingInputs: [], blockOperations: [] } },
+  async review() { return { status: 'PASS' } },
+  async repair() { throw new Error('repair must not run') },
+}
+const conflictResult = await runGeneration(sourceBuffer, conflictingInput, conflictAi)
+assert.equal(conflictResult.status, 'CONFLICT_INPUT')
+assert.equal(conflictPlanCalls, 0, 'conflicts stop before provider planning')
+await runGeneration(sourceBuffer, overridden, conflictAi)
+assert.equal(conflictPlanCalls, 1, 'manual override clears the conflict and resumes generation planning')
 
 const supplied = makeInput({ generationDate: input.generationDate, sourceDocument: source, wedding, packagePolicy: { preserveSourcePackageExactly: true }, extras: input.extras, userProvidedAnswers: [{ id: 'template-value-1', value: '90010112345' }] })
 assert.equal(supplied.userProvidedAnswers[0]?.value, '90010112345', 'user answer enters the next authoritative generation input')

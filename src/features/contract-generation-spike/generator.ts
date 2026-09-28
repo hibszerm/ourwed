@@ -2,7 +2,7 @@ import JSZip from 'jszip'
 import { applyBlockOperations, remapOperationsToCurrentBlocks, type BlockOperation, type EditableBlock } from './blockDocxEditor'
 
 export type MissingInput = { id: string; label: string; explanation: string; inputType: 'text' | 'date' | 'number'; required: true; sourceContext: string }
-export type SourceBlock = EditableBlock
+export type SourceBlock = EditableBlock & { contentClass: 'factual_dynamic' | 'package_service' | 'protected_legal_static' }
 export type WeddingFacts = {
   bride: { name: string; phone: string; email: string }
   groom: { name: string; phone: string }
@@ -25,16 +25,81 @@ export type GenerationInput = {
 }
 export type EditPlan = { operations: BlockOperation[] }
 export type ReviewResult = { status: 'PASS' } | { status: 'FAIL'; issues: string[] }
-export type GenerationResult = { status: 'MISSING_INPUT'; missingInputs: MissingInput[] } | { status: 'FAILED'; issues: string[] } | { status: 'COMPLETED'; docxBytes: ArrayBuffer; review: ReviewResult }
+export type ConflictInput = { id: string; field: string; label: string; explanation: string; inputType: 'date' | 'text' | 'number'; currentValue?: string; relatedValues?: Array<{ label: string; value: string }>; required: true }
+export type ConflictOverride = { id: string; value: string }
+export type GenerationResult = { status: 'MISSING_INPUT'; missingInputs: MissingInput[] } | { status: 'CONFLICT_INPUT'; conflicts: ConflictInput[] } | { status: 'FAILED'; issues: string[] } | { status: 'COMPLETED'; docxBytes: ArrayBuffer; review: ReviewResult }
 export interface ContractAi {
   plan(input: GenerationInput): Promise<{ missingInputs: MissingInput[]; blockOperations?: BlockOperation[] }>
   review(args: { source: GenerationInput['sourceDocument']; input: GenerationInput; candidate: SourceBlock[] }): Promise<ReviewResult>
   repair(args: { input: GenerationInput; source: SourceBlock[]; candidate: SourceBlock[]; issues: string[] }): Promise<BlockOperation[]>
 }
 
+export const TRANSFORMATION_INSTRUCTIONS = `Transform only the supplied source blocks and authoritative inputs. Preserve legal wording: do not paraphrase legal clauses or change their legal subject, obligations, rights, scope, consent, cancellation, liability, copyright, publication, or delivery terms. Make only mechanical factual updates explicitly required by authoritative facts (names, dates, amounts, locations, package references, selected extras, internal references, and required grammatical inflection). You may make an obvious, unambiguous, minimal local editorial correction such as a duplicated token, typo, missing space, or punctuation error only when legal meaning does not change. For example, “tel. 668 698 892, tel. zwanego dalej” may become “tel. 668 698 892, zwanego dalej”; do not rewrite the full identification clause. Input conflicts must be stopped before transformation. Return complete final paragraph text for changed blocks. Leave unrelated protected legal/static blocks unchanged; return no operation for a protected block unless an explicit authoritative fact mechanically requires a change. Each source block includes a contentClass: factual_dynamic, package_service, or protected_legal_static. Preserve the Video Standard package exactly when required by packagePolicy.`
+
+export const REVIEW_INSTRUCTIONS = `Review source and candidate blocks, including each source block's contentClass (factual_dynamic, package_service, or protected_legal_static). Classify differences as: (A) substantive legal rewrite, which fails if a protected legal clause changes subject, obligations, rights, scope, consent, cancellation, liability, copyright, publication, or delivery without an explicit authoritative mechanical reason; (B) allowed mechanical factual adaptation; (C) allowed minimal, unambiguous editorial typo/token/spacing/punctuation fix that does not change legal meaning; or (D) unchanged source issue, which is not introduced by the transformation. Do not fail merely because a harmless editorial error was corrected. Do fail on an unauthorized substantive legal rewrite.`
+
+export function classifyBlock(text: string): SourceBlock['contentClass'] {
+  if (/Video Standard|teledysk|film ślubny|ujęcia|pakiet/i.test(text)) return 'package_service'
+  if (/zgod[ęa]|oświadcza|zobowiązan|prawo|odpowiedzialnoś|rozwiązani|zadatek|copyright|autorsk|publik|przetwarzani|danych osobow|Umow.{0,24}wymagaj|nie podlegaj|wyraża zgody/i.test(text)) return 'protected_legal_static'
+  return 'factual_dynamic'
+}
+
+function parsePolishDate(value: string): number | undefined {
+  const match = value.trim().match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/)
+  if (!match) return undefined
+  const day = Number(match[1]); const month = Number(match[2]); const year = Number(match[3])
+  const timestamp = Date.UTC(year, month - 1, day)
+  const date = new Date(timestamp)
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day ? timestamp : undefined
+}
+
+export function findInputConflicts(input: GenerationInput): ConflictInput[] {
+  const conclusionDate = input.conclusion.replacementDate ?? input.generationDate
+  const conclusionTimestamp = parsePolishDate(conclusionDate)
+  const paymentTimestamp = parsePolishDate(input.wedding.remainingDueDate)
+  const weddingTimestamp = parsePolishDate(input.wedding.weddingDate)
+  if (conclusionTimestamp === undefined) return []
+  const conflicts: ConflictInput[] = []
+  if (paymentTimestamp !== undefined && paymentTimestamp < conclusionTimestamp) conflicts.push({
+    id: 'remaining-payment-before-conclusion',
+    field: 'wedding.remainingDueDate',
+    label: 'Termin płatności pozostałej kwoty',
+    explanation: 'Termin pozostałej płatności przypada przed datą zawarcia umowy. Podaj ręcznie poprawną datę albo skoryguj datę zawarcia umowy.',
+    inputType: 'date',
+    currentValue: input.wedding.remainingDueDate,
+    relatedValues: [{ label: 'Data zawarcia umowy', value: conclusionDate }],
+    required: true,
+  })
+  const sourceUsesFutureEventWording = input.sourceDocument.blocks.some((block) => /(?:które|która) odbęd(?:ą|zie) się/i.test(block.text))
+  if (weddingTimestamp !== undefined && weddingTimestamp < conclusionTimestamp && sourceUsesFutureEventWording) conflicts.push({
+    id: 'wedding-before-conclusion',
+    field: 'generationDate',
+    label: 'Data zawarcia umowy względem wydarzenia',
+    explanation: 'Umowa jest datowana po wydarzeniu, które źródłowa umowa opisuje jako przyszłe. Podaj ręcznie poprawną datę zawarcia umowy albo datę wydarzenia.',
+    inputType: 'date',
+    currentValue: conclusionDate,
+    relatedValues: [{ label: 'Data ślubu', value: input.wedding.weddingDate }],
+    required: true,
+  })
+  return conflicts
+}
+
+export function applyConflictOverrides(input: GenerationInput, overrides: ConflictOverride[]): GenerationInput {
+  let next = input
+  for (const override of overrides) {
+    if (override.id === 'remaining-payment-before-conclusion') {
+      next = { ...next, wedding: { ...next.wedding, remainingDueDate: override.value } }
+    }
+    if (override.id === 'wedding-before-conclusion') {
+      next = { ...next, generationDate: override.value, conclusion: { ...next.conclusion, replacementDate: next.conclusion.replaceDate ? override.value : next.conclusion.replacementDate } }
+    }
+  }
+  return next
+}
+
 export async function readSource(bytes: ArrayBuffer, fileName: string): Promise<GenerationInput['sourceDocument']> {
   const blocks = await (await import('./blockDocxEditor')).buildBlockIndex(bytes)
-  return { fileName, blocks }
+  return { fileName, blocks: blocks.map((block) => ({ ...block, contentClass: classifyBlock(block.text) })) }
 }
 
 export function makeInput(args: Omit<GenerationInput, 'financials' | 'conclusion'>): GenerationInput {
@@ -54,6 +119,8 @@ function candidateText(blocks: SourceBlock[]): string { return blocks.map((b) =>
 function normalize(text: string): string { return text.normalize('NFC').replace(/\s+/g, ' ').trim() }
 
 export async function runGeneration(sourceBytes: ArrayBuffer, input: GenerationInput, ai: ContractAi): Promise<GenerationResult> {
+  const conflicts = findInputConflicts(input)
+  if (conflicts.length) return { status: 'CONFLICT_INPUT', conflicts }
   const planned = await ai.plan(input)
   if (planned.missingInputs.some((x) => x.required)) return { status: 'MISSING_INPUT', missingInputs: planned.missingInputs }
   if (!planned.blockOperations) return { status: 'FAILED', issues: ['Plan nie zawiera operacji blokowych'] }

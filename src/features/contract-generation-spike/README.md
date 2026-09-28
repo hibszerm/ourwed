@@ -12,3 +12,5 @@ Fixtures:
 - `fixtures/work-generated-reference.docx` is the supplied successful Work output reference.
 
 The synthetic acceptance test exercises full paragraph rewrites (including contextual payment/date, Polish locations, and internal-reference examples), insertion style selection, package preservation, and unchanged tables/signatures/header/footer. This remains an isolated spike with no provider client, API key, production UI, or deployment path.
+
+Generation input includes lightweight `contentClass` metadata (`factual_dynamic`, `package_service`, `protected_legal_static`) for transformation and review prompts. Transformation instructions preserve legal wording and permit only minimal, unambiguous editorial corrections with no legal effect. Deterministic authoritative-date checks run before the AI planning boundary and return `CONFLICT_INPUT` for a remaining-payment date before contract conclusion, and for a wedding date before conclusion when the source describes the event as future. A resumed generation can apply explicit manual date overrides. No conflict UI is included in this spike.

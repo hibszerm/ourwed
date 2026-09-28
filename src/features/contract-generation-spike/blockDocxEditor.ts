@@ -12,7 +12,7 @@ export type BlockOperation =
 const partPattern = /^word\/(document|header\d+|footer\d+)\.xml$/
 const paragraphsIn = (xml: string) => [...xml.matchAll(/<w:p\b[\s\S]*?<\/w:p>/g)].map((m) => m[0]!)
 const idFor = (part: string, index: number) => `${part}#p${index}`
-const textFor = (paragraph: string) => extractCanonicalParagraphText(paragraph)
+const textFor = (paragraph: string) => extractCanonicalParagraphText(paragraph.replace(/<w:tab\b[^>]*\/>/g, '<w:t> </w:t>').replace(/<w:br\b[^>]*\/>/g, '<w:t> </w:t>'))
 
 export async function buildBlockIndex(bytes: ArrayBuffer): Promise<EditableBlock[]> {
   const zip = await JSZip.loadAsync(bytes)
@@ -124,7 +124,8 @@ function rewriteParagraph(paragraph: string, finalText: string): string {
     bodyText = finalText.slice(prefix.length).replace(/^\s+/, '')
     bodyStyle = dominantRunProperties(paragraph)
     const prefixStyle = runs[0]!.match(/<w:rPr\b[\s\S]*?<\/w:rPr>/)?.[0] ?? ''
-    const prefixRun = `<w:r>${prefixStyle}<w:t xml:space="preserve">${escapeXml(prefix + separator)}</w:t></w:r>`
+    const separatorXml = separator === '\t' ? '<w:tab/>' : separator === '\n' ? '<w:br/>' : ''
+    const prefixRun = `<w:r>${prefixStyle}<w:t xml:space="preserve">${escapeXml(prefix + (separatorXml ? '' : separator))}</w:t>${separatorXml}</w:r>`
     const bodyRun = `<w:r>${bodyStyle}<w:t xml:space="preserve">${escapeXml(bodyText)}</w:t></w:r>`
     return `<w:p>${pPr}${prefixRun}${bodyRun}</w:p>`
   }
