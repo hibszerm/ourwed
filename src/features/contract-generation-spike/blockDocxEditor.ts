@@ -1,6 +1,5 @@
 import JSZip from 'jszip'
 import { extractCanonicalParagraphText, escapeXml, unescapeXml } from '@/features/documents/template/canonicalParagraph'
-import { extractDocxParagraphsFromXml } from '@/features/documents/template/extractDocxParagraphs'
 
 export type BlockKind = 'body' | 'tableCell' | 'header' | 'footer'
 export type BlockTextPart =
@@ -13,9 +12,196 @@ export type BlockOperation =
   | { blockId: string; operation: 'DELETE_BLOCK' }
 
 const partPattern = /^word\/(document|header\d+|footer\d+)\.xml$/
-const paragraphsIn = (xml: string) => [...xml.matchAll(/<w:p\b[\s\S]*?<\/w:p>/g)].map((m) => m[0]!)
 const idFor = (part: string, index: number) => `${part}#p${index}`
-const textFor = (paragraph: string) => extractCanonicalParagraphText(paragraph.replace(/<w:tab\b[^>]*\/>/g, '<w:t> </w:t>').replace(/<w:br\b[^>]*\/>/g, '<w:t> </w:t>'))
+
+type XmlTag = { start: number; end: number; name: string; closing: boolean; selfClosing: boolean }
+type ParagraphOrigin = { kind: 'body' } | { kind: 'tableCell'; tableIndex: number; rowIndex: number; cellIndex: number; cellParagraphIndex: number }
+type ParagraphElement = { start: number; end: number; xml: string; origin: ParagraphOrigin; stableIndex?: number }
+type XmlFrame = {
+  name: string
+  start: number
+  paragraphOrigin?: ParagraphOrigin
+  tableIndex?: number
+  nextRowIndex?: number
+  rowIndex?: number
+  nextCellIndex?: number
+  cellIndex?: number
+  nextParagraphIndex?: number
+}
+
+function xmlTagsIn(xml: string): XmlTag[] {
+  const tags: XmlTag[] = []
+  let cursor = 0
+  while (cursor < xml.length) {
+    const start = xml.indexOf('<', cursor)
+    if (start < 0) break
+    if (xml.startsWith('<!--', start)) {
+      const end = xml.indexOf('-->', start + 4)
+      if (end < 0) throw new Error('Malformed DOCX XML comment')
+      cursor = end + 3
+      continue
+    }
+    if (xml.startsWith('<![CDATA[', start)) {
+      const end = xml.indexOf(']]>', start + 9)
+      if (end < 0) throw new Error('Malformed DOCX XML CDATA section')
+      cursor = end + 3
+      continue
+    }
+    if (xml.startsWith('<?', start)) {
+      const end = xml.indexOf('?>', start + 2)
+      if (end < 0) throw new Error('Malformed DOCX XML processing instruction')
+      cursor = end + 2
+      continue
+    }
+
+    let quote = ''
+    let bracketDepth = 0
+    let end = start + 1
+    for (; end < xml.length; end++) {
+      const char = xml[end]!
+      if (quote) {
+        if (char === quote) quote = ''
+      } else if (char === '"' || char === "'") quote = char
+      else if (xml.startsWith('<!', start)) {
+        if (char === '[') bracketDepth++
+        else if (char === ']') bracketDepth = Math.max(0, bracketDepth - 1)
+        else if (char === '>' && bracketDepth === 0) break
+      } else if (char === '>') break
+    }
+    if (end >= xml.length) throw new Error('Malformed DOCX XML tag')
+    const raw = xml.slice(start, end + 1)
+    if (!raw.startsWith('<!')) {
+      const match = raw.match(/^<\s*(\/?)\s*([^\s/>]+)([\s\S]*?)>$/)
+      if (!match) throw new Error('Malformed DOCX XML element name')
+      tags.push({ start, end: end + 1, name: match[2]!, closing: match[1] === '/', selfClosing: match[1] !== '/' && /\/\s*>$/.test(raw) })
+    }
+    cursor = end + 1
+  }
+  return tags
+}
+
+/** Locate exact XML element boundaries while tracking the enclosing table path. */
+function paragraphElementsIn(xml: string): ParagraphElement[] {
+  const tags = xmlTagsIn(xml)
+  const stack: XmlFrame[] = []
+  const paragraphs: ParagraphElement[] = []
+  let nextTableIndex = 0
+  for (const tag of tags) {
+    if (tag.closing) {
+      const frame = stack.pop()
+      if (!frame || frame.name !== tag.name) throw new Error(`Malformed DOCX XML nesting at ${tag.name}`)
+      if (tag.name === 'w:p') paragraphs.push({ start: frame.start, end: tag.end, xml: xml.slice(frame.start, tag.end), origin: frame.paragraphOrigin ?? { kind: 'body' } })
+      continue
+    }
+
+    const parent = (name: string) => [...stack].reverse().find((frame) => frame.name === name)
+    let paragraphOrigin: ParagraphOrigin | undefined
+    let tableIndex: number | undefined
+    let rowIndex: number | undefined
+    let cellIndex: number | undefined
+    let nextRowIndex: number | undefined
+    let nextCellIndex: number | undefined
+    let nextParagraphIndex: number | undefined
+    if (tag.name === 'w:tbl') {
+      tableIndex = nextTableIndex++
+      nextRowIndex = 0
+    } else if (tag.name === 'w:tr') {
+      const table = parent('w:tbl')
+      if (table) {
+        tableIndex = table.tableIndex
+        rowIndex = table.nextRowIndex ?? 0
+        table.nextRowIndex = rowIndex + 1
+        nextCellIndex = 0
+      }
+    } else if (tag.name === 'w:tc') {
+      const row = parent('w:tr')
+      if (row) {
+        tableIndex = row.tableIndex
+        rowIndex = row.rowIndex
+        cellIndex = row.nextCellIndex ?? 0
+        row.nextCellIndex = cellIndex + 1
+        nextParagraphIndex = 0
+      }
+    } else if (tag.name === 'w:p') {
+      const cell = parent('w:tc')
+      if (cell) {
+        paragraphOrigin = {
+          kind: 'tableCell',
+          tableIndex: cell.tableIndex!,
+          rowIndex: cell.rowIndex!,
+          cellIndex: cell.cellIndex!,
+          cellParagraphIndex: cell.nextParagraphIndex ?? 0,
+        }
+        cell.nextParagraphIndex = (cell.nextParagraphIndex ?? 0) + 1
+      } else paragraphOrigin = { kind: 'body' }
+    }
+
+    const frame: XmlFrame = { name: tag.name, start: tag.start }
+    if (tag.name === 'w:p') frame.paragraphOrigin = paragraphOrigin
+    if (tag.name === 'w:tbl') { frame.tableIndex = tableIndex; frame.nextRowIndex = nextRowIndex }
+    if (tag.name === 'w:tr') { frame.tableIndex = tableIndex; frame.rowIndex = rowIndex; frame.nextCellIndex = nextCellIndex }
+    if (tag.name === 'w:tc') { frame.tableIndex = tableIndex; frame.rowIndex = rowIndex; frame.cellIndex = cellIndex; frame.nextParagraphIndex = nextParagraphIndex }
+    if (tag.selfClosing) {
+      if (tag.name === 'w:p') paragraphs.push({ start: tag.start, end: tag.end, xml: xml.slice(tag.start, tag.end), origin: paragraphOrigin ?? { kind: 'body' } })
+    } else stack.push(frame)
+  }
+  if (stack.length) throw new Error(`Malformed DOCX XML: unclosed ${stack.at(-1)!.name}`)
+  paragraphs.sort((a, b) => a.start - b.start)
+
+  // Keep IDs from the previous editor stream when its end boundary maps to one
+  // actual paragraph. Extra nested paragraphs receive deterministic IDs after it.
+  const paragraphByEnd = new Map(paragraphs.map((paragraph) => [paragraph.end, paragraph]))
+  let legacyCursor = 0
+  let legacyIndex = 0
+  const openingParagraphs = tags.filter((tag) => tag.name === 'w:p' && !tag.closing)
+  const closingParagraphs = tags.filter((tag) => tag.name === 'w:p' && tag.closing)
+  let openingCursor = 0
+  let closingCursor = 0
+  while (legacyCursor < xml.length) {
+    while (openingCursor < openingParagraphs.length && openingParagraphs[openingCursor]!.start < legacyCursor) openingCursor++
+    const opening = openingParagraphs[openingCursor]
+    if (!opening) break
+    while (closingCursor < closingParagraphs.length && closingParagraphs[closingCursor]!.start < opening.end) closingCursor++
+    const closing = closingParagraphs[closingCursor]
+    if (!closing) break
+    const paragraph = paragraphByEnd.get(closing.end)
+    if (paragraph && paragraph.stableIndex === undefined) paragraph.stableIndex = legacyIndex
+    legacyIndex++
+    legacyCursor = closing.end
+  }
+  let extraIndex = legacyIndex
+  for (const paragraph of paragraphs) {
+    if (paragraph.stableIndex === undefined) paragraph.stableIndex = extraIndex++
+  }
+  return paragraphs
+}
+
+function replaceXmlSpans(xml: string, edits: Array<{ start: number; end: number; replacement: string }>): string {
+  let result = xml
+  let previousStart = xml.length + 1
+  for (const edit of [...edits].sort((a, b) => b.start - a.start)) {
+    if (edit.end > previousStart) throw new Error('Overlapping DOCX XML edits are ambiguous')
+    result = result.slice(0, edit.start) + edit.replacement + result.slice(edit.end)
+    previousStart = edit.start
+  }
+  return result
+}
+
+function textFor(paragraph: string): string {
+  const completeParagraph = /^<w:p\b/.test(paragraph) && /<\/w:p\s*>\s*$/.test(paragraph)
+  const elements = completeParagraph ? paragraphElementsIn(paragraph) : []
+  const rootParagraph = elements.find((element) => element.start === 0)
+  const nestedParagraphs = rootParagraph
+    ? elements.filter((element) => element.start > rootParagraph.start
+      && element.end < rootParagraph.end
+      && !elements.some((parent) => parent !== element
+        && parent.start > rootParagraph.start
+        && parent.start < element.start
+        && parent.end >= element.end))
+    : []
+  const directXml = replaceXmlSpans(paragraph, nestedParagraphs.map((element) => ({ start: element.start, end: element.end, replacement: '' })))
+  return extractCanonicalParagraphText(directXml.replace(/<w:tab\b[^>]*\/>/g, '<w:t> </w:t>').replace(/<w:br\b[^>]*\/>/g, '<w:t> </w:t>'))
+}
 
 type WordFieldRange = { start: number; end: number; xml: string; fieldKind: 'complex' | 'simple'; instruction: string; cachedText: string }
 
@@ -124,22 +310,20 @@ export async function buildBlockIndex(bytes: ArrayBuffer): Promise<EditableBlock
     if (hasRelationshipIndex && part.startsWith('word/header') && !referencedHeaders.has(part)) continue
     if (hasRelationshipIndex && part.startsWith('word/footer') && !referencedFooters.has(part)) continue
     const xml = await zip.file(part)!.async('string')
-    const paras = paragraphsIn(xml)
-    let kinds: BlockKind[]
-    const indexed = part === 'word/document.xml' ? extractDocxParagraphsFromXml(xml).paragraphs : []
-    if (part === 'word/document.xml') {
-      kinds = paras.map((_, i) => indexed[i]?.origin?.kind === 'tableCell' ? 'tableCell' : 'body')
-    } else kinds = paras.map(() => part.includes('header') ? 'header' : 'footer')
-    for (let index = 0; index < paras.length; index++) {
-      const text = textFor(paras[index]!)
+    const paragraphs = paragraphElementsIn(xml)
+    for (let index = 0; index < paragraphs.length; index++) {
+      const paragraph = paragraphs[index]!
+      const text = textFor(paragraph.xml)
       const previous = blocks.at(-1)?.part === part ? blocks.at(-1)?.text ?? '' : ''
-      const next = paras[index + 1] ? textFor(paras[index + 1]!) : ''
-      const origin = indexed[index]?.origin
-      const structure = origin?.kind === 'tableCell' ? `Table ${origin.tableIndex}, row ${origin.rowIndex}, cell ${origin.cellIndex}. ` : ''
-      const textParts = blockTextParts(paras[index]!)
-      blocks.push({ blockId: idFor(part, index), part, index, kind: kinds[index]!, text, context: `${structure}Previous: ${previous}\nCurrent: ${text}\nNext: ${next}`, ...(textParts ? { textParts } : {}) })
+      const next = paragraphs[index + 1] ? textFor(paragraphs[index + 1]!.xml) : ''
+      const origin = paragraph.origin
+      const kind: BlockKind = origin.kind === 'tableCell' ? 'tableCell' : part.includes('header') ? 'header' : part.includes('footer') ? 'footer' : 'body'
+      const structure = origin.kind === 'tableCell' ? `Table ${origin.tableIndex}, row ${origin.rowIndex}, cell ${origin.cellIndex}. ` : ''
+      const textParts = blockTextParts(paragraph.xml)
+      blocks.push({ blockId: idFor(part, paragraph.stableIndex!), part, index, kind, text, context: `${structure}Previous: ${previous}\nCurrent: ${text}\nNext: ${next}`, ...(textParts ? { textParts } : {}) })
     }
   }
+  if (new Set(blocks.map((block) => block.blockId)).size !== blocks.length) throw new Error('DOCX paragraph IDs are ambiguous')
   return blocks
 }
 
@@ -192,6 +376,9 @@ function dominantRunProperties(paragraph: string): string {
 }
 
 function rewriteParagraph(paragraph: string, finalText: string): string {
+  if (xmlTagsIn(paragraph).filter((tag) => tag.name === 'w:p' && !tag.closing).length !== 1) {
+    throw new Error('Cannot safely replace a DOCX block containing nested paragraphs')
+  }
   if (fieldRangesIn(paragraph).length) return rewriteParagraphPreservingFields(paragraph, finalText)
   const pPr = paragraph.match(/<w:pPr\b[\s\S]*?<\/w:pPr>/)?.[0] ?? ''
   const runs = [...paragraph.matchAll(/<w:r\b[\s\S]*?<\/w:r>/g)].map((m) => m[0]!)
@@ -319,6 +506,9 @@ function isNumberedStructuralPrefix(prefix: string): boolean {
 }
 
 function cleanStyleParagraph(paragraph: string, text: string): string {
+  if (xmlTagsIn(paragraph).filter((tag) => tag.name === 'w:p' && !tag.closing).length !== 1) {
+    throw new Error('Cannot safely use a DOCX style source containing nested paragraphs')
+  }
   const pPr = (paragraph.match(/<w:pPr\b[\s\S]*?<\/w:pPr>/)?.[0] ?? '')
     .replace(/<w:numPr\b[\s\S]*?<\/w:numPr>/g, '')
     .replace(/<w:sectPr\b[\s\S]*?<\/w:sectPr>/g, '')
@@ -348,7 +538,7 @@ export async function applyBlockOperations(bytes: ArrayBuffer, operations: Block
   }
   for (const [part, partOperations] of byPart) {
     let xml = await zip.file(part)!.async('string')
-    const paragraphs = paragraphsIn(xml)
+    const paragraphs = paragraphElementsIn(xml)
     const replacements = new Map<number, string>()
     const deletions = new Set<number>()
     const before = new Map<number, string[]>()
@@ -356,24 +546,35 @@ export async function applyBlockOperations(bytes: ArrayBuffer, operations: Block
     for (const operation of partOperations) {
       if (operation.operation === 'REPLACE_BLOCK_TEXT') {
         const block = blockById.get(operation.blockId)!
-        replacements.set(block.index, rewriteParagraph(paragraphs[block.index]!, operation.finalText))
-      } else if (operation.operation === 'DELETE_BLOCK') deletions.add(blockById.get(operation.blockId)!.index)
+        const target = paragraphs[block.index]
+        if (!target || target.stableIndex === undefined || idFor(part, target.stableIndex) !== operation.blockId) throw new Error(`DOCX block does not map uniquely to one paragraph: ${operation.blockId}`)
+        replacements.set(block.index, rewriteParagraph(target.xml, operation.finalText))
+      } else if (operation.operation === 'DELETE_BLOCK') {
+        const block = blockById.get(operation.blockId)!
+        const target = paragraphs[block.index]
+        if (!target || target.stableIndex === undefined || idFor(part, target.stableIndex) !== operation.blockId) throw new Error(`DOCX block does not map uniquely to one paragraph: ${operation.blockId}`)
+        deletions.add(block.index)
+      }
       else {
         const anchorId = operation.anchorBlockId
         const anchor = blockById.get(anchorId)!
         const style = blockById.get(operation.styleSourceBlockId)!
-        const addition = cleanStyleParagraph(paragraphs[style.index]!, operation.finalText)
+        const styleParagraph = paragraphs[style.index]
+        const anchorParagraph = paragraphs[anchor.index]
+        if (!styleParagraph || styleParagraph.stableIndex === undefined || idFor(part, styleParagraph.stableIndex) !== operation.styleSourceBlockId) throw new Error(`DOCX style source does not map uniquely to one paragraph: ${operation.styleSourceBlockId}`)
+        if (!anchorParagraph || anchorParagraph.stableIndex === undefined || idFor(part, anchorParagraph.stableIndex) !== operation.anchorBlockId) throw new Error(`DOCX insertion anchor does not map uniquely to one paragraph: ${operation.anchorBlockId}`)
+        const addition = cleanStyleParagraph(styleParagraph.xml, operation.finalText)
         const map = operation.operation === 'INSERT_BLOCK_AFTER' ? after : before
         map.set(anchor.index, [...(map.get(anchor.index) ?? []), addition])
       }
     }
-    const changed = paragraphs.map((paragraph, index) => {
-      if (deletions.has(index)) return ''
-      const text = replacements.get(index) ?? paragraph
-      return `${(before.get(index) ?? []).join('')}${text}${(after.get(index) ?? []).join('')}`
+    const edits = paragraphs.flatMap((paragraph, index) => {
+      const operationResult = deletions.has(index)
+        ? ''
+        : `${(before.get(index) ?? []).join('')}${replacements.get(index) ?? paragraph.xml}${(after.get(index) ?? []).join('')}`
+      return operationResult === paragraph.xml ? [] : [{ start: paragraph.start, end: paragraph.end, replacement: operationResult }]
     })
-    let cursor = 0
-    xml = xml.replace(/<w:p\b[\s\S]*?<\/w:p>/g, () => changed[cursor++] ?? '')
+    xml = replaceXmlSpans(xml, edits)
     if (part === 'word/document.xml') xml = collapseRedundantEmptyParagraphsBeforePageBreak(xml)
     zip.file(part, xml)
   }
@@ -389,14 +590,7 @@ function collapseRedundantEmptyParagraphsBeforePageBreak(xml: string): string {
   if (!bodyStart || bodyClose < bodyStart.index! + bodyStart[0].length) return xml
   const contentStart = bodyStart.index! + bodyStart[0].length
   const body = xml.slice(contentStart, bodyClose)
-  const paragraphs: Array<{ start: number; end: number; xml: string; inTableCell: boolean }> = []
-  const paragraphPattern = /<w:p\b[\s\S]*?<\/w:p>/g
-  let match: RegExpExecArray | null
-  while ((match = paragraphPattern.exec(body))) {
-    const prefix = body.slice(0, match.index)
-    const tableCellDepth = [...prefix.matchAll(/<w:tc\b[^>]*>/g)].length - [...prefix.matchAll(/<\/w:tc\s*>/g)].length
-    paragraphs.push({ start: match.index, end: match.index + match[0].length, xml: match[0], inTableCell: tableCellDepth > 0 })
-  }
+  const paragraphs = paragraphElementsIn(body).map((paragraph) => ({ ...paragraph, inTableCell: paragraph.origin.kind === 'tableCell' }))
   const emptySafe = (paragraph: string) => {
     if (extractCanonicalParagraphText(paragraph) !== '') return false
     if (/<w:sectPr\b/.test(paragraph)) return false
@@ -404,7 +598,7 @@ function collapseRedundantEmptyParagraphsBeforePageBreak(xml: string): string {
     if (/<w:(?:br|tab|drawing|object|pict|fldChar|instrText|bookmarkStart|bookmarkEnd|hyperlink|footnoteReference|endnoteReference)\b/.test(content)) return false
     return [...content.matchAll(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/g)].every((text) => text[1] === '')
   }
-  const remove: Array<{ start: number; end: number }> = []
+  const remove: Array<{ start: number; end: number; replacement: string }> = []
   for (let index = 0; index < paragraphs.length; index++) {
     const current = paragraphs[index]!
     if (current.inTableCell || !/<w:pageBreakBefore\b(?:[^>]*\bw:val\s*=\s*["'](?:1|true|on)["'][^>]*)?\s*\/>/.test(current.xml)) continue
@@ -419,11 +613,10 @@ function collapseRedundantEmptyParagraphsBeforePageBreak(xml: string): string {
     if (redundant > 1) {
       // Remove only the empty spacer closest to the page-break paragraph.
       const previous = paragraphs[index - 1]!
-      remove.push({ start: previous.start, end: previous.end })
+      remove.push({ start: previous.start, end: previous.end, replacement: '' })
     }
   }
   if (!remove.length) return xml
-  let updated = body
-  for (const range of remove.sort((a, b) => b.start - a.start)) updated = updated.slice(0, range.start) + updated.slice(range.end)
+  const updated = replaceXmlSpans(body, remove)
   return xml.slice(0, contentStart) + updated + xml.slice(bodyClose)
 }
