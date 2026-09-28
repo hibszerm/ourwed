@@ -1,0 +1,51 @@
+{
+  "id": "case-03-narrative-photo-video",
+  "sourceDocx": "source.docx",
+  "generationDate": "03.02.2028",
+  "weddingFacts": {
+    "bride": {
+      "name": "Zuzanna Bielska",
+      "phone": "+48 503 618 742",
+      "email": "zuzanna.bielska@example.com"
+    },
+    "groom": {
+      "name": "Kacper Wrona",
+      "phone": "+48 607 244 913"
+    },
+    "weddingDate": "19.06.2028",
+    "contractAddress": "ul. Chorzowska 42/11, 40-101 Katowice",
+    "contractValuePln": 16800,
+    "depositPln": 2800,
+    "locations": {
+      "bridePreparations": "Hotel Monopol Katowice, ul. Dworcowa 5, 40-012 Katowice",
+      "groomPreparations": "Hotel Monopol Katowice, ul. Dworcowa 5, 40-012 Katowice",
+      "ceremony": "Kościół Mariacki w Katowicach, pl. ks. Emila Szramka 1, 40-014 Katowice",
+      "reception": "Pałac Bażantarnia, ul. Barbórki 47, 43-200 Pszczyna"
+    }
+  },
+  "extras": [],
+  "userProvidedAnswers": [
+    { "id": "wedding.groom.email", "value": "kacper.wrona@example.com" },
+    { "id": "payment.secondPaymentAmount", "value": "5 500 zł" },
+    { "id": "payment.secondPaymentDueRule", "value": "nie później niż 30 dni przed datą wesela" },
+    { "id": "payment.finalPaymentAmount", "value": "8 500 zł" }
+  ],
+  "paymentTiming": {
+    "reservation": {
+      "type": "relative",
+      "relativeTo": "contract_conclusion",
+      "offsetDays": 5,
+      "sourceMeaning": "w terminie 5 dni od podpisania umowy"
+    },
+    "remaining": {
+      "type": "relative",
+      "relativeTo": "wedding",
+      "offsetDays": 3,
+      "sourceMeaning": "nie później niż 3 dni po weselu"
+    }
+  },
+  "expectedProductRules": {
+    "preserveSourcePackageExactly": true,
+    "preserveSourceContractingPartyStructure": true
+  }
+}
