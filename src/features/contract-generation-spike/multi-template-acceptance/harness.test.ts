@@ -5,7 +5,7 @@ import path from 'node:path'
 import { createHash } from 'node:crypto'
 import type { AcceptanceProvider, MultiTemplateCaseDefinition } from './harness'
 import { ACCEPTANCE_PROVIDER_BUDGET, formatAcceptanceReport, runMultiTemplateAcceptance } from './harness'
-import { readSource } from '../generator'
+import { makeInput, readSource } from '../generator'
 
 const sourceFixture = path.resolve(process.cwd(), 'src/features/contract-generation-spike/fixtures/source-video-standard.docx')
 const root = await mkdtemp(path.join(os.tmpdir(), 'ourwed-multi-template-'))
@@ -137,6 +137,14 @@ try {
   const caseSourceBuffer = caseSourceBytes.buffer.slice(caseSourceBytes.byteOffset, caseSourceBytes.byteOffset + caseSourceBytes.byteLength) as ArrayBuffer
   const openedCaseSource = await readSource(caseSourceBuffer, 'source.docx')
   assert.ok(openedCaseSource.blocks.some((block) => block.text.includes('Klasyczny Reportaż')), 'package is present in the source DOCX')
+  const caseWedding = { ...realCase.weddingFacts, remainingDueDate: realCase.paymentTiming.remaining.sourceMeaning }
+  const caseInput = makeInput({ generationDate: realCase.generationDate, sourceDocument: openedCaseSource, wedding: caseWedding, packagePolicy: { preserveSourcePackageExactly: true }, extras: realCase.extras, userProvidedAnswers: realCase.userProvidedAnswers })
+  caseInput.conclusion = { ...caseInput.conclusion, preservePlace: realCase.expectedProductRules.preserveSourceConclusionPlace }
+  assert.equal(caseInput.conclusion.replaceDate, true)
+  assert.equal(caseInput.conclusion.replacementDate, '10.02.2027')
+  assert.equal(caseInput.conclusion.preservePlace, 'Warszawa')
+  assert.equal(caseInput.wedding.weddingDate, '18.07.2027')
+  assert.equal(JSON.stringify(realCase).toLowerCase().includes('pesel'), false, 'no personal identifier is present in Case 01 input')
   const actualCase = await runMultiTemplateAcceptance(caseId, { casesRoot: realCasesRoot, outputRoot, runId: 'offline-preflight' })
   assert.equal(actualCase.preflight, 'READY', 'offline preflight does not attempt arbitrary source-field discovery')
   assert.deepEqual(actualCase.conflictFindings, [])

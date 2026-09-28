@@ -155,9 +155,10 @@ export function makeInput(args: Omit<GenerationInput, 'financials' | 'conclusion
 }
 
 export function conclusionRule(sourceBlocks: SourceBlock[], generationDate: string): GenerationInput['conclusion'] {
-  const opening = sourceBlocks.find((block) => /Zawarta w dniu|zawarta dnia/i.test(block.text))?.text ?? ''
-  const hasDate = /\d{1,2}[./-]\d{1,2}[./-]\d{2,4}|\.{3,}/.test(opening)
-  const place = opening.match(/\br\.\s*w\s+([^,;]+?)(?=,|\s+zwana|$)/i)?.[1]?.trim()
+  const datePattern = /\d{1,2}[./-]\d{1,2}[./-]\d{2,4}|\.{3,}|\b\d{1,2}\s+(?:stycznia|lutego|marca|kwietnia|maja|czerwca|lipca|sierpnia|września|października|listopada|grudnia)\s+\d{4}\b/i
+  const opening = sourceBlocks.find((block) => /\bzawarta\b/i.test(block.text) && datePattern.test(block.text))?.text ?? ''
+  const hasDate = Boolean(generationDate.trim()) && datePattern.test(opening)
+  const place = opening.match(/(?:\br\.|\b\d{4}\s+(?:r\.|roku))\s+w\s+([^,;]+?)(?=,?\s+(?:zwana|zwany|zwane|pomiędzy|między)\b|[,;]|$)/i)?.[1]?.trim()
   return { replaceDate: hasDate, ...(hasDate ? { replacementDate: generationDate } : {}), ...(place && !/\.{3,}/.test(place) ? { preservePlace: place } : {}) }
 }
 

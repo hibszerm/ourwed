@@ -25,6 +25,14 @@ assert.equal(input.financials.remainingPln, 13200)
 assert.equal(input.conclusion.replaceDate, true)
 assert.equal(input.conclusion.preservePlace, 'Zabrzu')
 assert.deepEqual(conclusionRule([{ part: 'word/document.xml', index: 0, text: 'Zawarta w dniu .................... r. w ........................, zwana dalej umową' }], '15.09.2026'), { replaceDate: true, replacementDate: '15.09.2026' })
+const writtenMonthOpening = [{ part: 'word/document.xml', index: 0, text: 'Zawarta w dniu 15 lutego 2027 r. w Warszawie, zwana dalej umową' }] as SourceBlock[]
+assert.deepEqual(conclusionRule(writtenMonthOpening, '10.02.2027'), { replaceDate: true, replacementDate: '10.02.2027', preservePlace: 'Warszawie' }, 'a written Polish conclusion date is replaced with generation date while preserving place')
+const laterWeddingFacts = { ...wedding, weddingDate: '18.07.2027', remainingDueDate: '11.07.2027' }
+assert.deepEqual(findInputConflicts(makeInput({ generationDate: '10.02.2027', sourceDocument: { fileName: 'test.docx', blocks: writtenMonthOpening }, wedding: laterWeddingFacts, packagePolicy: { preserveSourcePackageExactly: true }, extras: [], userProvidedAnswers: [] })), [], 'a conclusion date differing from the wedding date does not conflict')
+const conclusionMatchesWedding = [{ part: 'word/document.xml', index: 0, text: 'Zawarta w dniu 18.07.2027 r. w Warszawie, zwana dalej umową o uroczystości, która odbędzie się 18.07.2027' }] as SourceBlock[]
+assert.deepEqual(conclusionRule(conclusionMatchesWedding, '10.02.2027'), { replaceDate: true, replacementDate: '10.02.2027', preservePlace: 'Warszawie' }, 'a source conclusion date remains a conclusion date even when it matches the wedding date')
+assert.deepEqual(findInputConflicts(makeInput({ generationDate: '10.02.2027', sourceDocument: { fileName: 'test.docx', blocks: conclusionMatchesWedding }, wedding: laterWeddingFacts, packagePolicy: { preserveSourcePackageExactly: true }, extras: [], userProvidedAnswers: [] })), [], 'conclusion and wedding dates remain independent')
+assert.deepEqual(conclusionRule(writtenMonthOpening, ''), { replaceDate: false, preservePlace: 'Warszawie' }, 'without a generation date the source date is not targeted for replacement')
 assert.deepEqual(findInputConflicts(input), [], 'realistic dates allow generation to proceed')
 const conflictingInput = makeInput({ generationDate: '27.09.2026', sourceDocument: source, wedding, packagePolicy: { preserveSourcePackageExactly: true }, extras: input.extras, userProvidedAnswers: [] })
 assert.equal(findInputConflicts(conflictingInput)[0]?.id, 'remaining-payment-before-conclusion')
