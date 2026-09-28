@@ -3,7 +3,10 @@ import { extractCanonicalParagraphText, escapeXml, unescapeXml } from '@/feature
 import { extractDocxParagraphsFromXml } from '@/features/documents/template/extractDocxParagraphs'
 
 export type BlockKind = 'body' | 'tableCell' | 'header' | 'footer'
-export type EditableBlock = { blockId: string; part: string; index: number; kind: BlockKind; text: string; context: string }
+export type BlockTextPart =
+  | { kind: 'editable_text'; text: string }
+  | { kind: 'protected_field'; fieldKind: 'complex' | 'simple'; instruction: string; cachedText: string }
+export type EditableBlock = { blockId: string; part: string; index: number; kind: BlockKind; text: string; context: string; textParts?: BlockTextPart[] }
 export type BlockOperation =
   | { blockId: string; operation: 'REPLACE_BLOCK_TEXT'; finalText: string }
   | { anchorBlockId: string; operation: 'INSERT_BLOCK_AFTER' | 'INSERT_BLOCK_BEFORE'; finalText: string; styleSourceBlockId: string }
@@ -13,6 +16,87 @@ const partPattern = /^word\/(document|header\d+|footer\d+)\.xml$/
 const paragraphsIn = (xml: string) => [...xml.matchAll(/<w:p\b[\s\S]*?<\/w:p>/g)].map((m) => m[0]!)
 const idFor = (part: string, index: number) => `${part}#p${index}`
 const textFor = (paragraph: string) => extractCanonicalParagraphText(paragraph.replace(/<w:tab\b[^>]*\/>/g, '<w:t> </w:t>').replace(/<w:br\b[^>]*\/>/g, '<w:t> </w:t>'))
+
+type WordFieldRange = { start: number; end: number; xml: string; fieldKind: 'complex' | 'simple'; instruction: string; cachedText: string }
+
+function fieldRangesIn(paragraph: string): WordFieldRange[] {
+  const ranges: Array<{ start: number; end: number; fieldKind: 'complex' | 'simple' }> = []
+  const runOpenAt = (offset: number): number => {
+    const opens = [...paragraph.slice(0, offset).matchAll(/<w:r\b[^>]*>/g)]
+    const lastOpen = opens.at(-1)
+    const lastClose = paragraph.lastIndexOf('</w:r>', offset)
+    if (!lastOpen || lastOpen.index! < lastClose) throw new Error('Cannot safely locate Word field run start')
+    return lastOpen.index!
+  }
+  const runCloseAfter = (offset: number): number => {
+    const close = paragraph.indexOf('</w:r>', offset)
+    if (close < 0) throw new Error('Cannot safely locate Word field run end')
+    return close + '</w:r>'.length
+  }
+
+  const complexStack: number[] = []
+  const fieldCharPattern = /<w:fldChar\b([^>]*?)(?:\/>|>(?:[\s\S]*?)<\/w:fldChar>)/g
+  let fieldChar: RegExpExecArray | null
+  while ((fieldChar = fieldCharPattern.exec(paragraph))) {
+    const type = fieldChar[1]!.match(/\bw:fldCharType\s*=\s*["']([^"']+)["']/)?.[1]
+    if (type === 'begin') complexStack.push(runOpenAt(fieldChar.index))
+    else if (type === 'separate') {
+      if (!complexStack.length) throw new Error('Word field separator has no matching begin')
+    } else if (type === 'end') {
+      const start = complexStack.pop()
+      if (start === undefined) throw new Error('Word field end has no matching begin')
+      if (!complexStack.length) ranges.push({ start, end: runCloseAfter(fieldChar.index + fieldChar[0].length), fieldKind: 'complex' })
+    } else throw new Error('Unrecognized Word field marker')
+  }
+  if (complexStack.length) throw new Error('Word field has no matching end')
+
+  const simpleStack: number[] = []
+  const simplePattern = /<w:fldSimple\b[^>]*>|<\/w:fldSimple\s*>/g
+  let simple: RegExpExecArray | null
+  while ((simple = simplePattern.exec(paragraph))) {
+    if (simple[0].startsWith('</')) {
+      const start = simpleStack.pop()
+      if (start === undefined) throw new Error('Simple Word field end has no matching start')
+      if (!simpleStack.length) ranges.push({ start, end: simplePattern.lastIndex, fieldKind: 'simple' })
+    } else if (/\/>$/.test(simple[0])) ranges.push({ start: simple.index, end: simplePattern.lastIndex, fieldKind: 'simple' })
+    else simpleStack.push(simple.index)
+  }
+  if (simpleStack.length) throw new Error('Simple Word field has no matching end')
+
+  const sorted = ranges.sort((a, b) => a.start - b.start || b.end - a.end)
+  const topLevel: typeof ranges = []
+  for (const range of sorted) {
+    const containing = topLevel.at(-1)
+    if (containing && range.start < containing.end) {
+      if (range.end > containing.end) throw new Error('Overlapping Word field structures cannot be preserved safely')
+      continue
+    }
+    topLevel.push(range)
+  }
+  return topLevel.map((range) => {
+    const xml = paragraph.slice(range.start, range.end)
+    const simpleInstruction = xml.match(/<w:fldSimple\b[^>]*\bw:instr\s*=\s*["']([^"']*)["']/)?.[1]
+    const instruction = simpleInstruction === undefined
+      ? [...xml.matchAll(/<w:instrText(?:\s[^>]*)?>([\s\S]*?)<\/w:instrText>/g)].map((match) => unescapeXml(match[1]!)).join(' ').trim()
+      : unescapeXml(simpleInstruction)
+    return { ...range, xml, instruction, cachedText: textFor(xml) }
+  })
+}
+
+function blockTextParts(paragraph: string): BlockTextPart[] | undefined {
+  const fields = fieldRangesIn(paragraph)
+  if (!fields.length) return undefined
+  const parts: BlockTextPart[] = []
+  let cursor = 0
+  for (const field of fields) {
+    parts.push({ kind: 'editable_text', text: textFor(paragraph.slice(cursor, field.start)) })
+    parts.push({ kind: 'protected_field', fieldKind: field.fieldKind, instruction: field.instruction, cachedText: field.cachedText })
+    cursor = field.end
+  }
+  parts.push({ kind: 'editable_text', text: textFor(paragraph.slice(cursor)) })
+  if (parts.map((part) => part.kind === 'editable_text' ? part.text : part.cachedText).join('') !== textFor(paragraph)) throw new Error('Word field text cannot be aligned with visible block text')
+  return parts
+}
 
 export async function buildBlockIndex(bytes: ArrayBuffer): Promise<EditableBlock[]> {
   const zip = await JSZip.loadAsync(bytes)
@@ -52,7 +136,8 @@ export async function buildBlockIndex(bytes: ArrayBuffer): Promise<EditableBlock
       const next = paras[index + 1] ? textFor(paras[index + 1]!) : ''
       const origin = indexed[index]?.origin
       const structure = origin?.kind === 'tableCell' ? `Table ${origin.tableIndex}, row ${origin.rowIndex}, cell ${origin.cellIndex}. ` : ''
-      blocks.push({ blockId: idFor(part, index), part, index, kind: kinds[index]!, text, context: `${structure}Previous: ${previous}\nCurrent: ${text}\nNext: ${next}` })
+      const textParts = blockTextParts(paras[index]!)
+      blocks.push({ blockId: idFor(part, index), part, index, kind: kinds[index]!, text, context: `${structure}Previous: ${previous}\nCurrent: ${text}\nNext: ${next}`, ...(textParts ? { textParts } : {}) })
     }
   }
   return blocks
@@ -107,6 +192,7 @@ function dominantRunProperties(paragraph: string): string {
 }
 
 function rewriteParagraph(paragraph: string, finalText: string): string {
+  if (fieldRangesIn(paragraph).length) return rewriteParagraphPreservingFields(paragraph, finalText)
   const pPr = paragraph.match(/<w:pPr\b[\s\S]*?<\/w:pPr>/)?.[0] ?? ''
   const runs = [...paragraph.matchAll(/<w:r\b[\s\S]*?<\/w:r>/g)].map((m) => m[0]!)
   let prefix = ''
@@ -130,6 +216,77 @@ function rewriteParagraph(paragraph: string, finalText: string): string {
     return `<w:p>${pPr}${prefixRun}${bodyRun}</w:p>`
   }
   return `<w:p>${pPr}<w:r>${bodyStyle}<w:t xml:space="preserve">${escapeXml(finalText)}</w:t></w:r></w:p>`
+}
+
+function mapProtectedFieldsToFinalText(fields: WordFieldRange[], editableParts: string[], finalText: string): number[] {
+  const candidates = fields.map((field, index) => {
+    if (!field.cachedText) throw new Error(`Cannot preserve Word field ${field.instruction || index}: no cached display text to map`)
+    const before = editableParts[index] ?? ''
+    const after = editableParts[index + 1] ?? ''
+    const occurrences: number[] = []
+    let from = 0
+    while (from <= finalText.length - field.cachedText.length) {
+      const position = finalText.indexOf(field.cachedText, from)
+      if (position < 0) break
+      occurrences.push(position)
+      from = position + 1
+    }
+    if (occurrences.length === 1) return occurrences
+    const anchored = occurrences.filter((position) => {
+      const leftAnchorMatches = before.length > 0 && finalText.slice(Math.max(0, position - before.length), position) === before
+      const afterPosition = position + field.cachedText.length
+      const rightAnchorMatches = after.length > 0 && finalText.slice(afterPosition, afterPosition + after.length) === after
+      return leftAnchorMatches || rightAnchorMatches
+    })
+    if (!anchored.length) throw new Error(`Cannot safely map cached text for Word field ${field.instruction || index}`)
+    return anchored
+  })
+
+  const solutions: number[][] = []
+  let examined = 0
+  const visit = (index: number, previousEnd: number, positions: number[]) => {
+    if (++examined > 50000) throw new Error('Word field mapping is too ambiguous to preserve safely')
+    if (index === fields.length) {
+      solutions.push(positions)
+      return
+    }
+    for (const candidate of candidates[index]!) {
+      if (candidate < previousEnd) continue
+      visit(index + 1, candidate + fields[index]!.cachedText.length, [...positions, candidate])
+    }
+  }
+  visit(0, 0, [])
+  if (!solutions.length) throw new Error('Word fields cannot be mapped to final block text in source order')
+  if (solutions.length !== 1) throw new Error('Word field mapping is ambiguous; refusing to flatten dynamic fields')
+  return solutions[0]!
+}
+
+function rewriteParagraphPreservingFields(paragraph: string, finalText: string): string {
+  const fields = fieldRangesIn(paragraph)
+  const editableParts: string[] = []
+  let sourceCursor = 0
+  for (const field of fields) {
+    editableParts.push(textFor(paragraph.slice(sourceCursor, field.start)))
+    sourceCursor = field.end
+  }
+  editableParts.push(textFor(paragraph.slice(sourceCursor)))
+  const reconstructedSource = editableParts.map((part, index) => `${part}${fields[index]?.cachedText ?? ''}`).join('')
+  if (reconstructedSource !== textFor(paragraph)) throw new Error('Word field boundaries do not match the visible source text')
+
+  const positions = mapProtectedFieldsToFinalText(fields, editableParts, finalText)
+  const pPr = paragraph.match(/<w:pPr\b[\s\S]*?<\/w:pPr>/)?.[0] ?? ''
+  const bodyStyle = dominantRunProperties(paragraph)
+  const run = (text: string) => text ? `<w:r>${bodyStyle}<w:t xml:space="preserve">${escapeXml(text)}</w:t></w:r>` : ''
+  let output = `<w:p>${pPr}`
+  let finalCursor = 0
+  for (let index = 0; index < fields.length; index++) {
+    const field = fields[index]!
+    const position = positions[index]!
+    output += run(finalText.slice(finalCursor, position)) + field.xml
+    finalCursor = position + field.cachedText.length
+  }
+  output += run(finalText.slice(finalCursor)) + '</w:p>'
+  return output
 }
 
 function structuralPrefixBoundary(paragraph: string, runs: string[]): { separator: string } | undefined {

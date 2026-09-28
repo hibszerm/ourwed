@@ -70,6 +70,39 @@ assert.equal((doc.match(/<w:tbl\b/g) ?? []).length, 1)
 assert.equal(await editedZip.file('word/header1.xml')!.async('string'), headerXml)
 assert.equal(await editedZip.file('word/footer1.xml')!.async('string'), footerXml)
 
+// Word fields are protected structural parts of an editable block. The planner
+// sees cached display text plus field metadata; execution preserves field XML.
+const fieldZip = new JSZip()
+const fieldParagraph = '<w:p><w:r><w:rPr><w:rFonts w:ascii="Georgia" w:hAnsi="Georgia"/><w:sz w:val="16"/></w:rPr><w:t>Page </w:t></w:r><w:r><w:rPr><w:rFonts w:ascii="Georgia" w:hAnsi="Georgia"/><w:sz w:val="16"/></w:rPr><w:fldChar w:fldCharType="begin"/><w:instrText xml:space="preserve"> PAGE </w:instrText><w:fldChar w:fldCharType="separate"/><w:t>1</w:t><w:fldChar w:fldCharType="end"/></w:r><w:r><w:t xml:space="preserve"> z </w:t></w:r><w:r><w:fldChar w:fldCharType="begin"/><w:instrText xml:space="preserve"> NUMPAGES </w:instrText><w:fldChar w:fldCharType="separate"/><w:t>1</w:t><w:fldChar w:fldCharType="end"/></w:r><w:r><w:t xml:space="preserve"> document </w:t></w:r><w:fldSimple w:instr="DOCPROPERTY &quot;Title&quot;"><w:r><w:t>OurWed</w:t></w:r></w:fldSimple></w:p>'
+fieldZip.file('word/document.xml', `<w:document xmlns:w="urn:w"><w:body>${fieldParagraph}<w:sectPr/></w:body></w:document>`)
+fieldZip.file('word/header1.xml', '<w:hdr xmlns:w="urn:w"><w:p><w:r><w:t>Draft </w:t></w:r><w:fldSimple w:instr="DATE"><w:r><w:t>2026-09-28</w:t></w:r></w:fldSimple><w:r><w:t xml:space="preserve"> header</w:t></w:r></w:p></w:hdr>')
+const fieldBytes = await fieldZip.generateAsync({ type: 'arraybuffer' })
+const fieldBlocks = await buildBlockIndex(fieldBytes)
+const fieldBlock = fieldBlocks.find((block) => block.text === 'Page 1 z 1 document OurWed')!
+const fieldHeader = fieldBlocks.find((block) => block.kind === 'header')!
+assert.deepEqual(fieldBlock.textParts?.filter((part) => part.kind === 'protected_field').map((part) => part.kind === 'protected_field' ? [part.fieldKind, part.instruction, part.cachedText] : []), [
+  ['complex', 'PAGE', '1'], ['complex', 'NUMPAGES', '1'], ['simple', 'DOCPROPERTY "Title"', 'OurWed'],
+], 'the block index distinguishes editable text from protected field structure without exposing XML')
+assert.deepEqual(fieldHeader.textParts?.filter((part) => part.kind === 'protected_field').map((part) => part.kind === 'protected_field' ? [part.fieldKind, part.instruction, part.cachedText] : []), [['simple', 'DATE', '2026-09-28']])
+const fieldEditedBytes = await applyBlockOperations(fieldBytes, [
+  { blockId: fieldBlock.blockId, operation: 'REPLACE_BLOCK_TEXT', finalText: 'Final page 1 z 1 for OurWed report' },
+  { blockId: fieldHeader.blockId, operation: 'REPLACE_BLOCK_TEXT', finalText: 'Final 2026-09-28 header revised' },
+])
+const fieldEditedZip = await JSZip.loadAsync(fieldEditedBytes)
+const fieldEditedXml = await fieldEditedZip.file('word/document.xml')!.async('string')
+const fieldEditedHeaderXml = await fieldEditedZip.file('word/header1.xml')!.async('string')
+const fieldEditedBlocks = await buildBlockIndex(fieldEditedBytes)
+assert.ok(fieldEditedBlocks.some((block) => block.text === 'Final page 1 z 1 for OurWed report'))
+assert.ok(fieldEditedBlocks.some((block) => block.kind === 'header' && block.text === 'Final 2026-09-28 header revised'))
+assert.match(fieldEditedXml, /<w:instrText[^>]*> PAGE <\/w:instrText>/)
+assert.match(fieldEditedXml, /<w:instrText[^>]*> NUMPAGES <\/w:instrText>/)
+assert.match(fieldEditedXml, /<w:fldSimple w:instr="DOCPROPERTY &quot;Title&quot;">[\s\S]*?<w:t>OurWed<\/w:t>[\s\S]*?<\/w:fldSimple>/, 'an unrelated document-property field remains structurally intact')
+assert.match(fieldEditedHeaderXml, /<w:fldSimple w:instr="DATE">[\s\S]*?<w:t>2026-09-28<\/w:t>[\s\S]*?<\/w:fldSimple>/, 'a simple date field in a header survives editing')
+assert.equal((fieldEditedXml.match(/<w:fldChar w:fldCharType="begin"\/>/g) ?? []).length, 2)
+assert.equal((fieldEditedXml.match(/<w:fldChar w:fldCharType="end"\/>/g) ?? []).length, 2)
+assert.equal((fieldEditedXml.match(/<w:t>1<\/w:t>/g) ?? []).length, 2, 'cached page labels remain inside their original field structures')
+await assert.rejects(() => applyBlockOperations(fieldBytes, [{ blockId: fieldBlock.blockId, operation: 'REPLACE_BLOCK_TEXT', finalText: 'Fields omitted from this replacement' }]), /Cannot safely map cached text|cannot be mapped|ambiguous/i, 'unmappable fields fail closed instead of becoming literal text')
+
 // E. Explicit block style-source ID controls insertion formatting.
 const inserted = editedBlocks.find((block) => block.text === 'Dodatkowe ujęcia: VHS i dron.')!
 assert.equal(inserted.kind, 'body')
