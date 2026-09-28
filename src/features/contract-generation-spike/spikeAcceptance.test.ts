@@ -70,14 +70,22 @@ assert.deepEqual(findInputConflicts(overridden), [], 'manual override replaces c
 const legalSource = '1.Para młoda oświadcza, iż wyraża zgodę na przetwarzanie jej danych osobowych.'
 const prohibitedLegalRewrite = '1.Osoby tworzące Parę Młodą oświadczają, iż wyrażają zgodę na przetwarzanie swoich danych osobowych.'
 assert.equal(classifyBlock(legalSource), 'protected_legal_static')
+assert.equal(classifyBlock('video package delivery'), 'package_service', 'generic video package content retains its package/service classification')
 assert.ok(source.blocks.some((block) => block.contentClass === 'protected_legal_static'))
 assert.match(TRANSFORMATION_INSTRUCTIONS, /do not paraphrase legal clauses/i)
 assert.match(TRANSFORMATION_INSTRUCTIONS, /duplicated token, typo, missing space/i)
-assert.match(TRANSFORMATION_INSTRUCTIONS, /tel\. 668 698 892, tel\. zwanego dalej.*may become.*tel\. 668 698 892, zwanego dalej/)
-assert.match(TRANSFORMATION_INSTRUCTIONS, /do not rewrite the full identification clause/i)
+assert.match(TRANSFORMATION_INSTRUCTIONS, /remove a duplicated “tel\.” token immediately before a grammatical party label/i)
+assert.match(TRANSFORMATION_INSTRUCTIONS, /preserve the rest of the identification clause and its meaning/i)
 assert.match(TRANSFORMATION_INSTRUCTIONS, /Input conflicts must be stopped before transformation/i)
 assert.match(TRANSFORMATION_INSTRUCTIONS, /complete final paragraph text/i)
 assert.match(TRANSFORMATION_INSTRUCTIONS, /return no operation for a protected block/i)
+const priorTemplatePlannerResidue = /Video Standard|Pakiet Północny|Pakiet Film \+ Foto Signature|Klasyczny Reportaż|Julia|Maksymilian|Adela|Lena Fikcyjna|Oskar Umowny|Anna Nowak|Piotr Zieliński|Natalia Krawczyk|Mateusz Wilk|Case 0[123]|word\/document\.xml#p\d+/i
+assert.doesNotMatch(TRANSFORMATION_INSTRUCTIONS, priorTemplatePlannerResidue, 'shared planner instructions contain no named prior packages, customers, cases, or concrete block IDs')
+assert.match(TRANSFORMATION_INSTRUCTIONS, /The source DOCX is authoritative for package name, package wording, package scope, and package terms/i)
+assert.match(TRANSFORMATION_INSTRUCTIONS, /Preserve source package content exactly unless authoritative generation input explicitly requires a permitted factual change/i)
+assert.match(TRANSFORMATION_INSTRUCTIONS, /Do not substitute package names or package scope from another template/i)
+assert.match(TRANSFORMATION_INSTRUCTIONS, /Do not reconstruct a package from prior-case knowledge/i)
+assert.match(TRANSFORMATION_INSTRUCTIONS, /Do not use hardcoded knowledge of any package/i)
 assert.match(AUTHORITATIVE_FIELD_SEMANTICS, /wedding\.contractAddress.*authoritative contract\/residential address.*same entity/i, 'the CRM contract address maps to equivalent source wording for its owning entity')
 assert.match(AUTHORITATIVE_FIELD_SEMANTICS, /not by exact label matching/i, 'semantic equivalence is independent of the source label')
 assert.match(AUTHORITATIVE_FIELD_SEMANTICS, /not a universal address for every person/i, 'one party address cannot satisfy another party')
@@ -104,7 +112,13 @@ assert.equal(consentNoOpCandidate.blocks.find((block) => block.blockId === conse
 let transformCalls = 0
 let reviewCalls = 0
 const missingAi: ContractAi = {
-  async plan() { transformCalls++; return { missingInputs: [{ id: 'template-value-1', label: 'PESEL Julii Kanickiej', explanation: 'Umowa wymaga numeru PESEL Julii Kanickiej.', inputType: 'text', required: true, sourceContext: 'Identyfikacja Strony' }] } },
+  async plan(nextInput) {
+    transformCalls++
+    assert.strictEqual(nextInput, input, 'normal planner receives the unchanged source and authoritative GenerationInput')
+    assert.strictEqual(nextInput.sourceDocument, input.sourceDocument)
+    assert.strictEqual(nextInput.wedding, input.wedding)
+    return { missingInputs: [{ id: 'template-value-1', label: 'PESEL Julii Kanickiej', explanation: 'Umowa wymaga numeru PESEL Julii Kanickiej.', inputType: 'text', required: true, sourceContext: 'Identyfikacja Strony' }] }
+  },
   async review() { reviewCalls++; return { status: 'PASS' } },
   async repair() { throw new Error('repair must not run') },
 }
