@@ -6,6 +6,11 @@ import { fileURLToPath } from 'node:url'
 
 const sourceXml = `<?xml version="1.0"?><w:document xmlns:w="urn:w"><w:body>
 <w:p><w:pPr><w:keepNext/></w:pPr><w:r><w:rPr><w:b/></w:rPr><w:t>1)</w:t></w:r><w:r><w:t>stara płatność 30.09.2026</w:t></w:r></w:p>
+<w:p><w:r><w:rPr><w:b/></w:rPr><w:t>2.</w:t><w:tab/></w:r><w:r><w:t>stary tekst</w:t></w:r></w:p>
+<w:p><w:r><w:t>1)</w:t></w:r><w:r><w:t xml:space="preserve"> </w:t></w:r><w:r><w:t>stary podpunkt</w:t></w:r></w:p>
+<w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="4"/></w:numPr></w:pPr><w:r><w:t>4.</w:t></w:r><w:r><w:t>stary ustęp</w:t></w:r></w:p>
+<w:p><w:r><w:t>2026 budget starts here</w:t></w:r></w:p>
+<w:p><w:r><w:t>1)stary tekst</w:t></w:r><w:r><w:t> continued ordinary prose</w:t></w:r></w:p>
 <w:p><w:pPr><w:ind w:left="720"/></w:pPr><w:r><w:rPr><w:i/></w:rPr><w:t>1) Podpunkt pakietu</w:t></w:r></w:p>
 <w:p><w:pPr><w:jc w:val="both"/></w:pPr><w:r><w:t>Normalna klauzula</w:t></w:r></w:p>
 <w:p><w:r><w:t>Przekazanie zgodnie z § 1 ust. 1.</w:t></w:r></w:p>
@@ -22,6 +27,11 @@ const blocks = await buildBlockIndex(sourceBytes)
 const payment = blocks.find((block) => block.text.startsWith('1)stara'))!
 const normal = blocks.find((block) => block.text === 'Normalna klauzula')!
 const reference = blocks.find((block) => block.text === 'Przekazanie zgodnie z § 1 ust. 1.')!
+const tabPrefix = blocks.find((block) => block.text.startsWith('2.'))!
+const spacedPrefix = blocks.find((block) => block.text.startsWith('1) stary'))!
+const splitPrefix = blocks.find((block) => block.text.startsWith('4.stary'))!
+const ordinaryDigits = blocks.find((block) => block.text === '2026 budget starts here')!
+const ordinarySplit = blocks.find((block) => block.text.startsWith('1)stary tekst'))!
 assert.equal(blocks.find((block) => block.text === 'Para Młoda')?.kind, 'tableCell')
 assert.ok(blocks.some((block) => block.kind === 'header' && block.text === 'Nagłówek'))
 assert.ok(blocks.some((block) => block.kind === 'footer' && block.text === 'Stopka'))
@@ -31,6 +41,11 @@ const operations = [
   { blockId: payment.blockId, operation: 'REPLACE_BLOCK_TEXT' as const, finalText: '1) Pozostała kwota 13 200 zł zostanie zapłacona 20.09.2026 r.' },
   { blockId: normal.blockId, operation: 'REPLACE_BLOCK_TEXT' as const, finalText: 'Ceremonia odbędzie się w Zamku Królewskim na Wawelu, a przyjęcie w Hotelu Starym.' },
   { blockId: reference.blockId, operation: 'REPLACE_BLOCK_TEXT' as const, finalText: 'Filmowiec przekaże dzieło opisane w § 1 ust. 1 i 2.' },
+  { blockId: tabPrefix.blockId, operation: 'REPLACE_BLOCK_TEXT' as const, finalText: '2. New clause text' },
+  { blockId: spacedPrefix.blockId, operation: 'REPLACE_BLOCK_TEXT' as const, finalText: '1) New child text' },
+  { blockId: splitPrefix.blockId, operation: 'REPLACE_BLOCK_TEXT' as const, finalText: '4. New paragraph text' },
+  { blockId: ordinaryDigits.blockId, operation: 'REPLACE_BLOCK_TEXT' as const, finalText: '2026 forecast remains unchanged' },
+  { blockId: ordinarySplit.blockId, operation: 'REPLACE_BLOCK_TEXT' as const, finalText: '1)stary tekst rewritten as prose' },
   { anchorBlockId: normal.blockId, operation: 'INSERT_BLOCK_AFTER' as const, finalText: 'Dodatkowe ujęcia: VHS i dron.', styleSourceBlockId: normal.blockId },
 ]
 const edited = await applyBlockOperations(sourceBytes, operations)
@@ -40,6 +55,13 @@ const editedBlocks = await buildBlockIndex(edited)
 assert.ok(editedBlocks.some((block) => block.text === '1) Pozostała kwota 13 200 zł zostanie zapłacona 20.09.2026 r.'))
 assert.ok(editedBlocks.some((block) => block.text.includes('w Zamku Królewskim') && block.text.includes('w Hotelu Starym')))
 assert.ok(editedBlocks.some((block) => block.text === 'Filmowiec przekaże dzieło opisane w § 1 ust. 1 i 2.'))
+assert.ok(editedBlocks.some((block) => block.text === '2. New clause text'), 'a source tab remains a visible separator')
+assert.ok(editedBlocks.some((block) => block.text === '1) New child text'), 'source whitespace after a structural marker is retained')
+assert.ok(editedBlocks.some((block) => block.text === '4. New paragraph text'), 'numbering metadata identifies the boundary when prefix and body are split')
+assert.ok(editedBlocks.some((block) => block.text === '2026 forecast remains unchanged'), 'ordinary digit-leading prose is not altered')
+assert.ok(editedBlocks.some((block) => block.text === '1)stary tekst rewritten as prose'), 'an ordinary run split is not mistaken for a structural prefix')
+const tabbedParagraph = doc.match(/<w:p>[^]*?<w:t[^>]*>2\.<\/w:t>[^]*?<\/w:p>/)?.[0] ?? ''
+assert.match(tabbedParagraph, /<w:tab\/>/, 'the source tab convention is retained in the rewritten paragraph')
 assert.ok(editedBlocks.some((block) => block.text === 'Dodatkowe ujęcia: VHS i dron.'))
 assert.match(doc, /<w:pPr><w:keepNext\/><\/w:pPr>/, 'replacement retains source paragraph properties')
 assert.match(doc, /<w:pPr><w:jc w:val="both"\/><\/w:pPr>/, 'insertion takes paragraph alignment from explicit normal-clause source')

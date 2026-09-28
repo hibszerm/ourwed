@@ -1,5 +1,5 @@
 import JSZip from 'jszip'
-import { extractCanonicalParagraphText, escapeXml } from '@/features/documents/template/canonicalParagraph'
+import { extractCanonicalParagraphText, escapeXml, unescapeXml } from '@/features/documents/template/canonicalParagraph'
 import { extractDocxParagraphsFromXml } from '@/features/documents/template/extractDocxParagraphs'
 
 export type BlockKind = 'body' | 'tableCell' | 'header' | 'footer'
@@ -112,18 +112,52 @@ function rewriteParagraph(paragraph: string, finalText: string): string {
   let prefix = ''
   let bodyText = finalText
   let bodyStyle = dominantRunProperties(paragraph)
-  const firstText = runs[0] ? [...runs[0].matchAll(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/g)].map((m) => m[1]!).join('') : ''
+  const firstText = runs[0] ? [...runs[0].matchAll(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/g)].map((m) => unescapeXml(m[1]!)).join('') : ''
   const marker = firstText.match(/^\s*(§\s*\d+(?:\.\d+)*[.)]?|\d+(?:\.\d+)*[.)]|[•*–—-]|[\p{L}\p{N}][\p{L}\p{N}\s.-]{0,22}:)\s*$/u)
   if (marker && runs.length > 1 && finalText.startsWith(marker[0].trim())) {
     prefix = marker[0].trim()
-    bodyText = finalText.slice(prefix.length)
+    const sourceBoundary = structuralPrefixBoundary(paragraph, runs)
+    if (!sourceBoundary) {
+      return `<w:p>${pPr}<w:r>${bodyStyle}<w:t xml:space="preserve">${escapeXml(finalText)}</w:t></w:r></w:p>`
+    }
+    const separator = sourceBoundary.separator
+    bodyText = finalText.slice(prefix.length).replace(/^\s+/, '')
     bodyStyle = dominantRunProperties(paragraph)
     const prefixStyle = runs[0]!.match(/<w:rPr\b[\s\S]*?<\/w:rPr>/)?.[0] ?? ''
-    const prefixRun = `<w:r>${prefixStyle}<w:t xml:space="preserve">${escapeXml(prefix)}</w:t></w:r>`
+    const prefixRun = `<w:r>${prefixStyle}<w:t xml:space="preserve">${escapeXml(prefix + separator)}</w:t></w:r>`
     const bodyRun = `<w:r>${bodyStyle}<w:t xml:space="preserve">${escapeXml(bodyText)}</w:t></w:r>`
     return `<w:p>${pPr}${prefixRun}${bodyRun}</w:p>`
   }
-  return `<w:p>${pPr}<w:r>${bodyStyle}<w:t xml:space="preserve">${escapeXml(bodyText)}</w:t></w:r></w:p>`
+  return `<w:p>${pPr}<w:r>${bodyStyle}<w:t xml:space="preserve">${escapeXml(finalText)}</w:t></w:r></w:p>`
+}
+
+function structuralPrefixBoundary(paragraph: string, runs: string[]): { separator: string } | undefined {
+  const runText = (run: string) => [...run.matchAll(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/g)].map((match) => unescapeXml(match[1]!)).join('')
+  const prefix = runText(runs[0] ?? '')
+  const prefixMatch = prefix.match(/^\s*(§\s*\d+(?:\.\d+)*[.)]?|\d+(?:\.\d+)*[.)]|[•*–—-])\s*$/u)
+  if (!prefixMatch) return undefined
+  const elements = [...paragraph.matchAll(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>|<w:tab\b[^>]*\/>|<w:br\b[^>]*\/>/g)]
+  const markerElementIndex = elements.findIndex((element) => element[1] !== undefined && unescapeXml(element[1]!) === prefixMatch[0])
+  if (markerElementIndex >= 0) {
+    const nextElement = elements[markerElementIndex + 1]
+    if (nextElement?.[0].startsWith('<w:tab')) return { separator: '\t' }
+    if (nextElement?.[0].startsWith('<w:br')) return { separator: '\n' }
+    if (nextElement?.[1] !== undefined) {
+      const nextText = unescapeXml(nextElement[1]!)
+      const leading = nextText.match(/^\s+/)?.[0]
+      if (leading) return { separator: leading }
+      const prefixParts = runText(runs[0] ?? '')
+      if (prefixParts === prefixMatch[0] && isNumberedStructuralPrefix(prefixMatch[0].trim())) return { separator: ' ' }
+      return undefined
+    }
+  }
+  const pPr = paragraph.match(/<w:pPr\b[\s\S]*?<\/w:pPr>/)?.[0] ?? ''
+  if (/<w:numPr\b/.test(pPr)) return { separator: ' ' }
+  return undefined
+}
+
+function isNumberedStructuralPrefix(prefix: string): boolean {
+  return /^(?:§\s*)?\d+(?:\.\d+)*[.)]$/.test(prefix)
 }
 
 function cleanStyleParagraph(paragraph: string, text: string): string {
@@ -187,6 +221,7 @@ export async function applyBlockOperations(bytes: ArrayBuffer, operations: Block
   }
   return zip.generateAsync({ type: 'arraybuffer', compression: 'DEFLATE' })
 }
+
 
 /** Keep one authored spacer before a hard page-break heading, but remove any
  * redundant trailing empty paragraphs that can spill onto a page by themselves. */
