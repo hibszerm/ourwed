@@ -10,7 +10,7 @@ import {
   normalizeAuthoritativeFinancialBlocks,
   normalizeAuthoritativePlnText,
   readSource,
-  validatePlannedConclusion,
+  validatePlannedTransformation,
   validateCandidate,
   type ConflictInput,
   type GenerationInput,
@@ -354,21 +354,21 @@ export async function runMultiTemplateAcceptance(caseId: string, options: Harnes
     await writeReports(result, outputDirectory, metrics); return result
   }
 
-  const conclusionPlanIssues = validatePlannedConclusion(input, planned.blockOperations)
+  const planIssues = validatePlannedTransformation(input, planned.blockOperations)
   metrics.endStage('planValidation')
   await persistPlanningResult(outputDirectory, {
-    status: conclusionPlanIssues.length ? 'FAILED' : 'READY',
+    status: planIssues.length ? 'FAILED' : 'READY',
     missingInputs: planned.missingInputs,
     conflicts: [],
     operations: planned.blockOperations,
     operationCount: planned.blockOperations.length,
     ...(planned.providerMetadata?.requestedModel ? { model: planned.providerMetadata.requestedModel } : {}),
     ...(planned.providerMetadata?.responseModel ? { responseModel: planned.providerMetadata.responseModel } : {}),
-    planValidation: conclusionPlanIssues.length ? 'FAIL' : 'PASS',
-    planValidationFindings: conclusionPlanIssues,
+    planValidation: planIssues.length ? 'FAIL' : 'PASS',
+    planValidationFindings: planIssues,
   })
-  if (conclusionPlanIssues.length) {
-    result.transformationStatus = 'FAILED'; result.deterministicValidation = 'FAIL'; result.deterministicFindings = conclusionPlanIssues; result.overall = 'FAIL'
+  if (planIssues.length) {
+    result.transformationStatus = 'FAILED'; result.deterministicValidation = 'FAIL'; result.deterministicFindings = planIssues; result.overall = 'FAIL'
     await writeReports(result, outputDirectory, metrics); return result
   }
 

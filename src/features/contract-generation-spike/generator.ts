@@ -35,7 +35,7 @@ export interface ContractAi {
   repair(args: { input: GenerationInput; source: SourceBlock[]; candidate: SourceBlock[]; issues: string[] }): Promise<BlockOperation[]>
 }
 
-export const AUTHORITATIVE_FIELD_SEMANTICS = `Resolve authoritative values by semantic concept and owning entity, not by exact label matching. The structured wedding.contractAddress field is the authoritative contract/residential address for the CRM client entity associated with that contract record. It satisfies equivalent source wording for that same entity, including an address or a clause such as “zamieszkała przy” or “zamieszkały przy”. It is not a universal address for every person named in the contract and must not satisfy a different entity's address requirement. Treat userProvidedAnswers as authoritative too; use each answer id to respect its entity/path scope. Distinct entities require their own authoritative address values. One address may satisfy multiple entities only when the authoritative input explicitly identifies it as shared. Before returning MISSING_INPUT for a source-required concept, check all structured authoritative fields, userProvidedAnswers, and applicable generation rules; return MISSING_INPUT only when that concept has no authoritative value for the relevant entity.`
+export const AUTHORITATIVE_FIELD_SEMANTICS = `Resolve authoritative values by semantic concept and owning entity, not by exact label matching. The structured wedding.contractAddress field is the authoritative contract/residential address for the CRM client entity associated with that contract record. It satisfies equivalent source wording for that same entity, including an address or a clause such as “zamieszkała przy” or “zamieszkały przy”. It is not a universal address for every person named in the contract and must not satisfy a different entity's address requirement. Treat userProvidedAnswers as authoritative too; use each answer id to respect its entity/path scope. Distinct entities require their own authoritative address values. One address may satisfy multiple entities only when the authoritative input explicitly identifies it as shared. Before returning MISSING_INPUT for a source-required concept, check all structured authoritative fields, userProvidedAnswers, and applicable generation rules; return MISSING_INPUT only when that concept has no authoritative value for the relevant entity. When a source entity is replaced, source-owned factual values are not authoritative for the replacement entity. For each source-required factual concept, use a value authoritative for that same entity and concept; if it is unavailable, return MISSING_INPUT. Do not carry over the old entity's value, guess a replacement, or omit the required concept to avoid asking.`
 
 export const TRANSFORMATION_INSTRUCTIONS = `${AUTHORITATIVE_FIELD_SEMANTICS} Transform only the supplied source blocks and authoritative inputs. Preserve legal wording: do not paraphrase legal clauses or change their legal subject, obligations, rights, scope, consent, cancellation, liability, copyright, publication, or delivery terms. Make only mechanical factual updates explicitly required by authoritative facts (names, dates, amounts, locations, package references, selected extras, internal references, and required grammatical inflection). You may make an obvious, unambiguous, minimal local editorial correction such as a duplicated token, typo, missing space, or punctuation error only when legal meaning does not change. For example, remove a duplicated “tel.” token immediately before a grammatical party label when the local correction is unambiguous; preserve the rest of the identification clause and its meaning. Input conflicts must be stopped before transformation. Return complete final paragraph text for changed blocks. Leave unrelated protected legal/static blocks unchanged; return no operation for a protected block unless an explicit authoritative fact mechanically requires a change. Each source block includes a contentClass: factual_dynamic, package_service, or protected_legal_static. The source DOCX is authoritative for package name, package wording, package scope, and package terms. Preserve source package content exactly unless authoritative generation input explicitly requires a permitted factual change. Do not substitute package names or package scope from another template. Do not reconstruct a package from prior-case knowledge. Do not use hardcoded knowledge of any package. Follow structured input.conclusion deterministically: sourceDate/sourceBlockId identify the source conclusion, and when replaceDate is true, replacementDate is the required conclusion date for that block. Preserve preservePlace using the source's natural grammatical form. Keep this distinct from wedding.weddingDate; do not substitute the wedding/event date for the conclusion date. When replaceDate is false, do not introduce a conclusion date merely because generationDate is present.`
 
@@ -153,6 +153,152 @@ export function validatePlannedConclusion(input: GenerationInput, operations: Bl
     return [`Conclusion-date plan validation failed: block ${rule.sourceBlockId} introduces conclusion date ${plannedDate.raw} although the source has no conclusion date.`]
   }
   return []
+}
+
+type FormalClientIdentity = { body: string; clauses: string[] }
+type WeddingPartyKey = 'bride' | 'groom'
+
+const formalClientRoleBoundary = /\bzwan(?:y|a|ą|e|ego|ej|ym)\s+dalej\s+["“]?(?:zleceniodawc\p{L}*|zamawiaj\p{L}*|klient\p{L}*)["”]?/iu
+
+function formalClientIdentity(text: string): FormalClientIdentity | undefined {
+  const role = formalClientRoleBoundary.exec(text)
+  if (!role) return undefined
+  const body = text.slice(0, role.index).trim().replace(/[\s,;:]+$/u, '')
+  const clauses = body.split(/\s*,\s*/u).filter(Boolean)
+  return clauses.length > 1 ? { body, clauses } : undefined
+}
+
+function identityAttributeGroups(clauses: string[]): string[] {
+  const groups: string[] = []
+  const startsAttribute = (clause: string) =>
+    /^[^,:]{1,60}:\s*\S/u.test(clause) ||
+    /^\s*[\p{Lu}][\p{Lu}\d_-]{1,}\s+\S/u.test(clause) ||
+    /\b(?:zamieszka\p{L}*|adres|address|residen\p{L}*)\s+(?:przy|at)\b/iu.test(clause) ||
+    /^\s*[\p{Lu}][\p{L}-]{1,}\s+[^,]*[\d@]/u.test(clause)
+
+  for (const clause of clauses) {
+    if (startsAttribute(clause) || !groups.length) groups.push(clause.trim())
+    else groups[groups.length - 1] = `${groups[groups.length - 1]}, ${clause.trim()}`
+  }
+  return groups
+}
+
+function identityAttribute(group: string): { label: string; value: string } {
+  const colon = group.indexOf(':')
+  if (colon > 0) return { label: group.slice(0, colon).trim(), value: group.slice(colon + 1).trim() }
+  const address = group.match(/\b(?:zamieszka\p{L}*|adres|address|residen\p{L}*)\s+(?:przy|at)\s+(.+)$/iu)
+  if (address) return { label: 'address', value: address[1]!.trim() }
+  const uppercaseLabel = group.match(/^\s*([\p{Lu}\d][\p{Lu}\d_-]{1,})\s+(.+)$/u)
+  if (uppercaseLabel) return { label: uppercaseLabel[1]!, value: uppercaseLabel[2]!.trim() }
+  const firstWord = group.match(/^\s*([\p{L}][\p{L}-]*)\s+(.+)$/u)
+  if (firstWord) return { label: firstWord[1]!, value: firstWord[2]!.trim() }
+  return { label: '', value: group.trim() }
+}
+
+function beginsWithPartyName(clause: string, name: string): boolean {
+  const leadingValue = clause.split(/[,;:]/u, 1)[0]!.trim().replace(/^(?:a|i|oraz)\s+/iu, '')
+  const leadingWords = leadingValue.match(/[\p{L}][\p{L}'’-]*/gu) ?? []
+  const expectedWords = name.match(/[\p{L}][\p{L}'’-]*/gu) ?? []
+  if (!expectedWords.length || leadingWords.length < expectedWords.length) return false
+  return hasPolishNameFacts(leadingWords.slice(0, expectedWords.length).join(' '), name)
+}
+
+function normalizedConcept(value: string): string {
+  return value.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('en-US').replace(/[^a-z0-9]/g, '')
+}
+
+const existingConceptAliases = [
+  ['address', 'contractaddress', 'adres', 'residence', 'residentialaddress', 'zamieszkanie', 'zamieszkała', 'zamieszkały'],
+  ['phone', 'telephone', 'telefon', 'tel'],
+  ['email', 'mail'],
+]
+
+function conceptsMatch(left: string, right: string): boolean {
+  const a = normalizedConcept(left)
+  const b = normalizedConcept(right)
+  if (!a || !b) return false
+  return a === b || existingConceptAliases.some((group) => group.includes(a) && group.includes(b))
+}
+
+function scopedAnswerForParty(answerId: string, party: WeddingPartyKey): boolean {
+  const parts = answerId.split(/[.[\]/:_-]+/u).map(normalizedConcept).filter(Boolean)
+  return parts.includes(party) || parts.some((part) => ['client', 'customer', 'contractclient', 'contractingparty'].includes(part))
+}
+
+function valueOccurs(text: string, value: string): boolean {
+  const haystack = normalize(text)
+  const needle = normalize(value)
+  if (!needle || needle.length < 2) return false
+  if (haystack.includes(needle)) return true
+  const expectedDate = parsePolishDate(value)
+  return expectedDate !== undefined && dateTimestampsInText(text).includes(expectedDate)
+}
+
+function authoritativeValueForParty(
+  input: GenerationInput,
+  party: WeddingPartyKey,
+  label: string,
+  value: string,
+): boolean {
+  const profile = input.wedding[party] as unknown as Record<string, unknown>
+  const structuredValues = Object.entries(profile)
+    .filter(([key, item]) => typeof item === 'string' && conceptsMatch(label, key))
+    .map(([, item]) => item as string)
+  if (conceptsMatch(label, 'address')) structuredValues.push(input.wedding.contractAddress)
+  if (structuredValues.some((item) => valueOccurs(value, item) || valueOccurs(item, value))) return true
+
+  return input.userProvidedAnswers.some((answer) => {
+    if (!scopedAnswerForParty(answer.id, party)) return false
+    const pathParts = answer.id.split(/[.[\]/:_-]+/u).filter(Boolean)
+    const conceptParts = pathParts.filter((part) => !['wedding', 'bride', 'groom', 'client', 'customer', 'contractclient', 'contractingparty'].includes(normalizedConcept(part)))
+    if (!conceptParts.some((part) => conceptsMatch(label, part))) return false
+    return valueOccurs(value, answer.value) || valueOccurs(answer.value, value)
+  })
+}
+
+/** Rejects source-owned identity facts carried into a replacement client's formal identity without same-entity authority. */
+export function validatePlannedEntityFacts(input: GenerationInput, operations: BlockOperation[]): string[] {
+  const replacements = new Map(operations.flatMap((operation) =>
+    operation.operation === 'REPLACE_BLOCK_TEXT' ? [[operation.blockId, operation.finalText] as const] : []))
+  const findings: string[] = []
+  const parties: Array<{ key: WeddingPartyKey; name: string }> = [
+    { key: 'bride', name: input.wedding.bride.name },
+    { key: 'groom', name: input.wedding.groom.name },
+  ]
+
+  for (const sourceBlock of input.sourceDocument.blocks) {
+    const plannedText = replacements.get(sourceBlock.blockId)
+    if (plannedText === undefined) continue
+    const sourceIdentity = formalClientIdentity(sourceBlock.text)
+    const plannedIdentity = formalClientIdentity(plannedText)
+    if (!sourceIdentity || !plannedIdentity) continue
+
+    const targets = parties.flatMap((party) => plannedIdentity.clauses.flatMap((clause, clauseIndex) =>
+      beginsWithPartyName(clause, party.name) ? [{ ...party, clauseIndex }] : []))
+    if (targets.length !== 1) continue
+    const target = targets[0]!
+    const sourceEntityClause = sourceIdentity.clauses[target.clauseIndex]
+    if (!sourceEntityClause || beginsWithPartyName(sourceEntityClause, target.name)) continue
+    const replacementIdentity = plannedIdentity.clauses.slice(target.clauseIndex).join(', ')
+    const sourceName = sourceEntityClause.replace(/^\s*(?:a|i|oraz)\s+/iu, '')
+    if (hasExactFact(replacementIdentity, sourceName) && !authoritativeValueForParty(input, target.key, 'name', sourceName)) {
+      findings.push(`A source entity-owned value remains in the replacement party identity in block ${sourceBlock.blockId}; no authoritative replacement for the same entity and concept was found.`)
+    }
+
+    for (const group of identityAttributeGroups(sourceIdentity.clauses.slice(target.clauseIndex + 1))) {
+      const { label, value } = identityAttribute(group)
+      if (!valueOccurs(replacementIdentity, value)) continue
+      if (authoritativeValueForParty(input, target.key, label, value)) continue
+      findings.push(`A source entity-owned value remains in the replacement party identity in block ${sourceBlock.blockId}; no authoritative replacement for the same entity and concept was found.`)
+      break
+    }
+  }
+
+  return [...new Set(findings)]
+}
+
+export function validatePlannedTransformation(input: GenerationInput, operations: BlockOperation[]): string[] {
+  return [...validatePlannedConclusion(input, operations), ...validatePlannedEntityFacts(input, operations)]
 }
 
 export function findInputConflicts(input: GenerationInput): ConflictInput[] {
@@ -313,8 +459,8 @@ export async function runGeneration(sourceBytes: ArrayBuffer, input: GenerationI
   const planned = await ai.plan(input)
   if (planned.missingInputs.some((x) => x.required)) return { status: 'MISSING_INPUT', missingInputs: planned.missingInputs }
   if (!planned.blockOperations) return { status: 'FAILED', issues: ['Plan nie zawiera operacji blokowych'] }
-  const conclusionPlanIssues = validatePlannedConclusion(input, planned.blockOperations)
-  if (conclusionPlanIssues.length) return { status: 'FAILED', issues: conclusionPlanIssues }
+  const planIssues = validatePlannedTransformation(input, planned.blockOperations)
+  if (planIssues.length) return { status: 'FAILED', issues: planIssues }
   const authoritativeAmounts = [input.financials.contractValuePln, input.financials.depositPln, input.financials.remainingPln]
   const normalizedOperations = planned.blockOperations.map((operation) => 'finalText' in operation
     ? { ...operation, finalText: normalizeAuthoritativePlnText(operation.finalText, authoritativeAmounts) }
