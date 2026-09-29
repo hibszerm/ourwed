@@ -36,10 +36,12 @@ const continuation = sanitizePlannerOperations('READY', readyOperations)
 assert.deepEqual(continuation.operations, readyOperations)
 assert.equal(continuation.operations.some((operation) => 'blockId' in operation && operation.blockId === 'word/document.xml#p1'), false)
 
-// 6-9: The shared planner must complete the audit before choosing status or producing operations.
-assert.match(TRANSFORMATION_INSTRUCTIONS, /complete a full audit of every source-required factual change/i)
-assert.match(TRANSFORMATION_INSTRUCTIONS, /Do not stop after finding the first missing fact/i)
-assert.match(TRANSFORMATION_INSTRUCTIONS, /Return all independent missing inputs in one response/i)
+// 6-9: The shared planner sweeps the full source and current authority before choosing status.
+assert.match(TRANSFORMATION_INSTRUCTIONS, /Before returning MISSING_INPUT or CONFLICT_INPUT, inspect the entire relevant source contract and all current authoritative input, including userProvidedAnswers/i)
+assert.match(TRANSFORMATION_INSTRUCTIONS, /Do not stop after the first discoverable gap/i)
+assert.match(TRANSFORMATION_INSTRUCTIONS, /return all currently discoverable missing inputs together/i)
+assert.match(TRANSFORMATION_INSTRUCTIONS, /ordered by source location where practical/i)
+assert.match(TRANSFORMATION_INSTRUCTIONS, /Do not ask speculative questions or ask for facts the source does not require/i)
 assert.match(TRANSFORMATION_INSTRUCTIONS, /Generate transformation operations only for READY/i)
 assert.match(TRANSFORMATION_INSTRUCTIONS, /MISSING_INPUT or CONFLICT_INPUT, return no operations/i)
 
@@ -49,5 +51,6 @@ assert.match(TRANSFORMATION_INSTRUCTIONS, /source-required detailed allocation.*
 
 // 12: Shared production instructions do not embed fixture facts or block identifiers.
 assert.doesNotMatch(`${AUTHORITATIVE_FIELD_SEMANTICS} ${TRANSFORMATION_INSTRUCTIONS}`, /Case.?03|Zuzanna|Kacper|Karolina|Paweł|Pakiet Film \+ Foto Signature|16\s?800|5\s?000|7\s?400|word\/document\.xml#p\d+/iu)
+assert.doesNotMatch(`${AUTHORITATIVE_FIELD_SEMANTICS} ${TRANSFORMATION_INSTRUCTIONS}`, /PESEL|album date|second installment|wedding location/iu, 'the planner prompt adds no field-specific checklist')
 
 console.log('PASS planner response-shape acceptance')

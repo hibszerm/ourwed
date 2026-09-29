@@ -34,6 +34,14 @@ const missingInputResponse = {
   blockOperations: [],
 }
 assert.equal(validate(missingInputResponse), true, 'the existing MISSING_INPUT response shape validates locally')
+const multipleMissingInputResponse = {
+  ...missingInputResponse,
+  missingInputs: [
+    { id: 'source.fact.one', label: 'First required fact', explanation: 'Required by a source clause.', inputType: 'text', required: true, sourceContext: 'First clause.', infoText: null },
+    { id: 'source.fact.two', label: 'Second required fact', explanation: 'Required by another source clause.', inputType: 'date', required: true, sourceContext: 'Later clause.', infoText: null },
+  ],
+}
+assert.equal(validate(multipleMissingInputResponse), true, 'one MISSING_INPUT response can contain multiple independently discoverable fields')
 
 const readyResponse = {
   status: 'READY', missingInputs: [], conflicts: [], blockOperations: [

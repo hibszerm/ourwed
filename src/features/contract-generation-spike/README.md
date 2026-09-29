@@ -5,7 +5,7 @@ This offline experiment transforms a source DOCX using authoritative generation 
 ## Flow
 
 1. Read the source DOCX and build stable `part#pN` block IDs for body paragraphs, table-cell paragraphs, headers, and footers.
-2. Plan changes from source blocks and authoritative input. Return `MISSING_INPUT` or `CONFLICT_INPUT` before applying operations when required facts are unavailable or inconsistent.
+2. Audit the full source against current authoritative input before returning `MISSING_INPUT` or `CONFLICT_INPUT`. Collect all currently discoverable gaps together for one clarification round; a later round is allowed when an answer reveals a new dependency.
 3. Apply READY block operations to the original DOCX package, preserving its OOXML structure, tables, styles, numbering, and dynamic Word fields.
 4. Run deterministic candidate checks for source-required dates and financial obligations, approved text changes, package scope, DOCX structure, and stale party facts.
 5. Render the candidate for layout inspection, then run an independent review. A failure is reported and stops the flow; generation does not automatically repair and review again.
