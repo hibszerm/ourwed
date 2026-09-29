@@ -25,10 +25,7 @@
   },
   "extras": [],
   "userProvidedAnswers": [
-    { "id": "wedding.groom.email", "value": "kacper.wrona@example.com" },
-    { "id": "payment.secondPaymentAmount", "value": "5 500 zł" },
-    { "id": "payment.secondPaymentDueRule", "value": "nie później niż 30 dni przed datą wesela" },
-    { "id": "payment.finalPaymentAmount", "value": "8 500 zł" }
+    { "id": "wedding.groom.email", "value": "kacper.wrona@example.com" }
   ],
   "paymentTiming": {
     "reservation": {

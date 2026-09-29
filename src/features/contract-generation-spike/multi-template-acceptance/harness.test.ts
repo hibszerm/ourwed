@@ -255,6 +255,34 @@ try {
   assert.equal(actualCase.candidatePath, null, 'preflight-only run does not generate a candidate')
   assert.equal(9600 - 1800, 7800)
 
+  const case03Id = 'case-03-narrative-photo-video'
+  const case03Dir = path.join(realCasesRoot, case03Id)
+  const case03Definition = JSON.parse(await readFile(path.join(case03Dir, 'input.json'), 'utf8'))
+  const case03SourceBytes = await readFile(path.join(case03Dir, 'source.docx'))
+  assert.equal(case03Definition.weddingFacts.bride.name, 'Zuzanna Bielska')
+  assert.equal(case03Definition.weddingFacts.bride.pesel, undefined, 'base Case 03 fixture omits the later user-provided PESEL answer')
+  assert.equal(case03Definition.userProvidedAnswers.some((answer: { id: string }) => /pesel/i.test(answer.id)), false, 'base Case 03 fixture has no PESEL continuation answer')
+  assert.equal(case03Definition.weddingFacts.contractValuePln, 16800)
+  assert.equal(case03Definition.weddingFacts.depositPln, 2800)
+  assert.equal(case03Definition.weddingFacts.contractValuePln - case03Definition.weddingFacts.depositPln, 14000)
+  assert.equal(case03Definition.userProvidedAnswers.some((answer: { id: string }) => /payment\.(?:secondPaymentAmount|secondPaymentDueRule|finalPaymentAmount)/i.test(answer.id)), false, 'V1 payment input has no synthetic installment answers')
+  assert.equal(JSON.stringify(case03Definition).includes('5 500 zł'), false)
+  assert.equal(JSON.stringify(case03Definition).includes('8 500 zł'), false)
+  assert.equal(case03Definition.paymentTiming.remaining.relativeTo, 'wedding')
+  assert.deepEqual(case03Definition.extras, [], 'Case 03 catalogue options are not selected extras')
+  const case03SourceBuffer = case03SourceBytes.buffer.slice(case03SourceBytes.byteOffset, case03SourceBytes.byteOffset + case03SourceBytes.byteLength) as ArrayBuffer
+  const case03Source = await readSource(case03SourceBuffer, 'source.docx')
+  const case03Wedding = { ...case03Definition.weddingFacts, remainingDueDate: case03Definition.paymentTiming.remaining.sourceMeaning }
+  const case03Input = makeInput({ generationDate: case03Definition.generationDate, sourceDocument: case03Source, wedding: case03Wedding, packagePolicy: { preserveSourcePackageExactly: true }, extras: case03Definition.extras, userProvidedAnswers: case03Definition.userProvidedAnswers })
+  assert.deepEqual(case03Input.financials, { contractValuePln: 16800, depositPln: 2800, remainingPln: 14000 }, 'the current V1 shape derives one remaining amount from total minus deposit')
+  assert.ok(case03Source.blocks.some((block) => /opłata rezerwacyjna/i.test(block.text)), 'source retains its reservation-payment stage')
+  assert.ok(case03Source.blocks.some((block) => /Druga płatność wynosi/i.test(block.text)), 'source retains its second-payment stage')
+  assert.ok(case03Source.blocks.some((block) => /Pozostałe .* zapłaci/i.test(block.text)), 'source retains its final-payment stage')
+  const case03Acceptance = await runMultiTemplateAcceptance(case03Id, { casesRoot: realCasesRoot, outputRoot, runId: 'offline-v1-payment-preflight' })
+  assert.equal(case03Acceptance.preflight, 'READY')
+  assert.equal(case03Acceptance.providerCalls.total, 0)
+  assert.equal(case03Acceptance.candidatePath, null)
+
   const capturedPlanningInputs: Record<string, GenerationInput['conclusion']> = {}
   const conclusionCaptureProvider: AcceptanceProvider = {
     async transform({ input }) {
