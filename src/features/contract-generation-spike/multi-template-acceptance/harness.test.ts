@@ -23,7 +23,7 @@ try {
     async inventory({ source }) { inventoryCalls++; assert.equal('wedding' in source, false); return { items: [] } },
     async transform({ input, inventory }) {
       planningCalls++; assert.ok(input.wedding); assert.deepEqual(inventory, { items: [] })
-      return { status: 'MISSING_INPUT', missingInputs: [ { id: 'all-sweep-gaps', label: 'All gaps', explanation: 'The planner completed a full review.', inputType: 'text', required: true, sourceContext: 'source', sourceRefs: [] } ], conflicts: [], factChanges: [], retainedLiterals: [], operations: [] }
+      return { status: 'MISSING_INPUT', missingInputs: [ { id: 'all-sweep-gaps', label: 'All gaps', explanation: 'The planner completed a full review.', inputType: 'text', required: true, sourceContext: 'source', sourceRefs: [], inventoryItemIds: [] } ], conflicts: [], factChanges: [], retainedLiterals: [], operations: [] }
     },
     async review() { reviewCalls++; return { status: 'PASS' } },
   }

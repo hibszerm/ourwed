@@ -15,8 +15,8 @@ const deleteBlockSchema = {
 }
 const missingInputSchema = {
   type: 'object', additionalProperties: false,
-  properties: { id: { type: 'string' }, label: { type: 'string' }, explanation: { type: 'string' }, inputType: { type: 'string', enum: ['text', 'date', 'number'] }, required: { type: 'boolean', enum: [true] }, sourceContext: { type: 'string' }, infoText: { type: ['string', 'null'] }, sourceRefs: { type: 'array', items: { type: 'string' } } },
-  required: ['id', 'label', 'explanation', 'inputType', 'required', 'sourceContext', 'infoText', 'sourceRefs'],
+  properties: { id: { type: 'string' }, label: { type: 'string' }, explanation: { type: 'string' }, inputType: { type: 'string', enum: ['text', 'date', 'number'] }, required: { type: 'boolean', enum: [true] }, sourceContext: { type: 'string' }, infoText: { type: ['string', 'null'] }, sourceRefs: { type: 'array', items: { type: 'string' } }, inventoryItemIds: { type: 'array', items: { type: 'string' } } },
+  required: ['id', 'label', 'explanation', 'inputType', 'required', 'sourceContext', 'infoText', 'sourceRefs', 'inventoryItemIds'],
 }
 const authoritySchema = {
   type: 'object', additionalProperties: false,
@@ -25,19 +25,19 @@ const authoritySchema = {
 }
 const factChangeSchema = {
   type: 'object', additionalProperties: false,
-  properties: { label: { type: 'string' }, oldValues: { type: 'array', items: { type: 'string' } }, newValue: { type: 'string' }, authority: authoritySchema, sourceRefs: { type: 'array', items: { type: 'string' } } },
-  required: ['label', 'oldValues', 'newValue', 'authority', 'sourceRefs'],
+  properties: { label: { type: 'string' }, inventoryItemIds: { type: 'array', items: { type: 'string' } }, newValue: { type: 'string' }, newValueFormat: { type: 'string', enum: ['literal', 'polish_pln_words'] }, authority: authoritySchema },
+  required: ['label', 'inventoryItemIds', 'newValue', 'newValueFormat', 'authority'],
 }
 const retainedLiteralSchema = {
   type: 'object', additionalProperties: false,
-  properties: { value: { type: 'string' }, reason: { type: 'string' } },
-  required: ['value', 'reason'],
+  properties: { inventoryItemId: { type: 'string' }, authority: { type: 'object', additionalProperties: false, properties: { kind: { type: 'string', enum: ['product_rule', 'user'] }, ref: { type: 'string' } }, required: ['kind', 'ref'] }, reason: { type: 'string' } },
+  required: ['inventoryItemId', 'authority', 'reason'],
 }
 const operationSchema = { anyOf: [replaceBlockTextSchema, insertBlockSchema, deleteBlockSchema] }
 export const PLANNER_OPERATION_SCHEMAS = [replaceBlockTextSchema, insertBlockSchema, deleteBlockSchema] as const
 export const SOURCE_INVENTORY_SCHEMA = {
   type: 'object', additionalProperties: false,
-  properties: { items: { type: 'array', items: { type: 'object', additionalProperties: false, properties: { value: { type: 'string' }, sourceRefs: { type: 'array', items: { type: 'string' } }, label: { type: 'string' } }, required: ['value', 'sourceRefs', 'label'] } } },
+  properties: { items: { type: 'array', items: { type: 'object', additionalProperties: false, properties: { id: { type: 'string' }, label: { type: 'string' }, occurrences: { type: 'array', items: { type: 'object', additionalProperties: false, properties: { sourceRef: { type: 'string' }, span: { type: ['object', 'null'], additionalProperties: false, properties: { start: { type: 'integer' }, end: { type: 'integer' } }, required: ['start', 'end'] } }, required: ['sourceRef', 'span'] } } }, required: ['id', 'label', 'occurrences'] } } },
   required: ['items'],
 } as const
 export const PLANNER_RESPONSE_SCHEMA = {

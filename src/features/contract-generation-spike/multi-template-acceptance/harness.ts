@@ -12,6 +12,7 @@ import {
   normalizeAuthoritativePlnText,
   readSource,
   runSourceInventory,
+  resolveInventoryOccurrences,
   sanitizePlannerOperations,
   validateAuthorityGate,
   type PlanResult,
@@ -21,6 +22,7 @@ import {
   type GenerationInput,
   type MissingInput,
   type ReviewResult,
+  type ResolvedInventoryOccurrence,
   type SourceBlock,
   type WeddingFacts,
 } from '../generator'
@@ -46,7 +48,7 @@ export type MultiTemplateCaseDefinition = {
 export type AcceptanceProvider = {
   inventory(args: { source: GenerationInput['sourceDocument']; sourceDocx: ArrayBuffer }): Promise<SourceInventory & { providerMetadata?: ProviderResponseMetadata }>
   transform(args: { input: GenerationInput; inventory: SourceInventory; sourceDocx: ArrayBuffer; productRules: AcceptanceProductRules }): Promise<PlanResult & { providerMetadata?: ProviderResponseMetadata }>
-  review(args: { source: GenerationInput['sourceDocument']; input: GenerationInput; inventory: SourceInventory; factChanges: PlanResult['factChanges']; retainedLiterals: PlanResult['retainedLiterals']; candidate: SourceBlock[]; changedBlocks: ReturnType<typeof computeChangedBlockDiff>; productRules: AcceptanceProductRules }): Promise<ReviewResult & { providerMetadata?: ProviderResponseMetadata }>
+  review(args: { source: GenerationInput['sourceDocument']; input: GenerationInput; inventory: SourceInventory; resolvedInventoryOccurrences: ResolvedInventoryOccurrence[]; factChanges: PlanResult['factChanges']; retainedLiterals: PlanResult['retainedLiterals']; candidate: SourceBlock[]; changedBlocks: ReturnType<typeof computeChangedBlockDiff>; productRules: AcceptanceProductRules }): Promise<ReviewResult & { providerMetadata?: ProviderResponseMetadata }>
 }
 
 export type AcceptanceResult = {
@@ -259,6 +261,7 @@ export async function runMultiTemplateAcceptance(caseId: string, options: Harnes
     sourceDocument,
     wedding,
     packagePolicy: { preserveSourcePackageExactly: true },
+    productRules: definition.expectedProductRules ?? {},
     extras: definition.extras ?? [],
     userProvidedAnswers: definition.userProvidedAnswers ?? [],
   })
@@ -357,7 +360,7 @@ export async function runMultiTemplateAcceptance(caseId: string, options: Harnes
   let candidateBytes: ArrayBufferLike
   metrics.startStage('docxApply')
   try {
-    candidateBytes = await applyMetadataFactChanges(await applyBlockOperations(sourceArrayBuffer, allOperations), planned.factChanges)
+    candidateBytes = await applyMetadataFactChanges(await applyBlockOperations(sourceArrayBuffer, allOperations), planned.factChanges, inventory, sourceDocument)
     metrics.endStage('docxApply')
   } catch (error) {
     metrics.endStage('docxApply')
@@ -395,7 +398,7 @@ export async function runMultiTemplateAcceptance(caseId: string, options: Harnes
   result.providerCalls.review = 1; result.providerCalls.total = 3
   metrics.startStage('reviewProvider')
   try {
-    const review = await options.provider.review({ source: sourceDocument, input, inventory, factChanges: planned.factChanges, retainedLiterals: planned.retainedLiterals, candidate: candidateBlocks.blocks, changedBlocks: computeChangedBlockDiff(sourceDocument.blocks, candidateBlocks.blocks), productRules: definition.expectedProductRules ?? {} })
+    const review = await options.provider.review({ source: sourceDocument, input, inventory, resolvedInventoryOccurrences: resolveInventoryOccurrences(sourceDocument, inventory).occurrences, factChanges: planned.factChanges, retainedLiterals: planned.retainedLiterals, candidate: candidateBlocks.blocks, changedBlocks: computeChangedBlockDiff(sourceDocument.blocks, candidateBlocks.blocks), productRules: definition.expectedProductRules ?? {} })
     const latencyMs = metrics.endStage('reviewProvider')
     const timestamps = metrics.snapshot().timestamps.stages.reviewProvider!
     metrics.recordProviderCall('review', latencyMs, timestamps.startedAt, timestamps.endedAt, review.providerMetadata)
