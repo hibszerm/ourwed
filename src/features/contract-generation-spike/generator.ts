@@ -2,8 +2,8 @@ import JSZip from 'jszip'
 import { applyBlockOperations, type BlockOperation, type EditableBlock } from './blockDocxEditor'
 import { escapeXml, unescapeXml } from '@/features/documents/template/canonicalParagraph'
 
-export type MissingInput = { id: string; label: string; explanation: string; inputType: 'text' | 'date' | 'number'; required: true; sourceContext: string; infoText?: string }
-export type SourceBlock = EditableBlock & { contentClass: 'factual_dynamic' | 'package_service' | 'protected_legal_static' }
+export type MissingInput = { id: string; label: string; explanation: string; inputType: 'text' | 'date' | 'number'; required: true; sourceContext: string; infoText?: string; sourceRefs?: string[] }
+export type SourceBlock = EditableBlock
 export type DocumentPropertyText = { part: string; property: string; text: string }
 export type WeddingFacts = {
   bride: { name: string; phone: string; email: string }
@@ -17,748 +17,210 @@ export type WeddingFacts = {
 }
 export type GenerationInput = {
   generationDate: string
-  conclusion: { replaceDate: boolean; sourceDate?: string; sourceBlockId?: string; replacementDate?: string; preservePlace?: string }
   sourceDocument: { fileName: string; blocks: SourceBlock[]; documentProperties?: DocumentPropertyText[] }
   wedding: WeddingFacts
   packagePolicy: { preserveSourcePackageExactly: true }
   extras: string[]
   financials: { contractValuePln: number; depositPln: number; remainingPln: number }
-  deterministicDerivedFacts: Array<{ concept: string; value: string; derivation: string }>
+  deterministicDerivedFacts: Array<{ ref: string; value: string; operation: 'subtract'; inputRefs: string[] }>
   userProvidedAnswers: Array<{ id: string; value: string }>
 }
-export type EditPlan = { operations: BlockOperation[] }
+export type SourceInventoryItem = { value: string; sourceRefs: string[]; label: string }
+export type SourceInventory = { items: SourceInventoryItem[] }
+export type FactAuthority = { kind: 'crm' | 'user' | 'generation_date' | 'derived'; ref: string }
+export type FactChange = { label: string; oldValues: string[]; newValue: string; authority: FactAuthority; sourceRefs: string[] }
+export type RetainedLiteral = { value: string; reason: string }
+export type PlannerResponseStatus = 'MISSING_INPUT' | 'CONFLICT_INPUT' | 'READY'
+export type PlanResult = { status: PlannerResponseStatus; missingInputs: MissingInput[]; conflicts: ConflictInput[]; factChanges: FactChange[]; retainedLiterals: RetainedLiteral[]; operations: BlockOperation[] }
 export type ReviewResult = { status: 'PASS' } | { status: 'FAIL'; issues: string[] }
 export type ConflictInput = { id: string; field: string; label: string; explanation: string; inputType: 'date' | 'text' | 'number'; currentValue?: string; relatedValues?: Array<{ label: string; value: string }>; required: true }
-export type ConflictOverride = { id: string; value: string }
-export type PlannerResponseStatus = 'MISSING_INPUT' | 'CONFLICT_INPUT' | 'READY'
+export type ChangedBlock = { blockRef: string; sourceText: string | null; candidateText: string | null }
 export type GenerationResult = { status: 'MISSING_INPUT'; missingInputs: MissingInput[] } | { status: 'CONFLICT_INPUT'; conflicts: ConflictInput[] } | { status: 'FAILED'; issues: string[] } | { status: 'COMPLETED'; docxBytes: ArrayBuffer; review: ReviewResult }
 export interface ContractAi {
-  plan(input: GenerationInput): Promise<{ missingInputs: MissingInput[]; blockOperations?: BlockOperation[] }>
-  review(args: { source: GenerationInput['sourceDocument']; input: GenerationInput; candidate: SourceBlock[] }): Promise<ReviewResult>
+  inventory(source: GenerationInput['sourceDocument']): Promise<SourceInventory>
+  plan(input: GenerationInput, inventory: SourceInventory): Promise<PlanResult>
+  review(args: { source: GenerationInput['sourceDocument']; input: GenerationInput; inventory: SourceInventory; factChanges: FactChange[]; retainedLiterals: RetainedLiteral[]; candidate: SourceBlock[]; changedBlocks: ChangedBlock[] }): Promise<ReviewResult>
+}
+export async function runSourceInventory(source: GenerationInput['sourceDocument'], ai: Pick<ContractAi, 'inventory'>): Promise<SourceInventory> {
+  return ai.inventory(source)
 }
 
-export const AUTHORITATIVE_FIELD_SEMANTICS = `Resolve authoritative values by semantic concept and owning entity, not by exact label matching. The structured wedding.contractAddress field is the authoritative contract/residential address for the CRM client entity associated with that contract record. It satisfies equivalent source wording for that same entity, including an address or a clause such as “zamieszkała przy” or “zamieszkały przy”. It is not a universal address for every person named in the contract and must not satisfy a different entity's address requirement. Treat userProvidedAnswers as authoritative too; use each answer id to respect its entity/path scope. Distinct entities require their own authoritative address values. One address may satisfy multiple entities only when the authoritative input explicitly identifies it as shared. Before returning MISSING_INPUT for a source-required concept, check all structured authoritative fields, userProvidedAnswers, and applicable generation rules; return MISSING_INPUT only when that concept has no authoritative value for the relevant entity. When a source entity is replaced, source-owned factual values are not authoritative for the replacement entity. For each source-required factual concept, use a value authoritative for that same entity and concept; if it is unavailable, return MISSING_INPUT. Do not carry over the old entity's value, guess a replacement, or omit the required concept to avoid asking.`
+export const SOURCE_INVENTORY_INSTRUCTIONS = `Inspect this source contract without receiving or inferring any new client or wedding data. Identify literal values that appear specific to this source agreement or event. Return only items with the exact literal value, supported sourceRefs, and a short free-form label. Inspect body paragraphs, tables, headers, footers, and supplied textual document properties. Do not infer replacements, request information, or make generation decisions. The label is descriptive text only.`
+export const TRANSFORMATION_INSTRUCTIONS = `Use the source, source inventory, authoritative CRM input, user answers, and product rules to understand the contract. For every relevant inventory item, either declare a factChange with the exact old literal, exact authoritative new value and source refs, retain it with a free-form reason, or report every missing required value. Complete a full-document and full-inventory sweep before responding. Do not stop after the first missing input. If missingInputs is non-empty, return MISSING_INPUT and no operations. If a conflict exists, return CONFLICT_INPUT and no operations. Return READY only with no unresolved required input or conflict. Use only these semantic declarations: missingInputs, factChanges, retainedLiterals; operations remain the existing safe block operations. Authority kinds are provenance only: crm, user, generation_date, derived. Labels and reasons are free text and have no machine meaning. CRM/user values must be supported by the named authority reference. Derived values must use declared authoritative inputs and arithmetic. Apply the existing product rule: CRM supplies total, reservation/deposit and aggregate remainder only; if source semantics require a detailed allocation not present in authoritative input or user answers, report MISSING_INPUT instead of inferring amounts. Preserve source legal meaning and package/service scope. Use generationDate for a source conclusion date when applicable; preserve the source conclusion place under current product rules. The AI decides which source facts have those meanings. Operations must target supported source blocks and provide complete final text.`
+export const REVIEW_INSTRUCTIONS = `Independently review source and candidate semantics using the source inventory, authoritative input, user answers, planner factChanges, retainedLiterals, and the mechanical changed-block diff. Decide whether the correct person's values were assigned, payment meanings/deadlines remain correct, legal meaning and package scope are preserved, stale source-specific facts were incorrectly retained, anything was invented, any required input was missed, and signature roles remain correct. Labels and reasons are context only. Return PASS or FAIL with findings. Do not edit or repair the document.`
 
-export const TRANSFORMATION_INSTRUCTIONS = `${AUTHORITATIVE_FIELD_SEMANTICS} Treat each userProvidedAnswers entry as an authoritative value scoped by its semantic path. Use it only when the source requires that concept for the relevant entity; do not add it when the source has no corresponding concept. During the full gap sweep, inspect document-owned facts that identify the specific source document, including relevant textual properties, as well as entity-owned facts. If a source document-owned fact must change for the generated document and no authoritative replacement or deterministic derivation exists, do not preserve, guess, or silently delete it; return MISSING_INPUT. Apply an available replacement consistently across relevant document text. When multiple intermediate payment amounts are supplied without a distinct source relationship, map them in the source's obligation order; if that order is unclear, return MISSING_INPUT rather than guessing. Before returning MISSING_INPUT or CONFLICT_INPUT, inspect the entire relevant source contract and all current authoritative input, including userProvidedAnswers. Identify every source-required change and compare it with that full input. Collect each independently discoverable unresolved fact or ambiguity, ordered by source location where practical. Do not stop after the first discoverable gap; return all currently discoverable missing inputs together. Do not ask speculative questions or ask for facts the source does not require. Choose the response status only after this full-document sweep: any required missing value means MISSING_INPUT; any conflict means CONFLICT_INPUT where the current response schema supports conflicts, while preserving existing deterministic conflict handling otherwise; READY is allowed only when no unresolved required value or conflict remains. Generate transformation operations only for READY. For MISSING_INPUT or CONFLICT_INPUT, return no operations. Transform only the supplied source blocks and authoritative inputs. Preserve legal wording: do not paraphrase legal clauses or change their legal subject, obligations, rights, scope, consent, cancellation, liability, copyright, publication, or delivery terms. Make only mechanical factual updates explicitly required by authoritative facts (names, dates, amounts, locations, package references, selected extras, internal references, and required grammatical inflection). You may make an obvious, unambiguous, minimal local editorial correction only when the correction is meaning-preserving and cannot reasonably be interpreted another way. Input conflicts must be stopped before transformation. Return complete final paragraph text for changed blocks. Leave unrelated protected legal/static blocks unchanged; return no operation for a protected block unless an explicit authoritative fact mechanically requires a change. Each source block includes a contentClass: factual_dynamic, package_service, or protected_legal_static. The source DOCX is authoritative for package name, package wording, package scope, and package terms. Preserve source package content exactly unless authoritative generation input explicitly requires a permitted factual change. Do not substitute package names or package scope from another template. Do not reconstruct a package from prior-case knowledge. Do not use hardcoded knowledge of any package. Deterministic derived facts in the input are authoritative for their stated concepts; use a derived final installment without changing source-defined payment timing. Treat an authoritative aggregate amount separately from a source-required detailed allocation: if the source requires the amount to be distributed across multiple independently meaningful payments, deadlines, or installments, and authoritative input does not provide that allocation, do not infer or preserve an allocation; return MISSING_INPUT for the unresolved detail. You may return all independently identified missing inputs together. Follow structured input.conclusion deterministically: sourceDate/sourceBlockId identify the source conclusion, and when replaceDate is true, replacementDate is the required conclusion date for that block. Preserve preservePlace using the source's natural grammatical form. Keep this distinct from wedding.weddingDate; do not substitute the wedding/event date for the conclusion date. When replaceDate is false, do not introduce a conclusion date merely because generationDate is present.`
-
-export function sanitizePlannerOperations(status: PlannerResponseStatus, providerOperations: BlockOperation[] | undefined): {
-  rawOperations: BlockOperation[]
-  operations: BlockOperation[]
-  rawOperationCount: number
-  operationCount: number
-  discardedOperationCount: number
-} {
+export function sanitizePlannerOperations(status: PlannerResponseStatus, providerOperations: BlockOperation[] | undefined): { rawOperations: BlockOperation[]; operations: BlockOperation[]; rawOperationCount: number; operationCount: number; discardedOperationCount: number } {
   const rawOperations = providerOperations ?? []
   const operations = status === 'READY' ? rawOperations : []
-  return {
-    rawOperations,
-    operations,
-    rawOperationCount: rawOperations.length,
-    operationCount: operations.length,
-    discardedOperationCount: rawOperations.length - operations.length,
+  return { rawOperations, operations, rawOperationCount: rawOperations.length, operationCount: operations.length, discardedOperationCount: rawOperations.length - operations.length }
+}
+
+function normalize(value: string): string { return value.normalize('NFC').replace(/\s+/g, ' ').trim() }
+function authorityValue(input: GenerationInput, authority: FactAuthority): string | undefined {
+  if (authority.kind === 'generation_date') return authority.ref === 'generationDate' && input.generationDate ? input.generationDate : undefined
+  if (authority.kind === 'user') return input.userProvidedAnswers.find((answer) => answer.id === authority.ref)?.value
+  if (authority.kind === 'derived') return input.deterministicDerivedFacts.find((fact) => fact.ref === authority.ref)?.value
+  if (authority.kind === 'crm') {
+    const roots: Record<string, unknown> = { wedding: input.wedding, financials: input.financials, extras: input.extras }
+    const [root, ...path] = authority.ref.split('.')
+    let value: unknown = roots[root ?? '']
+    for (const segment of path) value = value && typeof value === 'object' ? (value as Record<string, unknown>)[segment] : undefined
+    return typeof value === 'string' || typeof value === 'number' ? String(value) : undefined
   }
+  return undefined
 }
 
-const documentReferenceLabel = /(?<![\p{L}\p{N}_])(?:nr\.?|no\.?|number|identifier|reference|ref\.?|id)(?![\p{L}\p{N}_])/iu
-const documentContextCue = /\b(?:umow\p{L}*|contract\p{L}*|agreement\p{L}*|document\p{L}*)\b/iu
-
-function sourceDocumentIdentifierValues(sourceDocument: GenerationInput['sourceDocument']): string[] {
-  const values: string[] = []
-  for (const block of sourceDocument.blocks) {
-    if (!documentContextCue.test(`${block.text}\n${block.context}`)) continue
-    const pattern = new RegExp(documentReferenceLabel.source + String.raw`\s*[:#-]?\s*([\p{L}\p{N}][\p{L}\p{N}_/-]*(?:\.[\p{L}\p{N}_/-]+)*)`, 'giu')
-    for (const match of block.text.matchAll(pattern)) values.push(match[1]!)
+function numericLiteral(value: string): number | undefined {
+  const clean = value.normalize('NFC').replace(/\s/g, '').replace(/(?:PLN|zł)$/iu, '').replace(',', '.')
+  const parsed = Number(clean)
+  return Number.isFinite(parsed) ? parsed : undefined
+}
+function authoritativeValueMatches(declared: string, authoritative: string): boolean {
+  if (normalize(declared) === normalize(authoritative)) return true
+  const moneyOnly = (value: string): number | undefined => {
+    const match = value.normalize('NFC').trim().match(/^(\d[\d \u00a0\u202f]*(?:[,.]\d{2})?)\s*(?:PLN|zł)$/iu)
+    if (!match) return undefined
+    return moneyAmountsInGrosz(`${match[1]} zł`)[0]
   }
-  for (const property of sourceDocument.documentProperties ?? []) {
-    if (!documentContextCue.test(property.text)) continue
-    const pattern = new RegExp(documentReferenceLabel.source + String.raw`\s*[:#-]?\s*([\p{L}\p{N}][\p{L}\p{N}_/-]*(?:\.[\p{L}\p{N}_/-]+)*)`, 'giu')
-    for (const match of property.text.matchAll(pattern)) values.push(match[1]!)
+  const declaredMoney = moneyOnly(declared)
+  const authoritativeMoney = moneyOnly(authoritative)
+  return declaredMoney !== undefined && authoritativeMoney !== undefined && declaredMoney === authoritativeMoney
+}
+function literalOccurs(text: string, value: string): boolean {
+  const haystack = normalize(text).toLocaleLowerCase('pl-PL')
+  const needle = normalize(value).toLocaleLowerCase('pl-PL')
+  if (!needle) return false
+  let offset = 0
+  while ((offset = haystack.indexOf(needle, offset)) >= 0) {
+    const before = offset === 0 ? '' : Array.from(haystack.slice(0, offset)).at(-1) ?? ''
+    const after = Array.from(haystack.slice(offset + needle.length))[0] ?? ''
+    const wordChar = (character: string) => /[\p{L}\p{N}_]/u.test(character)
+    const startsWord = wordChar(Array.from(needle)[0] ?? '')
+    const endsWord = wordChar(Array.from(needle).at(-1) ?? '')
+    if ((!startsWord || !wordChar(before)) && (!endsWord || !wordChar(after))) return true
+    offset += needle.length
   }
-  const unique = new Map(values.map((value) => [value.normalize('NFC').toLocaleLowerCase('pl-PL'), value]))
-  return [...unique.values()]
+  if (!/zł\b/iu.test(value)) return false
+  const expected = moneyAmountsInGrosz(value)
+  return expected.length > 0 && expected.every((amount) => moneyAmountsInGrosz(text).includes(amount))
 }
 
-function documentReferencePath(idOrConcept: string): boolean {
-  const value = idOrConcept.replace(/([a-z])([A-Z])/g, '$1 $2')
-  return documentContextCue.test(value) && documentReferenceLabel.test(value)
-}
-
-function authoritativeDocumentIdentifierValues(input: GenerationInput): string[] {
-  const answers = input.userProvidedAnswers.filter((answer) => documentReferencePath(answer.id)).map((answer) => answer.value)
-  const derived = input.deterministicDerivedFacts.filter((fact) => documentReferencePath(fact.concept)).map((fact) => fact.value)
-  const values = [...answers, ...derived].flatMap((value) => {
-    const trimmed = value.trim()
-    return trimmed ? [trimmed] : []
-  })
-  return [...new Set(values)]
-}
-
-function targetForDocumentIdentifier(sourceIdentifier: string, sourceIdentifiers: string[], targets: string[]): string | undefined {
-  if (sourceIdentifiers.length === 1 && targets.length === 1) return targets[0]
-  if (targets.length !== sourceIdentifiers.length) return undefined
-  const exact = targets.filter((value) => value.trim().toLocaleLowerCase('pl-PL') === sourceIdentifier.trim().toLocaleLowerCase('pl-PL'))
-  return exact.length === 1 ? exact[0] : undefined
-}
-
-function documentIdentifierReplacements(input: GenerationInput): Array<{ source: string; target: string }> {
-  const sourceIdentifiers = sourceDocumentIdentifierValues(input.sourceDocument)
-  const targets = authoritativeDocumentIdentifierValues(input)
-  return sourceIdentifiers.flatMap((source) => {
-    const target = targetForDocumentIdentifier(source, sourceIdentifiers, targets)
-    return target ? [{ source, target }] : []
-  })
-}
-
-function replaceDocumentPropertyText(text: string, input: GenerationInput): string {
-  return documentIdentifierReplacements(input).reduce((result, replacement) => {
-    if (replacement.source.trim().toLocaleLowerCase('pl-PL') === replacement.target.trim().toLocaleLowerCase('pl-PL')) return result
-    const oldValue = replacement.source.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    return result.replace(new RegExp(`(?<![\\p{L}\\p{N}])${oldValue}(?![\\p{L}\\p{N}])`, 'giu'), replacement.target)
-  }, text)
-}
-
-async function applyDocumentOwnedPropertyReplacements(bytes: ArrayBuffer, input: GenerationInput): Promise<ArrayBuffer> {
-  const replacements = documentIdentifierReplacements(input).filter(({ source, target }) => source.trim().toLocaleLowerCase('pl-PL') !== target.trim().toLocaleLowerCase('pl-PL'))
-  if (!replacements.length) return bytes
-  const zip = await JSZip.loadAsync(bytes)
-  const core = zip.file('docProps/core.xml')
-  if (!core) return bytes
-  let xml = await core.async('string')
-  for (const { source, target } of replacements) {
-    const oldValue = escapeXml(source)
-    const newValue = escapeXml(target)
-    const escapedSource = oldValue.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    xml = xml.replace(new RegExp(`(?<![\\p{L}\\p{N}])${escapedSource}(?![\\p{L}\\p{N}])`, 'gu'), newValue)
+function validateDerivedFacts(input: GenerationInput): string[] {
+  const issues: string[] = []
+  for (const fact of input.deterministicDerivedFacts) {
+    if (fact.operation !== 'subtract' || fact.inputRefs.length < 2) { issues.push(`Unsupported arithmetic derivation: ${fact.ref}`); continue }
+    const values = fact.inputRefs.map((ref) => {
+      const [kind, ...parts] = ref.split(':')
+      if (kind === 'crm') return authorityValue(input, { kind: 'crm', ref: parts.join(':') })
+      if (kind === 'user') return authorityValue(input, { kind: 'user', ref: parts.join(':') })
+      return undefined
+    })
+    const numbers = values.map((value) => value === undefined ? undefined : numericLiteral(value))
+    if (numbers.some((value) => value === undefined)) { issues.push(`Derived value ${fact.ref} uses an unsupported operand.`); continue }
+    const expected = numbers.slice(1).reduce<number>((result, value) => result - (value ?? 0), numbers[0]!)
+    if (numericLiteral(fact.value) !== expected) issues.push(`Derived value ${fact.ref} does not match its declared arithmetic.`)
   }
-  zip.file('docProps/core.xml', xml)
-  return zip.generateAsync({ type: 'arraybuffer' })
+  return issues
 }
 
-function textContainsDocumentIdentifier(texts: string[], identifier: string): boolean {
-  const needle = identifier.normalize('NFC').toLocaleLowerCase('pl-PL')
-  return texts.some((text) => text.normalize('NFC').toLocaleLowerCase('pl-PL').includes(needle))
+export function validateAuthorityGate(input: GenerationInput, inventory: SourceInventory, plan: PlanResult): string[] {
+  const issues = validateDerivedFacts(input)
+  const sourceRefs = new Set(findTextLocations(input.sourceDocument).map((item) => item.ref))
+  for (const item of inventory.items) {
+    if (!normalize(item.value)) issues.push('Source inventory contains an empty literal value.')
+    if (!item.sourceRefs.length || item.sourceRefs.some((ref) => !sourceRefs.has(ref))) issues.push(`Inventory item has an unsupported source reference: ${item.value}`)
+    if (!item.sourceRefs.some((ref) => findTextLocations(input.sourceDocument).some((location) => location.ref === ref && literalOccurs(location.text, item.value)))) {
+      issues.push(`Inventory literal is not present at its declared source reference: ${item.value}`)
+    }
+  }
+  if (plan.status !== 'READY') {
+    if (plan.operations.length) issues.push(`${plan.status} plan contains executable operations.`)
+    if (plan.status === 'MISSING_INPUT' && !plan.missingInputs.length) issues.push('MISSING_INPUT plan has no missingInputs.')
+    if (plan.status === 'CONFLICT_INPUT' && !plan.conflicts.length) issues.push('CONFLICT_INPUT plan has no conflicts.')
+    return issues
+  }
+  if (plan.missingInputs.length || plan.conflicts.length) issues.push('READY plan contains unresolved inputs or conflicts.')
+  const dispositionChanges: FactChange[] = []
+  const retained = new Set(plan.retainedLiterals.map((item) => normalize(item.value)))
+  for (const change of plan.factChanges) {
+    if (!normalize(change.newValue)) issues.push(`Fact change has an empty new literal: ${change.label}`)
+    if (!change.sourceRefs.length || change.sourceRefs.some((ref) => !sourceRefs.has(ref))) issues.push(`Fact change has an unsupported source reference: ${change.label}`)
+    for (const oldValue of change.oldValues) if (!change.sourceRefs.some((ref) => findTextLocations(input.sourceDocument).some((location) => location.ref === ref && literalOccurs(location.text, oldValue)))) {
+      issues.push(`Declared old literal is not present at its source reference: ${oldValue}`)
+    }
+    const authoritative = authorityValue(input, change.authority)
+    if (authoritative === undefined) { issues.push(`Invalid authority reference for “${change.label}”: ${change.authority.kind}:${change.authority.ref}`); continue }
+    if (!normalize(authoritative)) { issues.push(`Authority for “${change.label}” resolves to an empty value.`); continue }
+    if (!authoritativeValueMatches(change.newValue, authoritative)) {
+      issues.push(`New literal for “${change.label}” does not match its declared authority.`)
+    }
+    dispositionChanges.push(change)
+  }
+  for (const item of inventory.items) {
+    const matchingChange = dispositionChanges.find((change) => change.oldValues.some((value) => normalize(value) === normalize(item.value)) && change.sourceRefs.some((ref) => item.sourceRefs.includes(ref)))
+    if (!retained.has(normalize(item.value)) && !matchingChange) issues.push(`Source inventory literal has no planner disposition: ${item.value}`)
+  }
+  return issues
 }
 
-function projectedDocumentTexts(input: GenerationInput, operations: BlockOperation[]): string[] {
-  const replacements = new Map(operations.flatMap((operation) => operation.operation === 'REPLACE_BLOCK_TEXT' ? [[operation.blockId, operation.finalText] as const] : []))
-  const deleted = new Set(operations.flatMap((operation) => operation.operation === 'DELETE_BLOCK' ? [operation.blockId] : []))
-  const inserted = operations.flatMap((operation) => 'anchorBlockId' in operation ? [operation.finalText] : [])
+function validateOperationTargets(blocks: SourceBlock[], operations: BlockOperation[]): string[] {
+  const known = new Set(blocks.map((block) => block.blockId))
+  const changed = new Set<string>()
+  const issues: string[] = []
+  for (const raw of operations as unknown[]) {
+    if (!raw || typeof raw !== 'object' || !('operation' in raw)) { issues.push('Malformed block operation.'); continue }
+    const operation = raw as BlockOperation
+    if (!['REPLACE_BLOCK_TEXT', 'INSERT_BLOCK_AFTER', 'INSERT_BLOCK_BEFORE', 'DELETE_BLOCK'].includes(operation.operation)) { issues.push('Unsupported block operation.'); continue }
+    if ('finalText' in operation && typeof operation.finalText !== 'string') { issues.push('Block operation finalText must be a string.'); continue }
+    const targets = 'blockId' in operation ? [operation.blockId] : [operation.anchorBlockId, operation.styleSourceBlockId]
+    for (const target of targets) if (typeof target !== 'string' || !known.has(target)) issues.push(`Unknown block operation target: ${String(target)}`)
+    const primary = 'blockId' in operation ? operation.blockId : operation.anchorBlockId
+    if (changed.has(primary)) issues.push(`Duplicate block operation target: ${primary}`)
+    changed.add(primary)
+  }
+  return issues
+}
+
+function findTextLocations(document: GenerationInput['sourceDocument']): Array<{ ref: string; text: string }> {
   return [
-    ...input.sourceDocument.blocks.filter((block) => !deleted.has(block.blockId)).map((block) => replacements.get(block.blockId) ?? block.text),
-    ...inserted,
-    ...(input.sourceDocument.documentProperties ?? []).map((property) => replaceDocumentPropertyText(property.text, input)),
+    ...document.blocks.map((block) => ({ ref: block.blockId, text: block.text })),
+    ...(document.documentProperties ?? []).map((property) => ({ ref: `${property.part}#${property.property}`, text: property.text })),
   ]
 }
 
-export function findMissingDocumentOwnedFacts(input: GenerationInput): MissingInput[] {
-  const sourceIdentifiers = sourceDocumentIdentifierValues(input.sourceDocument)
-  if (!sourceIdentifiers.length || authoritativeDocumentIdentifierValues(input).length) return []
-  return sourceIdentifiers.map((identifier, index) => ({
-    id: `document-owned.identifier.${index + 1}`,
-    label: 'Document-specific identifier',
-    explanation: 'The source contains a value identifying that specific document, but no authoritative replacement or deterministic derivation is available.',
-    inputType: 'text',
-    required: true,
-    sourceContext: `Source document identifier: ${identifier}`,
-  }))
+export function computeChangedBlockDiff(source: SourceBlock[], candidate: SourceBlock[]): ChangedBlock[] {
+  const left = new Map(source.map((block) => [block.blockId, block.text]))
+  const right = new Map(candidate.map((block) => [block.blockId, block.text]))
+  return [...new Set([...left.keys(), ...right.keys()])].flatMap((blockRef) => {
+    const sourceText = left.get(blockRef) ?? null
+    const candidateText = right.get(blockRef) ?? null
+    return sourceText === candidateText ? [] : [{ blockRef, sourceText, candidateText }]
+  })
 }
 
-function validatePlannedDocumentOwnedFacts(input: GenerationInput, operations: BlockOperation[]): string[] {
-  const sourceIdentifiers = sourceDocumentIdentifierValues(input.sourceDocument)
-  if (!sourceIdentifiers.length) return []
-  const targets = authoritativeDocumentIdentifierValues(input)
-  if (!targets.length) return sourceIdentifiers.map((identifier) => `Document-owned source fact “${identifier}” has no authoritative replacement or deterministic derivation; a READY plan is unsafe and must request MISSING_INPUT.`)
-  const plannedTexts = projectedDocumentTexts(input, operations)
-  const findings: string[] = []
-  for (const sourceIdentifier of sourceIdentifiers) {
-    const target = targetForDocumentIdentifier(sourceIdentifier, sourceIdentifiers, targets)
-    if (!target) {
-      findings.push(`Document-owned source fact “${sourceIdentifier}” cannot be matched unambiguously to an authoritative replacement.`)
-      continue
-    }
-    if (target.trim().toLocaleLowerCase('pl-PL') === sourceIdentifier.trim().toLocaleLowerCase('pl-PL')) continue
-    if (textContainsDocumentIdentifier(plannedTexts, sourceIdentifier)) findings.push(`Stale document-owned source fact “${sourceIdentifier}” remains in a relevant document text or property.`)
-    if (!textContainsDocumentIdentifier(plannedTexts, target)) findings.push(`Authoritative document-owned replacement “${target}” is not applied in the planned document.`)
-  }
-  return findings
-}
-
-function validateCandidateDocumentOwnedFacts(
-  sourceDocument: GenerationInput['sourceDocument'],
-  candidateDocument: GenerationInput['sourceDocument'],
-  input: GenerationInput,
-): string[] {
-  const sourceIdentifiers = sourceDocumentIdentifierValues(sourceDocument)
-  if (!sourceIdentifiers.length) return []
-  const targets = authoritativeDocumentIdentifierValues(input)
-  if (!targets.length) return sourceIdentifiers.map((identifier) => `Source document-owned fact “${identifier}” has no authoritative replacement or deterministic derivation.`)
-  const candidateTexts = [
-    ...candidateDocument.blocks.map((block) => block.text),
-    ...(candidateDocument.documentProperties ?? []).map((property) => property.text),
+function xmlWithTextValuesMasked(xml: string): string { return xml.replace(/(<w:t\b[^>]*>)[\s\S]*?(<\/w:t>)/g, '$1__TEXT__$2') }
+function wordFieldInstructions(xml: string): string[] {
+  return [
+    ...[...xml.matchAll(/<w:instrText(?:\s[^>]*)?>([\s\S]*?)<\/w:instrText>/g)].map((match) => unescapeXml(match[1]!).trim().replace(/\s+/g, ' ').toUpperCase()),
+    ...[...xml.matchAll(/<w:fldSimple\b[^>]*\bw:instr\s*=\s*["']([^"']*)["']/g)].map((match) => unescapeXml(match[1]!).trim().replace(/\s+/g, ' ').toUpperCase()),
   ]
-  const findings: string[] = []
-  for (const sourceIdentifier of sourceIdentifiers) {
-    const target = targetForDocumentIdentifier(sourceIdentifier, sourceIdentifiers, targets)
-    if (!target) {
-      findings.push(`Source document-owned fact “${sourceIdentifier}” cannot be matched unambiguously to an authoritative replacement.`)
-      continue
-    }
-    if (target.trim().toLocaleLowerCase('pl-PL') === sourceIdentifier.trim().toLocaleLowerCase('pl-PL')) continue
-    if (textContainsDocumentIdentifier(candidateTexts, sourceIdentifier)) findings.push(`Stale document-owned source fact “${sourceIdentifier}” remains in the generated document.`)
-    if (!textContainsDocumentIdentifier(candidateTexts, target)) findings.push(`Authoritative document-owned replacement “${target}” is absent from the generated document.`)
+}
+function tableStructureSignatures(xml: string): string[] {
+  const stack: Array<{ rows: number; cells: number }> = []
+  const signatures: string[] = []
+  for (const match of xml.matchAll(/<\/?w:(tbl|tr|tc)\b[^>]*>/g)) {
+    const tag = match[0]!
+    const name = match[1]!
+    if (tag.startsWith('</')) {
+      if (name === 'tbl') {
+        const table = stack.pop()
+        if (table) signatures.push(`${table.rows}x${table.cells}`)
+      }
+    } else if (name === 'tbl') stack.push({ rows: 0, cells: 0 })
+    else if (stack.length && name === 'tr') stack.at(-1)!.rows++
+    else if (stack.length && name === 'tc') stack.at(-1)!.cells++
   }
-  return findings
-}
-
-export const REVIEW_INSTRUCTIONS = `Review source and candidate blocks, including each source block's contentClass (factual_dynamic, package_service, or protected_legal_static). The source contract defines which factual concepts belong in the contract; authoritative input supplies the new value only for a concept the source contains or requires. Do not require every available CRM/input fact to appear in the candidate, and do not add an input fact when the source has no corresponding concept; doing so may be semantic drift. For each factual concept, distinguish: (A) source-required and input value available: candidate must preserve the concept with the authoritative updated value; (B) source-required but authoritative input value missing: generation should stop with MISSING_INPUT; (C) authoritative input value available but concept unused by the source: omission is allowed and is not MISSING_INPUT or a review failure. Use the source-vs-candidate context to decide whether the source contains or requires the concept; do not infer that requirement from CRM/input availability alone. Classify differences as: (D) substantive legal rewrite, which fails if a protected legal clause changes subject, obligations, rights, scope, consent, cancellation, liability, copyright, publication, or delivery without an explicit authoritative mechanical reason; (E) allowed mechanical factual adaptation; (F) allowed minimal, unambiguous editorial typo/token/spacing/punctuation fix that does not change legal meaning; or (G) unchanged source issue, which is not introduced by the transformation. Do not fail merely because a harmless editorial error was corrected. Do fail on an unauthorized substantive legal rewrite.`
-
-export function classifyBlock(text: string): SourceBlock['contentClass'] {
-  const selectedScope = /\b(?:pakiet|usług\p{L}*|zakres|przedmiot(?:em)?|wariant|opcj\p{L}*|wybran\p{L}*|service|scope|subject|option|variant)\b/iu.test(text)
-  const serviceContent = /\b(?:video|teledysk|film|ujęci\p{L}*|fotograf\p{L}*|zdję\p{L}*|reportaż\p{L}*|realizac\p{L}*|nagran\p{L}*|album\p{L}*|galeri\p{L}*|wydruk\p{L}*)\b/iu.test(text)
-  if ((selectedScope && serviceContent) || /\bvideo\b|teledysk|film ślubny|ujęcia/iu.test(text)) return 'package_service'
-  if (/zgod[ęa]|oświadcza|zobowiązan|prawo|odpowiedzialnoś|rozwiązani|zadatek|copyright|autorsk|publik|przetwarzani|danych osobow|Umow.{0,24}wymagaj|nie podlegaj|wyraża zgody/i.test(text)) return 'protected_legal_static'
-  return 'factual_dynamic'
-}
-
-const polishMonths: Record<string, number> = {
-  stycznia: 1, lutego: 2, marca: 3, kwietnia: 4, maja: 5, czerwca: 6,
-  lipca: 7, sierpnia: 8, września: 9, października: 10, listopada: 11, grudnia: 12,
-}
-
-function validDateTimestamp(day: number, month: number, year: number): number | undefined {
-  const fullYear = year < 100 ? 2000 + year : year
-  const timestamp = Date.UTC(fullYear, month - 1, day)
-  const date = new Date(timestamp)
-  return date.getUTCFullYear() === fullYear && date.getUTCMonth() === month - 1 && date.getUTCDate() === day ? timestamp : undefined
-}
-
-export function parsePolishDate(value: string): number | undefined {
-  const match = value.trim().match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/)
-  if (match) return validDateTimestamp(Number(match[1]), Number(match[2]), Number(match[3]))
-  const written = value.trim().match(/^(\d{1,2})\s+(stycznia|lutego|marca|kwietnia|maja|czerwca|lipca|sierpnia|września|października|listopada|grudnia)\s+(\d{4})(?:\s+roku)?$/i)
-  if (!written) return undefined
-  const month = polishMonths[written[2]!.toLocaleLowerCase('pl-PL')]
-  return month ? validDateTimestamp(Number(written[1]), month, Number(written[3])) : undefined
-}
-
-const polishDateOccurrences = /(?:\d{1,2}[./-]\d{1,2}[./-]\d{4}|\b\d{1,2}\s+(?:stycznia|lutego|marca|kwietnia|maja|czerwca|lipca|sierpnia|września|października|listopada|grudnia)\s+\d{4}(?:\s+roku)?)/gi
-
-export function dateTimestampsInText(text: string): number[] {
-  return [...text.matchAll(polishDateOccurrences)].flatMap((match) => {
-    const timestamp = parsePolishDate(match[0])
-    return timestamp === undefined ? [] : [timestamp]
-  })
-}
-
-export function hasSemanticDate(text: string, authoritativeDate: string): boolean {
-  const expected = parsePolishDate(authoritativeDate)
-  return expected !== undefined && dateTimestampsInText(text).includes(expected)
-}
-
-const conclusionDateToken = /(?:\d{1,2}[./-]\d{1,2}[./-]\d{2,4}|\b\d{1,2}\s+(?:stycznia|lutego|marca|kwietnia|maja|czerwca|lipca|sierpnia|września|października|listopada|grudnia)\s+\d{4}\b|\.{3,})/i
-const conclusionVerb = /\bzawar(?:ta|ty|te|to)\b/i
-
-function firstSentenceAfter(text: string, offset: number): string {
-  const rest = text.slice(offset)
-  const boundary = /[.!?](?=\s|$)/.exec(rest)
-  return boundary ? rest.slice(0, boundary.index) : rest
-}
-
-function conclusionDateInText(text: string): { raw: string; timestamp?: number } | undefined {
-  const verb = conclusionVerb.exec(text)
-  if (!verb) return undefined
-  const sentence = firstSentenceAfter(text, verb.index + verb[0].length)
-  const match = conclusionDateToken.exec(sentence)
-  if (!match) return undefined
-  return { raw: match[0], timestamp: parsePolishDate(match[0]) }
-}
-
-function conclusionDateTimestampsInText(text: string): number[] {
-  const verb = conclusionVerb.exec(text)
-  if (!verb) return []
-  const sentence = firstSentenceAfter(text, verb.index + verb[0].length)
-  const pattern = new RegExp(conclusionDateToken.source, 'gi')
-  return [...sentence.matchAll(pattern)].flatMap((match) => {
-    const timestamp = parsePolishDate(match[0])
-    return timestamp === undefined ? [] : [timestamp]
-  })
-}
-
-function numericDate(timestamp: number): string {
-  const date = new Date(timestamp)
-  return `${String(date.getUTCDate()).padStart(2, '0')}.${String(date.getUTCMonth() + 1).padStart(2, '0')}.${date.getUTCFullYear()}`
-}
-
-function conclusionPlaceInText(text: string): string | undefined {
-  const match = text.match(/(?:\br\.|\b\d{4}\s+(?:r\.|roku))\s+w\s+(.+?)(?=,?\s+(?:zwana|zwany|zwane|pomiędzy|między)\b|[,;.!?]|$)/i)
-  const place = match?.[1]?.trim()
-  return place && /[\p{L}]/u.test(place) && !/\.{3,}/.test(place) ? place : undefined
-}
-
-export function validatePlannedConclusion(input: GenerationInput, operations: BlockOperation[]): string[] {
-  const rule = input.conclusion
-  if (!rule.sourceBlockId) return []
-  const sourceBlock = input.sourceDocument.blocks.find((block) => block.blockId === rule.sourceBlockId)
-  if (!sourceBlock) return [`Conclusion-date plan validation failed: source conclusion block ${rule.sourceBlockId} is unavailable.`]
-  const operation = operations.find((item) => 'blockId' in item && item.blockId === rule.sourceBlockId)
-  const plannedText = operation?.operation === 'REPLACE_BLOCK_TEXT' ? operation.finalText : operation ? '' : sourceBlock.text
-  const sourceDate = conclusionDateInText(sourceBlock.text)
-  const plannedDate = conclusionDateInText(plannedText)
-
-  if (rule.replaceDate) {
-    const targetTimestamp = rule.replacementDate ? parsePolishDate(rule.replacementDate) : undefined
-    if (targetTimestamp === undefined) return ['Conclusion-date plan validation failed: replacementDate is missing or invalid.']
-    if (plannedDate?.timestamp !== targetTimestamp) {
-      const actual = plannedDate?.raw ?? 'no conclusion date'
-      const oldDate = sourceDate?.timestamp !== undefined && sourceDate.timestamp !== targetTimestamp && plannedDate?.timestamp === sourceDate.timestamp
-        ? ` Source conclusion date ${rule.sourceDate ?? sourceDate.raw} remains unchanged.`
-        : ''
-      return [`Conclusion-date plan validation failed: block ${rule.sourceBlockId} must use authoritative conclusion date ${numericDate(targetTimestamp)}; planned ${actual}.${oldDate} Wedding/event date ${input.wedding.weddingDate} is a separate fact.`]
-    }
-    const sourceTimestamp = sourceDate?.timestamp
-    if (sourceTimestamp !== undefined && sourceTimestamp !== targetTimestamp && conclusionDateTimestampsInText(plannedText).includes(sourceTimestamp)) {
-      return [`Conclusion-date plan validation failed: original source conclusion date ${rule.sourceDate ?? sourceDate?.raw ?? 'unknown'} remains in block ${rule.sourceBlockId} alongside the target date.`]
-    }
-    if (rule.preservePlace && !plannedText.normalize('NFC').includes(rule.preservePlace.normalize('NFC'))) {
-      return [`Conclusion-date plan validation failed: source conclusion place “${rule.preservePlace}” is not preserved in block ${rule.sourceBlockId}.`]
-    }
-  } else if (!sourceDate && plannedDate) {
-    return [`Conclusion-date plan validation failed: block ${rule.sourceBlockId} introduces conclusion date ${plannedDate.raw} although the source has no conclusion date.`]
-  }
-  return []
-}
-
-type FormalClientIdentity = { body: string; clauses: string[] }
-type WeddingPartyKey = 'bride' | 'groom'
-
-const formalClientRoleBoundary = /\bzwan(?:y|a|ą|e|ego|ej|ym)\s+dalej\s+["“]?(?:zleceniodawc\p{L}*|zamawiaj\p{L}*|klient\p{L}*)["”]?/iu
-
-function formalClientIdentity(text: string): FormalClientIdentity | undefined {
-  const role = formalClientRoleBoundary.exec(text)
-  if (!role) return undefined
-  const body = text.slice(0, role.index).trim().replace(/[\s,;:]+$/u, '')
-  const clauses = body.split(/\s*,\s*/u).filter(Boolean)
-  return clauses.length > 1 ? { body, clauses } : undefined
-}
-
-function identityAttributeGroups(clauses: string[]): string[] {
-  const groups: string[] = []
-  const startsAttribute = (clause: string) =>
-    /^[^,:]{1,60}:\s*\S/u.test(clause) ||
-    /^\s*[\p{Lu}][\p{Lu}\d_-]{1,}\s+\S/u.test(clause) ||
-    /\b(?:zamieszka\p{L}*|adres|address|residen\p{L}*)\s+(?:przy|at)\b/iu.test(clause) ||
-    /^\s*[\p{Lu}][\p{L}-]{1,}\s+[^,]*[\d@]/u.test(clause)
-
-  for (const clause of clauses) {
-    if (startsAttribute(clause) || !groups.length) groups.push(clause.trim())
-    else groups[groups.length - 1] = `${groups[groups.length - 1]}, ${clause.trim()}`
-  }
-  return groups
-}
-
-function identityAttribute(group: string): { label: string; value: string } {
-  const colon = group.indexOf(':')
-  if (colon > 0) return { label: group.slice(0, colon).trim(), value: group.slice(colon + 1).trim() }
-  const address = group.match(/\b(?:zamieszka\p{L}*|adres|address|residen\p{L}*)\s+(?:przy|at)\s+(.+)$/iu)
-  if (address) return { label: 'address', value: address[1]!.trim() }
-  const uppercaseLabel = group.match(/^\s*([\p{Lu}\d][\p{Lu}\d_-]{1,})\s+(.+)$/u)
-  if (uppercaseLabel) return { label: uppercaseLabel[1]!, value: uppercaseLabel[2]!.trim() }
-  const firstWord = group.match(/^\s*([\p{L}][\p{L}-]*)\s+(.+)$/u)
-  if (firstWord) return { label: firstWord[1]!, value: firstWord[2]!.trim() }
-  return { label: '', value: group.trim() }
-}
-
-function beginsWithPartyName(clause: string, name: string): boolean {
-  const leadingValue = clause.split(/[,;:]/u, 1)[0]!.trim().replace(/^(?:a|i|oraz)\s+/iu, '')
-  const leadingWords = leadingValue.match(/[\p{L}][\p{L}'’-]*/gu) ?? []
-  const expectedWords = name.match(/[\p{L}][\p{L}'’-]*/gu) ?? []
-  if (!expectedWords.length || leadingWords.length < expectedWords.length) return false
-  return hasPolishNameFacts(leadingWords.slice(0, expectedWords.length).join(' '), name)
-}
-
-function normalizedConcept(value: string): string {
-  return value.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('en-US').replace(/[^a-z0-9]/g, '')
-}
-
-const existingConceptAliases = [
-  ['address', 'contractaddress', 'adres', 'residence', 'residentialaddress', 'zamieszkanie', 'zamieszkała', 'zamieszkały'],
-  ['phone', 'telephone', 'telefon', 'tel'],
-  ['email', 'mail'],
-]
-
-function conceptsMatch(left: string, right: string): boolean {
-  const a = normalizedConcept(left)
-  const b = normalizedConcept(right)
-  if (!a || !b) return false
-  return a === b || existingConceptAliases.some((group) => group.includes(a) && group.includes(b))
-}
-
-function scopedAnswerForParty(answerId: string, party: WeddingPartyKey): boolean {
-  const parts = answerId.split(/[.[\]/:_-]+/u).map(normalizedConcept).filter(Boolean)
-  return parts.includes(party) || parts.some((part) => ['client', 'customer', 'contractclient', 'contractingparty'].includes(part))
-}
-
-function valueOccurs(text: string, value: string): boolean {
-  const haystack = normalize(text)
-  const needle = normalize(value)
-  if (!needle || needle.length < 2) return false
-  if (haystack.includes(needle)) return true
-  const expectedDate = parsePolishDate(value)
-  return expectedDate !== undefined && dateTimestampsInText(text).includes(expectedDate)
-}
-
-function authoritativeValueForParty(
-  input: GenerationInput,
-  party: WeddingPartyKey,
-  label: string,
-  value: string,
-): boolean {
-  const profile = input.wedding[party] as unknown as Record<string, unknown>
-  const structuredValues = Object.entries(profile)
-    .filter(([key, item]) => typeof item === 'string' && conceptsMatch(label, key))
-    .map(([, item]) => item as string)
-  if (conceptsMatch(label, 'address')) structuredValues.push(input.wedding.contractAddress)
-  if (structuredValues.some((item) => valueOccurs(value, item) || valueOccurs(item, value))) return true
-
-  return input.userProvidedAnswers.some((answer) => {
-    if (!scopedAnswerForParty(answer.id, party)) return false
-    const pathParts = answer.id.split(/[.[\]/:_-]+/u).filter(Boolean)
-    const conceptParts = pathParts.filter((part) => !['wedding', 'bride', 'groom', 'client', 'customer', 'contractclient', 'contractingparty'].includes(normalizedConcept(part)))
-    if (!conceptParts.some((part) => conceptsMatch(label, part))) return false
-    return valueOccurs(value, answer.value) || valueOccurs(answer.value, value)
-  })
-}
-
-/** Rejects source-owned identity facts carried into a replacement client's formal identity without same-entity authority. */
-export function validatePlannedEntityFacts(input: GenerationInput, operations: BlockOperation[]): string[] {
-  const replacements = new Map(operations.flatMap((operation) =>
-    operation.operation === 'REPLACE_BLOCK_TEXT' ? [[operation.blockId, operation.finalText] as const] : []))
-  const findings: string[] = []
-  const parties: Array<{ key: WeddingPartyKey; name: string }> = [
-    { key: 'bride', name: input.wedding.bride.name },
-    { key: 'groom', name: input.wedding.groom.name },
-  ]
-
-  for (const sourceBlock of input.sourceDocument.blocks) {
-    const plannedText = replacements.get(sourceBlock.blockId)
-    if (plannedText === undefined) continue
-    const sourceIdentity = formalClientIdentity(sourceBlock.text)
-    const plannedIdentity = formalClientIdentity(plannedText)
-    if (!sourceIdentity || !plannedIdentity) continue
-
-    const targets = parties.flatMap((party) => plannedIdentity.clauses.flatMap((clause, clauseIndex) =>
-      beginsWithPartyName(clause, party.name) ? [{ ...party, clauseIndex }] : []))
-    if (targets.length !== 1) continue
-    const target = targets[0]!
-    const sourceEntityClause = sourceIdentity.clauses[target.clauseIndex]
-    if (!sourceEntityClause || beginsWithPartyName(sourceEntityClause, target.name)) continue
-    const replacementIdentity = plannedIdentity.clauses.slice(target.clauseIndex).join(', ')
-    const sourceName = sourceEntityClause.replace(/^\s*(?:a|i|oraz)\s+/iu, '')
-    if (hasExactFact(replacementIdentity, sourceName) && !authoritativeValueForParty(input, target.key, 'name', sourceName)) {
-      findings.push(`A source entity-owned value remains in the replacement party identity in block ${sourceBlock.blockId}; no authoritative replacement for the same entity and concept was found.`)
-    }
-
-    for (const group of identityAttributeGroups(sourceIdentity.clauses.slice(target.clauseIndex + 1))) {
-      const { label, value } = identityAttribute(group)
-      if (!valueOccurs(replacementIdentity, value)) continue
-      if (authoritativeValueForParty(input, target.key, label, value)) continue
-      findings.push(`A source entity-owned value remains in the replacement party identity in block ${sourceBlock.blockId}; no authoritative replacement for the same entity and concept was found.`)
-      break
-    }
-  }
-
-  return [...new Set(findings)]
-}
-
-const paymentAllocationClause = /(?:płat|plat|zapł|zapl|kwot|pozostał|należn|rata|raty|instalment|installment|deposit|reservation)/iu
-const reservationClause = /(?:opłat\p{L}*\s+rezerwacyj\p{L}*|reservation|deposit|zaliczk\p{L}*|zadat\p{L}*)/iu
-const reservationIntent = /(?:rezerw\p{L}*|zarezerw\p{L}*|reserve\p{L}*|booking|book\p{L}*|zabezpiecz\p{L}*|secure\p{L}*)/iu
-const paymentAction = /(?:opłat\p{L}*|wpłat\p{L}*|płat\p{L}*|zapł\p{L}*|kwot\p{L}*|payment|amount|pay\p{L}*)/iu
-function isReservationPayment(text: string): boolean {
-  return reservationClause.test(text) || (reservationIntent.test(text) && paymentAction.test(text))
-}
-const aggregateClause = /(?:suma|łącznie|razem|całość|total|aggregate)/iu
-const finalInstallmentClause = /(?:pozostał\p{L}*|ostatni\p{L}*|końcow\p{L}*|final\p{L}*|last\s+payment|remaining\s+payment)/iu
-const intermediateInstallmentReference = /(?:\b(?:first|second|third|fourth|intermediate|earlier|prior)\s+(?:payment|installment|instalment|rate)\b|\b(?:pierwsz\p{L}*|drug\p{L}*|trzeci\p{L}*|czwart\p{L}*|przedostatni\p{L}*|pośredni\p{L}*)\s+(?:płatno\p{L}*|rat\p{L}*))/iu
-const finalInstallmentReference = /(?:\b(?:final|last|remaining)\s+(?:payment|installment|instalment|rate)\b|\b(?:ostatni\p{L}*|końcow\p{L}*|pozostał\p{L}*)\s+(?:płatno\p{L}*|rat\p{L}*))/iu
-const PAYMENT_ALLOCATION_HELP = 'Podaj kwoty wymaganych płatności po opłacie rezerwacyjnej w kolejności wynikającej ze źródła. Jedna pozostała końcowa kwota może zostać wyliczona automatycznie z wartości umowy i zaliczki.'
-
-function sourceFinalInstallmentCount(input: GenerationInput): number {
-  return input.sourceDocument.blocks.flatMap((block) => {
-    if (/\b(?:katalog|opcjonaln|nie są objęte|not included|optional service)/iu.test(block.text)) return []
-    return block.text.split(/[.;!?\n]+/u).map((clause) => clause.trim())
-      .filter((clause) => clause && !aggregateClause.test(clause) && !isReservationPayment(clause) && paymentAllocationClause.test(clause) && finalInstallmentClause.test(clause) && moneyAmountsInGrosz(clause).length === 1)
-  }).length
-}
-
-function paymentTimingSignature(text: string): string[] {
-  const signature = dateTimestampsInText(text).map((timestamp) => `date:${timestamp}`)
-  const durationPattern = /(\d+)\s*(days?|dni|weeks?|tygodni\p{L}*|months?|miesięcy|miesiąc\p{L}*)\s*(before|after|przed|po)|\b(before|after|przed|po)\s*(\d+)\s*(days?|dni|weeks?|tygodni\p{L}*|months?|miesięcy|miesiąc\p{L}*)/giu
-  const unit = (value: string) => /^(?:day|dni)/iu.test(value) ? 'days' : /^(?:week|tygodni)/iu.test(value) ? 'weeks' : 'months'
-  for (const match of text.matchAll(durationPattern)) {
-    const amount = Number(match[1] ?? match[5])
-    const rawUnit = match[2] ?? match[6]!
-    const direction = match[3] ?? match[4]!
-    signature.push(`offset:${amount}:${unit(rawUnit)}:${/^(?:before|przed)$/iu.test(direction) ? 'before' : 'after'}`)
-  }
-  if (/\b(?:before|przed)\b/iu.test(text)) signature.push('relation:before')
-  if (/\b(?:after|po)\b/iu.test(text)) signature.push('relation:after')
-  if (/\b(?:by|do|najpóźniej|no later than)\b/iu.test(text)) signature.push('relation:deadline')
-  if (/\b(?:wedding|ślub|wesele|event|wydarzeni\p{L}*)\b/iu.test(text)) signature.push('anchor:event')
-  if (/\b(?:contract|agreement|umow\p{L}*|conclusion|zawarci\p{L}*)\b/iu.test(text)) signature.push('anchor:contract')
-  return [...new Set(signature)].sort()
-}
-
-type PaymentObligation = { blockId: string; clauseIndex: number; text: string; amounts: number[] }
-
-function postReservationPaymentObligations(blocks: SourceBlock[]): PaymentObligation[] {
-  return blocks.flatMap((block) => {
-    if (/\b(?:katalog|opcjonaln|nie są objęte|not included|optional service)/iu.test(block.text)) return []
-    return block.text.split(/[.;!?\n]+/u).flatMap((clause, clauseIndex) => {
-      const text = clause.trim()
-      const ordinaryDeposit = /\bwpłat\p{L}*/iu.test(text) && !intermediateInstallmentReference.test(text)
-      if (!text || aggregateClause.test(text) || isReservationPayment(text) || ordinaryDeposit || !paymentAllocationClause.test(text)) return []
-      const amounts = moneyAmountsInGrosz(text)
-      return amounts.length ? [{ blockId: block.blockId, clauseIndex, text, amounts }] : []
-    })
-  })
-}
-
-export function classifyPaymentObligations(blocks: SourceBlock[]): { reservation: number; postReservation: number } {
-  const reservation = blocks.flatMap((block) => {
-    if (/\b(?:katalog|opcjonaln|nie są objęte|not included|optional service)/iu.test(block.text)) return []
-    return block.text.split(/[.;!?\n]+/u).map((clause) => clause.trim())
-      .filter((clause) => clause && isReservationPayment(clause) && moneyAmountsInGrosz(clause).length > 0)
-  }).length
-  return { reservation, postReservation: postReservationPaymentObligations(blocks).length }
-}
-
-function sourcePaymentObligations(input: GenerationInput): number[][] {
-  return postReservationPaymentObligations(input.sourceDocument.blocks).map((obligation) => obligation.amounts)
-}
-
-function hasNegativePostReservationPayment(blocks: SourceBlock[]): boolean {
-  return blocks.some((block) => {
-    if (/\b(?:katalog|opcjonaln|nie są objęte|not included|optional service)/iu.test(block.text)) return false
-    return block.text.split(/[.;!?\n]+/u).some((clause) => {
-      const trimmed = clause.trim()
-      return trimmed && !aggregateClause.test(trimmed) && !isReservationPayment(trimmed) && paymentAllocationClause.test(trimmed) && /[-−]\s*(?:\d{1,3}(?:[ \u00a0\u202f]\d{3})+|\d+)(?:[,.]\d{2})?\s*zł/iu.test(trimmed)
-    })
-  })
-}
-
-function explicitPaymentAnswers(input: GenerationInput): Array<{ amounts: number[]; text: string }> {
-  const allocationAnswers = input.userProvidedAnswers.filter((answer) => /payment|installment|allocation|schedule|rata|płatno|platno|harmonogram/iu.test(answer.id))
-  return allocationAnswers.flatMap((answer) => {
-    const currencyAmounts = /zł/iu.test(answer.value) ? moneyAmountsInGrosz(answer.value) : []
-    const amounts = currencyAmounts.length ? currencyAmounts : [...answer.value.matchAll(/(?<![\p{L}\p{N}])(?:\d{1,3}(?:[ \u00a0\u202f]\d{3})+|\d+)(?![\p{L}\p{N}])/gu)]
-      .map((match) => Number(match[0].replace(/[\s\u00a0\u202f]/gu, '').replace(',', '.')))
-      .filter((amount) => Number.isSafeInteger(amount) && amount >= 0)
-      .map((amount) => amount * 100)
-    return amounts.length ? [{ amounts, text: `${answer.id} ${answer.value}` }] : []
-  })
-}
-
-function deriveFinalInstallment(input: GenerationInput): { amountGrosz: number; fact: GenerationInput['deterministicDerivedFacts'][number] } | undefined {
-  const obligations = sourcePaymentObligations(input)
-  const answers = explicitPaymentAnswers(input)
-  const suppliedAmounts = answers.flatMap((answer) => answer.amounts)
-  if (obligations.length < 2 || suppliedAmounts.length !== obligations.length - 1) return undefined
-  if (sourceFinalInstallmentCount(input) !== 1 || answers.some((answer) => finalInstallmentReference.test(answer.text)) || answers.some((answer) => !intermediateInstallmentReference.test(answer.text))) return undefined
-  const remainingGrosz = input.financials.remainingPln * 100
-  const amountGrosz = remainingGrosz - suppliedAmounts.reduce((sum, amount) => sum + amount, 0)
-  if (!Number.isSafeInteger(amountGrosz) || amountGrosz < 0) return undefined
-  const amountPln = amountGrosz / 100
-  return {
-    amountGrosz,
-    fact: {
-      concept: 'final installment amount',
-      value: formatPlnInteger(amountPln),
-      derivation: 'contract total minus deposit and all authoritative intermediate installment amounts',
-    },
-  }
-}
-
-export function addPaymentAllocationHelp(input: GenerationInput, missingInputs: MissingInput[]): MissingInput[] {
-  const obligations = sourcePaymentObligations(input)
-  if (obligations.length < 2 || sourceFinalInstallmentCount(input) !== 1) return missingInputs
-  return missingInputs.map((item) => /payment|installment|allocation|schedule|rata|płatno|platno|harmonogram/iu.test(`${item.id} ${item.label}`)
-    ? { ...item, infoText: item.infoText ?? PAYMENT_ALLOCATION_HELP }
-    : item)
-}
-
-function explicitPaymentAllocation(input: GenerationInput): number[] {
-  return explicitPaymentAnswers(input).flatMap((answer) => answer.amounts)
-}
-
-export function validatePlannedPaymentAllocation(input: GenerationInput, operations: BlockOperation[]): string[] {
-  const sourceDetails = postReservationPaymentObligations(input.sourceDocument.blocks)
-  const sourceObligations = sourceDetails.map((obligation) => obligation.amounts)
-  if (sourceObligations.length <= 1) return []
-
-  const supportedAmounts = explicitPaymentAllocation(input)
-  const derived = deriveFinalInstallment(input)
-  const expectedByObligation: Array<number | undefined> = Array(sourceObligations.length).fill(undefined)
-  if (derived) {
-    const finalIndex = sourceDetails.findIndex((obligation) => finalInstallmentClause.test(obligation.text) && obligation.amounts.length === 1)
-    if (finalIndex < 0) return ['Payment-allocation plan validation failed: the source-defined final obligation could not be matched to a payment position.']
-    const intermediateIndexes = sourceDetails.flatMap((_, index) => index === finalIndex ? [] : [index])
-    if (supportedAmounts.length !== intermediateIndexes.length) {
-      return ['Payment-allocation plan validation failed: authoritative intermediate amounts cannot be mapped one-to-one to source payment obligations.']
-    }
-    intermediateIndexes.forEach((index, amountIndex) => { expectedByObligation[index] = supportedAmounts[amountIndex] })
-    expectedByObligation[finalIndex] = derived.amountGrosz
-  } else if (supportedAmounts.length === sourceObligations.length) {
-    supportedAmounts.forEach((amount, index) => { expectedByObligation[index] = amount })
-  }
-  const completeAmounts = expectedByObligation.filter((amount): amount is number => amount !== undefined)
-  if (completeAmounts.length !== sourceObligations.length) {
-    return ['Payment-allocation plan validation failed: the source requires multiple distinct post-reservation payment obligations, but authoritative input provides only an aggregate amount and no complete detailed allocation.']
-  }
-  if (completeAmounts.reduce((sum, amount) => sum + amount, 0) !== input.financials.remainingPln * 100) {
-    return ['Payment-allocation plan validation failed: explicit installment amounts conflict with the authoritative remaining contract balance.']
-  }
-
-  const replacementMap = new Map(operations.flatMap((operation) => operation.operation === 'REPLACE_BLOCK_TEXT' ? [[operation.blockId, operation.finalText] as const] : []))
-  const plannedBlocks = input.sourceDocument.blocks.map((block) => ({ ...block, text: replacementMap.get(block.blockId) ?? block.text }))
-  const plannedObligations = postReservationPaymentObligations(plannedBlocks)
-  if (plannedObligations.length !== expectedByObligation.length || plannedObligations.some((obligation, index) => {
-    const source = sourceDetails[index]!
-    const sourceTiming = paymentTimingSignature(source.text)
-    return obligation.amounts.length !== 1 || obligation.amounts[0] !== expectedByObligation[index]
-      || (sourceTiming.length > 0 && JSON.stringify(paymentTimingSignature(obligation.text)) !== JSON.stringify(sourceTiming))
-  })) {
-    return ['Payment-allocation plan validation failed: payment amounts or recognized timing do not match their source-ordered obligations.']
-  }
-  return []
-}
-
-export function validatePlannedTransformation(input: GenerationInput, operations: BlockOperation[]): string[] {
-  return [...validatePlannedConclusion(input, operations), ...validatePlannedEntityFacts(input, operations), ...validatePlannedDocumentOwnedFacts(input, operations), ...validatePlannedPaymentAllocation(input, operations)]
-}
-
-export function findInputConflicts(input: GenerationInput): ConflictInput[] {
-  const conclusionDate = input.conclusion.replacementDate ?? input.generationDate
-  const conclusionTimestamp = parsePolishDate(conclusionDate)
-  const paymentTimestamp = parsePolishDate(input.wedding.remainingDueDate)
-  const weddingTimestamp = parsePolishDate(input.wedding.weddingDate)
-  if (conclusionTimestamp === undefined) return []
-  const conflicts: ConflictInput[] = []
-  if (paymentTimestamp !== undefined && paymentTimestamp < conclusionTimestamp) conflicts.push({
-    id: 'remaining-payment-before-conclusion',
-    field: 'wedding.remainingDueDate',
-    label: 'Termin płatności pozostałej kwoty',
-    explanation: 'Termin pozostałej płatności przypada przed datą zawarcia umowy. Podaj ręcznie poprawną datę albo skoryguj datę zawarcia umowy.',
-    inputType: 'date',
-    currentValue: input.wedding.remainingDueDate,
-    relatedValues: [{ label: 'Data zawarcia umowy', value: conclusionDate }],
-    required: true,
-  })
-  const sourceUsesFutureEventWording = input.sourceDocument.blocks.some((block) => /(?:które|która) odbęd(?:ą|zie) się/i.test(block.text))
-  if (weddingTimestamp !== undefined && weddingTimestamp < conclusionTimestamp && sourceUsesFutureEventWording) conflicts.push({
-    id: 'wedding-before-conclusion',
-    field: 'generationDate',
-    label: 'Data zawarcia umowy względem wydarzenia',
-    explanation: 'Umowa jest datowana po wydarzeniu, które źródłowa umowa opisuje jako przyszłe. Podaj ręcznie poprawną datę zawarcia umowy albo datę wydarzenia.',
-    inputType: 'date',
-    currentValue: conclusionDate,
-    relatedValues: [{ label: 'Data ślubu', value: input.wedding.weddingDate }],
-    required: true,
-  })
-  return conflicts
-}
-
-export function applyConflictOverrides(input: GenerationInput, overrides: ConflictOverride[]): GenerationInput {
-  let next = input
-  for (const override of overrides) {
-    if (override.id === 'remaining-payment-before-conclusion') {
-      next = { ...next, wedding: { ...next.wedding, remainingDueDate: override.value } }
-    }
-    if (override.id === 'wedding-before-conclusion') {
-      next = { ...next, generationDate: override.value, conclusion: { ...next.conclusion, replacementDate: next.conclusion.replaceDate ? override.value : next.conclusion.replacementDate } }
-    }
-  }
-  return next
-}
-
-export function formatPlnInteger(amount: number): string {
-  if (!Number.isSafeInteger(amount) || amount < 0) throw new Error('PLN amount must be a non-negative safe integer')
-  return `${String(amount).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} zł`
-}
-
-export function moneyAmountsInGrosz(text: string): number[] {
-  const amounts: number[] = []
-  const pattern = /(?<![\p{L}\p{N}])((?:\d{1,3}(?:[ \u00a0\u202f]\d{3})+|\d+)(?:[,.]\d{2})?)\s*zł(?![\p{L}\p{N}])/giu
-  for (const match of text.matchAll(pattern)) {
-    const value = match[1]!.replace(/[\s\u00a0\u202f]/g, '')
-    const [whole, fractional = '00'] = value.split(/[,.]/)
-    const integer = Number(whole)
-    const cents = Number(fractional)
-    if (Number.isSafeInteger(integer) && Number.isInteger(cents)) amounts.push(integer * 100 + cents)
-  }
-  return amounts
-}
-
-export function hasMoneyAmount(text: string, authoritativePln: number): boolean {
-  return Number.isSafeInteger(authoritativePln) && authoritativePln >= 0 && moneyAmountsInGrosz(text).includes(authoritativePln * 100)
-}
-
-export function normalizeAuthoritativePlnText(text: string, amounts: number[]): string {
-  const authoritative = new Set(amounts)
-  return text.replace(/(^|[^\p{L}\p{N}])(\d[\d\s\u00a0\u202f]*)\s*zł(?![\p{L}\p{N}])/giu, (token, boundary: string, digits: string) => {
-    const amount = Number(digits.replace(/[\s\u00a0\u202f]/g, ''))
-    return authoritative.has(amount) ? `${boundary}${formatPlnInteger(amount)}` : token
-  })
-}
-
-export function normalizeAuthoritativeFinancialBlocks<T extends { text: string }>(blocks: T[], amounts: number[]): Array<{ block: T; text: string }> {
-  const uniqueAmounts = [...new Set(amounts)]
-  return blocks.flatMap((block) => {
-    const text = normalizeAuthoritativePlnText(block.text, uniqueAmounts)
-    return text === block.text ? [] : [{ block, text }]
-  })
-}
-
-export function comparePhoneDigits(authoritative: string, candidate: string): boolean {
-  const normalized = (value: string) => value.replace(/[\s()\-]/g, '')
-  return normalized(authoritative) === normalized(candidate)
-}
-
-export function hasExactFact(candidateText: string, authoritativeValue: string): boolean {
-  return normalize(candidateText).includes(normalize(authoritativeValue))
-}
-
-export function hasPolishNameFacts(candidateText: string, authoritativeName: string): boolean {
-  if (hasExactFact(candidateText, authoritativeName)) return true
-  const words = (value: string) => value.normalize('NFC').toLocaleLowerCase('pl-PL').match(/[\p{L}]+/gu) ?? []
-  const expectedWords = words(authoritativeName)
-  const candidateWords = words(candidateText)
-  return expectedWords.length > 0 && expectedWords.every((expected) => {
-    const prefixLength = expected.length <= 4 ? expected.length : Math.max(4, expected.length - 2)
-    const prefix = expected.slice(0, prefixLength)
-    return candidateWords.some((candidate) => candidate.startsWith(prefix) && Math.abs(candidate.length - expected.length) <= 3)
-  })
-}
-
-export function hasNaturalLocationFacts(candidateText: string, authoritativeLocation: string): boolean {
-  const postalCode = authoritativeLocation.match(/\b\d{2}-\d{3}\b/)?.[0]
-  if (!postalCode || !candidateText.includes(postalCode)) return false
-  const beforePostal = authoritativeLocation.slice(0, authoritativeLocation.indexOf(postalCode))
-  const streetNumber = [...beforePostal.matchAll(/\b\d+(?:\/\d+)?\b/g)].at(-1)?.[0]
-  if (!streetNumber) return false
-  const escapedPostal = postalCode.replace('-', '\\-')
-  const escapedNumber = streetNumber.replace('/', '\\/')
-  const addressPattern = new RegExp(`\\b${escapedNumber}\\b.{0,120}\\b${escapedPostal}\\b`)
-  const addressMatch = addressPattern.exec(candidateText)
-  if (!addressMatch) return false
-  const streetName = authoritativeLocation.match(/\bul\.?\s+(.+?)\s+\d+(?:\/\d+)?/i)?.[1]
-  const start = Math.max(0, addressMatch.index - 100)
-  return !streetName || hasPolishNameFacts(candidateText.slice(start, addressMatch.index + addressMatch[0].length), streetName)
-}
-
-export function findStaleValues(candidateText: string, staleValues: string[]): string[] {
-  const flat = normalize(candidateText)
-  return staleValues.filter((value) => flat.includes(normalize(value)))
+  return signatures
 }
 
 async function readDocumentProperties(bytes: ArrayBuffer): Promise<DocumentPropertyText[]> {
@@ -766,403 +228,156 @@ async function readDocumentProperties(bytes: ArrayBuffer): Promise<DocumentPrope
   const core = zip.file('docProps/core.xml')
   if (!core) return []
   const xml = await core.async('string')
-  const properties: DocumentPropertyText[] = []
-  for (const match of xml.matchAll(/<([\w.-]+(?::[\w.-]+)?)\b[^>]*>([^<>]*)<\/\1\s*>/g)) {
+  return [...xml.matchAll(/<([\w.-]+(?::[\w.-]+)?)\b[^>]*>([^<>]*)<\/\1\s*>/g)].flatMap((match) => {
     const text = unescapeXml(match[2]!).trim()
-    if (!text) continue
-    properties.push({ part: 'docProps/core.xml', property: match[1]!.split(':').at(-1)!, text })
-  }
-  return properties
+    return text ? [{ part: 'docProps/core.xml', property: match[1]!.split(':').at(-1)!, text }] : []
+  })
 }
 
 export async function readSource(bytes: ArrayBuffer, fileName: string): Promise<GenerationInput['sourceDocument']> {
-  const [blocks, documentProperties] = await Promise.all([
-    (await import('./blockDocxEditor')).buildBlockIndex(bytes),
-    readDocumentProperties(bytes),
-  ])
-  return { fileName, blocks: blocks.map((block) => ({ ...block, contentClass: classifyBlock(block.text) })), documentProperties }
+  const [blocks, documentProperties] = await Promise.all([(await import('./blockDocxEditor')).buildBlockIndex(bytes), readDocumentProperties(bytes)])
+  return { fileName, blocks, documentProperties }
 }
 
-export function makeInput(args: Omit<GenerationInput, 'financials' | 'conclusion' | 'deterministicDerivedFacts'>): GenerationInput {
-  const remainingPln = args.wedding.contractValuePln - args.wedding.depositPln
-  if (remainingPln < 0) throw new Error('Deposit exceeds contract value')
-  const financials = { contractValuePln: args.wedding.contractValuePln, depositPln: args.wedding.depositPln, remainingPln }
-  const base: GenerationInput = { ...args, conclusion: conclusionRule(args.sourceDocument.blocks, args.generationDate), financials, deterministicDerivedFacts: [] }
-  const derived = deriveFinalInstallment(base)
-  return derived ? { ...base, deterministicDerivedFacts: [derived.fact] } : base
+export function makeInput(args: Omit<GenerationInput, 'financials' | 'deterministicDerivedFacts'>): GenerationInput {
+  const total = args.wedding.contractValuePln
+  const deposit = args.wedding.depositPln
+  const remaining = total - deposit
+  if (![total, deposit, remaining].every(Number.isSafeInteger) || remaining < 0) throw new Error('Contract arithmetic is invalid')
+  const base: GenerationInput = { ...args, financials: { contractValuePln: total, depositPln: deposit, remainingPln: remaining }, deterministicDerivedFacts: [] }
+  return { ...base, deterministicDerivedFacts: [{ ref: 'financials.remainingPln', value: String(remaining), operation: 'subtract', inputRefs: ['crm:financials.contractValuePln', 'crm:financials.depositPln'] }] }
 }
 
-export function conclusionRule(sourceBlocks: SourceBlock[], generationDate: string): GenerationInput['conclusion'] {
-  const openingBlock = sourceBlocks.find((block) => conclusionVerb.test(block.text))
-  const opening = openingBlock?.text ?? ''
-  const sourceDateMatch = conclusionDateInText(opening)
-  const hasDate = Boolean(generationDate.trim()) && Boolean(sourceDateMatch)
-  return {
-    replaceDate: hasDate,
-    ...(sourceDateMatch?.timestamp !== undefined ? { sourceDate: numericDate(sourceDateMatch.timestamp) } : {}),
-    ...(openingBlock?.blockId ? { sourceBlockId: openingBlock.blockId } : {}),
-    ...(hasDate ? { replacementDate: generationDate } : {}),
-    ...(conclusionPlaceInText(opening) ? { preservePlace: conclusionPlaceInText(opening) } : {}),
+export function formatPlnInteger(amount: number): string {
+  if (!Number.isSafeInteger(amount) || amount < 0) throw new Error('PLN amount must be a non-negative safe integer')
+  return `${String(amount).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} zł`
+}
+export function moneyAmountsInGrosz(text: string): number[] {
+  const amounts: number[] = []
+  for (const match of text.matchAll(/(?<![\p{L}\p{N}])((?:\d{1,3}(?:[ \u00a0\u202f]\d{3})+|\d+)(?:[,.]\d{2})?)\s*zł(?![\p{L}\p{N}])/giu)) {
+    const [whole, fractional = '00'] = match[1]!.replace(/[\s\u00a0\u202f]/g, '').split(/[,.]/)
+    const integer = Number(whole); const cents = Number(fractional)
+    if (Number.isSafeInteger(integer) && Number.isInteger(cents)) amounts.push(integer * 100 + cents)
   }
+  return amounts
 }
-
-function candidateText(blocks: SourceBlock[]): string { return blocks.map((b) => b.text).join('\n') }
-function normalize(text: string): string { return text.normalize('NFC').replace(/\s+/g, ' ').trim() }
-
-export async function runGeneration(sourceBytes: ArrayBuffer, input: GenerationInput, ai: ContractAi): Promise<GenerationResult> {
-  const conflicts = findInputConflicts(input)
-  if (conflicts.length) return { status: 'CONFLICT_INPUT', conflicts }
-  const planned = await ai.plan(input)
-  const missingInputs = [...planned.missingInputs, ...findMissingDocumentOwnedFacts(input)]
-  const status: PlannerResponseStatus = missingInputs.some((x) => x.required) ? 'MISSING_INPUT' : 'READY'
-  const responseOperations = sanitizePlannerOperations(status, planned.blockOperations)
-  if (status === 'MISSING_INPUT') return { status, missingInputs: addPaymentAllocationHelp(input, missingInputs) }
-  if (!planned.blockOperations) return { status: 'FAILED', issues: ['Plan nie zawiera operacji blokowych'] }
-  const planIssues = validatePlannedTransformation(input, responseOperations.operations)
-  if (planIssues.length) return { status: 'FAILED', issues: planIssues }
-  const authoritativeAmounts = [input.financials.contractValuePln, input.financials.depositPln, input.financials.remainingPln]
-  const normalizedOperations = responseOperations.operations.map((operation) => 'finalText' in operation
-    ? { ...operation, finalText: normalizeAuthoritativePlnText(operation.finalText, authoritativeAmounts) }
-    : operation)
-  const plannedBlockIds = new Set(normalizedOperations.flatMap((operation) => 'blockId' in operation ? [operation.blockId] : []))
-  const financialBlockOperations: BlockOperation[] = normalizeAuthoritativeFinancialBlocks(input.sourceDocument.blocks, authoritativeAmounts)
-    .filter(({ block }) => !plannedBlockIds.has(block.blockId))
-    .map(({ block, text }) => ({ blockId: block.blockId, operation: 'REPLACE_BLOCK_TEXT', finalText: text }))
-  const completeOperations = [...normalizedOperations, ...financialBlockOperations]
-  const blockEditedBytes = await applyBlockOperations(sourceBytes, completeOperations)
-  const candidateBytes = await applyDocumentOwnedPropertyReplacements(blockEditedBytes, input)
-  const blocks = (await readSource(candidateBytes, input.sourceDocument.fileName)).blocks
-  const safety = await validateCandidate(sourceBytes, candidateBytes, input, completeOperations)
-  if (safety.length) return { status: 'FAILED', issues: safety }
-  const review = await ai.review({ source: input.sourceDocument, input, candidate: blocks })
-  if (review.status === 'FAIL') return { status: 'FAILED', issues: review.issues }
-  return { status: 'COMPLETED', docxBytes: candidateBytes, review }
-}
-
-function xmlWithTextValuesMasked(xml: string): string {
-  return xml.replace(/(<w:t\b[^>]*>)[\s\S]*?(<\/w:t>)/g, '$1__TEXT__$2')
-}
-
-function wordFieldInstructions(xml: string): string[] {
-  const instructions = [
-    ...[...xml.matchAll(/<w:instrText(?:\s[^>]*)?>([\s\S]*?)<\/w:instrText>/g)].map((match) => unescapeXml(match[1]!).trim().replace(/\s+/g, ' ').toUpperCase()),
-    ...[...xml.matchAll(/<w:fldSimple\b[^>]*\bw:instr\s*=\s*["']([^"']*)["']/g)].map((match) => unescapeXml(match[1]!).trim().replace(/\s+/g, ' ').toUpperCase()),
-  ]
-  return instructions
-}
-
-const eventCue = /\b(?:uroczysto\p{L}*|ślub\p{L}*|wesel\p{L}*|wydarzeni\p{L}*)\b/iu
-
-function datesFollowingEventCue(text: string): number[] {
-  const cue = eventCue.exec(text)
-  return cue ? dateTimestampsInText(text.slice(cue.index + cue[0].length)) : []
-}
-
-function sourceEventBlocks(blocks: SourceBlock[]): SourceBlock[] {
-  return blocks.filter((block) => datesFollowingEventCue(block.text).length > 0)
-}
-
-function sourceContainsPartyPhone(blocks: SourceBlock[], person: 'bride' | 'groom'): boolean {
-  const rolePattern = person === 'bride'
-    ? /\b(?:zleceniodawczyni|klientka|panna młoda|par\p{L}*\s+młod\p{L}*)\b/iu
-    : /\b(?:zleceniodawca|klient\b|pan młody|par\p{L}*\s+młod\p{L}*)\b/iu
-  const phonePattern = /(?:\+?\d[\d\s()-]{6,}\d)/u
-  if (blocks.some((block) => rolePattern.test(`${block.text} ${block.context}`) && /\b(?:tel\.?|telefon|phone)\b/i.test(`${block.text} ${block.context}`) && phonePattern.test(block.text))) return true
-
-  const tableCell = (block: SourceBlock) => block.context.match(/Table (\d+), row (\d+), cell (\d+)/)
-  const headerContactColumns = new Set<string>()
-  for (const block of blocks) {
-    const coordinates = tableCell(block)
-    if (coordinates?.[2] === '0' && /\b(?:kontakt|contact)\b/i.test(block.text)) headerContactColumns.add(`${coordinates[1]}:${coordinates[3]}`)
-  }
-  const rows = new Map<string, SourceBlock[]>()
-  for (const block of blocks) {
-    const coordinates = tableCell(block)
-    if (!coordinates) continue
-    const key = `${coordinates[1]}:${coordinates[2]}`
-    rows.set(key, [...(rows.get(key) ?? []), block])
-  }
-  return [...rows.values()].some((row) => {
-    if (!row.some((block) => rolePattern.test(block.text))) return false
-    return row.some((block) => {
-      const coordinates = tableCell(block)
-      return !!coordinates && headerContactColumns.has(`${coordinates[1]}:${coordinates[3]}`) && phonePattern.test(block.text)
-    })
+export function normalizeAuthoritativePlnText(text: string, amounts: number[]): string {
+  const authoritative = new Set(amounts)
+  return text.replace(/(^|[^\p{L}\p{N}])(\d[\d\s\u00a0\u202f]*)\s*zł(?![\p{L}\p{N}])/giu, (token, boundary: string, digits: string) => {
+    const amount = Number(digits.replace(/[\s\u00a0\u202f]/g, ''))
+    return authoritative.has(amount) ? `${boundary}${formatPlnInteger(amount)}` : token
   })
 }
-
-function sourcePackageDefinitionBlocks(blocks: SourceBlock[]): SourceBlock[] {
-  const scopeHeading = /\b(?:pakiet|usług\p{L}*|zakres|przedmiot(?:em)?|wariant|opcj\p{L}*|wybran\p{L}*|service|scope|subject|option|variant)\b/iu
-  const scopeDefinition = /\b(?:obejmuje|obejmują|zapewnia|składa się|zakres|jest|includes|provides|consists of|is|selected)\b|[:–—]\s*$/iu
-  const serviceDetail = /\b(?:video|teledysk|film|ujęci\p{L}*|fotograf\p{L}*|zdję\p{L}*|reportaż\p{L}*|realizac\p{L}*|nagran\p{L}*|album\p{L}*|galeri\p{L}*|wydruk\p{L}*|godzin\p{L}*|minut\p{L}*)\b/iu
-  const financialText = /\b(?:wynagrodzen|kwot[ay]|zapłac|wpłat|płatn|zł|pln|fee|payment)\b/iu
-  const listItem = /^\s*(?:\d+(?:\.\d+)*[.)]|[\p{L}][.)]|[•*–—-])\s+/u
-  const selected = new Set<string>()
-  for (let index = 0; index < blocks.length; index++) {
-    const block = blocks[index]!
-    if (!scopeHeading.test(block.text) || !scopeDefinition.test(block.text) || !serviceDetail.test(block.text) || financialText.test(block.text)) continue
-    selected.add(block.blockId)
-    for (let next = index + 1; next < blocks.length; next++) {
-      const item = blocks[next]!
-      if (!listItem.test(item.text)) break
-      if (serviceDetail.test(item.text) && !financialText.test(item.text)) selected.add(item.blockId)
-    }
-  }
-  return blocks.filter((block) => selected.has(block.blockId))
+export function normalizeAuthoritativeFinancialBlocks<T extends { text: string }>(blocks: T[], amounts: number[]): Array<{ block: T; text: string }> {
+  return blocks.flatMap((block) => { const text = normalizeAuthoritativePlnText(block.text, [...new Set(amounts)]); return text === block.text ? [] : [{ block, text }] })
+}
+function replaceLiteralInXml(xml: string, oldValue: string, newValue: string): string {
+  const escaped = escapeXml(oldValue)
+  return xml.replaceAll(escaped, escapeXml(newValue))
+}
+export async function applyMetadataFactChanges(bytes: ArrayBuffer, changes: FactChange[]): Promise<ArrayBuffer> {
+  const replacements = changes.flatMap((change) => change.oldValues.filter((oldValue) => normalize(oldValue) !== normalize(change.newValue)).map((oldValue) => ({ oldValue, newValue: change.newValue })))
+  if (!replacements.length) return bytes
+  const zip = await JSZip.loadAsync(bytes)
+  const path = 'docProps/core.xml'
+  const file = zip.file(path)
+  if (!file) return bytes
+  let xml = await file.async('string')
+  for (const replacement of replacements) xml = replaceLiteralInXml(xml, replacement.oldValue, replacement.newValue)
+  zip.file(path, xml)
+  return zip.generateAsync({ type: 'arraybuffer' })
 }
 
-function tableCellCoordinates(block: EditableBlock): string | undefined {
-  const match = block.context.match(/Table (\d+), row (\d+), cell (\d+)/)
-  return match ? `${match[1]}:${match[2]}:${match[3]}` : undefined
-}
-
-function approvedReplacementMatchesCandidate(
-  operation: Extract<BlockOperation, { operation: 'REPLACE_BLOCK_TEXT' }>,
-  sourceBlocks: SourceBlock[],
-  candidateBlocks: SourceBlock[],
-): boolean {
-  const sourceBlock = sourceBlocks.find((block) => block.blockId === operation.blockId)
-  if (!sourceBlock) return false
-  const expected = normalize(operation.finalText)
-  if (candidateBlocks.some((block) => block.blockId === operation.blockId && normalize(block.text) === expected)) return true
-  const coordinates = tableCellCoordinates(sourceBlock)
-  return !!coordinates && candidateBlocks.some((block) => block.part === sourceBlock.part && tableCellCoordinates(block) === coordinates && normalize(block.text) === expected)
-}
-
-const partyRoleLabel = /^(?:zleceniodawczyni|zleceniodawca|klientka|klient|zamawiająca|zamawiający)$/iu
-const partyNamePair = /^\s*([\p{Lu}][\p{L}'’.-]*)\s+([\p{Lu}][\p{L}'’.-]*)/u
-type PartyOwner = 'bride' | 'groom' | null
-type SourceCustomerName = { name: string; owner: PartyOwner }
-
-function customerOwner(label: string): PartyOwner {
-  if (/zleceniodawczyn|klientk|zamawiająca/iu.test(label)) return 'bride'
-  if (/zleceniodawca|zamawiający/iu.test(label)) return 'groom'
-  return null
-}
-
-function partyNameFingerprint(value: string): string[] {
-  return value.normalize('NFC').toLocaleLowerCase('pl-PL').match(/[\p{L}]+/gu)?.map((word) => word.replace(/ą$/u, '')) ?? []
-}
-
-function partyNamesMatch(text: string, name: string): boolean {
-  const expected = partyNameFingerprint(name)
-  const words = text.normalize('NFC').toLocaleLowerCase('pl-PL').match(/[\p{L}]+/gu) ?? []
-  if (expected.length < 2) return false
-  return words.some((_, index) => expected.every((part, offset) => {
-    const candidate = words[index + offset]
-    return !!candidate && candidate.startsWith(part) && candidate.length - part.length <= 2
-  }))
-}
-
-function firstNamePair(value: string): string | undefined {
-  const match = partyNamePair.exec(value)
-  return match ? `${match[1]} ${match[2]}` : undefined
-}
-
-function customerPartyNames(sourceBlocks: SourceBlock[], documentXml: string): SourceCustomerName[] {
-  const names = new Map<string, SourceCustomerName>()
-  const addName = (name: string, owner: PartyOwner) => names.set(`${owner ?? 'unknown'}:${name}`, { name, owner })
-  const paragraphXml = [...documentXml.matchAll(/<w:p\b[\s\S]*?<\/w:p>/g)].map((match) => match[0])
-  const byTableRow = new Map<string, SourceBlock[]>()
-  for (const block of sourceBlocks) {
-    const coordinates = block.context.match(/Table (\d+), row (\d+), cell (\d+)/)
-    if (!coordinates) continue
-    const rowKey = `${coordinates[1]}:${coordinates[2]}`
-    byTableRow.set(rowKey, [...(byTableRow.get(rowKey) ?? []), block])
-  }
-  const firstXmlText = (block: SourceBlock): string | undefined => {
-    const xml = paragraphXml[block.index]
-    const raw = xml?.match(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/)?.[1]
-    return raw ? unescapeXml(raw).trim() : undefined
-  }
-
-  for (const block of sourceBlocks) {
-    const role = block.text.trim().replace(/[:\-–—]$/, '').trim()
-    if (partyRoleLabel.test(role)) {
-      const coordinates = block.context.match(/Table (\d+), row (\d+), cell (\d+)/)
-      if (coordinates) {
-        const rowKey = `${coordinates[1]}:${coordinates[2]}`
-        for (const related of byTableRow.get(rowKey) ?? []) {
-          if (related.blockId === block.blockId || related.contentClass === 'package_service') continue
-          const name = firstNamePair(firstXmlText(related) ?? '')
-          if (name) addName(name, customerOwner(role))
-        }
-      }
-    }
-
-    const inlineLabel = block.text.match(/\b(zleceniodawczyni|zleceniodawca|klientka|klient|zamawiająca|zamawiający)\s*[:\-–—]\s*(.*)$/iu)
-    const inlineName = inlineLabel?.[2] ? firstNamePair(inlineLabel[2]) : undefined
-    if (inlineName && inlineLabel?.[1]) addName(inlineName, customerOwner(inlineLabel[1]))
-
-    const customerAlias = /\b(?:zwaną|zwany|zwane)\s+(?:dalej\s+)?[„"']?(klient\p{L}*|parą\s+młodą|zleceniodawczyni|zleceniodawca)\b/giu
-    const aliases = [...block.text.matchAll(customerAlias)]
-    const alias = aliases.at(-1)
-    if (!alias || alias.index === undefined) continue
-    const prefix = block.text.slice(0, alias.index)
-    const lastJoin = [...prefix.matchAll(/(?:\bpomiędzy\s+|,\s*a\s+)/giu)].at(-1)
-    if (!lastJoin || lastJoin.index === undefined) continue
-    const name = firstNamePair(prefix.slice(lastJoin.index + lastJoin[0].length))
-    if (name) addName(name, customerOwner(alias[1] ?? ''))
-  }
-  return [...names.values()]
-}
-
-export async function validateCandidate(
-  sourceBytes: ArrayBuffer,
-  candidateBytes: ArrayBuffer,
-  input: GenerationInput,
-  approvedOperations: BlockOperation[] = [],
-): Promise<string[]> {
+export async function validateCandidate(sourceBytes: ArrayBuffer, candidateBytes: ArrayBuffer, input: GenerationInput, inventory: SourceInventory, plan: PlanResult, approvedOperations: BlockOperation[] = []): Promise<string[]> {
   const issues: string[] = []
+  issues.push(...validateAuthorityGate(input, inventory, plan))
   let sourceZip: JSZip; let candidateZip: JSZip
-  try { sourceZip = await JSZip.loadAsync(sourceBytes); candidateZip = await JSZip.loadAsync(candidateBytes) } catch { return ['Nie można otworzyć pakietu DOCX'] }
-  const sourceDocument = await readSource(sourceBytes, input.sourceDocument.fileName)
-  const candidateDocument = await readSource(candidateBytes, input.sourceDocument.fileName)
-  issues.push(...validateCandidateDocumentOwnedFacts(sourceDocument, candidateDocument, input))
-  const text = candidateText(candidateDocument.blocks)
-  const flat = normalize(text)
-  const authoritativePartyNames = [input.wedding.bride.name, input.wedding.groom.name]
-  for (const staleParty of customerPartyNames(sourceDocument.blocks, await sourceZip.file('word/document.xml')!.async('string'))) {
-    const authoritativeNames = staleParty.owner ? [input.wedding[staleParty.owner].name] : authoritativePartyNames
-    if (authoritativeNames.some((name) => partyNamesMatch(name, staleParty.name))) continue
-    if (partyNamesMatch(flat, staleParty.name)) issues.push(`Pozostała stara wartość strony umowy: ${staleParty.name}`)
+  try { sourceZip = await JSZip.loadAsync(sourceBytes); candidateZip = await JSZip.loadAsync(candidateBytes) } catch { return ['Cannot open DOCX ZIP package'] }
+  let source: GenerationInput['sourceDocument']; let candidate: GenerationInput['sourceDocument']
+  try { [source, candidate] = await Promise.all([readSource(sourceBytes, 'source.docx'), readSource(candidateBytes, 'candidate.docx')]) } catch { return ['DOCX XML or document structure is invalid'] }
+  issues.push(...validateOperationTargets(source.blocks, approvedOperations))
+  const sourcePackageParts = Object.keys(sourceZip.files).filter((part) => !sourceZip.files[part]?.dir).sort()
+  const candidatePackageParts = Object.keys(candidateZip.files).filter((part) => !candidateZip.files[part]?.dir).sort()
+  if (JSON.stringify(sourcePackageParts) !== JSON.stringify(candidatePackageParts)) issues.push('DOCX package part set changed')
+  const permittedTextParts = new Set(['word/document.xml', 'docProps/core.xml', ...sourcePackageParts.filter((part) => /^word\/(?:header\d+|footer\d+)\.xml$/.test(part))])
+  for (const part of sourcePackageParts) {
+    if (permittedTextParts.has(part)) continue
+    const before = await sourceZip.file(part)!.async('uint8array')
+    const after = await candidateZip.file(part)?.async('uint8array')
+    if (!after || before.length !== after.length || before.some((byte, index) => byte !== after[index])) issues.push(`Untouched DOCX package part changed: ${part}`)
   }
-  const sourceText = sourceDocument.blocks.map((block) => block.text).join('\n')
-  const sourceRequiresContractAddress = sourceDocument.blocks.some((block) => {
-    const identity = formalClientIdentity(block.text)
-    return !!identity && identityAttributeGroups(identity.clauses.slice(1))
-      .some((group) => conceptsMatch(identityAttribute(group).label, 'address'))
-  })
-  if (sourceRequiresContractAddress && !hasNaturalLocationFacts(flat, input.wedding.contractAddress)) {
-    issues.push(`Brak prawidłowego adresu umownego: ${input.wedding.contractAddress}`)
+  const expectedMetadataBytes = await applyMetadataFactChanges(sourceBytes, plan.factChanges)
+  const expectedMetadataZip = await JSZip.loadAsync(expectedMetadataBytes)
+  const expectedCore = await expectedMetadataZip.file('docProps/core.xml')?.async('string')
+  const actualCore = await candidateZip.file('docProps/core.xml')?.async('string')
+  if (expectedCore !== actualCore) issues.push('Document properties contain a change outside declared literal replacements')
+  const changedIds = new Set(approvedOperations.flatMap((operation) => 'blockId' in operation ? [operation.blockId] : []))
+  for (const block of source.blocks) {
+    if (changedIds.has(block.blockId)) continue
+    const counterpart = candidate.blocks.find((item) => item.blockId === block.blockId)
+    if (!counterpart || counterpart.text !== block.text) issues.push(`Untouched block changed: ${block.blockId}`)
   }
-  const eventBlocks = sourceEventBlocks(sourceDocument.blocks)
-  if (eventBlocks.length) {
-    const candidateById = new Map(candidateDocument.blocks.map((block) => [block.blockId, block]))
-    const expectedWeddingDate = parsePolishDate(input.wedding.weddingDate)
-    const sourceConclusionDate = input.conclusion.sourceDate ? parsePolishDate(input.conclusion.sourceDate) : undefined
-    let weddingDateFound = false
-    for (const sourceBlock of eventBlocks) {
-      const cue = eventCue.exec(sourceBlock.text)
-      const suffixStart = cue ? cue.index + cue[0].length : 0
-      const sourceEventDates = dateTimestampsInText(sourceBlock.text.slice(suffixStart)).filter((date) => date !== sourceConclusionDate)
-      const candidateBlock = candidateById.get(sourceBlock.blockId)
-      if (!candidateBlock) continue
-      const candidateCue = eventCue.exec(candidateBlock.text)
-      const candidateSuffix = candidateCue ? candidateBlock.text.slice(candidateCue.index + candidateCue[0].length) : candidateBlock.text
-      const candidateEventDates = dateTimestampsInText(candidateSuffix)
-      if (expectedWeddingDate !== undefined && candidateEventDates.includes(expectedWeddingDate)) weddingDateFound = true
-      if (expectedWeddingDate !== undefined) {
-        for (const staleDate of sourceEventDates) {
-          if (staleDate !== expectedWeddingDate && candidateEventDates.includes(staleDate)) {
-            issues.push(`Pozostała stara data wydarzenia w ${sourceBlock.blockId}: ${numericDate(staleDate)}`)
-          }
-        }
-      }
-    }
-    if (!weddingDateFound) issues.push(`Brak prawidłowej daty wydarzenia: ${input.wedding.weddingDate}`)
+  const allText = [...findTextLocations(candidate).map((item) => item.text)]
+  const retained = new Set(plan.retainedLiterals.map((item) => normalize(item.value)))
+  for (const item of inventory.items) {
+    const replaced = plan.factChanges.some((change) => change.oldValues.some((value) => normalize(value) === normalize(item.value)) && change.sourceRefs.some((ref) => item.sourceRefs.includes(ref)))
+    if (!retained.has(normalize(item.value)) && !replaced) issues.push(`Inventory item has no final disposition: ${item.value}`)
   }
-  if (/(?:łączn\p{L}*\s+wartość|wartość|wynagrodzen\p{L}*|contract\s+total|total\s+fee)/iu.test(sourceText)
-    && !hasMoneyAmount(flat, input.financials.contractValuePln)) {
-    issues.push(`Brak prawidłowej kwoty wynagrodzenia: ${formatPlnInteger(input.financials.contractValuePln)}`)
+  for (const change of plan.factChanges) {
+    for (const oldValue of change.oldValues) if (!literalOccurs(change.newValue, oldValue) && allText.some((text) => literalOccurs(text, oldValue))) issues.push(`Declared old literal remains: ${oldValue}`)
+    if (!allText.some((text) => literalOccurs(text, change.newValue))) issues.push(`Declared new literal is absent: ${change.newValue}`)
   }
-  if (isReservationPayment(sourceText) && !hasMoneyAmount(flat, input.financials.depositPln)) {
-    issues.push(`Brak prawidłowej kwoty wpłaty: ${formatPlnInteger(input.financials.depositPln)}`)
+  const partPaths = (zip: JSZip) => Object.keys(zip.files).filter((part) => /^word\/(?:header\d+|footer\d+|styles|numbering)\.xml$/.test(part)).sort()
+  const sourcePaths = partPaths(sourceZip); const candidatePaths = partPaths(candidateZip)
+  if (JSON.stringify(sourcePaths) !== JSON.stringify(candidatePaths)) issues.push('Header, footer, style, or numbering part set changed')
+  for (const part of sourcePaths) {
+    const left = await sourceZip.file(part)!.async('string'); const right = await candidateZip.file(part)?.async('string')
+    if (!right) continue
+    if (part === 'word/styles.xml' || part === 'word/numbering.xml') { if (left !== right) issues.push(`Unexpected structural part change: ${part}`); continue }
+    if (xmlWithTextValuesMasked(left) !== xmlWithTextValuesMasked(right)) issues.push(`Unexpected header/footer XML structure change: ${part}`)
+    if (JSON.stringify(wordFieldInstructions(left)) !== JSON.stringify(wordFieldInstructions(right))) issues.push(`Word field instructions changed: ${part}`)
   }
-  const sourcePostReservationPayments = postReservationPaymentObligations(sourceDocument.blocks)
-  if (sourcePostReservationPayments.length > 1) {
-    const allocationIssues = validatePlannedPaymentAllocation(input, approvedOperations)
-    if (allocationIssues.length) {
-      issues.push('Brak prawidłowego autorytatywnego podziału płatności dla umowy wymagającej kilku rat po opłacie rezerwacyjnej.')
-    } else {
-      const plannedBlocks = sourceDocument.blocks.map((block) => {
-        const operation = approvedOperations.find((item) => item.operation === 'REPLACE_BLOCK_TEXT' && item.blockId === block.blockId)
-        return operation?.operation === 'REPLACE_BLOCK_TEXT' ? { ...block, text: operation.finalText } : block
-      })
-      const plannedPayments = postReservationPaymentObligations(plannedBlocks)
-      const actualPayments = postReservationPaymentObligations(candidateDocument.blocks)
-      const paymentSignature = (payments: PaymentObligation[]) => payments.map((obligation) => obligation.amounts.join(',')).join('|')
-      if (paymentSignature(plannedPayments) !== paymentSignature(actualPayments)) issues.push('Kwoty płatności w dokumencie nie odpowiadają kolejności źródłowych zobowiązań.')
-      if (hasNegativePostReservationPayment(candidateDocument.blocks)) issues.push('Dokument zawiera ujemną kwotę płatności.')
-      if (input.financials.depositPln * 100 + actualPayments.flatMap((obligation) => obligation.amounts).reduce((sum, amount) => sum + amount, 0) !== input.financials.contractValuePln * 100) {
-        issues.push('Suma opłaty rezerwacyjnej i rat w dokumencie nie odpowiada całkowitej wartości umowy.')
-      }
-    }
-  } else if (sourcePostReservationPayments.length === 1 && !hasMoneyAmount(flat, input.financials.remainingPln)) {
-    issues.push(`Brak prawidłowej kwoty pozostałej kwoty: ${formatPlnInteger(input.financials.remainingPln)}`)
+  const sourceDoc = await sourceZip.file('word/document.xml')?.async('string')
+  const candidateDoc = await candidateZip.file('word/document.xml')?.async('string')
+  if (!sourceDoc || !candidateDoc) issues.push('Main Word document part is missing')
+  else for (const tag of ['tbl', 'tr', 'tc'] as const) {
+    const count = (xml: string) => xml.match(new RegExp(`<w:${tag}\\b`, 'g'))?.length ?? 0
+    if (count(sourceDoc) !== count(candidateDoc)) issues.push(`Table structure changed (${tag}: ${count(sourceDoc)} → ${count(candidateDoc)})`)
   }
-  const candidateDigits = flat.replace(/[\s()\-]/g, '')
-  for (const person of ['bride', 'groom'] as const) {
-    const phone = input.wedding[person].phone
-    if (phone && sourceContainsPartyPhone(sourceDocument.blocks, person) && !candidateDigits.includes(phone.replace(/[\s()\-]/g, ''))) {
-      issues.push(`Nieprawidłowy numer telefonu: ${phone}`)
-    }
+  if (sourceDoc && candidateDoc && JSON.stringify(tableStructureSignatures(sourceDoc)) !== JSON.stringify(tableStructureSignatures(candidateDoc))) issues.push('Per-table row or cell structure changed')
+  const sourceFields = sourceDoc ? wordFieldInstructions(sourceDoc) : []
+  const candidateFields = candidateDoc ? wordFieldInstructions(candidateDoc) : []
+  if (JSON.stringify(sourceFields) !== JSON.stringify(candidateFields)) issues.push('Main document Word field instructions changed')
+  if (sourceDoc && candidateDoc) {
+    const markers = (xml: string) => [...xml.matchAll(/<w:fldChar\b[^>]*\bw:fldCharType\s*=\s*["']([^"']+)["'][^>]*>/g)].map((match) => match[1])
+    if (JSON.stringify(markers(sourceDoc)) !== JSON.stringify(markers(candidateDoc))) issues.push('Main document Word field structure changed')
   }
-  const originalDoc = await sourceZip.file('word/document.xml')!.async('string')
-  const candidateDoc = await candidateZip.file('word/document.xml')!.async('string')
-  const candidateBlocks = candidateDocument.blocks
-  const candidateOpeningBlock = input.conclusion.sourceBlockId
-    ? candidateBlocks.find((block) => block.blockId === input.conclusion.sourceBlockId)
-    : candidateBlocks.find((block) => conclusionVerb.test(block.text))
-  const candidateOpening = candidateOpeningBlock?.text ?? ''
-  if (input.conclusion.replaceDate) {
-    const targetDate = input.conclusion.replacementDate ? parsePolishDate(input.conclusion.replacementDate) : undefined
-    const actualDate = conclusionDateInText(candidateOpening)?.timestamp
-    if (targetDate === undefined || actualDate !== targetDate) issues.push('Nie ustawiono daty zawarcia umowy zgodnej z datą generowania')
-    const originalDate = input.conclusion.sourceDate ? parsePolishDate(input.conclusion.sourceDate) : undefined
-    if (originalDate !== undefined && originalDate !== targetDate && conclusionDateTimestampsInText(candidateOpening).includes(originalDate)) issues.push(`Pozostawiono pierwotną datę zawarcia umowy: ${input.conclusion.sourceDate}`)
-  } else if (!input.conclusion.sourceDate && conclusionDateInText(candidateOpening)) {
-    issues.push('Dodano datę zawarcia umowy, której brakowało w źródle')
-  }
-  if (input.conclusion.preservePlace && !candidateOpening.includes(input.conclusion.preservePlace)) issues.push('Zmieniono miejscowość zawarcia umowy ze źródła')
-  if (!input.conclusion.preservePlace && /\br\.\s*w\s+(?!\.{3})[\p{L}]/u.test(candidateOpening)) issues.push('Dodano miejscowość zawarcia umowy, której brakowało w źródle')
-  for (const element of ['tbl', 'tr', 'tc'] as const) {
-    const sourceCount = originalDoc.match(new RegExp(`<w:${element}\\b`, 'g'))?.length ?? 0
-    const candidateCount = candidateDoc.match(new RegExp(`<w:${element}\\b`, 'g'))?.length ?? 0
-    if (candidateCount !== sourceCount) issues.push(`Zmieniono strukturę tabel DOCX (${element}: ${sourceCount} → ${candidateCount})`)
-  }
-
-  const candidateById = new Map(candidateDocument.blocks.map((block) => [block.blockId, block]))
-  for (const sourceBlock of sourcePackageDefinitionBlocks(sourceDocument.blocks)) {
-    if (candidateById.get(sourceBlock.blockId)?.text !== sourceBlock.text) issues.push(`Treść pakietu różni się od źródła: ${sourceBlock.blockId}`)
-  }
-
-  const latestReplacementById = new Map<string, Extract<BlockOperation, { operation: 'REPLACE_BLOCK_TEXT' }>>()
-  for (const operation of approvedOperations) if (operation.operation === 'REPLACE_BLOCK_TEXT') latestReplacementById.set(operation.blockId, operation)
-  for (const operation of latestReplacementById.values()) {
-    if (!approvedReplacementMatchesCandidate(operation, sourceDocument.blocks, candidateDocument.blocks)) {
-      issues.push(`Pozostała stara wartość lub zmieniono zatwierdzony tekst w ${operation.blockId}`)
-    }
-  }
-
-  const sourcePartPaths = Object.keys(sourceZip.files).filter((part) => /^word\/(header\d+|footer\d+|styles)\.xml$/.test(part)).sort()
-  const candidatePartPaths = Object.keys(candidateZip.files).filter((part) => /^word\/(header\d+|footer\d+|styles)\.xml$/.test(part)).sort()
-  if (JSON.stringify(candidatePartPaths) !== JSON.stringify(sourcePartPaths)) issues.push('Zmieniono zestaw części DOCX nagłówków, stopek lub stylów')
-  for (const part of sourcePartPaths) {
-    const sourcePart = await sourceZip.file(part)!.async('string')
-    const candidatePart = await candidateZip.file(part)?.async('string')
-    if (!candidatePart) continue
-    if (part === 'word/styles.xml') {
-      if (candidatePart !== sourcePart) issues.push(`Nieoczekiwana zmiana stylów: ${part}`)
-      continue
-    }
-    if (xmlWithTextValuesMasked(candidatePart) !== xmlWithTextValuesMasked(sourcePart)) issues.push(`Nieoczekiwana zmiana struktury lub formatowania: ${part}`)
-    const sourceInstructions = wordFieldInstructions(sourcePart)
-    const candidateInstructions = wordFieldInstructions(candidatePart)
-    if (JSON.stringify(candidateInstructions) !== JSON.stringify(sourceInstructions)) issues.push(`Zmieniono strukturę pól Word: ${part}`)
-    for (const field of ['PAGE', 'NUMPAGES']) {
-      const count = (instructions: string[]) => instructions.reduce((total, instruction) => total + (instruction.match(new RegExp(`\\b${field}\\b`, 'g'))?.length ?? 0), 0)
-      if (count(sourceInstructions) > count(candidateInstructions)) issues.push(`Utracono dynamiczne pole Word ${field}: ${part}`)
-    }
-    const sourceBlocks = sourceDocument.blocks.filter((block) => block.part === part)
-    for (const sourceBlock of sourceBlocks) {
-      const candidateBlock = candidateById.get(sourceBlock.blockId)
-      if (!candidateBlock || candidateBlock.text === sourceBlock.text) continue
-      const approved = latestReplacementById.get(sourceBlock.blockId)
-      if (!approved || normalize(candidateBlock.text) !== normalize(approved.finalText)) {
-        issues.push(`Nieautoryzowana zmiana treści w ${sourceBlock.blockId}`)
-      }
-    }
+  for (const operation of approvedOperations) {
+    if (operation.operation !== 'REPLACE_BLOCK_TEXT') continue
+    const actual = candidate.blocks.find((block) => block.blockId === operation.blockId)
+    if (!actual || normalize(actual.text) !== normalize(operation.finalText)) issues.push(`Approved literal replacement was not applied: ${operation.blockId}`)
   }
   return issues
+}
+
+export async function runGeneration(sourceBytes: ArrayBuffer, input: GenerationInput, ai: ContractAi): Promise<GenerationResult> {
+  const inventory = await runSourceInventory(input.sourceDocument, ai)
+  const plan = await ai.plan(input, inventory)
+  const safeOperations = sanitizePlannerOperations(plan.status, plan.operations).operations
+  const effectivePlan = { ...plan, operations: safeOperations }
+  const authorityIssues = validateAuthorityGate(input, inventory, effectivePlan)
+  if (authorityIssues.length) return { status: 'FAILED', issues: authorityIssues }
+  if (plan.status === 'MISSING_INPUT') return { status: 'MISSING_INPUT', missingInputs: plan.missingInputs }
+  if (plan.status === 'CONFLICT_INPUT') return { status: 'CONFLICT_INPUT', conflicts: plan.conflicts }
+  const targetIssues = validateOperationTargets(input.sourceDocument.blocks, safeOperations)
+  if (targetIssues.length) return { status: 'FAILED', issues: targetIssues }
+  const edited = await applyBlockOperations(sourceBytes, safeOperations)
+  const candidateBytes = await applyMetadataFactChanges(edited, plan.factChanges)
+  const candidateDocument = await readSource(candidateBytes, input.sourceDocument.fileName)
+  const candidateIssues = await validateCandidate(sourceBytes, candidateBytes, input, inventory, effectivePlan, safeOperations)
+  if (candidateIssues.length) return { status: 'FAILED', issues: candidateIssues }
+  const changedBlocks = computeChangedBlockDiff(input.sourceDocument.blocks, candidateDocument.blocks)
+  const review = await ai.review({ source: input.sourceDocument, input, inventory, factChanges: plan.factChanges, retainedLiterals: plan.retainedLiterals, candidate: candidateDocument.blocks, changedBlocks })
+  if (review.status === 'FAIL') return { status: 'FAILED', issues: review.issues }
+  return { status: 'COMPLETED', docxBytes: candidateBytes, review }
 }

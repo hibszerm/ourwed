@@ -5,15 +5,17 @@ import { fileURLToPath } from 'node:url'
 import { applyBlockOperations, type BlockOperation } from '../blockDocxEditor'
 import { ContractGenerationMetrics, type GenerationMeasurements, type MetricsClock, type ProviderResponseMetadata } from '../contractGenerationMetrics'
 import {
-  addPaymentAllocationHelp,
-  findInputConflicts,
-  findMissingDocumentOwnedFacts,
+  computeChangedBlockDiff,
+  applyMetadataFactChanges,
   makeInput,
   normalizeAuthoritativeFinancialBlocks,
   normalizeAuthoritativePlnText,
   readSource,
+  runSourceInventory,
   sanitizePlannerOperations,
-  validatePlannedTransformation,
+  validateAuthorityGate,
+  type PlanResult,
+  type SourceInventory,
   validateCandidate,
   type ConflictInput,
   type GenerationInput,
@@ -24,18 +26,6 @@ import {
 } from '../generator'
 
 type DeepPartial<T> = { [K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K] }
-
-export type RelativePaymentTiming = {
-  type: 'relative'
-  relativeTo: 'contract_conclusion' | 'wedding'
-  offsetDays: number
-  sourceMeaning: string
-}
-
-export type CasePaymentTiming = {
-  reservation?: RelativePaymentTiming
-  remaining?: RelativePaymentTiming
-}
 
 export type AcceptanceProductRules = {
   preserveSourcePackageExactly?: true
@@ -50,19 +40,18 @@ export type MultiTemplateCaseDefinition = {
   weddingFacts: DeepPartial<WeddingFacts>
   extras?: string[]
   userProvidedAnswers?: GenerationInput['userProvidedAnswers']
-  paymentTiming?: CasePaymentTiming
   expectedProductRules?: AcceptanceProductRules
 }
 
 export type AcceptanceProvider = {
-  transform(args: { input: GenerationInput; sourceDocx: ArrayBuffer; paymentTiming: CasePaymentTiming; productRules: AcceptanceProductRules }): Promise<{ missingInputs: MissingInput[]; blockOperations?: BlockOperation[]; providerMetadata?: ProviderResponseMetadata }>
-  review(args: { source: GenerationInput['sourceDocument']; input: GenerationInput; candidate: SourceBlock[]; paymentTiming: CasePaymentTiming; productRules: AcceptanceProductRules }): Promise<ReviewResult & { providerMetadata?: ProviderResponseMetadata }>
+  inventory(args: { source: GenerationInput['sourceDocument']; sourceDocx: ArrayBuffer }): Promise<SourceInventory & { providerMetadata?: ProviderResponseMetadata }>
+  transform(args: { input: GenerationInput; inventory: SourceInventory; sourceDocx: ArrayBuffer; productRules: AcceptanceProductRules }): Promise<PlanResult & { providerMetadata?: ProviderResponseMetadata }>
+  review(args: { source: GenerationInput['sourceDocument']; input: GenerationInput; inventory: SourceInventory; factChanges: PlanResult['factChanges']; retainedLiterals: PlanResult['retainedLiterals']; candidate: SourceBlock[]; changedBlocks: ReturnType<typeof computeChangedBlockDiff>; productRules: AcceptanceProductRules }): Promise<ReviewResult & { providerMetadata?: ProviderResponseMetadata }>
 }
 
 export type AcceptanceResult = {
   caseId: string
   sourceFilename: string
-  paymentTiming: CasePaymentTiming
   productRules: AcceptanceProductRules
   transformationRequestPrepared: boolean
   preflight: 'READY' | 'MISSING_INPUT' | 'CONFLICT_INPUT' | 'INVALID_CASE'
@@ -84,12 +73,12 @@ export type AcceptanceResult = {
   oldDataStatus: 'NOT_CHECKED' | 'PASS' | 'FAIL'
   inventedFactStatus: 'MANUAL_REVIEW_REQUIRED'
   visualInspection: 'PENDING' | 'REQUIRED'
-  providerCalls: { transformation: number; review: number; total: number; retries: number; repair: number }
+  providerCalls: { inventory: number; transformation: number; review: number; total: number; retries: number; repair: number }
   measurements: GenerationMeasurements | null
   overall: 'READY' | 'PASS' | 'FAIL' | 'MISSING_INPUT' | 'CONFLICT_INPUT'
 }
 
-export const ACCEPTANCE_PROVIDER_BUDGET = Object.freeze({ transformation: 1, review: 1, total: 2, retries: 0, repair: 0 })
+export const ACCEPTANCE_PROVIDER_BUDGET = Object.freeze({ inventory: 1, transformation: 1, review: 1, total: 3, retries: 0, repair: 0 })
 export type HarnessOptions = {
   casesRoot?: string
   outputRoot?: string
@@ -99,15 +88,18 @@ export type HarnessOptions = {
 }
 
 type PersistedPlanningResult = {
-  status: 'READY' | 'MISSING_INPUT' | 'FAILED'
+  status: 'READY' | 'MISSING_INPUT' | 'CONFLICT_INPUT' | 'FAILED'
   missingInputs: MissingInput[]
   conflicts: ConflictInput[]
+  factChanges?: PlanResult['factChanges']
+  retainedLiterals?: PlanResult['retainedLiterals']
+  sourceInventory?: SourceInventory
   operations: BlockOperation[] | null
   operationCount: number | null
   rawOperations?: BlockOperation[]
   rawOperationCount?: number
   discardedOperationCount?: number
-  rawProviderResult?: { missingInputs: MissingInput[]; conflicts: ConflictInput[]; blockOperations: BlockOperation[] }
+  rawProviderResult?: { missingInputs: MissingInput[]; conflicts: ConflictInput[]; factChanges: PlanResult['factChanges']; retainedLiterals: PlanResult['retainedLiterals']; operations: BlockOperation[] }
   model?: string
   responseModel?: string
   planValidation: 'NOT_RUN' | 'PASS' | 'FAIL'
@@ -124,13 +116,13 @@ function ownedArrayBuffer(value: ArrayBufferLike): ArrayBuffer {
 
 function resultBase(caseId: string, sourceFilename = 'source.docx'): AcceptanceResult {
   return {
-    caseId, sourceFilename, paymentTiming: {}, productRules: {}, transformationRequestPrepared: false, preflight: 'INVALID_CASE', missingInputs: [], conflictFindings: [],
+    caseId, sourceFilename, productRules: {}, transformationRequestPrepared: false, preflight: 'INVALID_CASE', missingInputs: [], conflictFindings: [],
     transformationStatus: 'NOT_RUN_PROVIDER_DISABLED', blockOperationCounts: { transformation: 0, canonicalMoney: 0 },
     planningResultPath: null, candidatePath: null, candidateOpens: null, reviewResult: 'NOT_RUN', reviewFindings: [],
     deterministicValidation: 'NOT_RUN', deterministicFindings: [], pageCount: null, blankPagePresence: 'NOT_RENDERED',
     protectedLegalWording: 'NOT_CHECKED', packageServicePreservation: 'NOT_CHECKED', oldDataStatus: 'NOT_CHECKED',
     inventedFactStatus: 'MANUAL_REVIEW_REQUIRED', visualInspection: 'PENDING',
-    providerCalls: { transformation: 0, review: 0, total: 0, retries: 0, repair: 0 }, measurements: null, overall: 'FAIL',
+    providerCalls: { inventory: 0, transformation: 0, review: 0, total: 0, retries: 0, repair: 0 }, measurements: null, overall: 'FAIL',
   }
 }
 
@@ -162,13 +154,7 @@ function materializeWeddingFacts(facts: DeepPartial<WeddingFacts>): WeddingFacts
 function isCaseDefinition(value: unknown, caseId: string): value is MultiTemplateCaseDefinition {
   if (!value || typeof value !== 'object') return false
   const item = value as Partial<MultiTemplateCaseDefinition>
-  const validTiming = (timing: RelativePaymentTiming | undefined) => timing === undefined || (
-    timing.type === 'relative' && (timing.relativeTo === 'contract_conclusion' || timing.relativeTo === 'wedding') &&
-    Number.isInteger(timing.offsetDays) && typeof timing.sourceMeaning === 'string' && timing.sourceMeaning.trim().length > 0
-  )
-  const paymentTiming = item.paymentTiming
-  return item.id === caseId && item.sourceDocx === 'source.docx' && typeof item.generationDate === 'string' && !!item.weddingFacts && typeof item.weddingFacts === 'object' &&
-    (!paymentTiming || (validTiming(paymentTiming.reservation) && validTiming(paymentTiming.remaining)))
+  return item.id === caseId && item.sourceDocx === 'source.docx' && typeof item.generationDate === 'string' && !!item.weddingFacts && typeof item.weddingFacts === 'object'
 }
 
 async function runCommand(command: string, args: string[]): Promise<string> {
@@ -191,13 +177,8 @@ async function renderCandidate(candidatePath: string, outputDirectory: string): 
   return { pdfPath, pageCount }
 }
 
-function packageStatus(source: SourceBlock[], candidate: SourceBlock[]): AcceptanceResult['packageServicePreservation'] {
-  const packageBlocks = source.filter((block) => block.contentClass === 'package_service')
-  return packageBlocks.every((block) => candidate.find((item) => item.blockId === block.blockId)?.text === block.text) ? 'PASS' : 'FAIL'
-}
-
 function oldDataStatus(findings: string[]): AcceptanceResult['oldDataStatus'] {
-  return findings.some((item) => item.startsWith('Pozostała stara wartość:')) ? 'FAIL' : 'PASS'
+  return findings.some((item) => item.startsWith('Declared old literal remains:')) ? 'FAIL' : 'PASS'
 }
 
 export function formatAcceptanceReport(result: AcceptanceResult): string {
@@ -207,8 +188,6 @@ export function formatAcceptanceReport(result: AcceptanceResult): string {
     `- Overall: ${result.overall}`,
     `- Source: ${result.sourceFilename}`,
     `- Preflight: ${result.preflight}`,
-    `- Reservation timing: ${result.paymentTiming.reservation?.sourceMeaning ?? 'not specified'}`,
-    `- Remaining timing: ${result.paymentTiming.remaining?.sourceMeaning ?? 'not specified'}`,
     `- Product rules: package preservation ${result.productRules.preserveSourcePackageExactly ? 'required' : 'unspecified'}; source conclusion place ${result.productRules.preserveSourceConclusionPlace ?? 'unspecified'}; source party structure ${result.productRules.preserveSourceContractingPartyStructure ? 'authoritative' : 'unspecified'}`,
     `- Transformation request prepared: ${result.transformationRequestPrepared ? 'yes' : 'no'}`,
     `- Missing input fields: ${result.missingInputs.map((item) => item.label).join(', ') || 'none'}`,
@@ -221,8 +200,8 @@ export function formatAcceptanceReport(result: AcceptanceResult): string {
     `- Render: ${result.pageCount === null ? 'not rendered' : `${result.pageCount} pages; blank page ${result.blankPagePresence.toLowerCase()}`}`,
     `- Protected legal wording: ${result.protectedLegalWording}; package/service: ${result.packageServicePreservation}; old data: ${result.oldDataStatus}`,
     `- Invented facts: ${result.inventedFactStatus}; visual inspection: ${result.visualInspection}`,
-    `- Provider calls: ${result.providerCalls.total} (transform ${result.providerCalls.transformation}, review ${result.providerCalls.review}, retries ${result.providerCalls.retries}, repair ${result.providerCalls.repair})`,
-    `- Generation timing: ${result.measurements?.totalGenerationMs ?? 'not measured'} ms total; planning ${result.measurements?.stages.planningProviderMs ?? 'not run'} ms; review ${result.measurements?.stages.reviewProviderMs ?? 'not run'} ms`,
+    `- Provider calls: ${result.providerCalls.total} (inventory ${result.providerCalls.inventory}, transform ${result.providerCalls.transformation}, review ${result.providerCalls.review}, retries ${result.providerCalls.retries}, repair ${result.providerCalls.repair})`,
+    `- Generation timing: ${result.measurements?.totalGenerationMs ?? 'not measured'} ms total; inventory ${result.measurements?.stages.inventoryProviderMs ?? 'not run'} ms; planning ${result.measurements?.stages.planningProviderMs ?? 'not run'} ms; review ${result.measurements?.stages.reviewProviderMs ?? 'not run'} ms`,
     '',
   ].join('\n')
 }
@@ -272,10 +251,8 @@ export async function runMultiTemplateAcceptance(caseId: string, options: Harnes
   }
   const sourceArrayBuffer = ownedArrayBuffer(sourceBytes.buffer.slice(sourceBytes.byteOffset, sourceBytes.byteOffset + sourceBytes.byteLength))
   const sourceDocument = await readSource(sourceArrayBuffer, definition.sourceDocx)
-  result.paymentTiming = definition.paymentTiming ?? {}
   result.productRules = definition.expectedProductRules ?? {}
   const caseWeddingFacts: DeepPartial<WeddingFacts> = { ...definition.weddingFacts }
-  if (!caseWeddingFacts.remainingDueDate && definition.paymentTiming?.remaining) caseWeddingFacts.remainingDueDate = definition.paymentTiming.remaining.sourceMeaning
   const wedding = materializeWeddingFacts(caseWeddingFacts)
   const input = makeInput({
     generationDate: definition.generationDate,
@@ -285,16 +262,7 @@ export async function runMultiTemplateAcceptance(caseId: string, options: Harnes
     extras: definition.extras ?? [],
     userProvidedAnswers: definition.userProvidedAnswers ?? [],
   })
-  if (definition.expectedProductRules?.preserveSourceConclusionPlace && !input.conclusion.preservePlace) {
-    input.conclusion = { ...input.conclusion, preservePlace: definition.expectedProductRules.preserveSourceConclusionPlace }
-  }
-  const conflicts = findInputConflicts(input)
   metrics.endStage('preflight')
-  if (conflicts.length) {
-    result.preflight = 'CONFLICT_INPUT'; result.conflictFindings = conflicts; result.overall = 'CONFLICT_INPUT'
-    await writeReports(result, outputDirectory, metrics)
-    return result
-  }
   result.preflight = 'READY'
   result.transformationRequestPrepared = true
   if (!options.provider) {
@@ -304,82 +272,84 @@ export async function runMultiTemplateAcceptance(caseId: string, options: Harnes
     return result
   }
 
-  result.providerCalls.transformation = 1; result.providerCalls.total = 1
-  let planned: Awaited<ReturnType<AcceptanceProvider['transform']>>
+  let inventory: SourceInventory
+  metrics.startStage('inventoryProvider')
+  try {
+    result.providerCalls.inventory = 1; result.providerCalls.total = 1
+    let providerMetadata: ProviderResponseMetadata | undefined
+    const inventoryResponse = await runSourceInventory(sourceDocument, { async inventory(source) {
+      const response = await options.provider!.inventory({ source, sourceDocx: sourceArrayBuffer })
+      providerMetadata = response.providerMetadata
+      return response
+    } })
+    inventory = { items: inventoryResponse.items }
+    const latencyMs = metrics.endStage('inventoryProvider')
+    const timestamps = metrics.snapshot().timestamps.stages.inventoryProvider!
+    metrics.recordProviderCall('inventory', latencyMs, timestamps.startedAt, timestamps.endedAt, providerMetadata)
+  } catch (error) {
+    metrics.endStage('inventoryProvider')
+    result.transformationStatus = 'FAILED'; result.deterministicFindings = [error instanceof Error ? error.message : String(error)]; result.overall = 'FAIL'
+    await writeReports(result, outputDirectory, metrics); return result
+  }
+
+  result.providerCalls.transformation = 1; result.providerCalls.total = 2
+  let planned: PlanResult & { providerMetadata?: ProviderResponseMetadata }
   metrics.startStage('planningProvider')
   try {
-    planned = await options.provider.transform({ input, sourceDocx: sourceArrayBuffer, paymentTiming: definition.paymentTiming ?? {}, productRules: definition.expectedProductRules ?? {} })
-    const missingInputs = addPaymentAllocationHelp(input, [...planned.missingInputs, ...findMissingDocumentOwnedFacts(input)])
-    const plannedStatus = missingInputs.some((item) => item.required) ? 'MISSING_INPUT' : 'READY'
-    const normalizedResponse = sanitizePlannerOperations(plannedStatus, planned.blockOperations)
+    planned = await options.provider.transform({ input, inventory, sourceDocx: sourceArrayBuffer, productRules: definition.expectedProductRules ?? {} })
+    const normalizedResponse = sanitizePlannerOperations(planned.status, planned.operations)
+    planned = { ...planned, operations: normalizedResponse.operations }
     result.planningResultPath = await persistPlanningResult(outputDirectory, {
-      status: plannedStatus,
-      missingInputs,
-      conflicts: [],
-      operations: normalizedResponse.operations,
-      operationCount: normalizedResponse.operationCount,
+      status: planned.status,
+      missingInputs: planned.missingInputs,
+      conflicts: planned.conflicts,
+      factChanges: planned.factChanges,
+      retainedLiterals: planned.retainedLiterals,
+      sourceInventory: inventory,
+      operations: planned.operations,
+      operationCount: planned.operations.length,
       rawOperations: normalizedResponse.rawOperations,
       rawOperationCount: normalizedResponse.rawOperationCount,
       discardedOperationCount: normalizedResponse.discardedOperationCount,
-      rawProviderResult: { missingInputs: planned.missingInputs, conflicts: [], blockOperations: normalizedResponse.rawOperations },
+      rawProviderResult: { missingInputs: planned.missingInputs, conflicts: planned.conflicts, factChanges: planned.factChanges, retainedLiterals: planned.retainedLiterals, operations: normalizedResponse.rawOperations },
       ...(planned.providerMetadata?.requestedModel ? { model: planned.providerMetadata.requestedModel } : {}),
       ...(planned.providerMetadata?.responseModel ? { responseModel: planned.providerMetadata.responseModel } : {}),
-      planValidation: 'NOT_RUN',
-      planValidationFindings: [],
+      planValidation: 'NOT_RUN', planValidationFindings: [],
     })
     const latencyMs = metrics.endStage('planningProvider')
     const timestamps = metrics.snapshot().timestamps.stages.planningProvider!
     metrics.recordProviderCall('planning', latencyMs, timestamps.startedAt, timestamps.endedAt, planned.providerMetadata)
   } catch (error) {
-    result.planningResultPath = await persistPlanningResult(outputDirectory, {
-      status: 'FAILED', missingInputs: [], conflicts: [], operations: null, operationCount: null,
-      planValidation: 'NOT_RUN', planValidationFindings: [],
-    })
-    const latencyMs = metrics.endStage('planningProvider')
-    const timestamps = metrics.snapshot().timestamps.stages.planningProvider!
-    metrics.recordProviderCall('planning', latencyMs, timestamps.startedAt, timestamps.endedAt)
+    metrics.endStage('planningProvider')
     result.transformationStatus = 'FAILED'; result.deterministicFindings = [error instanceof Error ? error.message : String(error)]; result.overall = 'FAIL'
     await writeReports(result, outputDirectory, metrics); return result
   }
-  const missingInputs = addPaymentAllocationHelp(input, [...planned.missingInputs, ...findMissingDocumentOwnedFacts(input)])
-  if (missingInputs.some((item) => item.required)) {
-    result.transformationStatus = 'MISSING_INPUT'; result.missingInputs = missingInputs; result.overall = 'MISSING_INPUT'
+  if (planned.status === 'MISSING_INPUT') {
+    result.transformationStatus = 'MISSING_INPUT'; result.missingInputs = planned.missingInputs; result.overall = 'MISSING_INPUT'
     await writeReports(result, outputDirectory, metrics); return result
+  }
+  if (planned.status === 'CONFLICT_INPUT') {
+    result.conflictFindings = planned.conflicts; result.overall = 'CONFLICT_INPUT'; await writeReports(result, outputDirectory, metrics); return result
   }
   metrics.startStage('planValidation')
-  if (!planned.blockOperations) {
-    metrics.endStage('planValidation')
-    await persistPlanningResult(outputDirectory, {
-      status: 'FAILED', missingInputs: planned.missingInputs, conflicts: [], operations: null, operationCount: null,
-      ...(planned.providerMetadata?.requestedModel ? { model: planned.providerMetadata.requestedModel } : {}),
-      ...(planned.providerMetadata?.responseModel ? { responseModel: planned.providerMetadata.responseModel } : {}),
-      planValidation: 'FAIL', planValidationFindings: ['Transformation result has no block operations'],
-    })
-    result.transformationStatus = 'FAILED'; result.deterministicFindings = ['Transformation result has no block operations']; result.overall = 'FAIL'
-    await writeReports(result, outputDirectory, metrics); return result
-  }
-
-  const planIssues = validatePlannedTransformation(input, planned.blockOperations)
+  const planIssues = validateAuthorityGate(input, inventory, planned)
   metrics.endStage('planValidation')
   await persistPlanningResult(outputDirectory, {
-    status: planIssues.length ? 'FAILED' : 'READY',
-    missingInputs: planned.missingInputs,
-    conflicts: [],
-    operations: planned.blockOperations,
-    operationCount: planned.blockOperations.length,
-    ...(planned.providerMetadata?.requestedModel ? { model: planned.providerMetadata.requestedModel } : {}),
-    ...(planned.providerMetadata?.responseModel ? { responseModel: planned.providerMetadata.responseModel } : {}),
-    planValidation: planIssues.length ? 'FAIL' : 'PASS',
-    planValidationFindings: planIssues,
+    status: planIssues.length ? 'FAILED' : 'READY', missingInputs: planned.missingInputs, conflicts: [], factChanges: planned.factChanges,
+    retainedLiterals: planned.retainedLiterals, sourceInventory: inventory, operations: planned.operations,
+    operationCount: planned.operations.length, planValidation: planIssues.length ? 'FAIL' : 'PASS', planValidationFindings: planIssues,
   })
   if (planIssues.length) {
     result.transformationStatus = 'FAILED'; result.deterministicValidation = 'FAIL'; result.deterministicFindings = planIssues; result.overall = 'FAIL'
     await writeReports(result, outputDirectory, metrics); return result
   }
-
-  result.blockOperationCounts.transformation = planned.blockOperations.length
+  if (!planned.operations) {
+    result.transformationStatus = 'FAILED'; result.deterministicFindings = ['Plan has no operations array']; result.overall = 'FAIL'
+    await writeReports(result, outputDirectory, metrics); return result
+  }
+  result.blockOperationCounts.transformation = planned.operations.length
   const amounts = [input.financials.contractValuePln, input.financials.depositPln, input.financials.remainingPln]
-  const operations = planned.blockOperations.map((operation) => 'finalText' in operation ? { ...operation, finalText: normalizeAuthoritativePlnText(operation.finalText, amounts) } : operation)
+  const operations = planned.operations.map((operation) => 'finalText' in operation ? { ...operation, finalText: normalizeAuthoritativePlnText(operation.finalText, amounts) } : operation)
   const included = new Set(operations.flatMap((operation) => 'blockId' in operation ? [operation.blockId] : []))
   const canonical = normalizeAuthoritativeFinancialBlocks(sourceDocument.blocks, amounts).filter(({ block }) => !included.has(block.blockId))
   const allOperations: BlockOperation[] = [...operations, ...canonical.map(({ block, text }) => ({ blockId: block.blockId, operation: 'REPLACE_BLOCK_TEXT' as const, finalText: text }))]
@@ -387,7 +357,7 @@ export async function runMultiTemplateAcceptance(caseId: string, options: Harnes
   let candidateBytes: ArrayBufferLike
   metrics.startStage('docxApply')
   try {
-    candidateBytes = await applyBlockOperations(sourceArrayBuffer, allOperations)
+    candidateBytes = await applyMetadataFactChanges(await applyBlockOperations(sourceArrayBuffer, allOperations), planned.factChanges)
     metrics.endStage('docxApply')
   } catch (error) {
     metrics.endStage('docxApply')
@@ -410,10 +380,22 @@ export async function runMultiTemplateAcceptance(caseId: string, options: Harnes
     await writeReports(result, outputDirectory, metrics); return result
   }
 
-  result.providerCalls.review = 1; result.providerCalls.total = 2
+  metrics.startStage('candidateValidation')
+  const validation = await validateCandidate(sourceArrayBuffer, candidateArrayBuffer, input, inventory, planned, allOperations)
+  metrics.endStage('candidateValidation')
+  result.deterministicFindings = validation
+  result.deterministicValidation = validation.length ? 'FAIL' : 'PASS'
+  if (validation.length) {
+    result.overall = 'FAIL'
+    result.oldDataStatus = oldDataStatus(validation)
+    await writeReports(result, outputDirectory, metrics)
+    return result
+  }
+
+  result.providerCalls.review = 1; result.providerCalls.total = 3
   metrics.startStage('reviewProvider')
   try {
-    const review = await options.provider.review({ source: sourceDocument, input, candidate: candidateBlocks.blocks, paymentTiming: definition.paymentTiming ?? {}, productRules: definition.expectedProductRules ?? {} })
+    const review = await options.provider.review({ source: sourceDocument, input, inventory, factChanges: planned.factChanges, retainedLiterals: planned.retainedLiterals, candidate: candidateBlocks.blocks, changedBlocks: computeChangedBlockDiff(sourceDocument.blocks, candidateBlocks.blocks), productRules: definition.expectedProductRules ?? {} })
     const latencyMs = metrics.endStage('reviewProvider')
     const timestamps = metrics.snapshot().timestamps.stages.reviewProvider!
     metrics.recordProviderCall('review', latencyMs, timestamps.startedAt, timestamps.endedAt, review.providerMetadata)
@@ -428,13 +410,8 @@ export async function runMultiTemplateAcceptance(caseId: string, options: Harnes
     await writeReports(result, outputDirectory, metrics); return result
   }
 
-  metrics.startStage('candidateValidation')
-  const validation = await validateCandidate(sourceArrayBuffer, candidateArrayBuffer, input, allOperations)
-  metrics.endStage('candidateValidation')
-  result.deterministicFindings = validation
-  result.deterministicValidation = validation.length ? 'FAIL' : 'PASS'
   result.protectedLegalWording = result.reviewResult === 'PASS' ? 'PASS' : 'FAIL'
-  result.packageServicePreservation = packageStatus(sourceDocument.blocks, candidateBlocks.blocks)
+  result.packageServicePreservation = result.reviewResult === 'PASS' ? 'PASS' : 'FAIL'
   result.oldDataStatus = oldDataStatus(validation)
   result.overall = validation.length || result.protectedLegalWording === 'FAIL' || result.packageServicePreservation === 'FAIL' ? 'FAIL' : 'PASS'
   await writeReports(result, outputDirectory, metrics)

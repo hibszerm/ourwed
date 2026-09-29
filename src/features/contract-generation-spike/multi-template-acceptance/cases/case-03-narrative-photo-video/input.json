@@ -27,20 +27,6 @@
   "userProvidedAnswers": [
     { "id": "wedding.groom.email", "value": "kacper.wrona@example.com" }
   ],
-  "paymentTiming": {
-    "reservation": {
-      "type": "relative",
-      "relativeTo": "contract_conclusion",
-      "offsetDays": 5,
-      "sourceMeaning": "w terminie 5 dni od podpisania umowy"
-    },
-    "remaining": {
-      "type": "relative",
-      "relativeTo": "wedding",
-      "offsetDays": 3,
-      "sourceMeaning": "nie później niż 3 dni po weselu"
-    }
-  },
   "expectedProductRules": {
     "preserveSourcePackageExactly": true,
     "preserveSourceContractingPartyStructure": true

@@ -32,20 +32,6 @@
     { "id": "wedding.groom.email", "value": "tomasz.domanski@example.com" },
     { "id": "travel.surcharge", "value": "No additional travel surcharge is agreed for this event." }
   ],
-  "paymentTiming": {
-    "reservation": {
-      "type": "relative",
-      "relativeTo": "contract_conclusion",
-      "offsetDays": 3,
-      "sourceMeaning": "w terminie 3 dni od zawarcia umowy"
-    },
-    "remaining": {
-      "type": "relative",
-      "relativeTo": "wedding",
-      "offsetDays": 7,
-      "sourceMeaning": "najpóźniej 7 dni przed datą ślubu"
-    }
-  },
   "expectedProductRules": {
     "preserveSourcePackageExactly": true,
     "preserveSourceContractingPartyStructure": true

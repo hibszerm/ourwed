@@ -1,5 +1,6 @@
 export type GenerationMetricStage =
   | 'preflight'
+  | 'inventoryProvider'
   | 'planningProvider'
   | 'planValidation'
   | 'docxApply'
@@ -46,7 +47,7 @@ export type ProviderCost = {
 }
 
 export type ProviderCallMeasurement = {
-  purpose: 'planning' | 'review'
+  purpose: 'inventory' | 'planning' | 'review'
   requestedModel: string | null
   model: string | null
   serviceTier: string | null
@@ -80,6 +81,7 @@ export type GenerationMeasurements = {
   totalGenerationMs: number | null
   stages: {
     preflightMs: number | null
+    inventoryProviderMs: number | null
     planningProviderMs: number | null
     planValidationMs: number | null
     docxApplyMs: number | null
@@ -308,6 +310,7 @@ export class ContractGenerationMetrics {
       totalGenerationMs: this.totalGenerationMs,
       stages: {
         preflightMs: this.stageDurations.preflight ?? null,
+        inventoryProviderMs: this.stageDurations.inventoryProvider ?? null,
         planningProviderMs: this.stageDurations.planningProvider ?? null,
         planValidationMs: this.stageDurations.planValidation ?? null,
         docxApplyMs: this.stageDurations.docxApply ?? null,

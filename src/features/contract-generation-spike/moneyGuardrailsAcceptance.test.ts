@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { comparePhoneDigits, findStaleValues, formatPlnInteger, hasExactFact, hasNaturalLocationFacts, normalizeAuthoritativeFinancialBlocks, normalizeAuthoritativePlnText } from './generator'
+import { formatPlnInteger, normalizeAuthoritativeFinancialBlocks, normalizeAuthoritativePlnText } from './generator'
 
 assert.equal(formatPlnInteger(1000), '1 000 zł')
 assert.equal(formatPlnInteger(14200), '14 200 zł')
@@ -28,18 +28,4 @@ assert.equal(financialUpdates.find(({ block }) => block.blockId === 'remaining')
 assert.ok(!financialUpdates.some(({ block }) => block.blockId === 'canonical-deposit'), 'already-canonical value does not create an unnecessary update')
 assert.ok(!financialUpdates.some(({ block }) => block.blockId === 'unrelated'), 'unrelated number is not modified')
 
-assert.equal(comparePhoneDigits('555666898', '555 666 898'), true)
-assert.equal(comparePhoneDigits('555666898', '(555)-666-898'), true)
-assert.equal(comparePhoneDigits('555666898', '555 666 899'), false)
-assert.equal(hasExactFact('Kontakt kanickaj7@wp.pl, tel. 555 666 898', 'kanickaj7@wp.pl'), true, 'email remains an exact fact')
-assert.equal(hasExactFact('Wydarzenie 20.09.2026 r.', '20.09.2026'), true)
-assert.equal(hasExactFact('Wydarzenie 21.09.2026 r.', '20.09.2026'), false, 'dates remain exact')
-
-assert.equal(hasNaturalLocationFacts('Przyjęcie w Hotelu Starym, przy ul. Szczepańskiej 5, 31-011 Kraków.', 'Hotel Stary, Szczepańska 5, 31-011 Kraków'), true, 'natural Polish inflection does not fail location validation')
-assert.equal(hasNaturalLocationFacts('Przyjęcie przy ul. Szczepańskiej 6, 31-011 Kraków.', 'Hotel Stary, Szczepańska 5, 31-011 Kraków'), false, 'wrong street number remains a failure')
-
-assert.deepEqual(findStaleValues('Dane Adelą Światłowską, telefon 533 962 003', ['Adelą Światłowską', '533 962 003']), ['Adelą Światłowską', '533 962 003'], 'old customer detection remains strict')
-assert.deepEqual(findStaleValues('Wydarzenia z 30.07.2027r.', ['30.07.2027']), ['30.07.2027'], 'old wedding-data detection remains strict')
-assert.deepEqual(findStaleValues('Julia Kanicka, 20.09.2026', ['Adelą Światłowską', '30.07.2027']), [])
-
-console.log('PASS contract-generation-spike money formatting and final guardrails')
+console.log('PASS contract-generation-spike canonical money formatting')

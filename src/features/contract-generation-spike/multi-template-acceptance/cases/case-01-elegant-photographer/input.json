@@ -26,20 +26,6 @@
   },
   "extras": [],
   "userProvidedAnswers": [],
-  "paymentTiming": {
-    "reservation": {
-      "type": "relative",
-      "relativeTo": "contract_conclusion",
-      "offsetDays": 3,
-      "sourceMeaning": "w terminie 3 dni od zawarcia umowy"
-    },
-    "remaining": {
-      "type": "relative",
-      "relativeTo": "wedding",
-      "offsetDays": -7,
-      "sourceMeaning": "najpóźniej 7 dni przed uroczystością"
-    }
-  },
   "expectedProductRules": {
     "preserveSourcePackageExactly": true,
     "preserveSourceConclusionPlace": "Warszawa",
