@@ -41,7 +41,7 @@ assert.match(unsupportedTwo[0]!, /multiple distinct post-reservation payment obl
 assert.equal(validatePlannedPaymentAllocation(input(multiThree), [] ).length, 1)
 assert.equal(validatePlannedPaymentAllocation(input(multiTwo), [{
   blockId: 'word/document.xml#payments', operation: 'REPLACE_BLOCK_TEXT',
-  finalText: 'Opłata rezerwacyjna wynosi 2 800 zł. Druga płatność wynosi 5 000 zł. Pozostałe 9 000 zł zostanie zapłacone po weselu. Suma płatności wynosi 16 800 zł.',
+  finalText: 'Opłata rezerwacyjna wynosi 2 800 zł. Druga płatność wynosi 5 000 zł i jest należna 30 dni przed weselem. Pozostałe 9 000 zł zostanie zapłacone po weselu. Suma płatności wynosi 16 800 zł.',
 }]).length, 1, 'a mathematically correct aggregate does not authorize its detailed split')
 
 // D/E: A complete explicit allocation is accepted and must match the planned obligations exactly.
@@ -50,7 +50,7 @@ const explicitInput = input(multiTwo, explicitAllocation)
 assert.equal(validatePlannedPaymentAllocation(input(multiTwo, [{ id: 'payment.schedule', value: '5 000 zł' }]), []).length, 1, 'partial explicit allocation remains unresolved')
 assert.deepEqual(validatePlannedPaymentAllocation(explicitInput, [{
   blockId: 'word/document.xml#payments', operation: 'REPLACE_BLOCK_TEXT',
-  finalText: 'Opłata rezerwacyjna wynosi 2 800 zł. Druga płatność wynosi 5 000 zł. Pozostałe 9 000 zł zostanie zapłacone po weselu. Suma płatności wynosi 16 800 zł.',
+  finalText: 'Opłata rezerwacyjna wynosi 2 800 zł. Druga płatność wynosi 5 000 zł i jest należna 30 dni przed weselem. Pozostałe 9 000 zł zostanie zapłacone po weselu. Suma płatności wynosi 16 800 zł.',
 }]), [])
 assert.deepEqual(validatePlannedPaymentAllocation(input(multiThree, [{ id: 'payment.schedule', value: '4000, 5000, 5000' }]), [{
   blockId: 'word/document.xml#payments', operation: 'REPLACE_BLOCK_TEXT',
@@ -98,7 +98,7 @@ assert.match(validatePlannedPaymentAllocation(sumMismatch, derivedPlan)[0]!, /co
 // Q: Missing-input metadata can explain the automatic final calculation without fixture data.
 const allocationMissing = [{ id: 'financials.paymentAllocation', label: 'Kwota drugiej raty', explanation: 'Source requires this amount.', inputType: 'number' as const, required: true as const, sourceContext: 'Payment clause.' }]
 const help = addPaymentAllocationHelp(input(twoInstallments), allocationMissing)
-assert.equal(help[0]!.infoText, 'Ostatnia rata zostanie wyliczona automatycznie na podstawie wartości umowy, zaliczki i podanej kwoty tej raty.')
+assert.equal(help[0]!.infoText, 'Podaj kwoty wymaganych płatności po opłacie rezerwacyjnej w kolejności wynikającej ze źródła. Jedna pozostała końcowa kwota może zostać wyliczona automatycznie z wartości umowy i zaliczki.')
 assert.doesNotMatch(`${TRANSFORMATION_INSTRUCTIONS} ${help[0]!.infoText}`, /Case.?03|Zuzanna|Kacper|16\s?800|6\s?000|8\s?000/i)
 assert.ok(!('payments' in continuation), 'the CRM payment model remains unchanged')
 

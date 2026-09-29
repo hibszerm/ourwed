@@ -1,16 +1,23 @@
 # Contract generation spike
 
-This offline experiment accepts an existing DOCX and current wedding facts. `buildBlockIndex` exposes stable `part#pN` IDs for body paragraphs, table-cell paragraphs, headers, and footers, with neighboring text context. The model boundary returns final Polish text as block operations; it does not return character offsets. The original DOCX package remains the physical base.
+This offline experiment transforms a source DOCX using authoritative generation input. The source contract determines which factual concepts are required; available input values do not need to appear when the source has no corresponding concept.
 
-Supported operations are `REPLACE_BLOCK_TEXT`, `INSERT_BLOCK_BEFORE`, `INSERT_BLOCK_AFTER`, and sparse `DELETE_BLOCK`. Replacements preserve paragraph properties and use a dominant source body run style, retaining a short structural prefix separately where applicable. Insertions require an explicit same-part `styleSourceBlockId`; inserted paragraph properties and default run style are copied from that source, with numbering, section properties, page breaks, and keep-next removed.
+## Flow
 
-Missing-input detection remains a planning result before operations are applied. The contract date and place rules are supplied as authoritative input: replace a source conclusion date with the generation date, preserve an existing place, and do not invent an absent place. For the Julia/Maksymilian fixture, preserve source Video Standard package wording exactly. A separate reviewer sees source facts, source text, and candidate text. A single repair returns block operations constrained to IDs cited in review findings, followed by final review.
+1. Read the source DOCX and build stable `part#pN` block IDs for body paragraphs, table-cell paragraphs, headers, and footers.
+2. Plan changes from source blocks and authoritative input. Return `MISSING_INPUT` or `CONFLICT_INPUT` before applying operations when required facts are unavailable or inconsistent.
+3. Apply READY block operations to the original DOCX package, preserving its OOXML structure, tables, styles, numbering, and dynamic Word fields.
+4. Run deterministic candidate checks for source-required dates and financial obligations, approved text changes, package scope, DOCX structure, and stale party facts.
+5. Render the candidate for layout inspection, then run an independent review. A failure is reported and stops the flow; generation does not automatically repair and review again.
 
-Fixtures:
+The model boundary uses whole-block text operations rather than character offsets. Replacements preserve paragraph properties and source run styling. Insertions require a same-part `styleSourceBlockId`; inherited numbering, section properties, page breaks, and keep-next are removed from inserted paragraphs.
 
-- `fixtures/source-video-standard.docx` is the uploaded source template.
-- `fixtures/work-generated-reference.docx` is the supplied successful Work output reference.
+The shared planner and reviewer prompts treat the source as authoritative for legal wording and selected service scope. Deterministic checks cover known facts and document structure; they do not attempt to interpret arbitrary legal meaning.
 
-The synthetic acceptance test exercises full paragraph rewrites (including contextual payment/date, Polish locations, and internal-reference examples), insertion style selection, package preservation, and unchanged tables/signatures/header/footer. This remains an isolated spike with no provider client, API key, production UI, or deployment path.
+## Test fixtures
 
-Generation input includes lightweight `contentClass` metadata (`factual_dynamic`, `package_service`, `protected_legal_static`) for transformation and review prompts. Transformation instructions preserve legal wording and permit only minimal, unambiguous editorial corrections with no legal effect. Deterministic authoritative-date checks run before the AI planning boundary and return `CONFLICT_INPUT` for a remaining-payment date before contract conclusion, and for a wedding date before conclusion when the source describes the event as future. A resumed generation can apply explicit manual date overrides. No conflict UI is included in this spike.
+- `fixtures/source-video-standard.docx` is a structural and content test fixture.
+- `fixtures/work-generated-reference.docx` is a reference output fixture.
+- `multi-template-acceptance/cases/` contains isolated acceptance cases and their source DOCX/input data.
+
+Fixture names and values are test data, not runtime routing rules. The spike has no production provider client, API key, production UI, or deployment path.

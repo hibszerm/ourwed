@@ -194,7 +194,7 @@ assert.deepEqual(bothStaleRemovedFindings, [], 'both stale source customer names
 const ownershipInput = structuredClone(stalePartySetup.input)
 ownershipInput.wedding.groom.name = 'Lena Fikcyjna'
 const ownershipOperations = partyOperations.map((operation) => operation.operation === 'REPLACE_BLOCK_TEXT'
-  ? { ...operation, finalText: operation.finalText.replace('Zleceniodawca: Bar Test.', 'Zleceniodawca: Lena Fikcyjna.').replace('Podpisy: Ada Test; Bar Test.', 'Podpisy: Ada Test; Lena Fikcyjna.') }
+  ? { ...operation, finalText: operation.finalText.replaceAll('Bar Test', 'Lena Fikcyjna') }
   : operation)
 const ownershipCandidate = await applyBlockOperations(stalePartySource, ownershipOperations)
 const ownershipFindings = await validateCandidate(stalePartySource, ownershipCandidate, ownershipInput, ownershipOperations)

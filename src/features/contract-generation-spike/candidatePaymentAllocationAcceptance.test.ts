@@ -79,7 +79,7 @@ assert.ok((await validateCandidate(detailed.sourceBytes, collapsedPayments.bytes
 const staleSourceSplitText = 'Łączna wartość umowy wynosi 14 900 zł. Opłata rezerwacyjna wynosi 2 500 zł. Druga płatność wynosi 5 000 zł i jest płatna przed ślubem. Pozostała kwota 7 400 zł jest płatna po weselu.'
 const staleSourceSplit = await detailed.candidateFor(staleSourceSplitText)
 const staleFindings = await validateCandidate(detailed.sourceBytes, staleSourceSplit.bytes, detailed.input, detailedCandidate.operations)
-assert.ok(staleFindings.some((finding) => /Kwoty płatności w dokumencie różnią się/i.test(finding)), 'stale source payment amounts are rejected')
+assert.ok(staleFindings.some((finding) => /podziału płatności|kolejności źródłowych zobowiązań/i.test(finding)), 'stale source payment amounts are rejected')
 
 const arithmeticMismatch = await detailed.candidateFor(validDetailedText.replace('8 000 zł', '7 000 zł'))
 assert.ok((await validateCandidate(detailed.sourceBytes, arithmeticMismatch.bytes, detailed.input, detailedCandidate.operations)).length > 0, 'allocation that does not sum to total is rejected')

@@ -89,11 +89,6 @@ export type AcceptanceResult = {
 }
 
 export const ACCEPTANCE_PROVIDER_BUDGET = Object.freeze({ transformation: 1, review: 1, total: 2, retries: 0, repair: 0 })
-export const REQUIRED_WEDDING_FACT_PATHS = [
-  'bride.name', 'bride.phone', 'bride.email', 'groom.name', 'groom.phone', 'weddingDate', 'contractAddress',
-  'contractValuePln', 'depositPln', 'remainingDueDate', 'locations.bridePreparations', 'locations.groomPreparations', 'locations.ceremony', 'locations.reception',
-] as const
-
 export type HarnessOptions = {
   casesRoot?: string
   outputRoot?: string
@@ -145,12 +140,22 @@ async function persistPlanningResult(outputDirectory: string, result: PersistedP
   return artifactPath
 }
 
-function missingFacts(facts: DeepPartial<WeddingFacts>): MissingInput[] {
-  return REQUIRED_WEDDING_FACT_PATHS.flatMap((field) => {
-    const value = field.split('.').reduce<unknown>((current, key) => current && typeof current === 'object' ? (current as Record<string, unknown>)[key] : undefined, facts)
-    if (value !== undefined && value !== null && value !== '') return []
-    return [{ id: `case-fact:${field}`, label: field, explanation: `Required authoritative case fact is missing: ${field}.`, inputType: field.endsWith('Pln') ? 'number' as const : field === 'weddingDate' || field === 'remainingDueDate' ? 'date' as const : 'text' as const, required: true as const, sourceContext: 'multi-template acceptance case definition' }]
-  })
+function materializeWeddingFacts(facts: DeepPartial<WeddingFacts>): WeddingFacts {
+  return {
+    bride: { name: facts.bride?.name ?? '', phone: facts.bride?.phone ?? '', email: facts.bride?.email ?? '' },
+    groom: { name: facts.groom?.name ?? '', phone: facts.groom?.phone ?? '' },
+    weddingDate: facts.weddingDate ?? '',
+    contractAddress: facts.contractAddress ?? '',
+    contractValuePln: facts.contractValuePln ?? 0,
+    depositPln: facts.depositPln ?? 0,
+    remainingDueDate: facts.remainingDueDate ?? '',
+    locations: {
+      bridePreparations: facts.locations?.bridePreparations ?? '',
+      groomPreparations: facts.locations?.groomPreparations ?? '',
+      ceremony: facts.locations?.ceremony ?? '',
+      reception: facts.locations?.reception ?? '',
+    },
+  }
 }
 
 function isCaseDefinition(value: unknown, caseId: string): value is MultiTemplateCaseDefinition {
@@ -270,15 +275,7 @@ export async function runMultiTemplateAcceptance(caseId: string, options: Harnes
   result.productRules = definition.expectedProductRules ?? {}
   const caseWeddingFacts: DeepPartial<WeddingFacts> = { ...definition.weddingFacts }
   if (!caseWeddingFacts.remainingDueDate && definition.paymentTiming?.remaining) caseWeddingFacts.remainingDueDate = definition.paymentTiming.remaining.sourceMeaning
-  const missing = missingFacts(caseWeddingFacts)
-  if (missing.length) {
-    metrics.endStage('preflight')
-    result.preflight = 'MISSING_INPUT'; result.missingInputs = missing; result.transformationStatus = 'MISSING_INPUT'; result.overall = 'MISSING_INPUT'
-    await writeReports(result, outputDirectory, metrics)
-    return result
-  }
-
-  const wedding = caseWeddingFacts as WeddingFacts
+  const wedding = materializeWeddingFacts(caseWeddingFacts)
   const input = makeInput({
     generationDate: definition.generationDate,
     sourceDocument,

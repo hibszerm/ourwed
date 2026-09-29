@@ -1,5 +1,5 @@
 import JSZip from 'jszip'
-import { applyBlockOperations, remapOperationsToCurrentBlocks, type BlockOperation, type EditableBlock } from './blockDocxEditor'
+import { applyBlockOperations, type BlockOperation, type EditableBlock } from './blockDocxEditor'
 import { unescapeXml } from '@/features/documents/template/canonicalParagraph'
 
 export type MissingInput = { id: string; label: string; explanation: string; inputType: 'text' | 'date' | 'number'; required: true; sourceContext: string; infoText?: string }
@@ -34,12 +34,11 @@ export type GenerationResult = { status: 'MISSING_INPUT'; missingInputs: Missing
 export interface ContractAi {
   plan(input: GenerationInput): Promise<{ missingInputs: MissingInput[]; blockOperations?: BlockOperation[] }>
   review(args: { source: GenerationInput['sourceDocument']; input: GenerationInput; candidate: SourceBlock[] }): Promise<ReviewResult>
-  repair(args: { input: GenerationInput; source: SourceBlock[]; candidate: SourceBlock[]; issues: string[] }): Promise<BlockOperation[]>
 }
 
 export const AUTHORITATIVE_FIELD_SEMANTICS = `Resolve authoritative values by semantic concept and owning entity, not by exact label matching. The structured wedding.contractAddress field is the authoritative contract/residential address for the CRM client entity associated with that contract record. It satisfies equivalent source wording for that same entity, including an address or a clause such as “zamieszkała przy” or “zamieszkały przy”. It is not a universal address for every person named in the contract and must not satisfy a different entity's address requirement. Treat userProvidedAnswers as authoritative too; use each answer id to respect its entity/path scope. Distinct entities require their own authoritative address values. One address may satisfy multiple entities only when the authoritative input explicitly identifies it as shared. Before returning MISSING_INPUT for a source-required concept, check all structured authoritative fields, userProvidedAnswers, and applicable generation rules; return MISSING_INPUT only when that concept has no authoritative value for the relevant entity. When a source entity is replaced, source-owned factual values are not authoritative for the replacement entity. For each source-required factual concept, use a value authoritative for that same entity and concept; if it is unavailable, return MISSING_INPUT. Do not carry over the old entity's value, guess a replacement, or omit the required concept to avoid asking.`
 
-export const TRANSFORMATION_INSTRUCTIONS = `${AUTHORITATIVE_FIELD_SEMANTICS} Before deciding the planning result, complete a full audit of every source-required factual change. First determine the facts and relationships the source requires; then match each fact to authoritative input for the correct entity, context, and required level of detail; then collect all clearly identifiable missing values and conflicts. Do not stop after finding the first missing fact. Return all independent missing inputs in one response. Determine the result only after the audit: any required missing value means MISSING_INPUT; any conflict means CONFLICT_INPUT where the current response schema supports conflicts, while preserving existing deterministic conflict handling otherwise; READY is allowed only when no unresolved required value or conflict remains. Generate transformation operations only for READY. For MISSING_INPUT or CONFLICT_INPUT, return no operations. Transform only the supplied source blocks and authoritative inputs. Preserve legal wording: do not paraphrase legal clauses or change their legal subject, obligations, rights, scope, consent, cancellation, liability, copyright, publication, or delivery terms. Make only mechanical factual updates explicitly required by authoritative facts (names, dates, amounts, locations, package references, selected extras, internal references, and required grammatical inflection). You may make an obvious, unambiguous, minimal local editorial correction such as a duplicated token, typo, missing space, or punctuation error only when legal meaning does not change. For example, remove a duplicated “tel.” token immediately before a grammatical party label when the local correction is unambiguous; preserve the rest of the identification clause and its meaning. Input conflicts must be stopped before transformation. Return complete final paragraph text for changed blocks. Leave unrelated protected legal/static blocks unchanged; return no operation for a protected block unless an explicit authoritative fact mechanically requires a change. Each source block includes a contentClass: factual_dynamic, package_service, or protected_legal_static. The source DOCX is authoritative for package name, package wording, package scope, and package terms. Preserve source package content exactly unless authoritative generation input explicitly requires a permitted factual change. Do not substitute package names or package scope from another template. Do not reconstruct a package from prior-case knowledge. Do not use hardcoded knowledge of any package. Deterministic derived facts in the input are authoritative for their stated concepts; use a derived final installment without changing source-defined payment timing. Treat an authoritative aggregate amount separately from a source-required detailed allocation: if the source requires the amount to be distributed across multiple independently meaningful payments, deadlines, or installments, and authoritative input does not provide that allocation, do not infer or preserve an allocation; return MISSING_INPUT for the unresolved detail. You may return all independently identified missing inputs together. Follow structured input.conclusion deterministically: sourceDate/sourceBlockId identify the source conclusion, and when replaceDate is true, replacementDate is the required conclusion date for that block. Preserve preservePlace using the source's natural grammatical form. Keep this distinct from wedding.weddingDate; do not substitute the wedding/event date for the conclusion date. When replaceDate is false, do not introduce a conclusion date merely because generationDate is present.`
+export const TRANSFORMATION_INSTRUCTIONS = `${AUTHORITATIVE_FIELD_SEMANTICS} Treat each userProvidedAnswers entry as an authoritative value scoped by its semantic path. Use it only when the source requires that concept for the relevant entity; do not add it when the source has no corresponding concept. When multiple intermediate payment amounts are supplied without a distinct source relationship, map them in the source's obligation order; if that order is unclear, return MISSING_INPUT rather than guessing. Before deciding the planning result, complete a full audit of every source-required factual change. First determine the facts and relationships the source requires; then match each fact to authoritative input for the correct entity, context, and required level of detail; then collect all clearly identifiable missing values and conflicts. Do not stop after finding the first missing fact. Return all independent missing inputs in one response. Determine the result only after the audit: any required missing value means MISSING_INPUT; any conflict means CONFLICT_INPUT where the current response schema supports conflicts, while preserving existing deterministic conflict handling otherwise; READY is allowed only when no unresolved required value or conflict remains. Generate transformation operations only for READY. For MISSING_INPUT or CONFLICT_INPUT, return no operations. Transform only the supplied source blocks and authoritative inputs. Preserve legal wording: do not paraphrase legal clauses or change their legal subject, obligations, rights, scope, consent, cancellation, liability, copyright, publication, or delivery terms. Make only mechanical factual updates explicitly required by authoritative facts (names, dates, amounts, locations, package references, selected extras, internal references, and required grammatical inflection). You may make an obvious, unambiguous, minimal local editorial correction only when the correction is meaning-preserving and cannot reasonably be interpreted another way. Input conflicts must be stopped before transformation. Return complete final paragraph text for changed blocks. Leave unrelated protected legal/static blocks unchanged; return no operation for a protected block unless an explicit authoritative fact mechanically requires a change. Each source block includes a contentClass: factual_dynamic, package_service, or protected_legal_static. The source DOCX is authoritative for package name, package wording, package scope, and package terms. Preserve source package content exactly unless authoritative generation input explicitly requires a permitted factual change. Do not substitute package names or package scope from another template. Do not reconstruct a package from prior-case knowledge. Do not use hardcoded knowledge of any package. Deterministic derived facts in the input are authoritative for their stated concepts; use a derived final installment without changing source-defined payment timing. Treat an authoritative aggregate amount separately from a source-required detailed allocation: if the source requires the amount to be distributed across multiple independently meaningful payments, deadlines, or installments, and authoritative input does not provide that allocation, do not infer or preserve an allocation; return MISSING_INPUT for the unresolved detail. You may return all independently identified missing inputs together. Follow structured input.conclusion deterministically: sourceDate/sourceBlockId identify the source conclusion, and when replaceDate is true, replacementDate is the required conclusion date for that block. Preserve preservePlace using the source's natural grammatical form. Keep this distinct from wedding.weddingDate; do not substitute the wedding/event date for the conclusion date. When replaceDate is false, do not introduce a conclusion date merely because generationDate is present.`
 
 export function sanitizePlannerOperations(status: PlannerResponseStatus, providerOperations: BlockOperation[] | undefined): {
   rawOperations: BlockOperation[]
@@ -62,7 +61,9 @@ export function sanitizePlannerOperations(status: PlannerResponseStatus, provide
 export const REVIEW_INSTRUCTIONS = `Review source and candidate blocks, including each source block's contentClass (factual_dynamic, package_service, or protected_legal_static). The source contract defines which factual concepts belong in the contract; authoritative input supplies the new value only for a concept the source contains or requires. Do not require every available CRM/input fact to appear in the candidate, and do not add an input fact when the source has no corresponding concept; doing so may be semantic drift. For each factual concept, distinguish: (A) source-required and input value available: candidate must preserve the concept with the authoritative updated value; (B) source-required but authoritative input value missing: generation should stop with MISSING_INPUT; (C) authoritative input value available but concept unused by the source: omission is allowed and is not MISSING_INPUT or a review failure. Use the source-vs-candidate context to decide whether the source contains or requires the concept; do not infer that requirement from CRM/input availability alone. Classify differences as: (D) substantive legal rewrite, which fails if a protected legal clause changes subject, obligations, rights, scope, consent, cancellation, liability, copyright, publication, or delivery without an explicit authoritative mechanical reason; (E) allowed mechanical factual adaptation; (F) allowed minimal, unambiguous editorial typo/token/spacing/punctuation fix that does not change legal meaning; or (G) unchanged source issue, which is not introduced by the transformation. Do not fail merely because a harmless editorial error was corrected. Do fail on an unauthorized substantive legal rewrite.`
 
 export function classifyBlock(text: string): SourceBlock['contentClass'] {
-  if (/\bvideo\b|teledysk|film ślubny|ujęcia|pakiet/i.test(text)) return 'package_service'
+  const selectedScope = /\b(?:pakiet|usług\p{L}*|zakres|przedmiot(?:em)?|wariant|opcj\p{L}*|wybran\p{L}*|service|scope|subject|option|variant)\b/iu.test(text)
+  const serviceContent = /\b(?:video|teledysk|film|ujęci\p{L}*|fotograf\p{L}*|zdję\p{L}*|reportaż\p{L}*|realizac\p{L}*|nagran\p{L}*|album\p{L}*|galeri\p{L}*|wydruk\p{L}*)\b/iu.test(text)
+  if ((selectedScope && serviceContent) || /\bvideo\b|teledysk|film ślubny|ujęcia/iu.test(text)) return 'package_service'
   if (/zgod[ęa]|oświadcza|zobowiązan|prawo|odpowiedzialnoś|rozwiązani|zadatek|copyright|autorsk|publik|przetwarzani|danych osobow|Umow.{0,24}wymagaj|nie podlegaj|wyraża zgody/i.test(text)) return 'protected_legal_static'
   return 'factual_dynamic'
 }
@@ -318,21 +319,12 @@ export function validatePlannedEntityFacts(input: GenerationInput, operations: B
 }
 
 const paymentAllocationClause = /(?:płat|plat|zapł|zapl|kwot|pozostał|należn|rata|raty|instalment|installment|deposit|reservation)/iu
-const reservationClause = /(?:opłat\p{L}*\s+rezerwacyj\p{L}*|reservation|deposit|zaliczk)/iu
+const reservationClause = /(?:opłat\p{L}*\s+rezerwacyj\p{L}*|reservation|deposit|zaliczk|zadatk\p{L}*)/iu
 const aggregateClause = /(?:suma|łącznie|razem|całość|total|aggregate)/iu
 const finalInstallmentClause = /(?:pozostał\p{L}*|ostatni\p{L}*|końcow\p{L}*|final\p{L}*|last\s+payment|remaining\s+payment)/iu
 const intermediateInstallmentReference = /(?:\b(?:first|second|third|fourth|intermediate|earlier|prior)\s+(?:payment|installment|instalment|rate)\b|\b(?:pierwsz\p{L}*|drug\p{L}*|trzeci\p{L}*|czwart\p{L}*|przedostatni\p{L}*|pośredni\p{L}*)\s+(?:płatno\p{L}*|rat\p{L}*))/iu
 const finalInstallmentReference = /(?:\b(?:final|last|remaining)\s+(?:payment|installment|instalment|rate)\b|\b(?:ostatni\p{L}*|końcow\p{L}*|pozostał\p{L}*)\s+(?:płatno\p{L}*|rat\p{L}*))/iu
-const PAYMENT_ALLOCATION_HELP = 'Ostatnia rata zostanie wyliczona automatycznie na podstawie wartości umowy, zaliczki i podanej kwoty tej raty.'
-
-function paymentObligationAmounts(text: string): number[][] {
-  return text
-    .split(/[.;!?\n]+/u)
-    .map((clause) => clause.trim())
-    .filter((clause) => clause && !aggregateClause.test(clause) && !reservationClause.test(clause) && paymentAllocationClause.test(clause))
-    .map((clause) => moneyAmountsInGrosz(clause))
-    .filter((amounts) => amounts.length > 0)
-}
+const PAYMENT_ALLOCATION_HELP = 'Podaj kwoty wymaganych płatności po opłacie rezerwacyjnej w kolejności wynikającej ze źródła. Jedna pozostała końcowa kwota może zostać wyliczona automatycznie z wartości umowy i zaliczki.'
 
 function sourceFinalInstallmentCount(input: GenerationInput): number {
   return input.sourceDocument.blocks.flatMap((block) => {
@@ -342,25 +334,41 @@ function sourceFinalInstallmentCount(input: GenerationInput): number {
   }).length
 }
 
-function sourcePaymentObligations(input: GenerationInput): number[][] {
-  return input.sourceDocument.blocks.flatMap((block) => {
+function paymentTimingSignature(text: string): string[] {
+  const signature = dateTimestampsInText(text).map((timestamp) => `date:${timestamp}`)
+  const durationPattern = /(\d+)\s*(days?|dni|weeks?|tygodni\p{L}*|months?|miesięcy|miesiąc\p{L}*)\s*(before|after|przed|po)|\b(before|after|przed|po)\s*(\d+)\s*(days?|dni|weeks?|tygodni\p{L}*|months?|miesięcy|miesiąc\p{L}*)/giu
+  const unit = (value: string) => /^(?:day|dni)/iu.test(value) ? 'days' : /^(?:week|tygodni)/iu.test(value) ? 'weeks' : 'months'
+  for (const match of text.matchAll(durationPattern)) {
+    const amount = Number(match[1] ?? match[5])
+    const rawUnit = match[2] ?? match[6]!
+    const direction = match[3] ?? match[4]!
+    signature.push(`offset:${amount}:${unit(rawUnit)}:${/^(?:before|przed)$/iu.test(direction) ? 'before' : 'after'}`)
+  }
+  if (/\b(?:before|przed)\b/iu.test(text)) signature.push('relation:before')
+  if (/\b(?:after|po)\b/iu.test(text)) signature.push('relation:after')
+  if (/\b(?:by|do|najpóźniej|no later than)\b/iu.test(text)) signature.push('relation:deadline')
+  if (/\b(?:wedding|ślub|wesele|event|wydarzeni\p{L}*)\b/iu.test(text)) signature.push('anchor:event')
+  if (/\b(?:contract|agreement|umow\p{L}*|conclusion|zawarci\p{L}*)\b/iu.test(text)) signature.push('anchor:contract')
+  return [...new Set(signature)].sort()
+}
+
+type PaymentObligation = { blockId: string; clauseIndex: number; text: string; amounts: number[] }
+
+function postReservationPaymentObligations(blocks: SourceBlock[]): PaymentObligation[] {
+  return blocks.flatMap((block) => {
     if (/\b(?:katalog|opcjonaln|nie są objęte|not included|optional service)/iu.test(block.text)) return []
-    return paymentObligationAmounts(block.text)
+    return block.text.split(/[.;!?\n]+/u).flatMap((clause, clauseIndex) => {
+      const text = clause.trim()
+      const ordinaryDeposit = /\bwpłat\p{L}*/iu.test(text) && !intermediateInstallmentReference.test(text)
+      if (!text || aggregateClause.test(text) || reservationClause.test(text) || ordinaryDeposit || !paymentAllocationClause.test(text)) return []
+      const amounts = moneyAmountsInGrosz(text)
+      return amounts.length ? [{ blockId: block.blockId, clauseIndex, text, amounts }] : []
+    })
   })
 }
 
-function postReservationPaymentObligations(blocks: SourceBlock[]): number[][] {
-  const obligations = blocks.flatMap((block) => {
-    if (/\b(?:katalog|opcjonaln|nie są objęte|not included|optional service)/iu.test(block.text)) return []
-    return block.text.split(/[.;!?\n]+/u).flatMap((clause) => {
-      const trimmed = clause.trim()
-      const ordinaryDeposit = /\bwpłat\p{L}*/iu.test(trimmed) && !intermediateInstallmentReference.test(trimmed)
-      if (!trimmed || aggregateClause.test(trimmed) || reservationClause.test(trimmed) || ordinaryDeposit || !paymentAllocationClause.test(trimmed)) return []
-      const amounts = moneyAmountsInGrosz(trimmed)
-      return amounts.length ? [amounts] : []
-    })
-  })
-  return obligations
+function sourcePaymentObligations(input: GenerationInput): number[][] {
+  return postReservationPaymentObligations(input.sourceDocument.blocks).map((obligation) => obligation.amounts)
 }
 
 function hasNegativePostReservationPayment(blocks: SourceBlock[]): boolean {
@@ -407,7 +415,7 @@ function deriveFinalInstallment(input: GenerationInput): { amountGrosz: number; 
 
 export function addPaymentAllocationHelp(input: GenerationInput, missingInputs: MissingInput[]): MissingInput[] {
   const obligations = sourcePaymentObligations(input)
-  if (obligations.length !== 2 || sourceFinalInstallmentCount(input) !== 1) return missingInputs
+  if (obligations.length < 2 || sourceFinalInstallmentCount(input) !== 1) return missingInputs
   return missingInputs.map((item) => /payment|installment|allocation|schedule|rata|płatno|platno|harmonogram/iu.test(`${item.id} ${item.label}`)
     ? { ...item, infoText: item.infoText ?? PAYMENT_ALLOCATION_HELP }
     : item)
@@ -418,12 +426,26 @@ function explicitPaymentAllocation(input: GenerationInput): number[] {
 }
 
 export function validatePlannedPaymentAllocation(input: GenerationInput, operations: BlockOperation[]): string[] {
-  const sourceObligations = sourcePaymentObligations(input)
+  const sourceDetails = postReservationPaymentObligations(input.sourceDocument.blocks)
+  const sourceObligations = sourceDetails.map((obligation) => obligation.amounts)
   if (sourceObligations.length <= 1) return []
 
   const supportedAmounts = explicitPaymentAllocation(input)
   const derived = deriveFinalInstallment(input)
-  const completeAmounts = derived ? [...supportedAmounts, derived.amountGrosz] : supportedAmounts
+  const expectedByObligation: Array<number | undefined> = Array(sourceObligations.length).fill(undefined)
+  if (derived) {
+    const finalIndex = sourceDetails.findIndex((obligation) => finalInstallmentClause.test(obligation.text) && obligation.amounts.length === 1)
+    if (finalIndex < 0) return ['Payment-allocation plan validation failed: the source-defined final obligation could not be matched to a payment position.']
+    const intermediateIndexes = sourceDetails.flatMap((_, index) => index === finalIndex ? [] : [index])
+    if (supportedAmounts.length !== intermediateIndexes.length) {
+      return ['Payment-allocation plan validation failed: authoritative intermediate amounts cannot be mapped one-to-one to source payment obligations.']
+    }
+    intermediateIndexes.forEach((index, amountIndex) => { expectedByObligation[index] = supportedAmounts[amountIndex] })
+    expectedByObligation[finalIndex] = derived.amountGrosz
+  } else if (supportedAmounts.length === sourceObligations.length) {
+    supportedAmounts.forEach((amount, index) => { expectedByObligation[index] = amount })
+  }
+  const completeAmounts = expectedByObligation.filter((amount): amount is number => amount !== undefined)
   if (completeAmounts.length !== sourceObligations.length) {
     return ['Payment-allocation plan validation failed: the source requires multiple distinct post-reservation payment obligations, but authoritative input provides only an aggregate amount and no complete detailed allocation.']
   }
@@ -432,12 +454,15 @@ export function validatePlannedPaymentAllocation(input: GenerationInput, operati
   }
 
   const replacementMap = new Map(operations.flatMap((operation) => operation.operation === 'REPLACE_BLOCK_TEXT' ? [[operation.blockId, operation.finalText] as const] : []))
-  const plannedObligations = input.sourceDocument.blocks.flatMap((block) => paymentObligationAmounts(replacementMap.get(block.blockId) ?? block.text))
-  const plannedAmounts = plannedObligations.flat()
-  const expected = completeAmounts.sort((a, b) => a - b)
-  const actual = plannedAmounts.sort((a, b) => a - b)
-  if (actual.length !== expected.length || actual.some((amount, index) => amount !== expected[index])) {
-    return ['Payment-allocation plan validation failed: planned payment amounts do not match the explicit authoritative detailed allocation.']
+  const plannedBlocks = input.sourceDocument.blocks.map((block) => ({ ...block, text: replacementMap.get(block.blockId) ?? block.text }))
+  const plannedObligations = postReservationPaymentObligations(plannedBlocks)
+  if (plannedObligations.length !== expectedByObligation.length || plannedObligations.some((obligation, index) => {
+    const source = sourceDetails[index]!
+    const sourceTiming = paymentTimingSignature(source.text)
+    return obligation.amounts.length !== 1 || obligation.amounts[0] !== expectedByObligation[index]
+      || (sourceTiming.length > 0 && JSON.stringify(paymentTimingSignature(obligation.text)) !== JSON.stringify(sourceTiming))
+  })) {
+    return ['Payment-allocation plan validation failed: payment amounts or recognized timing do not match their source-ordered obligations.']
   }
   return []
 }
@@ -620,23 +645,13 @@ export async function runGeneration(sourceBytes: ArrayBuffer, input: GenerationI
     .filter(({ block }) => !plannedBlockIds.has(block.blockId))
     .map(({ block, text }) => ({ blockId: block.blockId, operation: 'REPLACE_BLOCK_TEXT', finalText: text }))
   const completeOperations = [...normalizedOperations, ...financialBlockOperations]
-  let validationOperations = completeOperations
-  let candidateBytes = await applyBlockOperations(sourceBytes, completeOperations)
-  let blocks = (await readSource(candidateBytes, input.sourceDocument.fileName)).blocks
-  let review = await ai.review({ source: input.sourceDocument, input, candidate: blocks })
-  if (review.status === 'FAIL') {
-    const repair = await ai.repair({ input, source: input.sourceDocument.blocks, candidate: blocks, issues: review.issues })
-    const implicated = new Set(review.issues.flatMap((issue) => input.sourceDocument.blocks.filter((block) => issue.includes(block.blockId)).map((block) => block.blockId)))
-    if (repair.some((operation) => !implicated.has('blockId' in operation ? operation.blockId : operation.anchorBlockId))) return { status: 'FAILED', issues: ['Naprawa wskazała bloki spoza ustaleń recenzji'] }
-    const remappedRepair = remapOperationsToCurrentBlocks(repair, input.sourceDocument.blocks, blocks, completeOperations)
-    candidateBytes = await applyBlockOperations(candidateBytes, remappedRepair)
-    validationOperations = [...validationOperations, ...remappedRepair]
-    blocks = (await readSource(candidateBytes, input.sourceDocument.fileName)).blocks
-    review = await ai.review({ source: input.sourceDocument, input, candidate: blocks })
-  }
+  const candidateBytes = await applyBlockOperations(sourceBytes, completeOperations)
+  const blocks = (await readSource(candidateBytes, input.sourceDocument.fileName)).blocks
+  const safety = await validateCandidate(sourceBytes, candidateBytes, input, completeOperations)
+  if (safety.length) return { status: 'FAILED', issues: safety }
+  const review = await ai.review({ source: input.sourceDocument, input, candidate: blocks })
   if (review.status === 'FAIL') return { status: 'FAILED', issues: review.issues }
-  const safety = await validateCandidate(sourceBytes, candidateBytes, input, validationOperations)
-  return safety.length ? { status: 'FAILED', issues: safety } : { status: 'COMPLETED', docxBytes: candidateBytes, review }
+  return { status: 'COMPLETED', docxBytes: candidateBytes, review }
 }
 
 function xmlWithTextValuesMasked(xml: string): string {
@@ -692,18 +707,19 @@ function sourceContainsPartyPhone(blocks: SourceBlock[], person: 'bride' | 'groo
 }
 
 function sourcePackageDefinitionBlocks(blocks: SourceBlock[]): SourceBlock[] {
-  const packageAnchor = /\bpak(?:iet(?:u|em)?|iecie)\s+[\p{L}\d-]+/iu
-  const packageScope = /\b(?:obejmuje|obejmują|obejmującej|zapewnia|składa się|zakres(?:ie)?)\b|:\s*$/iu
-  const serviceDetail = /(?:fotograf|zdję|fotografii|galeri|odbit|teledysk|film ślubny|album|godzin|minut|ujęć|wydruk)/iu
-  const financialText = /\b(?:wynagrodzen|kwot[ay]|zapłac|wpłat|płatn|zł|pln)\b/iu
+  const scopeHeading = /\b(?:pakiet|usług\p{L}*|zakres|przedmiot(?:em)?|wariant|opcj\p{L}*|wybran\p{L}*|service|scope|subject|option|variant)\b/iu
+  const scopeDefinition = /\b(?:obejmuje|obejmują|zapewnia|składa się|zakres|jest|includes|provides|consists of|is|selected)\b|[:–—]\s*$/iu
+  const serviceDetail = /\b(?:video|teledysk|film|ujęci\p{L}*|fotograf\p{L}*|zdję\p{L}*|reportaż\p{L}*|realizac\p{L}*|nagran\p{L}*|album\p{L}*|galeri\p{L}*|wydruk\p{L}*|godzin\p{L}*|minut\p{L}*)\b/iu
+  const financialText = /\b(?:wynagrodzen|kwot[ay]|zapłac|wpłat|płatn|zł|pln|fee|payment)\b/iu
+  const listItem = /^\s*(?:\d+(?:\.\d+)*[.)]|[\p{L}][.)]|[•*–—-])\s+/u
   const selected = new Set<string>()
   for (let index = 0; index < blocks.length; index++) {
     const block = blocks[index]!
-    if (!packageAnchor.test(block.text) || !packageScope.test(block.text) || !serviceDetail.test(block.text) || financialText.test(block.text)) continue
+    if (!scopeHeading.test(block.text) || !scopeDefinition.test(block.text) || !serviceDetail.test(block.text) || financialText.test(block.text)) continue
     selected.add(block.blockId)
     for (let next = index + 1; next < blocks.length; next++) {
       const item = blocks[next]!
-      if (!/^\s*\d+[.)]\s+/.test(item.text)) break
+      if (!listItem.test(item.text)) break
       if (serviceDetail.test(item.text) && !financialText.test(item.text)) selected.add(item.blockId)
     }
   }
@@ -819,23 +835,20 @@ export async function validateCandidate(
   const candidateDocument = await readSource(candidateBytes, input.sourceDocument.fileName)
   const text = candidateText(candidateDocument.blocks)
   const flat = normalize(text)
-  for (const expectedName of [input.wedding.bride.name, input.wedding.groom.name]) {
-    if (!hasPolishNameFacts(flat, expectedName)) issues.push(`Brak wymaganej wartości: ${expectedName}`)
-  }
   const authoritativePartyNames = [input.wedding.bride.name, input.wedding.groom.name]
   for (const staleParty of customerPartyNames(sourceDocument.blocks, await sourceZip.file('word/document.xml')!.async('string'))) {
     const authoritativeNames = staleParty.owner ? [input.wedding[staleParty.owner].name] : authoritativePartyNames
     if (authoritativeNames.some((name) => partyNamesMatch(name, staleParty.name))) continue
     if (partyNamesMatch(flat, staleParty.name)) issues.push(`Pozostała stara wartość strony umowy: ${staleParty.name}`)
   }
-  for (const expected of [input.wedding.bride.email, ...input.extras]) {
-    if (!hasExactFact(flat, expected)) issues.push(`Brak wymaganej wartości: ${expected}`)
-  }
-  if (!hasNaturalLocationFacts(flat, input.wedding.contractAddress)) {
+  const sourceText = sourceDocument.blocks.map((block) => block.text).join('\n')
+  const sourceRequiresContractAddress = sourceDocument.blocks.some((block) => {
+    const identity = formalClientIdentity(block.text)
+    return !!identity && identityAttributeGroups(identity.clauses.slice(1))
+      .some((group) => conceptsMatch(identityAttribute(group).label, 'address'))
+  })
+  if (sourceRequiresContractAddress && !hasNaturalLocationFacts(flat, input.wedding.contractAddress)) {
     issues.push(`Brak prawidłowego adresu umownego: ${input.wedding.contractAddress}`)
-  }
-  for (const answer of input.userProvidedAnswers) {
-    if (answer.id === 'contract.number' && !hasExactFact(flat, answer.value)) issues.push(`Brak wymaganego numeru umowy: ${answer.value}`)
   }
   const eventBlocks = sourceEventBlocks(sourceDocument.blocks)
   if (eventBlocks.length) {
@@ -863,11 +876,12 @@ export async function validateCandidate(
     }
     if (!weddingDateFound) issues.push(`Brak prawidłowej daty wydarzenia: ${input.wedding.weddingDate}`)
   }
-  for (const [label, amount] of [
-    ['wynagrodzenia', input.financials.contractValuePln],
-    ['wpłaty', input.financials.depositPln],
-  ] as const) {
-    if (!hasMoneyAmount(flat, amount)) issues.push(`Brak prawidłowej kwoty ${label}: ${formatPlnInteger(amount)}`)
+  if (/(?:łączn\p{L}*\s+wartość|wartość|wynagrodzen\p{L}*|contract\s+total|total\s+fee)/iu.test(sourceText)
+    && !hasMoneyAmount(flat, input.financials.contractValuePln)) {
+    issues.push(`Brak prawidłowej kwoty wynagrodzenia: ${formatPlnInteger(input.financials.contractValuePln)}`)
+  }
+  if (reservationClause.test(sourceText) && !hasMoneyAmount(flat, input.financials.depositPln)) {
+    issues.push(`Brak prawidłowej kwoty wpłaty: ${formatPlnInteger(input.financials.depositPln)}`)
   }
   const sourcePostReservationPayments = postReservationPaymentObligations(sourceDocument.blocks)
   if (sourcePostReservationPayments.length > 1) {
@@ -875,36 +889,28 @@ export async function validateCandidate(
     if (allocationIssues.length) {
       issues.push('Brak prawidłowego autorytatywnego podziału płatności dla umowy wymagającej kilku rat po opłacie rezerwacyjnej.')
     } else {
-      const explicitAmounts = explicitPaymentAllocation(input)
-      const derivedFinal = deriveFinalInstallment(input)
-      const expectedPayments = [...explicitAmounts.map((amount) => [amount]), ...(derivedFinal ? [[derivedFinal.amountGrosz]] : [])]
       const plannedBlocks = sourceDocument.blocks.map((block) => {
         const operation = approvedOperations.find((item) => item.operation === 'REPLACE_BLOCK_TEXT' && item.blockId === block.blockId)
         return operation?.operation === 'REPLACE_BLOCK_TEXT' ? { ...block, text: operation.finalText } : block
       })
       const plannedPayments = postReservationPaymentObligations(plannedBlocks)
       const actualPayments = postReservationPaymentObligations(candidateDocument.blocks)
-      const paymentSignature = (payments: number[][]) => payments.map((amounts) => [...amounts].sort((a, b) => a - b).join(',')).sort().join('|')
-      const expectedSignature = paymentSignature(expectedPayments)
-      if (paymentSignature(plannedPayments) !== expectedSignature) issues.push('Zatwierdzony plan nie odpowiada autorytatywnemu podziałowi płatności.')
-      if (paymentSignature(actualPayments) !== expectedSignature) issues.push('Kwoty płatności w dokumencie różnią się od autorytatywnego podziału płatności.')
+      const paymentSignature = (payments: PaymentObligation[]) => payments.map((obligation) => obligation.amounts.join(',')).join('|')
+      if (paymentSignature(plannedPayments) !== paymentSignature(actualPayments)) issues.push('Kwoty płatności w dokumencie nie odpowiadają kolejności źródłowych zobowiązań.')
       if (hasNegativePostReservationPayment(candidateDocument.blocks)) issues.push('Dokument zawiera ujemną kwotę płatności.')
-      if (input.financials.depositPln * 100 + actualPayments.flat().reduce((sum, amount) => sum + amount, 0) !== input.financials.contractValuePln * 100) {
+      if (input.financials.depositPln * 100 + actualPayments.flatMap((obligation) => obligation.amounts).reduce((sum, amount) => sum + amount, 0) !== input.financials.contractValuePln * 100) {
         issues.push('Suma opłaty rezerwacyjnej i rat w dokumencie nie odpowiada całkowitej wartości umowy.')
       }
     }
-  } else if (!hasMoneyAmount(flat, input.financials.remainingPln)) {
+  } else if (sourcePostReservationPayments.length === 1 && !hasMoneyAmount(flat, input.financials.remainingPln)) {
     issues.push(`Brak prawidłowej kwoty pozostałej kwoty: ${formatPlnInteger(input.financials.remainingPln)}`)
   }
   const candidateDigits = flat.replace(/[\s()\-]/g, '')
   for (const person of ['bride', 'groom'] as const) {
     const phone = input.wedding[person].phone
-    if (sourceContainsPartyPhone(sourceDocument.blocks, person) && !candidateDigits.includes(phone.replace(/[\s()\-]/g, ''))) {
+    if (phone && sourceContainsPartyPhone(sourceDocument.blocks, person) && !candidateDigits.includes(phone.replace(/[\s()\-]/g, ''))) {
       issues.push(`Nieprawidłowy numer telefonu: ${phone}`)
     }
-  }
-  for (const location of Object.values(input.wedding.locations)) {
-    if (!hasNaturalLocationFacts(flat, location)) issues.push(`Brak numeru adresowego lub kodu pocztowego lokalizacji: ${location}`)
   }
   const originalDoc = await sourceZip.file('word/document.xml')!.async('string')
   const candidateDoc = await candidateZip.file('word/document.xml')!.async('string')
@@ -967,9 +973,7 @@ export async function validateCandidate(
       const candidateBlock = candidateById.get(sourceBlock.blockId)
       if (!candidateBlock || candidateBlock.text === sourceBlock.text) continue
       const approved = latestReplacementById.get(sourceBlock.blockId)
-      const authorizedContractNumber = part.startsWith('word/footer') && input.userProvidedAnswers.find((answer) => answer.id === 'contract.number')?.value
-      const matchesAuthoritativeFooterNumber = !!authorizedContractNumber && candidateBlock.text.includes(authorizedContractNumber)
-      if ((!approved || normalize(candidateBlock.text) !== normalize(approved.finalText)) && !matchesAuthoritativeFooterNumber) {
+      if (!approved || normalize(candidateBlock.text) !== normalize(approved.finalText)) {
         issues.push(`Nieautoryzowana zmiana treści w ${sourceBlock.blockId}`)
       }
     }

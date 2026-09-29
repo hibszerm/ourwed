@@ -42,13 +42,16 @@ try {
   await addCase('missing-case', { weddingFacts: { ...structuredClone(completeWedding), bride: { ...completeWedding.bride, email: undefined } } })
   const missingProviderCalls = { transform: 0, review: 0 }
   const spyProvider: AcceptanceProvider = {
-    async transform() { missingProviderCalls.transform++; return { missingInputs: [], blockOperations: [] } },
+    async transform() {
+      missingProviderCalls.transform++
+      return { missingInputs: [{ id: 'source.required.email', label: 'Client email', explanation: 'The source requires an email and none was supplied.', inputType: 'text', required: true, sourceContext: 'client identification clause' }], blockOperations: [] }
+    },
     async review() { missingProviderCalls.review++; return { status: 'PASS' } },
   }
   const missing = await runMultiTemplateAcceptance('missing-case', { casesRoot, outputRoot, provider: spyProvider, runId: 'one' })
   assert.equal(missing.overall, 'MISSING_INPUT')
-  assert.ok(missing.missingInputs.some((item) => item.id === 'case-fact:bride.email'))
-  assert.deepEqual(missingProviderCalls, { transform: 0, review: 0 }, 'missing facts stop before the provider boundary')
+  assert.ok(missing.missingInputs.some((item) => item.id === 'source.required.email'))
+  assert.deepEqual(missingProviderCalls, { transform: 1, review: 0 }, 'source-driven missing input comes from planning and stops before review')
 
   await addCase('non-ready-operations-case')
   const partialProviderOperations = [{ blockId: 'word/document.xml#p3', operation: 'REPLACE_BLOCK_TEXT' as const, finalText: 'Unsafe partial edit' }]
@@ -75,10 +78,11 @@ try {
   assert.equal(nonReadyArtifact.discardedOperationCount, 1)
 
   await addCase('conflict-case', { generationDate: '27.09.2026' })
+  const providerCallsBeforeConflict = structuredClone(missingProviderCalls)
   const conflict = await runMultiTemplateAcceptance('conflict-case', { casesRoot, outputRoot, provider: spyProvider, runId: 'one' })
   assert.equal(conflict.overall, 'CONFLICT_INPUT')
   assert.ok(conflict.conflictFindings.length > 0)
-  assert.deepEqual(missingProviderCalls, { transform: 0, review: 0 }, 'conflicts stop before the provider boundary')
+  assert.deepEqual(missingProviderCalls, providerCallsBeforeConflict, 'conflicts stop before the provider boundary')
 
   await addCase('ready-case')
   const readySource = await readSource(sourceBuffer, 'source.docx')

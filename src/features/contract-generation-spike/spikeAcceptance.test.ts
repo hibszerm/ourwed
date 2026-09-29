@@ -73,9 +73,8 @@ assert.equal(classifyBlock(legalSource), 'protected_legal_static')
 assert.equal(classifyBlock('video package delivery'), 'package_service', 'generic video package content retains its package/service classification')
 assert.ok(source.blocks.some((block) => block.contentClass === 'protected_legal_static'))
 assert.match(TRANSFORMATION_INSTRUCTIONS, /do not paraphrase legal clauses/i)
-assert.match(TRANSFORMATION_INSTRUCTIONS, /duplicated token, typo, missing space/i)
-assert.match(TRANSFORMATION_INSTRUCTIONS, /remove a duplicated “tel\.” token immediately before a grammatical party label/i)
-assert.match(TRANSFORMATION_INSTRUCTIONS, /preserve the rest of the identification clause and its meaning/i)
+assert.match(TRANSFORMATION_INSTRUCTIONS, /obvious, unambiguous, minimal local editorial correction/i)
+assert.match(TRANSFORMATION_INSTRUCTIONS, /meaning-preserving/i)
 assert.match(TRANSFORMATION_INSTRUCTIONS, /Input conflicts must be stopped before transformation/i)
 assert.match(TRANSFORMATION_INSTRUCTIONS, /complete final paragraph text/i)
 assert.match(TRANSFORMATION_INSTRUCTIONS, /return no operation for a protected block/i)
@@ -120,7 +119,6 @@ const missingAi: ContractAi = {
     return { missingInputs: [{ id: 'template-value-1', label: 'PESEL Julii Kanickiej', explanation: 'Umowa wymaga numeru PESEL Julii Kanickiej.', inputType: 'text', required: true, sourceContext: 'Identyfikacja Strony' }] }
   },
   async review() { reviewCalls++; return { status: 'PASS' } },
-  async repair() { throw new Error('repair must not run') },
 }
 const missing = await runGeneration(sourceBuffer, input, missingAi)
 assert.equal(missing.status, 'MISSING_INPUT')
@@ -132,7 +130,6 @@ let conflictPlanCalls = 0
 const conflictAi: ContractAi = {
   async plan() { conflictPlanCalls++; return { missingInputs: [], blockOperations: [] } },
   async review() { return { status: 'PASS' } },
-  async repair() { throw new Error('repair must not run') },
 }
 const conflictResult = await runGeneration(sourceBuffer, conflictingInput, conflictAi)
 assert.equal(conflictResult.status, 'CONFLICT_INPUT')
@@ -145,7 +142,6 @@ const invalidConclusionAi: ContractAi = {
     return { missingInputs: [], blockOperations: [{ blockId: opening.blockId, operation: 'REPLACE_BLOCK_TEXT', finalText: opening.text }] }
   },
   async review() { invalidConclusionReviewCalls++; return { status: 'PASS' } },
-  async repair() { throw new Error('repair must not run for invalid conclusion plan') },
 }
 const invalidConclusionResult = await runGeneration(sourceBuffer, input, invalidConclusionAi)
 assert.equal(invalidConclusionResult.status, 'FAILED')
@@ -164,7 +160,6 @@ const answeredAi: ContractAi = {
     return { missingInputs: [], blockOperations: opening && nextInput.conclusion.replacementDate ? [{ blockId: opening.blockId, operation: 'REPLACE_BLOCK_TEXT', finalText: opening.text.replace(/\d{1,2}[./-]\d{1,2}[./-]\d{4}|\d{1,2}\s+(?:stycznia|lutego|marca|kwietnia|maja|czerwca|lipca|sierpnia|września|października|listopada|grudnia)\s+\d{4}|\.{3,}/i, nextInput.conclusion.replacementDate) }] : [] }
   },
   async review() { answeredReviewCalls++; return { status: 'PASS' } },
-  async repair() { throw new Error('repair must not run') },
 }
 const resumed = await runGeneration(sourceBuffer, supplied, answeredAi)
 assert.equal(resumed.status, 'FAILED', 'an unresolved source payment allocation is rejected before candidate review')
