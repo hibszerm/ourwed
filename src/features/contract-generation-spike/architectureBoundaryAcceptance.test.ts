@@ -25,23 +25,25 @@ const inventory: SourceInventory = { items: [{ id: 'client-name', label: 'old cl
 const input = inputFor(pipelineSource)
 const case04Options = JSON.parse(await readFile(new URL('./multi-template-acceptance/cases/case-04-realistic-wedding-photographer/input.json', import.meta.url), 'utf8')) as { authoritativeInput: ContractGenerationInputOptions }
 const authorityContext = buildContractGenerationInput(case04Options.authoritativeInput)
-const operation = { blockId: block.blockId, operation: 'REPLACE_BLOCK_TEXT' as const, finalText: 'Client: Ada Test' }
-const plan: PlanResult = { ...ready(), factChanges: [{ label: 'name', inventoryItemIds: ['client-name'], newValue: 'Ada Test', newValueFormat: 'literal', authority: { kind: 'crm', ref: 'wedding.bride.name' } }], operations: [operation] }
-assert.deepEqual(validateAuthorityGate(input, inventory, plan), [])
+const party1Name = authorityContext.parties.find((party) => party.sourceKey === 'partner1')!.fullName!
+const operation = { blockId: block.blockId, operation: 'REPLACE_BLOCK_TEXT' as const, finalText: `Client: ${party1Name.value}` }
+const plan: PlanResult = { ...ready(), factChanges: [{ label: 'name', inventoryItemIds: ['client-name'], newValue: party1Name.value, newValueFormat: 'literal', authority: { kind: 'crm', ref: party1Name.source } }], operations: [operation] }
+const legacyPlan: PlanResult = { ...ready(), factChanges: [{ label: 'name', inventoryItemIds: ['client-name'], newValue: 'Ada Test', newValueFormat: 'literal', authority: { kind: 'crm', ref: 'wedding.bride.name' } }] }
+assert.deepEqual(validateAuthorityGate(input, inventory, legacyPlan), [], 'legacy authority paths remain confined to direct historical compatibility checks')
 for (const status of ['MISSING_INPUT', 'CONFLICT_INPUT'] as const) assert.deepEqual(sanitizePlannerOperations(status, [operation]).operations, [])
 assert.deepEqual(sanitizePlannerOperations('READY', [operation]).operations, [operation])
 
 const stageOrder: string[] = []
-const generated = await runGeneration(pipelineBytes, input, authorityContext, {
+const generated = await runGeneration(pipelineBytes, pipelineSource, authorityContext, {}, {
   async inventory(sourceDocument) { stageOrder.push('inventory'); assert.strictEqual(sourceDocument, pipelineSource); assert.equal('wedding' in sourceDocument, false); return inventory },
   async plan(receivedAuthority, receivedInventory) { stageOrder.push('plan'); assert.strictEqual(receivedAuthority, authorityContext); assert.strictEqual(receivedInventory, inventory); return plan },
-  async review(args) { stageOrder.push('review'); assert.strictEqual(args.authorityContext, authorityContext); assert.deepEqual(args.factChanges, plan.factChanges); assert.equal(args.resolvedInventoryOccurrences[0]?.text, 'Ada Source'); assert.ok(args.changedBlocks.some((item) => item.sourceText?.includes('Ada Source') && item.candidateText?.includes('Ada Test'))); return { status: 'PASS' } },
+  async review(args) { stageOrder.push('review'); assert.strictEqual(args.authorityContext, authorityContext); assert.deepEqual(args.factChanges, plan.factChanges); assert.equal(args.resolvedInventoryOccurrences[0]?.text, 'Ada Source'); assert.ok(args.changedBlocks.some((item) => item.sourceText?.includes('Ada Source') && item.candidateText?.includes(party1Name.value))); return { status: 'PASS' } },
 })
 assert.deepEqual(stageOrder, ['inventory', 'plan', 'review'])
 assert.equal(generated.status, 'COMPLETED')
 
 let reviewCount = 0
-const missingRun = await runGeneration(pipelineBytes, input, authorityContext, {
+const missingRun = await runGeneration(pipelineBytes, pipelineSource, authorityContext, {}, {
   async inventory() { return inventory },
   async plan() { return { ...ready(), status: 'MISSING_INPUT', missingInputs: [{ id: 'gap', label: 'missing fact', explanation: 'replacement unavailable', inputType: 'text', required: true, sourceContext: 'source', sourceRefs: [block.blockId], inventoryItemIds: ['client-name'] }] } },
   async review() { reviewCount++; return { status: 'PASS' } },
@@ -50,7 +52,7 @@ assert.equal(missingRun.status, 'MISSING_INPUT')
 if (missingRun.status === 'MISSING_INPUT') assert.equal(missingRun.missingInputs.length, 1)
 assert.equal(reviewCount, 0, 'non-READY planning skips independent review')
 
-const deterministicStop = await runGeneration(pipelineBytes, input, authorityContext, {
+const deterministicStop = await runGeneration(pipelineBytes, pipelineSource, authorityContext, {}, {
   async inventory() { return inventory },
   async plan() { return { ...plan, operations: [{ ...operation, finalText: block.text }] } },
   async review() { reviewCount++; return { status: 'PASS' } },

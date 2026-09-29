@@ -18,9 +18,10 @@ export type WeddingFacts = {
   remainingDueDate: string
   locations: { bridePreparations: string; groomPreparations: string; ceremony: string; reception: string }
 }
+export type SourceDocument = { fileName: string; blocks: SourceBlock[]; documentProperties?: DocumentPropertyText[] }
 export type GenerationInput = {
   generationDate: string
-  sourceDocument: { fileName: string; blocks: SourceBlock[]; documentProperties?: DocumentPropertyText[] }
+  sourceDocument: SourceDocument
   wedding: WeddingFacts
   packagePolicy: { preserveSourcePackageExactly: true }
   productRules: Record<string, unknown>
@@ -34,6 +35,7 @@ export type SourceInventoryOccurrence = { sourceRef: string; span: SourceSpan | 
 export type SourceInventoryItem = { id: string; label: string; occurrences: SourceInventoryOccurrence[] }
 export type SourceInventory = { items: SourceInventoryItem[] }
 export type FactAuthority = { kind: 'crm' | 'user' | 'generation_date' | 'derived'; ref: string }
+export type ResolvedAuthorityRef = { value: string; source: string; owner?: 'partner1' | 'partner2' }
 export type FactChange = { label: string; inventoryItemIds: string[]; newValue: string; newValueFormat: 'literal' | 'polish_pln_words'; authority: FactAuthority }
 export type RetentionAuthority = { kind: 'product_rule' | 'user'; ref: string }
 export type RetainedLiteral = { inventoryItemId: string; authority: RetentionAuthority; reason: string }
@@ -45,16 +47,16 @@ export type ChangedBlock = { blockRef: string; sourceText: string | null; candid
 export type ResolvedInventoryOccurrence = { itemId: string; sourceRef: string; text: string; start: number; end: number }
 export type GenerationResult = { status: 'MISSING_INPUT'; missingInputs: MissingInput[] } | { status: 'CONFLICT_INPUT'; conflicts: ConflictInput[] } | { status: 'FAILED'; issues: string[] } | { status: 'COMPLETED'; docxBytes: ArrayBuffer; review: ReviewResult }
 export interface ContractAi {
-  inventory(source: GenerationInput['sourceDocument']): Promise<SourceInventory>
+  inventory(source: SourceDocument): Promise<SourceInventory>
   plan(authorityContext: ContractGenerationInput, inventory: SourceInventory): Promise<PlanResult>
-  review(args: { source: GenerationInput['sourceDocument']; authorityContext: ContractGenerationInput; inventory: SourceInventory; resolvedInventoryOccurrences: ResolvedInventoryOccurrence[]; factChanges: FactChange[]; retainedLiterals: RetainedLiteral[]; candidate: SourceBlock[]; changedBlocks: ChangedBlock[] }): Promise<ReviewResult>
+  review(args: { source: SourceDocument; authorityContext: ContractGenerationInput; inventory: SourceInventory; resolvedInventoryOccurrences: ResolvedInventoryOccurrence[]; factChanges: FactChange[]; retainedLiterals: RetainedLiteral[]; candidate: SourceBlock[]; changedBlocks: ChangedBlock[] }): Promise<ReviewResult>
 }
-export async function runSourceInventory(source: GenerationInput['sourceDocument'], ai: Pick<ContractAi, 'inventory'>): Promise<SourceInventory> {
+export async function runSourceInventory(source: SourceDocument, ai: Pick<ContractAi, 'inventory'>): Promise<SourceInventory> {
   return ai.inventory(source)
 }
 
 export const SOURCE_INVENTORY_INSTRUCTIONS = `Inspect this source contract without receiving or inferring any new client or wedding data. Inventory transaction-specific or agreement-instance-specific source facts that may need disposition when creating a new contract: old client facts, old event facts, old contract identifiers, selected deal-specific values, and old transaction-specific amounts, dates, or locations. Do not inventory standing template or provider content that remains applicable, such as vendor/company identity, a general contract title, standard legal wording, a generic service catalogue, standing travel policy, or reusable package terms that are not specific to the old agreement instance. Do not inventory reusable contractual timing language merely because it contains a number; include it only when specific to the old agreement instance. These are scope examples, not fixed classifications; decide from document context. Return each item with a unique id, short free-form label, and one or more occurrences. Each occurrence must use a canonical sourceRef copied from the supplied source index. If the whole referenced block/property is the item, set span to null. If the block contains multiple distinct facts, provide a minimal zero-based, end-exclusive Unicode-code-point span into that reference's exact visible text. The span is a mechanical selector only. Do not copy or paraphrase the selected text into the inventory. Do not create overlapping occurrences. Inventory every relevant occurrence, including repeated values in body, tables, headers, footers, and supplied textual document properties. Do not infer replacements, request information, or make generation decisions.`
-export const TRANSFORMATION_INSTRUCTIONS = `Use the source, source inventory, authoritative CRM input, user answers, and supplied product rules to understand the contract. Inventory items already identify source-grounded spans; never retype old source literals. For each item either declare a factChange referencing its inventoryItemId with an exact authoritative newValue and authority, declare a retention referencing its inventoryItemId and an existing product-rule or user authority, or report every missing required value. A free-text retention reason is explanatory only and is never authority. Do not retain old agreement-instance values without an explicit applicable preserve rule or user instruction. If a required replacement value is unavailable and no authorized preservation applies, report MISSING_INPUT. Complete a full-document and full-inventory sweep before responding; return all currently discoverable missing inputs together. MISSING_INPUT and CONFLICT_INPUT responses must contain no partial factChanges, retentions, or operations. READY requires every inventory item to have exactly one valid replacement or authorized retention, with no unresolved input or conflict. Authority kinds for fact changes are crm, user, generation_date, derived; authority.ref is the bare canonical reference, without a duplicated namespace. Use only sourceRefs supplied by the source index through inventory occurrences; never invent or repair refs. Retention authority kinds are product_rule or user, and refs must point to an actual supplied rule or userProvidedAnswer. Set newValueFormat to literal for ordinary text. Use polish_pln_words only when you have identified that the newValue is the written-out rendering of a numeric PLN authority; code will compare it with a deterministic formatter. CRM/user values must match their named authority. Derived values must use declared authoritative inputs and arithmetic; derived operands belong only in the derivation declaration, never source refs. Apply the existing product rule: CRM supplies total, reservation/deposit and aggregate remainder only; if source semantics require a detailed allocation not present in authoritative input or user answers, report MISSING_INPUT instead of inferring amounts. Preserve source legal meaning and package/service scope. Use generationDate for a source conclusion date when applicable; preserve the source conclusion place under current product rules. AI decides which source facts have those meanings. Operations remain the existing safe block operations and must target supported source blocks with complete final text.`
+export const TRANSFORMATION_INSTRUCTIONS = `Use the source, source inventory, authoritative CRM input, user answers, and supplied product rules to understand the contract. Inventory items already identify source-grounded spans; never retype old source literals. For each item either declare a factChange referencing its inventoryItemId with an exact authoritative newValue and authority, declare a retention referencing its inventoryItemId and an existing product-rule or user authority, or report every missing required value. A free-text retention reason is explanatory only and is never authority. Do not retain old agreement-instance values without an explicit applicable preserve rule or user instruction. If a required replacement value is unavailable and no authorized preservation applies, report MISSING_INPUT. Complete a full-document and full-inventory sweep before responding; return all currently discoverable missing inputs together. MISSING_INPUT and CONFLICT_INPUT responses must contain no partial factChanges, retentions, or operations. READY requires every inventory item to have exactly one valid replacement or authorized retention, with no unresolved input or conflict. Authority kinds for fact changes are crm, user, generation_date, derived; authority.ref is a bare canonical reference, without a duplicated namespace. For crm, copy the exact source string from the matching normalized fact; for user, copy the exact opaque additionalAnswers id; generation_date uses generationDate; derived may reference commercial.remainingAfterDeposit or commercial.remainingToPayNow, whose arithmetic is checked deterministically. Use only sourceRefs supplied by the source index through inventory occurrences; never invent or repair refs. Retention authority kinds are product_rule or user, and refs must point to an actual supplied rule or userProvidedAnswer. Set newValueFormat to literal for ordinary text. Use polish_pln_words only when you have identified that the newValue is the written-out rendering of a numeric PLN authority; code will compare it with a deterministic formatter. CRM/user values must match their named authority. Derived values must use declared authoritative inputs and arithmetic; derived operands belong only in the derivation declaration, never source refs. Apply the existing product rule: CRM supplies total, reservation/deposit and aggregate remainder only; if source semantics require a detailed allocation not present in authoritative input or user answers, report MISSING_INPUT instead of inferring amounts. Preserve source legal meaning and package/service scope. Use generationDate for a source conclusion date when applicable; preserve the source conclusion place under current product rules. AI decides which source facts have those meanings. Operations remain the existing safe block operations and must target supported source blocks with complete final text.`
 export const REVIEW_INSTRUCTIONS = `Independently review source and candidate semantics using the source inventory, deterministic source-grounded occurrence texts, authoritative input, user answers, planner factChanges, retainedLiterals, and the mechanical changed-block diff. Treat resolvedInventoryOccurrences.text as the exact canonical old source text for each item and ref; labels and reasons are context only. Decide whether the correct person's values were assigned, payment meanings/deadlines remain correct, legal meaning and package scope are preserved, stale source-specific facts were incorrectly retained, anything was invented, any required input was missed, and signature roles remain correct. Return PASS or FAIL with findings. Do not edit or repair the document.`
 
 export function sanitizePlannerOperations(status: PlannerResponseStatus, providerOperations: BlockOperation[] | undefined): { rawOperations: BlockOperation[]; operations: BlockOperation[]; rawOperationCount: number; operationCount: number; discardedOperationCount: number } {
@@ -64,14 +66,15 @@ export function sanitizePlannerOperations(status: PlannerResponseStatus, provide
 }
 
 function normalize(value: string): string { return value.normalize('NFC').replace(/\s+/g, ' ').trim() }
-function canonicalAuthorityRef(authority: FactAuthority): boolean {
+function canonicalLegacyAuthorityRef(authority: FactAuthority): boolean {
   if (!authority.ref || authority.ref.includes(':')) return false
   if (authority.kind === 'generation_date') return authority.ref === 'generationDate'
   if (authority.kind === 'crm') return /^[A-Za-z][A-Za-z0-9]*(?:\.[A-Za-z][A-Za-z0-9]*)+$/.test(authority.ref)
   return /^[^\s:]+(?:\.[^\s:]+)*$/.test(authority.ref)
 }
-function authorityValue(input: GenerationInput, authority: FactAuthority): string | undefined {
-  if (!canonicalAuthorityRef(authority)) return undefined
+
+function legacyAuthorityValue(input: GenerationInput, authority: FactAuthority): string | undefined {
+  if (!canonicalLegacyAuthorityRef(authority)) return undefined
   if (authority.kind === 'generation_date') return authority.ref === 'generationDate' && input.generationDate ? input.generationDate : undefined
   if (authority.kind === 'user') return input.userProvidedAnswers.find((answer) => answer.id === authority.ref)?.value
   if (authority.kind === 'derived') return input.deterministicDerivedFacts.find((fact) => fact.ref === authority.ref)?.value
@@ -83,6 +86,97 @@ function authorityValue(input: GenerationInput, authority: FactAuthority): strin
     return typeof value === 'string' || typeof value === 'number' ? String(value) : undefined
   }
   return undefined
+}
+
+function isNormalizedFact(value: unknown): value is { value: unknown; source: string; owner?: 'partner1' | 'partner2' } {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  const fact = value as Record<string, unknown>
+  const keys = Object.keys(fact)
+  return typeof fact.source === 'string' && 'value' in fact
+    && keys.every((key) => key === 'value' || key === 'source' || key === 'owner')
+    && (fact.owner === undefined || fact.owner === 'partner1' || fact.owner === 'partner2')
+}
+
+function normalizedFacts(input: ContractGenerationInput): Array<{ path: string; fact: { value: unknown; source: string; owner?: 'partner1' | 'partner2' } }> {
+  const found: Array<{ path: string; fact: { value: unknown; source: string; owner?: 'partner1' | 'partner2' } }> = []
+  const visit = (value: unknown, path: string) => {
+    if (isNormalizedFact(value)) {
+      found.push({ path, fact: value })
+      return
+    }
+    if (Array.isArray(value)) {
+      value.forEach((item, index) => visit(item, `${path}[${index}]`))
+      return
+    }
+    if (value && typeof value === 'object') {
+      for (const [key, child] of Object.entries(value)) visit(child, path ? `${path}.${key}` : key)
+    }
+  }
+  visit(input, '')
+  return found
+}
+
+function authorityText(value: unknown): string | undefined {
+  if (typeof value === 'string') return value
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value)
+  try { return JSON.stringify(value) } catch { return undefined }
+}
+
+function canonicalNormalizedAuthorityRef(authority: FactAuthority): boolean {
+  return authority.ref.length > 0 && authority.ref === authority.ref.trim()
+    && !authority.ref.includes(':') && !/[\u0000-\u001f\u007f]/u.test(authority.ref)
+    && (authority.kind !== 'generation_date' || authority.ref === 'generationDate')
+}
+
+/** Resolve canonical references only against exact normalized provenance or opaque answer IDs. */
+export function resolveAuthorityRef(input: ContractGenerationInput, authority: FactAuthority): ResolvedAuthorityRef | undefined {
+  if (!canonicalNormalizedAuthorityRef(authority)) return undefined
+  if (authority.kind === 'generation_date') {
+    const fact = input.generationContext.generationDate
+    const value = authorityText(fact.value)
+    return value === undefined ? undefined : { value, source: fact.source }
+  }
+  if (authority.kind === 'user') {
+    const matches = input.additionalAnswers.filter((answer) => answer.id === authority.ref && answer.authority === 'user')
+    if (matches.length !== 1) return undefined
+    const answer = matches[0]!
+    return { value: answer.value, source: answer.source }
+  }
+  if (authority.kind === 'derived') {
+    // These two structural refs are the adapter's explicitly named arithmetic facts.
+    const fact = authority.ref === 'commercial.remainingAfterDeposit'
+      ? input.commercial.remainingAfterDeposit
+      : authority.ref === 'commercial.remainingToPayNow'
+        ? input.commercial.remainingToPayNow
+        : undefined
+    if (!fact) return undefined
+    const value = authorityText(fact.value)
+    return value === undefined ? undefined : { value, source: fact.source }
+  }
+  const matches = normalizedFacts(input).filter(({ path, fact }) => path !== 'generationContext.generationDate' && fact.source === authority.ref)
+  if (matches.length !== 1) return undefined
+  const resolved = matches[0]!
+  const value = authorityText(resolved.fact.value)
+  return value === undefined ? undefined : {
+    value,
+    source: resolved.fact.source,
+    ...(resolved.fact.owner ? { owner: resolved.fact.owner } : {}),
+  }
+}
+
+function validateNormalizedDerivedFacts(input: ContractGenerationInput): string[] {
+  const issues: string[] = []
+  const { commercial } = input
+  const checks = [
+    ['remainingAfterDeposit', commercial.contractValue.value - commercial.agreedDeposit.value, commercial.remainingAfterDeposit.value],
+    ['remainingToPayNow', commercial.contractValue.value - commercial.totalPaid.value, commercial.remainingToPayNow.value],
+  ] as const
+  for (const [name, expected, actual] of checks) {
+    if (![expected, actual].every(Number.isFinite) || actual !== expected) {
+      issues.push(`Normalized commercial derivation ${name} does not match its authoritative arithmetic.`)
+    }
+  }
+  return issues
 }
 
 function numericLiteral(value: string): number | undefined {
@@ -129,8 +223,8 @@ function validateDerivedFacts(input: GenerationInput): string[] {
     if (fact.operation !== 'subtract' || fact.inputRefs.length < 2) { issues.push(`Unsupported arithmetic derivation: ${fact.ref}`); continue }
     const values = fact.inputRefs.map((ref) => {
       const [kind, ...parts] = ref.split(':')
-      if (kind === 'crm') return authorityValue(input, { kind: 'crm', ref: parts.join(':') })
-      if (kind === 'user') return authorityValue(input, { kind: 'user', ref: parts.join(':') })
+      if (kind === 'crm') return legacyAuthorityValue(input, { kind: 'crm', ref: parts.join(':') })
+      if (kind === 'user') return legacyAuthorityValue(input, { kind: 'user', ref: parts.join(':') })
       return undefined
     })
     const numbers = values.map((value) => value === undefined ? undefined : numericLiteral(value))
@@ -145,7 +239,7 @@ function codePointSlice(text: string, start: number, end: number): string {
   return Array.from(text).slice(start, end).join('')
 }
 
-export function resolveInventoryOccurrences(source: GenerationInput['sourceDocument'], inventory: SourceInventory): { occurrences: ResolvedInventoryOccurrence[]; findings: string[] } {
+export function resolveInventoryOccurrences(source: SourceDocument, inventory: SourceInventory): { occurrences: ResolvedInventoryOccurrence[]; findings: string[] } {
   const locations = findTextLocations(source)
   const byRef = new Map(locations.map((location) => [location.ref, location.text]))
   const findings: string[] = []
@@ -191,24 +285,36 @@ function readRuleAtPath(roots: Record<string, unknown>, ref: string): unknown {
   return value
 }
 
-function retentionAuthorityExists(input: GenerationInput, authority: RetentionAuthority): boolean {
+export type NormalizedAuthorityValidationContext = { sourceDocument: SourceDocument; productRules: Record<string, unknown> }
+
+function retentionAuthorityExists(input: GenerationInput | ContractGenerationInput, authority: RetentionAuthority, productRules: Record<string, unknown>): boolean {
   if (!authority || typeof authority !== 'object') return false
   if (!authority.ref || authority.ref.includes(':') || !/^[A-Za-z][A-Za-z0-9]*(?:\.[A-Za-z][A-Za-z0-9]*)*$/.test(authority.ref)) return false
   if (authority.kind === 'product_rule') {
-    const value = readRuleAtPath(input.productRules, authority.ref)
+    const value = readRuleAtPath(productRules, authority.ref)
     return value !== undefined && value !== false && value !== ''
   }
+  if ('generationContext' in input) return input.additionalAnswers.some((answer) => answer.id === authority.ref && answer.authority === 'user' && answer.value.trim().length > 0)
   return input.userProvidedAnswers.some((answer) => answer.id === authority.ref && answer.value.trim().length > 0)
 }
 
-export function validateAuthorityGate(input: GenerationInput, inventory: SourceInventory, plan: PlanResult): string[] {
-  const issues = validateDerivedFacts(input)
-  const resolved = resolveInventoryOccurrences(input.sourceDocument, inventory)
+export function validateAuthorityGate(
+  input: GenerationInput | ContractGenerationInput,
+  inventory: SourceInventory,
+  plan: PlanResult,
+  normalizedContext?: NormalizedAuthorityValidationContext,
+): string[] {
+  const normalized = 'generationContext' in input
+  const sourceDocument = normalized ? normalizedContext?.sourceDocument : input.sourceDocument
+  const productRules = normalized ? normalizedContext?.productRules ?? {} : input.productRules
+  const issues = normalized ? validateNormalizedDerivedFacts(input) : validateDerivedFacts(input)
+  if (!sourceDocument) return [...issues, 'Source document context is required for normalized authority validation.']
+  const resolved = resolveInventoryOccurrences(sourceDocument, inventory)
   issues.push(...resolved.findings)
   const itemIds = new Set(inventory.items.map((item) => item.id))
   const occurrencesByItem = new Map<string, ResolvedInventoryOccurrence[]>()
   for (const occurrence of resolved.occurrences) occurrencesByItem.set(occurrence.itemId, [...(occurrencesByItem.get(occurrence.itemId) ?? []), occurrence])
-  const locations = findTextLocations(input.sourceDocument)
+  const locations = findTextLocations(sourceDocument)
   const sourceRefs = new Set(locations.map((item) => item.ref))
   const validateRefs = (refs: string[], context: string) => {
     if (!refs.length || refs.some((ref) => !sourceRefs.has(ref))) issues.push(`${context} has an unsupported source reference.`)
@@ -232,11 +338,14 @@ export function validateAuthorityGate(input: GenerationInput, inventory: SourceI
     if (!normalize(change.newValue)) issues.push(`Fact change has an empty new literal: ${change.label}`)
     if (!change.inventoryItemIds.length) issues.push(`Fact change has no source inventory item: ${change.label}`)
     for (const id of change.inventoryItemIds) if (!itemIds.has(id)) issues.push(`Fact change “${change.label}” references unknown inventory item ${id}.`)
-    if (!canonicalAuthorityRef(change.authority)) {
+    const canonical = normalized ? canonicalNormalizedAuthorityRef(change.authority) : canonicalLegacyAuthorityRef(change.authority)
+    if (!canonical) {
       issues.push(`Invalid canonical authority reference for “${change.label}”: ${change.authority.kind}:${change.authority.ref}`)
       continue
     }
-    const authoritative = authorityValue(input, change.authority)
+    const authoritative = normalized
+      ? resolveAuthorityRef(input, change.authority)?.value
+      : legacyAuthorityValue(input, change.authority)
     if (authoritative === undefined) { issues.push(`Invalid authority reference for “${change.label}”: ${change.authority.kind}:${change.authority.ref}`); continue }
     if (!normalize(authoritative)) { issues.push(`Authority for “${change.label}” resolves to an empty value.`); continue }
     if (!declaredValueMatches(change, authoritative)) {
@@ -245,7 +354,7 @@ export function validateAuthorityGate(input: GenerationInput, inventory: SourceI
   }
   for (const retained of plan.retainedLiterals) {
     if (!itemIds.has(retained.inventoryItemId)) issues.push(`Retention references unknown inventory item ${retained.inventoryItemId}.`)
-    if (!retentionAuthorityExists(input, retained.authority)) issues.push(`Retention for inventory item ${retained.inventoryItemId} has no valid authority reference.`)
+    if (!retentionAuthorityExists(input, retained.authority, productRules)) issues.push(`Retention for inventory item ${retained.inventoryItemId} has no valid authority reference.`)
   }
   for (const item of inventory.items) {
     const dispositions = assigned.get(item.id) ?? []
@@ -274,7 +383,7 @@ function validateOperationTargets(blocks: SourceBlock[], operations: BlockOperat
   return issues
 }
 
-function findTextLocations(document: GenerationInput['sourceDocument']): Array<{ ref: string; text: string }> {
+function findTextLocations(document: SourceDocument): Array<{ ref: string; text: string }> {
   return [
     ...document.blocks.map((block) => ({ ref: block.blockId, text: block.text })),
     ...(document.documentProperties ?? []).map((property) => ({ ref: property.ref, text: property.text })),
@@ -328,7 +437,7 @@ async function readDocumentProperties(bytes: ArrayBuffer): Promise<DocumentPrope
   })
 }
 
-export async function readSource(bytes: ArrayBuffer, fileName: string): Promise<GenerationInput['sourceDocument']> {
+export async function readSource(bytes: ArrayBuffer, fileName: string): Promise<SourceDocument> {
   const [blocks, documentProperties] = await Promise.all([(await import('./blockDocxEditor')).buildBlockIndex(bytes), readDocumentProperties(bytes)])
   return { fileName, blocks, documentProperties }
 }
@@ -373,7 +482,7 @@ function replaceMetadataProperty(xml: string, property: string, expectedText: st
   return xml.replace(expression, `<${match[1]}${match[2]}>${escapeXml(nextText)}</${match[1]}>`)
 }
 
-export async function applyMetadataFactChanges(bytes: ArrayBuffer, changes: FactChange[], inventory: SourceInventory, source: GenerationInput['sourceDocument']): Promise<ArrayBuffer> {
+export async function applyMetadataFactChanges(bytes: ArrayBuffer, changes: FactChange[], inventory: SourceInventory, source: SourceDocument): Promise<ArrayBuffer> {
   const resolved = resolveInventoryOccurrences(source, inventory)
   if (resolved.findings.length) throw new Error(resolved.findings[0])
   const items = new Map(inventory.items.map((item) => [item.id, item]))
@@ -402,12 +511,20 @@ export async function applyMetadataFactChanges(bytes: ArrayBuffer, changes: Fact
   return zip.generateAsync({ type: 'arraybuffer' })
 }
 
-export async function validateCandidate(sourceBytes: ArrayBuffer, candidateBytes: ArrayBuffer, input: GenerationInput, inventory: SourceInventory, plan: PlanResult, approvedOperations: BlockOperation[] = []): Promise<string[]> {
+export async function validateCandidate(
+  sourceBytes: ArrayBuffer,
+  candidateBytes: ArrayBuffer,
+  input: GenerationInput | ContractGenerationInput,
+  inventory: SourceInventory,
+  plan: PlanResult,
+  approvedOperations: BlockOperation[] = [],
+  normalizedContext?: NormalizedAuthorityValidationContext,
+): Promise<string[]> {
   const issues: string[] = []
-  issues.push(...validateAuthorityGate(input, inventory, plan))
+  issues.push(...validateAuthorityGate(input, inventory, plan, normalizedContext))
   let sourceZip: JSZip; let candidateZip: JSZip
   try { sourceZip = await JSZip.loadAsync(sourceBytes); candidateZip = await JSZip.loadAsync(candidateBytes) } catch { return ['Cannot open DOCX ZIP package'] }
-  let source: GenerationInput['sourceDocument']; let candidate: GenerationInput['sourceDocument']
+  let source: SourceDocument; let candidate: SourceDocument
   try { [source, candidate] = await Promise.all([readSource(sourceBytes, 'source.docx'), readSource(candidateBytes, 'candidate.docx')]) } catch { return ['DOCX XML or document structure is invalid'] }
   issues.push(...validateOperationTargets(source.blocks, approvedOperations))
   const sourcePackageParts = Object.keys(sourceZip.files).filter((part) => !sourceZip.files[part]?.dir).sort()
@@ -420,7 +537,7 @@ export async function validateCandidate(sourceBytes: ArrayBuffer, candidateBytes
     const after = await candidateZip.file(part)?.async('uint8array')
     if (!after || before.length !== after.length || before.some((byte, index) => byte !== after[index])) issues.push(`Untouched DOCX package part changed: ${part}`)
   }
-  const expectedMetadataBytes = await applyMetadataFactChanges(sourceBytes, plan.factChanges, inventory, input.sourceDocument)
+  const expectedMetadataBytes = await applyMetadataFactChanges(sourceBytes, plan.factChanges, inventory, source)
   const expectedMetadataZip = await JSZip.loadAsync(expectedMetadataBytes)
   const expectedCore = await expectedMetadataZip.file('docProps/core.xml')?.async('string')
   const actualCore = await candidateZip.file('docProps/core.xml')?.async('string')
@@ -483,29 +600,33 @@ export async function validateCandidate(sourceBytes: ArrayBuffer, candidateBytes
   return issues
 }
 
-/**
- * `authorityContext` is the only party/commercial authority passed to AI.
- * `input` remains for the frozen deterministic validation and document path.
- */
-export async function runGeneration(sourceBytes: ArrayBuffer, input: GenerationInput, authorityContext: ContractGenerationInput, ai: ContractAi): Promise<GenerationResult> {
-  const inventory = await runSourceInventory(input.sourceDocument, ai)
+/** The normalized authority input is used by AI and deterministic validation; source structure stays separate. */
+export async function runGeneration(
+  sourceBytes: ArrayBuffer,
+  sourceDocument: SourceDocument,
+  authorityContext: ContractGenerationInput,
+  productRules: Record<string, unknown>,
+  ai: ContractAi,
+): Promise<GenerationResult> {
+  const validationContext: NormalizedAuthorityValidationContext = { sourceDocument, productRules }
+  const inventory = await runSourceInventory(sourceDocument, ai)
   const plan = await ai.plan(authorityContext, inventory)
   const safeOperations = sanitizePlannerOperations(plan.status, plan.operations).operations
   const effectivePlan = { ...plan, operations: safeOperations }
-  const authorityIssues = validateAuthorityGate(input, inventory, effectivePlan)
+  const authorityIssues = validateAuthorityGate(authorityContext, inventory, effectivePlan, validationContext)
   if (authorityIssues.length) return { status: 'FAILED', issues: authorityIssues }
   if (plan.status === 'MISSING_INPUT') return { status: 'MISSING_INPUT', missingInputs: plan.missingInputs }
   if (plan.status === 'CONFLICT_INPUT') return { status: 'CONFLICT_INPUT', conflicts: plan.conflicts }
-  const targetIssues = validateOperationTargets(input.sourceDocument.blocks, safeOperations)
+  const targetIssues = validateOperationTargets(sourceDocument.blocks, safeOperations)
   if (targetIssues.length) return { status: 'FAILED', issues: targetIssues }
   const edited = await applyBlockOperations(sourceBytes, safeOperations)
-  const candidateBytes = await applyMetadataFactChanges(edited, plan.factChanges, inventory, input.sourceDocument)
-  const candidateDocument = await readSource(candidateBytes, input.sourceDocument.fileName)
-  const candidateIssues = await validateCandidate(sourceBytes, candidateBytes, input, inventory, effectivePlan, safeOperations)
+  const candidateBytes = await applyMetadataFactChanges(edited, plan.factChanges, inventory, sourceDocument)
+  const candidateDocument = await readSource(candidateBytes, sourceDocument.fileName)
+  const candidateIssues = await validateCandidate(sourceBytes, candidateBytes, authorityContext, inventory, effectivePlan, safeOperations, validationContext)
   if (candidateIssues.length) return { status: 'FAILED', issues: candidateIssues }
-  const changedBlocks = computeChangedBlockDiff(input.sourceDocument.blocks, candidateDocument.blocks)
-  const resolvedInventoryOccurrences = resolveInventoryOccurrences(input.sourceDocument, inventory).occurrences
-  const review = await ai.review({ source: input.sourceDocument, authorityContext, inventory, resolvedInventoryOccurrences, factChanges: plan.factChanges, retainedLiterals: plan.retainedLiterals, candidate: candidateDocument.blocks, changedBlocks })
+  const changedBlocks = computeChangedBlockDiff(sourceDocument.blocks, candidateDocument.blocks)
+  const resolvedInventoryOccurrences = resolveInventoryOccurrences(sourceDocument, inventory).occurrences
+  const review = await ai.review({ source: sourceDocument, authorityContext, inventory, resolvedInventoryOccurrences, factChanges: plan.factChanges, retainedLiterals: plan.retainedLiterals, candidate: candidateDocument.blocks, changedBlocks })
   if (review.status === 'FAIL') return { status: 'FAILED', issues: review.issues }
   return { status: 'COMPLETED', docxBytes: candidateBytes, review }
 }

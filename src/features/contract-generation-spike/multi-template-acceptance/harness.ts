@@ -11,7 +11,6 @@ import type { WeddingPlace } from '@/types/travel'
 import {
   computeChangedBlockDiff,
   applyMetadataFactChanges,
-  makeInput,
   normalizeAuthoritativeFinancialBlocks,
   normalizeAuthoritativePlnText,
   readSource,
@@ -23,11 +22,11 @@ import {
   type SourceInventory,
   validateCandidate,
   type ConflictInput,
-  type GenerationInput,
   type MissingInput,
   type ReviewResult,
   type ResolvedInventoryOccurrence,
   type SourceBlock,
+  type SourceDocument,
   type WeddingFacts,
 } from '../generator'
 
@@ -45,7 +44,7 @@ export type LegacyMultiTemplateCaseDefinition = {
   generationDate: string
   weddingFacts: DeepPartial<WeddingFacts>
   extras?: string[]
-  userProvidedAnswers?: GenerationInput['userProvidedAnswers']
+  userProvidedAnswers?: ContractGenerationInputOptions['userProvidedAnswers']
   expectedProductRules?: AcceptanceProductRules
 }
 
@@ -59,9 +58,9 @@ export type ContractGenerationInputCaseDefinition = {
 export type MultiTemplateCaseDefinition = LegacyMultiTemplateCaseDefinition | ContractGenerationInputCaseDefinition
 
 export type AcceptanceProvider = {
-  inventory(args: { source: GenerationInput['sourceDocument']; sourceDocx: ArrayBuffer }): Promise<SourceInventory & { providerMetadata?: ProviderResponseMetadata }>
+  inventory(args: { source: SourceDocument; sourceDocx: ArrayBuffer }): Promise<SourceInventory & { providerMetadata?: ProviderResponseMetadata }>
   transform(args: { authorityContextDescription: string; authorityContext: ContractGenerationInput; inventory: SourceInventory; sourceDocx: ArrayBuffer; productRules: AcceptanceProductRules }): Promise<PlanResult & { providerMetadata?: ProviderResponseMetadata }>
-  review(args: { source: GenerationInput['sourceDocument']; authorityContextDescription: string; authorityContext: ContractGenerationInput; inventory: SourceInventory; resolvedInventoryOccurrences: ResolvedInventoryOccurrence[]; factChanges: PlanResult['factChanges']; retainedLiterals: PlanResult['retainedLiterals']; candidate: SourceBlock[]; changedBlocks: ReturnType<typeof computeChangedBlockDiff>; productRules: AcceptanceProductRules }): Promise<ReviewResult & { providerMetadata?: ProviderResponseMetadata }>
+  review(args: { source: SourceDocument; authorityContextDescription: string; authorityContext: ContractGenerationInput; inventory: SourceInventory; resolvedInventoryOccurrences: ResolvedInventoryOccurrence[]; factChanges: PlanResult['factChanges']; retainedLiterals: PlanResult['retainedLiterals']; candidate: SourceBlock[]; changedBlocks: ReturnType<typeof computeChangedBlockDiff>; productRules: AcceptanceProductRules }): Promise<ReviewResult & { providerMetadata?: ProviderResponseMetadata }>
 }
 
 export type AcceptanceResult = {
@@ -263,54 +262,6 @@ function legacyCaseOptions(definition: LegacyMultiTemplateCaseDefinition): Contr
   }
 }
 
-function locationText(input: ContractGenerationInput, role: WeddingPlace['role']): string {
-  const place = input.locations.find((location) => location.role.value === role)
-  if (!place) return ''
-  const label = place.label?.value.trim() ?? ''
-  const address = place.formattedAddress.value.trim()
-  if (!label) return address
-  if (!address || label === address) return label
-  return `${label}, ${address}`
-}
-
-/**
- * Existing deterministic validators still consume GenerationInput. This
- * mechanical projection is local to those gates and is never sent to a
- * provider; the planner and reviewer receive normalized ContractGenerationInput.
- */
-function makeDeterministicValidationInput(
-  normalizedInput: ContractGenerationInput,
-  sourceDocument: GenerationInput['sourceDocument'],
-  productRules: AcceptanceProductRules,
-): GenerationInput {
-  const party1 = normalizedInput.parties.find((party) => party.sourceKey === 'partner1')
-  const party2 = normalizedInput.parties.find((party) => party.sourceKey === 'partner2')
-  const unownedAddress = normalizedInput.unownedFacts.find((fact) => typeof fact.value === 'string')?.value
-  return makeInput({
-    generationDate: normalizedInput.generationContext.generationDate.value,
-    sourceDocument,
-    wedding: {
-      bride: { name: party1?.fullName?.value ?? '', phone: party1?.phone?.value ?? '', email: party1?.email?.value ?? '' },
-      groom: { name: party2?.fullName?.value ?? '', phone: party2?.phone?.value ?? '' },
-      weddingDate: normalizedInput.wedding.date.value,
-      contractAddress: typeof unownedAddress === 'string' ? unownedAddress : '',
-      contractValuePln: normalizedInput.commercial.contractValue.value,
-      depositPln: normalizedInput.commercial.agreedDeposit.value,
-      remainingDueDate: normalizedInput.commercial.finalPaymentDueDate?.value ?? '',
-      locations: {
-        bridePreparations: locationText(normalizedInput, 'bride_preparation'),
-        groomPreparations: locationText(normalizedInput, 'groom_preparation'),
-        ceremony: locationText(normalizedInput, 'ceremony'),
-        reception: locationText(normalizedInput, 'reception'),
-      },
-    },
-    packagePolicy: { preserveSourcePackageExactly: true },
-    productRules,
-    extras: normalizedInput.extras.map((extra) => `${extra.name.value} × ${extra.quantity.value}`),
-    userProvidedAnswers: normalizedInput.additionalAnswers.map(({ id, value }) => ({ id, value })),
-  })
-}
-
 async function runCommand(command: string, args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, { stdio: ['ignore', 'pipe', 'pipe'] })
@@ -486,8 +437,8 @@ export async function runMultiTemplateAcceptance(caseId: string, options: Harnes
     result.conflictFindings = planned.conflicts; result.overall = 'CONFLICT_INPUT'; await writeReports(result, outputDirectory, metrics); return result
   }
   metrics.startStage('planValidation')
-  const validationInput = makeDeterministicValidationInput(normalizedInput, sourceDocument, definition.expectedProductRules ?? {})
-  const planIssues = validateAuthorityGate(validationInput, inventory, planned)
+  const normalizedValidationContext = { sourceDocument, productRules: { ...(definition.expectedProductRules ?? {}) } }
+  const planIssues = validateAuthorityGate(normalizedInput, inventory, planned, normalizedValidationContext)
   metrics.endStage('planValidation')
   await persistPlanningResult(outputDirectory, {
     status: planIssues.length ? 'FAILED' : 'READY', missingInputs: planned.missingInputs, conflicts: [], factChanges: planned.factChanges,
@@ -503,7 +454,7 @@ export async function runMultiTemplateAcceptance(caseId: string, options: Harnes
     await writeReports(result, outputDirectory, metrics); return result
   }
   result.blockOperationCounts.transformation = planned.operations.length
-  const amounts = [validationInput.financials.contractValuePln, validationInput.financials.depositPln, validationInput.financials.remainingPln]
+  const amounts = [normalizedInput.commercial.contractValue.value, normalizedInput.commercial.agreedDeposit.value, normalizedInput.commercial.remainingAfterDeposit.value]
   const operations = planned.operations.map((operation) => 'finalText' in operation ? { ...operation, finalText: normalizeAuthoritativePlnText(operation.finalText, amounts) } : operation)
   const included = new Set(operations.flatMap((operation) => 'blockId' in operation ? [operation.blockId] : []))
   const canonical = normalizeAuthoritativeFinancialBlocks(sourceDocument.blocks, amounts).filter(({ block }) => !included.has(block.blockId))
@@ -536,7 +487,7 @@ export async function runMultiTemplateAcceptance(caseId: string, options: Harnes
   }
 
   metrics.startStage('candidateValidation')
-  const validation = await validateCandidate(sourceArrayBuffer, candidateArrayBuffer, validationInput, inventory, planned, allOperations)
+  const validation = await validateCandidate(sourceArrayBuffer, candidateArrayBuffer, normalizedInput, inventory, planned, allOperations, normalizedValidationContext)
   metrics.endStage('candidateValidation')
   result.deterministicFindings = validation
   result.deterministicValidation = validation.length ? 'FAIL' : 'PASS'
