@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { applyBlockOperations, type BlockOperation } from '../blockDocxEditor'
 import { ContractGenerationMetrics, type GenerationMeasurements, type MetricsClock, type ProviderResponseMetadata } from '../contractGenerationMetrics'
 import { buildContractGenerationInput, type ContractGenerationInput, type ContractGenerationInputOptions } from '../contractGenerationInput'
+import { PLANNER_AUTHORITY_CONTEXT_DESCRIPTION, serializePlannerAuthorityContext } from '../plannerProviderBoundary'
 import type { Wedding } from '@/types/wedding'
 import type { WeddingPlace } from '@/types/travel'
 import {
@@ -59,8 +60,8 @@ export type MultiTemplateCaseDefinition = LegacyMultiTemplateCaseDefinition | Co
 
 export type AcceptanceProvider = {
   inventory(args: { source: GenerationInput['sourceDocument']; sourceDocx: ArrayBuffer }): Promise<SourceInventory & { providerMetadata?: ProviderResponseMetadata }>
-  transform(args: { input: GenerationInput; inventory: SourceInventory; sourceDocx: ArrayBuffer; productRules: AcceptanceProductRules }): Promise<PlanResult & { providerMetadata?: ProviderResponseMetadata }>
-  review(args: { source: GenerationInput['sourceDocument']; input: GenerationInput; inventory: SourceInventory; resolvedInventoryOccurrences: ResolvedInventoryOccurrence[]; factChanges: PlanResult['factChanges']; retainedLiterals: PlanResult['retainedLiterals']; candidate: SourceBlock[]; changedBlocks: ReturnType<typeof computeChangedBlockDiff>; productRules: AcceptanceProductRules }): Promise<ReviewResult & { providerMetadata?: ProviderResponseMetadata }>
+  transform(args: { authorityContextDescription: string; authorityContext: ContractGenerationInput; inventory: SourceInventory; sourceDocx: ArrayBuffer; productRules: AcceptanceProductRules }): Promise<PlanResult & { providerMetadata?: ProviderResponseMetadata }>
+  review(args: { source: GenerationInput['sourceDocument']; authorityContextDescription: string; authorityContext: ContractGenerationInput; inventory: SourceInventory; resolvedInventoryOccurrences: ResolvedInventoryOccurrence[]; factChanges: PlanResult['factChanges']; retainedLiterals: PlanResult['retainedLiterals']; candidate: SourceBlock[]; changedBlocks: ReturnType<typeof computeChangedBlockDiff>; productRules: AcceptanceProductRules }): Promise<ReviewResult & { providerMetadata?: ProviderResponseMetadata }>
 }
 
 export type AcceptanceResult = {
@@ -68,6 +69,7 @@ export type AcceptanceResult = {
   sourceFilename: string
   productRules: AcceptanceProductRules
   normalizedInput: ContractGenerationInput | null
+  plannerAuthorityContextPath: string | null
   transformationRequestPrepared: boolean
   preflight: 'READY' | 'MISSING_INPUT' | 'CONFLICT_INPUT' | 'INVALID_CASE'
   missingInputs: MissingInput[]
@@ -131,7 +133,7 @@ function ownedArrayBuffer(value: ArrayBufferLike): ArrayBuffer {
 
 function resultBase(caseId: string, sourceFilename = 'source.docx'): AcceptanceResult {
   return {
-    caseId, sourceFilename, productRules: {}, normalizedInput: null, transformationRequestPrepared: false, preflight: 'INVALID_CASE', missingInputs: [], conflictFindings: [],
+    caseId, sourceFilename, productRules: {}, normalizedInput: null, plannerAuthorityContextPath: null, transformationRequestPrepared: false, preflight: 'INVALID_CASE', missingInputs: [], conflictFindings: [],
     transformationStatus: 'NOT_RUN_PROVIDER_DISABLED', blockOperationCounts: { transformation: 0, canonicalMoney: 0 },
     planningResultPath: null, candidatePath: null, candidateOpens: null, reviewResult: 'NOT_RUN', reviewFindings: [],
     deterministicValidation: 'NOT_RUN', deterministicFindings: [], pageCount: null, blankPagePresence: 'NOT_RENDERED',
@@ -272,11 +274,11 @@ function locationText(input: ContractGenerationInput, role: WeddingPlace['role']
 }
 
 /**
- * The current provider protocol still consumes GenerationInput. Keep this
- * projection mechanical and at that boundary; normalizedInput remains the
- * authoritative harness input and is always persisted separately.
+ * Existing deterministic validators still consume GenerationInput. This
+ * mechanical projection is local to those gates and is never sent to a
+ * provider; the planner and reviewer receive normalized ContractGenerationInput.
  */
-function projectForExistingProvider(
+function makeDeterministicValidationInput(
   normalizedInput: ContractGenerationInput,
   sourceDocument: GenerationInput['sourceDocument'],
   productRules: AcceptanceProductRules,
@@ -341,6 +343,7 @@ export function formatAcceptanceReport(result: AcceptanceResult): string {
     `- Source: ${result.sourceFilename}`,
     `- Preflight: ${result.preflight}`,
     `- Normalized ContractGenerationInput: ${result.normalizedInput ? 'persisted in result.json' : 'not built'}`,
+    `- Planner authority context: ${result.plannerAuthorityContextPath ?? 'not prepared'}`,
     `- Product rules: package preservation ${result.productRules.preserveSourcePackageExactly ? 'required' : 'unspecified'}; source conclusion place ${result.productRules.preserveSourceConclusionPlace ?? 'unspecified'}; source party structure ${result.productRules.preserveSourceContractingPartyStructure ? 'authoritative' : 'unspecified'}`,
     `- Transformation request prepared: ${result.transformationRequestPrepared ? 'yes' : 'no'}`,
     `- Missing input fields: ${result.missingInputs.map((item) => item.label).join(', ') || 'none'}`,
@@ -412,13 +415,16 @@ export async function runMultiTemplateAcceptance(caseId: string, options: Harnes
   metrics.endStage('preflight')
   result.preflight = 'READY'
   result.transformationRequestPrepared = true
-  if (!options.provider || 'authoritativeInput' in definition) {
+  const plannerContextPath = path.join(outputDirectory, 'planner-authority-context.json')
+  result.plannerAuthorityContextPath = plannerContextPath
+  await mkdir(outputDirectory, { recursive: true })
+  await writeFile(plannerContextPath, `${serializePlannerAuthorityContext(normalizedInput)}\n`)
+  if (!options.provider) {
     result.overall = 'READY'
-    result.deterministicFindings = ['Provider execution disabled; normalized ContractGenerationInput prepared but not executed.']
+    result.deterministicFindings = ['Provider execution disabled; normalized planner authority context prepared but not executed.']
     await writeReports(result, outputDirectory, metrics)
     return result
   }
-  const input = projectForExistingProvider(normalizedInput, sourceDocument, definition.expectedProductRules ?? {})
 
   let inventory: SourceInventory
   metrics.startStage('inventoryProvider')
@@ -444,7 +450,7 @@ export async function runMultiTemplateAcceptance(caseId: string, options: Harnes
   let planned: PlanResult & { providerMetadata?: ProviderResponseMetadata }
   metrics.startStage('planningProvider')
   try {
-    planned = await options.provider.transform({ input, inventory, sourceDocx: sourceArrayBuffer, productRules: definition.expectedProductRules ?? {} })
+    planned = await options.provider.transform({ authorityContextDescription: PLANNER_AUTHORITY_CONTEXT_DESCRIPTION, authorityContext: normalizedInput, inventory, sourceDocx: sourceArrayBuffer, productRules: definition.expectedProductRules ?? {} })
     const normalizedResponse = sanitizePlannerOperations(planned.status, planned.operations)
     planned = { ...planned, operations: normalizedResponse.operations }
     result.planningResultPath = await persistPlanningResult(outputDirectory, {
@@ -480,7 +486,8 @@ export async function runMultiTemplateAcceptance(caseId: string, options: Harnes
     result.conflictFindings = planned.conflicts; result.overall = 'CONFLICT_INPUT'; await writeReports(result, outputDirectory, metrics); return result
   }
   metrics.startStage('planValidation')
-  const planIssues = validateAuthorityGate(input, inventory, planned)
+  const validationInput = makeDeterministicValidationInput(normalizedInput, sourceDocument, definition.expectedProductRules ?? {})
+  const planIssues = validateAuthorityGate(validationInput, inventory, planned)
   metrics.endStage('planValidation')
   await persistPlanningResult(outputDirectory, {
     status: planIssues.length ? 'FAILED' : 'READY', missingInputs: planned.missingInputs, conflicts: [], factChanges: planned.factChanges,
@@ -496,7 +503,7 @@ export async function runMultiTemplateAcceptance(caseId: string, options: Harnes
     await writeReports(result, outputDirectory, metrics); return result
   }
   result.blockOperationCounts.transformation = planned.operations.length
-  const amounts = [input.financials.contractValuePln, input.financials.depositPln, input.financials.remainingPln]
+  const amounts = [validationInput.financials.contractValuePln, validationInput.financials.depositPln, validationInput.financials.remainingPln]
   const operations = planned.operations.map((operation) => 'finalText' in operation ? { ...operation, finalText: normalizeAuthoritativePlnText(operation.finalText, amounts) } : operation)
   const included = new Set(operations.flatMap((operation) => 'blockId' in operation ? [operation.blockId] : []))
   const canonical = normalizeAuthoritativeFinancialBlocks(sourceDocument.blocks, amounts).filter(({ block }) => !included.has(block.blockId))
@@ -529,7 +536,7 @@ export async function runMultiTemplateAcceptance(caseId: string, options: Harnes
   }
 
   metrics.startStage('candidateValidation')
-  const validation = await validateCandidate(sourceArrayBuffer, candidateArrayBuffer, input, inventory, planned, allOperations)
+  const validation = await validateCandidate(sourceArrayBuffer, candidateArrayBuffer, validationInput, inventory, planned, allOperations)
   metrics.endStage('candidateValidation')
   result.deterministicFindings = validation
   result.deterministicValidation = validation.length ? 'FAIL' : 'PASS'
@@ -543,7 +550,7 @@ export async function runMultiTemplateAcceptance(caseId: string, options: Harnes
   result.providerCalls.review = 1; result.providerCalls.total = 3
   metrics.startStage('reviewProvider')
   try {
-    const review = await options.provider.review({ source: sourceDocument, input, inventory, resolvedInventoryOccurrences: resolveInventoryOccurrences(sourceDocument, inventory).occurrences, factChanges: planned.factChanges, retainedLiterals: planned.retainedLiterals, candidate: candidateBlocks.blocks, changedBlocks: computeChangedBlockDiff(sourceDocument.blocks, candidateBlocks.blocks), productRules: definition.expectedProductRules ?? {} })
+    const review = await options.provider.review({ source: sourceDocument, authorityContextDescription: PLANNER_AUTHORITY_CONTEXT_DESCRIPTION, authorityContext: normalizedInput, inventory, resolvedInventoryOccurrences: resolveInventoryOccurrences(sourceDocument, inventory).occurrences, factChanges: planned.factChanges, retainedLiterals: planned.retainedLiterals, candidate: candidateBlocks.blocks, changedBlocks: computeChangedBlockDiff(sourceDocument.blocks, candidateBlocks.blocks), productRules: definition.expectedProductRules ?? {} })
     const latencyMs = metrics.endStage('reviewProvider')
     const timestamps = metrics.snapshot().timestamps.stages.reviewProvider!
     metrics.recordProviderCall('review', latencyMs, timestamps.startedAt, timestamps.endedAt, review.providerMetadata)

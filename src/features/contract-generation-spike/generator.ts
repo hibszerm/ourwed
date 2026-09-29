@@ -3,6 +3,7 @@ import { applyBlockOperations, type BlockOperation, type EditableBlock } from '.
 import { escapeXml, unescapeXml } from '@/features/documents/template/canonicalParagraph'
 import { parseFlexibleDate } from '@/features/ai-contract-lab/semanticValueEquality'
 import { isPolishPlnAmountEquivalent, parsePlnGrosz } from './polishPlnAmount'
+import type { ContractGenerationInput } from './contractGenerationInput'
 
 export type MissingInput = { id: string; label: string; explanation: string; inputType: 'text' | 'date' | 'number'; required: true; sourceContext: string; infoText?: string; sourceRefs?: string[]; inventoryItemIds: string[] }
 export type SourceBlock = EditableBlock
@@ -45,8 +46,8 @@ export type ResolvedInventoryOccurrence = { itemId: string; sourceRef: string; t
 export type GenerationResult = { status: 'MISSING_INPUT'; missingInputs: MissingInput[] } | { status: 'CONFLICT_INPUT'; conflicts: ConflictInput[] } | { status: 'FAILED'; issues: string[] } | { status: 'COMPLETED'; docxBytes: ArrayBuffer; review: ReviewResult }
 export interface ContractAi {
   inventory(source: GenerationInput['sourceDocument']): Promise<SourceInventory>
-  plan(input: GenerationInput, inventory: SourceInventory): Promise<PlanResult>
-  review(args: { source: GenerationInput['sourceDocument']; input: GenerationInput; inventory: SourceInventory; resolvedInventoryOccurrences: ResolvedInventoryOccurrence[]; factChanges: FactChange[]; retainedLiterals: RetainedLiteral[]; candidate: SourceBlock[]; changedBlocks: ChangedBlock[] }): Promise<ReviewResult>
+  plan(authorityContext: ContractGenerationInput, inventory: SourceInventory): Promise<PlanResult>
+  review(args: { source: GenerationInput['sourceDocument']; authorityContext: ContractGenerationInput; inventory: SourceInventory; resolvedInventoryOccurrences: ResolvedInventoryOccurrence[]; factChanges: FactChange[]; retainedLiterals: RetainedLiteral[]; candidate: SourceBlock[]; changedBlocks: ChangedBlock[] }): Promise<ReviewResult>
 }
 export async function runSourceInventory(source: GenerationInput['sourceDocument'], ai: Pick<ContractAi, 'inventory'>): Promise<SourceInventory> {
   return ai.inventory(source)
@@ -482,9 +483,13 @@ export async function validateCandidate(sourceBytes: ArrayBuffer, candidateBytes
   return issues
 }
 
-export async function runGeneration(sourceBytes: ArrayBuffer, input: GenerationInput, ai: ContractAi): Promise<GenerationResult> {
+/**
+ * `authorityContext` is the only party/commercial authority passed to AI.
+ * `input` remains for the frozen deterministic validation and document path.
+ */
+export async function runGeneration(sourceBytes: ArrayBuffer, input: GenerationInput, authorityContext: ContractGenerationInput, ai: ContractAi): Promise<GenerationResult> {
   const inventory = await runSourceInventory(input.sourceDocument, ai)
-  const plan = await ai.plan(input, inventory)
+  const plan = await ai.plan(authorityContext, inventory)
   const safeOperations = sanitizePlannerOperations(plan.status, plan.operations).operations
   const effectivePlan = { ...plan, operations: safeOperations }
   const authorityIssues = validateAuthorityGate(input, inventory, effectivePlan)
@@ -500,7 +505,7 @@ export async function runGeneration(sourceBytes: ArrayBuffer, input: GenerationI
   if (candidateIssues.length) return { status: 'FAILED', issues: candidateIssues }
   const changedBlocks = computeChangedBlockDiff(input.sourceDocument.blocks, candidateDocument.blocks)
   const resolvedInventoryOccurrences = resolveInventoryOccurrences(input.sourceDocument, inventory).occurrences
-  const review = await ai.review({ source: input.sourceDocument, input, inventory, resolvedInventoryOccurrences, factChanges: plan.factChanges, retainedLiterals: plan.retainedLiterals, candidate: candidateDocument.blocks, changedBlocks })
+  const review = await ai.review({ source: input.sourceDocument, authorityContext, inventory, resolvedInventoryOccurrences, factChanges: plan.factChanges, retainedLiterals: plan.retainedLiterals, candidate: candidateDocument.blocks, changedBlocks })
   if (review.status === 'FAIL') return { status: 'FAILED', issues: review.issues }
   return { status: 'COMPLETED', docxBytes: candidateBytes, review }
 }
