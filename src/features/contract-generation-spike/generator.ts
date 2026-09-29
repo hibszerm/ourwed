@@ -1,10 +1,11 @@
 import JSZip from 'jszip'
 import { applyBlockOperations, type BlockOperation, type EditableBlock } from './blockDocxEditor'
 import { escapeXml, unescapeXml } from '@/features/documents/template/canonicalParagraph'
+import { parseFlexibleDate } from '@/features/ai-contract-lab/semanticValueEquality'
 
 export type MissingInput = { id: string; label: string; explanation: string; inputType: 'text' | 'date' | 'number'; required: true; sourceContext: string; infoText?: string; sourceRefs?: string[] }
 export type SourceBlock = EditableBlock
-export type DocumentPropertyText = { part: string; property: string; text: string }
+export type DocumentPropertyText = { part: string; property: string; ref: string; text: string }
 export type WeddingFacts = {
   bride: { name: string; phone: string; email: string }
   groom: { name: string; phone: string }
@@ -45,8 +46,8 @@ export async function runSourceInventory(source: GenerationInput['sourceDocument
   return ai.inventory(source)
 }
 
-export const SOURCE_INVENTORY_INSTRUCTIONS = `Inspect this source contract without receiving or inferring any new client or wedding data. Identify literal values that appear specific to this source agreement or event. Return only items with the exact literal value, supported sourceRefs, and a short free-form label. Inspect body paragraphs, tables, headers, footers, and supplied textual document properties. Do not infer replacements, request information, or make generation decisions. The label is descriptive text only.`
-export const TRANSFORMATION_INSTRUCTIONS = `Use the source, source inventory, authoritative CRM input, user answers, and product rules to understand the contract. For every relevant inventory item, either declare a factChange with the exact old literal, exact authoritative new value and source refs, retain it with a free-form reason, or report every missing required value. Complete a full-document and full-inventory sweep before responding. Do not stop after the first missing input. If missingInputs is non-empty, return MISSING_INPUT and no operations. If a conflict exists, return CONFLICT_INPUT and no operations. Return READY only with no unresolved required input or conflict. Use only these semantic declarations: missingInputs, factChanges, retainedLiterals; operations remain the existing safe block operations. Authority kinds are provenance only: crm, user, generation_date, derived. Labels and reasons are free text and have no machine meaning. CRM/user values must be supported by the named authority reference. Derived values must use declared authoritative inputs and arithmetic. Apply the existing product rule: CRM supplies total, reservation/deposit and aggregate remainder only; if source semantics require a detailed allocation not present in authoritative input or user answers, report MISSING_INPUT instead of inferring amounts. Preserve source legal meaning and package/service scope. Use generationDate for a source conclusion date when applicable; preserve the source conclusion place under current product rules. The AI decides which source facts have those meanings. Operations must target supported source blocks and provide complete final text.`
+export const SOURCE_INVENTORY_INSTRUCTIONS = `Inspect this source contract without receiving or inferring any new client or wedding data. Inventory transaction-specific or agreement-instance-specific literals that may need disposition when creating a new contract: old client facts, old event facts, old contract identifiers, selected deal-specific values, and old transaction-specific amounts, dates, or locations. Do not inventory standing template or provider content that remains applicable, such as vendor/company identity, a general contract title, standard legal wording, a generic service catalogue, standing travel policy, or reusable package terms that are not specific to the old agreement instance. Do not inventory reusable contractual timing language merely because it contains a number; include it only when it is specific to the old agreement instance. These are scope examples, not fixed classifications; decide from the document context. Return exact source-derived literal values, canonical sourceRefs copied from the supplied refs (for example word/document.xml#p23 or docProps/core.xml#subject), and a short free-form label. A value and ref must be directly supported by the source; do not paraphrase, inflect, translate, combine, or summarize values. Inspect body paragraphs, tables, headers, footers, and supplied textual document properties. Do not infer replacements, request information, or make generation decisions. The label is descriptive text only.`
+export const TRANSFORMATION_INSTRUCTIONS = `Use the source, source inventory, authoritative CRM input, user answers, and product rules to understand the contract. For every relevant inventory item, either declare a factChange with exact atomic old source literals, exact authoritative new value and canonical source refs, retain it with a free-form reason, or report every missing required value. Complete a full-document and full-inventory sweep before responding. Do not stop after the first missing input. If missingInputs is non-empty, return MISSING_INPUT and no operations. If a conflict exists, return CONFLICT_INPUT and no operations. Return READY only with no unresolved required input or conflict. Use only these semantic declarations: missingInputs, factChanges, retainedLiterals; operations remain the existing safe block operations. Authority kinds are provenance only: crm, user, generation_date, derived. The authority kind carries the namespace; authority.ref is the bare canonical reference, for example kind: crm with ref: wedding.bride.name, kind: user with ref: wedding.bride.pesel, kind: generation_date with ref: generationDate, or kind: derived with ref: financials.remainingPln. Do not prefix ref with crm:, user:, generation_date:, or derived:. Use only canonical source refs supplied with the source/inventory, such as word/document.xml#p23 or docProps/core.xml#subject; never invent or repair a ref. sourceRefs contain document refs only, never CRM or user authority refs. oldValues must list exact source literals, one literal per array entry; list multiple literals separately. Do not change inflection, paraphrase, translate, or synthesize combined values. A block operation may still replace a complete paragraph. Labels and reasons are free text and have no machine meaning. CRM/user values must be supported by the named authority reference. Derived values must use declared authoritative inputs and arithmetic; derived operands belong only in the derivation declaration, never sourceRefs. Apply the existing product rule: CRM supplies total, reservation/deposit and aggregate remainder only; if source semantics require a detailed allocation not present in authoritative input or user answers, report MISSING_INPUT instead of inferring amounts. Preserve source legal meaning and package/service scope. Use generationDate for a source conclusion date when applicable; preserve the source conclusion place under current product rules. The AI decides which source facts have those meanings. Operations must target supported source blocks and provide complete final text.`
 export const REVIEW_INSTRUCTIONS = `Independently review source and candidate semantics using the source inventory, authoritative input, user answers, planner factChanges, retainedLiterals, and the mechanical changed-block diff. Decide whether the correct person's values were assigned, payment meanings/deadlines remain correct, legal meaning and package scope are preserved, stale source-specific facts were incorrectly retained, anything was invented, any required input was missed, and signature roles remain correct. Labels and reasons are context only. Return PASS or FAIL with findings. Do not edit or repair the document.`
 
 export function sanitizePlannerOperations(status: PlannerResponseStatus, providerOperations: BlockOperation[] | undefined): { rawOperations: BlockOperation[]; operations: BlockOperation[]; rawOperationCount: number; operationCount: number; discardedOperationCount: number } {
@@ -56,7 +57,19 @@ export function sanitizePlannerOperations(status: PlannerResponseStatus, provide
 }
 
 function normalize(value: string): string { return value.normalize('NFC').replace(/\s+/g, ' ').trim() }
+function exactSourceLiteralOccurs(text: string, value: string): boolean {
+  const source = normalize(text)
+  const literal = normalize(value)
+  return literal.length > 0 && source.includes(literal)
+}
+function canonicalAuthorityRef(authority: FactAuthority): boolean {
+  if (!authority.ref || authority.ref.includes(':')) return false
+  if (authority.kind === 'generation_date') return authority.ref === 'generationDate'
+  if (authority.kind === 'crm') return /^[A-Za-z][A-Za-z0-9]*(?:\.[A-Za-z][A-Za-z0-9]*)+$/.test(authority.ref)
+  return /^[^\s:]+(?:\.[^\s:]+)*$/.test(authority.ref)
+}
 function authorityValue(input: GenerationInput, authority: FactAuthority): string | undefined {
+  if (!canonicalAuthorityRef(authority)) return undefined
   if (authority.kind === 'generation_date') return authority.ref === 'generationDate' && input.generationDate ? input.generationDate : undefined
   if (authority.kind === 'user') return input.userProvidedAnswers.find((answer) => answer.id === authority.ref)?.value
   if (authority.kind === 'derived') return input.deterministicDerivedFacts.find((fact) => fact.ref === authority.ref)?.value
@@ -70,20 +83,25 @@ function authorityValue(input: GenerationInput, authority: FactAuthority): strin
   return undefined
 }
 
+function normalizedPlnGrosz(value: string): number | undefined {
+  const match = value.normalize('NFC').trim().match(/^(\d{1,3}(?:[ \u00a0\u202f]\d{3})+|\d+)(?:[,.](\d{1,2}))?\s*(?:PLN|zł)?$/iu)
+  if (!match) return undefined
+  const whole = Number(match[1]!.replace(/[ \u00a0\u202f]/g, ''))
+  const cents = Number((match[2] ?? '').padEnd(2, '0') || '0')
+  const amount = whole * 100 + cents
+  return Number.isSafeInteger(amount) ? amount : undefined
+}
 function numericLiteral(value: string): number | undefined {
-  const clean = value.normalize('NFC').replace(/\s/g, '').replace(/(?:PLN|zł)$/iu, '').replace(',', '.')
-  const parsed = Number(clean)
-  return Number.isFinite(parsed) ? parsed : undefined
+  const amount = normalizedPlnGrosz(value)
+  return amount === undefined ? undefined : amount / 100
 }
 function authoritativeValueMatches(declared: string, authoritative: string): boolean {
   if (normalize(declared) === normalize(authoritative)) return true
-  const moneyOnly = (value: string): number | undefined => {
-    const match = value.normalize('NFC').trim().match(/^(\d[\d \u00a0\u202f]*(?:[,.]\d{2})?)\s*(?:PLN|zł)$/iu)
-    if (!match) return undefined
-    return moneyAmountsInGrosz(`${match[1]} zł`)[0]
-  }
-  const declaredMoney = moneyOnly(declared)
-  const authoritativeMoney = moneyOnly(authoritative)
+  const declaredDate = parseFlexibleDate(declared)
+  const authoritativeDate = parseFlexibleDate(authoritative)
+  if (declaredDate && authoritativeDate) return declaredDate === authoritativeDate
+  const declaredMoney = normalizedPlnGrosz(declared)
+  const authoritativeMoney = normalizedPlnGrosz(authoritative)
   return declaredMoney !== undefined && authoritativeMoney !== undefined && declaredMoney === authoritativeMoney
 }
 function literalOccurs(text: string, value: string): boolean {
@@ -125,28 +143,40 @@ function validateDerivedFacts(input: GenerationInput): string[] {
 
 export function validateAuthorityGate(input: GenerationInput, inventory: SourceInventory, plan: PlanResult): string[] {
   const issues = validateDerivedFacts(input)
-  const sourceRefs = new Set(findTextLocations(input.sourceDocument).map((item) => item.ref))
+  const locations = findTextLocations(input.sourceDocument)
+  const sourceRefs = new Set(locations.map((item) => item.ref))
+  const validateRefs = (refs: string[], context: string) => {
+    if (!refs.length || refs.some((ref) => !sourceRefs.has(ref))) issues.push(`${context} has an unsupported source reference.`)
+  }
   for (const item of inventory.items) {
     if (!normalize(item.value)) issues.push('Source inventory contains an empty literal value.')
-    if (!item.sourceRefs.length || item.sourceRefs.some((ref) => !sourceRefs.has(ref))) issues.push(`Inventory item has an unsupported source reference: ${item.value}`)
-    if (!item.sourceRefs.some((ref) => findTextLocations(input.sourceDocument).some((location) => location.ref === ref && literalOccurs(location.text, item.value)))) {
+    validateRefs(item.sourceRefs, `Inventory item “${item.value}”`)
+    if (!item.sourceRefs.some((ref) => locations.some((location) => location.ref === ref && exactSourceLiteralOccurs(location.text, item.value)))) {
       issues.push(`Inventory literal is not present at its declared source reference: ${item.value}`)
     }
+  }
+  for (const item of plan.retainedLiterals) if (!inventory.items.some((sourceItem) => normalize(sourceItem.value) === normalize(item.value))) {
+    issues.push(`Retained literal is not an exact source inventory value: ${item.value}`)
   }
   if (plan.status !== 'READY') {
     if (plan.operations.length) issues.push(`${plan.status} plan contains executable operations.`)
     if (plan.status === 'MISSING_INPUT' && !plan.missingInputs.length) issues.push('MISSING_INPUT plan has no missingInputs.')
     if (plan.status === 'CONFLICT_INPUT' && !plan.conflicts.length) issues.push('CONFLICT_INPUT plan has no conflicts.')
+    for (const missing of plan.missingInputs) if (missing.sourceRefs) validateRefs(missing.sourceRefs, `Missing input “${missing.id}”`)
     return issues
   }
   if (plan.missingInputs.length || plan.conflicts.length) issues.push('READY plan contains unresolved inputs or conflicts.')
-  const dispositionChanges: FactChange[] = []
   const retained = new Set(plan.retainedLiterals.map((item) => normalize(item.value)))
   for (const change of plan.factChanges) {
     if (!normalize(change.newValue)) issues.push(`Fact change has an empty new literal: ${change.label}`)
-    if (!change.sourceRefs.length || change.sourceRefs.some((ref) => !sourceRefs.has(ref))) issues.push(`Fact change has an unsupported source reference: ${change.label}`)
-    for (const oldValue of change.oldValues) if (!change.sourceRefs.some((ref) => findTextLocations(input.sourceDocument).some((location) => location.ref === ref && literalOccurs(location.text, oldValue)))) {
+    validateRefs(change.sourceRefs, `Fact change “${change.label}”`)
+    if (!change.oldValues.length) issues.push(`Fact change has no exact source literals: ${change.label}`)
+    for (const oldValue of change.oldValues) if (!change.sourceRefs.some((ref) => findTextLocations(input.sourceDocument).some((location) => location.ref === ref && exactSourceLiteralOccurs(location.text, oldValue)))) {
       issues.push(`Declared old literal is not present at its source reference: ${oldValue}`)
+    }
+    if (!canonicalAuthorityRef(change.authority)) {
+      issues.push(`Invalid canonical authority reference for “${change.label}”: ${change.authority.kind}:${change.authority.ref}`)
+      continue
     }
     const authoritative = authorityValue(input, change.authority)
     if (authoritative === undefined) { issues.push(`Invalid authority reference for “${change.label}”: ${change.authority.kind}:${change.authority.ref}`); continue }
@@ -154,10 +184,9 @@ export function validateAuthorityGate(input: GenerationInput, inventory: SourceI
     if (!authoritativeValueMatches(change.newValue, authoritative)) {
       issues.push(`New literal for “${change.label}” does not match its declared authority.`)
     }
-    dispositionChanges.push(change)
   }
   for (const item of inventory.items) {
-    const matchingChange = dispositionChanges.find((change) => change.oldValues.some((value) => normalize(value) === normalize(item.value)) && change.sourceRefs.some((ref) => item.sourceRefs.includes(ref)))
+    const matchingChange = plan.factChanges.find((change) => change.oldValues.some((value) => normalize(value) === normalize(item.value)) && change.sourceRefs.some((ref) => item.sourceRefs.includes(ref)))
     if (!retained.has(normalize(item.value)) && !matchingChange) issues.push(`Source inventory literal has no planner disposition: ${item.value}`)
   }
   return issues
@@ -184,7 +213,7 @@ function validateOperationTargets(blocks: SourceBlock[], operations: BlockOperat
 function findTextLocations(document: GenerationInput['sourceDocument']): Array<{ ref: string; text: string }> {
   return [
     ...document.blocks.map((block) => ({ ref: block.blockId, text: block.text })),
-    ...(document.documentProperties ?? []).map((property) => ({ ref: `${property.part}#${property.property}`, text: property.text })),
+    ...(document.documentProperties ?? []).map((property) => ({ ref: property.ref, text: property.text })),
   ]
 }
 
@@ -230,7 +259,8 @@ async function readDocumentProperties(bytes: ArrayBuffer): Promise<DocumentPrope
   const xml = await core.async('string')
   return [...xml.matchAll(/<([\w.-]+(?::[\w.-]+)?)\b[^>]*>([^<>]*)<\/\1\s*>/g)].flatMap((match) => {
     const text = unescapeXml(match[2]!).trim()
-    return text ? [{ part: 'docProps/core.xml', property: match[1]!.split(':').at(-1)!, text }] : []
+    const property = match[1]!.split(':').at(-1)!
+    return text ? [{ part: 'docProps/core.xml', property, ref: `docProps/core.xml#${property}`, text }] : []
   })
 }
 

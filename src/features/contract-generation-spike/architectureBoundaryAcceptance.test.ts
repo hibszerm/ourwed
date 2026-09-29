@@ -49,7 +49,7 @@ assert.deepEqual(validateAuthorityGate(input, { items: [] }, fact({ kind: 'deriv
 assert.ok(validateAuthorityGate(input, { items: [] }, fact({ kind: 'crm', ref: 'wedding.bride.name' }, 'Invented')).some((item) => /does not match/.test(item)))
 assert.ok(validateAuthorityGate(input, { items: [] }, fact({ kind: 'crm', ref: 'wedding.bride.name' }, 'Ada Test with invented fact')).some((item) => /does not match/.test(item)), 'authoritative facts must match exactly, not merely appear inside invented text')
 assert.ok(validateAuthorityGate(input, { items: [] }, fact({ kind: 'crm', ref: 'wedding.noSuchField' }, 'Invented')).some((item) => /Invalid authority reference/.test(item)))
-assert.deepEqual(validateAuthorityGate(input, { items: [] }, readyPlan), [])
+assert.deepEqual(validateAuthorityGate(input, baseInventory, readyPlan), [])
 const badMath = structuredClone(input); badMath.deterministicDerivedFacts[0]!.value = '13201'
 assert.ok(validateAuthorityGate(badMath, { items: [] }, readyPlan).some((item) => /does not match its declared arithmetic/.test(item)))
 const badOperand = structuredClone(input); badOperand.deterministicDerivedFacts[0]!.inputRefs = ['user:unknown', 'crm:financials.depositPln']
