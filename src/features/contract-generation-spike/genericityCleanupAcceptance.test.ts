@@ -53,7 +53,7 @@ assert.equal(oneClientInput.sourceDocument.blocks.length, 1, 'the source contain
 
 const contractNumberSource = await docx(['Umowa nr SRC-001.'])
 const contractNumberInput = await inputFor(contractNumberSource, [{ id: 'contract.number', value: 'NEW-2027-001' }])
-assert.deepEqual(await validateCandidate(contractNumberSource, contractNumberSource, contractNumberInput), [], 'an available contract number is not inserted when the source does not require it')
+assert.ok((await validateCandidate(contractNumberSource, contractNumberSource, contractNumberInput)).some((finding) => /Stale document-owned source fact/.test(finding)), 'a source-owned document identifier is stale when the authoritative replacement is available but still absent')
 const numberBlock = contractNumberInput.sourceDocument.blocks[0]!
 const numberOperation: BlockOperation = { blockId: numberBlock.blockId, operation: 'REPLACE_BLOCK_TEXT', finalText: 'Umowa nr NEW-2027-001.' }
 const updatedContractNumber = await applyBlockOperations(contractNumberSource, [numberOperation])

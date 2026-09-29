@@ -1,9 +1,10 @@
 import JSZip from 'jszip'
 import { applyBlockOperations, type BlockOperation, type EditableBlock } from './blockDocxEditor'
-import { unescapeXml } from '@/features/documents/template/canonicalParagraph'
+import { escapeXml, unescapeXml } from '@/features/documents/template/canonicalParagraph'
 
 export type MissingInput = { id: string; label: string; explanation: string; inputType: 'text' | 'date' | 'number'; required: true; sourceContext: string; infoText?: string }
 export type SourceBlock = EditableBlock & { contentClass: 'factual_dynamic' | 'package_service' | 'protected_legal_static' }
+export type DocumentPropertyText = { part: string; property: string; text: string }
 export type WeddingFacts = {
   bride: { name: string; phone: string; email: string }
   groom: { name: string; phone: string }
@@ -17,7 +18,7 @@ export type WeddingFacts = {
 export type GenerationInput = {
   generationDate: string
   conclusion: { replaceDate: boolean; sourceDate?: string; sourceBlockId?: string; replacementDate?: string; preservePlace?: string }
-  sourceDocument: { fileName: string; blocks: SourceBlock[] }
+  sourceDocument: { fileName: string; blocks: SourceBlock[]; documentProperties?: DocumentPropertyText[] }
   wedding: WeddingFacts
   packagePolicy: { preserveSourcePackageExactly: true }
   extras: string[]
@@ -38,7 +39,7 @@ export interface ContractAi {
 
 export const AUTHORITATIVE_FIELD_SEMANTICS = `Resolve authoritative values by semantic concept and owning entity, not by exact label matching. The structured wedding.contractAddress field is the authoritative contract/residential address for the CRM client entity associated with that contract record. It satisfies equivalent source wording for that same entity, including an address or a clause such as “zamieszkała przy” or “zamieszkały przy”. It is not a universal address for every person named in the contract and must not satisfy a different entity's address requirement. Treat userProvidedAnswers as authoritative too; use each answer id to respect its entity/path scope. Distinct entities require their own authoritative address values. One address may satisfy multiple entities only when the authoritative input explicitly identifies it as shared. Before returning MISSING_INPUT for a source-required concept, check all structured authoritative fields, userProvidedAnswers, and applicable generation rules; return MISSING_INPUT only when that concept has no authoritative value for the relevant entity. When a source entity is replaced, source-owned factual values are not authoritative for the replacement entity. For each source-required factual concept, use a value authoritative for that same entity and concept; if it is unavailable, return MISSING_INPUT. Do not carry over the old entity's value, guess a replacement, or omit the required concept to avoid asking.`
 
-export const TRANSFORMATION_INSTRUCTIONS = `${AUTHORITATIVE_FIELD_SEMANTICS} Treat each userProvidedAnswers entry as an authoritative value scoped by its semantic path. Use it only when the source requires that concept for the relevant entity; do not add it when the source has no corresponding concept. When multiple intermediate payment amounts are supplied without a distinct source relationship, map them in the source's obligation order; if that order is unclear, return MISSING_INPUT rather than guessing. Before returning MISSING_INPUT or CONFLICT_INPUT, inspect the entire relevant source contract and all current authoritative input, including userProvidedAnswers. Identify every source-required change and compare it with that full input. Collect each independently discoverable unresolved fact or ambiguity, ordered by source location where practical. Do not stop after the first discoverable gap; return all currently discoverable missing inputs together. Do not ask speculative questions or ask for facts the source does not require. Choose the response status only after this full-document sweep: any required missing value means MISSING_INPUT; any conflict means CONFLICT_INPUT where the current response schema supports conflicts, while preserving existing deterministic conflict handling otherwise; READY is allowed only when no unresolved required value or conflict remains. Generate transformation operations only for READY. For MISSING_INPUT or CONFLICT_INPUT, return no operations. Transform only the supplied source blocks and authoritative inputs. Preserve legal wording: do not paraphrase legal clauses or change their legal subject, obligations, rights, scope, consent, cancellation, liability, copyright, publication, or delivery terms. Make only mechanical factual updates explicitly required by authoritative facts (names, dates, amounts, locations, package references, selected extras, internal references, and required grammatical inflection). You may make an obvious, unambiguous, minimal local editorial correction only when the correction is meaning-preserving and cannot reasonably be interpreted another way. Input conflicts must be stopped before transformation. Return complete final paragraph text for changed blocks. Leave unrelated protected legal/static blocks unchanged; return no operation for a protected block unless an explicit authoritative fact mechanically requires a change. Each source block includes a contentClass: factual_dynamic, package_service, or protected_legal_static. The source DOCX is authoritative for package name, package wording, package scope, and package terms. Preserve source package content exactly unless authoritative generation input explicitly requires a permitted factual change. Do not substitute package names or package scope from another template. Do not reconstruct a package from prior-case knowledge. Do not use hardcoded knowledge of any package. Deterministic derived facts in the input are authoritative for their stated concepts; use a derived final installment without changing source-defined payment timing. Treat an authoritative aggregate amount separately from a source-required detailed allocation: if the source requires the amount to be distributed across multiple independently meaningful payments, deadlines, or installments, and authoritative input does not provide that allocation, do not infer or preserve an allocation; return MISSING_INPUT for the unresolved detail. You may return all independently identified missing inputs together. Follow structured input.conclusion deterministically: sourceDate/sourceBlockId identify the source conclusion, and when replaceDate is true, replacementDate is the required conclusion date for that block. Preserve preservePlace using the source's natural grammatical form. Keep this distinct from wedding.weddingDate; do not substitute the wedding/event date for the conclusion date. When replaceDate is false, do not introduce a conclusion date merely because generationDate is present.`
+export const TRANSFORMATION_INSTRUCTIONS = `${AUTHORITATIVE_FIELD_SEMANTICS} Treat each userProvidedAnswers entry as an authoritative value scoped by its semantic path. Use it only when the source requires that concept for the relevant entity; do not add it when the source has no corresponding concept. During the full gap sweep, inspect document-owned facts that identify the specific source document, including relevant textual properties, as well as entity-owned facts. If a source document-owned fact must change for the generated document and no authoritative replacement or deterministic derivation exists, do not preserve, guess, or silently delete it; return MISSING_INPUT. Apply an available replacement consistently across relevant document text. When multiple intermediate payment amounts are supplied without a distinct source relationship, map them in the source's obligation order; if that order is unclear, return MISSING_INPUT rather than guessing. Before returning MISSING_INPUT or CONFLICT_INPUT, inspect the entire relevant source contract and all current authoritative input, including userProvidedAnswers. Identify every source-required change and compare it with that full input. Collect each independently discoverable unresolved fact or ambiguity, ordered by source location where practical. Do not stop after the first discoverable gap; return all currently discoverable missing inputs together. Do not ask speculative questions or ask for facts the source does not require. Choose the response status only after this full-document sweep: any required missing value means MISSING_INPUT; any conflict means CONFLICT_INPUT where the current response schema supports conflicts, while preserving existing deterministic conflict handling otherwise; READY is allowed only when no unresolved required value or conflict remains. Generate transformation operations only for READY. For MISSING_INPUT or CONFLICT_INPUT, return no operations. Transform only the supplied source blocks and authoritative inputs. Preserve legal wording: do not paraphrase legal clauses or change their legal subject, obligations, rights, scope, consent, cancellation, liability, copyright, publication, or delivery terms. Make only mechanical factual updates explicitly required by authoritative facts (names, dates, amounts, locations, package references, selected extras, internal references, and required grammatical inflection). You may make an obvious, unambiguous, minimal local editorial correction only when the correction is meaning-preserving and cannot reasonably be interpreted another way. Input conflicts must be stopped before transformation. Return complete final paragraph text for changed blocks. Leave unrelated protected legal/static blocks unchanged; return no operation for a protected block unless an explicit authoritative fact mechanically requires a change. Each source block includes a contentClass: factual_dynamic, package_service, or protected_legal_static. The source DOCX is authoritative for package name, package wording, package scope, and package terms. Preserve source package content exactly unless authoritative generation input explicitly requires a permitted factual change. Do not substitute package names or package scope from another template. Do not reconstruct a package from prior-case knowledge. Do not use hardcoded knowledge of any package. Deterministic derived facts in the input are authoritative for their stated concepts; use a derived final installment without changing source-defined payment timing. Treat an authoritative aggregate amount separately from a source-required detailed allocation: if the source requires the amount to be distributed across multiple independently meaningful payments, deadlines, or installments, and authoritative input does not provide that allocation, do not infer or preserve an allocation; return MISSING_INPUT for the unresolved detail. You may return all independently identified missing inputs together. Follow structured input.conclusion deterministically: sourceDate/sourceBlockId identify the source conclusion, and when replaceDate is true, replacementDate is the required conclusion date for that block. Preserve preservePlace using the source's natural grammatical form. Keep this distinct from wedding.weddingDate; do not substitute the wedding/event date for the conclusion date. When replaceDate is false, do not introduce a conclusion date merely because generationDate is present.`
 
 export function sanitizePlannerOperations(status: PlannerResponseStatus, providerOperations: BlockOperation[] | undefined): {
   rawOperations: BlockOperation[]
@@ -56,6 +57,157 @@ export function sanitizePlannerOperations(status: PlannerResponseStatus, provide
     operationCount: operations.length,
     discardedOperationCount: rawOperations.length - operations.length,
   }
+}
+
+const documentReferenceLabel = /(?<![\p{L}\p{N}_])(?:nr\.?|no\.?|number|identifier|reference|ref\.?|id)(?![\p{L}\p{N}_])/iu
+const documentContextCue = /\b(?:umow\p{L}*|contract\p{L}*|agreement\p{L}*|document\p{L}*)\b/iu
+
+function sourceDocumentIdentifierValues(sourceDocument: GenerationInput['sourceDocument']): string[] {
+  const values: string[] = []
+  for (const block of sourceDocument.blocks) {
+    if (!documentContextCue.test(`${block.text}\n${block.context}`)) continue
+    const pattern = new RegExp(documentReferenceLabel.source + String.raw`\s*[:#-]?\s*([\p{L}\p{N}][\p{L}\p{N}_/-]*(?:\.[\p{L}\p{N}_/-]+)*)`, 'giu')
+    for (const match of block.text.matchAll(pattern)) values.push(match[1]!)
+  }
+  for (const property of sourceDocument.documentProperties ?? []) {
+    if (!documentContextCue.test(property.text)) continue
+    const pattern = new RegExp(documentReferenceLabel.source + String.raw`\s*[:#-]?\s*([\p{L}\p{N}][\p{L}\p{N}_/-]*(?:\.[\p{L}\p{N}_/-]+)*)`, 'giu')
+    for (const match of property.text.matchAll(pattern)) values.push(match[1]!)
+  }
+  const unique = new Map(values.map((value) => [value.normalize('NFC').toLocaleLowerCase('pl-PL'), value]))
+  return [...unique.values()]
+}
+
+function documentReferencePath(idOrConcept: string): boolean {
+  const value = idOrConcept.replace(/([a-z])([A-Z])/g, '$1 $2')
+  return documentContextCue.test(value) && documentReferenceLabel.test(value)
+}
+
+function authoritativeDocumentIdentifierValues(input: GenerationInput): string[] {
+  const answers = input.userProvidedAnswers.filter((answer) => documentReferencePath(answer.id)).map((answer) => answer.value)
+  const derived = input.deterministicDerivedFacts.filter((fact) => documentReferencePath(fact.concept)).map((fact) => fact.value)
+  const values = [...answers, ...derived].flatMap((value) => {
+    const trimmed = value.trim()
+    return trimmed ? [trimmed] : []
+  })
+  return [...new Set(values)]
+}
+
+function targetForDocumentIdentifier(sourceIdentifier: string, sourceIdentifiers: string[], targets: string[]): string | undefined {
+  if (sourceIdentifiers.length === 1 && targets.length === 1) return targets[0]
+  if (targets.length !== sourceIdentifiers.length) return undefined
+  const exact = targets.filter((value) => value.trim().toLocaleLowerCase('pl-PL') === sourceIdentifier.trim().toLocaleLowerCase('pl-PL'))
+  return exact.length === 1 ? exact[0] : undefined
+}
+
+function documentIdentifierReplacements(input: GenerationInput): Array<{ source: string; target: string }> {
+  const sourceIdentifiers = sourceDocumentIdentifierValues(input.sourceDocument)
+  const targets = authoritativeDocumentIdentifierValues(input)
+  return sourceIdentifiers.flatMap((source) => {
+    const target = targetForDocumentIdentifier(source, sourceIdentifiers, targets)
+    return target ? [{ source, target }] : []
+  })
+}
+
+function replaceDocumentPropertyText(text: string, input: GenerationInput): string {
+  return documentIdentifierReplacements(input).reduce((result, replacement) => {
+    if (replacement.source.trim().toLocaleLowerCase('pl-PL') === replacement.target.trim().toLocaleLowerCase('pl-PL')) return result
+    const oldValue = replacement.source.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    return result.replace(new RegExp(`(?<![\\p{L}\\p{N}])${oldValue}(?![\\p{L}\\p{N}])`, 'giu'), replacement.target)
+  }, text)
+}
+
+async function applyDocumentOwnedPropertyReplacements(bytes: ArrayBuffer, input: GenerationInput): Promise<ArrayBuffer> {
+  const replacements = documentIdentifierReplacements(input).filter(({ source, target }) => source.trim().toLocaleLowerCase('pl-PL') !== target.trim().toLocaleLowerCase('pl-PL'))
+  if (!replacements.length) return bytes
+  const zip = await JSZip.loadAsync(bytes)
+  const core = zip.file('docProps/core.xml')
+  if (!core) return bytes
+  let xml = await core.async('string')
+  for (const { source, target } of replacements) {
+    const oldValue = escapeXml(source)
+    const newValue = escapeXml(target)
+    const escapedSource = oldValue.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    xml = xml.replace(new RegExp(`(?<![\\p{L}\\p{N}])${escapedSource}(?![\\p{L}\\p{N}])`, 'gu'), newValue)
+  }
+  zip.file('docProps/core.xml', xml)
+  return zip.generateAsync({ type: 'arraybuffer' })
+}
+
+function textContainsDocumentIdentifier(texts: string[], identifier: string): boolean {
+  const needle = identifier.normalize('NFC').toLocaleLowerCase('pl-PL')
+  return texts.some((text) => text.normalize('NFC').toLocaleLowerCase('pl-PL').includes(needle))
+}
+
+function projectedDocumentTexts(input: GenerationInput, operations: BlockOperation[]): string[] {
+  const replacements = new Map(operations.flatMap((operation) => operation.operation === 'REPLACE_BLOCK_TEXT' ? [[operation.blockId, operation.finalText] as const] : []))
+  const deleted = new Set(operations.flatMap((operation) => operation.operation === 'DELETE_BLOCK' ? [operation.blockId] : []))
+  const inserted = operations.flatMap((operation) => 'anchorBlockId' in operation ? [operation.finalText] : [])
+  return [
+    ...input.sourceDocument.blocks.filter((block) => !deleted.has(block.blockId)).map((block) => replacements.get(block.blockId) ?? block.text),
+    ...inserted,
+    ...(input.sourceDocument.documentProperties ?? []).map((property) => replaceDocumentPropertyText(property.text, input)),
+  ]
+}
+
+export function findMissingDocumentOwnedFacts(input: GenerationInput): MissingInput[] {
+  const sourceIdentifiers = sourceDocumentIdentifierValues(input.sourceDocument)
+  if (!sourceIdentifiers.length || authoritativeDocumentIdentifierValues(input).length) return []
+  return sourceIdentifiers.map((identifier, index) => ({
+    id: `document-owned.identifier.${index + 1}`,
+    label: 'Document-specific identifier',
+    explanation: 'The source contains a value identifying that specific document, but no authoritative replacement or deterministic derivation is available.',
+    inputType: 'text',
+    required: true,
+    sourceContext: `Source document identifier: ${identifier}`,
+  }))
+}
+
+function validatePlannedDocumentOwnedFacts(input: GenerationInput, operations: BlockOperation[]): string[] {
+  const sourceIdentifiers = sourceDocumentIdentifierValues(input.sourceDocument)
+  if (!sourceIdentifiers.length) return []
+  const targets = authoritativeDocumentIdentifierValues(input)
+  if (!targets.length) return sourceIdentifiers.map((identifier) => `Document-owned source fact “${identifier}” has no authoritative replacement or deterministic derivation; a READY plan is unsafe and must request MISSING_INPUT.`)
+  const plannedTexts = projectedDocumentTexts(input, operations)
+  const findings: string[] = []
+  for (const sourceIdentifier of sourceIdentifiers) {
+    const target = targetForDocumentIdentifier(sourceIdentifier, sourceIdentifiers, targets)
+    if (!target) {
+      findings.push(`Document-owned source fact “${sourceIdentifier}” cannot be matched unambiguously to an authoritative replacement.`)
+      continue
+    }
+    if (target.trim().toLocaleLowerCase('pl-PL') === sourceIdentifier.trim().toLocaleLowerCase('pl-PL')) continue
+    if (textContainsDocumentIdentifier(plannedTexts, sourceIdentifier)) findings.push(`Stale document-owned source fact “${sourceIdentifier}” remains in a relevant document text or property.`)
+    if (!textContainsDocumentIdentifier(plannedTexts, target)) findings.push(`Authoritative document-owned replacement “${target}” is not applied in the planned document.`)
+  }
+  return findings
+}
+
+function validateCandidateDocumentOwnedFacts(
+  sourceDocument: GenerationInput['sourceDocument'],
+  candidateDocument: GenerationInput['sourceDocument'],
+  input: GenerationInput,
+): string[] {
+  const sourceIdentifiers = sourceDocumentIdentifierValues(sourceDocument)
+  if (!sourceIdentifiers.length) return []
+  const targets = authoritativeDocumentIdentifierValues(input)
+  if (!targets.length) return sourceIdentifiers.map((identifier) => `Source document-owned fact “${identifier}” has no authoritative replacement or deterministic derivation.`)
+  const candidateTexts = [
+    ...candidateDocument.blocks.map((block) => block.text),
+    ...(candidateDocument.documentProperties ?? []).map((property) => property.text),
+  ]
+  const findings: string[] = []
+  for (const sourceIdentifier of sourceIdentifiers) {
+    const target = targetForDocumentIdentifier(sourceIdentifier, sourceIdentifiers, targets)
+    if (!target) {
+      findings.push(`Source document-owned fact “${sourceIdentifier}” cannot be matched unambiguously to an authoritative replacement.`)
+      continue
+    }
+    if (target.trim().toLocaleLowerCase('pl-PL') === sourceIdentifier.trim().toLocaleLowerCase('pl-PL')) continue
+    if (textContainsDocumentIdentifier(candidateTexts, sourceIdentifier)) findings.push(`Stale document-owned source fact “${sourceIdentifier}” remains in the generated document.`)
+    if (!textContainsDocumentIdentifier(candidateTexts, target)) findings.push(`Authoritative document-owned replacement “${target}” is absent from the generated document.`)
+  }
+  return findings
 }
 
 export const REVIEW_INSTRUCTIONS = `Review source and candidate blocks, including each source block's contentClass (factual_dynamic, package_service, or protected_legal_static). The source contract defines which factual concepts belong in the contract; authoritative input supplies the new value only for a concept the source contains or requires. Do not require every available CRM/input fact to appear in the candidate, and do not add an input fact when the source has no corresponding concept; doing so may be semantic drift. For each factual concept, distinguish: (A) source-required and input value available: candidate must preserve the concept with the authoritative updated value; (B) source-required but authoritative input value missing: generation should stop with MISSING_INPUT; (C) authoritative input value available but concept unused by the source: omission is allowed and is not MISSING_INPUT or a review failure. Use the source-vs-candidate context to decide whether the source contains or requires the concept; do not infer that requirement from CRM/input availability alone. Classify differences as: (D) substantive legal rewrite, which fails if a protected legal clause changes subject, obligations, rights, scope, consent, cancellation, liability, copyright, publication, or delivery without an explicit authoritative mechanical reason; (E) allowed mechanical factual adaptation; (F) allowed minimal, unambiguous editorial typo/token/spacing/punctuation fix that does not change legal meaning; or (G) unchanged source issue, which is not introduced by the transformation. Do not fail merely because a harmless editorial error was corrected. Do fail on an unauthorized substantive legal rewrite.`
@@ -319,7 +471,12 @@ export function validatePlannedEntityFacts(input: GenerationInput, operations: B
 }
 
 const paymentAllocationClause = /(?:płat|plat|zapł|zapl|kwot|pozostał|należn|rata|raty|instalment|installment|deposit|reservation)/iu
-const reservationClause = /(?:opłat\p{L}*\s+rezerwacyj\p{L}*|reservation|deposit|zaliczk|zadatk\p{L}*)/iu
+const reservationClause = /(?:opłat\p{L}*\s+rezerwacyj\p{L}*|reservation|deposit|zaliczk\p{L}*|zadat\p{L}*)/iu
+const reservationIntent = /(?:rezerw\p{L}*|zarezerw\p{L}*|reserve\p{L}*|booking|book\p{L}*|zabezpiecz\p{L}*|secure\p{L}*)/iu
+const paymentAction = /(?:opłat\p{L}*|wpłat\p{L}*|płat\p{L}*|zapł\p{L}*|kwot\p{L}*|payment|amount|pay\p{L}*)/iu
+function isReservationPayment(text: string): boolean {
+  return reservationClause.test(text) || (reservationIntent.test(text) && paymentAction.test(text))
+}
 const aggregateClause = /(?:suma|łącznie|razem|całość|total|aggregate)/iu
 const finalInstallmentClause = /(?:pozostał\p{L}*|ostatni\p{L}*|końcow\p{L}*|final\p{L}*|last\s+payment|remaining\s+payment)/iu
 const intermediateInstallmentReference = /(?:\b(?:first|second|third|fourth|intermediate|earlier|prior)\s+(?:payment|installment|instalment|rate)\b|\b(?:pierwsz\p{L}*|drug\p{L}*|trzeci\p{L}*|czwart\p{L}*|przedostatni\p{L}*|pośredni\p{L}*)\s+(?:płatno\p{L}*|rat\p{L}*))/iu
@@ -330,7 +487,7 @@ function sourceFinalInstallmentCount(input: GenerationInput): number {
   return input.sourceDocument.blocks.flatMap((block) => {
     if (/\b(?:katalog|opcjonaln|nie są objęte|not included|optional service)/iu.test(block.text)) return []
     return block.text.split(/[.;!?\n]+/u).map((clause) => clause.trim())
-      .filter((clause) => clause && !aggregateClause.test(clause) && !reservationClause.test(clause) && paymentAllocationClause.test(clause) && finalInstallmentClause.test(clause) && moneyAmountsInGrosz(clause).length === 1)
+      .filter((clause) => clause && !aggregateClause.test(clause) && !isReservationPayment(clause) && paymentAllocationClause.test(clause) && finalInstallmentClause.test(clause) && moneyAmountsInGrosz(clause).length === 1)
   }).length
 }
 
@@ -360,11 +517,20 @@ function postReservationPaymentObligations(blocks: SourceBlock[]): PaymentObliga
     return block.text.split(/[.;!?\n]+/u).flatMap((clause, clauseIndex) => {
       const text = clause.trim()
       const ordinaryDeposit = /\bwpłat\p{L}*/iu.test(text) && !intermediateInstallmentReference.test(text)
-      if (!text || aggregateClause.test(text) || reservationClause.test(text) || ordinaryDeposit || !paymentAllocationClause.test(text)) return []
+      if (!text || aggregateClause.test(text) || isReservationPayment(text) || ordinaryDeposit || !paymentAllocationClause.test(text)) return []
       const amounts = moneyAmountsInGrosz(text)
       return amounts.length ? [{ blockId: block.blockId, clauseIndex, text, amounts }] : []
     })
   })
+}
+
+export function classifyPaymentObligations(blocks: SourceBlock[]): { reservation: number; postReservation: number } {
+  const reservation = blocks.flatMap((block) => {
+    if (/\b(?:katalog|opcjonaln|nie są objęte|not included|optional service)/iu.test(block.text)) return []
+    return block.text.split(/[.;!?\n]+/u).map((clause) => clause.trim())
+      .filter((clause) => clause && isReservationPayment(clause) && moneyAmountsInGrosz(clause).length > 0)
+  }).length
+  return { reservation, postReservation: postReservationPaymentObligations(blocks).length }
 }
 
 function sourcePaymentObligations(input: GenerationInput): number[][] {
@@ -376,7 +542,7 @@ function hasNegativePostReservationPayment(blocks: SourceBlock[]): boolean {
     if (/\b(?:katalog|opcjonaln|nie są objęte|not included|optional service)/iu.test(block.text)) return false
     return block.text.split(/[.;!?\n]+/u).some((clause) => {
       const trimmed = clause.trim()
-      return trimmed && !aggregateClause.test(trimmed) && !reservationClause.test(trimmed) && paymentAllocationClause.test(trimmed) && /[-−]\s*(?:\d{1,3}(?:[ \u00a0\u202f]\d{3})+|\d+)(?:[,.]\d{2})?\s*zł/iu.test(trimmed)
+      return trimmed && !aggregateClause.test(trimmed) && !isReservationPayment(trimmed) && paymentAllocationClause.test(trimmed) && /[-−]\s*(?:\d{1,3}(?:[ \u00a0\u202f]\d{3})+|\d+)(?:[,.]\d{2})?\s*zł/iu.test(trimmed)
     })
   })
 }
@@ -468,7 +634,7 @@ export function validatePlannedPaymentAllocation(input: GenerationInput, operati
 }
 
 export function validatePlannedTransformation(input: GenerationInput, operations: BlockOperation[]): string[] {
-  return [...validatePlannedConclusion(input, operations), ...validatePlannedEntityFacts(input, operations), ...validatePlannedPaymentAllocation(input, operations)]
+  return [...validatePlannedConclusion(input, operations), ...validatePlannedEntityFacts(input, operations), ...validatePlannedDocumentOwnedFacts(input, operations), ...validatePlannedPaymentAllocation(input, operations)]
 }
 
 export function findInputConflicts(input: GenerationInput): ConflictInput[] {
@@ -595,9 +761,26 @@ export function findStaleValues(candidateText: string, staleValues: string[]): s
   return staleValues.filter((value) => flat.includes(normalize(value)))
 }
 
+async function readDocumentProperties(bytes: ArrayBuffer): Promise<DocumentPropertyText[]> {
+  const zip = await JSZip.loadAsync(bytes)
+  const core = zip.file('docProps/core.xml')
+  if (!core) return []
+  const xml = await core.async('string')
+  const properties: DocumentPropertyText[] = []
+  for (const match of xml.matchAll(/<([\w.-]+(?::[\w.-]+)?)\b[^>]*>([^<>]*)<\/\1\s*>/g)) {
+    const text = unescapeXml(match[2]!).trim()
+    if (!text) continue
+    properties.push({ part: 'docProps/core.xml', property: match[1]!.split(':').at(-1)!, text })
+  }
+  return properties
+}
+
 export async function readSource(bytes: ArrayBuffer, fileName: string): Promise<GenerationInput['sourceDocument']> {
-  const blocks = await (await import('./blockDocxEditor')).buildBlockIndex(bytes)
-  return { fileName, blocks: blocks.map((block) => ({ ...block, contentClass: classifyBlock(block.text) })) }
+  const [blocks, documentProperties] = await Promise.all([
+    (await import('./blockDocxEditor')).buildBlockIndex(bytes),
+    readDocumentProperties(bytes),
+  ])
+  return { fileName, blocks: blocks.map((block) => ({ ...block, contentClass: classifyBlock(block.text) })), documentProperties }
 }
 
 export function makeInput(args: Omit<GenerationInput, 'financials' | 'conclusion' | 'deterministicDerivedFacts'>): GenerationInput {
@@ -630,9 +813,10 @@ export async function runGeneration(sourceBytes: ArrayBuffer, input: GenerationI
   const conflicts = findInputConflicts(input)
   if (conflicts.length) return { status: 'CONFLICT_INPUT', conflicts }
   const planned = await ai.plan(input)
-  const status: PlannerResponseStatus = planned.missingInputs.some((x) => x.required) ? 'MISSING_INPUT' : 'READY'
+  const missingInputs = [...planned.missingInputs, ...findMissingDocumentOwnedFacts(input)]
+  const status: PlannerResponseStatus = missingInputs.some((x) => x.required) ? 'MISSING_INPUT' : 'READY'
   const responseOperations = sanitizePlannerOperations(status, planned.blockOperations)
-  if (status === 'MISSING_INPUT') return { status, missingInputs: addPaymentAllocationHelp(input, planned.missingInputs) }
+  if (status === 'MISSING_INPUT') return { status, missingInputs: addPaymentAllocationHelp(input, missingInputs) }
   if (!planned.blockOperations) return { status: 'FAILED', issues: ['Plan nie zawiera operacji blokowych'] }
   const planIssues = validatePlannedTransformation(input, responseOperations.operations)
   if (planIssues.length) return { status: 'FAILED', issues: planIssues }
@@ -645,7 +829,8 @@ export async function runGeneration(sourceBytes: ArrayBuffer, input: GenerationI
     .filter(({ block }) => !plannedBlockIds.has(block.blockId))
     .map(({ block, text }) => ({ blockId: block.blockId, operation: 'REPLACE_BLOCK_TEXT', finalText: text }))
   const completeOperations = [...normalizedOperations, ...financialBlockOperations]
-  const candidateBytes = await applyBlockOperations(sourceBytes, completeOperations)
+  const blockEditedBytes = await applyBlockOperations(sourceBytes, completeOperations)
+  const candidateBytes = await applyDocumentOwnedPropertyReplacements(blockEditedBytes, input)
   const blocks = (await readSource(candidateBytes, input.sourceDocument.fileName)).blocks
   const safety = await validateCandidate(sourceBytes, candidateBytes, input, completeOperations)
   if (safety.length) return { status: 'FAILED', issues: safety }
@@ -833,6 +1018,7 @@ export async function validateCandidate(
   try { sourceZip = await JSZip.loadAsync(sourceBytes); candidateZip = await JSZip.loadAsync(candidateBytes) } catch { return ['Nie można otworzyć pakietu DOCX'] }
   const sourceDocument = await readSource(sourceBytes, input.sourceDocument.fileName)
   const candidateDocument = await readSource(candidateBytes, input.sourceDocument.fileName)
+  issues.push(...validateCandidateDocumentOwnedFacts(sourceDocument, candidateDocument, input))
   const text = candidateText(candidateDocument.blocks)
   const flat = normalize(text)
   const authoritativePartyNames = [input.wedding.bride.name, input.wedding.groom.name]
@@ -880,7 +1066,7 @@ export async function validateCandidate(
     && !hasMoneyAmount(flat, input.financials.contractValuePln)) {
     issues.push(`Brak prawidłowej kwoty wynagrodzenia: ${formatPlnInteger(input.financials.contractValuePln)}`)
   }
-  if (reservationClause.test(sourceText) && !hasMoneyAmount(flat, input.financials.depositPln)) {
+  if (isReservationPayment(sourceText) && !hasMoneyAmount(flat, input.financials.depositPln)) {
     issues.push(`Brak prawidłowej kwoty wpłaty: ${formatPlnInteger(input.financials.depositPln)}`)
   }
   const sourcePostReservationPayments = postReservationPaymentObligations(sourceDocument.blocks)

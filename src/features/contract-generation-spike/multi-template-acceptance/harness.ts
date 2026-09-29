@@ -7,6 +7,7 @@ import { ContractGenerationMetrics, type GenerationMeasurements, type MetricsClo
 import {
   addPaymentAllocationHelp,
   findInputConflicts,
+  findMissingDocumentOwnedFacts,
   makeInput,
   normalizeAuthoritativeFinancialBlocks,
   normalizeAuthoritativePlnText,
@@ -308,7 +309,7 @@ export async function runMultiTemplateAcceptance(caseId: string, options: Harnes
   metrics.startStage('planningProvider')
   try {
     planned = await options.provider.transform({ input, sourceDocx: sourceArrayBuffer, paymentTiming: definition.paymentTiming ?? {}, productRules: definition.expectedProductRules ?? {} })
-    const missingInputs = addPaymentAllocationHelp(input, planned.missingInputs)
+    const missingInputs = addPaymentAllocationHelp(input, [...planned.missingInputs, ...findMissingDocumentOwnedFacts(input)])
     const plannedStatus = missingInputs.some((item) => item.required) ? 'MISSING_INPUT' : 'READY'
     const normalizedResponse = sanitizePlannerOperations(plannedStatus, planned.blockOperations)
     result.planningResultPath = await persistPlanningResult(outputDirectory, {
@@ -340,7 +341,7 @@ export async function runMultiTemplateAcceptance(caseId: string, options: Harnes
     result.transformationStatus = 'FAILED'; result.deterministicFindings = [error instanceof Error ? error.message : String(error)]; result.overall = 'FAIL'
     await writeReports(result, outputDirectory, metrics); return result
   }
-  const missingInputs = addPaymentAllocationHelp(input, planned.missingInputs)
+  const missingInputs = addPaymentAllocationHelp(input, [...planned.missingInputs, ...findMissingDocumentOwnedFacts(input)])
   if (missingInputs.some((item) => item.required)) {
     result.transformationStatus = 'MISSING_INPUT'; result.missingInputs = missingInputs; result.overall = 'MISSING_INPUT'
     await writeReports(result, outputDirectory, metrics); return result

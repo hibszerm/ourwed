@@ -4,10 +4,11 @@ import { existsSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { createHash } from 'node:crypto'
+import JSZip from 'jszip'
 import { applyBlockOperations } from '../blockDocxEditor'
 import type { AcceptanceProvider, MultiTemplateCaseDefinition } from './harness'
 import { ACCEPTANCE_PROVIDER_BUDGET, formatAcceptanceReport, runMultiTemplateAcceptance } from './harness'
-import { makeInput, readSource, type GenerationInput } from '../generator'
+import { findMissingDocumentOwnedFacts, makeInput, readSource, type GenerationInput } from '../generator'
 
 const sourceFixture = path.resolve(process.cwd(), 'src/features/contract-generation-spike/fixtures/source-video-standard.docx')
 const root = await mkdtemp(path.join(os.tmpdir(), 'ourwed-multi-template-'))
@@ -27,10 +28,39 @@ const completeWedding = {
   },
 }
 
+async function neutralSourceFixture(): Promise<ArrayBuffer> {
+  const sourceDocument = await readSource(sourceBuffer, 'source.docx')
+  const fixtureInput = makeInput({
+    generationDate: '15.09.2026', sourceDocument, wedding: completeWedding,
+    packagePolicy: { preserveSourcePackageExactly: true }, extras: ['ujęcia VHS'], userProvidedAnswers: [],
+  })
+  const identifiers = findMissingDocumentOwnedFacts(fixtureInput).flatMap((item) => {
+    const value = item.sourceContext.match(/^Source document identifier: (.+)$/u)?.[1]
+    return value ? [value] : []
+  })
+  if (!identifiers.length) return sourceBuffer
+  const removeIdentifierBlocks = sourceDocument.blocks
+    .filter((block) => identifiers.some((identifier) => block.text.includes(identifier)))
+    .map((block) => ({ blockId: block.blockId, operation: 'DELETE_BLOCK' as const }))
+  const withoutTextReferences = await applyBlockOperations(sourceBuffer, removeIdentifierBlocks)
+  const zip = await JSZip.loadAsync(withoutTextReferences)
+  const core = zip.file('docProps/core.xml')
+  if (core) {
+    let xml = await core.async('string')
+    for (const property of sourceDocument.documentProperties ?? []) {
+      if (!identifiers.some((identifier) => property.text.includes(identifier))) continue
+      const tag = property.property.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      xml = xml.replace(new RegExp(`<((?:[\\w.-]+:)?${tag})\\b[^>]*>[^<]*</\\1\\s*>`, 'gu'), '')
+    }
+    zip.file('docProps/core.xml', xml)
+  }
+  return zip.generateAsync({ type: 'arraybuffer' })
+}
+
 async function addCase(id: string, overrides: Partial<MultiTemplateCaseDefinition> = {}): Promise<void> {
   const directory = path.join(casesRoot, id)
   await mkdir(directory, { recursive: true })
-  await copyFile(sourceFixture, path.join(directory, 'source.docx'))
+  await writeFile(path.join(directory, 'source.docx'), Buffer.from(await neutralSourceFixture()))
   const definition: MultiTemplateCaseDefinition = {
     id, sourceDocx: 'source.docx', generationDate: '15.09.2026', weddingFacts: structuredClone(completeWedding), extras: ['ujęcia VHS'],
     expectedProductRules: { preserveSourcePackageExactly: true }, ...overrides,
