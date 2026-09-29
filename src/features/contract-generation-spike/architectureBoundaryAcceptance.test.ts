@@ -52,6 +52,17 @@ assert.equal(missingRun.status, 'MISSING_INPUT')
 if (missingRun.status === 'MISSING_INPUT') assert.equal(missingRun.missingInputs.length, 1)
 assert.equal(reviewCount, 0, 'non-READY planning skips independent review')
 
+let invalidInventoryPlanCalls = 0
+const invalidInventory = { items: [{ id: 'bad-span', label: 'invalid span', occurrences: [{ sourceRef: block.blockId, span: { start: 1, end: Array.from(block.text).length + 1 } }] }] }
+const invalidInventoryRun = await runGeneration(pipelineBytes, pipelineSource, authorityContext, {}, {
+  async inventory() { return invalidInventory },
+  async plan() { invalidInventoryPlanCalls++; return plan },
+  async review() { reviewCount++; return { status: 'PASS' } },
+})
+assert.equal(invalidInventoryRun.status, 'FAILED')
+if (invalidInventoryRun.status === 'FAILED') assert.ok(invalidInventoryRun.issues.some((issue) => /invalid source span/.test(issue)))
+assert.equal(invalidInventoryPlanCalls, 0, 'invalid inventory protocol stops before planner provider execution')
+
 const deterministicStop = await runGeneration(pipelineBytes, pipelineSource, authorityContext, {}, {
   async inventory() { return inventory },
   async plan() { return { ...plan, operations: [{ ...operation, finalText: block.text }] } },

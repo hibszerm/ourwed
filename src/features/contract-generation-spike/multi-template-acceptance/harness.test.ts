@@ -37,6 +37,25 @@ try {
   assert.deepEqual(stopped.providerCalls, { inventory: 1, transformation: 1, review: 0, total: 2, retries: 0, repair: 0 })
   assert.deepEqual([inventoryCalls, planningCalls, reviewCalls], [1, 1, 0])
 
+  let invalidSpanPlanningCalls = 0
+  const invalidSpanProvider: AcceptanceProvider = {
+    async inventory({ source }) {
+      const first = source.blocks[0]!
+      return { items: [{ id: 'invalid-span', label: 'out-of-bounds span', occurrences: [{ sourceRef: first.blockId, span: { start: 0, end: Array.from(first.text).length + 1 } }] }] }
+    },
+    async transform() { invalidSpanPlanningCalls++; throw new Error('planner must not run after an invalid inventory span') },
+    async review() { throw new Error('reviewer must not run after an invalid inventory span') },
+  }
+  const invalidSpan = await runMultiTemplateAcceptance('case-offline', { casesRoot: path.join(temp, 'cases'), outputRoot: path.join(temp, 'out'), runId: 'invalid-span', provider: invalidSpanProvider })
+  assert.equal(invalidSpan.overall, 'FAIL')
+  assert.equal(invalidSpan.transformationStatus, 'FAILED')
+  assert.equal(invalidSpan.deterministicValidation, 'FAIL')
+  assert.ok(invalidSpan.deterministicFindings.some((finding) => /invalid source span/.test(finding)))
+  assert.deepEqual(invalidSpan.providerCalls, { inventory: 1, transformation: 0, review: 0, total: 1, retries: 0, repair: 0 })
+  assert.equal(invalidSpanPlanningCalls, 0)
+  const persistedInventory = JSON.parse(await readFile(path.join(temp, 'out', 'case-offline', 'invalid-span', 'source-inventory.json'), 'utf8'))
+  assert.equal(persistedInventory.items[0]?.id, 'invalid-span')
+
   const case04Id = 'case-04-realistic-wedding-photographer'
   const case04Dir = path.join(repoRoot, 'src/features/contract-generation-spike/multi-template-acceptance/cases', case04Id)
   const case04Fixture = JSON.parse(await readFile(path.join(case04Dir, 'input.json'), 'utf8'))

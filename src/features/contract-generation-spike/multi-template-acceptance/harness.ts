@@ -397,6 +397,17 @@ export async function runMultiTemplateAcceptance(caseId: string, options: Harnes
     await writeReports(result, outputDirectory, metrics); return result
   }
 
+  await writeFile(path.join(outputDirectory, 'source-inventory.json'), `${JSON.stringify(inventory, null, 2)}\n`)
+  const inventoryProtocolFindings = resolveInventoryOccurrences(sourceDocument, inventory).findings
+  if (inventoryProtocolFindings.length) {
+    result.transformationStatus = 'FAILED'
+    result.deterministicValidation = 'FAIL'
+    result.deterministicFindings = inventoryProtocolFindings
+    result.overall = 'FAIL'
+    await writeReports(result, outputDirectory, metrics)
+    return result
+  }
+
   result.providerCalls.transformation = 1; result.providerCalls.total = 2
   let planned: PlanResult & { providerMetadata?: ProviderResponseMetadata }
   metrics.startStage('planningProvider')

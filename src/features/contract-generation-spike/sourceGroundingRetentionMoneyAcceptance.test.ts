@@ -60,11 +60,29 @@ const idSource = await readSource(idBytes, 'identifier.docx')
 const body = idSource.blocks.find((block) => block.part === 'word/document.xml')!
 const footer = idSource.blocks.find((block) => block.kind === 'footer')!
 const subject = idSource.documentProperties!.find((property) => property.property === 'subject')!
+const wholeMetadataInventory: SourceInventory = { items: [{ id: 'whole-subject', label: 'whole metadata property', occurrences: [occurrence(idSource, subject.ref)] }] }
+assert.equal(resolveInventoryOccurrences(idSource, wholeMetadataInventory).occurrences[0]?.text, subject.text, 'whole metadata facts use a null span and ground the complete indexed value')
+const metadataSubspanInventory: SourceInventory = { items: [{ id: 'subject-id', label: 'one value within metadata', occurrences: [occurrence(idSource, subject.ref, 'OLD-001')] }] }
+assert.equal(resolveInventoryOccurrences(idSource, metadataSubspanInventory).occurrences[0]?.text, 'OLD-001', 'a valid metadata subspan uses source-index code points')
+const metadataLength = Array.from(subject.text).length
+const invalidMetadataSpans: SourceInventory[] = [
+  { items: [{ id: 'too-long', label: 'past indexed value', occurrences: [{ sourceRef: subject.ref, span: { start: metadataLength - 2, end: metadataLength + 1 } }] }] },
+  { items: [{ id: 'negative', label: 'negative start', occurrences: [{ sourceRef: subject.ref, span: { start: -1, end: 2 } }] }] },
+  { items: [{ id: 'out-of-order', label: 'reversed range', occurrences: [{ sourceRef: subject.ref, span: { start: 5, end: 2 } }] }] },
+]
+for (const invalid of invalidMetadataSpans) {
+  const resolved = resolveInventoryOccurrences(idSource, invalid)
+  assert.ok(resolved.findings.some((finding) => /invalid source span/.test(finding)))
+  assert.equal(resolved.occurrences.length, 0, 'invalid offsets are rejected without fuzzy repair, clamping, or truncation')
+}
+assert.ok(resolveInventoryOccurrences(idSource, { items: [{ id: 'noncanonical-ref', label: 'invalid ref', occurrences: [{ sourceRef: 'docProps:core.xml#subject', span: null }] }] }).findings.some((finding) => /unsupported source reference/.test(finding)))
 const idInventory: SourceInventory = { items: [{ id: 'reusable-id', label: 'source identifier', occurrences: [occurrence(idSource, body.blockId, 'OLD-001'), occurrence(idSource, footer.blockId, 'OLD-001'), occurrence(idSource, subject.ref, 'OLD-001')] }] }
 assert.equal(resolveInventoryOccurrences(idSource, idInventory).occurrences.length, 3)
 const idInput = inputFor(idSource, { userAnswers: [{ id: 'new.reference', value: 'NEW-002' }] })
 const idPlan = { ...ready(), factChanges: [fact(['reusable-id'], 'NEW-002', { kind: 'user', ref: 'new.reference' })] }
 assert.deepEqual(validateAuthorityGate(idInput, idInventory, idPlan), [])
+const staleIdentifierRetention = { ...ready(), retainedLiterals: [{ inventoryItemId: 'reusable-id', reason: 'keep because timing and surrounding language are reusable' }] } as unknown as PlanResult
+assert.ok(validateAuthorityGate(idInput, idInventory, staleIdentifierRetention).some((issue) => /no valid authority reference/.test(issue)), 'source-term preservation does not authorize a stale agreement identifier')
 const idOperations: BlockOperation[] = [
   { blockId: body.blockId, operation: 'REPLACE_BLOCK_TEXT', finalText: 'Nr NEW-002' },
   { blockId: footer.blockId, operation: 'REPLACE_BLOCK_TEXT', finalText: 'Vendor · NEW-002' },
