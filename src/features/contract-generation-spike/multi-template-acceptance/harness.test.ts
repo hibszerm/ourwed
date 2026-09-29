@@ -4,6 +4,7 @@ import { existsSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { createHash } from 'node:crypto'
+import { applyBlockOperations } from '../blockDocxEditor'
 import type { AcceptanceProvider, MultiTemplateCaseDefinition } from './harness'
 import { ACCEPTANCE_PROVIDER_BUDGET, formatAcceptanceReport, runMultiTemplateAcceptance } from './harness'
 import { makeInput, readSource, type GenerationInput } from '../generator'
@@ -13,6 +14,7 @@ const root = await mkdtemp(path.join(os.tmpdir(), 'ourwed-multi-template-'))
 const casesRoot = path.join(root, 'cases')
 const outputRoot = path.join(root, 'results')
 const sourceBytes = await readFile(sourceFixture)
+const sourceBuffer = sourceBytes.buffer.slice(sourceBytes.byteOffset, sourceBytes.byteOffset + sourceBytes.byteLength)
 
 const completeWedding = {
   bride: { name: 'Julia Kanicka', phone: '555666898', email: 'kanickaj7@wp.pl' },
@@ -48,6 +50,30 @@ try {
   assert.ok(missing.missingInputs.some((item) => item.id === 'case-fact:bride.email'))
   assert.deepEqual(missingProviderCalls, { transform: 0, review: 0 }, 'missing facts stop before the provider boundary')
 
+  await addCase('non-ready-operations-case')
+  const partialProviderOperations = [{ blockId: 'word/document.xml#p3', operation: 'REPLACE_BLOCK_TEXT' as const, finalText: 'Unsafe partial edit' }]
+  let nonReadyReviewCalls = 0
+  const nonReadyOperationsProvider: AcceptanceProvider = {
+    async transform() {
+      return {
+        missingInputs: [{ id: 'generic.required', label: 'Required source fact', explanation: 'Not provided.', inputType: 'text', required: true, sourceContext: 'source paragraph' }],
+        blockOperations: partialProviderOperations,
+      }
+    },
+    async review() { nonReadyReviewCalls++; return { status: 'PASS' } },
+  }
+  const nonReady = await runMultiTemplateAcceptance('non-ready-operations-case', { casesRoot, outputRoot, provider: nonReadyOperationsProvider, runId: 'response-shape' })
+  assert.equal(nonReady.overall, 'MISSING_INPUT')
+  assert.equal(nonReady.candidatePath, null)
+  assert.equal(nonReadyReviewCalls, 0)
+  const nonReadyArtifact = JSON.parse(await readFile(nonReady.planningResultPath!, 'utf8'))
+  assert.deepEqual(nonReadyArtifact.rawOperations, partialProviderOperations, 'raw provider operations remain in diagnostics')
+  assert.deepEqual(nonReadyArtifact.rawProviderResult.blockOperations, partialProviderOperations, 'parsed raw provider response is retained')
+  assert.deepEqual(nonReadyArtifact.operations, [], 'non-READY operations are not exposed as executable')
+  assert.equal(nonReadyArtifact.rawOperationCount, 1)
+  assert.equal(nonReadyArtifact.operationCount, 0)
+  assert.equal(nonReadyArtifact.discardedOperationCount, 1)
+
   await addCase('conflict-case', { generationDate: '27.09.2026' })
   const conflict = await runMultiTemplateAcceptance('conflict-case', { casesRoot, outputRoot, provider: spyProvider, runId: 'one' })
   assert.equal(conflict.overall, 'CONFLICT_INPUT')
@@ -55,6 +81,19 @@ try {
   assert.deepEqual(missingProviderCalls, { transform: 0, review: 0 }, 'conflicts stop before the provider boundary')
 
   await addCase('ready-case')
+  const readySource = await readSource(sourceBuffer, 'source.docx')
+  const sourcePaymentBlocks = readySource.blocks.filter((block) => /wynagrodzenie w łącznej wysokości|wpłaty zadatku|pozostałą do zapłaty część wynagrodzenia/iu.test(block.text))
+  assert.equal(sourcePaymentBlocks.length, 3, 'the test source includes a total, reservation, and one remaining-payment clause')
+  const singleRemainderSource = await applyBlockOperations(sourceBuffer, sourcePaymentBlocks.map((block) => ({
+    blockId: block.blockId,
+    operation: 'REPLACE_BLOCK_TEXT' as const,
+    finalText: /wynagrodzenie w łącznej wysokości/iu.test(block.text)
+      ? 'Cena całkowita pakietu wynosi 14 200 zł brutto.'
+      : /wpłaty zadatku/iu.test(block.text)
+        ? 'Opłata rezerwacyjna wynosi 1 000 zł, płatna w terminie 7 dni od zawarcia Umowy.'
+        : 'Pozostała kwota wynosi 13 200 zł i zostanie zapłacona najpóźniej w dniu 30.07.2027 r.',
+  })))
+  await writeFile(path.join(casesRoot, 'ready-case', 'source.docx'), Buffer.from(singleRemainderSource))
   const ready = await runMultiTemplateAcceptance('ready-case', { casesRoot, outputRoot, runId: 'one' })
   assert.equal(ready.preflight, 'READY')
   assert.equal(ready.transformationRequestPrepared, true)

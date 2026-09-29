@@ -10,6 +10,7 @@ import {
   normalizeAuthoritativeFinancialBlocks,
   normalizeAuthoritativePlnText,
   readSource,
+  sanitizePlannerOperations,
   validatePlannedTransformation,
   validateCandidate,
   type ConflictInput,
@@ -106,6 +107,10 @@ type PersistedPlanningResult = {
   conflicts: ConflictInput[]
   operations: BlockOperation[] | null
   operationCount: number | null
+  rawOperations?: BlockOperation[]
+  rawOperationCount?: number
+  discardedOperationCount?: number
+  rawProviderResult?: { missingInputs: MissingInput[]; conflicts: ConflictInput[]; blockOperations: BlockOperation[] }
   model?: string
   responseModel?: string
   planValidation: 'NOT_RUN' | 'PASS' | 'FAIL'
@@ -305,12 +310,18 @@ export async function runMultiTemplateAcceptance(caseId: string, options: Harnes
   metrics.startStage('planningProvider')
   try {
     planned = await options.provider.transform({ input, sourceDocx: sourceArrayBuffer, paymentTiming: definition.paymentTiming ?? {}, productRules: definition.expectedProductRules ?? {} })
+    const plannedStatus = planned.missingInputs.some((item) => item.required) ? 'MISSING_INPUT' : 'READY'
+    const normalizedResponse = sanitizePlannerOperations(plannedStatus, planned.blockOperations)
     result.planningResultPath = await persistPlanningResult(outputDirectory, {
-      status: planned.missingInputs.some((item) => item.required) ? 'MISSING_INPUT' : 'READY',
+      status: plannedStatus,
       missingInputs: planned.missingInputs,
       conflicts: [],
-      operations: planned.blockOperations ?? null,
-      operationCount: planned.blockOperations?.length ?? null,
+      operations: normalizedResponse.operations,
+      operationCount: normalizedResponse.operationCount,
+      rawOperations: normalizedResponse.rawOperations,
+      rawOperationCount: normalizedResponse.rawOperationCount,
+      discardedOperationCount: normalizedResponse.discardedOperationCount,
+      rawProviderResult: { missingInputs: planned.missingInputs, conflicts: [], blockOperations: normalizedResponse.rawOperations },
       ...(planned.providerMetadata?.requestedModel ? { model: planned.providerMetadata.requestedModel } : {}),
       ...(planned.providerMetadata?.responseModel ? { responseModel: planned.providerMetadata.responseModel } : {}),
       planValidation: 'NOT_RUN',
@@ -331,13 +342,6 @@ export async function runMultiTemplateAcceptance(caseId: string, options: Harnes
     await writeReports(result, outputDirectory, metrics); return result
   }
   if (planned.missingInputs.some((item) => item.required)) {
-    await persistPlanningResult(outputDirectory, {
-      status: 'MISSING_INPUT', missingInputs: planned.missingInputs, conflicts: [], operations: planned.blockOperations ?? null,
-      operationCount: planned.blockOperations?.length ?? null,
-      ...(planned.providerMetadata?.requestedModel ? { model: planned.providerMetadata.requestedModel } : {}),
-      ...(planned.providerMetadata?.responseModel ? { responseModel: planned.providerMetadata.responseModel } : {}),
-      planValidation: 'NOT_RUN', planValidationFindings: [],
-    })
     result.transformationStatus = 'MISSING_INPUT'; result.missingInputs = planned.missingInputs; result.overall = 'MISSING_INPUT'
     await writeReports(result, outputDirectory, metrics); return result
   }
