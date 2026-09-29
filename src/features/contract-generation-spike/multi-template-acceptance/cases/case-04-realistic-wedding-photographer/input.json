@@ -1,39 +1,176 @@
 {
   "id": "case-04-realistic-wedding-photographer",
   "sourceDocx": "source.docx",
-  "generationDate": "04.02.2028",
-  "weddingFacts": {
-    "bride": {
-      "name": "Klaudia Majewska",
-      "phone": "+48 510 284 739",
-      "email": "klaudia.majewska@example.com"
+  "authoritativeInput": {
+    "generationDate": "2028-02-04",
+    "wedding": {
+      "id": "case-04-realistic-wedding-photographer",
+      "couple": {
+        "partner1": "Klaudia Majewska",
+        "partner2": "Tomasz Domański",
+        "partner1FirstName": "Klaudia",
+        "partner1LastName": "Majewska",
+        "partner2FirstName": "Tomasz",
+        "partner2LastName": "Domański",
+        "partner1Phone": "+48 510 284 739",
+        "partner1Email": "klaudia.majewska@example.com",
+        "partner2Phone": "+48 606 391 825",
+        "partner2Email": "tomasz.domanski@example.com",
+        "email": "klaudia.majewska@example.com",
+        "phone": "+48 510 284 739",
+        "venue": "Rezydencja Luxury Hotel",
+        "city": "Piekary Śląskie"
+      },
+      "date": "2028-05-22",
+      "status": "active",
+      "workflowStage": "contract",
+      "packageName": "REPORTAŻ PEŁNY",
+      "price": 10600,
+      "depositAmount": 2000,
+      "currency": "PLN",
+      "packageItems": [
+        {
+          "title": "Obecność fotografa od przygotowań do przyjęcia weselnego, przez maksymalnie 12 kolejnych godzin.",
+          "sortOrder": 0,
+          "enabled": true
+        },
+        {
+          "title": "Selekcja i autorska obróbka zdjęć, nie mniej niż 500 fotografii.",
+          "sortOrder": 1,
+          "enabled": true
+        },
+        {
+          "title": "Prywatna galeria internetowa.",
+          "sortOrder": 2,
+          "enabled": true
+        },
+        {
+          "title": "Przekazanie zdjęć w wysokiej rozdzielczości w formacie JPEG.",
+          "sortOrder": 3,
+          "enabled": true
+        },
+        {
+          "title": "50 odbitek wybranych zdjęć w eleganckim pudełku prezentacyjnym.",
+          "sortOrder": 4,
+          "enabled": true
+        },
+        {
+          "title": "Gotowy materiał zostanie udostępniony w terminie do 90 dni kalendarzowych od dnia ślubu.",
+          "sortOrder": 5,
+          "enabled": true
+        },
+        {
+          "title": "Wykonawca przechowuje kopię bezpieczeństwa przekazanego materiału przez 12 miesięcy od dnia jego udostępnienia.",
+          "sortOrder": 6,
+          "enabled": true
+        }
+      ],
+      "travelFeeStatus": "included",
+      "travelFeeAmount": 0,
+      "finalPaymentTerms": null,
+      "finalPaymentDueDate": "2028-05-15",
+      "payments": [],
+      "finances": [],
+      "questionnaires": {
+        "contractData": {
+          "status": "completed"
+        },
+        "weddingQuestionnaire": {
+          "status": "completed"
+        }
+      },
+      "contract": {
+        "status": "none"
+      },
+      "checklist": [],
+      "schedule": [],
+      "notes": [],
+      "deliverables": [],
+      "timeline": [],
+      "accentColor": "",
+      "createdAt": "2028-02-04T09:00:00.000Z"
     },
-    "groom": {
-      "name": "Tomasz Domański",
-      "phone": "+48 606 391 825"
+    "weddingPlaces": [
+      {
+        "id": "case04-place-bride-preparation",
+        "weddingId": "case-04-realistic-wedding-photographer",
+        "role": "bride_preparation",
+        "label": "Hotel Monopol Katowice",
+        "placeId": null,
+        "formattedAddress": "Hotel Monopol Katowice",
+        "latitude": null,
+        "longitude": null,
+        "sortOrder": 0,
+        "createdAt": "2028-02-04T09:00:00.000Z",
+        "updatedAt": "2028-02-04T09:00:00.000Z"
+      },
+      {
+        "id": "case04-place-groom-preparation",
+        "weddingId": "case-04-realistic-wedding-photographer",
+        "role": "groom_preparation",
+        "label": "Hotel Monopol Katowice",
+        "placeId": null,
+        "formattedAddress": "Hotel Monopol Katowice",
+        "latitude": null,
+        "longitude": null,
+        "sortOrder": 1,
+        "createdAt": "2028-02-04T09:00:00.000Z",
+        "updatedAt": "2028-02-04T09:00:00.000Z"
+      },
+      {
+        "id": "case04-place-ceremony",
+        "weddingId": "case-04-realistic-wedding-photographer",
+        "role": "ceremony",
+        "label": "Bazylika św. Ludwika i Wniebowzięcia NMP",
+        "placeId": null,
+        "formattedAddress": "Bazylika św. Ludwika i Wniebowzięcia NMP, Panewniki",
+        "latitude": null,
+        "longitude": null,
+        "sortOrder": 2,
+        "createdAt": "2028-02-04T09:00:00.000Z",
+        "updatedAt": "2028-02-04T09:00:00.000Z"
+      },
+      {
+        "id": "case04-place-reception",
+        "weddingId": "case-04-realistic-wedding-photographer",
+        "role": "reception",
+        "label": "Rezydencja Luxury Hotel",
+        "placeId": null,
+        "formattedAddress": "Rezydencja Luxury Hotel, Piekary Śląskie",
+        "latitude": null,
+        "longitude": null,
+        "sortOrder": 3,
+        "createdAt": "2028-02-04T09:00:00.000Z",
+        "updatedAt": "2028-02-04T09:00:00.000Z"
+      }
+    ],
+    "extras": [],
+    "questionnaireFields": {
+      "partner1.address": {
+        "formattedAddress": "ul. Francuska 18/7, 40-015 Katowice"
+      },
+      "partner2.address": {
+        "formattedAddress": "ul. Słoneczna 12/5, 43-300 Bielsko-Biała"
+      }
     },
-    "weddingDate": "22.05.2028",
-    "contractAddress": "ul. Francuska 18/7, 40-015 Katowice",
-    "contractValuePln": 10600,
-    "depositPln": 2000,
-    "remainingDueDate": "najpóźniej 7 dni przed datą ślubu",
-    "locations": {
-      "bridePreparations": "Hotel Monopol Katowice",
-      "groomPreparations": "Hotel Monopol Katowice",
-      "ceremony": "Bazylika św. Ludwika Króla i Wniebowzięcia NMP w Katowicach-Panewnikach",
-      "reception": "Rezydencja Luxury Hotel, Piekary Śląskie"
-    }
+    "userProvidedAnswers": [
+      {
+        "id": "party.partner1.pesel",
+        "value": "98072312346"
+      },
+      {
+        "id": "party.partner2.pesel",
+        "value": "97041112358"
+      },
+      {
+        "id": "agreement.identifier",
+        "value": "01/2028"
+      }
+    ]
   },
-  "extras": [],
-  "userProvidedAnswers": [
-    { "id": "wedding.bride.pesel", "value": "98072312346" },
-    { "id": "wedding.groom.address", "value": "ul. Słoneczna 12/5, 43-300 Bielsko-Biała" },
-    { "id": "wedding.groom.pesel", "value": "97041112358" },
-    { "id": "wedding.groom.email", "value": "tomasz.domanski@example.com" },
-    { "id": "travel.surcharge", "value": "No additional travel surcharge is agreed for this event." }
-  ],
   "expectedProductRules": {
     "preserveSourcePackageExactly": true,
+    "preserveSourceConclusionPlace": "Kraków",
     "preserveSourceContractingPartyStructure": true
   }
 }
