@@ -43,9 +43,9 @@ const hotelItem = { id: 'preparations', label: 'preparation location', occurrenc
 const hotelInventory: SourceInventory = { items: [hotelItem] }
 assert.equal(resolveInventoryOccurrences(hotelSource, hotelInventory).occurrences[0]?.text, 'Hotelu H15 Luxury Palace w Krakowie', 'source text, not the model quote, is canonical')
 const hotelInput = inputFor(hotelSource)
-const hotelPlan = { ...ready(), factChanges: [fact(['preparations'], 'Hotel Monopol Katowice', { kind: 'crm', ref: 'wedding.locations.bridePreparations' })] }
-assert.deepEqual(validateAuthorityGate(hotelInput, hotelInventory, hotelPlan), [])
 const hotelOperation: BlockOperation = { blockId: hotelBlock.blockId, operation: 'REPLACE_BLOCK_TEXT', finalText: 'Reportage includes preparations in Hotel Monopol Katowice and ceremony at Kościele św. Anny.' }
+const hotelPlan = { ...ready(), factChanges: [fact(['preparations'], 'Hotel Monopol Katowice', { kind: 'crm', ref: 'wedding.locations.bridePreparations' })], operations: [hotelOperation] }
+assert.deepEqual(validateAuthorityGate(hotelInput, hotelInventory, hotelPlan), [])
 const hotelCandidate = await applyBlockOperations(hotelBytes, [hotelOperation])
 assert.deepEqual(await validateCandidate(hotelBytes, hotelCandidate, hotelInput, hotelInventory, { ...hotelPlan, operations: [hotelOperation] }, [hotelOperation]), [])
 const badSpanInventory: SourceInventory = { items: [{ id: 'bad', label: 'bad range', occurrences: [{ sourceRef: hotelBlock.blockId, span: { start: 1, end: Array.from(hotelBlock.text).length + 1 } }] }] }
@@ -79,14 +79,14 @@ assert.ok(resolveInventoryOccurrences(idSource, { items: [{ id: 'noncanonical-re
 const idInventory: SourceInventory = { items: [{ id: 'reusable-id', label: 'source identifier', occurrences: [occurrence(idSource, body.blockId, 'OLD-001'), occurrence(idSource, footer.blockId, 'OLD-001'), occurrence(idSource, subject.ref, 'OLD-001')] }] }
 assert.equal(resolveInventoryOccurrences(idSource, idInventory).occurrences.length, 3)
 const idInput = inputFor(idSource, { userAnswers: [{ id: 'new.reference', value: 'NEW-002' }] })
-const idPlan = { ...ready(), factChanges: [fact(['reusable-id'], 'NEW-002', { kind: 'user', ref: 'new.reference' })] }
-assert.deepEqual(validateAuthorityGate(idInput, idInventory, idPlan), [])
-const staleIdentifierRetention = { ...ready(), retainedLiterals: [{ inventoryItemId: 'reusable-id', reason: 'keep because timing and surrounding language are reusable' }] } as unknown as PlanResult
-assert.ok(validateAuthorityGate(idInput, idInventory, staleIdentifierRetention).some((issue) => /no valid authority reference/.test(issue)), 'source-term preservation does not authorize a stale agreement identifier')
 const idOperations: BlockOperation[] = [
   { blockId: body.blockId, operation: 'REPLACE_BLOCK_TEXT', finalText: 'Nr NEW-002' },
   { blockId: footer.blockId, operation: 'REPLACE_BLOCK_TEXT', finalText: 'Vendor · NEW-002' },
 ]
+const idPlan = { ...ready(), factChanges: [fact(['reusable-id'], 'NEW-002', { kind: 'user', ref: 'new.reference' })], operations: idOperations }
+assert.deepEqual(validateAuthorityGate(idInput, idInventory, idPlan), [])
+const staleIdentifierRetention = { ...ready(), retainedLiterals: [{ inventoryItemId: 'reusable-id', reason: 'keep because timing and surrounding language are reusable' }] } as unknown as PlanResult
+assert.ok(validateAuthorityGate(idInput, idInventory, staleIdentifierRetention).some((issue) => /no valid authority reference/.test(issue)), 'source-term preservation does not authorize a stale agreement identifier')
 const idEdited = await applyBlockOperations(idBytes, idOperations)
 const idCandidate = await applyMetadataFactChanges(idEdited, idPlan.factChanges, idInventory, idSource)
 assert.deepEqual(await validateCandidate(idBytes, idCandidate, idInput, idInventory, { ...idPlan, operations: idOperations }, idOperations), [])
@@ -122,7 +122,7 @@ const moneySource = await readSource(moneySourceBytes, 'money.docx')
 const moneyBlock = moneySource.blocks[0]!
 const moneyInventory: SourceInventory = { items: [{ id: 'written-total', label: 'written amount', occurrences: [occurrence(moneySource, moneyBlock.blockId, 'dziewięć tysięcy osiemset złotych 00/100')] }] }
 const moneyInput = inputFor(moneySource)
-const moneyPlan = { ...ready(), factChanges: [fact(['written-total'], 'dziesięć tysięcy sześćset złotych 00/100', { kind: 'crm', ref: 'wedding.contractValuePln' }, 'polish_pln_words')] }
+const moneyPlan = { ...ready(), factChanges: [fact(['written-total'], 'dziesięć tysięcy sześćset złotych 00/100', { kind: 'crm', ref: 'wedding.contractValuePln' }, 'polish_pln_words')], operations: [{ blockId: moneyBlock.blockId, operation: 'REPLACE_BLOCK_TEXT' as const, finalText: 'Kwota: dziesięć tysięcy sześćset złotych 00/100' }] }
 assert.deepEqual(validateAuthorityGate(moneyInput, moneyInventory, moneyPlan), [])
 assert.ok(validateAuthorityGate(moneyInput, moneyInventory, { ...moneyPlan, factChanges: [fact(['written-total'], 'dziesięć tysięcy sześćset jeden złotych 00/100', { kind: 'crm', ref: 'wedding.contractValuePln' }, 'polish_pln_words')] }).some((item) => /does not match/.test(item)))
 assert.ok(validateAuthorityGate(moneyInput, moneyInventory, { ...moneyPlan, factChanges: [fact(['written-total'], 'dziesięć tysięcy sześćset złotych 00/100', { kind: 'crm', ref: 'wedding.contractValuePln' }, 'literal')] }).some((item) => /does not match/.test(item)), 'word equivalence runs only when the planner declares that representation')

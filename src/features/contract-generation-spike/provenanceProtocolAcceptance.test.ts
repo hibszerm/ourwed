@@ -9,7 +9,7 @@ const wedding: GenerationInput['wedding'] = {
 }
 const input = makeInput({ generationDate: '04.02.2028', sourceDocument: source, wedding, packagePolicy: { preserveSourcePackageExactly: true }, extras: [], userProvidedAnswers: [{ id: 'wedding.bride.pesel', value: '96041412344' }] })
 const inventory: SourceInventory = { items: [{ id: 'old-fact', label: 'free text', occurrences: [{ sourceRef: 'word/document.xml#p0', span: { start: 46, end: 53 } }] }] }
-const base: PlanResult = { status: 'READY', missingInputs: [], conflicts: [], factChanges: [], retainedLiterals: [], operations: [] }
+const base: PlanResult = { status: 'READY', missingInputs: [], conflicts: [], factChanges: [], retainedLiterals: [], operations: [{ blockId: source.blocks[0]!.blockId, operation: 'REPLACE_BLOCK_TEXT', finalText: 'Date 04.02.2028; total 10 600,00 zł; new fact' }] }
 const fact = (authority: PlanResult['factChanges'][number]['authority'], newValue: string): PlanResult['factChanges'][number] => ({ label: 'free-form label', inventoryItemIds: ['old-fact'], newValue, newValueFormat: 'literal', authority })
 
 assert.deepEqual(validateAuthorityGate(input, inventory, { ...base, factChanges: [fact({ kind: 'crm', ref: 'wedding.bride.name' }, 'Ada')] }), [])

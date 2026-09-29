@@ -22,7 +22,7 @@ function assertGate(ref: string, value: string, kind: FactAuthority['kind'] = 'c
   const sourceBlock = sourceDocument.blocks.find((block) => block.text.trim())!
   const inventory: SourceInventory = { items: [{ id: 'authority-test-item', label: 'source fact', occurrences: [{ sourceRef: sourceBlock.blockId, span: null }] }] }
   const plan: PlanResult = {
-    status: 'READY', missingInputs: [], conflicts: [], retainedLiterals: [], operations: [],
+    status: 'READY', missingInputs: [], conflicts: [], retainedLiterals: [], operations: [{ blockId: sourceBlock.blockId, operation: 'REPLACE_BLOCK_TEXT', finalText: value }],
     factChanges: [{ label: 'planner-declared meaning', inventoryItemIds: ['authority-test-item'], newValue: value, newValueFormat: 'literal', authority: { kind, ref } }],
   }
   assert.deepEqual(validateAuthorityGate(normalized, inventory, plan, validationContext), [], `authority ${kind}:${ref} should pass by exact normalized value`)

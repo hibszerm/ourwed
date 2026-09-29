@@ -62,7 +62,7 @@ const overrideBlock = overrideSource.blocks[0]!
 const oldTiming = 'w terminie 3 dni od zawarcia umowy'
 const overrideInventory: SourceInventory = { items: [{ id: 'source-timing', label: 'source-defined timing', occurrences: [{ sourceRef: overrideBlock.blockId, span: spanOf(overrideBlock.text, oldTiming) }] }] }
 const overridePlan: PlanResult = {
-  status: 'READY', missingInputs: [], conflicts: [], retainedLiterals: [], operations: [],
+  status: 'READY', missingInputs: [], conflicts: [], retainedLiterals: [], operations: [{ blockId: overrideBlock.blockId, operation: 'REPLACE_BLOCK_TEXT', finalText: 'Zaliczka 2 000 zł płatna w terminie 7 dni od podpisania umowy.' }],
   factChanges: [{ label: 'explicitly supplied timing', inventoryItemIds: ['source-timing'], newValue: 'w terminie 7 dni od podpisania umowy', newValueFormat: 'literal', authority: { kind: 'user', ref: 'payment.timing' } }],
 }
 assert.deepEqual(validateAuthorityGate(overrideInput, overrideInventory, overridePlan, { sourceDocument: overrideSource, productRules: fixture.expectedProductRules }), [], 'explicit replacement timing remains authoritative through the existing authority rules')

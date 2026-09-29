@@ -28,7 +28,7 @@ const authorityContext = buildContractGenerationInput(case04Options.authoritativ
 const party1Name = authorityContext.parties.find((party) => party.sourceKey === 'partner1')!.fullName!
 const operation = { blockId: block.blockId, operation: 'REPLACE_BLOCK_TEXT' as const, finalText: `Client: ${party1Name.value}` }
 const plan: PlanResult = { ...ready(), factChanges: [{ label: 'name', inventoryItemIds: ['client-name'], newValue: party1Name.value, newValueFormat: 'literal', authority: { kind: 'crm', ref: party1Name.source } }], operations: [operation] }
-const legacyPlan: PlanResult = { ...ready(), factChanges: [{ label: 'name', inventoryItemIds: ['client-name'], newValue: 'Ada Test', newValueFormat: 'literal', authority: { kind: 'crm', ref: 'wedding.bride.name' } }] }
+const legacyPlan: PlanResult = { ...ready(), factChanges: [{ label: 'name', inventoryItemIds: ['client-name'], newValue: 'Ada Test', newValueFormat: 'literal', authority: { kind: 'crm', ref: 'wedding.bride.name' } }], operations: [operation] }
 assert.deepEqual(validateAuthorityGate(input, inventory, legacyPlan), [], 'legacy authority paths remain confined to direct historical compatibility checks')
 for (const status of ['MISSING_INPUT', 'CONFLICT_INPUT'] as const) assert.deepEqual(sanitizePlannerOperations(status, [operation]).operations, [])
 assert.deepEqual(sanitizePlannerOperations('READY', [operation]).operations, [operation])
