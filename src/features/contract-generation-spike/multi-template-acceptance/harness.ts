@@ -4,6 +4,9 @@ import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { applyBlockOperations, type BlockOperation } from '../blockDocxEditor'
 import { ContractGenerationMetrics, type GenerationMeasurements, type MetricsClock, type ProviderResponseMetadata } from '../contractGenerationMetrics'
+import { buildContractGenerationInput, type ContractGenerationInput, type ContractGenerationInputOptions } from '../contractGenerationInput'
+import type { Wedding } from '@/types/wedding'
+import type { WeddingPlace } from '@/types/travel'
 import {
   computeChangedBlockDiff,
   applyMetadataFactChanges,
@@ -35,7 +38,7 @@ export type AcceptanceProductRules = {
   preserveSourceContractingPartyStructure?: true
 }
 
-export type MultiTemplateCaseDefinition = {
+export type LegacyMultiTemplateCaseDefinition = {
   id: string
   sourceDocx: 'source.docx'
   generationDate: string
@@ -44,6 +47,15 @@ export type MultiTemplateCaseDefinition = {
   userProvidedAnswers?: GenerationInput['userProvidedAnswers']
   expectedProductRules?: AcceptanceProductRules
 }
+
+export type ContractGenerationInputCaseDefinition = {
+  id: string
+  sourceDocx: 'source.docx'
+  authoritativeInput: ContractGenerationInputOptions
+  expectedProductRules?: AcceptanceProductRules
+}
+
+export type MultiTemplateCaseDefinition = LegacyMultiTemplateCaseDefinition | ContractGenerationInputCaseDefinition
 
 export type AcceptanceProvider = {
   inventory(args: { source: GenerationInput['sourceDocument']; sourceDocx: ArrayBuffer }): Promise<SourceInventory & { providerMetadata?: ProviderResponseMetadata }>
@@ -55,6 +67,7 @@ export type AcceptanceResult = {
   caseId: string
   sourceFilename: string
   productRules: AcceptanceProductRules
+  normalizedInput: ContractGenerationInput | null
   transformationRequestPrepared: boolean
   preflight: 'READY' | 'MISSING_INPUT' | 'CONFLICT_INPUT' | 'INVALID_CASE'
   missingInputs: MissingInput[]
@@ -118,7 +131,7 @@ function ownedArrayBuffer(value: ArrayBufferLike): ArrayBuffer {
 
 function resultBase(caseId: string, sourceFilename = 'source.docx'): AcceptanceResult {
   return {
-    caseId, sourceFilename, productRules: {}, transformationRequestPrepared: false, preflight: 'INVALID_CASE', missingInputs: [], conflictFindings: [],
+    caseId, sourceFilename, productRules: {}, normalizedInput: null, transformationRequestPrepared: false, preflight: 'INVALID_CASE', missingInputs: [], conflictFindings: [],
     transformationStatus: 'NOT_RUN_PROVIDER_DISABLED', blockOperationCounts: { transformation: 0, canonicalMoney: 0 },
     planningResultPath: null, candidatePath: null, candidateOpens: null, reviewResult: 'NOT_RUN', reviewFindings: [],
     deterministicValidation: 'NOT_RUN', deterministicFindings: [], pageCount: null, blankPagePresence: 'NOT_RENDERED',
@@ -153,10 +166,147 @@ function materializeWeddingFacts(facts: DeepPartial<WeddingFacts>): WeddingFacts
   }
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value)
+}
+
 function isCaseDefinition(value: unknown, caseId: string): value is MultiTemplateCaseDefinition {
   if (!value || typeof value !== 'object') return false
-  const item = value as Partial<MultiTemplateCaseDefinition>
-  return item.id === caseId && item.sourceDocx === 'source.docx' && typeof item.generationDate === 'string' && !!item.weddingFacts && typeof item.weddingFacts === 'object'
+  const item = value as Record<string, unknown>
+  if (item.id !== caseId || item.sourceDocx !== 'source.docx') return false
+  if (isRecord(item.authoritativeInput)) {
+    return typeof item.authoritativeInput.generationDate === 'string'
+      && isRecord(item.authoritativeInput.wedding)
+      && Array.isArray(item.authoritativeInput.weddingPlaces)
+      && Array.isArray(item.authoritativeInput.extras)
+  }
+  return typeof item.generationDate === 'string' && isRecord(item.weddingFacts)
+}
+
+function legacyDateToIso(value: string): string | undefined {
+  const trimmed = value.trim()
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed
+  const localized = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(trimmed)
+  return localized ? `${localized[3]}-${localized[2]}-${localized[1]}` : undefined
+}
+
+function legacyCaseOptions(definition: LegacyMultiTemplateCaseDefinition): ContractGenerationInputOptions {
+  const facts = materializeWeddingFacts(definition.weddingFacts)
+  if ((definition.extras ?? []).length) throw new Error('Legacy fixture extras need structured wedding extra-service snapshots before adapter normalization.')
+  const weddingId = `legacy-${definition.id}`
+  const timestamp = '1970-01-01T00:00:00.000Z'
+  const wedding: Wedding = {
+    id: weddingId,
+    couple: {
+      partner1: facts.bride.name,
+      partner2: facts.groom.name,
+      partner1Phone: facts.bride.phone,
+      partner1Email: facts.bride.email,
+      partner2Phone: facts.groom.phone,
+      email: facts.bride.email,
+      phone: facts.bride.phone,
+      venue: '',
+      city: '',
+    },
+    date: facts.weddingDate,
+    status: 'active',
+    workflowStage: 'contract',
+    packageName: '',
+    price: facts.contractValuePln,
+    depositAmount: facts.depositPln,
+    currency: 'PLN',
+    packageItems: [],
+    travelFeeStatus: 'unresolved',
+    travelFeeAmount: 0,
+    finalPaymentDueDate: legacyDateToIso(facts.remainingDueDate),
+    finalPaymentTerms: null,
+    payments: [],
+    finances: [],
+    questionnaires: { contractData: { status: 'completed' }, weddingQuestionnaire: { status: 'not_sent' } },
+    contract: { status: 'none' },
+    checklist: [],
+    schedule: [],
+    notes: [],
+    deliverables: [],
+    timeline: [],
+    accentColor: '',
+    createdAt: timestamp,
+  }
+  const placeValues: Array<[WeddingPlace['role'], string]> = [
+    ['bride_preparation', facts.locations.bridePreparations],
+    ['groom_preparation', facts.locations.groomPreparations],
+    ['ceremony', facts.locations.ceremony],
+    ['reception', facts.locations.reception],
+  ]
+  const weddingPlaces: WeddingPlace[] = placeValues.flatMap(([role, formattedAddress], sortOrder) => formattedAddress.trim() ? [{
+    id: `${weddingId}-place-${role}`,
+    weddingId,
+    role,
+    label: formattedAddress,
+    placeId: null,
+    formattedAddress,
+    latitude: null,
+    longitude: null,
+    sortOrder,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  }] : [])
+  return {
+    wedding,
+    weddingPlaces,
+    extras: [],
+    generationDate: definition.generationDate,
+    userProvidedAnswers: definition.userProvidedAnswers ?? [],
+    genericContractAddress: facts.contractAddress,
+  }
+}
+
+function locationText(input: ContractGenerationInput, role: WeddingPlace['role']): string {
+  const place = input.locations.find((location) => location.role.value === role)
+  if (!place) return ''
+  const label = place.label?.value.trim() ?? ''
+  const address = place.formattedAddress.value.trim()
+  if (!label) return address
+  if (!address || label === address) return label
+  return `${label}, ${address}`
+}
+
+/**
+ * The current provider protocol still consumes GenerationInput. Keep this
+ * projection mechanical and at that boundary; normalizedInput remains the
+ * authoritative harness input and is always persisted separately.
+ */
+function projectForExistingProvider(
+  normalizedInput: ContractGenerationInput,
+  sourceDocument: GenerationInput['sourceDocument'],
+  productRules: AcceptanceProductRules,
+): GenerationInput {
+  const party1 = normalizedInput.parties.find((party) => party.sourceKey === 'partner1')
+  const party2 = normalizedInput.parties.find((party) => party.sourceKey === 'partner2')
+  const unownedAddress = normalizedInput.unownedFacts.find((fact) => typeof fact.value === 'string')?.value
+  return makeInput({
+    generationDate: normalizedInput.generationContext.generationDate.value,
+    sourceDocument,
+    wedding: {
+      bride: { name: party1?.fullName?.value ?? '', phone: party1?.phone?.value ?? '', email: party1?.email?.value ?? '' },
+      groom: { name: party2?.fullName?.value ?? '', phone: party2?.phone?.value ?? '' },
+      weddingDate: normalizedInput.wedding.date.value,
+      contractAddress: typeof unownedAddress === 'string' ? unownedAddress : '',
+      contractValuePln: normalizedInput.commercial.contractValue.value,
+      depositPln: normalizedInput.commercial.agreedDeposit.value,
+      remainingDueDate: normalizedInput.commercial.finalPaymentDueDate?.value ?? '',
+      locations: {
+        bridePreparations: locationText(normalizedInput, 'bride_preparation'),
+        groomPreparations: locationText(normalizedInput, 'groom_preparation'),
+        ceremony: locationText(normalizedInput, 'ceremony'),
+        reception: locationText(normalizedInput, 'reception'),
+      },
+    },
+    packagePolicy: { preserveSourcePackageExactly: true },
+    productRules,
+    extras: normalizedInput.extras.map((extra) => `${extra.name.value} × ${extra.quantity.value}`),
+    userProvidedAnswers: normalizedInput.additionalAnswers.map(({ id, value }) => ({ id, value })),
+  })
 }
 
 async function runCommand(command: string, args: string[]): Promise<string> {
@@ -190,6 +340,7 @@ export function formatAcceptanceReport(result: AcceptanceResult): string {
     `- Overall: ${result.overall}`,
     `- Source: ${result.sourceFilename}`,
     `- Preflight: ${result.preflight}`,
+    `- Normalized ContractGenerationInput: ${result.normalizedInput ? 'persisted in result.json' : 'not built'}`,
     `- Product rules: package preservation ${result.productRules.preserveSourcePackageExactly ? 'required' : 'unspecified'}; source conclusion place ${result.productRules.preserveSourceConclusionPlace ?? 'unspecified'}; source party structure ${result.productRules.preserveSourceContractingPartyStructure ? 'authoritative' : 'unspecified'}`,
     `- Transformation request prepared: ${result.transformationRequestPrepared ? 'yes' : 'no'}`,
     `- Missing input fields: ${result.missingInputs.map((item) => item.label).join(', ') || 'none'}`,
@@ -204,6 +355,7 @@ export function formatAcceptanceReport(result: AcceptanceResult): string {
     `- Invented facts: ${result.inventedFactStatus}; visual inspection: ${result.visualInspection}`,
     `- Provider calls: ${result.providerCalls.total} (inventory ${result.providerCalls.inventory}, transform ${result.providerCalls.transformation}, review ${result.providerCalls.review}, retries ${result.providerCalls.retries}, repair ${result.providerCalls.repair})`,
     `- Generation timing: ${result.measurements?.totalGenerationMs ?? 'not measured'} ms total; inventory ${result.measurements?.stages.inventoryProviderMs ?? 'not run'} ms; planning ${result.measurements?.stages.planningProviderMs ?? 'not run'} ms; review ${result.measurements?.stages.reviewProviderMs ?? 'not run'} ms`,
+    ...(result.normalizedInput ? ['', '```json', JSON.stringify(result.normalizedInput, null, 2), '```'] : []),
     '',
   ].join('\n')
 }
@@ -226,7 +378,7 @@ export async function runMultiTemplateAcceptance(caseId: string, options: Harnes
   let definition: MultiTemplateCaseDefinition
   try {
     const raw = JSON.parse(await readFile(path.join(caseDirectory, 'input.json'), 'utf8')) as unknown
-    if (!isCaseDefinition(raw, caseId)) throw new Error('Case definition must include matching id, source.docx, generationDate, and weddingFacts')
+    if (!isCaseDefinition(raw, caseId)) throw new Error('Case definition must include matching id and source.docx, plus authoritativeInput or the temporary legacy generationDate/weddingFacts fields')
     definition = raw
   } catch (error) {
     const result = resultBase(caseId)
@@ -254,26 +406,19 @@ export async function runMultiTemplateAcceptance(caseId: string, options: Harnes
   const sourceArrayBuffer = ownedArrayBuffer(sourceBytes.buffer.slice(sourceBytes.byteOffset, sourceBytes.byteOffset + sourceBytes.byteLength))
   const sourceDocument = await readSource(sourceArrayBuffer, definition.sourceDocx)
   result.productRules = definition.expectedProductRules ?? {}
-  const caseWeddingFacts: DeepPartial<WeddingFacts> = { ...definition.weddingFacts }
-  const wedding = materializeWeddingFacts(caseWeddingFacts)
-  const input = makeInput({
-    generationDate: definition.generationDate,
-    sourceDocument,
-    wedding,
-    packagePolicy: { preserveSourcePackageExactly: true },
-    productRules: definition.expectedProductRules ?? {},
-    extras: definition.extras ?? [],
-    userProvidedAnswers: definition.userProvidedAnswers ?? [],
-  })
+  const authoritativeOptions = 'authoritativeInput' in definition ? definition.authoritativeInput : legacyCaseOptions(definition)
+  const normalizedInput = buildContractGenerationInput(authoritativeOptions)
+  result.normalizedInput = normalizedInput
   metrics.endStage('preflight')
   result.preflight = 'READY'
   result.transformationRequestPrepared = true
-  if (!options.provider) {
+  if (!options.provider || 'authoritativeInput' in definition) {
     result.overall = 'READY'
-    result.deterministicFindings = ['Provider execution disabled; transformation request prepared but not executed.']
+    result.deterministicFindings = ['Provider execution disabled; normalized ContractGenerationInput prepared but not executed.']
     await writeReports(result, outputDirectory, metrics)
     return result
   }
+  const input = projectForExistingProvider(normalizedInput, sourceDocument, definition.expectedProductRules ?? {})
 
   let inventory: SourceInventory
   metrics.startStage('inventoryProvider')
