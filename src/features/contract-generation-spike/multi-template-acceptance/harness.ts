@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { applyBlockOperations, type BlockOperation } from '../blockDocxEditor'
 import { ContractGenerationMetrics, type GenerationMeasurements, type MetricsClock, type ProviderResponseMetadata } from '../contractGenerationMetrics'
 import {
+  addPaymentAllocationHelp,
   findInputConflicts,
   makeInput,
   normalizeAuthoritativeFinancialBlocks,
@@ -310,11 +311,12 @@ export async function runMultiTemplateAcceptance(caseId: string, options: Harnes
   metrics.startStage('planningProvider')
   try {
     planned = await options.provider.transform({ input, sourceDocx: sourceArrayBuffer, paymentTiming: definition.paymentTiming ?? {}, productRules: definition.expectedProductRules ?? {} })
-    const plannedStatus = planned.missingInputs.some((item) => item.required) ? 'MISSING_INPUT' : 'READY'
+    const missingInputs = addPaymentAllocationHelp(input, planned.missingInputs)
+    const plannedStatus = missingInputs.some((item) => item.required) ? 'MISSING_INPUT' : 'READY'
     const normalizedResponse = sanitizePlannerOperations(plannedStatus, planned.blockOperations)
     result.planningResultPath = await persistPlanningResult(outputDirectory, {
       status: plannedStatus,
-      missingInputs: planned.missingInputs,
+      missingInputs,
       conflicts: [],
       operations: normalizedResponse.operations,
       operationCount: normalizedResponse.operationCount,
@@ -341,8 +343,9 @@ export async function runMultiTemplateAcceptance(caseId: string, options: Harnes
     result.transformationStatus = 'FAILED'; result.deterministicFindings = [error instanceof Error ? error.message : String(error)]; result.overall = 'FAIL'
     await writeReports(result, outputDirectory, metrics); return result
   }
-  if (planned.missingInputs.some((item) => item.required)) {
-    result.transformationStatus = 'MISSING_INPUT'; result.missingInputs = planned.missingInputs; result.overall = 'MISSING_INPUT'
+  const missingInputs = addPaymentAllocationHelp(input, planned.missingInputs)
+  if (missingInputs.some((item) => item.required)) {
+    result.transformationStatus = 'MISSING_INPUT'; result.missingInputs = missingInputs; result.overall = 'MISSING_INPUT'
     await writeReports(result, outputDirectory, metrics); return result
   }
   metrics.startStage('planValidation')

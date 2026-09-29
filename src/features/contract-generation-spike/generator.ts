@@ -2,7 +2,7 @@ import JSZip from 'jszip'
 import { applyBlockOperations, remapOperationsToCurrentBlocks, type BlockOperation, type EditableBlock } from './blockDocxEditor'
 import { unescapeXml } from '@/features/documents/template/canonicalParagraph'
 
-export type MissingInput = { id: string; label: string; explanation: string; inputType: 'text' | 'date' | 'number'; required: true; sourceContext: string }
+export type MissingInput = { id: string; label: string; explanation: string; inputType: 'text' | 'date' | 'number'; required: true; sourceContext: string; infoText?: string }
 export type SourceBlock = EditableBlock & { contentClass: 'factual_dynamic' | 'package_service' | 'protected_legal_static' }
 export type WeddingFacts = {
   bride: { name: string; phone: string; email: string }
@@ -22,6 +22,7 @@ export type GenerationInput = {
   packagePolicy: { preserveSourcePackageExactly: true }
   extras: string[]
   financials: { contractValuePln: number; depositPln: number; remainingPln: number }
+  deterministicDerivedFacts: Array<{ concept: string; value: string; derivation: string }>
   userProvidedAnswers: Array<{ id: string; value: string }>
 }
 export type EditPlan = { operations: BlockOperation[] }
@@ -38,7 +39,7 @@ export interface ContractAi {
 
 export const AUTHORITATIVE_FIELD_SEMANTICS = `Resolve authoritative values by semantic concept and owning entity, not by exact label matching. The structured wedding.contractAddress field is the authoritative contract/residential address for the CRM client entity associated with that contract record. It satisfies equivalent source wording for that same entity, including an address or a clause such as “zamieszkała przy” or “zamieszkały przy”. It is not a universal address for every person named in the contract and must not satisfy a different entity's address requirement. Treat userProvidedAnswers as authoritative too; use each answer id to respect its entity/path scope. Distinct entities require their own authoritative address values. One address may satisfy multiple entities only when the authoritative input explicitly identifies it as shared. Before returning MISSING_INPUT for a source-required concept, check all structured authoritative fields, userProvidedAnswers, and applicable generation rules; return MISSING_INPUT only when that concept has no authoritative value for the relevant entity. When a source entity is replaced, source-owned factual values are not authoritative for the replacement entity. For each source-required factual concept, use a value authoritative for that same entity and concept; if it is unavailable, return MISSING_INPUT. Do not carry over the old entity's value, guess a replacement, or omit the required concept to avoid asking.`
 
-export const TRANSFORMATION_INSTRUCTIONS = `${AUTHORITATIVE_FIELD_SEMANTICS} Before deciding the planning result, complete a full audit of every source-required factual change. First determine the facts and relationships the source requires; then match each fact to authoritative input for the correct entity, context, and required level of detail; then collect all clearly identifiable missing values and conflicts. Do not stop after finding the first missing fact. Return all independent missing inputs in one response. Determine the result only after the audit: any required missing value means MISSING_INPUT; any conflict means CONFLICT_INPUT where the current response schema supports conflicts, while preserving existing deterministic conflict handling otherwise; READY is allowed only when no unresolved required value or conflict remains. Generate transformation operations only for READY. For MISSING_INPUT or CONFLICT_INPUT, return no operations. Transform only the supplied source blocks and authoritative inputs. Preserve legal wording: do not paraphrase legal clauses or change their legal subject, obligations, rights, scope, consent, cancellation, liability, copyright, publication, or delivery terms. Make only mechanical factual updates explicitly required by authoritative facts (names, dates, amounts, locations, package references, selected extras, internal references, and required grammatical inflection). You may make an obvious, unambiguous, minimal local editorial correction such as a duplicated token, typo, missing space, or punctuation error only when legal meaning does not change. For example, remove a duplicated “tel.” token immediately before a grammatical party label when the local correction is unambiguous; preserve the rest of the identification clause and its meaning. Input conflicts must be stopped before transformation. Return complete final paragraph text for changed blocks. Leave unrelated protected legal/static blocks unchanged; return no operation for a protected block unless an explicit authoritative fact mechanically requires a change. Each source block includes a contentClass: factual_dynamic, package_service, or protected_legal_static. The source DOCX is authoritative for package name, package wording, package scope, and package terms. Preserve source package content exactly unless authoritative generation input explicitly requires a permitted factual change. Do not substitute package names or package scope from another template. Do not reconstruct a package from prior-case knowledge. Do not use hardcoded knowledge of any package. Treat an authoritative aggregate amount separately from a source-required detailed allocation: if the source requires the amount to be distributed across multiple independently meaningful payments, deadlines, or installments, and authoritative input does not provide that allocation, do not infer or preserve an allocation; return MISSING_INPUT for the unresolved detail. You may return all independently identified missing inputs together. Follow structured input.conclusion deterministically: sourceDate/sourceBlockId identify the source conclusion, and when replaceDate is true, replacementDate is the required conclusion date for that block. Preserve preservePlace using the source's natural grammatical form. Keep this distinct from wedding.weddingDate; do not substitute the wedding/event date for the conclusion date. When replaceDate is false, do not introduce a conclusion date merely because generationDate is present.`
+export const TRANSFORMATION_INSTRUCTIONS = `${AUTHORITATIVE_FIELD_SEMANTICS} Before deciding the planning result, complete a full audit of every source-required factual change. First determine the facts and relationships the source requires; then match each fact to authoritative input for the correct entity, context, and required level of detail; then collect all clearly identifiable missing values and conflicts. Do not stop after finding the first missing fact. Return all independent missing inputs in one response. Determine the result only after the audit: any required missing value means MISSING_INPUT; any conflict means CONFLICT_INPUT where the current response schema supports conflicts, while preserving existing deterministic conflict handling otherwise; READY is allowed only when no unresolved required value or conflict remains. Generate transformation operations only for READY. For MISSING_INPUT or CONFLICT_INPUT, return no operations. Transform only the supplied source blocks and authoritative inputs. Preserve legal wording: do not paraphrase legal clauses or change their legal subject, obligations, rights, scope, consent, cancellation, liability, copyright, publication, or delivery terms. Make only mechanical factual updates explicitly required by authoritative facts (names, dates, amounts, locations, package references, selected extras, internal references, and required grammatical inflection). You may make an obvious, unambiguous, minimal local editorial correction such as a duplicated token, typo, missing space, or punctuation error only when legal meaning does not change. For example, remove a duplicated “tel.” token immediately before a grammatical party label when the local correction is unambiguous; preserve the rest of the identification clause and its meaning. Input conflicts must be stopped before transformation. Return complete final paragraph text for changed blocks. Leave unrelated protected legal/static blocks unchanged; return no operation for a protected block unless an explicit authoritative fact mechanically requires a change. Each source block includes a contentClass: factual_dynamic, package_service, or protected_legal_static. The source DOCX is authoritative for package name, package wording, package scope, and package terms. Preserve source package content exactly unless authoritative generation input explicitly requires a permitted factual change. Do not substitute package names or package scope from another template. Do not reconstruct a package from prior-case knowledge. Do not use hardcoded knowledge of any package. Deterministic derived facts in the input are authoritative for their stated concepts; use a derived final installment without changing source-defined payment timing. Treat an authoritative aggregate amount separately from a source-required detailed allocation: if the source requires the amount to be distributed across multiple independently meaningful payments, deadlines, or installments, and authoritative input does not provide that allocation, do not infer or preserve an allocation; return MISSING_INPUT for the unresolved detail. You may return all independently identified missing inputs together. Follow structured input.conclusion deterministically: sourceDate/sourceBlockId identify the source conclusion, and when replaceDate is true, replacementDate is the required conclusion date for that block. Preserve preservePlace using the source's natural grammatical form. Keep this distinct from wedding.weddingDate; do not substitute the wedding/event date for the conclusion date. When replaceDate is false, do not introduce a conclusion date merely because generationDate is present.`
 
 export function sanitizePlannerOperations(status: PlannerResponseStatus, providerOperations: BlockOperation[] | undefined): {
   rawOperations: BlockOperation[]
@@ -319,6 +320,10 @@ export function validatePlannedEntityFacts(input: GenerationInput, operations: B
 const paymentAllocationClause = /(?:płat|plat|zapł|zapl|kwot|pozostał|należn|rata|raty|instalment|installment|deposit|reservation)/iu
 const reservationClause = /(?:opłat\p{L}*\s+rezerwacyj\p{L}*|reservation|deposit|zaliczk)/iu
 const aggregateClause = /(?:suma|łącznie|razem|całość|total|aggregate)/iu
+const finalInstallmentClause = /(?:pozostał\p{L}*|ostatni\p{L}*|końcow\p{L}*|final\p{L}*|last\s+payment|remaining\s+payment)/iu
+const intermediateInstallmentReference = /(?:\b(?:first|second|third|fourth|intermediate|earlier|prior)\s+(?:payment|installment|instalment|rate)\b|\b(?:pierwsz\p{L}*|drug\p{L}*|trzeci\p{L}*|czwart\p{L}*|przedostatni\p{L}*|pośredni\p{L}*)\s+(?:płatno\p{L}*|rat\p{L}*))/iu
+const finalInstallmentReference = /(?:\b(?:final|last|remaining)\s+(?:payment|installment|instalment|rate)\b|\b(?:ostatni\p{L}*|końcow\p{L}*|pozostał\p{L}*)\s+(?:płatno\p{L}*|rat\p{L}*))/iu
+const PAYMENT_ALLOCATION_HELP = 'Ostatnia rata zostanie wyliczona automatycznie na podstawie wartości umowy, zaliczki i podanej kwoty tej raty.'
 
 function paymentObligationAmounts(text: string): number[][] {
   return text
@@ -329,34 +334,83 @@ function paymentObligationAmounts(text: string): number[][] {
     .filter((amounts) => amounts.length > 0)
 }
 
-function explicitPaymentAllocation(input: GenerationInput): number[] {
-  const allocationAnswers = input.userProvidedAnswers.filter((answer) => /payment|installment|allocation|schedule|rata|płatno|platno|harmonogram/iu.test(answer.id))
-  return allocationAnswers.flatMap((answer) => {
-    const currencyAmounts = /zł/iu.test(answer.value) ? moneyAmountsInGrosz(answer.value) : []
-    if (currencyAmounts.length) return currencyAmounts
-    return [...answer.value.matchAll(/(?<![\p{L}\p{N}])(?:\d{1,3}(?:[ \u00a0\u202f]\d{3})+|\d+)(?![\p{L}\p{N}])/gu)]
-      .map((match) => Number(match[0].replace(/[\s\u00a0\u202f]/gu, '').replace(',', '.')))
-      .filter((amount) => Number.isSafeInteger(amount) && amount >= 0)
-      .map((amount) => amount * 100)
-  })
+function sourceFinalInstallmentCount(input: GenerationInput): number {
+  return input.sourceDocument.blocks.flatMap((block) => {
+    if (/\b(?:katalog|opcjonaln|nie są objęte|not included|optional service)/iu.test(block.text)) return []
+    return block.text.split(/[.;!?\n]+/u).map((clause) => clause.trim())
+      .filter((clause) => clause && !aggregateClause.test(clause) && !reservationClause.test(clause) && paymentAllocationClause.test(clause) && finalInstallmentClause.test(clause) && moneyAmountsInGrosz(clause).length === 1)
+  }).length
 }
 
-export function validatePlannedPaymentAllocation(input: GenerationInput, operations: BlockOperation[]): string[] {
-  const sourceObligations = input.sourceDocument.blocks.flatMap((block) => {
+function sourcePaymentObligations(input: GenerationInput): number[][] {
+  return input.sourceDocument.blocks.flatMap((block) => {
     if (/\b(?:katalog|opcjonaln|nie są objęte|not included|optional service)/iu.test(block.text)) return []
     return paymentObligationAmounts(block.text)
   })
+}
+
+function explicitPaymentAnswers(input: GenerationInput): Array<{ amounts: number[]; text: string }> {
+  const allocationAnswers = input.userProvidedAnswers.filter((answer) => /payment|installment|allocation|schedule|rata|płatno|platno|harmonogram/iu.test(answer.id))
+  return allocationAnswers.flatMap((answer) => {
+    const currencyAmounts = /zł/iu.test(answer.value) ? moneyAmountsInGrosz(answer.value) : []
+    const amounts = currencyAmounts.length ? currencyAmounts : [...answer.value.matchAll(/(?<![\p{L}\p{N}])(?:\d{1,3}(?:[ \u00a0\u202f]\d{3})+|\d+)(?![\p{L}\p{N}])/gu)]
+      .map((match) => Number(match[0].replace(/[\s\u00a0\u202f]/gu, '').replace(',', '.')))
+      .filter((amount) => Number.isSafeInteger(amount) && amount >= 0)
+      .map((amount) => amount * 100)
+    return amounts.length ? [{ amounts, text: `${answer.id} ${answer.value}` }] : []
+  })
+}
+
+function deriveFinalInstallment(input: GenerationInput): { amountGrosz: number; fact: GenerationInput['deterministicDerivedFacts'][number] } | undefined {
+  const obligations = sourcePaymentObligations(input)
+  const answers = explicitPaymentAnswers(input)
+  const suppliedAmounts = answers.flatMap((answer) => answer.amounts)
+  if (obligations.length < 2 || suppliedAmounts.length !== obligations.length - 1) return undefined
+  if (sourceFinalInstallmentCount(input) !== 1 || answers.some((answer) => finalInstallmentReference.test(answer.text)) || answers.some((answer) => !intermediateInstallmentReference.test(answer.text))) return undefined
+  const remainingGrosz = input.financials.remainingPln * 100
+  const amountGrosz = remainingGrosz - suppliedAmounts.reduce((sum, amount) => sum + amount, 0)
+  if (!Number.isSafeInteger(amountGrosz) || amountGrosz < 0) return undefined
+  const amountPln = amountGrosz / 100
+  return {
+    amountGrosz,
+    fact: {
+      concept: 'final installment amount',
+      value: formatPlnInteger(amountPln),
+      derivation: 'contract total minus deposit and all authoritative intermediate installment amounts',
+    },
+  }
+}
+
+export function addPaymentAllocationHelp(input: GenerationInput, missingInputs: MissingInput[]): MissingInput[] {
+  const obligations = sourcePaymentObligations(input)
+  if (obligations.length !== 2 || sourceFinalInstallmentCount(input) !== 1) return missingInputs
+  return missingInputs.map((item) => /payment|installment|allocation|schedule|rata|płatno|platno|harmonogram/iu.test(`${item.id} ${item.label}`)
+    ? { ...item, infoText: item.infoText ?? PAYMENT_ALLOCATION_HELP }
+    : item)
+}
+
+function explicitPaymentAllocation(input: GenerationInput): number[] {
+  return explicitPaymentAnswers(input).flatMap((answer) => answer.amounts)
+}
+
+export function validatePlannedPaymentAllocation(input: GenerationInput, operations: BlockOperation[]): string[] {
+  const sourceObligations = sourcePaymentObligations(input)
   if (sourceObligations.length <= 1) return []
 
   const supportedAmounts = explicitPaymentAllocation(input)
-  if (supportedAmounts.length !== sourceObligations.length) {
+  const derived = deriveFinalInstallment(input)
+  const completeAmounts = derived ? [...supportedAmounts, derived.amountGrosz] : supportedAmounts
+  if (completeAmounts.length !== sourceObligations.length) {
     return ['Payment-allocation plan validation failed: the source requires multiple distinct post-reservation payment obligations, but authoritative input provides only an aggregate amount and no complete detailed allocation.']
+  }
+  if (completeAmounts.reduce((sum, amount) => sum + amount, 0) !== input.financials.remainingPln * 100) {
+    return ['Payment-allocation plan validation failed: explicit installment amounts conflict with the authoritative remaining contract balance.']
   }
 
   const replacementMap = new Map(operations.flatMap((operation) => operation.operation === 'REPLACE_BLOCK_TEXT' ? [[operation.blockId, operation.finalText] as const] : []))
   const plannedObligations = input.sourceDocument.blocks.flatMap((block) => paymentObligationAmounts(replacementMap.get(block.blockId) ?? block.text))
   const plannedAmounts = plannedObligations.flat()
-  const expected = supportedAmounts.slice(0, sourceObligations.length).sort((a, b) => a - b)
+  const expected = completeAmounts.sort((a, b) => a - b)
   const actual = plannedAmounts.sort((a, b) => a - b)
   if (actual.length !== expected.length || actual.some((amount, index) => amount !== expected[index])) {
     return ['Payment-allocation plan validation failed: planned payment amounts do not match the explicit authoritative detailed allocation.']
@@ -497,10 +551,13 @@ export async function readSource(bytes: ArrayBuffer, fileName: string): Promise<
   return { fileName, blocks: blocks.map((block) => ({ ...block, contentClass: classifyBlock(block.text) })) }
 }
 
-export function makeInput(args: Omit<GenerationInput, 'financials' | 'conclusion'>): GenerationInput {
+export function makeInput(args: Omit<GenerationInput, 'financials' | 'conclusion' | 'deterministicDerivedFacts'>): GenerationInput {
   const remainingPln = args.wedding.contractValuePln - args.wedding.depositPln
   if (remainingPln < 0) throw new Error('Deposit exceeds contract value')
-  return { ...args, conclusion: conclusionRule(args.sourceDocument.blocks, args.generationDate), financials: { contractValuePln: args.wedding.contractValuePln, depositPln: args.wedding.depositPln, remainingPln } }
+  const financials = { contractValuePln: args.wedding.contractValuePln, depositPln: args.wedding.depositPln, remainingPln }
+  const base: GenerationInput = { ...args, conclusion: conclusionRule(args.sourceDocument.blocks, args.generationDate), financials, deterministicDerivedFacts: [] }
+  const derived = deriveFinalInstallment(base)
+  return derived ? { ...base, deterministicDerivedFacts: [derived.fact] } : base
 }
 
 export function conclusionRule(sourceBlocks: SourceBlock[], generationDate: string): GenerationInput['conclusion'] {
@@ -526,7 +583,7 @@ export async function runGeneration(sourceBytes: ArrayBuffer, input: GenerationI
   const planned = await ai.plan(input)
   const status: PlannerResponseStatus = planned.missingInputs.some((x) => x.required) ? 'MISSING_INPUT' : 'READY'
   const responseOperations = sanitizePlannerOperations(status, planned.blockOperations)
-  if (status === 'MISSING_INPUT') return { status, missingInputs: planned.missingInputs }
+  if (status === 'MISSING_INPUT') return { status, missingInputs: addPaymentAllocationHelp(input, planned.missingInputs) }
   if (!planned.blockOperations) return { status: 'FAILED', issues: ['Plan nie zawiera operacji blokowych'] }
   const planIssues = validatePlannedTransformation(input, responseOperations.operations)
   if (planIssues.length) return { status: 'FAILED', issues: planIssues }

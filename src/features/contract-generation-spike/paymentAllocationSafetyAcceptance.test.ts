@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { makeInput, TRANSFORMATION_INSTRUCTIONS, validatePlannedPaymentAllocation, type GenerationInput, type SourceBlock } from './generator'
+import { addPaymentAllocationHelp, makeInput, TRANSFORMATION_INSTRUCTIONS, validatePlannedPaymentAllocation, type GenerationInput, type SourceBlock } from './generator'
 import type { BlockOperation } from './blockDocxEditor'
 
 const paymentBlock = (text: string): SourceBlock => ({
@@ -61,6 +61,46 @@ assert.deepEqual(validatePlannedPaymentAllocation(input(multiThree, [{ id: 'paym
 assert.deepEqual(validatePlannedPaymentAllocation(input(safeSingleRemainder, [], [catalogue, travel]), []), [])
 assert.equal(catalogue.text, 'Katalog usług opcjonalnych — album 950 zł; dodatkowy operator 1 200 zł.')
 assert.equal(travel.text, 'Cena obejmuje dojazd w promieniu 80 km; poza tym obszarem koszt dojazdu wynosi 350 zł.')
+
+// K: An authoritative intermediate amount allows a uniquely source-identified final remainder to be derived.
+const twoInstallments = 'Druga płatność wynosi 5 000 zł i jest należna 30 dni przed weselem. Pozostałe 9 000 zł zostanie zapłacone 3 dni po weselu. Suma płatności wynosi 16 800 zł.'
+const continuation = input(twoInstallments, [{ id: 'financials.remainingInstallmentAllocation', value: 'Second payment: 6 000 zł, due no later than 30 days before the wedding.' }])
+assert.equal(continuation.deterministicDerivedFacts.length, 1)
+assert.equal(continuation.deterministicDerivedFacts[0]!.concept, 'final installment amount')
+assert.match(continuation.deterministicDerivedFacts[0]!.value, /8\s?000 zł/u)
+assert.equal(continuation.deterministicDerivedFacts[0]!.derivation, 'contract total minus deposit and all authoritative intermediate installment amounts')
+const derivedPlan: BlockOperation[] = [{
+  blockId: 'word/document.xml#payments', operation: 'REPLACE_BLOCK_TEXT',
+  finalText: 'Druga płatność wynosi 6 000 zł i jest należna 30 dni przed weselem. Pozostałe 8 000 zł zostanie zapłacone 3 dni po weselu. Suma płatności wynosi 16 800 zł.',
+}]
+assert.deepEqual(validatePlannedPaymentAllocation(continuation, derivedPlan), [])
+assert.match(derivedPlan[0]!.finalText, /30 dni przed weselem.*3 dni po weselu/u, 'both source-defined payment timings remain unchanged')
+
+// L: Two unresolved amounts remain when three post-deposit obligations have only one authoritative amount.
+const threePaymentInput = input(multiThree, [{ id: 'payment.schedule', value: 'First installment: 4 000 zł' }])
+assert.deepEqual(threePaymentInput.deterministicDerivedFacts, [])
+assert.equal(validatePlannedPaymentAllocation(threePaymentInput, []).length, 1)
+
+// M/N: Explicit final amounts remain authoritative and conflicting arithmetic is rejected.
+const explicitFinal = input(twoInstallments, [{ id: 'payment.schedule', value: 'Second payment: 6 000 zł; final payment: 8 000 zł' }])
+assert.deepEqual(explicitFinal.deterministicDerivedFacts, [])
+assert.deepEqual(validatePlannedPaymentAllocation(explicitFinal, derivedPlan), [])
+const conflictingFinal = input(twoInstallments, [{ id: 'payment.schedule', value: 'Second payment: 6 000 zł; final payment: 7 000 zł' }])
+assert.match(validatePlannedPaymentAllocation(conflictingFinal, derivedPlan)[0]!, /conflict with the authoritative remaining contract balance/i)
+
+// O/P: Negative or over-allocated remainders cannot be derived; valid totals pass exactly.
+const negativeRemainder = input(twoInstallments, [{ id: 'financials.remainingInstallmentAllocation', value: 'Second payment: 15 000 zł' }])
+assert.deepEqual(negativeRemainder.deterministicDerivedFacts, [])
+assert.equal(validatePlannedPaymentAllocation(negativeRemainder, []).length, 1)
+const sumMismatch = input(twoInstallments, [{ id: 'payment.schedule', value: 'Second payment: 5 000 zł; final payment: 8 000 zł' }])
+assert.match(validatePlannedPaymentAllocation(sumMismatch, derivedPlan)[0]!, /conflict with the authoritative remaining contract balance/i)
+
+// Q: Missing-input metadata can explain the automatic final calculation without fixture data.
+const allocationMissing = [{ id: 'financials.paymentAllocation', label: 'Kwota drugiej raty', explanation: 'Source requires this amount.', inputType: 'number' as const, required: true as const, sourceContext: 'Payment clause.' }]
+const help = addPaymentAllocationHelp(input(twoInstallments), allocationMissing)
+assert.equal(help[0]!.infoText, 'Ostatnia rata zostanie wyliczona automatycznie na podstawie wartości umowy, zaliczki i podanej kwoty tej raty.')
+assert.doesNotMatch(`${TRANSFORMATION_INSTRUCTIONS} ${help[0]!.infoText}`, /Case.?03|Zuzanna|Kacper|16\s?800|6\s?000|8\s?000/i)
+assert.ok(!('payments' in continuation), 'the CRM payment model remains unchanged')
 
 // I/J: The shared rule requests clarification generically and contains no fixture-specific facts.
 assert.match(TRANSFORMATION_INSTRUCTIONS, /authoritative aggregate amount separately.*multiple independently meaningful payments.*return MISSING_INPUT/i)
