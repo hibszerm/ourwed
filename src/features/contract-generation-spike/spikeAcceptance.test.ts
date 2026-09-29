@@ -167,8 +167,9 @@ const answeredAi: ContractAi = {
   async repair() { throw new Error('repair must not run') },
 }
 const resumed = await runGeneration(sourceBuffer, supplied, answeredAi)
-assert.equal(resumed.status, 'FAILED', 'answered attempt proceeds past missing-input planning and reaches final safety checks')
-assert.equal(answeredReviewCalls, 1)
+assert.equal(resumed.status, 'FAILED', 'an unresolved source payment allocation is rejected before candidate review')
+if (resumed.status === 'FAILED') assert.match(resumed.issues.join(' '), /payment-allocation plan validation failed.*aggregate amount/i)
+assert.equal(answeredReviewCalls, 0, 'unsupported source payment allocation stops before review')
 
 const reference = await readSource(referenceBuffer, 'work-generated-reference.docx')
 const refText = reference.blocks.map((b) => b.text).join('\n')

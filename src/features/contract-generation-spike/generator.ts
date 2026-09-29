@@ -37,7 +37,7 @@ export interface ContractAi {
 
 export const AUTHORITATIVE_FIELD_SEMANTICS = `Resolve authoritative values by semantic concept and owning entity, not by exact label matching. The structured wedding.contractAddress field is the authoritative contract/residential address for the CRM client entity associated with that contract record. It satisfies equivalent source wording for that same entity, including an address or a clause such as “zamieszkała przy” or “zamieszkały przy”. It is not a universal address for every person named in the contract and must not satisfy a different entity's address requirement. Treat userProvidedAnswers as authoritative too; use each answer id to respect its entity/path scope. Distinct entities require their own authoritative address values. One address may satisfy multiple entities only when the authoritative input explicitly identifies it as shared. Before returning MISSING_INPUT for a source-required concept, check all structured authoritative fields, userProvidedAnswers, and applicable generation rules; return MISSING_INPUT only when that concept has no authoritative value for the relevant entity. When a source entity is replaced, source-owned factual values are not authoritative for the replacement entity. For each source-required factual concept, use a value authoritative for that same entity and concept; if it is unavailable, return MISSING_INPUT. Do not carry over the old entity's value, guess a replacement, or omit the required concept to avoid asking.`
 
-export const TRANSFORMATION_INSTRUCTIONS = `${AUTHORITATIVE_FIELD_SEMANTICS} Transform only the supplied source blocks and authoritative inputs. Preserve legal wording: do not paraphrase legal clauses or change their legal subject, obligations, rights, scope, consent, cancellation, liability, copyright, publication, or delivery terms. Make only mechanical factual updates explicitly required by authoritative facts (names, dates, amounts, locations, package references, selected extras, internal references, and required grammatical inflection). You may make an obvious, unambiguous, minimal local editorial correction such as a duplicated token, typo, missing space, or punctuation error only when legal meaning does not change. For example, remove a duplicated “tel.” token immediately before a grammatical party label when the local correction is unambiguous; preserve the rest of the identification clause and its meaning. Input conflicts must be stopped before transformation. Return complete final paragraph text for changed blocks. Leave unrelated protected legal/static blocks unchanged; return no operation for a protected block unless an explicit authoritative fact mechanically requires a change. Each source block includes a contentClass: factual_dynamic, package_service, or protected_legal_static. The source DOCX is authoritative for package name, package wording, package scope, and package terms. Preserve source package content exactly unless authoritative generation input explicitly requires a permitted factual change. Do not substitute package names or package scope from another template. Do not reconstruct a package from prior-case knowledge. Do not use hardcoded knowledge of any package. Follow structured input.conclusion deterministically: sourceDate/sourceBlockId identify the source conclusion, and when replaceDate is true, replacementDate is the required conclusion date for that block. Preserve preservePlace using the source's natural grammatical form. Keep this distinct from wedding.weddingDate; do not substitute the wedding/event date for the conclusion date. When replaceDate is false, do not introduce a conclusion date merely because generationDate is present.`
+export const TRANSFORMATION_INSTRUCTIONS = `${AUTHORITATIVE_FIELD_SEMANTICS} Transform only the supplied source blocks and authoritative inputs. Preserve legal wording: do not paraphrase legal clauses or change their legal subject, obligations, rights, scope, consent, cancellation, liability, copyright, publication, or delivery terms. Make only mechanical factual updates explicitly required by authoritative facts (names, dates, amounts, locations, package references, selected extras, internal references, and required grammatical inflection). You may make an obvious, unambiguous, minimal local editorial correction such as a duplicated token, typo, missing space, or punctuation error only when legal meaning does not change. For example, remove a duplicated “tel.” token immediately before a grammatical party label when the local correction is unambiguous; preserve the rest of the identification clause and its meaning. Input conflicts must be stopped before transformation. Return complete final paragraph text for changed blocks. Leave unrelated protected legal/static blocks unchanged; return no operation for a protected block unless an explicit authoritative fact mechanically requires a change. Each source block includes a contentClass: factual_dynamic, package_service, or protected_legal_static. The source DOCX is authoritative for package name, package wording, package scope, and package terms. Preserve source package content exactly unless authoritative generation input explicitly requires a permitted factual change. Do not substitute package names or package scope from another template. Do not reconstruct a package from prior-case knowledge. Do not use hardcoded knowledge of any package. Treat an authoritative aggregate amount separately from a source-required detailed allocation: if the source requires the amount to be distributed across multiple independently meaningful payments, deadlines, or installments, and authoritative input does not provide that allocation, do not infer or preserve an allocation; return MISSING_INPUT for the unresolved detail. You may return all independently identified missing inputs together. Follow structured input.conclusion deterministically: sourceDate/sourceBlockId identify the source conclusion, and when replaceDate is true, replacementDate is the required conclusion date for that block. Preserve preservePlace using the source's natural grammatical form. Keep this distinct from wedding.weddingDate; do not substitute the wedding/event date for the conclusion date. When replaceDate is false, do not introduce a conclusion date merely because generationDate is present.`
 
 export const REVIEW_INSTRUCTIONS = `Review source and candidate blocks, including each source block's contentClass (factual_dynamic, package_service, or protected_legal_static). The source contract defines which factual concepts belong in the contract; authoritative input supplies the new value only for a concept the source contains or requires. Do not require every available CRM/input fact to appear in the candidate, and do not add an input fact when the source has no corresponding concept; doing so may be semantic drift. For each factual concept, distinguish: (A) source-required and input value available: candidate must preserve the concept with the authoritative updated value; (B) source-required but authoritative input value missing: generation should stop with MISSING_INPUT; (C) authoritative input value available but concept unused by the source: omission is allowed and is not MISSING_INPUT or a review failure. Use the source-vs-candidate context to decide whether the source contains or requires the concept; do not infer that requirement from CRM/input availability alone. Classify differences as: (D) substantive legal rewrite, which fails if a protected legal clause changes subject, obligations, rights, scope, consent, cancellation, liability, copyright, publication, or delivery without an explicit authoritative mechanical reason; (E) allowed mechanical factual adaptation; (F) allowed minimal, unambiguous editorial typo/token/spacing/punctuation fix that does not change legal meaning; or (G) unchanged source issue, which is not introduced by the transformation. Do not fail merely because a harmless editorial error was corrected. Do fail on an unauthorized substantive legal rewrite.`
 
@@ -297,8 +297,56 @@ export function validatePlannedEntityFacts(input: GenerationInput, operations: B
   return [...new Set(findings)]
 }
 
+const paymentAllocationClause = /(?:płat|plat|zapł|zapl|kwot|pozostał|należn|rata|raty|instalment|installment|deposit|reservation)/iu
+const reservationClause = /(?:opłat\p{L}*\s+rezerwacyj\p{L}*|reservation|deposit|zaliczk)/iu
+const aggregateClause = /(?:suma|łącznie|razem|całość|total|aggregate)/iu
+
+function paymentObligationAmounts(text: string): number[][] {
+  return text
+    .split(/[.;!?\n]+/u)
+    .map((clause) => clause.trim())
+    .filter((clause) => clause && !aggregateClause.test(clause) && !reservationClause.test(clause) && paymentAllocationClause.test(clause))
+    .map((clause) => moneyAmountsInGrosz(clause))
+    .filter((amounts) => amounts.length > 0)
+}
+
+function explicitPaymentAllocation(input: GenerationInput): number[] {
+  const allocationAnswers = input.userProvidedAnswers.filter((answer) => /payment|installment|allocation|schedule|rata|płatno|platno|harmonogram/iu.test(answer.id))
+  return allocationAnswers.flatMap((answer) => {
+    const currencyAmounts = /zł/iu.test(answer.value) ? moneyAmountsInGrosz(answer.value) : []
+    if (currencyAmounts.length) return currencyAmounts
+    return [...answer.value.matchAll(/(?<![\p{L}\p{N}])(?:\d{1,3}(?:[ \u00a0\u202f]\d{3})+|\d+)(?![\p{L}\p{N}])/gu)]
+      .map((match) => Number(match[0].replace(/[\s\u00a0\u202f]/gu, '').replace(',', '.')))
+      .filter((amount) => Number.isSafeInteger(amount) && amount >= 0)
+      .map((amount) => amount * 100)
+  })
+}
+
+export function validatePlannedPaymentAllocation(input: GenerationInput, operations: BlockOperation[]): string[] {
+  const sourceObligations = input.sourceDocument.blocks.flatMap((block) => {
+    if (/\b(?:katalog|opcjonaln|nie są objęte|not included|optional service)/iu.test(block.text)) return []
+    return paymentObligationAmounts(block.text)
+  })
+  if (sourceObligations.length <= 1) return []
+
+  const supportedAmounts = explicitPaymentAllocation(input)
+  if (supportedAmounts.length !== sourceObligations.length) {
+    return ['Payment-allocation plan validation failed: the source requires multiple distinct post-reservation payment obligations, but authoritative input provides only an aggregate amount and no complete detailed allocation.']
+  }
+
+  const replacementMap = new Map(operations.flatMap((operation) => operation.operation === 'REPLACE_BLOCK_TEXT' ? [[operation.blockId, operation.finalText] as const] : []))
+  const plannedObligations = input.sourceDocument.blocks.flatMap((block) => paymentObligationAmounts(replacementMap.get(block.blockId) ?? block.text))
+  const plannedAmounts = plannedObligations.flat()
+  const expected = supportedAmounts.slice(0, sourceObligations.length).sort((a, b) => a - b)
+  const actual = plannedAmounts.sort((a, b) => a - b)
+  if (actual.length !== expected.length || actual.some((amount, index) => amount !== expected[index])) {
+    return ['Payment-allocation plan validation failed: planned payment amounts do not match the explicit authoritative detailed allocation.']
+  }
+  return []
+}
+
 export function validatePlannedTransformation(input: GenerationInput, operations: BlockOperation[]): string[] {
-  return [...validatePlannedConclusion(input, operations), ...validatePlannedEntityFacts(input, operations)]
+  return [...validatePlannedConclusion(input, operations), ...validatePlannedEntityFacts(input, operations), ...validatePlannedPaymentAllocation(input, operations)]
 }
 
 export function findInputConflicts(input: GenerationInput): ConflictInput[] {
