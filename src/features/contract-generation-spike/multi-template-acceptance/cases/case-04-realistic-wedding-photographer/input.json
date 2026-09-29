@@ -1,0 +1,53 @@
+{
+  "id": "case-04-realistic-wedding-photographer",
+  "sourceDocx": "source.docx",
+  "generationDate": "04.02.2028",
+  "weddingFacts": {
+    "bride": {
+      "name": "Klaudia Majewska",
+      "phone": "+48 510 284 739",
+      "email": "klaudia.majewska@example.com"
+    },
+    "groom": {
+      "name": "Tomasz Domański",
+      "phone": "+48 606 391 825"
+    },
+    "weddingDate": "22.05.2028",
+    "contractAddress": "ul. Francuska 18/7, 40-015 Katowice",
+    "contractValuePln": 10600,
+    "depositPln": 2000,
+    "remainingDueDate": "najpóźniej 7 dni przed datą ślubu",
+    "locations": {
+      "bridePreparations": "Hotel Monopol Katowice",
+      "groomPreparations": "Hotel Monopol Katowice",
+      "ceremony": "Bazylika św. Ludwika Króla i Wniebowzięcia NMP w Katowicach-Panewnikach",
+      "reception": "Rezydencja Luxury Hotel, Piekary Śląskie"
+    }
+  },
+  "extras": [],
+  "userProvidedAnswers": [
+    { "id": "wedding.bride.pesel", "value": "98072312346" },
+    { "id": "wedding.groom.address", "value": "ul. Słoneczna 12/5, 43-300 Bielsko-Biała" },
+    { "id": "wedding.groom.pesel", "value": "97041112358" },
+    { "id": "wedding.groom.email", "value": "tomasz.domanski@example.com" },
+    { "id": "travel.surcharge", "value": "No additional travel surcharge is agreed for this event." }
+  ],
+  "paymentTiming": {
+    "reservation": {
+      "type": "relative",
+      "relativeTo": "contract_conclusion",
+      "offsetDays": 3,
+      "sourceMeaning": "w terminie 3 dni od zawarcia umowy"
+    },
+    "remaining": {
+      "type": "relative",
+      "relativeTo": "wedding",
+      "offsetDays": 7,
+      "sourceMeaning": "najpóźniej 7 dni przed datą ślubu"
+    }
+  },
+  "expectedProductRules": {
+    "preserveSourcePackageExactly": true,
+    "preserveSourceContractingPartyStructure": true
+  }
+}
