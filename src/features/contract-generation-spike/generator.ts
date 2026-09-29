@@ -349,6 +349,30 @@ function sourcePaymentObligations(input: GenerationInput): number[][] {
   })
 }
 
+function postReservationPaymentObligations(blocks: SourceBlock[]): number[][] {
+  const obligations = blocks.flatMap((block) => {
+    if (/\b(?:katalog|opcjonaln|nie są objęte|not included|optional service)/iu.test(block.text)) return []
+    return block.text.split(/[.;!?\n]+/u).flatMap((clause) => {
+      const trimmed = clause.trim()
+      const ordinaryDeposit = /\bwpłat\p{L}*/iu.test(trimmed) && !intermediateInstallmentReference.test(trimmed)
+      if (!trimmed || aggregateClause.test(trimmed) || reservationClause.test(trimmed) || ordinaryDeposit || !paymentAllocationClause.test(trimmed)) return []
+      const amounts = moneyAmountsInGrosz(trimmed)
+      return amounts.length ? [amounts] : []
+    })
+  })
+  return obligations
+}
+
+function hasNegativePostReservationPayment(blocks: SourceBlock[]): boolean {
+  return blocks.some((block) => {
+    if (/\b(?:katalog|opcjonaln|nie są objęte|not included|optional service)/iu.test(block.text)) return false
+    return block.text.split(/[.;!?\n]+/u).some((clause) => {
+      const trimmed = clause.trim()
+      return trimmed && !aggregateClause.test(trimmed) && !reservationClause.test(trimmed) && paymentAllocationClause.test(trimmed) && /[-−]\s*(?:\d{1,3}(?:[ \u00a0\u202f]\d{3})+|\d+)(?:[,.]\d{2})?\s*zł/iu.test(trimmed)
+    })
+  })
+}
+
 function explicitPaymentAnswers(input: GenerationInput): Array<{ amounts: number[]; text: string }> {
   const allocationAnswers = input.userProvidedAnswers.filter((answer) => /payment|installment|allocation|schedule|rata|płatno|platno|harmonogram/iu.test(answer.id))
   return allocationAnswers.flatMap((answer) => {
@@ -842,9 +866,35 @@ export async function validateCandidate(
   for (const [label, amount] of [
     ['wynagrodzenia', input.financials.contractValuePln],
     ['wpłaty', input.financials.depositPln],
-    ['pozostałej kwoty', input.financials.remainingPln],
   ] as const) {
     if (!hasMoneyAmount(flat, amount)) issues.push(`Brak prawidłowej kwoty ${label}: ${formatPlnInteger(amount)}`)
+  }
+  const sourcePostReservationPayments = postReservationPaymentObligations(sourceDocument.blocks)
+  if (sourcePostReservationPayments.length > 1) {
+    const allocationIssues = validatePlannedPaymentAllocation(input, approvedOperations)
+    if (allocationIssues.length) {
+      issues.push('Brak prawidłowego autorytatywnego podziału płatności dla umowy wymagającej kilku rat po opłacie rezerwacyjnej.')
+    } else {
+      const explicitAmounts = explicitPaymentAllocation(input)
+      const derivedFinal = deriveFinalInstallment(input)
+      const expectedPayments = [...explicitAmounts.map((amount) => [amount]), ...(derivedFinal ? [[derivedFinal.amountGrosz]] : [])]
+      const plannedBlocks = sourceDocument.blocks.map((block) => {
+        const operation = approvedOperations.find((item) => item.operation === 'REPLACE_BLOCK_TEXT' && item.blockId === block.blockId)
+        return operation?.operation === 'REPLACE_BLOCK_TEXT' ? { ...block, text: operation.finalText } : block
+      })
+      const plannedPayments = postReservationPaymentObligations(plannedBlocks)
+      const actualPayments = postReservationPaymentObligations(candidateDocument.blocks)
+      const paymentSignature = (payments: number[][]) => payments.map((amounts) => [...amounts].sort((a, b) => a - b).join(',')).sort().join('|')
+      const expectedSignature = paymentSignature(expectedPayments)
+      if (paymentSignature(plannedPayments) !== expectedSignature) issues.push('Zatwierdzony plan nie odpowiada autorytatywnemu podziałowi płatności.')
+      if (paymentSignature(actualPayments) !== expectedSignature) issues.push('Kwoty płatności w dokumencie różnią się od autorytatywnego podziału płatności.')
+      if (hasNegativePostReservationPayment(candidateDocument.blocks)) issues.push('Dokument zawiera ujemną kwotę płatności.')
+      if (input.financials.depositPln * 100 + actualPayments.flat().reduce((sum, amount) => sum + amount, 0) !== input.financials.contractValuePln * 100) {
+        issues.push('Suma opłaty rezerwacyjnej i rat w dokumencie nie odpowiada całkowitej wartości umowy.')
+      }
+    }
+  } else if (!hasMoneyAmount(flat, input.financials.remainingPln)) {
+    issues.push(`Brak prawidłowej kwoty pozostałej kwoty: ${formatPlnInteger(input.financials.remainingPln)}`)
   }
   const candidateDigits = flat.replace(/[\s()\-]/g, '')
   for (const person of ['bride', 'groom'] as const) {
