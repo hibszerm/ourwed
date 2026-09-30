@@ -406,8 +406,34 @@ function rewriteParagraph(paragraph: string, finalText: string): string {
 }
 
 function mapProtectedFieldsToFinalText(fields: WordFieldRange[], editableParts: string[], finalText: string): number[] {
+  const emptyResultFieldsAtPreviousEnd = new Set<number>()
   const candidates = fields.map((field, index) => {
-    if (!field.cachedText) throw new Error(`Cannot preserve Word field ${field.instruction || index}: no cached display text to map`)
+    if (!field.cachedText) {
+      let groupStart = index
+      while (groupStart > 0 && !fields[groupStart - 1]!.cachedText && !(editableParts[groupStart] ?? '')) groupStart--
+      let groupEnd = index
+      while (groupEnd + 1 < fields.length && !fields[groupEnd + 1]!.cachedText && !(editableParts[groupEnd + 1] ?? '')) groupEnd++
+      const before = editableParts[groupStart] ?? ''
+      const after = editableParts[groupEnd + 1] ?? ''
+      // Empty-result fields have no visible text to search for. Keep them at
+      // their deterministic structural boundary; where literal text exists
+      // on both sides, require the source boundary to survive exactly.
+      if (!before) {
+        emptyResultFieldsAtPreviousEnd.add(index)
+        return []
+      }
+      if (!after) return [finalText.length]
+      const boundary = `${before}${after}`
+      const positions: number[] = []
+      let from = 0
+      while (from <= finalText.length - boundary.length) {
+        const position = finalText.indexOf(boundary, from)
+        if (position < 0) break
+        positions.push(position + before.length)
+        from = position + 1
+      }
+      return positions
+    }
     const before = editableParts[index] ?? ''
     const after = editableParts[index + 1] ?? ''
     const occurrences: number[] = []
@@ -437,9 +463,15 @@ function mapProtectedFieldsToFinalText(fields: WordFieldRange[], editableParts: 
       solutions.push(positions)
       return
     }
-    for (const candidate of candidates[index]!) {
+    const field = fields[index]!
+    // Consecutive empty-result fields with no visible literal between them
+    // share one boundary and retain their original source order.
+    const options = emptyResultFieldsAtPreviousEnd.has(index)
+      ? [previousEnd]
+      : candidates[index]!
+    for (const candidate of options) {
       if (candidate < previousEnd) continue
-      visit(index + 1, candidate + fields[index]!.cachedText.length, [...positions, candidate])
+      visit(index + 1, candidate + field.cachedText.length, [...positions, candidate])
     }
   }
   visit(0, 0, [])

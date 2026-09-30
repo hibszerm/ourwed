@@ -103,6 +103,68 @@ assert.equal((fieldEditedXml.match(/<w:fldChar w:fldCharType="end"\/>/g) ?? []).
 assert.equal((fieldEditedXml.match(/<w:t>1<\/w:t>/g) ?? []).length, 2, 'cached page labels remain inside their original field structures')
 await assert.rejects(() => applyBlockOperations(fieldBytes, [{ blockId: fieldBlock.blockId, operation: 'REPLACE_BLOCK_TEXT', finalText: 'Fields omitted from this replacement' }]), /Cannot safely map cached text|cannot be mapped|ambiguous/i, 'unmappable fields fail closed instead of becoming literal text')
 
+// Uncached fields remain opaque OOXML at deterministic boundaries. Their
+// field instructions are never interpreted or replaced with static text.
+async function editUncachedField(part: 'body' | 'header' | 'footer', paragraph: string, finalText: string) {
+  const uncachedZip = new JSZip()
+  const path = part === 'body' ? 'word/document.xml' : `word/${part}1.xml`
+  const root = part === 'body' ? `<w:document xmlns:w="urn:w"><w:body>${paragraph}<w:sectPr/></w:body></w:document>`
+    : part === 'header' ? `<w:hdr xmlns:w="urn:w">${paragraph}</w:hdr>` : `<w:ftr xmlns:w="urn:w">${paragraph}</w:ftr>`
+  uncachedZip.file(path, root)
+  const input = await uncachedZip.generateAsync({ type: 'arraybuffer' })
+  const block = (await buildBlockIndex(input)).find((candidate) => candidate.part === path)!
+  const output = await applyBlockOperations(input, [{ blockId: block.blockId, operation: 'REPLACE_BLOCK_TEXT', finalText }])
+  const resultZip = await JSZip.loadAsync(output)
+  return { output, xml: await resultZip.file(path)!.async('string'), blocks: await buildBlockIndex(output), blockId: block.blockId }
+}
+
+const exactCase04Page = '<w:fldSimple w:instr="PAGE"/>'
+const case04UncachedFooter = await editUncachedField('footer',
+  `<w:p><w:r><w:t xml:space="preserve">LUMEN STORIES  •  Umowa nr 18/2027  |  </w:t></w:r>${exactCase04Page}</w:p>`,
+  'LUMEN STORIES  •  Umowa nr 01/2028  |  ')
+assert.ok(case04UncachedFooter.blocks.some((block) => block.text === 'LUMEN STORIES  •  Umowa nr 01/2028  |  '))
+assert.doesNotMatch(case04UncachedFooter.xml, /18\/2027/)
+assert.match(case04UncachedFooter.xml, /<w:fldSimple w:instr="PAGE"\/>/)
+assert.equal((case04UncachedFooter.xml.match(/<w:fldSimple w:instr="PAGE"\/>/g) ?? []).length, 1)
+assert.doesNotMatch(case04UncachedFooter.xml, /<w:fldSimple w:instr="PAGE"[^>]*>[\s\S]*?<w:t/)
+
+const uncachedBody = await editUncachedField('body',
+  `<w:p><w:r><w:t xml:space="preserve">Body label </w:t></w:r>${exactCase04Page}</w:p>`, 'Changed body label ')
+assert.match(uncachedBody.xml, /<w:fldSimple w:instr="PAGE"\/>/)
+const uncachedHeader = await editUncachedField('header',
+  `<w:p>${exactCase04Page}<w:r><w:t xml:space="preserve"> header label</w:t></w:r></w:p>`, 'header label revised')
+assert.match(uncachedHeader.xml, /<w:fldSimple w:instr="PAGE"\/>/)
+assert.ok(uncachedHeader.blocks.some((block) => block.kind === 'header' && block.text === 'header label revised'))
+
+const uncachedBetweenText = await editUncachedField('body',
+  `<w:p><w:r><w:t xml:space="preserve">prefix Left</w:t></w:r>${exactCase04Page}<w:r><w:t xml:space="preserve"> Right suffix</w:t></w:r></w:p>`,
+  'Edited prefix Left Right suffix')
+assert.match(uncachedBetweenText.xml, /Edited prefix Left[\s\S]*<w:fldSimple w:instr="PAGE"\/>[\s\S]*Right suffix/)
+
+const uncachedComplexXml = '<w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> REF _Ref1 </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r>'
+const uncachedComplex = await editUncachedField('body', `<w:p><w:r><w:t>Complex </w:t></w:r>${uncachedComplexXml}</w:p>`, 'Complex revised ')
+assert.ok(uncachedComplex.xml.includes(uncachedComplexXml), 'an uncached complex field region is preserved verbatim')
+const multipleUncached = await editUncachedField('body',
+  `<w:p><w:r><w:t>A</w:t></w:r>${exactCase04Page}<w:r><w:t>B</w:t></w:r><w:fldSimple w:instr="REF _Ref2"/><w:r><w:t>C end</w:t></w:r></w:p>`,
+  'Edited ABC end')
+assert.ok(multipleUncached.xml.indexOf(exactCase04Page) < multipleUncached.xml.indexOf('<w:fldSimple w:instr="REF _Ref2"/>'), 'multiple uncached fields retain source order')
+const adjacentUncached = await editUncachedField('body',
+  `<w:p><w:r><w:t>Left</w:t></w:r>${exactCase04Page}<w:fldSimple w:instr="REF _Ref3"/><w:r><w:t>Right</w:t></w:r></w:p>`,
+  'Edited LeftRight')
+assert.ok(adjacentUncached.xml.indexOf(exactCase04Page) < adjacentUncached.xml.indexOf('<w:fldSimple w:instr="REF _Ref3"/>'))
+assert.match(adjacentUncached.xml, /Left[\s\S]*<w:fldSimple w:instr="PAGE"\/><w:fldSimple w:instr="REF _Ref3"\/>[\s\S]*Right/)
+
+const mixedUncachedAndCached = await editUncachedField('body',
+  `<w:p><w:r><w:t>Left</w:t></w:r><w:fldSimple w:instr="PAGE"><w:r><w:t>1</w:t></w:r></w:fldSimple>${exactCase04Page}<w:r><w:t>Right</w:t></w:r></w:p>`,
+  'Left1Right')
+assert.match(mixedUncachedAndCached.xml, /<w:fldSimple w:instr="PAGE"><w:r><w:t>1<\/w:t><\/w:r><\/w:fldSimple><w:fldSimple w:instr="PAGE"\/>/)
+
+const ambiguousZip = new JSZip()
+ambiguousZip.file('word/document.xml', `<w:document xmlns:w="urn:w"><w:body><w:p><w:r><w:t>Left</w:t></w:r>${exactCase04Page}<w:r><w:t>Right</w:t></w:r></w:p><w:sectPr/></w:body></w:document>`)
+const ambiguousBytes = await ambiguousZip.generateAsync({ type: 'arraybuffer' })
+const ambiguousBlock = (await buildBlockIndex(ambiguousBytes))[0]!
+await assert.rejects(() => applyBlockOperations(ambiguousBytes, [{ blockId: ambiguousBlock.blockId, operation: 'REPLACE_BLOCK_TEXT', finalText: 'Left changed Right' }]), /cannot be mapped|safely map|ambiguous/i, 'the editor rejects a changed two-sided boundary that cannot be located exactly')
+
 // E. Explicit block style-source ID controls insertion formatting.
 const inserted = editedBlocks.find((block) => block.text === 'Dodatkowe ujęcia: VHS i dron.')!
 assert.equal(inserted.kind, 'body')
