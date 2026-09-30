@@ -1,5 +1,5 @@
 import JSZip from 'jszip'
-import { applyBlockOperations, type BlockOperation, type EditableBlock } from './blockDocxEditor'
+import { applyBlockOperations, applyExactTextPatches, type BlockOperation, type EditableBlock, type ExactTextPatch } from './blockDocxEditor'
 import { escapeXml, unescapeXml } from '@/features/documents/template/canonicalParagraph'
 import { parseFlexibleDate } from '@/features/ai-contract-lab/semanticValueEquality'
 import { isPolishPlnAmountEquivalent, parsePlnGrosz } from './polishPlnAmount'
@@ -31,15 +31,16 @@ export type GenerationInput = {
   userProvidedAnswers: Array<{ id: string; value: string }>
 }
 export type SourceInventoryOccurrence = { sourceRef: string; quote: string | null }
-export type SourceInventoryItem = { id: string; label: string; occurrences: SourceInventoryOccurrence[] }
-export type SourceInventory = { items: SourceInventoryItem[] }
-export type FactAuthority = { kind: 'crm' | 'user' | 'generation_date' | 'derived'; ref: string }
+export type SourceInventoryItem = { id: string; label: string; conceptId?: string; occurrences: SourceInventoryOccurrence[] }
+export type SourceInventory = { items: SourceInventoryItem[]; coveredSourceRefs?: string[] }
+export type FactAuthority = { kind: 'crm' | 'user' | 'generation_date' | 'derived'; ref: string } | { kind: 'source'; ref: string }
 export type ResolvedAuthorityRef = { value: string; source: string; owner?: 'partner1' | 'partner2' }
-export type FactChange = { label: string; inventoryItemIds: string[]; newValue: string; newValueFormat: 'literal' | 'polish_pln_words'; authority: FactAuthority }
+export type FactChange = { label: string; inventoryItemIds: string[]; inventoryItemId?: string; sourceRef?: string; expectedSource?: string; sourceProvenance?: { inventoryItemId: string; sourceRef: string; expectedSource: string }; newValue: string; newValueFormat: 'literal' | 'polish_pln_words'; authority: FactAuthority }
 export type RetentionAuthority = { kind: 'product_rule' | 'user'; ref: string }
 export type RetainedLiteral = { inventoryItemId: string; authority: RetentionAuthority; reason: string }
+export type ExtraInsertion = { anchorBlockId: string; styleSourceBlockId: string; extraIds: string[] }
 export type PlannerResponseStatus = 'MISSING_INPUT' | 'CONFLICT_INPUT' | 'READY'
-export type PlanResult = { status: PlannerResponseStatus; missingInputs: MissingInput[]; conflicts: ConflictInput[]; factChanges: FactChange[]; retainedLiterals: RetainedLiteral[]; operations: BlockOperation[] }
+export type PlanResult = { status: PlannerResponseStatus; missingInputs: MissingInput[]; conflicts: ConflictInput[]; factChanges: FactChange[]; retainedLiterals: RetainedLiteral[]; operations: BlockOperation[]; extraInsertions?: ExtraInsertion[] }
 export type ReviewResult = { status: 'PASS' } | { status: 'FAIL'; issues: string[] }
 export type ConflictInput = { id: string; field: string; label: string; explanation: string; inputType: 'date' | 'text' | 'number'; currentValue?: string; relatedValues?: Array<{ label: string; value: string }>; required: true }
 export type ChangedBlock = { blockRef: string; sourceText: string | null; candidateText: string | null }
@@ -54,9 +55,47 @@ export async function runSourceInventory(source: SourceDocument, ai: Pick<Contra
   return ai.inventory(source)
 }
 
-export const SOURCE_INVENTORY_INSTRUCTIONS = `Inspect this source contract without receiving or inferring any new client or wedding data. Inventory transaction-specific or agreement-instance-specific source facts that may need disposition when creating a new contract: old client facts, old event facts, old contract identifiers, selected deal-specific values, and old transaction-specific amounts, dates, or locations. Do not inventory standing template or provider content that remains applicable, such as vendor/company identity, a general contract title, standard legal wording, a generic service catalogue, standing travel policy, or reusable package terms that are not specific to the old agreement instance. Do not inventory reusable contractual timing language merely because it is attached to a payment amount or contains a number; include timing only when the timing itself is specific to the old agreement instance. These are scope examples, not fixed classifications; decide from document context. Return each item with a unique id, short free-form label, and one or more occurrences. Each occurrence must use a canonical sourceRef copied from the supplied source index. If the whole referenced block or document property is the item, set quote to null. Otherwise copy the smallest exact visible quote that uniquely identifies the relevant occurrence within that sourceRef. Never count characters or invent start/end offsets. Copy the quote exactly from the canonical indexed source text, including spacing, punctuation, diacritics, and capitalization; do not paraphrase. The quote is only a mechanical selector, not an authoritative old value. Deterministic code will require exactly one exact match and derive offsets; nonexistent or repeated quotes are invalid. Do not create overlapping occurrences. Inventory every relevant occurrence, including repeated values in body, tables, headers, footers, and supplied textual document properties. Do not infer replacements, request information, or make generation decisions.`
-export const TRANSFORMATION_INSTRUCTIONS = `Use the source, source inventory, authoritative CRM input, user answers, and supplied product rules to understand the contract. Inventory items already identify source-grounded occurrences through whole-block grounding or exact quotes; never retype old source literals. Each semantic inventory item receives exactly one semantic disposition: one factChange, one authorized retention, or a missing/conflict disposition as applicable. Never assign the same inventoryItemId to multiple factChanges or to both a factChange and retention. This item-level rule still applies when an item has multiple source occurrences, appears in body and footer, spans multiple blocks, or has numeric, written-out, or otherwise differently formatted appearances. A factChange represents the authoritative semantic fact once; do not split it by occurrence or display format. Executable operations render that one fact change across all its occurrences, including occurrence-specific numeric and written-out forms, and may use separate complete block text for separate blocks. Operations describe HOW editable DOCX blocks are changed; a factChange alone is not an executable document edit, and deterministic code will not compose prose from factChanges. For each item either declare its single factChange with an exact authoritative newValue and authority, declare its single retention with an existing product-rule or user authority, or report every missing required value. A free-text retention reason is explanatory only and is never authority. Do not retain old agreement-instance values without an explicit applicable preserve rule or user instruction. Preserve timing and deadline terms already defined by the source contract unless current authoritative input explicitly replaces that timing or creates a conflict. If only a payment amount changes, keep the source-defined timing in the final text and do not request a new timing value. Treat each payment obligation independently. A source-defined relative deadline tied to a defined event, such as within N days after signing, is a complete timing rule; preserve it without requiring an absolute calendar date, asking the user to confirm it, or inventing a signing date for conversion. An authoritative replacement deadline applies only to the same payment obligation; final-payment timing does not replace reservation/deposit timing, and timing for one obligation must not fill or replace another obligation. If the source requires payment timing but supplies none, a genuinely required timing dependency is undefined, or current authority explicitly requires replacing that obligation's timing without supplying the replacement, report MISSING_INPUT. If authoritative sources provide incompatible timing for the same obligation and existing precedence cannot resolve them, report CONFLICT_INPUT. This source-term rule does not authorize retaining stale transaction-specific amounts, identifiers, client facts, addresses, or event dates. If an inventory item combines a value that must change with unchanged source timing, use the current authority for the changed value and preserve the timing text from the source. If a required replacement value is unavailable and no authorized preservation applies, report MISSING_INPUT. Complete a full-document and full-inventory sweep before responding; return all currently discoverable missing inputs together. MISSING_INPUT and CONFLICT_INPUT responses must contain no partial factChanges, retentions, or operations. READY requires every inventory item to have exactly one valid replacement or authorized retention, with no unresolved input or conflict. Every READY replacement factChange affecting editable body, table, header, or footer content must have valid block-operation coverage for every corresponding source occurrence. A complete block rewrite may cover multiple factChanges when they occur in the same block; do not emit redundant operations for each factChange. Metadata replacements use the separate metadata edit path and do not need block operations. Authority kinds for fact changes are crm, user, generation_date, derived. For crm, set authority.ref to the selected normalized input fact's .source copied byte-for-byte as an opaque identifier. Never construct, shorten, normalize, translate, infer, alias, or add/remove a namespace from an authority ref. For example, when the selected fact has source public.weddings.wedding_date, use exactly public.weddings.wedding_date. For user, copy the exact opaque additionalAnswers id; generation_date uses generationDate; derived may reference commercial.remainingAfterDeposit or commercial.remainingToPayNow, whose arithmetic is checked deterministically. Use only sourceRefs supplied by the source index through inventory occurrences; never invent or repair sourceRefs. Retention authority kinds are product_rule or user, and refs must point to an actual supplied rule or userProvidedAnswer. Set newValueFormat to literal for ordinary text. Use polish_pln_words only when the semantic newValue itself is the written-out rendering of a numeric PLN authority; do not create another factChange just to express a different occurrence format. Code compares a declared written-out PLN value with a deterministic formatter. CRM/user values must match their named authority. Derived values must use declared authoritative inputs and arithmetic; derived operands belong only in the derivation declaration, never source refs. Apply the existing product rule: CRM supplies total, reservation/deposit and aggregate remainder only; if source semantics require a detailed allocation not present in authoritative input or user answers, report MISSING_INPUT instead of inferring amounts. Interpret commercial.contractValue as OurWed's authoritative TOTAL contract value, already composed from package/base value, selected extras, and effective travel. When commercial.travelFeeStatus is charged and commercial.travelFeeAmount is positive, that travel amount is already included in contractValue and must never be added on top or used to recompute a second total. For included or non-charged travel, effective travel contributes zero as a separate component. Selected extras are likewise components of the same authoritative total and must not be added again. If both contractValue and travel status/amount are present, do not ask whether charged travel is included or additional; that relationship is already resolved by OurWed. This rule governs commercial composition only: do not invent a travel clause or exact contract wording when the source has no relevant concept, and a genuinely source-required travel fact absent from normalized authority may still require MISSING_INPUT. Preserve source legal meaning and source-defined base service scope, including its obligations, deliverables, workflow, performance obligations, and service terms, unless an existing authoritative rule independently requires a particular transaction fact to change. Current package name/selection is an authoritative transaction fact and may replace an instance-specific package name or identifier under existing authority rules, but changing package identity does not authorize rewriting source-defined base service obligations. Current package snapshot/items are authoritative only for facts they explicitly state; they do not authorize reconstructing or inferring other obligations, deadlines, editing rules, rights, workflow, quantities, or provider duties from package names, labels, or item titles. A semantic mismatch between current package identity and source service category alone is not MISSING_INPUT or CONFLICT_INPUT and does not require replacement service-scope data. Explicit current extras/additional services are separate authoritative transaction facts and may be added, removed, or updated under existing extras behavior, but do not authorize wholesale reconstruction of unrelated source base scope. Preserve source base obligations unless another existing authority rule independently requires change; genuine unresolved source-required facts and genuine authority conflicts may still require MISSING_INPUT or CONFLICT_INPUT. Use generationDate for a source conclusion date when applicable; preserve the source conclusion place under current product rules. AI decides which source facts have those meanings. Operations remain the existing safe block operations and must target supported source blocks with complete final text.`
+export const SOURCE_INVENTORY_INSTRUCTIONS = `Inspect the complete source contract without receiving or inferring new client or wedding data. The source is a closed world. Return coveredSourceRefs containing every canonical sourceRef from the supplied source index, including every paragraph/block and supplied textual document property examined. Inventory every source-defined instance-specific semantic span that may need a new value or explicit disposition. Each occurrence is an independently patchable atomic slot: create a separate inventory item with exactly one occurrence; never combine distinct slots or reuse one item for multiple occurrences. A patchable occurrence must use an exact quote for the smallest source span that is itself one fact. Never use quote:null for a value replacement. Quote text must be copied exactly, including spaces, punctuation, diacritics, and capitalization. Do not invent offsets, replacement values, or generation decisions. Reusable source clauses may be inventoried as source provenance when a product rule may reuse them. Do not invent inventory items for facts absent from the source. Do not create overlapping occurrences.`
+export const TRANSFORMATION_INSTRUCTIONS = `Use the source, source inventory, authoritative CRM input, user answers, and supplied product rules to understand the contract. The uploaded source is a closed world. Inventory occurrences are exact edit-permission spans; never retype old source literals. Each inventory item represents one atomic source occurrence and receives one factChange, one authorized retention, or a missing/conflict disposition. A factChange has exactly one inventoryItemId, one exact sourceRef, and one expectedSource literal equal to the item’s sole non-null quote. Never combine spans, authorities, or prose. Every occurrence is independently patched, even when several occurrences express a related concept. Do not emit ordinary block operations or complete block text. Deterministic code applies validated atomic patches to source text; all text outside those spans remains byte-for-byte/source-equivalent unchanged. For each item either declare its single factChange with an exact authoritative newValue and authority, declare its single retention with an existing product-rule or user authority, or report every missing required value. A free-text retention reason is explanatory only and is never authority. Do not retain old agreement-instance values without an explicit applicable preserve rule or user instruction. Preserve timing and deadline terms already defined by the source contract unless current authoritative input explicitly replaces that timing or creates a conflict. If only a payment amount changes, keep the source-defined timing in the final text and do not request a new timing value. Treat each payment obligation independently. A source-defined relative deadline tied to a defined event, such as within N days after signing, is a complete timing rule; preserve it without requiring an absolute calendar date, asking the user to confirm it, or inventing a signing date for conversion. An authoritative replacement deadline applies only to the same payment obligation; final-payment timing does not replace reservation/deposit timing, and timing for one obligation must not fill or replace another obligation. If the source requires payment timing but supplies none, a genuinely required timing dependency is undefined, or current authority explicitly requires replacing that obligation's timing without supplying the replacement, report MISSING_INPUT. If authoritative sources provide incompatible timing for the same obligation and existing precedence cannot resolve them, report CONFLICT_INPUT. This source-term rule does not authorize retaining stale transaction-specific amounts, identifiers, client facts, addresses, or event dates. If an inventory item combines a value that must change with unchanged source timing, use the current authority for the changed value and preserve the timing text from the source. If a required replacement value is unavailable and no authorized preservation applies, report MISSING_INPUT. Complete a full-document and full-inventory sweep before responding; return all currently discoverable missing inputs together. MISSING_INPUT and CONFLICT_INPUT responses must contain no partial factChanges, retentions, operations, or extraInsertions. READY requires every inventory item to have exactly one valid replacement or authorized retention, with no unresolved input or conflict. A block target alone grants no edit permission. Ordinary text changes require exact atomic patches and cannot be authorized by block operations. Metadata uses the same exact occurrence provenance and a separate deterministic XML edit path. Authority kinds for fact changes are crm, user, generation_date, derived. For crm, set authority.ref to the selected normalized input fact's .source copied byte-for-byte as an opaque identifier. Never construct, shorten, normalize, translate, infer, alias, or add/remove a namespace from an authority ref. For user, copy the exact opaque additionalAnswers id; generation_date uses generationDate; derived may reference commercial.remainingAfterDeposit or commercial.remainingToPayNow, whose arithmetic is checked deterministically. Use only sourceRefs supplied by the source index through inventory occurrences; never invent or repair sourceRefs. Retention authority kinds are product_rule or user, and refs must point to an actual supplied rule or userProvidedAnswer. Set newValueFormat to literal for ordinary text. Use polish_pln_words only when the semantic newValue itself is the written-out rendering of a numeric PLN authority; do not create another factChange just to express a different occurrence format. Code compares a declared written-out PLN value with a deterministic formatter. CRM/user values must match their named authority. Derived values must use declared authoritative inputs and arithmetic; derived operands belong only in the derivation declaration, never source refs. Apply the existing product rule: CRM supplies total, reservation/deposit and aggregate remainder only; if source semantics require a detailed allocation not present in authoritative input or user answers, report MISSING_INPUT instead of inferring amounts. Interpret commercial.contractValue as OurWed's authoritative TOTAL contract value, already composed from package/base value, selected extras, and effective travel. When commercial.travelFeeStatus is charged and commercial.travelFeeAmount is positive, that travel amount is already included in contractValue and must never be added on top or used to recompute a second total. For included or non-charged travel, effective travel contributes zero as a separate component. Selected extras are likewise components of the same authoritative total and must not be added again. If both contractValue and travel status/amount are present, do not ask whether charged travel is included or additional; that relationship is already resolved by OurWed. This rule governs commercial composition only: do not invent a travel clause or exact contract wording when the source has no relevant concept, and a genuinely source-required travel fact absent from normalized authority may still require MISSING_INPUT. Preserve source legal meaning and source-defined base service scope, including its obligations, deliverables, workflow, performance obligations, and service terms, unless an existing authoritative rule independently requires a particular transaction fact to change. Current package name/selection is an authoritative transaction fact and may replace an instance-specific package name or identifier under existing authority rules, but changing package identity does not authorize rewriting source-defined base service obligations. Current package snapshot/items are authoritative only for facts they explicitly state; they do not authorize reconstructing or inferring other obligations, deadlines, editing rules, rights, workflow, quantities, or provider duties from package names, labels, or item titles. A semantic mismatch between current package identity and source service category alone is not MISSING_INPUT or CONFLICT_INPUT and does not require replacement service-scope data. Explicit current extras/additional services are separate authoritative transaction facts and may be added, removed, or updated under existing extras behavior, but do not authorize wholesale reconstruction of unrelated source base scope. Preserve source base obligations unless another existing authority rule independently requires change; genuine unresolved source-required facts and genuine authority conflicts may still require MISSING_INPUT or CONFLICT_INPUT. For explicit current extras that have no source slot, use extraInsertions only: identify each selected extra by its exact normalized extra ID and choose an existing source block as insertion anchor and an existing source block as style source. Do not provide finalText or paraphrased wording; deterministic code renders the exact authoritative extra name and quantity. Existing source slots for extras should instead use ordinary atomic factChanges. Do not insert unrelated CRM fields or invent new contract clauses. Use generationDate for a source conclusion date when applicable; preserve the source conclusion place under current product rules. AI decides which source facts have those meanings. Ignore CRM facts with no source-defined corresponding slot. Do not expand addresses, add contact details, or create new location slots. Preserve source punctuation, quotation marks, whitespace, and surrounding prose. Source-to-source reuse must cite the exact source occurrence and literal, and is permitted only where Inventory explicitly links source and target occurrences under the same concept; deterministic validation checks the exact link and text. Never use invented derived refs for source reuse. Ordinary edits are reconstructed from source plus validated patches, never planner-authored replacement prose.`
 export const REVIEW_INSTRUCTIONS = `Independently review source and candidate semantics using the source inventory, deterministic source-grounded occurrence texts, authoritative input, user answers, planner factChanges, retainedLiterals, and the mechanical changed-block diff. Treat resolvedInventoryOccurrences.text as the exact canonical old source text for each item and ref; labels and reasons are context only. Decide whether the correct person's values were assigned, payment meanings/deadlines remain correct, legal meaning and package scope are preserved, stale source-specific facts were incorrectly retained, anything was invented, any required input was missed, and signature roles remain correct. Return PASS or FAIL with findings. Do not edit or repair the document.`
+
+export function buildProductRuleExtraOperations(input: GenerationInput | ContractGenerationInput, source: SourceDocument, insertions: ExtraInsertion[] = [], changes: FactChange[] = []): BlockOperation[] {
+  const knownBlocks = new Map(source.blocks.map((block) => [block.blockId, block]))
+  const usedIds = new Set<string>()
+  const operations: BlockOperation[] = []
+  for (const insertion of insertions) {
+    const anchor = knownBlocks.get(insertion.anchorBlockId)
+    const style = knownBlocks.get(insertion.styleSourceBlockId)
+    if (!anchor || !style || anchor.part !== style.part || !insertion.extraIds.length) throw new Error('Product-rule extra insertion has an unsupported source anchor or style source.')
+    const rendered: string[] = []
+    for (const extraId of insertion.extraIds) {
+      if (usedIds.has(extraId)) throw new Error(`Selected extra is inserted more than once: ${extraId}`)
+      usedIds.add(extraId)
+      let name: string | undefined
+      let quantity = 1
+      if ('generationContext' in input) {
+        const extra = input.extras.find((item) => item.id.value === extraId)
+        if (extra) { name = extra.name.value; quantity = extra.quantity.value }
+      } else {
+        const match = extraId.match(/^legacy-extra-(\d+)$/)
+        const index = match ? Number(match[1]) - 1 : -1
+        if (index >= 0 && index < input.extras.length) name = input.extras[index]
+      }
+      if (!name?.trim() || !Number.isSafeInteger(quantity) || quantity < 1) throw new Error(`Selected extra has no exact renderable authority: ${extraId}`)
+      rendered.push(quantity === 1 ? name : `${name} × ${quantity}`)
+    }
+    operations.push({ anchorBlockId: insertion.anchorBlockId, operation: 'INSERT_BLOCK_AFTER', styleSourceBlockId: insertion.styleSourceBlockId, finalText: rendered.join(' · ') })
+  }
+  if ('generationContext' in input) {
+    for (const extra of input.extras) {
+      const representedBySourcePatch = changes.some((change) => change.authority.kind === 'crm' && change.authority.ref === extra.name.source && declaredValueMatches(change, authorityText(extra.name.value) ?? ''))
+      if (!usedIds.has(extra.id.value) && !representedBySourcePatch) throw new Error(`Current selected extra has no source patch or bounded product-rule insertion: ${extra.id.value}`)
+    }
+  } else {
+    for (let index = 0; index < input.extras.length; index++) if (!usedIds.has(`legacy-extra-${index + 1}`)) throw new Error(`Current selected extra has no bounded product-rule insertion: legacy-extra-${index + 1}`)
+  }
+  return operations
+}
 
 export function sanitizePlannerOperations(status: PlannerResponseStatus, providerOperations: BlockOperation[] | undefined): { rawOperations: BlockOperation[]; operations: BlockOperation[]; rawOperationCount: number; operationCount: number; discardedOperationCount: number } {
   const rawOperations = providerOperations ?? []
@@ -66,6 +105,7 @@ export function sanitizePlannerOperations(status: PlannerResponseStatus, provide
 
 function normalize(value: string): string { return value.normalize('NFC').replace(/\s+/g, ' ').trim() }
 function canonicalLegacyAuthorityRef(authority: FactAuthority): boolean {
+  if (authority.kind === 'source') return false
   if (!authority.ref || authority.ref.includes(':')) return false
   if (authority.kind === 'generation_date') return authority.ref === 'generationDate'
   if (authority.kind === 'crm') return /^[A-Za-z][A-Za-z0-9]*(?:\.[A-Za-z][A-Za-z0-9]*)+$/.test(authority.ref)
@@ -129,6 +169,7 @@ function canonicalNormalizedAuthorityRef(authority: FactAuthority): boolean {
 
 /** Resolve canonical references only against exact normalized provenance or opaque answer IDs. */
 export function resolveAuthorityRef(input: ContractGenerationInput, authority: FactAuthority): ResolvedAuthorityRef | undefined {
+  if (authority.kind === 'source') return undefined
   if (!canonicalNormalizedAuthorityRef(authority)) return undefined
   if (authority.kind === 'generation_date') {
     const fact = input.generationContext.generationDate
@@ -320,7 +361,16 @@ export function resolveInventoryOccurrences(source: SourceDocument, inventory: S
 
 /** Validate canonical refs, exact quote selection, item IDs and overlap before downstream planning consumes inventory. */
 export function validateSourceInventoryProtocol(source: SourceDocument, inventory: SourceInventory): string[] {
-  return resolveInventoryOccurrences(source, inventory).findings
+  const findings = resolveInventoryOccurrences(source, inventory).findings
+  const expected = findTextLocations(source).map((location) => location.ref).sort()
+  const covered = inventory.coveredSourceRefs
+  if (!Array.isArray(covered) || JSON.stringify([...covered].sort()) !== JSON.stringify(expected)) {
+    findings.push('Source inventory does not attest complete coverage of every canonical source reference.')
+  }
+  for (const item of inventory.items) {
+    if (item.occurrences.length !== 1) findings.push(`Atomic inventory item must identify exactly one source occurrence: ${item.id}`)
+  }
+  return findings
 }
 
 function readRuleAtPath(roots: Record<string, unknown>, ref: string): unknown {
@@ -355,6 +405,10 @@ export function validateAuthorityGate(
   if (!sourceDocument) return [...issues, 'Source document context is required for normalized authority validation.']
   const resolved = resolveInventoryOccurrences(sourceDocument, inventory)
   issues.push(...resolved.findings)
+  const expectedCoverage = findTextLocations(sourceDocument).map((location) => location.ref).sort()
+  if (!Array.isArray(inventory.coveredSourceRefs) || JSON.stringify([...inventory.coveredSourceRefs].sort()) !== JSON.stringify(expectedCoverage)) {
+    issues.push('Source inventory does not attest complete coverage of every canonical source reference.')
+  }
   const itemIds = new Set(inventory.items.map((item) => item.id))
   const occurrencesByItem = new Map<string, ResolvedInventoryOccurrence[]>()
   for (const occurrence of resolved.occurrences) occurrencesByItem.set(occurrence.itemId, [...(occurrencesByItem.get(occurrence.itemId) ?? []), occurrence])
@@ -368,6 +422,7 @@ export function validateAuthorityGate(
   for (const retained of plan.retainedLiterals) assigned.set(retained.inventoryItemId, [...(assigned.get(retained.inventoryItemId) ?? []), 'retention'])
   if (plan.status !== 'READY') {
     if (plan.operations.length) issues.push(`${plan.status} plan contains executable operations.`)
+    if (plan.extraInsertions?.length) issues.push(`${plan.status} plan contains partial product-rule extra insertions.`)
     if (plan.factChanges.length || plan.retainedLiterals.length) issues.push(`${plan.status} plan contains a partial plan.`)
     if (plan.status === 'MISSING_INPUT' && !plan.missingInputs.length) issues.push('MISSING_INPUT plan has no missingInputs.')
     if (plan.status === 'CONFLICT_INPUT' && !plan.conflicts.length) issues.push('CONFLICT_INPUT plan has no conflicts.')
@@ -378,18 +433,42 @@ export function validateAuthorityGate(
     return issues
   }
   if (plan.missingInputs.length || plan.conflicts.length) issues.push('READY plan contains unresolved inputs or conflicts.')
+  if (plan.operations.length) issues.push('READY plan contains block operations; all semantic edits must be exact atomic source patches.')
+  try { validateOperationTargets(sourceDocument.blocks, buildProductRuleExtraOperations(input, sourceDocument, plan.extraInsertions ?? [], plan.factChanges)) }
+  catch (error) { issues.push(error instanceof Error ? error.message : 'Invalid bounded product-rule extra insertion.') }
   for (const change of plan.factChanges) {
     if (!normalize(change.newValue)) issues.push(`Fact change has an empty new literal: ${change.label}`)
     if (!change.inventoryItemIds.length) issues.push(`Fact change has no source inventory item: ${change.label}`)
+    if (change.inventoryItemIds.length !== 1) issues.push(`Fact change must update exactly one atomic inventory item: ${change.label}`)
+    const changeItemId = change.inventoryItemIds[0]
+    const changeItem = inventory.items.find((item) => item.id === changeItemId)
+    const changeOccurrence = changeItem?.occurrences.length === 1 ? changeItem.occurrences[0] : undefined
+    if (!change.inventoryItemId || change.inventoryItemId !== changeItemId || !change.sourceRef || !change.expectedSource
+      || !changeOccurrence || change.sourceRef !== changeOccurrence.sourceRef || change.expectedSource !== changeOccurrence.quote
+      || changeOccurrence.quote === null) {
+      issues.push(`Fact change “${change.label}” is not linked to one exact inventoried atomic source span.`)
+    }
     for (const id of change.inventoryItemIds) if (!itemIds.has(id)) issues.push(`Fact change “${change.label}” references unknown inventory item ${id}.`)
-    const canonical = normalized ? canonicalNormalizedAuthorityRef(change.authority) : canonicalLegacyAuthorityRef(change.authority)
+    const sourceAuthority = change.authority.kind === 'source'
+    const canonical = sourceAuthority ? Boolean(change.sourceProvenance?.sourceRef === change.authority.ref)
+      : normalized ? canonicalNormalizedAuthorityRef(change.authority) : canonicalLegacyAuthorityRef(change.authority)
     if (!canonical) {
       issues.push(`Invalid canonical authority reference for “${change.label}”: ${change.authority.kind}:${change.authority.ref}`)
       continue
     }
-    const authoritative = normalized
-      ? resolveAuthorityRef(input, change.authority)?.value
-      : legacyAuthorityValue(input, change.authority)
+    let authoritative: string | undefined
+    if (sourceAuthority) {
+      const provenance = change.sourceProvenance
+      const sourceItem = provenance && inventory.items.find((item) => item.id === provenance.inventoryItemId)
+      const targetItem = change.inventoryItemIds.length === 1 && inventory.items.find((item) => item.id === change.inventoryItemIds[0])
+      const sourceOccurrence = sourceItem?.occurrences.length === 1 ? resolved.occurrences.find((item) => item.itemId === sourceItem.id) : undefined
+      if (!provenance || !sourceItem || !targetItem || sourceItem.id === targetItem.id || !sourceItem.conceptId
+        || sourceItem.conceptId !== targetItem.conceptId || !sourceOccurrence
+        || provenance.sourceRef !== sourceOccurrence.sourceRef || provenance.expectedSource !== sourceOccurrence.text
+        || change.newValue !== provenance.expectedSource) {
+        issues.push(`Source-to-source authority for “${change.label}” lacks exact same-concept inventory provenance.`)
+      } else authoritative = provenance.expectedSource
+    } else authoritative = normalized ? resolveAuthorityRef(input, change.authority)?.value : legacyAuthorityValue(input, change.authority)
     if (authoritative === undefined) { issues.push(`Invalid authority reference for “${change.label}”: ${change.authority.kind}:${change.authority.ref}`); continue }
     if (!normalize(authoritative)) { issues.push(`Authority for “${change.label}” resolves to an empty value.`); continue }
     if (!declaredValueMatches(change, authoritative)) {
@@ -405,25 +484,10 @@ export function validateAuthorityGate(
     if (dispositions.length === 0) issues.push(`Source inventory item has no planner disposition: ${item.id}`)
     else if (dispositions.length > 1) issues.push(`Source inventory item has multiple planner dispositions: ${item.id}`)
     if (!occurrencesByItem.get(item.id)?.length) issues.push(`Source inventory item has no resolvable source occurrences: ${item.id}`)
+    if (item.occurrences.length !== 1) issues.push(`Atomic inventory item must identify exactly one source occurrence: ${item.id}`)
   }
   const operationIssues = validateOperationTargets(sourceDocument.blocks, plan.operations ?? [])
   issues.push(...operationIssues)
-  if (!operationIssues.length) {
-    const blockIds = new Set(sourceDocument.blocks.map((block) => block.blockId))
-    const targetedBlocks = new Set((plan.operations ?? []).map((operation) =>
-      'blockId' in operation ? operation.blockId : operation.anchorBlockId,
-    ))
-    for (const change of plan.factChanges) {
-      for (const itemId of change.inventoryItemIds) {
-        for (const occurrence of occurrencesByItem.get(itemId) ?? []) {
-          // Document properties are changed by applyMetadataFactChanges, outside the block editor.
-          if (occurrence.sourceRef.startsWith('docProps/')) continue
-          if (!blockIds.has(occurrence.sourceRef) || targetedBlocks.has(occurrence.sourceRef)) continue
-          issues.push(`READY fact change “${change.label}” has no block operation for editable source occurrence ${occurrence.sourceRef}.`)
-        }
-      }
-    }
-  }
   return issues
 }
 
@@ -434,6 +498,10 @@ function validateOperationTargets(blocks: SourceBlock[], operations: BlockOperat
   for (const raw of operations as unknown[]) {
     if (!raw || typeof raw !== 'object' || !('operation' in raw)) { issues.push('Malformed block operation.'); continue }
     const operation = raw as BlockOperation
+    if (operation.operation === 'REPLACE_BLOCK_TEXT') {
+      issues.push(`Complete block replacement is not permitted in the atomic patch protocol: ${operation.blockId}`)
+      continue
+    }
     if (!['REPLACE_BLOCK_TEXT', 'INSERT_BLOCK_AFTER', 'INSERT_BLOCK_BEFORE', 'DELETE_BLOCK'].includes(operation.operation)) { issues.push('Unsupported block operation.'); continue }
     if ('finalText' in operation && typeof operation.finalText !== 'string') { issues.push('Block operation finalText must be a string.'); continue }
     const targets = 'blockId' in operation ? [operation.blockId] : [operation.anchorBlockId, operation.styleSourceBlockId]
@@ -452,14 +520,29 @@ function findTextLocations(document: SourceDocument): Array<{ ref: string; text:
   ]
 }
 
-export function computeChangedBlockDiff(source: SourceBlock[], candidate: SourceBlock[]): ChangedBlock[] {
-  const left = new Map(source.map((block) => [block.blockId, block.text]))
-  const right = new Map(candidate.map((block) => [block.blockId, block.text]))
-  return [...new Set([...left.keys(), ...right.keys()])].flatMap((blockRef) => {
-    const sourceText = left.get(blockRef) ?? null
-    const candidateText = right.get(blockRef) ?? null
-    return sourceText === candidateText ? [] : [{ blockRef, sourceText, candidateText }]
-  })
+function candidateIndexForSourceBlock(block: SourceBlock, source: SourceBlock[], insertions: BlockOperation[]): number {
+  const sourceBlockById = new Map(source.map((item) => [item.blockId, item]))
+  return block.index + insertions.reduce((shift, operation) => {
+    if (operation.operation !== 'INSERT_BLOCK_AFTER' && operation.operation !== 'INSERT_BLOCK_BEFORE') return shift
+    const anchor = sourceBlockById.get(operation.anchorBlockId)
+    if (!anchor || anchor.part !== block.part) return shift
+    const movesBlock = operation.operation === 'INSERT_BLOCK_AFTER' ? anchor.index < block.index : anchor.index <= block.index
+    return shift + Number(movesBlock)
+  }, 0)
+}
+
+export function computeChangedBlockDiff(source: SourceBlock[], candidate: SourceBlock[], insertions: BlockOperation[] = []): ChangedBlock[] {
+  const candidateById = new Map(candidate.map((block) => [block.blockId, block]))
+  const mappedCandidateIds = new Set<string>()
+  const changes: ChangedBlock[] = []
+  for (const sourceBlock of source) {
+    const candidateId = `${sourceBlock.part}#p${candidateIndexForSourceBlock(sourceBlock, source, insertions)}`
+    const candidateBlock = candidateById.get(candidateId)
+    if (candidateBlock) mappedCandidateIds.add(candidateId)
+    if (sourceBlock.text !== (candidateBlock?.text ?? null)) changes.push({ blockRef: sourceBlock.blockId, sourceText: sourceBlock.text, candidateText: candidateBlock?.text ?? null })
+  }
+  for (const candidateBlock of candidate) if (!mappedCandidateIds.has(candidateBlock.blockId)) changes.push({ blockRef: candidateBlock.blockId, sourceText: null, candidateText: candidateBlock.text })
+  return changes
 }
 
 function xmlWithTextValuesMasked(xml: string): string { return xml.replace(/(<w:t\b[^>]*>)[\s\S]*?(<\/w:t>)/g, '$1__TEXT__$2') }
@@ -553,6 +636,7 @@ export async function applyMetadataFactChanges(bytes: ArrayBuffer, changes: Fact
     const item = items.get(id)
     if (!item) continue
     for (const occurrence of resolved.occurrences.filter((entry) => entry.itemId === id && entry.sourceRef.startsWith('docProps/'))) {
+      if (change.inventoryItemId !== id || change.sourceRef !== occurrence.sourceRef || change.expectedSource !== occurrence.text) throw new Error(`Metadata patch is not linked to its exact inventory occurrence: ${id}`)
       changesByRef.set(occurrence.sourceRef, [...(changesByRef.get(occurrence.sourceRef) ?? []), { start: occurrence.start, end: occurrence.end, newValue: change.newValue }])
     }
   }
@@ -573,6 +657,27 @@ export async function applyMetadataFactChanges(bytes: ArrayBuffer, changes: Fact
   return zip.generateAsync({ type: 'arraybuffer' })
 }
 
+export function buildAtomicTextPatches(source: SourceDocument, inventory: SourceInventory, changes: FactChange[]): ExactTextPatch[] {
+  const resolved = resolveInventoryOccurrences(source, inventory)
+  if (resolved.findings.length) throw new Error(resolved.findings[0])
+  return changes.flatMap((change) => {
+    if (change.inventoryItemIds.length !== 1 || change.inventoryItemId !== change.inventoryItemIds[0]
+      || !change.sourceRef || !change.expectedSource) throw new Error(`Fact change is not an exact atomic patch: ${change.label}`)
+    const occurrence = resolved.occurrences.find((item) => item.itemId === change.inventoryItemId)
+    if (!occurrence || occurrence.sourceRef !== change.sourceRef || occurrence.text !== change.expectedSource || !change.expectedSource) {
+      throw new Error(`Fact change source span does not match Inventory: ${change.label}`)
+    }
+    if (occurrence.sourceRef.startsWith('docProps/')) return []
+    return [{ blockId: occurrence.sourceRef, expectedSource: occurrence.text, replacement: change.newValue, sourceStart: occurrence.start, sourceEnd: occurrence.end }]
+  })
+}
+
+export async function applyAtomicFactChanges(bytes: ArrayBuffer, changes: FactChange[], inventory: SourceInventory, source: SourceDocument): Promise<ArrayBuffer> {
+  const patches = buildAtomicTextPatches(source, inventory, changes)
+  const editedText = await applyExactTextPatches(bytes, patches)
+  return applyMetadataFactChanges(editedText, changes, inventory, source)
+}
+
 export async function validateCandidate(
   sourceBytes: ArrayBuffer,
   candidateBytes: ArrayBuffer,
@@ -588,7 +693,10 @@ export async function validateCandidate(
   try { sourceZip = await JSZip.loadAsync(sourceBytes); candidateZip = await JSZip.loadAsync(candidateBytes) } catch { return ['Cannot open DOCX ZIP package'] }
   let source: SourceDocument; let candidate: SourceDocument
   try { [source, candidate] = await Promise.all([readSource(sourceBytes, 'source.docx'), readSource(candidateBytes, 'candidate.docx')]) } catch { return ['DOCX XML or document structure is invalid'] }
+  const productRuleOperations = buildProductRuleExtraOperations(input, source, plan.extraInsertions ?? [], plan.factChanges)
   issues.push(...validateOperationTargets(source.blocks, approvedOperations))
+  if (JSON.stringify(approvedOperations) !== JSON.stringify(productRuleOperations)) issues.push('Candidate operations do not exactly match bounded product-rule extra insertions.')
+  if (plan.operations.length) issues.push('READY plan contains block operations; ordinary content must use atomic source patches.')
   const sourcePackageParts = Object.keys(sourceZip.files).filter((part) => !sourceZip.files[part]?.dir).sort()
   const candidatePackageParts = Object.keys(candidateZip.files).filter((part) => !candidateZip.files[part]?.dir).sort()
   if (JSON.stringify(sourcePackageParts) !== JSON.stringify(candidatePackageParts)) issues.push('DOCX package part set changed')
@@ -599,24 +707,33 @@ export async function validateCandidate(
     const after = await candidateZip.file(part)?.async('uint8array')
     if (!after || before.length !== after.length || before.some((byte, index) => byte !== after[index])) issues.push(`Untouched DOCX package part changed: ${part}`)
   }
-  const expectedMetadataBytes = await applyMetadataFactChanges(sourceBytes, plan.factChanges, inventory, source)
-  const expectedMetadataZip = await JSZip.loadAsync(expectedMetadataBytes)
-  const expectedCore = await expectedMetadataZip.file('docProps/core.xml')?.async('string')
-  const actualCore = await candidateZip.file('docProps/core.xml')?.async('string')
-  if (expectedCore !== actualCore) issues.push('Document properties contain a change outside declared literal replacements')
-  const changedIds = new Set(approvedOperations.flatMap((operation) => 'blockId' in operation ? [operation.blockId] : []))
-  for (const block of source.blocks) {
-    if (changedIds.has(block.blockId)) continue
-    const counterpart = candidate.blocks.find((item) => item.blockId === block.blockId)
-    if (!counterpart || counterpart.text !== block.text) issues.push(`Untouched block changed: ${block.blockId}`)
+  let expectedBytes: ArrayBuffer
+  try {
+    expectedBytes = await applyAtomicFactChanges(sourceBytes, plan.factChanges, inventory, source)
+    if (productRuleOperations.length) expectedBytes = await applyBlockOperations(expectedBytes, productRuleOperations)
+  }
+  catch (error) { return [...issues, error instanceof Error ? error.message : 'Cannot reconstruct candidate from source patches'] }
+  const expectedZip = await JSZip.loadAsync(expectedBytes)
+  for (const part of sourcePackageParts) {
+    const expected = await expectedZip.file(part)?.async('uint8array')
+    const actual = await candidateZip.file(part)?.async('uint8array')
+    if (!expected || !actual || expected.length !== actual.length || expected.some((byte, index) => byte !== actual[index])) {
+      issues.push(`Candidate contains a change outside deterministic source patches: ${part}`)
+    }
   }
   const candidateLocations = new Map(findTextLocations(candidate).map((item) => [item.ref, item.text]))
+  const sourceBlockById = new Map(source.blocks.map((block) => [block.blockId, block]))
+  const candidateRefForSourceRef = (sourceRef: string): string => {
+    const sourceBlock = sourceBlockById.get(sourceRef)
+    if (!sourceBlock) return sourceRef
+    return `${sourceBlock.part}#p${candidateIndexForSourceBlock(sourceBlock, source.blocks, approvedOperations)}`
+  }
   const resolved = resolveInventoryOccurrences(source, inventory)
   const changesByItem = new Map<string, FactChange>()
   const retainedIds = new Set(plan.retainedLiterals.map((item) => item.inventoryItemId))
   for (const change of plan.factChanges) for (const id of change.inventoryItemIds) changesByItem.set(id, change)
   for (const occurrence of resolved.occurrences) {
-    const actual = candidateLocations.get(occurrence.sourceRef) ?? ''
+    const actual = candidateLocations.get(candidateRefForSourceRef(occurrence.sourceRef)) ?? ''
     const change = changesByItem.get(occurrence.itemId)
     if (change && normalize(occurrence.text) !== normalize(change.newValue) && literalOccurs(actual, occurrence.text)) {
       issues.push(`Declared old source span remains at ${occurrence.sourceRef}: ${occurrence.text}`)
@@ -691,12 +808,13 @@ export async function runGeneration(
   if (plan.status === 'CONFLICT_INPUT') return { status: 'CONFLICT_INPUT', conflicts: plan.conflicts }
   const targetIssues = validateOperationTargets(sourceDocument.blocks, safeOperations)
   if (targetIssues.length) return { status: 'FAILED', issues: targetIssues }
-  const edited = await applyBlockOperations(sourceBytes, safeOperations)
-  const candidateBytes = await applyMetadataFactChanges(edited, plan.factChanges, inventory, sourceDocument)
+  let candidateBytes = await applyAtomicFactChanges(sourceBytes, plan.factChanges, inventory, sourceDocument)
+  const productRuleOperations = buildProductRuleExtraOperations(authorityContext, sourceDocument, plan.extraInsertions ?? [], plan.factChanges)
+  if (productRuleOperations.length) candidateBytes = await applyBlockOperations(candidateBytes, productRuleOperations)
   const candidateDocument = await readSource(candidateBytes, sourceDocument.fileName)
-  const candidateIssues = await validateCandidate(sourceBytes, candidateBytes, authorityContext, inventory, effectivePlan, safeOperations, validationContext)
+  const candidateIssues = await validateCandidate(sourceBytes, candidateBytes, authorityContext, inventory, effectivePlan, productRuleOperations, validationContext)
   if (candidateIssues.length) return { status: 'FAILED', issues: candidateIssues }
-  const changedBlocks = computeChangedBlockDiff(sourceDocument.blocks, candidateDocument.blocks)
+  const changedBlocks = computeChangedBlockDiff(sourceDocument.blocks, candidateDocument.blocks, productRuleOperations)
   const resolvedInventoryOccurrences = resolveInventoryOccurrences(sourceDocument, inventory).occurrences
   const review = await ai.review({ source: sourceDocument, authorityContext, inventory, resolvedInventoryOccurrences, factChanges: plan.factChanges, retainedLiterals: plan.retainedLiterals, candidate: candidateDocument.blocks, changedBlocks })
   if (review.status === 'FAIL') return { status: 'FAILED', issues: review.issues }

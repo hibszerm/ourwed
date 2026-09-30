@@ -1,9 +1,8 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import JSZip from 'jszip'
-import { applyBlockOperations } from './blockDocxEditor'
 import { buildContractGenerationInput, type ContractGenerationInputOptions } from './contractGenerationInput'
-import { readSource, resolveInventoryOccurrences, SOURCE_INVENTORY_INSTRUCTIONS, TRANSFORMATION_INSTRUCTIONS, validateAuthorityGate, validateCandidate, type PlanResult, type SourceInventory } from './generator'
+import { applyAtomicFactChanges, readSource, resolveInventoryOccurrences, SOURCE_INVENTORY_INSTRUCTIONS, TRANSFORMATION_INSTRUCTIONS, validateAuthorityGate, validateCandidate, type PlanResult, type SourceInventory } from './generator'
 
 function p(text: string): string { return `<w:p><w:r><w:t xml:space="preserve">${text}</w:t></w:r></w:p>` }
 async function packageFor(text: string): Promise<ArrayBuffer> {
@@ -28,18 +27,16 @@ for (const testCase of [
   const source = await readSource(sourceBytes, 'payment-template.docx')
   const block = source.blocks[0]!
   const itemId = `deposit-${testCase.deposit}`
-  const inventory: SourceInventory = { items: [{ id: itemId, label: 'source deposit amount', occurrences: [{ sourceRef: block.blockId, quote: quoteOf(block.text, '2 000 zł') }] }] }
+  const inventory: SourceInventory = { coveredSourceRefs: [block.blockId], items: [{ id: itemId, label: 'source deposit amount', occurrences: [{ sourceRef: block.blockId, quote: quoteOf(block.text, '2 000 zł') }] }] }
   const newAmount = `${testCase.deposit.toLocaleString('pl-PL')} zł`
-  const finalText = `Zaliczka ${newAmount} płatna ${testCase.timing}.`
-  const operation = { blockId: block.blockId, operation: 'REPLACE_BLOCK_TEXT' as const, finalText }
   const plan: PlanResult = {
-    status: 'READY', missingInputs: [], conflicts: [], retainedLiterals: [], operations: [operation],
-    factChanges: [{ label: 'source deposit amount', inventoryItemIds: [itemId], newValue: newAmount, newValueFormat: 'literal', authority: { kind: 'crm', ref: normalized.commercial.agreedDeposit.source } }],
+    status: 'READY', missingInputs: [], conflicts: [], retainedLiterals: [], operations: [],
+    factChanges: [{ label: 'source deposit amount', inventoryItemIds: [itemId], inventoryItemId: itemId, sourceRef: block.blockId, expectedSource: '2 000 zł', newValue: newAmount, newValueFormat: 'literal', authority: { kind: 'crm', ref: normalized.commercial.agreedDeposit.source } }],
   }
   const context = { sourceDocument: source, productRules: fixture.expectedProductRules }
   assert.deepEqual(validateAuthorityGate(normalized, inventory, plan, context), [], `a ${testCase.deposit} deposit replacement does not need a timing authority`)
-  const candidate = await applyBlockOperations(sourceBytes, [operation])
-  assert.deepEqual(await validateCandidate(sourceBytes, candidate, normalized, inventory, plan, [operation], context), [])
+  const candidate = await applyAtomicFactChanges(sourceBytes, plan.factChanges, inventory, source)
+  assert.deepEqual(await validateCandidate(sourceBytes, candidate, normalized, inventory, plan, [], context), [])
   const candidateDocument = await readSource(candidate, 'candidate.docx')
   assert.ok(candidateDocument.blocks[0]?.text.includes(testCase.timing), 'source timing is copied unchanged into the final block')
   assert.ok(!candidateDocument.blocks[0]?.text.includes('2 000 zł'), 'the stale source amount is still replaced')
@@ -56,10 +53,10 @@ const overrideBytes = await packageFor(overrideText)
 const overrideSource = await readSource(overrideBytes, 'payment-override.docx')
 const overrideBlock = overrideSource.blocks[0]!
 const oldTiming = 'w terminie 3 dni od zawarcia umowy'
-const overrideInventory: SourceInventory = { items: [{ id: 'source-timing', label: 'source-defined timing', occurrences: [{ sourceRef: overrideBlock.blockId, quote: quoteOf(overrideBlock.text, oldTiming) }] }] }
+const overrideInventory: SourceInventory = { coveredSourceRefs: [overrideBlock.blockId], items: [{ id: 'source-timing', label: 'source-defined timing', occurrences: [{ sourceRef: overrideBlock.blockId, quote: quoteOf(overrideBlock.text, oldTiming) }] }] }
 const overridePlan: PlanResult = {
-  status: 'READY', missingInputs: [], conflicts: [], retainedLiterals: [], operations: [{ blockId: overrideBlock.blockId, operation: 'REPLACE_BLOCK_TEXT', finalText: 'Zaliczka 2 000 zł płatna w terminie 7 dni od podpisania umowy.' }],
-  factChanges: [{ label: 'explicitly supplied timing', inventoryItemIds: ['source-timing'], newValue: 'w terminie 7 dni od podpisania umowy', newValueFormat: 'literal', authority: { kind: 'user', ref: 'payment.timing' } }],
+  status: 'READY', missingInputs: [], conflicts: [], retainedLiterals: [], operations: [],
+  factChanges: [{ label: 'explicitly supplied timing', inventoryItemIds: ['source-timing'], inventoryItemId: 'source-timing', sourceRef: overrideBlock.blockId, expectedSource: oldTiming, newValue: 'w terminie 7 dni od podpisania umowy', newValueFormat: 'literal', authority: { kind: 'user', ref: 'payment.timing' } }],
 }
 assert.deepEqual(validateAuthorityGate(overrideInput, overrideInventory, overridePlan, { sourceDocument: overrideSource, productRules: fixture.expectedProductRules }), [], 'explicit replacement timing remains authoritative through the existing authority rules')
 
@@ -68,7 +65,7 @@ const staleAmountPlan = {
   status: 'READY' as const, missingInputs: [], conflicts: [], factChanges: [],
   retainedLiterals: [{ inventoryItemId: 'source-amount', reason: 'the surrounding source timing is preserved' }], operations: [],
 }
-const staleAmountInventory: SourceInventory = { items: [{ id: 'source-amount', label: 'old transaction amount', occurrences: [{ sourceRef: overrideBlock.blockId, quote: quoteOf(overrideBlock.text, '2 000 zł') }] }] }
+const staleAmountInventory: SourceInventory = { coveredSourceRefs: [overrideBlock.blockId], items: [{ id: 'source-amount', label: 'old transaction amount', occurrences: [{ sourceRef: overrideBlock.blockId, quote: quoteOf(overrideBlock.text, '2 000 zł') }] }] }
 assert.ok(validateAuthorityGate(overrideInput, staleAmountInventory, staleAmountPlan as unknown as PlanResult, { sourceDocument: overrideSource, productRules: {} }).some((issue) => /no valid authority reference/.test(issue)))
 
 assert.match(TRANSFORMATION_INSTRUCTIONS, /preserve timing and deadline terms already defined by the source contract unless current authoritative input explicitly replaces that timing or creates a conflict/i)
@@ -81,7 +78,7 @@ assert.match(TRANSFORMATION_INSTRUCTIONS, /final-payment timing does not replace
 assert.match(TRANSFORMATION_INSTRUCTIONS, /If the source requires payment timing but supplies none.*report MISSING_INPUT/i)
 assert.match(TRANSFORMATION_INSTRUCTIONS, /incompatible timing for the same obligation.*report CONFLICT_INPUT/i)
 assert.match(TRANSFORMATION_INSTRUCTIONS, /does not authorize retaining stale transaction-specific amounts, identifiers, client facts, addresses, or event dates/i)
-assert.match(SOURCE_INVENTORY_INSTRUCTIONS, /Do not inventory reusable contractual timing language merely because it is attached to a payment amount/i)
+assert.match(SOURCE_INVENTORY_INSTRUCTIONS, /Reusable source clauses may be inventoried as source provenance/i)
 assert.doesNotMatch(TRANSFORMATION_INSTRUCTIONS, /within 3 days|within 5 days|7 days before the wedding|paymentTimingSignature|timingPhraseDictionary/i)
 const runtime = await readFile(new URL('./generator.ts', import.meta.url), 'utf8')
 assert.doesNotMatch(runtime, /payment.*(?:timing|deadline).*\/(?:\\d|\[)/i)

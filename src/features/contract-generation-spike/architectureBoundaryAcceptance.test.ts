@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises'
 import JSZip from 'jszip'
 import { applyBlockOperations } from './blockDocxEditor'
 import { buildContractGenerationInput, type ContractGenerationInputOptions } from './contractGenerationInput'
-import { makeInput, readSource, runGeneration, sanitizePlannerOperations, validateAuthorityGate, type GenerationInput, type PlanResult, type SourceInventory } from './generator'
+import { readSource, runGeneration, sanitizePlannerOperations, validateAuthorityGate, type PlanResult, type SourceInventory } from './generator'
 
 function p(text: string): string { return `<w:p><w:r><w:t xml:space="preserve">${text}</w:t></w:r></w:p>` }
 async function minimalPackage(body: string): Promise<ArrayBuffer> {
@@ -13,25 +13,21 @@ async function minimalPackage(body: string): Promise<ArrayBuffer> {
   zip.file('word/document.xml', `<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${p(body)}${tables}<w:sectPr/></w:body></w:document>`)
   return zip.generateAsync({ type: 'arraybuffer' })
 }
-function inputFor(source: GenerationInput['sourceDocument']): GenerationInput {
-  return makeInput({ generationDate: '25.09.2026', sourceDocument: source, wedding: { bride: { name: 'Ada Test', phone: '', email: '' }, groom: { name: 'Bar Test', phone: '' }, weddingDate: '20.09.2027', contractAddress: '', contractValuePln: 10000, depositPln: 1000, remainingDueDate: '', locations: { bridePreparations: '', groomPreparations: '', ceremony: '', reception: '' } }, packagePolicy: { preserveSourcePackageExactly: true }, extras: [], userProvidedAnswers: [] })
-}
 const ready = (): PlanResult => ({ status: 'READY', missingInputs: [], conflicts: [], factChanges: [], retainedLiterals: [], operations: [] })
 
 const pipelineBytes = await minimalPackage('Client: Ada Source')
 const pipelineSource = await readSource(pipelineBytes, 'pipeline.docx')
 const block = pipelineSource.blocks.find((item) => item.text.includes('Ada Source'))!
-const inventory: SourceInventory = { items: [{ id: 'client-name', label: 'old client name', occurrences: [{ sourceRef: block.blockId, quote: 'Ada Source' }] }] }
-const input = inputFor(pipelineSource)
+const inventory: SourceInventory = { coveredSourceRefs: pipelineSource.blocks.map((item) => item.blockId), items: [{ id: 'client-name', label: 'old client name', occurrences: [{ sourceRef: block.blockId, quote: 'Ada Source' }] }] }
 const case04Options = JSON.parse(await readFile(new URL('./multi-template-acceptance/cases/case-04-realistic-wedding-photographer/input.json', import.meta.url), 'utf8')) as { authoritativeInput: ContractGenerationInputOptions }
 const authorityContext = buildContractGenerationInput(case04Options.authoritativeInput)
 const party1Name = authorityContext.parties.find((party) => party.sourceKey === 'partner1')!.fullName!
 const operation = { blockId: block.blockId, operation: 'REPLACE_BLOCK_TEXT' as const, finalText: `Client: ${party1Name.value}` }
-const plan: PlanResult = { ...ready(), factChanges: [{ label: 'name', inventoryItemIds: ['client-name'], newValue: party1Name.value, newValueFormat: 'literal', authority: { kind: 'crm', ref: party1Name.source } }], operations: [operation] }
-const legacyPlan: PlanResult = { ...ready(), factChanges: [{ label: 'name', inventoryItemIds: ['client-name'], newValue: 'Ada Test', newValueFormat: 'literal', authority: { kind: 'crm', ref: 'wedding.bride.name' } }], operations: [operation] }
-assert.deepEqual(validateAuthorityGate(input, inventory, legacyPlan), [], 'legacy authority paths remain confined to direct historical compatibility checks')
+const plan: PlanResult = { ...ready(), factChanges: [{ label: 'name', inventoryItemIds: ['client-name'], inventoryItemId: 'client-name', sourceRef: block.blockId, expectedSource: 'Ada Source', newValue: party1Name.value, newValueFormat: 'literal', authority: { kind: 'crm', ref: party1Name.source } }] }
+const unauthorizedRewrite: PlanResult = { ...plan, operations: [operation] }
+assert.ok(validateAuthorityGate(authorityContext, inventory, unauthorizedRewrite, { sourceDocument: pipelineSource, productRules: {} }).some((issue) => /block operations/.test(issue)), 'whole-block operations cannot pass normalized validation')
 for (const status of ['MISSING_INPUT', 'CONFLICT_INPUT'] as const) assert.deepEqual(sanitizePlannerOperations(status, [operation]).operations, [])
-assert.deepEqual(sanitizePlannerOperations('READY', [operation]).operations, [operation])
+assert.deepEqual(sanitizePlannerOperations('READY', [operation]).operations, [operation], 'the deterministic gate reports unsafe planner output')
 
 const stageOrder: string[] = []
 const generated = await runGeneration(pipelineBytes, pipelineSource, authorityContext, {}, {
@@ -53,7 +49,7 @@ if (missingRun.status === 'MISSING_INPUT') assert.equal(missingRun.missingInputs
 assert.equal(reviewCount, 0, 'non-READY planning skips independent review')
 
 let invalidInventoryPlanCalls = 0
-const invalidInventory = { items: [{ id: 'bad-quote', label: 'invalid quote', occurrences: [{ sourceRef: block.blockId, quote: 'Ada Sourcx' }] }] }
+const invalidInventory = { coveredSourceRefs: pipelineSource.blocks.map((item) => item.blockId), items: [{ id: 'bad-quote', label: 'invalid quote', occurrences: [{ sourceRef: block.blockId, quote: 'Ada Sourcx' }] }] }
 const invalidInventoryRun = await runGeneration(pipelineBytes, pipelineSource, authorityContext, {}, {
   async inventory() { return invalidInventory },
   async plan() { invalidInventoryPlanCalls++; return plan },
@@ -65,7 +61,7 @@ assert.equal(invalidInventoryPlanCalls, 0, 'invalid inventory protocol stops bef
 
 const deterministicStop = await runGeneration(pipelineBytes, pipelineSource, authorityContext, {}, {
   async inventory() { return inventory },
-  async plan() { return { ...plan, operations: [{ ...operation, finalText: block.text }] } },
+  async plan() { return unauthorizedRewrite },
   async review() { reviewCount++; return { status: 'PASS' } },
 })
 assert.equal(deterministicStop.status, 'FAILED', 'objective candidate validation runs before review')

@@ -10,9 +10,8 @@ import type { Wedding } from '@/types/wedding'
 import type { WeddingPlace } from '@/types/travel'
 import {
   computeChangedBlockDiff,
-  applyMetadataFactChanges,
-  normalizeAuthoritativeFinancialBlocks,
-  normalizeAuthoritativePlnText,
+  applyAtomicFactChanges,
+  buildProductRuleExtraOperations,
   readSource,
   runSourceInventory,
   resolveInventoryOccurrences,
@@ -115,7 +114,8 @@ type PersistedPlanningResult = {
   rawOperations?: BlockOperation[]
   rawOperationCount?: number
   discardedOperationCount?: number
-  rawProviderResult?: { missingInputs: MissingInput[]; conflicts: ConflictInput[]; factChanges: PlanResult['factChanges']; retainedLiterals: PlanResult['retainedLiterals']; operations: BlockOperation[] }
+  rawProviderResult?: { missingInputs: MissingInput[]; conflicts: ConflictInput[]; factChanges: PlanResult['factChanges']; retainedLiterals: PlanResult['retainedLiterals']; operations: BlockOperation[]; extraInsertions: NonNullable<PlanResult['extraInsertions']> }
+  extraInsertions?: PlanResult['extraInsertions']
   model?: string
   responseModel?: string
   planValidation: 'NOT_RUN' | 'PASS' | 'FAIL'
@@ -421,13 +421,14 @@ export async function runMultiTemplateAcceptance(caseId: string, options: Harnes
       conflicts: planned.conflicts,
       factChanges: planned.factChanges,
       retainedLiterals: planned.retainedLiterals,
+      extraInsertions: planned.extraInsertions ?? [],
       sourceInventory: inventory,
       operations: planned.operations,
       operationCount: planned.operations.length,
       rawOperations: normalizedResponse.rawOperations,
       rawOperationCount: normalizedResponse.rawOperationCount,
       discardedOperationCount: normalizedResponse.discardedOperationCount,
-      rawProviderResult: { missingInputs: planned.missingInputs, conflicts: planned.conflicts, factChanges: planned.factChanges, retainedLiterals: planned.retainedLiterals, operations: normalizedResponse.rawOperations },
+      rawProviderResult: { missingInputs: planned.missingInputs, conflicts: planned.conflicts, factChanges: planned.factChanges, retainedLiterals: planned.retainedLiterals, operations: normalizedResponse.rawOperations, extraInsertions: planned.extraInsertions ?? [] },
       ...(planned.providerMetadata?.requestedModel ? { model: planned.providerMetadata.requestedModel } : {}),
       ...(planned.providerMetadata?.responseModel ? { responseModel: planned.providerMetadata.responseModel } : {}),
       planValidation: 'NOT_RUN', planValidationFindings: [],
@@ -453,7 +454,7 @@ export async function runMultiTemplateAcceptance(caseId: string, options: Harnes
   metrics.endStage('planValidation')
   await persistPlanningResult(outputDirectory, {
     status: planIssues.length ? 'FAILED' : 'READY', missingInputs: planned.missingInputs, conflicts: [], factChanges: planned.factChanges,
-    retainedLiterals: planned.retainedLiterals, sourceInventory: inventory, operations: planned.operations,
+    retainedLiterals: planned.retainedLiterals, sourceInventory: inventory, operations: planned.operations, extraInsertions: planned.extraInsertions ?? [],
     operationCount: planned.operations.length, planValidation: planIssues.length ? 'FAIL' : 'PASS', planValidationFindings: planIssues,
   })
   if (planIssues.length) {
@@ -464,17 +465,14 @@ export async function runMultiTemplateAcceptance(caseId: string, options: Harnes
     result.transformationStatus = 'FAILED'; result.deterministicFindings = ['Plan has no operations array']; result.overall = 'FAIL'
     await writeReports(result, outputDirectory, metrics); return result
   }
-  result.blockOperationCounts.transformation = planned.operations.length
-  const amounts = [normalizedInput.commercial.contractValue.value, normalizedInput.commercial.agreedDeposit.value, normalizedInput.commercial.remainingAfterDeposit.value]
-  const operations = planned.operations.map((operation) => 'finalText' in operation ? { ...operation, finalText: normalizeAuthoritativePlnText(operation.finalText, amounts) } : operation)
-  const included = new Set(operations.flatMap((operation) => 'blockId' in operation ? [operation.blockId] : []))
-  const canonical = normalizeAuthoritativeFinancialBlocks(sourceDocument.blocks, amounts).filter(({ block }) => !included.has(block.blockId))
-  const allOperations: BlockOperation[] = [...operations, ...canonical.map(({ block, text }) => ({ blockId: block.blockId, operation: 'REPLACE_BLOCK_TEXT' as const, finalText: text }))]
-  result.blockOperationCounts.canonicalMoney = canonical.length
+  const allOperations = buildProductRuleExtraOperations(normalizedInput, sourceDocument, planned.extraInsertions ?? [], planned.factChanges)
+  result.blockOperationCounts.transformation = allOperations.length
+  result.blockOperationCounts.canonicalMoney = 0
   let candidateBytes: ArrayBufferLike
   metrics.startStage('docxApply')
   try {
-    candidateBytes = await applyMetadataFactChanges(await applyBlockOperations(sourceArrayBuffer, allOperations), planned.factChanges, inventory, sourceDocument)
+    candidateBytes = await applyAtomicFactChanges(sourceArrayBuffer, planned.factChanges, inventory, sourceDocument)
+    if (allOperations.length) candidateBytes = await applyBlockOperations(candidateBytes, allOperations)
     metrics.endStage('docxApply')
   } catch (error) {
     metrics.endStage('docxApply')
@@ -512,7 +510,7 @@ export async function runMultiTemplateAcceptance(caseId: string, options: Harnes
   result.providerCalls.review = 1; result.providerCalls.total = 3
   metrics.startStage('reviewProvider')
   try {
-    const review = await options.provider.review({ source: sourceDocument, authorityContextDescription: PLANNER_AUTHORITY_CONTEXT_DESCRIPTION, authorityContext: normalizedInput, inventory, resolvedInventoryOccurrences: resolveInventoryOccurrences(sourceDocument, inventory).occurrences, factChanges: planned.factChanges, retainedLiterals: planned.retainedLiterals, candidate: candidateBlocks.blocks, changedBlocks: computeChangedBlockDiff(sourceDocument.blocks, candidateBlocks.blocks), productRules: definition.expectedProductRules ?? {} })
+    const review = await options.provider.review({ source: sourceDocument, authorityContextDescription: PLANNER_AUTHORITY_CONTEXT_DESCRIPTION, authorityContext: normalizedInput, inventory, resolvedInventoryOccurrences: resolveInventoryOccurrences(sourceDocument, inventory).occurrences, factChanges: planned.factChanges, retainedLiterals: planned.retainedLiterals, candidate: candidateBlocks.blocks, changedBlocks: computeChangedBlockDiff(sourceDocument.blocks, candidateBlocks.blocks, allOperations), productRules: definition.expectedProductRules ?? {} })
     const latencyMs = metrics.endStage('reviewProvider')
     const timestamps = metrics.snapshot().timestamps.stages.reviewProvider!
     metrics.recordProviderCall('review', latencyMs, timestamps.startedAt, timestamps.endedAt, review.providerMetadata)

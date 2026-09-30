@@ -11,6 +11,8 @@ export type BlockOperation =
   | { anchorBlockId: string; operation: 'INSERT_BLOCK_AFTER' | 'INSERT_BLOCK_BEFORE'; finalText: string; styleSourceBlockId: string }
   | { blockId: string; operation: 'DELETE_BLOCK' }
 
+export type ExactTextPatch = { blockId: string; expectedSource: string; replacement: string; sourceStart: number; sourceEnd: number }
+
 const partPattern = /^word\/(document|header\d+|footer\d+)\.xml$/
 const idFor = (part: string, index: number) => `${part}#p${index}`
 
@@ -608,6 +610,77 @@ export async function applyBlockOperations(bytes: ArrayBuffer, operations: Block
     })
     xml = replaceXmlSpans(xml, edits)
     if (part === 'word/document.xml') xml = collapseRedundantEmptyParagraphsBeforePageBreak(xml)
+    zip.file(part, xml)
+  }
+  return zip.generateAsync({ type: 'arraybuffer', compression: 'DEFLATE' })
+}
+
+/** Apply exact literal edits inside existing Word text nodes without rebuilding paragraphs or runs. */
+export async function applyExactTextPatches(bytes: ArrayBuffer, patches: ExactTextPatch[]): Promise<ArrayBuffer> {
+  const zip = await JSZip.loadAsync(bytes)
+  const blocks = await buildBlockIndex(bytes)
+  const byBlock = new Map<string, ExactTextPatch[]>()
+  for (const patch of patches) {
+    if (!patch.expectedSource || !patch.replacement || patch.sourceStart < 0 || patch.sourceEnd <= patch.sourceStart) throw new Error('Atomic source patches require non-empty exact source and replacement literals')
+    const block = blocks.find((item) => item.blockId === patch.blockId)
+    if (!block) throw new Error(`Unknown atomic patch source block: ${patch.blockId}`)
+    byBlock.set(patch.blockId, [...(byBlock.get(patch.blockId) ?? []), patch])
+  }
+  const byPart = new Map<string, Array<{ index: number; blockId: string; patches: ExactTextPatch[] }>>()
+  for (const [blockId, blockPatches] of byBlock) {
+    const block = blocks.find((item) => item.blockId === blockId)!
+    byPart.set(block.part, [...(byPart.get(block.part) ?? []), { index: block.index, blockId, patches: blockPatches }])
+  }
+  for (const [part, targets] of byPart) {
+    let xml = await zip.file(part)!.async('string')
+    const paragraphs = paragraphElementsIn(xml)
+    const edits: Array<{ start: number; end: number; replacement: string }> = []
+    for (const target of targets) {
+      const paragraph = paragraphs[target.index]
+      if (!paragraph || idFor(part, paragraph.stableIndex!) !== target.blockId) throw new Error(`Atomic patch does not resolve to its exact source paragraph: ${target.blockId}`)
+      if (fieldRangesIn(paragraph.xml).length) throw new Error(`Cannot safely apply an atomic source patch inside a paragraph containing dynamic Word fields: ${target.blockId}`)
+      let patched = paragraph.xml
+      const ordered = [...target.patches].sort((a, b) => b.sourceStart - a.sourceStart)
+      const usedRanges: Array<{ start: number; end: number }> = []
+      for (const patch of ordered) {
+        const textNodes = [...patched.matchAll(/<w:t(\s[^>]*)?>([\s\S]*?)<\/w:t>/g)]
+        const decoded = textNodes.map((match) => unescapeXml(match[2]!))
+        const joined = decoded.join('')
+        const codePoints = Array.from(joined)
+        if (codePoints.slice(patch.sourceStart, patch.sourceEnd).join('') !== patch.expectedSource) throw new Error(`Atomic source span does not match its exact inventoried occurrence in ${target.blockId}`)
+        const at = codePoints.slice(0, patch.sourceStart).join('').length
+        const end = codePoints.slice(0, patch.sourceEnd).join('').length
+        if (usedRanges.some((range) => at < range.end && range.start < end)) throw new Error(`Atomic source patches overlap in ${target.blockId}`)
+        usedRanges.push({ start: at, end })
+        const nodeRanges: Array<{ start: number; end: number; match: RegExpMatchArray; value: string }> = []
+        let offset = 0
+        for (const match of textNodes) {
+          const value = unescapeXml(match[2]!)
+          nodeRanges.push({ start: offset, end: offset + value.length, match, value })
+          offset += value.length
+        }
+        const touched = nodeRanges.filter((node) => at < node.end && node.start < end)
+        if (!touched.length) throw new Error(`Atomic source span cannot be mapped to Word text nodes: ${target.blockId}`)
+        const first = touched[0]!
+        const last = touched.at(-1)!
+        const firstLocal = at - first.start
+        const lastLocal = end - last.start
+        const replacements = new Map<string, string>()
+        touched.forEach((node, index) => {
+          const next = index === 0
+            ? node.value.slice(0, firstLocal) + patch.replacement + (node === last ? node.value.slice(lastLocal) : '')
+            : node === last ? node.value.slice(lastLocal) : ''
+          replacements.set(node.match[0], next)
+        })
+        for (const [oldNode, value] of replacements) {
+          const match = oldNode.match(/^(<w:t(?:\s[^>]*)?>)[\s\S]*?(<\/w:t>)$/)!
+          const nextNode = value ? `${match[1]}${escapeXml(value)}${match[2]}` : ''
+          patched = patched.replace(oldNode, nextNode)
+        }
+      }
+      edits.push({ start: paragraph.start, end: paragraph.end, replacement: patched })
+    }
+    xml = replaceXmlSpans(xml, edits)
     zip.file(part, xml)
   }
   return zip.generateAsync({ type: 'arraybuffer', compression: 'DEFLATE' })

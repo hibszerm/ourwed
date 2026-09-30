@@ -4,5 +4,5 @@ const input = makeInput({ generationDate: '25.09.2026', sourceDocument: { fileNa
 const plan: PlanResult = { status: 'READY', missingInputs: [], conflicts: [], factChanges: [], retainedLiterals: [], operations: [] }
 assert.ok(validateAuthorityGate(input, { items: [{ id: 'bad-ref', label: 'unknown', occurrences: [{ sourceRef: 'invented', quote: null }] }] }, plan).some((item) => /unsupported source reference/.test(item)))
 const valid: PlanResult = { ...plan, factChanges: [] }
-assert.deepEqual(validateAuthorityGate(input, { items: [] }, valid), [])
+assert.deepEqual(validateAuthorityGate(input, { coveredSourceRefs: [], items: [] }, valid), [])
 console.log('PASS payment amounts are checked as arithmetic and provenance only')

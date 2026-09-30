@@ -5,7 +5,7 @@ const runtime = await readFile(fileURLToPath(new URL('./generator.ts', import.me
 assert.match(runtime, /export async function validateCandidate/)
 assert.match(runtime, /Table structure changed/)
 assert.match(runtime, /Main document Word field instructions changed/)
-assert.match(runtime, /Untouched block changed/)
+assert.match(runtime, /Candidate contains a change outside deterministic source patches/)
 assert.match(runtime, /Declared old source span remains/)
 assert.match(runtime, /Declared new literal is absent/)
 assert.match(runtime, /dateEquivalentOccurs\(text, declared\)/)
