@@ -52,6 +52,22 @@ assertGate(p1.address!.source, 'ul. Francuska 18/7, 40-015 Katowice')
 assertGate(p2.address!.source, 'ul. Słoneczna 12/5, 43-300 Bielsko-Biała')
 assert.equal(resolved('crm', normalized.wedding.date.source).value, '2028-05-22')
 assertGate(normalized.wedding.date.source, '2028-05-22')
+const copiedWeddingDateSource = normalized.wedding.date.source
+assert.equal(copiedWeddingDateSource, 'public.weddings.wedding_date', 'the planner copies the canonical source string byte-for-byte')
+const weddingDateBlock = sourceDocument.blocks.find((block) => block.blockId === 'word/document.xml#p22')!
+const weddingDateInventory: SourceInventory = { items: [{ id: 'event-date', label: 'Wedding event date', occurrences: [{ sourceRef: weddingDateBlock.blockId, quote: '14 sierpnia 2027 r.' }] }] }
+const weddingDateOperation = { blockId: weddingDateBlock.blockId, operation: 'REPLACE_BLOCK_TEXT' as const, finalText: weddingDateBlock.text.replace('14 sierpnia 2027 r.', '22 maja 2028 r.') }
+const weddingDatePlan: PlanResult = {
+  status: 'READY', missingInputs: [], conflicts: [], retainedLiterals: [],
+  factChanges: [{ label: 'Wedding event date', inventoryItemIds: ['event-date'], newValue: '2028-05-22', newValueFormat: 'literal', authority: { kind: 'crm', ref: copiedWeddingDateSource } }],
+  operations: [weddingDateOperation],
+}
+assert.deepEqual(validateAuthorityGate(normalized, weddingDateInventory, weddingDatePlan, validationContext), [], 'a byte-for-byte copied normalized source is accepted')
+for (const alias of ['wedding.wedding_date', 'wedding.weddingDate', 'crm:wedding.wedding_date', 'crm:wedding.weddingDate']) {
+  assert.equal(resolveAuthorityRef(normalized, { kind: 'crm', ref: alias }), undefined, `${alias} is not translated as an authority alias`)
+  const aliasPlan = { ...weddingDatePlan, factChanges: [{ ...weddingDatePlan.factChanges[0]!, authority: { kind: 'crm' as const, ref: alias } }] }
+  assert.ok(validateAuthorityGate(normalized, weddingDateInventory, aliasPlan, validationContext).some((issue) => /Invalid (canonical )?authority reference/.test(issue)), `${alias} is rejected by the strict authority gate`)
+}
 assert.equal(resolved('generation_date', 'generationDate').value, '2028-02-04')
 assertGate('generationDate', '2028-02-04', 'generation_date')
 assert.equal(resolved('crm', normalized.commercial.contractValue.source).value, '10600')
@@ -163,7 +179,36 @@ const candidatePlan: PlanResult = {
 const candidateBytes = await applyBlockOperations(sourceBytes, candidatePlan.operations)
 assert.deepEqual(await validateCandidate(sourceBytes, candidateBytes, normalized, inventory, candidatePlan, candidatePlan.operations, validationContext), [], 'candidate validation reuses normalized authority resolution')
 
+// One semantic price change covers numeric and written-out occurrences; operations carry their rendered forms.
+const priceBlock = sourceDocument.blocks.find((block) => block.text.includes('9 800,00 zł') && block.text.includes('dziewięć tysięcy osiemset złotych 00/100'))!
+const priceInventory: SourceInventory = { items: [{ id: 'total-contract-price', label: 'Total contract price', occurrences: [
+  { sourceRef: priceBlock.blockId, quote: '9 800,00 zł' },
+  { sourceRef: priceBlock.blockId, quote: 'dziewięć tysięcy osiemset złotych 00/100' },
+] }] }
+const priceOperation = {
+  blockId: priceBlock.blockId,
+  operation: 'REPLACE_BLOCK_TEXT' as const,
+  finalText: priceBlock.text.replace('9 800,00 zł', '10 600,00 zł').replace('dziewięć tysięcy osiemset złotych 00/100', 'dziesięć tysięcy sześćset złotych 00/100'),
+}
+const onePriceFactChange: PlanResult['factChanges'][number] = {
+  label: 'Total contract price', inventoryItemIds: ['total-contract-price'], newValue: '10 600,00 zł', newValueFormat: 'literal',
+  authority: { kind: 'crm', ref: normalized.commercial.contractValue.source },
+}
+const onePriceChangePlan: PlanResult = { status: 'READY', missingInputs: [], conflicts: [], factChanges: [onePriceFactChange], retainedLiterals: [], operations: [priceOperation] }
+assert.deepEqual(validateAuthorityGate(normalized, priceInventory, onePriceChangePlan, validationContext), [], 'one semantic price change covers both numeric and written source occurrences')
+const duplicatePricePlan: PlanResult = {
+  ...onePriceChangePlan,
+  factChanges: [onePriceFactChange, {
+    ...onePriceFactChange, label: 'Total contract price in words', newValue: 'dziesięć tysięcy sześćset złotych 00/100', newValueFormat: 'polish_pln_words',
+  }],
+}
+assert.ok(validateAuthorityGate(normalized, priceInventory, duplicatePricePlan, validationContext).some((issue) => issue.includes('multiple planner dispositions: total-contract-price')), 'two factChanges for the same item remain rejected')
+const editedPrice = await applyBlockOperations(sourceBytes, [priceOperation])
+assert.deepEqual(await validateCandidate(sourceBytes, editedPrice, normalized, priceInventory, onePriceChangePlan, [priceOperation], validationContext), [], 'separate occurrence rendering stays in the complete block operation and operation coverage passes')
+assert.match(priceOperation.finalText, /10 600,00 zł.*dziesięć tysięcy sześćset złotych 00\/100/)
+
 const generatorSource = await readFile(`${process.cwd()}/src/features/contract-generation-spike/generator.ts`, 'utf8')
 assert.doesNotMatch(generatorSource, /case-04|case04|PESEL|agreement\.identifier|parseFlexible.*(?:address|party)|partyName.*includes/i)
-assert.match(generatorSource, /copy the exact source string from the matching normalized fact/)
+assert.match(generatorSource, /authority\.ref to the selected normalized input fact's \.source copied byte-for-byte as an opaque identifier/)
+assert.doesNotMatch(generatorSource, /alias map|authority alias|legacy authority translation/i)
 console.log('PASS normalized provenance authority resolver acceptance')

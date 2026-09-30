@@ -107,6 +107,8 @@ const idOperations: BlockOperation[] = [
 ]
 const idPlan = { ...ready(), factChanges: [fact(['reusable-id'], 'NEW-002', { kind: 'user', ref: 'new.reference' })], operations: idOperations }
 assert.deepEqual(validateAuthorityGate(idInput, idInventory, idPlan), [])
+assert.equal(idPlan.factChanges.length, 1, 'one item-level factChange covers its body, footer, and metadata occurrences')
+assert.equal(idOperations.length, 2, 'separate body/footer renderings remain operation-level')
 const staleIdentifierRetention = { ...ready(), retainedLiterals: [{ inventoryItemId: 'reusable-id', reason: 'keep because timing and surrounding language are reusable' }] } as unknown as PlanResult
 assert.ok(validateAuthorityGate(idInput, idInventory, staleIdentifierRetention).some((issue) => /no valid authority reference/.test(issue)), 'source-term preservation does not authorize a stale agreement identifier')
 const idEdited = await applyBlockOperations(idBytes, idOperations)
