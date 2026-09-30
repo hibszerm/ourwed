@@ -216,6 +216,28 @@ function literalOccurs(text: string, value: string): boolean {
   return expected.length > 0 && expected.every((amount) => moneyAmountsInGrosz(text).includes(amount))
 }
 
+function dateEquivalentOccurs(text: string, declared: string): boolean {
+  const expected = parseFlexibleDate(declared)
+  if (!expected) return false
+  const words = normalize(text).split(' ')
+  for (let start = 0; start < words.length; start++) {
+    for (let length = 1; length <= 5 && start + length <= words.length; length++) {
+      if (parseFlexibleDate(words.slice(start, start + length).join(' ')) === expected) return true
+    }
+  }
+  return false
+}
+
+/** Return true/false only when candidate text exposes a mechanical date or PLN representation. */
+function mechanicallyContainsDeclaredValue(text: string, declared: string): boolean | undefined {
+  if (literalOccurs(text, declared)) return true
+  if (parseFlexibleDate(declared)) return dateEquivalentOccurs(text, declared)
+  const expectedMoney = parsePlnGrosz(declared)
+  const candidateMoney = moneyAmountsInGrosz(text)
+  if (expectedMoney !== undefined && candidateMoney.length > 0) return candidateMoney.includes(expectedMoney)
+  return undefined
+}
+
 function validateDerivedFacts(input: GenerationInput): string[] {
   const issues: string[] = []
   for (const fact of input.deterministicDerivedFacts) {
@@ -603,9 +625,17 @@ export async function validateCandidate(
       issues.push(`Authorized retained source span is absent at ${occurrence.sourceRef}: ${occurrence.text}`)
     }
   }
-  const allText = [...candidateLocations.values()]
+  const candidateTextForChange = (change: FactChange): string[] => {
+    const itemIds = new Set(change.inventoryItemIds)
+    const refs = new Set(resolved.occurrences.filter((occurrence) => itemIds.has(occurrence.itemId)).map((occurrence) => occurrence.sourceRef))
+    return [...refs].map((ref) => candidateLocations.get(ref) ?? '')
+  }
   for (const change of plan.factChanges) {
-    if (!allText.some((text) => literalOccurs(text, change.newValue))) issues.push(`Declared new literal is absent: ${change.newValue}`)
+    const candidateTexts = candidateTextForChange(change)
+    const checks = candidateTexts.map((text) => mechanicallyContainsDeclaredValue(text, change.newValue))
+    if (!candidateTexts.length || (!checks.some((result) => result === true) && !checks.every((result) => result === undefined))) {
+      issues.push(`Declared new literal is absent: ${change.newValue}`)
+    }
   }
   const partPaths = (zip: JSZip) => Object.keys(zip.files).filter((part) => /^word\/(?:header\d+|footer\d+|styles|numbering)\.xml$/.test(part)).sort()
   const sourcePaths = partPaths(sourceZip); const candidatePaths = partPaths(candidateZip)

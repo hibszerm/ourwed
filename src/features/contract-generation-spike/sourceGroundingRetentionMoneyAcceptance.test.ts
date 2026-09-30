@@ -17,9 +17,9 @@ function occurrence(source: GenerationInput['sourceDocument'], sourceRef: string
   if (literal === undefined) return { sourceRef, quote: null }
   return { sourceRef, quote: literal }
 }
-function inputFor(source: GenerationInput['sourceDocument'], options: { userAnswers?: GenerationInput['userProvidedAnswers']; productRules?: Record<string, unknown> } = {}) {
+function inputFor(source: GenerationInput['sourceDocument'], options: { generationDate?: string; userAnswers?: GenerationInput['userProvidedAnswers']; productRules?: Record<string, unknown> } = {}) {
   return makeInput({
-    generationDate: '04.02.2028', sourceDocument: source,
+    generationDate: options.generationDate ?? '04.02.2028', sourceDocument: source,
     wedding: { bride: { name: 'Klaudia Majewska', phone: '', email: '' }, groom: { name: 'Tomasz Domański', phone: '' }, weddingDate: '22.05.2028', contractAddress: '', contractValuePln: 10600, depositPln: 2000, remainingDueDate: '', locations: { bridePreparations: 'Hotel Monopol Katowice', groomPreparations: '', ceremony: '', reception: '' } },
     packagePolicy: { preserveSourcePackageExactly: true }, productRules: options.productRules, extras: [], userProvidedAnswers: options.userAnswers ?? [],
   })
@@ -44,6 +44,51 @@ const hotelPlan = { ...ready(), factChanges: [fact(['preparations'], 'Hotel Mono
 assert.deepEqual(validateAuthorityGate(hotelInput, hotelInventory, hotelPlan), [])
 const hotelCandidate = await applyBlockOperations(hotelBytes, [hotelOperation])
 assert.deepEqual(await validateCandidate(hotelBytes, hotelCandidate, hotelInput, hotelInventory, { ...hotelPlan, operations: [hotelOperation] }, [hotelOperation]), [])
+
+async function validateSingleReplacement(args: {
+  sourceText: string; finalText: string; newValue: string; authority: PlanResult['factChanges'][number]['authority'];
+  generationDate?: string; userAnswers?: GenerationInput['userProvidedAnswers']; sourceQuote?: string;
+}) {
+  const bytes = await packageFor(args.sourceText)
+  const source = await readSource(bytes, 'candidate-value.docx')
+  const block = source.blocks[0]!
+  const inventory: SourceInventory = { items: [{ id: 'value', label: 'source value', occurrences: [occurrence(source, block.blockId, args.sourceQuote)] }] }
+  const operation: BlockOperation = { blockId: block.blockId, operation: 'REPLACE_BLOCK_TEXT', finalText: args.finalText }
+  const plan: PlanResult = { ...ready(), factChanges: [fact(['value'], args.newValue, args.authority)], operations: [operation] }
+  const input = inputFor(source, { generationDate: args.generationDate, userAnswers: args.userAnswers })
+  const candidate = await applyBlockOperations(bytes, [operation])
+  return { issues: await validateCandidate(bytes, candidate, input, inventory, plan, [operation]), bytes, candidate, input, inventory, plan, operation }
+}
+
+const isoDateCandidate = await validateSingleReplacement({ sourceText: 'Date OLD', finalText: 'Date 4 lutego 2028 r.', newValue: '2028-02-04', authority: { kind: 'generation_date', ref: 'generationDate' }, generationDate: '2028-02-04' })
+assert.deepEqual(isoDateCandidate.issues, [], 'ISO authority is mechanically equivalent to a Polish rendered date')
+const wrongDateCandidate = await validateSingleReplacement({ sourceText: 'Date OLD', finalText: 'Date 5 lutego 2028 r.', newValue: '2028-02-04', authority: { kind: 'generation_date', ref: 'generationDate' }, generationDate: '2028-02-04' })
+assert.ok(wrongDateCandidate.issues.some((issue) => issue === 'Declared new literal is absent: 2028-02-04'), 'a different rendered date is rejected')
+
+for (const [value, authority, rendered] of [
+  ['10600', { kind: 'crm', ref: 'financials.contractValuePln' }, '10 600,00 zł'],
+  ['2000', { kind: 'crm', ref: 'financials.depositPln' }, '2 000,00 zł'],
+  ['8600', { kind: 'derived', ref: 'financials.remainingPln' }, '8 600,00 zł'],
+] as const) {
+  const result = await validateSingleReplacement({ sourceText: 'Amount OLD', finalText: `Amount ${rendered}`, newValue: value, authority })
+  assert.deepEqual(result.issues, [], `${value} is mechanically equivalent to ${rendered}`)
+}
+const wrongMoneyCandidate = await validateSingleReplacement({ sourceText: 'Amount OLD', finalText: 'Amount 10 700,00 zł', newValue: '10600', authority: { kind: 'crm', ref: 'financials.contractValuePln' } })
+assert.ok(wrongMoneyCandidate.issues.some((issue) => issue === 'Declared new literal is absent: 10600'), 'a different rendered PLN amount is rejected')
+
+const contextualStatus = await validateSingleReplacement({
+  sourceText: 'Travel status OLD', finalText: 'Dla uroczystości wskazanej w umowie dojazd jest wliczony w wynagrodzenie.',
+  newValue: 'included', authority: { kind: 'user', ref: 'travel.status' },
+  userAnswers: [{ id: 'travel.status', value: 'included' }],
+})
+assert.deepEqual(contextualStatus.issues, [], 'contextual status rendering is governed by authority, source, operation, and stale-value checks')
+const unappliedContextOperation = await validateSingleReplacement({ sourceText: 'Travel status OLD', finalText: 'Dla uroczystości wskazanej w umowie dojazd jest wliczony w wynagrodzenie.', newValue: 'included', authority: { kind: 'user', ref: 'travel.status' }, userAnswers: [{ id: 'travel.status', value: 'included' }] })
+const sourceInsteadOfCandidate = await validateCandidate(unappliedContextOperation.bytes, unappliedContextOperation.bytes, unappliedContextOperation.input, unappliedContextOperation.inventory, unappliedContextOperation.plan, [unappliedContextOperation.operation])
+assert.ok(sourceInsteadOfCandidate.some((issue) => /Approved literal replacement was not applied/.test(issue)), 'contextual wording does not bypass exact approved-operation application')
+const staleDateCandidate = await validateSingleReplacement({ sourceText: 'Date 2027-01-01', sourceQuote: '2027-01-01', finalText: 'Date 2027-01-01; 4 lutego 2028 r.', newValue: '2028-02-04', authority: { kind: 'generation_date', ref: 'generationDate' }, generationDate: '2028-02-04' })
+assert.ok(staleDateCandidate.issues.some((issue) => /old source span remains/.test(issue)), 'replaced source dates remain strictly stale-protected')
+const staleMoneyCandidate = await validateSingleReplacement({ sourceText: 'Deposit 2 000 zł', sourceQuote: '2 000 zł', finalText: 'Deposit 2 000 zł; revised 2 500,00 zł', newValue: '2500', authority: { kind: 'user', ref: 'new.deposit' }, userAnswers: [{ id: 'new.deposit', value: '2500' }] })
+assert.ok(staleMoneyCandidate.issues.some((issue) => /old source span remains/.test(issue)), 'replaced source amounts remain strictly stale-protected')
 const badQuoteInventory: SourceInventory = { items: [{ id: 'bad', label: 'unmatched quote', occurrences: [{ sourceRef: hotelBlock.blockId, quote: 'Hotel H15 Luxury Palace' }] }] }
 assert.ok(validateAuthorityGate(hotelInput, badQuoteInventory, ready()).some((item) => /exact quote does not occur/.test(item)))
 const missingRefInventory: SourceInventory = { items: [{ id: 'missing-ref', label: 'missing ref', occurrences: [{ sourceRef: 'word/document.xml#p999', quote: null }] }] }
