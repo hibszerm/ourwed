@@ -21,7 +21,7 @@ const ready = (): PlanResult => ({ status: 'READY', missingInputs: [], conflicts
 const pipelineBytes = await minimalPackage('Client: Ada Source')
 const pipelineSource = await readSource(pipelineBytes, 'pipeline.docx')
 const block = pipelineSource.blocks.find((item) => item.text.includes('Ada Source'))!
-const inventory: SourceInventory = { items: [{ id: 'client-name', label: 'old client name', occurrences: [{ sourceRef: block.blockId, span: { start: 8, end: 18 } }] }] }
+const inventory: SourceInventory = { items: [{ id: 'client-name', label: 'old client name', occurrences: [{ sourceRef: block.blockId, quote: 'Ada Source' }] }] }
 const input = inputFor(pipelineSource)
 const case04Options = JSON.parse(await readFile(new URL('./multi-template-acceptance/cases/case-04-realistic-wedding-photographer/input.json', import.meta.url), 'utf8')) as { authoritativeInput: ContractGenerationInputOptions }
 const authorityContext = buildContractGenerationInput(case04Options.authoritativeInput)
@@ -53,14 +53,14 @@ if (missingRun.status === 'MISSING_INPUT') assert.equal(missingRun.missingInputs
 assert.equal(reviewCount, 0, 'non-READY planning skips independent review')
 
 let invalidInventoryPlanCalls = 0
-const invalidInventory = { items: [{ id: 'bad-span', label: 'invalid span', occurrences: [{ sourceRef: block.blockId, span: { start: 1, end: Array.from(block.text).length + 1 } }] }] }
+const invalidInventory = { items: [{ id: 'bad-quote', label: 'invalid quote', occurrences: [{ sourceRef: block.blockId, quote: 'Ada Sourcx' }] }] }
 const invalidInventoryRun = await runGeneration(pipelineBytes, pipelineSource, authorityContext, {}, {
   async inventory() { return invalidInventory },
   async plan() { invalidInventoryPlanCalls++; return plan },
   async review() { reviewCount++; return { status: 'PASS' } },
 })
 assert.equal(invalidInventoryRun.status, 'FAILED')
-if (invalidInventoryRun.status === 'FAILED') assert.ok(invalidInventoryRun.issues.some((issue) => /invalid source span/.test(issue)))
+if (invalidInventoryRun.status === 'FAILED') assert.ok(invalidInventoryRun.issues.some((issue) => /exact quote does not occur/.test(issue)))
 assert.equal(invalidInventoryPlanCalls, 0, 'invalid inventory protocol stops before planner provider execution')
 
 const deterministicStop = await runGeneration(pipelineBytes, pipelineSource, authorityContext, {}, {
@@ -71,13 +71,13 @@ const deterministicStop = await runGeneration(pipelineBytes, pipelineSource, aut
 assert.equal(deterministicStop.status, 'FAILED', 'objective candidate validation runs before review')
 assert.equal(reviewCount, 0, 'candidate validation failure stops before review')
 
-// The same source-ref and span contract applies to all prepared cases without fixture routing.
+// Whole-block grounding applies to all prepared cases without fixture routing.
 for (const id of ['case-01-elegant-photographer', 'case-02-structured-two-client-photographer', 'case-03-narrative-photo-video', 'case-04-realistic-wedding-photographer']) {
   const file = await readFile(new URL(`./multi-template-acceptance/cases/${id}/source.docx`, import.meta.url))
   const bytes = file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength)
   const doc = await readSource(bytes, 'source.docx')
   const target = doc.blocks.find((item) => item.text.trim())!
-  const inv: SourceInventory = { items: [{ id: 'generic-source-item', label: 'source item', occurrences: [{ sourceRef: target.blockId, span: null }] }] }
+  const inv: SourceInventory = { items: [{ id: 'generic-source-item', label: 'source item', occurrences: [{ sourceRef: target.blockId, quote: null }] }] }
   const resolved = await import('./generator').then((mod) => mod.resolveInventoryOccurrences(doc, inv))
   assert.equal(resolved.findings.length, 0, `${id} uses generic source grounding`)
   assert.equal(resolved.occurrences[0]?.text, target.text)

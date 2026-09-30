@@ -19,10 +19,7 @@ async function fixture(body: string, footer = '', header = '', subject = 'Old su
   })
   return { bytes, source, input }
 }
-function span(text: string, value: string) {
-  const start = Array.from(text.slice(0, text.indexOf(value))).length
-  return { start, end: start + Array.from(value).length }
-}
+function quote(_text: string, value: string) { return value }
 const ready = (overrides: Partial<PlanResult> = {}): PlanResult => ({ status: 'READY', missingInputs: [], conflicts: [], factChanges: [], retainedLiterals: [], operations: [], ...overrides })
 const replacement = (itemId: string, label: string) => ({ label, inventoryItemIds: [itemId], newValue: 'Klaudia Majewska', newValueFormat: 'literal' as const, authority: { kind: 'crm' as const, ref: 'wedding.bride.name' } })
 const operation = (blockId: string): BlockOperation => ({ blockId, operation: 'REPLACE_BLOCK_TEXT', finalText: 'Klaudia Majewska' })
@@ -30,7 +27,7 @@ const operation = (blockId: string): BlockOperation => ({ blockId, operation: 'R
 // Body replacement without an operation is rejected before candidate application.
 const bodyCase = await fixture('Bride: Old Bride')
 const bodyBlock = bodyCase.source.blocks.find((block) => block.part === 'word/document.xml')!
-const bodyInventory: SourceInventory = { items: [{ id: 'body-name', label: 'bride name', occurrences: [{ sourceRef: bodyBlock.blockId, span: span(bodyBlock.text, 'Old Bride') }] }] }
+const bodyInventory: SourceInventory = { items: [{ id: 'body-name', label: 'bride name', occurrences: [{ sourceRef: bodyBlock.blockId, quote: quote(bodyBlock.text, 'Old Bride') }] }] }
 const bodyPlan = ready({ factChanges: [replacement('body-name', 'bride name')] })
 const bodyFindings = validateAuthorityGate(bodyCase.input, bodyInventory, bodyPlan)
 assert.ok(bodyFindings.some((issue) => issue.includes(bodyBlock.blockId) && /no block operation/.test(issue)))
@@ -39,20 +36,20 @@ assert.deepEqual(validateAuthorityGate(bodyCase.input, bodyInventory, { ...bodyP
 // Footer and header refs are indexed editable blocks and require operation coverage too.
 const footerCase = await fixture('No change', 'Footer: Old Bride')
 const footer = footerCase.source.blocks.find((block) => block.kind === 'footer')!
-const footerInventory: SourceInventory = { items: [{ id: 'footer-name', label: 'footer name', occurrences: [{ sourceRef: footer.blockId, span: span(footer.text, 'Old Bride') }] }] }
+const footerInventory: SourceInventory = { items: [{ id: 'footer-name', label: 'footer name', occurrences: [{ sourceRef: footer.blockId, quote: quote(footer.text, 'Old Bride') }] }] }
 const footerPlan = ready({ factChanges: [replacement('footer-name', 'footer name')] })
 assert.ok(validateAuthorityGate(footerCase.input, footerInventory, footerPlan).some((issue) => issue.includes(footer.blockId) && /no block operation/.test(issue)))
 assert.deepEqual(validateAuthorityGate(footerCase.input, footerInventory, { ...footerPlan, operations: [operation(footer.blockId)] }), [])
 const headerCase = await fixture('No change', '', 'Header: Old Bride')
 const header = headerCase.source.blocks.find((block) => block.kind === 'header')!
-const headerInventory: SourceInventory = { items: [{ id: 'header-name', label: 'header name', occurrences: [{ sourceRef: header.blockId, span: span(header.text, 'Old Bride') }] }] }
+const headerInventory: SourceInventory = { items: [{ id: 'header-name', label: 'header name', occurrences: [{ sourceRef: header.blockId, quote: quote(header.text, 'Old Bride') }] }] }
 assert.ok(validateAuthorityGate(headerCase.input, headerInventory, ready({ factChanges: [replacement('header-name', 'header name')] })).some((issue) => issue.includes(header.blockId) && /no block operation/.test(issue)))
 assert.deepEqual(validateAuthorityGate(headerCase.input, headerInventory, ready({ factChanges: [replacement('header-name', 'header name')], operations: [operation(header.blockId)] })), [])
 
 // Metadata-only replacements use the existing metadata path and do not require a block operation.
 const metadataCase = await fixture('No change')
 const subject = metadataCase.source.documentProperties!.find((property) => property.property === 'subject')!
-const metadataInventory: SourceInventory = { items: [{ id: 'metadata-date', label: 'document date', occurrences: [{ sourceRef: subject.ref, span: null }] }] }
+const metadataInventory: SourceInventory = { items: [{ id: 'metadata-date', label: 'document date', occurrences: [{ sourceRef: subject.ref, quote: null }] }] }
 const metadataChange = { ...replacement('metadata-date', 'document date'), newValue: metadataCase.input.generationDate, authority: { kind: 'generation_date' as const, ref: 'generationDate' } }
 assert.deepEqual(validateAuthorityGate(metadataCase.input, metadataInventory, ready({ factChanges: [metadataChange] })), [])
 
@@ -62,9 +59,9 @@ const mixedBody = mixed.source.blocks.find((block) => block.part === 'word/docum
 const mixedFooter = mixed.source.blocks.find((block) => block.kind === 'footer')!
 const mixedSubject = mixed.source.documentProperties!.find((property) => property.property === 'subject')!
 const mixedInventory: SourceInventory = { items: [{ id: 'party-name', label: 'party name', occurrences: [
-  { sourceRef: mixedBody.blockId, span: span(mixedBody.text, 'Old Bride') },
-  { sourceRef: mixedFooter.blockId, span: span(mixedFooter.text, 'Old Bride') },
-  { sourceRef: mixedSubject.ref, span: null },
+  { sourceRef: mixedBody.blockId, quote: quote(mixedBody.text, 'Old Bride') },
+  { sourceRef: mixedFooter.blockId, quote: quote(mixedFooter.text, 'Old Bride') },
+  { sourceRef: mixedSubject.ref, quote: null },
 ] }] }
 const mixedChange = replacement('party-name', 'party name')
 assert.ok(validateAuthorityGate(mixed.input, mixedInventory, ready({ factChanges: [mixedChange], operations: [operation(mixedBody.blockId)] })).some((issue) => issue.includes(mixedFooter.blockId) && /no block operation/.test(issue)))
@@ -74,8 +71,8 @@ assert.deepEqual(validateAuthorityGate(mixed.input, mixedInventory, ready({ fact
 const shared = await fixture('Bride: Old Bride; partner: Old Partner')
 const sharedBlock = shared.source.blocks.find((block) => block.part === 'word/document.xml')!
 const sharedInventory: SourceInventory = { items: [
-  { id: 'first-name', label: 'first party name', occurrences: [{ sourceRef: sharedBlock.blockId, span: span(sharedBlock.text, 'Old Bride') }] },
-  { id: 'second-name', label: 'second party name', occurrences: [{ sourceRef: sharedBlock.blockId, span: span(sharedBlock.text, 'Old Partner') }] },
+  { id: 'first-name', label: 'first party name', occurrences: [{ sourceRef: sharedBlock.blockId, quote: quote(sharedBlock.text, 'Old Bride') }] },
+  { id: 'second-name', label: 'second party name', occurrences: [{ sourceRef: sharedBlock.blockId, quote: quote(sharedBlock.text, 'Old Partner') }] },
 ] }
 const sharedPlan = ready({ factChanges: [replacement('first-name', 'first party name'), replacement('second-name', 'second party name')], operations: [operation(sharedBlock.blockId)] })
 assert.deepEqual(validateAuthorityGate(shared.input, sharedInventory, sharedPlan), [])
@@ -84,7 +81,7 @@ assert.ok(sharedPlan.operations.length < sharedPlan.factChanges.length, 'one blo
 // Authorized retentions do not require edit operations.
 const retentionCase = await fixture('Reusable source term')
 const retentionBlock = retentionCase.source.blocks.find((block) => block.part === 'word/document.xml')!
-const retentionInventory: SourceInventory = { items: [{ id: 'reusable', label: 'reusable term', occurrences: [{ sourceRef: retentionBlock.blockId, span: null }] }] }
+const retentionInventory: SourceInventory = { items: [{ id: 'reusable', label: 'reusable term', occurrences: [{ sourceRef: retentionBlock.blockId, quote: null }] }] }
 const retentionInput = makeInput({ ...retentionCase.input, userProvidedAnswers: [{ id: 'keep.term', value: 'Keep this term' }] })
 const retentionPlan = ready({ retainedLiterals: [{ inventoryItemId: 'reusable', authority: { kind: 'user', ref: 'keep.term' }, reason: 'explicitly retained' }] })
 assert.deepEqual(validateAuthorityGate(retentionInput, retentionInventory, retentionPlan), [])

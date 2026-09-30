@@ -20,7 +20,7 @@ function resolved(kind: FactAuthority['kind'], ref: string) {
 
 function assertGate(ref: string, value: string, kind: FactAuthority['kind'] = 'crm'): void {
   const sourceBlock = sourceDocument.blocks.find((block) => block.text.trim())!
-  const inventory: SourceInventory = { items: [{ id: 'authority-test-item', label: 'source fact', occurrences: [{ sourceRef: sourceBlock.blockId, span: null }] }] }
+  const inventory: SourceInventory = { items: [{ id: 'authority-test-item', label: 'source fact', occurrences: [{ sourceRef: sourceBlock.blockId, quote: null }] }] }
   const plan: PlanResult = {
     status: 'READY', missingInputs: [], conflicts: [], retainedLiterals: [], operations: [{ blockId: sourceBlock.blockId, operation: 'REPLACE_BLOCK_TEXT', finalText: value }],
     factChanges: [{ label: 'planner-declared meaning', inventoryItemIds: ['authority-test-item'], newValue: value, newValueFormat: 'literal', authority: { kind, ref } }],
@@ -110,7 +110,7 @@ ambiguous.parties[1]!.fullName = { ...ambiguous.parties[1]!.fullName!, source: p
 assert.equal(resolveAuthorityRef(ambiguous, { kind: 'crm', ref: p1.fullName!.source }), undefined, 'duplicate provenance refs are rejected as ambiguous')
 
 const wrongPartyBlock = sourceDocument.blocks.find((block) => block.text.trim())!
-const wrongPartyInventory: SourceInventory = { items: [{ id: 'wrong-party', label: 'planner-declared party 2 fact', occurrences: [{ sourceRef: wrongPartyBlock.blockId, span: null }] }] }
+const wrongPartyInventory: SourceInventory = { items: [{ id: 'wrong-party', label: 'planner-declared party 2 fact', occurrences: [{ sourceRef: wrongPartyBlock.blockId, quote: null }] }] }
 const wrongPartyPlan: PlanResult = {
   status: 'READY', missingInputs: [], conflicts: [], retainedLiterals: [], operations: [],
   factChanges: [{ label: 'planner-declared party 2 address', inventoryItemIds: ['wrong-party'], newValue: p2.address!.value, newValueFormat: 'literal', authority: { kind: 'crm', ref: p1.address!.source } }],
@@ -154,7 +154,7 @@ assert.equal(resolveAuthorityRef(second, { kind: 'crm', ref: second.unownedFacts
 assert.equal(resolveAuthorityRef(second, { kind: 'user', ref: 'agreement.identifier' }), undefined, 'an internal contract record ID is not an agreement answer')
 
 const oldFirstText = sourceDocument.blocks.find((block) => block.text.trim())!
-const inventory: SourceInventory = { items: [{ id: 'candidate-owner', label: 'party fact', occurrences: [{ sourceRef: oldFirstText.blockId, span: null }] }] }
+const inventory: SourceInventory = { items: [{ id: 'candidate-owner', label: 'party fact', occurrences: [{ sourceRef: oldFirstText.blockId, quote: null }] }] }
 const candidatePlan: PlanResult = {
   status: 'READY', missingInputs: [], conflicts: [], retainedLiterals: [],
   factChanges: [{ label: 'party fact', inventoryItemIds: ['candidate-owner'], newValue: p1.fullName!.value, newValueFormat: 'literal', authority: { kind: 'crm', ref: p1.fullName!.source } }],

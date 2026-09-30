@@ -11,11 +11,7 @@ async function packageFor(text: string): Promise<ArrayBuffer> {
   zip.file('word/document.xml', `<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${p(text)}<w:sectPr/></w:body></w:document>`)
   return zip.generateAsync({ type: 'arraybuffer' })
 }
-function spanOf(text: string, value: string): { start: number; end: number } {
-  const utf16 = text.indexOf(value)
-  assert.notEqual(utf16, -1)
-  return { start: Array.from(text.slice(0, utf16)).length, end: Array.from(text.slice(0, utf16 + value.length)).length }
-}
+function quoteOf(_text: string, value: string): string { return value }
 
 const caseDirectory = `${process.cwd()}/src/features/contract-generation-spike/multi-template-acceptance/cases/case-04-realistic-wedding-photographer`
 const fixture = JSON.parse(await readFile(`${caseDirectory}/input.json`, 'utf8')) as { authoritativeInput: ContractGenerationInputOptions; expectedProductRules: Record<string, unknown> }
@@ -32,7 +28,7 @@ for (const testCase of [
   const source = await readSource(sourceBytes, 'payment-template.docx')
   const block = source.blocks[0]!
   const itemId = `deposit-${testCase.deposit}`
-  const inventory: SourceInventory = { items: [{ id: itemId, label: 'source deposit amount', occurrences: [{ sourceRef: block.blockId, span: spanOf(block.text, '2 000 zł') }] }] }
+  const inventory: SourceInventory = { items: [{ id: itemId, label: 'source deposit amount', occurrences: [{ sourceRef: block.blockId, quote: quoteOf(block.text, '2 000 zł') }] }] }
   const newAmount = `${testCase.deposit.toLocaleString('pl-PL')} zł`
   const finalText = `Zaliczka ${newAmount} płatna ${testCase.timing}.`
   const operation = { blockId: block.blockId, operation: 'REPLACE_BLOCK_TEXT' as const, finalText }
@@ -60,7 +56,7 @@ const overrideBytes = await packageFor(overrideText)
 const overrideSource = await readSource(overrideBytes, 'payment-override.docx')
 const overrideBlock = overrideSource.blocks[0]!
 const oldTiming = 'w terminie 3 dni od zawarcia umowy'
-const overrideInventory: SourceInventory = { items: [{ id: 'source-timing', label: 'source-defined timing', occurrences: [{ sourceRef: overrideBlock.blockId, span: spanOf(overrideBlock.text, oldTiming) }] }] }
+const overrideInventory: SourceInventory = { items: [{ id: 'source-timing', label: 'source-defined timing', occurrences: [{ sourceRef: overrideBlock.blockId, quote: quoteOf(overrideBlock.text, oldTiming) }] }] }
 const overridePlan: PlanResult = {
   status: 'READY', missingInputs: [], conflicts: [], retainedLiterals: [], operations: [{ blockId: overrideBlock.blockId, operation: 'REPLACE_BLOCK_TEXT', finalText: 'Zaliczka 2 000 zł płatna w terminie 7 dni od podpisania umowy.' }],
   factChanges: [{ label: 'explicitly supplied timing', inventoryItemIds: ['source-timing'], newValue: 'w terminie 7 dni od podpisania umowy', newValueFormat: 'literal', authority: { kind: 'user', ref: 'payment.timing' } }],
@@ -72,7 +68,7 @@ const staleAmountPlan = {
   status: 'READY' as const, missingInputs: [], conflicts: [], factChanges: [],
   retainedLiterals: [{ inventoryItemId: 'source-amount', reason: 'the surrounding source timing is preserved' }], operations: [],
 }
-const staleAmountInventory: SourceInventory = { items: [{ id: 'source-amount', label: 'old transaction amount', occurrences: [{ sourceRef: overrideBlock.blockId, span: spanOf(overrideBlock.text, '2 000 zł') }] }] }
+const staleAmountInventory: SourceInventory = { items: [{ id: 'source-amount', label: 'old transaction amount', occurrences: [{ sourceRef: overrideBlock.blockId, quote: quoteOf(overrideBlock.text, '2 000 zł') }] }] }
 assert.ok(validateAuthorityGate(overrideInput, staleAmountInventory, staleAmountPlan as unknown as PlanResult, { sourceDocument: overrideSource, productRules: {} }).some((issue) => /no valid authority reference/.test(issue)))
 
 assert.match(TRANSFORMATION_INSTRUCTIONS, /preserve timing and deadline terms already defined by the source contract unless current authoritative input explicitly replaces that timing or creates a conflict/i)

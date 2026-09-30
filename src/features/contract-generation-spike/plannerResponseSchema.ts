@@ -37,7 +37,7 @@ const operationSchema = { anyOf: [replaceBlockTextSchema, insertBlockSchema, del
 export const PLANNER_OPERATION_SCHEMAS = [replaceBlockTextSchema, insertBlockSchema, deleteBlockSchema] as const
 export const SOURCE_INVENTORY_SCHEMA = {
   type: 'object', additionalProperties: false,
-  properties: { items: { type: 'array', items: { type: 'object', additionalProperties: false, properties: { id: { type: 'string' }, label: { type: 'string' }, occurrences: { type: 'array', items: { type: 'object', additionalProperties: false, properties: { sourceRef: { type: 'string' }, span: { type: ['object', 'null'], additionalProperties: false, properties: { start: { type: 'integer' }, end: { type: 'integer' } }, required: ['start', 'end'] } }, required: ['sourceRef', 'span'] } } }, required: ['id', 'label', 'occurrences'] } } },
+  properties: { items: { type: 'array', items: { type: 'object', additionalProperties: false, properties: { id: { type: 'string' }, label: { type: 'string' }, occurrences: { type: 'array', items: { type: 'object', additionalProperties: false, properties: { sourceRef: { type: 'string' }, quote: { type: ['string', 'null'] } }, required: ['sourceRef', 'quote'] } } }, required: ['id', 'label', 'occurrences'] } } },
   required: ['items'],
 } as const
 export const PLANNER_RESPONSE_SCHEMA = {

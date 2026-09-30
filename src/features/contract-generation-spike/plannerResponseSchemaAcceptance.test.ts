@@ -6,8 +6,12 @@ type AjvLike = { compile(schema: object): (value: unknown) => boolean }
 const Ajv = createRequire(import.meta.url)('ajv') as new () => AjvLike
 const validatePlan = new Ajv().compile(PLANNER_RESPONSE_SCHEMA)
 const validateInventory = new Ajv().compile(SOURCE_INVENTORY_SCHEMA)
-const inventory = { items: [{ id: 'item-1', label: 'free text', occurrences: [{ sourceRef: 'word/document.xml#p1', span: null }] }] }
+const inventory = { items: [{ id: 'item-1', label: 'free text', occurrences: [{ sourceRef: 'word/document.xml#p1', quote: null }] }] }
 assert.equal(validateInventory(inventory), true)
+assert.equal(validateInventory({ items: [{ id: 'item-1', label: 'free text', occurrences: [{ sourceRef: 'word/document.xml#p1', span: { start: 1, end: 3 } }] }] }), false, 'legacy model-authored offsets are rejected')
+assert.equal(validateInventory({ items: [{ id: 'item-1', label: 'free text', occurrences: [{ sourceRef: 'word/document.xml#p1', quote: null, span: { start: 1, end: 3 } }] }] }), false, 'offsets remain forbidden even alongside a valid quote')
+assert.equal(validateInventory({ items: [{ id: 'item-1', label: 'free text', occurrences: [{ sourceRef: 'word/document.xml#p1' }] }] }), false, 'the exact quote selector property is required')
+assert.equal(validateInventory({ items: [{ id: 'item-1', label: 'free text', occurrences: [{ sourceRef: 'word/document.xml#p1', quote: 42 }] }] }), false, 'a sub-block selector must be text or null')
 assert.equal(validateInventory({ items: [{ value: 'OLD-001', sourceRefs: [], label: 'x', kind: 'contract-number' }] }), false, 'inventory rejects retold literals and ontology fields')
 const base = { missingInputs: [], conflicts: [], factChanges: [], retainedLiterals: [], operations: [] }
 for (const status of ['MISSING_INPUT', 'CONFLICT_INPUT', 'READY']) assert.equal(validatePlan({ ...base, status }), true)

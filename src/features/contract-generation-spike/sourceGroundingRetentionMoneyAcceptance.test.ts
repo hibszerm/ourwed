@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
 import JSZip from 'jszip'
 import { applyBlockOperations, type BlockOperation } from './blockDocxEditor'
 import { formatPolishPlnAmount, isPolishPlnAmountEquivalent } from './polishPlnAmount'
@@ -12,16 +13,9 @@ async function packageFor(body: string, footer = '', subject = ''): Promise<Arra
   zip.file('docProps/core.xml', `<cp:coreProperties xmlns:cp="x" xmlns:dc="y"><dc:subject>${subject}</dc:subject></cp:coreProperties>`)
   return zip.generateAsync({ type: 'arraybuffer' })
 }
-function spanFor(text: string, literal: string): { start: number; end: number } {
-  const utf16Start = text.indexOf(literal)
-  assert.notEqual(utf16Start, -1, `fixture contains ${literal}`)
-  return { start: Array.from(text.slice(0, utf16Start)).length, end: Array.from(text.slice(0, utf16Start + literal.length)).length }
-}
 function occurrence(source: GenerationInput['sourceDocument'], sourceRef: string, literal?: string) {
-  if (literal === undefined) return { sourceRef, span: null }
-  const text = [...source.blocks, ...(source.documentProperties ?? []).map((item) => ({ blockId: item.ref, text: item.text }))].find((item) => item.blockId === sourceRef)?.text
-  assert.ok(text, `source ref exists: ${sourceRef}`)
-  return { sourceRef, span: spanFor(text, literal) }
+  if (literal === undefined) return { sourceRef, quote: null }
+  return { sourceRef, quote: literal }
 }
 function inputFor(source: GenerationInput['sourceDocument'], options: { userAnswers?: GenerationInput['userProvidedAnswers']; productRules?: Record<string, unknown> } = {}) {
   return makeInput({
@@ -33,7 +27,7 @@ function inputFor(source: GenerationInput['sourceDocument'], options: { userAnsw
 const ready = (): PlanResult => ({ status: 'READY', missingInputs: [], conflicts: [], factChanges: [], retainedLiterals: [], operations: [] })
 const fact = (itemIds: string[], newValue: string, authority: PlanResult['factChanges'][number]['authority'], newValueFormat: 'literal' | 'polish_pln_words' = 'literal'): PlanResult['factChanges'][number] => ({ label: 'free-form meaning', inventoryItemIds: itemIds, newValue, newValueFormat, authority })
 
-// Whole-block and subspan source selectors resolve exact source text; quote-like diagnostic data is ignored.
+// Whole-block and exact-quote selectors resolve canonical source text; the quote is only a selector.
 const hotelBytes = await packageFor('Reportage includes preparations in Hotelu H15 Luxury Palace w Krakowie and ceremony at Kościele św. Anny.')
 const hotelSource = await readSource(hotelBytes, 'hotel.docx')
 const hotelBlock = hotelSource.blocks[0]!
@@ -41,6 +35,8 @@ const wholeItem: SourceInventoryItem = { id: 'whole', label: 'whole source block
 assert.deepEqual(resolveInventoryOccurrences(hotelSource, { items: [wholeItem] }).occurrences[0]?.text, hotelBlock.text)
 const hotelItem = { id: 'preparations', label: 'preparation location', occurrences: [occurrence(hotelSource, hotelBlock.blockId, 'Hotelu H15 Luxury Palace w Krakowie')], informationalQuote: 'Hotel H15 Luxury Palace w Krakowie' } as unknown as SourceInventoryItem
 const hotelInventory: SourceInventory = { items: [hotelItem] }
+const hotelOccurrence = resolveInventoryOccurrences(hotelSource, hotelInventory).occurrences[0]!
+assert.deepEqual([hotelOccurrence.start, hotelOccurrence.end], [Array.from(hotelBlock.text.slice(0, hotelBlock.text.indexOf('Hotelu H15 Luxury Palace w Krakowie'))).length, Array.from(hotelBlock.text.slice(0, hotelBlock.text.indexOf('Hotelu H15 Luxury Palace w Krakowie'))).length + Array.from('Hotelu H15 Luxury Palace w Krakowie').length], 'resolved offsets are deterministic zero-based end-exclusive Unicode code-point positions')
 assert.equal(resolveInventoryOccurrences(hotelSource, hotelInventory).occurrences[0]?.text, 'Hotelu H15 Luxury Palace w Krakowie', 'source text, not the model quote, is canonical')
 const hotelInput = inputFor(hotelSource)
 const hotelOperation: BlockOperation = { blockId: hotelBlock.blockId, operation: 'REPLACE_BLOCK_TEXT', finalText: 'Reportage includes preparations in Hotel Monopol Katowice and ceremony at Kościele św. Anny.' }
@@ -48,11 +44,11 @@ const hotelPlan = { ...ready(), factChanges: [fact(['preparations'], 'Hotel Mono
 assert.deepEqual(validateAuthorityGate(hotelInput, hotelInventory, hotelPlan), [])
 const hotelCandidate = await applyBlockOperations(hotelBytes, [hotelOperation])
 assert.deepEqual(await validateCandidate(hotelBytes, hotelCandidate, hotelInput, hotelInventory, { ...hotelPlan, operations: [hotelOperation] }, [hotelOperation]), [])
-const badSpanInventory: SourceInventory = { items: [{ id: 'bad', label: 'bad range', occurrences: [{ sourceRef: hotelBlock.blockId, span: { start: 1, end: Array.from(hotelBlock.text).length + 1 } }] }] }
-assert.ok(validateAuthorityGate(hotelInput, badSpanInventory, ready()).some((item) => /invalid source span/.test(item)))
-const missingRefInventory: SourceInventory = { items: [{ id: 'missing-ref', label: 'missing ref', occurrences: [{ sourceRef: 'word/document.xml#p999', span: null }] }] }
+const badQuoteInventory: SourceInventory = { items: [{ id: 'bad', label: 'unmatched quote', occurrences: [{ sourceRef: hotelBlock.blockId, quote: 'Hotel H15 Luxury Palace' }] }] }
+assert.ok(validateAuthorityGate(hotelInput, badQuoteInventory, ready()).some((item) => /exact quote does not occur/.test(item)))
+const missingRefInventory: SourceInventory = { items: [{ id: 'missing-ref', label: 'missing ref', occurrences: [{ sourceRef: 'word/document.xml#p999', quote: null }] }] }
 assert.ok(validateAuthorityGate(hotelInput, missingRefInventory, ready()).some((item) => /unsupported source reference/.test(item)))
-assert.ok(validateAuthorityGate(hotelInput, { items: [hotelItem, { ...hotelItem, id: 'overlap' }] }, ready()).some((item) => /spans overlap/.test(item)))
+assert.ok(validateAuthorityGate(hotelInput, { items: [hotelItem, { ...hotelItem, id: 'overlap' }] }, ready()).some((item) => /occurrences overlap/.test(item)))
 
 // Multiple exact occurrences are tracked and replaced across body, footer, and metadata.
 const idBytes = await packageFor('Nr OLD-001', 'Vendor · OLD-001', 'Vendor — OLD-001')
@@ -61,21 +57,47 @@ const body = idSource.blocks.find((block) => block.part === 'word/document.xml')
 const footer = idSource.blocks.find((block) => block.kind === 'footer')!
 const subject = idSource.documentProperties!.find((property) => property.property === 'subject')!
 const wholeMetadataInventory: SourceInventory = { items: [{ id: 'whole-subject', label: 'whole metadata property', occurrences: [occurrence(idSource, subject.ref)] }] }
-assert.equal(resolveInventoryOccurrences(idSource, wholeMetadataInventory).occurrences[0]?.text, subject.text, 'whole metadata facts use a null span and ground the complete indexed value')
+assert.equal(resolveInventoryOccurrences(idSource, wholeMetadataInventory).occurrences[0]?.text, subject.text, 'whole metadata facts use quote=null and ground the complete indexed value')
 const metadataSubspanInventory: SourceInventory = { items: [{ id: 'subject-id', label: 'one value within metadata', occurrences: [occurrence(idSource, subject.ref, 'OLD-001')] }] }
-assert.equal(resolveInventoryOccurrences(idSource, metadataSubspanInventory).occurrences[0]?.text, 'OLD-001', 'a valid metadata subspan uses source-index code points')
-const metadataLength = Array.from(subject.text).length
-const invalidMetadataSpans: SourceInventory[] = [
-  { items: [{ id: 'too-long', label: 'past indexed value', occurrences: [{ sourceRef: subject.ref, span: { start: metadataLength - 2, end: metadataLength + 1 } }] }] },
-  { items: [{ id: 'negative', label: 'negative start', occurrences: [{ sourceRef: subject.ref, span: { start: -1, end: 2 } }] }] },
-  { items: [{ id: 'out-of-order', label: 'reversed range', occurrences: [{ sourceRef: subject.ref, span: { start: 5, end: 2 } }] }] },
-]
-for (const invalid of invalidMetadataSpans) {
-  const resolved = resolveInventoryOccurrences(idSource, invalid)
-  assert.ok(resolved.findings.some((finding) => /invalid source span/.test(finding)))
-  assert.equal(resolved.occurrences.length, 0, 'invalid offsets are rejected without fuzzy repair, clamping, or truncation')
+assert.equal(resolveInventoryOccurrences(idSource, metadataSubspanInventory).occurrences[0]?.text, 'OLD-001', 'an exact metadata quote uses source-index code points')
+const repeatedQuoteSource: GenerationInput['sourceDocument'] = { fileName: 'repeated.docx', blocks: [{ blockId: 'word/document.xml#p0', part: 'word/document.xml', index: 0, kind: 'body', text: 'ID OLD-001; copied OLD-001', context: '' }] }
+const ambiguousQuote = resolveInventoryOccurrences(repeatedQuoteSource, { items: [{ id: 'ambiguous', label: 'repeated identifier', occurrences: [{ sourceRef: 'word/document.xml#p0', quote: 'OLD-001' }] }] })
+assert.ok(ambiguousQuote.findings.some((finding) => /exact quote is ambiguous/.test(finding)))
+assert.equal(ambiguousQuote.occurrences.length, 0, 'repeated exact quote is rejected rather than selecting the first occurrence')
+const unicodeSource: GenerationInput['sourceDocument'] = { fileName: 'unicode.docx', blocks: [{ blockId: 'word/document.xml#p0', part: 'word/document.xml', index: 0, kind: 'body', text: '😀 Kraków', context: '' }] }
+const unicodeResolved = resolveInventoryOccurrences(unicodeSource, { items: [{ id: 'city', label: 'city', occurrences: [{ sourceRef: 'word/document.xml#p0', quote: 'Kraków' }] }] }).occurrences[0]!
+assert.deepEqual([unicodeResolved.start, unicodeResolved.end, unicodeResolved.text], [2, 8, 'Kraków'], 'diacritics match exactly and offsets count Unicode code points rather than UTF-16 units')
+const case04P2 = 'Nr 18/2027  •  Kraków, 12 stycznia 2027 r.'
+const case04Source: GenerationInput['sourceDocument'] = { fileName: 'case04.docx', blocks: [{ blockId: 'word/document.xml#p2', part: 'word/document.xml', index: 2, kind: 'body', text: case04P2, context: '' }] }
+const case04DateResolution = resolveInventoryOccurrences(case04Source, { items: [{ id: 'contract-date', label: 'contract date', occurrences: [{ sourceRef: 'word/document.xml#p2', quote: '12 stycznia 2027 r.' }] }] })
+assert.deepEqual(case04DateResolution.findings, [])
+assert.deepEqual([case04DateResolution.occurrences[0]?.start, case04DateResolution.occurrences[0]?.end], [23, 42], 'the failed Case 04 p2 span is now resolved uniquely from its exact quote')
+assert.equal(case04DateResolution.occurrences[0]?.text, '12 stycznia 2027 r.')
+const case04SourcePath = new URL('./multi-template-acceptance/cases/case-04-realistic-wedding-photographer/source.docx', import.meta.url)
+const case04Bytes = await readFile(case04SourcePath)
+const case04RealSource = await readSource(case04Bytes.buffer.slice(case04Bytes.byteOffset, case04Bytes.byteOffset + case04Bytes.byteLength), 'case04-source.docx')
+const case04RealP2 = case04RealSource.blocks.find((block) => block.blockId === 'word/document.xml#p2')!
+assert.equal(case04RealP2.text, case04P2, 'historical fixture source block remains unchanged')
+const reassessedInventory = { items: [{ id: 'contract-date', label: 'contract date', occurrences: [{ sourceRef: 'word/document.xml#p2', quote: '12 stycznia 2027 r.' }] }] }
+const reassessedResolution = resolveInventoryOccurrences(case04RealSource, reassessedInventory)
+assert.deepEqual(reassessedResolution.findings, [])
+assert.deepEqual([reassessedResolution.occurrences[0]?.start, reassessedResolution.occurrences[0]?.end], [23, 42], 'historical saved Case 04 inventory issue resolves from the exact quote without changing the saved result')
+for (const [id, quote, expected] of [['contract-id', '18/2027', '18/2027'], ['contract-place', 'Kraków', 'Kraków']] as const) {
+  const resolution = resolveInventoryOccurrences(case04Source, { items: [{ id, label: id, occurrences: [{ sourceRef: 'word/document.xml#p2', quote }] }] })
+  assert.equal(resolution.findings.length, 0)
+  assert.equal(resolution.occurrences[0]?.text, expected)
 }
-assert.ok(resolveInventoryOccurrences(idSource, { items: [{ id: 'noncanonical-ref', label: 'invalid ref', occurrences: [{ sourceRef: 'docProps:core.xml#subject', span: null }] }] }).findings.some((finding) => /unsupported source reference/.test(finding)))
+const invalidMetadataQuotes: SourceInventory[] = [
+  { items: [{ id: 'wrong-case', label: 'case altered', occurrences: [{ sourceRef: subject.ref, quote: 'old-001' }] }] },
+  { items: [{ id: 'wrong-space', label: 'spacing altered', occurrences: [{ sourceRef: subject.ref, quote: 'OLD- 001' }] }] },
+  { items: [{ id: 'paraphrase', label: 'paraphrased quote', occurrences: [{ sourceRef: subject.ref, quote: 'identifier OLD-001' }] }] },
+]
+for (const invalid of invalidMetadataQuotes) {
+  const resolved = resolveInventoryOccurrences(idSource, invalid)
+  assert.ok(resolved.findings.some((finding) => /exact quote does not occur/.test(finding)))
+  assert.equal(resolved.occurrences.length, 0, 'nonexact quotes are rejected without fuzzy repair or normalization')
+}
+assert.ok(resolveInventoryOccurrences(idSource, { items: [{ id: 'noncanonical-ref', label: 'invalid ref', occurrences: [{ sourceRef: 'docProps:core.xml#subject', quote: null }] }] }).findings.some((finding) => /unsupported source reference/.test(finding)))
 const idInventory: SourceInventory = { items: [{ id: 'reusable-id', label: 'source identifier', occurrences: [occurrence(idSource, body.blockId, 'OLD-001'), occurrence(idSource, footer.blockId, 'OLD-001'), occurrence(idSource, subject.ref, 'OLD-001')] }] }
 assert.equal(resolveInventoryOccurrences(idSource, idInventory).occurrences.length, 3)
 const idInput = inputFor(idSource, { userAnswers: [{ id: 'new.reference', value: 'NEW-002' }] })
