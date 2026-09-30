@@ -73,6 +73,13 @@ assert.ok(validateAuthorityGate(overrideInput, staleAmountInventory, staleAmount
 
 assert.match(TRANSFORMATION_INSTRUCTIONS, /preserve timing and deadline terms already defined by the source contract unless current authoritative input explicitly replaces that timing or creates a conflict/i)
 assert.match(TRANSFORMATION_INSTRUCTIONS, /If only a payment amount changes, keep the source-defined timing.*do not request a new timing value/i)
+assert.match(TRANSFORMATION_INSTRUCTIONS, /Treat each payment obligation independently/i)
+assert.match(TRANSFORMATION_INSTRUCTIONS, /A source-defined relative deadline tied to a defined event.*is a complete timing rule/i)
+assert.match(TRANSFORMATION_INSTRUCTIONS, /preserve it without requiring an absolute calendar date, asking the user to confirm it, or inventing a signing date/i)
+assert.match(TRANSFORMATION_INSTRUCTIONS, /An authoritative replacement deadline applies only to the same payment obligation/i)
+assert.match(TRANSFORMATION_INSTRUCTIONS, /final-payment timing does not replace reservation\/deposit timing/i)
+assert.match(TRANSFORMATION_INSTRUCTIONS, /If the source requires payment timing but supplies none.*report MISSING_INPUT/i)
+assert.match(TRANSFORMATION_INSTRUCTIONS, /incompatible timing for the same obligation.*report CONFLICT_INPUT/i)
 assert.match(TRANSFORMATION_INSTRUCTIONS, /does not authorize retaining stale transaction-specific amounts, identifiers, client facts, addresses, or event dates/i)
 assert.match(SOURCE_INVENTORY_INSTRUCTIONS, /Do not inventory reusable contractual timing language merely because it is attached to a payment amount/i)
 assert.doesNotMatch(TRANSFORMATION_INSTRUCTIONS, /within 3 days|within 5 days|7 days before the wedding|paymentTimingSignature|timingPhraseDictionary/i)
