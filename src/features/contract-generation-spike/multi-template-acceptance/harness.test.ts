@@ -47,14 +47,14 @@ try {
       capturedSourceBlocks = sourceBlocks
       capturedRules = productRules
       assert.equal(authorityContext.wedding.date.value, '20.09.2027')
-      return { status: 'MISSING_INPUT', missingInputs: ['What is the required client PESEL?'] }
+      return { status: 'MISSING_INPUT', missingInputs: ['Required fact A', 'Required fact B'] }
     },
     async review() { throw new Error('Candidate reviewer must not run for MISSING_INPUT') },
     async reviewConflict() { throw new Error('Conflict verifier must not run for MISSING_INPUT') },
   }
   const missing = await runMultiTemplateAcceptance('case-offline', { casesRoot: path.join(temp, 'cases'), outputRoot: path.join(temp, 'out'), runId: 'missing', provider: missingProvider })
   assert.equal(missing.overall, 'MISSING_INPUT')
-  assert.deepEqual(missing.missingInputs, ['What is the required client PESEL?'])
+  assert.deepEqual(missing.missingInputs, ['Required fact A', 'Required fact B'])
   assert.equal(missing.candidatePath, null)
   assert.deepEqual(missing.providerCalls, { generator: 1, reviewer: 0, total: 1 })
   assert.equal(missing.reviewResult, 'NOT_RUN')
@@ -62,9 +62,10 @@ try {
   assert.equal(missing.semanticReviewRequestPath, null)
   assert.equal(generationCalls, 1)
   assert.match(capturedInstructions, /source defines the contract's clauses/i)
-  assert.match(capturedInstructions, /not guaranteed to be exhaustive/i)
-  assert.match(capturedInstructions, /re-evaluate the complete source and current authority/i)
-  assert.match(GENERATION_INSTRUCTIONS, /report all discoverable required gaps together/i)
+  assert.match(capturedInstructions, /not guaranteed exhaustive/i)
+  assert.match(capturedInstructions, /fresh full-context run must re-evaluate/i)
+  assert.match(GENERATION_INSTRUCTIONS, /inspect the complete source contract for every currently discoverable source-required fact/i)
+  assert.match(GENERATION_INSTRUCTIONS, /return all such gaps together; do not stop at the first/i)
   assert.deepEqual(capturedRules, GENERIC_CONTRACT_PRODUCT_RULES)
   assert.ok(capturedSourceBlocks.length > 0)
   for (const value of capturedSourceBlocks) {
@@ -220,6 +221,7 @@ try {
   assert.equal(missingAuthorityConflict.generationStatus, 'FAILED')
   assert.deepEqual(missingAuthorityConflict.reviewFindings, ['No authoritative PESEL is present; this is missing input, not a conflict.'])
 
+  // Safety fallback: a later full-context run may still discover a gap omitted from an earlier batch.
   const continuationAnswers = [{ id: 'test.authoritative.fact', value: 'already supplied' }]
   const continuationInputPath = path.join(caseDir, 'input.json')
   const writeContinuationAnswers = async (answers: typeof continuationAnswers) => {
