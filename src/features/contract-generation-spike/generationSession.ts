@@ -3,7 +3,7 @@ import {
   isMissingInputList,
   type ContractGenerationAnswer,
   type MissingInput,
-} from './generationProtocol'
+} from './generationProtocol.ts'
 
 export type ContractGenerationSessionState =
   | 'processing'

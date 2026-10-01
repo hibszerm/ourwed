@@ -1,0 +1,7 @@
+{
+  "imports": {
+    "@/": "../../../src/",
+    "jszip": "npm:jszip@3.10.1"
+  },
+  "unstable": ["sloppy-imports"]
+}

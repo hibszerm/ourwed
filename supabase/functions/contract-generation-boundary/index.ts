@@ -1,0 +1,492 @@
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
+import { requireAuthenticatedUser } from '../_shared/requireAuthenticatedUser.ts'
+import { buildRestrictedCorsHeaders } from '../_shared/security/browserCors.ts'
+import { mapWeddingRowToModel, type WeddingRow } from '@/lib/api/weddings/weddingMappers'
+import { mergeFormAnswersIntoWeddingCore } from '@/lib/forms/mergeFormAnswersIntoWeddingCore'
+import { buildContractGenerationInput, type ContractGenerationInput } from '@/features/contract-generation-spike/contractGenerationInput'
+import { applyOptionBGenerationResponse, createGenerationSourceView, readSource, validateOptionBInput, GENERATION_INSTRUCTIONS, GENERIC_CONTRACT_PRODUCT_RULES, CONFLICT_REVIEW_INSTRUCTIONS, REVIEW_INSTRUCTIONS } from '@/features/contract-generation-spike/generator'
+import { isGenerationResponse, isReviewResponse, type ReviewResponse, type ContractGenerationAnswer } from '@/features/contract-generation-spike/generationProtocol'
+import { createContractGenerationBoundary, parseContractGenerationAction, type ServerBoundaryContext } from '@/features/contract-generation-spike/serverBoundary'
+import { isTravelFeeResolved } from '@/lib/utils/travelFeeCommercial'
+import type { FormAnswerJson } from '@/types/formEngine'
+import type { PaymentMethod, PaymentType } from '@/types/wedding'
+import type { WeddingPlaceRole } from '@/types/travel'
+import type { ContractGenerationSession } from '@/features/contract-generation-spike/generationSession'
+import type { MissingInput } from '@/features/contract-generation-spike/generationProtocol'
+
+type GenericRelationship = { foreignKeyName: string; columns: string[]; isOneToOne?: boolean; referencedRelation: string; referencedColumns: string[] }
+type GenericTable = { Row: Record<string, unknown>; Insert: Record<string, unknown>; Update: Record<string, unknown>; Relationships: GenericRelationship[] }
+type GenericSchema = {
+  Tables: Record<string, GenericTable>
+  Views: Record<string, { Row: Record<string, unknown>; Relationships: GenericRelationship[] }>
+  Functions: Record<string, { Args: Record<string, unknown>; Returns: unknown }>
+}
+type DatabaseSchema = { public: GenericSchema }
+type SupabaseClient = ReturnType<typeof createClient<DatabaseSchema, 'public', GenericSchema>>
+type RunRow = Record<string, unknown>
+type DbRow = Record<string, unknown>
+type PackageRow = DbRow & { active_contract_template_id?: string | null; active_contract_template_version_id?: string | null }
+type TemplateRow = DbRow & { id: string; doc_type: string; current_version_id: string | null }
+type VersionRow = DbRow & { id: string; template_id: string; version_number: number; source_docx_path: string | null }
+type ContractRow = DbRow & { id: string; status: string }
+type FormInstanceRow = DbRow & { id: string; submitted_at: string | null }
+type FormAnswerRow = DbRow & { answer_json: unknown }
+
+const DOCX_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+const GENERATION_SCHEMA = {
+  type: 'object', additionalProperties: false,
+  required: ['status', 'edits', 'missingInputs', 'conflicts'],
+  properties: {
+    status: { enum: ['READY', 'MISSING_INPUT', 'CONFLICT_INPUT'] },
+    edits: { anyOf: [{ type: 'array', items: { type: 'object', additionalProperties: false, required: ['kind', 'blockId', 'text'], properties: { kind: { enum: ['replace', 'insert_after'] }, blockId: { type: 'string' }, text: { type: 'string' } } } }, { type: 'null' }] },
+    missingInputs: { anyOf: [{ type: 'array', minItems: 1, items: { type: 'object', additionalProperties: false, required: ['id', 'label', 'answerKind', 'subject'], properties: { id: { type: 'string' }, label: { type: 'string' }, answerKind: { enum: ['text', 'multiline', 'date', 'number', 'email', 'phone'] }, subject: { anyOf: [{ type: 'object', additionalProperties: false, required: ['participantKey', 'displayName'], properties: { participantKey: { type: 'string' }, displayName: { anyOf: [{ type: 'string' }, { type: 'null' }] } } }, { type: 'null' }] } } } }, { type: 'null' }] },
+    conflicts: { anyOf: [{ type: 'array', minItems: 1, items: { type: 'string' } }, { type: 'null' }] },
+  },
+}
+const REVIEW_SCHEMA = {
+  type: 'object', additionalProperties: false, required: ['status', 'findings'],
+  properties: { status: { enum: ['PASS', 'FAIL'] }, findings: { anyOf: [{ type: 'array', minItems: 1, items: { type: 'string' } }, { type: 'null' }] } },
+}
+
+function json(body: unknown, status = 200, headers?: HeadersInit): Response {
+  const result = new Headers(headers)
+  result.set('Content-Type', 'application/json')
+  return new Response(JSON.stringify(body), { status, headers: result })
+}
+
+function assertQuery<T>(data: T | null, error: unknown): T | null {
+  if (error) throw new Error('database_read_failed')
+  return data
+}
+
+function sortedJson(value: unknown): string {
+  const normalize = (item: unknown): unknown => {
+    if (Array.isArray(item)) return item.map(normalize)
+    if (item && typeof item === 'object') return Object.fromEntries(Object.entries(item as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b)).map(([key, child]) => [key, normalize(child)]))
+    return item
+  }
+  return JSON.stringify(normalize(value))
+}
+
+async function sha256(bytes: ArrayBuffer | Uint8Array | string): Promise<string> {
+  const data = typeof bytes === 'string' ? new TextEncoder().encode(bytes) : bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes)
+  const digest = await crypto.subtle.digest('SHA-256', new Uint8Array(data).buffer as ArrayBuffer)
+  return [...new Uint8Array(digest)].map((value) => value.toString(16).padStart(2, '0')).join('')
+}
+
+function fieldsFromAnswerJson(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+  const fields = (value as Record<string, unknown>).fields
+  return fields && typeof fields === 'object' && !Array.isArray(fields) ? fields as Record<string, unknown> : {}
+}
+
+function normalizeGenerationEnvelope(value: unknown): unknown {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return value
+  const result = value as Record<string, unknown>
+  if (result.status === 'READY' && Array.isArray(result.edits) && result.missingInputs === null && result.conflicts === null) {
+    return { status: 'READY', edits: result.edits }
+  }
+  if (result.status === 'CONFLICT_INPUT' && Array.isArray(result.conflicts) && result.edits === null && result.missingInputs === null) {
+    return { status: 'CONFLICT_INPUT', conflicts: result.conflicts }
+  }
+  if (result.status === 'MISSING_INPUT' && Array.isArray(result.missingInputs) && result.edits === null && result.conflicts === null) {
+    const missingInputs = result.missingInputs.map((raw) => {
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return raw
+      const input = { ...(raw as Record<string, unknown>) }
+      if (input.subject === null) delete input.subject
+      else if (input.subject && typeof input.subject === 'object' && !Array.isArray(input.subject)) {
+        const subject = { ...(input.subject as Record<string, unknown>) }
+        if (subject.displayName === null) delete subject.displayName
+        input.subject = subject
+      }
+      return input
+    })
+    return { status: 'MISSING_INPUT', missingInputs }
+  }
+  return value
+}
+
+function normalizeReviewEnvelope(value: unknown): unknown {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return value
+  const result = value as Record<string, unknown>
+  if (result.status === 'PASS' && result.findings === null) return { status: 'PASS' }
+  if (result.status === 'FAIL' && Array.isArray(result.findings)) return { status: 'FAIL', findings: result.findings }
+  return value
+}
+
+function sourcePathIsOwned(path: string, ownerId: string, templateId: string, versionNumber: number): boolean {
+  return path === `${ownerId}/templates/${templateId}/v${versionNumber}/source.docx`
+}
+
+function mapPlace(row: DbRow) {
+  const roles: WeddingPlaceRole[] = ['bride_preparation', 'groom_preparation', 'ceremony', 'reception', 'hotel', 'airport', 'other', 'preparation']
+  const rawRole = row.role === 'preparation' ? 'bride_preparation' : row.role
+  const role: WeddingPlaceRole = typeof rawRole === 'string' && roles.includes(rawRole as WeddingPlaceRole)
+    ? rawRole as WeddingPlaceRole
+    : 'other'
+  return {
+    id: String(row.id), weddingId: String(row.wedding_id), role,
+    placeId: typeof row.place_id === 'string' ? row.place_id : null,
+    formattedAddress: String(row.formatted_address ?? ''),
+    label: typeof row.label === 'string' ? row.label : null,
+    latitude: row.latitude == null ? null : Number(row.latitude),
+    longitude: row.longitude == null ? null : Number(row.longitude),
+    sortOrder: Number(row.sort_order ?? 0), createdAt: String(row.created_at ?? ''), updatedAt: String(row.updated_at ?? ''),
+  }
+}
+
+function mapExtra(row: DbRow, fallbackName?: string) {
+  const snapshotName = typeof row.name_snapshot === 'string' ? row.name_snapshot.trim() : ''
+  const name = snapshotName || fallbackName?.trim() || ''
+  return {
+    id: String(row.id), weddingId: String(row.wedding_id), extraServiceId: String(row.extra_service_id),
+    priceSnapshot: Number(row.price_snapshot), quantity: Number(row.quantity),
+    createdAt: String(row.created_at ?? ''), nameSnapshot: name || undefined, name: name || undefined,
+  }
+}
+
+function mapPayment(row: DbRow) {
+  const amount = Number(row.amount)
+  const paidAt = row.payment_date ? String(row.payment_date).slice(0, 10) : undefined
+  const paymentTypes: PaymentType[] = ['deposit', 'installment', 'final', 'other']
+  const paymentType: PaymentType = typeof row.type === 'string' && paymentTypes.includes(row.type as PaymentType)
+    ? row.type as PaymentType
+    : 'other'
+  const labels: Record<PaymentType, string> = { deposit: 'Zadatek', installment: 'Wpłata', final: 'Płatność końcowa', other: 'Inne' }
+  const paymentMethods: PaymentMethod[] = ['transfer', 'cash', 'blik', 'other']
+  const method = typeof row.method === 'string' && paymentMethods.includes(row.method as PaymentMethod)
+    ? row.method as PaymentMethod
+    : undefined
+  return {
+    id: String(row.id), amount: Number.isFinite(amount) ? amount : 0, type: paymentType,
+    label: labels[paymentType], paid: Boolean(paidAt), ...(paidAt ? { paidAt } : {}),
+    ...(method ? { method } : {}),
+    ...(typeof row.note === 'string' && row.note ? { note: row.note } : {}),
+  }
+}
+
+function canonicalAuthorityFingerprint(authority: ContractGenerationInput, currentContext: unknown): string {
+  const generationContext = Object.fromEntries(Object.entries(authority.generationContext).filter(([key]) => key !== 'generationDate'))
+  return sortedJson({ authority: { ...authority, generationContext }, currentContext })
+}
+
+async function loadServerContext(
+  supabase: SupabaseClient,
+  userId: string,
+  weddingId: string,
+  answers: ContractGenerationAnswer[],
+): Promise<ServerBoundaryContext | null> {
+  const weddingResult = await supabase.from('weddings').select('*').eq('id', weddingId).eq('user_id', userId).maybeSingle()
+  const weddingRow = assertQuery(weddingResult.data, weddingResult.error)
+  if (!weddingRow) return null
+  const wedding = mapWeddingRowToModel(weddingRow as unknown as WeddingRow)
+  const packageId = wedding.packageId
+  if (!packageId) return null
+
+  const packageResult = await supabase.from('packages').select('*').eq('id', packageId).eq('user_id', userId).maybeSingle()
+  const pkg = assertQuery<PackageRow>(packageResult.data, packageResult.error)
+  if (!pkg?.active_contract_template_id) return null
+  const packageItemsResult = await supabase.from('package_items').select('*').eq('package_id', packageId).order('sort_order', { ascending: true }).order('created_at', { ascending: true })
+  const packageItems = assertQuery(packageItemsResult.data, packageItemsResult.error) ?? []
+
+  const templateResult = await supabase.from('document_templates').select('id,user_id,name,doc_type,current_version_id,status').eq('id', pkg.active_contract_template_id).eq('user_id', userId).maybeSingle()
+  const template = assertQuery(templateResult.data as TemplateRow | null, templateResult.error)
+  if (!template || template.doc_type !== 'contract') return null
+  const versionId = pkg.active_contract_template_version_id || template.current_version_id
+  if (!versionId) return null
+  const versionResult = await supabase.from('document_template_versions').select('id,template_id,version_number,source_file_name,source_docx_path').eq('id', versionId).eq('template_id', template.id).maybeSingle()
+  const version = assertQuery(versionResult.data as VersionRow | null, versionResult.error)
+  if (!version?.source_docx_path || !sourcePathIsOwned(version.source_docx_path, userId, template.id, Number(version.version_number))) return null
+
+  const [paymentsResult, extrasResult, placesResult, contractResult, formsResult] = await Promise.all([
+    supabase.from('payments').select('*').eq('wedding_id', weddingId).order('payment_date', { ascending: true, nullsFirst: false }).order('created_at', { ascending: true }),
+    supabase.from('wedding_extra_services').select('*').eq('wedding_id', weddingId).order('created_at', { ascending: true }),
+    supabase.from('wedding_places').select('*').eq('wedding_id', weddingId).order('sort_order', { ascending: true }),
+    supabase.from('contracts').select('id,status').eq('wedding_id', weddingId).maybeSingle(),
+    supabase.from('forms').select('id').eq('category', 'contract'),
+  ])
+  const payments = assertQuery(paymentsResult.data, paymentsResult.error) ?? []
+  const extras = assertQuery(extrasResult.data, extrasResult.error) ?? []
+  const places = assertQuery(placesResult.data, placesResult.error) ?? []
+  const contract = assertQuery(contractResult.data as ContractRow | null, contractResult.error)
+  const formRows = assertQuery(formsResult.data, formsResult.error) ?? []
+  const formIds = formRows.map((row: DbRow) => String(row.id))
+  let fields: Record<string, unknown> = {}
+  if (formIds.length) {
+    const instanceResult = await supabase.from('form_instances').select('id,submitted_at').eq('wedding_id', weddingId).in('form_id', formIds).in('status', ['submitted', 'approved']).order('submitted_at', { ascending: false, nullsFirst: false }).limit(1).maybeSingle()
+    const instance = assertQuery(instanceResult.data as FormInstanceRow | null, instanceResult.error)
+    if (instance?.id) {
+      const answerResult = await supabase.from('form_answers').select('answer_json').eq('instance_id', instance.id).maybeSingle()
+      const answer = assertQuery<FormAnswerRow>(answerResult.data, answerResult.error)
+      fields = fieldsFromAnswerJson(answer?.answer_json)
+      if (answer?.answer_json) {
+        const hydrated = await mergeFormAnswersIntoWeddingCore(wedding, answer.answer_json as FormAnswerJson, { submittedAt: instance.submitted_at })
+        Object.assign(wedding, hydrated)
+      }
+    }
+  }
+  wedding.payments = payments.map(mapPayment)
+  wedding.contract = contract ? { status: contract.status } as typeof wedding.contract : { status: 'none' }
+  const weddingPlaces = places.map(mapPlace)
+  let fallbackNames = new Map<string, string>()
+  const extraIds = [...new Set(extras.map((row: DbRow) => String(row.extra_service_id)))]
+  if (extraIds.length) {
+    const catalogResult = await supabase.from('extra_services').select('id,name').eq('user_id', userId).in('id', extraIds)
+    const catalog = assertQuery(catalogResult.data, catalogResult.error) ?? []
+    fallbackNames = new Map(catalog.map((row: DbRow) => [String(row.id), String(row.name ?? '')]))
+  }
+  const weddingExtras = extras.map((row: DbRow) => mapExtra(row, fallbackNames.get(String(row.extra_service_id))))
+  if (!isTravelFeeResolved(wedding)) return null
+
+  const sourceResult = await supabase.storage.from('document-files').download(version.source_docx_path)
+  if (sourceResult.error || !sourceResult.data) throw new Error('source_download_failed')
+  const sourceBytes = await sourceResult.data.arrayBuffer()
+  if (sourceBytes.byteLength < 4) throw new Error('source_invalid')
+  const sourceSha256 = await sha256(sourceBytes)
+
+  const authority = buildContractGenerationInput({
+    wedding, weddingPlaces, extras: weddingExtras,
+    generationDate: new Date().toISOString().slice(0, 10),
+    questionnaireFields: fields,
+    userProvidedAnswers: answers.map((answer) => ({ id: answer.missingInputId, value: answer.value })),
+    participantAssociations: [],
+    contractRecordId: contract?.id ?? null,
+    genericContractAddress: typeof weddingRow.contract_address === 'string' ? weddingRow.contract_address : null,
+  })
+  const authorityFingerprint = await sha256(canonicalAuthorityFingerprint(authority, {
+    package: pkg, packageItems, payments, extras, places, contract,
+    submittedQuestionnaireFields: fields,
+  }))
+  return {
+    scope: { ownerUserId: userId, weddingId, templateId: template.id, templateVersionId: version.id, sourceSha256 },
+    sourceBytes, sourceSha256, authorityFingerprint, authority,
+  }
+}
+
+function mapSession(row: RunRow): ContractGenerationSession {
+  return {
+    id: String(row.id), ownerUserId: String(row.owner_user_id), weddingId: String(row.wedding_id),
+    templateId: String(row.template_id), templateVersionId: String(row.template_version_id),
+    sourceSha256: String(row.source_sha256), state: row.session_state as ContractGenerationSession['state'],
+    missingInputs: Array.isArray(row.missing_inputs_json) ? row.missing_inputs_json as MissingInput[] : [],
+    answers: Array.isArray(row.user_answers_json) ? row.user_answers_json as ContractGenerationSession['answers'] : [],
+    expiresAt: String(row.expires_at), createdAt: String(row.created_at), updatedAt: String(row.updated_at),
+  }
+}
+
+async function outputText(response: Response): Promise<string> {
+  const body = await response.json()
+  if (!response.ok) throw new Error('provider_call_failed')
+  if (typeof body.output_text === 'string' && body.output_text.trim()) return body.output_text
+  const output = Array.isArray(body.output) ? body.output : []
+  const text = output.flatMap((item: DbRow) => Array.isArray(item.content) ? item.content.flatMap((part: DbRow) => part.type === 'output_text' && typeof part.text === 'string' ? [part.text] : []) : []).join('')
+  if (!text.trim()) throw new Error('provider_output_empty')
+  return text
+}
+
+async function callStructuredProvider(input: {
+  system: string; user: unknown; schemaName: string; schema: unknown; model: string; apiKey: string; effort: string;
+}): Promise<unknown> {
+  const response = await fetch('https://api.openai.com/v1/responses', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${input.apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: input.model,
+      reasoning: { effort: input.effort },
+      max_output_tokens: 8192,
+      input: [
+        { role: 'system', content: input.system },
+        { role: 'user', content: JSON.stringify(input.user) },
+      ],
+      text: { format: { type: 'json_schema', name: input.schemaName, strict: true, schema: input.schema } },
+    }),
+    signal: AbortSignal.timeout(60_000),
+  })
+  return JSON.parse(await outputText(response))
+}
+
+function getProviderConfig() {
+  const apiKey = Deno.env.get('OPENAI_API_KEY')?.trim()
+  const generatorModel = Deno.env.get('OPENAI_CONTRACT_GENERATOR_MODEL')?.trim()
+  const reviewerModel = Deno.env.get('OPENAI_CONTRACT_REVIEWER_MODEL')?.trim()
+  if (!apiKey || !generatorModel || !reviewerModel || generatorModel === reviewerModel) throw new Error('provider_configuration')
+  return { apiKey, generatorModel, reviewerModel }
+}
+
+function responseAuthority(context: ServerBoundaryContext) {
+  return context.authority as ContractGenerationInput
+}
+
+function sourcePresentation(context: ServerBoundaryContext, fileName: string) {
+  return readSource(context.sourceBytes, fileName)
+}
+
+function providerAdapters() {
+  async function generator(context: ServerBoundaryContext, answers: ContractGenerationAnswer[]) {
+    const authority = responseAuthority(context)
+    if (validateOptionBInput(authority).length) return { status: 'FAILED' as const }
+    const source = await sourcePresentation(context, 'contract.docx')
+    const view = createGenerationSourceView(source)
+    const config = getProviderConfig()
+    const rawResult = await callStructuredProvider({
+      system: GENERATION_INSTRUCTIONS,
+      user: { source: view.blocks, authorityContext: authority, accumulatedAnswers: answers, productRules: GENERIC_CONTRACT_PRODUCT_RULES },
+      schemaName: 'option_b_generation_response_v1', schema: GENERATION_SCHEMA,
+      model: config.generatorModel, apiKey: config.apiKey,
+      effort: Deno.env.get('OPENAI_CONTRACT_GENERATOR_REASONING')?.trim() || 'medium',
+    })
+    const result = normalizeGenerationEnvelope(rawResult)
+    if (!isGenerationResponse(result, new Set([...authority.parties.map((party) => party.sourceKey), ...authority.participantAssociations.map((association) => association.participant)]))) return { status: 'FAILED' as const }
+    const applied = await applyOptionBGenerationResponse(context.sourceBytes, source, authority, view.sourceBlockIds, result)
+    if (applied.status === 'MISSING_INPUT') return applied
+    if (applied.status === 'CONFLICT_INPUT') return applied
+    if (applied.status !== 'READY') return { status: 'FAILED' as const }
+    return { status: 'READY' as const, candidate: { bytes: applied.candidateBytes, changedBlocks: applied.changedBlocks } }
+  }
+
+  async function reviewResponse(context: ServerBoundaryContext, answers: ContractGenerationAnswer[], system: string, user: unknown): Promise<ReviewResponse> {
+    const config = getProviderConfig()
+    const rawResult = await callStructuredProvider({
+      system, user: { ...(user as Record<string, unknown>), authorityContext: responseAuthority(context), accumulatedAnswers: answers, productRules: GENERIC_CONTRACT_PRODUCT_RULES },
+      schemaName: 'option_b_review_response_v1', schema: REVIEW_SCHEMA,
+      model: config.reviewerModel, apiKey: config.apiKey,
+      effort: Deno.env.get('OPENAI_CONTRACT_REVIEWER_REASONING')?.trim() || 'high',
+    })
+    const result = normalizeReviewEnvelope(rawResult)
+    if (!isReviewResponse(result)) throw new Error('review_response_invalid')
+    return result
+  }
+
+  return {
+    generate: generator,
+    async verifyConflict(context: ServerBoundaryContext, answers: ContractGenerationAnswer[], conflicts: string[]) {
+      const source = await sourcePresentation(context, 'contract.docx')
+      const result = await reviewResponse(context, answers, CONFLICT_REVIEW_INSTRUCTIONS, {
+        source: source.blocks.map(({ kind, text }) => ({ kind, text })),
+        generationOutcome: { status: 'CONFLICT_INPUT', conflicts },
+      })
+      return result.status === 'PASS' ? 'confirmed' as const : 'rejected' as const
+    },
+    async review(context: ServerBoundaryContext, answers: ContractGenerationAnswer[], candidate: { bytes: ArrayBuffer; changedBlocks: unknown[] }) {
+      const [source, candidateDoc] = await Promise.all([
+        sourcePresentation(context, 'contract.docx'),
+        readSource(candidate.bytes, 'candidate.docx'),
+      ])
+      const result = await reviewResponse(context, answers, REVIEW_INSTRUCTIONS, {
+        source: source.blocks.map(({ kind, text }) => ({ kind, text })),
+        candidate: candidateDoc.blocks.map(({ kind, text }) => ({ kind, text })),
+        mechanicalDiff: candidate.changedBlocks,
+      })
+      return result.status === 'PASS' ? 'pass' as const : 'fail' as const
+    },
+  }
+}
+
+function createBoundary(supabase: SupabaseClient, ownerId: string) {
+  const provider = providerAdapters()
+  return createContractGenerationBoundary({
+    newId: () => crypto.randomUUID(),
+    loadContext: (userId, weddingId, answers) => loadServerContext(supabase, userId, weddingId, answers),
+    async createSession(input) {
+      if (input.userId !== ownerId || input.scope.ownerUserId !== ownerId) return null
+      const { error: expireError } = await supabase.from('wedding_contract_generation_runs').update({
+        session_state: 'abandoned', generation_status: 'failed',
+      }).eq('owner_user_id', input.userId).eq('wedding_id', input.weddingId).eq('session_kind', 'option_b')
+        .in('session_state', ['processing', 'awaiting_input']).lte('expires_at', new Date().toISOString())
+      if (expireError) return null
+      const { data, error } = await supabase.from('wedding_contract_generation_runs').insert({
+        wedding_id: input.weddingId, template_id: input.scope.templateId, template_version_id: input.scope.templateVersionId,
+        generation_status: 'processing', resolved_values_json: {}, owner_user_id: input.userId,
+        session_kind: 'option_b', session_state: 'processing', missing_inputs_json: [], user_answers_json: [],
+        source_sha256: input.sourceSha256, authority_fingerprint: input.authorityFingerprint,
+        execution_id: input.executionId, idempotency_key: input.requestId,
+      }).select('*').single()
+      if (error || !data) return null
+      return mapSession(data as RunRow)
+    },
+    async getSession(sessionId) {
+      const { data, error } = await supabase.from('wedding_contract_generation_runs').select('*').eq('id', sessionId).eq('session_kind', 'option_b').eq('owner_user_id', ownerId).maybeSingle()
+      if (error || !data) return null
+      return mapSession(data as RunRow)
+    },
+    async getSessionByIdempotencyKey(userId, requestId) {
+      const { data, error } = await supabase.from('wedding_contract_generation_runs').select('*').eq('owner_user_id', userId).eq('session_kind', 'option_b').eq('idempotency_key', requestId).maybeSingle()
+      if (error || !data) return null
+      return mapSession(data as RunRow)
+    },
+    async claimContinuation(input) {
+      const { data, error } = await supabase.from('wedding_contract_generation_runs').update({
+        session_state: 'processing', generation_status: 'processing', execution_id: input.executionId,
+      }).eq('id', input.sessionId).eq('owner_user_id', input.userId).eq('session_kind', 'option_b').eq('session_state', 'awaiting_input').gt('expires_at', new Date().toISOString()).select('*').maybeSingle()
+      if (error || !data) return null
+      return mapSession(data as RunRow)
+    },
+    async saveMissing(input) {
+      const { data, error } = await supabase.from('wedding_contract_generation_runs').update({
+        session_state: 'awaiting_input', generation_status: 'manual_input_required',
+        missing_inputs_json: input.missingInputs, user_answers_json: input.answers,
+        authority_fingerprint: input.authorityFingerprint,
+      }).eq('id', input.sessionId).eq('execution_id', input.executionId).eq('session_state', 'processing').select('id').maybeSingle()
+      return !error && Boolean(data)
+    },
+    async persistAcceptedCandidate(input) {
+      const { data: run, error: runError } = await supabase.from('wedding_contract_generation_runs').select('id,wedding_id,owner_user_id').eq('id', input.sessionId).eq('execution_id', input.executionId).eq('session_state', 'processing').eq('session_kind', 'option_b').maybeSingle()
+      if (runError || !run || run.owner_user_id !== ownerId) return null
+      const path = `${ownerId}/weddings/${run.wedding_id}/drafts/${run.id}/option-b-reviewed-candidate.docx`
+      const { error: uploadError } = await supabase.storage.from('document-files').upload(path, new Blob([input.candidate.bytes], { type: DOCX_TYPE }), { upsert: false, contentType: DOCX_TYPE })
+      if (uploadError) return null
+      const { data, error } = await supabase.from('wedding_contract_generation_runs').update({
+        session_state: 'completed', generation_status: 'ready', missing_inputs_json: [],
+        intermediate_docx_path: path, authority_fingerprint: input.authorityFingerprint,
+      }).eq('id', String(run.id)).eq('execution_id', input.executionId).eq('session_state', 'processing').select('id').maybeSingle()
+      if (error || !data) {
+        await supabase.storage.from('document-files').remove([path])
+        return null
+      }
+      return String(run.id)
+    },
+    async markFailure(sessionId, executionId, code) {
+      await supabase.from('wedding_contract_generation_runs').update({
+        session_state: code === 'stale' ? 'abandoned' : 'failed', generation_status: 'failed',
+      }).eq('id', sessionId).eq('execution_id', executionId).eq('session_kind', 'option_b').eq('session_state', 'processing')
+    },
+    ...provider,
+  })
+}
+
+async function handleRequest(request: Request): Promise<Response> {
+  const corsHeaders = buildRestrictedCorsHeaders(request, (name) => Deno.env.get(name) ?? null, 'POST, OPTIONS')
+  if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
+  if (request.method !== 'POST') return json({ status: 'failure', code: 'generation_safety' }, 405, corsHeaders)
+  const auth = await requireAuthenticatedUser(request)
+  if (!auth.ok) return auth.status === 401
+    ? json({ status: 'error', code: 'unauthorized' }, 401, corsHeaders)
+    : json({ status: 'failure', code: 'temporary_failure' }, 503, corsHeaders)
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')
+  const anonKey = Deno.env.get('SUPABASE_ANON_KEY')
+  if (!supabaseUrl || !anonKey) return json({ status: 'failure', code: 'temporary_failure' }, 503, corsHeaders)
+  const supabase = createClient<DatabaseSchema>(supabaseUrl, anonKey, { global: { headers: { Authorization: auth.authHeader } } })
+  let payload: unknown
+  try { payload = await request.json() } catch { return json({ status: 'failure', code: 'generation_safety' }, 400, corsHeaders) }
+  const parsed = parseContractGenerationAction(payload)
+  if (!parsed) return json({ status: 'failure', code: 'generation_safety' }, 400, corsHeaders)
+  if (parsed.action === 'start') {
+    const { data, error } = await supabase.from('weddings').select('id').eq('id', parsed.request.weddingId).eq('user_id', auth.userId).maybeSingle()
+    if (error) return json({ status: 'failure', code: 'temporary_failure' }, 503, corsHeaders)
+    if (!data) return json({ status: 'error', code: 'forbidden' }, 403, corsHeaders)
+  }
+  const boundary = createBoundary(supabase, auth.userId)
+  const result = parsed.action === 'start'
+    ? await boundary.start(auth.userId, parsed.request)
+    : await boundary.continue(auth.userId, parsed.request)
+  console.info(JSON.stringify({ event: 'contract_generation_boundary', action: parsed.action, sessionId: 'sessionId' in result ? result.sessionId : undefined, result: result.status }))
+  return json(result, 200, corsHeaders)
+}
+
+Deno.serve(async (request) => {
+  try { return await handleRequest(request) }
+  catch {
+    // Never return provider, database, prompt, or personal-data details.
+    return json({ status: 'failure', code: 'temporary_failure' }, 200)
+  }
+})

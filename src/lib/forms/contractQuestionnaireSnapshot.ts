@@ -12,6 +12,9 @@ import {
   type QuestionnaireCustomField,
 } from '@/types/contractQuestionnaire'
 import { ensureQuestionnaireBlocks } from '@/lib/forms/questionnaireBlocks'
+import { formatLocationAnswer, normalizeSelectedPackageIds } from '@/lib/forms/contractQuestionnaireAnswerValues'
+
+export { formatLocationAnswer, normalizeSelectedPackageIds }
 
 export function normalizeContractQuestionnaireConfig(
   raw: unknown,
@@ -236,23 +239,6 @@ export async function buildFormInstanceOptionsSnapshot(): Promise<FormInstanceOp
   }
 }
 
-/** Normalize legacy single packageId → selectedPackageIds[]. */
-export function normalizeSelectedPackageIds(
-  fields: Record<string, unknown>,
-): string[] {
-  const fromArray = fields.selectedPackageIds
-  const ids: string[] = []
-  if (Array.isArray(fromArray)) {
-    for (const item of fromArray) {
-      const id = String(item ?? '').trim()
-      if (id && !ids.includes(id)) ids.push(id)
-    }
-  }
-  const legacy = String(fields.packageId ?? '').trim()
-  if (legacy && !ids.includes(legacy)) ids.push(legacy)
-  return ids
-}
-
 export function validateIdsAgainstOptions(
   selectedIds: string[],
   options: Array<{ id: string }>,
@@ -265,32 +251,4 @@ export function validateIdsAgainstOptions(
   const invalidIds = selectedIds.filter((id) => !allowed.has(id))
   if (invalidIds.length > 0) return { ok: false, invalidIds }
   return { ok: true }
-}
-
-export function formatLocationAnswer(value: unknown): string {
-  if (typeof value === 'string') return value.trim()
-  if (!value || typeof value !== 'object') return ''
-  const row = value as Record<string, unknown>
-  const address =
-    (typeof row.formattedAddress === 'string' && row.formattedAddress.trim()) ||
-    [
-      row.street,
-      row.buildingNumber,
-      row.postalCode,
-      row.city,
-      row.country,
-    ]
-      .map((p) => (typeof p === 'string' ? p.trim() : ''))
-      .filter(Boolean)
-      .join(', ') ||
-    ''
-  const name =
-    (typeof row.label === 'string' && row.label.trim()) ||
-    (typeof row.name === 'string' && row.name.trim()) ||
-    ''
-  // Keep venue name when richer GeoPlace / NormalizedAddress is present.
-  if (name && address && name !== address) return `${name} — ${address}`
-  if (address) return address
-  if (name) return name
-  return ''
 }
