@@ -60,9 +60,11 @@ type WizardStep =
   | 'precondition'
   | 'failed'
 
-type PageGeneratedContract = Pick<TransformContractResult,
+type PageGeneratedContract = Omit<Pick<TransformContractResult,
   'draftId' | 'templateId' | 'templateVersionId' | 'title' | 'resolved' | 'omittedKeys' |
-  'paragraphs' | 'docxBytes' | 'usedMock' | 'qualityRetries' | 'executionSnapshot' | 'finalArtifact'>
+  'paragraphs' | 'docxBytes' | 'usedMock' | 'qualityRetries' | 'executionSnapshot' | 'finalArtifact'>, 'draftId'> & {
+    draftId?: string
+  }
 
 type PackageContractResolution =
   | {
@@ -201,26 +203,8 @@ export function WeddingContractGenerationPage() {
       candidateId: result.candidateId,
     })
     const title = `${wedding.packageName?.trim() || 'Umowa'} — ${wedding.couple.partner1} & ${wedding.couple.partner2}`
-    const summary = getWeddingCommercialSummary(wedding)
-    const packageSnapshot = packageSnapshotFromWedding(wedding)
-    const draft = await documentDraftService.create({
-      weddingId: wedding.id,
-      templateId: result.templateId,
-      templateVersionId: result.templateVersionId,
-      title,
-      fieldValues: {},
-      packageSnapshot,
-      money: {
-        price: summary.contractValue,
-        deposit: summary.agreedDeposit,
-        remaining: summary.remainingAfterDeposit,
-        discount: 0,
-        currency: summary.currency,
-      },
-    })
     const extracted = await extractDocxParagraphsIncludingEmpty(bytes)
     const prepared: PageGeneratedContract = {
-      draftId: draft.id,
       templateId: result.templateId,
       templateVersionId: result.templateVersionId,
       title,
@@ -407,6 +391,27 @@ export function WeddingContractGenerationPage() {
     if (!generated || !docxBytes || !wedding) return false
     setError(null)
     try {
+      let draftId = generated.draftId
+      if (!draftId) {
+        const summary = getWeddingCommercialSummary(wedding)
+        const draft = await documentDraftService.create({
+          weddingId: wedding.id,
+          templateId: generated.templateId,
+          templateVersionId: generated.templateVersionId,
+          title: generated.title,
+          fieldValues: {},
+          packageSnapshot: packageSnapshotFromWedding(wedding),
+          money: {
+            price: summary.contractValue,
+            deposit: summary.agreedDeposit,
+            remaining: summary.remainingAfterDeposit,
+            discount: 0,
+            currency: summary.currency,
+          },
+        })
+        draftId = draft.id
+        setGenerated((current) => current ? { ...current, draftId } : current)
+      }
       const { bytes: bytesToSave, editsApplied } = await resolveContractSaveBytes({
         docxBytes,
         generated,
@@ -414,7 +419,7 @@ export function WeddingContractGenerationPage() {
       })
       const saved = await saveGeneratedContract({
         wedding,
-        draftId: generated.draftId,
+        draftId,
         templateId: generated.templateId,
         templateVersionId: generated.templateVersionId,
         title: generated.title,

@@ -112,7 +112,7 @@ function validCandidateRequest(value: unknown): value is ContractGenerationCandi
     && typeof item.candidateId === 'string' && item.candidateId.trim().length > 0
 }
 
-/** One provider invocation per request; all authority is freshly loaded by loadContext. */
+/** One Generator call per generation request, plus at most one result-specific review or conflict-verification call. */
 export function createContractGenerationBoundary(deps: ServerBoundaryDependencies) {
   const now = deps.now ?? (() => new Date())
 

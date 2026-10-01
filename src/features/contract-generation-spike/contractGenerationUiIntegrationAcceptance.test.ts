@@ -7,6 +7,29 @@ const page = await readFile(new URL('../../pages/WeddingContractGenerationPage.t
 const form = await readFile(new URL('./ContractGenerationMissingInputForm.tsx', import.meta.url), 'utf8')
 const previewPage = await readFile(new URL('../../pages/WeddingContractPreviewPage.tsx', import.meta.url), 'utf8')
 
+const acceptedCandidatePath = page.slice(
+  page.indexOf('async function showAcceptedCandidate('),
+  page.indexOf('async function applyBoundaryResult('),
+)
+assert.match(acceptedCandidatePath, /downloadAcceptedContractCandidate/)
+assert.match(acceptedCandidatePath, /setStep\('preview'\)/)
+assert.doesNotMatch(acceptedCandidatePath, /documentDraftService\.create/)
+
+const recoveryPath = page.slice(
+  page.indexOf('async function recoverConnection('),
+  page.indexOf('useEffect(() => {', page.indexOf('async function recoverConnection(')),
+)
+assert.match(recoveryPath, /recoverContractGeneration/)
+assert.match(recoveryPath, /applyBoundaryResult/)
+assert.doesNotMatch(recoveryPath, /documentDraftService\.create/)
+
+const savePath = page.slice(
+  page.indexOf('async function save()'),
+  page.indexOf('function downloadGeneratedDocx()'),
+)
+assert.match(savePath, /if \(!draftId\)[\s\S]*documentDraftService\.create/)
+assert.match(savePath, /saveGeneratedContract\(\{[\s\S]*draftId,/)
+
 const pending: MissingInput[] = [
   { id: 'opaque-2', label: 'Termin', answerKind: 'date' },
   { id: 'opaque-1', label: 'Dodatkowe ustalenia', answerKind: 'multiline', subject: { displayName: 'Umowa' } },
