@@ -5,7 +5,6 @@ import { AppLayout } from '@/layouts/AppLayout'
 import { Button } from '@/components/ui/Button'
 import { PageContainer } from '@/components/ui/PageContainer'
 import {
-  applyDocxParagraphEdits,
   saveGeneratedContract,
   type DocxParagraph,
   type TransformContractResult,
@@ -16,14 +15,10 @@ import {
   refreshFinalDocxHash,
 } from '@/features/documents/template/finalContractGenerationArtifact'
 import { extractDocxParagraphsIncludingEmpty } from '@/features/documents/template/extractDocxParagraphs'
-import { createGenerationCorrelationId } from '@/features/documents/template/WeddingContractGenerationService'
 import { resolvePackageContractForWedding } from '@/features/documents/template/packageContractAssignment'
 import { packageSnapshotFromWedding } from '@/features/documents/template/resolveContractVariables'
 import {
-  ContractGenerationOverlay,
-  ContractSuccessState,
   DocxActionButton,
-  PaymentScheduleCompletionForm,
   ContractReadyPreview,
   ContractDocxPreview,
 } from '@/features/documents/contract-experience'
@@ -34,45 +29,40 @@ import { useProMutationPageGuard } from '@/features/billing/useProMutationPageGu
 import { weddingActionsService } from '@/lib/api/weddingActionsService'
 import styles from './WeddingContractGenerationPage.module.css'
 import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
-import { isTravelFeeResolved } from '@/lib/utils/travelFeeCommercial'
-import { mayGenerateContract } from '@/lib/utils/contractGenerationIntegrity'
-import { MissingContractDataDialog } from '@/features/weddings/actions/MissingContractDataDialog'
-import type { MissingDataCorrectionKind } from '@/lib/utils/validateContractGeneration'
 import { devInfo } from '@/lib/debug/devConsole'
-import { startSemanticContractGeneration, resumeSemanticContractGeneration, type SemanticContractGenerationInput, type SemanticContractGenerationPendingState, type SemanticGenerationRequirement, type SemanticGenerationRequirementValues, type SemanticGenerationArtifact } from '@/features/ai-contract-transform/semanticContractGenerationService'
-import { invokeSemanticMapProvider } from '@/features/ai-contract-transform/semanticMapProviderTransport'
-import { buildSemanticContractProductionDataset } from '@/features/ai-contract-transform/semanticContractProductionInput'
-import { validateSemanticMissingData } from '@/features/ai-contract-transform/semanticMissingDataForm'
-import { SemanticMissingDataModal } from '@/features/weddings/actions/SemanticMissingDataModal'
-import { downloadPackageContractTemplateSource, persistPackageContractTemplateExtrasMetadata } from '@/features/documents/template/packageContractTemplateUpload'
 import { documentDraftService } from '@/lib/api/documents'
-import { weddingPlaceService } from '@/lib/api/weddingPlaceService'
-import { weddingExtraServiceService } from '@/lib/api/weddingExtraServiceService'
 import { getWeddingCommercialSummary } from '@/lib/utils/commercial'
-import type { WeddingPlace } from '@/types/travel'
-import type { WeddingExtraService } from '@/types/package'
+import {
+  continueContractGeneration,
+  ContractGenerationBoundaryClientError,
+  downloadAcceptedContractCandidate,
+  recoverContractGeneration,
+  startContractGeneration,
+  type MissingInput,
+} from '@/features/contract-generation-spike/contractGenerationBoundaryClient'
+import {
+  clearGenerationConnection,
+  readGenerationConnection,
+  writeGenerationConnection,
+  type GenerationConnection,
+} from '@/features/contract-generation-spike/generationConnection'
+import { ContractGenerationMissingInputForm } from '@/features/contract-generation-spike/ContractGenerationMissingInputForm'
 
 type WizardStep =
   | 'resolve'
   | 'generating'
+  | 'recovering'
   | 'waiting_for_user_input'
-  | 'resuming'
-  | 'manual_payment'
-  | 'creating_preview'
   | 'preview'
   | 'saved'
+  | 'conflict'
+  | 'stale'
+  | 'precondition'
   | 'failed'
-  | 'needs_attention'
 
 type PageGeneratedContract = Pick<TransformContractResult,
   'draftId' | 'templateId' | 'templateVersionId' | 'title' | 'resolved' | 'omittedKeys' |
   'paragraphs' | 'docxBytes' | 'usedMock' | 'qualityRetries' | 'executionSnapshot' | 'finalArtifact'>
-
-type PreparedSemanticContract = {
-  generated: PageGeneratedContract
-  paymentSchedule: import('@/features/documents/template/payment-schedule').DetectedPaymentSchedule | null
-  generationRunId?: string
-}
 
 type PackageContractResolution =
   | {
@@ -121,62 +111,25 @@ export function WeddingContractGenerationPage() {
   const packageResolution = (packageContractQuery.data ??
     null) as PackageContractResolution
 
-  const weddingPlacesQuery = useQuery({
-    queryKey: ['wedding-places-for-semantic-contract', weddingId],
-    queryFn: () => weddingPlaceService.listByWeddingId(weddingId),
-    enabled: Boolean(weddingId),
-    staleTime: 30_000,
-  })
-  const extrasQuery = useQuery({
-    queryKey: ['wedding-extras-for-semantic-contract', weddingId],
-    queryFn: () => weddingExtraServiceService.listByWeddingId(weddingId),
-    enabled: Boolean(weddingId),
-    staleTime: 30_000,
-  })
-  const weddingPlaces = (weddingPlacesQuery.data ?? []) as WeddingPlace[]
-  const selectedExtras = (extrasQuery.data ?? []) as WeddingExtraService[]
-  const semanticInputsReady = !weddingPlacesQuery.isLoading && !extrasQuery.isLoading
-    && !weddingPlacesQuery.isError && !extrasQuery.isError
-
   const [step, setStep] = useState<WizardStep>('resolve')
   const [generated, setGenerated] = useState<PageGeneratedContract | null>(
     null,
   )
-  const [semanticPendingState, setSemanticPendingState] = useState<SemanticContractGenerationPendingState | null>(null)
-  const [semanticRequirements, setSemanticRequirements] = useState<SemanticGenerationRequirement[]>([])
-  const [semanticRequirementValues, setSemanticRequirementValues] = useState<SemanticGenerationRequirementValues>({})
-  const [semanticRequirementErrors, setSemanticRequirementErrors] = useState<Record<string, string>>({})
-  const [semanticCanonicalDataset, setSemanticCanonicalDataset] = useState<SemanticContractGenerationInput['canonicalDataset'] | null>(null)
-  const [resumePending, setResumePending] = useState(false)
-  const [semanticFailureCode, setSemanticFailureCode] = useState<string | null>(null)
+  const [missingInputs, setMissingInputs] = useState<MissingInput[]>([])
   const [paragraphs, setParagraphs] = useState<DocxParagraph[]>([])
   const [docxBytes, setDocxBytes] = useState<ArrayBuffer | null>(null)
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null)
-  const [paymentSchedule, setPaymentSchedule] = useState<
-    import('@/features/documents/template/payment-schedule').DetectedPaymentSchedule | null
-  >(null)
-  const [generationRunId, setGenerationRunId] = useState<string | null>(null)
   const [qualitySummary, setQualitySummary] = useState<
     import('@/features/documents/template/payment-schedule').FriendlyQualitySummary | null
   >(null)
-  const [paymentWasManual, setPaymentWasManual] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [missingValidation, setMissingValidation] = useState<
-    import('@/lib/utils/validateContractGeneration').ContractGenerationValidation | null
-  >(null)
-  const [showMissingData, setShowMissingData] = useState(false)
-  const [generationStartedAt] = useState(() => new Date())
+  const [boundaryErrorKind, setBoundaryErrorKind] = useState<'safety' | 'temporary' | 'auth' | null>(null)
   const [generatePending, setGeneratePending] = useState(false)
-  const [busy, setBusy] = useState(false)
+  const [recoveryPending, setRecoveryPending] = useState(false)
   const generateInFlightRef = useRef(false)
-  /** Survives success — query refetch must not wipe a completed generation. */
-  const generationSuccessRef = useRef(false)
-  /** Presentation-only — backend finished; stages may still animate. */
-  const [generationPipelineDone, setGenerationPipelineDone] = useState(false)
-  /** Presentation-only — cinematic success before preview. */
-  const [showGenerationSuccess, setShowGenerationSuccess] = useState(false)
+  const recoveryAttemptedRef = useRef<string | null>(null)
 
-  const canGenerate = packageResolution?.status === 'ok' && semanticInputsReady && !generatePending
+  const canGenerate = packageResolution?.status === 'ok' && !generatePending && !recoveryPending
 
   const hasUnsavedGeneratedDraft = step === 'preview' && Boolean(generated)
   const blocker = useBlocker(hasUnsavedGeneratedDraft)
@@ -203,193 +156,57 @@ export function WeddingContractGenerationPage() {
   useEffect(() => {
     if (!wedding || packageContractQuery.isLoading) return
     if (!packageResolution) return
-    // Never reset a successful generation UI because a background query refreshed.
-    if (generationSuccessRef.current || step === 'preview' || step === 'saved') {
-      return
-    }
-    if (!isTravelFeeResolved(wedding)) {
-      return
-    }
-    if (packageResolution.status !== 'ok') {
-      setStep('resolve')
-      return
-    }
+    if (packageResolution.status !== 'ok') return
     devInfo('[package-contract-page-load]', {
       weddingId: wedding.id,
       packageId: wedding.packageId,
       resolvedTemplateId: packageResolution.templateId,
       resolvedTemplateVersionId: packageResolution.templateVersionId,
       packageContractMode: true,
-      generationSourceType: 'package_active_contract',
-      persistedOnlyMode: true,
+      generationSourceType: 'authenticated_server_boundary',
     })
-    // The user starts generation directly from this package-ready screen.
-  }, [wedding, packageResolution, packageContractQuery.isLoading, step])
+  }, [wedding, packageResolution, packageContractQuery.isLoading])
 
-  async function generate() {
-    if (!wedding) {
-      setError('Nie można rozpocząć generowania — brak danych ślubu.')
-      return
-    }
-    // A4 — re-check on the current wedding object at click time (stale-state safety)
-    const readiness = mayGenerateContract(wedding)
-    if (!readiness.isReady) {
-      setMissingValidation(readiness)
-      setShowMissingData(true)
-      setError(
-        readiness.missingGroups
-          .flatMap((g) => g.items.map((item) => `Brakuje: ${item}`))
-          .join(' ') || 'Uzupełnij dane do umowy przed wygenerowaniem.',
-      )
-      return
-    }
-    if (!isTravelFeeResolved(wedding)) {
-      setError('Najpierw ustal koszt dojazdu.')
-      return
-    }
-
-    if (generatePending || generateInFlightRef.current) {
-      devInfo('[contract-generate-early-return]', {
-        reason: 'duplicate_submit_guard',
-        generatePending,
-        inFlight: generateInFlightRef.current,
-      })
-      return
-    }
-    setError(null)
-
-    if (!canGenerate) {
-      setError('Poczekaj, aż przygotujemy dane umowy.')
-      return
-    }
-
-    // Correlation id only for a real pipeline attempt.
-    if (packageResolution?.status !== 'ok' || !wedding.packageId) {
-      setError('Brak szablonu umowy w pakiecie.')
-      return
-    }
-    const correlationId = createGenerationCorrelationId()
-    generateInFlightRef.current = true
-    setGeneratePending(true)
-    setGenerationPipelineDone(false)
-    setShowGenerationSuccess(false)
-    setGenerationRunId(null)
-    setSemanticPendingState(null)
-    setSemanticRequirements([])
-    setSemanticRequirementValues({})
-    setSemanticRequirementErrors({})
-    setSemanticCanonicalDataset(null)
-    setStep('generating')
-    devInfo('[contract-generate-start]', {
-      weddingId: wedding.id,
-      packageId: wedding.packageId ?? null,
-      templateId: packageResolution.templateId,
-      templateVersionId: packageResolution.templateVersionId,
-      correlationId,
-    })
-    try {
-      const source = await downloadPackageContractTemplateSource({
-        templateId: packageResolution.templateId,
-        templateVersionId: packageResolution.templateVersionId,
-      })
-      const currentDate = generationStartedAt.toISOString()
-      const canonicalDataset = buildSemanticContractProductionDataset({
-        wedding,
-        package: { id: wedding.packageId, name: packageResolution.packageName },
-        currentDate,
-        extras: selectedExtras,
-        weddingPlaces,
-      })
-      setSemanticCanonicalDataset(canonicalDataset)
-      const result = await startSemanticContractGeneration({
-        sourceDocxBytes: source.bytes,
-        sourceIdentity: {
-          templateId: packageResolution.templateId,
-          version: source.templateVersionId,
-          fileName: source.fileName,
-        },
-        extrasTemplateMetadata: source.extrasTemplateMetadata,
-        currentDate,
-        canonicalDataset,
-        modelCandidate: 'terra',
-      }, invokeSemanticMapProvider)
-      const resolvedExtrasMetadata = result.status === 'COMPLETED'
-        ? result.artifact.extrasTemplateMetadata
-        : result.status === 'REQUIRES_USER_INPUT'
-          ? result.pendingState.extrasTemplateMetadata
-          : null
-      if (!source.extrasTemplateMetadata && resolvedExtrasMetadata) {
-        await persistPackageContractTemplateExtrasMetadata({
-          templateVersionId: source.templateVersionId,
-          sourceDocxBytes: source.bytes,
-          metadata: resolvedExtrasMetadata,
-        })
-      }
-      if (result.status === 'REQUIRES_USER_INPUT') {
-        generationSuccessRef.current = false
-        setSemanticPendingState(result.pendingState)
-        setSemanticRequirements(result.requirements)
-        setSemanticRequirementValues({})
-        setSemanticRequirementErrors({})
-        setStep('waiting_for_user_input')
-        return
-      }
-      if (result.status !== 'COMPLETED') {
-        throw Object.assign(new Error(result.message), { semanticCode: result.code })
-      }
-      const prepared = await prepareSemanticPreview(result.artifact)
-      setGenerated(prepared.generated)
-      setDocxBytes(prepared.generated.docxBytes)
-      setParagraphs(prepared.generated.paragraphs.map(({ index, text }) => ({ index, text })))
-      if (prepared.paymentSchedule) {
-        generationSuccessRef.current = false
-        setPaymentSchedule(prepared.paymentSchedule)
-        setGenerationRunId(prepared.generationRunId ?? null)
-        setPaymentWasManual(false)
-        setStep('manual_payment')
-        return
-      }
-      generationSuccessRef.current = true
-      setGenerationPipelineDone(true)
-      devInfo('[contract-generate-success]', {
-        generator: 'semantic-map-v7',
-        nextNavigationOrAction: 'generation_success_presentation',
-        paragraphCount: prepared.generated.paragraphs.length,
-      })
-    } catch (err) {
-      generationSuccessRef.current = false
-      setGenerationPipelineDone(false)
-      setShowGenerationSuccess(false)
-      const code = err && typeof err === 'object' && 'semanticCode' in err && typeof err.semanticCode === 'string'
-        ? err.semanticCode
-        : 'semantic_generation_failed'
-      setSemanticFailureCode(code)
-      setError(semanticFailureMessage(code))
-      setStep('failed')
-    } finally {
-      devInfo('[contract-generate-finally]', {
-        pendingBeforeReset: true,
-        currentScreenStateIntent: 'reset_pending_keep_step',
-        generationSuccess: generationSuccessRef.current,
-      })
-      generateInFlightRef.current = false
-      setGeneratePending(false)
-    }
+  function clearConnection() {
+    if (typeof window !== 'undefined' && weddingId) clearGenerationConnection(window.localStorage, weddingId)
   }
 
-  async function prepareSemanticPreview(artifact: SemanticGenerationArtifact): Promise<PreparedSemanticContract> {
-    if (!wedding || packageResolution?.status !== 'ok') throw new Error('semantic_generation_context_missing')
-    const templateId = artifact.sourceIdentity.templateId ?? packageResolution.templateId
-    const templateVersionId = artifact.sourceIdentity.version ?? packageResolution.templateVersionId
-    if (!templateId || !templateVersionId) throw new Error('semantic_template_identity_missing')
-    const title = `${packageResolution.packageName} — ${wedding.couple.partner1} & ${wedding.couple.partner2}`
+  function setSafeClientError(error: unknown) {
+    if (error instanceof ContractGenerationBoundaryClientError) {
+      if (error.code === 'unauthorized') {
+        setError('Twoja sesja logowania wygasła. Zaloguj się ponownie i wróć do umowy.')
+        setBoundaryErrorKind('auth')
+      } else if (error.code === 'forbidden') {
+        setError('Nie masz dostępu do tego ślubu.')
+        setBoundaryErrorKind('auth')
+      } else if (error.code === 'generation_safety') {
+        setError('Nie udało się bezpiecznie zaakceptować umowy. Dokument nie został utworzony.')
+        setBoundaryErrorKind('safety')
+      } else {
+        setError('Wystąpił chwilowy problem. Możesz rozpocząć nowe podejście.')
+        setBoundaryErrorKind('temporary')
+      }
+      return
+    }
+    setError(getUserFacingErrorMessage(error, 'Wystąpił chwilowy problem. Możesz rozpocząć nowe podejście.'))
+    setBoundaryErrorKind('temporary')
+  }
+
+  async function showAcceptedCandidate(
+    result: Extract<import('@/features/contract-generation-spike/serverBoundary').ContractGenerationBoundaryResponse, { status: 'ready' }>,
+  ) {
+    if (!wedding) throw new Error('wedding_context_unavailable')
+    const bytes = await downloadAcceptedContractCandidate({
+      weddingId: wedding.id,
+      candidateId: result.candidateId,
+    })
+    const title = `${wedding.packageName?.trim() || 'Umowa'} — ${wedding.couple.partner1} & ${wedding.couple.partner2}`
     const summary = getWeddingCommercialSummary(wedding)
     const packageSnapshot = packageSnapshotFromWedding(wedding)
-    const extracted = await extractDocxParagraphsIncludingEmpty(artifact.docxBytes)
     const draft = await documentDraftService.create({
       weddingId: wedding.id,
-      templateId,
-      templateVersionId,
+      templateId: result.templateId,
+      templateVersionId: result.templateVersionId,
       title,
       fieldValues: {},
       packageSnapshot,
@@ -401,135 +218,189 @@ export function WeddingContractGenerationPage() {
         currency: summary.currency,
       },
     })
-    const generated: PageGeneratedContract = {
+    const extracted = await extractDocxParagraphsIncludingEmpty(bytes)
+    const prepared: PageGeneratedContract = {
       draftId: draft.id,
-      templateId,
-      templateVersionId,
+      templateId: result.templateId,
+      templateVersionId: result.templateVersionId,
       title,
       resolved: {},
       omittedKeys: [],
       paragraphs: extracted,
-      docxBytes: artifact.docxBytes,
+      docxBytes: bytes,
       usedMock: false,
       qualityRetries: 0,
       executionSnapshot: null,
       finalArtifact: null,
     }
-    const {
-      detectPaymentSchedule,
-      evaluatePaymentSchedulePolicy,
-      contractGenerationRunService,
-    } = await import('@/features/documents/template/payment-schedule')
-    const finances = {
-      totalContractAmount: Math.round(summary.contractValue),
-      depositAmount: Math.round(summary.agreedDeposit),
-      remainingAmount: Math.round(summary.remainingAfterDeposit),
-    }
-    const detected = detectPaymentSchedule({
-      slots: [],
-      paragraphs: extracted.map(({ index, text }) => ({ index, text })),
-      finances,
-    })
-    const policy = evaluatePaymentSchedulePolicy(detected, finances)
-    let generationRunId: string | undefined
-    if (policy.requiresManualCompletion && policy.resolvedSchedule) {
-      try {
-        const run = await contractGenerationRunService.create({
-          weddingId: wedding.id,
-          draftId: draft.id,
-          templateId,
-          templateVersionId,
-          status: 'manual_input_required',
-          detectedSchedule: policy.resolvedSchedule,
-          resolvedValues: generated.resolved,
-          totalContractAmount: finances.totalContractAmount,
-          intermediateDocxBytes: artifact.docxBytes,
-        })
-        generationRunId = run.id
-      } catch {
-        // Preserve the in-memory manual completion path when optional run persistence is unavailable.
-      }
-    }
-    return {
-      generated,
-      paymentSchedule: policy.requiresManualCompletion ? policy.resolvedSchedule : null,
-      ...(generationRunId ? { generationRunId } : {}),
-    }
-  }
-
-  function discardSemanticRequirements() {
-    setSemanticPendingState(null)
-    setSemanticRequirements([])
-    setSemanticRequirementValues({})
-    setSemanticRequirementErrors({})
-    setSemanticCanonicalDataset(null)
-    setSemanticFailureCode(null)
-    setStep('resolve')
-  }
-
-  async function resumeSemanticGeneration() {
-    if (!semanticPendingState || resumePending || generateInFlightRef.current) return
-    const validationErrors = validateSemanticMissingData(semanticRequirements, semanticRequirementValues)
-    setSemanticRequirementErrors(validationErrors)
-    if (Object.keys(validationErrors).length) return
-    setResumePending(true)
-    generateInFlightRef.current = true
-    setSemanticFailureCode(null)
+    setGenerated(prepared)
+    setDocxBytes(bytes)
+    setParagraphs(extracted.map(({ index, text }) => ({ index, text })))
+    setMissingInputs([])
+    setBoundaryErrorKind(null)
     setError(null)
-    setGenerationPipelineDone(false)
-    setShowGenerationSuccess(false)
-    setStep('resuming')
-    try {
-      const result = await resumeSemanticContractGeneration({
-        pendingState: semanticPendingState,
-        suppliedValues: semanticRequirementValues,
+    setStep('preview')
+  }
+
+  async function applyBoundaryResult(
+    result: import('@/features/contract-generation-spike/serverBoundary').ContractGenerationBoundaryResponse,
+    connection: GenerationConnection,
+  ) {
+    if (result.status === 'awaiting_input' || result.status === 'processing' || result.status === 'ready'
+      || result.status === 'unresolved_conflict') {
+      writeGenerationConnection(window.localStorage, weddingId, {
+        ...connection,
+        sessionId: result.sessionId,
       })
-      if (result.status === 'REQUIRES_USER_INPUT') {
-        setSemanticPendingState(result.pendingState)
-        setSemanticRequirements(result.requirements)
-        setStep('waiting_for_user_input')
-        return
-      }
-      if (result.status !== 'COMPLETED') {
-        throw Object.assign(new Error(result.message), { semanticCode: result.code })
-      }
-      const prepared = await prepareSemanticPreview(result.artifact)
-      setGenerated(prepared.generated)
-      setDocxBytes(prepared.generated.docxBytes)
-      setParagraphs(prepared.generated.paragraphs.map(({ index, text }) => ({ index, text })))
-      setSemanticPendingState(null)
-      setSemanticRequirements([])
-      setSemanticRequirementValues({})
-      setSemanticRequirementErrors({})
-      setSemanticCanonicalDataset(null)
-      if (prepared.paymentSchedule) {
-        setPaymentSchedule(prepared.paymentSchedule)
-        setGenerationRunId(prepared.generationRunId ?? null)
-        setPaymentWasManual(false)
-        setStep('manual_payment')
-        return
-      }
-      generationSuccessRef.current = true
-      setGenerationPipelineDone(true)
-      setShowGenerationSuccess(false)
+    }
+    if (result.status === 'awaiting_input') {
+      setMissingInputs(result.missingInputs)
+      setError(null)
+      setBoundaryErrorKind(null)
+      setStep('waiting_for_user_input')
+      return
+    }
+    if (result.status === 'processing') {
+      setError(null)
+      setStep('recovering')
+      return
+    }
+    if (result.status === 'ready') {
       setStep('generating')
+      await showAcceptedCandidate(result)
+      return
+    }
+    if (result.status === 'unresolved_conflict') {
+      clearConnection()
+      setError(result.message)
+      setStep('conflict')
+      return
+    }
+    clearConnection()
+    if (result.status === 'precondition') {
+      setError('Umowa nie jest jeszcze gotowa do utworzenia. Sprawdź ustawienia umowy przed ponowną próbą.')
+      setStep('precondition')
+      return
+    }
+    if (result.status === 'stale') {
+      setError(result.code === 'authority_changed'
+        ? 'Dane ślubu zmieniły się podczas przygotowania umowy. Rozpocznij generowanie ponownie.'
+        : 'Poprzedniej sesji generowania nie można już kontynuować.')
+      setStep('stale')
+      return
+    }
+    if (result.status === 'error') {
+      setError(result.code === 'unauthorized'
+        ? 'Twoja sesja logowania wygasła. Zaloguj się ponownie i wróć do umowy.'
+        : 'Nie masz dostępu do tego ślubu.')
+      setBoundaryErrorKind('auth')
+      setStep('failed')
+      return
+    }
+    setError(result.code === 'generation_safety'
+      ? 'Nie udało się bezpiecznie zaakceptować umowy. Dokument nie został utworzony.'
+      : 'Wystąpił chwilowy problem. Możesz rozpocząć nowe podejście.')
+    setBoundaryErrorKind(result.code === 'generation_safety' ? 'safety' : 'temporary')
+    setStep('failed')
+  }
+
+  async function recoverConnection(connection?: GenerationConnection) {
+    const current = connection ?? (weddingId ? readGenerationConnection(window.localStorage, weddingId) : null)
+    if (!current || !weddingId || recoveryPending || generateInFlightRef.current) return
+    setRecoveryPending(true)
+    setError(null)
+    setStep('recovering')
+    try {
+      const result = await recoverContractGeneration({
+        weddingId,
+        ...(current.sessionId ? { sessionId: current.sessionId } : { requestId: current.requestId }),
+      })
+      await applyBoundaryResult(result, current)
     } catch (err) {
-      generationSuccessRef.current = false
-      const code = err && typeof err === 'object' && 'semanticCode' in err && typeof err.semanticCode === 'string'
-        ? err.semanticCode
-        : 'semantic_generation_failed'
-      setSemanticFailureCode(code)
-      setError(semanticFailureMessage(code))
+      setSafeClientError(err)
+      setStep('failed')
+    } finally {
+      setRecoveryPending(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!wedding || weddingLoading || !weddingId || recoveryAttemptedRef.current === weddingId) return
+    const connection = readGenerationConnection(window.localStorage, weddingId)
+    if (!connection) return
+    const recoveryTimer = window.setTimeout(() => {
+      if (recoveryAttemptedRef.current === weddingId) return
+      recoveryAttemptedRef.current = weddingId
+      void recoverConnection(connection)
+    }, 0)
+    return () => window.clearTimeout(recoveryTimer)
+    // recoverConnection uses current page state and this effect runs once per wedding route.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wedding, weddingId, weddingLoading])
+
+  async function generate() {
+    if (!wedding) {
+      setError('Nie można rozpocząć generowania — brak danych ślubu.')
+      return
+    }
+    if (generatePending || generateInFlightRef.current) return
+    if (!canGenerate) {
+      setError('Poczekaj, aż przygotujemy dane umowy.')
+      return
+    }
+    if (packageResolution?.status !== 'ok' || !wedding.packageId) {
+      setError('Brak szablonu umowy w pakiecie.')
+      return
+    }
+
+    const connection: GenerationConnection = { requestId: crypto.randomUUID() }
+    writeGenerationConnection(window.localStorage, wedding.id, connection)
+    generateInFlightRef.current = true
+    setGeneratePending(true)
+    setGenerated(null)
+    setDocxBytes(null)
+    setParagraphs([])
+    setDownloadUrl(null)
+    setMissingInputs([])
+    setBoundaryErrorKind(null)
+    setError(null)
+    setStep('generating')
+    try {
+      const result = await startContractGeneration({ weddingId: wedding.id, requestId: connection.requestId })
+      await applyBoundaryResult(result, connection)
+    } catch (err) {
+      clearConnection()
+      setSafeClientError(err)
       setStep('failed')
     } finally {
       generateInFlightRef.current = false
-      setResumePending(false)
+      setGeneratePending(false)
     }
   }
 
-  function semanticFailureMessage(code: string): string {
-    if (code.startsWith('provider_')) return 'Nie udało się bezpiecznie przeanalizować umowy. Spróbuj ponownie później.'
-    return 'Nie udało się bezpiecznie przygotować umowy. Spróbuj ponownie później.'
+  async function continueGeneration(answers: import('@/features/contract-generation-spike/generationProtocol').ContractGenerationAnswer[]) {
+    if (generateInFlightRef.current || !weddingId) return
+    const connection = readGenerationConnection(window.localStorage, weddingId)
+    if (!connection?.sessionId) {
+      clearConnection()
+      setError('Poprzedniej sesji generowania nie można już kontynuować.')
+      setStep('stale')
+      return
+    }
+    generateInFlightRef.current = true
+    setGeneratePending(true)
+    setError(null)
+    setStep('generating')
+    try {
+      const result = await continueContractGeneration({ sessionId: connection.sessionId, answers })
+      await applyBoundaryResult(result, connection)
+    } catch (err) {
+      setSafeClientError(err)
+      setStep('failed')
+    } finally {
+      generateInFlightRef.current = false
+      setGeneratePending(false)
+    }
   }
 
   async function save(): Promise<boolean> {
@@ -610,9 +481,9 @@ export function WeddingContractGenerationPage() {
               wedding.couple.venue || wedding.couple.city,
             ),
             providerProtected: true,
-            contractValueOk: (wedding.price ?? 0) > 0,
-            paymentSchedule,
-            paymentWasManual,
+            contractValueOk: getWeddingCommercialSummary(wedding).contractValue > 0,
+            paymentSchedule: null,
+            paymentWasManual: false,
           }),
         )
       }
@@ -622,6 +493,7 @@ export function WeddingContractGenerationPage() {
       void queryClient.invalidateQueries({
         queryKey: ['generated-wedding-contracts'],
       })
+      clearConnection()
       if (generated.finalArtifact) {
         const artifact = generated.finalArtifact
         void refreshFinalDocxHash(artifact, bytesToSave).then((finalArtifact) => {
@@ -695,112 +567,8 @@ export function WeddingContractGenerationPage() {
     )
   }
 
-  if (!isTravelFeeResolved(wedding)) {
-    return (
-      <AppLayout
-        title="Nowa umowa"
-        subtitle={getWeddingDisplayName(wedding)}
-        action={
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => navigate(`/sluby/${wedding.id}?tab=overview`)}
-          >
-            Wróć do ślubu
-          </Button>
-        }
-      >
-        <PageContainer width="wide">
-          <div
-            className={styles.card}
-            data-testid="travel-fee-generation-block"
-            role="alert"
-          >
-            <h2>Najpierw ustal koszt dojazdu.</h2>
-            <p className={styles.muted}>
-              Określ, czy dojazd jest w cenie, czy doliczany osobno.
-            </p>
-            <div className={styles.actions}>
-              <Button
-                type="button"
-                variant="primary"
-                onClick={() => navigate(`/sluby/${wedding.id}?tab=overview`)}
-              >
-                Ustal koszt dojazdu
-              </Button>
-            </div>
-          </div>
-        </PageContainer>
-      </AppLayout>
-    )
-  }
-
-  const pageReadiness = mayGenerateContract(wedding)
-  if (!pageReadiness.isReady) {
-    const receptionMissing = pageReadiness.missingGroups.some((g) =>
-      g.items.includes('Miejsce przyjęcia'),
-    )
-    return (
-      <AppLayout
-        title="Nowa umowa"
-        subtitle={getWeddingDisplayName(wedding)}
-        action={
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => navigate(`/sluby/${wedding.id}`)}
-          >
-            Wróć do ślubu
-          </Button>
-        }
-      >
-        <PageContainer width="wide">
-          <div
-            className={styles.card}
-            data-testid="contract-readiness-generation-block"
-            role="alert"
-          >
-            <h2>
-              {pageReadiness.title ?? 'Uzupełnij dane do umowy'}
-            </h2>
-            <p className={styles.muted}>
-              {pageReadiness.description ??
-                'Przed wygenerowaniem umowy uzupełnij poniższe informacje.'}
-            </p>
-            {pageReadiness.missingGroups.map((group) => (
-              <div key={group.id}>
-                <strong>{group.label}</strong>
-                <ul>
-                  {group.items.map((item) => (
-                    <li key={item}>{item}</li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-            {receptionMissing ? (
-              <p className={styles.muted}>
-                Do wygenerowania umowy wymagane jest miejsce przyjęcia.
-              </p>
-            ) : null}
-            <div className={styles.actions}>
-              <Button
-                type="button"
-                variant="primary"
-                onClick={() =>
-                  navigate(`/sluby/${wedding.id}?tab=overview`)
-                }
-              >
-                {pageReadiness.primaryCorrection?.label ?? 'Uzupełnij dane'}
-              </Button>
-            </div>
-          </div>
-        </PageContainer>
-      </AppLayout>
-    )
-  }
-
   const visibleStep = step === 'saved' ? 'preview'
-    : step === 'resuming' ? 'generating'
+    : step === 'recovering' ? 'generating'
       : step === 'waiting_for_user_input' ? 'resolve' : step
 
   return (
@@ -892,16 +660,6 @@ export function WeddingContractGenerationPage() {
                 Użyjemy umowy pakietu {packageResolution.packageName} i aktualnych danych ślubu.
               </p>
             </div>
-            {!semanticInputsReady ? (
-              <p className={styles.muted} role="status">
-                Pobieramy dane lokalizacji i usług dodatkowych…
-              </p>
-            ) : null}
-            {(weddingPlacesQuery.isError || extrasQuery.isError) ? (
-              <p className={styles.error} role="alert">
-                Nie udało się pobrać danych lokalizacji lub usług dodatkowych.
-              </p>
-            ) : null}
             {error ? <p className={styles.error} role="alert">{error}</p> : null}
             <div className={styles.actions}>
               <Button
@@ -928,179 +686,68 @@ export function WeddingContractGenerationPage() {
           </section>
         ) : null}
 
-        {step === 'manual_payment' && paymentSchedule ? (
-          <PaymentScheduleCompletionForm
-            schedule={paymentSchedule}
-            busy={busy}
-            onCancel={() => {
-              setPaymentSchedule(null)
-              setStep('resolve')
-            }}
-            onSubmit={async (submitted) => {
-              if (!generated || !docxBytes) return
-              setBusy(true)
-              setError(null)
-              try {
-                const {
-                  applyManualPaymentSchedule,
-                  validateManualPaymentSubmission,
-                  contractGenerationRunService,
-                } = await import(
-                  '@/features/documents/template/payment-schedule'
-                )
-                const validated = validateManualPaymentSubmission({
-                  schedule: paymentSchedule,
-                  entries: submitted.entries,
-                })
-                if (!validated.ok) {
-                  setError(
-                    validated.issues[0]?.safeDescription ||
-                      'Podane raty nie sumują się do wartości umowy.',
-                  )
-                  return
-                }
-                const patched = applyManualPaymentSchedule({
-                  paragraphs: paragraphs.map((p) => ({
-                    index: p.index,
-                    text: p.text,
-                  })),
-                  detectedSchedule: paymentSchedule,
-                  submitted,
-                  resolvedValues: generated.resolved,
-                })
-                if (!patched.ok) {
-                  setError(
-                    patched.issues[0]?.safeDescription ||
-                      'Nie udało się zastosować harmonogramu.',
-                  )
-                  return
-                }
-                const nextBytes = await applyDocxParagraphEdits(
-                  docxBytes,
-                  patched.paragraphs.map((p) => ({
-                    index: p.index,
-                    text: p.text,
-                  })),
-                )
-                const nextParagraphs =
-                  await extractDocxParagraphsIncludingEmpty(nextBytes)
-                const nextArtifact = generated.finalArtifact
-                  ? await refreshFinalDocxHash(generated.finalArtifact, nextBytes)
-                  : generated.finalArtifact
-                setDocxBytes(nextBytes)
-                setParagraphs(nextParagraphs)
-                setGenerated({
-                  ...generated,
-                  resolved: patched.resolvedValues,
-                  paragraphs: nextParagraphs,
-                  docxBytes: nextBytes,
-                  finalArtifact: nextArtifact,
-                })
-                setPaymentSchedule(patched.schedule)
-                setPaymentWasManual(true)
-                if (generationRunId) {
-                  try {
-                    await contractGenerationRunService.update(generationRunId, {
-                      status: 'ready',
-                      manualSchedule: patched.schedule,
-                    })
-                  } catch {
-                    // non-fatal if migration not applied yet
-                  }
-                }
-                setStep('creating_preview')
-                generationSuccessRef.current = true
-                const ok = await save()
-                if (ok) {
-                  setStep('saved')
-                } else {
-                  setStep('preview')
-                }
-              } catch (e) {
-                setError(
-                  getUserFacingErrorMessage(e, 'Nie udało się zastosować harmonogramu płatności.'),
-                )
-              } finally {
-                setBusy(false)
-              }
-            }}
-          />
-        ) : null}
-
-        {step === 'creating_preview' ? (
-          <section className={styles.card}>
-            <p className={styles.muted}>Tworzymy podgląd dokumentu…</p>
-          </section>
-        ) : null}
-
-        {step === 'failed' || step === 'needs_attention' ? (
-          <section className={styles.card}>
+        {step === 'failed' || step === 'conflict' || step === 'stale' || step === 'precondition' ? (
+          <section className={styles.card} role={step === 'failed' ? 'alert' : 'region'} aria-labelledby="generation-state-title">
             <div>
               <p className={styles.eyebrow}>
-                {step === 'needs_attention' ? 'Wymaga uwagi' : 'Nie udało się'}
+                {step === 'conflict' ? 'Wymaga korekty' : step === 'precondition' ? 'Ustawienia umowy' : step === 'stale' ? 'Sesja wygasła' : 'Nie udało się'}
               </p>
-              <h2>
-                {step === 'needs_attention'
-                  ? 'Umowa wymaga uzupełnienia'
-                  : 'Nie udało się wygenerować umowy'}
+              <h2 id="generation-state-title">
+                {step === 'conflict'
+                  ? 'Nie można bezpiecznie przygotować tej umowy'
+                  : step === 'precondition'
+                    ? 'Umowa nie jest gotowa do utworzenia'
+                    : step === 'stale'
+                      ? 'Rozpocznij nową sesję'
+                      : 'Nie udało się wygenerować umowy'}
               </h2>
             </div>
-            {error ? (
-              <p role="alert" className={styles.error} data-failure-code={semanticFailureCode ?? undefined}>
-                {error}
-              </p>
-            ) : null}
+            {error ? <p className={styles.error}>{error}</p> : null}
             <div className={styles.actions}>
-              <Button
-                type="button"
-                variant="primary"
-                onClick={() => {
-                  setError(null)
-                  setStep('resolve')
-                }}
-              >
-                Spróbuj ponownie
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => navigate(`/sluby/${wedding.id}`)}
-              >
+              {step === 'stale' || (step === 'failed' && boundaryErrorKind === 'temporary') ? (
+                <Button type="button" variant="primary" disabled={generatePending} onClick={() => void generate()}>
+                  {step === 'stale' ? 'Rozpocznij ponownie' : 'Spróbuj ponownie'}
+                </Button>
+              ) : null}
+              {step === 'precondition' ? (
+                <Button
+                  type="button"
+                  variant="primary"
+                  onClick={() => navigate(packageResolution?.status === 'missing_contract'
+                    ? packageResolution.packagePath
+                    : `/sluby/${wedding.id}?tab=contract_finance`)}
+                >
+                  Sprawdź ustawienia umowy
+                </Button>
+              ) : null}
+              <Button type="button" variant="ghost" onClick={() => navigate(`/sluby/${wedding.id}`)}>
                 Wróć do ślubu
               </Button>
             </div>
           </section>
         ) : null}
 
-        {step === 'generating' || step === 'resuming' ? (
-          <section className={`${styles.card} ${styles.generating}`} aria-hidden>
-            <p className={styles.eyebrow}>Przygotowanie</p>
+        {step === 'generating' ? (
+          <section className={`${styles.card} ${styles.generating}`} role="status" aria-live="polite" aria-busy="true">
+            <span className={styles.spinner} aria-hidden="true" />
             <h2>Tworzymy gotową umowę</h2>
-            <p className={styles.muted}>
-              Uzupełniamy dane i przygotowujemy dokument.
-            </p>
+            <p className={styles.muted}>Przygotowujemy dokument do podglądu.</p>
           </section>
         ) : null}
 
-        <ContractGenerationOverlay
-          open={(step === 'generating' || step === 'resuming') && !showGenerationSuccess}
-          pipelineDone={generationPipelineDone}
-          onStagesComplete={() => {
-            if (!generationSuccessRef.current) return
-            setShowGenerationSuccess(true)
-          }}
-        />
-
-        {step === 'generating' && showGenerationSuccess ? (
-          <ContractSuccessState
-            onPreview={() => {
-              setShowGenerationSuccess(false)
-              setGenerationPipelineDone(false)
-              setStep('preview')
-            }}
-            onDownload={async () => downloadGeneratedDocx()}
-            downloadDisabled={!generated?.docxBytes}
-          />
+        {step === 'recovering' ? (
+          <section className={`${styles.card} ${styles.generating}`} aria-live="polite">
+            {recoveryPending ? <span className={styles.spinner} aria-hidden="true" /> : null}
+            <h2>{recoveryPending ? 'Sprawdzamy sesję umowy' : 'Generowanie trwa'}</h2>
+            <p className={styles.muted}>
+              {recoveryPending ? 'Pobieramy aktualny stan z bezpiecznej sesji.' : 'Możesz sprawdzić stan ponownie.'}
+            </p>
+            {!recoveryPending ? (
+              <Button type="button" variant="secondary" onClick={() => void recoverConnection()}>
+                Sprawdź stan
+              </Button>
+            ) : null}
+          </section>
         ) : null}
 
         {step === 'preview' && generated ? (
@@ -1151,66 +798,26 @@ export function WeddingContractGenerationPage() {
               }
             }}
             onRegenerate={() => {
-              generationSuccessRef.current = false
               setStep('resolve')
             }}
-            onEditPaymentSchedule={
-              paymentWasManual && paymentSchedule
-                ? () => setStep('manual_payment')
-                : undefined
-            }
             qualitySummary={qualitySummary}
-            runId={generationRunId ?? undefined}
             weddingId={wedding.id}
           />
         ) : null}
 
-        {error ? (
+        {error && (step === 'preview' || step === 'saved' || (step === 'resolve' && packageResolution?.status !== 'ok')) ? (
           <p role="alert" className={styles.error}>
             {error}
           </p>
         ) : null}
       </PageContainer>
-      <MissingContractDataDialog
-        open={showMissingData}
-        validation={missingValidation}
-        onClose={() => {
-          setShowMissingData(false)
-          setMissingValidation(null)
-        }}
-        onCorrect={(kind: MissingDataCorrectionKind) => {
-          setShowMissingData(false)
-          setMissingValidation(null)
-          if (kind === 'edit_travel_fee' || kind === 'edit_couple' || kind === 'multi') {
-            navigate(`/sluby/${wedding.id}?tab=overview`)
-            return
-          }
-          if (kind === 'edit_package' || kind === 'edit_payments') {
-            navigate(`/sluby/${wedding.id}?tab=contract_finance`)
-            return
-          }
-          if (kind === 'company_settings') {
-            navigate('/ustawienia/firma')
-          }
-        }}
-      />
-      <SemanticMissingDataModal
-        open={Boolean(semanticPendingState) && step === 'waiting_for_user_input'}
-        busy={resumePending}
-        requirements={semanticRequirements}
-        dataset={semanticCanonicalDataset}
-        values={semanticRequirementValues}
-        errors={semanticRequirementErrors}
-        onChange={(id, value) => {
-          setSemanticRequirementValues((current) => ({ ...current, [id]: value }))
-          setSemanticRequirementErrors((current) => {
-            const next = { ...current }
-            delete next[id]
-            return next
-          })
-        }}
-        onSubmit={() => void resumeSemanticGeneration()}
-        onCancel={discardSemanticRequirements}
+      <ContractGenerationMissingInputForm
+        key={missingInputs.map((item) => item.id).join('|')}
+        open={Boolean(missingInputs.length) && step === 'waiting_for_user_input'}
+        busy={generatePending}
+        requirements={missingInputs}
+        onSubmit={(answers) => void continueGeneration(answers)}
+        onCancel={() => navigate(`/sluby/${wedding.id}`)}
       />
     </AppLayout>
   )

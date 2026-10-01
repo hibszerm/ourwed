@@ -36,6 +36,7 @@ function setup(overrides: Partial<ServerBoundaryDependencies> = {}) {
     },
     getSession: async () => session ?? baseSession,
     getSessionByIdempotencyKey: async () => null,
+    getAuthorityFingerprint: async () => fingerprint,
     claimContinuation: async ({ userId }) => {
       if (claimed) return null
       claimed = true
@@ -70,6 +71,47 @@ assert.deepEqual(parseContractGenerationAction({ version: 1, action: 'start', re
 assert.equal(parseContractGenerationAction({ version: 1, action: 'start', request: { weddingId: 'w1' }, extras: [] }), null, 'envelope parser rejects undeclared envelope fields')
 assert.deepEqual(parseContractGenerationAction({ version: 1, action: 'start', request: { weddingId: 'w1', contractValue: 10 } }), null, 'browser legal authority is rejected by strict request shape')
 assert.deepEqual(parseContractGenerationAction({ version: 1, action: 'continue', request: { sessionId: 's1', answers: [], authority: {} } }), null)
+assert.deepEqual(parseContractGenerationAction({ version: 1, action: 'recover', request: { weddingId: 'w1', sessionId: 'opaque-session' } }), { action: 'recover', request: { weddingId: 'w1', sessionId: 'opaque-session' } })
+assert.deepEqual(parseContractGenerationAction({ version: 1, action: 'candidate', request: { weddingId: 'w1', candidateId: 'opaque-candidate' } }), { action: 'candidate', request: { weddingId: 'w1', candidateId: 'opaque-candidate' } })
+assert.equal(parseContractGenerationAction({ version: 1, action: 'recover', request: { weddingId: 'w1', sessionId: 's1', requestId: '00000000-0000-4000-8000-000000000001' } }), null)
+
+{
+  const f = setup()
+  f.setSession(baseSession)
+  const recovered = await f.boundary.recover('owner-1', { weddingId: 'wedding-1', sessionId: 'session-1' })
+  assert.deepEqual(recovered, { status: 'awaiting_input', sessionId: 'session-1', missingInputs: baseSession.missingInputs })
+  assert.equal(f.calls.includes('generate'), false, 'recovery never invokes Generator')
+}
+
+{
+  const completed = { ...baseSession, state: 'completed' as const, missingInputs: [] }
+  const f = setup({ getSession: async () => completed })
+  const recovered = await f.boundary.recover('owner-1', { weddingId: 'wedding-1', sessionId: 'session-1' })
+  assert.deepEqual(recovered, { status: 'ready', sessionId: 'session-1', candidateId: 'session-1', templateId: 'template-1', templateVersionId: 'version-1' })
+}
+
+{
+  const processing = { ...baseSession, state: 'processing' as const, missingInputs: [] }
+  const f = setup({ getSession: async () => processing })
+  const recovered = await f.boundary.recover('owner-1', { weddingId: 'wedding-1', sessionId: 'session-1' })
+  assert.deepEqual(recovered, { status: 'processing', sessionId: 'session-1' })
+  assert.deepEqual(f.calls, [], 'processing recovery only reads the session')
+}
+
+{
+  const f = setup({ getAuthorityFingerprint: async () => 'c'.repeat(64) })
+  f.setSession(baseSession)
+  const recovered = await f.boundary.recover('owner-1', { weddingId: 'wedding-1', sessionId: 'session-1' })
+  assert.deepEqual(recovered, { status: 'stale', code: 'authority_changed' })
+}
+
+{
+  const f = setup()
+  f.setSession(baseSession)
+  const recovered = await f.boundary.recover('another-owner', { weddingId: 'wedding-1', sessionId: 'session-1' })
+  assert.deepEqual(recovered, { status: 'stale', code: 'session_invalid' })
+  assert.deepEqual(f.calls, [], 'foreign recovery does not load wedding authority')
+}
 
 {
   const f = setup()
@@ -86,7 +128,7 @@ assert.deepEqual(parseContractGenerationAction({ version: 1, action: 'continue',
     getSessionByIdempotencyKey: async () => ({ ...baseSession, state: 'completed' }),
   })
   const replay = await f.boundary.start('owner-1', startRequest)
-  assert.deepEqual(replay, { status: 'ready', sessionId: 'session-1', candidateId: 'session-1' })
+  assert.deepEqual(replay, { status: 'ready', sessionId: 'session-1', candidateId: 'session-1', templateId: 'template-1', templateVersionId: 'version-1' })
   assert.deepEqual(f.calls, [], 'initial request replay returns the existing candidate without another execution')
 }
 
@@ -224,6 +266,9 @@ assert.match(edge, /const applied = await applyOptionBGenerationResponse[\s\S]*?
 assert.match(edge, /candidate: \{ bytes: applied\.candidateBytes, changedBlocks: applied\.changedBlocks \}/)
 assert.match(edge, /execution_id: input\.executionId, idempotency_key: input\.requestId/)
 assert.match(edge, /session_state', 'awaiting_input'[\s\S]*?select\('\*'\)/, 'continuation claim uses an atomic awaiting-input compare-and-set')
+assert.match(edge, /\.eq\('id', parsed\.request\.candidateId\)[\s\S]*?\.eq\('wedding_id', parsed\.request\.weddingId\)[\s\S]*?\.eq\('owner_user_id', auth\.userId\)[\s\S]*?\.eq\('session_kind', 'option_b'\)[\s\S]*?\.eq\('session_state', 'completed'\)/, 'candidate reads bind opaque ID to owner, wedding, and completed Option B session')
+assert.match(edge, /const candidatePath = `\$\{auth\.userId\}\/weddings\/\$\{parsed\.request\.weddingId\}\/drafts\/\$\{parsed\.request\.candidateId\}\/option-b-reviewed-candidate\.docx`/, 'private candidate path is constructed only on the server')
+assert.match(edge, /getAuthorityFingerprint\(userId, sessionId\)/, 'resume compares fresh authority with the saved fingerprint')
 const migration = await readFile('supabase/migrations/20261001120000_contract_generation_boundary_guards.sql', 'utf8')
 assert.match(migration, /one_active_option_b_per_wedding/)
 assert.match(migration, /option_b_idempotency_key/)

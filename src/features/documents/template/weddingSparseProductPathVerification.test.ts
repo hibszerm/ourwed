@@ -30,10 +30,6 @@ const transformService = source(
 const preview = source(
   'src/features/documents/contract-experience/ContractDocxPreview.tsx',
 )
-const flags = source(
-  'src/features/documents/template/sparseWeddingContractFlags.ts',
-)
-
 // --- Engine identity after Mode B review fix ---
 assert(
   transformService.includes('export async function runSparseProductTransform'),
@@ -99,8 +95,8 @@ assert(
   sparseService.includes("status: 'manual_input_required'"),
   '4: can require manual payment',
 )
-assert(page.includes('PaymentScheduleCompletionForm'), '4: payment UI')
-assert(page.includes('manual_payment'), '4: manual_payment step')
+assert(page.includes('downloadAcceptedContractCandidate'), '4: accepted candidate preview bridge')
+assert(!page.includes('PaymentScheduleCompletionForm'), '4: no browser payment reconstruction')
 
 const multiPara = [
   { index: 0, text: 'Zadatek: 1000 zł' },
@@ -184,16 +180,13 @@ assert(
   '6: experimental Gotenberg client adapter absent',
 )
 
-// 7. Rollback flag false → legacy slot path
-assert(flags.includes("raw === 'false'"), '7: flag can disable sparse')
-assert(page.includes('isSparseWeddingContractGenerationEnabled'), '7: page gated')
+// 7. Production route uses the authenticated Slice 2 boundary; legacy engines stay isolated.
+assert(!page.includes('isSparseWeddingContractGenerationEnabled'), '7: production page is not gated to the legacy engine')
+assert(page.includes('startContractGeneration'), '7: production boundary start')
+assert(!page.includes('WeddingSparseContractGenerationService.generate'), '7: no client-side legacy generation')
 assert(
-  page.includes('WeddingContractGenerationService.generate'),
-  '7: legacy generate still present for rollback',
-)
-assert(
-  page.includes('!useSparseGeneration'),
-  '7: verify UI branches on flag',
+  !page.includes('WeddingContractGenerationService.generate'),
+  '7: old generator is disconnected from production page',
 )
 
 // Default flag behavior (env absent → sparse on)
@@ -203,6 +196,4 @@ assert(
 )
 
 console.log('ok — weddingSparseProductPathVerification')
-console.log(
-  'Wedding Generate path: WeddingContractGenerationPage → WeddingSparseContractGenerationService.generate → runSparseProductTransform → runFullAiRewrite (ai-contract-full-rewrite) → sparse changedBlocks → Mode A quality gate → writeTransformedDocx',
-)
+console.log('Wedding Generate path: WeddingContractGenerationPage → authenticated contract-generation-boundary → accepted candidate → existing document save/version flow')

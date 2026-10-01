@@ -1090,8 +1090,8 @@ await run('AK', 'regeneration is variable-only and pinned to template version', 
   assert(!preview.includes('Edytuj dane umowy'), 'edit CTA must stay hidden')
   assert(preview.includes('ContractReadyPreview'), 'ready preview wired')
   assert(
-    preview.includes("navigate(`/sluby/${wedding.id}/umowa/generuj`)"),
-    'regenerate navigates to wizard',
+    preview.includes("navigate(`/sluby/${wedding.id}/umowy/nowa`)"),
+    'regenerate navigates to the production generation route',
   )
   assert(ready.includes('Wygeneruj ponownie'), 'regenerate CTA remains')
   assert(service.includes('prepareVerification'), 'verification infra retained')

@@ -49,11 +49,16 @@ run('wedding module has empty, list, open and download actions', () => {
   assert(module.includes('PDF niedostępny') || module.includes('Pobierz PDF'), 'PDF action present')
 })
 
-run('both wedding detail surfaces share the contracts module', () => {
-  const v2 = source(
-    'src/features/weddings/detail/v2/WeddingContractFinanceWorkspace.tsx',
+run('modern wedding detail exposes persisted contracts and generation action', () => {
+  const modern = source(
+    'src/features/weddings/modern-detail/ModernWeddingContractFinanceWorkspace.tsx',
   )
-  assert(v2.includes('<WeddingContractsModule'), 'V2 integration missing')
+  const workspace = source(
+    'src/features/weddings/modern-detail/ModernWeddingDetailWorkspace.tsx',
+  )
+  assert(modern.includes('GeneratedWeddingContractService.listForWedding'), 'modern contract listing missing')
+  assert(modern.includes('Generuj umowę'), 'modern generation action missing')
+  assert(workspace.includes('ModernWeddingContractFinanceWorkspace'), 'modern wedding workspace mount missing')
 })
 
 run('generation and saved preview routes are canonical', () => {
@@ -118,8 +123,8 @@ run('saved preview hides in-page edit CTA and keeps real downloads', () => {
   assert(!preview.includes('contentEditable'), 'saved route must not expose arbitrary legal text editing')
   assert(preview.includes('ContractReadyPreview'), 'ready preview missing')
   assert(
-    preview.includes("navigate(`/sluby/${wedding.id}/umowa/generuj`)"),
-    'regenerate must remain available',
+    preview.includes("navigate(`/sluby/${wedding.id}/umowy/nowa`)"),
+    'regenerate must return to the production generation route',
   )
   assert(preview.includes("download('docx')") || preview.includes('onDownloadDocx'), 'real DOCX download missing')
   assert(preview.includes('Pobierz DOCX'), 'DOCX label on preview shell')

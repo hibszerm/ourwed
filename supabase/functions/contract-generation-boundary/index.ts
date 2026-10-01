@@ -414,6 +414,12 @@ function createBoundary(supabase: SupabaseClient, ownerId: string) {
       if (error || !data) return null
       return mapSession(data as RunRow)
     },
+    async getAuthorityFingerprint(userId, sessionId) {
+      const { data, error } = await supabase.from('wedding_contract_generation_runs').select('authority_fingerprint')
+        .eq('id', sessionId).eq('owner_user_id', userId).eq('session_kind', 'option_b').maybeSingle()
+      if (error || typeof data?.authority_fingerprint !== 'string') return null
+      return data.authority_fingerprint
+    },
     async claimContinuation(input) {
       const { data, error } = await supabase.from('wedding_contract_generation_runs').update({
         session_state: 'processing', generation_status: 'processing', execution_id: input.executionId,
@@ -475,10 +481,29 @@ async function handleRequest(request: Request): Promise<Response> {
     if (error) return json({ status: 'failure', code: 'temporary_failure' }, 503, corsHeaders)
     if (!data) return json({ status: 'error', code: 'forbidden' }, 403, corsHeaders)
   }
+  if (parsed.action === 'candidate') {
+    const { data: run, error } = await supabase.from('wedding_contract_generation_runs')
+      .select('id,wedding_id,owner_user_id,session_state,intermediate_docx_path')
+      .eq('id', parsed.request.candidateId).eq('wedding_id', parsed.request.weddingId)
+      .eq('owner_user_id', auth.userId).eq('session_kind', 'option_b').eq('session_state', 'completed')
+      .gt('expires_at', new Date().toISOString()).maybeSingle()
+    if (error) return json({ status: 'failure', code: 'temporary_failure' }, 503, corsHeaders)
+    if (!run || run.owner_user_id !== auth.userId) return json({ status: 'stale', code: 'session_invalid' }, 200, corsHeaders)
+    const candidatePath = `${auth.userId}/weddings/${parsed.request.weddingId}/drafts/${parsed.request.candidateId}/option-b-reviewed-candidate.docx`
+    if (run.intermediate_docx_path !== candidatePath) return json({ status: 'failure', code: 'generation_safety' }, 200, corsHeaders)
+    const { data: candidate, error: downloadError } = await supabase.storage.from('document-files').download(candidatePath)
+    if (downloadError || !candidate) return json({ status: 'failure', code: 'temporary_failure' }, 503, corsHeaders)
+    const headers = new Headers(corsHeaders)
+    headers.set('Content-Type', 'application/octet-stream')
+    headers.set('Cache-Control', 'no-store')
+    return new Response(candidate, { status: 200, headers })
+  }
   const boundary = createBoundary(supabase, auth.userId)
   const result = parsed.action === 'start'
     ? await boundary.start(auth.userId, parsed.request)
-    : await boundary.continue(auth.userId, parsed.request)
+    : parsed.action === 'continue'
+      ? await boundary.continue(auth.userId, parsed.request)
+      : await boundary.recover(auth.userId, parsed.request)
   console.info(JSON.stringify({ event: 'contract_generation_boundary', action: parsed.action, sessionId: 'sessionId' in result ? result.sessionId : undefined, result: result.status }))
   return json(result, 200, corsHeaders)
 }

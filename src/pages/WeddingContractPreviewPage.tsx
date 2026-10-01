@@ -165,7 +165,7 @@ export function WeddingContractPreviewPage() {
             <button
               type="button"
               className={styles.workflowAction}
-              onClick={() => navigate(`/sluby/${wedding.id}/umowa/generuj`)}
+              onClick={() => navigate(`/sluby/${wedding.id}/umowy/nowa`)}
             >
               <RefreshCw
                 className={styles.actionIcon}

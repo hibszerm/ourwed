@@ -338,14 +338,16 @@ run('M — best package template is preselected', () => {
   assert(selection.recommended.some((r) => r.template.id === 'pkg'), 'recommended')
 })
 
-run('N — Semantic V7 uses authoritative wedding readiness and post-map requirements', () => {
+run('N — production generation uses server-owned readiness and missing requirements', () => {
   const src = source(
     'src/features/documents/template/resolveContractVariables.ts',
   )
   assert(src.includes('sourceLabel') || src.length > 0, 'resolver present')
   const gen = source('src/pages/WeddingContractGenerationPage.tsx')
-  assert(gen.includes('mayGenerateContract'), 'wedding readiness check remains')
-  assert(gen.includes('SemanticMissingDataModal'), 'semantic-only required data is requested after mapping')
+  assert(gen.includes('startContractGeneration'), 'generation starts through the authenticated boundary')
+  assert(gen.includes('setMissingInputs(result.missingInputs)'), 'server requirements are shown as one batch')
+  assert(!gen.includes('mayGenerateContract'), 'browser readiness does not block server requirement discovery')
+  assert(!gen.includes('SemanticMissingDataModal'), 'legacy semantic modal is not active on the production page')
 })
 
 run('O — legacy slot review step is removed from Semantic V7 page', () => {
@@ -389,8 +391,8 @@ run('P — package-contract generation does not show Zakres poprawek', () => {
   const gen = source('src/pages/WeddingContractGenerationPage.tsx')
   assert(!gen.includes('Zakres poprawek'), 'no scope block')
   assert(!gen.includes('Zapisz również w danych klienta'), 'no CRM opt-in')
-  assert(gen.includes('startSemanticContractGeneration'), 'package route invokes Semantic V7')
-  assert(gen.includes('canonicalDataset'), 'authoritative snapshot drives generation')
+  assert(gen.includes('startContractGeneration'), 'package route invokes the authenticated server boundary')
+  assert(!gen.includes('canonicalDataset'), 'browser does not build generation authority')
 })
 
 run('Q — user can explicitly update CRM data', () => {
@@ -402,12 +404,12 @@ run('Q — user can explicitly update CRM data', () => {
   )
 })
 
-run('R — Semantic V7 resolves shared locations from structured wedding facts', () => {
+run('R — structured wedding authority is reconstructed on the server', () => {
   const gen = source('src/pages/WeddingContractGenerationPage.tsx')
   assert(!gen.includes('contextualQuestions'), 'legacy review question is absent')
-  assert(gen.includes('weddingPlaces'), 'structured locations enter the authoritative dataset')
-  const prompt = source('src/features/ai-contract-transform/semanticMapModelContract.ts')
-  assert(prompt.includes('shared_preparation_location'), 'semantic contract distinguishes shared location')
+  assert(!gen.includes('weddingPlaces'), 'locations are not loaded to construct browser authority')
+  const edge = source('supabase/functions/contract-generation-boundary/index.ts')
+  assert(edge.includes("from('wedding_places')"), 'server reconstructs structured location authority')
 })
 
 run('S — optional unresolved package field preserves template value (fixed)', () => {
@@ -458,8 +460,8 @@ run('W — DOCX preview is authoritative; production PDF via Cloudmersive', () =
     !gen.includes('ContractDocumentPreview'),
     'react paragraph preview not production default',
   )
-  assert(gen.includes('PaymentScheduleCompletionForm'), 'manual payment form')
-  assert(gen.includes("setStep('manual_payment')"), 'manual payment step')
+  assert(gen.includes('downloadAcceptedContractCandidate'), 'preview consumes the accepted server candidate')
+  assert(!gen.includes('PaymentScheduleCompletionForm'), 'browser does not reprocess payment terms')
   const exportSrc = source(
     'src/features/documents/template/ContractExportService.ts',
   )

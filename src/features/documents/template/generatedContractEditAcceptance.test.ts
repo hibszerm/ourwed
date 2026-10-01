@@ -39,7 +39,7 @@ assert(
   preview.includes("download('docx')") || preview.includes('onDownloadDocx'),
   'DOCX download wired',
 )
-assert(preview.includes("navigate(`/sluby/${wedding.id}/umowa/generuj`)"), 'regenerate remains')
+assert(preview.includes("navigate(`/sluby/${wedding.id}/umowy/nowa`)"), 'regenerate returns to the production generation route')
 assert(preview.includes('chrome="document"'), 'document chrome — shell owns actions')
 assert(ready.includes('Pobierz DOCX'), 'DOCX label')
 assert(

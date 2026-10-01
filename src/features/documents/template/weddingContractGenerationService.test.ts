@@ -668,7 +668,8 @@ await run('GenerationReviewState — legacy review service remains isolated from
   assert(!page.includes('buildGenerationReviewState'), 'legacy review is removed from page')
   assert(!page.includes("'verify'"), 'no intermediate verify state')
   assert(page.includes('generatePending'), 'direct generation still has pending guard')
-  assert(page.includes('mayGenerateContract'), 'existing wedding readiness gate remains')
+  assert(page.includes('startContractGeneration'), 'production page enters the server boundary')
+  assert(!page.includes('mayGenerateContract'), 'browser readiness does not block server-owned requirement discovery')
   assert(!page.includes('photographerFacingGenerationErrors'), 'no fallback filter path')
 })
 
@@ -792,8 +793,8 @@ await run('Semantic V7 generation failures keep their safe failure classificatio
     resolve(process.cwd(), 'src/pages/WeddingContractGenerationPage.tsx'),
     'utf8',
   )
-  assert(page.includes('semanticFailureMessage'), 'UI maps Semantic V7 failures to safe copy')
-  assert(page.includes('semanticCode'), 'UI retains the internal failure code')
+  assert(page.includes('setSafeClientError'), 'UI maps boundary failures to safe copy')
+  assert(!page.includes('semanticCode'), 'UI does not expose legacy internal failure codes')
   assert(
     typeof userFacingGenerationErrorMessage(err) === 'string',
     'friendly message available',

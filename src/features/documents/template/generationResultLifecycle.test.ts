@@ -76,18 +76,18 @@ run('B — completed result opens preview / success state', () => {
   assertEq(outcome.generatedDocumentId, 'draft-1', 'draft id')
   assert(outcome.hasDocxBytes, 'docx bytes')
   assert(pageSource.includes("setStep('preview')"), 'page sets preview')
-  assert(pageSource.includes('[contract-generate-success]'), 'success log')
+  assert(pageSource.includes('downloadAcceptedContractCandidate'), 'candidate retrieval')
 })
 
 run('C — completed result is not erased by query invalidation', () => {
-  assert(pageSource.includes('generationSuccessRef'), 'success ref')
+  assert(pageSource.includes("setStep('preview')"), 'accepted candidate opens preview')
   assert(
-    pageSource.includes("step === 'preview' || step === 'saved'"),
-    'skips reset on preview',
+    pageSource.includes('downloadAcceptedContractCandidate'),
+    'preview comes from the accepted server candidate',
   )
   assert(
-    pageSource.includes('prepare_verification_skipped_after_success'),
-    'prepare skipped after success',
+    pageSource.includes('saveGeneratedContract({'),
+    'explicit existing persistence is retained',
   )
 })
 
@@ -127,8 +127,8 @@ run('D — needs_review with issues shows them', () => {
     needsReviewUserMessage(outcome).includes('brakuje drugiej osoby'),
     'message',
   )
-  assert(pageSource.includes('needsReviewUserMessage'), 'page uses helper')
-  assert(pageSource.includes('setError(needsReviewUserMessage'), 'sets error')
+  assert(pageSource.includes('setMissingInputs(result.missingInputs)'), 'server supplies the complete requirements')
+  assert(pageSource.includes('<ContractGenerationMissingInputForm'), 'requirements use generic batch UI')
 })
 
 run('E — needs_review with zero issues shows internal error', () => {
@@ -153,9 +153,8 @@ run('E — needs_review with zero issues shows internal error', () => {
 })
 
 run('F — failed / catch shows user-facing error', () => {
-  assert(pageSource.includes('[contract-generate-catch]'), 'catch log')
-  assert(pageSource.includes('userFacingGenerationErrorMessage'), 'user error')
-  assert(pageSource.includes("setStep('verify')"), 'returns to verify')
+  assert(pageSource.includes('setSafeClientError(err)'), 'boundary errors are mapped to safe user messages')
+  assert(pageSource.includes("setStep('failed')"), 'failure state is visible')
 })
 
 run('G — undefined service result shows user-facing error', () => {
@@ -166,33 +165,19 @@ run('G — undefined service result shows user-facing error', () => {
 })
 
 run('H — no silent early return exists for needs_review', () => {
-  assert(
-    !pageSource.includes('setError(null)\n        setStep(\'verify\')'),
-    'old silent clear removed',
-  )
-  assert(pageSource.includes('[contract-generate-early-return]'), 'logs returns')
-  assert(pageSource.includes('needs_review_empty_payload'), 'empty payload reason')
+  assert(pageSource.includes("result.code === 'generation_safety'"), 'safety failures receive safe handling')
+  assert(pageSource.includes("setStep('failed')"), 'failure does not disappear silently')
 })
 
 run('I — finally resets pending without clearing success', () => {
-  assert(pageSource.includes('[contract-generate-finally]'), 'finally log')
   assert(pageSource.includes('setGeneratePending(false)'), 'resets pending')
-  assert(
-    pageSource.includes('generationSuccessRef.current = true'),
-    'success sticky',
-  )
-  const finallyIdx = pageSource.indexOf('[contract-generate-finally]')
-  const clearSuccessInFinally = pageSource
-    .slice(finallyIdx, finallyIdx + 400)
-    .includes('generationSuccessRef.current = false')
-  assert(!clearSuccessInFinally, 'finally does not clear success')
+  assert(pageSource.includes("setStep('preview')"), 'accepted candidate is retained as preview state')
 })
 
 run('J — form submit does not reload/reset the page', () => {
-  assert(pageSource.includes("type=\"button\""), 'button type')
-  assert(pageSource.includes('event.preventDefault()'), 'preventDefault')
-  assert(pageSource.includes('event.stopPropagation()'), 'stopPropagation')
-  assert(!/<form[\s>]/i.test(pageSource), 'no wrapping form')
+  const form = readFileSync(resolve(process.cwd(), 'src/features/contract-generation-spike/ContractGenerationMissingInputForm.tsx'), 'utf8')
+  assert(form.includes('event.preventDefault()'), 'form prevents reload')
+  assert(form.includes('props.onSubmit(answersForMissingInputs'), 'submits one complete batch')
 })
 
 run('K — package-contract success shape is handled', () => {
@@ -201,7 +186,7 @@ run('K — package-contract success shape is handled', () => {
     artifact: artifact({ draftId: 'pkg-draft' }),
   })
   assertEq(outcome.kind, 'completed', 'package completed')
-  assert(pageSource.includes('packageContractMode: true'), 'package mode')
+  assert(pageSource.includes('startContractGeneration'), 'page calls the server boundary')
 })
 
 run('L — legacy success shape remains handled if still supported', () => {
@@ -220,24 +205,18 @@ run('L — legacy success shape remains handled if still supported', () => {
 
 run('M — double click does not create duplicate generation', () => {
   assert(pageSource.includes('generateInFlightRef'), 'in-flight ref')
-  assert(pageSource.includes('duplicate_submit_guard'), 'guard log')
   assert(
     pageSource.includes(
-      'if (generatePending || generateInFlightRef.current)',
+      'if (generatePending || generateInFlightRef.current) return',
     ),
     'pending guard',
   )
 })
 
-run('N — query refetch cannot revert success UI to review', () => {
-  assert(
-    pageSource.includes('generationSuccessRef.current || step === \'preview\''),
-    'guard effect',
-  )
-  assert(
-    pageSource.includes('Never reset a successful generation UI'),
-    'commented intent',
-  )
+run('N — accepted candidate remains the preview source', () => {
+  assert(pageSource.includes('downloadAcceptedContractCandidate'), 'candidate is downloaded from authenticated boundary')
+  assert(pageSource.includes('setDocxBytes(bytes)'), 'exact candidate bytes back the preview')
+  assert(pageSource.includes('setStep(\'preview\')'), 'accepted candidate opens preview')
 })
 
 run('completed without docx bytes → invalid_result', () => {
@@ -268,16 +247,9 @@ run('needs_review with only contextual messages is valid', () => {
 })
 
 run('page logs required generate lifecycle events', () => {
-  for (const event of [
-    '[contract-generate-start]',
-    '[contract-generate-service-result]',
-    '[contract-generate-early-return]',
-    '[contract-generate-success]',
-    '[contract-generate-catch]',
-    '[contract-generate-finally]',
-  ]) {
-    assert(pageSource.includes(event), event)
-  }
+  assert(pageSource.includes('startContractGeneration'), 'authenticated boundary start')
+  assert(pageSource.includes('continueContractGeneration'), 'authenticated boundary continuation')
+  assert(pageSource.includes('recoverContractGeneration'), 'persisted session recovery')
 })
 
 run('service surfaces audit messages when field map empty', () => {
