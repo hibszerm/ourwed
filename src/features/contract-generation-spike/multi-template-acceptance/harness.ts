@@ -6,7 +6,7 @@ import { ContractGenerationMetrics, type GenerationMeasurements, type MetricsClo
 import { buildContractGenerationInput, type ContractGenerationInput, type ContractGenerationInputOptions } from '../contractGenerationInput'
 import type { Wedding } from '@/types/wedding'
 import type { WeddingPlace } from '@/types/travel'
-import { isReviewResponse, type GenerationResponse, type ReviewResponse } from '../generationProtocol'
+import { isReviewResponse, type GenerationResponse, type MissingInput, type ReviewResponse } from '../generationProtocol'
 import {
   applyOptionBGenerationResponse,
   createGenerationSourceView,
@@ -73,7 +73,7 @@ export type AcceptanceResult = {
   generationInputPath: string | null
   transformationRequestPrepared: boolean
   preflight: 'READY' | 'MISSING_INPUT' | 'CONFLICT_INPUT' | 'INVALID_CASE'
-  missingInputs: string[]
+  missingInputs: MissingInput[]
   conflictFindings: string[]
   generationStatus: 'NOT_RUN_PROVIDER_DISABLED' | 'MISSING_INPUT' | 'CONFLICT_INPUT' | 'COMPLETED' | 'FAILED'
   blockOperationCounts: { generation: number }
@@ -275,7 +275,7 @@ export function formatAcceptanceReport(result: AcceptanceResult): string {
     `- Generation input: ${result.generationInputPath ?? 'not prepared'}`,
     `- Product rules: ${result.productRules.join('; ')}`,
     `- Generation request prepared: ${result.transformationRequestPrepared ? 'yes' : 'no'}`,
-    `- Missing inputs: ${result.missingInputs.join('; ') || 'none'}`,
+    `- Missing inputs: ${result.missingInputs.map((item) => item.label).join('; ') || 'none'}`,
     `- Conflict findings: ${result.conflictFindings.join('; ') || 'none'}`,
     `- Generation: ${result.generationStatus}; block edits ${result.blockOperationCounts.generation}`,
     `- Non-READY semantic review request: ${result.semanticReviewRequestPath ?? 'not prepared'}`,

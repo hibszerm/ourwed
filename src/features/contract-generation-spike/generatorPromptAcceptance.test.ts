@@ -15,5 +15,9 @@ assert.match(instructions, /do not request facts already sufficiently establishe
 assert.match(instructions, /treat a compatible conditional source term as a missing input/)
 assert.match(instructions, /list is expected to be complete for discoverable gaps, but is not guaranteed exhaustive/)
 assert.match(instructions, /fresh full-context run must re-evaluate/)
+assert.match(instructions, /opaque id, a concise user-facing label, and one generic answerkind/)
+assert.match(instructions, /do not encode or imply a crm field, path, ontology, or mutation/)
+assert.match(instructions, /participantkey is explicitly present in normalized authority/)
+assert.match(instructions, /never infer participant ownership or map a participant to a source-contract role/)
 
 console.log('PASS source-party and authority semantics Generator instructions')

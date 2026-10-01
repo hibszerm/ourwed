@@ -47,14 +47,17 @@ try {
       capturedSourceBlocks = sourceBlocks
       capturedRules = productRules
       assert.equal(authorityContext.wedding.date.value, '20.09.2027')
-      return { status: 'MISSING_INPUT', missingInputs: ['Required fact A', 'Required fact B'] }
+      return { status: 'MISSING_INPUT', missingInputs: [
+        { id: 'requirement-a', label: 'Required fact A', answerKind: 'text' },
+        { id: 'requirement-b', label: 'Required fact B', answerKind: 'date' },
+      ] }
     },
     async review() { throw new Error('Candidate reviewer must not run for MISSING_INPUT') },
     async reviewConflict() { throw new Error('Conflict verifier must not run for MISSING_INPUT') },
   }
   const missing = await runMultiTemplateAcceptance('case-offline', { casesRoot: path.join(temp, 'cases'), outputRoot: path.join(temp, 'out'), runId: 'missing', provider: missingProvider })
   assert.equal(missing.overall, 'MISSING_INPUT')
-  assert.deepEqual(missing.missingInputs, ['Required fact A', 'Required fact B'])
+  assert.deepEqual(missing.missingInputs.map((item) => item.label), ['Required fact A', 'Required fact B'])
   assert.equal(missing.candidatePath, null)
   assert.deepEqual(missing.providerCalls, { generator: 1, reviewer: 0, total: 1 })
   assert.equal(missing.reviewResult, 'NOT_RUN')
@@ -242,8 +245,8 @@ try {
       assert.equal(args.authorityContext.participantAssociations.length, 2)
       assert.ok(args.authorityContext.wedding.date.source)
       const round = continuationRequests.length
-      if (round === 1) return { status: 'MISSING_INPUT', missingInputs: ['Fact A'] }
-      if (round === 2) return { status: 'MISSING_INPUT', missingInputs: ['Fact B'] }
+      if (round === 1) return { status: 'MISSING_INPUT', missingInputs: [{ id: 'answer.A', label: 'Fact A', answerKind: 'text' }] }
+      if (round === 2) return { status: 'MISSING_INPUT', missingInputs: [{ id: 'answer.B', label: 'Fact B', answerKind: 'text' }] }
       return { status: 'READY', edits: [] }
     },
     async review(args) {
@@ -258,7 +261,7 @@ try {
 
   const continuationRun1 = await runMultiTemplateAcceptance('case-offline', { casesRoot: path.join(temp, 'cases'), outputRoot: path.join(temp, 'out'), runId: 'continuation-1', provider: continuationProvider })
   assert.equal(continuationRun1.overall, 'MISSING_INPUT')
-  assert.deepEqual(continuationRun1.missingInputs, ['Fact A'])
+  assert.deepEqual(continuationRun1.missingInputs.map((item) => item.label), ['Fact A'])
   assert.deepEqual(continuationRun1.providerCalls, { generator: 1, reviewer: 0, total: 1 })
   assert.equal(continuationRun1.reviewResult, 'NOT_RUN')
 
@@ -266,7 +269,7 @@ try {
   await writeContinuationAnswers(continuationAnswers)
   const continuationRun2 = await runMultiTemplateAcceptance('case-offline', { casesRoot: path.join(temp, 'cases'), outputRoot: path.join(temp, 'out'), runId: 'continuation-2', provider: continuationProvider })
   assert.equal(continuationRun2.overall, 'MISSING_INPUT', 'a later MISSING_INPUT round is valid')
-  assert.deepEqual(continuationRun2.missingInputs, ['Fact B'])
+  assert.deepEqual(continuationRun2.missingInputs.map((item) => item.label), ['Fact B'])
   assert.deepEqual(continuationRun2.providerCalls, { generator: 1, reviewer: 0, total: 1 })
   assert.deepEqual(continuationRequests[1]!.authorityContext.additionalAnswers.map((answer) => [answer.id, answer.value]), [
     ['test.authoritative.fact', 'already supplied'], ['answer.A', 'A supplied'],

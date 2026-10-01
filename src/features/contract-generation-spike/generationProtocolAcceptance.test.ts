@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { isGenerationResponse, isReviewResponse } from './generationProtocol'
+import { isGenerationResponse, isReviewResponse, type MissingInput } from './generationProtocol'
 
 const replace = { kind: 'replace', blockId: 'word/document.xml#p2', text: 'Updated paragraph.' }
 const insert = { kind: 'insert_after', blockId: 'word/document.xml#p3', text: 'Additional service paragraph.' }
@@ -15,9 +15,23 @@ assert.equal(isGenerationResponse({ status: 'READY', edits: [{ ...replace, text:
 assert.equal(isGenerationResponse({ status: 'READY', edits: [{ ...insert, text: '  ' }] }), false, 'empty insertion is rejected')
 assert.equal(isGenerationResponse({ status: 'READY', edits: [{ ...replace, quote: 'source text' }] }), false, 'extra span/provenance fields are rejected')
 
-assert.equal(isGenerationResponse({ status: 'MISSING_INPUT', missingInputs: ['What is the client email?'] }), true)
+const missingA: MissingInput = { id: 'opaque:req-1', label: 'Required fact A', answerKind: 'text' }
+const missingB: MissingInput = { id: 'opaque/req-2', label: 'Required fact B', answerKind: 'multiline', subject: { participantKey: 'participant-9', displayName: 'Lena' } }
+assert.equal(isGenerationResponse({ status: 'MISSING_INPUT', missingInputs: [missingA, missingB] }), true, 'multiple structured requirements are accepted together')
+assert.equal(isGenerationResponse({ status: 'MISSING_INPUT', missingInputs: [{ ...missingA, id: 'partner1.pesel' }] }), true, 'IDs remain opaque; protocol does not parse field-like strings')
+for (const answerKind of ['text', 'multiline', 'date', 'number', 'email', 'phone']) {
+  assert.equal(isGenerationResponse({ status: 'MISSING_INPUT', missingInputs: [{ ...missingA, answerKind }] }), true, `${answerKind} answer kind is allowed`)
+}
+assert.equal(isGenerationResponse({ status: 'MISSING_INPUT', missingInputs: [{ ...missingA, answerKind: 'pesel' }] }), false, 'field-specific answer kinds are rejected')
+assert.equal(isGenerationResponse({ status: 'MISSING_INPUT', missingInputs: [{ ...missingA, id: '  ' }] }), false, 'blank IDs are rejected')
+assert.equal(isGenerationResponse({ status: 'MISSING_INPUT', missingInputs: [{ ...missingA, label: '  ' }] }), false, 'blank labels are rejected')
+assert.equal(isGenerationResponse({ status: 'MISSING_INPUT', missingInputs: [{ ...missingA, unexpected: true }] }), false, 'unknown requirement fields are rejected')
+assert.equal(isGenerationResponse({ status: 'MISSING_INPUT', missingInputs: [missingB] }, new Set(['participant-9'])), true, 'subject participant is checked against supplied identities')
+assert.equal(isGenerationResponse({ status: 'MISSING_INPUT', missingInputs: [missingB] }, new Set(['participant-other'])), false, 'unknown subject participant is rejected')
+assert.equal(isGenerationResponse({ status: 'MISSING_INPUT', missingInputs: [{ ...missingA, subject: { participantKey: 'x', inferredRole: 'client' } }] }), false, 'subject does not accept inferred role metadata')
 assert.equal(isGenerationResponse({ status: 'MISSING_INPUT', missingInputs: [] }), false, 'missing-input list must be non-empty')
-assert.equal(isGenerationResponse({ status: 'MISSING_INPUT', missingInputs: ['Question?'], edits: [] }), false, 'MISSING_INPUT cannot contain edits')
+assert.equal(isGenerationResponse({ status: 'MISSING_INPUT', missingInputs: [missingA, { ...missingA, label: 'Another fact' }] }), false, 'duplicate IDs are rejected')
+assert.equal(isGenerationResponse({ status: 'MISSING_INPUT', missingInputs: [missingA], edits: [] }), false, 'MISSING_INPUT cannot contain edits')
 assert.equal(isGenerationResponse({ status: 'CONFLICT_INPUT', conflicts: ['Two authoritative dates disagree.'] }), true)
 assert.equal(isGenerationResponse({ status: 'CONFLICT_INPUT', conflicts: [] }), false, 'conflict list must be non-empty')
 assert.equal(isGenerationResponse({ status: 'CONFLICT_INPUT', conflicts: ['Conflict'], edits: [] }), false, 'CONFLICT_INPUT cannot contain edits')
@@ -37,7 +51,7 @@ for (const forbiddenKey of ['quote', 'sourceRef', 'occurrenceIndex', 'offset', '
   assert.equal(Object.hasOwn(replace, forbiddenKey), false, `${forbiddenKey} is not part of the edit protocol`)
 }
 assert.deepEqual(Object.keys({ status: 'READY', edits: [replace] }).sort(), ['edits', 'status'])
-assert.deepEqual(Object.keys({ status: 'MISSING_INPUT', missingInputs: ['Question?'] }).sort(), ['missingInputs', 'status'])
+assert.deepEqual(Object.keys({ status: 'MISSING_INPUT', missingInputs: [missingA] }).sort(), ['missingInputs', 'status'])
 assert.deepEqual(Object.keys({ status: 'CONFLICT_INPUT', conflicts: ['Conflict'] }).sort(), ['conflicts', 'status'])
 
 console.log('PASS simplified generation/reviewer protocol acceptance')

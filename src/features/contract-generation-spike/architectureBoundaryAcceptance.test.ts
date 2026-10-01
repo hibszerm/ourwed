@@ -69,8 +69,14 @@ if (ready.status === 'READY') {
   ])).some((issue) => /Table row\/cell structure changed/.test(issue)), 'structural damage remains a hard failure')
 }
 
-const missing = await applyOptionBGenerationResponse(sourceBytes, source, authority, sourceView.sourceBlockIds, { status: 'MISSING_INPUT', missingInputs: ['What is the required client email?'] })
-assert.deepEqual(missing, { status: 'MISSING_INPUT', missingInputs: ['What is the required client email?'] }, 'missing questions are preserved without creating a candidate')
+const missingInput = { id: 'opaque-requirement-1', label: 'Required contact email', answerKind: 'email' as const, subject: { participantKey: 'partner1' } }
+const missing = await applyOptionBGenerationResponse(sourceBytes, source, authority, sourceView.sourceBlockIds, { status: 'MISSING_INPUT', missingInputs: [missingInput] })
+assert.deepEqual(missing, { status: 'MISSING_INPUT', missingInputs: [missingInput] }, 'structured missing questions are preserved without creating a candidate')
+const unknownSubject = await applyOptionBGenerationResponse(sourceBytes, source, authority, sourceView.sourceBlockIds, {
+  status: 'MISSING_INPUT',
+  missingInputs: [{ ...missingInput, subject: { participantKey: 'not-in-normalized-authority' } }],
+})
+assert.equal(unknownSubject.status, 'FAILED', 'unknown subject identities fail at the authority boundary')
 const conflict = await applyOptionBGenerationResponse(sourceBytes, source, authority, sourceView.sourceBlockIds, { status: 'CONFLICT_INPUT', conflicts: ['Two authoritative dates disagree.'] })
 assert.deepEqual(conflict, { status: 'CONFLICT_INPUT', conflicts: ['Two authoritative dates disagree.'] }, 'conflicts are preserved without creating a candidate')
 assert.deepEqual(new Uint8Array(sourceBytes), sourceBytesBefore, 'non-READY results do not mutate the source bytes')
