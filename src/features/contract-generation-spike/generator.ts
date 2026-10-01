@@ -1,7 +1,7 @@
 import JSZip from 'jszip'
 import { randomUUID } from 'node:crypto'
 import { applyBlockOperations, type BlockOperation, type EditableBlock } from './blockDocxEditor'
-import { unescapeXml } from '@/features/documents/template/canonicalParagraph'
+import { canonicalizeParagraphText, unescapeXml } from '@/features/documents/template/canonicalParagraph'
 import type { ContractGenerationInput } from './contractGenerationInput'
 import { isGenerationResponse, type BlockEdit } from './generationProtocol'
 
@@ -198,19 +198,45 @@ export async function validateOptionBCandidate(
   }
 
   const diff = computeChangedBlockDiff(source.blocks, candidate.blocks, operations)
-  if (diff.length !== operations.length) issues.push('Candidate contains an unrequested text change or source block loss.')
+  const replacements = new Map<string, Extract<BlockOperation, { operation: 'REPLACE_BLOCK_TEXT' }>>()
+  const matchedInsertDiffs = new Set<number>()
   for (const operation of operations) {
     if (operation.operation === 'REPLACE_BLOCK_TEXT') {
       const original = source.blocks.find((block) => block.blockId === operation.blockId)
-      const change = diff.find((item) => item.blockRef === operation.blockId)
-      if (!original || !change || change.sourceText !== original.text || change.candidateText !== operation.finalText) {
+      if (replacements.has(operation.blockId)) {
+        issues.push(`Duplicate replacement target: ${operation.blockId}`)
+      } else replacements.set(operation.blockId, operation)
+      const candidateIndex = original ? candidateIndexForSourceBlock(original, source.blocks, operations) : -1
+      const candidateBlock = original
+        ? candidate.blocks.find((block) => block.blockId === `${original.part}#p${candidateIndex}`)
+        : undefined
+      if (!original || !candidateBlock || candidateBlock.text !== canonicalizeParagraphText(operation.finalText)) {
         issues.push(`Requested block replacement was not applied exactly: ${operation.blockId}`)
       }
     } else if (operation.operation === 'INSERT_BLOCK_AFTER') {
-      if (!diff.some((item) => item.sourceText === null && item.candidateText === operation.finalText)) {
+      const matchingDiff = diff.findIndex((item, index) => !matchedInsertDiffs.has(index)
+        && item.sourceText === null && item.candidateText === canonicalizeParagraphText(operation.finalText))
+      if (matchingDiff < 0) {
         issues.push(`Requested block insertion was not applied exactly: ${operation.anchorBlockId}`)
-      }
+      } else matchedInsertDiffs.add(matchingDiff)
     } else issues.push('Option B does not permit deleting source blocks.')
+  }
+
+  for (let index = 0; index < diff.length; index++) {
+    const change = diff[index]!
+    if (change.sourceText === null) {
+      if (!matchedInsertDiffs.has(index)) issues.push('Candidate contains an unrequested text change or source block loss.')
+      continue
+    }
+    if (change.candidateText === null) {
+      issues.push('Candidate contains an unrequested text change or source block loss.')
+      continue
+    }
+    if (change.sourceText === change.candidateText) continue
+    const replacement = replacements.get(change.blockRef)
+    if (!replacement || canonicalizeParagraphText(replacement.finalText) !== change.candidateText) {
+      issues.push('Candidate contains an unrequested text change or source block loss.')
+    }
   }
   return issues
 }
