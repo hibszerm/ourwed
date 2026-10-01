@@ -1,9 +1,11 @@
 import JSZip from 'jszip'
+import { randomUUID } from 'node:crypto'
 import { applyBlockOperations, applyExactTextPatches, type BlockOperation, type EditableBlock, type ExactTextPatch } from './blockDocxEditor'
 import { escapeXml, unescapeXml } from '@/features/documents/template/canonicalParagraph'
 import { parseFlexibleDate } from '@/features/ai-contract-lab/semanticValueEquality'
 import { isPolishPlnAmountEquivalent, parsePlnGrosz } from './polishPlnAmount'
 import type { ContractGenerationInput } from './contractGenerationInput'
+import { isGenerationResponse, type BlockEdit } from './generationProtocol'
 
 export type MissingInput = { id: string; label: string; explanation: string; inputType: 'text' | 'date' | 'number'; required: true; sourceContext: string; infoText?: string; sourceRefs?: string[]; inventoryItemIds: string[] }
 export type SourceBlock = EditableBlock
@@ -44,12 +46,62 @@ export type PlanResult = { status: PlannerResponseStatus; missingInputs: Missing
 export type ReviewResult = { status: 'PASS' } | { status: 'FAIL'; issues: string[] }
 export type ConflictInput = { id: string; field: string; label: string; explanation: string; inputType: 'date' | 'text' | 'number'; currentValue?: string; relatedValues?: Array<{ label: string; value: string }>; required: true }
 export type ChangedBlock = { blockRef: string; sourceText: string | null; candidateText: string | null }
+export type GenerationSourceBlock = { blockId: string; kind: EditableBlock['kind']; text: string }
+export type GenerationSourceView = { blocks: GenerationSourceBlock[]; sourceBlockIds: Map<string, string> }
+export type OptionBGenerationResult =
+  | { status: 'MISSING_INPUT'; missingInputs: string[] }
+  | { status: 'CONFLICT_INPUT'; conflicts: string[] }
+  | { status: 'FAILED'; issues: string[] }
+  | { status: 'READY'; candidateBytes: ArrayBuffer; candidate: SourceDocument; edits: BlockEdit[]; changedBlocks: ChangedBlock[] }
 export type ResolvedInventoryOccurrence = { itemId: string; sourceRef: string; text: string; start: number; end: number }
 export type GenerationResult = { status: 'MISSING_INPUT'; missingInputs: MissingInput[] } | { status: 'CONFLICT_INPUT'; conflicts: ConflictInput[] } | { status: 'FAILED'; issues: string[] } | { status: 'COMPLETED'; docxBytes: ArrayBuffer; review: ReviewResult }
 export interface ContractAi {
   inventory(source: SourceDocument): Promise<SourceInventory>
   plan(authorityContext: ContractGenerationInput, inventory: SourceInventory): Promise<PlanResult>
   review(args: { source: SourceDocument; authorityContext: ContractGenerationInput; inventory: SourceInventory; resolvedInventoryOccurrences: ResolvedInventoryOccurrence[]; factChanges: FactChange[]; retainedLiterals: RetainedLiteral[]; candidate: SourceBlock[]; changedBlocks: ChangedBlock[] }): Promise<ReviewResult>
+}
+
+export const GENERATION_INSTRUCTIONS = `Read the source contract and current authoritative wedding data. Produce the same contract correctly adapted to this wedding. The source defines the contract's clauses, obligations, service scope, legal and commercial meaning, payment concepts, and structure. Current authoritative input supplies current transaction facts; user answers and the explicit product rules below are also authoritative. Preserve unrelated content and make only changes needed for this transaction. Do not rewrite or improve unrelated prose, modernize or summarize the contract, or add CRM information merely because it exists. Use natural grammar, including inflected names and locations; literal equality with display-form values is not required. Ask only for facts genuinely required by the source and unavailable from authority, and report all discoverable required gaps together. Return CONFLICT_INPUT only for a material conflict not resolved by the source, authority, answers, or product rules. Otherwise return READY with the minimal whole-block edits. Replace blocks to update existing text; insert only content actually authorized by the source or product rules. Do not invent legal clauses or alter base service scope. Return only the GenerationResponse protocol.`
+
+export const GENERIC_CONTRACT_PRODUCT_RULES = [
+  'contractValue is the authoritative total; do not add selected extras or charged travel on top when they are already components of that total.',
+  'Use only explicit current extras; they do not authorize rewriting unrelated source service obligations or inserting unrelated CRM information.',
+  'Apply the existing travel status and amount as supplied; included or non-charged travel is not a separate added amount.',
+  'Preserve source-defined payment timing for each obligation unless an existing explicit authority replaces that same obligation; do not invent signing dates or convert relative deadlines.',
+  'Use the supplied generation date where the source requires the contract conclusion date; preserve the source conclusion place.',
+] as const
+
+/** Create per-call opaque handles so model-visible IDs reveal no XML path or paragraph index. */
+export function createGenerationSourceView(source: SourceDocument): GenerationSourceView {
+  const sourceBlockIds = new Map<string, string>()
+  const blocks = source.blocks.map((block) => {
+    const blockId = randomUUID()
+    sourceBlockIds.set(blockId, block.blockId)
+    return { blockId, kind: block.kind, text: block.text }
+  })
+  return { blocks, sourceBlockIds }
+}
+
+export function validateOptionBInput(input: ContractGenerationInput): string[] {
+  const issues = validateNormalizedDerivedFacts(input)
+  for (const { path, fact } of normalizedFacts(input)) {
+    if (!fact.source.trim()) issues.push(`Normalized authority fact has no provenance source: ${path}`)
+  }
+  const amounts = [
+    ['contractValue', input.commercial.contractValue.value],
+    ['agreedDeposit', input.commercial.agreedDeposit.value],
+    ['totalPaid', input.commercial.totalPaid.value],
+    ['travelFeeAmount', input.commercial.travelFeeAmount.value],
+  ] as const
+  for (const [name, amount] of amounts) {
+    if (!Number.isSafeInteger(amount) || amount < 0) issues.push(`Normalized commercial amount ${name} is invalid.`)
+  }
+  for (const extra of input.extras) {
+    if (!Number.isSafeInteger(extra.quantity.value) || extra.quantity.value < 1 || !Number.isSafeInteger(extra.price.value) || extra.price.value < 0) {
+      issues.push(`Normalized extra ${extra.id.value} has invalid quantity or price.`)
+    }
+  }
+  return issues
 }
 export async function runSourceInventory(source: SourceDocument, ai: Pick<ContractAi, 'inventory'>): Promise<SourceInventory> {
   return ai.inventory(source)
@@ -163,7 +215,7 @@ function authorityText(value: unknown): string | undefined {
 
 function canonicalNormalizedAuthorityRef(authority: FactAuthority): boolean {
   return authority.ref.length > 0 && authority.ref === authority.ref.trim()
-    && !authority.ref.includes(':') && !/[\u0000-\u001f\u007f]/u.test(authority.ref)
+    && !authority.ref.includes(':') && !Array.from(authority.ref).some((character) => character.charCodeAt(0) <= 0x1f || character.charCodeAt(0) === 0x7f)
     && (authority.kind !== 'generation_date' || authority.ref === 'generationDate')
 }
 
@@ -570,6 +622,114 @@ function tableStructureSignatures(xml: string): string[] {
   return signatures
 }
 
+function wordFieldMarkers(xml: string): string[] {
+  return [...xml.matchAll(/<w:fldChar\b[^>]*\bw:fldCharType\s*=\s*["']([^"']+)["'][^>]*\/?\s*>/g)].map((match) => match[1]!)
+}
+
+/** Mechanical-only checks for a source-copy candidate produced by block edits. */
+export async function validateOptionBCandidate(
+  sourceBytes: ArrayBuffer,
+  candidateBytes: ArrayBuffer,
+  source: SourceDocument,
+  candidate: SourceDocument,
+  operations: BlockOperation[],
+): Promise<string[]> {
+  const issues: string[] = []
+  let sourceZip: JSZip
+  let candidateZip: JSZip
+  try {
+    [sourceZip, candidateZip] = await Promise.all([JSZip.loadAsync(sourceBytes), JSZip.loadAsync(candidateBytes)])
+  } catch {
+    return ['Cannot open source or candidate DOCX ZIP package']
+  }
+  const sourceParts = Object.keys(sourceZip.files).filter((part) => !sourceZip.files[part]?.dir).sort()
+  const candidateParts = Object.keys(candidateZip.files).filter((part) => !candidateZip.files[part]?.dir).sort()
+  if (!sourceParts.includes('[Content_Types].xml') || !sourceParts.includes('word/document.xml')) issues.push('Source DOCX is missing a required package part.')
+  if (JSON.stringify(sourceParts) !== JSON.stringify(candidateParts)) issues.push('DOCX package part set changed.')
+
+  const editablePart = (part: string) => /^word\/(?:document|header\d+|footer\d+)\.xml$/.test(part)
+  for (const part of sourceParts) {
+    const beforeFile = sourceZip.file(part)
+    const afterFile = candidateZip.file(part)
+    if (!beforeFile || !afterFile) continue
+    if (!editablePart(part)) {
+      const [before, after] = await Promise.all([beforeFile.async('uint8array'), afterFile.async('uint8array')])
+      if (before.length !== after.length || before.some((byte, index) => byte !== after[index])) issues.push(`Untouched DOCX package part changed: ${part}`)
+      continue
+    }
+    const [before, after] = await Promise.all([beforeFile.async('string'), afterFile.async('string')])
+    const insertedInPart = operations.filter((operation) => operation.operation === 'INSERT_BLOCK_AFTER' && source.blocks.find((block) => block.blockId === operation.anchorBlockId)?.part === part).length
+    const sourceParagraphs = source.blocks.filter((block) => block.part === part).length
+    const candidateParagraphs = candidate.blocks.filter((block) => block.part === part).length
+    if (candidateParagraphs !== sourceParagraphs + insertedInPart) issues.push(`Paragraph structure changed unexpectedly: ${part}`)
+    if (JSON.stringify(tableStructureSignatures(before)) !== JSON.stringify(tableStructureSignatures(after))) issues.push(`Table row/cell structure changed: ${part}`)
+    if (JSON.stringify(wordFieldInstructions(before)) !== JSON.stringify(wordFieldInstructions(after))) issues.push(`Word field instructions changed: ${part}`)
+    if (JSON.stringify(wordFieldMarkers(before)) !== JSON.stringify(wordFieldMarkers(after))) issues.push(`Word field structure changed: ${part}`)
+  }
+
+  const diff = computeChangedBlockDiff(source.blocks, candidate.blocks, operations)
+  if (diff.length !== operations.length) issues.push('Candidate contains an unrequested text change or source block loss.')
+  for (const operation of operations) {
+    if (operation.operation === 'REPLACE_BLOCK_TEXT') {
+      const original = source.blocks.find((block) => block.blockId === operation.blockId)
+      const change = diff.find((item) => item.blockRef === operation.blockId)
+      if (!original || !change || change.sourceText !== original.text || change.candidateText !== operation.finalText) {
+        issues.push(`Requested block replacement was not applied exactly: ${operation.blockId}`)
+      }
+    } else if (operation.operation === 'INSERT_BLOCK_AFTER') {
+      if (!diff.some((item) => item.sourceText === null && item.candidateText === operation.finalText)) {
+        issues.push(`Requested block insertion was not applied exactly: ${operation.anchorBlockId}`)
+      }
+    } else issues.push('Option B does not permit deleting source blocks.')
+  }
+  return issues
+}
+
+/** Apply one validated generation response to a copy of the source DOCX. */
+export async function applyOptionBGenerationResponse(
+  sourceBytes: ArrayBuffer,
+  source: SourceDocument,
+  input: ContractGenerationInput,
+  sourceBlockIds: Map<string, string>,
+  response: unknown,
+): Promise<OptionBGenerationResult> {
+  if (!isGenerationResponse(response)) return { status: 'FAILED', issues: ['Generation response does not match the strict Option B protocol.'] }
+  if (response.status === 'MISSING_INPUT') return { status: 'MISSING_INPUT', missingInputs: response.missingInputs }
+  if (response.status === 'CONFLICT_INPUT') return { status: 'CONFLICT_INPUT', conflicts: response.conflicts }
+
+  const inputIssues = validateOptionBInput(input)
+  if (inputIssues.length) return { status: 'FAILED', issues: inputIssues }
+  const sourceBlocksById = new Map(source.blocks.map((block) => [block.blockId, block]))
+  const seenReplacementTargets = new Set<string>()
+  const operations: BlockOperation[] = []
+  for (const edit of response.edits) {
+    const sourceBlockId = sourceBlockIds.get(edit.blockId)
+    if (!sourceBlockId || !sourceBlocksById.has(sourceBlockId)) return { status: 'FAILED', issues: [`Unknown generation block ID: ${edit.blockId}`] }
+    if (edit.kind === 'replace') {
+      if (seenReplacementTargets.has(sourceBlockId)) return { status: 'FAILED', issues: [`Duplicate replacement target: ${edit.blockId}`] }
+      seenReplacementTargets.add(sourceBlockId)
+      operations.push({ operation: 'REPLACE_BLOCK_TEXT', blockId: sourceBlockId, finalText: edit.text })
+    } else {
+      operations.push({ operation: 'INSERT_BLOCK_AFTER', anchorBlockId: sourceBlockId, styleSourceBlockId: sourceBlockId, finalText: edit.text })
+    }
+  }
+
+  let candidateBytes: ArrayBuffer
+  let candidate: SourceDocument
+  try {
+    candidateBytes = await applyBlockOperations(sourceBytes, operations)
+    candidate = await readSource(candidateBytes, source.fileName)
+  } catch (error) {
+    return { status: 'FAILED', issues: [error instanceof Error ? error.message : 'Unable to safely apply block edits to the source DOCX.'] }
+  }
+  const findings = await validateOptionBCandidate(sourceBytes, candidateBytes, source, candidate, operations)
+  if (findings.length) return { status: 'FAILED', issues: findings }
+  return {
+    status: 'READY', candidateBytes, candidate, edits: response.edits,
+    changedBlocks: computeChangedBlockDiff(source.blocks, candidate.blocks, operations),
+  }
+}
+
 async function readDocumentProperties(bytes: ArrayBuffer): Promise<DocumentPropertyText[]> {
   const zip = await JSZip.loadAsync(bytes)
   const core = zip.file('docProps/core.xml')
@@ -788,7 +948,8 @@ export async function validateCandidate(
 }
 
 /** The normalized authority input is used by AI and deterministic validation; source structure stays separate. */
-export async function runGeneration(
+/** @deprecated Legacy Inventory/atomic pipeline retained only until Option B Slice 3 cleanup. */
+export async function runLegacyInventoryAtomicGeneration(
   sourceBytes: ArrayBuffer,
   sourceDocument: SourceDocument,
   authorityContext: ContractGenerationInput,

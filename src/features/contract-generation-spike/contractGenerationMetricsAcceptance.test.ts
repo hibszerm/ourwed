@@ -26,21 +26,21 @@ metrics.startStage('preflight')
 monotonic += 12.5
 wall += 13
 assert.equal(metrics.endStage('preflight'), 12.5, 'stage duration uses monotonic elapsed time')
-metrics.startStage('planningProvider')
+metrics.startStage('generationProvider')
 monotonic += 40
 wall += 40
-const planningDuration = metrics.endStage('planningProvider')
-const planningTimestamps = metrics.snapshot().timestamps.stages.planningProvider!
-const rawPlanningUsage = {
+const generationDuration = metrics.endStage('generationProvider')
+const generationTimestamps = metrics.snapshot().timestamps.stages.generationProvider!
+const rawGenerationUsage = {
   input_tokens: 100,
   input_tokens_details: { cached_tokens: 40, cache_write_tokens: 10, image_tokens: 0 },
   output_tokens: 20,
   output_tokens_details: { reasoning_tokens: 8, audio_tokens: 0 },
   total_tokens: 120,
 }
-metrics.recordProviderCall('planning', planningDuration, planningTimestamps.startedAt, planningTimestamps.endedAt,
+metrics.recordProviderCall('generation', generationDuration, generationTimestamps.startedAt, generationTimestamps.endedAt,
   {
-    ...openAIResponseMetadata({ model: 'gpt-6-luna-2026-09-01', service_tier: 'default', usage: rawPlanningUsage }, 'gpt-6-luna', 'standard'),
+    ...openAIResponseMetadata({ model: 'gpt-6-luna-2026-09-01', service_tier: 'default', usage: rawGenerationUsage }, 'gpt-6-luna', 'standard'),
     processingRegion: 'GLOBAL',
   })
 const reviewUsage = {
@@ -65,29 +65,29 @@ assert.equal(measured.timestamps.generationStartedAt, new Date(Date.UTC(2026, 8,
 assert.ok(measured.timestamps.generationCompletedAt)
 assert.equal(measured.totalGenerationMs, 79.5)
 assert.equal(measured.stages.preflightMs, 12.5)
-assert.equal(measured.stages.planningProviderMs, 40)
+assert.equal(measured.stages.generationProviderMs, 40)
 assert.equal(measured.providerCalls.length, 2)
-const planning = measured.providerCalls[0]!
-assert.equal(planning.purpose, 'planning')
-assert.equal(planning.inputTokens, 100)
-assert.equal(planning.cachedInputTokens, 40)
-assert.equal(planning.cacheWriteTokens, 10)
-assert.equal(planning.ordinaryInputTokens, 50)
-assert.equal(planning.uncachedInputTokens, 50)
-assert.equal(planning.outputTokens, 20)
-assert.equal(planning.serviceTier, 'default')
-assert.equal(planning.requestedPricingMode, 'standard')
-assert.equal(planning.effectivePricingMode, 'default')
-assert.equal(planning.processingRegion, 'GLOBAL')
-assert.equal(planning.reasoningTokens, 8)
-assert.equal(planning.reasoningTokensIncludedInOutput, true)
-assert.equal(planning.contextPricingBand, 'SHORT')
-assert.deepEqual(planning.usage, rawPlanningUsage, 'all API usage fields are preserved')
-assert.equal(planning.cost.ordinaryInputCostUsd, 0.000005)
-assert.equal(planning.cost.cachedInputCostUsd, 0.0000004)
-assert.equal(planning.cost.cacheWriteCostUsd, 0.00000125)
-assert.equal(planning.cost.outputCostUsd, 0.00001, 'reasoning tokens remain included in output cost')
-assert.equal(planning.cost.totalCostUsd, 0.00001665)
+const generation = measured.providerCalls[0]!
+assert.equal(generation.purpose, 'generation')
+assert.equal(generation.inputTokens, 100)
+assert.equal(generation.cachedInputTokens, 40)
+assert.equal(generation.cacheWriteTokens, 10)
+assert.equal(generation.ordinaryInputTokens, 50)
+assert.equal(generation.uncachedInputTokens, 50)
+assert.equal(generation.outputTokens, 20)
+assert.equal(generation.serviceTier, 'default')
+assert.equal(generation.requestedPricingMode, 'standard')
+assert.equal(generation.effectivePricingMode, 'default')
+assert.equal(generation.processingRegion, 'GLOBAL')
+assert.equal(generation.reasoningTokens, 8)
+assert.equal(generation.reasoningTokensIncludedInOutput, true)
+assert.equal(generation.contextPricingBand, 'SHORT')
+assert.deepEqual(generation.usage, rawGenerationUsage, 'all API usage fields are preserved')
+assert.equal(generation.cost.ordinaryInputCostUsd, 0.000005)
+assert.equal(generation.cost.cachedInputCostUsd, 0.0000004)
+assert.equal(generation.cost.cacheWriteCostUsd, 0.00000125)
+assert.equal(generation.cost.outputCostUsd, 0.00001, 'reasoning tokens remain included in output cost')
+assert.equal(generation.cost.totalCostUsd, 0.00001665)
 assert.equal(measured.totals.totalInputTokens, 110, 'cache categories are included in input_tokens and are not added again')
 assert.equal(measured.totals.totalOrdinaryInputTokens, 57)
 assert.equal(measured.totals.totalCachedInputTokens, 42)

@@ -3,91 +3,83 @@ import { readFile } from 'node:fs/promises'
 import JSZip from 'jszip'
 import { applyBlockOperations } from './blockDocxEditor'
 import { buildContractGenerationInput, type ContractGenerationInputOptions } from './contractGenerationInput'
-import { readSource, runGeneration, sanitizePlannerOperations, validateAuthorityGate, type PlanResult, type SourceInventory } from './generator'
+import {
+  applyOptionBGenerationResponse,
+  createGenerationSourceView,
+  readSource,
+  validateOptionBCandidate,
+  validateOptionBInput,
+} from './generator'
 
 function p(text: string): string { return `<w:p><w:r><w:t xml:space="preserve">${text}</w:t></w:r></w:p>` }
 async function minimalPackage(body: string): Promise<ArrayBuffer> {
   const zip = new JSZip()
   const cells = (start: number) => `<w:tr>${[0, 1, 2].map((offset) => `<w:tc><w:tcPr/>${p(`cell ${start + offset}`)}</w:tc>`).join('')}</w:tr>`
   const tables = `<w:tbl>${cells(0)}${cells(3)}</w:tbl><w:tbl>${cells(6)}${cells(9)}</w:tbl>`
-  zip.file('word/document.xml', `<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${p(body)}${tables}<w:sectPr/></w:body></w:document>`)
+  zip.file('[Content_Types].xml', '<Types/>')
+  zip.file('word/document.xml', `<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${body}${tables}<w:sectPr/></w:body></w:document>`)
   return zip.generateAsync({ type: 'arraybuffer' })
 }
-const ready = (): PlanResult => ({ status: 'READY', missingInputs: [], conflicts: [], factChanges: [], retainedLiterals: [], operations: [] })
 
-const pipelineBytes = await minimalPackage('Client: Ada Source')
-const pipelineSource = await readSource(pipelineBytes, 'pipeline.docx')
-const block = pipelineSource.blocks.find((item) => item.text.includes('Ada Source'))!
-const inventory: SourceInventory = { coveredSourceRefs: pipelineSource.blocks.map((item) => item.blockId), items: [{ id: 'client-name', label: 'old client name', occurrences: [{ sourceRef: block.blockId, quote: 'Ada Source' }] }] }
-const case04Options = JSON.parse(await readFile(new URL('./multi-template-acceptance/cases/case-04-realistic-wedding-photographer/input.json', import.meta.url), 'utf8')) as { authoritativeInput: ContractGenerationInputOptions }
-const authorityContext = buildContractGenerationInput(case04Options.authoritativeInput)
-const party1Name = authorityContext.parties.find((party) => party.sourceKey === 'partner1')!.fullName!
-const operation = { blockId: block.blockId, operation: 'REPLACE_BLOCK_TEXT' as const, finalText: `Client: ${party1Name.value}` }
-const plan: PlanResult = { ...ready(), factChanges: [{ label: 'name', inventoryItemIds: ['client-name'], inventoryItemId: 'client-name', sourceRef: block.blockId, expectedSource: 'Ada Source', newValue: party1Name.value, newValueFormat: 'literal', authority: { kind: 'crm', ref: party1Name.source } }] }
-const unauthorizedRewrite: PlanResult = { ...plan, operations: [operation] }
-assert.ok(validateAuthorityGate(authorityContext, inventory, unauthorizedRewrite, { sourceDocument: pipelineSource, productRules: {} }).some((issue) => /block operations/.test(issue)), 'whole-block operations cannot pass normalized validation')
-for (const status of ['MISSING_INPUT', 'CONFLICT_INPUT'] as const) assert.deepEqual(sanitizePlannerOperations(status, [operation]).operations, [])
-assert.deepEqual(sanitizePlannerOperations('READY', [operation]).operations, [operation], 'the deterministic gate reports unsafe planner output')
+const fixture = JSON.parse(await readFile(new URL('./multi-template-acceptance/cases/case-04-realistic-wedding-photographer/input.json', import.meta.url), 'utf8')) as { authoritativeInput: ContractGenerationInputOptions }
+const authority = buildContractGenerationInput(fixture.authoritativeInput)
+assert.deepEqual(validateOptionBInput(authority), [], 'valid normalized input and derived amounts pass')
+const badArithmetic = structuredClone(authority)
+badArithmetic.commercial.remainingAfterDeposit.value += 1
+assert.ok(validateOptionBInput(badArithmetic).some((issue) => /remainingAfterDeposit/.test(issue)), 'incorrect deterministic arithmetic still fails')
 
-const stageOrder: string[] = []
-const generated = await runGeneration(pipelineBytes, pipelineSource, authorityContext, {}, {
-  async inventory(sourceDocument) { stageOrder.push('inventory'); assert.strictEqual(sourceDocument, pipelineSource); assert.equal('wedding' in sourceDocument, false); return inventory },
-  async plan(receivedAuthority, receivedInventory) { stageOrder.push('plan'); assert.strictEqual(receivedAuthority, authorityContext); assert.strictEqual(receivedInventory, inventory); return plan },
-  async review(args) { stageOrder.push('review'); assert.strictEqual(args.authorityContext, authorityContext); assert.deepEqual(args.factChanges, plan.factChanges); assert.equal(args.resolvedInventoryOccurrences[0]?.text, 'Ada Source'); assert.ok(args.changedBlocks.some((item) => item.sourceText?.includes('Ada Source') && item.candidateText?.includes(party1Name.value))); return { status: 'PASS' } },
+const sourceBytes = await minimalPackage(`${p('Clients: Old Names and Old Names')}${p('Place: Old City')}${p('Keep this unrelated paragraph.')}`)
+const sourceBytesBefore = new Uint8Array(sourceBytes).slice()
+const source = await readSource(sourceBytes, 'source.docx')
+const sourceView = createGenerationSourceView(source)
+assert.ok(sourceView.blocks.every((block) => !block.blockId.includes('word/') && !/#p\d+/.test(block.blockId)), 'generation sees opaque IDs')
+const nameBlock = source.blocks.find((block) => block.text.startsWith('Clients:'))!
+const placeBlock = source.blocks.find((block) => block.text.startsWith('Place:'))!
+const handleFor = (blockId: string) => [...sourceView.sourceBlockIds].find(([, id]) => id === blockId)![0]
+
+const ready = await applyOptionBGenerationResponse(sourceBytes, source, authority, sourceView.sourceBlockIds, {
+  status: 'READY',
+  edits: [
+    { kind: 'replace', blockId: handleFor(nameBlock.blockId), text: 'Clients: Lena Nowicka and Lena Nowicka' },
+    { kind: 'replace', blockId: handleFor(placeBlock.blockId), text: 'Place: in Krakowie' },
+    { kind: 'insert_after', blockId: handleFor(nameBlock.blockId), text: 'Authorized additional service.' },
+  ],
 })
-assert.deepEqual(stageOrder, ['inventory', 'plan', 'review'])
-assert.equal(generated.status, 'COMPLETED')
+assert.equal(ready.status, 'READY')
+if (ready.status === 'READY') {
+  assert.equal(ready.changedBlocks.length, 3, 'mechanical diff contains two replacements and one insertion')
+  assert.ok(ready.changedBlocks.some((item) => item.candidateText === 'Clients: Lena Nowicka and Lena Nowicka'), 'repeated source text is accepted without occurrence resolution')
+  assert.ok(ready.changedBlocks.some((item) => item.candidateText === 'Place: in Krakowie'), 'natural inflection is not compared literally to CRM display form')
+  assert.equal(ready.candidate.blocks.find((block) => block.blockId.endsWith(`#p${nameBlock.index + 1}`))?.text, 'Authorized additional service.', 'insertion may follow a block that is also replaced')
+  assert.ok(ready.candidate.blocks.some((block) => block.text === 'Keep this unrelated paragraph.'), 'unaffected source blocks remain unchanged')
+  const sourceZip = await JSZip.loadAsync(sourceBytes)
+  const candidateZip = await JSZip.loadAsync(ready.candidateBytes)
+  const cellCount = async (zip: JSZip) => (await zip.file('word/document.xml')!.async('string')).match(/<w:tc\b/g)?.length
+  assert.equal(await cellCount(candidateZip), await cellCount(sourceZip), 'both signature table structures remain intact')
 
-let reviewCount = 0
-const missingRun = await runGeneration(pipelineBytes, pipelineSource, authorityContext, {}, {
-  async inventory() { return inventory },
-  async plan() { return { ...ready(), status: 'MISSING_INPUT', missingInputs: [{ id: 'gap', label: 'missing fact', explanation: 'replacement unavailable', inputType: 'text', required: true, sourceContext: 'source', sourceRefs: [block.blockId], inventoryItemIds: ['client-name'] }] } },
-  async review() { reviewCount++; return { status: 'PASS' } },
-})
-assert.equal(missingRun.status, 'MISSING_INPUT')
-if (missingRun.status === 'MISSING_INPUT') assert.equal(missingRun.missingInputs.length, 1)
-assert.equal(reviewCount, 0, 'non-READY planning skips independent review')
-
-let invalidInventoryPlanCalls = 0
-const invalidInventory = { coveredSourceRefs: pipelineSource.blocks.map((item) => item.blockId), items: [{ id: 'bad-quote', label: 'invalid quote', occurrences: [{ sourceRef: block.blockId, quote: 'Ada Sourcx' }] }] }
-const invalidInventoryRun = await runGeneration(pipelineBytes, pipelineSource, authorityContext, {}, {
-  async inventory() { return invalidInventory },
-  async plan() { invalidInventoryPlanCalls++; return plan },
-  async review() { reviewCount++; return { status: 'PASS' } },
-})
-assert.equal(invalidInventoryRun.status, 'FAILED')
-if (invalidInventoryRun.status === 'FAILED') assert.ok(invalidInventoryRun.issues.some((issue) => /exact quote does not occur/.test(issue)))
-assert.equal(invalidInventoryPlanCalls, 0, 'invalid inventory protocol stops before planner provider execution')
-
-const deterministicStop = await runGeneration(pipelineBytes, pipelineSource, authorityContext, {}, {
-  async inventory() { return inventory },
-  async plan() { return unauthorizedRewrite },
-  async review() { reviewCount++; return { status: 'PASS' } },
-})
-assert.equal(deterministicStop.status, 'FAILED', 'objective candidate validation runs before review')
-assert.equal(reviewCount, 0, 'candidate validation failure stops before review')
-
-// Whole-block grounding applies to all prepared cases without fixture routing.
-for (const id of ['case-01-elegant-photographer', 'case-02-structured-two-client-photographer', 'case-03-narrative-photo-video', 'case-04-realistic-wedding-photographer']) {
-  const file = await readFile(new URL(`./multi-template-acceptance/cases/${id}/source.docx`, import.meta.url))
-  const bytes = file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength)
-  const doc = await readSource(bytes, 'source.docx')
-  const target = doc.blocks.find((item) => item.text.trim())!
-  const inv: SourceInventory = { items: [{ id: 'generic-source-item', label: 'source item', occurrences: [{ sourceRef: target.blockId, quote: null }] }] }
-  const resolved = await import('./generator').then((mod) => mod.resolveInventoryOccurrences(doc, inv))
-  assert.equal(resolved.findings.length, 0, `${id} uses generic source grounding`)
-  assert.equal(resolved.occurrences[0]?.text, target.text)
+  const damagedZip = await JSZip.loadAsync(ready.candidateBytes)
+  const document = await damagedZip.file('word/document.xml')!.async('string')
+  damagedZip.file('word/document.xml', document.replace(/<w:tc>[\s\S]*?<\/w:tc>/, ''))
+  const damagedBytes = await damagedZip.generateAsync({ type: 'arraybuffer' })
+  const damaged = await readSource(damagedBytes, 'damaged.docx')
+  assert.ok((await validateOptionBCandidate(sourceBytes, damagedBytes, source, damaged, [
+    { operation: 'REPLACE_BLOCK_TEXT', blockId: nameBlock.blockId, finalText: 'Clients: Lena Nowicka and Lena Nowicka' },
+    { operation: 'REPLACE_BLOCK_TEXT', blockId: placeBlock.blockId, finalText: 'Place: in Krakowie' },
+    { operation: 'INSERT_BLOCK_AFTER', anchorBlockId: nameBlock.blockId, styleSourceBlockId: nameBlock.blockId, finalText: 'Authorized additional service.' },
+  ])).some((issue) => /Table row\/cell structure changed/.test(issue)), 'structural damage remains a hard failure')
 }
 
-// No deterministic semantic interpretation is introduced by source grounding or monetary formatting.
-const generatorSource = await readFile(new URL('./generator.ts', import.meta.url), 'utf8')
-const moneyFormatterSource = await readFile(new URL('./polishPlnAmount.ts', import.meta.url), 'utf8')
-for (const removed of ['isReservationPayment', 'sourceDocumentIdentifierValues', 'partyRoleLabel', 'packageDefinitionBlocks', 'conclusionPlaceInText', 'sourceContainsPartyPhone']) assert.ok(!generatorSource.includes(removed), `${removed} semantic helper is absent`)
-assert.doesNotMatch(`${generatorSource}\n${moneyFormatterSource}`, /18\/2027|Hotel H15|LUMEN STORIES|document.?identifier/i)
-assert.doesNotMatch(moneyFormatterSource, /matchAll|contract prose|paragraph/i, 'money formatter accepts numeric input and does not scan arbitrary prose')
-const tableCandidate = await applyBlockOperations(pipelineBytes, [operation])
-const sourceZip = await JSZip.loadAsync(pipelineBytes)
-const candidateZip = await JSZip.loadAsync(tableCandidate)
-const countCells = async (zip: JSZip) => (await zip.file('word/document.xml')!.async('string')).match(/<w:tc\b/g)?.length
-assert.equal(await countCells(candidateZip), await countCells(sourceZip), 'the frozen OOXML editor still preserves table cells')
-console.log('PASS generic contract-generation architecture boundary acceptance')
+const missing = await applyOptionBGenerationResponse(sourceBytes, source, authority, sourceView.sourceBlockIds, { status: 'MISSING_INPUT', missingInputs: ['What is the required client email?'] })
+assert.deepEqual(missing, { status: 'MISSING_INPUT', missingInputs: ['What is the required client email?'] }, 'missing questions are preserved without creating a candidate')
+const conflict = await applyOptionBGenerationResponse(sourceBytes, source, authority, sourceView.sourceBlockIds, { status: 'CONFLICT_INPUT', conflicts: ['Two authoritative dates disagree.'] })
+assert.deepEqual(conflict, { status: 'CONFLICT_INPUT', conflicts: ['Two authoritative dates disagree.'] }, 'conflicts are preserved without creating a candidate')
+assert.deepEqual(new Uint8Array(sourceBytes), sourceBytesBefore, 'non-READY results do not mutate the source bytes')
+const invalidTarget = await applyOptionBGenerationResponse(sourceBytes, source, authority, sourceView.sourceBlockIds, { status: 'READY', edits: [{ kind: 'replace', blockId: 'unknown-handle', text: 'Unsafe edit.' }] })
+assert.equal(invalidTarget.status, 'FAILED', 'unknown block IDs fail mechanically')
+const invalidZip = await validateOptionBCandidate(sourceBytes, new Uint8Array([1, 2, 3]).buffer, source, source, [])
+assert.deepEqual(invalidZip, ['Cannot open source or candidate DOCX ZIP package'], 'corrupt candidate archives remain a hard failure')
+
+// The frozen XML-aware block editor continues to preserve table cells on a source copy.
+const directCandidate = await applyBlockOperations(sourceBytes, [])
+assert.deepEqual(await validateOptionBCandidate(sourceBytes, directCandidate, source, await readSource(directCandidate, 'copy.docx'), []), [])
+console.log('PASS generic Option B generation architecture boundary acceptance')
