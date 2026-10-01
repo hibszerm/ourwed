@@ -309,7 +309,7 @@ function getProviderConfig() {
   const apiKey = Deno.env.get('OPENAI_API_KEY')?.trim()
   const generatorModel = Deno.env.get('OPENAI_CONTRACT_GENERATOR_MODEL')?.trim()
   const reviewerModel = Deno.env.get('OPENAI_CONTRACT_REVIEWER_MODEL')?.trim()
-  if (!apiKey || !generatorModel || !reviewerModel || generatorModel === reviewerModel) throw new Error('provider_configuration')
+  if (!apiKey || !generatorModel || !reviewerModel) throw new Error('provider_configuration')
   return { apiKey, generatorModel, reviewerModel }
 }
 
@@ -350,7 +350,7 @@ function providerAdapters() {
       system, user: { ...(user as Record<string, unknown>), authorityContext: responseAuthority(context), accumulatedAnswers: answers, productRules: GENERIC_CONTRACT_PRODUCT_RULES },
       schemaName: 'option_b_review_response_v1', schema: REVIEW_SCHEMA,
       model: config.reviewerModel, apiKey: config.apiKey,
-      effort: Deno.env.get('OPENAI_CONTRACT_REVIEWER_REASONING')?.trim() || 'high',
+      effort: Deno.env.get('OPENAI_CONTRACT_REVIEWER_REASONING')?.trim() || 'medium',
     })
     const result = normalizeReviewEnvelope(rawResult)
     if (!isReviewResponse(result)) throw new Error('review_response_invalid')
