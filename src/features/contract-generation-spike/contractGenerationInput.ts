@@ -22,6 +22,12 @@ export type ContractGenerationParty = {
   address?: ContractGenerationFact<string>
 }
 
+/** An upstream-established relationship label for a normalized participant; it is not a source-contract role mapping. */
+export type ContractGenerationParticipantAssociation = {
+  participant: GenerationPartyKey
+  association: ContractGenerationFact<string>
+}
+
 export type ContractGenerationInput = {
   wedding: {
     id: ContractGenerationFact<string>
@@ -30,6 +36,7 @@ export type ContractGenerationInput = {
     workflowStage: ContractGenerationFact<Wedding['workflowStage']>
   }
   parties: ContractGenerationParty[]
+  participantAssociations: ContractGenerationParticipantAssociation[]
   commercial: {
     contractValue: ContractGenerationFact<number>
     agreedDeposit: ContractGenerationFact<number>
@@ -86,6 +93,8 @@ export type ContractGenerationInputOptions = {
   /** Semantic answer fields from the submitted form; question labels/UUIDs are intentionally excluded. */
   questionnaireFields?: Record<string, unknown>
   userProvidedAnswers?: Array<{ id: string; value: string }>
+  /** Explicit associations supplied by an authoritative upstream record; never inferred by this adapter. */
+  participantAssociations?: readonly ContractGenerationParticipantAssociation[]
   contractRecordId?: string | null
   /** Raw canonical contract/correspondence address when available before wedding-view hydration; the application model associates it with partner1. */
   genericContractAddress?: string | null
@@ -193,6 +202,10 @@ export function buildContractGenerationInput(
       },
       partyFromWedding(wedding, 'partner2', fields),
     ],
+    participantAssociations: (options.participantAssociations ?? []).map(({ participant, association }) => ({
+      participant,
+      association: { ...association },
+    })),
     commercial: {
       contractValue: { value: summary.contractValue, source: 'public.weddings.contract_value' },
       agreedDeposit: { value: summary.agreedDeposit, source: 'public.weddings.deposit_amount' },

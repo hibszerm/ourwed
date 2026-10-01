@@ -13,6 +13,7 @@ import {
   GENERATION_INSTRUCTIONS,
   GENERIC_CONTRACT_PRODUCT_RULES,
   REVIEW_INSTRUCTIONS,
+  NON_READY_REVIEW_INSTRUCTIONS,
   readSource,
   validateOptionBInput,
   type ChangedBlock,
@@ -61,6 +62,7 @@ type ReviewerVisibleBlock = Pick<GenerationSourceBlock, 'kind' | 'text'>
 export type AcceptanceProvider = {
   generate(args: { instructions: string; sourceBlocks: ReturnType<typeof createGenerationSourceView>['blocks']; authorityContext: ContractGenerationInput; productRules: readonly string[] }): Promise<GenerationResponse & { providerMetadata?: ProviderResponseMetadata }>
   review(args: { instructions: string; source: ReviewerVisibleBlock[]; authorityContext: ContractGenerationInput; productRules: readonly string[]; candidate: ReviewerVisibleBlock[]; mechanicalDiff: ChangedBlock[] }): Promise<ReviewResponse & { providerMetadata?: ProviderResponseMetadata }>
+  reviewNonReady(args: { instructions: string; source: ReviewerVisibleBlock[]; authorityContext: ContractGenerationInput; productRules: readonly string[]; generationOutcome: Extract<GenerationResponse, { status: 'MISSING_INPUT' | 'CONFLICT_INPUT' }> }): Promise<ReviewResponse & { providerMetadata?: ProviderResponseMetadata }>
 }
 
 export type AcceptanceResult = {
@@ -76,6 +78,7 @@ export type AcceptanceResult = {
   generationStatus: 'NOT_RUN_PROVIDER_DISABLED' | 'MISSING_INPUT' | 'CONFLICT_INPUT' | 'COMPLETED' | 'FAILED'
   blockOperationCounts: { generation: number }
   generationResultPath: string | null
+  semanticReviewRequestPath: string | null
   mechanicalDiffPath: string | null
   candidatePath: string | null
   candidateAccepted: boolean
@@ -117,7 +120,7 @@ function resultBase(caseId: string, sourceFilename = 'source.docx'): AcceptanceR
   return {
     caseId, sourceFilename, productRules: GENERIC_CONTRACT_PRODUCT_RULES, normalizedInput: null, generationInputPath: null, transformationRequestPrepared: false, preflight: 'INVALID_CASE', missingInputs: [], conflictFindings: [],
     generationStatus: 'NOT_RUN_PROVIDER_DISABLED', blockOperationCounts: { generation: 0 },
-    generationResultPath: null, mechanicalDiffPath: null, candidatePath: null, candidateAccepted: false, acceptedCandidatePath: null, candidateOpens: null,
+    generationResultPath: null, semanticReviewRequestPath: null, mechanicalDiffPath: null, candidatePath: null, candidateAccepted: false, acceptedCandidatePath: null, candidateOpens: null,
     reviewResult: 'NOT_RUN', reviewFindings: [], reviewResultPath: null,
     deterministicValidation: 'NOT_RUN', deterministicFindings: [], pageCount: null, blankPagePresence: 'NOT_RENDERED', renderFindings: [], visualInspection: 'PENDING',
     providerCalls: { generator: 0, reviewer: 0, total: 0 }, measurements: null, overall: 'FAIL',
@@ -234,6 +237,10 @@ function legacyCaseOptions(definition: LegacyMultiTemplateCaseDefinition): Contr
     generationDate: definition.generationDate,
     userProvidedAnswers: definition.userProvidedAnswers ?? [],
     genericContractAddress: facts.contractAddress,
+    participantAssociations: [
+      ...(facts.bride.name.trim() ? [{ participant: 'partner1' as const, association: { value: 'bride', source: 'case input weddingFacts.bride' } }] : []),
+      ...(facts.groom.name.trim() ? [{ participant: 'partner2' as const, association: { value: 'groom', source: 'case input weddingFacts.groom' } }] : []),
+    ],
   }
 }
 
@@ -271,6 +278,7 @@ export function formatAcceptanceReport(result: AcceptanceResult): string {
     `- Missing inputs: ${result.missingInputs.join('; ') || 'none'}`,
     `- Conflict findings: ${result.conflictFindings.join('; ') || 'none'}`,
     `- Generation: ${result.generationStatus}; block edits ${result.blockOperationCounts.generation}`,
+    `- Non-READY semantic review request: ${result.semanticReviewRequestPath ?? 'not prepared'}`,
     `- Candidate: ${result.candidatePath ?? 'not generated'}`,
     `- Accepted candidate: ${result.acceptedCandidatePath ?? 'none'}`,
     `- Candidate opens: ${result.candidateOpens ?? 'not checked'}`,
@@ -387,16 +395,66 @@ export async function runMultiTemplateAcceptance(caseId: string, options: Harnes
 
   const generatedResult = await applyOptionBGenerationResponse(sourceArrayBuffer, sourceDocument, normalizedInput, sourceView.sourceBlockIds, response)
   if (generatedResult.status === 'MISSING_INPUT') {
-    result.generationStatus = 'MISSING_INPUT'
     result.missingInputs = generatedResult.missingInputs
-    result.overall = 'MISSING_INPUT'
-    await writeReports(result, outputDirectory, metrics)
-    return result
   }
   if (generatedResult.status === 'CONFLICT_INPUT') {
-    result.generationStatus = 'CONFLICT_INPUT'
     result.conflictFindings = generatedResult.conflicts
-    result.overall = 'CONFLICT_INPUT'
+  }
+  if (generatedResult.status === 'MISSING_INPUT' || generatedResult.status === 'CONFLICT_INPUT') {
+    const reviewRequest = {
+      instructions: NON_READY_REVIEW_INSTRUCTIONS,
+      source: sourceDocument.blocks.map(({ kind, text }) => ({ kind, text })),
+      authorityContext: normalizedInput,
+      productRules: GENERIC_CONTRACT_PRODUCT_RULES,
+      generationOutcome: generatedResult,
+    }
+    result.semanticReviewRequestPath = path.join(outputDirectory, 'semantic-review-request.json')
+    await writeFile(result.semanticReviewRequestPath, `${JSON.stringify(reviewRequest, null, 2)}\n`)
+    result.providerCalls.reviewer = 1
+    result.providerCalls.total = 2
+    metrics.startStage('reviewProvider')
+    let semanticReview: ReviewResponse & { providerMetadata?: ProviderResponseMetadata }
+    try {
+      semanticReview = await options.provider.reviewNonReady(reviewRequest)
+    } catch (error) {
+      const reviewMs = metrics.endStage('reviewProvider')
+      const reviewTimestamps = metrics.snapshot().timestamps.stages.reviewProvider!
+      metrics.recordProviderCall('review', reviewMs, reviewTimestamps.startedAt, reviewTimestamps.endedAt)
+      result.reviewResult = 'FAIL'
+      result.reviewFindings = [error instanceof Error ? error.message : String(error)]
+      result.reviewResultPath = path.join(outputDirectory, 'review-result.json')
+      await writeFile(result.reviewResultPath, `${JSON.stringify({ status: 'FAIL', findings: result.reviewFindings }, null, 2)}\n`)
+      result.generationStatus = 'FAILED'
+      result.overall = 'FAIL'
+      await writeReports(result, outputDirectory, metrics)
+      return result
+    }
+    const reviewMs = metrics.endStage('reviewProvider')
+    const reviewTimestamps = metrics.snapshot().timestamps.stages.reviewProvider!
+    const { providerMetadata: reviewMetadata, ...semanticReviewResponse } = semanticReview
+    metrics.recordProviderCall('review', reviewMs, reviewTimestamps.startedAt, reviewTimestamps.endedAt, reviewMetadata)
+    result.reviewResultPath = path.join(outputDirectory, 'review-result.json')
+    if (!isReviewResponse(semanticReviewResponse)) {
+      result.reviewResult = 'FAIL'
+      result.reviewFindings = ['Semantic reviewer response does not match the strict ReviewResponse protocol.']
+      await writeFile(result.reviewResultPath, `${JSON.stringify({ status: 'FAIL', findings: result.reviewFindings }, null, 2)}\n`)
+      result.generationStatus = 'FAILED'
+      result.overall = 'FAIL'
+      await writeReports(result, outputDirectory, metrics)
+      return result
+    }
+    await writeFile(result.reviewResultPath, `${JSON.stringify(semanticReviewResponse, null, 2)}\n`)
+    if (semanticReviewResponse.status === 'FAIL') {
+      result.reviewResult = 'FAIL'
+      result.reviewFindings = semanticReviewResponse.findings
+      result.generationStatus = 'FAILED'
+      result.overall = 'FAIL'
+      await writeReports(result, outputDirectory, metrics)
+      return result
+    }
+    result.reviewResult = 'PASS'
+    result.generationStatus = generatedResult.status
+    result.overall = generatedResult.status
     await writeReports(result, outputDirectory, metrics)
     return result
   }

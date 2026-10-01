@@ -50,6 +50,19 @@ const result = buildContractGenerationInput({
   },
   userProvidedAnswers: [{ id: 'wedding.partner2.pesel', value: 'fictional-id' }, { id: 'arbitrary.ref', value: 'arbitrary value' }],
 })
+assert.deepEqual(result.participantAssociations, [], 'no association is invented from participant names or ordering')
+
+const explicitAssociations = buildContractGenerationInput({
+  wedding, weddingPlaces: [], extras: [], generationDate: '2026-09-29',
+  participantAssociations: [
+    { participant: 'partner1', association: { value: 'bride', source: 'authoritative wedding record bride field' } },
+    { participant: 'partner2', association: { value: 'groom', source: 'authoritative wedding record groom field' } },
+  ],
+})
+assert.deepEqual(explicitAssociations.participantAssociations, [
+  { participant: 'partner1', association: { value: 'bride', source: 'authoritative wedding record bride field' } },
+  { participant: 'partner2', association: { value: 'groom', source: 'authoritative wedding record groom field' } },
+], 'explicit upstream associations and their provenance survive normalization')
 
 const [party1, party2] = result.parties
 assert.equal(party1?.sourceKey, 'partner1')
