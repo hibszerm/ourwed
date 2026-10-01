@@ -1,11 +1,8 @@
 export type GenerationMetricStage =
   | 'preflight'
-  | 'inventoryProvider'
   | 'generationProvider'
-  | 'planningProvider'
-  | 'planValidation'
-  | 'docxApply'
-  | 'candidateValidation'
+  | 'blockEdit'
+  | 'mechanicalValidation'
   | 'reviewProvider'
 
 export type MetricsClock = {
@@ -48,7 +45,7 @@ export type ProviderCost = {
 }
 
 export type ProviderCallMeasurement = {
-  purpose: 'inventory' | 'generation' | 'planning' | 'review'
+  purpose: 'generation' | 'review'
   requestedModel: string | null
   model: string | null
   serviceTier: string | null
@@ -82,12 +79,9 @@ export type GenerationMeasurements = {
   totalGenerationMs: number | null
   stages: {
     preflightMs: number | null
-    inventoryProviderMs: number | null
     generationProviderMs: number | null
-    planningProviderMs: number | null
-    planValidationMs: number | null
-    docxApplyMs: number | null
-    candidateValidationMs: number | null
+    blockEditMs: number | null
+    mechanicalValidationMs: number | null
     reviewProviderMs: number | null
   }
   providerCalls: ProviderCallMeasurement[]
@@ -312,12 +306,9 @@ export class ContractGenerationMetrics {
       totalGenerationMs: this.totalGenerationMs,
       stages: {
         preflightMs: this.stageDurations.preflight ?? null,
-        inventoryProviderMs: this.stageDurations.inventoryProvider ?? null,
         generationProviderMs: this.stageDurations.generationProvider ?? null,
-        planningProviderMs: this.stageDurations.planningProvider ?? null,
-        planValidationMs: this.stageDurations.planValidation ?? null,
-        docxApplyMs: this.stageDurations.docxApply ?? null,
-        candidateValidationMs: this.stageDurations.candidateValidation ?? null,
+        blockEditMs: this.stageDurations.blockEdit ?? null,
+        mechanicalValidationMs: this.stageDurations.mechanicalValidation ?? null,
         reviewProviderMs: this.stageDurations.reviewProvider ?? null,
       },
       providerCalls: calls,

@@ -1,8 +1,0 @@
-import assert from 'node:assert/strict'
-import { makeInput, validateAuthorityGate, type PlanResult } from './generator'
-const input = makeInput({ generationDate: '25.09.2026', sourceDocument: { fileName: 'source.docx', blocks: [{ blockId: 'word/document.xml#p1', part: 'word/document.xml', index: 0, kind: 'body', context: '', text: 'Ada Source' }] }, wedding: { bride: { name: 'Ada Test', phone: '', email: '' }, groom: { name: 'Bar Test', phone: '' }, weddingDate: '', contractAddress: '', contractValuePln: 10, depositPln: 0, remainingDueDate: '', locations: { bridePreparations: '', groomPreparations: '', ceremony: '', reception: '' } }, packagePolicy: { preserveSourcePackageExactly: true }, extras: [], userProvidedAnswers: [] })
-const inventory = { coveredSourceRefs: ['word/document.xml#p1'], items: [{ id: 'party-name', label: 'unknown ownership', occurrences: [{ sourceRef: 'word/document.xml#p1', quote: 'Ada Source' }] }] }
-const plan: PlanResult = { status: 'READY', missingInputs: [], conflicts: [], factChanges: [{ label: 'human context only', inventoryItemIds: ['party-name'], inventoryItemId: 'party-name', sourceRef: 'word/document.xml#p1', expectedSource: 'Ada Source', newValue: 'Ada Test', newValueFormat: 'literal', authority: { kind: 'crm', ref: 'wedding.bride.name' } }], retainedLiterals: [], operations: [] }
-assert.deepEqual(validateAuthorityGate(input, inventory, plan), [])
-assert.ok(validateAuthorityGate(input, inventory, { ...plan, factChanges: [{ ...plan.factChanges[0]!, authority: { kind: 'crm', ref: 'wedding.groom.name' }, newValue: 'Bar Test' }] }).length === 0, 'the gate validates declared authority without inferring party ownership from prose')
-console.log('PASS party semantic interpretation remains with planner and reviewer')

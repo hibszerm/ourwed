@@ -2,7 +2,6 @@ import { getWeddingCommercialSummary } from '@/lib/utils/commercial'
 import type { WeddingExtraService } from '@/types/package'
 import type { Wedding } from '@/types/wedding'
 import type { WeddingPlace } from '@/types/travel'
-import type { GenerationInput } from './generator'
 
 export type GenerationPartyKey = 'partner1' | 'partner2'
 
@@ -86,7 +85,7 @@ export type ContractGenerationInputOptions = {
   generationDate: string
   /** Semantic answer fields from the submitted form; question labels/UUIDs are intentionally excluded. */
   questionnaireFields?: Record<string, unknown>
-  userProvidedAnswers?: GenerationInput['userProvidedAnswers']
+  userProvidedAnswers?: Array<{ id: string; value: string }>
   contractRecordId?: string | null
   /** Raw canonical correspondence field when available before wedding-view hydration. It is always unowned. */
   genericContractAddress?: string | null

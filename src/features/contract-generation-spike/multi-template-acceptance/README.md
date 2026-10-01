@@ -1,16 +1,16 @@
 # Multi-template acceptance
 
-This harness runs one named case independently. The default entry point loads the case, reads its original DOCX, checks the case file and objective input arithmetic, prepares a transformation request, and writes compact JSON and Markdown results. Provider execution is disabled unless a caller explicitly supplies a local adapter. The adapter boundary has one source-inventory call, one transformation call, and one independent review call; it has no retry or repair operation. A review failure stops the case.
+This harness runs one named case independently. It loads the original DOCX, validates normalized input and arithmetic, prepares a generation request, and writes JSON and Markdown results. Provider execution is disabled unless a caller supplies an adapter. The successful flow is one generator call, source-copy block editing, mechanical validation, then one independent review call. Missing input, conflicts, mechanical failures, and review failures stop without repair or retry.
 
 From the repository root, import `runMultiTemplateAcceptance` from `src/features/contract-generation-spike/multi-template-acceptance/harness.ts` and call it with one case ID. Optional `casesRoot` and `outputRoot` paths support local setup. Results and any candidate artifacts are written under the selected output root, separated by case and run ID. With no provider adapter, the result is `READY` after preflight and no DOCX is generated.
 
 ## Add one real case
 
 1. Add a sanitized real source DOCX as `cases/<case-id>/source.docx`.
-2. Add `input.json` with the matching case ID, generation date, authoritative wedding facts, and any user-provided answers or extras. Use the existing `WeddingFacts` shape; the planner reports source-required values that are missing.
+2. Add `input.json` with the matching case ID, source filename, normalized authoritative input, and any user-provided answers or extras.
 3. Inspect case-file and arithmetic preflight results.
 4. Explicitly authorize the provider run outside this harness task, then run only that named case with a provider adapter.
-5. The case uses one inventory, one transformation, and one independent review call. A failed review stops without repair.
+5. A successful candidate uses one generation call and one independent review call. A failed review stops without repair.
 6. Inspect the rendered candidate manually for page flow, blank pages, paragraph and extras formatting, signatures, tables, headers/footers, font/style corruption, and indentation; record the visual result with the acceptance report.
 7. Do not tune code immediately for one isolated wording mistake. Change generic code only when a repeated or new systemic failure class is demonstrated across real cases.
 

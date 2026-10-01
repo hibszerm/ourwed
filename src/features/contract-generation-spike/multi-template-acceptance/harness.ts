@@ -6,18 +6,30 @@ import { ContractGenerationMetrics, type GenerationMeasurements, type MetricsClo
 import { buildContractGenerationInput, type ContractGenerationInput, type ContractGenerationInputOptions } from '../contractGenerationInput'
 import type { Wedding } from '@/types/wedding'
 import type { WeddingPlace } from '@/types/travel'
-import type { GenerationResponse } from '../generationProtocol'
+import { isReviewResponse, type GenerationResponse, type ReviewResponse } from '../generationProtocol'
 import {
   applyOptionBGenerationResponse,
   createGenerationSourceView,
   GENERATION_INSTRUCTIONS,
   GENERIC_CONTRACT_PRODUCT_RULES,
+  REVIEW_INSTRUCTIONS,
   readSource,
   validateOptionBInput,
-  type WeddingFacts,
+  type ChangedBlock,
+  type GenerationSourceBlock,
 } from '../generator'
 
 type DeepPartial<T> = { [K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K] }
+type LegacyFixtureWeddingFacts = {
+  bride: { name: string; phone: string; email: string }
+  groom: { name: string; phone: string }
+  weddingDate: string
+  contractAddress: string
+  contractValuePln: number
+  depositPln: number
+  remainingDueDate: string
+  locations: { bridePreparations: string; groomPreparations: string; ceremony: string; reception: string }
+}
 
 export type AcceptanceProductRules = {
   preserveSourcePackageExactly?: true
@@ -29,7 +41,7 @@ export type LegacyMultiTemplateCaseDefinition = {
   id: string
   sourceDocx: 'source.docx'
   generationDate: string
-  weddingFacts: DeepPartial<WeddingFacts>
+  weddingFacts: DeepPartial<LegacyFixtureWeddingFacts>
   extras?: string[]
   userProvidedAnswers?: ContractGenerationInputOptions['userProvidedAnswers']
   expectedProductRules?: AcceptanceProductRules
@@ -44,8 +56,11 @@ export type ContractGenerationInputCaseDefinition = {
 
 export type MultiTemplateCaseDefinition = LegacyMultiTemplateCaseDefinition | ContractGenerationInputCaseDefinition
 
+type ReviewerVisibleBlock = Pick<GenerationSourceBlock, 'kind' | 'text'>
+
 export type AcceptanceProvider = {
   generate(args: { instructions: string; sourceBlocks: ReturnType<typeof createGenerationSourceView>['blocks']; authorityContext: ContractGenerationInput; productRules: readonly string[] }): Promise<GenerationResponse & { providerMetadata?: ProviderResponseMetadata }>
+  review(args: { instructions: string; source: ReviewerVisibleBlock[]; authorityContext: ContractGenerationInput; productRules: readonly string[]; candidate: ReviewerVisibleBlock[]; mechanicalDiff: ChangedBlock[] }): Promise<ReviewResponse & { providerMetadata?: ProviderResponseMetadata }>
 }
 
 export type AcceptanceResult = {
@@ -58,35 +73,36 @@ export type AcceptanceResult = {
   preflight: 'READY' | 'MISSING_INPUT' | 'CONFLICT_INPUT' | 'INVALID_CASE'
   missingInputs: string[]
   conflictFindings: string[]
-  transformationStatus: 'NOT_RUN_PROVIDER_DISABLED' | 'MISSING_INPUT' | 'CONFLICT_INPUT' | 'COMPLETED' | 'FAILED'
-  blockOperationCounts: { transformation: number; canonicalMoney: number }
+  generationStatus: 'NOT_RUN_PROVIDER_DISABLED' | 'MISSING_INPUT' | 'CONFLICT_INPUT' | 'COMPLETED' | 'FAILED'
+  blockOperationCounts: { generation: number }
   generationResultPath: string | null
   mechanicalDiffPath: string | null
   candidatePath: string | null
+  candidateAccepted: boolean
+  acceptedCandidatePath: string | null
   candidateOpens: boolean | null
   reviewResult: 'NOT_RUN' | 'PASS' | 'FAIL'
   reviewFindings: string[]
+  reviewResultPath: string | null
   deterministicValidation: 'NOT_RUN' | 'PASS' | 'FAIL'
   deterministicFindings: string[]
   pageCount: number | null
   blankPagePresence: 'YES' | 'NO' | 'UNKNOWN' | 'NOT_RENDERED'
-  protectedLegalWording: 'NOT_CHECKED' | 'PASS' | 'FAIL'
-  packageServicePreservation: 'NOT_CHECKED' | 'PASS' | 'FAIL'
-  oldDataStatus: 'NOT_CHECKED' | 'PASS' | 'FAIL'
-  inventedFactStatus: 'MANUAL_REVIEW_REQUIRED'
+  renderFindings: string[]
   visualInspection: 'PENDING' | 'REQUIRED'
-  providerCalls: { inventory: number; transformation: number; review: number; total: number; retries: number; repair: number }
+  providerCalls: { generator: number; reviewer: number; total: number }
   measurements: GenerationMeasurements | null
-  overall: 'READY' | 'READY_FOR_REVIEW' | 'PASS' | 'FAIL' | 'MISSING_INPUT' | 'CONFLICT_INPUT'
+  overall: 'READY' | 'PASS' | 'FAIL' | 'MISSING_INPUT' | 'CONFLICT_INPUT'
 }
 
-export const ACCEPTANCE_PROVIDER_BUDGET = Object.freeze({ inventory: 0, transformation: 1, review: 0, total: 1, retries: 0, repair: 0 })
+export const ACCEPTANCE_PROVIDER_BUDGET = Object.freeze({ generator: 1, reviewer: 1, total: 2 })
 export type HarnessOptions = {
   casesRoot?: string
   outputRoot?: string
   provider?: AcceptanceProvider
   runId?: string
   metricsClock?: MetricsClock
+  render?: (candidatePath: string, outputDirectory: string) => Promise<{ pdfPath: string; pageCount: number }>
 }
 
 const defaultCasesRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), 'cases')
@@ -100,16 +116,15 @@ function ownedArrayBuffer(value: ArrayBufferLike): ArrayBuffer {
 function resultBase(caseId: string, sourceFilename = 'source.docx'): AcceptanceResult {
   return {
     caseId, sourceFilename, productRules: GENERIC_CONTRACT_PRODUCT_RULES, normalizedInput: null, generationInputPath: null, transformationRequestPrepared: false, preflight: 'INVALID_CASE', missingInputs: [], conflictFindings: [],
-    transformationStatus: 'NOT_RUN_PROVIDER_DISABLED', blockOperationCounts: { transformation: 0, canonicalMoney: 0 },
-    generationResultPath: null, mechanicalDiffPath: null, candidatePath: null, candidateOpens: null, reviewResult: 'NOT_RUN', reviewFindings: [],
-    deterministicValidation: 'NOT_RUN', deterministicFindings: [], pageCount: null, blankPagePresence: 'NOT_RENDERED',
-    protectedLegalWording: 'NOT_CHECKED', packageServicePreservation: 'NOT_CHECKED', oldDataStatus: 'NOT_CHECKED',
-    inventedFactStatus: 'MANUAL_REVIEW_REQUIRED', visualInspection: 'PENDING',
-    providerCalls: { inventory: 0, transformation: 0, review: 0, total: 0, retries: 0, repair: 0 }, measurements: null, overall: 'FAIL',
+    generationStatus: 'NOT_RUN_PROVIDER_DISABLED', blockOperationCounts: { generation: 0 },
+    generationResultPath: null, mechanicalDiffPath: null, candidatePath: null, candidateAccepted: false, acceptedCandidatePath: null, candidateOpens: null,
+    reviewResult: 'NOT_RUN', reviewFindings: [], reviewResultPath: null,
+    deterministicValidation: 'NOT_RUN', deterministicFindings: [], pageCount: null, blankPagePresence: 'NOT_RENDERED', renderFindings: [], visualInspection: 'PENDING',
+    providerCalls: { generator: 0, reviewer: 0, total: 0 }, measurements: null, overall: 'FAIL',
   }
 }
 
-function materializeWeddingFacts(facts: DeepPartial<WeddingFacts>): WeddingFacts {
+function materializeWeddingFacts(facts: DeepPartial<LegacyFixtureWeddingFacts>): LegacyFixtureWeddingFacts {
   return {
     bride: { name: facts.bride?.name ?? '', phone: facts.bride?.phone ?? '', email: facts.bride?.email ?? '' },
     groom: { name: facts.groom?.name ?? '', phone: facts.groom?.phone ?? '' },
@@ -252,18 +267,18 @@ export function formatAcceptanceReport(result: AcceptanceResult): string {
     `- Normalized ContractGenerationInput: ${result.normalizedInput ? 'persisted in result.json' : 'not built'}`,
     `- Generation input: ${result.generationInputPath ?? 'not prepared'}`,
     `- Product rules: ${result.productRules.join('; ')}`,
-    `- Transformation request prepared: ${result.transformationRequestPrepared ? 'yes' : 'no'}`,
+    `- Generation request prepared: ${result.transformationRequestPrepared ? 'yes' : 'no'}`,
     `- Missing inputs: ${result.missingInputs.join('; ') || 'none'}`,
     `- Conflict findings: ${result.conflictFindings.join('; ') || 'none'}`,
-    `- Transformation: ${result.transformationStatus}; operations ${result.blockOperationCounts.transformation}; canonical money blocks ${result.blockOperationCounts.canonicalMoney}`,
+    `- Generation: ${result.generationStatus}; block edits ${result.blockOperationCounts.generation}`,
     `- Candidate: ${result.candidatePath ?? 'not generated'}`,
+    `- Accepted candidate: ${result.acceptedCandidatePath ?? 'none'}`,
     `- Candidate opens: ${result.candidateOpens ?? 'not checked'}`,
     `- Review: ${result.reviewResult}${result.reviewFindings.length ? ` — ${result.reviewFindings.join('; ')}` : ''}`,
     `- Deterministic validation: ${result.deterministicValidation}${result.deterministicFindings.length ? ` — ${result.deterministicFindings.join('; ')}` : ''}`,
     `- Render: ${result.pageCount === null ? 'not rendered' : `${result.pageCount} pages; blank page ${result.blankPagePresence.toLowerCase()}`}`,
-    `- Protected legal wording: ${result.protectedLegalWording}; package/service: ${result.packageServicePreservation}; old data: ${result.oldDataStatus}`,
-    `- Invented facts: ${result.inventedFactStatus}; visual inspection: ${result.visualInspection}`,
-    `- Provider calls: ${result.providerCalls.total} (inventory ${result.providerCalls.inventory}, transform ${result.providerCalls.transformation}, review ${result.providerCalls.review}, retries ${result.providerCalls.retries}, repair ${result.providerCalls.repair})`,
+    `- Render findings: ${result.renderFindings.join('; ') || 'none'}; visual inspection: ${result.visualInspection}`,
+    `- Provider calls: ${result.providerCalls.total} (generator ${result.providerCalls.generator}, reviewer ${result.providerCalls.reviewer})`,
     `- Generation timing: ${result.measurements?.totalGenerationMs ?? 'not measured'} ms total; generation call ${result.measurements?.stages.generationProviderMs ?? 'not run'} ms; review ${result.measurements?.stages.reviewProviderMs ?? 'not run'} ms`,
     ...(result.normalizedInput ? ['', '```json', JSON.stringify(result.normalizedInput, null, 2), '```'] : []),
     '',
@@ -342,7 +357,7 @@ export async function runMultiTemplateAcceptance(caseId: string, options: Harnes
     return result
   }
 
-  result.providerCalls.transformation = 1
+  result.providerCalls.generator = 1
   result.providerCalls.total = 1
   metrics.startStage('generationProvider')
   let generated: GenerationResponse & { providerMetadata?: ProviderResponseMetadata }
@@ -357,7 +372,7 @@ export async function runMultiTemplateAcceptance(caseId: string, options: Harnes
     const latencyMs = metrics.endStage('generationProvider')
     const timestamps = metrics.snapshot().timestamps.stages.generationProvider!
     metrics.recordProviderCall('generation', latencyMs, timestamps.startedAt, timestamps.endedAt)
-    result.transformationStatus = 'FAILED'
+    result.generationStatus = 'FAILED'
     result.deterministicFindings = [error instanceof Error ? error.message : String(error)]
     result.overall = 'FAIL'
     await writeReports(result, outputDirectory, metrics)
@@ -372,21 +387,21 @@ export async function runMultiTemplateAcceptance(caseId: string, options: Harnes
 
   const generatedResult = await applyOptionBGenerationResponse(sourceArrayBuffer, sourceDocument, normalizedInput, sourceView.sourceBlockIds, response)
   if (generatedResult.status === 'MISSING_INPUT') {
-    result.transformationStatus = 'MISSING_INPUT'
+    result.generationStatus = 'MISSING_INPUT'
     result.missingInputs = generatedResult.missingInputs
     result.overall = 'MISSING_INPUT'
     await writeReports(result, outputDirectory, metrics)
     return result
   }
   if (generatedResult.status === 'CONFLICT_INPUT') {
-    result.transformationStatus = 'CONFLICT_INPUT'
+    result.generationStatus = 'CONFLICT_INPUT'
     result.conflictFindings = generatedResult.conflicts
     result.overall = 'CONFLICT_INPUT'
     await writeReports(result, outputDirectory, metrics)
     return result
   }
   if (generatedResult.status === 'FAILED') {
-    result.transformationStatus = 'FAILED'
+    result.generationStatus = 'FAILED'
     result.deterministicValidation = 'FAIL'
     result.deterministicFindings = generatedResult.issues
     result.overall = 'FAIL'
@@ -394,8 +409,8 @@ export async function runMultiTemplateAcceptance(caseId: string, options: Harnes
     return result
   }
 
-  result.blockOperationCounts.transformation = generatedResult.edits.length
-  result.transformationStatus = 'COMPLETED'
+  result.blockOperationCounts.generation = generatedResult.edits.length
+  result.generationStatus = 'COMPLETED'
   result.deterministicValidation = 'PASS'
   result.candidateOpens = true
   result.mechanicalDiffPath = path.join(outputDirectory, 'mechanical-diff.json')
@@ -404,20 +419,65 @@ export async function runMultiTemplateAcceptance(caseId: string, options: Harnes
   await mkdir(candidateDirectory, { recursive: true })
   result.candidatePath = path.join(candidateDirectory, 'candidate.docx')
   await writeFile(result.candidatePath, Buffer.from(generatedResult.candidateBytes))
+  result.providerCalls.reviewer = 1
+  result.providerCalls.total = 2
+  metrics.startStage('reviewProvider')
+  let reviewed: ReviewResponse & { providerMetadata?: ProviderResponseMetadata }
   try {
-    const render = await renderCandidate(result.candidatePath, candidateDirectory)
-    result.pageCount = render.pageCount
-    result.blankPagePresence = 'UNKNOWN'
-    result.visualInspection = 'REQUIRED'
+    reviewed = await options.provider.review({
+      instructions: REVIEW_INSTRUCTIONS,
+      source: sourceDocument.blocks.map(({ kind, text }) => ({ kind, text })),
+      authorityContext: normalizedInput,
+      productRules: GENERIC_CONTRACT_PRODUCT_RULES,
+      candidate: generatedResult.candidate.blocks.map(({ kind, text }) => ({ kind, text })),
+      mechanicalDiff: generatedResult.changedBlocks,
+    })
   } catch (error) {
-    result.transformationStatus = 'FAILED'
-    result.deterministicValidation = 'FAIL'
-    result.deterministicFindings = [error instanceof Error ? error.message : String(error)]
+    const reviewMs = metrics.endStage('reviewProvider')
+    const reviewTimestamps = metrics.snapshot().timestamps.stages.reviewProvider!
+    metrics.recordProviderCall('review', reviewMs, reviewTimestamps.startedAt, reviewTimestamps.endedAt)
+    result.reviewResult = 'FAIL'
+    result.reviewFindings = [error instanceof Error ? error.message : String(error)]
+    result.reviewResultPath = path.join(outputDirectory, 'review-result.json')
+    await writeFile(result.reviewResultPath, `${JSON.stringify({ status: 'FAIL', findings: result.reviewFindings }, null, 2)}\n`)
     result.overall = 'FAIL'
     await writeReports(result, outputDirectory, metrics)
     return result
   }
-  result.overall = 'READY_FOR_REVIEW'
+  const reviewMs = metrics.endStage('reviewProvider')
+  const reviewTimestamps = metrics.snapshot().timestamps.stages.reviewProvider!
+  const { providerMetadata: reviewMetadata, ...reviewResponse } = reviewed
+  metrics.recordProviderCall('review', reviewMs, reviewTimestamps.startedAt, reviewTimestamps.endedAt, reviewMetadata)
+  result.reviewResultPath = path.join(outputDirectory, 'review-result.json')
+  if (!isReviewResponse(reviewResponse)) {
+    result.reviewResult = 'FAIL'
+    result.reviewFindings = ['Reviewer response does not match the strict ReviewResponse protocol.']
+    await writeFile(result.reviewResultPath, `${JSON.stringify({ status: 'FAIL', findings: result.reviewFindings }, null, 2)}\n`)
+    result.overall = 'FAIL'
+    await writeReports(result, outputDirectory, metrics)
+    return result
+  }
+  await writeFile(result.reviewResultPath, `${JSON.stringify(reviewResponse, null, 2)}\n`)
+  if (reviewResponse.status === 'FAIL') {
+    result.reviewResult = 'FAIL'
+    result.reviewFindings = reviewResponse.findings
+    result.overall = 'FAIL'
+    await writeReports(result, outputDirectory, metrics)
+    return result
+  }
+  result.reviewResult = 'PASS'
+  result.candidateAccepted = true
+  result.acceptedCandidatePath = result.candidatePath
+  result.overall = 'PASS'
+  try {
+    const render = await (options.render ?? renderCandidate)(result.candidatePath, candidateDirectory)
+    result.pageCount = render.pageCount
+    result.blankPagePresence = 'UNKNOWN'
+    result.visualInspection = 'REQUIRED'
+  } catch (error) {
+    result.renderFindings = [error instanceof Error ? error.message : String(error)]
+    result.visualInspection = 'REQUIRED'
+  }
   await writeReports(result, outputDirectory, metrics)
   return result
 }

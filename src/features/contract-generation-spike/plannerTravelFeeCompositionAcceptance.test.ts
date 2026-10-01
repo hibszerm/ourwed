@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { buildContractGenerationInput } from './contractGenerationInput'
-import { TRANSFORMATION_INSTRUCTIONS } from './generator'
+import { GENERIC_CONTRACT_PRODUCT_RULES } from './generator'
 import { getEffectiveTravelFeeAmount } from '@/lib/utils/travelFeeCommercial'
 import type { Wedding } from '@/types/wedding'
 import type { WeddingExtraService } from '@/types/package'
@@ -43,11 +43,7 @@ assert.equal(included.commercial.contractValue.value, 13_250, 'included travel d
 assert.equal(included.commercial.travelFeeAmount.value, 0)
 assert.equal(charged.commercial.contractValue.value, included.commercial.contractValue.value, 'changing travel status does not make Planner recompute contractValue')
 
-assert.match(TRANSFORMATION_INSTRUCTIONS, /commercial\.contractValue as OurWed's authoritative TOTAL contract value/i)
-assert.match(TRANSFORMATION_INSTRUCTIONS, /charged.*already included in contractValue and must never be added on top/i)
-assert.match(TRANSFORMATION_INSTRUCTIONS, /For included or non-charged travel, effective travel contributes zero/i)
-assert.match(TRANSFORMATION_INSTRUCTIONS, /Selected extras are likewise components of the same authoritative total and must not be added again/i)
-assert.match(TRANSFORMATION_INSTRUCTIONS, /do not ask whether charged travel is included or additional/i)
-assert.match(TRANSFORMATION_INSTRUCTIONS, /do not invent a travel clause or exact contract wording/i)
-assert.match(TRANSFORMATION_INSTRUCTIONS, /a genuinely source-required travel fact absent from normalized authority may still require MISSING_INPUT/i)
+assert.match(GENERIC_CONTRACT_PRODUCT_RULES.join(' '), /contractValue is the authoritative total; do not add selected extras or charged travel on top/i)
+assert.match(GENERIC_CONTRACT_PRODUCT_RULES.join(' '), /included or non-charged travel is not a separate added amount/i)
+assert.match(GENERIC_CONTRACT_PRODUCT_RULES.join(' '), /explicit current extras/i)
 console.log('PASS generic Planner travel-fee composition acceptance')

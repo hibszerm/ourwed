@@ -7,7 +7,7 @@ import {
 } from './contractGenerationMetrics'
 
 function call(usage: Record<string, unknown>, extra: Record<string, unknown> = {}) {
-  return normalizeProviderCall('planning', 1, 'start', 'end', {
+  return normalizeProviderCall('generation', 1, 'start', 'end', {
     requestedModel: 'gpt-6-luna', responseModel: 'gpt-6-luna', requestedPricingMode: 'standard', serviceTier: 'default',
     processingRegion: 'GLOBAL',
     usage: usage as never,
@@ -144,7 +144,7 @@ assert.equal(inconsistent.cost.pricingStatus, 'USAGE_INCONSISTENT')
 assert.equal(inconsistent.cost.totalCostUsd, null)
 
 // Missing usage and unsupported tiers remain unpriced.
-const missingOptional = normalizeProviderCall('planning', 1, 'start', 'end', {
+const missingOptional = normalizeProviderCall('generation', 1, 'start', 'end', {
   requestedModel: 'gpt-6-luna', requestedPricingMode: 'standard', processingRegion: 'GLOBAL', usage: { input_tokens: 7, output_tokens: 2 },
 })
 assert.equal(missingOptional.cachedInputTokens, 0)
@@ -171,7 +171,7 @@ assert.equal(regional.processingRegion, 'REGIONAL:eu')
 assert.equal(regional.cost.pricingStatus, 'UNPRICED_REGIONAL')
 assert.equal(regional.cost.totalCostUsd, null)
 // C. The response helper does not infer a region from response fields that are not exposed.
-const unknownRegion = normalizeProviderCall('planning', 1, 'start', 'end', openAIResponseMetadata(
+const unknownRegion = normalizeProviderCall('generation', 1, 'start', 'end', openAIResponseMetadata(
   { model: 'gpt-6-luna', service_tier: 'default', usage: { input_tokens: 10, output_tokens: 2 } }, 'gpt-6-luna', 'standard'))
 assert.equal(unknownRegion.processingRegion, 'UNKNOWN')
 assert.equal(unknownRegion.cost.pricingStatus, 'UNPRICED_UNKNOWN_REGION')

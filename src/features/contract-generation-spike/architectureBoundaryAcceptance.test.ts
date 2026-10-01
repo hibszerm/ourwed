@@ -82,4 +82,9 @@ assert.deepEqual(invalidZip, ['Cannot open source or candidate DOCX ZIP package'
 // The frozen XML-aware block editor continues to preserve table cells on a source copy.
 const directCandidate = await applyBlockOperations(sourceBytes, [])
 assert.deepEqual(await validateOptionBCandidate(sourceBytes, directCandidate, source, await readSource(directCandidate, 'copy.docx'), []), [])
+const unauthorizedZip = await JSZip.loadAsync(directCandidate)
+const originalXml = await unauthorizedZip.file('word/document.xml')!.async('string')
+unauthorizedZip.file('word/document.xml', originalXml.replace('Keep this unrelated paragraph.', 'Unrequested alteration.'))
+const unauthorizedBytes = await unauthorizedZip.generateAsync({ type: 'arraybuffer' })
+assert.ok((await validateOptionBCandidate(sourceBytes, unauthorizedBytes, source, await readSource(unauthorizedBytes, 'unauthorized.docx'), [])).some((issue) => /unrequested text change/.test(issue)), 'changes outside requested BlockEdits fail mechanically')
 console.log('PASS generic Option B generation architecture boundary acceptance')
