@@ -4,7 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import JSZip from 'jszip'
 import { ACCEPTANCE_PROVIDER_BUDGET, runMultiTemplateAcceptance, type AcceptanceProvider } from './harness'
-import { GENERIC_CONTRACT_PRODUCT_RULES } from '../generator'
+import { GENERATION_INSTRUCTIONS, GENERIC_CONTRACT_PRODUCT_RULES } from '../generator'
 
 const temp = await mkdtemp(path.join(os.tmpdir(), 'ourwed-option-b-harness-'))
 try {
@@ -13,7 +13,7 @@ try {
   const source = new JSZip()
   const paragraph = (text: string) => `<w:p><w:r><w:t>${text}</w:t></w:r></w:p>`
   source.file('[Content_Types].xml', '<Types/>')
-  source.file('word/document.xml', `<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${paragraph('Source contract clause.')}${paragraph('Unrelated provision.') }<w:sectPr/></w:body></w:document>`)
+  source.file('word/document.xml', `<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${paragraph('Source contract clause.')}${paragraph('The source requires facts A and B.')}${paragraph('Unrelated provision.') }<w:sectPr/></w:body></w:document>`)
   await writeFile(path.join(caseDir, 'source.docx'), Buffer.from(await source.generateAsync({ type: 'uint8array' })))
   await writeFile(path.join(caseDir, 'input.json'), JSON.stringify({
     id: 'case-offline', sourceDocx: 'source.docx', generationDate: '25.09.2026',
@@ -50,22 +50,21 @@ try {
       return { status: 'MISSING_INPUT', missingInputs: ['What is the required client PESEL?'] }
     },
     async review() { throw new Error('Candidate reviewer must not run for MISSING_INPUT') },
-    async reviewNonReady({ generationOutcome, instructions, authorityContext, source }) {
-      assert.equal(generationOutcome.status, 'MISSING_INPUT')
-      assert.match(instructions, /every requested fact is required/i)
-      assert.equal(authorityContext.wedding.date.value, '20.09.2027')
-      assert.ok(source.some((block) => block.text === 'Source contract clause.'))
-      return { status: 'PASS' }
-    },
+    async reviewConflict() { throw new Error('Conflict verifier must not run for MISSING_INPUT') },
   }
   const missing = await runMultiTemplateAcceptance('case-offline', { casesRoot: path.join(temp, 'cases'), outputRoot: path.join(temp, 'out'), runId: 'missing', provider: missingProvider })
   assert.equal(missing.overall, 'MISSING_INPUT')
   assert.deepEqual(missing.missingInputs, ['What is the required client PESEL?'])
   assert.equal(missing.candidatePath, null)
-  assert.deepEqual(missing.providerCalls, { generator: 1, reviewer: 1, total: 2 })
-  assert.equal(missing.reviewResult, 'PASS')
+  assert.deepEqual(missing.providerCalls, { generator: 1, reviewer: 0, total: 1 })
+  assert.equal(missing.reviewResult, 'NOT_RUN')
+  assert.equal(missing.reviewResultPath, null)
+  assert.equal(missing.semanticReviewRequestPath, null)
   assert.equal(generationCalls, 1)
   assert.match(capturedInstructions, /source defines the contract's clauses/i)
+  assert.match(capturedInstructions, /not guaranteed to be exhaustive/i)
+  assert.match(capturedInstructions, /re-evaluate the complete source and current authority/i)
+  assert.match(GENERATION_INSTRUCTIONS, /report all discoverable required gaps together/i)
   assert.deepEqual(capturedRules, GENERIC_CONTRACT_PRODUCT_RULES)
   assert.ok(capturedSourceBlocks.length > 0)
   for (const value of capturedSourceBlocks) {
@@ -80,17 +79,18 @@ try {
   const savedInput = JSON.parse(await readFile(missing.generationInputPath!, 'utf8'))
   assert.deepEqual(savedInput.authorityContext, missing.normalizedInput)
   assert.deepEqual(savedInput.productRules, GENERIC_CONTRACT_PRODUCT_RULES)
-  const missingReviewRequest = JSON.parse(await readFile(missing.semanticReviewRequestPath!, 'utf8'))
-  assert.deepEqual(missingReviewRequest.generationOutcome, { status: 'MISSING_INPUT', missingInputs: ['What is the required client PESEL?'] })
-  assert.equal('candidate' in missingReviewRequest, false)
   assert.equal((await readFile(path.join(temp, 'out', 'case-offline', 'missing', 'result.json'), 'utf8')).includes('sourceInventory'), false)
 
   let conflictCalls = 0
   const conflictProvider: AcceptanceProvider = {
     async generate() { conflictCalls++; return { status: 'CONFLICT_INPUT', conflicts: ['Two authoritative dates disagree.'] } },
     async review() { throw new Error('Candidate reviewer must not run for CONFLICT_INPUT') },
-    async reviewNonReady({ generationOutcome }) {
+    async reviewConflict({ generationOutcome, instructions }) {
       assert.equal(generationOutcome.status, 'CONFLICT_INPUT')
+      assert.match(instructions, /Verify only the conflict or conflicts explicitly claimed/i)
+      assert.match(instructions, /stale source transaction-specific value/i)
+      assert.match(instructions, /Do not search for additional or unrelated conflicts/i)
+      assert.match(instructions, /omitted missing inputs/i)
       return { status: 'PASS' }
     },
   }
@@ -105,7 +105,7 @@ try {
   const unsafeTargetProvider: AcceptanceProvider = {
     async generate() { return { status: 'READY', edits: [{ kind: 'replace', blockId: 'unknown-handle', text: 'Unsafe edit.' }] } },
     async review() { throw new Error('Reviewer must not run after a mechanical failure') },
-    async reviewNonReady() { throw new Error('Semantic reviewer must not run after a mechanical failure') },
+    async reviewConflict() { throw new Error('Conflict verifier must not run after a mechanical failure') },
   }
   const unsafeTarget = await runMultiTemplateAcceptance('case-offline', { casesRoot: path.join(temp, 'cases'), outputRoot: path.join(temp, 'out'), runId: 'unsafe-target', provider: unsafeTargetProvider })
   assert.equal(unsafeTarget.overall, 'FAIL')
@@ -124,7 +124,7 @@ try {
       if (captured) captured.reviewArgs = args
       return reviewStatus === 'PASS' ? { status: 'PASS' } : { status: 'FAIL', findings: ['A material obligation changed.'] }
     },
-    async reviewNonReady() { throw new Error('Semantic reviewer must not run for READY') },
+    async reviewConflict() { throw new Error('Conflict verifier must not run for READY') },
   })
 
   const passCapture: { reviewArgs?: Parameters<AcceptanceProvider['review']>[0]; calls: string[] } = { calls: [] }
@@ -158,72 +158,129 @@ try {
   assert.deepEqual(readyFail.providerCalls, { generator: 1, reviewer: 1, total: 2 })
   assert.deepEqual(failCapture.calls, ['generator', 'reviewer'])
 
-  const runNonReady = async (
-    generation: { status: 'MISSING_INPUT'; missingInputs: string[] } | { status: 'CONFLICT_INPUT'; conflicts: string[] },
+  const runConflict = async (
+    conflicts: string[],
     review: { status: 'PASS' } | { status: 'FAIL'; findings: string[] },
     runId: string,
   ) => {
     const calls: string[] = []
     const provider: AcceptanceProvider = {
-      async generate() { calls.push('generator'); return generation },
-      async review() { throw new Error('Candidate review is not part of non-READY flow') },
-      async reviewNonReady({ instructions, generationOutcome, authorityContext, productRules }) {
-        calls.push('reviewer')
-        assert.match(instructions, /participant associations/i)
-        assert.match(instructions, /omitted/i)
-        assert.equal(generationOutcome.status, generation.status)
-        assert.equal(authorityContext.participantAssociations[0]?.association.value, 'bride')
-        assert.equal(authorityContext.additionalAnswers[0]?.value, 'already supplied')
-        assert.deepEqual(productRules, GENERIC_CONTRACT_PRODUCT_RULES)
+      async generate() { calls.push('generator'); return { status: 'CONFLICT_INPUT', conflicts } },
+      async review() { throw new Error('Candidate review is not part of CONFLICT_INPUT flow') },
+      async reviewConflict(args) {
+        calls.push('conflict-reviewer')
+        assert.deepEqual(Object.keys(args).sort(), ['authorityContext', 'generationOutcome', 'instructions', 'productRules', 'source'])
+        assert.deepEqual(args.generationOutcome, { status: 'CONFLICT_INPUT', conflicts })
+        assert.equal(args.authorityContext.participantAssociations[0]?.association.value, 'bride')
+        assert.equal(args.authorityContext.additionalAnswers[0]?.value, 'already supplied')
+        assert.deepEqual(args.productRules, GENERIC_CONTRACT_PRODUCT_RULES)
+        assert.match(args.instructions, /Verify only the conflict or conflicts explicitly claimed/i)
+        assert.match(args.instructions, /established authority precedence already resolves the difference/i)
+        assert.match(args.instructions, /stale source transaction-specific value/i)
+        assert.match(args.instructions, /actually missing rather than conflicting/i)
+        assert.match(args.instructions, /Do not search for additional or unrelated conflicts/i)
+        assert.match(args.instructions, /Do not re-plan the contract/i)
+        assert.match(args.instructions, /Do not .*omitted missing inputs/i)
+        assert.match(args.instructions, /Do not .*propose BlockEdits/i)
+        assert.match(args.instructions, /Do not .*generate a candidate/i)
+        assert.match(args.instructions, /Do not .*rewrite the conflict list/i)
         return review
       },
     }
     const result = await runMultiTemplateAcceptance('case-offline', { casesRoot: path.join(temp, 'cases'), outputRoot: path.join(temp, 'out'), runId, provider })
-    assert.deepEqual(calls, ['generator', 'reviewer'], 'one Generator and one Reviewer call; no retry')
+    assert.deepEqual(calls, ['generator', 'conflict-reviewer'], 'one Generator and one conflict Reviewer call; no retry')
     assert.deepEqual(result.providerCalls, { generator: 1, reviewer: 1, total: 2 })
     assert.equal(result.candidatePath, null)
     assert.equal(result.blockOperationCounts.generation, 0)
     return result
   }
 
-  const missingPass = await runNonReady(
-    { status: 'MISSING_INPUT', missingInputs: ['A source-required fact absent from authority.'] },
-    { status: 'PASS' }, 'missing-pass',
-  )
-  assert.equal(missingPass.overall, 'MISSING_INPUT')
-  assert.equal(missingPass.generationStatus, 'MISSING_INPUT')
-  assert.equal(missingPass.reviewResult, 'PASS')
-
-  const unnecessaryQuestion = await runNonReady(
-    { status: 'MISSING_INPUT', missingInputs: ['A fact already present in authoritative input.'] },
-    { status: 'FAIL', findings: ['The requested fact is already established by authority.'] }, 'missing-unnecessary',
-  )
-  assert.equal(unnecessaryQuestion.overall, 'FAIL')
-  assert.equal(unnecessaryQuestion.generationStatus, 'FAILED')
-  assert.deepEqual(unnecessaryQuestion.missingInputs, ['A fact already present in authoritative input.'])
-  assert.deepEqual(unnecessaryQuestion.reviewFindings, ['The requested fact is already established by authority.'])
-
-  const omittedRequirement = await runNonReady(
-    { status: 'MISSING_INPUT', missingInputs: ['One required fact.'] },
-    { status: 'FAIL', findings: ['Another source-required fact is absent from authority and was omitted.'] }, 'missing-omitted',
-  )
-  assert.equal(omittedRequirement.overall, 'FAIL')
-  assert.equal(omittedRequirement.generationStatus, 'FAILED')
-
-  const conflictPass = await runNonReady(
-    { status: 'CONFLICT_INPUT', conflicts: ['Two authoritative values cannot both apply.'] },
+  const conflictPass = await runConflict(
+    ['Two authoritative dates disagree and require user resolution.'],
     { status: 'PASS' }, 'conflict-pass',
   )
   assert.equal(conflictPass.overall, 'CONFLICT_INPUT')
   assert.equal(conflictPass.generationStatus, 'CONFLICT_INPUT')
   assert.equal(conflictPass.reviewResult, 'PASS')
+  assert.deepEqual(conflictPass.conflictFindings, ['Two authoritative dates disagree and require user resolution.'])
 
-  const falseConflict = await runNonReady(
-    { status: 'CONFLICT_INPUT', conflicts: ['Current fact differs from a compatible conditional source term.'] },
-    { status: 'FAIL', findings: ['The facts can coexist under the source condition; this is not a conflict.'] }, 'conflict-false',
+  const staleTransactionConflict = await runConflict(
+    ['The source has an old customer name and event date that differ from current authority.'],
+    { status: 'FAIL', findings: ['The old source transaction values are stale and must be replaced by current authority; they are not conflicts.'] }, 'conflict-stale-transaction',
   )
-  assert.equal(falseConflict.overall, 'FAIL')
-  assert.equal(falseConflict.generationStatus, 'FAILED')
-  assert.deepEqual(falseConflict.reviewFindings, ['The facts can coexist under the source condition; this is not a conflict.'])
+  assert.equal(staleTransactionConflict.overall, 'FAIL')
+  assert.equal(staleTransactionConflict.generationStatus, 'FAILED')
+  assert.deepEqual(staleTransactionConflict.reviewFindings, ['The old source transaction values are stale and must be replaced by current authority; they are not conflicts.'])
+
+  const missingAuthorityConflict = await runConflict(
+    ['The customer PESEL conflicts with authority.'],
+    { status: 'FAIL', findings: ['No authoritative PESEL is present; this is missing input, not a conflict.'] }, 'conflict-missing-authority',
+  )
+  assert.equal(missingAuthorityConflict.overall, 'FAIL')
+  assert.equal(missingAuthorityConflict.generationStatus, 'FAILED')
+  assert.deepEqual(missingAuthorityConflict.reviewFindings, ['No authoritative PESEL is present; this is missing input, not a conflict.'])
+
+  const continuationAnswers = [{ id: 'test.authoritative.fact', value: 'already supplied' }]
+  const continuationInputPath = path.join(caseDir, 'input.json')
+  const writeContinuationAnswers = async (answers: typeof continuationAnswers) => {
+    const current = JSON.parse(await readFile(continuationInputPath, 'utf8'))
+    current.userProvidedAnswers = answers
+    await writeFile(continuationInputPath, JSON.stringify(current))
+  }
+  const continuationCalls: string[] = []
+  const continuationRequests: Array<Parameters<AcceptanceProvider['generate']>[0]> = []
+  const continuationProvider: AcceptanceProvider = {
+    async generate(args) {
+      continuationCalls.push(`generator-${continuationRequests.length + 1}`)
+      continuationRequests.push(args)
+      assert.deepEqual(Object.keys(args).sort(), ['authorityContext', 'instructions', 'productRules', 'sourceBlocks'])
+      assert.ok(args.sourceBlocks.some((block) => block.text === 'The source requires facts A and B.'))
+      assert.equal(args.sourceBlocks.length, 3, 'each continuation receives every source block')
+      assert.deepEqual(args.productRules, GENERIC_CONTRACT_PRODUCT_RULES)
+      assert.equal(args.authorityContext.participantAssociations.length, 2)
+      assert.ok(args.authorityContext.wedding.date.source)
+      const round = continuationRequests.length
+      if (round === 1) return { status: 'MISSING_INPUT', missingInputs: ['Fact A'] }
+      if (round === 2) return { status: 'MISSING_INPUT', missingInputs: ['Fact B'] }
+      return { status: 'READY', edits: [] }
+    },
+    async review(args) {
+      continuationCalls.push('candidate-reviewer')
+      assert.ok(args.source.some((block) => block.text === 'The source requires facts A and B.'))
+      assert.ok(args.authorityContext.additionalAnswers.some((answer) => answer.id === 'answer.A' && answer.value === 'A supplied'))
+      assert.ok(args.authorityContext.additionalAnswers.some((answer) => answer.id === 'answer.B' && answer.value === 'B supplied'))
+      return { status: 'PASS' }
+    },
+    async reviewConflict() { throw new Error('Conflict verifier must not run during missing-input continuation') },
+  }
+
+  const continuationRun1 = await runMultiTemplateAcceptance('case-offline', { casesRoot: path.join(temp, 'cases'), outputRoot: path.join(temp, 'out'), runId: 'continuation-1', provider: continuationProvider })
+  assert.equal(continuationRun1.overall, 'MISSING_INPUT')
+  assert.deepEqual(continuationRun1.missingInputs, ['Fact A'])
+  assert.deepEqual(continuationRun1.providerCalls, { generator: 1, reviewer: 0, total: 1 })
+  assert.equal(continuationRun1.reviewResult, 'NOT_RUN')
+
+  continuationAnswers.push({ id: 'answer.A', value: 'A supplied' })
+  await writeContinuationAnswers(continuationAnswers)
+  const continuationRun2 = await runMultiTemplateAcceptance('case-offline', { casesRoot: path.join(temp, 'cases'), outputRoot: path.join(temp, 'out'), runId: 'continuation-2', provider: continuationProvider })
+  assert.equal(continuationRun2.overall, 'MISSING_INPUT', 'a later MISSING_INPUT round is valid')
+  assert.deepEqual(continuationRun2.missingInputs, ['Fact B'])
+  assert.deepEqual(continuationRun2.providerCalls, { generator: 1, reviewer: 0, total: 1 })
+  assert.deepEqual(continuationRequests[1]!.authorityContext.additionalAnswers.map((answer) => [answer.id, answer.value]), [
+    ['test.authoritative.fact', 'already supplied'], ['answer.A', 'A supplied'],
+  ])
+
+  continuationAnswers.push({ id: 'answer.B', value: 'B supplied' })
+  await writeContinuationAnswers(continuationAnswers)
+  const continuationRun3 = await runMultiTemplateAcceptance('case-offline', {
+    casesRoot: path.join(temp, 'cases'), outputRoot: path.join(temp, 'out'), runId: 'continuation-3', provider: continuationProvider,
+    render: async () => ({ pdfPath: path.join(temp, 'continuation-candidate.pdf'), pageCount: 1 }),
+  })
+  assert.equal(continuationRun3.overall, 'PASS')
+  assert.deepEqual(continuationRun3.providerCalls, { generator: 1, reviewer: 1, total: 2 })
+  assert.deepEqual(continuationRequests[2]!.authorityContext.additionalAnswers.map((answer) => [answer.id, answer.value]), [
+    ['test.authoritative.fact', 'already supplied'], ['answer.A', 'A supplied'], ['answer.B', 'B supplied'],
+  ])
+  assert.deepEqual(continuationCalls, ['generator-1', 'generator-2', 'generator-3', 'candidate-reviewer'])
 } finally { await rm(temp, { recursive: true, force: true }) }
 console.log('PASS mocked Option B generation harness boundary')

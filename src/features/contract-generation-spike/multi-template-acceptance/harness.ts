@@ -13,7 +13,7 @@ import {
   GENERATION_INSTRUCTIONS,
   GENERIC_CONTRACT_PRODUCT_RULES,
   REVIEW_INSTRUCTIONS,
-  NON_READY_REVIEW_INSTRUCTIONS,
+  CONFLICT_REVIEW_INSTRUCTIONS,
   readSource,
   validateOptionBInput,
   type ChangedBlock,
@@ -62,7 +62,7 @@ type ReviewerVisibleBlock = Pick<GenerationSourceBlock, 'kind' | 'text'>
 export type AcceptanceProvider = {
   generate(args: { instructions: string; sourceBlocks: ReturnType<typeof createGenerationSourceView>['blocks']; authorityContext: ContractGenerationInput; productRules: readonly string[] }): Promise<GenerationResponse & { providerMetadata?: ProviderResponseMetadata }>
   review(args: { instructions: string; source: ReviewerVisibleBlock[]; authorityContext: ContractGenerationInput; productRules: readonly string[]; candidate: ReviewerVisibleBlock[]; mechanicalDiff: ChangedBlock[] }): Promise<ReviewResponse & { providerMetadata?: ProviderResponseMetadata }>
-  reviewNonReady(args: { instructions: string; source: ReviewerVisibleBlock[]; authorityContext: ContractGenerationInput; productRules: readonly string[]; generationOutcome: Extract<GenerationResponse, { status: 'MISSING_INPUT' | 'CONFLICT_INPUT' }> }): Promise<ReviewResponse & { providerMetadata?: ProviderResponseMetadata }>
+  reviewConflict(args: { instructions: string; source: ReviewerVisibleBlock[]; authorityContext: ContractGenerationInput; productRules: readonly string[]; generationOutcome: Extract<GenerationResponse, { status: 'CONFLICT_INPUT' }> }): Promise<ReviewResponse & { providerMetadata?: ProviderResponseMetadata }>
 }
 
 export type AcceptanceResult = {
@@ -396,13 +396,17 @@ export async function runMultiTemplateAcceptance(caseId: string, options: Harnes
   const generatedResult = await applyOptionBGenerationResponse(sourceArrayBuffer, sourceDocument, normalizedInput, sourceView.sourceBlockIds, response)
   if (generatedResult.status === 'MISSING_INPUT') {
     result.missingInputs = generatedResult.missingInputs
+    result.generationStatus = 'MISSING_INPUT'
+    result.overall = 'MISSING_INPUT'
+    await writeReports(result, outputDirectory, metrics)
+    return result
   }
   if (generatedResult.status === 'CONFLICT_INPUT') {
     result.conflictFindings = generatedResult.conflicts
   }
-  if (generatedResult.status === 'MISSING_INPUT' || generatedResult.status === 'CONFLICT_INPUT') {
+  if (generatedResult.status === 'CONFLICT_INPUT') {
     const reviewRequest = {
-      instructions: NON_READY_REVIEW_INSTRUCTIONS,
+      instructions: CONFLICT_REVIEW_INSTRUCTIONS,
       source: sourceDocument.blocks.map(({ kind, text }) => ({ kind, text })),
       authorityContext: normalizedInput,
       productRules: GENERIC_CONTRACT_PRODUCT_RULES,
@@ -415,7 +419,7 @@ export async function runMultiTemplateAcceptance(caseId: string, options: Harnes
     metrics.startStage('reviewProvider')
     let semanticReview: ReviewResponse & { providerMetadata?: ProviderResponseMetadata }
     try {
-      semanticReview = await options.provider.reviewNonReady(reviewRequest)
+      semanticReview = await options.provider.reviewConflict(reviewRequest)
     } catch (error) {
       const reviewMs = metrics.endStage('reviewProvider')
       const reviewTimestamps = metrics.snapshot().timestamps.stages.reviewProvider!
