@@ -87,7 +87,7 @@ export type ContractGenerationInputOptions = {
   questionnaireFields?: Record<string, unknown>
   userProvidedAnswers?: Array<{ id: string; value: string }>
   contractRecordId?: string | null
-  /** Raw canonical correspondence field when available before wedding-view hydration. It is always unowned. */
+  /** Raw canonical contract/correspondence address when available before wedding-view hydration; the application model associates it with partner1. */
   genericContractAddress?: string | null
 }
 
@@ -168,8 +168,16 @@ export function buildContractGenerationInput(
   const fields = options.questionnaireFields ?? {}
   const summary = getWeddingCommercialSummary(wedding)
   const totalPaid = summary.totalPaid
+  const partner1FormAddress = addressAnswerFact(fields, 'partner1.address', 'partner1')
   const correspondenceAddress = nonBlank(options.genericContractAddress) ??
-    (!addressAnswerFact(fields, 'partner1.address', 'partner1') ? nonBlank(wedding.couple.partner1Address) : undefined)
+    (!partner1FormAddress ? nonBlank(wedding.couple.partner1Address) : undefined)
+  const contractAddressFact: ContractGenerationFact<string> | undefined = correspondenceAddress ? {
+    value: correspondenceAddress,
+    source: options.genericContractAddress?.trim()
+      ? 'public.weddings.contract_address'
+      : 'wedding.couple.partner1Address (mapped from public.weddings.contract_address)',
+    owner: 'partner1',
+  } : undefined
 
   return {
     wedding: {
@@ -179,7 +187,10 @@ export function buildContractGenerationInput(
       workflowStage: { value: wedding.workflowStage, source: 'public.weddings.workflow_stage' },
     },
     parties: [
-      partyFromWedding(wedding, 'partner1', fields),
+      {
+        ...partyFromWedding(wedding, 'partner1', fields),
+        ...(contractAddressFact ? { address: contractAddressFact } : {}),
+      },
       partyFromWedding(wedding, 'partner2', fields),
     ],
     commercial: {
@@ -241,11 +252,6 @@ export function buildContractGenerationInput(
       authority: 'user' as const,
       source: `userProvidedAnswers.${answer.id}`,
     })),
-    unownedFacts: correspondenceAddress ? [{
-      value: correspondenceAddress,
-      source: options.genericContractAddress?.trim()
-        ? 'public.weddings.contract_address'
-        : 'wedding.couple.partner1Address (mapped from public.weddings.contract_address)',
-    }] : [],
+    unownedFacts: [],
   }
 }

@@ -75,12 +75,13 @@ const genericAddress = buildContractGenerationInput({
   wedding: { ...wedding, couple: { ...wedding.couple, partner1Address: 'Generic correspondence address' } },
   weddingPlaces: [], extras: [], generationDate: '2026-09-29', questionnaireFields: {},
 })
-assert.equal(genericAddress.parties[0]?.address, undefined, 'generic contract address is not promoted to Party 1')
-assert.deepEqual(genericAddress.unownedFacts, [{
+assert.deepEqual(genericAddress.parties[0]?.address, {
   value: 'Generic correspondence address',
   source: 'wedding.couple.partner1Address (mapped from public.weddings.contract_address)',
-}])
-assert.equal(genericAddress.unownedFacts[0]?.owner, undefined)
+  owner: 'partner1',
+}, 'the existing canonical contract-address association is preserved on partner1')
+assert.equal(genericAddress.unownedFacts.length, 0)
+assert.equal('residential' in (genericAddress.parties[0]?.address ?? {}), false, 'contract address is not reclassified as residential')
 
 assert.equal(party1?.phone?.value, '666777888')
 assert.equal(party1?.phone?.owner, 'partner1')
@@ -150,11 +151,20 @@ assert.deepEqual(wedding, originalWedding, 'adapter does not mutate current wedd
 const genericProvidedAlongsideOwnedAddress = buildContractGenerationInput({
   wedding, weddingPlaces: [], extras: [], generationDate: '2026-09-29',
   questionnaireFields: { 'partner1.address': 'Party-owned address' },
-  genericContractAddress: 'Unowned correspondence address',
+  genericContractAddress: 'Canonical correspondence address',
 })
-assert.equal(genericProvidedAlongsideOwnedAddress.parties[0]?.address?.value, 'Party-owned address')
-assert.equal(genericProvidedAlongsideOwnedAddress.unownedFacts[0]?.value, 'Unowned correspondence address')
-assert.equal(genericProvidedAlongsideOwnedAddress.unownedFacts[0]?.owner, undefined)
+assert.deepEqual(genericProvidedAlongsideOwnedAddress.parties[0]?.address, {
+  value: 'Canonical correspondence address',
+  source: 'public.weddings.contract_address',
+  owner: 'partner1',
+}, 'the canonical address keeps its established association when a separate submitted address is also present')
+assert.equal(genericProvidedAlongsideOwnedAddress.questionnaireAnswers[0]?.value, 'Party-owned address', 'the separate owned questionnaire fact remains available with its provenance')
+assert.equal(genericProvidedAlongsideOwnedAddress.questionnaireAnswers[0]?.owner, 'partner1')
+assert.equal(genericProvidedAlongsideOwnedAddress.unownedFacts.length, 0)
+assert.equal(genericProvidedAlongsideOwnedAddress.parties[1]?.address, undefined, 'partner1 association is not copied to partner2')
+assert.equal(result.additionalAnswers.find((answer) => answer.id === 'arbitrary.ref')?.value, 'arbitrary value', 'unassociated user answers remain separate from party address facts')
+assert.equal('owner' in result.additionalAnswers.find((answer) => answer.id === 'arbitrary.ref')!, false, 'unassociated answers do not gain an invented owner')
+assert.equal(result.parties[0]?.address?.value, 'Michała Grażyńskiego 5, 41-810 Zabrze', 'unassociated user answers are not assigned to partner1')
 
 const adapterSource = await readFile(`${process.cwd()}/src/features/contract-generation-spike/contractGenerationInput.ts`, 'utf8')
 assert.doesNotMatch(adapterSource, /JSZip|readSource|sourceDocx|parseDocx/i)
