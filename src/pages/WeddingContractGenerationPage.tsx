@@ -36,14 +36,12 @@ import {
   continueContractGeneration,
   ContractGenerationBoundaryClientError,
   downloadAcceptedContractCandidate,
-  recoverContractGeneration,
+  finalizeContractGeneration,
+  validateContractGenerationCandidate,
   startContractGeneration,
   type MissingInput,
 } from '@/features/contract-generation-spike/contractGenerationBoundaryClient'
 import {
-  clearGenerationConnection,
-  readGenerationConnection,
-  writeGenerationConnection,
   type GenerationConnection,
 } from '@/features/contract-generation-spike/generationConnection'
 import { ContractGenerationMissingInputForm } from '@/features/contract-generation-spike/ContractGenerationMissingInputForm'
@@ -51,12 +49,10 @@ import { ContractGenerationMissingInputForm } from '@/features/contract-generati
 type WizardStep =
   | 'resolve'
   | 'generating'
-  | 'recovering'
   | 'waiting_for_user_input'
   | 'preview'
   | 'saved'
   | 'conflict'
-  | 'stale'
   | 'precondition'
   | 'failed'
 
@@ -114,6 +110,7 @@ export function WeddingContractGenerationPage() {
     null) as PackageContractResolution
 
   const [step, setStep] = useState<WizardStep>('resolve')
+  const [connectionState, setConnectionState] = useState<GenerationConnection | null>(null)
   const [generated, setGenerated] = useState<PageGeneratedContract | null>(
     null,
   )
@@ -125,35 +122,54 @@ export function WeddingContractGenerationPage() {
     import('@/features/documents/template/payment-schedule').FriendlyQualitySummary | null
   >(null)
   const [error, setError] = useState<string | null>(null)
-  const [boundaryErrorKind, setBoundaryErrorKind] = useState<'safety' | 'temporary' | 'auth' | null>(null)
   const [generatePending, setGeneratePending] = useState(false)
-  const [recoveryPending, setRecoveryPending] = useState(false)
   const generateInFlightRef = useRef(false)
-  const recoveryAttemptedRef = useRef<string | null>(null)
+  const connectionRef = useRef<GenerationConnection | null>(null)
+  const operationFinishedRef = useRef<Promise<void> | null>(null)
+  const finishOperationRef = useRef<(() => void) | null>(null)
+  const navigationCleanupRef = useRef(false)
+  const connection = connectionState
 
-  const canGenerate = packageResolution?.status === 'ok' && !generatePending && !recoveryPending
+  const canGenerate = packageResolution?.status === 'ok' && !generatePending
 
-  const hasUnsavedGeneratedDraft = step === 'preview' && Boolean(generated)
-  const blocker = useBlocker(hasUnsavedGeneratedDraft)
+  const blocker = useBlocker(Boolean(connection))
 
-  useEffect(() => {
-    if (!hasUnsavedGeneratedDraft) return
-    const warn = (event: BeforeUnloadEvent) => {
-      event.preventDefault()
-      event.returnValue = ''
+  function updateConnection(value: GenerationConnection | null) {
+    connectionRef.current = value
+    setConnectionState(value)
+  }
+
+  function beginOperation() {
+    let finish!: () => void
+    operationFinishedRef.current = new Promise<void>((resolve) => { finish = resolve })
+    finishOperationRef.current = () => {
+      finish()
+      operationFinishedRef.current = null
+      finishOperationRef.current = null
     }
-    window.addEventListener('beforeunload', warn)
-    return () => window.removeEventListener('beforeunload', warn)
-  }, [hasUnsavedGeneratedDraft])
+  }
 
   useEffect(() => {
-    if (blocker.state !== 'blocked') return
-    const leave = window.confirm(
-      'Wygenerowana umowa nie została zapisana. Opuścić stronę i utracić szkic?',
-    )
-    if (leave) blocker.proceed()
-    else blocker.reset()
-  }, [blocker])
+    if (blocker.state !== 'blocked' || navigationCleanupRef.current) return
+    navigationCleanupRef.current = true
+    void (async () => {
+      const inFlight = operationFinishedRef.current
+      if (inFlight) await inFlight
+      const current = connectionRef.current
+      if (current) {
+        await finalizeContractGeneration({
+          weddingId,
+          ...(current.sessionId ? { sessionId: current.sessionId } : { requestId: current.requestId }),
+          reason: 'abandoned',
+        }).catch(() => undefined)
+        updateConnection(null)
+      }
+      blocker.proceed()
+      navigationCleanupRef.current = false
+    })()
+    // A blocked transition is handled once; ordinary renders must not abandon it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [blocker.state, weddingId])
 
   useEffect(() => {
     if (!wedding || packageContractQuery.isLoading) return
@@ -170,28 +186,23 @@ export function WeddingContractGenerationPage() {
   }, [wedding, packageResolution, packageContractQuery.isLoading])
 
   function clearConnection() {
-    if (typeof window !== 'undefined' && weddingId) clearGenerationConnection(window.localStorage, weddingId)
+    updateConnection(null)
   }
 
   function setSafeClientError(error: unknown) {
     if (error instanceof ContractGenerationBoundaryClientError) {
       if (error.code === 'unauthorized') {
         setError('Twoja sesja logowania wygasła. Zaloguj się ponownie i wróć do umowy.')
-        setBoundaryErrorKind('auth')
       } else if (error.code === 'forbidden') {
         setError('Nie masz dostępu do tego ślubu.')
-        setBoundaryErrorKind('auth')
       } else if (error.code === 'generation_safety') {
         setError('Nie udało się bezpiecznie zaakceptować umowy. Dokument nie został utworzony.')
-        setBoundaryErrorKind('safety')
       } else {
         setError('Wystąpił chwilowy problem. Możesz rozpocząć nowe podejście.')
-        setBoundaryErrorKind('temporary')
       }
       return
     }
     setError(getUserFacingErrorMessage(error, 'Wystąpił chwilowy problem. Możesz rozpocząć nowe podejście.'))
-    setBoundaryErrorKind('temporary')
   }
 
   async function showAcceptedCandidate(
@@ -221,7 +232,6 @@ export function WeddingContractGenerationPage() {
     setDocxBytes(bytes)
     setParagraphs(extracted.map(({ index, text }) => ({ index, text })))
     setMissingInputs([])
-    setBoundaryErrorKind(null)
     setError(null)
     setStep('preview')
   }
@@ -232,21 +242,17 @@ export function WeddingContractGenerationPage() {
   ) {
     if (result.status === 'awaiting_input' || result.status === 'processing' || result.status === 'ready'
       || result.status === 'unresolved_conflict') {
-      writeGenerationConnection(window.localStorage, weddingId, {
-        ...connection,
-        sessionId: result.sessionId,
-      })
+      updateConnection({ ...connection, sessionId: result.sessionId })
     }
     if (result.status === 'awaiting_input') {
       setMissingInputs(result.missingInputs)
       setError(null)
-      setBoundaryErrorKind(null)
       setStep('waiting_for_user_input')
       return
     }
     if (result.status === 'processing') {
       setError(null)
-      setStep('recovering')
+      setStep('generating')
       return
     }
     if (result.status === 'ready') {
@@ -269,58 +275,23 @@ export function WeddingContractGenerationPage() {
     if (result.status === 'stale') {
       setError(result.code === 'authority_changed'
         ? 'Dane ślubu zmieniły się podczas przygotowania umowy. Rozpocznij generowanie ponownie.'
-        : 'Poprzedniej sesji generowania nie można już kontynuować.')
-      setStep('stale')
+        : 'Ta próba nie jest już aktywna. Możesz rozpocząć nowe generowanie.')
+      setStep('failed')
       return
     }
+    if (result.status === 'candidate_valid' || result.status === 'finalized') return
     if (result.status === 'error') {
       setError(result.code === 'unauthorized'
         ? 'Twoja sesja logowania wygasła. Zaloguj się ponownie i wróć do umowy.'
         : 'Nie masz dostępu do tego ślubu.')
-      setBoundaryErrorKind('auth')
       setStep('failed')
       return
     }
     setError(result.code === 'generation_safety'
       ? 'Nie udało się bezpiecznie zaakceptować umowy. Dokument nie został utworzony.'
       : 'Wystąpił chwilowy problem. Możesz rozpocząć nowe podejście.')
-    setBoundaryErrorKind(result.code === 'generation_safety' ? 'safety' : 'temporary')
     setStep('failed')
   }
-
-  async function recoverConnection(connection?: GenerationConnection) {
-    const current = connection ?? (weddingId ? readGenerationConnection(window.localStorage, weddingId) : null)
-    if (!current || !weddingId || recoveryPending || generateInFlightRef.current) return
-    setRecoveryPending(true)
-    setError(null)
-    setStep('recovering')
-    try {
-      const result = await recoverContractGeneration({
-        weddingId,
-        ...(current.sessionId ? { sessionId: current.sessionId } : { requestId: current.requestId }),
-      })
-      await applyBoundaryResult(result, current)
-    } catch (err) {
-      setSafeClientError(err)
-      setStep('failed')
-    } finally {
-      setRecoveryPending(false)
-    }
-  }
-
-  useEffect(() => {
-    if (!wedding || weddingLoading || !weddingId || recoveryAttemptedRef.current === weddingId) return
-    const connection = readGenerationConnection(window.localStorage, weddingId)
-    if (!connection) return
-    const recoveryTimer = window.setTimeout(() => {
-      if (recoveryAttemptedRef.current === weddingId) return
-      recoveryAttemptedRef.current = weddingId
-      void recoverConnection(connection)
-    }, 0)
-    return () => window.clearTimeout(recoveryTimer)
-    // recoverConnection uses current page state and this effect runs once per wedding route.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wedding, weddingId, weddingLoading])
 
   async function generate() {
     if (!wedding) {
@@ -338,7 +309,8 @@ export function WeddingContractGenerationPage() {
     }
 
     const connection: GenerationConnection = { requestId: crypto.randomUUID() }
-    writeGenerationConnection(window.localStorage, wedding.id, connection)
+    updateConnection(connection)
+    beginOperation()
     generateInFlightRef.current = true
     setGeneratePending(true)
     setGenerated(null)
@@ -346,51 +318,109 @@ export function WeddingContractGenerationPage() {
     setParagraphs([])
     setDownloadUrl(null)
     setMissingInputs([])
-    setBoundaryErrorKind(null)
     setError(null)
     setStep('generating')
     try {
       const result = await startContractGeneration({ weddingId: wedding.id, requestId: connection.requestId })
       await applyBoundaryResult(result, connection)
     } catch (err) {
+      await finalizeContractGeneration({ weddingId: wedding.id, requestId: connection.requestId, reason: 'abandoned' }).catch(() => undefined)
       clearConnection()
       setSafeClientError(err)
       setStep('failed')
     } finally {
       generateInFlightRef.current = false
       setGeneratePending(false)
+      finishOperationRef.current?.()
     }
   }
 
   async function continueGeneration(answers: import('@/features/contract-generation-spike/generationProtocol').ContractGenerationAnswer[]) {
     if (generateInFlightRef.current || !weddingId) return
-    const connection = readGenerationConnection(window.localStorage, weddingId)
+    const connection = connectionRef.current
     if (!connection?.sessionId) {
       clearConnection()
-      setError('Poprzedniej sesji generowania nie można już kontynuować.')
-      setStep('stale')
+      setMissingInputs([])
+      setError('Ta próba została przerwana. Możesz rozpocząć nowe generowanie.')
+      setStep('resolve')
       return
     }
     generateInFlightRef.current = true
     setGeneratePending(true)
+    beginOperation()
     setError(null)
     setStep('generating')
     try {
       const result = await continueContractGeneration({ sessionId: connection.sessionId, answers })
       await applyBoundaryResult(result, connection)
     } catch (err) {
+      await finalizeContractGeneration({ weddingId: weddingId, sessionId: connection.sessionId, reason: 'abandoned' }).catch(() => undefined)
       setSafeClientError(err)
       setStep('failed')
     } finally {
       generateInFlightRef.current = false
       setGeneratePending(false)
+      finishOperationRef.current?.()
     }
   }
 
+  async function discardGeneration(startFresh = false) {
+    const current = connectionRef.current
+    if (generateInFlightRef.current) return
+    generateInFlightRef.current = true
+    beginOperation()
+    setGeneratePending(true)
+    try {
+      if (current) {
+        await finalizeContractGeneration({
+          weddingId,
+          ...(current.sessionId ? { sessionId: current.sessionId } : { requestId: current.requestId }),
+          reason: 'discarded',
+        }).catch(() => undefined)
+      }
+      clearConnection()
+      setMissingInputs([])
+      setGenerated(null)
+      setDocxBytes(null)
+      setParagraphs([])
+      setDownloadUrl(null)
+      setError(null)
+      setStep('resolve')
+    } finally {
+      generateInFlightRef.current = false
+      setGeneratePending(false)
+      finishOperationRef.current?.()
+    }
+    if (startFresh) await generate()
+  }
+
   async function save(): Promise<boolean> {
-    if (!generated || !docxBytes || !wedding) return false
+    if (!generated || !docxBytes || !wedding || generateInFlightRef.current) return false
+    generateInFlightRef.current = true
+    setGeneratePending(true)
+    beginOperation()
     setError(null)
     try {
+      const activeConnection = connectionRef.current
+      if (!activeConnection?.sessionId) {
+        setGenerated(null)
+        setDocxBytes(null)
+        setStep('resolve')
+        setError('Podgląd tej próby nie jest już aktywny. Rozpocznij nowe generowanie.')
+        return false
+      }
+      const candidateCheck = await validateContractGenerationCandidate({
+        weddingId: wedding.id,
+        sessionId: activeConnection.sessionId,
+      })
+      if (candidateCheck.status !== 'candidate_valid') {
+        clearConnection()
+        setGenerated(null)
+        setDocxBytes(null)
+        setStep('resolve')
+        setError('Podgląd tej próby nie jest już aktywny. Rozpocznij nowe generowanie.')
+        return false
+      }
       let draftId = generated.draftId
       if (!draftId) {
         const summary = getWeddingCommercialSummary(wedding)
@@ -498,6 +528,11 @@ export function WeddingContractGenerationPage() {
       void queryClient.invalidateQueries({
         queryKey: ['generated-wedding-contracts'],
       })
+      await finalizeContractGeneration({
+        weddingId: wedding.id,
+        sessionId: activeConnection.sessionId,
+        reason: 'saved',
+      }).catch(() => undefined)
       clearConnection()
       if (generated.finalArtifact) {
         const artifact = generated.finalArtifact
@@ -525,6 +560,10 @@ export function WeddingContractGenerationPage() {
         getUserFacingErrorMessage(err, 'Nie udało się zapisać umowy.'),
       )
       return false
+    } finally {
+      generateInFlightRef.current = false
+      setGeneratePending(false)
+      finishOperationRef.current?.()
     }
   }
 
@@ -573,8 +612,7 @@ export function WeddingContractGenerationPage() {
   }
 
   const visibleStep = step === 'saved' ? 'preview'
-    : step === 'recovering' ? 'generating'
-      : step === 'waiting_for_user_input' ? 'resolve' : step
+    : step === 'waiting_for_user_input' ? 'resolve' : step
 
   return (
     <AppLayout
@@ -691,27 +729,25 @@ export function WeddingContractGenerationPage() {
           </section>
         ) : null}
 
-        {step === 'failed' || step === 'conflict' || step === 'stale' || step === 'precondition' ? (
+        {step === 'failed' || step === 'conflict' || step === 'precondition' ? (
           <section className={styles.card} role={step === 'failed' ? 'alert' : 'region'} aria-labelledby="generation-state-title">
             <div>
               <p className={styles.eyebrow}>
-                {step === 'conflict' ? 'Wymaga korekty' : step === 'precondition' ? 'Ustawienia umowy' : step === 'stale' ? 'Sesja wygasła' : 'Nie udało się'}
+                {step === 'conflict' ? 'Wymaga korekty' : step === 'precondition' ? 'Ustawienia umowy' : 'Nie udało się'}
               </p>
               <h2 id="generation-state-title">
                 {step === 'conflict'
                   ? 'Nie można bezpiecznie przygotować tej umowy'
                   : step === 'precondition'
                     ? 'Umowa nie jest gotowa do utworzenia'
-                    : step === 'stale'
-                      ? 'Rozpocznij nową sesję'
-                      : 'Nie udało się wygenerować umowy'}
+                    : 'Nie udało się wygenerować umowy'}
               </h2>
             </div>
             {error ? <p className={styles.error}>{error}</p> : null}
             <div className={styles.actions}>
-              {step === 'stale' || (step === 'failed' && boundaryErrorKind === 'temporary') ? (
+              {step === 'failed' || step === 'conflict' ? (
                 <Button type="button" variant="primary" disabled={generatePending} onClick={() => void generate()}>
-                  {step === 'stale' ? 'Rozpocznij ponownie' : 'Spróbuj ponownie'}
+                  Rozpocznij nowe generowanie
                 </Button>
               ) : null}
               {step === 'precondition' ? (
@@ -740,21 +776,6 @@ export function WeddingContractGenerationPage() {
           </section>
         ) : null}
 
-        {step === 'recovering' ? (
-          <section className={`${styles.card} ${styles.generating}`} aria-live="polite">
-            {recoveryPending ? <span className={styles.spinner} aria-hidden="true" /> : null}
-            <h2>{recoveryPending ? 'Sprawdzamy sesję umowy' : 'Generowanie trwa'}</h2>
-            <p className={styles.muted}>
-              {recoveryPending ? 'Pobieramy aktualny stan z bezpiecznej sesji.' : 'Możesz sprawdzić stan ponownie.'}
-            </p>
-            {!recoveryPending ? (
-              <Button type="button" variant="secondary" onClick={() => void recoverConnection()}>
-                Sprawdź stan
-              </Button>
-            ) : null}
-          </section>
-        ) : null}
-
         {step === 'preview' && generated ? (
           <section className={`${styles.card} ${styles.previewCard}`}>
             <div className={styles.previewHeader}>
@@ -771,9 +792,10 @@ export function WeddingContractGenerationPage() {
                 <Button
                   type="button"
                   variant="secondary"
-                  onClick={() => setStep('resolve')}
+                  disabled={generatePending}
+                  onClick={() => void discardGeneration(true)}
                 >
-                  Wróć do generatora
+                  Odrzuć i wygeneruj ponownie
                 </Button>
                 <DocxActionButton
                   idleLabel="Zapisz umowę"

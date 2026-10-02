@@ -15,14 +15,19 @@ export type ContractGenerationContinueRequest = {
   sessionId: string
   answers: ContractGenerationAnswer[]
 }
-export type ContractGenerationRecoverRequest = {
-  weddingId: string
-  sessionId?: string
-  requestId?: string
-}
 export type ContractGenerationCandidateRequest = {
   weddingId: string
   candidateId: string
+}
+export type ContractGenerationFinalizeRequest = {
+  weddingId: string
+  sessionId?: string
+  requestId?: string
+  reason: 'saved' | 'discarded' | 'abandoned'
+}
+export type ContractGenerationValidateCandidateRequest = {
+  weddingId: string
+  sessionId: string
 }
 
 export type ContractGenerationBoundaryResponse =
@@ -34,6 +39,8 @@ export type ContractGenerationBoundaryResponse =
   | { status: 'error'; code: 'unauthorized' | 'forbidden' }
   | { status: 'stale'; code: 'authority_changed' | 'session_invalid' }
   | { status: 'failure'; code: 'generation_safety' | 'temporary_failure' }
+  | { status: 'candidate_valid' }
+  | { status: 'finalized' }
 
 export type BoundaryCandidate = { bytes: ArrayBuffer; changedBlocks: unknown[] }
 export type BoundaryRunResult =
@@ -107,7 +114,7 @@ export type ServerBoundaryDependencies = {
   }) => Promise<ContractGenerationSession | null>
   getSession: (sessionId: string) => Promise<ContractGenerationSession | null>
   getSessionByIdempotencyKey: (userId: string, requestId: string) => Promise<ContractGenerationSession | null>
-  getAuthorityFingerprint: (userId: string, sessionId: string) => Promise<string | null>
+  expireSession: (sessionId: string, userId: string) => Promise<void>
   claimContinuation: (input: { sessionId: string; userId: string; executionId: string; answers: ContractGenerationAnswer[]; missingInputHistory: MissingInput[]; missingInputHistoryValid: boolean }) => Promise<ContractGenerationSession | null>
   saveMissing: (input: { sessionId: string; executionId: string; missingInputs: MissingInput[]; missingInputHistory: MissingInput[]; answers: ContractGenerationAnswer[]; authorityFingerprint: string }) => Promise<boolean>
   persistAcceptedCandidate: (input: { sessionId: string; executionId: string; candidate: BoundaryCandidate; authorityFingerprint: string }) => Promise<string | null>
@@ -139,23 +146,36 @@ function validContinueRequest(value: unknown): value is ContractGenerationContin
     })
 }
 
-function validRecoverRequest(value: unknown): value is ContractGenerationRecoverRequest {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
-  const item = value as Record<string, unknown>
-  const hasSessionId = typeof item.sessionId === 'string' && item.sessionId.trim().length > 0
-  const hasRequestId = typeof item.requestId === 'string'
-    && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(item.requestId)
-  return typeof item.weddingId === 'string' && item.weddingId.trim().length > 0
-    && (hasSessionId !== hasRequestId)
-    && Object.keys(item).length === 2
-}
-
 function validCandidateRequest(value: unknown): value is ContractGenerationCandidateRequest {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const item = value as Record<string, unknown>
   return Object.keys(item).length === 2
     && typeof item.weddingId === 'string' && item.weddingId.trim().length > 0
     && typeof item.candidateId === 'string' && item.candidateId.trim().length > 0
+}
+
+function isEmptyObject(value: unknown): value is Record<string, never> {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length === 0)
+}
+
+function validFinalizeRequest(value: unknown): value is ContractGenerationFinalizeRequest {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  const item = value as Record<string, unknown>
+  const hasSessionId = typeof item.sessionId === 'string' && item.sessionId.trim().length > 0
+  const hasRequestId = typeof item.requestId === 'string'
+    && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(item.requestId)
+  return typeof item.weddingId === 'string' && item.weddingId.trim().length > 0
+    && hasSessionId !== hasRequestId
+    && ['saved', 'discarded', 'abandoned'].includes(String(item.reason))
+    && Object.keys(item).length === 3
+}
+
+function validValidateCandidateRequest(value: unknown): value is ContractGenerationValidateCandidateRequest {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  const item = value as Record<string, unknown>
+  return Object.keys(item).length === 2
+    && typeof item.weddingId === 'string' && item.weddingId.trim().length > 0
+    && typeof item.sessionId === 'string' && item.sessionId.trim().length > 0
 }
 
 /** One Generator call per generation request, plus at most one result-specific review or conflict-verification call. */
@@ -316,7 +336,12 @@ export function createContractGenerationBoundary(deps: ServerBoundaryDependencie
       if (!validContinueRequest(request)) return { status: 'failure', code: 'generation_safety' }
       const current = await deps.getSession(request.sessionId)
       if (!current || current.ownerUserId !== userId) return { status: 'stale', code: 'session_invalid' }
-      if (!canResumeContractGenerationSession(current, current, now())) return { status: 'stale', code: 'session_invalid' }
+      if (!canResumeContractGenerationSession(current, current, now())) {
+        if (current.state === 'awaiting_input' && Date.parse(current.expiresAt) <= now().getTime()) {
+          await deps.expireSession(current.id, userId)
+        }
+        return { status: 'stale', code: 'session_invalid' }
+      }
       const accepted = acceptSessionAnswers(current, request.answers, now())
       if (!accepted.ok) return { status: 'stale', code: 'session_invalid' }
       const executionId = deps.newId()
@@ -348,38 +373,6 @@ export function createContractGenerationBoundary(deps: ServerBoundaryDependencie
       return execute(session, context, accepted.answers, executionId, 'continue', resolvedInputs)
     },
 
-    async recover(userId: string, request: unknown): Promise<ContractGenerationBoundaryResponse> {
-      if (!validRecoverRequest(request)) return { status: 'failure', code: 'generation_safety' }
-      const session = request.sessionId
-        ? await deps.getSession(request.sessionId)
-        : await deps.getSessionByIdempotencyKey(userId, request.requestId!)
-      if (!session || session.ownerUserId !== userId || session.weddingId !== request.weddingId) {
-        return { status: 'stale', code: 'session_invalid' }
-      }
-      if (!Number.isFinite(Date.parse(session.expiresAt)) || Date.parse(session.expiresAt) <= now().getTime()) {
-        return { status: 'stale', code: 'session_invalid' }
-      }
-      if (session.state === 'processing') return { status: 'processing', sessionId: session.id }
-      if (session.state !== 'awaiting_input' && session.state !== 'completed') {
-        return { status: 'stale', code: 'session_invalid' }
-      }
-      const [context, savedFingerprint] = await Promise.all([
-        deps.loadContext(userId, session.weddingId, session.answers),
-        deps.getAuthorityFingerprint(userId, session.id),
-      ])
-      if (!context || !sessionMatchesScope(session, context.scope)
-        || context.sourceSha256 !== session.sourceSha256
-        || !savedFingerprint || context.authorityFingerprint !== savedFingerprint) {
-        return { status: 'stale', code: 'authority_changed' }
-      }
-      if (session.state === 'awaiting_input') {
-        if (!canResumeContractGenerationSession(session, context.scope, now())) {
-          return { status: 'stale', code: 'session_invalid' }
-        }
-        return { status: 'awaiting_input', sessionId: session.id, missingInputs: session.missingInputs }
-      }
-      return { status: 'ready', sessionId: session.id, candidateId: session.id, templateId: session.templateId, templateVersionId: session.templateVersionId }
-    },
   }
 }
 
@@ -403,15 +396,19 @@ function existingStartResult(
 export function parseContractGenerationAction(value: unknown):
   | { action: 'start'; request: ContractGenerationStartRequest }
   | { action: 'continue'; request: ContractGenerationContinueRequest }
-  | { action: 'recover'; request: ContractGenerationRecoverRequest }
   | { action: 'candidate'; request: ContractGenerationCandidateRequest }
+  | { action: 'finalize'; request: ContractGenerationFinalizeRequest }
+  | { action: 'validate_candidate'; request: ContractGenerationValidateCandidateRequest }
+  | { action: 'cleanup_expired'; request: Record<string, never> }
   | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null
   const envelope = value as Record<string, unknown>
   if (Object.keys(envelope).length !== 3 || envelope.version !== 1) return null
   if (envelope.action === 'start' && validStartRequest(envelope.request)) return { action: 'start', request: envelope.request }
   if (envelope.action === 'continue' && validContinueRequest(envelope.request)) return { action: 'continue', request: envelope.request }
-  if (envelope.action === 'recover' && validRecoverRequest(envelope.request)) return { action: 'recover', request: envelope.request }
   if (envelope.action === 'candidate' && validCandidateRequest(envelope.request)) return { action: 'candidate', request: envelope.request }
+  if (envelope.action === 'finalize' && validFinalizeRequest(envelope.request)) return { action: 'finalize', request: envelope.request }
+  if (envelope.action === 'validate_candidate' && validValidateCandidateRequest(envelope.request)) return { action: 'validate_candidate', request: envelope.request }
+  if (envelope.action === 'cleanup_expired' && isEmptyObject(envelope.request)) return { action: 'cleanup_expired', request: {} }
   return null
 }

@@ -4,7 +4,8 @@ import type {
   ContractGenerationBoundaryResponse,
   ContractGenerationCandidateRequest,
   ContractGenerationContinueRequest,
-  ContractGenerationRecoverRequest,
+  ContractGenerationFinalizeRequest,
+  ContractGenerationValidateCandidateRequest,
   ContractGenerationStartRequest,
 } from './serverBoundary'
 
@@ -41,6 +42,7 @@ function isBoundaryResponse(value: unknown): value is ContractGenerationBoundary
   if (value.status === 'precondition') return value.code === 'setup_required'
   if (value.status === 'error') return value.code === 'unauthorized' || value.code === 'forbidden'
   if (value.status === 'stale') return value.code === 'authority_changed' || value.code === 'session_invalid'
+  if (value.status === 'candidate_valid' || value.status === 'finalized') return true
   return value.status === 'failure' && (value.code === 'generation_safety' || value.code === 'temporary_failure')
 }
 
@@ -68,8 +70,11 @@ export function createContractGenerationBoundaryClient(invoke: BoundaryInvoker) 
     continue(request: ContractGenerationContinueRequest) {
       return call('continue', request)
     },
-    recover(request: ContractGenerationRecoverRequest) {
-      return call('recover', request)
+    validateCandidate(request: ContractGenerationValidateCandidateRequest) {
+      return call('validate_candidate', request)
+    },
+    finalize(request: ContractGenerationFinalizeRequest) {
+      return call('finalize', request)
     },
     async candidate(request: ContractGenerationCandidateRequest): Promise<ArrayBuffer> {
       const { data, error } = await invoke({ version: 1, action: 'candidate', request })
@@ -88,7 +93,8 @@ const boundaryClient = createContractGenerationBoundaryClient(async (body) => {
 
 export const startContractGeneration = boundaryClient.start
 export const continueContractGeneration = boundaryClient.continue
-export const recoverContractGeneration = boundaryClient.recover
+export const validateContractGenerationCandidate = boundaryClient.validateCandidate
+export const finalizeContractGeneration = boundaryClient.finalize
 export const downloadAcceptedContractCandidate = boundaryClient.candidate
 
 export type { ContractGenerationAnswer, MissingInput }

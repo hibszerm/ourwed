@@ -75,7 +75,7 @@ const deps: ServerBoundaryDependencies = {
   createSession: async () => session,
   getSession: async () => session,
   getSessionByIdempotencyKey: async () => null,
-  getAuthorityFingerprint: async () => 'b'.repeat(64),
+  expireSession: async () => { calls.push('expired') },
   claimContinuation: async ({ answers: accepted, missingInputHistory, missingInputHistoryValid }) => {
     calls.push('claim')
     session = { ...session, state: 'processing', answers: accepted, missingInputHistory, missingInputHistoryValid }

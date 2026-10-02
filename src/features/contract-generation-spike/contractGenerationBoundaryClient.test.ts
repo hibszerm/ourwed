@@ -8,7 +8,8 @@ const bodies: Record<string, unknown>[] = []
 const responses: unknown[] = [
   { status: 'awaiting_input', sessionId: 'opaque-session', missingInputs: [{ id: 'opaque-requirement', label: 'Dane umowy', answerKind: 'text' }] },
   { status: 'awaiting_input', sessionId: 'opaque-session', missingInputs: [{ id: 'opaque-requirement-2', label: 'Termin', answerKind: 'date' }] },
-  { status: 'ready', sessionId: 'opaque-session', candidateId: 'opaque-candidate', templateId: 'template', templateVersionId: 'version' },
+  { status: 'candidate_valid' },
+  { status: 'finalized' },
   new Blob([new Uint8Array([1, 2, 3])]),
 ]
 const client = createContractGenerationBoundaryClient(async (body) => {
@@ -21,13 +22,15 @@ await client.continue({
   sessionId: 'opaque-session',
   answers: [{ missingInputId: 'opaque-requirement', value: ' value ' }],
 })
-await client.recover({ weddingId: 'wedding-1', sessionId: 'opaque-session' })
+await client.validateCandidate({ weddingId: 'wedding-1', sessionId: 'opaque-session' })
+await client.finalize({ weddingId: 'wedding-1', sessionId: 'opaque-session', reason: 'saved' })
 const candidateBytes = await client.candidate({ weddingId: 'wedding-1', candidateId: 'opaque-candidate' })
 
 assert.deepEqual(bodies, [
   { version: 1, action: 'start', request: { weddingId: 'wedding-1', requestId: '00000000-0000-4000-8000-000000000001' } },
   { version: 1, action: 'continue', request: { sessionId: 'opaque-session', answers: [{ missingInputId: 'opaque-requirement', value: ' value ' }] } },
-  { version: 1, action: 'recover', request: { weddingId: 'wedding-1', sessionId: 'opaque-session' } },
+  { version: 1, action: 'validate_candidate', request: { weddingId: 'wedding-1', sessionId: 'opaque-session' } },
+  { version: 1, action: 'finalize', request: { weddingId: 'wedding-1', sessionId: 'opaque-session', reason: 'saved' } },
   { version: 1, action: 'candidate', request: { weddingId: 'wedding-1', candidateId: 'opaque-candidate' } },
 ])
 assert.deepEqual([...new Uint8Array(candidateBytes)], [1, 2, 3])

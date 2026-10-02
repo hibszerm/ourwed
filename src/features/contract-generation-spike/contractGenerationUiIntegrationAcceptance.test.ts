@@ -15,19 +15,21 @@ assert.match(acceptedCandidatePath, /downloadAcceptedContractCandidate/)
 assert.match(acceptedCandidatePath, /setStep\('preview'\)/)
 assert.doesNotMatch(acceptedCandidatePath, /documentDraftService\.create/)
 
-const recoveryPath = page.slice(
-  page.indexOf('async function recoverConnection('),
-  page.indexOf('useEffect(() => {', page.indexOf('async function recoverConnection(')),
-)
-assert.match(recoveryPath, /recoverContractGeneration/)
-assert.match(recoveryPath, /applyBoundaryResult/)
-assert.doesNotMatch(recoveryPath, /documentDraftService\.create/)
+assert.doesNotMatch(page, /recoverContractGeneration|recoverConnection|readGenerationConnection|writeGenerationConnection|window\.localStorage/)
+assert.doesNotMatch(page, /Sesja wygasła|Poprzedniej sesji generowania/)
+assert.match(page, /const blocker = useBlocker\(Boolean\(connection\)\)/)
+assert.match(page, /finalizeContractGeneration\(\{[\s\S]*?reason: 'abandoned'/)
+const connectionLossPath = page.slice(page.indexOf('async function continueGeneration('), page.indexOf('async function discardGeneration('))
+assert.match(connectionLossPath, /if \(!connection\?\.sessionId\)[\s\S]*?setStep\('resolve'\)/)
+assert.doesNotMatch(connectionLossPath.slice(connectionLossPath.indexOf('if (!connection?.sessionId)'), connectionLossPath.indexOf('generateInFlightRef.current = true')), /continueContractGeneration/)
 
 const savePath = page.slice(
   page.indexOf('async function save()'),
   page.indexOf('function downloadGeneratedDocx()'),
 )
 assert.match(savePath, /if \(!draftId\)[\s\S]*documentDraftService\.create/)
+assert.match(savePath, /validateContractGenerationCandidate/)
+assert.ok(savePath.indexOf('validateContractGenerationCandidate') < savePath.indexOf('documentDraftService.create'), 'candidate is server-validated before document creation')
 assert.match(savePath, /saveGeneratedContract\(\{[\s\S]*draftId,/)
 
 const pending: MissingInput[] = [
@@ -52,7 +54,8 @@ for (const state of ['unresolved_conflict', 'precondition', 'stale', 'unauthoriz
 }
 assert.match(page, /Wystąpił chwilowy problem/)
 assert.match(page, /Spróbuj ponownie/)
-assert.match(page, /Rozpocznij ponownie/)
+assert.match(page, /Rozpocznij nowe generowanie/)
+assert.match(page, /Odrzuć i wygeneruj ponownie/)
 assert.doesNotMatch(page, /startSemanticContractGeneration|resumeSemanticContractGeneration|invokeSemanticMapProvider|buildSemanticContractProductionDataset/)
 assert.doesNotMatch(page, /mayGenerateContract|isTravelFeeResolved/)
 assert.match(form, /props\.requirements\.map\(/)

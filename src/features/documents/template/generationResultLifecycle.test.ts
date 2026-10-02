@@ -249,7 +249,8 @@ run('needs_review with only contextual messages is valid', () => {
 run('page logs required generate lifecycle events', () => {
   assert(pageSource.includes('startContractGeneration'), 'authenticated boundary start')
   assert(pageSource.includes('continueContractGeneration'), 'authenticated boundary continuation')
-  assert(pageSource.includes('recoverContractGeneration'), 'persisted session recovery')
+  assert(pageSource.includes('finalizeContractGeneration'), 'ephemeral transaction cleanup')
+  assert(!pageSource.includes('recoverContractGeneration'), 'old transactions are not recovered')
 })
 
 run('service surfaces audit messages when field map empty', () => {

@@ -11,7 +11,7 @@ import { isTravelFeeResolved } from '@/lib/utils/travelFeeCommercial.ts'
 import type { FormAnswerJson } from '@/types/formEngine'
 import type { PaymentMethod, PaymentType } from '@/types/wedding'
 import type { WeddingPlaceRole } from '@/types/travel'
-import { readMissingInputState, storeMissingInputState, type ContractGenerationSession, type ResolvedMissingInput } from '@/features/contract-generation-spike/generationSession.ts'
+import { readMissingInputState, sessionMatchesScope, storeMissingInputState, type ContractGenerationSession, type ResolvedMissingInput } from '@/features/contract-generation-spike/generationSession.ts'
 
 type GenericRelationship = { foreignKeyName: string; columns: string[]; isOneToOne?: boolean; referencedRelation: string; referencedColumns: string[] }
 type GenericTable = { Row: Record<string, unknown>; Insert: Record<string, unknown>; Update: Record<string, unknown>; Relationships: GenericRelationship[] }
@@ -32,6 +32,7 @@ type FormInstanceRow = DbRow & { id: string; submitted_at: string | null }
 type FormAnswerRow = DbRow & { answer_json: unknown }
 
 const DOCX_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+const OPTION_B_ACTIVE_TTL_MS = 30 * 60 * 1000
 const GENERATION_SCHEMA = {
   type: 'object', additionalProperties: false,
   required: ['status', 'edits', 'missingInputs', 'conflicts'],
@@ -267,7 +268,19 @@ async function loadServerContext(
     contractRecordId: contract?.id ?? null,
     genericContractAddress: typeof weddingRow.contract_address === 'string' ? weddingRow.contract_address : null,
   })
-  const authorityFingerprint = await sha256(canonicalAuthorityFingerprint(authority, {
+  const freshnessAuthority = answers.length ? buildContractGenerationInput({
+    wedding, weddingPlaces, extras: weddingExtras,
+    generationDate: new Date().toISOString().slice(0, 10),
+    questionnaireFields: fields,
+    userProvidedAnswers: [],
+    participantAssociations: [],
+    contractRecordId: contract?.id ?? null,
+    genericContractAddress: typeof weddingRow.contract_address === 'string' ? weddingRow.contract_address : null,
+  }) : authority
+  // Answers are bound to server-held MissingInput definitions during the active
+  // flow. Keep the persisted freshness fingerprint answer-free so answers can be
+  // erased after preview while current wedding/source authority remains checkable.
+  const authorityFingerprint = await sha256(canonicalAuthorityFingerprint(freshnessAuthority, {
     package: pkg, packageItems, payments, extras, places, contract,
     submittedQuestionnaireFields: fields,
   }))
@@ -289,6 +302,142 @@ function mapSession(row: RunRow): ContractGenerationSession {
     answers: Array.isArray(row.user_answers_json) ? row.user_answers_json as ContractGenerationSession['answers'] : [],
     expiresAt: String(row.expires_at), createdAt: String(row.created_at), updatedAt: String(row.updated_at),
   }
+}
+
+function temporaryCandidatePath(ownerId: string, weddingId: string, sessionId: string): string {
+  return `${ownerId}/weddings/${weddingId}/drafts/${sessionId}/option-b-reviewed-candidate.docx`
+}
+
+async function removeTemporaryCandidate(
+  supabase: SupabaseClient,
+  ownerId: string,
+  weddingId: string,
+  sessionId: string,
+  storedPath: unknown,
+): Promise<boolean> {
+  const expectedPath = temporaryCandidatePath(ownerId, weddingId, sessionId)
+  if (typeof storedPath === 'string' && storedPath !== expectedPath) return false
+  const { error } = await supabase.storage.from('document-files').remove([expectedPath])
+  const statusCode = error && 'statusCode' in error ? String(error.statusCode) : ''
+  const errorMessage = error instanceof Error ? error.message : ''
+  const missingObject = statusCode === '404' || /not found|does not exist/i.test(errorMessage)
+  if (error && !missingObject) return false
+  await supabase.from('wedding_contract_generation_runs').update({ intermediate_docx_path: null })
+    .eq('id', sessionId).eq('owner_user_id', ownerId).eq('wedding_id', weddingId)
+    .eq('session_kind', 'option_b').in('session_state', ['abandoned', 'failed'])
+  return true
+}
+
+async function cleanupExpiredOptionBRuns(supabaseUrl: string): Promise<void> {
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+  if (!serviceRoleKey) throw new Error('cleanup_service_unavailable')
+  const admin = createClient<DatabaseSchema>(supabaseUrl, serviceRoleKey)
+  const now = new Date()
+  const [expiredResult, terminalCandidateResult] = await Promise.all([
+    admin.from('wedding_contract_generation_runs')
+      .select('id,wedding_id,owner_user_id,session_state,intermediate_docx_path,expires_at')
+      .eq('session_kind', 'option_b').eq('ephemeral_lifecycle_version', 1)
+      .lte('expires_at', now.toISOString()).limit(100),
+    admin.from('wedding_contract_generation_runs')
+      .select('id,wedding_id,owner_user_id,session_state,intermediate_docx_path,expires_at')
+      .eq('session_kind', 'option_b').eq('ephemeral_lifecycle_version', 1)
+      .in('session_state', ['failed', 'abandoned'])
+      .not('intermediate_docx_path', 'is', null).limit(100),
+  ])
+  const { data: dueRuns, error } = expiredResult
+  const { data: terminalCandidateRuns, error: terminalCandidateError } = terminalCandidateResult
+  if (error || terminalCandidateError) throw new Error('cleanup_read_failed')
+  const runById = new Map<string, RunRow>()
+  for (const row of [...(dueRuns ?? []), ...(terminalCandidateRuns ?? [])] as RunRow[]) runById.set(String(row.id), row)
+  let terminalized = 0
+  let removed = 0
+
+  for (const row of runById.values()) {
+    const id = String(row.id)
+    const weddingId = String(row.wedding_id)
+    const ownerId = String(row.owner_user_id)
+    const state = String(row.session_state)
+    if (state === 'processing' || state === 'awaiting_input' || state === 'completed') {
+      const { data, error: updateError } = await admin.from('wedding_contract_generation_runs').update({
+        session_state: 'abandoned', generation_status: 'failed', missing_inputs_json: [], user_answers_json: [],
+        resolved_values_json: {}, authority_fingerprint: null,
+        expires_at: new Date(now.getTime() + OPTION_B_ACTIVE_TTL_MS).toISOString(),
+      }).eq('id', id).eq('session_kind', 'option_b').eq('ephemeral_lifecycle_version', 1).eq('session_state', state)
+        .lte('expires_at', now.toISOString()).select('id').maybeSingle()
+      if (updateError || !data) continue
+      terminalized += 1
+      if (await removeTemporaryCandidate(admin, ownerId, weddingId, id, row.intermediate_docx_path)) removed += 1
+      continue
+    }
+
+    if (state === 'failed' || state === 'abandoned') {
+      const candidateRemoved = await removeTemporaryCandidate(admin, ownerId, weddingId, id, row.intermediate_docx_path)
+      if (!candidateRemoved) continue
+      const { error: deleteError } = await admin.from('wedding_contract_generation_runs').delete()
+        .eq('id', id).eq('session_kind', 'option_b').eq('ephemeral_lifecycle_version', 1)
+        .in('session_state', ['failed', 'abandoned'])
+        .lte('expires_at', now.toISOString())
+      if (!deleteError) removed += 1
+    }
+  }
+  console.info(JSON.stringify({ event: 'contract_generation_lifecycle', action: 'cleanup', terminalized, cleaned: removed }))
+}
+
+async function finalizeOptionBRun(
+  supabase: SupabaseClient,
+  ownerId: string,
+  request: { weddingId: string; sessionId?: string; requestId?: string; reason: 'saved' | 'discarded' | 'abandoned' },
+  corsHeaders: HeadersInit,
+): Promise<Response> {
+  let query = supabase.from('wedding_contract_generation_runs')
+    .select('id,wedding_id,owner_user_id,session_state,intermediate_docx_path')
+    .eq('owner_user_id', ownerId).eq('wedding_id', request.weddingId).eq('session_kind', 'option_b')
+  query = request.sessionId ? query.eq('id', request.sessionId) : query.eq('idempotency_key', request.requestId!)
+  const { data: run, error } = await query.maybeSingle()
+  if (error) return json({ status: 'failure', code: 'temporary_failure' }, 200, corsHeaders)
+  if (!run) return json({ status: 'finalized' }, 200, corsHeaders)
+  if (request.reason === 'saved' && run.session_state !== 'completed') {
+    return json({ status: 'stale', code: 'session_invalid' }, 200, corsHeaders)
+  }
+  if (run.session_state === 'processing' || run.session_state === 'awaiting_input' || run.session_state === 'completed') {
+    const { data: terminal, error: updateError } = await supabase.from('wedding_contract_generation_runs').update({
+      session_state: 'abandoned', generation_status: request.reason === 'saved' ? 'ready' : 'failed',
+      missing_inputs_json: [], user_answers_json: [], resolved_values_json: {}, authority_fingerprint: null,
+      expires_at: new Date(Date.now() + OPTION_B_ACTIVE_TTL_MS).toISOString(),
+    }).eq('id', String(run.id)).eq('owner_user_id', ownerId).eq('session_kind', 'option_b')
+      .eq('session_state', String(run.session_state)).select('id').maybeSingle()
+    if (updateError || !terminal) return json({ status: 'stale', code: 'session_invalid' }, 200, corsHeaders)
+  }
+  await removeTemporaryCandidate(supabase, ownerId, request.weddingId, String(run.id), run.intermediate_docx_path)
+  console.info(JSON.stringify({ event: 'contract_generation_lifecycle', action: request.reason, category: 'terminalized' }))
+  return json({ status: 'finalized' }, 200, corsHeaders)
+}
+
+async function validateOptionBCandidate(
+  supabase: SupabaseClient,
+  ownerId: string,
+  request: { weddingId: string; sessionId: string },
+  corsHeaders: HeadersInit,
+): Promise<Response> {
+  const { data, error } = await supabase.from('wedding_contract_generation_runs').select('*')
+    .eq('id', request.sessionId).eq('wedding_id', request.weddingId).eq('owner_user_id', ownerId)
+    .eq('session_kind', 'option_b').eq('session_state', 'completed')
+    .gt('expires_at', new Date().toISOString()).maybeSingle()
+  if (error) return json({ status: 'failure', code: 'temporary_failure' }, 200, corsHeaders)
+  if (!data || data.intermediate_docx_path !== temporaryCandidatePath(ownerId, request.weddingId, request.sessionId)) {
+    return json({ status: 'stale', code: 'session_invalid' }, 200, corsHeaders)
+  }
+  const session = mapSession(data as RunRow)
+  const [context, savedFingerprint] = await Promise.all([
+    loadServerContext(supabase, ownerId, request.weddingId, []),
+    Promise.resolve(typeof data.authority_fingerprint === 'string' ? data.authority_fingerprint : null),
+  ])
+  if (!context || !sessionMatchesScope(session, context.scope) || context.sourceSha256 !== session.sourceSha256
+    || !savedFingerprint || context.authorityFingerprint !== savedFingerprint) {
+    await finalizeOptionBRun(supabase, ownerId, { ...request, reason: 'abandoned' }, corsHeaders)
+    return json({ status: 'stale', code: 'authority_changed' }, 200, corsHeaders)
+  }
+  return json({ status: 'candidate_valid' }, 200, corsHeaders)
 }
 
 async function outputText(response: Response): Promise<string> {
@@ -436,20 +585,31 @@ function createBoundary(supabase: SupabaseClient, ownerId: string) {
     loadContext: (userId, weddingId, answers) => loadServerContext(supabase, userId, weddingId, answers),
     async createSession(input) {
       if (input.userId !== ownerId || input.scope.ownerUserId !== ownerId) return null
-      const { error: expireError } = await supabase.from('wedding_contract_generation_runs').update({
-        session_state: 'abandoned', generation_status: 'failed',
-      }).eq('owner_user_id', input.userId).eq('wedding_id', input.weddingId).eq('session_kind', 'option_b')
-        .in('session_state', ['processing', 'awaiting_input']).lte('expires_at', new Date().toISOString())
-      if (expireError) return null
-      const { data, error } = await supabase.from('wedding_contract_generation_runs').insert({
-        wedding_id: input.weddingId, template_id: input.scope.templateId, template_version_id: input.scope.templateVersionId,
-        generation_status: 'processing', resolved_values_json: {}, owner_user_id: input.userId,
-        session_kind: 'option_b', session_state: 'processing', missing_inputs_json: storeMissingInputState([], []), user_answers_json: [],
-        source_sha256: input.sourceSha256, authority_fingerprint: input.authorityFingerprint,
-        execution_id: input.executionId, idempotency_key: input.requestId,
-      }).select('*').single()
-      if (error || !data) return null
-      return mapSession(data as RunRow)
+      const supabaseUrl = Deno.env.get('SUPABASE_URL')
+      const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+      if (!supabaseUrl || !serviceRoleKey) return null
+      const admin = createClient<DatabaseSchema>(supabaseUrl, serviceRoleKey)
+      const { data, error } = await admin.rpc('begin_option_b_generation', {
+        p_owner_id: ownerId,
+        p_wedding_id: input.weddingId,
+        p_template_id: input.scope.templateId,
+        p_template_version_id: input.scope.templateVersionId,
+        p_source_sha256: input.sourceSha256,
+        p_authority_fingerprint: input.authorityFingerprint,
+        p_execution_id: input.executionId,
+        p_request_id: input.requestId,
+      })
+      const reply = (Array.isArray(data) ? data[0] : data) as DbRow | null
+      const row = reply?.session_row as DbRow | undefined
+      if (error || !reply || !row) return null
+      if (reply?.replay === true) return null
+      const superseded = Array.isArray(reply.superseded_candidates) ? reply.superseded_candidates as DbRow[] : []
+      for (const candidate of superseded) {
+        const candidateId = typeof candidate.sessionId === 'string' ? candidate.sessionId : ''
+        const candidatePath = candidate.path
+        if (candidateId) await removeTemporaryCandidate(supabase, ownerId, input.weddingId, candidateId, candidatePath)
+      }
+      return mapSession(row)
     },
     async getSession(sessionId) {
       const { data, error } = await supabase.from('wedding_contract_generation_runs').select('*').eq('id', sessionId).eq('session_kind', 'option_b').eq('owner_user_id', ownerId).maybeSingle()
@@ -461,16 +621,23 @@ function createBoundary(supabase: SupabaseClient, ownerId: string) {
       if (error || !data) return null
       return mapSession(data as RunRow)
     },
-    async getAuthorityFingerprint(userId, sessionId) {
-      const { data, error } = await supabase.from('wedding_contract_generation_runs').select('authority_fingerprint')
-        .eq('id', sessionId).eq('owner_user_id', userId).eq('session_kind', 'option_b').maybeSingle()
-      if (error || typeof data?.authority_fingerprint !== 'string') return null
-      return data.authority_fingerprint
+    async expireSession(sessionId, userId) {
+      const { data, error } = await supabase.from('wedding_contract_generation_runs').update({
+        session_state: 'abandoned', generation_status: 'failed', missing_inputs_json: [], user_answers_json: [],
+        resolved_values_json: {}, authority_fingerprint: null,
+        expires_at: new Date(Date.now() + OPTION_B_ACTIVE_TTL_MS).toISOString(),
+      }).eq('id', sessionId).eq('owner_user_id', userId).eq('session_kind', 'option_b')
+        .eq('session_state', 'awaiting_input').lte('expires_at', new Date().toISOString())
+        .select('id,wedding_id,owner_user_id,intermediate_docx_path').maybeSingle()
+      if (error || !data) return
+      await removeTemporaryCandidate(supabase, userId, String(data.wedding_id), sessionId, data.intermediate_docx_path)
+      console.info(JSON.stringify({ event: 'contract_generation_lifecycle', action: 'expired', category: 'timeout' }))
     },
     async claimContinuation(input) {
       const changes: DbRow = {
         session_state: 'processing', generation_status: 'processing', execution_id: input.executionId,
         user_answers_json: input.answers,
+        expires_at: new Date(Date.now() + OPTION_B_ACTIVE_TTL_MS).toISOString(),
       }
       if (input.missingInputHistoryValid) {
         const current = await supabase.from('wedding_contract_generation_runs').select('missing_inputs_json').eq('id', input.sessionId)
@@ -489,6 +656,7 @@ function createBoundary(supabase: SupabaseClient, ownerId: string) {
         session_state: 'awaiting_input', generation_status: 'manual_input_required',
         missing_inputs_json: storeMissingInputState(input.missingInputs, input.missingInputHistory), user_answers_json: input.answers,
         authority_fingerprint: input.authorityFingerprint,
+        expires_at: new Date(Date.now() + OPTION_B_ACTIVE_TTL_MS).toISOString(),
       }).eq('id', input.sessionId).eq('execution_id', input.executionId).eq('session_state', 'processing').select('id').maybeSingle()
       return !error && Boolean(data)
     },
@@ -499,8 +667,9 @@ function createBoundary(supabase: SupabaseClient, ownerId: string) {
       const { error: uploadError } = await supabase.storage.from('document-files').upload(path, new Blob([input.candidate.bytes], { type: DOCX_TYPE }), { upsert: false, contentType: DOCX_TYPE })
       if (uploadError) return null
       const { data, error } = await supabase.from('wedding_contract_generation_runs').update({
-        session_state: 'completed', generation_status: 'ready', missing_inputs_json: [],
+        session_state: 'completed', generation_status: 'ready', missing_inputs_json: [], user_answers_json: [],
         intermediate_docx_path: path, authority_fingerprint: input.authorityFingerprint,
+        expires_at: new Date(Date.now() + OPTION_B_ACTIVE_TTL_MS).toISOString(),
       }).eq('id', String(run.id)).eq('execution_id', input.executionId).eq('session_state', 'processing').select('id').maybeSingle()
       if (error || !data) {
         await supabase.storage.from('document-files').remove([path])
@@ -509,9 +678,13 @@ function createBoundary(supabase: SupabaseClient, ownerId: string) {
       return String(run.id)
     },
     async markFailure(sessionId, executionId, code) {
-      await supabase.from('wedding_contract_generation_runs').update({
+      const { data } = await supabase.from('wedding_contract_generation_runs').update({
         session_state: code === 'stale' ? 'abandoned' : 'failed', generation_status: 'failed',
+        missing_inputs_json: [], user_answers_json: [], resolved_values_json: {}, authority_fingerprint: null,
+        expires_at: new Date(Date.now() + OPTION_B_ACTIVE_TTL_MS).toISOString(),
       }).eq('id', sessionId).eq('execution_id', executionId).eq('session_kind', 'option_b').eq('session_state', 'processing')
+        .select('id,wedding_id,owner_user_id,intermediate_docx_path').maybeSingle()
+      if (data) await removeTemporaryCandidate(supabase, ownerId, String(data.wedding_id), sessionId, data.intermediate_docx_path)
     },
     diagnose(diagnostic: BoundaryDiagnostic) {
       console.info(JSON.stringify({ event: 'contract_generation_diagnostic', ...diagnostic }))
@@ -524,18 +697,34 @@ async function handleRequest(request: Request): Promise<Response> {
   const corsHeaders = buildRestrictedCorsHeaders(request, (name) => Deno.env.get(name) ?? null, 'POST, OPTIONS')
   if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
   if (request.method !== 'POST') return json({ status: 'failure', code: 'generation_safety' }, 405, corsHeaders)
-  const auth = await requireAuthenticatedUser(request)
-  if (!auth.ok) return auth.status === 401
-    ? json({ status: 'error', code: 'unauthorized' }, 401, corsHeaders)
-    : json({ status: 'failure', code: 'temporary_failure' }, 503, corsHeaders)
-  const supabaseUrl = Deno.env.get('SUPABASE_URL')
-  const anonKey = Deno.env.get('SUPABASE_ANON_KEY')
-  if (!supabaseUrl || !anonKey) return json({ status: 'failure', code: 'temporary_failure' }, 503, corsHeaders)
-  const supabase = createClient<DatabaseSchema>(supabaseUrl, anonKey, { global: { headers: { Authorization: auth.authHeader } } })
   let payload: unknown
   try { payload = await request.json() } catch { return json({ status: 'failure', code: 'generation_safety' }, 400, corsHeaders) }
   const parsed = parseContractGenerationAction(payload)
   if (!parsed) return json({ status: 'failure', code: 'generation_safety' }, 400, corsHeaders)
+
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')
+  if (!supabaseUrl) return json({ status: 'failure', code: 'temporary_failure' }, 503, corsHeaders)
+  if (parsed.action === 'cleanup_expired') {
+    const cleanupToken = Deno.env.get('OPTION_B_CLEANUP_TOKEN')
+    if (!cleanupToken || request.headers.get('Authorization') !== `Bearer ${cleanupToken}`) {
+      return json({ status: 'error', code: 'unauthorized' }, 401, corsHeaders)
+    }
+    try {
+      await cleanupExpiredOptionBRuns(supabaseUrl)
+      return json({ status: 'cleanup_complete' }, 200, corsHeaders)
+    } catch {
+      console.warn(JSON.stringify({ event: 'contract_generation_lifecycle', action: 'cleanup', category: 'cleanup_failure' }))
+      return json({ status: 'cleanup_unavailable' }, 503, corsHeaders)
+    }
+  }
+
+  const auth = await requireAuthenticatedUser(request)
+  if (!auth.ok) return auth.status === 401
+    ? json({ status: 'error', code: 'unauthorized' }, 401, corsHeaders)
+    : json({ status: 'failure', code: 'temporary_failure' }, 503, corsHeaders)
+  const anonKey = Deno.env.get('SUPABASE_ANON_KEY')
+  if (!supabaseUrl || !anonKey) return json({ status: 'failure', code: 'temporary_failure' }, 503, corsHeaders)
+  const supabase = createClient<DatabaseSchema>(supabaseUrl, anonKey, { global: { headers: { Authorization: auth.authHeader } } })
   if (parsed.action === 'start') {
     const { data, error } = await supabase.from('weddings').select('id').eq('id', parsed.request.weddingId).eq('user_id', auth.userId).maybeSingle()
     if (error) return json({ status: 'failure', code: 'temporary_failure' }, 503, corsHeaders)
@@ -549,7 +738,7 @@ async function handleRequest(request: Request): Promise<Response> {
       .gt('expires_at', new Date().toISOString()).maybeSingle()
     if (error) return json({ status: 'failure', code: 'temporary_failure' }, 503, corsHeaders)
     if (!run || run.owner_user_id !== auth.userId) return json({ status: 'stale', code: 'session_invalid' }, 200, corsHeaders)
-    const candidatePath = `${auth.userId}/weddings/${parsed.request.weddingId}/drafts/${parsed.request.candidateId}/option-b-reviewed-candidate.docx`
+    const candidatePath = temporaryCandidatePath(auth.userId, parsed.request.weddingId, parsed.request.candidateId)
     if (run.intermediate_docx_path !== candidatePath) return json({ status: 'failure', code: 'generation_safety' }, 200, corsHeaders)
     const { data: candidate, error: downloadError } = await supabase.storage.from('document-files').download(candidatePath)
     if (downloadError || !candidate) return json({ status: 'failure', code: 'temporary_failure' }, 503, corsHeaders)
@@ -558,12 +747,16 @@ async function handleRequest(request: Request): Promise<Response> {
     headers.set('Cache-Control', 'no-store')
     return new Response(candidate, { status: 200, headers })
   }
+  if (parsed.action === 'finalize') {
+    return finalizeOptionBRun(supabase, auth.userId, parsed.request, corsHeaders)
+  }
+  if (parsed.action === 'validate_candidate') {
+    return validateOptionBCandidate(supabase, auth.userId, parsed.request, corsHeaders)
+  }
   const boundary = createBoundary(supabase, auth.userId)
   const result = parsed.action === 'start'
     ? await boundary.start(auth.userId, parsed.request)
-    : parsed.action === 'continue'
-      ? await boundary.continue(auth.userId, parsed.request)
-      : await boundary.recover(auth.userId, parsed.request)
+    : await boundary.continue(auth.userId, parsed.request)
   console.info(JSON.stringify({ event: 'contract_generation_boundary', action: parsed.action, sessionId: 'sessionId' in result ? result.sessionId : undefined, result: result.status }))
   return json(result, 200, corsHeaders)
 }
