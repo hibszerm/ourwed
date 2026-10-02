@@ -12,7 +12,7 @@ import {
   computeWeddingContractValue,
   resolvePackageBasePrice,
   type ExtraPriceSnapshotPart,
-} from '@/lib/forms/weddingExtraPricing'
+} from '@/lib/forms/weddingExtraPricing.ts'
 
 export type TravelFeeStatus = 'unresolved' | 'included' | 'charged'
 

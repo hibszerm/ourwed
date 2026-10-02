@@ -1,4 +1,4 @@
-import { getWeddingCommercialSummary } from '@/lib/utils/commercial'
+import { getWeddingCommercialSummary } from '@/lib/utils/commercial.ts'
 import type { WeddingExtraService } from '@/types/package'
 import type { Wedding } from '@/types/wedding'
 import type { WeddingPlace } from '@/types/travel'

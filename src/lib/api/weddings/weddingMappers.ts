@@ -2,18 +2,18 @@ import {
   asCatalogPackageId,
   toDateString,
   toNumber,
-} from '@/lib/supabase/helpers'
-import { createDefaultQuestionnaires } from '@/lib/utils/questionnaires'
-import { parseFinalPaymentTerms } from '@/lib/utils/finalPaymentTerms'
-import { parseDeliveryDueSource } from '@/lib/utils/weddingDeliveryDeadline'
+} from '@/lib/supabase/helpers.ts'
+import { createDefaultQuestionnaires } from '@/lib/utils/questionnaires.ts'
+import { parseFinalPaymentTerms } from '@/lib/utils/finalPaymentTerms.ts'
+import { parseDeliveryDueSource } from '@/lib/utils/weddingDeliveryDeadline.ts'
 import {
   isTravelFeeStatus,
   type TravelFeeStatus,
-} from '@/lib/utils/travelFeeCommercial'
+} from '@/lib/utils/travelFeeCommercial.ts'
 import {
   parseWeddingCorrespondenceCollection,
   serializeCorrespondenceForDb,
-} from '@/features/weddings/correspondence/weddingCorrespondence'
+} from '@/features/weddings/correspondence/weddingCorrespondence.ts'
 import type {
   Wedding,
   WeddingPackageItemSnapshot,

@@ -4,7 +4,7 @@
  * Legacy columns correspondence_channel / correspondence_value remain for transition.
  */
 
-import { createBrowserSafeId } from '@/lib/utils/createBrowserSafeId'
+import { createBrowserSafeId } from '@/lib/utils/createBrowserSafeId.ts'
 
 export type CorrespondenceChannel = 'email' | 'instagram' | 'facebook'
 

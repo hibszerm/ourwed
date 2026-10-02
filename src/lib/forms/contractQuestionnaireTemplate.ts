@@ -5,9 +5,9 @@ import type {
   PackageOptionSnapshot,
   QuestionnaireCustomField,
 } from '@/types/contractQuestionnaire'
-import { defaultContractQuestionnaireConfig } from '@/types/contractQuestionnaire'
-import { ensureQuestionnaireBlocks } from '@/lib/forms/questionnaireBlocks'
-import { questionsFromBlocks } from '@/lib/forms/questionsFromBlocks'
+import { defaultContractQuestionnaireConfig } from '@/types/contractQuestionnaire.ts'
+import { ensureQuestionnaireBlocks } from '@/lib/forms/questionnaireBlocks.ts'
+import { questionsFromBlocks } from '@/lib/forms/questionsFromBlocks.ts'
 
 export interface BuildContractQuestionnaireInput {
   packages: PackageOptionSnapshot[]

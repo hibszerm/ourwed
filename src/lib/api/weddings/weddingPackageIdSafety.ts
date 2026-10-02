@@ -3,7 +3,7 @@
  * Keeps FK-safe behavior testable without Supabase.
  */
 
-import { asCatalogPackageId } from '@/lib/supabase/helpers'
+import { asCatalogPackageId } from '@/lib/supabase/helpers.ts'
 
 /**
  * Resolve packageId after questionnaire hydrate.

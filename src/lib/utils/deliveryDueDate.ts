@@ -14,7 +14,7 @@ import {
   addLocalCalendarMonths,
   isValidLocalCalendarDateKey,
   toLocalCalendarDateKey,
-} from '@/lib/utils/localCalendarDate'
+} from '@/lib/utils/localCalendarDate.ts'
 
 export type ResolveDeliveryDueDateInput = {
   weddingDate: string | null | undefined

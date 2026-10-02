@@ -1,9 +1,9 @@
 import JSZip from 'jszip'
 import { randomUUID } from 'node:crypto'
-import { applyBlockOperations, type BlockOperation, type EditableBlock } from './blockDocxEditor'
-import { canonicalizeParagraphText, unescapeXml } from '@/features/documents/template/canonicalParagraph'
+import { applyBlockOperations, type BlockOperation, type EditableBlock } from './blockDocxEditor.ts'
+import { canonicalizeParagraphText, unescapeXml } from '@/features/documents/template/canonicalParagraph.ts'
 import type { ContractGenerationInput } from './contractGenerationInput'
-import { isGenerationResponse, type BlockEdit, type MissingInput } from './generationProtocol'
+import { isGenerationResponse, type BlockEdit, type MissingInput } from './generationProtocol.ts'
 
 export type SourceBlock = EditableBlock
 export type SourceDocument = { fileName: string; blocks: SourceBlock[] }
@@ -294,7 +294,7 @@ export async function applyOptionBGenerationResponse(
 }
 
 export async function readSource(bytes: ArrayBuffer, fileName: string): Promise<SourceDocument> {
-  return { fileName, blocks: await (await import('./blockDocxEditor')).buildBlockIndex(bytes) }
+  return { fileName, blocks: await (await import('./blockDocxEditor.ts')).buildBlockIndex(bytes) }
 }
 
 export function formatPlnInteger(amount: number): string {

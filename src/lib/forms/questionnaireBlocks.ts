@@ -7,7 +7,7 @@ import {
   defaultContractQuestionnaireConfig,
   type ContractQuestionnaireConfig,
   type QuestionnaireCustomField,
-} from '@/types/contractQuestionnaire'
+} from '@/types/contractQuestionnaire.ts'
 import {
   newBlockId,
   type ContractQuestionnaireBlock,
@@ -15,7 +15,7 @@ import {
   type QuestionnaireCustomFieldBlock,
   type QuestionnaireLocationBlock,
   type SystemFieldKey,
-} from '@/types/questionnaireBlocks'
+} from '@/types/questionnaireBlocks.ts'
 
 export const CONTRACT_QUESTIONNAIRE_BLOCKS_VERSION = 6
 

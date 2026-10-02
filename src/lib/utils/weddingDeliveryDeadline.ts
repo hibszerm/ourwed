@@ -10,12 +10,12 @@
 import {
   isValidDeliveryTermCount,
   resolveDeliveryDueDate,
-} from '@/lib/utils/deliveryDueDate'
+} from '@/lib/utils/deliveryDueDate.ts'
 import {
   localCalendarDateKey,
   toLocalCalendarDateKey,
-} from '@/lib/utils/localCalendarDate'
-import { formatDate } from '@/lib/utils/dates'
+} from '@/lib/utils/localCalendarDate.ts'
+import { formatDate } from '@/lib/utils/dates.ts'
 import type { Wedding } from '@/types/wedding'
 
 export type DeliveryDueSource = 'package' | 'manual'

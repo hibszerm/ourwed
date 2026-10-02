@@ -2,7 +2,7 @@
  * Ordered questionnaire block model for the form builder + public renderer.
  */
 
-import { createBrowserSafeId } from '@/lib/utils/createBrowserSafeId'
+import { createBrowserSafeId } from '@/lib/utils/createBrowserSafeId.ts'
 
 export type QuestionnaireBlockType =
   | 'heading'

@@ -3,8 +3,8 @@
  * No Supabase / service imports — safe for acceptance tests.
  */
 
-import { splitPersonName } from '@/lib/api/weddings/weddingMappers'
-import { isAbsentPartnerName } from '@/features/weddings/presentation/getWeddingDisplayName'
+import { splitPersonName } from '@/lib/api/weddings/weddingMappers.ts'
+import { isAbsentPartnerName } from '@/features/weddings/presentation/getWeddingDisplayName.ts'
 import type { Wedding } from '@/types/wedding'
 
 export function resolvedNamePart(

@@ -1,5 +1,5 @@
 import JSZip from 'jszip'
-import { extractCanonicalParagraphText, escapeXml, unescapeXml } from '@/features/documents/template/canonicalParagraph'
+import { extractCanonicalParagraphText, escapeXml, unescapeXml } from '@/features/documents/template/canonicalParagraph.ts'
 
 export type BlockKind = 'body' | 'tableCell' | 'header' | 'footer'
 export type BlockTextPart =

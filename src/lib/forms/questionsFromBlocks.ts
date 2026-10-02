@@ -8,7 +8,7 @@ import {
   type QuestionnaireCustomFieldBlock,
   type QuestionnaireLocationBlock,
   type QuestionnaireSystemFieldBlock,
-} from '@/types/questionnaireBlocks'
+} from '@/types/questionnaireBlocks.ts'
 import type { Question } from '@/types/form'
 import type {
   AdditionalServiceOptionSnapshot,

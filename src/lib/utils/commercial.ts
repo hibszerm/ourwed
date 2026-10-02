@@ -23,13 +23,13 @@ import {
   getRemainingAfterDeposit,
   getRemainingToPay,
   getTotalPaid,
-} from '@/lib/utils/finance'
+} from '@/lib/utils/finance.ts'
 import {
   normalizeFinalPaymentTerms,
   parseFinalPaymentTerms,
   resolveFinalPaymentDueDate,
   type FinalPaymentTerms,
-} from '@/lib/utils/finalPaymentTerms'
+} from '@/lib/utils/finalPaymentTerms.ts'
 
 /** Snapshot field: total agreed contract value. */
 export function getContractValue(wedding: Pick<Wedding, 'price'>): number {
