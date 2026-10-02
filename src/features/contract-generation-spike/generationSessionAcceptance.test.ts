@@ -5,6 +5,7 @@ import { GENERATION_INSTRUCTIONS } from './generator'
 
 const first = { id: 'opaque:requirement/1', label: 'Agreement date', answerKind: 'date' as const }
 const second = { id: 'opaque:requirement/2', label: 'Contact email', answerKind: 'email' as const, subject: { participantKey: 'partner2', displayName: 'Sam' } }
+const prior = { id: 'prior:answer', label: 'Previously requested source fact', answerKind: 'text' as const }
 const session: ContractGenerationSession = {
   id: 'session-id',
   ownerUserId: 'studio-id',
@@ -14,6 +15,7 @@ const session: ContractGenerationSession = {
   sourceSha256: 'a'.repeat(64),
   state: 'awaiting_input',
   missingInputs: [first, second],
+  missingInputHistory: [prior, first, second],
   answers: [{ missingInputId: 'prior:answer', value: 'Previously supplied fact' }],
   expiresAt: '2026-10-02T10:00:00.000Z',
   createdAt: '2026-10-01T10:00:00.000Z',

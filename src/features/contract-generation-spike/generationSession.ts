@@ -22,10 +22,91 @@ export type ContractGenerationSession = {
   sourceSha256: string
   state: ContractGenerationSessionState
   missingInputs: MissingInput[]
+  /** Every distinct requirement definition emitted in this session, including answered rounds. */
+  missingInputHistory: MissingInput[]
+  /** False only when stored history is malformed; such sessions must fail before provider execution. */
+  missingInputHistoryValid?: boolean
   answers: ContractGenerationAnswer[]
   expiresAt: string
   createdAt: string
   updatedAt: string
+}
+
+export type ResolvedMissingInput = {
+  requirement: MissingInput
+  answer: { value: string }
+}
+
+export type StoredMissingInputState = {
+  version: 1
+  pending: MissingInput[]
+  history: MissingInput[]
+}
+
+export function storeMissingInputState(pending: MissingInput[], history: MissingInput[]): StoredMissingInputState {
+  return { version: 1, pending, history }
+}
+
+/** Read the legacy array shape while preserving its definitions; reject malformed newer envelopes. */
+export function readMissingInputState(value: unknown): StoredMissingInputState | null {
+  if (Array.isArray(value)) {
+    if (!value.every((item) => isMissingInput(item))) return null
+    return { version: 1, pending: value, history: value }
+  }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const stored = value as Record<string, unknown>
+  if (Object.keys(stored).length !== 3 || stored.version !== 1
+    || !Array.isArray(stored.pending) || !stored.pending.every((item) => isMissingInput(item))
+    || !Array.isArray(stored.history) || !stored.history.every((item) => isMissingInput(item))) return null
+  const pending = stored.pending as MissingInput[]
+  const history = stored.history as MissingInput[]
+  if (new Set(history.map((item) => item.id)).size !== history.length
+    || new Set(pending.map((item) => item.id)).size !== pending.length) return null
+  const byId = new Map(history.map((item) => [item.id, item]))
+  if (!pending.every((item) => sameMissingInput(byId.get(item.id), item))) return null
+  return { version: 1, pending, history }
+}
+
+export function appendMissingInputHistory(
+  history: readonly MissingInput[],
+  emitted: readonly MissingInput[],
+): MissingInput[] | null {
+  const ids = new Set<string>()
+  for (const requirement of history) {
+    if (!isMissingInput(requirement) || ids.has(requirement.id)) return null
+    ids.add(requirement.id)
+  }
+  for (const requirement of emitted) {
+    if (!isMissingInput(requirement) || ids.has(requirement.id)) return null
+    ids.add(requirement.id)
+  }
+  return [...history, ...emitted]
+}
+
+export function resolveMissingInputAnswers(
+  history: readonly MissingInput[],
+  answers: readonly ContractGenerationAnswer[],
+): ResolvedMissingInput[] | null {
+  const requirements = new Map<string, MissingInput>()
+  for (const requirement of history) {
+    if (!isMissingInput(requirement) || requirements.has(requirement.id)) return null
+    requirements.set(requirement.id, requirement)
+  }
+  const seenAnswers = new Set<string>()
+  const resolved: ResolvedMissingInput[] = []
+  for (const answer of answers) {
+    if (!isAnswer(answer) || seenAnswers.has(answer.missingInputId)) return null
+    const requirement = requirements.get(answer.missingInputId)
+    if (!requirement || !answer.value.trim()) return null
+    seenAnswers.add(answer.missingInputId)
+    resolved.push({ requirement, answer: { value: answer.value } })
+  }
+  return resolved
+}
+
+function sameMissingInput(left: MissingInput | undefined, right: MissingInput): boolean {
+  return Boolean(left && left.id === right.id && left.label === right.label && left.answerKind === right.answerKind
+    && JSON.stringify(left.subject) === JSON.stringify(right.subject))
 }
 
 export type ContractGenerationSessionScope = Pick<
@@ -55,19 +136,30 @@ function isAnswer(value: unknown): value is ContractGenerationAnswer {
 export function isContractGenerationSession(value: unknown): value is ContractGenerationSession {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const session = value as Record<string, unknown>
-  const expectedKeys = ['id', 'ownerUserId', 'weddingId', 'templateId', 'templateVersionId', 'sourceSha256', 'state', 'missingInputs', 'answers', 'expiresAt', 'createdAt', 'updatedAt']
-  if (Object.keys(session).length !== expectedKeys.length || expectedKeys.some((key) => !Object.hasOwn(session, key))) return false
+  const expectedKeys = ['id', 'ownerUserId', 'weddingId', 'templateId', 'templateVersionId', 'sourceSha256', 'state', 'missingInputs', 'missingInputHistory', 'answers', 'expiresAt', 'createdAt', 'updatedAt']
+  const optionalKeys = ['missingInputHistoryValid']
+  if (Object.keys(session).length !== expectedKeys.length + (Object.hasOwn(session, 'missingInputHistoryValid') ? 1 : 0)
+    || expectedKeys.some((key) => !Object.hasOwn(session, key))
+    || Object.keys(session).some((key) => !expectedKeys.includes(key) && !optionalKeys.includes(key))) return false
+  if (Object.hasOwn(session, 'missingInputHistoryValid') && typeof session.missingInputHistoryValid !== 'boolean') return false
   if (!nonBlank(session.id) || !nonBlank(session.ownerUserId) || !nonBlank(session.weddingId)
     || !nonBlank(session.templateId) || !nonBlank(session.templateVersionId)
     || !(typeof session.sourceSha256 === 'string' && /^[a-f0-9]{64}$/.test(session.sourceSha256))
     || !isSessionState(session.state)
     || !Array.isArray(session.missingInputs) || !session.missingInputs.every((item) => isMissingInput(item))
+    || !Array.isArray(session.missingInputHistory) || !session.missingInputHistory.every((item) => isMissingInput(item))
+    || session.missingInputHistoryValid === false
     || !Array.isArray(session.answers) || !session.answers.every((answer) => isAnswer(answer) && Boolean(answer.value.trim()))
     || !nonBlank(session.expiresAt) || !nonBlank(session.createdAt) || !nonBlank(session.updatedAt)) return false
   const answerIds = (session.answers as ContractGenerationAnswer[]).map((answer) => answer.missingInputId)
   const missingIds = (session.missingInputs as MissingInput[]).map((item) => item.id)
+  const historyIds = (session.missingInputHistory as MissingInput[]).map((item) => item.id)
+  const historyById = new Map((session.missingInputHistory as MissingInput[]).map((item) => [item.id, item]))
   return new Set(answerIds).size === answerIds.length
     && new Set(missingIds).size === missingIds.length
+    && new Set(historyIds).size === historyIds.length
+    && (session.missingInputs as MissingInput[]).every((item) => sameMissingInput(historyById.get(item.id), item))
+    && resolveMissingInputAnswers(session.missingInputHistory as MissingInput[], session.answers as ContractGenerationAnswer[]) !== null
     && (session.state !== 'awaiting_input' || (session.missingInputs as MissingInput[]).length > 0)
 }
 

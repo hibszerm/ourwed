@@ -6,13 +6,12 @@ import { mergeFormAnswersIntoWeddingCore } from '@/lib/forms/mergeFormAnswersInt
 import { buildContractGenerationInput, type ContractGenerationInput } from '@/features/contract-generation-spike/contractGenerationInput.ts'
 import { applyOptionBGenerationResponse, createGenerationSourceView, readSource, validateOptionBInput, GENERATION_INSTRUCTIONS, GENERIC_CONTRACT_PRODUCT_RULES, CONFLICT_REVIEW_INSTRUCTIONS, REVIEW_INSTRUCTIONS } from '@/features/contract-generation-spike/generator.ts'
 import { isGenerationResponse, isReviewResponse, type ReviewResponse, type ContractGenerationAnswer } from '@/features/contract-generation-spike/generationProtocol.ts'
-import { createContractGenerationBoundary, parseContractGenerationAction, type ServerBoundaryContext } from '@/features/contract-generation-spike/serverBoundary.ts'
+import { createContractGenerationBoundary, parseContractGenerationAction, ProviderOperationError, type BoundaryDiagnostic, type ServerBoundaryContext } from '@/features/contract-generation-spike/serverBoundary.ts'
 import { isTravelFeeResolved } from '@/lib/utils/travelFeeCommercial.ts'
 import type { FormAnswerJson } from '@/types/formEngine'
 import type { PaymentMethod, PaymentType } from '@/types/wedding'
 import type { WeddingPlaceRole } from '@/types/travel'
-import type { ContractGenerationSession } from '@/features/contract-generation-spike/generationSession'
-import type { MissingInput } from '@/features/contract-generation-spike/generationProtocol'
+import { readMissingInputState, storeMissingInputState, type ContractGenerationSession, type ResolvedMissingInput } from '@/features/contract-generation-spike/generationSession.ts'
 
 type GenericRelationship = { foreignKeyName: string; columns: string[]; isOneToOne?: boolean; referencedRelation: string; referencedColumns: string[] }
 type GenericTable = { Row: Record<string, unknown>; Insert: Record<string, unknown>; Update: Record<string, unknown>; Relationships: GenericRelationship[] }
@@ -264,45 +263,53 @@ async function loadServerContext(
 }
 
 function mapSession(row: RunRow): ContractGenerationSession {
+  const missingInputState = readMissingInputState(row.missing_inputs_json)
   return {
     id: String(row.id), ownerUserId: String(row.owner_user_id), weddingId: String(row.wedding_id),
     templateId: String(row.template_id), templateVersionId: String(row.template_version_id),
     sourceSha256: String(row.source_sha256), state: row.session_state as ContractGenerationSession['state'],
-    missingInputs: Array.isArray(row.missing_inputs_json) ? row.missing_inputs_json as MissingInput[] : [],
+    missingInputs: missingInputState?.pending ?? [],
+    missingInputHistory: missingInputState?.history ?? [],
+    missingInputHistoryValid: missingInputState !== null,
     answers: Array.isArray(row.user_answers_json) ? row.user_answers_json as ContractGenerationSession['answers'] : [],
     expiresAt: String(row.expires_at), createdAt: String(row.created_at), updatedAt: String(row.updated_at),
   }
 }
 
 async function outputText(response: Response): Promise<string> {
-  const body = await response.json()
-  if (!response.ok) throw new Error('provider_call_failed')
+  if (!response.ok) throw new ProviderOperationError('provider_failure')
+  let body: DbRow
+  try { body = await response.json() as DbRow } catch { throw new ProviderOperationError('invalid_response') }
   if (typeof body.output_text === 'string' && body.output_text.trim()) return body.output_text
   const output = Array.isArray(body.output) ? body.output : []
   const text = output.flatMap((item: DbRow) => Array.isArray(item.content) ? item.content.flatMap((part: DbRow) => part.type === 'output_text' && typeof part.text === 'string' ? [part.text] : []) : []).join('')
-  if (!text.trim()) throw new Error('provider_output_empty')
+  if (!text.trim()) throw new ProviderOperationError('invalid_response')
   return text
 }
 
 async function callStructuredProvider(input: {
   system: string; user: unknown; schemaName: string; schema: unknown; model: string; apiKey: string; effort: string;
 }): Promise<unknown> {
-  const response = await fetch('https://api.openai.com/v1/responses', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${input.apiKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: input.model,
-      reasoning: { effort: input.effort },
-      max_output_tokens: 8192,
-      input: [
-        { role: 'system', content: input.system },
-        { role: 'user', content: JSON.stringify(input.user) },
-      ],
-      text: { format: { type: 'json_schema', name: input.schemaName, strict: true, schema: input.schema } },
-    }),
-    signal: AbortSignal.timeout(60_000),
-  })
-  return JSON.parse(await outputText(response))
+  let response: Response
+  try {
+    response = await fetch('https://api.openai.com/v1/responses', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${input.apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: input.model,
+        reasoning: { effort: input.effort },
+        max_output_tokens: 8192,
+        input: [
+          { role: 'system', content: input.system },
+          { role: 'user', content: JSON.stringify(input.user) },
+        ],
+        text: { format: { type: 'json_schema', name: input.schemaName, strict: true, schema: input.schema } },
+      }),
+      signal: AbortSignal.timeout(60_000),
+    })
+  } catch { throw new ProviderOperationError('provider_failure') }
+  const text = await outputText(response)
+  try { return JSON.parse(text) } catch { throw new ProviderOperationError('invalid_response') }
 }
 
 function getProviderConfig() {
@@ -322,30 +329,39 @@ function sourcePresentation(context: ServerBoundaryContext, fileName: string) {
 }
 
 function providerAdapters() {
-  async function generator(context: ServerBoundaryContext, answers: ContractGenerationAnswer[]) {
+  async function generator(context: ServerBoundaryContext, answers: ContractGenerationAnswer[], resolvedInputs: ResolvedMissingInput[]) {
     const authority = responseAuthority(context)
-    if (validateOptionBInput(authority).length) return { status: 'FAILED' as const }
+    if (validateOptionBInput(authority).length) return { status: 'FAILED' as const, category: 'input_validation_failure' as const }
     const source = await sourcePresentation(context, 'contract.docx')
     const view = createGenerationSourceView(source)
-    const config = getProviderConfig()
-    const rawResult = await callStructuredProvider({
-      system: GENERATION_INSTRUCTIONS,
-      user: { source: view.blocks, authorityContext: authority, accumulatedAnswers: answers, productRules: GENERIC_CONTRACT_PRODUCT_RULES },
-      schemaName: 'option_b_generation_response_v1', schema: GENERATION_SCHEMA,
-      model: config.generatorModel, apiKey: config.apiKey,
-      effort: Deno.env.get('OPENAI_CONTRACT_GENERATOR_REASONING')?.trim() || 'medium',
-    })
+    let config: ReturnType<typeof getProviderConfig>
+    try { config = getProviderConfig() } catch { return { status: 'FAILED' as const, category: 'provider_configuration_failure' as const } }
+    let rawResult: unknown
+    try {
+      rawResult = await callStructuredProvider({
+        system: GENERATION_INSTRUCTIONS,
+        user: { source: view.blocks, authorityContext: authority, resolvedMissingInputs: resolvedInputs, productRules: GENERIC_CONTRACT_PRODUCT_RULES },
+        schemaName: 'option_b_generation_response_v1', schema: GENERATION_SCHEMA,
+        model: config.generatorModel, apiKey: config.apiKey,
+        effort: Deno.env.get('OPENAI_CONTRACT_GENERATOR_REASONING')?.trim() || 'medium',
+      })
+    } catch (error) {
+      return { status: 'FAILED' as const, category: error instanceof ProviderOperationError ? error.category : 'provider_failure' as const }
+    }
     const result = normalizeGenerationEnvelope(rawResult)
-    if (!isGenerationResponse(result, new Set([...authority.parties.map((party) => party.sourceKey), ...authority.participantAssociations.map((association) => association.participant)]))) return { status: 'FAILED' as const }
-    const applied = await applyOptionBGenerationResponse(context.sourceBytes, source, authority, view.sourceBlockIds, result)
+    if (!isGenerationResponse(result, new Set([...authority.parties.map((party) => party.sourceKey), ...authority.participantAssociations.map((association) => association.participant)]))) return { status: 'FAILED' as const, category: 'invalid_response' as const }
+    let applied: Awaited<ReturnType<typeof applyOptionBGenerationResponse>>
+    try { applied = await applyOptionBGenerationResponse(context.sourceBytes, source, authority, view.sourceBlockIds, result) }
+    catch { return { status: 'FAILED' as const, category: 'mechanical_validation_failure' as const } }
     if (applied.status === 'MISSING_INPUT') return applied
     if (applied.status === 'CONFLICT_INPUT') return applied
-    if (applied.status !== 'READY') return { status: 'FAILED' as const }
+    if (applied.status !== 'READY') return { status: 'FAILED' as const, category: 'mechanical_validation_failure' as const }
     return { status: 'READY' as const, candidate: { bytes: applied.candidateBytes, changedBlocks: applied.changedBlocks } }
   }
 
   async function reviewResponse(context: ServerBoundaryContext, answers: ContractGenerationAnswer[], system: string, user: unknown): Promise<ReviewResponse> {
-    const config = getProviderConfig()
+    let config: ReturnType<typeof getProviderConfig>
+    try { config = getProviderConfig() } catch { throw new ProviderOperationError('provider_configuration_failure') }
     const rawResult = await callStructuredProvider({
       system, user: { ...(user as Record<string, unknown>), authorityContext: responseAuthority(context), accumulatedAnswers: answers, productRules: GENERIC_CONTRACT_PRODUCT_RULES },
       schemaName: 'option_b_review_response_v1', schema: REVIEW_SCHEMA,
@@ -353,7 +369,7 @@ function providerAdapters() {
       effort: Deno.env.get('OPENAI_CONTRACT_REVIEWER_REASONING')?.trim() || 'medium',
     })
     const result = normalizeReviewEnvelope(rawResult)
-    if (!isReviewResponse(result)) throw new Error('review_response_invalid')
+    if (!isReviewResponse(result)) throw new ProviderOperationError('invalid_response')
     return result
   }
 
@@ -397,7 +413,7 @@ function createBoundary(supabase: SupabaseClient, ownerId: string) {
       const { data, error } = await supabase.from('wedding_contract_generation_runs').insert({
         wedding_id: input.weddingId, template_id: input.scope.templateId, template_version_id: input.scope.templateVersionId,
         generation_status: 'processing', resolved_values_json: {}, owner_user_id: input.userId,
-        session_kind: 'option_b', session_state: 'processing', missing_inputs_json: [], user_answers_json: [],
+        session_kind: 'option_b', session_state: 'processing', missing_inputs_json: storeMissingInputState([], []), user_answers_json: [],
         source_sha256: input.sourceSha256, authority_fingerprint: input.authorityFingerprint,
         execution_id: input.executionId, idempotency_key: input.requestId,
       }).select('*').single()
@@ -421,16 +437,26 @@ function createBoundary(supabase: SupabaseClient, ownerId: string) {
       return data.authority_fingerprint
     },
     async claimContinuation(input) {
-      const { data, error } = await supabase.from('wedding_contract_generation_runs').update({
+      const changes: DbRow = {
         session_state: 'processing', generation_status: 'processing', execution_id: input.executionId,
-      }).eq('id', input.sessionId).eq('owner_user_id', input.userId).eq('session_kind', 'option_b').eq('session_state', 'awaiting_input').gt('expires_at', new Date().toISOString()).select('*').maybeSingle()
+        user_answers_json: input.answers,
+      }
+      if (input.missingInputHistoryValid) {
+        const current = await supabase.from('wedding_contract_generation_runs').select('missing_inputs_json').eq('id', input.sessionId)
+          .eq('owner_user_id', input.userId).eq('session_kind', 'option_b').eq('session_state', 'awaiting_input').gt('expires_at', new Date().toISOString()).maybeSingle()
+        if (current.error || !current.data) return null
+        const stored = readMissingInputState(current.data.missing_inputs_json)
+        if (!stored || JSON.stringify(stored.history) !== JSON.stringify(input.missingInputHistory)) return null
+        changes.missing_inputs_json = storeMissingInputState(stored.pending, input.missingInputHistory)
+      }
+      const { data, error } = await supabase.from('wedding_contract_generation_runs').update(changes).eq('id', input.sessionId).eq('owner_user_id', input.userId).eq('session_kind', 'option_b').eq('session_state', 'awaiting_input').gt('expires_at', new Date().toISOString()).select('*').maybeSingle()
       if (error || !data) return null
       return mapSession(data as RunRow)
     },
     async saveMissing(input) {
       const { data, error } = await supabase.from('wedding_contract_generation_runs').update({
         session_state: 'awaiting_input', generation_status: 'manual_input_required',
-        missing_inputs_json: input.missingInputs, user_answers_json: input.answers,
+        missing_inputs_json: storeMissingInputState(input.missingInputs, input.missingInputHistory), user_answers_json: input.answers,
         authority_fingerprint: input.authorityFingerprint,
       }).eq('id', input.sessionId).eq('execution_id', input.executionId).eq('session_state', 'processing').select('id').maybeSingle()
       return !error && Boolean(data)
@@ -455,6 +481,9 @@ function createBoundary(supabase: SupabaseClient, ownerId: string) {
       await supabase.from('wedding_contract_generation_runs').update({
         session_state: code === 'stale' ? 'abandoned' : 'failed', generation_status: 'failed',
       }).eq('id', sessionId).eq('execution_id', executionId).eq('session_kind', 'option_b').eq('session_state', 'processing')
+    },
+    diagnose(diagnostic: BoundaryDiagnostic) {
+      console.info(JSON.stringify({ event: 'contract_generation_diagnostic', ...diagnostic }))
     },
     ...provider,
   })

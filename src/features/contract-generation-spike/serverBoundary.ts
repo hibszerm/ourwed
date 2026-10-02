@@ -1,9 +1,12 @@
 import {
   acceptSessionAnswers,
   canResumeContractGenerationSession,
+  appendMissingInputHistory,
+  resolveMissingInputAnswers,
   sessionMatchesScope,
   type ContractGenerationSession,
   type ContractGenerationSessionScope,
+  type ResolvedMissingInput,
 } from './generationSession.ts'
 import type { ContractGenerationAnswer, MissingInput } from './generationProtocol.ts'
 
@@ -36,8 +39,33 @@ export type BoundaryCandidate = { bytes: ArrayBuffer; changedBlocks: unknown[] }
 export type BoundaryRunResult =
   | { status: 'MISSING_INPUT'; missingInputs: MissingInput[] }
   | { status: 'CONFLICT_INPUT'; conflicts: string[] }
-  | { status: 'FAILED' }
+  | { status: 'FAILED'; category?: 'provider_failure' | 'provider_configuration_failure' | 'invalid_response' | 'mechanical_validation_failure' | 'input_validation_failure' }
   | { status: 'READY'; candidate: BoundaryCandidate }
+
+export type BoundaryDiagnostic = {
+  action: 'start' | 'continue'
+  providerRole: 'Generator' | 'Conflict Verifier' | 'Reviewer' | 'orchestrator'
+  category: string
+  providerInvoked?: boolean
+  missingInputCount?: number
+  editCount?: number
+  conflictCount?: number
+  mechanicalValidation?: 'passed' | 'failed' | 'not_reached'
+  finalCode?: 'generation_safety' | 'temporary_failure' | 'stale'
+}
+
+export class ProviderOperationError extends Error {
+  readonly category: 'provider_failure' | 'provider_configuration_failure' | 'invalid_response'
+  constructor(category: 'provider_failure' | 'provider_configuration_failure' | 'invalid_response') {
+    super(category)
+    this.name = 'ProviderOperationError'
+    this.category = category
+  }
+}
+
+function providerInvoked(error: unknown): boolean {
+  return !(error instanceof ProviderOperationError && error.category === 'provider_configuration_failure')
+}
 
 export type ServerBoundaryContext = {
   scope: ContractGenerationSessionScope
@@ -63,13 +91,14 @@ export type ServerBoundaryDependencies = {
   getSession: (sessionId: string) => Promise<ContractGenerationSession | null>
   getSessionByIdempotencyKey: (userId: string, requestId: string) => Promise<ContractGenerationSession | null>
   getAuthorityFingerprint: (userId: string, sessionId: string) => Promise<string | null>
-  claimContinuation: (input: { sessionId: string; userId: string; executionId: string }) => Promise<ContractGenerationSession | null>
-  saveMissing: (input: { sessionId: string; executionId: string; missingInputs: MissingInput[]; answers: ContractGenerationAnswer[]; authorityFingerprint: string }) => Promise<boolean>
+  claimContinuation: (input: { sessionId: string; userId: string; executionId: string; answers: ContractGenerationAnswer[]; missingInputHistory: MissingInput[]; missingInputHistoryValid: boolean }) => Promise<ContractGenerationSession | null>
+  saveMissing: (input: { sessionId: string; executionId: string; missingInputs: MissingInput[]; missingInputHistory: MissingInput[]; answers: ContractGenerationAnswer[]; authorityFingerprint: string }) => Promise<boolean>
   persistAcceptedCandidate: (input: { sessionId: string; executionId: string; candidate: BoundaryCandidate; authorityFingerprint: string }) => Promise<string | null>
   markFailure: (sessionId: string, executionId: string, code: 'failed' | 'stale') => Promise<void>
-  generate: (context: ServerBoundaryContext, answers: ContractGenerationAnswer[]) => Promise<BoundaryRunResult>
+  generate: (context: ServerBoundaryContext, answers: ContractGenerationAnswer[], resolvedInputs: ResolvedMissingInput[]) => Promise<BoundaryRunResult>
   verifyConflict: (context: ServerBoundaryContext, answers: ContractGenerationAnswer[], conflicts: string[]) => Promise<'confirmed' | 'rejected'>
   review: (context: ServerBoundaryContext, answers: ContractGenerationAnswer[], candidate: BoundaryCandidate) => Promise<'pass' | 'fail'>
+  diagnose?: (diagnostic: BoundaryDiagnostic) => void
   newId: () => string
 }
 
@@ -121,11 +150,30 @@ export function createContractGenerationBoundary(deps: ServerBoundaryDependencie
     context: ServerBoundaryContext,
     answers: ContractGenerationAnswer[],
     executionId: string,
+    action: 'start' | 'continue',
+    resolvedInputs: ResolvedMissingInput[],
   ): Promise<ContractGenerationBoundaryResponse> {
+    const diagnose = (diagnostic: Omit<BoundaryDiagnostic, 'action'>) => {
+      try { deps.diagnose?.({ action, ...diagnostic }) } catch { /* diagnostics must not affect generation */ }
+    }
     try {
-      const generated = await deps.generate(context, answers)
+      const generated = await deps.generate(context, answers, resolvedInputs)
       if (generated.status === 'MISSING_INPUT') {
+        diagnose({ providerRole: 'Generator', category: 'MISSING_INPUT', providerInvoked: true, missingInputCount: generated.missingInputs.length, mechanicalValidation: 'not_reached' })
         if (!generated.missingInputs.length || new Set(generated.missingInputs.map((item) => item.id)).size !== generated.missingInputs.length) {
+          diagnose({ providerRole: 'orchestrator', category: 'invalid_missing_input_set', finalCode: 'generation_safety' })
+          await deps.markFailure(session.id, executionId, 'failed')
+          return { status: 'failure', code: 'generation_safety' }
+        }
+        const answeredIds = new Set(answers.map((answer) => answer.missingInputId))
+        if (generated.missingInputs.some((item) => answeredIds.has(item.id))) {
+          diagnose({ providerRole: 'orchestrator', category: 'answered_requirement_reasked', finalCode: 'generation_safety' })
+          await deps.markFailure(session.id, executionId, 'failed')
+          return { status: 'failure', code: 'generation_safety' }
+        }
+        const history = appendMissingInputHistory(session.missingInputHistory, generated.missingInputs)
+        if (!history) {
+          diagnose({ providerRole: 'orchestrator', category: 'duplicate_requirement_definition', finalCode: 'generation_safety' })
           await deps.markFailure(session.id, executionId, 'failed')
           return { status: 'failure', code: 'generation_safety' }
         }
@@ -133,36 +181,63 @@ export function createContractGenerationBoundary(deps: ServerBoundaryDependencie
           sessionId: session.id,
           executionId,
           missingInputs: generated.missingInputs,
+          missingInputHistory: history,
           answers,
           authorityFingerprint: context.authorityFingerprint,
         })
-        if (!saved) await deps.markFailure(session.id, executionId, 'failed')
+        if (!saved) {
+          diagnose({ providerRole: 'orchestrator', category: 'missing_input_persistence_failure', finalCode: 'temporary_failure' })
+          await deps.markFailure(session.id, executionId, 'failed')
+        }
         return saved
           ? { status: 'awaiting_input', sessionId: session.id, missingInputs: generated.missingInputs }
           : { status: 'failure', code: 'temporary_failure' }
       }
+      if (generated.status === 'CONFLICT_INPUT') diagnose({ providerRole: 'Generator', category: 'CONFLICT_INPUT', providerInvoked: true, conflictCount: generated.conflicts.length, mechanicalValidation: 'not_reached' })
+      if (generated.status === 'READY') diagnose({ providerRole: 'Generator', category: 'READY', providerInvoked: true, editCount: generated.candidate.changedBlocks.length, mechanicalValidation: 'passed' })
+      if (generated.status === 'FAILED') {
+        const category = generated.category ?? 'invalid_response'
+        const failureCode = category === 'provider_failure' || category === 'provider_configuration_failure' ? 'temporary_failure' : 'generation_safety'
+        diagnose({ providerRole: 'Generator', category: category.toUpperCase(), providerInvoked: category !== 'input_validation_failure' && category !== 'provider_configuration_failure', mechanicalValidation: category === 'mechanical_validation_failure' ? 'failed' : 'not_reached', finalCode: failureCode })
+        await deps.markFailure(session.id, executionId, 'failed')
+        return { status: 'failure', code: failureCode }
+      }
       if (generated.status === 'CONFLICT_INPUT') {
-        const verification = await deps.verifyConflict(context, answers, generated.conflicts)
+        let verification: 'confirmed' | 'rejected'
+        try {
+          verification = await deps.verifyConflict(context, answers, generated.conflicts)
+          diagnose({ providerRole: 'Conflict Verifier', category: verification === 'confirmed' ? 'PASS' : 'FAIL', providerInvoked: true, conflictCount: generated.conflicts.length })
+        } catch (error) {
+          diagnose({ providerRole: 'Conflict Verifier', category: error instanceof ProviderOperationError ? error.category.toUpperCase() : 'INTERNAL_FAILURE', providerInvoked: providerInvoked(error), conflictCount: generated.conflicts.length, finalCode: 'temporary_failure' })
+          await deps.markFailure(session.id, executionId, 'failed')
+          return { status: 'failure', code: 'temporary_failure' }
+        }
         await deps.markFailure(session.id, executionId, 'failed')
         return verification === 'confirmed'
           ? { status: 'unresolved_conflict', sessionId: session.id, message: 'The contract contains an unresolved conflict. Review the source details before generating again.' }
           : { status: 'failure', code: 'generation_safety' }
       }
-      if (generated.status === 'FAILED') {
-        await deps.markFailure(session.id, executionId, 'failed')
-        return { status: 'failure', code: 'generation_safety' }
-      }
-
       // The current state is reloaded after Generator execution. Never accept a
       // candidate if any relevant authority or the source has changed.
       const latest = await deps.loadContext(session.ownerUserId, session.weddingId, answers)
       if (!latest || !sessionMatchesScope(session, latest.scope)
         || latest.sourceSha256 !== session.sourceSha256
         || latest.authorityFingerprint !== context.authorityFingerprint) {
+        diagnose({ providerRole: 'orchestrator', category: 'authority_changed', finalCode: 'stale' })
         await deps.markFailure(session.id, executionId, 'stale')
         return { status: 'stale', code: 'authority_changed' }
       }
-      if (await deps.review(latest, answers, generated.candidate) !== 'pass') {
+      let review: 'pass' | 'fail'
+      try {
+        review = await deps.review(latest, answers, generated.candidate)
+        diagnose({ providerRole: 'Reviewer', category: review === 'pass' ? 'PASS' : 'FAIL', providerInvoked: true, editCount: generated.candidate.changedBlocks.length, mechanicalValidation: 'passed' })
+      } catch (error) {
+        diagnose({ providerRole: 'Reviewer', category: error instanceof ProviderOperationError ? error.category.toUpperCase() : 'INTERNAL_FAILURE', providerInvoked: providerInvoked(error), editCount: generated.candidate.changedBlocks.length, mechanicalValidation: 'passed', finalCode: 'temporary_failure' })
+        await deps.markFailure(session.id, executionId, 'failed')
+        return { status: 'failure', code: 'temporary_failure' }
+      }
+      if (review !== 'pass') {
+        diagnose({ providerRole: 'orchestrator', category: 'reviewer_rejected', editCount: generated.candidate.changedBlocks.length, mechanicalValidation: 'passed', finalCode: 'generation_safety' })
         await deps.markFailure(session.id, executionId, 'failed')
         return { status: 'failure', code: 'generation_safety' }
       }
@@ -170,6 +245,7 @@ export function createContractGenerationBoundary(deps: ServerBoundaryDependencie
       if (!beforePersist || !sessionMatchesScope(session, beforePersist.scope)
         || beforePersist.sourceSha256 !== session.sourceSha256
         || beforePersist.authorityFingerprint !== context.authorityFingerprint) {
+        diagnose({ providerRole: 'orchestrator', category: 'authority_changed_before_persist', finalCode: 'stale' })
         await deps.markFailure(session.id, executionId, 'stale')
         return { status: 'stale', code: 'authority_changed' }
       }
@@ -180,10 +256,12 @@ export function createContractGenerationBoundary(deps: ServerBoundaryDependencie
         authorityFingerprint: context.authorityFingerprint,
       })
       if (!candidateId) await deps.markFailure(session.id, executionId, 'failed')
+      diagnose({ providerRole: 'orchestrator', category: candidateId ? 'candidate_persisted' : 'candidate_persistence_failure', editCount: generated.candidate.changedBlocks.length, mechanicalValidation: 'passed', finalCode: candidateId ? undefined : 'temporary_failure' })
       return candidateId
         ? { status: 'ready', sessionId: session.id, candidateId, templateId: session.templateId, templateVersionId: session.templateVersionId }
         : { status: 'failure', code: 'temporary_failure' }
-    } catch {
+    } catch (error) {
+      diagnose({ providerRole: 'orchestrator', category: error instanceof ProviderOperationError ? error.category.toUpperCase() : 'INTERNAL_FAILURE', finalCode: 'temporary_failure' })
       await deps.markFailure(session.id, executionId, 'failed').catch(() => undefined)
       return { status: 'failure', code: 'temporary_failure' }
     }
@@ -214,7 +292,7 @@ export function createContractGenerationBoundary(deps: ServerBoundaryDependencie
           ? existingStartResult(replay, userId, request.weddingId.trim(), context.scope, now())
           : { status: 'stale', code: 'session_invalid' }
       }
-      return execute(session, context, [], executionId)
+      return execute(session, context, [], executionId, 'start', [])
     },
 
     async continue(userId: string, request: unknown): Promise<ContractGenerationBoundaryResponse> {
@@ -225,8 +303,19 @@ export function createContractGenerationBoundary(deps: ServerBoundaryDependencie
       const accepted = acceptSessionAnswers(current, request.answers, now())
       if (!accepted.ok) return { status: 'stale', code: 'session_invalid' }
       const executionId = deps.newId()
-      const session = await deps.claimContinuation({ sessionId: request.sessionId, userId, executionId })
+      const session = await deps.claimContinuation({
+        sessionId: request.sessionId, userId, executionId, answers: accepted.answers,
+        missingInputHistory: current.missingInputHistory, missingInputHistoryValid: current.missingInputHistoryValid !== false,
+      })
       if (!session) return { status: 'stale', code: 'session_invalid' }
+      const resolvedInputs = session.missingInputHistoryValid === false
+        ? null
+        : resolveMissingInputAnswers(session.missingInputHistory, session.answers)
+      if (!resolvedInputs) {
+        try { deps.diagnose?.({ action: 'continue', providerRole: 'orchestrator', category: 'missing_requirement_history_invalid', finalCode: 'generation_safety' }) } catch { /* diagnostics are best effort */ }
+        await deps.markFailure(session.id, executionId, 'failed')
+        return { status: 'failure', code: 'generation_safety' }
+      }
       let context: ServerBoundaryContext | null
       try {
         context = await deps.loadContext(userId, current.weddingId, accepted.answers)
@@ -239,7 +328,7 @@ export function createContractGenerationBoundary(deps: ServerBoundaryDependencie
         await deps.markFailure(current.id, executionId, 'stale')
         return { status: 'stale', code: 'session_invalid' }
       }
-      return execute(session, context, accepted.answers, executionId)
+      return execute(session, context, accepted.answers, executionId, 'continue', resolvedInputs)
     },
 
     async recover(userId: string, request: unknown): Promise<ContractGenerationBoundaryResponse> {

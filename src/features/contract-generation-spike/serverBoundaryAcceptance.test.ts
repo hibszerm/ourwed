@@ -8,7 +8,8 @@ const startRequest = { weddingId: 'wedding-1', requestId: '00000000-0000-4000-80
 const baseSession: ContractGenerationSession = {
   id: 'session-1', ownerUserId: 'owner-1', weddingId: 'wedding-1', templateId: 'template-1',
   templateVersionId: 'version-1', sourceSha256: 'a'.repeat(64), state: 'awaiting_input',
-  missingInputs: [{ id: 'opaque-1', label: 'Client name', answerKind: 'text' }], answers: [],
+  missingInputs: [{ id: 'opaque-1', label: 'Client name', answerKind: 'text' }],
+  missingInputHistory: [{ id: 'opaque-1', label: 'Client name', answerKind: 'text' }], answers: [],
   expiresAt: future, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
 }
 
@@ -31,23 +32,23 @@ function setup(overrides: Partial<ServerBoundaryDependencies> = {}) {
     loadContext: async (userId, weddingId) => context(userId, weddingId),
     createSession: async (input) => {
       calls.push('createSession')
-      session = { ...baseSession, id: 'session-1', ownerUserId: input.userId, weddingId: input.weddingId, state: 'processing', missingInputs: [], answers: [], sourceSha256: input.sourceSha256 }
+      session = { ...baseSession, id: 'session-1', ownerUserId: input.userId, weddingId: input.weddingId, state: 'processing', missingInputs: [], missingInputHistory: [], answers: [], sourceSha256: input.sourceSha256 }
       return session
     },
     getSession: async () => session ?? baseSession,
     getSessionByIdempotencyKey: async () => null,
     getAuthorityFingerprint: async () => fingerprint,
-    claimContinuation: async ({ userId }) => {
+    claimContinuation: async ({ userId, answers, missingInputHistory, missingInputHistoryValid }) => {
       if (claimed) return null
       claimed = true
       if (!session || session.ownerUserId !== userId || session.state !== 'awaiting_input') return null
-      session = { ...session, state: 'processing' }
+      session = { ...session, state: 'processing', answers, missingInputHistory, missingInputHistoryValid }
       calls.push('claim')
       return session
     },
-    saveMissing: async ({ missingInputs, answers }) => {
+    saveMissing: async ({ missingInputs, missingInputHistory, answers }) => {
       calls.push('saveMissing')
-      if (session) session = { ...session, state: 'awaiting_input', missingInputs, answers }
+      if (session) session = { ...session, state: 'awaiting_input', missingInputs, missingInputHistory, answers }
       return true
     },
     persistAcceptedCandidate: async () => { calls.push('persist'); if (session) session = { ...session, state: 'completed' }; return 'candidate-1' },
@@ -63,7 +64,6 @@ function setup(overrides: Partial<ServerBoundaryDependencies> = {}) {
     setGeneration(value: typeof generation) { generation = value },
     setFingerprint(value: string) { fingerprint = value },
     session: () => session,
-    calls,
   }
 }
 
@@ -262,7 +262,7 @@ assert.match(edge, /authority_fingerprint: input\.authorityFingerprint/)
 assert.match(edge, /session_state: 'abandoned', generation_status: 'failed'[\s\S]*?\.lte\('expires_at'/, 'expired processing or resumable sessions release the active slot before a new run')
 assert.match(edge, /storage\.from\('document-files'\)\.remove\(\[path\]\)/, 'failed DB persistence cleans up its reviewed candidate upload')
 assert.match(edge, /applyOptionBGenerationResponse\(context\.sourceBytes/)
-assert.match(edge, /const applied = await applyOptionBGenerationResponse[\s\S]*?if \(applied\.status !== 'READY'\)/, 'mechanics pass before a candidate reaches Reviewer')
+assert.match(edge, /let applied:[\s\S]*?applied = await applyOptionBGenerationResponse[\s\S]*?if \(applied\.status !== 'READY'\)/, 'mechanics pass before a candidate reaches Reviewer')
 assert.match(edge, /candidate: \{ bytes: applied\.candidateBytes, changedBlocks: applied\.changedBlocks \}/)
 assert.match(edge, /execution_id: input\.executionId, idempotency_key: input\.requestId/)
 assert.match(edge, /session_state', 'awaiting_input'[\s\S]*?select\('\*'\)/, 'continuation claim uses an atomic awaiting-input compare-and-set')
