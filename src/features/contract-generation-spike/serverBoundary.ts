@@ -8,7 +8,7 @@ import {
   type ContractGenerationSessionScope,
   type ResolvedMissingInput,
 } from './generationSession.ts'
-import { REVIEWER_FINDING_CATEGORIES, type ContractGenerationAnswer, type MissingInput, type ReviewerFindingCategory } from './generationProtocol.ts'
+import { REVIEWER_FINDING_CATEGORIES, REVIEWER_FINDING_RULE_IDS, type ContractGenerationAnswer, type MissingInput, type ReviewerFindingCategory, type ReviewerFindingRuleId } from './generationProtocol.ts'
 
 export type ContractGenerationStartRequest = { weddingId: string; requestId: string }
 export type ContractGenerationContinueRequest = {
@@ -61,6 +61,7 @@ export type BoundaryDiagnostic = {
   conflictCount?: number
   findingCount?: number
   findingCategories?: ReviewerFindingCategory[]
+  findingRuleIds?: ReviewerFindingRuleId[]
   mechanicalValidation?: 'passed' | 'failed' | 'not_reached'
   finalCode?: 'generation_safety' | 'temporary_failure' | 'stale'
 }
@@ -69,15 +70,23 @@ export type BoundaryReviewerResult = 'pass' | 'fail' | {
   status: 'fail'
   findingCount: number
   findingCategories: ReviewerFindingCategory[]
+  findingRuleIds: ReviewerFindingRuleId[]
 }
 
 const reviewerFindingCategorySet = new Set<string>(REVIEWER_FINDING_CATEGORIES)
+const reviewerFindingRuleIdSet = new Set<string>(REVIEWER_FINDING_RULE_IDS)
 
-function safeReviewerSummary(result: BoundaryReviewerResult): Pick<BoundaryDiagnostic, 'findingCount' | 'findingCategories'> {
+function safeReviewerSummary(result: BoundaryReviewerResult): Pick<BoundaryDiagnostic, 'findingCount' | 'findingCategories' | 'findingRuleIds'> {
   if (typeof result === 'string' || result.status !== 'fail') return {}
   const categories = [...new Set(result.findingCategories.filter((category) => reviewerFindingCategorySet.has(category)))].sort()
-  if (!Number.isInteger(result.findingCount) || result.findingCount < 1 || categories.length === 0) return {}
-  return { findingCount: result.findingCount, findingCategories: categories }
+  if (!Number.isInteger(result.findingCount) || result.findingCount < 1 || categories.length === 0
+    || result.findingRuleIds.length !== result.findingCount
+    || !result.findingRuleIds.every((ruleId) => reviewerFindingRuleIdSet.has(ruleId))) return {}
+  return {
+    findingCount: result.findingCount,
+    findingCategories: categories,
+    findingRuleIds: [...result.findingRuleIds].sort(),
+  }
 }
 
 export class ProviderOperationError extends Error {

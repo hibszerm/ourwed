@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { isCandidateReviewResponse, isGenerationResponse, isReviewResponse, safeReviewerFindingSummary, type CandidateReviewResponse, type MissingInput } from './generationProtocol'
+import { isCandidateReviewResponse, isGenerationResponse, isReviewResponse, REVIEWER_FINDING_RULE_IDS, safeReviewerFindingSummary, type CandidateReviewResponse, type MissingInput } from './generationProtocol'
 
 const replace = { kind: 'replace', blockId: 'word/document.xml#p2', text: 'Updated paragraph.' }
 const insert = { kind: 'insert_after', blockId: 'word/document.xml#p3', text: 'Additional service paragraph.' }
@@ -47,16 +47,31 @@ assert.equal(isReviewResponse({ status: 'FAIL', findings: ['   '] }), false, 'FA
 assert.equal(isCandidateReviewResponse({ status: 'PASS' }), true, 'candidate Reviewer PASS remains minimal')
 assert.equal(isCandidateReviewResponse({ status: 'PASS', findings: [] }), false, 'candidate Reviewer PASS has no finding field')
 const privateMessage = 'sensitive generated/source detail must never enter safe telemetry'
+const privateSource = 'SYNTHETIC_PRIVATE_SOURCE'
+const privateCandidate = 'SYNTHETIC_PRIVATE_CANDIDATE'
+const privateAnswer = 'SYNTHETIC_PRIVATE_ANSWER'
 const candidateFail = { status: 'FAIL', findings: [
-  { category: 'unsupported_addition', message: privateMessage },
-  { category: 'authoritative_fact_mismatch', message: 'another private detail' },
-  { category: 'unsupported_addition', message: 'duplicate category' },
+  { category: 'unsupported_addition', ruleId: 'unsupported_invention', message: `${privateMessage} ${privateSource}` },
+  { category: 'authoritative_fact_mismatch', ruleId: 'payment_amounts', message: `${privateCandidate} ${privateAnswer}` },
+  { category: 'unsupported_addition', ruleId: 'unsupported_invention', message: 'duplicate category' },
 ] }
-assert.equal(isCandidateReviewResponse(candidateFail), true, 'candidate FAIL requires structured allowed categories and messages')
-assert.equal(isCandidateReviewResponse({ status: 'FAIL', findings: [{ category: 'private_field_name', message: 'not allowed' }] }), false, 'unrecognized finding categories are rejected')
+assert.equal(isCandidateReviewResponse(candidateFail), true, 'candidate FAIL requires structured allowed categories, rule IDs, and messages')
+assert.equal(isCandidateReviewResponse({ status: 'FAIL', findings: [{ category: 'unsupported_addition', ruleId: 'unsupported_invention', message: 'safe test' }] }), true, 'known rule IDs are accepted')
+assert.equal(isCandidateReviewResponse({ status: 'FAIL', findings: [{ category: 'unsupported_addition', ruleId: 'private_field_name', message: 'not allowed' }] }), false, 'unknown rule IDs are rejected')
+assert.equal(isCandidateReviewResponse({ status: 'FAIL', findings: [{ category: 'unsupported_addition', ruleId: privateMessage, message: 'not allowed' }] }), false, 'arbitrary free text is rejected as a rule ID')
+assert.equal(isCandidateReviewResponse({ status: 'FAIL', findings: [{ category: 'private_field_name', ruleId: 'unsupported_invention', message: 'not allowed' }] }), false, 'unrecognized finding categories are rejected')
+assert.equal(isCandidateReviewResponse({ status: 'FAIL', findings: [{ category: 'unsupported_addition', ruleId: 'unsupported_invention', message: 'safe test', extra: privateAnswer }] }), false, 'unexpected private fields are rejected')
+assert.ok(REVIEWER_FINDING_RULE_IDS.includes('contract_total'), 'closed taxonomy includes authoritative total family')
 const safeSummary = safeReviewerFindingSummary(candidateFail as CandidateReviewResponse)
-assert.deepEqual(safeSummary, { findingCount: 3, findingCategories: ['authoritative_fact_mismatch', 'unsupported_addition'] })
+assert.deepEqual(safeSummary, {
+  findingCount: 3,
+  findingCategories: ['authoritative_fact_mismatch', 'unsupported_addition'],
+  findingRuleIds: ['payment_amounts', 'unsupported_invention', 'unsupported_invention'],
+})
 assert.equal(JSON.stringify(safeSummary).includes(privateMessage), false, 'safe projection excludes free-text finding messages')
+for (const privateValue of [privateSource, privateCandidate, privateAnswer]) {
+  assert.equal(JSON.stringify(safeSummary).includes(privateValue), false, `safe projection excludes ${privateValue}`)
+}
 assert.equal(safeReviewerFindingSummary({ status: 'PASS' }), null, 'PASS produces no finding metadata')
 
 // Protocol-shape guard: a whole-block handle and replacement text are the only edit coordinates.

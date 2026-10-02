@@ -5,7 +5,7 @@ import { mapWeddingRowToModel, type WeddingRow } from '@/lib/api/weddings/weddin
 import { mergeFormAnswersIntoWeddingCore } from '@/lib/forms/mergeFormAnswersIntoWeddingCore.ts'
 import { buildContractGenerationInput, type ContractGenerationInput } from '@/features/contract-generation-spike/contractGenerationInput.ts'
 import { applyOptionBGenerationResponse, createGenerationSourceView, readSource, validateOptionBInput, GENERATION_INSTRUCTIONS, GENERIC_CONTRACT_PRODUCT_RULES, CONFLICT_REVIEW_INSTRUCTIONS, REVIEW_INSTRUCTIONS } from '@/features/contract-generation-spike/generator.ts'
-import { isCandidateReviewResponse, isGenerationResponse, isReviewResponse, REVIEWER_FINDING_CATEGORIES, safeReviewerFindingSummary, type CandidateReviewResponse, type ReviewResponse, type ContractGenerationAnswer } from '@/features/contract-generation-spike/generationProtocol.ts'
+import { isCandidateReviewResponse, isGenerationResponse, isReviewResponse, REVIEWER_FINDING_CATEGORIES, REVIEWER_FINDING_RULE_IDS, safeReviewerFindingSummary, type CandidateReviewResponse, type ReviewResponse, type ContractGenerationAnswer } from '@/features/contract-generation-spike/generationProtocol.ts'
 import { createContractGenerationBoundary, parseContractGenerationAction, ProviderOperationError, type BoundaryDiagnostic, type BoundaryReviewerResult, type ServerBoundaryContext } from '@/features/contract-generation-spike/serverBoundary.ts'
 import { isTravelFeeResolved } from '@/lib/utils/travelFeeCommercial.ts'
 import type { FormAnswerJson } from '@/types/formEngine'
@@ -57,7 +57,7 @@ const CANDIDATE_REVIEW_SCHEMA = {
   type: 'object', additionalProperties: false, required: ['status', 'findings'],
   properties: {
     status: { enum: ['PASS', 'FAIL'] },
-    findings: { anyOf: [{ type: 'array', minItems: 1, items: { type: 'object', additionalProperties: false, required: ['category', 'message'], properties: { category: { enum: [...REVIEWER_FINDING_CATEGORIES] }, message: { type: 'string', minLength: 1 } } } }, { type: 'null' }] },
+    findings: { anyOf: [{ type: 'array', minItems: 1, items: { type: 'object', additionalProperties: false, required: ['category', 'ruleId', 'message'], properties: { category: { enum: [...REVIEWER_FINDING_CATEGORIES] }, ruleId: { enum: [...REVIEWER_FINDING_RULE_IDS] }, message: { type: 'string', minLength: 1 } } } }, { type: 'null' }] },
   },
 }
 
@@ -593,7 +593,7 @@ function providerAdapters() {
       })
       if (result.status === 'PASS') return 'pass'
       const summary = safeReviewerFindingSummary(result)
-      return summary ? { status: 'fail', ...summary } : { status: 'fail', findingCount: 0, findingCategories: [] }
+      return summary ? { status: 'fail', ...summary } : { status: 'fail', findingCount: 0, findingCategories: [], findingRuleIds: [] }
     },
   }
 }

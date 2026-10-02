@@ -47,8 +47,23 @@ export const REVIEWER_FINDING_CATEGORIES = [
   'other_material_issue',
 ] as const
 
+/** Closed, content-free identifiers for existing generic Reviewer rule families. */
+export const REVIEWER_FINDING_RULE_IDS = [
+  'contract_total',
+  'travel',
+  'extras',
+  'source_scope',
+  'payment_amounts',
+  'payment_timing',
+  'crm_enrichment',
+  'transaction_facts',
+  'unsupported_invention',
+  'source_preservation',
+] as const
+
 export type ReviewerFindingCategory = typeof REVIEWER_FINDING_CATEGORIES[number]
-export type CandidateReviewerFinding = { category: ReviewerFindingCategory; message: string }
+export type ReviewerFindingRuleId = typeof REVIEWER_FINDING_RULE_IDS[number]
+export type CandidateReviewerFinding = { category: ReviewerFindingCategory; ruleId: ReviewerFindingRuleId; message: string }
 export type CandidateReviewResponse =
   | { status: 'PASS' }
   | { status: 'FAIL'; findings: CandidateReviewerFinding[] }
@@ -56,6 +71,7 @@ export type CandidateReviewResponse =
 export type SafeReviewerFindingSummary = {
   findingCount: number
   findingCategories: ReviewerFindingCategory[]
+  findingRuleIds: ReviewerFindingRuleId[]
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -143,9 +159,11 @@ export function isCandidateReviewResponse(value: unknown): value is CandidateRev
   if (value.status !== 'FAIL' || !hasExactKeys(value, ['status', 'findings'])
     || !Array.isArray(value.findings) || value.findings.length === 0) return false
   const allowed = new Set<string>(REVIEWER_FINDING_CATEGORIES)
+  const allowedRuleIds = new Set<string>(REVIEWER_FINDING_RULE_IDS)
   return value.findings.every((finding) => isRecord(finding)
-    && hasExactKeys(finding, ['category', 'message'])
+    && hasExactKeys(finding, ['category', 'ruleId', 'message'])
     && typeof finding.category === 'string' && allowed.has(finding.category)
+    && typeof finding.ruleId === 'string' && allowedRuleIds.has(finding.ruleId)
     && isNonEmptyString(finding.message))
 }
 
@@ -153,5 +171,6 @@ export function isCandidateReviewResponse(value: unknown): value is CandidateRev
 export function safeReviewerFindingSummary(response: CandidateReviewResponse): SafeReviewerFindingSummary | null {
   if (response.status === 'PASS') return null
   const categories = [...new Set(response.findings.map(({ category }) => category))].sort()
-  return { findingCount: response.findings.length, findingCategories: categories }
+  const ruleIds = response.findings.map(({ ruleId }) => ruleId).sort()
+  return { findingCount: response.findings.length, findingCategories: categories, findingRuleIds: ruleIds }
 }

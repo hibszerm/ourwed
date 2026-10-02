@@ -185,14 +185,19 @@ assert.equal(parseContractGenerationAction({ version: 1, action: 'recover', requ
     generate: async () => { f.calls.push('generate'); return { status: 'READY', candidate: { bytes: new ArrayBuffer(2), changedBlocks: [] } } },
     review: async () => {
       f.calls.push('review')
-      return { status: 'fail', findingCount: 2, findingCategories: ['unsupported_addition', 'authoritative_fact_mismatch', 'unsupported_addition'] }
+      return {
+        status: 'fail',
+        findingCount: 2,
+        findingCategories: ['unsupported_addition', 'authoritative_fact_mismatch', 'unsupported_addition'],
+        findingRuleIds: ['unsupported_invention', 'payment_amounts'],
+      }
     },
   })
   const result = await f.boundary.start('owner-1', startRequest)
   const reviewer = f.diagnostics.find(({ providerRole }) => providerRole === 'Reviewer')
   assert.equal(result.status, 'failure')
-  assert.deepEqual(reviewer && { category: reviewer.category, findingCount: reviewer.findingCount, findingCategories: reviewer.findingCategories }, {
-    category: 'FAIL', findingCount: 2, findingCategories: ['authoritative_fact_mismatch', 'unsupported_addition'],
+  assert.deepEqual(reviewer && { category: reviewer.category, findingCount: reviewer.findingCount, findingCategories: reviewer.findingCategories, findingRuleIds: reviewer.findingRuleIds }, {
+    category: 'FAIL', findingCount: 2, findingCategories: ['authoritative_fact_mismatch', 'unsupported_addition'], findingRuleIds: ['payment_amounts', 'unsupported_invention'],
   })
   assert.deepEqual(f.calls, ['createSession', 'generate', 'review', 'failure:failed'], 'semantic FAIL has no retry, repair, or persistence')
   assert.equal(JSON.stringify(f.diagnostics).includes('private-message'), false)
@@ -222,6 +227,7 @@ for (const [errorCategory, diagnosticCategory] of [
   assert.equal(reviewer?.category, 'PASS')
   assert.equal(reviewer?.findingCount, undefined)
   assert.equal(reviewer?.findingCategories, undefined)
+  assert.equal(reviewer?.findingRuleIds, undefined)
 }
 
 {
