@@ -36,6 +36,28 @@ export type ReviewResponse =
   | { status: 'PASS' }
   | { status: 'FAIL'; findings: string[] }
 
+/** Content-free categories for the independent candidate Reviewer. */
+export const REVIEWER_FINDING_CATEGORIES = [
+  'source_mismatch',
+  'omitted_required_content',
+  'unsupported_addition',
+  'authoritative_fact_mismatch',
+  'product_rule_violation',
+  'structural_issue',
+  'other_material_issue',
+] as const
+
+export type ReviewerFindingCategory = typeof REVIEWER_FINDING_CATEGORIES[number]
+export type CandidateReviewerFinding = { category: ReviewerFindingCategory; message: string }
+export type CandidateReviewResponse =
+  | { status: 'PASS' }
+  | { status: 'FAIL'; findings: CandidateReviewerFinding[] }
+
+export type SafeReviewerFindingSummary = {
+  findingCount: number
+  findingCategories: ReviewerFindingCategory[]
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
@@ -112,4 +134,24 @@ export function isReviewResponse(value: unknown): value is ReviewResponse {
       && value.findings.length > 0
   }
   return false
+}
+
+/** Runtime boundary for structured candidate-review findings. */
+export function isCandidateReviewResponse(value: unknown): value is CandidateReviewResponse {
+  if (!isRecord(value)) return false
+  if (value.status === 'PASS') return hasExactKeys(value, ['status'])
+  if (value.status !== 'FAIL' || !hasExactKeys(value, ['status', 'findings'])
+    || !Array.isArray(value.findings) || value.findings.length === 0) return false
+  const allowed = new Set<string>(REVIEWER_FINDING_CATEGORIES)
+  return value.findings.every((finding) => isRecord(finding)
+    && hasExactKeys(finding, ['category', 'message'])
+    && typeof finding.category === 'string' && allowed.has(finding.category)
+    && isNonEmptyString(finding.message))
+}
+
+/** Deliberately projects away all free-text Reviewer messages before telemetry. */
+export function safeReviewerFindingSummary(response: CandidateReviewResponse): SafeReviewerFindingSummary | null {
+  if (response.status === 'PASS') return null
+  const categories = [...new Set(response.findings.map(({ category }) => category))].sort()
+  return { findingCount: response.findings.length, findingCategories: categories }
 }

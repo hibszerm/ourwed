@@ -11,6 +11,8 @@ assert.match(REVIEW_INSTRUCTIONS, /do not require quote, span, or occurrence pro
 assert.match(REVIEW_INSTRUCTIONS, /PASS only if no material issue exists/i)
 assert.match(REVIEW_INSTRUCTIONS, /otherwise return FAIL with concise material findings/i)
 assert.match(REVIEW_INSTRUCTIONS, /Do not edit or repair/i)
+assert.match(REVIEW_INSTRUCTIONS, /safe category from:[\s\S]*source_mismatch[\s\S]*omitted_required_content[\s\S]*unsupported_addition/i)
+assert.match(REVIEW_INSTRUCTIONS, /Return only CandidateReviewResponse/i)
 
 const harness = await readFile(new URL('./multi-template-acceptance/harness.ts', import.meta.url), 'utf8')
 assert.match(harness, /provider\.generate\([\s\S]*?provider\.review\(/)

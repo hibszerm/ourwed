@@ -5,8 +5,8 @@ import { mapWeddingRowToModel, type WeddingRow } from '@/lib/api/weddings/weddin
 import { mergeFormAnswersIntoWeddingCore } from '@/lib/forms/mergeFormAnswersIntoWeddingCore.ts'
 import { buildContractGenerationInput, type ContractGenerationInput } from '@/features/contract-generation-spike/contractGenerationInput.ts'
 import { applyOptionBGenerationResponse, createGenerationSourceView, readSource, validateOptionBInput, GENERATION_INSTRUCTIONS, GENERIC_CONTRACT_PRODUCT_RULES, CONFLICT_REVIEW_INSTRUCTIONS, REVIEW_INSTRUCTIONS } from '@/features/contract-generation-spike/generator.ts'
-import { isGenerationResponse, isReviewResponse, type ReviewResponse, type ContractGenerationAnswer } from '@/features/contract-generation-spike/generationProtocol.ts'
-import { createContractGenerationBoundary, parseContractGenerationAction, ProviderOperationError, type BoundaryDiagnostic, type ServerBoundaryContext } from '@/features/contract-generation-spike/serverBoundary.ts'
+import { isCandidateReviewResponse, isGenerationResponse, isReviewResponse, REVIEWER_FINDING_CATEGORIES, safeReviewerFindingSummary, type CandidateReviewResponse, type ReviewResponse, type ContractGenerationAnswer } from '@/features/contract-generation-spike/generationProtocol.ts'
+import { createContractGenerationBoundary, parseContractGenerationAction, ProviderOperationError, type BoundaryDiagnostic, type BoundaryReviewerResult, type ServerBoundaryContext } from '@/features/contract-generation-spike/serverBoundary.ts'
 import { isTravelFeeResolved } from '@/lib/utils/travelFeeCommercial.ts'
 import type { FormAnswerJson } from '@/types/formEngine'
 import type { PaymentMethod, PaymentType } from '@/types/wedding'
@@ -45,6 +45,13 @@ const GENERATION_SCHEMA = {
 const REVIEW_SCHEMA = {
   type: 'object', additionalProperties: false, required: ['status', 'findings'],
   properties: { status: { enum: ['PASS', 'FAIL'] }, findings: { anyOf: [{ type: 'array', minItems: 1, items: { type: 'string' } }, { type: 'null' }] } },
+}
+const CANDIDATE_REVIEW_SCHEMA = {
+  type: 'object', additionalProperties: false, required: ['status', 'findings'],
+  properties: {
+    status: { enum: ['PASS', 'FAIL'] },
+    findings: { anyOf: [{ type: 'array', minItems: 1, items: { type: 'object', additionalProperties: false, required: ['category', 'message'], properties: { category: { enum: [...REVIEWER_FINDING_CATEGORIES] }, message: { type: 'string', minLength: 1 } } } }, { type: 'null' }] },
+  },
 }
 
 function json(body: unknown, status = 200, headers?: HeadersInit): Response {
@@ -106,6 +113,14 @@ function normalizeGenerationEnvelope(value: unknown): unknown {
 }
 
 function normalizeReviewEnvelope(value: unknown): unknown {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return value
+  const result = value as Record<string, unknown>
+  if (result.status === 'PASS' && result.findings === null) return { status: 'PASS' }
+  if (result.status === 'FAIL' && Array.isArray(result.findings)) return { status: 'FAIL', findings: result.findings }
+  return value
+}
+
+function normalizeCandidateReviewEnvelope(value: unknown): unknown {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return value
   const result = value as Record<string, unknown>
   if (result.status === 'PASS' && result.findings === null) return { status: 'PASS' }
@@ -373,6 +388,20 @@ function providerAdapters() {
     return result
   }
 
+  async function candidateReviewResponse(context: ServerBoundaryContext, answers: ContractGenerationAnswer[], user: unknown): Promise<CandidateReviewResponse> {
+    let config: ReturnType<typeof getProviderConfig>
+    try { config = getProviderConfig() } catch { throw new ProviderOperationError('provider_configuration_failure') }
+    const rawResult = await callStructuredProvider({
+      system: REVIEW_INSTRUCTIONS, user: { ...(user as Record<string, unknown>), authorityContext: responseAuthority(context), accumulatedAnswers: answers, productRules: GENERIC_CONTRACT_PRODUCT_RULES },
+      schemaName: 'option_b_candidate_review_response_v1', schema: CANDIDATE_REVIEW_SCHEMA,
+      model: config.reviewerModel, apiKey: config.apiKey,
+      effort: Deno.env.get('OPENAI_CONTRACT_REVIEWER_REASONING')?.trim() || 'medium',
+    })
+    const result = normalizeCandidateReviewEnvelope(rawResult)
+    if (!isCandidateReviewResponse(result)) throw new ProviderOperationError('invalid_response')
+    return result
+  }
+
   return {
     generate: generator,
     async verifyConflict(context: ServerBoundaryContext, answers: ContractGenerationAnswer[], conflicts: string[]) {
@@ -383,17 +412,19 @@ function providerAdapters() {
       })
       return result.status === 'PASS' ? 'confirmed' as const : 'rejected' as const
     },
-    async review(context: ServerBoundaryContext, answers: ContractGenerationAnswer[], candidate: { bytes: ArrayBuffer; changedBlocks: unknown[] }) {
+    async review(context: ServerBoundaryContext, answers: ContractGenerationAnswer[], candidate: { bytes: ArrayBuffer; changedBlocks: unknown[] }): Promise<BoundaryReviewerResult> {
       const [source, candidateDoc] = await Promise.all([
         sourcePresentation(context, 'contract.docx'),
         readSource(candidate.bytes, 'candidate.docx'),
       ])
-      const result = await reviewResponse(context, answers, REVIEW_INSTRUCTIONS, {
+      const result = await candidateReviewResponse(context, answers, {
         source: source.blocks.map(({ kind, text }) => ({ kind, text })),
         candidate: candidateDoc.blocks.map(({ kind, text }) => ({ kind, text })),
         mechanicalDiff: candidate.changedBlocks,
       })
-      return result.status === 'PASS' ? 'pass' as const : 'fail' as const
+      if (result.status === 'PASS') return 'pass'
+      const summary = safeReviewerFindingSummary(result)
+      return summary ? { status: 'fail', ...summary } : { status: 'fail', findingCount: 0, findingCategories: [] }
     },
   }
 }

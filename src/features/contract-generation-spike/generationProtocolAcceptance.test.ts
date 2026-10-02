@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { isGenerationResponse, isReviewResponse, type MissingInput } from './generationProtocol'
+import { isCandidateReviewResponse, isGenerationResponse, isReviewResponse, safeReviewerFindingSummary, type CandidateReviewResponse, type MissingInput } from './generationProtocol'
 
 const replace = { kind: 'replace', blockId: 'word/document.xml#p2', text: 'Updated paragraph.' }
 const insert = { kind: 'insert_after', blockId: 'word/document.xml#p3', text: 'Additional service paragraph.' }
@@ -43,6 +43,21 @@ assert.equal(isReviewResponse({ status: 'FAIL', findings: ['A material payment t
 assert.equal(isReviewResponse({ status: 'FAIL' }), false, 'FAIL requires findings')
 assert.equal(isReviewResponse({ status: 'FAIL', findings: [] }), false, 'FAIL findings cannot be empty')
 assert.equal(isReviewResponse({ status: 'FAIL', findings: ['   '] }), false, 'FAIL findings cannot be blank')
+
+assert.equal(isCandidateReviewResponse({ status: 'PASS' }), true, 'candidate Reviewer PASS remains minimal')
+assert.equal(isCandidateReviewResponse({ status: 'PASS', findings: [] }), false, 'candidate Reviewer PASS has no finding field')
+const privateMessage = 'sensitive generated/source detail must never enter safe telemetry'
+const candidateFail = { status: 'FAIL', findings: [
+  { category: 'unsupported_addition', message: privateMessage },
+  { category: 'authoritative_fact_mismatch', message: 'another private detail' },
+  { category: 'unsupported_addition', message: 'duplicate category' },
+] }
+assert.equal(isCandidateReviewResponse(candidateFail), true, 'candidate FAIL requires structured allowed categories and messages')
+assert.equal(isCandidateReviewResponse({ status: 'FAIL', findings: [{ category: 'private_field_name', message: 'not allowed' }] }), false, 'unrecognized finding categories are rejected')
+const safeSummary = safeReviewerFindingSummary(candidateFail as CandidateReviewResponse)
+assert.deepEqual(safeSummary, { findingCount: 3, findingCategories: ['authoritative_fact_mismatch', 'unsupported_addition'] })
+assert.equal(JSON.stringify(safeSummary).includes(privateMessage), false, 'safe projection excludes free-text finding messages')
+assert.equal(safeReviewerFindingSummary({ status: 'PASS' }), null, 'PASS produces no finding metadata')
 
 // Protocol-shape guard: a whole-block handle and replacement text are the only edit coordinates.
 const editKeys = Object.keys(replace).sort()

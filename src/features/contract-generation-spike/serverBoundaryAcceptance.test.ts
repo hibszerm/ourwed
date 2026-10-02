@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
-import { createContractGenerationBoundary, parseContractGenerationAction, type ServerBoundaryDependencies } from './serverBoundary.ts'
+import { createContractGenerationBoundary, parseContractGenerationAction, ProviderOperationError, type ServerBoundaryDependencies } from './serverBoundary.ts'
 import type { ContractGenerationSession } from './generationSession.ts'
 
 const future = new Date(Date.now() + 60_000).toISOString()
@@ -15,6 +15,7 @@ const baseSession: ContractGenerationSession = {
 
 function setup(overrides: Partial<ServerBoundaryDependencies> = {}) {
   const calls: string[] = []
+  const diagnostics: import('./serverBoundary.ts').BoundaryDiagnostic[] = []
   let session: ContractGenerationSession | null = null
   let claimed = false
   let contextLoads = 0
@@ -56,10 +57,11 @@ function setup(overrides: Partial<ServerBoundaryDependencies> = {}) {
     generate: async () => { calls.push('generate'); return generation },
     verifyConflict: async () => { calls.push('verifyConflict'); return 'confirmed' },
     review: async () => { calls.push('review'); return 'pass' },
+    diagnose: (diagnostic) => { diagnostics.push(diagnostic) },
     ...overrides,
   }
   return {
-    boundary: createContractGenerationBoundary(deps), calls,
+    boundary: createContractGenerationBoundary(deps), calls, diagnostics,
     setSession(value: ContractGenerationSession | null) { session = value },
     setGeneration(value: typeof generation) { generation = value },
     setFingerprint(value: string) { fingerprint = value },
@@ -197,6 +199,50 @@ assert.equal(parseContractGenerationAction({ version: 1, action: 'recover', requ
   const result = await f.boundary.start('owner-1', startRequest)
   assert.equal(result.status, 'failure')
   assert.equal(f.calls.includes('persist'), false, 'Reviewer failure cannot persist candidate')
+}
+
+{
+  const f = setup({
+    generate: async () => { f.calls.push('generate'); return { status: 'READY', candidate: { bytes: new ArrayBuffer(2), changedBlocks: [] } } },
+    review: async () => {
+      f.calls.push('review')
+      return { status: 'fail', findingCount: 2, findingCategories: ['unsupported_addition', 'authoritative_fact_mismatch', 'unsupported_addition'] }
+    },
+  })
+  const result = await f.boundary.start('owner-1', startRequest)
+  const reviewer = f.diagnostics.find(({ providerRole }) => providerRole === 'Reviewer')
+  assert.equal(result.status, 'failure')
+  assert.deepEqual(reviewer && { category: reviewer.category, findingCount: reviewer.findingCount, findingCategories: reviewer.findingCategories }, {
+    category: 'FAIL', findingCount: 2, findingCategories: ['authoritative_fact_mismatch', 'unsupported_addition'],
+  })
+  assert.deepEqual(f.calls, ['createSession', 'generate', 'review', 'failure:failed'], 'semantic FAIL has no retry, repair, or persistence')
+  assert.equal(JSON.stringify(f.diagnostics).includes('private-message'), false)
+}
+
+for (const [errorCategory, diagnosticCategory] of [
+  ['provider_failure', 'PROVIDER_FAILURE'],
+  ['invalid_response', 'INVALID_RESPONSE'],
+] as const) {
+  const f = setup({
+    generate: async () => { f.calls.push('generate'); return { status: 'READY', candidate: { bytes: new ArrayBuffer(2), changedBlocks: [] } } },
+    review: async () => { f.calls.push('review'); throw new ProviderOperationError(errorCategory) },
+  })
+  const result = await f.boundary.start('owner-1', startRequest)
+  assert.deepEqual(result, { status: 'failure', code: 'temporary_failure' })
+  assert.equal(f.diagnostics.find(({ providerRole }) => providerRole === 'Reviewer')?.category, diagnosticCategory)
+  assert.deepEqual(f.calls, ['createSession', 'generate', 'review', 'failure:failed'], 'Reviewer provider/protocol failure does not retry, repair, or persist')
+}
+
+{
+  const f = setup({
+    generate: async () => { f.calls.push('generate'); return { status: 'READY', candidate: { bytes: new ArrayBuffer(2), changedBlocks: [] } } },
+  })
+  const result = await f.boundary.start('owner-1', startRequest)
+  const reviewer = f.diagnostics.find(({ providerRole }) => providerRole === 'Reviewer')
+  assert.equal(result.status, 'ready', 'PASS keeps candidate persistence behavior')
+  assert.equal(reviewer?.category, 'PASS')
+  assert.equal(reviewer?.findingCount, undefined)
+  assert.equal(reviewer?.findingCategories, undefined)
 }
 
 {

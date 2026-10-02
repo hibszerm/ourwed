@@ -8,7 +8,7 @@ import {
   type ContractGenerationSessionScope,
   type ResolvedMissingInput,
 } from './generationSession.ts'
-import type { ContractGenerationAnswer, MissingInput } from './generationProtocol.ts'
+import { REVIEWER_FINDING_CATEGORIES, type ContractGenerationAnswer, type MissingInput, type ReviewerFindingCategory } from './generationProtocol.ts'
 
 export type ContractGenerationStartRequest = { weddingId: string; requestId: string }
 export type ContractGenerationContinueRequest = {
@@ -50,8 +50,25 @@ export type BoundaryDiagnostic = {
   missingInputCount?: number
   editCount?: number
   conflictCount?: number
+  findingCount?: number
+  findingCategories?: ReviewerFindingCategory[]
   mechanicalValidation?: 'passed' | 'failed' | 'not_reached'
   finalCode?: 'generation_safety' | 'temporary_failure' | 'stale'
+}
+
+export type BoundaryReviewerResult = 'pass' | 'fail' | {
+  status: 'fail'
+  findingCount: number
+  findingCategories: ReviewerFindingCategory[]
+}
+
+const reviewerFindingCategorySet = new Set<string>(REVIEWER_FINDING_CATEGORIES)
+
+function safeReviewerSummary(result: BoundaryReviewerResult): Pick<BoundaryDiagnostic, 'findingCount' | 'findingCategories'> {
+  if (typeof result === 'string' || result.status !== 'fail') return {}
+  const categories = [...new Set(result.findingCategories.filter((category) => reviewerFindingCategorySet.has(category)))].sort()
+  if (!Number.isInteger(result.findingCount) || result.findingCount < 1 || categories.length === 0) return {}
+  return { findingCount: result.findingCount, findingCategories: categories }
 }
 
 export class ProviderOperationError extends Error {
@@ -97,7 +114,7 @@ export type ServerBoundaryDependencies = {
   markFailure: (sessionId: string, executionId: string, code: 'failed' | 'stale') => Promise<void>
   generate: (context: ServerBoundaryContext, answers: ContractGenerationAnswer[], resolvedInputs: ResolvedMissingInput[]) => Promise<BoundaryRunResult>
   verifyConflict: (context: ServerBoundaryContext, answers: ContractGenerationAnswer[], conflicts: string[]) => Promise<'confirmed' | 'rejected'>
-  review: (context: ServerBoundaryContext, answers: ContractGenerationAnswer[], candidate: BoundaryCandidate) => Promise<'pass' | 'fail'>
+  review: (context: ServerBoundaryContext, answers: ContractGenerationAnswer[], candidate: BoundaryCandidate) => Promise<BoundaryReviewerResult>
   diagnose?: (diagnostic: BoundaryDiagnostic) => void
   newId: () => string
 }
@@ -227,10 +244,10 @@ export function createContractGenerationBoundary(deps: ServerBoundaryDependencie
         await deps.markFailure(session.id, executionId, 'stale')
         return { status: 'stale', code: 'authority_changed' }
       }
-      let review: 'pass' | 'fail'
+      let review: BoundaryReviewerResult
       try {
         review = await deps.review(latest, answers, generated.candidate)
-        diagnose({ providerRole: 'Reviewer', category: review === 'pass' ? 'PASS' : 'FAIL', providerInvoked: true, editCount: generated.candidate.changedBlocks.length, mechanicalValidation: 'passed' })
+        diagnose({ providerRole: 'Reviewer', category: review === 'pass' ? 'PASS' : 'FAIL', providerInvoked: true, editCount: generated.candidate.changedBlocks.length, mechanicalValidation: 'passed', ...safeReviewerSummary(review) })
       } catch (error) {
         diagnose({ providerRole: 'Reviewer', category: error instanceof ProviderOperationError ? error.category.toUpperCase() : 'INTERNAL_FAILURE', providerInvoked: providerInvoked(error), editCount: generated.candidate.changedBlocks.length, mechanicalValidation: 'passed', finalCode: 'temporary_failure' })
         await deps.markFailure(session.id, executionId, 'failed')
