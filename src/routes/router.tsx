@@ -70,6 +70,15 @@ function RedirectTemplateDeepLink({
 
 const devRoutes = import.meta.env.DEV
   ? [
+      {
+        path: '/dev/landing-device-capture',
+        lazy: async () => {
+          const { LandingDeviceCapturePage } = await import(
+            '@/features/landing-v2/capture/LandingDeviceCapturePage'
+          )
+          return { Component: LandingDeviceCapturePage }
+        },
+      },
       // Internal / experimental — intentionally hidden from customer navigation.
       {
         path: '/dev/contract-analysis-eval',
@@ -90,15 +99,6 @@ export const router = createBrowserRouter([
     hydrateFallbackElement: <></>,
     children: [
       { path: '/', element: <LandingPage /> },
-      {
-        path: '/dev/landing-device-capture',
-        lazy: async () => {
-          const { LandingDeviceCapturePage } = await import(
-            '@/features/landing-v2/capture/LandingDeviceCapturePage'
-          )
-          return { Component: LandingDeviceCapturePage }
-        },
-      },
       {
         // Obsolete Landing V3 preview — retire to the public root.
         path: '/landing-v3',
