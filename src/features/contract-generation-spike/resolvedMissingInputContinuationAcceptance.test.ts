@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
 import { appendMissingInputHistory, readMissingInputState, resolveMissingInputAnswers, storeMissingInputState, type ContractGenerationSession } from './generationSession'
 import { createContractGenerationBoundary, type BoundaryDiagnostic, type ServerBoundaryDependencies } from './serverBoundary'
 import { GENERATION_INSTRUCTIONS } from './generator'
@@ -35,6 +36,20 @@ const stored = storeMissingInputState([third], definitions)
 assert.deepEqual(readMissingInputState(stored), stored, 'versioned session JSON round-trips all pending and historical definitions')
 assert.deepEqual(readMissingInputState([first]), { version: 1, pending: [first], history: [first] }, 'legacy array-shaped sessions remain readable')
 assert.equal(readMissingInputState({ version: 1, pending: [third], history: [first, second] }), null, 'pending definitions absent from history invalidate the stored envelope')
+const serializedState = JSON.parse(JSON.stringify(stored)) as unknown
+assert.deepEqual(Object.keys(serializedState as object).sort(), ['history', 'pending', 'version'], 'serialized v1 state has the stable top-level envelope')
+assert.deepEqual(resolveMissingInputAnswers(readMissingInputState(serializedState)!.history, answers), [
+  { requirement: first, answer: { value: 'Synthetic answer A' } },
+  { requirement: second, answer: { value: 'Synthetic answer B' } },
+  { requirement: third, answer: { value: 'Synthetic answer C' } },
+], 'serialized versioned definitions retain resolved answer binding')
+
+const schemaMigration = await readFile(new URL('../../../supabase/migrations/20261002164421_allow_versioned_missing_input_state.sql', import.meta.url), 'utf8')
+assert.match(schemaMigration, /jsonb_typeof\(missing_inputs_json\) = 'array'/i, 'database continues accepting legacy array payloads')
+assert.match(schemaMigration, /jsonb_typeof\(missing_inputs_json\) = 'object'[\s\S]*?missing_inputs_json -> 'version' = '1'::jsonb[\s\S]*?jsonb_typeof\(missing_inputs_json -> 'pending'\) = 'array'[\s\S]*?jsonb_typeof\(missing_inputs_json -> 'history'\) = 'array'/i, 'database accepts the stable v1 envelope structure')
+assert.match(schemaMigration, /jsonb_typeof\(user_answers_json\) = 'array'/i, 'answer storage remains array-only')
+assert.match(schemaMigration, /when 'object' then coalesce\(jsonb_array_length\(missing_inputs_json -> 'pending'\) > 0, false\)/i, 'awaiting-input envelopes require a pending requirement')
+assert.doesNotMatch(schemaMigration, /\b(update|delete)\s+public\.wedding_contract_generation_runs\b/i, 'migration does not rewrite historical session rows')
 
 for (const phrase of [
   'resolved user input', 'That requirement is resolved', 'do not request the same requirement again',
