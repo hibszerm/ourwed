@@ -47,6 +47,7 @@ const operations = [
   { blockId: ordinaryDigits.blockId, operation: 'REPLACE_BLOCK_TEXT' as const, finalText: '2026 forecast remains unchanged' },
   { blockId: ordinarySplit.blockId, operation: 'REPLACE_BLOCK_TEXT' as const, finalText: '1)stary tekst rewritten as prose' },
   { anchorBlockId: normal.blockId, operation: 'INSERT_BLOCK_AFTER' as const, finalText: 'Dodatkowe ujęcia: VHS i dron.', styleSourceBlockId: normal.blockId },
+  { anchorBlockId: splitPrefix.blockId, operation: 'INSERT_BLOCK_AFTER' as const, finalText: 'Purchased extra, presented separately from base scope.', styleSourceBlockId: splitPrefix.blockId },
 ]
 const edited = await applyBlockOperations(sourceBytes, operations)
 const editedZip = await JSZip.loadAsync(edited)
@@ -63,12 +64,95 @@ assert.ok(editedBlocks.some((block) => block.text === '1)stary tekst rewritten a
 const tabbedParagraph = doc.match(/<w:p>[^]*?<w:t[^>]*>2\.<\/w:t>[^]*?<\/w:p>/)?.[0] ?? ''
 assert.match(tabbedParagraph, /<w:tab\/>/, 'the source tab convention is retained in the rewritten paragraph')
 assert.ok(editedBlocks.some((block) => block.text === 'Dodatkowe ujęcia: VHS i dron.'))
+assert.ok(editedBlocks.some((block) => block.text === 'Purchased extra, presented separately from base scope.'), 'inserted content remains the supplied unnumbered text')
+const insertedAfterNumberedSource = doc.match(/<w:p>(?:(?!<w:p>).)*?Purchased extra, presented separately from base scope\.(?:(?!<w:p>).)*?<\/w:p>/s)?.[0] ?? ''
+assert.ok(insertedAfterNumberedSource, 'inserted paragraph is present after a numbered source paragraph')
+assert.doesNotMatch(insertedAfterNumberedSource, /<w:numPr\b|<w:numId\b/, 'insertion strips numbering inherited from its numbered style source')
 assert.match(doc, /<w:pPr><w:keepNext\/><\/w:pPr>/, 'replacement retains source paragraph properties')
 assert.match(doc, /<w:pPr><w:jc w:val="both"\/><\/w:pPr>/, 'insertion takes paragraph alignment from explicit normal-clause source')
 assert.doesNotMatch(doc.match(/Dodatkowe ujęcia[\s\S]*?<\/w:p>/)?.[0] ?? '', /w:ind|<w:i\/>/, 'package-child indentation and italics do not leak into insertion')
 assert.equal((doc.match(/<w:tbl\b/g) ?? []).length, 1)
 assert.equal(await editedZip.file('word/header1.xml')!.async('string'), headerXml)
 assert.equal(await editedZip.file('word/footer1.xml')!.async('string'), footerXml)
+
+// A numbered paragraph style can carry numbering through w:pStyle even when
+// the source paragraph itself has no direct w:numPr. Plain inserted text must
+// keep useful style formatting while explicitly opting out of that numbering.
+const styleNumberedZip = new JSZip()
+const styleNumberedDocument = '<w:document xmlns:w="urn:w"><w:body><w:p><w:pPr><w:pStyle w:val="NumberedChild"/></w:pPr><w:r><w:t>Base scope item</w:t></w:r></w:p><w:sectPr/></w:body></w:document>'
+const styleNumberedStyles = '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:style w:type="paragraph" w:styleId="Normal" w:default="1"><w:name w:val="Normal"/></w:style><w:style w:type="paragraph" w:styleId="NumberedChild"><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="4"/></w:numPr><w:ind w:left="720"/></w:pPr></w:style></w:styles>'
+const styleNumberingDefinitions = '<w:numbering xmlns:w="urn:w"><w:abstractNum w:abstractNumId="3"><w:lvl w:ilvl="0"><w:numFmt w:val="decimal"/><w:lvlText w:val="%1."/></w:lvl></w:abstractNum><w:num w:numId="4"><w:abstractNumId w:val="3"/></w:num></w:numbering>'
+styleNumberedZip.file('word/document.xml', styleNumberedDocument)
+styleNumberedZip.file('word/styles.xml', styleNumberedStyles)
+styleNumberedZip.file('word/numbering.xml', styleNumberingDefinitions)
+const styleNumberedBytes = await styleNumberedZip.generateAsync({ type: 'arraybuffer' })
+const numberedAnchor = (await buildBlockIndex(styleNumberedBytes)).find((block) => block.text === 'Base scope item')!
+const styleNumberedOutput = await applyBlockOperations(styleNumberedBytes, [{
+  anchorBlockId: numberedAnchor.blockId,
+  operation: 'INSERT_BLOCK_AFTER',
+  finalText: 'Unnumbered additional item.',
+  styleSourceBlockId: numberedAnchor.blockId,
+}])
+const styleNumberedOutputZip = await JSZip.loadAsync(styleNumberedOutput)
+const styleNumberedOutputXml = await styleNumberedOutputZip.file('word/document.xml')!.async('string')
+const styleInsertedParagraph = styleNumberedOutputXml.match(/<w:p>(?:(?!<w:p>).)*?Unnumbered additional item\.(?:(?!<w:p>).)*?<\/w:p>/s)?.[0] ?? ''
+assert.ok(styleInsertedParagraph, 'the plain insertion is present in the DOCX')
+assert.match(styleInsertedParagraph, /<w:pStyle w:val="NumberedChild"\/>/, 'the numbered paragraph style is otherwise retained')
+assert.match(styleInsertedParagraph, /<w:numPr><w:numId w:val="0"\/><\/w:numPr>/, 'an explicit no-numbering override defeats numbering inherited through the paragraph style')
+assert.match(styleNumberedStyles, /w:styleId="NumberedChild"[^]*?<w:numId w:val="4"\/>/, 'the synthetic paragraph style carries list numbering')
+assert.match(styleNumberingDefinitions, /w:numId="4"/, 'the synthetic numbering definition resolves the style numbering reference')
+assert.equal(await styleNumberedOutputZip.file('word/styles.xml')!.async('string'), styleNumberedStyles, 'the source style definition remains untouched')
+assert.equal(await styleNumberedOutputZip.file('word/numbering.xml')!.async('string'), styleNumberingDefinitions, 'the source numbering definition remains untouched')
+assert.ok((await buildBlockIndex(styleNumberedOutput)).some((block) => block.text === 'Unnumbered additional item.'), 'the output paragraph contains only the supplied plain text')
+
+// Mixed pPr children verify the suppression override is inserted at the
+// schema position without losing formatting that follows that position.
+const mixedStyleZip = new JSZip()
+const mixedStyleDocument = '<w:document xmlns:w="urn:w"><w:body><w:p><w:pPr><w:pStyle w:val="NumberedMixed"/><w:keepNext/><w:keepLines/><w:numPr><w:numId w:val="4"/></w:numPr><w:spacing w:after="120"/><w:ind w:left="720"/><w:jc w:val="both"/></w:pPr><w:r><w:t>Mixed source paragraph</w:t></w:r></w:p><w:sectPr/></w:body></w:document>'
+const mixedStyleStyles = '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:style w:type="paragraph" w:styleId="NumberedMixed"><w:pPr><w:numPr><w:numId w:val="4"/></w:numPr></w:pPr></w:style></w:styles>'
+mixedStyleZip.file('word/document.xml', mixedStyleDocument)
+mixedStyleZip.file('word/styles.xml', mixedStyleStyles)
+const mixedBytes = await mixedStyleZip.generateAsync({ type: 'arraybuffer' })
+const mixedAnchor = (await buildBlockIndex(mixedBytes)).find((block) => block.text === 'Mixed source paragraph')!
+const mixedOutput = await applyBlockOperations(mixedBytes, [{ anchorBlockId: mixedAnchor.blockId, operation: 'INSERT_BLOCK_AFTER', finalText: 'Mixed plain insertion', styleSourceBlockId: mixedAnchor.blockId }])
+const mixedZip = await JSZip.loadAsync(mixedOutput)
+const mixedXml = await mixedZip.file('word/document.xml')!.async('string')
+const mixedInserted = mixedXml.match(/<w:p>(?:(?!<w:p>).)*?Mixed plain insertion(?:(?!<w:p>).)*?<\/w:p>/s)?.[0] ?? ''
+const mixedPPr = mixedInserted.match(/<w:pPr>([\s\S]*?)<\/w:pPr>/)?.[1] ?? ''
+const mixedChildren = [...mixedPPr.matchAll(/<w:([A-Za-z0-9]+)\b[^>]*(?:\/>|>[\s\S]*?<\/w:\1>)/g)].map((match) => match[1])
+assert.equal((mixedPPr.match(/<w:numPr\b/g) ?? []).length, 1, 'the inserted paragraph has exactly one numbering override')
+assert.match(mixedPPr, /<w:numPr><w:numId w:val="0"\/><\/w:numPr>/, 'the mixed-property insertion uses numId zero')
+assert.deepEqual(mixedChildren, ['pStyle', 'keepLines', 'numPr', 'spacing', 'ind', 'jc'], 'numPr follows preceding properties and precedes following properties in schema order')
+assert.match(mixedPPr, /<w:keepLines\/>[\s\S]*<w:spacing w:after="120"\/>[\s\S]*<w:ind w:left="720"\/>[\s\S]*<w:jc w:val="both"\/>/, 'the non-numbering formatting surrounding numPr is preserved')
+assert.equal(mixedXml.match(/<w:p>(?:(?!<w:p>).)*?Mixed source paragraph(?:(?!<w:p>).)*?<\/w:p>/s)?.[0], mixedStyleDocument.match(/<w:p>(?:(?!<w:p>).)*?Mixed source paragraph(?:(?!<w:p>).)*?<\/w:p>/s)?.[0], 'the source paragraph is unchanged')
+assert.ok((await buildBlockIndex(mixedOutput)).some((block) => block.text === 'Mixed plain insertion'), 'the edited DOCX remains parseable by the document indexer')
+
+// Style traversal supports alternate valid namespace prefixes, multiple
+// basedOn levels, missing parents, and cycles without inventing numbering.
+const inheritedZip = new JSZip()
+inheritedZip.file('word/document.xml', '<w:document xmlns:w="urn:w"><w:body><w:p><w:pPr><w:pStyle w:val="StyleC"/></w:pPr><w:r><w:t>Inherited target</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val="CycleA"/></w:pPr><w:r><w:t>Cycle target</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val="MissingParentChild"/></w:pPr><w:r><w:t>Missing parent target</w:t></w:r></w:p><w:sectPr/></w:body></w:document>')
+const inheritedStyles = '<x:styles xmlns:x="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><x:style x:type="paragraph" x:styleId="StyleA"><x:pPr><x:numPr><x:numId x:val="9"/></x:numPr></x:pPr></x:style><x:style x:type="paragraph" x:styleId="StyleB"><x:basedOn x:val="StyleA"/></x:style><x:style x:type="paragraph" x:styleId="StyleC"><x:basedOn x:val="StyleB"/></x:style><x:style x:type="paragraph" x:styleId="CycleA"><x:basedOn x:val="CycleB"/></x:style><x:style x:type="paragraph" x:styleId="CycleB"><x:basedOn x:val="CycleA"/></x:style><x:style x:type="paragraph" x:styleId="MissingParentChild"><x:basedOn x:val="NoSuchStyle"/></x:style></x:styles>'
+inheritedZip.file('word/styles.xml', inheritedStyles)
+const inheritedBytes = await inheritedZip.generateAsync({ type: 'arraybuffer' })
+const inheritedBlocks = await buildBlockIndex(inheritedBytes)
+const inheritedOperations = inheritedBlocks.filter((block) => ['Inherited target', 'Cycle target', 'Missing parent target'].includes(block.text)).map((block) => ({ anchorBlockId: block.blockId, operation: 'INSERT_BLOCK_AFTER' as const, finalText: `plain ${block.text}`, styleSourceBlockId: block.blockId }))
+const inheritedOutput = await applyBlockOperations(inheritedBytes, inheritedOperations)
+const inheritedOutputZip = await JSZip.loadAsync(inheritedOutput)
+const inheritedXml = await inheritedOutputZip.file('word/document.xml')!.async('string')
+const inheritedInserted = inheritedXml.match(/<w:p>(?:(?!<w:p>).)*?plain Inherited target(?:(?!<w:p>).)*?<\/w:p>/s)?.[0] ?? ''
+const cycleInserted = inheritedXml.match(/<w:p>(?:(?!<w:p>).)*?plain Cycle target(?:(?!<w:p>).)*?<\/w:p>/s)?.[0] ?? ''
+const missingParentInserted = inheritedXml.match(/<w:p>(?:(?!<w:p>).)*?plain Missing parent target(?:(?!<w:p>).)*?<\/w:p>/s)?.[0] ?? ''
+assert.match(inheritedInserted, /<w:numPr><w:numId w:val="0"\/><\/w:numPr>/, 'alternate-prefix style and multi-level basedOn numbering are detected')
+assert.doesNotMatch(cycleInserted, /<w:numPr\b/, 'a non-numbered basedOn cycle terminates without claiming numbering')
+assert.doesNotMatch(missingParentInserted, /<w:numPr\b/, 'an unknown basedOn parent is not treated as numbered')
+assert.equal(await inheritedOutputZip.file('word/styles.xml')!.async('string'), inheritedStyles, 'alternate-prefix source styles remain untouched')
+
+const noStylesZip = new JSZip()
+noStylesZip.file('word/document.xml', '<w:document xmlns:w="urn:w"><w:body><w:p><w:r><w:t>No styles source</w:t></w:r></w:p><w:sectPr/></w:body></w:document>')
+const noStylesBytes = await noStylesZip.generateAsync({ type: 'arraybuffer' })
+const noStylesBlocks = await buildBlockIndex(noStylesBytes)
+const noStylesOutput = await applyBlockOperations(noStylesBytes, [{ anchorBlockId: noStylesBlocks[0]!.blockId, operation: 'INSERT_BLOCK_AFTER', finalText: 'No styles insertion', styleSourceBlockId: noStylesBlocks[0]!.blockId }])
+assert.ok((await buildBlockIndex(noStylesOutput)).some((block) => block.text === 'No styles insertion'), 'missing styles.xml is safe')
 
 // Word fields are protected structural parts of an editable block. The planner
 // sees cached display text plus field metadata; execution preserves field XML.

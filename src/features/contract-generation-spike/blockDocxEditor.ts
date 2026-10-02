@@ -539,7 +539,89 @@ function isNumberedStructuralPrefix(prefix: string): boolean {
   return /^(?:§\s*)?\d+(?:\.\d+)*[.)]$/.test(prefix)
 }
 
-function cleanStyleParagraph(paragraph: string, text: string): string {
+type ParagraphStyleDefinition = { basedOn?: string; hasNumbering: boolean; disablesNumbering: boolean }
+
+function paragraphStyles(stylesXml: string): { definitions: Map<string, ParagraphStyleDefinition>; defaultStyleId?: string } {
+  const definitions = new Map<string, ParagraphStyleDefinition>()
+  let defaultStyleId: string | undefined
+  const wordNs = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
+  const stack: Array<{ qname: string; ns: Map<string, string>; local: string; uri: string }> = []
+  let current: { styleId: string; basedOn?: string; numberId?: string } | undefined
+  const attrValue = (attrs: string, local: string, ns: Map<string, string>) => {
+    for (const match of attrs.matchAll(/([^\s=/>]+)\s*=\s*(["'])(.*?)\2/g)) {
+      const qname = match[1]!
+      const value = match[3]!
+      const [prefix, name] = qname.includes(':') ? qname.split(':', 2) : ['', qname]
+      if (name === local && (prefix ? ns.get(prefix) : '') === (prefix ? wordNs : '')) return value
+    }
+    return undefined
+  }
+  for (const token of stylesXml.matchAll(/<!--[\s\S]*?-->|<\?[\s\S]*?\?>|<![^>]*>|<[^>]+>/g)) {
+    const tag = token[0]
+    if (/^<\?|^<!/.test(tag)) continue
+    const closing = /^<\//.test(tag)
+    const qname = tag.match(/^<\/?([^\s/>]+)/)?.[1]
+    if (!qname) continue
+    if (closing) {
+      const element = stack.pop()
+      if (element?.local === 'style' && element.uri === wordNs && current) {
+        definitions.set(current.styleId, {
+          ...(current.basedOn ? { basedOn: current.basedOn } : {}),
+          hasNumbering: Boolean(current.numberId && current.numberId !== '0'),
+          disablesNumbering: current.numberId === '0',
+        })
+        current = undefined
+      }
+      continue
+    }
+    const parentNs = stack.at(-1)?.ns ?? new Map<string, string>()
+    const ns = new Map(parentNs)
+    const attrs = tag.slice(qname.length + 1, tag.length - (tag.endsWith('/>') ? 2 : 1))
+    for (const match of attrs.matchAll(/\bxmlns(?::([^\s=]+))?\s*=\s*(["'])(.*?)\2/g)) ns.set(match[1] ?? '', match[3]!)
+    const [prefix, local] = qname.includes(':') ? qname.split(':', 2) : ['', qname]
+    const uri = ns.get(prefix) ?? ''
+    if (local === 'style' && uri === wordNs) {
+      const styleId = attrValue(attrs, 'styleId', ns)
+      if (styleId && attrValue(attrs, 'type', ns) === 'paragraph') {
+        current = { styleId }
+        const isDefault = attrValue(attrs, 'default', ns)
+        if (isDefault === '1' || isDefault === 'true' || isDefault === 'on') defaultStyleId = styleId
+      }
+    } else if (current && uri === wordNs) {
+      if (local === 'basedOn') current.basedOn = attrValue(attrs, 'val', ns)
+      if (local === 'numId' && stack.some((entry) => entry.local === 'numPr' && entry.uri === wordNs)) current.numberId = attrValue(attrs, 'val', ns)
+    }
+    if (!tag.endsWith('/>')) stack.push({ qname, ns, local, uri })
+    else if (local === 'style' && uri === wordNs && current) {
+      definitions.set(current.styleId, { ...(current.basedOn ? { basedOn: current.basedOn } : {}), hasNumbering: Boolean(current.numberId && current.numberId !== '0'), disablesNumbering: current.numberId === '0' })
+      current = undefined
+    }
+  }
+  return { definitions, ...(defaultStyleId ? { defaultStyleId } : {}) }
+}
+
+function styleHasNumbering(styleId: string | undefined, definitions: Map<string, ParagraphStyleDefinition>, seen = new Set<string>()): boolean {
+  if (!styleId || seen.has(styleId)) return false
+  seen.add(styleId)
+  const definition = definitions.get(styleId)
+  if (!definition || definition.disablesNumbering) return false
+  return definition.hasNumbering || styleHasNumbering(definition.basedOn, definitions, seen)
+}
+
+function disableInheritedNumbering(pPr: string): string {
+  const override = '<w:numPr><w:numId w:val="0"/></w:numPr>'
+  if (!pPr) return `<w:pPr>${override}</w:pPr>`
+  pPr = pPr.replace(/<w:numPr\b[^>]*\/>/g, '').replace(/<w:numPr\b[\s\S]*?<\/w:numPr>/g, '')
+  const rank = new Map(['pStyle','keepNext','keepLines','pageBreakBefore','framePr','widowControl','numPr','suppressLineNumbers','pBdr','shd','tabs','suppressAutoHyphens','kinsoku','wordWrap','overflowPunct','topLinePunct','autoSpaceDE','autoSpaceDN','bidi','adjustRightInd','snapToGrid','spacing','ind','contextualSpacing','mirrorIndents','suppressOverlap','jc','textDirection','textAlignment','textboxTightWrap','outlineLvl','divId','cnfStyle','rPr','sectPr','pPrChange'].map((name, index) => [name, index]))
+  const opening = pPr.match(/^<w:pPr\b[^>]*>/)?.[0]
+  if (!opening) throw new Error('Cannot safely disable numbering on malformed paragraph properties')
+  const children = [...pPr.slice(opening.length).matchAll(/<w:([A-Za-z0-9]+)\b[^>]*(?:\/>|>[\s\S]*?<\/w:\1>)/g)]
+  const next = children.find((child) => (rank.get(child[1]!) ?? Number.MAX_SAFE_INTEGER) > rank.get('numPr')!)
+  if (next?.index !== undefined) return `${pPr.slice(0, opening.length + next.index)}${override}${pPr.slice(opening.length + next.index)}`
+  return `${pPr.slice(0, -'</w:pPr>'.length)}${override}</w:pPr>`
+}
+
+function cleanStyleParagraph(paragraph: string, text: string, styles: { definitions: Map<string, ParagraphStyleDefinition>; defaultStyleId?: string }): string {
   if (xmlTagsIn(paragraph).filter((tag) => tag.name === 'w:p' && !tag.closing).length !== 1) {
     throw new Error('Cannot safely use a DOCX style source containing nested paragraphs')
   }
@@ -548,13 +630,16 @@ function cleanStyleParagraph(paragraph: string, text: string): string {
     .replace(/<w:sectPr\b[\s\S]*?<\/w:sectPr>/g, '')
     .replace(/<w:pageBreakBefore\b[^>]*\/>/g, '')
     .replace(/<w:keepNext\b[^>]*\/>/g, '')
+  const styleId = pPr.match(/<w:pStyle\b[^>]*\bw:val\s*=\s*["']([^"']+)["'][^>]*\/?\s*>/)?.[1] ?? styles.defaultStyleId
+  const cleanPPr = styleHasNumbering(styleId, styles.definitions) ? disableInheritedNumbering(pPr) : pPr
   const style = dominantRunProperties(paragraph)
-  return `<w:p>${pPr}<w:r>${style}<w:t xml:space="preserve">${escapeXml(text)}</w:t></w:r></w:p>`
+  return `<w:p>${cleanPPr}<w:r>${style}<w:t xml:space="preserve">${escapeXml(text)}</w:t></w:r></w:p>`
 }
 
 export async function applyBlockOperations(bytes: ArrayBuffer, operations: BlockOperation[]): Promise<ArrayBuffer> {
   const zip = await JSZip.loadAsync(bytes)
   const originalBlocks = await buildBlockIndex(bytes)
+  const styles = paragraphStyles(await zip.file('word/styles.xml')?.async('string') ?? '')
   const blockById = new Map(originalBlocks.map((block) => [block.blockId, block]))
   const byPart = new Map<string, BlockOperation[]>()
   for (const operation of operations) {
@@ -597,7 +682,7 @@ export async function applyBlockOperations(bytes: ArrayBuffer, operations: Block
         const anchorParagraph = paragraphs[anchor.index]
         if (!styleParagraph || styleParagraph.stableIndex === undefined || idFor(part, styleParagraph.stableIndex) !== operation.styleSourceBlockId) throw new Error(`DOCX style source does not map uniquely to one paragraph: ${operation.styleSourceBlockId}`)
         if (!anchorParagraph || anchorParagraph.stableIndex === undefined || idFor(part, anchorParagraph.stableIndex) !== operation.anchorBlockId) throw new Error(`DOCX insertion anchor does not map uniquely to one paragraph: ${operation.anchorBlockId}`)
-        const addition = cleanStyleParagraph(styleParagraph.xml, operation.finalText)
+        const addition = cleanStyleParagraph(styleParagraph.xml, operation.finalText, styles)
         const map = operation.operation === 'INSERT_BLOCK_AFTER' ? after : before
         map.set(anchor.index, [...(map.get(anchor.index) ?? []), addition])
       }

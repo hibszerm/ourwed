@@ -76,6 +76,9 @@ assert.equal(party1?.address?.source, 'form_answers.answer_json.fields.partner1.
 assert.equal(party1?.address?.owner, 'partner1')
 assert.equal(party2?.address?.value, 'Partner two address')
 assert.equal(party2?.address?.owner, 'partner2')
+assert.equal(party1?.phone?.owner, 'partner1', 'participant 1 phone retains participant ownership')
+assert.equal(party2?.phone?.owner, 'partner2', 'participant 2 phone retains participant ownership')
+assert.notEqual(party1?.address?.value, party2?.address?.value, 'distinct participant addresses remain distinct authoritative facts')
 
 const withoutParty2Address = buildContractGenerationInput({
   wedding: { ...wedding, couple: { ...wedding.couple, partner2Address: undefined } },
@@ -142,6 +145,10 @@ const legacyExtraName = buildContractGenerationInput({
 assert.equal(legacyExtraName.extras[0]?.name.value, 'Catalog fallback')
 assert.equal(legacyExtraName.extras[0]?.name.source, 'extra_services.name (legacy fallback for extra-row-1)')
 assert.deepEqual(result.locations.map((place) => place.role.value), ['bride_preparation', 'groom_preparation', 'ceremony', 'reception'])
+assert.deepEqual(result.locations.map((place) => place.label?.value), ['Place 0', 'Place 1', 'Place 2', 'Place 3'], 'stored place display names remain in normalized authority')
+assert.deepEqual(result.locations.map((place) => place.label?.source), locations.map((place) => `public.wedding_places.${place.id}.label`), 'stored display-name provenance is retained')
+assert.deepEqual(result.locations.map((place) => place.formattedAddress.value), locations.map((place) => place.formattedAddress), 'formatted addresses remain available alongside display names')
+assert.deepEqual(result.locations.map((place) => place.role.source), locations.map((place) => `public.wedding_places.${place.id}.role`), 'place role provenance is retained')
 assert.equal(result.locations[0]?.placeId?.value, 'google-0')
 assert.equal(result.generationContext.contractRecordId?.value, 'internal-contract-uuid')
 assert.equal('contractNumber' in result.generationContext, false)
@@ -178,6 +185,14 @@ assert.equal(genericProvidedAlongsideOwnedAddress.parties[1]?.address, undefined
 assert.equal(result.additionalAnswers.find((answer) => answer.id === 'arbitrary.ref')?.value, 'arbitrary value', 'unassociated user answers remain separate from party address facts')
 assert.equal('owner' in result.additionalAnswers.find((answer) => answer.id === 'arbitrary.ref')!, false, 'unassociated answers do not gain an invented owner')
 assert.equal(result.parties[0]?.address?.value, 'Michała Grażyńskiego 5, 41-810 Zabrze', 'unassociated user answers are not assigned to partner1')
+
+const explicitlyRepeatedParticipantFact = buildContractGenerationInput({
+  wedding: { ...wedding, couple: { ...wedding.couple, partner1Address: 'Shared by direct authority', partner2Address: 'Shared by direct authority' } },
+  weddingPlaces: [], extras: [], generationDate: '2026-09-29', questionnaireFields: {},
+})
+assert.deepEqual(explicitlyRepeatedParticipantFact.parties.map((party) => [party.address?.value, party.address?.owner]), [
+  ['Shared by direct authority', 'partner1'], ['Shared by direct authority', 'partner2'],
+], 'a fact explicitly present for each participant remains available to both without inferred ownership')
 
 const adapterSource = await readFile(`${process.cwd()}/src/features/contract-generation-spike/contractGenerationInput.ts`, 'utf8')
 assert.doesNotMatch(adapterSource, /JSZip|readSource|sourceDocx|parseDocx/i)
