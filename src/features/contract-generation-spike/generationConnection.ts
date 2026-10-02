@@ -2,4 +2,5 @@
 export type GenerationConnection = {
   requestId: string
   sessionId?: string
+  saveToken?: string
 }

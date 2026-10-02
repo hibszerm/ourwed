@@ -105,6 +105,15 @@ assert.equal(parseContractGenerationAction({ version: 1, action: 'recover', requ
 }
 
 {
+  const f = setup({
+    getSessionByIdempotencyKey: async () => ({ ...baseSession, state: 'completed', expiresAt: new Date(Date.now() - 1).toISOString() }),
+  })
+  const replay = await f.boundary.start('owner-1', startRequest)
+  assert.deepEqual(replay, { status: 'stale', code: 'session_invalid' }, 'expired completed preview cannot be replayed as usable')
+  assert.deepEqual(f.calls, [], 'expired preview replay is rejected without another execution or provider call')
+}
+
+{
   const f = setup()
   f.setSession(baseSession)
   f.setGeneration({ status: 'MISSING_INPUT', missingInputs: [{ id: 'opaque-2', label: 'Wedding date', answerKind: 'date' }] })

@@ -19,8 +19,11 @@ assert.match(page, /reason: 'abandoned'/)
 // authenticated owner/wedding, and only mutates Option B rows.
 assert.match(migration, /pg_advisory_xact_lock/)
 assert.match(migration, /idempotency_key = p_request_id/)
-assert.match(migration, /auth\.role\(\) <> 'service_role'/)
+assert.match(migration, /idempotency scope mismatch/)
+assert.match(migration, /auth\.role\(\) is distinct from 'service_role'/)
 assert.match(migration, /to service_role/)
+assert.match(migration, /create or replace function public\.claim_option_b_generation_save[\s\S]*?pg_advisory_xact_lock/)
+assert.match(migration, /claim_option_b_generation_save\(uuid, uuid, uuid, uuid, text\)[\s\S]*?to service_role/)
 assert.match(migration, /weddings[\s\S]*?user_id = v_owner_id/)
 assert.match(migration, /session_kind = 'option_b'[\s\S]*?session_state in \('processing', 'awaiting_input', 'completed'\)/)
 assert.match(migration, /missing_inputs_json = '\[\]'::jsonb, user_answers_json = '\[\]'::jsonb/)
@@ -30,6 +33,7 @@ assert.match(migration, /ephemeral_lifecycle_version = 1/)
 assert.match(migration, /cron\.schedule/)
 assert.doesNotMatch(migration, /delete from public\.wedding_contract_generation_runs/i)
 assert.match(edge, /rpc\('begin_option_b_generation'/)
+assert.match(edge, /rpc\('claim_option_b_generation_save'/)
 
 // Valid transitions refresh the inactivity deadline. Terminal paths erase raw
 // working data; candidate bytes are server-created only after independent review.
@@ -46,6 +50,7 @@ assert.match(edge, /temporaryCandidatePath\(ownerId, weddingId, sessionId\)/)
 assert.match(edge, /parsed\.action === 'cleanup_expired'/)
 assert.match(edge, /action: request\.reason/)
 assert.match(edge, /validateOptionBCandidate/)
+assert.match(migration, /storage\.filename\(name\) <> 'option-b-reviewed-candidate\.docx'/)
 
 // Candidate validation happens before Save's durable draft/document writes.
 const savePath = page.slice(page.indexOf('async function save()'), page.indexOf('function downloadGeneratedDocx()'))

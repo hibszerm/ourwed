@@ -31,6 +31,12 @@ type ContractRow = DbRow & { id: string; status: string }
 type FormInstanceRow = DbRow & { id: string; submitted_at: string | null }
 type FormAnswerRow = DbRow & { answer_json: unknown }
 
+function createAdminClient(supabaseUrl = Deno.env.get('SUPABASE_URL')): SupabaseClient {
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+  if (!supabaseUrl || !serviceRoleKey) throw new Error('service_role_unavailable')
+  return createClient<DatabaseSchema>(supabaseUrl, serviceRoleKey)
+}
+
 const DOCX_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 const OPTION_B_ACTIVE_TTL_MS = 30 * 60 * 1000
 const GENERATION_SCHEMA = {
@@ -329,9 +335,7 @@ async function removeTemporaryCandidate(
 }
 
 async function cleanupExpiredOptionBRuns(supabaseUrl: string): Promise<void> {
-  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-  if (!serviceRoleKey) throw new Error('cleanup_service_unavailable')
-  const admin = createClient<DatabaseSchema>(supabaseUrl, serviceRoleKey)
+  const admin = createAdminClient(supabaseUrl)
   const now = new Date()
   const [expiredResult, terminalCandidateResult] = await Promise.all([
     admin.from('wedding_contract_generation_runs')
@@ -386,29 +390,36 @@ async function cleanupExpiredOptionBRuns(supabaseUrl: string): Promise<void> {
 async function finalizeOptionBRun(
   supabase: SupabaseClient,
   ownerId: string,
-  request: { weddingId: string; sessionId?: string; requestId?: string; reason: 'saved' | 'discarded' | 'abandoned' },
+  request: { weddingId: string; sessionId?: string; requestId?: string; saveToken?: string; reason: 'saved' | 'discarded' | 'abandoned' },
   corsHeaders: HeadersInit,
 ): Promise<Response> {
   let query = supabase.from('wedding_contract_generation_runs')
-    .select('id,wedding_id,owner_user_id,session_state,intermediate_docx_path')
+    .select('id,wedding_id,owner_user_id,session_state,generation_status,execution_id,intermediate_docx_path')
     .eq('owner_user_id', ownerId).eq('wedding_id', request.weddingId).eq('session_kind', 'option_b')
   query = request.sessionId ? query.eq('id', request.sessionId) : query.eq('idempotency_key', request.requestId!)
   const { data: run, error } = await query.maybeSingle()
   if (error) return json({ status: 'failure', code: 'temporary_failure' }, 200, corsHeaders)
   if (!run) return json({ status: 'finalized' }, 200, corsHeaders)
-  if (request.reason === 'saved' && run.session_state !== 'completed') {
+  const saveClaimed = run.session_state === 'processing' && run.generation_status === 'ready'
+  if ((request.reason === 'saved' && !saveClaimed)
+    || (saveClaimed && request.saveToken !== run.execution_id)
+    || (!saveClaimed && request.saveToken)) {
     return json({ status: 'stale', code: 'session_invalid' }, 200, corsHeaders)
   }
   if (run.session_state === 'processing' || run.session_state === 'awaiting_input' || run.session_state === 'completed') {
-    const { data: terminal, error: updateError } = await supabase.from('wedding_contract_generation_runs').update({
+    let terminalQuery = supabase.from('wedding_contract_generation_runs').update({
       session_state: 'abandoned', generation_status: request.reason === 'saved' ? 'ready' : 'failed',
       missing_inputs_json: [], user_answers_json: [], resolved_values_json: {}, authority_fingerprint: null,
       expires_at: new Date(Date.now() + OPTION_B_ACTIVE_TTL_MS).toISOString(),
     }).eq('id', String(run.id)).eq('owner_user_id', ownerId).eq('session_kind', 'option_b')
-      .eq('session_state', String(run.session_state)).select('id').maybeSingle()
+      .eq('session_state', String(run.session_state))
+    terminalQuery = typeof run.execution_id === 'string'
+      ? terminalQuery.eq('execution_id', run.execution_id)
+      : terminalQuery.is('execution_id', null)
+    const { data: terminal, error: updateError } = await terminalQuery.select('id').maybeSingle()
     if (updateError || !terminal) return json({ status: 'stale', code: 'session_invalid' }, 200, corsHeaders)
   }
-  await removeTemporaryCandidate(supabase, ownerId, request.weddingId, String(run.id), run.intermediate_docx_path)
+  await removeTemporaryCandidate(createAdminClient(), ownerId, request.weddingId, String(run.id), run.intermediate_docx_path)
   console.info(JSON.stringify({ event: 'contract_generation_lifecycle', action: request.reason, category: 'terminalized' }))
   return json({ status: 'finalized' }, 200, corsHeaders)
 }
@@ -416,7 +427,7 @@ async function finalizeOptionBRun(
 async function validateOptionBCandidate(
   supabase: SupabaseClient,
   ownerId: string,
-  request: { weddingId: string; sessionId: string },
+  request: { weddingId: string; sessionId: string; saveToken: string },
   corsHeaders: HeadersInit,
 ): Promise<Response> {
   const { data, error } = await supabase.from('wedding_contract_generation_runs').select('*')
@@ -437,6 +448,15 @@ async function validateOptionBCandidate(
     await finalizeOptionBRun(supabase, ownerId, { ...request, reason: 'abandoned' }, corsHeaders)
     return json({ status: 'stale', code: 'authority_changed' }, 200, corsHeaders)
   }
+  const { data: claim, error: claimError } = await createAdminClient().rpc('claim_option_b_generation_save', {
+    p_owner_id: ownerId,
+    p_wedding_id: request.weddingId,
+    p_session_id: request.sessionId,
+    p_save_token: request.saveToken,
+    p_authority_fingerprint: savedFingerprint,
+  })
+  if (claimError) return json({ status: 'failure', code: 'temporary_failure' }, 200, corsHeaders)
+  if (claim !== true) return json({ status: 'stale', code: 'session_invalid' }, 200, corsHeaders)
   return json({ status: 'candidate_valid' }, 200, corsHeaders)
 }
 
@@ -580,15 +600,12 @@ function providerAdapters() {
 
 function createBoundary(supabase: SupabaseClient, ownerId: string) {
   const provider = providerAdapters()
+  const admin = createAdminClient()
   return createContractGenerationBoundary({
     newId: () => crypto.randomUUID(),
     loadContext: (userId, weddingId, answers) => loadServerContext(supabase, userId, weddingId, answers),
     async createSession(input) {
       if (input.userId !== ownerId || input.scope.ownerUserId !== ownerId) return null
-      const supabaseUrl = Deno.env.get('SUPABASE_URL')
-      const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-      if (!supabaseUrl || !serviceRoleKey) return null
-      const admin = createClient<DatabaseSchema>(supabaseUrl, serviceRoleKey)
       const { data, error } = await admin.rpc('begin_option_b_generation', {
         p_owner_id: ownerId,
         p_wedding_id: input.weddingId,
@@ -607,7 +624,7 @@ function createBoundary(supabase: SupabaseClient, ownerId: string) {
       for (const candidate of superseded) {
         const candidateId = typeof candidate.sessionId === 'string' ? candidate.sessionId : ''
         const candidatePath = candidate.path
-        if (candidateId) await removeTemporaryCandidate(supabase, ownerId, input.weddingId, candidateId, candidatePath)
+        if (candidateId) await removeTemporaryCandidate(admin, ownerId, input.weddingId, candidateId, candidatePath)
       }
       return mapSession(row)
     },
@@ -630,7 +647,7 @@ function createBoundary(supabase: SupabaseClient, ownerId: string) {
         .eq('session_state', 'awaiting_input').lte('expires_at', new Date().toISOString())
         .select('id,wedding_id,owner_user_id,intermediate_docx_path').maybeSingle()
       if (error || !data) return
-      await removeTemporaryCandidate(supabase, userId, String(data.wedding_id), sessionId, data.intermediate_docx_path)
+      await removeTemporaryCandidate(admin, userId, String(data.wedding_id), sessionId, data.intermediate_docx_path)
       console.info(JSON.stringify({ event: 'contract_generation_lifecycle', action: 'expired', category: 'timeout' }))
     },
     async claimContinuation(input) {
@@ -664,7 +681,7 @@ function createBoundary(supabase: SupabaseClient, ownerId: string) {
       const { data: run, error: runError } = await supabase.from('wedding_contract_generation_runs').select('id,wedding_id,owner_user_id').eq('id', input.sessionId).eq('execution_id', input.executionId).eq('session_state', 'processing').eq('session_kind', 'option_b').maybeSingle()
       if (runError || !run || run.owner_user_id !== ownerId) return null
       const path = `${ownerId}/weddings/${run.wedding_id}/drafts/${run.id}/option-b-reviewed-candidate.docx`
-      const { error: uploadError } = await supabase.storage.from('document-files').upload(path, new Blob([input.candidate.bytes], { type: DOCX_TYPE }), { upsert: false, contentType: DOCX_TYPE })
+      const { error: uploadError } = await admin.storage.from('document-files').upload(path, new Blob([input.candidate.bytes], { type: DOCX_TYPE }), { upsert: false, contentType: DOCX_TYPE })
       if (uploadError) return null
       const { data, error } = await supabase.from('wedding_contract_generation_runs').update({
         session_state: 'completed', generation_status: 'ready', missing_inputs_json: [], user_answers_json: [],
@@ -672,7 +689,7 @@ function createBoundary(supabase: SupabaseClient, ownerId: string) {
         expires_at: new Date(Date.now() + OPTION_B_ACTIVE_TTL_MS).toISOString(),
       }).eq('id', String(run.id)).eq('execution_id', input.executionId).eq('session_state', 'processing').select('id').maybeSingle()
       if (error || !data) {
-        await supabase.storage.from('document-files').remove([path])
+        await admin.storage.from('document-files').remove([path])
         return null
       }
       return String(run.id)
@@ -684,7 +701,7 @@ function createBoundary(supabase: SupabaseClient, ownerId: string) {
         expires_at: new Date(Date.now() + OPTION_B_ACTIVE_TTL_MS).toISOString(),
       }).eq('id', sessionId).eq('execution_id', executionId).eq('session_kind', 'option_b').eq('session_state', 'processing')
         .select('id,wedding_id,owner_user_id,intermediate_docx_path').maybeSingle()
-      if (data) await removeTemporaryCandidate(supabase, ownerId, String(data.wedding_id), sessionId, data.intermediate_docx_path)
+      if (data) await removeTemporaryCandidate(admin, ownerId, String(data.wedding_id), sessionId, data.intermediate_docx_path)
     },
     diagnose(diagnostic: BoundaryDiagnostic) {
       console.info(JSON.stringify({ event: 'contract_generation_diagnostic', ...diagnostic }))

@@ -22,15 +22,15 @@ await client.continue({
   sessionId: 'opaque-session',
   answers: [{ missingInputId: 'opaque-requirement', value: ' value ' }],
 })
-await client.validateCandidate({ weddingId: 'wedding-1', sessionId: 'opaque-session' })
-await client.finalize({ weddingId: 'wedding-1', sessionId: 'opaque-session', reason: 'saved' })
+await client.validateCandidate({ weddingId: 'wedding-1', sessionId: 'opaque-session', saveToken: '00000000-0000-4000-8000-000000000002' })
+await client.finalize({ weddingId: 'wedding-1', sessionId: 'opaque-session', saveToken: '00000000-0000-4000-8000-000000000002', reason: 'saved' })
 const candidateBytes = await client.candidate({ weddingId: 'wedding-1', candidateId: 'opaque-candidate' })
 
 assert.deepEqual(bodies, [
   { version: 1, action: 'start', request: { weddingId: 'wedding-1', requestId: '00000000-0000-4000-8000-000000000001' } },
   { version: 1, action: 'continue', request: { sessionId: 'opaque-session', answers: [{ missingInputId: 'opaque-requirement', value: ' value ' }] } },
-  { version: 1, action: 'validate_candidate', request: { weddingId: 'wedding-1', sessionId: 'opaque-session' } },
-  { version: 1, action: 'finalize', request: { weddingId: 'wedding-1', sessionId: 'opaque-session', reason: 'saved' } },
+  { version: 1, action: 'validate_candidate', request: { weddingId: 'wedding-1', sessionId: 'opaque-session', saveToken: '00000000-0000-4000-8000-000000000002' } },
+  { version: 1, action: 'finalize', request: { weddingId: 'wedding-1', sessionId: 'opaque-session', saveToken: '00000000-0000-4000-8000-000000000002', reason: 'saved' } },
   { version: 1, action: 'candidate', request: { weddingId: 'wedding-1', candidateId: 'opaque-candidate' } },
 ])
 assert.deepEqual([...new Uint8Array(candidateBytes)], [1, 2, 3])

@@ -160,6 +160,7 @@ export function WeddingContractGenerationPage() {
         await finalizeContractGeneration({
           weddingId,
           ...(current.sessionId ? { sessionId: current.sessionId } : { requestId: current.requestId }),
+          ...(current.saveToken ? { saveToken: current.saveToken } : {}),
           reason: 'abandoned',
         }).catch(() => undefined)
         updateConnection(null)
@@ -375,6 +376,7 @@ export function WeddingContractGenerationPage() {
         await finalizeContractGeneration({
           weddingId,
           ...(current.sessionId ? { sessionId: current.sessionId } : { requestId: current.requestId }),
+          ...(current.saveToken ? { saveToken: current.saveToken } : {}),
           reason: 'discarded',
         }).catch(() => undefined)
       }
@@ -400,8 +402,10 @@ export function WeddingContractGenerationPage() {
     setGeneratePending(true)
     beginOperation()
     setError(null)
+    let activeConnection: GenerationConnection | null = null
+    let durableSaved = false
     try {
-      const activeConnection = connectionRef.current
+      activeConnection = connectionRef.current
       if (!activeConnection?.sessionId) {
         setGenerated(null)
         setDocxBytes(null)
@@ -409,11 +413,22 @@ export function WeddingContractGenerationPage() {
         setError('Podgląd tej próby nie jest już aktywny. Rozpocznij nowe generowanie.')
         return false
       }
+      const sessionId = activeConnection.sessionId
+      const saveToken = crypto.randomUUID()
+      activeConnection = { ...activeConnection, saveToken }
+      updateConnection(activeConnection)
       const candidateCheck = await validateContractGenerationCandidate({
         weddingId: wedding.id,
-        sessionId: activeConnection.sessionId,
+        sessionId,
+        saveToken,
       })
       if (candidateCheck.status !== 'candidate_valid') {
+        await finalizeContractGeneration({
+          weddingId: wedding.id,
+          sessionId,
+          saveToken,
+          reason: 'abandoned',
+        }).catch(() => undefined)
         clearConnection()
         setGenerated(null)
         setDocxBytes(null)
@@ -491,6 +506,7 @@ export function WeddingContractGenerationPage() {
             : {}),
         },
       })
+      durableSaved = true
       // Durable artifact + CRM lifecycle must finish before success.
       await weddingActionsService.markContractGenerated(wedding.id, {
         missingFields: generated.omittedKeys,
@@ -531,6 +547,7 @@ export function WeddingContractGenerationPage() {
       await finalizeContractGeneration({
         weddingId: wedding.id,
         sessionId: activeConnection.sessionId,
+        saveToken,
         reason: 'saved',
       }).catch(() => undefined)
       clearConnection()
@@ -550,6 +567,23 @@ export function WeddingContractGenerationPage() {
       }
       return true
     } catch (err) {
+      if (activeConnection?.sessionId && activeConnection.saveToken) {
+        await finalizeContractGeneration({
+          weddingId: wedding.id,
+          sessionId: activeConnection.sessionId,
+          saveToken: activeConnection.saveToken,
+          reason: durableSaved ? 'saved' : 'abandoned',
+        }).catch(() => undefined)
+        clearConnection()
+        if (durableSaved) {
+          setStep('saved')
+        } else {
+          setGenerated(null)
+          setDocxBytes(null)
+          setParagraphs([])
+          setStep('resolve')
+        }
+      }
       if (err instanceof ContractArtifactVersionMismatchError) {
         setError(
           'Wygenerowany dokument nie jest już dostępny. Wygeneruj umowę ponownie przed zapisaniem.',

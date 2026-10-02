@@ -23,11 +23,13 @@ export type ContractGenerationFinalizeRequest = {
   weddingId: string
   sessionId?: string
   requestId?: string
+  saveToken?: string
   reason: 'saved' | 'discarded' | 'abandoned'
 }
 export type ContractGenerationValidateCandidateRequest = {
   weddingId: string
   sessionId: string
+  saveToken: string
 }
 
 export type ContractGenerationBoundaryResponse =
@@ -164,18 +166,24 @@ function validFinalizeRequest(value: unknown): value is ContractGenerationFinali
   const hasSessionId = typeof item.sessionId === 'string' && item.sessionId.trim().length > 0
   const hasRequestId = typeof item.requestId === 'string'
     && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(item.requestId)
+  const hasSaveToken = typeof item.saveToken === 'string'
+    && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(item.saveToken)
   return typeof item.weddingId === 'string' && item.weddingId.trim().length > 0
     && hasSessionId !== hasRequestId
     && ['saved', 'discarded', 'abandoned'].includes(String(item.reason))
-    && Object.keys(item).length === 3
+    && (item.reason !== 'saved' || hasSaveToken)
+    && (!('saveToken' in item) || hasSaveToken)
+    && Object.keys(item).length === (hasSaveToken ? 4 : 3)
 }
 
 function validValidateCandidateRequest(value: unknown): value is ContractGenerationValidateCandidateRequest {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const item = value as Record<string, unknown>
-  return Object.keys(item).length === 2
+  return Object.keys(item).length === 3
     && typeof item.weddingId === 'string' && item.weddingId.trim().length > 0
     && typeof item.sessionId === 'string' && item.sessionId.trim().length > 0
+    && typeof item.saveToken === 'string'
+    && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(item.saveToken)
 }
 
 /** One Generator call per generation request, plus at most one result-specific review or conflict-verification call. */
@@ -389,7 +397,12 @@ function existingStartResult(
   if (session.state === 'awaiting_input' && canResumeContractGenerationSession(session, scope, now)) {
     return { status: 'awaiting_input', sessionId: session.id, missingInputs: session.missingInputs }
   }
-  if (session.state === 'completed') return { status: 'ready', sessionId: session.id, candidateId: session.id, templateId: session.templateId, templateVersionId: session.templateVersionId }
+  if (session.state === 'completed') {
+    if (!Number.isFinite(Date.parse(session.expiresAt)) || Date.parse(session.expiresAt) <= now.getTime()) {
+      return { status: 'stale', code: 'session_invalid' }
+    }
+    return { status: 'ready', sessionId: session.id, candidateId: session.id, templateId: session.templateId, templateVersionId: session.templateVersionId }
+  }
   return { status: 'failure', code: 'temporary_failure' }
 }
 
