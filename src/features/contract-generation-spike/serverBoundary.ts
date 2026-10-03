@@ -9,6 +9,7 @@ import {
   type ResolvedMissingInput,
 } from './generationSession.ts'
 import { REVIEWER_FINDING_CATEGORIES, REVIEWER_FINDING_RULE_IDS, type ContractGenerationAnswer, type MissingInput, type ReviewerFindingCategory, type ReviewerFindingRuleId } from './generationProtocol.ts'
+import { safeMechanicalTelemetry, type MechanicalAuthorityType, type MechanicalFailureDiagnostic, type MechanicalGateId, type MechanicalReasonCode } from './mechanicalDiagnostics.ts'
 
 export type ContractGenerationStartRequest = { weddingId: string; requestId: string }
 export type ContractGenerationContinueRequest = {
@@ -48,7 +49,7 @@ export type BoundaryCandidate = { bytes: ArrayBuffer; changedBlocks: unknown[] }
 export type BoundaryRunResult =
   | { status: 'MISSING_INPUT'; missingInputs: MissingInput[] }
   | { status: 'CONFLICT_INPUT'; conflicts: string[] }
-  | { status: 'FAILED'; category?: 'provider_failure' | 'provider_configuration_failure' | 'invalid_response' | 'mechanical_validation_failure' | 'input_validation_failure' }
+  | { status: 'FAILED'; category?: 'provider_failure' | 'provider_configuration_failure' | 'invalid_response' | 'mechanical_validation_failure' | 'input_validation_failure'; mechanicalFailure?: MechanicalFailureDiagnostic }
   | { status: 'READY'; candidate: BoundaryCandidate }
 
 export type BoundaryDiagnostic = {
@@ -62,6 +63,11 @@ export type BoundaryDiagnostic = {
   findingCount?: number
   findingCategories?: ReviewerFindingCategory[]
   findingRuleIds?: ReviewerFindingRuleId[]
+  mechanicalGateId?: MechanicalGateId
+  mechanicalReasonCode?: MechanicalReasonCode
+  mechanicalEditIndex?: number
+  mechanicalEditCount?: number
+  mechanicalAuthorityType?: MechanicalAuthorityType
   mechanicalValidation?: 'passed' | 'failed' | 'not_reached'
   finalCode?: 'generation_safety' | 'temporary_failure' | 'stale'
 }
@@ -252,7 +258,10 @@ export function createContractGenerationBoundary(deps: ServerBoundaryDependencie
       if (generated.status === 'FAILED') {
         const category = generated.category ?? 'invalid_response'
         const failureCode = category === 'provider_failure' || category === 'provider_configuration_failure' ? 'temporary_failure' : 'generation_safety'
-        diagnose({ providerRole: 'Generator', category: category.toUpperCase(), providerInvoked: category !== 'input_validation_failure' && category !== 'provider_configuration_failure', mechanicalValidation: category === 'mechanical_validation_failure' ? 'failed' : 'not_reached', finalCode: failureCode })
+        const mechanical = category === 'mechanical_validation_failure'
+          ? safeMechanicalTelemetry(generated.mechanicalFailure ?? { gateId: 'internal', reasonCode: 'internal_validation_failure' })
+          : undefined
+        diagnose({ providerRole: 'Generator', category: category.toUpperCase(), providerInvoked: category !== 'input_validation_failure' && category !== 'provider_configuration_failure', mechanicalValidation: category === 'mechanical_validation_failure' ? 'failed' : 'not_reached', finalCode: failureCode, ...mechanical })
         await deps.markFailure(session.id, executionId, 'failed')
         return { status: 'failure', code: failureCode }
       }

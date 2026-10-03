@@ -144,7 +144,12 @@ async function runFailureDiagnostic(category: 'invalid_response' | 'provider_fai
     ...deps,
     createSession: async () => initialSession,
     getSessionByIdempotencyKey: async () => null,
-    generate: async () => { generatedCalls.push('generate'); return { status: 'FAILED', category } },
+    generate: async () => {
+      generatedCalls.push('generate')
+      return category === 'mechanical_validation_failure'
+        ? { status: 'FAILED', category, mechanicalFailure: { gateId: 'source_target', reasonCode: 'target_not_found', editIndex: 1, editCount: 3 } }
+        : { status: 'FAILED', category }
+    },
     diagnose: (event) => events.push(event),
   }
   const result = await createContractGenerationBoundary(failureDeps).start('synthetic-owner', { weddingId: 'synthetic-wedding', requestId: '00000000-0000-4000-8000-000000000001' })
@@ -162,6 +167,11 @@ const providerFailureTelemetry = await runFailureDiagnostic('provider_failure')
 assert.equal(providerFailureTelemetry.events[0]?.providerInvoked, true, 'provider failure remains distinct from invalid structured output')
 const mechanicalFailureTelemetry = await runFailureDiagnostic('mechanical_validation_failure')
 assert.equal(mechanicalFailureTelemetry.events[0]?.mechanicalValidation, 'failed', 'mechanical validation failure is labeled without exposing content')
+assert.equal(mechanicalFailureTelemetry.events[0]?.mechanicalGateId, 'source_target')
+assert.equal(mechanicalFailureTelemetry.events[0]?.mechanicalReasonCode, 'target_not_found')
+assert.equal(mechanicalFailureTelemetry.events[0]?.mechanicalEditIndex, 1)
+assert.equal(mechanicalFailureTelemetry.events[0]?.mechanicalEditCount, 3)
+assert.equal(Object.hasOwn(invalidResponseTelemetry.events[0]!, 'mechanicalGateId'), false, 'non-mechanical diagnostics retain their existing shape')
 
 {
   const events: BoundaryDiagnostic[] = []

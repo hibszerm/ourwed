@@ -168,6 +168,9 @@ assert.equal(parseContractGenerationAction({ version: 1, action: 'recover', requ
   assert.equal(result.status, 'ready')
   assert.deepEqual(f.calls, ['createSession', 'generate', 'review', 'persist'])
   assert.equal(f.session()?.state, 'completed')
+  const generator = f.diagnostics.find(({ providerRole }) => providerRole === 'Generator')
+  assert.equal(generator?.mechanicalValidation, 'passed')
+  assert.equal(Object.hasOwn(generator ?? {}, 'mechanicalGateId'), false, 'PASS telemetry keeps its existing shape')
 }
 
 {

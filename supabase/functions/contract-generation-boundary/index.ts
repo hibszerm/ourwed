@@ -536,10 +536,14 @@ function providerAdapters() {
     if (!isGenerationResponse(result, new Set([...authority.parties.map((party) => party.sourceKey), ...authority.participantAssociations.map((association) => association.participant)]))) return { status: 'FAILED' as const, category: 'invalid_response' as const }
     let applied: Awaited<ReturnType<typeof applyOptionBGenerationResponse>>
     try { applied = await applyOptionBGenerationResponse(context.sourceBytes, source, authority, view.sourceBlockIds, result) }
-    catch { return { status: 'FAILED' as const, category: 'mechanical_validation_failure' as const } }
+    catch { return { status: 'FAILED' as const, category: 'mechanical_validation_failure' as const, mechanicalFailure: { gateId: 'internal', reasonCode: 'internal_validation_failure' } as const } }
     if (applied.status === 'MISSING_INPUT') return applied
     if (applied.status === 'CONFLICT_INPUT') return applied
-    if (applied.status !== 'READY') return { status: 'FAILED' as const, category: 'mechanical_validation_failure' as const }
+    if (applied.status !== 'READY') return {
+      status: 'FAILED' as const,
+      category: 'mechanical_validation_failure' as const,
+      mechanicalFailure: applied.mechanicalFailure ?? { gateId: 'internal' as const, reasonCode: 'internal_validation_failure' as const },
+    }
     return { status: 'READY' as const, candidate: { bytes: applied.candidateBytes, changedBlocks: applied.changedBlocks } }
   }
 

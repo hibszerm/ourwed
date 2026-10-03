@@ -4,6 +4,7 @@ import { applyBlockOperations, type BlockOperation, type EditableBlock } from '.
 import { canonicalizeParagraphText, unescapeXml } from '@/features/documents/template/canonicalParagraph.ts'
 import type { ContractGenerationInput } from './contractGenerationInput'
 import { isGenerationResponse, REVIEWER_FINDING_RULE_IDS, type BlockEdit, type MissingInput } from './generationProtocol.ts'
+import type { MechanicalFailureDiagnostic } from './mechanicalDiagnostics.ts'
 
 export type SourceBlock = EditableBlock
 export type SourceDocument = { fileName: string; blocks: SourceBlock[] }
@@ -13,7 +14,7 @@ export type GenerationSourceView = { blocks: GenerationSourceBlock[]; sourceBloc
 export type OptionBGenerationResult =
   | { status: 'MISSING_INPUT'; missingInputs: MissingInput[] }
   | { status: 'CONFLICT_INPUT'; conflicts: string[] }
-  | { status: 'FAILED'; issues: string[] }
+  | { status: 'FAILED'; issues: string[]; mechanicalFailure?: MechanicalFailureDiagnostic }
   | { status: 'READY'; candidateBytes: ArrayBuffer; candidate: SourceDocument; edits: BlockEdit[]; changedBlocks: ChangedBlock[] }
 
 export const GENERIC_AUTHORITY_BOUNDARY_INSTRUCTION = 'Treat current authoritative facts as facts about this transaction; the source controls general or conditional contractual terms. Preserve any such source term that can coexist with current facts. Modify it only when current authority or an explicit product rule clearly establishes that it is superseded, waived, or replaced for this contract; update stale transaction-specific facts without discarding the surrounding condition. Do not request missing input or report a conflict solely to evaluate a condition that can be faithfully preserved.'
@@ -43,10 +44,16 @@ export function createGenerationSourceView(source: SourceDocument): GenerationSo
   return { blocks, sourceBlockIds }
 }
 
-export function validateOptionBInput(input: ContractGenerationInput): string[] {
+function validateOptionBInputWithDiagnostics(input: ContractGenerationInput): { issues: string[]; diagnostics: MechanicalFailureDiagnostic[] } {
   const issues = validateNormalizedDerivedFacts(input)
+  const diagnostics: MechanicalFailureDiagnostic[] = issues.map(() => ({
+    gateId: 'authority', reasonCode: 'derived_fact_mismatch', authorityType: 'normalized_authority',
+  }))
   for (const { path, fact } of normalizedFacts(input)) {
-    if (!fact.source.trim()) issues.push(`Normalized authority fact has no provenance source: ${path}`)
+    if (!fact.source.trim()) {
+      issues.push(`Normalized authority fact has no provenance source: ${path}`)
+      diagnostics.push({ gateId: 'authority', reasonCode: 'missing_provenance', authorityType: 'normalized_authority' })
+    }
   }
   const amounts = [
     ['contractValue', input.commercial.contractValue.value],
@@ -55,14 +62,22 @@ export function validateOptionBInput(input: ContractGenerationInput): string[] {
     ['travelFeeAmount', input.commercial.travelFeeAmount.value],
   ] as const
   for (const [name, amount] of amounts) {
-    if (!Number.isSafeInteger(amount) || amount < 0) issues.push(`Normalized commercial amount ${name} is invalid.`)
+    if (!Number.isSafeInteger(amount) || amount < 0) {
+      issues.push(`Normalized commercial amount ${name} is invalid.`)
+      diagnostics.push({ gateId: 'authority', reasonCode: 'invalid_amount', authorityType: 'normalized_authority' })
+    }
   }
   for (const extra of input.extras) {
     if (!Number.isSafeInteger(extra.quantity.value) || extra.quantity.value < 1 || !Number.isSafeInteger(extra.price.value) || extra.price.value < 0) {
       issues.push(`Normalized extra ${extra.id.value} has invalid quantity or price.`)
+      diagnostics.push({ gateId: 'authority', reasonCode: 'invalid_extra_amount', authorityType: 'normalized_authority' })
     }
   }
-  return issues
+  return { issues, diagnostics }
+}
+
+export function validateOptionBInput(input: ContractGenerationInput): string[] {
+  return validateOptionBInputWithDiagnostics(input).issues
 }
 export const REVIEW_INSTRUCTIONS = `Review independently. Use the source contract as authority for clauses, scope, and structure; use current input and user answers as authority for transaction facts; apply supplied product rules only where relevant. Natural grammatical variation is allowed, including inflection needed by source-language grammar, while underlying identity and meaning remain unchanged. Do not fail because rendered text differs literally from CRM display text, and do not require quote, span, or occurrence provenance. Treat obviously ungrammatical insertion of a canonical value where the source context plainly requires inflection as a material candidate-quality issue; do not require one exact wording when a natural grammatical rendering is used. Verify that place names and formatted addresses are both preserved when both are authoritative and the source does not clearly require only one. Verify participant ownership and provenance: a participant-specific address or phone cannot satisfy another participant's or a collective/shared requirement without explicit authority for every required participant or explicit shared scope, and correspondence/contact address is not residential evidence by itself. Verify that added wedding-specific extras remain distinct from source-defined base scope and are not presented as continuation of its numbered list unless the source explicitly defines them that way. Compare each incomplete-looking candidate fragment with the source and authoritative input. FAIL when generation introduced or worsened the problem, or when the source clearly requires a transaction-specific fact and the READY candidate leaves it unresolved, whether the fact was available in authority and unused or unavailable and not requested through MISSING_INPUT. Do not FAIL solely because questionable, awkward, incomplete-looking, stale, or possibly defective wording already existed in the source, was preserved without unauthorized alteration, and is not established to require an additional authoritative fact. Treat that unchanged concern as SOURCE_TEMPLATE_ISSUE for review/audit purposes, not as a Generator defect. Do not repair it, delete it, invent data for it, or turn it into a fabricated MISSING_INPUT. Compare source, authority, rules, candidate, and mechanical diff for material correctness: preservation of unrelated clauses and service scope, correct current facts and payment terms, stale facts, unauthorized additions or removals, and unnecessary CRM enrichment. Focus only on material correctness. PASS only if no material issue exists; otherwise return FAIL with concise material findings. Do not edit or repair the candidate. For FAIL, return one or more findings, each with exactly one safe category from: source_mismatch (candidate materially changes source meaning/scope), omitted_required_content (required source content is missing), unsupported_addition (material content lacks authority), authoritative_fact_mismatch (candidate conflicts with authoritative current facts), product_rule_violation (a supplied generic product rule is violated), structural_issue (document structure materially impairs the candidate), other_material_issue (material concern not covered above). Each finding also has exactly one ruleId from the closed existing-rule taxonomy: ${REVIEWER_FINDING_RULE_IDS.join(', ')}. Select the single primary applicable existing rule family: contract_total (authoritative contract total and arithmetic), travel (charged, included, or non-charged travel), extras (explicit purchased extras, kept distinct from base scope and not duplicated), source_scope (source-defined base services and obligations), payment_amounts (authoritative deposit, installment, and other payment amounts), payment_timing (source timing for each obligation), crm_enrichment (unsupported CRM additions and participant/place provenance), transaction_facts (other current transaction facts), unsupported_invention (unauthorized contract content or obligations), source_preservation (unrelated source wording, clauses, and structure). These identifiers classify existing review findings only and do not add a review criterion. Do not derive or include identifiers from any wedding, user, template, source, candidate, or answer data. Each finding also has a concise free-text message for human review. Never put category-specific details or sensitive values in category or ruleId. Return only CandidateReviewResponse.`
 
@@ -165,25 +180,31 @@ function wordFieldMarkers(xml: string): string[] {
 }
 
 /** Mechanical-only checks for a source-copy candidate produced by block edits. */
-export async function validateOptionBCandidate(
+async function validateOptionBCandidateDetailed(
   sourceBytes: ArrayBuffer,
   candidateBytes: ArrayBuffer,
   source: SourceDocument,
   candidate: SourceDocument,
   operations: BlockOperation[],
-): Promise<string[]> {
+): Promise<{ issues: string[]; diagnostics: MechanicalFailureDiagnostic[] }> {
   const issues: string[] = []
+  const diagnostics: MechanicalFailureDiagnostic[] = []
+  const reject = (issue: string, gateId: MechanicalFailureDiagnostic['gateId'], reasonCode: MechanicalFailureDiagnostic['reasonCode'], editIndex?: number) => {
+    issues.push(issue)
+    diagnostics.push({ gateId, reasonCode, ...(editIndex === undefined ? {} : { editIndex }), editCount: operations.length })
+  }
   let sourceZip: JSZip
   let candidateZip: JSZip
   try {
     [sourceZip, candidateZip] = await Promise.all([JSZip.loadAsync(sourceBytes), JSZip.loadAsync(candidateBytes)])
   } catch {
-    return ['Cannot open source or candidate DOCX ZIP package']
+    reject('Cannot open source or candidate DOCX ZIP package', 'candidate_parse', 'invalid_package')
+    return { issues, diagnostics }
   }
   const sourceParts = Object.keys(sourceZip.files).filter((part) => !sourceZip.files[part]?.dir).sort()
   const candidateParts = Object.keys(candidateZip.files).filter((part) => !candidateZip.files[part]?.dir).sort()
-  if (!sourceParts.includes('[Content_Types].xml') || !sourceParts.includes('word/document.xml')) issues.push('Source DOCX is missing a required package part.')
-  if (JSON.stringify(sourceParts) !== JSON.stringify(candidateParts)) issues.push('DOCX package part set changed.')
+  if (!sourceParts.includes('[Content_Types].xml') || !sourceParts.includes('word/document.xml')) reject('Source DOCX is missing a required package part.', 'package_structure', 'required_part_missing')
+  if (JSON.stringify(sourceParts) !== JSON.stringify(candidateParts)) reject('DOCX package part set changed.', 'package_structure', 'part_set_changed')
 
   const editablePart = (part: string) => /^word\/(?:document|header\d+|footer\d+)\.xml$/.test(part)
   for (const part of sourceParts) {
@@ -192,61 +213,83 @@ export async function validateOptionBCandidate(
     if (!beforeFile || !afterFile) continue
     if (!editablePart(part)) {
       const [before, after] = await Promise.all([beforeFile.async('uint8array'), afterFile.async('uint8array')])
-      if (before.length !== after.length || before.some((byte, index) => byte !== after[index])) issues.push(`Untouched DOCX package part changed: ${part}`)
+      if (before.length !== after.length || before.some((byte, index) => byte !== after[index])) reject(`Untouched DOCX package part changed: ${part}`, 'package_preservation', 'untouched_part_changed')
       continue
     }
     const [before, after] = await Promise.all([beforeFile.async('string'), afterFile.async('string')])
     const insertedInPart = operations.filter((operation) => operation.operation === 'INSERT_BLOCK_AFTER' && source.blocks.find((block) => block.blockId === operation.anchorBlockId)?.part === part).length
     const sourceParagraphs = source.blocks.filter((block) => block.part === part).length
     const candidateParagraphs = candidate.blocks.filter((block) => block.part === part).length
-    if (candidateParagraphs !== sourceParagraphs + insertedInPart) issues.push(`Paragraph structure changed unexpectedly: ${part}`)
-    if (JSON.stringify(tableStructureSignatures(before)) !== JSON.stringify(tableStructureSignatures(after))) issues.push(`Table row/cell structure changed: ${part}`)
-    if (JSON.stringify(wordFieldInstructions(before)) !== JSON.stringify(wordFieldInstructions(after))) issues.push(`Word field instructions changed: ${part}`)
-    if (JSON.stringify(wordFieldMarkers(before)) !== JSON.stringify(wordFieldMarkers(after))) issues.push(`Word field structure changed: ${part}`)
+    if (candidateParagraphs !== sourceParagraphs + insertedInPart) reject(`Paragraph structure changed unexpectedly: ${part}`, 'package_structure', 'paragraph_structure_changed')
+    if (JSON.stringify(tableStructureSignatures(before)) !== JSON.stringify(tableStructureSignatures(after))) reject(`Table row/cell structure changed: ${part}`, 'package_structure', 'table_structure_changed')
+    if (JSON.stringify(wordFieldInstructions(before)) !== JSON.stringify(wordFieldInstructions(after))) reject(`Word field instructions changed: ${part}`, 'package_structure', 'field_instruction_changed')
+    if (JSON.stringify(wordFieldMarkers(before)) !== JSON.stringify(wordFieldMarkers(after))) reject(`Word field structure changed: ${part}`, 'package_structure', 'field_structure_changed')
   }
 
   const diff = computeChangedBlockDiff(source.blocks, candidate.blocks, operations)
   const replacements = new Map<string, Extract<BlockOperation, { operation: 'REPLACE_BLOCK_TEXT' }>>()
   const matchedInsertDiffs = new Set<number>()
-  for (const operation of operations) {
+  for (const [editIndex, operation] of operations.entries()) {
     if (operation.operation === 'REPLACE_BLOCK_TEXT') {
       const original = source.blocks.find((block) => block.blockId === operation.blockId)
       if (replacements.has(operation.blockId)) {
-        issues.push(`Duplicate replacement target: ${operation.blockId}`)
+        reject(`Duplicate replacement target: ${operation.blockId}`, 'duplicate_target', 'duplicate_target', editIndex)
       } else replacements.set(operation.blockId, operation)
       const candidateIndex = original ? candidateIndexForSourceBlock(original, source.blocks, operations) : -1
       const candidateBlock = original
         ? candidate.blocks.find((block) => block.blockId === `${original.part}#p${candidateIndex}`)
         : undefined
       if (!original || !candidateBlock || candidateBlock.text !== canonicalizeParagraphText(operation.finalText)) {
-        issues.push(`Requested block replacement was not applied exactly: ${operation.blockId}`)
+        reject(`Requested block replacement was not applied exactly: ${operation.blockId}`, 'edit_application', 'requested_edit_missing', editIndex)
       }
     } else if (operation.operation === 'INSERT_BLOCK_AFTER') {
       const matchingDiff = diff.findIndex((item, index) => !matchedInsertDiffs.has(index)
         && item.sourceText === null && item.candidateText === canonicalizeParagraphText(operation.finalText))
       if (matchingDiff < 0) {
-        issues.push(`Requested block insertion was not applied exactly: ${operation.anchorBlockId}`)
+        reject(`Requested block insertion was not applied exactly: ${operation.anchorBlockId}`, 'edit_application', 'requested_edit_missing', editIndex)
       } else matchedInsertDiffs.add(matchingDiff)
-    } else issues.push('Option B does not permit deleting source blocks.')
+    } else reject('Option B does not permit deleting source blocks.', 'edit_application', 'deletion_not_permitted', editIndex)
   }
 
   for (let index = 0; index < diff.length; index++) {
     const change = diff[index]!
     if (change.sourceText === null) {
-      if (!matchedInsertDiffs.has(index)) issues.push('Candidate contains an unrequested text change or source block loss.')
+      if (!matchedInsertDiffs.has(index)) reject('Candidate contains an unrequested text change or source block loss.', 'extra_change', 'unexpected_change')
       continue
     }
     if (change.candidateText === null) {
-      issues.push('Candidate contains an unrequested text change or source block loss.')
+      reject('Candidate contains an unrequested text change or source block loss.', 'extra_change', 'unexpected_change')
       continue
     }
     if (change.sourceText === change.candidateText) continue
     const replacement = replacements.get(change.blockRef)
     if (!replacement || canonicalizeParagraphText(replacement.finalText) !== change.candidateText) {
-      issues.push('Candidate contains an unrequested text change or source block loss.')
+      reject('Candidate contains an unrequested text change or source block loss.', 'extra_change', 'unexpected_change')
     }
   }
-  return issues
+  return { issues, diagnostics }
+}
+
+export async function validateOptionBCandidate(
+  sourceBytes: ArrayBuffer,
+  candidateBytes: ArrayBuffer,
+  source: SourceDocument,
+  candidate: SourceDocument,
+  operations: BlockOperation[],
+): Promise<string[]> {
+  return (await validateOptionBCandidateDetailed(sourceBytes, candidateBytes, source, candidate, operations)).issues
+}
+
+/** Content-free result for callers that need only the deterministic gate classification. */
+export async function diagnoseOptionBCandidate(
+  sourceBytes: ArrayBuffer,
+  candidateBytes: ArrayBuffer,
+  source: SourceDocument,
+  candidate: SourceDocument,
+  operations: BlockOperation[],
+): Promise<{ passed: true } | { passed: false; failure?: MechanicalFailureDiagnostic }> {
+  const result = await validateOptionBCandidateDetailed(sourceBytes, candidateBytes, source, candidate, operations)
+  return result.issues.length ? { passed: false, failure: result.diagnostics[0] } : { passed: true }
 }
 
 /** Apply one validated generation response to a copy of the source DOCX. */
@@ -263,16 +306,22 @@ export async function applyOptionBGenerationResponse(
   if (response.status === 'MISSING_INPUT') return { status: 'MISSING_INPUT', missingInputs: response.missingInputs }
   if (response.status === 'CONFLICT_INPUT') return { status: 'CONFLICT_INPUT', conflicts: response.conflicts }
 
-  const inputIssues = validateOptionBInput(input)
-  if (inputIssues.length) return { status: 'FAILED', issues: inputIssues }
+  const inputValidation = validateOptionBInputWithDiagnostics(input)
+  if (inputValidation.issues.length) return { status: 'FAILED', issues: inputValidation.issues, mechanicalFailure: inputValidation.diagnostics[0] }
   const sourceBlocksById = new Map(source.blocks.map((block) => [block.blockId, block]))
   const seenReplacementTargets = new Set<string>()
   const operations: BlockOperation[] = []
-  for (const edit of response.edits) {
+  for (const [editIndex, edit] of response.edits.entries()) {
     const sourceBlockId = sourceBlockIds.get(edit.blockId)
-    if (!sourceBlockId || !sourceBlocksById.has(sourceBlockId)) return { status: 'FAILED', issues: [`Unknown generation block ID: ${edit.blockId}`] }
+    if (!sourceBlockId || !sourceBlocksById.has(sourceBlockId)) return {
+      status: 'FAILED', issues: [`Unknown generation block ID: ${edit.blockId}`],
+      mechanicalFailure: { gateId: 'source_target', reasonCode: 'target_not_found', editIndex, editCount: response.edits.length },
+    }
     if (edit.kind === 'replace') {
-      if (seenReplacementTargets.has(sourceBlockId)) return { status: 'FAILED', issues: [`Duplicate replacement target: ${edit.blockId}`] }
+      if (seenReplacementTargets.has(sourceBlockId)) return {
+        status: 'FAILED', issues: [`Duplicate replacement target: ${edit.blockId}`],
+        mechanicalFailure: { gateId: 'duplicate_target', reasonCode: 'duplicate_target', editIndex, editCount: response.edits.length },
+      }
       seenReplacementTargets.add(sourceBlockId)
       operations.push({ operation: 'REPLACE_BLOCK_TEXT', blockId: sourceBlockId, finalText: edit.text })
     } else {
@@ -281,15 +330,25 @@ export async function applyOptionBGenerationResponse(
   }
 
   let candidateBytes: ArrayBuffer
-  let candidate: SourceDocument
   try {
     candidateBytes = await applyBlockOperations(sourceBytes, operations)
+  } catch (error) {
+    return {
+      status: 'FAILED', issues: [error instanceof Error ? error.message : 'Unable to safely apply block edits to the source DOCX.'],
+      mechanicalFailure: { gateId: 'source_copy', reasonCode: 'application_failed', editCount: response.edits.length },
+    }
+  }
+  let candidate: SourceDocument
+  try {
     candidate = await readSource(candidateBytes, source.fileName)
   } catch (error) {
-    return { status: 'FAILED', issues: [error instanceof Error ? error.message : 'Unable to safely apply block edits to the source DOCX.'] }
+    return {
+      status: 'FAILED', issues: [error instanceof Error ? error.message : 'Unable to safely apply block edits to the source DOCX.'],
+      mechanicalFailure: { gateId: 'candidate_parse', reasonCode: 'candidate_unreadable', editCount: response.edits.length },
+    }
   }
-  const findings = await validateOptionBCandidate(sourceBytes, candidateBytes, source, candidate, operations)
-  if (findings.length) return { status: 'FAILED', issues: findings }
+  const validation = await validateOptionBCandidateDetailed(sourceBytes, candidateBytes, source, candidate, operations)
+  if (validation.issues.length) return { status: 'FAILED', issues: validation.issues, mechanicalFailure: validation.diagnostics[0] }
   return {
     status: 'READY', candidateBytes, candidate, edits: response.edits,
     changedBlocks: computeChangedBlockDiff(source.blocks, candidate.blocks, operations),
