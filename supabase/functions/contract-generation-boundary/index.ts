@@ -6,7 +6,7 @@ import { mergeFormAnswersIntoWeddingCore } from '@/lib/forms/mergeFormAnswersInt
 import { buildContractGenerationInput, type ContractGenerationInput, type GenerationPartyKey } from '@/features/contract-generation-spike/contractGenerationInput.ts'
 import { applyOptionBGenerationResponse, createGenerationSourceView, readSource, validateOptionBInput, generationInstructionsForLocale, GENERIC_CONTRACT_PRODUCT_RULES, CONFLICT_REVIEW_INSTRUCTIONS, REVIEW_INSTRUCTIONS } from '@/features/contract-generation-spike/generator.ts'
 import { isCandidateReviewResponse, isGenerationResponse, isReviewResponse, REVIEWER_FINDING_CATEGORIES, REVIEWER_FINDING_RULE_IDS, safeReviewerFindingSummary, type CandidateReviewResponse, type ReviewResponse, type ContractGenerationAnswer } from '@/features/contract-generation-spike/generationProtocol.ts'
-import { createContractGenerationBoundary, parseContractGenerationAction, ProviderOperationError, type BoundaryDiagnostic, type BoundaryReviewerResult, type ServerBoundaryContext } from '@/features/contract-generation-spike/serverBoundary.ts'
+import { createContractGenerationBoundary, fetchProviderResponse, parseContractGenerationAction, ProviderOperationError, type BoundaryDiagnostic, type BoundaryReviewerResult, type ServerBoundaryContext } from '@/features/contract-generation-spike/serverBoundary.ts'
 import { isTravelFeeResolved } from '@/lib/utils/travelFeeCommercial.ts'
 import type { FormAnswerJson } from '@/types/formEngine'
 import type { PaymentMethod, PaymentType } from '@/types/wedding'
@@ -480,7 +480,6 @@ async function validateOptionBCandidate(
 }
 
 async function outputText(response: Response): Promise<string> {
-  if (!response.ok) throw new ProviderOperationError('provider_failure')
   let body: DbRow
   try { body = await response.json() as DbRow } catch { throw new ProviderOperationError('invalid_response') }
   if (typeof body.output_text === 'string' && body.output_text.trim()) return body.output_text
@@ -493,12 +492,11 @@ async function outputText(response: Response): Promise<string> {
 async function callStructuredProvider(input: {
   system: string; user: unknown; schemaName: string; schema: unknown; model: string; apiKey: string; effort: string;
 }): Promise<unknown> {
-  let response: Response
-  try {
-    response = await fetch('https://api.openai.com/v1/responses', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${input.apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+  const timeoutSignal = AbortSignal.timeout(60_000)
+  const response = await fetchProviderResponse('https://api.openai.com/v1/responses', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${input.apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
         model: input.model,
         reasoning: { effort: input.effort },
         max_output_tokens: 8192,
@@ -507,10 +505,8 @@ async function callStructuredProvider(input: {
           { role: 'user', content: JSON.stringify(input.user) },
         ],
         text: { format: { type: 'json_schema', name: input.schemaName, strict: true, schema: input.schema } },
-      }),
-      signal: AbortSignal.timeout(60_000),
-    })
-  } catch { throw new ProviderOperationError('provider_failure') }
+    }),
+  }, timeoutSignal)
   const text = await outputText(response)
   try { return JSON.parse(text) } catch { throw new ProviderOperationError('invalid_response') }
 }
@@ -549,7 +545,14 @@ function providerAdapters() {
         effort: Deno.env.get('OPENAI_CONTRACT_GENERATOR_REASONING')?.trim() || 'medium',
       })
     } catch (error) {
-      return { status: 'FAILED' as const, category: error instanceof ProviderOperationError ? error.category : 'provider_failure' as const }
+      return {
+        status: 'FAILED' as const,
+        category: error instanceof ProviderOperationError ? error.category : 'provider_failure' as const,
+        ...(error instanceof ProviderOperationError ? {
+          ...(error.providerFailureClass ? { providerFailureClass: error.providerFailureClass } : {}),
+          ...(error.providerHttpStatus !== undefined ? { providerHttpStatus: error.providerHttpStatus } : {}),
+        } : {}),
+      }
     }
     const result = normalizeGenerationEnvelope(rawResult)
     if (!isGenerationResponse(result, new Set([...authority.parties.map((party) => party.sourceKey), ...authority.participantAssociations.map((association) => association.participant)]))) return { status: 'FAILED' as const, category: 'invalid_response' as const }
