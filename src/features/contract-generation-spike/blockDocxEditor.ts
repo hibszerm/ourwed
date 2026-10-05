@@ -202,7 +202,8 @@ function textFor(paragraph: string): string {
         && parent.end >= element.end))
     : []
   const directXml = replaceXmlSpans(paragraph, nestedParagraphs.map((element) => ({ start: element.start, end: element.end, replacement: '' })))
-  return extractCanonicalParagraphText(directXml.replace(/<w:tab\b[^>]*\/>/g, '<w:t> </w:t>').replace(/<w:br\b[^>]*\/>/g, '<w:t> </w:t>'))
+  const textXml = directXml.replace(/<w:pPr\b[\s\S]*?<\/w:pPr>/g, '')
+  return extractCanonicalParagraphText(textXml.replace(/<w:tab\b[^>]*\/>/g, '<w:t> </w:t>').replace(/<w:br\b[^>]*\/>/g, '<w:t> </w:t>'))
 }
 
 type WordFieldRange = { start: number; end: number; xml: string; fieldKind: 'complex' | 'simple'; instruction: string; cachedText: string }
@@ -623,11 +624,14 @@ export async function applyBlockOperations(bytes: ArrayBuffer, operations: Block
     const deletions = new Set<number>()
     const before = new Map<number, string[]>()
     const after = new Map<number, string[]>()
+    const replacementTargets = new Set<number>()
     for (const operation of partOperations) {
       if (operation.operation === 'REPLACE_BLOCK_TEXT') {
         const block = blockById.get(operation.blockId)!
         const target = paragraphs[block.index]
         if (!target || target.stableIndex === undefined || idFor(part, target.stableIndex) !== operation.blockId) throw new Error(`DOCX block does not map uniquely to one paragraph: ${operation.blockId}`)
+        if (replacementTargets.has(block.index)) throw new Error('Conflicting DOCX block replacements are ambiguous')
+        replacementTargets.add(block.index)
         replacements.set(block.index, rewriteParagraph(target.xml, operation.finalText))
       } else if (operation.operation === 'DELETE_BLOCK') {
         const block = blockById.get(operation.blockId)!

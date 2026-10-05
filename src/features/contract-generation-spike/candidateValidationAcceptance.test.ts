@@ -152,6 +152,43 @@ const nearbyCandidate = await readSource(nearbyCandidateBytes, 'nearby-candidate
 assert.deepEqual(await validateOptionBCandidate(nearbySourceBytes, nearbyCandidateBytes, nearbySource, nearbyCandidate, nearbyOperations), [], 'multiple nearby source-relative edits survive insertion and operation ordering')
 assert.deepEqual(nearbyCandidate.blocks.map((item) => item.text), ['Clause A current.', 'Authorized extra.', 'Clause B current.', 'Clause C unchanged.'])
 
+// Multiple operations on one original paragraph share one source-relative plan.
+const sharedTargetBytes = await docx('Block A', 'Block B', 'Block C')
+const sharedTargetSource = await readSource(sharedTargetBytes, 'shared-target-source.docx')
+const sharedTarget = sharedTargetSource.blocks[1]!
+const replaceAndInsert = [
+  { operation: 'REPLACE_BLOCK_TEXT' as const, blockId: sharedTarget.blockId, finalText: 'Block B replaced.' },
+  { operation: 'INSERT_BLOCK_AFTER' as const, anchorBlockId: sharedTarget.blockId, styleSourceBlockId: sharedTarget.blockId, finalText: 'After Block B.' },
+]
+const replaceAndInsertBytes = await applyBlockOperations(sharedTargetBytes, replaceAndInsert)
+const replaceAndInsertCandidate = await readSource(replaceAndInsertBytes, 'replace-and-insert-candidate.docx')
+assert.deepEqual(replaceAndInsertCandidate.blocks.map((item) => item.text), ['Block A', 'Block B replaced.', 'After Block B.', 'Block C'], 'replace plus insert-after uses the same original block')
+assert.deepEqual(await validateOptionBCandidate(sharedTargetBytes, replaceAndInsertBytes, sharedTargetSource, replaceAndInsertCandidate, replaceAndInsert), [])
+
+const beforeReplaceAfter = [
+  { operation: 'INSERT_BLOCK_BEFORE' as const, anchorBlockId: sharedTarget.blockId, styleSourceBlockId: sharedTarget.blockId, finalText: 'Before Block B.' },
+  { operation: 'REPLACE_BLOCK_TEXT' as const, blockId: sharedTarget.blockId, finalText: 'Block B replaced.' },
+  { operation: 'INSERT_BLOCK_AFTER' as const, anchorBlockId: sharedTarget.blockId, styleSourceBlockId: sharedTarget.blockId, finalText: 'After Block B.' },
+]
+const beforeReplaceAfterBytes = await applyBlockOperations(sharedTargetBytes, beforeReplaceAfter)
+const beforeReplaceAfterCandidate = await readSource(beforeReplaceAfterBytes, 'before-replace-after-candidate.docx')
+assert.deepEqual(beforeReplaceAfterCandidate.blocks.map((item) => item.text), ['Block A', 'Before Block B.', 'Block B replaced.', 'After Block B.', 'Block C'], 'before, replace, and after retain deterministic source order on one original block')
+assert.deepEqual(await validateOptionBCandidate(sharedTargetBytes, beforeReplaceAfterBytes, sharedTargetSource, beforeReplaceAfterCandidate, beforeReplaceAfter), [])
+
+// Identical source text remains disambiguated by original paragraph identity,
+// even when both occurrences are edited and an insertion shifts later content.
+const duplicateTextBytes = await docx('Repeated source paragraph.', 'Repeated source paragraph.', 'Tail paragraph.')
+const duplicateTextSource = await readSource(duplicateTextBytes, 'duplicate-text-source.docx')
+const duplicateTextOperations = [
+  { operation: 'REPLACE_BLOCK_TEXT' as const, blockId: duplicateTextSource.blocks[1]!.blockId, finalText: 'Second occurrence updated.' },
+  { operation: 'INSERT_BLOCK_AFTER' as const, anchorBlockId: duplicateTextSource.blocks[0]!.blockId, styleSourceBlockId: duplicateTextSource.blocks[0]!.blockId, finalText: 'Inserted between occurrences.' },
+  { operation: 'REPLACE_BLOCK_TEXT' as const, blockId: duplicateTextSource.blocks[0]!.blockId, finalText: 'First occurrence updated.' },
+]
+const duplicateTextCandidateBytes = await applyBlockOperations(duplicateTextBytes, duplicateTextOperations)
+const duplicateTextCandidate = await readSource(duplicateTextCandidateBytes, 'duplicate-text-candidate.docx')
+assert.deepEqual(duplicateTextCandidate.blocks.map((item) => item.text), ['First occurrence updated.', 'Inserted between occurrences.', 'Second occurrence updated.', 'Tail paragraph.'], 'duplicate text targets resolve by their original source identity')
+assert.deepEqual(await validateOptionBCandidate(duplicateTextBytes, duplicateTextCandidateBytes, duplicateTextSource, duplicateTextCandidate, duplicateTextOperations), [])
+
 // Paragraph count and run segmentation are not part of the logical-content
 // contract. Splitting one authored paragraph into two text runs still passes.
 const segmentedZip = await JSZip.loadAsync(candidateBytes)

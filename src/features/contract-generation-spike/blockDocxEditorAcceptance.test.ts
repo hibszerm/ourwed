@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import JSZip from 'jszip'
 import { applyBlockOperations, buildBlockIndex } from './blockDocxEditor'
+import { readSource, validateOptionBCandidate } from './generator'
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 
@@ -272,6 +273,38 @@ assert.equal((fixtureDoc.match(/<w:tbl\b/g) ?? []).length, 2)
 assert.equal((fixtureDoc.match(/<w:tr\b/g) ?? []).length, 4)
 assert.equal((fixtureDoc.match(/<w:tc\b/g) ?? []).length, 12)
 assert.equal((fixtureDoc.match(/<w:trHeight w:val="564"/g) ?? []).length, 2, 'the two signature spacer rows are present in the source')
+
+// Regression from the exact production template source: w:tab inside w:pPr/w:tabs
+// is a tab stop, not visible paragraph text. Nine local edits to tab-stop
+// paragraphs must be planned and applied together against this original DOCX.
+const fixtureParagraphXml = [...fixtureDoc.matchAll(/<w:p\b[\s\S]*?<\/w:p>/g)].map((match) => match[0])
+const tabStopTargets = fixtureDocumentBlocks.filter((block) => block.kind === 'body'
+  && block.text.length >= 10
+  && /<w:tabs\b/.test(fixtureParagraphXml[block.index] ?? '')).slice(0, 9)
+assert.equal(tabStopTargets.length, 9, 'the physical source fixture supplies nine body paragraphs with tab-stop formatting')
+const nineTabStopOperations = tabStopTargets.map((block, index) => index < 5
+  ? { blockId: block.blockId, operation: 'REPLACE_BLOCK_TEXT' as const, finalText: `Synthetic source-copy replacement ${index + 1}` }
+  : { anchorBlockId: block.blockId, operation: 'INSERT_BLOCK_AFTER' as const, styleSourceBlockId: block.blockId, finalText: `Synthetic localized insertion ${index + 1}` })
+const nineTabStopCandidateBytes = await applyBlockOperations(fixtureBuffer, nineTabStopOperations)
+const fixtureSourceDocument = await readSource(fixtureBuffer, 'production-source-local-copy.docx')
+const nineTabStopCandidate = await readSource(nineTabStopCandidateBytes, 'synthetic-nine-edit-candidate.docx')
+assert.deepEqual(await validateOptionBCandidate(fixtureBuffer, nineTabStopCandidateBytes, fixtureSourceDocument, nineTabStopCandidate, nineTabStopOperations), [], 'a nine-operation batch on the exact physical source passes existing candidate validation')
+assert.ok(nineTabStopCandidate.blocks.some((block) => block.text === 'Synthetic source-copy replacement 1'))
+assert.ok(nineTabStopCandidate.blocks.some((block) => block.text === 'Synthetic source-copy replacement 5'))
+assert.ok(nineTabStopCandidate.blocks.some((block) => block.text === 'Synthetic localized insertion 6'))
+assert.ok(nineTabStopCandidate.blocks.some((block) => block.text === 'Synthetic localized insertion 9'))
+const nineCandidateZip = await JSZip.loadAsync(nineTabStopCandidateBytes)
+const nineCandidateDoc = await nineCandidateZip.file('word/document.xml')!.async('string')
+assert.equal((nineCandidateDoc.match(/<w:tbl\b/g) ?? []).length, 2, 'the nine-edit batch preserves both source tables')
+assert.equal((nineCandidateDoc.match(/<w:tr\b/g) ?? []).length, 4, 'the nine-edit batch preserves source table rows')
+
+// Unresolvable source IDs and duplicate replacements fail closed.
+await assert.rejects(() => applyBlockOperations(fixtureBuffer, [{ blockId: 'word/document.xml#p9999', operation: 'REPLACE_BLOCK_TEXT', finalText: 'Synthetic missing target' }]), /Unknown DOCX block/)
+await assert.rejects(() => applyBlockOperations(fixtureBuffer, [
+  { blockId: fixtureDocumentBlocks[0]!.blockId, operation: 'REPLACE_BLOCK_TEXT', finalText: 'Synthetic first replacement' },
+  { blockId: fixtureDocumentBlocks[0]!.blockId, operation: 'REPLACE_BLOCK_TEXT', finalText: 'Synthetic conflicting replacement' },
+]), /Conflicting DOCX block replacements are ambiguous/)
+
 const signatureOnly = await applyBlockOperations(fixtureBuffer, [
   { blockId: 'word/document.xml#p23', operation: 'REPLACE_BLOCK_TEXT', finalText: 'Julia Kanicka i Maksymilian Ruth' },
   { blockId: 'word/document.xml#p44', operation: 'REPLACE_BLOCK_TEXT', finalText: 'Julia Kanicka i Maksymilian Ruth' },
