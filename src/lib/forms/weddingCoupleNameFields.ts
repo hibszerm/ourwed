@@ -6,7 +6,7 @@
 import { splitPersonName } from '@/lib/api/weddings/weddingMappers.ts'
 import { isAbsentPartnerName } from '@/features/weddings/presentation/getWeddingDisplayName.ts'
 import type { Wedding } from '@/types/wedding'
-import { resolveEffectiveContractAddress } from '@/lib/utils/contractAddress'
+import { resolveEffectiveContractAddress } from '@/lib/utils/contractAddress.ts'
 
 export function resolvedNamePart(
   explicit: string | undefined | null,

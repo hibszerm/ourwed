@@ -2,7 +2,7 @@ import { getWeddingCommercialSummary } from '@/lib/utils/commercial.ts'
 import type { WeddingExtraService } from '@/types/package'
 import type { Wedding } from '@/types/wedding'
 import type { WeddingPlace } from '@/types/travel'
-import { resolveEffectiveContractAddress } from '@/lib/utils/contractAddress'
+import { resolveEffectiveContractAddress } from '@/lib/utils/contractAddress.ts'
 
 export type GenerationPartyKey = 'partner1' | 'partner2'
 export type ContractGenerationLocale = 'pl' | 'en'
