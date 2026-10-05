@@ -15,7 +15,7 @@ assert.match(instructions, /source text defines both whether a fact is required 
 assert.match(instructions, /each missing_input may ask only for the minimum unresolved fact clearly established by the source/)
 assert.match(instructions, /do not refine a generic, collective, party-level, role-neutral, or ownership-ambiguous requirement into participant-specific ownership/)
 assert.match(instructions, /if a broader source-established fact remains unresolved, request it at that broader level/)
-assert.match(instructions, /a contract\/correspondence address is not automatically a residential address/)
+assert.match(instructions, /a contract, correspondence, company, or venue address is not automatically a residential address/)
 
 // Explicit participant slots remain specific: an absent B fact can still be requested.
 const separateParticipantSlots = 'The source explicitly requires distinct facts for participant A and participant B.'

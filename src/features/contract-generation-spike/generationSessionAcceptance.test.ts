@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
-import { answersForContractGenerationInput, acceptSessionAnswers, canResumeContractGenerationSession, isContractGenerationSession, sessionMatchesScope, type ContractGenerationSession } from './generationSession'
-import { GENERATION_INSTRUCTIONS } from './generator'
+import { answersForContractGenerationInput, acceptSessionAnswers, authorizeMissingInputChoiceOptions, canResumeContractGenerationSession, choiceBindingMapMatchesHistory, isContractGenerationSession, resolveMissingInputAnswers, sessionMatchesScope, type ContractGenerationSession } from './generationSession'
+import { CHOICE_MISSING_INPUT_INSTRUCTIONS, GENERATION_INSTRUCTIONS } from './generator'
 
 const first = { id: 'opaque:requirement/1', label: 'Agreement date', answerKind: 'date' as const }
 const second = { id: 'opaque:requirement/2', label: 'Contact email', answerKind: 'email' as const, subject: { participantKey: 'partner2', displayName: 'Sam' } }
@@ -64,9 +64,55 @@ assert.deepEqual(acceptSessionAnswers(session, [{ ...submitted[0]!, value: '  ' 
 assert.deepEqual(acceptSessionAnswers(session, [submitted[0]!], new Date('2026-10-01T12:00:00Z')), { ok: false, reason: 'incomplete_answers' })
 assert.deepEqual(acceptSessionAnswers({ ...session, state: 'processing' }, submitted, new Date('2026-10-01T12:00:00Z')), { ok: false, reason: 'session_not_awaiting_input' })
 
+const rawChoice = { id: 'opaque-role-requirement', kind: 'choice' as const, label: 'Which person fills this role?', options: [
+  { id: 'partner1', label: 'untrusted first label' }, { id: 'partner2', label: 'untrusted second label' },
+] }
+const authorizedChoice = authorizeMissingInputChoiceOptions([rawChoice], [
+  { key: 'partner1', label: 'Authoritative Candidate One' }, { key: 'partner2', label: 'Authoritative Candidate Two' },
+], (() => { let index = 0; return () => `option-token-${++index}` })())
+assert.ok(authorizedChoice)
+assert.deepEqual(authorizedChoice?.missingInputs, [{ id: rawChoice.id, kind: 'choice', label: rawChoice.label, options: [
+  { id: 'option-token-1', label: 'Authoritative Candidate One' }, { id: 'option-token-2', label: 'Authoritative Candidate Two' },
+] }], 'server replaces candidate keys and labels with opaque options and authoritative display labels')
+assert.deepEqual(authorizedChoice?.choiceBindings, { [rawChoice.id]: { 'option-token-1': 'partner1', 'option-token-2': 'partner2' } })
+assert.equal(choiceBindingMapMatchesHistory(authorizedChoice!.missingInputs, authorizedChoice!.choiceBindings), true)
+assert.equal(choiceBindingMapMatchesHistory(authorizedChoice!.missingInputs, {}), false, 'choice history without its server binding is invalid')
+assert.equal(choiceBindingMapMatchesHistory(authorizedChoice!.missingInputs, { ...authorizedChoice!.choiceBindings, stale: { 'old-option': 'partner1' } }), false, 'bindings for another requirement or run cannot be retained')
+assert.equal(choiceBindingMapMatchesHistory(authorizedChoice!.missingInputs, { [rawChoice.id]: { 'option-token-1': 'partner1', 'option-token-2': 'partner2', extra: 'partner1' } }), false, 'extra stale options invalidate the exact server binding')
+assert.equal(authorizeMissingInputChoiceOptions([rawChoice], [{ key: 'partner1', label: 'A' }], () => 'opaque'), null, 'a one-candidate set cannot be presented as a choice')
+assert.equal(authorizeMissingInputChoiceOptions([rawChoice], [{ key: 'partner1', label: 'A' }, { key: 'partner2', label: 'B' }, { key: 'partner3', label: 'C' }], () => 'opaque'), null, 'choice cannot omit or invent authority candidates')
+
+const choiceSession: ContractGenerationSession = {
+  ...session,
+  missingInputs: authorizedChoice!.missingInputs,
+  missingInputHistory: authorizedChoice!.missingInputs,
+  answers: [],
+  choiceBindings: authorizedChoice!.choiceBindings,
+}
+assert.equal(isContractGenerationSession(choiceSession), true, 'pending option bindings validate against the session state')
+assert.equal(isContractGenerationSession({ ...choiceSession, choiceBindings: {} }), false, 'a choice session without its authorized server options is rejected')
+assert.deepEqual(acceptSessionAnswers(choiceSession, [{ missingInputId: rawChoice.id, optionId: 'tampered-option' }], new Date('2026-10-01T12:00:00Z')),
+  { ok: false, reason: 'unknown_option' }, 'unknown or tampered option IDs fail closed')
+assert.deepEqual(acceptSessionAnswers(choiceSession, [{ missingInputId: 'other-requirement', optionId: 'option-token-1' }], new Date('2026-10-01T12:00:00Z')),
+  { ok: false, reason: 'unknown_requirement' }, 'option tokens cannot be moved to another requirement')
+assert.deepEqual(acceptSessionAnswers(choiceSession, [{ missingInputId: rawChoice.id, value: 'Candidate One' }], new Date('2026-10-01T12:00:00Z')),
+  { ok: false, reason: 'wrong_answer_kind' }, 'choice cannot be flattened back into typed text')
+const acceptedChoice = acceptSessionAnswers(choiceSession, [{ missingInputId: rawChoice.id, optionId: 'option-token-1' }], new Date('2026-10-01T12:00:00Z'))
+assert.equal(acceptedChoice.ok, true)
+if (acceptedChoice.ok) {
+  assert.deepEqual(acceptedChoice.answers, [{ missingInputId: rawChoice.id, optionId: 'option-token-1' }])
+  assert.deepEqual(answersForContractGenerationInput(acceptedChoice.answers), [], 'entity selection is not converted into a user-provided fact')
+  const resolved = resolveMissingInputAnswers(choiceSession.missingInputHistory, acceptedChoice.answers, choiceSession.choiceBindings)
+  assert.deepEqual(resolved, [{ requirement: authorizedChoice!.missingInputs[0], answer: { optionId: 'option-token-1' }, selectedEntity: { partyKey: 'partner1' } }], 'choice restores an authoritative entity binding on continuation')
+  const continued: ContractGenerationSession = { ...choiceSession, answers: acceptedChoice.answers, missingInputs: [{ id: 'next', label: 'A later absent fact', answerKind: 'text' }], missingInputHistory: [...choiceSession.missingInputHistory, { id: 'next', label: 'A later absent fact', answerKind: 'text' }] }
+  assert.equal(isContractGenerationSession(continued), true, 'choice answer and binding survive later continuation history')
+}
+
 assert.match(GENERATION_INSTRUCTIONS, /return all such gaps together; do not stop at the first/i)
 assert.match(GENERATION_INSTRUCTIONS, /never infer participant ownership/i)
 assert.match(GENERATION_INSTRUCTIONS, /participantKey is explicitly present in normalized authority/i)
+assert.match(CHOICE_MISSING_INPUT_INSTRUCTIONS, /exactly one authoritative candidate can fill a source role/i)
+assert.match(CHOICE_MISSING_INPUT_INSTRUCTIONS, /selectedEntityBindings links the answered choice requirement/i)
 
 const migration = await readFile(new URL('../../../supabase/migrations/20261001110000_option_b_generation_sessions.sql', import.meta.url), 'utf8')
 assert.match(migration, /update public\.wedding_contract_generation_runs[\s\S]*?set owner_user_id = wedding\.user_id/i, 'existing payment runs receive their wedding owner')

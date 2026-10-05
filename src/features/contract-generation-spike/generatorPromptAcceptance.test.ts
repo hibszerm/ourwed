@@ -8,7 +8,7 @@ assert.match(instructions, /crm participants are not automatically contracting p
 assert.match(instructions, /do not request their identity or contact facts unless the source requires them/)
 assert.match(instructions, /use party associations supplied in normalized input/)
 assert.match(instructions, /do not invent ownership for unowned facts/)
-assert.match(instructions, /contract\/correspondence address is not automatically a residential address/)
+assert.match(instructions, /contract, correspondence, company, or venue address is not automatically a residential address/)
 assert.match(instructions, /before returning missing_input, inspect the complete source contract for every currently discoverable source-required fact not sufficiently established by current authority or user answers/)
 assert.match(instructions, /return all such gaps together; do not stop at the first/)
 assert.match(instructions, /do not request facts already sufficiently established/)

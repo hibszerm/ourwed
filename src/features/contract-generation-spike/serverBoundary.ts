@@ -3,6 +3,7 @@ import {
   canResumeContractGenerationSession,
   appendMissingInputHistory,
   resolveMissingInputAnswers,
+  type ChoiceBindingMap,
   sessionMatchesScope,
   type ContractGenerationSession,
   type ContractGenerationSessionScope,
@@ -47,7 +48,7 @@ export type ContractGenerationBoundaryResponse =
 
 export type BoundaryCandidate = { bytes: ArrayBuffer; changedBlocks: unknown[] }
 export type BoundaryRunResult =
-  | { status: 'MISSING_INPUT'; missingInputs: MissingInput[] }
+  | { status: 'MISSING_INPUT'; missingInputs: MissingInput[]; choiceBindings?: ChoiceBindingMap }
   | { status: 'CONFLICT_INPUT'; conflicts: string[] }
   | { status: 'FAILED'; category?: 'provider_failure' | 'provider_configuration_failure' | 'invalid_response' | 'mechanical_validation_failure' | 'input_validation_failure'; mechanicalFailure?: MechanicalFailureDiagnostic }
   | { status: 'READY'; candidate: BoundaryCandidate }
@@ -156,7 +157,7 @@ export type ServerBoundaryContext = {
 
 export type ServerBoundaryDependencies = {
   now?: () => Date
-  loadContext: (userId: string, weddingId: string, answers: ContractGenerationAnswer[]) => Promise<ServerBoundaryContext | null>
+  loadContext: (userId: string, weddingId: string, answers: ContractGenerationAnswer[], selectedEntities?: Array<{ requirementId: string; optionId: string; partyKey: string }>) => Promise<ServerBoundaryContext | null>
   createSession: (input: {
     userId: string
     weddingId: string
@@ -170,7 +171,7 @@ export type ServerBoundaryDependencies = {
   getSessionByIdempotencyKey: (userId: string, requestId: string) => Promise<ContractGenerationSession | null>
   expireSession: (sessionId: string, userId: string) => Promise<void>
   claimContinuation: (input: { sessionId: string; userId: string; executionId: string; answers: ContractGenerationAnswer[]; missingInputHistory: MissingInput[]; missingInputHistoryValid: boolean }) => Promise<ContractGenerationSession | null>
-  saveMissing: (input: { sessionId: string; executionId: string; missingInputs: MissingInput[]; missingInputHistory: MissingInput[]; answers: ContractGenerationAnswer[]; authorityFingerprint: string }) => Promise<boolean>
+  saveMissing: (input: { sessionId: string; executionId: string; missingInputs: MissingInput[]; missingInputHistory: MissingInput[]; answers: ContractGenerationAnswer[]; choiceBindings: ChoiceBindingMap; authorityFingerprint: string }) => Promise<boolean>
   persistAcceptedCandidate: (input: { sessionId: string; executionId: string; candidate: BoundaryCandidate; authorityFingerprint: string }) => Promise<string | null>
   markFailure: (sessionId: string, executionId: string, code: 'failed' | 'stale') => Promise<void>
   generate: (context: ServerBoundaryContext, answers: ContractGenerationAnswer[], resolvedInputs: ResolvedMissingInput[]) => Promise<BoundaryRunResult>
@@ -196,7 +197,8 @@ function validContinueRequest(value: unknown): value is ContractGenerationContin
       if (!answer || typeof answer !== 'object' || Array.isArray(answer)) return false
       const row = answer as Record<string, unknown>
       return Object.keys(row).length === 2 && typeof row.missingInputId === 'string'
-        && typeof row.value === 'string'
+        && ((typeof row.value === 'string' && !('optionId' in row))
+          || (typeof row.optionId === 'string' && !('value' in row)))
     })
 }
 
@@ -274,12 +276,17 @@ export function createContractGenerationBoundary(deps: ServerBoundaryDependencie
           await deps.markFailure(session.id, executionId, 'failed')
           return { status: 'failure', code: 'generation_safety' }
         }
+        const choiceBindings: ChoiceBindingMap = {
+          ...(session.choiceBindings ?? {}),
+          ...(generated.choiceBindings ?? {}),
+        }
         const saved = await deps.saveMissing({
           sessionId: session.id,
           executionId,
           missingInputs: generated.missingInputs,
           missingInputHistory: history,
           answers,
+          choiceBindings,
           authorityFingerprint: context.authorityFingerprint,
         })
         if (!saved) {
@@ -417,7 +424,7 @@ export function createContractGenerationBoundary(deps: ServerBoundaryDependencie
       if (!session) return { status: 'stale', code: 'session_invalid' }
       const resolvedInputs = session.missingInputHistoryValid === false
         ? null
-        : resolveMissingInputAnswers(session.missingInputHistory, session.answers)
+        : resolveMissingInputAnswers(session.missingInputHistory, session.answers, session.choiceBindings ?? {})
       if (!resolvedInputs) {
         try { deps.diagnose?.({ action: 'continue', providerRole: 'orchestrator', category: 'missing_requirement_history_invalid', finalCode: 'generation_safety' }) } catch { /* diagnostics are best effort */ }
         await deps.markFailure(session.id, executionId, 'failed')
@@ -425,7 +432,8 @@ export function createContractGenerationBoundary(deps: ServerBoundaryDependencie
       }
       let context: ServerBoundaryContext | null
       try {
-        context = await deps.loadContext(userId, current.weddingId, accepted.answers)
+        context = await deps.loadContext(userId, current.weddingId, accepted.answers, resolvedInputs.flatMap((item) =>
+          item.selectedEntity && 'optionId' in item.answer ? [{ requirementId: item.requirement.id, optionId: item.answer.optionId, partyKey: item.selectedEntity.partyKey }] : []))
       } catch {
         await deps.markFailure(current.id, executionId, 'failed')
         return { status: 'failure', code: 'temporary_failure' }

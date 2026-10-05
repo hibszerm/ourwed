@@ -50,12 +50,14 @@ const result = buildContractGenerationInput({
     'partner2.firstName': 'Andrzej',
   },
   userProvidedAnswers: [{ id: 'wedding.partner2.pesel', value: 'fictional-id' }, { id: 'arbitrary.ref', value: 'arbitrary value' }],
+  selectedEntityBindings: [{ requirementId: 'opaque-party-role', optionId: 'opaque-option', partyKey: 'partner1' }],
 })
 assert.equal(result.locale, 'pl', 'the established Polish application locale is the deterministic default')
 assert.equal(buildContractGenerationInput({ wedding, weddingPlaces: [], extras: [], generationDate: '2026-09-29', locale: 'en' }).locale, 'en')
 assert.match(generationInstructionsForLocale(result.locale), /naturally in Polish, matching locale pl/)
 assert.match(generationInstructionsForLocale('en'), /naturally in English, matching locale en/)
 assert.deepEqual(result.participantAssociations, [], 'no association is invented from participant names or ordering')
+assert.deepEqual(result.selectedEntityBindings, [{ requirementId: 'opaque-party-role', optionId: 'opaque-option', partyKey: 'partner1' }], 'the selected entity is bound to the existing normalized party without converting it into user facts')
 
 const explicitAssociations = buildContractGenerationInput({
   wedding, weddingPlaces: [], extras: [], generationDate: '2026-09-29',
@@ -79,6 +81,8 @@ assert.equal(party2?.fullName?.owner, 'partner2')
 assert.equal(party1?.address?.value, 'Michała Grażyńskiego 5, 41-810 Zabrze')
 assert.equal(party1?.address?.source, 'form_answers.answer_json.fields.partner1.address.formattedAddress')
 assert.equal(party1?.address?.owner, 'partner1')
+assert.equal(party1?.address?.semanticType, 'contract_address', 'the questionnaire’s contract-address semantics survive normalization')
+assert.equal(party1?.address?.source, 'form_answers.answer_json.fields.partner1.address.formattedAddress', 'the selected party address retains its form provenance')
 assert.equal(party2?.address?.value, 'Partner two address')
 assert.equal(party2?.address?.owner, 'partner2')
 assert.equal(party1?.phone?.owner, 'partner1', 'participant 1 phone retains participant ownership')
@@ -100,6 +104,7 @@ assert.deepEqual(genericAddress.parties[0]?.address, {
   value: 'Generic correspondence address',
   source: 'wedding.couple.partner1Address (mapped from public.weddings.contract_address)',
   owner: 'partner1',
+  semanticType: 'contract_address',
 }, 'the existing canonical contract-address association is preserved on partner1')
 assert.equal(genericAddress.unownedFacts.length, 0)
 assert.equal('residential' in (genericAddress.parties[0]?.address ?? {}), false, 'contract address is not reclassified as residential')
@@ -163,6 +168,7 @@ assert.deepEqual(result.additionalAnswers.map(({ id, value, authority }) => [id,
   ['wedding.partner2.pesel', 'fictional-id', 'user'], ['arbitrary.ref', 'arbitrary value', 'user'],
 ])
 assert.equal(result.additionalAnswers[1]?.source, 'userProvidedAnswers.arbitrary.ref')
+assert.equal(result.additionalAnswers.some((answer) => answer.id === 'opaque-party-role'), false, 'entity selection is not flattened into a user-provided fact')
 assert.deepEqual(result.questionnaireAnswers.map((answer) => answer.source), [
   'form_answers.answer_json.fields.partner1.address',
   'form_answers.answer_json.fields.partner1.firstName',
@@ -182,6 +188,7 @@ assert.deepEqual(genericProvidedAlongsideOwnedAddress.parties[0]?.address, {
   value: 'Canonical correspondence address',
   source: 'public.weddings.contract_address',
   owner: 'partner1',
+  semanticType: 'contract_address',
 }, 'the canonical address keeps its established association when a separate submitted address is also present')
 assert.equal(genericProvidedAlongsideOwnedAddress.questionnaireAnswers[0]?.value, 'Party-owned address', 'the separate owned questionnaire fact remains available with its provenance')
 assert.equal(genericProvidedAlongsideOwnedAddress.questionnaireAnswers[0]?.owner, 'partner1')

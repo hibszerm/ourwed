@@ -3,7 +3,7 @@ import { requireAuthenticatedUser } from '../_shared/requireAuthenticatedUser.ts
 import { buildRestrictedCorsHeaders } from '../_shared/security/browserCors.ts'
 import { mapWeddingRowToModel, type WeddingRow } from '@/lib/api/weddings/weddingMappers.ts'
 import { mergeFormAnswersIntoWeddingCore } from '@/lib/forms/mergeFormAnswersIntoWeddingCore.ts'
-import { buildContractGenerationInput, type ContractGenerationInput } from '@/features/contract-generation-spike/contractGenerationInput.ts'
+import { buildContractGenerationInput, type ContractGenerationInput, type GenerationPartyKey } from '@/features/contract-generation-spike/contractGenerationInput.ts'
 import { applyOptionBGenerationResponse, createGenerationSourceView, readSource, validateOptionBInput, generationInstructionsForLocale, GENERIC_CONTRACT_PRODUCT_RULES, CONFLICT_REVIEW_INSTRUCTIONS, REVIEW_INSTRUCTIONS } from '@/features/contract-generation-spike/generator.ts'
 import { isCandidateReviewResponse, isGenerationResponse, isReviewResponse, REVIEWER_FINDING_CATEGORIES, REVIEWER_FINDING_RULE_IDS, safeReviewerFindingSummary, type CandidateReviewResponse, type ReviewResponse, type ContractGenerationAnswer } from '@/features/contract-generation-spike/generationProtocol.ts'
 import { createContractGenerationBoundary, parseContractGenerationAction, ProviderOperationError, type BoundaryDiagnostic, type BoundaryReviewerResult, type ServerBoundaryContext } from '@/features/contract-generation-spike/serverBoundary.ts'
@@ -11,7 +11,7 @@ import { isTravelFeeResolved } from '@/lib/utils/travelFeeCommercial.ts'
 import type { FormAnswerJson } from '@/types/formEngine'
 import type { PaymentMethod, PaymentType } from '@/types/wedding'
 import type { WeddingPlaceRole } from '@/types/travel'
-import { readMissingInputState, sessionMatchesScope, storeMissingInputState, type ContractGenerationSession, type ResolvedMissingInput } from '@/features/contract-generation-spike/generationSession.ts'
+import { authorizeMissingInputChoiceOptions, choiceBindingMapMatchesHistory, isChoiceBindingMap, readMissingInputState, sessionMatchesScope, storeMissingInputState, type ContractGenerationSession, type ResolvedMissingInput } from '@/features/contract-generation-spike/generationSession.ts'
 
 type GenericRelationship = { foreignKeyName: string; columns: string[]; isOneToOne?: boolean; referencedRelation: string; referencedColumns: string[] }
 type GenericTable = { Row: Record<string, unknown>; Insert: Record<string, unknown>; Update: Record<string, unknown>; Relationships: GenericRelationship[] }
@@ -45,7 +45,10 @@ const GENERATION_SCHEMA = {
   properties: {
     status: { enum: ['READY', 'MISSING_INPUT', 'CONFLICT_INPUT'] },
     edits: { anyOf: [{ type: 'array', items: { type: 'object', additionalProperties: false, required: ['kind', 'blockId', 'text'], properties: { kind: { enum: ['replace', 'insert_after'] }, blockId: { type: 'string' }, text: { type: 'string' } } } }, { type: 'null' }] },
-    missingInputs: { anyOf: [{ type: 'array', minItems: 1, items: { type: 'object', additionalProperties: false, required: ['id', 'label', 'answerKind', 'subject'], properties: { id: { type: 'string' }, label: { type: 'string' }, answerKind: { enum: ['text', 'multiline', 'date', 'number', 'email', 'phone'] }, subject: { anyOf: [{ type: 'object', additionalProperties: false, required: ['participantKey', 'displayName'], properties: { participantKey: { type: 'string' }, displayName: { anyOf: [{ type: 'string' }, { type: 'null' }] } } }, { type: 'null' }] } } } }, { type: 'null' }] },
+    missingInputs: { anyOf: [{ type: 'array', minItems: 1, items: { anyOf: [
+      { type: 'object', additionalProperties: false, required: ['id', 'label', 'answerKind', 'subject'], properties: { id: { type: 'string' }, label: { type: 'string' }, answerKind: { enum: ['text', 'multiline', 'date', 'number', 'email', 'phone'] }, subject: { anyOf: [{ type: 'object', additionalProperties: false, required: ['participantKey', 'displayName'], properties: { participantKey: { type: 'string' }, displayName: { anyOf: [{ type: 'string' }, { type: 'null' }] } } }, { type: 'null' }] } } },
+      { type: 'object', additionalProperties: false, required: ['id', 'kind', 'label', 'options'], properties: { id: { type: 'string' }, kind: { const: 'choice' }, label: { type: 'string' }, options: { type: 'array', minItems: 2, items: { type: 'object', additionalProperties: false, required: ['id', 'label'], properties: { id: { type: 'string' }, label: { type: 'string' } } } } } },
+    ] } }, { type: 'null' }] },
     conflicts: { anyOf: [{ type: 'array', minItems: 1, items: { type: 'string' } }, { type: 'null' }] },
   },
 }
@@ -196,6 +199,7 @@ async function loadServerContext(
   userId: string,
   weddingId: string,
   answers: ContractGenerationAnswer[],
+  selectedEntities: Array<{ requirementId: string; optionId: string; partyKey: string }> = [],
 ): Promise<ServerBoundaryContext | null> {
   const weddingResult = await supabase.from('weddings').select('*').eq('id', weddingId).eq('user_id', userId).maybeSingle()
   const weddingRow = assertQuery(weddingResult.data, weddingResult.error)
@@ -269,8 +273,12 @@ async function loadServerContext(
     wedding, weddingPlaces, extras: weddingExtras,
     generationDate: new Date().toISOString().slice(0, 10),
     questionnaireFields: fields,
-    userProvidedAnswers: answers.map((answer) => ({ id: answer.missingInputId, value: answer.value })),
+    userProvidedAnswers: answers.flatMap((answer) => 'value' in answer ? [{ id: answer.missingInputId, value: answer.value }] : []),
     participantAssociations: [],
+    selectedEntityBindings: selectedEntities.flatMap((binding) =>
+      (binding.partyKey === 'partner1' || binding.partyKey === 'partner2')
+        ? [{ requirementId: binding.requirementId, optionId: binding.optionId, partyKey: binding.partyKey as GenerationPartyKey }]
+        : []),
     contractRecordId: contract?.id ?? null,
     genericContractAddress: typeof weddingRow.contract_address === 'string' ? weddingRow.contract_address : null,
   })
@@ -280,6 +288,10 @@ async function loadServerContext(
     questionnaireFields: fields,
     userProvidedAnswers: [],
     participantAssociations: [],
+    selectedEntityBindings: selectedEntities.flatMap((binding) =>
+      (binding.partyKey === 'partner1' || binding.partyKey === 'partner2')
+        ? [{ requirementId: binding.requirementId, optionId: binding.optionId, partyKey: binding.partyKey as GenerationPartyKey }]
+        : []),
     contractRecordId: contract?.id ?? null,
     genericContractAddress: typeof weddingRow.contract_address === 'string' ? weddingRow.contract_address : null,
   }) : authority
@@ -298,14 +310,21 @@ async function loadServerContext(
 
 function mapSession(row: RunRow): ContractGenerationSession {
   const missingInputState = readMissingInputState(row.missing_inputs_json)
+  const resolvedState = row.resolved_values_json && typeof row.resolved_values_json === 'object' && !Array.isArray(row.resolved_values_json)
+    ? row.resolved_values_json as Record<string, unknown>
+    : {}
+  const choiceBindings = isChoiceBindingMap(resolvedState.choiceBindings) ? resolvedState.choiceBindings : {}
+  const choiceBindingsValid = missingInputState !== null
+    && choiceBindingMapMatchesHistory(missingInputState.history, choiceBindings)
   return {
     id: String(row.id), ownerUserId: String(row.owner_user_id), weddingId: String(row.wedding_id),
     templateId: String(row.template_id), templateVersionId: String(row.template_version_id),
     sourceSha256: String(row.source_sha256), state: row.session_state as ContractGenerationSession['state'],
     missingInputs: missingInputState?.pending ?? [],
     missingInputHistory: missingInputState?.history ?? [],
-    missingInputHistoryValid: missingInputState !== null,
+    missingInputHistoryValid: choiceBindingsValid,
     answers: Array.isArray(row.user_answers_json) ? row.user_answers_json as ContractGenerationSession['answers'] : [],
+    choiceBindings,
     expiresAt: String(row.expires_at), createdAt: String(row.created_at), updatedAt: String(row.updated_at),
   }
 }
@@ -537,7 +556,18 @@ function providerAdapters() {
     let applied: Awaited<ReturnType<typeof applyOptionBGenerationResponse>>
     try { applied = await applyOptionBGenerationResponse(context.sourceBytes, source, authority, view.sourceBlockIds, result) }
     catch { return { status: 'FAILED' as const, category: 'mechanical_validation_failure' as const, mechanicalFailure: { gateId: 'internal', reasonCode: 'internal_validation_failure' } as const } }
-    if (applied.status === 'MISSING_INPUT') return applied
+    if (applied.status === 'MISSING_INPUT') {
+      const authorized = authorizeMissingInputChoiceOptions(
+        applied.missingInputs,
+        authority.parties.flatMap((party) => party.fullName?.value.trim()
+          ? [{ key: party.sourceKey, label: party.fullName.value }]
+          : []),
+        () => crypto.randomUUID(),
+      )
+      return authorized
+        ? { status: 'MISSING_INPUT' as const, ...authorized }
+        : { status: 'FAILED' as const, category: 'invalid_response' as const }
+    }
     if (applied.status === 'CONFLICT_INPUT') return applied
     if (applied.status !== 'READY') return {
       status: 'FAILED' as const,
@@ -607,7 +637,7 @@ function createBoundary(supabase: SupabaseClient, ownerId: string) {
   const admin = createAdminClient()
   return createContractGenerationBoundary({
     newId: () => crypto.randomUUID(),
-    loadContext: (userId, weddingId, answers) => loadServerContext(supabase, userId, weddingId, answers),
+    loadContext: (userId, weddingId, answers, selectedEntities) => loadServerContext(supabase, userId, weddingId, answers, selectedEntities),
     async createSession(input) {
       if (input.userId !== ownerId || input.scope.ownerUserId !== ownerId) return null
       const { data, error } = await admin.rpc('begin_option_b_generation', {
@@ -676,6 +706,7 @@ function createBoundary(supabase: SupabaseClient, ownerId: string) {
       const { data, error } = await supabase.from('wedding_contract_generation_runs').update({
         session_state: 'awaiting_input', generation_status: 'manual_input_required',
         missing_inputs_json: storeMissingInputState(input.missingInputs, input.missingInputHistory), user_answers_json: input.answers,
+        resolved_values_json: { choiceBindings: input.choiceBindings },
         authority_fingerprint: input.authorityFingerprint,
         expires_at: new Date(Date.now() + OPTION_B_ACTIVE_TTL_MS).toISOString(),
       }).eq('id', input.sessionId).eq('execution_id', input.executionId).eq('session_state', 'processing').select('id').maybeSingle()

@@ -65,8 +65,8 @@ assert.match(page, /reason: 'discarded'/)
 // Continuation remains server-bound and answer-specific; no client authority is
 // added by this lifecycle change.
 assert.match(boundary, /acceptSessionAnswers\(current, request\.answers, now\(\)\)/)
-assert.match(boundary, /resolveMissingInputAnswers\(session\.missingInputHistory, session\.answers\)/)
-assert.match(boundary, /deps\.loadContext\(userId, current\.weddingId, accepted\.answers\)/)
+assert.match(boundary, /resolveMissingInputAnswers\(session\.missingInputHistory, session\.answers, session\.choiceBindings/)
+assert.match(boundary, /deps\.loadContext\(userId, current\.weddingId, accepted\.answers, resolvedInputs\.flatMap/)
 assert.match(boundary, /await deps\.generate\(context, answers, resolvedInputs\)/)
 assert.doesNotMatch(boundary, /retry|repair/i)
 

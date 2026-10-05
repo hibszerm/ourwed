@@ -12,6 +12,8 @@ export type ContractGenerationFact<T> = {
   value: T
   source: string
   owner?: GenerationPartyKey
+  /** Explicit source semantics; address facts are never inferred to be residential. */
+  semanticType?: 'contract_address' | 'residential_address' | 'correspondence_address' | 'company_address' | 'venue_address'
 }
 
 export type ContractGenerationParty = {
@@ -40,6 +42,8 @@ export type ContractGenerationInput = {
   }
   parties: ContractGenerationParty[]
   participantAssociations: ContractGenerationParticipantAssociation[]
+  /** Run-local selection links; these are not CRM record identifiers. */
+  selectedEntityBindings: Array<{ requirementId: string; optionId: string; partyKey: GenerationPartyKey }>
   commercial: {
     contractValue: ContractGenerationFact<number>
     agreedDeposit: ContractGenerationFact<number>
@@ -99,6 +103,7 @@ export type ContractGenerationInputOptions = {
   userProvidedAnswers?: Array<{ id: string; value: string }>
   /** Explicit associations supplied by an authoritative upstream record; never inferred by this adapter. */
   participantAssociations?: readonly ContractGenerationParticipantAssociation[]
+  selectedEntityBindings?: readonly { requirementId: string; optionId: string; partyKey: GenerationPartyKey }[]
   contractRecordId?: string | null
   /** Raw canonical contract/correspondence address when available before wedding-view hydration; the application model associates it with partner1. */
   genericContractAddress?: string | null
@@ -125,6 +130,7 @@ function addressAnswerFact(
     value: directValue,
     source: `form_answers.answer_json.fields.${key}`,
     owner,
+    semanticType: 'contract_address',
   }
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined
   const formattedAddress = answerString((raw as Record<string, unknown>).formattedAddress)
@@ -132,6 +138,7 @@ function addressAnswerFact(
     value: formattedAddress,
     source: `form_answers.answer_json.fields.${key}.formattedAddress`,
     owner,
+    semanticType: 'contract_address',
   } : undefined
 }
 
@@ -157,6 +164,7 @@ function partyFromWedding(
     value: explicitModelAddress,
     source: `wedding.couple.${key}Address`,
     owner: key,
+    semanticType: 'contract_address' as const,
   } : undefined)
 
   return {
@@ -190,6 +198,7 @@ export function buildContractGenerationInput(
       ? 'public.weddings.contract_address'
       : 'wedding.couple.partner1Address (mapped from public.weddings.contract_address)',
     owner: 'partner1',
+    semanticType: 'contract_address',
   } : undefined
 
   return {
@@ -211,6 +220,7 @@ export function buildContractGenerationInput(
       participant,
       association: { ...association },
     })),
+    selectedEntityBindings: (options.selectedEntityBindings ?? []).map((binding) => ({ ...binding })),
     commercial: {
       contractValue: { value: summary.contractValue, source: 'public.weddings.contract_value' },
       agreedDeposit: { value: summary.agreedDeposit, source: 'public.weddings.deposit_amount' },

@@ -52,7 +52,7 @@ assert.equal(isGenerationResponse({ status: 'MISSING_INPUT', missingInputs: [ass
 assert.match(dependencyRule, /batch genuinely independent missing facts with the current subject-association question; do not defer independent gaps/)
 
 // I. Continuation keeps the original question definition and does not recreate it.
-assert.match(instructions, /each resolved item binds the original missinginput id, complete requirement definition/)
+assert.match(instructions, /each resolved item binds the original missinginput id and complete requirement definition/)
 assert.match(instructions, /do not request the same requirement again, including by paraphrasing its label or assigning a new opaque id/)
 
 // J. The change is confined to generic Generator planning language; it adds no runtime field map.

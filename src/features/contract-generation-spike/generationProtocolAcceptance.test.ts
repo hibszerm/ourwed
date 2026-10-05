@@ -17,7 +17,11 @@ assert.equal(isGenerationResponse({ status: 'READY', edits: [{ ...replace, quote
 
 const missingA: MissingInput = { id: 'opaque:req-1', label: 'Required fact A', answerKind: 'text' }
 const missingB: MissingInput = { id: 'opaque/req-2', label: 'Required fact B', answerKind: 'multiline', subject: { participantKey: 'participant-9', displayName: 'Lena' } }
+const choice: MissingInput = { id: 'opaque-choice', kind: 'choice', label: 'Select a contracting person', options: [
+  { id: 'opaque-option-a', label: 'Candidate A' }, { id: 'opaque-option-b', label: 'Candidate B' },
+] }
 assert.equal(isGenerationResponse({ status: 'MISSING_INPUT', missingInputs: [missingA, missingB] }), true, 'multiple structured requirements are accepted together')
+assert.equal(isGenerationResponse({ status: 'MISSING_INPUT', missingInputs: [choice] }), true, 'choice requirements have opaque selectable options')
 assert.equal(isGenerationResponse({ status: 'MISSING_INPUT', missingInputs: [{ ...missingA, id: 'partner1.pesel' }] }), true, 'IDs remain opaque; protocol does not parse field-like strings')
 for (const answerKind of ['text', 'multiline', 'date', 'number', 'email', 'phone']) {
   assert.equal(isGenerationResponse({ status: 'MISSING_INPUT', missingInputs: [{ ...missingA, answerKind }] }), true, `${answerKind} answer kind is allowed`)
@@ -32,6 +36,9 @@ assert.equal(isGenerationResponse({ status: 'MISSING_INPUT', missingInputs: [{ .
 assert.equal(isGenerationResponse({ status: 'MISSING_INPUT', missingInputs: [] }), false, 'missing-input list must be non-empty')
 assert.equal(isGenerationResponse({ status: 'MISSING_INPUT', missingInputs: [missingA, { ...missingA, label: 'Another fact' }] }), false, 'duplicate IDs are rejected')
 assert.equal(isGenerationResponse({ status: 'MISSING_INPUT', missingInputs: [missingA], edits: [] }), false, 'MISSING_INPUT cannot contain edits')
+assert.equal(isGenerationResponse({ status: 'MISSING_INPUT', missingInputs: [{ ...choice, options: [choice.options[0]!, choice.options[0]!] }] }), false, 'choice option IDs are unique')
+assert.equal(isGenerationResponse({ status: 'MISSING_INPUT', missingInputs: [{ ...choice, options: [{ ...choice.options[0]!, bindingRef: 'crm-id' }, choice.options[1]!] }] }), false, 'choice options cannot expose internal entity references')
+assert.equal(isGenerationResponse({ status: 'MISSING_INPUT', missingInputs: [{ ...choice, kind: 'choice', options: [{ id: 'only', label: 'One' }] }] }), false, 'choice requires at least two candidates')
 assert.equal(isGenerationResponse({ status: 'CONFLICT_INPUT', conflicts: ['Two authoritative dates disagree.'] }), true)
 assert.equal(isGenerationResponse({ status: 'CONFLICT_INPUT', conflicts: [] }), false, 'conflict list must be non-empty')
 assert.equal(isGenerationResponse({ status: 'CONFLICT_INPUT', conflicts: ['Conflict'], edits: [] }), false, 'CONFLICT_INPUT cannot contain edits')

@@ -36,10 +36,14 @@ assert.match(savePath, /saveGeneratedContract\(\{[\s\S]*draftId,/)
 const pending: MissingInput[] = [
   { id: 'opaque-2', label: 'Termin', answerKind: 'date' },
   { id: 'opaque-1', label: 'Dodatkowe ustalenia', answerKind: 'multiline', subject: { displayName: 'Umowa' } },
+  { id: 'opaque-choice', kind: 'choice', label: 'Wybierz osobę', options: [
+    { id: 'opaque-option-1', label: 'Osoba pierwsza' }, { id: 'opaque-option-2', label: 'Osoba druga' },
+  ] },
 ]
-assert.deepEqual(answersForMissingInputs(pending, { 'opaque-2': '2026-10-01', 'opaque-1': '  tekst  ' }), [
+assert.deepEqual(answersForMissingInputs(pending, { 'opaque-2': '2026-10-01', 'opaque-1': '  tekst  ' }, { 'opaque-choice': 'opaque-option-2' }), [
   { missingInputId: 'opaque-2', value: '2026-10-01' },
   { missingInputId: 'opaque-1', value: 'tekst' },
+  { missingInputId: 'opaque-choice', optionId: 'opaque-option-2' },
 ], 'the whole current batch is submitted in server order with opaque IDs')
 
 assert.match(page, /startContractGeneration\(\{ weddingId: wedding\.id, requestId: connection\.requestId \}\)/)
@@ -63,6 +67,8 @@ assert.doesNotMatch(page, /startSemanticContractGeneration|resumeSemanticContrac
 assert.doesNotMatch(page, /mayGenerateContract|isTravelFeeResolved/)
 assert.match(form, /props\.requirements\.map\(/)
 assert.match(form, /requirement\.label/)
+assert.match(form, /requirement\.kind === 'choice'[\s\S]*?type="radio"[\s\S]*?option\.label/)
+assert.match(form, /selectedOptions\[requirement\.id\]/)
 assert.doesNotMatch(form, /translate|labelMap|missingInputLabel/i, 'semantic labels remain Generator-authored')
 for (const kind of ['text', 'multiline', 'date', 'number', 'email', 'phone']) {
   assert.ok(form.includes(`'${kind}'`), `generic renderer supports ${kind}`)

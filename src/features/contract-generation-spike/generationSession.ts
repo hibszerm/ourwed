@@ -27,6 +27,8 @@ export type ContractGenerationSession = {
   /** False only when stored history is malformed; such sessions must fail before provider execution. */
   missingInputHistoryValid?: boolean
   answers: ContractGenerationAnswer[]
+  /** Server-only run-local option-to-authority map; never returned to the browser. */
+  choiceBindings?: ChoiceBindingMap
   expiresAt: string
   createdAt: string
   updatedAt: string
@@ -34,8 +36,11 @@ export type ContractGenerationSession = {
 
 export type ResolvedMissingInput = {
   requirement: MissingInput
-  answer: { value: string }
+  answer: { value: string } | { optionId: string }
+  selectedEntity?: { partyKey: string }
 }
+
+export type ChoiceBindingMap = Record<string, Record<string, string>>
 
 export type StoredMissingInputState = {
   version: 1
@@ -86,6 +91,7 @@ export function appendMissingInputHistory(
 export function resolveMissingInputAnswers(
   history: readonly MissingInput[],
   answers: readonly ContractGenerationAnswer[],
+  choiceBindings: ChoiceBindingMap = {},
 ): ResolvedMissingInput[] | null {
   const requirements = new Map<string, MissingInput>()
   for (const requirement of history) {
@@ -97,16 +103,96 @@ export function resolveMissingInputAnswers(
   for (const answer of answers) {
     if (!isAnswer(answer) || seenAnswers.has(answer.missingInputId)) return null
     const requirement = requirements.get(answer.missingInputId)
-    if (!requirement || !answer.value.trim()) return null
+    if (!requirement) return null
     seenAnswers.add(answer.missingInputId)
-    resolved.push({ requirement, answer: { value: answer.value } })
+    if ('value' in answer) {
+      if (!answer.value.trim() || requirement.kind === 'choice') return null
+      resolved.push({ requirement, answer: { value: answer.value } })
+    } else {
+      if (requirement.kind !== 'choice' || !requirement.options.some((option) => option.id === answer.optionId)) return null
+      const partyKey = choiceBindings[requirement.id]?.[answer.optionId]
+      if (!partyKey) return null
+      resolved.push({ requirement, answer: { optionId: answer.optionId }, selectedEntity: { partyKey } })
+    }
   }
   return resolved
 }
 
 function sameMissingInput(left: MissingInput | undefined, right: MissingInput): boolean {
-  return Boolean(left && left.id === right.id && left.label === right.label && left.answerKind === right.answerKind
-    && JSON.stringify(left.subject) === JSON.stringify(right.subject))
+  if (!left || left.id !== right.id || left.label !== right.label || left.kind !== right.kind) return false
+  if (left.kind === 'choice' || right.kind === 'choice') {
+    return left.kind === 'choice' && right.kind === 'choice'
+      && left.options.length === right.options.length
+      && left.options.every((option, index) => option.id === right.options[index]?.id && option.label === right.options[index]?.label)
+  }
+  return left.answerKind === right.answerKind && JSON.stringify(left.subject) === JSON.stringify(right.subject)
+}
+
+export function isChoiceBindingMap(value: unknown): value is ChoiceBindingMap {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  return Object.entries(value as Record<string, unknown>).every(([requirementId, rawOptions]) => {
+    if (!nonBlank(requirementId) || !rawOptions || typeof rawOptions !== 'object' || Array.isArray(rawOptions)) return false
+    return Object.entries(rawOptions as Record<string, unknown>).every(([optionId, partyKey]) => nonBlank(optionId) && nonBlank(partyKey))
+  })
+}
+
+/** Ensures every persisted binding corresponds exactly to an option in the run's immutable history. */
+export function choiceBindingMapMatchesHistory(history: readonly MissingInput[], value: unknown): value is ChoiceBindingMap {
+  if (!Array.isArray(history) || history.some((requirement) => !isMissingInput(requirement))
+    || new Set(history.map((requirement) => requirement.id)).size !== history.length
+    || !isChoiceBindingMap(value)) return false
+  const historyItems = history as readonly MissingInput[]
+  const choiceRequirements = historyItems.filter((requirement) => requirement.kind === 'choice')
+  const bindings = value as ChoiceBindingMap
+  if (Object.keys(bindings).length !== choiceRequirements.length) return false
+  return choiceRequirements.every((requirement) => {
+    const options = bindings[requirement.id]
+    return Boolean(options)
+      && Object.keys(options).length === requirement.options.length
+      && requirement.options.every((option) => Object.hasOwn(options, option.id) && nonBlank(options[option.id]))
+  })
+}
+
+/** Replaces model-visible normalized-party keys with server-issued opaque option IDs. */
+export function authorizeMissingInputChoiceOptions(
+  missingInputs: MissingInput[],
+  candidates: readonly { key: string; label: string }[],
+  newOptionId: () => string,
+): { missingInputs: MissingInput[]; choiceBindings: ChoiceBindingMap } | null {
+  if (candidates.some((item) => !nonBlank(item.key) || !nonBlank(item.label))
+    || new Set(candidates.map((item) => item.key)).size !== candidates.length) return null
+  const candidateMap = new Map(candidates.map((item) => [item.key, item.label]))
+  const bindings: ChoiceBindingMap = {}
+  const projected: MissingInput[] = []
+  const usedOptionIds = new Set<string>()
+  for (const requirement of missingInputs) {
+    if (requirement.kind !== 'choice') {
+      projected.push(requirement)
+      continue
+    }
+    const keys = requirement.options.map((option) => option.id)
+    if (candidateMap.size < 2 || new Set(keys).size !== keys.length || keys.length !== candidateMap.size || keys.some((key) => !candidateMap.has(key))) return null
+    const optionBindings: Record<string, string> = {}
+    const options: Array<{ id: string; label: string }> = []
+    for (const option of requirement.options) {
+      let id = ''
+      for (let attempt = 0; attempt < 10; attempt += 1) {
+        const candidateId = newOptionId()
+        if (nonBlank(candidateId) && !usedOptionIds.has(candidateId)
+          && !candidateMap.has(candidateId) && !candidates.some((item) => item.label === candidateId)) {
+          id = candidateId
+          break
+        }
+      }
+      if (!id) return null
+      usedOptionIds.add(id)
+      optionBindings[id] = option.id
+      options.push({ id, label: candidateMap.get(option.id)! })
+    }
+    bindings[requirement.id] = optionBindings
+    projected.push({ id: requirement.id, kind: 'choice', label: requirement.label, options })
+  }
+  return { missingInputs: projected, choiceBindings: bindings }
 }
 
 export type ContractGenerationSessionScope = Pick<
@@ -116,7 +202,7 @@ export type ContractGenerationSessionScope = Pick<
 
 export type SessionAnswerValidation =
   | { ok: true; answers: ContractGenerationAnswer[] }
-  | { ok: false; reason: 'session_not_awaiting_input' | 'session_expired' | 'missing_input_set_invalid' | 'unknown_requirement' | 'duplicate_answer' | 'blank_answer' | 'incomplete_answers' }
+  | { ok: false; reason: 'session_not_awaiting_input' | 'session_expired' | 'missing_input_set_invalid' | 'unknown_requirement' | 'duplicate_answer' | 'blank_answer' | 'incomplete_answers' | 'wrong_answer_kind' | 'unknown_option' }
 
 function nonBlank(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0
@@ -127,21 +213,25 @@ function isSessionState(value: unknown): value is ContractGenerationSessionState
 }
 
 function isAnswer(value: unknown): value is ContractGenerationAnswer {
-  return Boolean(value && typeof value === 'object' && !Array.isArray(value)
-    && Object.keys(value).length === 2
-    && nonBlank((value as Record<string, unknown>).missingInputId)
-    && typeof (value as Record<string, unknown>).value === 'string')
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  const answer = value as Record<string, unknown>
+  return nonBlank(answer.missingInputId) && (
+    (Object.keys(answer).length === 2 && typeof answer.value === 'string')
+    || (Object.keys(answer).length === 2 && nonBlank(answer.optionId))
+  )
 }
 
 export function isContractGenerationSession(value: unknown): value is ContractGenerationSession {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const session = value as Record<string, unknown>
   const expectedKeys = ['id', 'ownerUserId', 'weddingId', 'templateId', 'templateVersionId', 'sourceSha256', 'state', 'missingInputs', 'missingInputHistory', 'answers', 'expiresAt', 'createdAt', 'updatedAt']
-  const optionalKeys = ['missingInputHistoryValid']
-  if (Object.keys(session).length !== expectedKeys.length + (Object.hasOwn(session, 'missingInputHistoryValid') ? 1 : 0)
+  const optionalKeys = ['missingInputHistoryValid', 'choiceBindings']
+  const optionalCount = optionalKeys.filter((key) => Object.hasOwn(session, key)).length
+  if (Object.keys(session).length !== expectedKeys.length + optionalCount
     || expectedKeys.some((key) => !Object.hasOwn(session, key))
     || Object.keys(session).some((key) => !expectedKeys.includes(key) && !optionalKeys.includes(key))) return false
   if (Object.hasOwn(session, 'missingInputHistoryValid') && typeof session.missingInputHistoryValid !== 'boolean') return false
+  if (Object.hasOwn(session, 'choiceBindings') && !isChoiceBindingMap(session.choiceBindings)) return false
   if (!nonBlank(session.id) || !nonBlank(session.ownerUserId) || !nonBlank(session.weddingId)
     || !nonBlank(session.templateId) || !nonBlank(session.templateVersionId)
     || !(typeof session.sourceSha256 === 'string' && /^[a-f0-9]{64}$/.test(session.sourceSha256))
@@ -149,7 +239,7 @@ export function isContractGenerationSession(value: unknown): value is ContractGe
     || !Array.isArray(session.missingInputs) || !session.missingInputs.every((item) => isMissingInput(item))
     || !Array.isArray(session.missingInputHistory) || !session.missingInputHistory.every((item) => isMissingInput(item))
     || session.missingInputHistoryValid === false
-    || !Array.isArray(session.answers) || !session.answers.every((answer) => isAnswer(answer) && Boolean(answer.value.trim()))
+    || !Array.isArray(session.answers) || !session.answers.every((answer) => isAnswer(answer) && ('value' in answer ? Boolean(answer.value.trim()) : true))
     || !nonBlank(session.expiresAt) || !nonBlank(session.createdAt) || !nonBlank(session.updatedAt)) return false
   const answerIds = (session.answers as ContractGenerationAnswer[]).map((answer) => answer.missingInputId)
   const missingIds = (session.missingInputs as MissingInput[]).map((item) => item.id)
@@ -159,7 +249,8 @@ export function isContractGenerationSession(value: unknown): value is ContractGe
     && new Set(missingIds).size === missingIds.length
     && new Set(historyIds).size === historyIds.length
     && (session.missingInputs as MissingInput[]).every((item) => sameMissingInput(historyById.get(item.id), item))
-    && resolveMissingInputAnswers(session.missingInputHistory as MissingInput[], session.answers as ContractGenerationAnswer[]) !== null
+    && choiceBindingMapMatchesHistory(session.missingInputHistory as MissingInput[], session.choiceBindings ?? {})
+    && resolveMissingInputAnswers(session.missingInputHistory as MissingInput[], session.answers as ContractGenerationAnswer[], (session.choiceBindings ?? {}) as ChoiceBindingMap) !== null
     && (session.state !== 'awaiting_input' || (session.missingInputs as MissingInput[]).length > 0)
 }
 
@@ -190,7 +281,7 @@ export function canResumeContractGenerationSession(
 export function answersForContractGenerationInput(
   answers: readonly ContractGenerationAnswer[],
 ): Array<{ id: string; value: string }> {
-  return answers.map(({ missingInputId, value }) => ({ id: missingInputId, value }))
+  return answers.flatMap((answer) => 'value' in answer ? [{ id: answer.missingInputId, value: answer.value }] : [])
 }
 
 /** Accepts the complete current form submission and keeps it separate from canonical CRM fields. */
@@ -204,7 +295,10 @@ export function acceptSessionAnswers(
     return { ok: false, reason: 'session_expired' }
   }
   if (!isMissingInputList(session.missingInputs)) return { ok: false, reason: 'missing_input_set_invalid' }
-  const requirements = new Set(session.missingInputs.map((item) => item.id))
+  if (!choiceBindingMapMatchesHistory(session.missingInputHistory, session.choiceBindings ?? {})) {
+    return { ok: false, reason: 'missing_input_set_invalid' }
+  }
+  const requirements = new Map(session.missingInputs.map((item) => [item.id, item]))
   const existing = new Set(session.answers.map((answer) => answer.missingInputId))
   const received = new Set<string>()
   for (const answer of submitted) {
@@ -212,18 +306,24 @@ export function acceptSessionAnswers(
     if (existing.has(answer.missingInputId) || received.has(answer.missingInputId)) {
       return { ok: false, reason: 'duplicate_answer' }
     }
-    if (!requirements.has(answer.missingInputId)) {
+    const requirement = requirements.get(answer.missingInputId)
+    if (!requirement) {
       return { ok: false, reason: 'unknown_requirement' }
     }
-    if (!answer.value.trim()) return { ok: false, reason: 'blank_answer' }
+    if ('value' in answer) {
+      if (!answer.value.trim()) return { ok: false, reason: 'blank_answer' }
+      if (requirement.kind === 'choice') return { ok: false, reason: 'wrong_answer_kind' }
+    } else {
+      if (requirement.kind !== 'choice' || !requirement.options.some((option) => option.id === answer.optionId)
+        || !(session.choiceBindings ?? {})[requirement.id]?.[answer.optionId]) return { ok: false, reason: 'unknown_option' }
+    }
     received.add(answer.missingInputId)
   }
   if (received.size !== requirements.size) return { ok: false, reason: 'incomplete_answers' }
   return {
     ok: true,
-    answers: [...session.answers, ...submitted.map((answer) => ({
-      missingInputId: answer.missingInputId,
-      value: answer.value.trim(),
-    }))],
+    answers: [...session.answers, ...submitted.map((answer) => 'value' in answer
+      ? { missingInputId: answer.missingInputId, value: answer.value.trim() }
+      : { missingInputId: answer.missingInputId, optionId: answer.optionId })],
   }
 }

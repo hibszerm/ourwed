@@ -7,6 +7,9 @@ import { GENERATION_INSTRUCTIONS } from './generator'
 const first = { id: 'mi_first', label: 'Required source fact', answerKind: 'text' as const }
 const second = { id: 'mi_second', label: 'Another required source fact', answerKind: 'date' as const, subject: { participantKey: 'participant-2', displayName: 'Synthetic Participant' } }
 const third = { id: 'mi_third', label: 'A later distinct fact', answerKind: 'multiline' as const }
+const choiceRequirement = { id: 'opaque-party-role', kind: 'choice' as const, label: 'Select source party', options: [
+  { id: 'opaque-option-1', label: 'Candidate One' }, { id: 'opaque-option-2', label: 'Candidate Two' },
+] }
 const definitions = [first, second, third]
 const answers = [
   { missingInputId: first.id, value: 'Synthetic answer A' },
@@ -131,6 +134,56 @@ assert.equal(JSON.stringify(diagnosticEvents).includes('Synthetic answer'), fals
 assert.equal(JSON.stringify(diagnosticEvents).includes('Synthetic Participant'), false, 'diagnostics exclude source/participant text')
 assert.equal(JSON.stringify(diagnosticEvents).includes('Synthetic source text'), false, 'diagnostics exclude source content')
 assert.equal(JSON.stringify(diagnosticEvents).includes('Synthetic generated document'), false, 'diagnostics exclude candidate content')
+
+{
+  let choiceSession: ContractGenerationSession = {
+    ...session, id: 'choice-session', state: 'processing', missingInputs: [], missingInputHistory: [], answers: [], choiceBindings: {},
+  }
+  let choiceRound = 0
+  const bindings = { [choiceRequirement.id]: { 'opaque-option-1': 'partner1', 'opaque-option-2': 'partner2' } }
+  const observedBindings: unknown[] = []
+  const choiceResolved: unknown[] = []
+  const choiceDeps: ServerBoundaryDependencies = {
+    ...deps,
+    createSession: async () => choiceSession,
+    getSession: async () => choiceSession,
+    loadContext: async (userId, weddingId, answers, selectedEntities) => {
+      observedBindings.push(selectedEntities ?? [])
+      return { scope: scope(userId, weddingId), sourceBytes: new ArrayBuffer(1), sourceSha256: 'a'.repeat(64), authorityFingerprint: 'b'.repeat(64), authority: { answers } }
+    },
+    claimContinuation: async (input) => {
+      choiceSession = { ...choiceSession, state: 'processing', answers: input.answers, missingInputHistory: input.missingInputHistory }
+      return choiceSession
+    },
+    saveMissing: async (input) => {
+      choiceSession = { ...choiceSession, state: 'awaiting_input', missingInputs: input.missingInputs, missingInputHistory: input.missingInputHistory, answers: input.answers, choiceBindings: input.choiceBindings }
+      return true
+    },
+    generate: async (_context, _answers, resolved) => {
+      choiceResolved.push(resolved)
+      choiceRound++
+      if (choiceRound === 1) return { status: 'MISSING_INPUT', missingInputs: [choiceRequirement], choiceBindings: bindings }
+      if (choiceRound === 2) return { status: 'MISSING_INPUT', missingInputs: [third] }
+      return { status: 'READY', candidate: { bytes: new ArrayBuffer(1), changedBlocks: [] } }
+    },
+  }
+  const choiceBoundary = createContractGenerationBoundary(choiceDeps)
+  const choiceStart = await choiceBoundary.start('synthetic-owner', { weddingId: 'synthetic-wedding', requestId: '00000000-0000-4000-8000-000000000002' })
+  assert.equal(choiceStart.status, 'awaiting_input')
+  assert.deepEqual(choiceSession.choiceBindings, bindings, 'server-authorized option mappings persist with this run')
+  const choiceContinue = await choiceBoundary.continue('synthetic-owner', { sessionId: choiceSession.id, answers: [{ missingInputId: choiceRequirement.id, optionId: 'opaque-option-1' }] })
+  assert.equal(choiceContinue.status, 'awaiting_input')
+  assert.deepEqual(observedBindings[1], [{ requirementId: choiceRequirement.id, optionId: 'opaque-option-1', partyKey: 'partner1' }], 'only the server-resolved option binding reaches normalized authority')
+  assert.deepEqual(choiceResolved[1], [{ requirement: choiceRequirement, answer: { optionId: 'opaque-option-1' }, selectedEntity: { partyKey: 'partner1' } }], 'choice is distinct from a string user fact')
+  assert.deepEqual(choiceSession.choiceBindings, bindings, 'binding survives a later MissingInput batch')
+  const next = await choiceBoundary.continue('synthetic-owner', { sessionId: choiceSession.id, answers: [{ missingInputId: third.id, value: 'new value' }] })
+  assert.equal(next.status, 'ready')
+  assert.deepEqual(observedBindings[2], observedBindings[1], 'same entity remains bound on later continuation')
+  assert.deepEqual(choiceResolved[2], [
+    { requirement: choiceRequirement, answer: { optionId: 'opaque-option-1' }, selectedEntity: { partyKey: 'partner1' } },
+    { requirement: third, answer: { value: 'new value' } },
+  ], 'later absent values remain separate from the selected entity binding')
+}
 
 async function runFailureDiagnostic(category: 'invalid_response' | 'provider_failure' | 'mechanical_validation_failure') {
   const events: BoundaryDiagnostic[] = []

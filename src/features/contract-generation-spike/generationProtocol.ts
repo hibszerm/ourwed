@@ -16,16 +16,21 @@ export type MissingInputSubject = {
 
 export type MissingInput = {
   id: string
+  kind?: 'value'
   label: string
   answerKind: MissingInputAnswerKind
   subject?: MissingInputSubject
+} | {
+  id: string
+  kind: 'choice'
+  label: string
+  options: Array<{ id: string; label: string }>
 }
 
 /** A user-supplied authoritative value paired with one opaque requirement ID. */
-export type ContractGenerationAnswer = {
-  missingInputId: string
-  value: string
-}
+export type ContractGenerationAnswer =
+  | { missingInputId: string; value: string }
+  | { missingInputId: string; optionId: string }
 
 export type GenerationResponse =
   | { status: 'READY'; edits: BlockEdit[] }
@@ -95,11 +100,22 @@ const ANSWER_KINDS = new Set<MissingInputAnswerKind>(['text', 'multiline', 'date
 
 export function isMissingInput(value: unknown, participantKeys?: ReadonlySet<string>): value is MissingInput {
   if (!isRecord(value) || !isNonEmptyString(value.id) || !isNonEmptyString(value.label)) return false
+  if (value.kind === 'choice') {
+    if (!hasExactKeys(value, ['id', 'kind', 'label', 'options']) || !Array.isArray(value.options) || value.options.length < 2) return false
+    const ids = new Set<string>()
+    return value.options.every((option) => {
+      if (!isRecord(option) || !hasExactKeys(option, ['id', 'label']) || !isNonEmptyString(option.id) || !isNonEmptyString(option.label) || ids.has(option.id)) return false
+      ids.add(option.id)
+      return true
+    })
+  }
+  if (value.kind !== undefined && value.kind !== 'value') return false
   if (typeof value.answerKind !== 'string' || !ANSWER_KINDS.has(value.answerKind as MissingInputAnswerKind)) return false
-  if (value.subject === undefined) return hasExactKeys(value, ['id', 'label', 'answerKind'])
+  const keys = value.kind === 'value' ? ['id', 'kind', 'label', 'answerKind'] : ['id', 'label', 'answerKind']
+  if (value.subject === undefined) return hasExactKeys(value, keys)
   if (!isRecord(value.subject)) return false
   const subjectKeys = Object.keys(value.subject)
-  if (!hasExactKeys(value, ['id', 'label', 'answerKind', 'subject'])
+  if (!hasExactKeys(value, [...keys, 'subject'])
     || !isNonEmptyString(value.subject.participantKey)
     || (value.subject.displayName !== undefined && !isNonEmptyString(value.subject.displayName))
     || !subjectKeys.every((key) => key === 'participantKey' || key === 'displayName')) return false
