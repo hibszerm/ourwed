@@ -4,6 +4,7 @@ import { buildRestrictedCorsHeaders } from '../_shared/security/browserCors.ts'
 import { mapWeddingRowToModel, type WeddingRow } from '@/lib/api/weddings/weddingMappers.ts'
 import { mergeFormAnswersIntoWeddingCore } from '@/lib/forms/mergeFormAnswersIntoWeddingCore.ts'
 import { buildContractGenerationInput, type ContractGenerationInput, type GenerationPartyKey } from '@/features/contract-generation-spike/contractGenerationInput.ts'
+import { authorityFingerprintPayload } from '@/features/contract-generation-spike/authorityFreshness.ts'
 import { applyOptionBGenerationResponse, createGenerationSourceView, readSource, validateOptionBInput, generationInstructionsForLocale, GENERIC_CONTRACT_PRODUCT_RULES, CONFLICT_REVIEW_INSTRUCTIONS, REVIEW_INSTRUCTIONS } from '@/features/contract-generation-spike/generator.ts'
 import { isCandidateReviewResponse, isGenerationResponse, isReviewResponse, REVIEWER_FINDING_CATEGORIES, REVIEWER_FINDING_RULE_IDS, safeReviewerFindingSummary, type CandidateReviewResponse, type ReviewResponse, type ContractGenerationAnswer } from '@/features/contract-generation-spike/generationProtocol.ts'
 import { createContractGenerationBoundary, parseContractGenerationAction, ProviderOperationError, type BoundaryDiagnostic, type BoundaryReviewerResult, type ServerBoundaryContext } from '@/features/contract-generation-spike/serverBoundary.ts'
@@ -191,8 +192,7 @@ function mapPayment(row: DbRow) {
 }
 
 function canonicalAuthorityFingerprint(authority: ContractGenerationInput, currentContext: unknown): string {
-  const generationContext = Object.fromEntries(Object.entries(authority.generationContext).filter(([key]) => key !== 'generationDate'))
-  return sortedJson({ authority: { ...authority, generationContext }, currentContext })
+  return sortedJson(authorityFingerprintPayload(authority, currentContext))
 }
 
 async function loadServerContext(
