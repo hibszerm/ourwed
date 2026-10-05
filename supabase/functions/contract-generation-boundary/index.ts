@@ -6,7 +6,8 @@ import { mergeFormAnswersIntoWeddingCore } from '@/lib/forms/mergeFormAnswersInt
 import { buildContractGenerationInput, type ContractGenerationInput, type GenerationPartyKey } from '@/features/contract-generation-spike/contractGenerationInput.ts'
 import { applyOptionBGenerationResponse, createGenerationSourceView, readSource, validateOptionBInput, generationInstructionsForLocale, GENERIC_CONTRACT_PRODUCT_RULES, CONFLICT_REVIEW_INSTRUCTIONS, REVIEW_INSTRUCTIONS } from '@/features/contract-generation-spike/generator.ts'
 import { isCandidateReviewResponse, isGenerationResponse, isReviewResponse, REVIEWER_FINDING_CATEGORIES, REVIEWER_FINDING_RULE_IDS, safeReviewerFindingSummary, type CandidateReviewResponse, type ReviewResponse, type ContractGenerationAnswer } from '@/features/contract-generation-spike/generationProtocol.ts'
-import { createContractGenerationBoundary, fetchProviderResponse, parseContractGenerationAction, ProviderOperationError, type BoundaryDiagnostic, type BoundaryReviewerResult, type ServerBoundaryContext } from '@/features/contract-generation-spike/serverBoundary.ts'
+import { createContractGenerationBoundary, parseContractGenerationAction, ProviderOperationError, type BoundaryDiagnostic, type BoundaryReviewerResult, type ServerBoundaryContext } from '@/features/contract-generation-spike/serverBoundary.ts'
+import { callStructuredProvider } from '@/features/contract-generation-spike/providerRequest.ts'
 import { isTravelFeeResolved } from '@/lib/utils/travelFeeCommercial.ts'
 import type { FormAnswerJson } from '@/types/formEngine'
 import type { PaymentMethod, PaymentType } from '@/types/wedding'
@@ -479,38 +480,6 @@ async function validateOptionBCandidate(
   return json({ status: 'candidate_valid' }, 200, corsHeaders)
 }
 
-async function outputText(response: Response): Promise<string> {
-  let body: DbRow
-  try { body = await response.json() as DbRow } catch { throw new ProviderOperationError('invalid_response') }
-  if (typeof body.output_text === 'string' && body.output_text.trim()) return body.output_text
-  const output = Array.isArray(body.output) ? body.output : []
-  const text = output.flatMap((item: DbRow) => Array.isArray(item.content) ? item.content.flatMap((part: DbRow) => part.type === 'output_text' && typeof part.text === 'string' ? [part.text] : []) : []).join('')
-  if (!text.trim()) throw new ProviderOperationError('invalid_response')
-  return text
-}
-
-async function callStructuredProvider(input: {
-  system: string; user: unknown; schemaName: string; schema: unknown; model: string; apiKey: string; effort: string;
-}): Promise<unknown> {
-  const timeoutSignal = AbortSignal.timeout(60_000)
-  const response = await fetchProviderResponse('https://api.openai.com/v1/responses', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${input.apiKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-        model: input.model,
-        reasoning: { effort: input.effort },
-        max_output_tokens: 8192,
-        input: [
-          { role: 'system', content: input.system },
-          { role: 'user', content: JSON.stringify(input.user) },
-        ],
-        text: { format: { type: 'json_schema', name: input.schemaName, strict: true, schema: input.schema } },
-    }),
-  }, timeoutSignal)
-  const text = await outputText(response)
-  try { return JSON.parse(text) } catch { throw new ProviderOperationError('invalid_response') }
-}
-
 function getProviderConfig() {
   const apiKey = Deno.env.get('OPENAI_API_KEY')?.trim()
   const generatorModel = Deno.env.get('OPENAI_CONTRACT_GENERATOR_MODEL')?.trim()
@@ -545,17 +514,27 @@ function providerAdapters() {
         effort: Deno.env.get('OPENAI_CONTRACT_GENERATOR_REASONING')?.trim() || 'medium',
       })
     } catch (error) {
+      const category = error instanceof ProviderOperationError ? error.category : 'provider_failure'
+      const failureStage = error instanceof ProviderOperationError ? error.providerFailureStage : undefined
       return {
         status: 'FAILED' as const,
-        category: error instanceof ProviderOperationError ? error.category : 'provider_failure' as const,
+        category,
+        ...(failureStage || category === 'provider_failure' ? { providerFailureStage: failureStage ?? 'unknown_provider_failure' as const } : {}),
         ...(error instanceof ProviderOperationError ? {
           ...(error.providerFailureClass ? { providerFailureClass: error.providerFailureClass } : {}),
           ...(error.providerHttpStatus !== undefined ? { providerHttpStatus: error.providerHttpStatus } : {}),
         } : {}),
       }
     }
-    const result = normalizeGenerationEnvelope(rawResult)
-    if (!isGenerationResponse(result, new Set([...authority.parties.map((party) => party.sourceKey), ...authority.participantAssociations.map((association) => association.participant)]))) return { status: 'FAILED' as const, category: 'invalid_response' as const }
+    let result: unknown
+    try {
+      result = normalizeGenerationEnvelope(rawResult)
+      if (!isGenerationResponse(result, new Set([...authority.parties.map((party) => party.sourceKey), ...authority.participantAssociations.map((association) => association.participant)]))) {
+        return { status: 'FAILED' as const, category: 'invalid_response' as const, providerFailureStage: 'structured_output' as const }
+      }
+    } catch {
+      return { status: 'FAILED' as const, category: 'provider_failure' as const, providerFailureStage: 'adapter_mapping' as const }
+    }
     let applied: Awaited<ReturnType<typeof applyOptionBGenerationResponse>>
     try { applied = await applyOptionBGenerationResponse(context.sourceBytes, source, authority, view.sourceBlockIds, result) }
     catch { return { status: 'FAILED' as const, category: 'mechanical_validation_failure' as const, mechanicalFailure: { gateId: 'internal', reasonCode: 'internal_validation_failure' } as const } }
@@ -589,8 +568,9 @@ function providerAdapters() {
       model: config.reviewerModel, apiKey: config.apiKey,
       effort: Deno.env.get('OPENAI_CONTRACT_REVIEWER_REASONING')?.trim() || 'medium',
     })
-    const result = normalizeReviewEnvelope(rawResult)
-    if (!isReviewResponse(result)) throw new ProviderOperationError('invalid_response')
+    let result: unknown
+    try { result = normalizeReviewEnvelope(rawResult) } catch { throw new ProviderOperationError('provider_failure', { providerFailureStage: 'adapter_mapping' }) }
+    if (!isReviewResponse(result)) throw new ProviderOperationError('invalid_response', { providerFailureStage: 'structured_output' })
     return result
   }
 
@@ -603,8 +583,9 @@ function providerAdapters() {
       model: config.reviewerModel, apiKey: config.apiKey,
       effort: Deno.env.get('OPENAI_CONTRACT_REVIEWER_REASONING')?.trim() || 'medium',
     })
-    const result = normalizeCandidateReviewEnvelope(rawResult)
-    if (!isCandidateReviewResponse(result)) throw new ProviderOperationError('invalid_response')
+    let result: unknown
+    try { result = normalizeCandidateReviewEnvelope(rawResult) } catch { throw new ProviderOperationError('provider_failure', { providerFailureStage: 'adapter_mapping' }) }
+    if (!isCandidateReviewResponse(result)) throw new ProviderOperationError('invalid_response', { providerFailureStage: 'structured_output' })
     return result
   }
 

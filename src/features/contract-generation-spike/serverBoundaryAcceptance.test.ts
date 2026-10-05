@@ -96,6 +96,17 @@ assert.equal(parseContractGenerationAction({ version: 1, action: 'recover', requ
 }
 
 {
+  const f = setup()
+  f.setGeneration({ status: 'FAILED', category: 'provider_failure' })
+  const result = await f.boundary.start('owner-1', startRequest)
+  assert.deepEqual(result, { status: 'failure', code: 'temporary_failure' })
+  const diagnostic = f.diagnostics.find((item) => item.category === 'PROVIDER_FAILURE')
+  assert.equal(diagnostic?.providerFailureStage, 'unknown_provider_failure', 'every provider failure event has a safe stage fallback')
+  assert.equal(f.calls.filter((call) => call === 'generate').length, 1, 'the fallback does not add retries')
+  assert.equal(f.calls.includes('review'), false)
+}
+
+{
   const f = setup({
     getSessionByIdempotencyKey: async () => ({ ...baseSession, state: 'completed' }),
   })

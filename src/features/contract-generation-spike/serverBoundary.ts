@@ -47,10 +47,11 @@ export type ContractGenerationBoundaryResponse =
   | { status: 'finalized' }
 
 export type BoundaryCandidate = { bytes: ArrayBuffer; changedBlocks: unknown[] }
+export type SafeProviderFailureStage = 'request_build' | 'timeout_setup' | 'fetch_transport' | 'fetch_timeout' | 'http_non_ok' | 'response_read' | 'response_parse' | 'structured_output' | 'adapter_mapping' | 'unknown_provider_failure'
 export type BoundaryRunResult =
   | { status: 'MISSING_INPUT'; missingInputs: MissingInput[]; choiceBindings?: ChoiceBindingMap }
   | { status: 'CONFLICT_INPUT'; conflicts: string[] }
-  | { status: 'FAILED'; category?: 'provider_failure' | 'provider_configuration_failure' | 'invalid_response' | 'mechanical_validation_failure' | 'input_validation_failure'; mechanicalFailure?: MechanicalFailureDiagnostic; providerFailureClass?: SafeProviderFailureClass; providerHttpStatus?: number }
+  | { status: 'FAILED'; category?: 'provider_failure' | 'provider_configuration_failure' | 'invalid_response' | 'mechanical_validation_failure' | 'input_validation_failure'; mechanicalFailure?: MechanicalFailureDiagnostic; providerFailureStage?: SafeProviderFailureStage; providerFailureClass?: SafeProviderFailureClass; providerHttpStatus?: number }
   | { status: 'READY'; candidate: BoundaryCandidate }
 
 export type SafeProviderFailureClass = 'transport_error' | 'timeout' | 'http_400' | 'http_401' | 'http_403' | 'http_404' | 'http_408' | 'http_409' | 'http_429' | 'http_5xx' | 'http_other'
@@ -81,10 +82,16 @@ export async function fetchProviderResponse(
   try {
     response = await fetcher(url, { ...init, signal: timeoutSignal })
   } catch {
-    throw new ProviderOperationError('provider_failure', safeProviderFailureDetails({ timeoutAborted: timeoutSignal.aborted }))
+    throw new ProviderOperationError('provider_failure', {
+      ...safeProviderFailureDetails({ timeoutAborted: timeoutSignal.aborted }),
+      providerFailureStage: timeoutSignal.aborted ? 'fetch_timeout' : 'fetch_transport',
+    })
   }
   if (!response.ok) {
-    throw new ProviderOperationError('provider_failure', safeProviderFailureDetails({ httpStatus: response.status }))
+    throw new ProviderOperationError('provider_failure', {
+      ...safeProviderFailureDetails({ httpStatus: response.status }),
+      providerFailureStage: 'http_non_ok',
+    })
   }
   return response
 }
@@ -119,6 +126,7 @@ export type BoundaryDiagnostic = {
   mechanicalExactRequestedCanonicalFoundElsewhere?: boolean
   mechanicalValidation?: 'passed' | 'failed' | 'not_reached'
   providerFailureClass?: SafeProviderFailureClass
+  providerFailureStage?: SafeProviderFailureStage
   providerHttpStatus?: number
   finalCode?: 'generation_safety' | 'temporary_failure' | 'stale'
 }
@@ -173,22 +181,37 @@ function reviewerState(result: BoundaryReviewerResult): BoundaryReviewerState {
 
 export class ProviderOperationError extends Error {
   readonly category: 'provider_failure' | 'provider_configuration_failure' | 'invalid_response'
+  readonly providerFailureStage?: SafeProviderFailureStage
   readonly providerFailureClass?: SafeProviderFailureClass
   readonly providerHttpStatus?: number
-  constructor(category: 'provider_failure' | 'provider_configuration_failure' | 'invalid_response', details?: { providerFailureClass?: SafeProviderFailureClass; providerHttpStatus?: number }) {
+  constructor(category: 'provider_failure' | 'provider_configuration_failure' | 'invalid_response', details?: { providerFailureStage?: SafeProviderFailureStage; providerFailureClass?: SafeProviderFailureClass; providerHttpStatus?: number }) {
     super(category)
     this.name = 'ProviderOperationError'
     this.category = category
+    this.providerFailureStage = details?.providerFailureStage
     this.providerFailureClass = details?.providerFailureClass
     this.providerHttpStatus = details?.providerHttpStatus
   }
 }
 
-function providerFailureTelemetry(error: unknown): Pick<BoundaryDiagnostic, 'providerFailureClass' | 'providerHttpStatus'> {
-  if (!(error instanceof ProviderOperationError)) return {}
+const providerFailureStages = new Set<SafeProviderFailureStage>(['request_build', 'timeout_setup', 'fetch_transport', 'fetch_timeout', 'http_non_ok', 'response_read', 'response_parse', 'structured_output', 'adapter_mapping', 'unknown_provider_failure'])
+
+export function providerFailureTelemetry(error: unknown, fallbackStage?: SafeProviderFailureStage): Pick<BoundaryDiagnostic, 'providerFailureStage' | 'providerFailureClass' | 'providerHttpStatus'> {
+  if (!error || typeof error !== 'object') return fallbackStage ? { providerFailureStage: fallbackStage } : {}
+  const details = error as { providerFailureStage?: unknown; providerFailureClass?: unknown; providerHttpStatus?: unknown }
+  const stage = typeof details.providerFailureStage === 'string' && providerFailureStages.has(details.providerFailureStage as SafeProviderFailureStage)
+    ? details.providerFailureStage as SafeProviderFailureStage
+    : fallbackStage
+  const failureClass = typeof details.providerFailureClass === 'string' && ['transport_error', 'timeout', 'http_400', 'http_401', 'http_403', 'http_404', 'http_408', 'http_409', 'http_429', 'http_5xx', 'http_other'].includes(details.providerFailureClass)
+    ? details.providerFailureClass as SafeProviderFailureClass
+    : undefined
+  const httpStatus = stage === 'http_non_ok' && failureClass?.startsWith('http_') && Number.isInteger(details.providerHttpStatus)
+    ? details.providerHttpStatus as number
+    : undefined
   return {
-    ...(error.providerFailureClass ? { providerFailureClass: error.providerFailureClass } : {}),
-    ...(Number.isInteger(error.providerHttpStatus) ? { providerHttpStatus: error.providerHttpStatus } : {}),
+    ...(stage ? { providerFailureStage: stage } : {}),
+    ...(failureClass ? { providerFailureClass: failureClass } : {}),
+    ...(httpStatus !== undefined ? { providerHttpStatus: httpStatus } : {}),
   }
 }
 
@@ -355,7 +378,7 @@ export function createContractGenerationBoundary(deps: ServerBoundaryDependencie
         const mechanical = category === 'mechanical_validation_failure'
           ? safeMechanicalTelemetry(generated.mechanicalFailure ?? { gateId: 'internal', reasonCode: 'internal_validation_failure' })
           : undefined
-        diagnose({ providerRole: 'Generator', category: category.toUpperCase(), providerInvoked: category !== 'input_validation_failure' && category !== 'provider_configuration_failure', mechanicalValidation: category === 'mechanical_validation_failure' ? 'failed' : 'not_reached', finalCode: failureCode, ...providerFailureTelemetry(generated), ...mechanical })
+        diagnose({ providerRole: 'Generator', category: category.toUpperCase(), providerInvoked: category !== 'input_validation_failure' && category !== 'provider_configuration_failure', mechanicalValidation: category === 'mechanical_validation_failure' ? 'failed' : 'not_reached', finalCode: failureCode, ...providerFailureTelemetry(generated, category === 'provider_failure' ? 'unknown_provider_failure' : undefined), ...mechanical })
         await deps.markFailure(session.id, executionId, 'failed')
         return { status: 'failure', code: failureCode }
       }
@@ -365,7 +388,7 @@ export function createContractGenerationBoundary(deps: ServerBoundaryDependencie
           verification = await deps.verifyConflict(context, answers, generated.conflicts)
           diagnose({ providerRole: 'Conflict Verifier', category: verification === 'confirmed' ? 'PASS' : 'FAIL', providerInvoked: true, conflictCount: generated.conflicts.length })
         } catch (error) {
-          diagnose({ providerRole: 'Conflict Verifier', category: error instanceof ProviderOperationError ? error.category.toUpperCase() : 'INTERNAL_FAILURE', providerInvoked: providerInvoked(error), conflictCount: generated.conflicts.length, finalCode: 'temporary_failure', ...providerFailureTelemetry(error) })
+          diagnose({ providerRole: 'Conflict Verifier', category: error instanceof ProviderOperationError ? error.category.toUpperCase() : 'INTERNAL_FAILURE', providerInvoked: providerInvoked(error), conflictCount: generated.conflicts.length, finalCode: 'temporary_failure', ...providerFailureTelemetry(error, providerInvoked(error) ? 'unknown_provider_failure' : undefined) })
           await deps.markFailure(session.id, executionId, 'failed')
           return { status: 'failure', code: 'temporary_failure' }
         }
@@ -397,7 +420,7 @@ export function createContractGenerationBoundary(deps: ServerBoundaryDependencie
           findingRuleIds: review.findingRuleIds,
         } : {}) })
       } catch (error) {
-        diagnose({ providerRole: 'Reviewer', category: error instanceof ProviderOperationError ? error.category.toUpperCase() : 'INTERNAL_FAILURE', providerInvoked: providerInvoked(error), editCount: generated.candidate.changedBlocks.length, mechanicalValidation: 'passed', ...providerFailureTelemetry(error) })
+        diagnose({ providerRole: 'Reviewer', category: error instanceof ProviderOperationError ? error.category.toUpperCase() : 'INTERNAL_FAILURE', providerInvoked: providerInvoked(error), editCount: generated.candidate.changedBlocks.length, mechanicalValidation: 'passed', ...providerFailureTelemetry(error, providerInvoked(error) ? 'unknown_provider_failure' : undefined) })
         review = { status: 'unavailable' }
       }
       const beforePersist = await deps.loadContext(session.ownerUserId, session.weddingId, answers)
@@ -420,7 +443,12 @@ export function createContractGenerationBoundary(deps: ServerBoundaryDependencie
         ? { status: 'ready', sessionId: session.id, candidateId, templateId: session.templateId, templateVersionId: session.templateVersionId, reviewer: review }
         : { status: 'failure', code: 'temporary_failure' }
     } catch (error) {
-      diagnose({ providerRole: 'orchestrator', category: error instanceof ProviderOperationError ? error.category.toUpperCase() : 'INTERNAL_FAILURE', finalCode: 'temporary_failure' })
+      diagnose({
+        providerRole: 'orchestrator',
+        category: error instanceof ProviderOperationError ? error.category.toUpperCase() : 'INTERNAL_FAILURE',
+        finalCode: 'temporary_failure',
+        ...providerFailureTelemetry(error, error instanceof ProviderOperationError && error.category === 'provider_failure' ? 'unknown_provider_failure' : undefined),
+      })
       await deps.markFailure(session.id, executionId, 'failed').catch(() => undefined)
       return { status: 'failure', code: 'temporary_failure' }
     }

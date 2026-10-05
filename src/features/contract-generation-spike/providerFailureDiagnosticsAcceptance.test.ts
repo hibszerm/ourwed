@@ -1,61 +1,149 @@
 import assert from 'node:assert/strict'
-import { fetchProviderResponse, ProviderOperationError } from './serverBoundary'
+import { callStructuredProvider } from './providerRequest'
+import { ProviderOperationError, providerFailureTelemetry } from './serverBoundary'
 
-const secret = 'private-request-contract-prompt-provider-body'
-async function failure(run: (calls: number[]) => Promise<Response>) {
-  const calls: number[] = []
+const privateMarker = 'private-request-prompt-contract-response'
+const failureStages = new Set(['request_build', 'timeout_setup', 'fetch_transport', 'fetch_timeout', 'http_non_ok', 'response_read', 'response_parse', 'structured_output', 'adapter_mapping', 'unknown_provider_failure'])
+const input = {
+  system: 'private prompt', user: { contract: privateMarker }, schemaName: 'test_schema', schema: { type: 'object' },
+  model: 'safe-model-id', apiKey: 'private-api-key', effort: 'medium',
+}
+
+async function rejectsWithStage(run: () => Promise<unknown>, stage: string, failureClass?: string, status?: number) {
   try {
-    await run(calls)
-    assert.fail('expected provider request to fail')
+    await run()
+    assert.fail('expected provider call to fail')
   } catch (error) {
     assert.ok(error instanceof ProviderOperationError)
-    assert.equal(error.category, 'provider_failure')
-    assert.equal(JSON.stringify({ providerFailureClass: error.providerFailureClass, providerHttpStatus: error.providerHttpStatus }).includes(secret), false)
-    return { error, calls }
+    const telemetry = providerFailureTelemetry(error, error.category === 'provider_failure' ? 'unknown_provider_failure' : undefined)
+    assert.equal(telemetry.providerFailureStage, stage)
+    assert.ok(telemetry.providerFailureStage && failureStages.has(telemetry.providerFailureStage), 'every provider failure has a non-empty allowlisted stage')
+    assert.equal(telemetry.providerFailureClass, failureClass)
+    assert.equal(telemetry.providerHttpStatus, status)
+    assert.equal(JSON.stringify(telemetry).includes(privateMarker), false, 'telemetry excludes request, prompt, and response content')
+    assert.equal(JSON.stringify(telemetry).includes('private-api-key'), false, 'telemetry excludes API key')
+    return { error, telemetry }
   }
 }
 
-const transport = await failure((calls) => fetchProviderResponse('https://provider.invalid', { method: 'POST', body: secret }, new AbortController().signal, async () => {
-  calls.push(1)
-  throw new Error(secret)
-}))
-assert.equal(transport.error.providerFailureClass, 'transport_error')
-assert.equal(transport.error.providerHttpStatus, undefined)
-assert.equal(transport.calls.length, 1, 'transport failure is not retried')
-
-const controller = new AbortController()
-controller.abort()
-const timeout = await failure((calls) => fetchProviderResponse('https://provider.invalid', { method: 'POST', body: secret }, controller.signal, async () => {
-  calls.push(1)
-  throw new DOMException(secret, 'TimeoutError')
-}))
-assert.equal(timeout.error.providerFailureClass, 'timeout')
-assert.equal(timeout.error.providerHttpStatus, undefined)
-assert.equal(timeout.calls.length, 1, 'timeout is not retried')
-
-for (const [status, expected] of [[400, 'http_400'], [401, 'http_401'], [403, 'http_403'], [404, 'http_404'], [408, 'http_408'], [409, 'http_409'], [429, 'http_429'], [500, 'http_5xx'], [502, 'http_5xx'], [418, 'http_other']] as const) {
-  let bodyRead = false
-  const { error, calls } = await failure((callCount) => fetchProviderResponse('https://provider.invalid', { method: 'POST', body: secret }, new AbortController().signal, async () => {
-    callCount.push(1)
-    return {
-      ok: false,
-      status,
-      get body() { bodyRead = true; throw new Error(secret) },
-      json: async () => { bodyRead = true; throw new Error(secret) },
-      text: async () => { bodyRead = true; throw new Error(secret) },
-    } as unknown as Response
-  }))
-  assert.equal(error.providerFailureClass, expected)
-  assert.equal(error.providerHttpStatus, status)
-  assert.equal(bodyRead, false, 'non-OK response body is not read')
-  assert.equal(calls.length, 1, 'HTTP failure is not retried')
+{
+  const cyclic: Record<string, unknown> = {}
+  cyclic.self = cyclic
+  let timeoutSetups = 0
+  const { error } = await rejectsWithStage(() => callStructuredProvider({ ...input, user: cyclic }, {
+    createTimeoutSignal: () => { timeoutSetups += 1; return new AbortController().signal },
+  }), 'request_build')
+  assert.equal(error.category, 'provider_failure')
+  assert.equal(timeoutSetups, 0, 'request serialization keeps its established order before timeout setup')
 }
 
-let successCalls = 0
-const successResponse = new Response(JSON.stringify({ output_text: '{"status":"READY"}' }), { status: 200 })
-assert.equal(await fetchProviderResponse('https://provider.invalid', { method: 'POST', body: secret }, new AbortController().signal, async () => {
-  successCalls += 1
-  return successResponse
-}), successResponse, 'successful response is returned unchanged')
-assert.equal(successCalls, 1)
-console.log('Provider failure diagnostics acceptance passed')
+{
+  const { error } = await rejectsWithStage(() => callStructuredProvider(input, {
+    createTimeoutSignal: () => { throw new Error(privateMarker) },
+  }), 'timeout_setup')
+  assert.equal(error.category, 'provider_failure')
+}
+
+{
+  let calls = 0
+  const { error } = await rejectsWithStage(() => callStructuredProvider(input, {
+    createTimeoutSignal: () => new AbortController().signal,
+    fetcher: async () => { calls += 1; throw new Error(privateMarker) },
+  }), 'fetch_transport', 'transport_error')
+  assert.equal(error.category, 'provider_failure')
+  assert.equal(calls, 1, 'transport failure is not retried')
+}
+
+{
+  const controller = new AbortController()
+  controller.abort()
+  let calls = 0
+  const { error } = await rejectsWithStage(() => callStructuredProvider(input, {
+    createTimeoutSignal: () => controller.signal,
+    fetcher: async () => { calls += 1; throw new DOMException(privateMarker, 'TimeoutError') },
+  }), 'fetch_timeout', 'timeout')
+  assert.equal(error.category, 'provider_failure')
+  assert.equal(calls, 1, 'timeout is not retried')
+}
+
+for (const [status, expectedClass] of [[400, 'http_400'], [401, 'http_401'], [403, 'http_403'], [404, 'http_404'], [408, 'http_408'], [409, 'http_409'], [429, 'http_429'], [500, 'http_5xx'], [502, 'http_5xx'], [503, 'http_5xx'], [418, 'http_other']] as const) {
+  let bodyRead = false
+  let calls = 0
+  const { error } = await rejectsWithStage(() => callStructuredProvider(input, {
+    createTimeoutSignal: () => new AbortController().signal,
+    fetcher: async () => {
+      calls += 1
+      return {
+        ok: false, status,
+        text: async () => { bodyRead = true; throw new Error(privateMarker) },
+      } as Response
+    },
+  }), 'http_non_ok', expectedClass, status)
+  assert.equal(error.category, 'provider_failure')
+  assert.equal(bodyRead, false, 'non-OK provider body is never read')
+  assert.equal(calls, 1, 'HTTP failure is not retried')
+}
+
+{
+  const { error } = await rejectsWithStage(() => callStructuredProvider(input, {
+    createTimeoutSignal: () => new AbortController().signal,
+    fetcher: async () => ({ ok: true, text: async () => { throw new Error(privateMarker) } } as Response),
+  }), 'response_read')
+  assert.equal(error.category, 'invalid_response', 'response-read external behavior is unchanged')
+}
+
+{
+  const { error } = await rejectsWithStage(() => callStructuredProvider(input, {
+    createTimeoutSignal: () => new AbortController().signal,
+    fetcher: async () => ({ ok: true, text: async () => privateMarker } as Response),
+  }), 'response_parse')
+  assert.equal(error.category, 'invalid_response', 'response parse external behavior is unchanged')
+}
+
+{
+  const { error } = await rejectsWithStage(() => callStructuredProvider(input, {
+    createTimeoutSignal: () => new AbortController().signal,
+    fetcher: async () => ({ ok: true, text: async () => JSON.stringify({ output: [{ content: [null] }] }) } as Response),
+  }), 'structured_output')
+  assert.equal(error.category, 'provider_failure', 'unexpected output mapping keeps the existing temporary-failure path')
+}
+
+{
+  const { error } = await rejectsWithStage(() => callStructuredProvider(input, {
+    createTimeoutSignal: () => new AbortController().signal,
+    fetcher: async () => ({ ok: true, text: async () => JSON.stringify({ output_text: 'not-json' }) } as Response),
+  }), 'response_parse')
+  assert.equal(error.category, 'invalid_response', 'structured JSON parse external behavior is unchanged')
+}
+
+{
+  const projected = providerFailureTelemetry(new Error(privateMarker), 'unknown_provider_failure')
+  assert.deepEqual(projected, { providerFailureStage: 'unknown_provider_failure' })
+  assert.equal(JSON.stringify(projected).includes(privateMarker), false, 'fallback never retains exception text')
+  assert.equal(providerFailureTelemetry({ providerFailureStage: 'http_non_ok', providerFailureClass: 'http_5xx', providerHttpStatus: 502 }).providerHttpStatus, 502)
+  assert.equal(providerFailureTelemetry({ providerFailureStage: 'fetch_transport', providerFailureClass: 'transport_error', providerHttpStatus: 502 }).providerHttpStatus, undefined)
+  assert.equal(providerFailureTelemetry({ providerFailureStage: 'not-allowlisted' }).providerFailureStage, undefined)
+}
+
+{
+  let calls = 0
+  const successful = await callStructuredProvider(input, {
+    createTimeoutSignal: (milliseconds) => {
+      assert.equal(milliseconds, 60_000, 'existing timeout duration is preserved')
+      return new AbortController().signal
+    },
+    fetcher: async (url, init) => {
+      calls += 1
+      assert.equal(url, 'https://api.openai.com/v1/responses')
+      assert.equal(init?.method, 'POST')
+      const requestBody = JSON.parse(String(init?.body))
+      assert.equal(requestBody.model, input.model)
+      assert.equal(requestBody.reasoning.effort, input.effort)
+      return { ok: true, text: async () => JSON.stringify({ output_text: '{"status":"READY","edits":[]}' }) } as Response
+    },
+  })
+  assert.deepEqual(successful, { status: 'READY', edits: [] }, 'successful structured output remains unchanged')
+  assert.equal(calls, 1)
+}
+
+console.log('Provider failure-stage matrix acceptance passed')
