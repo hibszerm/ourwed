@@ -6,6 +6,7 @@ import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 
 const sourceXml = `<?xml version="1.0"?><w:document xmlns:w="urn:w"><w:body>
+<w:p><w:r><w:t>Kontakt przez e-mail pozostaje bez zmian.</w:t></w:r></w:p>
 <w:p><w:pPr><w:keepNext/></w:pPr><w:r><w:rPr><w:b/></w:rPr><w:t>1)</w:t></w:r><w:r><w:t>stara płatność 30.09.2026</w:t></w:r></w:p>
 <w:p><w:r><w:rPr><w:b/></w:rPr><w:t>2.</w:t><w:tab/></w:r><w:r><w:t>stary tekst</w:t></w:r></w:p>
 <w:p><w:r><w:t>1)</w:t></w:r><w:r><w:t xml:space="preserve"> </w:t></w:r><w:r><w:t>stary podpunkt</w:t></w:r></w:p>
@@ -18,10 +19,12 @@ const sourceXml = `<?xml version="1.0"?><w:document xmlns:w="urn:w"><w:body>
 <w:tbl><w:tr><w:tc><w:p><w:r><w:t>Para Młoda</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>Filmowiec</w:t></w:r></w:p></w:tc></w:tr></w:tbl><w:sectPr/></w:body></w:document>`
 const headerXml = '<w:hdr xmlns:w="urn:w"><w:p><w:r><w:t>Nagłówek</w:t></w:r></w:p></w:hdr>'
 const footerXml = '<w:ftr xmlns:w="urn:w"><w:p><w:r><w:t>Stopka</w:t></w:r></w:p></w:ftr>'
+const footnoteXml = '<w:footnotes xmlns:w="urn:w"><w:footnote w:id="1"><w:p><w:r><w:t>Przypis e-mail</w:t></w:r></w:p></w:footnote></w:footnotes>'
 const zip = new JSZip()
 zip.file('word/document.xml', sourceXml)
 zip.file('word/header1.xml', headerXml)
 zip.file('word/footer1.xml', footerXml)
+zip.file('word/footnotes.xml', footnoteXml)
 zip.file('word/styles.xml', '<w:styles/>')
 const sourceBytes = await zip.generateAsync({ type: 'arraybuffer' })
 const blocks = await buildBlockIndex(sourceBytes)
@@ -69,12 +72,23 @@ assert.ok(editedBlocks.some((block) => block.text === 'Purchased extra, presente
 const insertedAfterNumberedSource = doc.match(/<w:p>(?:(?!<w:p>).)*?Purchased extra, presented separately from base scope\.(?:(?!<w:p>).)*?<\/w:p>/s)?.[0] ?? ''
 assert.ok(insertedAfterNumberedSource, 'inserted paragraph is present after a numbered source paragraph')
 assert.doesNotMatch(insertedAfterNumberedSource, /<w:numPr\b|<w:numId\b/, 'insertion strips numbering inherited from its numbered style source')
-assert.match(doc, /<w:pPr><w:keepNext\/><\/w:pPr>/, 'replacement retains source paragraph properties')
-assert.match(doc, /<w:pPr><w:jc w:val="both"\/><\/w:pPr>/, 'insertion takes paragraph alignment from explicit normal-clause source')
+assert.match(doc, /<w:pPr><w:keepNext\/><w:suppressAutoHyphens\/><\/w:pPr>/, 'replacement retains source paragraph properties and suppresses hyphenation')
+assert.match(doc, /<w:pPr><w:suppressAutoHyphens\/><w:jc w:val="both"\/><\/w:pPr>/, 'insertion takes source alignment and suppresses hyphenation in schema order')
+assert.match(doc, /Kontakt przez e-mail pozostaje bez zmian\./, 'legitimate textual hyphens remain untouched')
+for (const paragraph of doc.match(/<w:p\b[\s\S]*?<\/w:p>/g) ?? []) {
+  assert.match(paragraph, /<w:suppressAutoHyphens\/>/, 'every generated body paragraph explicitly suppresses automatic hyphenation')
+}
 assert.doesNotMatch(doc.match(/Dodatkowe ujęcia[\s\S]*?<\/w:p>/)?.[0] ?? '', /w:ind|<w:i\/>/, 'package-child indentation and italics do not leak into insertion')
 assert.equal((doc.match(/<w:tbl\b/g) ?? []).length, 1)
-assert.equal(await editedZip.file('word/header1.xml')!.async('string'), headerXml)
-assert.equal(await editedZip.file('word/footer1.xml')!.async('string'), footerXml)
+const editedHeader = await editedZip.file('word/header1.xml')!.async('string')
+const editedFooter = await editedZip.file('word/footer1.xml')!.async('string')
+assert.match(editedHeader, /<w:suppressAutoHyphens\/>/)
+assert.match(editedFooter, /<w:suppressAutoHyphens\/>/)
+assert.ok(editedBlocks.some((block) => block.kind === 'header' && block.text === 'Nagłówek'))
+assert.ok(editedBlocks.some((block) => block.kind === 'footer' && block.text === 'Stopka'))
+const editedFootnotes = await editedZip.file('word/footnotes.xml')!.async('string')
+assert.match(editedFootnotes, /<w:suppressAutoHyphens\/>/)
+assert.match(editedFootnotes, /<w:t>Przypis e-mail<\/w:t>/, 'footnote text and legitimate hyphen are preserved')
 
 // A numbered paragraph style can carry numbering through w:pStyle even when
 // the source paragraph itself has no direct w:numPr. Plain inserted text must
@@ -123,9 +137,11 @@ const mixedPPr = mixedInserted.match(/<w:pPr>([\s\S]*?)<\/w:pPr>/)?.[1] ?? ''
 const mixedChildren = [...mixedPPr.matchAll(/<w:([A-Za-z0-9]+)\b[^>]*(?:\/>|>[\s\S]*?<\/w:\1>)/g)].map((match) => match[1])
 assert.equal((mixedPPr.match(/<w:numPr\b/g) ?? []).length, 1, 'the inserted paragraph has exactly one numbering override')
 assert.match(mixedPPr, /<w:numPr><w:numId w:val="0"\/><\/w:numPr>/, 'the mixed-property insertion uses numId zero')
-assert.deepEqual(mixedChildren, ['pStyle', 'keepLines', 'numPr', 'spacing', 'ind', 'jc'], 'numPr follows preceding properties and precedes following properties in schema order')
+assert.deepEqual(mixedChildren, ['pStyle', 'keepLines', 'numPr', 'suppressAutoHyphens', 'spacing', 'ind', 'jc'], 'paragraph properties retain schema order around hyphenation setting')
 assert.match(mixedPPr, /<w:keepLines\/>[\s\S]*<w:spacing w:after="120"\/>[\s\S]*<w:ind w:left="720"\/>[\s\S]*<w:jc w:val="both"\/>/, 'the non-numbering formatting surrounding numPr is preserved')
-assert.equal(mixedXml.match(/<w:p>(?:(?!<w:p>).)*?Mixed source paragraph(?:(?!<w:p>).)*?<\/w:p>/s)?.[0], mixedStyleDocument.match(/<w:p>(?:(?!<w:p>).)*?Mixed source paragraph(?:(?!<w:p>).)*?<\/w:p>/s)?.[0], 'the source paragraph is unchanged')
+const mixedSourceAfter = mixedXml.match(/<w:p>(?:(?!<w:p>).)*?Mixed source paragraph(?:(?!<w:p>).)*?<\/w:p>/s)?.[0] ?? ''
+assert.match(mixedSourceAfter, /<w:suppressAutoHyphens\/>/)
+assert.equal(mixedSourceAfter.replace('<w:suppressAutoHyphens/>', ''), mixedStyleDocument.match(/<w:p>(?:(?!<w:p>).)*?Mixed source paragraph(?:(?!<w:p>).)*?<\/w:p>/s)?.[0], 'the source paragraph formatting is otherwise unchanged')
 assert.ok((await buildBlockIndex(mixedOutput)).some((block) => block.text === 'Mixed plain insertion'), 'the edited DOCX remains parseable by the document indexer')
 
 // Style traversal supports alternate valid namespace prefixes, multiple
@@ -328,8 +344,14 @@ const fixtureEditedDoc = await fixtureEditedZip.file('word/document.xml')!.async
 const afterBlocks = await buildBlockIndex(fixtureEdited)
 assert.deepEqual(afterBlocks.filter((block) => /Video Standard|teledysku ślubnego o długości|filmy ślubnego o długości/.test(block.text)).map((block) => block.text), originalPackageText)
 assert.equal((fixtureEditedDoc.match(/<w:tbl\b/g) ?? []).length, (fixtureDoc.match(/<w:tbl\b/g) ?? []).length)
-for (const part of Object.keys(fixtureZip.files).filter((path) => /^word\/(header|footer|styles)/.test(path))) {
+for (const part of Object.keys(fixtureZip.files).filter((path) => /^word\/styles/.test(path))) {
   assert.equal(await fixtureEditedZip.file(part)!.async('string'), await fixtureZip.file(part)!.async('string'))
+}
+for (const part of Object.keys(fixtureZip.files).filter((path) => /^word\/(header|footer)\d+\.xml$/.test(path))) {
+  const sourceBlocksForPart = fixtureBlocks.filter((block) => block.part === part).map((block) => block.text)
+  const editedBlocksForPart = afterBlocks.filter((block) => block.part === part).map((block) => block.text)
+  assert.deepEqual(editedBlocksForPart, sourceBlocksForPart, 'header/footer text remains intact')
+  assert.match(await fixtureEditedZip.file(part)!.async('string'), /<w:suppressAutoHyphens\/>/)
 }
 
 // Editing leaves unrelated blank layout paragraphs untouched.

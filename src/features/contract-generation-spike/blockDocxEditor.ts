@@ -14,6 +14,7 @@ export type BlockOperation =
 export type ExactTextPatch = { blockId: string; expectedSource: string; replacement: string; sourceStart: number; sourceEnd: number }
 
 const partPattern = /^word\/(document|header\d+|footer\d+)\.xml$/
+const hyphenationPartPattern = /^word\/(?:document|header\d+|footer\d+|footnotes|endnotes)\.xml$/
 const idFor = (part: string, index: number) => `${part}#p${index}`
 
 type XmlTag = { start: number; end: number; name: string; closing: boolean; selfClosing: boolean }
@@ -570,17 +571,60 @@ function styleHasNumbering(styleId: string | undefined, definitions: Map<string,
   return definition.hasNumbering || styleHasNumbering(definition.basedOn, definitions, seen)
 }
 
-function disableInheritedNumbering(pPr: string): string {
-  const override = '<w:numPr><w:numId w:val="0"/></w:numPr>'
-  if (!pPr) return `<w:pPr>${override}</w:pPr>`
-  pPr = pPr.replace(/<w:numPr\b[^>]*\/>/g, '').replace(/<w:numPr\b[\s\S]*?<\/w:numPr>/g, '')
-  const rank = new Map(['pStyle','keepNext','keepLines','pageBreakBefore','framePr','widowControl','numPr','suppressLineNumbers','pBdr','shd','tabs','suppressAutoHyphens','kinsoku','wordWrap','overflowPunct','topLinePunct','autoSpaceDE','autoSpaceDN','bidi','adjustRightInd','snapToGrid','spacing','ind','contextualSpacing','mirrorIndents','suppressOverlap','jc','textDirection','textAlignment','textboxTightWrap','outlineLvl','divId','cnfStyle','rPr','sectPr','pPrChange'].map((name, index) => [name, index]))
+const paragraphPropertyOrder = new Map(
+  'pStyle keepNext keepLines pageBreakBefore framePr widowControl numPr suppressLineNumbers pBdr shd tabs suppressAutoHyphens kinsoku wordWrap overflowPunct topLinePunct autoSpaceDE autoSpaceDN bidi adjustRightInd snapToGrid spacing ind contextualSpacing mirrorIndents suppressOverlap jc textDirection textAlignment textboxTightWrap outlineLvl divId cnfStyle rPr sectPr pPrChange'.split(' ').map((name, index) => [name, index]),
+)
+
+function withParagraphProperty(pPr: string, propertyName: string, property: string): string {
+  const childPattern = new RegExp(`<w:${propertyName}\\b[^>]*(?:\\/>|>[\\s\\S]*?<\\/${propertyName}\\s*>)`)
+  const existing = pPr.match(childPattern)
+  if (existing?.index !== undefined) return `${pPr.slice(0, existing.index)}${property}${pPr.slice(existing.index + existing[0].length)}`
+  if (!pPr) return `<w:pPr>${property}</w:pPr>`
   const opening = pPr.match(/^<w:pPr\b[^>]*>/)?.[0]
-  if (!opening) throw new Error('Cannot safely disable numbering on malformed paragraph properties')
+  if (!opening) throw new Error('Cannot safely add a DOCX paragraph property to malformed paragraph properties')
   const children = [...pPr.slice(opening.length).matchAll(/<w:([A-Za-z0-9]+)\b[^>]*(?:\/>|>[\s\S]*?<\/w:\1>)/g)]
-  const next = children.find((child) => (rank.get(child[1]!) ?? Number.MAX_SAFE_INTEGER) > rank.get('numPr')!)
-  if (next?.index !== undefined) return `${pPr.slice(0, opening.length + next.index)}${override}${pPr.slice(opening.length + next.index)}`
-  return `${pPr.slice(0, -'</w:pPr>'.length)}${override}</w:pPr>`
+  const propertyRank = paragraphPropertyOrder.get(propertyName) ?? Number.MAX_SAFE_INTEGER
+  const next = children.find((child) => (paragraphPropertyOrder.get(child[1]!) ?? Number.MAX_SAFE_INTEGER) > propertyRank)
+  if (next?.index !== undefined) return `${pPr.slice(0, opening.length + next.index)}${property}${pPr.slice(opening.length + next.index)}`
+  return `${pPr.slice(0, -'</w:pPr>'.length)}${property}</w:pPr>`
+}
+
+function disableInheritedNumbering(pPr: string): string {
+  pPr = pPr.replace(/<w:numPr\b[^>]*\/>/g, '').replace(/<w:numPr\b[\s\S]*?<\/w:numPr>/g, '')
+  return withParagraphProperty(pPr, 'numPr', '<w:numPr><w:numId w:val="0"/></w:numPr>')
+}
+
+function withParagraphOnOffProperty(pPr: string, propertyName: string): string {
+  const tagPattern = new RegExp(`<w:${propertyName}\\b([^>]*?)(?:\\/>|>[\\s\\S]*?<\\/${propertyName}\\s*>)`)
+  const existing = pPr.match(tagPattern)
+  const attributes = existing?.[1]?.replace(/\s+w:val\s*=\s*["'][^"']*["']/g, '') ?? ''
+  return withParagraphProperty(pPr, propertyName, `<w:${propertyName}${attributes}/>`)
+}
+
+function suppressAutomaticHyphenationInParagraph(paragraph: string): string {
+  const selfClosing = paragraph.match(/^<w:p\b([^>]*)\/\s*>$/)
+  if (selfClosing) return `<w:p${selfClosing[1]}><w:pPr><w:suppressAutoHyphens/></w:pPr></w:p>`
+
+  const pPr = paragraph.match(/<w:pPr\b[\s\S]*?<\/w:pPr>/)?.[0]
+  if (pPr) return paragraph.replace(pPr, withParagraphOnOffProperty(pPr, 'suppressAutoHyphens'))
+
+  const emptyPPr = paragraph.match(/<w:pPr\b([^>]*)\/\s*>/)
+  if (emptyPPr?.index !== undefined) {
+    const replacement = withParagraphProperty(`<w:pPr${emptyPPr[1]}></w:pPr>`, 'suppressAutoHyphens', '<w:suppressAutoHyphens/>')
+    return `${paragraph.slice(0, emptyPPr.index)}${replacement}${paragraph.slice(emptyPPr.index + emptyPPr[0].length)}`
+  }
+
+  const opening = paragraph.match(/^<w:p\b[^>]*>/)?.[0]
+  if (!opening) throw new Error('Cannot safely add a paragraph property to malformed DOCX paragraph')
+  return `${opening}${withParagraphProperty('', 'suppressAutoHyphens', '<w:suppressAutoHyphens/>')}${paragraph.slice(opening.length)}`
+}
+
+function suppressAutomaticHyphenation(xml: string): string {
+  const paragraphs = paragraphElementsIn(xml)
+  return replaceXmlSpans(xml, paragraphs.flatMap((paragraph) => {
+    const replacement = suppressAutomaticHyphenationInParagraph(paragraph.xml)
+    return replacement === paragraph.xml ? [] : [{ start: paragraph.start, end: paragraph.end, replacement }]
+  }))
 }
 
 function cleanStyleParagraph(paragraph: string, text: string, styles: { definitions: Map<string, ParagraphStyleDefinition>; defaultStyleId?: string }): string {
@@ -617,8 +661,10 @@ export async function applyBlockOperations(bytes: ArrayBuffer, operations: Block
     list.push(operation)
     byPart.set(target.part, list)
   }
-  for (const [part, partOperations] of byPart) {
+  const editableParts = new Set([...byPart.keys(), ...Object.keys(zip.files).filter((part) => hyphenationPartPattern.test(part))])
+  for (const part of editableParts) {
     let xml = await zip.file(part)!.async('string')
+    const partOperations = byPart.get(part) ?? []
     const paragraphs = paragraphElementsIn(xml)
     const replacements = new Map<number, string>()
     const deletions = new Set<number>()
@@ -658,7 +704,7 @@ export async function applyBlockOperations(bytes: ArrayBuffer, operations: Block
         : `${(before.get(index) ?? []).join('')}${replacements.get(index) ?? paragraph.xml}${(after.get(index) ?? []).join('')}`
       return operationResult === paragraph.xml ? [] : [{ start: paragraph.start, end: paragraph.end, replacement: operationResult }]
     })
-    xml = replaceXmlSpans(xml, edits)
+    xml = suppressAutomaticHyphenation(replaceXmlSpans(xml, edits))
     zip.file(part, xml)
   }
   return zip.generateAsync({ type: 'arraybuffer', compression: 'DEFLATE' })
