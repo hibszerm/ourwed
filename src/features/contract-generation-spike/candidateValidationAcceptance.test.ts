@@ -82,7 +82,7 @@ assert.ok(missingCore.includes('Candidate DOCX is missing a required package par
 
 const unauthorizedBytes = await docx('Unrequested paragraph.')
 const unauthorized = await readSource(unauthorizedBytes, 'unauthorized.docx')
-assert.ok((await validateOptionBCandidate(sourceBytes, unauthorizedBytes, source, unauthorized, [])).some((issue) => /unrequested text change/.test(issue)))
+assert.ok((await validateOptionBCandidate(sourceBytes, unauthorizedBytes, source, unauthorized, [])).some((issue) => /Final document content differs/.test(issue)))
 
 const canonicalSourceBytes = await docx('Vendor: „Wykonawcą”')
 const canonicalSource = await readSource(canonicalSourceBytes, 'canonical-source.docx')
@@ -100,12 +100,12 @@ const noOpCandidate = await readSource(noOpCandidateBytes, 'no-op-candidate.docx
 assert.deepEqual(await validateOptionBCandidate(noOpBytes, noOpCandidateBytes, noOpSource, noOpCandidate, [noOp]), [], 'an exact no-op replacement passes when its requested final state is present')
 
 const unapplied = await validateOptionBCandidate(noOpBytes, noOpBytes, noOpSource, noOpSource, [{ ...noOp, finalText: 'XYZ' }])
-assert.ok(unapplied.some((issue) => /Requested block replacement was not applied exactly/.test(issue)), 'a requested real replacement fails when the candidate remains at the source state')
+assert.ok(unapplied.some((issue) => /requested change is not represented/.test(issue)), 'a requested real replacement fails when the candidate remains at the source state')
 
 const wrongReplacementBytes = await docx('123')
 const wrongReplacement = await readSource(wrongReplacementBytes, 'wrong-replacement.docx')
 const wrongReplacementFindings = await validateOptionBCandidate(noOpBytes, wrongReplacementBytes, noOpSource, wrongReplacement, [{ ...noOp, finalText: 'XYZ' }])
-assert.ok(wrongReplacementFindings.some((issue) => /Requested block replacement was not applied exactly/.test(issue)), 'a candidate with the wrong replacement text fails')
+assert.ok(wrongReplacementFindings.some((issue) => /requested change is not represented/.test(issue)), 'a candidate with the wrong replacement text fails')
 
 const twoBlockSourceBytes = await docx('Block A', 'Block B')
 const twoBlockSource = await readSource(twoBlockSourceBytes, 'two-block-source.docx')
@@ -117,12 +117,12 @@ updatedAZip.file('word/document.xml', updatedAXml.replace('Block B', 'Unrequeste
 const unauthorizedSecondBlockBytes = await updatedAZip.generateAsync({ type: 'arraybuffer' })
 const unauthorizedSecondBlock = await readSource(unauthorizedSecondBlockBytes, 'unauthorized-second-block.docx')
 const unauthorizedSecondBlockFindings = await validateOptionBCandidate(twoBlockSourceBytes, unauthorizedSecondBlockBytes, twoBlockSource, unauthorizedSecondBlock, [replaceA])
-assert.ok(unauthorizedSecondBlockFindings.some((issue) => /unrequested text change/.test(issue)), 'an unrelated changed source block remains unauthorized')
+assert.ok(unauthorizedSecondBlockFindings.some((issue) => /Final document content differs/.test(issue)), 'an unrelated changed source block remains unauthorized')
 
 const lostBlockBytes = await docx('Block A')
 const lostBlock = await readSource(lostBlockBytes, 'lost-block.docx')
 const lostBlockFindings = await validateOptionBCandidate(twoBlockSourceBytes, lostBlockBytes, twoBlockSource, lostBlock, [])
-assert.ok(lostBlockFindings.some((issue) => /unrequested text change/.test(issue)), 'material source-block loss remains a hard failure')
+assert.ok(lostBlockFindings.some((issue) => /Final document content differs/.test(issue)), 'material source-block loss remains a hard failure')
 
 const insertionSourceBytes = await docx('Anchor')
 const insertionSource = await readSource(insertionSourceBytes, 'insertion-source.docx')
@@ -131,10 +131,65 @@ const insertedBytes = await applyBlockOperations(insertionSourceBytes, [insertio
 const inserted = await readSource(insertedBytes, 'inserted.docx')
 assert.deepEqual(await validateOptionBCandidate(insertionSourceBytes, insertedBytes, insertionSource, inserted, [insertion]), [], 'a requested insert_after remains accepted')
 const missingInsertionFindings = await validateOptionBCandidate(insertionSourceBytes, insertionSourceBytes, insertionSource, insertionSource, [insertion])
-assert.ok(missingInsertionFindings.some((issue) => /Requested block insertion was not applied exactly/.test(issue)), 'a missing requested insert_after fails')
+assert.ok(missingInsertionFindings.some((issue) => /requested change is not represented/.test(issue)), 'a missing requested insert_after fails')
 const unexpectedInsertionBytes = await docx('Anchor', 'Unrequested insertion')
 const unexpectedInsertion = await readSource(unexpectedInsertionBytes, 'unexpected-insertion.docx')
 const unexpectedInsertionFindings = await validateOptionBCandidate(insertionSourceBytes, unexpectedInsertionBytes, insertionSource, unexpectedInsertion, [])
-assert.ok(unexpectedInsertionFindings.some((issue) => /unrequested text change/.test(issue)), 'an unrequested candidate-only block remains unauthorized')
+assert.ok(unexpectedInsertionFindings.some((issue) => /Final document content differs/.test(issue)), 'an unrequested candidate-only block remains unauthorized')
+
+// Multiple nearby source-relative edits and insertions are applied as one
+// batch against the untouched source, so an earlier insertion cannot shift a
+// later replacement target.
+const nearbySourceBytes = await docx('Clause A old.', 'Clause B old.', 'Clause C unchanged.')
+const nearbySource = await readSource(nearbySourceBytes, 'nearby-source.docx')
+const nearbyOperations = [
+  { operation: 'INSERT_BLOCK_AFTER' as const, anchorBlockId: nearbySource.blocks[0]!.blockId, styleSourceBlockId: nearbySource.blocks[0]!.blockId, finalText: 'Authorized extra.' },
+  { operation: 'REPLACE_BLOCK_TEXT' as const, blockId: nearbySource.blocks[1]!.blockId, finalText: 'Clause B current.' },
+  { operation: 'REPLACE_BLOCK_TEXT' as const, blockId: nearbySource.blocks[0]!.blockId, finalText: 'Clause A current.' },
+]
+const nearbyCandidateBytes = await applyBlockOperations(nearbySourceBytes, nearbyOperations)
+const nearbyCandidate = await readSource(nearbyCandidateBytes, 'nearby-candidate.docx')
+assert.deepEqual(await validateOptionBCandidate(nearbySourceBytes, nearbyCandidateBytes, nearbySource, nearbyCandidate, nearbyOperations), [], 'multiple nearby source-relative edits survive insertion and operation ordering')
+assert.deepEqual(nearbyCandidate.blocks.map((item) => item.text), ['Clause A current.', 'Authorized extra.', 'Clause B current.', 'Clause C unchanged.'])
+
+// Paragraph count and run segmentation are not part of the logical-content
+// contract. Splitting one authored paragraph into two text runs still passes.
+const segmentedZip = await JSZip.loadAsync(candidateBytes)
+const segmentedXml = await segmentedZip.file('word/document.xml')!.async('string')
+segmentedZip.file('word/document.xml', segmentedXml.replace('Updated paragraph.', 'Updated </w:t></w:r><w:r><w:t>paragraph.'))
+const segmentedBytes = await segmentedZip.generateAsync({ type: 'arraybuffer' })
+const segmented = await readSource(segmentedBytes, 'segmented-candidate.docx')
+assert.deepEqual(await validateOptionBCandidate(sourceBytes, segmentedBytes, source, segmented, [operation]), [], 'run and w:t segmentation differences do not block a correct final document')
+
+// Blank paragraph variation is ignored, but material table changes still fail.
+const withBlank = await docx('Source paragraph.', '', '')
+const withBlankSource = await readSource(sourceBytes, 'blank-source.docx')
+assert.deepEqual(await validateOptionBCandidate(sourceBytes, withBlank, withBlankSource, await readSource(withBlank, 'blank-candidate.docx'), []), [], 'additional blank paragraphs do not alter logical content')
+
+const fieldSourceBytes = await docxXml('<w:p><w:r><w:t>Page </w:t></w:r><w:fldSimple w:instr="PAGE"><w:r><w:t>1</w:t></w:r></w:fldSimple></w:p>')
+const fieldSource = await readSource(fieldSourceBytes, 'field-source.docx')
+const fieldEdit = { operation: 'REPLACE_BLOCK_TEXT' as const, blockId: fieldSource.blocks[0]!.blockId, finalText: 'Document page 1' }
+const fieldCandidateBytes = await applyBlockOperations(fieldSourceBytes, [fieldEdit])
+const fieldCandidate = await readSource(fieldCandidateBytes, 'field-candidate.docx')
+assert.deepEqual(await validateOptionBCandidate(fieldSourceBytes, fieldCandidateBytes, fieldSource, fieldCandidate, [fieldEdit]), [], 'a localized edit preserves a material Word field')
+const alteredFieldZip = await JSZip.loadAsync(fieldCandidateBytes)
+const alteredFieldXml = await alteredFieldZip.file('word/document.xml')!.async('string')
+alteredFieldZip.file('word/document.xml', alteredFieldXml.replace('w:instr="PAGE"', 'w:instr="DATE"'))
+const alteredFieldBytes = await alteredFieldZip.generateAsync({ type: 'arraybuffer' })
+const alteredField = await readSource(alteredFieldBytes, 'altered-field.docx')
+assert.ok((await validateOptionBCandidate(fieldSourceBytes, alteredFieldBytes, fieldSource, alteredField, [fieldEdit])).some((issue) => /Word field instructions changed/.test(issue)), 'material field changes fail even when visible text is unchanged')
+
+const tableSourceBytes = await docxXml('<w:tbl><w:tr><w:tc><w:p><w:r><w:t>Table label</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>Table value</w:t></w:r></w:p></w:tc></w:tr></w:tbl>')
+const tableSource = await readSource(tableSourceBytes, 'table-source.docx')
+const tableEdit = { operation: 'REPLACE_BLOCK_TEXT' as const, blockId: tableSource.blocks[1]!.blockId, finalText: 'Current table value' }
+const tableCandidateBytes = await applyBlockOperations(tableSourceBytes, [tableEdit])
+const tableCandidate = await readSource(tableCandidateBytes, 'table-candidate.docx')
+assert.deepEqual(await validateOptionBCandidate(tableSourceBytes, tableCandidateBytes, tableSource, tableCandidate, [tableEdit]), [], 'table content can be locally updated while its material structure remains intact')
+const damagedTableZip = await JSZip.loadAsync(tableCandidateBytes)
+const damagedTableXml = await damagedTableZip.file('word/document.xml')!.async('string')
+damagedTableZip.file('word/document.xml', damagedTableXml.replace('</w:tbl>', '<w:tr><w:tc><w:p><w:r><w:t>Unexpected row</w:t></w:r></w:p></w:tc></w:tr></w:tbl>'))
+const damagedTableBytes = await damagedTableZip.generateAsync({ type: 'arraybuffer' })
+const damagedTable = await readSource(damagedTableBytes, 'damaged-table.docx')
+assert.ok((await validateOptionBCandidate(tableSourceBytes, damagedTableBytes, tableSource, damagedTable, [tableEdit])).some((issue) => /Table row\/cell structure changed/.test(issue)), 'material table structure loss still fails closed')
 
 console.log('PASS source-driven mechanical candidate validation')

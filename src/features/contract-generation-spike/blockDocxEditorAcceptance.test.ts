@@ -62,7 +62,7 @@ assert.ok(editedBlocks.some((block) => block.text === '4. New paragraph text'), 
 assert.ok(editedBlocks.some((block) => block.text === '2026 forecast remains unchanged'), 'ordinary digit-leading prose is not altered')
 assert.ok(editedBlocks.some((block) => block.text === '1)stary tekst rewritten as prose'), 'an ordinary run split is not mistaken for a structural prefix')
 const tabbedParagraph = doc.match(/<w:p>[^]*?<w:t[^>]*>2\.<\/w:t>[^]*?<\/w:p>/)?.[0] ?? ''
-assert.match(tabbedParagraph, /<w:tab\/>/, 'the source tab convention is retained in the rewritten paragraph')
+assert.doesNotMatch(tabbedParagraph, /<w:tab\/>/, 'a source tab is not reintroduced when the requested text has no separator')
 assert.ok(editedBlocks.some((block) => block.text === 'Dodatkowe ujęcia: VHS i dron.'))
 assert.ok(editedBlocks.some((block) => block.text === 'Purchased extra, presented separately from base scope.'), 'inserted content remains the supplied unnumbered text')
 const insertedAfterNumberedSource = doc.match(/<w:p>(?:(?!<w:p>).)*?Purchased extra, presented separately from base scope\.(?:(?!<w:p>).)*?<\/w:p>/s)?.[0] ?? ''
@@ -279,7 +279,7 @@ const signatureOnly = await applyBlockOperations(fixtureBuffer, [
 const signatureZip = await JSZip.loadAsync(signatureOnly)
 const signatureDoc = await signatureZip.file('word/document.xml')!.async('string')
 const signatureBlocks = (await buildBlockIndex(signatureOnly)).filter((block) => block.part === 'word/document.xml')
-assert.equal(signatureBlocks.length, 54, 'signature edits retain the indexed paragraphs while existing safe page-break cleanup removes one redundant body spacer')
+assert.equal(signatureBlocks.length, 55, 'signature edits leave unrelated blank paragraphs and source structure untouched')
 assert.equal((signatureDoc.match(/<w:tbl\b/g) ?? []).length, 2, 'both signature tables remain')
 assert.equal((signatureDoc.match(/<w:tr\b/g) ?? []).length, 4, 'both blank spacer rows and both signature-label rows remain')
 assert.equal((signatureDoc.match(/<w:tc\b/g) ?? []).length, 12, 'all signature table cells remain')
@@ -299,8 +299,7 @@ for (const part of Object.keys(fixtureZip.files).filter((path) => /^word\/(heade
   assert.equal(await fixtureEditedZip.file(part)!.async('string'), await fixtureZip.file(part)!.async('string'))
 }
 
-// Focused pagination regression: retain the authored page break and one spacer,
-// while removing only the redundant empty paragraph that can occupy a page alone.
+// Editing leaves unrelated blank layout paragraphs untouched.
 const layoutZip = new JSZip()
 layoutZip.file('word/document.xml', '<w:document xmlns:w="urn:w"><w:body><w:p><w:r><w:t>Edited clause</w:t></w:r></w:p><w:p><w:pPr><w:tabs><w:tab w:val="left" w:pos="522"/></w:tabs></w:pPr><w:r><w:t></w:t></w:r></w:p><w:p><w:r><w:t></w:t></w:r></w:p><w:p><w:pPr><w:pageBreakBefore w:val="1"/></w:pPr><w:r><w:t>§ 2</w:t></w:r></w:p><w:sectPr/></w:body></w:document>')
 const layoutBytes = await layoutZip.generateAsync({ type: 'arraybuffer' })
@@ -309,7 +308,7 @@ const layoutEdited = await applyBlockOperations(layoutBytes, [{ blockId: layoutB
 const layoutEditedZip = await JSZip.loadAsync(layoutEdited)
 const layoutXml = await layoutEditedZip.file('word/document.xml')!.async('string')
 const beforeSectionBreak = layoutXml.slice(0, layoutXml.indexOf('<w:pageBreakBefore'))
-assert.equal((beforeSectionBreak.match(/<w:p\b/g) ?? []).length - 1, 2, 'only one empty spacer remains before the explicit page break')
+assert.equal((beforeSectionBreak.match(/<w:p\b/g) ?? []).length - 1, 3, 'both authored blank paragraphs remain before the explicit page break')
 assert.match(layoutXml, /<w:pageBreakBefore w:val="1"\/>/, 'the authored §2 page break is preserved')
 
 console.log('PASS block DOCX editor: whole contextual edits, package preservation, explicit insertion style, tables, signatures, header/footer')

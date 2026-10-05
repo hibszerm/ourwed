@@ -216,15 +216,22 @@ async function validateOptionBCandidateDetailed(
   }
   const sourceParts = Object.keys(sourceZip.files).filter((part) => !sourceZip.files[part]?.dir).sort()
   const candidateParts = Object.keys(candidateZip.files).filter((part) => !candidateZip.files[part]?.dir).sort()
-  if (!sourceParts.includes('[Content_Types].xml') || !sourceParts.includes('word/document.xml')) reject('Source DOCX is missing a required package part.', 'package_structure', 'required_part_missing')
-  if (!candidateParts.includes('[Content_Types].xml') || !candidateParts.includes('word/document.xml')) reject('Candidate DOCX is missing a required package part.', 'package_structure', 'required_part_missing')
+  if (!sourceParts.includes('[Content_Types].xml') || !sourceParts.includes('word/document.xml')) {
+    reject('Source DOCX is missing a required package part.', 'package_structure', 'required_part_missing')
+    return { issues, diagnostics }
+  }
+  if (!candidateParts.includes('[Content_Types].xml') || !candidateParts.includes('word/document.xml')) {
+    reject('Candidate DOCX is missing a required package part.', 'package_structure', 'required_part_missing')
+    return { issues, diagnostics }
+  }
 
   const editablePart = (part: string) => /^word\/(?:document|header\d+|footer\d+)\.xml$/.test(part)
   for (const part of sourceParts) {
     const beforeFile = sourceZip.file(part)
     const afterFile = candidateZip.file(part)
-    if (!beforeFile || !afterFile) continue
-    if (!editablePart(part)) {
+    if (!beforeFile || !editablePart(part)) continue
+    if (!afterFile) {
+      reject('Candidate is missing a source document part.', 'package_structure', 'required_part_missing')
       continue
     }
     const [before, after] = await Promise.all([beforeFile.async('string'), afterFile.async('string')])
@@ -233,72 +240,94 @@ async function validateOptionBCandidateDetailed(
     if (JSON.stringify(wordFieldMarkers(before)) !== JSON.stringify(wordFieldMarkers(after))) reject(`Word field structure changed: ${part}`, 'package_structure', 'field_structure_changed')
   }
 
-  const diff = computeChangedBlockDiff(source.blocks, candidate.blocks, operations)
+  // Compare the final logical text by part. Paragraph/run boundaries and blank
+  // paragraphs are implementation details; order and authored content remain
+  // protected. Expected text is built once from the original source and the
+  // localized instructions, independent of the candidate's paragraph ordinals.
+  const sourceById = new Map(source.blocks.map((block) => [block.blockId, block]))
+  const before = new Map<string, BlockOperation[]>()
+  const after = new Map<string, BlockOperation[]>()
   const replacements = new Map<string, Extract<BlockOperation, { operation: 'REPLACE_BLOCK_TEXT' }>>()
-  const matchedInsertDiffs = new Set<number>()
-  const requestedEditDiagnostic = (
-    editIndex: number,
-    operationType: MechanicalEditOperation,
-    sourceBlock: SourceBlock | undefined,
-    requestedText: string,
-    candidateBlock: SourceBlock | undefined,
-    expectedAtCandidateBlock: boolean,
-  ): MechanicalFailureDiagnostic => ({
-    gateId: 'edit_application', reasonCode: 'requested_edit_missing', editIndex, editCount: operations.length,
-    editOperation: operationType,
-    sourceBlockType: mechanicalSourceBlockType(sourceBlock),
-    ...(sourceBlock ? { sourceBlockOrdinal: sourceBlock.index, sourceOccurrence: sourceOccurrence(sourceBlock, source.blocks) } : {}),
-    ...(sourceBlock ? { sourceCanonicalLength: canonicalizeParagraphText(sourceBlock.text).length } : {}),
-    requestedCanonicalLength: requestedText.length,
-    ...(candidateBlock ? { candidateCanonicalLength: canonicalizeParagraphText(candidateBlock.text).length } : {}),
-    sourceTargetFound: Boolean(sourceBlock),
-    ...(editorOperationReportedSuccess === undefined ? {} : { editorOperationReportedSuccess }),
-    candidateBlockOrdinal: candidateBlock?.index ?? null,
-    expectedAtCandidateBlock,
-    exactRequestedCanonicalFoundElsewhere: !expectedAtCandidateBlock
-      && candidate.blocks.some((block) => canonicalizeParagraphText(block.text) === requestedText),
-  })
-  for (const [editIndex, operation] of operations.entries()) {
-    if (operation.operation === 'REPLACE_BLOCK_TEXT') {
-      const original = source.blocks.find((block) => block.blockId === operation.blockId)
-      if (replacements.has(operation.blockId)) {
-        reject(`Duplicate replacement target: ${operation.blockId}`, 'duplicate_target', 'duplicate_target', editIndex)
-      } else replacements.set(operation.blockId, operation)
-      const candidateIndex = original ? candidateIndexForSourceBlock(original, source.blocks, operations) : -1
-      const candidateBlock = original
-        ? candidate.blocks.find((block) => block.blockId === `${original.part}#p${candidateIndex}`)
-        : undefined
-      const requestedText = canonicalizeParagraphText(operation.finalText)
-      const expectedAtCandidateBlock = Boolean(candidateBlock && candidateBlock.text === requestedText)
-      if (!original || !expectedAtCandidateBlock) {
-        reject(`Requested block replacement was not applied exactly: ${operation.blockId}`, 'edit_application', 'requested_edit_missing', editIndex)
-        diagnostics[diagnostics.length - 1] = requestedEditDiagnostic(editIndex, 'replace', original, requestedText, candidateBlock, expectedAtCandidateBlock)
-      }
-    } else if (operation.operation === 'INSERT_BLOCK_AFTER') {
-      const anchor = source.blocks.find((block) => block.blockId === operation.anchorBlockId)
-      const matchingDiff = diff.findIndex((item, index) => !matchedInsertDiffs.has(index)
-        && item.sourceText === null && item.candidateText === canonicalizeParagraphText(operation.finalText))
-      if (matchingDiff < 0) {
-        reject(`Requested block insertion was not applied exactly: ${operation.anchorBlockId}`, 'edit_application', 'requested_edit_missing', editIndex)
-        diagnostics[diagnostics.length - 1] = requestedEditDiagnostic(editIndex, 'insert_after', anchor, canonicalizeParagraphText(operation.finalText), undefined, false)
-      } else matchedInsertDiffs.add(matchingDiff)
-    } else reject('Option B does not permit deleting source blocks.', 'edit_application', 'deletion_not_permitted', editIndex)
+  const requestedDiagnostic = (editIndex: number, operation: BlockOperation, target: SourceBlock): MechanicalFailureDiagnostic => {
+    const replacement = operation.operation === 'REPLACE_BLOCK_TEXT' ? operation.finalText : operation.operation === 'DELETE_BLOCK' ? '' : operation.finalText
+    const operationType: MechanicalEditOperation = operation.operation === 'REPLACE_BLOCK_TEXT' ? 'replace'
+      : operation.operation === 'INSERT_BLOCK_AFTER' ? 'insert_after' : 'other'
+    const requested = canonicalizeParagraphText(replacement)
+    const candidateBlock = candidate.blocks.find((block) => block.part === target.part && canonicalizeParagraphText(block.text) === requested)
+    return {
+      gateId: 'edit_application', reasonCode: 'requested_edit_missing', editIndex, editCount: operations.length,
+      editOperation: operationType, sourceBlockType: mechanicalSourceBlockType(target),
+      sourceBlockOrdinal: target.index, sourceOccurrence: sourceOccurrence(target, source.blocks),
+      sourceCanonicalLength: canonicalizeParagraphText(target.text).length, requestedCanonicalLength: requested.length,
+      ...(candidateBlock ? { candidateCanonicalLength: canonicalizeParagraphText(candidateBlock.text).length } : {}),
+      sourceTargetFound: true, ...(editorOperationReportedSuccess === undefined ? {} : { editorOperationReportedSuccess }),
+      candidateBlockOrdinal: candidateBlock?.index ?? null,
+      expectedAtCandidateBlock: Boolean(candidateBlock),
+      exactRequestedCanonicalFoundElsewhere: candidate.blocks.some((block) => canonicalizeParagraphText(block.text) === requested),
+    }
   }
-
-  for (let index = 0; index < diff.length; index++) {
-    const change = diff[index]!
-    if (change.sourceText === null) {
-      if (!matchedInsertDiffs.has(index) && change.candidateText?.trim()) reject('Candidate contains an unrequested text change or source block loss.', 'extra_change', 'unexpected_change')
+  for (const [editIndex, operation] of operations.entries()) {
+    const targetId = operation.operation === 'REPLACE_BLOCK_TEXT' || operation.operation === 'DELETE_BLOCK' ? operation.blockId : operation.anchorBlockId
+    const target = sourceById.get(targetId)
+    if (!target) {
+      reject('A requested source block could not be located.', 'source_target', 'target_not_found', editIndex)
       continue
     }
-    if (change.candidateText === null) {
-      if (change.sourceText.trim()) reject('Candidate contains an unrequested text change or source block loss.', 'extra_change', 'unexpected_change')
+    if (operation.operation === 'DELETE_BLOCK') {
+      reject('Option B does not permit deleting source blocks.', 'edit_application', 'deletion_not_permitted', editIndex)
       continue
     }
-    if (change.sourceText === change.candidateText) continue
-    const replacement = replacements.get(change.blockRef)
-    if (!replacement || canonicalizeParagraphText(replacement.finalText) !== change.candidateText) {
-      reject('Candidate contains an unrequested text change or source block loss.', 'extra_change', 'unexpected_change')
+    if (operation.operation === 'REPLACE_BLOCK_TEXT') {
+      if (replacements.has(targetId)) reject('Duplicate replacement target.', 'duplicate_target', 'duplicate_target', editIndex)
+      else replacements.set(targetId, operation)
+    } else {
+      const style = sourceById.get(operation.styleSourceBlockId)
+      if (!style || style.part !== target.part) {
+        reject('An insertion style source could not be located in its source part.', 'source_target', 'target_not_found', editIndex)
+        continue
+      }
+      const buckets = operation.operation === 'INSERT_BLOCK_BEFORE' ? before : after
+      buckets.set(targetId, [...(buckets.get(targetId) ?? []), operation])
+    }
+  }
+  const normalizeDocumentText = (texts: string[]) => texts
+    .map((text) => canonicalizeParagraphText(text))
+    .filter((text) => text.trim().length > 0)
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  const parts = new Set([...source.blocks.map((block) => block.part), ...candidate.blocks.map((block) => block.part)])
+  for (const part of parts) {
+    const expected: string[] = []
+    for (const block of source.blocks.filter((item) => item.part === part)) {
+      for (const insertion of before.get(block.blockId) ?? []) {
+        if (insertion.operation !== 'DELETE_BLOCK' && insertion.operation !== 'REPLACE_BLOCK_TEXT') expected.push(insertion.finalText)
+      }
+      expected.push(replacements.get(block.blockId)?.finalText ?? block.text)
+      for (const insertion of after.get(block.blockId) ?? []) {
+        if (insertion.operation !== 'DELETE_BLOCK' && insertion.operation !== 'REPLACE_BLOCK_TEXT') expected.push(insertion.finalText)
+      }
+    }
+    const expectedText = normalizeDocumentText(expected)
+    const actualText = normalizeDocumentText(candidate.blocks.filter((block) => block.part === part).map((block) => block.text))
+    if (expectedText !== actualText) {
+      const absent = [...operations.entries()].find(([, operation]) => {
+        const targetId = operation.operation === 'REPLACE_BLOCK_TEXT' || operation.operation === 'DELETE_BLOCK' ? operation.blockId : operation.anchorBlockId
+        const target = sourceById.get(targetId)
+        if (!target || target.part !== part || operation.operation === 'DELETE_BLOCK') return false
+        const text = canonicalizeParagraphText(operation.finalText)
+        return !actualText.includes(text)
+      })
+      if (absent) {
+        const [editIndex, operation] = absent
+        if (operation.operation === 'DELETE_BLOCK') {
+          reject('Option B does not permit deleting source blocks.', 'edit_application', 'deletion_not_permitted', editIndex)
+        } else {
+          const target = sourceById.get(operation.operation === 'REPLACE_BLOCK_TEXT' ? operation.blockId : operation.anchorBlockId)!
+          reject('A requested change is not represented in the final document.', 'edit_application', 'requested_edit_missing', editIndex)
+          diagnostics[diagnostics.length - 1] = requestedDiagnostic(editIndex, operation, target)
+        }
+      } else reject('Final document content differs from the authorized source-relative changes.', 'extra_change', 'unexpected_change')
     }
   }
   return { issues, diagnostics }

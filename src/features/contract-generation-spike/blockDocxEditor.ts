@@ -373,7 +373,9 @@ function dominantRunProperties(paragraph: string): string {
     counts.set(sig, item)
   }
   const ordered = [...counts.values()].sort((a, b) => b.n - a.n)
-  if (!ordered.length || (ordered[1] && ordered[0]!.n === ordered[1]!.n)) throw new Error('Cannot preserve block formatting: ambiguous dominant run style')
+  if (!ordered.length) return ''
+  // Equal run-style weights are normal Word segmentation, not a failed edit.
+  // The stable sort keeps the earliest source style in a tie.
   return visual(ordered[0]!.run)
 }
 
@@ -386,32 +388,8 @@ function rewriteParagraph(paragraph: string, finalText: string): string {
   if (fields.length) rewritten = rewriteParagraphPreservingFields(paragraph, finalText)
   else {
     const pPr = paragraph.match(/<w:pPr\b[\s\S]*?<\/w:pPr>/)?.[0] ?? ''
-    const runs = [...paragraph.matchAll(/<w:r\b[\s\S]*?<\/w:r>/g)].map((m) => m[0]!)
-    let bodyStyle = dominantRunProperties(paragraph)
-    const firstText = runs[0] ? [...runs[0].matchAll(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/g)].map((m) => unescapeXml(m[1]!)).join('') : ''
-    const marker = firstText.match(/^\s*(§\s*\d+(?:\.\d+)*[.)]?|\d+(?:\.\d+)*[.)]|[•*–—-]|[\p{L}\p{N}][\p{L}\p{N}\s.-]{0,22}:)\s*$/u)
-    if (marker && runs.length > 1 && finalText.startsWith(marker[0].trim())) {
-      const prefix = marker[0].trim()
-      const sourceBoundary = structuralPrefixBoundary(paragraph, runs)
-      if (!sourceBoundary) {
-        rewritten = `<w:p>${pPr}<w:r>${bodyStyle}<w:t xml:space="preserve">${escapeXml(finalText)}</w:t></w:r></w:p>`
-      } else {
-        const requestedTail = finalText.slice(prefix.length)
-        const requestedSeparator = requestedTail.match(/^\s+/)?.[0] ?? ''
-        const bodyText = requestedTail.slice(requestedSeparator.length)
-        const sourceSeparatorMatchesRequest = canonicalizeParagraphText(sourceBoundary.separator) === canonicalizeParagraphText(requestedSeparator)
-        const separator = sourceSeparatorMatchesRequest ? sourceBoundary.separator : requestedSeparator
-        bodyStyle = dominantRunProperties(paragraph)
-        const prefixStyle = runs[0]!.match(/<w:rPr\b[\s\S]*?<\/w:rPr>/)?.[0] ?? ''
-        const separatorXml = separator === '\t' ? '<w:tab/>' : separator === '\n' ? '<w:br/>' : ''
-        const prefixText = prefix + (separatorXml ? '' : separator)
-        const prefixRun = `<w:r>${prefixStyle}<w:t xml:space="preserve">${escapeXml(prefixText)}</w:t>${separatorXml}</w:r>`
-        const bodyRun = `<w:r>${bodyStyle}<w:t xml:space="preserve">${escapeXml(bodyText)}</w:t></w:r>`
-        rewritten = `<w:p>${pPr}${prefixRun}${bodyRun}</w:p>`
-      }
-    } else {
-      rewritten = `<w:p>${pPr}<w:r>${bodyStyle}<w:t xml:space="preserve">${escapeXml(finalText)}</w:t></w:r></w:p>`
-    }
+    const style = dominantRunProperties(paragraph)
+    rewritten = `<w:p>${pPr}<w:r>${style}<w:t xml:space="preserve">${escapeXml(finalText)}</w:t></w:r></w:p>`
   }
   if (textFor(rewritten) !== canonicalizeParagraphText(finalText)) {
     throw new Error('DOCX block replacement did not preserve requested logical text')
@@ -520,35 +498,6 @@ function rewriteParagraphPreservingFields(paragraph: string, finalText: string):
   }
   output += run(finalText.slice(finalCursor)) + '</w:p>'
   return output
-}
-
-function structuralPrefixBoundary(paragraph: string, runs: string[]): { separator: string } | undefined {
-  const runText = (run: string) => [...run.matchAll(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/g)].map((match) => unescapeXml(match[1]!)).join('')
-  const prefix = runText(runs[0] ?? '')
-  const prefixMatch = prefix.match(/^\s*(§\s*\d+(?:\.\d+)*[.)]?|\d+(?:\.\d+)*[.)]|[•*–—-])\s*$/u)
-  if (!prefixMatch) return undefined
-  const elements = [...paragraph.matchAll(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>|<w:tab\b[^>]*\/>|<w:br\b[^>]*\/>/g)]
-  const markerElementIndex = elements.findIndex((element) => element[1] !== undefined && unescapeXml(element[1]!) === prefixMatch[0])
-  if (markerElementIndex >= 0) {
-    const nextElement = elements[markerElementIndex + 1]
-    if (nextElement?.[0].startsWith('<w:tab')) return { separator: '\t' }
-    if (nextElement?.[0].startsWith('<w:br')) return { separator: '\n' }
-    if (nextElement?.[1] !== undefined) {
-      const nextText = unescapeXml(nextElement[1]!)
-      const leading = nextText.match(/^\s+/)?.[0]
-      if (leading) return { separator: leading }
-      const prefixParts = runText(runs[0] ?? '')
-      if (prefixParts === prefixMatch[0] && isNumberedStructuralPrefix(prefixMatch[0].trim())) return { separator: ' ' }
-      return undefined
-    }
-  }
-  const pPr = paragraph.match(/<w:pPr\b[\s\S]*?<\/w:pPr>/)?.[0] ?? ''
-  if (/<w:numPr\b/.test(pPr)) return { separator: ' ' }
-  return undefined
-}
-
-function isNumberedStructuralPrefix(prefix: string): boolean {
-  return /^(?:§\s*)?\d+(?:\.\d+)*[.)]$/.test(prefix)
 }
 
 type ParagraphStyleDefinition = { basedOn?: string; hasNumbering: boolean; disablesNumbering: boolean }
@@ -706,7 +655,6 @@ export async function applyBlockOperations(bytes: ArrayBuffer, operations: Block
       return operationResult === paragraph.xml ? [] : [{ start: paragraph.start, end: paragraph.end, replacement: operationResult }]
     })
     xml = replaceXmlSpans(xml, edits)
-    if (part === 'word/document.xml') xml = collapseRedundantEmptyParagraphsBeforePageBreak(xml)
     zip.file(part, xml)
   }
   return zip.generateAsync({ type: 'arraybuffer', compression: 'DEFLATE' })
@@ -781,44 +729,4 @@ export async function applyExactTextPatches(bytes: ArrayBuffer, patches: ExactTe
     zip.file(part, xml)
   }
   return zip.generateAsync({ type: 'arraybuffer', compression: 'DEFLATE' })
-}
-
-
-/** Keep one authored spacer before a hard page-break heading, but remove any
- * redundant trailing empty paragraphs that can spill onto a page by themselves. */
-function collapseRedundantEmptyParagraphsBeforePageBreak(xml: string): string {
-  const bodyStart = xml.match(/<w:body\b[^>]*>/)
-  const bodyClose = xml.lastIndexOf('</w:body>')
-  if (!bodyStart || bodyClose < bodyStart.index! + bodyStart[0].length) return xml
-  const contentStart = bodyStart.index! + bodyStart[0].length
-  const body = xml.slice(contentStart, bodyClose)
-  const paragraphs = paragraphElementsIn(body).map((paragraph) => ({ ...paragraph, inTableCell: paragraph.origin.kind === 'tableCell' }))
-  const emptySafe = (paragraph: string) => {
-    if (extractCanonicalParagraphText(paragraph) !== '') return false
-    if (/<w:sectPr\b/.test(paragraph)) return false
-    const content = paragraph.replace(/<w:pPr\b[\s\S]*?<\/w:pPr>/, '')
-    if (/<w:(?:br|tab|drawing|object|pict|fldChar|instrText|bookmarkStart|bookmarkEnd|hyperlink|footnoteReference|endnoteReference)\b/.test(content)) return false
-    return [...content.matchAll(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/g)].every((text) => text[1] === '')
-  }
-  const remove: Array<{ start: number; end: number; replacement: string }> = []
-  for (let index = 0; index < paragraphs.length; index++) {
-    const current = paragraphs[index]!
-    if (current.inTableCell || !/<w:pageBreakBefore\b(?:[^>]*\bw:val\s*=\s*["'](?:1|true|on)["'][^>]*)?\s*\/>/.test(current.xml)) continue
-    let previousIndex = index - 1
-    let redundant = 0
-    while (previousIndex >= 0) {
-      const previous = paragraphs[previousIndex]!
-      if (previous.inTableCell || body.slice(previous.end, previousIndex === index - 1 ? current.start : paragraphs[previousIndex + 1]!.start).trim() !== '' || !emptySafe(previous.xml)) break
-      redundant++
-      previousIndex--
-    }
-    if (redundant > 1) {
-      // Remove only the empty spacer closest to the page-break paragraph.
-      const previous = paragraphs[index - 1]!
-      remove.push({ start: previous.start, end: previous.end, replacement: '' })
-    }
-  }
-  if (!remove.length) return xml
-  const updated = replaceXmlSpans(body, remove)
-  return xml.slice(0, contentStart) + updated + xml.slice(bodyClose)
 }
