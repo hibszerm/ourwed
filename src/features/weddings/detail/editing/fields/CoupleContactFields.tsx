@@ -19,9 +19,6 @@ function PartnerFields({
   const lastKey = `${prefix}LastName` as const
   const phoneKey = `${prefix}Phone` as const
   const emailKey = `${prefix}Email` as const
-  const addressKey = `${prefix}Address` as const
-  const postalKey = `${prefix}PostalCode` as const
-  const cityKey = `${prefix}City` as const
 
   return (
     <section className={styles.section}>
@@ -52,23 +49,6 @@ function PartnerFields({
             onChange={(e) => onChange({ ...couple, [emailKey]: e.target.value })}
           />
         </div>
-        <Input
-          label="Adres"
-          value={couple[addressKey] ?? ''}
-          onChange={(e) => onChange({ ...couple, [addressKey]: e.target.value })}
-        />
-        <div className={styles.fieldRow}>
-          <Input
-            label="Kod pocztowy"
-            value={couple[postalKey] ?? ''}
-            onChange={(e) => onChange({ ...couple, [postalKey]: e.target.value })}
-          />
-          <Input
-            label="Miasto"
-            value={couple[cityKey] ?? ''}
-            onChange={(e) => onChange({ ...couple, [cityKey]: e.target.value })}
-          />
-        </div>
       </div>
     </section>
   )
@@ -77,15 +57,19 @@ function PartnerFields({
 /** Shared couple/contact + correspondence fields — no V1 layout wrappers. */
 export function CoupleContactFields({
   couple,
+  contractAddress,
   correspondence,
   onChangeCouple,
+  onChangeContractAddress,
   onChangeCorrespondence,
   correspondenceError,
   correspondenceErrorRowIndex,
 }: {
   couple: Couple
+  contractAddress: string
   correspondence?: WeddingCorrespondenceEntry[] | null
   onChangeCouple: (couple: Couple) => void
+  onChangeContractAddress: (address: string) => void
   onChangeCorrespondence?: (next: WeddingCorrespondenceEntry[]) => void
   correspondenceError?: string | null
   correspondenceErrorRowIndex?: number | null
@@ -104,6 +88,14 @@ export function CoupleContactFields({
         couple={couple}
         onChange={onChangeCouple}
       />
+      <section className={styles.section}>
+        <h3 className={styles.sectionTitle}>Dane do umowy</h3>
+        <Input
+          label="Adres do umowy"
+          value={contractAddress}
+          onChange={(event) => onChangeContractAddress(event.target.value)}
+        />
+      </section>
       {onChangeCorrespondence ? (
         <CorrespondenceFields
           correspondence={correspondence}

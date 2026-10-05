@@ -42,6 +42,7 @@ export interface Couple {
   partner2LastName?: string
   partner1Phone?: string
   partner1Email?: string
+  /** Legacy compatibility component for weddings.contract_address; not participant-owned. */
   partner1Address?: string
   partner1PostalCode?: string
   partner1City?: string
@@ -221,6 +222,8 @@ export interface WeddingDeliverable {
 export interface Wedding {
   id: string
   couple: Couple
+  /** Complete contract-designated address; legacy split columns remain in couple for compatibility. */
+  contractAddress?: string
   /**
    * Presentation-only title for app UI (lists, cards, headers).
    * Must never be used by contracts, questionnaires, merge fields, or exports.
@@ -360,7 +363,7 @@ export interface CreateWeddingInput {
   email?: string
   /** Groom phone — canonical `weddings.groom_phone`. Optional. */
   partner2Phone?: string
-  /** Contract correspondence street — canonical `weddings.contract_address`. Optional. */
+  /** Legacy base component for `weddings.contract_address`; retained for compatibility. */
   partner1Address?: string
   /** Contract postal code — canonical `weddings.contract_postal_code`. Optional. */
   partner1PostalCode?: string
@@ -417,6 +420,8 @@ export type WeddingUpdateOptions = {
    * Default true (legacy validation).
    */
   validatePackageId?: boolean
+  /** Preserve legacy split address columns unless an explicit address edit opts into writing them. */
+  preserveContractAddress?: boolean
 }
 
 export interface Task {

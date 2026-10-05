@@ -13,7 +13,7 @@
  * | q-p2-first       | text     | partner2.firstName       | groom                          |
  * | q-p2-last        | text     | partner2.lastName        | groom                          |
  * | q-p2-phone       | phone    | partner2.phone           | groom                          |
- * | q-p1-address     | text     | partner1.address         | contract address street        |
+ * | q-p1-address     | text     | partner1.address         | contract address (legacy field key) |
  * | q-p1-postal      | text     | partner1.postalCode     |                                |
  * | q-p1-city        | text     | partner1.city            |                                |
  * | q-p1-email       | email    | partner1.email           | contact email                  |

@@ -174,9 +174,9 @@ run('D — no questionnaire: studio persist skips manufacturing a submission', (
   assertNotIncludes(persistSrc, 'status: \'submitted\'', 'must not force submitted')
   assertNotIncludes(persistSrc, 'writeSubmittedAnswers', 'must not write first answers')
   assertIncludes(persistSrc, 'skipped_no_submission', 'explicit skip result')
-  assertIncludes(draftSrc, 'weddingService.update(nextWedding)', 'canonical columns first')
-  const updateIdx = draftSrc.indexOf('await weddingService.update(nextWedding)')
-  const persistIdx = draftSrc.indexOf('await persistWeddingContractAnswerFields(nextWedding)')
+  assertIncludes(draftSrc, 'weddingService.update(nextWedding, {', 'canonical update keeps unrelated address columns intact')
+  const updateIdx = draftSrc.indexOf('await weddingService.update(nextWedding, {')
+  const persistIdx = draftSrc.indexOf('await persistWeddingContractAnswerFields(nextWedding, {')
   assert(updateIdx >= 0 && persistIdx > updateIdx, 'update before questionnaire persist')
 })
 
@@ -219,7 +219,7 @@ run('F — hydrate without form: canonical party fields survive mapper', () => {
 })
 
 void runAsync(
-  'G — hydrate with submitted form: preferForm overlays non-blank questionnaire values',
+  'G — hydrate submitted address as contract-level questionnaire data',
   async () => {
     const wedding = mapWeddingRowToModel(baseRow()) as Wedding
     const merged = await mergeFormAnswersIntoWedding(
@@ -235,7 +235,8 @@ void runAsync(
       { submittedAt: '2026-08-01' },
     )
     assertEq(merged.couple.partner2Phone, '600700800', 'form phone wins')
-    assertEq(merged.couple.partner1Address, 'ul. Nowa 1', 'form address wins')
+    assertEq(merged.couple.partner1Address, 'ul. Kwiatowa 8', 'questionnaire contract address is not mapped as partner 1 personal address')
+    assertEq(merged.contractAddress, 'ul. Nowa 1, 30-001 Kraków', 'questionnaire contract address wins as wedding-level authority')
     assertEq(merged.couple.partner1PostalCode, '30-001', 'form postal wins')
     assertEq(merged.couple.partner1City, 'Kraków', 'form city wins')
     assertEq(merged.questionnaires.contractData.status, 'completed', 'hydrate completed')

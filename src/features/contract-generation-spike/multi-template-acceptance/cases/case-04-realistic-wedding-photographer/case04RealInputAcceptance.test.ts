@@ -33,21 +33,18 @@ const [party1, party2] = input.parties
 assert.equal(party1?.sourceKey, 'partner1')
 assert.equal(party1?.fullName?.value, 'Klaudia Majewska')
 assert.equal(party1?.fullName?.owner, 'partner1')
-assert.deepEqual(party1?.address, {
+assert.deepEqual(input.contractAddress, {
   value: 'ul. Francuska 18/7, 40-015 Katowice',
   source: 'form_answers.answer_json.fields.partner1.address.formattedAddress',
-  owner: 'partner1',
+  semanticType: 'contract_address',
 })
+assert.equal(input.contractAddress?.owner, undefined)
 assert.equal(party2?.sourceKey, 'partner2')
 assert.equal(party2?.fullName?.value, 'Tomasz Domański')
 assert.equal(party2?.fullName?.owner, 'partner2')
-assert.deepEqual(party2?.address, {
-  value: 'ul. Słoneczna 12/5, 43-300 Bielsko-Biała',
-  source: 'form_answers.answer_json.fields.partner2.address.formattedAddress',
-  owner: 'partner2',
-})
-assert.equal(party1?.address?.source.includes('contract_address'), false)
-assert.equal(party2?.address?.source.includes('contract_address'), false)
+assert.equal('address' in (party1 ?? {}), false)
+assert.equal('address' in (party2 ?? {}), false)
+assert.equal(input.questionnaireAnswers.find((answer) => answer.source.endsWith('partner2.address.formattedAddress'))?.owner, undefined, 'fallback second questionnaire address remains contract-level compatibility data')
 assert.equal(input.unownedFacts.some((fact) => String(fact.source).includes('contract_address')), false)
 assert.equal(party1?.phone?.value, '+48 510 284 739')
 assert.equal(party1?.phone?.owner, 'partner1')

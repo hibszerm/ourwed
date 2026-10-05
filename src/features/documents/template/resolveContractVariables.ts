@@ -6,6 +6,7 @@
 import { clientNameRegistryValues } from '@/features/ai-contract-lab/clientNameParts'
 import { getLatestSubmittedFormAnswers } from '@/lib/api/forms'
 import { extractAnswerFields } from '@/lib/forms/mergeFormAnswersIntoWedding'
+import { formatLocationAnswer } from '@/lib/forms/contractQuestionnaireAnswerValues'
 import { VariableResolver } from '@/lib/variables'
 import { SystemVariableRegistry } from '@/lib/variables/registry'
 import type { PackageSnapshot } from '@/types/documents'
@@ -17,6 +18,7 @@ import {
   logContractReferenceValues,
 } from '@/lib/utils/contractCommercialVariables'
 import { formatPolishPostalAddress } from '@/lib/utils/formatPolishPostalAddress'
+import { resolveEffectiveContractAddress } from '@/lib/utils/contractAddress'
 import {
   isSystemAutoResolvedContractKey,
   resolveContractExecutionValues,
@@ -113,11 +115,20 @@ export function weddingValuesFromWedding(
   emitWedding(
     out,
     'bride_address',
-    formatPolishPostalAddress({
-      fullAddress: c.partner1Address,
+    wedding.contractAddress || resolveEffectiveContractAddress({
+      address: c.partner1Address,
       postalCode: c.partner1PostalCode,
       city: c.partner1City,
-    }) || c.partner1Address,
+    }),
+  )
+  emitWedding(
+    out,
+    'contract_address',
+    wedding.contractAddress || resolveEffectiveContractAddress({
+      address: c.partner1Address,
+      postalCode: c.partner1PostalCode,
+      city: c.partner1City,
+    }),
   )
   emitWedding(
     out,
@@ -237,25 +248,38 @@ const FIELD_KEY_TO_REGISTRY: Record<string, string> = {
   packageId: 'package_name',
 }
 
+const CONTRACT_ADDRESS_FIELD_KEYS = ['partner1.address', 'partner2.address'] as const
+
 function flattenQuestionnaireAnswers(
   fields: Record<string, unknown>,
 ): Record<string, string> {
   const out: Record<string, string> = {}
   for (const [fieldKey, raw] of Object.entries(fields)) {
     if (raw == null) continue
-    const value =
+    let value =
       typeof raw === 'string'
-        ? raw.trim()
+        ? (CONTRACT_ADDRESS_FIELD_KEYS.includes(fieldKey as typeof CONTRACT_ADDRESS_FIELD_KEYS[number]) ? raw : raw.trim())
         : typeof raw === 'number' || typeof raw === 'boolean'
           ? String(raw)
           : ''
-    if (!value) continue
+    if (!value && CONTRACT_ADDRESS_FIELD_KEYS.includes(fieldKey as typeof CONTRACT_ADDRESS_FIELD_KEYS[number])) {
+      value = formatLocationAnswer(raw)
+    }
+    if (!value.trim()) continue
 
     out[fieldKey] = value
     const registryId = FIELD_KEY_TO_REGISTRY[fieldKey]
     if (registryId) {
       SystemVariableRegistry.emit(out, registryId, value)
       out[registryId] = value
+    }
+    if (CONTRACT_ADDRESS_FIELD_KEYS.includes(fieldKey as typeof CONTRACT_ADDRESS_FIELD_KEYS[number])) {
+      if (fieldKey === 'partner1.address' || !out.contract_address) {
+        SystemVariableRegistry.emit(out, 'contract_address', value)
+        out.contract_address = value
+        SystemVariableRegistry.emit(out, 'bride_address', value)
+        out.bride_address = value
+      }
     }
   }
   return out
@@ -320,6 +344,11 @@ export async function resolveContractVariables(input: {
     packageSnapshot,
     packageId: packageSnapshot.packageId ?? undefined,
   })
+
+  if (questionnaireAnswers.contract_address) {
+    resolved.contract_address = questionnaireAnswers.contract_address
+    resolved.bride_address = questionnaireAnswers.contract_address
+  }
 
   if (input.overrides) {
     for (const [key, value] of Object.entries(input.overrides)) {
@@ -422,6 +451,13 @@ export async function resolveContractVariables(input: {
         source: 'system',
         missing: false,
       }
+    }
+
+    if (
+      (registryKey === 'contract_address' || registryKey === 'bride_address') &&
+      questionnaireAnswers.contract_address
+    ) {
+      return { registryKey, value, source: 'questionnaire', missing: false }
     }
 
     // Highest-priority layer that actually holds this value

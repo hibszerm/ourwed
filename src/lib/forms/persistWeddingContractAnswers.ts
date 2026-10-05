@@ -90,8 +90,14 @@ export function planStudioContractAnswerPersist(input: {
  */
 export async function persistWeddingContractAnswerFields(
   wedding: Wedding,
+  options: { contractAddressChanged?: boolean } = {},
 ): Promise<StudioContractAnswerPersistPlan> {
   const fields = weddingToContractAnswerFields(wedding)
+  if (options.contractAddressChanged === false) {
+    delete fields['partner1.address']
+    delete fields['partner1.postalCode']
+    delete fields['partner1.city']
+  }
   const latest = await getLatestSubmittedFormAnswerRecord(wedding.id, 'contract')
   const plan = planStudioContractAnswerPersist({
     latest: latest

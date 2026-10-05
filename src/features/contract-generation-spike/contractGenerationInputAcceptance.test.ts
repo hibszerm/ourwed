@@ -78,36 +78,33 @@ assert.equal(party1?.fullName?.owner, 'partner1')
 assert.equal(party2?.sourceKey, 'partner2')
 assert.equal(party2?.fullName?.value, 'Andrzej Nowacki')
 assert.equal(party2?.fullName?.owner, 'partner2')
-assert.equal(party1?.address?.value, 'Michała Grażyńskiego 5, 41-810 Zabrze')
-assert.equal(party1?.address?.source, 'form_answers.answer_json.fields.partner1.address.formattedAddress')
-assert.equal(party1?.address?.owner, 'partner1')
-assert.equal(party1?.address?.semanticType, 'contract_address', 'the questionnaire’s contract-address semantics survive normalization')
-assert.equal(party1?.address?.source, 'form_answers.answer_json.fields.partner1.address.formattedAddress', 'the selected party address retains its form provenance')
-assert.equal(party2?.address?.value, 'Partner two address')
-assert.equal(party2?.address?.owner, 'partner2')
+assert.equal(result.contractAddress?.value, 'Michała Grażyńskiego 5, 41-810 Zabrze')
+assert.equal(result.contractAddress?.source, 'form_answers.answer_json.fields.partner1.address.formattedAddress')
+assert.equal(result.contractAddress?.owner, undefined, 'questionnaire contract address has no participant owner')
+assert.equal(result.contractAddress?.semanticType, 'contract_address', 'questionnaire address retains contract-level semantics')
+assert.equal('address' in (party1 ?? {}), false, 'contract address is not normalized as partner 1 personal data')
+assert.equal('address' in (party2 ?? {}), false, 'contract questionnaire address is not assigned to partner 2')
 assert.equal(party1?.phone?.owner, 'partner1', 'participant 1 phone retains participant ownership')
 assert.equal(party2?.phone?.owner, 'partner2', 'participant 2 phone retains participant ownership')
-assert.notEqual(party1?.address?.value, party2?.address?.value, 'distinct participant addresses remain distinct authoritative facts')
 
 const withoutParty2Address = buildContractGenerationInput({
   wedding: { ...wedding, couple: { ...wedding.couple, partner2Address: undefined } },
   weddingPlaces: [], extras: [], generationDate: '2026-09-29',
   questionnaireFields: { 'partner1.address': 'Party one only' },
 })
-assert.equal(withoutParty2Address.parties[1]?.address, undefined, 'missing Party 2 address remains absent')
+assert.equal('address' in withoutParty2Address.parties[1]!, false, 'contract address is not assigned to Party 2')
 
 const genericAddress = buildContractGenerationInput({
   wedding: { ...wedding, couple: { ...wedding.couple, partner1Address: 'Generic correspondence address' } },
   weddingPlaces: [], extras: [], generationDate: '2026-09-29', questionnaireFields: {},
 })
-assert.deepEqual(genericAddress.parties[0]?.address, {
+assert.deepEqual(genericAddress.contractAddress, {
   value: 'Generic correspondence address',
   source: 'wedding.couple.partner1Address (mapped from public.weddings.contract_address)',
-  owner: 'partner1',
   semanticType: 'contract_address',
-}, 'the existing canonical contract-address association is preserved on partner1')
+}, 'legacy wedding address is normalized as ownerless contract data')
 assert.equal(genericAddress.unownedFacts.length, 0)
-assert.equal('residential' in (genericAddress.parties[0]?.address ?? {}), false, 'contract address is not reclassified as residential')
+assert.equal('residential' in (genericAddress.contractAddress ?? {}), false, 'contract address is not reclassified as residential')
 
 assert.equal(party1?.phone?.value, '666777888')
 assert.equal(party1?.phone?.owner, 'partner1')
@@ -175,8 +172,8 @@ assert.deepEqual(result.questionnaireAnswers.map((answer) => answer.source), [
   'form_answers.answer_json.fields.partner2.address',
   'form_answers.answer_json.fields.partner2.firstName',
 ])
-assert.equal(result.questionnaireAnswers[0]?.owner, 'partner1')
-assert.equal(result.questionnaireAnswers[2]?.owner, 'partner2')
+assert.equal(result.questionnaireAnswers[0]?.owner, undefined, 'the questionnaire contract address is unowned')
+assert.equal(result.questionnaireAnswers[2]?.owner, undefined, 'fallback questionnaire address also remains contract-level')
 assert.deepEqual(wedding, originalWedding, 'adapter does not mutate current wedding data')
 
 const genericProvidedAlongsideOwnedAddress = buildContractGenerationInput({
@@ -184,27 +181,24 @@ const genericProvidedAlongsideOwnedAddress = buildContractGenerationInput({
   questionnaireFields: { 'partner1.address': 'Party-owned address' },
   genericContractAddress: 'Canonical correspondence address',
 })
-assert.deepEqual(genericProvidedAlongsideOwnedAddress.parties[0]?.address, {
-  value: 'Canonical correspondence address',
-  source: 'public.weddings.contract_address',
-  owner: 'partner1',
+assert.deepEqual(genericProvidedAlongsideOwnedAddress.contractAddress, {
+  value: 'Party-owned address',
+  source: 'form_answers.answer_json.fields.partner1.address',
   semanticType: 'contract_address',
-}, 'the canonical address keeps its established association when a separate submitted address is also present')
+}, 'latest questionnaire contract-address provenance takes precedence over the wedding row')
 assert.equal(genericProvidedAlongsideOwnedAddress.questionnaireAnswers[0]?.value, 'Party-owned address', 'the separate owned questionnaire fact remains available with its provenance')
-assert.equal(genericProvidedAlongsideOwnedAddress.questionnaireAnswers[0]?.owner, 'partner1')
+assert.equal(genericProvidedAlongsideOwnedAddress.questionnaireAnswers[0]?.owner, undefined)
 assert.equal(genericProvidedAlongsideOwnedAddress.unownedFacts.length, 0)
-assert.equal(genericProvidedAlongsideOwnedAddress.parties[1]?.address, undefined, 'partner1 association is not copied to partner2')
 assert.equal(result.additionalAnswers.find((answer) => answer.id === 'arbitrary.ref')?.value, 'arbitrary value', 'unassociated user answers remain separate from party address facts')
 assert.equal('owner' in result.additionalAnswers.find((answer) => answer.id === 'arbitrary.ref')!, false, 'unassociated answers do not gain an invented owner')
-assert.equal(result.parties[0]?.address?.value, 'Michała Grażyńskiego 5, 41-810 Zabrze', 'unassociated user answers are not assigned to partner1')
+assert.equal(result.contractAddress?.value, 'Michała Grażyńskiego 5, 41-810 Zabrze', 'contract-designated address remains separately available')
 
 const explicitlyRepeatedParticipantFact = buildContractGenerationInput({
   wedding: { ...wedding, couple: { ...wedding.couple, partner1Address: 'Shared by direct authority', partner2Address: 'Shared by direct authority' } },
   weddingPlaces: [], extras: [], generationDate: '2026-09-29', questionnaireFields: {},
 })
-assert.deepEqual(explicitlyRepeatedParticipantFact.parties.map((party) => [party.address?.value, party.address?.owner]), [
-  ['Shared by direct authority', 'partner1'], ['Shared by direct authority', 'partner2'],
-], 'a fact explicitly present for each participant remains available to both without inferred ownership')
+assert.equal(explicitlyRepeatedParticipantFact.contractAddress?.value, 'Shared by direct authority')
+assert.equal(explicitlyRepeatedParticipantFact.contractAddress?.owner, undefined)
 
 const adapterSource = await readFile(`${process.cwd()}/src/features/contract-generation-spike/contractGenerationInput.ts`, 'utf8')
 assert.doesNotMatch(adapterSource, /JSZip|readSource|sourceDocx|parseDocx/i)

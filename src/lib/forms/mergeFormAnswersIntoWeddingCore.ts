@@ -5,6 +5,7 @@ import { formatLocationAnswer, normalizeSelectedPackageIds } from '@/lib/forms/c
 import { packageSelectionNeedsReview } from '@/lib/forms/packageSelectionReview.ts'
 import { isAbsentPartnerName } from '@/features/weddings/presentation/getWeddingDisplayName.ts'
 import { resolveCoupleNamesFromFormParts } from '@/lib/forms/weddingCoupleNameFields.ts'
+import { resolveEffectiveContractAddress } from '@/lib/utils/contractAddress.ts'
 import type { FormAnswerJson } from '@/types/formEngine'
 import type { StudioPackage } from '@/types/package'
 import type { Couple, Wedding } from '@/types/wedding'
@@ -32,7 +33,7 @@ function fieldString(
   key: string,
 ): string {
   const value = fields[key]
-  if (typeof value === 'string') return value.trim()
+  if (typeof value === 'string') return key.endsWith('.address') ? value : value.trim()
   if (typeof value === 'number' || typeof value === 'boolean') {
     return String(value)
   }
@@ -161,6 +162,16 @@ export async function mergeFormAnswersIntoWeddingCore(
   const bridePostal =
     fieldString(fields, 'partner1.postalCode') || structuredPostal
   const city = fieldString(fields, 'partner1.city') || structuredCity
+  const contractAddressValue = brideAddress || groomAddress
+  const questionnairePostal = fieldString(fields, 'partner1.postalCode') || structuredPostal
+  const questionnaireCity = fieldString(fields, 'partner1.city') || structuredCity
+  const contractAddress = contractAddressValue
+    ? resolveEffectiveContractAddress({
+        address: contractAddressValue,
+        postalCode: questionnairePostal,
+        city: questionnaireCity,
+      })
+    : ''
   const weddingDate = fieldString(fields, 'weddingDate')
   const ceremonyLocation = fieldString(fields, 'ceremonyLocation')
   const receptionLocation = fieldString(fields, 'receptionLocation')
@@ -215,9 +226,8 @@ export async function mergeFormAnswersIntoWeddingCore(
     partner1Email: preferForm(brideEmail, wedding.couple.partner1Email) || undefined,
     partner2Email: preferForm(groomEmail, wedding.couple.partner2Email) || undefined,
     partner1Address:
-      preferForm(brideAddress, wedding.couple.partner1Address) || undefined,
-    partner2Address:
-      preferForm(groomAddress, wedding.couple.partner2Address) || undefined,
+      wedding.couple.partner1Address,
+    partner2Address: wedding.couple.partner2Address,
     partner1PostalCode:
       preferForm(bridePostal, wedding.couple.partner1PostalCode) || undefined,
     partner1City: preferForm(city, wedding.couple.partner1City) || undefined,
@@ -260,6 +270,7 @@ export async function mergeFormAnswersIntoWeddingCore(
 
   return {
     ...wedding,
+    ...(contractAddress ? { contractAddress } : {}),
     couple,
     // Canonical DB wedding.date must win over older contract submissions.
     // The contract form is re-hydrated for display, but should never revert a

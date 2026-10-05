@@ -280,7 +280,7 @@ async function loadServerContext(
         ? [{ requirementId: binding.requirementId, optionId: binding.optionId, partyKey: binding.partyKey as GenerationPartyKey }]
         : []),
     contractRecordId: contract?.id ?? null,
-    genericContractAddress: typeof weddingRow.contract_address === 'string' ? weddingRow.contract_address : null,
+    genericContractAddress: wedding.contractAddress ?? null,
   })
   const freshnessAuthority = answers.length ? buildContractGenerationInput({
     wedding, weddingPlaces, extras: weddingExtras,
@@ -293,7 +293,7 @@ async function loadServerContext(
         ? [{ requirementId: binding.requirementId, optionId: binding.optionId, partyKey: binding.partyKey as GenerationPartyKey }]
         : []),
     contractRecordId: contract?.id ?? null,
-    genericContractAddress: typeof weddingRow.contract_address === 'string' ? weddingRow.contract_address : null,
+    genericContractAddress: wedding.contractAddress ?? null,
   }) : authority
   // Answers are bound to server-held MissingInput definitions during the active
   // flow. Keep the persisted freshness fingerprint answer-free so answers can be

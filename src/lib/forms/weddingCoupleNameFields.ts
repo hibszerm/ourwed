@@ -6,6 +6,7 @@
 import { splitPersonName } from '@/lib/api/weddings/weddingMappers.ts'
 import { isAbsentPartnerName } from '@/features/weddings/presentation/getWeddingDisplayName.ts'
 import type { Wedding } from '@/types/wedding'
+import { resolveEffectiveContractAddress } from '@/lib/utils/contractAddress'
 
 export function resolvedNamePart(
   explicit: string | undefined | null,
@@ -102,7 +103,11 @@ export function weddingToContractAnswerFields(
     'partner1.lastName': brideLast,
     'partner1.phone': c.partner1Phone?.trim() || c.phone?.trim() || '',
     'partner1.email': c.partner1Email?.trim() || c.email?.trim() || '',
-    'partner1.address': c.partner1Address?.trim() || '',
+    'partner1.address': wedding.contractAddress ?? resolveEffectiveContractAddress({
+      address: c.partner1Address,
+      postalCode: c.partner1PostalCode,
+      city: c.partner1City,
+    }),
     'partner1.postalCode': c.partner1PostalCode?.trim() || '',
     'partner1.city': c.partner1City?.trim() || c.city?.trim() || '',
     'partner2.firstName': groomFirst,

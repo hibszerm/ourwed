@@ -8,7 +8,7 @@ import {
 import { formatFinalPaymentTerms } from '@/lib/utils/finalPaymentTerms'
 import { formatCurrency } from '@/lib/utils/currency'
 import { getDeliveryDeadlineBand } from '@/lib/utils/weddingDeliveryDeadline'
-import { formatPolishPostalAddress } from '@/lib/utils/formatPolishPostalAddress'
+import { resolveEffectiveContractAddress } from '@/lib/utils/contractAddress'
 import { hasPaidDepositPayment } from '@/lib/finance/hasPaidDepositPayment'
 import { locationVerificationStatus } from '@/features/travel/locationVerification'
 import { adaptLegacyWeddingLocationFields } from '@/features/travel/weddingLocationModel'
@@ -223,24 +223,12 @@ function partnerName(couple: Couple, which: 'partner1' | 'partner2'): string {
   )
 }
 
-function partnerContractAddress(
-  couple: Couple,
-  which: 'partner1' | 'partner2',
-): string | null {
-  if (which === 'partner1') {
-    const formatted = formatPolishPostalAddress({
-      fullAddress: couple.partner1Address,
-      postalCode: couple.partner1PostalCode,
-      city: couple.partner1City,
-    })
-    return formatted || null
-  }
-  const formatted = formatPolishPostalAddress({
-    fullAddress: couple.partner2Address,
-    postalCode: couple.partner2PostalCode,
-    city: couple.partner2City,
+export function resolveWeddingContractAddress(wedding: Wedding): string {
+  return wedding.contractAddress ?? resolveEffectiveContractAddress({
+    address: wedding.couple.partner1Address,
+    postalCode: wedding.couple.partner1PostalCode,
+    city: wedding.couple.partner1City,
   })
-  return formatted || null
 }
 
 export function getContactSections(couple: Couple): PartnerContactView[] {
@@ -250,19 +238,18 @@ export function getContactSections(couple: Couple): PartnerContactView[] {
       name: partnerName(couple, 'partner1'),
       phone: couple.partner1Phone?.trim() || couple.phone?.trim() || null,
       email: couple.partner1Email?.trim() || couple.email?.trim() || null,
-      address: partnerContractAddress(couple, 'partner1'),
     },
     {
       title: 'Pan Młody',
       name: partnerName(couple, 'partner2'),
       phone: couple.partner2Phone?.trim() || null,
       email: couple.partner2Email?.trim() || null,
-      address: partnerContractAddress(couple, 'partner2'),
     },
   ]
 }
 
-function hasContractPartyData(couple: Couple): boolean {
+function hasContractPartyData(wedding: Wedding): boolean {
+  const couple = wedding.couple
   const hasBrideName = Boolean(
     partnerName(couple, 'partner1') && partnerName(couple, 'partner1') !== '—',
   )
@@ -275,10 +262,7 @@ function hasContractPartyData(couple: Couple): boolean {
       couple.partner1Email?.trim() ||
       couple.email?.trim(),
   )
-  const hasAddress = Boolean(
-    partnerContractAddress(couple, 'partner1') ||
-      partnerContractAddress(couple, 'partner2'),
-  )
+  const hasAddress = Boolean(resolveWeddingContractAddress(wedding))
   return hasBrideName && hasGroomName && hasContact && hasAddress
 }
 
@@ -309,7 +293,7 @@ export function getAssignmentStatusItems(
 
   const contractQuestionnaire = wedding.questionnaires?.contractData
   const partyDataOk =
-    contractQuestionnaire?.status === 'completed' || hasContractPartyData(wedding.couple)
+    contractQuestionnaire?.status === 'completed' || hasContractPartyData(wedding)
   items.push({
     id: 'contract-data',
     label: partyDataOk

@@ -75,8 +75,6 @@ export interface PartnerContactView {
   name: string
   phone: string | null
   email: string | null
-  /** Contract / questionnaire postal address when available. */
-  address: string | null
 }
 
 export type AssignmentStatusTone = 'ok' | 'warn'

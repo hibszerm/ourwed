@@ -77,7 +77,7 @@ run('A3-2 wedding-level finalPaymentDueDate still edits + maps', () => {
     'final_payment_due_date: patch.final_payment_due_date ?? null',
     'weddingService writes final_payment_due_date',
   )
-  assertIncludes(persist, 'await weddingService.update(nextWedding)', 'draft saves wedding')
+  assertIncludes(persist, 'await weddingService.update(nextWedding, {', 'draft saves wedding while preserving unrelated contract-address columns')
 })
 
 run('A3-3 payment_date semantics unchanged', () => {

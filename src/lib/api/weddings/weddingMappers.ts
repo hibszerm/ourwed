@@ -6,6 +6,7 @@ import {
 import { createDefaultQuestionnaires } from '@/lib/utils/questionnaires.ts'
 import { parseFinalPaymentTerms } from '@/lib/utils/finalPaymentTerms.ts'
 import { parseDeliveryDueSource } from '@/lib/utils/weddingDeliveryDeadline.ts'
+import { resolveEffectiveContractAddress } from '@/lib/utils/contractAddress.ts'
 import {
   isTravelFeeStatus,
   type TravelFeeStatus,
@@ -27,8 +28,8 @@ export const DEFAULT_WEDDING_CURRENCY = 'PLN'
 /**
  * Columns that exist on `public.weddings`.
  * Partner first/last split still hydrates from contract `form_answers`
- * when a submitted questionnaire exists. Groom phone and contract address
- * persist on weddings columns and survive reload without form_answers.
+ * when a submitted questionnaire exists. Contract address is exposed as
+ * wedding-level data; split columns remain solely for legacy compatibility.
  */
 export interface WeddingRow {
   id: string
@@ -184,9 +185,14 @@ export function mapWeddingRowToModel(row: WeddingRow): Wedding {
   const email = row.email ?? ''
   const phone = row.phone ?? ''
   const groomPhone = row.groom_phone?.trim() || ''
-  const contractAddress = row.contract_address?.trim() || ''
+  const contractAddress = row.contract_address ?? ''
   const contractPostal = row.contract_postal_code?.trim() || ''
   const contractCity = row.contract_city?.trim() || ''
+  const effectiveContractAddress = resolveEffectiveContractAddress({
+    address: contractAddress,
+    postalCode: contractPostal,
+    city: contractCity,
+  })
   const brideSplit = splitPersonName(row.bride_name)
   const groomSplit = splitPersonName(row.groom_name)
   const travelFeeStatus = mapTravelFeeStatus(row.travel_fee_status)
@@ -198,6 +204,7 @@ export function mapWeddingRowToModel(row: WeddingRow): Wedding {
 
   return {
     id: row.id,
+    contractAddress: effectiveContractAddress || undefined,
     couple: {
       partner1: row.bride_name,
       partner2: row.groom_name,
@@ -290,9 +297,11 @@ export function mapWeddingModelToRow(
   const email = c.partner1Email?.trim() || c.email?.trim() || null
   const phone = c.partner1Phone?.trim() || c.phone?.trim() || null
   const groomPhone = c.partner2Phone?.trim() || null
-  const contractAddress = c.partner1Address?.trim() || null
   const contractPostal = c.partner1PostalCode?.trim() || null
   const contractCity = c.partner1City?.trim() || c.city?.trim() || null
+  const contractAddress = contractPostal || contractCity
+    ? c.partner1Address?.trim() || null
+    : wedding.contractAddress ?? c.partner1Address?.trim() ?? null
   const venue =
     wedding.receptionLocation?.trim() ||
     c.venue?.trim() ||

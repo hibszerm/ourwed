@@ -11,6 +11,7 @@ import { isLikelyUuid } from '@/lib/supabase/helpers'
 import { rebaseEffectivePackageBase } from '@/lib/forms/weddingExtraPricing'
 import { getEffectiveTravelFeeAmount } from '@/lib/utils/travelFeeCommercial'
 import { reconcileDeliveryDeadline } from '@/lib/utils/weddingDeliveryDeadline'
+import { resolveEffectiveContractAddress } from '@/lib/utils/contractAddress'
 import type { WeddingExtraService } from '@/types/package'
 import type {
   Payment,
@@ -132,6 +133,15 @@ export async function persistWeddingEditDraft(
   )
   if (!correspondenceResult.ok) throw new Error(correspondenceResult.error)
 
+  const originalAddress = original.wedding.contractAddress ??
+    resolveEffectiveContractAddress({
+      address: original.wedding.couple.partner1Address,
+      postalCode: original.wedding.couple.partner1PostalCode,
+      city: original.wedding.couple.partner1City,
+    })
+  const nextAddress = draft.wedding.contractAddress ?? originalAddress
+  const contractAddressChanged = nextAddress !== originalAddress
+
   const nextWedding: Wedding = {
     ...draft.wedding,
     correspondence: correspondenceResult.normalized,
@@ -142,6 +152,11 @@ export async function persistWeddingEditDraft(
     }),
     couple: {
       ...draft.wedding.couple,
+      ...(contractAddressChanged ? {
+        partner1Address: nextAddress,
+        partner1PostalCode: undefined,
+        partner1City: undefined,
+      } : {}),
       partner1: [
         draft.wedding.couple.partner1FirstName,
         draft.wedding.couple.partner1LastName,
@@ -162,18 +177,23 @@ export async function persistWeddingEditDraft(
       phone:
         draft.wedding.couple.partner1Phone?.trim() ||
         draft.wedding.couple.phone,
-      city:
-        draft.wedding.couple.partner1City?.trim() ||
-        draft.wedding.couple.city,
+      city: contractAddressChanged
+        ? ''
+        : draft.wedding.couple.partner1City?.trim() ||
+          draft.wedding.couple.city,
     },
     payments: draft.payments,
     notes: draft.notes,
   }
 
-  await weddingService.update(nextWedding)
+  await weddingService.update(nextWedding, {
+    preserveContractAddress: !contractAddressChanged,
+  })
   // Canonical party fields persist on weddings columns via update above.
   // Existing submitted questionnaire answers may be patched; none are created.
-  await persistWeddingContractAnswerFields(nextWedding)
+  await persistWeddingContractAnswerFields(nextWedding, {
+    contractAddressChanged,
+  })
 
   // Travel cache only. Locations are owned by WeddingDetailHero (autosave to
   // wedding_places). Draft location scalars must not clear saved places.

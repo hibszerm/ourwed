@@ -2,6 +2,7 @@ import { getWeddingCommercialSummary } from '@/lib/utils/commercial.ts'
 import type { WeddingExtraService } from '@/types/package'
 import type { Wedding } from '@/types/wedding'
 import type { WeddingPlace } from '@/types/travel'
+import { resolveEffectiveContractAddress } from '@/lib/utils/contractAddress'
 
 export type GenerationPartyKey = 'partner1' | 'partner2'
 export type ContractGenerationLocale = 'pl' | 'en'
@@ -23,7 +24,6 @@ export type ContractGenerationParty = {
   lastName?: ContractGenerationFact<string>
   phone?: ContractGenerationFact<string>
   email?: ContractGenerationFact<string>
-  address?: ContractGenerationFact<string>
 }
 
 /** An upstream-established relationship label for a normalized participant; it is not a source-contract role mapping. */
@@ -41,6 +41,8 @@ export type ContractGenerationInput = {
     workflowStage: ContractGenerationFact<Wedding['workflowStage']>
   }
   parties: ContractGenerationParty[]
+  /** Address designated for the contract; intentionally has no participant owner. */
+  contractAddress?: ContractGenerationFact<string>
   participantAssociations: ContractGenerationParticipantAssociation[]
   /** Run-local selection links; these are not CRM record identifiers. */
   selectedEntityBindings: Array<{ requirementId: string; optionId: string; partyKey: GenerationPartyKey }>
@@ -105,7 +107,7 @@ export type ContractGenerationInputOptions = {
   participantAssociations?: readonly ContractGenerationParticipantAssociation[]
   selectedEntityBindings?: readonly { requirementId: string; optionId: string; partyKey: GenerationPartyKey }[]
   contractRecordId?: string | null
-  /** Raw canonical contract/correspondence address when available before wedding-view hydration; the application model associates it with partner1. */
+  /** Resolved legacy row fallback; contract-address authority has no participant owner. */
   genericContractAddress?: string | null
 }
 
@@ -114,30 +116,25 @@ function nonBlank(value: string | null | undefined): string | undefined {
   return trimmed || undefined
 }
 
-function answerString(value: unknown): string | undefined {
-  if (typeof value === 'string') return nonBlank(value)
-  return undefined
-}
-
 function addressAnswerFact(
   fields: Record<string, unknown>,
   key: string,
-  owner: GenerationPartyKey,
 ): ContractGenerationFact<string> | undefined {
   const raw = fields[key]
-  const directValue = answerString(raw)
+  const directValue = typeof raw === 'string' && raw.trim() ? raw : undefined
   if (directValue) return {
     value: directValue,
     source: `form_answers.answer_json.fields.${key}`,
-    owner,
     semanticType: 'contract_address',
   }
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined
-  const formattedAddress = answerString((raw as Record<string, unknown>).formattedAddress)
+  const rawFormattedAddress = (raw as Record<string, unknown>).formattedAddress
+  const formattedAddress = typeof rawFormattedAddress === 'string' && rawFormattedAddress.trim()
+    ? rawFormattedAddress
+    : undefined
   return formattedAddress ? {
     value: formattedAddress,
     source: `form_answers.answer_json.fields.${key}.formattedAddress`,
-    owner,
     semanticType: 'contract_address',
   } : undefined
 }
@@ -145,7 +142,6 @@ function addressAnswerFact(
 function partyFromWedding(
   wedding: Wedding,
   key: GenerationPartyKey,
-  fields: Record<string, unknown>,
 ): ContractGenerationParty {
   const p1 = key === 'partner1'
   const couple = wedding.couple
@@ -158,15 +154,6 @@ function partyFromWedding(
   const email = p1 ? p1Email ?? nonBlank(couple.email) : nonBlank(couple.partner2Email)
   const phoneSource = p1 && !p1Phone ? 'wedding.couple.phone' : `wedding.couple.${key}Phone`
   const emailSource = p1 && !p1Email ? 'wedding.couple.email' : `wedding.couple.${key}Email`
-  const formAddress = addressAnswerFact(fields, `${key}.address`, key)
-  const explicitModelAddress = p1 ? undefined : nonBlank(couple.partner2Address)
-  const address = formAddress ?? (explicitModelAddress ? {
-    value: explicitModelAddress,
-    source: `wedding.couple.${key}Address`,
-    owner: key,
-    semanticType: 'contract_address' as const,
-  } : undefined)
-
   return {
     sourceKey: key,
     ...(fullName ? { fullName: { value: fullName, source: `wedding.couple.${key}`, owner: key } } : {}),
@@ -174,7 +161,6 @@ function partyFromWedding(
     ...(lastName ? { lastName: { value: lastName, source: `wedding.couple.${key}LastName`, owner: key } } : {}),
     ...(phone ? { phone: { value: phone, source: phoneSource, owner: key } } : {}),
     ...(email ? { email: { value: email, source: emailSource, owner: key } } : {}),
-    ...(address ? { address } : {}),
   }
 }
 
@@ -189,17 +175,25 @@ export function buildContractGenerationInput(
   const fields = options.questionnaireFields ?? {}
   const summary = getWeddingCommercialSummary(wedding)
   const totalPaid = summary.totalPaid
-  const partner1FormAddress = addressAnswerFact(fields, 'partner1.address', 'partner1')
-  const correspondenceAddress = nonBlank(options.genericContractAddress) ??
-    (!partner1FormAddress ? nonBlank(wedding.couple.partner1Address) : undefined)
-  const contractAddressFact: ContractGenerationFact<string> | undefined = correspondenceAddress ? {
-    value: correspondenceAddress,
-    source: options.genericContractAddress?.trim()
-      ? 'public.weddings.contract_address'
-      : 'wedding.couple.partner1Address (mapped from public.weddings.contract_address)',
-    owner: 'partner1',
-    semanticType: 'contract_address',
-  } : undefined
+  const questionnaireContractAddress = addressAnswerFact(fields, 'partner1.address') ??
+    addressAnswerFact(fields, 'partner2.address')
+  const rowContractAddress = [
+    options.genericContractAddress,
+    wedding.contractAddress,
+    resolveEffectiveContractAddress({
+      address: wedding.couple.partner1Address,
+      postalCode: wedding.couple.partner1PostalCode,
+      city: wedding.couple.partner1City,
+    }),
+  ].find((value): value is string => typeof value === 'string' && value.trim().length > 0)
+  const contractAddressFact: ContractGenerationFact<string> | undefined = questionnaireContractAddress ??
+    (rowContractAddress ? {
+      value: rowContractAddress,
+      source: options.genericContractAddress || wedding.contractAddress
+        ? 'public.weddings.contract_address'
+        : 'wedding.couple.partner1Address (mapped from public.weddings.contract_address)',
+      semanticType: 'contract_address',
+    } : undefined)
 
   return {
     locale: options.locale ?? DEFAULT_CONTRACT_GENERATION_LOCALE,
@@ -210,12 +204,10 @@ export function buildContractGenerationInput(
       workflowStage: { value: wedding.workflowStage, source: 'public.weddings.workflow_stage' },
     },
     parties: [
-      {
-        ...partyFromWedding(wedding, 'partner1', fields),
-        ...(contractAddressFact ? { address: contractAddressFact } : {}),
-      },
-      partyFromWedding(wedding, 'partner2', fields),
+      partyFromWedding(wedding, 'partner1'),
+      partyFromWedding(wedding, 'partner2'),
     ],
+    ...(contractAddressFact ? { contractAddress: contractAddressFact } : {}),
     participantAssociations: (options.participantAssociations ?? []).map(({ participant, association }) => ({
       participant,
       association: { ...association },
@@ -271,8 +263,8 @@ export function buildContractGenerationInput(
     questionnaireAnswers: Object.entries(fields).map(([key, value]) => ({
       value,
       source: `form_answers.answer_json.fields.${key}`,
-      ...((key === 'partner1.address' || key.startsWith('partner1.')) ? { owner: 'partner1' as const } : {}),
-      ...((key === 'partner2.address' || key.startsWith('partner2.')) ? { owner: 'partner2' as const } : {}),
+      ...((key.startsWith('partner1.') && key !== 'partner1.address') ? { owner: 'partner1' as const } : {}),
+      ...((key.startsWith('partner2.') && key !== 'partner2.address') ? { owner: 'partner2' as const } : {}),
     })),
     additionalAnswers: (options.userProvidedAnswers ?? []).map((answer) => ({
       id: answer.id,
