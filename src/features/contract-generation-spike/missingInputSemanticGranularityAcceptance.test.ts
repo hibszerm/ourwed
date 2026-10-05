@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { GENERATION_INSTRUCTIONS } from './generator'
+import { isGenerationResponse, type MissingInput } from './generationProtocol'
 
 const instructions = GENERATION_INSTRUCTIONS.toLowerCase()
 
@@ -45,4 +46,33 @@ assert.match(instructions, /return all such gaps together; do not stop at the fi
 assert.match(instructions, /if an established required fact is missing, request it through missing_input/)
 assert.match(instructions, /never claim ready when your adaptation introduces or leaves a clearly required transaction fact unresolved/)
 
-console.log('PASS generic MissingInput semantic granularity acceptance (7 synthetic cases)')
+// Regression A: a source-defined single-subject requirement remains satisfied by
+// the matching authoritative fact; richer domain relationships cannot broaden it.
+const singleSubjectSource = { required: true, subject: 'source-party-a', scope: 'single-subject' }
+const singleSubjectAuthority = [{ present: true, subject: 'source-party-a', scope: 'single-subject' }]
+assert.equal(singleSubjectSource.required, true)
+assert.equal(singleSubjectAuthority[0]?.present, true)
+assert.equal(singleSubjectAuthority[0]?.subject, singleSubjectSource.subject)
+assert.match(instructions, /every adaptation and missinginput must preserve the source-established subject and scope/)
+assert.match(instructions, /before emitting missinginput, determine whether authoritative facts satisfy the source requirement at that scope using their provenance and subject association/)
+assert.match(instructions, /the absence of a broader domain concept is not a missing input unless the source itself requires that broader concept/)
+
+// Regression B: narrower member facts do not silently satisfy a source-defined
+// group requirement; requesting the genuinely absent group fact remains allowed.
+const groupSource = { required: true, subject: 'source-group', scope: 'group' }
+const memberAuthority = [
+  { present: true, subject: 'member-a', scope: 'individual' },
+  { present: true, subject: 'member-b', scope: 'individual' },
+]
+assert.equal(groupSource.required, true)
+assert.ok(memberAuthority.every((fact) => fact.present && fact.scope === 'individual'))
+assert.ok(memberAuthority.every((fact) => fact.subject !== groupSource.subject))
+assert.match(instructions, /if the source requires a collective\/shared fact and current authority establishes it for only some of the required participants, return missing_input/)
+
+// Regression C: genuine independent gaps continue to travel in a single batch.
+const gapA: MissingInput = { id: 'opaque:a', label: 'Generic required fact A', answerKind: 'text' }
+const gapB: MissingInput = { id: 'opaque:b', label: 'Generic required fact B', answerKind: 'text' }
+assert.equal(isGenerationResponse({ status: 'MISSING_INPUT', missingInputs: [gapA, gapB] }), true)
+assert.match(instructions, /return all such gaps together; do not stop at the first/)
+
+console.log('PASS generic MissingInput semantic granularity acceptance (10 synthetic cases)')
