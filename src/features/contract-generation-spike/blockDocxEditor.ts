@@ -1,5 +1,5 @@
 import JSZip from 'jszip'
-import { extractCanonicalParagraphText, escapeXml, unescapeXml } from '@/features/documents/template/canonicalParagraph.ts'
+import { canonicalizeParagraphText, extractCanonicalParagraphText, escapeXml, unescapeXml } from '@/features/documents/template/canonicalParagraph.ts'
 
 export type BlockKind = 'body' | 'tableCell' | 'header' | 'footer'
 export type BlockTextPart =
@@ -381,30 +381,42 @@ function rewriteParagraph(paragraph: string, finalText: string): string {
   if (xmlTagsIn(paragraph).filter((tag) => tag.name === 'w:p' && !tag.closing).length !== 1) {
     throw new Error('Cannot safely replace a DOCX block containing nested paragraphs')
   }
-  if (fieldRangesIn(paragraph).length) return rewriteParagraphPreservingFields(paragraph, finalText)
-  const pPr = paragraph.match(/<w:pPr\b[\s\S]*?<\/w:pPr>/)?.[0] ?? ''
-  const runs = [...paragraph.matchAll(/<w:r\b[\s\S]*?<\/w:r>/g)].map((m) => m[0]!)
-  let prefix = ''
-  let bodyText = finalText
-  let bodyStyle = dominantRunProperties(paragraph)
-  const firstText = runs[0] ? [...runs[0].matchAll(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/g)].map((m) => unescapeXml(m[1]!)).join('') : ''
-  const marker = firstText.match(/^\s*(§\s*\d+(?:\.\d+)*[.)]?|\d+(?:\.\d+)*[.)]|[•*–—-]|[\p{L}\p{N}][\p{L}\p{N}\s.-]{0,22}:)\s*$/u)
-  if (marker && runs.length > 1 && finalText.startsWith(marker[0].trim())) {
-    prefix = marker[0].trim()
-    const sourceBoundary = structuralPrefixBoundary(paragraph, runs)
-    if (!sourceBoundary) {
-      return `<w:p>${pPr}<w:r>${bodyStyle}<w:t xml:space="preserve">${escapeXml(finalText)}</w:t></w:r></w:p>`
+  const fields = fieldRangesIn(paragraph)
+  let rewritten: string
+  if (fields.length) rewritten = rewriteParagraphPreservingFields(paragraph, finalText)
+  else {
+    const pPr = paragraph.match(/<w:pPr\b[\s\S]*?<\/w:pPr>/)?.[0] ?? ''
+    const runs = [...paragraph.matchAll(/<w:r\b[\s\S]*?<\/w:r>/g)].map((m) => m[0]!)
+    let bodyStyle = dominantRunProperties(paragraph)
+    const firstText = runs[0] ? [...runs[0].matchAll(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/g)].map((m) => unescapeXml(m[1]!)).join('') : ''
+    const marker = firstText.match(/^\s*(§\s*\d+(?:\.\d+)*[.)]?|\d+(?:\.\d+)*[.)]|[•*–—-]|[\p{L}\p{N}][\p{L}\p{N}\s.-]{0,22}:)\s*$/u)
+    if (marker && runs.length > 1 && finalText.startsWith(marker[0].trim())) {
+      const prefix = marker[0].trim()
+      const sourceBoundary = structuralPrefixBoundary(paragraph, runs)
+      if (!sourceBoundary) {
+        rewritten = `<w:p>${pPr}<w:r>${bodyStyle}<w:t xml:space="preserve">${escapeXml(finalText)}</w:t></w:r></w:p>`
+      } else {
+        const requestedTail = finalText.slice(prefix.length)
+        const requestedSeparator = requestedTail.match(/^\s+/)?.[0] ?? ''
+        const bodyText = requestedTail.slice(requestedSeparator.length)
+        const sourceSeparatorMatchesRequest = canonicalizeParagraphText(sourceBoundary.separator) === canonicalizeParagraphText(requestedSeparator)
+        const separator = sourceSeparatorMatchesRequest ? sourceBoundary.separator : requestedSeparator
+        bodyStyle = dominantRunProperties(paragraph)
+        const prefixStyle = runs[0]!.match(/<w:rPr\b[\s\S]*?<\/w:rPr>/)?.[0] ?? ''
+        const separatorXml = separator === '\t' ? '<w:tab/>' : separator === '\n' ? '<w:br/>' : ''
+        const prefixText = prefix + (separatorXml ? '' : separator)
+        const prefixRun = `<w:r>${prefixStyle}<w:t xml:space="preserve">${escapeXml(prefixText)}</w:t>${separatorXml}</w:r>`
+        const bodyRun = `<w:r>${bodyStyle}<w:t xml:space="preserve">${escapeXml(bodyText)}</w:t></w:r>`
+        rewritten = `<w:p>${pPr}${prefixRun}${bodyRun}</w:p>`
+      }
+    } else {
+      rewritten = `<w:p>${pPr}<w:r>${bodyStyle}<w:t xml:space="preserve">${escapeXml(finalText)}</w:t></w:r></w:p>`
     }
-    const separator = sourceBoundary.separator
-    bodyText = finalText.slice(prefix.length).replace(/^\s+/, '')
-    bodyStyle = dominantRunProperties(paragraph)
-    const prefixStyle = runs[0]!.match(/<w:rPr\b[\s\S]*?<\/w:rPr>/)?.[0] ?? ''
-    const separatorXml = separator === '\t' ? '<w:tab/>' : separator === '\n' ? '<w:br/>' : ''
-    const prefixRun = `<w:r>${prefixStyle}<w:t xml:space="preserve">${escapeXml(prefix + (separatorXml ? '' : separator))}</w:t>${separatorXml}</w:r>`
-    const bodyRun = `<w:r>${bodyStyle}<w:t xml:space="preserve">${escapeXml(bodyText)}</w:t></w:r>`
-    return `<w:p>${pPr}${prefixRun}${bodyRun}</w:p>`
   }
-  return `<w:p>${pPr}<w:r>${bodyStyle}<w:t xml:space="preserve">${escapeXml(finalText)}</w:t></w:r></w:p>`
+  if (textFor(rewritten) !== canonicalizeParagraphText(finalText)) {
+    throw new Error('DOCX block replacement did not preserve requested logical text')
+  }
+  return rewritten
 }
 
 function mapProtectedFieldsToFinalText(fields: WordFieldRange[], editableParts: string[], finalText: string): number[] {

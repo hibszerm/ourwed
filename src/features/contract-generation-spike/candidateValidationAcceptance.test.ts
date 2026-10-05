@@ -41,6 +41,30 @@ const multiRunCandidate = await readSource(multiRunCandidateBytes, 'multi-run-ca
 assert.deepEqual(await validateOptionBCandidate(multiRunBytes, multiRunCandidateBytes, multiRunSource, multiRunCandidate, [multiRunEdit]), [], 'multi-run replacement and longer natural reflow pass without preserving original run segmentation')
 assert.equal(multiRunCandidate.blocks[0]!.text, multiRunEdit.finalText)
 
+// A source tab after a paragraph marker is structural input to the editor's
+// formatting strategy, but a full-block replacement must follow the requested
+// text rather than reintroducing a separator omitted by that replacement.
+const markerTabBytes = await docxXml('<w:p><w:r><w:rPr><w:b/></w:rPr><w:t>2.</w:t><w:tab/></w:r><w:r><w:t>Old body</w:t></w:r></w:p><w:p><w:r><w:t>Unchanged neighboring paragraph</w:t></w:r></w:p>')
+const markerTabSource = await readSource(markerTabBytes, 'marker-tab-source.docx')
+const markerTabEdit = { operation: 'REPLACE_BLOCK_TEXT' as const, blockId: markerTabSource.blocks[0]!.blockId, finalText: '2.Replacement body' }
+const markerTabCandidateBytes = await applyBlockOperations(markerTabBytes, [markerTabEdit])
+const markerTabCandidate = await readSource(markerTabCandidateBytes, 'marker-tab-candidate.docx')
+assert.equal(markerTabSource.blocks[0]!.text, '2. Old body', 'the synthetic source target is found with its canonical tab separator')
+assert.equal(markerTabCandidate.blocks[0]!.text, markerTabEdit.finalText, 'a full-block replacement emits exactly the requested canonical text')
+assert.equal(markerTabCandidate.blocks[1]!.text, markerTabSource.blocks[1]!.text, 'unrelated body paragraphs remain unchanged')
+assert.deepEqual(await validateOptionBCandidate(markerTabBytes, markerTabCandidateBytes, markerTabSource, markerTabCandidate, [markerTabEdit]), [], 'the previously missing requested edit passes mechanical validation')
+
+const markerBreakBytes = await docxXml('<w:p><w:r><w:rPr><w:b/></w:rPr><w:t>3.</w:t><w:br/></w:r><w:r><w:t>Old body</w:t></w:r></w:p>')
+const markerBreakSource = await readSource(markerBreakBytes, 'marker-break-source.docx')
+const markerBreakEdit = { operation: 'REPLACE_BLOCK_TEXT' as const, blockId: markerBreakSource.blocks[0]!.blockId, finalText: '3.Replacement body' }
+const markerBreakCandidate = await readSource(await applyBlockOperations(markerBreakBytes, [markerBreakEdit]), 'marker-break-candidate.docx')
+assert.equal(markerBreakCandidate.blocks[0]!.text, markerBreakEdit.finalText, 'a source line break is not reintroduced when absent from the requested replacement')
+
+const whitespaceEdit = { operation: 'REPLACE_BLOCK_TEXT' as const, blockId: markerTabSource.blocks[1]!.blockId, finalText: '  Leading\tinternal\nspacing  ' }
+const whitespaceCandidateBytes = await applyBlockOperations(markerTabBytes, [whitespaceEdit])
+const whitespaceCandidate = await readSource(whitespaceCandidateBytes, 'whitespace-candidate.docx')
+assert.equal(whitespaceCandidate.blocks[1]!.text, '  Leading internal spacing  ', 'leading, trailing, tab, and line-break whitespace follows the shared canonicalization contract')
+
 const countSourceBytes = await docx('Visible content.', '')
 const countSource = await readSource(countSourceBytes, 'count-source.docx')
 const fewerParagraphsBytes = await docx('Visible content.')
