@@ -4,6 +4,8 @@ import type { Wedding } from '@/types/wedding'
 import type { WeddingPlace } from '@/types/travel'
 
 export type GenerationPartyKey = 'partner1' | 'partner2'
+export type ContractGenerationLocale = 'pl' | 'en'
+export const DEFAULT_CONTRACT_GENERATION_LOCALE: ContractGenerationLocale = 'pl'
 
 /** A factual value plus its application source; owner is present only when the source establishes it. */
 export type ContractGenerationFact<T> = {
@@ -29,6 +31,7 @@ export type ContractGenerationParticipantAssociation = {
 }
 
 export type ContractGenerationInput = {
+  locale: ContractGenerationLocale
   wedding: {
     id: ContractGenerationFact<string>
     date: ContractGenerationFact<string>
@@ -90,6 +93,7 @@ export type ContractGenerationInputOptions = {
   weddingPlaces: readonly WeddingPlace[]
   extras: readonly WeddingExtraService[]
   generationDate: string
+  locale?: ContractGenerationLocale
   /** Semantic answer fields from the submitted form; question labels/UUIDs are intentionally excluded. */
   questionnaireFields?: Record<string, unknown>
   userProvidedAnswers?: Array<{ id: string; value: string }>
@@ -189,6 +193,7 @@ export function buildContractGenerationInput(
   } : undefined
 
   return {
+    locale: options.locale ?? DEFAULT_CONTRACT_GENERATION_LOCALE,
     wedding: {
       id: { value: wedding.id, source: 'public.weddings.id' },
       date: { value: wedding.date, source: 'public.weddings.wedding_date' },

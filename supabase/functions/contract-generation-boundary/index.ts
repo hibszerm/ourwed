@@ -4,7 +4,7 @@ import { buildRestrictedCorsHeaders } from '../_shared/security/browserCors.ts'
 import { mapWeddingRowToModel, type WeddingRow } from '@/lib/api/weddings/weddingMappers.ts'
 import { mergeFormAnswersIntoWeddingCore } from '@/lib/forms/mergeFormAnswersIntoWeddingCore.ts'
 import { buildContractGenerationInput, type ContractGenerationInput } from '@/features/contract-generation-spike/contractGenerationInput.ts'
-import { applyOptionBGenerationResponse, createGenerationSourceView, readSource, validateOptionBInput, GENERATION_INSTRUCTIONS, GENERIC_CONTRACT_PRODUCT_RULES, CONFLICT_REVIEW_INSTRUCTIONS, REVIEW_INSTRUCTIONS } from '@/features/contract-generation-spike/generator.ts'
+import { applyOptionBGenerationResponse, createGenerationSourceView, readSource, validateOptionBInput, generationInstructionsForLocale, GENERIC_CONTRACT_PRODUCT_RULES, CONFLICT_REVIEW_INSTRUCTIONS, REVIEW_INSTRUCTIONS } from '@/features/contract-generation-spike/generator.ts'
 import { isCandidateReviewResponse, isGenerationResponse, isReviewResponse, REVIEWER_FINDING_CATEGORIES, REVIEWER_FINDING_RULE_IDS, safeReviewerFindingSummary, type CandidateReviewResponse, type ReviewResponse, type ContractGenerationAnswer } from '@/features/contract-generation-spike/generationProtocol.ts'
 import { createContractGenerationBoundary, parseContractGenerationAction, ProviderOperationError, type BoundaryDiagnostic, type BoundaryReviewerResult, type ServerBoundaryContext } from '@/features/contract-generation-spike/serverBoundary.ts'
 import { isTravelFeeResolved } from '@/lib/utils/travelFeeCommercial.ts'
@@ -523,7 +523,7 @@ function providerAdapters() {
     let rawResult: unknown
     try {
       rawResult = await callStructuredProvider({
-        system: GENERATION_INSTRUCTIONS,
+        system: generationInstructionsForLocale(authority.locale),
         user: { source: view.blocks, authorityContext: authority, resolvedMissingInputs: resolvedInputs, productRules: GENERIC_CONTRACT_PRODUCT_RULES },
         schemaName: 'option_b_generation_response_v1', schema: GENERATION_SCHEMA,
         model: config.generatorModel, apiKey: config.apiKey,

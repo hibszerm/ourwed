@@ -43,6 +43,8 @@ import {
 } from '@/features/contract-generation-spike/contractGenerationBoundaryClient'
 import {
   type GenerationConnection,
+  advanceGenerationUiRun,
+  type GenerationUiRun,
 } from '@/features/contract-generation-spike/generationConnection'
 import { ContractGenerationMissingInputForm } from '@/features/contract-generation-spike/ContractGenerationMissingInputForm'
 import type { BoundaryReviewerState } from '@/features/contract-generation-spike/serverBoundary'
@@ -127,6 +129,7 @@ export function WeddingContractGenerationPage() {
   const [generatePending, setGeneratePending] = useState(false)
   const generateInFlightRef = useRef(false)
   const connectionRef = useRef<GenerationConnection | null>(null)
+  const generationUiRunRef = useRef<GenerationUiRun | null>(null)
   const operationFinishedRef = useRef<Promise<void> | null>(null)
   const finishOperationRef = useRef<(() => void) | null>(null)
   const navigationCleanupRef = useRef(false)
@@ -244,6 +247,14 @@ export function WeddingContractGenerationPage() {
     result: import('@/features/contract-generation-spike/serverBoundary').ContractGenerationBoundaryResponse,
     connection: GenerationConnection,
   ) {
+    if (result.status === 'candidate_valid' || result.status === 'finalized') return
+    const runResult = result.status === 'awaiting_input' || result.status === 'processing' || result.status === 'ready'
+      ? result.status
+      : 'failed'
+    const advancedRun = advanceGenerationUiRun(generationUiRunRef.current, connection, runResult,
+      'sessionId' in result ? result.sessionId : undefined)
+    if (!advancedRun) return
+    generationUiRunRef.current = advancedRun
     if (result.status === 'awaiting_input' || result.status === 'processing' || result.status === 'ready'
       || result.status === 'unresolved_conflict') {
       updateConnection({ ...connection, sessionId: result.sessionId })
@@ -255,22 +266,26 @@ export function WeddingContractGenerationPage() {
       return
     }
     if (result.status === 'processing') {
+      setMissingInputs([])
       setError(null)
       setStep('generating')
       return
     }
     if (result.status === 'ready') {
+      setMissingInputs([])
       setStep('generating')
       await showAcceptedCandidate(result)
       return
     }
     if (result.status === 'unresolved_conflict') {
       clearConnection()
+      setMissingInputs([])
       setError(result.message)
       setStep('conflict')
       return
     }
     clearConnection()
+    setMissingInputs([])
     if (result.status === 'precondition') {
       setError('Umowa nie jest jeszcze gotowa do utworzenia. Sprawdź ustawienia umowy przed ponowną próbą.')
       setStep('precondition')
@@ -283,14 +298,15 @@ export function WeddingContractGenerationPage() {
       setStep('failed')
       return
     }
-    if (result.status === 'candidate_valid' || result.status === 'finalized') return
     if (result.status === 'error') {
+      setMissingInputs([])
       setError(result.code === 'unauthorized'
         ? 'Twoja sesja logowania wygasła. Zaloguj się ponownie i wróć do umowy.'
         : 'Nie masz dostępu do tego ślubu.')
       setStep('failed')
       return
     }
+    setMissingInputs([])
     setError(result.code === 'generation_safety'
       ? 'Nie udało się bezpiecznie zaakceptować umowy. Dokument nie został utworzony.'
       : 'Wystąpił chwilowy problem. Możesz rozpocząć nowe podejście.')
@@ -313,6 +329,7 @@ export function WeddingContractGenerationPage() {
     }
 
     const connection: GenerationConnection = { requestId: crypto.randomUUID() }
+    generationUiRunRef.current = { ...connection, state: 'active' }
     updateConnection(connection)
     beginOperation()
     generateInFlightRef.current = true
@@ -329,9 +346,13 @@ export function WeddingContractGenerationPage() {
       await applyBoundaryResult(result, connection)
     } catch (err) {
       await finalizeContractGeneration({ weddingId: wedding.id, requestId: connection.requestId, reason: 'abandoned' }).catch(() => undefined)
-      clearConnection()
-      setSafeClientError(err)
-      setStep('failed')
+      if (generationUiRunRef.current?.requestId === connection.requestId && generationUiRunRef.current.state === 'active') {
+        generationUiRunRef.current = { ...generationUiRunRef.current, state: 'terminal' }
+        clearConnection()
+        setMissingInputs([])
+        setSafeClientError(err)
+        setStep('failed')
+      }
     } finally {
       generateInFlightRef.current = false
       setGeneratePending(false)
@@ -344,6 +365,10 @@ export function WeddingContractGenerationPage() {
     const connection = connectionRef.current
     if (!connection?.sessionId) {
       clearConnection()
+      const currentRun = generationUiRunRef.current
+      if (connection && currentRun?.requestId === connection.requestId) {
+        generationUiRunRef.current = { ...currentRun, state: 'terminal' }
+      }
       setMissingInputs([])
       setError('Ta próba została przerwana. Możesz rozpocząć nowe generowanie.')
       setStep('resolve')
@@ -359,8 +384,12 @@ export function WeddingContractGenerationPage() {
       await applyBoundaryResult(result, connection)
     } catch (err) {
       await finalizeContractGeneration({ weddingId: weddingId, sessionId: connection.sessionId, reason: 'abandoned' }).catch(() => undefined)
-      setSafeClientError(err)
-      setStep('failed')
+      if (generationUiRunRef.current?.requestId === connection.requestId && generationUiRunRef.current.state === 'active') {
+        generationUiRunRef.current = { ...generationUiRunRef.current, state: 'terminal' }
+        setMissingInputs([])
+        setSafeClientError(err)
+        setStep('failed')
+      }
     } finally {
       generateInFlightRef.current = false
       setGeneratePending(false)
@@ -384,6 +413,10 @@ export function WeddingContractGenerationPage() {
         }).catch(() => undefined)
       }
       clearConnection()
+      const currentRun = generationUiRunRef.current
+      if (current && currentRun?.requestId === current.requestId) {
+        generationUiRunRef.current = { ...currentRun, state: 'terminal' }
+      }
       setMissingInputs([])
       setGenerated(null)
       setDocxBytes(null)

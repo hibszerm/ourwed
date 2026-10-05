@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { answersForMissingInputs } from './missingInputAnswers'
+import { advanceGenerationUiRun, type GenerationUiRun } from './generationConnection'
 import type { MissingInput } from './generationProtocol'
 
 const page = await readFile(new URL('../../pages/WeddingContractGenerationPage.tsx', import.meta.url), 'utf8')
@@ -47,6 +48,8 @@ const continuation = page.slice(page.indexOf('async function continueGeneration(
 assert.doesNotMatch(continuation, /weddingActionsService|saveGeneratedContract|documentDraftService|updateWedding/)
 assert.match(page, /setMissingInputs\(result\.missingInputs\)/)
 assert.match(page, /setStep\('waiting_for_user_input'\)/)
+assert.match(page, /advanceGenerationUiRun\(generationUiRunRef\.current/)
+assert.match(page, /setMissingInputs\(\[\]\)[\s\S]*?setStep\('generating'\)/)
 assert.match(page, /downloadAcceptedContractCandidate\(\{[\s\S]*candidateId: result\.candidateId/)
 assert.match(page, /saveGeneratedContract\(\{/)
 for (const state of ['unresolved_conflict', 'precondition', 'stale', 'unauthorized', 'forbidden', 'generation_safety']) {
@@ -59,6 +62,8 @@ assert.match(page, /Odrzuć i wygeneruj ponownie/)
 assert.doesNotMatch(page, /startSemanticContractGeneration|resumeSemanticContractGeneration|invokeSemanticMapProvider|buildSemanticContractProductionDataset/)
 assert.doesNotMatch(page, /mayGenerateContract|isTravelFeeResolved/)
 assert.match(form, /props\.requirements\.map\(/)
+assert.match(form, /requirement\.label/)
+assert.doesNotMatch(form, /translate|labelMap|missingInputLabel/i, 'semantic labels remain Generator-authored')
 for (const kind of ['text', 'multiline', 'date', 'number', 'email', 'phone']) {
   assert.ok(form.includes(`'${kind}'`), `generic renderer supports ${kind}`)
 }
@@ -66,4 +71,18 @@ assert.match(form, /requirement\.subject\?\.displayName/)
 assert.match(form, /required/)
 assert.match(page, /key=\{missingInputs\.map\(\(item\) => item\.id\)\.join\('\|'\)\}/)
 assert.match(previewPage, /navigate\(`\/sluby\/\$\{wedding\.id\}\/umowy\/nowa`\)/)
+
+const request = { requestId: 'run-1' }
+let run: GenerationUiRun | null = { ...request, state: 'active' }
+run = advanceGenerationUiRun(run, request, 'awaiting_input', 'session-1')
+assert.deepEqual(run, { requestId: 'run-1', sessionId: 'session-1', state: 'active' }, 'L: current awaiting_input stays active')
+run = advanceGenerationUiRun(run, request, 'processing', 'session-1')
+assert.equal(run?.state, 'active', 'M: continuation processing clears old requirements in the page')
+run = advanceGenerationUiRun(run, request, 'awaiting_input', 'session-1')
+assert.equal(run?.state, 'active', 'M: a new MissingInput batch for the same run remains eligible')
+run = advanceGenerationUiRun(run, request, 'ready', 'session-1')
+assert.equal(run?.state, 'ready', 'N: ready advances the current run monotonically')
+assert.equal(advanceGenerationUiRun(run, request, 'awaiting_input', 'session-1'), null, 'P: a late MissingInput cannot reopen after ready')
+assert.equal(advanceGenerationUiRun(run, { requestId: 'run-2' }, 'awaiting_input', 'session-2'), null, 'Q: an old run cannot update the newer current run')
+assert.equal(advanceGenerationUiRun({ requestId: 'run-3', state: 'active' }, { requestId: 'run-3' }, 'failed')?.state, 'terminal', 'R: failure is terminal')
 console.log('Production contract generation UI integration acceptance passed.')

@@ -4,6 +4,7 @@ import type { Wedding } from '@/types/wedding'
 import type { WeddingExtraService } from '@/types/package'
 import type { WeddingPlace } from '@/types/travel'
 import { buildContractGenerationInput } from './contractGenerationInput'
+import { generationInstructionsForLocale } from './generator'
 
 const wedding: Wedding = {
   id: 'ce475d46-c572-4499-acba-bd568f3dde4b',
@@ -50,6 +51,10 @@ const result = buildContractGenerationInput({
   },
   userProvidedAnswers: [{ id: 'wedding.partner2.pesel', value: 'fictional-id' }, { id: 'arbitrary.ref', value: 'arbitrary value' }],
 })
+assert.equal(result.locale, 'pl', 'the established Polish application locale is the deterministic default')
+assert.equal(buildContractGenerationInput({ wedding, weddingPlaces: [], extras: [], generationDate: '2026-09-29', locale: 'en' }).locale, 'en')
+assert.match(generationInstructionsForLocale(result.locale), /naturally in Polish, matching locale pl/)
+assert.match(generationInstructionsForLocale('en'), /naturally in English, matching locale en/)
 assert.deepEqual(result.participantAssociations, [], 'no association is invented from participant names or ordering')
 
 const explicitAssociations = buildContractGenerationInput({

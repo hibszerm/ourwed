@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { GENERATION_INSTRUCTIONS, GENERIC_CONTRACT_PRODUCT_RULES, REVIEW_INSTRUCTIONS } from './generator'
+import { GENERATION_INSTRUCTIONS, GENERIC_CONTRACT_PRODUCT_RULES, JOINTLY_APPLICABLE_FACTS_INSTRUCTIONS, REVIEW_INSTRUCTIONS } from './generator'
 
 const instructions = GENERATION_INSTRUCTIONS.toLowerCase()
 
@@ -36,6 +36,17 @@ assert.match(instructions, /fabricate a missinginput for source cleanup/)
 assert.match(instructions, /preserve the source wording unchanged/)
 assert.match(instructions, /do not invent a value or requirement/)
 assert.match(instructions, /never claim ready when your adaptation introduces or leaves a clearly required transaction fact unresolved/)
+// Cases A–G: singular/exclusive roles and unresolved required facts remain questions;
+// any count of jointly applicable values is represented together when source meaning permits.
+const jointFacts = JOINTLY_APPLICABLE_FACTS_INSTRUCTIONS.toLowerCase()
+assert.match(jointFacts, /multiple authoritative values are all applicable/)
+assert.match(jointFacts, /include all applicable values naturally/)
+assert.match(jointFacts, /do not ask the user to choose among them/)
+assert.match(jointFacts, /source requires one exclusive value or role/)
+assert.match(jointFacts, /authoritative association is ambiguous/)
+assert.match(jointFacts, /a required fact is absent/)
+assert.match(jointFacts, /materially change the source meaning/)
+assert.doesNotMatch(JOINTLY_APPLICABLE_FACTS_INSTRUCTIONS, /preparation|bride|groom|location|template/i, 'joint applicability rule has no domain-specific hardcoding')
 
 const productRules = GENERIC_CONTRACT_PRODUCT_RULES.join(' ').toLowerCase()
 assert.match(productRules, /keep wedding-specific purchased extras distinct from the source-defined base-package scope/)
