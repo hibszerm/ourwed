@@ -153,7 +153,7 @@ export function choiceBindingMapMatchesHistory(history: readonly MissingInput[],
   })
 }
 
-/** Replaces model-visible normalized-party keys with server-issued opaque option IDs. */
+/** Builds choice options only from normalized authority, with server-issued opaque IDs. */
 export function authorizeMissingInputChoiceOptions(
   missingInputs: MissingInput[],
   candidates: readonly { key: string; label: string }[],
@@ -161,7 +161,6 @@ export function authorizeMissingInputChoiceOptions(
 ): { missingInputs: MissingInput[]; choiceBindings: ChoiceBindingMap } | null {
   if (candidates.some((item) => !nonBlank(item.key) || !nonBlank(item.label))
     || new Set(candidates.map((item) => item.key)).size !== candidates.length) return null
-  const candidateMap = new Map(candidates.map((item) => [item.key, item.label]))
   const bindings: ChoiceBindingMap = {}
   const projected: MissingInput[] = []
   const usedOptionIds = new Set<string>()
@@ -170,24 +169,23 @@ export function authorizeMissingInputChoiceOptions(
       projected.push(requirement)
       continue
     }
-    const keys = requirement.options.map((option) => option.id)
-    if (candidateMap.size < 2 || new Set(keys).size !== keys.length || keys.length !== candidateMap.size || keys.some((key) => !candidateMap.has(key))) return null
+    if (candidates.length < 2) return null
     const optionBindings: Record<string, string> = {}
     const options: Array<{ id: string; label: string }> = []
-    for (const option of requirement.options) {
+    for (const candidate of candidates) {
       let id = ''
       for (let attempt = 0; attempt < 10; attempt += 1) {
         const candidateId = newOptionId()
         if (nonBlank(candidateId) && !usedOptionIds.has(candidateId)
-          && !candidateMap.has(candidateId) && !candidates.some((item) => item.label === candidateId)) {
+          && !candidates.some((item) => item.key === candidateId || item.label === candidateId)) {
           id = candidateId
           break
         }
       }
       if (!id) return null
       usedOptionIds.add(id)
-      optionBindings[id] = option.id
-      options.push({ id, label: candidateMap.get(option.id)! })
+      optionBindings[id] = candidate.key
+      options.push({ id, label: candidate.label })
     }
     bindings[requirement.id] = optionBindings
     projected.push({ id: requirement.id, kind: 'choice', label: requirement.label, options })
