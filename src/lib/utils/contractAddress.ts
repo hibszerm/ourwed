@@ -1,4 +1,4 @@
-import { formatPolishPostalAddress } from './formatPolishPostalAddress'
+import { formatPolishPostalAddress } from './formatPolishPostalAddress.ts'
 
 /** Resolve old split wedding rows and canonical free-form contract addresses. */
 export function resolveEffectiveContractAddress(input: {
