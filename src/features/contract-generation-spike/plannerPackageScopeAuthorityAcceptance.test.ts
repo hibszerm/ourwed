@@ -15,9 +15,9 @@ assert.match(generator, /do not invent legal clauses or alter base service scope
 // Base package items remain available as context, but are not wedding-specific extras and cannot enrich base scope by themselves.
 assert.match(rules, /wedding-specific purchased extras are authoritative current transaction facts distinct from base package metadata/i)
 assert.match(rules, /do not add extras or charged travel on top of it/i)
-assert.match(rules, /incorporate an extra not already represented as an additional purchased item in a source-compatible contractual location/i)
-assert.match(rules, /do not duplicate one already adequately represented/i)
-assert.match(rules, /without redefining unrelated base service scope/i)
+assert.match(rules, /for an extra absent from the source, add its authoritative name naturally in a source-compatible service-scope location/i)
+assert.match(rules, /do not duplicate one already represented/i)
+assert.match(rules, /keep wedding-specific purchased extras distinct from the source-defined base-package scope/i)
 assert.match(rules, /if a material fact required to represent an extra is genuinely absent .* request it through the normal batch missing_input mechanism/i)
 assert.doesNotMatch(rules, /album|drone|vhs|photographer|videographer|photo|video/i, 'generic rules must not encode particular extra or service mappings')
 

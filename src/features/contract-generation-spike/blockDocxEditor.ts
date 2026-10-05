@@ -14,7 +14,6 @@ export type BlockOperation =
 export type ExactTextPatch = { blockId: string; expectedSource: string; replacement: string; sourceStart: number; sourceEnd: number }
 
 const partPattern = /^word\/(document|header\d+|footer\d+)\.xml$/
-const hyphenationPartPattern = /^word\/(?:document|header\d+|footer\d+|footnotes|endnotes)\.xml$/
 const idFor = (part: string, index: number) => `${part}#p${index}`
 
 type XmlTag = { start: number; end: number; name: string; closing: boolean; selfClosing: boolean }
@@ -381,17 +380,119 @@ function dominantRunProperties(paragraph: string): string {
   return visual(ordered[0]!.run)
 }
 
+function paragraphPropertiesXml(paragraph: string): string {
+  return paragraph.match(/<w:pPr\b[^>]*\/>|<w:pPr\b[\s\S]*?<\/w:pPr>/)?.[0] ?? ''
+}
+
+function paragraphContentXml(paragraph: string): string {
+  const opening = paragraph.match(/^<w:p\b[^>]*>/)?.[0] ?? ''
+  const closingIndex = paragraph.lastIndexOf('</w:p>')
+  if (!opening || closingIndex < opening.length) return ''
+  return paragraph.slice(opening.length, closingIndex).replace(/<w:pPr\b[^>]*\/>|<w:pPr\b[\s\S]*?<\/w:pPr>/, '')
+}
+
+function runPropertiesContaining(xml: string, offset: number): string {
+  const run = [...xml.matchAll(/<w:r\b[^>]*>[\s\S]*?<\/w:r>/g)]
+    .find((match) => match.index! <= offset && match.index! + match[0].length > offset)?.[0]
+  return run?.match(/<w:rPr\b[\s\S]*?<\/w:rPr>|<w:rPr\b[^>]*\/>/)?.[0] ?? ''
+}
+
+function textRun(text: string, properties: string): string {
+  return text ? `<w:r>${properties}<w:t xml:space="preserve">${escapeXml(text)}</w:t></w:r>` : ''
+}
+
+const literalParagraphMarker = /^\s*(?:§\s*\d+(?:\.\d+)*[.)]?|\d+(?:\.\d+)*[.)]|[\p{L}][.)]|[•*–—-])$/u
+
+/** Retain the source marker-to-body tab when the replacement preserves that leading structure. */
+function rewriteParagraphWithLeadingTab(paragraph: string, finalText: string): string | undefined {
+  if (fieldRangesIn(paragraph).length) return undefined
+  const content = paragraphContentXml(paragraph)
+  if (/<w:(?:br|cr|hyperlink|bookmarkStart|bookmarkEnd|proofErr|drawing|pict|object)\b/.test(content)) return undefined
+  const tabs = [...content.matchAll(/<w:tab\b[^>]*\/>/g)]
+  if (tabs.length !== 1) return undefined
+  const tab = tabs[0]!
+  const marker = extractCanonicalParagraphText(content.slice(0, tab.index))
+  if (!literalParagraphMarker.test(marker)) return undefined
+
+  const replacement = canonicalizeParagraphText(finalText)
+  if (!replacement.startsWith(marker)) return undefined
+  const afterMarker = replacement.slice(marker.length)
+  if (!/^\s/.test(afterMarker)) return undefined
+
+  const body = afterMarker.slice(1)
+  const bodyTextNodes = [...content.matchAll(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/g)]
+    .filter((match) => match.index! > tab.index!)
+  if (!bodyTextNodes.length) return undefined
+  const bodyRunProperties = dominantRunProperties(content)
+  const targetText = bodyTextNodes.find((match) => runPropertiesContaining(content, match.index!) === bodyRunProperties && unescapeXml(match[1]!).length > 0)
+    ?? bodyTextNodes.find((match) => unescapeXml(match[1]!).length > 0)
+  if (!targetText) return undefined
+
+  const contentEdits = bodyTextNodes.map((match) => {
+    const matchStart = match.index!
+    const openingLength = match[0].indexOf('>') + 1
+    const closingOffset = match[0].lastIndexOf('</w:t>')
+    const start = matchStart + openingLength
+    const end = matchStart + closingOffset
+    const value = match === targetText ? escapeXml(body) : ''
+    const edits = [{ start, end, replacement: value }]
+    if (match === targetText && /^\s|\s$/u.test(body)) {
+      const openingTag = match[0].slice(0, openingLength)
+      const preservedOpeningTag = /\bxml:space\s*=/.test(openingTag)
+        ? openingTag.replace(/\bxml:space\s*=\s*["'][^"']*["']/, 'xml:space="preserve"')
+        : openingTag.replace(/>$/, ' xml:space="preserve">')
+      edits.push({ start: matchStart, end: matchStart + openingLength, replacement: preservedOpeningTag })
+    }
+    return edits
+  })
+  const rewrittenContent = replaceXmlSpans(content, contentEdits.flat())
+  const opening = paragraph.match(/^<w:p\b[^>]*>/)?.[0]
+  const closing = paragraph.match(/<\/w:p\s*>\s*$/)?.[0]
+  if (!opening || !closing) return undefined
+  return `${opening}${paragraphPropertiesXml(paragraph)}${rewrittenContent}${closing}`
+}
+
+/** Preserve source hard breaks when the replacement supplies the same line-break structure. */
+function rewriteParagraphWithExplicitBreaks(paragraph: string, finalText: string): string | undefined {
+  if (fieldRangesIn(paragraph).length) return undefined
+  const content = paragraphContentXml(paragraph)
+  if (/<w:tab\b[^>]*\/>/.test(content)) return undefined
+  const breaks = [...content.matchAll(/<w:br\b[^>]*\/>/g)]
+  const lines = finalText.split(/\r\n|\r|\n/)
+  if (!breaks.length || breaks.length !== lines.length - 1) return undefined
+
+  const properties = dominantRunProperties(paragraph)
+  let rewritten = ''
+  for (let index = 0; index < lines.length; index++) {
+    rewritten += textRun(lines[index]!, properties)
+    if (breaks[index]) {
+      const breakProperties = runPropertiesContaining(content, breaks[index]!.index!)
+        .match(/<w:rPr\b[\s\S]*?<\/w:rPr>|<w:rPr\b[^>]*\/>/)?.[0] ?? ''
+      rewritten += `<w:r>${breakProperties}${breaks[index]![0]}</w:r>`
+    }
+  }
+  const opening = paragraph.match(/^<w:p\b[^>]*>/)?.[0]
+  const closing = paragraph.match(/<\/w:p\s*>\s*$/)?.[0]
+  if (!opening || !closing) return undefined
+  return `${opening}${paragraphPropertiesXml(paragraph)}${rewritten}${closing}`
+}
+
 function rewriteParagraph(paragraph: string, finalText: string): string {
   if (xmlTagsIn(paragraph).filter((tag) => tag.name === 'w:p' && !tag.closing).length !== 1) {
     throw new Error('Cannot safely replace a DOCX block containing nested paragraphs')
   }
+  if (textFor(paragraph) === canonicalizeParagraphText(finalText)) return paragraph
   const fields = fieldRangesIn(paragraph)
+  const tabRewrite = rewriteParagraphWithLeadingTab(paragraph, finalText)
+  const breakRewrite = tabRewrite ? undefined : rewriteParagraphWithExplicitBreaks(paragraph, finalText)
   let rewritten: string
-  if (fields.length) rewritten = rewriteParagraphPreservingFields(paragraph, finalText)
+  if (tabRewrite) rewritten = tabRewrite
+  else if (breakRewrite) rewritten = breakRewrite
+  else if (fields.length) rewritten = rewriteParagraphPreservingFields(paragraph, finalText)
   else {
-    const pPr = paragraph.match(/<w:pPr\b[\s\S]*?<\/w:pPr>/)?.[0] ?? ''
+    const pPr = paragraphPropertiesXml(paragraph)
     const style = dominantRunProperties(paragraph)
-    rewritten = `<w:p>${pPr}<w:r>${style}<w:t xml:space="preserve">${escapeXml(finalText)}</w:t></w:r></w:p>`
+    rewritten = `<w:p>${pPr}${textRun(finalText, style)}</w:p>`
   }
   if (textFor(rewritten) !== canonicalizeParagraphText(finalText)) {
     throw new Error('DOCX block replacement did not preserve requested logical text')
@@ -572,7 +673,7 @@ function styleHasNumbering(styleId: string | undefined, definitions: Map<string,
 }
 
 const paragraphPropertyOrder = new Map(
-  'pStyle keepNext keepLines pageBreakBefore framePr widowControl numPr suppressLineNumbers pBdr shd tabs suppressAutoHyphens kinsoku wordWrap overflowPunct topLinePunct autoSpaceDE autoSpaceDN bidi adjustRightInd snapToGrid spacing ind contextualSpacing mirrorIndents suppressOverlap jc textDirection textAlignment textboxTightWrap outlineLvl divId cnfStyle rPr sectPr pPrChange'.split(' ').map((name, index) => [name, index]),
+  'pStyle keepNext keepLines pageBreakBefore framePr widowControl numPr suppressLineNumbers pBdr shd tabs kinsoku wordWrap overflowPunct topLinePunct autoSpaceDE autoSpaceDN bidi adjustRightInd snapToGrid spacing ind contextualSpacing mirrorIndents suppressOverlap jc textDirection textAlignment textboxTightWrap outlineLvl divId cnfStyle rPr sectPr pPrChange'.split(' ').map((name, index) => [name, index]),
 )
 
 function withParagraphProperty(pPr: string, propertyName: string, property: string): string {
@@ -592,39 +693,6 @@ function withParagraphProperty(pPr: string, propertyName: string, property: stri
 function disableInheritedNumbering(pPr: string): string {
   pPr = pPr.replace(/<w:numPr\b[^>]*\/>/g, '').replace(/<w:numPr\b[\s\S]*?<\/w:numPr>/g, '')
   return withParagraphProperty(pPr, 'numPr', '<w:numPr><w:numId w:val="0"/></w:numPr>')
-}
-
-function withParagraphOnOffProperty(pPr: string, propertyName: string): string {
-  const tagPattern = new RegExp(`<w:${propertyName}\\b([^>]*?)(?:\\/>|>[\\s\\S]*?<\\/${propertyName}\\s*>)`)
-  const existing = pPr.match(tagPattern)
-  const attributes = existing?.[1]?.replace(/\s+w:val\s*=\s*["'][^"']*["']/g, '') ?? ''
-  return withParagraphProperty(pPr, propertyName, `<w:${propertyName}${attributes}/>`)
-}
-
-function suppressAutomaticHyphenationInParagraph(paragraph: string): string {
-  const selfClosing = paragraph.match(/^<w:p\b([^>]*)\/\s*>$/)
-  if (selfClosing) return `<w:p${selfClosing[1]}><w:pPr><w:suppressAutoHyphens/></w:pPr></w:p>`
-
-  const pPr = paragraph.match(/<w:pPr\b[\s\S]*?<\/w:pPr>/)?.[0]
-  if (pPr) return paragraph.replace(pPr, withParagraphOnOffProperty(pPr, 'suppressAutoHyphens'))
-
-  const emptyPPr = paragraph.match(/<w:pPr\b([^>]*)\/\s*>/)
-  if (emptyPPr?.index !== undefined) {
-    const replacement = withParagraphProperty(`<w:pPr${emptyPPr[1]}></w:pPr>`, 'suppressAutoHyphens', '<w:suppressAutoHyphens/>')
-    return `${paragraph.slice(0, emptyPPr.index)}${replacement}${paragraph.slice(emptyPPr.index + emptyPPr[0].length)}`
-  }
-
-  const opening = paragraph.match(/^<w:p\b[^>]*>/)?.[0]
-  if (!opening) throw new Error('Cannot safely add a paragraph property to malformed DOCX paragraph')
-  return `${opening}${withParagraphProperty('', 'suppressAutoHyphens', '<w:suppressAutoHyphens/>')}${paragraph.slice(opening.length)}`
-}
-
-function suppressAutomaticHyphenation(xml: string): string {
-  const paragraphs = paragraphElementsIn(xml)
-  return replaceXmlSpans(xml, paragraphs.flatMap((paragraph) => {
-    const replacement = suppressAutomaticHyphenationInParagraph(paragraph.xml)
-    return replacement === paragraph.xml ? [] : [{ start: paragraph.start, end: paragraph.end, replacement }]
-  }))
 }
 
 function cleanStyleParagraph(paragraph: string, text: string, styles: { definitions: Map<string, ParagraphStyleDefinition>; defaultStyleId?: string }): string {
@@ -661,7 +729,7 @@ export async function applyBlockOperations(bytes: ArrayBuffer, operations: Block
     list.push(operation)
     byPart.set(target.part, list)
   }
-  const editableParts = new Set([...byPart.keys(), ...Object.keys(zip.files).filter((part) => hyphenationPartPattern.test(part))])
+  const editableParts = new Set(byPart.keys())
   for (const part of editableParts) {
     let xml = await zip.file(part)!.async('string')
     const partOperations = byPart.get(part) ?? []
@@ -704,7 +772,7 @@ export async function applyBlockOperations(bytes: ArrayBuffer, operations: Block
         : `${(before.get(index) ?? []).join('')}${replacements.get(index) ?? paragraph.xml}${(after.get(index) ?? []).join('')}`
       return operationResult === paragraph.xml ? [] : [{ start: paragraph.start, end: paragraph.end, replacement: operationResult }]
     })
-    xml = suppressAutomaticHyphenation(replaceXmlSpans(xml, edits))
+    xml = replaceXmlSpans(xml, edits)
     zip.file(part, xml)
   }
   return zip.generateAsync({ type: 'arraybuffer', compression: 'DEFLATE' })

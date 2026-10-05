@@ -90,11 +90,11 @@ for (const part of Object.keys(candidateZip.files).filter((name) => /^word\/(doc
   const xml = await candidateZip.file(part)!.async('string')
   const paragraphs = xml.match(/<w:p\b[\s\S]*?<\/w:p>/g) ?? []
   assert.ok(paragraphs.length > 0, `${part} contains paragraphs`)
-  for (const paragraph of paragraphs) assert.match(paragraph, /<w:suppressAutoHyphens\/>/, `${part} explicitly suppresses automatic hyphenation per paragraph`)
+  for (const paragraph of paragraphs) assert.doesNotMatch(paragraph, /<w:suppressAutoHyphens\/>/, `${part} does not receive a generated automatic-hyphenation override`)
 }
 const sourceXml = await sourceZip.file('word/document.xml')!.async('string')
 const candidateXml = await candidateZip.file('word/document.xml')!.async('string')
 assert.equal((candidateXml.match(/<w:tbl\b/g) ?? []).length, (sourceXml.match(/<w:tbl\b/g) ?? []).length, 'tables remain intact')
-assert.match(candidateXml, /<w:suppressAutoHyphens\/>/, 'source-copy candidate has explicit paragraph-level suppression')
+assert.doesNotMatch(candidateXml, /<w:suppressAutoHyphens\/>/, 'source-copy candidate does not inject paragraph-level suppression')
 
 console.log('PASS Option B extras presentation and DOCX hyphenation acceptance')

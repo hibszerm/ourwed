@@ -66,33 +66,94 @@ assert.ok(editedBlocks.some((block) => block.text === '4. New paragraph text'), 
 assert.ok(editedBlocks.some((block) => block.text === '2026 forecast remains unchanged'), 'ordinary digit-leading prose is not altered')
 assert.ok(editedBlocks.some((block) => block.text === '1)stary tekst rewritten as prose'), 'an ordinary run split is not mistaken for a structural prefix')
 const tabbedParagraph = doc.match(/<w:p>[^]*?<w:t[^>]*>2\.<\/w:t>[^]*?<\/w:p>/)?.[0] ?? ''
-assert.doesNotMatch(tabbedParagraph, /<w:tab\/>/, 'a source tab is not reintroduced when the requested text has no separator')
+assert.match(tabbedParagraph, /<w:tab\/>/, 'a source tab after the same literal marker remains structural')
 assert.ok(editedBlocks.some((block) => block.text === 'Dodatkowe ujęcia: VHS i dron.'))
 assert.ok(editedBlocks.some((block) => block.text === 'Purchased extra, presented separately from base scope.'), 'inserted content remains the supplied unnumbered text')
 const insertedAfterNumberedSource = doc.match(/<w:p>(?:(?!<w:p>).)*?Purchased extra, presented separately from base scope\.(?:(?!<w:p>).)*?<\/w:p>/s)?.[0] ?? ''
 assert.ok(insertedAfterNumberedSource, 'inserted paragraph is present after a numbered source paragraph')
 assert.doesNotMatch(insertedAfterNumberedSource, /<w:numPr\b|<w:numId\b/, 'insertion strips numbering inherited from its numbered style source')
-assert.match(doc, /<w:pPr><w:keepNext\/><w:suppressAutoHyphens\/><\/w:pPr>/, 'replacement retains source paragraph properties and suppresses hyphenation')
-assert.match(doc, /<w:pPr><w:suppressAutoHyphens\/><w:jc w:val="both"\/><\/w:pPr>/, 'insertion takes source alignment and suppresses hyphenation in schema order')
+assert.match(doc, /<w:pPr><w:keepNext\/><\/w:pPr>/, 'replacement retains source paragraph properties without adding layout overrides')
+assert.match(doc, /<w:pPr><w:jc w:val="both"\/><\/w:pPr>/, 'insertion takes source alignment without adding layout overrides')
 assert.match(doc, /Kontakt przez e-mail pozostaje bez zmian\./, 'legitimate textual hyphens remain untouched')
-for (const paragraph of doc.match(/<w:p\b[\s\S]*?<\/w:p>/g) ?? []) {
-  assert.match(paragraph, /<w:suppressAutoHyphens\/>/, 'every generated body paragraph explicitly suppresses automatic hyphenation')
-}
+assert.doesNotMatch(doc, /<w:suppressAutoHyphens\/>/, 'generation does not inject automatic-hyphenation overrides')
 assert.doesNotMatch(doc.match(/Dodatkowe ujęcia[\s\S]*?<\/w:p>/)?.[0] ?? '', /w:ind|<w:i\/>/, 'package-child indentation and italics do not leak into insertion')
 assert.equal((doc.match(/<w:tbl\b/g) ?? []).length, 1)
 const editedHeader = await editedZip.file('word/header1.xml')!.async('string')
 const editedFooter = await editedZip.file('word/footer1.xml')!.async('string')
-assert.match(editedHeader, /<w:suppressAutoHyphens\/>/)
-assert.match(editedFooter, /<w:suppressAutoHyphens\/>/)
+assert.equal(editedHeader, headerXml, 'untouched header OOXML remains source-owned')
+assert.equal(editedFooter, footerXml, 'untouched footer OOXML remains source-owned')
 assert.ok(editedBlocks.some((block) => block.kind === 'header' && block.text === 'Nagłówek'))
 assert.ok(editedBlocks.some((block) => block.kind === 'footer' && block.text === 'Stopka'))
 const editedFootnotes = await editedZip.file('word/footnotes.xml')!.async('string')
-assert.match(editedFootnotes, /<w:suppressAutoHyphens\/>/)
+assert.equal(editedFootnotes, footnoteXml, 'footnote OOXML is not rewritten by body edits')
 assert.match(editedFootnotes, /<w:t>Przypis e-mail<\/w:t>/, 'footnote text and legitimate hyphen are preserved')
+
+// Source-formatting fidelity: preserve literal marker/tab structure and source
+// paragraph properties, while avoiding global layout overrides.
+const fidelityZip = new JSZip()
+const fidelityDocument = `<w:document xmlns:w="urn:w"><w:body>
+<w:p><w:pPr><w:ind w:left="918" w:hanging="317"/><w:tabs><w:tab w:val="left" w:pos="1236"/></w:tabs><w:spacing w:after="60" w:line="274" w:lineRule="auto"/></w:pPr><w:r><w:rPr><w:b/></w:rPr><w:t>1)</w:t></w:r><w:r><w:rPr><w:color w:val="334455"/></w:rPr><w:tab/></w:r><w:r><w:rPr><w:i/></w:rPr><w:t>Old location text </w:t></w:r><w:r><w:rPr><w:b/></w:rPr><w:t>with emphasis</w:t></w:r></w:p>
+<w:p><w:pPr><w:ind w:left="522" w:hanging="522"/><w:tabs><w:tab w:val="left" w:pos="522"/></w:tabs><w:spacing w:after="80"/></w:pPr><w:r><w:rPr><w:b/></w:rPr><w:t>2)</w:t></w:r><w:r><w:tab/></w:r><w:r><w:rPr><w:i/></w:rPr><w:t>Old payment item</w:t></w:r></w:p>
+<w:p><w:r><w:t>3) Ordinary paragraph without a structural tab</w:t></w:r></w:p>
+<w:p><w:pPr><w:suppressAutoHyphens/><w:ind w:left="240"/></w:pPr><w:r><w:t>Existing hyphenation choice</w:t></w:r></w:p>
+<w:p><w:pPr><w:keepLines/></w:pPr><w:r><w:rPr><w:color w:val="112233"/></w:rPr><w:t>First source line</w:t><w:br/><w:t>Second source line</w:t></w:r></w:p>
+<w:p><w:pPr><w:ind w:left="918" w:hanging="317"/><w:tabs><w:tab w:val="left" w:pos="1236"/></w:tabs></w:pPr><w:r><w:rPr><w:b/></w:rPr><w:t>4)</w:t></w:r><w:r><w:tab/></w:r><w:r><w:t>Keep this unchanged</w:t></w:r></w:p>
+<w:sectPr/></w:body></w:document>`
+const fidelityHeader = '<w:hdr xmlns:w="urn:w"><w:p><w:r><w:t>Header source</w:t></w:r></w:p></w:hdr>'
+const fidelityFooter = '<w:ftr xmlns:w="urn:w"><w:p><w:r><w:t>Footer source</w:t></w:r></w:p></w:ftr>'
+fidelityZip.file('word/document.xml', fidelityDocument)
+fidelityZip.file('word/header1.xml', fidelityHeader)
+fidelityZip.file('word/footer1.xml', fidelityFooter)
+const fidelityBytes = await fidelityZip.generateAsync({ type: 'arraybuffer' })
+const fidelityBlocks = await buildBlockIndex(fidelityBytes)
+const locationBlock = fidelityBlocks.find((block) => block.text.startsWith('1) Old location'))!
+const paymentBlock = fidelityBlocks.find((block) => block.text.startsWith('2) Old payment'))!
+const ordinaryBlock = fidelityBlocks.find((block) => block.text.startsWith('3) Ordinary'))!
+const existingOverrideBlock = fidelityBlocks.find((block) => block.text === 'Existing hyphenation choice')!
+const breakBlock = fidelityBlocks.find((block) => block.text === 'First source line Second source line')!
+const unchangedBlock = fidelityBlocks.find((block) => block.text === '4) Keep this unchanged')!
+const fidelityOutput = await applyBlockOperations(fidelityBytes, [
+  { blockId: locationBlock.blockId, operation: 'REPLACE_BLOCK_TEXT', finalText: '1) Updated location text' },
+  { blockId: paymentBlock.blockId, operation: 'REPLACE_BLOCK_TEXT', finalText: '2) Updated payment item' },
+  { blockId: ordinaryBlock.blockId, operation: 'REPLACE_BLOCK_TEXT', finalText: '3) Updated ordinary paragraph' },
+  { blockId: existingOverrideBlock.blockId, operation: 'REPLACE_BLOCK_TEXT', finalText: 'Existing hyphenation choice revised' },
+  { blockId: breakBlock.blockId, operation: 'REPLACE_BLOCK_TEXT', finalText: 'Updated first line\nUpdated second line' },
+  { blockId: unchangedBlock.blockId, operation: 'REPLACE_BLOCK_TEXT', finalText: unchangedBlock.text },
+])
+const fidelityOutputZip = await JSZip.loadAsync(fidelityOutput)
+const fidelityOutputDoc = await fidelityOutputZip.file('word/document.xml')!.async('string')
+const fidelityOutputBlocks = await buildBlockIndex(fidelityOutput)
+const fidelityParagraphs = fidelityOutputDoc.match(/<w:p\b[\s\S]*?<\/w:p>/g) ?? []
+const inlineTabs = (paragraph: string) => {
+  const content = paragraph.replace(/<w:pPr\b[\s\S]*?<\/w:pPr>/, '')
+  return (content.match(/<w:tab\b[^>]*\/>/g) ?? []).length
+}
+const pPrOf = (paragraph: string) => paragraph.match(/<w:pPr\b[\s\S]*?<\/w:pPr>/)?.[0] ?? ''
+const locationOutput = fidelityParagraphs.find((paragraph) => paragraph.includes('Updated location text'))!
+const paymentOutput = fidelityParagraphs.find((paragraph) => paragraph.includes('Updated payment item'))!
+const ordinaryOutput = fidelityParagraphs.find((paragraph) => paragraph.includes('Updated ordinary paragraph'))!
+const overrideOutput = fidelityParagraphs.find((paragraph) => paragraph.includes('Existing hyphenation choice revised'))!
+const breakOutput = fidelityParagraphs.find((paragraph) => paragraph.includes('Updated first line'))!
+assert.equal(fidelityOutputBlocks.find((block) => block.text === '1) Updated location text')?.text, '1) Updated location text')
+assert.equal(pPrOf(locationOutput), pPrOf(fidelityDocument.match(/<w:p\b[\s\S]*?<\/w:p>/g)![0]!), 'location indentation and tab-stop properties are unchanged')
+assert.equal(inlineTabs(locationOutput), 1, 'location marker retains its inline tab')
+assert.match(locationOutput, /<w:t[^>]*>1\)<\/w:t>[\s\S]*?<w:tab\/>[\s\S]*?<w:t[^>]*>Updated location text<\/w:t>/)
+assert.match(locationOutput, /<w:rPr><w:b\/><\/w:rPr><w:t[^>]*>1\)<\/w:t>/, 'marker run formatting is retained')
+assert.match(locationOutput, /<w:rPr><w:i\/><\/w:rPr><w:t[^>]*>Updated location text<\/w:t>/, 'dominant body run formatting is retained')
+assert.equal(pPrOf(paymentOutput), pPrOf(fidelityDocument.match(/<w:p\b[\s\S]*?<\/w:p>/g)![1]!), 'payment indentation and tab-stop properties are unchanged')
+assert.equal(inlineTabs(paymentOutput), 1, 'second literal list marker retains its inline tab')
+assert.match(paymentOutput, /<w:t[^>]*>2\)<\/w:t>[\s\S]*?<w:tab\/>[\s\S]*?<w:t[^>]*>Updated payment item<\/w:t>/)
+assert.equal(inlineTabs(ordinaryOutput), 0, 'a paragraph without a source inline tab receives no invented tab')
+assert.match(overrideOutput, /<w:suppressAutoHyphens\/>/, 'a source hyphenation override remains when present')
+assert.doesNotMatch(fidelityOutputDoc, /<w:suppressAutoHyphens\/>[^]*?Updated location text/, 'source paragraphs without the override do not receive it')
+assert.match(breakOutput, /Updated first line[\s\S]*?<w:br\/>[\s\S]*Updated second line/, 'an explicit source line break survives matching replacement structure')
+assert.equal(fidelityParagraphs.find((paragraph) => paragraph.includes('Keep this unchanged')), fidelityDocument.match(/<w:p\b[\s\S]*?<\/w:p>/g)![5], 'an unchanged paragraph keeps its original run and tab structure')
+assert.equal(await fidelityOutputZip.file('word/header1.xml')!.async('string'), fidelityHeader, 'source header is not globally rewritten')
+assert.equal(await fidelityOutputZip.file('word/footer1.xml')!.async('string'), fidelityFooter, 'source footer is not globally rewritten')
 
 // A numbered paragraph style can carry numbering through w:pStyle even when
 // the source paragraph itself has no direct w:numPr. Plain inserted text must
-// keep useful style formatting while explicitly opting out of that numbering.
+// keep useful formatting while explicitly opting out of that numbering.
 const styleNumberedZip = new JSZip()
 const styleNumberedDocument = '<w:document xmlns:w="urn:w"><w:body><w:p><w:pPr><w:pStyle w:val="NumberedChild"/></w:pPr><w:r><w:t>Base scope item</w:t></w:r></w:p><w:sectPr/></w:body></w:document>'
 const styleNumberedStyles = '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:style w:type="paragraph" w:styleId="Normal" w:default="1"><w:name w:val="Normal"/></w:style><w:style w:type="paragraph" w:styleId="NumberedChild"><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="4"/></w:numPr><w:ind w:left="720"/></w:pPr></w:style></w:styles>'
@@ -120,8 +181,8 @@ assert.equal(await styleNumberedOutputZip.file('word/styles.xml')!.async('string
 assert.equal(await styleNumberedOutputZip.file('word/numbering.xml')!.async('string'), styleNumberingDefinitions, 'the source numbering definition remains untouched')
 assert.ok((await buildBlockIndex(styleNumberedOutput)).some((block) => block.text === 'Unnumbered additional item.'), 'the output paragraph contains only the supplied plain text')
 
-// Mixed pPr children verify the suppression override is inserted at the
-// schema position without losing formatting that follows that position.
+// Mixed pPr children verify a generated numbering override keeps source order
+// without injecting unrelated layout properties.
 const mixedStyleZip = new JSZip()
 const mixedStyleDocument = '<w:document xmlns:w="urn:w"><w:body><w:p><w:pPr><w:pStyle w:val="NumberedMixed"/><w:keepNext/><w:keepLines/><w:numPr><w:numId w:val="4"/></w:numPr><w:spacing w:after="120"/><w:ind w:left="720"/><w:jc w:val="both"/></w:pPr><w:r><w:t>Mixed source paragraph</w:t></w:r></w:p><w:sectPr/></w:body></w:document>'
 const mixedStyleStyles = '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:style w:type="paragraph" w:styleId="NumberedMixed"><w:pPr><w:numPr><w:numId w:val="4"/></w:numPr></w:pPr></w:style></w:styles>'
@@ -137,11 +198,10 @@ const mixedPPr = mixedInserted.match(/<w:pPr>([\s\S]*?)<\/w:pPr>/)?.[1] ?? ''
 const mixedChildren = [...mixedPPr.matchAll(/<w:([A-Za-z0-9]+)\b[^>]*(?:\/>|>[\s\S]*?<\/w:\1>)/g)].map((match) => match[1])
 assert.equal((mixedPPr.match(/<w:numPr\b/g) ?? []).length, 1, 'the inserted paragraph has exactly one numbering override')
 assert.match(mixedPPr, /<w:numPr><w:numId w:val="0"\/><\/w:numPr>/, 'the mixed-property insertion uses numId zero')
-assert.deepEqual(mixedChildren, ['pStyle', 'keepLines', 'numPr', 'suppressAutoHyphens', 'spacing', 'ind', 'jc'], 'paragraph properties retain schema order around hyphenation setting')
+assert.deepEqual(mixedChildren, ['pStyle', 'keepLines', 'numPr', 'spacing', 'ind', 'jc'], 'paragraph properties retain schema order without a hyphenation override')
 assert.match(mixedPPr, /<w:keepLines\/>[\s\S]*<w:spacing w:after="120"\/>[\s\S]*<w:ind w:left="720"\/>[\s\S]*<w:jc w:val="both"\/>/, 'the non-numbering formatting surrounding numPr is preserved')
 const mixedSourceAfter = mixedXml.match(/<w:p>(?:(?!<w:p>).)*?Mixed source paragraph(?:(?!<w:p>).)*?<\/w:p>/s)?.[0] ?? ''
-assert.match(mixedSourceAfter, /<w:suppressAutoHyphens\/>/)
-assert.equal(mixedSourceAfter.replace('<w:suppressAutoHyphens/>', ''), mixedStyleDocument.match(/<w:p>(?:(?!<w:p>).)*?Mixed source paragraph(?:(?!<w:p>).)*?<\/w:p>/s)?.[0], 'the source paragraph formatting is otherwise unchanged')
+assert.equal(mixedSourceAfter, mixedStyleDocument.match(/<w:p>(?:(?!<w:p>).)*?Mixed source paragraph(?:(?!<w:p>).)*?<\/w:p>/s)?.[0], 'untouched source paragraph OOXML remains unchanged')
 assert.ok((await buildBlockIndex(mixedOutput)).some((block) => block.text === 'Mixed plain insertion'), 'the edited DOCX remains parseable by the document indexer')
 
 // Style traversal supports alternate valid namespace prefixes, multiple
@@ -314,6 +374,33 @@ const nineCandidateDoc = await nineCandidateZip.file('word/document.xml')!.async
 assert.equal((nineCandidateDoc.match(/<w:tbl\b/g) ?? []).length, 2, 'the nine-edit batch preserves both source tables')
 assert.equal((nineCandidateDoc.match(/<w:tr\b/g) ?? []).length, 4, 'the nine-edit batch preserves source table rows')
 
+const sourceListWithTab = fixtureDocumentBlocks.find((block) => {
+  const marker = block.text.match(/^\s*(\d+(?:\.\d+)*[.)]) /)?.[1]
+  const paragraph = fixtureParagraphXml[block.index] ?? ''
+  const content = paragraph.replace(/<w:pPr\b[\s\S]*?<\/w:pPr>/, '')
+  const tab = /<w:tab\b[^>]*\/>/.exec(content)
+  if (!marker || !tab) return false
+  const prefix = [...content.slice(0, tab.index!).matchAll(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/g)].map((match) => match[1]!).join('')
+  return prefix.trim() === marker
+})!
+assert.ok(sourceListWithTab, 'the production source fixture includes a literal-list paragraph with a structural inline tab')
+const sourceListMarker = sourceListWithTab.text.match(/^\s*(\d+(?:\.\d+)*[.)]) /)![1]!
+const sourceListParagraph = fixtureParagraphXml[sourceListWithTab.index]!
+const sourceListPPr = sourceListParagraph.match(/<w:pPr\b[\s\S]*?<\/w:pPr>/)?.[0] ?? ''
+const sourceListCandidate = await applyBlockOperations(fixtureBuffer, [{
+  blockId: sourceListWithTab.blockId,
+  operation: 'REPLACE_BLOCK_TEXT',
+  finalText: `${sourceListMarker} Source-copy geometry remains intact`,
+}])
+const sourceListCandidateZip = await JSZip.loadAsync(sourceListCandidate)
+const sourceListCandidateDoc = await sourceListCandidateZip.file('word/document.xml')!.async('string')
+const sourceListCandidateParagraph = (sourceListCandidateDoc.match(/<w:p\b[\s\S]*?<\/w:p>/g) ?? [])[sourceListWithTab.index]!
+const sourceListCandidateContent = sourceListCandidateParagraph.replace(/<w:pPr\b[\s\S]*?<\/w:pPr>/, '')
+assert.equal(sourceListCandidateParagraph.match(/<w:pPr\b[\s\S]*?<\/w:pPr>/)?.[0] ?? '', sourceListPPr, 'the real source fixture paragraph properties remain unchanged')
+assert.equal((sourceListCandidateContent.match(/<w:tab\b[^>]*\/>/g) ?? []).length, 1, 'the real source fixture retains its inline tab after the list marker')
+assert.equal((sourceListCandidateParagraph.match(/<w:r\b/g) ?? []).length, (sourceListParagraph.match(/<w:r\b/g) ?? []).length, 'the real source fixture retains its source run structure')
+assert.match(sourceListCandidateParagraph, new RegExp(`<w:t[^>]*>${sourceListMarker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}<\\/w:t>[\\s\\S]*?<w:tab\\/>[\\s\\S]*?Source-copy geometry remains intact`))
+
 // Unresolvable source IDs and duplicate replacements fail closed.
 await assert.rejects(() => applyBlockOperations(fixtureBuffer, [{ blockId: 'word/document.xml#p9999', operation: 'REPLACE_BLOCK_TEXT', finalText: 'Synthetic missing target' }]), /Unknown DOCX block/)
 await assert.rejects(() => applyBlockOperations(fixtureBuffer, [
@@ -351,7 +438,7 @@ for (const part of Object.keys(fixtureZip.files).filter((path) => /^word\/(heade
   const sourceBlocksForPart = fixtureBlocks.filter((block) => block.part === part).map((block) => block.text)
   const editedBlocksForPart = afterBlocks.filter((block) => block.part === part).map((block) => block.text)
   assert.deepEqual(editedBlocksForPart, sourceBlocksForPart, 'header/footer text remains intact')
-  assert.match(await fixtureEditedZip.file(part)!.async('string'), /<w:suppressAutoHyphens\/>/)
+  assert.equal(await fixtureEditedZip.file(part)!.async('string'), await fixtureZip.file(part)!.async('string'), 'untouched header/footer XML remains byte-identical')
 }
 
 // Editing leaves unrelated blank layout paragraphs untouched.
