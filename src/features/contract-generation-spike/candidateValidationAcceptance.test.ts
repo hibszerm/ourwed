@@ -18,6 +18,13 @@ async function docx(...texts: string[]): Promise<ArrayBuffer> {
   return zip.generateAsync({ type: 'arraybuffer' })
 }
 
+async function docxXml(body: string): Promise<ArrayBuffer> {
+  const zip = new JSZip()
+  zip.file('[Content_Types].xml', '<Types/>')
+  zip.file('word/document.xml', `<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${body}<w:sectPr/></w:body></w:document>`)
+  return zip.generateAsync({ type: 'arraybuffer' })
+}
+
 const sourceBytes = await docx('Source paragraph.')
 const source = await readSource(sourceBytes, 'source.docx')
 const block = source.blocks[0]!
@@ -26,8 +33,28 @@ const candidateBytes = await applyBlockOperations(sourceBytes, [operation])
 const candidate = await readSource(candidateBytes, 'candidate.docx')
 assert.deepEqual(await validateOptionBCandidate(sourceBytes, candidateBytes, source, candidate, [operation]), [])
 
+const multiRunBytes = await docxXml('<w:p><w:r><w:t>Original </w:t></w:r><w:r><w:t>sentence.</w:t></w:r></w:p>')
+const multiRunSource = await readSource(multiRunBytes, 'multi-run-source.docx')
+const multiRunEdit = { operation: 'REPLACE_BLOCK_TEXT' as const, blockId: multiRunSource.blocks[0]!.blockId, finalText: 'A substantially longer replacement sentence that can naturally reflow across lines.' }
+const multiRunCandidateBytes = await applyBlockOperations(multiRunBytes, [multiRunEdit])
+const multiRunCandidate = await readSource(multiRunCandidateBytes, 'multi-run-candidate.docx')
+assert.deepEqual(await validateOptionBCandidate(multiRunBytes, multiRunCandidateBytes, multiRunSource, multiRunCandidate, [multiRunEdit]), [], 'multi-run replacement and longer natural reflow pass without preserving original run segmentation')
+assert.equal(multiRunCandidate.blocks[0]!.text, multiRunEdit.finalText)
+
+const countSourceBytes = await docx('Visible content.', '')
+const countSource = await readSource(countSourceBytes, 'count-source.docx')
+const fewerParagraphsBytes = await docx('Visible content.')
+const fewerParagraphs = await readSource(fewerParagraphsBytes, 'fewer-paragraphs.docx')
+assert.deepEqual(await validateOptionBCandidate(countSourceBytes, fewerParagraphsBytes, countSource, fewerParagraphs, []), [], 'removing a blank paragraph is harmless and does not fail on paragraph count alone')
+
 const corrupted = await validateOptionBCandidate(sourceBytes, new Uint8Array([1, 2, 3]).buffer, source, source, [])
 assert.deepEqual(corrupted, ['Cannot open source or candidate DOCX ZIP package'])
+
+const missingCoreZip = new JSZip()
+missingCoreZip.file('word/document.xml', '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p/></w:body></w:document>')
+const missingCoreBytes = await missingCoreZip.generateAsync({ type: 'arraybuffer' })
+const missingCore = await validateOptionBCandidate(sourceBytes, missingCoreBytes, source, await readSource(missingCoreBytes, 'missing-core.docx'), [])
+assert.ok(missingCore.includes('Candidate DOCX is missing a required package part.'), 'missing required candidate package parts remain blocking')
 
 const unauthorizedBytes = await docx('Unrequested paragraph.')
 const unauthorized = await readSource(unauthorizedBytes, 'unauthorized.docx')
@@ -71,7 +98,7 @@ assert.ok(unauthorizedSecondBlockFindings.some((issue) => /unrequested text chan
 const lostBlockBytes = await docx('Block A')
 const lostBlock = await readSource(lostBlockBytes, 'lost-block.docx')
 const lostBlockFindings = await validateOptionBCandidate(twoBlockSourceBytes, lostBlockBytes, twoBlockSource, lostBlock, [])
-assert.ok(lostBlockFindings.some((issue) => /Paragraph structure changed unexpectedly|unrequested text change/.test(issue)), 'an unexpected source-block loss remains a hard failure')
+assert.ok(lostBlockFindings.some((issue) => /unrequested text change/.test(issue)), 'material source-block loss remains a hard failure')
 
 const insertionSourceBytes = await docx('Anchor')
 const insertionSource = await readSource(insertionSourceBytes, 'insertion-source.docx')

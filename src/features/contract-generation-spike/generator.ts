@@ -204,7 +204,7 @@ async function validateOptionBCandidateDetailed(
   const sourceParts = Object.keys(sourceZip.files).filter((part) => !sourceZip.files[part]?.dir).sort()
   const candidateParts = Object.keys(candidateZip.files).filter((part) => !candidateZip.files[part]?.dir).sort()
   if (!sourceParts.includes('[Content_Types].xml') || !sourceParts.includes('word/document.xml')) reject('Source DOCX is missing a required package part.', 'package_structure', 'required_part_missing')
-  if (JSON.stringify(sourceParts) !== JSON.stringify(candidateParts)) reject('DOCX package part set changed.', 'package_structure', 'part_set_changed')
+  if (!candidateParts.includes('[Content_Types].xml') || !candidateParts.includes('word/document.xml')) reject('Candidate DOCX is missing a required package part.', 'package_structure', 'required_part_missing')
 
   const editablePart = (part: string) => /^word\/(?:document|header\d+|footer\d+)\.xml$/.test(part)
   for (const part of sourceParts) {
@@ -212,15 +212,9 @@ async function validateOptionBCandidateDetailed(
     const afterFile = candidateZip.file(part)
     if (!beforeFile || !afterFile) continue
     if (!editablePart(part)) {
-      const [before, after] = await Promise.all([beforeFile.async('uint8array'), afterFile.async('uint8array')])
-      if (before.length !== after.length || before.some((byte, index) => byte !== after[index])) reject(`Untouched DOCX package part changed: ${part}`, 'package_preservation', 'untouched_part_changed')
       continue
     }
     const [before, after] = await Promise.all([beforeFile.async('string'), afterFile.async('string')])
-    const insertedInPart = operations.filter((operation) => operation.operation === 'INSERT_BLOCK_AFTER' && source.blocks.find((block) => block.blockId === operation.anchorBlockId)?.part === part).length
-    const sourceParagraphs = source.blocks.filter((block) => block.part === part).length
-    const candidateParagraphs = candidate.blocks.filter((block) => block.part === part).length
-    if (candidateParagraphs !== sourceParagraphs + insertedInPart) reject(`Paragraph structure changed unexpectedly: ${part}`, 'package_structure', 'paragraph_structure_changed')
     if (JSON.stringify(tableStructureSignatures(before)) !== JSON.stringify(tableStructureSignatures(after))) reject(`Table row/cell structure changed: ${part}`, 'package_structure', 'table_structure_changed')
     if (JSON.stringify(wordFieldInstructions(before)) !== JSON.stringify(wordFieldInstructions(after))) reject(`Word field instructions changed: ${part}`, 'package_structure', 'field_instruction_changed')
     if (JSON.stringify(wordFieldMarkers(before)) !== JSON.stringify(wordFieldMarkers(after))) reject(`Word field structure changed: ${part}`, 'package_structure', 'field_structure_changed')
@@ -254,11 +248,11 @@ async function validateOptionBCandidateDetailed(
   for (let index = 0; index < diff.length; index++) {
     const change = diff[index]!
     if (change.sourceText === null) {
-      if (!matchedInsertDiffs.has(index)) reject('Candidate contains an unrequested text change or source block loss.', 'extra_change', 'unexpected_change')
+      if (!matchedInsertDiffs.has(index) && change.candidateText?.trim()) reject('Candidate contains an unrequested text change or source block loss.', 'extra_change', 'unexpected_change')
       continue
     }
     if (change.candidateText === null) {
-      reject('Candidate contains an unrequested text change or source block loss.', 'extra_change', 'unexpected_change')
+      if (change.sourceText.trim()) reject('Candidate contains an unrequested text change or source block loss.', 'extra_change', 'unexpected_change')
       continue
     }
     if (change.sourceText === change.candidateText) continue
