@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase'
-import { isMissingInputList, type ContractGenerationAnswer, type MissingInput } from './generationProtocol'
+import { isMissingInputList, REVIEWER_FINDING_CATEGORIES, REVIEWER_FINDING_RULE_IDS, type ContractGenerationAnswer, type MissingInput } from './generationProtocol'
 import type {
   ContractGenerationBoundaryResponse,
   ContractGenerationCandidateRequest,
@@ -34,8 +34,19 @@ function isBoundaryResponse(value: unknown): value is ContractGenerationBoundary
     return typeof value.sessionId === 'string' && isMissingInputList(value.missingInputs)
   }
   if (value.status === 'ready') {
-    return typeof value.sessionId === 'string' && typeof value.candidateId === 'string'
-      && typeof value.templateId === 'string' && typeof value.templateVersionId === 'string'
+    if (typeof value.sessionId !== 'string' || typeof value.candidateId !== 'string'
+      || typeof value.templateId !== 'string' || typeof value.templateVersionId !== 'string'
+      || !isRecord(value.reviewer)) return false
+    const reviewer = value.reviewer
+    if (reviewer.status === 'passed' || reviewer.status === 'unavailable') return Object.keys(reviewer).length === 1
+    const categories = REVIEWER_FINDING_CATEGORIES as readonly string[]
+    const ruleIds = REVIEWER_FINDING_RULE_IDS as readonly string[]
+    return reviewer.status === 'findings' && Object.keys(reviewer).length === 4
+      && Number.isInteger(reviewer.findingCount) && (reviewer.findingCount as number) > 0
+      && Array.isArray(reviewer.findingCategories) && reviewer.findingCategories.length > 0
+      && reviewer.findingCategories.every((item) => typeof item === 'string' && categories.includes(item))
+      && Array.isArray(reviewer.findingRuleIds) && reviewer.findingRuleIds.length === reviewer.findingCount
+      && reviewer.findingRuleIds.every((item) => typeof item === 'string' && ruleIds.includes(item))
   }
   if (value.status === 'processing') return typeof value.sessionId === 'string'
   if (value.status === 'unresolved_conflict') return typeof value.sessionId === 'string' && typeof value.message === 'string'

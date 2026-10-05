@@ -184,9 +184,9 @@ assert.equal(Object.hasOwn(invalidResponseTelemetry.events[0]!, 'mechanicalGateI
     diagnose: (event) => events.push(event),
   }
   const result = await createContractGenerationBoundary(failedReviewerDeps).start('synthetic-owner', { weddingId: 'synthetic-wedding', requestId: '00000000-0000-4000-8000-000000000001' })
-  assert.equal(result.status, 'failure')
-  assert.equal(events.some((event) => event.providerRole === 'Reviewer' && event.category === 'FAIL'), true)
-  assert.equal(events.some((event) => event.providerRole === 'orchestrator' && event.finalCode === 'generation_safety'), true)
+  assert.equal(result.status, 'ready')
+  assert.equal(events.some((event) => event.providerRole === 'Reviewer' && event.category === 'UNAVAILABLE'), true)
+  assert.equal(events.some((event) => event.providerRole === 'orchestrator' && event.category === 'candidate_persisted'), true)
 }
 
 {

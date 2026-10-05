@@ -100,7 +100,7 @@ assert.equal(parseContractGenerationAction({ version: 1, action: 'recover', requ
     getSessionByIdempotencyKey: async () => ({ ...baseSession, state: 'completed' }),
   })
   const replay = await f.boundary.start('owner-1', startRequest)
-  assert.deepEqual(replay, { status: 'ready', sessionId: 'session-1', candidateId: 'session-1', templateId: 'template-1', templateVersionId: 'version-1' })
+  assert.deepEqual(replay, { status: 'ready', sessionId: 'session-1', candidateId: 'session-1', templateId: 'template-1', templateVersionId: 'version-1', reviewer: { status: 'unavailable' } })
   assert.deepEqual(f.calls, [], 'initial request replay returns the existing candidate without another execution')
 }
 
@@ -166,6 +166,7 @@ assert.equal(parseContractGenerationAction({ version: 1, action: 'recover', requ
   })
   const result = await f.boundary.start('owner-1', startRequest)
   assert.equal(result.status, 'ready')
+  if (result.status === 'ready') assert.deepEqual(result.reviewer, { status: 'passed' })
   assert.deepEqual(f.calls, ['createSession', 'generate', 'review', 'persist'])
   assert.equal(f.session()?.state, 'completed')
   const generator = f.diagnostics.find(({ providerRole }) => providerRole === 'Generator')
@@ -179,8 +180,9 @@ assert.equal(parseContractGenerationAction({ version: 1, action: 'recover', requ
     review: async () => { f.calls.push('review'); return 'fail' },
   })
   const result = await f.boundary.start('owner-1', startRequest)
-  assert.equal(result.status, 'failure')
-  assert.equal(f.calls.includes('persist'), false, 'Reviewer failure cannot persist candidate')
+  assert.equal(result.status, 'ready')
+  if (result.status === 'ready') assert.deepEqual(result.reviewer, { status: 'unavailable' })
+  assert.equal(f.calls.includes('persist'), true, 'mechanically valid candidate remains available after a Reviewer response without safe findings')
 }
 
 {
@@ -198,11 +200,17 @@ assert.equal(parseContractGenerationAction({ version: 1, action: 'recover', requ
   })
   const result = await f.boundary.start('owner-1', startRequest)
   const reviewer = f.diagnostics.find(({ providerRole }) => providerRole === 'Reviewer')
-  assert.equal(result.status, 'failure')
+  assert.equal(result.status, 'ready')
+  if (result.status === 'ready') assert.deepEqual(result.reviewer, {
+    status: 'findings', findingCount: 2,
+    findingCategories: ['authoritative_fact_mismatch', 'unsupported_addition'],
+    findingRuleIds: ['payment_amounts', 'unsupported_invention'],
+  })
   assert.deepEqual(reviewer && { category: reviewer.category, findingCount: reviewer.findingCount, findingCategories: reviewer.findingCategories, findingRuleIds: reviewer.findingRuleIds }, {
     category: 'FAIL', findingCount: 2, findingCategories: ['authoritative_fact_mismatch', 'unsupported_addition'], findingRuleIds: ['payment_amounts', 'unsupported_invention'],
   })
-  assert.deepEqual(f.calls, ['createSession', 'generate', 'review', 'failure:failed'], 'semantic FAIL has no retry, repair, or persistence')
+  assert.deepEqual(f.calls, ['createSession', 'generate', 'review', 'persist'], 'semantic findings preserve the candidate without retry or repair')
+  assert.equal(f.session()?.state, 'completed')
   assert.equal(JSON.stringify(f.diagnostics).includes('private-message'), false)
 }
 
@@ -215,9 +223,10 @@ for (const [errorCategory, diagnosticCategory] of [
     review: async () => { f.calls.push('review'); throw new ProviderOperationError(errorCategory) },
   })
   const result = await f.boundary.start('owner-1', startRequest)
-  assert.deepEqual(result, { status: 'failure', code: 'temporary_failure' })
+  assert.equal(result.status, 'ready', 'Reviewer provider failure leaves deterministic candidate available')
+  if (result.status === 'ready') assert.deepEqual(result.reviewer, { status: 'unavailable' })
   assert.equal(f.diagnostics.find(({ providerRole }) => providerRole === 'Reviewer')?.category, diagnosticCategory)
-  assert.deepEqual(f.calls, ['createSession', 'generate', 'review', 'failure:failed'], 'Reviewer provider/protocol failure does not retry, repair, or persist')
+  assert.deepEqual(f.calls, ['createSession', 'generate', 'review', 'persist'], 'Reviewer provider/protocol failure does not retry or repair and candidate persists')
 }
 
 {
@@ -227,10 +236,41 @@ for (const [errorCategory, diagnosticCategory] of [
   const result = await f.boundary.start('owner-1', startRequest)
   const reviewer = f.diagnostics.find(({ providerRole }) => providerRole === 'Reviewer')
   assert.equal(result.status, 'ready', 'PASS keeps candidate persistence behavior')
+  if (result.status === 'ready') assert.deepEqual(result.reviewer, { status: 'passed' })
   assert.equal(reviewer?.category, 'PASS')
   assert.equal(reviewer?.findingCount, undefined)
   assert.equal(reviewer?.findingCategories, undefined)
   assert.equal(reviewer?.findingRuleIds, undefined)
+}
+
+{
+  const original = new Uint8Array([1, 2, 3])
+  let persisted: Uint8Array | null = null
+  const f = setup({
+    generate: async () => { f.calls.push('generate'); return { status: 'READY', candidate: { bytes: original.buffer, changedBlocks: [{ kind: 'replace' }] } } },
+    review: async (_context, _answers, candidate) => {
+      f.calls.push('review')
+      new Uint8Array(candidate.bytes)[0] = 9
+      candidate.changedBlocks[0] = 'mutated'
+      return 'pass'
+    },
+    persistAcceptedCandidate: async ({ candidate }) => { persisted = new Uint8Array(candidate.bytes); return 'candidate-1' },
+  })
+  const result = await f.boundary.start('owner-1', startRequest)
+  assert.equal(result.status, 'ready')
+  assert.deepEqual([...persisted!], [1, 2, 3], 'Reviewer receives an isolated copy and cannot mutate persisted candidate bytes')
+}
+
+{
+  for (const category of ['mechanical_validation_failure', 'invalid_response'] as const) {
+    const f = setup({
+      generate: async () => { f.calls.push('generate'); return { status: 'FAILED', category } },
+    })
+    const result = await f.boundary.start('owner-1', startRequest)
+    assert.deepEqual(result, { status: 'failure', code: 'generation_safety' })
+    assert.equal(f.calls.includes('review'), false, `${category} does not reach Reviewer`)
+    assert.equal(f.calls.includes('persist'), false, `${category} does not retain a candidate`)
+  }
 }
 
 {

@@ -45,6 +45,7 @@ import {
   type GenerationConnection,
 } from '@/features/contract-generation-spike/generationConnection'
 import { ContractGenerationMissingInputForm } from '@/features/contract-generation-spike/ContractGenerationMissingInputForm'
+import type { BoundaryReviewerState } from '@/features/contract-generation-spike/serverBoundary'
 
 type WizardStep =
   | 'resolve'
@@ -60,6 +61,7 @@ type PageGeneratedContract = Omit<Pick<TransformContractResult,
   'draftId' | 'templateId' | 'templateVersionId' | 'title' | 'resolved' | 'omittedKeys' |
   'paragraphs' | 'docxBytes' | 'usedMock' | 'qualityRetries' | 'executionSnapshot' | 'finalArtifact'>, 'draftId'> & {
     draftId?: string
+    reviewer?: BoundaryReviewerState
   }
 
 type PackageContractResolution =
@@ -228,6 +230,7 @@ export function WeddingContractGenerationPage() {
       qualityRetries: 0,
       executionSnapshot: null,
       finalArtifact: null,
+      reviewer: result.reviewer,
     }
     setGenerated(prepared)
     setDocxBytes(bytes)
@@ -812,6 +815,21 @@ export function WeddingContractGenerationPage() {
 
         {step === 'preview' && generated ? (
           <section className={`${styles.card} ${styles.previewCard}`}>
+            {generated.reviewer?.status === 'findings' ? (
+              <aside className={styles.reviewNotice} aria-label="Wynik automatycznej kontroli">
+                <p>Umowa została wygenerowana, ale automatyczna kontrola wykryła elementy, które warto sprawdzić przed zapisaniem.</p>
+                <ul>
+                  {[...new Set(generated.reviewer.findingCategories)].map((category) => (
+                    <li key={category}>{reviewerCategoryMessage[category]}</li>
+                  ))}
+                </ul>
+              </aside>
+            ) : null}
+            {generated.reviewer?.status === 'unavailable' ? (
+              <aside className={styles.reviewNotice} aria-label="Wynik automatycznej kontroli">
+                Automatyczna kontrola dokumentu nie była dostępna. Sprawdź umowę przed zapisaniem.
+              </aside>
+            ) : null}
             <div className={styles.previewHeader}>
               <div>
                 <p className={styles.eyebrow}>Podgląd dokumentu</p>
@@ -882,4 +900,14 @@ export function WeddingContractGenerationPage() {
       />
     </AppLayout>
   )
+}
+
+const reviewerCategoryMessage: Record<import('@/features/contract-generation-spike/generationProtocol').ReviewerFindingCategory, string> = {
+  source_mismatch: 'Porównaj dokument z umową źródłową.',
+  omitted_required_content: 'Sprawdź, czy wymagane zapisy są obecne.',
+  unsupported_addition: 'Sprawdź dodatkowe treści w dokumencie.',
+  authoritative_fact_mismatch: 'Sprawdź dane umowy względem danych ślubu.',
+  product_rule_violation: 'Sprawdź zgodność umowy z zasadami produktu.',
+  structural_issue: 'Sprawdź układ i kompletność dokumentu.',
+  other_material_issue: 'Sprawdź wskazane elementy przed zapisaniem.',
 }

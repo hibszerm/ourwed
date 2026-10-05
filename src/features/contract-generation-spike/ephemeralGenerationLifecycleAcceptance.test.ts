@@ -36,13 +36,15 @@ assert.match(edge, /rpc\('begin_option_b_generation'/)
 assert.match(edge, /rpc\('claim_option_b_generation_save'/)
 
 // Valid transitions refresh the inactivity deadline. Terminal paths erase raw
-// working data; candidate bytes are server-created only after independent review.
+// working data; candidate bytes are server-created after deterministic validation.
 assert.match(edge, /expires_at: new Date\(Date\.now\(\) \+ OPTION_B_ACTIVE_TTL_MS\)\.toISOString\(\)/)
 assert.match(edge, /user_answers_json: \[\]/)
 assert.match(edge, /missing_inputs_json: \[\]/)
 assert.match(edge, /resolved_values_json: \{\}/)
 assert.match(edge, /\.eq\('ephemeral_lifecycle_version', 1\)/)
-assert.ok(boundary.indexOf('await deps.review(latest, answers, generated.candidate)') < boundary.indexOf('await deps.persistAcceptedCandidate({'), 'candidate persistence follows Reviewer PASS')
+assert.ok(boundary.indexOf('await deps.review(latest, answers, {') < boundary.indexOf('await deps.persistAcceptedCandidate({'), 'candidate review precedes ephemeral candidate persistence')
+assert.match(boundary, /status: 'ready',[\s\S]*?reviewer: review/, 'Reviewer findings travel with the ready Preview response')
+assert.match(boundary, /review = \{ status: 'unavailable' \}/, 'Reviewer provider failure leaves the mechanically valid candidate eligible for Preview')
 assert.match(edge, /storage\.from\('document-files'\)\.upload\(path/)
 assert.match(edge, /cleanupExpiredOptionBRuns/)
 assert.match(edge, /\.eq\('session_kind', 'option_b'\)\.eq\('ephemeral_lifecycle_version', 1\)/)

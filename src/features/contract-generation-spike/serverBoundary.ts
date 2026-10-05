@@ -35,7 +35,7 @@ export type ContractGenerationValidateCandidateRequest = {
 
 export type ContractGenerationBoundaryResponse =
   | { status: 'awaiting_input'; sessionId: string; missingInputs: MissingInput[] }
-  | { status: 'ready'; sessionId: string; candidateId: string; templateId: string; templateVersionId: string }
+  | { status: 'ready'; sessionId: string; candidateId: string; templateId: string; templateVersionId: string; reviewer: BoundaryReviewerState }
   | { status: 'processing'; sessionId: string }
   | { status: 'unresolved_conflict'; sessionId: string; message: string }
   | { status: 'precondition'; code: 'setup_required' }
@@ -84,6 +84,16 @@ export type BoundaryDiagnostic = {
   finalCode?: 'generation_safety' | 'temporary_failure' | 'stale'
 }
 
+export type BoundaryReviewerState =
+  | { status: 'passed' }
+  | { status: 'unavailable' }
+  | {
+      status: 'findings'
+      findingCount: number
+      findingCategories: ReviewerFindingCategory[]
+      findingRuleIds: ReviewerFindingRuleId[]
+    }
+
 export type BoundaryReviewerResult = 'pass' | 'fail' | {
   status: 'fail'
   findingCount: number
@@ -104,6 +114,21 @@ function safeReviewerSummary(result: BoundaryReviewerResult): Pick<BoundaryDiagn
     findingCount: result.findingCount,
     findingCategories: categories,
     findingRuleIds: [...result.findingRuleIds].sort(),
+  }
+}
+
+function reviewerState(result: BoundaryReviewerResult): BoundaryReviewerState {
+  if (result === 'pass') return { status: 'passed' }
+  if (result === 'fail') return { status: 'unavailable' }
+  const summary = safeReviewerSummary(result)
+  if (!summary.findingCount || !summary.findingCategories?.length || !summary.findingRuleIds?.length) {
+    return { status: 'unavailable' }
+  }
+  return {
+    status: 'findings',
+    findingCount: summary.findingCount,
+    findingCategories: summary.findingCategories,
+    findingRuleIds: summary.findingRuleIds,
   }
 }
 
@@ -302,19 +327,21 @@ export function createContractGenerationBoundary(deps: ServerBoundaryDependencie
         await deps.markFailure(session.id, executionId, 'stale')
         return { status: 'stale', code: 'authority_changed' }
       }
-      let review: BoundaryReviewerResult
+      let review: BoundaryReviewerState
       try {
-        review = await deps.review(latest, answers, generated.candidate)
-        diagnose({ providerRole: 'Reviewer', category: review === 'pass' ? 'PASS' : 'FAIL', providerInvoked: true, editCount: generated.candidate.changedBlocks.length, mechanicalValidation: 'passed', ...safeReviewerSummary(review) })
+        const reviewResult = await deps.review(latest, answers, {
+          bytes: generated.candidate.bytes.slice(0),
+          changedBlocks: structuredClone(generated.candidate.changedBlocks),
+        })
+        review = reviewerState(reviewResult)
+        diagnose({ providerRole: 'Reviewer', category: review.status === 'passed' ? 'PASS' : review.status === 'findings' ? 'FAIL' : 'UNAVAILABLE', providerInvoked: true, editCount: generated.candidate.changedBlocks.length, mechanicalValidation: 'passed', ...(review.status === 'findings' ? {
+          findingCount: review.findingCount,
+          findingCategories: review.findingCategories,
+          findingRuleIds: review.findingRuleIds,
+        } : {}) })
       } catch (error) {
-        diagnose({ providerRole: 'Reviewer', category: error instanceof ProviderOperationError ? error.category.toUpperCase() : 'INTERNAL_FAILURE', providerInvoked: providerInvoked(error), editCount: generated.candidate.changedBlocks.length, mechanicalValidation: 'passed', finalCode: 'temporary_failure' })
-        await deps.markFailure(session.id, executionId, 'failed')
-        return { status: 'failure', code: 'temporary_failure' }
-      }
-      if (review !== 'pass') {
-        diagnose({ providerRole: 'orchestrator', category: 'reviewer_rejected', editCount: generated.candidate.changedBlocks.length, mechanicalValidation: 'passed', finalCode: 'generation_safety' })
-        await deps.markFailure(session.id, executionId, 'failed')
-        return { status: 'failure', code: 'generation_safety' }
+        diagnose({ providerRole: 'Reviewer', category: error instanceof ProviderOperationError ? error.category.toUpperCase() : 'INTERNAL_FAILURE', providerInvoked: providerInvoked(error), editCount: generated.candidate.changedBlocks.length, mechanicalValidation: 'passed' })
+        review = { status: 'unavailable' }
       }
       const beforePersist = await deps.loadContext(session.ownerUserId, session.weddingId, answers)
       if (!beforePersist || !sessionMatchesScope(session, beforePersist.scope)
@@ -333,7 +360,7 @@ export function createContractGenerationBoundary(deps: ServerBoundaryDependencie
       if (!candidateId) await deps.markFailure(session.id, executionId, 'failed')
       diagnose({ providerRole: 'orchestrator', category: candidateId ? 'candidate_persisted' : 'candidate_persistence_failure', editCount: generated.candidate.changedBlocks.length, mechanicalValidation: 'passed', finalCode: candidateId ? undefined : 'temporary_failure' })
       return candidateId
-        ? { status: 'ready', sessionId: session.id, candidateId, templateId: session.templateId, templateVersionId: session.templateVersionId }
+        ? { status: 'ready', sessionId: session.id, candidateId, templateId: session.templateId, templateVersionId: session.templateVersionId, reviewer: review }
         : { status: 'failure', code: 'temporary_failure' }
     } catch (error) {
       diagnose({ providerRole: 'orchestrator', category: error instanceof ProviderOperationError ? error.category.toUpperCase() : 'INTERNAL_FAILURE', finalCode: 'temporary_failure' })
@@ -431,7 +458,7 @@ function existingStartResult(
     if (!Number.isFinite(Date.parse(session.expiresAt)) || Date.parse(session.expiresAt) <= now.getTime()) {
       return { status: 'stale', code: 'session_invalid' }
     }
-    return { status: 'ready', sessionId: session.id, candidateId: session.id, templateId: session.templateId, templateVersionId: session.templateVersionId }
+    return { status: 'ready', sessionId: session.id, candidateId: session.id, templateId: session.templateId, templateVersionId: session.templateVersionId, reviewer: { status: 'unavailable' } }
   }
   return { status: 'failure', code: 'temporary_failure' }
 }
