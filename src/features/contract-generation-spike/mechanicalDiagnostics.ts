@@ -40,6 +40,11 @@ export const MECHANICAL_AUTHORITY_TYPES = ['normalized_authority'] as const
 export type MechanicalGateId = typeof MECHANICAL_GATE_IDS[number]
 export type MechanicalReasonCode = typeof MECHANICAL_REASON_CODES[number]
 export type MechanicalAuthorityType = typeof MECHANICAL_AUTHORITY_TYPES[number]
+export type MechanicalEditOperation = 'replace' | 'insert_after' | 'other'
+export type MechanicalSourceBlockType = 'body' | 'table_cell' | 'header' | 'footer' | 'other'
+
+const editOperations = new Set<MechanicalEditOperation>(['replace', 'insert_after', 'other'])
+const sourceBlockTypes = new Set<MechanicalSourceBlockType>(['body', 'table_cell', 'header', 'footer', 'other'])
 
 export type MechanicalFailureDiagnostic = {
   gateId: MechanicalGateId
@@ -47,6 +52,18 @@ export type MechanicalFailureDiagnostic = {
   editIndex?: number
   editCount?: number
   authorityType?: MechanicalAuthorityType
+  editOperation?: MechanicalEditOperation
+  sourceBlockType?: MechanicalSourceBlockType
+  sourceBlockOrdinal?: number
+  sourceOccurrence?: number
+  sourceCanonicalLength?: number
+  requestedCanonicalLength?: number
+  candidateCanonicalLength?: number
+  sourceTargetFound?: boolean
+  editorOperationReportedSuccess?: boolean
+  candidateBlockOrdinal?: number | null
+  expectedAtCandidateBlock?: boolean
+  exactRequestedCanonicalFoundElsewhere?: boolean
 }
 
 export type SafeMechanicalTelemetry = {
@@ -55,6 +72,18 @@ export type SafeMechanicalTelemetry = {
   mechanicalEditIndex?: number
   mechanicalEditCount?: number
   mechanicalAuthorityType?: MechanicalAuthorityType
+  mechanicalEditOperation?: MechanicalEditOperation
+  mechanicalSourceBlockType?: MechanicalSourceBlockType
+  mechanicalSourceBlockOrdinal?: number
+  mechanicalSourceOccurrence?: number
+  mechanicalSourceCanonicalLength?: number
+  mechanicalRequestedCanonicalLength?: number
+  mechanicalCandidateCanonicalLength?: number
+  mechanicalSourceTargetFound?: boolean
+  mechanicalEditorOperationReportedSuccess?: boolean
+  mechanicalCandidateBlockOrdinal?: number | null
+  mechanicalExpectedAtCandidateBlock?: boolean
+  mechanicalExactRequestedCanonicalFoundElsewhere?: boolean
 }
 
 const gateIds = new Set<string>(MECHANICAL_GATE_IDS)
@@ -85,5 +114,20 @@ export function safeMechanicalTelemetry(value: unknown): SafeMechanicalTelemetry
   if (Number.isSafeInteger(input.editIndex) && (input.editIndex as number) >= 0) output.mechanicalEditIndex = input.editIndex as number
   if (Number.isSafeInteger(input.editCount) && (input.editCount as number) >= 0) output.mechanicalEditCount = input.editCount as number
   if (validPair && typeof input.authorityType === 'string' && authorityTypes.has(input.authorityType)) output.mechanicalAuthorityType = input.authorityType as MechanicalAuthorityType
+  if (validPair && gateId === 'edit_application' && reasonCode === 'requested_edit_missing') {
+    if (typeof input.editOperation === 'string' && editOperations.has(input.editOperation as MechanicalEditOperation)) output.mechanicalEditOperation = input.editOperation as MechanicalEditOperation
+    if (typeof input.sourceBlockType === 'string' && sourceBlockTypes.has(input.sourceBlockType as MechanicalSourceBlockType)) output.mechanicalSourceBlockType = input.sourceBlockType as MechanicalSourceBlockType
+    if (Number.isSafeInteger(input.sourceBlockOrdinal) && (input.sourceBlockOrdinal as number) >= 0) output.mechanicalSourceBlockOrdinal = input.sourceBlockOrdinal as number
+    if (Number.isSafeInteger(input.sourceOccurrence) && (input.sourceOccurrence as number) >= 0) output.mechanicalSourceOccurrence = input.sourceOccurrence as number
+    if (Number.isSafeInteger(input.sourceCanonicalLength) && (input.sourceCanonicalLength as number) >= 0) output.mechanicalSourceCanonicalLength = input.sourceCanonicalLength as number
+    if (Number.isSafeInteger(input.requestedCanonicalLength) && (input.requestedCanonicalLength as number) >= 0) output.mechanicalRequestedCanonicalLength = input.requestedCanonicalLength as number
+    if (Number.isSafeInteger(input.candidateCanonicalLength) && (input.candidateCanonicalLength as number) >= 0) output.mechanicalCandidateCanonicalLength = input.candidateCanonicalLength as number
+    if (typeof input.sourceTargetFound === 'boolean') output.mechanicalSourceTargetFound = input.sourceTargetFound
+    if (typeof input.editorOperationReportedSuccess === 'boolean') output.mechanicalEditorOperationReportedSuccess = input.editorOperationReportedSuccess
+    if (input.candidateBlockOrdinal === null) output.mechanicalCandidateBlockOrdinal = null
+    else if (Number.isSafeInteger(input.candidateBlockOrdinal) && (input.candidateBlockOrdinal as number) >= 0) output.mechanicalCandidateBlockOrdinal = input.candidateBlockOrdinal as number
+    if (typeof input.expectedAtCandidateBlock === 'boolean') output.mechanicalExpectedAtCandidateBlock = input.expectedAtCandidateBlock
+    if (typeof input.exactRequestedCanonicalFoundElsewhere === 'boolean') output.mechanicalExactRequestedCanonicalFoundElsewhere = input.exactRequestedCanonicalFoundElsewhere
+  }
   return output
 }

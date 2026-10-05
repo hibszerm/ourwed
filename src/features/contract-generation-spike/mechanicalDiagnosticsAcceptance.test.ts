@@ -43,6 +43,32 @@ assert.equal(JSON.stringify(projection).includes('not-allowlisted'), false)
 assert.deepEqual(safeMechanicalTelemetry({ gateId: 'edit_application', reasonCode: 'requested_edit_missing', editIndex: '2', editCount: Number.NaN }), {
   mechanicalGateId: 'edit_application', mechanicalReasonCode: 'requested_edit_missing',
 })
+const safeEditFailure = safeMechanicalTelemetry({
+  gateId: 'edit_application', reasonCode: 'requested_edit_missing', editIndex: 2, editCount: 9,
+  editOperation: 'replace', sourceBlockType: 'table_cell', sourceBlockOrdinal: 7, sourceOccurrence: 1,
+  sourceCanonicalLength: 25, requestedCanonicalLength: 31, candidateCanonicalLength: 19,
+  sourceTargetFound: true, editorOperationReportedSuccess: true, candidateBlockOrdinal: 8,
+  expectedAtCandidateBlock: false, exactRequestedCanonicalFoundElsewhere: true,
+  finalText: privateValues.join(' '), sourceText: privateValues.join(' '), candidateText: privateValues.join(' '),
+})
+assert.deepEqual(safeEditFailure, {
+  mechanicalGateId: 'edit_application', mechanicalReasonCode: 'requested_edit_missing', mechanicalEditIndex: 2, mechanicalEditCount: 9,
+  mechanicalEditOperation: 'replace', mechanicalSourceBlockType: 'table_cell', mechanicalSourceBlockOrdinal: 7,
+  mechanicalSourceOccurrence: 1, mechanicalSourceCanonicalLength: 25, mechanicalRequestedCanonicalLength: 31,
+  mechanicalCandidateCanonicalLength: 19, mechanicalSourceTargetFound: true,
+  mechanicalEditorOperationReportedSuccess: true, mechanicalCandidateBlockOrdinal: 8,
+  mechanicalExpectedAtCandidateBlock: false, mechanicalExactRequestedCanonicalFoundElsewhere: true,
+})
+const rejectedEditDiagnostics = safeMechanicalTelemetry({
+  gateId: 'edit_application', reasonCode: 'requested_edit_missing', editOperation: privateValues[0],
+  sourceBlockType: privateValues[1], sourceCanonicalLength: -1, requestedCanonicalLength: 'private',
+  sourceTargetFound: 'yes', editorOperationReportedSuccess: 1,
+})
+assert.deepEqual(rejectedEditDiagnostics, { mechanicalGateId: 'edit_application', mechanicalReasonCode: 'requested_edit_missing' })
+assert.deepEqual(safeMechanicalTelemetry({ gateId: 'edit_application', reasonCode: 'deletion_not_permitted', editOperation: 'replace' }), {
+  mechanicalGateId: 'edit_application', mechanicalReasonCode: 'deletion_not_permitted',
+}, 'new fields are restricted to requested_edit_missing')
+for (const value of privateValues) assert.equal(JSON.stringify(safeEditFailure).includes(value), false)
 assert.equal(safeMechanicalTelemetry({ gateId: 'authority', reasonCode: 'missing_provenance', authorityType: 'normalized_authority' })?.mechanicalAuthorityType, 'normalized_authority')
 assert.equal(safeMechanicalTelemetry({ gateId: 'authority', reasonCode: 'missing_provenance', authorityType: privateValues[4] })?.mechanicalAuthorityType, undefined)
 
@@ -107,6 +133,38 @@ if (!absentEdit.passed) {
   assert.equal(absentEdit.failure?.gateId, 'edit_application')
   assert.equal(absentEdit.failure?.reasonCode, 'requested_edit_missing')
   assert.equal(absentEdit.failure?.editIndex, 0)
+  assert.equal(absentEdit.failure?.editOperation, 'replace')
+  assert.equal(absentEdit.failure?.sourceBlockType, 'body')
+  assert.equal(absentEdit.failure?.sourceBlockOrdinal, 0)
+  assert.equal(absentEdit.failure?.sourceOccurrence, 0)
+  assert.equal(absentEdit.failure?.sourceTargetFound, true)
+  assert.equal(absentEdit.failure?.candidateBlockOrdinal, 0)
+  assert.equal(absentEdit.failure?.expectedAtCandidateBlock, false)
+  assert.equal(absentEdit.failure?.exactRequestedCanonicalFoundElsewhere, false)
+}
+
+const pageBreakZip = new JSZip()
+pageBreakZip.file('[Content_Types].xml', '<Types/>')
+pageBreakZip.file('word/document.xml', '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t></w:t></w:r></w:p><w:p><w:r><w:t></w:t></w:r></w:p><w:p><w:pPr><w:pageBreakBefore w:val="1"/></w:pPr><w:r><w:t>Heading</w:t></w:r></w:p><w:p><w:r><w:t>Source target</w:t></w:r></w:p><w:sectPr/></w:body></w:document>')
+const pageBreakSourceBytes = await pageBreakZip.generateAsync({ type: 'arraybuffer' })
+const pageBreakSource = await readSource(pageBreakSourceBytes, 'page-break-source.docx')
+const pageBreakSourceView = createGenerationSourceView(pageBreakSource)
+const targetBlock = pageBreakSource.blocks.find((block) => block.text === 'Source target')!
+const requestedElsewhere = 'SYNTHETIC_PRIVATE_REQUESTED_ELSEWHERE'
+const wrongLocationResult = await applyOptionBGenerationResponse(pageBreakSourceBytes, pageBreakSource, authority, pageBreakSourceView.sourceBlockIds, {
+  status: 'READY', edits: [{ kind: 'replace', blockId: [...pageBreakSourceView.sourceBlockIds].find(([, sourceId]) => sourceId === targetBlock.blockId)![0], text: requestedElsewhere }],
+})
+assert.equal(wrongLocationResult.status, 'FAILED', 'an applied edit selected at the wrong paragraph remains a blocking failure')
+if (wrongLocationResult.status === 'FAILED') {
+  assert.equal(wrongLocationResult.mechanicalFailure?.gateId, 'edit_application')
+  assert.equal(wrongLocationResult.mechanicalFailure?.reasonCode, 'requested_edit_missing')
+  assert.equal(wrongLocationResult.mechanicalFailure?.editIndex, 0)
+  assert.equal(wrongLocationResult.mechanicalFailure?.editorOperationReportedSuccess, true)
+  assert.equal(wrongLocationResult.mechanicalFailure?.candidateBlockOrdinal, null)
+  assert.equal(wrongLocationResult.mechanicalFailure?.expectedAtCandidateBlock, false)
+  assert.equal(wrongLocationResult.mechanicalFailure?.exactRequestedCanonicalFoundElsewhere, true)
+  const serialized = JSON.stringify(safeMechanicalTelemetry(wrongLocationResult.mechanicalFailure))
+  for (const value of ['Source target', requestedElsewhere, 'Heading']) assert.equal(serialized.includes(value), false)
 }
 
 const badInput = structuredClone(authority)

@@ -4,7 +4,7 @@ import { applyBlockOperations, type BlockOperation, type EditableBlock } from '.
 import { canonicalizeParagraphText, unescapeXml } from '@/features/documents/template/canonicalParagraph.ts'
 import type { ContractGenerationInput } from './contractGenerationInput'
 import { isGenerationResponse, REVIEWER_FINDING_RULE_IDS, type BlockEdit, type MissingInput } from './generationProtocol.ts'
-import type { MechanicalFailureDiagnostic } from './mechanicalDiagnostics.ts'
+import type { MechanicalEditOperation, MechanicalFailureDiagnostic, MechanicalSourceBlockType } from './mechanicalDiagnostics.ts'
 
 export type SourceBlock = EditableBlock
 export type SourceDocument = { fileName: string; blocks: SourceBlock[] }
@@ -137,6 +137,18 @@ function candidateIndexForSourceBlock(block: SourceBlock, source: SourceBlock[],
   }, 0)
 }
 
+function mechanicalSourceBlockType(block: SourceBlock | undefined): MechanicalSourceBlockType {
+  if (!block) return 'other'
+  if (block.kind === 'tableCell') return 'table_cell'
+  return block.kind
+}
+
+function sourceOccurrence(block: SourceBlock, source: SourceBlock[]): number {
+  const canonicalText = canonicalizeParagraphText(block.text)
+  return source.filter((candidate) => candidate.part === block.part
+    && canonicalizeParagraphText(candidate.text) === canonicalText).findIndex((candidate) => candidate.blockId === block.blockId)
+}
+
 export function computeChangedBlockDiff(source: SourceBlock[], candidate: SourceBlock[], insertions: BlockOperation[] = []): ChangedBlock[] {
   const candidateById = new Map(candidate.map((block) => [block.blockId, block]))
   const mappedCandidateIds = new Set<string>()
@@ -186,6 +198,7 @@ async function validateOptionBCandidateDetailed(
   source: SourceDocument,
   candidate: SourceDocument,
   operations: BlockOperation[],
+  editorOperationReportedSuccess?: boolean,
 ): Promise<{ issues: string[]; diagnostics: MechanicalFailureDiagnostic[] }> {
   const issues: string[] = []
   const diagnostics: MechanicalFailureDiagnostic[] = []
@@ -223,6 +236,28 @@ async function validateOptionBCandidateDetailed(
   const diff = computeChangedBlockDiff(source.blocks, candidate.blocks, operations)
   const replacements = new Map<string, Extract<BlockOperation, { operation: 'REPLACE_BLOCK_TEXT' }>>()
   const matchedInsertDiffs = new Set<number>()
+  const requestedEditDiagnostic = (
+    editIndex: number,
+    operationType: MechanicalEditOperation,
+    sourceBlock: SourceBlock | undefined,
+    requestedText: string,
+    candidateBlock: SourceBlock | undefined,
+    expectedAtCandidateBlock: boolean,
+  ): MechanicalFailureDiagnostic => ({
+    gateId: 'edit_application', reasonCode: 'requested_edit_missing', editIndex, editCount: operations.length,
+    editOperation: operationType,
+    sourceBlockType: mechanicalSourceBlockType(sourceBlock),
+    ...(sourceBlock ? { sourceBlockOrdinal: sourceBlock.index, sourceOccurrence: sourceOccurrence(sourceBlock, source.blocks) } : {}),
+    ...(sourceBlock ? { sourceCanonicalLength: canonicalizeParagraphText(sourceBlock.text).length } : {}),
+    requestedCanonicalLength: requestedText.length,
+    ...(candidateBlock ? { candidateCanonicalLength: canonicalizeParagraphText(candidateBlock.text).length } : {}),
+    sourceTargetFound: Boolean(sourceBlock),
+    ...(editorOperationReportedSuccess === undefined ? {} : { editorOperationReportedSuccess }),
+    candidateBlockOrdinal: candidateBlock?.index ?? null,
+    expectedAtCandidateBlock,
+    exactRequestedCanonicalFoundElsewhere: !expectedAtCandidateBlock
+      && candidate.blocks.some((block) => canonicalizeParagraphText(block.text) === requestedText),
+  })
   for (const [editIndex, operation] of operations.entries()) {
     if (operation.operation === 'REPLACE_BLOCK_TEXT') {
       const original = source.blocks.find((block) => block.blockId === operation.blockId)
@@ -233,14 +268,19 @@ async function validateOptionBCandidateDetailed(
       const candidateBlock = original
         ? candidate.blocks.find((block) => block.blockId === `${original.part}#p${candidateIndex}`)
         : undefined
-      if (!original || !candidateBlock || candidateBlock.text !== canonicalizeParagraphText(operation.finalText)) {
+      const requestedText = canonicalizeParagraphText(operation.finalText)
+      const expectedAtCandidateBlock = Boolean(candidateBlock && candidateBlock.text === requestedText)
+      if (!original || !expectedAtCandidateBlock) {
         reject(`Requested block replacement was not applied exactly: ${operation.blockId}`, 'edit_application', 'requested_edit_missing', editIndex)
+        diagnostics[diagnostics.length - 1] = requestedEditDiagnostic(editIndex, 'replace', original, requestedText, candidateBlock, expectedAtCandidateBlock)
       }
     } else if (operation.operation === 'INSERT_BLOCK_AFTER') {
+      const anchor = source.blocks.find((block) => block.blockId === operation.anchorBlockId)
       const matchingDiff = diff.findIndex((item, index) => !matchedInsertDiffs.has(index)
         && item.sourceText === null && item.candidateText === canonicalizeParagraphText(operation.finalText))
       if (matchingDiff < 0) {
         reject(`Requested block insertion was not applied exactly: ${operation.anchorBlockId}`, 'edit_application', 'requested_edit_missing', editIndex)
+        diagnostics[diagnostics.length - 1] = requestedEditDiagnostic(editIndex, 'insert_after', anchor, canonicalizeParagraphText(operation.finalText), undefined, false)
       } else matchedInsertDiffs.add(matchingDiff)
     } else reject('Option B does not permit deleting source blocks.', 'edit_application', 'deletion_not_permitted', editIndex)
   }
@@ -341,7 +381,7 @@ export async function applyOptionBGenerationResponse(
       mechanicalFailure: { gateId: 'candidate_parse', reasonCode: 'candidate_unreadable', editCount: response.edits.length },
     }
   }
-  const validation = await validateOptionBCandidateDetailed(sourceBytes, candidateBytes, source, candidate, operations)
+  const validation = await validateOptionBCandidateDetailed(sourceBytes, candidateBytes, source, candidate, operations, true)
   if (validation.issues.length) return { status: 'FAILED', issues: validation.issues, mechanicalFailure: validation.diagnostics[0] }
   return {
     status: 'READY', candidateBytes, candidate, edits: response.edits,

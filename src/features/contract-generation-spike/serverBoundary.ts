@@ -9,7 +9,7 @@ import {
   type ResolvedMissingInput,
 } from './generationSession.ts'
 import { REVIEWER_FINDING_CATEGORIES, REVIEWER_FINDING_RULE_IDS, type ContractGenerationAnswer, type MissingInput, type ReviewerFindingCategory, type ReviewerFindingRuleId } from './generationProtocol.ts'
-import { safeMechanicalTelemetry, type MechanicalAuthorityType, type MechanicalFailureDiagnostic, type MechanicalGateId, type MechanicalReasonCode } from './mechanicalDiagnostics.ts'
+import { safeMechanicalTelemetry, type MechanicalAuthorityType, type MechanicalEditOperation, type MechanicalFailureDiagnostic, type MechanicalGateId, type MechanicalReasonCode, type MechanicalSourceBlockType } from './mechanicalDiagnostics.ts'
 
 export type ContractGenerationStartRequest = { weddingId: string; requestId: string }
 export type ContractGenerationContinueRequest = {
@@ -68,6 +68,18 @@ export type BoundaryDiagnostic = {
   mechanicalEditIndex?: number
   mechanicalEditCount?: number
   mechanicalAuthorityType?: MechanicalAuthorityType
+  mechanicalEditOperation?: MechanicalEditOperation
+  mechanicalSourceBlockType?: MechanicalSourceBlockType
+  mechanicalSourceBlockOrdinal?: number
+  mechanicalSourceOccurrence?: number
+  mechanicalSourceCanonicalLength?: number
+  mechanicalRequestedCanonicalLength?: number
+  mechanicalCandidateCanonicalLength?: number
+  mechanicalSourceTargetFound?: boolean
+  mechanicalEditorOperationReportedSuccess?: boolean
+  mechanicalCandidateBlockOrdinal?: number | null
+  mechanicalExpectedAtCandidateBlock?: boolean
+  mechanicalExactRequestedCanonicalFoundElsewhere?: boolean
   mechanicalValidation?: 'passed' | 'failed' | 'not_reached'
   finalCode?: 'generation_safety' | 'temporary_failure' | 'stale'
 }
