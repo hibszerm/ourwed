@@ -132,22 +132,23 @@
 
 @media (max-width: 600px) {
   .currentStage {
-    min-height: 6.25rem;
-    margin-top: var(--space-4);
+    min-height: 0;
+    margin-top: var(--space-3);
   }
 
   .timer {
-    margin-bottom: var(--space-4);
+    margin-top: var(--space-2);
+    margin-bottom: var(--space-3);
   }
 
   .steps {
     grid-template-columns: 1fr;
-    gap: var(--space-2);
+    gap: 4px;
   }
 
   .steps li {
-    grid-template-columns: 1.5rem 1fr;
-    grid-template-rows: 1.5rem;
+    grid-template-columns: 1.25rem 1fr;
+    grid-template-rows: 1.25rem;
     gap: var(--space-2);
     justify-items: start;
     align-items: center;
@@ -155,10 +156,15 @@
   }
 
   .steps li:not(:last-child)::after {
-    top: 1.45rem;
-    left: 0.7rem;
+    top: 1.25rem;
+    left: 0.6rem;
     width: 1px;
     height: calc(100% + var(--space-2));
+  }
+
+  .marker {
+    width: 1.25rem;
+    height: 1.25rem;
   }
 
   .label {

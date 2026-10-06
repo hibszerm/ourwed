@@ -287,6 +287,16 @@
 }
 
 @media (max-width: 760px) {
+  .page {
+    gap: var(--space-4);
+  }
+
+  .generating {
+    min-height: 0;
+    gap: var(--space-4);
+    padding: var(--space-4);
+  }
+
   .steps {
     grid-template-columns: repeat(2, 1fr);
   }

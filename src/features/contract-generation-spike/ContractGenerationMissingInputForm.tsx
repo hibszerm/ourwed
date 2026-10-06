@@ -55,6 +55,7 @@ export function ContractGenerationMissingInputForm(props: {
       busy={props.busy}
       cancelLabel="Anuluj"
       cancelVariant="secondary"
+      mobileFooterLayout="inline"
       initialFocus="first"
       primaryAction={(
         <Button type="submit" form={formId} variant="primary" disabled={props.busy}>

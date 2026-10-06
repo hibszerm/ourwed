@@ -21,6 +21,8 @@ interface ModalProps {
   cancelLabel?: string
   /** Cancel button variant. Default `ghost` preserves existing modals. */
   cancelVariant?: 'ghost' | 'secondary'
+  /** Mobile action arrangement for compact, two-action form sheets. */
+  mobileFooterLayout?: 'stacked' | 'inline'
   /** Override cancel button handler (defaults to onClose). */
   onCancel?: () => void
   /** Hide the default footer (cancel + primary). */
@@ -67,6 +69,7 @@ export function Modal({
   primaryAction,
   cancelLabel = 'Anuluj',
   cancelVariant = 'ghost',
+  mobileFooterLayout = 'stacked',
   onCancel,
   hideFooter = false,
   showClose = false,
@@ -160,7 +163,7 @@ export function Modal({
 
           {!hideFooter ? (
             <footer
-              className={`${styles.footer} ${isDocument ? styles.documentFooter : ''}`.trim()}
+              className={`${styles.footer} ${mobileFooterLayout === 'inline' ? styles.inlineFooter : ''} ${isDocument ? styles.documentFooter : ''}`.trim()}
             >
               <Button
                 type="button"
