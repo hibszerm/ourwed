@@ -29,6 +29,9 @@ const currentEvent = 'Event: 30 November 2026 at Current Preparation B; ceremony
 assert.match(GENERIC_AUTHORITY_BOUNDARY_INSTRUCTION, /determine whether the source already contains a semantic slot/)
 assert.match(GENERIC_AUTHORITY_BOUNDARY_INSTRUCTION, /do not leave the source value and insert a second current version elsewhere/)
 assert.match(GENERIC_AUTHORITY_BOUNDARY_INSTRUCTION, /body paragraphs, tables, headers, or footers/)
+assert.match(GENERIC_AUTHORITY_BOUNDARY_INSTRUCTION, /supersededSourceText is non-null, copy it verbatim from an exact contiguous span of text actually present in the exact source block identified by supersedesSourceBlockId/i)
+assert.match(GENERIC_AUTHORITY_BOUNDARY_INSTRUCTION, /Never borrow text from a neighboring block or combine fragments from multiple blocks into synthetic provenance/i)
+assert.match(GENERIC_AUTHORITY_BOUNDARY_INSTRUCTION, /not a semantic description, paraphrase, normalized reconstruction/i)
 assert.ok(source.blocks.some((block) => block.kind === 'header') && source.blocks.some((block) => block.kind === 'footer'), 'source analysis includes header and footer paragraphs')
 
 const stalePlusCurrent = await applyOptionBGenerationResponse(bytes, source, authority, view.sourceBlockIds, {
@@ -64,6 +67,28 @@ if (valid.status === 'READY') {
   assert.equal(valid.candidate.blocks.find((block) => block.blockId === providerBlock.blockId)?.text, providerBlock.text, 'mixed sample wedding facts do not supersede source-owned provider/business content')
   assert.equal(valid.candidate.blocks.some((block) => block.text === 'Ordinary source legal clause.'), true, 'unrelated source legal wording is preserved')
 }
+
+const exactContiguousSpan = await applyOptionBGenerationResponse(bytes, source, authority, view.sourceBlockIds, {
+  status: 'READY', edits: [{ kind: 'replace', blockId: handle(eventBlock), text: currentEvent, supersedesSourceBlockId: handle(eventBlock), supersededSourceText: '12 June 2027' }],
+})
+assert.equal(exactContiguousSpan.status, 'READY', 'an exact contiguous source fact span from its selected block is accepted')
+
+const wrongBlockProvenance = await applyOptionBGenerationResponse(bytes, source, authority, view.sourceBlockIds, {
+  status: 'READY', edits: [{ kind: 'replace', blockId: handle(paymentBlock), text: 'Payment updated.', supersedesSourceBlockId: handle(paymentBlock), supersededSourceText: '12 June 2027' }],
+})
+assert.equal(wrongBlockProvenance.status, 'FAILED', 'a source span from body block N cannot be attributed to body block N+1')
+if (wrongBlockProvenance.status === 'FAILED') assert.equal(wrongBlockProvenance.mechanicalFailure?.reasonCode, 'superseded_fact_source_span_missing')
+
+const paraphrasedProvenance = await applyOptionBGenerationResponse(bytes, source, authority, view.sourceBlockIds, {
+  status: 'READY', edits: [{ kind: 'replace', blockId: handle(eventBlock), text: currentEvent, supersedesSourceBlockId: handle(eventBlock), supersededSourceText: '12.06.2027' }],
+})
+assert.equal(paraphrasedProvenance.status, 'FAILED', 'a reconstructed date is rejected when those exact characters do not occur in the source block')
+if (paraphrasedProvenance.status === 'FAILED') assert.equal(paraphrasedProvenance.mechanicalFailure?.reasonCode, 'superseded_fact_source_span_missing')
+
+const insertionWithoutSupersession = await applyOptionBGenerationResponse(bytes, source, authority, view.sourceBlockIds, {
+  status: 'READY', edits: [{ kind: 'insert_after', blockId: handle(paymentBlock), text: 'Additional authorized service.', supersedesSourceBlockId: null, supersededSourceText: null }],
+})
+assert.equal(insertionWithoutSupersession.status, 'READY', 'legitimate source-driven insertion remains valid without fabricated supersession provenance')
 
 const duplicateParty = await applyOptionBGenerationResponse(bytes, source, authority, view.sourceBlockIds, {
   status: 'READY', edits: [{ kind: 'insert_after', blockId: handle(partyBlock), text: 'Parties: Current Party', supersedesSourceBlockId: handle(partyBlock), supersededSourceText: 'Sample Party' }],
