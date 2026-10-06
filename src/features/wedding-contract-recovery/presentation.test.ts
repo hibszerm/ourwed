@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { buildRecoveryDecisionGroups, formatRecoveryValue, recoveryLogicalSelectionCount } from './presentation'
+import { buildRecoveryDecisionGroups, formatRecoveryValue, prepareRecoveryProposalForReview, recoveryLogicalSelectionCount } from './presentation'
 import type { RecoveryFieldComparison, RecoveryProposal } from './types'
 
 function field(
@@ -30,9 +30,11 @@ function field(
 
 const proposal = {
   extraProposals: [],
-  noteProposals: [],
+  noteProposals: [{ text: 'Operational note', selected: true, sourceIndex: 0 }],
   packageSnapshotProposal: null,
 } as unknown as RecoveryProposal
+
+assert.equal(prepareRecoveryProposalForReview(proposal).noteProposals[0]?.selected, false, 'operational notes require an explicit UI choice')
 
 const identity = field('partner1.fullName', 'different', 'Julia Zielińska', 'Iryna Malashchenko')
 const identityParts = [
@@ -64,7 +66,7 @@ assert.equal(address.action, 'mixed', 'existing safe defaults remain represented
 assert.match(address.extractedValue, /Ulica: ul\. Leśna 4/)
 assert.match(address.extractedValue, /Miejscowość: Warszawa/)
 
-assert.equal(recoveryLogicalSelectionCount(fields, proposal, false), 2, 'selected phone and address count as decisions, while unchanged fields do not count')
+assert.equal(recoveryLogicalSelectionCount(fields, { ...proposal, noteProposals: [] }, false), 2, 'selected phone and address count as decisions, while unchanged fields do not count')
 assert.equal(formatRecoveryValue(field('finances.contractValue', 'different', 13250, 11100), 13250), '13 250 zł')
 assert.equal(formatRecoveryValue(field('wedding.date', 'different', null, '2027-05-21'), '2027-05-21'), '21 maja 2027')
 
@@ -80,6 +82,8 @@ assert.match(page, /fieldKeys\.forEach/, 'one logical action updates only its ma
 assert.match(page, /decisions: fields\.map/, 'Apply receives the exact selected field decisions')
 assert.match(page, /selectProposed/, 'bulk selection remains available')
 assert.match(page, /clearSelections/, 'deselect all remains available')
+assert.match(page, /prepareRecoveryProposalForReview\(row\.comparisonProposal\)/, 'reopened review also keeps notes opt-in')
+assert.match(page, /prepareRecoveryProposalForReview\(extractedProposal\)/, 'new analysis keeps notes opt-in')
 assert.match(confirmation, /selectedGroups = buildRecoveryDecisionGroups\(fields\)\.filter/, 'confirmation includes selected logical changes only')
 assert.match(confirmation, /extraProposals\.filter\(\(item\) => item\.selected && item\.applicable\)/, 'confirmation excludes unselected and non-applicable extras')
 assert.match(confirmation, /noteProposals\.filter\(\(item\) => item\.selected\)/, 'confirmation excludes unselected notes')

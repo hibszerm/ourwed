@@ -40,6 +40,7 @@ import type {
 import {
   buildRecoveryDecisionGroups,
   formatSelectedChangeCount,
+  prepareRecoveryProposalForReview,
   recoveryLogicalSelectionCount,
   recoverySectionLabel,
   type RecoveryDecisionGroup,
@@ -83,10 +84,11 @@ export function WeddingContractRecoveryPage() {
       if (!row?.comparisonProposal) return
       setRecoveryId(row.id)
       setSourceContractId(row.sourceContractId)
-      setProposal(row.comparisonProposal)
-      setFields(row.comparisonProposal.fields)
-      setSections(row.comparisonProposal.sections)
-      setIncludePackageSnapshot(Boolean(row.comparisonProposal.packageSnapshotProposal))
+      const reviewProposal = prepareRecoveryProposalForReview(row.comparisonProposal)
+      setProposal(reviewProposal)
+      setFields(reviewProposal.fields)
+      setSections(reviewProposal.sections)
+      setIncludePackageSnapshot(Boolean(reviewProposal.packageSnapshotProposal))
       const source = await weddingContractRecoveryRepository.getSourceContract(
         row.sourceContractId,
       )
@@ -172,8 +174,9 @@ export function WeddingContractRecoveryPage() {
   async function applyAnalysisResult(result: WeddingContractRecovery) {
     setRecoveryId(result.id)
     setSourceContractId(result.sourceContractId)
-    const nextProposal = result.comparisonProposal
-    if (!nextProposal) throw new Error('Brak propozycji porównania.')
+    const extractedProposal = result.comparisonProposal
+    if (!extractedProposal) throw new Error('Brak propozycji porównania.')
+    const nextProposal = prepareRecoveryProposalForReview(extractedProposal)
     setProposal(nextProposal)
     setFields(nextProposal.fields)
     setSections(nextProposal.sections)

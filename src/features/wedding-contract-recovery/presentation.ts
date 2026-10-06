@@ -162,6 +162,14 @@ export function recoveryLogicalSelectionCount(
   return fieldCount + extraCount + noteCount + (includePackage && proposal?.packageSnapshotProposal ? 1 : 0)
 }
 
+export function prepareRecoveryProposalForReview(proposal: RecoveryProposal): RecoveryProposal {
+  return {
+    ...proposal,
+    // Notes may include consent or rights language; keep them opt-in in the UI.
+    noteProposals: proposal.noteProposals.map((note) => ({ ...note, selected: false })),
+  }
+}
+
 export function formatSelectedChangeCount(count: number): { noun: string; sentence: string } {
   const lastTwo = count % 100
   const last = count % 10
