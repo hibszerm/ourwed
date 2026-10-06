@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { RecoveryFieldComparison } from '../types'
 import type { FieldEvidenceRef, SharedEvidenceSource } from '../groupSectionEvidence'
 import type { RecoveryDecisionGroup } from '../presentation'
@@ -19,6 +19,7 @@ export function RecoveryLogicalComparisonCard({
   onActionChange: (action: RecoveryFieldComparison['selectedAction'], fieldKeys: string[]) => void
 }) {
   const checkboxRef = useRef<HTMLInputElement>(null)
+  const [evidenceOpen, setEvidenceOpen] = useState(false)
   const selected = decision.action === 'use_extracted'
   const mixed = decision.action === 'mixed'
   const disabled = decision.actionableFields.length === 0
@@ -42,33 +43,52 @@ export function RecoveryLogicalComparisonCard({
 
   return (
     <article className={styles.row} data-state={decision.state} data-selected={selected} data-mixed={mixed}>
-      <div className={styles.header}>
-        <h3 className={styles.label}>{decision.label}</h3>
-        {badge ? <span className={styles.badge}>{badge}</span> : null}
+      <div className={styles.mainRow}>
+        <div className={styles.header}>
+          <h3 className={styles.label}>{decision.label}</h3>
+          {badge ? <span className={styles.badge}>{badge}</span> : null}
+        </div>
+
+        <div className={styles.comparison}>
+          <div className={styles.valueSide} data-side="current">
+            <p className={styles.colLabel}>Obecnie</p>
+            <p className={styles.value}>{decision.id === 'partner1.address' ? decision.currentValue : formatRecoveryValue(field, decision.currentValue === '—' ? null : decision.currentValue, currencyCode)}</p>
+          </div>
+          <span className={styles.arrow} aria-hidden="true">→</span>
+          <div className={styles.valueSide} data-side="source">
+            <p className={styles.colLabel}>Z umowy</p>
+            <p className={styles.value}>{decision.id === 'partner1.address' ? decision.extractedValue : formatRecoveryValue(field, decision.extractedValue === '—' ? null : decision.extractedValue, currencyCode)}</p>
+          </div>
+        </div>
+
+        <div className={styles.rowActions}>
+          {shared ? (
+            <button className={styles.evidenceToggle} type="button" aria-expanded={evidenceOpen} onClick={() => setEvidenceOpen((open) => !open)}>{evidenceOpen ? 'Ukryj fragment' : 'Pokaż fragment'}</button>
+          ) : uniqueEvidence ? (
+            <button className={styles.evidenceToggle} type="button" aria-expanded={evidenceOpen} onClick={() => setEvidenceOpen((open) => !open)}>{evidenceOpen ? 'Ukryj fragment' : 'Pokaż fragment'}</button>
+          ) : <span className={styles.noEvidence} aria-hidden="true" />}
+
+          {!disabled ? (
+            <label className={styles.selection} data-selected={selected} data-mixed={mixed}>
+              <input
+                ref={checkboxRef}
+                type="checkbox"
+                checked={selected}
+                aria-label={`Zastosuj zmianę: ${decision.label}`}
+                onChange={(event) => setAction(event.target.checked)}
+              />
+              <span className={styles.selectionMark} aria-hidden="true">{selected ? '✓' : ''}</span>
+              <span>{mixed ? 'Częściowo' : selected ? 'Wybrano' : 'Zastosuj'}</span>
+            </label>
+          ) : <span className={styles.readOnlyState}>{badge}</span>}
+        </div>
       </div>
 
-      <div className={styles.comparison}>
-        <div className={styles.valueSide} data-side="current">
-          <p className={styles.colLabel}>Obecnie</p>
-          <p className={styles.value}>{decision.id === 'partner1.address' ? decision.currentValue : formatRecoveryValue(field, decision.currentValue === '—' ? null : decision.currentValue, currencyCode)}</p>
+      {evidenceOpen ? (
+        <div className={styles.evidenceContent}>
+          <p className={styles.evidenceTitle}>Fragment umowy{shared ? ` · ${shared.label}` : ''}</p>
+          <blockquote><p>{shared?.quote ?? uniqueEvidence?.quote}</p></blockquote>
         </div>
-        <span className={styles.arrow} aria-hidden="true">→</span>
-        <div className={styles.valueSide} data-side="source">
-          <p className={styles.colLabel}>Z umowy</p>
-          <p className={styles.value}>{decision.id === 'partner1.address' ? decision.extractedValue : formatRecoveryValue(field, decision.extractedValue === '—' ? null : decision.extractedValue, currencyCode)}</p>
-        </div>
-      </div>
-
-      {shared ? (
-        <details className={styles.evidence}>
-          <summary>Pokaż fragment umowy · {shared.label}</summary>
-          <blockquote><p>{shared.quote}</p></blockquote>
-        </details>
-      ) : uniqueEvidence ? (
-        <details className={styles.evidence}>
-          <summary>Pokaż fragment umowy</summary>
-          <blockquote><p>{uniqueEvidence.quote}</p></blockquote>
-        </details>
       ) : null}
 
       {decision.fields.flatMap((item) => item.warnings).length > 0 ? (
@@ -76,38 +96,6 @@ export function RecoveryLogicalComparisonCard({
           {Array.from(new Set(decision.fields.flatMap((item) => item.warnings))).map((warning) => <li key={warning}>{warning}</li>)}
         </ul>
       ) : null}
-
-      {!disabled ? (
-        <label className={styles.selection} data-selected={selected} data-mixed={mixed}>
-          <input
-            ref={checkboxRef}
-            type="checkbox"
-            checked={selected}
-            aria-label={`Zastosuj zmianę: ${decision.label}`}
-            onChange={(event) => setAction(event.target.checked)}
-          />
-          <span className={styles.selectionMark} aria-hidden="true">{selected ? '✓' : ''}</span>
-          <span>{mixed ? 'Część tej zmiany jest już zaznaczona' : selected ? 'Ta zmiana zostanie zastosowana' : 'Zastosuj zmianę'}</span>
-        </label>
-      ) : null}
     </article>
-  )
-}
-
-export function SharedEvidenceBlocks({
-  sources,
-}: {
-  sources: SharedEvidenceSource[]
-}) {
-  if (sources.length === 0) return null
-  return (
-    <div className={styles.sharedEvidence}>
-      {sources.map((source) => (
-        <details key={source.id} className={styles.evidence}>
-          <summary>Pokaż fragment umowy · {source.label}</summary>
-          <blockquote><p>{source.quote}</p></blockquote>
-        </details>
-      ))}
-    </div>
   )
 }

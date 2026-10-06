@@ -17,10 +17,7 @@ import { weddingContractRecoveryRepository } from '@/features/wedding-contract-r
 import { applyDecisionsToProposal } from '@/features/wedding-contract-recovery/buildComparisonProposal'
 import { groupSectionEvidence } from '@/features/wedding-contract-recovery/groupSectionEvidence'
 import { validateSourceContractFile } from '@/features/wedding-contract-recovery/validateSourceFile'
-import {
-  RecoveryLogicalComparisonCard,
-  SharedEvidenceBlocks,
-} from '@/features/wedding-contract-recovery/components/RecoveryFieldComparisonRow'
+import { RecoveryLogicalComparisonCard } from '@/features/wedding-contract-recovery/components/RecoveryFieldComparisonRow'
 import { PackageSnapshotCard } from '@/features/wedding-contract-recovery/components/PackageSnapshotCard'
 import { RecoveryConfirmationPanel } from '@/features/wedding-contract-recovery/components/RecoveryConfirmationPanel'
 import { RecoveryProgressPanel } from '@/features/wedding-contract-recovery/components/RecoveryProgressPanel'
@@ -406,7 +403,6 @@ export function WeddingContractRecoveryPage() {
                       />
                     ))}
                   </div>
-                  <SharedEvidenceBlocks sources={sharedSources} />
                 </div>
               )
             })}

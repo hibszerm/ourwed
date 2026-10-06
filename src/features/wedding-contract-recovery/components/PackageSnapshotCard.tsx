@@ -55,6 +55,17 @@ export function PackageSnapshotCard({
             <p className={styles.meta}>Odzyskano {createdLabel}</p>
           ) : null}
         </div>
+        {model.includeToggle ? (
+          <label className={styles.choice} data-selected={model.includeToggle.checked}>
+            <input
+              type="checkbox"
+              checked={model.includeToggle.checked}
+              onChange={(e) => model.includeToggle?.onChange(e.target.checked)}
+            />
+            <span className={styles.choiceMark} aria-hidden="true">{model.includeToggle.checked ? '✓' : ''}</span>
+            <span>{model.includeToggle.checked ? 'Wybrano' : 'Zapisz pakiet'}</span>
+          </label>
+        ) : null}
       </header>
 
       {confirmationMode ? (
@@ -147,17 +158,6 @@ export function PackageSnapshotCard({
         </p>
       ) : null}
 
-      {model.includeToggle ? (
-        <label className={styles.choice} data-selected={model.includeToggle.checked}>
-          <input
-            type="checkbox"
-            checked={model.includeToggle.checked}
-            onChange={(e) => model.includeToggle?.onChange(e.target.checked)}
-          />
-          <span className={styles.choiceMark} aria-hidden="true">{model.includeToggle.checked ? '✓' : ''}</span>
-          <span>{model.includeToggle.checked ? 'Pakiet zostanie zapisany w tym zleceniu' : 'Zapisz pakiet z umowy w tym zleceniu'}</span>
-        </label>
-      ) : null}
     </article>
   )
 }
