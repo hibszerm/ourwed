@@ -24,6 +24,8 @@ interface AppLayoutProps {
   title?: string
   subtitle?: string
   action?: ReactNode
+  /** Optional page-specific header styling without changing other pages. */
+  pageHeaderClassName?: string
   /** Optional app-like identity shown beside the mobile menu trigger only. */
   mobileHeader?: ReactNode
 }
@@ -34,6 +36,7 @@ export function AppLayout({
   subtitle,
   action,
   mobileHeader,
+  pageHeaderClassName,
 }: AppLayoutProps) {
   const location = useLocation()
   const [navOpen, setNavOpen] = useState(false)
@@ -129,7 +132,12 @@ export function AppLayout({
         </div>
         {showPageHeader ? (
           <div className={styles.headerSlot}>
-            <PageHeader title={title} subtitle={subtitle} action={action} />
+            <PageHeader
+              title={title}
+              subtitle={subtitle}
+              action={action}
+              className={pageHeaderClassName}
+            />
           </div>
         ) : null}
         <main className={styles.content}>

@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useBlocker, useNavigate, useParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { UsersRound } from 'lucide-react'
 import { AppLayout } from '@/layouts/AppLayout'
 import { Button } from '@/components/ui/Button'
 import { PageContainer } from '@/components/ui/PageContainer'
+import { IconArrowLeft, IconDocuments } from '@/components/icons'
 import {
   saveGeneratedContract,
   type DocxParagraph,
@@ -704,11 +706,13 @@ export function WeddingContractGenerationPage() {
     workflowSteps.findIndex(([id]) => id === visibleStep),
   )
   const currentWorkflowStep = workflowSteps[visibleStepIndex]
+  const showMobileEntry = step === 'resolve' && packageResolution?.status === 'ok'
 
   return (
     <AppLayout
       title="Nowa umowa"
       subtitle={getWeddingDisplayName(wedding)}
+      pageHeaderClassName={showMobileEntry ? styles.mobileEntryHeader : undefined}
       action={
         <Button
           type="button"
@@ -739,6 +743,7 @@ export function WeddingContractGenerationPage() {
           className={styles.mobileStep}
           role="group"
           aria-label="Etapy tworzenia umowy"
+          data-entry={showMobileEntry ? 'true' : 'false'}
         >
           <span className={styles.mobileStepMeta}>Krok {visibleStepIndex + 1} z 3</span>
           <span className={styles.mobileStepTitle} aria-current="step">
@@ -756,6 +761,44 @@ export function WeddingContractGenerationPage() {
             ))}
           </ol>
         </div>
+
+        {showMobileEntry ? (
+          <>
+            <section className={styles.mobileWeddingContext} aria-label="Kontekst ślubu">
+              <span className={styles.mobileWeddingIcon} aria-hidden="true">
+                <UsersRound size={17} strokeWidth={1.7} />
+              </span>
+              <div className={styles.mobileWeddingNames}>
+                <span>Para młoda</span>
+                <strong>{getWeddingDisplayName(wedding)}</strong>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                className={styles.mobileContextBack}
+                onClick={() => navigate(`/sluby/${wedding.id}`)}
+              >
+                <IconArrowLeft width={15} height={15} aria-hidden="true" />
+                <span>Wróć do ślubu</span>
+              </Button>
+            </section>
+            <section className={styles.mobileWorkflow} aria-labelledby="mobile-workflow-title">
+              <p className={styles.mobileWorkflowEyebrow}>Krok 1 z 3</p>
+              <h2 id="mobile-workflow-title">Umowa pakietu</h2>
+              <p className={styles.mobileWorkflowDescription}>
+                Przygotujemy umowę na podstawie wybranego pakietu i aktualnych danych ślubu.
+              </p>
+              <ol className={styles.mobileWorkflowSteps} aria-label="Etapy tworzenia umowy">
+                {workflowSteps.map(([id, label], index) => (
+                  <li key={id} data-current={index === 0} aria-current={index === 0 ? 'step' : undefined}>
+                    <span className={styles.mobileWorkflowNumber}>{index + 1}</span>
+                    <span className={styles.mobileWorkflowLabel}>{label}</span>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          </>
+        ) : null}
 
         {step === 'resolve' && packageResolution?.status !== 'ok' ? (
           <section className={styles.card}>
@@ -804,13 +847,22 @@ export function WeddingContractGenerationPage() {
         ) : null}
 
         {step === 'resolve' && packageResolution?.status === 'ok' ? (
-          <section className={styles.card}>
+          <section className={`${styles.card} ${styles.entryCard}`}>
             <div>
               <p className={styles.eyebrow}>Umowa z pakietu</p>
               <h2>Gotowa do utworzenia</h2>
               <p className={styles.muted}>
                 Użyjemy umowy pakietu {packageResolution.packageName} i aktualnych danych ślubu.
               </p>
+            </div>
+            <div className={styles.mobilePackageSummary} aria-label={`Pakiet: ${packageResolution.packageName}`}>
+              <span className={styles.mobilePackageIcon} aria-hidden="true">
+                <IconDocuments width={19} height={19} />
+              </span>
+              <span className={styles.mobilePackageText}>
+                <strong>Pakiet: {packageResolution.packageName}</strong>
+                <small>Umowa przypisana do tego pakietu</small>
+              </span>
             </div>
             {error ? <p className={styles.error} role="alert">{error}</p> : null}
             <div className={styles.actions}>
