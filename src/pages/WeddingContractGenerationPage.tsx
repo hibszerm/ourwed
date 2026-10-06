@@ -5,7 +5,7 @@ import { UsersRound } from 'lucide-react'
 import { AppLayout } from '@/layouts/AppLayout'
 import { Button } from '@/components/ui/Button'
 import { PageContainer } from '@/components/ui/PageContainer'
-import { IconArrowLeft, IconDocuments } from '@/components/icons'
+import { IconArrowLeft, IconCheck, IconDocuments } from '@/components/icons'
 import {
   saveGeneratedContract,
   type DocxParagraph,
@@ -26,7 +26,10 @@ import {
 } from '@/features/documents/contract-experience'
 import { useInvalidateWedding } from '@/features/weddings/hooks/useInvalidateWedding'
 import { useWedding } from '@/features/weddings/hooks/useWedding'
-import { getWeddingDisplayName } from '@/features/weddings/presentation/getWeddingDisplayName'
+import {
+  getWeddingDisplayName,
+  isAbsentPartnerName,
+} from '@/features/weddings/presentation/getWeddingDisplayName'
 import { useProMutationPageGuard } from '@/features/billing/useProMutationPageGuard'
 import { weddingActionsService } from '@/lib/api/weddingActionsService'
 import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
@@ -51,6 +54,7 @@ import { ContractGenerationMissingInputForm } from '@/features/contract-generati
 import type { BoundaryReviewerState } from '@/features/contract-generation-spike/serverBoundary'
 import { OptionBGenerationProgress } from '@/features/contract-generation-spike/OptionBGenerationProgress'
 import { useOptionBGenerationProgress } from '@/features/contract-generation-spike/useOptionBGenerationProgress'
+import type { Couple } from '@/types/wedding'
 import styles from './WeddingContractGenerationPage.module.css'
 
 const workflowSteps = [
@@ -96,6 +100,19 @@ type PackageContractResolution =
       packagePath: string
     }
   | null
+
+function getWeddingParticipantNames(couple: Couple): string[] {
+  const fullName = (
+    firstName: string | undefined,
+    lastName: string | undefined,
+    fallback: string,
+  ) => [firstName?.trim(), lastName?.trim()].filter(Boolean).join(' ') || fallback.trim()
+
+  return [
+    fullName(couple.partner1FirstName, couple.partner1LastName, couple.partner1),
+    fullName(couple.partner2FirstName, couple.partner2LastName, couple.partner2),
+  ].filter((name) => !isAbsentPartnerName(name))
+}
 
 export function WeddingContractGenerationPage() {
   const { weddingId = '' } = useParams<{ weddingId: string }>()
@@ -706,13 +723,25 @@ export function WeddingContractGenerationPage() {
     workflowSteps.findIndex(([id]) => id === visibleStep),
   )
   const currentWorkflowStep = workflowSteps[visibleStepIndex]
-  const showMobileEntry = step === 'resolve' && packageResolution?.status === 'ok'
+  const mobileWorkflowStage = step === 'preview' || step === 'saved'
+    ? 'preview'
+    : step === 'resolve'
+      ? 'resolve'
+      : 'generating'
+  const mobileWorkflowStepIndex = workflowSteps.findIndex(([id]) => id === mobileWorkflowStage)
+  const showMobileFlowShell = packageResolution?.status === 'ok'
+  const mobileWorkflowDescription = mobileWorkflowStage === 'resolve'
+    ? 'Przygotujemy umowę na podstawie wybranego pakietu i aktualnych danych ślubu.'
+    : mobileWorkflowStage === 'generating'
+      ? 'Przygotowujemy umowę na podstawie danych zlecenia.'
+      : null
+  const weddingParticipantNames = getWeddingParticipantNames(wedding.couple)
 
   return (
     <AppLayout
       title="Nowa umowa"
       subtitle={getWeddingDisplayName(wedding)}
-      pageHeaderClassName={showMobileEntry ? styles.mobileEntryHeader : undefined}
+      pageHeaderClassName={showMobileFlowShell ? styles.mobileEntryHeader : undefined}
       action={
         <Button
           type="button"
@@ -739,30 +768,31 @@ export function WeddingContractGenerationPage() {
             </li>
           ))}
         </ol>
-        <div
-          className={styles.mobileStep}
-          role="group"
-          aria-label="Etapy tworzenia umowy"
-          data-entry={showMobileEntry ? 'true' : 'false'}
-        >
-          <span className={styles.mobileStepMeta}>Krok {visibleStepIndex + 1} z 3</span>
-          <span className={styles.mobileStepTitle} aria-current="step">
-            {currentWorkflowStep[1]}
-          </span>
-          <ol className={styles.mobileStepTrack} aria-hidden="true">
-            {workflowSteps.map(([id], index) => (
-              <li
-                key={id}
-                data-current={visibleStepIndex === index}
-                data-complete={visibleStepIndex > index}
-              >
-                <span />
-              </li>
-            ))}
-          </ol>
-        </div>
+        {!showMobileFlowShell ? (
+          <div
+            className={styles.mobileStep}
+            role="group"
+            aria-label="Etapy tworzenia umowy"
+          >
+            <span className={styles.mobileStepMeta}>Krok {visibleStepIndex + 1} z 3</span>
+            <span className={styles.mobileStepTitle} aria-current="step">
+              {currentWorkflowStep[1]}
+            </span>
+            <ol className={styles.mobileStepTrack} aria-hidden="true">
+              {workflowSteps.map(([id], index) => (
+                <li
+                  key={id}
+                  data-current={visibleStepIndex === index}
+                  data-complete={visibleStepIndex > index}
+                >
+                  <span />
+                </li>
+              ))}
+            </ol>
+          </div>
+        ) : null}
 
-        {showMobileEntry ? (
+        {showMobileFlowShell ? (
           <>
             <section className={styles.mobileWeddingContext} aria-label="Kontekst ślubu">
               <span className={styles.mobileWeddingIcon} aria-hidden="true">
@@ -770,7 +800,9 @@ export function WeddingContractGenerationPage() {
               </span>
               <div className={styles.mobileWeddingNames}>
                 <span>Para młoda</span>
-                <strong>{getWeddingDisplayName(wedding)}</strong>
+                {weddingParticipantNames.map((name, index) => (
+                  <strong key={`${index}-${name}`}>{name}</strong>
+                ))}
               </div>
               <Button
                 type="button"
@@ -783,15 +815,28 @@ export function WeddingContractGenerationPage() {
               </Button>
             </section>
             <section className={styles.mobileWorkflow} aria-labelledby="mobile-workflow-title">
-              <p className={styles.mobileWorkflowEyebrow}>Krok 1 z 3</p>
-              <h2 id="mobile-workflow-title">Umowa pakietu</h2>
-              <p className={styles.mobileWorkflowDescription}>
-                Przygotujemy umowę na podstawie wybranego pakietu i aktualnych danych ślubu.
+              <p className={styles.mobileWorkflowEyebrow}>
+                Krok {mobileWorkflowStepIndex + 1} z 3
               </p>
+              <h2 id="mobile-workflow-title">{workflowSteps[mobileWorkflowStepIndex][1]}</h2>
+              {mobileWorkflowDescription ? (
+                <p className={styles.mobileWorkflowDescription}>
+                  {mobileWorkflowDescription}
+                </p>
+              ) : null}
               <ol className={styles.mobileWorkflowSteps} aria-label="Etapy tworzenia umowy">
                 {workflowSteps.map(([id, label], index) => (
-                  <li key={id} data-current={index === 0} aria-current={index === 0 ? 'step' : undefined}>
-                    <span className={styles.mobileWorkflowNumber}>{index + 1}</span>
+                  <li
+                    key={id}
+                    data-current={index === mobileWorkflowStepIndex}
+                    data-complete={index < mobileWorkflowStepIndex}
+                    aria-current={index === mobileWorkflowStepIndex ? 'step' : undefined}
+                  >
+                    <span className={styles.mobileWorkflowNumber}>
+                      {index < mobileWorkflowStepIndex
+                        ? <IconCheck width={14} height={14} aria-hidden="true" />
+                        : index + 1}
+                    </span>
                     <span className={styles.mobileWorkflowLabel}>{label}</span>
                   </li>
                 ))}
