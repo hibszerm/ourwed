@@ -1,0 +1,93 @@
+import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { buildRecoveryDecisionGroups, formatRecoveryValue, recoveryLogicalSelectionCount } from './presentation'
+import type { RecoveryFieldComparison, RecoveryProposal } from './types'
+
+function field(
+  fieldKey: string,
+  state: RecoveryFieldComparison['state'],
+  currentValue: string | number | null,
+  extractedValue: string | number | null,
+  selectedAction: RecoveryFieldComparison['selectedAction'] = state === 'missing_current' ? 'use_extracted' : state === 'different' ? 'keep_current' : 'skip',
+): RecoveryFieldComparison {
+  const sectionKey = fieldKey.startsWith('partner') ? fieldKey.includes('email') || fieldKey.includes('phone') || fieldKey.includes('address') || fieldKey.includes('postal') || fieldKey.includes('.city') ? 'contact' : 'clients'
+    : fieldKey.startsWith('wedding.') ? 'wedding' : fieldKey.startsWith('finances.') ? 'finances' : 'other'
+  return {
+    fieldKey,
+    sectionKey,
+    label: fieldKey,
+    currentValue,
+    extractedValue,
+    normalizedCurrentValue: currentValue,
+    normalizedExtractedValue: extractedValue,
+    state,
+    confidence: null,
+    evidence: [],
+    warnings: [],
+    selectedAction,
+  }
+}
+
+const proposal = {
+  extraProposals: [],
+  noteProposals: [],
+  packageSnapshotProposal: null,
+} as unknown as RecoveryProposal
+
+const identity = field('partner1.fullName', 'different', 'Julia Zielińska', 'Iryna Malashchenko')
+const identityParts = [
+  field('partner1.firstName', 'unsupported', 'Julia', 'Iryna'),
+  field('partner1.lastName', 'unsupported', 'Zielińska', 'Malashchenko'),
+]
+const email = field('partner1.email', 'different', 'julia@example.test', 'iryna@example.test')
+const phone = field('partner1.phone', 'missing_current', null, '+48123123123')
+const addressLine = field('partner1.addressLine', 'missing_current', null, 'ul. Leśna 4')
+const postal = field('partner1.postalCode', 'different', '00-001', '00-002')
+const city = field('partner1.city', 'same', 'Warszawa', 'Warszawa')
+const travel = field('finances.travelStatus', 'different', 'included', 'charged')
+const deadline = field('delivery.dueDate', 'different', '2027-10-21', '2028-03-21')
+
+const fields = [identity, ...identityParts, email, phone, addressLine, postal, city, travel, deadline]
+const decisions = buildRecoveryDecisionGroups(fields)
+const person = decisions.find((item) => item.id === 'partner1.fullName')!
+assert.equal(person.label, 'Osoba 1')
+assert.deepEqual(person.fields.map((item) => item.fieldKey), ['partner1.fullName'])
+assert.equal(decisions.some((item) => item.id.includes('firstName') || item.id.includes('lastName')), false)
+assert.ok(decisions.some((item) => item.id === 'partner1.email'))
+assert.ok(decisions.some((item) => item.id === 'partner1.phone'))
+assert.equal(decisions.find((item) => item.id === 'finances.travelStatus')?.sectionKey, 'travel')
+assert.equal(decisions.find((item) => item.id === 'delivery.dueDate')?.sectionKey, 'deadlines')
+
+const address = decisions.find((item) => item.id === 'partner1.address')!
+assert.deepEqual(address.actionableFields.map((item) => item.fieldKey), ['partner1.addressLine', 'partner1.postalCode'])
+assert.equal(address.action, 'mixed', 'existing safe defaults remain represented as an explicit mixed decision')
+assert.match(address.extractedValue, /Ulica: ul\. Leśna 4/)
+assert.match(address.extractedValue, /Miejscowość: Warszawa/)
+
+assert.equal(recoveryLogicalSelectionCount(fields, proposal, false), 2, 'selected phone and address count as decisions, while unchanged fields do not count')
+assert.equal(formatRecoveryValue(field('finances.contractValue', 'different', 13250, 11100), 13250), '13 250 zł')
+assert.equal(formatRecoveryValue(field('wedding.date', 'different', null, '2027-05-21'), '2027-05-21'), '21 maja 2027')
+
+const page = readFileSync('src/pages/WeddingContractRecoveryPage.tsx', 'utf8')
+const stepper = readFileSync('src/features/wedding-contract-recovery/components/WeddingContractRecoveryStepper.tsx', 'utf8')
+const confirmation = readFileSync('src/features/wedding-contract-recovery/components/RecoveryConfirmationPanel.tsx', 'utf8')
+const comparisonCard = readFileSync('src/features/wedding-contract-recovery/components/RecoveryFieldComparisonRow.tsx', 'utf8')
+assert.match(page, /setStep\('review'\)/, 'analysis routes directly to review')
+assert.doesNotMatch(page, /step === 'summary'|setStep\('summary'\)/, 'normal flow has no summary stop')
+assert.match(stepper, /label: 'Wgraj umowę'[\s\S]*label: 'Analiza'[\s\S]*label: 'Sprawdź dane'[\s\S]*label: 'Potwierdzenie'/)
+assert.match(confirmation, /recoveryLogicalSelectionCount/, 'confirmation uses the same logical count as review')
+assert.match(page, /fieldKeys\.forEach/, 'one logical action updates only its mapped field keys')
+assert.match(page, /decisions: fields\.map/, 'Apply receives the exact selected field decisions')
+assert.match(page, /selectProposed/, 'bulk selection remains available')
+assert.match(page, /clearSelections/, 'deselect all remains available')
+assert.match(confirmation, /selectedGroups = buildRecoveryDecisionGroups\(fields\)\.filter/, 'confirmation includes selected logical changes only')
+assert.match(confirmation, /extraProposals\.filter\(\(item\) => item\.selected && item\.applicable\)/, 'confirmation excludes unselected and non-applicable extras')
+assert.match(confirmation, /noteProposals\.filter\(\(item\) => item\.selected\)/, 'confirmation excludes unselected notes')
+assert.match(confirmation, /Wróć do sprawdzenia/, 'confirmation returns to review')
+assert.match(readFileSync('src/features/wedding-contract-recovery/components/PackageSnapshotCard.tsx', 'utf8'), /Pokaż szczegóły pakietu/, 'package details remain available by disclosure')
+assert.match(readFileSync('src/features/wedding-contract-recovery/components/RecoveryFieldComparisonRow.tsx', 'utf8'), /aria-label=\{`Zastosuj zmianę:/, 'selection control has a user-facing accessible label')
+assert.match(readFileSync('src/features/wedding-contract-recovery/components/PackageSnapshotCard.tsx', 'utf8'), /Zapisz pakiet z umowy w tym zleceniu/, 'package selection uses user-facing wording')
+assert.match(readFileSync('src/features/wedding-contract-recovery/components/PackageSnapshotCard.tsx', 'utf8'), /Pozycje pakietu:/, 'confirmation avoids extraction-oriented wording')
+assert.doesNotMatch(comparisonCard, /Strona \{/, 'evidence does not display model-supplied page numbers')
+
+console.log('Source Contract presentation acceptance passed')

@@ -1,57 +1,45 @@
-.stepper {
-  margin-bottom: 1.5rem;
-}
-
-.list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem 0;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
+.stepper { width: min(100%, 76rem); margin: 0 auto 1.5rem; }
+.list { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); list-style: none; margin: 0; padding: 0; }
 .item {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
+  position: relative;
+  min-width: 0;
+  display: grid;
+  grid-template-rows: 1.75rem auto;
+  justify-items: center;
+  gap: .45rem;
   color: var(--color-text-muted);
-  font-size: 0.875rem;
+  font-size: .8rem;
+  text-align: center;
 }
-
-.item[data-status='current'] {
-  color: var(--color-text);
-  font-weight: 600;
-}
-
-.item[data-status='done'] {
-  color: var(--color-text-secondary);
-}
-
+.item[data-status='current'] { color: var(--color-text); font-weight: 650; }
+.item[data-status='done'] { color: var(--color-text-secondary); }
 .indicator {
+  position: relative;
+  z-index: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.5rem;
-  height: 1.5rem;
+  width: 1.75rem;
+  height: 1.75rem;
   border-radius: 999px;
-  border: 1px solid currentColor;
+  border: 1px solid var(--color-border-strong, currentColor);
+  background: var(--color-surface, #fff);
 }
-
+.item[data-status='current'] .indicator { background: var(--color-text); border-color: var(--color-text); color: var(--color-surface, #fff); }
+.item[data-status='done'] .indicator { background: var(--color-surface-muted); }
 .connector {
-  width: 1.25rem;
+  position: absolute;
+  top: .85rem;
+  left: calc(50% + 1rem);
+  width: calc(100% - 2rem);
   height: 1px;
-  background: currentColor;
-  opacity: 0.35;
-  margin: 0 0.25rem;
+  background: var(--color-border-strong, var(--color-border));
+  opacity: .55;
 }
-
-.label {
-  white-space: nowrap;
-}
-
-@media (max-width: 720px) {
-  .label {
-    display: none;
-  }
+.label { max-width: 100%; overflow-wrap: anywhere; line-height: 1.35; }
+@media (max-width: 480px) {
+  .stepper { margin-bottom: 1.1rem; }
+  .item { font-size: .7rem; gap: .3rem; }
+  .indicator { width: 1.55rem; height: 1.55rem; }
+  .connector { top: .75rem; left: calc(50% + .9rem); width: calc(100% - 1.8rem); }
 }

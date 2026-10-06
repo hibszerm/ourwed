@@ -8,6 +8,15 @@ function formatDate(iso: string | null | undefined): string | null {
   return d.toLocaleDateString('pl-PL')
 }
 
+function formatMoney(amount: number, currency: string | null | undefined): string {
+  const code = currency || 'PLN'
+  try {
+    return new Intl.NumberFormat('pl-PL', { style: 'currency', currency: code, minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(amount)
+  } catch {
+    return `${new Intl.NumberFormat('pl-PL').format(amount)} ${code}`
+  }
+}
+
 export function PackageSnapshotCard({
   model,
   confirmationMode = false,
@@ -51,19 +60,19 @@ export function PackageSnapshotCard({
       {confirmationMode ? (
         <div className={styles.confirmBody}>
           <p>
-            Rozpoznane pozycje: <strong>{model.includedItems.length}</strong>
+            Pozycje pakietu: <strong>{model.includedItems.length}</strong>
           </p>
           {model.coverageHours != null ? (
             <p>Czas realizacji: {model.coverageHours} h</p>
           ) : null}
           {model.basePrice != null ? (
-            <p>Cena bazowa: {model.basePrice} {model.currency ?? 'PLN'}</p>
+            <p>Cena pakietu: {formatMoney(model.basePrice, model.currency)}</p>
           ) : null}
           {model.deliveryDeadlineText ? (
             <p>Termin dostawy: {model.deliveryDeadlineText}</p>
           ) : null}
-          <p className={styles.confirmNote}>
-            Zostanie zapisany jako historyczny pakiet wynikający z tej umowy.
+            <p className={styles.confirmNote}>
+            Zapiszemy ten pakiet w tym zleceniu.
           </p>
           {(hasItems || hasOriginal) ? (
             <details className={styles.details}>
@@ -99,7 +108,7 @@ export function PackageSnapshotCard({
               <h4 className={styles.sectionTitle}>Warunki realizacji</h4>
               <dl className={styles.conditions}>
                 {model.basePrice != null ? (
-                  <><dt>Cena bazowa</dt><dd>{model.basePrice} {model.currency ?? 'PLN'}</dd></>
+                  <><dt>Cena pakietu</dt><dd>{formatMoney(model.basePrice, model.currency)}</dd></>
                 ) : null}
                 {model.coverageHours != null ? (
                   <>
@@ -139,13 +148,14 @@ export function PackageSnapshotCard({
       ) : null}
 
       {model.includeToggle ? (
-        <label className={styles.choice}>
+        <label className={styles.choice} data-selected={model.includeToggle.checked}>
           <input
             type="checkbox"
             checked={model.includeToggle.checked}
             onChange={(e) => model.includeToggle?.onChange(e.target.checked)}
           />
-          Zapisz pakiet z umowy jako odrębny snapshot
+          <span className={styles.choiceMark} aria-hidden="true">{model.includeToggle.checked ? '✓' : ''}</span>
+          <span>{model.includeToggle.checked ? 'Pakiet zostanie zapisany w tym zleceniu' : 'Zapisz pakiet z umowy w tym zleceniu'}</span>
         </label>
       ) : null}
     </article>

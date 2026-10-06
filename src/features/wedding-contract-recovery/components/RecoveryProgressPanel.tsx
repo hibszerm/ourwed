@@ -1,6 +1,12 @@
 import { LoaderCircle } from 'lucide-react'
-import { RECOVERY_PROGRESS_STAGES } from '../constants'
 import styles from './RecoveryProgressPanel.module.css'
+
+const STATUS = [
+  'Przygotowujemy dokument do odczytu…',
+  'Wczytujemy dokument…',
+  'Odczytujemy dane i porównujemy je ze zleceniem…',
+  'Przygotowujemy zmiany do sprawdzenia…',
+]
 
 export function RecoveryProgressPanel({
   activeIndex,
@@ -9,31 +15,17 @@ export function RecoveryProgressPanel({
   activeIndex: number
   error?: string | null
 }) {
+  const status = STATUS[Math.min(Math.max(activeIndex, 0), STATUS.length - 1)]
+
   return (
-    <div className={styles.wrap}>
-      <ol className={styles.list}>
-        {RECOVERY_PROGRESS_STAGES.map((label, index) => {
-          const status =
-            error && index === activeIndex
-              ? 'error'
-              : index < activeIndex
-                ? 'done'
-                : index === activeIndex
-                  ? 'active'
-                  : 'pending'
-          return (
-            <li key={label} className={styles.item} data-status={status}>
-              <span className={styles.icon} aria-hidden>
-                {status === 'active' ? (
-                  <LoaderCircle size={16} className={styles.spin} />
-                ) : null}
-              </span>
-              <span>{label}</span>
-            </li>
-          )
-        })}
-      </ol>
-      {error ? <p className={styles.error}>{error}</p> : null}
-    </div>
+    <section className={styles.wrap} aria-busy={!error} aria-label="Analiza umowy">
+      <span className={styles.loader} aria-hidden="true">
+        {error ? <span className={styles.loaderMark}>!</span> : <LoaderCircle size={24} />}
+      </span>
+      <p className={styles.eyebrow}>Umowa źródłowa</p>
+      <h2 className={styles.heading}>{error ? 'Nie udało się przeanalizować umowy' : 'Analizujemy umowę'}</h2>
+      <p className={styles.status} aria-live="polite" aria-atomic="true">{error ?? status}</p>
+      {!error ? <p className={styles.note}>Sprawdź propozycje przed zapisaniem. Nic nie zmieni się bez Twojego potwierdzenia.</p> : null}
+    </section>
   )
 }

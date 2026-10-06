@@ -18,8 +18,7 @@ import { applyDecisionsToProposal } from '@/features/wedding-contract-recovery/b
 import { groupSectionEvidence } from '@/features/wedding-contract-recovery/groupSectionEvidence'
 import { validateSourceContractFile } from '@/features/wedding-contract-recovery/validateSourceFile'
 import {
-  RecoveryFieldComparisonRow,
-  RecoverySectionSummaryGrid,
+  RecoveryLogicalComparisonCard,
   SharedEvidenceBlocks,
 } from '@/features/wedding-contract-recovery/components/RecoveryFieldComparisonRow'
 import { PackageSnapshotCard } from '@/features/wedding-contract-recovery/components/PackageSnapshotCard'
@@ -38,6 +37,13 @@ import type {
   WeddingContractRecovery,
   WeddingSourceContract,
 } from '@/features/wedding-contract-recovery/types'
+import {
+  buildRecoveryDecisionGroups,
+  formatSelectedChangeCount,
+  recoveryLogicalSelectionCount,
+  recoverySectionLabel,
+  type RecoveryDecisionGroup,
+} from '@/features/wedding-contract-recovery/presentation'
 import styles from './WeddingContractRecoveryPage.module.css'
 import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
@@ -67,7 +73,7 @@ export function WeddingContractRecoveryPage() {
   const [sections, setSections] = useState<RecoverySectionSummary[]>([])
   const [includePackageSnapshot, setIncludePackageSnapshot] = useState(true)
   const [applying, setApplying] = useState(false)
-  const [appliedChanges, setAppliedChanges] = useState<string[]>([])
+  const [appliedChangeCount, setAppliedChangeCount] = useState(0)
 
   const queryClient = useQueryClient()
 
@@ -98,15 +104,18 @@ export function WeddingContractRecoveryPage() {
     enabled: Boolean(recoveryId),
   })
 
-  const groupedFields = useMemo(() => {
-    const groups = new Map<string, RecoveryFieldComparison[]>()
-    for (const field of fields.filter((item) => item.state !== 'missing_extracted')) {
-      const list = groups.get(field.sectionKey) ?? []
-      list.push(field)
-      groups.set(field.sectionKey, list)
+  const groupedDecisions = useMemo(() => {
+    const groups = new Map<RecoveryDecisionGroup['sectionKey'], ReturnType<typeof buildRecoveryDecisionGroups>>()
+    for (const decision of buildRecoveryDecisionGroups(fields)) {
+      const list = groups.get(decision.sectionKey) ?? []
+      list.push(decision)
+      groups.set(decision.sectionKey, list)
     }
     return groups
   }, [fields])
+
+  const selectedChangeCount = recoveryLogicalSelectionCount(fields, proposal, includePackageSnapshot)
+  const selectedCountCopy = formatSelectedChangeCount(selectedChangeCount)
 
   async function startAnalysis() {
     if (!file || !weddingId) return
@@ -178,7 +187,7 @@ export function WeddingContractRecoveryPage() {
     await queryClient.invalidateQueries({
       queryKey: ['wedding-contract-recovery', result.id],
     })
-    setStep('summary')
+    setStep('review')
     scrollToRecoveryTop()
   }
 
@@ -239,7 +248,7 @@ export function WeddingContractRecoveryPage() {
 
     if (!baseProposal || fields.length === 0) {
       const message =
-        'Nie udało się przygotować podsumowania. Wróć do analizy lub wgraj umowę ponownie.'
+        'Nie udało się przygotować zmian do potwierdzenia. Wróć do sprawdzania danych lub przeanalizuj umowę ponownie.'
       setConfirmError(message)
       showToast(message, 'error')
       return
@@ -272,7 +281,7 @@ export function WeddingContractRecoveryPage() {
     setApplying(true)
     setConfirmError(null)
     try {
-      const result = await applyWeddingContractRecoveryProposal({
+      await applyWeddingContractRecoveryProposal({
         recoveryId,
         weddingId,
         sourceContractId,
@@ -285,15 +294,7 @@ export function WeddingContractRecoveryPage() {
         selectedExtraIndexes: proposal?.extraProposals.flatMap((extra) => extra.selected && extra.applicable ? [extra.sourceIndex] : []) ?? [],
         selectedNoteIndexes: proposal?.noteProposals.flatMap((note) => note.selected ? [note.sourceIndex] : []) ?? [],
       })
-      const labels = fields
-        .filter((f) => result.appliedFieldKeys.includes(f.fieldKey))
-        .map((f) => f.label)
-      if (result.packageSnapshotId) labels.push('Pakiet z umowy')
-      proposal?.extraProposals.filter((item) => item.selected && item.applicable)
-        .forEach((item) => labels.push(`Usługa dodatkowa: ${item.name}`))
-      const selectedNotes = proposal?.noteProposals.filter((item) => item.selected).length ?? 0
-      if (selectedNotes > 0) labels.push(`Ustalenia zachowane w jednej notatce (${selectedNotes})`)
-      setAppliedChanges(labels)
+      setAppliedChangeCount(selectedChangeCount)
       setStep('done')
       scrollToRecoveryTop()
       showToast('Dane z umowy zostały zapisane', 'success')
@@ -334,10 +335,7 @@ export function WeddingContractRecoveryPage() {
               <Link to={`/sluby/${weddingId}`}>Wróć do zlecenia</Link>
             </p>
             <h1 className={styles.title}>Uzupełnij dane z umowy</h1>
-            <p className={styles.description}>
-              Wgraj istniejącą umowę PDF lub DOCX. OurWed odczyta dane i pokaże je do
-              sprawdzenia przed zapisaniem.
-            </p>
+            <p className={styles.description}>Wczytamy umowę PDF lub DOCX i porównamy ją z danymi w tym zleceniu. Nic nie zmieni się bez Twojej zgody.</p>
           </div>
         </div>
 
@@ -371,53 +369,37 @@ export function WeddingContractRecoveryPage() {
           </section>
         ) : null}
 
-        {step === 'summary' ? (
-          <section className={styles.panel}>
-            <RecoverySectionSummaryGrid sections={sections} />
-            <div className={styles.actions}>
-              <Button variant="secondary" onClick={() => setStep('upload')}>
-                Wgraj inny plik
-              </Button>
-              <Button
-                onClick={() => {
-                  setStep('review')
-                  scrollToRecoveryTop()
-                }}
-              >
-                Przejdź do porównania
-              </Button>
-            </div>
-          </section>
-        ) : null}
-
         {step === 'review' ? (
-          <section className={styles.panel}>
+          <section className={`${styles.panel} ${styles.reviewPanel}`}>
             <div className={styles.reviewIntro}>
               <h2>Dane znalezione w umowie</h2>
-              <p>Sprawdź odczytane informacje i wybierz, które przenieść do zlecenia. Nic nie zmieni się bez Twojego zatwierdzenia.</p>
+              <p>Porównaliśmy umowę z danymi zapisanymi w zleceniu. Wybierz zmiany, które chcesz zastosować.</p>
               <div className={styles.bulkActions}>
                 <Button variant="secondary" onClick={selectProposed}>Zaznacz proponowane</Button>
                 <Button variant="secondary" onClick={clearSelections}>Odznacz wszystkie</Button>
               </div>
             </div>
-            {Array.from(groupedFields.entries()).map(([sectionKey, sectionFields]) => {
+            {Array.from(groupedDecisions.entries()).map(([sectionKey, decisions]) => {
+              const sectionFields = decisions.flatMap((decision) => decision.fields)
               const { fieldRefs, sharedSources } = groupSectionEvidence(sectionFields)
               return (
                 <div key={sectionKey} className={styles.section}>
-                  <h2 className={styles.sectionTitle}>
-                    {sections.find((s) => s.sectionKey === sectionKey)?.label ?? sectionKey}
-                  </h2>
+                  <h2 className={styles.sectionTitle}>{recoverySectionLabel(sectionKey)}</h2>
                   <div className={styles.fieldList}>
-                    {sectionFields.map((field) => (
-                      <RecoveryFieldComparisonRow
-                        key={field.fieldKey}
-                        field={field}
-                        evidenceRef={fieldRefs.get(field.fieldKey)}
+                    {decisions.map((decision) => (
+                      <RecoveryLogicalComparisonCard
+                        key={decision.id}
+                        decision={decision}
+                        evidenceRef={fieldRefs.get(decision.fields[0]?.fieldKey ?? '')}
                         sharedSources={sharedSources}
-                        interactionDisabled={field.fieldKey === 'finances.travelStatus' && field.extractedValue === 'charged'
-                          && wedding.travelFeeStatus !== 'charged'
-                          && fields.find((item) => item.fieldKey === 'finances.travelAmount')?.selectedAction !== 'use_extracted'}
-                        onActionChange={(action) => updateFieldAction(field.fieldKey, action)}
+                        currencyCode={wedding.currency || String(fields.find((item) => item.fieldKey === 'finances.currency')?.extractedValue ?? 'PLN')}
+                        onActionChange={(action, fieldKeys) => fieldKeys.forEach((fieldKey) => {
+                          const current = fields.find((item) => item.fieldKey === fieldKey)
+                          if (!current) return
+                          updateFieldAction(fieldKey, action === 'use_extracted'
+                            ? action
+                            : current.state === 'different' ? 'keep_current' : 'skip')
+                        })}
                       />
                     ))}
                   </div>
@@ -448,15 +430,16 @@ export function WeddingContractRecoveryPage() {
 
             {proposal?.extraProposals.length ? (
               <section className={styles.section}>
-                <h2 className={styles.sectionTitle}>Dodatkowe usługi</h2>
+                <h2 className={styles.sectionTitle}>Usługi dodatkowe</h2>
                 <div className={styles.fieldList}>
                   {proposal.extraProposals.map((extra, index) => (
-                    <label className={styles.selectableFact} key={`${extra.name}-${index}`}>
+                    <label className={styles.selectableFact} data-selected={extra.selected} key={`${extra.name}-${index}`}>
                       <input type="checkbox" checked={extra.selected} disabled={!extra.applicable} onChange={(event) => setProposal((previous) => previous ? {
                         ...previous,
                         extraProposals: previous.extraProposals.map((item, itemIndex) => itemIndex === index ? { ...item, selected: event.target.checked } : item),
                       } : previous)} />
-                      <span><strong>{extra.name}</strong><br />{!extra.applicable ? 'Wartość wymaga sprawdzenia' : `${extra.price} ${extra.currency} · Dodaj do zlecenia`}</span>
+                      <span className={styles.selectableMark} aria-hidden="true">{extra.selected ? '✓' : ''}</span>
+                      <span><strong>{extra.name}</strong><br />{!extra.applicable ? 'Sprawdź tę pozycję przed zastosowaniem' : `${extra.price == null ? '' : new Intl.NumberFormat('pl-PL', { style: 'currency', currency: extra.currency || 'PLN', minimumFractionDigits: 0 }).format(extra.price)}${extra.selected ? ' · Zostanie dodana' : ''}`}</span>
                     </label>
                   ))}
                 </div>
@@ -466,14 +449,15 @@ export function WeddingContractRecoveryPage() {
             {proposal?.noteProposals.length ? (
               <section className={styles.section}>
                 <h2 className={styles.sectionTitle}>Pozostałe ustalenia</h2>
-                <p>Te informacje nie mają osobnych pól w zleceniu. Możesz zachować je jako notatkę.</p>
+              <p>Te ustalenia możesz zachować w notatce w tym zleceniu.</p>
                 <div className={styles.fieldList}>
                   {proposal.noteProposals.map((note, index) => (
-                    <label className={styles.selectableFact} key={`${note.text}-${index}`}>
+                    <label className={styles.selectableFact} data-selected={note.selected} key={`${note.text}-${index}`}>
                       <input type="checkbox" checked={note.selected} onChange={(event) => setProposal((previous) => previous ? {
                         ...previous,
                         noteProposals: previous.noteProposals.map((item, itemIndex) => itemIndex === index ? { ...item, selected: event.target.checked } : item),
                       } : previous)} />
+                      <span className={styles.selectableMark} aria-hidden="true">{note.selected ? '✓' : ''}</span>
                       <span>{note.text}</span>
                     </label>
                   ))}
@@ -483,10 +467,8 @@ export function WeddingContractRecoveryPage() {
 
             {confirmError ? <p className={styles.error}>{confirmError}</p> : null}
 
-            <div className={styles.actions}>
-              <Button variant="secondary" onClick={() => setStep('summary')}>
-                Wróć do podsumowania
-              </Button>
+            <div className={styles.reviewFooter}>
+              <span>{selectedChangeCount} {selectedCountCopy.noun === 'zmianę' ? 'zmiana wybrana' : selectedCountCopy.noun === 'zmiany' ? 'zmiany wybrane' : 'zmian wybranych'}</span>
               <Button onClick={goToConfirm}>Przejdź do potwierdzenia</Button>
             </div>
           </section>
@@ -497,9 +479,8 @@ export function WeddingContractRecoveryPage() {
             proposal={proposal}
             fields={fields}
             sourceFileName={sourceContract?.originalFileName ?? null}
-            sourceMimeType={sourceContract?.mimeType ?? null}
-            sourceCreatedAt={sourceContract?.createdAt ?? null}
             includePackageSnapshot={includePackageSnapshot}
+            currencyCode={wedding.currency || String(fields.find((item) => item.fieldKey === 'finances.currency')?.extractedValue ?? 'PLN')}
             error={confirmError}
             applying={applying}
             onBack={() => {
@@ -511,17 +492,9 @@ export function WeddingContractRecoveryPage() {
         ) : null}
 
         {step === 'done' ? (
-          <section className={styles.panel}>
+          <section className={styles.success}>
             <h2>Dane z umowy zostały zapisane</h2>
-            {appliedChanges.length > 0 ? (
-              <ul>
-                {appliedChanges.map((label) => (
-                  <li key={label}>{label}</li>
-                ))}
-              </ul>
-            ) : (
-              <p>Nie zapisano nowych pól. Pakiet z umowy mógł zostać dodany osobno.</p>
-            )}
+            <p>{formatSelectedChangeCount(appliedChangeCount).sentence}</p>
             <div className={styles.actions}>
               <Button onClick={() => navigate(`/sluby/${weddingId}`)}>
                 Wróć do zlecenia

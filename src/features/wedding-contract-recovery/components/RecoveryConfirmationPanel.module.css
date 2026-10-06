@@ -1,88 +1,29 @@
-.wrap {
-  display: grid;
-  gap: 1.25rem;
-}
-
-.title {
-  margin: 0;
-  font-size: 1.25rem;
-}
-
-.block {
-  display: grid;
-  gap: 0.65rem;
-  border: 1px solid var(--color-border);
-  border-radius: 12px;
-  padding: 1rem;
-}
-
-.blockTitle {
-  margin: 0;
-  font-size: 1rem;
-}
-
-.group {
-  display: grid;
-  gap: 0.5rem;
-}
-
-.groupTitle {
-  margin: 0;
-  font-size: 0.9375rem;
-}
-
-.changeList,
-.plainList {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: grid;
-  gap: 0.65rem;
-}
-
-.changeItem {
-  display: grid;
-  gap: 0.2rem;
-}
-
-.fieldLabel {
-  margin: 0;
-  font-weight: 600;
-}
-
-.transition {
-  margin: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem 0.55rem;
-  align-items: baseline;
-  overflow-wrap: anywhere;
-}
-
-.arrow {
-  color: var(--color-text-muted);
-}
-
-.muted,
-.counts {
-  margin: 0;
-  color: var(--color-text-muted);
-  font-size: 0.875rem;
-}
-
-.details summary {
-  cursor: pointer;
-  color: var(--color-text-muted);
-  font-size: 0.875rem;
-}
-
-.error {
-  margin: 0;
-  color: var(--color-danger);
-}
-
-.actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
+.wrap { width: min(100%, 68rem); margin-inline: auto; display: grid; gap: 1.15rem; }
+.intro { display: grid; gap: .45rem; }
+.intro p { margin: 0; color: var(--color-text-muted); line-height: 1.55; }
+.eyebrow { font-size: .75rem; font-weight: 650; letter-spacing: .08em; text-transform: uppercase; }
+.title { margin: 0; font-size: clamp(1.4rem, 3vw, 1.8rem); letter-spacing: -.025em; color: var(--color-text); }
+.selectedList { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: .8rem; }
+.block { min-width: 0; display: grid; gap: .65rem; padding: 1rem 1.1rem; border: 1px solid var(--color-border); border-radius: 15px; }
+.blockTitle { margin: 0; font-size: 1rem; }
+.changeList { min-width: 0; margin: 0; padding: 0; list-style: none; display: grid; gap: .65rem; }
+.changeItem { min-width: 0; display: grid; gap: .2rem; }
+.addressChanges { margin: 0; padding: 0; list-style: none; display: grid; gap: .3rem; }
+.addressChanges li { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: .4rem; overflow-wrap: anywhere; font-size: .875rem; }
+.addressChanges li > span:first-child { color: var(--color-text-muted); }
+.fieldLabel { margin: 0; color: var(--color-text-secondary); font-size: .875rem; font-weight: 600; }
+.transition { min-width: 0; margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: .35rem .55rem; overflow-wrap: anywhere; }
+.transition > span:first-child { color: var(--color-text-muted); }
+.transition strong { font-weight: 650; }
+.arrow { color: var(--color-text-muted); }
+.extraItem { display: flex; flex-wrap: wrap; gap: .35rem .55rem; align-items: baseline; }
+.extraItem > span:first-child { color: var(--color-text-muted); font-weight: 700; }
+.muted, .counts { margin: 0; color: var(--color-text-muted); font-size: .9rem; }
+.error { margin: 0; color: var(--color-danger); }
+.actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .75rem; padding-top: .4rem; }
+@media (max-width: 720px) {
+  .selectedList { grid-template-columns: 1fr; }
+  .actions { display: grid; grid-template-columns: 1fr; }
+  .actions > * { width: 100%; }
+  .addressChanges li { grid-template-columns: 1fr; gap: .1rem; }
 }

@@ -1,47 +1,15 @@
 import { Button } from '@/components/ui/Button'
-import type {
-  RecoveryFieldComparison,
-  RecoveryProposal,
-  RecoverySectionKey,
-} from '../types'
+import type { RecoveryFieldComparison, RecoveryProposal } from '../types'
+import { buildRecoveryDecisionGroups, formatRecoveryValue, formatSelectedChangeCount, recoveryLogicalSelectionCount, recoverySectionLabel } from '../presentation'
 import { PackageSnapshotCard } from './PackageSnapshotCard'
 import styles from './RecoveryConfirmationPanel.module.css'
-
-const CONFIRM_SECTION_ORDER: RecoverySectionKey[] = [
-  'clients',
-  'contact',
-  'wedding',
-  'locations',
-  'finances',
-  'package',
-  'additional_services',
-  'other',
-]
-
-const SECTION_LABELS: Record<RecoverySectionKey, string> = {
-  clients: 'Dane klientów',
-  contact: 'Kontakt',
-  wedding: 'Ślub',
-  locations: 'Miejsca',
-  finances: 'Umowa i finanse',
-  package: 'Pakiet z umowy',
-  additional_services: 'Usługi dodatkowe',
-  other: 'Pozostałe dane',
-  source_document: 'Dokument źródłowy',
-}
-
-function formatValue(value: unknown): string {
-  if (value == null || value === '') return 'Brak danych'
-  return String(value)
-}
 
 export function RecoveryConfirmationPanel({
   proposal,
   fields,
   sourceFileName,
-  sourceMimeType,
-  sourceCreatedAt,
   includePackageSnapshot,
+  currencyCode,
   error,
   applying,
   onBack,
@@ -50,191 +18,121 @@ export function RecoveryConfirmationPanel({
   proposal: RecoveryProposal
   fields: RecoveryFieldComparison[]
   sourceFileName: string | null
-  sourceMimeType?: string | null
-  sourceCreatedAt?: string | null
   includePackageSnapshot: boolean
+  currencyCode?: string
   error?: string | null
   applying: boolean
   onBack: () => void
   onApply: () => void
 }) {
-  const approved = fields.filter((f) => f.selectedAction === 'use_extracted')
-  const keptConflicts = fields.filter(
-    (f) => f.state === 'different' && f.selectedAction === 'keep_current',
+  const count = recoveryLogicalSelectionCount(fields, proposal, includePackageSnapshot)
+  const countCopy = formatSelectedChangeCount(count)
+  const selectedGroups = buildRecoveryDecisionGroups(fields).filter((group) =>
+    group.actionableFields.some((field) => field.selectedAction === 'use_extracted'),
   )
-  const skipped = fields.filter(
-    (f) =>
-      f.state === 'invalid_extracted' ||
-      f.state === 'unsupported' ||
-      (f.state === 'missing_extracted' && f.selectedAction === 'skip'),
-  )
+  const sectionKeys = [...new Set(selectedGroups.map((group) => group.sectionKey))]
+  const packageModel = includePackageSnapshot ? proposal.packageSnapshotProposal : null
+  const selectedExtras = proposal.extraProposals.filter((item) => item.selected && item.applicable)
+  const selectedNotes = proposal.noteProposals.filter((item) => item.selected)
 
-  const grouped = CONFIRM_SECTION_ORDER.map((sectionKey) => ({
-    sectionKey,
-    label: SECTION_LABELS[sectionKey],
-    fields: approved.filter((f) => f.sectionKey === sectionKey),
-  })).filter((group) => group.fields.length > 0)
-
-  const packageModel = proposal.packageSnapshotProposal
-  const format = sourceMimeType?.includes('pdf')
-    ? 'PDF'
-    : sourceMimeType
-      ? 'DOCX'
-      : null
-  const uploaded =
-    sourceCreatedAt && !Number.isNaN(new Date(sourceCreatedAt).getTime())
-      ? new Date(sourceCreatedAt).toLocaleString('pl-PL')
-      : null
+  const formatValue = (field: RecoveryFieldComparison, value: unknown) =>
+    formatRecoveryValue(field, value, currencyCode)
 
   return (
     <section className={styles.wrap}>
-      <h2 className={styles.title}>Potwierdzenie zmian</h2>
+      <header className={styles.intro}>
+        <p className={styles.eyebrow}>Ostatni krok</p>
+        <h2 className={styles.title}>Potwierdź zmiany</h2>
+        <p>Wybrane informacje zostaną zapisane w tym zleceniu. Pozostałe dane nie zostaną zmienione.</p>
+      </header>
 
-      <section className={styles.block}>
-        <h3 className={styles.blockTitle}>Dane, które zostaną zapisane</h3>
-        {grouped.length === 0 ? (
-          <p className={styles.muted}>
-            Nie wybrano żadnych pól do zapisania
-            {includePackageSnapshot && packageModel
-              ? ' (poza pakietem z umowy).'
-              : '.'}
-          </p>
-        ) : (
-          grouped.map((group) => (
-            <div key={group.sectionKey} className={styles.group}>
-              <h4 className={styles.groupTitle}>{group.label}</h4>
+      {count === 0 ? (
+        <p className={styles.muted}>Nie wybrano zmian do zapisania.</p>
+      ) : (
+        <div className={styles.selectedList}>
+          {sectionKeys.map((sectionKey) => (
+            <section key={sectionKey} className={styles.block}>
+              <h3 className={styles.blockTitle}>{recoverySectionLabel(sectionKey)}</h3>
               <ul className={styles.changeList}>
-                {group.fields.map((field) => (
-                  <li key={field.fieldKey} className={styles.changeItem}>
-                    <p className={styles.fieldLabel}>{field.label}</p>
-                    <p className={styles.transition}>
-                      <span>{formatValue(field.currentValue)}</span>
-                      <span className={styles.arrow} aria-hidden>
-                        →
-                      </span>
-                      <strong>{formatValue(field.extractedValue)}</strong>
-                    </p>
+                {selectedGroups.filter((group) => group.sectionKey === sectionKey).map((group) => (
+                  <li key={group.id} className={styles.changeItem}>
+                    <p className={styles.fieldLabel}>{group.label}</p>
+                    {group.id === 'partner1.address' ? (
+                      <ul className={styles.addressChanges}>
+                        {group.actionableFields.filter((field) => field.selectedAction === 'use_extracted').map((field) => (
+                          <li key={field.fieldKey}>
+                            <span>{field.label.replace('Adres klienta 1 — ', '')}: {formatValue(field, field.currentValue)}</span>
+                            <span aria-hidden="true">→</span>
+                            <strong>{formatValue(field, field.extractedValue)}</strong>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className={styles.transition}>
+                        <span>{group.fields.map((field) => formatValue(field, field.currentValue)).filter((value) => value !== '—').join(', ') || '—'}</span>
+                        <span className={styles.arrow} aria-hidden="true">→</span>
+                        <strong>{group.fields.map((field) => formatValue(field, field.extractedValue)).filter((value) => value !== '—').join(', ') || '—'}</strong>
+                      </p>
+                    )}
                   </li>
                 ))}
               </ul>
-            </div>
-          ))
-        )}
-      </section>
+            </section>
+          ))}
 
-      {keptConflicts.length > 0 ? (
-        <section className={styles.block}>
-          <h3 className={styles.blockTitle}>Pozostanie bez zmian</h3>
-          <ul className={styles.plainList}>
-            {keptConflicts.map((field) => (
-              <li key={field.fieldKey}>
-                {field.label} pozostanie: {formatValue(field.currentValue)}
-              </li>
-            ))}
-          </ul>
-          {proposal.summary.unchanged > 0 ? (
-            <details className={styles.details}>
-              <summary>
-                Pola zgodne z umową: {proposal.summary.unchanged}
-              </summary>
-              <p className={styles.muted}>
-                Te pola mają tę samą wartość w zleceniu i w umowie — nie będą
-                zapisywane ponownie.
-              </p>
-            </details>
+          {packageModel ? (
+            <PackageSnapshotCard confirmationMode model={{
+              name: packageModel.name,
+              originalDescription: packageModel.originalDescription,
+              includedItems: packageModel.includedItems,
+              coverageHours: packageModel.coverageHours,
+              coverageTimeRange: packageModel.coverageTimeRange,
+              deliveryDeadlineText: packageModel.deliveryDeadlineText,
+              basePrice: packageModel.basePrice,
+              currency: packageModel.currency,
+              sourceFileName,
+            }} />
           ) : null}
-        </section>
-      ) : proposal.summary.unchanged > 0 ? (
-        <section className={styles.block}>
-          <h3 className={styles.blockTitle}>Pozostanie bez zmian</h3>
-          <p className={styles.muted}>
-            Pola zgodne z umową: {proposal.summary.unchanged}
-          </p>
-        </section>
-      ) : null}
 
-      {skipped.length > 0 ? (
-        <section className={styles.block}>
-          <h3 className={styles.blockTitle}>Pominięte dane</h3>
-          <ul className={styles.plainList}>
-            {skipped.map((field) => (
-              <li key={field.fieldKey}>
-                <strong>{field.label}</strong>
-                {field.state === 'invalid_extracted'
-                  ? ' — niepoprawna wartość z umowy'
-                  : field.state === 'unsupported'
-                    ? ' — tylko informacyjnie'
-                    : ' — nie znaleziono w umowie'}
-                {field.warnings[0] ? ` (${field.warnings[0]})` : ''}
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
+          {selectedExtras.length > 0 ? (
+            <section className={styles.block}>
+              <h3 className={styles.blockTitle}>Usługi dodatkowe</h3>
+              <ul className={styles.changeList}>
+                {selectedExtras.map((item, index) => (
+                  <li key={`${item.name}-${index}`} className={styles.extraItem}>
+                    <span aria-hidden="true">+</span>
+                    <strong>{item.name}</strong>
+                    {item.price == null ? null : <span>{formatMoney(item.price, item.currency)}</span>}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
 
-      {includePackageSnapshot && packageModel ? (
-        <PackageSnapshotCard
-          confirmationMode
-          model={{
-            name: packageModel.name,
-            originalDescription: packageModel.originalDescription,
-            includedItems: packageModel.includedItems,
-            coverageHours: packageModel.coverageHours,
-            coverageTimeRange: packageModel.coverageTimeRange,
-            deliveryDeadlineText: packageModel.deliveryDeadlineText,
-            basePrice: packageModel.basePrice,
-            currency: packageModel.currency,
-            sourceFileName,
-          }}
-        />
-      ) : null}
+          {selectedNotes.length > 0 ? (
+            <section className={styles.block}>
+              <h3 className={styles.blockTitle}>Pozostałe ustalenia</h3>
+              <ul className={styles.changeList}>{selectedNotes.map((item, index) => <li key={`${item.text}-${index}`}>{item.text}</li>)}</ul>
+            </section>
+          ) : null}
+        </div>
+      )}
 
-      {(proposal.extraProposals ?? []).some((item) => item.selected) ? (
-        <section className={styles.block}>
-          <h3 className={styles.blockTitle}>Dodatkowe usługi</h3>
-          <ul className={styles.plainList}>
-            {proposal.extraProposals.filter((item) => item.selected).map((item, index) => (
-              <li key={`${item.name}-${index}`}>{item.name}{item.price == null ? '' : ` — ${item.price} ${item.currency}`}</li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
-
-      {(proposal.noteProposals ?? []).some((item) => item.selected) ? (
-        <section className={styles.block}>
-          <h3 className={styles.blockTitle}>Notatka „Ustalenia z umowy źródłowej”</h3>
-          <ul className={styles.plainList}>
-            {proposal.noteProposals.filter((item) => item.selected).map((item, index) => <li key={`${item.text}-${index}`}>{item.text}</li>)}
-          </ul>
-        </section>
-      ) : null}
-
-      <section className={styles.block}>
-        <h3 className={styles.blockTitle}>Dokument źródłowy</h3>
-        <ul className={styles.plainList}>
-          <li>Plik: {sourceFileName ?? 'zapisany dokument'}</li>
-          {format ? <li>Format: {format}</li> : null}
-          {uploaded ? <li>Wgrano: {uploaded}</li> : null}
-          <li>Dokument źródłowy pozostanie dołączony do zlecenia.</li>
-        </ul>
-      </section>
-
-      <p className={styles.counts}>
-        Podsumowanie: do aktualizacji {proposal.summary.toUpdate}, bez zmian{' '}
-        {proposal.summary.unchanged}, konflikty zachowane{' '}
-        {proposal.summary.conflictsKept}, pominięte {proposal.summary.invalid}.
-      </p>
-
-      {error ? <p className={styles.error}>{error}</p> : null}
-
+      <p className={styles.counts}>{countCopy.sentence}</p>
+      {error ? <p className={styles.error} role="alert">{error}</p> : null}
       <div className={styles.actions}>
-        <Button variant="secondary" onClick={onBack} disabled={applying}>
-          Wróć do porównania
-        </Button>
-        <Button onClick={onApply} disabled={applying}>
-          {applying ? 'Zapisywanie…' : 'Zapisz zatwierdzone dane'}
-        </Button>
+        <Button variant="secondary" onClick={onBack} disabled={applying}>Wróć do sprawdzenia</Button>
+        <Button onClick={onApply} disabled={applying || count === 0}>{applying ? 'Zapisywanie…' : `Zastosuj ${count} ${countCopy.noun}`}</Button>
       </div>
     </section>
   )
+}
+
+function formatMoney(amount: number, currency: string | null | undefined): string {
+  const code = currency || 'PLN'
+  try {
+    return new Intl.NumberFormat('pl-PL', { style: 'currency', currency: code, minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(amount)
+  } catch {
+    return `${new Intl.NumberFormat('pl-PL').format(amount)} ${code}`
+  }
 }

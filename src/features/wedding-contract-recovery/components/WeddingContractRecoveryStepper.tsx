@@ -4,7 +4,6 @@ import styles from './WeddingContractRecoveryStepper.module.css'
 export type RecoveryWizardStep =
   | 'upload'
   | 'processing'
-  | 'summary'
   | 'review'
   | 'confirm'
   | 'done'
@@ -12,7 +11,6 @@ export type RecoveryWizardStep =
 const STEPS: Array<{ id: RecoveryWizardStep; label: string }> = [
   { id: 'upload', label: 'Wgraj umowę' },
   { id: 'processing', label: 'Analiza' },
-  { id: 'summary', label: 'Podsumowanie' },
   { id: 'review', label: 'Sprawdź dane' },
   { id: 'confirm', label: 'Potwierdzenie' },
 ]
@@ -20,10 +18,9 @@ const STEPS: Array<{ id: RecoveryWizardStep; label: string }> = [
 const INDEX: Record<RecoveryWizardStep, number> = {
   upload: 0,
   processing: 1,
-  summary: 2,
-  review: 3,
-  confirm: 4,
-  done: 5,
+  review: 2,
+  confirm: 3,
+  done: 4,
 }
 
 export function WeddingContractRecoveryStepper({
@@ -44,11 +41,9 @@ export function WeddingContractRecoveryStepper({
               ? Upload
               : step.id === 'processing'
                 ? FileText
-                : step.id === 'summary'
-                  ? ListChecks
-                  : step.id === 'review'
-                    ? ListChecks
-                    : Check
+              : step.id === 'review'
+                ? ListChecks
+                : Check
 
           return (
             <li

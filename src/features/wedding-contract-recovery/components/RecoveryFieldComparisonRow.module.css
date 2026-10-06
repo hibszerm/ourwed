@@ -1,125 +1,116 @@
 .row {
-  border: 1px solid var(--color-border);
-  border-radius: 12px;
-  padding: 1rem;
+  min-width: 0;
   display: grid;
-  gap: 0.75rem;
-  background: var(--color-surface);
+  gap: .9rem;
+  padding: 1.1rem 1.2rem;
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  background: var(--color-surface, #fff);
+  transition: border-color 160ms ease, background-color 160ms ease;
 }
-
-.header {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.75rem;
-  align-items: flex-start;
+.row[data-selected='true'] {
+  border-color: color-mix(in srgb, var(--color-primary, #24363d) 36%, var(--color-border));
+  background: color-mix(in srgb, var(--color-primary, #24363d) 3%, var(--color-surface, #fff));
 }
-
-.label {
-  margin: 0;
-  font-size: 1rem;
-}
-
+.row[data-mixed='true'] { border-style: dashed; }
+.header { display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
+.label { min-width: 0; margin: 0; font-size: 1rem; line-height: 1.4; }
 .badge {
-  font-size: 0.75rem;
-  padding: 0.2rem 0.5rem;
+  flex: 0 0 auto;
+  padding: .2rem .55rem;
   border-radius: 999px;
   background: var(--color-surface-muted);
-  white-space: nowrap;
-}
-
-.columns {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.75rem;
-}
-
-.colLabel {
-  margin: 0 0 0.25rem;
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
-}
-
-.value {
-  margin: 0;
-}
-
-.confidence {
-  margin: 0;
-  font-size: 0.875rem;
   color: var(--color-text-secondary);
+  font-size: .75rem;
 }
-
-.evidence {
-  margin: 0;
-  padding: 0.75rem;
-  border-left: 3px solid var(--color-border-strong);
-  background: var(--color-surface-muted);
-  font-size: 0.875rem;
-}
-
-.evidence footer {
-  margin-top: 0.35rem;
-  color: var(--color-text-muted);
-}
-
-.sourceRef {
-  margin: 0;
-  font-size: 0.8125rem;
-  color: var(--color-text-muted);
-  font-weight: 600;
-}
-
-.sharedEvidence {
+.comparison {
   display: grid;
-  gap: 0.65rem;
-  margin-top: 0.25rem;
-}
-
-.warnings {
-  margin: 0;
-  padding-left: 1rem;
-  color: var(--color-danger);
-  font-size: 0.875rem;
-}
-
-.actions {
-  display: grid;
-  gap: 0.5rem;
-}
-
-.choice {
-  display: flex;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  gap: 0.5rem;
-  font-size: 0.875rem;
+  gap: 1rem;
 }
-
-.summaryGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 0.75rem;
+.valueSide { min-width: 0; padding: .15rem 0; }
+.valueSide[data-side='current'] .value { color: var(--color-text-muted); font-weight: 450; }
+.valueSide[data-side='source'] {
+  padding: .7rem .85rem;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--color-primary, #24363d) 5%, var(--color-surface, #fff));
 }
-
-.summaryCard {
+.valueSide[data-side='source'] .value { font-weight: 620; color: var(--color-text); }
+.colLabel { margin: 0 0 .25rem; color: var(--color-text-muted); font-size: .75rem; font-weight: 600; }
+.value { margin: 0; min-width: 0; overflow-wrap: anywhere; white-space: pre-wrap; line-height: 1.5; }
+.arrow { color: var(--color-text-muted); font-size: 1.125rem; }
+.evidence { min-width: 0; font-size: .875rem; }
+.evidence summary { width: fit-content; cursor: pointer; color: var(--color-text-secondary); }
+.evidence summary:focus-visible,
+.selection:focus-within { outline: 3px solid var(--color-focus-ring, #667f88); outline-offset: 3px; }
+.evidence blockquote {
+  margin: .65rem 0 0;
+  padding: .8rem 1rem;
+  border-left: 2px solid var(--color-border-strong);
+  border-radius: 0 10px 10px 0;
+  background: var(--color-surface-muted);
+  overflow-wrap: anywhere;
+}
+.evidence blockquote p { margin: 0; }
+.warnings { margin: 0; padding-left: 1.2rem; color: var(--color-text-secondary); font-size: .875rem; }
+.selection {
+  position: relative;
+  display: flex;
+  min-height: 2.75rem;
+  align-items: center;
+  gap: .65rem;
+  width: fit-content;
+  max-width: 100%;
+  padding: .55rem .8rem;
   border: 1px solid var(--color-border);
   border-radius: 12px;
-  padding: 0.875rem;
-  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  line-height: 1.4;
 }
+.selection[data-selected='true'] { color: var(--color-text); border-color: var(--color-border-strong); }
+.selection input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+.selectionMark {
+  display: grid;
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 6px;
+  color: var(--color-surface, #fff);
+  font-size: .8rem;
+  font-weight: 700;
+}
+.selection[data-selected='true'] .selectionMark {
+  border-color: var(--color-primary, #24363d);
+  background: var(--color-primary, #24363d);
+}
+.selection[data-mixed='true'] .selectionMark::after {
+  width: .6rem;
+  height: 2px;
+  background: var(--color-text-secondary);
+  content: '';
+}
+.selection input:focus-visible + .selectionMark { outline: 3px solid var(--color-focus-ring, #667f88); outline-offset: 3px; }
 
-.summaryTitle {
-  margin: 0 0 0.35rem;
-  font-weight: 600;
+/* Legacy single-field component remains available to existing unit callers. */
+.columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
+.choice { display: flex; align-items: center; gap: .5rem; font-size: .875rem; }
+.sourceRef { margin: 0; color: var(--color-text-muted); font-size: .8125rem; font-weight: 600; }
+.sharedEvidence { display: grid; gap: .65rem; margin-top: .25rem; }
+@media (max-width: 680px) {
+  .row { padding: .95rem; gap: .75rem; }
+  .comparison { grid-template-columns: minmax(0, 1fr); gap: .55rem; }
+  .arrow { display: none; }
+  .valueSide[data-side='source'] { padding: .65rem .75rem; }
+  .selection { width: 100%; }
+  .columns { grid-template-columns: 1fr; }
 }
-
-.summaryStatus {
-  margin: 0;
-  color: var(--color-text-muted);
-  font-size: 0.875rem;
-}
-
-@media (max-width: 720px) {
-  .columns {
-    grid-template-columns: 1fr;
-  }
-}
+@media (prefers-reduced-motion: reduce) { .row { transition: none; } }
