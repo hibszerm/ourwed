@@ -10,6 +10,8 @@ const third = { id: 'mi_third', label: 'A later distinct fact', answerKind: 'mul
 const choiceRequirement = { id: 'opaque-party-role', kind: 'choice' as const, label: 'Select source party', options: [
   { id: 'opaque-option-1', label: 'Candidate One' }, { id: 'opaque-option-2', label: 'Candidate Two' },
 ] }
+const roleScopedIdentifier = { id: 'opaque-role-identifier', label: 'Required identifier for the selected source role', answerKind: 'text' as const }
+const roleScopedDate = { id: 'opaque-role-date', label: 'Required date fact for the selected source role', answerKind: 'date' as const }
 const definitions = [first, second, third]
 const answers = [
   { missingInputId: first.id, value: 'Synthetic answer A' },
@@ -162,7 +164,7 @@ assert.equal(JSON.stringify(diagnosticEvents).includes('Synthetic generated docu
     generate: async (_context, _answers, resolved) => {
       choiceResolved.push(resolved)
       choiceRound++
-      if (choiceRound === 1) return { status: 'MISSING_INPUT', missingInputs: [choiceRequirement], choiceBindings: bindings }
+      if (choiceRound === 1) return { status: 'MISSING_INPUT', missingInputs: [choiceRequirement, roleScopedIdentifier, roleScopedDate], choiceBindings: bindings }
       if (choiceRound === 2) return { status: 'MISSING_INPUT', missingInputs: [third] }
       return { status: 'READY', candidate: { bytes: new ArrayBuffer(1), changedBlocks: [] } }
     },
@@ -171,18 +173,28 @@ assert.equal(JSON.stringify(diagnosticEvents).includes('Synthetic generated docu
   const choiceStart = await choiceBoundary.start('synthetic-owner', { weddingId: 'synthetic-wedding', requestId: '00000000-0000-4000-8000-000000000002' })
   assert.equal(choiceStart.status, 'awaiting_input')
   assert.deepEqual(choiceSession.choiceBindings, bindings, 'server-authorized option mappings persist with this run')
-  const choiceContinue = await choiceBoundary.continue('synthetic-owner', { sessionId: choiceSession.id, answers: [{ missingInputId: choiceRequirement.id, optionId: 'opaque-option-1' }] })
+  const choiceContinue = await choiceBoundary.continue('synthetic-owner', { sessionId: choiceSession.id, answers: [
+    { missingInputId: choiceRequirement.id, optionId: 'opaque-option-1' },
+    { missingInputId: roleScopedIdentifier.id, value: 'synthetic identifier' },
+    { missingInputId: roleScopedDate.id, value: '2000-01-02' },
+  ] })
   assert.equal(choiceContinue.status, 'awaiting_input')
   assert.deepEqual(observedBindings[1], [{ requirementId: choiceRequirement.id, optionId: 'opaque-option-1', partyKey: 'partner1' }], 'only the server-resolved option binding reaches normalized authority')
-  assert.deepEqual(choiceResolved[1], [{ requirement: choiceRequirement, answer: { optionId: 'opaque-option-1' }, selectedEntity: { partyKey: 'partner1' } }], 'choice is distinct from a string user fact')
+  assert.deepEqual(choiceResolved[1], [
+    { requirement: choiceRequirement, answer: { optionId: 'opaque-option-1' }, selectedEntity: { partyKey: 'partner1' } },
+    { requirement: roleScopedIdentifier, answer: { value: 'synthetic identifier' } },
+    { requirement: roleScopedDate, answer: { value: '2000-01-02' } },
+  ], 'one continuation retains the selected entity binding and each role-scoped answer by its original opaque ID')
   assert.deepEqual(choiceSession.choiceBindings, bindings, 'binding survives a later MissingInput batch')
   const next = await choiceBoundary.continue('synthetic-owner', { sessionId: choiceSession.id, answers: [{ missingInputId: third.id, value: 'new value' }] })
   assert.equal(next.status, 'ready')
   assert.deepEqual(observedBindings[2], observedBindings[1], 'same entity remains bound on later continuation')
   assert.deepEqual(choiceResolved[2], [
     { requirement: choiceRequirement, answer: { optionId: 'opaque-option-1' }, selectedEntity: { partyKey: 'partner1' } },
+    { requirement: roleScopedIdentifier, answer: { value: 'synthetic identifier' } },
+    { requirement: roleScopedDate, answer: { value: '2000-01-02' } },
     { requirement: third, answer: { value: 'new value' } },
-  ], 'later absent values remain separate from the selected entity binding')
+  ], 'later requirements preserve prior role-scoped answers and the selected entity binding')
 }
 
 async function runFailureDiagnostic(category: 'invalid_response' | 'provider_failure' | 'mechanical_validation_failure') {

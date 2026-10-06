@@ -1,63 +1,71 @@
 import assert from 'node:assert/strict'
-import { DEPENDENT_MISSING_INPUT_INSTRUCTIONS, GENERATION_INSTRUCTIONS } from './generator'
+import { DEPENDENT_MISSING_INPUT_INSTRUCTIONS, GENERATION_INSTRUCTIONS, GENERATOR_PAYMENT_SCHEDULE_INSTRUCTIONS, generationInstructionsForLocale } from './generator'
 import { isGenerationResponse, type MissingInput } from './generationProtocol'
 
 const instructions = GENERATION_INSTRUCTIONS.toLowerCase()
 const dependencyRule = DEPENDENT_MISSING_INPUT_INSTRUCTIONS.toLowerCase()
 
 // These synthetic cases validate the provider instruction contract without making provider calls.
-const subjects = [
-  { key: 'subject-a', identity: 'Person A', phone: 'phone-a', address: 'address-a', email: 'email-a' },
-  { key: 'subject-b', identity: 'Person B', phone: 'phone-b', address: 'address-b', email: 'email-b' },
-]
-const sourceRole = { cardinality: 'one', mappedSubject: null }
-const associationOnly: MissingInput = {
+const association: MissingInput = {
   id: 'opaque-association',
+  kind: 'choice',
   label: 'Which authoritative person fills the source-defined role?',
+  options: [
+    { id: 'opaque-person-a', label: 'Person A' },
+    { id: 'opaque-person-b', label: 'Person B' },
+  ],
+}
+const roleFactA: MissingInput = {
+  id: 'opaque-role-fact-a',
+  label: 'Required identifier for the person filling the source-defined role',
   answerKind: 'text',
 }
-
-// A. Ambiguous source subject with available dependent facts: ask for association only.
-assert.equal(sourceRole.cardinality, 'one')
-assert.equal(sourceRole.mappedSubject, null)
-assert.ok(subjects.every((subject) => subject.identity && subject.phone))
-assert.equal(isGenerationResponse({ status: 'MISSING_INPUT', missingInputs: [associationOnly] }), true)
-assert.match(dependencyRule, /ask only for the minimum input needed to identify which authoritative subject fills that source role/)
-assert.match(dependencyRule, /defer dependent facts whose authority depends on that unresolved association; they are not yet missing/)
-
-// B-C. Once the association identifies either subject, reuse that subject's existing facts.
-for (const key of ['subject-a', 'subject-b']) {
-  const resolvedSubject = subjects.find((subject) => subject.key === key)
-  assert.ok(resolvedSubject)
-  assert.ok(resolvedSubject.phone && resolvedSubject.address && resolvedSubject.email)
-}
-assert.match(dependencyRule, /after continuation resolves the association, bind the answer to the authoritative subject it identifies/)
-assert.match(dependencyRule, /re-evaluate each dependent fact against that subject, and reuse every present authoritative fact of any kind/)
-
-// D-F. A dependent fact is askable only when absent for the resolved subject; no field type gets special behavior.
-const resolvedWithoutPhone = { key: 'subject-a', identity: 'Person A', phone: null }
-assert.equal(resolvedWithoutPhone.phone, null)
-assert.match(dependencyRule, /ask for a dependent fact only if it remains absent for the resolved subject or no authoritative value exists/)
-for (const factKind of ['identity', 'address', 'email', 'phone', 'other']) {
-  assert.ok(dependencyRule.includes(factKind))
+const roleFactB: MissingInput = {
+  id: 'opaque-role-fact-b',
+  label: 'Required date fact for the person filling the source-defined role',
+  answerKind: 'date',
 }
 
-// G. Subject resolution preserves the source's singular scope.
-assert.match(dependencyRule, /preserve the source-defined subject and scope/)
-assert.match(dependencyRule, /does not make a singular role shared or joint, infer an association, or broaden a requirement/)
+// A. Certain role-scoped gaps share the first batch with the choice; no synthetic subject key is needed.
+const firstPass = [association, roleFactA, roleFactB]
+assert.equal(isGenerationResponse({ status: 'MISSING_INPUT', missingInputs: firstPass }), true)
+assert.ok(firstPass.slice(1).every((item) => item.kind !== 'choice' && item.subject === undefined))
+assert.match(dependencyRule, /maximal safe set of currently predictable source-required missing facts/)
+assert.match(dependencyRule, /do not defer a dependent fact solely because another missinginput in this same response will ask/)
+assert.match(dependencyRule, /return both the role\/entity choice and the role-scoped fact missinginput together/)
+assert.match(dependencyRule, /describe the source-defined role in the fact label/)
+assert.match(dependencyRule, /bind that answer only to the entity selected for the source role when continuing/)
+assert.match(dependencyRule, /use submitted role-scoped answers for their original requirement ids/)
+assert.match(dependencyRule, /do not re-ask them under the same id, a new id, or a paraphrase/)
 
-// H. Independent gaps remain batchable while contingent gaps wait for association.
-const independentGap: MissingInput = { id: 'opaque-independent', label: 'Independent required fact', answerKind: 'date' }
-assert.equal(isGenerationResponse({ status: 'MISSING_INPUT', missingInputs: [associationOnly, independentGap] }), true)
-assert.match(dependencyRule, /batch genuinely independent missing facts with the current subject-association question; do not defer independent gaps/)
+// B. If the first answer determines whether a later fact is required, that fact waits.
+assert.match(dependencyRule, /if the choice changes whether the fact is required or missing, or if answering an earlier question genuinely determines whether the later fact is required, defer that fact/)
+assert.match(dependencyRule, /answering an earlier question genuinely determines whether the later fact is required, defer that fact/)
 
-// I. Continuation keeps the original question definition and does not recreate it.
-assert.match(instructions, /each resolved item binds the original missinginput id and complete requirement definition/)
-assert.match(instructions, /do not request the same requirement again, including by paraphrasing its label or assigning a new opaque id/)
+// C-D. Do not ask when authority, source-owned content, resolved answers, or product rules already supply the fact.
+assert.match(dependencyRule, /if a candidate already has an authoritative value that could satisfy the requirement/)
+assert.match(dependencyRule, /never ask for facts already available from authority, resolved answers, source-owned content that should remain, or deterministic product rules/)
 
-// J. The change is confined to generic Generator planning language; it adds no runtime field map.
-assert.match(instructions, /normalized authority contains multiple candidate subjects/)
-assert.match(instructions, /source-to-authority association is not established/)
-assert.doesNotMatch(DEPENDENT_MISSING_INPUT_INSTRUCTIONS, /partner1|partner2|peSEL|template|wedding-specific/i)
+// A second batch remains valid for facts whose need becomes knowable only after answers.
+const genuinelyConditionalLaterFact: MissingInput = {
+  id: 'opaque-conditional-later',
+  label: 'Fact required only for the selected option',
+  answerKind: 'text',
+}
+assert.equal(isGenerationResponse({ status: 'MISSING_INPUT', missingInputs: [genuinelyConditionalLaterFact] }), true)
+assert.match(instructions, /continue inspecting the complete source for other genuinely missing requirements/)
 
-console.log('PASS generic dependent MissingInput prompt acceptance (10 synthetic cases)')
+// Existing generic behavior still reaches the actual Generator prompt.
+assert.ok(generationInstructionsForLocale('en').includes(DEPENDENT_MISSING_INPUT_INSTRUCTIONS))
+assert.ok(generationInstructionsForLocale('pl').includes(DEPENDENT_MISSING_INPUT_INSTRUCTIONS))
+assert.match(GENERATOR_PAYMENT_SCHEDULE_INSTRUCTIONS.toLowerCase(), /request only the minimum genuinely unknown intermediate amount/)
+assert.match(GENERATOR_PAYMENT_SCHEDULE_INSTRUCTIONS.toLowerCase(), /calculate it as contractvalue minus the authoritative deposit and all earlier installment amounts instead of asking for it/)
+assert.match(instructions, /top-level contractaddress is the address explicitly designated for this contract and has no participant owner/)
+assert.match(instructions, /do not ask for the same address again as a residential-address missinginput/)
+
+// The rule stays generic and introduces no schema, role, participant, or template ontology.
+assert.doesNotMatch(DEPENDENT_MISSING_INPUT_INSTRUCTIONS, /partner1|partner2|pesel|date of birth|golden_03|bride|groom|installment ii|template-specific/i)
+assert.match(instructions, /include subject only when its participantkey is explicitly present in normalized authority/)
+assert.match(instructions, /never infer participant ownership or map a participant to a source-contract role/)
+
+console.log('PASS generic first-pass MissingInput completeness acceptance (Cases A-F; no provider calls)')
