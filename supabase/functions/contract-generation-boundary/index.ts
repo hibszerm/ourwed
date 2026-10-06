@@ -8,6 +8,7 @@ import { authorityFingerprintPayload } from '@/features/contract-generation-spik
 import { applyOptionBGenerationResponse, createGenerationSourceView, readSource, validateOptionBInput, generationInstructionsForLocale, GENERIC_CONTRACT_PRODUCT_RULES, CONFLICT_REVIEW_INSTRUCTIONS, REVIEW_INSTRUCTIONS } from '@/features/contract-generation-spike/generator.ts'
 import { isCandidateReviewResponse, isGenerationResponse, isReviewResponse, REVIEWER_FINDING_CATEGORIES, REVIEWER_FINDING_RULE_IDS, safeReviewerFindingSummary, type CandidateReviewResponse, type ReviewResponse, type ContractGenerationAnswer } from '@/features/contract-generation-spike/generationProtocol.ts'
 import { createContractGenerationBoundary, parseContractGenerationAction, ProviderOperationError, type BoundaryDiagnostic, type BoundaryReviewerResult, type ServerBoundaryContext } from '@/features/contract-generation-spike/serverBoundary.ts'
+import { safeTerminalFailure } from '@/features/contract-generation-spike/terminalFailureDiagnostics.ts'
 import { callStructuredProvider } from '@/features/contract-generation-spike/providerRequest.ts'
 import { isTravelFeeResolved } from '@/lib/utils/travelFeeCommercial.ts'
 import type { FormAnswerJson } from '@/types/formEngine'
@@ -713,10 +714,12 @@ function createBoundary(supabase: SupabaseClient, ownerId: string) {
       }
       return String(run.id)
     },
-    async markFailure(sessionId, executionId, code) {
+    async markFailure(sessionId, executionId, code, terminalFailure) {
+      const safeFailure = safeTerminalFailure(terminalFailure)
       const { data } = await supabase.from('wedding_contract_generation_runs').update({
         session_state: code === 'stale' ? 'abandoned' : 'failed', generation_status: 'failed',
         missing_inputs_json: [], user_answers_json: [], resolved_values_json: {}, authority_fingerprint: null,
+        quality_summary_json: { terminalFailure: safeFailure },
         expires_at: new Date(Date.now() + OPTION_B_ACTIVE_TTL_MS).toISOString(),
       }).eq('id', sessionId).eq('execution_id', executionId).eq('session_kind', 'option_b').eq('session_state', 'processing')
         .select('id,wedding_id,owner_user_id,intermediate_docx_path').maybeSingle()
