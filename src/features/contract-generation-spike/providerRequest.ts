@@ -8,7 +8,11 @@ export type StructuredProviderRequest = {
   model: string
   apiKey: string
   effort: string
+  timeoutMs?: number
 }
+
+export const DEFAULT_PROVIDER_TIMEOUT_MS = 60_000
+export const GENERATOR_PROVIDER_TIMEOUT_MS = 120_000
 
 export type StructuredProviderRuntime = {
   createTimeoutSignal?: (milliseconds: number) => AbortSignal
@@ -36,7 +40,7 @@ export async function callStructuredProvider(input: StructuredProviderRequest, r
 
   let timeoutSignal: AbortSignal
   try {
-    timeoutSignal = (runtime.createTimeoutSignal ?? ((milliseconds) => AbortSignal.timeout(milliseconds)))(60_000)
+    timeoutSignal = (runtime.createTimeoutSignal ?? ((milliseconds) => AbortSignal.timeout(milliseconds)))(input.timeoutMs ?? DEFAULT_PROVIDER_TIMEOUT_MS)
   } catch {
     throw new ProviderOperationError('provider_failure', { providerFailureStage: 'timeout_setup' })
   }

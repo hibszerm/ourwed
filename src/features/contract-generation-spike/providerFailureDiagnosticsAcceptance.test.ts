@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
-import { callStructuredProvider } from './providerRequest'
+import { readFileSync } from 'node:fs'
+import { callStructuredProvider, DEFAULT_PROVIDER_TIMEOUT_MS, GENERATOR_PROVIDER_TIMEOUT_MS } from './providerRequest'
 import { ProviderOperationError, providerFailureTelemetry } from './serverBoundary'
 
 const privateMarker = 'private-request-prompt-contract-response'
@@ -8,6 +9,9 @@ const input = {
   system: 'private prompt', user: { contract: privateMarker }, schemaName: 'test_schema', schema: { type: 'object' },
   model: 'safe-model-id', apiKey: 'private-api-key', effort: 'medium',
 }
+
+const edgeBoundary = readFileSync(new URL('../../../supabase/functions/contract-generation-boundary/index.ts', import.meta.url), 'utf8')
+assert.equal((edgeBoundary.match(/timeoutMs:\s*GENERATOR_PROVIDER_TIMEOUT_MS/g) ?? []).length, 1, 'only the Generator adapter opts into its longer fetch timeout')
 
 async function rejectsWithStage(run: () => Promise<unknown>, stage: string, failureClass?: string, status?: number) {
   try {
@@ -140,7 +144,7 @@ for (const [status, expectedClass] of [[400, 'http_400'], [401, 'http_401'], [40
   let calls = 0
   const successful = await callStructuredProvider(input, {
     createTimeoutSignal: (milliseconds) => {
-      assert.equal(milliseconds, 60_000, 'existing timeout duration is preserved')
+      assert.equal(milliseconds, DEFAULT_PROVIDER_TIMEOUT_MS, 'existing default timeout duration is preserved')
       return new AbortController().signal
     },
     fetcher: async (url, init) => {
@@ -155,6 +159,24 @@ for (const [status, expectedClass] of [[400, 'http_400'], [401, 'http_401'], [40
   })
   assert.deepEqual(successful, { status: 'READY', edits: [] }, 'successful structured output remains unchanged')
   assert.equal(calls, 1)
+}
+
+{
+  assert.equal(DEFAULT_PROVIDER_TIMEOUT_MS, 60_000, 'Reviewer and Conflict Verifier retain their existing timeout')
+  assert.equal(GENERATOR_PROVIDER_TIMEOUT_MS, 120_000, 'Generator receives the requested timeout')
+  let calls = 0
+  const result = await callStructuredProvider({ ...input, timeoutMs: GENERATOR_PROVIDER_TIMEOUT_MS }, {
+    createTimeoutSignal: (milliseconds) => {
+      assert.equal(milliseconds, 120_000, 'the Generator timeout reaches the provider fetch')
+      return new AbortController().signal
+    },
+    fetcher: async () => {
+      calls += 1
+      return { ok: true, text: async () => JSON.stringify({ output_text: '{"status":"READY","edits":[]}' }) } as Response
+    },
+  })
+  assert.deepEqual(result, { status: 'READY', edits: [] })
+  assert.equal(calls, 1, 'the longer timeout does not add a retry')
 }
 
 console.log('Provider failure-stage matrix acceptance passed')

@@ -9,7 +9,7 @@ import { applyOptionBGenerationResponse, createGenerationSourceView, readSource,
 import { diagnoseGenerationResponse, isCandidateReviewResponse, isGenerationResponse, isReviewResponse, REVIEWER_FINDING_CATEGORIES, REVIEWER_FINDING_RULE_IDS, safeReviewerFindingSummary, type CandidateReviewResponse, type ReviewResponse, type ContractGenerationAnswer } from '@/features/contract-generation-spike/generationProtocol.ts'
 import { createContractGenerationBoundary, parseContractGenerationAction, ProviderOperationError, type BoundaryDiagnostic, type BoundaryReviewerResult, type ServerBoundaryContext } from '@/features/contract-generation-spike/serverBoundary.ts'
 import { safeTerminalFailure } from '@/features/contract-generation-spike/terminalFailureDiagnostics.ts'
-import { callStructuredProvider } from '@/features/contract-generation-spike/providerRequest.ts'
+import { callStructuredProvider, GENERATOR_PROVIDER_TIMEOUT_MS } from '@/features/contract-generation-spike/providerRequest.ts'
 import { isTravelFeeResolved } from '@/lib/utils/travelFeeCommercial.ts'
 import type { FormAnswerJson } from '@/types/formEngine'
 import type { PaymentMethod, PaymentType } from '@/types/wedding'
@@ -513,6 +513,7 @@ function providerAdapters() {
         schemaName: 'option_b_generation_response_v2', schema: GENERATION_SCHEMA,
         model: config.generatorModel, apiKey: config.apiKey,
         effort: Deno.env.get('OPENAI_CONTRACT_GENERATOR_REASONING')?.trim() || 'medium',
+        timeoutMs: GENERATOR_PROVIDER_TIMEOUT_MS,
       })
     } catch (error) {
       const category = error instanceof ProviderOperationError ? error.category : 'provider_failure'

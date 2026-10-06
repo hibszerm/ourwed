@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { GENERATION_INSTRUCTIONS, GENERIC_CONTRACT_PRODUCT_RULES, JOINTLY_APPLICABLE_FACTS_INSTRUCTIONS, REVIEW_INSTRUCTIONS } from './generator'
+import { GENERATION_INSTRUCTIONS, GENERIC_CONTRACT_PRODUCT_RULES, GENERATOR_PAYMENT_SCHEDULE_INSTRUCTIONS, JOINTLY_APPLICABLE_FACTS_INSTRUCTIONS, REVIEW_INSTRUCTIONS, generationInstructionsForLocale } from './generator'
 
 const instructions = GENERATION_INSTRUCTIONS.toLowerCase()
 
@@ -53,6 +53,18 @@ assert.doesNotMatch(JOINTLY_APPLICABLE_FACTS_INSTRUCTIONS, /preparation|bride|gr
 const productRules = GENERIC_CONTRACT_PRODUCT_RULES.join(' ').toLowerCase()
 assert.match(productRules, /keep wedding-specific purchased extras distinct from the source-defined base-package scope/)
 assert.match(productRules, /do not make them appear to be further numbered members/)
+const installmentInstructions = GENERATOR_PAYMENT_SCHEDULE_INSTRUCTIONS.toLowerCase()
+assert.match(installmentInstructions, /source controls the number, roles, order, relative deadlines, and timing language of payments/)
+assert.match(installmentInstructions, /commercial\.agreeddeposit as the deposit/)
+assert.match(installmentInstructions, /do not reuse source example installment amounts as current transaction amounts when they conflict/)
+assert.match(installmentInstructions, /request only the minimum genuinely unknown intermediate amount/)
+assert.match(installmentInstructions, /calculate it as contractvalue minus the authoritative deposit and all earlier installment amounts instead of asking for it/)
+assert.match(installmentInstructions, /ensure all amounts reconcile exactly to contractvalue/)
+assert.match(installmentInstructions, /preserve each source-defined relative deadline/)
+assert.match(installmentInstructions, /if a schedule has multiple post-deposit installments/)
+assert.match(installmentInstructions, /whenever the final installment is determinable/)
+assert.ok(generationInstructionsForLocale('pl').includes(GENERATOR_PAYMENT_SCHEDULE_INSTRUCTIONS), 'the new payment behavior reaches Generator system instructions')
+assert.doesNotMatch(productRules, /source-defined payment schedules/, 'shared product rules for Reviewer and Conflict Verifier are unchanged')
 
 const review = REVIEW_INSTRUCTIONS.toLowerCase()
 assert.match(review, /obviously ungrammatical insertion of a canonical value/)
