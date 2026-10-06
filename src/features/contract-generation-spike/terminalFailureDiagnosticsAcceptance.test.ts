@@ -84,12 +84,55 @@ const internal = await runFailure(async () => { throw new Error(privateValues.jo
 assert.equal(internal.stage, 'internal')
 assert.equal(internal.category, 'internal_failure')
 
-const safeKeys = new Set(['stage', 'category', 'gateId', 'reasonCode', 'editIndex', 'editCount', 'operation', 'sourceBlockType', 'sourceBlockOrdinal', 'targetFound', 'editApplied', 'providerFailureStage', 'providerFailureClass', 'providerHttpStatus'])
+const emptyOutput = await runFailure(async () => ({
+  status: 'FAILED', category: 'invalid_response', providerFailureStage: 'structured_output', failureOrigin: 'EMPTY_STRUCTURED_OUTPUT',
+}))
+assert.equal(emptyOutput.stage, 'generator')
+assert.equal(emptyOutput.category, 'invalid_response')
+assert.equal(emptyOutput.failureOrigin, 'EMPTY_STRUCTURED_OUTPUT')
+
+const localValidation = await runFailure(async () => ({
+  status: 'FAILED', category: 'invalid_response', providerFailureStage: 'structured_output',
+  failureOrigin: 'GENERATION_RESPONSE_VALIDATION_FAILED', responseBranch: 'READY',
+  schemaErrorCode: 'invalid_enum', schemaPath: 'edits[].kind',
+  privateOutput: privateValues.join(' '),
+}))
+assert.equal(localValidation.failureOrigin, 'GENERATION_RESPONSE_VALIDATION_FAILED')
+assert.equal(localValidation.responseBranch, 'READY')
+assert.equal(localValidation.schemaErrorCode, 'invalid_enum')
+assert.equal(localValidation.schemaPath, 'edits[].kind')
+
+const continuationFailure = safeTerminalFailure({
+  action: 'continue', providerRole: 'Generator', category: 'INVALID_RESPONSE',
+  failureOrigin: 'GENERATION_RESPONSE_VALIDATION_FAILED', schemaErrorCode: 'invalid_type', schemaPath: 'missingInputs[].id',
+})
+assert.equal(continuationFailure.action, 'continue')
+assert.equal(continuationFailure.stage, 'generator')
+const continuationContextFailure = safeTerminalFailure({ action: 'continue', category: 'context_load_failure' })
+assert.equal(continuationContextFailure.action, 'continue')
+assert.equal(continuationContextFailure.stage, 'continuation')
+
+const httpFailure = await runFailure(async () => ({
+  status: 'FAILED', category: 'provider_failure', providerFailureStage: 'http_non_ok', providerFailureClass: 'http_5xx', providerHttpStatus: 502,
+}))
+assert.equal(httpFailure.providerFailureClass, 'http_5xx')
+assert.equal(httpFailure.providerHttpStatus, 502)
+
+const nonBlocking = harness(async () => ({
+  status: 'FAILED', category: 'invalid_response', failureOrigin: 'EMPTY_STRUCTURED_OUTPUT',
+}), { diagnose: () => { throw new Error(privateValues.join(' ')) } })
+const nonBlockingResult = await nonBlocking.boundary.start('owner-1', { weddingId: 'wedding-1', requestId: runId })
+assert.equal(nonBlockingResult.status, 'failure', 'diagnostic enrichment failure does not replace terminal behavior')
+assert.equal(nonBlocking.terminalRows[0]?.quality_summary_json.terminalFailure.failureOrigin, 'EMPTY_STRUCTURED_OUTPUT')
+
+const safeKeys = new Set(['stage', 'category', 'action', 'failureOrigin', 'responseBranch', 'schemaErrorCode', 'schemaPath', 'gateId', 'reasonCode', 'editIndex', 'editCount', 'operation', 'sourceBlockType', 'sourceBlockOrdinal', 'targetFound', 'editApplied', 'providerFailureStage', 'providerFailureClass', 'providerHttpStatus'])
 for (const failure of [internal, safeTerminalFailure({
   stage: 'free text', category: privateValues.join(' '), message: privateValues.join(' '), stack: privateValues.join(' '),
   mechanicalGateId: 'stale_source_fact', mechanicalReasonCode: 'superseded_fact_inserted',
   mechanicalEditIndex: 0, privateData: privateValues,
-})]) {
+  action: privateValues.join(' '), failureOrigin: privateValues.join(' '), responseBranch: privateValues.join(' '),
+  schemaErrorCode: privateValues.join(' '), schemaPath: privateValues.join(' '),
+}), emptyOutput, localValidation, continuationFailure, httpFailure]) {
   for (const key of Object.keys(failure)) assert.ok(safeKeys.has(key), `unexpected persisted key ${key}`)
   assert.ok((TERMINAL_FAILURE_STAGES as readonly string[]).includes(failure.stage))
   if (failure.category) assert.ok((TERMINAL_FAILURE_CATEGORIES as readonly string[]).includes(failure.category))

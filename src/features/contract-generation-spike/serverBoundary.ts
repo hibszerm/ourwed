@@ -9,9 +9,9 @@ import {
   type ContractGenerationSessionScope,
   type ResolvedMissingInput,
 } from './generationSession.ts'
-import { REVIEWER_FINDING_CATEGORIES, REVIEWER_FINDING_RULE_IDS, type ContractGenerationAnswer, type MissingInput, type ReviewerFindingCategory, type ReviewerFindingRuleId } from './generationProtocol.ts'
+import { REVIEWER_FINDING_CATEGORIES, REVIEWER_FINDING_RULE_IDS, type ContractGenerationAnswer, type GenerationResponseBranch, type GenerationResponseValidationCode, type GenerationResponseValidationPath, type MissingInput, type ReviewerFindingCategory, type ReviewerFindingRuleId } from './generationProtocol.ts'
 import { safeMechanicalTelemetry, type MechanicalAuthorityType, type MechanicalEditOperation, type MechanicalFailureDiagnostic, type MechanicalGateId, type MechanicalReasonCode, type MechanicalSourceBlockType } from './mechanicalDiagnostics.ts'
-import { safeTerminalFailure, type SafeTerminalFailure } from './terminalFailureDiagnostics.ts'
+import { safeTerminalFailure, type SafeFailureOrigin, type SafeTerminalFailure } from './terminalFailureDiagnostics.ts'
 
 export type ContractGenerationStartRequest = { weddingId: string; requestId: string }
 export type ContractGenerationContinueRequest = {
@@ -52,7 +52,7 @@ export type SafeProviderFailureStage = 'request_build' | 'timeout_setup' | 'fetc
 export type BoundaryRunResult =
   | { status: 'MISSING_INPUT'; missingInputs: MissingInput[]; choiceBindings?: ChoiceBindingMap }
   | { status: 'CONFLICT_INPUT'; conflicts: string[] }
-  | { status: 'FAILED'; category?: 'provider_failure' | 'provider_configuration_failure' | 'invalid_response' | 'mechanical_validation_failure' | 'input_validation_failure'; mechanicalFailure?: MechanicalFailureDiagnostic; providerFailureStage?: SafeProviderFailureStage; providerFailureClass?: SafeProviderFailureClass; providerHttpStatus?: number }
+  | { status: 'FAILED'; category?: 'provider_failure' | 'provider_configuration_failure' | 'invalid_response' | 'mechanical_validation_failure' | 'input_validation_failure'; mechanicalFailure?: MechanicalFailureDiagnostic; providerFailureStage?: SafeProviderFailureStage; providerFailureClass?: SafeProviderFailureClass; providerHttpStatus?: number; failureOrigin?: SafeFailureOrigin; responseBranch?: GenerationResponseBranch; schemaErrorCode?: GenerationResponseValidationCode; schemaPath?: GenerationResponseValidationPath }
   | { status: 'READY'; candidate: BoundaryCandidate }
 
 export type SafeProviderFailureClass = 'transport_error' | 'timeout' | 'http_400' | 'http_401' | 'http_403' | 'http_404' | 'http_408' | 'http_409' | 'http_429' | 'http_5xx' | 'http_other'
@@ -129,6 +129,10 @@ export type BoundaryDiagnostic = {
   providerFailureClass?: SafeProviderFailureClass
   providerFailureStage?: SafeProviderFailureStage
   providerHttpStatus?: number
+  failureOrigin?: SafeFailureOrigin
+  responseBranch?: GenerationResponseBranch
+  schemaErrorCode?: GenerationResponseValidationCode
+  schemaPath?: GenerationResponseValidationPath
   finalCode?: 'generation_safety' | 'temporary_failure' | 'stale'
 }
 
@@ -185,21 +189,25 @@ export class ProviderOperationError extends Error {
   readonly providerFailureStage?: SafeProviderFailureStage
   readonly providerFailureClass?: SafeProviderFailureClass
   readonly providerHttpStatus?: number
-  constructor(category: 'provider_failure' | 'provider_configuration_failure' | 'invalid_response', details?: { providerFailureStage?: SafeProviderFailureStage; providerFailureClass?: SafeProviderFailureClass; providerHttpStatus?: number }) {
+  readonly failureOrigin?: SafeFailureOrigin
+  constructor(category: 'provider_failure' | 'provider_configuration_failure' | 'invalid_response', details?: { providerFailureStage?: SafeProviderFailureStage; providerFailureClass?: SafeProviderFailureClass; providerHttpStatus?: number; failureOrigin?: SafeFailureOrigin }) {
     super(category)
     this.name = 'ProviderOperationError'
     this.category = category
     this.providerFailureStage = details?.providerFailureStage
     this.providerFailureClass = details?.providerFailureClass
     this.providerHttpStatus = details?.providerHttpStatus
+    this.failureOrigin = details?.failureOrigin
   }
 }
 
 const providerFailureStages = new Set<SafeProviderFailureStage>(['request_build', 'timeout_setup', 'fetch_transport', 'fetch_timeout', 'http_non_ok', 'response_read', 'response_parse', 'structured_output', 'adapter_mapping', 'unknown_provider_failure'])
 
-export function providerFailureTelemetry(error: unknown, fallbackStage?: SafeProviderFailureStage): Pick<BoundaryDiagnostic, 'providerFailureStage' | 'providerFailureClass' | 'providerHttpStatus'> {
+const safeFailureOrigins = new Set<SafeFailureOrigin>(['EMPTY_STRUCTURED_OUTPUT', 'STRUCTURED_OUTPUT_EXTRACTION_FAILURE', 'GENERATION_RESPONSE_VALIDATION_FAILED', 'GENERATION_RESPONSE_NORMALIZATION_FAILED'])
+
+export function providerFailureTelemetry(error: unknown, fallbackStage?: SafeProviderFailureStage): Pick<BoundaryDiagnostic, 'providerFailureStage' | 'providerFailureClass' | 'providerHttpStatus' | 'failureOrigin'> {
   if (!error || typeof error !== 'object') return fallbackStage ? { providerFailureStage: fallbackStage } : {}
-  const details = error as { providerFailureStage?: unknown; providerFailureClass?: unknown; providerHttpStatus?: unknown }
+  const details = error as { providerFailureStage?: unknown; providerFailureClass?: unknown; providerHttpStatus?: unknown; failureOrigin?: unknown }
   const stage = typeof details.providerFailureStage === 'string' && providerFailureStages.has(details.providerFailureStage as SafeProviderFailureStage)
     ? details.providerFailureStage as SafeProviderFailureStage
     : fallbackStage
@@ -209,10 +217,14 @@ export function providerFailureTelemetry(error: unknown, fallbackStage?: SafePro
   const httpStatus = stage === 'http_non_ok' && failureClass?.startsWith('http_') && Number.isInteger(details.providerHttpStatus)
     ? details.providerHttpStatus as number
     : undefined
+  const failureOrigin = typeof details.failureOrigin === 'string' && safeFailureOrigins.has(details.failureOrigin as SafeFailureOrigin)
+    ? details.failureOrigin as SafeFailureOrigin
+    : undefined
   return {
     ...(stage ? { providerFailureStage: stage } : {}),
     ...(failureClass ? { providerFailureClass: failureClass } : {}),
     ...(httpStatus !== undefined ? { providerHttpStatus: httpStatus } : {}),
+    ...(failureOrigin ? { failureOrigin } : {}),
   }
 }
 
@@ -384,7 +396,7 @@ export function createContractGenerationBoundary(deps: ServerBoundaryDependencie
         const mechanical = category === 'mechanical_validation_failure'
           ? safeMechanicalTelemetry(generated.mechanicalFailure ?? { gateId: 'internal', reasonCode: 'internal_validation_failure' })
           : undefined
-        diagnose({ providerRole: 'Generator', category: category.toUpperCase(), providerInvoked: category !== 'input_validation_failure' && category !== 'provider_configuration_failure', mechanicalValidation: category === 'mechanical_validation_failure' ? 'failed' : 'not_reached', finalCode: failureCode, ...providerFailureTelemetry(generated, category === 'provider_failure' ? 'unknown_provider_failure' : undefined), ...mechanical })
+        diagnose({ providerRole: 'Generator', category: category.toUpperCase(), providerInvoked: category !== 'input_validation_failure' && category !== 'provider_configuration_failure', mechanicalValidation: category === 'mechanical_validation_failure' ? 'failed' : 'not_reached', finalCode: failureCode, ...(generated.responseBranch ? { responseBranch: generated.responseBranch } : {}), ...(generated.schemaErrorCode ? { schemaErrorCode: generated.schemaErrorCode } : {}), ...(generated.schemaPath ? { schemaPath: generated.schemaPath } : {}), ...providerFailureTelemetry(generated, category === 'provider_failure' ? 'unknown_provider_failure' : undefined), ...mechanical })
         await markFailure('failed')
         return { status: 'failure', code: failureCode }
       }
@@ -512,7 +524,7 @@ export function createContractGenerationBoundary(deps: ServerBoundaryDependencie
         : resolveMissingInputAnswers(session.missingInputHistory, session.answers, session.choiceBindings ?? {})
       if (!resolvedInputs) {
         try { deps.diagnose?.({ action: 'continue', providerRole: 'orchestrator', category: 'missing_requirement_history_invalid', finalCode: 'generation_safety' }) } catch { /* diagnostics are best effort */ }
-        await deps.markFailure(session.id, executionId, 'failed', safeTerminalFailure({ category: 'missing_requirement_history_invalid' }))
+        await deps.markFailure(session.id, executionId, 'failed', safeTerminalFailure({ action: 'continue', category: 'missing_requirement_history_invalid' }))
         return { status: 'failure', code: 'generation_safety' }
       }
       let context: ServerBoundaryContext | null
@@ -520,12 +532,12 @@ export function createContractGenerationBoundary(deps: ServerBoundaryDependencie
         context = await deps.loadContext(userId, current.weddingId, accepted.answers, resolvedInputs.flatMap((item) =>
           item.selectedEntity && 'optionId' in item.answer ? [{ requirementId: item.requirement.id, optionId: item.answer.optionId, partyKey: item.selectedEntity.partyKey }] : []))
       } catch {
-        await deps.markFailure(current.id, executionId, 'failed', safeTerminalFailure({ category: 'context_load_failure' }))
+        await deps.markFailure(current.id, executionId, 'failed', safeTerminalFailure({ action: 'continue', category: 'context_load_failure' }))
         return { status: 'failure', code: 'temporary_failure' }
       }
       if (!context || !sessionMatchesScope(current, context.scope)
         || context.sourceSha256 !== current.sourceSha256) {
-        await deps.markFailure(current.id, executionId, 'stale', safeTerminalFailure({ category: 'authority_changed' }))
+        await deps.markFailure(current.id, executionId, 'stale', safeTerminalFailure({ action: 'continue', category: 'authority_changed' }))
         return { status: 'stale', code: 'session_invalid' }
       }
       return execute(session, context, accepted.answers, executionId, 'continue', resolvedInputs)

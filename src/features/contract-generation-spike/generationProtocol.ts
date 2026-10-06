@@ -159,6 +159,86 @@ export function isGenerationResponse(value: unknown, participantKeys?: ReadonlyS
   return false
 }
 
+export const GENERATION_RESPONSE_VALIDATION_CODES = [
+  'missing_required_field', 'invalid_type', 'invalid_enum', 'invalid_array_shape',
+  'invalid_object_shape', 'invalid_union_branch', 'unknown_protocol_failure',
+] as const
+export type GenerationResponseValidationCode = typeof GENERATION_RESPONSE_VALIDATION_CODES[number]
+export const GENERATION_RESPONSE_VALIDATION_PATHS = [
+  'response', 'status', 'edits', 'edits[]', 'edits[].kind', 'edits[].blockId', 'edits[].text',
+  'edits[].supersedesSourceBlockId', 'edits[].supersededSourceText', 'missingInputs',
+  'missingInputs[]', 'missingInputs[].id', 'missingInputs[].kind', 'missingInputs[].label',
+  'missingInputs[].answerKind', 'missingInputs[].subject', 'missingInputs[].subject.participantKey',
+  'missingInputs[].options', 'missingInputs[].options[]', 'missingInputs[].options[].id',
+  'missingInputs[].options[].label', 'conflicts', 'conflicts[]',
+] as const
+export type GenerationResponseValidationPath = typeof GENERATION_RESPONSE_VALIDATION_PATHS[number]
+export type GenerationResponseBranch = 'MISSING_INPUT' | 'CONFLICT_INPUT' | 'READY' | 'UNKNOWN'
+export type GenerationResponseValidationDiagnostic = {
+  responseBranch: GenerationResponseBranch
+  schemaErrorCode: GenerationResponseValidationCode
+  schemaPath?: GenerationResponseValidationPath
+}
+
+/** Content-free first-issue diagnosis for the existing GenerationResponse guard. */
+export function diagnoseGenerationResponse(
+  value: unknown,
+  participantKeys?: ReadonlySet<string>,
+): GenerationResponseValidationDiagnostic | null {
+  if (isGenerationResponse(value, participantKeys)) return null
+  const fail = (
+    responseBranch: GenerationResponseBranch,
+    schemaErrorCode: GenerationResponseValidationCode,
+    schemaPath?: GenerationResponseValidationPath,
+  ): GenerationResponseValidationDiagnostic => ({ responseBranch, schemaErrorCode, ...(schemaPath ? { schemaPath } : {}) })
+  if (!isRecord(value)) return fail('UNKNOWN', 'invalid_object_shape', 'response')
+  if (!Object.hasOwn(value, 'status')) return fail('UNKNOWN', 'missing_required_field', 'status')
+  const branch: GenerationResponseBranch = value.status === 'READY' || value.status === 'MISSING_INPUT' || value.status === 'CONFLICT_INPUT'
+    ? value.status
+    : 'UNKNOWN'
+  if (branch === 'UNKNOWN') return fail(branch, 'invalid_enum', 'status')
+
+  if (branch === 'READY') {
+    if (!Object.hasOwn(value, 'edits')) return fail(branch, 'missing_required_field', 'edits')
+    if (!Array.isArray(value.edits)) return fail(branch, 'invalid_array_shape', 'edits')
+    if (!hasExactKeys(value, ['status', 'edits'])) return fail(branch, 'invalid_object_shape', 'response')
+    for (const edit of value.edits) {
+      if (!isRecord(edit)) return fail(branch, 'invalid_object_shape', 'edits[]')
+      if (Object.hasOwn(edit, 'kind') && edit.kind !== 'replace' && edit.kind !== 'insert_after') return fail(branch, 'invalid_enum', 'edits[].kind')
+      if (Object.hasOwn(edit, 'blockId') && !isNonEmptyString(edit.blockId)) return fail(branch, 'invalid_type', 'edits[].blockId')
+      if (Object.hasOwn(edit, 'text') && !isNonEmptyString(edit.text)) return fail(branch, 'invalid_type', 'edits[].text')
+      if (Object.hasOwn(edit, 'supersedesSourceBlockId') && Object.hasOwn(edit, 'supersededSourceText')
+        && ((edit.supersedesSourceBlockId === null) !== (edit.supersededSourceText === null))) return fail(branch, 'invalid_union_branch', 'edits[].supersededSourceText')
+    }
+    return fail(branch, 'unknown_protocol_failure')
+  }
+
+  if (branch === 'MISSING_INPUT') {
+    if (!Object.hasOwn(value, 'missingInputs')) return fail(branch, 'missing_required_field', 'missingInputs')
+    if (!Array.isArray(value.missingInputs) || value.missingInputs.length === 0) return fail(branch, 'invalid_array_shape', 'missingInputs')
+    if (!hasExactKeys(value, ['status', 'missingInputs'])) return fail(branch, 'invalid_object_shape', 'response')
+    const ids = new Set<string>()
+    for (const input of value.missingInputs) {
+      if (!isRecord(input)) continue
+      if (typeof input.id === 'string') {
+        if (ids.has(input.id)) return fail(branch, 'invalid_union_branch', 'missingInputs[].id')
+        ids.add(input.id)
+      }
+      if (input.kind === 'choice' && (!Array.isArray(input.options) || input.options.length < 2)) return fail(branch, 'invalid_array_shape', 'missingInputs[].options')
+      if (input.kind !== 'choice' && typeof input.answerKind === 'string' && !ANSWER_KINDS.has(input.answerKind as MissingInputAnswerKind)) return fail(branch, 'invalid_enum', 'missingInputs[].answerKind')
+      if (input.subject && isRecord(input.subject) && participantKeys && typeof input.subject.participantKey === 'string'
+        && !participantKeys.has(input.subject.participantKey)) return fail(branch, 'invalid_union_branch', 'missingInputs[].subject.participantKey')
+    }
+    return fail(branch, 'unknown_protocol_failure')
+  }
+
+  if (!Object.hasOwn(value, 'conflicts')) return fail(branch, 'missing_required_field', 'conflicts')
+  if (!Array.isArray(value.conflicts) || value.conflicts.length === 0) return fail(branch, 'invalid_array_shape', 'conflicts')
+  if (!hasExactKeys(value, ['status', 'conflicts'])) return fail(branch, 'invalid_object_shape', 'response')
+  if (!value.conflicts.every(isNonEmptyString)) return fail(branch, 'invalid_type', 'conflicts[]')
+  return fail(branch, 'unknown_protocol_failure')
+}
+
 /** Runtime boundary for the independent reviewer response. */
 export function isReviewResponse(value: unknown): value is ReviewResponse {
   if (!isRecord(value)) return false

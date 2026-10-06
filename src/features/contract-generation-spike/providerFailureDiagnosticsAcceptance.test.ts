@@ -106,6 +106,17 @@ for (const [status, expectedClass] of [[400, 'http_400'], [401, 'http_401'], [40
     fetcher: async () => ({ ok: true, text: async () => JSON.stringify({ output: [{ content: [null] }] }) } as Response),
   }), 'structured_output')
   assert.equal(error.category, 'provider_failure', 'unexpected output mapping keeps the existing temporary-failure path')
+  assert.equal(error.failureOrigin, 'STRUCTURED_OUTPUT_EXTRACTION_FAILURE')
+}
+
+{
+  const { error, telemetry } = await rejectsWithStage(() => callStructuredProvider(input, {
+    createTimeoutSignal: () => new AbortController().signal,
+    fetcher: async () => ({ ok: true, text: async () => JSON.stringify({ output: [] }) } as Response),
+  }), 'structured_output')
+  assert.equal(error.category, 'invalid_response')
+  assert.equal(error.failureOrigin, 'EMPTY_STRUCTURED_OUTPUT')
+  assert.equal(telemetry.failureOrigin, 'EMPTY_STRUCTURED_OUTPUT', 'empty extracted output has its own closed diagnostic origin')
 }
 
 {

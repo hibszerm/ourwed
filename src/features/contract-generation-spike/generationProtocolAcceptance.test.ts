@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { isCandidateReviewResponse, isGenerationResponse, isReviewResponse, REVIEWER_FINDING_RULE_IDS, safeReviewerFindingSummary, type CandidateReviewResponse, type MissingInput } from './generationProtocol'
+import { diagnoseGenerationResponse, isCandidateReviewResponse, isGenerationResponse, isReviewResponse, REVIEWER_FINDING_RULE_IDS, safeReviewerFindingSummary, type CandidateReviewResponse, type MissingInput } from './generationProtocol'
 
 const replace = { kind: 'replace', blockId: 'word/document.xml#p2', text: 'Updated paragraph.', supersedesSourceBlockId: null, supersededSourceText: null }
 const insert = { kind: 'insert_after', blockId: 'word/document.xml#p3', text: 'Additional service paragraph.', supersedesSourceBlockId: null, supersededSourceText: null }
@@ -7,9 +7,16 @@ const insert = { kind: 'insert_after', blockId: 'word/document.xml#p3', text: 'A
 assert.equal(isGenerationResponse({ status: 'READY', edits: [replace] }), true)
 assert.equal(isGenerationResponse({ status: 'READY', edits: [insert] }), true)
 assert.equal(isGenerationResponse({ status: 'READY', edits: [replace, insert] }), true)
+assert.deepEqual(diagnoseGenerationResponse({ status: 'READY', edits: [replace] }), null, 'valid response has no failure diagnostic')
 assert.equal(isGenerationResponse({ status: 'READY', edits: [{ kind: 'replace', blockId: 'b1', text: 'Updated', supersedesSourceBlockId: null }] }), false, 'every edit declares source fact-span provenance')
 assert.equal(isGenerationResponse({ status: 'READY' }), false, 'READY requires edits')
+assert.deepEqual(diagnoseGenerationResponse({ status: 'READY' }), {
+  responseBranch: 'READY', schemaErrorCode: 'missing_required_field', schemaPath: 'edits',
+}, 'local validation diagnosis identifies a safe branch and field path')
 assert.equal(isGenerationResponse({ status: 'READY', edits: [{ ...replace, kind: 'patch' }] }), false, 'unknown edit kind is rejected')
+assert.deepEqual(diagnoseGenerationResponse({ status: 'READY', edits: [{ ...replace, kind: 'sentinel-private-edit-kind' }] }), {
+  responseBranch: 'READY', schemaErrorCode: 'invalid_enum', schemaPath: 'edits[].kind',
+}, 'diagnostic reports only allowlisted code/path, never invalid enum value')
 assert.equal(isGenerationResponse({ status: 'READY', edits: [{ ...replace, blockId: '' }] }), false, 'empty block ID is rejected')
 assert.equal(isGenerationResponse({ status: 'READY', edits: [{ ...replace, blockId: '   ' }] }), false, 'blank block ID is rejected')
 assert.equal(isGenerationResponse({ status: 'READY', edits: [{ ...replace, text: '' }] }), false, 'empty replacement is rejected')
@@ -28,6 +35,9 @@ for (const answerKind of ['text', 'multiline', 'date', 'number', 'email', 'phone
   assert.equal(isGenerationResponse({ status: 'MISSING_INPUT', missingInputs: [{ ...missingA, answerKind }] }), true, `${answerKind} answer kind is allowed`)
 }
 assert.equal(isGenerationResponse({ status: 'MISSING_INPUT', missingInputs: [{ ...missingA, answerKind: 'pesel' }] }), false, 'field-specific answer kinds are rejected')
+assert.deepEqual(diagnoseGenerationResponse({ status: 'MISSING_INPUT', missingInputs: [{ ...missingA, answerKind: 'pesel' }] }), {
+  responseBranch: 'MISSING_INPUT', schemaErrorCode: 'invalid_enum', schemaPath: 'missingInputs[].answerKind',
+}, 'MissingInput validation failure has a safe path without retaining its value')
 assert.equal(isGenerationResponse({ status: 'MISSING_INPUT', missingInputs: [{ ...missingA, id: '  ' }] }), false, 'blank IDs are rejected')
 assert.equal(isGenerationResponse({ status: 'MISSING_INPUT', missingInputs: [{ ...missingA, label: '  ' }] }), false, 'blank labels are rejected')
 assert.equal(isGenerationResponse({ status: 'MISSING_INPUT', missingInputs: [{ ...missingA, unexpected: true }] }), false, 'unknown requirement fields are rejected')

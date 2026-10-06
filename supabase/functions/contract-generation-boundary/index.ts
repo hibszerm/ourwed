@@ -6,7 +6,7 @@ import { mergeFormAnswersIntoWeddingCore } from '@/lib/forms/mergeFormAnswersInt
 import { buildContractGenerationInput, type ContractGenerationInput, type GenerationPartyKey } from '@/features/contract-generation-spike/contractGenerationInput.ts'
 import { authorityFingerprintPayload } from '@/features/contract-generation-spike/authorityFreshness.ts'
 import { applyOptionBGenerationResponse, createGenerationSourceView, readSource, validateOptionBInput, generationInstructionsForLocale, GENERIC_CONTRACT_PRODUCT_RULES, CONFLICT_REVIEW_INSTRUCTIONS, REVIEW_INSTRUCTIONS } from '@/features/contract-generation-spike/generator.ts'
-import { isCandidateReviewResponse, isGenerationResponse, isReviewResponse, REVIEWER_FINDING_CATEGORIES, REVIEWER_FINDING_RULE_IDS, safeReviewerFindingSummary, type CandidateReviewResponse, type ReviewResponse, type ContractGenerationAnswer } from '@/features/contract-generation-spike/generationProtocol.ts'
+import { diagnoseGenerationResponse, isCandidateReviewResponse, isGenerationResponse, isReviewResponse, REVIEWER_FINDING_CATEGORIES, REVIEWER_FINDING_RULE_IDS, safeReviewerFindingSummary, type CandidateReviewResponse, type ReviewResponse, type ContractGenerationAnswer } from '@/features/contract-generation-spike/generationProtocol.ts'
 import { createContractGenerationBoundary, parseContractGenerationAction, ProviderOperationError, type BoundaryDiagnostic, type BoundaryReviewerResult, type ServerBoundaryContext } from '@/features/contract-generation-spike/serverBoundary.ts'
 import { safeTerminalFailure } from '@/features/contract-generation-spike/terminalFailureDiagnostics.ts'
 import { callStructuredProvider } from '@/features/contract-generation-spike/providerRequest.ts'
@@ -522,6 +522,7 @@ function providerAdapters() {
         category,
         ...(failureStage || category === 'provider_failure' ? { providerFailureStage: failureStage ?? 'unknown_provider_failure' as const } : {}),
         ...(error instanceof ProviderOperationError ? {
+          ...(error.failureOrigin ? { failureOrigin: error.failureOrigin } : {}),
           ...(error.providerFailureClass ? { providerFailureClass: error.providerFailureClass } : {}),
           ...(error.providerHttpStatus !== undefined ? { providerHttpStatus: error.providerHttpStatus } : {}),
         } : {}),
@@ -530,11 +531,22 @@ function providerAdapters() {
     let result: unknown
     try {
       result = normalizeGenerationEnvelope(rawResult)
-      if (!isGenerationResponse(result, new Set([...authority.parties.map((party) => party.sourceKey), ...authority.participantAssociations.map((association) => association.participant)]))) {
-        return { status: 'FAILED' as const, category: 'invalid_response' as const, providerFailureStage: 'structured_output' as const }
+      const participantKeys = new Set([...authority.parties.map((party) => party.sourceKey), ...authority.participantAssociations.map((association) => association.participant)])
+      if (!isGenerationResponse(result, participantKeys)) {
+        let validation: ReturnType<typeof diagnoseGenerationResponse> = null
+        try { validation = diagnoseGenerationResponse(result, participantKeys) } catch { /* diagnostics must not affect the existing rejection */ }
+        return {
+          status: 'FAILED' as const, category: 'invalid_response' as const, providerFailureStage: 'structured_output' as const,
+          failureOrigin: 'GENERATION_RESPONSE_VALIDATION_FAILED' as const,
+          ...(validation ? {
+            responseBranch: validation.responseBranch,
+            schemaErrorCode: validation.schemaErrorCode,
+            ...(validation.schemaPath ? { schemaPath: validation.schemaPath } : {}),
+          } : {}),
+        }
       }
     } catch {
-      return { status: 'FAILED' as const, category: 'provider_failure' as const, providerFailureStage: 'adapter_mapping' as const }
+      return { status: 'FAILED' as const, category: 'provider_failure' as const, providerFailureStage: 'adapter_mapping' as const, failureOrigin: 'GENERATION_RESPONSE_NORMALIZATION_FAILED' as const }
     }
     let applied: Awaited<ReturnType<typeof applyOptionBGenerationResponse>>
     try { applied = await applyOptionBGenerationResponse(context.sourceBytes, source, authority, view.sourceBlockIds, result) }

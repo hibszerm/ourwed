@@ -77,9 +77,9 @@ export async function callStructuredProvider(input: StructuredProviderRequest, r
         : []).join('')
     }
   } catch {
-    throw new ProviderOperationError('provider_failure', { providerFailureStage: 'structured_output' })
+    throw new ProviderOperationError('provider_failure', { providerFailureStage: 'structured_output', failureOrigin: 'STRUCTURED_OUTPUT_EXTRACTION_FAILURE' })
   }
-  if (!text.trim()) throw new ProviderOperationError('invalid_response', { providerFailureStage: 'structured_output' })
+  if (!text.trim()) throw new ProviderOperationError('invalid_response', { providerFailureStage: 'structured_output', failureOrigin: 'EMPTY_STRUCTURED_OUTPUT' })
   try {
     return JSON.parse(text)
   } catch {
