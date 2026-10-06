@@ -15,6 +15,7 @@ const baseSession: ContractGenerationSession = {
 
 function setup(overrides: Partial<ServerBoundaryDependencies> = {}) {
   const calls: string[] = []
+  const progressStages: string[] = []
   const diagnostics: import('./serverBoundary.ts').BoundaryDiagnostic[] = []
   let session: ContractGenerationSession | null = null
   let claimed = false
@@ -53,6 +54,7 @@ function setup(overrides: Partial<ServerBoundaryDependencies> = {}) {
       return true
     },
     persistAcceptedCandidate: async () => { calls.push('persist'); if (session) session = { ...session, state: 'completed' }; return 'candidate-1' },
+    setProgressStage: async ({ stage }) => { progressStages.push(stage) },
     markFailure: async (_id, _execution, reason) => { calls.push(`failure:${reason}`); if (session) session = { ...session, state: 'failed' } },
     generate: async () => { calls.push('generate'); return generation },
     verifyConflict: async () => { calls.push('verifyConflict'); return 'confirmed' },
@@ -61,7 +63,7 @@ function setup(overrides: Partial<ServerBoundaryDependencies> = {}) {
     ...overrides,
   }
   return {
-    boundary: createContractGenerationBoundary(deps), calls, diagnostics,
+    boundary: createContractGenerationBoundary(deps), calls, diagnostics, progressStages,
     setSession(value: ContractGenerationSession | null) { session = value },
     setGeneration(value: typeof generation) { generation = value },
     setFingerprint(value: string) { fingerprint = value },
@@ -93,6 +95,31 @@ assert.equal(parseContractGenerationAction({ version: 1, action: 'recover', requ
   assert.equal(f.session()?.state, 'awaiting_input')
   assert.equal(f.calls.includes('review'), false, 'MISSING_INPUT skips Reviewer')
   assert.equal(f.calls.includes('persist'), false, 'MISSING_INPUT stores no candidate')
+  assert.deepEqual(f.progressStages, ['analyzing'], 'MISSING_INPUT never advances to document preparation')
+}
+
+{
+  const calls: string[] = []
+  const f = setup({
+    setProgressStage: async () => new Promise<void>(() => undefined),
+    generate: async () => { calls.push('generate'); return { status: 'MISSING_INPUT', missingInputs: [{ id: 'opaque-1', label: 'Client name', answerKind: 'text' }] } },
+  })
+  const result = await f.boundary.start('owner-1', startRequest)
+  assert.equal(result.status, 'awaiting_input')
+  assert.deepEqual(calls, ['generate'], 'a stalled observational progress write cannot hold up the Generation result')
+}
+
+{
+  const f = setup({
+    generate: async (_context, _answers, _resolved, reportStage) => {
+      f.calls.push('generate')
+      await reportStage?.('building_document')
+      return { status: 'READY', candidate: { bytes: new ArrayBuffer(2), changedBlocks: [] } }
+    },
+  })
+  const result = await f.boundary.start('owner-1', startRequest)
+  assert.equal(result.status, 'ready')
+  assert.deepEqual(f.progressStages, ['analyzing', 'building_document', 'verifying'], 'READY follows only proven orchestration boundaries')
 }
 
 {

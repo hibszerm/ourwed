@@ -9,6 +9,7 @@ import { applyOptionBGenerationResponse, createGenerationSourceView, readSource,
 import { diagnoseGenerationResponse, isCandidateReviewResponse, isGenerationResponse, isReviewResponse, REVIEWER_FINDING_CATEGORIES, REVIEWER_FINDING_RULE_IDS, safeReviewerFindingSummary, type CandidateReviewResponse, type ReviewResponse, type ContractGenerationAnswer } from '@/features/contract-generation-spike/generationProtocol.ts'
 import { createContractGenerationBoundary, parseContractGenerationAction, ProviderOperationError, type BoundaryDiagnostic, type BoundaryReviewerResult, type ServerBoundaryContext } from '@/features/contract-generation-spike/serverBoundary.ts'
 import { safeTerminalFailure } from '@/features/contract-generation-spike/terminalFailureDiagnostics.ts'
+import type { OptionBProgressStage } from '@/features/contract-generation-spike/generationProgress.ts'
 import { callStructuredProvider, GENERATOR_PROVIDER_TIMEOUT_MS } from '@/features/contract-generation-spike/providerRequest.ts'
 import { isTravelFeeResolved } from '@/lib/utils/travelFeeCommercial.ts'
 import type { FormAnswerJson } from '@/types/formEngine'
@@ -498,7 +499,7 @@ function sourcePresentation(context: ServerBoundaryContext, fileName: string) {
 }
 
 function providerAdapters() {
-  async function generator(context: ServerBoundaryContext, answers: ContractGenerationAnswer[], resolvedInputs: ResolvedMissingInput[]) {
+  async function generator(context: ServerBoundaryContext, answers: ContractGenerationAnswer[], resolvedInputs: ResolvedMissingInput[], reportStage?: (stage: OptionBProgressStage) => Promise<void>) {
     const authority = responseAuthority(context)
     if (validateOptionBInput(authority).length) return { status: 'FAILED' as const, category: 'input_validation_failure' as const }
     const source = await sourcePresentation(context, 'contract.docx')
@@ -549,6 +550,7 @@ function providerAdapters() {
     } catch {
       return { status: 'FAILED' as const, category: 'provider_failure' as const, providerFailureStage: 'adapter_mapping' as const, failureOrigin: 'GENERATION_RESPONSE_NORMALIZATION_FAILED' as const }
     }
+    if (result.status === 'READY') await reportStage?.('building_document')
     let applied: Awaited<ReturnType<typeof applyOptionBGenerationResponse>>
     try { applied = await applyOptionBGenerationResponse(context.sourceBytes, source, authority, view.sourceBlockIds, result) }
     catch { return { status: 'FAILED' as const, category: 'mechanical_validation_failure' as const, mechanicalFailure: { gateId: 'internal', reasonCode: 'internal_validation_failure' } as const } }
@@ -685,6 +687,7 @@ function createBoundary(supabase: SupabaseClient, ownerId: string) {
     async claimContinuation(input) {
       const changes: DbRow = {
         session_state: 'processing', generation_status: 'processing', execution_id: input.executionId,
+        progress_stage: 'preparing',
         user_answers_json: input.answers,
         expires_at: new Date(Date.now() + OPTION_B_ACTIVE_TTL_MS).toISOString(),
       }
@@ -699,6 +702,20 @@ function createBoundary(supabase: SupabaseClient, ownerId: string) {
       const { data, error } = await supabase.from('wedding_contract_generation_runs').update(changes).eq('id', input.sessionId).eq('owner_user_id', input.userId).eq('session_kind', 'option_b').eq('session_state', 'awaiting_input').gt('expires_at', new Date().toISOString()).select('*').maybeSingle()
       if (error || !data) return null
       return mapSession(data as RunRow)
+    },
+    async setProgressStage(input) {
+      const current = supabase.from('wedding_contract_generation_runs').update({ progress_stage: input.stage })
+        .eq('id', input.sessionId).eq('execution_id', input.executionId).eq('session_kind', 'option_b').eq('session_state', 'processing')
+      const guarded = input.stage === 'analyzing'
+        ? current.or('progress_stage.is.null,progress_stage.eq.preparing')
+        : input.stage === 'building_document'
+          ? current.eq('progress_stage', 'analyzing')
+          : input.stage === 'verifying'
+            ? current.in('progress_stage', ['analyzing', 'building_document'])
+            : null
+      if (!guarded) return
+      const { error } = await guarded.select('id').maybeSingle()
+      if (error) throw error
     },
     async saveMissing(input) {
       const { data, error } = await supabase.from('wedding_contract_generation_runs').update({
@@ -718,6 +735,7 @@ function createBoundary(supabase: SupabaseClient, ownerId: string) {
       if (uploadError) return null
       const { data, error } = await supabase.from('wedding_contract_generation_runs').update({
         session_state: 'completed', generation_status: 'ready', missing_inputs_json: [], user_answers_json: [],
+        progress_stage: 'preparing_preview',
         intermediate_docx_path: path, authority_fingerprint: input.authorityFingerprint,
         expires_at: new Date(Date.now() + OPTION_B_ACTIVE_TTL_MS).toISOString(),
       }).eq('id', String(run.id)).eq('execution_id', input.executionId).eq('session_state', 'processing').select('id').maybeSingle()

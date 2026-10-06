@@ -12,6 +12,7 @@ import {
 import { REVIEWER_FINDING_CATEGORIES, REVIEWER_FINDING_RULE_IDS, type ContractGenerationAnswer, type GenerationResponseBranch, type GenerationResponseValidationCode, type GenerationResponseValidationPath, type MissingInput, type ReviewerFindingCategory, type ReviewerFindingRuleId } from './generationProtocol.ts'
 import { safeMechanicalTelemetry, type MechanicalAuthorityType, type MechanicalEditOperation, type MechanicalFailureDiagnostic, type MechanicalGateId, type MechanicalReasonCode, type MechanicalSourceBlockType } from './mechanicalDiagnostics.ts'
 import { safeTerminalFailure, type SafeFailureOrigin, type SafeTerminalFailure } from './terminalFailureDiagnostics.ts'
+import type { OptionBProgressStage } from './generationProgress.ts'
 
 export type ContractGenerationStartRequest = { weddingId: string; requestId: string }
 export type ContractGenerationContinueRequest = {
@@ -259,8 +260,9 @@ export type ServerBoundaryDependencies = {
   claimContinuation: (input: { sessionId: string; userId: string; executionId: string; answers: ContractGenerationAnswer[]; missingInputHistory: MissingInput[]; missingInputHistoryValid: boolean }) => Promise<ContractGenerationSession | null>
   saveMissing: (input: { sessionId: string; executionId: string; missingInputs: MissingInput[]; missingInputHistory: MissingInput[]; answers: ContractGenerationAnswer[]; choiceBindings: ChoiceBindingMap; authorityFingerprint: string }) => Promise<boolean>
   persistAcceptedCandidate: (input: { sessionId: string; executionId: string; candidate: BoundaryCandidate; authorityFingerprint: string }) => Promise<string | null>
+  setProgressStage?: (input: { sessionId: string; executionId: string; stage: OptionBProgressStage }) => Promise<void>
   markFailure: (sessionId: string, executionId: string, code: 'failed' | 'stale', terminalFailure?: SafeTerminalFailure) => Promise<void>
-  generate: (context: ServerBoundaryContext, answers: ContractGenerationAnswer[], resolvedInputs: ResolvedMissingInput[]) => Promise<BoundaryRunResult>
+  generate: (context: ServerBoundaryContext, answers: ContractGenerationAnswer[], resolvedInputs: ResolvedMissingInput[], reportStage?: (stage: OptionBProgressStage) => Promise<void>) => Promise<BoundaryRunResult>
   verifyConflict: (context: ServerBoundaryContext, answers: ContractGenerationAnswer[], conflicts: string[]) => Promise<'confirmed' | 'rejected'>
   review: (context: ServerBoundaryContext, answers: ContractGenerationAnswer[], candidate: BoundaryCandidate) => Promise<BoundaryReviewerResult>
   diagnose?: (diagnostic: BoundaryDiagnostic) => void
@@ -346,8 +348,17 @@ export function createContractGenerationBoundary(deps: ServerBoundaryDependencie
     const markFailure = async (code: 'failed' | 'stale') => {
       await deps.markFailure(session.id, executionId, code, safeTerminalFailure(latestDiagnostic))
     }
+    let progressWrite = Promise.resolve()
+    const reportStage = (stage: OptionBProgressStage) => {
+      progressWrite = progressWrite
+        .then(() => deps.setProgressStage?.({ sessionId: session.id, executionId, stage }))
+        .then(() => undefined)
+        .catch(() => undefined) // progress is observational and cannot delay generation
+      return Promise.resolve()
+    }
     try {
-      const generated = await deps.generate(context, answers, resolvedInputs)
+      await reportStage('analyzing')
+      const generated = await deps.generate(context, answers, resolvedInputs, reportStage)
       if (generated.status === 'MISSING_INPUT') {
         diagnose({ providerRole: 'Generator', category: 'MISSING_INPUT', providerInvoked: true, missingInputCount: generated.missingInputs.length, mechanicalValidation: 'not_reached' })
         if (!generated.missingInputs.length || new Set(generated.missingInputs.map((item) => item.id)).size !== generated.missingInputs.length) {
@@ -403,6 +414,7 @@ export function createContractGenerationBoundary(deps: ServerBoundaryDependencie
       if (generated.status === 'CONFLICT_INPUT') {
         let verification: 'confirmed' | 'rejected'
         try {
+          await reportStage('verifying')
           verification = await deps.verifyConflict(context, answers, generated.conflicts)
           diagnose({ providerRole: 'Conflict Verifier', category: verification === 'confirmed' ? 'PASS' : 'FAIL', providerInvoked: true, conflictCount: generated.conflicts.length })
         } catch (error) {
@@ -428,6 +440,7 @@ export function createContractGenerationBoundary(deps: ServerBoundaryDependencie
       }
       let review: BoundaryReviewerState
       try {
+        await reportStage('verifying')
         const reviewResult = await deps.review(latest, answers, {
           bytes: generated.candidate.bytes.slice(0),
           changedBlocks: structuredClone(generated.candidate.changedBlocks),

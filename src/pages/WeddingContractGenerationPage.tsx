@@ -48,6 +48,8 @@ import {
 } from '@/features/contract-generation-spike/generationConnection'
 import { ContractGenerationMissingInputForm } from '@/features/contract-generation-spike/ContractGenerationMissingInputForm'
 import type { BoundaryReviewerState } from '@/features/contract-generation-spike/serverBoundary'
+import { OptionBGenerationProgress } from '@/features/contract-generation-spike/OptionBGenerationProgress'
+import { useOptionBGenerationProgress } from '@/features/contract-generation-spike/useOptionBGenerationProgress'
 
 type WizardStep =
   | 'resolve'
@@ -127,6 +129,7 @@ export function WeddingContractGenerationPage() {
   >(null)
   const [error, setError] = useState<string | null>(null)
   const [generatePending, setGeneratePending] = useState(false)
+  const [progressAttempt, setProgressAttempt] = useState(0)
   const generateInFlightRef = useRef(false)
   const connectionRef = useRef<GenerationConnection | null>(null)
   const generationUiRunRef = useRef<GenerationUiRun | null>(null)
@@ -134,6 +137,7 @@ export function WeddingContractGenerationPage() {
   const finishOperationRef = useRef<(() => void) | null>(null)
   const navigationCleanupRef = useRef(false)
   const connection = connectionState
+  const progress = useOptionBGenerationProgress(step === 'generating', connection?.requestId, progressAttempt)
 
   const canGenerate = packageResolution?.status === 'ok' && !generatePending
 
@@ -215,6 +219,7 @@ export function WeddingContractGenerationPage() {
     result: Extract<import('@/features/contract-generation-spike/serverBoundary').ContractGenerationBoundaryResponse, { status: 'ready' }>,
   ) {
     if (!wedding) throw new Error('wedding_context_unavailable')
+    progress.setStage('preparing_preview')
     const bytes = await downloadAcceptedContractCandidate({
       weddingId: wedding.id,
       candidateId: result.candidateId,
@@ -340,6 +345,7 @@ export function WeddingContractGenerationPage() {
     setDownloadUrl(null)
     setMissingInputs([])
     setError(null)
+    setProgressAttempt((attempt) => attempt + 1)
     setStep('generating')
     try {
       const result = await startContractGeneration({ weddingId: wedding.id, requestId: connection.requestId })
@@ -378,6 +384,7 @@ export function WeddingContractGenerationPage() {
     setGeneratePending(true)
     beginOperation()
     setError(null)
+    setProgressAttempt((attempt) => attempt + 1)
     setStep('generating')
     try {
       const result = await continueContractGeneration({ sessionId: connection.sessionId, answers })
@@ -839,10 +846,12 @@ export function WeddingContractGenerationPage() {
         ) : null}
 
         {step === 'generating' ? (
-          <section className={`${styles.card} ${styles.generating}`} role="status" aria-live="polite" aria-busy="true">
-            <span className={styles.spinner} aria-hidden="true" />
-            <h2>Tworzymy gotową umowę</h2>
-            <p className={styles.muted}>Przygotowujemy dokument do podglądu.</p>
+          <section className={`${styles.card} ${styles.generating}`}>
+            <OptionBGenerationProgress
+              stage={progress.stage}
+              elapsedMs={progress.elapsedMs}
+              stageElapsedMs={progress.stageElapsedMs}
+            />
           </section>
         ) : null}
 

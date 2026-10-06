@@ -249,15 +249,6 @@
   text-align: center;
 }
 
-.spinner {
-  width: 2.5rem;
-  height: 2.5rem;
-  border: 3px solid var(--color-border);
-  border-top-color: var(--color-text);
-  border-radius: 50%;
-  animation: spin 800ms linear infinite;
-}
-
 .previewCard {
   padding: var(--space-4);
 }
@@ -295,12 +286,6 @@
   white-space: pre-wrap;
 }
 
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
 @media (max-width: 760px) {
   .steps {
     grid-template-columns: repeat(2, 1fr);
@@ -320,10 +305,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .spinner {
-    animation: none;
-  }
-
   .templates > label {
     transition: none;
   }
