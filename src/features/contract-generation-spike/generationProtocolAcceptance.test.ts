@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict'
 import { isCandidateReviewResponse, isGenerationResponse, isReviewResponse, REVIEWER_FINDING_RULE_IDS, safeReviewerFindingSummary, type CandidateReviewResponse, type MissingInput } from './generationProtocol'
 
-const replace = { kind: 'replace', blockId: 'word/document.xml#p2', text: 'Updated paragraph.' }
-const insert = { kind: 'insert_after', blockId: 'word/document.xml#p3', text: 'Additional service paragraph.' }
+const replace = { kind: 'replace', blockId: 'word/document.xml#p2', text: 'Updated paragraph.', supersedesSourceBlockId: null, supersededSourceText: null }
+const insert = { kind: 'insert_after', blockId: 'word/document.xml#p3', text: 'Additional service paragraph.', supersedesSourceBlockId: null, supersededSourceText: null }
 
 assert.equal(isGenerationResponse({ status: 'READY', edits: [replace] }), true)
 assert.equal(isGenerationResponse({ status: 'READY', edits: [insert] }), true)
 assert.equal(isGenerationResponse({ status: 'READY', edits: [replace, insert] }), true)
+assert.equal(isGenerationResponse({ status: 'READY', edits: [{ kind: 'replace', blockId: 'b1', text: 'Updated', supersedesSourceBlockId: null }] }), false, 'every edit declares source fact-span provenance')
 assert.equal(isGenerationResponse({ status: 'READY' }), false, 'READY requires edits')
 assert.equal(isGenerationResponse({ status: 'READY', edits: [{ ...replace, kind: 'patch' }] }), false, 'unknown edit kind is rejected')
 assert.equal(isGenerationResponse({ status: 'READY', edits: [{ ...replace, blockId: '' }] }), false, 'empty block ID is rejected')
@@ -81,10 +82,10 @@ for (const privateValue of [privateSource, privateCandidate, privateAnswer]) {
 }
 assert.equal(safeReviewerFindingSummary({ status: 'PASS' }), null, 'PASS produces no finding metadata')
 
-// Protocol-shape guard: a whole-block handle and replacement text are the only edit coordinates.
+// Protocol-shape guard: a whole-block handle, replacement text, and nullable opaque supersession reference are the only edit metadata.
 const editKeys = Object.keys(replace).sort()
-assert.deepEqual(editKeys, ['blockId', 'kind', 'text'])
-for (const forbiddenKey of ['quote', 'sourceRef', 'occurrenceIndex', 'offset', 'start', 'end', 'spanId', 'factChange', 'inventoryDisposition', 'patch']) {
+assert.deepEqual(editKeys, ['blockId', 'kind', 'supersededSourceText', 'supersedesSourceBlockId', 'text'])
+for (const forbiddenKey of ['quote', 'sourceText', 'replacementText', 'occurrenceIndex', 'offset', 'start', 'end', 'spanId', 'factChange', 'inventoryDisposition', 'patch']) {
   assert.equal(Object.hasOwn(replace, forbiddenKey), false, `${forbiddenKey} is not part of the edit protocol`)
 }
 assert.deepEqual(Object.keys({ status: 'READY', edits: [replace] }).sort(), ['edits', 'status'])

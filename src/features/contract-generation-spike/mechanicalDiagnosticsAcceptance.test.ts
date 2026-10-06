@@ -89,7 +89,7 @@ const sourceView = createGenerationSourceView(source)
 const handle = (index: number) => sourceView.blocks[index]!.blockId
 
 const missingTarget = await applyOptionBGenerationResponse(sourceBytes, source, authority, sourceView.sourceBlockIds, {
-  status: 'READY', edits: [{ kind: 'replace', blockId: 'unknown-handle', text: 'Private replacement' }],
+  status: 'READY', edits: [{ kind: 'replace', blockId: 'unknown-handle', text: 'Private replacement', supersedesSourceBlockId: null, supersededSourceText: null }],
 })
 assert.equal(missingTarget.status, 'FAILED')
 if (missingTarget.status === 'FAILED') assert.deepEqual(missingTarget.mechanicalFailure, {
@@ -98,8 +98,8 @@ if (missingTarget.status === 'FAILED') assert.deepEqual(missingTarget.mechanical
 
 const duplicateTarget = await applyOptionBGenerationResponse(sourceBytes, source, authority, sourceView.sourceBlockIds, {
   status: 'READY', edits: [
-    { kind: 'replace', blockId: handle(0), text: 'First private replacement' },
-    { kind: 'replace', blockId: handle(0), text: 'Second private replacement' },
+    { kind: 'replace', blockId: handle(0), text: 'First private replacement', supersedesSourceBlockId: null, supersededSourceText: null },
+    { kind: 'replace', blockId: handle(0), text: 'Second private replacement', supersedesSourceBlockId: null, supersededSourceText: null },
   ],
 })
 assert.equal(duplicateTarget.status, 'FAILED')
@@ -152,7 +152,7 @@ const pageBreakSourceView = createGenerationSourceView(pageBreakSource)
 const targetBlock = pageBreakSource.blocks.find((block) => block.text === 'Source target')!
 const requestedElsewhere = 'SYNTHETIC_PRIVATE_REQUESTED_ELSEWHERE'
 const wrongLocationResult = await applyOptionBGenerationResponse(pageBreakSourceBytes, pageBreakSource, authority, pageBreakSourceView.sourceBlockIds, {
-  status: 'READY', edits: [{ kind: 'replace', blockId: [...pageBreakSourceView.sourceBlockIds].find(([, sourceId]) => sourceId === targetBlock.blockId)![0], text: requestedElsewhere }],
+  status: 'READY', edits: [{ kind: 'replace', blockId: [...pageBreakSourceView.sourceBlockIds].find(([, sourceId]) => sourceId === targetBlock.blockId)![0], text: requestedElsewhere, supersedesSourceBlockId: null, supersededSourceText: null }],
 })
 assert.equal(wrongLocationResult.status, 'READY', 'a harmless paragraph shift does not invalidate a source-relative edit that appears in the final document')
 

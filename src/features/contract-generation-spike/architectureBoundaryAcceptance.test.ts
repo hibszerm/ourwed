@@ -40,9 +40,9 @@ const handleFor = (blockId: string) => [...sourceView.sourceBlockIds].find(([, i
 const ready = await applyOptionBGenerationResponse(sourceBytes, source, authority, sourceView.sourceBlockIds, {
   status: 'READY',
   edits: [
-    { kind: 'replace', blockId: handleFor(nameBlock.blockId), text: 'Clients: Lena Nowicka and Lena Nowicka' },
-    { kind: 'replace', blockId: handleFor(placeBlock.blockId), text: 'Place: in Krakowie' },
-    { kind: 'insert_after', blockId: handleFor(nameBlock.blockId), text: 'Authorized additional service.' },
+    { kind: 'replace', blockId: handleFor(nameBlock.blockId), text: 'Clients: Lena Nowicka and Lena Nowicka', supersedesSourceBlockId: null, supersededSourceText: null },
+    { kind: 'replace', blockId: handleFor(placeBlock.blockId), text: 'Place: in Krakowie', supersedesSourceBlockId: null, supersededSourceText: null },
+    { kind: 'insert_after', blockId: handleFor(nameBlock.blockId), text: 'Authorized additional service.', supersedesSourceBlockId: null, supersededSourceText: null },
   ],
 })
 assert.equal(ready.status, 'READY')
@@ -80,7 +80,7 @@ assert.equal(unknownSubject.status, 'FAILED', 'unknown subject identities fail a
 const conflict = await applyOptionBGenerationResponse(sourceBytes, source, authority, sourceView.sourceBlockIds, { status: 'CONFLICT_INPUT', conflicts: ['Two authoritative dates disagree.'] })
 assert.deepEqual(conflict, { status: 'CONFLICT_INPUT', conflicts: ['Two authoritative dates disagree.'] }, 'conflicts are preserved without creating a candidate')
 assert.deepEqual(new Uint8Array(sourceBytes), sourceBytesBefore, 'non-READY results do not mutate the source bytes')
-const invalidTarget = await applyOptionBGenerationResponse(sourceBytes, source, authority, sourceView.sourceBlockIds, { status: 'READY', edits: [{ kind: 'replace', blockId: 'unknown-handle', text: 'Unsafe edit.' }] })
+const invalidTarget = await applyOptionBGenerationResponse(sourceBytes, source, authority, sourceView.sourceBlockIds, { status: 'READY', edits: [{ kind: 'replace', blockId: 'unknown-handle', text: 'Unsafe edit.', supersedesSourceBlockId: null, supersededSourceText: null }] })
 assert.equal(invalidTarget.status, 'FAILED', 'unknown block IDs fail mechanically')
 const invalidZip = await validateOptionBCandidate(sourceBytes, new Uint8Array([1, 2, 3]).buffer, source, source, [])
 assert.deepEqual(invalidZip, ['Cannot open source or candidate DOCX ZIP package'], 'corrupt candidate archives remain a hard failure')

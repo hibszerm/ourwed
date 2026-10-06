@@ -107,7 +107,7 @@ try {
   assert.equal(conflict.reviewResult, 'PASS')
 
   const unsafeTargetProvider: AcceptanceProvider = {
-    async generate() { return { status: 'READY', edits: [{ kind: 'replace', blockId: 'unknown-handle', text: 'Unsafe edit.' }] } },
+    async generate() { return { status: 'READY', edits: [{ kind: 'replace', blockId: 'unknown-handle', text: 'Unsafe edit.', supersedesSourceBlockId: null, supersededSourceText: null }] } },
     async review() { throw new Error('Reviewer must not run after a mechanical failure') },
     async reviewConflict() { throw new Error('Conflict verifier must not run after a mechanical failure') },
   }

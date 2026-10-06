@@ -11,7 +11,7 @@ const productRules = GENERIC_CONTRACT_PRODUCT_RULES.join(' ').toLowerCase()
 // Compatible transaction facts leave general or conditional source terms intact.
 assert.match(GENERIC_AUTHORITY_BOUNDARY_INSTRUCTION, /facts about this transaction/i)
 assert.match(GENERIC_AUTHORITY_BOUNDARY_INSTRUCTION, /source controls general or conditional contractual terms/i)
-assert.match(GENERIC_AUTHORITY_BOUNDARY_INSTRUCTION, /preserve any such source term that can coexist with current facts/i)
+assert.match(GENERIC_AUTHORITY_BOUNDARY_INSTRUCTION, /preserve any source term that can coexist with current facts/i)
 
 // Explicit supersession remains an authorized reason to change a source term.
 assert.match(GENERIC_AUTHORITY_BOUNDARY_INSTRUCTION, /current authority or an explicit product rule clearly establishes that it is superseded, waived, or replaced/i)

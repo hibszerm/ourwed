@@ -46,7 +46,7 @@ const GENERATION_SCHEMA = {
   required: ['status', 'edits', 'missingInputs', 'conflicts'],
   properties: {
     status: { enum: ['READY', 'MISSING_INPUT', 'CONFLICT_INPUT'] },
-    edits: { anyOf: [{ type: 'array', items: { type: 'object', additionalProperties: false, required: ['kind', 'blockId', 'text'], properties: { kind: { enum: ['replace', 'insert_after'] }, blockId: { type: 'string' }, text: { type: 'string' } } } }, { type: 'null' }] },
+    edits: { anyOf: [{ type: 'array', items: { type: 'object', additionalProperties: false, required: ['kind', 'blockId', 'text', 'supersedesSourceBlockId', 'supersededSourceText'], properties: { kind: { enum: ['replace', 'insert_after'] }, blockId: { type: 'string' }, text: { type: 'string' }, supersedesSourceBlockId: { anyOf: [{ type: 'string' }, { type: 'null' }] }, supersededSourceText: { anyOf: [{ type: 'string' }, { type: 'null' }] } } } }, { type: 'null' }] },
     missingInputs: { anyOf: [{ type: 'array', minItems: 1, items: { anyOf: [
       { type: 'object', additionalProperties: false, required: ['id', 'label', 'answerKind', 'subject'], properties: { id: { type: 'string' }, label: { type: 'string' }, answerKind: { enum: ['text', 'multiline', 'date', 'number', 'email', 'phone'] }, subject: { anyOf: [{ type: 'object', additionalProperties: false, required: ['participantKey', 'displayName'], properties: { participantKey: { type: 'string' }, displayName: { anyOf: [{ type: 'string' }, { type: 'null' }] } } }, { type: 'null' }] } } },
       { type: 'object', additionalProperties: false, required: ['id', 'kind', 'label', 'options'], properties: { id: { type: 'string' }, kind: { enum: ['choice'] }, label: { type: 'string' }, options: { type: 'array', minItems: 2, items: { type: 'object', additionalProperties: false, required: ['id', 'label'], properties: { id: { type: 'string' }, label: { type: 'string' } } } } } },
@@ -509,7 +509,7 @@ function providerAdapters() {
       rawResult = await callStructuredProvider({
         system: generationInstructionsForLocale(authority.locale),
         user: { source: view.blocks, authorityContext: authority, resolvedMissingInputs: resolvedInputs, productRules: GENERIC_CONTRACT_PRODUCT_RULES },
-        schemaName: 'option_b_generation_response_v1', schema: GENERATION_SCHEMA,
+        schemaName: 'option_b_generation_response_v2', schema: GENERATION_SCHEMA,
         model: config.generatorModel, apiKey: config.apiKey,
         effort: Deno.env.get('OPENAI_CONTRACT_GENERATOR_REASONING')?.trim() || 'medium',
       })

@@ -17,7 +17,7 @@ export type OptionBGenerationResult =
   | { status: 'FAILED'; issues: string[]; mechanicalFailure?: MechanicalFailureDiagnostic }
   | { status: 'READY'; candidateBytes: ArrayBuffer; candidate: SourceDocument; edits: BlockEdit[]; changedBlocks: ChangedBlock[] }
 
-export const GENERIC_AUTHORITY_BOUNDARY_INSTRUCTION = 'Treat current authoritative facts as facts about this transaction; the source controls general or conditional contractual terms. Preserve any such source term that can coexist with current facts. Modify it only when current authority or an explicit product rule clearly establishes that it is superseded, waived, or replaced for this contract; update stale transaction-specific facts without discarding the surrounding condition. Do not request missing input or report a conflict solely to evaluate a condition that can be faithfully preserved.'
+export const GENERIC_AUTHORITY_BOUNDARY_INSTRUCTION = 'Treat current authoritative facts as facts about this transaction; the source controls general or conditional contractual terms. Values in a sample transaction are not authority for the current wedding. Preserve any source term that can coexist with current facts. Modify it only when current authority or an explicit product rule clearly establishes that it is superseded, waived, or replaced for this contract; update stale transaction-specific facts without discarding the surrounding condition. Before adding a current transaction fact, determine whether the source already contains a semantic slot for that fact. This includes, when present, party identity, event date and locations, contract address, contact details, transaction amounts and explicitly authoritative timing, and contract/reference identifiers; these are examples, not a fixed field taxonomy. If the source has a semantic slot, update that source block with a replace edit and set supersedesSourceBlockId to that exact opaque source block ID and supersededSourceText to the exact source fact span being replaced; do not leave the source value and insert a second current version elsewhere. If no source slot exists, insertion may follow the existing placement rules and both supersession fields must be null. A non-null supersedesSourceBlockId identifies the source slot being superseded, supersededSourceText contains only the exact old fact span, and neither field is valid on insert_after. Apply this to source transaction facts wherever they occur in body paragraphs, tables, headers, or footers; do not infer a slot from matching words alone. Do not request missing input or report a conflict solely to evaluate a condition that can be faithfully preserved.'
 
 export const RESOLVED_MISSING_INPUT_INSTRUCTIONS = 'Distinguish CURRENT AUTHORITATIVE INPUT (normalized product records), the SOURCE CONTRACT (which controls contractual wording, structure, and source-defined requirements except where an explicit authoritative product rule applies), and RESOLVED USER INPUT (the structured resolvedMissingInputs collection). Each resolved item binds the original MissingInput ID and complete requirement definition (label plus either answerKind and any subject, or its choice options) to either a user-supplied value or a selected option. User-provided values are authoritative only for the specific requirement they answer. A selected option resolves the source-role-to-entity association; it is not a user assertion of that entity’s other facts. That requirement is resolved: use its answer or selected authoritative entity binding naturally where the source requires that fact and do not request the same requirement again, including by paraphrasing its label or assigning a new opaque ID. A resolved answer does not authorize unrelated assumptions; an answer to one requirement must not satisfy a genuinely distinct requirement unless the supplied fact and source clearly establish that relationship. Continue inspecting the complete source for other genuinely missing requirements and return all newly discovered requirements together in one MISSING_INPUT response. A requirement is missing only when it is not safely available from normalized authority, authoritative user answers, or applicable generic product rules; resolved user values are authoritative user answers for this purpose. Return CONFLICT_INPUT only for a material conflict not resolved by the source, authority, answers, or product rules, including resolved user answers.'
 
@@ -385,8 +385,41 @@ export async function applyOptionBGenerationResponse(
   if (inputValidation.issues.length) return { status: 'FAILED', issues: inputValidation.issues, mechanicalFailure: inputValidation.diagnostics[0] }
   const sourceBlocksById = new Map(source.blocks.map((block) => [block.blockId, block]))
   const seenReplacementTargets = new Set<string>()
+  const supersessions: Array<{ sourceBlockId: string; sourceText: string; editIndex: number }> = []
   const operations: BlockOperation[] = []
   for (const [editIndex, edit] of response.edits.entries()) {
+    if (edit.supersedesSourceBlockId !== null) {
+      const supersededSourceBlock = sourceBlockIds.get(edit.supersedesSourceBlockId)
+      const supersededBlock = supersededSourceBlock ? sourceBlocksById.get(supersededSourceBlock) : undefined
+      const sourceText = edit.supersededSourceText === null ? '' : canonicalizeParagraphText(edit.supersededSourceText)
+      if (!supersededBlock || !sourceText || !canonicalizeParagraphText(supersededBlock.text).includes(sourceText)) return {
+        status: 'FAILED', issues: ['The declared source-fact span is not present in its identified source block.'],
+        mechanicalFailure: {
+          gateId: 'stale_source_fact', reasonCode: 'superseded_fact_source_span_missing', editIndex, editCount: response.edits.length,
+          sourceBlockType: supersededBlock?.kind === 'tableCell' ? 'table_cell' : supersededBlock?.kind ?? 'other',
+          sourceBlockOrdinal: supersededBlock?.index, sourceTargetFound: Boolean(supersededBlock), editorOperationReportedSuccess: false,
+        },
+      }
+      if (edit.kind === 'insert_after') return {
+        status: 'FAILED', issues: ['A declared source-fact replacement did not replace its identified source block.'],
+        mechanicalFailure: {
+          gateId: 'stale_source_fact', reasonCode: 'superseded_fact_inserted', editIndex, editCount: response.edits.length,
+          editOperation: 'insert_after',
+          sourceBlockType: supersededBlock?.kind === 'tableCell' ? 'table_cell' : supersededBlock?.kind ?? 'other',
+          sourceBlockOrdinal: supersededBlock?.index,
+          sourceTargetFound: Boolean(supersededBlock), editorOperationReportedSuccess: false,
+        },
+      }
+      if (edit.blockId !== edit.supersedesSourceBlockId) return {
+        status: 'FAILED', issues: ['A declared source-fact replacement targeted a different source block.'],
+        mechanicalFailure: {
+          gateId: 'stale_source_fact', reasonCode: 'superseded_fact_target_mismatch', editIndex, editCount: response.edits.length,
+          editOperation: 'replace', sourceBlockType: supersededBlock.kind === 'tableCell' ? 'table_cell' : supersededBlock.kind,
+          sourceBlockOrdinal: supersededBlock.index, sourceTargetFound: true, editorOperationReportedSuccess: false,
+        },
+      }
+      supersessions.push({ sourceBlockId: supersededBlock.blockId, sourceText, editIndex })
+    }
     const sourceBlockId = sourceBlockIds.get(edit.blockId)
     if (!sourceBlockId || !sourceBlocksById.has(sourceBlockId)) return {
       status: 'FAILED', issues: [`Unknown generation block ID: ${edit.blockId}`],
@@ -420,6 +453,19 @@ export async function applyOptionBGenerationResponse(
     return {
       status: 'FAILED', issues: [error instanceof Error ? error.message : 'Unable to safely apply block edits to the source DOCX.'],
       mechanicalFailure: { gateId: 'candidate_parse', reasonCode: 'candidate_unreadable', editCount: response.edits.length },
+    }
+  }
+  for (const supersession of supersessions) {
+    const sourceBlock = sourceBlocksById.get(supersession.sourceBlockId)!
+    const candidateBlock = candidate.blocks.find((block) => block.blockId === supersession.sourceBlockId)
+    if (!candidateBlock || canonicalizeParagraphText(candidateBlock.text).includes(supersession.sourceText)) return {
+      status: 'FAILED', issues: ['A superseded source-fact span remains in its replacement block.'],
+      mechanicalFailure: {
+        gateId: 'stale_source_fact', reasonCode: 'superseded_fact_survives', editIndex: supersession.editIndex,
+        editCount: response.edits.length, editOperation: 'replace',
+        sourceBlockType: sourceBlock.kind === 'tableCell' ? 'table_cell' : sourceBlock.kind,
+        sourceBlockOrdinal: sourceBlock.index, sourceTargetFound: true, editorOperationReportedSuccess: Boolean(candidateBlock),
+      },
     }
   }
   const validation = await validateOptionBCandidateDetailed(sourceBytes, candidateBytes, source, candidate, operations, true)

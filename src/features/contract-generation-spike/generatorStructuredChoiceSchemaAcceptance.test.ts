@@ -15,9 +15,15 @@ const schemaExpression = edgeSource
   .trim()
   .replace(/,$/, '')
 const generationSchema = Function(`return (${schemaExpression})`)() as Record<string, unknown>
-assert.match(edgeSource, /schemaName: 'option_b_generation_response_v1', schema: GENERATION_SCHEMA/, 'the inspected schema is the one sent to the structured provider')
+assert.match(edgeSource, /schemaName: 'option_b_generation_response_v2', schema: GENERATION_SCHEMA/, 'the inspected schema is the one sent to the structured provider')
 
 const rootProperties = generationSchema.properties as Record<string, unknown>
+const readyEdits = ((rootProperties.edits as Record<string, unknown>).anyOf as Array<Record<string, unknown>>)[0]!
+const editItem = readyEdits.items as Record<string, unknown>
+assert.deepEqual(editItem.required, ['kind', 'blockId', 'text', 'supersedesSourceBlockId', 'supersededSourceText'], 'each edit carries ephemeral source-fact supersession provenance')
+assert.equal((editItem.properties as Record<string, Record<string, unknown>>).supersedesSourceBlockId?.type, undefined)
+assert.ok((editItem.properties as Record<string, Record<string, unknown>>).supersedesSourceBlockId?.anyOf, 'supersession provenance is content-free nullable source-block identity')
+assert.ok((editItem.properties as Record<string, Record<string, unknown>>).supersededSourceText?.anyOf, 'the exact source fact span is nullable and validated but never included in safe diagnostics')
 const missingInputsSchema = rootProperties.missingInputs as Record<string, unknown>
 const missingInputAlternatives = missingInputsSchema.anyOf as unknown[]
 const missingInputArray = missingInputAlternatives[0] as Record<string, unknown>

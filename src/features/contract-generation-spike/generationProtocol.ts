@@ -3,8 +3,8 @@
 export type BlockId = string
 
 export type BlockEdit =
-  | { kind: 'replace'; blockId: BlockId; text: string }
-  | { kind: 'insert_after'; blockId: BlockId; text: string }
+  | { kind: 'replace'; blockId: BlockId; text: string; supersedesSourceBlockId: BlockId | null; supersededSourceText: string | null }
+  | { kind: 'insert_after'; blockId: BlockId; text: string; supersedesSourceBlockId: BlockId | null; supersededSourceText: string | null }
 
 export type MissingInputAnswerKind = 'text' | 'multiline' | 'date' | 'number' | 'email' | 'phone'
 
@@ -130,8 +130,11 @@ export function isMissingInputList(value: unknown, participantKeys?: ReadonlySet
 
 function isBlockEdit(value: unknown): value is BlockEdit {
   if (!isRecord(value) || !isNonEmptyString(value.blockId) || !isNonEmptyString(value.text)) return false
-  if (value.kind === 'replace' || value.kind === 'insert_after') {
-    return hasExactKeys(value, ['kind', 'blockId', 'text'])
+  if ((value.kind === 'replace' || value.kind === 'insert_after')
+    && hasExactKeys(value, ['kind', 'blockId', 'text', 'supersedesSourceBlockId', 'supersededSourceText'])) {
+    return (value.supersedesSourceBlockId === null || isNonEmptyString(value.supersedesSourceBlockId))
+      && (value.supersededSourceText === null || isNonEmptyString(value.supersededSourceText))
+      && ((value.supersedesSourceBlockId === null) === (value.supersededSourceText === null))
   }
   return false
 }

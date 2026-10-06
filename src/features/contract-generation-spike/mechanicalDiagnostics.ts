@@ -8,6 +8,7 @@ export const MECHANICAL_GATE_IDS = [
   'package_structure',
   'package_preservation',
   'edit_application',
+  'stale_source_fact',
   'extra_change',
   'internal',
 ] as const
@@ -30,6 +31,10 @@ export const MECHANICAL_REASON_CODES = [
   'field_instruction_changed',
   'field_structure_changed',
   'requested_edit_missing',
+  'superseded_fact_inserted',
+  'superseded_fact_target_mismatch',
+  'superseded_fact_source_span_missing',
+  'superseded_fact_survives',
   'deletion_not_permitted',
   'unexpected_change',
   'internal_validation_failure',
@@ -96,6 +101,8 @@ export const MECHANICAL_GATE_REASON_PAIRS = [
   'package_structure:required_part_missing', 'package_structure:part_set_changed', 'package_structure:paragraph_structure_changed',
   'package_structure:table_structure_changed', 'package_structure:field_instruction_changed', 'package_structure:field_structure_changed',
   'package_preservation:untouched_part_changed', 'edit_application:requested_edit_missing', 'edit_application:deletion_not_permitted',
+  'stale_source_fact:superseded_fact_inserted', 'stale_source_fact:superseded_fact_target_mismatch',
+  'stale_source_fact:superseded_fact_source_span_missing', 'stale_source_fact:superseded_fact_survives',
   'extra_change:unexpected_change', 'internal:internal_validation_failure',
 ] as const
 const validGateReasonPairs = new Set<string>(MECHANICAL_GATE_REASON_PAIRS)
@@ -114,7 +121,8 @@ export function safeMechanicalTelemetry(value: unknown): SafeMechanicalTelemetry
   if (Number.isSafeInteger(input.editIndex) && (input.editIndex as number) >= 0) output.mechanicalEditIndex = input.editIndex as number
   if (Number.isSafeInteger(input.editCount) && (input.editCount as number) >= 0) output.mechanicalEditCount = input.editCount as number
   if (validPair && typeof input.authorityType === 'string' && authorityTypes.has(input.authorityType)) output.mechanicalAuthorityType = input.authorityType as MechanicalAuthorityType
-  if (validPair && gateId === 'edit_application' && reasonCode === 'requested_edit_missing') {
+  if (validPair && ((gateId === 'edit_application' && reasonCode === 'requested_edit_missing')
+    || (gateId === 'stale_source_fact' && reasonCode.startsWith('superseded_fact_')))) {
     if (typeof input.editOperation === 'string' && editOperations.has(input.editOperation as MechanicalEditOperation)) output.mechanicalEditOperation = input.editOperation as MechanicalEditOperation
     if (typeof input.sourceBlockType === 'string' && sourceBlockTypes.has(input.sourceBlockType as MechanicalSourceBlockType)) output.mechanicalSourceBlockType = input.sourceBlockType as MechanicalSourceBlockType
     if (Number.isSafeInteger(input.sourceBlockOrdinal) && (input.sourceBlockOrdinal as number) >= 0) output.mechanicalSourceBlockOrdinal = input.sourceBlockOrdinal as number
