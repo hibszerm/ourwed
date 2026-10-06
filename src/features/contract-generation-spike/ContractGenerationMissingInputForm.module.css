@@ -80,6 +80,10 @@
   resize: vertical;
 }
 
+.dateInputWrap {
+  display: contents;
+}
+
 @media (max-width: 767px) {
   /* The modal body is the sole vertical scroll surface on the mobile sheet. */
   .form {
@@ -121,6 +125,20 @@
     min-inline-size: 0;
     max-inline-size: 100%;
     appearance: auto;
+  }
+
+  .dateInputWrap {
+    display: flex;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .dateInputWrap > input[type='date'] {
+    flex: 1 1 0;
+    width: 0;
+    min-width: 0;
+    max-width: 100%;
   }
 
   .choiceGroup legend {

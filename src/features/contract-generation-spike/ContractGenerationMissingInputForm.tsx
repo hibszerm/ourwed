@@ -108,6 +108,17 @@ export function ContractGenerationMissingInputForm(props: {
                   value={values[requirement.id] ?? ''}
                   onChange={(event) => changeValue(requirement.id, event.target.value)}
                 />
+              ) : type === 'date' ? (
+                <span className={styles.dateInputWrap}>
+                  <input
+                    id={fieldId}
+                    type={type}
+                    required
+                    disabled={props.busy}
+                    value={values[requirement.id] ?? ''}
+                    onChange={(event) => changeValue(requirement.id, event.target.value)}
+                  />
+                </span>
               ) : (
                 <input
                   id={fieldId}

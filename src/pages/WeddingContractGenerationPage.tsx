@@ -27,7 +27,6 @@ import { useWedding } from '@/features/weddings/hooks/useWedding'
 import { getWeddingDisplayName } from '@/features/weddings/presentation/getWeddingDisplayName'
 import { useProMutationPageGuard } from '@/features/billing/useProMutationPageGuard'
 import { weddingActionsService } from '@/lib/api/weddingActionsService'
-import styles from './WeddingContractGenerationPage.module.css'
 import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 import { devInfo } from '@/lib/debug/devConsole'
 import { documentDraftService } from '@/lib/api/documents'
@@ -50,6 +49,13 @@ import { ContractGenerationMissingInputForm } from '@/features/contract-generati
 import type { BoundaryReviewerState } from '@/features/contract-generation-spike/serverBoundary'
 import { OptionBGenerationProgress } from '@/features/contract-generation-spike/OptionBGenerationProgress'
 import { useOptionBGenerationProgress } from '@/features/contract-generation-spike/useOptionBGenerationProgress'
+import styles from './WeddingContractGenerationPage.module.css'
+
+const workflowSteps = [
+  ['resolve', 'Umowa pakietu'],
+  ['generating', 'Tworzenie'],
+  ['preview', 'Podgląd'],
+] as const
 
 type WizardStep =
   | 'resolve'
@@ -693,6 +699,11 @@ export function WeddingContractGenerationPage() {
 
   const visibleStep = step === 'saved' ? 'preview'
     : step === 'waiting_for_user_input' ? 'resolve' : step
+  const visibleStepIndex = Math.max(
+    0,
+    workflowSteps.findIndex(([id]) => id === visibleStep),
+  )
+  const currentWorkflowStep = workflowSteps[visibleStepIndex]
 
   return (
     <AppLayout
@@ -702,6 +713,7 @@ export function WeddingContractGenerationPage() {
         <Button
           type="button"
           variant="ghost"
+          className={styles.headerBackButton}
           onClick={() => navigate(`/sluby/${wedding.id}`)}
         >
           Wróć do ślubu
@@ -710,11 +722,7 @@ export function WeddingContractGenerationPage() {
     >
       <PageContainer width="wide" className={styles.page}>
         <ol className={styles.steps} aria-label="Etapy tworzenia umowy">
-          {[
-            ['resolve', 'Umowa pakietu'],
-            ['generating', 'Tworzenie'],
-            ['preview', 'Podgląd'],
-          ].map(([id, label], index) => (
+          {workflowSteps.map(([id, label], index) => (
             <li
               key={id}
               data-active={visibleStep === id}
@@ -727,6 +735,27 @@ export function WeddingContractGenerationPage() {
             </li>
           ))}
         </ol>
+        <div
+          className={styles.mobileStep}
+          role="group"
+          aria-label="Etapy tworzenia umowy"
+        >
+          <span className={styles.mobileStepMeta}>Krok {visibleStepIndex + 1} z 3</span>
+          <span className={styles.mobileStepTitle} aria-current="step">
+            {currentWorkflowStep[1]}
+          </span>
+          <ol className={styles.mobileStepTrack} aria-hidden="true">
+            {workflowSteps.map(([id], index) => (
+              <li
+                key={id}
+                data-current={visibleStepIndex === index}
+                data-complete={visibleStepIndex > index}
+              >
+                <span />
+              </li>
+            ))}
+          </ol>
+        </div>
 
         {step === 'resolve' && packageResolution?.status !== 'ok' ? (
           <section className={styles.card}>
