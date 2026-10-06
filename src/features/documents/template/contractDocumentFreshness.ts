@@ -130,6 +130,15 @@ export function isGeneratedContractContentStale(input: {
   currentResolvedValues: Record<string, string> | null | undefined
 }): boolean {
   if (!input.storedResolvedValues || !input.currentResolvedValues) return false
+  // An empty legacy/Option B baseline has no evidence that a business value
+  // changed. New Option B saves populate this map through saveGeneratedContract.
+  if (
+    !Object.keys(input.storedResolvedValues).some(
+      (key) => !shouldExcludeContractFreshnessKey(key),
+    )
+  ) {
+    return false
+  }
   return diffContractResolvedValuesForFreshness(
     input.storedResolvedValues,
     input.currentResolvedValues,

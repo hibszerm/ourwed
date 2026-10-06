@@ -24,7 +24,7 @@ for (const forbidden of ['WeddingSparseContractGenerationService', 'runSparsePro
   assert.equal(page.includes(forbidden), false, `page excludes ${forbidden}`)
 }
 assert.equal(/WeddingContractGenerationService\.generate\s*\(/.test(page), false)
-assert.ok(page.includes('resolveEmptyValuesFromWedding: false'))
+assert.ok(!page.includes('resolveEmptyValuesFromWedding: false'))
 assert.ok(page.includes('saveGeneratedContract('))
 assert.ok(page.includes('markContractGenerated('))
 assert.ok(page.includes('ContractDocxPreview'))

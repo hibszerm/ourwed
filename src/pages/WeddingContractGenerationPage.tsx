@@ -543,7 +543,6 @@ export function WeddingContractGenerationPage() {
         packageSnapshot: packageSnapshotFromWedding(wedding),
         manualOverrides: {},
         resolvedValues: generated.resolved,
-        resolveEmptyValuesFromWedding: false,
         omittedKeys: generated.omittedKeys,
         executionSnapshot: generated.executionSnapshot
           ? {

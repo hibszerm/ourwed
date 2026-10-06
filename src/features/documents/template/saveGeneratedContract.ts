@@ -22,10 +22,8 @@ export async function saveGeneratedContract(
 ): Promise<SaveGeneratedContractResult> {
   const { resolveEmptyValuesFromWedding = true, ...persistInput } = input
   let resolvedValues = input.resolvedValues
-  // Sparse generation used to persist resolvedValues: {}. Freshness compares that
-  // bag to a live resolveContractVariables run, so empty vs full stayed forever
-  // stale — including after regenerate. Fill from the same resolver used by the
-  // freshness check when the generation bag is empty.
+  // Option B's accepted DOCX does not expose legacy slot values. Persist a
+  // comparable baseline from the same resolver used by the freshness check.
   if (resolveEmptyValuesFromWedding && Object.keys(resolvedValues).length === 0) {
     const { resolveContractVariables } = await import('./resolveContractVariables')
     const live = await resolveContractVariables({

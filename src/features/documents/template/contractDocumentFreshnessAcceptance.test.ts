@@ -102,7 +102,7 @@ function read(rel: string): string {
 }
 
 {
-  // Empty generation bag (historical sparse) vs full live resolve is always stale.
+  // Historical sparse/Option B artifacts have no evidence for a comparison.
   assert.equal(
     isGeneratedContractContentStale({
       storedResolvedValues: {},
@@ -111,8 +111,16 @@ function read(rel: string): string {
         contract_value: '5000',
       },
     }),
-    true,
-    'empty stored vs populated current → stale (sparse bug shape)',
+    false,
+    'empty stored baseline is unknown, not proof of a business change',
+  )
+  assert.equal(
+    isGeneratedContractContentStale({
+      storedResolvedValues: { contract_execution_date: '2026-10-06' },
+      currentResolvedValues: { contract_value: '5000' },
+    }),
+    false,
+    'baseline with only excluded technical keys has no comparison evidence',
   )
   assert.equal(
     isGeneratedContractContentStale({
@@ -127,6 +135,57 @@ function read(rel: string): string {
     }),
     false,
     'matching bags after regenerate → fresh',
+  )
+}
+
+{
+  // Option B supplies an empty result from its accepted candidate. The
+  // existing save fallback resolves it once, and that baseline remains fresh
+  // until a contract-relevant value changes.
+  const page = read('src/pages/WeddingContractGenerationPage.tsx')
+  const save = read('src/features/documents/template/saveGeneratedContract.ts')
+  assert.ok(page.includes('resolvedValues: generated.resolved'))
+  assert.ok(
+    !page.includes('resolveEmptyValuesFromWedding: false'),
+    'Option B must allow the existing save-time resolver fallback',
+  )
+  assert.ok(
+    save.includes('resolveEmptyValuesFromWedding = true') &&
+      save.includes('resolvedValues = live.resolved'),
+    'empty Option B map is replaced with the existing resolver output',
+  )
+
+  const savedBaseline = {
+    partner1_full_name: 'Anna Kowalska',
+    contract_value: '5000',
+  }
+  assert.equal(
+    isGeneratedContractContentStale({
+      storedResolvedValues: savedBaseline,
+      currentResolvedValues: { ...savedBaseline },
+    }),
+    false,
+    'Option B save/reload with unchanged resolver values is fresh',
+  )
+
+  const changed = { ...savedBaseline, contract_value: '6000' }
+  assert.equal(
+    isGeneratedContractContentStale({
+      storedResolvedValues: savedBaseline,
+      currentResolvedValues: changed,
+    }),
+    true,
+    'a contract value change marks the saved document stale',
+  )
+
+  const reverted = { ...changed, contract_value: savedBaseline.contract_value }
+  assert.equal(
+    isGeneratedContractContentStale({
+      storedResolvedValues: savedBaseline,
+      currentResolvedValues: reverted,
+    }),
+    false,
+    'reverting to the saved contract value clears stale state',
   )
 }
 
