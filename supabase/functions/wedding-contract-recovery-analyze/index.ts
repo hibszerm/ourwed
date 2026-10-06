@@ -5,7 +5,6 @@ import {
   WEDDING_CONTRACT_RECOVERY_RESPONSE_VERSION,
   computeMaxOutputTokens,
   resolveRecoveryModel,
-  shouldAttachLowReasoning,
 } from './config.ts'
 import { SYSTEM_PROMPT, buildUserPayload } from './prompt.ts'
 import { RECOVERY_JSON_SCHEMA } from './schema.ts'
@@ -184,9 +183,7 @@ Deno.serve(async (req) => {
     max_output_tokens: computeMaxOutputTokens(model),
   }
 
-  if (shouldAttachLowReasoning(model)) {
-    requestBody.reasoning = { effort: 'low' }
-  }
+  requestBody.reasoning = { effort: 'medium' }
 
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), RECOVERY_EDGE_CONFIG.providerTimeoutMs)
