@@ -8,7 +8,7 @@ const p = (text: string) => `<w:p><w:r><w:t xml:space="preserve">${text.replace(
 async function sourceDocx(): Promise<ArrayBuffer> {
   const zip = new JSZip()
   zip.file('[Content_Types].xml', '<Types/>')
-  zip.file('word/document.xml', `<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${p('Parties: Sample Party')}${p('Event: 12 June 2027 at Sample Preparation A; ceremony Sample Chapel A; reception Sample Hall A.')}${p('Payment: remaining amount due 7 days before the event.')}${p('Base package: source-defined scope and amount.')}${p('Ordinary source legal clause.') }<w:sectPr/></w:body></w:document>`)
+  zip.file('word/document.xml', `<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${p('Parties: Sample Party')}${p('Provider name: PROVIDER_A; company: COMPANY_A; business address: ADDRESS_A; tax and registration identifiers: IDENTIFIERS_A; permanent email and phone: CONTACT_A; bank details: PAYMENT_ACCOUNT_A.')}${p('Event: 12 June 2027 at Sample Preparation A; ceremony Sample Chapel A; reception Sample Hall A.')}${p('Payment: remaining amount due 7 days before the event.')}${p('Base package: source-defined scope and amount.')}${p('Ordinary source legal clause.') }<w:sectPr/></w:body></w:document>`)
   zip.file('word/header1.xml', `<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">${p('Reference: sample contract 07 2027')}</w:hdr>`)
   zip.file('word/footer1.xml', `<w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">${p('Sample footer')}</w:ftr>`)
   return zip.generateAsync({ type: 'arraybuffer' })
@@ -21,6 +21,7 @@ const source = await readSource(bytes, 'transaction-fixture.docx')
 const view = createGenerationSourceView(source)
 const handle = (block: typeof source.blocks[number]) => [...view.sourceBlockIds].find(([, id]) => id === block.blockId)![0]
 const partyBlock = source.blocks.find((block) => block.text.startsWith('Parties:'))!
+const providerBlock = source.blocks.find((block) => block.text.startsWith('Provider name:'))!
 const eventBlock = source.blocks.find((block) => block.text.startsWith('Event:'))!
 const paymentBlock = source.blocks.find((block) => block.text.startsWith('Payment:'))!
 const currentEvent = 'Event: 30 November 2026 at Current Preparation B; ceremony Current Chapel B; reception Current Hall B.'
@@ -60,6 +61,7 @@ assert.equal(valid.status, 'READY', 'localized source replacement passes; a legi
 if (valid.status === 'READY') {
   assert.equal(valid.candidate.blocks.filter((block) => /30 November 2026/.test(block.text)).length, 2, 'repeated current event date remains valid across distinct clauses')
   assert.equal(valid.candidate.blocks.some((block) => /12 June 2027|Sample Preparation A|Sample Chapel A|Sample Hall A/.test(block.text)), false, 'superseded source event values do not remain in their replaced source block')
+  assert.equal(valid.candidate.blocks.find((block) => block.blockId === providerBlock.blockId)?.text, providerBlock.text, 'mixed sample wedding facts do not supersede source-owned provider/business content')
   assert.equal(valid.candidate.blocks.some((block) => block.text === 'Ordinary source legal clause.'), true, 'unrelated source legal wording is preserved')
 }
 
