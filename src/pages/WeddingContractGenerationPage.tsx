@@ -129,7 +129,8 @@ export function WeddingContractGenerationPage() {
   >(null)
   const [error, setError] = useState<string | null>(null)
   const [generatePending, setGeneratePending] = useState(false)
-  const [progressAttempt, setProgressAttempt] = useState(0)
+  const [progressRequestAttempt, setProgressRequestAttempt] = useState(0)
+  const [progressGeneration, setProgressGeneration] = useState(0)
   const generateInFlightRef = useRef(false)
   const connectionRef = useRef<GenerationConnection | null>(null)
   const generationUiRunRef = useRef<GenerationUiRun | null>(null)
@@ -137,7 +138,7 @@ export function WeddingContractGenerationPage() {
   const finishOperationRef = useRef<(() => void) | null>(null)
   const navigationCleanupRef = useRef(false)
   const connection = connectionState
-  const progress = useOptionBGenerationProgress(step === 'generating', connection?.requestId, progressAttempt)
+  const progress = useOptionBGenerationProgress(step === 'generating', connection?.requestId, progressRequestAttempt, progressGeneration)
 
   const canGenerate = packageResolution?.status === 'ok' && !generatePending
 
@@ -345,7 +346,8 @@ export function WeddingContractGenerationPage() {
     setDownloadUrl(null)
     setMissingInputs([])
     setError(null)
-    setProgressAttempt((attempt) => attempt + 1)
+    setProgressGeneration((generation) => generation + 1)
+    setProgressRequestAttempt((attempt) => attempt + 1)
     setStep('generating')
     try {
       const result = await startContractGeneration({ weddingId: wedding.id, requestId: connection.requestId })
@@ -384,7 +386,8 @@ export function WeddingContractGenerationPage() {
     setGeneratePending(true)
     beginOperation()
     setError(null)
-    setProgressAttempt((attempt) => attempt + 1)
+    progress.beginContinuation()
+    setProgressRequestAttempt((attempt) => attempt + 1)
     setStep('generating')
     try {
       const result = await continueContractGeneration({ sessionId: connection.sessionId, answers })
@@ -851,6 +854,7 @@ export function WeddingContractGenerationPage() {
               stage={progress.stage}
               elapsedMs={progress.elapsedMs}
               stageElapsedMs={progress.stageElapsedMs}
+              continuationPreparing={progress.continuationPreparing}
             />
           </section>
         ) : null}

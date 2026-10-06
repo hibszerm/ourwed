@@ -31,6 +31,28 @@ export function progressStageIndex(stage: OptionBProgressStage): number {
   return OPTION_B_PROGRESS_STAGES.indexOf(stage)
 }
 
+export function highestVisibleProgressStage(
+  current: OptionBProgressStage,
+  observed: OptionBProgressStage,
+): OptionBProgressStage {
+  return progressStageIndex(observed) > progressStageIndex(current) ? observed : current
+}
+
+export type ActiveProcessingClock = { accumulatedMs: number; activeSinceMs: number | null }
+
+export function startActiveProcessing(clock: ActiveProcessingClock, now: number): ActiveProcessingClock {
+  return clock.activeSinceMs === null ? { ...clock, activeSinceMs: now } : clock
+}
+
+export function pauseActiveProcessing(clock: ActiveProcessingClock, now: number): ActiveProcessingClock {
+  if (clock.activeSinceMs === null) return clock
+  return { accumulatedMs: clock.accumulatedMs + Math.max(0, now - clock.activeSinceMs), activeSinceMs: null }
+}
+
+export function readActiveProcessing(clock: ActiveProcessingClock, now: number): number {
+  return clock.accumulatedMs + (clock.activeSinceMs === null ? 0 : Math.max(0, now - clock.activeSinceMs))
+}
+
 export function shouldAcceptProgressRow(row: OptionBProgressRow | null, minimumUpdatedAt: number): boolean {
   if (!row || row.session_state !== 'processing' || row.generation_status !== 'processing' || !isOptionBProgressStage(row.progress_stage)) return false
   const updatedAt = row.updated_at ? Date.parse(row.updated_at) : Number.NaN
@@ -47,4 +69,15 @@ export function elapsedStageCopy(stage: OptionBProgressStage, stageElapsedMs: nu
     return 'Analiza nadal trwa. Bardziej rozbudowane dokumenty mogą wymagać więcej czasu.'
   }
   return OPTION_B_PROGRESS_STEPS[progressStageIndex(stage)].copy
+}
+
+export function progressSupportingCopy(
+  stage: OptionBProgressStage,
+  stageElapsedMs: number,
+  continuationPreparing: boolean,
+): string {
+  if (stage === 'analyzing' && continuationPreparing) {
+    return 'Uwzględniam uzupełnione dane i kontynuuję przygotowanie dokumentu.'
+  }
+  return elapsedStageCopy(stage, stageElapsedMs)
 }

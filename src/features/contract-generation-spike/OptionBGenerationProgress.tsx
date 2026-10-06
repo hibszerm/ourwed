@@ -1,14 +1,16 @@
-import { elapsedStageCopy, formatElapsed, OPTION_B_PROGRESS_STEPS, progressStageIndex, type OptionBProgressStage } from './generationProgress'
+import { formatElapsed, OPTION_B_PROGRESS_STEPS, progressStageIndex, progressSupportingCopy, type OptionBProgressStage } from './generationProgress'
 import styles from './OptionBGenerationProgress.module.css'
 
 export function OptionBGenerationProgress({
   stage,
   elapsedMs,
   stageElapsedMs,
+  continuationPreparing,
 }: {
   stage: OptionBProgressStage
   elapsedMs: number
   stageElapsedMs: number
+  continuationPreparing: boolean
 }) {
   const currentIndex = progressStageIndex(stage)
   const current = OPTION_B_PROGRESS_STEPS[currentIndex]
@@ -19,10 +21,10 @@ export function OptionBGenerationProgress({
       <h2 className={styles.heading}>Przygotowuję umowę</h2>
       <div className={styles.currentStage}>
         <h3 className={styles.stageTitle} aria-live="polite" aria-atomic="true">{current.title}</h3>
-        <p className={styles.copy}>{elapsedStageCopy(stage, stageElapsedMs)}</p>
+        <p className={styles.copy}>{progressSupportingCopy(stage, stageElapsedMs, continuationPreparing)}</p>
       </div>
-      <p className={styles.timer} aria-label={`Czas przygotowania ${formatElapsed(elapsedMs)}`}>
-        <span>Czas przygotowania</span>
+      <p className={styles.timer} aria-label={`Czas pracy ${formatElapsed(elapsedMs)}`}>
+        <span>Czas pracy</span>
         <time>{formatElapsed(elapsedMs)}</time>
       </p>
       <ol className={styles.steps} aria-label="Etapy przygotowania umowy">
