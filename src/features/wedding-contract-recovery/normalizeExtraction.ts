@@ -207,6 +207,17 @@ function normalizeNumberField(
   )
 }
 
+const SUPPORTED_RECOVERY_CURRENCIES = new Set(['PLN', 'EUR', 'USD', 'GBP', 'CZK', 'CHF'])
+
+function normalizeCurrencyField(field: ExtractedField<string>): ExtractedField<string> {
+  const normalized = normalizeStringField(field, 'currency')
+  const value = normalized.value?.toUpperCase() ?? null
+  if (value && SUPPORTED_RECOVERY_CURRENCIES.has(value)) return { ...normalized, value }
+  return value
+    ? { ...normalized, value: null, warnings: [...normalized.warnings, 'Nieobsługiwana waluta.'] }
+    : normalized
+}
+
 function normalizeDateField(
   field: ExtractedField<string>,
   contextYear?: number,
@@ -358,7 +369,7 @@ export function normalizeContractRecoveryExtraction(
     },
     finances: {
       totalContractValue: normalizeNumberField(extraction.finances.totalContractValue),
-      currency: normalizeStringField(extraction.finances.currency),
+      currency: normalizeCurrencyField(extraction.finances.currency),
       depositAmount: normalizeNumberField(extraction.finances.depositAmount),
       depositDueDate: normalizeDateField(extraction.finances.depositDueDate, contextYear),
       remainingAmount: normalizeNumberField(extraction.finances.remainingAmount),
@@ -370,6 +381,13 @@ export function normalizeContractRecoveryExtraction(
         ...paymentTerms,
         value: redactBankAccountFromPaymentTerms(paymentTerms.value),
       },
+      travelStatus: {
+        ...normalizeStringField(extraction.finances.travelStatus),
+        value: ['included', 'charged'].includes(String(extraction.finances.travelStatus.value).toLowerCase())
+          ? String(extraction.finances.travelStatus.value).toLowerCase() as 'included' | 'charged'
+          : null,
+      },
+      travelAmount: normalizeNumberField(extraction.finances.travelAmount),
     },
     contractedPackage: {
       name: packageName,
@@ -392,6 +410,8 @@ export function normalizeContractRecoveryExtraction(
         extraction.contractedPackage.deliveryDeadlineText,
         'deliveryDeadlineText',
       ),
+      deliveryDays: normalizeNumberField(extraction.contractedPackage.deliveryDays),
+      basePrice: normalizeNumberField(extraction.contractedPackage.basePrice),
     },
     additionalServices: extraction.additionalServices.map((service) => ({
       ...service,
@@ -399,6 +419,7 @@ export function normalizeContractRecoveryExtraction(
       description: cleanText(service.description),
       price:
         service.price != null ? normalizeRecoveryMoney(service.price) : null,
+      currency: service.currency?.toUpperCase() ?? null,
       confidence: clampConfidence(service.confidence),
       evidence: sanitizeEvidenceArray(service.evidence, {
         maxItems: MAX_EVIDENCE_ITEMS_COMPLEX,
@@ -418,6 +439,7 @@ export function normalizeContractRecoveryExtraction(
         'notesRelevantToExecution',
       ),
     },
+    noteEligibleFacts: normalizeStringField(extraction.noteEligibleFacts, 'noteEligibleFacts'),
     documentWarnings: extraction.documentWarnings,
   }
 }

@@ -26,6 +26,14 @@ export const extractedNumberFieldSchema = z.object({
   warnings: z.array(z.string()),
 })
 
+export const extractedTravelStatusFieldSchema = z.object({
+  value: z.enum(['included', 'charged']).nullable(),
+  rawValue: z.string().nullable().optional(),
+  confidence: z.number().min(0).max(1),
+  evidence: z.array(extractionEvidenceSchema),
+  warnings: z.array(z.string()),
+})
+
 export const contractClientExtractionSchema = z.object({
   fullName: extractedStringFieldSchema,
   firstName: extractedStringFieldSchema,
@@ -64,6 +72,8 @@ export const contractRecoveryExtractionSchema = z.object({
     remainingAmount: extractedNumberFieldSchema,
     finalPaymentDueDate: extractedStringFieldSchema,
     paymentTermsText: extractedStringFieldSchema,
+    travelStatus: extractedTravelStatusFieldSchema,
+    travelAmount: extractedNumberFieldSchema,
   }),
   contractedPackage: z.object({
     name: extractedStringFieldSchema,
@@ -78,6 +88,8 @@ export const contractRecoveryExtractionSchema = z.object({
     coverageHours: extractedNumberFieldSchema,
     coverageTimeRange: extractedStringFieldSchema,
     deliveryDeadlineText: extractedStringFieldSchema,
+    deliveryDays: extractedNumberFieldSchema,
+    basePrice: extractedNumberFieldSchema,
   }),
   additionalServices: z.array(
     z.object({
@@ -95,6 +107,7 @@ export const contractRecoveryExtractionSchema = z.object({
     cancellationTerms: extractedStringFieldSchema,
     notesRelevantToExecution: extractedStringFieldSchema,
   }),
+  noteEligibleFacts: extractedStringFieldSchema,
   documentWarnings: z.array(z.string()),
 })
 
@@ -187,6 +200,8 @@ export function emptyContractRecoveryExtraction(): z.infer<
       remainingAmount: emptyNumberField(),
       finalPaymentDueDate: emptyStringField(),
       paymentTermsText: emptyStringField(),
+      travelStatus: emptyStringField(),
+      travelAmount: emptyNumberField(),
     },
     contractedPackage: {
       name: emptyStringField(),
@@ -195,6 +210,8 @@ export function emptyContractRecoveryExtraction(): z.infer<
       coverageHours: emptyNumberField(),
       coverageTimeRange: emptyStringField(),
       deliveryDeadlineText: emptyStringField(),
+      deliveryDays: emptyNumberField(),
+      basePrice: emptyNumberField(),
     },
     additionalServices: [],
     otherTerms: {
@@ -202,6 +219,7 @@ export function emptyContractRecoveryExtraction(): z.infer<
       cancellationTerms: emptyStringField(),
       notesRelevantToExecution: emptyStringField(),
     },
+    noteEligibleFacts: emptyStringField(),
     documentWarnings: [],
   }
 }

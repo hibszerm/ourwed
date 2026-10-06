@@ -5,10 +5,8 @@ import { documentStorage } from '@/lib/api/documents/storage'
 import { weddingContractRecoveryRepository } from '@/features/wedding-contract-recovery/repository'
 import { reanalyzeSourceContract } from '@/features/wedding-contract-recovery/recoveryService'
 import { useToast } from '@/components/ui/Toast'
-import {
-  PackageSnapshotCard,
-  packageSnapshotFromRow,
-} from '@/features/wedding-contract-recovery/components/PackageSnapshotCard'
+import { PackageSnapshotCard } from '@/features/wedding-contract-recovery/components/PackageSnapshotCard'
+import { packageSnapshotFromRow } from '@/features/wedding-contract-recovery/components/packageSnapshotAdapter'
 import styles from './WeddingSourceContractsPanel.module.css'
 import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 

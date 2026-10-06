@@ -16,6 +16,7 @@ export const RECOVERY_JSON_SCHEMA = {
     'contractedPackage',
     'additionalServices',
     'otherTerms',
+    'noteEligibleFacts',
     'documentWarnings',
   ],
   $defs: {
@@ -56,6 +57,17 @@ export const RECOVERY_JSON_SCHEMA = {
           type: 'array',
           items: { $ref: '#/$defs/evidence' },
         },
+        warnings: { type: 'array', items: { type: 'string' } },
+      },
+    },
+    travelStatusField: {
+      type: 'object', additionalProperties: false,
+      required: ['value','rawValue','confidence','evidence','warnings'],
+      properties: {
+        value: { type: ['string','null'], enum: ['included','charged',null] },
+        rawValue: { type: ['string','null'] },
+        confidence: { type: 'number', minimum: 0, maximum: 1 },
+        evidence: { type: 'array', items: { $ref: '#/$defs/evidence' } },
         warnings: { type: 'array', items: { type: 'string' } },
       },
     },
@@ -140,6 +152,8 @@ export const RECOVERY_JSON_SCHEMA = {
         'remainingAmount',
         'finalPaymentDueDate',
         'paymentTermsText',
+        'travelStatus',
+        'travelAmount',
       ],
       properties: {
         totalContractValue: { $ref: '#/$defs/numberField' },
@@ -149,6 +163,8 @@ export const RECOVERY_JSON_SCHEMA = {
         remainingAmount: { $ref: '#/$defs/numberField' },
         finalPaymentDueDate: { $ref: '#/$defs/stringField' },
         paymentTermsText: { $ref: '#/$defs/stringField' },
+        travelStatus: { $ref: '#/$defs/travelStatusField' },
+        travelAmount: { $ref: '#/$defs/numberField' },
       },
     },
     contractedPackage: {
@@ -161,6 +177,8 @@ export const RECOVERY_JSON_SCHEMA = {
         'coverageHours',
         'coverageTimeRange',
         'deliveryDeadlineText',
+        'deliveryDays',
+        'basePrice',
       ],
       properties: {
         name: { $ref: '#/$defs/stringField' },
@@ -184,6 +202,8 @@ export const RECOVERY_JSON_SCHEMA = {
         coverageHours: { $ref: '#/$defs/numberField' },
         coverageTimeRange: { $ref: '#/$defs/stringField' },
         deliveryDeadlineText: { $ref: '#/$defs/stringField' },
+        deliveryDays: { $ref: '#/$defs/numberField' },
+        basePrice: { $ref: '#/$defs/numberField' },
       },
     },
     additionalServices: {
@@ -224,6 +244,7 @@ export const RECOVERY_JSON_SCHEMA = {
         notesRelevantToExecution: { $ref: '#/$defs/stringField' },
       },
     },
+    noteEligibleFacts: { $ref: '#/$defs/stringField' },
     documentWarnings: { type: 'array', items: { type: 'string' } },
   },
 }

@@ -50,6 +50,7 @@ interface RecoveryRow {
   failure_code: string | null
   failure_message: string | null
   wedding_updated_at_snapshot: string | null
+  related_state_snapshot?: Record<string, unknown> | null
   superseded_by_id: string | null
   applied_at: string | null
   created_at: string
@@ -66,6 +67,8 @@ interface PackageSnapshotRow {
   original_description: string | null
   included_items: unknown
   coverage_hours: number | string | null
+  base_price?: number | string | null
+  currency?: string | null
   delivery_deadline_text: string | null
   metadata: unknown
   created_at: string
@@ -117,6 +120,7 @@ function mapRecovery(row: RecoveryRow): WeddingContractRecovery {
     failureCode: row.failure_code as ContractRecoveryErrorCode | null,
     failureMessage: row.failure_message,
     weddingUpdatedAtSnapshot: row.wedding_updated_at_snapshot,
+    relatedStateSnapshot: row.related_state_snapshot ?? null,
     supersededById: row.superseded_by_id,
     appliedAt: row.applied_at,
     createdAt: row.created_at,
@@ -138,6 +142,8 @@ function mapPackageSnapshot(row: PackageSnapshotRow): WeddingContractPackageSnap
       : [],
     coverageHours:
       row.coverage_hours == null ? null : Number(row.coverage_hours),
+    basePrice: row.base_price == null ? null : Number(row.base_price),
+    currency: row.currency ?? null,
     deliveryDeadlineText: row.delivery_deadline_text,
     metadata:
       row.metadata && typeof row.metadata === 'object'
@@ -157,6 +163,15 @@ export const weddingContractRecoveryRepository = {
       .maybeSingle()
     throwOnError(error)
     return data?.updated_at ?? null
+  },
+
+  async getRelatedStateSnapshot(weddingId: string): Promise<Record<string, unknown>> {
+    const { data, error } = await supabase.rpc(
+      'wedding_contract_related_state_snapshot',
+      { p_wedding_id: weddingId },
+    )
+    throwOnError(error)
+    return (data && typeof data === 'object' ? data : {}) as Record<string, unknown>
   },
 
   async createSourceContract(input: {
@@ -223,6 +238,21 @@ export const weddingContractRecoveryRepository = {
     return (data as SourceContractRow[]).map(mapSourceContract)
   },
 
+  async findSourceContractByContentHash(
+    weddingId: string,
+    contentHash: string,
+  ): Promise<WeddingSourceContract | null> {
+    const { data, error } = await supabase
+      .from('wedding_source_contracts')
+      .select('*')
+      .eq('wedding_id', weddingId)
+      .eq('content_hash', contentHash)
+      .limit(1)
+      .maybeSingle()
+    throwOnError(error)
+    return data ? mapSourceContract(data as SourceContractRow) : null
+  },
+
   async getSourceContract(id: string): Promise<WeddingSourceContract | null> {
     const { data, error } = await supabase
       .from('wedding_source_contracts')
@@ -239,6 +269,7 @@ export const weddingContractRecoveryRepository = {
     extractionVersion: string
     promptVersion: string
     weddingUpdatedAtSnapshot: string | null
+    relatedStateSnapshot?: Record<string, unknown> | null
     supersededById?: string | null
   }): Promise<WeddingContractRecovery> {
     const userId = await requireStudioUserId()
@@ -252,6 +283,7 @@ export const weddingContractRecoveryRepository = {
         extraction_version: input.extractionVersion,
         prompt_version: input.promptVersion,
         wedding_updated_at_snapshot: input.weddingUpdatedAtSnapshot,
+        related_state_snapshot: input.relatedStateSnapshot ?? {},
         superseded_by_id: input.supersededById ?? null,
       })
       .select('*')
@@ -274,6 +306,7 @@ export const weddingContractRecoveryRepository = {
       failureCode: string | null
       failureMessage: string | null
       appliedAt: string | null
+      relatedStateSnapshot: Record<string, unknown> | null
       supersededById: string | null
     }>,
   ): Promise<void> {
@@ -291,6 +324,7 @@ export const weddingContractRecoveryRepository = {
         failure_code: patch.failureCode,
         failure_message: patch.failureMessage,
         applied_at: patch.appliedAt,
+        related_state_snapshot: patch.relatedStateSnapshot,
         superseded_by_id: patch.supersededById,
       })
       .eq('id', id)

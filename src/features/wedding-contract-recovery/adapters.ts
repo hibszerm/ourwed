@@ -18,6 +18,12 @@ export function adaptStoredExtraction(
   const pkg = extraction.contractedPackage ?? ({} as ContractRecoveryExtraction['contractedPackage'])
   return {
     ...extraction,
+    finances: {
+      ...extraction.finances,
+      travelStatus: extraction.finances?.travelStatus ?? emptyStringField(),
+      travelAmount: extraction.finances?.travelAmount ?? emptyNumberish(),
+    },
+    noteEligibleFacts: extraction.noteEligibleFacts ?? emptyStringField(),
     contractedPackage: {
       ...pkg,
       name: pkg.name ?? emptyStringField(),
@@ -26,6 +32,8 @@ export function adaptStoredExtraction(
       coverageHours: pkg.coverageHours ?? emptyNumberish(),
       coverageTimeRange: pkg.coverageTimeRange ?? emptyStringField(),
       deliveryDeadlineText: pkg.deliveryDeadlineText ?? emptyStringField(),
+      deliveryDays: pkg.deliveryDays ?? emptyNumberish(),
+      basePrice: pkg.basePrice ?? emptyNumberish(),
     },
   }
 }
@@ -47,6 +55,15 @@ export function adaptStoredProposal(
   const pkg = proposal.packageSnapshotProposal
   return {
     ...proposal,
+    extraProposals: (proposal.extraProposals ?? []).map((item, sourceIndex) => ({
+      ...item,
+      applicable: item.applicable ?? item.price != null,
+      sourceIndex: item.sourceIndex ?? sourceIndex,
+    })),
+    noteProposals: (proposal.noteProposals ?? []).map((item, sourceIndex) => ({
+      ...item,
+      sourceIndex: item.sourceIndex ?? sourceIndex,
+    })),
     packageSnapshotProposal: pkg
       ? {
           ...pkg,
@@ -54,6 +71,8 @@ export function adaptStoredProposal(
           coverageTimeRange: pkg.coverageTimeRange ?? null,
           deliveryDeadlineText: pkg.deliveryDeadlineText ?? null,
           coverageHours: pkg.coverageHours ?? null,
+          basePrice: pkg.basePrice ?? null,
+          currency: pkg.currency ?? null,
         }
       : null,
   }
@@ -64,6 +83,8 @@ export function adaptPackageSnapshotRow(
 ): WeddingContractPackageSnapshot {
   return {
     ...snapshot,
+    basePrice: snapshot.basePrice ?? null,
+    currency: snapshot.currency ?? null,
     includedItems: cleanupPackageIncludedItems(snapshot.includedItems ?? []),
     metadata: snapshot.metadata ?? {},
   }

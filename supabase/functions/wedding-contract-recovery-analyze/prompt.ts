@@ -29,13 +29,17 @@ rawValue:
 
 Package:
 - name = package title only.
+- basePrice = package/base price only when explicitly stated separately from total contract price.
 - includedItems = individual clean service bullets (one item per bullet), not one giant paragraph.
 - originalDescription = original package wording ONCE (do not duplicate the full item list inside every item).
 - Do not include unrelated legal boilerplate in originalDescription.
 
 Finances / otherTerms:
 - paymentTermsText = essential payment terms only (no bank account numbers).
-- otherTerms = execution-relevant notes only; skip generic legal boilerplate.`
+- travelStatus = "included" only for an explicit included/no-charge statement; "charged" only for an explicit charged travel fee. travelAmount must be the explicit fee amount, never estimated from route or locations.
+- deliveryDays = explicit relative number of days from the wedding date, only when stated in the source.
+- otherTerms = execution-relevant notes only; skip generic legal boilerplate.
+- noteEligibleFacts = short, concrete operational agreements with no structured OurWed field; return each fact on its own line; omit legal boilerplate and broad contract summaries.`
 
 export function buildUserPayload(input: {
   plainText: string

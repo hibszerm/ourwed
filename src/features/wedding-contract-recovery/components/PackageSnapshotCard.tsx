@@ -1,42 +1,5 @@
-import type { WeddingContractPackageSnapshot } from '../types'
+import type { PackageSnapshotCardModel } from './packageSnapshotAdapter'
 import styles from './PackageSnapshotCard.module.css'
-
-export type PackageSnapshotCardModel = {
-  name: string | null
-  originalDescription: string | null
-  includedItems: string[]
-  coverageHours: number | null
-  coverageTimeRange?: string | null
-  deliveryDeadlineText: string | null
-  sourceFileName?: string | null
-  createdAt?: string | null
-  includeToggle?: {
-    checked: boolean
-    onChange: (checked: boolean) => void
-  }
-  compact?: boolean
-}
-
-export function packageSnapshotFromRow(
-  snapshot: WeddingContractPackageSnapshot,
-  sourceFileName?: string | null,
-): PackageSnapshotCardModel {
-  const metadata = snapshot.metadata ?? {}
-  const coverageTimeRange =
-    typeof metadata.coverageTimeRange === 'string'
-      ? metadata.coverageTimeRange
-      : null
-  return {
-    name: snapshot.name,
-    originalDescription: snapshot.originalDescription,
-    includedItems: snapshot.includedItems,
-    coverageHours: snapshot.coverageHours,
-    coverageTimeRange,
-    deliveryDeadlineText: snapshot.deliveryDeadlineText,
-    sourceFileName: sourceFileName ?? null,
-    createdAt: snapshot.createdAt,
-  }
-}
 
 function formatDate(iso: string | null | undefined): string | null {
   if (!iso) return null
@@ -55,6 +18,7 @@ export function PackageSnapshotCard({
   const hasItems = model.includedItems.length > 0
   const hasConditions =
     model.coverageHours != null ||
+    model.basePrice != null ||
     Boolean(model.coverageTimeRange) ||
     Boolean(model.deliveryDeadlineText)
   const hasOriginal = Boolean(model.originalDescription?.trim())
@@ -91,6 +55,9 @@ export function PackageSnapshotCard({
           </p>
           {model.coverageHours != null ? (
             <p>Czas realizacji: {model.coverageHours} h</p>
+          ) : null}
+          {model.basePrice != null ? (
+            <p>Cena bazowa: {model.basePrice} {model.currency ?? 'PLN'}</p>
           ) : null}
           {model.deliveryDeadlineText ? (
             <p>Termin dostawy: {model.deliveryDeadlineText}</p>
@@ -131,6 +98,9 @@ export function PackageSnapshotCard({
             <section className={styles.section}>
               <h4 className={styles.sectionTitle}>Warunki realizacji</h4>
               <dl className={styles.conditions}>
+                {model.basePrice != null ? (
+                  <><dt>Cena bazowa</dt><dd>{model.basePrice} {model.currency ?? 'PLN'}</dd></>
+                ) : null}
                 {model.coverageHours != null ? (
                   <>
                     <dt>Czas realizacji</dt>

@@ -1,12 +1,11 @@
 import { documentStorage } from '@/lib/api/documents/storage'
+import { supabase } from '@/lib/supabase'
 import { weddingService } from '@/lib/api/weddingService'
-import { weddingPlaceService } from '@/lib/api/weddingPlaceService'
-import { persistWeddingContractAnswerFields } from '@/lib/forms/persistWeddingContractAnswers'
 import { createBrowserSafeId } from '@/lib/utils/createBrowserSafeId'
 import { hashBytes } from '@/features/documents/ai/hash'
 import { requireStudioUserId } from '@/lib/api/ownership'
 import { analyzeWeddingContractRecovery } from './analyzeApi'
-import { buildRecoveryProposal, applyDecisionsToProposal, APPLYABLE_FIELD_KEYS } from './buildComparisonProposal'
+import { buildRecoveryProposal } from './buildComparisonProposal'
 import {
   WEDDING_CONTRACT_RECOVERY_PROMPT_VERSION,
   WEDDING_CONTRACT_RECOVERY_VERSION,
@@ -40,6 +39,11 @@ export async function uploadAndStartRecovery(
   const bytes = await file.arrayBuffer()
   const contentHash = await hashBytes(bytes)
   const userId = await requireStudioUserId()
+  const existingSource = await weddingContractRecoveryRepository.findSourceContractByContentHash(
+    weddingId,
+    contentHash,
+  )
+  if (existingSource) throw new ContractRecoveryError('CONTRACT_RECOVERY_DUPLICATE_SOURCE')
 
   const sourceContractId = createBrowserSafeId()
   const storedFileName = sanitizeStoredFileName(file.name, validation.extension)
@@ -64,6 +68,7 @@ export async function uploadAndStartRecovery(
   })
 
   const weddingUpdatedAt = await weddingContractRecoveryRepository.getWeddingUpdatedAt(weddingId)
+  const relatedStateSnapshot = await weddingContractRecoveryRepository.getRelatedStateSnapshot(weddingId)
 
   const recovery = await weddingContractRecoveryRepository.createRecovery({
     weddingId,
@@ -71,6 +76,7 @@ export async function uploadAndStartRecovery(
     extractionVersion: WEDDING_CONTRACT_RECOVERY_VERSION,
     promptVersion: WEDDING_CONTRACT_RECOVERY_PROMPT_VERSION,
     weddingUpdatedAtSnapshot: weddingUpdatedAt,
+    relatedStateSnapshot,
   })
 
   return { sourceContract, recovery }
@@ -184,6 +190,7 @@ export async function reanalyzeSourceContract(
   const weddingUpdatedAt = await weddingContractRecoveryRepository.getWeddingUpdatedAt(
     sourceContract.weddingId,
   )
+  const relatedStateSnapshot = await weddingContractRecoveryRepository.getRelatedStateSnapshot(sourceContract.weddingId)
 
   const recovery = await weddingContractRecoveryRepository.createRecovery({
     weddingId: sourceContract.weddingId,
@@ -191,7 +198,7 @@ export async function reanalyzeSourceContract(
     extractionVersion: WEDDING_CONTRACT_RECOVERY_VERSION,
     promptVersion: WEDDING_CONTRACT_RECOVERY_PROMPT_VERSION,
     weddingUpdatedAtSnapshot: weddingUpdatedAt,
-    supersededById: previous?.id ?? null,
+    relatedStateSnapshot,
   })
 
   if (previous) {
@@ -206,266 +213,46 @@ export async function reanalyzeSourceContract(
 export async function applyWeddingContractRecoveryProposal(
   input: RecoveryApplyInput,
 ): Promise<RecoveryApplyResult> {
-  const recovery = await weddingContractRecoveryRepository.getRecovery(input.recoveryId)
-  if (!recovery) throw new ContractRecoveryError('CONTRACT_RECOVERY_NOT_FOUND')
-  if (recovery.status === 'applied') {
-    throw new ContractRecoveryError('CONTRACT_RECOVERY_ALREADY_APPLIED')
-  }
-  if (recovery.status !== 'ready_for_review') {
+  const { data, error } = await supabase.rpc(
+    'apply_wedding_contract_recovery',
+    {
+      p_recovery_id: input.recoveryId,
+      p_source_contract_id: input.sourceContractId,
+      p_wedding_id: input.weddingId,
+      p_expected_wedding_updated_at: input.expectedWeddingUpdatedAt,
+      p_decisions: input.decisions,
+      p_include_package: input.includePackageSnapshot,
+      p_selected_extra_indexes: input.selectedExtraIndexes ?? [],
+      p_selected_note_indexes: input.selectedNoteIndexes ?? [],
+    },
+  )
+  if (error) {
+    const message = String(error.message ?? '')
+    if (message.includes('CONTRACT_RECOVERY_WEDDING_CHANGED')) {
+      throw new ContractRecoveryError('CONTRACT_RECOVERY_WEDDING_CHANGED')
+    }
+    if (message.includes('CONTRACT_RECOVERY_ALREADY_APPLIED')) {
+      throw new ContractRecoveryError('CONTRACT_RECOVERY_ALREADY_APPLIED')
+    }
+    if (message.includes('CONTRACT_RECOVERY_UNAUTHORIZED')) {
+      throw new ContractRecoveryError('CONTRACT_RECOVERY_UNAUTHORIZED')
+    }
     throw new ContractRecoveryError('CONTRACT_RECOVERY_NOT_FOUND')
   }
-
-  const wedding = await weddingService.getById(input.weddingId)
-  if (!wedding) throw new ContractRecoveryError('CONTRACT_RECOVERY_NOT_FOUND')
-
-  if (
-    recovery.weddingUpdatedAtSnapshot &&
-    (await weddingContractRecoveryRepository.getWeddingUpdatedAt(input.weddingId)) !==
-      recovery.weddingUpdatedAtSnapshot
-  ) {
-    throw new ContractRecoveryError('CONTRACT_RECOVERY_WEDDING_CHANGED')
+  const result = (data ?? {}) as {
+    appliedFieldKeys?: unknown
+    skippedFieldKeys?: unknown
+    packageSnapshotId?: unknown
   }
-
-  const proposal = applyDecisionsToProposal(
-    recovery.comparisonProposal!,
-    input.decisions,
-    input.includePackageSnapshot,
-  )
-
-  await weddingContractRecoveryRepository.updateRecovery(input.recoveryId, {
-    status: 'applying',
-  })
-
-  const appliedFieldKeys: string[] = []
-  const skippedFieldKeys: string[] = []
-  const auditRows: Array<{
-    fieldKey: string
-    action: string
-    previousValue: unknown
-    approvedValue: unknown
-  }> = []
-
-  const weddingPatch = { ...wedding }
-  const locationUpdates: Array<{ role: 'ceremony' | 'reception' | 'bride_preparation' | 'groom_preparation'; text: string }> = []
-
-  for (const field of proposal.fields) {
-    if (!APPLYABLE_FIELD_KEYS.has(field.fieldKey)) continue
-    if (field.selectedAction !== 'use_extracted') {
-      skippedFieldKeys.push(field.fieldKey)
-      auditRows.push({
-        fieldKey: field.fieldKey,
-        action: field.selectedAction,
-        previousValue: field.currentValue,
-        approvedValue: null,
-      })
-      continue
-    }
-
-    const value = field.normalizedExtractedValue
-    auditRows.push({
-      fieldKey: field.fieldKey,
-      action: 'use_extracted',
-      previousValue: field.currentValue,
-      approvedValue: value,
-    })
-    appliedFieldKeys.push(field.fieldKey)
-
-    switch (field.fieldKey) {
-      case 'partner1.fullName':
-        weddingPatch.couple = {
-          ...weddingPatch.couple,
-          partner1: String(value ?? ''),
-        }
-        break
-      case 'partner1.firstName':
-        weddingPatch.couple = {
-          ...weddingPatch.couple,
-          partner1FirstName: String(value ?? ''),
-        }
-        break
-      case 'partner1.lastName':
-        weddingPatch.couple = {
-          ...weddingPatch.couple,
-          partner1LastName: String(value ?? ''),
-        }
-        break
-      case 'partner2.fullName':
-        weddingPatch.couple = {
-          ...weddingPatch.couple,
-          partner2: String(value ?? ''),
-        }
-        break
-      case 'partner2.firstName':
-        weddingPatch.couple = {
-          ...weddingPatch.couple,
-          partner2FirstName: String(value ?? ''),
-        }
-        break
-      case 'partner2.lastName':
-        weddingPatch.couple = {
-          ...weddingPatch.couple,
-          partner2LastName: String(value ?? ''),
-        }
-        break
-      case 'partner1.email':
-        weddingPatch.couple = {
-          ...weddingPatch.couple,
-          partner1Email: String(value ?? ''),
-          email: String(value ?? ''),
-        }
-        break
-      case 'partner1.phone':
-        weddingPatch.couple = {
-          ...weddingPatch.couple,
-          partner1Phone: String(value ?? ''),
-          phone: String(value ?? ''),
-        }
-        break
-      case 'partner1.addressLine':
-        weddingPatch.couple = {
-          ...weddingPatch.couple,
-          partner1Address: String(value ?? ''),
-        }
-        break
-      case 'partner1.postalCode':
-        weddingPatch.couple = {
-          ...weddingPatch.couple,
-          partner1PostalCode: String(value ?? ''),
-        }
-        break
-      case 'partner1.city':
-        weddingPatch.couple = {
-          ...weddingPatch.couple,
-          partner1City: String(value ?? ''),
-          city: String(value ?? ''),
-        }
-        break
-      case 'partner2.email':
-        weddingPatch.couple = {
-          ...weddingPatch.couple,
-          partner2Email: String(value ?? ''),
-        }
-        break
-      case 'partner2.phone':
-        weddingPatch.couple = {
-          ...weddingPatch.couple,
-          partner2Phone: String(value ?? ''),
-        }
-        break
-      case 'wedding.date':
-        weddingPatch.date = String(value ?? '')
-        break
-      case 'wedding.ceremonyTime':
-        weddingPatch.ceremonyTime = String(value ?? '')
-        break
-      case 'location.ceremony':
-        weddingPatch.ceremonyLocation = String(value ?? '')
-        locationUpdates.push({ role: 'ceremony', text: String(value ?? '') })
-        break
-      case 'location.reception':
-        weddingPatch.receptionLocation = String(value ?? '')
-        locationUpdates.push({ role: 'reception', text: String(value ?? '') })
-        break
-      case 'location.bridePreparation':
-        weddingPatch.bridePreparationLocation = String(value ?? '')
-        locationUpdates.push({ role: 'bride_preparation', text: String(value ?? '') })
-        break
-      case 'location.groomPreparation':
-        weddingPatch.groomPreparationLocation = String(value ?? '')
-        locationUpdates.push({ role: 'groom_preparation', text: String(value ?? '') })
-        break
-      case 'finances.contractValue':
-        weddingPatch.price = Number(value ?? 0)
-        break
-      case 'finances.depositAmount':
-        weddingPatch.depositAmount = Number(value ?? 0)
-        break
-      case 'finances.currency':
-        weddingPatch.currency = String(value ?? 'PLN')
-        break
-      case 'finances.finalPaymentDueDate':
-        weddingPatch.finalPaymentDueDate = String(value ?? '')
-        break
-      case 'package.name':
-        weddingPatch.packageName = String(value ?? '')
-        break
-      default:
-        break
-    }
-  }
-
-  try {
-    await weddingService.update(weddingPatch)
-    await persistWeddingContractAnswerFields(weddingPatch)
-
-    if (locationUpdates.length > 0) {
-      const locMap = {
-        ceremony: weddingPatch.ceremonyLocation,
-        reception: weddingPatch.receptionLocation,
-        bridePreparation: weddingPatch.bridePreparationLocation,
-        groomPreparation: weddingPatch.groomPreparationLocation,
-      }
-      await weddingPlaceService.syncCoreFromText(wedding.id, locMap)
-    }
-
-    let packageSnapshotId: string | null = null
-    if (
-      proposal.packageSnapshotProposal &&
-      proposal.packageSnapshotProposal.selectedAction === 'use_extracted'
-    ) {
-      const snap = await weddingContractRecoveryRepository.createPackageSnapshot({
-        weddingId: wedding.id,
-        sourceContractId: input.sourceContractId,
-        recoveryId: input.recoveryId,
-        name: proposal.packageSnapshotProposal.name,
-        originalDescription: proposal.packageSnapshotProposal.originalDescription,
-        includedItems: proposal.packageSnapshotProposal.includedItems,
-        coverageHours: proposal.packageSnapshotProposal.coverageHours,
-        deliveryDeadlineText: proposal.packageSnapshotProposal.deliveryDeadlineText,
-        metadata: {
-          source: 'contract_recovery',
-          coverageTimeRange: proposal.packageSnapshotProposal.coverageTimeRange,
-          recoveryVersion: proposal.version,
-        },
-      })
-      packageSnapshotId = snap.id
-
-      const items = proposal.packageSnapshotProposal.includedItems.map((title, index) => ({
-        sourceItemId: null,
-        title,
-        description: null,
-        sortOrder: index,
-        enabled: true,
-      }))
-      await weddingService.update({
-        ...weddingPatch,
-        packageItems: items,
-        coverageHours: proposal.packageSnapshotProposal.coverageHours,
-      })
-    }
-
-    await weddingContractRecoveryRepository.insertDecisions(input.recoveryId, auditRows)
-
-    const appliedAt = new Date().toISOString()
-    await weddingContractRecoveryRepository.updateRecovery(input.recoveryId, {
-      status: 'applied',
-      appliedAt,
-      comparisonProposal: proposal,
-    })
-    await weddingContractRecoveryRepository.updateSourceContract(input.sourceContractId, {
-      status: 'applied',
-    })
-
-    return {
-      appliedFieldKeys,
-      packageSnapshotId,
-      skippedFieldKeys,
-    }
-  } catch (err) {
-    await weddingContractRecoveryRepository.updateRecovery(input.recoveryId, {
-      status: 'ready_for_review',
-    })
-    throw err
+  return {
+    appliedFieldKeys: Array.isArray(result.appliedFieldKeys)
+      ? result.appliedFieldKeys.filter((key): key is string => typeof key === 'string')
+      : [],
+    skippedFieldKeys: Array.isArray(result.skippedFieldKeys)
+      ? result.skippedFieldKeys.filter((key): key is string => typeof key === 'string')
+      : [],
+    packageSnapshotId:
+      typeof result.packageSnapshotId === 'string' ? result.packageSnapshotId : null,
   }
 }
 

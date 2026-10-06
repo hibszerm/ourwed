@@ -10,6 +10,7 @@ export type ContractRecoveryErrorCode =
   | 'CONTRACT_RECOVERY_ALREADY_APPLIED'
   | 'CONTRACT_RECOVERY_WEDDING_CHANGED'
   | 'CONTRACT_RECOVERY_UNAUTHORIZED'
+  | 'CONTRACT_RECOVERY_DUPLICATE_SOURCE'
 
 const USER_MESSAGES: Record<ContractRecoveryErrorCode, string> = {
   CONTRACT_RECOVERY_UNSUPPORTED_FILE:
@@ -32,6 +33,8 @@ const USER_MESSAGES: Record<ContractRecoveryErrorCode, string> = {
   CONTRACT_RECOVERY_WEDDING_CHANGED:
     'Dane ślubu zmieniły się od czasu przygotowania podglądu. Odśwież porównanie.',
   CONTRACT_RECOVERY_UNAUTHORIZED: 'Brak dostępu do tego zasobu.',
+  CONTRACT_RECOVERY_DUPLICATE_SOURCE:
+    'Ta sama umowa jest już dodana do tego zlecenia. Otwórz istniejący dokument źródłowy.',
 }
 
 export class ContractRecoveryError extends Error {

@@ -17,7 +17,7 @@ type FieldDef = {
   sectionKey: RecoverySectionKey
   label: string
   getCurrent: (wedding: Wedding) => string | number | null
-  getExtracted: (extraction: ContractRecoveryExtraction) => string | number | null
+  getExtracted: (extraction: ContractRecoveryExtraction, wedding: Wedding) => string | number | null
   comparable?: boolean
 }
 
@@ -128,6 +128,10 @@ function resolveExtractedMeta(
       return pickString(extraction.finances.finalPaymentDueDate)
     case 'finances.paymentTermsText':
       return pickString(extraction.finances.paymentTermsText)
+    case 'finances.travelStatus':
+      return pickString(extraction.finances.travelStatus)
+    case 'finances.travelAmount':
+      return pickNumber(extraction.finances.travelAmount)
     case 'package.name':
       return pickString(extraction.contractedPackage.name)
     case 'document.signingDate':
@@ -145,7 +149,7 @@ function buildFieldComparison(
   extraction: ContractRecoveryExtraction,
 ): RecoveryFieldComparison {
   const currentValue = def.getCurrent(wedding)
-  const extractedValue = def.getExtracted(extraction)
+  const extractedValue = def.getExtracted(extraction, wedding)
   let state = compareValues(currentValue, extractedValue)
 
   const meta = resolveExtractedMeta(extraction, def.fieldKey)
@@ -155,6 +159,19 @@ function buildFieldComparison(
 
   if (meta.value == null && meta.rawValue) {
     state = 'invalid_extracted'
+  }
+
+  if (def.fieldKey === 'finances.travelStatus' && extraction.finances.travelStatus.value === 'charged' && extraction.finances.travelAmount.value == null) {
+    state = 'invalid_extracted'
+    warnings.push('Nie podano jednoznacznej kwoty opłaty za dojazd.')
+  }
+  if (def.fieldKey === 'finances.travelStatus' && extraction.finances.travelStatus.value === 'charged' && (extraction.finances.travelAmount.value ?? 0) <= 0) {
+    state = 'invalid_extracted'
+    warnings.push('Opłata za dojazd musi mieć dodatnią kwotę.')
+  }
+  if (def.fieldKey === 'finances.travelAmount' && extraction.finances.travelAmount.value != null && extraction.finances.travelStatus.value !== 'charged') {
+    state = 'invalid_extracted'
+    warnings.push('Kwota dojazdu bez potwierdzonej opłaty nie zostanie zapisana.')
   }
 
   if (def.comparable === false) state = 'unsupported'
@@ -197,6 +214,7 @@ const FIELD_DEFS: FieldDef[] = [
       splitPersonName(w.couple.partner1).first ||
       null,
     getExtracted: (e) => e.clients.partner1.firstName.value,
+    comparable: false,
   },
   {
     fieldKey: 'partner1.lastName',
@@ -207,6 +225,7 @@ const FIELD_DEFS: FieldDef[] = [
       splitPersonName(w.couple.partner1).last ||
       null,
     getExtracted: (e) => e.clients.partner1.lastName.value,
+    comparable: false,
   },
   {
     fieldKey: 'partner2.fullName',
@@ -227,6 +246,7 @@ const FIELD_DEFS: FieldDef[] = [
           splitPersonName(w.couple.partner2).first ||
           null,
     getExtracted: (e) => e.clients.partner2.firstName.value,
+    comparable: false,
   },
   {
     fieldKey: 'partner2.lastName',
@@ -239,6 +259,7 @@ const FIELD_DEFS: FieldDef[] = [
           splitPersonName(w.couple.partner2).last ||
           null,
     getExtracted: (e) => e.clients.partner2.lastName.value,
+    comparable: false,
   },
   {
     fieldKey: 'partner1.email',
@@ -281,6 +302,7 @@ const FIELD_DEFS: FieldDef[] = [
     label: 'E-mail klienta 2',
     getCurrent: (w) => w.couple.partner2Email?.trim() || null,
     getExtracted: (e) => e.clients.partner2.email.value,
+    comparable: false,
   },
   {
     fieldKey: 'partner2.phone',
@@ -302,6 +324,22 @@ const FIELD_DEFS: FieldDef[] = [
     label: 'Godzina ceremonii',
     getCurrent: (w) => w.ceremonyTime?.trim() || null,
     getExtracted: (e) => e.wedding.ceremonyTime.value,
+  },
+  {
+    fieldKey: 'delivery.dueDate',
+    sectionKey: 'wedding',
+    label: 'Termin oddania materiałów',
+    getCurrent: (w) => w.deliveryDueDate ?? null,
+    getExtracted: (e, w) => {
+      const days = e.contractedPackage.deliveryDays.value
+      const weddingDate = w.date || e.wedding.weddingDate.value
+      if (w.date && e.wedding.weddingDate.value && w.date !== e.wedding.weddingDate.value) return null
+      if (days == null || !weddingDate || !Number.isInteger(days) || days < 0) return null
+      const date = new Date(`${weddingDate}T00:00:00Z`)
+      if (!Number.isFinite(date.getTime())) return null
+      date.setUTCDate(date.getUTCDate() + days)
+      return date.toISOString().slice(0, 10)
+    },
   },
   {
     fieldKey: 'location.ceremony',
@@ -366,7 +404,21 @@ const FIELD_DEFS: FieldDef[] = [
     label: 'Warunki płatności',
     getCurrent: () => null,
     getExtracted: (e) => e.finances.paymentTermsText.value,
-    comparable: true,
+    comparable: false,
+  },
+  {
+    fieldKey: 'finances.travelStatus',
+    sectionKey: 'finances',
+    label: 'Dojazd z umowy',
+    getCurrent: (w) => w.travelFeeStatus && w.travelFeeStatus !== 'unresolved' ? w.travelFeeStatus : null,
+    getExtracted: (e) => e.finances.travelStatus.value,
+  },
+  {
+    fieldKey: 'finances.travelAmount',
+    sectionKey: 'finances',
+    label: 'Opłata za dojazd',
+    getCurrent: (w) => w.travelFeeStatus === 'charged' ? w.travelFeeAmount ?? null : null,
+    getExtracted: (e) => e.finances.travelAmount.value,
   },
   {
     fieldKey: 'package.name',
@@ -381,7 +433,7 @@ const FIELD_DEFS: FieldDef[] = [
     label: 'Data podpisania umowy',
     getCurrent: () => null,
     getExtracted: (e) => e.document.signingDate.value,
-    comparable: true,
+    comparable: false,
   },
   {
     fieldKey: 'document.contractNumber',
@@ -389,7 +441,7 @@ const FIELD_DEFS: FieldDef[] = [
     label: 'Numer umowy',
     getCurrent: () => null,
     getExtracted: (e) => e.document.contractNumber.value,
-    comparable: true,
+    comparable: false,
   },
 ]
 
@@ -418,13 +470,15 @@ function summarizeSection(
     (f) => f.state === 'different' || f.state === 'missing_current',
   )
 
-  let status: RecoverySectionSummary['status'] = 'missing'
-  if (valid.length === 0) status = 'missing'
-  else if (needsReview.length > 0) status = 'review'
-  else if (withExtracted.length > valid.length) status = 'partial'
-  else if (valid.every((f) => f.state === 'same' || f.state === 'missing_extracted'))
-    status = 'found'
-  else status = 'partial'
+  const status: RecoverySectionSummary['status'] = valid.length === 0
+    ? 'missing'
+    : needsReview.length > 0
+      ? 'review'
+      : withExtracted.length > valid.length
+        ? 'partial'
+        : valid.every((f) => f.state === 'same' || f.state === 'missing_extracted')
+          ? 'found'
+          : 'partial'
 
   return {
     sectionKey,
@@ -449,7 +503,8 @@ export function buildRecoveryProposal(
   const hasPackageContent =
     Boolean(extraction.contractedPackage.name.value) ||
     Boolean(extraction.contractedPackage.originalDescription.value) ||
-    packageItems.length > 0
+    packageItems.length > 0 || extraction.contractedPackage.basePrice.value != null ||
+    extraction.contractedPackage.coverageHours.value != null || Boolean(extraction.contractedPackage.deliveryDeadlineText.value)
 
   const packageSnapshotProposal = hasPackageContent
     ? {
@@ -460,9 +515,28 @@ export function buildRecoveryProposal(
         coverageTimeRange: extraction.contractedPackage.coverageTimeRange?.value ?? null,
         deliveryDeadlineText:
           extraction.contractedPackage.deliveryDeadlineText?.value ?? null,
+        basePrice: extraction.contractedPackage.basePrice.value,
+        currency: extraction.finances.currency.value,
         selectedAction: 'use_extracted' as RecoveryDecisionAction,
       }
     : null
+  const extraProposals = extraction.additionalServices
+    .map((extra, sourceIndex) => ({
+      sourceIndex,
+      name: extra.name.trim(),
+      description: extra.description,
+      price: extra.price,
+      currency: extra.currency || wedding.currency || 'PLN',
+      applicable: extra.price != null && Number.isFinite(extra.price) && extra.price >= 0 &&
+        (!extra.currency || extra.currency === (wedding.currency || 'PLN')),
+      selected: Boolean(extra.name.trim()) && extra.price != null &&
+        (!extra.currency || extra.currency === (wedding.currency || 'PLN')),
+    }))
+    .filter((extra) => extra.name.length > 0)
+  const noteProposals = (extraction.noteEligibleFacts.value ?? '')
+    .split('\n')
+    .map((raw, sourceIndex) => ({ text: raw.trim(), sourceIndex, selected: true }))
+    .filter((item) => item.text)
 
   const toUpdate = fields.filter((f) => f.selectedAction === 'use_extracted').length
   const unchanged = fields.filter((f) => f.state === 'same').length
@@ -487,6 +561,8 @@ export function buildRecoveryProposal(
     fields,
     sections: sectionKeys.map((key) => summarizeSection(key, fields)),
     packageSnapshotProposal,
+    extraProposals,
+    noteProposals,
     summary: {
       toUpdate: toUpdate + (packageSnapshotProposal ? 1 : 0),
       unchanged,
@@ -523,7 +599,23 @@ export function applyDecisionsToProposal(
           ? ('use_extracted' as RecoveryDecisionAction)
           : ('skip' as RecoveryDecisionAction),
       }
-    : null
+      : null
+  const extraProposals = (proposal.extraProposals ?? []).map((extra, index) => ({
+    ...extra,
+    selected: decisions.find((decision) => decision.fieldKey === `extra.${index}`)?.action === 'use_extracted'
+      ? true
+      : decisions.find((decision) => decision.fieldKey === `extra.${index}`)?.action === 'skip'
+        ? false
+        : extra.selected,
+  }))
+  const noteProposals = (proposal.noteProposals ?? []).map((note, index) => ({
+    ...note,
+    selected: decisions.find((decision) => decision.fieldKey === `note.${index}`)?.action === 'use_extracted'
+      ? true
+      : decisions.find((decision) => decision.fieldKey === `note.${index}`)?.action === 'skip'
+        ? false
+        : note.selected,
+  }))
 
   const toUpdate = fields.filter((f) => f.selectedAction === 'use_extracted').length
   const unchanged = fields.filter((f) => f.state === 'same').length
@@ -536,6 +628,8 @@ export function applyDecisionsToProposal(
     ...proposal,
     fields,
     packageSnapshotProposal,
+    extraProposals,
+    noteProposals,
     summary: {
       toUpdate: toUpdate + (packageSnapshotProposal?.selectedAction === 'use_extracted' ? 1 : 0),
       unchanged,

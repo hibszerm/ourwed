@@ -1,4 +1,3 @@
-import { confidenceLabel } from '../normalizeExtraction'
 import type { RecoveryFieldComparison, RecoverySectionSummary } from '../types'
 import type { FieldEvidenceRef, SharedEvidenceSource } from '../groupSectionEvidence'
 import styles from './RecoveryFieldComparisonRow.module.css'
@@ -29,11 +28,13 @@ export function RecoveryFieldComparisonRow({
   field,
   evidenceRef,
   sharedSources,
+  interactionDisabled = false,
   onActionChange,
 }: {
   field: RecoveryFieldComparison
   evidenceRef?: FieldEvidenceRef
   sharedSources?: SharedEvidenceSource[]
+  interactionDisabled?: boolean
   onActionChange: (action: RecoveryFieldComparison['selectedAction']) => void
 }) {
   const disabled =
@@ -41,6 +42,7 @@ export function RecoveryFieldComparisonRow({
     field.state === 'missing_extracted' ||
     field.state === 'unsupported' ||
     field.state === 'same'
+    || interactionDisabled
 
   const shared =
     evidenceRef?.sharedSourceId && sharedSources
@@ -59,26 +61,25 @@ export function RecoveryFieldComparisonRow({
 
       <div className={styles.columns}>
         <div>
-          <p className={styles.colLabel}>Obecna wartość</p>
+          <p className={styles.colLabel}>Obecnie</p>
           <p className={styles.value}>{formatValue(field.currentValue)}</p>
         </div>
         <div>
-          <p className={styles.colLabel}>W umowie</p>
+          <p className={styles.colLabel}>Po zmianie</p>
           <p className={styles.value}>{formatValue(field.extractedValue)}</p>
         </div>
       </div>
 
-      {field.confidence != null ? (
-        <p className={styles.confidence}>{confidenceLabel(field.confidence)}</p>
-      ) : null}
-
       {shared ? (
-        <p className={styles.sourceRef}>{shared.label}</p>
+        <details className={styles.evidence}><summary>Pokaż fragment umowy · {shared.label}</summary><blockquote><p>{shared.quote}</p>{shared.page ? <footer>Strona {shared.page}</footer> : null}</blockquote></details>
       ) : uniqueEvidence ? (
-        <blockquote className={styles.evidence}>
-          <p>{uniqueEvidence.quote}</p>
-          {uniqueEvidence.page ? <footer>Strona {uniqueEvidence.page}</footer> : null}
-        </blockquote>
+        <details className={styles.evidence}>
+          <summary>Pokaż fragment umowy</summary>
+          <blockquote>
+            <p>{uniqueEvidence.quote}</p>
+            {uniqueEvidence.page ? <footer>Strona {uniqueEvidence.page}</footer> : null}
+          </blockquote>
+        </details>
       ) : null}
 
       {field.warnings.length > 0 ? (
@@ -93,22 +94,17 @@ export function RecoveryFieldComparisonRow({
         <div className={styles.actions}>
           <label className={styles.choice}>
             <input
-              type="radio"
-              name={`action-${field.fieldKey}`}
-              checked={field.selectedAction === 'keep_current'}
-              onChange={() => onActionChange('keep_current')}
-            />
-            Zachowaj obecną wartość
-          </label>
-          <label className={styles.choice}>
-            <input
-              type="radio"
-              name={`action-${field.fieldKey}`}
+              type="checkbox"
               checked={field.selectedAction === 'use_extracted'}
-              onChange={() => onActionChange('use_extracted')}
+              onChange={(event) => onActionChange(event.target.checked
+                ? 'use_extracted'
+                : field.state === 'different' ? 'keep_current' : 'skip')}
             />
-            Użyj wartości z umowy
+            Zastosuj tę zmianę
           </label>
+          {field.state === 'different' && field.selectedAction !== 'use_extracted' ? (
+            <p className={styles.sourceRef}>Inna wartość w zleceniu</p>
+          ) : null}
         </div>
       ) : null}
     </article>

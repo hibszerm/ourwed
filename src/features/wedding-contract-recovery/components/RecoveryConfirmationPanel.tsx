@@ -182,9 +182,31 @@ export function RecoveryConfirmationPanel({
             coverageHours: packageModel.coverageHours,
             coverageTimeRange: packageModel.coverageTimeRange,
             deliveryDeadlineText: packageModel.deliveryDeadlineText,
+            basePrice: packageModel.basePrice,
+            currency: packageModel.currency,
             sourceFileName,
           }}
         />
+      ) : null}
+
+      {(proposal.extraProposals ?? []).some((item) => item.selected) ? (
+        <section className={styles.block}>
+          <h3 className={styles.blockTitle}>Dodatkowe usługi</h3>
+          <ul className={styles.plainList}>
+            {proposal.extraProposals.filter((item) => item.selected).map((item, index) => (
+              <li key={`${item.name}-${index}`}>{item.name}{item.price == null ? '' : ` — ${item.price} ${item.currency}`}</li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      {(proposal.noteProposals ?? []).some((item) => item.selected) ? (
+        <section className={styles.block}>
+          <h3 className={styles.blockTitle}>Notatka „Ustalenia z umowy źródłowej”</h3>
+          <ul className={styles.plainList}>
+            {proposal.noteProposals.filter((item) => item.selected).map((item, index) => <li key={`${item.text}-${index}`}>{item.text}</li>)}
+          </ul>
+        </section>
       ) : null}
 
       <section className={styles.block}>

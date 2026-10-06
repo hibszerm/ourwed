@@ -75,6 +75,8 @@ export type ContractRecoveryExtraction = {
     remainingAmount: ExtractedField<number>
     finalPaymentDueDate: ExtractedField<string>
     paymentTermsText: ExtractedField<string>
+    travelStatus: ExtractedField<'included' | 'charged'>
+    travelAmount: ExtractedField<number>
   }
   contractedPackage: {
     name: ExtractedField<string>
@@ -87,6 +89,8 @@ export type ContractRecoveryExtraction = {
     coverageHours: ExtractedField<number>
     coverageTimeRange: ExtractedField<string>
     deliveryDeadlineText: ExtractedField<string>
+    deliveryDays: ExtractedField<number>
+    basePrice: ExtractedField<number>
   }
   additionalServices: Array<{
     name: string
@@ -102,6 +106,7 @@ export type ContractRecoveryExtraction = {
     cancellationTerms: ExtractedField<string>
     notesRelevantToExecution: ExtractedField<string>
   }
+  noteEligibleFacts: ExtractedField<string>
   documentWarnings: string[]
 }
 
@@ -158,8 +163,20 @@ export type RecoveryProposal = {
     coverageHours: number | null
     coverageTimeRange: string | null
     deliveryDeadlineText: string | null
+    basePrice: number | null
+    currency: string | null
     selectedAction: RecoveryDecisionAction
   } | null
+  extraProposals: Array<{
+    name: string
+    description: string | null
+    price: number | null
+    currency: string
+    applicable: boolean
+    selected: boolean
+    sourceIndex: number
+  }>
+  noteProposals: Array<{ text: string; selected: boolean; sourceIndex: number }>
   summary: {
     toUpdate: number
     unchanged: number
@@ -221,6 +238,7 @@ export type WeddingContractRecovery = {
   failureCode: ContractRecoveryErrorCode | null
   failureMessage: string | null
   weddingUpdatedAtSnapshot: string | null
+  relatedStateSnapshot: Record<string, unknown> | null
   supersededById: string | null
   appliedAt: string | null
   createdAt: string
@@ -237,6 +255,8 @@ export type WeddingContractPackageSnapshot = {
   originalDescription: string | null
   includedItems: string[]
   coverageHours: number | null
+  basePrice: number | null
+  currency: string | null
   deliveryDeadlineText: string | null
   metadata: Record<string, unknown>
   createdAt: string
@@ -255,6 +275,8 @@ export type RecoveryApplyInput = {
   decisions: RecoveryApplyDecision[]
   includePackageSnapshot: boolean
   expectedWeddingUpdatedAt: string
+  selectedExtraIndexes?: number[]
+  selectedNoteIndexes?: number[]
 }
 
 export type RecoveryApplyResult = {
