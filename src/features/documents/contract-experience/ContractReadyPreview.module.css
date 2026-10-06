@@ -41,6 +41,12 @@
   gap: 0.4rem;
 }
 
+.downloads {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
 .note {
   display: flex;
   align-items: flex-start;
@@ -88,6 +94,104 @@
   .noteIcon {
     width: 16px;
     height: 16px;
+  }
+
+  .wrap[data-chrome='full'] {
+    gap: var(--space-3);
+  }
+
+  .wrap[data-chrome='full'] .header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-2);
+  }
+
+  .wrap[data-chrome='full'] .eyebrow {
+    display: none;
+  }
+
+  .wrap[data-chrome='full'] .header h2 {
+    margin: 0;
+    font-size: var(--text-lg);
+    line-height: 1.3;
+  }
+
+  .wrap[data-chrome='full'] .fileName {
+    margin-top: var(--space-1);
+    overflow-wrap: anywhere;
+    line-height: 1.4;
+  }
+
+  .wrap[data-chrome='full'] .actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-2);
+    width: 100%;
+  }
+
+  .wrap[data-chrome='full'] .downloads {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+    gap: var(--space-2);
+    width: 100%;
+  }
+
+  .wrap[data-chrome='full'] .downloads > :global(button),
+  .wrap[data-chrome='full'] .downloads > :global(div) {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .wrap[data-chrome='full'] .downloads > :global(div) {
+    display: flex;
+    align-items: stretch;
+  }
+
+  .wrap[data-chrome='full'] .downloads :global(button) {
+    width: 100%;
+    min-width: 0;
+    min-height: var(--touch-target);
+    height: var(--touch-target);
+    padding-right: var(--space-2);
+    padding-left: var(--space-2);
+    font-size: var(--text-sm);
+    white-space: nowrap;
+  }
+
+  .wrap[data-chrome='full'] .regenerateAction {
+    width: 100%;
+    min-height: var(--touch-target);
+    border: 1px solid var(--color-border-strong, var(--color-border));
+    border-radius: var(--control-radius);
+    background: var(--color-surface-muted);
+    color: var(--color-text-primary);
+    box-shadow: var(--shadow-xs);
+  }
+
+  .wrap[data-chrome='full'] .regenerateAction:hover:not(:disabled) {
+    border-color: var(--color-border-strong, var(--color-border));
+    background: var(--color-surface-hover);
+  }
+
+  .wrap[data-chrome='full'] .note {
+    gap: var(--space-2);
+    font-size: var(--text-xs);
+    line-height: 1.45;
+  }
+
+  .wrap[data-chrome='full'] .quality {
+    padding: var(--space-2) 0;
+    border: 0;
+    border-top: 1px solid var(--border-subtle, var(--color-border));
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .wrap[data-chrome='full'] .quality summary {
+    color: var(--color-text-secondary);
+    font-size: var(--text-sm);
+    font-weight: 500;
   }
 }
 

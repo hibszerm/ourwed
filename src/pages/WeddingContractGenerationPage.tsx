@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useBlocker, useNavigate, useParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { UsersRound } from 'lucide-react'
+import { Info, TriangleAlert, UsersRound } from 'lucide-react'
 import { AppLayout } from '@/layouts/AppLayout'
 import { Button } from '@/components/ui/Button'
 import { PageContainer } from '@/components/ui/PageContainer'
@@ -987,31 +987,35 @@ export function WeddingContractGenerationPage() {
 
         {step === 'preview' && generated ? (
           <section className={`${styles.card} ${styles.previewCard}`}>
-            {generated.reviewer?.status === 'findings' ? (
-              <aside className={styles.reviewNotice} aria-label="Wynik automatycznej kontroli">
-                <p>Umowa została wygenerowana, ale automatyczna kontrola wykryła elementy, które warto sprawdzić przed zapisaniem.</p>
-                <ul>
-                  {[...new Set(generated.reviewer.findingCategories)].map((category) => (
-                    <li key={category}>{reviewerCategoryMessage[category]}</li>
-                  ))}
-                </ul>
-              </aside>
-            ) : null}
-            {generated.reviewer?.status === 'unavailable' ? (
-              <aside className={styles.reviewNotice} aria-label="Wynik automatycznej kontroli">
-                Automatyczna kontrola dokumentu nie była dostępna. Sprawdź umowę przed zapisaniem.
-              </aside>
-            ) : null}
             <div className={styles.previewHeader}>
-              <div>
+              <div className={styles.previewStatus}>
                 <p className={styles.eyebrow}>Podgląd dokumentu</p>
                 <h2>Umowa jest gotowa</h2>
-                <p className={styles.muted}>
-                  Podgląd może nieznacznie różnić się od wyglądu dokumentu
-                  otwartego w programie Microsoft Word. Pobrany plik DOCX
-                  zachowuje oryginalną strukturę i formatowanie szablonu.
-                </p>
+                <p className={styles.muted}>Sprawdź dokument przed zapisaniem.</p>
               </div>
+              {generated.reviewer?.status === 'findings' ? (
+                <aside className={styles.reviewNotice} aria-label="Wynik automatycznej kontroli">
+                  <TriangleAlert className={styles.reviewNoticeIcon} size={18} strokeWidth={1.8} aria-hidden="true" />
+                  <div className={styles.reviewNoticeContent}>
+                    <p className={styles.reviewNoticeTitle}>Warto sprawdzić dokument</p>
+                    <p>Automatyczna kontrola wykryła elementy wymagające uwagi.</p>
+                    <details className={styles.reviewDetails}>
+                      <summary>Pokaż szczegóły</summary>
+                      <ul>
+                        {[...new Set(generated.reviewer.findingCategories)].map((category) => (
+                          <li key={category}>{reviewerCategoryMessage[category]}</li>
+                        ))}
+                      </ul>
+                    </details>
+                  </div>
+                </aside>
+              ) : null}
+              {generated.reviewer?.status === 'unavailable' ? (
+                <aside className={styles.reviewNotice} aria-label="Wynik automatycznej kontroli">
+                  <TriangleAlert className={styles.reviewNoticeIcon} size={18} strokeWidth={1.8} aria-hidden="true" />
+                  <p>Kontrola automatyczna była niedostępna. Sprawdź umowę przed zapisem.</p>
+                </aside>
+              ) : null}
               <div className={styles.actions}>
                 <Button
                   type="button"
@@ -1019,7 +1023,7 @@ export function WeddingContractGenerationPage() {
                   disabled={generatePending}
                   onClick={() => void discardGeneration(true)}
                 >
-                  Odrzuć i wygeneruj ponownie
+                  Wygeneruj ponownie
                 </Button>
                 <DocxActionButton
                   idleLabel="Zapisz umowę"
@@ -1032,6 +1036,12 @@ export function WeddingContractGenerationPage() {
                   onSuccess={() => setStep('saved')}
                 />
               </div>
+              <p className={styles.previewFidelity}>
+                <Info className={styles.previewFidelityIcon} size={15} strokeWidth={1.75} aria-hidden="true" />
+                <span>
+                  Podgląd może nieznacznie różnić się od wyglądu dokumentu otwartego w programie Microsoft Word. Pobrany plik DOCX zachowuje oryginalną strukturę i formatowanie szablonu.
+                </span>
+              </p>
             </div>
             <ContractDocxPreview source={docxBytes} />
           </section>

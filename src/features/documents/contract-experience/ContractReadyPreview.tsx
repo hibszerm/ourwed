@@ -13,6 +13,8 @@ import styles from './ContractReadyPreview.module.css'
 
 const PREVIEW_FIDELITY_NOTE =
   'Podgląd może nieznacznie różnić się od wyglądu dokumentu otwartego w Wordzie. Pobrany DOCX zachowuje oryginalną strukturę i formatowanie szablonu.'
+const COMPACT_PREVIEW_FIDELITY_NOTE =
+  'Podgląd może różnić się od Worda. Pobrany DOCX zachowuje oryginalną strukturę i formatowanie szablonu.'
 
 export function ContractReadyPreview(props: {
   fileName: string
@@ -44,26 +46,28 @@ export function ContractReadyPreview(props: {
         <header className={styles.header}>
           <div>
             <p className={styles.eyebrow}>Podgląd dokumentu</p>
-            <h2>Umowa jest gotowa</h2>
+            <h2>Umowa zapisana</h2>
             <p className={styles.fileName}>{props.fileName}</p>
           </div>
           <div className={styles.actions}>
-            <Button
-              type="button"
-              variant="primary"
-              onClick={props.onDownloadDocx}
-            >
-              <Download size={16} strokeWidth={1.75} aria-hidden />
-              Pobierz DOCX
-            </Button>
-            <ContractPdfActions
-              compact
-              withIcon
-              docxBytes={props.docxBytes}
-              fileName={props.fileName}
-              weddingId={props.weddingId}
-              documentId={props.documentId}
-            />
+            <div className={styles.downloads}>
+              <Button
+                type="button"
+                variant="primary"
+                onClick={props.onDownloadDocx}
+              >
+                <Download size={16} strokeWidth={1.75} aria-hidden />
+                Pobierz DOCX
+              </Button>
+              <ContractPdfActions
+                compact
+                withIcon
+                docxBytes={props.docxBytes}
+                fileName={props.fileName}
+                weddingId={props.weddingId}
+                documentId={props.documentId}
+              />
+            </div>
             {props.onEditPaymentSchedule ? (
               <Button
                 type="button"
@@ -77,6 +81,7 @@ export function ContractReadyPreview(props: {
               <Button
                 type="button"
                 variant="ghost"
+                className={styles.regenerateAction}
                 onClick={props.onRegenerate}
               >
                 <RefreshCw size={15} strokeWidth={1.75} aria-hidden />
@@ -94,7 +99,7 @@ export function ContractReadyPreview(props: {
           strokeWidth={1.75}
           aria-hidden
         />
-        <span>{PREVIEW_FIDELITY_NOTE}</span>
+        <span>{chrome === 'full' ? COMPACT_PREVIEW_FIDELITY_NOTE : PREVIEW_FIDELITY_NOTE}</span>
       </p>
 
       {props.qualitySummary ? (

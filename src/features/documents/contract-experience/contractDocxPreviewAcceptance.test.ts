@@ -40,7 +40,8 @@ assert(
   'page-break option set',
 )
 
-assert(ready.includes('Umowa jest gotowa'), 'ready heading')
+assert(ready.includes('Umowa zapisana'), 'saved contract heading')
+assert(gen.includes('Umowa jest gotowa'), 'generated contract heading before save')
 assert(ready.includes('Podgląd dokumentu'), 'preview label')
 assert(ready.includes('Pobierz DOCX'), 'docx download')
 assert(ready.includes("chrome?: 'full' | 'document'"), 'document chrome mode')

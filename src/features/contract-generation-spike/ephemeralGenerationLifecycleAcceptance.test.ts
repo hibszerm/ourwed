@@ -59,7 +59,7 @@ const savePath = page.slice(page.indexOf('async function save()'), page.indexOf(
 assert.ok(savePath.indexOf('validateContractGenerationCandidate') >= 0)
 assert.ok(savePath.indexOf('validateContractGenerationCandidate') < savePath.indexOf('documentDraftService.create'))
 assert.ok(savePath.indexOf('validateContractGenerationCandidate') < savePath.indexOf('saveGeneratedContract({'))
-assert.match(page, /Odrzuć i wygeneruj ponownie/)
+assert.match(page, /Wygeneruj ponownie/)
 assert.match(page, /reason: 'discarded'/)
 
 // Continuation remains server-bound and answer-specific; no client authority is

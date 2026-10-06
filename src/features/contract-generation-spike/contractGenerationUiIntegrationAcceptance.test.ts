@@ -62,7 +62,7 @@ for (const state of ['unresolved_conflict', 'precondition', 'stale', 'unauthoriz
 assert.match(page, /Wystąpił chwilowy problem/)
 assert.match(page, /Spróbuj ponownie/)
 assert.match(page, /Rozpocznij nowe generowanie/)
-assert.match(page, /Odrzuć i wygeneruj ponownie/)
+assert.match(page, /Wygeneruj ponownie/)
 assert.doesNotMatch(page, /startSemanticContractGeneration|resumeSemanticContractGeneration|invokeSemanticMapProvider|buildSemanticContractProductionDataset/)
 assert.doesNotMatch(page, /mayGenerateContract|isTravelFeeResolved/)
 assert.match(form, /props\.requirements\.map\(/)
