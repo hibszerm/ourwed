@@ -31,15 +31,19 @@
 }
 
 .workspace {
+  --contract-border: var(--border-subtle, var(--color-border));
+  --contract-action-border: color-mix(in srgb, var(--contract-border) 70%, var(--text-primary) 10%);
+  --contract-action-background: color-mix(in srgb, var(--color-bg-elevated) 88%, transparent);
   display: grid;
-  grid-template-columns: minmax(0, 1.55fr) minmax(300px, 1fr);
+  grid-template-columns: minmax(0, 1.63fr) minmax(300px, 1fr);
   gap: 0;
-  align-items: stretch;
+  align-items: start;
   width: 100%;
 }
 
 .workspace.sheet {
-  padding: 20px 24px 22px;
+  padding: 28px 36px 30px;
+  border-color: var(--contract-border);
 }
 
 .contractColumn,
@@ -48,36 +52,43 @@
 }
 
 .contractColumn {
-  padding-right: clamp(22px, 3vw, 42px);
+  display: flex;
+  flex-direction: column;
+  padding-right: 36px;
+}
+
+.contractColumn > .sheetHead {
+  min-height: 0;
+  margin-bottom: 12px;
 }
 
 .documentsColumn {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding-left: clamp(22px, 2.6vw, 36px);
-  border-left: 1px solid color-mix(in srgb, var(--color-border) 72%, transparent);
+  padding-left: 36px;
+  border-left: 1px solid var(--contract-border);
 }
 
 .documentsHeader h3 {
   margin: 0;
   color: var(--color-text-primary);
-  font-size: 0.875rem;
+  font-size: 1.125rem;
   font-weight: 650;
   letter-spacing: 0.01em;
 }
 
 .documentsHeader p,
 .uploadHint {
-  margin: 5px 0 0;
+  margin: 6px 0 0;
   color: var(--color-text-secondary);
-  font-size: 0.75rem;
-  line-height: 1.45;
+  font-size: 0.875rem;
+  line-height: 1.4;
 }
 
 .entryActions {
   display: grid;
-  gap: 8px;
+  gap: 0;
+  margin-top: 20px;
 }
 
 .entryActions :global(button),
@@ -99,11 +110,28 @@
 
 .entryLink,
 .uploadAction {
-  padding: 0 14px;
-  border: 1px solid var(--color-border);
-  background: var(--color-bg-elevated, var(--color-surface));
+  padding: 0 16px;
+  border: 1px solid var(--contract-action-border);
+  background: var(--contract-action-background);
   color: var(--color-text-primary);
   cursor: pointer;
+}
+
+.entryActions .uploadAction {
+  height: 48px;
+  min-height: 48px;
+  border-radius: 10px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.entryActions .uploadAction :global(svg) {
+  width: 18px;
+  height: 18px;
+}
+
+.entryActions .uploadHint {
+  margin-top: 12px;
 }
 
 .entryLink:hover,
@@ -154,7 +182,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 6px 10px;
-  margin: 0 0 8px;
+  margin: 0 0 14px;
 }
 
 .statusPill {
@@ -162,11 +190,11 @@
   align-items: center;
   gap: 5px;
   margin: 0;
-  min-height: 22px;
+  box-sizing: border-box;
+  min-height: 28px;
   padding: 2px 9px;
   border-radius: 999px;
-  border: 1px solid
-    color-mix(in srgb, var(--border-subtle, var(--color-border)) 68%, transparent);
+  border: 1px solid var(--contract-border);
   background: color-mix(
     in srgb,
     var(--color-bg-subtle, var(--color-surface)) 70%,
@@ -242,23 +270,23 @@
 }
 
 .document {
-  margin-top: 8px;
+  margin-top: 0;
   max-width: 46rem;
 }
 
 .documentTitle {
   margin: 0;
-  font-size: 1.0625rem;
+  font-size: 1.25rem;
   font-weight: 600;
   letter-spacing: -0.022em;
-  line-height: 1.34;
+  line-height: 1.3;
   color: var(--color-text-primary);
 }
 
 .documentMeta {
-  margin: 5px 0 0;
-  font-size: 0.75rem;
-  line-height: 1.45;
+  margin: 6px 0 0;
+  font-size: 0.875rem;
+  line-height: 1.4;
   letter-spacing: 0.005em;
   color: var(--color-text-tertiary, var(--color-text-secondary));
   font-variant-numeric: tabular-nums;
@@ -273,8 +301,7 @@
     var(--color-bg-elevated) 55%,
     var(--color-accent, #8b7355) 6%
   );
-  border: 1px solid
-    color-mix(in srgb, var(--border-subtle, var(--color-border)) 70%, transparent);
+  border: 1px solid var(--contract-border);
   max-width: 36rem;
 }
 
@@ -294,65 +321,37 @@
   color: var(--color-text-secondary);
 }
 
-.freshnessAction {
-  margin-top: 10px;
-  display: inline-flex;
-  align-items: center;
-  min-height: 36px;
-  padding: 0 12px;
-  border-radius: 8px;
-  border: 1px solid
-    color-mix(in srgb, var(--border-subtle, var(--color-border)) 80%, transparent);
-  background: color-mix(in srgb, var(--color-bg-elevated) 88%, transparent);
-  color: var(--color-text-primary);
-  font: inherit;
-  font-size: 0.8125rem;
-  font-weight: 550;
-  letter-spacing: -0.01em;
-  cursor: pointer;
-}
-
-.freshnessAction:hover {
-  background: color-mix(in srgb, var(--color-bg-elevated) 100%, transparent);
-}
-
-.freshnessAction:focus-visible {
-  outline: 2px solid var(--color-accent, #8b7355);
-  outline-offset: 2px;
-}
-
 .docActions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-  margin-top: 12px;
+  gap: 10px;
+  margin-top: 22px;
 }
 
 .docAction {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
+  gap: 8px;
   position: relative;
-  min-height: 36px;
-  padding: 0 13px;
-  border-radius: 8px;
-  border: 1px solid
-    color-mix(in srgb, var(--border-subtle, var(--color-border)) 70%, var(--text-primary) 10%);
-  background: color-mix(
-    in srgb,
-    var(--color-bg-elevated) 88%,
-    transparent
-  );
+  box-sizing: border-box;
+  height: 44px;
+  min-height: 44px;
+  min-width: 0;
+  padding: 0 16px;
+  border-radius: 10px;
+  border: 1px solid var(--contract-action-border);
+  background: var(--contract-action-background);
   color: var(--color-text-primary);
   font: inherit;
-  font-size: 0.8125rem;
-  font-weight: 550;
+  font-size: 0.9375rem;
+  font-weight: 600;
   letter-spacing: -0.01em;
-  line-height: 1;
+  line-height: 20px;
   text-decoration: none;
   cursor: pointer;
+  white-space: nowrap;
   transition:
     background-color var(--modern-motion-fast) var(--modern-ease-out),
     border-color var(--modern-motion-fast) var(--modern-ease-out),
@@ -362,8 +361,10 @@
 .docActionIcon {
   flex-shrink: 0;
   display: block;
+  width: 18px;
+  height: 18px;
   color: currentColor;
-  opacity: 0.88;
+  opacity: 1;
 }
 
 .docActionPrimary {
@@ -388,16 +389,8 @@
 }
 
 .docAction:hover {
-  border-color: color-mix(
-    in srgb,
-    var(--border-subtle, var(--color-border)) 38%,
-    var(--text-primary) 20%
-  );
-  background: color-mix(
-    in srgb,
-    var(--color-bg-elevated) 96%,
-    var(--text-primary) 3%
-  );
+  border-color: var(--color-border-strong);
+  background: var(--color-surface-hover);
 }
 
 .docActionPrimary:hover {
@@ -410,11 +403,7 @@
 }
 
 .docAction:active:not(:disabled) {
-  background: color-mix(
-    in srgb,
-    var(--color-bg-elevated) 90%,
-    var(--text-primary) 5%
-  );
+  background: color-mix(in srgb, var(--color-surface-hover) 82%, var(--color-text-primary) 4%);
 }
 
 .docActionPrimary:active:not(:disabled) {
@@ -422,7 +411,9 @@
 }
 
 .docAction:disabled {
-  opacity: 0.55;
+  border-color: var(--contract-action-border);
+  background: var(--color-bg-subtle, var(--color-surface));
+  color: var(--color-text-tertiary, var(--color-text-secondary));
   cursor: not-allowed;
 }
 
@@ -446,103 +437,29 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-  margin-top: 12px;
-}
-
-.workflowAction {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  position: relative;
-  min-height: 37px;
-  margin: 0;
-  padding: 0 11px;
-  border: 1px solid
-    color-mix(in srgb, var(--border-subtle, var(--color-border)) 68%, transparent);
-  border-radius: 9px;
-  background: color-mix(in srgb, var(--color-bg-elevated) 74%, transparent);
-  color: var(--color-text-secondary);
-  font: inherit;
-  font-size: 0.8125rem;
-  font-weight: 500;
-  letter-spacing: -0.01em;
-  line-height: 1.2;
-  cursor: pointer;
-  text-decoration: none;
-  transition:
-    background-color var(--modern-motion-fast) var(--modern-ease-out),
-    border-color var(--modern-motion-fast) var(--modern-ease-out),
-    color var(--modern-motion-fast) var(--modern-ease-out),
-    transform var(--modern-motion-fast) var(--modern-ease-out);
-}
-
-.workflowIcon {
-  flex-shrink: 0;
-  display: block;
-  color: currentColor;
-  opacity: 0.9;
-}
-
-.workflowAction::after {
-  content: '';
-  position: absolute;
-  inset: 50% auto auto 50%;
-  width: 100%;
-  min-width: 44px;
-  height: 44px;
-  transform: translate(-50%, -50%);
-}
-
-.workflowAction:hover {
-  border-color: color-mix(
-    in srgb,
-    var(--border-subtle, var(--color-border)) 48%,
-    var(--color-text-primary) 15%
-  );
-  background: color-mix(in srgb, var(--color-bg-elevated) 92%, var(--color-text-primary) 3%);
-  color: var(--color-text-primary);
-}
-
-.workflowAction:active:not(:disabled) {
-  transform: translateY(1px);
-  background: color-mix(in srgb, var(--color-bg-elevated) 84%, var(--color-text-primary) 6%);
-}
-
-.workflowAction:disabled {
-  border-color: color-mix(in srgb, var(--color-border) 65%, transparent);
-  background: color-mix(in srgb, var(--color-bg-subtle, var(--color-surface)) 78%, transparent);
-  color: var(--color-text-tertiary, var(--color-text-secondary));
-  cursor: not-allowed;
-}
-
-.workflowAction:focus-visible {
-  outline: 2px solid var(--color-accent, #8b7355);
-  outline-offset: 2px;
+  gap: 10px;
+  margin-top: 10px;
 }
 
 .utilities {
   display: flex;
   flex-direction: column;
-  margin-top: 0;
+  margin-top: 18px;
   padding-top: 0;
-  border-top: 1px solid
-    color-mix(in srgb, var(--border-subtle, var(--color-border)) 62%, transparent);
+  border-top: 1px solid var(--contract-border);
 }
 
 .discloseRow {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 16px;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px 16px;
+  column-gap: 10px;
   width: 100%;
-  min-height: 48px;
+  min-height: 56px;
   margin: 0;
-  padding: 7px 8px;
+  padding: 16px 0;
   border: 0;
-  border-radius: 8px;
-  border-bottom: 1px solid
-    color-mix(in srgb, var(--border-subtle, var(--color-border)) 14%, transparent);
+  border-bottom: 1px solid var(--contract-border);
   background: none;
   text-align: left;
   cursor: pointer;
@@ -557,17 +474,8 @@
 .discloseLead {
   display: inline-flex;
   align-items: center;
-  gap: 9px;
+  gap: 12px;
   min-width: 0;
-}
-
-.discloseTrail {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  flex-shrink: 0;
-  min-width: 0;
-  max-width: 52%;
 }
 
 .discloseIcon {
@@ -585,7 +493,7 @@
 }
 
 .discloseLabel {
-  font-size: 0.8125rem;
+  font-size: 0.9375rem;
   font-weight: 500;
   letter-spacing: -0.01em;
   color: var(--color-text-secondary);
@@ -593,8 +501,9 @@
 }
 
 .discloseMeta {
-  font-size: 0.8125rem;
-  font-weight: 550;
+  max-width: 220px;
+  font-size: 0.9375rem;
+  font-weight: 600;
   letter-spacing: -0.01em;
   color: var(--color-text-primary);
   text-align: right;
@@ -1168,11 +1077,10 @@
 
 .quietLink:focus-visible,
 .docAction:focus-visible,
-.workflowAction:focus-visible,
 .discloseRow:focus-visible,
 .primaryCta :global(button):focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
+  outline: none;
+  box-shadow: var(--focus-ring-strong);
 }
 
 @keyframes modernDetailIn {
@@ -1195,9 +1103,6 @@
     grid-template-columns: 1fr 1fr;
   }
 
-  .docAction {
-    min-height: 44px;
-  }
 }
 
 @media (max-width: 900px) {
@@ -1213,7 +1118,7 @@
   .documentsColumn {
     padding-top: 20px;
     padding-left: 0;
-    border-top: 1px solid color-mix(in srgb, var(--color-border) 72%, transparent);
+    border-top: 1px solid var(--contract-border);
     border-left: 0;
   }
 
@@ -1240,7 +1145,6 @@
   }
 
   .documentsColumn {
-    gap: 12px;
     padding-top: 16px;
   }
 
@@ -1267,93 +1171,28 @@
     justify-content: flex-start;
   }
 
-  .manageRow {
-    gap: 8px;
-  }
-
-  .statusRow {
-    margin-bottom: 7px;
-  }
-
-  .document {
-    margin-top: 8px;
-  }
-
-  .documentTitle {
-    font-size: 1.0625rem;
-    line-height: 1.36;
-  }
-
-  .documentMeta {
-    margin-top: 4px;
-  }
-
   .docActions {
-    gap: 8px;
-    margin-top: 12px;
+    gap: 10px;
+    margin-top: 22px;
   }
 
   .docAction {
-    flex: 1 1 calc(50% - 4px);
-    min-width: min(100%, 9.5rem);
-    min-height: 44px;
-    gap: 8px;
-    padding: 0 12px;
-    font-size: 0.84375rem;
-  }
-
-  .docActionPrimary {
-    flex: 1 1 100%;
-  }
-
-  .docActionIcon {
-    width: 17px;
-    height: 17px;
-  }
-
-  .manageRow {
-    margin-top: 6px;
-    gap: 0 2px;
-  }
-
-  .workflowAction {
-    min-height: 44px;
-    font-size: 0.84375rem;
-    gap: 8px;
-  }
-
-  .workflowIcon {
-    width: 16px;
-    height: 16px;
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 100%;
   }
 
   .utilities {
-    margin-top: 12px;
-    padding-top: 2px;
-  }
-
-  .discloseRow {
-    flex-wrap: nowrap;
-    min-height: 48px;
-    padding: 8px 6px;
-    gap: 10px 12px;
-  }
-
-  .discloseLead {
-    gap: 8px;
-  }
-
-  .discloseIcon {
-    width: 17px;
-    height: 17px;
-  }
-
-  .discloseTrail {
-    max-width: 48%;
+    margin-top: 18px;
   }
 
   .discloseMeta {
-    font-size: 0.78125rem;
+    max-width: 34vw;
+  }
+
+  .discloseIcon {
+    width: 18px;
+    height: 18px;
   }
 
   .discloseChevron {

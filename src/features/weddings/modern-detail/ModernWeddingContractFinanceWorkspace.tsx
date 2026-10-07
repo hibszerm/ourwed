@@ -700,7 +700,7 @@ export function ModernWeddingContractFinanceWorkspace({
                 {canRegenerate ? (
                   <button
                     type="button"
-                    className={styles.freshnessAction}
+                    className={styles.docAction}
                     data-testid="contract-freshness-regenerate"
                     onClick={() => onAction('generate_contract')}
                   >
@@ -716,7 +716,7 @@ export function ModernWeddingContractFinanceWorkspace({
               >
                 <Eye
                   className={styles.docActionIcon}
-                  size={16}
+                  size={18}
                   strokeWidth={1.75}
                   aria-hidden
                 />
@@ -731,7 +731,7 @@ export function ModernWeddingContractFinanceWorkspace({
                 >
                   <Download
                     className={styles.docActionIcon}
-                    size={16}
+                    size={18}
                     strokeWidth={1.75}
                     aria-hidden
                   />
@@ -748,7 +748,7 @@ export function ModernWeddingContractFinanceWorkspace({
                 >
                   <Download
                     className={styles.docActionIcon}
-                    size={16}
+                    size={18}
                     strokeWidth={1.75}
                     aria-hidden
                   />
@@ -766,13 +766,13 @@ export function ModernWeddingContractFinanceWorkspace({
                 {canRegenerate ? (
                   <button
                     type="button"
-                    className={styles.workflowAction}
+                    className={styles.docAction}
                     data-testid="contracts-generate"
                     onClick={() => onAction('generate_contract')}
                   >
                     <RefreshCw
-                      className={styles.workflowIcon}
-                      size={15}
+                      className={styles.docActionIcon}
+                      size={18}
                       strokeWidth={1.75}
                       aria-hidden
                     />
@@ -782,13 +782,13 @@ export function ModernWeddingContractFinanceWorkspace({
                 {canMarkSent ? (
                   <button
                     type="button"
-                    className={styles.workflowAction}
+                    className={styles.docAction}
                     data-testid="contract-mark-sent"
                     onClick={() => setConfirmSent(true)}
                   >
                     <Send
-                      className={styles.workflowIcon}
-                      size={15}
+                      className={styles.docActionIcon}
+                      size={18}
                       strokeWidth={1.75}
                       aria-hidden
                     />
@@ -798,13 +798,13 @@ export function ModernWeddingContractFinanceWorkspace({
                 {canSign ? (
                   <button
                     type="button"
-                    className={styles.workflowAction}
+                    className={styles.docAction}
                     data-testid="contract-mark-signed"
                     onClick={() => setConfirmSign(true)}
                   >
                     <CircleCheck
-                      className={styles.workflowIcon}
-                      size={15}
+                      className={styles.docActionIcon}
+                      size={18}
                       strokeWidth={1.75}
                       aria-hidden
                     />
@@ -814,13 +814,13 @@ export function ModernWeddingContractFinanceWorkspace({
                 {isSigned ? (
                   <button
                     type="button"
-                    className={styles.workflowAction}
+                    className={styles.docAction}
                     data-testid="contract-unsign"
                     onClick={() => setConfirmUnsign(true)}
                   >
                     <Undo2
-                      className={styles.workflowIcon}
-                      size={15}
+                      className={styles.docActionIcon}
+                      size={18}
                       strokeWidth={1.75}
                       aria-hidden
                     />
@@ -943,15 +943,13 @@ export function ModernWeddingContractFinanceWorkspace({
                 onClick={() => setUtility('history')}
               >
                 <span className={styles.discloseLead}>
-                  <History className={styles.discloseIcon} size={16} aria-hidden />
+                  <History className={styles.discloseIcon} size={18} aria-hidden />
                   <span className={styles.discloseLabel}>Historia wersji</span>
                 </span>
-                <span className={styles.discloseTrail}>
-                  <span className={styles.discloseMeta}>
-                    {sorted.length === 1 ? '1 wersja' : `${sorted.length} wersje`}
-                  </span>
-                  <ChevronRight className={styles.discloseChevron} size={15} aria-hidden />
+                <span className={styles.discloseMeta}>
+                  {sorted.length === 1 ? '1 wersja' : `${sorted.length} wersje`}
                 </span>
+                <ChevronRight className={styles.discloseChevron} size={16} aria-hidden />
               </button>
             ) : null}
             <button
@@ -961,13 +959,11 @@ export function ModernWeddingContractFinanceWorkspace({
               onClick={() => setUtility('answers')}
             >
               <span className={styles.discloseLead}>
-                <FileText className={styles.discloseIcon} size={16} aria-hidden />
+                <FileText className={styles.discloseIcon} size={18} aria-hidden />
                 <span className={styles.discloseLabel}>Dane z ankiety</span>
               </span>
-              <span className={styles.discloseTrail}>
-                <span className={styles.discloseMeta}>{answers.line}</span>
-                <ChevronRight className={styles.discloseChevron} size={15} aria-hidden />
-              </span>
+              <span className={styles.discloseMeta}>{answers.line}</span>
+              <ChevronRight className={styles.discloseChevron} size={16} aria-hidden />
             </button>
             <button
               type="button"
@@ -976,15 +972,13 @@ export function ModernWeddingContractFinanceWorkspace({
               onClick={() => setUtility('source')}
             >
               <span className={styles.discloseLead}>
-                <Paperclip className={styles.discloseIcon} size={16} aria-hidden />
+                <Paperclip className={styles.discloseIcon} size={18} aria-hidden />
                 <span className={styles.discloseLabel}>Wgrane dokumenty</span>
               </span>
-              <span className={styles.discloseTrail}>
-                <span className={styles.discloseMeta}>
-                  {sourceDocumentCountLabel(sourceContracts.length)}
-                </span>
-                <ChevronRight className={styles.discloseChevron} size={15} aria-hidden />
+              <span className={styles.discloseMeta}>
+                {sourceDocumentCountLabel(sourceContracts.length)}
               </span>
+              <ChevronRight className={styles.discloseChevron} size={16} aria-hidden />
             </button>
           </nav>
         </aside>
