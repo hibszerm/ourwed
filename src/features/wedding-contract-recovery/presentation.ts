@@ -157,6 +157,13 @@ export function buildRecoveryReviewGroups(fields: RecoveryFieldComparison[]): Re
   )
 }
 
+/** Read-only confirmation rows are the selected, applicable logical decisions already used by Apply. */
+export function buildRecoveryConfirmationGroups(fields: RecoveryFieldComparison[]): RecoveryDecisionGroup[] {
+  return buildRecoveryReviewGroups(fields).filter((group) =>
+    group.actionableFields.some((field) => field.selectedAction === 'use_extracted'),
+  )
+}
+
 export function recoverySectionLabel(sectionKey: RecoveryPresentationSectionKey): string {
   return SECTION_LABELS[sectionKey]
 }

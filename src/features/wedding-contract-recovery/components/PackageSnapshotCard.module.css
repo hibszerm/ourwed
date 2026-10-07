@@ -34,8 +34,7 @@
 
 .meta,
 .empty,
-.source,
-.confirmNote {
+.source {
   margin: 0;
   color: var(--color-text-muted);
   font-size: 0.875rem;
@@ -131,14 +130,15 @@
 .choice[data-selected='true'] .choiceMark { background: var(--color-primary, #24363d); border-color: var(--color-primary, #24363d); color: var(--color-surface, #fff); }
 .choice input:focus-visible + .choiceMark { outline: 3px solid var(--color-focus-ring, #667f88); outline-offset: 3px; }
 
-.confirmBody {
-  display: grid;
-  gap: 0.35rem;
-}
-
-.confirmBody p {
-  margin: 0;
-}
+.confirmationCard { gap: .7rem; }
+.confirmCompare { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) 1.25rem minmax(0, 1fr); align-items: center; gap: .55rem; }
+.confirmSide { min-width: 0; padding: .3rem .4rem; }
+.confirmAfter { border-radius: 9px; background: color-mix(in srgb, var(--color-primary, #24363d) 4%, var(--color-surface, #fff)); }
+.confirmLabel { display: block; margin-bottom: .1rem; color: var(--color-text-muted); font-size: .6875rem; font-weight: 600; }
+.confirmName { margin: 0; font-weight: 620; overflow-wrap: anywhere; }
+.confirmArrow { justify-self: center; color: var(--color-text-muted); }
+.confirmDetails { min-width: 0; padding-top: .7rem; border-top: 1px solid var(--color-border); display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: .8rem 1.5rem; }
+.confirmDescription { margin: 0; color: var(--color-text-secondary); font-size: .875rem; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
 
 @media (max-width: 720px) {
   .header { flex-wrap: wrap; }
@@ -151,4 +151,7 @@
   .conditions dt {
     margin-top: 0.35rem;
   }
+  .confirmCompare { grid-template-columns: minmax(0, 1fr); gap: .15rem; }
+  .confirmArrow { justify-self: start; transform: rotate(90deg); margin-left: .35rem; }
+  .confirmDetails { grid-template-columns: minmax(0, 1fr); }
 }

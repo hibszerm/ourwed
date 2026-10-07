@@ -477,7 +477,6 @@ export function WeddingContractRecoveryPage() {
           <RecoveryConfirmationPanel
             proposal={proposal}
             fields={fields}
-            sourceFileName={sourceContract?.originalFileName ?? null}
             includePackageSnapshot={includePackageSnapshot}
             currencyCode={wedding.currency || String(fields.find((item) => item.fieldKey === 'finances.currency')?.extractedValue ?? 'PLN')}
             error={confirmError}
