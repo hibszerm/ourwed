@@ -17,11 +17,8 @@ import {
   findSharedPhysicalSpanConflicts,
 } from './packageContractGenerationModel'
 import { groupSlotsIntoLogicalFields } from './logicalContractFields'
-import { buildGenerationReviewState } from './WeddingContractGenerationService'
 import type { CompletenessField } from './buildContractCompleteness'
-import type { ConfiguredContractCompletenessReport } from './WeddingContractGenerationService'
 import type { TemplateSlot, TemplateSlotMap } from './types'
-import type { ContractTemplateConfiguration } from '@/features/ai-contract-lab/templateFieldConfiguration'
 
 function assert(condition: boolean, message: string) {
   if (!condition) throw new Error(message)
@@ -99,60 +96,6 @@ function field(
   }
 }
 
-function reportFromSlots(
-  slots: TemplateSlot[],
-  fields: CompletenessField[],
-): ConfiguredContractCompletenessReport {
-  const configuration = {
-    version: 1,
-    templateId: 't1',
-    fields: fields.map((f) => ({
-      id: f.registryKey,
-      semanticRole: f.registryKey,
-      mode: 'variable' as const,
-      displayName: f.label,
-      variableSource: 'wedding' as const,
-      requiredWhenVariable: true,
-      detectedAnchorIds: [],
-    })),
-    sharedLocationPolicy: {
-      mode: 'ask_each_time' as const,
-      preferredLocationRole: 'ceremony' as const,
-      combinedFormat: 'comma' as const,
-    },
-  } as unknown as ContractTemplateConfiguration
-
-  return {
-    templateId: 't1',
-    templateName: 'Umowa',
-    slotMap: mapWith(slots),
-    resolved: Object.fromEntries(fields.map((f) => [f.registryKey, f.value])),
-    packageSnapshot: {
-      packageId: 'pkg',
-      name: 'Video Mini',
-      currency: 'PLN',
-      items: [],
-    },
-    questionnaireAnswers: {},
-    sourceParagraphs: [
-      {
-        index: 12,
-        text: 'teledysku ślubnego o długości ok. 3–5 minut',
-      },
-    ],
-    groups: [],
-    fields,
-    missing: fields.filter((f) => f.missing),
-    allComplete: fields.every((f) => !f.missing),
-    configuration,
-    ignoredRegistryKeys: [],
-    fixedRegistryKeys: [],
-    packageContractMode: true,
-    packageId: 'pkg',
-    packageTemplateVersionId: 'ver-1',
-  }
-}
-
 run('A — package contract may detect teledysk internally', () => {
   const raw = mapWith([
     slot('wedding_date', 1, 0, 10, '29.07.2026'),
@@ -206,69 +149,6 @@ run('C — teaser_duration absent from LogicalContractFields', () => {
     false,
     'no group teaser',
   )
-})
-
-run('D/E/F — teaser absent from GenerationReviewState and does not block', () => {
-  const slots = [
-    slot('wedding_date', 1, 0, 10, '29.07.2026'),
-    slot('couple_full_names', 2, 0, 20, 'Iza i Jan'),
-    slot('contract_execution_date', 0, 0, 10, '26.07.2026'),
-    slot('contract_value', 3, 0, 8, '9 500 zł'),
-  ]
-  const fields = [
-    field('wedding_date'),
-    field('couple_full_names'),
-    field('contract_execution_date'),
-    field('contract_value'),
-    // Would previously be invented by detectPreGenerationReviewIssues:
-    field('teaser_duration', { missing: true, value: '', label: 'Długość teledysku' }),
-  ]
-  const review = buildGenerationReviewState({
-    report: reportFromSlots(slots, fields),
-    overrides: {},
-    packageContractMode: true,
-  })
-  assert(
-    !review.editableMissingFields.some((f) => f.registryKey === 'teaser_duration'),
-    'E no editable teaser',
-  )
-  assert(
-    !review.resolvedValues.some((f) => f.registryKey === 'teaser_duration'),
-    'D no resolved teaser',
-  )
-  assert(
-    !review.blockingUserInputs.some(
-      (b) => b.kind === 'missing_field' && b.registryKey === 'teaser_duration',
-    ),
-    'F not blocked by teaser',
-  )
-  assert(review.generationAllowed, 'F generationAllowed')
-})
-
-run('G — Wymagane uzupełnienie hidden when allowed fields resolve', () => {
-  const fields = [
-    field('wedding_date'),
-    field('couple_full_names'),
-    field('contract_execution_date'),
-    field('contract_value'),
-    field('final_payment_due_date'),
-    field('reception_location'),
-  ]
-  const review = buildGenerationReviewState({
-    report: reportFromSlots(
-      fields.map((f, i) => slot(f.registryKey, i, 0, 5, f.value)),
-      fields,
-    ),
-    overrides: {},
-    packageContractMode: true,
-  })
-  assertEq(review.editableMissingFields.length, 0, 'no required section')
-  assertEq(
-    review.blockingUserInputs.map((b) => b.kind + ':' + ('registryKey' in b ? b.registryKey : 'questionId' in b ? b.questionId : b.issueId)).join(','),
-    '',
-    'no blockers',
-  )
-  assert(review.generationAllowed, 'allowed')
 })
 
 run('H/I — package generation path forbids runtime sync + candidate detection', () => {
@@ -357,27 +237,7 @@ run('O — no Zakres poprawek for package immutable fields', () => {
   assert(!page.includes('Długość teledysku'), 'no teaser label in page')
 })
 
-run('P — legacy generation still has teaser path when not package mode', () => {
-  const review = buildGenerationReviewState({
-    report: {
-      ...reportFromSlots(
-        [slot('teaser_duration', 12, 40, 49, '__________')],
-        [field('teaser_duration', { missing: true, value: '' })],
-      ),
-      packageContractMode: false,
-    },
-    overrides: {},
-    packageContractMode: false,
-  })
-  // Legacy may still surface teaser via placeholder / preflight — not asserting presence,
-  // only that package mode path is distinct.
-  assert(
-    source('src/features/documents/template/ContractTransformationService.ts').includes(
-      'if (!packageContractMode)',
-    ),
-    'legacy branch retained',
-  )
-  void review
+run('P — package allowlist excludes the legacy teaser field', () => {
   assert(!isPackageContractAllowedDynamicKey('teaser_duration'), 'not allowlisted')
   assertEq(
     filterToPackageContractAllowlist([

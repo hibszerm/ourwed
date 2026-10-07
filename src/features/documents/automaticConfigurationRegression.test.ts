@@ -491,13 +491,6 @@ run('P — repaired template becomes Gotowy', () => {
   equal(migrated.meta.automaticReadinessStatus, 'ready', 'meta ready')
 })
 
-run('Q — generation calls ensureAutomaticTemplateConfiguration', () => {
-  const src = source(
-    'src/features/documents/template/WeddingContractGenerationService.ts',
-  )
-  assert(src.includes('ensureAutomaticTemplateConfiguration'), 'generation heals')
-})
-
 run('R — detail page quarantines legacy AI heal UI', () => {
   const src = source('src/pages/DocumentTemplateDetailPage.tsx')
   assert(

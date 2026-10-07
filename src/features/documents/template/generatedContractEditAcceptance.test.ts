@@ -4,7 +4,7 @@
  * Run: npx tsx --tsconfig tsconfig.app.json src/features/documents/template/generatedContractEditAcceptance.test.ts
  */
 
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 function source(rel: string): string {
@@ -19,9 +19,6 @@ const preview = source('src/pages/WeddingContractPreviewPage.tsx')
 const css = source('src/pages/WeddingContractPreviewPage.module.css')
 const ready = source(
   'src/features/documents/contract-experience/ContractReadyPreview.tsx',
-)
-const service = source(
-  'src/features/documents/template/WeddingContractGenerationService.ts',
 )
 
 assert(!preview.includes('Edytuj dane umowy'), 'no edit-contract-data CTA')
@@ -48,12 +45,14 @@ assert(
 )
 assert(ready.includes('Wygeneruj ponownie'), 'regenerate label')
 
-// Internal editing/regen architecture retained for a future editor.
-assert(service.includes('prepareVerification'), 'prepareVerification retained')
 assert(
-  service.includes('recoverConfigurationFromPinnedVersion') ||
-    service.includes('prepareContractVerification'),
-  'verification infrastructure retained',
+  !existsSync(
+    resolve(
+      process.cwd(),
+      'src/features/documents/template/WeddingContractGenerationService.ts',
+    ),
+  ),
+  'retired legacy generator service stays absent',
 )
 
 console.log('ok — generated contract edit CTA hidden')

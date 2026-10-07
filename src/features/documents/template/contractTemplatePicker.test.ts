@@ -9,7 +9,6 @@ import {
   classifyTemplatesForGeneration,
   splitRecommended,
 } from './contractTemplatePicker'
-import { selectGenerationTemplates } from './WeddingContractGenerationService'
 import { isTemplateUsableForGeneration } from './templateGenerationReadiness'
 import { getContractUiStatus } from '@/features/documents/contractUi'
 import type { DocumentTemplateSummary } from '@/types/documents'
@@ -471,9 +470,6 @@ run('S — package contract starts directly from the ready page', () => {
   assert(page.includes('Gotowa do utworzenia'), 'package-ready state is presented')
   assert(page.includes('Utwórz umowę'), 'generation can start directly')
   assert(page.includes('packageResolution.templateId'), 'uses package template')
-  const t = umowaGpAleksandraB()
-  const selection = selectGenerationTemplates([t], 'Video Mini')
-  assert(selection.preselectedTemplateId === t.id, 'legacy picker still ranks package match')
 })
 
 if (!process.exitCode) {

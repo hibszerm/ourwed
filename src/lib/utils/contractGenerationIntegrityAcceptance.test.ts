@@ -234,17 +234,6 @@ async function main() {
     const guardIdx = sparse.indexOf('const readiness = mayGenerateContract(input.wedding)')
     const aiIdx = sparse.indexOf('await runSparseProductTransform')
     assert(guardIdx > 0 && aiIdx > guardIdx, 'readiness before AI transform')
-    const legacy = readFileSync(
-      resolve(
-        process.cwd(),
-        'src/features/documents/template/WeddingContractGenerationService.ts',
-      ),
-      'utf8',
-    )
-    assert(
-      legacy.indexOf('mayGenerateContract(input.wedding)') > 0,
-      'legacy generate also gated',
-    )
   })
 
   run('A4-5 historical download path not gated by readiness (source)', () => {
@@ -267,24 +256,13 @@ async function main() {
     assert(sparse.includes('mayGenerateContract'), 'sparse generate gated')
   })
 
-  run('A4 page + legacy generate wired', () => {
+  run('A4 current generation page uses the authenticated boundary', () => {
     const page = readFileSync(
       resolve(process.cwd(), 'src/pages/WeddingContractGenerationPage.tsx'),
       'utf8',
     )
-    assert(page.includes('mayGenerateContract'), 'page uses shared rule')
-    assert(
-      page.includes('contract-readiness-generation-block'),
-      'direct route block UI',
-    )
-    const legacy = readFileSync(
-      resolve(
-        process.cwd(),
-        'src/features/documents/template/WeddingContractGenerationService.ts',
-      ),
-      'utf8',
-    )
-    assert(legacy.includes('mayGenerateContract'), 'legacy generate gated')
+    assert(page.includes('startContractGeneration'), 'page uses Option B start')
+    assert(!page.includes('WeddingContractGenerationService'), 'no legacy runtime call')
   })
 
   // --- A5 quality gate ---

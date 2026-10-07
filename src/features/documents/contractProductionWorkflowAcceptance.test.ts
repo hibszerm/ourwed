@@ -4,7 +4,6 @@ import JSZip from 'jszip'
 import type { DocumentSemanticMap } from '@/features/ai-contract-lab/aiContractLabTypes'
 import {
   buildProposedTemplateConfiguration,
-  computeTemplateConfigurationReadiness,
   DEFAULT_PACKAGE_CONFIGURATION,
   migrateTemplateConfiguration,
   type ContractTemplateConfiguration,
@@ -25,16 +24,7 @@ import {
   sanitizeContractFileName,
 } from '@/features/documents/template/contractArtifactDomain'
 import { isTemplateGenerationReady } from '@/features/documents/template/templateGenerationReadiness'
-import {
-  enforceConfigurationOnCompleteness,
-  persistManualOverridesToWedding,
-  runConfigurationAwarePreflight,
-  selectGenerationTemplates,
-} from '@/features/documents/template/WeddingContractGenerationService'
-import type {
-  CompletenessField,
-  ContractCompletenessReport,
-} from '@/features/documents/template/buildContractCompleteness'
+import { classifyTemplatesForGeneration } from '@/features/documents/template/contractTemplatePicker'
 import type { DocumentStorageService } from '@/lib/api/documents/interfaces'
 import type {
   DocumentTemplateSummary,
@@ -43,7 +33,6 @@ import type {
   WeddingDocumentDraft,
 } from '@/types/documents'
 import type { Wedding } from '@/types/wedding'
-import type { TemplateSlot, TemplateSlotMap } from './template/types'
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message)
@@ -202,73 +191,6 @@ function configuration(
     createdAt: '2026-07-26T08:00:00.000Z',
     updatedAt: '2026-07-26T08:00:00.000Z',
     ...input,
-  }
-}
-
-function slot(
-  id: string,
-  registryKey: string,
-  input: Partial<TemplateSlot> = {},
-): TemplateSlot {
-  return {
-    id,
-    registryKey,
-    label: registryKey,
-    sourceHint: 'wedding',
-    occurrences: 1,
-    enabled: true,
-    physicallyBound: true,
-    operation: 'replace',
-    paragraphIndex: 0,
-    startOffset: 5,
-    endOffset: 10,
-    originalText: 'oryginał',
-    requirement: 'required',
-    ...input,
-  }
-}
-
-function completenessField(
-  slotId: string,
-  registryKey: string,
-  value = 'wartość',
-): CompletenessField {
-  return {
-    slotId,
-    registryKey,
-    label: registryKey,
-    group: registryKey.includes('location') ? 'wedding' : 'couple',
-    value,
-    missing: !value,
-    source: value ? 'wedding' : 'missing',
-    sourceLabel: value ? 'Ślub' : 'Brak',
-  }
-}
-
-function report(
-  slots: TemplateSlot[],
-  fields: CompletenessField[],
-): ContractCompletenessReport {
-  const slotMap: TemplateSlotMap = { version: 1, slots, unmappedDynamics: [] }
-  return {
-    templateId: 'template',
-    templateName: 'Umowa',
-    slotMap,
-    resolved: Object.fromEntries(fields.map((field) => [field.registryKey, field.value])),
-    packageSnapshot,
-    questionnaireAnswers: {},
-    sourceParagraphs: [],
-    groups: [
-      {
-        id: 'couple',
-        label: 'Dane',
-        complete: fields.every((field) => !field.missing),
-        fields,
-      },
-    ],
-    fields,
-    missing: fields.filter((field) => field.missing),
-    allComplete: fields.every((field) => !field.missing),
   }
 }
 
@@ -576,288 +498,14 @@ await run('H', 'template cards expose lifecycle states including archive', () =>
   )
 })
 
-await run('I', 'archived templates are classified but never selectable', () => {
-  const selection = selectGenerationTemplates(
-    [template('ready'), template('archived', { status: 'archived' })],
-    null,
-  )
-  equal(selection.classification.selectable.map((item) => item.template.id), ['ready'], 'selectable')
-  equal(selection.classification.archived.map((item) => item.template.id), ['archived'], 'archived')
-})
-
-await run('J', 'matching package template is preselected', () => {
-  const result = selectGenerationTemplates(
-    [template('photo', { category: 'Foto' }), template('film', { category: 'Film Premium' })],
-    'Film Premium 10h',
-  )
-  equal(result.preselectedTemplateId, 'film', 'preselection')
-})
-
-await run('K', 'package recommendation keeps alternatives available', () => {
-  const result = selectGenerationTemplates(
-    [template('photo', { category: 'Foto' }), template('film', { category: 'Film Premium' })],
-    'Film Premium 10h',
-  )
-  equal(result.alternatives.map((item) => item.template.id), ['photo'], 'alternatives')
-})
-
-await run('L', 'configured variable fields remain user-facing', () => {
-  const base = report([slot('phone', 'bride_phone')], [completenessField('phone', 'bride_phone')])
-  const result = enforceConfigurationOnCompleteness(
-    base,
-    configuration([
-      configuredField('phone', 'bride_phone', 'variable', {
-        canonicalFieldKey: 'bride.phone',
-        detectedAnchorIds: ['phone'],
-        variableSource: 'wedding',
-      }),
-    ]),
-  )
-  equal(result.fields.map((field) => field.registryKey), ['bride_phone'], 'variable fields')
-})
-
-await run('M', 'configured fixed fields preserve source text', () => {
-  const base = report(
-    [slot('name', 'bride_full_name', { originalText: 'Anna Źródłowa' })],
-    [completenessField('name', 'bride_full_name', '')],
-  )
-  const result = enforceConfigurationOnCompleteness(
-    base,
-    configuration([
-      configuredField('name', 'bride_name', 'fixed', {
-        canonicalFieldKey: 'bride.full_name',
-        detectedAnchorIds: ['name'],
-      }),
-    ]),
-  )
-  const preflight = runConfigurationAwarePreflight({ report: result, overrides: {} })
-  equal(preflight.effectiveOverrides.bride_full_name, 'Anna Źródłowa', 'fixed source')
-})
-
-await run('N', 'configured ignored fields are omitted from editing', () => {
-  const result = enforceConfigurationOnCompleteness(
-    report([slot('company', 'company_name')], [completenessField('company', 'company_name', '')]),
-    configuration([
-      configuredField('company', 'company_name', 'ignored', {
-        canonicalFieldKey: 'company.legal_name',
-        detectedAnchorIds: ['company'],
-      }),
-    ]),
-  )
-  equal(result.fields, [], 'ignored editor fields')
-  equal(result.ignoredRegistryKeys, ['company_name'], 'ignored keys')
-})
-
-await run('O', 'review mode blocks configuration readiness', () => {
-  const readiness = computeTemplateConfigurationReadiness(
-    configuration(
-      [configuredField('location', 'shared_wedding_location', 'review')],
-      { status: 'requires_review' },
-    ),
-  )
-  equal(readiness.status, 'requires_review', 'review status')
-  assert(readiness.blockingIssues.length > 0, 'review has no blocking issue')
-})
-
-await run('P', 'required missing data blocks preflight', () => {
-  const configured = enforceConfigurationOnCompleteness(
-    report([slot('phone', 'bride_phone')], [completenessField('phone', 'bride_phone', '')]),
-    configuration([
-      configuredField('phone', 'bride_phone', 'variable', {
-        canonicalFieldKey: 'bride.phone',
-        displayName: 'Telefon klientki',
-        detectedAnchorIds: ['phone'],
-        variableSource: 'wedding',
-        requiredWhenVariable: true,
-      }),
-    ]),
-  )
-  const result = runConfigurationAwarePreflight({ report: configured, overrides: {} })
-  assert(!result.ok && result.errors[0]?.includes('Telefon klientki'), 'required field did not block')
-})
-
-await run('Q', 'failed generation preflight preserves local overrides', () => {
-  const configured = enforceConfigurationOnCompleteness(
-    report([slot('phone', 'bride_phone')], [completenessField('phone', 'bride_phone', '')]),
-    configuration([
-      configuredField('phone', 'bride_phone', 'variable', {
-        canonicalFieldKey: 'bride.phone',
-        detectedAnchorIds: ['phone'],
-        variableSource: 'wedding',
-        requiredWhenVariable: true,
-      }),
-    ]),
-  )
-  const overrides = { note: 'zachowaj' }
-  const before = structuredClone(overrides)
-  const result = runConfigurationAwarePreflight({ report: configured, overrides })
-  assert(!result.ok, 'preflight unexpectedly passed')
-  equal(overrides, before, 'input overrides mutated')
-})
-
-await run('R', 'local overrides never update the wedding', async () => {
-  let calls = 0
-  const original = wedding()
-  const result = await persistManualOverridesToWedding({
-    wedding: original,
-    overrides: { wedding_date: '2027-07-01' },
-    scope: 'local_only',
-    update: async (next) => {
-      calls += 1
-      return next
-    },
-  })
-  assert(result === original, 'local scope changed wedding identity')
-  equal(calls, 0, 'local scope update calls')
-})
-
-await run('S', 'explicit safe wedding update is bounded', async () => {
-  let calls = 0
-  const result = await persistManualOverridesToWedding({
-    wedding: wedding(),
-    overrides: { wedding_date: '2027-07-01' },
-    scope: 'update_wedding',
-    update: async (next) => {
-      calls += 1
-      return next
-    },
-  })
-  equal(result.date, '2027-07-01', 'safe date update')
-  equal(calls, 1, 'safe update calls')
-  let blocked = false
-  try {
-    await persistManualOverridesToWedding({
-      wedding: wedding(),
-      overrides: { bride_address: 'Nowy adres' },
-      scope: 'update_wedding',
-      update: async (next) => next,
-    })
-  } catch {
-    blocked = true
-  }
-  assert(blocked, 'unsafe broad update accepted')
-})
-
-function sharedLocationReport(policy: ContractTemplateConfiguration['sharedLocationPolicy']) {
-  const fields = [
-    configuredField('prep', 'preparation_location', 'variable', {
-      canonicalFieldKey: 'location.bride_preparation',
-      detectedAnchorIds: ['prep'],
-      variableSource: 'wedding',
-    }),
-    configuredField('ceremony', 'ceremony_location', 'variable', {
-      canonicalFieldKey: 'location.ceremony',
-      detectedAnchorIds: ['ceremony'],
-      variableSource: 'wedding',
-    }),
-    configuredField('reception', 'reception_location', 'variable', {
-      canonicalFieldKey: 'location.reception',
-      detectedAnchorIds: ['reception'],
-      variableSource: 'wedding',
-    }),
-  ]
-  const base = report(
-    [
-      slot('prep', 'preparation_location'),
-      slot('ceremony', 'ceremony_location'),
-      slot('reception', 'reception_location'),
-    ],
-    [
-      completenessField('prep', 'preparation_location', 'Dom'),
-      completenessField('ceremony', 'ceremony_location', 'Kościół'),
-      completenessField('reception', 'reception_location', 'Pałac'),
-    ],
-  )
-  return enforceConfigurationOnCompleteness(
-    base,
-    configuration(fields, { sharedLocationPolicy: policy }),
-  )
-}
-
-await run('T', 'equal shared locations collapse without prompting', () => {
-  const configured = sharedLocationReport({ mode: 'ask_each_time' })
-  configured.resolved = {
-    preparation_location: 'Pałac',
-    ceremony_location: ' pałac ',
-    reception_location: 'PAŁAC',
-  }
-  const result = runConfigurationAwarePreflight({ report: configured, overrides: {} })
-  assert(result.ok, result.errors.join(', '))
-  equal(result.effectiveOverrides.ceremony_location, 'Pałac', 'normalized shared value')
-})
-
-await run('U', 'different shared locations ask explicitly', () => {
-  const result = runConfigurationAwarePreflight({
-    report: sharedLocationReport({ mode: 'ask_each_time' }),
-    overrides: {},
-  })
-  assert(!result.ok && result.errors.some((error) => error.includes('Wybierz')), 'choice not required')
-})
-
-await run('V', 'single-location policy selects the preferred location', () => {
-  const result = runConfigurationAwarePreflight({
-    report: sharedLocationReport({
-      mode: 'use_single_location',
-      preferredLocationRole: 'reception',
-    }),
-    overrides: {},
-  })
-  assert(result.ok, result.errors.join(', '))
-  equal(result.effectiveOverrides.preparation_location, 'Pałac', 'preferred location')
-})
-
-await run('W', 'combine policy writes one formatted logical value', () => {
-  const result = runConfigurationAwarePreflight({
-    report: sharedLocationReport({
-      mode: 'combine_locations',
-      combinedFormat: '{preparation} / {ceremony} / {reception}',
-    }),
-    overrides: {},
-  })
-  assert(result.ok, result.errors.join(', '))
-  equal(result.effectiveOverrides.reception_location, 'Dom / Kościół / Pałac', 'combined value')
-})
-
-await run('X', 'preflight preserves unmapped enabled slots without diagnostics', () => {
-  const configured = enforceConfigurationOnCompleteness(
-    report(
-      [slot('unknown', 'unknown_key', { originalText: 'Tekst szablonu' })],
-      [completenessField('unknown', 'unknown_key', '')],
-    ),
-    configuration([]),
-  )
-  const result = runConfigurationAwarePreflight({ report: configured, overrides: {} })
-  assert(result.ok, result.errors.join(', ') || 'unmapped slot should not block')
-  assert(
-    !result.errors.some((error) => error.includes('powiązania')),
-    'mapping diagnostics must not reach photographer',
-  )
-  assert(
-    result.omittedKeys.includes('unknown_key'),
-    'unmapped slot preserved from template',
-  )
-})
-
-await run('Y', 'production transformer remains authoritative', () => {
-  const generation = source('src/features/documents/template/WeddingContractGenerationService.ts')
+await run('Y', 'shared transformation compatibility surface remains', () => {
+  const templateBarrel = source('src/features/documents/template/index.ts')
+  const documentBarrel = source('src/features/documents/index.ts')
   const transformer = source('src/features/documents/template/ContractTransformationService.ts')
-  assert(generation.includes("import('./ContractTransformationService')"), 'service bypasses transformer')
-  assert(
-    generation.includes('await transformContract({') ||
-      generation.includes('transformContract({'),
-    'transformer is still invoked',
-  )
-  assert(
-    generation.includes("status: 'needs_review'") ||
-      generation.includes('status: "needs_review"'),
-    'actionable needs_review outcome',
-  )
-  assert(transformer.includes('usedMock: false'), 'production result can claim a mock')
-  assert(
-    transformer.includes('TransformNeedsReviewSignal') ||
-      transformer.includes('needs_review'),
-    'actionable path is not a failed stage',
-  )
+  assert(templateBarrel.includes("export { transformContract }"), 'shared transform export remains')
+  assert(templateBarrel.includes('TransformContractResult'), 'shared result type remains exported')
+  assert(documentBarrel.includes('transformContract'), 'documents barrel remains compatible')
+  assert(transformer.includes('usedMock: false'), 'production result cannot claim a mock')
 })
 
 await run('Z', 'browser-only drafts are not listed as generated contracts', () => {
@@ -1083,9 +731,7 @@ await run('AK', 'regeneration is variable-only and pinned to template version', 
   const ready = source(
     'src/features/documents/contract-experience/ContractReadyPreview.tsx',
   )
-  const service = source(
-    'src/features/documents/template/WeddingContractGenerationService.ts',
-  )
+  const generationPage = source('src/pages/WeddingContractGenerationPage.tsx')
   // Product decision: no in-page “Edytuj dane umowy” on generated preview.
   assert(!preview.includes('Edytuj dane umowy'), 'edit CTA must stay hidden')
   assert(preview.includes('ContractReadyPreview'), 'ready preview wired')
@@ -1094,10 +740,10 @@ await run('AK', 'regeneration is variable-only and pinned to template version', 
     'regenerate navigates to the production generation route',
   )
   assert(ready.includes('Wygeneruj ponownie'), 'regenerate CTA remains')
-  assert(service.includes('prepareVerification'), 'verification infra retained')
   assert(
-    service.includes('templateVersionId'),
-    'template version pinning remains in generation service',
+    generationPage.includes('packageResolution.templateVersionId') &&
+      generationPage.includes('result.templateVersionId'),
+    'current generation pins the resolved package template version',
   )
 })
 
@@ -1118,9 +764,11 @@ await run('AL', 'previous generated versions remain retained', () => {
 await run('AM', 'archived template artifacts remain available but template is unselectable', () => {
   const grouped = groupGeneratedWeddingContracts([draft()], [document(1)])
   assert(grouped[0]?.artifacts.length === 1, 'archiving detached saved artifact')
-  const selection = selectGenerationTemplates([template('template', { status: 'archived' })], null)
-  equal(selection.classification.selectable.length, 0, 'archived selection')
-  equal(selection.classification.archived.length, 1, 'archived diagnosis')
+  const selection = classifyTemplatesForGeneration([
+    template('template', { status: 'archived' }),
+  ])
+  equal(selection.selectable.length, 0, 'archived selection')
+  equal(selection.archived.length, 1, 'archived diagnosis')
 })
 
 await run('AN', 'unsaved generated drafts warn on browser and in-app exit', () => {

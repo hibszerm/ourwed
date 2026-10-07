@@ -16,9 +16,6 @@ import {
   contractStatusLabel,
   getContractUiStatus,
 } from '@/features/documents/contractUi'
-import {
-  selectGenerationTemplates,
-} from '@/features/documents/template/WeddingContractGenerationService'
 import { splitRecommended } from '@/features/documents/template/contractTemplatePicker'
 import { migrateLegacyTemplateConfiguration } from '@/features/documents/template/automaticTemplateReadiness'
 import { existsSync, readFileSync } from 'node:fs'
@@ -306,38 +303,6 @@ run('K — generation does not redirect to AI Lab', () => {
   assert(!src.includes('/konfiguracja'), 'no config redirect')
 })
 
-run('L — generation does not require template configuration confirmation', () => {
-  const svc = source(
-    'src/features/documents/template/WeddingContractGenerationService.ts',
-  )
-  assert(
-    !svc.includes('Dokończ konfigurację pól tego szablonu przed generowaniem.'),
-    'old gate removed',
-  )
-  assert(svc.includes('ensureAutomaticTemplateConfiguration'), 'auto heal')
-})
-
-run('M — best package template is preselected', () => {
-  const rows = [
-    template('general', { category: 'Inny', name: 'Ogólna' }),
-    template('pkg', {
-      name: 'Pakiet Premium Foto',
-      category: 'Premium Foto',
-      meta: {
-        version: 1,
-        fieldConfigurationStatus: 'ready',
-        automaticReadinessStatus: 'ready',
-        associatedPackageId: 'pkg-1',
-      },
-    }),
-  ]
-  const selection = selectGenerationTemplates(rows, 'Premium Foto', {
-    packageId: 'pkg-1',
-  })
-  equal(selection.preselectedTemplateId, 'pkg', 'package match preselected')
-  assert(selection.recommended.some((r) => r.template.id === 'pkg'), 'recommended')
-})
-
 run('N — production generation uses server-owned readiness and missing requirements', () => {
   const src = source(
     'src/features/documents/template/resolveContractVariables.ts',
@@ -359,24 +324,8 @@ run('O — legacy slot review step is removed from Semantic V7 page', () => {
 
 run('photographer review never shows semantic diagnostics', () => {
   const gen = source('src/pages/WeddingContractGenerationPage.tsx')
-  const service = source(
-    'src/features/documents/template/WeddingContractGenerationService.ts',
-  )
   assert(!gen.includes('powiązania'), 'no mapping copy in page')
   assert(!gen.includes('semanticRole'), 'no semantic roles in page')
-  assert(
-    service.includes('buildGenerationReviewState'),
-    'review state is authoritative',
-  )
-  assert(
-    service.includes('generationAllowed: blockingOut.length === 0') ||
-      service.includes('generationAllowed: blockingUserInputs.length === 0'),
-    'generationAllowed follows blockingUserInputs',
-  )
-  assert(
-    !service.includes('nie ma jednoznacznego powiązania'),
-    'diagnostic string removed from preflight',
-  )
   const advanced = source('src/pages/DocumentTemplateFieldConfigPage.tsx')
   assert(advanced.includes('Diagnostyka AI'), 'diagnostics live in advanced settings')
 })
