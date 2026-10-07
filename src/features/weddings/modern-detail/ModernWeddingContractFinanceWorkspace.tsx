@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -11,6 +11,7 @@ import {
   Paperclip,
   RefreshCw,
   Send,
+  Upload,
   Undo2,
 } from 'lucide-react'
 import { IconCheck } from '@/components/icons'
@@ -19,7 +20,6 @@ import { Modal } from '@/components/ui/Modal'
 import { useToast } from '@/components/ui/Toast'
 import { useProAccessGate } from '@/features/billing/ProAccessGate'
 import { useContractPdfDownload } from '@/features/documents/contract-experience'
-import { useDocumentTemplates } from '@/features/documents/hooks/useDocumentTemplates'
 import {
   GeneratedWeddingContractService,
   type GeneratedWeddingContract,
@@ -32,6 +32,14 @@ import {
 import { resolveContractVariables } from '@/features/documents/template/resolveContractVariables'
 import { resolvePackageContractForWedding } from '@/features/documents/template/packageContractAssignment'
 import { weddingContractRecoveryRepository } from '@/features/wedding-contract-recovery/repository'
+import {
+  reanalyzeSourceContract,
+  runRecoveryAnalysis,
+  uploadAndStartRecovery,
+} from '@/features/wedding-contract-recovery/recoveryService'
+import { storeSourceContractOnly } from '@/features/wedding-contract-recovery/storeSourceContractOnly'
+import { validateSourceContractFile } from '@/features/wedding-contract-recovery/validateSourceFile'
+import type { WeddingSourceContract } from '@/features/wedding-contract-recovery/types'
 import { documentStorage } from '@/lib/api/documents/storage'
 import { TravelFeeResolveModal } from '@/features/weddings/detail/travel-fee/TravelFeeResolveModal'
 import { WeddingContractQuestionnaireAnswers } from '@/features/weddings/detail/v2/WeddingContractQuestionnaireAnswers'
@@ -83,7 +91,104 @@ function deletePaymentCopy(payment: Payment): { title: string; body: string } {
   }
 }
 
-type UtilityPanel = 'history' | 'answers' | 'source' | null
+function HistoricalContractVersion({
+  contract,
+  weddingId,
+  current,
+}: {
+  contract: GeneratedWeddingContract
+  weddingId: string
+  current: boolean
+}) {
+  const { showToast } = useToast()
+  const [docxBusy, setDocxBusy] = useState(false)
+  const meta = composeContractDocumentMeta(contract)
+  const docx = [...contract.artifacts]
+    .filter((item) => item.format === 'docx')
+    .sort((a, b) => b.generationVersion - a.generationVersion)[0] ?? null
+  const pdf = useContractPdfDownload({
+    docxBytes: null,
+    fileName: `${contract.draft.title || 'umowa'}.docx`,
+    weddingId,
+    documentId: contract.draft.id,
+    loadDocxBytes: docx?.filePath
+      ? () => documentStorage.download(docx.filePath)
+      : undefined,
+  })
+
+  async function downloadDocx() {
+    if (!docx) return
+    setDocxBusy(true)
+    try {
+      const url = docx.filePath
+        ? await documentStorage.signedUrl(docx.filePath, 3600)
+        : await GeneratedWeddingContractService.getArtifactDownloadUrl(
+            weddingId,
+            contract.draft.id,
+            'docx',
+          )
+      if (url) window.open(url, '_blank', 'noopener,noreferrer')
+    } catch (err) {
+      showToast(
+        getUserFacingErrorMessage(err, 'Nie udało się pobrać umowy.'),
+        'error',
+      )
+    } finally {
+      setDocxBusy(false)
+    }
+  }
+
+  return (
+    <li className={styles.historyItem} data-testid="wedding-contract-version">
+      <div className={styles.historyVersionText}>
+        <strong>{meta.versionLabel}</strong>
+        {current ? <span className={styles.currentVersion}>Aktualna</span> : null}
+        <span>{meta.generatedAtLabel}</span>
+      </div>
+      <div className={styles.historyActions}>
+        <Link
+          className={styles.quietLink}
+          to={`/sluby/${weddingId}/umowy/${contract.draft.id}`}
+        >
+          Podgląd
+        </Link>
+        {docx ? (
+          <>
+            <button
+              type="button"
+              className={styles.quietLink}
+              disabled={docxBusy}
+              onClick={() => void downloadDocx()}
+            >
+              Pobierz DOCX
+            </button>
+            <button
+              type="button"
+              className={styles.quietLink}
+              disabled={pdf.busy}
+              onClick={() => void pdf.downloadPdf()}
+            >
+              {pdf.busy ? 'Przygotowywanie PDF…' : 'Pobierz PDF'}
+            </button>
+          </>
+        ) : null}
+        {pdf.error ? <span className={styles.error} role="alert">{pdf.error}</span> : null}
+      </div>
+    </li>
+  )
+}
+
+type UtilityPanel = 'history' | 'answers' | 'source' | 'upload-choice' | null
+
+function sourceDocumentCountLabel(count: number): string {
+  if (count === 0) return 'Brak dokumentów'
+  if (count === 1) return '1 dokument'
+  const lastTwo = count % 100
+  const last = count % 10
+  return last >= 2 && last <= 4 && (lastTwo < 12 || lastTwo > 14)
+    ? `${count} dokumenty`
+    : `${count} dokumentów`
+}
 
 /**
  * Modern commercial-agreement record for Umowa i finanse.
@@ -108,6 +213,11 @@ export function ModernWeddingContractFinanceWorkspace({
   const { requirePro } = useProAccessGate()
   const [contentsOpen, setContentsOpen] = useState(forcePackageOpen)
   const [utility, setUtility] = useState<UtilityPanel>(null)
+  const [selectedUpload, setSelectedUpload] = useState<File | null>(null)
+  const [uploadBusy, setUploadBusy] = useState(false)
+  const [analysisRetryId, setAnalysisRetryId] = useState<string | null>(null)
+  const [analysisError, setAnalysisError] = useState<string | null>(null)
+  const uploadInputRef = useRef<HTMLInputElement>(null)
   const [travelFeeOpen, setTravelFeeOpen] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<Payment | null>(null)
   const [deleting, setDeleting] = useState(false)
@@ -117,7 +227,6 @@ export function ModernWeddingContractFinanceWorkspace({
   const [signBusy, setSignBusy] = useState(false)
   const [downloading, setDownloading] = useState<string | null>(null)
 
-  const { data: templates = [] } = useDocumentTemplates()
   const contractsQuery = useQuery({
     queryKey: ['generated-wedding-contracts', wedding.id],
     queryFn: () => GeneratedWeddingContractService.listForWedding(wedding.id),
@@ -148,7 +257,6 @@ export function ModernWeddingContractFinanceWorkspace({
     [contractsQuery.data],
   )
   const latest = sorted[0] ?? null
-  const older = sorted.slice(1)
   const hasGenerated = (contractsQuery.data ?? []).length > 0
   const hasTemplate =
     packageQuery.isPending && !packageQuery.data
@@ -236,7 +344,6 @@ export function ModernWeddingContractFinanceWorkspace({
   const addDeposit = !hasPaidDepositPayment(payments)
   const deleteCopy = pendingDelete ? deletePaymentCopy(pendingDelete) : null
   const latestMeta = latest ? composeContractDocumentMeta(latest) : null
-  const templateNames = new Map(templates.map((item) => [item.id, item.name]))
   const latestFormats = latest
     ? [...new Set(latest.artifacts.map((item) => item.format))]
     : []
@@ -267,8 +374,105 @@ export function ModernWeddingContractFinanceWorkspace({
         : undefined,
   })
 
-  function toggleUtility(next: UtilityPanel) {
-    setUtility((current) => (current === next ? null : next))
+  function selectExternalDocument(file: File | undefined) {
+    if (!file) return
+    const validation = validateSourceContractFile(file)
+    if (!validation.ok) {
+      showToast(
+        validation.code === 'CONTRACT_RECOVERY_FILE_TOO_LARGE'
+          ? 'Plik jest zbyt duży. Maksymalny rozmiar to 15 MB.'
+          : 'Obsługiwane są tylko pliki PDF i DOCX.',
+        'error',
+      )
+      return
+    }
+    setSelectedUpload(file)
+    setAnalysisRetryId(null)
+    setAnalysisError(null)
+    setUtility('upload-choice')
+  }
+
+  async function saveUploadOnly() {
+    if (!selectedUpload || uploadBusy) return
+    setUploadBusy(true)
+    try {
+      await storeSourceContractOnly(wedding.id, selectedUpload)
+      setSelectedUpload(null)
+      setUtility('source')
+      await queryClient.invalidateQueries({
+        queryKey: ['wedding-source-contracts', wedding.id],
+      })
+      showToast('Dokument został zapisany przy tym zleceniu.', 'success')
+    } catch (err) {
+      showToast(
+        getUserFacingErrorMessage(err, 'Nie udało się zapisać dokumentu.'),
+        'error',
+      )
+    } finally {
+      setUploadBusy(false)
+    }
+  }
+
+  async function uploadAndAnalyze() {
+    if (!selectedUpload || uploadBusy) return
+    setUploadBusy(true)
+    try {
+      const { recovery } = await uploadAndStartRecovery(wedding.id, selectedUpload)
+      setAnalysisRetryId(recovery.id)
+      await finishRecoveryAnalysis(recovery.id)
+    } catch (err) {
+      showToast(
+        getUserFacingErrorMessage(err, 'Nie udało się przesłać dokumentu.'),
+        'error',
+      )
+    } finally {
+      setUploadBusy(false)
+    }
+  }
+
+  async function finishRecoveryAnalysis(recoveryId: string) {
+    setAnalysisError(null)
+    try {
+      const analyzed = await runRecoveryAnalysis(recoveryId)
+      setSelectedUpload(null)
+      setAnalysisRetryId(null)
+      setUtility(null)
+      navigate(
+        `/sluby/${wedding.id}/uzupelnij-z-umowy?recoveryId=${analyzed.id}`,
+      )
+    } catch (err) {
+      setAnalysisError(
+        getUserFacingErrorMessage(err, 'Nie udało się odczytać danych z dokumentu.'),
+      )
+    }
+  }
+
+  async function retryRecoveryAnalysis() {
+    if (!analysisRetryId || uploadBusy) return
+    setUploadBusy(true)
+    try {
+      await finishRecoveryAnalysis(analysisRetryId)
+    } finally {
+      setUploadBusy(false)
+    }
+  }
+
+  async function analyzeExistingDocument(contract: WeddingSourceContract) {
+    setUploadBusy(true)
+    try {
+      const recovery = await reanalyzeSourceContract(contract.id)
+      setUtility(null)
+      navigate(
+        `/sluby/${wedding.id}/uzupelnij-z-umowy?recoveryId=${recovery.id}`,
+      )
+    } catch (err) {
+      showToast(
+        getUserFacingErrorMessage(err, 'Nie udało się ponowić analizy.'),
+        'error',
+      )
+    } finally {
+      setUploadBusy(false)
+    }
   }
 
   async function downloadContract(contract: GeneratedWeddingContract) {
@@ -417,11 +621,12 @@ export function ModernWeddingContractFinanceWorkspace({
       data-testid="modern-wedding-contract-finance"
     >
       <section
-        className={`${styles.sheet} ${styles.contract}`}
+        className={`${styles.sheet} ${styles.contract} ${styles.workspace}`}
         aria-labelledby="modern-contract-title"
         data-testid="modern-contract-record"
         data-kind={headline.kind}
       >
+        <div className={styles.contractColumn}>
         <div className={styles.sheetHead}>
           <p className={styles.eyebrow}>Umowa</p>
         </div>
@@ -657,27 +862,6 @@ export function ModernWeddingContractFinanceWorkspace({
           </div>
         )}
 
-        {headline.kind === 'ready' ? (
-          <div className={styles.primaryCta}>
-            <Button
-              type="button"
-              variant="primary"
-              data-testid="contracts-generate"
-              onClick={() => onAction('generate_contract')}
-            >
-              Generuj umowę
-            </Button>
-          </div>
-        ) : null}
-
-        {headline.kind === 'no_template' ? (
-          <div className={styles.manageRow}>
-            <Link className={styles.quietLink} to="/studio/pakiety">
-              Przejdź do pakietu
-            </Link>
-          </div>
-        ) : null}
-
         {!latest && canMarkSent ? (
           <div className={styles.manageRow}>
             <button
@@ -703,204 +887,107 @@ export function ModernWeddingContractFinanceWorkspace({
             </button>
           </div>
         ) : null}
+        </div>
 
-        <div className={styles.utilities}>
-          {older.length > 0 ? (
+        <aside className={styles.documentsColumn} aria-labelledby="contract-documents-title">
+          <div className={styles.documentsHeader}>
+            <h3 id="contract-documents-title">Dokumenty i dane</h3>
+            <p>Pliki umowy i odpowiedzi w jednym miejscu.</p>
+          </div>
+
+          <div className={styles.entryActions}>
+            {headline.kind === 'ready' ? (
+              <Button
+                type="button"
+                variant="primary"
+                data-testid="contracts-generate"
+                onClick={() => onAction('generate_contract')}
+              >
+                Wygeneruj umowę
+              </Button>
+            ) : null}
+            {headline.kind === 'no_template' ? (
+              <Link className={styles.entryLink} to="/studio/pakiety">
+                Przejdź do pakietu
+              </Link>
+            ) : null}
+            <button
+              type="button"
+              className={styles.uploadAction}
+              onClick={() => uploadInputRef.current?.click()}
+              data-testid="contract-upload-document"
+            >
+              <Upload size={16} aria-hidden />
+              Wgraj dokument
+            </button>
+            <input
+              ref={uploadInputRef}
+              type="file"
+              accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              className={styles.hiddenInput}
+              data-testid="contract-upload-input"
+              onChange={(event) => {
+                selectExternalDocument(event.currentTarget.files?.[0])
+                event.currentTarget.value = ''
+              }}
+            />
+            <p className={styles.uploadHint}>PDF lub DOCX z innego źródła</p>
+          </div>
+
+          <nav className={styles.utilities} aria-label="Dokumenty i dane">
+            {sorted.length > 0 ? (
+              <button
+                type="button"
+                className={styles.discloseRow}
+                data-testid="wedding-version-history-toggle"
+                onClick={() => setUtility('history')}
+              >
+                <span className={styles.discloseLead}>
+                  <History className={styles.discloseIcon} size={16} aria-hidden />
+                  <span className={styles.discloseLabel}>Historia wersji</span>
+                </span>
+                <span className={styles.discloseTrail}>
+                  <span className={styles.discloseMeta}>
+                    {sorted.length === 1 ? '1 wersja' : `${sorted.length} wersje`}
+                  </span>
+                  <ChevronRight className={styles.discloseChevron} size={15} aria-hidden />
+                </span>
+              </button>
+            ) : null}
             <button
               type="button"
               className={styles.discloseRow}
-              data-active={utility === 'history' ? 'true' : undefined}
-              aria-expanded={utility === 'history'}
-              data-testid="wedding-version-history-toggle"
-              onClick={() => toggleUtility('history')}
+              data-testid="contract-answers-toggle"
+              onClick={() => setUtility('answers')}
             >
               <span className={styles.discloseLead}>
-                <History
-                  className={styles.discloseIcon}
-                  size={16}
-                  strokeWidth={1.75}
-                  aria-hidden
-                />
-                <span className={styles.discloseLabel}>Historia wersji</span>
+                <FileText className={styles.discloseIcon} size={16} aria-hidden />
+                <span className={styles.discloseLabel}>Dane z ankiety</span>
+              </span>
+              <span className={styles.discloseTrail}>
+                <span className={styles.discloseMeta}>{answers.line}</span>
+                <ChevronRight className={styles.discloseChevron} size={15} aria-hidden />
+              </span>
+            </button>
+            <button
+              type="button"
+              className={styles.discloseRow}
+              data-testid="modern-source-contract-toggle"
+              onClick={() => setUtility('source')}
+            >
+              <span className={styles.discloseLead}>
+                <Paperclip className={styles.discloseIcon} size={16} aria-hidden />
+                <span className={styles.discloseLabel}>Wgrane dokumenty</span>
               </span>
               <span className={styles.discloseTrail}>
                 <span className={styles.discloseMeta}>
-                  {older.length === 1
-                    ? '1 wcześniejsza'
-                    : `${older.length} wcześniejsze`}
+                  {sourceDocumentCountLabel(sourceContracts.length)}
                 </span>
-                <ChevronRight
-                  className={styles.discloseChevron}
-                  size={15}
-                  strokeWidth={1.75}
-                  aria-hidden
-                />
+                <ChevronRight className={styles.discloseChevron} size={15} aria-hidden />
               </span>
             </button>
-          ) : null}
-          {utility === 'history' && older.length > 0 ? (
-            <div
-              className={styles.disclosure}
-              data-testid="wedding-version-history"
-            >
-              <ul className={styles.historyList}>
-                {older.map((contract) => {
-                  const meta = composeContractDocumentMeta(contract)
-                  const formats = [
-                    ...new Set(contract.artifacts.map((item) => item.format)),
-                  ]
-                  return (
-                    <li
-                      key={contract.draft.id}
-                      className={styles.historyItem}
-                      data-testid="wedding-contract-older"
-                    >
-                      <span>
-                        <span className={styles.historyTitle}>
-                          {meta.versionLabel}
-                        </span>
-                        {' · '}
-                        {templateNames.get(contract.templateId) ??
-                          'Szablon archiwalny'}
-                        {' · '}
-                        {meta.generatedAtLabel}
-                      </span>
-                      <span className={styles.historyActions}>
-                        <Link
-                          className={styles.quietLink}
-                          to={`/sluby/${wedding.id}/umowy/${contract.draft.id}`}
-                        >
-                          Podgląd
-                        </Link>
-                        {formats.includes('docx') ? (
-                          <button
-                            type="button"
-                            className={styles.quietLink}
-                            onClick={() => void downloadContract(contract)}
-                          >
-                            Pobierz
-                          </button>
-                        ) : null}
-                      </span>
-                    </li>
-                  )
-                })}
-              </ul>
-            </div>
-          ) : null}
-
-          <button
-            type="button"
-            className={styles.discloseRow}
-            data-active={utility === 'answers' ? 'true' : undefined}
-            aria-expanded={utility === 'answers'}
-            data-testid="contract-answers-toggle"
-            onClick={() => toggleUtility('answers')}
-          >
-            <span className={styles.discloseLead}>
-              <FileText
-                className={styles.discloseIcon}
-                size={16}
-                strokeWidth={1.75}
-                aria-hidden
-              />
-              <span className={styles.discloseLabel}>Dane z ankiety</span>
-            </span>
-            <span className={styles.discloseTrail}>
-              <span className={styles.discloseMeta}>{answers.line}</span>
-            </span>
-          </button>
-          {utility === 'answers' ? (
-            <div
-              className={styles.disclosure}
-              data-testid="contract-finance-questionnaire"
-            >
-              <p className={styles.muted} data-testid="contract-answers-summary">
-                {answers.line}
-                {wedding.packageName?.trim()
-                  ? ` · ${wedding.packageName.trim()}`
-                  : ''}
-              </p>
-              {answers.completed ? (
-                <div data-testid="contract-answers-expanded">
-                  <WeddingContractQuestionnaireAnswers
-                    weddingId={wedding.id}
-                    enabled
-                  />
-                </div>
-              ) : (
-                <p className={styles.muted}>
-                  Pełne odpowiedzi pojawią się po wypełnieniu ankiety do umowy.
-                </p>
-              )}
-            </div>
-          ) : null}
-
-          <button
-            type="button"
-            className={styles.discloseRow}
-            data-active={utility === 'source' ? 'true' : undefined}
-            aria-expanded={utility === 'source'}
-            data-testid="modern-source-contract-toggle"
-            onClick={() => toggleUtility('source')}
-          >
-            <span className={styles.discloseLead}>
-              <Paperclip
-                className={styles.discloseIcon}
-                size={16}
-                strokeWidth={1.75}
-                aria-hidden
-              />
-              <span className={styles.discloseLabel}>Umowa źródłowa</span>
-            </span>
-            <span className={styles.discloseTrail}>
-              <span className={styles.discloseMeta}>
-                {sourceContracts.length === 0
-                  ? 'Brak pliku'
-                  : sourceContracts.length === 1
-                    ? '1 plik'
-                    : sourceContracts.length < 5
-                      ? `${sourceContracts.length} pliki`
-                      : `${sourceContracts.length} plików`}
-              </span>
-            </span>
-          </button>
-          {utility === 'source' ? (
-            <div className={styles.disclosure}>
-              {sourceContracts.length === 0 ? (
-                <p className={styles.muted}>Brak wgranych umów źródłowych.</p>
-              ) : (
-                <ul className={styles.sourceList}>
-                  {sourceContracts.map((contract) => (
-                    <li key={contract.id} className={styles.sourceItem}>
-                      <span className={styles.sourceName}>
-                        {contract.originalFileName}
-                      </span>
-                      <button
-                        type="button"
-                        className={styles.quietLink}
-                        onClick={() => void openSourceFile(contract.filePath)}
-                      >
-                        Otwórz
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <div className={styles.manageRow}>
-                <button
-                  type="button"
-                  className={styles.quietLink}
-                  onClick={() =>
-                    navigate(`/sluby/${wedding.id}/uzupelnij-z-umowy`)
-                  }
-                >
-                  Uzupełnij dane z umowy
-                </button>
-              </div>
-            </div>
-          ) : null}
-        </div>
+          </nav>
+        </aside>
       </section>
 
       <section
@@ -1152,6 +1239,185 @@ export function ModernWeddingContractFinanceWorkspace({
           </ul>
         ) : null}
       </section>
+
+      <Modal
+        open={utility !== null}
+        title={
+          utility === 'history'
+            ? 'Historia wersji'
+            : utility === 'answers'
+              ? 'Dane z ankiety'
+              : utility === 'upload-choice'
+                ? 'Wgraj dokument'
+                : 'Wgrane dokumenty'
+        }
+        description={
+          utility === 'history'
+            ? 'Wszystkie wygenerowane wersje umowy.'
+            : utility === 'answers'
+              ? answers.completed
+                ? `${answers.line}${wedding.packageName?.trim() ? ` · ${wedding.packageName.trim()}` : ''}`
+                : 'Odpowiedzi do umowy.'
+              : utility === 'upload-choice'
+                ? 'Co chcesz zrobić z tym dokumentem?'
+                : 'Dokumenty dodane do tego zlecenia.'
+        }
+        onClose={() => {
+          if (!uploadBusy) {
+            setUtility(null)
+            if (utility === 'upload-choice') setSelectedUpload(null)
+          }
+        }}
+        busy={uploadBusy}
+        hideFooter
+        showClose
+        size="story"
+        mobilePresentation="sheet"
+        panelClassName={styles.detailModal}
+      >
+        {utility === 'history' ? (
+          <ul className={styles.modalList} data-testid="wedding-version-history">
+            {sorted.map((contract) => (
+              <HistoricalContractVersion
+                key={contract.draft.id}
+                contract={contract}
+                weddingId={wedding.id}
+                current={contract.draft.id === latest?.draft.id}
+              />
+            ))}
+          </ul>
+        ) : null}
+
+        {utility === 'answers' ? (
+          <div
+            className={styles.answersModalContent}
+            data-testid="contract-finance-questionnaire"
+          >
+            {answers.completed ? (
+              <WeddingContractQuestionnaireAnswers
+                weddingId={wedding.id}
+                enabled
+              />
+            ) : (
+              <p className={styles.muted} data-testid="contract-answers-empty">
+                Brak przesłanych odpowiedzi do umowy.
+              </p>
+            )}
+          </div>
+        ) : null}
+
+        {utility === 'source' ? (
+          <div className={styles.uploadedDocuments} data-testid="uploaded-documents-modal">
+            {sourceContracts.length === 0 ? (
+              <p className={styles.muted}>Nie dodano jeszcze dokumentów.</p>
+            ) : (
+              <ul className={styles.modalList}>
+                {sourceContracts.map((contract) => (
+                  <li key={contract.id} className={styles.sourceItem}>
+                    <div className={styles.sourceInfo}>
+                      <strong className={styles.sourceName} title={contract.originalFileName}>
+                        {contract.originalFileName}
+                      </strong>
+                      <span className={styles.sourceMeta}>
+                        {contract.mimeType.includes('pdf') ? 'PDF' : 'DOCX'} ·{' '}
+                        {new Intl.DateTimeFormat('pl-PL', {
+                          dateStyle: 'medium',
+                        }).format(new Date(contract.createdAt))}
+                      </span>
+                      {contract.status === 'ready_for_review' ? (
+                        <span className={styles.sourceState}>Dane zostały odczytane</span>
+                      ) : contract.status === 'applied' ? (
+                        <span className={styles.sourceState}>Dane zastosowane</span>
+                      ) : contract.status === 'failed' ? (
+                        <span className={styles.sourceState}>Analiza nie powiodła się</span>
+                      ) : contract.status === 'analyzing' || contract.status === 'extracting' ? (
+                        <span className={styles.sourceState}>Analiza w toku</span>
+                      ) : null}
+                    </div>
+                    <div className={styles.sourceActions}>
+                      <button
+                        type="button"
+                        className={styles.quietLink}
+                        onClick={() => void openSourceFile(contract.filePath)}
+                      >
+                        Otwórz
+                      </button>
+                      {contract.status !== 'uploaded' ? (
+                        <button
+                          type="button"
+                          className={styles.quietLink}
+                          disabled={uploadBusy}
+                          onClick={() => void analyzeExistingDocument(contract)}
+                        >
+                          Analizuj ponownie
+                        </button>
+                      ) : null}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <button
+              type="button"
+              className={styles.modalUploadButton}
+              onClick={() => uploadInputRef.current?.click()}
+            >
+              <Upload size={16} aria-hidden />
+              Wgraj dokument
+            </button>
+          </div>
+        ) : null}
+
+        {utility === 'upload-choice' && selectedUpload ? (
+          <div className={styles.uploadChoice} data-testid="upload-document-choice">
+            <div className={styles.selectedFile}>
+              <FileText size={18} aria-hidden />
+              <span title={selectedUpload.name}>{selectedUpload.name}</span>
+              <button
+                type="button"
+                className={styles.changeFile}
+                disabled={uploadBusy}
+                onClick={() => uploadInputRef.current?.click()}
+              >
+                Zmień
+              </button>
+            </div>
+            <button
+              type="button"
+              className={styles.uploadChoiceOption}
+              disabled={uploadBusy}
+              onClick={() => void saveUploadOnly()}
+              data-testid="upload-document-store-only"
+            >
+              <strong>{uploadBusy ? 'Zapisywanie…' : 'Tylko zachowaj dokument'}</strong>
+              <span>Dokument zostanie zapisany przy tym zleceniu.</span>
+            </button>
+            <button
+              type="button"
+              className={styles.uploadChoiceOption}
+              disabled={uploadBusy}
+              onClick={() => void uploadAndAnalyze()}
+              data-testid="upload-document-analyze"
+            >
+              <strong>{uploadBusy ? 'Przygotowywanie…' : 'Uzupełnij dane z dokumentu'}</strong>
+              <span>OurWed odczyta dokument i pokaże dane do przeniesienia do zlecenia.</span>
+            </button>
+            {analysisError ? (
+              <div className={styles.analysisRetry} role="alert">
+                <p>{analysisError}</p>
+                <button
+                  type="button"
+                  className={styles.quietLink}
+                  disabled={uploadBusy}
+                  onClick={() => void retryRecoveryAnalysis()}
+                >
+                  Ponów odczytywanie
+                </button>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </Modal>
 
       <TravelFeeResolveModal
         open={travelFeeOpen}

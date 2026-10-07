@@ -197,10 +197,6 @@ const model = read(
 const workspace = read(
   'src/features/weddings/modern-detail/ModernWeddingDetailWorkspace.tsx',
 )
-const classic = (assert(!existsSync(resolve(process.cwd(), 'src/features/weddings/detail/v2/WeddingContractFinanceWorkspace.tsx')), 'deleted src/features/weddings/detail/v2/WeddingContractFinanceWorkspace.tsx'), ({ includes: () => false, indexOf: () => -1, slice: () => '', length: 0, match: () => null } as any))
-const classicCss = read(
-  'src/features/weddings/detail/v2/WeddingDetailV2.module.css',
-)
 const tabs = read(
   'src/features/weddings/modern-detail/ModernWeddingDetailTabs.tsx',
 )
@@ -259,21 +255,63 @@ run('Architecture uses canonical helpers, not a second commercial model', () => 
   assert(modern.includes("queryKey: ['wedding-source-contracts'"), 'same source key')
 })
 
-run('Visual language is three composed sheets, not Classic settings stack', () => {
+run('Contract workspace is two columns with modal document details', () => {
   assert(modernCss.includes('border-radius: 18px'), 'ivory sheet radius')
   assert(!modernCss.includes('max-width: 880px'), 'no classic column')
   assert(!modern.includes('paymentBig'), 'no classic KPI class')
   assert(modern.includes('>Umowa<') || modern.includes('Umowa'), 'contract section')
+  assert(modern.includes('Dokumenty i dane'), 'right-side documents and data area')
+  assert(modernCss.includes('grid-template-columns: minmax(0, 1.55fr) minmax(300px, 1fr)'), 'two-column desktop ratio')
+  assert(modernCss.includes('@media (max-width: 900px)'), 'columns stack for tablet and mobile')
   assert(modern.includes('Rozliczenie'), 'settlement section')
   assert(modern.includes('Szczegóły pakietu'), 'package chapter')
   assert(!modern.includes('Warunki umowy'), 'old terms heading removed')
   assert(!modern.includes('Aktualna umowa'), 'no redundant current-contract heading')
   assert(!modernCss.includes('stateBanner'), 'no green status banner')
-  assert(modern.includes('Umowa źródłowa'), 'recovery kept')
-  assert(modern.includes('toggleUtility'), 'recovery is disclosure')
+  assert(modern.includes('Wgrane dokumenty'), 'user-facing uploaded-document terminology')
+  assert(modern.includes("setUtility('source')"), 'uploaded documents open in modal')
+  assert(modern.includes('size="story"'), 'detail surfaces use shared modal')
+  assert(modern.includes('showClose'), 'modals have stable close control')
+  assert(modern.includes('Modal'), 'modal primitive reused')
   assert(modern.includes('Dane z ankiety'), 'questionnaire kept')
   assert(!modern.includes('SendQuestionnaireModal'), 'no send questionnaire here')
   assert(model.includes("line: 'Nie wysłano'"), 'P5 — not_sent is provenance, not Oczekuje')
+})
+
+run('Upload-only stores a private source document without starting analysis', () => {
+  const storeOnly = read('src/features/wedding-contract-recovery/storeSourceContractOnly.ts')
+  const sourceSchema = read('supabase/migrations/20260728160000_wedding_contract_recovery.sql')
+  assert(storeOnly.includes('assertValidSourceContractFile'), 'reuse PDF/DOCX validation')
+  assert(storeOnly.includes('documentStorage.paths.sourceContract'), 'use owner/wedding-scoped private path')
+  assert(storeOnly.includes('documentStorage.upload'), 'store original file')
+  assert(storeOnly.includes('createSourceContract'), 'persist document metadata')
+  assert(!storeOnly.includes('createRecovery'), 'stored-only creates no analysis record')
+  assert(!storeOnly.includes('runRecoveryAnalysis'), 'stored-only never runs analysis')
+  assert(!storeOnly.includes('analyzeWeddingContractRecovery'), 'stored-only never calls a provider')
+  assert(!storeOnly.includes('weddingService.update'), 'stored-only does not mutate wedding fields')
+  assert(sourceSchema.includes("'uploaded'"), 'existing source record supports uploaded state')
+  assert(modern.includes('storeSourceContractOnly(wedding.id, selectedUpload)'), 'keep-only option uses storage path')
+  assert(modern.includes('uploadAndStartRecovery(wedding.id, selectedUpload)'), 'analysis option reuses existing upload path')
+  assert(modern.includes('runRecoveryAnalysis(recoveryId)'), 'analysis option uses existing analysis service')
+  assert(modern.includes('retryRecoveryAnalysis'), 'analysis failure can retry the same recovery instead of duplicating the upload')
+  assert(modern.includes('upload-document-store-only'), 'keep-only option is independently actionable')
+  assert(modern.includes('upload-document-analyze'), 'analysis choice is explicit')
+})
+
+run('History, questionnaire, and uploaded documents retain their existing data/actions', () => {
+  assert(modern.includes('sorted.map((contract)'), 'history renders the already sorted contract versions')
+  assert(modern.includes('HistoricalContractVersion'), 'history reuses each saved version')
+  assert(modern.includes('Pobierz DOCX'), 'history exposes DOCX download')
+  assert(modern.includes('Pobierz PDF'), 'history exposes PDF through the shared converter')
+  assert(modern.includes('WeddingContractQuestionnaireAnswers'), 'questionnaire modal retains the existing read model')
+  assert(modern.includes('listSourceContractsByWedding'), 'document list stays wedding-scoped')
+  assert(modern.includes('documentStorage.signedUrl(filePath)'), 'uploaded documents reopen via private signed URL')
+  assert(modern.includes('reanalyzeSourceContract(contract.id)'), 'analyzed source can enter its existing reanalysis flow')
+  assert(modern.includes('contracts-generate'), 'existing generation action remains wired')
+  assert(modern.includes("onAction('generate_contract')"), 'generation stays on current handler')
+  assert(modern.includes("contractService.updateStatus(wedding.id, 'sent')"), 'sent lifecycle action remains wired')
+  assert(modern.includes('contract-pdf-download-button'), 'current PDF action remains wired')
+  assert(modern.includes('contract-freshness-regenerate'), 'regeneration path remains available')
 })
 
 run('Contract headline states', () => {
@@ -560,8 +598,8 @@ run('H.3.2: one commercial summary row, Wartość umowy, no Termin minął', () 
   assert(!modernCss.includes('success-banner'), 'no success banner')
   assert(model.includes('dueTermsLabel'), 'due terms split from date')
   assert(
-    workspace.includes("editorSection === 'package'") &&
-      workspace.includes("editorSection === 'finances'"),
+    workspace.includes('resolveWeddingEditOverlayPresentation') &&
+      workspace.includes('editorSection'),
     'package/finances reuse centered overlay on this tab',
   )
 })
