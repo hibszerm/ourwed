@@ -697,137 +697,146 @@ export function ModernWeddingContractFinanceWorkspace({
                     ? CONTRACT_FRESHNESS_COPY.signedSupport
                     : CONTRACT_FRESHNESS_COPY.support}
                 </p>
-                {canRegenerate ? (
-                  <button
-                    type="button"
-                    className={styles.docAction}
-                    data-testid="contract-freshness-regenerate"
-                    onClick={() => onAction('generate_contract')}
-                  >
-                    {CONTRACT_FRESHNESS_COPY.action}
-                  </button>
-                ) : null}
               </div>
             ) : null}
-            <div className={styles.docActions}>
-              <Link
-                className={`${styles.docAction} ${styles.docActionPrimary}`}
-                to={`/sluby/${wedding.id}/umowy/${latest.draft.id}`}
-              >
-                <Eye
-                  className={styles.docActionIcon}
-                  size={18}
-                  strokeWidth={1.75}
-                  aria-hidden
-                />
-                Podgląd
-              </Link>
-              {latestFormats.includes('docx') ? (
-                <button
-                  type="button"
-                  className={styles.docAction}
-                  disabled={downloading === `${latest.draft.id}:docx`}
-                  onClick={() => void downloadContract(latest)}
-                >
-                  <Download
-                    className={styles.docActionIcon}
-                    size={18}
-                    strokeWidth={1.75}
-                    aria-hidden
-                  />
-                  Pobierz DOCX
-                </button>
-              ) : null}
-              {latestFormats.includes('docx') ? (
-                <button
-                  type="button"
-                  className={styles.docAction}
-                  disabled={pdfDownload.busy}
-                  data-testid="contract-pdf-download-button"
-                  onClick={() => void pdfDownload.downloadPdf()}
-                >
-                  <Download
-                    className={styles.docActionIcon}
-                    size={18}
-                    strokeWidth={1.75}
-                    aria-hidden
-                  />
-                  {pdfDownload.busy ? 'Przygotowywanie PDF…' : 'Pobierz PDF'}
-                </button>
+            <div
+              className={`${styles.operationsModule}${
+                canRegenerate || canMarkSent || canSign || isSigned
+                  ? ` ${styles.operationsModuleWithContractActions}`
+                  : ''
+              }`}
+              data-testid="contract-operations"
+            >
+              <section className={styles.operationGroup} aria-label="Dokument">
+                <p className={styles.operationLabel}>Dokument</p>
+                <div className={styles.operationControls}>
+                  <Link
+                    className={`${styles.docAction} ${styles.docActionPrimary}`}
+                    to={`/sluby/${wedding.id}/umowy/${latest.draft.id}`}
+                  >
+                    <Eye
+                      className={styles.docActionIcon}
+                      size={18}
+                      strokeWidth={1.75}
+                      aria-hidden
+                    />
+                    Podgląd
+                  </Link>
+                  {latestFormats.includes('docx') ? (
+                    <button
+                      type="button"
+                      className={styles.docAction}
+                      aria-label="Pobierz DOCX"
+                      title="Pobierz DOCX"
+                      disabled={downloading === `${latest.draft.id}:docx`}
+                      onClick={() => void downloadContract(latest)}
+                    >
+                      <Download
+                        className={styles.docActionIcon}
+                        size={18}
+                        strokeWidth={1.75}
+                        aria-hidden
+                      />
+                      DOCX
+                    </button>
+                  ) : null}
+                  {latestFormats.includes('docx') ? (
+                    <button
+                      type="button"
+                      className={styles.docAction}
+                      aria-label={pdfDownload.busy ? 'Przygotowywanie pliku PDF' : 'Pobierz PDF'}
+                      title="Pobierz PDF"
+                      disabled={pdfDownload.busy}
+                      data-testid="contract-pdf-download-button"
+                      onClick={() => void pdfDownload.downloadPdf()}
+                    >
+                      <Download
+                        className={styles.docActionIcon}
+                        size={18}
+                        strokeWidth={1.75}
+                        aria-hidden
+                      />
+                      {pdfDownload.busy ? 'Przygotowywanie…' : 'PDF'}
+                    </button>
+                  ) : null}
+                </div>
+              </section>
+              {canRegenerate || canMarkSent || canSign || isSigned ? (
+                <section className={`${styles.operationGroup} ${styles.contractActionsGroup}`} aria-label="Działania">
+                  <p className={styles.operationLabel}>Działania</p>
+                  <div className={styles.operationControls}>
+                    {canRegenerate ? (
+                      <button
+                        type="button"
+                        className={styles.docAction}
+                        data-testid={isContractStale ? 'contract-freshness-regenerate' : 'contracts-generate'}
+                        onClick={() => onAction('generate_contract')}
+                      >
+                        <RefreshCw
+                          className={styles.docActionIcon}
+                          size={18}
+                          strokeWidth={1.75}
+                          aria-hidden
+                        />
+                        Generuj ponownie
+                      </button>
+                    ) : null}
+                    {canMarkSent ? (
+                      <button
+                        type="button"
+                        className={styles.docAction}
+                        data-testid="contract-mark-sent"
+                        onClick={() => setConfirmSent(true)}
+                      >
+                        <Send
+                          className={styles.docActionIcon}
+                          size={18}
+                          strokeWidth={1.75}
+                          aria-hidden
+                        />
+                        Oznacz jako wysłaną
+                      </button>
+                    ) : null}
+                    {canSign ? (
+                      <button
+                        type="button"
+                        className={styles.docAction}
+                        data-testid="contract-mark-signed"
+                        onClick={() => setConfirmSign(true)}
+                      >
+                        <CircleCheck
+                          className={styles.docActionIcon}
+                          size={18}
+                          strokeWidth={1.75}
+                          aria-hidden
+                        />
+                        Oznacz jako podpisaną
+                      </button>
+                    ) : null}
+                    {isSigned ? (
+                      <button
+                        type="button"
+                        className={styles.docAction}
+                        data-testid="contract-unsign"
+                        onClick={() => setConfirmUnsign(true)}
+                      >
+                        <Undo2
+                          className={styles.docActionIcon}
+                          size={18}
+                          strokeWidth={1.75}
+                          aria-hidden
+                        />
+                        Cofnij oznaczenie
+                      </button>
+                    ) : null}
+                  </div>
+                </section>
               ) : null}
             </div>
             {pdfDownload.error ? (
               <p className={styles.error} role="alert">
                 {pdfDownload.error}
               </p>
-            ) : null}
-            {canRegenerate || canMarkSent || canSign || isSigned ? (
-              <div className={styles.manageRow}>
-                {canRegenerate ? (
-                  <button
-                    type="button"
-                    className={styles.docAction}
-                    data-testid="contracts-generate"
-                    onClick={() => onAction('generate_contract')}
-                  >
-                    <RefreshCw
-                      className={styles.docActionIcon}
-                      size={18}
-                      strokeWidth={1.75}
-                      aria-hidden
-                    />
-                    Generuj ponownie
-                  </button>
-                ) : null}
-                {canMarkSent ? (
-                  <button
-                    type="button"
-                    className={styles.docAction}
-                    data-testid="contract-mark-sent"
-                    onClick={() => setConfirmSent(true)}
-                  >
-                    <Send
-                      className={styles.docActionIcon}
-                      size={18}
-                      strokeWidth={1.75}
-                      aria-hidden
-                    />
-                    Oznacz jako wysłaną
-                  </button>
-                ) : null}
-                {canSign ? (
-                  <button
-                    type="button"
-                    className={styles.docAction}
-                    data-testid="contract-mark-signed"
-                    onClick={() => setConfirmSign(true)}
-                  >
-                    <CircleCheck
-                      className={styles.docActionIcon}
-                      size={18}
-                      strokeWidth={1.75}
-                      aria-hidden
-                    />
-                    Oznacz jako podpisaną
-                  </button>
-                ) : null}
-                {isSigned ? (
-                  <button
-                    type="button"
-                    className={styles.docAction}
-                    data-testid="contract-unsign"
-                    onClick={() => setConfirmUnsign(true)}
-                  >
-                    <Undo2
-                      className={styles.docActionIcon}
-                      size={18}
-                      strokeWidth={1.75}
-                      aria-hidden
-                    />
-                    Cofnij oznaczenie
-                  </button>
-                ) : null}
-              </div>
             ) : null}
           </div>
         ) : (
