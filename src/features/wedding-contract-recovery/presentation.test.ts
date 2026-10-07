@@ -158,6 +158,7 @@ assert.match(readFileSync('src/features/wedding-contract-recovery/components/Pac
 assert.match(readFileSync('src/features/wedding-contract-recovery/components/RecoveryFieldComparisonRow.tsx', 'utf8'), /aria-label=\{`Zastosuj zmianę:/, 'selection control has a user-facing accessible label')
 assert.match(packageCard, /confirmationMode \? \(/, 'package confirmation has a read-only presentation')
 assert.match(packageCard, /confirmationCurrentName/, 'package confirmation includes current-to-after context')
+assert.match(confirmation, /packageNameContext = buildRecoveryDecisionGroups\(fields\)/, 'package comparison retains current context even when its scalar field is not selected')
 assert.match(confirmation, /sectionKey === 'package' && packageModel[\s\S]*PackageSnapshotCard confirmationMode/, 'selected package is represented by one rich confirmation block')
 assert.match(confirmation, /group\.id === 'package\.name'/, 'package scalar comparison is suppressed when represented by the rich package block')
 const confirmationPackageBranch = packageCard.slice(packageCard.indexOf('confirmationMode ? ('), packageCard.indexOf(': (\n        <>'))

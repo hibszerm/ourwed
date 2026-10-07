@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/Button'
 import type { RecoveryFieldComparison, RecoveryProposal } from '../types'
-import { buildRecoveryConfirmationGroups, formatRecoveryValue, formatSelectedChangeCount, recoveryLogicalSelectionCount, recoverySectionLabel } from '../presentation'
+import { buildRecoveryConfirmationGroups, buildRecoveryDecisionGroups, formatRecoveryValue, formatSelectedChangeCount, recoveryLogicalSelectionCount, recoverySectionLabel } from '../presentation'
 import type { RecoveryDecisionGroup } from '../presentation'
 import { PackageSnapshotCard } from './PackageSnapshotCard'
 import styles from './RecoveryConfirmationPanel.module.css'
@@ -28,7 +28,7 @@ export function RecoveryConfirmationPanel({
   const countCopy = formatSelectedChangeCount(count)
   const selectedGroups = buildRecoveryConfirmationGroups(fields)
   const packageModel = includePackageSnapshot ? proposal.packageSnapshotProposal : null
-  const packageNameDecision = selectedGroups.find((group) => group.id === 'package.name')
+  const packageNameContext = buildRecoveryDecisionGroups(fields).find((group) => group.id === 'package.name')
   const selectedExtras = proposal.extraProposals.filter((item) => item.selected && item.applicable)
   const selectedNotes = proposal.noteProposals.filter((item) => item.selected)
   const renderedSections = new Set(selectedGroups
@@ -61,7 +61,7 @@ export function RecoveryConfirmationPanel({
                 return (
                   <section key={sectionKey} className={styles.section}>
                     <h3 className={styles.sectionTitle}>{recoverySectionLabel(sectionKey)}</h3>
-                    <PackageSnapshotCard confirmationMode confirmationCurrentName={packageNameDecision?.currentValue ?? null} model={{
+                    <PackageSnapshotCard confirmationMode confirmationCurrentName={packageNameContext?.currentValue ?? null} model={{
                       name: packageModel.name,
                       originalDescription: packageModel.originalDescription,
                       includedItems: packageModel.includedItems,
