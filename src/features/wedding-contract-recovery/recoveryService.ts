@@ -237,7 +237,20 @@ export async function applyWeddingContractRecoveryProposal(
     if (message.includes('CONTRACT_RECOVERY_UNAUTHORIZED')) {
       throw new ContractRecoveryError('CONTRACT_RECOVERY_UNAUTHORIZED')
     }
-    throw new ContractRecoveryError('CONTRACT_RECOVERY_NOT_FOUND')
+    if (message.includes('CONTRACT_RECOVERY_INVALID_DECISIONS')) {
+      throw new ContractRecoveryError('CONTRACT_RECOVERY_INVALID_DECISIONS')
+    }
+    const diagnosticCategory =
+      error.code === '42804'
+        ? 'rpc_type_mismatch'
+        : error.code === '23514'
+          ? 'rpc_constraint'
+          : 'rpc_database_error'
+    throw new ContractRecoveryError(
+      'CONTRACT_RECOVERY_APPLY_FAILED',
+      undefined,
+      diagnosticCategory,
+    )
   }
   const result = (data ?? {}) as {
     appliedFieldKeys?: unknown

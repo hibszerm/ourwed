@@ -8,6 +8,8 @@ export type ContractRecoveryErrorCode =
   | 'CONTRACT_RECOVERY_INVALID_AI_OUTPUT'
   | 'CONTRACT_RECOVERY_NOT_FOUND'
   | 'CONTRACT_RECOVERY_ALREADY_APPLIED'
+  | 'CONTRACT_RECOVERY_INVALID_DECISIONS'
+  | 'CONTRACT_RECOVERY_APPLY_FAILED'
   | 'CONTRACT_RECOVERY_WEDDING_CHANGED'
   | 'CONTRACT_RECOVERY_UNAUTHORIZED'
   | 'CONTRACT_RECOVERY_DUPLICATE_SOURCE'
@@ -30,6 +32,10 @@ const USER_MESSAGES: Record<ContractRecoveryErrorCode, string> = {
   CONTRACT_RECOVERY_NOT_FOUND: 'Nie znaleziono analizy umowy.',
   CONTRACT_RECOVERY_ALREADY_APPLIED:
     'Te dane zostały już zapisane. Rozpocznij ponowną analizę, aby wprowadzić nowe zmiany.',
+  CONTRACT_RECOVERY_INVALID_DECISIONS:
+    'Niektóre zmiany nie są już dostępne. Wróć do sprawdzania danych i spróbuj ponownie.',
+  CONTRACT_RECOVERY_APPLY_FAILED:
+    'Nie udało się zapisać danych z umowy. Spróbuj ponownie za chwilę.',
   CONTRACT_RECOVERY_WEDDING_CHANGED:
     'Dane ślubu zmieniły się od czasu przygotowania podglądu. Odśwież porównanie.',
   CONTRACT_RECOVERY_UNAUTHORIZED: 'Brak dostępu do tego zasobu.',
@@ -39,11 +45,17 @@ const USER_MESSAGES: Record<ContractRecoveryErrorCode, string> = {
 
 export class ContractRecoveryError extends Error {
   readonly code: ContractRecoveryErrorCode
+  readonly diagnosticCategory?: 'rpc_type_mismatch' | 'rpc_constraint' | 'rpc_database_error'
 
-  constructor(code: ContractRecoveryErrorCode, message?: string) {
+  constructor(
+    code: ContractRecoveryErrorCode,
+    message?: string,
+    diagnosticCategory?: ContractRecoveryError['diagnosticCategory'],
+  ) {
     super(message ?? USER_MESSAGES[code])
     this.name = 'ContractRecoveryError'
     this.code = code
+    this.diagnosticCategory = diagnosticCategory
   }
 }
 
