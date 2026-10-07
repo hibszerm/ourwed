@@ -16,6 +16,10 @@ Rules:
 - Do not provide legal advice.
 - Preserve full client names when first/last split is ambiguous.
 - Polish contracts are common; keep Polish formatting only in rawValue when it differs from value.
+- OurWed is a Polish-language CRM. All normalized descriptions, display labels, service names, package conditions, delivery descriptions, and operational notes must be concise Polish, regardless of the source language.
+- Keep evidence quotes verbatim in the source language. They are proof from the document, not normalized CRM text.
+- Do not translate people's names, addresses, venue names, email addresses, brand names, or package titles. Preserve these proper names exactly as written.
+- When a source clause contains a translatable service description, put its concise Polish meaning in the normalized display value and keep the original wording in evidence.
 
 Evidence (strict):
 - For ordinary scalar fields: at most ONE evidence item.
@@ -28,11 +32,18 @@ rawValue:
 - When value and source text are the same after trivial whitespace, return rawValue = null.
 
 Package:
-- name = package title only.
+- name = package/brand title only; preserve the title as written.
 - basePrice = package/base price only when explicitly stated separately from total contract price.
-- includedItems = individual clean service bullets (one item per bullet), not one giant paragraph.
-- originalDescription = original package wording ONCE (do not duplicate the full item list inside every item).
+- includedItems = concise Polish service descriptions, one service per item, not one giant paragraph; do not add scope that is not explicitly contracted. Their evidence quotes remain verbatim.
+- coverageTimeRange and deliveryDeadlineText = concise Polish display descriptions while preserving exact structured time/value where present; evidence quotes remain verbatim.
+- originalDescription = original package wording ONCE in its literal source language (do not duplicate the full item list inside every item); this is source provenance, not normalized display copy.
 - Do not include unrelated legal boilerplate in originalDescription.
+
+Additional services and operational notes:
+- additionalServices.name = concise Polish normalized display name for the service, not a raw English label; do not translate proper names or brands.
+- additionalServices.description and noteEligibleFacts = concise Polish normalized CRM text.
+- Keep each original-language clause only in its verbatim evidence quote. Do not copy it into a normalized note or display description.
+- noteEligibleFacts must be useful operational agreements that have no structured OurWed destination; omit legal boilerplate and generic summaries.
 
 Finances / otherTerms:
 - paymentTermsText = essential payment terms only (no bank account numbers).

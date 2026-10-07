@@ -161,6 +161,7 @@ export type RecoveryProposal = {
     originalDescription: string | null
     includedItems: string[]
     coverageHours: number | null
+    deliveryDays: number | null
     coverageTimeRange: string | null
     deliveryDeadlineText: string | null
     basePrice: number | null

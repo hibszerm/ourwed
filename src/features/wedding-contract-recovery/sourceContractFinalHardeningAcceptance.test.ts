@@ -65,6 +65,7 @@ equal(deselected.fields.find((field) => field.fieldKey === 'finances.contractVal
 
 equal(proposal.packageSnapshotProposal?.name, 'Pakiet historyczny', 'historical package has a wedding snapshot')
 equal(proposal.packageSnapshotProposal?.basePrice, 9700, 'snapshot retains explicit base price')
+equal(proposal.packageSnapshotProposal?.deliveryDays, 120, 'snapshot retains structured delivery days for deterministic Polish display')
 equal(proposal.extraProposals[0]?.name, 'VHS', 'historical extra is proposed for this wedding')
 equal(proposal.extraProposals[0]?.applicable, true, 'same-currency, priced extra is applicable')
 equal(proposal.extraProposals[0]?.sourceIndex, 0, 'extra selection maps to source position')

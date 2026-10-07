@@ -62,6 +62,10 @@ const useWedding = read('src/features/weddings/hooks/useWedding.ts')
     "queryKey: ['weddings']",
     'canonical helper prefixes weddings family',
   )
+  assertIncludes(invalidateWedding, "queryKey: ['wedding-places', userId, weddingId]", 'Apply invalidates the exact wedding places query')
+  assertIncludes(invalidateWedding, "queryKey: ['wedding-extras', userId, weddingId]", 'Apply invalidates the exact wedding extras query')
+  assertIncludes(invalidateWedding, "queryKey: ['wedding-contract-package-snapshots', weddingId]", 'Apply invalidates the exact source package snapshot query')
+  assertIncludes(invalidateWedding, "queryKey: ['package-contract-for-wedding', weddingId]", 'Apply invalidates wedding package context')
   assertIncludes(
     invalidateWedding,
     'invalidateFinanceQueries',
@@ -72,16 +76,8 @@ const useWedding = read('src/features/weddings/hooks/useWedding.ts')
     'FINANCE_QUERY_ROOT',
     'Finance invalidation stays scoped to finance root',
   )
-  assertIncludes(
-    page,
-    "queryKey: ['wedding-source-contracts', weddingId]",
-    'recovery still refreshes source contracts',
-  )
-  assertIncludes(
-    page,
-    "queryKey: ['wedding-contract-package-snapshots', weddingId]",
-    'recovery still refreshes package snapshots',
-  )
+  assertIncludes(invalidateWedding, "queryKey: ['wedding-source-contracts', weddingId]", 'Apply refreshes source contracts')
+  assertIncludes(invalidateWedding, "queryKey: ['wedding-contract-package-snapshots', weddingId]", 'Apply refreshes package snapshots')
   console.log(
     'PASS  recovery apply invalidates weddings family + Finance (stale CV/deposit after apply)',
   )

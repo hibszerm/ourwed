@@ -6,6 +6,9 @@ import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
 import { calendarIntegrationsService } from '@/features/calendar-integrations/calendarIntegrationsService'
 import { calendarIntegrationQueryKeys } from '@/features/calendar-integrations/queryKeys'
 import { getContactSections } from '@/features/weddings/detail/v2/weddingWorkspaceSelectors'
+import { weddingContractRecoveryRepository } from '@/features/wedding-contract-recovery/repository'
+import { PackageSnapshotCard } from '@/features/wedding-contract-recovery/components/PackageSnapshotCard'
+import { packageSnapshotFromRow } from '@/features/wedding-contract-recovery/components/packageSnapshotAdapter'
 import {
   composeCalendarsRows,
   composeCorrespondenceOverview,
@@ -461,6 +464,12 @@ function PackageSection({
   onShow: () => void
 }) {
   const [open, setOpen] = useState(false)
+  const { data: sourcePackageSnapshots = [] } = useQuery({
+    queryKey: ['wedding-contract-package-snapshots', wedding.id],
+    queryFn: () => weddingContractRecoveryRepository.listPackageSnapshotsByWedding(wedding.id),
+    enabled: Boolean(wedding.id),
+  })
+  const sourcePackageSnapshot = sourcePackageSnapshots[0]
   const pkg = composePackageOverviewMeta(wedding)
   return (
     <section
@@ -478,6 +487,10 @@ function PackageSection({
           </button>
         ) : null}
       </div>
+      {sourcePackageSnapshot ? (
+        <PackageSnapshotCard model={packageSnapshotFromRow(sourcePackageSnapshot)} />
+      ) : (
+        <>
       <p className={styles.packageName}>{pkg.name}</p>
       {pkg.coverage ? (
         <p className={styles.packageCoverage}>{pkg.coverage}</p>
@@ -509,6 +522,8 @@ function PackageSection({
           ))}
         </ul>
       ) : null}
+        </>
+      )}
     </section>
   )
 }

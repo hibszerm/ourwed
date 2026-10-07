@@ -504,7 +504,9 @@ export function buildRecoveryProposal(
     Boolean(extraction.contractedPackage.name.value) ||
     Boolean(extraction.contractedPackage.originalDescription.value) ||
     packageItems.length > 0 || extraction.contractedPackage.basePrice.value != null ||
-    extraction.contractedPackage.coverageHours.value != null || Boolean(extraction.contractedPackage.deliveryDeadlineText.value)
+    extraction.contractedPackage.coverageHours.value != null ||
+    extraction.contractedPackage.deliveryDays.value != null ||
+    Boolean(extraction.contractedPackage.deliveryDeadlineText.value)
 
   const packageSnapshotProposal = hasPackageContent
     ? {
@@ -512,6 +514,7 @@ export function buildRecoveryProposal(
         originalDescription: extraction.contractedPackage.originalDescription.value,
         includedItems: packageItems,
         coverageHours: extraction.contractedPackage.coverageHours?.value ?? null,
+        deliveryDays: extraction.contractedPackage.deliveryDays?.value ?? null,
         coverageTimeRange: extraction.contractedPackage.coverageTimeRange?.value ?? null,
         deliveryDeadlineText:
           extraction.contractedPackage.deliveryDeadlineText?.value ?? null,

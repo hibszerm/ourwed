@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { buildRecoveryConfirmationGroups, buildRecoveryDecisionGroups, buildRecoveryReviewGroups, formatRecoveryValue, prepareRecoveryProposalForReview, recoveryLogicalSelectionCount } from './presentation'
+import { buildRecoveryApplySelection, buildRecoveryConfirmationGroups, buildRecoveryDecisionGroups, buildRecoveryReviewGroups, formatRecoveryValue, prepareRecoveryProposalForReview, recoveryLogicalSelectionCount } from './presentation'
 import type { RecoveryFieldComparison, RecoveryProposal } from './types'
 
 function field(
@@ -118,7 +118,32 @@ const confirmationProposal = {
 } as unknown as RecoveryProposal
 const canonicalCount = recoveryLogicalSelectionCount(confirmationFields, confirmationProposal, true)
 assert.equal(canonicalCount, 6, 'confirmation count uses the canonical Apply decision calculation')
+const submittedSelection = buildRecoveryApplySelection(confirmationFields, confirmationProposal, true)
+assert.equal(submittedSelection.logicalCount, canonicalCount, 'success count is derived from the exact submitted selection')
+assert.deepEqual(submittedSelection.selectedExtraIndexes, [0], 'Apply submits only the selected applicable extra')
+assert.deepEqual(submittedSelection.selectedNoteIndexes, [0], 'Apply submits only the selected note')
+assert.equal(submittedSelection.includePackageSnapshot, true, 'Apply submits the selected package snapshot')
 assert.equal(confirmationGroups.length + 1 + confirmationProposal.extraProposals.filter((item) => item.selected && item.applicable).length + confirmationProposal.noteProposals.filter((item) => item.selected).length, canonicalCount, 'visible rows plus package, extras, and selected notes match canonical count')
+
+const observedSelectionFields = [
+  field('partner1.fullName', 'different', 'existing name', 'selected name', 'use_extracted'),
+  field('partner1.addressLine', 'different', 'old street', 'new street', 'use_extracted'),
+  field('partner1.postalCode', 'different', '00-001', '00-002', 'use_extracted'),
+  field('partner1.city', 'different', 'old city', 'new city', 'use_extracted'),
+  field('wedding.date', 'different', '2028-06-03', '2028-06-24', 'use_extracted'),
+  field('package.name', 'different', 'old package', 'source package', 'use_extracted'),
+  field('location.ceremony', 'different', 'old ceremony', 'new ceremony', 'keep_current'),
+  field('location.reception', 'different', 'old reception', 'new reception', 'keep_current'),
+]
+const observedProposal = {
+  packageSnapshotProposal: { name: 'source package', includedItems: [], selectedAction: 'use_extracted' },
+  extraProposals: [{ name: 'Dodatkowa usługa', price: 800, applicable: true, selected: true, sourceIndex: 0 }],
+  noteProposals: [{ text: 'Ustalenie operacyjne', selected: true, sourceIndex: 1 }],
+} as unknown as RecoveryProposal
+const observedSubmission = buildRecoveryApplySelection(observedSelectionFields, observedProposal, true)
+assert.equal(observedSubmission.logicalCount, 6, 'one identity, grouped address, date, package, extra, and note count as six logical changes')
+assert.deepEqual(observedSubmission.decisions.filter((item) => item.fieldKey.startsWith('location.')).map((item) => item.action), ['keep_current', 'keep_current'], 'unselected locations remain excluded from Apply')
+assert.deepEqual(buildRecoveryConfirmationGroups(observedSelectionFields).map((item) => item.id), ['partner1.fullName', 'partner1.address', 'wedding.date', 'package.name'], 'confirmation shows selected grouped destinations only')
 
 const page = readFileSync('src/pages/WeddingContractRecoveryPage.tsx', 'utf8')
 const stepper = readFileSync('src/features/wedding-contract-recovery/components/WeddingContractRecoveryStepper.tsx', 'utf8')
@@ -132,9 +157,11 @@ assert.doesNotMatch(page, /step === 'summary'|setStep\('summary'\)/, 'normal flo
 assert.match(stepper, /label: 'Wgraj umowę'[\s\S]*label: 'Analiza'[\s\S]*label: 'Sprawdź dane'[\s\S]*label: 'Potwierdzenie'/)
 assert.match(confirmation, /recoveryLogicalSelectionCount/, 'confirmation uses the same logical count as review')
 assert.match(page, /fieldKeys\.forEach/, 'one logical action updates only its mapped field keys')
-assert.match(page, /decisions: fields\.map/, 'Apply receives the exact selected field decisions')
-assert.match(page, /selectedExtraIndexes: proposal\?\.extraProposals\.flatMap/, 'Apply extra selection payload remains unchanged')
-assert.match(page, /selectedNoteIndexes: proposal\?\.noteProposals\.flatMap/, 'Apply note selection payload remains unchanged')
+assert.match(page, /buildRecoveryApplySelection\(fields, proposal, includePackageSnapshot\)/, 'Apply selection and success count are derived from the submitted selection once')
+assert.match(page, /decisions: selection\.decisions/, 'Apply receives the exact selected field decisions')
+assert.match(page, /selectedExtraIndexes: selection\.selectedExtraIndexes/, 'Apply extra selection payload is the counted selection')
+assert.match(page, /selectedNoteIndexes: selection\.selectedNoteIndexes/, 'Apply note selection payload is the counted selection')
+assert.match(page, /setAppliedChangeCount\(selection\.logicalCount\)/, 'success screen uses the submitted logical selection count')
 assert.match(confirmation, /disabled=\{applying \|\| count === 0\}/, 'Apply remains disabled when there are zero selected changes')
 assert.match(page, /onBack=\{\(\) => \{[\s\S]*setStep\('review'\)/, 'returning to Review preserves the current selection state')
 assert.match(page, /selectProposed/, 'bulk selection remains available')

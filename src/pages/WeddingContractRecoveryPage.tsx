@@ -36,6 +36,7 @@ import type {
 } from '@/features/wedding-contract-recovery/types'
 import {
   buildRecoveryReviewGroups,
+  buildRecoveryApplySelection,
   formatSelectedChangeCount,
   prepareRecoveryProposalForReview,
   recoveryLogicalSelectionCount,
@@ -280,32 +281,24 @@ export function WeddingContractRecoveryPage() {
 
     setApplying(true)
     setConfirmError(null)
+    const selection = buildRecoveryApplySelection(fields, proposal, includePackageSnapshot)
     try {
       await applyWeddingContractRecoveryProposal({
         recoveryId,
         weddingId,
         sourceContractId,
-        decisions: fields.map((f) => ({
-          fieldKey: f.fieldKey,
-          action: f.selectedAction,
-        })),
-        includePackageSnapshot,
+        decisions: selection.decisions,
+        includePackageSnapshot: selection.includePackageSnapshot,
         expectedWeddingUpdatedAt: expectedUpdatedAt,
-        selectedExtraIndexes: proposal?.extraProposals.flatMap((extra) => extra.selected && extra.applicable ? [extra.sourceIndex] : []) ?? [],
-        selectedNoteIndexes: proposal?.noteProposals.flatMap((note) => note.selected ? [note.sourceIndex] : []) ?? [],
+        selectedExtraIndexes: selection.selectedExtraIndexes,
+        selectedNoteIndexes: selection.selectedNoteIndexes,
       })
-      setAppliedChangeCount(selectedChangeCount)
+      setAppliedChangeCount(selection.logicalCount)
       setStep('done')
       scrollToRecoveryTop()
       showToast('Dane z umowy zostały zapisane', 'success')
       // Canonical wedding list/detail + dashboard + Finance Center.
       await invalidateWedding(weddingId)
-      await queryClient.invalidateQueries({
-        queryKey: ['wedding-source-contracts', weddingId],
-      })
-      await queryClient.invalidateQueries({
-        queryKey: ['wedding-contract-package-snapshots', weddingId],
-      })
     } catch (err) {
       const message =
         err instanceof ContractRecoveryError

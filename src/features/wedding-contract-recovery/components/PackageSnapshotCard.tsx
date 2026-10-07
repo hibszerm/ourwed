@@ -29,6 +29,7 @@ export function PackageSnapshotCard({
   const hasItems = model.includedItems.length > 0
   const hasConditions =
     model.coverageHours != null ||
+    model.deliveryDays != null ||
     model.basePrice != null ||
     Boolean(model.coverageTimeRange) ||
     Boolean(model.deliveryDeadlineText)
@@ -75,9 +76,9 @@ export function PackageSnapshotCard({
                 <section className={styles.section}>
                   <h4 className={styles.sectionTitle}>Warunki realizacji</h4>
                   <dl className={styles.conditions}>
-                    {model.coverageHours != null ? <><dt>Czas realizacji</dt><dd>{model.coverageHours} h</dd></> : null}
+                    {model.coverageHours != null ? <><dt>Czas realizacji</dt><dd>{model.coverageHours} godz.</dd></> : null}
                     {model.coverageTimeRange ? <><dt>Maksymalny czas reportażu</dt><dd>{model.coverageTimeRange}</dd></> : null}
-                    {model.deliveryDeadlineText ? <><dt>Termin dostawy</dt><dd>{model.deliveryDeadlineText}</dd></> : null}
+                    {model.deliveryDays != null ? <><dt>Termin dostawy</dt><dd>W terminie {model.deliveryDays} dni od daty wydarzenia</dd></> : model.deliveryDeadlineText ? <><dt>Termin dostawy</dt><dd>{model.deliveryDeadlineText}</dd></> : null}
                     {model.basePrice != null ? <><dt>Cena pakietu</dt><dd>{formatMoney(model.basePrice, model.currency)}</dd></> : null}
                   </dl>
                 </section>
@@ -135,7 +136,7 @@ export function PackageSnapshotCard({
                 {model.coverageHours != null ? (
                   <>
                     <dt>Czas realizacji</dt>
-                    <dd>{model.coverageHours} h</dd>
+                    <dd>{model.coverageHours} godz.</dd>
                   </>
                 ) : null}
                 {model.coverageTimeRange ? (
@@ -144,7 +145,12 @@ export function PackageSnapshotCard({
                     <dd>{model.coverageTimeRange}</dd>
                   </>
                 ) : null}
-                {model.deliveryDeadlineText ? (
+                {model.deliveryDays != null ? (
+                  <>
+                    <dt>Termin dostawy</dt>
+                    <dd>W terminie {model.deliveryDays} dni od daty wydarzenia</dd>
+                  </>
+                ) : model.deliveryDeadlineText ? (
                   <>
                     <dt>Termin dostawy</dt>
                     <dd>{model.deliveryDeadlineText}</dd>

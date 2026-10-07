@@ -66,6 +66,7 @@ export function RecoveryConfirmationPanel({
                       originalDescription: packageModel.originalDescription,
                       includedItems: packageModel.includedItems,
                       coverageHours: packageModel.coverageHours,
+                      deliveryDays: packageModel.deliveryDays,
                       coverageTimeRange: packageModel.coverageTimeRange,
                       deliveryDeadlineText: packageModel.deliveryDeadlineText,
                       basePrice: packageModel.basePrice,

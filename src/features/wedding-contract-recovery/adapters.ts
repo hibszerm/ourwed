@@ -71,6 +71,7 @@ export function adaptStoredProposal(
           coverageTimeRange: pkg.coverageTimeRange ?? null,
           deliveryDeadlineText: pkg.deliveryDeadlineText ?? null,
           coverageHours: pkg.coverageHours ?? null,
+          deliveryDays: pkg.deliveryDays ?? null,
           basePrice: pkg.basePrice ?? null,
           currency: pkg.currency ?? null,
         }

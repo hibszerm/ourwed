@@ -5,6 +5,7 @@ export type PackageSnapshotCardModel = {
   originalDescription: string | null
   includedItems: string[]
   coverageHours: number | null
+  deliveryDays?: number | null
   basePrice?: number | null
   currency?: string | null
   coverageTimeRange?: string | null
@@ -23,11 +24,15 @@ export function packageSnapshotFromRow(
   const coverageTimeRange = typeof metadata.coverageTimeRange === 'string'
     ? metadata.coverageTimeRange
     : null
+  const deliveryDays = typeof metadata.deliveryDays === 'number' && Number.isFinite(metadata.deliveryDays)
+    ? metadata.deliveryDays
+    : null
   return {
     name: snapshot.name,
     originalDescription: snapshot.originalDescription,
     includedItems: snapshot.includedItems,
     coverageHours: snapshot.coverageHours,
+    deliveryDays,
     basePrice: snapshot.basePrice,
     currency: snapshot.currency,
     coverageTimeRange,

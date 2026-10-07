@@ -173,12 +173,37 @@ export function recoveryLogicalSelectionCount(
   proposal: RecoveryProposal | null,
   includePackage: boolean,
 ): number {
-  const fieldCount = buildRecoveryDecisionGroups(fields).filter((group) =>
+  return buildRecoveryApplySelection(fields, proposal, includePackage).logicalCount
+}
+
+export function buildRecoveryApplySelection(
+  fields: RecoveryFieldComparison[],
+  proposal: RecoveryProposal | null,
+  includePackage: boolean,
+) {
+  const decisions = fields.map((field) => ({
+    fieldKey: field.fieldKey,
+    action: field.selectedAction,
+  }))
+  const selectedExtraIndexes = proposal?.extraProposals.flatMap((extra) =>
+    extra.selected && extra.applicable ? [extra.sourceIndex] : [],
+  ) ?? []
+  const selectedNoteIndexes = proposal?.noteProposals.flatMap((note) =>
+    note.selected ? [note.sourceIndex] : [],
+  ) ?? []
+  const includePackageSnapshot = Boolean(includePackage && proposal?.packageSnapshotProposal)
+  const selectedGroups = buildRecoveryDecisionGroups(fields).filter((group) =>
     group.actionableFields.some((field) => field.selectedAction === 'use_extracted'),
-  ).length
-  const extraCount = proposal?.extraProposals.filter((extra) => extra.selected && extra.applicable).length ?? 0
-  const noteCount = proposal?.noteProposals.filter((note) => note.selected).length ?? 0
-  return fieldCount + extraCount + noteCount + (includePackage && proposal?.packageSnapshotProposal ? 1 : 0)
+  )
+  const packageNameSelected = selectedGroups.some((group) => group.id === 'package.name')
+  const fieldCount = selectedGroups.filter((group) => group.id !== 'package.name').length
+  return {
+    decisions,
+    selectedExtraIndexes,
+    selectedNoteIndexes,
+    includePackageSnapshot,
+    logicalCount: fieldCount + selectedExtraIndexes.length + selectedNoteIndexes.length + Number(includePackageSnapshot || packageNameSelected),
+  }
 }
 
 export function prepareRecoveryProposalForReview(proposal: RecoveryProposal): RecoveryProposal {
