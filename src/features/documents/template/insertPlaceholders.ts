@@ -89,22 +89,4 @@ export async function insertPlaceholdersInDocx(
   }
 }
 
-/** Build data object for docxtemplater from resolved registry values. */
-export function valuesForSlots(
-  slotMap: TemplateSlotMap,
-  resolved: Record<string, string>,
-): Record<string, string> {
-  const data: Record<string, string> = {}
-  for (const slot of slotMap.slots) {
-    if (!slot.enabled || !slot.registryKey) continue
-    const key = slot.registryKey
-    const value =
-      resolved[key] ??
-      resolved[key.replace(/\./g, '_')] ??
-      ''
-    data[key] = value
-  }
-  return data
-}
-
 export type { TemplateSlot }

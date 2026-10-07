@@ -7,6 +7,8 @@
 
 **Later note (2026-09-20):** Experimental Gotenberg / LibreOffice PDF and related Lab PDF surfaces described in this dated snapshot were later retired. Current production PDF is Contract → `contract-docx-to-pdf` → Cloudmersive and Wedding Brief → `pdf-render` → PDFShift. Historical tables and diagrams below are unchanged.
 
+**Current note (2026-10-07):** This dated audit is historical; current generation uses the Option B flow documented in `docs/contract-workflow.md`. The deprecated placeholder-fill path `generateContractFromTemplate` / `fillTemplateDocx` has since been retired. `ContractTransformationService` remains in the repository for shared result types and compatibility consumers.
+
 ---
 
 ## 1. Contract source of truth

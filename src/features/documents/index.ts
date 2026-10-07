@@ -34,7 +34,6 @@ export {
   buildSlotsFromAnalysis,
   saveTemplateSlots,
   transformContract,
-  fillTemplateDocx,
   parseSlotMap,
   buildContractCompletenessReport,
   saveGeneratedContract,

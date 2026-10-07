@@ -102,17 +102,9 @@ export type { ReanalyzeTemplateResult } from './reanalyzeTemplate'
 export { extractDocxParagraphsIncludingEmpty } from './extractDocxParagraphs'
 export {
   insertPlaceholdersInDocx,
-  valuesForSlots,
 } from './insertPlaceholders'
-export { fillTemplateDocx } from './fillTemplateDocx'
 export { saveTemplateSlots } from './saveTemplateSlots'
 export type { SaveTemplateSlotsResult } from './saveTemplateSlots'
-/** @deprecated Prefer transformContract — deterministic slot fill on original DOCX. */
-export { generateContractFromTemplate } from './generateContractFromTemplate'
-export type {
-  GenerateContractFromTemplateInput,
-  GenerateContractFromTemplateResult,
-} from './generateContractFromTemplate'
 export { transformContract } from './ContractTransformationService'
 export type {
   TransformContractInput,
