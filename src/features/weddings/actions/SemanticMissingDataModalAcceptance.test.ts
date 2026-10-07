@@ -1,18 +1,11 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 
-const component = await readFile(new URL('./SemanticMissingDataModal.tsx', import.meta.url), 'utf8')
 const page = await readFile(new URL('../../../pages/WeddingContractGenerationPage.tsx', import.meta.url), 'utf8')
-const modalStyles = await readFile(new URL('./SemanticMissingDataModal.module.css', import.meta.url), 'utf8')
 
-for (const required of [
-  "from '@/components/ui/Modal'", 'title="Uzupełnij dane umowy"',
-  'props.requirements.map', "requirement.kind === 'date' ? 'date' : 'email'",
-  'required', 'props.errors[requirement.id]', "'Generuj'", 'cancelLabel="Anuluj"',
-  'initialFocus="panel"', 'busy={props.busy}',
-]) assert.ok(component.includes(required), `modal contains ${required}`)
-assert.ok(modalStyles.includes('var(--space-'))
-assert.ok(modalStyles.includes('var(--color-'))
+// This acceptance file retains the current production generation boundary
+// guards. The retired semantic modal's markup and styles are no longer part
+// of the supported contract-generation flow.
 assert.ok(page.includes('startContractGeneration'))
 assert.ok(page.includes('continueContractGeneration'))
 assert.ok(page.includes('finalizeContractGeneration'))
